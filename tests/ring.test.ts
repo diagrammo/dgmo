@@ -86,10 +86,10 @@ Only`);
 // ============================================================
 
 describe('ring parser — descriptions', () => {
-  it('takes bare text after pipe as description', () => {
+  it('takes same-line description: key as description', () => {
     const result = parseRing(`ring T
 
-Inner | a description
+Inner description: a description
 Outer`);
     expect(result.layers[0].description).toEqual(['a description']);
     expect(result.layers[0].color).toBeUndefined();
@@ -105,24 +105,42 @@ Outer`);
     expect(result.layers[0].description).toEqual(['first line', 'second line']);
   });
 
-  it('parses key:value pipe metadata with color', () => {
+  it('parses same-line color metadata', () => {
     const result = parseRing(`ring T
 
-Inner | color: orange
+Inner color: orange
   indented desc
 Outer`);
     expect(result.layers[0].color).toBe('orange');
     expect(result.layers[0].description).toEqual(['indented desc']);
   });
 
-  it('description via pipe key and indented body merge', () => {
+  it('same-line color + description merge with indented body', () => {
     const result = parseRing(`ring T
 
-Inner | color: blue, description: from-pipe
+Inner color: blue, description: from-same-line
   from-indent
 Outer`);
     expect(result.layers[0].color).toBe('blue');
-    expect(result.layers[0].description).toEqual(['from-pipe', 'from-indent']);
+    expect(result.layers[0].description).toEqual([
+      'from-same-line',
+      'from-indent',
+    ]);
+  });
+
+  it('emits E_PIPE_OPERATOR_REMOVED + E_RING_BARE_DESCRIPTION_REMOVED on legacy bare-description', () => {
+    const result = parseRing(`ring T
+
+Inner | a description
+Outer`);
+    const pipe = result.diagnostics.find(
+      (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
+    );
+    const bare = result.diagnostics.find(
+      (d) => d.code === 'E_RING_BARE_DESCRIPTION_REMOVED'
+    );
+    expect(pipe).toBeDefined();
+    expect(bare).toBeDefined();
   });
 
   it('converts "- bullet" to "• bullet" in indented body', () => {
@@ -144,7 +162,7 @@ describe('ring parser — errors and diagnostics', () => {
   it('emits error-severity diagnostic on unknown color and falls back', () => {
     const result = parseRing(`ring T
 
-Inner | color: chartreuse
+Inner color: chartreuse
 Outer`);
     expect(result.error).toBeNull();
     expect(result.layers[0].color).toBeUndefined();
@@ -202,9 +220,9 @@ describe('ring renderer', () => {
   it('renders one shape per layer (circle for innermost, path for outer rings)', () => {
     const parsed = parseRing(`ring Test
 
-Inner | first desc
-Middle | second desc
-Outer | third desc`);
+Inner description: first desc
+Middle description: second desc
+Outer description: third desc`);
     const container = makeContainer();
     renderRing(container, parsed, nordLight, false);
 

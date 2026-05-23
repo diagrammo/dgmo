@@ -138,8 +138,10 @@ describe('parseSitemap', () => {
       });
     });
 
-    it('pipe-delimited metadata', () => {
-      const result = parseSitemap('Home | Auth: Public, Type: Landing');
+    it('same-line metadata via declared tag aliases', () => {
+      const result = parseSitemap(
+        'sitemap\ntag Auth as auth\n  Public blue\ntag Type as type\n  Landing blue\n\nHome auth: Public, type: Landing'
+      );
       expect(result.roots[0].metadata).toEqual({
         auth: 'Public',
         type: 'Landing',
@@ -171,9 +173,9 @@ describe('parseSitemap', () => {
       expect(result.roots[0].description).toBeUndefined();
     });
 
-    it('pipe metadata: Node | description: text extracts to dedicated field', () => {
+    it('pipe metadata: Node  description: text extracts to dedicated field', () => {
       const result = parseSitemap(
-        'sitemap\nHome | description: Main landing page'
+        'sitemap\nHome  description: Main landing page'
       );
       expect(result.roots[0].description).toEqual(['Main landing page']);
       expect(result.roots[0].metadata['description']).toBeUndefined();
@@ -585,35 +587,44 @@ describe('parseSitemap', () => {
 
   // === Container metadata cascading ===
   describe('container metadata cascading', () => {
-    it('child inherits container metadata', () => {
-      const content = ['[Browse] | icon: nav', '  About', '  Contact'].join(
-        '\n'
-      );
+    it('child inherits container metadata (via declared tag alias)', () => {
+      const content = [
+        'sitemap',
+        'tag Icon as icon',
+        '  nav blue',
+        '  info blue',
+        '',
+        '[Browse] icon: nav',
+        '  About',
+        '  Contact',
+      ].join('\n');
       const result = parseSitemap(content);
       expect(result.error).toBeNull();
       const browseContainer = result.roots[0];
       expect(browseContainer.isContainer).toBe(true);
       expect(browseContainer.metadata).toEqual({ icon: 'nav' });
-      // Children should inherit container metadata
       expect(browseContainer.children[0].label).toBe('About');
       expect(browseContainer.children[0].metadata).toEqual({ icon: 'nav' });
       expect(browseContainer.children[1].label).toBe('Contact');
       expect(browseContainer.children[1].metadata).toEqual({ icon: 'nav' });
     });
 
-    it('child metadata overrides container metadata', () => {
+    it('child metadata overrides container metadata (via declared tag alias)', () => {
       const content = [
-        '[Browse] | icon: nav',
-        '  About | icon: info',
+        'sitemap',
+        'tag Icon as icon',
+        '  nav blue',
+        '  info blue',
+        '',
+        '[Browse] icon: nav',
+        '  About icon: info',
         '  Contact',
       ].join('\n');
       const result = parseSitemap(content);
       expect(result.error).toBeNull();
       const browseContainer = result.roots[0];
-      // About has its own icon, should override
       expect(browseContainer.children[0].label).toBe('About');
       expect(browseContainer.children[0].metadata).toEqual({ icon: 'info' });
-      // Contact inherits container metadata
       expect(browseContainer.children[1].label).toBe('Contact');
       expect(browseContainer.children[1].metadata).toEqual({ icon: 'nav' });
     });

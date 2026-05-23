@@ -1,8 +1,16 @@
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import {
+  formatDgmoError,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+  suggest,
+} from '../diagnostics';
+import { TECH_RADAR_REGISTRY } from '../utils/reserved-key-registry';
 import {
   measureIndent,
   parseFirstLine,
   parsePipeMetadata,
+  splitNameAndMeta,
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
 import type { Writable } from '../utils/brand';
@@ -188,10 +196,30 @@ export function parseTechRadar(content: string): ParsedTechRadar {
       }
     }
 
-    // --- Quadrant section header: `Name | quadrant: position` ---
-    if (indent === 0 && trimmed.includes('|')) {
-      const segments = trimmed.split('|');
-      const meta = parsePipeMetadata(segments);
+    // --- Quadrant section header: `Name quadrant: position` (§1.4) ---
+    if (indent === 0 && /\bquadrant\s*:/.test(trimmed)) {
+      // Legacy `|` detection.
+      if (trimmed.includes('|')) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            pipeOperatorRemovedMessage(),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+          )
+        );
+      }
+      // Support both: legacy `Name | quadrant: pos` AND new `Name quadrant: pos`.
+      let segments: string[];
+      let meta: Record<string, string>;
+      if (trimmed.includes('|')) {
+        segments = trimmed.split('|');
+        meta = parsePipeMetadata(segments);
+      } else {
+        const split = splitNameAndMeta(trimmed, TECH_RADAR_REGISTRY);
+        segments = [split.name];
+        meta = split.meta;
+      }
       const quadrantPos = meta['quadrant'];
 
       if (quadrantPos) {
@@ -252,10 +280,32 @@ export function parseTechRadar(content: string): ParsedTechRadar {
         continue;
       }
 
-      // --- Blip with pipe metadata ---
-      if (trimmed.includes('|')) {
-        const segments = trimmed.split('|');
-        const meta = parsePipeMetadata(segments);
+      // --- Blip with same-line metadata (§1.4) ---
+      if (
+        trimmed.includes('|') ||
+        /\b(?:ring|trend|color|description)\s*:/.test(trimmed)
+      ) {
+        // Legacy `|` detection.
+        if (trimmed.includes('|')) {
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              pipeOperatorRemovedMessage(),
+              'error',
+              METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+            )
+          );
+        }
+        let segments: string[];
+        let meta: Record<string, string>;
+        if (trimmed.includes('|')) {
+          segments = trimmed.split('|');
+          meta = parsePipeMetadata(segments);
+        } else {
+          const split = splitNameAndMeta(trimmed, TECH_RADAR_REGISTRY);
+          segments = [split.name];
+          meta = split.meta;
+        }
 
         // Determine ring: explicit `ring:` metadata overrides section ring
         const explicitRing = meta['ring'];

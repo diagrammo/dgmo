@@ -99,16 +99,16 @@ describe('color name validation — sequence', () => {
 });
 
 describe('color name validation — kanban', () => {
-  it('emits warning for unknown trailing-token color on column', () => {
-    // Kanban's COLUMN_RE captures the trailing token explicitly so it can
-    // still flag a non-palette color word. Other chart types that defer
-    // to extractColor get the silent-typo path.
+  it('silently treats unknown trailing token as garbage (matches §1.5 universal rule)', () => {
+    // After the 0.18.0 unified-metadata refactor, kanban no longer
+    // emits "Unknown color" for non-palette trailing tokens — it
+    // aligns with the §1.5 silent-typo policy applied across all
+    // chart types.
     const src = ['kanban', '[Todo] magenta', '  Card 1'].join('\n');
     const result = parseKanban(src);
     const diags = colorDiags(result.diagnostics);
-    expect(diags.length).toBeGreaterThanOrEqual(1);
-    expect(diags[0].severity).toBe('warning');
-    expect(diags[0].message).toContain('"magenta"');
+    expect(diags.length).toBe(0);
+    expect(result.columns[0]?.color).toBeUndefined();
   });
 
   it('produces no diagnostics for valid column color', () => {

@@ -2,17 +2,22 @@
 // Ring Diagram — Parser
 // ============================================================
 
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import {
+  bareDescriptionRemovedMessage,
+  formatDgmoError,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+  suggest,
+} from '../diagnostics';
 import { resolveColor, RECOGNIZED_COLOR_NAMES } from '../colors';
 import {
   measureIndent,
   parseFirstLine,
-  parsePipeMetadata,
-  peelTrailingColorName,
+  splitNameAndMeta,
   tryParseSharedOption,
-  PIPE_KEY_VALUE_PREFIX_RE,
-  PIPE_LIKELY_STRUCTURED_TAIL_RE,
 } from '../utils/parsing';
+import { RING_REGISTRY } from '../utils/reserved-key-registry';
 import type { Writable } from '../utils/brand';
 import type { ParsedRing, RingLayer } from './types';
 
@@ -106,88 +111,84 @@ export function parseRing(content: string): ParsedRing {
     if (indent === 0) {
       flushLayer();
 
+      // Legacy `|` detection — same shape as pyramid (bare-description
+      // shorthand OR structured pipe metadata).
       const pipeIdx = trimmed.indexOf('|');
-      let label: string;
-      const description: string[] = [];
-      let color: string | undefined;
-      let restMeta: Record<string, string> = {};
-
-      if (pipeIdx < 0) {
-        label = trimmed;
-      } else {
-        label = trimmed.substring(0, pipeIdx).trim();
+      if (pipeIdx >= 0) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNum,
+            pipeOperatorRemovedMessage(),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+          )
+        );
         const after = trimmed.substring(pipeIdx + 1).trim();
-
-        if (!after) {
-          // Trailing pipe with nothing after — ignore.
-        } else if (PIPE_KEY_VALUE_PREFIX_RE.test(after)) {
-          // Structured metadata: color: foo, other: bar
-          const metadata = parsePipeMetadata([label, after]);
-          const rawColor = metadata['color'];
-          if (rawColor !== undefined) {
-            // Stricter than pyramid: invalid color is an error-severity
-            // diagnostic with a suggestion. Renderer falls back to the
-            // series color so the chart still renders.
-            const resolved = resolveColor(rawColor);
-            if (resolved === null) {
-              const hint = suggest(
-                rawColor,
-                RECOGNIZED_COLOR_NAMES as readonly string[]
-              );
-              const suggestion = hint ? ` ${hint}` : '';
-              warn(
-                lineNum,
-                `Unknown color "${rawColor}". Allowed: ${RECOGNIZED_COLOR_NAMES.join(', ')}.${suggestion}`,
-                'error'
-              );
-              color = undefined;
-            } else {
-              color = rawColor.toLowerCase();
-            }
-          }
-          const descFromPipe = metadata['description'];
-          if (descFromPipe) description.push(descFromPipe);
-          restMeta = { ...metadata };
-          delete restMeta['color'];
-          delete restMeta['description'];
-          // Anything left over is an unknown key — surface it so users know
-          // the value was silently discarded.
-          for (const key of Object.keys(restMeta)) {
-            if (!KNOWN_PIPE_KEYS.has(key)) {
-              warn(
-                lineNum,
-                `Unknown pipe key "${key}" on ring layer; allowed keys are: ${[...KNOWN_PIPE_KEYS].join(', ')}.`
-              );
-            }
-          }
-        } else {
-          // Bare shorthand: pipe content is the description.
-          // Catch the common mistake of `Label | bare text, color: blue` —
-          // the structured-tail content is silently swallowed otherwise.
-          if (PIPE_LIKELY_STRUCTURED_TAIL_RE.test(after)) {
-            warn(
+        if (after && !/^[A-Za-z][A-Za-z0-9_-]*\s*:/.test(after)) {
+          result.diagnostics.push(
+            makeDgmoError(
               lineNum,
-              'Mixed shorthand and structured pipe metadata — wrap the description in `description:` or move it to an indented body line.'
-            );
-          }
-          description.push(after);
+              bareDescriptionRemovedMessage({ chartType: 'ring', text: after }),
+              'error',
+              METADATA_DIAGNOSTIC_CODES.RING_BARE_DESCRIPTION_REMOVED
+            )
+          );
+        }
+      }
+
+      // §1.4 unified metadata grammar — same-line cut.
+      const split = splitNameAndMeta(
+        trimmed,
+        RING_REGISTRY,
+        new Map(),
+        undefined,
+        result.diagnostics,
+        lineNum
+      );
+      const label = split.name;
+      const restMeta: Record<string, string> = { ...split.meta };
+      const description: string[] = [];
+
+      // Color may arrive via §1.5 trailing-token or via the `color:` key.
+      let color: string | undefined = split.color ?? restMeta['color'];
+      delete restMeta['color'];
+      if (color !== undefined) {
+        // Validate color name (ring is stricter — unknown color is an
+        // error-severity diagnostic with a "Did you mean...?" hint).
+        const resolved = resolveColor(color);
+        if (resolved === null) {
+          const hint = suggest(
+            color,
+            RECOGNIZED_COLOR_NAMES as readonly string[]
+          );
+          const suggestion = hint ? ` ${hint}` : '';
+          warn(
+            lineNum,
+            `Unknown color "${color}". Allowed: ${RECOGNIZED_COLOR_NAMES.join(', ')}.${suggestion}`,
+            'error'
+          );
+          color = undefined;
+        } else {
+          color = color.toLowerCase();
+        }
+      }
+
+      const descFromMeta = restMeta['description'];
+      if (descFromMeta) description.push(descFromMeta);
+      delete restMeta['description'];
+
+      for (const key of Object.keys(restMeta)) {
+        if (!KNOWN_PIPE_KEYS.has(key)) {
+          warn(
+            lineNum,
+            `Unknown metadata key "${key}" on ring layer; allowed keys are: ${[...KNOWN_PIPE_KEYS].join(', ')}.`
+          );
         }
       }
 
       if (!label) {
         warn(lineNum, 'Empty layer label.');
         continue;
-      }
-
-      // Universal trailing-token shortcut: `Label color` equivalent to
-      // `Label | color: <name>` when color is not already set (§1.5).
-      if (!color) {
-        const { label: stripped, colorName: shortcutColor } =
-          peelTrailingColorName(label);
-        if (shortcutColor) {
-          color = shortcutColor;
-          label = stripped;
-        }
       }
 
       currentLayer = {

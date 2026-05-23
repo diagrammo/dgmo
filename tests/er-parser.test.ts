@@ -322,11 +322,11 @@ describe('tag groups', () => {
   it('parses tag blocks with entries', () => {
     const result = parseERDiagram(`er
 
-tag Domain d
+tag Domain as d
   Billing blue
   Shipping green
 
-Users | d: Billing
+Users d: Billing
   id int pk`);
     expect(result.tagGroups).toHaveLength(1);
     expect(result.tagGroups[0].name).toBe('Domain');
@@ -336,24 +336,24 @@ Users | d: Billing
     expect(result.tagGroups[0].entries[1].value).toBe('Shipping');
   });
 
-  it('parses pipe metadata on table declarations', () => {
+  it('parses same-line metadata on table declarations', () => {
     const result = parseERDiagram(`er
 
-tag Domain d
+tag Domain as d
   Billing blue
 
-Users | d: Billing
+Users d: Billing
   id int pk`);
     expect(result.tables[0].metadata).toEqual({ domain: 'Billing' });
   });
 
-  it('resolves in pipe metadata', () => {
+  it('resolves alias in same-line metadata', () => {
     const result = parseERDiagram(`er
 
-tag Domain d
+tag Domain as d
   Billing blue
 
-Orders | d: Billing
+Orders d: Billing
   id int pk`);
     // Alias 'd' resolves to 'domain'
     expect(result.tables[0].metadata).toEqual({ domain: 'Billing' });
@@ -379,7 +379,7 @@ tag Domain
   Billing blue
   Shipping green
 
-Users | Domain: Unknown
+Users Domain: Unknown
   id int pk`);
     const warnings = result.diagnostics.filter((d) =>
       d.message.includes("Unknown value 'Unknown'")
@@ -393,7 +393,7 @@ Users | Domain: Unknown
 tag Domain
   Billing blue
 
-Users red | Domain: Billing
+Users red Domain: Billing
   id int pk`);
     expect(result.tables[0].color).toBeDefined();
     expect(result.tables[0].metadata.domain).toBe('Billing');
@@ -419,7 +419,7 @@ Orders
 ## Domain
   Billing blue
 
-Users | Domain: Billing
+Users Domain: Billing
   id int pk`);
     expect(result.tagGroups).toHaveLength(0);
   });

@@ -92,7 +92,7 @@ describe('mindmap fixtures', () => {
     }
   });
 
-  it('empty-description skips empty description silently', () => {
+  it('empty-description emits W_EMPTY_METADATA_VALUE and skips field', () => {
     const content = readFileSync(
       resolve(FIXTURE_DIR, 'empty-description.dgmo'),
       'utf-8'
@@ -102,6 +102,10 @@ describe('mindmap fixtures', () => {
     const taskB = result.roots[0].children.find((c) => c.label === 'Task B');
     expect(taskA?.description).toBeUndefined();
     expect(taskB?.description).toEqual(['Has a description']);
+    const warn = result.diagnostics.find(
+      (d) => d.code === 'W_EMPTY_METADATA_VALUE'
+    );
+    expect(warn).toBeDefined();
   });
 
   it('tags-and-colors has multiple tag groups and options', () => {

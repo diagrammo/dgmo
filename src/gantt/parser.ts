@@ -2,7 +2,15 @@
 // Gantt Chart Parser
 // ============================================================
 
-import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import {
+  formatDgmoError,
+  ganttBarePercentRemovedMessage,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+} from '../diagnostics';
+import { GANTT_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
+import { splitNameAndMeta } from '../utils/parsing';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
@@ -1033,11 +1041,23 @@ export function parseGantt(
     ln: number,
     explicitStart?: string
   ): GanttTask {
+    // Legacy `|` detection per §1.4.
+    if (labelRaw.includes('|')) {
+      result.diagnostics.push(
+        makeDgmoError(
+          ln,
+          pipeOperatorRemovedMessage(),
+          'error',
+          METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+        )
+      );
+    }
+
     const segments = labelRaw.split('|');
     // TD-18: peel optional `as <alias>` from the label (pre-pipe).
     // split('|') always yields at least one element.
     const peeled = peelAlias(segments[0]!);
-    const label = peeled.label;
+    let label = peeled.label;
     if (peeled.alias) nameAliasMap.set(peeled.alias, label);
 
     // Check for reserved keyword
@@ -1048,13 +1068,34 @@ export function parseGantt(
       );
     }
 
-    // Parse pipe metadata
-    const metadata =
+    // Parse pipe metadata (legacy back-compat).
+    const metadata: Record<string, string> =
       segments.length > 1
         ? parsePipeMetadata(segments, metaAliasMap, () =>
             warn(ln, MULTIPLE_PIPE_ERROR)
           )
         : {};
+
+    // §1.4 unified metadata grammar — also pick up new same-line form
+    // (no pipe) by running splitNameAndMeta on the label segment.
+    if (segments.length === 1) {
+      const registry = withTagAliases(
+        GANTT_REGISTRY,
+        new Set(metaAliasMap.keys())
+      );
+      const split = splitNameAndMeta(
+        label,
+        registry,
+        metaAliasMap,
+        undefined,
+        result.diagnostics,
+        ln
+      );
+      if (Object.keys(split.meta).length > 0) {
+        label = split.name;
+        Object.assign(metadata, split.meta);
+      }
+    }
 
     // Extract progress from metadata or shorthand
     let progress: number | null = null;
@@ -1062,12 +1103,19 @@ export function parseGantt(
       progress = parseFloat(metadata['progress']);
       delete metadata['progress'];
     }
-    // Check for progress shorthand: `| 80%` or `| t:X, 80%`
+    // Legacy bare-percent (`| 80%`) → emit hard error + extract for back-compat.
     for (const part of segments.slice(1).join(',').split(',')) {
       const seg = part.trim();
       const progressMatch = seg.match(/^(\d+)%$/);
       if (progressMatch) {
-        // Capture group 1 guaranteed by successful regex match.
+        result.diagnostics.push(
+          makeDgmoError(
+            ln,
+            ganttBarePercentRemovedMessage(seg),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.GANTT_BARE_PERCENT_REMOVED
+          )
+        );
         progress = parseInt(progressMatch[1]!, 10);
       }
     }

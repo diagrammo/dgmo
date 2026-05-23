@@ -73,7 +73,7 @@ describe('parseKanban', () => {
     });
 
     it('parses WIP limit', () => {
-      const result = parseKanban('kanban\n[In Progress] | wip: 3\n  Task 1');
+      const result = parseKanban('kanban\n[In Progress] wip: 3\n  Task 1');
       expect(result.columns[0].wipLimit).toBe(3);
     });
 
@@ -105,9 +105,9 @@ describe('parseKanban', () => {
       expect(card.endLineNumber).toBe(3);
     });
 
-    it('parses card with tags', () => {
+    it('parses card with declared tag keys', () => {
       const result = parseKanban(
-        'kanban\n[To Do]\n  Build login | priority: High, assignee: Alice'
+        'kanban\ntag Priority as priority\n[To Do]\n  Build login priority: High, assignee: Alice'
       );
       const card = result.columns[0].cards[0];
       expect(card.title).toBe('Build login');
@@ -128,9 +128,7 @@ describe('parseKanban', () => {
     });
 
     it('parses column with color and wip limit', () => {
-      const result = parseKanban(
-        'kanban\n[In Progress] blue | wip: 3\n  Task 1'
-      );
+      const result = parseKanban('kanban\n[In Progress] blue wip: 3\n  Task 1');
       expect(result.columns[0].name).toBe('In Progress');
       expect(result.columns[0].color).toBeDefined();
       expect(result.columns[0].wipLimit).toBe(3);
@@ -177,7 +175,7 @@ describe('parseKanban', () => {
 
     it('parses tag group with alias', () => {
       const result = parseKanban(
-        'kanban\ntag Priority p\n  High red\n  Low green\n\n[To Do]\n  Task | p: High'
+        'kanban\ntag Priority as p\n  High red\n  Low green\n\n[To Do]\n  Task p: High'
       );
       expect(result.tagGroups[0].alias).toBe('p');
       // Alias resolves to group name
@@ -217,7 +215,7 @@ describe('parseKanban', () => {
 
     it('parses tag with alias', () => {
       const result = parseKanban(
-        'kanban\ntag Priority p\n  High red\n  Low green\n\n[To Do]\n  Task | p: High'
+        'kanban\ntag Priority as p\n  High red\n  Low green\n\n[To Do]\n  Task p: High'
       );
       expect(result.tagGroups[0].alias).toBe('p');
       expect(result.columns[0].cards[0].tags).toEqual({ priority: 'High' });
@@ -270,7 +268,7 @@ describe('parseKanban', () => {
   // === Warnings ===
   describe('warnings', () => {
     it('warns when WIP limit exceeded', () => {
-      const result = parseKanban('kanban\n[WIP] | wip: 1\n  Task A\n  Task B');
+      const result = parseKanban('kanban\n[WIP] wip: 1\n  Task A\n  Task B');
       expect(
         result.diagnostics.some((d) => d.message.includes('WIP limit'))
       ).toBe(true);
@@ -279,7 +277,7 @@ describe('parseKanban', () => {
 
     it('warns on unknown tag value', () => {
       const result = parseKanban(
-        'kanban\ntag Priority\n  High red\n  Low green\n\n[To Do]\n  Task | priority: Medium'
+        'kanban\ntag Priority\n  High red\n  Low green\n\n[To Do]\n  Task priority: Medium'
       );
       expect(
         result.diagnostics.some((d) =>
@@ -293,35 +291,32 @@ describe('parseKanban', () => {
   describe('column metadata cascading', () => {
     it('card inherits column metadata', () => {
       const result = parseKanban(
-        'kanban\n[Backlog] | t: Sprint1\n  Fix bug\n  Add feature'
+        'kanban\ntag Sprint as t\n[Backlog] t: Sprint1\n  Fix bug\n  Add feature'
       );
       expect(result.error).toBeNull();
-      expect(result.columns[0].metadata).toEqual({ t: 'Sprint1' });
+      expect(result.columns[0].metadata).toEqual({ sprint: 'Sprint1' });
       expect(result.columns[0].cards[0].title).toBe('Fix bug');
-      expect(result.columns[0].cards[0].tags).toEqual({ t: 'Sprint1' });
+      expect(result.columns[0].cards[0].tags).toEqual({ sprint: 'Sprint1' });
       expect(result.columns[0].cards[1].title).toBe('Add feature');
-      expect(result.columns[0].cards[1].tags).toEqual({ t: 'Sprint1' });
+      expect(result.columns[0].cards[1].tags).toEqual({ sprint: 'Sprint1' });
     });
 
     it('card metadata overrides column metadata', () => {
       const result = parseKanban(
-        'kanban\n[Backlog] | t: Sprint1\n  Fix bug | t: Sprint2\n  Add feature'
+        'kanban\ntag Sprint as t\n[Backlog] t: Sprint1\n  Fix bug t: Sprint2\n  Add feature'
       );
       expect(result.error).toBeNull();
-      // Fix bug has its own t: Sprint2, should override
-      expect(result.columns[0].cards[0].tags).toEqual({ t: 'Sprint2' });
-      // Add feature inherits column's t: Sprint1
-      expect(result.columns[0].cards[1].tags).toEqual({ t: 'Sprint1' });
+      expect(result.columns[0].cards[0].tags).toEqual({ sprint: 'Sprint2' });
+      expect(result.columns[0].cards[1].tags).toEqual({ sprint: 'Sprint1' });
     });
 
     it('wip is not cascaded to cards', () => {
       const result = parseKanban(
-        'kanban\n[In Progress] | wip: 2, t: Sprint1\n  Task A'
+        'kanban\ntag Sprint as t\n[In Progress] wip: 2, t: Sprint1\n  Task A'
       );
       expect(result.error).toBeNull();
       expect(result.columns[0].wipLimit).toBe(2);
-      // wip should not appear in card tags, but t should
-      expect(result.columns[0].cards[0].tags).toEqual({ t: 'Sprint1' });
+      expect(result.columns[0].cards[0].tags).toEqual({ sprint: 'Sprint1' });
       expect(result.columns[0].cards[0].tags.wip).toBeUndefined();
     });
   });
@@ -346,21 +341,21 @@ tag Priority
   Medium yellow
   Low green
 
-tag Assignee a
+tag Assignee as a
   Alice blue
   Bob purple
 
 [To Do]
-  Build login page | priority: High, a: Alice
+  Build login page priority: High, a: Alice
     OAuth + email/password support
     Needs design review first
 
-[In Progress] | wip: 2
-  Refactor nav | priority: High, a: Bob
+[In Progress] wip: 2
+  Refactor nav priority: High, a: Bob
     Split into composable components
 
 [Done]
-  Setup CI | priority: Low, a: Alice`;
+  Setup CI priority: Low, a: Alice`;
 
       const result = parseKanban(input);
       expect(result.error).toBeNull();
@@ -565,11 +560,11 @@ tag Priority
   Low green
 
 [In Progress]
-  Build login | priority: High
+  Build login priority: High
     Needs review
 
 [Done]
-  Write docs | priority: Low
+  Write docs priority: Low
 
 [Archive]`;
 
@@ -580,12 +575,12 @@ tag Priority
 
     // Card should be under Archive
     const archiveIdx = lines.findIndex((l) => l.includes('[Archive]'));
-    expect(lines[archiveIdx + 1].trim()).toBe('Build login | priority: High');
+    expect(lines[archiveIdx + 1].trim()).toBe('Build login priority: High');
     expect(lines[archiveIdx + 2]).toContain('Needs review');
 
     // Card should no longer be under In Progress
     const ipIdx = lines.findIndex((l) => l.includes('[In Progress]'));
-    expect(lines[ipIdx + 1].trim()).not.toBe('Build login | priority: High');
+    expect(lines[ipIdx + 1].trim()).not.toBe('Build login priority: High');
   });
 
   it('archives card and re-parses correctly', () => {

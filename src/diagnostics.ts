@@ -238,3 +238,154 @@ export function vennAliasKeywordRemovedMessage(args: {
     `Use 'as' instead — '${args.name} as ${args.alias}'.`
   );
 }
+
+// ============================================================
+// Unified Metadata Grammar diagnostic codes (0.18.0)
+// ============================================================
+//
+// See `docs/dgmo-language-spec.md` §1.4 (Metadata Grammar) and
+// `_bmad-output/implementation-artifacts/tech-spec-unified-metadata-no-pipe.md`.
+// Parsers MUST import these factories rather than inlining wording —
+// the spec's diagnostic catalog (§1.4.4) and parser output must
+// not drift.
+
+export const METADATA_DIAGNOSTIC_CODES = {
+  /**
+   * Error: `|` appears in a position that used to host metadata.
+   * The pipe operator was retired in 0.18.0 in favor of the unified
+   * same-line / indented metadata grammar. Hint points at the new
+   * same-line `key: value, ...` form.
+   */
+  PIPE_OPERATOR_REMOVED: 'E_PIPE_OPERATOR_REMOVED',
+  /**
+   * Error: legacy gantt bare-percent `| 100%` task progress syntax.
+   * Replaced by the `progress: <N>` key.
+   */
+  GANTT_BARE_PERCENT_REMOVED: 'E_GANTT_BARE_PERCENT_REMOVED',
+  /**
+   * Error: legacy journey-map bare-score-prefix `| 4 Delighted`
+   * step syntax. Replaced by `score: <N>, emotion: <Word>` keys.
+   */
+  JOURNEY_BARE_SCORE_REMOVED: 'E_JOURNEY_BARE_SCORE_REMOVED',
+  /**
+   * Error: legacy pyramid bare-description shorthand `| Some text`
+   * after a layer name. Replaced by the `description: <text>` key.
+   */
+  PYRAMID_BARE_DESCRIPTION_REMOVED: 'E_PYRAMID_BARE_DESCRIPTION_REMOVED',
+  /**
+   * Error: legacy ring bare-description shorthand `| Some text`
+   * after a layer name. Replaced by the `description: <text>` key.
+   */
+  RING_BARE_DESCRIPTION_REMOVED: 'E_RING_BARE_DESCRIPTION_REMOVED',
+  /**
+   * Error: a `tag` declaration appears after the first non-tag
+   * content line. The reserved-key registry is finalized before
+   * content-line mode begins; downstream-declared tag aliases
+   * cannot retroactively apply to earlier lines.
+   */
+  TAG_DECLARED_AFTER_CONTENT: 'E_TAG_DECLARED_AFTER_CONTENT',
+  /**
+   * Warning: a metadata pair has an empty value (`Foo c:`). The
+   * pair is dropped from the entity's metadata.
+   */
+  EMPTY_METADATA_VALUE: 'W_EMPTY_METADATA_VALUE',
+  /**
+   * Warning: an indented attribute line (`key: value` where `key`
+   * is in the reserved-key registry) appears at the same indent
+   * level as preceding structural children. The attribute attaches
+   * to the parent — indent further to attach to the preceding child.
+   */
+  ATTRIBUTE_AT_PARENT_INDENT: 'W_ATTRIBUTE_AT_PARENT_INDENT',
+} as const;
+
+/**
+ * Canonical message for `E_PIPE_OPERATOR_REMOVED`. Emitted when a
+ * `|` appears in a position that used to host metadata (i.e. outside
+ * its surviving uses: wireframe dropdown options, in-arrow label
+ * characters per §1.10, quoted name strings).
+ */
+export function pipeOperatorRemovedMessage(): string {
+  return (
+    `The '|' metadata delimiter was removed. ` +
+    `Write metadata as 'key: value, key: value' inline after the name ` +
+    `(no delimiter), or indent 'key: value' under the entity. ` +
+    `See spec §1.4. Run 'dgmo migrate' to convert legacy content.`
+  );
+}
+
+/**
+ * Canonical message for `E_GANTT_BARE_PERCENT_REMOVED`. Emitted
+ * when a gantt task uses the legacy `| <N>%` progress shorthand.
+ */
+export function ganttBarePercentRemovedMessage(percent: string): string {
+  return (
+    `Bare-percent progress shorthand '| ${percent}' was removed. ` +
+    `Use 'progress: ${percent.replace(/%$/, '')}' (integer 0–100, no '%').`
+  );
+}
+
+/**
+ * Canonical message for `E_JOURNEY_BARE_SCORE_REMOVED`. Emitted
+ * when a journey-map step uses the legacy `| <N>` or `| <N> <Word>`
+ * score shorthand.
+ */
+export function journeyBareScoreRemovedMessage(args: {
+  score: string;
+  emotion?: string;
+}): string {
+  const replacement = args.emotion
+    ? `'score: ${args.score}, emotion: ${args.emotion}'`
+    : `'score: ${args.score}'`;
+  return `Bare-score shorthand after '|' was removed. ` + `Use ${replacement}.`;
+}
+
+/**
+ * Canonical message for `E_PYRAMID_BARE_DESCRIPTION_REMOVED` /
+ * `E_RING_BARE_DESCRIPTION_REMOVED`. Emitted when a pyramid or ring
+ * layer uses the legacy `| <text>` description shorthand.
+ */
+export function bareDescriptionRemovedMessage(args: {
+  chartType: 'pyramid' | 'ring';
+  text: string;
+}): string {
+  const quoted = args.text.includes(',') ? `"${args.text}"` : args.text;
+  return (
+    `Bare-description shorthand after '|' was removed in ${args.chartType}. ` +
+    `Use 'description: ${quoted}' or move the description to indented lines below the layer.`
+  );
+}
+
+/**
+ * Canonical message for `E_TAG_DECLARED_AFTER_CONTENT`.
+ */
+export function tagDeclaredAfterContentMessage(tagName: string): string {
+  return (
+    `Tag declaration 'tag ${tagName}' appears after the first content line. ` +
+    `Move all 'tag ...' declarations above the diagram content — single-pass ` +
+    `parsing means downstream tag aliases cannot retroactively apply to ` +
+    `earlier lines.`
+  );
+}
+
+/**
+ * Canonical message for `W_EMPTY_METADATA_VALUE`. Emitted when a
+ * `key:` token has no value following the colon.
+ */
+export function emptyMetadataValueMessage(key: string): string {
+  return (
+    `Metadata key '${key}:' has no value — the pair is dropped. ` +
+    `Provide a value or remove the key.`
+  );
+}
+
+/**
+ * Canonical message for `W_ATTRIBUTE_AT_PARENT_INDENT`. Emitted
+ * when an indented reserved-key attribute appears at the same indent
+ * level as preceding structural children.
+ */
+export function attributeAtParentIndentMessage(key: string): string {
+  return (
+    `Attribute '${key}:' attaches to the parent above — ` +
+    `indent further if you meant it on the preceding structural child.`
+  );
+}

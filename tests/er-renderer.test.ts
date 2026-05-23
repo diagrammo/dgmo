@@ -199,14 +199,14 @@ describe('renderERDiagram', () => {
   describe('tag groups', () => {
     const ER_WITH_TAGS = `er
 
-tag Domain d
+tag Domain as d
   Billing blue
   Shipping green
 
-Users | d: Billing
+Users d: Billing
   id int pk
 
-Orders | d: Shipping
+Orders d: Shipping
   id int pk`;
 
     it('sets data-tag-* attributes when activeTagGroup is set', () => {
@@ -319,10 +319,10 @@ posts
 
     const ER_WITH_TAGS = `er
 
-tag Domain d
+tag Domain as d
   Billing blue
 
-users | d: Billing
+users d: Billing
   id int pk`;
 
     const ER_WITH_EXPLICIT_COLOR = `er

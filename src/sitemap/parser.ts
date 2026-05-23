@@ -4,7 +4,17 @@
 
 import type { PaletteColors } from '../palettes';
 import type { DgmoError } from '../diagnostics';
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import {
+  formatDgmoError,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+  suggest,
+} from '../diagnostics';
+import {
+  SITEMAP_REGISTRY,
+  withTagAliases,
+} from '../utils/reserved-key-registry';
 import { normalizeName } from '../utils/name-normalize';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
@@ -20,7 +30,7 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
-  MULTIPLE_PIPE_ERROR,
+  splitNameAndMeta,
   parseFirstLine,
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
@@ -33,7 +43,9 @@ import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 // Regexes
 // ============================================================
 
-const CONTAINER_RE = /^\[([^\]]+)\]\s*(?:\|\s*(.+))?$/;
+// Captures: [1]=name, [2]=trailing content (parsed below; legacy `| meta`
+// also captured here and emits E_PIPE_OPERATOR_REMOVED).
+const CONTAINER_RE = /^\[([^\]]+)\]\s*(.*)$/;
 /** Metadata on content nodes: `key: value` (colon-separated, used in content phase) */
 const METADATA_RE = /^([^:]+):\s*(.+)$/;
 
@@ -269,13 +281,15 @@ export function parseSitemap(
     }
 
     // Generic header options (space-separated, before content/tag groups)
-    // Skip lines with `|` (pipe metadata) or `->` (arrows) — those are content
+    // Skip lines with `|` (pipe metadata), `->` (arrows), or `:` (page
+    // with same-line metadata per §1.4) — those are content, not options.
     if (
       !contentStarted &&
       !currentTagGroup &&
       measureIndent(line) === 0 &&
       !trimmed.includes('|') &&
-      !trimmed.includes('->')
+      !trimmed.includes('->') &&
+      !trimmed.includes(':')
     ) {
       // Bare boolean: direction-tb
       if (/^direction-tb$/i.test(trimmed)) {
@@ -361,10 +375,19 @@ export function parseSitemap(
     // Check for container syntax: [Group Name]
     const containerMatch = trimmed.match(CONTAINER_RE);
 
-    // Check for metadata syntax: key: value
-    const metadataMatch = trimmed.includes('|')
-      ? null
-      : trimmed.match(METADATA_RE);
+    // Check for metadata syntax: `key: value` (the indented form
+    // that attaches to the parent node, not a node line with same-line
+    // metadata). Require the key region to be a single identifier so
+    // `Checkout access: Public` parses as a node, not metadata for the
+    // container.
+    const metadataMatch = (() => {
+      if (trimmed.includes('|')) return null;
+      const m = trimmed.match(METADATA_RE);
+      if (!m) return null;
+      const keyRegion = m[1]!.trim();
+      if (/\s/.test(keyRegion)) return null;
+      return m;
+    })();
 
     if (containerMatch) {
       // TD-18: peel optional `as <alias>` from container label.
@@ -376,15 +399,29 @@ export function parseSitemap(
       // Capture groups 1 and 2 present by regex shape.
       const label = asMatch ? asMatch[1]!.trim() : rawLabel;
 
-      // Parse optional pipe metadata on the container line
-      const pipeStr = containerMatch[2];
+      // Parse the tail after `]`: optional `|` (legacy, emit error),
+      // optional same-line metadata per §1.4.
+      let tail = (containerMatch[2] ?? '').trim();
       const containerMetadata: Record<string, string> = {};
-      if (pipeStr) {
-        // Build segments array compatible with parsePipeMetadata (first element is label, rest are pipe parts)
-        const pipeSegments = ['', pipeStr];
+      if (tail.startsWith('|')) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            pipeOperatorRemovedMessage(),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+          )
+        );
+        tail = tail.replace(/^\|\s*/, '');
         Object.assign(
           containerMetadata,
-          parsePipeMetadata(pipeSegments, metaAliasMap)
+          parsePipeMetadata(['', tail], metaAliasMap)
+        );
+      } else if (tail.length > 0) {
+        // §1.4 same-line metadata after `[Container]`.
+        Object.assign(
+          containerMetadata,
+          parsePipeMetadata(['', tail], metaAliasMap)
         );
       }
 
@@ -561,22 +598,29 @@ function parseNodeLabel(
   _diagnostics?: DgmoError[],
   nameAliasMap?: Map<string, string>
 ): Writable<SitemapNode> {
-  const segments = trimmed.split('|').map((s) => s.trim());
-  // TD-18: peel optional `as <alias>` from the label slot.
-  // split() always returns at least one element.
-  let label = segments[0]!;
-  const asMatch = label.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
-  const id = `node-${counter}`;
-  if (asMatch) {
-    // Capture groups 1 and 2 present by regex shape.
-    label = asMatch[1]!.trim();
-    nameAliasMap?.set(normalizeName(asMatch[2]!), id);
+  // Legacy `|` detection.
+  if (trimmed.includes('|') && warnFn) {
+    warnFn(lineNumber, pipeOperatorRemovedMessage());
   }
-  const metadata = parsePipeMetadata(
-    segments,
-    metaAliasMap,
-    warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_ERROR) : undefined
+
+  // §1.4 unified metadata grammar — same-line cut.
+  const registry = withTagAliases(
+    SITEMAP_REGISTRY,
+    new Set(metaAliasMap.keys())
   );
+  const id = `node-${counter}`;
+  const split = splitNameAndMeta(
+    trimmed,
+    registry,
+    metaAliasMap,
+    undefined,
+    _diagnostics,
+    lineNumber
+  );
+  const label = split.name;
+  if (split.alias) nameAliasMap?.set(normalizeName(split.alias), id);
+  const metadata: Record<string, string> = { ...split.meta };
+  if (split.color !== undefined) metadata['color'] = split.color;
 
   // Extract description from pipe metadata into dedicated field
   let description: string[] | undefined;

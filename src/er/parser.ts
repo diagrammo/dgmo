@@ -1,18 +1,21 @@
 import { resolveColorWithDiagnostic } from '../colors';
 import type { PaletteColors } from '../palettes';
 import {
-  makeDgmoError,
   formatDgmoError,
-  suggest,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
   NAME_DIAGNOSTIC_CODES,
   nameMergedMessage,
+  pipeOperatorRemovedMessage,
+  suggest,
 } from '../diagnostics';
+import { ER_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
 import { validateLabelCharacters } from '../utils/arrows';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import {
   measureIndent,
   extractColor,
-  parsePipeMetadata,
+  splitNameAndMeta,
   parseFirstLine,
   OPTION_NOCOLON_RE,
   tryParseSharedOption,
@@ -471,16 +474,48 @@ export function parseERDiagram(
       continue;
     }
 
-    // Try table declaration
-    // Captures: [1]=quotedName [2]=bareName [3]=color [4]=pipe
-    const tableDecl = trimmed.match(TABLE_DECL_RE);
+    // Try table declaration.
+    //
+    // First, run §1.4 unified metadata cut on the full line — peels off
+    // same-line metadata (e.g. `Users red Domain: Billing` → name region
+    // `Users red`, color `red`, meta { domain: 'Billing' }). The remaining
+    // name region runs through the legacy quoted/bare-name regex.
+    const registry = withTagAliases(ER_REGISTRY, new Set(metaAliasMap.keys()));
+    const split = splitNameAndMeta(
+      trimmed,
+      registry,
+      metaAliasMap,
+      undefined,
+      result.diagnostics,
+      lineNumber
+    );
+
+    // Legacy `|` pipe-metadata detection — fires before splitNameAndMeta
+    // sees it (since pipes don't trigger a cut). Emit the hard error.
+    if (trimmed.includes('|')) {
+      result.diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          pipeOperatorRemovedMessage(),
+          'error',
+          METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+        )
+      );
+    }
+
+    // Re-run the legacy name regex on the cleaned name region (color is
+    // already peeled by splitNameAndMeta, so the regex's color slot
+    // shouldn't match; we accept either form for back-compat).
+    const tableDecl = split.name.match(TABLE_DECL_RE);
     if (tableDecl) {
       const rawName = (tableDecl[1] ?? tableDecl[2] ?? '').trim();
-      // TD-18: peel optional `as <alias>` from the name slot.
       const peeled = peelAlias(rawName);
       const name = peeled.label;
       if (peeled.alias) nameAliasMap.set(peeled.alias, name);
-      const colorName = tableDecl[3]?.trim();
+      // Color may have been captured either by the §1.5 trailing-token
+      // peel in splitNameAndMeta OR (if splitNameAndMeta didn't run a
+      // cut) by the legacy regex's color group.
+      const colorName = split.color ?? tableDecl[3]?.trim();
       const color = colorName
         ? resolveColorWithDiagnostic(
             colorName,
@@ -494,13 +529,9 @@ export function parseERDiagram(
       if (color) table.color = color;
       table.lineNumber = lineNumber;
 
-      // Parse pipe metadata: TableName(color) | key: value, key2: value2
-      const pipeStr = tableDecl[4]?.trim();
-      if (pipeStr) {
-        const pipeSegments = pipeStr.split('|');
-        const meta = parsePipeMetadata(['', ...pipeSegments], metaAliasMap);
+      if (Object.keys(split.meta).length > 0) {
         const mutableMeta = tableMetadataMap.get(table.id);
-        if (mutableMeta) Object.assign(mutableMeta, meta);
+        if (mutableMeta) Object.assign(mutableMeta, split.meta);
       }
 
       currentTable = table;

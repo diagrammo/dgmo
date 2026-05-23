@@ -417,12 +417,12 @@ describeIfBuilt(
       // parseInlineMarkdown — that's the prerequisite path safeHref guards.
       // Cycle requires at least 2 phases.
       const src = `cycle Test
-Phase A | color: blue
+Phase A color: blue
   [click me](javascript:alert(1)) is the label
-  -onward-> | color: blue
-Phase B | color: green
+  -onward-> color: blue
+Phase B color: green
   Plain text only
-  -loop back-> | color: green`;
+  -loop back-> color: green`;
       const { win } = await bootInJsdom({
         body: `<pre class="dgmo">${src}</pre>`,
       });

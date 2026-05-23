@@ -74,12 +74,12 @@ Only`);
 });
 
 describe('pyramid parser — descriptions', () => {
-  it('takes bare text after pipe as description', () => {
+  it('takes same-line description: key as description', () => {
     const result = parsePyramid(`pyramid T
 
-Top | description from pipe
+Top description: from same-line
 Bottom`);
-    expect(result.layers[0].description).toEqual(['description from pipe']);
+    expect(result.layers[0].description).toEqual(['from same-line']);
     expect(result.layers[0].color).toBeUndefined();
   });
 
@@ -93,24 +93,42 @@ Bottom`);
     expect(result.layers[0].description).toEqual(['first line', 'second line']);
   });
 
-  it('parses key:value pipe metadata with color', () => {
+  it('parses same-line color metadata', () => {
     const result = parsePyramid(`pyramid T
 
-Top | color: orange
+Top color: orange
   indented desc
 Bottom`);
     expect(result.layers[0].color).toBe('orange');
     expect(result.layers[0].description).toEqual(['indented desc']);
   });
 
-  it('description via pipe key and indented body merge', () => {
+  it('same-line color + description merge with indented body', () => {
     const result = parsePyramid(`pyramid T
 
-Top | color: blue, description: from-pipe
+Top color: blue, description: from-same-line
   from-indent
 Bottom`);
     expect(result.layers[0].color).toBe('blue');
-    expect(result.layers[0].description).toEqual(['from-pipe', 'from-indent']);
+    expect(result.layers[0].description).toEqual([
+      'from-same-line',
+      'from-indent',
+    ]);
+  });
+
+  it('emits E_PIPE_OPERATOR_REMOVED and E_PYRAMID_BARE_DESCRIPTION_REMOVED on legacy bare-description', () => {
+    const result = parsePyramid(`pyramid T
+
+Top | description from pipe
+Bottom`);
+    const pipe = result.diagnostics.find(
+      (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
+    );
+    const bare = result.diagnostics.find(
+      (d) => d.code === 'E_PYRAMID_BARE_DESCRIPTION_REMOVED'
+    );
+    expect(pipe).toBeDefined();
+    expect(bare).toBeDefined();
   });
 
   it('converts "- bullet" to "• bullet" in indented body', () => {
@@ -154,9 +172,9 @@ describe('pyramid renderer', () => {
   it('renders SVG with one polygon per layer plus label + description', () => {
     const parsed = parsePyramid(`pyramid Test
 
-One | first desc
-Two | second desc
-Three | third desc`);
+One description: first desc
+Two description: second desc
+Three description: third desc`);
     const container = document.createElement('div');
     Object.defineProperty(container, 'clientWidth', { value: 800 });
     Object.defineProperty(container, 'clientHeight', { value: 600 });

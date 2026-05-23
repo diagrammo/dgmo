@@ -2,7 +2,12 @@
 // Boxes and Lines Diagram — Parser
 // ============================================================
 
-import { makeDgmoError, suggest } from '../diagnostics';
+import {
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+  suggest,
+} from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import { parseInArrowLabel } from '../utils/arrows';
 import { normalizeName } from '../utils/name-normalize';
@@ -209,6 +214,24 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
     // Skip blanks and comments
     if (!trimmed || trimmed.startsWith('//')) continue;
+
+    // §1.4 legacy `|` detection — emit once per line. In-arrow `|`
+    // per §1.10 stays valid; emit only for `|` outside arrow-label
+    // regions.
+    if (
+      trimmed.includes('|') &&
+      !/-\S*\|\S*->/.test(trimmed) &&
+      !/~\S*\|\S*~>/.test(trimmed)
+    ) {
+      result.diagnostics.push(
+        makeDgmoError(
+          lineNum,
+          pipeOperatorRemovedMessage(),
+          'error',
+          METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+        )
+      );
+    }
 
     // First line: `boxes-and-lines [Title]`
     const firstLineResult = parseFirstLine(trimmed);

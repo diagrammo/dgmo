@@ -95,8 +95,8 @@ describe('cycle parser — node pipe metadata', () => {
   it('parses color metadata', () => {
     const result = parseCycle(`cycle Colors
 
-Red Node | color: red
-Blue Node | color: blue`);
+Red Node color: red
+Blue Node color: blue`);
     expect(result.nodes[0].color).toBe('red');
     expect(result.nodes[1].color).toBe('blue');
   });
@@ -104,8 +104,8 @@ Blue Node | color: blue`);
   it('parses span metadata', () => {
     const result = parseCycle(`cycle Span Test
 
-Short | span: 1
-Long | span: 3`);
+Short span: 1
+Long span: 3`);
     expect(result.nodes[0].span).toBe(1);
     expect(result.nodes[1].span).toBe(3);
   });
@@ -113,7 +113,7 @@ Long | span: 3`);
   it('parses description from pipe metadata', () => {
     const result = parseCycle(`cycle Desc Test
 
-Node A | description: inline description
+Node A description: inline description
 Node B`);
     expect(result.nodes[0].description).toEqual(['inline description']);
   });
@@ -121,7 +121,7 @@ Node B`);
   it('parses combined metadata', () => {
     const result = parseCycle(`cycle Combined
 
-Node A | color: blue, span: 2
+Node A color: blue, span: 2
 Node B`);
     expect(result.nodes[0].color).toBe('blue');
     expect(result.nodes[0].span).toBe(2);
@@ -169,7 +169,7 @@ Node B`);
   it('concatenates pipe description with indented lines', () => {
     const result = parseCycle(`cycle Concat
 
-Node A | description: inline text
+Node A description: inline text
   More details here
 Node B`);
     expect(result.nodes[0].description).toEqual([
@@ -208,7 +208,7 @@ Node B`);
     const result = parseCycle(`cycle Edge Meta
 
 Node A
-  -Go-> | color: red, width: 6
+  -Go-> color: red, width: 6
 Node B`);
     const edge = result.edges[0];
     expect(edge.color).toBe('red');
@@ -322,7 +322,7 @@ OnlyOne`);
   it('errors on span: 0', () => {
     const result = parseCycle(`cycle Zero Span
 
-Node A | span: 0
+Node A span: 0
 Node B`);
     const diag = result.diagnostics.find((d) =>
       d.message.includes('span must be a positive number')
@@ -333,7 +333,7 @@ Node B`);
   it('errors on span: -1', () => {
     const result = parseCycle(`cycle Neg Span
 
-Node A | span: -1
+Node A span: -1
 Node B`);
     const diag = result.diagnostics.find((d) =>
       d.message.includes('span must be a positive number')
@@ -348,6 +348,30 @@ A -> B
 Node C`);
     const diag = result.diagnostics.find((d) =>
       d.message.includes('cannot contain "->"')
+    );
+    expect(diag).toBeDefined();
+  });
+
+  it('emits E_PIPE_OPERATOR_REMOVED on legacy node pipe metadata', () => {
+    const result = parseCycle(`cycle Legacy
+
+A | color: red
+B`);
+    const diag = result.diagnostics.find(
+      (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
+    );
+    expect(diag).toBeDefined();
+    expect(diag!.severity).toBe('error');
+  });
+
+  it('emits E_PIPE_OPERATOR_REMOVED on legacy edge pipe metadata', () => {
+    const result = parseCycle(`cycle Legacy Edge
+
+A
+  -Go-> | color: red
+B`);
+    const diag = result.diagnostics.find(
+      (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
     );
     expect(diag).toBeDefined();
   });
@@ -413,9 +437,9 @@ describe('cycle layout — non-equidistant (span)', () => {
   it('span: 3 produces 3x gap between node edges', () => {
     const parsed = parseCycle(`cycle Span
 
-Short | span: 1
-Long | span: 3
-Medium | span: 1`);
+Short span: 1
+Long span: 3
+Medium span: 1`);
     const layout = computeCycleLayout(parsed, { width: 400, height: 400 });
 
     // Total span = 5, gaps are distributed proportionally to span.
@@ -597,7 +621,7 @@ C`);
     const parsed = parseCycle(`cycle Width
 
 A
-  -> | width: 6
+  -> width: 6
 B`);
     const container = createContainer();
     renderCycle(container, parsed, nordLight, false, undefined, {
@@ -670,8 +694,8 @@ B`);
   it('renders <circle> elements for circle nodes', () => {
     const parsed = parseCycle(`cycle Test
 circle-nodes
-A | color: blue
-B | color: red`);
+A color: blue
+B color: red`);
     const container = createContainer();
     renderCycle(container, parsed, nordLight, false, undefined, {
       width: 800,

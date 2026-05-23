@@ -48,7 +48,7 @@ Alice
     const content = `org Test
 tags shared-tags.dgmo
 
-Alice | department: Engineering`;
+Alice  department: Engineering`;
 
     const reader = mockReader({
       '/proj/shared-tags.dgmo': tagsFile,
@@ -58,7 +58,7 @@ Alice | department: Engineering`;
     expect(result.diagnostics).toEqual([]);
     expect(result.content).toContain('tag Department');
     expect(result.content).toContain('Engineering blue');
-    expect(result.content).toContain('Alice | department: Engineering');
+    expect(result.content).toContain('Alice  department: Engineering');
     // tags directive should be stripped
     expect(result.content).not.toMatch(/^tags\s+\S+\.dgmo/m);
   });
@@ -78,7 +78,7 @@ tag Department
   Engineering red
   Sales purple
 
-Alice | department: Engineering`;
+Alice  department: Engineering`;
 
     const reader = mockReader({
       '/proj/shared-tags.dgmo': tagsFile,
@@ -147,8 +147,8 @@ Alice`;
   it('grafts imported content at correct indentation', async () => {
     const teamFile = `org Platform Team
 
-Alice Chen | role: Staff Eng
-Bob Rivera | role: Senior Eng`;
+Alice Chen  role: Staff Eng
+Bob Rivera  role: Senior Eng`;
 
     const content = `org
 
@@ -163,8 +163,8 @@ CEO
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
     // Content should be re-indented under CTO
-    expect(result.content).toContain('    Alice Chen | role: Staff Eng');
-    expect(result.content).toContain('    Bob Rivera | role: Senior Eng');
+    expect(result.content).toContain('    Alice Chen  role: Staff Eng');
+    expect(result.content).toContain('    Bob Rivera  role: Senior Eng');
     expect(result.content).not.toMatch(/import\s+\S+\.dgmo/);
   });
 
@@ -223,7 +223,7 @@ CEO
     const teamFile = `org Platform Team
 hide role
 
-Alice Chen | role: Staff Eng`;
+Alice Chen  role: Staff Eng`;
 
     const content = `org
 
@@ -236,7 +236,7 @@ CEO
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('  Alice Chen | role: Staff Eng');
+    expect(result.content).toContain('  Alice Chen  role: Staff Eng');
     // Header lines from imported file should be stripped
     expect(result.content).not.toMatch(/Platform Team/m);
     // org from parent is fine
@@ -319,7 +319,7 @@ CEO
     const importedFile = `tag Role
   Manager orange
 
-Alice | role: Manager`;
+Alice  role: Manager`;
 
     const content = `org
 
@@ -350,7 +350,7 @@ CEO
     const importedFile = `org
 tags ../shared-tags.dgmo
 
-Alice | department: Engineering`;
+Alice  department: Engineering`;
 
     const content = `org
 
@@ -365,7 +365,7 @@ CEO
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
     expect(result.content).toContain('tag Department');
-    expect(result.content).toContain('  Alice | department: Engineering');
+    expect(result.content).toContain('  Alice  department: Engineering');
   });
 
   // ----------------------------------------------------------
@@ -500,16 +500,16 @@ Alice
   Product green`;
 
     const teamFile = `[Platform Team]
-  Alice Chen | department: Engineering
-  Bob Rivera | department: Engineering`;
+  Alice Chen  department: Engineering
+  Bob Rivera  department: Engineering`;
 
     const content = `org Acme Corp
 tags company-tags.dgmo
 
-CEO | department: Engineering
-  CTO | department: Engineering
+CEO  department: Engineering
+  CTO  department: Engineering
     import teams/platform.dgmo
-  VP Product | department: Product`;
+  VP Product  department: Product`;
 
     const reader = mockReader({
       '/proj/company-tags.dgmo': tagsFile,
@@ -544,7 +544,7 @@ CEO | department: Engineering
     const content = `org Test
 tags shared-tags.dgmo
 
-Alice | department: Engineering`;
+Alice  department: Engineering`;
 
     const reader = mockReader({
       '/proj/shared-tags.dgmo': tagsFile,
@@ -563,7 +563,7 @@ Alice | department: Engineering`;
     const importedFile = `tag Role
   Manager orange
 
-Alice | role: Manager`;
+Alice  role: Manager`;
 
     const content = `org
 
@@ -599,7 +599,7 @@ tag Department
   Engineering red
   Sales purple
 
-Alice | department: Engineering`;
+Alice  department: Engineering`;
 
     const reader = mockReader({
       '/proj/shared-tags.dgmo': tagsFile,

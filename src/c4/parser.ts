@@ -3,7 +3,13 @@
 // ============================================================
 
 import type { PaletteColors } from '../palettes';
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import {
+  formatDgmoError,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+  suggest,
+} from '../diagnostics';
 import { parseInArrowLabel } from '../utils/arrows';
 import { normalizeName } from '../utils/name-normalize';
 import type { TagGroup } from '../utils/tag-groups';
@@ -290,6 +296,25 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
     // Skip comments
     if (trimmed.startsWith('//')) continue;
+
+    // §1.4 legacy `|` detection — emit once per line. Pipe in c4 had
+    // multiple use sites (element metadata, in-arrow labels, etc.). The
+    // in-arrow `|` per §1.10 stays valid; emit only for `|` outside
+    // arrow-label regions.
+    if (
+      trimmed.includes('|') &&
+      !/-\S*\|\S*->/.test(trimmed) &&
+      !/~\S*\|\S*~>/.test(trimmed)
+    ) {
+      result.diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          pipeOperatorRemovedMessage(),
+          'error',
+          METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+        )
+      );
+    }
 
     // --- Header phase ---
 

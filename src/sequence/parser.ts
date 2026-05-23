@@ -6,13 +6,15 @@ import { inferParticipantType } from './participant-inference';
 import type { Brand, Writable } from '../utils/brand';
 import type { DgmoError } from '../diagnostics';
 import {
-  makeDgmoError,
+  akaRemovedMessage,
   formatDgmoError,
-  suggest,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
   NAME_DIAGNOSTIC_CODES,
   nameMergedMessage,
-  akaRemovedMessage,
   participantTypeRemovedMessage,
+  pipeOperatorRemovedMessage,
+  suggest,
 } from '../diagnostics';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import { parseArrow, parseInArrowLabel } from '../utils/arrows';
@@ -20,10 +22,15 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
+  splitNameAndMeta,
   MULTIPLE_PIPE_ERROR,
   parseFirstLine,
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
+import {
+  SEQUENCE_REGISTRY,
+  withTagAliases,
+} from '../utils/reserved-key-registry';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
@@ -658,19 +665,45 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   let currentTagGroup: Writable<TagGroup> | null = null;
   const aliasMap = new Map<string, string>();
 
-  /** Split pipe metadata from a line: "core | k: v" → { core, meta } */
+  /**
+   * Split metadata from a line: "core | k: v" (legacy) OR
+   * "core k: v" (§1.4 new) → { core, meta }.
+   * Legacy `|` emits E_PIPE_OPERATOR_REMOVED; new form dispatched
+   * via splitNameAndMeta + SEQUENCE_REGISTRY.
+   */
   const splitPipe = (
     text: string,
     ln?: number
   ): { core: string; meta?: Record<string, string> } => {
     const idx = text.indexOf('|');
-    if (idx < 0) return { core: text };
-    const core = text.substring(0, idx).trimEnd();
-    const segments = text.substring(idx).split('|');
-    const warnFn =
-      ln != null ? () => pushError(ln, MULTIPLE_PIPE_ERROR) : undefined;
-    const meta = parsePipeMetadata(segments, aliasMap, warnFn);
-    return Object.keys(meta).length > 0 ? { core, meta } : { core };
+    if (idx >= 0) {
+      if (ln !== undefined) {
+        result.diagnostics.push(
+          makeDgmoError(
+            ln,
+            pipeOperatorRemovedMessage(),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+          )
+        );
+      }
+      const core = text.substring(0, idx).trimEnd();
+      const segments = text.substring(idx).split('|');
+      const warnFn =
+        ln != null ? () => pushError(ln, MULTIPLE_PIPE_ERROR) : undefined;
+      const meta = parsePipeMetadata(segments, aliasMap, warnFn);
+      return Object.keys(meta).length > 0 ? { core, meta } : { core };
+    }
+    // §1.4 unified metadata grammar — same-line cut, no pipe.
+    const registry = withTagAliases(
+      SEQUENCE_REGISTRY,
+      new Set(aliasMap.keys())
+    );
+    const split = splitNameAndMeta(text, registry, aliasMap);
+    if (Object.keys(split.meta).length > 0) {
+      return { core: split.name, meta: split.meta };
+    }
+    return { core: text };
   };
 
   // Block parsing state — blocks are built mutably during parse, then

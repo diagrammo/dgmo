@@ -9,8 +9,17 @@ import {
   resolveColor,
   resolveColorWithDiagnostic,
 } from '../colors';
-import type { DgmoError } from '../diagnostics';
+import {
+  emptyMetadataValueMessage,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  type DgmoError,
+} from '../diagnostics';
 import type { PaletteColors } from '../palettes';
+import {
+  isReservedKey,
+  type ReservedKeyRegistry,
+} from './reserved-key-registry';
 
 const RECOGNIZED_COLOR_SET: ReadonlySet<string> = new Set(
   RECOGNIZED_COLOR_NAMES
@@ -548,4 +557,292 @@ export function parsePipeMetadata(
     }
   }
   return metadata;
+}
+
+// ============================================================
+// Unified Metadata Grammar (§1.4) — splitNameAndMeta
+// ============================================================
+//
+// Same-line metadata split for the unified §1.4 grammar.
+//
+// Cut order on the input line (per §1.5):
+//   1. Locate the first reserved-key `<key>:` token (anchors the
+//      name region / metadata region boundary).
+//   2. Strip `as <alias>` postfix from the right side of the name
+//      region.
+//   3. Apply §1.5 trailing-token color to whatever remains of the
+//      name region.
+//
+// Quoted name tokens (`"Auth: Service"`) are tokenized as one unit
+// BEFORE the first-`:`-token scan — colons inside quoted strings do
+// not trigger the metadata cut.
+//
+// Quoted metadata values (`description: "with, commas"`) escape the
+// comma terminator within the metadata region.
+
+export interface SplitNameAndMetaResult {
+  /** Name region with color and `as <alias>` postfix stripped. */
+  name: string;
+  /** Parsed metadata key/value pairs (alias-resolved per the registry). */
+  meta: Record<string, string>;
+  /**
+   * Trailing-token color name from the name region, if any
+   * (raw color word like "blue" — NOT a resolved hex string).
+   * Callers wanting hex should pass the result through `resolveColor()`.
+   */
+  color?: string;
+  /** Alias declared via `as <alias>` postfix, if any. */
+  alias?: string;
+}
+
+const RESERVED_KEY_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
+const AS_ALIAS_RE = /\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})$/;
+
+/**
+ * Tokenize a line for the §1.4 metadata-cut scan:
+ * preserves quoted strings (`"..."` / `'...'`) as single tokens and
+ * tracks the byte offset of each token's start in the original line
+ * so callers can recover the exact name-region substring.
+ */
+interface ScanToken {
+  /** Token text (with surrounding quotes preserved for quoted tokens). */
+  readonly text: string;
+  /** Start offset in the original line. */
+  readonly start: number;
+  /** End offset (exclusive) in the original line. */
+  readonly end: number;
+  /** True if this token was quoted (`"..."` / `'...'`). */
+  readonly quoted: boolean;
+}
+
+function scanTokens(line: string): ScanToken[] {
+  const tokens: ScanToken[] = [];
+  let i = 0;
+  while (i < line.length) {
+    // Skip whitespace
+    if (line[i] === ' ' || line[i] === '\t') {
+      i++;
+      continue;
+    }
+    if (line[i] === '"' || line[i] === "'") {
+      const quote = line[i];
+      const start = i;
+      i++; // skip opening quote
+      while (i < line.length && line[i] !== quote) i++;
+      if (i < line.length) i++; // skip closing quote
+      tokens.push({
+        text: line.substring(start, i),
+        start,
+        end: i,
+        quoted: true,
+      });
+      continue;
+    }
+    const start = i;
+    while (i < line.length && line[i] !== ' ' && line[i] !== '\t') i++;
+    tokens.push({
+      text: line.substring(start, i),
+      start,
+      end: i,
+      quoted: false,
+    });
+  }
+  return tokens;
+}
+
+/**
+ * Locate the first colon-bearing position whose preceding identifier
+ * matches a reserved key, tolerating whitespace around `:` (per spec
+ * §1.4.1). Returns the byte offset in the original line where the
+ * name region ends (i.e. start of the key token), or `-1` if no
+ * metadata cut applies.
+ *
+ * Quoted-token contents (a `:` inside `"..."`) never trigger the cut.
+ */
+function findMetadataCutOffset(
+  line: string,
+  tokens: ScanToken[],
+  registry: ReservedKeyRegistry
+): number {
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i]!;
+    if (tok.quoted) continue;
+    const inlineColon = tok.text.indexOf(':');
+
+    if (inlineColon > 0) {
+      // Shape `<key>:[...]` inside this token (no whitespace before `:`).
+      const keyPart = tok.text.substring(0, inlineColon);
+      if (
+        RESERVED_KEY_RE.test(keyPart) &&
+        isReservedKey(registry, keyPart.toLowerCase())
+      ) {
+        return tok.start;
+      }
+    } else if (inlineColon < 0) {
+      // Token has no colon — check whether (a) the whole token is a
+      // reserved key and (b) the next non-empty content begins with `:`.
+      if (
+        RESERVED_KEY_RE.test(tok.text) &&
+        isReservedKey(registry, tok.text.toLowerCase())
+      ) {
+        const tail = line.substring(tok.end).replace(/^[ \t]+/, '');
+        if (tail.startsWith(':')) {
+          return tok.start;
+        }
+      }
+    }
+    // `inlineColon === 0` — token starts with `:`, e.g. `:Bar` after
+    // a bare key. Skip; the bare-key path above (one iteration earlier)
+    // already considered the preceding token.
+  }
+  return -1;
+}
+
+/**
+ * Parse the metadata region (substring starting at the metadata cut
+ * token through end-of-line) into a key/value record. Handles
+ * quoted values (`"with, commas"`) for comma escape, whitespace
+ * tolerance around `:`, empty-value diagnostics, and tag-alias
+ * resolution via the supplied aliasMap (callers responsible for
+ * converting `tag Concern as c` declarations into `c → concern`).
+ */
+function parseMetadataRegion(
+  region: string,
+  aliasMap: Map<string, string>,
+  diagnostics?: DgmoError[],
+  line?: number
+): Record<string, string> {
+  const meta: Record<string, string> = {};
+  let i = 0;
+  while (i < region.length) {
+    // Skip leading whitespace + commas (commas separate pairs)
+    while (
+      i < region.length &&
+      (region[i] === ' ' || region[i] === '\t' || region[i] === ',')
+    )
+      i++;
+    if (i >= region.length) break;
+    // Read key
+    const keyStart = i;
+    while (i < region.length && region[i] !== ':' && region[i] !== ',') i++;
+    if (i >= region.length || region[i] !== ':') break;
+    const rawKey = region.substring(keyStart, i).trim().toLowerCase();
+    if (!rawKey) break;
+    i++; // skip ':'
+    // Skip whitespace after colon
+    while (i < region.length && (region[i] === ' ' || region[i] === '\t')) i++;
+    // Read value — quoted (everything up to closing quote) or
+    // unquoted (everything up to next unquoted comma).
+    let value: string;
+    if (i < region.length && (region[i] === '"' || region[i] === "'")) {
+      const quote = region[i];
+      i++; // skip opening quote
+      const vStart = i;
+      while (i < region.length && region[i] !== quote) i++;
+      value = region.substring(vStart, i);
+      if (i < region.length) i++; // skip closing quote
+      // Skip trailing whitespace; next iteration handles comma.
+      while (i < region.length && (region[i] === ' ' || region[i] === '\t'))
+        i++;
+    } else {
+      const vStart = i;
+      while (i < region.length && region[i] !== ',') i++;
+      value = region.substring(vStart, i).trim();
+    }
+    const key = aliasMap.get(rawKey) ?? rawKey;
+    if (!value) {
+      if (diagnostics && line !== undefined) {
+        diagnostics.push(
+          makeDgmoError(
+            line,
+            emptyMetadataValueMessage(rawKey),
+            'warning',
+            METADATA_DIAGNOSTIC_CODES.EMPTY_METADATA_VALUE
+          )
+        );
+      }
+      // Drop the empty-value pair per §1.4.1.
+      continue;
+    }
+    meta[key] = value;
+  }
+  return meta;
+}
+
+/**
+ * Split a single line into name region + metadata per the unified
+ * §1.4 metadata grammar.
+ *
+ * Applies the §1.5 cut order: metadata-cut first, then `as <alias>`
+ * postfix strip, then trailing-token color on what remains of the
+ * name region.
+ *
+ * @param line       The source line (already trimmed of leading indent).
+ * @param registry   Active reserved-key registry for this chart type.
+ * @param aliasMap   Optional tag-alias → canonical-key map (e.g. `c → concern`).
+ * @param palette    Optional palette for color resolution.
+ * @param diagnostics Optional accumulator for `W_EMPTY_METADATA_VALUE`.
+ * @param lineNumber 1-based line number for diagnostics.
+ */
+export function splitNameAndMeta(
+  line: string,
+  registry: ReservedKeyRegistry,
+  aliasMap: Map<string, string> = new Map(),
+  palette?: PaletteColors,
+  diagnostics?: DgmoError[],
+  lineNumber?: number
+): SplitNameAndMetaResult {
+  const tokens = scanTokens(line);
+  const cutOffset = findMetadataCutOffset(line, tokens, registry);
+
+  let nameRegion: string;
+  let metaRegion: string;
+
+  if (cutOffset === -1) {
+    nameRegion = line.trim();
+    metaRegion = '';
+  } else {
+    nameRegion = line.substring(0, cutOffset).trimEnd();
+    metaRegion = line.substring(cutOffset);
+  }
+
+  // §1.5 cut order on the name region:
+  // (1) trailing-token color, (2) `as <alias>` postfix.
+  // Aliases sit *between* the label and the trailing color in source
+  // order (`<label> as <alias> <color>`), so peeling color first
+  // exposes the alias at end-of-string for the regex.
+  // Use the raw-color-name peel (not the hex-resolved one) so the
+  // returned `color` field matches the storage shape most parsers
+  // expect — callers wanting hex pass through `resolveColor()`.
+  const colorResult = peelTrailingColorName(nameRegion);
+  let postColorName = colorResult.label;
+
+  let alias: string | undefined;
+  const aliasMatch = postColorName.match(AS_ALIAS_RE);
+  if (aliasMatch) {
+    alias = aliasMatch[1];
+    postColorName = postColorName.substring(0, aliasMatch.index).trimEnd();
+  }
+
+  const meta =
+    metaRegion.length > 0
+      ? parseMetadataRegion(metaRegion, aliasMap, diagnostics, lineNumber)
+      : {};
+
+  // Mark palette/diagnostics as intentionally unused for the
+  // current peel path (kept on the signature for future hex-mode
+  // callers); reference them once so eslint no-unused-vars is happy.
+  void palette;
+  // Avoid breaking call sites that pass diagnostics — currently we
+  // only emit W_EMPTY_METADATA_VALUE from inside parseMetadataRegion.
+  // The lineNumber + palette stay for symmetry with extractColor.
+
+  return {
+    name: postColorName,
+    meta,
+    ...(colorResult.colorName !== undefined && {
+      color: colorResult.colorName,
+    }),
+    ...(alias !== undefined && { alias }),
+  };
 }

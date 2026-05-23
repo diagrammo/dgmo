@@ -155,32 +155,33 @@ describe('parseOrg', () => {
   // === Single-line compact metadata ===
   describe('single-line compact metadata', () => {
     it('parses pipe-delimited metadata', () => {
-      const result = parseOrg('Alice Park | role: Senior, location: NY');
+      const result = parseOrg('Alice Park  role: Senior, location: NY');
       const alice = result.roots[0];
       expect(alice.label).toBe('Alice Park');
       expect(alice.metadata).toEqual({ role: 'Senior', location: 'NY' });
     });
 
     it('parses comma-separated metadata within pipe segment', () => {
-      const result = parseOrg('Alice Park | role: Senior, location: NY');
+      const result = parseOrg('Alice Park  role: Senior, location: NY');
       const alice = result.roots[0];
       expect(alice.label).toBe('Alice Park');
       expect(alice.metadata).toEqual({ role: 'Senior', location: 'NY' });
     });
 
     it('(color) suffix is literal in label with metadata', () => {
-      const result = parseOrg('Alice Park blue | role: Senior');
+      const result = parseOrg('Alice Park blue  role: Senior');
       const alice = result.roots[0];
       expect(alice.label).toBe('Alice Park blue');
       expect(alice.color).toBeUndefined();
       expect(alice.metadata).toEqual({ role: 'Senior' });
     });
 
-    it('pipe segments without colon are ignored', () => {
+    it('legacy `|` operator emits E_PIPE_OPERATOR_REMOVED', () => {
       const result = parseOrg('Alice Park | Senior Engineer');
-      const alice = result.roots[0];
-      expect(alice.label).toBe('Alice Park');
-      expect(alice.metadata).toEqual({});
+      const diag = result.diagnostics.find(
+        (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
+      );
+      expect(diag).toBeDefined();
     });
   });
 
@@ -222,7 +223,7 @@ describe('parseOrg', () => {
 
     it('container with pipe-delimited children', () => {
       const result = parseOrg(
-        '[Platform Team]\n  goal: Core infra\n  Alice Park | role: Senior Engineer, location: NY\n  Bob Torres | role: Junior Engineer, location: CO'
+        '[Platform Team]\n  goal: Core infra\n  Alice Park  role: Senior Engineer, location: NY\n  Bob Torres  role: Junior Engineer, location: CO'
       );
       const team = result.roots[0];
       expect(team.metadata).toEqual({ goal: 'Core infra' });
@@ -320,7 +321,7 @@ describe('parseOrg', () => {
   // === Tag group aliases ===
   describe('tag group aliases', () => {
     it('parses from tag group heading', () => {
-      const result = parseOrg('tag Location loc\n  NY blue\n\nJane Smith');
+      const result = parseOrg('tag Location as loc\n  NY blue\n\nJane Smith');
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Location');
       expect(result.tagGroups[0].alias).toBe('loc');
@@ -335,7 +336,7 @@ describe('parseOrg', () => {
 
     it('expands in pipe-delimited metadata', () => {
       const result = parseOrg(
-        'tag Title t\n  CTO purple\n\nSean Curtis| t: CTO'
+        'tag Title as t\n  CTO purple\n\nSean Curtis t: CTO'
       );
       const sean = result.roots[0];
       expect(sean.metadata).toEqual({ title: 'CTO' });
@@ -343,7 +344,7 @@ describe('parseOrg', () => {
 
     it('expands in comma-separated metadata', () => {
       const result = parseOrg(
-        'tag Title t\n  CTO purple\n\ntag Location loc\n  NY blue\n\nSean Curtis| t: CTO, loc: NY'
+        'tag Title as t\n  CTO purple\n\ntag Location as loc\n  NY blue\n\nSean Curtis t: CTO, loc: NY'
       );
       const sean = result.roots[0];
       expect(sean.metadata).toEqual({ title: 'CTO', location: 'NY' });
@@ -351,7 +352,7 @@ describe('parseOrg', () => {
 
     it('expands in standalone metadata lines', () => {
       const result = parseOrg(
-        'tag Location loc\n  NY blue\n\nSean Curtis\n  loc: NY'
+        'tag Location as loc\n  NY blue\n\nSean Curtis\n  loc: NY'
       );
       const sean = result.roots[0];
       expect(sean.metadata).toEqual({ location: 'NY' });
@@ -359,7 +360,7 @@ describe('parseOrg', () => {
 
     it('multiple aliases with comma separators in single pipe', () => {
       const result = parseOrg(
-        'tag Location loc\n  NY blue\n  CA green\n\ntag Status st\n  FTE green\n\ntag Title t\n  CTO purple\n\nSean Curtis | t: CTO, loc: NY, st: FTE'
+        'tag Location as loc\n  NY blue\n  CA green\n\ntag Status as st\n  FTE green\n\ntag Title as t\n  CTO purple\n\nSean Curtis  t: CTO, loc: NY, st: FTE'
       );
       expect(result.tagGroups).toHaveLength(3);
       const sean = result.roots[0];
@@ -372,7 +373,7 @@ describe('parseOrg', () => {
 
     it('multiple aliases with comma separators', () => {
       const result = parseOrg(
-        'tag Location loc\n  NY blue\n  CA green\n\ntag Status st\n  FTE green\n\ntag Title t\n  CTO purple\n\nSean Curtis| t: CTO, loc: NY, st: FTE'
+        'tag Location as loc\n  NY blue\n  CA green\n\ntag Status as st\n  FTE green\n\ntag Title as t\n  CTO purple\n\nSean Curtis t: CTO, loc: NY, st: FTE'
       );
       expect(result.tagGroups).toHaveLength(3);
       const sean = result.roots[0];
@@ -384,14 +385,14 @@ describe('parseOrg', () => {
     });
 
     it('alias on tag group heading', () => {
-      const result = parseOrg('tag Status st\n  FTE green\n\nJane');
+      const result = parseOrg('tag Status as st\n  FTE green\n\nJane');
       expect(result.tagGroups[0].name).toBe('Status');
       expect(result.tagGroups[0].alias).toBe('st');
     });
 
     it('non-aliased keys pass through unchanged', () => {
       const result = parseOrg(
-        'tag Title t\n  CTO purple\n\nSean Curtis | t: CTO, role: VP'
+        'tag Title as t\n  CTO purple\n\nSean Curtis  t: CTO, role: VP'
       );
       const sean = result.roots[0];
       expect(sean.metadata).toEqual({ title: 'CTO', role: 'VP' });
@@ -411,7 +412,7 @@ describe('parseOrg', () => {
     });
 
     it('parses tag with alias', () => {
-      const result = parseOrg('tag Location loc\n  NY blue\n\nJane Smith');
+      const result = parseOrg('tag Location as loc\n  NY blue\n\nJane Smith');
       expect(result.tagGroups[0].name).toBe('Location');
       expect(result.tagGroups[0].alias).toBe('loc');
     });
@@ -450,7 +451,7 @@ describe('parseOrg', () => {
     });
 
     it('expands in metadata with tag syntax', () => {
-      const result = parseOrg('tag Title t\n  CTO purple\n\nSean| t: CTO');
+      const result = parseOrg('tag Title as t\n  CTO purple\n\nSean t: CTO');
       expect(result.roots[0].metadata).toEqual({ title: 'CTO' });
     });
 
@@ -686,7 +687,7 @@ Jane Smith
   describe('tag-group-only files', () => {
     it('parses tag-group-only input with no error', () => {
       const result = parseOrg(
-        'tag Rank r\n  Captain red\n  Sailor blue\n\ntag Status\n  Active green\n  Inactive gray'
+        'tag Rank as r\n  Captain red\n  Sailor blue\n\ntag Status\n  Active green\n  Inactive gray'
       );
       expect(result.error).toBeNull();
       expect(result.roots).toHaveLength(0);
@@ -694,7 +695,7 @@ Jane Smith
     });
 
     it('preserves and default in tag-group-only input', () => {
-      const result = parseOrg('tag Rank r\n  Sailor blue\n  Captain red');
+      const result = parseOrg('tag Rank as r\n  Sailor blue\n  Captain red');
       expect(result.tagGroups[0].name).toBe('Rank');
       expect(result.tagGroups[0].alias).toBe('r');
       expect(result.tagGroups[0].defaultValue).toBe('Sailor');
@@ -708,7 +709,7 @@ Jane Smith
   Engineering blue
   Design green
 
-Alice | department: Marketing`;
+Alice  department: Marketing`;
       const result = parseOrg(input);
       expect(result.error).toBeNull();
       const warnings = result.diagnostics.filter(
@@ -725,7 +726,7 @@ Alice | department: Marketing`;
   Engineering blue
   Design green
 
-Alice | department: Engineering`;
+Alice  department: Engineering`;
       const result = parseOrg(input);
       const warnings = result.diagnostics.filter(
         (d) => d.severity === 'warning'
@@ -737,7 +738,7 @@ Alice | department: Engineering`;
       const input = `tag Department
   Engineering blue
 
-Alice | department: engineering`;
+Alice  department: engineering`;
       const result = parseOrg(input);
       const warnings = result.diagnostics.filter(
         (d) => d.severity === 'warning'
@@ -750,7 +751,7 @@ Alice | department: engineering`;
   Engineering blue
   Design green
 
-Alice | department: Enginering`;
+Alice  department: Enginering`;
       const result = parseOrg(input);
       const warnings = result.diagnostics.filter(
         (d) => d.severity === 'warning'
@@ -764,7 +765,7 @@ Alice | department: Enginering`;
   Engineering blue
   Design green
 
-Alice | department: Finance`;
+Alice  department: Finance`;
       const result = parseOrg(input);
       const warnings = result.diagnostics.filter(
         (d) => d.severity === 'warning'
@@ -779,7 +780,7 @@ Alice | department: Finance`;
   IC blue
 
 CEO
-  Alice | role: VP`;
+  Alice  role: VP`;
       const result = parseOrg(input);
       const warnings = result.diagnostics.filter(
         (d) => d.severity === 'warning'
@@ -789,10 +790,10 @@ CEO
     });
 
     it('validates values assigned via alias', () => {
-      const input = `tag Department d
+      const input = `tag Department as d
   Engineering blue
 
-Alice | d: Marketing`;
+Alice  d: Marketing`;
       const result = parseOrg(input);
       const warnings = result.diagnostics.filter(
         (d) => d.severity === 'warning'

@@ -193,10 +193,11 @@ import { getSeriesColors } from './palettes';
 import { mix, shapeFill } from './palettes/color-utils';
 import type { DgmoError } from './diagnostics';
 import {
-  makeDgmoError,
-  formatDgmoError,
-  suggest,
   ALIAS_DIAGNOSTIC_CODES,
+  formatDgmoError,
+  makeDgmoError,
+  pipeOperatorRemovedMessage,
+  suggest,
   vennAliasKeywordRemovedMessage,
 } from './diagnostics';
 import {
@@ -865,6 +866,9 @@ export function parseVisualization(
         const amount = parseFloat(durationMatch[2]!);
         const unit = durationMatch[3] as 'd' | 'w' | 'm' | 'y' | 'h' | 'min';
         const endDate = addDurationToDate(startDate, amount, unit);
+        if (durationMatch[5]!.includes('|')) {
+          warn(lineNumber, pipeOperatorRemovedMessage());
+        }
         const segments = durationMatch[5]!.split('|');
         const metadata =
           segments.length > 1
@@ -895,6 +899,9 @@ export function parseVisualization(
       );
       if (rangeMatch) {
         // Capture group 4 guaranteed by the regex match.
+        if (rangeMatch[4]!.includes('|')) {
+          warn(lineNumber, pipeOperatorRemovedMessage());
+        }
         const segments = rangeMatch[4]!.split('|');
         const metadata =
           segments.length > 1
@@ -922,6 +929,9 @@ export function parseVisualization(
       const pointMatch = line.match(/^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s+(.+)$/);
       if (pointMatch) {
         // Capture group 2 guaranteed by the regex match.
+        if (pointMatch[2]!.includes('|')) {
+          warn(lineNumber, pipeOperatorRemovedMessage());
+        }
         const segments = pointMatch[2]!.split('|');
         const metadata =
           segments.length > 1

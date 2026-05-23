@@ -97,10 +97,14 @@ Q2 Goals
 
   // ── Pipe metadata ──────────────────────────────────────────
 
-  it('parses pipe metadata on nodes', () => {
+  it('parses arbitrary metadata via registered tag aliases', () => {
     const result = parseMindmap(
       `mindmap Root
-  Task | priority: High, status: Done`
+
+tag Priority as priority
+tag Status as status
+
+  Task priority: High, status: Done`
     );
     const task = result.roots[0].children[0];
     expect(task.metadata['priority']).toBe('High');
@@ -110,7 +114,7 @@ Q2 Goals
   it('extracts description from pipe metadata as dedicated field', () => {
     const result = parseMindmap(
       `mindmap Root
-  Surveys | description: Quarterly NPS survey`
+  Surveys description: Quarterly NPS survey`
     );
     const node = result.roots[0].children[0];
     expect(node.description).toEqual(['Quarterly NPS survey']);
@@ -120,7 +124,7 @@ Q2 Goals
   it('extracts collapsed flag from pipe metadata', () => {
     const result = parseMindmap(
       `mindmap Root
-  Nice-to-haves | collapsed: true`
+  Nice-to-haves collapsed: true`
     );
     const node = result.roots[0].children[0];
     expect(node.collapsed).toBe(true);
@@ -130,7 +134,7 @@ Q2 Goals
   it('combined pipe metadata with description, collapsed, and tags', () => {
     const result = parseMindmap(
       `mindmap Root
-  Node | description: Info, collapsed: true, priority: High`
+  Node description: Info, collapsed: true, priority: High`
     );
     const node = result.roots[0].children[0];
     expect(node.description).toEqual(['Info']);
@@ -165,17 +169,17 @@ Q2 Goals
     expect(warnings[0].message).toContain('description after child nodes');
   });
 
-  it('pipe description wins over indented description', () => {
+  it('same-line description combines with indented description', () => {
     const result = parseMindmap(
       `mindmap Root
-  Node | description: Pipe wins
-    description: Indented loses`
+  Node description: Same-line wins
+    description: Indented follows`
     );
     const node = result.roots[0].children[0];
-    expect(node.description).toEqual(['Pipe wins', 'Indented loses']);
+    expect(node.description).toEqual(['Same-line wins', 'Indented follows']);
   });
 
-  it('empty indented description is silently skipped', () => {
+  it('empty indented description emits W_EMPTY_METADATA_VALUE and skips field', () => {
     const result = parseMindmap(
       `mindmap Root
   Node
@@ -183,16 +187,23 @@ Q2 Goals
     );
     const node = result.roots[0].children[0];
     expect(node.description).toBeUndefined();
-    expect(result.diagnostics).toHaveLength(0);
+    const warn = result.diagnostics.find(
+      (d) => d.code === 'W_EMPTY_METADATA_VALUE'
+    );
+    expect(warn).toBeDefined();
   });
 
-  it('empty pipe description is silently skipped', () => {
+  it('empty same-line description emits W_EMPTY_METADATA_VALUE and skips field', () => {
     const result = parseMindmap(
       `mindmap Root
-  Node | description:`
+  Node description:`
     );
     const node = result.roots[0].children[0];
     expect(node.description).toBeUndefined();
+    const warn = result.diagnostics.find(
+      (d) => d.code === 'W_EMPTY_METADATA_VALUE'
+    );
+    expect(warn).toBeDefined();
   });
 
   // ── Multi-line and keyword variants ─────────────────────────
@@ -255,11 +266,11 @@ Q2 Goals
     const result = parseMindmap(
       `mindmap Root
 
-tag Priority p
+tag Priority as p
   High red
   Low green
 
-  Task | p: High`,
+  Task p: High`,
       palette
     );
     expect(result.tagGroups).toHaveLength(1);
@@ -272,11 +283,11 @@ tag Priority p
     const result = parseMindmap(
       `mindmap Root
 
-tag Priority p
+tag Priority as p
   High red
   Low green
 
-  Task | p: High`,
+  Task p: High`,
       palette
     );
     const task = result.roots[0].children[0];
@@ -302,7 +313,7 @@ no-descriptions
     const result = parseMindmap(
       `mindmap Root
 
-tag Priority p
+tag Priority as p
   High red
 
 active-tag Priority
@@ -344,11 +355,11 @@ active-tag Priority
     const result = parseMindmap(
       `mindmap Root
 
-tag Status s
+tag Status as s
   Active green
   Done blue
 
-  First Node | s: Active`,
+  First Node s: Active`,
       palette
     );
     expect(result.tagGroups).toHaveLength(1);

@@ -1,6 +1,16 @@
 import type { PaletteColors } from '../palettes';
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import {
+  formatDgmoError,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+  suggest,
+} from '../diagnostics';
 import { resolveColorWithDiagnostic } from '../colors';
+import {
+  KANBAN_REGISTRY,
+  withTagAliases,
+} from '../utils/reserved-key-registry';
 import {
   matchTagBlockHeading,
   emitTagLegacyDiagnostic,
@@ -10,7 +20,7 @@ import {
 import {
   measureIndent,
   extractColor,
-  parsePipeMetadata,
+  splitNameAndMeta,
   parseFirstLine,
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
@@ -27,11 +37,14 @@ import type {
 // Regex patterns
 // ============================================================
 
-// [Column Name], [Column Name] color, [Column Name] as <alias>, [Column Name] | wip: 3, etc.
+// [Column Name], [Column Name] color, [Column Name] as <alias>, [Column Name] wip: 3, etc.
 // Universal §1.5 trailing-token: color is a bare token after `]`.
-// Captures: [1]=label [2]=color [3]=alias (TD-18) [4]=pipe meta
-const COLUMN_RE =
-  /^\[(.+?)\](?:\s+(\S+))?(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*(?:\|\s*(.+))?$/;
+// Universal §1.4 same-line metadata also allowed after `]`.
+// Captures: [1]=label [2]=trailing content (color / alias / metadata, parsed below)
+const COLUMN_RE = /^\[(.+?)\]\s*(.*)$/;
+const PALETTE_COLOR_WORD_RE =
+  /^(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\b/;
+const AS_ALIAS_TOKEN_RE = /^as\s+([A-Za-z][A-Za-z0-9_]{0,11})\b/;
 // Legacy delimiter
 const LEGACY_COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
 
@@ -160,6 +173,12 @@ export function parseKanban(
             tagBlockMatch.name.toLowerCase()
           );
         }
+        // §1.4 dispatch: register the canonical tag name so `priority: X`
+        // also dispatches as metadata (not just the optional `p: X` alias).
+        metaAliasMap.set(
+          normalizeName(tagBlockMatch.name),
+          tagBlockMatch.name.toLowerCase()
+        );
         result.tagGroups.push(currentTagGroup);
         continue;
       }
@@ -254,38 +273,65 @@ export function parseKanban(
 
       columnCounter++;
       const colName = columnMatch[1]!.trim();
-      // Trailing token after `]` must be a recognized color word (§1.5).
-      // If it isn't, the line is malformed — emit the standard diagnostic.
-      const rawTrailing = columnMatch[2]?.trim();
-      const colColor = rawTrailing
-        ? resolveColorWithDiagnostic(
-            rawTrailing,
-            lineNumber,
-            result.diagnostics,
-            palette
-          )
-        : undefined;
-      // TD-18: alias capture (group 3 after regex extension).
-      // Bind to the column id once it's allocated below.
-      const colAlias = columnMatch[3];
+      let tail = (columnMatch[2] ?? '').trim();
 
-      // Parse pipe metadata (e.g., "| wip: 3, t: Sprint1")
-      let wipLimit: number | undefined;
-      const columnMetadata: Record<string, string> = {};
-      const pipeStr = columnMatch[4];
-      if (pipeStr) {
-        const pipeSegments = ['', pipeStr];
-        Object.assign(
-          columnMetadata,
-          parsePipeMetadata(pipeSegments, metaAliasMap)
+      // Parse tail in order: optional color word, optional `as <alias>`,
+      // optional same-line metadata (per §1.4) — with legacy `|` detection.
+      let colColor: string | undefined;
+      const colorMatch = tail.match(PALETTE_COLOR_WORD_RE);
+      if (colorMatch) {
+        colColor = resolveColorWithDiagnostic(
+          colorMatch[1]!,
+          lineNumber,
+          result.diagnostics,
+          palette
         );
-        // Extract wip from metadata
-        if (columnMetadata['wip']) {
-          const wipVal = parseInt(columnMetadata['wip'], 10);
-          if (!isNaN(wipVal)) {
-            wipLimit = wipVal;
-          }
-        }
+        tail = tail.substring(colorMatch[0]!.length).trim();
+      }
+
+      let colAlias: string | undefined;
+      const aliasMatch = tail.match(AS_ALIAS_TOKEN_RE);
+      if (aliasMatch) {
+        colAlias = aliasMatch[1];
+        tail = tail.substring(aliasMatch[0]!.length).trim();
+      }
+
+      // Legacy `|` detection in the tail (§1.4 rejection).
+      if (tail.startsWith('|')) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            pipeOperatorRemovedMessage(),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+          )
+        );
+        tail = tail.replace(/^\|\s*/, '');
+      }
+
+      // §1.4 unified metadata grammar — same-line cut on the tail (which
+      // is now `wip: 3, t: Sprint1` shape after color/alias peeled).
+      const columnMetadata: Record<string, string> = {};
+      let wipLimit: number | undefined;
+      if (tail.length > 0) {
+        const registry = withTagAliases(
+          KANBAN_REGISTRY,
+          new Set(metaAliasMap.keys())
+        );
+        // Build a virtual line so splitNameAndMeta sees the tail at offset 0.
+        const split = splitNameAndMeta(
+          tail,
+          registry,
+          metaAliasMap,
+          undefined,
+          result.diagnostics,
+          lineNumber
+        );
+        Object.assign(columnMetadata, split.meta);
+      }
+      if (columnMetadata['wip']) {
+        const wipVal = parseInt(columnMetadata['wip'], 10);
+        if (!isNaN(wipVal)) wipLimit = wipVal;
       }
 
       const colId = `col-${columnCounter}`;
@@ -419,35 +465,40 @@ function parseCardLine(
   counter: number,
   metaAliasMap: Map<string, string>,
   _palette?: PaletteColors,
-  _diagnostics?: import('../diagnostics').DgmoError[]
+  diagnostics?: import('../diagnostics').DgmoError[]
 ): KanbanCard {
-  // Split on first pipe: Title | tag: value, tag: value
-  const pipeIdx = trimmed.indexOf('|');
-  let rawTitle: string;
-  let tagsStr: string | null = null;
-
-  if (pipeIdx >= 0) {
-    rawTitle = trimmed.substring(0, pipeIdx).trim();
-    tagsStr = trimmed.substring(pipeIdx + 1).trim();
-  } else {
-    rawTitle = trimmed;
+  // Legacy `|` detection.
+  if (trimmed.includes('|') && diagnostics) {
+    diagnostics.push(
+      makeDgmoError(
+        lineNumber,
+        pipeOperatorRemovedMessage(),
+        'error',
+        METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+      )
+    );
   }
 
-  const title = rawTitle;
-
-  // Parse tags: comma-separated key: value pairs
-  const tags: Record<string, string> = {};
-  if (tagsStr) {
-    for (const part of tagsStr.split(',')) {
-      const colonIdx = part.indexOf(':');
-      if (colonIdx > 0) {
-        const rawKey = part.substring(0, colonIdx).trim().toLowerCase();
-        const key = metaAliasMap.get(rawKey) ?? rawKey;
-        const value = part.substring(colonIdx + 1).trim();
-        tags[key] = value;
-      }
-    }
-  }
+  // §1.4 unified metadata grammar — same-line cut.
+  const registry = withTagAliases(
+    KANBAN_REGISTRY,
+    new Set(metaAliasMap.keys())
+  );
+  const split = splitNameAndMeta(
+    trimmed,
+    registry,
+    metaAliasMap,
+    undefined,
+    diagnostics,
+    lineNumber
+  );
+  // Cards don't have a color slot; the §1.5 trailing-token peel that
+  // splitNameAndMeta runs by default would strip `Urgent task red` to
+  // title `Urgent task`. Restore the trailing color word as part of the
+  // literal title for cards.
+  const title =
+    split.color !== undefined ? `${split.name} ${split.color}` : split.name;
+  const tags: Record<string, string> = { ...split.meta };
 
   return {
     id: `card-${counter}`,

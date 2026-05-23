@@ -6,7 +6,7 @@ voyage approved 0
   -> recruit crew
 
 [outfit ship]
-  recruit crew 1 2 4 as rc | confidence: low
+  recruit crew 1 2 4 as rc  confidence: low
     -> load powder
   careen hull 1.5
     -> load powder
@@ -20,16 +20,16 @@ atoll sighted 0
   -> decode map
   -> scout reef
 
-decode map 0.5 1 3 | confidence: low
+decode map 0.5 1 3  confidence: low
   -> dig chest
 
 scout reef 1
   -> fight giant squid
 
-dig chest 1 2 5 | confidence: low
+dig chest 1 2 5  confidence: low
   -> sail home
 
-fight giant squid 0.5 1 3 | confidence: low
+fight giant squid 0.5 1 3  confidence: low
   -> sail home
 
 sail home 3 5 8
@@ -40,7 +40,7 @@ sail home 3 5 8
 count gold 0.5d
   -> divvy shares
 
-repair hull 2 3 5 | confidence: low
+repair hull 2 3 5  confidence: low
   -> divvy shares
 
 celebrate

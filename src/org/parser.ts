@@ -1,6 +1,13 @@
 import type { PaletteColors } from '../palettes';
 import type { DgmoError } from '../diagnostics';
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import {
+  formatDgmoError,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+  suggest,
+} from '../diagnostics';
+import { ORG_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import {
@@ -14,8 +21,7 @@ import {
 import {
   measureIndent,
   extractColor,
-  parsePipeMetadata,
-  MULTIPLE_PIPE_ERROR,
+  splitNameAndMeta,
   parseFirstLine,
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
@@ -217,6 +223,12 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
           tagBlockMatch.name.toLowerCase()
         );
       }
+      // §1.4 dispatch: register canonical name so `<name>:` triggers
+      // the metadata cut even without an explicit `as <alias>`.
+      metaAliasMap.set(
+        normalizeName(tagBlockMatch.name),
+        tagBlockMatch.name.toLowerCase()
+      );
       result.tagGroups.push(currentTagGroup);
       continue;
     }
@@ -279,12 +291,22 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     // Check for container syntax: [Team Name]
     const containerMatch = trimmed.match(CONTAINER_RE);
 
-    // Check for metadata syntax: key: value
-    // Lines containing '|' are pipe-delimited nodes (e.g. "Alice | role: Engineer"),
-    // not metadata — skip the metadata regex for them.
-    const metadataMatch = trimmed.includes('|')
-      ? null
-      : trimmed.match(METADATA_RE);
+    // Check for indented metadata syntax: `key: value` with key at start.
+    // A line like `Alice Park role: Senior` is a NODE with same-line
+    // metadata (§1.4), not indented metadata for the parent — distinguish
+    // by requiring the key (chars before the first `:`) to be a single
+    // identifier-shaped token. Anything with embedded spaces in the key
+    // region is a node line.
+    const metadataMatch = (() => {
+      if (trimmed.includes('|')) return null;
+      const m = trimmed.match(METADATA_RE);
+      if (!m) return null;
+      const keyRegion = m[1]!.trim();
+      // Bare-metadata key must be a single word (no embedded spaces).
+      // A node line has the label first, then the metadata key.
+      if (/\s/.test(keyRegion)) return null;
+      return m;
+    })();
 
     if (containerMatch) {
       // It's a container node — supports `as <alias>` postfix per TD-18.
@@ -337,7 +359,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
           palette,
           ++nodeCounter,
           metaAliasMap,
-          pushWarning,
+          result.diagnostics,
           nameAliasMap
         );
         attachNode(node, indent, indentStack, result);
@@ -345,7 +367,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         pushError(lineNumber, 'Metadata has no parent node');
       }
     } else {
-      // It's a node label — possibly with single-line pipe-delimited metadata
+      // It's a node label — possibly with single-line metadata
       const node = parseNodeLabel(
         trimmed,
         indent,
@@ -353,7 +375,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         palette,
         ++nodeCounter,
         metaAliasMap,
-        pushWarning,
+        result.diagnostics,
         nameAliasMap
       );
       attachNode(node, indent, indentStack, result);
@@ -400,28 +422,42 @@ function parseNodeLabel(
   _palette: PaletteColors | undefined,
   counter: number,
   metaAliasMap: Map<string, string> = new Map(),
-  warnFn?: (line: number, msg: string) => void,
+  diagnostics?: DgmoError[],
   nameAliasMap?: Map<string, string>
 ): Writable<OrgNode> {
-  // Check for single-line compact metadata: "Alice Park | role: Senior, location: NY"
-  const segments = trimmed.split('|').map((s) => s.trim());
-
-  // TD-18: peel optional `as <alias>` from the label (pre-pipe).
-  // String.split always returns at least one element.
-  let label = segments[0]!;
-  const asMatch = label.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
-  const id = `node-${counter}`;
-  if (asMatch) {
-    // Capture groups 1 and 2 guaranteed by the regex above.
-    label = asMatch[1]!.trim();
-    nameAliasMap?.set(normalizeName(asMatch[2]!), id);
+  // Legacy `|` detection per §1.4.
+  if (trimmed.includes('|') && diagnostics) {
+    diagnostics.push(
+      makeDgmoError(
+        lineNumber,
+        pipeOperatorRemovedMessage(),
+        'error',
+        METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+      )
+    );
   }
 
-  const metadata = parsePipeMetadata(
-    segments,
+  // §1.4 unified metadata grammar — same-line cut.
+  const registry = withTagAliases(ORG_REGISTRY, new Set(metaAliasMap.keys()));
+  const id = `node-${counter}`;
+  const split = splitNameAndMeta(
+    trimmed,
+    registry,
     metaAliasMap,
-    warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_ERROR) : undefined
+    undefined,
+    diagnostics,
+    lineNumber
   );
+  // Org labels do not use §1.5 trailing-token color (org uses an indented
+  // `color:` key). Restore the peeled color word back into the label so
+  // `Alice Park blue role: Senior` parses as label `Alice Park blue` with
+  // metadata only.
+  const label =
+    split.color !== undefined ? `${split.name} ${split.color}` : split.name;
+  if (split.alias) {
+    nameAliasMap?.set(normalizeName(split.alias), id);
+  }
+  const metadata: Record<string, string> = { ...split.meta };
 
   return {
     id,

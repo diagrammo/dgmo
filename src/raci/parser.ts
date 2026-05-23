@@ -18,13 +18,20 @@
 //
 // See `docs/dgmo-language-spec.md` § "RACI Matrix".
 
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import {
+  formatDgmoError,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+  suggest,
+} from '../diagnostics';
 import { resolveColorWithDiagnostic } from '../colors';
+import { RACI_REGISTRY } from '../utils/reserved-key-registry';
 import {
   measureIndent,
   parseFirstLine,
   parsePipeMetadata,
-  peelTrailingColorName,
+  splitNameAndMeta,
   OPTION_NOCOLON_RE,
   tryParseSharedOption,
 } from '../utils/parsing';
@@ -87,7 +94,10 @@ const KNOWN_BOOLEANS = new Set<string>([
 // Allow optional trailing color shortcut and/or pipe metadata after the
 // bracket: `[Voyage] blue | desc: …` (per §1.5 universal trailing-token
 // rule + the modern cycle/pyramid/ring/journey-map/b&l idiom).
-const PHASE_RE = /^\[(.+?)\](?:\s+(\S+))?(?:\s*\|\s*(.+))?\s*$/;
+// Captures: 1=label, 2=trailing content (parsed below for color + metadata).
+const PHASE_RE = /^\[(.+?)\]\s*(.*)$/;
+const PHASE_PALETTE_COLOR_RE =
+  /^(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\b/;
 const ROLE_ASSIGNMENT_RE = /^([^:]+):\s*(.*)$/;
 
 /**
@@ -392,35 +402,36 @@ export function parseRaci(
           // Strip a possible trailing comma (user habit tolerance,
           // matches `collectIndentedValues`).
           const stripped = nextTrim.replace(/,\s*$/, '');
-          // Optional pipe metadata: `Cap | color: blue` — long form.
-          // Optional trailing-token shortcut: `Cap blue` — short form (§1.5).
-          const segments = stripped.split('|').map((s) => s.trim());
-          let roleLabel = segments[0] ?? '';
-          let roleColor: string | undefined;
-          if (segments.length > 1) {
-            const meta = parsePipeMetadata(segments);
-            if (meta['color']) {
-              roleColor = resolveColorWithDiagnostic(
-                meta['color'],
+          // Legacy `|` detection (was: `Cap | color: blue`).
+          if (stripped.includes('|')) {
+            result.diagnostics.push(
+              makeDgmoError(
                 j + 1,
-                result.diagnostics,
-                palette
-              );
-            }
+                pipeOperatorRemovedMessage(),
+                'error',
+                METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+              )
+            );
           }
-          // Apply shortcut only when pipe metadata didn't already set color.
-          if (!roleColor) {
-            const { label: stripLabel, colorName: shortcutColor } =
-              peelTrailingColorName(roleLabel);
-            if (shortcutColor) {
-              roleColor = resolveColorWithDiagnostic(
-                shortcutColor,
-                j + 1,
-                result.diagnostics,
-                palette
-              );
-              roleLabel = stripLabel;
-            }
+          // §1.4 unified metadata grammar — same-line cut.
+          const split = splitNameAndMeta(
+            stripped,
+            RACI_REGISTRY,
+            new Map(),
+            undefined,
+            result.diagnostics,
+            j + 1
+          );
+          const roleLabel = split.name;
+          let roleColor: string | undefined;
+          const colorRaw = split.color ?? split.meta['color'];
+          if (colorRaw) {
+            roleColor = resolveColorWithDiagnostic(
+              colorRaw,
+              j + 1,
+              result.diagnostics,
+              palette
+            );
           }
           if (roleLabel) getOrAddRole(roleLabel, j + 1, roleColor);
         }
@@ -496,28 +507,36 @@ export function parseRaci(
           errorAt(lineNumber, 'Phase label is empty.');
           continue;
         }
-        // PHASE_RE captures: 1=label, 2=optional trailing-token color, 3=pipe meta.
-        // Long pipe form (`[Voyage] | color: blue`) wins over the shortcut.
+        // Parse tail: optional trailing-token color, optional `|` (legacy
+        // pipe → emit error), optional same-line metadata.
         let phaseColor: string | undefined;
-        const trailingToken = phaseMatch[2];
-        const pipeMeta = phaseMatch[3];
-        if (pipeMeta) {
-          const meta = parsePipeMetadata(['', pipeMeta]);
-          if (meta['color']) {
+        let tail = (phaseMatch[2] ?? '').trim();
+        const colorMatch = tail.match(PHASE_PALETTE_COLOR_RE);
+        if (colorMatch) {
+          phaseColor = resolveColorWithDiagnostic(
+            colorMatch[1]!,
+            lineNumber,
+            result.diagnostics,
+            palette
+          );
+          tail = tail.substring(colorMatch[0]!.length).trim();
+        }
+        if (tail.startsWith('|')) {
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              pipeOperatorRemovedMessage(),
+              'error',
+              METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+            )
+          );
+          tail = tail.replace(/^\|\s*/, '');
+        }
+        if (tail.length > 0) {
+          const meta = parsePipeMetadata(['', tail]);
+          if (meta['color'] && !phaseColor) {
             phaseColor = resolveColorWithDiagnostic(
               meta['color'],
-              lineNumber,
-              result.diagnostics,
-              palette
-            );
-          }
-        }
-        if (!phaseColor && trailingToken) {
-          // Trailing token must be a recognized color word, or it's a parse error.
-          const { colorName } = peelTrailingColorName(`x ${trailingToken}`);
-          if (colorName) {
-            phaseColor = resolveColorWithDiagnostic(
-              colorName,
               lineNumber,
               result.diagnostics,
               palette

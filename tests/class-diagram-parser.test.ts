@@ -390,6 +390,38 @@ describe('parseClassDiagram', () => {
   });
 
   // === Edge cases ===
+  describe('§1.4 unified metadata grammar exemption', () => {
+    it('class members `+ name: string` still parse correctly (class is exempt)', () => {
+      const result = parseClassDiagram(
+        'Ship\n  + name: string\n  + speed: number\n  + sail(): void'
+      );
+      expect(result.error).toBeNull();
+      const ship = result.classes[0];
+      const members = ship!.members;
+      expect(members[0]!.name).toBe('name');
+      expect(members[0]!.type).toBe('string');
+      expect(members[1]!.name).toBe('speed');
+      expect(members[1]!.type).toBe('number');
+      expect(members[2]!.name).toBe('sail');
+      expect(members[2]!.isMethod).toBe(true);
+      // No pipe-removed diagnostic — class doesn't use `|` for metadata.
+      const pipeDiag = result.diagnostics.find(
+        (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
+      );
+      expect(pipeDiag).toBeUndefined();
+    });
+
+    it('class inheritance arrows `--|>` and `..|>` are not flagged as legacy pipes', () => {
+      const result = parseClassDiagram(
+        'abstract Vessel\n  + sail(): void\n\nGalleon\n  --|> Vessel'
+      );
+      const pipeDiag = result.diagnostics.find(
+        (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
+      );
+      expect(pipeDiag).toBeUndefined();
+    });
+  });
+
   describe('edge cases', () => {
     it('handles class with only methods', () => {
       const result = parseClassDiagram(

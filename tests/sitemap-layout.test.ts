@@ -4,6 +4,38 @@ import { layoutSitemap } from '../src/sitemap/layout';
 import { collapseSitemapTree } from '../src/sitemap/collapse';
 import type { SitemapNode } from '../src/sitemap/types';
 
+/**
+ * Tag declarations needed to register the arbitrary metadata keys
+ * these layout tests use (Access, Payment, etc.). Under the §1.4
+ * unified-metadata grammar, only reserved keys + declared tag aliases
+ * trigger the metadata cut; layout tests deliberately use arbitrary
+ * keys to exercise multi-row card rendering.
+ */
+const LAYOUT_TEST_TAGS = [
+  'tag Access as access',
+  '  Public blue',
+  'tag Payment as payment',
+  '  Card blue',
+  'tag Items as items',
+  '  Default blue',
+  'tag Shift as shift',
+  '  Morning blue',
+  'tag Page as page',
+  '  Default blue',
+  'tag K as k',
+  '  Default blue',
+  'tag A as a',
+  '  Default blue',
+  'tag B as b',
+  '  Default blue',
+  'tag C as c',
+  '  Default blue',
+  'tag D as d',
+  '  Default blue',
+  'tag E as e',
+  '  Default blue',
+].join('\n');
+
 /** Find a container's parser-generated ID by label (recursive). */
 function findContainerId(roots: SitemapNode[], label: string): string {
   function search(nodes: SitemapNode[]): string | undefined {
@@ -267,12 +299,13 @@ describe('layoutSitemap', () => {
     it('floors collapsed container to max sibling page-card dimensions', () => {
       const source = [
         'sitemap',
+        LAYOUT_TEST_TAGS,
         '[Storefront]',
-        '  Checkout | Access: Public, Payment: Card',
-        '  Catalog | Access: Public, Items: 240',
+        '  Checkout  Access: Public, Payment: Card',
+        '  Catalog  Access: Public, Items: 240',
         '[Warehouse]',
-        '  Intake | Access: Internal, Shift: Morning',
-        '  Outbound | Access: Internal, Shift: Evening',
+        '  Intake  Access: Internal, Shift: Morning',
+        '  Outbound  Access: Internal, Shift: Evening',
       ].join('\n');
       const parsed = parseSitemap(source);
       const warehouseId = findContainerId(parsed.roots, 'Warehouse');
@@ -292,11 +325,12 @@ describe('layoutSitemap', () => {
     it('discriminates empty containers from collapsed containers via hiddenCount', () => {
       const source = [
         'sitemap',
+        LAYOUT_TEST_TAGS,
         '[Storefront]',
-        '  Checkout | Access: Public, Payment: Card',
+        '  Checkout  Access: Public, Payment: Card',
         '[Empty]',
         '[Warehouse]',
-        '  Intake | Access: Internal, Shift: Morning',
+        '  Intake  Access: Internal, Shift: Morning',
       ].join('\n');
       const parsed = parseSitemap(source);
       const warehouseId = findContainerId(parsed.roots, 'Warehouse');
@@ -319,10 +353,11 @@ describe('layoutSitemap', () => {
     it('grows collapsed container past the floor when content requires it', () => {
       const source = [
         'sitemap',
+        LAYOUT_TEST_TAGS,
         '[Main]',
-        '  Home | K: v',
-        '[Details] | A: 1, B: 2, C: 3, D: 4, E: 5',
-        '  Child | K: v',
+        '  Home  K: v',
+        '[Details]  A: 1, B: 2, C: 3, D: 4, E: 5',
+        '  Child  K: v',
       ].join('\n');
       const parsed = parseSitemap(source);
       const detailsId = findContainerId(parsed.roots, 'Details');
@@ -340,7 +375,7 @@ describe('layoutSitemap', () => {
     });
 
     it('does not crash when no page cards exist to derive a floor from', () => {
-      const source = ['sitemap', '[OnlyContainer]', '  Hidden | K: v'].join(
+      const source = ['sitemap', '[OnlyContainer]', '  Hidden  K: v'].join(
         '\n'
       );
       const parsed = parseSitemap(source);
@@ -360,12 +395,13 @@ describe('layoutSitemap', () => {
     it('floors every collapsed container uniformly, not just one', () => {
       const source = [
         'sitemap',
+        LAYOUT_TEST_TAGS,
         '[Open]',
-        '  LargePage | A: 1, B: 2, C: 3',
+        '  LargePage  A: 1, B: 2, C: 3',
         '[Collapsed1]',
-        '  Hidden1 | K: v',
+        '  Hidden1  K: v',
         '[Collapsed2]',
-        '  Hidden2 | K: v',
+        '  Hidden2  K: v',
       ].join('\n');
       const parsed = parseSitemap(source);
       const c1Id = findContainerId(parsed.roots, 'Collapsed1');
@@ -390,10 +426,11 @@ describe('layoutSitemap', () => {
     it('floors width and height independently', () => {
       const source = [
         'sitemap',
+        LAYOUT_TEST_TAGS,
         '[Main]',
-        '  Home | Access: Public, Page: Landing',
+        '  Home  Access: Public, Page: Landing',
         '[A Very Long Container Name Indeed]',
-        '  Inside | K: v',
+        '  Inside  K: v',
       ].join('\n');
       const parsed = parseSitemap(source);
       const wideId = findContainerId(
@@ -422,23 +459,23 @@ describe('layoutSitemap', () => {
       const source = [
         'sitemap Pirate Bay Trading Co.',
         '',
-        'Home | Access: Public, Page: Landing',
+        'Home  Access: Public, Page: Landing',
         '  -shop-> Shop',
         '  -join-> Enlist',
         '  -map-> Treasure Map',
         '',
         '[Port Market]',
-        '  Shop | Access: Public, Page: Content',
+        '  Shop  Access: Public, Page: Content',
         '    -buy-> Checkout',
-        '  Checkout | Access: Crew Only, Page: Form',
+        '  Checkout  Access: Crew Only, Page: Form',
         '    -purchased-> Ship Log',
         '',
         '[Crew Quarters]',
-        '  Enlist | Access: Public, Page: Form',
+        '  Enlist  Access: Public, Page: Form',
         '    -enlisted-> Ship Log',
-        '  Ship Log | Access: Crew Only, Page: Content',
+        '  Ship Log  Access: Crew Only, Page: Content',
         '    -voyage-> Treasure Map',
-        '  Treasure Map | Access: Captain, Page: Content',
+        '  Treasure Map  Access: Captain, Page: Content',
       ].join('\n');
       const parsed = parseSitemap(source);
       const portMarketId = findContainerId(parsed.roots, 'Port Market');

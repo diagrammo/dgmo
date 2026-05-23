@@ -10,10 +10,20 @@
 // See `_bmad-output/implementation-artifacts/tech-spec-pert.md`
 // for the design rationale; AC1.* for the contract this parser meets.
 
-import { makeDgmoError, suggest } from '../diagnostics';
+import {
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+  suggest,
+} from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import { parseDuration } from '../utils/duration';
-import { extractColor, measureIndent } from '../utils/parsing';
+import {
+  extractColor,
+  measureIndent,
+  splitNameAndMeta,
+} from '../utils/parsing';
+import { PERT_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
 import { normalizeName } from '../utils/name-normalize';
 import {
   emitTagLegacyDiagnostic,
@@ -112,7 +122,8 @@ const NEAR_DIRECTIVE_HINTS: ReadonlyArray<{
 ];
 
 /** Group header: `[name]` with optional `| collapsed: true` etc. */
-const GROUP_HEADER_RE = /^\[([^\]]+)\]\s*(?:\|\s*(.+))?$/;
+// Captures: [1]=name [2]=trailing content (metadata, parsed via splitNameAndMeta below)
+const GROUP_HEADER_RE = /^\[([^\]]+)\]\s*(.*)$/;
 
 /** Indented reference, no edge label: `-> dest`. */
 const ARROW_RE = /^->\s*(.+?)\s*$/;
@@ -274,19 +285,67 @@ function peelAlias(text: string): { head: string; alias?: string } {
  *
  * Returns `{ name, durationTokens, alias?, pipeMetadata? }`.
  */
-function tokenizeActivityLine(line: string): {
+function tokenizeActivityLine(
+  line: string,
+  diagnostics?: import('../diagnostics').DgmoError[],
+  lineNumber?: number,
+  metaAliasMap?: Map<string, string>
+): {
   name: string;
   durationTokens: string[];
   alias?: string;
   pipeMetadata?: string;
 } {
-  // Split off pipe metadata first (`name | k: v, k2: v2`).
+  // Legacy `|` pipe-metadata detection per §1.4.
   let body = line;
   let pipeMetadata: string | undefined;
   const pipeIdx = body.indexOf('|');
   if (pipeIdx >= 0) {
+    if (diagnostics && lineNumber !== undefined) {
+      diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          pipeOperatorRemovedMessage(),
+          'error',
+          METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+        )
+      );
+    }
     pipeMetadata = body.slice(pipeIdx + 1).trim();
     body = body.slice(0, pipeIdx).trim();
+  }
+
+  // §1.4 unified metadata grammar — same-line cut on the body.
+  // PERT activity lines: `Name 5 10 15 confidence: low` → split out
+  // metadata, leaving `Name 5 10 15` for duration tokenization below.
+  if (metaAliasMap !== undefined) {
+    const registry = withTagAliases(
+      PERT_REGISTRY,
+      new Set(metaAliasMap.keys())
+    );
+    const split = splitNameAndMeta(
+      body,
+      registry,
+      metaAliasMap,
+      undefined,
+      diagnostics,
+      lineNumber
+    );
+    if (Object.keys(split.meta).length > 0) {
+      // Restore body with color and alias re-appended so the downstream
+      // PERT tokenizer (peelAlias, duration token scan) sees the same
+      // shape as a pre-0.18.0 `name 5 10 15 as id` body.
+      let restored = split.name;
+      if (split.color) restored = `${restored} ${split.color}`;
+      if (split.alias) restored = `${restored} as ${split.alias}`;
+      body = restored;
+      // Merge metadata into the pipeMetadata string so downstream
+      // parsePipeMetadata picks it up unchanged.
+      const merged = Object.entries(split.meta)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(', ');
+      pipeMetadata = pipeMetadata ? `${pipeMetadata}, ${merged}` : merged;
+    }
   }
 
   // Peel alias suffix (must come after numeric tail; the alias regex
@@ -672,16 +731,27 @@ export function parsePert(
       continue;
     }
 
-    // ── Group header: `[group-name] | collapsed: true`.
+    // ── Group header: `[group-name] collapsed: true` or `[group-name] c: Bosun`.
     const groupMatch = trimmed.match(GROUP_HEADER_RE);
     if (groupMatch) {
       contentStarted = true;
       currentTagGroup = null;
-      // In-bounds by regex match: group 1 is guaranteed present.
       const name = groupMatch[1]!.trim();
-      const meta = groupMatch[2]
-        ? parsePipeMetadata(groupMatch[2], metaAliasMap)
-        : {};
+      let tail = (groupMatch[2] ?? '').trim();
+      // Legacy pipe-metadata detection in the tail.
+      if (tail.startsWith('|')) {
+        diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            pipeOperatorRemovedMessage(),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+          )
+        );
+        tail = tail.replace(/^\|\s*/, '');
+      }
+      // Parse the tail as §1.4 metadata. tail is now `k: v, k: v` shape.
+      const meta = tail ? parsePipeMetadata(tail, metaAliasMap) : {};
       const id = `[${normalizeName(name)}]`;
       const tags: Record<string, string> = {};
       for (const [k, v] of Object.entries(meta)) {
@@ -743,7 +813,12 @@ export function parsePert(
         );
         continue;
       }
-      const tok = tokenizeActivityLine(arrowTargetText);
+      const tok = tokenizeActivityLine(
+        arrowTargetText,
+        diagnostics,
+        lineNumber,
+        metaAliasMap
+      );
       const targetName = tok.name;
       if (!targetName) {
         error(lineNumber, `'-> …' is missing a target name.`);
@@ -861,7 +936,12 @@ export function parsePert(
 
     // ── Activity declaration: `<name> <durs?> [as <id>] [| meta]`.
     {
-      const tok = tokenizeActivityLine(trimmed);
+      const tok = tokenizeActivityLine(
+        trimmed,
+        diagnostics,
+        lineNumber,
+        metaAliasMap
+      );
       if (!tok.name) {
         error(lineNumber, `Empty activity name: '${trimmed}'.`);
         continue;

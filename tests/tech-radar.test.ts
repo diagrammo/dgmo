@@ -42,22 +42,22 @@ rings
   Assess
   Hold
 
-Techniques | quadrant: top-right
-  CD | ring: Adopt, trend: stable
+Techniques quadrant: top-right
+  CD ring: Adopt, trend: stable
     Fully adopted across all services.
-  Micro Frontends | ring: Trial, trend: up
+  Micro Frontends ring: Trial, trend: up
 
-Tools | quadrant: top-left
-  Copilot | ring: Trial, trend: new
-  Webpack | ring: Hold, trend: down
+Tools quadrant: top-left
+  Copilot ring: Trial, trend: new
+  Webpack ring: Hold, trend: down
 
-Platforms | quadrant: bottom-left
-  Kubernetes | ring: Adopt
-  Serverless | ring: Trial
+Platforms quadrant: bottom-left
+  Kubernetes ring: Adopt
+  Serverless ring: Trial
 
-Languages | quadrant: bottom-right
-  TypeScript | ring: Adopt, trend: stable
-  Rust | ring: Assess, trend: new
+Languages quadrant: bottom-right
+  TypeScript ring: Adopt, trend: stable
+  Rust ring: Assess, trend: new
 `;
 
 // ============================================================
@@ -132,14 +132,14 @@ rings
   Adopt
   Trial
 
-Techniques | quadrant: top-right
-  CD | ring: Adopt
-Tools | quadrant: top-left
-  Vite | ring: Trial
-Platforms | quadrant: bottom-left
-  K8s | ring: Adopt
-Languages | quadrant: bottom-right
-  TS | ring: Adopt
+Techniques quadrant: top-right
+  CD ring: Adopt
+Tools quadrant: top-left
+  Vite ring: Trial
+Platforms quadrant: bottom-left
+  K8s ring: Adopt
+Languages quadrant: bottom-right
+  TS ring: Adopt
 `;
     const result = parseTechRadar(radar);
     expect(result.options['show-blip-legend']).toBe('on');
@@ -176,14 +176,14 @@ describe('tech-radar parser — diagnostics', () => {
   it('emits error when rings block is missing', () => {
     const result = parseTechRadar(`tech-radar No Rings
 
-Techniques | quadrant: top-right
-  CD | ring: Adopt
-Tools | quadrant: top-left
-  Vite | ring: Trial
-Platforms | quadrant: bottom-left
-  K8s | ring: Adopt
-Languages | quadrant: bottom-right
-  TS | ring: Adopt
+Techniques quadrant: top-right
+  CD ring: Adopt
+Tools quadrant: top-left
+  Vite ring: Trial
+Platforms quadrant: bottom-left
+  K8s ring: Adopt
+Languages quadrant: bottom-right
+  TS ring: Adopt
 `);
     expect(result.diagnostics.some((d) => d.message.includes('rings'))).toBe(
       true
@@ -197,10 +197,10 @@ rings
   Adopt
   Trial
 
-Techniques | quadrant: top-right
-  CD | ring: Adopt
-Tools | quadrant: top-left
-  Vite | ring: Trial
+Techniques quadrant: top-right
+  CD ring: Adopt
+Tools quadrant: top-left
+  Vite ring: Trial
 `);
     expect(
       result.diagnostics.some((d) => d.message.includes('4 quadrants'))
@@ -213,14 +213,14 @@ Tools | quadrant: top-left
 rings
   Adopt
 
-Techniques | quadrant: top-right
-  CD | ring: Adopt
-Tools | quadrant: top-right
-  Vite | ring: Adopt
-Platforms | quadrant: bottom-left
-  K8s | ring: Adopt
-Languages | quadrant: bottom-right
-  TS | ring: Adopt
+Techniques quadrant: top-right
+  CD ring: Adopt
+Tools quadrant: top-right
+  Vite ring: Adopt
+Platforms quadrant: bottom-left
+  K8s ring: Adopt
+Languages quadrant: bottom-right
+  TS ring: Adopt
 `);
     expect(
       result.diagnostics.some((d) => d.message.includes('Duplicate quadrant'))
@@ -233,14 +233,14 @@ Languages | quadrant: bottom-right
 rings
   Adopt
 
-Techniques | quadrant: top-right
-  CD | trend: new
-Tools | quadrant: top-left
-  Vite | ring: Adopt
-Platforms | quadrant: bottom-left
-  K8s | ring: Adopt
-Languages | quadrant: bottom-right
-  TS | ring: Adopt
+Techniques quadrant: top-right
+  CD trend: new
+Tools quadrant: top-left
+  Vite ring: Adopt
+Platforms quadrant: bottom-left
+  K8s ring: Adopt
+Languages quadrant: bottom-right
+  TS ring: Adopt
 `);
     expect(
       result.diagnostics.some((d) => d.message.includes('no ring assignment'))
@@ -254,14 +254,14 @@ rings
   Adopt
   Trial
 
-Techniques | quadrant: top-right
-  CD | ring: Invented
-Tools | quadrant: top-left
-  Vite | ring: Adopt
-Platforms | quadrant: bottom-left
-  K8s | ring: Adopt
-Languages | quadrant: bottom-right
-  TS | ring: Adopt
+Techniques quadrant: top-right
+  CD ring: Invented
+Tools quadrant: top-left
+  Vite ring: Adopt
+Platforms quadrant: bottom-left
+  K8s ring: Adopt
+Languages quadrant: bottom-right
+  TS ring: Adopt
 `);
     expect(
       result.diagnostics.some((d) => d.message.includes('Unknown ring'))
@@ -274,14 +274,14 @@ Languages | quadrant: bottom-right
 rings
   Adopt
 
-Techniques | quadrant: top-right
-  CD | ring: Adopt, trend: sideways
-Tools | quadrant: top-left
-  Vite | ring: Adopt
-Platforms | quadrant: bottom-left
-  K8s | ring: Adopt
-Languages | quadrant: bottom-right
-  TS | ring: Adopt
+Techniques quadrant: top-right
+  CD ring: Adopt, trend: sideways
+Tools quadrant: top-left
+  Vite ring: Adopt
+Platforms quadrant: bottom-left
+  K8s ring: Adopt
+Languages quadrant: bottom-right
+  TS ring: Adopt
 `);
     expect(
       result.diagnostics.some(
@@ -346,7 +346,7 @@ describe('tech-radar layout', () => {
 
     // Add a blip to top-right quadrant
     const modified = parseTechRadar(
-      BASIC_RADAR + '\n  Extra | ring: Adopt, trend: new'
+      BASIC_RADAR + '\n  Extra ring: Adopt, trend: new'
     );
     // That extra blip goes into bottom-right (last quadrant being parsed)
     const layout2 = computeRadarLayout(modified, 800, 600);
@@ -556,15 +556,15 @@ rings
   Hold
 
 // Quadrants below
-Techniques | quadrant: top-right
+Techniques quadrant: top-right
   // Some technique
-  CD | ring: Adopt
-Tools | quadrant: top-left
-  Vite | ring: Adopt
-Platforms | quadrant: bottom-left
-  K8s | ring: Adopt
-Languages | quadrant: bottom-right
-  TS | ring: Adopt
+  CD ring: Adopt
+Tools quadrant: top-left
+  Vite ring: Adopt
+Platforms quadrant: bottom-left
+  K8s ring: Adopt
+Languages quadrant: bottom-right
+  TS ring: Adopt
 `);
     expect(result.title).toBe('Commented');
     expect(result.quadrants).toHaveLength(4);
@@ -581,14 +581,14 @@ rings
   Adopt
   Trial
 
-Techniques | quadrant: top-right
-  CD | ring: adopt
-Tools | quadrant: top-left
-  Vite | ring: TRIAL
-Platforms | quadrant: bottom-left
-  K8s | ring: Adopt
-Languages | quadrant: bottom-right
-  TS | ring: Trial
+Techniques quadrant: top-right
+  CD ring: adopt
+Tools quadrant: top-left
+  Vite ring: TRIAL
+Platforms quadrant: bottom-left
+  K8s ring: Adopt
+Languages quadrant: bottom-right
+  TS ring: Trial
 `);
     expect(result.diagnostics).toHaveLength(0);
     // Should use canonical ring names
@@ -604,14 +604,14 @@ Languages | quadrant: bottom-right
 rings
   Adopt
 
-Techniques | quadrant: top-right, color: purple
-  CD | ring: Adopt
-Tools | quadrant: top-left
-  Vite | ring: Adopt
-Platforms | quadrant: bottom-left
-  K8s | ring: Adopt
-Languages | quadrant: bottom-right
-  TS | ring: Adopt
+Techniques quadrant: top-right, color: purple
+  CD ring: Adopt
+Tools quadrant: top-left
+  Vite ring: Adopt
+Platforms quadrant: bottom-left
+  K8s ring: Adopt
+Languages quadrant: bottom-right
+  TS ring: Adopt
 `);
     expect(result.diagnostics).toHaveLength(0);
     const techniques = result.quadrants.find(
@@ -626,14 +626,14 @@ Languages | quadrant: bottom-right
 rings
   Adopt
 
-A | quadrant: top-right
-  X | ring: Adopt
-B | quadrant: top-left
-  Y | ring: Adopt
-C | quadrant: bottom-left
-  Z | ring: Adopt
-D | quadrant: bottom-right
-  W | ring: Adopt
+A quadrant: top-right
+  X ring: Adopt
+B quadrant: top-left
+  Y ring: Adopt
+C quadrant: bottom-left
+  Z ring: Adopt
+D quadrant: bottom-right
+  W ring: Adopt
 `);
     expect(result.title).toBe('');
     expect(result.quadrants).toHaveLength(4);
@@ -654,19 +654,19 @@ rings
   Trial
   Hold
 
-A | quadrant: top-right
+A quadrant: top-right
   Adopt
     X
     Y
   Trial
-    Z | trend: up
-B | quadrant: top-left
+    Z trend: up
+B quadrant: top-left
   Adopt
     W
-C | quadrant: bottom-left
+C quadrant: bottom-left
   Hold
     V
-D | quadrant: bottom-right
+D quadrant: bottom-right
   Trial
     U
 `);
@@ -690,18 +690,18 @@ rings
   Adopt
   Trial
 
-A | quadrant: top-right
+A quadrant: top-right
   Adopt
     Tool X
       First line of description.
       Second line.
-B | quadrant: top-left
+B quadrant: top-left
   Trial
     Tool Y
-C | quadrant: bottom-left
+C quadrant: bottom-left
   Adopt
     Tool Z
-D | quadrant: bottom-right
+D quadrant: bottom-right
   Trial
     Tool W
 `);
@@ -720,17 +720,17 @@ rings
   Adopt
   Trial
 
-A | quadrant: top-right
+A quadrant: top-right
   Adopt
     NewSyntax
-  OldSyntax | ring: Trial, trend: new
-B | quadrant: top-left
+  OldSyntax ring: Trial, trend: new
+B quadrant: top-left
   Adopt
     B1
-C | quadrant: bottom-left
+C quadrant: bottom-left
   Trial
     C1
-D | quadrant: bottom-right
+D quadrant: bottom-right
   Adopt
     D1
 `);
@@ -751,16 +751,16 @@ rings
   Adopt
   Trial
 
-A | quadrant: top-right
+A quadrant: top-right
   Adopt
-    Blip | ring: Trial
-B | quadrant: top-left
+    Blip ring: Trial
+B quadrant: top-left
   Adopt
     B1
-C | quadrant: bottom-left
+C quadrant: bottom-left
   Adopt
     C1
-D | quadrant: bottom-right
+D quadrant: bottom-right
   Adopt
     D1
 `);
@@ -777,18 +777,18 @@ rings
   Trial aka t
   Hold
 
-A | quadrant: top-right
+A quadrant: top-right
   a
     X
   t
-    Y | trend: up
-B | quadrant: top-left
+    Y trend: up
+B quadrant: top-left
   a
     B1
-C | quadrant: bottom-left
+C quadrant: bottom-left
   Hold
     C1
-D | quadrant: bottom-right
+D quadrant: bottom-right
   a
     D1
 `);
@@ -813,15 +813,15 @@ rings
   Adopt alias a
   Trial
 
-A | quadrant: top-right
-  X | ring: a, trend: new
-B | quadrant: top-left
+A quadrant: top-right
+  X ring: a, trend: new
+B quadrant: top-left
   Trial
     B1
-C | quadrant: bottom-left
+C quadrant: bottom-left
   Trial
     C1
-D | quadrant: bottom-right
+D quadrant: bottom-right
   Trial
     D1
 `);

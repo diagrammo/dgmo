@@ -95,7 +95,7 @@ describe('PERT tag application via pipe metadata', () => {
     const parsed = parsePert(
       `pert\n` +
         `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
-        `task A 1 | c: Captain`
+        `task A 1 c: Captain`
     );
     ok(parsed);
     const a = parsed.activities.find((x) => x.name === 'task A')!;
@@ -106,7 +106,7 @@ describe('PERT tag application via pipe metadata', () => {
     const parsed = parsePert(
       `pert\ndefault-confidence medium\n` +
         `tag Crew as c\n  Captain red\n\n` +
-        `task A 1 2 4 | confidence: low, c: Captain`
+        `task A 1 2 4 confidence: low, c: Captain`
     );
     ok(parsed);
     const a = parsed.activities.find((x) => x.name === 'task A')!;
@@ -119,7 +119,7 @@ describe('PERT tag application via pipe metadata', () => {
       `pert\n` +
         `tag Risk as r\n  Safe green\n  Critical red\n\n` +
         `task A 1\n` +
-        `task B 1 | r: Critical`
+        `task B 1 r: Critical`
     );
     ok(parsed);
     const a = parsed.activities.find((x) => x.name === 'task A')!;
@@ -132,7 +132,7 @@ describe('PERT tag application via pipe metadata', () => {
     const parsed = parsePert(
       `pert\n` +
         `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
-        `[outfit ship] | c: Bosun\n` +
+        `[outfit ship] c: Bosun\n` +
         `  task A 1`
     );
     ok(parsed);
@@ -144,7 +144,7 @@ describe('PERT tag application via pipe metadata', () => {
     const parsed = parsePert(
       `pert\n` +
         `tag Risk as r\n  Safe green\n  Critical red\n\n` +
-        `task A 1 | r: Bananas`
+        `task A 1 r: Bananas`
     );
     const warn = parsed.diagnostics.find(
       (d) =>
@@ -160,7 +160,7 @@ describe('PERT active-tag directive', () => {
     const parsed = parsePert(
       `pert\nactive-tag Crew\n` +
         `tag Crew as c\n  Captain red\n\n` +
-        `task A 1 | c: Captain`
+        `task A 1 c: Captain`
     );
     ok(parsed);
     expect(parsed.options.activeTag).toBe('Crew');
@@ -168,7 +168,7 @@ describe('PERT active-tag directive', () => {
 
   it('omitting active-tag leaves options.activeTag undefined', () => {
     const parsed = parsePert(
-      `pert\n` + `tag Crew as c\n  Captain red\n\n` + `task A 1 | c: Captain`
+      `pert\n` + `tag Crew as c\n  Captain red\n\n` + `task A 1 c: Captain`
     );
     ok(parsed);
     expect(parsed.options.activeTag).toBeUndefined();
@@ -194,8 +194,8 @@ describe('PERT tag rendering', () => {
     const svg = render(
       `pert\n` +
         `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
-        `task A 1 2 4 | c: Captain\n` +
-        `task B 1 2 4 | c: Bosun`
+        `task A 1 2 4 c: Captain\n` +
+        `task B 1 2 4 c: Bosun`
     );
     expect(svg).toContain('data-tag-crew="captain"');
     expect(svg).toContain('data-tag-crew="bosun"');
@@ -216,17 +216,17 @@ describe('PERT tag rendering', () => {
     const svgImplicit = render(
       `pert\n` +
         `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
-        `task A 1 2 4 | c: Captain`
+        `task A 1 2 4 c: Captain`
     );
     const svgExplicit = render(
       `pert\nactive-tag Crew\n` +
         `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
-        `task A 1 2 4 | c: Captain`
+        `task A 1 2 4 c: Captain`
     );
     const svgOptOut = render(
       `pert\nactive-tag none\n` +
         `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
-        `task A 1 2 4 | c: Captain`
+        `task A 1 2 4 c: Captain`
     );
     expect(svgImplicit).toContain('data-legend-active="crew"');
     expect(svgExplicit).toContain('data-legend-active="crew"');
@@ -237,7 +237,7 @@ describe('PERT tag rendering', () => {
     const svg = render(
       `pert\n` +
         `tag Crew as c\n  Captain red\n\n` +
-        `voyage approved 0 | c: Captain\n` +
+        `voyage approved 0 c: Captain\n` +
         `  -> task A\n` +
         `task A 1`
     );
@@ -250,7 +250,7 @@ describe('PERT tag analyzer pass-through', () => {
     const parsed = parsePert(
       `pert\n` +
         `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
-        `task A 1 | c: Captain`
+        `task A 1 c: Captain`
     );
     ok(parsed);
     const resolved = analyzePert(parsed);

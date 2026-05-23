@@ -1,6 +1,18 @@
 import type { PaletteColors } from '../palettes';
 import { resolveColorWithDiagnostic } from '../colors';
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import {
+  formatDgmoError,
+  journeyBareScoreRemovedMessage,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+  suggest,
+} from '../diagnostics';
+import {
+  JOURNEY_MAP_REGISTRY,
+  withTagAliases,
+} from '../utils/reserved-key-registry';
+import { splitNameAndMeta } from '../utils/parsing';
 import {
   matchTagBlockHeading,
   emitTagLegacyDiagnostic,
@@ -136,6 +148,14 @@ export function parseJourneyMap(
         let personaColor: string | undefined;
 
         if (pipeIdx >= 0) {
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              pipeOperatorRemovedMessage(),
+              'error',
+              METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+            )
+          );
           personaName = afterKeyword.substring(0, pipeIdx).trim();
           const metaStr = afterKeyword.substring(pipeIdx + 1).trim();
           // Parse comma-separated key: value pairs
@@ -212,6 +232,10 @@ export function parseJourneyMap(
             tagBlockMatch.name.toLowerCase()
           );
         }
+        aliasMap.set(
+          tagBlockMatch.name.toLowerCase(),
+          tagBlockMatch.name.toLowerCase()
+        );
         result.tagGroups.push(currentTagGroup);
         continue;
       }
@@ -356,7 +380,8 @@ export function parseJourneyMap(
         lineNumber,
         stepCounter,
         aliasMap,
-        warn
+        warn,
+        result.diagnostics
       );
       stepBaseIndent = indent;
       currentStep = step;
@@ -447,13 +472,46 @@ function parseStepLine(
   lineNumber: number,
   counter: number,
   aliasMap: Map<string, string>,
-  warn: (line: number, message: string) => void
+  warn: (line: number, message: string) => void,
+  diagnostics?: import('../diagnostics').DgmoError[]
 ): Writable<JourneyMapStep> {
-  const pipeIdx = trimmed.indexOf('|');
   let title: string;
   let score: number | undefined;
   let emotionLabel: string | undefined;
   const tags: Record<string, string> = {};
+
+  // Legacy `|` detection — bare-score shorthand emits the journey-specific
+  // diagnostic with a hint at the keyed replacement.
+  const pipeIdx = trimmed.indexOf('|');
+  if (pipeIdx >= 0 && diagnostics) {
+    diagnostics.push(
+      makeDgmoError(
+        lineNumber,
+        pipeOperatorRemovedMessage(),
+        'error',
+        METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+      )
+    );
+    // Check for bare-score shape after the `|`.
+    const afterPipe = trimmed.substring(pipeIdx + 1).trim();
+    const firstSeg = afterPipe.split(',')[0]?.trim() ?? '';
+    const bareScoreMatch = firstSeg.match(SCORE_RE);
+    if (bareScoreMatch) {
+      diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          journeyBareScoreRemovedMessage({
+            score: bareScoreMatch[1]!,
+            ...(bareScoreMatch[2] !== undefined && {
+              emotion: bareScoreMatch[2],
+            }),
+          }),
+          'error',
+          METADATA_DIAGNOSTIC_CODES.JOURNEY_BARE_SCORE_REMOVED
+        )
+      );
+    }
+  }
 
   if (pipeIdx >= 0) {
     title = trimmed.substring(0, pipeIdx).trim();
@@ -550,8 +608,54 @@ function parseStepLine(
       }
     }
   } else {
-    title = trimmed;
-    // No pipe — scoreless step
+    // §1.4 unified metadata grammar — new same-line form. No pipe; use
+    // splitNameAndMeta to extract `score:`, `emotion:`, and any other
+    // reserved/tag-alias keys.
+    const registry = withTagAliases(
+      JOURNEY_MAP_REGISTRY,
+      new Set(aliasMap.keys())
+    );
+    const split = splitNameAndMeta(
+      trimmed,
+      registry,
+      aliasMap,
+      undefined,
+      diagnostics,
+      lineNumber
+    );
+    title = split.name;
+    const splitMeta = { ...split.meta };
+    // Extract reserved score / emotion into the dedicated fields.
+    if ('score' in splitMeta) {
+      const scoreVal = splitMeta['score'];
+      delete splitMeta['score'];
+      const parsed = parseInt(scoreVal, 10);
+      if (
+        !isNaN(parsed) &&
+        scoreVal === String(parsed) &&
+        parsed >= 1 &&
+        parsed <= 5
+      ) {
+        score = parsed;
+      } else if (!isNaN(parsed) && (parsed < 1 || parsed > 5)) {
+        warn(lineNumber, `Score out of range: ${parsed} (must be 1-5)`);
+      } else {
+        warn(lineNumber, `Score must be an integer 1-5, got ${scoreVal}`);
+      }
+    }
+    if ('emotion' in splitMeta) {
+      const emotionVal = splitMeta['emotion'];
+      delete splitMeta['emotion'];
+      if (emotionVal.includes(' ')) {
+        warn(
+          lineNumber,
+          `Emotion label must be a single word — got "${emotionVal}"`
+        );
+      } else {
+        emotionLabel = emotionVal;
+      }
+    }
+    Object.assign(tags, splitMeta);
   }
 
   return {

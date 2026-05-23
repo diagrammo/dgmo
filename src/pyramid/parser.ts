@@ -2,19 +2,22 @@
 // Pyramid Diagram — Parser
 // ============================================================
 
-import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import {
+  bareDescriptionRemovedMessage,
+  formatDgmoError,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+} from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import {
   measureIndent,
   parseFirstLine,
-  parsePipeMetadata,
-  peelTrailingColorName,
+  splitNameAndMeta,
   tryParseSharedOption,
 } from '../utils/parsing';
+import { PYRAMID_REGISTRY } from '../utils/reserved-key-registry';
 import type { ParsedPyramid, PyramidLayer } from './types';
-
-/** Heuristic: pipe content is key:value form if it starts with `word:`. */
-const KEY_VALUE_PREFIX_RE = /^\s*[A-Za-z][A-Za-z0-9_-]*\s*:/;
 
 const MAX_LAYERS = 15;
 
@@ -116,49 +119,64 @@ export function parsePyramid(content: string): ParsedPyramid {
     if (indent === 0) {
       flushLayer();
 
+      // Legacy `|` pipe-metadata detection (§1.4 unified grammar).
+      // Pyramid had two legacy shapes after `|`:
+      //   (a) `Layer | color: blue` — structured metadata
+      //   (b) `Layer | Some text` — bare-description shorthand
+      // Both emit pipe-removed; (b) additionally emits the
+      // bare-description-removed diagnostic with the conversion hint.
       const pipeIdx = trimmed.indexOf('|');
-      let label: string;
-      const description: string[] = [];
-      let color: string | undefined;
-      let restMeta: Record<string, string> = {};
-
-      if (pipeIdx < 0) {
-        label = trimmed;
-      } else {
-        label = trimmed.substring(0, pipeIdx).trim();
+      if (pipeIdx >= 0) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNum,
+            pipeOperatorRemovedMessage(),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+          )
+        );
         const after = trimmed.substring(pipeIdx + 1).trim();
-
-        if (!after) {
-          // Trailing pipe with nothing after — ignore.
-        } else if (KEY_VALUE_PREFIX_RE.test(after)) {
-          // Structured metadata: color: foo, other: bar
-          const metadata = parsePipeMetadata([label, after]);
-          color = metadata['color'];
-          const descFromPipe = metadata['description'];
-          if (descFromPipe) description.push(descFromPipe);
-          restMeta = { ...metadata };
-          delete restMeta['color'];
-          delete restMeta['description'];
-        } else {
-          // Bare shorthand: pipe content is the description.
-          description.push(after);
+        // Bare-description shape: no `<key>:` prefix. Emit the
+        // pyramid-specific hint pointing at `description: <text>`.
+        if (after && !/^[A-Za-z][A-Za-z0-9_-]*\s*:/.test(after)) {
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNum,
+              bareDescriptionRemovedMessage({
+                chartType: 'pyramid',
+                text: after,
+              }),
+              'error',
+              METADATA_DIAGNOSTIC_CODES.PYRAMID_BARE_DESCRIPTION_REMOVED
+            )
+          );
         }
       }
+
+      // §1.4 unified metadata grammar — same-line cut.
+      const split = splitNameAndMeta(
+        trimmed,
+        PYRAMID_REGISTRY,
+        new Map(),
+        undefined,
+        result.diagnostics,
+        lineNum
+      );
+      const label = split.name;
+      const restMeta: Record<string, string> = { ...split.meta };
+      // Color may arrive via the §1.5 trailing-token slot (`Top blue`)
+      // or via the explicit `color: <name>` metadata key. Either feeds
+      // the typed color slot; the metadata copy is dropped.
+      const color = split.color ?? restMeta['color'];
+      delete restMeta['color'];
+      const description: string[] = [];
+      const descFromMeta = restMeta['description'];
+      if (descFromMeta) description.push(descFromMeta);
+      delete restMeta['description'];
 
       if (!label) {
         warn(lineNum, 'Empty layer label.');
         continue;
-      }
-
-      // Universal trailing-token shortcut: `Label color` is equivalent to
-      // `Label | color: <name>` when color is the only metadata key (§1.5).
-      if (!color) {
-        const { label: stripped, colorName: shortcutColor } =
-          peelTrailingColorName(label);
-        if (shortcutColor) {
-          color = shortcutColor;
-          label = stripped;
-        }
       }
 
       currentLayer = {

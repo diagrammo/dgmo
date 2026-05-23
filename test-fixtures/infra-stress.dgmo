@@ -18,65 +18,65 @@ edge
   rps 50000
   -> GlobalLB
 
-GlobalLB | t: Edge
+GlobalLB t: Edge
   description Global load balancer — GeoDNS routing
-  -> CloudFrontUS | split: 40%
-  -> CloudFrontEU | split: 35%
-  -> CloudFrontAPAC | split: 25%
+  -> CloudFrontUS split: 40%
+  -> CloudFrontEU split: 35%
+  -> CloudFrontAPAC split: 25%
 
-CloudFrontUS | t: Edge, r: US
+CloudFrontUS t: Edge, r: US
   description CDN PoP — US East
   cache-hit 82%
   -> WAF_US
 
-CloudFrontEU | t: Edge, r: EU
+CloudFrontEU t: Edge, r: EU
   description CDN PoP — Frankfurt
   cache-hit 78%
   -> WAF_EU
 
-CloudFrontAPAC | t: Edge, r: APAC
+CloudFrontAPAC t: Edge, r: APAC
   description CDN PoP — Tokyo
   cache-hit 75%
   -> WAF_APAC
 
-WAF_US | t: Edge, r: US
+WAF_US t: Edge, r: US
   firewall-block 6%
   -> RegionalLB_US
 
-WAF_EU | t: Edge, r: EU
+WAF_EU t: Edge, r: EU
   firewall-block 8%
   -> RegionalLB_EU
 
-WAF_APAC | t: Edge, r: APAC
+WAF_APAC t: Edge, r: APAC
   firewall-block 7%
   -> RegionalLB_APAC
 
 // ── Regional Load Balancers ─────────────────────────────────
 
-RegionalLB_US | t: Platform, r: US
-  -/api-> [US API Cluster] | split: 50%
-  -/shop-> [US Commerce Cluster] | split: 35%
-  -/search-> SearchProxy_US | split: 15%
+RegionalLB_US t: Platform, r: US
+  -/api-> [US API Cluster] split: 50%
+  -/shop-> [US Commerce Cluster] split: 35%
+  -/search-> SearchProxy_US split: 15%
 
-RegionalLB_EU | t: Platform, r: EU
-  -/api-> [EU API Cluster] | split: 50%
-  -/shop-> [EU Commerce Cluster] | split: 35%
-  -/search-> SearchProxy_EU | split: 15%
+RegionalLB_EU t: Platform, r: EU
+  -/api-> [EU API Cluster] split: 50%
+  -/shop-> [EU Commerce Cluster] split: 35%
+  -/search-> SearchProxy_EU split: 15%
 
-RegionalLB_APAC | t: Platform, r: APAC
-  -/api-> [APAC API Cluster] | split: 55%
-  -/shop-> [APAC Commerce Cluster] | split: 30%
-  -/search-> SearchProxy_APAC | split: 15%
+RegionalLB_APAC t: Platform, r: APAC
+  -/api-> [APAC API Cluster] split: 55%
+  -/shop-> [APAC Commerce Cluster] split: 30%
+  -/search-> SearchProxy_APAC split: 15%
 
 // ── US API Cluster ──────────────────────────────────────────
 
-[US API Cluster] | t: Backend, r: US
+[US API Cluster] t: Backend, r: US
   UserAPI_US
     description User profile and authentication
     instances 6
     max-rps 1200
     latency-ms 25
-    -> Redis_US | fanout: 3
+    -> Redis_US fanout: 3
     -> PostgreSQL_US
   CatalogAPI_US
     description Product catalog and pricing
@@ -86,7 +86,7 @@ RegionalLB_APAC | t: Platform, r: APAC
     -> Redis_US
     -> PostgreSQL_US
 
-[US Commerce Cluster] | t: Backend, r: US
+[US Commerce Cluster] t: Backend, r: US
   OrderSvc_US
     description Order orchestration
     instances 4
@@ -100,18 +100,18 @@ RegionalLB_APAC | t: Platform, r: APAC
     max-rps 400
     latency-ms 200
 
-SearchProxy_US | t: Backend, r: US
+SearchProxy_US t: Backend, r: US
   instances 2
   -> Elasticsearch_US
 
 // ── EU API Cluster ──────────────────────────────────────────
 
-[EU API Cluster] | t: Backend, r: EU
+[EU API Cluster] t: Backend, r: EU
   UserAPI_EU
     instances 4
     max-rps 800
     latency-ms 30
-    -> Redis_EU | fanout: 2
+    -> Redis_EU fanout: 2
     -> PostgreSQL_EU
   CatalogAPI_EU
     instances 3
@@ -120,7 +120,7 @@ SearchProxy_US | t: Backend, r: US
     -> Redis_EU
     -> PostgreSQL_EU
 
-[EU Commerce Cluster] | t: Backend, r: EU
+[EU Commerce Cluster] t: Backend, r: EU
   OrderSvc_EU
     instances 3
     max-rps 500
@@ -132,17 +132,17 @@ SearchProxy_US | t: Backend, r: US
     max-rps 300
     latency-ms 220
 
-SearchProxy_EU | t: Backend, r: EU
+SearchProxy_EU t: Backend, r: EU
   -> Elasticsearch_EU
 
 // ── APAC API Cluster ────────────────────────────────────────
 
-[APAC API Cluster] | t: Backend, r: APAC
+[APAC API Cluster] t: Backend, r: APAC
   UserAPI_APAC
     instances 3
     max-rps 600
     latency-ms 35
-    -> Redis_APAC | fanout: 2
+    -> Redis_APAC fanout: 2
     -> PostgreSQL_APAC
   CatalogAPI_APAC
     instances 2
@@ -151,7 +151,7 @@ SearchProxy_EU | t: Backend, r: EU
     -> Redis_APAC
     -> PostgreSQL_APAC
 
-[APAC Commerce Cluster] | t: Backend, r: APAC
+[APAC Commerce Cluster] t: Backend, r: APAC
   OrderSvc_APAC
     instances 2
     max-rps 400
@@ -163,70 +163,70 @@ SearchProxy_EU | t: Backend, r: EU
     max-rps 250
     latency-ms 240
 
-SearchProxy_APAC | t: Backend, r: APAC
+SearchProxy_APAC t: Backend, r: APAC
   -> Elasticsearch_APAC
 
 // ── Data Stores (per region) ────────────────────────────────
 
-Redis_US | t: Data, r: US
+Redis_US t: Data, r: US
   description Session + query cache
   latency-ms 1
 
-PostgreSQL_US | t: Data, r: US
+PostgreSQL_US t: Data, r: US
   description Primary relational store
   latency-ms 5
 
-Elasticsearch_US | t: Data, r: US
+Elasticsearch_US t: Data, r: US
   description Full-text search index
   latency-ms 12
 
-Redis_EU | t: Data, r: EU
+Redis_EU t: Data, r: EU
   latency-ms 1
 
-PostgreSQL_EU | t: Data, r: EU
+PostgreSQL_EU t: Data, r: EU
   latency-ms 6
 
-Elasticsearch_EU | t: Data, r: EU
+Elasticsearch_EU t: Data, r: EU
   latency-ms 14
 
-Redis_APAC | t: Data, r: APAC
+Redis_APAC t: Data, r: APAC
   latency-ms 2
 
-PostgreSQL_APAC | t: Data, r: APAC
+PostgreSQL_APAC t: Data, r: APAC
   latency-ms 8
 
-Elasticsearch_APAC | t: Data, r: APAC
+Elasticsearch_APAC t: Data, r: APAC
   latency-ms 15
 
 // ── Event Bus + Async Consumers ─────────────────────────────
 
-Kafka_US | t: Platform, r: US
+Kafka_US t: Platform, r: US
   description Regional Kafka cluster
   ~notifications~> NotifySvc
   ~analytics~> AnalyticsPipeline
   ~inventory~> InventorySvc
 
-Kafka_EU | t: Platform, r: EU
+Kafka_EU t: Platform, r: EU
   ~notifications~> NotifySvc
   ~analytics~> AnalyticsPipeline
 
-Kafka_APAC | t: Platform, r: APAC
+Kafka_APAC t: Platform, r: APAC
   ~notifications~> NotifySvc
   ~analytics~> AnalyticsPipeline
 
-NotifySvc | t: Backend
+NotifySvc t: Backend
   description Email/SMS/push dispatcher
   instances 3
 
-AnalyticsPipeline | t: ML
+AnalyticsPipeline t: ML
   description Real-time analytics and ML feature pipeline
   instances 2
   -> ClickHouse
 
-InventorySvc | t: Backend
+InventorySvc t: Backend
   description Inventory reconciliation
   instances 2
   -> PostgreSQL_US
 
-ClickHouse | t: Data
+ClickHouse t: Data
   description OLAP analytics store

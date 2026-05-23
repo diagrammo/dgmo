@@ -45,11 +45,11 @@ tag Priority
   Low green
 
 [To Do]
-  Fix login bug | priority: High
-  Update docs | priority: Low
+  Fix login bug priority: High
+  Update docs priority: Low
 
 [Done]
-  Refactor API | priority: Medium`;
+  Refactor API priority: Medium`;
 
   it('wraps legend entries in g[data-legend-entry]', () => {
     const parsed = parseKanban(input, palette.light);
@@ -141,16 +141,16 @@ tag Priority
   Low yellow
 
 [Backlog]
-  Redesign | team: Frontend, priority: High
-  Caching | team: Backend, priority: Low
-  Untagged card | team: Mystery, priority: Low
+  Redesign team: Frontend, priority: High
+  Caching team: Backend, priority: Low
+  Untagged card team: Mystery, priority: Low
 
 [In Progress]
-  Auth | team: Backend, priority: High
-  Polish | team: Frontend, priority: Low
+  Auth team: Backend, priority: High
+  Polish team: Frontend, priority: Low
 
 [Done]
-  Notes | team: QA, priority: Low`;
+  Notes team: QA, priority: Low`;
 
   const noGroupsInput = `kanban
 
@@ -310,13 +310,13 @@ tag Priority
   Low green
 
 [Backlog]
-  Fix login | priority: High
+  Fix login priority: High
 
 [In Progress]
-  Auth | priority: High
+  Auth priority: High
 
 [Done]
-  Notes | priority: Low`;
+  Notes priority: Low`;
 
   it('renders collapsed column as narrow strip without cards', () => {
     const parsed = parseKanban(input, palette.light);
@@ -381,15 +381,15 @@ tag Team
   QA orange
 
 [Backlog]
-  Redesign | team: Frontend
-  Caching | team: Backend
+  Redesign team: Frontend
+  Caching team: Backend
 
 [In Progress]
-  Auth | team: Backend
-  Polish | team: Frontend
+  Auth team: Backend
+  Polish team: Frontend
 
 [Done]
-  Notes | team: QA`;
+  Notes team: QA`;
 
   it('renders collapsed lane without full card rendering', () => {
     const parsed = parseKanban(swimInput, palette.light);
@@ -451,8 +451,8 @@ tag Priority
   Low yellow
 
 [Backlog]
-  Fix login | team: Frontend, priority: High
-  Caching | team: Backend, priority: Low`;
+  Fix login team: Frontend, priority: High
+  Caching team: Backend, priority: Low`;
 
   it('hides active tag group meta from cards when compactMeta is true', () => {
     const parsed = parseKanban(input, palette.light);
@@ -491,11 +491,11 @@ tag Crew
   Anne Bonny blue
 
 [Backlog]
-  Swab deck | crew: Blackbeard
-  Mend sails | crew: Anne Bonny
+  Swab deck crew: Blackbeard
+  Mend sails crew: Anne Bonny
 
 [Done]
-  Navigate | crew: Blackbeard`;
+  Navigate crew: Blackbeard`;
 
   it('renders swimlanes when only currentSwimlaneGroup is set (no crash from missing cl/cc/cm)', () => {
     const parsed = parseKanban(input, palette.light);

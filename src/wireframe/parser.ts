@@ -3,7 +3,28 @@
 // ============================================================
 
 import type { DgmoError } from '../diagnostics';
-import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import {
+  formatDgmoError,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+} from '../diagnostics';
+
+/**
+ * Check whether all `|` characters on a line are inside `{...}` brace
+ * regions (wireframe dropdowns). Used to determine whether a line's
+ * pipe usage is purely the legitimate `{Option A | Option B}` form.
+ */
+function hasPipeOnlyInsideBraces(line: string): boolean {
+  let depth = 0;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]!;
+    if (ch === '{') depth++;
+    else if (ch === '}') depth = Math.max(0, depth - 1);
+    else if (ch === '|' && depth === 0) return false;
+  }
+  return true;
+}
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import {
@@ -716,6 +737,20 @@ export function parseWireframe(content: string): ParsedWireframe {
 
     // Skip empty lines and comments
     if (!trimmed || trimmed.startsWith('//')) continue;
+
+    // §1.4 legacy `|` detection — emit once per line. The `|` inside
+    // `{Option A | Option B}` dropdown braces stays valid; emit only
+    // when `|` appears outside any `{...}` region.
+    if (trimmed.includes('|') && !hasPipeOnlyInsideBraces(trimmed)) {
+      diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          pipeOperatorRemovedMessage(),
+          'error',
+          METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+        )
+      );
+    }
 
     const indent = measureIndent(line);
 

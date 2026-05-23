@@ -1429,12 +1429,14 @@ describe('pipe metadata on messages', () => {
     });
   });
 
-  it('errors on multiple pipe-separated metadata', () => {
-    const content = 'A -req-> B | c: Caching | t: Platform';
+  it('emits E_PIPE_OPERATOR_REMOVED on legacy pipe metadata', () => {
+    const content = 'A -req-> B | c: Caching, t: Platform';
     const result = parseSequenceDgmo(content);
-    const errors = result.diagnostics.filter((d) => d.severity === 'error');
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0].message).toContain('single "|"');
+    const diag = result.diagnostics.find(
+      (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
+    );
+    expect(diag).toBeDefined();
+    expect(diag!.severity).toBe('error');
   });
 
   it('resolves in message metadata', () => {

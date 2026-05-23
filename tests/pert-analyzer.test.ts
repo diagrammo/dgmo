@@ -803,7 +803,7 @@ A 4
     const resolved = analyze(`pert
 time-unit w
 default-confidence high
-A 4 | confidence: low
+A 4 confidence: low
 `);
     expect(resolved.error).toBeNull();
     const A = resolved.activities[0];

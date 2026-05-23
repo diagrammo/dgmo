@@ -545,7 +545,14 @@ describe('wireframe parser', () => {
 
       const result = parseWireframe(src);
       expect(result.title).toBe('E-Commerce Product Page');
-      expect(result.error).toBeNull();
+      // Legacy `| flag` syntax in this reference example now emits
+      // E_PIPE_OPERATOR_REMOVED per §1.4; back-compat extraction keeps
+      // the parse otherwise correct. (Reference example will be updated
+      // when the wireframe trailing-keyword-list parser refactor lands.)
+      const onlyPipeErrors = result.diagnostics
+        .filter((d) => d.severity === 'error')
+        .every((d) => d.code === 'E_PIPE_OPERATOR_REMOVED');
+      expect(onlyPipeErrors).toBe(true);
       // Should have 4 top-level groups: Header, Sidebar, Main, Footer
       expect(result.roots).toHaveLength(4);
       expect(result.roots[0].label).toBe('Header');
@@ -558,9 +565,12 @@ describe('wireframe parser', () => {
   describe('error recovery', () => {
     it('suggests braces for parens with pipes (AC25)', () => {
       const result = parseWireframe('wireframe Test\n(Admin | Editor)');
-      expect(result.diagnostics).toHaveLength(1);
-      expect(result.diagnostics[0].severity).toBe('warning');
-      expect(result.diagnostics[0].message).toContain('{Admin | Editor}');
+      // E_PIPE_OPERATOR_REMOVED also fires for the bare `|` outside braces.
+      const braceHint = result.diagnostics.find((d) =>
+        d.message.includes('{Admin | Editor}')
+      );
+      expect(braceHint).toBeDefined();
+      expect(braceHint!.severity).toBe('warning');
       // Should still parse as dropdown (generous)
       expect(result.roots[0].type).toBe('dropdown');
     });

@@ -7,11 +7,13 @@
 // and connections, [Group] containers, tag groups, pipe metadata.
 
 import {
-  makeDgmoError,
   formatDgmoError,
-  suggest,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
   NAME_DIAGNOSTIC_CODES,
   nameMergedMessage,
+  pipeOperatorRemovedMessage,
+  suggest,
 } from '../diagnostics';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 import { parseInArrowLabel } from '../utils/arrows';
@@ -57,11 +59,11 @@ const ASYNC_SIMPLE_CONNECTION_RE = /^~>\s*(.+?)\s*$/;
 // Deprecated xN fanout suffix (e.g. "x5" at end of line)
 const DEPRECATED_FANOUT_RE = /\bx(\d+)\s*$/;
 
-// Group declaration: [Group Name] with optional pipe metadata
-// Group with optional `as <alias>` postfix (TD-18) and optional pipe metadata.
-// Capture order: 1=label, 2=alias, 3=pipe metadata (after `|`).
+// Group declaration: [Group Name] with optional `as <alias>` and optional
+// metadata (legacy `| ...` or new same-line `key: value` per §1.4).
+// Capture order: 1=label, 2=alias, 3=metadata tail.
 const GROUP_RE =
-  /^\[([^\]]+)\]\s*(?:as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*)?(?:\|\s*(.+))?$/;
+  /^\[([^\]]+)\]\s*(?:as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*)?((?:\|.*)|(?:[a-zA-Z_]\w*\s*:.*))?$/;
 
 // Tag value: `Name` or `Name color` (trailing-token color form). Color is
 // extracted via the shared `extractColor` helper at use-site (see
@@ -77,11 +79,18 @@ const TAG_VALUE_RE = /^(\w[\w\s]+?)\s*$/;
 // Captures:
 //   1: quoted-name content (without the surrounding quotes), or undefined
 //   2: bare-name (trimmed at the call site), or undefined
-//   3: pipe-metadata block (including the leading `|`), or undefined
-const COMPONENT_RE = /^(?:"([^"]+)"|([a-zA-Z_][^|":]*?))\s*(\|.*)?$/;
+//   3: metadata block — legacy `| ...` form OR new same-line
+//      `<word>: <value>...` form (§1.4), or undefined
+const COMPONENT_RE =
+  /^(?:"([^"]+)"|([a-zA-Z_][\w -]*?))\s*((?:\|.*)|(?:[a-zA-Z_]\w*\s*:.*))?$/;
 
-// Pipe metadata: | key: value  or  | k1: v1, k2: v2  (comma-separated)
+// Legacy pipe metadata: | key: value  or  | k1: v1, k2: v2  (comma-separated).
+// Kept for transitional back-compat extraction; new same-line metadata
+// (§1.4) is preferred and extracted via SAMELINE_META_RE below.
 const PIPE_META_RE = /[|,]\s*(\w+)\s*:\s*([^|,]+)/g;
+// Same-line metadata (post-0.18.0 §1.4): `k: v, k2: v2` after any name
+// region — matches a colon-bearing key-value, comma-separated.
+const SAMELINE_META_RE = /(?:^|[\s,])(\w+)\s*:\s*([^,]+?)(?=\s*,|\s*$)/g;
 
 // Property: key value (space-separated, no colon)
 const PROPERTY_RE = /^([\w-]+)\s+(.+)$/;
@@ -132,17 +141,33 @@ function parsePropertyValue(raw: string): string | number {
 function extractPipeMetadata(rest: string): {
   tags: Record<string, string>;
   clean: string;
+  hadPipe: boolean;
 } {
   const tags: Record<string, string> = {};
   let clean = rest;
   let match: RegExpExecArray | null;
-  PIPE_META_RE.lastIndex = 0;
-  while ((match = PIPE_META_RE.exec(rest)) !== null) {
-    // Capture groups 1 & 2 in-bounds after successful match.
-    tags[match[1]!.trim()] = match[2]!.trim();
-    clean = clean.replace(match[0], '');
+  const hadPipe = rest.includes('|');
+  if (hadPipe) {
+    PIPE_META_RE.lastIndex = 0;
+    while ((match = PIPE_META_RE.exec(rest)) !== null) {
+      tags[match[1]!.trim()] = match[2]!.trim();
+      clean = clean.replace(match[0], '');
+    }
+    return { tags, clean: clean.trim(), hadPipe: true };
   }
-  return { tags, clean: clean.trim() };
+  // §1.4 same-line metadata: no pipe, but `key: value, key2: value2`
+  // may follow the name. Extract from right-to-left so the leftmost
+  // name region is preserved as `clean`.
+  SAMELINE_META_RE.lastIndex = 0;
+  let firstMatchIdx = -1;
+  while ((match = SAMELINE_META_RE.exec(rest)) !== null) {
+    tags[match[1]!.trim()] = match[2]!.trim();
+    if (firstMatchIdx === -1) firstMatchIdx = match.index;
+  }
+  if (firstMatchIdx >= 0) {
+    clean = rest.substring(0, firstMatchIdx).trim();
+  }
+  return { tags, clean: clean.trim(), hadPipe: false };
 }
 
 // Detect unparsed pipe metadata left in a target name after extractPipeMetadata.
@@ -343,6 +368,22 @@ export function parseInfra(content: string): ParsedInfra {
     // Skip markdown section headers
     if (/^#{2,}\s+/.test(trimmed)) continue;
 
+    // §1.4 legacy `|` detection — fires once per line. The `|` in
+    // arrow labels (per §1.10) is allowed inside `-...->` regions;
+    // a simple heuristic: skip if the only `|` is inside a `-|->`-shaped
+    // sequence. Otherwise emit the error and continue (legacy data
+    // still extracts via extractPipeMetadata for transition).
+    if (trimmed.includes('|') && !/-\S*\|\S*->/.test(trimmed)) {
+      result.diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          pipeOperatorRemovedMessage(),
+          'error',
+          METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+        )
+      );
+    }
+
     // ---- Top-level metadata (no indent) ----
     if (indent === 0) {
       // Close any open blocks
@@ -420,7 +461,7 @@ export function parseInfra(content: string): ParsedInfra {
         const gId = groupId(gLabel);
         if (groupAlias) nameAliasMap.set(groupAlias, gId);
         const groupMeta = groupMatch[3]
-          ? extractPipeMetadata('|' + groupMatch[3]).tags
+          ? extractPipeMetadata(groupMatch[3]).tags
           : undefined;
         const hasMeta = groupMeta && Object.keys(groupMeta).length > 0;
         const newGroup: Writable<InfraGroup> = {

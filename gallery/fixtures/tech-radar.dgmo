@@ -6,31 +6,31 @@ rings
   Assess
   Hold
 
-Techniques | quadrant: top-right
-  Continuous Deployment | ring: Adopt, trend: stable
+Techniques quadrant: top-right
+  Continuous Deployment ring: Adopt, trend: stable
     Fully adopted across all services.
-  Infrastructure as Code | ring: Adopt, trend: stable
-  Micro Frontends | ring: Trial, trend: up
+  Infrastructure as Code ring: Adopt, trend: stable
+  Micro Frontends ring: Trial, trend: up
     Exploring for the portal project.
-  Trunk-Based Development | ring: Assess, trend: new
+  Trunk-Based Development ring: Assess, trend: new
 
-Tools | quadrant: top-left
-  GitHub Copilot | ring: Trial, trend: new
+Tools quadrant: top-left
+  GitHub Copilot ring: Trial, trend: new
     Evaluating for developer productivity.
-  Vite | ring: Adopt, trend: up
-  Webpack | ring: Hold, trend: down
+  Vite ring: Adopt, trend: up
+  Webpack ring: Hold, trend: down
     Migrating to Vite across all projects.
-  Playwright | ring: Adopt, trend: stable
-  Turborepo | ring: Trial, trend: new
+  Playwright ring: Adopt, trend: stable
+  Turborepo ring: Trial, trend: new
 
-Platforms | quadrant: bottom-left
-  Kubernetes | ring: Adopt, trend: stable
-  Cloudflare Workers | ring: Trial, trend: up
-  AWS Lambda | ring: Hold, trend: down
+Platforms quadrant: bottom-left
+  Kubernetes ring: Adopt, trend: stable
+  Cloudflare Workers ring: Trial, trend: up
+  AWS Lambda ring: Hold, trend: down
     Consolidating onto Kubernetes.
 
-Languages & Frameworks | quadrant: bottom-right
-  TypeScript | ring: Adopt, trend: stable
-  Rust | ring: Assess, trend: new
+Languages & Frameworks quadrant: bottom-right
+  TypeScript ring: Adopt, trend: stable
+  Rust ring: Assess, trend: new
     Evaluating for performance-critical services.
-  React | ring: Adopt, trend: stable
+  React ring: Adopt, trend: stable

@@ -1,5 +1,11 @@
 import type { PaletteColors } from '../palettes';
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import {
+  formatDgmoError,
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  pipeOperatorRemovedMessage,
+  suggest,
+} from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import {
@@ -12,12 +18,15 @@ import {
 import {
   measureIndent,
   extractColor,
-  parsePipeMetadata,
-  MULTIPLE_PIPE_ERROR,
   parseFirstLine,
   OPTION_NOCOLON_RE,
+  splitNameAndMeta,
   tryParseSharedOption,
 } from '../utils/parsing';
+import {
+  MINDMAP_REGISTRY,
+  withTagAliases,
+} from '../utils/reserved-key-registry';
 import type { MindmapNode, ParsedMindmap } from './types';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 
@@ -160,6 +169,10 @@ export function parseMindmap(
           tagBlockMatch.name.toLowerCase()
         );
       }
+      aliasMap.set(
+        tagBlockMatch.name.toLowerCase(),
+        tagBlockMatch.name.toLowerCase()
+      );
       result.tagGroups.push(currentTagGroup);
       continue;
     }
@@ -250,14 +263,14 @@ export function parseMindmap(
       }
     }
 
-    // It's a node line — possibly with pipe metadata
+    // It's a node line — possibly with same-line metadata
     const node = parseNodeLine(
       trimmed,
       lineNumber,
       palette,
       ++nodeCounter,
       aliasMap,
-      pushWarning
+      result.diagnostics
     );
     attachNode(node, indent, indentStack, result, nodesWithChildren);
   }
@@ -310,27 +323,41 @@ function parseNodeLine(
   _palette: PaletteColors | undefined,
   counter: number,
   aliasMap: Map<string, string>,
-  warnFn: (line: number, msg: string) => void
+  diagnostics: ReturnType<typeof makeDgmoError>[]
 ): Writable<MindmapNode> {
-  const segments = trimmed.split('|').map((s) => s.trim());
-  // In-bounds: String.prototype.split always returns at least one element.
-  const label = segments[0]!;
+  // Legacy `|` detection — mindmap had standard pipe-metadata form.
+  if (trimmed.includes('|')) {
+    diagnostics.push(
+      makeDgmoError(
+        lineNumber,
+        pipeOperatorRemovedMessage(),
+        'error',
+        METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
+      )
+    );
+  }
 
-  const metadata = parsePipeMetadata(segments, aliasMap, () =>
-    warnFn(lineNumber, MULTIPLE_PIPE_ERROR)
+  // §1.4 unified metadata grammar — build registry with active tag aliases.
+  const registry = withTagAliases(MINDMAP_REGISTRY, new Set(aliasMap.keys()));
+  const split = splitNameAndMeta(
+    trimmed,
+    registry,
+    aliasMap,
+    undefined,
+    diagnostics,
+    lineNumber
   );
+  const label = split.name;
+  const metadata: Record<string, string> = { ...split.meta };
+  if (split.color !== undefined) metadata['color'] = split.color;
 
-  // Extract description from pipe metadata as a dedicated field
   let description: string[] | undefined;
   if ('description' in metadata) {
     const descVal = metadata['description'].trim();
-    if (descVal) {
-      description = [descVal];
-    }
+    if (descVal) description = [descVal];
     delete metadata['description'];
   }
 
-  // Extract collapsed flag from pipe metadata
   let collapsed: boolean | undefined;
   if ('collapsed' in metadata) {
     collapsed = metadata['collapsed'].toLowerCase() === 'true';

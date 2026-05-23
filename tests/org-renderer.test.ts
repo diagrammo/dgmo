@@ -134,7 +134,7 @@ describe('layoutOrg', () => {
   });
 
   it('computes card width from label and metadata', () => {
-    const parsed = parseOrg('org\nAlice Park | role: Senior Software Engineer');
+    const parsed = parseOrg('org\nAlice Park  role: Senior Software Engineer');
     const layout = layoutOrg(parsed);
 
     const node = layout.nodes[0];
@@ -324,13 +324,13 @@ Alice
   });
 
   it('renders tag group names with original casing as display labels', () => {
-    const input = `tag Title t
+    const input = `tag Title as t
   CTO purple
 
-tag Location loc
+tag Location as loc
   NY blue
 
-Sean Curtis| t: CTO, loc: NY`;
+Sean Curtis t: CTO, loc: NY`;
     const svg = renderOrgForExport(input, 'light', palette.light);
     // Should show "Title: " and "Location: " (original group casing), not "title: " or "t: "
     expect(svg).toContain('Title: ');
@@ -600,7 +600,7 @@ tag Location
 tag Status
   FTE green
 
-Alice | location: NY, status: FTE`;
+Alice  location: NY, status: FTE`;
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed);
 
@@ -626,8 +626,8 @@ tag Location
   NY blue
   LA yellow
 
-Alice | location: NY
-Bob | location: LA`;
+Alice  location: NY
+Bob  location: LA`;
     const parsed = parseOrg(input, palette.light);
     // Need activeTagGroup to render the group fully (with entries)
     const layout = layoutOrg(parsed, undefined, 'location');
@@ -662,7 +662,7 @@ tag Location
   NY blue
   LA yellow
 
-Alice | location: NY`;
+Alice  location: NY`;
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed, undefined, 'location');
 
@@ -876,7 +876,7 @@ tag Location
 tag Status
   FTE green
 
-Alice | location: NY, status: FTE`;
+Alice  location: NY, status: FTE`;
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed);
 
@@ -898,8 +898,8 @@ Alice | location: NY, status: FTE`;
 tag Location
   NY blue
 
-Alice | location: NY
-  Bob | location: NY`;
+Alice  location: NY
+  Bob  location: NY`;
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed);
 
@@ -917,7 +917,7 @@ tag Location
   NY blue
   LA yellow
 
-Alice | location: NY`;
+Alice  location: NY`;
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed);
 
@@ -941,7 +941,7 @@ tag Location
 tag Status
   FTE green
 
-Alice | location: NY, status: FTE`;
+Alice  location: NY, status: FTE`;
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed, undefined, 'location');
 
@@ -980,7 +980,7 @@ tag Location
 tag Status
   FTE green
 
-Alice | location: NY, status: FTE`;
+Alice  location: NY, status: FTE`;
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed);
 
@@ -1006,7 +1006,7 @@ tag Location
   NY blue
   LA yellow
 
-Alice | location: NY`;
+Alice  location: NY`;
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed, undefined, 'location');
 
@@ -1207,7 +1207,7 @@ Alice
 // ============================================================
 
 describe('tag-group-only legend', () => {
-  const tagGroupOnlyInput = `tag Rank r
+  const tagGroupOnlyInput = `tag Rank as r
   Captain red
   Sailor blue
 
@@ -1277,8 +1277,8 @@ tag Location
   NY blue
   LA yellow
 
-Alice | location: NY
-Bob | location: LA`;
+Alice  location: NY
+Bob  location: LA`;
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed, undefined, 'location');
 
@@ -1312,7 +1312,7 @@ Bob | location: LA`;
 tag Location
   NY blue
 
-Alice | location: NY`;
+Alice  location: NY`;
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed, undefined, 'location');
 
