@@ -17,18 +17,18 @@ era 2024-01 -> 2024-06 Phase 1
 marker 2024-03-01 Kickoff
 
 [Backend]
-  30bd: Database Layer | t: Engineering, p: Build, 80%
-  10bd: Auth Module | t: Engineering, p: Build, 100%
+  30bd Database Layer t: Engineering, p: Build, progress: 80
+  10bd Auth Module t: Engineering, p: Build, progress: 100
     -> API Integration
   parallel
-    5bd: Load Testing | t: QA, p: Test
-    5bd: Security Audit | t: Design, p: Test
+    5bd Load Testing t: QA, p: Test
+    5bd Security Audit t: Design, p: Test
 
 [Frontend]
-  15bd: Component Library | t: Design, p: Design
-  10bd: API Integration | t: Engineering, p: Build
-  5bd: Polish | t: Design, p: Build, 30%
+  15bd Component Library t: Design, p: Design
+  10bd API Integration t: Engineering, p: Build
+  5bd Polish t: Design, p: Build, progress: 30
 
 [QA]
-  10bd: E2E Testing
-  0d: Release Candidate
+  10bd E2E Testing
+  0d Release Candidate

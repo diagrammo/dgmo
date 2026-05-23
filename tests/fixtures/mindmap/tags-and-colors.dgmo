@@ -13,8 +13,8 @@ tag Department as d
 active-tag Priority
 no-descriptions
 
-Feature A red | p: High, d: Engineering
+Feature A red p: High, d: Engineering
   description: This should be hidden
   Sub A1
-Feature B | p: Low, d: Design
+Feature B p: Low, d: Design
   Sub B1

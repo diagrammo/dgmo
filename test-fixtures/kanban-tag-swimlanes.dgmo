@@ -13,15 +13,15 @@ tag Priority
   Low green
 
 [Backlog]
-  Redesign login screen | team: Frontend, priority: High
-  Add caching layer | team: Backend, priority: Medium
-  Write smoke tests | team: QA, priority: Low
+  Redesign login screen team: Frontend, priority: High
+  Add caching layer team: Backend, priority: Medium
+  Write smoke tests team: QA, priority: Low
 
 [In Progress]
-  Refactor auth API | team: Backend, priority: High
-  Polish settings page | team: Frontend, priority: Medium
+  Refactor auth API team: Backend, priority: High
+  Polish settings page team: Frontend, priority: Medium
   Triage bug reports
 
 [Done]
-  Ship release notes | team: Frontend, priority: Low
-  Patch CSRF bug | team: Backend, priority: High
+  Ship release notes team: Frontend, priority: Low
+  Patch CSRF bug team: Backend, priority: High
