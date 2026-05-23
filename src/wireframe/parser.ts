@@ -114,14 +114,14 @@ const ELEMENT_KEYWORDS: Record<
 // Regexes
 // ============================================================
 
-/** Group/input: `[content]` with optional pipe metadata */
-const BRACKET_RE = /^\[([^\]]*)\]\s*(?:\|\s*(.+))?$/;
+/** Group/input: `[content]` with optional trailing meta (legacy `|` or §1.4 keywords) */
+const BRACKET_RE = /^\[([^\]]*)\](.*)$/;
 
-/** Button: `(label)` with optional pipe metadata */
-const BUTTON_RE = /^\(([^)]+)\)\s*(?:\|\s*(.+))?$/;
+/** Button: `(label)` with optional trailing meta (legacy `|` or §1.4 keywords) */
+const BUTTON_RE = /^\(([^)]+)\)(.*)$/;
 
-/** Dropdown: `{opt1 | opt2 | ...}` with optional trailing pipe metadata */
-const DROPDOWN_RE = /^\{([^}]+)\}\s*(?:\|\s*(.+))?$/;
+/** Dropdown: `{opt1 | opt2 | ...}` with optional trailing meta (legacy `|` or §1.4 keywords) */
+const DROPDOWN_RE = /^\{([^}]+)\}(.*)$/;
 
 /** Checkbox checked: `<x>` or `< x >` (whitespace-tolerant, EC6) */
 const CHECKBOX_CHECKED_RE = /^<\s*x\s*>$/i;
@@ -184,6 +184,38 @@ function makeElement(
 }
 
 /**
+ * Peel the trailing run of state-keyword tokens from a label
+ * (the §1.4 / §19.5 wireframe form). Lowercase-only tokens drawn
+ * from the closed `STATE_KEYWORDS` enum are stripped from the
+ * right of the label; peeling stops at the first non-enum token.
+ *
+ * `Submit primary destructive`   → label="Submit",     states=["primary","destructive"]
+ * `Dashboard active`             → label="Dashboard",  states=["active"]
+ * `Active items active`          → label="Active items", states=["active"]
+ * `Toggle me`                    → label="Toggle me",  states=[]   (no trailing enum token)
+ *
+ * Case-sensitive match (lowercase enum) — authors capitalize their
+ * labels to disambiguate (spec §19.5).
+ */
+function peelTrailingFlags(label: string): {
+  label: string;
+  states: string[];
+} {
+  const tokens = label.split(/\s+/).filter(Boolean);
+  const states: string[] = [];
+  while (tokens.length > 0) {
+    const last = tokens[tokens.length - 1]!;
+    // Only lowercase tokens count — `Active` (capitalized) stays in
+    // the label, `active` is a flag.
+    if (last !== last.toLowerCase()) break;
+    if (!STATE_KEYWORDS.has(last)) break;
+    states.unshift(last);
+    tokens.pop();
+  }
+  return { label: tokens.join(' '), states };
+}
+
+/**
  * Parse pipe metadata flags/annotations from the text after `|`.
  * Returns states array + annotations array + metadata record.
  */
@@ -213,6 +245,37 @@ function parseWireframeMetadata(raw: string): {
     }
   }
   return { states, annotations, metadata };
+}
+
+/**
+ * Apply the trailing meta region of a structural element (the
+ * content captured after `]`, `)`, or `}` by BRACKET_RE / BUTTON_RE
+ * / DROPDOWN_RE). Accepts both:
+ *   - legacy: ` | flag1, flag2`     (leading `|`, comma-separated)
+ *   - new (§19.5): ` flag1 flag2`   (space-separated keyword list)
+ * No-ops when the tail is empty.
+ */
+function applyTrailingMeta(
+  el: MutableWireframeElement,
+  rawTail: string | undefined
+): void {
+  if (!rawTail) return;
+  const trimmed = rawTail.trim();
+  if (!trimmed) return;
+  if (trimmed.startsWith('|')) {
+    applyMetadata(el, trimmed.substring(1).trim());
+    return;
+  }
+  // §1.4 / §19.5 trailing-keyword form: every token must be a
+  // recognized state-keyword (lowercase). Non-enum tokens fall
+  // through to applyMetadata so existing semantics (annotations,
+  // `key: value`) still work for content that happens to land here.
+  const tokens = trimmed.split(/\s+/);
+  if (tokens.every((t) => t === t.toLowerCase() && STATE_KEYWORDS.has(t))) {
+    applyMetadata(el, tokens.join(', '));
+    return;
+  }
+  applyMetadata(el, trimmed);
 }
 
 /**
@@ -385,17 +448,17 @@ function parseSegment(
   if (checkLabelMatch) {
     // In-bounds: regex has 2 capture groups; matched groups are defined.
     const isChecked = /x/i.test(checkLabelMatch[1]!);
-    // Check for `| toggle` or other metadata
     const labelPart = checkLabelMatch[2]!;
+    // Legacy `| meta` first, then §1.4 trailing-keyword peel on the
+    // remaining label region.
     const pipeSplit = labelPart.split(/\s*\|\s*/);
-    // In-bounds: split always returns at least one element.
-    const el = makeElement(
-      'checkbox',
-      pipeSplit[0]!.trim(),
-      lineNumber,
-      indent
-    );
+    const baseLabel = pipeSplit[0]!.trim();
+    const peeled = peelTrailingFlags(baseLabel);
+    const el = makeElement('checkbox', peeled.label, lineNumber, indent);
     el.checked = isChecked;
+    if (peeled.states.length > 0) {
+      applyMetadata(el, peeled.states.join(', '));
+    }
     if (pipeSplit.length > 1) {
       applyMetadata(el, pipeSplit.slice(1).join(', '));
     }
@@ -412,7 +475,7 @@ function parseSegment(
       .filter(Boolean);
     const el = makeElement('dropdown', options[0] || '', lineNumber, indent);
     el.options = options;
-    applyMetadata(el, dropdownMatch[2]);
+    applyTrailingMeta(el, dropdownMatch[2]);
     return el;
   }
 
@@ -446,7 +509,7 @@ function parseSegment(
       lineNumber,
       indent
     );
-    applyMetadata(el, buttonMatch[2]);
+    applyTrailingMeta(el, buttonMatch[2]);
     return el;
   }
 
@@ -461,7 +524,7 @@ function parseSegment(
       lineNumber,
       indent
     );
-    applyMetadata(el, bracketMatch[2]);
+    applyTrailingMeta(el, bracketMatch[2]);
     // If no group-forcing metadata applied, default to textInput — will be
     // overridden to 'group' if children are added during indent-stack processing
     if (!el.isContainer) {
@@ -553,24 +616,36 @@ function parseSegment(
     return el;
   }
 
-  // Bare text (with optional pipe metadata for inline alerts)
+  // Bare text — optional legacy `| meta` form first, otherwise
+  // peel the §1.4 / §19.5 trailing-keyword form.
   const pipeParts = trimmed.split(/\s*\|\s*/);
+  let textContent: string;
+  let states: string[];
+  let metaStr: string | undefined;
   if (pipeParts.length > 1) {
-    // In-bounds: split always returns at least one element.
-    const textContent = pipeParts[0]!.trim();
-    const metaStr = pipeParts.slice(1).join(', ');
-    const { states } = parseWireframeMetadata(metaStr);
+    // Legacy `text | meta` form. The pipe diagnostic still fires
+    // from the top-of-loop check; we keep extracting for back-compat.
+    textContent = pipeParts[0]!.trim();
+    metaStr = pipeParts.slice(1).join(', ');
+    states = parseWireframeMetadata(metaStr).states;
+  } else {
+    // §1.4 / §19.5 trailing-keyword peel.
+    const peeled = peelTrailingFlags(trimmed);
+    textContent = peeled.label;
+    states = peeled.states;
+    metaStr = states.length > 0 ? states.join(', ') : undefined;
+  }
 
-    // Bare text + semantic state = inline alert (F22)
-    const semanticStates = ['warning', 'destructive', 'success', 'info'];
-    const hasSemantic = states.some((s) => semanticStates.includes(s));
-    if (hasSemantic) {
-      const el = makeElement('alert', textContent, lineNumber, indent);
-      el.states = states;
-      return el;
-    }
+  // Bare text + semantic state = inline alert (F22)
+  const semanticStates = ['warning', 'destructive', 'success', 'info'];
+  const hasSemantic = states.some((s) => semanticStates.includes(s));
+  if (hasSemantic) {
+    const el = makeElement('alert', textContent, lineNumber, indent);
+    el.states = states;
+    return el;
+  }
 
-    // Regular text with metadata
+  if (metaStr) {
     const el = makeElement('text', textContent, lineNumber, indent);
     applyMetadata(el, metaStr);
     return el;
