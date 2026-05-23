@@ -18,6 +18,13 @@ import { DEFAULT_FONT_NAME } from './fonts';
 import { encodeDiagramUrl } from './sharing';
 import { resolveOrgImports } from './org/resolver';
 import { normalizePertSourceForShare } from './pert/share-normalize';
+import {
+  collectDgmoFiles,
+  collectEmbeddedFiles,
+  formatLineDiff,
+  migrateFile,
+} from './migrate';
+import { migrateEmbedded } from './migrate/embedded';
 
 // Derived from the palette registry so new palettes are auto-included.
 const PALETTES = getAvailablePalettes().map((p) => p.id);
@@ -459,7 +466,8 @@ For architecture diagrams, sequence diagrams, flowcharts, and charts, use the \`
 function printHelp(): void {
   console.log(`Usage: dgmo <input> [options]
        cat input.dgmo | dgmo [options]
-       dgmo cat <file>     Display file with syntax highlighting
+       dgmo cat <file>          Display file with syntax highlighting
+       dgmo migrate <path>      Convert legacy "|" metadata to §1.4 grammar
 
 Render a .dgmo file to PNG (default) or SVG.
 
@@ -673,7 +681,188 @@ function noInput(): never {
   process.exit(0);
 }
 
+interface MigrateCommandOpts {
+  path: string | undefined;
+  dryRun: boolean;
+  apply: boolean;
+  diff: boolean;
+  noBackup: boolean;
+  embedded: boolean;
+  help: boolean;
+}
+
+function parseMigrateArgs(args: string[]): MigrateCommandOpts {
+  const opts: MigrateCommandOpts = {
+    path: undefined,
+    dryRun: true,
+    apply: false,
+    diff: false,
+    noBackup: false,
+    embedded: false,
+    help: false,
+  };
+  let i = 0;
+  while (i < args.length) {
+    const arg = args[i]!;
+    if (arg === '--help' || arg === '-h') {
+      opts.help = true;
+      i++;
+    } else if (arg === '--dry-run') {
+      opts.dryRun = true;
+      opts.apply = false;
+      i++;
+    } else if (arg === '--apply') {
+      opts.apply = true;
+      opts.dryRun = false;
+      i++;
+    } else if (arg === '--diff') {
+      opts.diff = true;
+      i++;
+    } else if (arg === '--backup') {
+      opts.noBackup = false;
+      i++;
+    } else if (arg === '--no-backup') {
+      opts.noBackup = true;
+      i++;
+    } else if (arg === '--embedded') {
+      opts.embedded = true;
+      i++;
+    } else if (!opts.path) {
+      opts.path = arg;
+      i++;
+    } else {
+      console.error(`Error: Unexpected argument "${arg}"`);
+      process.exit(1);
+    }
+  }
+  return opts;
+}
+
+function printMigrateHelp(): void {
+  console.log(`Usage: dgmo migrate <path> [options]
+
+Convert legacy "|" metadata syntax to the unified §1.4 same-line form
+("Foo k: v, k: v" — no pipe). Handles bare-positional promotions:
+  - gantt   "| 80%"        → "progress: 80"
+  - journey "| 4 Delighted" → "score: 4, emotion: Delighted"
+  - pyramid "| description" → "description: ..."
+  - ring    "| description" → "description: ..."
+
+Wireframe option braces "{A | B}", arrow-label "|" characters (§1.10),
+and quoted-string content are preserved.
+
+Options:
+  --dry-run        Print proposed changes; do not write (default)
+  --apply          Write migrated files to disk
+  --diff           Print per-file unified-style diffs
+  --backup         Write "<file>.bak" before applying (default with --apply)
+  --no-backup      Skip writing .bak sidecars
+  --embedded       Walk .md/.mdx files; migrate fenced \`\`\`dgmo blocks
+                   atomically per file (single parse-error block aborts file)
+  -h, --help       Show this help`);
+}
+
+async function runMigrateCommand(args: string[]): Promise<void> {
+  const opts = parseMigrateArgs(args);
+
+  if (opts.help) {
+    printMigrateHelp();
+    return;
+  }
+
+  if (!opts.path) {
+    console.error('Error: dgmo migrate requires a path argument');
+    console.error('Try: dgmo migrate --help');
+    process.exit(1);
+  }
+
+  const resolvedPath = resolve(opts.path);
+  if (!existsSync(resolvedPath)) {
+    console.error(`Error: Path not found: ${resolvedPath}`);
+    process.exit(1);
+  }
+
+  if (opts.embedded) {
+    const files = collectEmbeddedFiles(resolvedPath);
+    if (files.length === 0) {
+      console.error('No .md / .mdx files found at the given path.');
+      process.exit(1);
+    }
+    let migrated = 0;
+    let skipped = 0;
+    let unchanged = 0;
+    for (const file of files) {
+      const result = migrateEmbedded(file, {
+        dryRun: opts.dryRun,
+        noBackup: opts.noBackup,
+      });
+      if (result.skipped) {
+        console.log(`SKIP  ${file}  — ${result.skipReason}`);
+        skipped++;
+        continue;
+      }
+      if (!result.changed) {
+        unchanged++;
+        continue;
+      }
+      migrated++;
+      const verb = result.written ? 'MIGRATE' : 'DRY-RUN';
+      console.log(
+        `${verb}  ${file}  — ${result.changedBlocks}/${result.blockCount} blocks changed`
+      );
+      if (opts.diff) {
+        console.log(formatLineDiff(file, result.original, result.migrated));
+      }
+    }
+    console.log('');
+    console.log(
+      `Done. ${migrated} file(s) ${opts.dryRun ? 'would migrate' : 'migrated'}; ${unchanged} unchanged; ${skipped} skipped.`
+    );
+    return;
+  }
+
+  const files = collectDgmoFiles(resolvedPath);
+  if (files.length === 0) {
+    console.error('No .dgmo files found at the given path.');
+    process.exit(1);
+  }
+  let migrated = 0;
+  let unchanged = 0;
+  for (const file of files) {
+    const result = migrateFile(file, {
+      dryRun: opts.dryRun,
+      noBackup: opts.noBackup,
+    });
+    if (!result.changed) {
+      unchanged++;
+      continue;
+    }
+    migrated++;
+    const verb = result.written ? 'MIGRATE' : 'DRY-RUN';
+    console.log(
+      `${verb}  ${file}  — ${result.changedLines.length} line(s) changed`
+    );
+    if (opts.diff) {
+      console.log(formatLineDiff(file, result.original, result.migrated));
+    }
+  }
+  console.log('');
+  console.log(
+    `Done. ${migrated} file(s) ${opts.dryRun ? 'would migrate' : 'migrated'}; ${unchanged} unchanged.`
+  );
+  if (opts.dryRun && migrated > 0) {
+    console.log('Re-run with --apply to write changes.');
+  }
+}
+
 async function main(): Promise<void> {
+  // Subcommand dispatch — `dgmo migrate` is parsed independently from
+  // the rendering flags so its surface doesn't pollute `parseArgs`.
+  if (process.argv[2] === 'migrate') {
+    await runMigrateCommand(process.argv.slice(3));
+    return;
+  }
+
   const opts = parseArgs(process.argv);
 
   if (opts.help) {
