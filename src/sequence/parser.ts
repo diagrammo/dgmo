@@ -932,15 +932,23 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse header key: value lines (always top-level)
     // Skip 'note' lines — parsed in the indent-aware section below
     const colonIndex = trimmed.indexOf(':');
+    // §1.4: a real header key is a single identifier. Participant
+    // lines with same-line metadata (`CheckoutSvc o: Checkout`) have
+    // a space inside the pre-colon region — those are content lines,
+    // not header options.
+    const preColon =
+      colonIndex > 0 ? trimmed.substring(0, colonIndex).trim() : '';
+    const preColonIsSingleIdent = /^[A-Za-z][\w-]*$/.test(preColon);
     if (
       colonIndex > 0 &&
+      preColonIsSingleIdent &&
       !trimmed.includes('->') &&
       !trimmed.includes('~>') &&
       !trimmed.includes('<-') &&
       !trimmed.includes('<~') &&
       !trimmed.includes('|')
     ) {
-      const key = trimmed.substring(0, colonIndex).trim().toLowerCase();
+      const key = preColon.toLowerCase();
       if (key === 'note' || key.startsWith('note ')) {
         // Fall through to indent-aware note parsing below
       } else {

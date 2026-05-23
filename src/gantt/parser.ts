@@ -444,18 +444,37 @@ export function parseGantt(
       if (depMatch) {
         const label = depMatch[1]?.trim() || undefined;
         // Capture group 2 guaranteed by successful regex match.
-        const depParts = depMatch[2]!.split('|');
-        // TD-18: resolve alias literal → canonical task label; depParts has at
-        // least one element from split.
-        const targetName = resolveAliasTarget(depParts[0]!.trim());
-        let offset: Offset | undefined;
-
-        if (depParts.length > 1) {
-          const meta = parsePipeMetadata(
+        const depBody = depMatch[2]!;
+        // Accept both legacy `Target | offset: 2bd` and §1.4
+        // `Target offset: 2bd`. Legacy `|` still flags the cut;
+        // otherwise splitNameAndMeta cuts at the first reserved key
+        // in GANTT_REGISTRY (offset, color, description, progress).
+        let targetSegment: string;
+        let meta: Record<string, string>;
+        if (depBody.includes('|')) {
+          const depParts = depBody.split('|');
+          targetSegment = depParts[0]!.trim();
+          meta = parsePipeMetadata(
             ['', ...depParts.slice(1)],
             metaAliasMap,
             () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
           );
+        } else {
+          const split = splitNameAndMeta(
+            depBody.trim(),
+            withTagAliases(GANTT_REGISTRY, new Set(metaAliasMap.keys())),
+            metaAliasMap
+          );
+          targetSegment = split.name;
+          meta = split.meta;
+        }
+        const targetName = resolveAliasTarget(targetSegment);
+        let offset: Offset | undefined;
+
+        if (Object.keys(meta).length > 0) {
+          // Capture-group label: keep the structure of the original
+          // legacy `if (depParts.length > 1)` branch — same meta
+          // handling, just routed through the dual-form extractor.
           if (meta['lag'] || meta['lead']) {
             const key = meta['lag'] ? 'lag' : 'lead';
             softError(

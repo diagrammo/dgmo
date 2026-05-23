@@ -216,7 +216,15 @@ export function parseTechRadar(content: string): ParsedTechRadar {
         segments = trimmed.split('|');
         meta = parsePipeMetadata(segments);
       } else {
-        const split = splitNameAndMeta(trimmed, TECH_RADAR_REGISTRY);
+        const split = splitNameAndMeta(
+          trimmed,
+          TECH_RADAR_REGISTRY,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          { peelAlias: false }
+        );
         segments = [split.name];
         meta = split.meta;
       }
@@ -302,7 +310,15 @@ export function parseTechRadar(content: string): ParsedTechRadar {
           segments = trimmed.split('|');
           meta = parsePipeMetadata(segments);
         } else {
-          const split = splitNameAndMeta(trimmed, TECH_RADAR_REGISTRY);
+          const split = splitNameAndMeta(
+            trimmed,
+            TECH_RADAR_REGISTRY,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            { peelAlias: false }
+          );
           segments = [split.name];
           meta = split.meta;
         }

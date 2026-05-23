@@ -784,13 +784,26 @@ function parseMetadataRegion(
  * @param diagnostics Optional accumulator for `W_EMPTY_METADATA_VALUE`.
  * @param lineNumber 1-based line number for diagnostics.
  */
+export interface SplitNameAndMetaOptions {
+  /**
+   * When `false`, the §1.5 `as <alias>` postfix peel is skipped.
+   * Set this for parsers whose name region can legitimately contain
+   * the word "as" followed by a short identifier (e.g. tech-radar's
+   * `Infrastructure as Code` blip name). Chart types that own an
+   * alias form via their own keywords (`alias <a>`, `aka <a>`) are
+   * the typical reason to disable. Default: true.
+   */
+  readonly peelAlias?: boolean;
+}
+
 export function splitNameAndMeta(
   line: string,
   registry: ReservedKeyRegistry,
   aliasMap: Map<string, string> = new Map(),
   palette?: PaletteColors,
   diagnostics?: DgmoError[],
-  lineNumber?: number
+  lineNumber?: number,
+  options: SplitNameAndMetaOptions = {}
 ): SplitNameAndMetaResult {
   const tokens = scanTokens(line);
   const cutOffset = findMetadataCutOffset(line, tokens, registry);
@@ -818,10 +831,12 @@ export function splitNameAndMeta(
   let postColorName = colorResult.label;
 
   let alias: string | undefined;
-  const aliasMatch = postColorName.match(AS_ALIAS_RE);
-  if (aliasMatch) {
-    alias = aliasMatch[1];
-    postColorName = postColorName.substring(0, aliasMatch.index).trimEnd();
+  if (options.peelAlias !== false) {
+    const aliasMatch = postColorName.match(AS_ALIAS_RE);
+    if (aliasMatch) {
+      alias = aliasMatch[1];
+      postColorName = postColorName.substring(0, aliasMatch.index).trimEnd();
+    }
   }
 
   const meta =
