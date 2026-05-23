@@ -7,6 +7,109 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ⚠ BREAKING: `|` retired as metadata delimiter — unified §1.4 grammar
+
+DGMO's pipe operator no longer delimits metadata. The five different
+pipe-positional shapes across 17 chart types collapse into a single
+same-line key-value form:
+
+```dgmo
+# Before (0.17.x)
+Redis | instances: 3, latency-ms: 5
+30bd Database | t: Engineering, 80%
+Wisdom | Personal growth, recognition
+(Submit) | primary, destructive
+
+# After (0.18.0)
+Redis instances: 3, latency-ms: 5
+30bd Database t: Engineering, progress: 80
+Wisdom description: "Personal growth, recognition"
+(Submit) primary destructive
+```
+
+Legacy `|`-bearing lines emit `E_PIPE_OPERATOR_REMOVED` (one per
+offending line). Bare-positional shapes that don't translate to a
+direct comma-separated key list get keyed names:
+`E_GANTT_BARE_PERCENT_REMOVED`, `E_JOURNEY_BARE_SCORE_REMOVED`,
+`E_PYRAMID_BARE_DESCRIPTION_REMOVED`, `E_RING_BARE_DESCRIPTION_REMOVED`.
+
+The `|` character still parses literally inside wireframe dropdown
+options `{A | B}`, arrow labels per §1.10 (`A -file|name-> B`), and
+quoted strings (`"Order | Items"`). The migration tool preserves
+all three.
+
+#### Migrate with `dgmo migrate`
+
+```bash
+dgmo migrate path/to/dir --diff           # preview
+dgmo migrate path/to/dir --apply          # write (.bak sidecars by default)
+dgmo migrate docs/ --embedded --apply     # .md / .mdx with fenced ```dgmo
+```
+
+The tool is dry-run by default, idempotent on re-run, and atomic
+per file in `--embedded` mode (a parse-error block aborts the whole
+file — no partial writes).
+
+See `docs/migration-pipe-retirement.md` in the workspace for the
+full migration walkthrough including per-chart-type recipes.
+
+### Added — wireframe trailing-keyword flag form (§19.5)
+
+Wireframe elements now accept a space-separated trailing keyword
+list drawn from the closed 16-flag enum:
+
+```dgmo
+(Submit) primary destructive   # new — flag list
+[Email] required                # new — single flag
+Dashboard active                # new — flag on bare-text
+```
+
+Case-sensitive — lowercase tokens from the enum get peeled as flags
+from the right of the label; capitalized labels stay verbatim.
+Spec §19.5 has the authoring guidance.
+
+### Added — `dgmo migrate` CLI subcommand
+
+Line-by-line migration tool with a per-line classifier that
+preserves wireframe dropdown braces, arrow labels (§1.10), and
+quoted-name `|` characters. Surface:
+
+```
+dgmo migrate <path> [--dry-run|--apply] [--diff]
+                    [--backup|--no-backup] [--embedded]
+```
+
+Also exposed in the MCP server (`@diagrammo/dgmo-mcp` 0.2.0) as
+`migrate_diagram(content: string)` so LLMs can offer in-place
+migration on legacy content they encounter.
+
+### Added — `deprecatedSyntax` highlight role
+
+The editor surfaces legacy `|` characters in a strikethrough red
+deprecated-syntax color so authors see the migration prompt
+visually before the parser diagnostic fires. The lezer grammar
+tokenizes `|` uniformly, so surviving valid pipes (in dropdowns,
+arrow labels, quoted strings) also paint as deprecated — accepted
+noise during the transition.
+
+### Added — §1.4 same-line metadata autocomplete
+
+The diagrammo-app editor autocomplete now fires on `, ` continuation
+inside an already-keyed metadata region (`Foo k: v, _` → suggests
+next key). Same key set as the legacy `|` trigger; both coexist
+during the transition.
+
+### Diagnostic codes added
+
+- `E_PIPE_OPERATOR_REMOVED` (error)
+- `E_GANTT_BARE_PERCENT_REMOVED` (error)
+- `E_JOURNEY_BARE_SCORE_REMOVED` (error)
+- `E_PYRAMID_BARE_DESCRIPTION_REMOVED` (error)
+- `E_RING_BARE_DESCRIPTION_REMOVED` (error)
+- `E_TAG_DECLARED_AFTER_CONTENT` (error)
+- `W_EMPTY_METADATA_VALUE` (warning)
+- `W_ATTRIBUTE_AT_PARENT_INDENT` (warning)
+
 ## [0.17.0] - 2026-05-21
 
 ### ⚠ BREAKING: Sequence participant types trimmed from 9 → 4 + default
