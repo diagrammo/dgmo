@@ -101,14 +101,17 @@ Red                   // value=Red, no color (capitalized → escape hatch)
 
 The "label region" is everything left after the parser strips off structural terminators it owns: `as <alias>`, `| <pipe metadata>`, numeric values, date ranges, structural brackets. Parsers split those off BEFORE invoking the color rule. So `Tortuga Distillery orange 3000` → `{ label: "Tortuga Distillery", color: "orange", value: 3000 }`: numeric value first, then the color trails the remaining label.
 
-**Where the rule applies**: tag values, kanban columns (`[Done] green`), venn / quadrant items (color before `as`), gantt / timeline eras and markers, data-chart series + rows, sankey nodes + link lines, cycle / pyramid / ring / RACI / boxes-and-lines node labels (shortcut for `| color: <name>` when color is the only metadata).
+**Where the rule applies**: tag values, kanban columns (`[Done] green`), venn / quadrant items (color before `as`), gantt / timeline eras and markers, data-chart series + rows, sankey nodes + link lines, cycle / pyramid / ring / RACI / boxes-and-lines node labels.
 
-**Long form preserved for multi-key pipe metadata**:
+**Pipe form is reserved for multi-key metadata.** Use `| color: <name>` only when another pipe key (`description:`, `span:`, `width:`, `quadrant:`, …) needs to accompany the color. When color is the only thing being set, use the trailing-token form.
 
 ```
-Spring | color: green                 // shortcut and long form are equivalent
+Spring green                          // canonical — color is the only metadata
 Spring | color: green, icon: ❄        // long form REQUIRED when other keys accompany color
+-Label-> | color: red, width: 6       // edges have no trailing-token slot; pipe is the only path
 ```
+
+Two narrow exceptions accept pipe-only color: **cycle edges** (no trailing-token slot on edges) and **journey-map personas** (the persona-line parser does not peel a trailing color from the persona name).
 
 **Accepted tradeoffs**:
 
@@ -1839,8 +1842,8 @@ Hierarchical pyramid visualization with stacked layers, descriptions, and option
 pyramid [Title]
 
 LayerLabel
-LayerLabel | color: blue
-LayerLabel | color: green
+LayerLabel blue
+LayerLabel green
   Indented description
 ```
 
@@ -1851,19 +1854,19 @@ The first line declares the chart type and an optional title. Each non-indented,
 ```
 pyramid Maslow's Hierarchy
 
-Self-Actualization | color: purple
+Self-Actualization purple
   Morality, creativity, acceptance of facts.
 
-Esteem | color: blue
+Esteem blue
   Respect, recognition, confidence.
 
-Love & Belonging | color: green
+Love & Belonging green
   Friendship, intimacy, family.
 
-Safety | color: yellow
+Safety yellow
   Security, employment, health.
 
-Physiological | color: orange
+Physiological orange
   Food, water, warmth, rest.
 ```
 
@@ -1900,8 +1903,8 @@ Concentric-ring visualization for nested or hierarchical categories. Source orde
 ring [Title]
 
 LayerLabel
-LayerLabel | color: blue
-LayerLabel | color: green
+LayerLabel blue
+LayerLabel green
   Indented description
 ```
 
@@ -1912,19 +1915,19 @@ ring Captain's Sphere of Influence
 
 solid-fill
 
-Captain | color: purple
+Captain purple
   Final word on heading and plunder,
   keeper of the ship's charter.
 
 Quartermaster | Second-in-command, divvies the booty
 
-Crew | color: green
+Crew green
   Deckhands, gunners, and powder monkeys.
 
-Allied Crews | color: orange
+Allied Crews orange
   Loose alliances kept by oath.
 
-The Open Sea | color: cyan
+The Open Sea cyan
   Weather, currents, and rival flags.
 ```
 
@@ -1972,7 +1975,7 @@ A tasks × roles responsibility matrix with author-time linting. **One chart typ
 ```
 raci [Title]
 [directives]
-[Phase Label] [| color: <name>]               # optional bracketed phase header
+[Phase Label] [color]                         # optional bracketed phase header (trailing-token color)
   Task name
     Optional description line                  # multi-line, before the first role
     Role: <markers>                            # space-delimited markers from the alphabet
@@ -1985,13 +1988,13 @@ Three-level indentation: phase → task → role assignment / description. Phase
 ```
 raci Voyage Operations
 roles
-  Cap  | color: red
-  QM   | color: orange
-  Bos  | color: yellow
-  Nav  | color: blue
-  Crew | color: gray
+  Cap  red
+  QM   orange
+  Bos  yellow
+  Nav  blue
+  Crew gray
 
-[Departure] | color: teal
+[Departure] teal
   Plot the course
     Heading, currents, weather window
     Cap: A
@@ -2001,7 +2004,7 @@ roles
     QM: A R
     Crew: I
 
-[At Sea] | color: purple
+[At Sea] purple
   Stand the watch
     Bos: A
     Crew: R
@@ -2025,19 +2028,19 @@ roles Cap, Nav, QM, Bos
 | Directive | Effect |
 |-----------|--------|
 | `variant-raci` / `variant-rasci` / `variant-daci` | Lock the chart to a specific variant. Markers outside the alphabet error. At most one per chart. |
-| `roles` | Declare column order. Inline (`roles Cap, QM, Bos`) is name-only; the indented block form supports per-role pipe metadata (`Cap \| color: red`). When present, unknown roles in tasks emit `W_RACI_UNKNOWN_ROLE`. |
+| `roles` | Declare column order. Inline (`roles Cap, QM, Bos`) is name-only; the indented block form supports per-role color via the trailing-token form (`Cap red`). When present, unknown roles in tasks emit `W_RACI_UNKNOWN_ROLE`. |
 | `palette`, `theme`, `active-tag` | Universal options. |
 
 ### Phase metadata
 
-Phase headers accept pipe metadata for per-phase styling:
+Phase headers accept a trailing-token color for per-phase styling:
 
 ```
-[Departure] | color: teal
-[At Sea] | color: purple
+[Departure] teal
+[At Sea] purple
 ```
 
-The phase bar tints to a soft mix of the color over the background. Phases without metadata fall back to the neutral gray bar.
+The phase bar tints to a soft mix of the color over the background. Phases without a color fall back to the neutral gray bar.
 
 ### Display vs source ordering
 
