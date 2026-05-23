@@ -13,18 +13,18 @@ tag Team as t
   Security red
 
 Mobile is an actor
-Gateway | t: Platform
-Redis is a cache | c: Caching, t: Platform
+Gateway t: Platform
+Redis is a cache c: Caching, t: Platform
 
-[Backend] | t: Product
+[Backend] t: Product
   UserAPI
   OrderAPI
   DB is a database
 
 == Authentication ==
 Mobile -POST /orders-> Gateway
-Gateway -verify token-> Gateway | c: Auth
-Gateway -check rate limit-> Redis | c: RateLimiting
+Gateway -verify token-> Gateway c: Auth
+Gateway -check rate limit-> Redis c: RateLimiting
 
 == Business Logic ==
 Gateway -POST /orders-> OrderAPI
@@ -37,5 +37,5 @@ DB -ok-> OrderAPI
 OrderAPI -201 Created-> Gateway
 
 == Response ==
-Gateway -cache response-> Redis | c: Caching
+Gateway -cache response-> Redis c: Caching
 Gateway -201 Created-> Mobile

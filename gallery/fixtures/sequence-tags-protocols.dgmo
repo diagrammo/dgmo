@@ -14,32 +14,32 @@ tag Owner as o
   Data blue
 
 Buyer is an actor
-CheckoutSvc | o: Checkout
-InventorySvc | o: Fulfillment
-PaymentSvc | o: Payments
-OrderDB is a database | o: Data
+CheckoutSvc o: Checkout
+InventorySvc o: Fulfillment
+PaymentSvc o: Payments
+OrderDB is a database o: Data
 EventBus is a queue
 
 == Place Order ==
-Buyer -POST /checkout-> CheckoutSvc | p: REST
-CheckoutSvc -reserveItems(skus)-> InventorySvc | p: gRPC
-InventorySvc -UPDATE stock-> OrderDB | p: SQL
+Buyer -POST /checkout-> CheckoutSvc p: REST
+CheckoutSvc -reserveItems(skus)-> InventorySvc p: gRPC
+InventorySvc -UPDATE stock-> OrderDB p: SQL
 OrderDB -ok-> InventorySvc
 InventorySvc -reserved-> CheckoutSvc
 
 == Payment ==
-CheckoutSvc -charge(amount)-> PaymentSvc | p: REST
+CheckoutSvc -charge(amount)-> PaymentSvc p: REST
 PaymentSvc -confirmed-> CheckoutSvc
 
 == Fulfillment ==
-CheckoutSvc -INSERT order-> OrderDB | p: SQL
-CheckoutSvc ~OrderPlaced~> EventBus | p: Async
+CheckoutSvc -INSERT order-> OrderDB p: SQL
+CheckoutSvc ~OrderPlaced~> EventBus p: Async
 
 parallel Notify
-  EventBus ~fulfill~> InventorySvc | p: Async
-  EventBus ~analytics~> OrderDB | p: Async
+  EventBus ~fulfill~> InventorySvc p: Async
+  EventBus ~analytics~> OrderDB p: Async
 
 InventorySvc -createShipment-> InventorySvc
-InventorySvc ~ShipmentCreated~> EventBus | p: Async
-EventBus ~shipment update~> CheckoutSvc | p: Async
-CheckoutSvc -shipment confirmation-> Buyer | p: REST
+InventorySvc ~ShipmentCreated~> EventBus p: Async
+EventBus ~shipment update~> CheckoutSvc p: Async
+CheckoutSvc -shipment confirmation-> Buyer p: REST

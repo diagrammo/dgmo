@@ -21,29 +21,29 @@ marker 2024-02-26 Board Meeting
 marker 2024-04-08 Trade Show Demo orange
 
 // Independent task with offset — starts 8bd after project start
-10bd Brand Guidelines | t: Design, p: Foundation, offset: 8bd
+10bd Brand Guidelines t: Design, p: Foundation, offset: 8bd
 
 parallel
-  [Backend] | t: Engineering
-    30bd Database Layer | p: Foundation, 80%
-    10bd? Auth Module | p: Foundation, 100%
-      -blocks-> Frontend.API Integration | offset: -5bd
+  [Backend] t: Engineering
+    30bd Database Layer p: Foundation, progress: 80
+    10bd? Auth Module p: Foundation, progress: 100
+      -blocks-> Frontend.API Integration offset: -5bd
     parallel
-      5bd Load Testing | t: QA, p: Growth
-      5bd Security Audit | t: QA, p: Growth
+      5bd Load Testing t: QA, p: Growth
+      5bd Security Audit t: QA, p: Growth
 
-  [Frontend] | t: Design
-    15bd Component Library | p: Foundation
-    10bd API Integration | t: Engineering, p: Growth
-    5bd Polish | p: Growth, 30%
+  [Frontend] t: Design
+    15bd Component Library p: Foundation
+    10bd API Integration t: Engineering, p: Growth
+    5bd Polish p: Growth, progress: 30
 
-[Marketing] | t: Marketing
-  10bd Landing Page | p: Growth
-  5bd Press Kit | p: Launch
+[Marketing] t: Marketing
+  10bd Landing Page p: Growth
+  5bd Press Kit p: Launch
     -needs-> Landing Page
 
-[Integration] | t: QA
-  10bd E2E Testing | p: Launch
+[Integration] t: QA
+  10bd E2E Testing p: Launch
     -depends on-> Backend.Auth Module
   // Final validation before release
-  0d Release Candidate | p: Launch
+  0d Release Candidate p: Launch

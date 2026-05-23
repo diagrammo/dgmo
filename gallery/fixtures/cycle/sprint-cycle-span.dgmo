@@ -1,17 +1,17 @@
 cycle Sprint Cycle
 
-Planning | color: blue, span: 1
+Planning color: blue, span: 1
   Sprint kickoff and backlog grooming
   -Start sprint->
 
-Development | color: green, span: 3
+Development color: green, span: 3
   Build and test features
   -Demo ready->
 
-Review | color: orange, span: 1
+Review color: orange, span: 1
   Sprint demo and stakeholder feedback
   -Retrospective->
 
-Retro | color: purple, span: 0.5
+Retro color: purple, span: 0.5
   Team reflection and process improvement
   -Next sprint->
