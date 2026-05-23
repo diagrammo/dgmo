@@ -14,33 +14,33 @@ edge
   rps: 15000
   -> CloudFront
 
-CloudFront | t: Platform, r: Edge
+CloudFront t: Platform, r: Edge
   description: CDN — edge cache with 200+ PoPs
   cache-hit: 85%
   -> WAF
 
-WAF | t: Platform, r: Edge
+WAF t: Platform, r: Edge
   description: Web Application Firewall — bot protection and rate limiting
   firewall-block: 8%
   -> ALB
 
-ALB | t: Platform, r: Core
-  -/api-> [API Tier] | split: 50%
-  -/shop-> [Commerce Tier] | split: 35%
-  -/static-> StaticBucket | split: 15%
+ALB t: Platform, r: Core
+  -/api-> [API Tier] split: 50%
+  -/shop-> [Commerce Tier] split: 35%
+  -/static-> StaticBucket split: 15%
 
-[API Tier] | t: Backend, r: Core
+[API Tier] t: Backend, r: Core
   APIServer
     description: Core REST API — auth, catalog, user profiles
     instances: 4
     max-rps: 800
     latency-ms: 35
     cb-error-threshold: 50%
-    -> Redis | fanout: 2
+    -> Redis fanout: 2
     -> PostgreSQL
     ~order.placed~> EventBus
 
-[Commerce Tier] | t: Backend, r: Core
+[Commerce Tier] t: Backend, r: Core
   CheckoutSvc
     description: Checkout and payment orchestration
     instances: 2-10
@@ -53,26 +53,26 @@ ALB | t: Platform, r: Core
     description: Stripe/Adyen payment gateway proxy
     latency-ms: 250
 
-Redis | t: Data, r: Storage
+Redis t: Data, r: Storage
   description: Session store and query cache
   latency-ms: 2
 
-PostgreSQL | t: Data, r: Storage
+PostgreSQL t: Data, r: Storage
   description: Primary relational store — orders, users, catalog
   latency-ms: 8
 
-EventBus | t: Platform, r: Core
+EventBus t: Platform, r: Core
   description: Async event backbone (Kafka)
   ~analytics~> ClickHouse
   ~notifications~> NotifySvc
 
-ClickHouse | t: Data, r: Storage
+ClickHouse t: Data, r: Storage
   description: Analytics OLAP — real-time dashboards
 
-NotifySvc | t: Backend, r: Core
+NotifySvc t: Backend, r: Core
   description: Email/SMS/push notification dispatcher
   instances: 2
 
-StaticBucket | t: Platform, r: Edge
+StaticBucket t: Platform, r: Edge
   description: S3 bucket — JS, CSS, images
   latency-ms: 5

@@ -6,9 +6,9 @@ Customer is a person
 Banking is a system
   description: Core internet banking system
   containers
-    WebApp is a container | tech: React
-    API is a container | tech: Node.js
-    DB is a container is a database | tech: PostgreSQL
+    WebApp is a container tech: React
+    API is a container tech: Node.js
+    DB is a container is a database tech: PostgreSQL
 
 Email is a system
   description: External email delivery service

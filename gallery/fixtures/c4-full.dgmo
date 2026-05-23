@@ -12,41 +12,41 @@ tag Team as t
   Platform teal
   Data purple
 
-Customer is a person | t: Frontend
+Customer is a person t: Frontend
   description: Browses and purchases books online
 
-Admin is a person | t: Backend
+Admin is a person t: Backend
   description: Manages inventory and orders
 
-Bookstore is a system | t: Backend
+Bookstore is a system t: Backend
   description: Core e-commerce platform for book sales
   containers
-    WebApp is a container | tech: React, t: Frontend
+    WebApp is a container tech: React, t: Frontend
       description: Single-page storefront application
       components
         Catalog is a component
         Cart is a component
         Checkout is a component
-    API is a container | tech: Node, t: Backend
+    API is a container tech: Node, t: Backend
       description: REST API gateway for all client requests
-    OrderSvc is a container | tech: Node, t: Backend
+    OrderSvc is a container tech: Node, t: Backend
       description: Order processing and fulfillment
-    SearchSvc is a container | tech: Python, t: Backend
+    SearchSvc is a container tech: Python, t: Backend
       description: Full-text search over book catalog
-    BookDB is a container is a database | tech: PostgreSQL, t: Data
+    BookDB is a container is a database tech: PostgreSQL, t: Data
       description: Relational store — books, orders, users
-    CacheLayer is a container is a cache | tech: Redis, t: Platform
+    CacheLayer is a container is a cache tech: Redis, t: Platform
       description: Session and query result cache
-    EventBus is a container | tech: Kafka, t: Platform
+    EventBus is a container tech: Kafka, t: Platform
       description: Async event backbone for order lifecycle
 
-PaymentGW is a system | t: Platform
+PaymentGW is a system t: Platform
   description: Stripe — external payment processing
 
-EmailSvc is a system | t: Platform
+EmailSvc is a system t: Platform
   description: SendGrid — transactional email delivery
 
 Customer -Browses catalog-> Bookstore
 Admin -Manages inventory-> Bookstore
-Bookstore -Processes payments via-> PaymentGW | tech: REST
-Bookstore ~Sends order confirmations~> EmailSvc | tech: SMTP
+Bookstore -Processes payments via-> PaymentGW tech: REST
+Bookstore ~Sends order confirmations~> EmailSvc tech: SMTP

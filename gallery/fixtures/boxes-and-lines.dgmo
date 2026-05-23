@@ -9,46 +9,46 @@ hide priority:Low
 direction LR
 
 // --- Services ---
-API Gateway | t: Backend
+API Gateway t: Backend
   Main entry point for all requests
   Routes to **backend services**
   -routes-> UserService
   -routes-> ProductService
   -routes-> OrderService
 
-UserService | t: Backend
+UserService t: Backend
   Handles auth and profiles
   Uses `JWT` tokens for sessions
   -reads-> UserDB
   -checks-> SessionCache
 
-ProductService | t: Frontend, description: Product catalog and search
+ProductService t: Frontend, description: Product catalog and search
   Supports *full-text* search
   -queries-> ProductDB
   -invalidates-> ProductCache
 
-OrderService | t: Backend
+OrderService t: Backend
   Order processing pipeline
   Validates inventory before commit
   -writes-> OrderDB
   -publishes-> OrderQueue
 
 // --- Data Stores ---
-UserDB | t: Platform
-ProductDB | t: Platform
-OrderDB | t: Platform
-SessionCache | t: Platform
-ProductCache | t: Platform
-OrderQueue | t: Platform
+UserDB t: Platform
+ProductDB t: Platform
+OrderDB t: Platform
+SessionCache t: Platform
+ProductCache t: Platform
+OrderQueue t: Platform
 
 // --- External ---
-PaymentGateway | t: Backend, description: Stripe integration
+PaymentGateway t: Backend, description: Stripe integration
 
 // --- Consumer ---
-WebApp | t: Frontend
+WebApp t: Frontend
   -> API Gateway
 
-Admin | t: Backend
+Admin t: Backend
   -> API Gateway
 
 // --- Groups ---
@@ -66,4 +66,4 @@ Admin | t: Backend
 // --- Cross-links (flat form — nodes already declared above) ---
 OrderService -charges-> PaymentGateway
 OrderQueue -> PaymentGateway
-SessionCache <-syncs-> ProductCache | p: Medium
+SessionCache <-syncs-> ProductCache p: Medium
