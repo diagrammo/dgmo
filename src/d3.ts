@@ -207,8 +207,13 @@ import {
   parseFirstLine,
   parsePipeMetadata,
   peelTrailingColorName,
+  splitNameAndMeta,
   MULTIPLE_PIPE_ERROR,
 } from './utils/parsing';
+import {
+  TIMELINE_REGISTRY,
+  withTagAliases,
+} from './utils/reserved-key-registry';
 import {
   matchTagBlockHeading,
   validateTagValues,
@@ -242,6 +247,51 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from './utils/title-constants';
+
+// ============================================================
+// Shared Parsing Helpers
+// ============================================================
+
+/**
+ * Split a timeline event's `label + metadata` segment into a clean
+ * label string and a key-value record. Accepts both forms:
+ *   - legacy: `label | k: v, k: v`
+ *   - new (§1.4): `label k: v, k: v` (cut at first reserved key in
+ *     `TIMELINE_REGISTRY` plus declared tag aliases).
+ *
+ * Multi-pipe lines fire the supplied `reportMultiPipes` callback;
+ * the top-of-loop `E_PIPE_OPERATOR_REMOVED` diagnostic is emitted
+ * by the caller on first `|` detection.
+ */
+function parseTimelineLabelAndMeta(
+  text: string,
+  timelineAliasMap: Map<string, string>,
+  reportMultiPipes?: () => void
+): { label: string; metadata: Record<string, string> } {
+  if (text.includes('|')) {
+    const segments = text.split('|');
+    const label = segments[0]!.trim();
+    const metadata =
+      segments.length > 1
+        ? parsePipeMetadata(
+            ['', ...segments.slice(1)],
+            timelineAliasMap,
+            reportMultiPipes
+          )
+        : {};
+    return { label, metadata };
+  }
+  const registry = withTagAliases(
+    TIMELINE_REGISTRY,
+    new Set(timelineAliasMap.keys())
+  );
+  const split = splitNameAndMeta(text, registry, timelineAliasMap);
+  let label = split.name;
+  if (split.color !== undefined) {
+    label = `${label} ${split.color}`;
+  }
+  return { label, metadata: split.meta };
+}
 
 // ============================================================
 // Shared Rendering Helpers
@@ -869,20 +919,15 @@ export function parseVisualization(
         if (durationMatch[5]!.includes('|')) {
           warn(lineNumber, pipeOperatorRemovedMessage());
         }
-        const segments = durationMatch[5]!.split('|');
-        const metadata =
-          segments.length > 1
-            ? parsePipeMetadata(
-                ['', ...segments.slice(1)],
-                timelineAliasMap,
-                () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
-              )
-            : {};
+        const { label, metadata } = parseTimelineLabelAndMeta(
+          durationMatch[5]!,
+          timelineAliasMap,
+          () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
+        );
         result.timelineEvents.push({
           date: startDate,
           endDate,
-          // segments is non-empty (split always returns at least one).
-          label: segments[0]!.trim(),
+          label,
           group: currentTimelineGroup,
           metadata,
           lineNumber,
@@ -902,21 +947,16 @@ export function parseVisualization(
         if (rangeMatch[4]!.includes('|')) {
           warn(lineNumber, pipeOperatorRemovedMessage());
         }
-        const segments = rangeMatch[4]!.split('|');
-        const metadata =
-          segments.length > 1
-            ? parsePipeMetadata(
-                ['', ...segments.slice(1)],
-                timelineAliasMap,
-                () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
-              )
-            : {};
+        const { label, metadata } = parseTimelineLabelAndMeta(
+          rangeMatch[4]!,
+          timelineAliasMap,
+          () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
+        );
         result.timelineEvents.push({
           // Capture groups 1-2 guaranteed by the regex match.
           date: rangeMatch[1]!,
           endDate: rangeMatch[2]!,
-          // segments is non-empty (split always returns at least one).
-          label: segments[0]!.trim(),
+          label,
           group: currentTimelineGroup,
           metadata,
           lineNumber,
@@ -932,21 +972,16 @@ export function parseVisualization(
         if (pointMatch[2]!.includes('|')) {
           warn(lineNumber, pipeOperatorRemovedMessage());
         }
-        const segments = pointMatch[2]!.split('|');
-        const metadata =
-          segments.length > 1
-            ? parsePipeMetadata(
-                ['', ...segments.slice(1)],
-                timelineAliasMap,
-                () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
-              )
-            : {};
+        const { label, metadata } = parseTimelineLabelAndMeta(
+          pointMatch[2]!,
+          timelineAliasMap,
+          () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
+        );
         result.timelineEvents.push({
           // Capture group 1 guaranteed by the regex match.
           date: pointMatch[1]!,
           endDate: null,
-          // segments is non-empty (split always returns at least one).
-          label: segments[0]!.trim(),
+          label,
           group: currentTimelineGroup,
           metadata,
           lineNumber,
