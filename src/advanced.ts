@@ -728,3 +728,15 @@ export { themes, type Theme } from './themes';
 
 // Public-API alias for parseDgmo (also exported from the public root as `validate`)
 export { parseDgmo as validate } from './dgmo-router';
+
+// `dgmo migrate` — programmatic access to the 0.18.0 legacy `|` → §1.4
+// migration. Consumed by `@diagrammo/dgmo-mcp`'s `migrate_diagram` tool
+// and by external authoring tools that want to offer in-place migration.
+export {
+  migrateContent,
+  formatLineDiff,
+  isLegacyMetadataLine,
+  findUnsafePipePositions,
+  transformLine,
+} from './migrate';
+export type { ContentMigration, TransformResult } from './migrate';
