@@ -26,8 +26,13 @@ import {
   extractColor,
   parseFirstLine,
   OPTION_NOCOLON_RE,
+  splitNameAndMeta,
   tryParseSharedOption,
 } from '../utils/parsing';
+import {
+  BOXES_AND_LINES_REGISTRY,
+  withTagAliases,
+} from '../utils/reserved-key-registry';
 
 const MAX_GROUP_DEPTH = 2;
 
@@ -48,18 +53,23 @@ function measureIndent(line: string): number {
 }
 
 /**
- * Parse pipe metadata segment: `key: value, key2: value2`
- * Returns resolved metadata record. Extracts `description` separately.
+ * Parse the trailing meta segment of a structural line — accepts both
+ * the legacy `| key: value, …` and the new §1.4 same-line `key: value, …`
+ * forms (a leading `|` is tolerated and stripped). Extracts
+ * `description` separately so callers can hang it on the node body.
  */
-function parsePipeMetadata(
-  segment: string,
+function parseTailMeta(
+  rawTail: string,
   metaAliasMap: Map<string, string>
 ): { metadata: Record<string, string>; description?: string[] } {
+  let segment = rawTail.trim();
+  if (segment.startsWith('|')) segment = segment.substring(1).trim();
+  if (!segment) return { metadata: {} };
+
   const metadata: Record<string, string> = {};
   let description: string[] | undefined;
 
-  const items = segment.split(',');
-  for (const item of items) {
+  for (const item of segment.split(',')) {
     const trimmed = item.trim();
     if (!trimmed) continue;
 
@@ -429,7 +439,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
     // Group-to-group edge: [Group A] -> [Group B] or [Group A] <-> [Group B]
     const groupEdgeMatch = trimmed.match(
-      /^\[(.+?)\]\s*(<->|->)\s*\[(.+?)\]\s*(?:\|\s*(.+))?$/
+      /^\[(.+?)\]\s*(<->|->)\s*\[(.+?)\](.*)$/
     );
     if (groupEdgeMatch) {
       contentStarted = true;
@@ -437,13 +447,9 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       const sourceLabel = groupEdgeMatch[1];
       const arrow = groupEdgeMatch[2];
       const targetLabel = groupEdgeMatch[3];
-      const metaSeg = groupEdgeMatch[4];
+      const rawTail = groupEdgeMatch[4] ?? '';
 
-      let edgeMeta: Record<string, string> = {};
-      if (metaSeg) {
-        const parsed = parsePipeMetadata(metaSeg, metaAliasMap);
-        edgeMeta = parsed.metadata;
-      }
+      const edgeMeta = parseTailMeta(rawTail, metaAliasMap).metadata;
 
       result.edges.push({
         // Regex capture groups present after successful match.
@@ -458,7 +464,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
     // Labeled group-to-group edge: [Group A] -label-> [Group B]
     const labeledGroupEdgeMatch = trimmed.match(
-      /^\[(.+?)\]\s*(?:<-(.+)->|-(.+)->)\s*\[(.+?)\]\s*(?:\|\s*(.+))?$/
+      /^\[(.+?)\]\s*(?:<-(.+)->|-(.+)->)\s*\[(.+?)\](.*)$/
     );
     if (labeledGroupEdgeMatch) {
       contentStarted = true;
@@ -467,13 +473,9 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       const biLabel = labeledGroupEdgeMatch[2];
       const uniLabel = labeledGroupEdgeMatch[3];
       const targetLabel = labeledGroupEdgeMatch[4];
-      const metaSeg = labeledGroupEdgeMatch[5];
+      const rawTail = labeledGroupEdgeMatch[5] ?? '';
 
-      let edgeMeta: Record<string, string> = {};
-      if (metaSeg) {
-        const parsed = parsePipeMetadata(metaSeg, metaAliasMap);
-        edgeMeta = parsed.metadata;
-      }
+      const edgeMeta = parseTailMeta(rawTail, metaAliasMap).metadata;
 
       const labeledEdgeLabel = (biLabel ?? uniLabel)?.trim();
       result.edges.push({
@@ -489,7 +491,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     }
 
     // Group header: [Group Name] or [Group Name] | metadata
-    const groupMatch = trimmed.match(/^\[(.+?)\]\s*(?:\|\s*(.+))?$/);
+    const groupMatch = trimmed.match(/^\[(.+?)\](.*)$/);
     if (groupMatch && !trimmed.includes('->') && !trimmed.includes('<->')) {
       contentStarted = true;
       currentTagGroup = null;
@@ -514,19 +516,10 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
         continue;
       }
 
-      const groupMeta: Record<string, string> = {};
-      if (groupMatch[2]) {
-        const items = groupMatch[2].split(',');
-        for (const item of items) {
-          const ci = item.indexOf(':');
-          if (ci >= 0) {
-            const rawKey = item.slice(0, ci).trim().toLowerCase();
-            const value = item.slice(ci + 1).trim();
-            const resolvedKey = metaAliasMap.get(rawKey) ?? rawKey;
-            groupMeta[resolvedKey] = value;
-          }
-        }
-      }
+      const groupMeta = parseTailMeta(
+        groupMatch[2] ?? '',
+        metaAliasMap
+      ).metadata;
 
       const parentGs = currentGroupState();
       const group: MutBLGroup = {
@@ -718,40 +711,68 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 // ============================================================
 
 /**
- * Parse a node line. Supports:
- * - `Label`
- * - `Label | key: value, key2: value2`
+ * Parse a node line. Supports both the new §1.4 same-line form
+ * (`Label key: value, key2: value2`) and the legacy pipe form
+ * (`Label | key: value, ...`); the top-of-loop pipe diagnostic
+ * already fires for the latter.
  */
 function parseNodeLine(
   trimmed: string,
   lineNum: number,
   metaAliasMap: Map<string, string>,
-  _diagnostics: DgmoError[],
+  diagnostics: DgmoError[],
   nameAliasMap?: Map<string, string>
 ): MutBLNode | null {
-  let metadata: Record<string, string> = {};
-  let description: string[] | undefined;
-
-  // Split on pipe for metadata
-  const pipeIdx = trimmed.indexOf('|');
-  let label: string;
-
+  // Strip any unsafe `|` so the name region stays clean — the
+  // legacy diagnostic is emitted by the per-line top-of-loop check.
+  // Anything left of a `|` is part of the label; anything to the
+  // right is comma-separated metadata.
+  let working = trimmed;
+  const pipeIdx = working.indexOf('|');
+  let legacyMetaTail = '';
   if (pipeIdx >= 0) {
-    label = trimmed.slice(0, pipeIdx).trim();
-    const metaSegment = trimmed.slice(pipeIdx + 1).trim();
-    const parsed = parsePipeMetadata(metaSegment, metaAliasMap);
-    metadata = parsed.metadata;
-    description = parsed.description;
-  } else {
-    label = trimmed;
+    legacyMetaTail = working.substring(pipeIdx + 1).trim();
+    working = working.substring(0, pipeIdx).trim();
   }
 
-  // TD-18: peel optional `as <alias>` from label.
-  const asMatch = label.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
-  if (asMatch) {
-    // Regex capture groups present after successful match.
-    label = asMatch[1]!.trim();
-    nameAliasMap?.set(normalizeName(asMatch[2]!), label);
+  const registry = withTagAliases(
+    BOXES_AND_LINES_REGISTRY,
+    new Set(metaAliasMap.keys())
+  );
+  const split = splitNameAndMeta(
+    working,
+    registry,
+    metaAliasMap,
+    undefined,
+    diagnostics,
+    lineNum
+  );
+
+  let label = split.name;
+  const metadata: Record<string, string> = { ...split.meta };
+  let description: string[] | undefined;
+  // §1.5 trailing-token color sits in the label slot for nodes
+  // that don't store color separately — re-attach so the literal
+  // label text matches author intent.
+  if (split.color !== undefined) {
+    label = `${label} ${split.color}`;
+  }
+
+  // Fold any legacy `| k: v` tail (back-compat).
+  if (legacyMetaTail) {
+    const tailParsed = parseTailMeta(legacyMetaTail, metaAliasMap);
+    Object.assign(metadata, tailParsed.metadata);
+    if (tailParsed.description) description = tailParsed.description;
+  }
+  // Promote a `description` key out of metadata for the new path.
+  if (metadata['description'] !== undefined) {
+    description = [metadata['description']];
+    delete metadata['description'];
+  }
+
+  // TD-18 alias is now peeled by splitNameAndMeta — re-register if set.
+  if (split.alias) {
+    nameAliasMap?.set(normalizeName(split.alias), label);
   }
 
   if (!label) return null;
@@ -762,6 +783,46 @@ function parseNodeLine(
     metadata,
     ...(description !== undefined && { description }),
   };
+}
+
+/**
+ * Split the right-hand side of an edge (`Target | meta` legacy, or
+ * `Target k: v` new) into a clean target name + parsed metadata.
+ * For new syntax, the metadata cut is at the first reserved key
+ * (via splitNameAndMeta + BOXES_AND_LINES_REGISTRY). For legacy,
+ * the literal `|` still wins.
+ *
+ * `[Group]` bracket targets are preserved verbatim — the bracket
+ * literal is the target name, not a structural sigil to peel.
+ */
+function splitTargetAndMeta(
+  rest: string,
+  metaAliasMap: Map<string, string>
+): { target: string; metadata: Record<string, string> } {
+  const pipeIdx = rest.indexOf('|');
+  if (pipeIdx >= 0) {
+    const tail = rest.slice(pipeIdx + 1).trim();
+    const target = rest.slice(0, pipeIdx).trim();
+    return {
+      target,
+      metadata: parseTailMeta(tail, metaAliasMap).metadata,
+    };
+  }
+  // §1.4 same-line: cut at the first reserved-key colon. If the
+  // target is wrapped in `[brackets]` (group endpoint), keep the
+  // bracketed form intact.
+  const registry = withTagAliases(
+    BOXES_AND_LINES_REGISTRY,
+    new Set(metaAliasMap.keys())
+  );
+  const split = splitNameAndMeta(rest, registry, metaAliasMap);
+  let target = split.name;
+  if (split.color !== undefined) {
+    // Colors as trailing tokens stay on the target literal for
+    // identifier-style endpoints; reattach.
+    target = `${target} ${split.color}`;
+  }
+  return { target, metadata: split.meta };
 }
 
 /**
@@ -810,16 +871,11 @@ function parseEdgeLine(
     const label = labelResult.label;
     let rest = biLabeledMatch[3]!.trim();
 
-    let metadata: Record<string, string> = {};
-    const pipeIdx = rest.indexOf('|');
-    if (pipeIdx >= 0) {
-      const parsed = parsePipeMetadata(
-        rest.slice(pipeIdx + 1).trim(),
-        metaAliasMap
-      );
-      metadata = parsed.metadata;
-      rest = rest.slice(0, pipeIdx).trim();
-    }
+    const { target: biTarget, metadata } = splitTargetAndMeta(
+      rest,
+      metaAliasMap
+    );
+    rest = biTarget;
 
     if (!source || !rest) {
       diagnostics.push(
@@ -847,16 +903,11 @@ function parseEdgeLine(
     );
     let rest = trimmed.slice(biIdx + 3).trim();
 
-    let metadata: Record<string, string> = {};
-    const pipeIdx = rest.indexOf('|');
-    if (pipeIdx >= 0) {
-      const parsed = parsePipeMetadata(
-        rest.slice(pipeIdx + 1).trim(),
-        metaAliasMap
-      );
-      metadata = parsed.metadata;
-      rest = rest.slice(0, pipeIdx).trim();
-    }
+    const { target: plainTarget, metadata } = splitTargetAndMeta(
+      rest,
+      metaAliasMap
+    );
+    rest = plainTarget;
 
     if (!source || !rest) {
       diagnostics.push(
@@ -885,16 +936,11 @@ function parseEdgeLine(
     let rest = labeledMatch[3]!.trim();
 
     if (label) {
-      let metadata: Record<string, string> = {};
-      const pipeIdx = rest.indexOf('|');
-      if (pipeIdx >= 0) {
-        const parsed = parsePipeMetadata(
-          rest.slice(pipeIdx + 1).trim(),
-          metaAliasMap
-        );
-        metadata = parsed.metadata;
-        rest = rest.slice(0, pipeIdx).trim();
-      }
+      const { target: labeledTarget, metadata } = splitTargetAndMeta(
+        rest,
+        metaAliasMap
+      );
+      rest = labeledTarget;
 
       if (!source || !rest) {
         diagnostics.push(
@@ -931,16 +977,11 @@ function parseEdgeLine(
     return null;
   }
 
-  let metadata: Record<string, string> = {};
-  const pipeIdx = rest.indexOf('|');
-  if (pipeIdx >= 0) {
-    const parsed = parsePipeMetadata(
-      rest.slice(pipeIdx + 1).trim(),
-      metaAliasMap
-    );
-    metadata = parsed.metadata;
-    rest = rest.slice(0, pipeIdx).trim();
-  }
+  const { target: plainTarget, metadata } = splitTargetAndMeta(
+    rest,
+    metaAliasMap
+  );
+  rest = plainTarget;
 
   if (!rest) {
     diagnostics.push(makeDgmoError(lineNum, 'Edge is missing target'));
