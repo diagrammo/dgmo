@@ -25,10 +25,12 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
+  splitNameAndMeta,
   MULTIPLE_PIPE_ERROR,
   parseFirstLine,
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
+import { C4_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 import type {
   ParsedC4,
@@ -151,6 +153,52 @@ function inferC4Shape(name: string, tech?: string): C4Shape {
   }
   // Fall back to name inference
   return participantTypeToC4Shape(inferParticipantType(name));
+}
+
+/**
+ * Pull metadata out of a c4 line tail (the part after `name is a type`
+ * or after a target identifier), accepting both legacy and new forms:
+ *   - legacy: `| k: v, k: v`
+ *   - new (§1.4): `k: v, k: v`
+ * Returns `{}` when the tail has no metadata.
+ */
+function parseC4MetaTail(
+  tail: string,
+  metaAliasMap: Map<string, string>,
+  reportMultiPipes?: () => void
+): Record<string, string> {
+  const trimmed = tail.trim();
+  if (!trimmed) return {};
+  if (trimmed.startsWith('|')) {
+    const segments = trimmed.split('|').map((s) => s.trim());
+    return parsePipeMetadata(segments, metaAliasMap, reportMultiPipes);
+  }
+  if (!trimmed.includes(':')) return {};
+  return parsePipeMetadata(['', trimmed], metaAliasMap);
+}
+
+/**
+ * Split a name-prefixed line into `{ name, metadata }`. Accepts both:
+ *   - legacy: `Name | k: v, k: v`     (first-`|` cut)
+ *   - new (§1.4): `Name k: v, k: v`   (first reserved-key cut via
+ *     `splitNameAndMeta` against `C4_REGISTRY` plus declared tag
+ *     aliases)
+ */
+function parseC4NameAndMeta(
+  text: string,
+  metaAliasMap: Map<string, string>,
+  reportMultiPipes?: () => void
+): { name: string; metadata: Record<string, string> } {
+  if (text.includes('|')) {
+    const segments = text.split('|').map((s) => s.trim());
+    return {
+      name: segments[0] ?? '',
+      metadata: parsePipeMetadata(segments, metaAliasMap, reportMultiPipes),
+    };
+  }
+  const registry = withTagAliases(C4_REGISTRY, new Set(metaAliasMap.keys()));
+  const split = splitNameAndMeta(text, registry, metaAliasMap);
+  return { name: split.name, metadata: split.meta };
 }
 
 function parseArrowType(arrow: string): C4ArrowType | null {
@@ -458,12 +506,12 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           continue;
         }
 
-        // Otherwise it's a deployment node (possibly with pipe metadata)
-        const segments = trimmed.split('|').map((s) => s.trim());
-        // split() always produces at least one segment.
-        const nodeName = segments[0]!;
-        const metadata = parsePipeMetadata(segments, metaAliasMap, () =>
-          pushError(lineNumber, MULTIPLE_PIPE_ERROR)
+        // Otherwise it's a deployment node (possibly with metadata).
+        // Accepts both `Name | k: v` (legacy) and `Name k: v` (§1.4).
+        const { name: nodeName, metadata } = parseC4NameAndMeta(
+          trimmed,
+          metaAliasMap,
+          () => pushError(lineNumber, MULTIPLE_PIPE_ERROR)
         );
         const shape = inferC4Shape(
           nodeName,
@@ -597,21 +645,17 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         const label: string | undefined = labelResult.label;
         let technology: string | undefined;
 
-        // Extract pipe metadata from target body (e.g. "Database | tech: SQL")
-        let target = targetBody;
-        const pipeIdx = targetBody.indexOf('|');
-        if (pipeIdx !== -1) {
-          target = targetBody.substring(0, pipeIdx).trim();
-          const metaPart = targetBody.substring(pipeIdx + 1).trim();
-          // parsePipeMetadata expects segments split by |; first segment is pre-pipe
-          const meta = parsePipeMetadata(['', metaPart], metaAliasMap);
-          // tech/technology on pipe overrides [tech] in label
-          if (meta['tech']) {
-            technology = meta['tech'];
-          }
-          if (meta['technology']) {
-            technology = meta['technology'];
-          }
+        // Extract metadata from target body. Accepts both
+        // `Database | tech: SQL` (legacy) and `Database tech: SQL`
+        // (§1.4). tech/technology on metadata override `[tech]` in
+        // the label.
+        const targetParsed = parseC4NameAndMeta(targetBody, metaAliasMap);
+        const target = targetParsed.name;
+        if (targetParsed.metadata['tech']) {
+          technology = targetParsed.metadata['tech'];
+        }
+        if (targetParsed.metadata['technology']) {
+          technology = targetParsed.metadata['technology'];
         }
 
         const rel: C4Relationship = {
@@ -717,21 +761,10 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         elementType = rawType as C4ElementType;
       }
 
-      // Parse pipe metadata from remainder
+      // Parse metadata from remainder. Accepts both legacy
+      // (`| k: v, ...`) and new §1.4 (`k: v, ...`) forms.
       const remainderTrimmed = remainder.trim();
-      let segments: string[];
-      if (remainderTrimmed.startsWith('|')) {
-        // remainder has pipe metadata: "| tech: PostgreSQL, team: Data"
-        segments = [
-          '',
-          ...remainderTrimmed
-            .substring(1)
-            .split('|')
-            .map((s) => s.trim()),
-        ];
-      } else {
-        segments = [remainderTrimmed];
-      }
+      let metaTail = remainderTrimmed;
 
       // Check for additional `is a <shape>` in the name (e.g., already stripped by C4_IS_A_RE won't happen,
       // but handle remainder like "is a cylinder" after type)
@@ -750,18 +783,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           );
         }
         // Re-parse remainder after shape
-        const afterShape = remainderIsA[2]!.trim();
-        if (afterShape.startsWith('|')) {
-          segments = [
-            '',
-            ...afterShape
-              .substring(1)
-              .split('|')
-              .map((s) => s.trim()),
-          ];
-        } else {
-          segments = [afterShape];
-        }
+        metaTail = remainderIsA[2]!.trim();
       }
 
       // Also check for `is a <shape>` within the name part itself
@@ -780,7 +802,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         namePart = namePart.substring(0, nameIsAMatch.index!).trim();
       }
 
-      const metadata = parsePipeMetadata(segments, metaAliasMap, () =>
+      const metadata = parseC4MetaTail(metaTail, metaAliasMap, () =>
         pushError(lineNumber, MULTIPLE_PIPE_ERROR)
       );
 
@@ -834,10 +856,12 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       const elementType = elementMatch[1]!.toLowerCase() as C4ElementType;
       const nameAndRest = elementMatch[2]!;
 
-      // Split on pipe for inline metadata
-      const segments = nameAndRest.split('|').map((s) => s.trim());
-      // split() always produces at least one segment.
-      let namePart = segments[0]!;
+      // Accept both legacy `Name | k: v` and §1.4 `Name k: v`.
+      const parsed = parseC4NameAndMeta(nameAndRest, metaAliasMap, () =>
+        pushError(lineNumber, MULTIPLE_PIPE_ERROR)
+      );
+      let namePart = parsed.name;
+      const metadata = parsed.metadata;
 
       // Check for `is a <shape>` in the name portion
       let explicitShape: C4Shape | null = null;
@@ -860,10 +884,6 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       pushError(
         lineNumber,
         `'${elementMatch[1]} ${namePart}' prefix syntax is no longer supported — use '${namePart} is a ${elementType}' instead`
-      );
-
-      const metadata = parsePipeMetadata(segments, metaAliasMap, () =>
-        pushError(lineNumber, MULTIPLE_PIPE_ERROR)
       );
 
       // Determine shape: explicit > inference
