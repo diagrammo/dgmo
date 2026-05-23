@@ -27,7 +27,7 @@ roles
     { text: 'color', role: 'keyword' },
 
     // Pipe and colon separators
-    { text: '|', role: 'separator' },
+    { text: '|', role: 'deprecatedSyntax' },
     { text: ':', role: 'separator' },
 
     // Bracket section header

@@ -52,7 +52,14 @@ const NODE_TO_ROLE: Record<string, string> = {
   CloseParen: 'bracket',
   OpenAngle: 'bracket',
   CloseAngle: 'bracket',
-  Pipe: 'separator',
+  // `|` is no longer DGMO's metadata delimiter as of 0.18.0 (§1.4).
+  // Highlight legacy pipes in a deprecated-syntax color so authors
+  // see the migration prompt visually before the parser diagnostic
+  // fires. The lezer grammar still tokenizes `|` uniformly (it's a
+  // valid character inside arrow labels and wireframe dropdowns), so
+  // this paints surviving pipes too — acceptable noise for the
+  // signal value during the 0.17.x → 0.18.0 transition.
+  Pipe: 'deprecatedSyntax',
   Colon: 'separator',
   Plus: 'separator',
   Comma: 'punctuation',
@@ -228,9 +235,10 @@ function applyLabelOverrides(tokens: HighlightToken[]): void {
       else if (text === '<') nodeName = 'OpenAngle';
       else if (text === '>') nodeName = 'CloseAngle';
     } else if (role === 'separator') {
-      if (t.text === '|') nodeName = 'Pipe';
-      else if (t.text === ':') nodeName = 'Colon';
+      if (t.text === ':') nodeName = 'Colon';
       else if (t.text === '+') nodeName = 'Plus';
+    } else if (role === 'deprecatedSyntax') {
+      if (t.text === '|') nodeName = 'Pipe';
     } else if (role === 'punctuation') {
       if (t.text === ',') nodeName = 'Comma';
       else nodeName = 'Punct';
@@ -378,6 +386,9 @@ export const NORD_ROLE_STYLES: Record<string, Record<string, string>> = {
   heading: { color: '#D08770', fontWeight: 'bold' }, // nord12
   bracket: { color: '#5E81AC' }, // nord10
   separator: { color: '#88C0D0' }, // nord8
+  // Red-orange with strikethrough so legacy `|` reads as
+  // "remove this." Distinct from `operator` which is bold red.
+  deprecatedSyntax: { color: '#BF616A', textDecoration: 'line-through' }, // nord11
   url: { color: '#88C0D0', textDecoration: 'underline' }, // nord8
   colorAnnotation: { color: '#D08770', fontStyle: 'italic' }, // nord12
   punctuation: { color: '#616E88' },
@@ -401,6 +412,7 @@ export const ROLE_TO_ANSI: Record<string, string> = {
   heading: '\x1b[1;33m', // bold yellow
   bracket: '\x1b[34m', // blue
   separator: '\x1b[36m', // cyan
+  deprecatedSyntax: '\x1b[9;31m', // strikethrough red
   url: '\x1b[4;36m', // underline cyan
   colorAnnotation: '\x1b[3;33m', // italic yellow
   punctuation: '\x1b[90m', // dim

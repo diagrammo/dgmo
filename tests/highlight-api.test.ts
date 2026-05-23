@@ -79,10 +79,13 @@ describe('highlightDgmo — token roles', () => {
     expect(bracketTokens.some((t) => t.text === ']')).toBe(true);
   });
 
-  it('assigns separator to pipe', () => {
+  it('assigns deprecatedSyntax to pipe (§1.4 retirement)', () => {
+    // `|` was the metadata delimiter prior to 0.18.0. Now it's
+    // surfaced visually as deprecated-syntax so authors see the
+    // migration prompt before the parser diagnostic fires.
     const tokens = highlightDgmo('A -msg-> B | key: val');
-    const sepTokens = tokens.filter((t) => t.role === 'separator');
-    expect(sepTokens.some((t) => t.text === '|')).toBe(true);
+    const depTokens = tokens.filter((t) => t.role === 'deprecatedSyntax');
+    expect(depTokens.some((t) => t.text === '|')).toBe(true);
   });
 });
 

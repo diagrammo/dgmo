@@ -16,6 +16,6 @@ Safety | description: Security and health
     { text: 'inverted', role: 'keyword' },
     { text: 'color', role: 'keyword' },
     { text: 'description', role: 'keyword' },
-    { text: '|', role: 'separator' },
+    { text: '|', role: 'deprecatedSyntax' },
   ],
 };
