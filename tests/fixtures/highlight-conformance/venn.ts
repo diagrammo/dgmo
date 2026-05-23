@@ -5,8 +5,8 @@ export const fixture: HighlightFixture = {
   specSection: '17',
   source: `venn Skill Overlap
 
-Swordsmanship red as sw
-Navigation blue as nav
+Swordsmanship as sw red
+Navigation as nav blue
 sw + nav Sea Raiders
 `,
   assertions: [

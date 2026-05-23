@@ -99,9 +99,11 @@ Red                   // value=Red, no color (capitalized → escape hatch)
 
 > Color is the trailing whitespace-delimited token of a label region, when that token (case-sensitive, lowercase) is one of the 11 names above. Otherwise the label region has no color.
 
-The "label region" is everything left after the parser strips off structural terminators it owns: `as <alias>`, `| <pipe metadata>`, numeric values, date ranges, structural brackets. Parsers split those off BEFORE invoking the color rule. So `Tortuga Distillery orange 3000` → `{ label: "Tortuga Distillery", color: "orange", value: 3000 }`: numeric value first, then the color trails the remaining label.
+The "label region" is everything left after the parser strips off structural terminators it owns: `| <pipe metadata>`, numeric values, date ranges, structural brackets. Parsers split those off BEFORE invoking the color rule. So `Tortuga Distillery orange 3000` → `{ label: "Tortuga Distillery", color: "orange", value: 3000 }`: numeric value first, then the color trails the remaining label.
 
-**Where the rule applies**: tag values, kanban columns (`[Done] green`), venn / quadrant items (color before `as`), gantt / timeline eras and markers, data-chart series + rows, sankey nodes + link lines, cycle / pyramid / ring / RACI / boxes-and-lines node labels.
+**Aliases come between the label and the color.** `as <alias>` sits *between* the label region and the trailing color token in declarations — the line reads `<label> as <alias> <color>`. Color is always the line-trailing token (modulo pipe metadata, which is line-final).
+
+**Where the rule applies**: tag values, kanban columns (`[Done] green`), venn items (`Swordsmanship as sw red`), quadrant position labels (`top-right Promote green`), gantt / timeline eras and markers, data-chart series + rows, sankey nodes + link lines, cycle / pyramid / ring / RACI / boxes-and-lines node labels.
 
 **Pipe form is reserved for multi-key metadata.** Use `| color: <name>` only when another pipe key (`description:`, `span:`, `width:`, `quadrant:`, …) needs to accompany the color. When color is the only thing being set, use the trailing-token form.
 
@@ -314,8 +316,8 @@ b -ack-> a
 
 ```
 venn
-Swordsmanship red as sw
-Navigation blue as nav
+Swordsmanship as sw red
+Navigation as nav blue
 sw + nav Sea Raiders
 ```
 
@@ -328,7 +330,7 @@ tag Concern as c
 
 - **Token shape**: `[A-Za-z][A-Za-z0-9_]{0,11}` — letter start,
   letters/digits/underscore, length 1–12. **Case-sensitive**.
-- **Modifier order on declarations**: `<name> [color] [is a type] as <alias> [| key: value, …]`.
+- **Modifier order on declarations**: `<name> [is a type] [as <alias>] [color] [| key: value, …]`. Color is the line-trailing token; pipe metadata, when present, is line-final and supersedes that slot.
 - **Strict ordering**: aliases must be declared on or before first use.
 - **Flat global namespace**: one alias literal has exactly one binding per source.
 - **Aliases are NEVER UNH-normalized** — exact-match short-codes only.
@@ -352,7 +354,7 @@ rarely benefit. Aliases should aid comprehension, not obscure it.
 |-----|-----|
 | `tag Priority p` (bare shorthand) | `tag Priority as p` |
 | `tag Priority alias p` (explicit) | `tag Priority as p` |
-| `Swordsmanship red alias sw` (venn) | `Swordsmanship red as sw` |
+| `Swordsmanship red alias sw` (venn) | `Swordsmanship as sw red` |
 
 ### 2A.6 Error Codes
 
@@ -1598,9 +1600,9 @@ order group
 ```
 venn Skill Overlap
 
-Swordsmanship red as sw
-Navigation blue as nav
-Leadership green as lead
+Swordsmanship as sw red
+Navigation as nav blue
+Leadership as lead green
 
 sw + nav Sea Raiders
 sw + nav + lead Legendary Pirates

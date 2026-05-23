@@ -66,9 +66,9 @@ describe('Venn parser — 3-set with aliases and colors', () => {
   it('parses aliases and resolves intersection references by alias', () => {
     const result = parseVisualization(
       `venn
-Frontend blue as fe
-Backend green as be
-DevOps orange as de
+Frontend as fe blue
+Backend as be green
+DevOps as de orange
 fe + be Web Systems
 be + de Platform Ops
 fe + be + de Full Stack`,
@@ -91,8 +91,8 @@ fe + be + de Full Stack`,
   it('rejects legacy `alias` keyword with E_VENN_ALIAS_KEYWORD_REMOVED', () => {
     const result = parseVisualization(
       `venn
-Frontend blue alias fe
-Backend green alias be
+Frontend alias fe blue
+Backend alias be green
 fe + be Web Systems`,
       nordLight
     );

@@ -1000,31 +1000,36 @@ export function parseVisualization(
         }
       }
 
-      // Set declaration (§1.5 universal trailing-token):
-      //   `Name` / `Name color` / `Name as <alias>` / `Name color as <alias>`
-      // Legacy `Name color alias <token>` emits E_VENN_ALIAS_KEYWORD_REMOVED.
+      // Set declaration (§1.5 universal trailing-token, §2A.2 modifier order):
+      //   `Name` / `Name color` / `Name as <alias>` / `Name as <alias> color`
+      // Color is the line-trailing token, peeled first; alias follows the name.
+      // Legacy `Name alias <token>` emits E_VENN_ALIAS_KEYWORD_REMOVED.
       // Only attempt set parsing if the line wasn't a bare-keyword option (handled above).
       if (!/^(solid-fill|no-name|no-value|no-percent|no-title)$/i.test(line)) {
+        // Peel a trailing color word from the whole line first so the
+        // remaining text is `Name [alias <alias>]` / `Name [as <alias>]`.
+        const { label: lineWithoutColor, colorName } =
+          peelTrailingColorName(line);
+        let color: string | null = null;
+        if (colorName) {
+          color =
+            resolveColorWithDiagnostic(
+              colorName,
+              lineNumber,
+              result.diagnostics,
+              palette
+            ) ?? null;
+        }
+
         // Detect legacy `alias` keyword first — graceful degradation parses
         // the rest of the line so the set still appears.
-        const legacyAliasMatch = line.match(/^(.+?)\s+alias\s+(\S+)\s*$/i);
+        const legacyAliasMatch = lineWithoutColor.match(
+          /^(.+?)\s+alias\s+(\S+)\s*$/i
+        );
         if (legacyAliasMatch) {
           // Capture groups 1-2 guaranteed by the regex match.
-          const nameWithMaybeColor = legacyAliasMatch[1]!.trim();
+          const name = legacyAliasMatch[1]!.trim();
           const aliasToken = legacyAliasMatch[2]!.trim();
-          // Split off trailing-token color from the name region.
-          const { label: name, colorName } =
-            peelTrailingColorName(nameWithMaybeColor);
-          let color: string | null = null;
-          if (colorName) {
-            color =
-              resolveColorWithDiagnostic(
-                colorName,
-                lineNumber,
-                result.diagnostics,
-                palette
-              ) ?? null;
-          }
           result.diagnostics.push(
             makeDgmoError(
               lineNumber,
@@ -1037,26 +1042,13 @@ export function parseVisualization(
           continue;
         }
 
-        const setDeclMatch = line.match(
+        const setDeclMatch = lineWithoutColor.match(
           /^(.+?)(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*$/i
         );
         if (setDeclMatch) {
           // Capture group 1 guaranteed by the regex match.
-          const nameWithMaybeColor = setDeclMatch[1]!.trim();
+          const name = setDeclMatch[1]!.trim();
           const alias = setDeclMatch[2]?.trim() ?? null;
-          // Split off trailing-token color from the name region (before `as`).
-          const { label: name, colorName } =
-            peelTrailingColorName(nameWithMaybeColor);
-          let color: string | null = null;
-          if (colorName) {
-            color =
-              resolveColorWithDiagnostic(
-                colorName,
-                lineNumber,
-                result.diagnostics,
-                palette
-              ) ?? null;
-          }
           result.vennSets.push({ name, alias, color, lineNumber });
           continue;
         }
