@@ -122,7 +122,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'show-sub-node-count',
   'no-auto-color',
   // Infra node properties
-  'description',
   'instances',
   'max-rps',
   'latency-ms',
@@ -135,7 +134,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'drain-rate',
   'retention-hours',
   'partitions',
-  'split',
   'slo-p90-latency-ms',
   'slo-availability',
   'slo-warning-margin',
@@ -197,16 +195,9 @@ export const DIRECTIVE_KEYWORDS = new Set([
   // Cycle
   'direction-counterclockwise',
   'circle-nodes',
-  'span',
   // Journey-map
   'no-legend',
   'persona',
-  'score',
-  'pain',
-  'opportunity',
-  'thought',
-  // Mindmap
-  'collapsed',
   // Tech-radar
   'show-blip-legend',
   'trend',
@@ -226,7 +217,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   // Arc
   'order',
   // C4
-  'tech',
   'technology',
   // Infra defaults + animate flags
   'default-rps',
@@ -241,6 +231,8 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'trials',
   'seed',
   'scrubber-trials',
+  'start-date',
+  'end-date',
 ]);
 
 /** Control flow keywords — structural blocks. */

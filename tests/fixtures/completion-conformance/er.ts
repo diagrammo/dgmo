@@ -7,7 +7,9 @@ export const fixture: ConformanceFixture = {
   specSection: '9',
   firstLineKeyword: 'er',
   directives: ['notation', 'active-tag', 'solid-fill'],
-  pipeKeys: {},
+  pipeKeys: {
+    node: ['description', 'domain'],
+  },
   enumChecks: [
     { directive: 'palette', source: 'palettes' },
     { directive: 'notation', values: ['chen', 'crow'] },

@@ -17,8 +17,8 @@ App
     { text: 'c4', role: 'chartType' },
     { text: 'direction-tb', role: 'keyword' },
     { text: 'active-tag', role: 'keyword' },
-    { text: 'description', role: 'keyword' },
-    { text: 'tech', role: 'keyword' },
+    { text: 'description', role: 'propertyName' },
+    { text: 'tech', role: 'propertyName' },
     { text: 'technology', role: 'keyword' },
   ],
 };

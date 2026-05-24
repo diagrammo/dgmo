@@ -6,6 +6,8 @@ export const fixture: ConformanceFixture = {
   specSection: '10',
   firstLineKeyword: 'class',
   directives: ['no-auto-color', 'solid-fill'],
-  pipeKeys: {},
+  pipeKeys: {
+    node: ['description'],
+  },
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

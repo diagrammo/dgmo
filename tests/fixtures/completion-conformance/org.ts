@@ -14,6 +14,8 @@ export const fixture: ConformanceFixture = {
     'active-tag',
     'solid-fill',
   ],
-  pipeKeys: {},
+  pipeKeys: {
+    node: ['description', 'role', 'location', 'email', 'phone'],
+  },
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

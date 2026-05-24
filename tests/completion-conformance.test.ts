@@ -70,6 +70,7 @@ import { fixture as sitemapFixture } from './fixtures/completion-conformance/sit
 import { fixture as infraFixture } from './fixtures/completion-conformance/infra';
 import { fixture as ganttFixture } from './fixtures/completion-conformance/gantt';
 import { fixture as boxesAndLinesFixture } from './fixtures/completion-conformance/boxes-and-lines';
+import { fixture as pertFixture } from './fixtures/completion-conformance/pert';
 import { fixture as wireframeFixture } from './fixtures/completion-conformance/wireframe';
 
 const fixtures: ConformanceFixture[] = [
@@ -116,6 +117,7 @@ const fixtures: ConformanceFixture[] = [
   infraFixture,
   ganttFixture,
   boxesAndLinesFixture,
+  pertFixture,
   wireframeFixture,
 ];
 

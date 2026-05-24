@@ -17,6 +17,6 @@ DB
     { text: 'direction', role: 'keyword' },
     { text: 'active-tag', role: 'keyword' },
     { text: 'hide', role: 'keyword' },
-    { text: 'description', role: 'keyword' },
+    { text: 'description', role: 'propertyName' },
   ],
 };

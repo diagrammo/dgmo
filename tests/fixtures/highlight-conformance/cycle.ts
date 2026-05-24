@@ -21,6 +21,6 @@ Act | color: red
     { text: 'no-descriptions', role: 'keyword' },
     { text: 'circle-nodes', role: 'keyword' },
     { text: 'color', role: 'keyword' },
-    { text: 'span', role: 'keyword' },
+    { text: 'span', role: 'propertyName' },
   ],
 };

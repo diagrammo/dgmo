@@ -7,6 +7,8 @@ export const fixture: ConformanceFixture = {
   specSection: '12',
   firstLineKeyword: 'sitemap',
   directives: ['direction-tb', 'active-tag', 'solid-fill'],
-  pipeKeys: {},
+  pipeKeys: {
+    node: ['description', 'status'],
+  },
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

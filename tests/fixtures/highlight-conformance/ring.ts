@@ -15,7 +15,7 @@ The Sea | color: blue
     { text: 'ring', role: 'chartType' },
     { text: 'solid-fill', role: 'keyword' },
     { text: 'color', role: 'keyword' },
-    { text: 'description', role: 'keyword' },
+    { text: 'description', role: 'propertyName' },
     { text: '|', role: 'deprecatedSyntax' },
     { text: ':', role: 'separator' },
     { text: 'Captain', role: 'default' },

@@ -17,7 +17,7 @@ Development
   assertions: [
     { text: 'mindmap', role: 'chartType' },
     { text: 'no-descriptions', role: 'keyword' },
-    { text: 'description', role: 'keyword' },
-    { text: 'collapsed', role: 'keyword' },
+    { text: 'description', role: 'propertyName' },
+    { text: 'collapsed', role: 'propertyName' },
   ],
 };

@@ -23,6 +23,7 @@ export const dgmoHighlighting: NodePropSource = styleTags({
   OpenAngle: t.angleBracket,
   CloseAngle: t.angleBracket,
   Url: t.url,
+  QuotedString: t.string,
   Pipe: t.separator,
   Colon: t.separator,
   Plus: t.separator,

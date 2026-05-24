@@ -258,7 +258,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
     }),
   ],
-  ['timeline', withGlobals()],
+  [
+    'timeline',
+    withGlobals({
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
   ['venn', withGlobals()],
   [
     'quadrant',
@@ -420,6 +425,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'scrubber-trials': {
         description: 'Fast-MC trials for the duration scrubber (default 300)',
       },
+      'start-date': { description: 'Project start date (YYYY-MM-DD or now)' },
+      'end-date': { description: 'Project end date (YYYY-MM-DD)' },
+      'sprint-length': { description: 'Sprint duration (e.g. 2w)' },
+      'sprint-number': { description: 'Starting sprint number' },
+      'sprint-start': { description: 'Sprint start date (YYYY-MM-DD)' },
+      'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
@@ -697,7 +708,11 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
       node: {
         description: { description: 'Node description text' },
       },
-      edge: {},
+      edge: {
+        width: { description: 'Edge stroke width in pixels' },
+        split: { description: 'Traffic split percentage' },
+        fanout: { description: 'Fanout multiplier (integer >= 1)' },
+      },
     },
   ],
   [
@@ -781,13 +796,87 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
     },
   ],
   [
-    // Journey-map step pipe metadata (spec §22). One static key: `score`.
+    // Journey-map step pipe metadata (spec §22).
     // Tag aliases (e.g. `ch: Web`) are user-defined via the `tag` block
     // and resolved dynamically — not part of the static map.
     'journey-map',
     {
       step: {
         score: { description: 'Step score (1–5 integer; high = good)' },
+        emotion: { description: 'Emotional state at this step' },
+        description: { description: 'Step description text' },
+        pain: { description: 'Pain point at this step' },
+        opportunity: { description: 'Opportunity at this step' },
+        thought: { description: 'User thought at this step' },
+      },
+    },
+  ],
+  [
+    'org',
+    {
+      node: {
+        description: { description: 'Person/team description' },
+        role: { description: 'Role or job title' },
+        location: { description: 'Office location' },
+        email: { description: 'Email address' },
+        phone: { description: 'Phone number' },
+      },
+    },
+  ],
+  [
+    'er',
+    {
+      node: {
+        description: { description: 'Entity description' },
+        domain: { description: 'Domain grouping' },
+      },
+    },
+  ],
+  [
+    'class',
+    {
+      node: {
+        description: { description: 'Class description' },
+      },
+    },
+  ],
+  [
+    'kanban',
+    {
+      node: {
+        description: { description: 'Card description' },
+        assignee: { description: 'Assigned person' },
+        due: { description: 'Due date (YYYY-MM-DD)' },
+      },
+    },
+  ],
+  [
+    'sitemap',
+    {
+      node: {
+        description: { description: 'Page description' },
+        status: { description: 'Page status' },
+      },
+    },
+  ],
+  [
+    'pert',
+    {
+      node: {
+        description: { description: 'Activity description' },
+        confidence: {
+          description: 'Confidence factor',
+          values: ['high', 'medium', 'low'],
+        },
+        collapsed: { description: 'Collapse activity detail' },
+      },
+    },
+  ],
+  [
+    'timeline',
+    {
+      node: {
+        description: { description: 'Event description' },
       },
     },
   ],
@@ -1348,6 +1437,493 @@ function extractBoxesAndLinesSymbols(docText: string): DiagramSymbols {
 }
 
 // ============================================================
+// Org extractor
+// ============================================================
+
+const ORG_GROUP_RE = /^\[(.+?)\]/;
+
+function extractOrgSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+  let inTagBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    if (/^tag\s+/i.test(trimmed)) {
+      inTagBlock = true;
+      continue;
+    }
+    const indent = line.search(/\S/);
+    if (inTagBlock) {
+      if (indent > 0) continue;
+      inTagBlock = false;
+    }
+
+    // Team/group headers: [Team Name]
+    const groupMatch = trimmed.match(ORG_GROUP_RE);
+    if (groupMatch) {
+      const name = groupMatch[1]!.split('|')[0]!.trim();
+      if (name && !entities.includes(name)) entities.push(name);
+      continue;
+    }
+
+    // Skip indented metadata lines (key: value)
+    if (indent > 0 && /^[a-z]+\s*:/.test(trimmed)) continue;
+
+    // Person name (indent 0 or direct child)
+    const label = trimmed.split('|')[0]!.trim();
+    if (label && !entities.includes(label)) entities.push(label);
+  }
+
+  return { kind: 'org', entities, keywords: [] };
+}
+
+// ============================================================
+// Kanban extractor
+// ============================================================
+
+const KANBAN_COLUMN_RE = /^\[(.+?)\]/;
+
+function extractKanbanSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+  let inTagBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    if (/^tag\s+/i.test(trimmed)) {
+      inTagBlock = true;
+      continue;
+    }
+    const indent = line.search(/\S/);
+    if (inTagBlock) {
+      if (indent > 0) continue;
+      inTagBlock = false;
+    }
+
+    // Column headers: [Column Name]
+    const colMatch = trimmed.match(KANBAN_COLUMN_RE);
+    if (colMatch) {
+      const name = colMatch[1]!.split('|')[0]!.trim();
+      if (name && !entities.includes(name)) entities.push(name);
+      continue;
+    }
+
+    // Card names (indented under columns)
+    if (indent > 0) {
+      const label = trimmed.split('|')[0]!.trim();
+      if (label && !entities.includes(label)) entities.push(label);
+    }
+  }
+
+  return { kind: 'kanban', entities, keywords: [] };
+}
+
+// ============================================================
+// Mindmap extractor
+// ============================================================
+
+function extractMindmapSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+  let inTagBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    if (/^tag\s+/i.test(trimmed)) {
+      inTagBlock = true;
+      continue;
+    }
+    const indent = line.search(/\S/);
+    if (inTagBlock) {
+      if (indent > 0) continue;
+      inTagBlock = false;
+    }
+
+    // Skip indented metadata (description:, collapsed:)
+    if (/^(description|collapsed)\s*:/i.test(trimmed)) continue;
+
+    // Node name (at any indent level)
+    const label = trimmed.split('|')[0]!.trim();
+    if (label && !entities.includes(label)) entities.push(label);
+  }
+
+  return { kind: 'mindmap', entities, keywords: [] };
+}
+
+// ============================================================
+// Pyramid extractor
+// ============================================================
+
+function extractPyramidSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+    if (firstToken === 'inverted' || firstToken === 'solid-fill') continue;
+
+    // Skip indented description lines
+    if (line[0] === ' ' || line[0] === '\t') continue;
+
+    // Layer name (strip pipe metadata)
+    const label = trimmed.split('|')[0]!.trim();
+    if (label && !entities.includes(label)) entities.push(label);
+  }
+
+  return { kind: 'pyramid', entities, keywords: ['inverted'] };
+}
+
+// ============================================================
+// Ring extractor
+// ============================================================
+
+function extractRingSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+    if (firstToken === 'solid-fill') continue;
+
+    // Skip indented description lines
+    if (line[0] === ' ' || line[0] === '\t') continue;
+
+    // Layer name (strip pipe metadata)
+    const label = trimmed.split('|')[0]!.trim();
+    if (label && !entities.includes(label)) entities.push(label);
+  }
+
+  return { kind: 'ring', entities, keywords: [] };
+}
+
+// ============================================================
+// Arc extractor
+// ============================================================
+
+const ARC_ARROW_RE = /^(\S+)\s+(?:->|-[^>]*->)\s+(\S+)/;
+
+function extractArcSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    const arrowMatch = trimmed.match(ARC_ARROW_RE);
+    if (arrowMatch) {
+      const src = arrowMatch[1]!.split('|')[0]!.trim();
+      const dst = arrowMatch[2]!.split('|')[0]!.trim();
+      if (src && !entities.includes(src)) entities.push(src);
+      if (dst && !entities.includes(dst)) entities.push(dst);
+    }
+  }
+
+  return { kind: 'arc', entities, keywords: [] };
+}
+
+// ============================================================
+// Sankey extractor
+// ============================================================
+
+const SANKEY_ARROW_RE = /^(.+?)\s+->\s+(.+?)\s+(\d[\d,_.]*)/;
+
+function extractSankeySymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    const arrowMatch = trimmed.match(SANKEY_ARROW_RE);
+    if (arrowMatch) {
+      const src = arrowMatch[1]!.split('|')[0]!.trim();
+      const dst = arrowMatch[2]!.split('|')[0]!.trim();
+      if (src && !entities.includes(src)) entities.push(src);
+      if (dst && !entities.includes(dst)) entities.push(dst);
+    } else {
+      // Standalone node declaration (just a name, possibly with color)
+      const label = trimmed.split('|')[0]!.trim();
+      if (label && !entities.includes(label)) entities.push(label);
+    }
+  }
+
+  return { kind: 'sankey', entities, keywords: [] };
+}
+
+// ============================================================
+// Timeline extractor
+// ============================================================
+
+const TIMELINE_ERA_RE = /^era\s+/i;
+const TIMELINE_MARKER_RE = /^marker\s+/i;
+
+function extractTimelineSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+  let inTagBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+    if (TIMELINE_ERA_RE.test(trimmed) || TIMELINE_MARKER_RE.test(trimmed))
+      continue;
+
+    if (/^tag\s+/i.test(trimmed)) {
+      inTagBlock = true;
+      continue;
+    }
+    const indent = line.search(/\S/);
+    if (inTagBlock) {
+      if (indent > 0) continue;
+      inTagBlock = false;
+    }
+
+    // Event lines: date Label or date->date Label
+    const label = trimmed
+      .replace(
+        /^\d{4}(?:-\d{2}(?:-\d{2})?)?\s*(?:->\s*\d{4}(?:-\d{2}(?:-\d{2})?)?)?\s*/,
+        ''
+      )
+      .split('|')[0]!
+      .trim();
+    if (label && !entities.includes(label)) entities.push(label);
+  }
+
+  return { kind: 'timeline', entities, keywords: ['era', 'marker'] };
+}
+
+// ============================================================
+// Venn extractor
+// ============================================================
+
+function extractVennSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    // Skip indented intersection lines
+    if (line[0] === ' ' || line[0] === '\t') continue;
+
+    // Set name (strip pipe metadata, alias, color)
+    const label = trimmed.split('|')[0]!.trim();
+    if (label && !entities.includes(label)) entities.push(label);
+  }
+
+  return { kind: 'venn', entities, keywords: [] };
+}
+
+// ============================================================
+// Quadrant extractor
+// ============================================================
+
+const QUADRANT_POSITION_RE =
+  /^(top-right|top-left|bottom-right|bottom-left)\s+/i;
+
+function extractQuadrantSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+    if (QUADRANT_POSITION_RE.test(trimmed)) continue;
+
+    // Point name (may have coordinates: Name x,y)
+    const parts = trimmed.split(/\s+\d/);
+    const label = (parts[0] ?? '').split('|')[0]!.trim();
+    if (label && !entities.includes(label)) entities.push(label);
+  }
+
+  return { kind: 'quadrant', entities, keywords: [] };
+}
+
+// ============================================================
+// Slope extractor
+// ============================================================
+
+function extractSlopeSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+    if (firstToken === 'period') continue;
+
+    // Data row: Label value1 value2 [color]
+    // Extract just the label (everything before first number)
+    const numIdx = trimmed.search(/\s\d/);
+    const label =
+      numIdx > 0
+        ? trimmed.slice(0, numIdx).trim()
+        : trimmed.split('|')[0]!.trim();
+    if (label && !entities.includes(label)) entities.push(label);
+  }
+
+  return { kind: 'slope', entities, keywords: ['period'] };
+}
+
+// ============================================================
+// Generic data chart extractor
+// ============================================================
+
+const SERIES_RE = /^series\s+(.+)$/i;
+
+function extractDataChartSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let chartType = 'bar';
+  let pastFirstLine = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+      if (firstToken) chartType = firstToken;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    // Series declarations: "series Revenue, Expenses"
+    const seriesMatch = trimmed.match(SERIES_RE);
+    if (seriesMatch) {
+      for (const s of seriesMatch[1]!.split(',')) {
+        const name = s.trim().split(/\s+/)[0]!;
+        if (name && !entities.includes(name)) entities.push(name);
+      }
+      continue;
+    }
+
+    // Data rows: "Label value [value...] [color]"
+    const numIdx = trimmed.search(/\s-?\d/);
+    if (numIdx > 0) {
+      const label = trimmed.slice(0, numIdx).trim();
+      if (label && !entities.includes(label)) entities.push(label);
+    }
+  }
+
+  return { kind: chartType, entities, keywords: [] };
+}
+
+// ============================================================
 // Register built-in extractors
 // ============================================================
 
@@ -1368,6 +1944,30 @@ registerExtractor('journey-map', extractJourneyMapSymbols);
 registerExtractor('raci', extractRaciSymbols);
 registerExtractor('rasci', extractRaciSymbols);
 registerExtractor('daci', extractRaciSymbols);
+registerExtractor('org', extractOrgSymbols);
+registerExtractor('kanban', extractKanbanSymbols);
+registerExtractor('mindmap', extractMindmapSymbols);
+registerExtractor('pyramid', extractPyramidSymbols);
+registerExtractor('ring', extractRingSymbols);
+registerExtractor('arc', extractArcSymbols);
+registerExtractor('sankey', extractSankeySymbols);
+registerExtractor('timeline', extractTimelineSymbols);
+registerExtractor('venn', extractVennSymbols);
+registerExtractor('quadrant', extractQuadrantSymbols);
+registerExtractor('slope', extractSlopeSymbols);
+registerExtractor('bar', extractDataChartSymbols);
+registerExtractor('line', extractDataChartSymbols);
+registerExtractor('pie', extractDataChartSymbols);
+registerExtractor('doughnut', extractDataChartSymbols);
+registerExtractor('area', extractDataChartSymbols);
+registerExtractor('multi-line', extractDataChartSymbols);
+registerExtractor('polar-area', extractDataChartSymbols);
+registerExtractor('radar', extractDataChartSymbols);
+registerExtractor('bar-stacked', extractDataChartSymbols);
+registerExtractor('scatter', extractDataChartSymbols);
+registerExtractor('heatmap', extractDataChartSymbols);
+registerExtractor('funnel', extractDataChartSymbols);
+registerExtractor('chord', extractDataChartSymbols);
 
 function extractTechRadarSymbols(docText: string): DiagramSymbols {
   const entities: string[] = [];

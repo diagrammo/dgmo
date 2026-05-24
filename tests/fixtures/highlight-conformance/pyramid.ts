@@ -15,7 +15,7 @@ Safety | description: Security and health
     { text: 'pyramid', role: 'chartType' },
     { text: 'inverted', role: 'keyword' },
     { text: 'color', role: 'keyword' },
-    { text: 'description', role: 'keyword' },
+    { text: 'description', role: 'propertyName' },
     { text: '|', role: 'deprecatedSyntax' },
   ],
 };

@@ -9,6 +9,7 @@ export const fixture: ConformanceFixture = {
   directives: ['direction', 'active-tag', 'hide', 'solid-fill'],
   pipeKeys: {
     node: ['description'],
+    edge: ['width', 'split', 'fanout'],
   },
   enumChecks: [
     { directive: 'palette', source: 'palettes' },

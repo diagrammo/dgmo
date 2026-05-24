@@ -23,7 +23,7 @@ import { ALL_CHART_TYPES } from '../src/utils/parsing';
 
 describe('extractDiagramSymbols', () => {
   it('returns null for unknown chart type', () => {
-    const doc = 'kanban\nTodo\n  - Task 1\n';
+    const doc = 'nonexistent-type\nTodo\n  - Task 1\n';
     expect(extractDiagramSymbols(doc)).toBeNull();
   });
 

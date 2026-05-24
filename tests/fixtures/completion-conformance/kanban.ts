@@ -7,6 +7,8 @@ export const fixture: ConformanceFixture = {
   specSection: '11',
   firstLineKeyword: 'kanban',
   directives: ['no-auto-color', 'hide', 'active-tag', 'solid-fill'],
-  pipeKeys: {},
+  pipeKeys: {
+    node: ['description', 'assignee', 'due'],
+  },
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

@@ -21,9 +21,9 @@ persona Tech-Savvy Shopper
     { text: 'journey-map', role: 'chartType' },
     { text: 'no-legend', role: 'keyword' },
     { text: 'persona', role: 'keyword' },
-    { text: 'score', role: 'keyword' },
-    { text: 'description', role: 'keyword' },
-    { text: 'pain', role: 'keyword' },
+    { text: 'score', role: 'propertyName' },
+    { text: 'description', role: 'propertyName' },
+    { text: 'pain', role: 'propertyName' },
     { text: '[', role: 'bracket' },
   ],
 };

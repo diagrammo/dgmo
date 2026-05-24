@@ -64,6 +64,7 @@ const NODE_TO_ROLE: Record<string, string> = {
   Plus: 'separator',
   Comma: 'punctuation',
   Punct: 'punctuation',
+  QuotedString: 'string',
   Identifier: 'default',
 };
 
@@ -157,13 +158,78 @@ export function highlightDgmo(source: string): HighlightToken[] {
     tokens.push({ text: source.slice(pos, source.length), role: 'default' });
   }
 
-  // Phase 2: Post-process — entity detection (label override only)
+  // Phase 2: Post-process — attribute key detection
+  applyAttributeKeys(tokens);
+
+  // Phase 3: Post-process — entity detection (label override only)
   applyLabelOverrides(tokens);
 
-  // Phase 3: Post-process — note content detection
+  // Phase 4: Post-process — note content detection
   applyNoteContent(tokens);
 
   return tokens;
+}
+
+// ============================================================
+// Post-processing: attribute key detection
+// ============================================================
+
+const ATTRIBUTE_KEYS = new Set([
+  'emotion',
+  'role',
+  'icon',
+  'location',
+  'email',
+  'phone',
+  'type',
+  'domain',
+  'assignee',
+  'due',
+  'status',
+  'progress',
+  'offset',
+  'confidence',
+  'width',
+  'fanout',
+  'description',
+  'score',
+  'pain',
+  'opportunity',
+  'thought',
+  'collapsed',
+  'tech',
+  'span',
+  'split',
+]);
+
+/**
+ * Reclassify Identifier tokens as 'propertyName' when they are known
+ * attribute keys followed (optionally with whitespace) by a colon.
+ * This provides context-aware highlighting without grammar-level changes.
+ */
+function applyAttributeKeys(tokens: HighlightToken[]): void {
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const t = tokens[i]!;
+    if (t.role !== 'default') continue;
+    if (!ATTRIBUTE_KEYS.has(t.text)) continue;
+
+    // Look ahead past whitespace for a colon
+    let j = i + 1;
+    while (
+      j < tokens.length &&
+      tokens[j]!.role === 'default' &&
+      tokens[j]!.text.trim() === ''
+    ) {
+      j++;
+    }
+    if (
+      j < tokens.length &&
+      tokens[j]!.text === ':' &&
+      tokens[j]!.role === 'separator'
+    ) {
+      t.role = 'propertyName';
+    }
+  }
 }
 
 // ============================================================
@@ -392,6 +458,8 @@ export const NORD_ROLE_STYLES: Record<string, Record<string, string>> = {
   url: { color: '#88C0D0', textDecoration: 'underline' }, // nord8
   colorAnnotation: { color: '#D08770', fontStyle: 'italic' }, // nord12
   punctuation: { color: '#616E88' },
+  propertyName: { color: '#88C0D0' }, // nord8
+  string: { color: '#A3BE8C' }, // nord14
   noteContent: { color: '#616E88', fontStyle: 'italic' },
   default: {},
 };
@@ -416,6 +484,8 @@ export const ROLE_TO_ANSI: Record<string, string> = {
   url: '\x1b[4;36m', // underline cyan
   colorAnnotation: '\x1b[3;33m', // italic yellow
   punctuation: '\x1b[90m', // dim
+  propertyName: '\x1b[36m', // cyan
+  string: '\x1b[32m', // green
   noteContent: '\x1b[3;90m', // italic dim
 };
 
