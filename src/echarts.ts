@@ -1291,13 +1291,12 @@ function buildFunctionOption(
         color: textColor,
       },
     },
-    grid: {
-      left: '4%',
-      right: '4%',
-      bottom: '15%',
-      top: parsed.title && !parsed.noTitle ? '15%' : '5%',
-      containLabel: true,
-    },
+    grid: makeChartGrid({
+      xLabel: parsed.xlabel,
+      yLabel: parsed.ylabel,
+      hasTitle: !!(parsed.title && !parsed.noTitle),
+      hasLegend: (parsed.functions ?? []).length > 0,
+    }),
     xAxis: {
       type: 'value',
       min: xRange.min,
@@ -2493,11 +2492,22 @@ function makeChartGrid(options: {
   isHorizontal?: boolean | undefined;
 }): Record<string, unknown> {
   const left = options.yLabel ? '12%' : '3%';
+  // The custom legend renderer in renderExtendedChartForExport always hoists
+  // the legend to the TOP (just under the title), so top must reserve room
+  // for title + legend together; bottom no longer needs legend space.
+  const top =
+    options.hasTitle && options.hasLegend
+      ? '22%'
+      : options.hasTitle
+        ? '15%'
+        : options.hasLegend
+          ? '12%'
+          : '5%';
   return {
     left,
     right: '4%',
-    bottom: options.hasLegend ? '15%' : options.xLabel ? '10%' : '3%',
-    top: options.hasTitle ? '15%' : '5%',
+    bottom: options.xLabel ? '10%' : '3%',
+    top,
     containLabel: true,
   };
 }
