@@ -408,6 +408,10 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           tagBlockMatch.name.toLowerCase()
         );
       }
+      metaAliasMap.set(
+        normalizeName(tagBlockMatch.name),
+        tagBlockMatch.name.toLowerCase()
+      );
       result.tagGroups.push(currentTagGroup);
       continue;
     }

@@ -566,6 +566,10 @@ export function parseGantt(
           tagMatch.name.toLowerCase()
         );
       }
+      metaAliasMap.set(
+        normalizeName(tagMatch.name),
+        tagMatch.name.toLowerCase()
+      );
       continue;
     }
 

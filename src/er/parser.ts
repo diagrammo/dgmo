@@ -360,6 +360,10 @@ export function parseERDiagram(
             tagBlockMatch.name.toLowerCase()
           );
         }
+        metaAliasMap.set(
+          normalizeName(tagBlockMatch.name),
+          tagBlockMatch.name.toLowerCase()
+        );
         result.tagGroups.push(currentTagGroup);
         continue;
       }

@@ -672,6 +672,10 @@ export function parsePert(
             tagBlockMatch.name.toLowerCase()
           );
         }
+        metaAliasMap.set(
+          normalizeName(tagBlockMatch.name),
+          tagBlockMatch.name.toLowerCase()
+        );
         tagGroups.push(currentTagGroup);
         // Inline values (e.g. `tag Priority as p Low green, High red`).
         if (tagBlockMatch.inlineValues) {

@@ -343,6 +343,10 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
           tagBlockMatch.name.toLowerCase()
         );
       }
+      metaAliasMap.set(
+        normalizeName(tagBlockMatch.name),
+        tagBlockMatch.name.toLowerCase()
+      );
       if (tagBlockMatch.inlineValues) {
         for (const rawVal of tagBlockMatch.inlineValues) {
           const { text: cleanVal, isDefault } = stripDefaultModifier(rawVal);
