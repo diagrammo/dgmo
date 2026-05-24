@@ -271,6 +271,14 @@ export function parseCycle(content: string): ParsedCycle {
           lineNum
         );
         const explicitTarget = edgeSplit.name || undefined;
+        if (explicitTarget?.endsWith(':')) {
+          warn(
+            lineNum,
+            `Trailing colon is not valid — write '${explicitTarget.replace(/:$/, '')}' instead`,
+            'error'
+          );
+          continue;
+        }
         const edgeMeta: Record<string, string> = { ...edgeSplit.meta };
         if (edgeSplit.color !== undefined) edgeMeta['color'] = edgeSplit.color;
 

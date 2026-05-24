@@ -869,7 +869,8 @@ function parseEdgeLine(
   const biLabeledMatch = trimmed.match(/^(.+?)\s*<-(.+)->\s*(.+)$/);
   if (biLabeledMatch) {
     // Regex capture groups present after successful match.
-    const source = resolveEndpoint(biLabeledMatch[1]!.trim(), nameAliasMap);
+    const rawSource = biLabeledMatch[1]!.trim();
+    const source = resolveEndpoint(rawSource, nameAliasMap);
     const labelResult = parseInArrowLabel(biLabeledMatch[2]!, lineNum);
     diagnostics.push(...labelResult.diagnostics);
     const label = labelResult.label;
@@ -888,6 +889,16 @@ function parseEdgeLine(
       return null;
     }
 
+    if (rawSource.endsWith(':') || rest.endsWith(':')) {
+      diagnostics.push(
+        makeDgmoError(
+          lineNum,
+          `Trailing colon is not valid — write '${rawSource.replace(/:$/, '')} <-> ${rest.replace(/:$/, '')}' instead`
+        )
+      );
+      return null;
+    }
+
     return {
       source,
       target: resolveEndpoint(rest, nameAliasMap),
@@ -901,10 +912,8 @@ function parseEdgeLine(
   // Check for bidirectional plain: `Source <-> Target`
   const biIdx = trimmed.indexOf('<->');
   if (biIdx >= 0) {
-    const source = resolveEndpoint(
-      trimmed.slice(0, biIdx).trim(),
-      nameAliasMap
-    );
+    const rawSource = trimmed.slice(0, biIdx).trim();
+    const source = resolveEndpoint(rawSource, nameAliasMap);
     let rest = trimmed.slice(biIdx + 3).trim();
 
     const { target: plainTarget, metadata } = splitTargetAndMeta(
@@ -916,6 +925,16 @@ function parseEdgeLine(
     if (!source || !rest) {
       diagnostics.push(
         makeDgmoError(lineNum, 'Edge is missing source or target')
+      );
+      return null;
+    }
+
+    if (rawSource.endsWith(':') || rest.endsWith(':')) {
+      diagnostics.push(
+        makeDgmoError(
+          lineNum,
+          `Trailing colon is not valid — write '${rawSource.replace(/:$/, '')} <-> ${rest.replace(/:$/, '')}' instead`
+        )
       );
       return null;
     }
@@ -933,7 +952,8 @@ function parseEdgeLine(
   const labeledMatch = trimmed.match(/^(.+?)\s+-(.+)->\s*(.+)$/);
   if (labeledMatch) {
     // Regex capture groups present after successful match.
-    const source = resolveEndpoint(labeledMatch[1]!.trim(), nameAliasMap);
+    const rawSource = labeledMatch[1]!.trim();
+    const source = resolveEndpoint(rawSource, nameAliasMap);
     const labelResult = parseInArrowLabel(labeledMatch[2]!, lineNum);
     diagnostics.push(...labelResult.diagnostics);
     const label = labelResult.label;
@@ -953,6 +973,16 @@ function parseEdgeLine(
         return null;
       }
 
+      if (rawSource.endsWith(':') || rest.endsWith(':')) {
+        diagnostics.push(
+          makeDgmoError(
+            lineNum,
+            `Trailing colon is not valid — write '${rawSource.replace(/:$/, '')} -> ${rest.replace(/:$/, '')}' instead`
+          )
+        );
+        return null;
+      }
+
       return {
         source,
         target: resolveEndpoint(rest, nameAliasMap),
@@ -968,10 +998,8 @@ function parseEdgeLine(
   const arrowIdx = trimmed.indexOf('->');
   if (arrowIdx < 0) return null;
 
-  const source = resolveEndpoint(
-    trimmed.slice(0, arrowIdx).trim(),
-    nameAliasMap
-  );
+  const rawSource = trimmed.slice(0, arrowIdx).trim();
+  const source = resolveEndpoint(rawSource, nameAliasMap);
   let rest = trimmed.slice(arrowIdx + 2).trim();
 
   if (!source || !rest) {
@@ -989,6 +1017,16 @@ function parseEdgeLine(
 
   if (!rest) {
     diagnostics.push(makeDgmoError(lineNum, 'Edge is missing target'));
+    return null;
+  }
+
+  if (rawSource.endsWith(':') || rest.endsWith(':')) {
+    diagnostics.push(
+      makeDgmoError(
+        lineNum,
+        `Trailing colon is not valid — write '${rawSource.replace(/:$/, '')} -> ${rest.replace(/:$/, '')}' instead`
+      )
+    );
     return null;
   }
 

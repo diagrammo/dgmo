@@ -6,6 +6,8 @@ import { parseERDiagram } from '../src/er/parser';
 import { parseVisualization } from '../src/d3';
 import { parseExtendedChart } from '../src/echarts';
 import { parseChart } from '../src/chart';
+import { parseBoxesAndLines } from '../src/boxes-and-lines/parser';
+import { parseCycle } from '../src/cycle/parser';
 
 // ============================================================
 // Sequence: unused participants
@@ -498,5 +500,67 @@ marker
   2024-06-15 Release
 2025-01 Event`);
     expect(result.timelineMarkers).toHaveLength(2);
+  });
+});
+
+// ============================================================
+// Trailing-colon on edge endpoints
+// ============================================================
+
+describe('trailing-colon parse error on edge endpoints', () => {
+  it('arc: trailing colon on target', () => {
+    const result = parseVisualization(`arc
+  Blackbeard -> Bonnet: 8`);
+    const errors = result.diagnostics.filter((d) => d.severity === 'error');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('Trailing colon');
+    expect(errors[0].message).toContain('Blackbeard -> Bonnet');
+    expect(result.links).toHaveLength(0);
+  });
+
+  it('arc: trailing colon on source', () => {
+    const result = parseVisualization(`arc
+  Blackbeard: -> Bonnet 8`);
+    const errors = result.diagnostics.filter((d) => d.severity === 'error');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('Trailing colon');
+    expect(result.links).toHaveLength(0);
+  });
+
+  it('arc: no error without colon', () => {
+    const result = parseVisualization(`arc
+  Blackbeard -> Bonnet 8`);
+    const errors = result.diagnostics.filter((d) => d.severity === 'error');
+    expect(errors).toHaveLength(0);
+    expect(result.links).toHaveLength(1);
+  });
+
+  it('boxes-and-lines: trailing colon on target', () => {
+    const result = parseBoxesAndLines(`boxes-and-lines
+Source -> Target:`);
+    const errors = result.diagnostics.filter((d) => d.severity === 'error');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('Trailing colon');
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it('boxes-and-lines: trailing colon on source', () => {
+    const result = parseBoxesAndLines(`boxes-and-lines
+Source: -> Target`);
+    const errors = result.diagnostics.filter((d) => d.severity === 'error');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('Trailing colon');
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it('cycle: trailing colon on edge target', () => {
+    const result = parseCycle(`cycle
+Node A
+  -> Node B:
+Node B
+  -> Node A`);
+    const errors = result.diagnostics.filter((d) => d.severity === 'error');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('Trailing colon');
   });
 });

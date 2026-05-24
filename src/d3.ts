@@ -726,6 +726,15 @@ export function parseVisualization(
         // Capture groups 1 and 2 are guaranteed by the regex match.
         const source = linkMatch[1]!.trim();
         const target = linkMatch[2]!.trim();
+        if (source.endsWith(':') || target.endsWith(':')) {
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              `Trailing colon is not valid in arc edges — write '${source.replace(/:$/, '')} -> ${target.replace(/:$/, '')}' instead`
+            )
+          );
+          continue;
+        }
         const linkColor = linkMatch[3]
           ? (resolveColorWithDiagnostic(
               linkMatch[3].trim(),
