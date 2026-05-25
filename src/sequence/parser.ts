@@ -896,6 +896,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
           tagBlockMatch.name.toLowerCase()
         );
       }
+      aliasMap.set(
+        normalizeName(tagBlockMatch.name),
+        tagBlockMatch.name.toLowerCase()
+      );
       result.tagGroups.push(newTagGroup);
       continue;
     }
