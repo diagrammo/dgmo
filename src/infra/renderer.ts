@@ -45,6 +45,7 @@ import {
   TITLE_Y,
   TITLE_OFFSET,
 } from '../utils/title-constants';
+import { ScaleContext } from '../utils/scaling';
 
 // ============================================================
 // Constants
@@ -70,6 +71,54 @@ const LEGEND_FIXED_GAP = 16; // gap between fixed legend and scaled diagram — 
 const SPEED_BADGE_H_PAD = 5; // horizontal padding inside active speed badge
 const SPEED_BADGE_V_PAD = 3; // vertical padding inside active speed badge
 const SPEED_BADGE_GAP = 6; // gap between speed option slots
+
+interface ScaledInfraConstants {
+  sNodeFontSize: number;
+  sMetaFontSize: number;
+  sMetaLineHeight: number;
+  sEdgeLabelFontSize: number;
+  sGroupLabelFontSize: number;
+  sNodeBorderRadius: number;
+  sEdgeStrokeWidth: number;
+  sNodeStrokeWidth: number;
+  sOverloadStrokeWidth: number;
+  sRoleDotRadius: number;
+  sNodeSeparatorGap: number;
+  sNodePadBottom: number;
+  sCollapseBarHeight: number;
+  sCollapseBarInset: number;
+  sParticleR: number;
+  sRejectParticleR: number;
+  sRejectDropDistance: number;
+  sTitleFontSize: number;
+  sTitleY: number;
+  sLegendFixedGap: number;
+}
+
+function buildScaledConstants(ctx: ScaleContext): ScaledInfraConstants {
+  return {
+    sNodeFontSize: ctx.text(NODE_FONT_SIZE),
+    sMetaFontSize: ctx.text(META_FONT_SIZE),
+    sMetaLineHeight: ctx.structural(META_LINE_HEIGHT),
+    sEdgeLabelFontSize: ctx.text(EDGE_LABEL_FONT_SIZE),
+    sGroupLabelFontSize: ctx.text(GROUP_LABEL_FONT_SIZE),
+    sNodeBorderRadius: ctx.structural(NODE_BORDER_RADIUS),
+    sEdgeStrokeWidth: ctx.structural(EDGE_STROKE_WIDTH),
+    sNodeStrokeWidth: ctx.structural(NODE_STROKE_WIDTH),
+    sOverloadStrokeWidth: ctx.structural(OVERLOAD_STROKE_WIDTH),
+    sRoleDotRadius: ctx.structural(ROLE_DOT_RADIUS),
+    sNodeSeparatorGap: ctx.structural(NODE_SEPARATOR_GAP),
+    sNodePadBottom: ctx.structural(NODE_PAD_BOTTOM),
+    sCollapseBarHeight: ctx.structural(COLLAPSE_BAR_HEIGHT),
+    sCollapseBarInset: ctx.structural(COLLAPSE_BAR_INSET),
+    sParticleR: ctx.structural(PARTICLE_R),
+    sRejectParticleR: ctx.structural(PARTICLE_R),
+    sRejectDropDistance: ctx.structural(REJECT_DROP_DISTANCE),
+    sTitleFontSize: ctx.text(TITLE_FONT_SIZE),
+    sTitleY: ctx.structural(TITLE_Y),
+    sLegendFixedGap: ctx.aesthetic(LEGEND_FIXED_GAP),
+  };
+}
 
 // Health colors (from UX spec)
 const COLOR_HEALTHY = '#22c55e';
@@ -145,7 +194,6 @@ const NODE_PULSE_SPEED = 1.5; // seconds for warning pulse
 const NODE_PULSE_OVERLOAD = 0.7; // seconds for overload pulse
 
 // Reject particle constants
-const REJECT_PARTICLE_R = PARTICLE_R;
 const REJECT_DROP_DISTANCE = 30; // px downward travel
 const REJECT_DURATION_MIN = 1.5; // seconds per drop at max reject
 const REJECT_DURATION_MAX = 3; // seconds per drop at min reject
@@ -1112,10 +1160,6 @@ function edgeColor(_edge: InfraLayoutEdge, palette: PaletteColors): string {
   return palette.textMuted;
 }
 
-function edgeWidth(): number {
-  return EDGE_STROKE_WIDTH;
-}
-
 // ============================================================
 // Render functions
 // ============================================================
@@ -1124,7 +1168,8 @@ function renderGroups(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   groups: readonly InfraLayoutGroup[],
   palette: PaletteColors,
-  _isDark: boolean
+  _isDark: boolean,
+  sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity())
 ) {
   for (const group of groups) {
     const g = svg
@@ -1134,7 +1179,6 @@ function renderGroups(
       .attr('data-node-toggle', group.id)
       .style('cursor', 'pointer');
 
-    // Filled background (matching org chart container style)
     const groupFill = mix(palette.surface, palette.bg, 40);
     const groupStroke = palette.textMuted;
     g.append('rect')
@@ -1148,18 +1192,16 @@ function renderGroups(
       .attr('stroke-opacity', 0.35)
       .attr('stroke-width', 1);
 
-    // Group label (centered at top)
     g.append('text')
       .attr('x', group.x + group.width / 2)
       .attr('y', group.y + 16)
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', GROUP_LABEL_FONT_SIZE)
+      .attr('font-size', sc.sGroupLabelFontSize)
       .attr('font-weight', '600')
       .attr('fill', palette.text)
       .text(group.label);
 
-    // Group instances badge (top-right, like node instance badges)
     const gi =
       typeof group.instances === 'number'
         ? group.instances
@@ -1172,7 +1214,7 @@ function renderGroups(
         .attr('y', group.y + 16)
         .attr('text-anchor', 'end')
         .attr('font-family', FONT_FAMILY)
-        .attr('font-size', META_FONT_SIZE)
+        .attr('font-size', sc.sMetaFontSize)
         .attr('fill', palette.textMuted)
         .text(`${gi}x`);
     }
@@ -1188,7 +1230,8 @@ function renderEdgePaths(
   _isDark: boolean,
   animate: boolean,
   direction: 'LR' | 'TB',
-  speedMultiplier: number = 1
+  speedMultiplier: number = 1,
+  sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity())
 ) {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const maxRps = Math.max(...edges.map((e) => e.computedRps), 1);
@@ -1200,7 +1243,7 @@ function renderEdgePaths(
     const targetNode = nodeMap.get(edge.targetId);
     const sourceNode = nodeMap.get(edge.sourceId);
     const color = edgeColor(edge, palette);
-    const strokeW = edgeWidth();
+    const strokeW = sc.sEdgeStrokeWidth;
 
     if (!sourceNode || !targetNode) continue;
     const key = `${edge.sourceId}:${edge.targetId}`;
@@ -1234,8 +1277,6 @@ function renderEdgePaths(
       const baseDur = flowDuration(edge.computedRps, maxRps);
       const dur = speedMultiplier > 0 ? baseDur / speedMultiplier : baseDur;
 
-      // Particles traveling along the path — always green (overloaded nodes
-      // already have red styling + reject particles to show the problem)
       const count = particleCount(edge.computedRps, maxRps);
       const particleColor = palette.colors.green;
 
@@ -1243,11 +1284,10 @@ function renderEdgePaths(
         const delay = (dur / count) * i;
         const circle = edgeG
           .append('circle')
-          .attr('r', PARTICLE_R)
+          .attr('r', sc.sParticleR)
           .attr('fill', particleColor)
           .attr('opacity', 0.85);
 
-        // Use SMIL <animateMotion> for path-following
         circle
           .append('animateMotion')
           .attr('dur', `${dur}s`)
@@ -1267,7 +1307,8 @@ function renderEdgeLabels(
   palette: PaletteColors,
   _isDark: boolean,
   animate: boolean,
-  direction: 'LR' | 'TB'
+  direction: 'LR' | 'TB',
+  sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity())
 ) {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const { srcPts, tgtPts } = computePortPts(edges, nodeMap, direction);
@@ -1290,14 +1331,12 @@ function renderEdgeLabels(
       srcPts.get(key),
       tgtPts.get(key)
     );
-    // Label midpoint: middle waypoint of the routed path
     const midPt = wps[Math.floor(wps.length / 2)];
     if (!midPt) continue;
     const labelText = edge.label;
 
     const g = svg.append('g').attr('class', animate ? 'infra-edge-label' : '');
 
-    // Background rect for readability
     const textWidth = labelText.length * 6.5 + 8;
     g.append('rect')
       .attr('x', midPt.x - textWidth / 2)
@@ -1313,11 +1352,10 @@ function renderEdgeLabels(
       .attr('y', midPt.y + 4)
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', EDGE_LABEL_FONT_SIZE)
+      .attr('font-size', sc.sEdgeLabelFontSize)
       .attr('fill', palette.textMuted)
       .text(labelText);
 
-    // When animated, add a wider invisible hover zone so labels appear on hover
     if (animate) {
       const pathD = buildPathD(wps, direction);
       g.insert('path', ':first-child')
@@ -1362,7 +1400,8 @@ function renderNodes(
   collapsedNodes?: Set<string> | null,
   tagGroups?: readonly InfraTagGroup[],
   fanoutSourceIds?: Set<string>,
-  scaledGroupIds?: Set<string>
+  scaledGroupIds?: Set<string>,
+  sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity())
 ) {
   for (const node of nodes) {
     const slo =
@@ -1436,27 +1475,25 @@ function renderNodes(
     const y = node.y - node.height / 2;
     const isCollapsedGroup = node.id.startsWith('[');
     const strokeWidth =
-      severity !== 'normal' ? OVERLOAD_STROKE_WIDTH : NODE_STROKE_WIDTH;
+      severity !== 'normal' ? sc.sOverloadStrokeWidth : sc.sNodeStrokeWidth;
 
-    // Node rect
     g.append('rect')
       .attr('x', x)
       .attr('y', y)
       .attr('width', node.width)
       .attr('height', node.height)
-      .attr('rx', NODE_BORDER_RADIUS)
+      .attr('rx', sc.sNodeBorderRadius)
       .attr('fill', fill)
       .attr('stroke', stroke)
       .attr('stroke-width', strokeWidth);
 
-    // Node name — centered in header area
-    const headerCenterY = y + NODE_HEADER_HEIGHT / 2 + NODE_FONT_SIZE * 0.35;
+    const headerCenterY = y + NODE_HEADER_HEIGHT / 2 + sc.sNodeFontSize * 0.35;
     g.append('text')
       .attr('x', node.x)
       .attr('y', headerCenterY)
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', NODE_FONT_SIZE)
+      .attr('font-size', sc.sNodeFontSize)
       .attr('font-weight', '600')
       .attr('fill', textFill)
       .text(node.label);
@@ -1484,7 +1521,6 @@ function renderNodes(
         expanded && node.description && !node.isEdge ? node.description : [];
       const descH = descLines.length * META_LINE_HEIGHT;
       for (let di = 0; di < descLines.length; di++) {
-        // In-bounds by loop guard.
         const rawLine = descLines[di]!;
         const processed = preprocessDescriptionLine(rawLine);
         const descTruncated = truncateDesc(processed);
@@ -1498,13 +1534,13 @@ function renderNodes(
               NODE_HEADER_HEIGHT +
               di * META_LINE_HEIGHT +
               META_LINE_HEIGHT / 2 +
-              META_FONT_SIZE * 0.35
+              sc.sMetaFontSize * 0.35
           )
           .attr('text-anchor', 'middle')
           .attr('font-family', FONT_FAMILY)
-          .attr('font-size', META_FONT_SIZE)
+          .attr('font-size', sc.sMetaFontSize)
           .attr('fill', textFill);
-        renderInlineText(textEl, descTruncated, palette, META_FONT_SIZE);
+        renderInlineText(textEl, descTruncated, palette, sc.sMetaFontSize);
         if (isTruncated) textEl.append('title').text(rawLine);
       }
 
@@ -1650,16 +1686,16 @@ function renderNodes(
 
         // Compute max key width so values align vertically
         const maxKeyLen = Math.max(...rows.map((r) => r.key.length));
-        const valueX = x + 10 + (maxKeyLen + 2) * (META_FONT_SIZE * 0.6);
+        const valueX = x + 10 + (maxKeyLen + 2) * (sc.sMetaFontSize * 0.6);
 
-        let rowY = sepY + NODE_SEPARATOR_GAP + META_FONT_SIZE;
+        let rowY = sepY + NODE_SEPARATOR_GAP + sc.sMetaFontSize;
         const needsSectionSep =
           computedSection.length > 0 && declaredSection.length > 0;
         let rowIdx = 0;
         for (const row of rows) {
           // Draw separator line between computed and declared sections
           if (needsSectionSep && rowIdx === computedSection.length) {
-            const sepLineY = rowY - META_FONT_SIZE + 1;
+            const sepLineY = rowY - sc.sMetaFontSize + 1;
             g.append('line')
               .attr('x1', x)
               .attr('y1', sepLineY)
@@ -1668,14 +1704,13 @@ function renderNodes(
               .attr('stroke', stroke)
               .attr('stroke-opacity', 0.3)
               .attr('stroke-width', 1);
-            rowY += NODE_SEPARATOR_GAP;
+            rowY += sc.sNodeSeparatorGap;
           }
           if (row.inverted && row.invertedBg) {
-            // Inverted pill: colored background spanning full row width, white text, values still aligned
-            const pillH = META_LINE_HEIGHT - 1;
+            const pillH = sc.sMetaLineHeight - 1;
             const pillPad = 4;
             const pillX = x + pillPad;
-            const pillY = rowY - META_FONT_SIZE + 1;
+            const pillY = rowY - sc.sMetaFontSize + 1;
             const pillW = node.width - pillPad * 2;
             g.append('rect')
               .attr('x', pillX)
@@ -1692,27 +1727,24 @@ function renderNodes(
               .attr('x', x + 10)
               .attr('y', rowY)
               .attr('font-family', FONT_FAMILY)
-              .attr('font-size', META_FONT_SIZE)
+              .attr('font-size', sc.sMetaFontSize)
               .attr('font-weight', '600')
               .attr('fill', pillTextColor)
               .text(`${row.key}: `);
-            // Value — aligned with other rows
             g.append('text')
               .attr('x', valueX)
               .attr('y', rowY)
               .attr('font-family', FONT_FAMILY)
-              .attr('font-size', META_FONT_SIZE)
+              .attr('font-size', sc.sMetaFontSize)
               .attr('font-weight', '600')
               .attr('fill', pillTextColor)
               .text(row.value);
           } else {
-            // Normal row: contrast key + colored value (textFill instead of
-            // mutedColor — gray on saturated solid fills is illegible).
             g.append('text')
               .attr('x', x + 10)
               .attr('y', rowY)
               .attr('font-family', FONT_FAMILY)
-              .attr('font-size', META_FONT_SIZE)
+              .attr('font-size', sc.sMetaFontSize)
               .attr('fill', textFill)
               .text(`${row.key}: `);
 
@@ -1720,13 +1752,13 @@ function renderNodes(
               .attr('x', valueX)
               .attr('y', rowY)
               .attr('font-family', FONT_FAMILY)
-              .attr('font-size', META_FONT_SIZE)
+              .attr('font-size', sc.sMetaFontSize)
               .attr('font-weight', row.fontWeight)
               .attr('fill', row.valueFill)
               .text(row.value);
           }
 
-          rowY += META_LINE_HEIGHT;
+          rowY += sc.sMetaLineHeight;
           rowIdx++;
         }
       }
@@ -1745,37 +1777,33 @@ function renderNodes(
         const badgeText = `${node.computedInstances}x`;
         g.append('text')
           .attr('x', x + node.width - 6)
-          .attr('y', y + NODE_HEADER_HEIGHT / 2 + META_FONT_SIZE * 0.35)
+          .attr('y', y + NODE_HEADER_HEIGHT / 2 + sc.sMetaFontSize * 0.35)
           .attr('text-anchor', 'end')
           .attr('font-family', FONT_FAMILY)
-          .attr('font-size', META_FONT_SIZE)
+          .attr('font-size', sc.sMetaFontSize)
           .attr('fill', textFill)
           .attr('data-instance-node', node.id)
           .style('cursor', 'pointer')
           .text(badgeText);
       }
 
-      // Role badge dots — only shown when Capabilities legend is expanded
       const showDots = activeGroup?.toLowerCase() === 'capabilities';
       const roles = showDots && !node.isEdge ? inferRoles(node.properties) : [];
       if (roles.length > 0) {
-        // Move dots up above the collapse bar for collapsed groups
         const dotY = isCollapsedGroup
-          ? y + node.height - COLLAPSE_BAR_HEIGHT - NODE_PAD_BOTTOM / 2
-          : y + node.height - NODE_PAD_BOTTOM / 2;
-        const totalDotsWidth = roles.length * (ROLE_DOT_RADIUS * 2 + 2) - 2;
-        const startX = node.x - totalDotsWidth / 2 + ROLE_DOT_RADIUS;
+          ? y + node.height - sc.sCollapseBarHeight - sc.sNodePadBottom / 2
+          : y + node.height - sc.sNodePadBottom / 2;
+        const totalDotsWidth = roles.length * (sc.sRoleDotRadius * 2 + 2) - 2;
+        const startX = node.x - totalDotsWidth / 2 + sc.sRoleDotRadius;
         for (let i = 0; i < roles.length; i++) {
           g.append('circle')
-            .attr('cx', startX + i * (ROLE_DOT_RADIUS * 2 + 2))
+            .attr('cx', startX + i * (sc.sRoleDotRadius * 2 + 2))
             .attr('cy', dotY)
-            .attr('r', ROLE_DOT_RADIUS)
-            // In-bounds by loop guard.
+            .attr('r', sc.sRoleDotRadius)
             .attr('fill', roles[i]!.color);
         }
       }
 
-      // Collapse bar at bottom of collapsed group nodes (accent stripe, clipped to card)
       if (isCollapsedGroup) {
         const clipId = `clip-${node.id.replace(/[[\]\s]/g, '')}`;
         g.append('clipPath')
@@ -1785,12 +1813,12 @@ function renderNodes(
           .attr('y', y)
           .attr('width', node.width)
           .attr('height', node.height)
-          .attr('rx', NODE_BORDER_RADIUS);
+          .attr('rx', sc.sNodeBorderRadius);
         g.append('rect')
-          .attr('x', x + COLLAPSE_BAR_INSET)
-          .attr('y', y + node.height - COLLAPSE_BAR_HEIGHT)
-          .attr('width', node.width - COLLAPSE_BAR_INSET * 2)
-          .attr('height', COLLAPSE_BAR_HEIGHT)
+          .attr('x', x + sc.sCollapseBarInset)
+          .attr('y', y + node.height - sc.sCollapseBarHeight)
+          .attr('width', node.width - sc.sCollapseBarInset * 2)
+          .attr('height', sc.sCollapseBarHeight)
           .attr('fill', stroke)
           .attr('clip-path', `url(#${clipId})`)
           .attr('class', 'infra-collapse-bar');
@@ -1866,7 +1894,8 @@ function computeRejectedRps(node: InfraLayoutNode): number {
 function renderRejectParticles(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   nodes: readonly InfraLayoutNode[],
-  speedMultiplier: number = 1
+  speedMultiplier: number = 1,
+  sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity())
 ) {
   // Compute max rejected RPS across all nodes for scaling
   const rejectMap: { node: InfraLayoutNode; rejected: number }[] = [];
@@ -1896,7 +1925,7 @@ function renderRejectParticles(
       const startX =
         node.x + (count > 1 ? -spread / 2 + spread * (i / (count - 1)) : 0);
       const startY = nodeBottom;
-      const endY = nodeBottom + REJECT_DROP_DISTANCE;
+      const endY = nodeBottom + sc.sRejectDropDistance;
 
       const rejectColor =
         node.overloaded || node.childHealthState === 'overloaded'
@@ -1904,7 +1933,7 @@ function renderRejectParticles(
           : COLOR_WARNING;
       const circle = svg
         .append('circle')
-        .attr('r', REJECT_PARTICLE_R)
+        .attr('r', sc.sRejectParticleR)
         .attr('fill', rejectColor)
         .attr('opacity', 0);
 
@@ -2203,10 +2232,15 @@ export function renderInfra(
   exportMode?: boolean,
   collapsedNodes?: Set<string> | null
 ) {
-  // Clear previous render (preserve tooltips if any)
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
-  // Build legend groups
+  const idealWidth = layout.width;
+  const containerWidth = container.clientWidth || idealWidth;
+  const ctx = exportMode
+    ? ScaleContext.identity()
+    : ScaleContext.from(containerWidth, idealWidth);
+  const sc = buildScaledConstants(ctx);
+
   const legendGroups = computeInfraLegendGroups(
     layout.nodes,
     tagGroups ?? [],
@@ -2214,7 +2248,6 @@ export function renderInfra(
     layout.edges
   );
   const hasLegend = legendGroups.length > 0 || !!playback;
-  // In app mode (not export), legend is rendered as a separate fixed-size SVG
   const fixedLegend = !exportMode && hasLegend;
   const legendOffset = hasLegend && !fixedLegend ? LEGEND_HEIGHT : 0;
 
@@ -2224,8 +2257,6 @@ export function renderInfra(
 
   const shouldAnimate = animate !== false;
 
-  // In app mode with legend + title, render the title as a separate fixed-size SVG
-  // so the legend can be inserted between title and diagram.
   const fixedTitleH = fixedLegend && title ? TITLE_OFFSET : 0;
   const diagramViewHeight = fixedLegend
     ? layout.height + (title && !fixedTitleH ? titleOffset : 0) + legendOffset
@@ -2246,10 +2277,10 @@ export function renderInfra(
       .append('text')
       .attr('class', 'chart-title')
       .attr('x', titleContainerW / 2)
-      .attr('y', TITLE_Y)
+      .attr('y', sc.sTitleY)
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sc.sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
       .attr('data-line-number', titleLineNumber != null ? titleLineNumber : '')
@@ -2257,7 +2288,7 @@ export function renderInfra(
   }
 
   const fixedOverheadH =
-    (fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0) + fixedTitleH;
+    (fixedLegend ? LEGEND_HEIGHT + sc.sLegendFixedGap : 0) + fixedTitleH;
   const rootSvg = d3Selection
     .select(container)
     .append('svg')
@@ -2270,7 +2301,10 @@ export function renderInfra(
     .attr('viewBox', `0 0 ${totalWidth} ${diagramViewHeight}`)
     .attr('preserveAspectRatio', 'xMidYMid meet');
 
-  // Inject animation keyframes + edge label hover styles
+  if (ctx.isBelowFloor) {
+    rootSvg.attr('width', '100%');
+  }
+
   if (shouldAnimate) {
     rootSvg.append('style').text(`
       @keyframes infra-pulse-warning {
@@ -2278,8 +2312,8 @@ export function renderInfra(
         50% { opacity: 0.7; }
       }
       @keyframes infra-pulse-overload {
-        0%, 100% { stroke-width: ${OVERLOAD_STROKE_WIDTH}; }
-        50% { stroke-width: ${OVERLOAD_STROKE_WIDTH + 2}; }
+        0%, 100% { stroke-width: ${sc.sOverloadStrokeWidth}; }
+        50% { stroke-width: ${sc.sOverloadStrokeWidth + 2}; }
       }
       @keyframes infra-pulse-cb {
         0%, 49% { stroke-dasharray: none; }
@@ -2296,8 +2330,8 @@ export function renderInfra(
         animation: infra-pulse-cb 1s step-end infinite;
       }
       @keyframes infra-edge-throb {
-        0%, 100% { stroke-width: 1.5; }
-        50% { stroke-width: 3; }
+        0%, 100% { stroke-width: ${sc.sEdgeStrokeWidth}; }
+        50% { stroke-width: ${sc.sEdgeStrokeWidth * 2}; }
       }
       .infra-node-edge-throb > rect:first-of-type {
         animation: infra-edge-throb 2s ease-in-out infinite;
@@ -2314,30 +2348,27 @@ export function renderInfra(
     `);
   }
 
-  // Content group offset: skip title space (unless title was extracted to fixed SVG)
   const contentTitleOffset = fixedTitleH ? 0 : titleOffset;
   const svg = rootSvg
     .append('g')
     .attr('transform', `translate(0, ${contentTitleOffset + legendOffset})`);
 
-  // Title (inside rootSvg when not using fixed title)
   if (title && !fixedTitleH) {
     rootSvg
       .append('text')
       .attr('class', 'chart-title')
       .attr('x', totalWidth / 2)
-      .attr('y', TITLE_Y)
+      .attr('y', sc.sTitleY)
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sc.sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
       .attr('data-line-number', titleLineNumber != null ? titleLineNumber : '')
       .text(title);
   }
 
-  // Render layers: groups (back), edge paths, nodes, reject particles, edge labels (front)
-  renderGroups(svg, layout.groups, palette, isDark);
+  renderGroups(svg, layout.groups, palette, isDark, sc);
   const speedMultiplier = playback?.speed ?? 1;
   renderEdgePaths(
     svg,
@@ -2348,7 +2379,8 @@ export function renderInfra(
     isDark,
     shouldAnimate,
     layout.direction,
-    speedMultiplier
+    speedMultiplier,
+    sc
   );
   const fanoutSourceIds = collectFanoutSourceIds([...layout.edges]);
   const scaledGroupIds = new Set<string>(
@@ -2376,10 +2408,11 @@ export function renderInfra(
     collapsedNodes,
     tagGroups ?? [],
     fanoutSourceIds,
-    scaledGroupIds
+    scaledGroupIds,
+    sc
   );
   if (shouldAnimate) {
-    renderRejectParticles(svg, layout.nodes, speedMultiplier);
+    renderRejectParticles(svg, layout.nodes, speedMultiplier, sc);
   }
   renderEdgeLabels(
     svg,
@@ -2389,23 +2422,22 @@ export function renderInfra(
     palette,
     isDark,
     shouldAnimate,
-    layout.direction
+    layout.direction,
+    sc
   );
 
-  // Legend at top
   if (hasLegend) {
     if (fixedLegend) {
-      // Render legend in a separate SVG that stays at fixed pixel size, inserted between title and diagram
-      const containerWidth = container.clientWidth || totalWidth;
+      const legendContainerW = container.clientWidth || totalWidth;
       const legendSvg = d3Selection
         .select(container)
         .insert('svg', 'svg:last-of-type')
         .attr('class', 'infra-legend-fixed')
         .attr('width', '100%')
-        .attr('height', LEGEND_HEIGHT + LEGEND_FIXED_GAP)
+        .attr('height', LEGEND_HEIGHT + sc.sLegendFixedGap)
         .attr(
           'viewBox',
-          `0 0 ${containerWidth} ${LEGEND_HEIGHT + LEGEND_FIXED_GAP}`
+          `0 0 ${legendContainerW} ${LEGEND_HEIGHT + sc.sLegendFixedGap}`
         )
         .attr('preserveAspectRatio', 'xMidYMid meet')
         .style('display', 'block')
@@ -2413,8 +2445,8 @@ export function renderInfra(
       renderLegend(
         legendSvg,
         legendGroups,
-        containerWidth,
-        LEGEND_FIXED_GAP / 2,
+        legendContainerW,
+        sc.sLegendFixedGap / 2,
         palette,
         isDark,
         activeGroup ?? null,

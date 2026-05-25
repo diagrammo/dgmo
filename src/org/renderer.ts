@@ -8,6 +8,7 @@ import {
   runInExportContainer,
   extractExportSvg,
 } from '../utils/export-container';
+import { ScaleContext } from '../utils/scaling';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { resolveTagColor } from '../utils/tag-groups';
@@ -122,54 +123,68 @@ export function renderOrg(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, layout.width);
+
+  const sDiagramPadding = ctx.aesthetic(DIAGRAM_PADDING);
+  const sTitleHeight = ctx.structural(TITLE_HEIGHT);
+  const sLabelFontSize = ctx.text(LABEL_FONT_SIZE);
+  const sMetaFontSize = ctx.text(META_FONT_SIZE);
+  const sMetaLineHeight = ctx.structural(META_LINE_HEIGHT);
+  const sHeaderHeight = ctx.structural(HEADER_HEIGHT);
+  const sSeparatorGap = ctx.structural(SEPARATOR_GAP);
+  const sEdgeStrokeWidth = ctx.structural(EDGE_STROKE_WIDTH);
+  const sNodeStrokeWidth = ctx.structural(NODE_STROKE_WIDTH);
+  const sCardRadius = ctx.structural(CARD_RADIUS);
+  const sContainerRadius = ctx.structural(CONTAINER_RADIUS);
+  const sContainerLabelFontSize = ctx.text(CONTAINER_LABEL_FONT_SIZE);
+  const sContainerMetaFontSize = ctx.text(CONTAINER_META_FONT_SIZE);
+  const sContainerMetaLineHeight = ctx.structural(CONTAINER_META_LINE_HEIGHT);
+  const sContainerHeaderHeight = ctx.structural(CONTAINER_HEADER_HEIGHT);
+  const sCollapseBarHeight = ctx.structural(COLLAPSE_BAR_HEIGHT);
+  const sCollapseBarInset = ctx.structural(COLLAPSE_BAR_INSET);
+  const sAncestorDotR = ctx.structural(ANCESTOR_DOT_R);
+  const sAncestorLabelFontSize = ctx.text(ANCESTOR_LABEL_FONT_SIZE);
+  const sAncestorRowHeight = ctx.structural(ANCESTOR_ROW_HEIGHT);
+  const sAncestorTrailBottomGap = ctx.structural(ANCESTOR_TRAIL_BOTTOM_GAP);
+  const sLegendFixedGap = ctx.aesthetic(LEGEND_FIXED_GAP);
+
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
-  const titleOffset = showTitle ? TITLE_HEIGHT : 0;
+  const titleOffset = showTitle ? sTitleHeight : 0;
   const legendOnly = layout.nodes.length === 0;
   const hasLegend = layout.legend.length > 0;
 
-  // In app mode (not export), render the legend at a fixed size outside the
-  // scaled diagram group so it stays legible on large org charts.
-  // The layout already shifted chart content down by legendShift for top legends
-  // (LEGEND_HEIGHT + LEGEND_GROUP_GAP = 40px). We subtract that from the
-  // diagram height so the scale is computed on chart content only, then
-  // reserve fixed pixel space for the legend above or below.
-  const layoutLegendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP; // 40px — what layout added
+  const layoutLegendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP;
   const fixedLegend = !exportDims && hasLegend && !legendOnly;
-  const legendReserve = fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
+  const legendReserve = fixedLegend ? LEGEND_HEIGHT + sLegendFixedGap : 0;
 
-  // Similarly, render the title at fixed size outside the scaled group in
-  // non-export mode so it stays legible regardless of how small the chart scale is.
   const fixedTitle = !exportDims && showTitle;
-  const titleReserve = fixedTitle ? TITLE_HEIGHT : 0;
+  const titleReserve = fixedTitle ? sTitleHeight : 0;
 
-  // Ancestor breadcrumb trail (focus mode) — rendered inside the scaled group
   const hasAncestorTrail =
     !exportDims && ancestorPath && ancestorPath.length > 0;
   const ancestorTrailHeight = hasAncestorTrail
-    ? ancestorPath.length * ANCESTOR_ROW_HEIGHT + ANCESTOR_TRAIL_BOTTOM_GAP
+    ? ancestorPath.length * sAncestorRowHeight + sAncestorTrailBottomGap
     : 0;
 
-  // Compute scale to fit diagram in viewport
   const diagramW = layout.width;
   let diagramH =
     layout.height + (fixedTitle ? 0 : titleOffset) + ancestorTrailHeight;
   if (fixedLegend) {
-    // Remove the legend space from diagram height — legend is rendered separately
     diagramH -= layoutLegendShift;
   }
-  const availH = height - DIAGRAM_PADDING * 2 - legendReserve - titleReserve;
-  const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
+  const availH = height - sDiagramPadding * 2 - legendReserve - titleReserve;
+  const scaleX = (width - sDiagramPadding * 2) / diagramW;
   const scaleY = availH / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
-  // Center the diagram
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
   const offsetY = fixedLegend
-    ? DIAGRAM_PADDING + legendReserve + titleReserve
-    : DIAGRAM_PADDING + titleReserve;
+    ? sDiagramPadding + legendReserve + titleReserve
+    : sDiagramPadding + titleReserve;
 
-  // Create SVG
   const svg = d3Selection
     .select(container)
     .append('svg')
@@ -177,7 +192,10 @@ export function renderOrg(
     .attr('height', height)
     .style('font-family', FONT_FAMILY);
 
-  // Main content group with scale/translate
+  if (ctx.isBelowFloor) {
+    svg.attr('width', '100%').attr('viewBox', `0 0 ${width} ${height}`);
+  }
+
   const mainG = svg
     .append('g')
     .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
@@ -190,7 +208,7 @@ export function renderOrg(
     const titleParent = fixedTitle ? svg : mainG;
     const titleX = fixedTitle ? width / 2 : diagramW / 2;
     const titleY = fixedTitle
-      ? DIAGRAM_PADDING + TITLE_FONT_SIZE
+      ? sDiagramPadding + TITLE_FONT_SIZE
       : TITLE_FONT_SIZE;
     const titleEl = titleParent
       .append('text')
@@ -275,65 +293,56 @@ export function renderOrg(
     const fill = containerFill(palette, isDark, colorOff ? undefined : c.color);
     const stroke = containerStroke(palette, colorOff ? undefined : c.color);
 
-    // Background rect
     cG.append('rect')
       .attr('x', 0)
       .attr('y', 0)
       .attr('width', c.width)
       .attr('height', c.height)
-      .attr('rx', CONTAINER_RADIUS)
+      .attr('rx', sContainerRadius)
       .attr('fill', fill)
       .attr('stroke', stroke)
       .attr('stroke-opacity', 0.35)
-      .attr('stroke-width', NODE_STROKE_WIDTH);
+      .attr('stroke-width', sNodeStrokeWidth);
 
-    // Container label (bold, at top)
     cG.append('text')
       .attr('x', c.width / 2)
-      .attr(
-        'y',
-        CONTAINER_HEADER_HEIGHT / 2 + CONTAINER_LABEL_FONT_SIZE / 2 - 2
-      )
+      .attr('y', sContainerHeaderHeight / 2 + sContainerLabelFontSize / 2 - 2)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', CONTAINER_LABEL_FONT_SIZE)
+      .attr('font-size', sContainerLabelFontSize)
       .attr('font-weight', 'bold')
       .text(c.label);
 
-    // Container metadata (below label)
     const metaEntries = Object.entries(c.metadata);
     if (metaEntries.length > 0) {
-      // Compute max key width so values align vertically
       const metaDisplayKeys = metaEntries.map(
         ([k]) => displayNames.get(k) ?? k
       );
       const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
-      const valueX = 10 + (maxKeyLen + 2) * (CONTAINER_META_FONT_SIZE * 0.6);
+      const valueX = 10 + (maxKeyLen + 2) * (sContainerMetaFontSize * 0.6);
 
-      const metaStartY = CONTAINER_HEADER_HEIGHT + CONTAINER_META_FONT_SIZE - 2;
+      const metaStartY = sContainerHeaderHeight + sContainerMetaFontSize - 2;
       for (let i = 0; i < metaEntries.length; i++) {
-        // In-bounds by loop guard; metaDisplayKeys is parallel by construction.
         const [, value] = metaEntries[i]!;
         const displayKey = metaDisplayKeys[i]!;
-        const rowY = metaStartY + i * CONTAINER_META_LINE_HEIGHT;
+        const rowY = metaStartY + i * sContainerMetaLineHeight;
 
         cG.append('text')
           .attr('x', 10)
           .attr('y', rowY)
           .attr('fill', palette.textMuted)
-          .attr('font-size', CONTAINER_META_FONT_SIZE)
+          .attr('font-size', sContainerMetaFontSize)
           .text(`${displayKey}: `);
 
         cG.append('text')
           .attr('x', valueX)
           .attr('y', rowY)
           .attr('fill', palette.text)
-          .attr('font-size', CONTAINER_META_FONT_SIZE)
+          .attr('font-size', sContainerMetaFontSize)
           .text(value);
       }
     }
 
-    // Collapsed accent bar (interactive only), clipped to card shape
     if (!exportDims && c.hiddenCount && c.hiddenCount > 0) {
       const clipId = `clip-${c.nodeId}`;
       cG.append('clipPath')
@@ -341,12 +350,12 @@ export function renderOrg(
         .append('rect')
         .attr('width', c.width)
         .attr('height', c.height)
-        .attr('rx', CONTAINER_RADIUS);
+        .attr('rx', sContainerRadius);
       cG.append('rect')
-        .attr('x', COLLAPSE_BAR_INSET)
-        .attr('y', c.height - COLLAPSE_BAR_HEIGHT)
-        .attr('width', c.width - COLLAPSE_BAR_INSET * 2)
-        .attr('height', COLLAPSE_BAR_HEIGHT)
+        .attr('x', sCollapseBarInset)
+        .attr('y', c.height - sCollapseBarHeight)
+        .attr('width', c.width - sCollapseBarInset * 2)
+        .attr('height', sCollapseBarHeight)
         .attr('fill', containerStroke(palette, colorOff ? undefined : c.color))
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'org-collapse-bar');
@@ -410,7 +419,7 @@ export function renderOrg(
       .attr('d', pathParts.join(' '))
       .attr('fill', 'none')
       .attr('stroke', palette.textMuted)
-      .attr('stroke-width', EDGE_STROKE_WIDTH)
+      .attr('stroke-width', sEdgeStrokeWidth)
       .attr('class', 'org-edge');
   }
 
@@ -470,17 +479,15 @@ export function renderOrg(
       .attr('y', 0)
       .attr('width', node.width)
       .attr('height', node.height)
-      .attr('rx', CARD_RADIUS)
+      .attr('rx', sCardRadius)
       .attr('fill', fill)
       .attr('stroke', stroke)
-      .attr('stroke-width', NODE_STROKE_WIDTH);
+      .attr('stroke-width', sNodeStrokeWidth);
 
-    // Container nodes: dashed border
     if (node.isContainer) {
       rect.attr('stroke-dasharray', '6 3');
     }
 
-    // Label — contrast against the node fill
     const labelColor = contrastText(
       fill,
       palette.textOnFillLight,
@@ -489,62 +496,55 @@ export function renderOrg(
     nodeG
       .append('text')
       .attr('x', node.width / 2)
-      .attr('y', HEADER_HEIGHT / 2 + LABEL_FONT_SIZE / 2 - 2)
+      .attr('y', sHeaderHeight / 2 + sLabelFontSize / 2 - 2)
       .attr('text-anchor', 'middle')
       .attr('fill', labelColor)
-      .attr('font-size', LABEL_FONT_SIZE)
+      .attr('font-size', sLabelFontSize)
       .attr('font-weight', 'bold')
       .text(node.label);
 
-    // Metadata
     const metaEntries = Object.entries(node.metadata);
     if (metaEntries.length > 0) {
-      // Header separator line
       nodeG
         .append('line')
         .attr('x1', 0)
-        .attr('y1', HEADER_HEIGHT)
+        .attr('y1', sHeaderHeight)
         .attr('x2', node.width)
-        .attr('y2', HEADER_HEIGHT)
+        .attr('y2', sHeaderHeight)
         .attr('stroke', solid ? labelColor : stroke)
         .attr('stroke-opacity', 0.3)
         .attr('stroke-width', 1);
 
-      // Metadata rows — compute max key width so values align vertically
       const metaDisplayKeys = metaEntries.map(
         ([k]) => displayNames.get(k) ?? k
       );
       const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
-      const valueX = 10 + (maxKeyLen + 2) * (META_FONT_SIZE * 0.6);
+      const valueX = 10 + (maxKeyLen + 2) * (sMetaFontSize * 0.6);
 
-      const metaStartY = HEADER_HEIGHT + SEPARATOR_GAP + META_FONT_SIZE;
+      const metaStartY = sHeaderHeight + sSeparatorGap + sMetaFontSize;
       for (let i = 0; i < metaEntries.length; i++) {
-        // In-bounds by loop guard; metaDisplayKeys is parallel by construction.
         const [, value] = metaEntries[i]!;
         const displayKey = metaDisplayKeys[i]!;
-        const rowY = metaStartY + i * META_LINE_HEIGHT;
+        const rowY = metaStartY + i * sMetaLineHeight;
 
-        // Key — must contrast against fill (textMuted is illegible on solid fills)
         nodeG
           .append('text')
           .attr('x', 10)
           .attr('y', rowY)
           .attr('fill', labelColor)
-          .attr('font-size', META_FONT_SIZE)
+          .attr('font-size', sMetaFontSize)
           .text(`${displayKey}: `);
 
-        // Value (normal) — contrast against node fill
         nodeG
           .append('text')
           .attr('x', valueX)
           .attr('y', rowY)
           .attr('fill', labelColor)
-          .attr('font-size', META_FONT_SIZE)
+          .attr('font-size', sMetaFontSize)
           .text(value);
       }
     }
 
-    // Collapsed accent bar (interactive only), clipped to card shape
     if (!exportDims && node.hiddenCount && node.hiddenCount > 0) {
       const clipId = `clip-${node.id}`;
       nodeG
@@ -553,15 +553,13 @@ export function renderOrg(
         .append('rect')
         .attr('width', node.width)
         .attr('height', node.height)
-        .attr('rx', CARD_RADIUS);
+        .attr('rx', sCardRadius);
       nodeG
         .append('rect')
-        .attr('x', COLLAPSE_BAR_INSET)
-        .attr('y', node.height - COLLAPSE_BAR_HEIGHT)
-        .attr('width', node.width - COLLAPSE_BAR_INSET * 2)
-        .attr('height', COLLAPSE_BAR_HEIGHT)
-        // In solid mode, nodeStroke matches the fill — bar disappears.
-        // Use the contrast text color so the indicator stays visible.
+        .attr('x', sCollapseBarInset)
+        .attr('y', node.height - sCollapseBarHeight)
+        .attr('width', node.width - sCollapseBarInset * 2)
+        .attr('height', sCollapseBarHeight)
         .attr(
           'fill',
           solid
@@ -637,17 +635,16 @@ export function renderOrg(
     if (rootCenterX !== null && rootTopY !== null) {
       // Trail connects directly to the top edge of the root node.
       // The last ancestor dot sits ANCESTOR_TRAIL_BOTTOM_GAP above the root.
-      const trailBottomY = rootTopY - ANCESTOR_TRAIL_BOTTOM_GAP;
+      const trailBottomY = rootTopY - sAncestorTrailBottomGap;
 
       const trailG = contentG.append('g').attr('class', 'org-ancestor-trail');
 
       const count = ancestorPath!.length;
 
-      // Compute dot positions (top-down order, topmost ancestor highest)
       const dotPositions: number[] = [];
       for (let i = 0; i < count; i++) {
         const fromBottom = count - 1 - i;
-        dotPositions.push(trailBottomY - fromBottom * ANCESTOR_ROW_HEIGHT);
+        dotPositions.push(trailBottomY - fromBottom * sAncestorRowHeight);
       }
 
       // Single continuous line from topmost dot to root node top edge — in-bounds because hasAncestorTrail implies count >= 1.
@@ -686,43 +683,39 @@ export function renderOrg(
           .style('cursor', 'pointer')
           .attr('transform', `translate(${rootCenterX}, ${dotY})`);
 
-        // Hit area
         rowG
           .append('rect')
-          .attr('x', -ANCESTOR_DOT_R - 2)
-          .attr('y', -ANCESTOR_DOT_R - 2)
+          .attr('x', -sAncestorDotR - 2)
+          .attr('y', -sAncestorDotR - 2)
           .attr('width', 120)
-          .attr('height', ANCESTOR_DOT_R * 2 + 4)
+          .attr('height', sAncestorDotR * 2 + 4)
           .attr('fill', 'transparent');
 
-        // Dot — colored by tag group value
         rowG
           .append('circle')
           .attr('cx', 0)
           .attr('cy', 0)
-          .attr('r', ANCESTOR_DOT_R)
+          .attr('r', sAncestorDotR)
           .attr('fill', dotColor);
 
-        // Label
         rowG
           .append('text')
-          .attr('x', ANCESTOR_DOT_R + 6)
-          .attr('y', ANCESTOR_LABEL_FONT_SIZE * 0.35)
+          .attr('x', sAncestorDotR + 6)
+          .attr('y', sAncestorLabelFontSize * 0.35)
           .attr('fill', palette.textMuted)
-          .attr('font-size', ANCESTOR_LABEL_FONT_SIZE)
+          .attr('font-size', sAncestorLabelFontSize)
           .text(ancestor.label);
 
-        // Hover effect
         rowG
           .on('mouseenter', function () {
             d3Selection
               .select(this)
               .select('circle')
-              .attr('r', ANCESTOR_DOT_R + 1);
+              .attr('r', sAncestorDotR + 1);
             d3Selection.select(this).select('text').attr('fill', palette.text);
           })
           .on('mouseleave', function () {
-            d3Selection.select(this).select('circle').attr('r', ANCESTOR_DOT_R);
+            d3Selection.select(this).select('circle').attr('r', sAncestorDotR);
             d3Selection
               .select(this)
               .select('text')
@@ -749,7 +742,7 @@ export function renderOrg(
       ? svg
           .append('g')
           .attr('class', 'org-legend-fixed')
-          .attr('transform', `translate(0, ${DIAGRAM_PADDING + titleReserve})`)
+          .attr('transform', `translate(0, ${sDiagramPadding + titleReserve})`)
       : contentG.append('g');
 
     let legendHandle;

@@ -17,6 +17,7 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
+import { ScaleContext } from '../utils/scaling';
 import type { ParsedERDiagram, ERConstraint } from './types';
 import type { ERLayoutResult } from './layout';
 import { parseERDiagram } from './parser';
@@ -99,21 +100,21 @@ function drawCardinality(
   prevPoint: { x: number; y: number },
   cardinality: string,
   color: string,
-  useLabels: boolean
+  useLabels: boolean,
+  edgeLabelFontSize = EDGE_LABEL_FONT_SIZE,
+  edgeStrokeWidth = EDGE_STROKE_WIDTH
 ): void {
   const dx = point.x - prevPoint.x;
   const dy = point.y - prevPoint.y;
   const len = Math.sqrt(dx * dx + dy * dy);
   if (len === 0) return;
 
-  // Unit vector from prev toward endpoint (direction of edge arriving at entity)
   const ux = dx / len;
   const uy = dy / len;
-  // Perpendicular
   const px = -uy;
   const py = ux;
 
-  const sw = EDGE_STROKE_WIDTH + 0.5; // slightly heavier for visibility
+  const sw = edgeStrokeWidth + 0.5;
 
   if (useLabels) {
     const offset = 15;
@@ -127,17 +128,15 @@ function drawCardinality(
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
       .attr('fill', color)
-      .attr('font-size', EDGE_LABEL_FONT_SIZE)
+      .attr('font-size', edgeLabelFontSize)
       .text(labelText);
     return;
   }
 
-  // Crow's foot notation
-  const barOffset = 14; // how far back from the entity the bar sits
-  const spread = 9; // half-width of the perpendicular bar / prong span
+  const barOffset = 14;
+  const spread = 9;
 
   if (cardinality === '1') {
-    // Single perpendicular bar
     const bx = point.x - ux * barOffset;
     const by = point.y - uy * barOffset;
     g.append('line')
@@ -148,20 +147,15 @@ function drawCardinality(
       .attr('stroke', color)
       .attr('stroke-width', sw);
   } else if (cardinality === '*') {
-    // Crow's foot: three prongs fan out FROM a point on the line
-    // TOWARD the entity — the fork opens at the entity side.
-    const forkOrigin = 18; // distance back from entity where prongs originate
-    const forkEnd = 5; // distance from entity where prongs terminate
+    const forkOrigin = 18;
+    const forkEnd = 5;
 
-    // Origin point (on the line, away from entity)
     const ox = point.x - ux * forkOrigin;
     const oy = point.y - uy * forkOrigin;
 
-    // End points (near entity, splayed outward)
     const ex = point.x - ux * forkEnd;
     const ey = point.y - uy * forkEnd;
 
-    // Top prong
     g.append('line')
       .attr('x1', ox)
       .attr('y1', oy)
@@ -169,7 +163,6 @@ function drawCardinality(
       .attr('y2', ey + py * spread)
       .attr('stroke', color)
       .attr('stroke-width', sw);
-    // Bottom prong
     g.append('line')
       .attr('x1', ox)
       .attr('y1', oy)
@@ -177,7 +170,6 @@ function drawCardinality(
       .attr('y2', ey - py * spread)
       .attr('stroke', color)
       .attr('stroke-width', sw);
-    // Middle prong (straight to entity)
     g.append('line')
       .attr('x1', ox)
       .attr('y1', oy)
@@ -186,9 +178,8 @@ function drawCardinality(
       .attr('stroke', color)
       .attr('stroke-width', sw);
   } else if (cardinality === '?') {
-    // Circle (zero) + perpendicular bar (one)
     const circleR = 5;
-    const circleCenter = barOffset + circleR * 2 + 2; // circle sits behind the bar
+    const circleCenter = barOffset + circleR * 2 + 2;
     const cx = point.x - ux * circleCenter;
     const cy = point.y - uy * circleCenter;
     g.append('circle')
@@ -198,7 +189,6 @@ function drawCardinality(
       .attr('fill', 'none')
       .attr('stroke', color)
       .attr('stroke-width', sw);
-    // Perpendicular bar
     const bx = point.x - ux * barOffset;
     const by = point.y - uy * barOffset;
     g.append('line')
@@ -230,6 +220,8 @@ export function renderERDiagram(
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
+  const containerWidth = container.clientWidth || 600;
+
   const useSemanticColors =
     parsed.tagGroups.length === 0 && layout.nodes.every((n) => !n.color);
   const LEGEND_FIXED_GAP = 8;
@@ -245,16 +237,32 @@ export function renderERDiagram(
   const diagramW = layout.width;
   const diagramH = layout.height;
 
-  // Natural dimensions derived purely from the layout — no dependency on container
-  // size at render time, which eliminates the stagger caused by reading clientWidth/
-  // clientHeight before the container has stabilized.
-  const naturalW = diagramW + DIAGRAM_PADDING * 2;
-  const naturalH =
-    diagramH + titleHeight + legendReserveH + DIAGRAM_PADDING * 2;
+  const totalColumns = layout.nodes.reduce(
+    (sum, n) => sum + n.columns.length,
+    0
+  );
+  const idealWidth =
+    layout.nodes.length * 180 + totalColumns * 8 + DIAGRAM_PADDING * 2;
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(containerWidth, idealWidth);
 
-  // For export: scale the natural layout to fit the requested pixel dimensions.
-  // For live preview: render at natural scale (scale=1) and let the SVG viewBox
-  // handle fitting to the container via CSS.
+  const sDiagramPadding = ctx.aesthetic(DIAGRAM_PADDING);
+  const sTableFontSize = ctx.text(TABLE_FONT_SIZE);
+  const sColumnFontSize = ctx.text(COLUMN_FONT_SIZE);
+  const sEdgeLabelFontSize = ctx.text(EDGE_LABEL_FONT_SIZE);
+  const sEdgeStrokeWidth = ctx.structural(EDGE_STROKE_WIDTH);
+  const sNodeStrokeWidth = ctx.structural(NODE_STROKE_WIDTH);
+  const sMemberLineHeight = ctx.structural(MEMBER_LINE_HEIGHT);
+  const sCompartmentPaddingY = ctx.structural(COMPARTMENT_PADDING_Y);
+  const sMemberPaddingX = ctx.structural(MEMBER_PADDING_X);
+  const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
+  const sTitleY = ctx.structural(TITLE_Y);
+
+  const naturalW = diagramW + sDiagramPadding * 2;
+  const naturalH =
+    diagramH + titleHeight + legendReserveH + sDiagramPadding * 2;
+
   let viewW: number;
   let viewH: number;
   let scale: number;
@@ -265,18 +273,18 @@ export function renderERDiagram(
     viewW = exportDims.width ?? naturalW;
     viewH = exportDims.height ?? naturalH;
     const availH = viewH - titleHeight - legendReserveH;
-    const scaleX = (viewW - DIAGRAM_PADDING * 2) / diagramW;
-    const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
+    const scaleX = (viewW - sDiagramPadding * 2) / diagramW;
+    const scaleY = (availH - sDiagramPadding * 2) / diagramH;
     scale = Math.min(MAX_SCALE, scaleX, scaleY);
     const scaledW = diagramW * scale;
     offsetX = (viewW - scaledW) / 2;
-    offsetY = titleHeight + legendReserveH + DIAGRAM_PADDING;
+    offsetY = titleHeight + legendReserveH + sDiagramPadding;
   } else {
     viewW = naturalW;
     viewH = naturalH;
     scale = 1;
-    offsetX = DIAGRAM_PADDING;
-    offsetY = titleHeight + legendReserveH + DIAGRAM_PADDING;
+    offsetX = sDiagramPadding;
+    offsetY = titleHeight + legendReserveH + sDiagramPadding;
   }
 
   if (viewW <= 0 || viewH <= 0) return;
@@ -290,16 +298,15 @@ export function renderERDiagram(
     .attr('preserveAspectRatio', 'xMidYMid meet')
     .style('font-family', FONT_FAMILY);
 
-  // ── Title ──
   if (showTitle) {
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
       .attr('x', viewW / 2)
-      .attr('y', TITLE_Y)
+      .attr('y', sTitleY)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .style(
         'cursor',
@@ -360,29 +367,30 @@ export function renderERDiagram(
         .attr('d', pathD)
         .attr('fill', 'none')
         .attr('stroke', edgeColor)
-        .attr('stroke-width', EDGE_STROKE_WIDTH)
+        .attr('stroke-width', sEdgeStrokeWidth)
         .attr('class', 'er-edge');
     }
 
-    // Cardinality markers at endpoints
     const pts = edge.points;
-    // Source side (from cardinality) — in-bounds: edge.points.length < 2 was skipped above.
     drawCardinality(
       edgeG,
       pts[0]!,
       pts[1]!,
       edge.cardinality.from,
       edgeColor,
-      useLabels
+      useLabels,
+      sEdgeLabelFontSize,
+      sEdgeStrokeWidth
     );
-    // Target side (to cardinality) — in-bounds: pts.length >= 2 guaranteed above.
     drawCardinality(
       edgeG,
       pts[pts.length - 1]!,
       pts[pts.length - 2]!,
       edge.cardinality.to,
       edgeColor,
-      useLabels
+      useLabels,
+      sEdgeLabelFontSize,
+      sEdgeStrokeWidth
     );
 
     // Edge label at midpoint
@@ -411,7 +419,7 @@ export function renderERDiagram(
         .attr('y', midPt.y + 4)
         .attr('text-anchor', 'middle')
         .attr('fill', edgeColor)
-        .attr('font-size', EDGE_LABEL_FONT_SIZE)
+        .attr('font-size', sEdgeLabelFontSize)
         .attr('class', 'er-edge-label')
         .text(edge.label);
     }
@@ -491,9 +499,8 @@ export function renderERDiagram(
       .attr('ry', 3)
       .attr('fill', fill)
       .attr('stroke', stroke)
-      .attr('stroke-width', NODE_STROKE_WIDTH);
+      .attr('stroke-width', sNodeStrokeWidth);
 
-    // Header section — table name
     let yPos = -h / 2;
     const headerCenterY = yPos + node.headerHeight / 2;
 
@@ -504,15 +511,13 @@ export function renderERDiagram(
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
       .attr('fill', onFillText)
-      .attr('font-size', TABLE_FONT_SIZE)
+      .attr('font-size', sTableFontSize)
       .attr('font-weight', 'bold')
       .text(node.name);
 
     yPos += node.headerHeight;
 
-    // Columns compartment
     if (node.columns.length > 0) {
-      // Separator line
       nodeG
         .append('line')
         .attr('x1', -w / 2)
@@ -523,44 +528,42 @@ export function renderERDiagram(
         .attr('stroke-width', 0.5)
         .attr('stroke-opacity', 0.5);
 
-      let memberY = yPos + COMPARTMENT_PADDING_Y;
+      let memberY = yPos + sCompartmentPaddingY;
       for (const col of node.columns) {
-        // Constraint icon (leftmost)
-        const iconX = -w / 2 + MEMBER_PADDING_X;
+        const iconX = -w / 2 + sMemberPaddingX;
         const primaryConstraint = col.constraints[0];
         if (primaryConstraint) {
           nodeG
             .append('text')
             .attr('x', iconX)
-            .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
+            .attr('y', memberY + sMemberLineHeight / 2)
             .attr('dominant-baseline', 'central')
             .attr('fill', onFillText)
-            .attr('font-size', COLUMN_FONT_SIZE)
+            .attr('font-size', sColumnFontSize)
             .text(constraintIcon(primaryConstraint));
         }
 
-        // Column name + type
-        const textX = -w / 2 + MEMBER_PADDING_X + (primaryConstraint ? 16 : 0);
+        const textX = -w / 2 + sMemberPaddingX + (primaryConstraint ? 16 : 0);
         let colText = col.name;
         if (col.type) colText += `: ${col.type}`;
 
         nodeG
           .append('text')
           .attr('x', textX)
-          .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
+          .attr('y', memberY + sMemberLineHeight / 2)
           .attr('dominant-baseline', 'central')
           .attr('fill', onFillText)
-          .attr('font-size', COLUMN_FONT_SIZE)
+          .attr('font-size', sColumnFontSize)
           .text(colText);
 
-        memberY += MEMBER_LINE_HEIGHT;
+        memberY += sMemberLineHeight;
       }
     }
   }
 
   // ── Tag Legend ──
   if (parsed.tagGroups.length > 0) {
-    const legendY = DIAGRAM_PADDING + titleHeight;
+    const legendY = sDiagramPadding + titleHeight;
     const legendConfig: LegendConfig = {
       groups: parsed.tagGroups,
       position: { placement: 'top-center', titleRelation: 'below-title' },
@@ -593,7 +596,7 @@ export function renderERDiagram(
     });
 
     if (presentRoles.length > 0) {
-      const legendY = DIAGRAM_PADDING + titleHeight;
+      const legendY = sDiagramPadding + titleHeight;
       const semanticGroups = [
         {
           name: 'Role',

@@ -16,6 +16,7 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
+import { ScaleContext } from '../utils/scaling';
 
 // ============================================================
 // Constants
@@ -103,7 +104,8 @@ function renderTerminal(
   isDark: boolean,
   isEnd: boolean,
   colorOff?: boolean,
-  solid?: boolean
+  solid?: boolean,
+  sNodeStrokeWidth = NODE_STROKE_WIDTH
 ): void {
   const w = node.width;
   const h = node.height;
@@ -123,7 +125,7 @@ function renderTerminal(
       'stroke',
       nodeStroke(palette, node.shape, node.color, isEnd, colorOff)
     )
-    .attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('stroke-width', sNodeStrokeWidth);
 }
 
 function renderProcess(
@@ -132,7 +134,8 @@ function renderProcess(
   palette: PaletteColors,
   isDark: boolean,
   colorOff?: boolean,
-  solid?: boolean
+  solid?: boolean,
+  sNodeStrokeWidth = NODE_STROKE_WIDTH
 ): void {
   const w = node.width;
   const h = node.height;
@@ -159,7 +162,7 @@ function renderProcess(
       'stroke',
       nodeStroke(palette, node.shape, node.color, undefined, colorOff)
     )
-    .attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('stroke-width', sNodeStrokeWidth);
 }
 
 function renderDecision(
@@ -168,16 +171,14 @@ function renderDecision(
   palette: PaletteColors,
   isDark: boolean,
   colorOff?: boolean,
-  solid?: boolean
+  solid?: boolean,
+  sNodeStrokeWidth = NODE_STROKE_WIDTH
 ): void {
   const w = node.width / 2;
   const h = node.height / 2;
-  const points = [
-    `${0},${-h}`, // top
-    `${w},${0}`, // right
-    `${0},${h}`, // bottom
-    `${-w},${0}`, // left
-  ].join(' ');
+  const points = [`${0},${-h}`, `${w},${0}`, `${0},${h}`, `${-w},${0}`].join(
+    ' '
+  );
   g.append('polygon')
     .attr('points', points)
     .attr(
@@ -196,7 +197,7 @@ function renderDecision(
       'stroke',
       nodeStroke(palette, node.shape, node.color, undefined, colorOff)
     )
-    .attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('stroke-width', sNodeStrokeWidth);
 }
 
 function renderIO(
@@ -205,16 +206,18 @@ function renderIO(
   palette: PaletteColors,
   isDark: boolean,
   colorOff?: boolean,
-  solid?: boolean
+  solid?: boolean,
+  sNodeStrokeWidth = NODE_STROKE_WIDTH,
+  sIoSkew = IO_SKEW
 ): void {
   const w = node.width / 2;
   const h = node.height / 2;
-  const sk = IO_SKEW;
+  const sk = sIoSkew;
   const points = [
-    `${-w + sk},${-h}`, // top-left (shifted right)
-    `${w + sk},${-h}`, // top-right (shifted right)
-    `${w - sk},${h}`, // bottom-right (shifted left)
-    `${-w - sk},${h}`, // bottom-left (shifted left)
+    `${-w + sk},${-h}`,
+    `${w + sk},${-h}`,
+    `${w - sk},${h}`,
+    `${-w - sk},${h}`,
   ].join(' ');
   g.append('polygon')
     .attr('points', points)
@@ -234,7 +237,7 @@ function renderIO(
       'stroke',
       nodeStroke(palette, node.shape, node.color, undefined, colorOff)
     )
-    .attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('stroke-width', sNodeStrokeWidth);
 }
 
 function renderSubroutine(
@@ -243,7 +246,9 @@ function renderSubroutine(
   palette: PaletteColors,
   isDark: boolean,
   colorOff?: boolean,
-  solid?: boolean
+  solid?: boolean,
+  sNodeStrokeWidth = NODE_STROKE_WIDTH,
+  sSubroutineInset = SUBROUTINE_INSET
 ): void {
   const w = node.width;
   const h = node.height;
@@ -257,14 +262,9 @@ function renderSubroutine(
     colorOff,
     solid
   );
-  // The two inner vertical bars are what makes a subroutine LOOK like a
-  // subroutine (vs a plain process rectangle). In solid mode the fill matches
-  // `s` (= node.color), so the bars become invisible and the shape semantics
-  // are lost. Use contrastText against the fill so the bars stay visible.
   const innerStroke = solid
     ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
     : s;
-  // Outer rectangle
   g.append('rect')
     .attr('x', -w / 2)
     .attr('y', -h / 2)
@@ -274,23 +274,21 @@ function renderSubroutine(
     .attr('ry', 3)
     .attr('fill', fill)
     .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-  // Left inner border
+    .attr('stroke-width', sNodeStrokeWidth);
   g.append('line')
-    .attr('x1', -w / 2 + SUBROUTINE_INSET)
+    .attr('x1', -w / 2 + sSubroutineInset)
     .attr('y1', -h / 2)
-    .attr('x2', -w / 2 + SUBROUTINE_INSET)
+    .attr('x2', -w / 2 + sSubroutineInset)
     .attr('y2', h / 2)
     .attr('stroke', innerStroke)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-  // Right inner border
+    .attr('stroke-width', sNodeStrokeWidth);
   g.append('line')
-    .attr('x1', w / 2 - SUBROUTINE_INSET)
+    .attr('x1', w / 2 - sSubroutineInset)
     .attr('y1', -h / 2)
-    .attr('x2', w / 2 - SUBROUTINE_INSET)
+    .attr('x2', w / 2 - sSubroutineInset)
     .attr('y2', h / 2)
     .attr('stroke', innerStroke)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('stroke-width', sNodeStrokeWidth);
 }
 
 function renderDocument(
@@ -299,17 +297,18 @@ function renderDocument(
   palette: PaletteColors,
   isDark: boolean,
   colorOff?: boolean,
-  solid?: boolean
+  solid?: boolean,
+  sNodeStrokeWidth = NODE_STROKE_WIDTH,
+  sDocWaveHeight = DOC_WAVE_HEIGHT
 ): void {
   const w = node.width;
   const h = node.height;
-  const waveH = DOC_WAVE_HEIGHT;
+  const waveH = sDocWaveHeight;
   const left = -w / 2;
   const right = w / 2;
   const top = -h / 2;
   const bottom = h / 2 - waveH;
 
-  // Path: straight top, straight right side, wavy bottom, straight left side
   const d = [
     `M ${left} ${top}`,
     `L ${right} ${top}`,
@@ -336,7 +335,7 @@ function renderDocument(
       'stroke',
       nodeStroke(palette, node.shape, node.color, undefined, colorOff)
     )
-    .attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('stroke-width', sNodeStrokeWidth);
 }
 
 function renderNodeShape(
@@ -346,7 +345,11 @@ function renderNodeShape(
   isDark: boolean,
   endTerminalIds: Set<string>,
   colorOff?: boolean,
-  solid?: boolean
+  solid?: boolean,
+  sNodeStrokeWidth = NODE_STROKE_WIDTH,
+  sIoSkew = IO_SKEW,
+  sSubroutineInset = SUBROUTINE_INSET,
+  sDocWaveHeight = DOC_WAVE_HEIGHT
 ): void {
   switch (node.shape) {
     case 'terminal':
@@ -357,26 +360,69 @@ function renderNodeShape(
         isDark,
         endTerminalIds.has(node.id),
         colorOff,
-        solid
+        solid,
+        sNodeStrokeWidth
       );
       break;
     case 'process':
-      renderProcess(g, node, palette, isDark, colorOff, solid);
+      renderProcess(
+        g,
+        node,
+        palette,
+        isDark,
+        colorOff,
+        solid,
+        sNodeStrokeWidth
+      );
       break;
     case 'decision':
-      renderDecision(g, node, palette, isDark, colorOff, solid);
+      renderDecision(
+        g,
+        node,
+        palette,
+        isDark,
+        colorOff,
+        solid,
+        sNodeStrokeWidth
+      );
       break;
     case 'io':
-      renderIO(g, node, palette, isDark, colorOff, solid);
+      renderIO(
+        g,
+        node,
+        palette,
+        isDark,
+        colorOff,
+        solid,
+        sNodeStrokeWidth,
+        sIoSkew
+      );
       break;
     case 'subroutine':
-      renderSubroutine(g, node, palette, isDark, colorOff, solid);
+      renderSubroutine(
+        g,
+        node,
+        palette,
+        isDark,
+        colorOff,
+        solid,
+        sNodeStrokeWidth,
+        sSubroutineInset
+      );
       break;
     case 'document':
-      renderDocument(g, node, palette, isDark, colorOff, solid);
+      renderDocument(
+        g,
+        node,
+        palette,
+        isDark,
+        colorOff,
+        solid,
+        sNodeStrokeWidth,
+        sDocWaveHeight
+      );
       break;
     default:
-      // state/pseudostate are routed through state-renderer; ignored here.
       break;
   }
 }
@@ -404,30 +450,44 @@ export function renderFlowchart(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: { width?: number; height?: number }
 ): void {
-  // Clear existing content (preserve tooltips)
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
   const width = exportDims?.width ?? container.clientWidth;
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
+  const idealWidth = layout.width + DIAGRAM_PADDING * 2;
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  const sDiagramPadding = ctx.aesthetic(DIAGRAM_PADDING);
+  const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
+  const sTitleY = ctx.structural(TITLE_Y);
+  const sNodeFontSize = ctx.text(NODE_FONT_SIZE);
+  const sEdgeLabelFontSize = ctx.text(EDGE_LABEL_FONT_SIZE);
+  const sEdgeStrokeWidth = ctx.structural(EDGE_STROKE_WIDTH);
+  const sNodeStrokeWidth = ctx.structural(NODE_STROKE_WIDTH);
+  const sArrowheadW = ctx.structural(ARROWHEAD_W);
+  const sArrowheadH = ctx.structural(ARROWHEAD_H);
+  const sIoSkew = ctx.structural(IO_SKEW);
+  const sSubroutineInset = ctx.structural(SUBROUTINE_INSET);
+  const sDocWaveHeight = ctx.structural(DOC_WAVE_HEIGHT);
+
   const showTitle = !!graph.title && graph.options['no-title'] !== 'on';
   const titleHeight = showTitle ? 40 : 0;
 
-  // Compute scale to fit diagram in available space below title
   const diagramW = layout.width;
   const diagramH = layout.height;
   const availH = height - titleHeight;
-  const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
-  const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
+  const scaleX = (width - sDiagramPadding * 2) / diagramW;
+  const scaleY = (availH - sDiagramPadding * 2) / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
-  // Center the diagram in the area below the title
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + DIAGRAM_PADDING;
+  const offsetY = titleHeight + sDiagramPadding;
 
-  // Create SVG
   const svg = d3Selection
     .select(container)
     .append('svg')
@@ -435,51 +495,51 @@ export function renderFlowchart(
     .attr('height', height)
     .style('font-family', FONT_FAMILY);
 
-  // Defs: arrowhead markers
+  if (ctx.isBelowFloor) {
+    svg.attr('width', '100%').attr('viewBox', `0 0 ${width} ${height}`);
+  }
+
   const defs = svg.append('defs');
 
-  // Default arrowhead
   defs
     .append('marker')
     .attr('id', 'fc-arrow')
-    .attr('viewBox', `0 0 ${ARROWHEAD_W} ${ARROWHEAD_H}`)
-    .attr('refX', ARROWHEAD_W)
-    .attr('refY', ARROWHEAD_H / 2)
-    .attr('markerWidth', ARROWHEAD_W)
-    .attr('markerHeight', ARROWHEAD_H)
+    .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
+    .attr('refX', sArrowheadW)
+    .attr('refY', sArrowheadH / 2)
+    .attr('markerWidth', sArrowheadW)
+    .attr('markerHeight', sArrowheadH)
     .attr('orient', 'auto')
     .append('polygon')
-    .attr('points', `0,0 ${ARROWHEAD_W},${ARROWHEAD_H / 2} 0,${ARROWHEAD_H}`)
+    .attr('points', `0,0 ${sArrowheadW},${sArrowheadH / 2} 0,${sArrowheadH}`)
     .attr('fill', palette.textMuted);
 
-  // Edges have no color slot (§1.7); keep empty set for marker iteration.
   const edgeColors = new Set<string>();
   for (const color of edgeColors) {
     const id = `fc-arrow-${color.replace('#', '')}`;
     defs
       .append('marker')
       .attr('id', id)
-      .attr('viewBox', `0 0 ${ARROWHEAD_W} ${ARROWHEAD_H}`)
-      .attr('refX', ARROWHEAD_W)
-      .attr('refY', ARROWHEAD_H / 2)
-      .attr('markerWidth', ARROWHEAD_W)
-      .attr('markerHeight', ARROWHEAD_H)
+      .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
+      .attr('refX', sArrowheadW)
+      .attr('refY', sArrowheadH / 2)
+      .attr('markerWidth', sArrowheadW)
+      .attr('markerHeight', sArrowheadH)
       .attr('orient', 'auto')
       .append('polygon')
-      .attr('points', `0,0 ${ARROWHEAD_W},${ARROWHEAD_H / 2} 0,${ARROWHEAD_H}`)
+      .attr('points', `0,0 ${sArrowheadW},${sArrowheadH / 2} 0,${sArrowheadH}`)
       .attr('fill', color);
   }
 
-  // Title (rendered directly on SVG, not inside scaled group)
   if (showTitle) {
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
       .attr('x', width / 2)
-      .attr('y', TITLE_Y)
+      .attr('y', sTitleY)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .style(
         'cursor',
@@ -502,13 +562,10 @@ export function renderFlowchart(
     }
   }
 
-  // Main content group with scale/translate
   const contentG = svg
     .append('g')
     .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
 
-  // Compute edge label positions with perpendicular offset to hug their path,
-  // then resolve remaining collisions.
   const LABEL_CHAR_W = 7;
   const LABEL_PAD = 8;
   const LABEL_H = 16;
@@ -524,17 +581,13 @@ export function renderFlowchart(
   const labelPositions: LabelPos[] = [];
 
   for (let ei = 0; ei < layout.edges.length; ei++) {
-    // In-bounds by loop guard.
     const edge = layout.edges[ei]!;
     if (!edge.label || edge.points.length < 2) continue;
     const midIdx = Math.floor(edge.points.length / 2);
-    // In-bounds: midIdx < points.length (length >= 2 guarded above).
     const midPt = edge.points[midIdx]!;
     const bgW = edge.label.length * LABEL_CHAR_W + LABEL_PAD;
 
-    // In-bounds: clamped to valid range.
     const prev = edge.points[Math.max(0, midIdx - 1)]!;
-    // In-bounds: clamped to valid range.
     const next = edge.points[Math.min(edge.points.length - 1, midIdx + 1)]!;
     const dx = next.x - prev.x;
     const dy = next.y - prev.y;
@@ -549,11 +602,9 @@ export function renderFlowchart(
     labelPositions.push({ x: lx, y: ly, w: bgW, h: LABEL_H, edgeIdx: ei });
   }
 
-  // Resolve remaining label collisions.
   labelPositions.sort((a, b) => a.y - b.y);
   for (let i = 0; i < labelPositions.length; i++) {
     for (let j = i + 1; j < labelPositions.length; j++) {
-      // In-bounds by loop guards.
       const a = labelPositions[i]!;
       const b = labelPositions[j]!;
       const overlapX = Math.abs(a.x - b.x) < (a.w + b.w) / 2;
@@ -567,9 +618,7 @@ export function renderFlowchart(
   const labelPosMap = new Map<number, LabelPos>();
   for (const lp of labelPositions) labelPosMap.set(lp.edgeIdx, lp);
 
-  // Render edges (middle layer)
   for (let ei = 0; ei < layout.edges.length; ei++) {
-    // In-bounds by loop guard.
     const edge = layout.edges[ei]!;
     if (edge.points.length < 2) continue;
     const edgeG = contentG
@@ -587,12 +636,11 @@ export function renderFlowchart(
         .attr('d', pathD)
         .attr('fill', 'none')
         .attr('stroke', edgeColor)
-        .attr('stroke-width', EDGE_STROKE_WIDTH)
+        .attr('stroke-width', sEdgeStrokeWidth)
         .attr('marker-end', `url(#${markerId})`)
         .attr('class', 'fc-edge');
     }
 
-    // Edge label with collision-resolved position
     const lp = labelPosMap.get(ei);
     if (edge.label && lp) {
       edgeG
@@ -612,13 +660,12 @@ export function renderFlowchart(
         .attr('y', lp.y + 4)
         .attr('text-anchor', 'middle')
         .attr('fill', edgeColor)
-        .attr('font-size', EDGE_LABEL_FONT_SIZE)
+        .attr('font-size', sEdgeLabelFontSize)
         .attr('class', 'fc-edge-label')
         .text(edge.label);
     }
   }
 
-  // Identify end terminals (terminal nodes with no outgoing edges)
   const nodesWithOutgoing = new Set<string>();
   for (const edge of layout.edges) nodesWithOutgoing.add(edge.source);
   const endTerminalIds = new Set<string>();
@@ -628,7 +675,6 @@ export function renderFlowchart(
     }
   }
 
-  // Render nodes (top layer)
   const colorOff = graph.options?.['color'] === 'off';
   const solid = graph.options?.['solid-fill'] === 'on';
   for (const node of layout.nodes) {
@@ -645,7 +691,6 @@ export function renderFlowchart(
       });
     }
 
-    // Shape
     renderNodeShape(
       nodeG as GSelection,
       node,
@@ -653,10 +698,13 @@ export function renderFlowchart(
       isDark,
       endTerminalIds,
       colorOff,
-      solid
+      solid,
+      sNodeStrokeWidth,
+      sIoSkew,
+      sSubroutineInset,
+      sDocWaveHeight
     );
 
-    // Label — contrast against the resolved node fill
     const isEnd = endTerminalIds.has(node.id);
     const resolvedFill = nodeFill(
       palette,
@@ -681,7 +729,7 @@ export function renderFlowchart(
           palette.textOnFillDark
         )
       )
-      .attr('font-size', NODE_FONT_SIZE)
+      .attr('font-size', sNodeFontSize)
       .text(node.label);
   }
 }
@@ -701,7 +749,6 @@ export function renderFlowchartForExport(
   const layout = layoutGraph(parsed);
   const isDark = theme === 'dark';
 
-  // Create offscreen container
   const container = document.createElement('div');
   container.style.width = `${layout.width + DIAGRAM_PADDING * 2}px`;
   container.style.height = `${layout.height + DIAGRAM_PADDING * 2 + (parsed.title && parsed.options['no-title'] !== 'on' ? 40 : 0)}px`;

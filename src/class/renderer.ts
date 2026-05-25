@@ -27,6 +27,7 @@ import type {
 import type { ClassLayoutResult } from './layout';
 import { parseClassDiagram } from './parser';
 import { layoutClassDiagram } from './layout';
+import { ScaleContext } from '../utils/scaling';
 
 // ============================================================
 // Constants
@@ -204,30 +205,54 @@ export function renderClassDiagram(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
+  const idealWidth = layout.width + DIAGRAM_PADDING * 2;
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  const sDiagramPadding = ctx.aesthetic(DIAGRAM_PADDING);
+  const sClassFontSize = ctx.text(CLASS_FONT_SIZE);
+  const sMemberFontSize = ctx.text(MEMBER_FONT_SIZE);
+  const sEdgeLabelFontSize = ctx.text(EDGE_LABEL_FONT_SIZE);
+  const sEdgeStrokeWidth = ctx.structural(EDGE_STROKE_WIDTH);
+  const sNodeStrokeWidth = ctx.structural(NODE_STROKE_WIDTH);
+  const sMemberLineHeight = ctx.structural(MEMBER_LINE_HEIGHT);
+  const sCompartmentPaddingY = ctx.structural(COMPARTMENT_PADDING_Y);
+  const sMemberPaddingX = ctx.structural(MEMBER_PADDING_X);
+  const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
+  const sTitleY = ctx.structural(TITLE_Y);
+  const sLegendHeight = ctx.structural(LEGEND_HEIGHT);
+
   const legendEntries = collectClassTypes(parsed);
-  const hasLegend = legendEntries.length > 1; // only show when multiple types present
+  const hasLegend = legendEntries.length > 1;
 
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const titleHeight = showTitle ? 40 : 0;
   const LEGEND_FIXED_GAP = 8;
-  const legendReserve = hasLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
+  const sLegendFixedGap = ctx.aesthetic(LEGEND_FIXED_GAP);
+  const legendReserve = hasLegend ? sLegendHeight + sLegendFixedGap : 0;
   const diagramW = layout.width;
   const diagramH = layout.height;
   const availH = height - titleHeight - legendReserve;
-  const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
-  const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
+  const scaleX = (width - sDiagramPadding * 2) / diagramW;
+  const scaleY = (availH - sDiagramPadding * 2) / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + legendReserve + DIAGRAM_PADDING;
+  const offsetY = titleHeight + legendReserve + sDiagramPadding;
 
   const svg = d3Selection
     .select(container)
     .append('svg')
     .attr('width', width)
     .attr('height', height)
+    .attr('viewBox', `0 0 ${width} ${height}`)
     .style('font-family', FONT_FAMILY);
+
+  if (ctx.isBelowFloor) {
+    svg.attr('width', '100%');
+  }
 
   // ── Marker defs ──
   const defs = svg.append('defs');
@@ -338,10 +363,10 @@ export function renderClassDiagram(
       .append('text')
       .attr('class', 'chart-title')
       .attr('x', width / 2)
-      .attr('y', TITLE_Y)
+      .attr('y', sTitleY)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .style(
         'cursor',
@@ -426,7 +451,7 @@ export function renderClassDiagram(
         .attr('d', pathD)
         .attr('fill', 'none')
         .attr('stroke', edgeColor)
-        .attr('stroke-width', EDGE_STROKE_WIDTH)
+        .attr('stroke-width', sEdgeStrokeWidth)
         .attr('class', 'cd-edge');
 
       if (dashed) {
@@ -466,7 +491,7 @@ export function renderClassDiagram(
         .attr('y', midPt.y + 4)
         .attr('text-anchor', 'middle')
         .attr('fill', edgeColor)
-        .attr('font-size', EDGE_LABEL_FONT_SIZE)
+        .attr('font-size', sEdgeLabelFontSize)
         .attr('class', 'cd-edge-label')
         .text(edge.label);
     }
@@ -521,7 +546,7 @@ export function renderClassDiagram(
       .attr('ry', 3)
       .attr('fill', fill)
       .attr('stroke', stroke)
-      .attr('stroke-width', NODE_STROKE_WIDTH);
+      .attr('stroke-width', sNodeStrokeWidth);
 
     // Header section
     let yPos = -h / 2;
@@ -537,11 +562,10 @@ export function renderClassDiagram(
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
         .attr('fill', onFillText)
-        .attr('font-size', MEMBER_FONT_SIZE)
+        .attr('font-size', sMemberFontSize)
         .attr('font-style', 'italic')
         .text(badgeText);
 
-      // Class name below badge — contrast against fill
       nodeG
         .append('text')
         .attr('x', 0)
@@ -549,12 +573,11 @@ export function renderClassDiagram(
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
         .attr('fill', onFillText)
-        .attr('font-size', CLASS_FONT_SIZE)
+        .attr('font-size', sClassFontSize)
         .attr('font-weight', 'bold')
         .attr('font-style', node.modifier === 'abstract' ? 'italic' : 'normal')
         .text(node.name);
     } else {
-      // Just class name centered
       nodeG
         .append('text')
         .attr('x', 0)
@@ -562,7 +585,7 @@ export function renderClassDiagram(
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
         .attr('fill', onFillText)
-        .attr('font-size', CLASS_FONT_SIZE)
+        .attr('font-size', sClassFontSize)
         .attr('font-weight', 'bold')
         .text(node.name);
     }
@@ -586,17 +609,17 @@ export function renderClassDiagram(
         .attr('stroke-width', 0.5)
         .attr('stroke-opacity', 0.5);
 
-      let memberY = yPos + COMPARTMENT_PADDING_Y;
+      let memberY = yPos + sCompartmentPaddingY;
       for (const member of node.members) {
         nodeG
           .append('text')
-          .attr('x', -w / 2 + MEMBER_PADDING_X)
-          .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
+          .attr('x', -w / 2 + sMemberPaddingX)
+          .attr('y', memberY + sMemberLineHeight / 2)
           .attr('dominant-baseline', 'central')
           .attr('fill', onFillText)
-          .attr('font-size', MEMBER_FONT_SIZE)
+          .attr('font-size', sMemberFontSize)
           .text(member.name);
-        memberY += MEMBER_LINE_HEIGHT;
+        memberY += sMemberLineHeight;
       }
     } else {
       // UML 3-compartment layout: always show both separators
@@ -613,7 +636,7 @@ export function renderClassDiagram(
         .attr('stroke-opacity', 0.5);
 
       if (fields.length > 0) {
-        let memberY = yPos + COMPARTMENT_PADDING_Y;
+        let memberY = yPos + sCompartmentPaddingY;
         for (const field of fields) {
           const vis = visibilitySymbol(field.visibility);
           let text = `${vis} ${field.name}`;
@@ -621,18 +644,18 @@ export function renderClassDiagram(
 
           const textEl = nodeG
             .append('text')
-            .attr('x', -w / 2 + MEMBER_PADDING_X)
-            .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
+            .attr('x', -w / 2 + sMemberPaddingX)
+            .attr('y', memberY + sMemberLineHeight / 2)
             .attr('dominant-baseline', 'central')
             .attr('fill', onFillText)
-            .attr('font-size', MEMBER_FONT_SIZE);
+            .attr('font-size', sMemberFontSize);
 
           if (field.isStatic) {
             textEl.attr('text-decoration', 'underline');
           }
           textEl.text(text);
 
-          memberY += MEMBER_LINE_HEIGHT;
+          memberY += sMemberLineHeight;
         }
       }
       yPos += node.fieldsHeight;
@@ -649,7 +672,7 @@ export function renderClassDiagram(
         .attr('stroke-opacity', 0.5);
 
       if (methods.length > 0) {
-        let memberY = yPos + COMPARTMENT_PADDING_Y;
+        let memberY = yPos + sCompartmentPaddingY;
         for (const method of methods) {
           const vis = visibilitySymbol(method.visibility);
           let text = `${vis} ${method.name}(${method.params ?? ''})`;
@@ -657,18 +680,18 @@ export function renderClassDiagram(
 
           const textEl = nodeG
             .append('text')
-            .attr('x', -w / 2 + MEMBER_PADDING_X)
-            .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
+            .attr('x', -w / 2 + sMemberPaddingX)
+            .attr('y', memberY + sMemberLineHeight / 2)
             .attr('dominant-baseline', 'central')
             .attr('fill', onFillText)
-            .attr('font-size', MEMBER_FONT_SIZE);
+            .attr('font-size', sMemberFontSize);
 
           if (method.isStatic) {
             textEl.attr('text-decoration', 'underline');
           }
           textEl.text(text);
 
-          memberY += MEMBER_LINE_HEIGHT;
+          memberY += sMemberLineHeight;
         }
       }
     }

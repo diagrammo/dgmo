@@ -9,6 +9,7 @@ import { getSeriesColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { normalizeName } from '../utils/name-normalize';
 import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
+import { ScaleContext } from '../utils/scaling';
 import { computeTimeTicks } from '../utils/time-ticks';
 import {
   LEGEND_HEIGHT,
@@ -75,15 +76,15 @@ function computeBarLabel(
   barWidth: number,
   innerWidth: number,
   textColor: string,
-  // Optional: color for labels rendered inside the bar (text-on-fill).
-  // Falls back to textColor for outside placements.
-  onFillColor?: string
+  onFillColor?: string,
+  charW = CHAR_W,
+  labelPad = LABEL_PAD,
+  labelGap = LABEL_GAP
 ): BarLabelPlacement | null {
-  const textWidth = label.length * CHAR_W;
+  const textWidth = label.length * charW;
   const x2 = x1 + barWidth;
 
-  // 1. Inside (text-on-fill \u2014 use contrast color when available)
-  if (textWidth < barWidth - LABEL_PAD) {
+  if (textWidth < barWidth - labelPad) {
     return {
       x: x1 + 6,
       anchor: 'start',
@@ -92,22 +93,19 @@ function computeBarLabel(
     };
   }
 
-  // 2. After (right of bar)
-  if (x2 + LABEL_GAP + textWidth <= innerWidth) {
-    return { x: x2 + LABEL_GAP, anchor: 'start', fill: textColor, text: label };
+  if (x2 + labelGap + textWidth <= innerWidth) {
+    return { x: x2 + labelGap, anchor: 'start', fill: textColor, text: label };
   }
 
-  // 3. Before (left of bar)
-  if (x1 - LABEL_GAP - textWidth >= 0) {
-    return { x: x1 - LABEL_GAP, anchor: 'end', fill: textColor, text: label };
+  if (x1 - labelGap - textWidth >= 0) {
+    return { x: x1 - labelGap, anchor: 'end', fill: textColor, text: label };
   }
 
-  // 4. Truncate to fit before the bar
-  const availWidth = x1 - LABEL_GAP;
-  if (availWidth > CHAR_W * 3) {
-    const maxChars = Math.floor(availWidth / CHAR_W) - 1;
+  const availWidth = x1 - labelGap;
+  if (availWidth > charW * 3) {
+    const maxChars = Math.floor(availWidth / charW) - 1;
     return {
-      x: x1 - LABEL_GAP,
+      x: x1 - labelGap,
       anchor: 'end',
       fill: textColor,
       text: label.slice(0, maxChars) + '\u2026',
@@ -132,14 +130,16 @@ function renderLabelBand(
   isDark: boolean,
   cssPrefix: 'group' | 'lane',
   dataAttr?: { key: string; value: string },
-  solid?: boolean
+  solid?: boolean,
+  barH = BAR_H,
+  bandRadius = BAND_RADIUS,
+  bandAccentW = BAND_ACCENT_W
 ): void {
   const bandX = 5;
   const bandW = leftMargin - 7;
-  const bandY = y - BAR_H / 2;
+  const bandY = y - barH / 2;
   const clipId = `gantt-band-clip-${bandClipCounter++}`;
 
-  // ClipPath matching the tint band shape
   svg
     .append('clipPath')
     .attr('id', clipId)
@@ -147,18 +147,17 @@ function renderLabelBand(
     .attr('x', bandX)
     .attr('y', bandY)
     .attr('width', bandW)
-    .attr('height', BAR_H)
-    .attr('rx', BAND_RADIUS);
+    .attr('height', barH)
+    .attr('rx', bandRadius);
 
-  // Tint band
   const tint = svg
     .append('rect')
     .attr('class', `gantt-${cssPrefix}-band-bg`)
     .attr('x', bandX)
     .attr('y', bandY)
     .attr('width', bandW)
-    .attr('height', BAR_H)
-    .attr('rx', BAND_RADIUS)
+    .attr('height', barH)
+    .attr('rx', bandRadius)
     .attr(
       'fill',
       shapeFill(palette, color, isDark, {
@@ -167,14 +166,13 @@ function renderLabelBand(
     )
     .style('pointer-events', 'none');
 
-  // Accent strip inside the tint, clipped to the band's rounded shape
   const accent = svg
     .append('rect')
     .attr('class', `gantt-${cssPrefix}-band-accent`)
     .attr('x', bandX)
     .attr('y', bandY)
-    .attr('width', BAND_ACCENT_W)
-    .attr('height', BAR_H)
+    .attr('width', bandAccentW)
+    .attr('height', barH)
     .attr('fill', color)
     .attr('clip-path', `url(#${clipId})`)
     .style('pointer-events', 'none');
@@ -331,45 +329,74 @@ export function renderGantt(
   const sprintLabelReserve = resolved.sprints.length > 0 ? 16 : 0; // sprint hover label above date labels
   const CONTENT_TOP_PAD = 16; // breathing room between scale labels and first row
 
-  const marginTop =
-    titleHeight +
-    tagLegendReserve +
-    eraReserve +
-    markerReserve +
-    todayReserve +
-    topDateLabelReserve +
-    sprintLabelReserve;
-
-  // Y offsets (negative = above chart's y=0). Each row's label sits at center.
-  const todayLabelY = todayReserve
-    ? -(topDateLabelReserve + HEADER_ROW_H / 2)
-    : 0;
-  const markerLabelY = markerReserve
-    ? -(topDateLabelReserve + todayReserve + HEADER_ROW_H / 2)
-    : 0;
-  const eraLabelY = eraReserve
-    ? -(topDateLabelReserve + todayReserve + markerReserve + HEADER_ROW_H / 2)
-    : 0;
-
-  // Content area
-  const contentH = isTagMode
-    ? totalRows * (BAR_H + ROW_GAP)
-    : totalRows * (BAR_H + ROW_GAP) + GROUP_GAP * resolved.groups.length;
-  const innerHeight = CONTENT_TOP_PAD + contentH;
-  const outerHeight = marginTop + innerHeight + BOTTOM_MARGIN;
-
   const containerWidth = exportDims?.width ?? (container.clientWidth || 800);
+
+  const idealWidth = leftMargin + totalRows * 20 + RIGHT_MARGIN + 200;
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(containerWidth, idealWidth);
+
+  const sBarH = ctx.structural(BAR_H);
+  const sRowGap = ctx.structural(ROW_GAP);
+  const sGroupGap = ctx.structural(GROUP_GAP);
+  const sMilestoneSize = ctx.structural(MILESTONE_SIZE);
+  const sBottomMargin = ctx.aesthetic(BOTTOM_MARGIN);
+  const sRightMargin = ctx.aesthetic(RIGHT_MARGIN);
+  const sCharW = ctx.text(CHAR_W, 4);
+  const sLabelPad = ctx.structural(LABEL_PAD);
+  const sLabelGap = ctx.structural(LABEL_GAP);
+  const sBandAccentW = ctx.structural(BAND_ACCENT_W);
+  const sBandRadius = ctx.structural(BAND_RADIUS);
+  const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
+  const sTitleY = ctx.aesthetic(TITLE_Y);
+  const sHeaderRowH = ctx.structural(HEADER_ROW_H);
+  const sContentTopPad = ctx.aesthetic(CONTENT_TOP_PAD);
+  const sTopDateLabelReserve = ctx.structural(topDateLabelReserve);
+  const sSprintLabelReserve = ctx.structural(sprintLabelReserve);
+  const sTitleHeight = ctx.aesthetic(titleHeight);
+  const sTagLegendReserve = ctx.structural(tagLegendReserve);
+  const sEraReserve = ctx.structural(eraReserve);
+  const sMarkerReserve = ctx.structural(markerReserve);
+  const sTodayReserve = ctx.structural(todayReserve);
+  const sFont10 = ctx.text(10);
+  const sFont11 = ctx.text(11);
+
+  const sMarginTop =
+    sTitleHeight +
+    sTagLegendReserve +
+    sEraReserve +
+    sMarkerReserve +
+    sTodayReserve +
+    sTopDateLabelReserve +
+    sSprintLabelReserve;
+
+  const sTodayLabelY = sTodayReserve
+    ? -(sTopDateLabelReserve + sHeaderRowH / 2)
+    : 0;
+  const sMarkerLabelY = sMarkerReserve
+    ? -(sTopDateLabelReserve + sTodayReserve + sHeaderRowH / 2)
+    : 0;
+  const sEraLabelY = sEraReserve
+    ? -(sTopDateLabelReserve + sTodayReserve + sMarkerReserve + sHeaderRowH / 2)
+    : 0;
+
+  const sContentH = isTagMode
+    ? totalRows * (sBarH + sRowGap)
+    : totalRows * (sBarH + sRowGap) + sGroupGap * resolved.groups.length;
+  const sInnerHeight = sContentTopPad + sContentH;
+  const sOuterHeight = sMarginTop + sInnerHeight + sBottomMargin;
+
   // Extra right margin when sprints present so hover date labels aren't clipped
   const sprintRightPad = resolved.sprints.length > 0 ? 50 : 0;
   const innerWidth =
-    containerWidth - leftMargin - RIGHT_MARGIN - sprintRightPad;
+    containerWidth - leftMargin - sRightMargin - sprintRightPad;
 
   // ── Create SVG ──────────────────────────────────────────
 
   const svg = d3Selection
     .select(container)
     .append('svg')
-    .attr('viewBox', `0 0 ${containerWidth} ${outerHeight}`)
+    .attr('viewBox', `0 0 ${containerWidth} ${sOuterHeight}`)
     .attr('width', exportDims ? containerWidth : '100%')
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('font-family', FONT_FAMILY)
@@ -377,18 +404,16 @@ export function renderGantt(
 
   const g = svg
     .append('g')
-    .attr('transform', `translate(${leftMargin}, ${marginTop})`);
-
-  // ── Title (y=30, consistent with timeline) ──
+    .attr('transform', `translate(${leftMargin}, ${sMarginTop})`);
 
   if (showTitle) {
     svg
       .append('text')
       .attr('class', 'chart-title')
       .attr('x', containerWidth / 2)
-      .attr('y', TITLE_Y)
+      .attr('y', sTitleY)
       .attr('text-anchor', 'middle')
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
       .text(title);
@@ -399,7 +424,7 @@ export function renderGantt(
   function drawLegend() {
     svg.selectAll('.gantt-tag-legend-container').remove();
     if (resolved.tagGroups.length > 0 || hasCriticalPath || hasDependencies) {
-      const legendY = titleHeight;
+      const legendY = sTitleHeight;
       renderTagLegend(
         svg,
         g,
@@ -496,22 +521,18 @@ export function renderGantt(
     .range([0, innerWidth]);
 
   // Render time scale ticks (bottom only)
-  renderTimeScaleHorizontal(g, xScale, innerWidth, innerHeight, palette.text);
+  renderTimeScaleHorizontal(g, xScale, innerWidth, sInnerHeight, palette.text);
 
-  // Date labels are rendered at the bottom only (via renderTimeScaleHorizontal)
-
-  // ── Weekend + holiday bands ─────────────────────────────
-
-  renderWeekendBands(g, resolved, xScale, innerHeight, palette, isDark);
+  renderWeekendBands(g, resolved, xScale, sInnerHeight, palette, isDark);
   renderHolidayBands(
     g,
     svg,
     resolved,
     xScale,
-    innerHeight,
+    sInnerHeight,
     palette,
     isDark,
-    marginTop - 4,
+    sMarginTop - 4,
     leftMargin,
     onClickItem
   );
@@ -520,12 +541,12 @@ export function renderGantt(
     svg,
     resolved,
     xScale,
-    innerHeight,
+    sInnerHeight,
     palette,
-    eraLabelY,
-    markerLabelY
+    sEraLabelY,
+    sMarkerLabelY
   );
-  renderSprintBands(g, svg, resolved, xScale, innerHeight, palette);
+  renderSprintBands(g, svg, resolved, xScale, sInnerHeight, palette);
 
   // ── Today marker (line rendered before rows so it paints behind task bars) ──
 
@@ -542,7 +563,7 @@ export function renderGantt(
         .attr('x1', todayX)
         .attr('y1', 0)
         .attr('x2', todayX)
-        .attr('y2', innerHeight + 10)
+        .attr('y2', sInnerHeight + 10)
         .attr('stroke', todayColor)
         .attr('stroke-width', 2)
         .attr('stroke-dasharray', '6 4')
@@ -555,9 +576,9 @@ export function renderGantt(
         .append('text')
         .attr('class', 'gantt-today')
         .attr('x', todayX)
-        .attr('y', todayLabelY)
+        .attr('y', sTodayLabelY)
         .attr('text-anchor', 'middle')
-        .attr('font-size', '10px')
+        .attr('font-size', `${sFont10}px`)
         .attr('fill', todayColor)
         .attr('opacity', 0.7)
         .attr('pointer-events', 'none')
@@ -604,17 +625,15 @@ export function renderGantt(
       }
     }
   }
-  let yOffset = CONTENT_TOP_PAD;
+  let yOffset = sContentTopPad;
 
   for (const row of rows) {
     if (row.type === 'lane-header') {
-      // ── Lane header (tag swimlane mode) ──
       const laneColor =
         row.laneColor === '#999999' ? palette.textMuted : row.laneColor;
       const toggleIcon = row.isCollapsed ? '►' : '▼';
       const labelX = 10;
 
-      // Compute lane bar x range from task dates
       let lx1 = 0;
       let lx2 = innerWidth; // eslint-disable-line no-useless-assignment
       let laneBarWidth = innerWidth;
@@ -627,19 +646,22 @@ export function renderGantt(
       lanePositions.set(row.laneName, {
         x1: lx1,
         x2: lx1 + laneBarWidth,
-        y: yOffset + BAR_H / 2,
+        y: yOffset + sBarH / 2,
       });
 
       renderLabelBand(
         svg,
-        marginTop + yOffset + BAR_H / 2,
+        sMarginTop + yOffset + sBarH / 2,
         leftMargin,
         laneColor,
         palette,
         isDark,
         'lane',
         { key: 'data-lane', value: row.laneName },
-        solid
+        solid,
+        sBarH,
+        sBandRadius,
+        sBandAccentW
       );
       const labelG = svg
         .append('g')
@@ -658,7 +680,7 @@ export function renderGantt(
               xScale,
               row.laneStartDate,
               row.laneEndDate,
-              innerHeight,
+              sInnerHeight,
               laneColor
             );
           }
@@ -668,14 +690,13 @@ export function renderGantt(
           hideGanttDateIndicators(g);
         });
 
-      // Label with toggle icon
       labelG
         .append('text')
         .attr('x', labelX)
-        .attr('y', marginTop + yOffset + BAR_H / 2)
+        .attr('y', sMarginTop + yOffset + sBarH / 2)
         .attr('dy', '0.35em')
         .attr('text-anchor', 'start')
-        .attr('font-size', '11px')
+        .attr('font-size', `${sFont11}px`)
         .attr('font-weight', 'bold')
         .attr('fill', laneColor)
         .text(
@@ -701,7 +722,7 @@ export function renderGantt(
                 xScale,
                 row.laneStartDate,
                 row.laneEndDate,
-                innerHeight,
+                sInnerHeight,
                 laneColor
               );
             }
@@ -717,13 +738,12 @@ export function renderGantt(
           .attr('x', lx1)
           .attr('y', yOffset)
           .attr('width', laneBarWidth)
-          .attr('height', BAR_H)
+          .attr('height', sBarH)
           .attr('rx', 4)
           .attr('fill', barFill)
           .attr('stroke', laneColor)
           .attr('stroke-width', 2);
 
-        // Aggregate progress fill
         if (row.aggregateProgress !== null && row.aggregateProgress > 0) {
           laneBandG
             .append('rect')
@@ -734,14 +754,14 @@ export function renderGantt(
               'width',
               laneBarWidth * Math.min(row.aggregateProgress / 100, 1)
             )
-            .attr('height', BAR_H)
+            .attr('height', sBarH)
             .attr('fill', laneColor)
             .attr('opacity', 0.5)
             .attr('pointer-events', 'none');
         }
       }
 
-      yOffset += BAR_H + ROW_GAP;
+      yOffset += sBarH + sRowGap;
     } else if (row.type === 'group') {
       const group = row.group;
       const isCollapsed = collapsedGroups?.has(group.name) ?? false;
@@ -760,14 +780,17 @@ export function renderGantt(
           : group.color || palette.textMuted;
       renderLabelBand(
         svg,
-        marginTop + yOffset + BAR_H / 2,
+        sMarginTop + yOffset + sBarH / 2,
         leftMargin,
         groupColor,
         palette,
         isDark,
         'group',
         { key: 'data-group', value: group.name },
-        solid
+        solid,
+        sBarH,
+        sBandRadius,
+        sBandAccentW
       );
       const labelG = svg
         .append('g')
@@ -785,7 +808,7 @@ export function renderGantt(
             xScale,
             group.startDate,
             group.endDate,
-            innerHeight,
+            sInnerHeight,
             groupColor
           );
         })
@@ -800,10 +823,10 @@ export function renderGantt(
       labelG
         .append('text')
         .attr('x', labelX)
-        .attr('y', marginTop + yOffset + BAR_H / 2)
+        .attr('y', sMarginTop + yOffset + sBarH / 2)
         .attr('dy', '0.35em')
         .attr('text-anchor', 'start')
-        .attr('font-size', '11px')
+        .attr('font-size', `${sFont11}px`)
         .attr('font-weight', 'bold')
         .attr('fill', palette.text)
         .text(
@@ -835,7 +858,7 @@ export function renderGantt(
                 xScale,
                 group.startDate,
                 group.endDate,
-                innerHeight,
+                sInnerHeight,
                 groupColor
               );
             })
@@ -849,25 +872,23 @@ export function renderGantt(
             .attr('x', gx1)
             .attr('y', yOffset)
             .attr('width', barWidth)
-            .attr('height', BAR_H)
+            .attr('height', sBarH)
             .attr('rx', 4)
             .attr('fill', shapeFill(palette, groupColor, isDark, { solid }))
             .attr('stroke', groupColor)
             .attr('stroke-width', 2);
 
-          // Aggregate progress fill
           if (group.progress !== null && group.progress > 0) {
             summaryG
               .append('rect')
               .attr('x', gx1)
               .attr('y', yOffset)
               .attr('width', barWidth * Math.min(group.progress / 100, 1))
-              .attr('height', BAR_H)
+              .attr('height', sBarH)
               .attr('fill', groupColor)
               .attr('opacity', 0.5);
           }
 
-          // Bar label (inside → after → before → truncate)
           const summaryLabel =
             group.name +
             (group.progress !== null ? ` ${Math.round(group.progress)}%` : '');
@@ -881,15 +902,18 @@ export function renderGantt(
               shapeFill(palette, groupColor, isDark, { solid }),
               palette.textOnFillLight,
               palette.textOnFillDark
-            )
+            ),
+            sCharW,
+            sLabelPad,
+            sLabelGap
           );
           if (summaryPlacement) {
             summaryG
               .append('text')
               .attr('x', summaryPlacement.x)
-              .attr('y', yOffset + BAR_H / 2)
+              .attr('y', yOffset + sBarH / 2)
               .attr('dy', '0.35em')
-              .attr('font-size', '10px')
+              .attr('font-size', `${sFont10}px`)
               .attr('font-weight', 'bold')
               .attr('text-anchor', summaryPlacement.anchor)
               .attr('fill', summaryPlacement.fill)
@@ -897,14 +921,12 @@ export function renderGantt(
               .text(summaryPlacement.text);
           }
 
-          // Track collapsed group position for dependency arrow redirection
           groupPositions.set(group.name, {
             x1: gx1,
             x2: gx1 + barWidth,
-            y: yOffset + BAR_H / 2,
+            y: yOffset + sBarH / 2,
           });
         } else {
-          // Expanded: bar spanning group date range (matches task bar style)
           const groupBarWidth = Math.max(gx2 - gx1, 2);
           const bandFill = shapeFill(palette, groupColor, isDark, { solid });
           const groupBarG = g
@@ -919,7 +941,7 @@ export function renderGantt(
                 xScale,
                 group.startDate,
                 group.endDate,
-                innerHeight,
+                sInnerHeight,
                 groupColor
               );
             })
@@ -933,13 +955,12 @@ export function renderGantt(
             .attr('x', gx1)
             .attr('y', yOffset)
             .attr('width', groupBarWidth)
-            .attr('height', BAR_H)
+            .attr('height', sBarH)
             .attr('rx', 4)
             .attr('fill', bandFill)
             .attr('stroke', groupColor)
             .attr('stroke-width', 2);
 
-          // Aggregate progress fill
           if (group.progress !== null && group.progress > 0) {
             groupBarG
               .append('rect')
@@ -947,12 +968,11 @@ export function renderGantt(
               .attr('x', gx1)
               .attr('y', yOffset)
               .attr('width', groupBarWidth * Math.min(group.progress / 100, 1))
-              .attr('height', BAR_H)
+              .attr('height', sBarH)
               .attr('fill', groupColor)
               .attr('opacity', 0.5);
           }
 
-          // Bar label (inside → after → before → truncate)
           const expandedLabel =
             group.name +
             (group.progress !== null ? ` ${Math.round(group.progress)}%` : '');
@@ -966,15 +986,18 @@ export function renderGantt(
               shapeFill(palette, groupColor, isDark, { solid }),
               palette.textOnFillLight,
               palette.textOnFillDark
-            )
+            ),
+            sCharW,
+            sLabelPad,
+            sLabelGap
           );
           if (expandedPlacement) {
             groupBarG
               .append('text')
               .attr('x', expandedPlacement.x)
-              .attr('y', yOffset + BAR_H / 2)
+              .attr('y', yOffset + sBarH / 2)
               .attr('dy', '0.35em')
-              .attr('font-size', '10px')
+              .attr('font-size', `${sFont10}px`)
               .attr('font-weight', 'bold')
               .attr('text-anchor', expandedPlacement.anchor)
               .attr('fill', expandedPlacement.fill)
@@ -984,12 +1007,11 @@ export function renderGantt(
         }
       }
 
-      yOffset += BAR_H + ROW_GAP;
+      yOffset += sBarH + sRowGap;
     } else if (row.type === 'task') {
       const rt = row.task;
       const task = rt.task;
 
-      // Resolve bar color early so icon tspan can use it
       const barColor = resolveTaskColor(
         rt,
         currentActiveGroup,
@@ -998,20 +1020,18 @@ export function renderGantt(
         palette
       );
 
-      // Task label on the left (left-aligned with indent; flat in tag mode)
       const depth = rt.groupPath.length;
       const indent = depth <= 2 ? depth * 14 : 2 * 14 + (depth - 2) * 8;
       const taskLabelX = isTagMode ? 20 : 6 + indent;
-      // In-bounds by length check above.
       const topGroup = rt.groupPath.length > 0 ? rt.groupPath[0]! : null;
       const taskLabel = svg
         .append('text')
         .attr('class', 'gantt-task-label')
         .attr('x', taskLabelX)
-        .attr('y', marginTop + yOffset + BAR_H / 2)
+        .attr('y', sMarginTop + yOffset + sBarH / 2)
         .attr('dy', '0.35em')
         .attr('text-anchor', 'start')
-        .attr('font-size', '11px')
+        .attr('font-size', `${sFont11}px`)
         .attr('fill', palette.text)
         .attr('data-line-number', String(task.lineNumber))
         .attr('data-task-id', task.id)
@@ -1048,12 +1068,11 @@ export function renderGantt(
       }
 
       if (rt.isMilestone) {
-        // Render diamond
         const mx = xScale(dateToFractionalYear(rt.startDate));
-        const my = yOffset + BAR_H / 2;
+        const my = yOffset + sBarH / 2;
         g.append('polygon')
           .attr('class', 'gantt-milestone')
-          .attr('points', diamondPoints(mx, my, MILESTONE_SIZE))
+          .attr('points', diamondPoints(mx, my, sMilestoneSize))
           .attr('fill', barColor)
           .attr('stroke', barColor)
           .attr('stroke-width', 1.5)
@@ -1072,17 +1091,16 @@ export function renderGantt(
               xScale,
               rt.startDate,
               null,
-              innerHeight,
+              sInnerHeight,
               barColor
             );
-            // Show label next to diamond
             g.append('text')
               .attr('class', 'gantt-milestone-hover-label')
-              .attr('x', mx - MILESTONE_SIZE - 4)
+              .attr('x', mx - sMilestoneSize - 4)
               .attr('y', my)
               .attr('dy', '0.35em')
               .attr('text-anchor', 'end')
-              .attr('font-size', '10px')
+              .attr('font-size', `${sFont10}px`)
               .attr('fill', barColor)
               .attr('font-weight', '600')
               .text(task.label);
@@ -1093,7 +1111,6 @@ export function renderGantt(
             g.selectAll('.gantt-milestone-hover-label').remove();
           });
 
-        // Track milestone position for arrows
         taskPositions.set(task.id, { x1: mx, x2: mx, y: my });
       } else {
         // Render bar
@@ -1126,7 +1143,7 @@ export function renderGantt(
               xScale,
               rt.startDate,
               rt.endDate,
-              innerHeight,
+              sInnerHeight,
               barColor
             );
           })
@@ -1205,24 +1222,21 @@ export function renderGantt(
           barStroke = `url(#${strokeGradId})`;
         }
 
-        // Main bar
         taskG
           .append('rect')
           .attr('x', x1)
           .attr('y', yOffset)
           .attr('width', barWidth)
-          .attr('height', BAR_H)
+          .attr('height', sBarH)
           .attr('rx', 4)
           .attr('fill', barFill)
           .attr('stroke', barStroke)
           .attr('stroke-width', 2);
 
-        // Progress fill
         if (task.progress !== null && task.progress > 0) {
           const progressWidth = barWidth * Math.min(task.progress / 100, 1);
           let progressFill: string = barColor;
           if (showUncertainFade) {
-            // Scale gradient stops relative to progress width within the full bar
             const ratio = barWidth / progressWidth;
             const fadeStart = Math.min(50 * ratio, 100);
             const defs = svg.select<SVGDefsElement>('defs');
@@ -1257,17 +1271,15 @@ export function renderGantt(
             .attr('x', x1)
             .attr('y', yOffset)
             .attr('width', progressWidth)
-            .attr('height', BAR_H)
+            .attr('height', sBarH)
             .attr('fill', progressFill)
             .attr('opacity', 0.5);
         }
 
-        // Critical path data attribute (for legend hover highlighting)
         if (rt.isCriticalPath) {
           taskG.attr('data-critical-path', 'true');
         }
 
-        // Bar label (inside → after → before → truncate)
         const labelPlacement = computeBarLabel(
           task.label,
           x1,
@@ -1278,34 +1290,34 @@ export function renderGantt(
             shapeFill(palette, barColor, isDark, { solid }),
             palette.textOnFillLight,
             palette.textOnFillDark
-          )
+          ),
+          sCharW,
+          sLabelPad,
+          sLabelGap
         );
         if (labelPlacement) {
           taskG
             .append('text')
             .attr('x', labelPlacement.x)
-            .attr('y', yOffset + BAR_H / 2)
+            .attr('y', yOffset + sBarH / 2)
             .attr('dy', '0.35em')
-            .attr('font-size', '10px')
+            .attr('font-size', `${sFont10}px`)
             .attr('text-anchor', labelPlacement.anchor)
             .attr('fill', labelPlacement.fill)
             .attr('pointer-events', 'none')
             .text(labelPlacement.text);
         }
 
-        // Track bar position for arrows
         taskPositions.set(task.id, {
           x1,
           x2: x1 + barWidth,
-          y: yOffset + BAR_H / 2,
+          y: yOffset + sBarH / 2,
         });
       }
 
-      yOffset += BAR_H + ROW_GAP;
+      yOffset += sBarH + sRowGap;
     }
   }
-
-  // ── Today hover overlay (rendered after rows so it receives pointer events) ──
 
   if (todayDate && todayX >= 0 && todayX <= innerWidth) {
     const todayHoverG = g
@@ -1313,13 +1325,12 @@ export function renderGantt(
       .attr('class', 'gantt-today-hover')
       .style('cursor', 'pointer');
 
-    // Invisible wide hit rect for easy hovering
     todayHoverG
       .append('rect')
       .attr('x', todayX - 10)
       .attr('y', -6)
       .attr('width', 20)
-      .attr('height', innerHeight + 16)
+      .attr('height', sInnerHeight + 16)
       .attr('fill', 'transparent')
       .attr('pointer-events', 'all');
 
@@ -1366,7 +1377,7 @@ export function renderGantt(
           xScale,
           todayDateObj,
           null,
-          innerHeight,
+          sInnerHeight,
           todayColor
         );
       })

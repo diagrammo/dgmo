@@ -16,6 +16,7 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
+import { ScaleContext } from '../utils/scaling';
 
 // ============================================================
 // Constants
@@ -81,7 +82,6 @@ function selfLoopPath(node: LayoutNode): string {
   const cx = node.x;
   const cy = node.y;
   const r = node.width / 2;
-  // Loop from right side, arc above, back to right side
   const startX = cx + r;
   const startY = cy - 5;
   const endX = cx + r;
@@ -109,19 +109,38 @@ export function renderState(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
+  const idealWidth = layout.width + DIAGRAM_PADDING * 2;
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  const sDiagramPadding = ctx.aesthetic(DIAGRAM_PADDING);
+  const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
+  const sTitleY = ctx.structural(TITLE_Y);
+  const sNodeFontSize = ctx.text(NODE_FONT_SIZE);
+  const sEdgeLabelFontSize = ctx.text(EDGE_LABEL_FONT_SIZE);
+  const sGroupLabelFontSize = ctx.text(GROUP_LABEL_FONT_SIZE);
+  const sEdgeStrokeWidth = ctx.structural(EDGE_STROKE_WIDTH);
+  const sNodeStrokeWidth = ctx.structural(NODE_STROKE_WIDTH);
+  const sArrowheadW = ctx.structural(ARROWHEAD_W);
+  const sArrowheadH = ctx.structural(ARROWHEAD_H);
+  const sPseudostateRadius = ctx.structural(PSEUDOSTATE_RADIUS);
+  const sStateCornerRadius = ctx.structural(STATE_CORNER_RADIUS);
+  const sGroupExtraPadding = ctx.aesthetic(GROUP_EXTRA_PADDING);
+
   const showTitle = !!graph.title && graph.options['no-title'] !== 'on';
   const titleHeight = showTitle ? 40 : 0;
 
   const diagramW = layout.width;
   const diagramH = layout.height;
   const availH = height - titleHeight;
-  const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
-  const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
+  const scaleX = (width - sDiagramPadding * 2) / diagramW;
+  const scaleY = (availH - sDiagramPadding * 2) / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + DIAGRAM_PADDING;
+  const offsetY = titleHeight + sDiagramPadding;
 
   const svg = d3Selection
     .select(container)
@@ -130,50 +149,51 @@ export function renderState(
     .attr('height', height)
     .style('font-family', FONT_FAMILY);
 
-  // Defs: arrowhead markers
+  if (ctx.isBelowFloor) {
+    svg.attr('width', '100%').attr('viewBox', `0 0 ${width} ${height}`);
+  }
+
   const defs = svg.append('defs');
 
   defs
     .append('marker')
     .attr('id', 'st-arrow')
-    .attr('viewBox', `0 0 ${ARROWHEAD_W} ${ARROWHEAD_H}`)
-    .attr('refX', ARROWHEAD_W)
-    .attr('refY', ARROWHEAD_H / 2)
-    .attr('markerWidth', ARROWHEAD_W)
-    .attr('markerHeight', ARROWHEAD_H)
+    .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
+    .attr('refX', sArrowheadW)
+    .attr('refY', sArrowheadH / 2)
+    .attr('markerWidth', sArrowheadW)
+    .attr('markerHeight', sArrowheadH)
     .attr('orient', 'auto')
     .append('polygon')
-    .attr('points', `0,0 ${ARROWHEAD_W},${ARROWHEAD_H / 2} 0,${ARROWHEAD_H}`)
+    .attr('points', `0,0 ${sArrowheadW},${sArrowheadH / 2} 0,${sArrowheadH}`)
     .attr('fill', palette.textMuted);
 
-  // Edges have no color slot (§1.7); keep empty set for marker iteration.
   const edgeColors = new Set<string>();
   for (const color of edgeColors) {
     const id = `st-arrow-${color.replace('#', '')}`;
     defs
       .append('marker')
       .attr('id', id)
-      .attr('viewBox', `0 0 ${ARROWHEAD_W} ${ARROWHEAD_H}`)
-      .attr('refX', ARROWHEAD_W)
-      .attr('refY', ARROWHEAD_H / 2)
-      .attr('markerWidth', ARROWHEAD_W)
-      .attr('markerHeight', ARROWHEAD_H)
+      .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
+      .attr('refX', sArrowheadW)
+      .attr('refY', sArrowheadH / 2)
+      .attr('markerWidth', sArrowheadW)
+      .attr('markerHeight', sArrowheadH)
       .attr('orient', 'auto')
       .append('polygon')
-      .attr('points', `0,0 ${ARROWHEAD_W},${ARROWHEAD_H / 2} 0,${ARROWHEAD_H}`)
+      .attr('points', `0,0 ${sArrowheadW},${sArrowheadH / 2} 0,${sArrowheadH}`)
       .attr('fill', color);
   }
 
-  // Title
   if (showTitle) {
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
       .attr('x', width / 2)
-      .attr('y', TITLE_Y)
+      .attr('y', sTitleY)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .style(
         'cursor',
@@ -196,21 +216,17 @@ export function renderState(
     }
   }
 
-  // Content group
   const contentG = svg
     .append('g')
     .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
 
-  // Render groups (background layer)
-  // Collapsed groups are rendered in the node layer instead — skip them here
   for (const group of layout.groups) {
     if (group.collapsed) continue;
     if (group.width === 0 && group.height === 0) continue;
-    const gx = group.x - GROUP_EXTRA_PADDING;
-    const gy = group.y - GROUP_EXTRA_PADDING - GROUP_LABEL_FONT_SIZE - 4;
-    const gw = group.width + GROUP_EXTRA_PADDING * 2;
-    const gh =
-      group.height + GROUP_EXTRA_PADDING * 2 + GROUP_LABEL_FONT_SIZE + 4;
+    const gx = group.x - sGroupExtraPadding;
+    const gy = group.y - sGroupExtraPadding - sGroupLabelFontSize - 4;
+    const gw = group.width + sGroupExtraPadding * 2;
+    const gh = group.height + sGroupExtraPadding * 2 + sGroupLabelFontSize + 4;
 
     const fillColor = group.color
       ? mix(group.color, isDark ? palette.surface : palette.bg, 10)
@@ -247,33 +263,29 @@ export function renderState(
     groupWrapper
       .append('text')
       .attr('x', gx + 8)
-      .attr('y', gy + GROUP_LABEL_FONT_SIZE + 4)
+      .attr('y', gy + sGroupLabelFontSize + 4)
       .attr('fill', strokeColor)
-      .attr('font-size', GROUP_LABEL_FONT_SIZE)
+      .attr('font-size', sGroupLabelFontSize)
       .attr('font-weight', 'bold')
       .attr('opacity', 0.7)
       .attr('class', 'st-group-label')
       .text(group.label);
   }
 
-  // Build self-loop lookup
   const selfLoopEdges = new Set<number>();
   for (const edge of layout.edges) {
     if (edge.source === edge.target) selfLoopEdges.add(edge.lineNumber);
   }
 
-  // Build node position map for self-loops
   const nodePositionMap = new Map<string, LayoutNode>();
   for (const node of layout.nodes) {
     nodePositionMap.set(node.id, node);
   }
 
-  // Compute edge label positions with perpendicular offset to hug their path,
-  // then resolve remaining collisions.
   const LABEL_CHAR_W = 7;
   const LABEL_PAD = 8;
   const LABEL_H = 16;
-  const PERP_OFFSET = 10; // px offset perpendicular to edge direction
+  const PERP_OFFSET = 10;
 
   interface LabelPos {
     x: number;
@@ -285,7 +297,6 @@ export function renderState(
   const labelPositions: LabelPos[] = [];
 
   for (let ei = 0; ei < layout.edges.length; ei++) {
-    // In-bounds by loop guard.
     const edge = layout.edges[ei]!;
     if (!edge.label) continue;
     const bgW = edge.label.length * LABEL_CHAR_W + LABEL_PAD;
@@ -298,16 +309,13 @@ export function renderState(
       ly = node.y;
     } else if (edge.points.length >= 2) {
       const midIdx = Math.floor(edge.points.length / 2);
-      // In-bounds by length check (>= 2) and clamps below.
       const midPt = edge.points[midIdx]!;
-      // Compute perpendicular offset from edge direction at midpoint
       const prev = edge.points[Math.max(0, midIdx - 1)]!;
       const next = edge.points[Math.min(edge.points.length - 1, midIdx + 1)]!;
       const dx = next.x - prev.x;
       const dy = next.y - prev.y;
       const len = Math.sqrt(dx * dx + dy * dy);
       if (len > 0) {
-        // Normal vector (right-hand side of travel direction)
         lx = midPt.x + (-dy / len) * PERP_OFFSET;
         ly = midPt.y + (dx / len) * PERP_OFFSET;
       } else {
@@ -320,11 +328,9 @@ export function renderState(
     labelPositions.push({ x: lx, y: ly, w: bgW, h: LABEL_H, edgeIdx: ei });
   }
 
-  // Resolve remaining label collisions: nudge overlapping labels apart.
   labelPositions.sort((a, b) => a.y - b.y);
   for (let i = 0; i < labelPositions.length; i++) {
     for (let j = i + 1; j < labelPositions.length; j++) {
-      // In-bounds by loop guards.
       const a = labelPositions[i]!;
       const b = labelPositions[j]!;
       const overlapX = Math.abs(a.x - b.x) < (a.w + b.w) / 2;
@@ -335,13 +341,10 @@ export function renderState(
     }
   }
 
-  // Build lookup: edgeIdx → adjusted label position
   const labelPosMap = new Map<number, LabelPos>();
   for (const lp of labelPositions) labelPosMap.set(lp.edgeIdx, lp);
 
-  // Render edges (middle layer)
   for (let ei = 0; ei < layout.edges.length; ei++) {
-    // In-bounds by loop guard.
     const edge = layout.edges[ei]!;
     const edgeG = contentG
       .append('g')
@@ -352,7 +355,6 @@ export function renderState(
     const markerId = 'st-arrow';
 
     if (edge.source === edge.target) {
-      // Self-loop
       const node = nodePositionMap.get(edge.source);
       if (node) {
         edgeG
@@ -360,7 +362,7 @@ export function renderState(
           .attr('d', selfLoopPath(node))
           .attr('fill', 'none')
           .attr('stroke', edgeColor)
-          .attr('stroke-width', EDGE_STROKE_WIDTH)
+          .attr('stroke-width', sEdgeStrokeWidth)
           .attr('marker-end', `url(#${markerId})`)
           .attr('class', 'st-edge');
 
@@ -382,7 +384,7 @@ export function renderState(
             .attr('y', lp.y + 4)
             .attr('text-anchor', 'middle')
             .attr('fill', edgeColor)
-            .attr('font-size', EDGE_LABEL_FONT_SIZE)
+            .attr('font-size', sEdgeLabelFontSize)
             .attr('class', 'st-edge-label')
             .text(edge.label);
         }
@@ -395,7 +397,7 @@ export function renderState(
           .attr('d', pathD)
           .attr('fill', 'none')
           .attr('stroke', edgeColor)
-          .attr('stroke-width', EDGE_STROKE_WIDTH)
+          .attr('stroke-width', sEdgeStrokeWidth)
           .attr('marker-end', `url(#${markerId})`)
           .attr('class', 'st-edge');
       }
@@ -418,20 +420,18 @@ export function renderState(
           .attr('y', lp.y + 4)
           .attr('text-anchor', 'middle')
           .attr('fill', edgeColor)
-          .attr('font-size', EDGE_LABEL_FONT_SIZE)
+          .attr('font-size', sEdgeLabelFontSize)
           .attr('class', 'st-edge-label')
           .text(edge.label);
       }
     }
   }
 
-  // Build set of collapsed group IDs for special rendering
   const collapsedGroupIds = new Set<string>();
   for (const group of layout.groups) {
     if (group.collapsed) collapsedGroupIds.add(group.id);
   }
 
-  // Render nodes (top layer)
   const colorOff = graph.options?.['color'] === 'off';
   const solid = graph.options?.['solid-fill'] === 'on';
   for (const node of layout.nodes) {
@@ -461,16 +461,14 @@ export function renderState(
     }
 
     if (node.shape === 'pseudostate') {
-      // Filled circle
       nodeG
         .append('circle')
         .attr('cx', 0)
         .attr('cy', 0)
-        .attr('r', PSEUDOSTATE_RADIUS)
+        .attr('r', sPseudostateRadius)
         .attr('fill', palette.text)
         .attr('stroke', 'none');
     } else if (isCollapsedGroup) {
-      // Collapsed group — distinctive rounded rect with collapse bar
       const w = node.width;
       const h = node.height;
       const groupColor = node.color ?? stateDefaultColor(palette, colorOff);
@@ -478,20 +476,18 @@ export function renderState(
       const strokeColor = groupColor;
       const COLLAPSE_BAR_H = 6;
 
-      // Main rect
       nodeG
         .append('rect')
         .attr('x', -w / 2)
         .attr('y', -h / 2)
         .attr('width', w)
         .attr('height', h)
-        .attr('rx', STATE_CORNER_RADIUS)
-        .attr('ry', STATE_CORNER_RADIUS)
+        .attr('rx', sStateCornerRadius)
+        .attr('ry', sStateCornerRadius)
         .attr('fill', fillColor)
         .attr('stroke', strokeColor)
-        .attr('stroke-width', NODE_STROKE_WIDTH);
+        .attr('stroke-width', sNodeStrokeWidth);
 
-      // Collapse indicator bar at bottom (clipped to rounded corners)
       const clipId = `st-clip-${node.id.replace(/[[\]:\s]/g, '')}`;
       nodeG
         .append('clipPath')
@@ -501,7 +497,7 @@ export function renderState(
         .attr('y', -h / 2)
         .attr('width', w)
         .attr('height', h)
-        .attr('rx', STATE_CORNER_RADIUS);
+        .attr('rx', sStateCornerRadius);
       nodeG
         .append('rect')
         .attr('x', -w / 2)
@@ -512,7 +508,6 @@ export function renderState(
         .attr('opacity', 0.5)
         .attr('clip-path', `url(#${clipId})`);
 
-      // Label — contrast against the collapsed-group fill
       nodeG
         .append('text')
         .attr('x', 0)
@@ -527,10 +522,9 @@ export function renderState(
             palette.textOnFillDark
           )
         )
-        .attr('font-size', NODE_FONT_SIZE)
+        .attr('font-size', sNodeFontSize)
         .text(node.label);
     } else {
-      // State — rounded rectangle
       const w = node.width;
       const h = node.height;
       const resolvedFill = stateFill(
@@ -546,13 +540,12 @@ export function renderState(
         .attr('y', -h / 2)
         .attr('width', w)
         .attr('height', h)
-        .attr('rx', STATE_CORNER_RADIUS)
-        .attr('ry', STATE_CORNER_RADIUS)
+        .attr('rx', sStateCornerRadius)
+        .attr('ry', sStateCornerRadius)
         .attr('fill', resolvedFill)
         .attr('stroke', stateStroke(palette, node.color, colorOff))
-        .attr('stroke-width', NODE_STROKE_WIDTH);
+        .attr('stroke-width', sNodeStrokeWidth);
 
-      // Label — contrast against the state fill
       nodeG
         .append('text')
         .attr('x', 0)
@@ -567,7 +560,7 @@ export function renderState(
             palette.textOnFillDark
           )
         )
-        .attr('font-size', NODE_FONT_SIZE)
+        .attr('font-size', sNodeFontSize)
         .text(node.label);
     }
   }

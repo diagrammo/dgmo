@@ -34,6 +34,7 @@ import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import { ScaleContext } from '../utils/scaling';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -255,6 +256,29 @@ function wrapTextByChars(text: string, maxChars: number): string[] {
   return lines;
 }
 
+interface ScaledNodeConstants {
+  nodeRadius?: number;
+  nodeStrokeWidth?: number;
+  nodeTopRowHeight?: number;
+  nodeBottomRowHeight?: number;
+  nodeFontSize?: number;
+  nodeCellFontSize?: number;
+  pinIconW?: number;
+  pinIconH?: number;
+}
+
+interface ScaledGroupConstants extends ScaledNodeConstants {
+  containerRadius?: number;
+  containerLabelFontSize?: number;
+  containerHeaderHeight?: number;
+  collapseBarHeight?: number;
+}
+
+interface ScaledEdgeConstants {
+  edgeStrokeWidth?: number;
+  edgeLabelFontSize?: number;
+}
+
 const lineGenerator = d3Shape
   .line<{ x: number; y: number }>()
   .x((d) => d.x)
@@ -390,6 +414,7 @@ export interface PertRenderOptions {
   activeTagOverride?: string | null;
   /** True when rendering for export — strips collapsed pills and cog from legend. */
   exportMode?: boolean;
+  containerWidth?: number;
 }
 
 export function renderPert(
@@ -404,19 +429,8 @@ export function renderPert(
 
   const effectiveTitle = options.title;
   const effectiveSubtitle = options.subtitle ?? null;
-  // Title region reserves 80px when a title is present (legacy). When
-  // only the subtitle is present (e.g. `no-title` directive), reserve
-  // 50px — just enough to seat the subtitle line under the same top
-  // padding the title used.
   const titleHeight = effectiveTitle ? 80 : effectiveSubtitle ? 50 : 0;
 
-  // D10 — backward-anchor annotation. Italic framing note that names
-  // the end-date and tells readers ES/EF show "earliest possible"
-  // rather than the intended start. Rendered as the FINAL bullet
-  // inside the caption box (no longer a standalone subtitle), so the
-  // diagram body sits right under the title and the framing note
-  // lives next to the dates it qualifies. Forward mode emits a
-  // companion bullet naming the start-date for symmetry.
   const anchorAnnotation = anchorAnnotationText(resolved);
 
   const collapsedSet = new Set(options.collapsedGroupIds ?? []);
@@ -432,12 +446,6 @@ export function renderPert(
       italic: true,
     });
   }
-  // ── Analysis layer (Summary + Tornado + S-curve + Field labels) ──
-  // Hand off layout to the shared helper that's also used by the
-  // sibling-SVG path in the desktop preview. The helper packs the
-  // active widgets into one row at full canvas width (Field labels
-  // stacks under Summary in column 1) and falls back to a standalone
-  // Field-labels row when no other analysis widget is on.
   const analysisLayer = computeAnalysisLayer(resolved, captionBullets, {
     showSummary: options.showSummary ?? true,
     showTornado: options.showTornado ?? false,
@@ -452,16 +460,8 @@ export function renderPert(
     ? CAPTION_TOP_GAP +
       fieldLegendHeightFor(standaloneFieldLegendWidthForExport)
     : 0;
-  // Top legend (Critical Path / Anchor / Milestone). Reserves vertical
-  // space for the pill row plus its top/bottom breathing room. The
-  // desktop preview suppresses this and renders the legend in a sibling
-  // SVG instead, so the pills stay at native pixel size.
   const showTopLegend = options.showTopLegend ?? true;
   const legendEntries = showTopLegend ? pertLegendEntries(resolved) : [];
-  // Tag legend lives on a second row below the kind pills, using the
-  // shared `renderLegendD3` capsule so the active group expands to
-  // show its values (matches org / kanban / gantt behavior). Suppressed
-  // when `active-tag none` or no groups are declared.
   const tagLegendActive = resolveActiveTagGroup(
     resolved.tagGroups,
     resolved.options.activeTag,
@@ -476,12 +476,6 @@ export function renderPert(
       ? LEGEND_TOP_GAP + LEGEND_PILL_HEIGHT + LEGEND_BOTTOM_GAP
       : 0) + tagLegendBlockHeight;
 
-  // Natural size — fits all chrome without clipping. The diagram body
-  // claims the full canvas width; Analysis and Field-labels rows stack
-  // below at full width too. When the diagram is narrow but Analysis is
-  // on, the analysis layer reports a minimum width below which axis
-  // labels overlap and bars collapse — bump the canvas to honor it
-  // instead of producing an unreadable squeeze.
   const naturalChartWidth = layout.width + DIAGRAM_PADDING * 2;
   const minAnalysisRowW = analysisLayer.analysisHasContent
     ? analysisLayer.minContentWidth + 2 * DIAGRAM_PADDING
@@ -504,71 +498,117 @@ export function renderPert(
   );
   if (exportWidth <= 0 || exportHeight <= 0) return;
 
+  const ctx = options.exportDims
+    ? ScaleContext.identity()
+    : options.containerWidth != null
+      ? ScaleContext.from(options.containerWidth, naturalWidth)
+      : ScaleContext.identity();
+
+  const sDiagramPad = ctx.aesthetic(DIAGRAM_PADDING);
+  const sTitleHeight = ctx.aesthetic(titleHeight);
+  const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
+  const sTitleY = ctx.aesthetic(TITLE_Y);
+  const sSubtitleFontSize = ctx.text(13);
+  const sLegendTopGap = ctx.aesthetic(LEGEND_TOP_GAP);
+  const sLegendBottomGap = ctx.aesthetic(LEGEND_BOTTOM_GAP);
+  const sLegendPillHeight = ctx.structural(LEGEND_PILL_HEIGHT);
+  const sTagLegendBlockHeight = showTagLegend
+    ? sLegendPillHeight + sLegendBottomGap
+    : 0;
+  const sLegendBlockHeight =
+    (legendEntries.length > 0
+      ? sLegendTopGap + sLegendPillHeight + sLegendBottomGap
+      : 0) + sTagLegendBlockHeight;
+  const sNodeRadius = ctx.structural(NODE_RADIUS);
+  const sNodeStrokeWidth = ctx.structural(NODE_STROKE_WIDTH);
+  const sNodeFontSize = ctx.text(NODE_FONT_SIZE);
+  const sNodeCellFontSize = ctx.text(NODE_CELL_FONT_SIZE);
+  const sNodeTopRowHeight = ctx.structural(NODE_TOP_ROW_HEIGHT);
+  const sNodeBottomRowHeight = ctx.structural(NODE_BOTTOM_ROW_HEIGHT);
+  const sEdgeStrokeWidth = ctx.structural(EDGE_STROKE_WIDTH);
+  const sArrowheadW = ctx.structural(ARROWHEAD_W);
+  const sArrowheadH = ctx.structural(ARROWHEAD_H);
+  const sContainerRadius = ctx.structural(CONTAINER_RADIUS);
+  const sContainerLabelFontSize = ctx.text(CONTAINER_LABEL_FONT_SIZE);
+  const sContainerHeaderHeight = ctx.structural(CONTAINER_HEADER_HEIGHT);
+  const sCollapseBarHeight = ctx.structural(COLLAPSE_BAR_HEIGHT);
+  const sPinIconW = ctx.structural(PIN_ICON_W);
+  const sPinIconH = ctx.structural(PIN_ICON_H);
+
+  const scaledWidth = layout.width + sDiagramPad * 2;
+  const scaledHeight =
+    layout.height +
+    sDiagramPad * 2 +
+    sTitleHeight +
+    sLegendBlockHeight +
+    analysisBlockHeight +
+    fieldLegendBlockHeight;
+  const svgW = ctx.isBelowFloor ? exportWidth : scaledWidth;
+  const svgH = ctx.isBelowFloor ? exportHeight : scaledHeight;
+
   const svg = d3Selection
     .select(container)
     .append('svg')
-    .attr('width', exportWidth)
-    .attr('height', exportHeight)
-    .attr('viewBox', `0 0 ${exportWidth} ${exportHeight}`)
+    .attr('width', ctx.isBelowFloor ? '100%' : svgW)
+    .attr('height', svgH)
+    .attr('viewBox', `0 0 ${svgW} ${svgH}`)
     .style('font-family', FONT_FAMILY);
+  if (ctx.isBelowFloor) {
+    svg.attr('preserveAspectRatio', 'xMidYMin meet');
+  }
 
   const defs = svg.append('defs');
-  buildArrowheads(defs, palette);
+  buildArrowheads(defs, palette, sArrowheadW, sArrowheadH);
 
   if (effectiveTitle) {
     svg
       .append('text')
       .attr('class', 'pert-title chart-title')
-      .attr('x', exportWidth / 2)
-      .attr('y', TITLE_Y)
+      .attr('x', svgW / 2)
+      .attr('y', sTitleY)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .text(effectiveTitle);
   }
   if (effectiveSubtitle) {
-    // When the title is present sit ~26px below its baseline; when only
-    // the subtitle is present, take the title's slot.
-    const subtitleY = effectiveTitle ? TITLE_Y + 26 : TITLE_Y;
+    const subtitleY = effectiveTitle ? sTitleY + ctx.aesthetic(26) : sTitleY;
     svg
       .append('text')
       .attr('class', 'pert-subtitle')
-      .attr('x', exportWidth / 2)
+      .attr('x', svgW / 2)
       .attr('y', subtitleY)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.textMuted)
-      .attr('font-size', 13)
+      .attr('font-size', sSubtitleFontSize)
       .attr('font-weight', 400)
       .text(effectiveSubtitle);
   }
 
-  // Center the diagram horizontally when the canvas is wider than its
-  // natural chart width (the Analysis row may have forced the canvas
-  // wider than the diagram needs).
-  const offsetX = Math.max(DIAGRAM_PADDING, (exportWidth - layout.width) / 2);
-  const offsetY = DIAGRAM_PADDING + titleHeight + legendBlockHeight;
+  const offsetX = Math.max(sDiagramPad, (svgW - layout.width) / 2);
+  const offsetY = sDiagramPad + sTitleHeight + sLegendBlockHeight;
 
   if (legendEntries.length > 0) {
     renderLegendBlock(svg, legendEntries, {
       x: 0,
-      y: DIAGRAM_PADDING + titleHeight + LEGEND_TOP_GAP,
-      width: exportWidth,
+      y: sDiagramPad + sTitleHeight + sLegendTopGap,
+      width: svgW,
       palette,
       isDark,
     });
   }
   if (showTagLegend) {
     const tagLegendY =
-      DIAGRAM_PADDING +
-      titleHeight +
+      sDiagramPad +
+      sTitleHeight +
       (legendEntries.length > 0
-        ? LEGEND_TOP_GAP + LEGEND_PILL_HEIGHT
-        : LEGEND_TOP_GAP);
+        ? sLegendTopGap + sLegendPillHeight
+        : sLegendTopGap);
     renderTagLegendRow(svg, resolved, palette, isDark, {
       x: 0,
       y: tagLegendY,
-      width: exportWidth,
+      width: svgW,
       activeGroup: tagLegendActive,
       ...(options.exportMode !== undefined && {
         exportMode: options.exportMode,
@@ -581,8 +621,24 @@ export function renderPert(
     .attr('transform', `translate(${offsetX}, ${offsetY})`);
 
   const sizing = computeNodeSizing(resolved);
-  renderGroups(root, resolved, layout, palette, isDark, collapsedSet, sizing);
-  renderEdges(root, resolved, layout, palette, collapsedSet);
+  renderGroups(root, resolved, layout, palette, isDark, collapsedSet, sizing, {
+    nodeRadius: sNodeRadius,
+    nodeStrokeWidth: sNodeStrokeWidth,
+    containerRadius: sContainerRadius,
+    containerLabelFontSize: sContainerLabelFontSize,
+    containerHeaderHeight: sContainerHeaderHeight,
+    collapseBarHeight: sCollapseBarHeight,
+    nodeTopRowHeight: sNodeTopRowHeight,
+    nodeBottomRowHeight: sNodeBottomRowHeight,
+    nodeFontSize: sNodeFontSize,
+    nodeCellFontSize: sNodeCellFontSize,
+    pinIconW: sPinIconW,
+    pinIconH: sPinIconH,
+  });
+  renderEdges(root, resolved, layout, palette, collapsedSet, {
+    edgeStrokeWidth: sEdgeStrokeWidth,
+    edgeLabelFontSize: ctx.text(10),
+  });
   renderNodes(
     root,
     defs,
@@ -593,15 +649,19 @@ export function renderPert(
     sizing,
     options.onClickItem,
     collapsedSet,
-    options.activeTagOverride
+    options.activeTagOverride,
+    {
+      nodeRadius: sNodeRadius,
+      nodeStrokeWidth: sNodeStrokeWidth,
+      nodeTopRowHeight: sNodeTopRowHeight,
+      nodeBottomRowHeight: sNodeBottomRowHeight,
+      nodeFontSize: sNodeFontSize,
+      nodeCellFontSize: sNodeCellFontSize,
+      pinIconW: sPinIconW,
+      pinIconH: sPinIconH,
+    }
   );
 
-  // ── Place rows below the diagram ──────────────────────────────
-  // Layout:
-  //   [Diagram body]
-  //   (gap) [Analysis row — Summary | Tornado | S-curve, side-by-side]
-  //   (gap) [Field-labels row — full width]
-  // The helper handles both rows; layout fills the canvas width.
   paintAnalysisLayer(
     svg,
     resolved,
@@ -609,9 +669,9 @@ export function renderPert(
     isDark,
     analysisLayer,
     captionBullets,
-    DIAGRAM_PADDING,
+    sDiagramPad,
     offsetY + layout.height,
-    exportWidth - 2 * DIAGRAM_PADDING
+    svgW - 2 * sDiagramPad
   );
 }
 
@@ -1319,19 +1379,24 @@ export function renderPertAnalysisBlock(
 
 type Defs = d3Selection.Selection<SVGDefsElement, unknown, null, undefined>;
 
-function buildArrowheads(defs: Defs, palette: PaletteColors): void {
+function buildArrowheads(
+  defs: Defs,
+  palette: PaletteColors,
+  arrowW: number = ARROWHEAD_W,
+  arrowH: number = ARROWHEAD_H
+): void {
   const mk = (id: string, fill: string): void => {
     defs
       .append('marker')
       .attr('id', id)
-      .attr('viewBox', `0 0 ${ARROWHEAD_W} ${ARROWHEAD_H}`)
-      .attr('refX', ARROWHEAD_W)
-      .attr('refY', ARROWHEAD_H / 2)
-      .attr('markerWidth', ARROWHEAD_W)
-      .attr('markerHeight', ARROWHEAD_H)
+      .attr('viewBox', `0 0 ${arrowW} ${arrowH}`)
+      .attr('refX', arrowW)
+      .attr('refY', arrowH / 2)
+      .attr('markerWidth', arrowW)
+      .attr('markerHeight', arrowH)
       .attr('orient', 'auto')
       .append('polygon')
-      .attr('points', `0,0 ${ARROWHEAD_W},${ARROWHEAD_H / 2} 0,${ARROWHEAD_H}`)
+      .attr('points', `0,0 ${arrowW},${arrowH / 2} 0,${arrowH}`)
       .attr('fill', fill);
   };
   mk('pert-arrow', palette.textMuted);
@@ -1355,7 +1420,8 @@ function renderGroups(
   palette: PaletteColors,
   isDark: boolean,
   collapsedSet: ReadonlySet<string>,
-  sizing: NodeSizing
+  sizing: NodeSizing,
+  sc: ScaledGroupConstants = {}
 ): void {
   if (layout.groups.length === 0) return;
   const layer = root.append('g').attr('class', 'pert-groups');
@@ -1454,6 +1520,8 @@ function renderGroups(
         palette.textOnFillLight,
         palette.textOnFillDark
       );
+      const sNR = sc.nodeRadius ?? NODE_RADIUS;
+      const sCBH = sc.collapseBarHeight ?? COLLAPSE_BAR_HEIGHT;
       drawTextbookCard(g, {
         width: grp.width,
         height: grp.height,
@@ -1472,11 +1540,16 @@ function renderGroups(
         highlightColor: palette.colors.blue,
         outerColW: sizing.outerColW,
         midColW: sizing.midColW,
+        sNodeRadius: sc.nodeRadius,
+        sNodeStrokeWidth: sc.nodeStrokeWidth,
+        sNodeTopRowHeight: sc.nodeTopRowHeight,
+        sNodeBottomRowHeight: sc.nodeBottomRowHeight,
+        sNodeFontSize: sc.nodeFontSize,
+        sNodeCellFontSize: sc.nodeCellFontSize,
+        sPinIconW: sc.pinIconW,
+        sPinIconH: sc.pinIconH,
       });
 
-      // Bottom collapse bar (universal "this is collapsed" signal —
-      // see conventions doc §3 Pattern B). Clipped to the card's
-      // rounded corners so it follows the rx.
       const safeGroupId = grp.id.replace(/[^A-Za-z0-9_-]/g, '_');
       const clipId = `pert-group-clip-${safeGroupId}`;
       g.append('clipPath')
@@ -1486,44 +1559,42 @@ function renderGroups(
         .attr('y', grp.y)
         .attr('width', grp.width)
         .attr('height', grp.height)
-        .attr('rx', NODE_RADIUS)
-        .attr('ry', NODE_RADIUS);
+        .attr('rx', sNR)
+        .attr('ry', sNR);
       g.append('rect')
         .attr('class', 'pert-collapse-bar')
         .attr('x', grp.x)
-        .attr('y', grp.y + grp.height - COLLAPSE_BAR_HEIGHT)
+        .attr('y', grp.y + grp.height - sCBH)
         .attr('width', grp.width)
-        .attr('height', COLLAPSE_BAR_HEIGHT)
+        .attr('height', sCBH)
         .attr('fill', cardBaseColor)
         .attr('clip-path', `url(#${clipId})`);
       continue;
     }
 
-    // Non-collapsed group — container recipe per conventions doc §2:
-    // neutral surface fill, textMuted stroke at 0.35 / width 1.5,
-    // rx=8, top-CENTER bold label inside the 28px reserved header band.
+    const sCR = sc.containerRadius ?? CONTAINER_RADIUS;
+    const sCLFS = sc.containerLabelFontSize ?? CONTAINER_LABEL_FONT_SIZE;
+    const sCHH = sc.containerHeaderHeight ?? CONTAINER_HEADER_HEIGHT;
+    const sNSW = sc.nodeStrokeWidth ?? NODE_STROKE_WIDTH;
     g.append('rect')
       .attr('x', grp.x)
       .attr('y', grp.y)
       .attr('width', grp.width)
       .attr('height', grp.height)
-      .attr('rx', CONTAINER_RADIUS)
-      .attr('ry', CONTAINER_RADIUS)
+      .attr('rx', sCR)
+      .attr('ry', sCR)
       .attr('fill', containerFill)
       .attr('stroke', containerStroke)
       .attr('stroke-opacity', 0.35)
-      .attr('stroke-width', NODE_STROKE_WIDTH);
+      .attr('stroke-width', sNSW);
 
     g.append('text')
       .attr('x', grp.x + grp.width / 2)
-      .attr(
-        'y',
-        grp.y + CONTAINER_HEADER_HEIGHT / 2 + CONTAINER_LABEL_FONT_SIZE / 2 - 2
-      )
+      .attr('y', grp.y + sCHH / 2 + sCLFS / 2 - 2)
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
       .attr('fill', palette.text)
-      .attr('font-size', CONTAINER_LABEL_FONT_SIZE)
+      .attr('font-size', sCLFS)
       .attr('font-weight', 'bold')
       .text(label);
   }
@@ -1538,7 +1609,8 @@ function renderEdges(
   resolved: ResolvedPert,
   layout: LayoutResult,
   palette: PaletteColors,
-  collapsedSet: ReadonlySet<string>
+  collapsedSet: ReadonlySet<string>,
+  sc: ScaledEdgeConstants = {}
 ): void {
   const layer = root.append('g').attr('class', 'pert-edges');
   const criticalSet = new Set(resolved.criticalPath);
@@ -1611,13 +1683,15 @@ function renderEdges(
     }
     const path = lineGenerator(e.points);
     if (!path) continue;
+    const sESW = sc.edgeStrokeWidth ?? EDGE_STROKE_WIDTH;
+    const sELFS = sc.edgeLabelFontSize ?? 10;
     layer
       .append('path')
       .attr('class', 'pert-edge')
       .attr('d', path)
       .attr('fill', 'none')
       .attr('stroke', bandColor(band, palette, palette.textMuted))
-      .attr('stroke-width', EDGE_STROKE_WIDTH)
+      .attr('stroke-width', sESW)
       .attr('marker-end', `url(#${bandArrow(band)})`)
       .attr('data-source', e.source)
       .attr('data-target', e.target)
@@ -1625,13 +1699,9 @@ function renderEdges(
       .attr('data-critical-path', String(isCritical))
       .attr('data-criticality-band', band ?? '');
 
-    // Edge label: only drawn when the dependency type or lag deviates
-    // from the FS+0 default. Mirrors Primavera/MS Project's midpoint
-    // label convention.
     const parsedEdge = edgeByKey.get(`${e.source}->${e.target}`);
     const labelText = parsedEdge ? formatEdgeLabel(parsedEdge) : null;
     if (labelText) {
-      // In-bounds: edge polyline always has at least 2 points; midpoint is valid.
       const mid = e.points[Math.floor(e.points.length / 2)]!;
       layer
         .append('text')
@@ -1640,7 +1710,7 @@ function renderEdges(
         .attr('y', mid.y - 4)
         .attr('text-anchor', 'middle')
         .attr('fill', palette.textMuted)
-        .attr('font-size', 10)
+        .attr('font-size', sELFS)
         .attr('paint-order', 'stroke')
         .attr('stroke', palette.bg)
         .attr('stroke-width', 3)
@@ -1682,7 +1752,8 @@ function renderNodes(
   sizing: NodeSizing,
   onClickItem?: (lineNumber: number) => void,
   collapsedSet: ReadonlySet<string> = new Set(),
-  activeTagOverride?: string | null
+  activeTagOverride?: string | null,
+  sc: ScaledNodeConstants = {}
 ): void {
   const layer = root.append('g').attr('class', 'pert-nodes');
   const byId = new Map(resolved.activities.map((r) => [r.activity.id, r]));
@@ -1848,9 +1919,6 @@ function renderNodes(
         height: node.height,
         x: -node.width / 2,
         y: -node.height / 2,
-        // Diamond glyph prefix marks this row as a milestone at a
-        // glance — reads as a sync point even when the surrounding
-        // visual context (lane / palette) doesn't make it obvious.
         name: `◆ ${r.activity.name}`,
         date: fmtSchedule(r.es, isTbd),
         slack: slackText,
@@ -1861,6 +1929,13 @@ function renderNodes(
         highlightColor: palette.colors.blue,
         dashArray,
         pinned: pinnedSet.has(node.id) ? anchorKind : null,
+        sNodeRadius: sc.nodeRadius,
+        sNodeStrokeWidth: sc.nodeStrokeWidth,
+        sNodeTopRowHeight: sc.nodeTopRowHeight,
+        sNodeBottomRowHeight: sc.nodeBottomRowHeight,
+        sNodeCellFontSize: sc.nodeCellFontSize,
+        sPinIconW: sc.pinIconW,
+        sPinIconH: sc.pinIconH,
       });
       continue;
     }
@@ -1888,6 +1963,14 @@ function renderNodes(
       midColW: sizing.midColW,
       ...(tagBandFill !== undefined && { midBandFill: tagBandFill }),
       ...(tagLabelColor !== undefined && { midBandLabelColor: tagLabelColor }),
+      sNodeRadius: sc.nodeRadius,
+      sNodeStrokeWidth: sc.nodeStrokeWidth,
+      sNodeTopRowHeight: sc.nodeTopRowHeight,
+      sNodeBottomRowHeight: sc.nodeBottomRowHeight,
+      sNodeFontSize: sc.nodeFontSize,
+      sNodeCellFontSize: sc.nodeCellFontSize,
+      sPinIconW: sc.pinIconW,
+      sPinIconH: sc.pinIconH,
     });
   }
 }
@@ -1990,18 +2073,32 @@ interface TextbookCardArgs {
    * readable regardless of palette/theme.
    */
   midBandLabelColor?: string;
+  sNodeRadius?: number | undefined;
+  sNodeStrokeWidth?: number | undefined;
+  sNodeTopRowHeight?: number | undefined;
+  sNodeBottomRowHeight?: number | undefined;
+  sNodeFontSize?: number | undefined;
+  sNodeCellFontSize?: number | undefined;
+  sPinIconW?: number | undefined;
+  sPinIconH?: number | undefined;
 }
 
 type AnySel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
 function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   const { width: w, height: h, x, y } = a;
-  // Asymmetric columns: outer cells hold the widest content (typically
-  // ES/EF/LS/LF dates), the middle cell shrinks to fit dur/slack.
+  const sNR = a.sNodeRadius ?? NODE_RADIUS;
+  const sNSW = a.sNodeStrokeWidth ?? NODE_STROKE_WIDTH;
+  const sTRH = a.sNodeTopRowHeight ?? NODE_TOP_ROW_HEIGHT;
+  const sBRH = a.sNodeBottomRowHeight ?? NODE_BOTTOM_ROW_HEIGHT;
+  const sNFS = a.sNodeFontSize ?? NODE_FONT_SIZE;
+  const sNCFS = a.sNodeCellFontSize ?? NODE_CELL_FONT_SIZE;
+  const sPIW = a.sPinIconW ?? PIN_ICON_W;
+  const sPIH = a.sPinIconH ?? PIN_ICON_H;
   const outerColW = a.outerColW;
   const midColW = a.midColW;
-  const topY = y + NODE_TOP_ROW_HEIGHT;
-  const bottomY = y + h - NODE_BOTTOM_ROW_HEIGHT;
+  const topY = y + sTRH;
+  const bottomY = y + h - sBRH;
   const colX1 = x + outerColW;
   const colX2 = x + outerColW + midColW;
 
@@ -2010,16 +2107,13 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
     .attr('y', y)
     .attr('width', w)
     .attr('height', h)
-    .attr('rx', NODE_RADIUS)
-    .attr('ry', NODE_RADIUS)
+    .attr('rx', sNR)
+    .attr('ry', sNR)
     .attr('fill', a.fill)
     .attr('stroke', a.stroke)
-    .attr('stroke-width', NODE_STROKE_WIDTH)
+    .attr('stroke-width', sNSW)
     .attr('stroke-dasharray', a.dashArray ?? 'none');
 
-  // Tag-driven middle-band fill. Painted between the top-row and
-  // bottom-row dividers so corner cells (ES/EF/LS/LF/dur/slack) keep
-  // the base fill — only the name region picks up the tag tint.
   if (a.midBandFill) {
     g.append('rect')
       .attr('x', x)
@@ -2030,9 +2124,6 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
       .attr('pointer-events', 'none');
   }
 
-  // Internal grid lines — low-opacity divider stroke. Defaults to the
-  // border color but can be overridden so a critical-path (red) border
-  // doesn't drag the cell-grid red along with it.
   const gridColor = a.gridStroke ?? a.stroke;
   const grid = (x1: number, y1: number, x2: number, y2: number): void => {
     g.append('line')
@@ -2051,11 +2142,6 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   grid(colX1, bottomY, colX1, y + h);
   grid(colX2, bottomY, colX2, y + h);
 
-  // Per-cell highlight overlays — invisible by default, lit by the
-  // React layer when the field-legend's matching cell is hovered.
-  // Drawn before the text so the cell text stays at full opacity on
-  // top of the tint. `pointer-events: none` keeps the rects from
-  // intercepting clicks meant for the node wrapper.
   const drawCellHighlight = (
     field: string,
     cx: number,
@@ -2074,41 +2160,19 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
       .attr('fill-opacity', 0)
       .attr('pointer-events', 'none');
   };
-  drawCellHighlight('es', x, y, outerColW, NODE_TOP_ROW_HEIGHT);
-  drawCellHighlight('dur', x + outerColW, y, midColW, NODE_TOP_ROW_HEIGHT);
-  drawCellHighlight(
-    'ef',
-    x + outerColW + midColW,
-    y,
-    outerColW,
-    NODE_TOP_ROW_HEIGHT
-  );
-  drawCellHighlight('ls', x, bottomY, outerColW, NODE_BOTTOM_ROW_HEIGHT);
-  drawCellHighlight(
-    'slack',
-    x + outerColW,
-    bottomY,
-    midColW,
-    NODE_BOTTOM_ROW_HEIGHT
-  );
-  drawCellHighlight(
-    'lf',
-    x + outerColW + midColW,
-    bottomY,
-    outerColW,
-    NODE_BOTTOM_ROW_HEIGHT
-  );
+  drawCellHighlight('es', x, y, outerColW, sTRH);
+  drawCellHighlight('dur', x + outerColW, y, midColW, sTRH);
+  drawCellHighlight('ef', x + outerColW + midColW, y, outerColW, sTRH);
+  drawCellHighlight('ls', x, bottomY, outerColW, sBRH);
+  drawCellHighlight('slack', x + outerColW, bottomY, midColW, sBRH);
+  drawCellHighlight('lf', x + outerColW + midColW, bottomY, outerColW, sBRH);
 
-  // Cell text — vertically centered within each row. Defaults to
-  // normal weight; the name cell and the dur cell pass an explicit
-  // weight when needed. `colorOverride` lets the middle-band name use
-  // a contrast-correct color when a tag fill repaints that band.
   const drawCell = (
     cx: number,
     cy: number,
     text: string,
     weight: 'normal' | 'bold' = 'normal',
-    size: number = NODE_CELL_FONT_SIZE,
+    size: number = sNCFS,
     opacity = 1,
     colorOverride?: string
   ): void => {
@@ -2125,12 +2189,7 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
     if (opacity !== 1) t.attr('opacity', String(opacity));
   };
 
-  // Top row: ES | dur | EF — the dur cell carries the duration-rank
-  // emphasis: bold for top-20%, faded for bottom-20%, plain otherwise.
-  // ES bolds when this card is a forward-anchored source; EF bolds when
-  // it's a backward-anchored sink — those cells equal the user-supplied
-  // anchor date and deserve visual weight as the "given".
-  const topMid = y + NODE_TOP_ROW_HEIGHT / 2;
+  const topMid = y + sTRH / 2;
   const durWeight: 'normal' | 'bold' = a.emphasis === 'top' ? 'bold' : 'normal';
   const durOpacity = a.emphasis === 'bottom' ? DURATION_FADE_OPACITY : 1;
   const esWeight: 'normal' | 'bold' =
@@ -2143,25 +2202,18 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
     topMid,
     a.dur,
     durWeight,
-    NODE_CELL_FONT_SIZE,
+    sNCFS,
     durOpacity
   );
   drawCell(x + outerColW + midColW + outerColW / 2, topMid, a.ef, efWeight);
 
-  // Middle row: name (spans full width). When `pinned`, shift the
-  // name slightly right and draw a small anchor icon to its left so
-  // the combined glyph reads as one centered unit. Names that exceed
-  // the available width truncate with an ellipsis so text never
-  // overflows the card.
-  const midRowTop = y + NODE_TOP_ROW_HEIGHT;
-  const midRowH = h - NODE_TOP_ROW_HEIGHT - NODE_BOTTOM_ROW_HEIGHT;
+  const midRowTop = y + sTRH;
+  const midRowH = h - sTRH - sBRH;
   const midCenterY = midRowTop + midRowH / 2;
   const NAME_PAD_X = 6;
   const NAME_PIN_GAP = 4;
-  // Inter average ≈ 0.55× for lowercase; 0.62× absorbs caps + wide
-  // glyphs so the truncation check stays conservative.
-  const charW = NODE_FONT_SIZE * 0.62;
-  const pinReserve = a.pinned ? PIN_ICON_W + NAME_PIN_GAP : 0;
+  const charW = sNFS * 0.62;
+  const pinReserve = a.pinned ? sPIW + NAME_PIN_GAP : 0;
   const availTextW = Math.max(0, w - 2 * NAME_PAD_X - pinReserve);
   const maxChars = Math.max(1, Math.floor(availTextW / charW));
   const displayName =
@@ -2170,12 +2222,8 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
       : a.name;
   const nameColor = a.midBandLabelColor ?? a.labelColor;
   if (a.pinned) {
-    // Flush-left pin + text centered inside the reserved area. Same
-    // structural pattern as the milestone pill (renderMilestoneNode) —
-    // pin and text occupy non-overlapping rectangles by construction,
-    // so no char-width estimate error can collapse them onto each other.
-    drawAnchorPin(g, x + NAME_PAD_X, midCenterY, nameColor);
-    const textAreaLeft = x + NAME_PAD_X + PIN_ICON_W + NAME_PIN_GAP;
+    drawAnchorPin(g, x + NAME_PAD_X, midCenterY, nameColor, sPIW, sPIH);
+    const textAreaLeft = x + NAME_PAD_X + sPIW + NAME_PIN_GAP;
     const textAreaRight = x + w - NAME_PAD_X;
     const textCx = (textAreaLeft + textAreaRight) / 2;
     drawCell(
@@ -2183,7 +2231,7 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
       midCenterY,
       displayName,
       'bold',
-      NODE_FONT_SIZE,
+      sNFS,
       1,
       a.midBandLabelColor
     );
@@ -2193,15 +2241,13 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
       midCenterY,
       displayName,
       'bold',
-      NODE_FONT_SIZE,
+      sNFS,
       1,
       a.midBandLabelColor
     );
   }
 
-  // Bottom row: LS | slack | LF — LS / LF bold under the same anchor
-  // rule as the top row.
-  const botMid = y + h - NODE_BOTTOM_ROW_HEIGHT / 2;
+  const botMid = y + h - sBRH / 2;
   const lsWeight: 'normal' | 'bold' = esWeight;
   const lfWeight: 'normal' | 'bold' = efWeight;
   drawCell(x + outerColW / 2, botMid, a.ls, lsWeight);
@@ -2230,15 +2276,24 @@ interface MilestonePillArgs {
   highlightColor: string;
   dashArray?: string;
   pinned?: 'forward' | 'backward' | null;
+  sNodeRadius?: number | undefined;
+  sNodeStrokeWidth?: number | undefined;
+  sNodeTopRowHeight?: number | undefined;
+  sNodeBottomRowHeight?: number | undefined;
+  sNodeCellFontSize?: number | undefined;
+  sPinIconW?: number | undefined;
+  sPinIconH?: number | undefined;
 }
 
 function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
   const { width: w, height: h, x, y } = a;
-  // Row heights mirror the textbook card's top/bottom rows so the date
-  // and slack sit on the same horizontal rhythm as ES/LF on neighboring
-  // full cards — the dividers line up across the lane.
-  const topRowH = NODE_TOP_ROW_HEIGHT;
-  const botRowH = NODE_BOTTOM_ROW_HEIGHT;
+  const sNR = a.sNodeRadius ?? NODE_RADIUS;
+  const sNSW = a.sNodeStrokeWidth ?? NODE_STROKE_WIDTH;
+  const topRowH = a.sNodeTopRowHeight ?? NODE_TOP_ROW_HEIGHT;
+  const botRowH = a.sNodeBottomRowHeight ?? NODE_BOTTOM_ROW_HEIGHT;
+  const sNCFS = a.sNodeCellFontSize ?? NODE_CELL_FONT_SIZE;
+  const sPIW = a.sPinIconW ?? PIN_ICON_W;
+  const sPIH = a.sPinIconH ?? PIN_ICON_H;
   const topY = y + topRowH;
   const bottomY = y + h - botRowH;
 
@@ -2247,11 +2302,11 @@ function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
     .attr('y', y)
     .attr('width', w)
     .attr('height', h)
-    .attr('rx', NODE_RADIUS)
-    .attr('ry', NODE_RADIUS)
+    .attr('rx', sNR)
+    .attr('ry', sNR)
     .attr('fill', a.fill)
     .attr('stroke', a.stroke)
-    .attr('stroke-width', NODE_STROKE_WIDTH)
+    .attr('stroke-width', sNSW)
     .attr('stroke-dasharray', a.dashArray ?? 'none');
 
   // Two horizontal dividers — same low-opacity grid stroke as the
@@ -2318,20 +2373,8 @@ function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
 
   // Top: milestone date (single value — ES = EF for any zero-duration
   // activity, so two cells would just repeat).
-  drawCenteredText(
-    x + w / 2,
-    y + topRowH / 2,
-    a.date,
-    'normal',
-    NODE_CELL_FONT_SIZE
-  );
+  drawCenteredText(x + w / 2, y + topRowH / 2, a.date, 'normal', sNCFS);
 
-  // Middle: name. Smaller than the regular card's name (12 vs 13) so
-  // longer milestone names still fit in the narrower pill. Wrap to
-  // multiple lines when the name overflows; if a single word still
-  // doesn't fit, truncate it with an ellipsis. Anchor pin (when the
-  // milestone is the forward source / backward sink) sits to the left
-  // of the text block.
   const midRowTop = y + topRowH;
   const midRowH = h - topRowH - botRowH;
   const midCenterY = midRowTop + midRowH / 2;
@@ -2339,15 +2382,13 @@ function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
   const NAME_PAD_X = 6;
   const NAME_PIN_GAP = 4;
   const NAME_LINE_HEIGHT = 14;
-  // Inter average ≈ 0.55× for lowercase; 0.62× absorbs caps + wide
-  // glyphs so wrap-fit doesn't underestimate and spill into the pin.
   const charW = nameSize * 0.62;
 
   let textAreaLeft = x + NAME_PAD_X;
   const textAreaRight = x + w - NAME_PAD_X;
   if (a.pinned) {
-    drawAnchorPin(g, x + NAME_PAD_X, midCenterY, a.labelColor);
-    textAreaLeft = x + NAME_PAD_X + PIN_ICON_W + NAME_PIN_GAP;
+    drawAnchorPin(g, x + NAME_PAD_X, midCenterY, a.labelColor, sPIW, sPIH);
+    textAreaLeft = x + NAME_PAD_X + sPIW + NAME_PIN_GAP;
   }
   const textCx = (textAreaLeft + textAreaRight) / 2;
   const availW = textAreaRight - textAreaLeft;
@@ -2357,7 +2398,6 @@ function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
       ? line.slice(0, Math.max(1, maxChars - 1)) + '…'
       : line
   );
-  // Cap the rendered lines at what fits in the middle row.
   const maxLines = Math.max(1, Math.floor(midRowH / NAME_LINE_HEIGHT));
   const visibleLines = lines.slice(0, maxLines);
   if (lines.length > maxLines && visibleLines.length > 0) {
@@ -2379,18 +2419,8 @@ function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
     );
   });
 
-  // Bottom: slack — preserves the textbook card's bottom-row slack
-  // position, so the eye finds slack in the same place on every node.
-  // Suppressed entirely when slack is zero (critical-path milestone) —
-  // the empty cell + divider would just be noise.
   if (!a.slackHidden) {
-    drawCenteredText(
-      x + w / 2,
-      y + h - botRowH / 2,
-      a.slack,
-      'normal',
-      NODE_CELL_FONT_SIZE
-    );
+    drawCenteredText(x + w / 2, y + h - botRowH / 2, a.slack, 'normal', sNCFS);
   }
 }
 
@@ -2407,11 +2437,12 @@ function drawAnchorPin(
   g: AnySel,
   left: number,
   centerY: number,
-  color: string
+  color: string,
+  pinW: number = PIN_ICON_W,
+  pinH: number = PIN_ICON_H
 ): void {
-  // Lucide `anchor` icon authored on a 24×24 viewbox — scale to PIN_ICON_W.
-  const scale = PIN_ICON_W / 24;
-  const top = centerY - PIN_ICON_H / 2;
+  const scale = pinW / 24;
+  const top = centerY - pinH / 2;
   const pin = g
     .append('g')
     .attr('class', 'pert-pin')
