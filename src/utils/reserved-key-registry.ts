@@ -117,8 +117,10 @@ export const SITEMAP_REGISTRY: ReservedKeyRegistry = staticRegistry([
 export const GANTT_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',
-  'progress',
+  'duration',
   'offset',
+  'progress',
+  'start',
 ]);
 
 export const PERT_REGISTRY: ReservedKeyRegistry = staticRegistry([

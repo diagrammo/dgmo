@@ -7,64 +7,79 @@ const palette = getPalette('nord').light;
 describe('gantt parser', () => {
   describe('chart type', () => {
     it('accepts gantt on first line', () => {
-      const result = parseGantt('gantt\n10d Task A', palette);
+      const result = parseGantt('gantt\nTask A duration: 10d', palette);
       expect(result.error).toBeNull();
     });
 
     it('rejects timeline on first line', () => {
-      const result = parseGantt('timeline\n10d Task A', palette);
+      const result = parseGantt('timeline\nTask A duration: 10d', palette);
       expect(result.error).toMatch(/Expected chart type "gantt"/);
     });
   });
 
   describe('options', () => {
     it('parses start date', () => {
-      const result = parseGantt('gantt\nstart 2024-01-15\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\nstart 2024-01-15\nTask duration: 10d',
+        palette
+      );
       expect(result.options.start).toBe('2024-01-15');
     });
 
     it('parses title', () => {
-      const result = parseGantt('gantt\ntitle My Plan\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\ntitle My Plan\nTask duration: 10d',
+        palette
+      );
       expect(result.options.title).toBe('My Plan');
     });
 
     it('parses today-marker bare keyword', () => {
-      const result = parseGantt('gantt\ntoday-marker\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\ntoday-marker\nTask duration: 10d',
+        palette
+      );
       expect(result.options.todayMarker).toBe('on');
     });
 
     it('parses today-marker with pinned date', () => {
       const result = parseGantt(
-        'gantt\ntoday-marker 2024-03-15\n10d Task',
+        'gantt\ntoday-marker 2024-03-15\nTask duration: 10d',
         palette
       );
       expect(result.options.todayMarker).toBe('2024-03-15');
     });
 
     it('parses critical-path bare keyword', () => {
-      const result = parseGantt('gantt\ncritical-path\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\ncritical-path\nTask duration: 10d',
+        palette
+      );
       expect(result.options.criticalPath).toBe(true);
     });
 
     it('parses no-dependencies to disable', () => {
-      const result = parseGantt('gantt\nno-dependencies\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\nno-dependencies\nTask duration: 10d',
+        palette
+      );
       expect(result.options.dependencies).toBe(false);
     });
 
     it('defaults dependencies to true', () => {
-      const result = parseGantt('gantt\n10d Task', palette);
+      const result = parseGantt('gantt\nTask duration: 10d', palette);
       expect(result.options.dependencies).toBe(true);
     });
 
     it('defaults start to null (relative timeline)', () => {
-      const result = parseGantt('gantt\n10d Task', palette);
+      const result = parseGantt('gantt\nTask duration: 10d', palette);
       expect(result.options.start).toBeNull();
     });
   });
 
   describe('duration tasks', () => {
     it('parses basic duration task', () => {
-      const result = parseGantt('gantt\n10d Task A', palette);
+      const result = parseGantt('gantt\nTask A duration: 10d', palette);
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(1);
       const task = result.nodes[0];
@@ -77,8 +92,15 @@ describe('gantt parser', () => {
     });
 
     it('parses all duration units', () => {
-      const input =
-        'gantt\n10d Days\n5bd Business\n2w Weeks\n3m Months\n1q Quarter\n0.5y HalfYear';
+      const input = [
+        'gantt',
+        'Days duration: 10d',
+        'Business duration: 5bd',
+        'Weeks duration: 2w',
+        'Months duration: 3m',
+        'Quarter duration: 1q',
+        'HalfYear duration: 0.5y',
+      ].join('\n');
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(6);
@@ -90,7 +112,7 @@ describe('gantt parser', () => {
     });
 
     it('parses decimal durations', () => {
-      const result = parseGantt('gantt\n1.5w Task', palette);
+      const result = parseGantt('gantt\nTask duration: 1.5w', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.duration).toEqual({ amount: 1.5, unit: 'w' });
@@ -98,7 +120,7 @@ describe('gantt parser', () => {
     });
 
     it('parses uncertain duration', () => {
-      const result = parseGantt('gantt\n30d? Task', palette);
+      const result = parseGantt('gantt\nTask duration: 30d?', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.uncertain).toBe(true);
@@ -106,8 +128,8 @@ describe('gantt parser', () => {
       }
     });
 
-    it('parses milestone (0d)', () => {
-      const result = parseGantt('gantt\n0d Milestone', palette);
+    it('parses milestone (duration: 0d)', () => {
+      const result = parseGantt('gantt\nMilestone duration: 0d', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.duration).toEqual({ amount: 0, unit: 'd' });
@@ -116,8 +138,11 @@ describe('gantt parser', () => {
   });
 
   describe('explicit dates', () => {
-    it('parses explicit date task', () => {
-      const result = parseGantt('gantt\n2024-02-15 Design Review', palette);
+    it('parses explicit date task (start: only → milestone)', () => {
+      const result = parseGantt(
+        'gantt\nDesign Review start: 2024-02-15',
+        palette
+      );
       expect(result.error).toBeNull();
       const task = result.nodes[0];
       if (task.kind === 'task') {
@@ -127,19 +152,49 @@ describe('gantt parser', () => {
       }
     });
 
-    it('parses timeline migration syntax', () => {
-      const result = parseGantt('gantt\n2024-01-15 -> 30d Task', palette);
+    it('parses start + duration task', () => {
+      const result = parseGantt(
+        'gantt\nTask start: 2024-01-15, duration: 30d',
+        palette
+      );
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.explicitStart).toBe('2024-01-15');
         expect(task.duration).toEqual({ amount: 30, unit: 'd' });
       }
     });
+
+    it('parses start with datetime', () => {
+      const result = parseGantt(
+        'gantt\nKeynote start: 2024-06-15 14:30',
+        palette
+      );
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.explicitStart).toBe('2024-06-15 14:30');
+        expect(task.duration).toBeNull();
+      }
+    });
+
+    it('parses start + duration with datetime + h unit', () => {
+      const result = parseGantt(
+        'gantt\nTalk start: 2024-06-15 14:30, duration: 2h',
+        palette
+      );
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.explicitStart).toBe('2024-06-15 14:30');
+        expect(task.duration).toEqual({ amount: 2, unit: 'h' });
+      }
+    });
   });
 
   describe('groups', () => {
     it('parses basic group', () => {
-      const result = parseGantt('gantt\n[Backend]\n  10d Task', palette);
+      const result = parseGantt(
+        'gantt\n[Backend]\n  Task duration: 10d',
+        palette
+      );
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(1);
       const group = result.nodes[0];
@@ -152,7 +207,7 @@ describe('gantt parser', () => {
 
     it('parses group with pipe metadata', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering blue\n[Backend] | t: Engineering\n  10d Task';
+        'gantt\ntag Team t\n  Engineering blue\n[Backend] | t: Engineering\n  Task duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const group = result.nodes[0];
@@ -162,7 +217,7 @@ describe('gantt parser', () => {
     });
 
     it('parses nested groups', () => {
-      const input = 'gantt\n[Backend]\n  [API]\n    10d Task';
+      const input = 'gantt\n[Backend]\n  [API]\n    Task duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const outer = result.nodes[0];
@@ -179,7 +234,8 @@ describe('gantt parser', () => {
 
   describe('parallel blocks', () => {
     it('parses parallel block', () => {
-      const input = 'gantt\nparallel\n  5d Task A\n  3d Task B';
+      const input =
+        'gantt\nparallel\n  Task A duration: 5d\n  Task B duration: 3d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(1);
@@ -191,8 +247,14 @@ describe('gantt parser', () => {
     });
 
     it('parses parallel with groups inside', () => {
-      const input =
-        'gantt\nparallel\n  [Backend]\n    10d Task A\n  [Frontend]\n    5d Task B';
+      const input = [
+        'gantt',
+        'parallel',
+        '  [Backend]',
+        '    Task A duration: 10d',
+        '  [Frontend]',
+        '    Task B duration: 5d',
+      ].join('\n');
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const par = result.nodes[0];
@@ -206,7 +268,8 @@ describe('gantt parser', () => {
 
   describe('dependencies', () => {
     it('parses -> dependency under task', () => {
-      const input = 'gantt\n10d Task A\n  -> Task B\n10d Task B';
+      const input =
+        'gantt\nTask A duration: 10d\n  -> Task B\nTask B duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const taskA = result.nodes[0];
@@ -217,7 +280,8 @@ describe('gantt parser', () => {
     });
 
     it('parses -> with dot notation', () => {
-      const input = 'gantt\n10d Task A\n  -> Backend.Deploy\n10d Deploy';
+      const input =
+        'gantt\nTask A duration: 10d\n  -> Backend.Deploy\nDeploy duration: 10d';
       const result = parseGantt(input, palette);
       const taskA = result.nodes[0];
       if (taskA.kind === 'task') {
@@ -226,7 +290,8 @@ describe('gantt parser', () => {
     });
 
     it('parses -> with positive offset', () => {
-      const input = 'gantt\n10d Task A\n  -> Task B | offset: 3bd\n10d Task B';
+      const input =
+        'gantt\nTask A duration: 10d\n  -> Task B | offset: 3bd\nTask B duration: 10d';
       const result = parseGantt(input, palette);
       const taskA = result.nodes[0];
       if (taskA.kind === 'task') {
@@ -238,7 +303,8 @@ describe('gantt parser', () => {
     });
 
     it('parses -> with negative offset', () => {
-      const input = 'gantt\n10d Task A\n  -> Task B | offset: -5d\n10d Task B';
+      const input =
+        'gantt\nTask A duration: 10d\n  -> Task B | offset: -5d\nTask B duration: 10d';
       const result = parseGantt(input, palette);
       const taskA = result.nodes[0];
       if (taskA.kind === 'task') {
@@ -250,7 +316,8 @@ describe('gantt parser', () => {
     });
 
     it('parses -> with zero offset', () => {
-      const input = 'gantt\n10d Task A\n  -> Task B | offset: 0bd\n10d Task B';
+      const input =
+        'gantt\nTask A duration: 10d\n  -> Task B | offset: 0bd\nTask B duration: 10d';
       const result = parseGantt(input, palette);
       const taskA = result.nodes[0];
       if (taskA.kind === 'task') {
@@ -262,7 +329,8 @@ describe('gantt parser', () => {
     });
 
     it('warns on invalid dep offset', () => {
-      const input = 'gantt\n10d Task A\n  -> Task B | offset: abc\n10d Task B';
+      const input =
+        'gantt\nTask A duration: 10d\n  -> Task B | offset: abc\nTask B duration: 10d';
       const result = parseGantt(input, palette);
       expect(
         result.diagnostics.some((d) => d.message.includes('Invalid offset'))
@@ -270,7 +338,8 @@ describe('gantt parser', () => {
     });
 
     it('warns on explicit + prefix in dep offset', () => {
-      const input = 'gantt\n10d Task A\n  -> Task B | offset: +5bd\n10d Task B';
+      const input =
+        'gantt\nTask A duration: 10d\n  -> Task B | offset: +5bd\nTask B duration: 10d';
       const result = parseGantt(input, palette);
       expect(
         result.diagnostics.some((d) =>
@@ -280,7 +349,8 @@ describe('gantt parser', () => {
     });
 
     it('rejects lag keyword with soft error', () => {
-      const input = 'gantt\n10d Task A\n  -> Task B | lag: 3bd\n10d Task B';
+      const input =
+        'gantt\nTask A duration: 10d\n  -> Task B | lag: 3bd\nTask B duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(
@@ -293,7 +363,8 @@ describe('gantt parser', () => {
     });
 
     it('rejects lead keyword with soft error', () => {
-      const input = 'gantt\n10d Task A\n  -> Task B | lead: 3bd\n10d Task B';
+      const input =
+        'gantt\nTask A duration: 10d\n  -> Task B | lead: 3bd\nTask B duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(
@@ -306,7 +377,10 @@ describe('gantt parser', () => {
     });
 
     it('rejects lag on task line with soft error', () => {
-      const result = parseGantt('gantt\n10bd Task | lag: 5bd', palette);
+      const result = parseGantt(
+        'gantt\nTask duration: 10bd, lag: 5bd',
+        palette
+      );
       expect(result.error).toBeNull();
       expect(
         result.diagnostics.some(
@@ -318,7 +392,8 @@ describe('gantt parser', () => {
     });
 
     it('parses labeled arrow -blocks-> Design', () => {
-      const input = 'gantt\n10d Task A\n  -blocks-> Design\n10d Design';
+      const input =
+        'gantt\nTask A duration: 10d\n  -blocks-> Design\nDesign duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const taskA = result.nodes[0];
@@ -330,7 +405,8 @@ describe('gantt parser', () => {
     });
 
     it('parses -> Design with no label (regression)', () => {
-      const input = 'gantt\n10d Task A\n  -> Design\n10d Design';
+      const input =
+        'gantt\nTask A duration: 10d\n  -> Design\nDesign duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const taskA = result.nodes[0];
@@ -343,7 +419,7 @@ describe('gantt parser', () => {
 
     it('parses labeled arrow with pipe metadata -depends on-> API | offset: 2d', () => {
       const input =
-        'gantt\n10d Task A\n  -depends on-> API | offset: 2d\n10d API';
+        'gantt\nTask A duration: 10d\n  -depends on-> API | offset: 2d\nAPI duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const taskA = result.nodes[0];
@@ -360,7 +436,7 @@ describe('gantt parser', () => {
 
     it('parses labeled arrow with offset -blocks-> Design | offset: 1w', () => {
       const input =
-        'gantt\n10d Task A\n  -blocks-> Design | offset: 1w\n10d Design';
+        'gantt\nTask A duration: 10d\n  -blocks-> Design | offset: 1w\nDesign duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const taskA = result.nodes[0];
@@ -378,19 +454,25 @@ describe('gantt parser', () => {
 
   describe('task-level offset', () => {
     it('parses positive task offset', () => {
-      const result = parseGantt('gantt\n10bd Task | offset: 8bd', palette);
+      const result = parseGantt(
+        'gantt\nTask duration: 10bd, offset: 8bd',
+        palette
+      );
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.offset).toEqual({
           duration: { amount: 8, unit: 'bd' },
           direction: 1,
         });
-        expect(task.metadata.offset).toBeUndefined(); // removed from metadata
+        expect(task.metadata.offset).toBeUndefined();
       }
     });
 
     it('parses negative task offset', () => {
-      const result = parseGantt('gantt\n10bd Task | offset: -3bd', palette);
+      const result = parseGantt(
+        'gantt\nTask duration: 10bd, offset: -3bd',
+        palette
+      );
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.offset).toEqual({
@@ -401,7 +483,10 @@ describe('gantt parser', () => {
     });
 
     it('warns on invalid task offset', () => {
-      const result = parseGantt('gantt\n10bd Task | offset: abc', palette);
+      const result = parseGantt(
+        'gantt\nTask duration: 10bd, offset: abc',
+        palette
+      );
       expect(
         result.diagnostics.some((d) => d.message.includes('Invalid offset'))
       ).toBe(true);
@@ -410,7 +495,7 @@ describe('gantt parser', () => {
 
   describe('comments', () => {
     it('parses comment under task', () => {
-      const input = 'gantt\n10d Task A\n  // This is a comment';
+      const input = 'gantt\nTask A duration: 10d\n  // This is a comment';
       const result = parseGantt(input, palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
@@ -419,7 +504,7 @@ describe('gantt parser', () => {
     });
 
     it('accumulates multi-line comments', () => {
-      const input = 'gantt\n10d Task A\n  // Line 1\n  // Line 2';
+      const input = 'gantt\nTask A duration: 10d\n  // Line 1\n  // Line 2';
       const result = parseGantt(input, palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
@@ -428,7 +513,7 @@ describe('gantt parser', () => {
     });
 
     it('ignores top-level comments', () => {
-      const input = 'gantt\n// Top comment\n10d Task A';
+      const input = 'gantt\n// Top comment\nTask A duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(1);
@@ -436,16 +521,11 @@ describe('gantt parser', () => {
   });
 
   describe('progress', () => {
-    it('parses progress shorthand', () => {
-      const result = parseGantt('gantt\n10d Task | 80%', palette);
-      const task = result.nodes[0];
-      if (task.kind === 'task') {
-        expect(task.progress).toBe(80);
-      }
-    });
-
-    it('parses progress: key', () => {
-      const result = parseGantt('gantt\n10d Task | progress: 50', palette);
+    it('parses progress: key in metadata', () => {
+      const result = parseGantt(
+        'gantt\nTask duration: 10d, progress: 50',
+        palette
+      );
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.progress).toBe(50);
@@ -456,7 +536,7 @@ describe('gantt parser', () => {
   describe('tag groups', () => {
     it('parses tag block with entries', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering blue\n  Design purple\n10d Task | t: Engineering';
+        'gantt\ntag Team t\n  Engineering blue\n  Design purple\nTask duration: 10d, t: Engineering';
       const result = parseGantt(input, palette);
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Team');
@@ -466,14 +546,14 @@ describe('gantt parser', () => {
 
     it('first entry is default', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering blue\n  Design purple\n10d Task';
+        'gantt\ntag Team t\n  Engineering blue\n  Design purple\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.tagGroups[0].defaultValue).toBe('Engineering');
     });
 
     it('tag inheritance from parent group', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering blue\n[Backend] | t: Engineering\n  10d Task';
+        'gantt\ntag Team t\n  Engineering blue\n[Backend] | t: Engineering\n  Task duration: 10d';
       const result = parseGantt(input, palette);
       const group = result.nodes[0];
       if (group.kind === 'group') {
@@ -486,7 +566,7 @@ describe('gantt parser', () => {
 
     it('child overrides inherited tag', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering blue\n  QA orange\n[Backend] | t: Engineering\n  10d Task | t: QA';
+        'gantt\ntag Team t\n  Engineering blue\n  QA orange\n[Backend] | t: Engineering\n  Task duration: 10d, t: QA';
       const result = parseGantt(input, palette);
       const group = result.nodes[0];
       if (group.kind === 'group') {
@@ -501,7 +581,7 @@ describe('gantt parser', () => {
   describe('holiday block', () => {
     it('parses holiday dates', () => {
       const input =
-        'gantt\nholiday\n  2024-01-01 New Year\n  2024-12-25 Christmas\n10d Task';
+        'gantt\nholiday\n  2024-01-01 New Year\n  2024-12-25 Christmas\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.holidays.dates).toHaveLength(2);
       expect(result.holidays.dates[0].date).toBe('2024-01-01');
@@ -510,7 +590,7 @@ describe('gantt parser', () => {
 
     it('parses holiday ranges', () => {
       const input =
-        'gantt\nholiday\n  2024-12-24 -> 2024-12-31 Winter Break\n10d Task';
+        'gantt\nholiday\n  2024-12-24 -> 2024-12-31 Winter Break\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.holidays.ranges).toHaveLength(1);
       expect(result.holidays.ranges[0].startDate).toBe('2024-12-24');
@@ -518,7 +598,7 @@ describe('gantt parser', () => {
     });
 
     it('parses workweek override', () => {
-      const input = 'gantt\nholiday\n  workweek sun-thu\n10d Task';
+      const input = 'gantt\nholiday\n  workweek sun-thu\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.holidays.workweek).toEqual([
         'sun',
@@ -530,7 +610,7 @@ describe('gantt parser', () => {
     });
 
     it('default workweek is mon-fri', () => {
-      const result = parseGantt('gantt\n10d Task', palette);
+      const result = parseGantt('gantt\nTask duration: 10d', palette);
       expect(result.holidays.workweek).toEqual([
         'mon',
         'tue',
@@ -541,17 +621,28 @@ describe('gantt parser', () => {
     });
 
     it('parses single-line holiday', () => {
-      const input = 'gantt\nholiday 2024-12-25 Christmas\n10d Task';
+      const input = 'gantt\nholiday 2024-12-25 Christmas\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.holidays.dates).toHaveLength(1);
       expect(result.holidays.dates[0].date).toBe('2024-12-25');
       expect(result.holidays.dates[0].label).toBe('Christmas');
     });
+
+    it('holiday entries do not trigger migration warnings (AC 14)', () => {
+      const input =
+        'gantt\nholiday\n  2024-02-19 Presidents Day\n  2024-12-25 Christmas\nTask duration: 10d';
+      const result = parseGantt(input, palette);
+      expect(
+        result.diagnostics.some((d) =>
+          d.message.includes('Gantt task syntax changed')
+        )
+      ).toBe(false);
+    });
   });
 
   describe('eras and markers', () => {
     it('parses era', () => {
-      const input = 'gantt\nera 2024-01 -> 2024-06 Phase 1\n10d Task';
+      const input = 'gantt\nera 2024-01 -> 2024-06 Phase 1\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.eras).toHaveLength(1);
       expect(result.eras[0].startDate).toBe('2024-01');
@@ -560,7 +651,7 @@ describe('gantt parser', () => {
     });
 
     it('parses marker', () => {
-      const input = 'gantt\nmarker 2024-03-01 Kickoff\n10d Task';
+      const input = 'gantt\nmarker 2024-03-01 Kickoff\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.markers).toHaveLength(1);
       expect(result.markers[0].date).toBe('2024-03-01');
@@ -570,7 +661,7 @@ describe('gantt parser', () => {
 
   describe('top-level workweek', () => {
     it('parses workweek at top level (outside holiday block)', () => {
-      const input = 'gantt\nworkweek sun-thu\n10d Task';
+      const input = 'gantt\nworkweek sun-thu\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.holidays.workweek).toEqual([
         'sun',
@@ -582,7 +673,7 @@ describe('gantt parser', () => {
     });
 
     it('workweek inside holiday block still works', () => {
-      const input = 'gantt\nholiday\n  workweek sun-thu\n10d Task';
+      const input = 'gantt\nholiday\n  workweek sun-thu\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.holidays.workweek).toEqual([
         'sun',
@@ -594,7 +685,7 @@ describe('gantt parser', () => {
     });
 
     it('warns on invalid top-level workweek', () => {
-      const input = 'gantt\nworkweek bogus\n10d Task';
+      const input = 'gantt\nworkweek bogus\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(
         result.diagnostics.some((d) => d.message.includes('Invalid workweek'))
@@ -604,8 +695,13 @@ describe('gantt parser', () => {
 
   describe('era block form', () => {
     it('parses bare era keyword with indented entries', () => {
-      const input =
-        'gantt\nera\n  2024-01 -> 2024-06 Phase 1\n  2024-06 -> 2024-12 Phase 2\n10d Task';
+      const input = [
+        'gantt',
+        'era',
+        '  2024-01 -> 2024-06 Phase 1',
+        '  2024-06 -> 2024-12 Phase 2',
+        'Task duration: 10d',
+      ].join('\n');
       const result = parseGantt(input, palette);
       expect(result.eras).toHaveLength(2);
       expect(result.eras[0].startDate).toBe('2024-01');
@@ -617,7 +713,8 @@ describe('gantt parser', () => {
     });
 
     it('parses era block entry with color', () => {
-      const input = 'gantt\nera\n  2024-01 -> 2024-06 Sprint blue\n10d Task';
+      const input =
+        'gantt\nera\n  2024-01 -> 2024-06 Sprint blue\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.eras).toHaveLength(1);
       expect(result.eras[0].label).toBe('Sprint');
@@ -625,8 +722,13 @@ describe('gantt parser', () => {
     });
 
     it('inline era still works alongside block form', () => {
-      const input =
-        'gantt\nera 2024-01 -> 2024-06 Phase 1\nera\n  2024-06 -> 2024-12 Phase 2\n10d Task';
+      const input = [
+        'gantt',
+        'era 2024-01 -> 2024-06 Phase 1',
+        'era',
+        '  2024-06 -> 2024-12 Phase 2',
+        'Task duration: 10d',
+      ].join('\n');
       const result = parseGantt(input, palette);
       expect(result.eras).toHaveLength(2);
     });
@@ -634,8 +736,13 @@ describe('gantt parser', () => {
 
   describe('marker block form', () => {
     it('parses bare marker keyword with indented entries', () => {
-      const input =
-        'gantt\nmarker\n  2024-03-01 Kickoff\n  2024-06-15 Release\n10d Task';
+      const input = [
+        'gantt',
+        'marker',
+        '  2024-03-01 Kickoff',
+        '  2024-06-15 Release',
+        'Task duration: 10d',
+      ].join('\n');
       const result = parseGantt(input, palette);
       expect(result.markers).toHaveLength(2);
       expect(result.markers[0].date).toBe('2024-03-01');
@@ -645,7 +752,8 @@ describe('gantt parser', () => {
     });
 
     it('parses marker block entry with color', () => {
-      const input = 'gantt\nmarker\n  2024-03-01 Launch green\n10d Task';
+      const input =
+        'gantt\nmarker\n  2024-03-01 Launch green\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.markers).toHaveLength(1);
       expect(result.markers[0].label).toBe('Launch');
@@ -653,8 +761,13 @@ describe('gantt parser', () => {
     });
 
     it('inline marker still works alongside block form', () => {
-      const input =
-        'gantt\nmarker 2024-03-01 Kickoff\nmarker\n  2024-06-15 Release\n10d Task';
+      const input = [
+        'gantt',
+        'marker 2024-03-01 Kickoff',
+        'marker',
+        '  2024-06-15 Release',
+        'Task duration: 10d',
+      ].join('\n');
       const result = parseGantt(input, palette);
       expect(result.markers).toHaveLength(2);
     });
@@ -662,19 +775,26 @@ describe('gantt parser', () => {
 
   describe('validation errors', () => {
     it('reports bare labels as soft error and continues parsing', () => {
-      const result = parseGantt('gantt\nSome Text\n10d Valid Task', palette);
+      const result = parseGantt(
+        'gantt\nSome Text\nValid Task duration: 10d',
+        palette
+      );
       expect(result.error).toBeNull();
       expect(
         result.diagnostics.some(
           (d) =>
-            d.severity === 'error' && d.message.includes('Expected duration')
+            d.severity === 'error' &&
+            d.message.includes('Expected task with duration/start')
         )
       ).toBe(true);
-      expect(result.nodes).toHaveLength(1); // Valid Task still parsed
+      expect(result.nodes).toHaveLength(1);
     });
 
     it('reports parallel as reserved keyword and continues', () => {
-      const result = parseGantt('gantt\n10d parallel\n10d Next Task', palette);
+      const result = parseGantt(
+        'gantt\nparallel duration: 10d\nNext Task duration: 10d',
+        palette
+      );
       expect(result.error).toBeNull();
       expect(
         result.diagnostics.some(
@@ -682,13 +802,19 @@ describe('gantt parser', () => {
             d.severity === 'error' && d.message.includes('reserved keyword')
         )
       ).toBe(true);
-      expect(result.nodes).toHaveLength(2); // both tasks still parsed
+      expect(result.nodes).toHaveLength(2);
     });
   });
 
   describe('flat task list (no groups)', () => {
     it('accepts flat sequential tasks', () => {
-      const input = 'gantt\n14d Research\n7d Design\n3d Testing\n0d Ship';
+      const input = [
+        'gantt',
+        'Research duration: 14d',
+        'Design duration: 7d',
+        'Testing duration: 3d',
+        'Ship duration: 0d',
+      ].join('\n');
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(4);
@@ -698,7 +824,7 @@ describe('gantt parser', () => {
 
   describe('datetime and sub-day durations', () => {
     it('parses h duration task', () => {
-      const result = parseGantt('gantt\n2h Meeting', palette);
+      const result = parseGantt('gantt\nMeeting duration: 2h', palette);
       expect(result.error).toBeNull();
       const task = result.nodes[0];
       if (task.kind === 'task') {
@@ -707,7 +833,7 @@ describe('gantt parser', () => {
     });
 
     it('parses min duration task', () => {
-      const result = parseGantt('gantt\n90min Workshop', palette);
+      const result = parseGantt('gantt\nWorkshop duration: 90min', palette);
       expect(result.error).toBeNull();
       const task = result.nodes[0];
       if (task.kind === 'task') {
@@ -716,7 +842,7 @@ describe('gantt parser', () => {
     });
 
     it('parses 1.5h fractional duration', () => {
-      const result = parseGantt('gantt\n1.5h Session', palette);
+      const result = parseGantt('gantt\nSession duration: 1.5h', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.duration).toEqual({ amount: 1.5, unit: 'h' });
@@ -724,7 +850,10 @@ describe('gantt parser', () => {
     });
 
     it('30min is minutes, 30m is months (disambiguation)', () => {
-      const result = parseGantt('gantt\n30min Meeting\n30m Phase', palette);
+      const result = parseGantt(
+        'gantt\nMeeting duration: 30min\nPhase duration: 30m',
+        palette
+      );
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(2);
       const task1 = result.nodes[0];
@@ -733,9 +862,9 @@ describe('gantt parser', () => {
       if (task2.kind === 'task') expect(task2.duration?.unit).toBe('m');
     });
 
-    it('parses start with datetime', () => {
+    it('parses start option with datetime', () => {
       const result = parseGantt(
-        'gantt\nstart 2024-06-15 08:00\n2h Task',
+        'gantt\nstart 2024-06-15 08:00\nTask duration: 2h',
         palette
       );
       expect(result.options.start).toBe('2024-06-15 08:00');
@@ -743,33 +872,15 @@ describe('gantt parser', () => {
 
     it('parses today-marker with datetime', () => {
       const result = parseGantt(
-        'gantt\ntoday-marker 2024-06-15 14:00\n2h Task',
+        'gantt\ntoday-marker 2024-06-15 14:00\nTask duration: 2h',
         palette
       );
       expect(result.options.todayMarker).toBe('2024-06-15 14:00');
     });
 
-    it('parses explicit datetime task', () => {
-      const result = parseGantt('gantt\n2024-06-15 14:30 Keynote', palette);
-      const task = result.nodes[0];
-      if (task.kind === 'task') {
-        expect(task.explicitStart).toBe('2024-06-15 14:30');
-        expect(task.duration).toBeNull();
-      }
-    });
-
-    it('parses timeline-duration with datetime + h unit', () => {
-      const result = parseGantt('gantt\n2024-06-15 14:30 -> 2h Talk', palette);
-      const task = result.nodes[0];
-      if (task.kind === 'task') {
-        expect(task.explicitStart).toBe('2024-06-15 14:30');
-        expect(task.duration).toEqual({ amount: 2, unit: 'h' });
-      }
-    });
-
     it('parses era with datetime', () => {
       const result = parseGantt(
-        'gantt\nera 2024-06-15 09:00 -> 2024-06-15 12:00 Morning\n2h Task',
+        'gantt\nera 2024-06-15 09:00 -> 2024-06-15 12:00 Morning\nTask duration: 2h',
         palette
       );
       expect(result.eras).toHaveLength(1);
@@ -779,7 +890,7 @@ describe('gantt parser', () => {
 
     it('parses marker with datetime', () => {
       const result = parseGantt(
-        'gantt\nmarker 2024-06-15 10:30 Coffee Break\n2h Task',
+        'gantt\nmarker 2024-06-15 10:30 Coffee Break\nTask duration: 2h',
         palette
       );
       expect(result.markers).toHaveLength(1);
@@ -790,8 +901,14 @@ describe('gantt parser', () => {
 
   describe('sort tag directive', () => {
     it('parses sort tag', () => {
-      const input =
-        'gantt\nsort tag\ntag Team\n  Eng blue\nstart 2024-01-15\n10d Task';
+      const input = [
+        'gantt',
+        'sort tag',
+        'tag Team',
+        '  Eng blue',
+        'start 2024-01-15',
+        'Task duration: 10d',
+      ].join('\n');
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.options.sort).toBe('tag');
@@ -799,8 +916,14 @@ describe('gantt parser', () => {
     });
 
     it('parses sort tag:Team', () => {
-      const input =
-        'gantt\nsort tag:Team\ntag Team\n  Eng blue\nstart 2024-01-15\n10d Task';
+      const input = [
+        'gantt',
+        'sort tag:Team',
+        'tag Team',
+        '  Eng blue',
+        'start 2024-01-15',
+        'Task duration: 10d',
+      ].join('\n');
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.options.sort).toBe('tag');
@@ -808,7 +931,7 @@ describe('gantt parser', () => {
     });
 
     it('warns and falls back when no tag groups defined', () => {
-      const input = 'gantt\nsort tag\nstart 2024-01-15\n10d Task';
+      const input = 'gantt\nsort tag\nstart 2024-01-15\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.options.sort).toBe('default');
       expect(
@@ -819,7 +942,7 @@ describe('gantt parser', () => {
     });
 
     it('warns on invalid sort value', () => {
-      const input = 'gantt\nsort date\nstart 2024-01-15\n10d Task';
+      const input = 'gantt\nsort date\nstart 2024-01-15\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(
         result.diagnostics.some((d) => d.message.includes('Invalid sort value'))
@@ -829,25 +952,34 @@ describe('gantt parser', () => {
 
   describe('sprints', () => {
     it('parses sprint-length 2w', () => {
-      const result = parseGantt('gantt\nsprint-length 2w\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\nsprint-length 2w\nTask duration: 10d',
+        palette
+      );
       expect(result.options.sprintLength).toEqual({ amount: 2, unit: 'w' });
     });
 
     it('parses sprint-number 5', () => {
-      const result = parseGantt('gantt\nsprint-number 5\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\nsprint-number 5\nTask duration: 10d',
+        palette
+      );
       expect(result.options.sprintNumber).toBe(5);
     });
 
     it('parses sprint-start date', () => {
       const result = parseGantt(
-        'gantt\nsprint-start 2026-04-06\n10d Task',
+        'gantt\nsprint-start 2026-04-06\nTask duration: 10d',
         palette
       );
       expect(result.options.sprintStart).toBe('2026-04-06');
     });
 
     it('rejects sprint-length 10bd', () => {
-      const result = parseGantt('gantt\nsprint-length 10bd\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\nsprint-length 10bd\nTask duration: 10d',
+        palette
+      );
       expect(
         result.diagnostics.some((d) =>
           d.message.includes('only accepts "d" or "w"')
@@ -856,7 +988,10 @@ describe('gantt parser', () => {
     });
 
     it('rejects sprint-length 2s (circular)', () => {
-      const result = parseGantt('gantt\nsprint-length 2s\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\nsprint-length 2s\nTask duration: 10d',
+        palette
+      );
       expect(
         result.diagnostics.some((d) =>
           d.message.includes('only accepts "d" or "w"')
@@ -865,7 +1000,10 @@ describe('gantt parser', () => {
     });
 
     it('rejects sprint-length 3m', () => {
-      const result = parseGantt('gantt\nsprint-length 3m\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\nsprint-length 3m\nTask duration: 10d',
+        palette
+      );
       expect(
         result.diagnostics.some((d) =>
           d.message.includes('only accepts "d" or "w"')
@@ -874,21 +1012,30 @@ describe('gantt parser', () => {
     });
 
     it('rejects sprint-length 0d', () => {
-      const result = parseGantt('gantt\nsprint-length 0d\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\nsprint-length 0d\nTask duration: 10d',
+        palette
+      );
       expect(
         result.diagnostics.some((d) => d.message.includes('greater than 0'))
       ).toBe(true);
     });
 
     it('rejects sprint-number 0', () => {
-      const result = parseGantt('gantt\nsprint-number 0\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\nsprint-number 0\nTask duration: 10d',
+        palette
+      );
       expect(
         result.diagnostics.some((d) => d.message.includes('positive integer'))
       ).toBe(true);
     });
 
     it('rejects sprint-number 2.5 (non-integer)', () => {
-      const result = parseGantt('gantt\nsprint-number 2.5\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\nsprint-number 2.5\nTask duration: 10d',
+        palette
+      );
       expect(
         result.diagnostics.some((d) => d.message.includes('positive integer'))
       ).toBe(true);
@@ -896,7 +1043,7 @@ describe('gantt parser', () => {
 
     it('rejects sprint-start with partial date', () => {
       const result = parseGantt(
-        'gantt\nsprint-start 2026-04\n10d Task',
+        'gantt\nsprint-start 2026-04\nTask duration: 10d',
         palette
       );
       expect(
@@ -906,7 +1053,7 @@ describe('gantt parser', () => {
 
     it('rejects sprint-start with invalid date values', () => {
       const result = parseGantt(
-        'gantt\nsprint-start 2026-13-45\n10d Task',
+        'gantt\nsprint-start 2026-13-45\nTask duration: 10d',
         palette
       );
       expect(
@@ -915,7 +1062,10 @@ describe('gantt parser', () => {
     });
 
     it('rejects fractional sprint-length that does not resolve to whole days', () => {
-      const result = parseGantt('gantt\nsprint-length 1.5w\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\nsprint-length 1.5w\nTask duration: 10d',
+        palette
+      );
       expect(
         result.diagnostics.some((d) =>
           d.message.includes('whole number of days')
@@ -924,7 +1074,10 @@ describe('gantt parser', () => {
     });
 
     it('accepts sprint-length 0.5w (resolves to 3.5d → rejected)', () => {
-      const result = parseGantt('gantt\nsprint-length 0.5w\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\nsprint-length 0.5w\nTask duration: 10d',
+        palette
+      );
       expect(
         result.diagnostics.some((d) =>
           d.message.includes('whole number of days')
@@ -933,21 +1086,24 @@ describe('gantt parser', () => {
     });
 
     it('sets sprintMode explicit when sprint option present', () => {
-      const result = parseGantt('gantt\nsprint-length 2w\n10d Task', palette);
+      const result = parseGantt(
+        'gantt\nsprint-length 2w\nTask duration: 10d',
+        palette
+      );
       expect(result.options.sprintMode).toBe('explicit');
     });
 
     it('sets sprintMode explicit when sprint option present without s unit', () => {
       const result = parseGantt(
-        'gantt\nsprint-number 3\nstart 2026-01-01\n10d Task',
+        'gantt\nsprint-number 3\nstart 2026-01-01\nTask duration: 10d',
         palette
       );
       expect(result.options.sprintMode).toBe('explicit');
-      expect(result.options.sprintLength).toEqual({ amount: 2, unit: 'w' }); // default
+      expect(result.options.sprintLength).toEqual({ amount: 2, unit: 'w' });
     });
 
     it('parses 2s as sprint duration', () => {
-      const result = parseGantt('gantt\n2s Task A', palette);
+      const result = parseGantt('gantt\nTask A duration: 2s', palette);
       const task = result.nodes.find((n) => n.kind === 'task');
       expect(task).toBeDefined();
       if (task?.kind === 'task') {
@@ -956,7 +1112,7 @@ describe('gantt parser', () => {
     });
 
     it('parses 0.5s as fractional sprint duration', () => {
-      const result = parseGantt('gantt\n0.5s Task A', palette);
+      const result = parseGantt('gantt\nTask A duration: 0.5s', palette);
       const task = result.nodes.find((n) => n.kind === 'task');
       if (task?.kind === 'task') {
         expect(task.duration).toEqual({ amount: 0.5, unit: 's' });
@@ -964,14 +1120,17 @@ describe('gantt parser', () => {
     });
 
     it('auto-enables sprint mode when s unit used without options', () => {
-      const result = parseGantt('gantt\n2s Task A', palette);
+      const result = parseGantt('gantt\nTask A duration: 2s', palette);
       expect(result.options.sprintMode).toBe('auto');
-      expect(result.options.sprintLength).toEqual({ amount: 2, unit: 'w' }); // default
-      expect(result.options.sprintNumber).toBe(1); // default
+      expect(result.options.sprintLength).toEqual({ amount: 2, unit: 'w' });
+      expect(result.options.sprintNumber).toBe(1);
     });
 
-    it('parses timeline migration syntax with s unit', () => {
-      const result = parseGantt('gantt\n2026-01-15 -> 2s Task A', palette);
+    it('parses start + duration with s unit', () => {
+      const result = parseGantt(
+        'gantt\nTask A start: 2026-01-15, duration: 2s',
+        palette
+      );
       const task = result.nodes.find((n) => n.kind === 'task');
       if (task?.kind === 'task') {
         expect(task.duration).toEqual({ amount: 2, unit: 's' });
@@ -980,8 +1139,15 @@ describe('gantt parser', () => {
     });
 
     it('parses all sprint options together', () => {
-      const input =
-        'gantt\nsprint-length 3w\nsprint-number 5\nsprint-start 2026-01-05\nstart 2026-03-01\n2s Task A\n1s Task B';
+      const input = [
+        'gantt',
+        'sprint-length 3w',
+        'sprint-number 5',
+        'sprint-start 2026-01-05',
+        'start 2026-03-01',
+        'Task A duration: 2s',
+        'Task B duration: 1s',
+      ].join('\n');
       const result = parseGantt(input, palette);
       expect(result.options.sprintLength).toEqual({ amount: 3, unit: 'w' });
       expect(result.options.sprintNumber).toBe(5);
@@ -991,13 +1157,294 @@ describe('gantt parser', () => {
 
     it('preserves s unit in AST as first-class unit', () => {
       const result = parseGantt(
-        'gantt\nsprint-length 2w\n2s Design\n1s Build',
+        'gantt\nsprint-length 2w\nDesign duration: 2s\nBuild duration: 1s',
         palette
       );
       const tasks = result.nodes.filter((n) => n.kind === 'task');
       expect(tasks).toHaveLength(2);
       if (tasks[0].kind === 'task') {
         expect(tasks[0].duration?.unit).toBe('s');
+      }
+    });
+  });
+
+  // ── Migration: legacy syntax dual-accept with warnings ───
+
+  describe('legacy syntax migration', () => {
+    it('old 30d Task emits warning with correct suggestion (AC 6)', () => {
+      const result = parseGantt('gantt\n30bd Task Name', palette);
+      expect(result.nodes).toHaveLength(1);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Task Name');
+        expect(task.duration).toEqual({ amount: 30, unit: 'bd' });
+      }
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'warning' &&
+            d.message.includes('Task Name duration: 30bd')
+        )
+      ).toBe(true);
+    });
+
+    it('old DATE Task emits warning with correct suggestion (AC 7)', () => {
+      const result = parseGantt('gantt\n2024-01-15 Task Name', palette);
+      expect(result.nodes).toHaveLength(1);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Task Name');
+        expect(task.explicitStart).toBe('2024-01-15');
+        expect(task.duration).toBeNull();
+      }
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'warning' &&
+            d.message.includes('Task Name start: 2024-01-15')
+        )
+      ).toBe(true);
+    });
+
+    it('old DATE -> Xd Task emits warning with correct suggestion (AC 8)', () => {
+      const result = parseGantt('gantt\n2024-01-15 -> 30d Task Name', palette);
+      expect(result.nodes).toHaveLength(1);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Task Name');
+        expect(task.explicitStart).toBe('2024-01-15');
+        expect(task.duration).toEqual({ amount: 30, unit: 'd' });
+      }
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'warning' &&
+            d.message.includes('Task Name start: 2024-01-15, duration: 30d')
+        )
+      ).toBe(true);
+    });
+
+    it('old syntax with metadata includes metadata in suggestion', () => {
+      const result = parseGantt('gantt\n30bd Task Name progress: 80', palette);
+      expect(result.nodes).toHaveLength(1);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Task Name');
+        expect(task.progress).toBe(80);
+      }
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'warning' &&
+            d.message.includes('Gantt task syntax changed')
+        )
+      ).toBe(true);
+    });
+
+    it('old uncertain syntax still parses correctly', () => {
+      const result = parseGantt('gantt\n30d? Task Name', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.uncertain).toBe(true);
+        expect(task.duration).toEqual({ amount: 30, unit: 'd' });
+      }
+      expect(
+        result.diagnostics.some((d) =>
+          d.message.includes('Gantt task syntax changed')
+        )
+      ).toBe(true);
+    });
+  });
+
+  // ── New syntax edge cases ────────────────────────────────
+
+  describe('new syntax edge cases', () => {
+    it('AC 1: duration-only task — no diagnostics', () => {
+      const result = parseGantt('gantt\nTask Name duration: 30bd', palette);
+      expect(result.nodes).toHaveLength(1);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Task Name');
+        expect(task.duration).toEqual({ amount: 30, unit: 'bd' });
+      }
+      expect(
+        result.diagnostics.filter((d) => d.severity === 'warning')
+      ).toHaveLength(0);
+    });
+
+    it('AC 2: start-only task → milestone', () => {
+      const result = parseGantt('gantt\nTask Name start: 2024-01-15', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Task Name');
+        expect(task.explicitStart).toBe('2024-01-15');
+        expect(task.duration).toBeNull();
+      }
+    });
+
+    it('AC 3: start + duration task', () => {
+      const result = parseGantt(
+        'gantt\nTask Name start: 2024-01-15, duration: 30d',
+        palette
+      );
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.explicitStart).toBe('2024-01-15');
+        expect(task.duration).toEqual({ amount: 30, unit: 'd' });
+      }
+    });
+
+    it('AC 4: duration + offset + progress extracted from metadata', () => {
+      const result = parseGantt(
+        'gantt\nTask Name duration: 30bd, offset: -5bd, progress: 80',
+        palette
+      );
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.duration).toEqual({ amount: 30, unit: 'bd' });
+        expect(task.offset).toEqual({
+          duration: { amount: 5, unit: 'bd' },
+          direction: -1,
+        });
+        expect(task.progress).toBe(80);
+      }
+    });
+
+    it('AC 5: uncertain duration flag', () => {
+      const result = parseGantt('gantt\nTask Name duration: 30bd?', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.uncertain).toBe(true);
+        expect(task.duration).toEqual({ amount: 30, unit: 'bd' });
+      }
+    });
+
+    it('AC 9: multi-word name before duration key', () => {
+      const result = parseGantt('gantt\nPhase 2 Rollout duration: 5d', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Phase 2 Rollout');
+        expect(task.duration).toEqual({ amount: 5, unit: 'd' });
+      }
+    });
+
+    it('AC 10: bare name with no duration or start → soft error', () => {
+      const result = parseGantt('gantt\nTask Name', palette);
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'error' &&
+            d.message.includes('Expected task with duration/start')
+        )
+      ).toBe(true);
+      expect(result.nodes).toHaveLength(0);
+    });
+
+    it('AC 15: duration: 0d → milestone', () => {
+      const result = parseGantt('gantt\nMilestone duration: 0d', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.duration).toEqual({ amount: 0, unit: 'd' });
+      }
+    });
+
+    it('task with tag metadata via comma-separated keys', () => {
+      const input = [
+        'gantt',
+        'tag Team t',
+        '  Engineering blue',
+        'tag Phase p',
+        '  Foundation green',
+        'Task Name duration: 30bd, t: Engineering, p: Foundation',
+      ].join('\n');
+      const result = parseGantt(input, palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Task Name');
+        expect(task.duration).toEqual({ amount: 30, unit: 'bd' });
+        expect(task.metadata.team).toBe('Engineering');
+        expect(task.metadata.phase).toBe('Foundation');
+      }
+    });
+
+    it('start option not confused with task start: metadata', () => {
+      const result = parseGantt(
+        'gantt\nstart 2024-01-15\nTask duration: 5d',
+        palette
+      );
+      expect(result.options.start).toBe('2024-01-15');
+      expect(result.nodes).toHaveLength(1);
+    });
+
+    it('task name starting with Start parsed correctly', () => {
+      const result = parseGantt('gantt\nStart Phase 2 duration: 5d', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Start Phase 2');
+        expect(task.duration).toEqual({ amount: 5, unit: 'd' });
+      }
+    });
+
+    it('empty task name emits error', () => {
+      const result = parseGantt('gantt\nduration: 5d', palette);
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'error' &&
+            d.message.includes('Task name cannot be empty')
+        )
+      ).toBe(true);
+    });
+
+    it('invalid duration value emits error', () => {
+      const result = parseGantt('gantt\nTask Name duration: abc', palette);
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'error' && d.message.includes('Invalid duration')
+        )
+      ).toBe(true);
+    });
+
+    it('invalid start date emits error', () => {
+      const result = parseGantt('gantt\nTask Name start: not-a-date', palette);
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'error' && d.message.includes('Invalid start date')
+        )
+      ).toBe(true);
+    });
+
+    it('trailing color name is preserved in metadata', () => {
+      const result = parseGantt(
+        'gantt\ntag Team t\n  Engineering blue\nBuild Dashboard blue duration: 5d, t: Engineering',
+        palette
+      );
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Build Dashboard');
+        expect(task.metadata.color).toBe('blue');
+      }
+    });
+
+    it('as <alias> works on new-syntax task lines', () => {
+      const input = [
+        'gantt',
+        'Deploy Backend as DB duration: 5d',
+        'Frontend duration: 3d',
+        '  -> DB',
+      ].join('\n');
+      const result = parseGantt(input, palette);
+      expect(result.nodes).toHaveLength(2);
+      const taskA = result.nodes[0];
+      const taskB = result.nodes[1];
+      if (taskA.kind === 'task') {
+        expect(taskA.label).toBe('Deploy Backend');
+      }
+      if (taskB.kind === 'task') {
+        expect(taskB.dependencies).toHaveLength(1);
+        expect(taskB.dependencies[0].targetName).toBe('Deploy Backend');
       }
     });
   });

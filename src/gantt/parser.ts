@@ -45,14 +45,15 @@ import type {
 
 // ── Regexes ─────────────────────────────────────────────────
 
-/** Duration task: `30d Label`, `1.5w Label`, `10bd? Label`, `2h Label`, `90min Label` */
-const DURATION_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)(\?)?\s+(.+)$/;
+/** Legacy duration task: `30d Label` (deprecated \u2014 use `Label duration: 30d`) */
+const LEGACY_DURATION_RE =
+  /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)(\?)?\s+(.+)$/;
 
-/** Explicit date task: `2024-01-15 Label` or `2024-01-15 14:30 Label` */
-const EXPLICIT_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s+(.+)$/;
+/** Legacy explicit date task: `2024-01-15 Label` (deprecated \u2014 use `Label start: 2024-01-15`) */
+const LEGACY_EXPLICIT_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s+(.+)$/;
 
-/** Timeline migration syntax: `2024-01-15 -> 30d Label` or `2024-01-15 14:30 -> 2h Label` */
-const TIMELINE_DURATION_RE =
+/** Legacy timeline duration: `2024-01-15 -> 30d Label` (deprecated \u2014 use `Label start: \u2026, duration: \u2026`) */
+const LEGACY_TIMELINE_DURATION_RE =
   /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s*(?:->|\u2013>)\s*(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)(\?)?\s+(.+)$/;
 
 /** Group container: `[GroupName]` with optional pipe metadata */
@@ -634,6 +635,86 @@ export function parseGantt(
       continue;
     }
 
+    // ── New-syntax task: `Name duration: Xd` or `Name start: DATE` ─
+    {
+      const registry = withTagAliases(
+        GANTT_REGISTRY,
+        new Set(metaAliasMap.keys())
+      );
+      const split = splitNameAndMeta(
+        line,
+        registry,
+        metaAliasMap,
+        undefined,
+        diagnostics,
+        lineNumber
+      );
+      const rawDur = split.meta['duration'];
+      const rawStart = split.meta['start'];
+
+      if (rawDur !== undefined || rawStart !== undefined) {
+        let duration: Duration | null = null;
+        let uncertain = false;
+
+        if (rawDur !== undefined) {
+          const uncertainMatch = rawDur.match(/^(.+)\?$/);
+          const durStr = uncertainMatch ? uncertainMatch[1]! : rawDur;
+          if (uncertainMatch) uncertain = true;
+          duration = parseDuration(durStr);
+          if (!duration) {
+            softError(
+              lineNumber,
+              `Invalid duration: "${rawDur}". Expected format like "30bd", "5d", "1.5w".`
+            );
+            continue;
+          }
+        }
+
+        let explicitStart: string | undefined;
+        if (rawStart !== undefined) {
+          if (!/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?$/.test(rawStart)) {
+            softError(
+              lineNumber,
+              `Invalid start date: "${rawStart}". Expected YYYY-MM-DD or YYYY-MM-DD HH:MM.`
+            );
+            continue;
+          }
+          explicitStart = rawStart;
+        }
+
+        const taskName = split.name.trim();
+        if (!taskName) {
+          softError(lineNumber, `Task name cannot be empty.`);
+          continue;
+        }
+
+        if (split.alias) nameAliasMap.set(split.alias, taskName);
+
+        const preExtracted = { ...split.meta };
+        delete preExtracted['duration'];
+        delete preExtracted['start'];
+        if (split.color) preExtracted['color'] = split.color;
+
+        const task = makeTask(
+          taskName,
+          duration,
+          uncertain,
+          lineNumber,
+          explicitStart,
+          preExtracted
+        );
+        const taskNode: GanttNode = { kind: 'task', ...task };
+        currentContainer().push(taskNode);
+        lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
+        blockStack.push({
+          node: taskNode as unknown as Writable<GanttGroup>,
+          indent,
+          containerType: 'task',
+        });
+        continue;
+      }
+    }
+
     // Options — space-separated: `start 2024-04-01`, `title My Plan`
     // Boolean options: bare keyword = on, `no-X` = off
     const optNoColonMatch = line.match(/^([a-z][a-z0-9-]*)\s+(.+)$/i);
@@ -861,16 +942,21 @@ export function parseGantt(
       continue;
     }
 
-    // ── Timeline migration syntax: 2024-01-15 -> 30d: Label ─
+    // ── Legacy syntax: dual-accept with migration warning ───
 
-    const timelineDurMatch = line.match(TIMELINE_DURATION_RE);
+    const timelineDurMatch = line.match(LEGACY_TIMELINE_DURATION_RE);
     if (timelineDurMatch) {
-      // Capture groups 1, 2, 3, 5 guaranteed by successful regex match; group 4 is optional.
       const startDate = timelineDurMatch[1]!;
       const amount = parseFloat(timelineDurMatch[2]!);
       const unit = timelineDurMatch[3] as DurationUnit;
       const uncertain = !!timelineDurMatch[4];
       const labelRaw = timelineDurMatch[5]!;
+      const durStr = `${timelineDurMatch[2]}${unit}${uncertain ? '?' : ''}`;
+      const trailingMeta = extractTrailingMeta(labelRaw);
+      const suggestion = trailingMeta
+        ? `${trailingMeta.name} start: ${startDate}, duration: ${durStr}, ${trailingMeta.meta}`
+        : `${labelRaw.split('|')[0]!.trim()} start: ${startDate}, duration: ${durStr}`;
+      warn(lineNumber, `Gantt task syntax changed — write: ${suggestion}`);
 
       const task = makeTask(
         labelRaw,
@@ -890,15 +976,18 @@ export function parseGantt(
       continue;
     }
 
-    // ── Duration task: 30d: Label ─────────────────────────
-
-    const durMatch = line.match(DURATION_RE);
+    const durMatch = line.match(LEGACY_DURATION_RE);
     if (durMatch) {
-      // Capture groups 1, 2, 4 guaranteed by successful regex match; group 3 is optional.
       const amount = parseFloat(durMatch[1]!);
       const unit = durMatch[2] as DurationUnit;
       const uncertain = !!durMatch[3];
       const labelRaw = durMatch[4]!;
+      const durStr = `${durMatch[1]}${unit}${uncertain ? '?' : ''}`;
+      const trailingMeta = extractTrailingMeta(labelRaw);
+      const suggestion = trailingMeta
+        ? `${trailingMeta.name} duration: ${durStr}, ${trailingMeta.meta}`
+        : `${labelRaw.split('|')[0]!.trim()} duration: ${durStr}`;
+      warn(lineNumber, `Gantt task syntax changed — write: ${suggestion}`);
 
       const task = makeTask(labelRaw, { amount, unit }, uncertain, lineNumber);
       const taskNode: GanttNode = { kind: 'task', ...task };
@@ -912,19 +1001,21 @@ export function parseGantt(
       continue;
     }
 
-    // ── Explicit date task: 2024-01-15: Label ─────────────
-
-    const explicitDateMatch = line.match(EXPLICIT_DATE_RE);
+    const explicitDateMatch = line.match(LEGACY_EXPLICIT_DATE_RE);
     if (explicitDateMatch) {
-      // Capture groups 1-2 guaranteed by successful regex match.
+      const trailingMeta = extractTrailingMeta(explicitDateMatch[2]!);
+      const suggestion = trailingMeta
+        ? `${trailingMeta.name} start: ${explicitDateMatch[1]!}, ${trailingMeta.meta}`
+        : `${explicitDateMatch[2]!.split('|')[0]!.trim()} start: ${explicitDateMatch[1]!}`;
+      warn(lineNumber, `Gantt task syntax changed — write: ${suggestion}`);
+
       const task = makeTask(
         explicitDateMatch[2]!,
-        null, // no duration — it's a date anchor / milestone
+        null,
         false,
         lineNumber,
         explicitDateMatch[1]!
       );
-      // Explicit date tasks with no duration are milestones
       const taskNode: GanttNode = { kind: 'task', ...task };
       currentContainer().push(taskNode);
       lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
@@ -1002,7 +1093,7 @@ export function parseGantt(
 
     softError(
       lineNumber,
-      `Expected duration (e.g., "10d Task"), group brackets (e.g., "[Group]"), or keyword. Got: "${line}"`
+      `Expected task with duration/start (e.g., "Task Name duration: 5d"), group brackets (e.g., "[Group]"), or keyword. Got: "${line}"`
     );
     continue;
   }
@@ -1062,7 +1153,8 @@ export function parseGantt(
     duration: Duration | null,
     uncertain: boolean,
     ln: number,
-    explicitStart?: string
+    explicitStart?: string,
+    preExtractedMeta?: Record<string, string>
   ): GanttTask {
     // Legacy `|` detection per §1.4.
     if (labelRaw.includes('|')) {
@@ -1118,6 +1210,10 @@ export function parseGantt(
         label = split.name;
         Object.assign(metadata, split.meta);
       }
+    }
+
+    if (preExtractedMeta) {
+      Object.assign(metadata, preExtractedMeta);
     }
 
     // Extract progress from metadata or shorthand
@@ -1278,6 +1374,38 @@ const KNOWN_BOOLEANS = new Set([
 
 function isKnownOption(key: string): boolean {
   return KNOWN_OPTIONS.has(key);
+}
+
+/**
+ * Extract trailing metadata from a legacy label for migration suggestions.
+ * Handles both pipe (`Label | k: v`) and §1.4 (`Label k: v`) forms.
+ */
+function extractTrailingMeta(
+  labelRaw: string
+): { name: string; meta: string } | null {
+  const pipeIdx = labelRaw.indexOf('|');
+  if (pipeIdx > 0) {
+    const rawMeta = labelRaw
+      .substring(pipeIdx + 1)
+      .trim()
+      .replace(/\|/g, ',');
+    return {
+      name: labelRaw.substring(0, pipeIdx).trim(),
+      meta: rawMeta,
+    };
+  }
+  const colonIdx = labelRaw.indexOf(':');
+  if (colonIdx > 0) {
+    const beforeColon = labelRaw.substring(0, colonIdx).trim();
+    const lastSpace = beforeColon.lastIndexOf(' ');
+    if (lastSpace > 0) {
+      return {
+        name: beforeColon.substring(0, lastSpace).trim(),
+        meta: labelRaw.substring(lastSpace + 1).trim(),
+      };
+    }
+  }
+  return null;
 }
 
 /** Check if any task in the tree uses the `s` (sprint) duration unit. */

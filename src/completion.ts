@@ -695,7 +695,12 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
   [
     'gantt',
     {
-      node: {},
+      node: {
+        duration: { description: 'Task duration (e.g., 30bd, 5d, 1.5w)' },
+        start: { description: 'Explicit start date (e.g., 2024-01-15)' },
+        progress: { description: 'Task progress (0–100)' },
+        offset: { description: 'Task start offset (e.g., 8bd, -3bd)' },
+      },
       edge: {
         // Gantt "edge" = dependency arrow (TaskA -> TaskB | offset 2bd)
         offset: { description: 'Dependency offset (e.g., 2bd, -1w)' },
@@ -1296,10 +1301,12 @@ function extractC4Symbols(docText: string): DiagramSymbols {
 // Gantt extractor
 // ============================================================
 
-const GANTT_DURATION_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)\??\s+(.+)$/;
-const GANTT_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2})?)\s+(.+)$/;
+const GANTT_LEGACY_DURATION_RE =
+  /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)\??\s+(.+)$/;
+const GANTT_LEGACY_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2})?)\s+(.+)$/;
 const GANTT_GROUP_RE = /^\[(.+?)\]/;
 const GANTT_STRUCTURAL_RE = /^(era|marker|holiday|workweek|parallel)\b/i;
+const GANTT_META_KEY_RE = /\b(?:duration|start):\s/;
 
 function extractGanttSymbols(docText: string): DiagramSymbols {
   const lines = docText.split('\n');
@@ -1330,25 +1337,40 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
       inTagBlock = false;
     }
 
-    // Skip structural keywords
-    if (GANTT_STRUCTURAL_RE.test(trimmed)) continue;
-
     // Groups: [GroupName]
     const groupMatch = trimmed.match(GANTT_GROUP_RE);
     if (groupMatch) {
-      // Regex captured group 1 by successful match.
       const name = groupMatch[1]!.trim();
       if (name && !entities.includes(name)) entities.push(name);
       continue;
     }
 
-    // Tasks by duration: 30d Task Name | metadata
-    const durMatch = trimmed.match(GANTT_DURATION_RE);
+    // New syntax: Task Name duration: 5d or Task Name start: 2024-01-15
+    // (checked before structural keyword skip so "Era of Innovation duration: 5d" isn't skipped)
+    if (GANTT_META_KEY_RE.test(trimmed)) {
+      const cutIdx = trimmed.search(
+        /\b(?:duration|start|progress|offset|color|description):\s/
+      );
+      if (cutIdx > 0) {
+        let taskName = trimmed.substring(0, cutIdx).trim();
+        const arrowIdx = taskName.indexOf('->');
+        if (arrowIdx > 0)
+          taskName = taskName
+            .substring(0, arrowIdx)
+            .replace(/-[^>]*$/, '')
+            .trim();
+        if (taskName && !entities.includes(taskName)) entities.push(taskName);
+        continue;
+      }
+    }
+
+    // Skip structural keywords (after new-syntax check so "Era of Innovation duration: 5d" isn't skipped)
+    if (GANTT_STRUCTURAL_RE.test(trimmed)) continue;
+
+    // Legacy: Tasks by duration: 30d Task Name
+    const durMatch = trimmed.match(GANTT_LEGACY_DURATION_RE);
     if (durMatch) {
-      // Strip pipe metadata and dependency arrows from task name
-      // Regex captured group 3 by successful match; split('|')[0] always defined.
       let taskName = durMatch[3]!.split('|')[0]!.trim();
-      // Remove trailing dependency: "Task Name -> Other" → "Task Name"
       const arrowIdx = taskName.indexOf('->');
       if (arrowIdx > 0)
         taskName = taskName
@@ -1359,10 +1381,9 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
       continue;
     }
 
-    // Tasks by date: 2024-01-15 Task Name
-    const dateMatch = trimmed.match(GANTT_DATE_RE);
+    // Legacy: Tasks by date: 2024-01-15 Task Name
+    const dateMatch = trimmed.match(GANTT_LEGACY_DATE_RE);
     if (dateMatch) {
-      // Regex captured group 2 by successful match; split('|')[0] always defined.
       let taskName = dateMatch[2]!.split('|')[0]!.trim();
       const arrowIdx = taskName.indexOf('->');
       if (arrowIdx > 0)

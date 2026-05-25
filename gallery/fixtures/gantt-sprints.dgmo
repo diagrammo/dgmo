@@ -5,16 +5,16 @@ sprint-number 5
 sprint-start 2026-01-05
 
 [Design]
-  2s UX Research
-  1s Wireframes
-  1.5s Visual Design
+  UX Research duration: 2s
+  Wireframes duration: 1s
+  Visual Design duration: 1.5s
 
 [Engineering]
-  3s Backend API
-  2s Frontend Build
-  0.5s Performance Tuning
+  Backend API duration: 3s
+  Frontend Build duration: 2s
+  Performance Tuning duration: 0.5s
 
 [QA]
-  1s Integration Testing
-  0.5s UAT
-  0d Release Candidate
+  Integration Testing duration: 1s
+  UAT duration: 0.5s
+  Release Candidate duration: 0d

@@ -19,24 +19,24 @@ marker 2024-02-26 Board Meeting
 marker 2024-04-08 Trade Show Demo orange
 
 // Independent task with offset — starts 8bd after project start
-10bd Brand Guidelines t: Design, p: Foundation, offset: 8bd
+Brand Guidelines duration: 10bd, t: Design, p: Foundation, offset: 8bd
 
 parallel
   [Backend] t: Engineering
-    30bd Database Layer p: Foundation, progress: 80
-    10bd? Auth Module p: Foundation, progress: 100
+    Database Layer duration: 30bd, p: Foundation, progress: 80
+    Auth Module duration: 10bd?, p: Foundation, progress: 100
       // Start frontend integration 5bd before Auth finishes (overlap)
       -> Frontend.API Integration offset: -5bd
     parallel
-      5bd Load Testing t: QA, p: Growth
-      5bd Security Audit t: QA, p: Growth
+      Load Testing duration: 5bd, t: QA, p: Growth
+      Security Audit duration: 5bd, t: QA, p: Growth
 
   [Frontend] t: Design
-    15bd Component Library p: Foundation
-    10bd API Integration t: Engineering, p: Growth
-    5bd Polish p: Growth, progress: 30
+    Component Library duration: 15bd, p: Foundation
+    API Integration duration: 10bd, t: Engineering, p: Growth
+    Polish duration: 5bd, p: Growth, progress: 30
 
 [Integration] t: QA
-  10bd E2E Testing
+  E2E Testing duration: 10bd
   // Final validation before release
-  0d Release Candidate
+  Release Candidate duration: 0d

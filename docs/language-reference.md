@@ -1171,22 +1171,24 @@ Bracket syntax only.
 ### 12.8 Tasks
 
 ```
-20bd Database Schema | p: Foundation, 100%
-10bd API Integration | t: Engineering
-0d Launch Day
-2026-03-15 -> 30d Setup
+Database Schema duration: 20bd, p: Foundation, progress: 100
+API Integration duration: 10bd, t: Engineering
+Launch Day duration: 0d
+Setup start: 2026-03-15, duration: 30d
+Design Review start: 2026-04-01
 ```
 
-Duration units: `min`, `h`, `d`, `bd` (business days), `w`, `m`, `q`, `y`
-Uncertain: `10bd?` (trailing `?`)
-Progress: `| 80%` in pipe metadata
+A task line MUST have `duration:` or `start:` (or both) in its metadata.
+Duration units: `min`, `h`, `d`, `bd` (business days), `w`, `m`, `q`, `y`, `s` (sprints)
+Uncertain: `duration: 10bd?` (trailing `?` on the value)
+Progress: `progress: 80` in metadata (integer 0–100)
 
 ### 12.9 Dependencies (Indented Under Tasks)
 
 ```
-10bd API Integration
+API Integration duration: 10bd
   -> E2E Testing
-  -> Launch Day | offset: 10bd
+  -> Launch Day offset: 10bd
 ```
 
 ### 12.10 Parallel Block
@@ -1194,9 +1196,9 @@ Progress: `| 80%` in pipe metadata
 ```
 parallel
   [Backend]
-    20bd Schema
+    Schema duration: 20bd
   [Frontend]
-    10bd Wireframes
+    Wireframes duration: 10bd
 ```
 
 ---
