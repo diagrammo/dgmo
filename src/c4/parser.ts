@@ -1121,15 +1121,15 @@ function validateRelationshipTargets(
     severity?: 'error' | 'warning'
   ) => void
 ): void {
+  const allNames = Array.from(knownNames.keys());
   function walkRels(elements: readonly C4Element[]) {
     for (const el of elements) {
       for (const rel of el.relationships) {
         if (!knownNames.has(normalizeName(rel.target))) {
-          pushWarning(
-            rel.lineNumber,
-            `Relationship target "${rel.target}" not found`,
-            'warning'
-          );
+          let msg = `Relationship target "${rel.target}" not found`;
+          const hint = suggest(normalizeName(rel.target), allNames);
+          if (hint) msg += `. ${hint}`;
+          pushWarning(rel.lineNumber, msg, 'warning');
         }
       }
       walkRels(el.children);
@@ -1143,11 +1143,10 @@ function validateRelationshipTargets(
   // Also check top-level relationships
   for (const rel of result.relationships) {
     if (!knownNames.has(normalizeName(rel.target))) {
-      pushWarning(
-        rel.lineNumber,
-        `Relationship target "${rel.target}" not found`,
-        'warning'
-      );
+      let msg = `Relationship target "${rel.target}" not found`;
+      const hint = suggest(normalizeName(rel.target), allNames);
+      if (hint) msg += `. ${hint}`;
+      pushWarning(rel.lineNumber, msg, 'warning');
     }
   }
 }
@@ -1161,15 +1160,15 @@ function validateDeploymentRefs(
     severity?: 'error' | 'warning'
   ) => void
 ): void {
+  const allNames = Array.from(knownNames.keys());
   function walkDeploy(nodes: readonly C4DeploymentNode[]) {
     for (const node of nodes) {
       for (const ref of node.containerRefs) {
         if (!knownNames.has(normalizeName(ref))) {
-          pushWarning(
-            node.lineNumber,
-            `Deployment reference "container ${ref}" not found`,
-            'warning'
-          );
+          let msg = `Deployment reference "container ${ref}" not found`;
+          const hint = suggest(normalizeName(ref), allNames);
+          if (hint) msg += `. ${hint}`;
+          pushWarning(node.lineNumber, msg, 'warning');
         }
       }
       walkDeploy(node.children);

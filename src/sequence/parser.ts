@@ -1585,7 +1585,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // Catch-all: nothing matched this line
-    pushWarning(lineNumber, `Unexpected line: '${trimmed}'.`);
+    pushWarning(
+      lineNumber,
+      `Unexpected line: '${trimmed}'. Expected a message (A -> B), participant, section (== Name ==), or block keyword (if/loop/parallel).`
+    );
   }
 
   // Validate: if no explicit chart line, check for arrow-based inference

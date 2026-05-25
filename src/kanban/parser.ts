@@ -406,7 +406,12 @@ export function parseKanban(
     }
 
     // Un-indented non-column line in content phase — stray text
-    warn(lineNumber, `Unexpected line: '${trimmed}'.`);
+    warn(
+      lineNumber,
+      currentColumn
+        ? `Unexpected line: '${trimmed}'. Expected an indented card name or column header like '[Column Name]'.`
+        : `Unexpected line: '${trimmed}'. Expected a column header like '[Column Name]'.`
+    );
   }
 
   // Finalize last card's endLineNumber

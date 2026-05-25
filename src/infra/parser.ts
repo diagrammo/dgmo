@@ -22,6 +22,7 @@ import {
   parseFirstLine,
   OPTION_NOCOLON_RE,
   tryParseSharedOption,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import { isRecognizedColorName } from '../colors';
 import { normalizeName, displayName } from '../utils/name-normalize';
@@ -31,6 +32,7 @@ import {
   stripDefaultModifier,
   validateTagGroupNames,
 } from '../utils/tag-groups';
+import { INFRA_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
 import type {
   ParsedInfra,
   InfraNode,
@@ -228,6 +230,13 @@ export function parseInfra(content: string): ParsedInfra {
     existing.push(text);
     node.description = existing;
   }
+
+  // Tag-alias set grows as `tag Name as <x>` groups are parsed.
+  const tagAliasSet = new Set<string>();
+  const EDGE_PIPE_REGISTRY = {
+    keys: new Set(['split', 'fanout']),
+    tagAliases: new Set<string>(),
+  } as const;
 
   // Per-parse alias literal → canonical node id (TD-18). Per C8.
   const nameAliasMap = new Map<string, string>();
@@ -440,6 +449,7 @@ export function parseInfra(content: string): ParsedInfra {
         emitTagLegacyDiagnostic(tagMatch, lineNumber, result.diagnostics);
         finishCurrentNode();
         finishCurrentTagGroup();
+        if (tagMatch.alias) tagAliasSet.add(normalizeName(tagMatch.alias));
         currentTagGroup = {
           name: tagMatch.name,
           alias: tagMatch.alias ?? null,
@@ -462,6 +472,13 @@ export function parseInfra(content: string): ParsedInfra {
         const groupMeta = groupMatch[3]
           ? extractPipeMetadata(groupMatch[3]).tags
           : undefined;
+        if (groupMeta) {
+          warnUnknownMetaKeys(
+            groupMeta,
+            withTagAliases(INFRA_REGISTRY, tagAliasSet),
+            (msg) => warn(lineNumber, msg)
+          );
+        }
         const hasMeta = groupMeta && Object.keys(groupMeta).length > 0;
         const newGroup: Writable<InfraGroup> = {
           id: gId,
@@ -485,6 +502,11 @@ export function parseInfra(content: string): ParsedInfra {
         const name = peeled.label;
         const rest = compMatch[3] || '';
         const { tags } = extractPipeMetadata(rest);
+        warnUnknownMetaKeys(
+          tags,
+          withTagAliases(INFRA_REGISTRY, tagAliasSet),
+          (msg) => warn(lineNumber, msg)
+        );
         const id = nodeId(name);
         if (peeled.alias) nameAliasMap.set(peeled.alias, id);
         const isEdge = EDGE_NODE_NAMES.has(id.toLowerCase());
@@ -593,6 +615,11 @@ export function parseInfra(content: string): ParsedInfra {
         const name = peeled.label;
         const rest = compMatch[3] || '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
+        warnUnknownMetaKeys(
+          nodeTags,
+          withTagAliases(INFRA_REGISTRY, tagAliasSet),
+          (msg) => warn(lineNumber, msg)
+        );
         const id = nodeId(name);
         if (peeled.alias) nameAliasMap.set(peeled.alias, id);
         // Cascade group metadata into node tags; node-level metadata overrides
@@ -641,6 +668,9 @@ export function parseInfra(content: string): ParsedInfra {
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
         warnUnparsedPipeMeta(targetName, lineNumber, warn);
+        warnUnknownMetaKeys(pipeMeta.tags, EDGE_PIPE_REGISTRY, (msg) =>
+          warn(lineNumber, msg)
+        );
         const split = pipeMeta.tags['split']
           ? parseFloat(pipeMeta.tags['split'])
           : null;
@@ -680,6 +710,9 @@ export function parseInfra(content: string): ParsedInfra {
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
         warnUnparsedPipeMeta(targetName, lineNumber, warn);
+        warnUnknownMetaKeys(pipeMeta.tags, EDGE_PIPE_REGISTRY, (msg) =>
+          warn(lineNumber, msg)
+        );
         const split = pipeMeta.tags['split']
           ? parseFloat(pipeMeta.tags['split'])
           : null;
@@ -725,6 +758,9 @@ export function parseInfra(content: string): ParsedInfra {
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
         warnUnparsedPipeMeta(targetName, lineNumber, warn);
+        warnUnknownMetaKeys(pipeMeta.tags, EDGE_PIPE_REGISTRY, (msg) =>
+          warn(lineNumber, msg)
+        );
         const split = pipeMeta.tags['split']
           ? parseFloat(pipeMeta.tags['split'])
           : null;
@@ -764,6 +800,9 @@ export function parseInfra(content: string): ParsedInfra {
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
         warnUnparsedPipeMeta(targetName, lineNumber, warn);
+        warnUnknownMetaKeys(pipeMeta.tags, EDGE_PIPE_REGISTRY, (msg) =>
+          warn(lineNumber, msg)
+        );
         const split = pipeMeta.tags['split']
           ? parseFloat(pipeMeta.tags['split'])
           : null;
@@ -890,7 +929,7 @@ export function parseInfra(content: string): ParsedInfra {
       }
       warn(
         lineNumber,
-        `Unexpected line inside component '${currentNode.label}'.`
+        `Unexpected line inside component '${currentNode.label}'. Expected a property (key: value), connection (-> Target), or description text.`
       );
       continue;
     }
@@ -906,6 +945,11 @@ export function parseInfra(content: string): ParsedInfra {
         const name = peeled.label;
         const rest = compMatch[3] || '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
+        warnUnknownMetaKeys(
+          nodeTags,
+          withTagAliases(INFRA_REGISTRY, tagAliasSet),
+          (msg) => warn(lineNumber, msg)
+        );
         const id = nodeId(name);
         if (peeled.alias) nameAliasMap.set(peeled.alias, id);
         const tags: Record<string, string> = currentGroup.metadata
@@ -940,6 +984,11 @@ export function parseInfra(content: string): ParsedInfra {
         const name = peeled.label;
         const rest = compMatch[3] || '';
         const { tags } = extractPipeMetadata(rest);
+        warnUnknownMetaKeys(
+          tags,
+          withTagAliases(INFRA_REGISTRY, tagAliasSet),
+          (msg) => warn(lineNumber, msg)
+        );
         const id = nodeId(name);
         if (peeled.alias) nameAliasMap.set(peeled.alias, id);
 
@@ -959,7 +1008,12 @@ export function parseInfra(content: string): ParsedInfra {
     }
 
     // Catch-all: nothing matched this line
-    warn(lineNumber, `Unexpected line: '${trimmed}'.`);
+    warn(
+      lineNumber,
+      currentGroup
+        ? `Unexpected line: '${trimmed}'. Expected an indented component name.`
+        : `Unexpected line: '${trimmed}'. Expected a component name, [Group Name], tag group, or option.`
+    );
   }
 
   // Flush last open blocks

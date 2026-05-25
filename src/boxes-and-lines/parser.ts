@@ -665,13 +665,15 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     let valid = true;
 
     // Check group references exist
+    const allGroups = Array.from(groupLabels);
     if (edge.source.startsWith('__group_')) {
       const label = edge.source.slice('__group_'.length);
       const found = groupLabels.has(normalizeName(label));
       if (!found) {
-        result.diagnostics.push(
-          makeDgmoError(edge.lineNumber, `Group '[${label}]' not found`)
-        );
+        let msg = `Group '[${label}]' not found`;
+        const hint = suggest(normalizeName(label), allGroups);
+        if (hint) msg += `. ${hint}`;
+        result.diagnostics.push(makeDgmoError(edge.lineNumber, msg));
         valid = false;
       }
     } else {
@@ -682,9 +684,10 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       const label = edge.target.slice('__group_'.length);
       const found = groupLabels.has(normalizeName(label));
       if (!found) {
-        result.diagnostics.push(
-          makeDgmoError(edge.lineNumber, `Group '[${label}]' not found`)
-        );
+        let msg = `Group '[${label}]' not found`;
+        const hint = suggest(normalizeName(label), allGroups);
+        if (hint) msg += `. ${hint}`;
+        result.diagnostics.push(makeDgmoError(edge.lineNumber, msg));
         valid = false;
       }
     } else {
