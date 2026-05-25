@@ -12,7 +12,6 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'mindmap',
 
   directives: [
-    'no-descriptions',
     'active-tag',
     'solid-fill', // working but not documented in §18.7
   ],

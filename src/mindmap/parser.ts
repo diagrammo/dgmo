@@ -188,10 +188,12 @@ export function parseMindmap(
           continue;
         }
       }
-      // Bare keyword option: no-descriptions
       const lower = trimmed.toLowerCase();
       if (lower === 'no-descriptions') {
-        options['no-descriptions'] = 'true';
+        pushWarning(
+          lineNumber,
+          '"no-descriptions" has been removed — delete description lines from your source instead.'
+        );
         continue;
       }
       if (tryParseSharedOption(trimmed, options)) {

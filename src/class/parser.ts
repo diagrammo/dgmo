@@ -281,9 +281,14 @@ export function parseClassDiagram(
     // Space-separated options before content (new syntax): `no-auto-color`
     // Only match lines starting with a lowercase token (options), not uppercase (class names)
     if (!contentStarted && indent === 0 && /^[a-z]/.test(trimmed)) {
-      // Bare boolean option (single keyword, no value)
       if (trimmed.toLowerCase() === 'no-auto-color') {
-        options['no-auto-color'] = 'on';
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            '"no-auto-color" has been removed.',
+            'warning'
+          )
+        );
         continue;
       }
       if (tryParseSharedOption(trimmed, options)) {

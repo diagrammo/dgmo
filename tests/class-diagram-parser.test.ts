@@ -21,11 +21,17 @@ describe('parseClassDiagram', () => {
       expect(result.error).toBeNull();
     });
 
-    it('parses no-auto-color boolean option', () => {
+    it('warns on removed no-auto-color option', () => {
       const result = parseClassDiagram(
         'class\nno-auto-color\nAnimal\n  name: string'
       );
-      expect(result.options['no-auto-color']).toBe('on');
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'warning' &&
+            d.message.includes('"no-auto-color" has been removed')
+        )
+      ).toBe(true);
     });
   });
 

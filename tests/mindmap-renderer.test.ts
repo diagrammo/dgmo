@@ -63,16 +63,6 @@ describe('mindmap renderer', () => {
     expect(svg).toMatch(/d="M\s.*L\s/);
   });
 
-  it('no-descriptions suppresses description text', () => {
-    const content = readFileSync(
-      resolve(FIXTURE_DIR, 'tags-and-colors.dgmo'),
-      'utf-8'
-    );
-    const svg = renderMindmapForExport(content, 'light', palette);
-    // The description "This should be hidden" should not appear
-    expect(svg).not.toContain('This should be hidden');
-  });
-
   it('renders with dark theme', () => {
     const darkPalette = getPalette('bold').dark;
     const content = readFileSync(resolve(FIXTURE_DIR, 'basic.dgmo'), 'utf-8');

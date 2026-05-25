@@ -120,7 +120,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   // Infra directives
   'sub-node-label',
   'show-sub-node-count',
-  'no-auto-color',
   // Infra node properties
   'instances',
   'max-rps',
@@ -150,7 +149,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'no-name',
   'no-value',
   'no-percent',
-  'no-descriptions',
   // Slope
   'period',
   // Quadrant
@@ -180,9 +178,8 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'rotate',
   'scale',
   'values',
-  // Color / no-color (cross-chart-type)
+  // Color (cross-chart-type)
   'color',
-  'no-color',
   // Title suppression (cross-chart-type)
   'no-title',
   // Flowchart layout
@@ -196,7 +193,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'direction-counterclockwise',
   'circle-nodes',
   // Journey-map
-  'no-legend',
   'persona',
   // Tech-radar
   'show-blip-legend',
@@ -223,7 +219,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'default-latency-ms',
   'default-uptime',
   'animate',
-  'no-animate',
   // PERT
   'time-unit',
   'default-confidence',

@@ -14,7 +14,6 @@ export const fixture: ConformanceFixture = {
     'slo-p90-latency-ms',
     'slo-warning-margin',
     'animate',
-    'no-animate',
     'active-tag',
   ],
   pipeKeys: {

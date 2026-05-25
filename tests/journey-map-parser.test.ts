@@ -355,11 +355,17 @@ describe('journey-map parser', () => {
   // ── Options ───────────────────────────────────────────────
 
   describe('options', () => {
-    it('parses no-legend directive', () => {
+    it('warns on removed no-legend option', () => {
       const result = parseJourneyMap(
         'journey-map Test\n\nno-legend\n\n[Phase]\n  Step | 3'
       );
-      expect(result.options['no-legend']).toBe('on');
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'warning' &&
+            d.message.includes('"no-legend" has been removed')
+        )
+      ).toBe(true);
     });
 
     it('parses active-tag option', () => {

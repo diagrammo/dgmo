@@ -286,25 +286,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'flowchart',
-    // Spec §5 §4.6: direction-lr, orientation-vertical, no-color, solid-fill
+    // Spec §5 §4.6: direction-lr, orientation-vertical, solid-fill
     withGlobals({
       'direction-lr': { description: 'Switch to left-to-right layout' },
       'orientation-vertical': {
         description: 'Use vertical orientation for ranks',
       },
-      'no-color': {
-        description: 'Resolve all nodes to muted neutral fill',
-      },
     }),
   ],
-  [
-    'class',
-    withGlobals({
-      'no-auto-color': {
-        description: 'Disable automatic modifier-based coloring',
-      },
-    }),
-  ],
+  ['class', withGlobals({})],
   [
     'er',
     // Spec §9 §8.5: notation (chen/crow), active-tag.
@@ -330,9 +320,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'kanban',
-    // Spec §11 §10.4: no-auto-color, hide, active-tag.
+    // Spec §11 §10.4: hide, active-tag.
     withGlobals({
-      'no-auto-color': { description: 'Disable automatic card coloring' },
       hide: { description: 'Hide tag:value pairs' },
       'active-tag': { description: 'Active tag group name' },
     }),
@@ -371,12 +360,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'state',
-    // Spec §6 §5.5: direction-tb, no-color, solid-fill.
+    // Spec §6 §5.5: direction-tb, solid-fill.
     withGlobals({
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
-      'no-color': {
-        description: 'Resolve all states to muted neutral fill',
-      },
     }),
   ],
   [
@@ -391,7 +377,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     withGlobals({
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
       animate: { description: 'Enable traffic animation' },
-      'no-animate': { description: 'Disable traffic animation' },
       'default-latency-ms': { description: 'Default latency for all nodes' },
       'default-uptime': { description: 'Default uptime for all nodes' },
       'default-rps': { description: 'Default RPS capacity for all nodes' },
@@ -464,7 +449,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'mindmap',
     withGlobals({
-      'no-descriptions': { description: 'Hide node descriptions' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
@@ -492,7 +476,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'direction-counterclockwise': {
         description: 'Reverse cycle direction to counterclockwise',
       },
-      'no-descriptions': { description: 'Hide node and edge descriptions' },
       'circle-nodes': {
         description: 'Render nodes as circles instead of rectangles',
       },
@@ -500,11 +483,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'journey-map',
-    // Spec §22 directives: `no-legend`, `active-tag`. `persona` is a
+    // Spec §22 directives: `active-tag`. `persona` is a
     // structural keyword (like `tag` / `roles`), not a directive.
     // `solid-fill` is added via SOLID_FILL_CAPABLE below.
     withGlobals({
-      'no-legend': { description: 'Hide the score legend' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
@@ -2063,8 +2045,7 @@ function extractCycleSymbols(docText: string): DiagramSymbols {
     if (METADATA_KEY_SET.has(firstToken)) continue;
     if (
       firstToken === 'direction-counterclockwise' ||
-      firstToken === 'circle-nodes' ||
-      firstToken === 'no-descriptions'
+      firstToken === 'circle-nodes'
     )
       continue;
 
@@ -2080,7 +2061,7 @@ function extractCycleSymbols(docText: string): DiagramSymbols {
   return {
     kind: 'cycle',
     entities,
-    keywords: ['direction-counterclockwise', 'no-descriptions', 'circle-nodes'],
+    keywords: ['direction-counterclockwise', 'circle-nodes'],
   };
 }
 
@@ -2177,7 +2158,7 @@ function extractRaciSymbols(docText: string): DiagramSymbols {
   return {
     kind: chartType,
     entities,
-    keywords: ['variant', 'roles', 'no-rule-enforcement'],
+    keywords: ['variant', 'roles'],
   };
 }
 
@@ -2199,12 +2180,7 @@ function extractJourneyMapSymbols(docText: string): DiagramSymbols {
     // split(/\s+/) on non-empty `trimmed` always yields at least one element.
     const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
-    if (
-      firstToken === 'persona' ||
-      firstToken === 'tag' ||
-      firstToken === 'no-legend'
-    )
-      continue;
+    if (firstToken === 'persona' || firstToken === 'tag') continue;
 
     const isIndented = line[0] === ' ' || line[0] === '\t';
 
@@ -2235,13 +2211,6 @@ function extractJourneyMapSymbols(docText: string): DiagramSymbols {
   return {
     kind: 'journey-map',
     entities,
-    keywords: [
-      'persona',
-      'no-legend',
-      'pain',
-      'opportunity',
-      'thought',
-      'description',
-    ],
+    keywords: ['persona', 'pain', 'opportunity', 'thought', 'description'],
   };
 }

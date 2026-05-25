@@ -248,16 +248,6 @@ describe('renderState', () => {
       document.body.removeChild(container);
     });
 
-    it('no-color + solid-fill: state fill is textMuted (color off wins)', () => {
-      const container = renderToContainer(
-        'no-color\nsolid-fill\nIdle -> Active'
-      );
-      const rect = container.querySelector('g.st-node rect');
-      expect(rect).toBeTruthy();
-      expect(rect!.getAttribute('fill')).toBe(testPalette.textMuted);
-      document.body.removeChild(container);
-    });
-
     it('collapsed-group fill equals raw group color when solid-fill is on', () => {
       const parsed = parseState(
         'solid-fill\n[Processing] red\n  Validating -> Approved',

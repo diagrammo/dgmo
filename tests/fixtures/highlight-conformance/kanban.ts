@@ -4,7 +4,6 @@ export const fixture: HighlightFixture = {
   chartType: 'kanban',
   specSection: '11',
   source: `kanban Sprint 14
-no-auto-color
 hide tag:Done
 active-tag Priority
 
@@ -15,7 +14,6 @@ active-tag Priority
 `,
   assertions: [
     { text: 'kanban', role: 'chartType' },
-    { text: 'no-auto-color', role: 'keyword' },
     { text: 'hide', role: 'keyword' },
     { text: 'active-tag', role: 'keyword' },
   ],

@@ -382,7 +382,7 @@ describe('1. Valid syntax', () => {
   describe('infra (parseInfra)', () => {
     it('minimal infra diagram', () => {
       const r = parseInfra(
-        'infra Backend\n\ninternet\n  rps 1000\n  -> Gateway\n\nGateway\n  latency-ms 50\n  -> API\n\nAPI\n  max-rps 5000'
+        'infra Backend\n\ninternet\n  rps: 1000\n  -> Gateway\n\nGateway\n  latency-ms: 50\n  -> API\n\nAPI\n  max-rps: 5000'
       );
       expect(hasNoErrors(r)).toBe(true);
       expect(r.nodes.length).toBeGreaterThanOrEqual(3);
@@ -716,20 +716,32 @@ describe('3. Boolean options', () => {
     expect(r.orientation).toBe('horizontal');
   });
 
-  it('no-auto-color works in class diagrams', () => {
+  it('no-auto-color emits warning in class diagrams', () => {
     const r = parseClassDiagram(
       'class Test\nno-auto-color\n\nShip\n  + name: string',
       palette
     );
-    expect(r.options['no-auto-color']).toBe('on');
+    expect(
+      r.diagnostics.some(
+        (d) =>
+          d.severity === 'warning' &&
+          d.message.includes('"no-auto-color" has been removed')
+      )
+    ).toBe(true);
   });
 
-  it('no-auto-color works in kanban', () => {
+  it('no-auto-color emits warning in kanban', () => {
     const r = parseKanban(
       'kanban Test\nno-auto-color\n\n[To Do]\n  Task A',
       palette
     );
-    expect(r.options['no-auto-color']).toBeTruthy();
+    expect(
+      r.diagnostics.some(
+        (d) =>
+          d.severity === 'warning' &&
+          d.message.includes('"no-auto-color" has been removed')
+      )
+    ).toBe(true);
   });
 
   it('no-name works for scatter', () => {

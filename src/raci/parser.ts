@@ -86,10 +86,13 @@ const VARIANT_LOCK_DIRECTIVES: Record<string, RaciVariant> = {
 const KNOWN_OPTIONS = new Set(['roles', 'palette', 'theme', 'active-tag']);
 /** Header options that are bare booleans (presence = on). */
 const KNOWN_BOOLEANS = new Set<string>([
-  'no-rule-enforcement',
   'no-title',
   ...Object.keys(VARIANT_LOCK_DIRECTIVES),
 ]);
+const REMOVED_BOOLEANS: Record<string, string> = {
+  'no-rule-enforcement':
+    '"no-rule-enforcement" has been removed — RACI validation is always active.',
+};
 
 // Allow optional trailing color shortcut and/or pipe metadata after the
 // bracket: `[Voyage] blue | desc: …` (per §1.5 universal trailing-token
@@ -439,9 +442,12 @@ export function parseRaci(
         continue;
       }
 
-      // Bare boolean directives — includes `variant-raci`/`variant-rasci`/
-      // `variant-daci` (each maps to a variant lock) plus `no-rule-enforcement`.
       const lower = trimmed.toLowerCase();
+      const removedMsg = REMOVED_BOOLEANS[lower];
+      if (removedMsg) {
+        warn(lineNumber, removedMsg);
+        continue;
+      }
       if (KNOWN_BOOLEANS.has(lower)) {
         if (lower in VARIANT_LOCK_DIRECTIVES) {
           // In-bounds: guarded by `lower in VARIANT_LOCK_DIRECTIVES`.
@@ -766,49 +772,39 @@ export function parseRaci(
   }
 
   // ── Constraint linting ───────────────────────────────────────
-  //
-  // Single chart-wide escape hatch: `no-rule-enforcement` suppresses
-  // ALL rules — both structural errors (multi-A, multi-D) and warnings
-  // (missing-A, conflicting markers, orphan roles, etc.). For sandbox /
-  // teaching contexts where the matrix intentionally violates RACI
-  // norms.
 
-  const noRuleEnforcement = result.options['no-rule-enforcement'] === 'on';
   const variantRules = VARIANTS[result.variant];
 
-  if (!noRuleEnforcement) {
-    for (const task of allTasks(result)) {
-      for (const rule of variantRules.errorRules) {
-        result.diagnostics.push(...rule(task));
-      }
-      for (const rule of variantRules.warningRules) {
-        result.diagnostics.push(...rule(task));
-      }
+  for (const task of allTasks(result)) {
+    for (const rule of variantRules.errorRules) {
+      result.diagnostics.push(...rule(task));
     }
+    for (const rule of variantRules.warningRules) {
+      result.diagnostics.push(...rule(task));
+    }
+  }
 
-    // Orphan-role check: any role declared (or first seen via assignment)
-    // but never *actually* assigned a marker is dead weight on the matrix.
-    const usedRoleIds = new Set<string>();
-    for (const task of allTasks(result)) {
-      for (const a of task.roleAssignments) {
-        if (a.markers.length > 0) usedRoleIds.add(a.id);
-      }
+  // Orphan-role check: any role declared (or first seen via assignment)
+  // but never *actually* assigned a marker is dead weight on the matrix.
+  const usedRoleIds = new Set<string>();
+  for (const task of allTasks(result)) {
+    for (const a of task.roleAssignments) {
+      if (a.markers.length > 0) usedRoleIds.add(a.id);
     }
-    for (let i = 0; i < result.roles.length; i++) {
-      // In-bounds by loop guard (i < result.roles.length).
-      const roleId = result.roles[i]!;
-      if (usedRoleIds.has(roleId)) continue;
-      const declared = roleStore.get(roleId);
-      const displayName = result.roleDisplayNames[i] ?? roleId;
-      result.diagnostics.push(
-        makeDgmoError(
-          declared?.declaredLine ?? 1,
-          `Role '${displayName}' is declared but never assigned to any task.`,
-          'warning',
-          RACI_WARNING_CODES.ORPHAN_ROLE
-        )
-      );
-    }
+  }
+  for (let i = 0; i < result.roles.length; i++) {
+    const roleId = result.roles[i]!;
+    if (usedRoleIds.has(roleId)) continue;
+    const declared = roleStore.get(roleId);
+    const displayName = result.roleDisplayNames[i] ?? roleId;
+    result.diagnostics.push(
+      makeDgmoError(
+        declared?.declaredLine ?? 1,
+        `Role '${displayName}' is declared but never assigned to any task.`,
+        'warning',
+        RACI_WARNING_CODES.ORPHAN_ROLE
+      )
+    );
   }
 
   return result;

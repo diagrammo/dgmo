@@ -118,21 +118,6 @@ tag Channel ch
       const tagLegend = container.querySelector('.journey-legend');
       expect(tagLegend).toBeTruthy();
     });
-
-    it('hides tag legend with no-legend directive', () => {
-      const input = `journey-map Test
-
-tag Channel ch
-  Web blue
-
-no-legend
-
-[Phase]
-  Step | 3, ch: Web`;
-      const { container } = renderToContainer(input);
-      const tagLegend = container.querySelector('.journey-legend');
-      expect(tagLegend).toBeNull();
-    });
   });
 
   // ── Persona ─────────────────────────────────────────────

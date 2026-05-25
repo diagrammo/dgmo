@@ -298,7 +298,7 @@ tag Priority as p
 
   // ── Options ─────────────────────────────────────────────────
 
-  it('parses no-descriptions option', () => {
+  it('warns on removed no-descriptions option', () => {
     const result = parseMindmap(
       `mindmap Root
 
@@ -306,7 +306,13 @@ no-descriptions
 
   Child`
     );
-    expect(result.options['no-descriptions']).toBe('true');
+    expect(
+      result.diagnostics.some(
+        (d) =>
+          d.severity === 'warning' &&
+          d.message.includes('"no-descriptions" has been removed')
+      )
+    ).toBe(true);
   });
 
   it('parses active-tag option', () => {

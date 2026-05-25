@@ -6,7 +6,6 @@ export const fixture: HighlightFixture = {
   source: `flowchart Process
 direction-lr
 orientation-vertical
-no-color
 solid-fill
 
 (Start) -> <Valid?>
@@ -16,7 +15,6 @@ solid-fill
     { text: 'flowchart', role: 'chartType' },
     { text: 'direction-lr', role: 'keyword' },
     { text: 'orientation-vertical', role: 'keyword' },
-    { text: 'no-color', role: 'keyword' },
     { text: 'solid-fill', role: 'keyword' },
   ],
 };

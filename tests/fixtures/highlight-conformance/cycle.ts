@@ -6,7 +6,6 @@ export const fixture: HighlightFixture = {
   specSection: '21',
   source: `cycle OODA Loop
 direction-counterclockwise
-no-descriptions
 circle-nodes
 
 Observe | color: blue, span: 2
@@ -18,7 +17,6 @@ Act | color: red
   assertions: [
     { text: 'cycle', role: 'chartType' },
     { text: 'direction-counterclockwise', role: 'keyword' },
-    { text: 'no-descriptions', role: 'keyword' },
     { text: 'circle-nodes', role: 'keyword' },
     { text: 'color', role: 'keyword' },
     { text: 'span', role: 'propertyName' },

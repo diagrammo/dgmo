@@ -126,9 +126,11 @@ export function parseCycle(content: string): ParsedCycle {
       continue;
     }
 
-    // ── Bare keyword: no-descriptions ──
     if (indent === 0 && trimmed.toLowerCase() === 'no-descriptions') {
-      options['no-descriptions'] = 'true';
+      warn(
+        lineNum,
+        '"no-descriptions" has been removed — delete description lines from your source instead.'
+      );
       continue;
     }
 

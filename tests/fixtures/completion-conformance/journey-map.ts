@@ -1,6 +1,6 @@
 import type { ConformanceFixture } from './_types';
 
-// Spec §22 (Journey Map Diagrams). Directives: no-legend, active-tag,
+// Spec §22 (Journey Map Diagrams). Directives: active-tag,
 // plus solid-fill via SOLID_FILL_CAPABLE.
 export const fixture: ConformanceFixture = {
   chartType: 'journey-map',
@@ -8,7 +8,6 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'journey-map',
 
   directives: [
-    'no-legend',
     'active-tag',
     'solid-fill', // working but not documented in §22 directives table
   ],

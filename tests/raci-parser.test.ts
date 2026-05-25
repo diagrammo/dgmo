@@ -194,32 +194,10 @@ Task
 });
 
 // ============================================================
-// Suppression: `no-rule-enforcement` directive (chart-wide kill switch)
+// Diagnostic validation
 // ============================================================
 
 describe('parseRaci — diagnostic suppression', () => {
-  it('no-rule-enforcement suppresses warnings chart-wide', () => {
-    const r = parseRaci(`raci
-no-rule-enforcement
-
-Task A
-  Cap: I
-Task B
-  Cap: C`);
-    expect(codes(r)).not.toContain(RACI_WARNING_CODES.MISSING_ACCOUNTABLE);
-    expect(codes(r)).not.toContain(RACI_WARNING_CODES.MISSING_RESPONSIBLE);
-  });
-
-  it('no-rule-enforcement ALSO suppresses structural errors (e.g. multi-A)', () => {
-    const r = parseRaci(`raci
-no-rule-enforcement
-
-Task
-  Cap: A
-  QM: A`);
-    expect(codes(r)).not.toContain(RACI_ERROR_CODES.MULTI_ACCOUNTABLE);
-  });
-
   it('without the directive, multi-A still errors', () => {
     const r = parseRaci(`raci
 

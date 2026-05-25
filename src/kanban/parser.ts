@@ -51,11 +51,10 @@ const LEGACY_COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
 /** Known kanban options (key-value). */
 const KNOWN_OPTIONS = new Set(['hide', 'active-tag']);
 /** Known kanban boolean options (bare keyword = on). */
-const KNOWN_BOOLEANS = new Set<string>([
-  'no-auto-color',
-  'solid-fill',
-  'no-title',
-]);
+const KNOWN_BOOLEANS = new Set<string>(['solid-fill', 'no-title']);
+const REMOVED_BOOLEANS: Record<string, string> = {
+  'no-auto-color': '"no-auto-color" has been removed.',
+};
 
 // ============================================================
 // Parser
@@ -196,7 +195,11 @@ export function parseKanban(
           continue;
         }
       }
-      // Bare boolean option (single keyword, no value)
+      const removedMsg = REMOVED_BOOLEANS[trimmed.toLowerCase()];
+      if (removedMsg && !COLUMN_RE.test(trimmed)) {
+        warn(lineNumber, removedMsg);
+        continue;
+      }
       if (
         KNOWN_BOOLEANS.has(trimmed.toLowerCase()) &&
         !COLUMN_RE.test(trimmed)

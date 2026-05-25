@@ -47,7 +47,11 @@ const ANNOTATION_RE = /^(pain|opportunity|thought)\s*:\s*(.+)$/i;
 /** Known journey-map options (key-value). */
 const KNOWN_OPTIONS = new Set(['active-tag']);
 /** Known journey-map boolean options (bare keyword = on). */
-const KNOWN_BOOLEANS = new Set(['no-legend', 'solid-fill', 'no-title']);
+const KNOWN_BOOLEANS = new Set(['solid-fill', 'no-title']);
+const REMOVED_BOOLEANS: Record<string, string> = {
+  'no-legend':
+    '"no-legend" has been removed — remove tag groups to hide the legend.',
+};
 
 // ============================================================
 // Parser
@@ -274,6 +278,11 @@ export function parseJourneyMap(
           options[key] = optMatch[2]!.trim();
           continue;
         }
+      }
+      const removedMsg = REMOVED_BOOLEANS[trimmed.toLowerCase()];
+      if (removedMsg && !PHASE_RE.test(trimmed)) {
+        warn(lineNumber, removedMsg);
+        continue;
       }
       if (
         KNOWN_BOOLEANS.has(trimmed.toLowerCase()) &&

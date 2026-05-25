@@ -513,9 +513,11 @@ export function parseFlowchart(
         continue;
       }
 
-      // Bare boolean: no-color (toggles color off)
+      // Removed: no-color
       if (/^no-color$/i.test(trimmed)) {
-        options['color'] = 'off';
+        result.diagnostics.push(
+          makeDgmoError(lineNumber, '"no-color" has been removed.', 'warning')
+        );
         continue;
       }
 
@@ -530,9 +532,10 @@ export function parseFlowchart(
         const key = optMatch[1]!.toLowerCase();
         const value = optMatch[2]!.trim();
 
-        // Boolean: no-color = color off
         if (key === 'no-color') {
-          options['color'] = 'off';
+          result.diagnostics.push(
+            makeDgmoError(lineNumber, '"no-color" has been removed.', 'warning')
+          );
           continue;
         }
 

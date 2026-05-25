@@ -269,19 +269,6 @@ describe('renderFlowchart', () => {
       document.body.removeChild(container);
     });
 
-    it('no-color + solid-fill: node fill collapses to textMuted (color off wins)', () => {
-      // Flowchart node syntax has no explicit-color suffix, so the matrix
-      // collapses to a single case: untagged + colorOff → textMuted, regardless
-      // of solid-fill (the muted path bypasses shapeFill entirely).
-      const container = renderToContainer(
-        'flowchart\nno-color\nsolid-fill\n(Start) -> (End)'
-      );
-      const rect = container.querySelector('g.fc-node rect');
-      expect(rect).toBeTruthy();
-      expect(rect!.getAttribute('fill')).toBe(testPalette.textMuted);
-      document.body.removeChild(container);
-    });
-
     it('label uses contrast-aware text fill against the saturated background', () => {
       const container = renderToContainer(
         'flowchart\nsolid-fill\n(Start) -> (End)'

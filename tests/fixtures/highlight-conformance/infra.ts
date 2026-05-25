@@ -11,7 +11,6 @@ default-uptime 0.99
 slo-availability 0.999
 slo-p90-latency-ms 100
 animate
-no-animate
 active-tag X
 
 edge
@@ -27,7 +26,6 @@ edge
     { text: 'slo-availability', role: 'keyword' },
     { text: 'slo-p90-latency-ms', role: 'keyword' },
     { text: 'animate', role: 'keyword' },
-    { text: 'no-animate', role: 'keyword' },
     { text: 'active-tag', role: 'keyword' },
     { text: 'rps', role: 'keyword' },
   ],

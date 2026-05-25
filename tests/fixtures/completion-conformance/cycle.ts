@@ -13,7 +13,6 @@ export const fixture: ConformanceFixture = {
 
   directives: [
     'direction-counterclockwise',
-    'no-descriptions',
     'circle-nodes',
     'solid-fill', // working but not documented in §21.5
   ],

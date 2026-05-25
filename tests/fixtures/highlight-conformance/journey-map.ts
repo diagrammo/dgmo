@@ -6,7 +6,6 @@ export const fixture: HighlightFixture = {
   chartType: 'journey-map',
   specSection: '22',
   source: `journey-map Buying a Laptop
-no-legend
 
 persona Tech-Savvy Shopper
 
@@ -19,7 +18,6 @@ persona Tech-Savvy Shopper
 `,
   assertions: [
     { text: 'journey-map', role: 'chartType' },
-    { text: 'no-legend', role: 'keyword' },
     { text: 'persona', role: 'keyword' },
     { text: 'score', role: 'propertyName' },
     { text: 'description', role: 'propertyName' },

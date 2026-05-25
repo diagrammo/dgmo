@@ -288,15 +288,6 @@ describe('renderClassDiagram', () => {
       document.body.removeChild(container);
     });
 
-    it('does not render legend when no-auto-color', () => {
-      const container = renderToContainer(
-        'no-auto-color\ninterface Drawable\n  draw(): void\n\nabstract Shape\n  area(): number'
-      );
-      const legend = container.querySelector('.cd-legend');
-      expect(legend).toBeNull();
-      document.body.removeChild(container);
-    });
-
     it('does not render legend when all classes have explicit colors', () => {
       const container = renderToContainer(
         'Animal red\n  name: string\n\nDrawable [interface] green\n  draw(): void'
