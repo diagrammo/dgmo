@@ -23,11 +23,11 @@ describe('infra layout engine', () => {
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> API
 
 API
-  latency-ms 10
+  latency-ms: 10
 `);
     expect(result.nodes).toHaveLength(2);
     expect(result.edges).toHaveLength(1);
@@ -47,15 +47,15 @@ API
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> CDN
 
 CDN
-  cache-hit 80%
+  cache-hit: 80%
   -> API
 
 API
-  latency-ms 10
+  latency-ms: 10
 `);
     expect(result.edges).toHaveLength(2);
     for (const edge of result.edges) {
@@ -68,14 +68,14 @@ API
 infra
 
 edge
-  rps 6000
+  rps: 6000
   -> [Backend]
 
 [Backend]
   API1
-    max-rps 3000
+    max-rps: 3000
   API2
-    max-rps 3000
+    max-rps: 3000
 `);
     expect(result.groups).toHaveLength(1);
     const group = result.groups[0];
@@ -114,11 +114,11 @@ infra
 direction-tb
 
 edge
-  rps 1000
+  rps: 1000
   -> API
 
 API
-  latency-ms 10
+  latency-ms: 10
 `);
     // In TB layout, nodes should be stacked vertically
     const edgeNode = result.nodes.find((n) => n.id === 'edge')!;
@@ -131,11 +131,11 @@ API
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> API
 
 API
-  latency-ms 10
+  latency-ms: 10
 `);
     for (const node of result.nodes) {
       expect(node.lineNumber).toBeGreaterThan(0);
@@ -150,46 +150,46 @@ API
 infra
 
 edge
-  rps 10000
+  rps: 10000
   -> [GroupA]
   -> [GroupB]
   -> [GroupC]
 
 [GroupA]
-  instances 3
+  instances: 3
   A1
-    max-rps 3000
-    latency-ms 10
+    max-rps: 3000
+    latency-ms: 10
   A2
-    max-rps 3000
-    latency-ms 20
+    max-rps: 3000
+    latency-ms: 20
   A3
-    max-rps 3000
-    latency-ms 30
+    max-rps: 3000
+    latency-ms: 30
 
 [GroupB]
-  instances 2
+  instances: 2
   B1
-    max-rps 5000
-    latency-ms 15
+    max-rps: 5000
+    latency-ms: 15
   B2
-    max-rps 5000
-    latency-ms 25
+    max-rps: 5000
+    latency-ms: 25
 
 [GroupC]
-  instances 4
+  instances: 4
   C1
-    max-rps 2000
-    latency-ms 5
+    max-rps: 2000
+    latency-ms: 5
   C2
-    max-rps 2000
-    latency-ms 10
+    max-rps: 2000
+    latency-ms: 10
   C3
-    max-rps 2000
-    latency-ms 15
+    max-rps: 2000
+    latency-ms: 15
   C4
-    max-rps 2000
-    latency-ms 20
+    max-rps: 2000
+    latency-ms: 20
 `);
     expect(result.groups).toHaveLength(3);
     const { groups } = result;
@@ -436,19 +436,19 @@ describe('scaled group layout data', () => {
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> [Shards]
 
 [Shards]
-  instances 3
+  instances: 3
 
   ShardA
-    max-rps 5000
-    latency-ms 2
+    max-rps: 5000
+    latency-ms: 2
 
   ShardB
-    max-rps 5000
-    latency-ms 2
+    max-rps: 5000
+    latency-ms: 2
 `);
 
     const group = result.groups.find((g) => g.id === '[shards]');
@@ -468,12 +468,12 @@ edge
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> API
 
 API
-  max-rps 5000
-  instances 2
+  max-rps: 5000
+  instances: 2
 `);
 
     const api = result.nodes.find((n) => n.id === 'api');
@@ -486,10 +486,10 @@ API
       const content = `
 infra
 edge
-  rps 1000
+  rps: 1000
   -> MyService
 MyService
-  max-rps 500
+  max-rps: 500
   description: Handles all REST API calls for the mobile app
 `;
       const contentNoDesc = content.replace(
@@ -515,10 +515,10 @@ MyService
       const content = `
 infra
 edge
-  rps 1000
+  rps: 1000
   -> MyService
 MyService
-  max-rps 500
+  max-rps: 500
   description: Handles all REST API calls for the mobile app
 `;
       const contentNoDesc = content.replace(
@@ -544,7 +544,7 @@ MyService
           parseInfra(`
 infra
 edge
-  rps 0
+  rps: 0
   -> Lonely
 Lonely
   description: Only a description here
@@ -564,7 +564,7 @@ Lonely
           parseInfra(`
 infra
 edge
-  rps 1000
+  rps: 1000
   -> MyService
 MyService
   description: ${longDesc}
@@ -583,11 +583,11 @@ describe('collapsed p90 row', () => {
     const src = `
 infra
 edge
-  rps 1000
+  rps: 1000
   -> API
 API
-  latency-ms 50
-  max-rps 500
+  latency-ms: 50
+  max-rps: 500
 `;
     const collapsed = layoutInfra(computeInfra(parseInfra(src)), null);
     const expanded = layoutInfra(
@@ -608,10 +608,10 @@ API
     const src = `
 infra
 edge
-  rps 1000
+  rps: 1000
   -> API
 API
-  max-rps 500
+  max-rps: 500
 `;
     const collapsed = layoutInfra(computeInfra(parseInfra(src)), null);
     const expanded = layoutInfra(
@@ -625,7 +625,7 @@ API
     // Expanded shows declared props (max-rps); collapsed does not — height may differ for props, not for latency
     // Key assertion: no additional latency row in collapsed
     const collapsedWithLatency = layoutInfra(
-      computeInfra(parseInfra(src + '  latency-ms 50\n')),
+      computeInfra(parseInfra(src + '  latency-ms: 50\n')),
       null
     );
     const apiWithLatency = collapsedWithLatency.nodes.find(
@@ -641,11 +641,11 @@ API
     const src = `
 infra
 edge
-  rps 1000
+  rps: 1000
   -> API
 API
-  latency-ms 200
-  max-rps 500
+  latency-ms: 200
+  max-rps: 500
 `;
     const collapsedResult = layoutInfra(computeInfra(parseInfra(src)), null);
     const expandedResult = layoutInfra(
@@ -677,15 +677,15 @@ API
 infra
 ${sloLine}
 edge
-  rps 1000
+  rps: 1000
   -> SVC
 SVC
-  uptime 90
-  max-rps 5000
+  uptime: 90
+  max-rps: 5000
   -> API
 API
-  latency-ms 520
-  max-rps 5000
+  latency-ms: 520
+  max-rps: 5000
 `;
     const noSloResult = layoutInfra(computeInfra(parseInfra(base())));
     const withSloResult = layoutInfra(

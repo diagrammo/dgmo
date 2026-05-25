@@ -25,10 +25,10 @@ LB
   -> B | split: 40%
 
 A
-  latency-ms 10
+  latency-ms: 10
 
 B
-  latency-ms 10
+  latency-ms: 10
 `);
       expect(diags.filter((d) => d.type === 'SPLIT_SUM')).toHaveLength(0);
     });
@@ -42,10 +42,10 @@ LB
   -> B | split: 30%
 
 A
-  latency-ms 10
+  latency-ms: 10
 
 B
-  latency-ms 10
+  latency-ms: 10
 `);
       const split = diags.filter((d) => d.type === 'SPLIT_SUM');
       expect(split).toHaveLength(1);
@@ -61,10 +61,10 @@ LB
   -> B | split: 50%
 
 A
-  latency-ms 10
+  latency-ms: 10
 
 B
-  latency-ms 10
+  latency-ms: 10
 `);
       const split = diags.filter((d) => d.type === 'SPLIT_SUM');
       expect(split).toHaveLength(1);
@@ -80,10 +80,10 @@ LB
   -> B
 
 A
-  latency-ms 10
+  latency-ms: 10
 
 B
-  latency-ms 10
+  latency-ms: 10
 `);
       expect(diags.filter((d) => d.type === 'SPLIT_SUM')).toHaveLength(0);
     });
@@ -97,10 +97,10 @@ LB
   -> B
 
 A
-  latency-ms 10
+  latency-ms: 10
 
 B
-  latency-ms 10
+  latency-ms: 10
 `);
       expect(diags.filter((d) => d.type === 'SPLIT_SUM')).toHaveLength(0);
     });
@@ -110,11 +110,11 @@ B
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> CDN
 
 CDN
-  cache-hit 80%
+  cache-hit: 80%
 `);
       expect(diags.filter((d) => d.type === 'SPLIT_SUM')).toHaveLength(0);
     });
@@ -126,7 +126,7 @@ CDN
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> A
 
 A
@@ -147,7 +147,7 @@ B
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> A
 
 A
@@ -157,7 +157,7 @@ B
   -> C
 
 C
-  latency-ms 10
+  latency-ms: 10
 `);
       expect(diags.filter((d) => d.type === 'CYCLE')).toHaveLength(0);
     });
@@ -167,7 +167,7 @@ C
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> A
 
 A
@@ -181,7 +181,7 @@ C
   -> D
 
 D
-  latency-ms 10
+  latency-ms: 10
 `);
       expect(diags.filter((d) => d.type === 'CYCLE')).toHaveLength(0);
     });
@@ -193,14 +193,14 @@ D
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> A
 
 A
-  latency-ms 10
+  latency-ms: 10
 
 Orphan
-  latency-ms 20
+  latency-ms: 20
 `);
       const orphans = diags.filter((d) => d.type === 'ORPHAN');
       expect(orphans).toHaveLength(1);
@@ -212,14 +212,14 @@ Orphan
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> [Backend]
 
 [Backend]
   API1
-    latency-ms 10
+    latency-ms: 10
   API2
-    latency-ms 10
+    latency-ms: 10
 `);
       expect(diags.filter((d) => d.type === 'ORPHAN')).toHaveLength(0);
     });
@@ -235,15 +235,15 @@ tag Team t
   Platform teal
 
 edge
-  rps 10000
+  rps: 10000
   -> CloudFront
 
 CloudFront | t: Platform
-  cache-hit 80%
+  cache-hit: 80%
   -> CloudArmor
 
 CloudArmor | t: Platform
-  firewall-block 5%
+  firewall-block: 5%
   -> ALB
 
 ALB | t: Platform
@@ -253,13 +253,13 @@ ALB | t: Platform
 
 [API Pods]
   APIServer | t: Backend
-    instances 3
-    max-rps 500
+    instances: 3
+    max-rps: 500
 
 [Commerce Pods]
   PurchaseMS
-    instances 1-8
-    max-rps 300
+    instances: 1-8
+    max-rps: 300
 
 StaticServer | t: Platform
 `);
@@ -275,12 +275,12 @@ StaticServer | t: Platform
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> API
 
 API
-  uptime 95%
-  latency-ms 10
+  uptime: 95%
+  latency-ms: 10
 `);
       const uptime = diags.filter((d) => d.type === 'UPTIME');
       expect(uptime).toHaveLength(1);
@@ -292,12 +292,12 @@ API
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> API
 
 API
-  uptime 99.9%
-  latency-ms 10
+  uptime: 99.9%
+  latency-ms: 10
 `);
       expect(diags.filter((d) => d.type === 'UPTIME')).toHaveLength(0);
     });

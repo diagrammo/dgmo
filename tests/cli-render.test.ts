@@ -127,11 +127,11 @@ Home
   infra: `infra
 
 edge
-  rps 1000
+  rps: 1000
   -> API
 
 API
-  latency-ms 10`,
+  latency-ms: 10`,
 
   gantt: `gantt
 start 2024-01-15

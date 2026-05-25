@@ -83,7 +83,7 @@ function buildFixture(chartType: string): string {
   const fixtures: Record<string, string> = {
     er: 'er\nUsers\n  id int pk\n  name varchar\nOrders\n  id int pk\n  user_id int fk\n',
     flowchart: 'flowchart\nStart(Begin)\nProcess[Do thing]\nStart -> Process\n',
-    infra: 'infra\nAPI\n  latency-ms 50\nDB\nAPI\n  -> DB\n',
+    infra: 'infra\nAPI\n  latency-ms: 50\nDB\nAPI\n  -> DB\n',
     class:
       'class\nShip\n  + name: string\n  + sail(): void\nCrew\nShip *-- Crew\n',
     sequence: 'sequence\nAlice -> Bob\nBob -> Charlie\n',

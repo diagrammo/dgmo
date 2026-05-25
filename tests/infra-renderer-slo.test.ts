@@ -136,11 +136,11 @@ const BASE_SRC = (latencyMs: number, sloLine = '') => `
 infra
 ${sloLine}
 edge
-  rps 1000
+  rps: 1000
   -> API
 API
-  latency-ms ${latencyMs}
-  max-rps 5000
+  latency-ms: ${latencyMs}
+  max-rps: 5000
 `;
 
 describe('p90 threshold display — "current / threshold" format', () => {
@@ -189,7 +189,7 @@ describe('p90 threshold display — "current / threshold" format', () => {
 
   it('TH7: large threshold formatted as seconds — "1.5s / 1.0s"', () => {
     // latency-ms: 1500 → p90 ≈ 1500ms → formatMsShort → "1.5s"
-    // slo-p90-latency-ms 1000 → "1.0s"
+    // slo-p90-latency-ms: 1000 → "1.0s"
     const container = renderCollapsed(
       BASE_SRC(1500, 'slo-p90-latency-ms 1000')
     );
@@ -210,7 +210,7 @@ describe('collapsed p90 SLO colors (AC1–AC6)', () => {
   });
 
   it('AC2: SLO breach (p90 > threshold) → red pill on p90 row', () => {
-    // p90 = 400ms > slo-p90-latency-ms 200ms → overloaded
+    // p90 = 400ms > slo-p90-latency-ms: 200ms → overloaded
     const container = renderCollapsed(BASE_SRC(400, 'slo-p90-latency-ms 200'));
     expect(findP90SloColor(container)).toBe(COLOR_OVERLOADED);
   });
@@ -239,10 +239,10 @@ describe('collapsed p90 SLO colors (AC1–AC6)', () => {
     const src = `
 infra
 edge
-  rps 1000
+  rps: 1000
   -> API
 API
-  max-rps 5000
+  max-rps: 5000
 `;
     const container = renderCollapsed(src);
     expect(findTexts(container, 'p90').length).toBe(0);

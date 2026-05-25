@@ -92,8 +92,9 @@ const PIPE_META_RE = /[|,]\s*(\w+)\s*:\s*([^|,]+)/g;
 // region — matches a colon-bearing key-value, comma-separated.
 const SAMELINE_META_RE = /(?:^|[\s,])(\w+)\s*:\s*([^,]+?)(?=\s*,|\s*$)/g;
 
-// Property: key value (space-separated, no colon)
-const PROPERTY_RE = /^([\w-]+)\s+(.+)$/;
+// Property: key: value (colon-separated)
+const PROPERTY_RE = /^([\w-]+):\s*(.+)$/;
+const LEGACY_SPACE_PROPERTY_RE = /^([\w-]+)\s+(.+)$/;
 
 // Percentage value: 80% or 99.99%
 const PERCENT_RE = /^([\d.]+)%$/;
@@ -413,13 +414,11 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // animate (default ON) / no-animate
-      if (trimmed === 'animate') {
-        options['animate'] = 'on';
-        continue;
-      }
-      if (trimmed === 'no-animate') {
-        options['animate'] = 'off';
+      if (trimmed === 'animate' || trimmed === 'no-animate') {
+        warn(
+          lineNumber,
+          '"animate" / "no-animate" have been removed — animation is controlled by the rendering context.'
+        );
         continue;
       }
 
@@ -568,7 +567,22 @@ export function parseInfra(content: string): ParsedInfra {
           continue;
         }
         // Fall through to component matching — could be a component name
-        // that happens to match PROPERTY_RE (e.g., "MyService v2")
+        // that happens to match PROPERTY_RE (e.g., "MyService: v2")
+      }
+
+      // Legacy space-separated group property (pre-0.19.0)
+      if (!propMatch) {
+        const legacyMatch = trimmed.match(LEGACY_SPACE_PROPERTY_RE);
+        if (legacyMatch) {
+          const legacyKey = legacyMatch[1]!.toLowerCase();
+          if (legacyKey === 'instances' || legacyKey === 'collapsed') {
+            setError(
+              lineNumber,
+              `Use "${legacyKey}: ${legacyMatch[2]!.trim()}" — infra properties require a colon.`
+            );
+            continue;
+          }
+        }
       }
 
       const compMatch = trimmed.match(COMPONENT_RE);
@@ -839,6 +853,22 @@ export function parseInfra(content: string): ParsedInfra {
         const value = parsePropertyValue(rawVal);
         currentNode.properties.push({ key, value, lineNumber });
         continue;
+      }
+
+      // Legacy space-separated property form (pre-0.19.0): `key value` without colon
+      const legacyMatch = trimmed.match(LEGACY_SPACE_PROPERTY_RE);
+      if (legacyMatch) {
+        const legacyKey = legacyMatch[1]!.toLowerCase();
+        if (
+          INFRA_BEHAVIOR_KEYS.has(legacyKey) ||
+          EDGE_ONLY_KEYS.has(legacyKey)
+        ) {
+          setError(
+            lineNumber,
+            `Use "${legacyKey}: ${legacyMatch[2]!.trim()}" — infra properties require a colon.`
+          );
+          continue;
+        }
       }
 
       // Unknown indented line — try as keywordless description

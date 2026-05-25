@@ -15,7 +15,7 @@ tag Region as r
 // ── Edge Layer ──────────────────────────────────────────────
 
 edge
-  rps 50000
+  rps: 50000
   -> GlobalLB
 
 GlobalLB t: Edge
@@ -26,29 +26,29 @@ GlobalLB t: Edge
 
 CloudFrontUS t: Edge, r: US
   description CDN PoP — US East
-  cache-hit 82%
+  cache-hit: 82%
   -> WAF_US
 
 CloudFrontEU t: Edge, r: EU
   description CDN PoP — Frankfurt
-  cache-hit 78%
+  cache-hit: 78%
   -> WAF_EU
 
 CloudFrontAPAC t: Edge, r: APAC
   description CDN PoP — Tokyo
-  cache-hit 75%
+  cache-hit: 75%
   -> WAF_APAC
 
 WAF_US t: Edge, r: US
-  firewall-block 6%
+  firewall-block: 6%
   -> RegionalLB_US
 
 WAF_EU t: Edge, r: EU
-  firewall-block 8%
+  firewall-block: 8%
   -> RegionalLB_EU
 
 WAF_APAC t: Edge, r: APAC
-  firewall-block 7%
+  firewall-block: 7%
   -> RegionalLB_APAC
 
 // ── Regional Load Balancers ─────────────────────────────────
@@ -73,64 +73,64 @@ RegionalLB_APAC t: Platform, r: APAC
 [US API Cluster] t: Backend, r: US
   UserAPI_US
     description User profile and authentication
-    instances 6
-    max-rps 1200
-    latency-ms 25
+    instances: 6
+    max-rps: 1200
+    latency-ms: 25
     -> Redis_US fanout: 3
     -> PostgreSQL_US
   CatalogAPI_US
     description Product catalog and pricing
-    instances 4
-    max-rps 800
-    latency-ms 15
+    instances: 4
+    max-rps: 800
+    latency-ms: 15
     -> Redis_US
     -> PostgreSQL_US
 
 [US Commerce Cluster] t: Backend, r: US
   OrderSvc_US
     description Order orchestration
-    instances 4
-    max-rps 600
-    latency-ms 80
+    instances: 4
+    max-rps: 600
+    latency-ms: 80
     -> PostgreSQL_US
     ~order.placed~> Kafka_US
   PaymentSvc_US
     description Payment processing (Stripe)
-    instances 3
-    max-rps 400
-    latency-ms 200
+    instances: 3
+    max-rps: 400
+    latency-ms: 200
 
 SearchProxy_US t: Backend, r: US
-  instances 2
+  instances: 2
   -> Elasticsearch_US
 
 // ── EU API Cluster ──────────────────────────────────────────
 
 [EU API Cluster] t: Backend, r: EU
   UserAPI_EU
-    instances 4
-    max-rps 800
-    latency-ms 30
+    instances: 4
+    max-rps: 800
+    latency-ms: 30
     -> Redis_EU fanout: 2
     -> PostgreSQL_EU
   CatalogAPI_EU
-    instances 3
-    max-rps 600
-    latency-ms 18
+    instances: 3
+    max-rps: 600
+    latency-ms: 18
     -> Redis_EU
     -> PostgreSQL_EU
 
 [EU Commerce Cluster] t: Backend, r: EU
   OrderSvc_EU
-    instances 3
-    max-rps 500
-    latency-ms 85
+    instances: 3
+    max-rps: 500
+    latency-ms: 85
     -> PostgreSQL_EU
     ~order.placed~> Kafka_EU
   PaymentSvc_EU
-    instances 2
-    max-rps 300
-    latency-ms 220
+    instances: 2
+    max-rps: 300
+    latency-ms: 220
 
 SearchProxy_EU t: Backend, r: EU
   -> Elasticsearch_EU
@@ -139,29 +139,29 @@ SearchProxy_EU t: Backend, r: EU
 
 [APAC API Cluster] t: Backend, r: APAC
   UserAPI_APAC
-    instances 3
-    max-rps 600
-    latency-ms 35
+    instances: 3
+    max-rps: 600
+    latency-ms: 35
     -> Redis_APAC fanout: 2
     -> PostgreSQL_APAC
   CatalogAPI_APAC
-    instances 2
-    max-rps 500
-    latency-ms 20
+    instances: 2
+    max-rps: 500
+    latency-ms: 20
     -> Redis_APAC
     -> PostgreSQL_APAC
 
 [APAC Commerce Cluster] t: Backend, r: APAC
   OrderSvc_APAC
-    instances 2
-    max-rps 400
-    latency-ms 90
+    instances: 2
+    max-rps: 400
+    latency-ms: 90
     -> PostgreSQL_APAC
     ~order.placed~> Kafka_APAC
   PaymentSvc_APAC
-    instances 2
-    max-rps 250
-    latency-ms 240
+    instances: 2
+    max-rps: 250
+    latency-ms: 240
 
 SearchProxy_APAC t: Backend, r: APAC
   -> Elasticsearch_APAC
@@ -170,33 +170,33 @@ SearchProxy_APAC t: Backend, r: APAC
 
 Redis_US t: Data, r: US
   description Session + query cache
-  latency-ms 1
+  latency-ms: 1
 
 PostgreSQL_US t: Data, r: US
   description Primary relational store
-  latency-ms 5
+  latency-ms: 5
 
 Elasticsearch_US t: Data, r: US
   description Full-text search index
-  latency-ms 12
+  latency-ms: 12
 
 Redis_EU t: Data, r: EU
-  latency-ms 1
+  latency-ms: 1
 
 PostgreSQL_EU t: Data, r: EU
-  latency-ms 6
+  latency-ms: 6
 
 Elasticsearch_EU t: Data, r: EU
-  latency-ms 14
+  latency-ms: 14
 
 Redis_APAC t: Data, r: APAC
-  latency-ms 2
+  latency-ms: 2
 
 PostgreSQL_APAC t: Data, r: APAC
-  latency-ms 8
+  latency-ms: 8
 
 Elasticsearch_APAC t: Data, r: APAC
-  latency-ms 15
+  latency-ms: 15
 
 // ── Event Bus + Async Consumers ─────────────────────────────
 
@@ -216,16 +216,16 @@ Kafka_APAC t: Platform, r: APAC
 
 NotifySvc t: Backend
   description Email/SMS/push dispatcher
-  instances 3
+  instances: 3
 
 AnalyticsPipeline t: ML
   description Real-time analytics and ML feature pipeline
-  instances 2
+  instances: 2
   -> ClickHouse
 
 InventorySvc t: Backend
   description Inventory reconciliation
-  instances 2
+  instances: 2
   -> PostgreSQL_US
 
 ClickHouse t: Data

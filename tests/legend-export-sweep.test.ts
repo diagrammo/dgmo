@@ -31,7 +31,7 @@ tag Owner
 active-tag Type
 
 edge
-  rps 1000
+  rps: 1000
   -> API | type: Web, owner: Alice
   -> DB | type: Service, owner: Bob`,
   },
@@ -163,7 +163,7 @@ tag Owner
 active-tag none
 
 edge
-  rps 1000
+  rps: 1000
   -> API | type: Web, owner: Alice
   -> DB | type: Service, owner: Bob`;
     const svg = await renderForExport(content, 'light', undefined, undefined, {

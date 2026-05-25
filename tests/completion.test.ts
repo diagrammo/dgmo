@@ -208,7 +208,7 @@ describe('Flowchart extractSymbols', () => {
 
 describe('Infra extractSymbols', () => {
   it('extracts component names', () => {
-    const doc = ['infra', 'API', '  rps 1000', 'Cache', 'Database'].join('\n');
+    const doc = ['infra', 'API', '  rps: 1000', 'Cache', 'Database'].join('\n');
     const result = extractInfraSymbols(doc);
     expect(result.kind).toBe('infra');
     expect(result.entities).toContain('API');
@@ -242,7 +242,7 @@ describe('Infra extractSymbols', () => {
   });
 
   it('excludes indented properties', () => {
-    const doc = 'infra\nAPI\n  rps 1000\n  latency-ms 50\nCache\n';
+    const doc = 'infra\nAPI\n  rps: 1000\n  latency-ms: 50\nCache\n';
     const entities = extractInfraSymbols(doc).entities;
     expect(entities).toEqual(['API', 'Cache']);
   });
@@ -277,7 +277,7 @@ describe('Infra extractSymbols', () => {
     const lines = ['infra'];
     for (let i = 0; i < 100; i++) {
       lines.push(`Service${i}`);
-      lines.push(`  rps 100`);
+      lines.push(`  rps: 100`);
     }
     const doc = lines.join('\n');
     const start = Date.now();

@@ -305,7 +305,7 @@ tag Team
   App green
 
 edge
-  rps 1000
+  rps: 1000
   -> API | team: App
   -> DB | team: Platform`;
 

@@ -249,7 +249,7 @@ tag Team
   App green
 
 edge
-  rps 1000
+  rps: 1000
   -> API | team: App
   -> DB | team: Platform`;
 
@@ -285,7 +285,7 @@ describe('Baseline: Infra playback control', () => {
   const src = `infra
 
 edge
-  rps 500
+  rps: 500
   -> API
   -> DB`;
 

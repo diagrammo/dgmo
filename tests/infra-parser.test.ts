@@ -35,7 +35,7 @@ infra Production Traffic Flow
 infra
 
 CloudFront
-  cache-hit 80%
+  cache-hit: 80%
 `);
       expect(result.nodes).toHaveLength(1);
       expect(result.nodes[0].id).toBe('cloudfront');
@@ -50,10 +50,10 @@ CloudFront
 infra
 
 CloudFront
-  cache-hit 80%
+  cache-hit: 80%
 
 WAF
-  firewall-block 5%
+  firewall-block: 5%
 `);
       expect(result.nodes).toHaveLength(2);
       expect(result.nodes[0].id).toBe('cloudfront');
@@ -67,7 +67,7 @@ WAF
 infra
 
 edge
-  rps 10000
+  rps: 10000
   -> CloudFront
 `);
       const edgeNode = result.nodes.find((n) => n.isEdge);
@@ -81,7 +81,7 @@ edge
 infra
 
 CloudFront
-  rps 5000
+  rps: 5000
 `);
       const warn = result.diagnostics.find((d) =>
         d.message.includes('only valid on the entry point')
@@ -96,11 +96,11 @@ CloudFront
 infra
 
 edge
-  rps 10000
+  rps: 10000
   -> CloudFront
 
 CloudFront
-  cache-hit 80%
+  cache-hit: 80%
 `);
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0].sourceId).toBe('edge');
@@ -133,7 +133,7 @@ ALB
 
 [API Pods]
   APIServer
-    instances 3
+    instances: 3
 `);
       expect(result.edges[0].targetId).toBe('[api pods]');
     });
@@ -145,8 +145,8 @@ ALB
 infra
 
 CDN
-  cache-hit 80%
-  uptime 99.99%
+  cache-hit: 80%
+  uptime: 99.99%
 `);
       const cdn = result.nodes[0];
       expect(cdn.properties[0].value).toBe(80);
@@ -158,10 +158,10 @@ CDN
 infra
 
 API
-  latency-ms 45
-  max-rps 500
-  instances 3
-  ratelimit-rps 1000
+  latency-ms: 45
+  max-rps: 500
+  instances: 3
+  ratelimit-rps: 1000
 `);
       const api = result.nodes[0];
       expect(api.properties.find((p) => p.key === 'latency-ms')!.value).toBe(
@@ -176,7 +176,7 @@ API
 infra
 
 API
-  instances 1-8
+  instances: 1-8
 `);
       // Range is stored as string since it contains a dash
       expect(result.nodes[0].properties[0].value).toBe('1-8');
@@ -187,7 +187,7 @@ API
 infra
 
 API
-  unknown-prop 42
+  unknown-prop: 42
 `);
       expect(result.diagnostics).toHaveLength(1);
       expect(result.diagnostics[0].message).toContain(
@@ -200,7 +200,7 @@ API
 infra
 
 CDN
-  cache-hti 80%
+  cache-hti: 80%
 `);
       const diag = result.diagnostics[0];
       expect(diag.message).toContain("Did you mean 'cache-hit'");
@@ -214,8 +214,8 @@ infra
 
 [API Pods]
   APIServer
-    instances 3
-    max-rps 500
+    instances: 3
+    max-rps: 500
 `);
       expect(result.groups).toHaveLength(1);
       expect(result.groups[0].label).toBe('API Pods');
@@ -232,9 +232,9 @@ infra
 
 [Backend Services]
   APIServer
-    max-rps 500
+    max-rps: 500
   WorkerService
-    max-rps 200
+    max-rps: 200
 `);
       expect(result.groups).toHaveLength(1);
       expect(result.nodes).toHaveLength(2);
@@ -249,7 +249,7 @@ infra
 infra
 
 [PVO]
-  instances 5
+  instances: 5
 
   PVONginx
     -> PVO
@@ -266,7 +266,7 @@ infra
 infra
 
 [Backend]
-  instances 2-8
+  instances: 2-8
 
   APIServer
 `);
@@ -278,8 +278,8 @@ infra
 infra
 
 [PVO]
-  collapsed true
-  instances 3
+  collapsed: true
+  instances: 3
 
   PVONginx
   PVO
@@ -344,7 +344,7 @@ tag Team t
   Backend blue
 
 CloudFront | t: Backend
-  cache-hit 80%
+  cache-hit: 80%
 `);
       const node = result.nodes.find((n) => n.label === 'CloudFront');
       expect(node!.tags).toEqual({ t: 'Backend' });
@@ -362,15 +362,15 @@ tag Team t
   Commerce orange
 
 edge
-  rps 10000
+  rps: 10000
   -> CloudFront
 
 CloudFront | t: Platform
-  cache-hit 80%
+  cache-hit: 80%
   -> CloudArmor
 
 CloudArmor | t: Platform
-  firewall-block 5%
+  firewall-block: 5%
   -> ALB
 
 ALB | t: Platform
@@ -380,13 +380,13 @@ ALB | t: Platform
 
 [API Pods]
   APIServer | t: Backend
-    instances 3
-    max-rps 500
+    instances: 3
+    max-rps: 500
 
 [Commerce Pods]
   PurchaseMS | t: Commerce
-    instances 1-8
-    max-rps 300
+    instances: 1-8
+    max-rps: 300
 
 StaticServer | t: Platform
 `);
@@ -444,9 +444,9 @@ StaticServer | t: Platform
 infra
 
 ProcessOrder
-  concurrency 1000
-  duration-ms 200
-  cold-start-ms 250
+  concurrency: 1000
+  duration-ms: 200
+  cold-start-ms: 250
   -> DB
 `);
       expect(result.error).toBeNull();
@@ -473,8 +473,8 @@ ProcessOrder
 infra
 
 Lambda
-  concurrency 1000
-  instances 3
+  concurrency: 1000
+  instances: 3
 `);
       const warnings = result.diagnostics.filter((d) =>
         d.message.includes('mutually exclusive')
@@ -490,8 +490,8 @@ Lambda
 infra
 
 Lambda
-  concurrency 500
-  max-rps 2000
+  concurrency: 500
+  max-rps: 2000
 `);
       const warnings = result.diagnostics.filter((d) =>
         d.message.includes('mutually exclusive')
@@ -505,9 +505,9 @@ Lambda
 infra
 
 Lambda
-  concurrency 500
-  instances 2
-  max-rps 1000
+  concurrency: 500
+  instances: 2
+  max-rps: 1000
 `);
       const warnings = result.diagnostics.filter((d) =>
         d.message.includes('mutually exclusive')
@@ -522,8 +522,8 @@ Lambda
 infra
 
 Lambda
-  concurrency 1000
-  duration-ms 200
+  concurrency: 1000
+  duration-ms: 200
 `);
       const warnings = result.diagnostics.filter((d) =>
         d.message.includes('mutually exclusive')
@@ -538,10 +538,10 @@ Lambda
 infra
 
 OrderQueue
-  buffer 100000
-  drain-rate 500
-  retention-hours 72
-  partitions 6
+  buffer: 100000
+  drain-rate: 500
+  retention-hours: 72
+  partitions: 6
   -> OrderProcessor
 `);
       expect(result.error).toBeNull();
@@ -570,8 +570,8 @@ OrderQueue
 infra
 
 Queue
-  buffer 100000
-  max-rps 5000
+  buffer: 100000
+  max-rps: 5000
 `);
       const warnings = result.diagnostics.filter((d) =>
         d.message.includes('capacity models')
@@ -585,8 +585,8 @@ Queue
 infra
 
 Queue
-  buffer 50000
-  drain-rate 1000
+  buffer: 50000
+  drain-rate: 1000
 `);
       const warnings = result.diagnostics.filter((d) =>
         d.message.includes('capacity models')
@@ -608,10 +608,10 @@ infra Test
 infra
 
 edge
-  rps 1000
+  rps: 1000
 
 CDN
-  cache-hit 80%
+  cache-hit: 80%
 `);
       expect(result.nodes).toHaveLength(2);
     });
@@ -623,7 +623,7 @@ CDN
 infra
 
 edge
-  rps 100
+  rps: 100
   -> API | fanout: 5
 `);
       expect(result.edges).toHaveLength(1);
@@ -637,7 +637,7 @@ edge
 infra
 
 edge
-  rps 100
+  rps: 100
   -> B | split: 50%, fanout: 3
   -> C | split: 50%
 `);
@@ -654,7 +654,7 @@ edge
 infra
 
 edge
-  rps 100
+  rps: 100
   -query-> Shards | fanout: 10
 `);
       expect(result.edges).toHaveLength(1);
@@ -668,7 +668,7 @@ edge
 infra
 
 edge
-  rps 100
+  rps: 100
   -> API
 `);
       expect(result.edges).toHaveLength(1);
@@ -680,7 +680,7 @@ edge
 infra
 
 edge
-  rps 100
+  rps: 100
   -> Database x5
 `);
       expect(result.error).toContain(
@@ -694,7 +694,7 @@ edge
 infra
 
 edge
-  rps 100
+  rps: 100
   -query-> Shards x10
 `);
       expect(result.error).toContain(
@@ -709,11 +709,11 @@ edge
       const result = parseInfra(`infra
 
 edge
-  rps 1000
+  rps: 1000
   -> CDN
 
 CDN
-  cache-hit 80%`);
+  cache-hit: 80%`);
       const edgeNode = result.nodes.find((n) => n.isEdge);
       expect(edgeNode!.lineNumber).toBe(3);
       expect(edgeNode!.properties[0].lineNumber).toBe(4);
@@ -730,10 +730,10 @@ CDN
 infra
 
 api-gateway
-  max-rps 1000
+  max-rps: 1000
 
 my-service-v2
-  latency-ms 10
+  latency-ms: 10
 `);
       expect(result.error).toBeNull();
       const gw = result.nodes.find((n) => n.id === 'api-gateway');
@@ -749,15 +749,15 @@ my-service-v2
 infra
 
 edge
-  rps 1000
+  rps: 1000
   -> api-gateway
 
 api-gateway
-  max-rps 5000
+  max-rps: 5000
   -> auth-service
 
 auth-service
-  max-rps 2000
+  max-rps: 2000
 `);
       expect(result.error).toBeNull();
       expect(result.edges).toHaveLength(2);
@@ -771,11 +771,11 @@ auth-service
 infra
 
 edge
-  rps 100
+  rps: 100
   -query-> search-service
 
 search-service
-  max-rps 5000
+  max-rps: 5000
 `);
       expect(result.error).toBeNull();
       expect(result.edges[0].label).toBe('query');
@@ -787,13 +787,13 @@ search-service
 infra
 
 [Shards]
-  instances 3
+  instances: 3
 
   shard-primary
-    max-rps 5000
+    max-rps: 5000
 
   shard-replica
-    max-rps 5000
+    max-rps: 5000
 `);
       expect(result.error).toBeNull();
       const primary = result.nodes.find((n) => n.id === 'shard-primary');
@@ -834,7 +834,7 @@ AuthService
 infra
 APIServer
   description: My service
-  max-rps 500
+  max-rps: 500
 `);
       expect(result.nodes[0].description).toEqual(['My service']);
       expect(result.nodes[0].properties).toHaveLength(1);
@@ -845,7 +845,7 @@ APIServer
       const result = parseInfra(`
 infra
 edge
-  rps 1000
+  rps: 1000
   description: This is the edge
   -> APIServer
 `);
@@ -896,7 +896,7 @@ slo-warning-margin 10%
       const result = parseInfra(`
 infra
 API
-  slo-availability 99%
+  slo-availability: 99%
 `);
       const apiNode = result.nodes.find((n) => n.label === 'API');
       const sloProp = apiNode?.properties.find(
@@ -911,7 +911,7 @@ API
       const result = parseInfra(`
 infra
 API
-  slo-availability 99%
+  slo-availability: 99%
 `);
       expect(result.diagnostics).toHaveLength(0);
     });
@@ -920,7 +920,7 @@ API
       const result = parseInfra(`
 infra
 API
-  slo-p90-latency-ms 200
+  slo-p90-latency-ms: 200
 `);
       expect(result.diagnostics).toHaveLength(0);
     });
@@ -929,7 +929,7 @@ API
       const result = parseInfra(`
 infra
 API
-  slo-warning-margin 10%
+  slo-warning-margin: 10%
 `);
       expect(result.diagnostics).toHaveLength(0);
     });
@@ -942,8 +942,8 @@ slo-p90-latency-ms 200
 slo-warning-margin 5%
 
 API
-  max-rps 1000
-  slo-availability 95%
+  max-rps: 1000
+  slo-availability: 95%
 `);
       expect(result.options['slo-availability']).toBe('99%');
       expect(result.options['slo-p90-latency-ms']).toBe('200');

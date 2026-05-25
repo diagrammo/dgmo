@@ -162,7 +162,7 @@ describe('No-groups: Infra', () => {
   it('renders no legend elements when no tag groups defined', () => {
     const src = `infra
 edge
-  rps 1000
+  rps: 1000
   -> API
   -> DB`;
     const parsed = parseInfra(src);
