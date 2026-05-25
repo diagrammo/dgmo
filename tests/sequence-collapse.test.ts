@@ -27,7 +27,7 @@ describe('applyCollapseProjection', () => {
   describe('basic collapse', () => {
     it('replaces group members with virtual group participant', () => {
       const { view } = collapseFixture(
-        '[Backend] collapse\n  API\n  DB\nUser -request-> API'
+        '[Backend] collapsed: true\n  API\n  DB\nUser -request-> API'
       );
       const ids = view.participants.map((p) => p.id);
       expect(ids).toContain('Backend');
@@ -38,7 +38,7 @@ describe('applyCollapseProjection', () => {
 
     it('virtual participant has correct properties', () => {
       const { view } = collapseFixture(
-        '[Backend] collapse\n  API\n  DB\nUser -request-> API'
+        '[Backend] collapsed: true\n  API\n  DB\nUser -request-> API'
       );
       const vp = view.participants.find((p) => p.id === 'Backend')!;
       expect(vp.label).toBe('Backend');
@@ -47,7 +47,7 @@ describe('applyCollapseProjection', () => {
 
     it('remaps message target to group', () => {
       const { view } = collapseFixture(
-        '[Backend] collapse\n  API\n  DB\nUser -request-> API'
+        '[Backend] collapsed: true\n  API\n  DB\nUser -request-> API'
       );
       expect(view.messages[0].from).toBe('User');
       expect(view.messages[0].to).toBe('Backend');
@@ -57,7 +57,7 @@ describe('applyCollapseProjection', () => {
   describe('internal messages', () => {
     it('internal message becomes self-referential', () => {
       const { view } = collapseFixture(
-        '[Backend] collapse\n  API\n  DB\nAPI -query-> DB'
+        '[Backend] collapsed: true\n  API\n  DB\nAPI -query-> DB'
       );
       expect(view.messages[0].from).toBe('Backend');
       expect(view.messages[0].to).toBe('Backend');
@@ -65,7 +65,7 @@ describe('applyCollapseProjection', () => {
 
     it('internal unlabeled return is suppressed', () => {
       const dgmo = [
-        '[Backend] collapse',
+        '[Backend] collapsed: true',
         '  API',
         '  DB',
         'User -request-> API',
@@ -83,7 +83,7 @@ describe('applyCollapseProjection', () => {
 
     it('internal labeled message is kept as self-ref', () => {
       const dgmo = [
-        '[Backend] collapse',
+        '[Backend] collapsed: true',
         '  API',
         '  DB',
         'API -query-> DB',
@@ -103,7 +103,7 @@ describe('applyCollapseProjection', () => {
   describe('external return preserved', () => {
     it('return from collapsed member to external is remapped, not suppressed', () => {
       const dgmo = [
-        '[Backend] collapse',
+        '[Backend] collapsed: true',
         '  API',
         '  DB',
         'User -request-> API',
@@ -120,7 +120,7 @@ describe('applyCollapseProjection', () => {
   describe('note remapping', () => {
     it('remaps note participant to group', () => {
       const dgmo = [
-        '[Backend] collapse',
+        '[Backend] collapsed: true',
         '  API',
         '  DB',
         'User -request-> API',
@@ -139,7 +139,7 @@ describe('applyCollapseProjection', () => {
   describe('mixed collapsed/expanded', () => {
     it('only collapsed group members are replaced', () => {
       const dgmo = [
-        '[Backend] collapse',
+        '[Backend] collapsed: true',
         '  API',
         '  DB',
         '[Frontend]',
@@ -158,7 +158,7 @@ describe('applyCollapseProjection', () => {
 
     it('expanded group remains in groups list', () => {
       const dgmo = [
-        '[Backend] collapse',
+        '[Backend] collapsed: true',
         '  API',
         '  DB',
         '[Frontend]',
@@ -174,10 +174,10 @@ describe('applyCollapseProjection', () => {
   describe('multiple collapsed groups', () => {
     it('two collapsed groups messaging each other', () => {
       const dgmo = [
-        '[Backend] collapse',
+        '[Backend] collapsed: true',
         '  API',
         '  DB',
-        '[Frontend] collapse',
+        '[Frontend] collapsed: true',
         '  App',
         '  Web',
         'App -request-> API',
@@ -191,9 +191,11 @@ describe('applyCollapseProjection', () => {
 
   describe('single-member group', () => {
     it('group with one member collapses identically', () => {
-      const dgmo = ['[Backend] collapse', '  API', 'User -request-> API'].join(
-        '\n'
-      );
+      const dgmo = [
+        '[Backend] collapsed: true',
+        '  API',
+        'User -request-> API',
+      ].join('\n');
       const { view } = collapseFixture(dgmo);
       const ids = view.participants.map((p) => p.id);
       expect(ids).toContain('Backend');
@@ -205,7 +207,7 @@ describe('applyCollapseProjection', () => {
   describe('message ordering invariant', () => {
     it('output message order matches input order', () => {
       const dgmo = [
-        '[Backend] collapse',
+        '[Backend] collapsed: true',
         '  API',
         '  DB',
         'User -request-> API',
@@ -224,7 +226,7 @@ describe('applyCollapseProjection', () => {
   describe('immutability', () => {
     it('original ParsedSequenceDgmo is not mutated', () => {
       const dgmo = [
-        '[Backend] collapse',
+        '[Backend] collapsed: true',
         '  API',
         '  DB',
         'User -request-> API',
@@ -252,7 +254,7 @@ describe('applyCollapseProjection', () => {
   describe('sections pass through unchanged', () => {
     it('section dividers are not corrupted by remapping', () => {
       const dgmo = [
-        '[Backend] collapse',
+        '[Backend] collapsed: true',
         '  API',
         '  DB',
         'User -request-> API',
@@ -274,7 +276,7 @@ describe('applyCollapseProjection', () => {
   describe('name collision handling', () => {
     it('participant with same name as collapsed group is absorbed', () => {
       const dgmo = [
-        '[Backend] collapse',
+        '[Backend] collapsed: true',
         '  API',
         '  DB',
         'Backend -request-> API',
@@ -351,7 +353,7 @@ function renderToSvg(
 
 describe('Collapse rendering', () => {
   const collapseDiagram = [
-    '[Backend] collapse',
+    '[Backend] collapsed: true',
     '  API',
     '  DB',
     'User -request-> API',
@@ -413,7 +415,7 @@ describe('Collapse rendering', () => {
 
   it('mixed collapsed and expanded groups render correctly', () => {
     const mixedDiagram = [
-      '[Backend] collapse',
+      '[Backend] collapsed: true',
       '  API',
       '  DB',
       '[Frontend]',
@@ -481,5 +483,29 @@ describe('Collapse rendering', () => {
     // No message arrows should be rendered inside the collapsed section
     const arrows = svg.querySelectorAll('.message-arrow');
     expect(arrows.length).toBe(0);
+  });
+});
+
+describe('collapse keyword deprecation', () => {
+  it('bare "collapse" keyword emits deprecation warning', () => {
+    const parsed = parseSequenceDgmo(
+      '[Backend] collapse\n  API\n  DB\nUser -> API'
+    );
+    expect(parsed.groups[0].collapsed).toBe(true);
+    expect(
+      parsed.diagnostics.some((d) =>
+        d.message.includes('bare "collapse" keyword is deprecated')
+      )
+    ).toBe(true);
+  });
+
+  it('"collapsed: true" metadata does not emit warning', () => {
+    const parsed = parseSequenceDgmo(
+      '[Backend] collapsed: true\n  API\n  DB\nUser -> API'
+    );
+    expect(parsed.groups[0].collapsed).toBe(true);
+    expect(
+      parsed.diagnostics.some((d) => d.message.includes('deprecated'))
+    ).toBe(false);
   });
 });

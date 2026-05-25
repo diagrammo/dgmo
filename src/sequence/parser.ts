@@ -752,23 +752,42 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const groupColor = groupMatch[2]?.trim();
       let groupMeta: Record<string, string> | undefined;
 
-      // Parse collapse keyword and pipe metadata AFTER the closing bracket
+      // Parse metadata and collapse state AFTER the closing bracket
       let afterBracket = groupMatch[3]?.trim() || '';
       let isCollapsed = false;
 
-      // Extract `collapse` keyword (before any pipe metadata)
+      // Deprecated: bare `collapse` keyword (use `collapsed: true` instead)
       const collapseMatch = afterBracket.match(/^collapse\b/i);
       if (collapseMatch) {
         isCollapsed = true;
         afterBracket = afterBracket.slice(collapseMatch[0].length).trim();
+        pushWarning(
+          lineNumber,
+          `Use "collapsed: true" — bare "collapse" keyword is deprecated.`
+        );
       }
 
-      if (afterBracket.startsWith('|')) {
-        const segments = afterBracket.split('|');
-        const meta = parsePipeMetadata(segments, aliasMap, () =>
-          pushError(lineNumber, MULTIPLE_PIPE_ERROR)
+      // §1.4 same-line metadata on group header
+      if (afterBracket) {
+        const groupRegistry = withTagAliases(
+          SEQUENCE_REGISTRY,
+          new Set(aliasMap.keys())
         );
-        if (Object.keys(meta).length > 0) groupMeta = meta;
+        if (afterBracket.startsWith('|')) {
+          const segments = afterBracket.split('|');
+          const meta = parsePipeMetadata(segments, aliasMap, () =>
+            pushError(lineNumber, MULTIPLE_PIPE_ERROR)
+          );
+          if (Object.keys(meta).length > 0) groupMeta = meta;
+        } else {
+          const split = splitNameAndMeta(afterBracket, groupRegistry, aliasMap);
+          if (Object.keys(split.meta).length > 0) groupMeta = split.meta;
+        }
+        if (groupMeta?.['collapsed']?.toLowerCase() === 'true') {
+          isCollapsed = true;
+          delete groupMeta['collapsed'];
+          if (Object.keys(groupMeta).length === 0) groupMeta = undefined;
+        }
       }
 
       if (groupColor) {
