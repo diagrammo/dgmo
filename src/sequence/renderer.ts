@@ -550,6 +550,24 @@ export function buildRenderSequence(
       });
     }
 
+    // Response heuristic: if B sends back to A and the top of the
+    // stack is A→B, treat this as a response (pop) rather than a new
+    // call.  Covers the common request-response ping-pong pattern.
+    if (stack.length > 0 && !msg.async && msg.from !== msg.to) {
+      const top = stack[stack.length - 1]!;
+      if (top.from === msg.to && top.to === msg.from) {
+        stack.pop();
+        steps.push({
+          type: 'return',
+          from: msg.from,
+          to: msg.to,
+          label: msg.label,
+          messageIndex: mi,
+        });
+        continue;
+      }
+    }
+
     // Emit call
     steps.push({
       type: 'call',

@@ -65,7 +65,10 @@ function isHardRemovedToken(
 const KNOWN_SEQ_OPTIONS = new Set(['active-tag']);
 
 /** Known sequence-diagram boolean options (bare keyword or `no-` prefix). */
-const KNOWN_SEQ_BOOLEANS = new Set(['activations', 'solid-fill', 'no-title']);
+const KNOWN_SEQ_BOOLEANS = new Set(['solid-fill', 'no-title']);
+
+/** Boolean options that only support the `no-` prefix form (no bare or key-value). */
+const NO_PREFIX_ONLY_BOOLEANS = new Set(['activations']);
 
 /**
  * Participant types that can be declared via "Name is a type" syntax.
@@ -975,13 +978,13 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       }
     }
 
-    // Parse space-separated options (no colon): `activations off`, `no-activations`, `active-tag Priority`
+    // Parse space-separated options (no colon): `no-activations`, `solid-fill`, `active-tag Priority`
     {
       const optLower = trimmed.toLowerCase();
       // Negated boolean: `no-activations` → options.activations = 'off'
       if (optLower.startsWith('no-')) {
         const base = optLower.substring(3);
-        if (KNOWN_SEQ_BOOLEANS.has(base)) {
+        if (KNOWN_SEQ_BOOLEANS.has(base) || NO_PREFIX_ONLY_BOOLEANS.has(base)) {
           if (contentStarted) {
             pushError(
               lineNumber,

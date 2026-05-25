@@ -658,7 +658,7 @@ function noInput(): never {
     samplePath,
     [
       'sequence',
-      'activations off',
+      'no-activations',
       '',
       'Client -POST /login-> API',
       '  API -validate credentials-> Auth',

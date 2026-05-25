@@ -253,8 +253,8 @@ describe('render integration', () => {
   it('call + response produces correct steps', () => {
     const parsed = parseSequenceDgmo('A -request-> B\nB -response-> A');
     const steps = buildRenderSequence(parsed.messages);
-    // B -response-> A is a nested call (B calls A back), with auto-returns
-    expect(steps).toHaveLength(4);
+    // B -response-> A detected as a return (matches pending A→B on stack)
+    expect(steps).toHaveLength(2);
     expect(steps[0]).toMatchObject({
       type: 'call',
       from: 'A',
@@ -262,22 +262,10 @@ describe('render integration', () => {
       label: 'request',
     });
     expect(steps[1]).toMatchObject({
-      type: 'call',
+      type: 'return',
       from: 'B',
       to: 'A',
       label: 'response',
-    });
-    expect(steps[2]).toMatchObject({
-      type: 'return',
-      from: 'A',
-      to: 'B',
-      label: '',
-    });
-    expect(steps[3]).toMatchObject({
-      type: 'return',
-      from: 'B',
-      to: 'A',
-      label: '',
     });
   });
 
