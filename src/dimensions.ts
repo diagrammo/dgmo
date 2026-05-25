@@ -5,6 +5,15 @@ import { parseMindmap } from './mindmap/parser';
 import { parseTechRadar } from './tech-radar/parser';
 import { parseExtendedChart } from './echarts';
 import { parseVisualization } from './d3';
+import { parseOrg } from './org/parser';
+import { parseGantt } from './gantt/parser';
+import { parseKanban } from './kanban/parser';
+import { parseERDiagram } from './er/parser';
+import { parseClassDiagram } from './class/parser';
+import { parseFlowchart } from './graph/flowchart-parser';
+import { parseState } from './graph/state-parser';
+import { parsePert } from './pert/parser';
+import { parseInfra } from './infra/parser';
 import { computeMinDimensions, type ContentCounts } from './utils/scaling';
 
 export function getMinDimensions(content: string): {
@@ -37,6 +46,23 @@ function extractContentCounts(
       return extractHeatmapCounts(content);
     case 'arc':
       return extractArcCounts(content);
+    case 'org':
+      return extractOrgCounts(content);
+    case 'gantt':
+      return extractGanttCounts(content);
+    case 'kanban':
+      return extractKanbanCounts(content);
+    case 'er':
+      return extractERCounts(content);
+    case 'class':
+      return extractClassCounts(content);
+    case 'flowchart':
+    case 'state':
+      return extractFlowchartCounts(content, chartType);
+    case 'pert':
+      return extractPertCounts(content);
+    case 'infra':
+      return extractInfraCounts(content);
     default:
       return {};
   }
@@ -106,4 +132,67 @@ function extractArcCounts(content: string): ContentCounts {
     for (const n of g.nodes) allNodes.add(n);
   }
   return { nodes: allNodes.size };
+}
+
+function extractOrgCounts(content: string): ContentCounts {
+  const parsed = parseOrg(content);
+  let nodeCount = 0;
+  let maxDepth = 0;
+  function walk(
+    nodes: readonly { children: readonly unknown[] }[],
+    depth: number
+  ): void {
+    for (const node of nodes) {
+      nodeCount++;
+      if (depth > maxDepth) maxDepth = depth;
+      walk(
+        node.children as readonly { children: readonly unknown[] }[],
+        depth + 1
+      );
+    }
+  }
+  walk(parsed.roots, 1);
+  return { nodes: nodeCount, depth: maxDepth };
+}
+
+function extractGanttCounts(content: string): ContentCounts {
+  const parsed = parseGantt(content);
+  const taskCount = parsed.nodes.filter(
+    (n: { kind: string }) => n.kind === 'task'
+  ).length;
+  return { tasks: taskCount };
+}
+
+function extractKanbanCounts(content: string): ContentCounts {
+  const parsed = parseKanban(content);
+  return { columns: parsed.columns.length };
+}
+
+function extractERCounts(content: string): ContentCounts {
+  const parsed = parseERDiagram(content);
+  return { nodes: parsed.tables.length };
+}
+
+function extractClassCounts(content: string): ContentCounts {
+  const parsed = parseClassDiagram(content);
+  return { nodes: parsed.classes.length };
+}
+
+function extractFlowchartCounts(
+  content: string,
+  chartType: string
+): ContentCounts {
+  const parsed =
+    chartType === 'state' ? parseState(content) : parseFlowchart(content);
+  return { nodes: parsed.nodes.length };
+}
+
+function extractPertCounts(content: string): ContentCounts {
+  const parsed = parsePert(content);
+  return { tasks: parsed.activities.length };
+}
+
+function extractInfraCounts(content: string): ContentCounts {
+  const parsed = parseInfra(content);
+  return { nodes: parsed.nodes.length };
 }

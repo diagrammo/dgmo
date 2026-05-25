@@ -92,6 +92,47 @@ export function computeMinDimensions(
         width: 300,
         height: Math.max((counts.nodes ?? 3) * 20 + 120, 200),
       };
+    case 'org':
+      return {
+        width: Math.max((counts.nodes ?? 3) * 60, 300),
+        height: Math.max((counts.depth ?? 2) * 80, 200),
+      };
+    case 'gantt':
+      return {
+        width: 400,
+        height: Math.max((counts.tasks ?? 3) * 24 + 80, 200),
+      };
+    case 'kanban':
+      return {
+        width: Math.max((counts.columns ?? 3) * 120, 360),
+        height: 300,
+      };
+    case 'er':
+      return {
+        width: Math.max((counts.nodes ?? 2) * 140, 300),
+        height: Math.max((counts.nodes ?? 2) * 80, 200),
+      };
+    case 'class':
+      return {
+        width: Math.max((counts.nodes ?? 2) * 140, 300),
+        height: Math.max((counts.nodes ?? 2) * 80, 200),
+      };
+    case 'flowchart':
+    case 'state':
+      return {
+        width: Math.max((counts.nodes ?? 3) * 60, 300),
+        height: Math.max((counts.nodes ?? 3) * 50, 200),
+      };
+    case 'pert':
+      return {
+        width: Math.max((counts.tasks ?? 3) * 80, 340),
+        height: Math.max((counts.tasks ?? 3) * 40 + 80, 200),
+      };
+    case 'infra':
+      return {
+        width: Math.max((counts.nodes ?? 3) * 80, 300),
+        height: Math.max((counts.nodes ?? 3) * 60, 200),
+      };
     default:
       return { ...DEFAULT_MIN };
   }
