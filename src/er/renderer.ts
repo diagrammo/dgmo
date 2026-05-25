@@ -220,8 +220,6 @@ export function renderERDiagram(
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
-  const containerWidth = container.clientWidth || 600;
-
   const useSemanticColors =
     parsed.tagGroups.length === 0 && layout.nodes.every((n) => !n.color);
   const LEGEND_FIXED_GAP = 8;
@@ -237,15 +235,7 @@ export function renderERDiagram(
   const diagramW = layout.width;
   const diagramH = layout.height;
 
-  const totalColumns = layout.nodes.reduce(
-    (sum, n) => sum + n.columns.length,
-    0
-  );
-  const idealWidth =
-    layout.nodes.length * 180 + totalColumns * 8 + DIAGRAM_PADDING * 2;
-  const ctx = exportDims
-    ? ScaleContext.identity()
-    : ScaleContext.from(containerWidth, idealWidth);
+  const ctx = ScaleContext.identity();
 
   const sDiagramPadding = ctx.aesthetic(DIAGRAM_PADDING);
   const sTableFontSize = ctx.text(TABLE_FONT_SIZE);

@@ -129,10 +129,7 @@ export function renderSitemap(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  const idealWidth = layout.width + DIAGRAM_PADDING * 2;
-  const ctx = exportDims
-    ? ScaleContext.identity()
-    : ScaleContext.from(width, idealWidth);
+  const ctx = ScaleContext.identity();
 
   const sDiagramPadding = ctx.aesthetic(DIAGRAM_PADDING);
   const sLabelFontSize = ctx.text(LABEL_FONT_SIZE);

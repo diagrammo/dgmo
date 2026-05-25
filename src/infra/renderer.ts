@@ -2234,11 +2234,7 @@ export function renderInfra(
 ) {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
-  const idealWidth = layout.width;
-  const containerWidth = container.clientWidth || idealWidth;
-  const ctx = exportMode
-    ? ScaleContext.identity()
-    : ScaleContext.from(containerWidth, idealWidth);
+  const ctx = ScaleContext.identity();
   const sc = buildScaledConstants(ctx);
 
   const legendGroups = computeInfraLegendGroups(

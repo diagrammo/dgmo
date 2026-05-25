@@ -351,10 +351,7 @@ export function renderBoxesAndLines(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  const idealWidth = layout.width + DIAGRAM_PADDING * 2;
-  const sctx = exportDims
-    ? ScaleContext.identity()
-    : ScaleContext.from(width, idealWidth);
+  const sctx = ScaleContext.identity();
 
   const sDiagramPadding = sctx.aesthetic(DIAGRAM_PADDING);
   const sMinNodeFontSize = sctx.text(MIN_NODE_FONT_SIZE);

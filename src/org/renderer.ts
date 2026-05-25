@@ -123,9 +123,7 @@ export function renderOrg(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  const ctx = exportDims
-    ? ScaleContext.identity()
-    : ScaleContext.from(width, layout.width);
+  const ctx = ScaleContext.identity();
 
   const sDiagramPadding = ctx.aesthetic(DIAGRAM_PADDING);
   const sTitleHeight = ctx.structural(TITLE_HEIGHT);
