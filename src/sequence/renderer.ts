@@ -37,7 +37,11 @@ import type {
   LegendConfig,
   LegendState,
 } from '../utils/legend-types';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
 
 // ============================================================
@@ -1690,7 +1694,7 @@ export function renderSequenceDiagram(
       .append('text')
       .attr('class', 'chart-title')
       .attr('x', svgWidth / 2)
-      .attr('y', 30)
+      .attr('y', ctx.structural(TITLE_Y))
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
       .attr('font-size', ctx.text(TITLE_FONT_SIZE))
