@@ -13,6 +13,7 @@ import {
   parseFirstLine,
   splitNameAndMeta,
   tryParseSharedOption,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import { CYCLE_REGISTRY } from '../utils/reserved-key-registry';
 import type { Writable } from '../utils/brand';
@@ -179,6 +180,12 @@ export function parseCycle(content: string): ParsedCycle {
         result.diagnostics,
         lineNum
       );
+      warnUnknownMetaKeys(
+        split.meta,
+        CYCLE_REGISTRY,
+        (msg) => warn(lineNum, msg),
+        split.name
+      );
       const label = split.name;
       const metadata: Record<string, string> = { ...split.meta };
       if (split.color !== undefined) metadata['color'] = split.color;
@@ -271,6 +278,12 @@ export function parseCycle(content: string): ParsedCycle {
           undefined,
           result.diagnostics,
           lineNum
+        );
+        warnUnknownMetaKeys(
+          edgeSplit.meta,
+          CYCLE_REGISTRY,
+          (msg) => warn(lineNum, msg),
+          edgeSplit.name
         );
         const explicitTarget = edgeSplit.name || undefined;
         if (explicitTarget?.endsWith(':')) {

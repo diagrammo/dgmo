@@ -22,6 +22,7 @@ import {
   extractColor,
   measureIndent,
   splitNameAndMeta,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import { PERT_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
 import { normalizeName } from '../utils/name-normalize';
@@ -331,6 +332,14 @@ function tokenizeActivityLine(
       diagnostics,
       lineNumber
     );
+    if (diagnostics && lineNumber != null) {
+      warnUnknownMetaKeys(
+        split.meta,
+        registry,
+        (msg) => diagnostics.push(makeDgmoError(lineNumber, msg, 'warning')),
+        split.name
+      );
+    }
     if (Object.keys(split.meta).length > 0) {
       // Restore body with color and alias re-appended so the downstream
       // PERT tokenizer (peelAlias, duration token scan) sees the same

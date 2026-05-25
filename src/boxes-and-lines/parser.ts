@@ -28,6 +28,7 @@ import {
   OPTION_NOCOLON_RE,
   splitNameAndMeta,
   tryParseSharedOption,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import {
   BOXES_AND_LINES_REGISTRY,
@@ -751,6 +752,12 @@ function parseNodeLine(
     diagnostics,
     lineNum
   );
+  warnUnknownMetaKeys(
+    split.meta,
+    registry,
+    (msg) => diagnostics.push(makeDgmoError(lineNum, msg, 'warning')),
+    split.name
+  );
 
   let label = split.name;
   const metadata: Record<string, string> = { ...split.meta };
@@ -865,6 +872,10 @@ function parseEdgeLine(
   diagnostics: DgmoError[],
   nameAliasMap?: Map<string, string>
 ): BLEdge | null {
+  const edgeRegistry = withTagAliases(
+    BOXES_AND_LINES_REGISTRY,
+    new Set(metaAliasMap.keys())
+  );
   // Check for bidirectional labeled: `Source <-label-> Target`
   const biLabeledMatch = trimmed.match(/^(.+?)\s*<-(.+)->\s*(.+)$/);
   if (biLabeledMatch) {
@@ -879,6 +890,9 @@ function parseEdgeLine(
     const { target: biTarget, metadata } = splitTargetAndMeta(
       rest,
       metaAliasMap
+    );
+    warnUnknownMetaKeys(metadata, edgeRegistry, (msg) =>
+      diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
     );
     rest = biTarget;
 
@@ -919,6 +933,9 @@ function parseEdgeLine(
     const { target: plainTarget, metadata } = splitTargetAndMeta(
       rest,
       metaAliasMap
+    );
+    warnUnknownMetaKeys(metadata, edgeRegistry, (msg) =>
+      diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
     );
     rest = plainTarget;
 
@@ -963,6 +980,9 @@ function parseEdgeLine(
       const { target: labeledTarget, metadata } = splitTargetAndMeta(
         rest,
         metaAliasMap
+      );
+      warnUnknownMetaKeys(metadata, edgeRegistry, (msg) =>
+        diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
       );
       rest = labeledTarget;
 
@@ -1012,6 +1032,9 @@ function parseEdgeLine(
   const { target: plainTarget, metadata } = splitTargetAndMeta(
     rest,
     metaAliasMap
+  );
+  warnUnknownMetaKeys(metadata, edgeRegistry, (msg) =>
+    diagnostics.push(makeDgmoError(lineNum, msg, 'warning'))
   );
   rest = plainTarget;
 

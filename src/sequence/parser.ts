@@ -26,6 +26,7 @@ import {
   MULTIPLE_PIPE_ERROR,
   parseFirstLine,
   OPTION_NOCOLON_RE,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import {
   SEQUENCE_REGISTRY,
@@ -703,6 +704,14 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       new Set(aliasMap.keys())
     );
     const split = splitNameAndMeta(text, registry, aliasMap);
+    if (ln != null) {
+      warnUnknownMetaKeys(
+        split.meta,
+        registry,
+        (msg) => pushWarning(ln, msg),
+        split.name
+      );
+    }
     if (Object.keys(split.meta).length > 0) {
       return { core: split.name, meta: split.meta };
     }
@@ -781,6 +790,12 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
           if (Object.keys(meta).length > 0) groupMeta = meta;
         } else {
           const split = splitNameAndMeta(afterBracket, groupRegistry, aliasMap);
+          warnUnknownMetaKeys(
+            split.meta,
+            groupRegistry,
+            (msg) => pushWarning(lineNumber, msg),
+            split.name
+          );
           if (Object.keys(split.meta).length > 0) groupMeta = split.meta;
         }
         if (groupMeta?.['collapsed']?.toLowerCase() === 'true') {

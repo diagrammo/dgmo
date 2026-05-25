@@ -35,6 +35,7 @@ import {
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
   tryParseSharedOption,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import type { SitemapNode, ParsedSitemap } from './types';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
@@ -627,6 +628,14 @@ function parseNodeLabel(
     _diagnostics,
     lineNumber
   );
+  if (warnFn) {
+    warnUnknownMetaKeys(
+      split.meta,
+      registry,
+      (msg) => warnFn(lineNumber, msg),
+      split.name
+    );
+  }
   const label = split.name;
   if (split.alias) nameAliasMap?.set(normalizeName(split.alias), id);
   const metadata: Record<string, string> = { ...split.meta };

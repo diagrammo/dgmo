@@ -209,6 +209,7 @@ import {
   peelTrailingColorName,
   splitNameAndMeta,
   MULTIPLE_PIPE_ERROR,
+  warnUnknownMetaKeys,
 } from './utils/parsing';
 import {
   TIMELINE_REGISTRY,
@@ -933,6 +934,11 @@ export function parseVisualization(
           timelineAliasMap,
           () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
         );
+        warnUnknownMetaKeys(
+          metadata,
+          withTagAliases(TIMELINE_REGISTRY, new Set(timelineAliasMap.keys())),
+          (msg) => warn(lineNumber, msg)
+        );
         result.timelineEvents.push({
           date: startDate,
           endDate,
@@ -961,6 +967,11 @@ export function parseVisualization(
           timelineAliasMap,
           () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
         );
+        warnUnknownMetaKeys(
+          metadata,
+          withTagAliases(TIMELINE_REGISTRY, new Set(timelineAliasMap.keys())),
+          (msg) => warn(lineNumber, msg)
+        );
         result.timelineEvents.push({
           // Capture groups 1-2 guaranteed by the regex match.
           date: rangeMatch[1]!,
@@ -985,6 +996,11 @@ export function parseVisualization(
           pointMatch[2]!,
           timelineAliasMap,
           () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
+        );
+        warnUnknownMetaKeys(
+          metadata,
+          withTagAliases(TIMELINE_REGISTRY, new Set(timelineAliasMap.keys())),
+          (msg) => warn(lineNumber, msg)
         );
         result.timelineEvents.push({
           // Capture group 1 guaranteed by the regex match.

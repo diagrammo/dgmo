@@ -34,6 +34,7 @@ import {
   splitNameAndMeta,
   OPTION_NOCOLON_RE,
   tryParseSharedOption,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import {
   normalizeName,
@@ -424,6 +425,12 @@ export function parseRaci(
             undefined,
             result.diagnostics,
             j + 1
+          );
+          warnUnknownMetaKeys(
+            split.meta,
+            RACI_REGISTRY,
+            (msg) => warn(j + 1, msg),
+            split.name
           );
           const roleLabel = split.name;
           let roleColor: string | undefined;

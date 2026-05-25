@@ -12,6 +12,7 @@ import {
   parsePipeMetadata,
   splitNameAndMeta,
   OPTION_NOCOLON_RE,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import type { Writable } from '../utils/brand';
 import type {
@@ -225,6 +226,12 @@ export function parseTechRadar(content: string): ParsedTechRadar {
           undefined,
           { peelAlias: false }
         );
+        warnUnknownMetaKeys(
+          split.meta,
+          TECH_RADAR_REGISTRY,
+          (msg) => warn(lineNumber, msg),
+          split.name
+        );
         segments = [split.name];
         meta = split.meta;
       }
@@ -318,6 +325,12 @@ export function parseTechRadar(content: string): ParsedTechRadar {
             undefined,
             undefined,
             { peelAlias: false }
+          );
+          warnUnknownMetaKeys(
+            split.meta,
+            TECH_RADAR_REGISTRY,
+            (msg) => warn(lineNumber, msg),
+            split.name
           );
           segments = [split.name];
           meta = split.meta;

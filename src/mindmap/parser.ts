@@ -22,6 +22,7 @@ import {
   OPTION_NOCOLON_RE,
   splitNameAndMeta,
   tryParseSharedOption,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import {
   MINDMAP_REGISTRY,
@@ -354,6 +355,12 @@ function parseNodeLine(
     undefined,
     diagnostics,
     lineNumber
+  );
+  warnUnknownMetaKeys(
+    split.meta,
+    registry,
+    (msg) => diagnostics.push(makeDgmoError(lineNumber, msg, 'warning')),
+    split.name
   );
   const label = split.name;
   const metadata: Record<string, string> = { ...split.meta };

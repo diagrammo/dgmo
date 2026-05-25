@@ -13,6 +13,7 @@ import {
   emptyMetadataValueMessage,
   makeDgmoError,
   METADATA_DIAGNOSTIC_CODES,
+  suggest,
   type DgmoError,
 } from '../diagnostics';
 import type { PaletteColors } from '../palettes';
@@ -860,4 +861,34 @@ export function splitNameAndMeta(
     }),
     ...(alias !== undefined && { alias }),
   };
+}
+
+const POTENTIAL_META_RE = /\b([\w-]+)\s*:/;
+
+export function warnUnknownMetaKeys(
+  meta: Record<string, string>,
+  registry: ReservedKeyRegistry,
+  warn: (message: string) => void,
+  nameToScan?: string
+): void {
+  const candidates = Array.from(registry.keys);
+
+  for (const key of Object.keys(meta)) {
+    if (isReservedKey(registry, key)) continue;
+    const hint = suggest(key, candidates);
+    warn(`Unknown metadata key "${key}".${hint ? ' ' + hint : ''}`);
+  }
+
+  if (nameToScan) {
+    const m = nameToScan.match(POTENTIAL_META_RE);
+    if (m) {
+      const key = m[1]!.toLowerCase();
+      if (!isReservedKey(registry, key)) {
+        const hint = suggest(key, candidates);
+        if (hint) {
+          warn(`Unknown metadata key "${key}". ${hint}`);
+        }
+      }
+    }
+  }
 }

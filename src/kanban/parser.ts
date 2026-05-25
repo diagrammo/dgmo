@@ -23,6 +23,7 @@ import {
   splitNameAndMeta,
   parseFirstLine,
   OPTION_NOCOLON_RE,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import { normalizeName } from '../utils/name-normalize';
 import type { Writable } from '../utils/brand';
@@ -330,6 +331,12 @@ export function parseKanban(
           result.diagnostics,
           lineNumber
         );
+        warnUnknownMetaKeys(
+          split.meta,
+          registry,
+          (msg) => warn(lineNumber, msg),
+          split.name
+        );
         Object.assign(columnMetadata, split.meta);
       }
       if (columnMetadata['wip']) {
@@ -494,6 +501,12 @@ function parseCardLine(
     undefined,
     diagnostics,
     lineNumber
+  );
+  warnUnknownMetaKeys(
+    split.meta,
+    registry,
+    (msg) => diagnostics?.push(makeDgmoError(lineNumber, msg, 'warning')),
+    split.name
   );
   // Cards don't have a color slot; the §1.5 trailing-token peel that
   // splitNameAndMeta runs by default would strip `Urgent task red` to

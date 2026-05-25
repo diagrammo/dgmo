@@ -16,6 +16,7 @@ import {
   parseFirstLine,
   splitNameAndMeta,
   tryParseSharedOption,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import { RING_REGISTRY } from '../utils/reserved-key-registry';
 import type { Writable } from '../utils/brand';
@@ -144,6 +145,12 @@ export function parseRing(content: string): ParsedRing {
         undefined,
         result.diagnostics,
         lineNum
+      );
+      warnUnknownMetaKeys(
+        split.meta,
+        RING_REGISTRY,
+        (msg) => warn(lineNum, msg),
+        split.name
       );
       const label = split.name;
       const restMeta: Record<string, string> = { ...split.meta };

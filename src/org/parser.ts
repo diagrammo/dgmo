@@ -24,6 +24,7 @@ import {
   splitNameAndMeta,
   parseFirstLine,
   OPTION_NOCOLON_RE,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import { normalizeName } from '../utils/name-normalize';
 
@@ -447,6 +448,12 @@ function parseNodeLabel(
     undefined,
     diagnostics,
     lineNumber
+  );
+  warnUnknownMetaKeys(
+    split.meta,
+    registry,
+    (msg) => diagnostics?.push(makeDgmoError(lineNumber, msg, 'warning')),
+    split.name
   );
   // Org labels do not use §1.5 trailing-token color (org uses an indented
   // `color:` key). Restore the peeled color word back into the label so

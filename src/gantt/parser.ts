@@ -10,7 +10,7 @@ import {
   pipeOperatorRemovedMessage,
 } from '../diagnostics';
 import { GANTT_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
-import { splitNameAndMeta } from '../utils/parsing';
+import { splitNameAndMeta, warnUnknownMetaKeys } from '../utils/parsing';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
@@ -461,10 +461,20 @@ export function parseGantt(
             () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
           );
         } else {
+          const depRegistry = withTagAliases(
+            GANTT_REGISTRY,
+            new Set(metaAliasMap.keys())
+          );
           const split = splitNameAndMeta(
             depBody.trim(),
-            withTagAliases(GANTT_REGISTRY, new Set(metaAliasMap.keys())),
+            depRegistry,
             metaAliasMap
+          );
+          warnUnknownMetaKeys(
+            split.meta,
+            depRegistry,
+            (msg) => warn(lineNumber, msg),
+            split.name
           );
           targetSegment = split.name;
           meta = split.meta;
@@ -648,6 +658,12 @@ export function parseGantt(
         undefined,
         diagnostics,
         lineNumber
+      );
+      warnUnknownMetaKeys(
+        split.meta,
+        registry,
+        (msg) => warn(lineNumber, msg),
+        split.name
       );
       const rawDur = split.meta['duration'];
       const rawStart = split.meta['start'];
@@ -1205,6 +1221,12 @@ export function parseGantt(
         undefined,
         result.diagnostics,
         ln
+      );
+      warnUnknownMetaKeys(
+        split.meta,
+        registry,
+        (msg) => warn(ln, msg),
+        split.name
       );
       if (Object.keys(split.meta).length > 0) {
         label = split.name;

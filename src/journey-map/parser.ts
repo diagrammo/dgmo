@@ -12,7 +12,7 @@ import {
   JOURNEY_MAP_REGISTRY,
   withTagAliases,
 } from '../utils/reserved-key-registry';
-import { splitNameAndMeta } from '../utils/parsing';
+import { splitNameAndMeta, warnUnknownMetaKeys } from '../utils/parsing';
 import {
   matchTagBlockHeading,
   emitTagLegacyDiagnostic,
@@ -637,6 +637,12 @@ function parseStepLine(
       undefined,
       diagnostics,
       lineNumber
+    );
+    warnUnknownMetaKeys(
+      split.meta,
+      registry,
+      (msg) => warn(lineNumber, msg),
+      split.name
     );
     title = split.name;
     const splitMeta = { ...split.meta };

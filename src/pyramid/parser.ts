@@ -15,6 +15,7 @@ import {
   parseFirstLine,
   splitNameAndMeta,
   tryParseSharedOption,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import { PYRAMID_REGISTRY } from '../utils/reserved-key-registry';
 import type { ParsedPyramid, PyramidLayer } from './types';
@@ -161,6 +162,12 @@ export function parsePyramid(content: string): ParsedPyramid {
         undefined,
         result.diagnostics,
         lineNum
+      );
+      warnUnknownMetaKeys(
+        split.meta,
+        PYRAMID_REGISTRY,
+        (msg) => warn(lineNum, msg),
+        split.name
       );
       const label = split.name;
       const restMeta: Record<string, string> = { ...split.meta };

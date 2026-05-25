@@ -29,6 +29,7 @@ import {
   MULTIPLE_PIPE_ERROR,
   parseFirstLine,
   OPTION_NOCOLON_RE,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import { C4_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
@@ -517,6 +518,12 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           metaAliasMap,
           () => pushError(lineNumber, MULTIPLE_PIPE_ERROR)
         );
+        warnUnknownMetaKeys(
+          metadata,
+          withTagAliases(C4_REGISTRY, new Set(metaAliasMap.keys())),
+          (msg) => pushError(lineNumber, msg, 'warning'),
+          nodeName
+        );
         const shape = inferC4Shape(
           nodeName,
           metadata['tech'] ?? metadata['technology']
@@ -654,6 +661,12 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         // (§1.4). tech/technology on metadata override `[tech]` in
         // the label.
         const targetParsed = parseC4NameAndMeta(targetBody, metaAliasMap);
+        warnUnknownMetaKeys(
+          targetParsed.metadata,
+          withTagAliases(C4_REGISTRY, new Set(metaAliasMap.keys())),
+          (msg) => pushError(lineNumber, msg, 'warning'),
+          targetParsed.name
+        );
         const target = targetParsed.name;
         if (targetParsed.metadata['tech']) {
           technology = targetParsed.metadata['tech'];
@@ -863,6 +876,12 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       // Accept both legacy `Name | k: v` and §1.4 `Name k: v`.
       const parsed = parseC4NameAndMeta(nameAndRest, metaAliasMap, () =>
         pushError(lineNumber, MULTIPLE_PIPE_ERROR)
+      );
+      warnUnknownMetaKeys(
+        parsed.metadata,
+        withTagAliases(C4_REGISTRY, new Set(metaAliasMap.keys())),
+        (msg) => pushError(lineNumber, msg, 'warning'),
+        parsed.name
       );
       let namePart = parsed.name;
       const metadata = parsed.metadata;

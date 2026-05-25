@@ -21,6 +21,7 @@ import {
   tryParseSharedOption,
   stripQuotes,
   tokenizeQuoteAware,
+  warnUnknownMetaKeys,
 } from '../utils/parsing';
 import {
   matchTagBlockHeading,
@@ -492,6 +493,13 @@ export function parseERDiagram(
       undefined,
       result.diagnostics,
       lineNumber
+    );
+    warnUnknownMetaKeys(
+      split.meta,
+      registry,
+      (msg) =>
+        result.diagnostics.push(makeDgmoError(lineNumber, msg, 'warning')),
+      split.name
     );
 
     // Legacy `|` pipe-metadata detection — fires before splitNameAndMeta
