@@ -9,6 +9,7 @@ import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 import type { WireframeElement, ParsedWireframe } from './types';
 import type { WireframeLayout, WireframeLayoutNode } from './layout';
+import { ScaleContext } from '../utils/scaling';
 
 // ============================================================
 // Constants
@@ -96,6 +97,10 @@ export function renderWireframe(
   const width = effectiveExportDims?.width ?? container.clientWidth;
   const height = effectiveExportDims?.height ?? container.clientHeight;
 
+  const sctx = isExport
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, layout.width);
+
   const svg = d3Selection
     .select(container)
     .append('svg')
@@ -106,7 +111,6 @@ export function renderWireframe(
   if (isExport) {
     svg.attr('width', width).attr('height', height);
   } else {
-    // Fill width, scale height proportionally — container scrolls vertically
     svg
       .attr('width', '100%')
       .attr('height', 'auto')
@@ -137,13 +141,14 @@ export function renderWireframe(
   // Title — only rendered in SVG for export; live preview renders in HTML
   let titleOffset = 0;
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
   if (isExport && showTitle) {
     mainG
       .append('text')
       .attr('x', 0)
-      .attr('y', TITLE_FONT_SIZE)
+      .attr('y', sTitleFontSize)
       .attr('fill', palette.text)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .text(parsed.title);
     titleOffset = layout.titleHeight;

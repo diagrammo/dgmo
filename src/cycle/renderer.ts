@@ -30,6 +30,7 @@ import {
   type ParsedCycle,
 } from './types';
 import { computeCycleLayout, wrapEdgeLabelText } from './layout';
+import { ScaleContext } from '../utils/scaling';
 
 // ── Constants ────────────────────────────────────────────────
 const NODE_FONT_SIZE = 13;
@@ -71,6 +72,16 @@ export function renderCycle(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
+  const idealWidth = width;
+  const sctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
+  const sTitleY = sctx.structural(TITLE_Y);
+  const sTitleAreaHeight = sctx.structural(TITLE_AREA_HEIGHT);
+  const sLegendHeight = sctx.structural(LEGEND_HEIGHT);
+
   const hideDescriptions =
     (renderOptions?.hideDescriptions ?? false) ||
     parsed.options['no-descriptions'] === 'true' ||
@@ -83,18 +94,16 @@ export function renderCycle(
     parsed.edges.some((e) => e.description.length > 0);
   const hasLegend = hasDescriptions && !!renderOptions?.onToggleDescriptions;
 
-  // Layout
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
-  const legendOffset = hasLegend ? LEGEND_HEIGHT : 0;
+  const legendOffset = hasLegend ? sLegendHeight : 0;
   const layoutHeight =
-    height - (showTitle ? TITLE_AREA_HEIGHT : 0) - legendOffset;
+    height - (showTitle ? sTitleAreaHeight : 0) - legendOffset;
   const layout = computeCycleLayout(parsed, {
     width,
     height: layoutHeight,
     hideDescriptions,
   });
 
-  // Create SVG
   const svg = d3Selection
     .select(container)
     .append('svg')
@@ -103,23 +112,25 @@ export function renderCycle(
     .attr('xmlns', 'http://www.w3.org/2000/svg')
     .style('font-family', FONT_FAMILY);
 
-  // Background
+  if (sctx.isBelowFloor) {
+    svg.attr('width', '100%').attr('viewBox', `0 0 ${width} ${height}`);
+  }
+
   svg
     .append('rect')
     .attr('width', width)
     .attr('height', height)
     .attr('fill', palette.bg);
 
-  // Title
   if (showTitle) {
     const titleText = svg
       .append('text')
       .attr('x', width / 2)
-      .attr('y', TITLE_Y)
+      .attr('y', sTitleY)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('data-line-number', parsed.titleLineNumber)
       .text(parsed.title)
@@ -167,10 +178,10 @@ export function renderCycle(
         }
       },
     };
-    const titleOffset = showTitle ? TITLE_AREA_HEIGHT : 0;
+    const titleOffsetForLegend = showTitle ? sTitleAreaHeight : 0;
     const legendG = svg
       .append('g')
-      .attr('transform', `translate(0, ${titleOffset + 4})`);
+      .attr('transform', `translate(0, ${titleOffsetForLegend + 4})`);
     renderLegendD3(
       legendG,
       legendConfig,
@@ -182,8 +193,7 @@ export function renderCycle(
     );
   }
 
-  // Main diagram group
-  const diagramTop = (showTitle ? TITLE_AREA_HEIGHT : 0) + legendOffset;
+  const diagramTop = (showTitle ? sTitleAreaHeight : 0) + legendOffset;
   const g = svg.append('g').attr('transform', `translate(0, ${diagramTop})`);
 
   // Defs for arrowheads
@@ -244,15 +254,27 @@ export function renderCycle(
 
   // ── Render nodes ──
   const HEADER_H = 36 * layout.scale;
-  const scaledNodeFont = Math.max(9, Math.round(NODE_FONT_SIZE * layout.scale));
+  // Font floors are intentionally low (≈ half the natural size) so text keeps
+  // shrinking alongside the shrinking nodes when the canvas is small. Higher
+  // floors decouple text from shape scale, causing labels to overflow node
+  // boundaries at small canvas sizes.
+  const scaledNodeFont = Math.max(6, Math.round(NODE_FONT_SIZE * layout.scale));
+  const scaledEdgeLabelFont = Math.max(
+    6,
+    Math.round(EDGE_LABEL_FONT_SIZE * layout.scale)
+  );
   const CIRCLE_LABEL_FONT_SIZE = 16;
   const scaledCircleLabelFont = Math.max(
-    11,
+    8,
     Math.round(CIRCLE_LABEL_FONT_SIZE * layout.scale)
   );
-  const scaledDescFont = Math.max(8, Math.round(DESC_FONT_SIZE * layout.scale));
+  const scaledDescFont = Math.max(5, Math.round(DESC_FONT_SIZE * layout.scale));
   const scaledDescLineH = Math.max(
-    11,
+    7,
+    Math.round(DESC_LINE_HEIGHT * layout.scale)
+  );
+  const scaledEdgeLineH = Math.max(
+    8,
     Math.round(DESC_LINE_HEIGHT * layout.scale)
   );
 
@@ -469,14 +491,15 @@ export function renderCycle(
     for (const l of labelLines) maxCharLen = Math.max(maxCharLen, l.length);
     for (const l of descLines) maxCharLen = Math.max(maxCharLen, l.length);
 
-    const bgW = maxCharLen * 7 + 12;
-    const bgH = lineCount * DESC_LINE_HEIGHT + 6;
+    const edgeCharW = Math.max(4, 7 * layout.scale);
+    const bgW = maxCharLen * edgeCharW + 12;
+    const bgH = lineCount * scaledEdgeLineH + 6;
     const bgX = isRight
       ? le.labelX - 4
       : isLeft
         ? le.labelX - bgW + 4
         : le.labelX - bgW / 2;
-    const bgY = le.labelY - EDGE_LABEL_FONT_SIZE - 2;
+    const bgY = le.labelY - scaledEdgeLabelFont - 2;
 
     edgeG
       .append('rect')
@@ -497,10 +520,10 @@ export function renderCycle(
         .attr('text-anchor', anchor)
         .attr('fill', palette.text)
         .attr('font-family', FONT_FAMILY)
-        .attr('font-size', EDGE_LABEL_FONT_SIZE)
+        .attr('font-size', scaledEdgeLabelFont)
         .attr('font-weight', '600');
-      renderInlineText(labelText, line, palette, EDGE_LABEL_FONT_SIZE);
-      textY += DESC_LINE_HEIGHT;
+      renderInlineText(labelText, line, palette, scaledEdgeLabelFont);
+      textY += scaledEdgeLineH;
     }
     for (const line of descLines) {
       const descText = edgeG
@@ -510,9 +533,9 @@ export function renderCycle(
         .attr('text-anchor', anchor)
         .attr('fill', palette.textMuted)
         .attr('font-family', FONT_FAMILY)
-        .attr('font-size', DESC_FONT_SIZE);
-      renderInlineText(descText, line, palette, DESC_FONT_SIZE);
-      textY += DESC_LINE_HEIGHT;
+        .attr('font-size', scaledDescFont);
+      renderInlineText(descText, line, palette, scaledDescFont);
+      textY += scaledEdgeLineH;
     }
   }
 }

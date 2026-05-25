@@ -20,6 +20,7 @@ import { renderInlineText } from '../utils/inline-markdown';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
+import { ScaleContext } from '../utils/scaling';
 
 // ============================================================
 // Interactive Options
@@ -92,13 +93,15 @@ export function renderJourneyMap(
     isDark,
   });
 
-  // Clear container
   container.innerHTML = '';
 
-  // For interactive mode, fit the diagram to the container
   const containerW = exportDims?.width ?? container.clientWidth;
   const containerH = exportDims?.height ?? container.clientHeight;
   const useContainerFit = !exportDims && containerW > 0 && containerH > 0;
+
+  const sctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(containerW, layout.totalWidth);
 
   const svg = d3
     .select(container)
@@ -115,6 +118,10 @@ export function renderJourneyMap(
     .attr('viewBox', `0 0 ${layout.totalWidth} ${layout.totalHeight}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('font-family', FONT_FAMILY);
+
+  if (sctx.isBelowFloor) {
+    svg.attr('width', '100%');
+  }
 
   // Background
   svg

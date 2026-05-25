@@ -23,6 +23,7 @@ import {
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedRing, RingLayer } from './types';
+import { ScaleContext } from '../utils/scaling';
 
 // ── Constants ────────────────────────────────────────────────
 const TITLE_AREA_HEIGHT = 50;
@@ -78,14 +79,23 @@ export function renderRing(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
+  const idealWidth = width;
+  const sctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
+  const sTitleY = sctx.structural(TITLE_Y);
+  const sTitleAreaHeight = sctx.structural(TITLE_AREA_HEIGHT);
+  const sVMargin = sctx.aesthetic(V_MARGIN);
+
   const N = parsed.layers.length;
   const hasAnyDescription = parsed.layers.some((l) => l.description.length > 0);
 
-  // ── Geometry ────────────────────────────────────────────────
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
-  const titleH = showTitle ? TITLE_AREA_HEIGHT : 0;
-  const bodyTop = titleH + V_MARGIN;
-  const bodyBottom = height - V_MARGIN;
+  const titleH = showTitle ? sTitleAreaHeight : 0;
+  const bodyTop = titleH + sVMargin;
+  const bodyBottom = height - sVMargin;
   const bodyHeight = Math.max(60, bodyBottom - bodyTop);
   const sideMargin = width * H_MARGIN_FRAC;
   const usableWidth = width - sideMargin * 2;
@@ -124,7 +134,6 @@ export function renderRing(
     : DESC_FONT_MIN;
   const descLineHeight = Math.round(descFont * 1.35);
 
-  // ── SVG root ────────────────────────────────────────────────
   const svg = d3Selection
     .select(container)
     .append('svg')
@@ -133,23 +142,26 @@ export function renderRing(
     .attr('xmlns', 'http://www.w3.org/2000/svg')
     .style('font-family', FONT_FAMILY);
 
+  if (sctx.isBelowFloor) {
+    svg.attr('width', '100%').attr('viewBox', `0 0 ${width} ${height}`);
+  }
+
   svg
     .append('rect')
     .attr('width', width)
     .attr('height', height)
     .attr('fill', palette.bg);
 
-  // Title.
   if (showTitle) {
     const titleText = svg
       .append('text')
       .attr('class', 'chart-title')
       .attr('x', width / 2)
-      .attr('y', TITLE_Y)
+      .attr('y', sTitleY)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('data-line-number', parsed.titleLineNumber)
       .text(parsed.title)

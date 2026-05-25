@@ -21,6 +21,7 @@ import {
 } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
+import { ScaleContext } from '../utils/scaling';
 
 // ============================================================
 // Constants
@@ -128,47 +129,67 @@ export function renderSitemap(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
+  const idealWidth = layout.width + DIAGRAM_PADDING * 2;
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  const sDiagramPadding = ctx.aesthetic(DIAGRAM_PADDING);
+  const sLabelFontSize = ctx.text(LABEL_FONT_SIZE);
+  const sMetaFontSize = ctx.text(META_FONT_SIZE);
+  const sMetaLineHeight = ctx.structural(META_LINE_HEIGHT);
+  const sHeaderHeight = ctx.structural(HEADER_HEIGHT);
+  const sSeparatorGap = ctx.structural(SEPARATOR_GAP);
+  const sEdgeStrokeWidth = ctx.structural(EDGE_STROKE_WIDTH);
+  const sNodeStrokeWidth = ctx.structural(NODE_STROKE_WIDTH);
+  const sEdgeLabelFontSize = ctx.text(EDGE_LABEL_FONT_SIZE);
+  const sContainerLabelFontSize = ctx.text(CONTAINER_LABEL_FONT_SIZE);
+  const sContainerMetaFontSize = ctx.text(CONTAINER_META_FONT_SIZE);
+  const sContainerMetaLineHeight = ctx.structural(CONTAINER_META_LINE_HEIGHT);
+  const sContainerHeaderHeight = ctx.structural(CONTAINER_HEADER_HEIGHT);
+  const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
+  const sTitleHeight = ctx.structural(TITLE_HEIGHT);
+  const sCollapseBarHeight = ctx.structural(COLLAPSE_BAR_HEIGHT);
+  const sLegendHeight = ctx.structural(LEGEND_HEIGHT);
+  const sLegendFixedGap = ctx.aesthetic(LEGEND_FIXED_GAP);
+
   const hasLegend = layout.legend.length > 0;
 
-  // In app mode (not export), render the title at fixed size outside the scaled group
-  // and legend at fixed size at the bottom.
-  // Layout order: Title → Diagram content → Legend (bottom).
-  const layoutLegendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP; // 40px — what layout added
+  const layoutLegendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP;
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const fixedLegend = !exportDims && hasLegend;
   const fixedTitle = fixedLegend && showTitle;
-  const fixedTitleH = fixedTitle ? TITLE_HEIGHT : 0;
-  const legendReserveH = fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
-  // Space reserved above content (title + legend)
+  const fixedTitleH = fixedTitle ? sTitleHeight : 0;
+  const legendReserveH = fixedLegend ? sLegendHeight + sLegendFixedGap : 0;
   const fixedReserveTop = fixedTitleH + legendReserveH;
   const fixedReserveBottom = 0;
-  // Title inside scaled group only when legend is NOT fixed
-  const titleOffset = !fixedTitle && showTitle ? TITLE_HEIGHT : 0;
+  const titleOffset = !fixedTitle && showTitle ? sTitleHeight : 0;
 
-  // Compute scale to fit diagram in viewport
   const diagramW = layout.width;
   let diagramH = layout.height + titleOffset;
   if (fixedLegend) {
-    // Remove the legend space from diagram height — legend is rendered separately
     diagramH -= layoutLegendShift;
   }
   const availH =
-    height - DIAGRAM_PADDING * 2 - fixedReserveTop - fixedReserveBottom;
-  const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
+    height - sDiagramPadding * 2 - fixedReserveTop - fixedReserveBottom;
+  const scaleX = (width - sDiagramPadding * 2) / diagramW;
   const scaleY = availH / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = DIAGRAM_PADDING + fixedReserveTop;
+  const offsetY = sDiagramPadding + fixedReserveTop;
 
-  // Create SVG
   const svg = d3Selection
     .select(container)
     .append('svg')
     .attr('width', width)
     .attr('height', height)
     .style('font-family', FONT_FAMILY);
+
+  if (ctx.isBelowFloor) {
+    svg.attr('width', '100%').attr('viewBox', `0 0 ${width} ${height}`);
+  }
 
   // Defs: arrowhead markers
   const defs = svg.append('defs');
@@ -211,15 +232,14 @@ export function renderSitemap(
     .append('g')
     .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
 
-  // Title (scaled, only when legend is NOT fixed)
   if (!fixedTitle && showTitle) {
     const titleEl = mainG
       .append('text')
       .attr('x', diagramW / 2)
-      .attr('y', TITLE_FONT_SIZE)
+      .attr('y', sTitleFontSize)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('class', 'sitemap-title chart-title');
 
@@ -296,36 +316,31 @@ export function renderSitemap(
       .attr('fill', fill)
       .attr('stroke', stroke)
       .attr('stroke-opacity', 0.35)
-      .attr('stroke-width', NODE_STROKE_WIDTH);
+      .attr('stroke-width', sNodeStrokeWidth);
 
-    // Container label
     cG.append('text')
       .attr('x', c.width / 2)
-      .attr(
-        'y',
-        CONTAINER_HEADER_HEIGHT / 2 + CONTAINER_LABEL_FONT_SIZE / 2 - 2
-      )
+      .attr('y', sContainerHeaderHeight / 2 + sContainerLabelFontSize / 2 - 2)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', CONTAINER_LABEL_FONT_SIZE)
+      .attr('font-size', sContainerLabelFontSize)
       .attr('font-weight', 'bold')
       .text(c.label);
 
-    // Container metadata
     const metaEntries = Object.entries(c.metadata);
     if (metaEntries.length > 0) {
       const metaDisplayKeys = metaEntries.map(
         ([k]) => displayNames.get(k) ?? k
       );
       const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
-      const valueX = 10 + (maxKeyLen + 2) * (CONTAINER_META_FONT_SIZE * 0.6);
-      const metaStartY = CONTAINER_HEADER_HEIGHT + CONTAINER_META_FONT_SIZE - 2;
+      const valueX = 10 + (maxKeyLen + 2) * (sContainerMetaFontSize * 0.6);
+      const metaStartY = sContainerHeaderHeight + sContainerMetaFontSize - 2;
 
       for (let i = 0; i < metaEntries.length; i++) {
         // In-bounds by loop guard.
         const [key, value] = metaEntries[i]!;
         const displayKey = metaDisplayKeys[i];
-        const rowY = metaStartY + i * CONTAINER_META_LINE_HEIGHT;
+        const rowY = metaStartY + i * sContainerMetaLineHeight;
         const valColor =
           tagColors.get(`${key}:${value.toLowerCase()}`) ?? palette.text;
 
@@ -333,19 +348,18 @@ export function renderSitemap(
           .attr('x', 10)
           .attr('y', rowY)
           .attr('fill', palette.textMuted)
-          .attr('font-size', CONTAINER_META_FONT_SIZE)
+          .attr('font-size', sContainerMetaFontSize)
           .text(`${displayKey}: `);
 
         cG.append('text')
           .attr('x', valueX)
           .attr('y', rowY)
           .attr('fill', valColor)
-          .attr('font-size', CONTAINER_META_FONT_SIZE)
+          .attr('font-size', sContainerMetaFontSize)
           .text(value);
       }
     }
 
-    // Collapsed accent bar
     if (!exportDims && c.hiddenCount && c.hiddenCount > 0) {
       const clipId = `clip-${c.nodeId}`;
       cG.append('clipPath')
@@ -355,19 +369,19 @@ export function renderSitemap(
         .attr('height', c.height)
         .attr('rx', CONTAINER_RADIUS);
       cG.append('rect')
-        .attr('y', c.height - COLLAPSE_BAR_HEIGHT)
+        .attr('y', c.height - sCollapseBarHeight)
         .attr('width', c.width)
-        .attr('height', COLLAPSE_BAR_HEIGHT)
+        .attr('height', sCollapseBarHeight)
         .attr('fill', c.color ?? palette.primary)
         .attr('opacity', 0.5)
         .attr('clip-path', `url(#${clipId})`);
 
       cG.append('text')
         .attr('x', c.width / 2)
-        .attr('y', c.height - COLLAPSE_BAR_HEIGHT - 6)
+        .attr('y', c.height - sCollapseBarHeight - 6)
         .attr('text-anchor', 'middle')
         .attr('fill', palette.textMuted)
-        .attr('font-size', META_FONT_SIZE)
+        .attr('font-size', sMetaFontSize)
         .text(`+${c.hiddenCount}`);
     }
   }
@@ -392,17 +406,16 @@ export function renderSitemap(
         .attr('d', pathD)
         .attr('fill', 'none')
         .attr('stroke', edgeColor)
-        .attr('stroke-width', EDGE_STROKE_WIDTH)
+        .attr('stroke-width', sEdgeStrokeWidth)
         .attr('marker-end', `url(#${markerId})`)
         .attr('class', 'sitemap-edge');
     }
 
     // Edge label with background badge
     if (edge.label && edge.points.length >= 2) {
-      // In-bounds by length >= 2 check above.
       const mid = edge.points[Math.floor(edge.points.length / 2)]!;
-      const labelW = edge.label.length * EDGE_LABEL_FONT_SIZE * 0.6 + 10;
-      const labelH = EDGE_LABEL_FONT_SIZE + 6;
+      const labelW = edge.label.length * sEdgeLabelFontSize * 0.6 + 10;
+      const labelH = sEdgeLabelFontSize + 6;
 
       edgeG
         .append('rect')
@@ -421,7 +434,7 @@ export function renderSitemap(
         .attr('y', mid.y + 4)
         .attr('text-anchor', 'middle')
         .attr('fill', edgeColor)
-        .attr('font-size', EDGE_LABEL_FONT_SIZE)
+        .attr('font-size', sEdgeLabelFontSize)
         .attr('class', 'sitemap-edge-label')
         .text(edge.label);
     }
@@ -470,9 +483,8 @@ export function renderSitemap(
       .attr('rx', CARD_RADIUS)
       .attr('fill', fill)
       .attr('stroke', stroke)
-      .attr('stroke-width', NODE_STROKE_WIDTH);
+      .attr('stroke-width', sNodeStrokeWidth);
 
-    // Label — contrast against the node fill
     const labelColor = contrastText(
       fill,
       palette.textOnFillLight,
@@ -481,24 +493,21 @@ export function renderSitemap(
     nodeG
       .append('text')
       .attr('x', node.width / 2)
-      .attr('y', HEADER_HEIGHT / 2 + LABEL_FONT_SIZE / 2 - 2)
+      .attr('y', sHeaderHeight / 2 + sLabelFontSize / 2 - 2)
       .attr('text-anchor', 'middle')
       .attr('fill', labelColor)
-      .attr('font-size', LABEL_FONT_SIZE)
+      .attr('font-size', sLabelFontSize)
       .attr('font-weight', 'bold')
       .text(node.label);
 
-    // Separator and metadata
     const metaEntries = Object.entries(node.metadata);
     if (metaEntries.length > 0) {
-      // Separator line — contrast against fill in solid mode (otherwise
-      // stroke matches the fill and divider is invisible)
       nodeG
         .append('line')
         .attr('x1', 0)
-        .attr('y1', HEADER_HEIGHT)
+        .attr('y1', sHeaderHeight)
         .attr('x2', node.width)
-        .attr('y2', HEADER_HEIGHT)
+        .attr('y2', sHeaderHeight)
         .attr('stroke', solid ? labelColor : stroke)
         .attr('stroke-opacity', 0.3);
 
@@ -506,18 +515,14 @@ export function renderSitemap(
         ([k]) => displayNames.get(k) ?? k
       );
       const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
-      const valueX = 10 + (maxKeyLen + 2) * (META_FONT_SIZE * 0.6);
+      const valueX = 10 + (maxKeyLen + 2) * (sMetaFontSize * 0.6);
 
       for (let i = 0; i < metaEntries.length; i++) {
         // In-bounds by loop guard.
         const [key, value] = metaEntries[i]!;
         const displayKey = metaDisplayKeys[i];
         const rowY =
-          HEADER_HEIGHT + SEPARATOR_GAP + (i + 1) * META_LINE_HEIGHT - 4;
-        // In solid mode the tag's color often matches the card fill (e.g.
-        // "Captain" tag is red, card colored as Captain is red → red text on
-        // red invisible). Drop the tag color tint in solid mode and use the
-        // contrast-derived labelColor; legend still shows the tag colors.
+          sHeaderHeight + sSeparatorGap + (i + 1) * sMetaLineHeight - 4;
         const tagColor = tagColors.get(`${key}:${value.toLowerCase()}`);
         const valColor = solid ? labelColor : (tagColor ?? labelColor);
 
@@ -526,7 +531,7 @@ export function renderSitemap(
           .attr('x', 10)
           .attr('y', rowY)
           .attr('fill', labelColor)
-          .attr('font-size', META_FONT_SIZE)
+          .attr('font-size', sMetaFontSize)
           .text(`${displayKey}:`);
 
         nodeG
@@ -534,7 +539,7 @@ export function renderSitemap(
           .attr('x', valueX)
           .attr('y', rowY)
           .attr('fill', valColor)
-          .attr('font-size', META_FONT_SIZE)
+          .attr('font-size', sMetaFontSize)
           .text(value);
       }
     }
@@ -542,11 +547,10 @@ export function renderSitemap(
     // Description lines (after metadata)
     if (node.description && node.description.length > 0) {
       const metaCount = Object.keys(node.metadata).length;
-      // Separator line before descriptions
       const sepY =
         metaCount > 0
-          ? HEADER_HEIGHT + SEPARATOR_GAP + metaCount * META_LINE_HEIGHT
-          : HEADER_HEIGHT;
+          ? sHeaderHeight + sSeparatorGap + metaCount * sMetaLineHeight
+          : sHeaderHeight;
       nodeG
         .append('line')
         .attr('x1', 0)
@@ -557,22 +561,20 @@ export function renderSitemap(
         .attr('stroke-opacity', 0.3);
 
       const descStartY =
-        HEADER_HEIGHT + SEPARATOR_GAP + metaCount * META_LINE_HEIGHT;
+        sHeaderHeight + sSeparatorGap + metaCount * sMetaLineHeight;
       for (let di = 0; di < node.description.length; di++) {
-        // In-bounds by loop guard.
         const processed = preprocessDescriptionLine(node.description[di]!);
-        const rowY = descStartY + (di + 1) * META_LINE_HEIGHT - 4;
+        const rowY = descStartY + (di + 1) * sMetaLineHeight - 4;
         const textEl = nodeG
           .append('text')
           .attr('x', 10)
           .attr('y', rowY)
           .attr('fill', labelColor)
-          .attr('font-size', META_FONT_SIZE);
-        renderInlineText(textEl, processed, palette, META_FONT_SIZE);
+          .attr('font-size', sMetaFontSize);
+        renderInlineText(textEl, processed, palette, sMetaFontSize);
       }
     }
 
-    // Collapsed accent bar
     if (!exportDims && node.hiddenCount && node.hiddenCount > 0) {
       const clipId = `clip-${node.id}`;
       nodeG
@@ -584,11 +586,9 @@ export function renderSitemap(
         .attr('rx', CARD_RADIUS);
       nodeG
         .append('rect')
-        .attr('y', node.height - COLLAPSE_BAR_HEIGHT)
+        .attr('y', node.height - sCollapseBarHeight)
         .attr('width', node.width)
-        .attr('height', COLLAPSE_BAR_HEIGHT)
-        // In solid mode, node.color matches the fill — bar disappears.
-        // Use the contrast text color so the indicator stays visible.
+        .attr('height', sCollapseBarHeight)
         .attr('fill', solid ? labelColor : (node.color ?? palette.primary))
         .attr('opacity', 0.5)
         .attr('clip-path', `url(#${clipId})`);
@@ -616,10 +616,10 @@ export function renderSitemap(
     const titleEl = svg
       .append('text')
       .attr('x', width / 2)
-      .attr('y', DIAGRAM_PADDING + TITLE_FONT_SIZE)
+      .attr('y', sDiagramPadding + sTitleFontSize)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('class', 'sitemap-title chart-title')
       .style('font-family', FONT_FAMILY);
@@ -640,7 +640,7 @@ export function renderSitemap(
     const legendParent = svg
       .append('g')
       .attr('class', 'sitemap-legend-fixed')
-      .attr('transform', `translate(0, ${DIAGRAM_PADDING + fixedTitleH})`);
+      .attr('transform', `translate(0, ${sDiagramPadding + fixedTitleH})`);
     if (activeTagGroup) {
       legendParent.attr('data-legend-active', activeTagGroup.toLowerCase());
     }

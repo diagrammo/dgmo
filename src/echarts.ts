@@ -838,8 +838,10 @@ export function parseExtendedChart(
 function buildChartCommons(
   parsed: { title?: string; noTitle?: boolean; error?: string | null },
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  sc?: ScaleContext
 ) {
+  const s = sc ?? ScaleContext.identity();
   const textColor = palette.text;
   const axisLineColor = palette.border;
   const splitLineColor = palette.border;
@@ -853,7 +855,7 @@ function buildChartCommons(
           top: 8,
           textStyle: {
             color: textColor,
-            fontSize: 20,
+            fontSize: s.text(20),
             fontWeight: 'bold' as const,
             fontFamily: FONT_FAMILY,
           },
@@ -885,13 +887,14 @@ export function buildExtendedChartOption(
     return {};
   }
 
+  const sc = ctx ?? ScaleContext.identity();
   const { textColor, axisLineColor, gridOpacity, colors, titleConfig } =
-    buildChartCommons(parsed, palette, isDark);
+    buildChartCommons(parsed, palette, isDark, sc);
 
   // Sankey chart has different structure
   if (parsed.type === 'sankey') {
     const bg = isDark ? palette.surface : palette.bg;
-    return buildSankeyOption(parsed, textColor, colors, bg, titleConfig);
+    return buildSankeyOption(parsed, textColor, colors, bg, titleConfig, sc);
   }
 
   // Chord diagram
@@ -904,7 +907,8 @@ export function buildExtendedChartOption(
       textColor,
       colors,
       bg,
-      titleConfig
+      titleConfig,
+      sc
     );
   }
 
@@ -918,7 +922,8 @@ export function buildExtendedChartOption(
       axisLineColor,
       gridOpacity,
       colors,
-      titleConfig
+      titleConfig,
+      sc
     );
   }
 
@@ -936,7 +941,8 @@ export function buildExtendedChartOption(
       gridOpacity,
       colors,
       bg,
-      titleConfig
+      titleConfig,
+      sc
     );
   }
 
@@ -950,7 +956,8 @@ export function buildExtendedChartOption(
       textColor,
       colors,
       bg,
-      titleConfig
+      titleConfig,
+      sc
     );
   }
 
@@ -974,7 +981,8 @@ function buildSankeyOption(
   textColor: string,
   colors: string[],
   bg: string,
-  titleConfig: EChartsOption['title']
+  titleConfig: EChartsOption['title'],
+  sc?: ScaleContext
 ): EChartsOption {
   // Extract unique nodes from links
   const nodeSet = new Set<string>();
@@ -1043,7 +1051,7 @@ function buildSankeyOption(
         },
         label: {
           color: textColor,
-          fontSize: 12,
+          fontSize: (sc ?? ScaleContext.identity()).text(12),
         },
       },
     ],
@@ -1060,7 +1068,8 @@ function buildChordOption(
   textColor: string,
   colors: string[],
   _bg: string,
-  titleConfig: EChartsOption['title']
+  titleConfig: EChartsOption['title'],
+  sc?: ScaleContext
 ): EChartsOption {
   // Extract unique nodes from links
   const nodeSet = new Set<string>();
@@ -1124,7 +1133,7 @@ function buildChordOption(
         height: '60%',
         data: categories.map((cat) => ({
           name: cat.name,
-          symbolSize: 20,
+          symbolSize: (sc ?? ScaleContext.identity()).structural(20),
           itemStyle: cat.itemStyle,
           label: {
             show: true,
@@ -1227,7 +1236,8 @@ function buildFunctionOption(
   axisLineColor: string,
   gridOpacity: number,
   colors: string[],
-  titleConfig: EChartsOption['title']
+  titleConfig: EChartsOption['title'],
+  sc?: ScaleContext
 ): EChartsOption {
   const xRange = parsed.xRange ?? { min: -10, max: 10 };
   const samples = 200;
@@ -1309,7 +1319,7 @@ function buildFunctionOption(
       },
       axisLabel: {
         color: textColor,
-        fontSize: 16,
+        fontSize: (sc ?? ScaleContext.identity()).text(16),
       },
       splitLine: {
         lineStyle: {
@@ -1325,7 +1335,7 @@ function buildFunctionOption(
       },
       axisLabel: {
         color: textColor,
-        fontSize: 16,
+        fontSize: (sc ?? ScaleContext.identity()).text(16),
       },
       splitLine: {
         lineStyle: {
@@ -1652,10 +1662,12 @@ function buildScatterOption(
   gridOpacity: number,
   colors: string[],
   bg: string,
-  titleConfig: EChartsOption['title']
+  titleConfig: EChartsOption['title'],
+  sc?: ScaleContext
 ): EChartsOption {
+  const s = sc ?? ScaleContext.identity();
   const points = parsed.scatterPoints ?? [];
-  const defaultSize = 15;
+  const defaultSize = s.structural(15);
 
   const hasCategories = points.some((p) => p.category !== undefined);
   const hasSize = points.some((p) => p.size !== undefined);
@@ -1893,7 +1905,7 @@ function buildScatterOption(
       nameGap: 40,
       nameTextStyle: {
         color: textColor,
-        fontSize: 18,
+        fontSize: s.text(18),
       },
       min: axisXMin,
       max: axisXMax,
@@ -1902,7 +1914,7 @@ function buildScatterOption(
       },
       axisLabel: {
         color: textColor,
-        fontSize: 16,
+        fontSize: s.text(16),
       },
       splitLine: {
         lineStyle: {
@@ -1918,7 +1930,7 @@ function buildScatterOption(
       nameGap: 50,
       nameTextStyle: {
         color: textColor,
-        fontSize: 18,
+        fontSize: s.text(18),
       },
       min: axisYMin,
       max: axisYMax,
@@ -1927,7 +1939,7 @@ function buildScatterOption(
       },
       axisLabel: {
         color: textColor,
-        fontSize: 16,
+        fontSize: s.text(16),
       },
       splitLine: {
         lineStyle: {
@@ -2153,7 +2165,8 @@ function buildFunnelOption(
   textColor: string,
   colors: string[],
   _bg: string,
-  titleConfig: EChartsOption['title']
+  titleConfig: EChartsOption['title'],
+  sc?: ScaleContext
 ): EChartsOption {
   // Sort data descending by value for funnel ordering
   const sorted = [...parsed.data].sort((a, b) => b.value - a.value);
@@ -2209,7 +2222,7 @@ function buildFunnelOption(
           position: 'left',
           formatter: '{b}',
           color: textColor,
-          fontSize: 13,
+          fontSize: (sc ?? ScaleContext.identity()).text(13),
         },
         labelLine: {
           show: !parsed.noName,
@@ -2232,7 +2245,7 @@ function buildFunnelOption(
           position: 'right',
           formatter: '{c}',
           color: textColor,
-          fontSize: 13,
+          fontSize: (sc ?? ScaleContext.identity()).text(13),
         },
         labelLine: {
           show: !parsed.noValue,
@@ -2282,8 +2295,10 @@ function makeGridAxis(
   data?: string[],
   nameGapOverride?: number,
   chartWidthHint?: number,
-  intervalOverride?: number
+  intervalOverride?: number,
+  sc?: ScaleContext
 ): Record<string, unknown> {
+  const s = sc ?? ScaleContext.identity();
   const defaultGap = type === 'value' ? 75 : 40;
 
   // Compute category label sizing: font size and width constraint
@@ -2324,7 +2339,7 @@ function makeGridAxis(
     axisLine: { lineStyle: { color: axisLineColor } },
     axisLabel: {
       color: textColor,
-      fontSize: type === 'category' && data ? catFontSize : 16,
+      fontSize: s.text(type === 'category' && data ? catFontSize : 16),
       fontFamily: FONT_FAMILY,
       ...(type === 'category' && {
         interval: intervalOverride ?? 0,
@@ -2343,7 +2358,7 @@ function makeGridAxis(
       nameGap: nameGapOverride ?? defaultGap,
       nameTextStyle: {
         color: textColor,
-        fontSize: 18,
+        fontSize: s.text(18),
         fontFamily: FONT_FAMILY,
       },
     }),
@@ -2359,10 +2374,12 @@ export function buildSimpleChartOption(
   parsed: ParsedChart,
   palette: PaletteColors,
   isDark: boolean,
-  chartWidth?: number
+  chartWidth?: number,
+  ctx?: ScaleContext
 ): EChartsOption {
   if (parsed.error) return {};
 
+  const sc = ctx ?? ScaleContext.identity();
   const {
     textColor,
     axisLineColor,
@@ -2370,7 +2387,7 @@ export function buildSimpleChartOption(
     gridOpacity,
     colors,
     titleConfig,
-  } = buildChartCommons(parsed, palette, isDark);
+  } = buildChartCommons(parsed, palette, isDark, sc);
   const bg = isDark ? palette.surface : palette.bg;
 
   switch (parsed.type) {
@@ -2386,7 +2403,8 @@ export function buildSimpleChartOption(
         colors,
         bg,
         titleConfig,
-        chartWidth
+        chartWidth,
+        sc
       );
     case 'bar-stacked':
       return buildBarStackedOption(
@@ -2400,7 +2418,8 @@ export function buildSimpleChartOption(
         colors,
         bg,
         titleConfig,
-        chartWidth
+        chartWidth,
+        sc
       );
     case 'line':
       return parsed.seriesNames
@@ -2413,7 +2432,8 @@ export function buildSimpleChartOption(
             gridOpacity,
             colors,
             titleConfig,
-            chartWidth
+            chartWidth,
+            sc
           )
         : buildLineOption(
             parsed,
@@ -2423,7 +2443,8 @@ export function buildSimpleChartOption(
             splitLineColor,
             gridOpacity,
             titleConfig,
-            chartWidth
+            chartWidth,
+            sc
           );
     case 'area':
       return buildAreaOption(
@@ -2434,7 +2455,8 @@ export function buildSimpleChartOption(
         splitLineColor,
         gridOpacity,
         titleConfig,
-        chartWidth
+        chartWidth,
+        sc
       );
     case 'pie':
       return buildPieOption(
@@ -2445,7 +2467,8 @@ export function buildSimpleChartOption(
         getSegmentColors(palette, parsed.data.length),
         bg,
         titleConfig,
-        false
+        false,
+        sc
       );
     case 'doughnut':
       return buildPieOption(
@@ -2456,7 +2479,8 @@ export function buildSimpleChartOption(
         getSegmentColors(palette, parsed.data.length),
         bg,
         titleConfig,
-        true
+        true,
+        sc
       );
     case 'radar':
       return buildRadarOption(
@@ -2465,7 +2489,8 @@ export function buildSimpleChartOption(
         isDark,
         textColor,
         gridOpacity,
-        titleConfig
+        titleConfig,
+        sc
       );
     case 'polar-area':
       return buildPolarAreaOption(
@@ -2475,7 +2500,8 @@ export function buildSimpleChartOption(
         textColor,
         getSegmentColors(palette, parsed.data.length),
         bg,
-        titleConfig
+        titleConfig,
+        sc
       );
   }
 }
@@ -2543,7 +2569,8 @@ function buildBarOption(
   colors: string[],
   _bg: string,
   titleConfig: EChartsOption['title'],
-  chartWidth?: number
+  chartWidth?: number,
+  sc?: ScaleContext
 ): EChartsOption {
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
   const isHorizontal = parsed.orientation === 'horizontal';
@@ -2582,7 +2609,9 @@ function buildBarOption(
     isHorizontal ? yLabel : xLabel,
     catLabels,
     hCatGap,
-    !isHorizontal ? chartWidth : undefined
+    !isHorizontal ? chartWidth : undefined,
+    undefined,
+    sc
   );
   // For horizontal bars, the xlabel sits on the value axis (bottom).
   // Use a moderate nameGap so it doesn't drift.
@@ -2595,8 +2624,13 @@ function buildBarOption(
     gridOpacity,
     isHorizontal ? xLabel : yLabel,
     undefined,
-    hValueGap
+    hValueGap,
+    undefined,
+    undefined,
+    sc
   );
+
+  const s = sc ?? ScaleContext.identity();
 
   // xAxis is always the bottom axis, yAxis is always the left axis in ECharts
 
@@ -2620,7 +2654,7 @@ function buildBarOption(
           position: isHorizontal ? 'right' : 'top',
           formatter: '{c}',
           color: textColor,
-          fontSize: 11,
+          fontSize: s.text(11),
           fontFamily: FONT_FAMILY,
         },
         labelLayout: { hideOverlap: true },
@@ -2690,8 +2724,10 @@ function buildLineOption(
   splitLineColor: string,
   gridOpacity: number,
   titleConfig: EChartsOption['title'],
-  chartWidth?: number
+  chartWidth?: number,
+  sc?: ScaleContext
 ): EChartsOption {
+  const s = sc ?? ScaleContext.identity();
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
   const lineColor =
     parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
@@ -2719,7 +2755,8 @@ function buildLineOption(
       labels,
       undefined,
       chartWidth,
-      interval
+      interval,
+      sc
     ),
     yAxis: makeGridAxis(
       'value',
@@ -2727,7 +2764,12 @@ function buildLineOption(
       axisLineColor,
       splitLineColor,
       gridOpacity,
-      yLabel
+      yLabel,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      sc
     ),
     series: [
       {
@@ -2742,7 +2784,7 @@ function buildLineOption(
           position: 'top',
           formatter: '{c}',
           color: textColor,
-          fontSize: 11,
+          fontSize: s.text(11),
           fontFamily: FONT_FAMILY,
         },
         labelLayout: { hideOverlap: true },
@@ -2765,8 +2807,10 @@ function buildMultiLineOption(
   gridOpacity: number,
   colors: string[],
   titleConfig: EChartsOption['title'],
-  chartWidth?: number
+  chartWidth?: number,
+  sc?: ScaleContext
 ): EChartsOption {
+  const s = sc ?? ScaleContext.identity();
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
   const seriesNames = parsed.seriesNames ?? [];
   const labels = parsed.data.map((d) => d.label);
@@ -2794,7 +2838,7 @@ function buildMultiLineOption(
         position: 'top' as const,
         formatter: '{c}',
         color: textColor,
-        fontSize: 11,
+        fontSize: s.text(11),
         fontFamily: FONT_FAMILY,
       },
       labelLayout: { hideOverlap: true },
@@ -2828,7 +2872,8 @@ function buildMultiLineOption(
       labels,
       undefined,
       chartWidth,
-      interval
+      interval,
+      sc
     ),
     yAxis: makeGridAxis(
       'value',
@@ -2836,7 +2881,12 @@ function buildMultiLineOption(
       axisLineColor,
       splitLineColor,
       gridOpacity,
-      yLabel
+      yLabel,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      sc
     ),
     series,
   };
@@ -2852,8 +2902,10 @@ function buildAreaOption(
   splitLineColor: string,
   gridOpacity: number,
   titleConfig: EChartsOption['title'],
-  chartWidth?: number
+  chartWidth?: number,
+  sc?: ScaleContext
 ): EChartsOption {
+  const s = sc ?? ScaleContext.identity();
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
   const lineColor =
     parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
@@ -2881,7 +2933,8 @@ function buildAreaOption(
       labels,
       undefined,
       chartWidth,
-      interval
+      interval,
+      sc
     ),
     yAxis: makeGridAxis(
       'value',
@@ -2889,7 +2942,12 @@ function buildAreaOption(
       axisLineColor,
       splitLineColor,
       gridOpacity,
-      yLabel
+      yLabel,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      sc
     ),
     series: [
       {
@@ -2905,7 +2963,7 @@ function buildAreaOption(
           position: 'top',
           formatter: '{c}',
           color: textColor,
-          fontSize: 11,
+          fontSize: s.text(11),
           fontFamily: FONT_FAMILY,
         },
         labelLayout: { hideOverlap: true },
@@ -2976,8 +3034,10 @@ function buildPieOption(
   colors: string[],
   _bg: string,
   titleConfig: EChartsOption['title'],
-  isDoughnut: boolean
+  isDoughnut: boolean,
+  sc?: ScaleContext
 ): EChartsOption {
+  const s = sc ?? ScaleContext.identity();
   const HIDE_AXES = { xAxis: { show: false }, yAxis: { show: false } };
   const data = parsed.data.map((d, i) => {
     // colors is a non-empty palette array; modulo index is always in-bounds.
@@ -3013,7 +3073,7 @@ function buildPieOption(
           formatter: segmentLabelFormatter(parsed),
           color: textColor,
           fontFamily: FONT_FAMILY,
-          fontSize,
+          fontSize: s.text(fontSize),
         },
         labelLine: { show: true },
         emphasis: EMPHASIS_SELF,
@@ -3031,8 +3091,10 @@ function buildRadarOption(
   isDark: boolean,
   textColor: string,
   gridOpacity: number,
-  titleConfig: EChartsOption['title']
+  titleConfig: EChartsOption['title'],
+  sc?: ScaleContext
 ): EChartsOption {
+  const s = sc ?? ScaleContext.identity();
   const radarColor =
     parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
   const values = parsed.data.map((d) => d.value);
@@ -3053,7 +3115,7 @@ function buildRadarOption(
       axisName: {
         color: textColor,
         fontFamily: FONT_FAMILY,
-        fontSize: 16,
+        fontSize: s.text(16),
       },
       splitLine: {
         lineStyle: { color: palette.border, opacity: gridOpacity },
@@ -3083,7 +3145,7 @@ function buildRadarOption(
               show: !parsed.noValue,
               formatter: '{c}',
               color: textColor,
-              fontSize: 11,
+              fontSize: s.text(11),
               fontFamily: FONT_FAMILY,
             },
           },
@@ -3104,8 +3166,10 @@ function buildPolarAreaOption(
   textColor: string,
   colors: string[],
   _bg: string,
-  titleConfig: EChartsOption['title']
+  titleConfig: EChartsOption['title'],
+  sc?: ScaleContext
 ): EChartsOption {
+  const s = sc ?? ScaleContext.identity();
   const data = parsed.data.map((d, i) => {
     // colors is a non-empty palette array; modulo index is always in-bounds.
     const stroke = d.color ?? colors[i % colors.length]!;
@@ -3141,7 +3205,7 @@ function buildPolarAreaOption(
           formatter: segmentLabelFormatter(parsed),
           color: textColor,
           fontFamily: FONT_FAMILY,
-          fontSize: pieLabelLayout(parsed).fontSize,
+          fontSize: s.text(pieLabelLayout(parsed).fontSize),
         },
         labelLine: { show: true },
         emphasis: EMPHASIS_SELF,
@@ -3164,8 +3228,10 @@ function buildBarStackedOption(
   colors: string[],
   _bg: string,
   titleConfig: EChartsOption['title'],
-  chartWidth?: number
+  chartWidth?: number,
+  sc?: ScaleContext
 ): EChartsOption {
+  const s = sc ?? ScaleContext.identity();
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
   const isHorizontal = parsed.orientation === 'horizontal';
   const seriesNames = parsed.seriesNames ?? [];
@@ -3203,7 +3269,7 @@ function buildBarStackedOption(
           palette.textOnFillLight,
           palette.textOnFillDark
         ),
-        fontSize: 14,
+        fontSize: s.text(14),
         fontWeight: 'bold' as const,
         fontFamily: FONT_FAMILY,
       },
@@ -3225,7 +3291,9 @@ function buildBarStackedOption(
     isHorizontal ? yLabel : xLabel,
     labels,
     hCatGap,
-    !isHorizontal ? chartWidth : undefined
+    !isHorizontal ? chartWidth : undefined,
+    undefined,
+    sc
   );
   // For horizontal bars with a legend, use a smaller nameGap so the xlabel
   // stays close to the axis ticks rather than drifting toward the legend.
@@ -3238,7 +3306,10 @@ function buildBarStackedOption(
     gridOpacity,
     isHorizontal ? xLabel : yLabel,
     undefined,
-    hValueGap
+    hValueGap,
+    undefined,
+    undefined,
+    sc
   );
 
   return {
@@ -3322,7 +3393,8 @@ export async function renderExtendedChartForExport(
       parsed,
       effectivePalette,
       isDark,
-      ECHART_EXPORT_WIDTH
+      ECHART_EXPORT_WIDTH,
+      ScaleContext.identity()
     );
     legendGroups = getSimpleChartLegendGroups(parsed, colors);
   } else {

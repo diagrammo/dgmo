@@ -2024,20 +2024,45 @@ export function renderSlopeChart(
   if (!init) return;
   const { svg, width, height, textColor, mutedColor, bgColor, colors } = init;
 
+  const idealWidth = SLOPE_MARGIN.left + periods.length * 100 + 150;
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  const sMarginTop = ctx.aesthetic(SLOPE_MARGIN.top);
+  const sMarginBottom = ctx.aesthetic(SLOPE_MARGIN.bottom);
+  const sMarginLeft = ctx.aesthetic(SLOPE_MARGIN.left);
+  const sCharWidth = ctx.structural(SLOPE_CHAR_WIDTH);
+  const sLabelFontSize = ctx.text(SLOPE_LABEL_FONT_SIZE);
+  const sPeriodFont = ctx.text(18);
+  const sValueFont = ctx.text(16);
+  const sPeriodHeaderY = ctx.structural(15);
+  const sDash = `${ctx.structural(4)},${ctx.structural(4)}`;
+  const sLineStroke = ctx.structural(2.5);
+  const sHitWidth = ctx.structural(14);
+  const sPointR = ctx.structural(4);
+  const sPointStroke = ctx.structural(1.5);
+  const sValueLabelXOff = ctx.structural(10);
+  const sLabelGap = ctx.structural(10);
+
+  if (ctx.isBelowFloor) {
+    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+  }
+
   // Compute right margin from the longest end-of-line label
   const maxLabelText = data.reduce((longest, item) => {
     const text = `${item.values[item.values.length - 1]} — ${item.label}`;
     return text.length > longest.length ? text : longest;
   }, '');
-  const estimatedLabelWidth = maxLabelText.length * SLOPE_CHAR_WIDTH;
+  const estimatedLabelWidth = maxLabelText.length * sCharWidth;
   const maxRightMargin = Math.floor(width * 0.35);
   const rightMargin = Math.min(
-    Math.max(estimatedLabelWidth + 30, 120),
+    Math.max(estimatedLabelWidth + ctx.aesthetic(30), ctx.aesthetic(120)),
     maxRightMargin
   );
 
-  const innerWidth = width - SLOPE_MARGIN.left - rightMargin;
-  const innerHeight = height - SLOPE_MARGIN.top - SLOPE_MARGIN.bottom;
+  const innerWidth = width - sMarginLeft - rightMargin;
+  const innerHeight = height - sMarginTop - sMarginBottom;
 
   // Scales
   const allValues = data.flatMap((d) => d.values);
@@ -2057,7 +2082,7 @@ export function renderSlopeChart(
 
   const g = svg
     .append('g')
-    .attr('transform', `translate(${SLOPE_MARGIN.left},${SLOPE_MARGIN.top})`);
+    .attr('transform', `translate(${sMarginLeft},${sMarginTop})`);
 
   // Tooltip
   const tooltip = createTooltip(container, palette, isDark);
@@ -2077,10 +2102,10 @@ export function renderSlopeChart(
     const x = xScale(period)!;
     g.append('text')
       .attr('x', x)
-      .attr('y', -15)
+      .attr('y', -sPeriodHeaderY)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '18px')
+      .attr('font-size', `${sPeriodFont}px`)
       .attr('font-weight', '600')
       .text(period);
 
@@ -2092,7 +2117,7 @@ export function renderSlopeChart(
       .attr('y2', innerHeight)
       .attr('stroke', mutedColor)
       .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '4,4');
+      .attr('stroke-dasharray', sDash);
   }
 
   // Line generator
@@ -2120,8 +2145,8 @@ export function renderSlopeChart(
     // periods is non-empty (slope requires P >= 2 periods).
     const lastX = xScale(periods[periods.length - 1]!)!;
     const labelText = `${lastVal} — ${item.label}`;
-    const availableWidth = rightMargin - 15;
-    const maxChars = Math.floor(availableWidth / SLOPE_CHAR_WIDTH);
+    const availableWidth = rightMargin - ctx.aesthetic(15);
+    const maxChars = Math.floor(availableWidth / sCharWidth);
 
     let labelLineCount = 1;
     let wrappedLines: string[] | null = null;
@@ -2142,11 +2167,9 @@ export function renderSlopeChart(
       labelLineCount = lines.length;
       wrappedLines = lines;
     }
-    const lineHeight = SLOPE_LABEL_FONT_SIZE * 1.2;
+    const lineHeight = sLabelFontSize * 1.2;
     const labelHeight =
-      labelLineCount === 1
-        ? SLOPE_LABEL_FONT_SIZE
-        : labelLineCount * lineHeight;
+      labelLineCount === 1 ? sLabelFontSize : labelLineCount * lineHeight;
 
     return {
       item,
@@ -2164,7 +2187,7 @@ export function renderSlopeChart(
   });
 
   // --- Resolve left-side label collisions per non-last period column ---
-  const leftLabelHeight = 20; // 16px font needs ~20px to avoid glyph overlap
+  const leftLabelHeight = sValueFont * 1.25;
   const leftLabelCollisions: Map<number, number[]> = new Map();
   for (let pi = 0; pi < periods.length - 1; pi++) {
     const entries = data.map((item) => ({
@@ -2181,7 +2204,7 @@ export function renderSlopeChart(
   // --- Resolve right-side label collisions ---
   const rightEntries = seriesInfo.map((si) => ({
     naturalY: yScale(si.lastVal),
-    height: Math.max(si.labelHeight, SLOPE_LABEL_FONT_SIZE * 1.4),
+    height: Math.max(si.labelHeight, sLabelFontSize * 1.4),
   }));
   const rightAdjustedY = resolveVerticalCollisions(
     rightEntries,
@@ -2207,7 +2230,7 @@ export function renderSlopeChart(
       .datum(item.values)
       .attr('fill', 'none')
       .attr('stroke', color)
-      .attr('stroke-width', 2.5)
+      .attr('stroke-width', sLineStroke)
       .attr('d', lineGen);
 
     // Invisible wider path for easier hover targeting
@@ -2216,7 +2239,7 @@ export function renderSlopeChart(
       .datum(item.values)
       .attr('fill', 'none')
       .attr('stroke', 'transparent')
-      .attr('stroke-width', 14)
+      .attr('stroke-width', sHitWidth)
       .attr('d', lineGen)
       .style('cursor', onClickItem ? 'pointer' : 'default')
       .on('mouseenter', (event: MouseEvent) =>
@@ -2241,10 +2264,10 @@ export function renderSlopeChart(
         .append('circle')
         .attr('cx', x)
         .attr('cy', y)
-        .attr('r', 4)
+        .attr('r', sPointR)
         .attr('fill', color)
         .attr('stroke', bgColor)
-        .attr('stroke-width', 1.5)
+        .attr('stroke-width', sPointStroke)
         .style('cursor', onClickItem ? 'pointer' : 'default')
         .on('mouseenter', (event: MouseEvent) =>
           showTooltip(tooltip, si.tipHtml, event)
@@ -2265,12 +2288,12 @@ export function renderSlopeChart(
         const adjustedY = leftLabelCollisions.get(i)![idx]!;
         seriesG
           .append('text')
-          .attr('x', isFirst ? x - 10 : x)
+          .attr('x', isFirst ? x - sValueLabelXOff : x)
           .attr('y', adjustedY)
           .attr('dy', '0.35em')
           .attr('text-anchor', isFirst ? 'end' : 'middle')
           .attr('fill', color)
-          .attr('font-size', '16px')
+          .attr('font-size', `${sValueFont}px`)
           .text(val.toString());
       }
     });
@@ -2281,28 +2304,28 @@ export function renderSlopeChart(
 
     const labelEl = seriesG
       .append('text')
-      .attr('x', si.lastX + 10)
+      .attr('x', si.lastX + sLabelGap)
       .attr('y', adjustedLastY)
       .attr('text-anchor', 'start')
       .attr('fill', color)
-      .attr('font-size', `${SLOPE_LABEL_FONT_SIZE}px`)
+      .attr('font-size', `${sLabelFontSize}px`)
       .attr('font-weight', '500');
 
     if (!si.wrappedLines) {
       labelEl.attr('dy', '0.35em').text(si.labelText);
     } else {
-      const lineHeight = SLOPE_LABEL_FONT_SIZE * 1.2;
+      const lineHeight = sLabelFontSize * 1.2;
       const totalHeight = (si.wrappedLines.length - 1) * lineHeight;
       const startDy = -totalHeight / 2;
 
       si.wrappedLines.forEach((line, li) => {
         labelEl
           .append('tspan')
-          .attr('x', si.lastX + 10)
+          .attr('x', si.lastX + sLabelGap)
           .attr(
             'dy',
             li === 0
-              ? `${startDy + SLOPE_LABEL_FONT_SIZE * 0.35}px`
+              ? `${startDy + sLabelFontSize * 0.35}px`
               : `${lineHeight}px`
           )
           .text(line);
@@ -3694,6 +3717,7 @@ type TimelineSetup = {
   earliestStartDateStr: string;
   latestEndDateStr: string;
   tagLegendReserve: number;
+  ctx: ScaleContext;
 };
 
 /**
@@ -3857,6 +3881,13 @@ function setupTimeline(
 
   const tagLegendReserve = parsed.timelineTagGroups.length > 0 ? 36 : 0;
 
+  const idealWidth = isVertical
+    ? 500
+    : Math.max(600, timelineEvents.length * 40 + 200);
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
   return {
     width,
     height,
@@ -3877,6 +3908,7 @@ function setupTimeline(
     earliestStartDateStr,
     latestEndDateStr,
     tagLegendReserve,
+    ctx,
   };
 }
 
@@ -4399,6 +4431,7 @@ function renderTimelineHorizontalTimeSort(
     earliestStartDateStr,
     latestEndDateStr,
     tagLegendReserve,
+    ctx,
   } = setup;
   const { fadeToGroup, fadeToEra, fadeToMarker, fadeReset, setTagAttrs } =
     hovers;
@@ -4411,26 +4444,36 @@ function renderTimelineHorizontalTimeSort(
   } = parsed;
   const title = parsed.noTitle ? null : parsed.title;
 
-  const BAR_H = 22;
+  const sBarH = ctx.structural(22);
+  const sPointR = ctx.structural(5);
+  const sPointStroke = ctx.structural(2);
+  const sBarRx = ctx.structural(4);
+  const sBarStroke = ctx.structural(2);
+  const sEventFont = ctx.text(13);
+  const sEventFontSm = ctx.text(12);
+  const sCharW = ctx.structural(7);
 
   // === TIME SORT, horizontal: each event on its own row ===
   const sorted = timelineEvents
     .slice()
     .sort((a, b) => parseTimelineDate(a.date) - parseTimelineDate(b.date));
 
-  const scaleMargin = timelineScale ? 24 : 0;
-  // Per-feature header rows: era + marker each get their own row, reserved
-  // only when present (mirrors the gantt header stack).
-  const ERA_ROW_H = 22;
-  const MARKER_ROW_H = 22;
+  const scaleMargin = timelineScale ? ctx.aesthetic(24) : 0;
+  const ERA_ROW_H = ctx.structural(22);
+  const MARKER_ROW_H = ctx.structural(22);
   const eraReserve = timelineEras.length > 0 ? ERA_ROW_H : 0;
   const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
-  const topScaleH = timelineScale ? 40 : 0;
+  const topScaleH = timelineScale ? ctx.structural(40) : 0;
   const margin = {
-    top: 104 + topScaleH + eraReserve + markerReserve + tagLegendReserve,
-    right: 40,
-    bottom: 40 + scaleMargin,
-    left: 60,
+    top:
+      ctx.aesthetic(104) +
+      topScaleH +
+      eraReserve +
+      markerReserve +
+      tagLegendReserve,
+    right: ctx.aesthetic(40),
+    bottom: ctx.aesthetic(40) + scaleMargin,
+    left: ctx.aesthetic(60),
   };
   const markerLabelY = markerReserve ? -(topScaleH + MARKER_ROW_H / 2) : 0;
   const eraLabelY = eraReserve
@@ -4438,7 +4481,7 @@ function renderTimelineHorizontalTimeSort(
     : 0;
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
-  const rowH = Math.min(28, innerHeight / sorted.length);
+  const rowH = Math.min(ctx.structural(28), innerHeight / sorted.length);
 
   const xScale = d3Scale
     .scaleLinear()
@@ -4451,6 +4494,10 @@ function renderTimelineHorizontalTimeSort(
     .attr('width', width)
     .attr('height', height)
     .style('background', bgColor);
+
+  if (ctx.isBelowFloor) {
+    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+  }
 
   const g = svg
     .append('g')
@@ -4512,7 +4559,7 @@ function renderTimelineHorizontalTimeSort(
 
   // Group legend at top-left (pill style)
   if (timelineGroups.length > 0) {
-    const legendY = timelineScale ? -75 : -55;
+    const legendY = timelineScale ? -ctx.aesthetic(75) : -ctx.aesthetic(55);
     renderTimelineGroupLegend(
       g,
       timelineGroups,
@@ -4580,14 +4627,12 @@ function renderTimelineHorizontalTimeSort(
     if (ev.endDate) {
       const x2 = xScale(parseTimelineDate(ev.endDate));
       const rectW = Math.max(x2 - x, 4);
-      // Estimate label width (~7px per char at 13px font) + padding
-      const estLabelWidth = ev.label.length * 7 + 16;
+      const estLabelWidth = ev.label.length * sCharW + ctx.aesthetic(16);
       const labelFitsInside = rectW >= estLabelWidth;
 
       let fill: string = shapeFill(palette, color, isDark, { solid });
       let stroke: string = color;
       if (ev.uncertain) {
-        // Create gradient for uncertain end - fades last 20%
         const gradientId = `uncertain-ts-${ev.lineNumber}`;
         const strokeGradientId = `uncertain-ts-s-${ev.lineNumber}`;
         const defs = svg.select('defs').node() || svg.append('defs').node();
@@ -4635,63 +4680,61 @@ function renderTimelineHorizontalTimeSort(
       evG
         .append('rect')
         .attr('x', x)
-        .attr('y', y - BAR_H / 2)
+        .attr('y', y - sBarH / 2)
         .attr('width', rectW)
-        .attr('height', BAR_H)
-        .attr('rx', 4)
+        .attr('height', sBarH)
+        .attr('rx', sBarRx)
         .attr('fill', fill)
         .attr('stroke', stroke)
-        .attr('stroke-width', 2);
+        .attr('stroke-width', sBarStroke);
 
       if (labelFitsInside) {
-        // Text inside bar - use textColor for readability on muted fill
         evG
           .append('text')
-          .attr('x', x + 8)
+          .attr('x', x + ctx.aesthetic(8))
           .attr('y', y)
           .attr('dy', '0.35em')
           .attr('text-anchor', 'start')
           .attr('fill', textColor)
-          .attr('font-size', '13px')
+          .attr('font-size', `${sEventFont}px`)
           .text(ev.label);
       } else {
-        // Text outside bar - check if it fits on left or must go right
+        const sLabelGap = ctx.aesthetic(6);
         const wouldFlipLeft = x + rectW > innerWidth * 0.6;
-        const labelFitsLeft = x - 6 - estLabelWidth > 0;
+        const labelFitsLeft = x - sLabelGap - estLabelWidth > 0;
         const flipLeft = wouldFlipLeft && labelFitsLeft;
         evG
           .append('text')
-          .attr('x', flipLeft ? x - 6 : x + rectW + 6)
+          .attr('x', flipLeft ? x - sLabelGap : x + rectW + sLabelGap)
           .attr('y', y)
           .attr('dy', '0.35em')
           .attr('text-anchor', flipLeft ? 'end' : 'start')
           .attr('fill', textColor)
-          .attr('font-size', '13px')
+          .attr('font-size', `${sEventFont}px`)
           .text(ev.label);
       }
     } else {
-      // Point event (no end date) - render as circle with label
-      const estLabelWidth = ev.label.length * 7;
-      // Only flip left if past 60% AND label fits without going off-chart
+      const estLabelWidth = ev.label.length * sCharW;
+      const sPointGap = ctx.aesthetic(10);
       const wouldFlipLeft = x > innerWidth * 0.6;
-      const labelFitsLeft = x - 10 - estLabelWidth > 0;
+      const labelFitsLeft = x - sPointGap - estLabelWidth > 0;
       const flipLeft = wouldFlipLeft && labelFitsLeft;
       evG
         .append('circle')
         .attr('cx', x)
         .attr('cy', y)
-        .attr('r', 5)
+        .attr('r', sPointR)
         .attr('fill', shapeFill(palette, color, isDark, { solid }))
         .attr('stroke', color)
-        .attr('stroke-width', 2);
+        .attr('stroke-width', sPointStroke);
       evG
         .append('text')
-        .attr('x', flipLeft ? x - 10 : x + 10)
+        .attr('x', flipLeft ? x - sPointGap : x + sPointGap)
         .attr('y', y)
         .attr('dy', '0.35em')
         .attr('text-anchor', flipLeft ? 'end' : 'start')
         .attr('fill', textColor)
-        .attr('font-size', '12px')
+        .attr('font-size', `${sEventFontSm}px`)
         .text(ev.label);
     }
   });
@@ -4734,6 +4777,7 @@ function renderTimelineHorizontalGrouped(
     earliestStartDateStr,
     latestEndDateStr,
     tagLegendReserve,
+    ctx,
   } = setup;
   const { fadeToGroup, fadeToEra, fadeToMarker, fadeReset, setTagAttrs } =
     hovers;
@@ -4747,8 +4791,16 @@ function renderTimelineHorizontalGrouped(
   } = parsed;
   const title = parsed.noTitle ? null : parsed.title;
 
-  const BAR_H = 22;
-  const GROUP_GAP = 12;
+  const sBarH = ctx.structural(22);
+  const sGroupGap = ctx.aesthetic(12);
+  const sPointR = ctx.structural(5);
+  const sPointStroke = ctx.structural(2);
+  const sBarRx = ctx.structural(4);
+  const sBarStroke = ctx.structural(2);
+  const sEventFont = ctx.text(13);
+  const sEventFontSm = ctx.text(12);
+  const sCharW = ctx.structural(7);
+  const sLaneHeaderFont = ctx.text(12);
 
   // === GROUPED: swim-lanes stacked vertically, events on own rows ===
   let lanes: Lane[];
@@ -4773,35 +4825,38 @@ function renderTimelineHorizontalGrouped(
   }
 
   const totalEventRows = lanes.reduce((s, l) => s + l.events.length, 0);
-  const scaleMargin = timelineScale ? 24 : 0;
+  const scaleMargin = timelineScale ? ctx.aesthetic(24) : 0;
   // Per-feature header rows: era + marker each get their own row, reserved
   // only when present (mirrors the gantt header stack).
-  const ERA_ROW_H = 22;
-  const MARKER_ROW_H = 22;
+  const ERA_ROW_H = ctx.structural(22);
+  const MARKER_ROW_H = ctx.structural(22);
   const eraReserve = timelineEras.length > 0 ? ERA_ROW_H : 0;
   const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
-  const topScaleH = timelineScale ? 40 : 0;
-  // Calculate left margin based on longest group name (~7px per char + padding)
+  const topScaleH = timelineScale ? ctx.structural(40) : 0;
   const maxGroupNameLen = Math.max(...lanes.map((l) => l.name.length));
-  const dynamicLeftMargin = Math.max(120, maxGroupNameLen * 7 + 30);
-  // Group-sorted doesn't need legend space (group names shown on left)
-  const baseTopMargin = title ? 50 : 20;
+  const dynamicLeftMargin = Math.max(
+    ctx.aesthetic(120),
+    maxGroupNameLen * sCharW + ctx.aesthetic(30)
+  );
+  const baseTopMargin = title ? ctx.aesthetic(50) : ctx.aesthetic(20);
   const margin = {
     top:
       baseTopMargin + topScaleH + eraReserve + markerReserve + tagLegendReserve,
-    right: 40,
-    bottom: 40 + scaleMargin,
+    right: ctx.aesthetic(40),
+    bottom: ctx.aesthetic(40) + scaleMargin,
     left: dynamicLeftMargin,
   };
-  // Y offsets for label rows (negative = above chart's y=0).
   const markerLabelY = markerReserve ? -(topScaleH + MARKER_ROW_H / 2) : 0;
   const eraLabelY = eraReserve
     ? -(topScaleH + markerReserve + ERA_ROW_H / 2)
     : 0;
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
-  const totalGaps = (lanes.length - 1) * GROUP_GAP;
-  const rowH = Math.min(28, (innerHeight - totalGaps) / totalEventRows);
+  const totalGaps = (lanes.length - 1) * sGroupGap;
+  const rowH = Math.min(
+    ctx.structural(28),
+    (innerHeight - totalGaps) / totalEventRows
+  );
 
   const xScale = d3Scale
     .scaleLinear()
@@ -4814,6 +4869,10 @@ function renderTimelineHorizontalGrouped(
     .attr('width', width)
     .attr('height', height)
     .style('background', bgColor);
+
+  if (ctx.isBelowFloor) {
+    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+  }
 
   const g = svg
     .append('g')
@@ -4891,10 +4950,10 @@ function renderTimelineHorizontalGrouped(
         .attr('x', -margin.left)
         .attr('y', swimY)
         .attr('width', innerWidth + margin.left)
-        .attr('height', laneSpan + (idx < lanes.length - 1 ? GROUP_GAP : 0))
+        .attr('height', laneSpan + (idx < lanes.length - 1 ? sGroupGap : 0))
         .attr('fill', fillColor)
         .attr('opacity', 0.06);
-      swimY += laneSpan + GROUP_GAP;
+      swimY += laneSpan + sGroupGap;
     });
   }
 
@@ -4917,12 +4976,12 @@ function renderTimelineHorizontalGrouped(
 
     headerG
       .append('text')
-      .attr('x', -margin.left + 10)
+      .attr('x', -margin.left + ctx.aesthetic(10))
       .attr('y', curY + laneSpan / 2)
       .attr('dy', '0.35em')
       .attr('text-anchor', 'start')
       .attr('fill', laneColor)
-      .attr('font-size', '12px')
+      .attr('font-size', `${sLaneHeaderFont}px`)
       .attr('font-weight', '600')
       .text(lane.name);
 
@@ -4980,13 +5039,12 @@ function renderTimelineHorizontalGrouped(
         const x2 = xScale(parseTimelineDate(ev.endDate));
         const rectW = Math.max(x2 - x, 4);
         // Estimate label width (~7px per char at 13px font) + padding
-        const estLabelWidth = ev.label.length * 7 + 16;
+        const estLabelWidth = ev.label.length * sCharW + ctx.aesthetic(16);
         const labelFitsInside = rectW >= estLabelWidth;
 
         let fill: string = shapeFill(palette, evColor, isDark, { solid });
         let stroke: string = evColor;
         if (ev.uncertain) {
-          // Create gradient for uncertain end - fades last 20%
           const gradientId = `uncertain-${ev.lineNumber}`;
           const strokeGradientId = `uncertain-s-${ev.lineNumber}`;
           const defs = svg.select('defs').node() || svg.append('defs').node();
@@ -5034,68 +5092,66 @@ function renderTimelineHorizontalGrouped(
         evG
           .append('rect')
           .attr('x', x)
-          .attr('y', y - BAR_H / 2)
+          .attr('y', y - sBarH / 2)
           .attr('width', rectW)
-          .attr('height', BAR_H)
-          .attr('rx', 4)
+          .attr('height', sBarH)
+          .attr('rx', sBarRx)
           .attr('fill', fill)
           .attr('stroke', stroke)
-          .attr('stroke-width', 2);
+          .attr('stroke-width', sBarStroke);
 
         if (labelFitsInside) {
-          // Text inside bar - use textColor for readability on muted fill
           evG
             .append('text')
-            .attr('x', x + 8)
+            .attr('x', x + ctx.aesthetic(8))
             .attr('y', y)
             .attr('dy', '0.35em')
             .attr('text-anchor', 'start')
             .attr('fill', textColor)
-            .attr('font-size', '13px')
+            .attr('font-size', `${sEventFont}px`)
             .text(ev.label);
         } else {
-          // Text outside bar - check if it fits on left or must go right
+          const sLabelGap = ctx.aesthetic(6);
           const wouldFlipLeft = x + rectW > innerWidth * 0.6;
-          const labelFitsLeft = x - 6 - estLabelWidth > 0;
+          const labelFitsLeft = x - sLabelGap - estLabelWidth > 0;
           const flipLeft = wouldFlipLeft && labelFitsLeft;
           evG
             .append('text')
-            .attr('x', flipLeft ? x - 6 : x + rectW + 6)
+            .attr('x', flipLeft ? x - sLabelGap : x + rectW + sLabelGap)
             .attr('y', y)
             .attr('dy', '0.35em')
             .attr('text-anchor', flipLeft ? 'end' : 'start')
             .attr('fill', textColor)
-            .attr('font-size', '13px')
+            .attr('font-size', `${sEventFont}px`)
             .text(ev.label);
         }
       } else {
-        // Point event (no end date) - render as circle with label
-        const estLabelWidth = ev.label.length * 7;
-        // Only flip left if past 60% AND label fits without colliding with group name area
+        const estLabelWidth = ev.label.length * sCharW;
+        const sPointGap = ctx.aesthetic(10);
         const wouldFlipLeft = x > innerWidth * 0.6;
-        const labelFitsLeft = x - 10 - estLabelWidth > 0;
+        const labelFitsLeft = x - sPointGap - estLabelWidth > 0;
         const flipLeft = wouldFlipLeft && labelFitsLeft;
         evG
           .append('circle')
           .attr('cx', x)
           .attr('cy', y)
-          .attr('r', 5)
+          .attr('r', sPointR)
           .attr('fill', shapeFill(palette, evColor, isDark, { solid }))
           .attr('stroke', evColor)
-          .attr('stroke-width', 2);
+          .attr('stroke-width', sPointStroke);
         evG
           .append('text')
-          .attr('x', flipLeft ? x - 10 : x + 10)
+          .attr('x', flipLeft ? x - sPointGap : x + sPointGap)
           .attr('y', y)
           .attr('dy', '0.35em')
           .attr('text-anchor', flipLeft ? 'end' : 'start')
           .attr('fill', textColor)
-          .attr('font-size', '12px')
+          .attr('font-size', `${sEventFontSm}px`)
           .text(ev.label);
       }
     });
 
-    curY += laneSpan + GROUP_GAP;
+    curY += laneSpan + sGroupGap;
   }
 }
 
@@ -5137,6 +5193,7 @@ function renderTimelineVertical(
     earliestStartDateStr,
     latestEndDateStr,
     tagLegendReserve,
+    ctx,
   } = setup;
   const { fadeToGroup, fadeToEra, fadeToMarker, fadeReset, setTagAttrs } =
     hovers;
@@ -5150,6 +5207,17 @@ function renderTimelineVertical(
     timelineSwimlanes,
   } = parsed;
   const title = parsed.noTitle ? null : parsed.title;
+
+  const sPointR = ctx.structural(4);
+  const sPointStroke = ctx.structural(2);
+  const sBarRx = ctx.structural(4);
+  const sBarStroke = ctx.structural(2);
+  const sBarW = ctx.structural(12);
+  const sEventFont = ctx.text(10);
+  const sEventFontSm = ctx.text(11);
+  const sDateFont = ctx.text(10);
+  const sLaneHeaderFont = ctx.text(12);
+  const sDash = `${ctx.structural(4)},${ctx.structural(4)}`;
 
   const useGroupedVertical =
     tagLanes != null || (timelineSort === 'group' && timelineGroups.length > 0);
@@ -5181,13 +5249,13 @@ function renderTimelineVertical(
     }
 
     const laneCount = laneNames.length;
-    const scaleMargin = timelineScale ? 40 : 0;
-    const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
+    const scaleMargin = timelineScale ? ctx.aesthetic(40) : 0;
+    const markerMargin = timelineMarkers.length > 0 ? ctx.aesthetic(30) : 0;
     const margin = {
-      top: 104 + markerMargin + tagLegendReserve,
-      right: 40 + scaleMargin,
-      bottom: 40,
-      left: 60 + scaleMargin,
+      top: ctx.aesthetic(104) + markerMargin + tagLegendReserve,
+      right: ctx.aesthetic(40) + scaleMargin,
+      bottom: ctx.aesthetic(40),
+      left: ctx.aesthetic(60) + scaleMargin,
     };
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
@@ -5295,10 +5363,10 @@ function renderTimelineVertical(
       headerG
         .append('text')
         .attr('x', laneCenter)
-        .attr('y', -15)
+        .attr('y', -ctx.structural(15))
         .attr('text-anchor', 'middle')
         .attr('fill', laneColor)
-        .attr('font-size', '12px')
+        .attr('font-size', `${sLaneHeaderFont}px`)
         .attr('font-weight', '600')
         .text(laneName);
 
@@ -5309,7 +5377,7 @@ function renderTimelineVertical(
         .attr('y2', innerHeight)
         .attr('stroke', mutedColor)
         .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '4,4');
+        .attr('stroke-dasharray', sDash);
 
       const laneEvents = laneEventsByName.get(laneName) ?? [];
 
@@ -5397,55 +5465,55 @@ function renderTimelineVertical(
 
           evG
             .append('rect')
-            .attr('x', laneCenter - 6)
+            .attr('x', laneCenter - sBarW / 2)
             .attr('y', y)
-            .attr('width', 12)
+            .attr('width', sBarW)
             .attr('height', rectH)
-            .attr('rx', 4)
+            .attr('rx', sBarRx)
             .attr('fill', fill)
             .attr('stroke', stroke)
-            .attr('stroke-width', 2);
+            .attr('stroke-width', sBarStroke);
           evG
             .append('text')
-            .attr('x', laneCenter + 14)
+            .attr('x', laneCenter + sBarW + ctx.aesthetic(2))
             .attr('y', y + rectH / 2)
             .attr('dy', '0.35em')
             .attr('fill', textColor)
-            .attr('font-size', '10px')
+            .attr('font-size', `${sEventFont}px`)
             .text(ev.label);
         } else {
           evG
             .append('circle')
             .attr('cx', laneCenter)
             .attr('cy', y)
-            .attr('r', 4)
+            .attr('r', sPointR)
             .attr('fill', shapeFill(palette, evColor, isDark, { solid }))
             .attr('stroke', evColor)
-            .attr('stroke-width', 2);
+            .attr('stroke-width', sPointStroke);
           evG
             .append('text')
-            .attr('x', laneCenter + 10)
+            .attr('x', laneCenter + ctx.aesthetic(10))
             .attr('y', y)
             .attr('dy', '0.35em')
             .attr('fill', textColor)
-            .attr('font-size', '10px')
+            .attr('font-size', `${sEventFont}px`)
             .text(ev.label);
         }
       }
     });
   } else {
     // === TIME SORT, vertical: single vertical axis ===
-    const scaleMargin = timelineScale ? 40 : 0;
-    const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
+    const scaleMargin = timelineScale ? ctx.aesthetic(40) : 0;
+    const markerMargin = timelineMarkers.length > 0 ? ctx.aesthetic(30) : 0;
     const margin = {
-      top: 104 + markerMargin + tagLegendReserve,
-      right: 200,
-      bottom: 40,
-      left: 60 + scaleMargin,
+      top: ctx.aesthetic(104) + markerMargin + tagLegendReserve,
+      right: ctx.aesthetic(200),
+      bottom: ctx.aesthetic(40),
+      left: ctx.aesthetic(60) + scaleMargin,
     };
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
-    const axisX = 20;
+    const axisX = ctx.structural(20);
 
     const yScale = d3Scale
       .scaleLinear()
@@ -5520,7 +5588,6 @@ function renderTimelineVertical(
       );
     }
 
-    // Group legend (pill style)
     if (timelineGroups.length > 0) {
       renderTimelineGroupLegend(
         g,
@@ -5529,7 +5596,7 @@ function renderTimelineVertical(
         textColor,
         palette,
         isDark,
-        -55,
+        -ctx.aesthetic(55),
         (name) => fadeToGroup(g, name),
         () => fadeReset(g)
       );
@@ -5542,7 +5609,7 @@ function renderTimelineVertical(
       .attr('y2', innerHeight)
       .attr('stroke', mutedColor)
       .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '4,4');
+      .attr('stroke-dasharray', sDash);
 
     for (const ev of sorted) {
       const y = yScale(parseTimelineDate(ev.date));
@@ -5628,45 +5695,44 @@ function renderTimelineVertical(
 
         evG
           .append('rect')
-          .attr('x', axisX - 6)
+          .attr('x', axisX - sBarW / 2)
           .attr('y', y)
-          .attr('width', 12)
+          .attr('width', sBarW)
           .attr('height', rectH)
-          .attr('rx', 4)
+          .attr('rx', sBarRx)
           .attr('fill', fill)
           .attr('stroke', stroke)
-          .attr('stroke-width', 2);
+          .attr('stroke-width', sBarStroke);
         evG
           .append('text')
-          .attr('x', axisX + 16)
+          .attr('x', axisX + sBarW + ctx.aesthetic(4))
           .attr('y', y + rectH / 2)
           .attr('dy', '0.35em')
           .attr('fill', textColor)
-          .attr('font-size', '11px')
+          .attr('font-size', `${sEventFontSm}px`)
           .text(ev.label);
       } else {
         evG
           .append('circle')
           .attr('cx', axisX)
           .attr('cy', y)
-          .attr('r', 4)
+          .attr('r', sPointR)
           .attr('fill', shapeFill(palette, color, isDark, { solid }))
           .attr('stroke', color)
-          .attr('stroke-width', 2);
+          .attr('stroke-width', sPointStroke);
         evG
           .append('text')
-          .attr('x', axisX + 16)
+          .attr('x', axisX + sBarW + ctx.aesthetic(4))
           .attr('y', y)
           .attr('dy', '0.35em')
           .attr('fill', textColor)
-          .attr('font-size', '11px')
+          .attr('font-size', `${sEventFontSm}px`)
           .text(ev.label);
       }
 
-      // Date label to the left
       evG
         .append('text')
-        .attr('x', axisX - 14)
+        .attr('x', axisX - ctx.aesthetic(14))
         .attr(
           'y',
           ev.endDate
@@ -5682,7 +5748,7 @@ function renderTimelineVertical(
         .attr('dy', '0.35em')
         .attr('text-anchor', 'end')
         .attr('fill', mutedColor)
-        .attr('font-size', '10px')
+        .attr('font-size', `${sDateFont}px`)
         .text(ev.date + (ev.endDate ? `→${ev.endDate}` : ''));
     }
   }
@@ -5826,10 +5892,22 @@ export function renderWordCloud(
   if (!init) return;
   const { svg, width, height, textColor, colors } = init;
 
-  const titleHeight = title ? 40 : 0;
-  const cloudHeight = height - titleHeight;
+  const idealWidth = Math.max(400, words.length * 30);
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  const sTitleHeight = title ? ctx.aesthetic(40) : 0;
+  const cloudHeight = height - sTitleHeight;
+  const sPadding = ctx.structural(2);
+
+  if (ctx.isBelowFloor) {
+    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+  }
 
   const { minSize, maxSize } = cloudOptions;
+  const sMinSize = ctx.text(minSize);
+  const sMaxSize = ctx.text(maxSize);
   const weights = words.map((w) => w.weight);
   const minWeight = Math.min(...weights);
   const maxWeight = Math.max(...weights);
@@ -5837,7 +5915,7 @@ export function renderWordCloud(
 
   const fontSize = (weight: number): number => {
     const t = (weight - minWeight) / range;
-    return minSize + Math.sqrt(t) * (maxSize - minSize);
+    return sMinSize + Math.sqrt(t) * (sMaxSize - sMinSize);
   };
 
   const rotateFn = getRotateFn(cloudOptions.rotate);
@@ -5855,13 +5933,13 @@ export function renderWordCloud(
     .append('g')
     .attr(
       'transform',
-      `translate(${width / 2},${titleHeight + cloudHeight / 2})`
+      `translate(${width / 2},${sTitleHeight + cloudHeight / 2})`
     );
 
   cloud<WordCloudWord & cloud.Word>()
     .size([width, cloudHeight])
     .words(words.map((w) => ({ ...w, size: fontSize(w.weight) })))
-    .padding(2)
+    .padding(sPadding)
     .rotate(rotateFn)
     .fontSize((d) => d.size!)
     .font(FONT_FAMILY)
@@ -6119,8 +6197,18 @@ export function renderVenn(
   const init = initD3Chart(container, palette, exportDims);
   if (!init) return;
   const { svg, width, height, textColor, colors } = init;
-  const titleHeight = title ? 40 : 0;
   const n = vennSets.length;
+
+  const idealWidth = n === 2 ? 500 : 600;
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  const sTitleHeight = title ? ctx.aesthetic(40) : 0;
+
+  if (ctx.isBelowFloor) {
+    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+  }
 
   // ── Equal-radius layout with ~30% overlap depth ──
   // All circles share the same base radius; center distance = 1.4r gives ~30% penetration
@@ -6154,18 +6242,20 @@ export function renderVenn(
   const clusterCx = rawCircles.reduce((s, c) => s + c.x, 0) / n;
   const clusterCy = rawCircles.reduce((s, c) => s + c.y, 0) / n;
 
-  let marginLeft = 30,
-    marginRight = 30,
-    marginTop = 30,
-    marginBottom = 30;
-  const stubLen = 20;
-  const edgePad = 8;
-  const labelTextPad = 4;
+  let marginLeft = ctx.aesthetic(30),
+    marginRight = ctx.aesthetic(30),
+    marginTop = ctx.aesthetic(30),
+    marginBottom = ctx.aesthetic(30);
+  const stubLen = ctx.structural(20);
+  const edgePad = ctx.aesthetic(8);
+  const labelTextPad = ctx.aesthetic(4);
+
+  const sCharW = ctx.structural(8.5);
 
   for (let i = 0; i < n; i++) {
     // In-bounds by loop guard (n === vennSets.length === rawCircles.length).
     const estimatedWidth =
-      vennSets[i]!.name.length * 8.5 + stubLen + edgePad + labelTextPad;
+      vennSets[i]!.name.length * sCharW + stubLen + edgePad + labelTextPad;
     const dx = rawCircles[i]!.x - clusterCx;
     const dy = rawCircles[i]!.y - clusterCy;
     if (Math.abs(dx) >= Math.abs(dy)) {
@@ -6173,21 +6263,25 @@ export function renderVenn(
       else marginLeft = Math.max(marginLeft, estimatedWidth);
     } else {
       const halfEstimate = estimatedWidth * 0.5;
-      if (dy >= 0) marginBottom = Math.max(marginBottom, halfEstimate + 20);
-      else marginTop = Math.max(marginTop, halfEstimate + 20);
+      if (dy >= 0)
+        marginBottom = Math.max(marginBottom, halfEstimate + ctx.aesthetic(20));
+      else marginTop = Math.max(marginTop, halfEstimate + ctx.aesthetic(20));
     }
   }
 
   // Pre-wrap overlap labels and reserve margin so circles shrink enough
   // to leave readable space outside for leader+text. Wrap target scales
   // with the canvas so labels stay narrow on small windows.
-  const OVERLAP_FONT = 13;
-  const OVERLAP_CH_W = 7;
-  const OVERLAP_LINE_H = 16;
-  const OVERLAP_LEADER_PAD = 18;
-  const OVERLAP_TEXT_GAP = 6;
-  const OVERLAP_MARGIN_PAD = 12;
-  const OVERLAP_WRAP_TARGET_W = Math.max(80, Math.min(170, width * 0.18));
+  const OVERLAP_FONT = ctx.text(13);
+  const OVERLAP_CH_W = ctx.structural(7);
+  const OVERLAP_LINE_H = ctx.structural(16);
+  const OVERLAP_LEADER_PAD = ctx.structural(18);
+  const OVERLAP_TEXT_GAP = ctx.aesthetic(6);
+  const OVERLAP_MARGIN_PAD = ctx.aesthetic(12);
+  const OVERLAP_WRAP_TARGET_W = Math.max(
+    ctx.structural(80),
+    Math.min(ctx.structural(170), width * 0.18)
+  );
   const MAX_WRAP_CHARS = Math.max(
     8,
     Math.floor(OVERLAP_WRAP_TARGET_W / OVERLAP_CH_W)
@@ -6278,7 +6372,7 @@ export function renderVenn(
     }
   }
 
-  const drawH = height - titleHeight;
+  const drawH = height - sTitleHeight;
   // Cap margins so the figure always keeps a usable share of the canvas.
   // If labels need more space than the cap allows the leader+text logic
   // will clamp them to the viewport instead of letting circles shrink to
@@ -6297,7 +6391,7 @@ export function renderVenn(
     marginRight,
     marginTop,
     marginBottom
-  ).map((c) => ({ ...c, y: c.y + titleHeight }));
+  ).map((c) => ({ ...c, y: c.y + sTitleHeight }));
 
   // circles is non-empty: vennSets.length >= 2 guard above ensures rawCircles is sized.
   const scaledR = circles[0]!.r;
@@ -6337,7 +6431,7 @@ export function renderVenn(
       .attr('fill', setColors[i]!)
       .attr('fill-opacity', 0.35)
       .attr('stroke', setColors[i]!)
-      .attr('stroke-width', 2)
+      .attr('stroke-width', ctx.structural(2))
       .style('pointer-events', 'none') as d3Selection.Selection<
       SVGCircleElement,
       unknown,
@@ -6518,9 +6612,9 @@ export function renderVenn(
   }
 
   const CH_RATIO = 0.6;
-  const MIN_FONT = 10;
-  const MAX_FONT = 22;
-  const INTERNAL_PAD = 12;
+  const MIN_FONT = ctx.text(10);
+  const MAX_FONT = ctx.text(22);
+  const INTERNAL_PAD = ctx.aesthetic(12);
 
   const labelGroup = svg.append('g');
 
@@ -6599,17 +6693,21 @@ export function renderVenn(
         .attr('x2', stubEndX)
         .attr('y2', stubEndY)
         .attr('stroke', textColor)
-        .attr('stroke-width', 1);
+        .attr('stroke-width', ctx.structural(1));
 
       const isRight = stubEndX >= gcx;
       const textAnchor = isRight ? 'start' : 'end';
       let textX = stubEndX + (isRight ? labelTextPad : -labelTextPad);
       const textY = stubEndY;
-      const estW = text.length * 8.5;
+      const sSetLabelFont = ctx.text(14);
+      const estW = text.length * sCharW;
       if (isRight) textX = Math.min(textX, width - estW - 4);
       else textX = Math.max(textX, estW + 4);
 
-      const renderedTextY = Math.max(14, Math.min(height - 4, textY));
+      const renderedTextY = Math.max(
+        sSetLabelFont,
+        Math.min(height - 4, textY)
+      );
       labelG
         .append('text')
         .attr('x', textX)
@@ -6617,15 +6715,15 @@ export function renderVenn(
         .attr('text-anchor', textAnchor)
         .attr('dominant-baseline', 'central')
         .attr('fill', textColor)
-        .attr('font-size', '14px')
+        .attr('font-size', `${sSetLabelFont}px`)
         .attr('font-weight', 'bold')
         .text(text);
-      const externalEstW = text.length * 8.5;
+      const externalEstW = text.length * sCharW;
       setLabelBBoxes[i] = {
         x: isRight ? textX : textX - externalEstW,
-        y: renderedTextY - 7,
+        y: renderedTextY - sSetLabelFont / 2,
         w: externalEstW,
-        h: 14,
+        h: sSetLabelFont,
       };
     }
   });
@@ -6850,7 +6948,7 @@ export function renderVenn(
       topY = textY - blockH / 2;
       bottomY = textY + blockH / 2;
     }
-    if (topY < titleHeight + 6) textY += titleHeight + 6 - topY;
+    if (topY < sTitleHeight + 6) textY += sTitleHeight + 6 - topY;
     else if (bottomY > height - 4) textY -= bottomY - (height - 4);
 
     const startY =
@@ -6904,7 +7002,7 @@ export function renderVenn(
         .attr('x2', seg.x2)
         .attr('y2', seg.y2)
         .attr('stroke', overlapColor)
-        .attr('stroke-width', 1.25)
+        .attr('stroke-width', ctx.structural(1.25))
         .attr('opacity', 0.85);
     }
 
@@ -7053,7 +7151,15 @@ export function renderQuadrant(
   const { svg, width, height, textColor } = init;
   const borderColor = palette.border;
 
-  // Default quadrant colors with alpha
+  const idealWidth = 600;
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  if (ctx.isBelowFloor) {
+    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+  }
+
   const defaultColors = [
     palette.colors.blue,
     palette.colors.green,
@@ -7061,14 +7167,13 @@ export function renderQuadrant(
     palette.colors.purple,
   ];
 
-  // Margins
   const hasXAxis = !!quadrantXAxis;
   const hasYAxis = !!quadrantYAxis;
   const margin = {
-    top: title ? 60 : 30,
-    right: 30,
-    bottom: hasXAxis ? 70 : 40,
-    left: hasYAxis ? 80 : 40,
+    top: title ? ctx.aesthetic(60) : ctx.aesthetic(30),
+    right: ctx.aesthetic(30),
+    bottom: hasXAxis ? ctx.aesthetic(70) : ctx.aesthetic(40),
+    left: hasYAxis ? ctx.aesthetic(80) : ctx.aesthetic(40),
   };
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
@@ -7205,7 +7310,7 @@ export function renderQuadrant(
     .attr('height', (d) => d.h)
     .attr('fill', (d) => getQuadrantFill(d.label, d.colorIdx))
     .attr('stroke', (d) => getQuadrantColor(d.label, d.colorIdx))
-    .attr('stroke-width', 2);
+    .attr('stroke-width', ctx.structural(2));
 
   // White text for points; quadrant labels use a muted text color (consistent across all quadrants)
   const shadowColor = 'rgba(0,0,0,0.4)';
@@ -7214,9 +7319,9 @@ export function renderQuadrant(
   const quadrantLabelColor = mixHex(textColor, bg, 35);
 
   // Scale label font size to fit within quadrant bounds, wrapping into multiple lines if needed
-  const LABEL_MAX_FONT = 48;
-  const LABEL_MIN_FONT = 14;
-  const LABEL_PAD = 40;
+  const LABEL_MAX_FONT = ctx.text(48);
+  const LABEL_MIN_FONT = ctx.text(14);
+  const LABEL_PAD = ctx.aesthetic(40);
   const CHAR_WIDTH_RATIO = 0.6;
 
   const estTextWidth = (text: string, fontSize: number): number =>
@@ -7356,17 +7461,19 @@ export function renderQuadrant(
       });
   }
 
-  // X-axis labels — centered on left/right halves
+  const sAxisFont = ctx.text(18);
+  const sAxisPad = ctx.aesthetic(20);
+  const sAxisX = ctx.aesthetic(22);
+
   if (quadrantXAxis) {
-    // Low label (centered on left half)
     const xLowLabel = svg
       .append('text')
       .attr('class', 'quadrant-axis-label')
       .attr('x', margin.left + chartWidth / 4)
-      .attr('y', height - 20)
+      .attr('y', height - sAxisPad)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '18px')
+      .attr('font-size', `${sAxisFont}px`)
       .attr(
         'data-line-number',
         quadrantXAxisLineNumber ? String(quadrantXAxisLineNumber) : null
@@ -7382,10 +7489,10 @@ export function renderQuadrant(
       .append('text')
       .attr('class', 'quadrant-axis-label')
       .attr('x', margin.left + (chartWidth * 3) / 4)
-      .attr('y', height - 20)
+      .attr('y', height - sAxisPad)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '18px')
+      .attr('font-size', `${sAxisFont}px`)
       .attr(
         'data-line-number',
         quadrantXAxisLineNumber ? String(quadrantXAxisLineNumber) : null
@@ -7419,12 +7526,12 @@ export function renderQuadrant(
     const yLowLabel = svg
       .append('text')
       .attr('class', 'quadrant-axis-label')
-      .attr('x', 22)
+      .attr('x', sAxisX)
       .attr('y', yMidBottom)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '18px')
-      .attr('transform', `rotate(-90, 22, ${yMidBottom})`)
+      .attr('font-size', `${sAxisFont}px`)
+      .attr('transform', `rotate(-90, ${sAxisX}, ${yMidBottom})`)
       .attr(
         'data-line-number',
         quadrantYAxisLineNumber ? String(quadrantYAxisLineNumber) : null
@@ -7439,12 +7546,12 @@ export function renderQuadrant(
     const yHighLabel = svg
       .append('text')
       .attr('class', 'quadrant-axis-label')
-      .attr('x', 22)
+      .attr('x', sAxisX)
       .attr('y', yMidTop)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '18px')
-      .attr('transform', `rotate(-90, 22, ${yMidTop})`)
+      .attr('font-size', `${sAxisFont}px`)
+      .attr('transform', `rotate(-90, ${sAxisX}, ${yMidTop})`)
       .attr(
         'data-line-number',
         quadrantYAxisLineNumber ? String(quadrantYAxisLineNumber) : null
@@ -7497,8 +7604,8 @@ export function renderQuadrant(
   };
 
   // Build obstacle rects from quadrant watermark labels for collision avoidance
-  const POINT_RADIUS = 6;
-  const POINT_LABEL_FONT_SIZE = 12;
+  const POINT_RADIUS = ctx.structural(6);
+  const POINT_LABEL_FONT_SIZE = ctx.text(12);
   const quadrantLabelObstacles: LabelRect[] = quadrantDefsWithLabel.map((d) => {
     const layout = labelLayouts.get(d.label!.text)!;
     const totalW =
@@ -7570,7 +7677,7 @@ export function renderQuadrant(
       .attr('r', POINT_RADIUS)
       .attr('fill', '#ffffff')
       .attr('stroke', pointColor)
-      .attr('stroke-width', 2);
+      .attr('stroke-width', ctx.structural(2));
 
     // Label at computed position. Name is always shown; coords sit below
     // (smaller, lighter weight) and only appear on hover.
@@ -7593,20 +7700,18 @@ export function renderQuadrant(
       .attr('class', 'point-coords')
       .attr('x', placed.x)
       .attr('dy', `${POINT_LABEL_FONT_SIZE}px`)
-      .attr('font-size', '10px')
+      .attr('font-size', `${ctx.text(10)}px`)
       .attr('font-weight', '500')
       .attr('opacity', 0)
       .text(`${point.x.toFixed(2)}, ${point.y.toFixed(2)}`);
 
-    // On hover, shift the label away from the dot so the coords line
-    // (which sits below the name) doesn't land on the circle.
-    const COORDS_LINE_H = 14;
+    const COORDS_LINE_H = ctx.structural(14);
     const bumpDy = placed.y < cy ? -COORDS_LINE_H : COORDS_LINE_H;
 
     pointG
       .style('cursor', onClickItem ? 'pointer' : 'default')
       .on('mouseenter', () => {
-        pointG.select('circle').attr('r', 8);
+        pointG.select('circle').attr('r', ctx.structural(8));
         labelText.attr('y', placed.y + bumpDy);
         coordsTspan.attr('opacity', 1);
         quadrantRects.attr('opacity', (qd) =>

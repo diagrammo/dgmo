@@ -29,6 +29,7 @@ import {
 } from '../utils/wrapped-desc';
 import type { ParsedBoxesAndLines, BLNode } from './types';
 import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
+import { ScaleContext } from '../utils/scaling';
 
 // ── Constants (aligned with infra pattern) ─────────────────
 const DIAGRAM_PADDING = 20;
@@ -350,7 +351,24 @@ export function renderBoxesAndLines(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  // Determine active tag group — shared utility handles priority chain
+  const idealWidth = layout.width + DIAGRAM_PADDING * 2;
+  const sctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  const sDiagramPadding = sctx.aesthetic(DIAGRAM_PADDING);
+  const sMinNodeFontSize = sctx.text(MIN_NODE_FONT_SIZE);
+  const sEdgeLabelFontSize = sctx.text(EDGE_LABEL_FONT_SIZE);
+  const sEdgeStrokeWidth = sctx.structural(EDGE_STROKE_WIDTH);
+  const sNodeStrokeWidth = sctx.structural(NODE_STROKE_WIDTH);
+  const sCollapseBarHeight = sctx.structural(COLLAPSE_BAR_HEIGHT);
+  const sDescFontSize = sctx.text(DESC_FONT_SIZE);
+  const sGroupLabelFontSize = sctx.text(GROUP_LABEL_FONT_SIZE);
+  const sGroupLabelZone = sctx.structural(GROUP_LABEL_ZONE);
+  const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
+  const sTitleY = sctx.structural(TITLE_Y);
+  const sLegendHeight = sctx.structural(LEGEND_HEIGHT);
+
   const activeGroup = resolveActiveTagGroup(
     parsed.tagGroups,
     parsed.options['active-tag'],
@@ -376,28 +394,26 @@ export function renderBoxesAndLines(
   );
   const needsLegend =
     parsed.tagGroups.length > 0 || (hasAnyDescriptions && onToggleDescriptions);
-  const legendH = needsLegend ? LEGEND_HEIGHT + 8 : 0;
+  const legendH = needsLegend ? sLegendHeight + 8 : 0;
 
-  // Account for group label zone extensions (renderer-only, not in layout.height)
   const groupLabelsSet = new Set(layout.groups.map((g) => g.label));
   let labelZoneExtension = 0;
   for (const group of parsed.groups) {
     if (group.children.some((c) => groupLabelsSet.has(c))) {
-      labelZoneExtension += GROUP_LABEL_ZONE;
+      labelZoneExtension += sGroupLabelZone;
     }
   }
 
   const contentW = layout.width;
   const contentH = layout.height + titleOffset + legendH + labelZoneExtension;
 
-  const scaleX = width / (contentW + DIAGRAM_PADDING * 2);
-  const scaleY = height / (contentH + DIAGRAM_PADDING * 2);
+  const scaleX = width / (contentW + sDiagramPadding * 2);
+  const scaleY = height / (contentH + sDiagramPadding * 2);
   const scale = Math.min(scaleX, scaleY, 3);
 
   const offsetX = (width - contentW * scale) / 2;
-  const offsetY = DIAGRAM_PADDING + titleOffset + legendH;
+  const offsetY = sDiagramPadding + titleOffset + legendH;
 
-  // Create SVG
   const svg: D3Svg = d3Selection
     .select(container)
     .append('svg')
@@ -406,16 +422,19 @@ export function renderBoxesAndLines(
     .style('font-family', FONT_FAMILY)
     .style('background', palette.bg);
 
+  if (sctx.isBelowFloor) {
+    svg.attr('width', '100%').attr('viewBox', `0 0 ${width} ${height}`);
+  }
+
   const defs = svg.append('defs');
 
-  // Title
   if (showTitle) {
     svg
       .append('text')
       .attr('x', width / 2)
-      .attr('y', TITLE_Y)
+      .attr('y', sTitleY)
       .attr('text-anchor', 'middle')
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
       .text(parsed.title);
@@ -460,10 +479,10 @@ export function renderBoxesAndLines(
     // Only extend top for groups that contain sub-groups (dagre under-pads these)
     const needsExtra = !group.collapsed && hasSubGroups.has(group.label);
     const gy = needsExtra
-      ? group.y - group.height / 2 - GROUP_LABEL_ZONE
+      ? group.y - group.height / 2 - sGroupLabelZone
       : group.y - group.height / 2;
     const groupHeight = needsExtra
-      ? group.height + GROUP_LABEL_ZONE
+      ? group.height + sGroupLabelZone
       : group.height;
 
     const groupG = diagramG
@@ -492,9 +511,8 @@ export function renderBoxesAndLines(
         .attr('ry', NODE_RX)
         .attr('fill', fillColor)
         .attr('stroke', strokeColor)
-        .attr('stroke-width', NODE_STROKE_WIDTH);
+        .attr('stroke-width', sNodeStrokeWidth);
 
-      // 6px collapse bar at bottom (clipped to rounded corners)
       const clipId = `bl-clip-${group.label.replace(/[[\]\s]/g, '')}`;
       groupG
         .append('clipPath')
@@ -508,17 +526,16 @@ export function renderBoxesAndLines(
       groupG
         .append('rect')
         .attr('x', gx)
-        .attr('y', gy + group.height - COLLAPSE_BAR_HEIGHT)
+        .attr('y', gy + group.height - sCollapseBarHeight)
         .attr('width', group.width)
-        .attr('height', COLLAPSE_BAR_HEIGHT)
+        .attr('height', sCollapseBarHeight)
         .attr('fill', strokeColor)
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'bl-collapse-bar');
 
-      // Label centered vertically — wrap like regular nodes
       const maxLabelLines = Math.max(
         2,
-        Math.floor((group.height - 16) / (MIN_NODE_FONT_SIZE * 1.3))
+        Math.floor((group.height - 16) / (sMinNodeFontSize * 1.3))
       );
       const fitted = fitLabelToHeader(group.label, group.width, maxLabelLines);
       const lineH = fitted.fontSize * 1.3;
@@ -560,7 +577,7 @@ export function renderBoxesAndLines(
         .attr('y', gy + 18)
         .attr('text-anchor', 'middle')
         .attr('font-family', FONT_FAMILY)
-        .attr('font-size', GROUP_LABEL_FONT_SIZE)
+        .attr('font-size', sGroupLabelFontSize)
         .attr('font-weight', '600')
         .attr('fill', palette.text)
         .text(group.label);
@@ -636,7 +653,7 @@ export function renderBoxesAndLines(
           )
           .attr('fill', 'none')
           .attr('stroke', color)
-          .attr('stroke-width', EDGE_STROKE_WIDTH)
+          .attr('stroke-width', sEdgeStrokeWidth)
           .attr('marker-end', `url(#${markerId})`);
       }
       continue;
@@ -681,7 +698,7 @@ export function renderBoxesAndLines(
       .attr('d', gen(points) ?? '')
       .attr('fill', 'none')
       .attr('stroke', color)
-      .attr('stroke-width', EDGE_STROKE_WIDTH)
+      .attr('stroke-width', sEdgeStrokeWidth)
       .attr('marker-end', `url(#${markerId})`);
 
     if (le.bidirectional) {
@@ -692,8 +709,8 @@ export function renderBoxesAndLines(
     // Edge label — for parallel edges, place relative to each line:
     // negative offset (top line) → label above, zero → on line, positive → below
     if (le.label && le.labelX != null && le.labelY != null) {
-      const lw = le.label.length * EDGE_LABEL_FONT_SIZE * CHAR_WIDTH_RATIO;
-      const labelH = EDGE_LABEL_FONT_SIZE + 6;
+      const lw = le.label.length * sEdgeLabelFontSize * CHAR_WIDTH_RATIO;
+      const labelH = sEdgeLabelFontSize + 6;
       let ly: number;
       if (le.parallelCount > 1 && le.yOffset !== 0) {
         // Position label on the line at midpoint, shifted above/below based on offset sign
@@ -738,9 +755,9 @@ export function renderBoxesAndLines(
     target
       .append('text')
       .attr('x', lp.x)
-      .attr('y', lp.y + EDGE_LABEL_FONT_SIZE / 3)
+      .attr('y', lp.y + sEdgeLabelFontSize / 3)
       .attr('text-anchor', 'middle')
-      .attr('font-size', EDGE_LABEL_FONT_SIZE)
+      .attr('font-size', sEdgeLabelFontSize)
       .attr('fill', palette.textMuted)
       .text(le.label);
   }
@@ -810,18 +827,17 @@ export function renderBoxesAndLines(
       .attr('ry', NODE_RX)
       .attr('fill', colors.fill)
       .attr('stroke', colors.stroke)
-      .attr('stroke-width', NODE_STROKE_WIDTH);
+      .attr('stroke-width', sNodeStrokeWidth);
 
     // All text centered vertically using dominant-baseline: central
     const desc = node.description;
     if (desc && desc.length > 0 && !hideDescriptions) {
-      // Label in header zone — split on spaces/dashes/camelCase, up to 3 lines
       const MAX_LABEL_LINES = 3;
       const fitted = fitLabelToHeader(node.label, ln.width, MAX_LABEL_LINES);
       const labelLines = fitted.lines;
       const labelLineH = fitted.fontSize * 1.3;
       const labelTotalH = labelLines.length * labelLineH;
-      const headerH = labelTotalH + 12; // 12px padding
+      const headerH = labelTotalH + 12;
       const headerCenterY = -ln.height / 2 + headerH / 2;
       for (let li = 0; li < labelLines.length; li++) {
         nodeG
@@ -852,13 +868,12 @@ export function renderBoxesAndLines(
         .attr('stroke-opacity', 0.3)
         .attr('stroke-width', 1);
 
-      // Description lines with word wrapping and inline markdown
-      const descStartY = sepY + 4 + DESC_FONT_SIZE;
+      const descStartY = sepY + 4 + sDescFontSize;
       const maxTextWidth = ln.width - NODE_TEXT_PADDING * 2;
       const charsPerLine = Math.floor(
-        maxTextWidth / (DESC_FONT_SIZE * CHAR_WIDTH_RATIO)
+        maxTextWidth / (sDescFontSize * CHAR_WIDTH_RATIO)
       );
-      const descLineH = DESC_FONT_SIZE * DESC_LINE_HEIGHT;
+      const descLineH = sDescFontSize * DESC_LINE_HEIGHT;
 
       // Estimate display length — strip markdown syntax for measurement
       const displayLen = (text: string): number =>
@@ -920,7 +935,7 @@ export function renderBoxesAndLines(
             .attr('y', y)
             .attr('text-anchor', 'start')
             .attr('dominant-baseline', 'central')
-            .attr('font-size', DESC_FONT_SIZE)
+            .attr('font-size', sDescFontSize)
             .attr('fill', palette.textMuted)
             .text('\u2022');
         }
@@ -934,7 +949,7 @@ export function renderBoxesAndLines(
           .attr('dominant-baseline', 'central')
           .attr('font-size', DESC_FONT_SIZE)
           .attr('fill', palette.textMuted);
-        renderInlineText(textEl, lineText, palette, DESC_FONT_SIZE);
+        renderInlineText(textEl, lineText, palette, sDescFontSize);
       }
 
       // Tooltip when truncated
@@ -945,11 +960,9 @@ export function renderBoxesAndLines(
         nodeG.append('title').text(tooltipText);
       }
     } else {
-      // Compact label — use same split-first algorithm (camelCase, no hard-break)
-      // 16px vertical padding (8 top + 8 bottom) to keep text off borders
       const maxLabelLines = Math.max(
         2,
-        Math.floor((ln.height - 16) / (MIN_NODE_FONT_SIZE * 1.3))
+        Math.floor((ln.height - 16) / (sMinNodeFontSize * 1.3))
       );
       const fitted = fitLabelToHeader(node.label, ln.width, maxLabelLines);
       const lineH = fitted.fontSize * 1.3;

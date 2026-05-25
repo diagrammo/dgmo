@@ -23,6 +23,7 @@ import {
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedPyramid, PyramidLayer } from './types';
+import { ScaleContext } from '../utils/scaling';
 
 // ── Constants ────────────────────────────────────────────────
 const TITLE_AREA_HEIGHT = 50;
@@ -84,13 +85,22 @@ export function renderPyramid(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
+  const idealWidth = width;
+  const sctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
+  const sTitleY = sctx.structural(TITLE_Y);
+  const sTitleAreaHeight = sctx.structural(TITLE_AREA_HEIGHT);
+  const sVMargin = sctx.aesthetic(V_MARGIN);
+
   const hasAnyDescription = parsed.layers.some((l) => l.description.length > 0);
 
-  // ── Geometry (baseline, single-column layout) ───────────────
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
-  const titleH = showTitle ? TITLE_AREA_HEIGHT : 0;
-  const bodyTop = titleH + V_MARGIN;
-  const bodyBottom = height - V_MARGIN;
+  const titleH = showTitle ? sTitleAreaHeight : 0;
+  const bodyTop = titleH + sVMargin;
+  const bodyBottom = height - sVMargin;
   const bodyHeight = Math.max(60, bodyBottom - bodyTop);
   const sideMargin = width * H_MARGIN_FRAC;
   const usableWidth = width - sideMargin * 2;
@@ -135,8 +145,10 @@ export function renderPyramid(
     .attr('xmlns', 'http://www.w3.org/2000/svg')
     .style('font-family', FONT_FAMILY);
 
-  // Inline default: short description visible, full hidden. Highlight state
-  // in the app overrides with higher specificity (`.dgmo-pyramid-layer-highlight.pyramid-desc-full`).
+  if (sctx.isBelowFloor) {
+    svg.attr('width', '100%').attr('viewBox', `0 0 ${width} ${height}`);
+  }
+
   svg
     .append('style')
     .text(
@@ -149,17 +161,16 @@ export function renderPyramid(
     .attr('height', height)
     .attr('fill', palette.bg);
 
-  // Title
   if (showTitle) {
     const titleText = svg
       .append('text')
       .attr('class', 'chart-title')
       .attr('x', width / 2)
-      .attr('y', TITLE_Y)
+      .attr('y', sTitleY)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('data-line-number', parsed.titleLineNumber)
       .text(parsed.title)
