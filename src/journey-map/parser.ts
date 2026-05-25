@@ -357,6 +357,12 @@ export function parseJourneyMap(
       // Check for description keyword
       const descResult = tryStripDescriptionKeyword(trimmed);
       if (descResult.isKeyword) {
+        if (descResult.needsColon) {
+          warn(
+            lineNumber,
+            `Use "description: ${descResult.text}" — colon is required.`
+          );
+        }
         currentStep.description = descResult.text;
         currentStep.endLineNumber = lineNumber;
         continue;

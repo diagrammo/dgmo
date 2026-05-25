@@ -842,8 +842,18 @@ export function parseInfra(content: string): ParsedInfra {
       }
 
       // Unknown indented line — try as keywordless description
+      const descResult = tryStripDescriptionKeyword(trimmed);
+      if (descResult.isKeyword && currentNode.isEdge) {
+        // description on edge nodes is silently ignored
+        continue;
+      }
       if (!currentNode.isEdge) {
-        const descResult = tryStripDescriptionKeyword(trimmed);
+        if (descResult.needsColon) {
+          warn(
+            lineNumber,
+            `Use "description: ${descResult.text}" — colon is required.`
+          );
+        }
         const descText = descResult.isKeyword ? descResult.text : trimmed;
         pushDescription(currentNode, descText);
         continue;

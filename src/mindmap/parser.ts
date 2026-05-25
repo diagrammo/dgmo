@@ -233,10 +233,16 @@ export function parseMindmap(
 
     const indent = measureIndent(line);
 
-    // Check for indented `description: text` or `description text` metadata
+    // Check for indented `description: text` metadata
     if (indent > 0) {
       const descResult = tryStripDescriptionKeyword(trimmed);
       if (descResult.isKeyword) {
+        if (descResult.needsColon) {
+          pushWarning(
+            lineNumber,
+            `Use "description: ${descResult.text}" — colon is required.`
+          );
+        }
         // Find parent node from indent stack
         const parent = findMetadataParent(indent, indentStack);
         if (parent) {

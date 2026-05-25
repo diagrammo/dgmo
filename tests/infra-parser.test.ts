@@ -810,7 +810,7 @@ infra
       const result = parseInfra(`
 infra
 APIServer
-  description Handles all REST API calls
+  description: Handles all REST API calls
 `);
       expect(result.nodes[0].description).toEqual([
         'Handles all REST API calls',
@@ -822,7 +822,7 @@ APIServer
       const result = parseInfra(`
 infra
 AuthService
-  description Handles auth: JWT and sessions
+  description: Handles auth: JWT and sessions
 `);
       expect(result.nodes[0].description).toEqual([
         'Handles auth: JWT and sessions',
@@ -833,7 +833,7 @@ AuthService
       const result = parseInfra(`
 infra
 APIServer
-  description My service
+  description: My service
   max-rps 500
 `);
       expect(result.nodes[0].description).toEqual(['My service']);
@@ -846,7 +846,7 @@ APIServer
 infra
 edge
   rps 1000
-  description This is the edge
+  description: This is the edge
   -> APIServer
 `);
       const edgeNode = result.nodes.find((n) => n.isEdge);
@@ -858,7 +858,7 @@ edge
       const result = parseInfra(`
 infra
 MyService
-  description Does things
+  description: Does things
 `);
       expect(result.diagnostics).toHaveLength(0);
     });

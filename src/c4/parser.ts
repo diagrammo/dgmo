@@ -989,6 +989,13 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     const parent = findParentElement(indent, stack);
     if (parent) {
       const descResult = tryStripDescriptionKeyword(trimmed);
+      if (descResult.needsColon) {
+        pushError(
+          lineNumber,
+          `Use "description: ${descResult.text}" — colon is required.`,
+          'warning'
+        );
+      }
       const descText = descResult.isKeyword ? descResult.text : trimmed;
       let desc = elementDescription.get(parent.element);
       if (!desc) {

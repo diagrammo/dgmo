@@ -490,10 +490,10 @@ edge
   -> MyService
 MyService
   max-rps 500
-  description Handles all REST API calls for the mobile app
+  description: Handles all REST API calls for the mobile app
 `;
       const contentNoDesc = content.replace(
-        '  description Handles all REST API calls for the mobile app\n',
+        '  description: Handles all REST API calls for the mobile app\n',
         ''
       );
       const layoutWith = layoutInfra(
@@ -519,10 +519,10 @@ edge
   -> MyService
 MyService
   max-rps 500
-  description Handles all REST API calls for the mobile app
+  description: Handles all REST API calls for the mobile app
 `;
       const contentNoDesc = content.replace(
-        '  description Handles all REST API calls for the mobile app\n',
+        '  description: Handles all REST API calls for the mobile app\n',
         ''
       );
       const layoutWith = layoutInfra(computeInfra(parseInfra(content)), null);
@@ -547,7 +547,7 @@ edge
   rps 0
   -> Lonely
 Lonely
-  description Only a description here
+  description: Only a description here
 `)
         ),
         new Set(['lonely'])
@@ -567,7 +567,7 @@ edge
   rps 1000
   -> MyService
 MyService
-  description ${longDesc}
+  description: ${longDesc}
 `)
         ),
         new Set(['myservice'])

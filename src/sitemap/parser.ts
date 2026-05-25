@@ -482,6 +482,12 @@ export function parseSitemap(
       // Check if this is a description line for a parent node
       const descResult = tryStripDescriptionKeyword(trimmed);
       if (descResult.isKeyword && indentStack.length > 0) {
+        if (descResult.needsColon) {
+          pushWarning(
+            lineNumber,
+            `Use "description: ${descResult.text}" — colon is required.`
+          );
+        }
         const parent = findParentNode(indent, indentStack);
         if (parent) {
           parent.description = [

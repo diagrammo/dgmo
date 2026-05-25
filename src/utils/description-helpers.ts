@@ -3,17 +3,21 @@
 // ============================================================
 
 /**
- * Try to strip a leading `description` keyword from a line.
- * Matches: `description text`, `description: text` (colon optional).
- * Does NOT match bare `description` with no trailing text.
+ * Try to strip a leading `description:` keyword from a line.
+ * Matches only the colon form: `description: text`.
+ * The bare form (`description text`) returns `needsColon: true`
+ * so callers can emit a diagnostic.
  */
 export function tryStripDescriptionKeyword(line: string): {
   isKeyword: boolean;
+  needsColon?: boolean;
   text: string;
 } {
-  const match = line.match(/^description\s*:?\s+(.+)$/i);
-  // Capture group 1 always exists when the regex matches.
-  if (match) return { isKeyword: true, text: match[1]! };
+  const colonMatch = line.match(/^description\s*:\s+(.+)$/i);
+  if (colonMatch) return { isKeyword: true, text: colonMatch[1]! };
+  const bareMatch = line.match(/^description\s+(.+)$/i);
+  if (bareMatch)
+    return { isKeyword: true, needsColon: true, text: bareMatch[1]! };
   return { isKeyword: false, text: line };
 }
 
