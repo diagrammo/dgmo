@@ -115,7 +115,7 @@
   "scripts": {
     "codegen": "lezer-generator src/editor/dgmo.grammar -o src/editor/dgmo.grammar.js",
     "prebuild": "rm -rf dist && pnpm codegen",
-    "build": "tsup",
+    "build": "tsup; _e=$?; rm -rf ../diagrammo-app/node_modules/.vite/deps 2>/dev/null; exit $_e",
     "typecheck": "tsc --noEmit",
     "dev": "tsup --watch",
     "pretest": "pnpm codegen",
