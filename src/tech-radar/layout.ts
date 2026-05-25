@@ -4,6 +4,7 @@ import type {
   TechRadarLayoutPoint,
   QuadrantPosition,
 } from './types';
+import { ScaleContext } from '../utils/scaling';
 
 /** Clockwise quadrant order matching global numbering. */
 const POSITION_ORDER: readonly QuadrantPosition[] = [
@@ -53,22 +54,28 @@ const MIN_BLIP_RADIUS = 7;
 export function computeRadarLayout(
   parsed: ParsedTechRadar,
   width: number,
-  height: number
+  height: number,
+  ctx?: ScaleContext
 ): TechRadarLayoutPoint[] {
   const points: TechRadarLayoutPoint[] = [];
 
   if (parsed.rings.length === 0 || parsed.quadrants.length === 0) return points;
 
+  const sc = ctx ?? ScaleContext.identity();
+  const sBlipRadius = Math.max(
+    MIN_BLIP_RADIUS,
+    sc.structural(BASE_BLIP_RADIUS)
+  );
+
   const cx = width / 2;
   const cy = height / 2;
-  const maxRadius = Math.min(cx, cy) * 0.88; // leave margin for labels
+  const maxRadius = Math.min(cx, cy) * 0.88;
   const ringCount = parsed.rings.length;
   const ringBandWidth = maxRadius / ringCount;
   const ringOrder = parsed.rings.map((r) => r.name);
 
-  // Padding from ring/quadrant boundaries (fraction of band)
   const radialPadding = ringBandWidth * 0.12;
-  const angularPadding = 0.05; // radians from quadrant dividers
+  const angularPadding = 0.05;
 
   for (const quadrant of parsed.quadrants) {
     const quadrantIndex = POSITION_ORDER.indexOf(quadrant.position);
@@ -76,7 +83,6 @@ export function computeRadarLayout(
     const usableArcStart = startAngle + angularPadding;
     const usableArcEnd = endAngle - angularPadding;
 
-    // Group blips by ring
     const blipsByRing = new Map<string, TechRadarBlip[]>();
     for (const blip of quadrant.blips) {
       const list = blipsByRing.get(blip.ring) ?? [];
@@ -86,7 +92,7 @@ export function computeRadarLayout(
 
     const blipRadius = Math.max(
       MIN_BLIP_RADIUS,
-      Math.min(BASE_BLIP_RADIUS, (ringBandWidth - 2 * radialPadding) / 3)
+      Math.min(sBlipRadius, (ringBandWidth - 2 * radialPadding) / 3)
     );
 
     for (const [ringName, blips] of blipsByRing) {

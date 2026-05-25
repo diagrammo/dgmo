@@ -50,6 +50,7 @@ import {
   rectsOverlap,
   rectCircleOverlap,
 } from './label-layout';
+import { ScaleContext } from './utils/scaling';
 
 // ============================================================
 // Types
@@ -876,7 +877,8 @@ function buildChartCommons(
 export function buildExtendedChartOption(
   parsed: ParsedExtendedChart,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  ctx?: ScaleContext
 ): EChartsOption {
   if (parsed.error) {
     // Return empty option, error will be shown separately
@@ -959,7 +961,8 @@ export function buildExtendedChartOption(
     isDark,
     textColor,
     axisLineColor,
-    titleConfig
+    titleConfig,
+    ctx
   );
 }
 
@@ -1947,8 +1950,10 @@ function buildHeatmapOption(
   isDark: boolean,
   textColor: string,
   axisLineColor: string,
-  titleConfig: EChartsOption['title']
+  titleConfig: EChartsOption['title'],
+  ctx?: ScaleContext
 ): EChartsOption {
+  const sc = ctx ?? ScaleContext.identity();
   const bg = isDark ? palette.surface : palette.bg;
   const heatmapRows = parsed.heatmapRows ?? [];
   const columns = parsed.columns ?? [];
@@ -2023,32 +2028,28 @@ function buildHeatmapOption(
   // an even share of a ~900px-wide chart.
   const CHAR_WIDTH = 7;
   const ESTIMATED_CHART_WIDTH = 900;
+  const scaledChartWidth = sc.structural(ESTIMATED_CHART_WIDTH);
   const longestCol = Math.max(...columns.map((c) => c.length), 0);
   const slotWidth =
-    columns.length > 0 ? ESTIMATED_CHART_WIDTH / columns.length : Infinity;
+    columns.length > 0 ? scaledChartWidth / columns.length : Infinity;
   const needsRotation = longestCol * CHAR_WIDTH > slotWidth * 0.85;
 
-  // Cell-label font sizing: target ~75% fill of cell, bounded by both height
-  // and per-character width (longest value drives width). Estimates assume
-  // a ~900×500 chart; ECharts scales the actual plot to its container, so
-  // these picks are approximate but stable across typical viewports.
   const ESTIMATED_PLOT_W = 770;
   const ESTIMATED_PLOT_H = 380;
-  const cellW =
-    columns.length > 0 ? ESTIMATED_PLOT_W / columns.length : ESTIMATED_PLOT_W;
+  const scaledPlotW = sc.structural(ESTIMATED_PLOT_W);
+  const scaledPlotH = sc.structural(ESTIMATED_PLOT_H);
+  const cellW = columns.length > 0 ? scaledPlotW / columns.length : scaledPlotW;
   const cellH =
-    heatmapRows.length > 0
-      ? ESTIMATED_PLOT_H / heatmapRows.length
-      : ESTIMATED_PLOT_H;
+    heatmapRows.length > 0 ? scaledPlotH / heatmapRows.length : scaledPlotH;
   const maxValueChars = Math.max(
     1,
     ...heatmapRows.flatMap((r) => r.values.map((v) => String(v).length))
   );
-  // Bold sans glyphs: width ≈ 0.55em, cap-height ≈ 0.72em.
   const fontFromWidth = (cellW * 0.75) / (maxValueChars * 0.55);
   const fontFromHeight = (cellH * 0.75) / 0.72;
+  const cellFontFloor = sc.text(16);
   const labelFontSize = Math.max(
-    16,
+    cellFontFloor,
     Math.min(72, Math.floor(Math.min(fontFromWidth, fontFromHeight)))
   );
 
@@ -2074,7 +2075,7 @@ function buildHeatmapOption(
       },
       axisLabel: {
         color: textColor,
-        fontSize: 12,
+        fontSize: sc.text(12),
         interval: 0,
         ...(needsRotation && {
           rotate: -45,
@@ -2095,7 +2096,7 @@ function buildHeatmapOption(
       },
       axisLabel: {
         color: textColor,
-        fontSize: 12,
+        fontSize: sc.text(12),
         interval: 0,
       },
     },
@@ -3264,7 +3265,7 @@ function buildBarStackedOption(
 // ECharts SSR Export
 // ============================================================
 
-const ECHART_EXPORT_WIDTH = 1200;
+export const ECHART_EXPORT_WIDTH = 1200;
 const ECHART_EXPORT_HEIGHT = 800;
 
 // Standard chart types handled by buildSimpleChartOption (via parseChart)
@@ -3327,7 +3328,12 @@ export async function renderExtendedChartForExport(
   } else {
     const parsed = parseExtendedChart(content, effectivePalette);
     if (parsed.error) return '';
-    option = buildExtendedChartOption(parsed, effectivePalette, isDark);
+    option = buildExtendedChartOption(
+      parsed,
+      effectivePalette,
+      isDark,
+      ScaleContext.identity()
+    );
     legendGroups = getExtendedChartLegendGroups(parsed, colors);
   }
   if (!option || Object.keys(option).length === 0) return '';

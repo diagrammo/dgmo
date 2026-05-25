@@ -23,6 +23,7 @@ import {
   DIM_OPACITY,
   TREND_ITEMS,
 } from './shared';
+import { ScaleContext } from '../utils/scaling';
 import { renderQuadrantFocus } from './interactive';
 import { renderLegendD3 } from '../utils/legend-d3';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
@@ -116,15 +117,38 @@ export function renderTechRadar(
   // Otherwise: runtime option wins; falls back to the `show-blip-legend` directive in source.
   const directiveOn = parsed.options['show-blip-legend'] === 'on';
   const showListing = exportDims ? true : (options?.showListing ?? directiveOn);
-  const listingHeight = showListing ? estimateListingHeight(parsed) : 0;
 
   const init = initRadarSvg(container, palette, exportDims);
   if (!init) return;
   const { svg, width, height, textColor, mutedColor } = init;
 
+  const colCount = parsed.quadrants.length;
+  const listingIdealWidth = colCount * 200 + LISTING_COL_GAP * (colCount + 1);
+  const radarIdealWidth = 500;
+  const idealWidth = Math.max(listingIdealWidth, radarIdealWidth);
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  const sBlipRadius = ctx.structural(BLIP_RADIUS);
+  const sBlipFontSize = ctx.text(BLIP_FONT_SIZE);
+  const sRingLabelFontSize = ctx.text(RING_LABEL_FONT_SIZE);
+  const sQuadrantLabelFontSize = ctx.text(QUADRANT_LABEL_FONT_SIZE);
+  const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
+  const sListingFontSize = ctx.text(LISTING_FONT_SIZE);
+  const sListingHeaderFontSize = ctx.text(LISTING_HEADER_FONT_SIZE);
+  const sListingTopMargin = ctx.aesthetic(LISTING_TOP_MARGIN);
+  const sListingColGap = ctx.aesthetic(LISTING_COL_GAP);
+  const sListingLineHeight = ctx.structural(LISTING_LINE_HEIGHT);
+  const sListingBlipR = ctx.structural(LISTING_BLIP_R);
+
+  const listingHeight = showListing
+    ? estimateListingHeight(parsed, sListingLineHeight, sListingTopMargin)
+    : 0;
+
   const radarHeight = Math.max(
     200,
-    height - listingHeight - (showListing ? LISTING_TOP_MARGIN : 0)
+    height - listingHeight - (showListing ? sListingTopMargin : 0)
   );
   const radarWidth = width;
 
@@ -139,7 +163,7 @@ export function renderTechRadar(
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', 'bold')
       .text(parsed.title);
   }
@@ -250,6 +274,10 @@ export function renderTechRadar(
     .append('g')
     .attr('transform', `translate(0, ${offsetY})`);
 
+  if (ctx.isBelowFloor) {
+    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+  }
+
   // ── Ring segments (per quadrant arc slices for hover highlighting) ──
   for (let ri = parsed.rings.length - 1; ri >= 0; ri--) {
     const innerR = ri * ringBandWidth;
@@ -314,7 +342,7 @@ export function renderTechRadar(
         .attr('dominant-baseline', 'central')
         .attr('fill', textColor)
         .attr('font-family', FONT_FAMILY)
-        .attr('font-size', RING_LABEL_FONT_SIZE)
+        .attr('font-size', sRingLabelFontSize)
         .attr('font-weight', '600')
         .attr('opacity', 0.5)
         // In-bounds by loop guard (ri < parsed.rings.length).
@@ -329,7 +357,7 @@ export function renderTechRadar(
         .attr('dominant-baseline', 'central')
         .attr('fill', textColor)
         .attr('font-family', FONT_FAMILY)
-        .attr('font-size', RING_LABEL_FONT_SIZE)
+        .attr('font-size', sRingLabelFontSize)
         .attr('font-weight', '600')
         .attr('opacity', 0.5)
         // In-bounds by loop guard (ri < parsed.rings.length).
@@ -344,7 +372,7 @@ export function renderTechRadar(
         .attr('dominant-baseline', 'central')
         .attr('fill', textColor)
         .attr('font-family', FONT_FAMILY)
-        .attr('font-size', RING_LABEL_FONT_SIZE)
+        .attr('font-size', sRingLabelFontSize)
         .attr('font-weight', '600')
         .attr('opacity', 0.5)
         // In-bounds by loop guard (ri < parsed.rings.length).
@@ -376,7 +404,8 @@ export function renderTechRadar(
       labelY,
       anchor,
       qColor,
-      maxRadius * 0.9
+      maxRadius * 0.9,
+      sQuadrantLabelFontSize
     );
   }
 
@@ -398,7 +427,8 @@ export function renderTechRadar(
   const layoutPoints = computeRadarLayout(
     parsed,
     radarAreaWidth,
-    radarAreaHeight
+    radarAreaHeight,
+    ctx
   );
 
   // Rich popover for blip details
@@ -459,7 +489,7 @@ export function renderTechRadar(
       qColor,
       point.x,
       point.y,
-      BLIP_RADIUS,
+      sBlipRadius,
       angleToCenter
     );
 
@@ -471,7 +501,7 @@ export function renderTechRadar(
       .attr('text-anchor', 'middle')
       .attr('fill', isDark ? '#000' : '#fff')
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', BLIP_FONT_SIZE)
+      .attr('font-size', sBlipFontSize)
       .attr('font-weight', 'bold')
       .text(point.blip.globalNumber);
 
@@ -614,9 +644,14 @@ export function renderTechRadar(
       palette,
       isDark,
       textColor,
-      radarHeight + LISTING_TOP_MARGIN,
+      radarHeight + sListingTopMargin,
       width,
-      onClickItem
+      onClickItem,
+      sListingFontSize,
+      sListingHeaderFontSize,
+      sListingColGap,
+      sListingLineHeight,
+      sListingBlipR
     );
   }
 }
@@ -635,12 +670,17 @@ function renderBlipListing(
   textColor: string,
   startY: number,
   totalWidth: number,
-  onClickItem?: (lineNumber: number) => void
+  onClickItem?: (lineNumber: number) => void,
+  sListingFontSize = LISTING_FONT_SIZE,
+  sListingHeaderFontSize = LISTING_HEADER_FONT_SIZE,
+  sListingColGap = LISTING_COL_GAP,
+  sListingLineHeight = LISTING_LINE_HEIGHT,
+  sListingBlipR = LISTING_BLIP_R
 ): void {
   const colCount = parsed.quadrants.length;
   if (colCount === 0) return;
 
-  const colWidth = (totalWidth - LISTING_COL_GAP * (colCount + 1)) / colCount;
+  const colWidth = (totalWidth - sListingColGap * (colCount + 1)) / colCount;
 
   // Sort quadrants in POSITION_ORDER
   const sortedQuadrants = [...parsed.quadrants].sort(
@@ -656,7 +696,7 @@ function renderBlipListing(
       quadrant.color,
       palette
     );
-    const colX = LISTING_COL_GAP + ci * (colWidth + LISTING_COL_GAP);
+    const colX = sListingColGap + ci * (colWidth + sListingColGap);
     let y = startY;
 
     // Column header — hover highlights entire quadrant on radar
@@ -666,7 +706,7 @@ function renderBlipListing(
       .attr('y', y)
       .attr('fill', qColor)
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', LISTING_HEADER_FONT_SIZE)
+      .attr('font-size', sListingHeaderFontSize)
       .attr('font-weight', 'bold')
       .style('cursor', 'pointer')
       .text(quadrant.name);
@@ -689,7 +729,7 @@ function renderBlipListing(
           .style('opacity', '1');
       });
 
-    y += LISTING_LINE_HEIGHT + 6;
+    y += sListingLineHeight + 6;
 
     // Sort blips by globalNumber
     const sortedBlips = [...quadrant.blips].sort(
@@ -705,21 +745,17 @@ function renderBlipListing(
         .attr('data-trend', blip.trend ?? 'stable')
         .style('cursor', onClickItem ? 'pointer' : 'default');
 
-      const blipCx = colX + LISTING_BLIP_R;
-      const blipCy = y - LISTING_BLIP_R + 2;
+      const blipCx = colX + sListingBlipR;
+      const blipCy = y - sListingBlipR + 2;
 
-      // Mini blip circle with trend indicator
-      // angleToCenter convention: "up" means center is above (angle = -π/2 in SVG)
-      // "down" means center is below (angle = π/2 in SVG)
-      // The shared renderer flips for "down", so we pass the "toward center" angle
-      const trendAngle = -Math.PI / 2; // "center" is always up for listing context
+      const trendAngle = -Math.PI / 2;
       renderTrendIndicator(
         itemGroup,
         blip.trend,
         qColor,
         blipCx,
         blipCy,
-        LISTING_BLIP_R,
+        sListingBlipR,
         trendAngle
       );
 
@@ -736,10 +772,10 @@ function renderBlipListing(
         .text(blip.globalNumber);
 
       // Blip name + ring — truncated to fit column width
-      const textX = colX + LISTING_BLIP_R * 2 + 6;
-      const availableWidth = colWidth - LISTING_BLIP_R * 2 - 8;
+      const textX = colX + sListingBlipR * 2 + 6;
+      const availableWidth = colWidth - sListingBlipR * 2 - 8;
       const fullLabel = `${blip.name} (${blip.ring})`;
-      const label = truncateLabel(fullLabel, availableWidth, LISTING_FONT_SIZE);
+      const label = truncateLabel(fullLabel, availableWidth, sListingFontSize);
 
       itemGroup
         .append('text')
@@ -747,7 +783,7 @@ function renderBlipListing(
         .attr('y', y)
         .attr('fill', textColor)
         .attr('font-family', FONT_FAMILY)
-        .attr('font-size', LISTING_FONT_SIZE)
+        .attr('font-size', sListingFontSize)
         .text(label);
 
       // Cross-highlight: hover listing blip → highlight + scale up radar blip
@@ -788,7 +824,7 @@ function renderBlipListing(
         itemGroup.on('click', () => onClickItem(blip.lineNumber));
       }
 
-      y += LISTING_LINE_HEIGHT;
+      y += sListingLineHeight;
     }
   }
 }
@@ -912,16 +948,16 @@ function buildArcSlicePath(
 // Trend Items (used by legend group entries)
 // ============================================================
 
-function estimateListingHeight(parsed: ParsedTechRadar): number {
+function estimateListingHeight(
+  parsed: ParsedTechRadar,
+  lineHeight = LISTING_LINE_HEIGHT,
+  topMargin = LISTING_TOP_MARGIN
+): number {
   const maxBlipsInQuadrant = Math.max(
     0,
     ...parsed.quadrants.map((q) => q.blips.length)
   );
-  return (
-    LISTING_LINE_HEIGHT * (maxBlipsInQuadrant + 1) +
-    LISTING_LINE_HEIGHT +
-    LISTING_TOP_MARGIN
-  );
+  return lineHeight * (maxBlipsInQuadrant + 1) + lineHeight + topMargin;
 }
 
 // ============================================================
@@ -1120,9 +1156,10 @@ function renderQuadrantLabel(
   y: number,
   anchor: string,
   color: string,
-  maxWidth: number
+  maxWidth: number,
+  baseFontSize = QUADRANT_LABEL_FONT_SIZE
 ): void {
-  const avgCharWidth = QUADRANT_LABEL_FONT_SIZE * 0.58;
+  const avgCharWidth = baseFontSize * 0.58;
   const maxCharsPerLine = Math.floor(maxWidth / avgCharWidth);
 
   // Split into words and wrap
@@ -1146,8 +1183,8 @@ function renderQuadrantLabel(
   const estimatedWidth = longestLine * avgCharWidth;
   const fontSize =
     estimatedWidth > maxWidth
-      ? Math.max(12, QUADRANT_LABEL_FONT_SIZE * (maxWidth / estimatedWidth))
-      : QUADRANT_LABEL_FONT_SIZE;
+      ? Math.max(12, baseFontSize * (maxWidth / estimatedWidth))
+      : baseFontSize;
 
   const lineHeight = fontSize * 1.2;
 

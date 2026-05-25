@@ -1,0 +1,84 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { JSDOM } from 'jsdom';
+import { renderForExport } from '../src/d3';
+import { renderExtendedChartForExport } from '../src/echarts';
+import { nordPalette } from '../src/palettes/nord';
+
+beforeAll(() => {
+  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+  const win = dom.window;
+  Object.defineProperty(globalThis, 'document', {
+    value: win.document,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'window', {
+    value: win,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    value: win.navigator,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'HTMLElement', {
+    value: win.HTMLElement,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'SVGElement', {
+    value: win.SVGElement,
+    configurable: true,
+  });
+});
+
+const fix = (name: string) =>
+  readFileSync(resolve(__dirname, `../gallery/fixtures/${name}`), 'utf-8');
+
+const fixTest = (name: string) =>
+  readFileSync(resolve(__dirname, `fixtures/${name}`), 'utf-8');
+
+const palette = nordPalette.light;
+
+describe('scaling baselines — ideal size (pre-renderer-change regression guard)', () => {
+  it('sequence baseline', async () => {
+    const svg = await renderForExport(fix('sequence.dgmo'), 'light', palette);
+    expect(svg).toMatchSnapshot();
+  });
+
+  it('raci baseline', async () => {
+    const svg = await renderForExport(
+      fix('raci/voyage-operations.dgmo'),
+      'light',
+      palette
+    );
+    expect(svg).toMatchSnapshot();
+  });
+
+  it('mindmap baseline', async () => {
+    const svg = await renderForExport(
+      fixTest('mindmap/basic.dgmo'),
+      'light',
+      palette
+    );
+    expect(svg).toMatchSnapshot();
+  });
+
+  it('tech-radar baseline', async () => {
+    const svg = await renderForExport(fix('tech-radar.dgmo'), 'light', palette);
+    expect(svg).toMatchSnapshot();
+  });
+
+  it('heatmap baseline', async () => {
+    const svg = await renderExtendedChartForExport(
+      fix('heatmap.dgmo'),
+      'light',
+      palette
+    );
+    expect(svg).toMatchSnapshot();
+  });
+
+  it('arc baseline', async () => {
+    const svg = await renderForExport(fix('arc.dgmo'), 'light', palette);
+    expect(svg).toMatchSnapshot();
+  });
+});

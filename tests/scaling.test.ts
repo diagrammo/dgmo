@@ -1,0 +1,193 @@
+import { describe, it, expect } from 'vitest';
+import { ScaleContext, computeMinDimensions } from '../src/utils/scaling';
+
+describe('ScaleContext', () => {
+  describe('identity()', () => {
+    const ctx = ScaleContext.identity();
+
+    it('has factor 1.0', () => {
+      expect(ctx.factor).toBe(1);
+    });
+
+    it('is not below floor', () => {
+      expect(ctx.isBelowFloor).toBe(false);
+    });
+
+    it('returns values unchanged', () => {
+      expect(ctx.aesthetic(100)).toBe(100);
+      expect(ctx.structural(160)).toBe(160);
+      expect(ctx.text(14)).toBe(14);
+    });
+  });
+
+  describe('from() at factor = 1.0 (container == ideal)', () => {
+    const ctx = ScaleContext.from(800, 800);
+
+    it('returns values unchanged', () => {
+      expect(ctx.factor).toBe(1);
+      expect(ctx.aesthetic(100)).toBe(100);
+      expect(ctx.structural(160)).toBe(160);
+      expect(ctx.text(14)).toBe(14);
+    });
+  });
+
+  describe('from() at factor = 0.75', () => {
+    const ctx = ScaleContext.from(600, 800);
+
+    it('has factor 0.75', () => {
+      expect(ctx.factor).toBe(0.75);
+    });
+
+    it('is not below floor', () => {
+      expect(ctx.isBelowFloor).toBe(false);
+    });
+
+    it('aesthetic compresses more than structural', () => {
+      const aesthetic = ctx.aesthetic(100);
+      const structural = ctx.structural(100);
+      expect(aesthetic).toBeLessThan(structural);
+    });
+
+    it('aesthetic uses factor^1.5', () => {
+      expect(ctx.aesthetic(100)).toBeCloseTo(100 * 0.75 ** 1.5, 10);
+    });
+
+    it('structural uses linear factor', () => {
+      expect(ctx.structural(100)).toBeCloseTo(75, 10);
+    });
+
+    it('text scales linearly above floor', () => {
+      expect(ctx.text(14)).toBeCloseTo(10.5, 10);
+    });
+  });
+
+  describe('from() at factor = 0.5 (text floor)', () => {
+    const ctx = ScaleContext.from(400, 800);
+
+    it('has factor 0.5', () => {
+      expect(ctx.factor).toBe(0.5);
+    });
+
+    it('is at floor boundary', () => {
+      expect(ctx.isBelowFloor).toBe(true);
+    });
+
+    it('clamps text at 9px floor', () => {
+      expect(ctx.text(14)).toBe(9);
+      expect(ctx.text(18)).toBe(9);
+    });
+
+    it('preserves text already at floor', () => {
+      expect(ctx.text(9)).toBe(9);
+    });
+
+    it('allows custom text floor', () => {
+      expect(ctx.text(14, 7)).toBe(7);
+    });
+  });
+
+  describe('from() below min scale factor (container much smaller than ideal)', () => {
+    const ctx = ScaleContext.from(200, 800);
+
+    it('clamps factor at minScaleFactor (0.5)', () => {
+      expect(ctx.factor).toBe(0.5);
+    });
+
+    it('is below floor', () => {
+      expect(ctx.isBelowFloor).toBe(true);
+    });
+  });
+
+  describe('from() with container larger than ideal', () => {
+    const ctx = ScaleContext.from(1200, 800);
+
+    it('clamps factor at 1.0', () => {
+      expect(ctx.factor).toBe(1);
+    });
+
+    it('returns values unchanged', () => {
+      expect(ctx.aesthetic(100)).toBe(100);
+      expect(ctx.structural(160)).toBe(160);
+      expect(ctx.text(14)).toBe(14);
+    });
+  });
+
+  describe('custom minScaleFactor', () => {
+    const ctx = ScaleContext.from(200, 800, 0.3);
+
+    it('clamps at custom min', () => {
+      expect(ctx.factor).toBe(0.3);
+    });
+
+    it('is below floor at custom min', () => {
+      expect(ctx.isBelowFloor).toBe(true);
+    });
+  });
+
+  describe('edge case: idealSize = 0', () => {
+    const ctx = ScaleContext.from(800, 0);
+
+    it('returns identity', () => {
+      expect(ctx.factor).toBe(1);
+    });
+  });
+});
+
+describe('computeMinDimensions', () => {
+  it('returns content-dependent dimensions for sequence', () => {
+    const result = computeMinDimensions('sequence', {
+      participants: 4,
+      messages: 10,
+    });
+    expect(result.width).toBe(320);
+    expect(result.height).toBe(320);
+  });
+
+  it('scales sequence width with participant count', () => {
+    const small = computeMinDimensions('sequence', { participants: 2 });
+    const large = computeMinDimensions('sequence', { participants: 8 });
+    expect(large.width).toBeGreaterThan(small.width);
+  });
+
+  it('returns content-dependent dimensions for raci', () => {
+    const result = computeMinDimensions('raci', { roles: 5, tasks: 8 });
+    expect(result.width).toBe(430);
+    expect(result.height).toBe(304);
+  });
+
+  it('returns content-dependent dimensions for mindmap', () => {
+    const result = computeMinDimensions('mindmap', { nodes: 15, depth: 4 });
+    expect(result.width).toBe(450);
+    expect(result.height).toBe(240);
+  });
+
+  it('returns fixed dimensions for tech-radar', () => {
+    const result = computeMinDimensions('tech-radar', { blips: 27 });
+    expect(result.width).toBe(360);
+    expect(result.height).toBe(400);
+  });
+
+  it('returns content-dependent dimensions for heatmap', () => {
+    const result = computeMinDimensions('heatmap', { columns: 6, rows: 5 });
+    expect(result.width).toBe(300);
+    expect(result.height).toBe(210);
+  });
+
+  it('returns content-dependent dimensions for arc', () => {
+    const result = computeMinDimensions('arc', { nodes: 10 });
+    expect(result.width).toBe(300);
+    expect(result.height).toBe(320);
+  });
+
+  it('returns default fallback for unknown chart type', () => {
+    const result = computeMinDimensions('unknown-chart', {});
+    expect(result.width).toBe(300);
+    expect(result.height).toBe(200);
+  });
+
+  it('returns default when counts are missing', () => {
+    const result = computeMinDimensions('sequence', {});
+    expect(result.width).toBe(320);
+    expect(result.height).toBe(200);
+  });
+});

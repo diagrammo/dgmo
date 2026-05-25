@@ -208,6 +208,12 @@ export { palettes, getPalette } from './palettes';
 export { themes, type Theme } from './themes';
 
 // ============================================================
+// getMinDimensions(text)
+// ============================================================
+
+export { getMinDimensions } from './dimensions';
+
+// ============================================================
 // Public types
 // ============================================================
 

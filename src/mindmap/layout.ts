@@ -18,6 +18,7 @@ import type { PaletteColors } from '../palettes';
 import type { TagGroup } from '../utils/tag-groups';
 import { resolveTagColor, injectDefaultTagMetadata } from '../utils/tag-groups';
 import { computeNodeText } from './text-wrap';
+import { ScaleContext } from '../utils/scaling';
 
 // ============================================================
 // Constants
@@ -36,6 +37,16 @@ const H_GAP = 40; // horizontal gap between parent edge and child edge
 const V_GAP = 12; // vertical gap between sibling nodes
 const MARGIN = 40;
 const MULTI_ROOT_GAP = 60; // horizontal gap between independent root trees
+
+interface ScaledConstants {
+  rootWidth: number;
+  depth1Width: number;
+  leafWidth: number;
+  hGap: number;
+  vGap: number;
+  margin: number;
+  multiRootGap: number;
+}
 
 // ============================================================
 // Direction — which side a subtree grows toward
@@ -70,6 +81,7 @@ export function layoutMindmap(
     hiddenCounts?: Map<string, number>;
     activeTagGroup?: string | null;
     hideDescriptions?: boolean;
+    ctx?: ScaleContext;
   }
 ): MindmapLayoutResult {
   const roots = parsed.roots;
@@ -80,11 +92,20 @@ export function layoutMindmap(
   const hiddenCounts = options?.hiddenCounts ?? new Map<string, number>();
   const activeTagGroup = options?.activeTagGroup ?? null;
   const hideDescriptions = options?.hideDescriptions ?? false;
+  const ctx = options?.ctx ?? ScaleContext.identity();
 
-  // Populate depth cache for nodeHeight() wrapping calculations
+  const sc: ScaledConstants = {
+    rootWidth: ctx.structural(ROOT_WIDTH),
+    depth1Width: ctx.structural(DEPTH1_WIDTH),
+    leafWidth: ctx.structural(LEAF_WIDTH),
+    hGap: ctx.aesthetic(H_GAP),
+    vGap: ctx.aesthetic(V_GAP),
+    margin: ctx.aesthetic(MARGIN),
+    multiRootGap: ctx.aesthetic(MULTI_ROOT_GAP),
+  };
+
   populateDepthCache(roots);
 
-  // Inject default tag metadata (idempotent — fills empty metadata keys)
   const allNodes: MindmapNode[] = [];
   const collectAll = (nodes: readonly MindmapNode[]) => {
     for (const n of nodes) {
@@ -95,18 +116,16 @@ export function layoutMindmap(
   collectAll(roots);
   injectDefaultTagMetadata(allNodes, parsed.tagGroups);
 
-  // Color resolution happens in finalize() per layout node — NOT by mutating parsed nodes.
-  // This allows tag group switching to recolor correctly.
   const tagGroups = parsed.tagGroups;
 
   if (roots.length === 1) {
     return layoutSingleRoot(
-      // In-bounds: roots.length === 1 from condition above.
       roots[0]!,
       hiddenCounts,
       hideDescriptions,
       tagGroups,
-      activeTagGroup
+      activeTagGroup,
+      sc
     );
   }
   return layoutMultiRoot(
@@ -115,7 +134,8 @@ export function layoutMindmap(
     hiddenCounts,
     hideDescriptions,
     tagGroups,
-    activeTagGroup
+    activeTagGroup,
+    sc
   );
 }
 
@@ -128,26 +148,30 @@ function layoutSingleRoot(
   hiddenCounts: Map<string, number>,
   hideDescriptions: boolean,
   tagGroups: readonly TagGroup[] = [],
-  activeTagGroup: string | null = null
+  activeTagGroup: string | null = null,
+  sc: ScaledConstants
 ): MindmapLayoutResult {
   const positioned: PositionedNode[] = [];
-  const rootW = nodeWidth(0);
-  const rootH = nodeHeight(root, hideDescriptions);
+  const rootW = nodeWidthS(0, sc);
+  const rootH = nodeHeightS(root, hideDescriptions, sc);
 
-  // Split children into right and left sides, balancing by subtree weight
   const children = root.children;
-  const { right: rightChildren, left: leftChildren } = balancedSplit(
+  const { right: rightChildren, left: leftChildren } = balancedSplitS(
     children,
-    hideDescriptions
+    hideDescriptions,
+    sc
   );
 
-  // Compute subtree heights for each side
-  const rightHeight = computeGroupHeight(rightChildren, 1, hideDescriptions);
-  const leftHeight = computeGroupHeight(leftChildren, 1, hideDescriptions);
+  const rightHeight = computeGroupHeightS(
+    rightChildren,
+    1,
+    hideDescriptions,
+    sc
+  );
+  const leftHeight = computeGroupHeightS(leftChildren, 1, hideDescriptions, sc);
   const maxSideHeight = Math.max(rightHeight, leftHeight, rootH);
 
-  // Root position: centered vertically
-  const rootX = 0; // will be offset later
+  const rootX = 0;
   const rootY = maxSideHeight / 2 - rootH / 2;
 
   positioned.push({
@@ -161,39 +185,39 @@ function layoutSingleRoot(
     subtreeHeight: maxSideHeight,
   });
 
-  // Layout right side
   const rootCenterY = rootY + rootH / 2;
-  const rightStartX = rootX + rootW + H_GAP;
-  layoutSide(
+  const rightStartX = rootX + rootW + sc.hGap;
+  layoutSideS(
     rightChildren,
     rightStartX,
     rootCenterY,
     1,
     'right',
     hideDescriptions,
-    positioned
+    positioned,
+    sc
   );
 
-  // Layout left side
-  const leftStartX = rootX - H_GAP;
-  layoutSide(
+  const leftStartX = rootX - sc.hGap;
+  layoutSideS(
     leftChildren,
     leftStartX,
     rootCenterY,
     1,
     'left',
     hideDescriptions,
-    positioned
+    positioned,
+    sc
   );
 
-  // Compute bounding box and normalize to positive coordinates
-  return finalize(
+  return finalizeS(
     positioned,
     hiddenCounts,
     hideDescriptions,
     root,
     tagGroups,
-    activeTagGroup
+    activeTagGroup,
+    sc
   );
 }
 
@@ -207,7 +231,8 @@ function layoutMultiRoot(
   hiddenCounts: Map<string, number>,
   hideDescriptions: boolean,
   tagGroups: readonly TagGroup[],
-  activeTagGroup: string | null
+  activeTagGroup: string | null,
+  sc: ScaledConstants
 ): MindmapLayoutResult {
   const subResults: MindmapLayoutResult[] = [];
   for (const r of roots) {
@@ -217,14 +242,15 @@ function layoutMultiRoot(
         hiddenCounts,
         hideDescriptions,
         tagGroups,
-        activeTagGroup
+        activeTagGroup,
+        sc
       )
     );
   }
 
   const totalWidth =
     subResults.reduce((sum, r) => sum + r.width, 0) +
-    MULTI_ROOT_GAP * (subResults.length - 1);
+    sc.multiRootGap * (subResults.length - 1);
   const maxHeight = Math.max(...subResults.map((r) => r.height));
 
   const allNodes: MindmapLayoutNode[] = [];
@@ -237,14 +263,13 @@ function layoutMultiRoot(
       allNodes.push({ ...n, x: n.x + xOffset, y: n.y + yOffset });
     }
     for (const e of sub.edges) {
-      // Offset all coordinates in the path string
       allEdges.push({
         sourceId: e.sourceId,
         targetId: e.targetId,
         path: offsetPath(e.path, xOffset, yOffset),
       });
     }
-    xOffset += sub.width + MULTI_ROOT_GAP;
+    xOffset += sub.width + sc.multiRootGap;
   }
 
   return {
@@ -259,26 +284,31 @@ function layoutMultiRoot(
 // Recursive side layout
 // ============================================================
 
-function layoutSide(
+function layoutSideS(
   children: readonly MindmapNode[],
   startX: number,
   parentCenterY: number,
   depth: number,
   direction: Direction,
   hideDescriptions: boolean,
-  positioned: PositionedNode[]
+  positioned: PositionedNode[],
+  sc: ScaledConstants
 ): void {
   if (children.length === 0) return;
 
-  const groupHeight = computeGroupHeight(children, depth, hideDescriptions);
+  const groupHeight = computeGroupHeightS(
+    children,
+    depth,
+    hideDescriptions,
+    sc
+  );
   let currentY = parentCenterY - groupHeight / 2;
 
   for (const child of children) {
-    const w = nodeWidth(depth);
-    const h = nodeHeight(child, hideDescriptions);
-    const subtreeH = computeSubtreeHeight(child, depth, hideDescriptions);
+    const w = nodeWidthS(depth, sc);
+    const h = nodeHeightS(child, hideDescriptions, sc);
+    const subtreeH = computeSubtreeHeightS(child, depth, hideDescriptions, sc);
 
-    // Node is vertically centered within its subtree allocation
     const nodeY = currentY + subtreeH / 2 - h / 2;
     const nodeX = direction === 'right' ? startX : startX - w;
 
@@ -293,22 +323,23 @@ function layoutSide(
       subtreeHeight: subtreeH,
     });
 
-    // Recurse into children
     if (child.children.length > 0) {
       const childCenterY = nodeY + h / 2;
-      const nextX = direction === 'right' ? nodeX + w + H_GAP : nodeX - H_GAP;
-      layoutSide(
+      const nextX =
+        direction === 'right' ? nodeX + w + sc.hGap : nodeX - sc.hGap;
+      layoutSideS(
         child.children,
         nextX,
         childCenterY,
         depth + 1,
         direction,
         hideDescriptions,
-        positioned
+        positioned,
+        sc
       );
     }
 
-    currentY += subtreeH + V_GAP;
+    currentY += subtreeH + sc.vGap;
   }
 }
 
@@ -316,33 +347,34 @@ function layoutSide(
 // Height computation
 // ============================================================
 
-/** Total height of a group of siblings (including their subtrees) */
-function computeGroupHeight(
+function computeGroupHeightS(
   children: readonly MindmapNode[],
   depth: number,
-  hideDescriptions: boolean
+  hideDescriptions: boolean,
+  sc: ScaledConstants
 ): number {
   if (children.length === 0) return 0;
   let total = 0;
   for (const child of children) {
-    total += computeSubtreeHeight(child, depth, hideDescriptions);
+    total += computeSubtreeHeightS(child, depth, hideDescriptions, sc);
   }
-  total += V_GAP * (children.length - 1);
+  total += sc.vGap * (children.length - 1);
   return total;
 }
 
-/** Height of a single node's subtree (the node + its descendants stacked vertically) */
-function computeSubtreeHeight(
+function computeSubtreeHeightS(
   node: MindmapNode,
   depth: number,
-  hideDescriptions: boolean
+  hideDescriptions: boolean,
+  sc: ScaledConstants
 ): number {
-  const h = nodeHeight(node, hideDescriptions);
+  const h = nodeHeightS(node, hideDescriptions, sc);
   if (node.children.length === 0) return h;
-  const childrenHeight = computeGroupHeight(
+  const childrenHeight = computeGroupHeightS(
     node.children,
     depth + 1,
-    hideDescriptions
+    hideDescriptions,
+    sc
   );
   return Math.max(h, childrenHeight);
 }
@@ -361,15 +393,15 @@ function resolveNodeColor(
   return resolveTagColor(node.metadata, [...tagGroups], activeGroupName);
 }
 
-function finalize(
+function finalizeS(
   positioned: PositionedNode[],
   hiddenCounts: Map<string, number>,
   _hideDescriptions: boolean,
   _rootMindmapNode: MindmapNode,
   tagGroups: readonly TagGroup[] = [],
-  activeTagGroup: string | null = null
+  activeTagGroup: string | null = null,
+  sc: ScaledConstants
 ): MindmapLayoutResult {
-  // Compute bounding box
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
@@ -381,10 +413,10 @@ function finalize(
     maxY = Math.max(maxY, p.y + p.height);
   }
 
-  const offsetX = -minX + MARGIN;
-  const offsetY = -minY + MARGIN;
-  const totalWidth = maxX - minX + MARGIN * 2;
-  const totalHeight = maxY - minY + MARGIN * 2;
+  const offsetX = -minX + sc.margin;
+  const offsetY = -minY + sc.margin;
+  const totalWidth = maxX - minX + sc.margin * 2;
+  const totalHeight = maxY - minY + sc.margin * 2;
 
   // Build node index for edge generation
   const nodeMap = new Map<string, PositionedNode>();
@@ -511,26 +543,24 @@ function finalize(
  * Preserves source order on each side. Alternating assignment to the
  * lighter side keeps both sides visually balanced.
  */
-function balancedSplit(
+function balancedSplitS(
   children: readonly MindmapNode[],
-  hideDescriptions: boolean
+  hideDescriptions: boolean,
+  sc: ScaledConstants
 ): { right: MindmapNode[]; left: MindmapNode[] } {
   if (children.length <= 1) {
     return { right: [...children], left: [] };
   }
   if (children.length === 2) {
-    // In-bounds: children.length === 2.
     return { right: [children[0]!], left: [children[1]!] };
   }
 
-  // Compute subtree heights for weighting
   const weights = children.map((c, i) => ({
     index: i,
     node: c,
-    height: computeSubtreeHeight(c, 1, hideDescriptions),
+    height: computeSubtreeHeightS(c, 1, hideDescriptions, sc),
   }));
 
-  // Greedy assignment: iterate in source order, assign each to the lighter side
   const right: MindmapNode[] = [];
   const left: MindmapNode[] = [];
   let rightWeight = 0;
@@ -562,15 +592,19 @@ function offsetPath(path: string, dx: number, dy: number): string {
 // Node sizing
 // ============================================================
 
-function nodeWidth(depth: number): number {
-  if (depth === 0) return ROOT_WIDTH;
-  if (depth === 1) return DEPTH1_WIDTH;
-  return LEAF_WIDTH;
+function nodeWidthS(depth: number, sc: ScaledConstants): number {
+  if (depth === 0) return sc.rootWidth;
+  if (depth === 1) return sc.depth1Width;
+  return sc.leafWidth;
 }
 
-function nodeHeight(node: MindmapNode, hideDescriptions: boolean): number {
+function nodeHeightS(
+  node: MindmapNode,
+  hideDescriptions: boolean,
+  sc: ScaledConstants
+): number {
   const depth = getNodeDepth(node);
-  const w = nodeWidth(depth);
+  const w = nodeWidthS(depth, sc);
   const text = computeNodeText(
     node.label,
     node.description ? [...node.description] : undefined,
@@ -585,7 +619,7 @@ function nodeHeight(node: MindmapNode, hideDescriptions: boolean): number {
       : LABEL_LINE_HEIGHT * labelLineCount;
   let h = labelH + NODE_V_PAD;
   if (text.descLines.length > 0) {
-    h += DESC_LINE_HEIGHT * text.descLines.length + 4; // 4px separator gap
+    h += DESC_LINE_HEIGHT * text.descLines.length + 4;
   }
   return h;
 }

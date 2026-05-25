@@ -42,6 +42,7 @@ import type {
 } from './types';
 import { allTasks } from './parser';
 import { VARIANTS } from './variants';
+import { ScaleContext } from '../utils/scaling';
 
 /**
  * Group `parsed.diagnostics` per task, so the renderer can paint a
@@ -389,29 +390,65 @@ export function renderRaci(
   const solid = parsed.options['solid-fill'] === 'on';
   const surfaceBg = isDark ? palette.surface : palette.bg;
 
+  // --- ScaleContext: differential scaling ---
+  const roleCount = Math.max(1, parsed.roles.length);
+  const idealWidth = roleCount * ROLE_COL_MAX + TASK_LABEL_MAX + 2 * H_MARGIN;
+  const ctx = exportDims
+    ? ScaleContext.identity()
+    : ScaleContext.from(width, idealWidth);
+
+  const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
+  const sTitleY = ctx.structural(TITLE_Y);
+  const sHMargin = ctx.aesthetic(H_MARGIN);
+  const sVMargin = ctx.aesthetic(V_MARGIN);
+  const sTitleAreaHeight = ctx.structural(TITLE_AREA_HEIGHT);
+  const sHeaderHeight = ctx.structural(HEADER_HEIGHT);
+  const sRowHeight = ctx.structural(ROW_HEIGHT);
+  const sPhaseHeight = ctx.structural(PHASE_HEIGHT);
+  const sTaskLabelMin = ctx.structural(TASK_LABEL_MIN);
+  const sTaskLabelMax = ctx.structural(TASK_LABEL_MAX);
+  const sRoleColMin = ctx.structural(ROLE_COL_MIN);
+  const sRoleColMax = ctx.structural(ROLE_COL_MAX);
+  const sCellPad = ctx.structural(CELL_PAD);
+  const sLabelFont = ctx.text(LABEL_FONT);
+  const sRoleHeaderFont = ctx.text(ROLE_HEADER_FONT);
+  const sPhaseFont = ctx.text(PHASE_FONT);
+  const sMarkerFont = ctx.text(MARKER_FONT);
+  const sDescFont = ctx.text(DESC_FONT);
+  const sColumnRadius = ctx.structural(COLUMN_RADIUS);
+  const sColumnInset = ctx.structural(COLUMN_INSET);
+  const sColumnBottomPad = ctx.structural(COLUMN_BOTTOM_PAD);
+  const sLegendHeight = ctx.structural(LEGEND_HEIGHT);
+  const sLegendChipGap = ctx.structural(LEGEND_CHIP_GAP);
+  const sLegendChipLabelMin = ctx.structural(LEGEND_CHIP_LABEL_MIN);
+  const sLegendLetterChipW = ctx.structural(LEGEND_LETTER_CHIP_W);
+  const sTitleLegendGap = ctx.aesthetic(TITLE_LEGEND_GAP);
+  const sLegendLabelFont = ctx.text(LEGEND_LABEL_FONT);
+  const sLegendLetterFont = ctx.text(LEGEND_LETTER_FONT);
+  const sViolationLineHeight = ctx.structural(VIOLATION_LINE_HEIGHT);
+  const sStackTopGap = ctx.structural(STACK_TOP_GAP);
+  const sNodeStrokeWidth = ctx.structural(NODE_STROKE_WIDTH);
+  const sNodeRadius = ctx.structural(NODE_RADIUS);
+
   // ── Column widths ──────────────────────────────────────────
 
-  const roleCount = Math.max(1, parsed.roles.length);
-  const innerWidth = Math.max(0, width - 2 * H_MARGIN);
+  const innerWidth = Math.max(0, width - 2 * sHMargin);
 
-  // Greedy split: prefer ROLE_COL_MIN..ROLE_COL_MAX, give the rest to
+  // Greedy split: prefer sRoleColMin..sRoleColMax, give the rest to
   // the task-label column (clamped to a reasonable range).
   let roleColW = Math.max(
-    ROLE_COL_MIN,
-    Math.min(
-      ROLE_COL_MAX,
-      Math.floor((innerWidth - TASK_LABEL_MIN) / roleCount)
-    )
+    sRoleColMin,
+    Math.min(sRoleColMax, Math.floor((innerWidth - sTaskLabelMin) / roleCount))
   );
   let labelW = innerWidth - roleColW * roleCount;
-  if (labelW > TASK_LABEL_MAX) {
-    labelW = TASK_LABEL_MAX;
+  if (labelW > sTaskLabelMax) {
+    labelW = sTaskLabelMax;
     roleColW = Math.max(
-      ROLE_COL_MIN,
+      sRoleColMin,
       Math.floor((innerWidth - labelW) / roleCount)
     );
   }
-  if (labelW < TASK_LABEL_MIN) labelW = TASK_LABEL_MIN;
+  if (labelW < sTaskLabelMin) labelW = sTaskLabelMin;
 
   // ── Vertical layout ────────────────────────────────────────
 
@@ -438,10 +475,10 @@ export function renderRaci(
   //   title left-aligned, legend right-aligned, both vertically centered.
   // When both are hidden (app preview with HTML overlays), the row collapses.
   const hasTopRow = !hideTitle || !hideLegend;
-  const titleArea = hasTopRow ? TITLE_AREA_HEIGHT : V_MARGIN;
-  const legendY = (TITLE_AREA_HEIGHT - LEGEND_HEIGHT) / 2;
-  const headerY = titleArea + V_MARGIN;
-  const bodyTop = headerY + HEADER_HEIGHT;
+  const titleArea = hasTopRow ? sTitleAreaHeight : sVMargin;
+  const legendY = (sTitleAreaHeight - sLegendHeight) / 2;
+  const headerY = titleArea + sVMargin;
+  const bodyTop = headerY + sHeaderHeight;
   let cursorY = bodyTop;
   const rowYs: number[] = [];
   // Pre-compute wrapped task content once: both the y-cursor pass and
@@ -453,21 +490,30 @@ export function renderRaci(
       const bucket = taskDiagnostics.get(row.task.id);
       taskRowContent.set(
         row.task.id,
-        prepareRowContent(row.task, bucket, labelMaxW)
+        prepareRowContent(
+          row.task,
+          bucket,
+          labelMaxW,
+          sLabelFont,
+          sDescFont,
+          sRowHeight,
+          sStackTopGap,
+          sViolationLineHeight
+        )
       );
     }
   }
   for (const row of phasedRows) {
     rowYs.push(cursorY);
     if (row.kind === 'phase') {
-      cursorY += PHASE_HEIGHT;
+      cursorY += sPhaseHeight;
     } else {
       const content = taskRowContent.get(row.task.id);
-      cursorY += content?.rowHeight ?? ROW_HEIGHT;
+      cursorY += content?.rowHeight ?? sRowHeight;
     }
   }
-  const colBottomY = cursorY + COLUMN_BOTTOM_PAD;
-  const totalHeight = colBottomY + V_MARGIN;
+  const colBottomY = cursorY + sColumnBottomPad;
+  const totalHeight = colBottomY + sVMargin;
 
   // ── SVG root ───────────────────────────────────────────────
 
@@ -481,6 +527,10 @@ export function renderRaci(
     .attr('font-family', FONT_FAMILY)
     .style('background', 'transparent');
 
+  if (ctx.isBelowFloor) {
+    svg.attr('width', '100%');
+  }
+
   // ── Top row: title (left) + legend (right), inline like kanban ──
 
   // Decide legend geometry first so we know how much room is left for the title.
@@ -489,7 +539,7 @@ export function renderRaci(
     (m) => variantLabels[m] !== undefined
   );
   const numChips = legendMarkers.length;
-  const chipGapTotal = LEGEND_CHIP_GAP * Math.max(0, numChips - 1);
+  const chipGapTotal = sLegendChipGap * Math.max(0, numChips - 1);
 
   // Size full-mode chips to actually fit the longest label without truncation.
   // chip = 4 pad + 24 slab + 8 gap + label + 8 right pad.
@@ -498,17 +548,15 @@ export function renderRaci(
     0
   );
   const fullChipW = Math.max(
-    LEGEND_CHIP_LABEL_MIN,
-    Math.ceil(4 + 24 + 8 + longestLabel * LEGEND_LABEL_FONT * 0.6 + 8)
+    sLegendChipLabelMin,
+    Math.ceil(4 + 24 + 8 + longestLabel * sLegendLabelFont * 0.6 + 8)
   );
   const fullLegendW = numChips * fullChipW + chipGapTotal;
-  const letterLegendW = numChips * LEGEND_LETTER_CHIP_W + chipGapTotal;
+  const letterLegendW = numChips * sLegendLetterChipW + chipGapTotal;
 
   // Estimate title pixel width with the same heuristic used in truncateForWidth.
   const titleEstW =
-    parsed.title && !hideTitle
-      ? parsed.title.length * TITLE_FONT_SIZE * 0.6
-      : 0;
+    parsed.title && !hideTitle ? parsed.title.length * sTitleFontSize * 0.6 : 0;
 
   // Pick legend mode: full chips if everything fits, else letter-only.
   // If even letters won't fit beside the title, the title is truncated below.
@@ -516,32 +564,32 @@ export function renderRaci(
   let legendTotalW = fullLegendW;
   let legendChipW = fullChipW;
   if (!hideLegend) {
-    const remaining = innerWidth - titleEstW - TITLE_LEGEND_GAP;
+    const remaining = innerWidth - titleEstW - sTitleLegendGap;
     if (remaining < fullLegendW) {
       legendMode = 'letters';
       legendTotalW = letterLegendW;
-      legendChipW = LEGEND_LETTER_CHIP_W;
+      legendChipW = sLegendLetterChipW;
     }
   } else {
     legendTotalW = 0;
   }
 
-  const legendX = H_MARGIN + innerWidth - legendTotalW;
+  const legendX = sHMargin + innerWidth - legendTotalW;
   const titleMaxW = hideLegend
     ? innerWidth
-    : legendX - H_MARGIN - TITLE_LEGEND_GAP;
+    : legendX - sHMargin - sTitleLegendGap;
 
   // Title — left-aligned, truncated to whatever room the legend leaves.
   if (parsed.title && !hideTitle) {
     svg
       .append('text')
-      .attr('x', H_MARGIN)
-      .attr('y', TITLE_Y)
+      .attr('x', sHMargin)
+      .attr('y', sTitleY)
       .attr('text-anchor', 'start')
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
-      .text(truncateForWidth(parsed.title, titleMaxW, TITLE_FONT_SIZE));
+      .text(truncateForWidth(parsed.title, titleMaxW, sTitleFontSize));
   }
 
   // Legend — right-aligned in the same row.
@@ -557,13 +605,19 @@ export function renderRaci(
       palette,
       surfaceBg,
       solid,
-      onMarkerDragStart
+      onMarkerDragStart,
+      sLegendChipGap,
+      sLegendHeight,
+      sNodeRadius,
+      sNodeStrokeWidth,
+      sLegendLetterFont,
+      sLegendLabelFont
     );
   }
 
   // ── Per-role columns (kanban-style: rounded body bg + header overlay) ──
 
-  const roleX = (i: number): number => H_MARGIN + labelW + i * roleColW;
+  const roleX = (i: number): number => sHMargin + labelW + i * roleColW;
 
   // Column treatment: each role gets its own rounded rect spanning the full
   // body height, with a clearly darker header overlay on top. Drawn before
@@ -583,12 +637,12 @@ export function renderRaci(
       if (taskIdx < 0) return;
       // In-bounds: forEach index i is < rowYs.length (rowYs aligned with phasedRows).
       const yTop = rowYs[i]!;
-      const rh = taskRowContent.get(row.task.id)?.rowHeight ?? ROW_HEIGHT;
+      const rh = taskRowContent.get(row.task.id)?.rowHeight ?? sRowHeight;
       bandsG
         .append('rect')
         .attr('class', 'raci-row-band')
         .attr('data-task-id', row.task.id)
-        .attr('x', H_MARGIN)
+        .attr('x', sHMargin)
         .attr('y', yTop + 2)
         .attr('width', innerWidth)
         .attr('height', rh - 4)
@@ -603,8 +657,8 @@ export function renderRaci(
   // up so the wrapper's :hover state fires for the whole column area.
   const columnsG = svg.append('g').attr('class', 'raci-columns');
   parsed.roles.forEach((roleId, i) => {
-    const cx = roleX(i) + COLUMN_INSET;
-    const cw = roleColW - 2 * COLUMN_INSET;
+    const cx = roleX(i) + sColumnInset;
+    const cw = roleColW - 2 * sColumnInset;
     // Per-role color from `Cap blue` trailing-token (or `Cap | color: blue`)
     // syntax. When the user provides
     // one, it wins; otherwise rotate through marker-safe accents so
@@ -628,7 +682,7 @@ export function renderRaci(
       .attr('y', headerY)
       .attr('width', cw)
       .attr('height', colTotalHeight)
-      .attr('rx', COLUMN_RADIUS)
+      .attr('rx', sColumnRadius)
       .attr('fill', bodyFill);
     // Top-rounded path (flat bottom) — matches kanban COLUMN_HEADER. The
     // header sits flush against the body content below; rounded bottoms
@@ -638,7 +692,7 @@ export function renderRaci(
       .attr('class', 'raci-column-header')
       .attr(
         'd',
-        topRoundedRectPath(cx, headerY, cw, HEADER_HEIGHT, COLUMN_RADIUS)
+        topRoundedRectPath(cx, headerY, cw, sHeaderHeight, sColumnRadius)
       )
       .attr('fill', headerFill);
     const cxText = roleX(i) + roleColW / 2;
@@ -646,17 +700,17 @@ export function renderRaci(
       .append('text')
       .attr('class', 'raci-column-label')
       .attr('x', cxText)
-      .attr('y', headerY + HEADER_HEIGHT / 2)
+      .attr('y', headerY + sHeaderHeight / 2)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
-      .attr('font-size', ROLE_HEADER_FONT)
+      .attr('font-size', sRoleHeaderFont)
       .attr('font-weight', 600)
       .attr('fill', palette.text)
       .text(
         truncateForWidth(
           parsed.roleDisplayNames[i] ?? '',
-          roleColW - 2 * CELL_PAD,
-          ROLE_HEADER_FONT
+          roleColW - 2 * sCellPad,
+          sRoleHeaderFont
         )
       );
   });
@@ -671,7 +725,7 @@ export function renderRaci(
   // user never wonders "why does Filing have data but Settlement
   // doesn't?". Either every collapsed bar shows chips or none do.
   const SUMMARY_MIN_SLICE_W = 22;
-  const summaryInsetForCheck = COLUMN_INSET + 4;
+  const summaryInsetForCheck = sColumnInset + 4;
   const summaryColBodyWForCheck = roleColW - 2 * summaryInsetForCheck;
   let chartCanShowSummaries = true;
   for (const row of phasedRows) {
@@ -703,30 +757,30 @@ export function renderRaci(
       renderPhaseBar(
         svg,
         row.phase,
-        H_MARGIN,
+        sHMargin,
         y,
         innerWidth,
         palette,
         row.collapsed,
         autoAccent(Math.max(0, phaseIdx), palette),
-        // When collapsed, draw a per-column marker-union summary so users
-        // get a glance of "what roles are involved in this phase" without
-        // expanding it. Roles + roleX/roleColW + variant let renderPhaseBar
-        // compute and lay out the summary chips.
         parsed.roles,
         roleX,
         roleColW,
         parsed.variant,
         surfaceBg,
         solid,
-        chartCanShowSummaries
+        chartCanShowSummaries,
+        sPhaseHeight,
+        sPhaseFont,
+        sColumnInset,
+        sNodeRadius
       );
     } else {
       renderTaskRow(
         svg,
         row.task,
         parsed,
-        H_MARGIN,
+        sHMargin,
         y,
         labelW,
         roleX,
@@ -738,7 +792,18 @@ export function renderRaci(
         hasAnyDiagnostic,
         taskRowContent.get(row.task.id),
         onClickLine,
-        onMarkerDragStart
+        onMarkerDragStart,
+        sLabelFont,
+        sDescFont,
+        sCellPad,
+        sRowHeight,
+        sColumnInset,
+        sNodeRadius,
+        sNodeStrokeWidth,
+        sMarkerFont,
+        sLegendLabelFont,
+        sStackTopGap,
+        sViolationLineHeight
       );
     }
   }
@@ -751,7 +816,7 @@ export function renderRaci(
     svg
       .append('text')
       .attr('x', width / 2)
-      .attr('y', totalHeight - V_MARGIN - 2)
+      .attr('y', totalHeight - sVMargin - 2)
       .attr('text-anchor', 'middle')
       .attr('font-size', 12)
       .attr('fill', palette.textMuted)
@@ -827,7 +892,15 @@ function renderLegend(
   palette: PaletteColors,
   surfaceBg: string,
   solid: boolean,
-  _onMarkerDragStart?: (source: RaciDragSource, e: PointerEvent) => void
+  _onMarkerDragStart:
+    | ((source: RaciDragSource, e: PointerEvent) => void)
+    | undefined,
+  sLegendChipGap: number,
+  sLegendHeight: number,
+  sNodeRadius: number,
+  sNodeStrokeWidth: number,
+  sLegendLetterFont: number,
+  sLegendLabelFont: number
 ): void {
   if (markers.length === 0) return;
   const labels = MARKER_LABELS[variant];
@@ -838,7 +911,7 @@ function renderLegend(
     .attr('aria-label', `${variant.toUpperCase()} marker legend`);
 
   markers.forEach((marker, i) => {
-    const cx = x + i * (chipW + LEGEND_CHIP_GAP);
+    const cx = x + i * (chipW + sLegendChipGap);
     const rawColor = markerColor(marker, palette);
     const labelText = labels[marker]!;
 
@@ -858,18 +931,18 @@ function renderLegend(
         .attr('x', cx)
         .attr('y', y)
         .attr('width', chipW)
-        .attr('height', LEGEND_HEIGHT)
-        .attr('rx', NODE_RADIUS)
+        .attr('height', sLegendHeight)
+        .attr('rx', sNodeRadius)
         .attr('fill', fill)
         .attr('stroke', stroke)
-        .attr('stroke-width', NODE_STROKE_WIDTH);
+        .attr('stroke-width', sNodeStrokeWidth);
       chipG
         .append('text')
         .attr('x', cx + chipW / 2)
-        .attr('y', y + LEGEND_HEIGHT / 2)
+        .attr('y', y + sLegendHeight / 2)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('font-size', LEGEND_LETTER_FONT)
+        .attr('font-size', sLegendLetterFont)
         .attr('font-weight', 700)
         .attr(
           'fill',
@@ -894,11 +967,11 @@ function renderLegend(
       .attr('x', cx)
       .attr('y', y)
       .attr('width', chipW)
-      .attr('height', LEGEND_HEIGHT)
-      .attr('rx', NODE_RADIUS)
+      .attr('height', sLegendHeight)
+      .attr('rx', sNodeRadius)
       .attr('fill', fill)
       .attr('stroke', stroke)
-      .attr('stroke-width', NODE_STROKE_WIDTH);
+      .attr('stroke-width', sNodeStrokeWidth);
 
     // Letter slab on the left — tinted (not solid) so it sits in
     // the same visual register as the diagram's marker cells.
@@ -912,17 +985,17 @@ function renderLegend(
       .attr('x', cx + slabPad)
       .attr('y', y + slabPad)
       .attr('width', slabW)
-      .attr('height', LEGEND_HEIGHT - 2 * slabPad)
+      .attr('height', sLegendHeight - 2 * slabPad)
       .attr('rx', 4)
       .attr('fill', slabFill);
 
     chipG
       .append('text')
       .attr('x', cx + slabPad + slabW / 2)
-      .attr('y', y + LEGEND_HEIGHT / 2)
+      .attr('y', y + sLegendHeight / 2)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
-      .attr('font-size', LEGEND_LETTER_FONT)
+      .attr('font-size', sLegendLetterFont)
       .attr('font-weight', 700)
       .attr(
         'fill',
@@ -940,16 +1013,16 @@ function renderLegend(
     chipG
       .append('text')
       .attr('x', cx + slabPad + slabW + 8)
-      .attr('y', y + LEGEND_HEIGHT / 2)
+      .attr('y', y + sLegendHeight / 2)
       .attr('dominant-baseline', 'central')
-      .attr('font-size', LEGEND_LABEL_FONT)
+      .attr('font-size', sLegendLabelFont)
       .attr('font-weight', 600)
       .attr('fill', palette.text)
       .text(
         truncateForWidth(
           labelText,
           chipW - slabW - slabPad * 2 - 12,
-          LEGEND_LABEL_FONT
+          sLegendLabelFont
         )
       );
   });
@@ -985,11 +1058,11 @@ function renderPhaseBar(
   variant: RaciVariant,
   surfaceBg: string,
   solid: boolean,
-  // Chart-wide flag from renderRaci. False when any collapsed phase
-  // anywhere on this chart would fail the slice-width threshold —
-  // we suppress the summary on every collapsed bar so coverage stays
-  // consistent (no "Filing has data, Settlement doesn't" confusion).
-  showSummary: boolean
+  showSummary: boolean,
+  sPhaseHeight: number,
+  sPhaseFont: number,
+  sColumnInset: number,
+  sNodeRadius: number
 ): void {
   const phaseG = svg
     .append('g')
@@ -1010,14 +1083,14 @@ function renderPhaseBar(
     .attr('x', x)
     .attr('y', y + 4)
     .attr('width', width)
-    .attr('height', PHASE_HEIGHT - 8)
+    .attr('height', sPhaseHeight - 8)
     .attr('fill', phaseFill)
     .attr('rx', 4);
 
   // Chevron: ▶ when collapsed, ▼ when expanded. Drawn as a path so it
   // scales cleanly and we can rotate via transform.
   const chevX = x + 12;
-  const chevY = y + PHASE_HEIGHT / 2;
+  const chevY = y + sPhaseHeight / 2;
   const chevSize = 4;
   const chevPath = collapsed
     ? // right-pointing triangle
@@ -1033,9 +1106,9 @@ function renderPhaseBar(
   phaseG
     .append('text')
     .attr('x', x + 26)
-    .attr('y', y + (PHASE_HEIGHT - 4) / 2 + 2)
+    .attr('y', y + (sPhaseHeight - 4) / 2 + 2)
     .attr('dominant-baseline', 'central')
-    .attr('font-size', PHASE_FONT)
+    .attr('font-size', sPhaseFont)
     .attr('font-weight', 600)
     .attr('fill', palette.text)
     .text(phase.displayName);
@@ -1045,13 +1118,13 @@ function renderPhaseBar(
     // can see at a glance what's in the rolled-up phase.
     const taskCount = phase.tasks.length;
     if (taskCount > 0) {
-      const labelTextWidth = phase.displayName.length * PHASE_FONT * 0.6;
+      const labelTextWidth = phase.displayName.length * sPhaseFont * 0.6;
       phaseG
         .append('text')
         .attr('x', x + 26 + labelTextWidth + 10)
-        .attr('y', y + (PHASE_HEIGHT - 4) / 2 + 2)
+        .attr('y', y + (sPhaseHeight - 4) / 2 + 2)
         .attr('dominant-baseline', 'central')
-        .attr('font-size', PHASE_FONT - 1)
+        .attr('font-size', sPhaseFont - 1)
         .attr('font-weight', 500)
         .attr('fill', palette.textMuted)
         .text(`${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`);
@@ -1068,11 +1141,11 @@ function renderPhaseBar(
     // inset, same SLICE_GAP, so chips fill the column body and read
     // as a compressed cell rather than a separate primitive.
     const alphabet = VARIANTS[variant].alphabet;
-    const summaryInset = COLUMN_INSET + 4;
+    const summaryInset = sColumnInset + 4;
     const summaryColBodyW = roleColW - 2 * summaryInset;
     const SUMMARY_CHIP_H = 24;
     const SUMMARY_LETTER_FONT = 13;
-    const summaryY = y + (PHASE_HEIGHT - SUMMARY_CHIP_H) / 2;
+    const summaryY = y + (sPhaseHeight - SUMMARY_CHIP_H) / 2;
 
     roles.forEach((roleId, colIdx) => {
       const used = new Set<RaciMarker>();
@@ -1103,7 +1176,7 @@ function renderPhaseBar(
           .attr('y', summaryY)
           .attr('width', sliceW)
           .attr('height', SUMMARY_CHIP_H)
-          .attr('rx', NODE_RADIUS)
+          .attr('rx', sNodeRadius)
           .attr('fill', fill)
           .attr('stroke', stroke)
           .attr('stroke-width', 1.25);
@@ -1157,8 +1230,21 @@ function renderTaskRow(
   taskDiagnostics: Map<string, TaskDiagnosticBucket> | null,
   _hasAnyDiagnostic: boolean,
   rowContent: RowContent | undefined,
-  onClickLine?: (lineNumber: number) => void,
-  _onMarkerDragStart?: (source: RaciDragSource, e: PointerEvent) => void
+  onClickLine: ((lineNumber: number) => void) | undefined,
+  _onMarkerDragStart:
+    | ((source: RaciDragSource, e: PointerEvent) => void)
+    | undefined,
+  sLabelFont: number,
+  sDescFont: number,
+  sCellPad: number,
+  sRowHeight: number,
+  sColumnInset: number,
+  sNodeRadius: number,
+  sNodeStrokeWidth: number,
+  sMarkerFont: number,
+  sLegendLabelFont: number,
+  sStackTopGap: number,
+  sViolationLineHeight: number
 ): void {
   const rowG = svg
     .append('g')
@@ -1172,7 +1258,16 @@ function renderTaskRow(
   const labelMaxW = labelW - 16;
   const content =
     rowContent ??
-    prepareRowContent(task, taskDiagnostics?.get(task.id), labelMaxW);
+    prepareRowContent(
+      task,
+      taskDiagnostics?.get(task.id),
+      labelMaxW,
+      sLabelFont,
+      sDescFont,
+      sRowHeight,
+      sStackTopGap,
+      sViolationLineHeight
+    );
   const { nameLines, descLines, violations, rowHeight } = content;
 
   // Group everything that lives in the label column under a single
@@ -1196,14 +1291,14 @@ function renderTaskRow(
     .attr('pointer-events', 'all');
 
   // Task name — wrapped to as many lines as fit without truncating.
-  const nameTopY = y + LABEL_FONT / 2 + 6;
+  const nameTopY = y + sLabelFont / 2 + 6;
   const nameEl = labelG
     .append('text')
     .attr('class', 'raci-task-label')
     .attr('x', labelX)
     .attr('y', nameTopY)
     .attr('dominant-baseline', 'central')
-    .attr('font-size', LABEL_FONT)
+    .attr('font-size', sLabelFont)
     .attr('fill', palette.text);
   nameLines.forEach((line, i) => {
     const tspan = nameEl.append('tspan').attr('x', labelX).text(line);
@@ -1213,9 +1308,9 @@ function renderTaskRow(
   let stackY =
     nameTopY +
     Math.max(0, nameLines.length - 1) * NAME_LINE_HEIGHT +
-    LABEL_FONT / 2 +
+    sLabelFont / 2 +
     4 +
-    STACK_TOP_GAP;
+    sStackTopGap;
 
   if (descLines.length > 0) {
     const descEl = labelG
@@ -1224,7 +1319,7 @@ function renderTaskRow(
       .attr('x', labelX)
       .attr('y', stackY)
       .attr('dominant-baseline', 'central')
-      .attr('font-size', DESC_FONT)
+      .attr('font-size', sDescFont)
       .attr('fill', palette.textMuted);
     descLines.forEach((line, i) => {
       const tspan = descEl.append('tspan').attr('x', labelX).text(line);
@@ -1242,7 +1337,7 @@ function renderTaskRow(
       .attr('data-severity', v.severity)
       .style('cursor', onClickLine ? 'pointer' : 'default');
 
-    const violationFont = LABEL_FONT - 2;
+    const violationFont = sLabelFont - 2;
     const textEl = lineG
       .append('text')
       .attr('x', labelX)
@@ -1256,7 +1351,7 @@ function renderTaskRow(
       segs.forEach((seg, segIdx) => {
         const tspan = textEl.append('tspan').text(seg.text);
         if (i > 0 && segIdx === 0)
-          tspan.attr('x', labelX).attr('dy', VIOLATION_LINE_HEIGHT);
+          tspan.attr('x', labelX).attr('dy', sViolationLineHeight);
         if (seg.bold) tspan.attr('font-weight', 700);
       });
     });
@@ -1268,7 +1363,7 @@ function renderTaskRow(
         onClickLine(targetLine);
       });
     }
-    stackY += v.lines.length * VIOLATION_LINE_HEIGHT;
+    stackY += v.lines.length * sViolationLineHeight;
   }
 
   // Build a quick lookup: roleId → markers[]
@@ -1283,11 +1378,11 @@ function renderTaskRow(
   parsed.roles.forEach((roleId, idx) => {
     // Cells sit inside the column body. The column body uses COLUMN_INSET
     // on each side; add 4 px more so the cell doesn't kiss the column edge.
-    const cellInset = COLUMN_INSET + 4;
+    const cellInset = sColumnInset + 4;
     const cx = roleX(idx) + cellInset;
-    const cy = y + CELL_PAD;
+    const cy = y + sCellPad;
     const cw = roleColW - 2 * cellInset;
-    const ch = ROW_HEIGHT - 2 * CELL_PAD;
+    const ch = sRowHeight - 2 * sCellPad;
     const markersSource = cellByRole.get(roleId) ?? [];
     // Display markers in canonical alphabet order — RACI cells always
     // read R A C I left-to-right regardless of source order. Source
@@ -1314,10 +1409,10 @@ function renderTaskRow(
     cellG
       .append('rect')
       .attr('class', 'raci-cell-hit')
-      .attr('x', roleX(idx) + COLUMN_INSET)
+      .attr('x', roleX(idx) + sColumnInset)
       .attr('y', y)
-      .attr('width', roleColW - 2 * COLUMN_INSET)
-      .attr('height', ROW_HEIGHT)
+      .attr('width', roleColW - 2 * sColumnInset)
+      .attr('height', sRowHeight)
       .attr('fill', 'transparent')
       .attr('pointer-events', 'all');
 
@@ -1349,19 +1444,19 @@ function renderTaskRow(
         .attr('y', cy)
         .attr('width', sliceW)
         .attr('height', ch)
-        .attr('rx', NODE_RADIUS)
+        .attr('rx', sNodeRadius)
         .attr('fill', fill)
         .attr('stroke', stroke)
-        .attr('stroke-width', NODE_STROKE_WIDTH);
+        .attr('stroke-width', sNodeStrokeWidth);
 
       // When the slice is wide enough, spell out the full marker label
       // ("Responsible") instead of the bare letter. Same primitive as the
       // legend chip, so cells and legend read as the same UI element.
       const fullLabel = variantLabels[m] ?? m;
-      const labelPx = fullLabel.length * LEGEND_LABEL_FONT * 0.6;
+      const labelPx = fullLabel.length * sLegendLabelFont * 0.6;
       const showFullLabel = labelPx + 16 <= sliceW;
       const textContent = showFullLabel ? fullLabel : m;
-      const textFont = showFullLabel ? LEGEND_LABEL_FONT : MARKER_FONT;
+      const textFont = showFullLabel ? sLegendLabelFont : sMarkerFont;
 
       sliceG
         .append('text')
@@ -1398,7 +1493,7 @@ function renderTaskRow(
       .attr('y', cy)
       .attr('width', cw)
       .attr('height', ch)
-      .attr('rx', NODE_RADIUS)
+      .attr('rx', sNodeRadius)
       .attr('fill', 'transparent')
       .attr('stroke', 'transparent')
       .attr('pointer-events', 'none');
@@ -1474,15 +1569,20 @@ const DESC_LINE_HEIGHT = 16;
 function prepareRowContent(
   task: RaciTask,
   bucket: TaskDiagnosticBucket | undefined,
-  labelMaxW: number
+  labelMaxW: number,
+  sLabelFont = LABEL_FONT,
+  sDescFont = DESC_FONT,
+  sRowHeight = ROW_HEIGHT,
+  sStackTopGap = STACK_TOP_GAP,
+  sViolationLineHeight = VIOLATION_LINE_HEIGHT
 ): RowContent {
-  const nameLines = wrapText(task.displayName, labelMaxW, LABEL_FONT);
+  const nameLines = wrapText(task.displayName, labelMaxW, sLabelFont);
   const description = task.description?.trim() ?? '';
   const descLines =
     description.length > 0
       ? description
           .split('\n')
-          .flatMap((line) => wrapText(line, labelMaxW, DESC_FONT))
+          .flatMap((line) => wrapText(line, labelMaxW, sDescFont))
       : [];
   const violations: RowContent['violations'] = [];
   if (bucket) {
@@ -1496,7 +1596,7 @@ function prepareRowContent(
           severity,
           sourceLine: e.line,
           text,
-          lines: wrapText(text, labelMaxW, LABEL_FONT - 2),
+          lines: wrapText(text, labelMaxW, sLabelFont - 2),
         });
       }
     };
@@ -1513,11 +1613,11 @@ function prepareRowContent(
   // every stacked block down by NAME_LINE_HEIGHT.
   const labelExtra = Math.max(0, nameLines.length - 1) * NAME_LINE_HEIGHT;
   const rowHeight =
-    ROW_HEIGHT +
+    sRowHeight +
     labelExtra +
-    (hasStacked ? STACK_TOP_GAP : 0) +
+    (hasStacked ? sStackTopGap : 0) +
     descLines.length * DESC_LINE_HEIGHT +
-    totalViolationLines * VIOLATION_LINE_HEIGHT;
+    totalViolationLines * sViolationLineHeight;
 
   return { nameLines, descLines, violations, rowHeight };
 }

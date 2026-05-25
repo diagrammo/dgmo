@@ -21,13 +21,13 @@ import { renderLegendD3 } from '../utils/legend-d3';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
 import { LEGEND_HEIGHT, LEGEND_GROUP_GAP } from '../utils/legend-constants';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import { ScaleContext } from '../utils/scaling';
 
 // ============================================================
 // Constants
 // ============================================================
 
 const DIAGRAM_PADDING = 20;
-const MAX_SCALE = 3;
 const TITLE_HEIGHT = 30;
 const SINGLE_LABEL_HEIGHT = 28;
 const LABEL_LINE_HEIGHT = 18;
@@ -116,7 +116,6 @@ export function renderMindmap(
     .attr('height', containerHeight)
     .style('font-family', FONT_FAMILY);
 
-  // Reserve space for fixed elements (legend, title) in interactive mode
   const hasControls =
     !!options?.onToggleColorByDepth || !!options?.onToggleDescriptions;
   const hasLegend = parsed.tagGroups.length > 0 || hasControls;
@@ -126,38 +125,52 @@ export function renderMindmap(
   const fixedTitle = !isExport && showTitle;
   const titleReserve = fixedTitle ? TITLE_HEIGHT : 0;
 
-  // Compute scale to fit diagram in available space
   const availWidth = containerWidth;
   const availHeight =
     containerHeight - DIAGRAM_PADDING * 2 - legendReserve - titleReserve;
 
-  let scale: number;
-  if (isExport) {
-    scale = 1;
-  } else {
-    const scaleX = layout.width > 0 ? availWidth / layout.width : 1;
-    const scaleY = layout.height > 0 ? availHeight / layout.height : 1;
-    scale = Math.min(scaleX, scaleY, MAX_SCALE);
+  const ctx = isExport
+    ? ScaleContext.identity()
+    : ScaleContext.from(availWidth, layout.width);
+
+  let renderLayout = layout;
+  if (ctx.factor < 1) {
+    const hiddenCounts = new Map<string, number>();
+    for (const n of layout.nodes) {
+      if (n.hiddenCount != null && n.hiddenCount > 0) {
+        hiddenCounts.set(n.id, n.hiddenCount);
+      }
+    }
+    renderLayout = layoutMindmap(parsed, palette, {
+      interactive: !isExport,
+      ...(hiddenCounts.size > 0 && { hiddenCounts }),
+      activeTagGroup: activeTagGroup ?? null,
+      ...(hideDescriptions !== undefined && { hideDescriptions }),
+      ctx,
+    });
   }
 
-  const scaledWidth = layout.width * scale;
-  const scaledHeight = layout.height * scale;
-  const offsetX = (availWidth - scaledWidth) / 2;
+  const offsetX = Math.max(0, (availWidth - renderLayout.width) / 2);
   const offsetY =
     DIAGRAM_PADDING +
     legendReserve +
     titleReserve +
-    (availHeight - scaledHeight) / 2;
+    Math.max(0, (availHeight - renderLayout.height) / 2);
 
-  // Main group with scale transform (created early so title can reference it in export mode)
   const mainG = svg
     .append('g')
-    .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
+    .attr('transform', `translate(${offsetX}, ${offsetY})`);
+
+  if (ctx.isBelowFloor) {
+    svg
+      .attr('width', '100%')
+      .attr('viewBox', `0 0 ${containerWidth} ${containerHeight}`);
+  }
 
   // Title — fixed at top in app mode (above legend), inside scaled group in export
   if (showTitle) {
     const titleParent = fixedTitle ? svg : mainG;
-    const titleX = fixedTitle ? containerWidth / 2 : layout.width / 2;
+    const titleX = fixedTitle ? containerWidth / 2 : renderLayout.width / 2;
     const titleY = fixedTitle
       ? DIAGRAM_PADDING + TITLE_FONT_SIZE
       : TITLE_FONT_SIZE;
@@ -191,7 +204,7 @@ export function renderMindmap(
 
     // Collect used tag values from all nodes to filter legend entries
     const usedValues = new Map<string, Set<string>>(); // groupName → set of used values
-    for (const node of layout.nodes) {
+    for (const node of renderLayout.nodes) {
       for (const tg of parsed.tagGroups) {
         const key = tg.name.toLowerCase();
         const val = node.metadata[key];
@@ -283,7 +296,7 @@ export function renderMindmap(
   }
 
   // Render edges (background layer)
-  for (const edge of layout.edges) {
+  for (const edge of renderLayout.edges) {
     mainG
       .append('path')
       .attr('class', 'mindmap-edge')
@@ -295,8 +308,8 @@ export function renderMindmap(
   }
 
   // Render nodes (foreground layer)
-  for (const node of layout.nodes) {
-    const isRoot = node.radius === 0 && layout.nodes.indexOf(node) === 0;
+  for (const node of renderLayout.nodes) {
+    const isRoot = node.radius === 0 && renderLayout.nodes.indexOf(node) === 0;
     const strokeW = isRoot ? ROOT_STROKE_WIDTH : NODE_STROKE_WIDTH;
     const effectiveColor = options?.colorByDepth
       ? depthColor(node.depth, palette)

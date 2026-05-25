@@ -575,8 +575,10 @@ export {
   getExtendedChartLegendGroups,
   getSimpleChartLegendGroups,
   computeScatterLabelGraphics,
+  ECHART_EXPORT_WIDTH,
 } from './echarts';
 export type { ScatterLabelPoint } from './echarts';
+export { ScaleContext } from './utils/scaling';
 export {
   renderLegendSvg,
   renderLegendSvgFromConfig,

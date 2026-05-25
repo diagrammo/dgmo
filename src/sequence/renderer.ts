@@ -38,6 +38,7 @@ import type {
   LegendState,
 } from '../utils/legend-types';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import { ScaleContext } from '../utils/scaling';
 
 // ============================================================
 // Layout Constants
@@ -62,15 +63,9 @@ const NOTE_FONT_SIZE = 10;
 const NOTE_LINE_H = 14;
 const NOTE_GAP = 15;
 const NOTE_CHAR_W = 6;
-const NOTE_CHARS_PER_LINE = Math.floor(
-  (NOTE_MAX_W - NOTE_PAD_H * 2 - NOTE_FOLD) / NOTE_CHAR_W
-);
 const ACTIVATION_WIDTH = 10;
 const SELF_CALL_HEIGHT = 25;
 const SELF_CALL_WIDTH = 30;
-// Max note width that keeps a note within one participant lane
-const NOTE_LANE_MAX = PARTICIPANT_GAP - ACTIVATION_WIDTH - NOTE_GAP; // 135px
-
 function wrapTextLines(text: string, maxChars: number): WrappedDescLine[] {
   // Convert leading "- " to the canonical bullet prefix so the shared wrap
   // helper can split bullet lines into bullet-first / bullet-cont kinds and
@@ -91,18 +86,21 @@ const LABEL_MAX_CHARS = Math.floor(
   (PARTICIPANT_BOX_WIDTH - 10) / LABEL_CHAR_WIDTH
 ); // ~14 chars
 
-function splitParticipantLabel(label: string): string[] {
-  if (label.length <= LABEL_MAX_CHARS) return [label];
+function splitParticipantLabel(
+  label: string,
+  maxChars: number = LABEL_MAX_CHARS
+): string[] {
+  if (label.length <= maxChars) return [label];
 
   // Split on spaces
   if (label.includes(' ')) {
-    return wrapLabelWords(label.split(' '));
+    return wrapLabelWords(label.split(' '), maxChars);
   }
 
   // Split on dashes/underscores
   if (/[-_]/.test(label)) {
     const parts = label.split(/[-_]/);
-    return wrapLabelWords(parts);
+    return wrapLabelWords(parts, maxChars);
   }
 
   // Split on camelCase boundaries: "UserLookupCloudFx" → ["User", "Lookup", "Cloud", "Fx"]
@@ -111,19 +109,19 @@ function splitParticipantLabel(label: string): string[] {
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1\x00$2')
     .split('\x00');
   if (camelParts.length > 1) {
-    return wrapLabelWords(camelParts);
+    return wrapLabelWords(camelParts, maxChars);
   }
 
   return [label];
 }
 
-/** Greedily join word parts into lines that fit within LABEL_MAX_CHARS. */
-function wrapLabelWords(words: string[]): string[] {
+/** Greedily join word parts into lines that fit within maxChars. */
+function wrapLabelWords(words: string[], maxChars: number): string[] {
   const lines: string[] = [];
   let current = '';
   for (const word of words) {
     const test = current ? current + word : word;
-    if (test.length > LABEL_MAX_CHARS && current) {
+    if (test.length > maxChars && current) {
       lines.push(current);
       current = word;
     } else {
@@ -167,13 +165,15 @@ function renderRectParticipant(
   palette: PaletteColors,
   isDark: boolean,
   color?: string,
-  solid?: boolean
+  solid?: boolean,
+  w: number = W,
+  h: number = H
 ): void {
   g.append('rect')
-    .attr('x', -W / 2)
+    .attr('x', -w / 2)
     .attr('y', 0)
-    .attr('width', W)
-    .attr('height', H)
+    .attr('width', w)
+    .attr('height', h)
     .attr('rx', 2)
     .attr('ry', 2)
     .attr('fill', fill(palette, isDark, color, solid))
@@ -184,15 +184,16 @@ function renderRectParticipant(
 function renderActorParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
-  color?: string
+  color?: string,
+  h: number = H
 ): void {
   // Stick figure — no background, natural proportions
   const headR = 8;
   const cx = 0;
   const headY = headR + 2;
   const bodyTopY = headY + headR + 1;
-  const bodyBottomY = H * 0.65;
-  const legY = H - 2;
+  const bodyBottomY = h * 0.65;
+  const legY = h - 2;
   const armSpan = 16;
   const legSpan = 12;
   const s = stroke(palette, color);
@@ -244,12 +245,14 @@ function renderDatabaseParticipant(
   palette: PaletteColors,
   isDark: boolean,
   color?: string,
-  solid?: boolean
+  solid?: boolean,
+  w: number = W,
+  h: number = H
 ): void {
-  // Cylinder fitting within W x H
+  // Cylinder fitting within w x h
   const ry = 7;
   const topY = ry;
-  const bodyH = H - ry * 2;
+  const bodyH = h - ry * 2;
   const f = fill(palette, isDark, color, solid);
   const s = stroke(palette, color);
 
@@ -257,7 +260,7 @@ function renderDatabaseParticipant(
   g.append('ellipse')
     .attr('cx', 0)
     .attr('cy', topY + bodyH)
-    .attr('rx', W / 2)
+    .attr('rx', w / 2)
     .attr('ry', ry)
     .attr('fill', f)
     .attr('stroke', s)
@@ -266,25 +269,25 @@ function renderDatabaseParticipant(
   // Filled body (no stroke) to hide the top arc of the bottom ellipse
   g.append('rect')
     .attr('class', 'participant-body')
-    .attr('x', -W / 2)
+    .attr('x', -w / 2)
     .attr('y', topY)
-    .attr('width', W)
+    .attr('width', w)
     .attr('height', bodyH)
     .attr('fill', f)
     .attr('stroke', 'none');
 
   // Side lines
   g.append('line')
-    .attr('x1', -W / 2)
+    .attr('x1', -w / 2)
     .attr('y1', topY)
-    .attr('x2', -W / 2)
+    .attr('x2', -w / 2)
     .attr('y2', topY + bodyH)
     .attr('stroke', s)
     .attr('stroke-width', SW);
   g.append('line')
-    .attr('x1', W / 2)
+    .attr('x1', w / 2)
     .attr('y1', topY)
-    .attr('x2', W / 2)
+    .attr('x2', w / 2)
     .attr('y2', topY + bodyH)
     .attr('stroke', s)
     .attr('stroke-width', SW);
@@ -293,7 +296,7 @@ function renderDatabaseParticipant(
   g.append('ellipse')
     .attr('cx', 0)
     .attr('cy', topY)
-    .attr('rx', W / 2)
+    .attr('rx', w / 2)
     .attr('ry', ry)
     .attr('fill', f)
     .attr('stroke', s)
@@ -305,21 +308,23 @@ function renderQueueParticipant(
   palette: PaletteColors,
   isDark: boolean,
   color?: string,
-  solid?: boolean
+  solid?: boolean,
+  w: number = W,
+  h: number = H
 ): void {
   // Horizontal cylinder (pipe) — like database rotated 90 degrees
   const rx = 10;
-  const leftX = -W / 2 + rx;
-  const bodyW = W - rx * 2;
+  const leftX = -w / 2 + rx;
+  const bodyW = w - rx * 2;
   const f = fill(palette, isDark, color, solid);
   const s = stroke(palette, color);
 
   // Right ellipse (back face, drawn first — rect will cover its left arc)
   g.append('ellipse')
     .attr('cx', leftX + bodyW)
-    .attr('cy', H / 2)
+    .attr('cy', h / 2)
     .attr('rx', rx)
-    .attr('ry', H / 2)
+    .attr('ry', h / 2)
     .attr('fill', f)
     .attr('stroke', s)
     .attr('stroke-width', SW);
@@ -330,7 +335,7 @@ function renderQueueParticipant(
     .attr('x', leftX)
     .attr('y', 0)
     .attr('width', bodyW)
-    .attr('height', H)
+    .attr('height', h)
     .attr('fill', f)
     .attr('stroke', 'none');
 
@@ -344,18 +349,18 @@ function renderQueueParticipant(
     .attr('stroke-width', SW);
   g.append('line')
     .attr('x1', leftX)
-    .attr('y1', H)
+    .attr('y1', h)
     .attr('x2', leftX + bodyW)
-    .attr('y2', H)
+    .attr('y2', h)
     .attr('stroke', s)
     .attr('stroke-width', SW);
 
   // Left ellipse (front face, drawn last)
   g.append('ellipse')
     .attr('cx', leftX)
-    .attr('cy', H / 2)
+    .attr('cy', h / 2)
     .attr('rx', rx)
-    .attr('ry', H / 2)
+    .attr('ry', h / 2)
     .attr('fill', f)
     .attr('stroke', s)
     .attr('stroke-width', SW);
@@ -366,12 +371,14 @@ function renderCacheParticipant(
   palette: PaletteColors,
   isDark: boolean,
   color?: string,
-  solid?: boolean
+  solid?: boolean,
+  w: number = W,
+  h: number = H
 ): void {
   // Dashed cylinder — variation of database to convey ephemeral storage
   const ry = 7;
   const topY = ry;
-  const bodyH = H - ry * 2;
+  const bodyH = h - ry * 2;
   const f = fill(palette, isDark, color, solid);
   const s = stroke(palette, color);
   const dash = '4 3';
@@ -380,7 +387,7 @@ function renderCacheParticipant(
   g.append('ellipse')
     .attr('cx', 0)
     .attr('cy', topY + bodyH)
-    .attr('rx', W / 2)
+    .attr('rx', w / 2)
     .attr('ry', ry)
     .attr('fill', f)
     .attr('stroke', s)
@@ -389,25 +396,25 @@ function renderCacheParticipant(
 
   g.append('rect')
     .attr('class', 'participant-body')
-    .attr('x', -W / 2)
+    .attr('x', -w / 2)
     .attr('y', topY)
-    .attr('width', W)
+    .attr('width', w)
     .attr('height', bodyH)
     .attr('fill', f)
     .attr('stroke', 'none');
 
   g.append('line')
-    .attr('x1', -W / 2)
+    .attr('x1', -w / 2)
     .attr('y1', topY)
-    .attr('x2', -W / 2)
+    .attr('x2', -w / 2)
     .attr('y2', topY + bodyH)
     .attr('stroke', s)
     .attr('stroke-width', SW)
     .attr('stroke-dasharray', dash);
   g.append('line')
-    .attr('x1', W / 2)
+    .attr('x1', w / 2)
     .attr('y1', topY)
-    .attr('x2', W / 2)
+    .attr('x2', w / 2)
     .attr('y2', topY + bodyH)
     .attr('stroke', s)
     .attr('stroke-width', SW)
@@ -417,7 +424,7 @@ function renderCacheParticipant(
   g.append('ellipse')
     .attr('cx', 0)
     .attr('cy', topY)
-    .attr('rx', W / 2)
+    .attr('rx', w / 2)
     .attr('ry', ry)
     .attr('fill', f)
     .attr('stroke', s)
@@ -878,6 +885,43 @@ export function renderSequenceDiagram(
   );
   if (participants.length === 0) return;
 
+  const idealWidth = Math.max(
+    participants.length * PARTICIPANT_GAP,
+    PARTICIPANT_BOX_WIDTH + 40
+  );
+  const containerWidth =
+    options?.exportWidth ?? container.getBoundingClientRect().width;
+  const ctx = options?.exportWidth
+    ? ScaleContext.identity()
+    : ScaleContext.from(containerWidth, idealWidth);
+
+  const sGap = ctx.structural(PARTICIPANT_GAP);
+  const sBoxW = ctx.structural(PARTICIPANT_BOX_WIDTH);
+  const sBoxH = ctx.structural(PARTICIPANT_BOX_HEIGHT);
+  const sTopMargin = ctx.aesthetic(TOP_MARGIN);
+  const sTitleHeight = ctx.aesthetic(TITLE_HEIGHT);
+  const sParticipantYOffset = ctx.aesthetic(PARTICIPANT_Y_OFFSET);
+  const sMsgStartOffset = ctx.aesthetic(MESSAGE_START_OFFSET);
+  const sLifelineTail = ctx.structural(LIFELINE_TAIL);
+  const sArrowheadSize = ctx.structural(ARROWHEAD_SIZE);
+  const sNoteMaxW = ctx.structural(NOTE_MAX_W);
+  const sNoteFold = ctx.structural(NOTE_FOLD);
+  const sNotePadH = ctx.structural(NOTE_PAD_H);
+  const sNotePadV = ctx.structural(NOTE_PAD_V);
+  const sNoteFontSize = ctx.text(NOTE_FONT_SIZE);
+  const sNoteLineH = ctx.structural(NOTE_LINE_H);
+  const sNoteGap = ctx.structural(NOTE_GAP);
+  const sNoteCharW = ctx.text(NOTE_CHAR_W, 4);
+  const sActivationWidth = ctx.structural(ACTIVATION_WIDTH);
+  const sSelfCallHeight = ctx.structural(SELF_CALL_HEIGHT);
+  const sSelfCallWidth = ctx.structural(SELF_CALL_WIDTH);
+  const sNoteCharsPerLine = Math.floor(
+    (sNoteMaxW - sNotePadH * 2 - sNoteFold) / sNoteCharW
+  );
+  const sNoteLaneMax = sGap - sActivationWidth - sNoteGap;
+  const sLabelCharWidth = ctx.text(LABEL_CHAR_WIDTH, 5);
+  const sLabelMaxChars = Math.floor((sBoxW - 10) / sLabelCharWidth);
+
   // Participant index lookup — used to clamp note width within one lane
   const participantIndexMap = new Map<string, number>();
   participants.forEach((p, i) => participantIndexMap.set(p.id, i));
@@ -897,10 +941,10 @@ export function renderSequenceDiagram(
 
   // Extra X shift for notes after self-calls
   const SELF_CALL_NOTE_X_SHIFT =
-    ACTIVATION_WIDTH / 2 +
-    SELF_CALL_WIDTH +
-    NOTE_GAP -
-    (ACTIVATION_WIDTH + NOTE_GAP); // 25px
+    sActivationWidth / 2 +
+    sSelfCallWidth +
+    sNoteGap -
+    (sActivationWidth + sNoteGap);
 
   const noteEffectiveMaxW = (
     participantId: string,
@@ -908,19 +952,19 @@ export function renderSequenceDiagram(
     afterSelfCall = false
   ): number => {
     const idx = participantIndexMap.get(participantId);
-    if (idx === undefined) return NOTE_MAX_W;
+    if (idx === undefined) return sNoteMaxW;
     const hasNeighbor =
       position === 'right' ? idx < participants.length - 1 : idx > 0;
-    if (!hasNeighbor) return NOTE_MAX_W;
+    if (!hasNeighbor) return sNoteMaxW;
     const laneMax =
       afterSelfCall && position === 'right'
-        ? NOTE_LANE_MAX - SELF_CALL_NOTE_X_SHIFT
-        : NOTE_LANE_MAX;
-    return Math.min(NOTE_MAX_W, laneMax);
+        ? sNoteLaneMax - SELF_CALL_NOTE_X_SHIFT
+        : sNoteLaneMax;
+    return Math.min(sNoteMaxW, laneMax);
   };
 
   const charsForWidth = (maxW: number): number =>
-    Math.floor((maxW - NOTE_PAD_H * 2 - NOTE_FOLD) / NOTE_CHAR_W);
+    Math.floor((maxW - sNotePadH * 2 - sNoteFold) / sNoteCharW);
 
   const activationsOff = parsedOptions['activations']?.toLowerCase() === 'off';
 
@@ -973,13 +1017,13 @@ export function renderSequenceDiagram(
   // Labeled returns (explicit <- value) are kept.
   renderSteps = renderSteps.filter((s) => s.type === 'call' || s.label);
   const activations = activationsOff ? [] : computeActivations(renderSteps);
-  const stepSpacing = 35;
+  const stepSpacing = ctx.structural(35);
 
   // --- Block-aware Y spacing ---
   // Extra spacing constants for block boundaries
-  const BLOCK_HEADER_SPACE = 30; // Extra space for frame label above first message in a block
-  const BLOCK_AFTER_SPACE = 15; // Extra space after a block ends (before next sibling)
-  const FRAME_PADDING_TOP = 42; // Vertical padding from frame top to first message
+  const BLOCK_HEADER_SPACE = ctx.structural(30);
+  const BLOCK_AFTER_SPACE = ctx.aesthetic(15);
+  const FRAME_PADDING_TOP = ctx.structural(42);
 
   // Build maps from messageIndex to render step indices (needed early for spacing)
   const msgToFirstStep = new Map<number, number>();
@@ -1038,10 +1082,10 @@ export function renderSequenceDiagram(
   };
 
   // Extra gap below self-call loop before note starts
-  const SELF_CALL_NOTE_GAP = 8;
+  const SELF_CALL_NOTE_GAP = ctx.structural(8);
   const noteOffsetBelow = (note: SequenceNote): number =>
     isNoteAfterSelfCall(note)
-      ? SELF_CALL_HEIGHT + NOTE_OFFSET_BELOW + SELF_CALL_NOTE_GAP
+      ? sSelfCallHeight + NOTE_OFFSET_BELOW + SELF_CALL_NOTE_GAP
       : NOTE_OFFSET_BELOW;
 
   // Find the first visible message index in an element subtree.
@@ -1072,8 +1116,8 @@ export function renderSequenceDiagram(
   };
 
   // Section layout constants
-  const SECTION_TOP_PAD = 35; // space above section divider line (matches stepSpacing)
-  const SECTION_BOTTOM_PAD = 45; // space below section divider line before next content
+  const SECTION_TOP_PAD = ctx.aesthetic(35);
+  const SECTION_BOTTOM_PAD = ctx.aesthetic(45);
 
   // Block spacing via extraBeforeMsg (sections handled separately below)
   const extraBeforeMsg = new Map<number, number>();
@@ -1118,17 +1162,17 @@ export function renderSequenceDiagram(
   }
 
   // Note spacing — add vertical room after messages that have notes attached
-  const NOTE_OFFSET_BELOW = 14; // gap between message arrow and top of note box
+  const NOTE_OFFSET_BELOW = ctx.structural(14);
   // The next message label extends ~17px above its arrow line (8px offset + 9px cap height).
   // When notes share horizontal space with subsequent arrows, generous vertical clearance
   // is needed so note boxes don't visually cover message labels.
-  const NOTE_TRAILING_GAP = 35;
+  const NOTE_TRAILING_GAP = ctx.aesthetic(35);
   const computeNoteHeight = (
     text: string,
-    maxChars: number = NOTE_CHARS_PER_LINE
+    maxChars: number = sNoteCharsPerLine
   ): number => {
     const lines = wrapTextLines(text, maxChars);
-    return lines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
+    return lines.length * sNoteLineH + sNotePadV * 2;
   };
   let trailingNoteSpace = 0; // extra space for notes at the end with no following message
   const markNoteSpacing = (els: readonly SequenceElement[]): void => {
@@ -1341,7 +1385,7 @@ export function renderSequenceDiagram(
 
   // Compute cumulative Y positions for each step, with section dividers as stable anchors
   const showTitle = !!title && parsedOptions['no-title'] !== 'on';
-  const titleOffset = showTitle ? TITLE_HEIGHT : 0;
+  const titleOffset = showTitle ? sTitleHeight : 0;
   const LEGEND_FIXED_GAP = 8;
   const legendTopSpace =
     parsed.tagGroups.length > 0 ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
@@ -1350,14 +1394,14 @@ export function renderSequenceDiagram(
   const groupOffset =
     parsed.groups.length > 0 ? GROUP_PADDING_TOP + GROUP_LABEL_SIZE : 0;
   const participantStartY =
-    TOP_MARGIN +
+    sTopMargin +
     titleOffset +
     legendTopSpace +
-    PARTICIPANT_Y_OFFSET +
+    sParticipantYOffset +
     groupOffset;
-  const lifelineStartY0 = participantStartY + PARTICIPANT_BOX_HEIGHT;
+  const lifelineStartY0 = participantStartY + sBoxH;
   const hasActors = participants.some((p) => p.type === 'actor');
-  const messageStartOffset = MESSAGE_START_OFFSET + (hasActors ? 20 : 0);
+  const messageStartOffset = sMsgStartOffset + (hasActors ? 20 : 0);
   const stepYPositions: number[] = [];
   const sectionYPositions = new Map<number, number>(); // section lineNumber → Y
   let layoutEndY: number; // final Y after all steps and trailing sections
@@ -1382,13 +1426,8 @@ export function renderSequenceDiagram(
         curY += extra;
       }
       stepYPositions.push(curY);
-      // Self-call loops extend SELF_CALL_HEIGHT below the step Y, plus the loop
-      // label sits at y + SELF_CALL_HEIGHT/2 + 4 (font 12) — the label's descender
-      // reaches ~y + SELF_CALL_HEIGHT/2 + 10. The next message's label sits ~13px
-      // above its arrow line. Reserve enough vertical space so neither the next
-      // arrow nor its label can overlap the loop or its label.
       const isSelfCall = step.type === 'call' && step.from === step.to;
-      curY += isSelfCall ? SELF_CALL_HEIGHT + 25 : stepSpacing;
+      curY += isSelfCall ? sSelfCallHeight + 25 : stepSpacing;
     }
     // Handle trailing sections (after all steps)
     for (const sec of trailingSections) {
@@ -1461,7 +1500,7 @@ export function renderSequenceDiagram(
   const lastStep = renderSteps[renderSteps.length - 1];
   const lastIsSelfCall =
     lastStep?.type === 'call' && lastStep.from === lastStep.to;
-  const lastStepTrailing = lastIsSelfCall ? SELF_CALL_HEIGHT + 25 : stepSpacing;
+  const lastStepTrailing = lastIsSelfCall ? sSelfCallHeight + 25 : stepSpacing;
   let contentBottomY =
     renderSteps.length > 0
       ? Math.max(
@@ -1484,31 +1523,22 @@ export function renderSequenceDiagram(
     );
   }
   const messageAreaHeight = contentBottomY - lifelineStartY0;
-  const lifelineLength = messageAreaHeight + LIFELINE_TAIL;
-  const totalWidth = Math.max(
-    participants.length * PARTICIPANT_GAP,
-    PARTICIPANT_BOX_WIDTH + 40
-  );
+  const lifelineLength = messageAreaHeight + sLifelineTail;
+  const totalWidth = Math.max(participants.length * sGap, sBoxW + 40);
   const contentHeight =
-    participantStartY +
-    PARTICIPANT_BOX_HEIGHT +
-    Math.max(lifelineLength, 40) +
-    40;
+    participantStartY + sBoxH + Math.max(lifelineLength, 40) + 40;
   const totalHeight = contentHeight;
 
-  const containerWidth =
-    options?.exportWidth ?? container.getBoundingClientRect().width;
   const svgWidth = Math.max(totalWidth, containerWidth);
 
   // Center the diagram horizontally
-  const diagramWidth = participants.length * PARTICIPANT_GAP;
-  const offsetX =
-    Math.max(0, (svgWidth - diagramWidth) / 2) + PARTICIPANT_GAP / 2;
+  const diagramWidth = participants.length * sGap;
+  const offsetX = Math.max(0, (svgWidth - diagramWidth) / 2) + sGap / 2;
 
   // Build participant x-position lookup
   const participantX = new Map<string, number>();
   participants.forEach((p, i) => {
-    participantX.set(p.id, offsetX + i * PARTICIPANT_GAP);
+    participantX.set(p.id, offsetX + i * sGap);
   });
 
   const svg = d3Selection
@@ -1528,16 +1558,16 @@ export function renderSequenceDiagram(
   defs
     .append('marker')
     .attr('id', 'seq-arrowhead')
-    .attr('viewBox', `0 0 ${ARROWHEAD_SIZE} ${ARROWHEAD_SIZE}`)
-    .attr('refX', ARROWHEAD_SIZE)
-    .attr('refY', ARROWHEAD_SIZE / 2)
-    .attr('markerWidth', ARROWHEAD_SIZE)
-    .attr('markerHeight', ARROWHEAD_SIZE)
+    .attr('viewBox', `0 0 ${sArrowheadSize} ${sArrowheadSize}`)
+    .attr('refX', sArrowheadSize)
+    .attr('refY', sArrowheadSize / 2)
+    .attr('markerWidth', sArrowheadSize)
+    .attr('markerHeight', sArrowheadSize)
     .attr('orient', 'auto')
     .append('polygon')
     .attr(
       'points',
-      `0,0 ${ARROWHEAD_SIZE},${ARROWHEAD_SIZE / 2} 0,${ARROWHEAD_SIZE}`
+      `0,0 ${sArrowheadSize},${sArrowheadSize / 2} 0,${sArrowheadSize}`
     )
     .attr('fill', palette.text);
 
@@ -1545,16 +1575,16 @@ export function renderSequenceDiagram(
   defs
     .append('marker')
     .attr('id', 'seq-arrowhead-open')
-    .attr('viewBox', `0 0 ${ARROWHEAD_SIZE} ${ARROWHEAD_SIZE}`)
-    .attr('refX', ARROWHEAD_SIZE)
-    .attr('refY', ARROWHEAD_SIZE / 2)
-    .attr('markerWidth', ARROWHEAD_SIZE)
-    .attr('markerHeight', ARROWHEAD_SIZE)
+    .attr('viewBox', `0 0 ${sArrowheadSize} ${sArrowheadSize}`)
+    .attr('refX', sArrowheadSize)
+    .attr('refY', sArrowheadSize / 2)
+    .attr('markerWidth', sArrowheadSize)
+    .attr('markerHeight', sArrowheadSize)
     .attr('orient', 'auto')
     .append('polyline')
     .attr(
       'points',
-      `0,0 ${ARROWHEAD_SIZE},${ARROWHEAD_SIZE / 2} 0,${ARROWHEAD_SIZE}`
+      `0,0 ${sArrowheadSize},${sArrowheadSize / 2} 0,${sArrowheadSize}`
     )
     .attr('fill', 'none')
     .attr('stroke', palette.textMuted)
@@ -1564,34 +1594,34 @@ export function renderSequenceDiagram(
   defs
     .append('marker')
     .attr('id', 'seq-arrowhead-async')
-    .attr('viewBox', `0 0 ${ARROWHEAD_SIZE} ${ARROWHEAD_SIZE}`)
-    .attr('refX', ARROWHEAD_SIZE)
-    .attr('refY', ARROWHEAD_SIZE / 2)
-    .attr('markerWidth', ARROWHEAD_SIZE)
-    .attr('markerHeight', ARROWHEAD_SIZE)
+    .attr('viewBox', `0 0 ${sArrowheadSize} ${sArrowheadSize}`)
+    .attr('refX', sArrowheadSize)
+    .attr('refY', sArrowheadSize / 2)
+    .attr('markerWidth', sArrowheadSize)
+    .attr('markerHeight', sArrowheadSize)
     .attr('orient', 'auto')
     .append('polyline')
     .attr(
       'points',
-      `0,0 ${ARROWHEAD_SIZE},${ARROWHEAD_SIZE / 2} 0,${ARROWHEAD_SIZE}`
+      `0,0 ${sArrowheadSize},${sArrowheadSize / 2} 0,${sArrowheadSize}`
     )
     .attr('fill', 'none')
     .attr('stroke', palette.text)
     .attr('stroke-width', 1.2);
 
   // Per-color arrowhead markers for tag-driven coloring
-  const arrowPoints = `0,0 ${ARROWHEAD_SIZE},${ARROWHEAD_SIZE / 2} 0,${ARROWHEAD_SIZE}`;
+  const arrowPoints = `0,0 ${sArrowheadSize},${sArrowheadSize / 2} 0,${sArrowheadSize}`;
   for (const [, color] of tagValueToColor) {
     const hex = color.replace('#', '');
     // Filled arrowhead (call arrows)
     defs
       .append('marker')
       .attr('id', `seq-arrowhead-c${hex}`)
-      .attr('viewBox', `0 0 ${ARROWHEAD_SIZE} ${ARROWHEAD_SIZE}`)
-      .attr('refX', ARROWHEAD_SIZE)
-      .attr('refY', ARROWHEAD_SIZE / 2)
-      .attr('markerWidth', ARROWHEAD_SIZE)
-      .attr('markerHeight', ARROWHEAD_SIZE)
+      .attr('viewBox', `0 0 ${sArrowheadSize} ${sArrowheadSize}`)
+      .attr('refX', sArrowheadSize)
+      .attr('refY', sArrowheadSize / 2)
+      .attr('markerWidth', sArrowheadSize)
+      .attr('markerHeight', sArrowheadSize)
       .attr('orient', 'auto')
       .append('polygon')
       .attr('points', arrowPoints)
@@ -1600,11 +1630,11 @@ export function renderSequenceDiagram(
     defs
       .append('marker')
       .attr('id', `seq-arrowhead-async-c${hex}`)
-      .attr('viewBox', `0 0 ${ARROWHEAD_SIZE} ${ARROWHEAD_SIZE}`)
-      .attr('refX', ARROWHEAD_SIZE)
-      .attr('refY', ARROWHEAD_SIZE / 2)
-      .attr('markerWidth', ARROWHEAD_SIZE)
-      .attr('markerHeight', ARROWHEAD_SIZE)
+      .attr('viewBox', `0 0 ${sArrowheadSize} ${sArrowheadSize}`)
+      .attr('refX', sArrowheadSize)
+      .attr('refY', sArrowheadSize / 2)
+      .attr('markerWidth', sArrowheadSize)
+      .attr('markerHeight', sArrowheadSize)
       .attr('orient', 'auto')
       .append('polyline')
       .attr('points', arrowPoints)
@@ -1615,11 +1645,11 @@ export function renderSequenceDiagram(
     defs
       .append('marker')
       .attr('id', `seq-arrowhead-open-c${hex}`)
-      .attr('viewBox', `0 0 ${ARROWHEAD_SIZE} ${ARROWHEAD_SIZE}`)
-      .attr('refX', ARROWHEAD_SIZE)
-      .attr('refY', ARROWHEAD_SIZE / 2)
-      .attr('markerWidth', ARROWHEAD_SIZE)
-      .attr('markerHeight', ARROWHEAD_SIZE)
+      .attr('viewBox', `0 0 ${sArrowheadSize} ${sArrowheadSize}`)
+      .attr('refX', sArrowheadSize)
+      .attr('refY', sArrowheadSize / 2)
+      .attr('markerWidth', sArrowheadSize)
+      .attr('markerHeight', sArrowheadSize)
       .attr('orient', 'auto')
       .append('polyline')
       .attr('points', arrowPoints)
@@ -1663,7 +1693,7 @@ export function renderSequenceDiagram(
       .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-size', ctx.text(TITLE_FONT_SIZE))
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .text(title);
 
@@ -1700,13 +1730,10 @@ export function renderSequenceDiagram(
       .filter((x): x is number => x !== undefined);
     if (memberXs.length === 0) continue;
 
-    const minX =
-      Math.min(...memberXs) - PARTICIPANT_BOX_WIDTH / 2 - GROUP_PADDING_X;
-    const maxX =
-      Math.max(...memberXs) + PARTICIPANT_BOX_WIDTH / 2 + GROUP_PADDING_X;
+    const minX = Math.min(...memberXs) - sBoxW / 2 - GROUP_PADDING_X;
+    const maxX = Math.max(...memberXs) + sBoxW / 2 + GROUP_PADDING_X;
     const boxY = participantStartY - GROUP_PADDING_TOP;
-    const boxH =
-      PARTICIPANT_BOX_HEIGHT + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM;
+    const boxH = sBoxH + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM;
 
     // Group box background — use tag color if group has metadata for the active tag group.
     // Intentionally 15-20% (not the canonical 25% shapeFill): group boxes are
@@ -1763,7 +1790,7 @@ export function renderSequenceDiagram(
   // Render each participant
   const lifelineStartY = lifelineStartY0;
   participants.forEach((participant, index) => {
-    const cx = offsetX + index * PARTICIPANT_GAP;
+    const cx = offsetX + index * sGap;
     const cy = participantStartY;
 
     const pTagValue = tagMap?.participants.get(participant.id);
@@ -1791,7 +1818,10 @@ export function renderSequenceDiagram(
       isDark,
       effectiveTagColor,
       pTagAttr,
-      solid
+      solid,
+      sBoxW,
+      sBoxH,
+      sLabelMaxChars
     );
 
     // Collapsed group: re-render participant box at full group height + drill-bar
@@ -1799,10 +1829,9 @@ export function renderSequenceDiagram(
       const meta = collapsedGroupMeta.get(participant.id)!;
       const drillColor = effectiveTagColor || palette.textMuted;
       const drillBarH = 6;
-      const boxW = PARTICIPANT_BOX_WIDTH;
+      const boxW = sBoxW;
       // Match the group box dimensions
-      const fullH =
-        PARTICIPANT_BOX_HEIGHT + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM;
+      const fullH = sBoxH + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM;
       const clipId = `clip-drill-group-${participant.id.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 
       // Add toggle attributes to the participant <g> so any click on it
@@ -1848,7 +1877,7 @@ export function renderSequenceDiagram(
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
         .attr('fill', palette.text)
-        .attr('font-size', 13)
+        .attr('font-size', ctx.text(13))
         .attr('font-weight', 500)
         .text(participant.label);
 
@@ -1906,7 +1935,7 @@ export function renderSequenceDiagram(
   // lifeline; FRAME_PADDING_X (=30) leaves no breathing room. When a block
   // contains a self-arrow, extend the frame on the loop's side so the loop
   // sits comfortably inside.
-  const SELF_ARROW_PROJECTION = ACTIVATION_WIDTH / 2 + SELF_CALL_WIDTH;
+  const SELF_ARROW_PROJECTION = sActivationWidth / 2 + sSelfCallWidth;
   const SELF_ARROW_FRAME_PAD = 10;
   const frameRightmostX = Math.max(...Array.from(participantX.values()));
 
@@ -2051,7 +2080,7 @@ export function renderSequenceDiagram(
         stepY(minStep) +
         FRAME_PADDING_TOP +
         FRAME_PADDING_BOTTOM +
-        (maxStepIsSelfCall ? SELF_CALL_HEIGHT : 0);
+        (maxStepIsSelfCall ? sSelfCallHeight : 0);
 
       // Frame border
       svg
@@ -2162,7 +2191,7 @@ export function renderSequenceDiagram(
     const px = participantX.get(act.participantId);
     if (px === undefined) return;
 
-    const x = px - ACTIVATION_WIDTH / 2 + act.depth * ACTIVATION_NEST_OFFSET;
+    const x = px - sActivationWidth / 2 + act.depth * ACTIVATION_NEST_OFFSET;
     const y1 = stepY(act.startStep);
     const y2 = stepY(act.endStep);
 
@@ -2192,7 +2221,7 @@ export function renderSequenceDiagram(
       .append('rect')
       .attr('x', x)
       .attr('y', y1)
-      .attr('width', ACTIVATION_WIDTH)
+      .attr('width', sActivationWidth)
       .attr('height', y2 - y1)
       .attr('fill', isDark ? palette.surface : palette.bg);
 
@@ -2202,7 +2231,7 @@ export function renderSequenceDiagram(
       .append('rect')
       .attr('x', x)
       .attr('y', y1)
-      .attr('width', ACTIVATION_WIDTH)
+      .attr('width', sActivationWidth)
       .attr('height', y2 - y1)
       .attr('fill', actFill)
       .attr('stroke', actBaseColor)
@@ -2276,15 +2305,15 @@ export function renderSequenceDiagram(
     if (depth < 0) return px;
     const offset = depth * ACTIVATION_NEST_OFFSET;
     return side === 'right'
-      ? px + ACTIVATION_WIDTH / 2 + offset
-      : px - ACTIVATION_WIDTH / 2 + offset;
+      ? px + sActivationWidth / 2 + offset
+      : px - sActivationWidth / 2 + offset;
   };
 
   // Render section dividers
   const leftmostX = Math.min(...Array.from(participantX.values()));
   const rightmostX = frameRightmostX;
-  const sectionLineX1 = leftmostX - PARTICIPANT_BOX_WIDTH / 2 - 10;
-  const sectionLineX2 = rightmostX + PARTICIPANT_BOX_WIDTH / 2 + 10;
+  const sectionLineX1 = leftmostX - sBoxW / 2 - 10;
+  const sectionLineX2 = rightmostX + sBoxW / 2 + 10;
 
   for (const region of sectionRegions) {
     const sec = region.section;
@@ -2367,7 +2396,7 @@ export function renderSequenceDiagram(
   }
 
   // Render steps (calls and returns in stack-inferred order)
-  // SELF_CALL_WIDTH is now a module-level constant
+  // Self-call rendering uses scaled constants
   renderSteps.forEach((step, i) => {
     const fromX = participantX.get(step.from);
     const toX = participantX.get(step.to);
@@ -2393,16 +2422,16 @@ export function renderSequenceDiagram(
         const px = participantX.get(step.from)!;
         const flipLeft = px === rightmostX;
         const x = arrowEdgeX(step.from, i, flipLeft ? 'left' : 'right');
-        const loopX = flipLeft ? x - SELF_CALL_WIDTH : x + SELF_CALL_WIDTH;
-        const hitX = flipLeft ? x - SELF_CALL_WIDTH : x;
+        const loopX = flipLeft ? x - sSelfCallWidth : x + sSelfCallWidth;
+        const hitX = flipLeft ? x - sSelfCallWidth : x;
 
         // Hit area for self-call
         svg
           .append('rect')
           .attr('x', hitX)
           .attr('y', y - 5)
-          .attr('width', SELF_CALL_WIDTH)
-          .attr('height', SELF_CALL_HEIGHT + 10)
+          .attr('width', sSelfCallWidth)
+          .attr('height', sSelfCallHeight + 10)
           .attr('fill', 'transparent')
           .attr('class', 'message-hit-area')
           .attr('data-line-number', String(msg.lineNumber))
@@ -2411,7 +2440,7 @@ export function renderSequenceDiagram(
 
         const selfCallEl = svg
           .append('path')
-          .attr('d', `M ${x} ${y} H ${loopX} V ${y + SELF_CALL_HEIGHT} H ${x}`)
+          .attr('d', `M ${x} ${y} H ${loopX} V ${y + sSelfCallHeight} H ${x}`)
           .attr('fill', 'none')
           .attr('stroke', arrowColor)
           .attr('stroke-width', 1.2)
@@ -2430,7 +2459,7 @@ export function renderSequenceDiagram(
           const labelEl = svg
             .append('text')
             .attr('x', flipLeft ? loopX - 5 : loopX + 5)
-            .attr('y', y + SELF_CALL_HEIGHT / 2 + 4)
+            .attr('y', y + sSelfCallHeight / 2 + 4)
             .attr('text-anchor', flipLeft ? 'end' : 'start')
             .attr('fill', arrowColor)
             .attr('paint-order', 'stroke fill')
@@ -2612,20 +2641,20 @@ export function renderSequenceDiagram(
         );
         const maxChars = charsForWidth(maxW);
         const wrappedLines = wrapTextLines(el.text, maxChars);
-        const noteH = wrappedLines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
+        const noteH = wrappedLines.length * sNoteLineH + sNotePadV * 2;
         const maxLineLen = Math.max(...wrappedLines.map((l) => l.text.length));
         const noteW = Math.min(
           maxW,
-          Math.max(80, maxLineLen * NOTE_CHAR_W + NOTE_PAD_H * 2 + NOTE_FOLD)
+          Math.max(80, maxLineLen * sNoteCharW + sNotePadH * 2 + sNoteFold)
         );
         // Shift notes past self-call loopback when applicable
         const rightOffset =
           afterSelfCall && isRight
-            ? ACTIVATION_WIDTH / 2 + SELF_CALL_WIDTH + NOTE_GAP
-            : ACTIVATION_WIDTH + NOTE_GAP;
+            ? sActivationWidth / 2 + sSelfCallWidth + sNoteGap
+            : sActivationWidth + sNoteGap;
         const noteX = isRight
           ? px + rightOffset
-          : px - ACTIVATION_WIDTH - NOTE_GAP - noteW;
+          : px - sActivationWidth - sNoteGap - noteW;
 
         const noteG = svg
           .append('g')
@@ -2641,8 +2670,8 @@ export function renderSequenceDiagram(
             'd',
             [
               `M ${noteX} ${noteTopY}`,
-              `L ${noteX + noteW - NOTE_FOLD} ${noteTopY}`,
-              `L ${noteX + noteW} ${noteTopY + NOTE_FOLD}`,
+              `L ${noteX + noteW - sNoteFold} ${noteTopY}`,
+              `L ${noteX + noteW} ${noteTopY + sNoteFold}`,
               `L ${noteX + noteW} ${noteTopY + noteH}`,
               `L ${noteX} ${noteTopY + noteH}`,
               'Z',
@@ -2659,9 +2688,9 @@ export function renderSequenceDiagram(
           .attr(
             'd',
             [
-              `M ${noteX + noteW - NOTE_FOLD} ${noteTopY}`,
-              `L ${noteX + noteW - NOTE_FOLD} ${noteTopY + NOTE_FOLD}`,
-              `L ${noteX + noteW} ${noteTopY + NOTE_FOLD}`,
+              `M ${noteX + noteW - sNoteFold} ${noteTopY}`,
+              `L ${noteX + noteW - sNoteFold} ${noteTopY + sNoteFold}`,
+              `L ${noteX + noteW} ${noteTopY + sNoteFold}`,
             ].join(' ')
           )
           .attr('fill', 'none')
@@ -2674,25 +2703,25 @@ export function renderSequenceDiagram(
         // lines render at the same indented body column for hanging alignment.
         const BULLET_BODY_INDENT = 10;
         wrappedLines.forEach((line, li) => {
-          const textY = noteTopY + NOTE_PAD_V + (li + 1) * NOTE_LINE_H - 3;
+          const textY = noteTopY + sNotePadV + (li + 1) * sNoteLineH - 3;
           const indent = line.kind === 'plain' ? 0 : BULLET_BODY_INDENT;
           if (line.kind === 'bullet-first') {
             noteG
               .append('text')
-              .attr('x', noteX + NOTE_PAD_H)
+              .attr('x', noteX + sNotePadH)
               .attr('y', textY)
               .attr('fill', palette.text)
-              .attr('font-size', NOTE_FONT_SIZE)
+              .attr('font-size', sNoteFontSize)
               .text('\u2022');
           }
           const textEl = noteG
             .append('text')
-            .attr('x', noteX + NOTE_PAD_H + indent)
+            .attr('x', noteX + sNotePadH + indent)
             .attr('y', textY)
             .attr('fill', palette.text)
-            .attr('font-size', NOTE_FONT_SIZE)
+            .attr('font-size', sNoteFontSize)
             .attr('class', 'note-text');
-          renderInlineText(textEl, line.text, palette, NOTE_FONT_SIZE);
+          renderInlineText(textEl, line.text, palette, sNoteFontSize);
         });
       } else if (isSequenceBlock(el)) {
         renderNoteElements(el.children);
@@ -2713,7 +2742,7 @@ export function renderSequenceDiagram(
   // Render legend LAST so it sits on top of all other SVG elements
   // (group boxes, lifelines, participants, etc.) and can receive clicks.
   if (hasTagGroups) {
-    const legendY = TOP_MARGIN + titleOffset;
+    const legendY = sTopMargin + titleOffset;
     const resolvedGroups = parsed.tagGroups
       .filter((tg) => tg.entries.length > 0)
       .map((tg) => ({
@@ -2796,7 +2825,10 @@ function renderParticipant(
   isDark: boolean,
   color?: string,
   tagAttr?: { key: string; value: string },
-  solid?: boolean
+  solid?: boolean,
+  boxW: number = W,
+  boxH: number = H,
+  labelMaxChars: number = LABEL_MAX_CHARS
 ): void {
   const g = svg
     .append('g')
@@ -2812,25 +2844,25 @@ function renderParticipant(
   // Render shape based on type
   switch (participant.type) {
     case 'actor':
-      renderActorParticipant(g, palette, color);
+      renderActorParticipant(g, palette, color, boxH);
       break;
     case 'database':
-      renderDatabaseParticipant(g, palette, isDark, color, solid);
+      renderDatabaseParticipant(g, palette, isDark, color, solid, boxW, boxH);
       break;
     case 'queue':
-      renderQueueParticipant(g, palette, isDark, color, solid);
+      renderQueueParticipant(g, palette, isDark, color, solid, boxW, boxH);
       break;
     case 'cache':
-      renderCacheParticipant(g, palette, isDark, color, solid);
+      renderCacheParticipant(g, palette, isDark, color, solid, boxW, boxH);
       break;
     default:
-      renderRectParticipant(g, palette, isDark, color, solid);
+      renderRectParticipant(g, palette, isDark, color, solid, boxW, boxH);
       break;
   }
 
   // Render label — below the shape for actors, centered inside for others
   const isActor = participant.type === 'actor';
-  const labelLines = splitParticipantLabel(participant.label);
+  const labelLines = splitParticipantLabel(participant.label, labelMaxChars);
   const fontSize = 13;
   const lineHeight = fontSize + 2;
   // Actors render the label below the shape (on bg). Other participants render
@@ -2852,17 +2884,14 @@ function renderParticipant(
 
   if (labelLines.length === 1) {
     textEl
-      .attr(
-        'y',
-        isActor ? PARTICIPANT_BOX_HEIGHT + 14 : PARTICIPANT_BOX_HEIGHT / 2 + 5
-      )
+      .attr('y', isActor ? boxH + 14 : boxH / 2 + 5)
       .text(participant.label);
   } else {
     // Multi-line: vertically center the lines within the box (or below for actors)
     const totalHeight = labelLines.length * lineHeight;
     const baseY = isActor
-      ? PARTICIPANT_BOX_HEIGHT + 14 - ((labelLines.length - 1) * lineHeight) / 2
-      : PARTICIPANT_BOX_HEIGHT / 2 + 5 - (totalHeight - lineHeight) / 2;
+      ? boxH + 14 - ((labelLines.length - 1) * lineHeight) / 2
+      : boxH / 2 + 5 - (totalHeight - lineHeight) / 2;
 
     labelLines.forEach((line, i) => {
       textEl
