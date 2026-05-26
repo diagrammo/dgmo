@@ -1,0 +1,75 @@
+sequence Treasure Acquisition Protocol
+
+tag Phase as p
+  Reconnaissance blue
+  Negotiation green
+  Acquisition orange
+  Logistics purple
+
+CaptainBlackbeard is an actor p: Reconnaissance
+
+[Intelligence]
+  NavigationOfficer p: Reconnaissance
+  CartographyEngine p: Reconnaissance
+
+[Negotiation Bureau] p: Negotiation
+  DiplomacyHandler
+  TradeAgreementProcessor
+  MerchantLiaison
+
+[Treasure Vault] p: Acquisition
+  VaultAccessController
+  InventoryManager
+  GoldCountingEngine
+
+[Fleet Operations] p: Logistics
+  CargoManifestService
+  ShipDispatcher
+
+== Reconnaissance Phase ==
+CaptainBlackbeard -request treasure map-> NavigationOfficer p: Reconnaissance
+NavigationOfficer -plot coordinates-> CartographyEngine p: Reconnaissance
+CartographyEngine -validate route-> CartographyEngine p: Reconnaissance
+CartographyEngine -charted route-> NavigationOfficer
+
+note right of NavigationOfficer
+  Route validated against
+  known reef hazards
+  and rival fleet positions
+
+NavigationOfficer -route briefing-> CaptainBlackbeard
+
+== Negotiation Phase ==
+CaptainBlackbeard -initiate trade parley-> DiplomacyHandler p: Negotiation
+DiplomacyHandler -assess merchant terms-> TradeAgreementProcessor p: Negotiation
+TradeAgreementProcessor -verify merchant reputation-> MerchantLiaison p: Negotiation
+
+loop until terms accepted
+  MerchantLiaison -counter offer-> DiplomacyHandler
+  DiplomacyHandler -evaluate terms-> DiplomacyHandler
+  if terms acceptable
+    DiplomacyHandler -ratify agreement-> TradeAgreementProcessor
+  else
+    DiplomacyHandler -revise demands-> MerchantLiaison
+
+TradeAgreementProcessor -signed treaty-> CaptainBlackbeard
+
+== Acquisition Phase ==
+CaptainBlackbeard -authorize vault access-> VaultAccessController p: Acquisition
+VaultAccessController -unlock vault-> VaultAccessController p: Acquisition
+
+note right of VaultAccessController
+  Two-key authentication
+  required for vault access
+
+VaultAccessController -begin inventory-> InventoryManager p: Acquisition
+InventoryManager -count doubloons-> GoldCountingEngine p: Acquisition
+GoldCountingEngine -tally complete-> InventoryManager
+InventoryManager -manifest ready-> VaultAccessController
+
+== Dispatch Phase ==
+VaultAccessController -transfer manifest-> CargoManifestService p: Logistics
+CargoManifestService -allocate fleet-> ShipDispatcher p: Logistics
+ShipDispatcher -dispatch convoy-> ShipDispatcher p: Logistics
+ShipDispatcher -fleet deployed-> CargoManifestService
+CargoManifestService -shipment confirmed-> CaptainBlackbeard

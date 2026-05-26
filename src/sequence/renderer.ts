@@ -55,7 +55,7 @@ const LABEL_FONT_SIZE = 13;
 const TOP_MARGIN = 20;
 const TITLE_HEIGHT = 30;
 const PARTICIPANT_Y_OFFSET = 10;
-const MESSAGE_START_OFFSET = 30;
+const MESSAGE_START_OFFSET = 50;
 const LIFELINE_TAIL = 30;
 const ARROWHEAD_SIZE = 8;
 
@@ -908,9 +908,22 @@ export function renderSequenceDiagram(
   }
   const numGroupGaps = groupBoundaryIds.size;
 
+  // Content-adaptive box width: measure widest label, use uniform width for all
+  const MAX_BOX_WIDTH = 225;
+  let uniformBoxWidth = PARTICIPANT_BOX_WIDTH;
+  for (const p of participants) {
+    const lines = splitParticipantLabel(p.label, LABEL_MAX_CHARS);
+    if (lines.length === 0) continue;
+    const widest = Math.max(...lines.map((l) => l.length));
+    const labelWidth = widest * LABEL_CHAR_WIDTH + 10;
+    uniformBoxWidth = Math.max(uniformBoxWidth, labelWidth);
+  }
+  uniformBoxWidth = Math.min(MAX_BOX_WIDTH, uniformBoxWidth);
+  const effectiveGap = Math.max(PARTICIPANT_GAP, uniformBoxWidth + 30);
+
   const idealWidth = Math.max(
-    participants.length * PARTICIPANT_GAP,
-    PARTICIPANT_BOX_WIDTH + 40
+    participants.length * effectiveGap,
+    uniformBoxWidth + 40
   );
   const containerWidth =
     options?.exportWidth ?? container.getBoundingClientRect().width;
@@ -918,13 +931,13 @@ export function renderSequenceDiagram(
     ? ScaleContext.identity()
     : ScaleContext.from(containerWidth, idealWidth);
 
-  const sGap = ctx.structural(PARTICIPANT_GAP);
-  const sBoxW = ctx.structural(PARTICIPANT_BOX_WIDTH);
+  const sGap = ctx.structural(effectiveGap);
+  const sBoxW = ctx.structural(uniformBoxWidth);
   const sBoxH = ctx.structural(PARTICIPANT_BOX_HEIGHT);
   const sTopMargin = ctx.aesthetic(TOP_MARGIN);
   const sTitleHeight = ctx.aesthetic(TITLE_HEIGHT);
   const sParticipantYOffset = ctx.aesthetic(PARTICIPANT_Y_OFFSET);
-  const sMsgStartOffset = ctx.aesthetic(MESSAGE_START_OFFSET);
+  const sMsgStartOffset = ctx.structural(MESSAGE_START_OFFSET);
   const sLifelineTail = ctx.structural(LIFELINE_TAIL);
   const sArrowheadSize = ctx.structural(ARROWHEAD_SIZE);
   const sNoteMaxW = ctx.structural(NOTE_MAX_W);
@@ -1221,8 +1234,10 @@ export function renderSequenceDiagram(
           totalExtent += noteH + NOTE_OFFSET_BELOW;
           j++;
         }
-        // Replace the final inter-note gap with the larger trailing gap
-        totalExtent += NOTE_TRAILING_GAP - NOTE_OFFSET_BELOW;
+        // Replace the final inter-note gap with a proportional trailing gap
+        // so tall/stacked notes get extra clearance while short notes keep baseline
+        const trailingGap = Math.max(NOTE_TRAILING_GAP, totalExtent * 0.3);
+        totalExtent += trailingGap - NOTE_OFFSET_BELOW;
         // Only reserve space beyond the existing stepSpacing gap
         let extraNeeded = Math.max(0, totalExtent - stepSpacing);
         // Scan forward past sections, blocks, and other non-message elements to find next message
@@ -1439,7 +1454,10 @@ export function renderSequenceDiagram(
     groupOffset;
   const lifelineStartY0 = participantStartY + sBoxH;
   const hasActors = participants.some((p) => p.type === 'actor');
-  const messageStartOffset = sMsgStartOffset + (hasActors ? 20 : 0);
+  const messageStartOffset =
+    sMsgStartOffset +
+    (hasActors ? 20 : 0) +
+    (parsed.groups.length > 0 ? GROUP_PADDING_BOTTOM : 0);
   const stepYPositions: number[] = [];
   const sectionYPositions = new Map<number, number>(); // section lineNumber → Y
   let layoutEndY: number; // final Y after all steps and trailing sections
@@ -1574,27 +1592,159 @@ export function renderSequenceDiagram(
       (totalGaps * sGap - numWithinGaps * sWithinGap) / numGroupGaps;
   }
 
-  const totalWidth = Math.max(participants.length * sGap, sBoxW + 40);
+  // Compute right-edge projection: how far content extends past the rightmost lifeline
+  const rightmostId = participants[participants.length - 1]?.id;
+  let rightProjection = sBoxW / 2;
+  if (rightmostId) {
+    // Group padding if rightmost participant is in a group
+    if (
+      parsed.groups.some((g: SequenceGroup) =>
+        g.participantIds.includes(rightmostId)
+      )
+    )
+      rightProjection = Math.max(rightProjection, sBoxW / 2 + GROUP_PADDING_X);
+    // Self-calls on rightmost: loop + label projection (+ activation nesting buffer)
+    for (const step of renderSteps) {
+      if (step.from === step.to && step.from === rightmostId) {
+        const selfProj = sActivationWidth + sSelfCallWidth;
+        let labelProj = 0;
+        if (step.label) labelProj = step.label.length * sLabelCharWidth + 15;
+        rightProjection = Math.max(rightProjection, selfProj + labelProj);
+      }
+    }
+    // Block frames spanning rightmost participant (must match FRAME_PADDING_X = 30 in block rendering below)
+    const blockFramePadX = 30;
+    const hasBlockWithRightmost = (
+      els: readonly SequenceElement[]
+    ): boolean => {
+      for (const el of els) {
+        if (isSequenceBlock(el)) {
+          const involvesRightmost = (
+            children: readonly SequenceElement[]
+          ): boolean =>
+            children.some(
+              (c) =>
+                !isSequenceBlock(c) &&
+                !isSequenceNote(c) &&
+                !isSequenceSection(c) &&
+                'from' in c &&
+                (c.from === rightmostId || c.to === rightmostId)
+            );
+          if (
+            involvesRightmost(el.children) ||
+            involvesRightmost(el.elseChildren) ||
+            el.elseIfBranches?.some((b) => involvesRightmost(b.children))
+          )
+            return true;
+          if (
+            hasBlockWithRightmost(el.children) ||
+            hasBlockWithRightmost(el.elseChildren) ||
+            el.elseIfBranches?.some((b) => hasBlockWithRightmost(b.children))
+          )
+            return true;
+        }
+      }
+      return false;
+    };
+    if (elements && hasBlockWithRightmost(elements))
+      rightProjection = Math.max(rightProjection, sBoxW / 2 + blockFramePadX);
+  }
+  let rightMargin = Math.max(rightProjection + 10, sGap / 2);
+
+  let leftMargin = sGap / 2;
+  const diagramWidth = participants.length * sGap;
+  let totalWidth = Math.max(
+    leftMargin + diagramWidth + rightMargin,
+    sBoxW + 40
+  );
   const contentHeight =
     participantStartY + sBoxH + Math.max(lifelineLength, 40) + 40;
   const totalHeight = contentHeight;
 
-  const svgWidth = Math.max(totalWidth, containerWidth);
+  let svgWidth = Math.max(totalWidth, containerWidth);
 
-  // Center the diagram horizontally
-  const diagramWidth = participants.length * sGap;
-  const offsetX = Math.max(0, (svgWidth - diagramWidth) / 2) + sGap / 2;
+  let offsetX = leftMargin + Math.max(0, (svgWidth - totalWidth) / 2);
 
   // Build participant x-position lookup with redistributed gaps
   const participantX = new Map<string, number>();
-  let posX = offsetX;
-  participants.forEach((p, i) => {
-    participantX.set(p.id, posX);
-    if (i < participants.length - 1) {
-      const nextId = participants[i + 1]!.id;
-      posX += groupBoundaryIds.has(nextId) ? sBetweenGap : sWithinGap;
+  const buildParticipantX = (): void => {
+    let px = offsetX;
+    participantX.clear();
+    participants.forEach((p, i) => {
+      participantX.set(p.id, px);
+      if (i < participants.length - 1) {
+        const nextId = participants[i + 1]!.id;
+        px += groupBoundaryIds.has(nextId) ? sBetweenGap : sWithinGap;
+      }
+    });
+  };
+  buildParticipantX();
+
+  // Post-layout content scan: detect labels/notes that overflow the SVG boundaries.
+  // Message labels render at a fixed 12px font (unscaled) so they can extend past
+  // the scaled participant grid at small scale factors.
+  const MSG_LABEL_CHAR_W = 7;
+  let contentLeft = 0;
+  let contentRight = svgWidth;
+  for (const step of renderSteps) {
+    if (!step.label) continue;
+    const labelW = step.label.length * MSG_LABEL_CHAR_W;
+    if (step.from === step.to) {
+      const px = participantX.get(step.from);
+      if (px !== undefined) {
+        const loopRight =
+          px + sActivationWidth / 2 + sSelfCallWidth + 5 + labelW;
+        contentRight = Math.max(contentRight, loopRight);
+      }
+    } else {
+      const fromX = participantX.get(step.from);
+      const toX = participantX.get(step.to);
+      if (fromX !== undefined && toX !== undefined) {
+        const midX = (fromX + toX) / 2;
+        contentLeft = Math.min(contentLeft, midX - labelW / 2);
+        contentRight = Math.max(contentRight, midX + labelW / 2);
+      }
     }
-  });
+  }
+  // Scan right-positioned notes for overflow past the right edge
+  if (elements) {
+    const scanNotes = (els: readonly SequenceElement[]): void => {
+      for (const el of els) {
+        if (isSequenceNote(el)) {
+          const note = el as SequenceNote;
+          const pos = effectiveNotePosition(note);
+          if (pos === 'right') {
+            const px = participantX.get(note.participantId);
+            if (px !== undefined) {
+              const sc = isNoteAfterSelfCall(note);
+              const rOff = sc
+                ? sActivationWidth / 2 + sSelfCallWidth + sNoteGap
+                : sActivationWidth + sNoteGap;
+              const maxW = noteEffectiveMaxW(note.participantId, pos, sc);
+              contentRight = Math.max(contentRight, px + rOff + maxW);
+            }
+          }
+        } else if (isSequenceBlock(el)) {
+          scanNotes(el.children);
+          scanNotes(el.elseChildren);
+          if (el.elseIfBranches) {
+            for (const b of el.elseIfBranches) scanNotes(b.children);
+          }
+        }
+      }
+    };
+    scanNotes(elements);
+  }
+  const neededLeftPad = Math.max(0, -contentLeft);
+  const neededRightPad = Math.max(0, contentRight - svgWidth);
+  if (neededLeftPad > 0 || neededRightPad > 0) {
+    leftMargin += neededLeftPad;
+    rightMargin += neededRightPad;
+    totalWidth = Math.max(leftMargin + diagramWidth + rightMargin, sBoxW + 40);
+    svgWidth = Math.max(totalWidth, containerWidth);
+    offsetX = leftMargin + Math.max(0, (svgWidth - totalWidth) / 2);
+    buildParticipantX();
+  }
 
   const svg = d3Selection
     .select(container)
@@ -2099,7 +2249,6 @@ export function renderSequenceDiagram(
       // Self-arrow geometry: extend frame on the loop's side so loops sit
       // comfortably inside, and extend vertically if the block's last step
       // is a self-call (whose loop drops SELF_CALL_HEIGHT below stepY).
-      let extraLeft = 0;
       let extraRight = 0;
       let maxStepIsSelfCall = false;
       for (const mi of allIndices) {
@@ -2108,18 +2257,10 @@ export function renderSequenceDiagram(
         if (m.from === m.to) {
           const px = participantX.get(m.from);
           if (px !== undefined) {
-            const flipLeft = px === frameRightmostX;
-            if (flipLeft) {
-              const loopMin = px - SELF_ARROW_PROJECTION;
-              const need =
-                minPX - FRAME_PADDING_X - loopMin + SELF_ARROW_FRAME_PAD;
-              if (need > 0) extraLeft = Math.max(extraLeft, need);
-            } else {
-              const loopMax = px + SELF_ARROW_PROJECTION;
-              const need =
-                loopMax - (maxPX + FRAME_PADDING_X) + SELF_ARROW_FRAME_PAD;
-              if (need > 0) extraRight = Math.max(extraRight, need);
-            }
+            const loopMax = px + SELF_ARROW_PROJECTION;
+            const need =
+              loopMax - (maxPX + FRAME_PADDING_X) + SELF_ARROW_FRAME_PAD;
+            if (need > 0) extraRight = Math.max(extraRight, need);
           }
           if (msgToLastStep.get(mi) === maxStep) {
             maxStepIsSelfCall = true;
@@ -2127,10 +2268,9 @@ export function renderSequenceDiagram(
         }
       }
 
-      const frameX = minPX - FRAME_PADDING_X - extraLeft;
+      const frameX = minPX - FRAME_PADDING_X;
       const frameY = stepY(minStep) - FRAME_PADDING_TOP;
-      const frameW =
-        maxPX - minPX + FRAME_PADDING_X * 2 + extraLeft + extraRight;
+      const frameW = maxPX - minPX + FRAME_PADDING_X * 2 + extraRight;
       const frameH =
         stepY(maxStep) -
         stepY(minStep) +
@@ -2242,7 +2382,7 @@ export function renderSequenceDiagram(
   }
 
   // Render activation rectangles (behind arrows)
-  const ACTIVATION_NEST_OFFSET = 6;
+  const ACTIVATION_NEST_OFFSET = ctx.structural(6);
   activations.forEach((act) => {
     const px = participantX.get(act.participantId);
     if (px === undefined) return;
@@ -2473,13 +2613,11 @@ export function renderSequenceDiagram(
       const arrowColor = msgTagColor || palette.text;
 
       if (step.from === step.to) {
-        // Self-call: loopback arrow. Flip leftward on the rightmost lifeline
-        // so the loop and label stay inside the canvas.
-        const px = participantX.get(step.from)!;
-        const flipLeft = px === rightmostX;
-        const x = arrowEdgeX(step.from, i, flipLeft ? 'left' : 'right');
-        const loopX = flipLeft ? x - sSelfCallWidth : x + sSelfCallWidth;
-        const hitX = flipLeft ? x - sSelfCallWidth : x;
+        // Self-call: loopback arrow — always loops to the right.
+        // Canvas width extends to accommodate via right-edge projection.
+        const x = arrowEdgeX(step.from, i, 'right');
+        const loopX = x + sSelfCallWidth;
+        const hitX = x;
 
         // Hit area for self-call
         svg
@@ -2514,9 +2652,9 @@ export function renderSequenceDiagram(
         if (step.label) {
           const labelEl = svg
             .append('text')
-            .attr('x', flipLeft ? loopX - 5 : loopX + 5)
+            .attr('x', loopX + 5)
             .attr('y', y + sSelfCallHeight / 2 + 4)
-            .attr('text-anchor', flipLeft ? 'end' : 'start')
+            .attr('text-anchor', 'start')
             .attr('fill', arrowColor)
             .attr('paint-order', 'stroke fill')
             .attr('stroke', palette.bg)
