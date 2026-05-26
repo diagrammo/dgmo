@@ -305,12 +305,7 @@ export const METADATA_DIAGNOSTIC_CODES = {
  * characters per §1.10, quoted name strings).
  */
 export function pipeOperatorRemovedMessage(): string {
-  return (
-    `The '|' metadata delimiter was removed. ` +
-    `Write metadata as 'key: value, key: value' inline after the name ` +
-    `(no delimiter), or indent 'key: value' under the entity. ` +
-    `Run 'dgmo migrate' to convert legacy content.`
-  );
+  return `'|' removed — 'Node | c: red' → 'Node c: red'. Run 'dgmo migrate'`;
 }
 
 /**
@@ -349,22 +344,14 @@ export function bareDescriptionRemovedMessage(args: {
   text: string;
 }): string {
   const quoted = args.text.includes(',') ? `"${args.text}"` : args.text;
-  return (
-    `Bare-description shorthand after '|' was removed in ${args.chartType}. ` +
-    `Use 'description: ${quoted}' or move the description to indented lines below the layer.`
-  );
+  return `'|' description shorthand removed in ${args.chartType} — use 'description: ${quoted}'`;
 }
 
 /**
  * Canonical message for `E_TAG_DECLARED_AFTER_CONTENT`.
  */
 export function tagDeclaredAfterContentMessage(tagName: string): string {
-  return (
-    `Tag declaration 'tag ${tagName}' appears after the first content line. ` +
-    `Move all 'tag ...' declarations above the diagram content — single-pass ` +
-    `parsing means downstream tag aliases cannot retroactively apply to ` +
-    `earlier lines.`
-  );
+  return `'tag ${tagName}' must appear before content — move it above diagram lines`;
 }
 
 /**
