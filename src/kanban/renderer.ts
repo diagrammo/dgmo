@@ -16,6 +16,7 @@ import type {
 import { parseKanban } from './parser';
 import { isArchiveColumn } from './mutations';
 import { LEGEND_HEIGHT, measureLegendText } from '../utils/legend-constants';
+import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type {
   LegendConfig,
@@ -396,12 +397,16 @@ export function renderKanban(
       ? measureLegendText(parsed.title!, sTitleFontSize) + 16
       : 0;
     const legendX = sDiagramPadding + titleTextWidth;
-    const legendY = sDiagramPadding + (sTitleFontSize - LEGEND_HEIGHT) / 2;
     const legendConfig: LegendConfig = {
       groups: parsed.tagGroups,
       position: { placement: 'top-center', titleRelation: 'inline-with-title' },
       mode: options?.exportMode ? 'export' : 'preview',
     };
+    const legendH = getMaxLegendReservedHeight(
+      legendConfig,
+      width - legendX - sDiagramPadding
+    );
+    const legendY = sDiagramPadding + (sTitleFontSize - legendH) / 2;
     const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
     const legendG = svg
       .append('g')

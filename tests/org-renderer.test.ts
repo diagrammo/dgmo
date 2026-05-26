@@ -1250,12 +1250,13 @@ tag Status
     // Both groups should be rendered
     const groupMatches = svg.match(/data-legend-group/g);
     expect(groupMatches?.length).toBe(2);
-    // Entries should be visible (expanded capsules)
-    expect(svg).toContain('>Captain<');
-    expect(svg).toContain('>Sailor<');
+    // Entries should be visible (expanded capsules) — check data-series-name
+    // since text may be truncated at narrow export widths
+    expect(svg).toContain('data-series-name="Captain"');
+    expect(svg).toContain('data-series-name="Sailor"');
     expect(svg).not.toContain('(default)');
-    expect(svg).toContain('>Active<');
-    expect(svg).toContain('>Inactive<');
+    expect(svg).toContain('data-series-name="Active"');
+    expect(svg).toContain('data-series-name="Inactive"');
   });
 
   it('shows group name without in pill label', () => {

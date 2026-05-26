@@ -5,8 +5,8 @@
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
-import { LEGEND_HEIGHT } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
+import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import type {
   LegendConfig,
   LegendState,
@@ -364,7 +364,16 @@ export function renderBoxesAndLines(
   const sGroupLabelZone = sctx.structural(GROUP_LABEL_ZONE);
   const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
   const sTitleY = sctx.structural(TITLE_Y);
-  const sLegendHeight = sctx.structural(LEGEND_HEIGHT);
+  const sLegendHeight = sctx.structural(
+    getMaxLegendReservedHeight(
+      {
+        groups: parsed.tagGroups,
+        position: { placement: 'top-center', titleRelation: 'below-title' },
+        mode: exportMode ? 'export' : 'preview',
+      },
+      width
+    )
+  );
 
   const activeGroup = resolveActiveTagGroup(
     parsed.tagGroups,

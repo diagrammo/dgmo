@@ -221,7 +221,7 @@ function renderCapsule(
       .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
       .attr('fill', palette.textMuted)
       .attr('font-family', FONT_FAMILY)
-      .text(entry.value);
+      .text(entry.displayValue ?? entry.value);
 
     // Entry hover callback for chart-level highlighting
     if (callbacks?.onEntryHover) {
@@ -232,27 +232,6 @@ function renderCapsule(
         .on('mouseenter', () => onHover(groupName, entryValue))
         .on('mouseleave', () => onHover(groupName, null));
     }
-  }
-
-  // "+N more" indicator
-  if (capsule.moreCount) {
-    const lastEntry = capsule.entries[capsule.entries.length - 1];
-    const moreX = lastEntry
-      ? lastEntry.textX +
-        measureLegendText(lastEntry.value, LEGEND_ENTRY_FONT_SIZE) +
-        LEGEND_ENTRY_DOT_GAP * 2
-      : pill.x + pill.width + 8;
-    const moreY = lastEntry?.textY ?? LEGEND_HEIGHT / 2;
-
-    g.append('text')
-      .attr('x', moreX)
-      .attr('y', moreY)
-      .attr('dominant-baseline', 'central')
-      .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-      .attr('font-style', 'italic')
-      .attr('fill', palette.textMuted)
-      .attr('font-family', FONT_FAMILY)
-      .text(`+${capsule.moreCount} more`);
   }
 
   // Click handler on pill

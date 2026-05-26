@@ -20,6 +20,7 @@ import {
   EYE_CLOSED_PATH,
 } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
+import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
 import { ScaleContext } from '../utils/scaling';
 
@@ -147,7 +148,6 @@ export function renderSitemap(
   const sTitleFontSize = ctx.text(TITLE_FONT_SIZE);
   const sTitleHeight = ctx.structural(TITLE_HEIGHT);
   const sCollapseBarHeight = ctx.structural(COLLAPSE_BAR_HEIGHT);
-  const sLegendHeight = ctx.structural(LEGEND_HEIGHT);
   const sLegendFixedGap = ctx.aesthetic(LEGEND_FIXED_GAP);
 
   const hasLegend = layout.legend.length > 0;
@@ -157,6 +157,22 @@ export function renderSitemap(
   const fixedLegend = !exportDims && hasLegend;
   const fixedTitle = fixedLegend && showTitle;
   const fixedTitleH = fixedTitle ? sTitleHeight : 0;
+  const sLegendHeight = ctx.structural(
+    fixedLegend
+      ? getMaxLegendReservedHeight(
+          {
+            groups: parsed.tagGroups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'below-title',
+            },
+            mode: 'preview',
+            capsulePillAddonWidth: LEGEND_EYE_SIZE + LEGEND_EYE_GAP,
+          },
+          width
+        )
+      : LEGEND_HEIGHT
+  );
   const legendReserveH = fixedLegend ? sLegendHeight + sLegendFixedGap : 0;
   const fixedReserveTop = fixedTitleH + legendReserveH;
   const fixedReserveBottom = 0;

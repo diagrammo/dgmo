@@ -15,6 +15,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeLegendLayout,
   getLegendReservedHeight,
+  getMaxLegendReservedHeight,
   pillWidth,
 } from '../src/utils/legend-layout';
 import { LEGEND_HEIGHT } from '../src/utils/legend-constants';
@@ -87,16 +88,14 @@ describe('computeLegendLayout', () => {
     expect(layout.pills[2].groupName).toBe('Group3');
   });
 
-  it('creates active capsule when group is active', () => {
+  it('creates active capsule when group is active (hides inactive pills)', () => {
     const groups = makeGroups(2);
     const state: LegendState = { activeGroup: 'Group1' };
     const layout = computeLegendLayout(defaultConfig(groups), state, 800);
     expect(layout.activeCapsule).toBeDefined();
     expect(layout.activeCapsule!.groupName).toBe('Group1');
     expect(layout.activeCapsule!.entries).toHaveLength(2);
-    // The non-active group is a pill
-    expect(layout.pills).toHaveLength(1);
-    expect(layout.pills[0].groupName).toBe('Group2');
+    expect(layout.pills).toHaveLength(0);
   });
 
   it('case-insensitive activeGroup matching', () => {
@@ -259,5 +258,122 @@ describe('computeLegendLayout', () => {
     // Both should be positive and reasonable
     expect(w1).toBeGreaterThan(20);
     expect(w2).toBeGreaterThan(40);
+  });
+});
+
+// ── Continuation row indent ─────────────────────────────────
+
+describe('buildCapsuleLayout indent', () => {
+  it('row 2+ entries indent to align with first entry after pill', () => {
+    const manyEntries: LegendGroupData = {
+      name: 'Rank',
+      entries: Array.from({ length: 8 }, (_, i) => ({
+        value: `Entry${i}`,
+        color: `#${i}${i}${i}`,
+      })),
+    };
+    const config = defaultConfig([manyEntries]);
+    const state: LegendState = { activeGroup: 'Rank' };
+    const layout = computeLegendLayout(config, state, 400);
+    const capsule = layout.activeCapsule!;
+    expect(capsule.entries.length).toBeGreaterThan(0);
+
+    const firstEntryX = capsule.entries[0].x;
+    const row2Entries = capsule.entries.filter(
+      (e) => e.y > 0 && e.y === LEGEND_HEIGHT
+    );
+    if (row2Entries.length > 0) {
+      for (const e of row2Entries) {
+        expect(e.x).toBeGreaterThanOrEqual(firstEntryX);
+      }
+    }
+  });
+});
+
+// ── Inactive pill hiding ────────────────────────────────────
+
+describe('computeLegendLayout inactive pill hiding', () => {
+  it('hides inactive pills when a group is active', () => {
+    const groups = makeGroups(3);
+    const state: LegendState = { activeGroup: 'Group1' };
+    const layout = computeLegendLayout(defaultConfig(groups), state, 800);
+    expect(layout.activeCapsule).toBeDefined();
+    expect(layout.pills).toHaveLength(0);
+  });
+
+  it('shows all groups as pills when no group is active', () => {
+    const groups = makeGroups(3);
+    const layout = computeLegendLayout(
+      defaultConfig(groups),
+      noActiveState,
+      800
+    );
+    expect(layout.activeCapsule).toBeUndefined();
+    expect(layout.pills).toHaveLength(3);
+  });
+});
+
+// ── getMaxLegendReservedHeight ──────────────────────────────
+
+describe('getMaxLegendReservedHeight', () => {
+  it('returns max capsule height across all groups', () => {
+    const groups: LegendGroupData[] = [
+      {
+        name: 'Small',
+        entries: [
+          { value: 'A', color: '#aaa' },
+          { value: 'B', color: '#bbb' },
+        ],
+      },
+      {
+        name: 'Big',
+        entries: Array.from({ length: 10 }, (_, i) => ({
+          value: `LongEntry${i}`,
+          color: `#${i}00`,
+        })),
+      },
+    ];
+    const config = defaultConfig(groups);
+    const h = getMaxLegendReservedHeight(config, 400);
+    expect(h).toBeGreaterThan(LEGEND_HEIGHT);
+    expect(h).toBeLessThanOrEqual(LEGEND_HEIGHT * 3);
+  });
+
+  it('returns LEGEND_HEIGHT for 0 groups', () => {
+    const config = defaultConfig([]);
+    expect(getMaxLegendReservedHeight(config, 800)).toBe(LEGEND_HEIGHT);
+  });
+
+  it('returns LEGEND_HEIGHT for groups that all fit on one row', () => {
+    const groups = makeGroups(1);
+    const config = defaultConfig(groups);
+    expect(getMaxLegendReservedHeight(config, 800)).toBe(LEGEND_HEIGHT);
+  });
+});
+
+// ── Entry truncation ────────────────────────────────────────
+
+describe('entry label truncation', () => {
+  it('truncates entry wider than available row width', () => {
+    const group: LegendGroupData = {
+      name: 'Test',
+      entries: [
+        {
+          value: 'Very Long Entry Name That Exceeds Available Space Completely',
+          color: '#aaa',
+        },
+      ],
+    };
+    const config = defaultConfig([group]);
+    const state: LegendState = { activeGroup: 'Test' };
+    const layout = computeLegendLayout(config, state, 200);
+    const capsule = layout.activeCapsule!;
+    expect(capsule.entries).toHaveLength(1);
+    const entry = capsule.entries[0];
+    expect(entry.displayValue).toBeDefined();
+    expect(entry.displayValue!.endsWith('…')).toBe(true);
+    expect(entry.value).toBe(
+      'Very Long Entry Name That Exceeds Available Space Completely'
+    );
   });
 });

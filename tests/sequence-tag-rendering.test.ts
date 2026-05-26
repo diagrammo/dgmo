@@ -269,18 +269,20 @@ const multiGroupDiagram = [
 ].join('\n');
 
 describe('Sequence legend rendering', () => {
-  it('renders legend pills for each tag group', () => {
+  it('shows only active group (hides inactive pills)', () => {
     const svg = renderToSvg(multiGroupDiagram);
+    // Auto-activates first group (Concern), hides Team
     const pills = svg!.querySelectorAll('[data-legend-group]');
-    expect(pills.length).toBe(2);
+    expect(pills.length).toBe(1);
+    expect(pills[0].getAttribute('data-legend-group')).toBe('concern');
   });
 
-  it('sets data-legend-group attribute on each pill', () => {
+  it('sets data-legend-group on active capsule', () => {
     const svg = renderToSvg(multiGroupDiagram);
     const concernPill = svg!.querySelector('[data-legend-group="concern"]');
-    const teamPill = svg!.querySelector('[data-legend-group="team"]');
     expect(concernPill).not.toBeNull();
-    expect(teamPill).not.toBeNull();
+    const teamPill = svg!.querySelector('[data-legend-group="team"]');
+    expect(teamPill).toBeNull();
   });
 
   it('expands active tag group with colored entry dots', () => {
@@ -301,13 +303,12 @@ describe('Sequence legend rendering', () => {
     expect(dot!.getAttribute('fill')).toBeTruthy();
   });
 
-  it('does not expand inactive tag groups', () => {
+  it('hides inactive tag groups entirely', () => {
     const svg = renderToSvg(multiGroupDiagram, { activeTagGroup: 'concern' });
 
-    // Team group should NOT have entry elements (inactive)
+    // Team group should not be present at all (hidden when Concern is active)
     const teamPill = svg!.querySelector('[data-legend-group="team"]');
-    const teamEntries = teamPill!.querySelectorAll('[data-legend-entry]');
-    expect(teamEntries.length).toBe(0);
+    expect(teamPill).toBeNull();
   });
 
   it('renders no legend when no tag groups exist', () => {

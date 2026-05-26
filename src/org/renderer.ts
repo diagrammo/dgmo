@@ -26,6 +26,7 @@ import {
   EYE_CLOSED_PATH,
 } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
+import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
 
 // ============================================================
@@ -155,7 +156,17 @@ export function renderOrg(
 
   const layoutLegendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP;
   const fixedLegend = !exportDims && hasLegend && !legendOnly;
-  const legendReserve = fixedLegend ? LEGEND_HEIGHT + sLegendFixedGap : 0;
+  const legendReserve = fixedLegend
+    ? getMaxLegendReservedHeight(
+        {
+          groups: parsed.tagGroups,
+          position: { placement: 'top-center', titleRelation: 'below-title' },
+          mode: 'preview',
+          capsulePillAddonWidth: LEGEND_EYE_SIZE + LEGEND_EYE_GAP,
+        },
+        width
+      ) + sLegendFixedGap
+    : 0;
 
   const fixedTitle = !exportDims && showTitle;
   const titleReserve = fixedTitle ? sTitleHeight : 0;

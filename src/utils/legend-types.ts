@@ -117,6 +117,7 @@ export interface LegendEntryLayout {
   dotCy: number;
   textX: number;
   textY: number;
+  displayValue?: string;
 }
 
 export interface LegendCapsuleLayout {

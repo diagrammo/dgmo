@@ -19,7 +19,8 @@ import { renderInlineText } from '../utils/inline-markdown';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
-import { LEGEND_HEIGHT, LEGEND_GROUP_GAP } from '../utils/legend-constants';
+import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
+import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
 
@@ -120,7 +121,16 @@ export function renderMindmap(
     !!options?.onToggleColorByDepth || !!options?.onToggleDescriptions;
   const hasLegend = parsed.tagGroups.length > 0 || hasControls;
   const fixedLegend = !isExport && hasLegend;
-  const legendReserve = fixedLegend ? LEGEND_HEIGHT + LEGEND_GROUP_GAP : 0;
+  const legendReserve = fixedLegend
+    ? getMaxLegendReservedHeight(
+        {
+          groups: parsed.tagGroups,
+          position: { placement: 'top-center', titleRelation: 'below-title' },
+          mode: 'preview',
+        },
+        containerWidth
+      ) + LEGEND_GROUP_GAP
+    : 0;
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const fixedTitle = !isExport && showTitle;
   const titleReserve = fixedTitle ? TITLE_HEIGHT : 0;

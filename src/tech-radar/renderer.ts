@@ -26,7 +26,7 @@ import {
 import { ScaleContext } from '../utils/scaling';
 import { renderQuadrantFocus } from './interactive';
 import { renderLegendD3 } from '../utils/legend-d3';
-import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import type {
   LegendConfig,
   LegendState,
@@ -256,7 +256,7 @@ export function renderTechRadar(
       legendCallbacks,
       width
     );
-    legendReservedHeight = LEGEND_HEIGHT + 8;
+    legendReservedHeight = getMaxLegendReservedHeight(legendConfig, width) + 8;
   }
 
   const radarTop = (showTitle ? titleY + 16 : 8) + legendReservedHeight;

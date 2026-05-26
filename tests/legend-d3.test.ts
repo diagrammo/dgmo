@@ -124,7 +124,7 @@ describe('renderLegendD3', () => {
     expect(legendRoot!.getAttribute('data-legend-active')).toBeNull();
   });
 
-  it('non-active groups show as collapsed pills (no entries)', () => {
+  it('hides inactive group pills when a group is active', () => {
     const g = makeContainer();
     const container = select(g);
     renderLegendD3(
@@ -136,9 +136,9 @@ describe('renderLegendD3', () => {
     );
 
     const statusPill = g.querySelector('[data-legend-group="status"]');
-    expect(statusPill).not.toBeNull();
-    const statusEntries = statusPill!.querySelectorAll('[data-legend-entry]');
-    expect(statusEntries.length).toBe(0);
+    expect(statusPill).toBeNull();
+    const priorityCapsule = g.querySelector('[data-legend-group="priority"]');
+    expect(priorityCapsule).not.toBeNull();
   });
 
   it('setState re-renders with new active group', () => {
@@ -230,10 +230,7 @@ describe('renderLegendD3', () => {
     expect(ctrl!.getAttribute('data-export-ignore')).toBe('true');
   });
 
-  it('collapsed pills survive export (no data-export-ignore)', () => {
-    // Per spec §1.3, collapsed tag-group pills must remain visible in
-    // static exports so readers see the tag dimensions exist even when
-    // no group is active. Only interactive controls strip in export.
+  it('active capsule survives export (no data-export-ignore)', () => {
     const g = makeContainer();
     const container = select(g);
     renderLegendD3(
@@ -244,13 +241,12 @@ describe('renderLegendD3', () => {
       false
     );
 
-    const statusPill = g.querySelector('[data-legend-group="status"]');
-    expect(statusPill).not.toBeNull();
-    expect(statusPill!.getAttribute('data-export-ignore')).toBeNull();
-
     const priorityCapsule = g.querySelector('[data-legend-group="priority"]');
     expect(priorityCapsule).not.toBeNull();
     expect(priorityCapsule!.getAttribute('data-export-ignore')).toBeNull();
+    // Inactive pills hidden when group is active
+    const statusPill = g.querySelector('[data-legend-group="status"]');
+    expect(statusPill).toBeNull();
   });
 
   it('all pills survive export when no group is active', () => {

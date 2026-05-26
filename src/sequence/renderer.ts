@@ -30,7 +30,7 @@ import {
 import { resolveSequenceTags } from './tag-resolution';
 import type { ResolvedTagMap } from './tag-resolution';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
-import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type {
   LegendCallbacks,
@@ -976,7 +976,7 @@ export function renderSequenceDiagram(
   // programmatic override → diagram-level active-tag → auto-activate first group
   const activeTagGroup =
     resolveActiveTagGroup(
-      parsed.tagGroups,
+      parsed.tagGroups.filter((tg) => tg.entries.length > 0),
       parsedOptions['active-tag'],
       options?.activeTagGroup
     ) ?? undefined;
@@ -1391,8 +1391,22 @@ export function renderSequenceDiagram(
   const showTitle = !!title && parsedOptions['no-title'] !== 'on';
   const titleOffset = showTitle ? sTitleHeight : 0;
   const LEGEND_FIXED_GAP = 8;
+  const resolvedGroups = parsed.tagGroups
+    .filter((tg) => tg.entries.length > 0)
+    .map((tg) => ({
+      name: tg.name,
+      entries: tg.entries.map((e) => ({ value: e.value, color: e.color })),
+    }));
+  const legendConfig: LegendConfig = {
+    groups: resolvedGroups,
+    position: { placement: 'top-center', titleRelation: 'below-title' },
+    mode: 'preview',
+  };
   const legendTopSpace =
-    parsed.tagGroups.length > 0 ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
+    parsed.tagGroups.length > 0
+      ? getMaxLegendReservedHeight(legendConfig, containerWidth) +
+        LEGEND_FIXED_GAP
+      : 0;
   // Use parsed.groups (not projected groups) to keep vertical space consistent
   // even when all groups are collapsed into virtual participants
   const groupOffset =
@@ -2747,21 +2761,6 @@ export function renderSequenceDiagram(
   // (group boxes, lifelines, participants, etc.) and can receive clicks.
   if (hasTagGroups) {
     const legendY = sTopMargin + titleOffset;
-    const resolvedGroups = parsed.tagGroups
-      .filter((tg) => tg.entries.length > 0)
-      .map((tg) => ({
-        name: tg.name,
-        entries: tg.entries.map((e) => ({
-          value: e.value,
-          color: e.color,
-        })),
-      }));
-
-    const legendConfig: LegendConfig = {
-      groups: resolvedGroups,
-      position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: 'preview',
-    };
     const legendState: LegendState = {
       activeGroup: activeTagGroup ?? null,
       controlsExpanded: false,

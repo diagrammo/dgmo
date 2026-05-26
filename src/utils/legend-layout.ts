@@ -17,6 +17,7 @@ import {
   LEGEND_GEAR_PILL_W,
   LEGEND_TOGGLE_DOT_R,
   measureLegendText,
+  truncateLegendText,
 } from './legend-constants';
 
 import type { LegendGroupData } from './legend-svg';
@@ -121,10 +122,11 @@ function capsuleWidth(
   let visible = 0;
 
   for (let i = 0; i < entries.length; i++) {
-    const ew2 = entryWidth(entries[i]!.value);
-    if (rowX + ew2 > rowWidth && i > 0) {
+    let ew2 = entryWidth(entries[i]!.value);
+    const availW = rowWidth - rowX;
+    if (ew2 > availW && i > 0) {
       row++;
-      rowX = 0;
+      rowX = LEGEND_CAPSULE_PAD + pw + 4 + addonWidth;
       if (row > LEGEND_MAX_ENTRY_ROWS) {
         return {
           width: maxCapsuleW,
@@ -134,6 +136,8 @@ function capsuleWidth(
         };
       }
     }
+    // Cap to available width (mirrors truncation in buildCapsuleLayout)
+    ew2 = Math.min(ew2, rowWidth - rowX);
     rowX += ew2;
     visible++;
   }
@@ -357,7 +361,7 @@ export function computeLegendLayout(
         groupAvailW,
         config.capsulePillAddonWidth ?? 0
       );
-    } else {
+    } else if (!activeGroupName) {
       const pw = pillWidth(g.name);
       pills.push({
         groupName: g.name,
@@ -433,17 +437,32 @@ function buildCapsuleLayout(
   let currentRow = 0;
 
   for (let i = 0; i < info.visibleEntries; i++) {
-    // visibleEntries is bounded by group.entries.length upstream.
     const entry = group.entries[i]!;
-    const ew = entryWidth(entry.value);
+    let ew = entryWidth(entry.value);
 
-    // Wrap to next row if needed. Only check when capsuleWidth decided
-    // multi-row layout — otherwise float-precision drift in the per-entry
-    // accumulation can wrongly wrap an entry that fit on a single row.
     if (info.entryRows > 1 && rowX + ew > maxRowW && rowX > ex && i > 0) {
       currentRow++;
-      rowX = 0;
+      rowX = ex;
       ey = currentRow * LEGEND_HEIGHT;
+    }
+
+    let displayValue: string | undefined;
+    const availW = maxRowW - rowX;
+    if (ew > availW) {
+      const textAvail =
+        availW - (LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + LEGEND_ENTRY_TRAIL);
+      if (textAvail > 0) {
+        displayValue = truncateLegendText(
+          entry.value,
+          LEGEND_ENTRY_FONT_SIZE,
+          textAvail
+        );
+        ew =
+          LEGEND_DOT_R * 2 +
+          LEGEND_ENTRY_DOT_GAP +
+          measureLegendText(displayValue, LEGEND_ENTRY_FONT_SIZE) +
+          LEGEND_ENTRY_TRAIL;
+      }
     }
 
     const dotCx = rowX + LEGEND_DOT_R;
@@ -460,6 +479,7 @@ function buildCapsuleLayout(
       dotCy,
       textX,
       textY,
+      ...(displayValue !== undefined && { displayValue }),
     });
 
     rowX += ew;
@@ -632,4 +652,21 @@ export function getLegendReservedHeight(
 ): number {
   const layout = computeLegendLayout(config, state, containerWidth);
   return layout.height;
+}
+
+export function getMaxLegendReservedHeight(
+  config: LegendConfig,
+  containerWidth: number
+): number {
+  const groups = config.groups;
+  if (groups.length === 0) return LEGEND_HEIGHT;
+  const addon = config.capsulePillAddonWidth ?? 0;
+  let max = LEGEND_HEIGHT;
+  for (const g of groups) {
+    if (g.entries.length === 0) continue;
+    const info = capsuleWidth(g.name, g.entries, containerWidth, addon);
+    const h = info.entryRows * LEGEND_HEIGHT;
+    if (h > max) max = h;
+  }
+  return max;
 }

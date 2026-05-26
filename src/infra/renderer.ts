@@ -38,6 +38,7 @@ import {
   measureLegendText,
 } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
+import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
@@ -2245,7 +2246,18 @@ export function renderInfra(
   );
   const hasLegend = legendGroups.length > 0 || !!playback;
   const fixedLegend = !exportMode && hasLegend;
-  const legendOffset = hasLegend && !fixedLegend ? LEGEND_HEIGHT : 0;
+  const legendDynamicH = hasLegend
+    ? getMaxLegendReservedHeight(
+        {
+          groups: legendGroups,
+          position: { placement: 'top-center', titleRelation: 'below-title' },
+          mode: exportMode ? 'export' : 'preview',
+          showEmptyGroups: true,
+        },
+        container.clientWidth || layout.width
+      )
+    : LEGEND_HEIGHT;
+  const legendOffset = hasLegend && !fixedLegend ? legendDynamicH : 0;
 
   const titleOffset = title ? TITLE_OFFSET : 0;
   const totalWidth = layout.width;
@@ -2284,7 +2296,7 @@ export function renderInfra(
   }
 
   const fixedOverheadH =
-    (fixedLegend ? LEGEND_HEIGHT + sc.sLegendFixedGap : 0) + fixedTitleH;
+    (fixedLegend ? legendDynamicH + sc.sLegendFixedGap : 0) + fixedTitleH;
   const rootSvg = d3Selection
     .select(container)
     .append('svg')
@@ -2430,10 +2442,10 @@ export function renderInfra(
         .insert('svg', 'svg:last-of-type')
         .attr('class', 'infra-legend-fixed')
         .attr('width', '100%')
-        .attr('height', LEGEND_HEIGHT + sc.sLegendFixedGap)
+        .attr('height', legendDynamicH + sc.sLegendFixedGap)
         .attr(
           'viewBox',
-          `0 0 ${legendContainerW} ${LEGEND_HEIGHT + sc.sLegendFixedGap}`
+          `0 0 ${legendContainerW} ${legendDynamicH + sc.sLegendFixedGap}`
         )
         .attr('preserveAspectRatio', 'xMidYMid meet')
         .style('display', 'block')

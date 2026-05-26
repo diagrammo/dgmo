@@ -27,7 +27,10 @@ import {
   truncateLegendText,
 } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
-import { controlsGroupCapsuleWidth } from '../utils/legend-layout';
+import {
+  controlsGroupCapsuleWidth,
+  getMaxLegendReservedHeight,
+} from '../utils/legend-layout';
 import type {
   LegendConfig,
   LegendState,
@@ -317,10 +320,23 @@ export function renderGantt(
   const title = resolved.options.title;
   const showTitle = !!title && !resolved.options.noTitle;
   const titleHeight = showTitle ? 50 : 20;
-  const tagLegendReserve =
-    resolved.tagGroups.length > 0 || hasCriticalPath || hasDependencies
-      ? LEGEND_HEIGHT + 8
-      : 0;
+  const containerWidth = exportDims?.width ?? (container.clientWidth || 800);
+  const hasTagLegend =
+    resolved.tagGroups.length > 0 || hasCriticalPath || hasDependencies;
+  const tagLegendReserve = hasTagLegend
+    ? getMaxLegendReservedHeight(
+        {
+          groups: resolved.tagGroups.map((tg) => ({
+            name: tg.name,
+            entries: tg.entries,
+          })),
+          position: { placement: 'top-center', titleRelation: 'below-title' },
+          mode: 'preview',
+          capsulePillAddonWidth: LEGEND_ICON_W,
+        },
+        containerWidth
+      ) + 8
+    : 0;
   const topDateLabelReserve = 22; // tick (6) + gap (4) + label height (~12)
   const HEADER_ROW_H = 18; // height per reserved label row
   const eraReserve = resolved.eras.length > 0 ? HEADER_ROW_H : 0;
@@ -328,8 +344,6 @@ export function renderGantt(
   const todayReserve = resolvedTodayDate ? HEADER_ROW_H : 0;
   const sprintLabelReserve = resolved.sprints.length > 0 ? 16 : 0; // sprint hover label above date labels
   const CONTENT_TOP_PAD = 16; // breathing room between scale labels and first row
-
-  const containerWidth = exportDims?.width ?? (container.clientWidth || 800);
 
   const idealWidth = leftMargin + totalRows * 20 + RIGHT_MARGIN + 200;
   const ctx = exportDims
