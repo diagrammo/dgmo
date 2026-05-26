@@ -1308,25 +1308,32 @@ timeline [Title]
 
 ### 14.2 Events
 
-**Point event:**
+Events use **name-first syntax** with `start:`, `end:`, and `duration:` as reserved metadata keys.
+
+**Point event** (`start:` only):
 ```
-1718-05 Blockades Charleston | p: Blackbeard
+Blockades Charleston start: 1718-05, p: Blackbeard
 ```
 
-**Range event:**
+**Range event** (`start:` + `end:`):
 ```
-1716 -> 1717 Sails under Hornigold | p: Blackbeard
-```
-
-**Duration event:**
-```
-2026-03-20 -> 30d Sprint 1
+Sails under Hornigold start: 1716, end: 1717, p: Blackbeard
 ```
 
-**Uncertain ending:**
+**Duration event** (`start:` + `duration:`):
 ```
-1718 -> 1719? Rackham builds crew
+Sprint 1 start: 2026-03-20, duration: 30d
 ```
+
+**Uncertain ending** (`?` suffix on `end:` or `duration:`):
+```
+Rackham builds crew start: 1718, end: 1719?
+```
+
+Event type is determined by key presence:
+- `start:` only → point event
+- `start:` + `end:` → range event
+- `start:` + `duration:` → duration event
 
 Date formats: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `YYYY-MM-DD HH:MM`
 Duration units: `min`, `h`, `d`, `w`, `m`, `y`
@@ -1363,7 +1370,7 @@ marker
 
 ```
 [Royal Navy]
-  1718-07 Woodes Rogers arrives
+  Woodes Rogers arrives start: 1718-07
 ```
 
 ---
