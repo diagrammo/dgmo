@@ -51,6 +51,8 @@ import { ScaleContext } from '../utils/scaling';
 const PARTICIPANT_GAP = 160;
 const PARTICIPANT_BOX_WIDTH = 120;
 const PARTICIPANT_BOX_HEIGHT = 50;
+const LABEL_FONT_SIZE = 13;
+const GROUP_INTER_GAP = 50;
 const TOP_MARGIN = 20;
 const TITLE_HEIGHT = 30;
 const PARTICIPANT_Y_OFFSET = 10;
@@ -101,9 +103,9 @@ function splitParticipantLabel(
     return wrapLabelWords(label.split(' '), maxChars);
   }
 
-  // Split on dashes/underscores
-  if (/[-_]/.test(label)) {
-    const parts = label.split(/[-_]/);
+  // Split on dashes/underscores/colons/slashes
+  if (/[-_:/]/.test(label)) {
+    const parts = label.split(/[-_:/]+/);
     return wrapLabelWords(parts, maxChars);
   }
 
@@ -889,8 +891,26 @@ export function renderSequenceDiagram(
   );
   if (participants.length === 0) return;
 
+  // Compute group boundaries early so idealWidth includes inter-group spacing
+  const groupBoundaryIds = new Set<string>();
+  if (groups.length > 1) {
+    const pToG = new Map<string, number>();
+    for (let gi = 0; gi < groups.length; gi++) {
+      for (const pid of groups[gi]!.participantIds) pToG.set(pid, gi);
+    }
+    let prevGi = -1;
+    for (const p of participants) {
+      const gi = pToG.get(p.id);
+      if (gi !== undefined && gi !== prevGi && prevGi !== -1) {
+        groupBoundaryIds.add(p.id);
+      }
+      if (gi !== undefined) prevGi = gi;
+    }
+  }
+  const numGroupGaps = groupBoundaryIds.size;
+
   const idealWidth = Math.max(
-    participants.length * PARTICIPANT_GAP,
+    participants.length * PARTICIPANT_GAP + numGroupGaps * GROUP_INTER_GAP,
     PARTICIPANT_BOX_WIDTH + 40
   );
   const containerWidth =
@@ -925,6 +945,8 @@ export function renderSequenceDiagram(
   const sNoteLaneMax = sGap - sActivationWidth - sNoteGap;
   const sLabelCharWidth = ctx.text(LABEL_CHAR_WIDTH, 5);
   const sLabelMaxChars = Math.floor((sBoxW - 10) / sLabelCharWidth);
+  const sLabelFontSize = ctx.text(LABEL_FONT_SIZE);
+  const sGroupInterGap = ctx.structural(GROUP_INTER_GAP);
 
   // Participant index lookup — used to clamp note width within one lane
   const participantIndexMap = new Map<string, number>();
@@ -1382,10 +1404,10 @@ export function renderSequenceDiagram(
   }
 
   // Group box layout constants (needed early for Y offset)
-  const GROUP_PADDING_X = 15;
+  const GROUP_PADDING_X = ctx.structural(15);
   const GROUP_PADDING_TOP = 22;
   const GROUP_PADDING_BOTTOM = 8;
-  const GROUP_LABEL_SIZE = 11;
+  const GROUP_LABEL_SIZE = ctx.text(11);
 
   // Compute cumulative Y positions for each step, with section dividers as stable anchors
   const showTitle = !!title && parsedOptions['no-title'] !== 'on';
@@ -1542,7 +1564,11 @@ export function renderSequenceDiagram(
   }
   const messageAreaHeight = contentBottomY - lifelineStartY0;
   const lifelineLength = messageAreaHeight + sLifelineTail;
-  const totalWidth = Math.max(participants.length * sGap, sBoxW + 40);
+  const totalGroupGapW = numGroupGaps * sGroupInterGap;
+  const totalWidth = Math.max(
+    participants.length * sGap + totalGroupGapW,
+    sBoxW + 40
+  );
   const contentHeight =
     participantStartY + sBoxH + Math.max(lifelineLength, 40) + 40;
   const totalHeight = contentHeight;
@@ -1550,13 +1576,15 @@ export function renderSequenceDiagram(
   const svgWidth = Math.max(totalWidth, containerWidth);
 
   // Center the diagram horizontally
-  const diagramWidth = participants.length * sGap;
+  const diagramWidth = participants.length * sGap + totalGroupGapW;
   const offsetX = Math.max(0, (svgWidth - diagramWidth) / 2) + sGap / 2;
 
-  // Build participant x-position lookup
+  // Build participant x-position lookup with inter-group gaps
   const participantX = new Map<string, number>();
+  let gapAccum = 0;
   participants.forEach((p, i) => {
-    participantX.set(p.id, offsetX + i * sGap);
+    if (groupBoundaryIds.has(p.id)) gapAccum += sGroupInterGap;
+    participantX.set(p.id, offsetX + i * sGap + gapAccum);
   });
 
   const svg = d3Selection
@@ -1807,8 +1835,8 @@ export function renderSequenceDiagram(
 
   // Render each participant
   const lifelineStartY = lifelineStartY0;
-  participants.forEach((participant, index) => {
-    const cx = offsetX + index * sGap;
+  participants.forEach((participant) => {
+    const cx = participantX.get(participant.id)!;
     const cy = participantStartY;
 
     const pTagValue = tagMap?.participants.get(participant.id);
@@ -1839,7 +1867,8 @@ export function renderSequenceDiagram(
       solid,
       sBoxW,
       sBoxH,
-      sLabelMaxChars
+      sLabelMaxChars,
+      sLabelFontSize
     );
 
     // Collapsed group: re-render participant box at full group height + drill-bar
@@ -2831,7 +2860,8 @@ function renderParticipant(
   solid?: boolean,
   boxW: number = W,
   boxH: number = H,
-  labelMaxChars: number = LABEL_MAX_CHARS
+  labelMaxChars: number = LABEL_MAX_CHARS,
+  labelFontSize: number = LABEL_FONT_SIZE
 ): void {
   const g = svg
     .append('g')
@@ -2866,10 +2896,8 @@ function renderParticipant(
   // Render label — below the shape for actors, centered inside for others
   const isActor = participant.type === 'actor';
   const labelLines = splitParticipantLabel(participant.label, labelMaxChars);
-  const fontSize = 13;
+  const fontSize = labelFontSize;
   const lineHeight = fontSize + 2;
-  // Actors render the label below the shape (on bg). Other participants render
-  // the label inside the participant box, so contrast against the resolved fill.
   const labelFill = isActor
     ? palette.text
     : contrastText(
@@ -2885,12 +2913,18 @@ function renderParticipant(
     .attr('font-size', fontSize)
     .attr('font-weight', 500);
 
+  const maxLabelW = boxW - 10;
+  const truncLine = (text: string): string => {
+    if (text.length * (fontSize * 0.6) <= maxLabelW) return text;
+    const maxCharsEst = Math.floor(maxLabelW / (fontSize * 0.6));
+    return maxCharsEst > 2 ? text.slice(0, maxCharsEst - 1) + '…' : text;
+  };
+
   if (labelLines.length === 1) {
     textEl
       .attr('y', isActor ? boxH + 14 : boxH / 2 + 5)
-      .text(participant.label);
+      .text(truncLine(participant.label));
   } else {
-    // Multi-line: vertically center the lines within the box (or below for actors)
     const totalHeight = labelLines.length * lineHeight;
     const baseY = isActor
       ? boxH + 14 - ((labelLines.length - 1) * lineHeight) / 2
@@ -2901,7 +2935,7 @@ function renderParticipant(
         .append('tspan')
         .attr('x', 0)
         .attr('dy', i === 0 ? `${baseY}px` : `${lineHeight}px`)
-        .text(line);
+        .text(truncLine(line));
     });
   }
 }
