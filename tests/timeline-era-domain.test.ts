@@ -79,8 +79,8 @@ describe('Timeline era domain', () => {
   it('era extending before earliest event lands within chart width', () => {
     const src = `timeline
 era 1900->1950 Pre-history
-2000 First event
-2010 Second event`;
+First event start: 2000
+Second event start: 2010`;
     const container = renderToContainer(src);
     const eras = container.querySelectorAll('.tl-era');
     expect(eras.length).toBe(1);
@@ -95,8 +95,8 @@ era 1900->1950 Pre-history
 
   it('era extending past latest event lands within chart width', () => {
     const src = `timeline
-2000 First event
-2010 Second event
+First event start: 2000
+Second event start: 2010
 era 2005->2100 Future`;
     const container = renderToContainer(src);
     const rect = container.querySelector('.tl-era rect')!;
@@ -110,7 +110,7 @@ era 2005->2100 Future`;
 
   it('era entirely outside event range still anchors the axis', () => {
     const src = `timeline
-2000 Only event
+Only event start: 2000
 era 1800->1900 Way before`;
     const container = renderToContainer(src);
     const rect = container.querySelector('.tl-era rect')!;
@@ -124,8 +124,8 @@ era 1800->1900 Way before`;
 
   it('era straddling the event range fits the full chart width', () => {
     const src = `timeline
-2000 First event
-2010 Second event
+First event start: 2000
+Second event start: 2010
 era 1950->2050 Wide span`;
     const container = renderToContainer(src);
     const rect = container.querySelector('.tl-era rect')!;
@@ -140,8 +140,8 @@ era 1950->2050 Wide span`;
   it('marker before earliest event lands within chart width', () => {
     const src = `timeline
 marker 1900 Pre-history orange
-2000 First event
-2010 Second event`;
+First event start: 2000
+Second event start: 2010`;
     const container = renderToContainer(src);
     const markers = container.querySelectorAll('.tl-marker');
     expect(markers.length).toBe(1);
@@ -157,8 +157,8 @@ marker 1900 Pre-history orange
 
   it('marker past latest event lands within chart width', () => {
     const src = `timeline
-2000 First event
-2010 Second event
+First event start: 2000
+Second event start: 2010
 marker 2100 Future`;
     const container = renderToContainer(src);
     const text = container.querySelector('.tl-marker text')!;

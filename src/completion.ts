@@ -864,6 +864,11 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
     {
       node: {
         description: { description: 'Event description' },
+        start: {
+          description: 'Event start date (e.g., 1718, 2024-01-15)',
+        },
+        end: { description: 'Event end date (e.g., 1719, 2024-06-30)' },
+        duration: { description: 'Event duration (e.g., 30d, 1.5y)' },
       },
     },
   ],
@@ -1734,6 +1739,8 @@ function extractSankeySymbols(docText: string): DiagramSymbols {
 const TIMELINE_ERA_RE = /^era\s+/i;
 const TIMELINE_MARKER_RE = /^marker\s+/i;
 
+const TIMELINE_SCHEDULING_RE = /\b(?:start|end|duration)\s*:/;
+
 function extractTimelineSymbols(docText: string): DiagramSymbols {
   const lines = docText.split('\n');
   const entities: string[] = [];
@@ -1764,14 +1771,21 @@ function extractTimelineSymbols(docText: string): DiagramSymbols {
       inTagBlock = false;
     }
 
-    // Event lines: date Label or date->date Label
-    const label = trimmed
-      .replace(
-        /^\d{4}(?:-\d{2}(?:-\d{2})?)?\s*(?:->\s*\d{4}(?:-\d{2}(?:-\d{2})?)?)?\s*/,
-        ''
-      )
-      .split('|')[0]!
-      .trim();
+    let label: string;
+    if (TIMELINE_SCHEDULING_RE.test(trimmed)) {
+      label = trimmed
+        .replace(/\b(?:start|end|duration|color|description)\s*:.*$/, '')
+        .split('|')[0]!
+        .trim();
+    } else {
+      label = trimmed
+        .replace(
+          /^\d{4}(?:-\d{2}(?:-\d{2})?)?\s*(?:->\s*\d{4}(?:-\d{2}(?:-\d{2})?)?)?\s*/,
+          ''
+        )
+        .split('|')[0]!
+        .trim();
+    }
     if (label && !entities.includes(label)) entities.push(label);
   }
 
