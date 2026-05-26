@@ -52,7 +52,7 @@ const PARTICIPANT_GAP = 160;
 const PARTICIPANT_BOX_WIDTH = 120;
 const PARTICIPANT_BOX_HEIGHT = 50;
 const LABEL_FONT_SIZE = 13;
-const GROUP_INTER_GAP = 50;
+const GROUP_INTER_GAP = 30;
 const TOP_MARGIN = 20;
 const TITLE_HEIGHT = 30;
 const PARTICIPANT_Y_OFFSET = 10;
@@ -910,7 +910,7 @@ export function renderSequenceDiagram(
   const numGroupGaps = groupBoundaryIds.size;
 
   const idealWidth = Math.max(
-    participants.length * PARTICIPANT_GAP + numGroupGaps * GROUP_INTER_GAP,
+    participants.length * PARTICIPANT_GAP,
     PARTICIPANT_BOX_WIDTH + 40
   );
   const containerWidth =
@@ -946,7 +946,7 @@ export function renderSequenceDiagram(
   const sLabelCharWidth = ctx.text(LABEL_CHAR_WIDTH, 5);
   const sLabelMaxChars = Math.floor((sBoxW - 10) / sLabelCharWidth);
   const sLabelFontSize = ctx.text(LABEL_FONT_SIZE);
-  const sGroupInterGap = ctx.structural(GROUP_INTER_GAP);
+  const sGroupInterGap = GROUP_INTER_GAP;
 
   // Participant index lookup — used to clamp note width within one lane
   const participantIndexMap = new Map<string, number>();
@@ -1404,10 +1404,10 @@ export function renderSequenceDiagram(
   }
 
   // Group box layout constants (needed early for Y offset)
-  const GROUP_PADDING_X = ctx.structural(15);
+  const GROUP_PADDING_X = 15;
   const GROUP_PADDING_TOP = 22;
   const GROUP_PADDING_BOTTOM = 8;
-  const GROUP_LABEL_SIZE = ctx.text(11);
+  const GROUP_LABEL_SIZE = 11;
 
   // Compute cumulative Y positions for each step, with section dividers as stable anchors
   const showTitle = !!title && parsedOptions['no-title'] !== 'on';
