@@ -890,7 +890,7 @@ export function renderSequenceDiagram(
   );
   if (participants.length === 0) return;
 
-  // Compute group boundaries early so idealWidth includes inter-group spacing
+  // Compute group boundaries for inter-group spacing redistribution
   const groupBoundaryIds = new Set<string>();
   if (groups.length > 1) {
     const pToG = new Map<string, number>();
@@ -1562,15 +1562,14 @@ export function renderSequenceDiagram(
   }
   const messageAreaHeight = contentBottomY - lifelineStartY0;
   const lifelineLength = messageAreaHeight + sLifelineTail;
-  // Redistribute participant spacing: tighter within groups, wider between groups.
-  // Total width stays the same as participants.length * sGap so no viewBox change.
+  // Redistribute gap: tighter within groups, wider between groups.
+  // Total width stays exactly participants.length * sGap — no viewBox change.
   const totalGaps = participants.length > 1 ? participants.length - 1 : 0;
   const numWithinGaps = totalGaps - numGroupGaps;
   let sWithinGap = sGap;
   let sBetweenGap = sGap;
   if (numGroupGaps > 0 && totalGaps > 0) {
-    const WITHIN_FACTOR = 0.88;
-    sWithinGap = sGap * WITHIN_FACTOR;
+    sWithinGap = sGap * 0.88;
     sBetweenGap =
       (totalGaps * sGap - numWithinGaps * sWithinGap) / numGroupGaps;
   }
