@@ -52,7 +52,6 @@ const PARTICIPANT_GAP = 160;
 const PARTICIPANT_BOX_WIDTH = 120;
 const PARTICIPANT_BOX_HEIGHT = 50;
 const LABEL_FONT_SIZE = 13;
-const GROUP_INTER_GAP = 30;
 const TOP_MARGIN = 20;
 const TITLE_HEIGHT = 30;
 const PARTICIPANT_Y_OFFSET = 10;
@@ -946,7 +945,6 @@ export function renderSequenceDiagram(
   const sLabelCharWidth = ctx.text(LABEL_CHAR_WIDTH, 5);
   const sLabelMaxChars = Math.floor((sBoxW - 10) / sLabelCharWidth);
   const sLabelFontSize = ctx.text(LABEL_FONT_SIZE);
-  const sGroupInterGap = GROUP_INTER_GAP;
 
   // Participant index lookup — used to clamp note width within one lane
   const participantIndexMap = new Map<string, number>();
@@ -1564,11 +1562,20 @@ export function renderSequenceDiagram(
   }
   const messageAreaHeight = contentBottomY - lifelineStartY0;
   const lifelineLength = messageAreaHeight + sLifelineTail;
-  const totalGroupGapW = numGroupGaps * sGroupInterGap;
-  const totalWidth = Math.max(
-    participants.length * sGap + totalGroupGapW,
-    sBoxW + 40
-  );
+  // Redistribute participant spacing: tighter within groups, wider between groups.
+  // Total width stays the same as participants.length * sGap so no viewBox change.
+  const totalGaps = participants.length > 1 ? participants.length - 1 : 0;
+  const numWithinGaps = totalGaps - numGroupGaps;
+  let sWithinGap = sGap;
+  let sBetweenGap = sGap;
+  if (numGroupGaps > 0 && totalGaps > 0) {
+    const WITHIN_FACTOR = 0.88;
+    sWithinGap = sGap * WITHIN_FACTOR;
+    sBetweenGap =
+      (totalGaps * sGap - numWithinGaps * sWithinGap) / numGroupGaps;
+  }
+
+  const totalWidth = Math.max(participants.length * sGap, sBoxW + 40);
   const contentHeight =
     participantStartY + sBoxH + Math.max(lifelineLength, 40) + 40;
   const totalHeight = contentHeight;
@@ -1576,15 +1583,18 @@ export function renderSequenceDiagram(
   const svgWidth = Math.max(totalWidth, containerWidth);
 
   // Center the diagram horizontally
-  const diagramWidth = participants.length * sGap + totalGroupGapW;
+  const diagramWidth = participants.length * sGap;
   const offsetX = Math.max(0, (svgWidth - diagramWidth) / 2) + sGap / 2;
 
-  // Build participant x-position lookup with inter-group gaps
+  // Build participant x-position lookup with redistributed gaps
   const participantX = new Map<string, number>();
-  let gapAccum = 0;
+  let posX = offsetX;
   participants.forEach((p, i) => {
-    if (groupBoundaryIds.has(p.id)) gapAccum += sGroupInterGap;
-    participantX.set(p.id, offsetX + i * sGap + gapAccum);
+    participantX.set(p.id, posX);
+    if (i < participants.length - 1) {
+      const nextId = participants[i + 1]!.id;
+      posX += groupBoundaryIds.has(nextId) ? sBetweenGap : sWithinGap;
+    }
   });
 
   const svg = d3Selection
