@@ -949,7 +949,7 @@ export function renderSequenceDiagram(
   const sNoteGap = ctx.structural(NOTE_GAP);
   const sNoteCharW = ctx.text(NOTE_CHAR_W, 4);
   const sActivationWidth = ctx.structural(ACTIVATION_WIDTH);
-  const sSelfCallHeight = ctx.structural(SELF_CALL_HEIGHT);
+  const sSelfCallHeight = SELF_CALL_HEIGHT;
   const sSelfCallWidth = ctx.structural(SELF_CALL_WIDTH);
   const sNoteCharsPerLine = Math.floor(
     (sNoteMaxW - sNotePadH * 2 - sNoteFold) / sNoteCharW
@@ -1054,13 +1054,14 @@ export function renderSequenceDiagram(
   // Labeled returns (explicit <- value) are kept.
   renderSteps = renderSteps.filter((s) => s.type === 'call' || s.label);
   const activations = activationsOff ? [] : computeActivations(renderSteps);
-  const stepSpacing = ctx.structural(35);
+  // Vertical spacing is NOT compressed by ScaleContext — the container scrolls
+  // vertically, so keeping full spacing preserves message readability at all scales.
+  const stepSpacing = 35;
 
   // --- Block-aware Y spacing ---
-  // Extra spacing constants for block boundaries
-  const BLOCK_HEADER_SPACE = ctx.structural(30);
-  const BLOCK_AFTER_SPACE = ctx.aesthetic(15);
-  const FRAME_PADDING_TOP = ctx.structural(42);
+  const BLOCK_HEADER_SPACE = 30;
+  const BLOCK_AFTER_SPACE = 15;
+  const FRAME_PADDING_TOP = 42;
 
   // Build maps from messageIndex to render step indices (needed early for spacing)
   const msgToFirstStep = new Map<number, number>();
@@ -1153,8 +1154,8 @@ export function renderSequenceDiagram(
   };
 
   // Section layout constants
-  const SECTION_TOP_PAD = ctx.aesthetic(35);
-  const SECTION_BOTTOM_PAD = ctx.aesthetic(45);
+  const SECTION_TOP_PAD = 35;
+  const SECTION_BOTTOM_PAD = 45;
 
   // Block spacing via extraBeforeMsg (sections handled separately below)
   const extraBeforeMsg = new Map<number, number>();
