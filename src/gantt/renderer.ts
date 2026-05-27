@@ -259,7 +259,7 @@ export function renderGantt(
     options?.currentActiveGroup
   );
   let criticalPathActive = false;
-  let dependenciesActive = !!resolved.options.dependencies;
+  let dependenciesActive = false;
   let controlsExpanded = false;
 
   // ── Build row list (structural vs tag mode) ─────────────
@@ -1417,6 +1417,11 @@ export function renderGantt(
       collapsedLanes,
       taskLaneMap
     );
+    if (!dependenciesActive) {
+      g.selectAll<SVGElement, unknown>(
+        '.gantt-dep-arrow, .gantt-dep-arrowhead, .gantt-dep-label'
+      ).attr('display', 'none');
+    }
   }
 }
 

@@ -200,7 +200,7 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
       start = new Date(projectStart);
     } else {
       // Universal max rule: start = max(all predecessor end dates + dep offset)
-      start = new Date(0); // epoch
+      start = new Date(-8640000000000000);
       for (const predId of node.predecessors) {
         const predNode = taskMap.get(predId)!;
         if (!predNode.endDate) continue; // shouldn't happen after topo sort
@@ -271,7 +271,7 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
 
     // If explicit start (+ offset) conflicts with predecessors, warn but honor explicit
     if (task.explicitStart && node.predecessors.length > 0) {
-      let maxPredEnd = new Date(0);
+      let maxPredEnd = new Date(-8640000000000000);
       for (const predId of node.predecessors) {
         const predNode = taskMap.get(predId)!;
         if (
