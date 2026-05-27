@@ -9,7 +9,11 @@ import {
   METADATA_DIAGNOSTIC_CODES,
   pipeOperatorRemovedMessage,
 } from '../diagnostics';
-import { GANTT_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
+import {
+  GANTT_REGISTRY,
+  withTagAliases,
+  isReservedKey,
+} from '../utils/reserved-key-registry';
 import { splitNameAndMeta, warnUnknownMetaKeys } from '../utils/parsing';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
@@ -27,7 +31,11 @@ import {
   MULTIPLE_PIPE_ERROR,
   parseFirstLine,
 } from '../utils/parsing';
-import { parseOffset, parseDuration } from '../utils/duration';
+import {
+  parseOffset,
+  parseOffsetPrefix,
+  parseDuration,
+} from '../utils/duration';
 import { normalizeName } from '../utils/name-normalize';
 import type { PaletteColors } from '../palettes';
 import { getSeriesColors } from '../palettes';
@@ -36,6 +44,7 @@ import type {
   GanttNode,
   GanttTask,
   GanttGroup,
+  GanttDependency,
   GanttParallelBlock,
   Duration,
   DurationUnit,
@@ -91,6 +100,89 @@ const ERA_ENTRY_RE =
 const MARKER_ENTRY_RE =
   /^(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/;
 
+// ── New-syntax regexes (v2: positional duration, arrow graph) ─
+
+/** Offset prefix at line start: `+4w Task...` or `+10bd [Group]` */
+const OFFSET_PREFIX_RE = /^\+(\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h|s))\s+(.*)/;
+
+/** Duration token (for right-to-left positional scan) */
+const DURATION_TOKEN_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)(\?)?$/;
+
+/** Arrow with lag: `-3w-> Rest` */
+const LAG_ARROW_RE = /^-(\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h|s))->\s*(.*)/;
+
+/** Arrow with lead (negative lag): `--2w-> Rest` */
+const LEAD_ARROW_RE = /^--(\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h|s))->\s*(.*)/;
+
+/** Basic arrow: `-> Rest` */
+const BASIC_ARROW_RE = /^->\s*(.*)/;
+
+/** Era with offset: `era +4w -> +8w Label [color]` */
+const ERA_OFFSET_RE =
+  /^era\s+\+(\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h|s))\s*(?:->|–>)\s*\+(\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h|s))\s+(.+)$/i;
+
+/** Marker with offset: `marker +10w Label [color]` */
+const MARKER_OFFSET_RE =
+  /^marker\s+\+(\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h|s))\s+(.+)$/i;
+
+// ── Syntax mode detection ──────────────────────────────────
+
+type SyntaxMode = 'new' | 'legacy';
+
+function detectSyntaxMode(lines: string[]): SyntaxMode {
+  let hasNewIndicators = false;
+  let hasLegacyIndicators = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('//')) continue;
+    // Skip known header lines
+    if (
+      /^(?:gantt|start |tag |era |marker |holiday|workweek |sort |title |today-marker|critical-path|no-|solid-fill|sprint-|active-tag )/i.test(
+        line
+      )
+    )
+      continue;
+    if (line.startsWith('[')) continue; // groups are shared
+    if (/^->|^-\d|^--\d/.test(line)) continue; // arrows are ambiguous — skip
+
+    // New indicators: offset prefix, or line ending in positional duration token
+    if (OFFSET_PREFIX_RE.test(line)) hasNewIndicators = true;
+    if (LAG_ARROW_RE.test(line) || LEAD_ARROW_RE.test(line))
+      hasNewIndicators = true;
+
+    // Check for positional duration: line that doesn't use metadata keys,
+    // and whose tokens end with a bare duration token
+    if (
+      !hasNewIndicators &&
+      !/\b(?:duration|offset|start|progress)\s*:/.test(line) &&
+      !line.startsWith('-')
+    ) {
+      const tokens = line.split(/\s+/);
+      const lastToken = tokens[tokens.length - 1];
+      if (
+        lastToken &&
+        DURATION_TOKEN_RE.test(lastToken) &&
+        tokens.length >= 2
+      ) {
+        hasNewIndicators = true;
+      }
+    }
+
+    // Legacy indicators
+    if (line === 'parallel') hasLegacyIndicators = true;
+    if (/\bduration\s*:/.test(line) && !line.startsWith('->'))
+      hasLegacyIndicators = true;
+    if (LEGACY_DURATION_RE.test(line)) hasLegacyIndicators = true;
+    if (LEGACY_TIMELINE_DURATION_RE.test(line)) hasLegacyIndicators = true;
+    if (LEGACY_EXPLICIT_DATE_RE.test(line)) hasLegacyIndicators = true;
+  }
+
+  if (hasNewIndicators) return 'new';
+  if (hasLegacyIndicators) return 'legacy';
+  return 'new';
+}
+
 // Valid weekday names
 const WEEKDAY_MAP: Record<string, Weekday> = {
   mon: 'mon',
@@ -117,6 +209,7 @@ interface BlockEntry {
   node: Writable<GanttGroup> | Writable<GanttParallelBlock>;
   indent: number;
   containerType: ContainerType;
+  taskRef?: Writable<GanttNode & { kind: 'task' }>;
 }
 
 // ── Parser ──────────────────────────────────────────────────
@@ -160,6 +253,7 @@ export function parseGantt(
     },
     diagnostics,
     error: null,
+    syntaxMode: 'legacy', // set after detection below
   };
 
   const fail = (line: number, message: string): ParsedGantt => {
@@ -199,10 +293,15 @@ export function parseGantt(
   const blockStack: BlockEntry[] = [];
 
   const currentContainer = (): GanttNode[] => {
-    if (blockStack.length === 0) return result.nodes;
-    // In-bounds by length > 0 guard above.
-    const top = blockStack[blockStack.length - 1]!;
-    return top.node.children;
+    // Walk down from the top of the stack to find the nearest
+    // group/parallel container. Skip task entries — tasks don't
+    // contain other tasks in the tree (deps are via arrows, not nesting).
+    for (let k = blockStack.length - 1; k >= 0; k--) {
+      if (blockStack[k]!.containerType !== 'task') {
+        return blockStack[k]!.node.children;
+      }
+    }
+    return result.nodes;
   };
 
   const currentGroupPath = (): string[] => {
@@ -230,6 +329,9 @@ export function parseGantt(
   let lastTaskNode: Writable<GanttNode & { kind: 'task' }> | null = null;
   let taskIdCounter = 0;
   const seriesColors = palette ? getSeriesColors(palette) : [];
+  const syntaxMode = detectSyntaxMode(lines);
+  result.syntaxMode = syntaxMode;
+  // const definedTaskNames = new Map<string, string>(); // normalized name → scope key (Phase 6 diagnostics)
 
   // ── Main Parse Loop ─────────────────────────────────────
 
@@ -426,20 +528,216 @@ export function parseGantt(
     // ── Close blocks when indent decreases ────────────────
     // CRITICAL: close blocks BEFORE matching new elements
 
-    while (blockStack.length > 0) {
-      // In-bounds by while-loop guard.
-      const top = blockStack[blockStack.length - 1]!;
-      if (indent <= top.indent) {
-        blockStack.pop();
-        lastTaskNode = null;
-      } else {
-        break;
+    if (syntaxMode === 'new') {
+      // New mode: track pop depth for sequential vs parallel arrow semantics.
+      // Consecutive same-indent arrows = sequential chain.
+      // Returning from a deeper subtree = parallel branch from parent.
+      let hadDeeperPop = false;
+      let lastPoppedTaskRef: typeof lastTaskNode = null;
+
+      while (blockStack.length > 0) {
+        const top = blockStack[blockStack.length - 1]!;
+        if (indent <= top.indent) {
+          if (top.indent > indent) hadDeeperPop = true;
+          if (top.containerType === 'task' && top.taskRef) {
+            lastPoppedTaskRef = top.taskRef;
+          }
+          blockStack.pop();
+        } else {
+          break;
+        }
+      }
+
+      if (hadDeeperPop) {
+        // Came back from deeper subtree → parallel from parent
+        for (let k = blockStack.length - 1; k >= 0; k--) {
+          if (
+            blockStack[k]!.containerType === 'task' &&
+            blockStack[k]!.taskRef
+          ) {
+            lastTaskNode = blockStack[k]!.taskRef!;
+            break;
+          }
+        }
+        if (
+          blockStack.length === 0 ||
+          !blockStack.some((e) => e.containerType === 'task')
+        ) {
+          lastTaskNode = null;
+        }
+      } else if (lastPoppedTaskRef) {
+        // Same-indent pop only → sequential from popped sibling
+        lastTaskNode = lastPoppedTaskRef;
+      }
+      // If nothing was popped, lastTaskNode stays the same
+    } else {
+      // Legacy mode: clear lastTaskNode on any pop
+      while (blockStack.length > 0) {
+        const top = blockStack[blockStack.length - 1]!;
+        if (indent <= top.indent) {
+          blockStack.pop();
+          lastTaskNode = null;
+        } else {
+          break;
+        }
       }
     }
 
-    // ── Check if we're inside a task (for deps/comments) ──
+    // ── NEW-MODE: arrow / task / group / metadata parsing ──
 
-    if (lastTaskNode && indent > 0) {
+    if (syntaxMode === 'new') {
+      // 1. Arrow lines: `->`, `-3w->`, `--2w->`
+      const arrowResult = matchArrowLine(line);
+      if (arrowResult) {
+        // Parse remainder as task content (name + optional duration + metadata)
+        const content = parseNewTaskContent(arrowResult.rest, lineNumber);
+
+        if (content.duration || content.explicitStart) {
+          // Definition + dependency: create task AND edge
+          const task = makeTask(
+            content.name,
+            content.duration,
+            content.uncertain,
+            lineNumber,
+            content.explicitStart,
+            content.preExtracted
+          );
+          const taskNode: GanttNode = { kind: 'task', ...task };
+
+          // Add dependency ON lastTaskNode pointing TO the new task.
+          // Convention: task.dependencies[].targetName = "the task that starts after this task finishes"
+          if (lastTaskNode) {
+            (lastTaskNode.dependencies as GanttDependency[]).push({
+              targetName: content.name,
+              ...(arrowResult.lag !== undefined && { offset: arrowResult.lag }),
+              lineNumber,
+            });
+          }
+
+          currentContainer().push(taskNode);
+          const writableTask = taskNode as Writable<
+            GanttNode & { kind: 'task' }
+          >;
+          lastTaskNode = writableTask;
+          blockStack.push({
+            node: taskNode as unknown as Writable<GanttGroup>,
+            indent,
+            containerType: 'task',
+            taskRef: writableTask,
+          });
+        } else {
+          // Reference only: dependency edge from lastTaskNode to target
+          if (lastTaskNode) {
+            const targetName = content.name.trim();
+            (lastTaskNode.dependencies as GanttDependency[]).push({
+              targetName,
+              ...(arrowResult.lag !== undefined && { offset: arrowResult.lag }),
+              lineNumber,
+            });
+          } else {
+            softError(
+              lineNumber,
+              `Arrow reference "${content.name}" has no parent task context.`
+            );
+          }
+        }
+        continue;
+      }
+
+      // 2. Scope-based metadata: indented `key: value` under a task
+      if (indent > 0 && lastTaskNode) {
+        const colonIdx = line.indexOf(':');
+        if (colonIdx > 0) {
+          const candidateKey = line.substring(0, colonIdx).trim().toLowerCase();
+          const registry = withTagAliases(
+            GANTT_REGISTRY,
+            new Set(metaAliasMap.keys())
+          );
+          const resolvedKey =
+            metaAliasMap.get(normalizeName(candidateKey)) ?? candidateKey;
+          if (isReservedKey(registry, resolvedKey)) {
+            const value = line.substring(colonIdx + 1).trim();
+            // Attach to the owning task (walk up block stack)
+            const ownerTask =
+              findOwningTask(blockStack, indent) ?? lastTaskNode;
+            if (ownerTask) {
+              const mutableMeta = ownerTask.metadata as Record<string, string>;
+              if (resolvedKey === 'progress') {
+                const p = parseFloat(value);
+                if (!Number.isNaN(p)) {
+                  (ownerTask as Writable<GanttTask>).progress = p;
+                }
+              } else if (resolvedKey === 'offset') {
+                const off = parseOffsetPrefix(value) ?? parseOffset(value);
+                if (off) (ownerTask as Writable<GanttTask>).offset = off;
+              } else {
+                mutableMeta[resolvedKey] = value;
+              }
+            }
+            continue;
+          }
+        }
+      }
+
+      // 3. Comment under a task
+      if (lastTaskNode && indent > 0 && COMMENT_RE.test(line)) {
+        const commentText = line.replace(/^\/\/\s?/, '');
+        lastTaskNode.comment = lastTaskNode.comment
+          ? lastTaskNode.comment + '\n' + commentText
+          : commentText;
+        continue;
+      }
+
+      // 4. Top-level comment
+      if (COMMENT_RE.test(line)) continue;
+
+      // 5. Skip to shared header options (holidays, tags, eras, markers, options)
+      // These are handled below in the shared section. Fall through to them.
+      // But first check for: era/marker with offsets, offset+group, offset+task, group, positional task
+
+      // 6. Era with offset: `era +4w -> +8w Label [color]`
+      const eraOffsetMatch = line.match(ERA_OFFSET_RE);
+      if (eraOffsetMatch) {
+        const startOff = parseOffsetPrefix('+' + eraOffsetMatch[1]!);
+        const endOff = parseOffsetPrefix('+' + eraOffsetMatch[2]!);
+        const eraLabelRaw = eraOffsetMatch[3]!.trim();
+        const eraExtracted = extractColor(eraLabelRaw, palette);
+        result.eras.push({
+          startDate: '',
+          endDate: '',
+          label: eraExtracted.label,
+          color: eraExtracted.color || null,
+          lineNumber,
+          ...(startOff && { offsetStart: startOff }),
+          ...(endOff && { offsetEnd: endOff }),
+        });
+        continue;
+      }
+
+      // 7. Marker with offset: `marker +10w Label [color]`
+      const markerOffsetMatch = line.match(MARKER_OFFSET_RE);
+      if (markerOffsetMatch) {
+        const dateOff = parseOffsetPrefix('+' + markerOffsetMatch[1]!);
+        const markerLabelRaw = markerOffsetMatch[2]!.trim();
+        const markerExtracted = extractColor(markerLabelRaw, palette);
+        result.markers.push({
+          date: '',
+          label: markerExtracted.label,
+          color: markerExtracted.color || null,
+          lineNumber,
+          ...(dateOff && { offsetDate: dateOff }),
+        });
+        continue;
+      }
+
+      // Fall through to shared sections (holidays, tags, date-based eras/markers,
+      // options). They will continue if matched. If nothing matches, we reach
+      // the new-mode task/group section below (after shared options).
+    }
+
+    // ── LEGACY-MODE: Check if we're inside a task (for deps/comments) ──
+
+    if (syntaxMode === 'legacy' && lastTaskNode && indent > 0) {
       // Dependency under a task
       const depMatch = line.match(DEPENDENCY_RE);
       if (depMatch) {
@@ -721,11 +1019,15 @@ export function parseGantt(
         );
         const taskNode: GanttNode = { kind: 'task', ...task };
         currentContainer().push(taskNode);
-        lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
+        const writableTaskN = taskNode as Writable<
+          GanttNode & { kind: 'task' }
+        >;
+        lastTaskNode = writableTaskN;
         blockStack.push({
           node: taskNode as unknown as Writable<GanttGroup>,
           indent,
           containerType: 'task',
+          taskRef: writableTaskN,
         });
         continue;
       }
@@ -883,7 +1185,123 @@ export function parseGantt(
       continue;
     }
 
-    // ── Parallel block ────────────────────────────────────
+    // ── NEW-MODE: offset prefix + group / positional task ──
+
+    if (syntaxMode === 'new') {
+      // Check for offset prefix: `+4w [Group]` or `+4w Task 30bd`
+      let restAfterOffset = line;
+      let lineOffset: Offset | undefined;
+      const offMatch = line.match(OFFSET_PREFIX_RE);
+      if (offMatch) {
+        lineOffset = parseOffsetPrefix('+' + offMatch[1]!) ?? undefined;
+        restAfterOffset = offMatch[2]!;
+      }
+
+      // Group: `[GroupName]` with optional offset
+      const gm = restAfterOffset.match(GROUP_RE);
+      if (gm) {
+        if (
+          blockStack.length > 0 &&
+          blockStack[blockStack.length - 1]!.containerType === 'task'
+        ) {
+          softError(
+            lineNumber,
+            `Cannot nest a group inside a task. Groups must be inside other groups.`
+          );
+          continue;
+        }
+        const afterBrackets = gm[2]!.trim();
+        const segments = afterBrackets ? afterBrackets.split('|') : [];
+        let metadata: Record<string, string> = {};
+        const pipeWarn = () => warn(lineNumber, MULTIPLE_PIPE_ERROR);
+        if (segments.length > 0 && segments[0]!.trim()) {
+          metadata = parsePipeMetadata(
+            ['', ...segments],
+            metaAliasMap,
+            pipeWarn
+          );
+        } else if (segments.length > 1) {
+          metadata = parsePipeMetadata(
+            ['', ...segments.slice(1)],
+            metaAliasMap,
+            pipeWarn
+          );
+        }
+        const groupPeeled = peelAlias(gm[1]!);
+        if (groupPeeled.alias)
+          nameAliasMap.set(groupPeeled.alias, groupPeeled.label);
+        const group: Writable<GanttGroup> = {
+          name: groupPeeled.label,
+          color: null,
+          metadata,
+          ...(lineOffset && { offset: lineOffset }),
+          lineNumber,
+          children: [],
+        };
+        const groupNode: GanttNode = { kind: 'group', ...group };
+        currentContainer().push(groupNode);
+        blockStack.push({
+          node: groupNode as unknown as Writable<GanttGroup>,
+          indent,
+          containerType: 'group',
+        });
+        lastTaskNode = null;
+        continue;
+      }
+
+      // Positional task: `[+offset] Name Duration [metadata]`
+      // Also handles milestones: `Launch 0d`, offset tasks: `+4w Task 30bd`
+      {
+        const content = parseNewTaskContent(restAfterOffset, lineNumber);
+        if (
+          content.name &&
+          !content.duration &&
+          !content.explicitStart &&
+          !lineOffset
+        ) {
+          softError(
+            lineNumber,
+            `Expected task with duration/start (e.g., "${content.name} 5d"), group brackets (e.g., "[Group]"), or keyword. Got: "${line}"`
+          );
+          continue;
+        }
+        if (content.name || content.duration || content.explicitStart) {
+          const task = makeTask(
+            content.name,
+            content.duration,
+            content.uncertain,
+            lineNumber,
+            content.explicitStart,
+            content.preExtracted
+          );
+          if (lineOffset) {
+            (task as Writable<GanttTask>).offset = lineOffset;
+          }
+          const taskNode: GanttNode = { kind: 'task', ...task };
+          currentContainer().push(taskNode);
+          const writableTask = taskNode as Writable<
+            GanttNode & { kind: 'task' }
+          >;
+          lastTaskNode = writableTask;
+          blockStack.push({
+            node: taskNode as unknown as Writable<GanttGroup>,
+            indent,
+            containerType: 'task',
+            taskRef: writableTask,
+          });
+          continue;
+        }
+      }
+
+      // If nothing matched in new mode, emit error
+      softError(
+        lineNumber,
+        `Expected task (e.g., "Task Name 5d"), arrow (e.g., "-> Task 3w"), group (e.g., "[Group]"), or directive. Got: "${line}"`
+      );
+      continue;
+    }
+
+    // ── LEGACY-MODE: Parallel block ──────────────────────
 
     if (line === 'parallel') {
       const parallel: Writable<GanttParallelBlock> = {
@@ -897,7 +1315,7 @@ export function parseGantt(
       continue;
     }
 
-    // ── Group container ───────────────────────────────────
+    // ── LEGACY-MODE: Group container ─────────────────────
 
     const groupMatch = line.match(GROUP_RE);
     if (groupMatch) {
@@ -1162,6 +1580,147 @@ export function parseGantt(
 
   return result;
 
+  // ── Helper: match arrow line (new syntax) ──────────────
+
+  interface ArrowMatch {
+    rest: string;
+    lag?: Offset | undefined;
+  }
+
+  function matchArrowLine(trimmedLine: string): ArrowMatch | null {
+    // Lead arrow: `--2w-> Rest` (negative lag)
+    const leadMatch = trimmedLine.match(LEAD_ARROW_RE);
+    if (leadMatch) {
+      const dur = parseDuration(leadMatch[1]!);
+      const match: ArrowMatch = { rest: leadMatch[2]! };
+      if (dur) match.lag = { duration: dur, direction: -1 };
+      return match;
+    }
+    // Lag arrow: `-3w-> Rest` (positive lag)
+    const lagMatch = trimmedLine.match(LAG_ARROW_RE);
+    if (lagMatch) {
+      const dur = parseDuration(lagMatch[1]!);
+      const match: ArrowMatch = { rest: lagMatch[2]! };
+      if (dur) match.lag = { duration: dur, direction: 1 };
+      return match;
+    }
+    // Basic arrow: `-> Rest`
+    const basicMatch = trimmedLine.match(BASIC_ARROW_RE);
+    if (basicMatch) {
+      return { rest: basicMatch[1]! };
+    }
+    return null;
+  }
+
+  // ── Helper: parse new task content (positional duration) ─
+
+  interface NewTaskContent {
+    name: string;
+    duration: Duration | null;
+    uncertain: boolean;
+    explicitStart?: string | undefined;
+    preExtracted: Record<string, string>;
+  }
+
+  function parseNewTaskContent(rawContent: string, ln: number): NewTaskContent {
+    const registry = withTagAliases(
+      GANTT_REGISTRY,
+      new Set(metaAliasMap.keys())
+    );
+    const split = splitNameAndMeta(
+      rawContent,
+      registry,
+      metaAliasMap,
+      undefined,
+      diagnostics,
+      ln
+    );
+    warnUnknownMetaKeys(
+      split.meta,
+      registry,
+      (msg) => warn(ln, msg),
+      split.name
+    );
+
+    let name = split.name;
+    let duration: Duration | null = null;
+    let uncertain = false;
+    let explicitStart: string | undefined;
+    const metadata = { ...split.meta };
+
+    // Check for explicit `duration:` key (fallback for ambiguous names)
+    if (metadata['duration']) {
+      const durStr = metadata['duration'];
+      const uncertainMatch = durStr.match(/^(.+)\?$/);
+      const cleanDur = uncertainMatch ? uncertainMatch[1]! : durStr;
+      if (uncertainMatch) uncertain = true;
+      duration = parseDuration(cleanDur);
+      if (!duration) {
+        softError(
+          ln,
+          `Invalid duration: "${durStr}". Expected format like "30bd", "5d", "1.5w".`
+        );
+      }
+      delete metadata['duration'];
+    }
+
+    // Check for explicit `start:` key
+    if (metadata['start']) {
+      const raw = metadata['start'];
+      if (!/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?$/.test(raw)) {
+        softError(ln, `Invalid start date: "${raw}". Expected YYYY-MM-DD.`);
+      } else {
+        explicitStart = raw;
+      }
+      delete metadata['start'];
+    }
+
+    // Right-to-left scan for positional duration (only if no explicit keys)
+    if (!duration && !explicitStart) {
+      const tokens = name.split(/\s+/).filter(Boolean);
+      for (let j = tokens.length - 1; j >= 0; j--) {
+        const m = tokens[j]!.match(DURATION_TOKEN_RE);
+        if (m) {
+          duration = { amount: parseFloat(m[1]!), unit: m[2]! as DurationUnit };
+          uncertain = !!m[3];
+          name = tokens.slice(0, j).join(' ');
+          break;
+        }
+      }
+    }
+
+    // Build pre-extracted metadata (color, remaining keys)
+    const preExtracted = { ...metadata };
+    if (split.color) preExtracted['color'] = split.color;
+
+    return {
+      name: name.trim(),
+      duration,
+      uncertain,
+      explicitStart,
+      preExtracted,
+    };
+  }
+
+  // ── Helper: find owning task for scope-based metadata ───
+
+  function findOwningTask(
+    stack: BlockEntry[],
+    metaIndent: number
+  ): Writable<GanttNode & { kind: 'task' }> | null {
+    for (let k = stack.length - 1; k >= 0; k--) {
+      const entry = stack[k]!;
+      if (
+        entry.containerType === 'task' &&
+        entry.taskRef &&
+        entry.indent < metaIndent
+      ) {
+        return entry.taskRef;
+      }
+    }
+    return null;
+  }
+
   // ── Helper: create a task ───────────────────────────────
 
   function makeTask(
@@ -1314,6 +1873,7 @@ export function parseGantt(
       uncertain,
       progress,
       ...(taskOffset !== undefined && { offset: taskOffset }),
+      isDefinition: duration !== null || explicitStart !== undefined,
       dependencies: [],
       metadata: effectiveMetadata,
       lineNumber: ln,

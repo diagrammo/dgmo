@@ -247,6 +247,27 @@ export function parseOffset(value: string): Offset | null {
 }
 
 /**
+ * Parse an offset prefix like "+4w", "+10bd", "-3d".
+ * Unlike parseOffset(), this accepts explicit '+' prefix (used by new gantt syntax).
+ */
+export function parseOffsetPrefix(value: string): Offset | null {
+  const trimmed = value.trim();
+  let direction: 1 | -1 = 1;
+  let remainder = trimmed;
+
+  if (trimmed.startsWith('+')) {
+    remainder = trimmed.slice(1);
+  } else if (trimmed.startsWith('-')) {
+    direction = -1;
+    remainder = trimmed.slice(1);
+  }
+
+  const duration = parseDuration(remainder);
+  if (!duration) return null;
+  return { duration, direction };
+}
+
+/**
  * Parse a date string (YYYY-MM-DD, YYYY-MM, YYYY, or YYYY-MM-DD HH:MM) into a Date object.
  * Returns midnight local time unless HH:MM is specified.
  */

@@ -52,11 +52,21 @@ export function collectTasks(nodes: readonly GanttNode[]): GanttTask[] {
  *
  * Returns a match or an error with helpful suggestions.
  */
+/** Strip bracket syntax: `[Backend].API Design` → `Backend.API Design` */
+const BRACKET_GROUP_RE = /^\[(.+?)\]\.(.+)$/;
+
 export function resolveTaskName(
   name: string,
   allTasks: GanttTask[]
 ): ResolverResult {
-  const trimmed = name.trim();
+  let trimmed = name.trim();
+
+  // Strip bracket syntax — `[Group].Task` is sugar for `Group.Task`
+  const bracketMatch = trimmed.match(BRACKET_GROUP_RE);
+  if (bracketMatch) {
+    trimmed = `${bracketMatch[1]}.${bracketMatch[2]}`;
+  }
+
   const normTrimmed = normalizeName(trimmed);
 
   // 1. Try exact label match (no dots involved). Forgiving normalization

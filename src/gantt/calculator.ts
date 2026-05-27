@@ -110,8 +110,12 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
   }
 
   // ── Build implicit sequential dependencies ──────────────
+  // New-mode charts have explicit graph structure (all deps from arrows).
+  // Legacy charts need implicit sequential deps between siblings.
 
-  buildImplicitDeps(parsed.nodes, taskMap);
+  if (parsed.syntaxMode === 'legacy') {
+    buildImplicitDeps(parsed.nodes, taskMap);
+  }
 
   // ── Resolve explicit -> dependencies ────────────────────
 
@@ -131,7 +135,9 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
         if (targetNode.predecessors.includes(task.id)) {
           warn(
             dep.lineNumber,
-            `Redundant dependency: "${dep.targetName}" already follows "${task.label}" sequentially. Did you mean to wrap groups in \`parallel\`?`
+            parsed.syntaxMode === 'new'
+              ? `Redundant dependency: "${dep.targetName}" already follows "${task.label}".`
+              : `Redundant dependency: "${dep.targetName}" already follows "${task.label}" sequentially. Did you mean to wrap groups in \`parallel\`?`
           );
         } else {
           targetNode.predecessors.push(task.id);
@@ -216,6 +222,24 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
 
         if (predEnd.getTime() > start.getTime()) {
           start = predEnd;
+        }
+      }
+    }
+
+    // Apply group offset as floor constraint (new mode only)
+    if (parsed.syntaxMode === 'new' && task.groupPath.length > 0) {
+      const groupOffset = findGroupOffset(parsed.nodes, task.groupPath);
+      if (groupOffset) {
+        const groupFloor = addGanttDuration(
+          new Date(projectStart),
+          groupOffset.duration,
+          parsed.holidays,
+          holidaySet,
+          groupOffset.direction,
+          sprintOpts
+        );
+        if (groupFloor.getTime() > start.getTime()) {
+          start = groupFloor;
         }
       }
     }
@@ -380,17 +404,18 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
 
   // ── Warnings ────────────────────────────────────────────
 
-  // Missing parallel warning: 2+ top-level groups without parallel wrapper
-  const topLevelGroups = parsed.nodes.filter((n) => n.kind === 'group');
-  if (topLevelGroups.length >= 2) {
-    const names = topLevelGroups.map(
-      (g) => (g as GanttGroup & { kind: 'group' }).name
-    );
-    warn(
-      // In-bounds by topLevelGroups.length >= 2 guard above.
-      topLevelGroups[0]!.lineNumber,
-      `${names.join(' and ')} are sequential. Wrap in \`parallel\` if they should run concurrently.`
-    );
+  // Missing parallel warning: 2+ top-level groups without parallel wrapper (legacy only)
+  if (parsed.syntaxMode === 'legacy') {
+    const topLevelGroups = parsed.nodes.filter((n) => n.kind === 'group');
+    if (topLevelGroups.length >= 2) {
+      const names = topLevelGroups.map(
+        (g) => (g as GanttGroup & { kind: 'group' }).name
+      );
+      warn(
+        topLevelGroups[0]!.lineNumber,
+        `${names.join(' and ')} are sequential. Wrap in \`parallel\` if they should run concurrently.`
+      );
+    }
   }
 
   return result;
@@ -890,4 +915,26 @@ function formatDate(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+function findGroupOffset(
+  nodes: readonly GanttNode[],
+  groupPath: readonly string[]
+): Offset | null {
+  if (groupPath.length === 0) return null;
+  const groupName = groupPath[groupPath.length - 1]!;
+  function search(children: readonly GanttNode[]): Offset | null {
+    for (const node of children) {
+      if (node.kind === 'group') {
+        if (node.name === groupName && node.offset) return node.offset;
+        const found = search(node.children);
+        if (found) return found;
+      } else if (node.kind === 'parallel') {
+        const found = search(node.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+  return search(nodes);
 }

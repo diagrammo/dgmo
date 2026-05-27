@@ -1448,4 +1448,321 @@ describe('gantt parser', () => {
       }
     });
   });
+
+  // ── New syntax (v2): positional duration, arrow graph ────
+
+  describe('new syntax', () => {
+    describe('positional duration', () => {
+      it('parses bare task with positional duration', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\nResearch 2w',
+          palette
+        );
+        expect(result.error).toBeNull();
+        expect(result.syntaxMode).toBe('new');
+        expect(result.nodes).toHaveLength(1);
+        const task = result.nodes[0];
+        if (task.kind === 'task') {
+          expect(task.label).toBe('Research');
+          expect(task.duration).toEqual({ amount: 2, unit: 'w' });
+          expect(task.isDefinition).toBe(true);
+        }
+      });
+
+      it('parses milestone as 0d duration', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\nLaunch 0d',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const task = result.nodes[0];
+        if (task.kind === 'task') {
+          expect(task.label).toBe('Launch');
+          expect(task.duration).toEqual({ amount: 0, unit: 'd' });
+        }
+      });
+
+      it('parses uncertain duration with ? suffix', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\nDesign 30bd?',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const task = result.nodes[0];
+        if (task.kind === 'task') {
+          expect(task.label).toBe('Design');
+          expect(task.duration).toEqual({ amount: 30, unit: 'bd' });
+          expect(task.uncertain).toBe(true);
+        }
+      });
+
+      it('handles multi-word names with duration-like tokens (AC 24)', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\nPhase 2w Review 30bd',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const task = result.nodes[0];
+        if (task.kind === 'task') {
+          expect(task.label).toBe('Phase 2w Review');
+          expect(task.duration).toEqual({ amount: 30, unit: 'bd' });
+        }
+      });
+
+      it('parses trailing metadata after duration', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\ntag Team as t\n  Platform blue\n\nAPI Redesign 30bd t: Platform, progress: 60',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const task = result.nodes.find((n) => n.kind === 'task');
+        if (task && task.kind === 'task') {
+          expect(task.label).toBe('API Redesign');
+          expect(task.duration).toEqual({ amount: 30, unit: 'bd' });
+          expect(task.progress).toBe(60);
+        }
+      });
+
+      it('falls back to duration: key when positional is ambiguous', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\nPhase 2w Review duration: 30bd',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const task = result.nodes[0];
+        if (task.kind === 'task') {
+          expect(task.label).toBe('Phase 2w Review');
+          expect(task.duration).toEqual({ amount: 30, unit: 'bd' });
+        }
+      });
+    });
+
+    describe('arrow syntax', () => {
+      it('parses simple sequential chain', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\nResearch 2w\n  -> Wireframes 1w\n  -> Design 3w',
+          palette
+        );
+        expect(result.error).toBeNull();
+        // All tasks are top-level (gantt tree is flat; deps are via arrows, not nesting)
+        expect(result.nodes).toHaveLength(3);
+        const research = result.nodes[0];
+        if (research.kind === 'task') {
+          expect(research.label).toBe('Research');
+          expect(research.dependencies).toHaveLength(1);
+          expect(research.dependencies[0].targetName).toBe('Wireframes');
+        }
+        // Wireframes has a dep on Design (sequential chain)
+        const wireframes = result.nodes[1];
+        if (wireframes.kind === 'task') {
+          expect(wireframes.label).toBe('Wireframes');
+          expect(wireframes.dependencies).toHaveLength(1);
+          expect(wireframes.dependencies[0].targetName).toBe('Design');
+        }
+      });
+
+      it('arrow definition creates task with isDefinition true', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\nA 5d\n  -> B 3d',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const tasks = result.nodes.filter((n) => n.kind === 'task');
+        expect(tasks).toHaveLength(2);
+        const b = tasks.find((t) => t.kind === 'task' && t.label === 'B');
+        if (b && b.kind === 'task') {
+          expect(b.isDefinition).toBe(true);
+          expect(b.duration).toEqual({ amount: 3, unit: 'd' });
+        }
+      });
+
+      it('arrow reference (no duration) creates dependency only', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\nA 5d\n  -> B',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const a = result.nodes[0];
+        if (a.kind === 'task') {
+          expect(a.dependencies).toHaveLength(1);
+          expect(a.dependencies[0].targetName).toBe('B');
+        }
+        // B is not created as a task (reference only)
+        expect(result.nodes).toHaveLength(1);
+      });
+
+      it('parses lag arrow -3w->', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\nA 5d\n  -3w-> B 3d',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const a = result.nodes[0];
+        if (a.kind === 'task') {
+          expect(a.dependencies).toHaveLength(1);
+          expect(a.dependencies[0].offset).toEqual({
+            duration: { amount: 3, unit: 'w' },
+            direction: 1,
+          });
+        }
+      });
+
+      it('parses lead arrow --2w->', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\nA 8w\n  --2w-> B 3d',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const a = result.nodes[0];
+        if (a.kind === 'task') {
+          expect(a.dependencies).toHaveLength(1);
+          expect(a.dependencies[0].offset).toEqual({
+            duration: { amount: 2, unit: 'w' },
+            direction: -1,
+          });
+        }
+      });
+
+      it('parses cross-group reference with brackets', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\n[Design]\n  Wireframes 2w\n    -> [Backend].API Design',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const group = result.nodes[0];
+        if (group.kind === 'group') {
+          const wireframes = group.children[0];
+          if (wireframes.kind === 'task') {
+            expect(wireframes.dependencies).toHaveLength(1);
+            expect(wireframes.dependencies[0].targetName).toBe(
+              '[Backend].API Design'
+            );
+          }
+        }
+      });
+    });
+
+    describe('offset prefix', () => {
+      it('parses task with offset prefix +4w', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\n+4w Task 30bd',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const task = result.nodes[0];
+        if (task.kind === 'task') {
+          expect(task.label).toBe('Task');
+          expect(task.duration).toEqual({ amount: 30, unit: 'bd' });
+          expect(task.offset).toEqual({
+            duration: { amount: 4, unit: 'w' },
+            direction: 1,
+          });
+        }
+      });
+
+      it('parses group with offset prefix +2w [Mobile]', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\n+2w [Mobile]\n  App Shell 2w',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const group = result.nodes[0];
+        if (group.kind === 'group') {
+          expect(group.name).toBe('Mobile');
+          expect(group.offset).toEqual({
+            duration: { amount: 2, unit: 'w' },
+            direction: 1,
+          });
+        }
+      });
+    });
+
+    describe('scope-based metadata', () => {
+      it('attaches indented key: value to parent task', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\ntag Team as t\n  Platform blue\n\nAPI Redesign 30bd\n  t: Platform\n  progress: 60',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const task = result.nodes.find((n) => n.kind === 'task');
+        if (task && task.kind === 'task') {
+          expect(task.metadata['team']).toBe('Platform');
+          expect(task.progress).toBe(60);
+        }
+      });
+    });
+
+    describe('era and marker offsets', () => {
+      it('parses era with offset form', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-01\n\nera +4w -> +8w Build Phase green\n\nTask 1w',
+          palette
+        );
+        expect(result.error).toBeNull();
+        expect(result.eras).toHaveLength(1);
+        expect(result.eras[0].offsetStart).toBeDefined();
+        expect(result.eras[0].offsetEnd).toBeDefined();
+        expect(result.eras[0].label).toBe('Build Phase');
+      });
+
+      it('parses marker with offset form', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-01\n\nmarker +10w Release red\n\nTask 1w',
+          palette
+        );
+        expect(result.error).toBeNull();
+        expect(result.markers).toHaveLength(1);
+        expect(result.markers[0].offsetDate).toBeDefined();
+        expect(result.markers[0].label).toBe('Release');
+      });
+    });
+
+    describe('groups', () => {
+      it('bare siblings in a group are parallel (no deps between them)', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\n[Backend]\n  API Design 2w\n  Auth Service 4w',
+          palette
+        );
+        expect(result.error).toBeNull();
+        const group = result.nodes[0];
+        if (group.kind === 'group') {
+          expect(group.children).toHaveLength(2);
+          const api = group.children[0];
+          const auth = group.children[1];
+          if (api.kind === 'task' && auth.kind === 'task') {
+            expect(api.dependencies).toHaveLength(0);
+            expect(auth.dependencies).toHaveLength(0);
+          }
+        }
+      });
+    });
+
+    describe('syntax detection', () => {
+      it('detects legacy mode for duration: key syntax', () => {
+        const result = parseGantt('gantt\nTask A duration: 10d', palette);
+        expect(result.syntaxMode).toBe('legacy');
+      });
+
+      it('detects new mode for positional duration', () => {
+        const result = parseGantt(
+          'gantt\nstart 2024-01-15\n\nTask A 10d',
+          palette
+        );
+        expect(result.syntaxMode).toBe('new');
+      });
+
+      it('detects legacy mode for parallel keyword', () => {
+        const result = parseGantt(
+          'gantt\nparallel\n  Task A duration: 10d\n  Task B duration: 5d',
+          palette
+        );
+        expect(result.syntaxMode).toBe('legacy');
+      });
+
+      it('detects legacy mode for duration-first syntax', () => {
+        const result = parseGantt('gantt\n10d Task A', palette);
+        expect(result.syntaxMode).toBe('legacy');
+      });
+    });
+  });
 });

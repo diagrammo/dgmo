@@ -583,4 +583,60 @@ parallel
       expect(result.sprints[0].number).toBe(3);
     });
   });
+
+  // ── New syntax (v2) scheduling ─────────────────────────────
+
+  describe('new syntax scheduling', () => {
+    it('sequential arrow chain schedules correctly', () => {
+      const result = calc(
+        'gantt\nstart 2024-01-15\n\nResearch 2w\n  -> Design 1w\n  -> Dev 3w'
+      );
+      expect(result.error).toBeNull();
+      expect(result.tasks).toHaveLength(3);
+      expect(fmt(result.tasks[0].startDate)).toBe('2024-01-15');
+      expect(fmt(result.tasks[1].startDate)).toBe('2024-01-29');
+      expect(fmt(result.tasks[2].startDate)).toBe('2024-02-05');
+    });
+
+    it('bare siblings are parallel (same start date)', () => {
+      const result = calc('gantt\nstart 2024-01-15\n\nTask A 10d\nTask B 5d');
+      expect(result.error).toBeNull();
+      expect(result.tasks).toHaveLength(2);
+      expect(fmt(result.tasks[0].startDate)).toBe('2024-01-15');
+      expect(fmt(result.tasks[1].startDate)).toBe('2024-01-15');
+    });
+
+    it('group offset acts as floor for contained tasks (AC 13)', () => {
+      const result = calc('gantt\nstart 2024-01-15\n\n+3w [Backend]\n  API 5d');
+      expect(result.error).toBeNull();
+      expect(result.tasks).toHaveLength(1);
+      // +3w from 2024-01-15 = 2024-02-05
+      expect(fmt(result.tasks[0].startDate)).toBe('2024-02-05');
+    });
+
+    it('task offset +4w delays task from project start (AC 2)', () => {
+      const result = calc('gantt\nstart 2024-01-15\n\n+4w Task 30bd');
+      expect(result.error).toBeNull();
+      expect(result.tasks).toHaveLength(1);
+      // +4w from 2024-01-15 = 2024-02-12
+      expect(fmt(result.tasks[0].startDate)).toBe('2024-02-12');
+    });
+
+    it('milestone as 0d has same start and end', () => {
+      const result = calc('gantt\nstart 2024-01-15\n\nLaunch 0d');
+      expect(result.error).toBeNull();
+      expect(result.tasks).toHaveLength(1);
+      expect(fmt(result.tasks[0].startDate)).toBe('2024-01-15');
+      expect(fmt(result.tasks[0].endDate)).toBe('2024-01-15');
+      expect(result.tasks[0].isMilestone).toBe(true);
+    });
+
+    it('lag arrow delays target start (AC 6)', () => {
+      const result = calc('gantt\nstart 2024-01-15\n\nA 2w\n  -3w-> B 1w');
+      expect(result.error).toBeNull();
+      expect(result.tasks).toHaveLength(2);
+      // A ends 2024-01-29, +3w lag = 2024-02-19
+      expect(fmt(result.tasks[1].startDate)).toBe('2024-02-19');
+    });
+  });
 });

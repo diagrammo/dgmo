@@ -46,6 +46,7 @@ export interface GanttTask {
   readonly uncertain: boolean;
   readonly progress: number | null; // 0-100 or null
   readonly offset?: Offset; // task-level offset: shifts start date forward (+) or backward (-)
+  readonly isDefinition: boolean; // true = inline definition (has duration), false = reference-only
   readonly dependencies: readonly GanttDependency[];
   readonly metadata: Readonly<Record<string, string>>; // tag values from pipe metadata
   readonly lineNumber: number;
@@ -57,6 +58,7 @@ export interface GanttGroup {
   readonly name: string;
   readonly color: string | null;
   readonly metadata: Readonly<Record<string, string>>;
+  readonly offset?: Offset; // group-level offset: floor for all bare tasks inside
   readonly lineNumber: number;
   readonly children: readonly GanttNode[];
 }
@@ -99,18 +101,21 @@ export interface GanttHolidays {
 // ── Eras & Markers (reuse timeline types) ───────────────────
 
 export interface GanttEra {
-  readonly startDate: string;
-  readonly endDate: string;
+  readonly startDate: string; // YYYY-MM-DD or '' when using offset form
+  readonly endDate: string; // YYYY-MM-DD or '' when using offset form
   readonly label: string;
   readonly color: string | null;
   readonly lineNumber: number;
+  readonly offsetStart?: Offset; // +Nunit form (resolved to date via chart start)
+  readonly offsetEnd?: Offset; // +Nunit form (resolved to date via chart start)
 }
 
 export interface GanttMarker {
-  readonly date: string;
+  readonly date: string; // YYYY-MM-DD or '' when using offset form
   readonly label: string;
   readonly color: string | null;
   readonly lineNumber: number;
+  readonly offsetDate?: Offset; // +Nunit form (resolved to date via chart start)
 }
 
 // ── Chart Options ───────────────────────────────────────────
@@ -150,6 +155,7 @@ export interface ParsedGantt {
   readonly options: GanttOptions;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
+  readonly syntaxMode: 'new' | 'legacy';
 }
 
 // ── Resolved Schedule ───────────────────────────────────────

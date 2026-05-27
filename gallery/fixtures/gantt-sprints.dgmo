@@ -1,20 +1,20 @@
-gantt Sprint Planning
+gantt Pirate Sprint Raid
 start 2026-03-01
 sprint-length 2w
 sprint-number 5
 sprint-start 2026-01-05
 
-[Design]
-  UX Research duration: 2s
-  Wireframes duration: 1s
-  Visual Design duration: 1.5s
+[Scouts]
+  Recon Harbors 2s
+  Map Defenses 1s
+  Signal Routes 1.5s
 
-[Engineering]
-  Backend API duration: 3s
-  Frontend Build duration: 2s
-  Performance Tuning duration: 0.5s
+[Raiders]
+  Board Ships 3s
+  Seize Cargo 2s
+  Scuttle Hulls 0.5s
 
-[QA]
-  Integration Testing duration: 1s
-  UAT duration: 0.5s
-  Release Candidate duration: 0d
+[Spoils]
+  Sort Plunder 1s
+  Divide Shares 0.5s
+  Celebrate 0d

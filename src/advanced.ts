@@ -366,7 +366,6 @@ export type {
   ParsedGantt,
   GanttTask,
   GanttGroup,
-  GanttParallelBlock,
   GanttNode,
   GanttDependency,
   GanttHolidays,

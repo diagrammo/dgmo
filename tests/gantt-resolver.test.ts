@@ -13,6 +13,7 @@ function makeTask(
     duration: { amount: 10, unit: 'd' },
     uncertain: false,
     progress: null,
+    isDefinition: true,
     dependencies: [],
     metadata: {},
     lineNumber: 1,
@@ -108,6 +109,43 @@ describe('gantt resolver', () => {
       const tasks = [makeTask('Deploy')];
       const result = resolveTaskName('  Deploy  ', tasks);
       expect(isResolverError(result)).toBe(false);
+    });
+  });
+
+  describe('bracket syntax (AC 10)', () => {
+    it('resolves [Group].Task as Group.Task', () => {
+      const tasks = [
+        makeTask('Deploy', ['Backend'], 'task_1'),
+        makeTask('Deploy', ['Frontend'], 'task_2'),
+      ];
+      const result = resolveTaskName('[Backend].Deploy', tasks);
+      expect(isResolverError(result)).toBe(false);
+      if (!isResolverError(result)) {
+        expect(result.task.groupPath).toEqual(['Backend']);
+      }
+    });
+
+    it('resolves [Group.With.Dots].Task', () => {
+      const tasks = [makeTask('Task A', ['U.S. Operations'], 'task_1')];
+      const result = resolveTaskName('[U.S. Operations].Task A', tasks);
+      expect(isResolverError(result)).toBe(false);
+      if (!isResolverError(result)) {
+        expect(result.task.label).toBe('Task A');
+      }
+    });
+
+    it('bracket form and dot form resolve identically', () => {
+      const tasks = [
+        makeTask('Deploy', ['Backend'], 'task_1'),
+        makeTask('Deploy', ['Frontend'], 'task_2'),
+      ];
+      const bracket = resolveTaskName('[Backend].Deploy', tasks);
+      const dot = resolveTaskName('Backend.Deploy', tasks);
+      expect(isResolverError(bracket)).toBe(false);
+      expect(isResolverError(dot)).toBe(false);
+      if (!isResolverError(bracket) && !isResolverError(dot)) {
+        expect(bracket.task.id).toBe(dot.task.id);
+      }
     });
   });
 });
