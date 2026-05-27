@@ -53,8 +53,8 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     endDate: new Date(),
     holidays: parsed.holidays,
     tagGroups: parsed.tagGroups.slice(),
-    eras: parsed.eras.slice(),
-    markers: parsed.markers.slice(),
+    eras: [],
+    markers: [],
     sprints: [],
     options: parsed.options,
     diagnostics,
@@ -80,6 +80,43 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     // Relative timeline: use epoch-like reference (Day 1 = Jan 1, 2000)
     projectStart = new Date(2000, 0, 1);
   }
+
+  // ── Resolve offset-based eras and markers to absolute dates ──
+
+  result.eras = parsed.eras.map((era) => {
+    if (era.offsetStart && era.offsetEnd) {
+      const start = addGanttDuration(
+        projectStart,
+        era.offsetStart.duration,
+        parsed.holidays,
+        new Set(),
+        era.offsetStart.direction
+      );
+      const end = addGanttDuration(
+        projectStart,
+        era.offsetEnd.duration,
+        parsed.holidays,
+        new Set(),
+        era.offsetEnd.direction
+      );
+      return { ...era, startDate: formatDate(start), endDate: formatDate(end) };
+    }
+    return era;
+  });
+
+  result.markers = parsed.markers.map((m) => {
+    if (m.offsetDate) {
+      const d = addGanttDuration(
+        projectStart,
+        m.offsetDate.duration,
+        parsed.holidays,
+        new Set(),
+        m.offsetDate.direction
+      );
+      return { ...m, date: formatDate(d) };
+    }
+    return m;
+  });
 
   // ── Sprint config ──────────────────────────────────────
 
