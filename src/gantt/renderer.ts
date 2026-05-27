@@ -476,6 +476,12 @@ export function renderGantt(
         (toggleId, active) => {
           if (toggleId === 'critical-path') {
             criticalPathActive = active;
+            if (active) {
+              applyCriticalPathHighlight(svg, g);
+            } else {
+              svg.attr('data-critical-path-active', null);
+              resetHighlightAll(svg, g);
+            }
           } else if (toggleId === 'dependencies') {
             dependenciesActive = active;
             // Show/hide dependency arrows
