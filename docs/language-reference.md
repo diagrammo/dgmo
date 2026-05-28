@@ -73,16 +73,16 @@ tag GroupName as <alias>
 
 **Diagram types that support tags**: sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines
 
-### 1.4 Pipe Metadata
+### 1.4 Same-Line Metadata
 
 ```
-EntityName | key: value, key2: value2
+EntityName key: value, key2: value2
 ```
 
-- Colons ARE required within pipe segments (`key: value`)
+- Colons ARE required within metadata pairs (`key: value`)
 - Items separated by commas
-- Tag aliases resolve: `| c: Caching` resolves to `concern: Caching` (if `tag Concern as c` is defined)
-- One pipe per line only
+- Tag aliases resolve: `c: Caching` resolves to `concern: Caching` (if `tag Concern as c` is defined)
+- One metadata region per line only
 
 ### 1.5 Color Suffixes
 
@@ -99,21 +99,21 @@ Red                   // value=Red, no color (capitalized → escape hatch)
 
 > Color is the trailing whitespace-delimited token of a label region, when that token (case-sensitive, lowercase) is one of the 11 names above. Otherwise the label region has no color.
 
-The "label region" is everything left after the parser strips off structural terminators it owns: `| <pipe metadata>`, numeric values, date ranges, structural brackets. Parsers split those off BEFORE invoking the color rule. So `Tortuga Distillery orange 3000` → `{ label: "Tortuga Distillery", color: "orange", value: 3000 }`: numeric value first, then the color trails the remaining label.
+The "label region" is everything left after the parser strips off structural terminators it owns: same-line metadata (§1.4), numeric values, date ranges, structural brackets. Parsers split those off BEFORE invoking the color rule. So `Tortuga Distillery orange 3000` → `{ label: "Tortuga Distillery", color: "orange", value: 3000 }`: numeric value first, then the color trails the remaining label.
 
-**Aliases come between the label and the color.** `as <alias>` sits *between* the label region and the trailing color token in declarations — the line reads `<label> as <alias> <color>`. Color is always the line-trailing token (modulo pipe metadata, which is line-final).
+**Aliases come between the label and the color.** `as <alias>` sits *between* the label region and the trailing color token in declarations — the line reads `<label> as <alias> <color>`. Color is always the line-trailing token (modulo same-line metadata, which is line-final).
 
 **Where the rule applies**: tag values, kanban columns (`[Done] green`), venn items (`Swordsmanship as sw red`), quadrant position labels (`top-right Promote green`), gantt / timeline eras and markers, data-chart series + rows, sankey nodes + link lines, cycle / pyramid / ring / RACI / boxes-and-lines node labels.
 
-**Pipe form is reserved for multi-key metadata.** Use `| color: <name>` only when another pipe key (`description:`, `span:`, `width:`, `quadrant:`, …) needs to accompany the color. When color is the only thing being set, use the trailing-token form.
+**Same-line metadata form is reserved for multi-key metadata.** Use `color: <name>` in the metadata region only when another key (`description:`, `span:`, `width:`, `quadrant:`, …) needs to accompany the color. When color is the only thing being set, use the trailing-token form.
 
 ```
 Spring green                          // canonical — color is the only metadata
-Spring | color: green, icon: ❄        // long form REQUIRED when other keys accompany color
--Label-> | color: red, width: 6       // edges have no trailing-token slot; pipe is the only path
+Spring color: green, icon: ❄          // long form REQUIRED when other keys accompany color
+-Label-> color: red, width: 6         // edges have no trailing-token slot; same-line metadata is the only path
 ```
 
-Two narrow exceptions accept pipe-only color: **cycle edges** (no trailing-token slot on edges) and **journey-map personas** (the persona-line parser does not peel a trailing color from the persona name).
+Two narrow exceptions accept same-line-metadata-only color: **cycle edges** (no trailing-token slot on edges) and **journey-map personas** (the persona-line parser does not peel a trailing color from the persona name).
 
 **Accepted tradeoffs**:
 
@@ -132,12 +132,12 @@ Two narrow exceptions accept pipe-only color: **cycle edges** (no trailing-token
 ```
 [Group Name]
 [Group Name] color
-[Group Name] | key: value
+[Group Name] key: value
 ```
 
 - Bracket-enclosed name
 - Optional trailing-token color (kanban columns, scatter categories, era/marker labels)
-- Optional pipe metadata (outside brackets)
+- Optional same-line metadata (outside brackets)
 - Indented content below belongs to the group
 
 ### 1.8 Boolean Options
@@ -200,12 +200,12 @@ A -> B: uses -> chain       // works for charts that accept post-colon labels
 
 // migration from pre-gauntlet (legacy) syntax
 A -Makes calls [HTTP]-> B   // label is now the FULL "Makes calls [HTTP]"
-A -Makes calls-> B | tech: HTTP   // preferred: technology on target metadata
+A -Makes calls-> B tech: HTTP   // preferred: technology on target metadata
 ```
 
 #### Character-set contract
 
-- **Allowed**: any Unicode codepoint except the forbidden list below. Brackets `[] {} ()`, pipes `|`, quotes `"' `, backticks, punctuation, digits, emoji, ZWJ sequences, combining marks — all pass through as literal characters.
+- **Allowed**: any Unicode codepoint except the forbidden list below. Brackets `[] {} ()`, the `|` character, quotes `"' `, backticks, punctuation, digits, emoji, ZWJ sequences, combining marks — all pass through as literal characters.
 - **Forbidden substrings**: `->` and `~>`. These terminate the arrow. If you need them inside a label, use the post-colon form (`A -> B: uses -> to chain`) on chart types that support it; there is no escape mechanism.
 - **Forbidden characters**: C0 control characters U+0000–U+001F except U+0009 (tab), and U+007F (DEL). Silent renderer breakage and log-injection surface — no legitimate use case.
 - **Whitespace**: leading and trailing whitespace is trimmed; internal whitespace runs (including tabs, non-breaking spaces, and zero-width spaces) are **preserved**, never collapsed.
@@ -226,7 +226,7 @@ Sugar Plantations -> Tortuga Distillery 3000 red    // link is colored red
 
 One legacy form changed with this spec:
 
-1. **C4 trailing `[technology]` sugar is removed.** A C4 arrow like `-Makes calls [HTTPS]-> API` used to extract `HTTPS` as the technology annotation. The full `Makes calls [HTTPS]` is now the label. Use the post-colon or pipe form for technology: `-Makes calls-> API | tech: HTTPS`.
+1. **C4 trailing `[technology]` sugar is removed.** A C4 arrow like `-Makes calls [HTTPS]-> API` used to extract `HTTPS` as the technology annotation. The full `Makes calls [HTTPS]` is now the label. Use the same-line metadata form for technology: `-Makes calls-> API tech: HTTPS`.
 
 No code migration is required for in-arrow label character escaping — any label that was valid before remains valid, with one exception: if your label happened to contain the literal substring `->` or `~>`, the parser now rejects it with `E_ARROW_SUBSTRING_IN_LABEL`. Move those labels to the post-colon form.
 
@@ -259,7 +259,7 @@ spacing fold into the first and emit `I_NAME_MERGED` (warning).
 
 Bare names accept letters, digits, spaces, and hyphens. The following
 characters are reserved and require `"..."` quoting if you want them in
-a name: `|` (pipe metadata), `:` (type/metadata separator), edge sigils
+a name: `|` (reserved character), `:` (type/metadata separator), edge sigils
 `-> <- ~> <~ -- ..`, shape brackets `[] () {} <>`, leading/trailing
 whitespace.
 
@@ -330,7 +330,7 @@ tag Concern as c
 
 - **Token shape**: `[A-Za-z][A-Za-z0-9_]{0,11}` — letter start,
   letters/digits/underscore, length 1–12. **Case-sensitive**.
-- **Modifier order on declarations**: `<name> [is a type] [as <alias>] [color] [| key: value, …]`. Color is the line-trailing token; pipe metadata, when present, is line-final and supersedes that slot.
+- **Modifier order on declarations**: `<name> [is a type] [as <alias>] [color] [key: value, …]`. Color is the line-trailing token; same-line metadata, when present, is line-final and supersedes that slot.
 - **Strict ordering**: aliases must be declared on or before first use.
 - **Flat global namespace**: one alias literal has exactly one binding per source.
 - **Aliases are NEVER UNH-normalized** — exact-match short-codes only.
@@ -379,7 +379,7 @@ rarely benefit. Aliases should aid comprehension, not obscure it.
 
 ```
 Name is a <type> [position N]
-Name | key: value
+Name key: value
 ```
 
 Types: `actor`, `database`, `cache`, `queue` (plus default — the plain rectangle, used when `is a` is omitted).
@@ -422,8 +422,7 @@ Names that previously inferred to a removed type — `AuthService`, `WebApp`, `C
   Participant2
 ```
 
-- Pipe metadata goes outside brackets: `[Backend] | t: Eng`
-- Invalid: `[Backend | t: Eng]` (pipe inside brackets)
+- Metadata goes outside brackets: `[Backend] t: Eng`
 
 ### 2.3 Messages (Arrows)
 
@@ -437,7 +436,7 @@ Names that previously inferred to a removed type — `AuthService`, `WebApp`, `C
 - Whitespace around arrows is optional: `A-label->B` works
 - Labels can contain spaces, hyphens, special chars
 - Labels cannot contain arrow chars (`->`, `~>`)
-- Pipe metadata: `A -msg-> B | c: Caching`
+- Same-line metadata: `A -msg-> B c: Caching`
 
 ### 2.4 Section Dividers
 
@@ -513,7 +512,7 @@ infra [Title]
 
 ```
 NodeName
-NodeName | key: value
+NodeName key: value
 NodeName as alias
 "Node name with spaces or | reserved chars"
 ```
@@ -569,7 +568,7 @@ Properties use a known schema with space-separated values:
 | Async (bare) | `~> Target` |
 | Async (labeled) | `~event~> Target` |
 
-- Connection metadata: `| split: 50%, fanout: 3` (colons in pipe metadata)
+- Connection metadata: `split: 50%, fanout: 3` (colons required in metadata pairs)
 - Indented under source node
 - Async edges (`~>`) render with a wiggle pattern
 - Target may be a node id, an alias, or a group ref `[Group Name]`
@@ -578,27 +577,27 @@ Properties use a known schema with space-separated values:
 
 ```
 SearchAPI
-  -> SearchShards | fanout: 6
+  -> SearchShards fanout: 6
 ```
 
 `fanout: N` multiplies the per-edge RPS delivered to the target by `N` (request amplification — scatter-gather, shard fanout, pub/sub).
 
 - Effect: `target_rps = source_post_behavior_rps × fanout` (then split-distributed across declared targets)
-- Combine with `split`: `-> Target | split: 50%, fanout: 3`
+- Combine with `split`: `-> Target split: 50%, fanout: 3`
 - `N` must be ≥ 1; sub-1 values are warned and clamped
 - Sources with at least one `fanout > 1` outgoing edge gain the **Fan-Out** capability badge
-- The legacy `xN` suffix (e.g. `... -> Target x5`) is removed — use `| fanout: N`
+- The legacy `xN` suffix (e.g. `... -> Target x5`) is removed — use `fanout: N`
 
 ### 4.6 Groups
 
 ```
 [Group Name]
 [Group Name] as alias
-[Group Name] | key: value
+[Group Name] key: value
 ```
 
 - Bracket syntax only. Group coloring via tags.
-- Optional `as <alias>` postfix and pipe metadata.
+- Optional `as <alias>` postfix and same-line metadata.
 - **No nesting.** A group cannot contain another `[...]` group; only indented components.
 - Group properties (indented under the bracket line):
   - `instances N` or `instances N-M` — capacity multiplier on children (auto-scaling)
@@ -761,7 +760,7 @@ CEO
 ```
 
 - Node coloring: per-node indented metadata `\n  color: blue` (deferred to a follow-up spec; tag groups inside org also work)
-- Pipe metadata: `Alice | role: CEO, t: Exec`
+- Same-line metadata: `Alice role: CEO, t: Exec`
 
 ### 6.3 Metadata (Indented, Colon REQUIRED)
 
@@ -771,7 +770,7 @@ Alice
   location: NYC
 ```
 
-This is key-value metadata assignment, consistent with pipe metadata syntax.
+This is key-value metadata assignment, consistent with same-line metadata syntax.
 
 ### 6.4 Containers
 
@@ -815,12 +814,12 @@ Web App is a container
   tech: React
 ```
 
-Indented metadata uses colon-separated `key: value`, consistent with org charts and pipe metadata.
+Indented metadata uses colon-separated `key: value`, consistent with org charts and same-line metadata.
 
-### 7.4 Pipe Metadata (Colons in pipes)
+### 7.4 Same-Line Metadata (Colons in pairs)
 
 ```
-Web App is a container | description: SPA, tech: React
+Web App is a container description: SPA, tech: React
 ```
 
 ### 7.5 Relationships
@@ -854,8 +853,8 @@ Web App is a container
 API is a container
   description Handles all REST endpoints
 
-// Pipe metadata form
-Database is a container | description: PostgreSQL with read replicas
+// Same-line metadata form
+Database is a container description: PostgreSQL with read replicas
 ```
 
 - Multiple `description` lines accumulate into a multi-line description
@@ -882,10 +881,10 @@ er [Title]
 ```
 users
 users blue
-users | domain: Core
+users domain: Core
 ```
 
-- Pipe metadata on declaration line only
+- Same-line metadata on declaration line only
 - Indented lines are columns or relationships
 
 ### 8.3 Columns (Indented, Space-Separated, NO Colon)
@@ -1004,14 +1003,14 @@ Columns represent workflow stages and must flow left-to-right from least-done to
 
 ```
 [Column Name]
-[Column Name] color | wip: 3
+[Column Name] color wip: 3
 ```
 
 ### 10.3 Cards (Indented Under Columns)
 
 ```
 [To Do]
-  Card title | priority: High, c: Owner
+  Card title priority: High, c: Owner
     Detail text (indented deeper)
 ```
 
@@ -1035,7 +1034,7 @@ sitemap [Title]
 ```
 Home
   About
-  Pricing | Auth: Public
+  Pricing Auth: Public
     Enterprise
   Blog
 ```
@@ -1066,7 +1065,7 @@ All permutations supported: node→group, group→node, group→group. Brackets 
 
 ```
 [Marketing]
-  Pricing | Auth: Public
+  Pricing Auth: Public
 ```
 
 ### 11.5 Node Descriptions
@@ -1076,8 +1075,8 @@ All permutations supported: node→group, group→node, group→group. Brackets 
 About
   description Company history and team bios
 
-// Pipe metadata form
-Pricing | description: Compare plans and features
+// Same-line metadata form
+Pricing description: Compare plans and features
 
 // Multi-line
 Blog
@@ -1163,7 +1162,7 @@ marker
 ### 12.7 Groups (Swimlanes)
 
 ```
-[Backend] | t: Engineering
+[Backend] t: Engineering
 ```
 
 Bracket syntax only.
@@ -1217,8 +1216,8 @@ Requires explicit first line — no heuristic detection. Default direction is le
 
 ```
 NodeLabel
-NodeLabel | key: value, key2: value2
-NodeLabel | description: Some text here
+NodeLabel key: value, key2: value2
+NodeLabel description: Some text here
 ```
 
 Nodes are created explicitly or implicitly (when referenced in edges). All nodes render as uniform rounded rectangles.
@@ -1229,7 +1228,7 @@ The `description` key is extracted as a dedicated field and not stored in metada
 
 ```
 Source -> Target
-Source -> Target | key: value
+Source -> Target key: value
 Source -label-> Target
 Source <-> Target
 Source <-label-> Target
@@ -1237,14 +1236,14 @@ Source <-label-> Target
 
 Indented shorthand (source from preceding node):
 ```
-API | description: Main gateway
+API description: Main gateway
   -routes-> UserService
   -routes-> ProductService
 ```
 
-Pipe metadata on edges:
+Same-line metadata on edges:
 ```
-A -reads-> DB | frequency: High
+A -reads-> DB frequency: High
 ```
 
 ### 13.4 Groups
@@ -1253,7 +1252,7 @@ A -reads-> DB | frequency: High
 [Group Name]
   indented nodes...
 
-[Group Name] | key: value
+[Group Name] key: value
   indented nodes...
 ```
 
@@ -1654,14 +1653,14 @@ rings
   Assess
   Hold
 
-Techniques | quadrant: top-right
-  Continuous Deployment | ring: Adopt, trend: stable
+Techniques quadrant: top-right
+  Continuous Deployment ring: Adopt, trend: stable
     Fully adopted across all services.
-  Micro Frontends | ring: Trial, trend: up
+  Micro Frontends ring: Trial, trend: up
 
-Tools | quadrant: top-left
-  Vite | ring: Adopt, trend: up
-  Webpack | ring: Hold, trend: down
+Tools quadrant: top-left
+  Vite ring: Adopt, trend: up
+  Webpack ring: Hold, trend: down
 ```
 
 ### Rings
@@ -1672,15 +1671,15 @@ Aliases supported: `Adopt as a` — then blips can use `ring: a`. (Universal ali
 
 ### Quadrants
 
-Exactly 4 required. Each is a top-level header with pipe metadata:
+Exactly 4 required. Each is a top-level header with same-line metadata:
 
 ```
-Name | quadrant: position
+Name quadrant: position
 ```
 
 **Positions:** `top-left`, `top-right`, `bottom-left`, `bottom-right` — each used exactly once.
 
-Optional color override: `Tools | quadrant: top-left, color: purple`
+Optional color override: `Tools quadrant: top-left, color: purple`
 
 Default colors: top-left=blue, top-right=green, bottom-left=red, bottom-right=orange.
 
@@ -1689,7 +1688,7 @@ Default colors: top-left=blue, top-right=green, bottom-left=red, bottom-right=or
 Indented under their quadrant. Require `ring` metadata (case-insensitive match). Optional `trend`:
 
 ```
-  Item Name | ring: Adopt, trend: stable
+  Item Name ring: Adopt, trend: stable
 ```
 
 **Trends:** `new` (double circle), `up` (inward crescent), `down` (outward crescent), `stable` (plain circle). Omitting renders plain circle.
@@ -1699,7 +1698,7 @@ Indented under their quadrant. Require `ring` metadata (case-insensitive match).
 Further-indented lines below a blip. Supports inline markdown (bold, italic, code, links).
 
 ```
-  Rust | ring: Assess, trend: new
+  Rust ring: Assess, trend: new
     Evaluating for **performance-critical** services.
 ```
 
@@ -1757,25 +1756,23 @@ Switches to narrow vertical layout (375px). Desktop (1200px, horizontal regions)
 | `progress N` | Leaf | Value 0-100: `progress 60` |
 | `chart type` | Leaf | `chart line`, `chart bar`, `chart pie` |
 
-### Pipe Metadata (States)
+### Flags (States)
 
-Wireframe uses flag keywords (not `key: value`):
+Wireframe uses flag keywords as a trailing-keyword list (not `key: value`):
 
 ```
-(Submit) | disabled
-(Delete) | destructive
-(Cancel) | ghost
-[Email] | password
-[Notes] | textarea
-[Cards] | horizontal
-[Advanced] | collapsed
-[Messages] | scrollable
-<x> Dark mode | toggle
+(Submit) disabled
+(Delete) destructive
+(Cancel) ghost
+[Email] password
+[Notes] textarea
+[Cards] horizontal
+[Advanced] collapsed
+[Messages] scrollable
+<x> Dark mode toggle
 ```
 
 Available states: `disabled`, `active`, `selected`, `empty`, `ghost`, `destructive`, `success`, `warning`, `info`, `scrollable`, `collapsed`, `toggle`, `password`, `textarea`, `horizontal`, `primary`.
-
-Free-text annotations after states: `[Email] | required, validates email format`.
 
 ### Multi-Element Lines
 
@@ -1795,7 +1792,7 @@ $299.99  ~~$349.99~~         // 2 inline texts
 
 - `[Name]` with indented children = group/container
 - `[Name]` with no children = text input
-- `[Name] | horizontal/scrollable/collapsed` = group (even without children)
+- `[Name] horizontal/scrollable/collapsed` = group (even without children)
 
 ### Table Syntax
 
@@ -1820,7 +1817,7 @@ table 5x4
 - Desktop: 1200px wide, top-level regions arrange horizontally
 - Mobile: 375px wide, all regions stack vertically
 - Smart sizing: `sidebar` → ~25%, `main`/`content` → fill, `header`/`footer` → full width
-- `| horizontal` on groups arranges children in a row
+- `horizontal` flag on groups arranges children in a row
 
 ### Example
 
@@ -1829,16 +1826,16 @@ wireframe Login Page
 
 [Header]
   nav
-    Home | active
+    Home active
     Settings
 
 [Main]
   # Sign In
   Email  [user@example.com]
-  Password  [****] | password
+  Password  [****] password
   <x> Remember me
   (Sign In)
-  (Forgot Password?) | ghost
+  (Forgot Password?) ghost
 ```
 
 ---
@@ -1881,7 +1878,7 @@ Physiological orange
   Food, water, warmth, rest.
 ```
 
-### Layer Pipe Metadata
+### Layer Metadata
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -1930,7 +1927,7 @@ Captain purple
   Final word on heading and plunder,
   keeper of the ship's charter.
 
-Quartermaster | Second-in-command, divvies the booty
+Quartermaster description: Second-in-command, divvies the booty
 
 Crew green
   Deckhands, gunners, and powder monkeys.
@@ -1942,7 +1939,7 @@ The Open Sea cyan
   Weather, currents, and rival flags.
 ```
 
-### Layer Pipe Metadata
+### Layer Metadata
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -2065,7 +2062,7 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 
 | Construct | Diagram Type | Example |
 |-----------|-------------|---------|
-| Pipe metadata | all | `\| key: value, key2: value2` |
+| Same-line metadata | all | `key: value, key2: value2` |
 | Org metadata (indented) | org | `role: Manager` |
 | C4 metadata (indented) | c4 | `description: SPA built with React` |
 | Class field types | class | `+ name: string` |
@@ -2104,7 +2101,7 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 ### The Rule
 
 **Colons appear in two contexts:**
-1. **Value assignment** — `key: value` in pipe metadata, indented tag/metadata assignment (org, c4), and hide directives
+1. **Value assignment** — `key: value` in same-line metadata, indented tag/metadata assignment (org, c4), and hide directives
 2. **Type/expression separation** — where labels can contain spaces and a delimiter is needed (function expressions, class members)
 
 **Exception**: Known-schema properties (infra node properties, ER columns) remain space-separated even though they are indented. The colon rule applies to open-ended metadata, not fixed property schemas.
