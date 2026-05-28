@@ -1429,7 +1429,9 @@ function renderNodes(
       );
       if (tagStroke) {
         stroke = tagStroke;
-        fill = mix(palette.bg, tagStroke, isDark ? 88 : 94);
+        // Canonical 25% tint (matches org/sitemap/c4 tag fills) — was a
+        // muted 6-12% wash that read inconsistently against other charts.
+        fill = shapeFill(palette, tagStroke, isDark);
       }
     }
     let cls = 'infra-node';
