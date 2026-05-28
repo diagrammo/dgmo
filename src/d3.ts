@@ -4791,9 +4791,9 @@ function renderTimelineHorizontalGrouped(
     const isCollapsed = collapsedGroups.has(lane.name);
     const toggleIcon = isCollapsed ? '▶' : '▼';
 
-    // Header band (gantt-style label band in left margin)
+    // Header band — full-width section header (raci-style)
     const bandX = -margin.left + 5;
-    const bandW = margin.left - 7;
+    const bandW = innerWidth + margin.left - 7;
     const bandY = curY;
     const bandH = rowH;
     const sBandRx = ctx.structural(4);
