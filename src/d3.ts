@@ -4621,7 +4621,6 @@ function renderTimelineHorizontalGrouped(
   const sBarRx = ctx.structural(4);
   const sBarStroke = ctx.structural(2);
   const sEventFont = ctx.text(13);
-  const sEventFontSm = ctx.text(12);
   const sCharW = ctx.structural(7);
   const sLaneHeaderFont = ctx.text(12);
 
@@ -4648,7 +4647,7 @@ function renderTimelineHorizontalGrouped(
   }
 
   const totalRows = lanes.reduce((s, l) => {
-    if (collapsedGroups.has(l.name)) return s + 2;
+    if (collapsedGroups.has(l.name)) return s + 1;
     return s + l.events.length + 1;
   }, 0);
   const scaleMargin = timelineScale ? ctx.aesthetic(24) : 0;
@@ -4660,9 +4659,14 @@ function renderTimelineHorizontalGrouped(
   const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
   const topScaleH = timelineScale ? ctx.structural(40) : 0;
   const maxGroupNameLen = Math.max(...lanes.map((l) => l.name.length)) + 2;
+  const maxEventLabelLen = Math.max(
+    0,
+    ...lanes.flatMap((l) => l.events.map((ev) => ev.label.length + 2))
+  );
+  const maxLeftLabelLen = Math.max(maxGroupNameLen, maxEventLabelLen);
   const dynamicLeftMargin = Math.max(
-    ctx.aesthetic(120),
-    maxGroupNameLen * sCharW + ctx.aesthetic(30)
+    ctx.aesthetic(140),
+    maxLeftLabelLen * sCharW + ctx.aesthetic(30)
   );
   const baseTopMargin = title ? ctx.aesthetic(50) : ctx.aesthetic(20);
   const margin = {
@@ -4764,36 +4768,14 @@ function renderTimelineHorizontalGrouped(
   // events can start at y=0 (chart top edge).
   let curY = 0;
 
-  // Swimlane backgrounds (always for grouped timelines)
-  {
-    let swimY = 0;
-    lanes.forEach((lane, idx) => {
-      const isLaneCollapsed = collapsedGroups.has(lane.name);
-      const laneSpan = isLaneCollapsed
-        ? 2 * rowH
-        : (lane.events.length + 1) * rowH;
-      const fillColor = idx % 2 === 0 ? textColor : 'transparent';
-      g.append('rect')
-        .attr('class', 'tl-swimlane')
-        .attr('data-group', lane.name)
-        .attr('x', -margin.left)
-        .attr('y', swimY)
-        .attr('width', innerWidth + margin.left)
-        .attr('height', laneSpan + (idx < lanes.length - 1 ? sGroupGap : 0))
-        .attr('fill', fillColor)
-        .attr('opacity', 0.06);
-      swimY += laneSpan + sGroupGap;
-    });
-  }
-
   for (const lane of lanes) {
     const laneColor = groupColorMap.get(lane.name) ?? textColor;
     const isCollapsed = collapsedGroups.has(lane.name);
     const toggleIcon = isCollapsed ? '▶' : '▼';
 
-    // Header band — full-width section header (raci-style)
+    // Header label band — gantt-style: spans only the left label column
     const bandX = -margin.left + 5;
-    const bandW = innerWidth + margin.left - 7;
+    const bandW = margin.left - 7;
     const bandY = curY;
     const bandH = rowH;
     const sBandRx = ctx.structural(4);
@@ -4851,8 +4833,9 @@ function renderTimelineHorizontalGrouped(
       .attr('font-weight', '600')
       .text(`${toggleIcon} ${lane.name}`);
 
-    if (isCollapsed) {
-      // Summary bar spanning min→max event dates
+    // Group bar in time area — spans min→max event dates, always rendered
+    // (expanded and collapsed). Visually identical to gantt's group bar.
+    if (lane.events.length > 0) {
       const evDates = lane.events.map((ev) => parseTimelineDate(ev.date));
       const evEndDates = lane.events
         .filter((ev) => ev.endDate)
@@ -4861,38 +4844,31 @@ function renderTimelineHorizontalGrouped(
       const laneMaxD = Math.max(...evDates, ...evEndDates);
       const sx1 = xScale(laneMinD);
       const sx2 = xScale(laneMaxD);
-      const summaryW = Math.max(sx2 - sx1, ctx.structural(20));
-      const summaryY = curY + rowH;
+      const groupBarW = Math.max(sx2 - sx1, ctx.structural(20));
 
-      const summaryG = g
+      const groupBarG = g
         .append('g')
-        .attr('class', 'tl-group-summary')
+        .attr('class', isCollapsed ? 'tl-group-summary' : 'tl-group-bar')
         .attr('data-group', lane.name)
         .style('cursor', 'pointer')
+        .on('mouseenter', () => fadeToGroup(g, lane.name))
+        .on('mouseleave', () => fadeReset(g))
         .on('click', () => toggleGroup(lane.name));
 
-      summaryG
+      groupBarG
         .append('rect')
         .attr('x', sx1)
-        .attr('y', summaryY)
-        .attr('width', summaryW)
+        .attr('y', curY)
+        .attr('width', groupBarW)
         .attr('height', rowH)
         .attr('rx', sBarRx)
         .attr('fill', shapeFill(palette, laneColor, isDark, { solid }))
         .attr('stroke', laneColor)
         .attr('stroke-width', sBarStroke);
+    }
 
-      summaryG
-        .append('text')
-        .attr('x', sx1 + summaryW / 2)
-        .attr('y', summaryY + rowH / 2)
-        .attr('dy', '0.35em')
-        .attr('text-anchor', 'middle')
-        .attr('fill', textColor)
-        .attr('font-size', `${sEventFontSm}px`)
-        .text(`${lane.name} (${lane.events.length} events)`);
-
-      curY += 2 * rowH + sGroupGap;
+    if (isCollapsed) {
+      curY += rowH + sGroupGap;
       continue;
     }
 
@@ -4946,12 +4922,28 @@ function renderTimelineHorizontalGrouped(
 
       const evColor = eventColor(ev);
 
+      // Left column: event label with colored bullet/diamond icon
+      const isPoint = !ev.endDate;
+      const icon = isPoint ? '◆' : '●';
+      const labelEl = evG
+        .append('text')
+        .attr('class', 'tl-event-label')
+        .attr('x', -margin.left + ctx.aesthetic(20))
+        .attr('y', y)
+        .attr('dy', '0.35em')
+        .attr('text-anchor', 'start')
+        .attr('font-size', `${sEventFont}px`)
+        .attr('fill', textColor);
+      labelEl.append('tspan').attr('fill', evColor).text(icon);
+      labelEl
+        .append('tspan')
+        .attr('fill', textColor)
+        .text(' ' + ev.label);
+
+      // Time area: shape only (no floating label)
       if (ev.endDate) {
         const x2 = xScale(parseTimelineDate(ev.endDate));
         const rectW = Math.max(x2 - x, 4);
-        // Estimate label width (~7px per char at 13px font) + padding
-        const estLabelWidth = ev.label.length * sCharW + ctx.aesthetic(16);
-        const labelFitsInside = rectW >= estLabelWidth;
 
         let fill: string = shapeFill(palette, evColor, isDark, { solid });
         let stroke: string = evColor;
@@ -5010,38 +5002,7 @@ function renderTimelineHorizontalGrouped(
           .attr('fill', fill)
           .attr('stroke', stroke)
           .attr('stroke-width', sBarStroke);
-
-        if (labelFitsInside) {
-          evG
-            .append('text')
-            .attr('x', x + ctx.aesthetic(8))
-            .attr('y', y)
-            .attr('dy', '0.35em')
-            .attr('text-anchor', 'start')
-            .attr('fill', textColor)
-            .attr('font-size', `${sEventFont}px`)
-            .text(ev.label);
-        } else {
-          const sLabelGap = ctx.aesthetic(6);
-          const wouldFlipLeft = x + rectW > innerWidth * 0.6;
-          const labelFitsLeft = x - sLabelGap - estLabelWidth > 0;
-          const flipLeft = wouldFlipLeft && labelFitsLeft;
-          evG
-            .append('text')
-            .attr('x', flipLeft ? x - sLabelGap : x + rectW + sLabelGap)
-            .attr('y', y)
-            .attr('dy', '0.35em')
-            .attr('text-anchor', flipLeft ? 'end' : 'start')
-            .attr('fill', textColor)
-            .attr('font-size', `${sEventFont}px`)
-            .text(ev.label);
-        }
       } else {
-        const estLabelWidth = ev.label.length * sCharW;
-        const sPointGap = ctx.aesthetic(10);
-        const wouldFlipLeft = x > innerWidth * 0.6;
-        const labelFitsLeft = x - sPointGap - estLabelWidth > 0;
-        const flipLeft = wouldFlipLeft && labelFitsLeft;
         evG
           .append('circle')
           .attr('cx', x)
@@ -5050,15 +5011,6 @@ function renderTimelineHorizontalGrouped(
           .attr('fill', shapeFill(palette, evColor, isDark, { solid }))
           .attr('stroke', evColor)
           .attr('stroke-width', sPointStroke);
-        evG
-          .append('text')
-          .attr('x', flipLeft ? x - sPointGap : x + sPointGap)
-          .attr('y', y)
-          .attr('dy', '0.35em')
-          .attr('text-anchor', flipLeft ? 'end' : 'start')
-          .attr('fill', textColor)
-          .attr('font-size', `${sEventFontSm}px`)
-          .text(ev.label);
       }
     });
 

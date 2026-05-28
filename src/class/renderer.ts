@@ -245,6 +245,7 @@ export function renderClassDiagram(
     .attr('width', width)
     .attr('height', height)
     .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('font-family', FONT_FAMILY);
 
   if (ctx.isBelowFloor) {

@@ -142,11 +142,13 @@ export function renderPyramid(
     .append('svg')
     .attr('width', width)
     .attr('height', height)
+    .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
     .style('font-family', FONT_FAMILY);
 
   if (sctx.isBelowFloor) {
-    svg.attr('width', '100%').attr('viewBox', `0 0 ${width} ${height}`);
+    svg.attr('width', '100%');
   }
 
   svg

@@ -524,6 +524,7 @@ export function renderRaci(
     .attr('width', width)
     .attr('height', Math.max(height, totalHeight))
     .attr('viewBox', `0 0 ${width} ${Math.max(height, totalHeight)}`)
+    .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('font-family', FONT_FAMILY)
     .style('background', 'transparent');
 
@@ -1087,21 +1088,19 @@ function renderPhaseBar(
     .attr('fill', phaseFill)
     .attr('rx', 4);
 
-  // Chevron: ▶ when collapsed, ▼ when expanded. Drawn as a path so it
-  // scales cleanly and we can rotate via transform.
   const chevX = x + 12;
   const chevY = y + sPhaseHeight / 2;
-  const chevSize = 4;
-  const chevPath = collapsed
-    ? // right-pointing triangle
-      `M ${chevX - chevSize / 2} ${chevY - chevSize} L ${chevX + chevSize / 2} ${chevY} L ${chevX - chevSize / 2} ${chevY + chevSize} Z`
-    : // down-pointing triangle
-      `M ${chevX - chevSize} ${chevY - chevSize / 2} L ${chevX + chevSize} ${chevY - chevSize / 2} L ${chevX} ${chevY + chevSize / 2} Z`;
   phaseG
-    .append('path')
-    .attr('d', chevPath)
+    .append('text')
+    .attr('x', chevX)
+    .attr('y', chevY)
+    .attr('text-anchor', 'middle')
+    .attr('dominant-baseline', 'central')
+    .attr('font-family', FONT_FAMILY)
+    .attr('font-size', 9)
     .attr('fill', palette.text)
-    .attr('opacity', 0.7);
+    .attr('opacity', 0.6)
+    .text(collapsed ? '▶' : '▼');
 
   phaseG
     .append('text')

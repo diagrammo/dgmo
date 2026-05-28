@@ -642,7 +642,7 @@ describe('tag swimlane rendering', () => {
     expect(engTasks.length).toBe(0);
   });
 
-  it('collapsed lane shows toggle icon ►', () => {
+  it('collapsed lane shows toggle icon ▶', () => {
     const container = renderFromInput(TAG_SWIMLANE_INPUT, {
       currentSwimlaneGroup: 'Team',
       collapsedLanes: new Set(['Engineering']),
@@ -650,7 +650,7 @@ describe('tag swimlane rendering', () => {
     const engHeader = Array.from(
       container.querySelectorAll('.gantt-lane-header')
     ).find((h) => h.getAttribute('data-lane') === 'Engineering');
-    expect(engHeader?.textContent).toContain('►');
+    expect(engHeader?.textContent).toContain('▶');
   });
 
   it('expanded lane shows toggle icon ▼', () => {

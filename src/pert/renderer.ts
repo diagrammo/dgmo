@@ -552,10 +552,8 @@ export function renderPert(
     .attr('width', ctx.isBelowFloor ? '100%' : svgW)
     .attr('height', svgH)
     .attr('viewBox', `0 0 ${svgW} ${svgH}`)
+    .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('font-family', FONT_FAMILY);
-  if (ctx.isBelowFloor) {
-    svg.attr('preserveAspectRatio', 'xMidYMin meet');
-  }
 
   const defs = svg.append('defs');
   buildArrowheads(defs, palette, sArrowheadW, sArrowheadH);
@@ -1357,6 +1355,7 @@ export function renderPertAnalysisBlock(
     .attr('width', width)
     .attr('height', totalHeight)
     .attr('viewBox', `0 0 ${width} ${totalHeight}`)
+    .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('font-family', FONT_FAMILY)
     .style('overflow', 'visible');
 

@@ -91,10 +91,10 @@ sort time
     expect(headers.length).toBe(0);
   });
 
-  it('renders swimlane background bands', () => {
+  it('does not render zebra swimlane backgrounds', () => {
     const container = renderToContainer(GROUPED_SRC);
     const swimlanes = container.querySelectorAll('.tl-swimlane');
-    expect(swimlanes.length).toBe(2);
+    expect(swimlanes.length).toBe(0);
   });
 
   it('renders ungrouped events in (Other) lane', () => {
@@ -190,17 +190,17 @@ describe('timeline group collapse', () => {
     expect(headerText?.textContent).toMatch(/^▶/);
   });
 
-  it('collapsed summary bar shows group name and event count', () => {
+  it('collapsed header shows group name', () => {
     const container = renderToContainer(GROUPED_SRC);
     const alphaHeader = container.querySelector(
       '.tl-group-header[data-group="Alpha"]'
     ) as SVGGElement;
     alphaHeader.dispatchEvent(new window.Event('click'));
 
-    const summaryText = container.querySelector(
-      '.tl-group-summary[data-group="Alpha"] text'
+    const headerText = container.querySelector(
+      '.tl-group-header[data-group="Alpha"] text'
     );
-    expect(summaryText?.textContent).toBe('Alpha (2 events)');
+    expect(headerText?.textContent).toBe('▶ Alpha');
   });
 
   it('collapse state persists across re-renders on same container', () => {

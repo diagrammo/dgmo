@@ -360,6 +360,17 @@ function applyLabelOverrides(tokens: HighlightToken[]): void {
 
     if (!hasArrow) continue;
 
+    // If the label zone has no Identifier tokens, it's an offset/lag
+    // pattern (e.g. --1w->), not a text label — keep grammar styling.
+    let labelHasIdentifier = false;
+    for (let li = firstDashTildeIdx + 1; li < lastArrowIdx; li++) {
+      if (nonWs[li]!.nodeName === 'Identifier') {
+        labelHasIdentifier = true;
+        break;
+      }
+    }
+    if (!labelHasIdentifier) continue;
+
     // Override tokens in label zone (between first dash/tilde and last arrow)
     for (let li = firstDashTildeIdx + 1; li < lastArrowIdx; li++) {
       const ref = nonWs[li]!;

@@ -144,10 +144,12 @@ export function renderState(
     .append('svg')
     .attr('width', width)
     .attr('height', height)
+    .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('font-family', FONT_FAMILY);
 
   if (ctx.isBelowFloor) {
-    svg.attr('width', '100%').attr('viewBox', `0 0 ${width} ${height}`);
+    svg.attr('width', '100%');
   }
 
   const defs = svg.append('defs');

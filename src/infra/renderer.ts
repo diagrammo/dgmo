@@ -1511,8 +1511,8 @@ function renderNodes(
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', 8)
         .attr('fill', textFill)
-        .attr('opacity', 0.5)
-        .text('▼');
+        .attr('opacity', 0.6)
+        .text('▶');
     }
     if (!isNodeCollapsed) {
       const expanded = expandedNodeIds?.has(node.id) ?? false;

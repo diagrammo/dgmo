@@ -115,6 +115,8 @@ export function renderMindmap(
     .append('svg')
     .attr('width', containerWidth)
     .attr('height', containerHeight)
+    .attr('viewBox', `0 0 ${containerWidth} ${containerHeight}`)
+    .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('font-family', FONT_FAMILY);
 
   const hasControls =
@@ -172,9 +174,7 @@ export function renderMindmap(
     .attr('transform', `translate(${offsetX}, ${offsetY})`);
 
   if (ctx.isBelowFloor) {
-    svg
-      .attr('width', '100%')
-      .attr('viewBox', `0 0 ${containerWidth} ${containerHeight}`);
+    svg.attr('width', '100%');
   }
 
   // Title — fixed at top in app mode (above legend), inside scaled group in export

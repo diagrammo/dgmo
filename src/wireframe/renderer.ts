@@ -105,17 +105,14 @@ export function renderWireframe(
     .select(container)
     .append('svg')
     .attr('viewBox', `0 0 ${layout.width} ${layout.height}`)
+    .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
     .style('font-family', FONT_FAMILY);
 
   if (isExport) {
     svg.attr('width', width).attr('height', height);
   } else {
-    svg
-      .attr('width', '100%')
-      .attr('height', 'auto')
-      .attr('preserveAspectRatio', 'xMidYMin meet')
-      .style('display', 'block');
+    svg.attr('width', '100%').attr('height', 'auto').style('display', 'block');
   }
 
   const ctx: RenderContext = {
@@ -329,6 +326,7 @@ function renderGroup(
       .attr('y', 18)
       .attr('fill', palette.textMuted)
       .attr('font-size', 12)
+      .attr('opacity', 0.6)
       .text('▶');
     return;
   }

@@ -651,7 +651,7 @@ export function renderGantt(
     if (row.type === 'lane-header') {
       const laneColor =
         row.laneColor === '#999999' ? palette.textMuted : row.laneColor;
-      const toggleIcon = row.isCollapsed ? '►' : '▼';
+      const toggleIcon = row.isCollapsed ? '▶' : '▼';
       const labelX = 10;
 
       let lx1 = 0;
@@ -785,7 +785,7 @@ export function renderGantt(
     } else if (row.type === 'group') {
       const group = row.group;
       const isCollapsed = collapsedGroups?.has(group.name) ?? false;
-      const toggleIcon = isCollapsed ? '►' : '▼';
+      const toggleIcon = isCollapsed ? '▶' : '▼';
 
       // Group label with toggle — resolve tag color from group metadata
       const tagColor = resolveTagColor(

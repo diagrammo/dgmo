@@ -271,6 +271,8 @@ export function renderC4Context(
     .append('svg')
     .attr('width', width)
     .attr('height', height)
+    .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('preserveAspectRatio', 'xMidYMid meet')
     .style('font-family', FONT_FAMILY);
 
   // ── Marker defs ──
@@ -1343,6 +1345,8 @@ export function renderC4Containers(
     .append('svg')
     .attr('width', width)
     .attr('height', height)
+    .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('preserveAspectRatio', 'xMidYMid meet')
     .style('font-family', FONT_FAMILY);
 
   // ── Marker defs ──
