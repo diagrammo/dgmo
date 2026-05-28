@@ -344,8 +344,8 @@ Alex Chen
   [Platform Team]
     goal: Core infrastructure
 
-    Alice Park | role: Senior Engineer, location: NY
-    Bob Torres | role: Junior Engineer, location: SF
+    Alice Park role: Senior Engineer, location: NY
+    Bob Torres role: Junior Engineer, location: SF
 `;
 
 const parsed = parseOrg(content, colors);
@@ -366,10 +366,10 @@ Jane Smith
   location: NY
 ```
 
-Or single-line with pipe delimiter:
+Or single-line with same-line metadata:
 
 ```
-Jane Smith | role: CEO, location: NY
+Jane Smith role: CEO, location: NY
 ```
 
 **Team containers** — grouping constructs rendered as labeled boxes:
