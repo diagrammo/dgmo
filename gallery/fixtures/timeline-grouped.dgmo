@@ -1,0 +1,22 @@
+timeline Pirate Campaign 1717-1719
+
+era 1717-01 -> 1717-12 Golden Age Peak
+era 1718-01 -> 1718-12 Royal Navy Response
+marker 1718-05 Rogers Arrives Nassau
+
+[Blackbeard]
+  1717-03 -> 1717-09 Blockade of Charles Town
+  1717-11 Queen Anne's Revenge captured
+  1718-01 -> 1718-06 Carolina Coast raids
+  1718-11 Last stand at Ocracoke
+
+[Bonnet]
+  1717-06 -> 1717-10 First cruise
+  1718-03 -> 1718-07 Revenge refitted
+  1718-08 -> 1718-10 Cape Fear pursuit
+  1718-12 Trial and hanging
+
+[Royal Navy]
+  1718-02 -> 1718-06 Fleet assembles
+  1718-07 -> 1718-09 Nassau secured
+  1718-10 -> 1719-03 Sweep operations

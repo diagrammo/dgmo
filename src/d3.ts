@@ -136,7 +136,7 @@ export interface ParsedVisualization {
   timelineEras: TimelineEra[];
   timelineMarkers: TimelineMarker[];
   timelineTagGroups: TagGroup[];
-  timelineSort: TimelineSort;
+  timelineSort: TimelineSort | null;
   timelineDefaultSwimlaneTG?: string;
   timelineScale: boolean;
   timelineSwimlanes: boolean;
@@ -333,7 +333,7 @@ export function parseVisualization(
     timelineEras: [],
     timelineMarkers: [],
     timelineTagGroups: [],
-    timelineSort: 'time',
+    timelineSort: null,
     timelineScale: true,
     timelineSwimlanes: false,
     vennSets: [],
@@ -781,6 +781,21 @@ export function parseVisualization(
             : null,
           lineNumber,
         });
+        continue;
+      }
+    }
+
+    // Timeline sort directive: `sort time | group | tag:X`
+    if (result.type === 'timeline') {
+      const sortMatch = line.match(/^sort\s+(time|group|tag:(.+))$/i);
+      if (sortMatch) {
+        const kind = sortMatch[1]!.toLowerCase();
+        if (kind === 'time') result.timelineSort = 'time';
+        else if (kind === 'group') result.timelineSort = 'group';
+        else {
+          result.timelineSort = 'tag';
+          result.timelineDefaultSwimlaneTG = sortMatch[2]!.trim();
+        }
         continue;
       }
     }
@@ -4565,7 +4580,9 @@ function renderTimelineHorizontalGrouped(
   _onTagStateChange:
     | ((activeTagGroup: string | null, swimlaneTagGroup: string | null) => void)
     | undefined,
-  _viewMode: boolean | undefined
+  _viewMode: boolean | undefined,
+  collapsedGroups: Set<string>,
+  toggleGroup: (name: string) => void
 ): void {
   const {
     width,
@@ -4594,7 +4611,6 @@ function renderTimelineHorizontalGrouped(
     timelineEras,
     timelineMarkers,
     timelineScale,
-    timelineSwimlanes,
   } = parsed;
   const title = parsed.noTitle ? null : parsed.title;
 
@@ -4631,7 +4647,10 @@ function renderTimelineHorizontalGrouped(
     }));
   }
 
-  const totalEventRows = lanes.reduce((s, l) => s + l.events.length, 0);
+  const totalRows = lanes.reduce((s, l) => {
+    if (collapsedGroups.has(l.name)) return s + 2;
+    return s + l.events.length + 1;
+  }, 0);
   const scaleMargin = timelineScale ? ctx.aesthetic(24) : 0;
   // Per-feature header rows: era + marker each get their own row, reserved
   // only when present (mirrors the gantt header stack).
@@ -4640,7 +4659,7 @@ function renderTimelineHorizontalGrouped(
   const eraReserve = timelineEras.length > 0 ? ERA_ROW_H : 0;
   const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
   const topScaleH = timelineScale ? ctx.structural(40) : 0;
-  const maxGroupNameLen = Math.max(...lanes.map((l) => l.name.length));
+  const maxGroupNameLen = Math.max(...lanes.map((l) => l.name.length)) + 2;
   const dynamicLeftMargin = Math.max(
     ctx.aesthetic(120),
     maxGroupNameLen * sCharW + ctx.aesthetic(30)
@@ -4662,7 +4681,7 @@ function renderTimelineHorizontalGrouped(
   const totalGaps = (lanes.length - 1) * sGroupGap;
   const rowH = Math.min(
     ctx.structural(28),
-    (innerHeight - totalGaps) / totalEventRows
+    (innerHeight - totalGaps) / totalRows
   );
 
   const xScale = d3Scale
@@ -4745,13 +4764,14 @@ function renderTimelineHorizontalGrouped(
   // events can start at y=0 (chart top edge).
   let curY = 0;
 
-  // Render swimlane backgrounds first (so they appear behind events)
-  // Extend into left margin to include group names
-  if (timelineSwimlanes || tagLanes) {
+  // Swimlane backgrounds (always for grouped timelines)
+  {
     let swimY = 0;
     lanes.forEach((lane, idx) => {
-      const laneSpan = lane.events.length * rowH;
-      // Alternate between light gray and transparent for visual separation
+      const isLaneCollapsed = collapsedGroups.has(lane.name);
+      const laneSpan = isLaneCollapsed
+        ? 2 * rowH
+        : (lane.events.length + 1) * rowH;
       const fillColor = idx % 2 === 0 ? textColor : 'transparent';
       g.append('rect')
         .attr('class', 'tl-swimlane')
@@ -4768,34 +4788,116 @@ function renderTimelineHorizontalGrouped(
 
   for (const lane of lanes) {
     const laneColor = groupColorMap.get(lane.name) ?? textColor;
-    const laneSpan = lane.events.length * rowH;
+    const isCollapsed = collapsedGroups.has(lane.name);
+    const toggleIcon = isCollapsed ? '▶' : '▼';
 
-    // Group label — left of lane, vertically centred
-    const group = timelineGroups.find((grp) => grp.name === lane.name);
+    // Header band (gantt-style label band in left margin)
+    const bandX = -margin.left + 5;
+    const bandW = margin.left - 7;
+    const bandY = curY;
+    const bandH = rowH;
+    const sBandRx = ctx.structural(4);
+    const sBandAccentW = ctx.structural(4);
+
+    const clipId = `tl-band-clip-${tlBandClipCounter++}`;
+    g.append('clipPath')
+      .attr('id', clipId)
+      .append('rect')
+      .attr('x', bandX)
+      .attr('y', bandY)
+      .attr('width', bandW)
+      .attr('height', bandH)
+      .attr('rx', sBandRx);
+
+    g.append('rect')
+      .attr('class', 'tl-group-header-bg')
+      .attr('data-group', lane.name)
+      .attr('x', bandX)
+      .attr('y', bandY)
+      .attr('width', bandW)
+      .attr('height', bandH)
+      .attr('rx', sBandRx)
+      .attr('fill', shapeFill(palette, laneColor, isDark, { solid }))
+      .style('pointer-events', 'none');
+
+    g.append('rect')
+      .attr('class', 'tl-group-header-accent')
+      .attr('data-group', lane.name)
+      .attr('x', bandX)
+      .attr('y', bandY)
+      .attr('width', sBandAccentW)
+      .attr('height', bandH)
+      .attr('fill', laneColor)
+      .attr('clip-path', `url(#${clipId})`)
+      .style('pointer-events', 'none');
+
     const headerG = g
       .append('g')
-      .attr('class', 'tl-lane-header')
+      .attr('class', 'tl-group-header')
       .attr('data-group', lane.name)
       .style('cursor', 'pointer')
       .on('mouseenter', () => fadeToGroup(g, lane.name))
       .on('mouseleave', () => fadeReset(g))
-      .on('click', () => {
-        if (onClickItem && group?.lineNumber) onClickItem(group.lineNumber);
-      });
+      .on('click', () => toggleGroup(lane.name));
 
     headerG
       .append('text')
       .attr('x', -margin.left + ctx.aesthetic(10))
-      .attr('y', curY + laneSpan / 2)
+      .attr('y', curY + rowH / 2)
       .attr('dy', '0.35em')
       .attr('text-anchor', 'start')
-      .attr('fill', laneColor)
+      .attr('fill', textColor)
       .attr('font-size', `${sLaneHeaderFont}px`)
       .attr('font-weight', '600')
-      .text(lane.name);
+      .text(`${toggleIcon} ${lane.name}`);
+
+    if (isCollapsed) {
+      // Summary bar spanning min→max event dates
+      const evDates = lane.events.map((ev) => parseTimelineDate(ev.date));
+      const evEndDates = lane.events
+        .filter((ev) => ev.endDate)
+        .map((ev) => parseTimelineDate(ev.endDate!));
+      const laneMinD = Math.min(...evDates);
+      const laneMaxD = Math.max(...evDates, ...evEndDates);
+      const sx1 = xScale(laneMinD);
+      const sx2 = xScale(laneMaxD);
+      const summaryW = Math.max(sx2 - sx1, ctx.structural(20));
+      const summaryY = curY + rowH;
+
+      const summaryG = g
+        .append('g')
+        .attr('class', 'tl-group-summary')
+        .attr('data-group', lane.name)
+        .style('cursor', 'pointer')
+        .on('click', () => toggleGroup(lane.name));
+
+      summaryG
+        .append('rect')
+        .attr('x', sx1)
+        .attr('y', summaryY)
+        .attr('width', summaryW)
+        .attr('height', rowH)
+        .attr('rx', sBarRx)
+        .attr('fill', shapeFill(palette, laneColor, isDark, { solid }))
+        .attr('stroke', laneColor)
+        .attr('stroke-width', sBarStroke);
+
+      summaryG
+        .append('text')
+        .attr('x', sx1 + summaryW / 2)
+        .attr('y', summaryY + rowH / 2)
+        .attr('dy', '0.35em')
+        .attr('text-anchor', 'middle')
+        .attr('fill', textColor)
+        .attr('font-size', `${sEventFontSm}px`)
+        .text(`${lane.name} (${lane.events.length} events)`);
+
+      curY += 2 * rowH + sGroupGap;
+      continue;
+    }
 
     lane.events.forEach((ev, i) => {
-      const y = curY + i * rowH + rowH / 2;
+      const y = curY + (i + 1) * rowH + rowH / 2;
       const x = xScale(parseTimelineDate(ev.date));
 
       const evG = g
@@ -4960,7 +5062,7 @@ function renderTimelineHorizontalGrouped(
       }
     });
 
-    curY += laneSpan + sGroupGap;
+    curY += (lane.events.length + 1) * rowH + sGroupGap;
   }
 }
 
@@ -5563,10 +5665,9 @@ function renderTimelineVertical(
   }
 }
 
-/**
- * Renders a timeline chart into the given container using D3.
- * Supports horizontal (default) and vertical orientation.
- */
+const timelineCollapseState = new WeakMap<HTMLDivElement, Set<string>>();
+let tlBandClipCounter = 0;
+
 export function renderTimeline(
   container: HTMLDivElement,
   parsed: ParsedVisualization,
@@ -5598,6 +5699,30 @@ export function renderTimeline(
   const { isVertical, tagLanes } = setup;
   const hovers = makeTimelineHoverHelpers();
 
+  let collapsedGroups = timelineCollapseState.get(container);
+  if (!collapsedGroups) {
+    collapsedGroups = new Set<string>();
+    timelineCollapseState.set(container, collapsedGroups);
+  }
+
+  function toggleGroup(name: string) {
+    if (collapsedGroups!.has(name)) collapsedGroups!.delete(name);
+    else collapsedGroups!.add(name);
+    renderTimeline(
+      container,
+      parsed,
+      palette,
+      isDark,
+      onClickItem,
+      exportDims,
+      activeTagGroup,
+      swimlaneTagGroup,
+      onTagStateChange,
+      viewMode,
+      exportMode
+    );
+  }
+
   if (isVertical) {
     renderTimelineVertical(
       container,
@@ -5618,7 +5743,7 @@ export function renderTimeline(
 
   const useGroupedHorizontal =
     tagLanes != null ||
-    (parsed.timelineSort === 'group' && parsed.timelineGroups.length > 0);
+    (parsed.timelineSort !== 'time' && parsed.timelineGroups.length > 0);
   if (useGroupedHorizontal) {
     renderTimelineHorizontalGrouped(
       container,
@@ -5632,7 +5757,9 @@ export function renderTimeline(
       swimlaneTagGroup,
       activeTagGroup,
       onTagStateChange,
-      viewMode
+      viewMode,
+      collapsedGroups,
+      toggleGroup
     );
   } else {
     renderTimelineHorizontalTimeSort(
