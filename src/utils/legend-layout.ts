@@ -101,10 +101,13 @@ function capsuleWidth(
   const maxCapsuleW = containerWidth;
   const baseW = LEGEND_CAPSULE_PAD * 2 + pw + 4 + addonWidth;
 
-  // Try single row first
+  // Try single row first. Tolerate sub-pixel float drift: the caller
+  // typically sizes its container to exactly match singleRowW, and FP
+  // associativity in intermediate sums can leave maxCapsuleW short by
+  // ~1e-14 (same family of bug fixed in 069a327 for the per-entry pass).
   const ew = entriesWidth(entries);
   const singleRowW = baseW + ew;
-  if (singleRowW <= maxCapsuleW) {
+  if (singleRowW <= maxCapsuleW + 0.5) {
     return {
       width: singleRowW,
       entryRows: 1,
