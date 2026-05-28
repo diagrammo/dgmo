@@ -67,9 +67,9 @@ Write the DGMO markup for each diagram. Follow these rules:
 ### Syntax reminders (no colons in directives or data):
 ```
 sequence Auth Flow          // first line: type + title
-tag Layer alias l           // tag declaration (no colon)
-  Frontend(blue)
-  Backend(green)
+tag Layer as l              // tag declaration (use `as`)
+  Frontend blue             // color is trailing token (no parens)
+  Backend green
 
 User -POST /login-> API     // sync arrow
 API ~publish~> Queue        // async arrow

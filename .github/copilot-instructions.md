@@ -15,12 +15,12 @@ When the user asks for a diagram, visualization, or chart, generate a `.dgmo` fi
 ```
 sequence Auth Flow
 
-tag Concern alias c
-  Auth(green)
-  Data(blue)
+tag Concern as c
+  Auth green
+  Data blue
 
-User -Login-> API | c: Auth
-API -Find user-> DB | c: Data
+User -Login-> API c: Auth
+API -Find user-> DB c: Data
 DB -user-> API
   if valid
     API -200 OK-> User
@@ -77,7 +77,7 @@ CEO
 ```
 c4 System
 
-Web App is a container | description: SPA, tech: React
+Web App is a container description: SPA, tech: React
   -Uses-> API
 User is a person
   -Browses-> Web App
@@ -88,33 +88,35 @@ User is a person
 infra
 
 edge
-  rps 10000
+  rps: 10000
   -> CDN
 
 CDN
-  cache-hit 80%
+  cache-hit: 80%
   -> LB
 
 LB
-  -/api-> API | split: 70%
-  -/web-> Web | split: 30%
+  -/api-> API split: 70%
+  -/web-> Web split: 30%
 
 API
-  instances 3
-  max-rps 500
-  latency-ms 45
+  instances: 3
+  max-rps: 500
+  latency-ms: 45
 ```
 
-Properties: `cache-hit`, `firewall-block`, `ratelimit-rps`, `max-rps`, `instances` (N or N-M), `latency-ms`, `cb-error-threshold`. Groups: `[Name]` with children. Roles are inferred from behavior.
+Properties (colon required): `cache-hit`, `firewall-block`, `ratelimit-rps`, `max-rps`, `instances` (N or N-M), `latency-ms`, `cb-error-threshold`. Groups: `[Name]` with children. Roles are inferred from behavior.
 
 ### Boxes and lines
 ```
 boxes-and-lines Architecture
-tag Team t Backend(blue), Frontend(green)
+tag Team as t
+  Backend blue
+  Frontend green
 active-tag Team
 direction LR
 
-API Gateway | t: Backend
+API Gateway t: Backend
   -routes-> AuthService
   -queries-> DB
 
@@ -123,13 +125,13 @@ API Gateway | t: Backend
   AuthService
 ```
 
-Nodes: implicit from edges or explicit with `| metadata`. Edges: `A -label-> B`, `A <-label-> B` (bidi). Groups: `[Name]` with indented children (max 2 levels). Tags: `tag Name alias values`, `active-tag`, `hide`. Options: `direction LR|TB`.
+Nodes: implicit from edges or explicit with same-line metadata (`Name key: value`). Edges: `A -label-> B`. Groups: `[Name]` with indented children (max 2 levels). Tags: `tag Name as alias` with indented values, `active-tag`, `hide`. Options: `direction LR|TB`.
 
 ## All chart types
 
-Diagrams: sequence, flowchart, state, class, er, org, kanban, c4, sitemap, infra, gantt, boxes-and-lines, mindmap, wireframe, journey-map, raci, rasci, daci
+Diagrams: sequence, flowchart, state, class, er, org, kanban, c4, sitemap, infra, gantt, boxes-and-lines, mindmap, wireframe, journey-map, raci, rasci, daci, pert
 
-Visualizations: pyramid, ring, cycle, quadrant, venn, slope, wordcloud, arc, timeline, tech-radar, funnel
+Visualizations: pyramid, ring, cycle, quadrant, venn, slope, wordcloud, arc, timeline, tech-radar
 
 Data charts: bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap
 
@@ -140,9 +142,9 @@ The canonical, ordered list lives in `src/chart-types.ts`.
 - `TYPE Title` — first line declares chart type and optional title (no colon)
 - `directive value` — directives are space-separated (no colon)
 - `// comment` — only `//` comments (not `#`)
-- `(colorname)` — inline colors: `Label(red) 100`
-- `series A(red), B(blue)` — multi-series with colors
-- `tag Group alias g` — tag groups for metadata
+- Colors trail the label: `Label red`, `Done green` (no parens, lowercase only)
+- `series Cloud blue, Legacy red` — multi-series with space-separated trailing color
+- `tag Group as g` with indented values — universal tag declaration
 
 ## Rendering
 
@@ -158,8 +160,10 @@ Install: `brew install diagrammo/dgmo/dgmo` or `npm install -g @diagrammo/dgmo`
 
 - Don't use `#` for comments — use `//`
 - Don't use `end` to close sequence blocks — indentation closes them
-- Don't use hex colors in section headers — use named colors
+- Don't use hex colors — use named colors from the palette (red, orange, yellow, green, blue, purple, teal, cyan, gray, black, white)
 - Don't use colons in chart type, title, directives, or data rows — use spaces
-- Sequence arrows: `->` (sync), `~>` (async) — always left-to-right
+- Don't use `|` to delimit metadata — it was removed in 0.18.0; use same-line `key: value` per the universal metadata grammar
+- Don't use `tag Name alias` or bare `tag Name x` — use `tag Name as alias`
+- Sequence arrows: `->` (sync), `~>` (async) — always left-to-right; no leftward `<-` or `<~`
 
 Full reference: `docs/language-reference.md`
