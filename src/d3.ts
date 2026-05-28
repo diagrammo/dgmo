@@ -2980,9 +2980,10 @@ function renderMarkers(
       // Reserved-row mode lifts the label above the chart edge; legacy mode
       // keeps it at y=6 inside the chart top.
       const labelY = useReservedRow ? reservedLabelY! : 6;
-      // Diamond stays just below the chart top edge so the dashed line has a
-      // clear visual head, regardless of where the label sits.
-      const diamondY = useReservedRow ? -2 : labelY + 14;
+      // Diamond sits fully above the chart edge in reserved-row mode so it
+      // isn't clipped by group bars that start at y=0; legacy mode keeps the
+      // diamond inside the chart top below the label.
+      const diamondY = useReservedRow ? -(diamondSize + 1) : labelY + 14;
       const lineTop = diamondY + diamondSize;
 
       // Compute available label width based on nearest-neighbor distance.
@@ -4773,11 +4774,13 @@ function renderTimelineHorizontalGrouped(
     const isCollapsed = collapsedGroups.has(lane.name);
     const toggleIcon = isCollapsed ? '▶' : '▼';
 
-    // Header label band — gantt-style: spans only the left label column
+    // Header label band — gantt-style: spans only the left label column.
+    // Band height matches the event bar height (sBarH) instead of the full
+    // row stride (rowH), leaving a small gap below — same look as gantt.
     const bandX = -margin.left + 5;
     const bandW = margin.left - 7;
     const bandY = curY;
-    const bandH = rowH;
+    const bandH = sBarH;
     const sBandRx = ctx.structural(4);
     const sBandAccentW = ctx.structural(4);
 
@@ -4825,7 +4828,7 @@ function renderTimelineHorizontalGrouped(
     headerG
       .append('text')
       .attr('x', -margin.left + ctx.aesthetic(10))
-      .attr('y', curY + rowH / 2)
+      .attr('y', curY + sBarH / 2)
       .attr('dy', '0.35em')
       .attr('text-anchor', 'start')
       .attr('fill', textColor)
@@ -4860,7 +4863,7 @@ function renderTimelineHorizontalGrouped(
         .attr('x', sx1)
         .attr('y', curY)
         .attr('width', groupBarW)
-        .attr('height', rowH)
+        .attr('height', sBarH)
         .attr('rx', sBarRx)
         .attr('fill', shapeFill(palette, laneColor, isDark, { solid }))
         .attr('stroke', laneColor)
