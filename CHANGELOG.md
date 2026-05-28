@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-05-28
+
+### Documentation
+
+- Regenerated `docs/language-reference.md` to spec parity. Added five
+  missing sections: §13A PERT, §18 Mindmap, §21 Cycle, §22 Journey
+  Map, and §26 Authoring Rules. Renumbered Tech Radar, Pyramid, Ring,
+  RACI, and Colon Usage Summary to match spec ordering; swapped
+  Wireframe + Tech Radar to align with spec source order. The MCP
+  `get_language_reference` tool now serves complete documentation for
+  every chart type.
+- Migrated residual pipe-metadata examples in `README.md` to §1.4
+  same-line form. The org-chart sample and the "single-line with pipe
+  delimiter" prose subsection had been left out of the 0.18.0 pipe
+  retirement sweep.
+
 ## [0.18.0] - 2026-05-27
 
 ### ⚠ BREAKING: `|` retired as metadata delimiter — unified §1.4 grammar
