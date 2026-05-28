@@ -178,7 +178,13 @@
     "Bendpoints",
     "Brandes",
     "Koepf",
-    "Coffman"
+    "Coffman",
+    "sctx",
+    "horiz",
+    "NCFS",
+    "CLFS",
+    "Nunit",
+    "SAMELINE"
   ],
   "ignorePaths": [
     "node_modules",
