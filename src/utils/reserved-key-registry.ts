@@ -142,8 +142,6 @@ export const TIMELINE_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',
   'duration',
-  'end',
-  'start',
 ]);
 
 export const MINDMAP_REGISTRY: ReservedKeyRegistry = staticRegistry([

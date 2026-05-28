@@ -359,38 +359,38 @@ tag Team t
     expect(result.timelineTagGroups[0].entries).toHaveLength(2);
   });
 
-  it('parses pipe metadata on point events', () => {
+  it('parses metadata on point events', () => {
     const result = parseVisualization(`timeline
 
 tag Team t
   Frontend blue
 
 [Q1]
-  2026-01 Dashboard v2 | t: Frontend`);
+  2026-01 Dashboard v2 t: Frontend`);
     expect(result.timelineEvents[0].label).toBe('Dashboard v2');
     expect(result.timelineEvents[0].metadata).toEqual({ team: 'Frontend' });
   });
 
-  it('parses pipe metadata on range events', () => {
+  it('parses metadata on range events', () => {
     const result = parseVisualization(`timeline
 
 tag Team t
   Backend green
 
 [Q1]
-  2026-01->2026-03 API migration | t: Backend`);
+  2026-01 -> 2026-03 API migration t: Backend`);
     expect(result.timelineEvents[0].label).toBe('API migration');
     expect(result.timelineEvents[0].metadata).toEqual({ team: 'Backend' });
   });
 
-  it('parses pipe metadata on duration events', () => {
+  it('parses metadata on duration events', () => {
     const result = parseVisualization(`timeline
 
 tag Team
   Platform teal
 
 [Q1]
-  2026-01->3m Gateway setup | Team: Platform`);
+  2026-01 Gateway setup 3m Team: Platform`);
     expect(result.timelineEvents[0].label).toBe('Gateway setup');
     expect(result.timelineEvents[0].metadata).toEqual({ team: 'Platform' });
   });
@@ -414,7 +414,7 @@ tag Team
   Frontend blue
 
 [Q1]
-  2026-01 Task | Team: Unknown`);
+  2026-01 Task Team: Unknown`);
     const warnings = result.diagnostics.filter((d) =>
       d.message.includes("Unknown value 'Unknown'")
     );
@@ -426,7 +426,7 @@ tag Team
 
 [Q1]
   2026-01 Some task
-  2026-02->2026-03 Another task`);
+  2026-02 -> 2026-03 Another task`);
     expect(result.error).toBeNull();
     expect(result.timelineTagGroups).toHaveLength(0);
     expect(result.timelineEvents).toHaveLength(2);

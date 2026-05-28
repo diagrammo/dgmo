@@ -864,10 +864,6 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
     {
       node: {
         description: { description: 'Event description' },
-        start: {
-          description: 'Event start date (e.g., 1718, 2024-01-15)',
-        },
-        end: { description: 'Event end date (e.g., 1719, 2024-06-30)' },
         duration: { description: 'Event duration (e.g., 30d, 1.5y)' },
       },
     },

@@ -68,8 +68,8 @@ describe('timeline horizontal header rows', () => {
     const src = `timeline
 era 2024-01 -> 2024-06 Phase A
 marker 2024-03 Mid milestone
-Event A start: 2024-01, end: 2024-04
-Event B start: 2024-04, end: 2024-06`;
+2024-01 -> 2024-04 Event A
+2024-04 -> 2024-06 Event B`;
     const container = renderToContainer(src);
     const eraEl = container.querySelector('.tl-era text');
     const markerEl = container.querySelector('.tl-marker text');
@@ -86,7 +86,7 @@ Event B start: 2024-04, end: 2024-06`;
   it('does not reserve an era row when no eras are present', () => {
     const noEraSrc = `timeline
 marker 2024-03 Mid milestone
-Event A start: 2024-01, end: 2024-06`;
+2024-01 -> 2024-06 Event A`;
     const noEra = renderToContainer(noEraSrc);
     const noEraMarkerY = parseFloat(
       noEra.querySelector('.tl-marker text')!.getAttribute('y') ?? '0'
@@ -95,7 +95,7 @@ Event A start: 2024-01, end: 2024-06`;
     const withEraSrc = `timeline
 era 2024-01 -> 2024-06 Phase A
 marker 2024-03 Mid milestone
-Event A start: 2024-01, end: 2024-06`;
+2024-01 -> 2024-06 Event A`;
     const withEra = renderToContainer(withEraSrc);
     const withEraMarkerY = parseFloat(
       withEra.querySelector('.tl-marker text')!.getAttribute('y') ?? '0'
@@ -111,7 +111,7 @@ Event A start: 2024-01, end: 2024-06`;
 era 2024-01 -> 2024-12 First Long Phase
 era 2024-12 -> 2025-01 Tiny Transition Window
 era 2025-01 -> 2025-12 Second Long Phase
-Long Event start: 2024-01, end: 2025-12`;
+2024-01 -> 2025-12 Long Event`;
     const container = renderToContainer(src);
     const labels = eraLabelTexts(container);
     expect(labels.length).toBe(3);
@@ -129,7 +129,7 @@ Long Event start: 2024-01, end: 2025-12`;
 marker 2024-06 First Important Quarterly Milestone
 marker 2024-08 Beta Release Candidate Two
 marker 2024-09 Production Launch Day Celebration
-Long Event start: 2024-01, end: 2025-01`;
+2024-01 -> 2025-01 Long Event`;
     const container = renderToContainer(src);
     const labels = markerLabelTexts(container);
     expect(labels.length).toBe(3);
@@ -143,7 +143,7 @@ Long Event start: 2024-01, end: 2025-01`;
     const src = `timeline
 marker 2024-03 Mid one
 marker 2024-09 Mid two
-Long Event start: 2024-01, end: 2025-01`;
+2024-01 -> 2025-01 Long Event`;
     const container = renderToContainer(src);
     const labels = markerLabelTexts(container);
     expect(labels).toContain('Mid one');
@@ -156,7 +156,7 @@ Long Event start: 2024-01, end: 2025-01`;
 era 2024-01 -> 2024-12 Phase A
 marker 2024-03 First milestone
 marker 2024-09 Second milestone
-Background event start: 2024-01, end: 2024-12`;
+2024-01 -> 2024-12 Background event`;
     const container = renderToContainer(src);
     const markerGroups = Array.from(
       container.querySelectorAll<SVGGElement>('.tl-marker')
@@ -192,7 +192,7 @@ Background event start: 2024-01, end: 2024-12`;
     const src = `timeline
 marker 2024-06 First Important Quarterly Milestone
 marker 2024-08 Beta Release Candidate Two
-Long Event start: 2024-01, end: 2025-01`;
+2024-01 -> 2025-01 Long Event`;
     const container = renderToContainer(src);
     const markerGroups = Array.from(
       container.querySelectorAll<SVGGElement>('.tl-marker')

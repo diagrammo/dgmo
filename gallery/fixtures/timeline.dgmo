@@ -14,19 +14,19 @@ marker 2024-03 Beta Launch
 marker 2024-09 GA Release
 marker 2025-01 Series A
 
-Core API Development start: 2024-01, end: 2024-03, t: Engineering
-Auth & Permissions start: 2024-02, end: 2024-05, t: Engineering
-Real-time Features start: 2024-04, end: 2024-07, t: Engineering
-Performance Optimization start: 2024-08, end: 2024-11, t: Engineering
-Multi-region Deploy start: 2025-01, end: 2025-04, t: Engineering
+2024-01 -> 2024-03 Core API Development t: Engineering
+2024-02 -> 2024-05 Auth & Permissions t: Engineering
+2024-04 -> 2024-07 Real-time Features t: Engineering
+2024-08 -> 2024-11 Performance Optimization t: Engineering
+2025-01 -> 2025-04 Multi-region Deploy t: Engineering
 
-Design System v1 start: 2024-01, end: 2024-02, t: Design
-User Research start: 2024-03, end: 2024-05, t: Design
-Design System v2 start: 2024-06, end: 2024-08, t: Design
-Accessibility Audit start: 2024-09, end: 2024-11, t: Design
-Mobile Redesign start: 2025-02, end: 2025-05, t: Design
+2024-01 -> 2024-02 Design System v1 t: Design
+2024-03 -> 2024-05 User Research t: Design
+2024-06 -> 2024-08 Design System v2 t: Design
+2024-09 -> 2024-11 Accessibility Audit t: Design
+2025-02 -> 2025-05 Mobile Redesign t: Design
 
-Competitor Analysis start: 2024-02, t: Product
-User Survey start: 2024-06, t: Product
-Pricing Strategy start: 2024-10, t: Product
-Enterprise Features start: 2025-01, end: 2025-03, t: Product
+2024-02 Competitor Analysis t: Product
+2024-06 User Survey t: Product
+2024-10 Pricing Strategy t: Product
+2025-01 -> 2025-03 Enterprise Features t: Product

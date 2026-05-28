@@ -72,38 +72,16 @@ export interface ArcNodeGroup {
   lineNumber: number;
 }
 
-type TimelineSort = 'time' | 'group' | 'tag';
+import type {
+  TimelineSort,
+  TimelineEvent,
+  TimelineGroup,
+  TimelineEra,
+  TimelineMarker,
+} from './timeline/types';
+import { parseTimelineEventLine, parseTimelineDate } from './timeline/parser';
 
-interface TimelineEvent {
-  date: string;
-  endDate: string | null;
-  label: string;
-  group: string | null;
-  metadata: Record<string, string>;
-  lineNumber: number;
-  uncertain?: boolean;
-}
-
-interface TimelineGroup {
-  name: string;
-  color: string | null;
-  lineNumber: number;
-}
-
-interface TimelineEra {
-  startDate: string;
-  endDate: string;
-  label: string;
-  color: string | null;
-  lineNumber: number;
-}
-
-interface TimelineMarker {
-  date: string;
-  label: string;
-  color: string | null;
-  lineNumber: number;
-}
+export { parseTimelineDate, addDurationToDate } from './timeline/parser';
 
 interface VennSet {
   name: string;
@@ -197,7 +175,6 @@ import {
   ALIAS_DIAGNOSTIC_CODES,
   formatDgmoError,
   makeDgmoError,
-  pipeOperatorRemovedMessage,
   suggest,
   vennAliasKeywordRemovedMessage,
 } from './diagnostics';
@@ -206,11 +183,8 @@ import {
   extractColor,
   normalizeNumericToken,
   parseFirstLine,
-  parsePipeMetadata,
   peelTrailingColorName,
   splitNameAndMeta,
-  MULTIPLE_PIPE_ERROR,
-  warnUnknownMetaKeys,
 } from './utils/parsing';
 import {
   TIMELINE_REGISTRY,
@@ -249,51 +223,6 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from './utils/title-constants';
-
-// ============================================================
-// Shared Parsing Helpers
-// ============================================================
-
-/**
- * Split a timeline event's `label + metadata` segment into a clean
- * label string and a key-value record. Accepts both forms:
- *   - legacy: `label | k: v, k: v`
- *   - new (§1.4): `label k: v, k: v` (cut at first reserved key in
- *     `TIMELINE_REGISTRY` plus declared tag aliases).
- *
- * Multi-pipe lines fire the supplied `reportMultiPipes` callback;
- * the top-of-loop `E_PIPE_OPERATOR_REMOVED` diagnostic is emitted
- * by the caller on first `|` detection.
- */
-function parseTimelineLabelAndMeta(
-  text: string,
-  timelineAliasMap: Map<string, string>,
-  reportMultiPipes?: () => void
-): { label: string; metadata: Record<string, string> } {
-  if (text.includes('|')) {
-    const segments = text.split('|');
-    const label = segments[0]!.trim();
-    const metadata =
-      segments.length > 1
-        ? parsePipeMetadata(
-            ['', ...segments.slice(1)],
-            timelineAliasMap,
-            reportMultiPipes
-          )
-        : {};
-    return { label, metadata };
-  }
-  const registry = withTagAliases(
-    TIMELINE_REGISTRY,
-    new Set([...timelineAliasMap.keys(), ...timelineAliasMap.values()])
-  );
-  const split = splitNameAndMeta(text, registry, timelineAliasMap);
-  let label = split.name;
-  if (split.color !== undefined) {
-    label = `${label} ${split.color}`;
-  }
-  return { label, metadata: split.meta };
-}
 
 // ============================================================
 // Shared Rendering Helpers
@@ -367,132 +296,14 @@ function initD3Chart(
     .append('svg')
     .attr('width', width)
     .attr('height', height)
+    .attr('viewBox', `0 0 ${width} ${height}`)
     .style('background', bgColor);
   return { svg, width, height, textColor, mutedColor, bgColor, colors };
 }
 
 // ============================================================
-// Timeline Date Helper
+// Timeline Date Helpers (re-exported from timeline/parser.ts)
 // ============================================================
-
-/**
- * Converts a date string (YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DD HH:MM) to a fractional year number.
- */
-export function parseTimelineDate(s: string): number {
-  // Split off optional time component
-  const spaceIdx = s.indexOf(' ');
-  let datePart = s;
-  let hour = 0;
-  let minute = 0;
-
-  if (spaceIdx !== -1) {
-    datePart = s.slice(0, spaceIdx);
-    const timePart = s.slice(spaceIdx + 1);
-    const timeParts = timePart.split(':');
-    if (timeParts.length === 2) {
-      // In-bounds by length check above.
-      hour = parseInt(timeParts[0]!, 10);
-      minute = parseInt(timeParts[1]!, 10);
-    }
-  }
-
-  const parts = datePart.split('-').map((p) => parseInt(p, 10));
-  // parts is always non-empty (split returns at least one element).
-  const year = parts[0]!;
-  const month = parts.length >= 2 ? parts[1]! : 1;
-  const day = parts.length >= 3 ? parts[2]! : 1;
-  return (
-    year + (month - 1) / 12 + (day - 1) / 365 + hour / 8760 + minute / 525600
-  );
-}
-
-/**
- * Adds a duration to a date string and returns the resulting date string.
- * Supports: d (days), w (weeks), m (months), y (years), h (hours), min (minutes)
- * Supports decimals up to 2 places (e.g., 1.25y = 1 year 3 months)
- * Preserves the precision of the input date (YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DD HH:MM).
- */
-export function addDurationToDate(
-  startDate: string,
-  amount: number,
-  unit: 'd' | 'w' | 'm' | 'y' | 'h' | 'min'
-): string {
-  // Split off optional time component
-  const spaceIdx = startDate.indexOf(' ');
-  let datePart = startDate;
-  let hour = 0;
-  let minute = 0;
-
-  if (spaceIdx !== -1) {
-    datePart = startDate.slice(0, spaceIdx);
-    const timePart = startDate.slice(spaceIdx + 1);
-    const tp = timePart.split(':');
-    if (tp.length === 2) {
-      // In-bounds by length check above.
-      hour = parseInt(tp[0]!, 10);
-      minute = parseInt(tp[1]!, 10);
-    }
-  }
-
-  const parts = datePart.split('-').map((p) => parseInt(p, 10));
-  // parts is always non-empty (split returns at least one element).
-  const year = parts[0]!;
-  const month = parts.length >= 2 ? parts[1]! : 1;
-  const day = parts.length >= 3 ? parts[2]! : 1;
-
-  const date = new Date(year, month - 1, day, hour, minute);
-
-  switch (unit) {
-    case 'd':
-      date.setDate(date.getDate() + Math.round(amount));
-      break;
-    case 'w':
-      date.setDate(date.getDate() + Math.round(amount * 7));
-      break;
-    case 'm': {
-      const wholeMonths = Math.floor(amount);
-      const fractionalDays = Math.round((amount - wholeMonths) * 30);
-      date.setMonth(date.getMonth() + wholeMonths);
-      if (fractionalDays > 0) {
-        date.setDate(date.getDate() + fractionalDays);
-      }
-      break;
-    }
-    case 'y': {
-      const wholeYears = Math.floor(amount);
-      const fractionalMonths = Math.round((amount - wholeYears) * 12);
-      date.setFullYear(date.getFullYear() + wholeYears);
-      if (fractionalMonths > 0) {
-        date.setMonth(date.getMonth() + fractionalMonths);
-      }
-      break;
-    }
-    case 'h':
-      date.setTime(date.getTime() + amount * 3600000);
-      break;
-    case 'min':
-      date.setTime(date.getTime() + amount * 60000);
-      break;
-  }
-
-  // Preserve original precision
-  const endYear = date.getFullYear();
-  const endMonth = String(date.getMonth() + 1).padStart(2, '0');
-  const endDay = String(date.getDate()).padStart(2, '0');
-  const endHour = String(date.getHours()).padStart(2, '0');
-  const endMinute = String(date.getMinutes()).padStart(2, '0');
-  const hasTime = unit === 'h' || unit === 'min' || spaceIdx !== -1;
-
-  if (parts.length === 1) {
-    return String(endYear);
-  } else if (parts.length === 2) {
-    return `${endYear}-${endMonth}`;
-  } else if (hasTime && (date.getHours() !== 0 || date.getMinutes() !== 0)) {
-    return `${endYear}-${endMonth}-${endDay} ${endHour}:${endMinute}`;
-  } else {
-    return `${endYear}-${endMonth}-${endDay}`;
-  }
-}
 
 // ============================================================
 // Parser
@@ -562,12 +373,12 @@ export function parseVisualization(
   const freeformLines: string[] = [];
   let currentArcGroup: string | null = null;
   let currentTimelineGroup: string | null = null;
+  let currentTimelineGroupMeta: Record<string, string> = {};
   let currentTimelineTagGroup: Writable<TagGroup> | null = null;
   let inTimelineEraBlock = false;
   let timelineEraBlockIndent = 0;
   let inTimelineMarkerBlock = false;
   let timelineMarkerBlockIndent = 0;
-  let timelineMigrationWarnCount = 0;
   let inSlopePeriodBlock = false;
   const timelineAliasMap = new Map<string, string>();
   const VALID_D3_TYPES = new Set([
@@ -627,6 +438,11 @@ export function parseVisualization(
             tagBlockMatch.alias.toLowerCase(),
             tagBlockMatch.name.toLowerCase()
           );
+        } else {
+          timelineAliasMap.set(
+            tagBlockMatch.name.toLowerCase(),
+            tagBlockMatch.name.toLowerCase()
+          );
         }
         result.timelineTagGroups.push(newGroup);
         continue;
@@ -660,12 +476,81 @@ export function parseVisualization(
     // [Group] container headers for arc / timeline (§1.5 trailing-token):
     //   `[Group]`           — no color
     //   `[Group] color`     — trailing-token color (recognized palette word)
+    //   `[Group] key: value`  — timeline group metadata
+    if (result.type === 'timeline') {
+      const tlGroupMatch = line.match(/^\[(.+?)\]\s*(.*?)\s*$/);
+      if (tlGroupMatch) {
+        const name = tlGroupMatch[1]!.trim();
+        const trailing = tlGroupMatch[2] ?? '';
+        let color: string | null = null;
+        let groupMeta: Record<string, string> = {};
+
+        if (trailing) {
+          const { label: peeled, colorName } = peelTrailingColorName(
+            ' ' + trailing
+          );
+          if (colorName && peeled.trim() === '') {
+            color =
+              resolveColorWithDiagnostic(
+                colorName,
+                lineNumber,
+                result.diagnostics,
+                palette
+              ) ?? null;
+          } else {
+            const tlRegistry = withTagAliases(
+              TIMELINE_REGISTRY,
+              new Set([
+                ...timelineAliasMap.keys(),
+                ...timelineAliasMap.values(),
+              ])
+            );
+            const split = splitNameAndMeta(
+              trailing,
+              tlRegistry,
+              timelineAliasMap
+            );
+            if (split.color) {
+              color =
+                resolveColorWithDiagnostic(
+                  split.color,
+                  lineNumber,
+                  result.diagnostics,
+                  palette
+                ) ?? null;
+            }
+            groupMeta = { ...split.meta };
+            if (groupMeta['color']) {
+              color =
+                resolveColorWithDiagnostic(
+                  groupMeta['color'],
+                  lineNumber,
+                  result.diagnostics,
+                  palette
+                ) ?? null;
+              delete groupMeta['color'];
+            }
+          }
+        }
+
+        result.timelineGroups.push({
+          name,
+          color,
+          metadata: groupMeta,
+          lineNumber,
+        });
+        currentTimelineGroup = name;
+        currentTimelineGroupMeta = groupMeta;
+        continue;
+      }
+    }
+
+    // [Group] for arc (original narrow regex)
     const groupMatch = line.match(
       /^\[(.+?)\](?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
     );
     if (groupMatch) {
       if (result.type === 'arc') {
-        // Capture group 1 is guaranteed by the regex match.
         const name = groupMatch[1]!.trim();
         const color = groupMatch[2]
           ? (resolveColorWithDiagnostic(
@@ -677,19 +562,6 @@ export function parseVisualization(
           : null;
         result.arcNodeGroups.push({ name, nodes: [], color, lineNumber });
         currentArcGroup = name;
-      } else if (result.type === 'timeline') {
-        // Capture group 1 is guaranteed by the regex match.
-        const name = groupMatch[1]!.trim();
-        const color = groupMatch[2]
-          ? (resolveColorWithDiagnostic(
-              groupMatch[2].trim(),
-              lineNumber,
-              result.diagnostics,
-              palette
-            ) ?? null)
-          : null;
-        result.timelineGroups.push({ name, color, lineNumber });
-        currentTimelineGroup = name;
       }
       continue;
     }
@@ -717,6 +589,7 @@ export function parseVisualization(
     if (indent === 0) {
       currentArcGroup = null;
       currentTimelineGroup = null;
+      currentTimelineGroupMeta = {};
     }
 
     // Arc link line (§1.5 trailing-token):
@@ -912,273 +785,36 @@ export function parseVisualization(
       }
     }
 
-    // Timeline event lines: new name-first syntax, then legacy dual-accept
+    // Timeline event lines: date-first syntax
     if (result.type === 'timeline') {
       const tlRegistry = withTagAliases(
         TIMELINE_REGISTRY,
         new Set([...timelineAliasMap.keys(), ...timelineAliasMap.values()])
       );
 
-      // ── New syntax: Name start: DATE[, end: DATE][, duration: Nd] ──
-      let eventLine = line;
-      let pipeMeta: Record<string, string> = {};
-      let hasPipe = false;
-      if (line.includes('|')) {
-        const segments = line.split('|');
-        eventLine = segments[0]!.trim();
-        hasPipe = true;
-        pipeMeta = parsePipeMetadata(
-          ['', ...segments.slice(1)],
-          timelineAliasMap,
-          () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
-        );
-      }
-
-      const split = splitNameAndMeta(eventLine, tlRegistry, timelineAliasMap);
-
-      if (split.meta['start'] !== undefined) {
-        if (hasPipe) warn(lineNumber, pipeOperatorRemovedMessage());
-
-        const startVal = split.meta['start']!.trim();
-        if (
-          !startVal ||
-          !/^\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?$/.test(startVal)
-        ) {
-          warn(
-            lineNumber,
-            startVal
-              ? `Invalid start date '${startVal}' — expected YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DD HH:MM`
-              : `Empty start value — expected a date (e.g., start: 1718)`
-          );
-          continue;
-        }
-
-        let endDate: string | null = null;
-        let uncertain = false;
-
-        const merged = { ...split.meta, ...pipeMeta };
-        const endRaw = merged['end']?.trim();
-        const durRaw = merged['duration']?.trim();
-
-        if (endRaw !== undefined && durRaw !== undefined) {
-          warn(
-            lineNumber,
-            "Use either 'end:' or 'duration:', not both — using 'end:'"
-          );
-        }
-
-        if (endRaw !== undefined) {
-          let endVal = endRaw;
-          if (endVal.endsWith('?')) {
-            uncertain = true;
-            endVal = endVal.slice(0, -1);
-          }
-          if (
-            !endVal ||
-            !/^\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?$/.test(endVal)
-          ) {
-            warn(
-              lineNumber,
-              endVal
-                ? `Invalid end date '${endVal}' — expected YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DD HH:MM`
-                : `Empty end value — expected a date (e.g., end: 1719)`
-            );
-          } else {
-            endDate = endVal;
-          }
-        } else if (durRaw !== undefined) {
-          let durVal = durRaw;
-          if (durVal.endsWith('?')) {
-            uncertain = true;
-            durVal = durVal.slice(0, -1);
-          }
-          const durMatch = durVal.match(/^(\d+(?:\.\d{1,2})?)(min|[dwmyh])$/);
-          if (!durMatch) {
-            warn(
-              lineNumber,
-              `Invalid duration '${durRaw}' — expected e.g., 30d, 2w, 1.5m, 1y`
-            );
-          } else {
-            const amount = parseFloat(durMatch[1]!);
-            const unit = durMatch[2] as 'd' | 'w' | 'm' | 'y' | 'h' | 'min';
-            endDate = addDurationToDate(startVal, amount, unit);
-          }
-        }
-
-        let label = split.name;
-        if (split.color !== undefined) {
-          label = `${label} ${split.color}`;
-        }
-
-        const metadata: Record<string, string> = { ...merged };
-        delete metadata['start'];
-        delete metadata['end'];
-        delete metadata['duration'];
-
-        warnUnknownMetaKeys(metadata, tlRegistry, (msg) =>
-          warn(lineNumber, msg)
-        );
-
-        result.timelineEvents.push({
-          date: startVal,
-          endDate,
-          label,
-          group: currentTimelineGroup,
-          metadata,
-          lineNumber,
-          ...(uncertain ? { uncertain: true } : {}),
-        });
-        continue;
-      }
-
-      if (/\bstart\s*:/.test(eventLine)) {
-        warn(
-          lineNumber,
-          `Empty start value — expected a date (e.g., start: 1718)`
-        );
-        continue;
-      }
-
-      // ── Legacy dual-accept: date-first syntax with migration warnings ──
-      // Duration event: 2026-07-15->30d: description (d=days, w=weeks, m=months, y=years, h=hours, min=minutes)
-      // Supports decimals up to 2 places (e.g., 1.25y = 1 year 3 months)
-      // Supports uncertain end with ? suffix (e.g., ->3m?: fades out the last 20%)
-      // Accepts both -> (hyphen) and –> (en-dash U+2013)
-      const durationMatch = line.match(
-        /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d+(?:\.\d{1,2})?)(min|[dwmyh])(\?)?\s+(.+)$/
+      const eventResult = parseTimelineEventLine(
+        line,
+        lineNumber,
+        currentTimelineGroup,
+        currentTimelineGroupMeta,
+        timelineAliasMap,
+        tlRegistry
       );
-      if (durationMatch) {
-        const startDate = durationMatch[1]!;
-        const uncertainLegacy = durationMatch[4] === '?';
-        const amount = parseFloat(durationMatch[2]!);
-        const unit = durationMatch[3] as 'd' | 'w' | 'm' | 'y' | 'h' | 'min';
-        const endDate = addDurationToDate(startDate, amount, unit);
-        if (durationMatch[5]!.includes('|')) {
-          warn(lineNumber, pipeOperatorRemovedMessage());
-        }
-        const { label, metadata } = parseTimelineLabelAndMeta(
-          durationMatch[5]!,
-          timelineAliasMap,
-          () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
-        );
-        warnUnknownMetaKeys(metadata, tlRegistry, (msg) =>
-          warn(lineNumber, msg)
-        );
-        result.timelineEvents.push({
-          date: startDate,
-          endDate,
-          label,
-          group: currentTimelineGroup,
-          metadata,
-          lineNumber,
-          ...(uncertainLegacy ? { uncertain: true } : {}),
-        });
-        timelineMigrationWarnCount++;
-        if (timelineMigrationWarnCount <= 3) {
-          const metaParts = Object.entries(metadata).map(
-            ([k, v]) => `${k}: ${v}`
-          );
-          const durStr = `${durationMatch[2]}${durationMatch[3]}${durationMatch[4] ?? ''}`;
-          const allMeta = [
-            `start: ${startDate}`,
-            `duration: ${durStr}`,
-            ...metaParts,
-          ].join(', ');
-          warn(
-            lineNumber,
-            `Timeline event syntax changed — write: ${label} ${allMeta}`
-          );
+
+      if (eventResult) {
+        result.diagnostics.push(...eventResult.diagnostics);
+        if (eventResult.event) {
+          result.timelineEvents.push(eventResult.event);
         }
         continue;
       }
 
-      // Range event: 1655->1667 description (supports uncertain end: 1655->1667?)
-      // Also supports YYYY-MM-DD HH:MM in both start and end dates
-      // Accepts both -> (hyphen) and –> (en-dash U+2013)
-      const rangeMatch = line.match(
-        /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)(\?)?\s+(.+)$/
-      );
-      if (rangeMatch) {
-        if (rangeMatch[4]!.includes('|')) {
-          warn(lineNumber, pipeOperatorRemovedMessage());
-        }
-        const { label, metadata } = parseTimelineLabelAndMeta(
-          rangeMatch[4]!,
-          timelineAliasMap,
-          () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
-        );
-        warnUnknownMetaKeys(metadata, tlRegistry, (msg) =>
-          warn(lineNumber, msg)
-        );
-        result.timelineEvents.push({
-          date: rangeMatch[1]!,
-          endDate: rangeMatch[2]!,
-          label,
-          group: currentTimelineGroup,
-          metadata,
-          lineNumber,
-          ...(rangeMatch[3] === '?' ? { uncertain: true } : {}),
-        });
-        timelineMigrationWarnCount++;
-        if (timelineMigrationWarnCount <= 3) {
-          const metaParts = Object.entries(metadata).map(
-            ([k, v]) => `${k}: ${v}`
-          );
-          const allMeta = [
-            `start: ${rangeMatch[1]}`,
-            `end: ${rangeMatch[2]}${rangeMatch[3] ?? ''}`,
-            ...metaParts,
-          ].join(', ');
-          warn(
-            lineNumber,
-            `Timeline event syntax changed — write: ${label} ${allMeta}`
-          );
-        }
-        continue;
-      }
-
-      // Point event: 1718 description
-      const pointMatch = line.match(/^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s+(.+)$/);
-      if (pointMatch) {
-        if (pointMatch[2]!.includes('|')) {
-          warn(lineNumber, pipeOperatorRemovedMessage());
-        }
-        const { label, metadata } = parseTimelineLabelAndMeta(
-          pointMatch[2]!,
-          timelineAliasMap,
-          () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
-        );
-        warnUnknownMetaKeys(metadata, tlRegistry, (msg) =>
-          warn(lineNumber, msg)
-        );
-        result.timelineEvents.push({
-          date: pointMatch[1]!,
-          endDate: null,
-          label,
-          group: currentTimelineGroup,
-          metadata,
-          lineNumber,
-        });
-        timelineMigrationWarnCount++;
-        if (timelineMigrationWarnCount <= 3) {
-          const metaParts = Object.entries(metadata).map(
-            ([k, v]) => `${k}: ${v}`
-          );
-          const allMeta = [`start: ${pointMatch[1]}`, ...metaParts].join(', ');
-          warn(
-            lineNumber,
-            `Timeline event syntax changed — write: ${label} ${allMeta}`
-          );
-        }
-        continue;
-      }
-
-      // Bare name with no scheduling keys and no date prefix
+      // Bare name with no date prefix (not a keyword)
       if (
         !/^(era|marker|tag|sort|active-tag|swimlanes|no-scale)\b/i.test(line) &&
         !line.startsWith('[')
       ) {
-        warn(lineNumber, `Expected 'start:' — e.g., '${line} start: 1718'`);
+        warn(lineNumber, `Expected a date at the start — e.g., '1718 ${line}'`);
         continue;
       }
     }
@@ -1865,16 +1501,10 @@ export function parseVisualization(
   }
 
   if (result.type === 'timeline') {
-    if (timelineMigrationWarnCount > 3) {
-      warn(
-        0,
-        `… and ${timelineMigrationWarnCount - 3} more events use deprecated date-first syntax`
-      );
-    }
     if (result.timelineEvents.length === 0) {
       warn(
         1,
-        'No events found. Add events as "Event Name start: 1718" or "Event Name start: 1716, end: 1717"'
+        'No events found. Add events like "1718 Event Name" or "1716 -> 1717 Event Name"'
       );
     }
     // Validate tag values and inject defaults
@@ -2218,8 +1848,9 @@ export function renderSlopeChart(
   const sValueLabelXOff = ctx.structural(10);
   const sLabelGap = ctx.structural(10);
 
+  svg.attr('preserveAspectRatio', 'xMidYMin meet');
   if (ctx.isBelowFloor) {
-    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+    svg.attr('width', '100%');
   }
 
   // Compute right margin from the longest end-of-line label
@@ -2700,8 +2331,9 @@ export function renderArcDiagram(
   const sBaselineDash = `${ctx.structural(4)},${ctx.structural(4)}`;
   const sBaselineStrokeWidth = ctx.structural(ARC_BASELINE_STROKE_WIDTH);
 
+  svg.attr('preserveAspectRatio', 'xMidYMin meet');
   if (ctx.isBelowFloor) {
-    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+    svg.attr('width', '100%');
   }
 
   const margin = {
@@ -4666,10 +4298,12 @@ function renderTimelineHorizontalTimeSort(
     .append('svg')
     .attr('width', width)
     .attr('height', height)
+    .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('background', bgColor);
 
   if (ctx.isBelowFloor) {
-    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+    svg.attr('width', '100%');
   }
 
   const g = svg
@@ -5041,10 +4675,12 @@ function renderTimelineHorizontalGrouped(
     .append('svg')
     .attr('width', width)
     .attr('height', height)
+    .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('background', bgColor);
 
   if (ctx.isBelowFloor) {
-    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+    svg.attr('width', '100%');
   }
 
   const g = svg
@@ -6074,8 +5710,9 @@ export function renderWordCloud(
   const cloudHeight = height - sTitleHeight;
   const sPadding = ctx.structural(2);
 
+  svg.attr('preserveAspectRatio', 'xMidYMid meet');
   if (ctx.isBelowFloor) {
-    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+    svg.attr('width', '100%');
   }
 
   const { minSize, maxSize } = cloudOptions;
@@ -6199,6 +5836,8 @@ function renderWordCloudAsync(
       .append('svg')
       .attr('width', width)
       .attr('height', height)
+      .attr('viewBox', `0 0 ${width} ${height}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
       .style('background', bgColor);
 
     renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor);
@@ -6379,8 +6018,9 @@ export function renderVenn(
 
   const sTitleHeight = title ? ctx.aesthetic(40) : 0;
 
+  svg.attr('preserveAspectRatio', 'xMidYMid meet');
   if (ctx.isBelowFloor) {
-    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+    svg.attr('width', '100%');
   }
 
   // ── Equal-radius layout with ~30% overlap depth ──
@@ -7329,8 +6969,9 @@ export function renderQuadrant(
     ? ScaleContext.identity()
     : ScaleContext.from(width, idealWidth);
 
+  svg.attr('preserveAspectRatio', 'xMidYMid meet');
   if (ctx.isBelowFloor) {
-    svg.attr('viewBox', `0 0 ${width} ${height}`).attr('width', '100%');
+    svg.attr('width', '100%');
   }
 
   const defaultColors = [
