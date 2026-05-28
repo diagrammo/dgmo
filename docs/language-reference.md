@@ -8,6 +8,7 @@
 
 1. [Universal Constructs](#1-universal-constructs)
 2. [Universal Name Handling](#2-universal-name-handling)
+2A. [Universal Aliases (`as` keyword)](#2a-universal-aliases-as-keyword)
 3. [Sequence Diagrams](#3-sequence-diagrams)
 4. [Infrastructure Diagrams](#4-infrastructure-diagrams)
 5. [Flowchart Diagrams](#5-flowchart-diagrams)
@@ -19,16 +20,21 @@
 11. [Kanban Boards](#11-kanban-boards)
 12. [Sitemap Diagrams](#12-sitemap-diagrams)
 13. [Gantt Charts](#13-gantt-charts)
+13A. [PERT Diagrams](#13a-pert-diagrams)
 14. [Boxes and Lines Diagrams](#14-boxes-and-lines-diagrams)
 15. [Timeline Diagrams](#15-timeline-diagrams)
 16. [Data Charts](#16-data-charts)
 17. [Visualizations](#17-visualizations)
-18. [Tech Radar Diagrams](#18-tech-radar-diagrams)
+18. [Mindmap Diagrams](#18-mindmap-diagrams)
 19. [Wireframe Diagrams](#19-wireframe-diagrams)
-20. [Pyramid Diagrams](#20-pyramid-diagrams)
-21. [Ring Diagrams](#21-ring-diagrams)
-22. [RACI Matrices](#22-raci-matrices-raci--rasci--daci)
-23. [Colon Usage Summary](#23-colon-usage-summary)
+20. [Tech Radar Diagrams](#20-tech-radar-diagrams)
+21. [Cycle Diagrams](#21-cycle-diagrams)
+22. [Journey Map Diagrams](#22-journey-map-diagrams)
+23. [Pyramid Diagrams](#23-pyramid-diagrams)
+24. [Ring Diagrams](#24-ring-diagrams)
+24A. [RACI Matrices (RACI / RASCI / DACI)](#24a-raci-matrices-raci--rasci--daci)
+25. [Colon Usage Summary](#25-colon-usage-summary)
+26. [Authoring Rules (Generators Read This First)](#26-authoring-rules-generators-read-this-first)
 
 ---
 
@@ -1202,6 +1208,165 @@ parallel
 
 ---
 
+## 13A. PERT Diagrams
+
+PERT diagrams visualize project networks with three-point duration estimates, surfacing critical path, slack, and project μ/σ. Each activity renders as a node card (rectangle, or diamond for milestones); dependencies are arrows between them. Monte Carlo simulation runs automatically whenever any activity carries duration data.
+
+```
+pert Pirate Voyage
+time-unit w
+default-confidence medium
+
+voyage approved 0
+  -> recruit crew
+
+recruit crew 1 2 4 as rc confidence: low
+  -> load powder
+
+load powder 0.5 1 2
+  -> sail to atoll
+
+sail to atoll 3 5 8
+  -> count gold
+  -> repair hull
+
+count gold 0.5
+  -> divvy shares
+
+repair hull 2 3 5 confidence: low
+  -> divvy shares
+
+divvy shares 1 2 3
+```
+
+### Directives
+
+| Directive | Effect |
+|-----------|--------|
+| `time-unit <unit>` | Unit for bare-number durations (default `d`); accepts `min`, `h`, `d`, `bd`, `w`, `s` (sprints) |
+| `default-confidence <level>` | M-only heuristic: `high`, `medium`, `low`, or a custom `O/P` factor pair (e.g. `0.6/2.5`) |
+| `direction <LR\|TB>` | Layout direction (default `LR`) |
+| `node-detail <compact\|full>` | Visual density; `full` adds slack bars and σ-as-border-thickness |
+| `trials <N>` | Canonical Monte Carlo trial count (`< 100` clamps to analytical) |
+| `seed <N>` | Mulberry32 PRNG seed for deterministic runs |
+| `scrubber-trials <N>` | Fast-MC trials for the interactive duration scrubber |
+| `start-date <YYYY-MM-DD>` | Anchor the forward pass — accepts the literal `now` |
+| `end-date <YYYY-MM-DD>` | Anchor the backward pass (mutually exclusive with `start-date`) |
+| `sprint-length <duration>` | Sprint length when sprint mode is active (default `2w`) |
+| `sprint-number <N>` | Starting sprint label N — cells render as `S<N+offset>` (default `1`) |
+| `sprint-start <YYYY-MM-DD>` | Optional ISO date the starting sprint begins on |
+| `active-tag <GroupName>` | Pre-expand a tag group + drive node fill |
+
+Sprint mode activates automatically when `time-unit s` is set, or explicitly when any `sprint-*` directive appears. ES/EF/LS/LF cells then render as `S5`, `S7`, etc.
+
+### Activities
+
+An activity is `<name> [<durations>] [as <id>] [k: v, ...]`. Durations follow the name, separated by spaces or commas:
+
+| Form | Meaning |
+|------|---------|
+| `recruit crew 1 2 4` | Three-point estimate: O M P (in the active `time-unit`) |
+| `recruit crew 2` | M-only; parser fills O and P from `default-confidence` factors |
+| `celebrate` | TBD: no estimate; downstream activities inherit `?` |
+
+Two-number durations are rejected (the parser cannot disambiguate O+M, M+P, or O+P). Universal alias syntax per §2A applies: `recruit crew 1 2 4 as rc`. Names containing the literal token `as` parse cleanly when no actual alias suffix is appended (`serve as quartermaster 2 3 5`).
+
+### Milestones
+
+Milestones are zero-duration nodes rendered as diamonds. Declare them as zero-duration activities using the standard grammar — there is **no** `milestone` keyword:
+
+```
+voyage approved 0
+landfall 0 0 0
+```
+
+Both forms render as diamonds and participate in the dependency graph and critical-path computation.
+
+### Dependencies
+
+Indented `-> dest` lines under an activity declare a dependency from that activity to `dest`. Destinations must reference a **previously-declared** activity name or alias — inline forward-declaration on the arrow line is rejected.
+
+#### Edge types and lag/lead
+
+Edges default to **Finish-to-Start (FS) with zero lag**. The arrow may carry an inline label between two dashes to override either piece:
+
+| Syntax | Meaning |
+|--------|---------|
+| `A -> B` | FS, 0 lag (default) |
+| `A -SS-> B` | Start-to-Start |
+| `A -2d-> B` | FS with +2d lag (lag-only shortcut) |
+| `A -SS+2d-> B` | SS with +2d lag |
+| `A -FF-1d-> B` | FF with -1d lead (negative lag) |
+| `A -SF+3d-> B` | SF with +3d lag |
+
+| Type | Constraint | Use case |
+|------|------------|----------|
+| FS | `B.ES ≥ A.EF + lag` | Default; sequential work |
+| SS | `B.ES ≥ A.ES + lag` | Parallel start |
+| FF | `B.EF ≥ A.EF + lag` | Synchronized finish |
+| SF | `B.EF ≥ A.ES + lag` | Rare; included for completeness |
+
+Type names are case-insensitive. Lag amount inherits the diagram's `time-unit`; per-edge unit overrides are accepted (`-SS+2d->`, `-FF+4h->`). A `-` sign denotes a **lead** (overlap). Non-default edges paint a small midpoint label (`SS +2d`, `FF -1d`); FS+0 edges stay clean. Every `->` is independently FS — there is no `default-edge-type` directive.
+
+### Groups
+
+Bracketed `[group-name]` blocks cluster activities. Whether a group renders as a hammock super-edge or a tinted cluster rectangle is auto-detected from edge topology — single entry + single exit collapses to a hammock; multi-entry or multi-exit renders as a cluster.
+
+```
+[outfit ship]
+  recruit crew 1 2 4
+    -> load powder
+  careen hull 1 1.5 2.5
+    -> load powder
+  load powder 0.5 1 2
+    -> sail to atoll
+
+sail to atoll 3 5 8
+```
+
+Groups can author `collapsed: true` to start collapsed.
+
+### Same-line metadata
+
+| Key | Where | Meaning |
+|-----|-------|---------|
+| `confidence` | activity | Per-activity override of `default-confidence` (`high` / `medium` / `low` / `O/P`) |
+| `collapsed` | group | `true` to start the group collapsed |
+| tag aliases (e.g. `c: Captain`) | activity, group | Resolves to the declared tag group; drives node fill when the group is active |
+
+### Tags
+
+PERT uses the universal tag system. Declarations live above the diagram body and apply to activities and groups via same-line metadata:
+
+```
+pert Pirate Voyage by Crew Role
+time-unit w
+
+tag Crew as c
+  Captain red
+  Bosun orange
+  Quartermaster blue
+
+recruit crew 1 2 4 c: Quartermaster
+load powder 0.5 1 2 c: Bosun
+```
+
+Coloring is opt-in: without an `active-tag <GroupName>` directive (or a click in the app), the legend renders all groups as collapsed pills and nodes stay neutral. When a group is active, the activity card's middle (name) band picks up the tag color while the border continues to communicate criticality. Milestone diamonds adopt the tag color across the full pill.
+
+### Date anchoring
+
+`start-date YYYY-MM-DD` anchors the forward pass; `end-date YYYY-MM-DD` anchors the backward pass. They are mutually exclusive. When anchored, ES / EF / LS / LF cells render as calendar dates and slack normalizes to days. `start-date now` resolves to today at parse time and is substituted before share-link compression so recipients see the author's view. `end-date now` is a parse error.
+
+In backward mode with Monte Carlo active, the project-stats caption reframes its percentile rows from *finishes* to *latest-safe starts* — higher confidence demands an earlier start. Latest-safe-start dates that fall in the past relative to the parse-time today date append `(latest-safe start has passed)`.
+
+### Critical path and analysis
+
+Forward/backward pass, slack, M-world critical path, and project μ/σ are always computed. Critical-path activities and edges paint with a red border (`palette.colors.red`) in analytical mode. When Monte Carlo runs (any non-milestone activity has a duration), criticality is banded by the criticality index: red ≥ 0.80, orange ≥ 0.50, yellow ≥ 0.25, green ≥ 0.10, blue ≥ 0.02. The project-stats caption reports expected duration, σ, and P50/P80/P95 dates. Activities downstream of a TBD activity render `?` for ES/EF/LS/LF/slack and dashed borders.
+
+See spec §13A for full date-anchoring semantics, S-curve axes, and diagnostic codes.
+
+---
+
 ## 14. Boxes and Lines Diagrams
 
 ### 13.1 Declaration
@@ -1642,69 +1807,129 @@ Navigator 0.85 0.8
 
 ---
 
-## 18. Tech Radar Diagrams
+## 18. Mindmap Diagrams
+
+A radial hierarchy of ideas branching out from a central root. Hierarchy is established by indentation, nodes accept descriptions and tag-driven coloring, and any subtree can be collapsed by default.
 
 ```
-tech-radar Title
+mindmap Product Strategy
 
-rings
-  Adopt
-  Trial
-  Assess
-  Hold
+tag Priority as p
+  High red
+  Low green
 
-Techniques quadrant: top-right
-  Continuous Deployment ring: Adopt, trend: stable
-    Fully adopted across all services.
-  Micro Frontends ring: Trial, trend: up
-
-Tools quadrant: top-left
-  Vite ring: Adopt, trend: up
-  Webpack ring: Hold, trend: down
+Research
+  User Interviews p: High
+  Competitor Analysis
+Development p: High
+  MVP Features
+    Auth System
+      description: Login, signup, OAuth
+    Dashboard
+  Nice-to-haves p: Low, collapsed: true
+    Dark Mode
 ```
 
-### Rings
-
-Declared in a `rings` block, one per indented line. Order: innermost (first) to outermost (last). Any names, any count.
-
-Aliases supported: `Adopt as a` — then blips can use `ring: a`. (Universal alias syntax per §2A.)
-
-### Quadrants
-
-Exactly 4 required. Each is a top-level header with same-line metadata:
+### Declaration
 
 ```
-Name quadrant: position
+mindmap [Title]
 ```
 
-**Positions:** `top-left`, `top-right`, `bottom-left`, `bottom-right` — each used exactly once.
+The title doubles as the root node — `mindmap Product Strategy` renders a root labeled "Product Strategy". Indent-0 lines under the title become its children.
 
-Optional color override: `Tools quadrant: top-left, color: purple`
-
-Default colors: top-left=blue, top-right=green, bottom-left=red, bottom-right=orange.
-
-### Blips
-
-Indented under their quadrant. Require `ring` metadata (case-insensitive match). Optional `trend`:
+Omitting the title enables **multi-root mode**: each indent-0 line starts its own tree, and the title is inferred from the first root.
 
 ```
-  Item Name ring: Adopt, trend: stable
+mindmap
+
+Q1 Goals
+  Ship MVP
+Q2 Goals
+  Launch marketing
 ```
 
-**Trends:** `new` (double circle), `up` (inward crescent), `down` (outward crescent), `stable` (plain circle). Omitting renders plain circle.
+### Hierarchy
+
+Indentation alone defines parent / child. Any indent step (typically two spaces) nests a node under the line above it.
+
+```
+mindmap Root
+  Branch A
+    Leaf A1
+    Leaf A2
+  Branch B
+```
 
 ### Descriptions
 
-Further-indented lines below a blip. Supports inline markdown (bold, italic, code, links).
+Nodes accept a `description` field as either same-line metadata or an indented sub-line. Both populate the same field; same-line wins if both are present.
 
 ```
-  Rust ring: Assess, trend: new
-    Evaluating for **performance-critical** services.
+mindmap Onboarding
+
+Surveys description: Quarterly NPS survey
+Auth System
+  description: Handle login, signup, OAuth flows
+  description OAuth supports Google and GitHub
+  Login Page
 ```
 
-### Numbering
+- Multiple `description` lines accumulate into a multi-line description.
+- Indented descriptions must appear **before** any child node — placing one after a child emits a warning.
+- Only the literal key `description` is recognized as indented metadata; everything else indented under a node is treated as a child node (e.g. `role: Engineer` becomes a child labeled "role: Engineer").
+- Empty `description:` is silently skipped.
+- Inline markdown is supported: `**bold**`, `*italic*`, `` `code` ``, `[links](url)`, and `- bullet` lines render as `• bullet`.
 
-Blips receive sequential global numbers. Order: quadrants clockwise (top-left → top-right → bottom-right → bottom-left), then by ring (innermost first), then declaration order.
+### Metadata keys
+
+Same-line metadata uses the universal `key: value, key2: value2` form (§1.4). Recognized keys:
+
+| Key | Effect |
+|-----|--------|
+| `description` | Description text (see above). |
+| `collapsed` | `true` collapses the subtree by default. |
+| Tag alias (e.g. `p:`, `d:`) | Assigns the node to a tag-group value. |
+
+```
+Task p: High, d: Engineering
+Demo Video description: 2-min product walkthrough
+Nice-to-haves p: Low, collapsed: true
+```
+
+### Node color
+
+Color comes from **tag groups** (§1.3 of the spec), not from a trailing color token on the node label. Declare a tag, then reference it via its alias in same-line metadata:
+
+```
+mindmap Roadmap
+
+tag Priority as p
+  High red
+  Medium yellow
+  Low green
+
+Ship MVP p: High
+Polish UX p: Medium
+```
+
+### Collapse
+
+Any node with children may be collapsed. Set `collapsed: true` in same-line metadata to make a subtree start collapsed; collapsed nodes render with an accent drill-bar so they remain discoverable. Collapse state is runtime-only — the source is always fully expanded, and live toggling in the app does not mutate the file.
+
+```
+Nice-to-haves p: Low, collapsed: true
+  Dark Mode
+  Export PDF
+```
+
+### Options
+
+| Option | Effect |
+|--------|--------|
+| `active-tag GroupName` | Sets the default active tag group. |
+
+Universal options (`palette`, `theme`) apply as elsewhere.
 
 ---
 
@@ -1840,7 +2065,327 @@ wireframe Login Page
 
 ---
 
-## 20. Pyramid Diagrams
+## 20. Tech Radar Diagrams
+
+```
+tech-radar Title
+
+rings
+  Adopt
+  Trial
+  Assess
+  Hold
+
+Techniques quadrant: top-right
+  Continuous Deployment ring: Adopt, trend: stable
+    Fully adopted across all services.
+  Micro Frontends ring: Trial, trend: up
+
+Tools quadrant: top-left
+  Vite ring: Adopt, trend: up
+  Webpack ring: Hold, trend: down
+```
+
+### Rings
+
+Declared in a `rings` block, one per indented line. Order: innermost (first) to outermost (last). Any names, any count.
+
+Aliases supported: `Adopt as a` — then blips can use `ring: a`. (Universal alias syntax per §2A.)
+
+### Quadrants
+
+Exactly 4 required. Each is a top-level header with same-line metadata:
+
+```
+Name quadrant: position
+```
+
+**Positions:** `top-left`, `top-right`, `bottom-left`, `bottom-right` — each used exactly once.
+
+Optional color override: `Tools quadrant: top-left, color: purple`
+
+Default colors: top-left=blue, top-right=green, bottom-left=red, bottom-right=orange.
+
+### Blips
+
+Indented under their quadrant. Require `ring` metadata (case-insensitive match). Optional `trend`:
+
+```
+  Item Name ring: Adopt, trend: stable
+```
+
+**Trends:** `new` (double circle), `up` (inward crescent), `down` (outward crescent), `stable` (plain circle). Omitting renders plain circle.
+
+### Descriptions
+
+Further-indented lines below a blip. Supports inline markdown (bold, italic, code, links).
+
+```
+  Rust ring: Assess, trend: new
+    Evaluating for **performance-critical** services.
+```
+
+### Numbering
+
+Blips receive sequential global numbers. Order: quadrants clockwise (top-left → top-right → bottom-right → bottom-left), then by ring (innermost first), then declaration order.
+
+---
+
+## 21. Cycle Diagrams
+
+Circular process flows where nodes sit on a ring and directed edges connect each to the next, wrapping from last back to first. Common use: OODA loops, PDCA, product lifecycles, continuous improvement.
+
+### Declaration
+
+```
+cycle [Title]
+```
+
+### Nodes
+
+Non-indented lines declare nodes. Nodes are positioned on the circle in source order. Minimum two nodes.
+
+```
+cycle PDCA
+
+Plan
+Do
+Check
+Act
+```
+
+Color via the trailing-token form when it's the only setting:
+
+```
+Plan green
+Do blue
+Check orange
+Act red
+```
+
+### Descriptions
+
+Indented lines under a node become the description. Inline markdown is supported (`**bold**`, `*italic*`, `` `code` ``, `[links](url)`), and `- item` renders as `• item`.
+
+```
+Observe
+  Gather raw information from the environment
+  Monitor **unfolding** circumstances
+```
+
+A same-line `description:` works too, and concatenates with any indented lines (same-line first):
+
+```
+Plan description: Set the objective and the route
+```
+
+### Edges
+
+Edges are **implicit** — every node connects to the next, with the last wrapping to the first. Use `->` lines only when you want to label or style an edge. Indent the edge line under its source node, before or after description lines.
+
+```
+Observe blue
+  -Unfold circumstances->
+    Synthesize raw data into actionable context
+```
+
+Explicit targets after `->` are accepted but ignored — cycle edges always follow source order. A mismatch with the actual next node emits an info diagnostic.
+
+### Edge Metadata
+
+Edges use the long-form `color: <name>` (narrow exception per §1.5 — edges have no trailing-token slot). `width` is in pixels.
+
+| Key | Default | Notes |
+|-----|---------|-------|
+| `color` | inherits source node color | Long-form only on edges |
+| `width` | 3–4 px | Stroke width |
+
+```
+Decide orange
+  -Commit to action-> color: orange, width: 5
+Act red
+  -> width: 4
+```
+
+### Shape and Direction Directives
+
+| Directive | Effect |
+|-----------|--------|
+| `circle-nodes` | Render nodes as uniform-diameter circles instead of rounded rectangles |
+| `direction-counterclockwise` | Reverse the cycle (default: clockwise) |
+
+### Span Metadata
+
+`span` controls the relative arc distance from a node to the next one. Default is `1`; decimals are allowed. Zero or negative values are a parse error. Use this to bias a step's footprint on the ring.
+
+Because `span` rides alongside other keys, use the same-line metadata form — color reverts to long-form when sharing a line:
+
+```
+Plan color: green, span: 2
+Do color: blue, span: 1
+Check color: orange, span: 1
+Act color: red, span: 1.5
+```
+
+### Parsing Notes
+
+- Node labels cannot contain `->` or `<-` — parse error with hint.
+- A bare `-` followed by non-arrow text inside an indented block is a bullet, not an edge.
+- Minimum 2 nodes required.
+
+### Complete Example
+
+```
+cycle OODA Loop
+
+Observe blue
+  Gather raw information from the environment
+  Monitor unfolding circumstances
+  -Unfold circumstances-> color: blue
+    Synthesize raw data into actionable context
+    Identify **key patterns** and anomalies
+
+Orient green
+  Analyze and synthesize observations
+  Form a mental model of the situation
+  -Form hypothesis-> color: green
+
+Decide orange
+  Select a course of action
+  -Commit to action-> color: orange
+
+Act red
+  Execute the chosen course of action
+  -Generate feedback-> color: red
+    Results flow back into observation
+```
+
+---
+
+## 22. Journey Map Diagrams
+
+Persona-centric mood landscapes. Steps carry a 1–5 score and optional emotion label; the renderer draws an emotion curve over phase-grouped step cards. **Declaration is required** — the `journey-map` keyword must appear on the first line (no inference, to avoid colliding with kanban's `[Column]` + indented items shape).
+
+### Declaration
+
+```
+journey-map [Title]
+```
+
+### Persona
+
+One persona per diagram. Name is the rest of the line; an indented line under it is a description.
+
+```
+persona Tech-Savvy Shopper
+  28yo developer, price-sensitive, does extensive research
+```
+
+Per §1.5, personas use long-form `color: <name>` (narrow exception — the persona-line parser does not peel a trailing color):
+
+```
+persona Captain Mara
+  color: green
+  description: Veteran navigator chasing one last horizon
+```
+
+### Phases
+
+Phases are `[Bracket]` headers at indent 0. Steps live indented under them. Phases are optional — omit them for a continuous flat flow.
+
+```
+[Research]
+  Compare specs score: 4
+  Watch reviews score: 5
+```
+
+### Steps and Scores
+
+Steps are step-name lines with §1.4 same-line metadata. `score` (1–5 integer, higher = better) and `emotion` (single word) are explicit, reserved keys. Scoreless steps render as cards but contribute no curve point.
+
+```
+Compare specs score: 4
+Hit error score: 1, emotion: Frustrated
+Got resolution score: 5, emotion: Relieved, ch: Mobile
+Browsed casually                                      // no score = no curve point
+```
+
+- `score` outside 1–5, floats, or negatives → parse error.
+- Multi-word emotion labels (e.g. `emotion: Very Happy`) → parse error.
+- The legacy bare-score form (`Step | 4 Delighted`) is removed and emits `E_JOURNEY_BARE_SCORE_REMOVED`.
+
+### Reserved Metadata Keys
+
+Six keys are reserved on step lines and indented annotation lines. `score` and `emotion` belong on the step line; the rest are typically indented under the step as their own lines.
+
+| Key | Meaning | Render |
+|-----|---------|--------|
+| `score` | 1–5 integer | curve point + card intensity |
+| `emotion` | single-word label | emoji/label badge on the card |
+| `description` | general context | plain text under the card |
+| `pain` | pain point | red callout |
+| `opportunity` | improvement idea | green callout |
+| `thought` | inner monologue | italic callout |
+
+Multiple annotations per step are allowed; each goes on its own indented line.
+
+```
+Forced account creation score: 1, emotion: Frustrated
+  pain: Wants guest checkout
+  pain: Password requirements too strict
+  opportunity: Add social sign-in
+  thought: This should not be this hard
+  description: Spent ~4 minutes wrestling the form
+```
+
+### Tag Groups
+
+Standard tag blocks with aliases color the step cards by a categorical dimension (channel, device, persona segment, …). Reference the tag via its alias in step metadata.
+
+```
+tag Channel as ch
+  Web blue
+  Mobile purple
+  Email teal
+  In-Person green
+
+[Research]
+  Compare specs score: 4, ch: Web
+  Ask friends score: 4, ch: In-Person
+```
+
+### Directives
+
+| Directive | Effect |
+|-----------|--------|
+| `active-tag GroupName` | Set the active tag group for step-card coloring |
+| `palette`, `theme` | Universal options |
+
+### Flat Mode
+
+Omit `[Phase]` headers for a single horizontal strip:
+
+```
+journey-map Quick Feedback
+
+Opened app score: 4
+Searched for feature score: 3
+Hit error score: 1, emotion: Frustrated
+  pain: No helpful error message
+Contacted support score: 2
+Got resolution score: 5, emotion: Relieved
+```
+
+### Rendering Notes
+
+- Emotion curve is the hero — filled area chart with gradient (green above the 3 midline, red below).
+- Step cards tint by score (1=red → 5=green, palette-aware); phase headers tint to the phase's average score.
+- Sharp-drop zones (≥ 2 between consecutive scored steps) auto-accent.
+- Subtle horizontal grid lines at 1–5; score legend auto-generated.
+
+---
+
+## 23. Pyramid Diagrams
 
 Hierarchical pyramid visualization with stacked layers, descriptions, and optional per-layer color. Source order reads apex-first (top of file = top of pyramid).
 
@@ -1901,7 +2446,7 @@ When descriptions don't fit a layer's band the renderer wraps at the column edge
 
 ---
 
-## 21. Ring Diagrams
+## 24. Ring Diagrams
 
 Concentric-ring visualization for nested or hierarchical categories. Source order reads core-out: top of file = innermost element (rendered as a filled disc), last line = outermost ring. Min 2 layers, max 15.
 
@@ -1968,7 +2513,7 @@ When ring band thickness would force the in-band label below the readable floor 
 
 ---
 
-## 22. RACI Matrices (RACI / RASCI / DACI)
+## 24A. RACI Matrices (RACI / RASCI / DACI)
 
 A tasks × roles responsibility matrix with author-time linting. **One chart type — `raci` — covers all three variants.** Variant is inferred from the markers used; an optional `variant-*` directive locks it explicitly.
 
@@ -2056,7 +2601,7 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 
 ---
 
-## 23. Colon Usage Summary
+## 25. Colon Usage Summary
 
 ### Constructs Where Colons Are REQUIRED
 
@@ -2112,3 +2657,88 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 - Chart type declarations
 - Data rows for simple charts (space or comma delimited)
 - Structural syntax (groups, sections, arrows, comments)
+
+---
+
+## 26. Authoring Rules (Generators Read This First)
+
+A consolidated checklist for generators. Following these prevents the most common parse errors. **LLMs generating DGMO: read this first.**
+
+### 26.1 Declare Before Reference
+
+Every entity referenced by an edge or arrow target must be declared on a prior line, or inline at the reference site in chart types that allow it (e.g. PERT `-> name 1 2 4` is **not** supported — declare first, reference second).
+
+```
+// ❌ Sitemap: `Login` referenced before declaration
+Home
+  -login-> Login
+
+// ✅ Declare first
+Home
+Login
+Home -login-> Login
+```
+
+### 26.2 Combine Metadata + Edges in One Declaration
+
+Splitting a node into two declarations triggers a `Duplicate node` warning. Put metadata on the declaration line and indent edges below it.
+
+```
+// ❌ Duplicate-node warning
+API description: Main gateway
+…
+API
+  -routes-> UserService
+
+// ✅ Combined
+API description: Main gateway
+  -routes-> UserService
+```
+
+### 26.3 Scope of Universal-Looking Features
+
+Some constructs *look* universal but are scoped to specific chart types. Don't transplant them across charts.
+
+| Construct | Scope |
+|-----------|-------|
+| `collapsed: true` metadata | sequence, infra, mindmap, pert |
+| Same-line / indented metadata on declarations | all chart types except flowchart, state, data charts (§1.4) |
+| Trailing-keyword flag list | wireframe only (§19) |
+| `progress: <N>` key | gantt only (§13) |
+| `score: <N>` + `emotion: <Word>` keys | journey-map only (§22) |
+| `description: <text>` shorthand for layers | pyramid, ring (§23, §24) |
+| `milestone` keyword | **removed** — use `<name> 0` (§13A) |
+| `\|` operator as metadata delimiter | **removed** (§1.4). Surviving uses: wireframe `{A \| B}` braces, in-arrow `A -file\|name-> B`, quoted `"Order \| Items"` |
+
+### 26.4 Quoted Names + Aliases — Pick One
+
+Quoted names cannot combine with `as <alias>` on the same line. If quoting only because of spaces, drop the quotes — bare names accept spaces. Reserve quoting for names with genuinely reserved characters (`|`, `:`).
+
+### 26.5 Sequence Participants Without `is a TYPE`
+
+Standalone sequence participants accept only the bare-name form. For an alias or quoted name, declare with `is a <type>` (e.g. `is a person`). See spec §2.2b.
+
+### 26.6 Removed / Unsupported
+
+Do NOT emit these — they're documented historically but no parser supports them:
+
+- `milestone <name>` (PERT) — replaced by `<name> 0`
+- Inline forward-declaration of PERT edge targets (`-> name 1 2 4`) — declare first, reference second
+- `"Quoted Name" as alias` (any chart type) — drop quotes or drop alias
+- Standalone sequence participant `Name as a` (with metadata) without `is a TYPE` — use the typed form
+- The `|` operator as metadata delimiter — emits `E_PIPE_OPERATOR_REMOVED`. Use same-line or indented metadata per §1.4.
+
+### 26.7 Diagnostic-Free Checklist
+
+Before considering DGMO output complete, mentally verify:
+
+1. Every edge target appears as a declaration on a prior line.
+2. No entity is declared twice with conflicting metadata.
+3. Metadata uses §1.4 — same-line `key: value, ...` after the name region, or indented `key: value` for reserved keys. No `|` delimiter anywhere except wireframe dropdowns, in-arrow label characters, and quoted name characters.
+4. Wireframe flags are written as space-separated lowercase trailing keywords from the closed enum (§19).
+5. Journey-map steps use `score: N, emotion: Word`; gantt tasks use `progress: N`; pyramid/ring layers use `description: <text>` (quote when the value contains commas).
+6. All chart types use `collapsed: true` metadata for collapse (§26.3).
+7. Quoted names don't carry `as <alias>` on the same line.
+8. Sequence participants with alias or quoted names use `is a <type>`.
+9. No `milestone` keyword in PERT — use `<name> 0`.
+10. Tag declarations appear before the first non-tag content line.
