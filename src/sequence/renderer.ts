@@ -71,6 +71,9 @@ const NOTE_CHAR_W = 6;
 const ACTIVATION_WIDTH = 10;
 const SELF_CALL_HEIGHT = 25;
 const SELF_CALL_WIDTH = 30;
+// Actors render their label below the stick figure (at boxH + 14). Their
+// lifeline starts this far below the box so the dashes clear the label text.
+const ACTOR_LABEL_CLEARANCE = 22;
 function wrapTextLines(text: string, maxChars: number): WrappedDescLine[] {
   // Convert leading "- " to the canonical bullet prefix so the shared wrap
   // helper can split bullet lines into bullet-first / bullet-cont kinds and
@@ -192,17 +195,23 @@ function renderActorParticipant(
   color?: string,
   h: number = H
 ): void {
-  // Stick figure — no background, natural proportions
-  const headR = 8;
+  // Stick figure — no background. Every dimension is scaled by sc = h / H so
+  // the figure keeps its proportions at any box height. The box height itself
+  // is compressed by ScaleContext when the diagram is wider than its container;
+  // scaling head/arms/legs by the same factor (instead of hardcoding 8/16/12)
+  // prevents the head from ballooning over a collapsed body when compressed.
+  const sc = h / H;
+  const headR = 8 * sc;
   const cx = 0;
-  const headY = headR + 2;
-  const bodyTopY = headY + headR + 1;
+  const headY = 10 * sc;
+  const bodyTopY = 19 * sc;
   const bodyBottomY = h * 0.65;
-  const legY = h - 2;
-  const armSpan = 16;
-  const legSpan = 12;
+  const legY = h - 2 * sc;
+  const armY = 24 * sc;
+  const armSpan = 16 * sc;
+  const legSpan = 12 * sc;
   const s = stroke(palette, color);
-  const actorSW = 2.5;
+  const actorSW = Math.max(1.2, 2.5 * sc);
 
   g.append('circle')
     .attr('cx', cx)
@@ -222,9 +231,9 @@ function renderActorParticipant(
 
   g.append('line')
     .attr('x1', cx - armSpan)
-    .attr('y1', bodyTopY + 5)
+    .attr('y1', armY)
     .attr('x2', cx + armSpan)
-    .attr('y2', bodyTopY + 5)
+    .attr('y2', armY)
     .attr('stroke', s)
     .attr('stroke-width', actorSW);
 
@@ -890,20 +899,28 @@ export function renderSequenceDiagram(
   );
   if (participants.length === 0) return;
 
-  // Compute group boundaries for inter-group spacing redistribution
+  // Compute group boundaries for inter-group spacing redistribution.
+  // A gap is "between" (wider) whenever the two adjacent lifelines are not
+  // members of the same group — this includes group→group, group→loose, and
+  // loose→group transitions. Only two lifelines inside the same group, or two
+  // adjacent loose lifelines, get the tighter "within" gap. Treating a loose
+  // participant as its own non-group prevents it from being jammed against an
+  // adjacent group box (whose frame extends GROUP_PADDING_X past its members).
   const groupBoundaryIds = new Set<string>();
-  if (groups.length > 1) {
+  if (groups.length > 0) {
     const pToG = new Map<string, number>();
     for (let gi = 0; gi < groups.length; gi++) {
       for (const pid of groups[gi]!.participantIds) pToG.set(pid, gi);
     }
-    let prevGi = -1;
-    for (const p of participants) {
-      const gi = pToG.get(p.id);
-      if (gi !== undefined && gi !== prevGi && prevGi !== -1) {
-        groupBoundaryIds.add(p.id);
+    const LOOSE = -1;
+    for (let i = 1; i < participants.length; i++) {
+      const prevGi = pToG.get(participants[i - 1]!.id) ?? LOOSE;
+      const gi = pToG.get(participants[i]!.id) ?? LOOSE;
+      // Different group membership → boundary. Two loose lifelines (both LOOSE)
+      // stay tight since neither carries a group frame.
+      if (gi !== prevGi && !(gi === LOOSE && prevGi === LOOSE)) {
+        groupBoundaryIds.add(participants[i]!.id);
       }
-      if (gi !== undefined) prevGi = gi;
     }
   }
   const numGroupGaps = groupBoundaryIds.size;
@@ -1046,14 +1063,39 @@ export function renderSequenceDiagram(
   // Build render sequence with stack-based return placement
   // Run on ALL messages first (preserves call stack correctness), then filter
   const allRenderSteps = buildRenderSequence(messages);
-  let renderSteps =
-    hiddenMsgIndices.size > 0
-      ? allRenderSteps.filter((s) => !hiddenMsgIndices.has(s.messageIndex))
-      : allRenderSteps;
-  // Drop unlabeled returns — they add visual noise without conveying information.
-  // Labeled returns (explicit <- value) are kept.
-  renderSteps = renderSteps.filter((s) => s.type === 'call' || s.label);
-  const activations = activationsOff ? [] : computeActivations(renderSteps);
+  // A step survives into the laid-out sequence when it is not hidden by a
+  // collapsed section AND it is either a call or a *labeled* return. Unlabeled
+  // returns are dropped from the layout — they add vertical noise without
+  // conveying information — but they still balance the activation stack, so
+  // dropping them before computeActivations would corrupt nesting depth
+  // (self-call returns are unlabeled; their pushes would never pop, shifting
+  // the parent activation to a bogus depth). Compute depth on the full
+  // balanced sequence, then remap step indices to the laid-out array.
+  const stepSurvives = (s: RenderStep): boolean =>
+    (hiddenMsgIndices.size === 0 || !hiddenMsgIndices.has(s.messageIndex)) &&
+    (s.type === 'call' || !!s.label);
+  const renderSteps: RenderStep[] = [];
+  // allRenderSteps index → laid-out (renderSteps) index. A dropped step maps to
+  // the next surviving step, so an activation whose closing return was dropped
+  // still extends to the following event rather than collapsing to zero height.
+  const allToFiltered: number[] = new Array(allRenderSteps.length);
+  for (let j = 0; j < allRenderSteps.length; j++) {
+    const s = allRenderSteps[j]!;
+    allToFiltered[j] = renderSteps.length;
+    if (stepSurvives(s)) renderSteps.push(s);
+  }
+  const lastStepIdx = Math.max(renderSteps.length - 1, 0);
+  const clampStep = (i: number): number =>
+    Math.min(Math.max(i, 0), lastStepIdx);
+  // Activations computed on the balanced sequence for correct nesting depth,
+  // then remapped to laid-out indices for Y positioning.
+  const activations = activationsOff
+    ? []
+    : computeActivations(allRenderSteps).map((a) => ({
+        ...a,
+        startStep: clampStep(allToFiltered[a.startStep] ?? 0),
+        endStep: clampStep(allToFiltered[a.endStep] ?? 0),
+      }));
   // Vertical spacing is NOT compressed by ScaleContext — the container scrolls
   // vertically, so keeping full spacing preserves message readability at all scales.
   const stepSpacing = 35;
@@ -2110,10 +2152,14 @@ export function renderSequenceDiagram(
         .attr('clip-path', `url(#${clipId})`);
     }
 
-    // Render lifeline — collapsed groups start below the taller box
+    // Render lifeline — collapsed groups start below the taller box; actors
+    // carry their label *below* the stick figure (at boxH + 14), so their
+    // lifeline must start below that label or the dashes run through the text.
     const llY = isCollapsedGroup
       ? lifelineStartY + GROUP_PADDING_BOTTOM
-      : lifelineStartY;
+      : participant.type === 'actor'
+        ? lifelineStartY + ACTOR_LABEL_CLEARANCE
+        : lifelineStartY;
     const llColor = isCollapsedGroup
       ? effectiveTagColor || palette.textMuted
       : pTagColor || palette.textMuted;
