@@ -76,6 +76,7 @@ export const ALL_CHART_TYPES = new Set([
   'raci',
   'rasci',
   'daci',
+  'map',
 ]);
 
 /**

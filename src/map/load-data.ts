@@ -69,14 +69,29 @@ function validate(data: MapData): MapData {
   return data;
 }
 
+/** This module's directory, resolved for BOTH build formats: `import.meta.url`
+ *  in ESM (dist/index.js, vitest/src) and `__dirname` in the CJS CLI bundle
+ *  (dist/cli.cjs, where `import.meta.url` is `undefined` → `fileURLToPath`
+ *  throws). The `typeof __dirname` guard is safe in ESM (evaluates to
+ *  'undefined' without a ReferenceError). */
+function moduleBaseDir(): string {
+  try {
+    const url = import.meta.url;
+    if (url) return dirname(fileURLToPath(url));
+  } catch {
+    /* CJS: import.meta unavailable — fall through */
+  }
+  if (typeof __dirname !== 'undefined') return __dirname;
+  return process.cwd();
+}
+
 /** Load + memoize the four map assets (Node). Throws if none of the candidate
  *  locations contain them, or if a loaded asset fails shape validation. A
  *  rejected load is NOT cached (#7): the memo is cleared on failure so a later
  *  call can retry rather than inheriting a poisoned promise. */
 export function loadMapData(): Promise<MapData> {
   cache ??= (async (): Promise<MapData> => {
-    const baseDir = dirname(fileURLToPath(import.meta.url));
-    const dir = await firstExistingDir(baseDir);
+    const dir = await firstExistingDir(moduleBaseDir());
     const [worldCoarse, worldDetail, usStates, gazetteer] = await Promise.all([
       readJson<BoundaryTopology>(dir, FILES.worldCoarse),
       readJson<BoundaryTopology>(dir, FILES.worldDetail),

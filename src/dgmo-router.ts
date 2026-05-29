@@ -17,6 +17,7 @@ import { looksLikeSitemap, parseSitemap } from './sitemap/parser';
 import { parseInfra } from './infra/parser';
 import { parseGantt } from './gantt/parser';
 import { parsePert, looksLikePert } from './pert/parser';
+import { parseMap } from './map/parser';
 import { parseBoxesAndLines } from './boxes-and-lines/parser';
 import { parseMindmap } from './mindmap/parser';
 import { parseWireframe } from './wireframe/parser';
@@ -150,6 +151,7 @@ const VISUALIZATION_TYPES = new Set([
   'cycle',
   'pyramid',
   'ring',
+  'map',
 ]);
 const DIAGRAM_TYPES = new Set([
   'sequence',
@@ -288,6 +290,9 @@ export const chartTypeParsers: ReadonlyArray<readonly [string, ParseFn]> = [
   ['timeline', parseVisualization],
   ['venn', parseVisualization],
   ['quadrant', parseVisualization],
+
+  // Geographic map (own parser → resolver → layout → renderer pipeline)
+  ['map', parseMap],
 ];
 
 /** Ids in the same order as `chartTypeParsers`; used for cross-checks. */
