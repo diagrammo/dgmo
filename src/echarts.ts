@@ -783,11 +783,11 @@ export function parseExtendedChart(
   if (!result.error) {
     if (result.type === 'sankey') {
       if (!result.links || result.links.length === 0) {
-        warn(1, 'No links found. Add links in format: Source -> Target: 123');
+        warn(1, 'No links found. Add links in format: Source -> Target 123');
       }
     } else if (result.type === 'chord') {
       if (!result.links || result.links.length === 0) {
-        warn(1, 'No links found. Add links in format: Source -> Target: 123');
+        warn(1, 'No links found. Add links in format: Source -> Target 123');
       }
     } else if (result.type === 'function') {
       if (!result.functions || result.functions.length === 0) {
