@@ -1,0 +1,85 @@
+// Resolved model produced by resolveMap (src/map/resolver.ts) — the contract the
+// layout/renderer (step 4) consumes. Regions are bound to ISO geometry, POIs are
+// geocoded, the basemap/extent/projection are chosen. See §24B.2/.8.
+import type { DgmoError } from '../diagnostics';
+import type { TagGroup } from '../utils/tag-groups';
+import type { MapDirectives } from './types';
+import type { Gazetteer, BoundaryTopology } from './data/types';
+
+/** The four static assets, injected into the pure resolver (DI). */
+export interface MapData {
+  worldCoarse: BoundaryTopology;
+  worldDetail: BoundaryTopology;
+  usStates: BoundaryTopology;
+  gazetteer: Gazetteer;
+}
+
+export type ProjectionFamily = 'natural-earth' | 'albers-usa' | 'mercator';
+
+/** Which geometry layers the renderer draws. */
+export interface Basemaps {
+  /** World country tier: coarse (world-scale) | detail (regional/zoom). */
+  world: 'coarse' | 'detail';
+  /** Loaded subdivision layers (v1: only 'us-states'). */
+  subdivisions: Array<'us-states'>;
+}
+
+export interface ResolvedRegion {
+  /** ISO code: alpha-2 (country) or 3166-2 `US-XX` (state) — the geometry id. */
+  readonly iso: string;
+  readonly name: string; // display name
+  readonly layer: 'country' | 'us-state';
+  readonly score?: number;
+  readonly tags: Readonly<Record<string, string>>;
+  readonly meta: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
+}
+
+export interface ResolvedPoi {
+  /** Folded registry id (alias|name folded, or `@lat,lon` for coord POIs). */
+  readonly id: string;
+  readonly lat: number;
+  readonly lon: number;
+  readonly label?: string;
+  readonly tags: Readonly<Record<string, string>>;
+  readonly meta: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
+  /** True when created from an undeclared edge/route endpoint (§24B.10). */
+  readonly implicit?: boolean;
+}
+
+export interface ResolvedEdge {
+  readonly fromId: string;
+  readonly toId: string;
+  readonly label?: string;
+  readonly directed: boolean;
+  readonly style: 'straight' | 'arc';
+  readonly meta: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
+}
+
+export interface ResolvedRoute {
+  readonly stopIds: readonly string[];
+  readonly meta: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
+}
+
+/** Geographic bounding box `[[west, south], [east, north]]` in degrees. */
+export type GeoExtent = [[number, number], [number, number]];
+
+export interface ResolvedMap {
+  readonly title: string | null;
+  readonly subtitle?: string;
+  readonly caption?: string;
+  readonly tagGroups: readonly TagGroup[];
+  readonly directives: MapDirectives;
+  readonly basemaps: Basemaps;
+  readonly regions: readonly ResolvedRegion[];
+  readonly pois: readonly ResolvedPoi[];
+  readonly edges: readonly ResolvedEdge[];
+  readonly routes: readonly ResolvedRoute[];
+  readonly extent: GeoExtent;
+  readonly projection: ProjectionFamily;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
+}
