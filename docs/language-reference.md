@@ -528,20 +528,20 @@ Nodes are plain names. Capabilities come from properties (see §4.3), not type d
 - **Aliases** (§2A): `NodeName as alias` binds a short alias used by edges and group references. Alias must start with a letter/underscore and be ≤12 chars.
 - **Quoted names**: wrap the label in double quotes when it contains spaces followed by reserved chars (`|`, `:`, `(`).
 
-### 4.3 Node Properties (Indented, Space-Separated, NO Colon)
+### 4.3 Node Properties (Indented, Colon-Separated)
 
 ```
 NodeName
-  latency-ms 50
-  max-rps 8000
-  uptime 99.99%
-  cache-hit 75%
-  description My API gateway
-  firewall-block 10%
-  instances 3
+  latency-ms: 50
+  max-rps: 8000
+  uptime: 99.99%
+  cache-hit: 75%
+  description: My API gateway
+  firewall-block: 10%
+  instances: 3
 ```
 
-Properties use a known schema with space-separated values:
+Properties use a known schema with colon-separated values (the space-separated form is a parse error — `latency-ms 50` is rejected with a hint to use `latency-ms: 50`):
 
 | Property | Capability | Effect |
 |----------|-----------|--------|
@@ -636,14 +636,14 @@ Special top-level entry points. Either name works; `internet` only accepts `rps`
 
 ```
 API Gateway
-  description Handles routing and auth
-  description Supports rate limiting
-  latency-ms 50
-  max-rps 8000
+  description: Handles routing and auth
+  description: Supports rate limiting
+  latency-ms: 50
+  max-rps: 8000
 ```
 
-- `description` keyword followed by text (NO colon)
-- Multiple `description` lines accumulate into a multi-line description
+- `description: text` (colon required)
+- Multiple `description:` lines accumulate into a multi-line description
 - **Keywordless form:** indented prose lines that don't match a known property key or numeric value are treated as descriptions automatically
 - Supports inline markdown: `**bold**`, `*italic*`, `` `code` ``, `[links](url)`
 - `- bullet text` renders as `• bullet text`
@@ -2615,13 +2615,13 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 | Class method returns | class | `+ sail(): void` |
 | Function expressions | function | `f(x): x^2 + 1` |
 | Hide tag values | boxes-and-lines | `hide phase:Planning` |
+| Infra node properties | infra | `latency-ms: 50` |
 
 ### Colons OPTIONAL
 
 | Construct | Diagram Type | Example |
 |-----------|-------------|---------|
 | Class relationship label | class | `--|> Vessel : extends` or `--|> Vessel extends` |
-| Description keyword (indented) | sitemap, c4 | `description text` or `description: text` |
 
 ### Colons NOT USED
 
@@ -2633,7 +2633,6 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 | Key-value options | all | `start 2026-03-15`, `active-tag Team` |
 | Series declarations | data charts | `series A B C` |
 | Data rows | bar/line/pie/etc | `Label 100` |
-| Infra node properties | infra | `latency-ms 50` |
 | ER columns | er | `id int pk` |
 | Sequence messages | sequence | `A -msg-> B` |
 | Groups/containers | all | `[Group Name]` |
@@ -2646,18 +2645,21 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 
 ### The Rule
 
-**Colons appear in two contexts:**
-1. **Value assignment** — `key: value` in same-line metadata, indented tag/metadata assignment (org, c4), and hide directives
-2. **Type/expression separation** — where labels can contain spaces and a delimiter is needed (function expressions, class members)
+A colon binds a value, and it appears in exactly **four syntactic positions** — disambiguated by position, not by spelling:
 
-**Exception**: Known-schema properties (infra node properties, ER columns) remain space-separated even though they are indented. The colon rule applies to open-ended metadata, not fixed property schemas.
+1. **Metadata assignment** — `key: value` in same-line or indented metadata, registry-gated (incl. infra node properties `latency-ms: 50`). The general case.
+2. **Type / expression separation** — class field types (`+ name: string`), class method returns (`+ sail(): void`, colon optional), function expressions (`f(x): x^2 + 1`).
+3. **Tag-value selector** in a directive — `hide phase:Planning` (boxes-and-lines): a filter predicate, not assignment.
+4. **Role assignment** — `Cap: A` (raci), colon optional.
+
+**The one true carve-out: ER columns** (`id int pk`) are an indented typed-property list like infra node properties, yet ER is space-separated while infra requires the colon (`latency-ms: 50`). ER follows SQL DDL muscle memory; it is the single exception to memorize.
 
 **Colons never appear in:**
-- Directives and options (space-separated)
-- Tag declarations
-- Chart type declarations
-- Data rows for simple charts (space or comma delimited)
+- Directives and options — space-separated (`start 2026-03-15`, `x-label Low, High`, `region`)
+- Tag declarations and chart type declarations
+- Series declarations and data rows for simple/data charts (incl. sankey/chord/arc links `Source -> Target value` and quadrant data; space-delimited, commas tolerated)
 - Structural syntax (groups, sections, arrows, comments)
+- Wireframe flag lists; flowchart/state node labels (colons are literal label text — these charts have no metadata)
 
 ---
 
