@@ -238,6 +238,69 @@ describe('pert parser — inline forward-decl rejected', () => {
   });
 });
 
+describe('pert parser — indented metadata (§1.4.2)', () => {
+  it('attaches an indented `confidence: low` line before the arrows', () => {
+    const parsed = parsePert(
+      `pert\ntime-unit w\nrecruit crew 1 2 4 as rc\n  confidence: low\n  -> load powder\nload powder 0.5 1 2\n`
+    );
+    expect(parsed.error).toBeNull();
+    const rc = parsed.activities.find((a) => a.name === 'recruit crew');
+    expect(rc?.confidence).toBe('low');
+    // The metadata line is not registered as its own activity.
+    expect(parsed.activities).toHaveLength(2);
+    expect(parsed.edges).toHaveLength(1);
+    expect(parsed.edges[0]).toMatchObject({ target: 'load powder' });
+  });
+
+  it('attaches indented metadata placed after the arrows too', () => {
+    const parsed = parsePert(
+      `pert\ntime-unit w\nrecruit crew 1 2 4\n  -> load powder\n  confidence: high\nload powder 0.5 1 2\n`
+    );
+    expect(parsed.error).toBeNull();
+    const rc = parsed.activities.find((a) => a.name === 'recruit crew');
+    expect(rc?.confidence).toBe('high');
+    expect(parsed.activities).toHaveLength(2);
+  });
+
+  it('merges indented metadata with same-line metadata', () => {
+    const parsed = parsePert(
+      `pert\ntag Priority as pr High red, Low green\nA 1 2 3 confidence: low\n  pr: High\n  -> B\nB 1\n`
+    );
+    expect(parsed.error).toBeNull();
+    const a = parsed.activities.find((x) => x.name === 'A');
+    expect(a?.confidence).toBe('low');
+    expect(a?.tags).toMatchObject({ priority: 'High' });
+  });
+
+  it('dispatches a declared tag alias as indented metadata', () => {
+    const parsed = parsePert(
+      `pert\ntag Priority as pr High red, Low green\nA 1 2 3\n  pr: Low\n  -> B\nB 1\n`
+    );
+    expect(parsed.error).toBeNull();
+    const a = parsed.activities.find((x) => x.name === 'A');
+    expect(a?.tags).toMatchObject({ priority: 'Low' });
+    expect(parsed.activities).toHaveLength(2);
+  });
+
+  it('does not treat an unknown indented `key: value` as metadata', () => {
+    // `owner` is not a reserved PERT key nor a tag alias — it falls
+    // through to the activity grammar as its own (oddly named) activity,
+    // rather than silently attaching to the activity above.
+    const parsed = parsePert(`pert\nA 1 2 3\n  owner: Bosun\n  -> B\nB 1\n`);
+    const a = parsed.activities.find((x) => x.name === 'A');
+    expect(a?.tags).toBeUndefined();
+  });
+
+  it('attaches indented metadata to an aliased bare-source reference', () => {
+    const parsed = parsePert(
+      `pert\ntime-unit w\nrecruit crew 1 2 4 as rc\nrc\n  confidence: low\n`
+    );
+    expect(parsed.error).toBeNull();
+    const rc = parsed.activities.find((a) => a.name === 'recruit crew');
+    expect(rc?.confidence).toBe('low');
+  });
+});
+
 describe('pert parser — alias rules', () => {
   it('AC1.7: registers aliases via `as <id>` suffix', () => {
     const parsed = parsePert(

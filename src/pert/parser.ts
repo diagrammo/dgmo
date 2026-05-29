@@ -131,6 +131,13 @@ const GROUP_HEADER_RE = /^\[([^\]]+)\]\s*(.*)$/;
 const ARROW_RE = /^->\s*(.+?)\s*$/;
 
 /**
+ * Indented metadata line: `key: value` (§1.4.2). Captures [1]=key
+ * [2]=value. The key must still pass the reserved-registry / tag-alias
+ * gate before it dispatches as metadata — this only screens the shape.
+ */
+const INDENTED_META_RE = /^([A-Za-z][\w-]*)\s*:\s*(.+)$/;
+
+/**
  * Indented reference with edge label: `-LABEL-> dest` where LABEL encodes
  * dependency type and/or lag (e.g. `SS`, `2d`, `SS+2d`, `FF-1d`).
  * The leading `-` and trailing `->` frame the label.
@@ -614,6 +621,12 @@ export function parsePert(
   let currentSourceName: string | null = null;
   /** Indent of currentSourceName — used to pop on dedent. */
   let currentSourceIndent = -1;
+  /**
+   * The declaration site backing `currentSourceName` — the target for
+   * indented `key: value` metadata lines (§1.4.2) that appear beneath an
+   * activity, intermixed with its `-> dest` arrows.
+   */
+  let currentSourceSite: DeclarationSite | null = null;
 
   let pastFirstLine = false;
 
@@ -643,6 +656,7 @@ export function parsePert(
     ) {
       currentSourceName = null;
       currentSourceIndent = -1;
+      currentSourceSite = null;
     }
 
     // ── First line: `pert [title]` (chart-type declaration).
@@ -782,6 +796,7 @@ export function parsePert(
       groupStack.push({ groupId: id, indent });
       currentSourceName = null;
       currentSourceIndent = -1;
+      currentSourceSite = null;
       continue;
     }
 
@@ -880,6 +895,31 @@ export function parsePert(
       continue;
     }
 
+    // ── Indented metadata line (§1.4.2): `key: value` attached to the
+    // activity declared above, intermixable with its `-> dest` arrows.
+    // Only keys in the reserved registry (`confidence`, `collapsed`) or a
+    // declared tag alias dispatch here; everything else falls through to
+    // the activity-declaration grammar below. Reaching this point with a
+    // live source guarantees the line is indented deeper than it (the
+    // dedent guard above already cleared shallower lines).
+    if (currentSourceSite) {
+      const metaMatch = trimmed.match(INDENTED_META_RE);
+      if (metaMatch) {
+        const rawKey = metaMatch[1]!;
+        const key = rawKey.toLowerCase();
+        const resolvedKey = metaAliasMap.get(key) ?? key;
+        if (RESERVED_PIPE_KEYS.has(resolvedKey) || metaAliasMap.has(key)) {
+          contentStarted = true;
+          currentTagGroup = null;
+          const entry = `${rawKey}: ${metaMatch[2]!.trim()}`;
+          currentSourceSite.pipeMetadata = currentSourceSite.pipeMetadata
+            ? `${currentSourceSite.pipeMetadata}, ${entry}`
+            : entry;
+          continue;
+        }
+      }
+    }
+
     // ── Diagram-level directives (bare keyword + optional value).
     {
       const firstSpace = trimmed.indexOf(' ');
@@ -971,8 +1011,10 @@ export function parsePert(
         tok.alias === undefined &&
         tok.pipeMetadata === undefined;
       if (isBareSource && declarationsByAlias.has(tok.name)) {
-        currentSourceName = declarationsByAlias.get(tok.name)!.name;
+        const existing = declarationsByAlias.get(tok.name)!;
+        currentSourceName = existing.name;
         currentSourceIndent = indent;
+        currentSourceSite = existing;
         continue;
       }
 
@@ -990,6 +1032,7 @@ export function parsePert(
       registerSite(site);
       currentSourceName = tok.name;
       currentSourceIndent = indent;
+      currentSourceSite = site;
       continue;
     }
   }
