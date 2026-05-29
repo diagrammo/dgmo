@@ -1,12 +1,35 @@
 import { defineConfig } from 'tsup';
 import type { Plugin } from 'esbuild';
-import { readFile, writeFile } from 'fs/promises';
+import { readFile, writeFile, mkdir, readdir, copyFile } from 'fs/promises';
 import { resolve, dirname } from 'path';
 import { createRequire } from 'node:module';
 
 const pkg = createRequire(import.meta.url)('./package.json') as {
   version: string;
 };
+
+/**
+ * Copy the committed `map` chart-type data assets (src/map/data/*.json) into
+ * `dist/map-data/` so the renderer can lazy-load them from a dist-relative path
+ * at runtime WITHOUT bundling the JSON into a JS chunk (which would defeat the
+ * lazy-load + bloat the main bundle). Built by scripts/build-map-data.mjs.
+ */
+async function copyMapData(): Promise<void> {
+  const srcDir = resolve('./src/map/data');
+  const outDir = resolve('./dist/map-data');
+  let entries: string[];
+  try {
+    entries = await readdir(srcDir);
+  } catch {
+    return; // data not built yet — non-fatal for non-map builds
+  }
+  await mkdir(outDir, { recursive: true });
+  for (const f of entries) {
+    if (f.endsWith('.json')) {
+      await copyFile(resolve(srcDir, f), resolve(outDir, f));
+    }
+  }
+}
 
 /**
  * After the auto IIFE builds, also emit `dist/auto.css` so strict-CSP
@@ -83,6 +106,7 @@ export default defineConfig([
     noExternal: ['lz-string'],
     external: ['jsdom'],
     esbuildPlugins: [fixJsdomXhrWorker],
+    onSuccess: copyMapData,
   },
   {
     entry: { editor: 'src/editor/index.ts' },
