@@ -49,3 +49,20 @@ export interface Gazetteer {
   /** Folded alias → index into `cities`. Never collides with a `byName` key. */
   alt: Record<string, number>;
 }
+
+/** A fill-able region (country or US state) — the display name + its ISO id +
+ *  layer. Powers region-name autocomplete (completion-only; the renderer derives
+ *  names from the topology directly). Extracted from the topologies by
+ *  scripts/build-map-data.mjs into `region-names.json`. */
+export interface RegionName {
+  /** Display name (original casing), e.g. `California` / `Germany`. */
+  readonly name: string;
+  /** ISO 3166-1 alpha-2 (country) or 3166-2 `US-XX` (state). */
+  readonly iso: string;
+  readonly layer: 'country' | 'us-state';
+}
+
+export interface RegionNames {
+  /** Deterministically ordered (layer, then name). */
+  readonly regions: readonly RegionName[];
+}

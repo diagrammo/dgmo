@@ -8,7 +8,7 @@
 // ./geo) so this module — exported from the main index — stays free of the
 // d3-geo / topojson imports that geo.ts pulls in. Keep it byte-identical to the
 // resolver/geo folding so matches agree.
-import type { Gazetteer } from './data/types';
+import type { Gazetteer, RegionName } from './data/types';
 
 const fold = (s: string): string =>
   s
@@ -94,4 +94,52 @@ export function completeMapPlaces(
       ...(sub !== undefined && { sub }),
     };
   });
+}
+
+export interface MapRegionCompletion {
+  /** Display name = insert text (the resolver disambiguates cross-layer
+   *  collisions like Georgia by map scope, §24B.8). */
+  readonly name: string;
+  /** ISO 3166-1/3166-2 id. */
+  readonly iso: string;
+  readonly layer: 'country' | 'us-state';
+  /** Secondary detail, e.g. `US state · US-CA` or `Country · DE`. */
+  readonly detail: string;
+}
+
+/**
+ * Prefix-match fill-able region names (countries + US states) for region-fill
+ * lines. Matches the folded display name OR the ISO code; deterministic
+ * (alphabetical by name, then layer). Pure. Empty query → `[]`.
+ *
+ * `regions` is injected (the `region-names.json` asset, shipped in dist/map-data
+ * alongside the gazetteer). Cross-layer same-name (Georgia: country GE + state
+ * US-GA) yields both entries, distinguished by `detail`.
+ */
+export function completeMapRegions(
+  query: string,
+  regions: readonly RegionName[],
+  opts?: MapCompletionOptions
+): MapRegionCompletion[] {
+  const q = fold(query);
+  if (!q) return [];
+  const limit = opts?.limit ?? 12;
+
+  return regions
+    .filter(
+      (r) => fold(r.name).startsWith(q) || r.iso.toLowerCase().startsWith(q)
+    )
+    .sort(
+      (a, b) =>
+        (a.name < b.name ? -1 : a.name > b.name ? 1 : 0) ||
+        (a.layer < b.layer ? -1 : a.layer > b.layer ? 1 : 0)
+    )
+    .slice(0, limit)
+    .map((r) => ({
+      name: r.name,
+      iso: r.iso,
+      layer: r.layer,
+      detail:
+        r.layer === 'us-state' ? `US state · ${r.iso}` : `Country · ${r.iso}`,
+    }));
 }

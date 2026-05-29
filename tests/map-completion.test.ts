@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { completeMapPlaces } from '../src/map/completion';
+import { completeMapPlaces, completeMapRegions } from '../src/map/completion';
 import { loadMapData } from '../src/map/load-data';
-import type { Gazetteer } from '../src/map/data/types';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import type { Gazetteer, RegionName, RegionNames } from '../src/map/data/types';
 
 // Hand-built gazetteer: Tokyo/Osaka, two Portlands (ambiguous, with `sub`),
 // an NYC alias, and an accented city.
@@ -97,5 +100,55 @@ describe('completeMapPlaces (step 6)', () => {
     for (let i = 1; i < r.length; i++) {
       expect(r[i - 1]!.pop).toBeGreaterThanOrEqual(r[i]!.pop);
     }
+  });
+});
+
+const regions: readonly RegionName[] = [
+  { name: 'California', iso: 'US-CA', layer: 'us-state' },
+  { name: 'Texas', iso: 'US-TX', layer: 'us-state' },
+  { name: 'Georgia', iso: 'US-GA', layer: 'us-state' },
+  { name: 'Germany', iso: 'DE', layer: 'country' },
+  { name: 'Georgia', iso: 'GE', layer: 'country' },
+  { name: 'Canada', iso: 'CA', layer: 'country' },
+];
+
+describe('completeMapRegions', () => {
+  it('prefix-matches region names; empty → []', () => {
+    expect(completeMapRegions('cali', regions).map((r) => r.name)).toEqual([
+      'California',
+    ]);
+    expect(completeMapRegions('', regions)).toEqual([]);
+  });
+
+  it('matches by ISO code prefix', () => {
+    expect(completeMapRegions('us-t', regions).map((r) => r.iso)).toEqual([
+      'US-TX',
+    ]);
+  });
+
+  it('cross-layer same name returns both, distinguished by detail', () => {
+    const r = completeMapRegions('georgia', regions);
+    expect(r).toHaveLength(2);
+    expect(r.map((x) => x.iso).sort()).toEqual(['GE', 'US-GA']);
+    expect(r.find((x) => x.iso === 'US-GA')!.detail).toContain('US state');
+    expect(r.find((x) => x.iso === 'GE')!.detail).toContain('Country');
+  });
+
+  it('caps + deterministic', () => {
+    expect(completeMapRegions('c', regions, { limit: 1 })).toHaveLength(1);
+    expect(JSON.stringify(completeMapRegions('g', regions))).toBe(
+      JSON.stringify(completeMapRegions('g', regions))
+    );
+  });
+
+  it('real region-names.json smoke', () => {
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const path = resolve(dir, '../src/map/data/region-names.json');
+    const data = JSON.parse(readFileSync(path, 'utf8')) as RegionNames;
+    expect(data.regions.length).toBeGreaterThan(200);
+    const ca = completeMapRegions('calif', data.regions);
+    expect(ca.some((r) => r.iso === 'US-CA')).toBe(true);
+    const de = completeMapRegions('germ', data.regions);
+    expect(de.some((r) => r.iso === 'DE')).toBe(true);
   });
 });

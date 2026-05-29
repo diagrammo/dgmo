@@ -83,6 +83,7 @@ const GZ_CEILINGS = {
   'world-detail.json': 60_000,
   'us-states.json': 15_000,
   'gazetteer.json': 70_000,
+  'region-names.json': 8_000,
 };
 
 // --- ISO 3166-1 numeric -> alpha-2 (embedded; from lukes/ISO-3166, ADR-6) ---
@@ -497,12 +498,32 @@ async function main() {
   if (missingCaps.length) console.warn(`  ⚠ capitals not matched: ${missingCaps.join(', ')}`);
   if (stats.missingAliases.length) console.warn(`  ⚠ aliases not resolved: ${stats.missingAliases.join(', ')}`);
 
+  // region-names.json — completion-only asset: country + US-state display names
+  // (the renderer derives names from the topology; this feeds the editor's
+  // region autocomplete). Deterministic order: layer, then name (codepoint).
+  const geomsOf = (topo) => topo.objects[Object.keys(topo.objects)[0]].geometries;
+  const regionNames = {
+    regions: [
+      ...geomsOf(coarse.topo).map((g) => ({
+        name: g.properties.name,
+        iso: g.id,
+        layer: 'country',
+      })),
+      ...geomsOf(us.topo).map((g) => ({
+        name: g.properties.name,
+        iso: g.id,
+        layer: 'us-state',
+      })),
+    ].sort((a, b) => cmp(a.layer, b.layer) || cmp(a.name, b.name)),
+  };
+
   // --- emit + size-gate (R5 dist handled by tsup; here we write src/map/data) -
   const emitted = {
     'world-coarse.json': coarse.topo,
     'world-detail.json': detail.topo,
     'us-states.json': us.topo,
     'gazetteer.json': gaz,
+    'region-names.json': regionNames,
   };
   console.log('• emit + size-gate');
   for (const [name, obj] of Object.entries(emitted)) {
