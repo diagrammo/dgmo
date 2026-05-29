@@ -68,11 +68,13 @@ const DATA: MapData = {
     { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
     { id: 'JP', name: 'Japan', box: [129, 31, 146, 45] },
     { id: 'GE', name: 'Georgia', box: [40, 41, 47, 44] }, // country Georgia
+    { id: 'CD', name: 'Dem. Rep. Congo', box: [12, -13, 31, 5] }, // NE-abbreviated
   ]),
   worldDetail: rectTopo('countries', [
     { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
     { id: 'JP', name: 'Japan', box: [129, 31, 146, 45] },
     { id: 'GE', name: 'Georgia', box: [40, 41, 47, 44] },
+    { id: 'CD', name: 'Dem. Rep. Congo', box: [12, -13, 31, 5] },
   ]),
   usStates: rectTopo('states', [
     { id: 'US-CA', name: 'California', box: [-124, 32, -114, 42] },
@@ -242,6 +244,46 @@ describe('resolver — robustness (AC17, AC18, AC21)', () => {
     const b = resolve('map\npoi Tokyo\nCalifornia score: 5');
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     expect(() => resolve('map\nA -> \npoi 999 999')).not.toThrow();
+  });
+});
+
+describe('resolver — impl-review fixes (#3/#6/#8/#13/#15)', () => {
+  it('POI-only US map infers default-country US → albers-usa (#3)', () => {
+    // No regions; both POIs are US. Before #3, POI ISOs were voided so US was
+    // never inferred and the tight extent fell through to mercator.
+    const r = resolve('map\npoi New York City\npoi Office');
+    expect(r.projection).toBe('albers-usa');
+  });
+  it('US region + a non-US POI does NOT pick albers-usa (#13)', () => {
+    const r = resolve('map\nCalifornia score: 1\npoi Tokyo');
+    expect(r.projection).not.toBe('albers-usa');
+  });
+  it('far-flung coordinate POI also blocks albers-usa (#13)', () => {
+    const r = resolve('map\nCalifornia score: 1\npoi 35.68 139.69 as t');
+    expect(r.projection).not.toBe('albers-usa');
+  });
+  it('region matched by ISO code (#6)', () => {
+    const r = resolve('map\nJP score: 5');
+    expect(r.regions[0]).toMatchObject({ iso: 'JP', layer: 'country' });
+  });
+  it('region matched via long-form → NE-abbrev alias (#6)', () => {
+    const r = resolve('map\nDemocratic Republic of the Congo score: 7');
+    expect(r.regions[0]).toMatchObject({ iso: 'CD', layer: 'country' });
+  });
+  it('ambiguous-name warning uses the W_ code (#15)', () => {
+    const r = resolve('map\npoi Portland');
+    expect(r.diagnostics.some((d) => d.code === 'W_MAP_AMBIGUOUS_NAME')).toBe(
+      true
+    );
+    expect(r.diagnostics.some((d) => d.code === 'I_MAP_AMBIGUOUS_NAME')).toBe(
+      false
+    );
+  });
+  it('edge to a declared POI never demotes it to implicit (#8)', () => {
+    const r = resolve('map\npoi Tokyo\nTokyo -> Osaka');
+    const tokyo = r.pois.filter((p) => p.id === 'tokyo');
+    expect(tokyo).toHaveLength(1);
+    expect(tokyo[0]!.implicit).toBeFalsy();
   });
 });
 

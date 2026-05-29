@@ -19,10 +19,49 @@ import type {
 } from './resolved-types';
 import { featureIndex, featureBbox, unionExtent, fold } from './geo';
 
+/** Discriminated result of a gazetteer name lookup (#5): `defer` is "ambiguous,
+ *  retry in pass B with inferred scope" — distinct from `miss` (errored, drop) so
+ *  pass-A deferral never has to infer state from unrelated same-line diagnostics. */
+type LookupResult =
+  | { kind: 'ok'; lat: number; lon: number; iso: string }
+  | { kind: 'defer' }
+  | { kind: 'miss' };
+
 // Projection / tier thresholds (degrees of span) — tunable (R10).
 const WORLD_SPAN = 90;
 const MERCATOR_MAX_SPAN = 25;
 const PAD_FRACTION = 0.05;
+
+// Long-form (or common-alias) country name → the folded Natural-Earth display
+// name actually shipped in world-coarse (#6). The NE coarse layer abbreviates a
+// handful of names ("Dem. Rep. Congo", "W. Sahara", …) that a user would never
+// type; this rescues them. ISO-code matching (featureIndex id keys) covers the
+// rest. Keys/values are pre-folded (lowercase, diacritics stripped).
+const REGION_ALIASES: Readonly<Record<string, string>> = {
+  'western sahara': 'w. sahara',
+  'democratic republic of the congo': 'dem. rep. congo',
+  'dr congo': 'dem. rep. congo',
+  drc: 'dem. rep. congo',
+  'dominican republic': 'dominican rep.',
+  'falkland islands': 'falkland is.',
+  'ivory coast': "cote d'ivoire",
+  'central african republic': 'central african rep.',
+  'equatorial guinea': 'eq. guinea',
+  'solomon islands': 'solomon is.',
+  'bosnia and herzegovina': 'bosnia and herz.',
+  'south sudan': 's. sudan',
+  'north macedonia': 'macedonia',
+  'czech republic': 'czechia',
+};
+
+/** Rough US bounding box (incl. AK across the dateline, HI, PR) for classifying
+ *  bare coordinate POIs as US-or-not when deciding `albers-usa` (#13). */
+function looksUS(lat: number, lon: number): boolean {
+  if (lat < 15 || lat > 72) return false;
+  // continental + AK + HI + Caribbean territories: lon in [-180, -64];
+  // Aleutians wrap past the antimeridian to ~+172.
+  return (lon >= -180 && lon <= -64) || lon >= 172;
+}
 
 export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const diagnostics: DgmoError[] = [...parsed.diagnostics]; // seed with parse diags (R14)
@@ -42,7 +81,11 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       caption: parsed.directives.caption,
     }),
     tagGroups: [...parsed.tagGroups],
-    directives: parsed.directives,
+    // Shallow-copy so the resolved model never aliases the parser's mutable
+    // directives object (#11). NOTE: tag→region-fill COLOR binding is the
+    // renderer's job (step 4) — the resolver only carries `tags` + `tagGroups`
+    // through; it never resolves a tag value to a palette color (#10).
+    directives: { ...parsed.directives },
     basemaps: { world: 'coarse', subdivisions: [] },
     regions: [],
     pois: [],
@@ -85,7 +128,11 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const referencedRegionIds: { topo: 'us'; id: string }[] = [];
   for (const r of parsed.regions) {
     const f = fold(r.name);
-    const inCountry = countryIndex.get(f);
+    // Country match: folded name, then ISO-code key (featureIndex id keys), then
+    // the long-form→NE-abbrev alias table (#6).
+    const inCountry =
+      countryIndex.get(f) ??
+      (REGION_ALIASES[f] ? countryIndex.get(REGION_ALIASES[f]!) : undefined);
     const inState = usStateIndex.get(f);
     let chosen: {
       id: string;
@@ -153,13 +200,20 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     poi: Writable<ResolvedPoi>,
     line: number
   ): void => {
-    if (registry.has(id)) {
-      warn(
-        line,
-        `Duplicate POI "${id}" — last definition wins.`,
-        'W_MAP_DUPLICATE_POI'
-      );
-      const existing = registry.get(id)!;
+    const existing = registry.get(id);
+    if (existing) {
+      // An implicit endpoint POI must never clobber an explicitly declared one
+      // (#8). resolveEndpoint already guards with `registry.has`, but keep the
+      // invariant local to registration so no caller can violate it.
+      if (poi.implicit && !existing.implicit) return;
+      // Only a declared-over-declared collision is a user-facing duplicate.
+      if (!poi.implicit && !existing.implicit) {
+        warn(
+          line,
+          `Duplicate POI "${id}" — last definition wins.`,
+          'W_MAP_DUPLICATE_POI'
+        );
+      }
       const idx = pois.indexOf(existing);
       if (idx >= 0) pois[idx] = poi;
     } else {
@@ -168,14 +222,14 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     registry.set(id, poi);
   };
 
-  /** Resolve a name (+optional scope) against the gazetteer. */
+  /** Resolve a name (+optional scope) against the gazetteer (#5 discriminated). */
   const lookupName = (
     name: string,
     scope: string | undefined,
     line: number,
     scopeHint: string | undefined,
     allowAmbiguous: boolean
-  ): { lat: number; lon: number } | null => {
+  ): LookupResult => {
     const f = fold(name);
     let idxs = data.gazetteer.byName[f];
     if (!idxs?.length) {
@@ -190,37 +244,38 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
         `Unknown place "${name}" (not in the gazetteer; use coordinates).${hint ? ' ' + hint : ''}`,
         'E_MAP_UNKNOWN_PLACE'
       );
-      return null;
+      return { kind: 'miss' };
     }
     let cands = idxs.map((i) => data.gazetteer.cities[i]!);
     const scopeUse = scope ?? scopeHint;
     if (scopeUse) {
-      const isSub = scopeUse.includes('-');
+      // ISO 3166-2 subdivision scope is `XX-…` (two letters + dash); a bare
+      // 2-letter token is a country code (#9 — regex, not a brittle dash test).
+      const isSub = /^[A-Za-z]{2}-/.test(scopeUse);
       const filtered = cands.filter((c) =>
         isSub ? c[5] === scopeUse : c[2] === scopeUse
       );
       if (filtered.length) cands = filtered;
       else if (scope) {
         err(line, `No "${name}" found in scope ${scope}.`, 'E_MAP_SCOPE_MISS');
-        return null;
+        return { kind: 'miss' };
       }
     }
     if (cands.length > 1) {
       if (!allowAmbiguous && !scopeUse) {
-        // deferred to pass B
-        return null;
+        return { kind: 'defer' }; // ambiguous, no scope → pass B
       }
-      // most-populous; tie-break lowest index (R11)
+      // most-populous; tie-break lowest index (R11 — byName is NOT pop-ordered).
       cands = [...cands].sort((a, b) => b[3] - a[3]);
       if (!scope)
         warn(
           line,
           `"${name}" is ambiguous — resolved to the most-populous match.`,
-          'I_MAP_AMBIGUOUS_NAME'
+          'W_MAP_AMBIGUOUS_NAME'
         );
     }
     const c = cands[0]!;
-    return { lat: c[0], lon: c[1] };
+    return { kind: 'ok', lat: c[0], lon: c[1], iso: c[2] };
   };
 
   const poiIdFor = (pos: PoiPos, alias: string | undefined): string => {
@@ -229,10 +284,23 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     return fold(pos.name);
   };
 
+  // POI-country tally, fed to default-country inference (#3) and the US-dominant
+  // projection test (#13). Named POIs contribute their gazetteer ISO; bare-coord
+  // POIs contribute a rough US-or-not classification (no reverse-geocode).
+  const poiCountries: string[] = [];
+  let anyNonUsPoi = false;
+  const noteCountry = (iso: string | undefined): void => {
+    if (iso) {
+      poiCountries.push(iso);
+      if (iso !== 'US') anyNonUsPoi = true;
+    }
+  };
+
   // Pass A: coords + scoped + single-candidate (unambiguous). Defer ambiguous.
   const deferred: (typeof parsed.pois)[number][] = [];
   for (const p of parsed.pois) {
     if (p.pos.kind === 'coords') {
+      if (!looksUS(p.pos.lat, p.pos.lon)) anyNonUsPoi = true;
       addResolvedPoi(p.pos.lat, p.pos.lon, p);
       continue;
     }
@@ -243,14 +311,21 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       undefined,
       false
     );
-    if (got) addResolvedPoi(got.lat, got.lon, p);
-    else if (!hasError(p.lineNumber)) deferred.push(p); // ambiguous, not an error → pass B
+    if (got.kind === 'ok') {
+      noteCountry(got.iso);
+      addResolvedPoi(got.lat, got.lon, p);
+    } else if (got.kind === 'defer') {
+      deferred.push(p); // ambiguous, not an error → pass B
+    }
+    // `miss` already errored; drop.
   }
 
-  // Infer default-country from explicit directive or the most common ISO seen.
+  // Infer default-country from explicit directive or the most common ISO across
+  // resolved regions AND Pass-A POIs (#3 — POIs were previously voided, so a
+  // POI-only US map never inferred US).
   const inferredCountry =
     parsed.directives.defaultCountry?.toUpperCase() ??
-    mostCommonCountry(regions, pois) ??
+    mostCommonCountry(regions, poiCountries) ??
     undefined;
 
   // Pass B: ambiguous bare names, scoped by inferred default-country.
@@ -263,7 +338,10 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       inferredCountry,
       true
     );
-    if (got) addResolvedPoi(got.lat, got.lon, p);
+    if (got.kind === 'ok') {
+      noteCountry(got.iso);
+      addResolvedPoi(got.lat, got.lon, p);
+    }
   }
 
   function addResolvedPoi(
@@ -289,7 +367,8 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     const f = fold(ref);
     if (registry.has(f)) return f;
     const got = lookupName(ref, undefined, line, inferredCountry, true);
-    if (!got) return null;
+    if (got.kind !== 'ok') return null;
+    noteCountry(got.iso);
     const poi: Writable<ResolvedPoi> = {
       id: f,
       lat: got.lat,
@@ -326,6 +405,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       let id: string | null;
       if (stop.ref.kind === 'coords') {
         id = stop.alias ? fold(stop.alias) : `@${stop.ref.lat},${stop.ref.lon}`;
+        if (!looksUS(stop.ref.lat, stop.ref.lon)) anyNonUsPoi = true;
         if (!registry.has(id)) {
           const poi: Writable<ResolvedPoi> = {
             id,
@@ -380,9 +460,13 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const lonSpan = extent[1][0] - extent[0][0];
   const latSpan = extent[1][1] - extent[0][1];
   const span = Math.max(lonSpan, latSpan);
+  // albers-usa only covers US territory: choose it only when the map is truly
+  // US-only — no non-US country region AND no POI outside the US (#13). Without
+  // the POI guard a `default-country US` + Tokyo map projected to garbage.
   const usDominant =
     (inferredCountry === 'US' || subdivisions.includes('us-states')) &&
-    !regions.some((r) => r.layer === 'country' && r.iso !== 'US');
+    !regions.some((r) => r.layer === 'country' && r.iso !== 'US') &&
+    !anyNonUsPoi;
 
   let projection: ProjectionFamily;
   const override = parsed.directives.projection;
@@ -416,24 +500,24 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   // `Writable` widens the GeoExtent tuple to an array; the runtime value is a
   // correct GeoExtent, so cast back on return (through unknown — tuple vs array).
   return result as unknown as ResolvedMap;
-
-  function hasError(line: number): boolean {
-    return diagnostics.some((d) => d.severity === 'error' && d.line === line);
-  }
 }
 
 function mostCommonCountry(
   regions: ResolvedRegion[],
-  pois: ResolvedPoi[]
+  poiCountries: string[]
 ): string | undefined {
   const counts = new Map<string, number>();
   for (const r of regions) {
     const iso = r.layer === 'us-state' ? 'US' : r.iso;
     counts.set(iso, (counts.get(iso) ?? 0) + 1);
   }
-  // POI ISO isn't stored on ResolvedPoi; country inference leans on regions +
-  // explicit scope. (POIs already resolved unambiguously in pass A.)
-  void pois;
+  // Pass-A-resolved POI countries now count too (#3): a POI-only US map infers
+  // `default-country=US`.
+  for (const iso of poiCountries) {
+    counts.set(iso, (counts.get(iso) ?? 0) + 1);
+  }
+  // Iterate alphabetically and keep on strictly-greater count, so a tie resolves
+  // to the alphabetically-first ISO — deterministic (#14).
   let best: string | undefined;
   let bestN = 0;
   for (const [iso, n] of [...counts.entries()].sort((a, b) =>

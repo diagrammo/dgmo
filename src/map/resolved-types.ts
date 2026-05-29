@@ -64,7 +64,14 @@ export interface ResolvedRoute {
   readonly lineNumber: number;
 }
 
-/** Geographic bounding box `[[west, south], [east, north]]` in degrees. */
+/** Geographic bounding box `[[west, south], [east, north]]` in degrees.
+ *
+ *  WRAP CONVENTION (#12): for an antimeridian-crossing extent the resolver keeps
+ *  `west` in [−180, 180] and returns `east` UNWRAPPED in (180, 540] (i.e.
+ *  `east = west + span`, span ≤ 360). So `east > 180` signals a dateline-crossing
+ *  extent; the renderer (step 4) must mod `east` back into [−180, 180] (or shift
+ *  the projection's center) rather than assume `east ≤ 180`. `south`/`north` are
+ *  always plain degrees in [−90, 90]. */
 export type GeoExtent = [[number, number], [number, number]];
 
 export interface ResolvedMap {

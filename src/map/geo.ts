@@ -21,7 +21,12 @@ function geomObject(topo: BoundaryTopology): {
   return topo.objects[key]! as never;
 }
 
-/** folded display-name → { id, name } for one layer (per-layer; never merged — R12). */
+/** folded display-name → { id, name } for one layer (per-layer; never merged — R12).
+ *  Also keyed by the lowercased ISO id (`us`, `cd`, `us-or`) so a region can be
+ *  matched by code — the §24B.8 ISO-alias promise — which rescues abbreviated
+ *  Natural-Earth names like "Dem. Rep. Congo" / "W. Sahara" (#6). Display-name
+ *  keys are inserted first and win; id keys only fill gaps (no name collides with
+ *  another feature's 2-letter code in the shipped data). */
 export function featureIndex(
   topo: BoundaryTopology
 ): Map<string, { id: string; name: string }> {
@@ -29,6 +34,10 @@ export function featureIndex(
   for (const g of geomObject(topo).geometries) {
     const f = fold(g.properties.name);
     if (!idx.has(f)) idx.set(f, { id: g.id, name: g.properties.name }); // keep first on dup
+  }
+  for (const g of geomObject(topo).geometries) {
+    const idKey = g.id.toLowerCase();
+    if (!idx.has(idKey)) idx.set(idKey, { id: g.id, name: g.properties.name });
   }
   return idx;
 }
@@ -58,7 +67,17 @@ export function featureBbox(
 
 /** Union of bboxes + POI points into one extent; null if empty. Longitude union
  *  uses the smaller-arc rule so an antimeridian-crossing union doesn't span the
- *  globe. */
+ *  globe.
+ *
+ *  KNOWN RESIDUAL (#2, documented not fixed): a single feature whose own bbox
+ *  wraps the antimeridian (`geoBounds` returns west > east — e.g. Russia, Fiji)
+ *  is flattened to its two corner longitudes here. For that feature ALONE the
+ *  two corners reconstruct the occupied arc correctly via `unionLongitudes`; but
+ *  combined with other features the per-feature wrap is lost and the framing may
+ *  be sub-optimal (never globe-spanning — the #1 smaller-arc rule still bounds
+ *  it). v1 ships only country + US-state region fills, so a dateline-spanning
+ *  region mixed with distant content is rare. A full fix feeds occupied
+ *  longitude RANGES (not corner samples) into a circular-arc cover. */
 export function unionExtent(
   boxes: GeoExtent[],
   points: Array<[number, number]>

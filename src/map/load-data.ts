@@ -53,8 +53,26 @@ async function firstExistingDir(baseDir: string): Promise<string> {
   );
 }
 
+function validate(data: MapData): MapData {
+  const topoOk = (t: BoundaryTopology | undefined): boolean =>
+    !!t && t.type === 'Topology' && !!t.objects;
+  if (
+    !topoOk(data.worldCoarse) ||
+    !topoOk(data.worldDetail) ||
+    !topoOk(data.usStates) ||
+    !data.gazetteer ||
+    !Array.isArray(data.gazetteer.cities) ||
+    !data.gazetteer.byName
+  ) {
+    throw new Error('map data assets are malformed (failed shape validation)');
+  }
+  return data;
+}
+
 /** Load + memoize the four map assets (Node). Throws if none of the candidate
- *  locations contain them. */
+ *  locations contain them, or if a loaded asset fails shape validation. A
+ *  rejected load is NOT cached (#7): the memo is cleared on failure so a later
+ *  call can retry rather than inheriting a poisoned promise. */
 export function loadMapData(): Promise<MapData> {
   cache ??= (async (): Promise<MapData> => {
     const baseDir = dirname(fileURLToPath(import.meta.url));
@@ -65,7 +83,10 @@ export function loadMapData(): Promise<MapData> {
       readJson<BoundaryTopology>(dir, FILES.usStates),
       readJson<Gazetteer>(dir, FILES.gazetteer),
     ]);
-    return { worldCoarse, worldDetail, usStates, gazetteer };
-  })();
+    return validate({ worldCoarse, worldDetail, usStates, gazetteer });
+  })().catch((e: unknown) => {
+    cache = undefined; // don't poison future calls with a rejected promise
+    throw e;
+  });
   return cache;
 }
