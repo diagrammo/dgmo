@@ -486,7 +486,7 @@ export function parseSitemap(
         if (descResult.needsColon) {
           pushWarning(
             lineNumber,
-            `Use "description: ${descResult.text}" — colon is required.`
+            `Use "description: ${descResult.text}" — bare "description" is deprecated.`
           );
         }
         const parent = findParentNode(indent, indentStack);

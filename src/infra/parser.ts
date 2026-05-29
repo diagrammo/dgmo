@@ -920,7 +920,7 @@ export function parseInfra(content: string): ParsedInfra {
         if (descResult.needsColon) {
           warn(
             lineNumber,
-            `Use "description: ${descResult.text}" — colon is required.`
+            `Use "description: ${descResult.text}" — bare "description" is deprecated.`
           );
         }
         const descText = descResult.isKeyword ? descResult.text : trimmed;

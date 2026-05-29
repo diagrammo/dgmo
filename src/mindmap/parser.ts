@@ -243,7 +243,7 @@ export function parseMindmap(
         if (descResult.needsColon) {
           pushWarning(
             lineNumber,
-            `Use "description: ${descResult.text}" — colon is required.`
+            `Use "description: ${descResult.text}" — bare "description" is deprecated.`
           );
         }
         // Find parent node from indent stack

@@ -1011,7 +1011,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       if (descResult.needsColon) {
         pushError(
           lineNumber,
-          `Use "description: ${descResult.text}" — colon is required.`,
+          `Use "description: ${descResult.text}" — bare "description" is deprecated.`,
           'warning'
         );
       }

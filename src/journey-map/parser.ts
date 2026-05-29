@@ -369,7 +369,7 @@ export function parseJourneyMap(
         if (descResult.needsColon) {
           warn(
             lineNumber,
-            `Use "description: ${descResult.text}" — colon is required.`
+            `Use "description: ${descResult.text}" — bare "description" is deprecated.`
           );
         }
         currentStep.description = descResult.text;

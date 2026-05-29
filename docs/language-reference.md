@@ -859,7 +859,7 @@ Web App is a container
   description: SPA built with React
   description: Supports SSR and client-side routing
 
-// Keyword form (colon optional)
+// Bare keyword form (DEPRECATED — emits a warning; prefer the colon form above)
 API is a container
   description Handles all REST endpoints
 
@@ -1084,7 +1084,7 @@ All permutations supported: node→group, group→node, group→group. Brackets 
 ### 11.5 Node Descriptions
 
 ```
-// Keyword form (colon optional)
+// Bare keyword form (DEPRECATED — emits a warning; prefer description: above)
 About
   description Company history and team bios
 
