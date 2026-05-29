@@ -264,27 +264,27 @@ export function layoutMap(
       r.layer === 'us-state' ? usLayer?.get(r.iso) : worldLayer.get(r.iso);
     if (f) regionFeatures.push(f);
   }
-  const polyFeat = (
-    w: number,
-    s: number,
-    e: number,
-    n: number
-  ): GeoFeature => ({
-    type: 'Feature',
-    properties: {},
-    geometry: {
-      type: 'Polygon',
-      coordinates: [
-        [
+  // The extent's four CORNERS as a MultiPoint — NOT a Polygon. A hand-built
+  // lat/lon rectangle's spherical winding is ambiguous to d3-geo, which can
+  // read it as the whole-globe complement (→ tiny content framed on a world
+  // map). Corner points have no interior/winding ambiguity, so fitExtent frames
+  // exactly the extent box.
+  const extentCorners = (): GeoFeature => {
+    const [[w, s], [e, n]] = resolved.extent;
+    return {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'MultiPoint',
+        coordinates: [
           [w, s],
           [e, s],
           [e, n],
           [w, n],
-          [w, s],
         ],
-      ],
-    },
-  });
+      },
+    };
+  };
 
   let fitFeatures: GeoFeature[];
   if (resolved.projection === 'albers-usa') {
@@ -295,8 +295,7 @@ export function layoutMap(
       fitFeatures = us ? [us] : [...worldLayer.values()];
     }
   } else {
-    const [[w, s], [e, n]] = resolved.extent;
-    fitFeatures = [polyFeat(w, s, e, n)];
+    fitFeatures = [extentCorners()];
   }
   const fitTarget: GeoFC = { type: 'FeatureCollection', features: fitFeatures };
 

@@ -114,6 +114,15 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     expect(ca.d.length).toBeGreaterThan(0);
     expect(ca.d).not.toMatch(/NaN/);
   });
+  it('non-albers cluster zooms to fill the canvas (extent-corner fit, not globe)', () => {
+    // Regression: a tight mercator cluster must NOT render tiny on a world map.
+    // A lat/lon Polygon fit target was being read as the whole-globe complement.
+    const r = lay('map\npoi 40 -74 as a\npoi 42 -71 as b', 800, 600);
+    const a = r.pois.find((p) => p.id === 'a')!;
+    const b = r.pois.find((p) => p.id === 'b')!;
+    const span = Math.hypot(a.cx - b.cx, a.cy - b.cy);
+    expect(span).toBeGreaterThan(150); // zoomed in, not clustered at center
+  });
   it('antimeridian POI pair → finite, on-canvas coords (AC20)', () => {
     const r = lay('map\npoi 0 178 as a\npoi 0 -178 as b');
     for (const p of r.pois) {

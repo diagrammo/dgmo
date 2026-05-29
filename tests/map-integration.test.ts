@@ -37,12 +37,24 @@ describe('map router + render() wiring (step 5)', () => {
     expect(empty.svg).toContain('dgmo-map-regions');
 
     // A POI that fails to geocode is dropped; the base map still renders and
-    // render() does not throw. (Resolver-stage diagnostics like "unknown place"
-    // are NOT surfaced through render() yet — renderForExport returns only the
-    // SVG string; propagating resolve/layout diagnostics is a follow-up.)
+    // render() does not throw.
     const partial = await render('map\npoi Nowheresville');
     expect(partial.svg).toContain('<svg');
     expect(partial.svg).toContain('dgmo-map-regions');
+  });
+
+  it('surfaces resolver diagnostics (unknown place) through render()', async () => {
+    const { diagnostics } = await render('map\npoi Nowheresville');
+    expect(
+      diagnostics.some(
+        (d) => d.severity === 'error' && /Nowheresville/.test(d.message)
+      )
+    ).toBe(true);
+  });
+
+  it('a fully-valid map reports no diagnostics', async () => {
+    const { diagnostics } = await render('map\nCalifornia score: 50');
+    expect(diagnostics).toHaveLength(0);
   });
 
   it('renders in dark theme without throwing', async () => {

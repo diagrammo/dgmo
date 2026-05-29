@@ -38,6 +38,11 @@ const PAD_FRACTION = 0.05;
 // type; this rescues them. ISO-code matching (featureIndex id keys) covers the
 // rest. Keys/values are pre-folded (lowercase, diacritics stripped).
 const REGION_ALIASES: Readonly<Record<string, string>> = {
+  // Common everyday names → the Natural-Earth display name actually shipped.
+  'united states': 'united states of america',
+  usa: 'united states of america',
+  america: 'united states of america',
+  uk: 'united kingdom',
   'western sahara': 'w. sahara',
   'democratic republic of the congo': 'dem. rep. congo',
   'dr congo': 'dem. rep. congo',

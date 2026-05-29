@@ -295,4 +295,12 @@ describe('loadMapData — real committed assets (AC19)', () => {
     expect(Array.isArray(data.gazetteer.cities)).toBe(true);
     expect(data.gazetteer.cities.length).toBeGreaterThan(1000);
   });
+
+  it('common US aliases resolve against the real NE name "United States of America" (#6)', async () => {
+    const data = await loadMapData();
+    for (const name of ['United States', 'USA', 'America']) {
+      const r = resolveMap(parseMap(`map\n${name} score: 5`), data);
+      expect(r.regions[0]?.iso, name).toBe('US');
+    }
+  });
 });

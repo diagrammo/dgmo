@@ -96,7 +96,9 @@ export async function render(
   const paletteColors =
     getPalette(paletteName)[theme === 'dark' ? 'dark' : 'light'];
 
-  const { diagnostics, chartType } = parseDgmo(content);
+  const parsed = parseDgmo(content);
+  let diagnostics = parsed.diagnostics;
+  const chartType = parsed.chartType;
   const category = chartType ? getRenderCategory(chartType) : null;
 
   // Build viewState from legendState (backwards compat) or use provided viewState
@@ -132,5 +134,27 @@ export async function render(
     }),
     ...(options?.tagGroup !== undefined && { tagGroup: options.tagGroup }),
   });
+
+  // The map pipeline resolves names AFTER parsing (gazetteer/ISO lookup), so its
+  // unknown-place / unknown-subdivision errors live on the ResolvedMap, not the
+  // ParsedMap. Surface them through render() so the editor shows squiggles.
+  // resolveMap seeds its diagnostics with the parser's, so this is a superset.
+  // loadMapData is memoized (renderForExport already loaded it) — no double read.
+  if (chartType === 'map') {
+    try {
+      const [{ parseMap }, { resolveMap }, { loadMapData }] = await Promise.all(
+        [
+          import('./map/parser'),
+          import('./map/resolver'),
+          import('./map/load-data'),
+        ]
+      );
+      const data = await loadMapData();
+      diagnostics = [...resolveMap(parseMap(content), data).diagnostics];
+    } catch {
+      /* asset load failed — keep the parser diagnostics */
+    }
+  }
+
   return { svg, diagnostics };
 }
