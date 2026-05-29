@@ -265,10 +265,32 @@ describe('pert parser — extractPertSymbols', () => {
     expect(symbols.entities).toContain('outfit ship'); // group
     // `milestone` keyword removed — zero-duration activities replace it.
     expect(symbols.keywords).not.toContain('milestone');
-    // `analysis` and `monte-carlo` were removed from autocomplete after
-    // the directive became reserved-but-inert; lock the removal in.
+    // `analysis` and `monte-carlo` are not offered: `analysis` is the
+    // deprecated-inert directive, and the live control is `no-analysis`
+    // (a bare flag, not surfaced in keyword completion like `no-title`).
     expect(symbols.keywords).not.toContain('analysis');
     expect(symbols.keywords).not.toContain('monte-carlo');
+  });
+});
+
+describe('pert parser — `no-analysis` directive', () => {
+  it('`no-analysis` sets noAnalysis true without error or warning', () => {
+    const parsed = parsePert(`pert
+no-analysis
+A 1 2 4
+`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.options.noAnalysis).toBe(true);
+    expect(parsed.diagnostics.filter((d) => d.severity === 'error')).toEqual(
+      []
+    );
+  });
+
+  it('leaves noAnalysis undefined when the directive is absent (analysis on by default)', () => {
+    const parsed = parsePert(`pert
+A 1 2 4
+`);
+    expect(parsed.options.noAnalysis).toBeUndefined();
   });
 });
 
@@ -279,23 +301,12 @@ analysis monte-carlo
 A 1 2 4
 `);
     expect(parsed.error).toBeNull();
+    expect(parsed.options.noAnalysis).toBeUndefined();
     const warn = findWarning(parsed, {
       code: 'pert.deprecated.analysis-directive',
     });
     expect(warn).toBeDefined();
-    expect(warn!.message).toContain('no longer needed');
-  });
-
-  it('emits the same warning for any value (directive is inert regardless)', () => {
-    const parsed = parsePert(`pert
-analysis some-future-mode
-A 1 2 4
-`);
-    expect(parsed.error).toBeNull();
-    const warn = findWarning(parsed, {
-      code: 'pert.deprecated.analysis-directive',
-    });
-    expect(warn).toBeDefined();
+    expect(warn!.message).toContain('no-analysis');
   });
 
   it('emits no analysis-deprecation warning when the directive is absent', () => {

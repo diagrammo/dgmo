@@ -8267,7 +8267,11 @@ export async function renderForExport(
     const titleHeight =
       pertParsed.title && !pertParsed.options.noTitle ? 80 : 0;
     const PERT_PADDING = 20;
-    const analysisOn = viewState?.an === true;
+    // Analysis layer renders by default whenever MC ran. Precedence:
+    // an explicit viewState.an (app toggle / share link) wins; else the
+    // `no-analysis` source directive suppresses it; else on. The
+    // renderer silently omits it in analytical mode (no MC output).
+    const analysisOn = viewState?.an ?? !pertParsed.options.noAnalysis;
     const fieldLabelsOn = viewState?.fl === true;
     const exportW = pertLayout.width + PERT_PADDING * 2;
     const analysisMeasured =

@@ -1247,6 +1247,7 @@ divvy shares 1 2 3
 | `default-confidence <level>` | M-only heuristic: `high`, `medium`, `low`, or a custom `O/P` factor pair (e.g. `0.6/2.5`) |
 | `direction <LR\|TB>` | Layout direction (default `LR`) |
 | `node-detail <compact\|full>` | Visual density; `full` adds slack bars and σ-as-border-thickness |
+| `no-analysis` | Bare flag — hide the analysis layer (tornado + S-curve). The layer renders by default whenever Monte Carlo ran; this suppresses it. An explicit `viewState.an` (app toggle / share link) overrides it |
 | `trials <N>` | Canonical Monte Carlo trial count (`< 100` clamps to analytical) |
 | `seed <N>` | Mulberry32 PRNG seed for deterministic runs |
 | `scrubber-trials <N>` | Fast-MC trials for the interactive duration scrubber |

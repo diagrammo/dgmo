@@ -82,6 +82,13 @@ export interface PertOptions {
   /** When true, the renderer suppresses the diagram banner title. */
   noTitle?: boolean;
   /**
+   * `no-analysis` directive — suppresses the analysis layer (tornado +
+   * S-curve). The layer renders by default whenever Monte Carlo ran;
+   * this bare flag turns it off (mirrors `no-title`). An explicit
+   * `viewState.an` (desktop-app toggle / share link) overrides it.
+   */
+  noAnalysis?: boolean;
+  /**
    * `active-tag <name>` directive — selects which declared tag group
    * drives node fill via `resolveTagColor()`. `'none'` (case-insensitive)
    * suppresses tag coloring; `undefined` lets `resolveActiveTagGroup()`

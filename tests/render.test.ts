@@ -69,4 +69,41 @@ B: 20`);
     // Valid chart may have zero diagnostics — just verify the array exists
     expect(Array.isArray(diagnostics)).toBe(true);
   });
+
+  describe('PERT `no-analysis` directive', () => {
+    const pert = (extra: string) => `pert Plunder Run
+${extra}
+set sail 0
+  -> raid convoy
+raid convoy 4 6 12
+  -> divvy shares
+divvy shares 1 2 3
+`;
+
+    it('renders the analysis layer by default (no directive, no viewState)', async () => {
+      const { svg } = await render(pert(''));
+      expect(svg).toContain('<svg');
+      expect(svg).toContain('pert-tornado-block');
+      expect(svg).toContain('pert-scurve-block');
+    });
+
+    it('suppresses the analysis layer when `no-analysis` is authored', async () => {
+      const { svg } = await render(pert('no-analysis'));
+      expect(svg).toContain('<svg');
+      expect(svg).not.toContain('pert-tornado-block');
+      expect(svg).not.toContain('pert-scurve-block');
+    });
+
+    it('viewState.an=false overrides the default-on', async () => {
+      const { svg } = await render(pert(''), { viewState: { an: false } });
+      expect(svg).not.toContain('pert-tornado-block');
+    });
+
+    it('viewState.an=true overrides `no-analysis`', async () => {
+      const { svg } = await render(pert('no-analysis'), {
+        viewState: { an: true },
+      });
+      expect(svg).toContain('pert-tornado-block');
+    });
+  });
 });

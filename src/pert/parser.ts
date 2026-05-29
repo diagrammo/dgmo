@@ -67,6 +67,7 @@ const DIRECTIVE_KEYS = new Set([
   'direction',
   'node-detail',
   'analysis',
+  'no-analysis',
   'trials',
   'seed',
   'scrubber-trials',
@@ -1403,13 +1404,22 @@ function applyDirective(
       options.nodeDetail = value as NodeDetail;
       return;
     }
+    case 'no-analysis': {
+      // Bare boolean directive — suppresses the analysis layer (tornado
+      // + S-curve), which otherwise renders by default whenever Monte
+      // Carlo ran. Mirrors `no-title`. An explicit `viewState.an` (app
+      // toggle / share link) overrides it at render time.
+      options.noAnalysis = true;
+      return;
+    }
     case 'analysis': {
-      // Reserved-but-inert: the directive no longer selects analysis
-      // mode (auto-derived from data) but stays recognized so cached
-      // share-link payloads keep rendering.
+      // Reserved-but-inert: historically `analysis monte-carlo` opted
+      // into simulation, now auto-derived from O/M/P data. Stays
+      // recognized so cached share-link payloads keep rendering. To
+      // hide the analysis layer, use the bare `no-analysis` flag.
       warn(
         lineNumber,
-        '`analysis` directive is no longer needed — Monte Carlo auto-enables when activities have O/M/P estimates',
+        '`analysis` is no longer needed — Monte Carlo auto-enables when activities have O/M/P estimates. Use `no-analysis` to hide the analysis layer (tornado + S-curve).',
         'pert.deprecated.analysis-directive'
       );
       return;
