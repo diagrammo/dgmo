@@ -663,9 +663,9 @@ function noInput(): never {
       'Client -POST /login-> API',
       '  API -validate credentials-> Auth',
       '    Auth -SELECT user-> DB',
-      '    Auth <-user record- DB',
-      '  API <-JWT token- Auth',
-      'Client <-200 OK- API',
+      '    DB -user record-> Auth',
+      '  Auth -JWT token-> API',
+      'API -200 OK-> Client',
       '',
     ].join('\n'),
     'utf-8'
