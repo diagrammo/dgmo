@@ -350,8 +350,10 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     p: (typeof parsed.pois)[number]
   ): void {
     const id = poiIdFor(p.pos, p.alias);
+    const name = p.pos.kind === 'name' ? p.pos.name : p.alias;
     const poi: Writable<ResolvedPoi> = {
       id,
+      ...(name !== undefined && { name }),
       lat,
       lon,
       ...(p.label !== undefined && { label: p.label }),
@@ -371,6 +373,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     noteCountry(got.iso);
     const poi: Writable<ResolvedPoi> = {
       id: f,
+      name: ref,
       lat: got.lat,
       lon: got.lon,
       tags: {},
@@ -409,6 +412,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
         if (!registry.has(id)) {
           const poi: Writable<ResolvedPoi> = {
             id,
+            ...(stop.alias !== undefined && { name: stop.alias }),
             lat: stop.ref.lat,
             lon: stop.ref.lon,
             tags: {},

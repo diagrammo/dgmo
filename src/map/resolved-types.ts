@@ -38,6 +38,10 @@ export interface ResolvedRegion {
 export interface ResolvedPoi {
   /** Folded registry id (alias|name folded, or `@lat,lon` for coord POIs). */
   readonly id: string;
+  /** Display name (original casing): the city/place name, alias, or endpoint
+   *  string. The on-map label falls back to this when `label` is absent (the
+   *  folded `id` is for binding, not display). */
+  readonly name?: string;
   readonly lat: number;
   readonly lon: number;
   readonly label?: string;
