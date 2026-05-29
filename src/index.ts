@@ -214,6 +214,18 @@ export { themes, type Theme } from './themes';
 export { getMinDimensions } from './dimensions';
 
 // ============================================================
+// Map chart-type completion (gazetteer-fed; §24B.5/.8)
+// ============================================================
+// Pure + dependency-injected: the caller supplies the `Gazetteer` asset. Safe
+// to export from the main index — no d3-geo/topojson runtime imports.
+export { completeMapPlaces } from './map/completion';
+export type {
+  MapPlaceCompletion,
+  MapCompletionOptions,
+} from './map/completion';
+export type { Gazetteer, GazetteerEntry } from './map/data/types';
+
+// ============================================================
 // Public types
 // ============================================================
 
