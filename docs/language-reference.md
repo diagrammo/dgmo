@@ -8,7 +8,7 @@
 
 1. [Universal Constructs](#1-universal-constructs)
 2. [Universal Name Handling](#2-universal-name-handling)
-2A. [Universal Aliases (`as` keyword)](#2a-universal-aliases-as-keyword)
+   2A. [Universal Aliases (`as` keyword)](#2a-universal-aliases-as-keyword)
 3. [Sequence Diagrams](#3-sequence-diagrams)
 4. [Infrastructure Diagrams](#4-infrastructure-diagrams)
 5. [Flowchart Diagrams](#5-flowchart-diagrams)
@@ -20,7 +20,7 @@
 11. [Kanban Boards](#11-kanban-boards)
 12. [Sitemap Diagrams](#12-sitemap-diagrams)
 13. [Gantt Charts](#13-gantt-charts)
-13A. [PERT Diagrams](#13a-pert-diagrams)
+    13A. [PERT Diagrams](#13a-pert-diagrams)
 14. [Boxes and Lines Diagrams](#14-boxes-and-lines-diagrams)
 15. [Timeline Diagrams](#15-timeline-diagrams)
 16. [Data Charts](#16-data-charts)
@@ -32,9 +32,10 @@
 22. [Journey Map Diagrams](#22-journey-map-diagrams)
 23. [Pyramid Diagrams](#23-pyramid-diagrams)
 24. [Ring Diagrams](#24-ring-diagrams)
-24A. [RACI Matrices (RACI / RASCI / DACI)](#24a-raci-matrices-raci--rasci--daci)
-25. [Colon Usage Summary](#25-colon-usage-summary)
-26. [Authoring Rules (Generators Read This First)](#26-authoring-rules-generators-read-this-first)
+    24A. [RACI Matrices (RACI / RASCI / DACI)](#24a-raci-matrices-raci--rasci--daci)
+25. [Map Diagrams](#25-map-diagrams)
+26. [Colon Usage Summary](#26-colon-usage-summary)
+27. [Authoring Rules (Generators Read This First)](#27-authoring-rules-generators-read-this-first)
 
 ---
 
@@ -107,7 +108,7 @@ Red                   // value=Red, no color (capitalized → escape hatch)
 
 The "label region" is everything left after the parser strips off structural terminators it owns: same-line metadata (§1.4), numeric values, date ranges, structural brackets. Parsers split those off BEFORE invoking the color rule. So `Tortuga Distillery orange 3000` → `{ label: "Tortuga Distillery", color: "orange", value: 3000 }`: numeric value first, then the color trails the remaining label.
 
-**Aliases come between the label and the color.** `as <alias>` sits *between* the label region and the trailing color token in declarations — the line reads `<label> as <alias> <color>`. Color is always the line-trailing token (modulo same-line metadata, which is line-final).
+**Aliases come between the label and the color.** `as <alias>` sits _between_ the label region and the trailing color token in declarations — the line reads `<label> as <alias> <color>`. Color is always the line-trailing token (modulo same-line metadata, which is line-final).
 
 **Where the rule applies**: tag values, kanban columns (`[Done] green`), venn items (`Swordsmanship as sw red`), quadrant position labels (`top-right Promote green`), gantt / timeline eras and markers, data-chart series + rows, sankey nodes + link lines, cycle / pyramid / ring / RACI / boxes-and-lines node labels.
 
@@ -158,10 +159,10 @@ no-option-name       // off
 
 **Cross-cutting boolean directives** (recognized in every chart type that has the corresponding rendering surface):
 
-| Directive | Effect |
-| --- | --- |
-| `solid-fill` | Render nodes/bars at full intent saturation instead of the canonical 25% tint |
-| `no-title` | Hide the diagram banner title in the rendered output (does not mutate the parsed model) |
+| Directive    | Effect                                                                                  |
+| ------------ | --------------------------------------------------------------------------------------- |
+| `solid-fill` | Render nodes/bars at full intent saturation instead of the canonical 25% tint           |
+| `no-title`   | Hide the diagram banner title in the rendered output (does not mutate the parsed model) |
 
 Examples: `no-legend` (journey-map), `no-color` (flowchart, state), `no-title` (all chart types with a banner title).
 
@@ -220,7 +221,7 @@ A -Makes calls-> B tech: HTTP   // preferred: technology on target metadata
 
 #### Edge color is not a feature
 
-Edges on flowchart, state, and sitemap diagrams have NO color slot. `A -(red)-> B` is a literal label with text `(red)`; `A -yes-> B` and `A -no-> B` no longer auto-color the arrow. Arrows render with the default theme color, period. To color a *node*, use tags (§1.3).
+Edges on flowchart, state, and sitemap diagrams have NO color slot. `A -(red)-> B` is a literal label with text `(red)`; `A -yes-> B` and `A -no-> B` no longer auto-color the arrow. Arrows render with the default theme color, period. To color a _node_, use tags (§1.3).
 
 Sankey link lines DO accept a trailing-token color, because the link itself carries data:
 
@@ -356,10 +357,10 @@ rarely benefit. Aliases should aid comprehension, not obscure it.
 
 ### 2A.5 Migration
 
-| Was | Now |
-|-----|-----|
-| `tag Priority p` (bare shorthand) | `tag Priority as p` |
-| `tag Priority alias p` (explicit) | `tag Priority as p` |
+| Was                                 | Now                       |
+| ----------------------------------- | ------------------------- |
+| `tag Priority p` (bare shorthand)   | `tag Priority as p`       |
+| `tag Priority alias p` (explicit)   | `tag Priority as p`       |
 | `Swordsmanship red alias sw` (venn) | `Swordsmanship as sw red` |
 
 ### 2A.6 Error Codes
@@ -392,19 +393,20 @@ Types: `actor`, `database`, `cache`, `queue` (plus default — the plain rectang
 
 Type names in `is a X` are **case-insensitive** (`is a Actor`, `is an ACTOR`, `is an actor` all parse the same). The keywords `service`, `frontend`, `networking`, `gateway`, and `external` were removed in 0.16.0 and now emit `E_PARTICIPANT_TYPE_REMOVED`; drop the override and the participant renders as the default rectangle.
 
-A participant *named* with a removed-type keyword (e.g. `service -> User: hi` declares a participant named "service") remains valid. The trim affects only the `is a X` declaration syntax, not name resolution.
+A participant _named_ with a removed-type keyword (e.g. `service -> User: hi` declares a participant named "service") remains valid. The trim affects only the `is a X` declaration syntax, not name resolution.
 
 **Inference rules** — the parser infers the type (and shape) from the participant name. Only use `is a` when the name does not match or you want to override:
 
-| Inferred Type | Shape | Name Patterns (examples) |
-|--------------|-------|--------------------------|
-| actor | Stick figure | `User`, `Customer`, `Admin`, `Agent`, `Person`, `Buyer`, `Seller`, `Guest`, `Visitor`, `Operator`, `Developer`, Alice, Bob, Charlie, Fan, Purchaser, Reviewer, `*User`, `*Actor`, `*Analyst`, `*Staff` |
-| database | Cylinder (vertical) | `*DB`, `Database`, `Datastore`, `*Store`, `Storage`, `*Repo`, `Repository`, `SQL`, Postgres, MySQL, Mongo, Dynamo, Aurora, Spanner, Supabase, Firebase, BigQuery, Redshift, Snowflake, Cassandra, Neo4j, ClickHouse, Elastic, OpenSearch, Druid, Trino, Pinecone, Weaviate, Qdrant, Milvus, Presto, `*Table` |
-| cache | Dashed cylinder | `*Cache`, Redis, Memcache, KeyDB, Dragonfly, Hazelcast, Valkey |
-| queue | Horizontal cylinder (pipe) | `*Queue`, `*MQ`, SQS, Kafka, RabbitMQ, `EventBus`, `MessageBus`, `*Bus`, `Topic`, `*Stream`, SNS, PubSub, `*Broker`, NATS, Pulsar, Kinesis, EventBridge, CloudEvents, Celery, Sidekiq, EventHub, `*Channel` |
-| default | Rectangle | Everything else (no `is a` needed) |
+| Inferred Type | Shape                      | Name Patterns (examples)                                                                                                                                                                                                                                                                                     |
+| ------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| actor         | Stick figure               | `User`, `Customer`, `Admin`, `Agent`, `Person`, `Buyer`, `Seller`, `Guest`, `Visitor`, `Operator`, `Developer`, Alice, Bob, Charlie, Fan, Purchaser, Reviewer, `*User`, `*Actor`, `*Analyst`, `*Staff`                                                                                                       |
+| database      | Cylinder (vertical)        | `*DB`, `Database`, `Datastore`, `*Store`, `Storage`, `*Repo`, `Repository`, `SQL`, Postgres, MySQL, Mongo, Dynamo, Aurora, Spanner, Supabase, Firebase, BigQuery, Redshift, Snowflake, Cassandra, Neo4j, ClickHouse, Elastic, OpenSearch, Druid, Trino, Pinecone, Weaviate, Qdrant, Milvus, Presto, `*Table` |
+| cache         | Dashed cylinder            | `*Cache`, Redis, Memcache, KeyDB, Dragonfly, Hazelcast, Valkey                                                                                                                                                                                                                                               |
+| queue         | Horizontal cylinder (pipe) | `*Queue`, `*MQ`, SQS, Kafka, RabbitMQ, `EventBus`, `MessageBus`, `*Bus`, `Topic`, `*Stream`, SNS, PubSub, `*Broker`, NATS, Pulsar, Kinesis, EventBridge, CloudEvents, Celery, Sidekiq, EventHub, `*Channel`                                                                                                  |
+| default       | Rectangle                  | Everything else (no `is a` needed)                                                                                                                                                                                                                                                                           |
 
 **Inference handles it (skip `is a`):**
+
 ```
 PostgresDB           // database (matches *DB)
 Redis                // cache (exact match)
@@ -413,6 +415,7 @@ Kafka                // queue (exact match)
 ```
 
 **Inference would miss (use `is a`):**
+
 ```
 Vault is a database         // "Vault" matches no rule, but you want database
 Notifications is a queue    // "Notifications" matches no rule
@@ -432,12 +435,12 @@ Names that previously inferred to a removed type — `AuthService`, `WebApp`, `C
 
 ### 2.3 Messages (Arrows)
 
-| Type | Syntax | Example |
-|------|--------|---------|
-| Sync (labeled) | `A -label-> B` | `Client -login-> API` |
-| Sync (bare) | `A -> B` | `Client -> API` |
+| Type            | Syntax         | Example               |
+| --------------- | -------------- | --------------------- |
+| Sync (labeled)  | `A -label-> B` | `Client -login-> API` |
+| Sync (bare)     | `A -> B`       | `Client -> API`       |
 | Async (labeled) | `A ~label~> B` | `API ~notify~> Queue` |
-| Async (bare) | `A ~> B` | `API ~> Queue` |
+| Async (bare)    | `A ~> B`       | `API ~> Queue`        |
 
 - Whitespace around arrows is optional: `A-label->B` works
 - Labels can contain spaces, hyphens, special chars
@@ -474,6 +477,7 @@ note right of API
 ```
 
 Content formatting:
+
 - `- ` prefix on indented lines = bullet points
 - Inline markdown: `**bold**`, `*italic*`, `` `code` ``
 - Links: `[text](url)` and bare URLs (auto-truncated in display)
@@ -543,35 +547,35 @@ NodeName
 
 Properties use a known schema with colon-separated values (the space-separated form is a parse error — `latency-ms 50` is rejected with a hint to use `latency-ms: 50`):
 
-| Property | Capability | Effect |
-|----------|-----------|--------|
-| `cache-hit` | Cache | % requests served from cache, reduces downstream RPS |
-| `firewall-block` | Firewall/WAF | % requests blocked, reduces downstream RPS |
-| `ratelimit-rps` | Rate limiter | Max RPS passed through |
-| `latency-ms` | Latency | Adds to path latency |
-| `uptime` | Availability | Multiplied along path for SLO |
-| `instances` | Horizontal scaling | Multiplies capacity (number or `min-max` range) |
-| `max-rps` | Capacity ceiling | Max RPS node handles |
-| `cb-error-threshold` | Circuit breaker | Error rate trip threshold |
-| `cb-latency-threshold-ms` | Circuit breaker | Latency trip threshold |
-| `concurrency` | Concurrency limit | Max concurrent requests (serverless) |
-| `duration-ms` | Processing time | Time spent processing (serverless) |
-| `cold-start-ms` | Serverless | Cold start penalty |
-| `buffer` | Queue | Buffer size |
-| `drain-rate` | Queue | Consumption rate |
-| `retention-hours` | Queue | Message retention |
-| `partitions` | Queue | Partition count |
-| `description` | Display | Description text |
+| Property                  | Capability         | Effect                                               |
+| ------------------------- | ------------------ | ---------------------------------------------------- |
+| `cache-hit`               | Cache              | % requests served from cache, reduces downstream RPS |
+| `firewall-block`          | Firewall/WAF       | % requests blocked, reduces downstream RPS           |
+| `ratelimit-rps`           | Rate limiter       | Max RPS passed through                               |
+| `latency-ms`              | Latency            | Adds to path latency                                 |
+| `uptime`                  | Availability       | Multiplied along path for SLO                        |
+| `instances`               | Horizontal scaling | Multiplies capacity (number or `min-max` range)      |
+| `max-rps`                 | Capacity ceiling   | Max RPS node handles                                 |
+| `cb-error-threshold`      | Circuit breaker    | Error rate trip threshold                            |
+| `cb-latency-threshold-ms` | Circuit breaker    | Latency trip threshold                               |
+| `concurrency`             | Concurrency limit  | Max concurrent requests (serverless)                 |
+| `duration-ms`             | Processing time    | Time spent processing (serverless)                   |
+| `cold-start-ms`           | Serverless         | Cold start penalty                                   |
+| `buffer`                  | Queue              | Buffer size                                          |
+| `drain-rate`              | Queue              | Consumption rate                                     |
+| `retention-hours`         | Queue              | Message retention                                    |
+| `partitions`              | Queue              | Partition count                                      |
+| `description`             | Display            | Description text                                     |
 
 **Mutually exclusive:** `concurrency` ≠ `instances` ≠ `max-rps`; `buffer` ≠ `max-rps`. A node is serverless, traditional, or a queue — not two at once.
 
 ### 4.4 Connections
 
-| Type | Syntax |
-|------|--------|
-| Sync (bare) | `-> Target` |
-| Sync (labeled) | `-/api-> Target` |
-| Async (bare) | `~> Target` |
+| Type            | Syntax            |
+| --------------- | ----------------- |
+| Sync (bare)     | `-> Target`       |
+| Sync (labeled)  | `-/api-> Target`  |
+| Async (bare)    | `~> Target`       |
 | Async (labeled) | `~event~> Target` |
 
 - Connection metadata: `split: 50%, fanout: 3` (colons required in metadata pairs)
@@ -661,23 +665,23 @@ flowchart [Title]
 
 ### 4.2 Node Shapes
 
-| Shape | Syntax | Example |
-|-------|--------|---------|
-| Terminal | `(Label)` | `(Start)` |
-| Process | `[Label]` | `[Do Task]` |
-| Decision | `<Label>` | `<Check?>` |
-| I/O | `/Label/` | `/Read Input/` |
+| Shape      | Syntax      | Example        |
+| ---------- | ----------- | -------------- |
+| Terminal   | `(Label)`   | `(Start)`      |
+| Process    | `[Label]`   | `[Do Task]`    |
+| Decision   | `<Label>`   | `<Check?>`     |
+| I/O        | `/Label/`   | `/Read Input/` |
 | Subroutine | `[[Label]]` | `[[Validate]]` |
-| Document | `[Label~]` | `[Report~]` |
+| Document   | `[Label~]`  | `[Report~]`    |
 
 - Node coloring: use tags (§1.3) — flowchart nodes have no color suffix
 
 ### 4.3 Arrows
 
-| Type | Syntax |
-|------|--------|
-| Unlabeled | `->` |
-| Labeled | `-label->` |
+| Type      | Syntax     |
+| --------- | ---------- |
+| Unlabeled | `->`       |
+| Labeled   | `-label->` |
 
 - Color inference: `yes/success/ok/true` infers green; `no/fail/error/false` infers red
 
@@ -725,10 +729,10 @@ StateName color
 
 ### 5.3 Transitions
 
-| Type | Syntax |
-|------|--------|
-| Unlabeled | `Idle -> Active` |
-| Labeled | `Idle -submit-> Processing` |
+| Type      | Syntax                      |
+| --------- | --------------------------- |
+| Unlabeled | `Idle -> Active`            |
+| Labeled   | `Idle -submit-> Processing` |
 
 ### 5.4 Groups
 
@@ -830,11 +834,11 @@ Web App is a container description: SPA, tech: React
 
 ### 7.5 Relationships
 
-| Type | Syntax |
-|------|--------|
-| Sync labeled | `-Makes API calls-> API` |
-| Sync with tech | `-Uses [HTTPS]-> API` |
-| Async labeled | `~Sends emails~> Email` |
+| Type           | Syntax                   |
+| -------------- | ------------------------ |
+| Sync labeled   | `-Makes API calls-> API` |
+| Sync with tech | `-Uses [HTTPS]-> API`    |
+| Async labeled  | `~Sends emails~> Email`  |
 
 ### 7.6 Sections
 
@@ -944,6 +948,7 @@ enum ShipType
 ### 9.3 Members (Indented, Colon for Types)
 
 **Fields:**
+
 ```
 + name: string
 - speed: number
@@ -951,6 +956,7 @@ enum ShipType
 ```
 
 **Methods:**
+
 ```
 + sail(): void
 - calculate(x: number): boolean
@@ -960,6 +966,7 @@ enum ShipType
 Visibility: `+` public, `-` private, `#` protected
 
 **Enum values:**
+
 ```
 enum ShipType
   Galleon
@@ -968,14 +975,14 @@ enum ShipType
 
 ### 9.4 Relationships (Indented Under Source Class)
 
-| Relationship | Arrow |
-|-------------|-------|
-| Inheritance | `--|>` |
+| Relationship   | Arrow   |
+| -------------- | ------- | --- |
+| Inheritance    | `--     | >`  |
 | Implementation | `..\|>` |
-| Composition | `*--` |
-| Aggregation | `o--` |
-| Dependency | `..>` |
-| Association | `->` |
+| Composition    | `*--`   |
+| Aggregation    | `o--`   |
+| Dependency     | `..>`   |
+| Association    | `->`    |
 
 Relationships are indented under the source class:
 
@@ -1140,11 +1147,13 @@ Top-level directive (not nested under `holiday`).
 ### 12.5 Eras
 
 **Flat form:**
+
 ```
 era 2026-04-06 -> 2026-04-10 Conference purple
 ```
 
 **Block form:**
+
 ```
 era
   2026-04-06 -> 2026-04-10 Conference purple
@@ -1154,11 +1163,13 @@ era
 ### 12.6 Markers
 
 **Flat form:**
+
 ```
 marker 2026-03-27 Board Review
 ```
 
 **Block form:**
+
 ```
 marker
   2026-03-27 Board Review
@@ -1241,22 +1252,22 @@ divvy shares 1 2 3
 
 ### Directives
 
-| Directive | Effect |
-|-----------|--------|
-| `time-unit <unit>` | Unit for bare-number durations (default `d`); accepts `min`, `h`, `d`, `bd`, `w`, `s` (sprints) |
-| `default-confidence <level>` | M-only heuristic: `high`, `medium`, `low`, or a custom `O/P` factor pair (e.g. `0.6/2.5`) |
-| `direction <LR\|TB>` | Layout direction (default `LR`) |
-| `node-detail <compact\|full>` | Visual density; `full` adds slack bars and σ-as-border-thickness |
-| `no-analysis` | Bare flag — hide the analysis layer (tornado + S-curve). The layer renders by default whenever Monte Carlo ran; this suppresses it. An explicit `viewState.an` (app toggle / share link) overrides it |
-| `trials <N>` | Canonical Monte Carlo trial count (`< 100` clamps to analytical) |
-| `seed <N>` | Mulberry32 PRNG seed for deterministic runs |
-| `scrubber-trials <N>` | Fast-MC trials for the interactive duration scrubber |
-| `start-date <YYYY-MM-DD>` | Anchor the forward pass — accepts the literal `now` |
-| `end-date <YYYY-MM-DD>` | Anchor the backward pass (mutually exclusive with `start-date`) |
-| `sprint-length <duration>` | Sprint length when sprint mode is active (default `2w`) |
-| `sprint-number <N>` | Starting sprint label N — cells render as `S<N+offset>` (default `1`) |
-| `sprint-start <YYYY-MM-DD>` | Optional ISO date the starting sprint begins on |
-| `active-tag <GroupName>` | Pre-expand a tag group + drive node fill |
+| Directive                     | Effect                                                                                                                                                                                                |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `time-unit <unit>`            | Unit for bare-number durations (default `d`); accepts `min`, `h`, `d`, `bd`, `w`, `s` (sprints)                                                                                                       |
+| `default-confidence <level>`  | M-only heuristic: `high`, `medium`, `low`, or a custom `O/P` factor pair (e.g. `0.6/2.5`)                                                                                                             |
+| `direction <LR\|TB>`          | Layout direction (default `LR`)                                                                                                                                                                       |
+| `node-detail <compact\|full>` | Visual density; `full` adds slack bars and σ-as-border-thickness                                                                                                                                      |
+| `no-analysis`                 | Bare flag — hide the analysis layer (tornado + S-curve). The layer renders by default whenever Monte Carlo ran; this suppresses it. An explicit `viewState.an` (app toggle / share link) overrides it |
+| `trials <N>`                  | Canonical Monte Carlo trial count (`< 100` clamps to analytical)                                                                                                                                      |
+| `seed <N>`                    | Mulberry32 PRNG seed for deterministic runs                                                                                                                                                           |
+| `scrubber-trials <N>`         | Fast-MC trials for the interactive duration scrubber                                                                                                                                                  |
+| `start-date <YYYY-MM-DD>`     | Anchor the forward pass — accepts the literal `now`                                                                                                                                                   |
+| `end-date <YYYY-MM-DD>`       | Anchor the backward pass (mutually exclusive with `start-date`)                                                                                                                                       |
+| `sprint-length <duration>`    | Sprint length when sprint mode is active (default `2w`)                                                                                                                                               |
+| `sprint-number <N>`           | Starting sprint label N — cells render as `S<N+offset>` (default `1`)                                                                                                                                 |
+| `sprint-start <YYYY-MM-DD>`   | Optional ISO date the starting sprint begins on                                                                                                                                                       |
+| `active-tag <GroupName>`      | Pre-expand a tag group + drive node fill                                                                                                                                                              |
 
 Sprint mode activates automatically when `time-unit s` is set, or explicitly when any `sprint-*` directive appears. ES/EF/LS/LF cells then render as `S5`, `S7`, etc.
 
@@ -1264,11 +1275,11 @@ Sprint mode activates automatically when `time-unit s` is set, or explicitly whe
 
 An activity is `<name> [<durations>] [as <id>] [k: v, ...]`. Durations follow the name, separated by spaces or commas:
 
-| Form | Meaning |
-|------|---------|
-| `recruit crew 1 2 4` | Three-point estimate: O M P (in the active `time-unit`) |
-| `recruit crew 2` | M-only; parser fills O and P from `default-confidence` factors |
-| `celebrate` | TBD: no estimate; downstream activities inherit `?` |
+| Form                 | Meaning                                                        |
+| -------------------- | -------------------------------------------------------------- |
+| `recruit crew 1 2 4` | Three-point estimate: O M P (in the active `time-unit`)        |
+| `recruit crew 2`     | M-only; parser fills O and P from `default-confidence` factors |
+| `celebrate`          | TBD: no estimate; downstream activities inherit `?`            |
 
 Two-number durations are rejected (the parser cannot disambiguate O+M, M+P, or O+P). Universal alias syntax per §2A applies: `recruit crew 1 2 4 as rc`. Names containing the literal token `as` parse cleanly when no actual alias suffix is appended (`serve as quartermaster 2 3 5`).
 
@@ -1291,21 +1302,21 @@ Indented `-> dest` lines under an activity declare a dependency from that activi
 
 Edges default to **Finish-to-Start (FS) with zero lag**. The arrow may carry an inline label between two dashes to override either piece:
 
-| Syntax | Meaning |
-|--------|---------|
-| `A -> B` | FS, 0 lag (default) |
-| `A -SS-> B` | Start-to-Start |
-| `A -2d-> B` | FS with +2d lag (lag-only shortcut) |
-| `A -SS+2d-> B` | SS with +2d lag |
-| `A -FF-1d-> B` | FF with -1d lead (negative lag) |
-| `A -SF+3d-> B` | SF with +3d lag |
+| Syntax         | Meaning                             |
+| -------------- | ----------------------------------- |
+| `A -> B`       | FS, 0 lag (default)                 |
+| `A -SS-> B`    | Start-to-Start                      |
+| `A -2d-> B`    | FS with +2d lag (lag-only shortcut) |
+| `A -SS+2d-> B` | SS with +2d lag                     |
+| `A -FF-1d-> B` | FF with -1d lead (negative lag)     |
+| `A -SF+3d-> B` | SF with +3d lag                     |
 
-| Type | Constraint | Use case |
-|------|------------|----------|
-| FS | `B.ES ≥ A.EF + lag` | Default; sequential work |
-| SS | `B.ES ≥ A.ES + lag` | Parallel start |
-| FF | `B.EF ≥ A.EF + lag` | Synchronized finish |
-| SF | `B.EF ≥ A.ES + lag` | Rare; included for completeness |
+| Type | Constraint          | Use case                        |
+| ---- | ------------------- | ------------------------------- |
+| FS   | `B.ES ≥ A.EF + lag` | Default; sequential work        |
+| SS   | `B.ES ≥ A.ES + lag` | Parallel start                  |
+| FF   | `B.EF ≥ A.EF + lag` | Synchronized finish             |
+| SF   | `B.EF ≥ A.ES + lag` | Rare; included for completeness |
 
 Type names are case-insensitive. Lag amount inherits the diagram's `time-unit`; per-edge unit overrides are accepted (`-SS+2d->`, `-FF+4h->`). A `-` sign denotes a **lead** (overlap). Non-default edges paint a small midpoint label (`SS +2d`, `FF -1d`); FS+0 edges stay clean. Every `->` is independently FS — there is no `default-edge-type` directive.
 
@@ -1329,11 +1340,11 @@ Groups can author `collapsed: true` to start collapsed.
 
 ### Same-line metadata
 
-| Key | Where | Meaning |
-|-----|-------|---------|
-| `confidence` | activity | Per-activity override of `default-confidence` (`high` / `medium` / `low` / `O/P`) |
-| `collapsed` | group | `true` to start the group collapsed |
-| tag aliases (e.g. `c: Captain`) | activity, group | Resolves to the declared tag group; drives node fill when the group is active |
+| Key                             | Where           | Meaning                                                                           |
+| ------------------------------- | --------------- | --------------------------------------------------------------------------------- |
+| `confidence`                    | activity        | Per-activity override of `default-confidence` (`high` / `medium` / `low` / `O/P`) |
+| `collapsed`                     | group           | `true` to start the group collapsed                                               |
+| tag aliases (e.g. `c: Captain`) | activity, group | Resolves to the declared tag group; drives node fill when the group is active     |
 
 ### Tags
 
@@ -1358,7 +1369,7 @@ Coloring is opt-in: without an `active-tag <GroupName>` directive (or a click in
 
 `start-date YYYY-MM-DD` anchors the forward pass; `end-date YYYY-MM-DD` anchors the backward pass. They are mutually exclusive. When anchored, ES / EF / LS / LF cells render as calendar dates and slack normalizes to days. `start-date now` resolves to today at parse time and is substituted before share-link compression so recipients see the author's view. `end-date now` is a parse error.
 
-In backward mode with Monte Carlo active, the project-stats caption reframes its percentile rows from *finishes* to *latest-safe starts* — higher confidence demands an earlier start. Latest-safe-start dates that fall in the past relative to the parse-time today date append `(latest-safe start has passed)`.
+In backward mode with Monte Carlo active, the project-stats caption reframes its percentile rows from _finishes_ to _latest-safe starts_ — higher confidence demands an earlier start. Latest-safe-start dates that fall in the past relative to the parse-time today date append `(latest-safe start has passed)`.
 
 ### Critical path and analysis
 
@@ -1401,6 +1412,7 @@ Source <-label-> Target
 ```
 
 Indented shorthand (source from preceding node):
+
 ```
 API description: Main gateway
   -routes-> UserService
@@ -1408,6 +1420,7 @@ API description: Main gateway
 ```
 
 Same-line metadata on edges:
+
 ```
 A -reads-> DB frequency: High
 ```
@@ -1423,6 +1436,7 @@ A -reads-> DB frequency: High
 ```
 
 Nested groups (max depth 2):
+
 ```
 [AWS]
   [us-east-1]
@@ -1476,26 +1490,31 @@ timeline [Title]
 Events use **name-first syntax** with `start:`, `end:`, and `duration:` as reserved metadata keys.
 
 **Point event** (`start:` only):
+
 ```
 Blockades Charleston start: 1718-05, p: Blackbeard
 ```
 
 **Range event** (`start:` + `end:`):
+
 ```
 Sails under Hornigold start: 1716, end: 1717, p: Blackbeard
 ```
 
 **Duration event** (`start:` + `duration:`):
+
 ```
 Sprint 1 start: 2026-03-20, duration: 30d
 ```
 
 **Uncertain ending** (`?` suffix on `end:` or `duration:`):
+
 ```
 Rackham builds crew start: 1718, end: 1719?
 ```
 
 Event type is determined by key presence:
+
 - `start:` only → point event
 - `start:` + `end:` → range event
 - `start:` + `duration:` → duration event
@@ -1506,11 +1525,13 @@ Duration units: `min`, `h`, `d`, `w`, `m`, `y`
 ### 14.3 Eras
 
 **Flat form:**
+
 ```
 era 1716 -> 1718 Nassau Republic
 ```
 
 **Block form:**
+
 ```
 era
   1716 -> 1718 Nassau Republic
@@ -1520,11 +1541,13 @@ era
 ### 14.4 Markers
 
 **Flat form:**
+
 ```
 marker 1718-07 Woodes Rogers arrives orange
 ```
 
 **Block form:**
+
 ```
 marker
   1718-07 Woodes Rogers arrives orange
@@ -1546,7 +1569,7 @@ marker
 
 Every section under §15 follows the same two rules.
 
-**Rule A — data rows are space-separated.** Commas between values are tolerated for back-compat but not idiomatic. Thousands-separator commas *inside a single number* (`3,984,078.65`) are always supported.
+**Rule A — data rows are space-separated.** Commas between values are tolerated for back-compat but not idiomatic. Thousands-separator commas _inside a single number_ (`3,984,078.65`) are always supported.
 
 ```
 Q1 400 700 300 500     ✅  preferred
@@ -1571,6 +1594,7 @@ Parsers accept either form. The rules above are authoring guidance.
 **Declaration:** `bar [Title]`, `line [Title]`, etc.
 
 **Series** — follows Rule B (prefer the indented block):
+
 ```
 series
   Cloud Platform blue
@@ -1580,6 +1604,7 @@ series
 Short one-line form is tolerated: `series Revenue` or `series A B`.
 
 **Data rows** — follows Rule A:
+
 ```
 Label 100
 Label 100 200 300
@@ -1588,6 +1613,7 @@ Q1 400 700 300 500
 ```
 
 **Options (space-separated, NO colon):**
+
 ```
 title My Chart
 x-label X Label
@@ -1601,11 +1627,13 @@ stacked
 - Legend is always shown (no option needed)
 
 **Value-display flags — show-everything default.** Every renderable part is on by default. Suppress with `no-*`:
+
 - `no-name` — hide name (segment / point / cell / node / set)
 - `no-value` — hide numeric value
 - `no-percent` — hide share-of-total percentage (pie-family only)
 
 Each chart honors the subset of flags that has a renderable atom on it:
+
 - pie / doughnut / polar-area: all three
 - funnel: `no-name`, `no-value`
 - bar / bar-stacked / line / multi-line / area / radar: `no-value`
@@ -1616,6 +1644,7 @@ Each chart honors the subset of flags that has a renderable atom on it:
 `no-percent` on a non-pie-family chart is silently ignored (the chart has no percent atom). Cartesian charts (bar, line, area) now render values on each bar / point by default.
 
 **Eras (line/area only):**
+
 ```
 era Day 1 -> Day 3 Rough Seas red
 ```
@@ -1623,18 +1652,21 @@ era Day 1 -> Day 3 Rough Seas red
 ### 15.2 Scatter / Bubble Charts
 
 **Data rows** — follows §15 Rule A (space-separated):
+
 ```
 Name x y
 Name x y size
 ```
 
 **Categories:**
+
 ```
 [Caribbean] red
   Blackbeard 90 8500
 ```
 
 **Options:**
+
 ```
 x-label Weight
 y-label Height
@@ -1647,6 +1679,7 @@ Point names render by default. Use `no-name` to hide them.
 ### 15.3 Heatmap
 
 **Columns** — follows §15 Rule B (prefer the indented block for multiple columns):
+
 ```
 columns
   Jan
@@ -1657,6 +1690,7 @@ columns
 Short one-line form is tolerated: `columns Jan Feb Mar`.
 
 **Data rows** — follows §15 Rule A:
+
 ```
 RowLabel 5 4 3
 ```
@@ -1676,11 +1710,13 @@ x 0 to 250
 The colon between name and expression is **required** — both sides can contain spaces, so colon is the unambiguous delimiter.
 
 **Options:**
+
 - `shade` (boolean; off by default, shades area below curves when enabled)
 
 ### 15.5 Sankey Charts
 
 **Tree structure (indented, space-separated):**
+
 ```
 Sugar Plantations green
   Tortuga Distillery orange 3000
@@ -1688,6 +1724,7 @@ Sugar Plantations green
 ```
 
 **Explicit links:**
+
 ```
 Source -> Target 3500
 Source -- Target 2000
@@ -1707,6 +1744,7 @@ Values follow §15 Rule A.
 ### 15.7 Funnel Charts
 
 **Data rows** — follows §15 Rule A (space-separated):
+
 ```
 Visits 1200
 Signups 800
@@ -1886,11 +1924,11 @@ Auth System
 
 Same-line metadata uses the universal `key: value, key2: value2` form (§1.4). Recognized keys:
 
-| Key | Effect |
-|-----|--------|
-| `description` | Description text (see above). |
-| `collapsed` | `true` collapses the subtree by default. |
-| Tag alias (e.g. `p:`, `d:`) | Assigns the node to a tag-group value. |
+| Key                         | Effect                                   |
+| --------------------------- | ---------------------------------------- |
+| `description`               | Description text (see above).            |
+| `collapsed`                 | `true` collapses the subtree by default. |
+| Tag alias (e.g. `p:`, `d:`) | Assigns the node to a tag-group value.   |
 
 ```
 Task p: High, d: Engineering
@@ -1926,8 +1964,8 @@ Nice-to-haves p: Low, collapsed: true
 
 ### Options
 
-| Option | Effect |
-|--------|--------|
+| Option                 | Effect                             |
+| ---------------------- | ---------------------------------- |
 | `active-tag GroupName` | Sets the default active tag group. |
 
 Universal options (`palette`, `theme`) apply as elsewhere.
@@ -1954,33 +1992,33 @@ Switches to narrow vertical layout (375px). Desktop (1200px, horizontal regions)
 
 ### Visual-Mnemonic Elements
 
-| Syntax | Element | Example |
-|--------|---------|---------|
-| `[text]` (leaf) | Text input | `[Email address]` |
-| `[Name]` (with children) | Group/region | `[Sidebar]` + indented children |
-| `(Label)` | Button | `(Submit)` |
-| `{A \| B \| C}` | Dropdown/select | `{Small \| Medium \| Large}` |
-| `<x>` / `< >` | Checkbox | `<x> Remember me` |
-| `(*) Label` / `( ) Label` | Radio button | `(*) Option A` |
-| `# Text` / `## Text` | Heading | `# Sign In` |
-| `---` | Divider | `---` |
-| `- text` | List item | `- Electronics` |
-| Bare text | Text/paragraph | `Welcome to our app` |
+| Syntax                    | Element         | Example                         |
+| ------------------------- | --------------- | ------------------------------- |
+| `[text]` (leaf)           | Text input      | `[Email address]`               |
+| `[Name]` (with children)  | Group/region    | `[Sidebar]` + indented children |
+| `(Label)`                 | Button          | `(Submit)`                      |
+| `{A \| B \| C}`           | Dropdown/select | `{Small \| Medium \| Large}`    |
+| `<x>` / `< >`             | Checkbox        | `<x> Remember me`               |
+| `(*) Label` / `( ) Label` | Radio button    | `(*) Option A`                  |
+| `# Text` / `## Text`      | Heading         | `# Sign In`                     |
+| `---`                     | Divider         | `---`                           |
+| `- text`                  | List item       | `- Electronics`                 |
+| Bare text                 | Text/paragraph  | `Welcome to our app`            |
 
 ### Keyword Elements
 
-| Keyword | Type | Parameters |
-|---------|------|------------|
-| `nav` | Block | Children are nav items |
-| `tabs` | Block | Children are tab labels |
-| `table` | Block | Comma-separated rows; first = header |
-| `table RxC` | Skeleton table | `table 5x4` + optional header row |
-| `image` | Leaf | `round`, `wide` hints |
-| `modal Title` | Block | Rendered as separate panel below |
-| `skeleton` | Block | Children render as grey placeholders |
-| `alert` | Block | Optional semantic state |
-| `progress N` | Leaf | Value 0-100: `progress 60` |
-| `chart type` | Leaf | `chart line`, `chart bar`, `chart pie` |
+| Keyword       | Type           | Parameters                             |
+| ------------- | -------------- | -------------------------------------- |
+| `nav`         | Block          | Children are nav items                 |
+| `tabs`        | Block          | Children are tab labels                |
+| `table`       | Block          | Comma-separated rows; first = header   |
+| `table RxC`   | Skeleton table | `table 5x4` + optional header row      |
+| `image`       | Leaf           | `round`, `wide` hints                  |
+| `modal Title` | Block          | Rendered as separate panel below       |
+| `skeleton`    | Block          | Children render as grey placeholders   |
+| `alert`       | Block          | Optional semantic state                |
+| `progress N`  | Leaf           | Value 0-100: `progress 60`             |
+| `chart type`  | Leaf           | `chart line`, `chart bar`, `chart pie` |
 
 ### Flags (States)
 
@@ -2196,10 +2234,10 @@ Explicit targets after `->` are accepted but ignored — cycle edges always foll
 
 Edges use the long-form `color: <name>` (narrow exception per §1.5 — edges have no trailing-token slot). `width` is in pixels.
 
-| Key | Default | Notes |
-|-----|---------|-------|
+| Key     | Default                    | Notes                   |
+| ------- | -------------------------- | ----------------------- |
 | `color` | inherits source node color | Long-form only on edges |
-| `width` | 3–4 px | Stroke width |
+| `width` | 3–4 px                     | Stroke width            |
 
 ```
 Decide orange
@@ -2210,10 +2248,10 @@ Act red
 
 ### Shape and Direction Directives
 
-| Directive | Effect |
-|-----------|--------|
-| `circle-nodes` | Render nodes as uniform-diameter circles instead of rounded rectangles |
-| `direction-counterclockwise` | Reverse the cycle (default: clockwise) |
+| Directive                    | Effect                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| `circle-nodes`               | Render nodes as uniform-diameter circles instead of rounded rectangles |
+| `direction-counterclockwise` | Reverse the cycle (default: clockwise)                                 |
 
 ### Span Metadata
 
@@ -2319,14 +2357,14 @@ Browsed casually                                      // no score = no curve poi
 
 Six keys are reserved on step lines and indented annotation lines. `score` and `emotion` belong on the step line; the rest are typically indented under the step as their own lines.
 
-| Key | Meaning | Render |
-|-----|---------|--------|
-| `score` | 1–5 integer | curve point + card intensity |
-| `emotion` | single-word label | emoji/label badge on the card |
-| `description` | general context | plain text under the card |
-| `pain` | pain point | red callout |
-| `opportunity` | improvement idea | green callout |
-| `thought` | inner monologue | italic callout |
+| Key           | Meaning           | Render                        |
+| ------------- | ----------------- | ----------------------------- |
+| `score`       | 1–5 integer       | curve point + card intensity  |
+| `emotion`     | single-word label | emoji/label badge on the card |
+| `description` | general context   | plain text under the card     |
+| `pain`        | pain point        | red callout                   |
+| `opportunity` | improvement idea  | green callout                 |
+| `thought`     | inner monologue   | italic callout                |
 
 Multiple annotations per step are allowed; each goes on its own indented line.
 
@@ -2357,10 +2395,10 @@ tag Channel as ch
 
 ### Directives
 
-| Directive | Effect |
-|-----------|--------|
+| Directive              | Effect                                          |
+| ---------------------- | ----------------------------------------------- |
 | `active-tag GroupName` | Set the active tag group for step-card coloring |
-| `palette`, `theme` | Universal options |
+| `palette`, `theme`     | Universal options                               |
 
 ### Flat Mode
 
@@ -2426,10 +2464,10 @@ Physiological orange
 
 ### Layer Metadata
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `color` | palette name | auto | Layer color |
-| `description` | string | — | One-liner description |
+| Key           | Type         | Default | Description           |
+| ------------- | ------------ | ------- | --------------------- |
+| `color`       | palette name | auto    | Layer color           |
+| `description` | string       | —       | One-liner description |
 
 ### Descriptions
 
@@ -2437,8 +2475,8 @@ Indented lines under a layer are description text. Markdown inline formatting (`
 
 ### Directives
 
-| Directive | Effect |
-|-----------|--------|
+| Directive  | Effect                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- |
 | `inverted` | Flip apex to the bottom (funnel orientation). Source order is preserved — the first layer is always the visual top. |
 
 ### Overflow Handling
@@ -2487,10 +2525,10 @@ The Open Sea cyan
 
 ### Layer Metadata
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `color` | palette name | auto | Ring color |
-| `description` | string | — | One-liner description |
+| Key           | Type         | Default | Description           |
+| ------------- | ------------ | ------- | --------------------- |
+| `color`       | palette name | auto    | Ring color            |
+| `description` | string       | —       | One-liner description |
 
 ### Descriptions
 
@@ -2498,8 +2536,8 @@ Indented lines under a layer are description text. Markdown inline formatting is
 
 ### Directives
 
-| Directive | Effect |
-|-----------|--------|
+| Directive    | Effect                                                               |
+| ------------ | -------------------------------------------------------------------- |
 | `solid-fill` | Render rings with full intent color instead of the default 25% tint. |
 
 `inverted` is **not** valid on ring diagrams (rings are rotationally symmetric). Using it emits an error-severity diagnostic and the line is discarded.
@@ -2518,10 +2556,10 @@ When ring band thickness would force the in-band label below the readable floor 
 
 A tasks × roles responsibility matrix with author-time linting. **One chart type — `raci` — covers all three variants.** Variant is inferred from the markers used; an optional `variant-*` directive locks it explicitly.
 
-| Variant | Marker alphabet | Constraint |
-|---------|-----------------|------------|
-| RACI    | `R A C I`       | Exactly one Accountable per task |
-| RASCI   | `R A S C I`     | Exactly one Accountable per task |
+| Variant | Marker alphabet | Constraint                                   |
+| ------- | --------------- | -------------------------------------------- |
+| RACI    | `R A C I`       | Exactly one Accountable per task             |
+| RASCI   | `R A S C I`     | Exactly one Accountable per task             |
 | DACI    | `D A C I`       | Exactly one Driver and one Approver per task |
 
 ### Declaration
@@ -2579,11 +2617,11 @@ roles Cap, Nav, QM, Bos
 
 ### Directives
 
-| Directive | Effect |
-|-----------|--------|
-| `variant-raci` / `variant-rasci` / `variant-daci` | Lock the chart to a specific variant. Markers outside the alphabet error. At most one per chart. |
-| `roles` | Declare column order. Inline (`roles Cap, QM, Bos`) is name-only; the indented block form supports per-role color via the trailing-token form (`Cap red`). When present, unknown roles in tasks emit `W_RACI_UNKNOWN_ROLE`. |
-| `palette`, `theme`, `active-tag` | Universal options. |
+| Directive                                         | Effect                                                                                                                                                                                                                      |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `variant-raci` / `variant-rasci` / `variant-daci` | Lock the chart to a specific variant. Markers outside the alphabet error. At most one per chart.                                                                                                                            |
+| `roles`                                           | Declare column order. Inline (`roles Cap, QM, Bos`) is name-only; the indented block form supports per-role color via the trailing-token form (`Cap red`). When present, unknown roles in tasks emit `W_RACI_UNKNOWN_ROLE`. |
+| `palette`, `theme`, `active-tag`                  | Universal options.                                                                                                                                                                                                          |
 
 ### Phase metadata
 
@@ -2602,46 +2640,159 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 
 ---
 
-## 25. Colon Usage Summary
+## 25. Map Diagrams
+
+Geographic concept maps: highlight/score political subdivisions, drop points of interest (POIs), and connect them with routes or edges. For "share a concept" business maps, not cartography. Renders at a fixed, auto-fit position — no pan/zoom. Basemap and viewport are **inferred from the content you reference** — most maps need no directives. v1 boundaries: world countries + US states.
+
+### Declaration
+
+```
+map [Title]
+```
+
+Requires the explicit first line `map` — no content inference.
+
+### Region fill — score (choropleth)
+
+A subdivision name on its own line with a `score:` fills with a single-hue tint ramp (auto min→max, ~15% floor):
+
+```
+map US Sales
+region us-states
+metric Sales ($M)
+
+California score: 92
+Texas score: 78
+Florida score: 51
+```
+
+- `metric <label>` labels the ramp in the legend; `scale <min> <max>` overrides the auto anchors.
+- A subdivision with no `score:`/tag renders as the neutral base.
+
+### Region fill — categorical (tags)
+
+Uses the universal tag model (§1.3): declare a `tag` group, apply its alias as a key, `active-tag` to color.
+
+```
+map Global Presence
+region world
+
+tag Market as m
+  HQ blue
+  Region teal
+  Prospect orange
+active-tag Market
+
+United States m: HQ
+Germany m: Region
+Japan m: Region
+```
+
+`score:` + a tag on the same region: v1 renders the **score** (tag ignored for fill); both parse.
+
+### Points of interest (`poi`)
+
+```
+poi <name | <lat> <lon>> [as <alias>] [<key>: <value>, …]
+```
+
+```
+poi Austin                          # label defaults to "Austin"
+poi Austin label: West HQ           # anchored at Austin; shows "West HQ"
+poi 39.74 -104.99 as dcw            # positional coords (lat lon), signed
+poi Dallas size: 320                # size: value-scales the marker radius (a data channel)
+poi Chicago m: Office               # categorical color via a tag alias
+```
+
+- **Coordinates are positional** — two leading signed numbers (lat then lon); cities never start with a number.
+- `size:` scales marker area (use `size-metric <label>` for the legend key). POI properties: `label`, `size`, `description`, applied tag alias, `as`. No `icon` in v1.
+- Coord-positioned or relabeled POIs take `as <alias>` for route/edge references; named POIs are referenced by name.
+
+### Routes & connectors
+
+`route` — an ordered, auto-numbered stop list; the origin gets a distinct marker. Repeat the first stop as the last to close a loop. `style: arc` curves the legs:
+
+```
+route style: arc
+  Miami label: Embark
+  Havana
+  Kingston
+  Miami                 # repeats origin → closed loop
+```
+
+Native `->` edges handle any other connection (no `link`/`leg` keyword):
+
+```
+A -> B                  # one-off
+A -ships-> B weight: 22 # labeled; weight = thickness
+A -> B -> C             # inline chain
+dcw                     # hub/star — indented edges share the source
+  -> office-east
+  -> office-west
+```
+
+`~>` curves a single edge. No geographic path-finding — legs are straight or arced.
+
+### Labels, legend & chrome
+
+- Title is the declaration line; `subtitle` / `caption` are directives.
+- Legend auto-composes (tag swatches, score ramp + `metric`, POI size key + `size-metric`, edge-weight key); `no-legend` suppresses it.
+- `region-labels full | abbrev | off` (default `off`); `poi-labels off | auto | all` (default `auto`). Labels render **on the map** (export-safe), escalating inline → leader line → numbered pin in dense clusters; markers never move.
+
+### Name resolution
+
+- Admin units use **ISO 3166** (geometry keyed by code, so "United States" / "USA" / "US" resolve alike); cities use **GeoNames** (alias/accent matching, population ranking, did-you-mean).
+- `default-country` / `default-state <ISO>` scopes bare city resolution (inferred from content if unset).
+- A bare ambiguous, undeclared name → most-populous in scope (info note).
+- **Disambiguate once:** trailing ISO code at first declaration — `San Jose CR` (country) or `Portland US-OR` (subdivision). Thereafter reference the bare name. Two same-named cities → `as <alias>` each.
+- Positional coordinates are the escape hatch for anything missing/ambiguous.
+
+### Directives & reserved keys
+
+Directives (no colon): `region` (world | us-states), `projection` (natural-earth | albers-usa | mercator), `metric`, `size-metric`, `scale`, `region-labels`, `poi-labels`, `default-country`, `default-state`, `active-tag`, `no-legend`, `subtitle`, `caption`. Reserved metadata keys (need colons): `score`, `label`, `size`, `description`, `weight`, `style`. Coordinates are positional (no `at:` key). Projection is auto-picked by extent span (wide → natural-earth / albers-usa for US; tight → mercator) unless overridden.
+
+---
+
+## 26. Colon Usage Summary
 
 ### Constructs Where Colons Are REQUIRED
 
-| Construct | Diagram Type | Example |
-|-----------|-------------|---------|
-| Same-line metadata | all | `key: value, key2: value2` |
-| Org metadata (indented) | org | `role: Manager` |
-| C4 metadata (indented) | c4 | `description: SPA built with React` |
-| Class field types | class | `+ name: string` |
-| Class method returns | class | `+ sail(): void` |
-| Function expressions | function | `f(x): x^2 + 1` |
-| Hide tag values | boxes-and-lines | `hide phase:Planning` |
-| Infra node properties | infra | `latency-ms: 50` |
+| Construct               | Diagram Type    | Example                             |
+| ----------------------- | --------------- | ----------------------------------- |
+| Same-line metadata      | all             | `key: value, key2: value2`          |
+| Org metadata (indented) | org             | `role: Manager`                     |
+| C4 metadata (indented)  | c4              | `description: SPA built with React` |
+| Class field types       | class           | `+ name: string`                    |
+| Class method returns    | class           | `+ sail(): void`                    |
+| Function expressions    | function        | `f(x): x^2 + 1`                     |
+| Hide tag values         | boxes-and-lines | `hide phase:Planning`               |
+| Infra node properties   | infra           | `latency-ms: 50`                    |
 
 ### Colons OPTIONAL
 
-| Construct | Diagram Type | Example |
-|-----------|-------------|---------|
-| Class relationship label | class | `--|> Vessel : extends` or `--|> Vessel extends` |
+| Construct                | Diagram Type | Example |
+| ------------------------ | ------------ | ------- | ------------------------ | ----------------- |
+| Class relationship label | class        | `--     | > Vessel : extends`or`-- | > Vessel extends` |
 
 ### Colons NOT USED
 
-| Construct | Diagram Type | Example |
-|-----------|-------------|---------|
-| Chart type declaration | all | `bar Title` |
-| Tag declarations | all | `tag Name as x` |
-| Boolean options | all | `activations`, `no-activations` |
-| Key-value options | all | `start 2026-03-15`, `active-tag Team` |
-| Series declarations | data charts | `series A B C` |
-| Data rows | bar/line/pie/etc | `Label 100` |
-| ER columns | er | `id int pk` |
-| Sequence messages | sequence | `A -msg-> B` |
-| Groups/containers | all | `[Group Name]` |
-| Section dividers | sequence | `== Phase ==` |
-| Comments | all | `// comment` |
-| Wordcloud data | wordcloud | `swordsmanship 95` |
-| Slope data rows | slope | `Blackbeard 40 4` |
-| Slope period directive | slope | `period 1715 1725` |
-| Venn intersections | venn | `sw + nav Sea Raiders` |
+| Construct              | Diagram Type     | Example                               |
+| ---------------------- | ---------------- | ------------------------------------- |
+| Chart type declaration | all              | `bar Title`                           |
+| Tag declarations       | all              | `tag Name as x`                       |
+| Boolean options        | all              | `activations`, `no-activations`       |
+| Key-value options      | all              | `start 2026-03-15`, `active-tag Team` |
+| Series declarations    | data charts      | `series A B C`                        |
+| Data rows              | bar/line/pie/etc | `Label 100`                           |
+| ER columns             | er               | `id int pk`                           |
+| Sequence messages      | sequence         | `A -msg-> B`                          |
+| Groups/containers      | all              | `[Group Name]`                        |
+| Section dividers       | sequence         | `== Phase ==`                         |
+| Comments               | all              | `// comment`                          |
+| Wordcloud data         | wordcloud        | `swordsmanship 95`                    |
+| Slope data rows        | slope            | `Blackbeard 40 4`                     |
+| Slope period directive | slope            | `period 1715 1725`                    |
+| Venn intersections     | venn             | `sw + nav Sea Raiders`                |
 
 ### The Rule
 
@@ -2655,6 +2806,7 @@ A colon binds a value, and it appears in exactly **four syntactic positions** �
 **The one true carve-out: ER columns** (`id int pk`) are an indented typed-property list like infra node properties, yet ER is space-separated while infra requires the colon (`latency-ms: 50`). ER follows SQL DDL muscle memory; it is the single exception to memorize.
 
 **Colons never appear in:**
+
 - Directives and options — space-separated (`start 2026-03-15`, `x-label Low, High`, `region`)
 - Tag declarations and chart type declarations
 - Series declarations and data rows for simple/data charts (incl. sankey/chord/arc links `Source -> Target value` and quadrant data; space-delimited, commas tolerated)
@@ -2663,7 +2815,7 @@ A colon binds a value, and it appears in exactly **four syntactic positions** �
 
 ---
 
-## 26. Authoring Rules (Generators Read This First)
+## 27. Authoring Rules (Generators Read This First)
 
 A consolidated checklist for generators. Following these prevents the most common parse errors. **LLMs generating DGMO: read this first.**
 
@@ -2700,18 +2852,18 @@ API description: Main gateway
 
 ### 26.3 Scope of Universal-Looking Features
 
-Some constructs *look* universal but are scoped to specific chart types. Don't transplant them across charts.
+Some constructs _look_ universal but are scoped to specific chart types. Don't transplant them across charts.
 
-| Construct | Scope |
-|-----------|-------|
-| `collapsed: true` metadata | sequence, infra, mindmap, pert |
-| Same-line / indented metadata on declarations | all chart types except flowchart, state, data charts (§1.4) |
-| Trailing-keyword flag list | wireframe only (§19) |
-| `progress: <N>` key | gantt only (§13) |
-| `score: <N>` + `emotion: <Word>` keys | journey-map only (§22) |
-| `description: <text>` shorthand for layers | pyramid, ring (§23, §24) |
-| `milestone` keyword | **removed** — use `<name> 0` (§13A) |
-| `\|` operator as metadata delimiter | **removed** (§1.4). Surviving uses: wireframe `{A \| B}` braces, in-arrow `A -file\|name-> B`, quoted `"Order \| Items"` |
+| Construct                                     | Scope                                                                                                                    |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `collapsed: true` metadata                    | sequence, infra, mindmap, pert                                                                                           |
+| Same-line / indented metadata on declarations | all chart types except flowchart, state, data charts (§1.4)                                                              |
+| Trailing-keyword flag list                    | wireframe only (§19)                                                                                                     |
+| `progress: <N>` key                           | gantt only (§13)                                                                                                         |
+| `score: <N>` + `emotion: <Word>` keys         | journey-map only (§22)                                                                                                   |
+| `description: <text>` shorthand for layers    | pyramid, ring (§23, §24)                                                                                                 |
+| `milestone` keyword                           | **removed** — use `<name> 0` (§13A)                                                                                      |
+| `\|` operator as metadata delimiter           | **removed** (§1.4). Surviving uses: wireframe `{A \| B}` braces, in-arrow `A -file\|name-> B`, quoted `"Order \| Items"` |
 
 ### 26.4 Quoted Names + Aliases — Pick One
 
@@ -2740,7 +2892,7 @@ Before considering DGMO output complete, mentally verify:
 3. Metadata uses §1.4 — same-line `key: value, ...` after the name region, or indented `key: value` for reserved keys. No `|` delimiter anywhere except wireframe dropdowns, in-arrow label characters, and quoted name characters.
 4. Wireframe flags are written as space-separated lowercase trailing keywords from the closed enum (§19).
 5. Journey-map steps use `score: N, emotion: Word`; gantt tasks use `progress: N`; pyramid/ring layers use `description: <text>` (quote when the value contains commas).
-6. All chart types use `collapsed: true` metadata for collapse (§26.3).
+6. All chart types use `collapsed: true` metadata for collapse (§27.3).
 7. Quoted names don't carry `as <alias>` on the same line.
 8. Sequence participants with alias or quoted names use `is a <type>`.
 9. No `milestone` keyword in PERT — use `<name> 0`.
