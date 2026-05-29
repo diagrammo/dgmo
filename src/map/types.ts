@@ -1,0 +1,99 @@
+// AST for the `map` chart type, produced by parseMap (src/map/parser.ts).
+// RAW + un-resolved: region/POI/edge names are verbatim strings; geocoding,
+// ISO/GeoNames validation, did-you-mean, dedup, and basemap/extent inference
+// are the resolver's job (step 3). Rendering is step 4. See spec §24B.
+import type { DgmoError } from '../diagnostics';
+import type { TagGroup } from '../utils/tag-groups';
+
+/** A POI / route-stop position: gazetteer name (+ optional ISO scope) or coords. */
+export type PoiPos =
+  | { readonly kind: 'coords'; readonly lat: number; readonly lon: number }
+  | { readonly kind: 'name'; readonly name: string; readonly scope?: string };
+
+/** `scale <min> <max> [center <n>]` (center reserved for the diverging seam, §24B.12). */
+export interface MapScale {
+  readonly min: number;
+  readonly max: number;
+  readonly center?: number;
+}
+
+/** One-shot directives (§24B.2/.7). Values are raw strings unless typed. */
+export interface MapDirectives {
+  region?: string;
+  projection?: string;
+  metric?: string;
+  sizeMetric?: string;
+  scale?: MapScale;
+  regionLabels?: string; // full | abbrev | off
+  poiLabels?: string; // off | auto | all
+  defaultCountry?: string;
+  defaultState?: string;
+  activeTag?: string;
+  noLegend?: boolean;
+  subtitle?: string;
+  caption?: string;
+}
+
+/** A region-fill: a subdivision name with an optional score and/or tag values
+ *  (§24B.3/.4 — BOTH may be present; bivariate seam). */
+export interface MapRegion {
+  readonly name: string;
+  readonly score?: number;
+  /** Tag values keyed by lowercased tag GROUP name (alias is resolved away). */
+  readonly tags: Readonly<Record<string, string>>;
+  /** Other reserved-but-inert keys (description/date/…) captured verbatim. */
+  readonly meta: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
+}
+
+/** A point of interest (§24B.5). `meta` holds reserved-but-inert keys
+ *  (size/score/description/weight/date) verbatim; `label` is lifted out. */
+export interface MapPoi {
+  readonly pos: PoiPos;
+  readonly alias?: string;
+  readonly label?: string;
+  readonly tags: Readonly<Record<string, string>>;
+  readonly meta: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
+}
+
+/** A route stop (§24B.6); raw order preserved incl. a repeated first==last (loop). */
+export interface MapRouteStop {
+  readonly ref: PoiPos;
+  readonly alias?: string;
+  readonly meta: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
+}
+
+/** An ordered, auto-numbered route (§24B.6). `meta.style==='arc'` curves legs. */
+export interface MapRoute {
+  readonly stops: readonly MapRouteStop[];
+  readonly meta: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
+}
+
+/** A connector (§24B.6). Endpoints are RAW identifier strings (name or alias);
+ *  binding to POIs/regions is the resolver's job. `~>`→arc; `--`→directed:false. */
+export interface MapEdge {
+  readonly from: string;
+  readonly to: string;
+  readonly label?: string;
+  readonly directed: boolean;
+  readonly style: 'straight' | 'arc';
+  readonly meta: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
+}
+
+export interface ParsedMap {
+  readonly title: string | null;
+  readonly titleLineNumber: number | null;
+  readonly directives: MapDirectives;
+  readonly tagGroups: readonly TagGroup[];
+  readonly regions: readonly MapRegion[];
+  readonly pois: readonly MapPoi[];
+  readonly routes: readonly MapRoute[];
+  readonly edges: readonly MapEdge[];
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
+}
