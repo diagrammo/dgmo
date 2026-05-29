@@ -520,6 +520,55 @@ export { parseRing } from './ring/parser';
 export { renderRing, renderRingForExport } from './ring/renderer';
 export type { ParsedRing, RingLayer } from './ring/types';
 
+// Map (§24B) — the interactive render surface for app/editor consumers. The
+// Node fs `loadMapData` is exported for completeness, but the browser supplies
+// `MapData` by DI (resolveMap/renderMap take it as an argument).
+export { parseMap, looksLikeMap } from './map/parser';
+export { resolveMap } from './map/resolver';
+export { loadMapData } from './map/load-data';
+export { layoutMap } from './map/layout';
+export type {
+  MapLayout,
+  MapLayoutRegion,
+  MapLayoutPoi,
+  MapLayoutLeg,
+  PlacedLabel,
+  MapLayoutLegend,
+} from './map/layout';
+export { renderMap, renderMapForExport } from './map/renderer';
+export type {
+  ParsedMap,
+  MapDirectives,
+  MapRegion,
+  MapPoi,
+  MapRoute,
+  MapEdge,
+  PoiPos,
+} from './map/types';
+export type {
+  ResolvedMap,
+  MapData,
+  ResolvedRegion,
+  ResolvedPoi,
+  ResolvedEdge,
+  ResolvedRoute,
+  ProjectionFamily,
+  GeoExtent,
+} from './map/resolved-types';
+export { completeMapPlaces, completeMapRegions } from './map/completion';
+export type {
+  MapPlaceCompletion,
+  MapRegionCompletion,
+  MapCompletionOptions,
+} from './map/completion';
+export type {
+  Gazetteer,
+  GazetteerEntry,
+  BoundaryTopology,
+  RegionName,
+  RegionNames,
+} from './map/data/types';
+
 export type { RaciDragSource, RaciInteractionHandlers } from './raci';
 export {
   parseRaci,
