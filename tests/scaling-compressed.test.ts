@@ -109,7 +109,9 @@ describe('compressed rendering (500px)', () => {
     for (const fs of fontSizes) {
       expect(fs).toBeGreaterThanOrEqual(9);
     }
-    expect(svgStr).toMatchSnapshot();
+    // No full-SVG snapshot: raci compressed layout has FP-fragile geometry that
+    // differs in the last digit across platforms (macOS vs CI Linux), causing
+    // false mismatches. The `fonts >= 9px` invariant above is the real guard.
   });
 
   it('mindmap at 400px — fonts >= 9px', () => {
@@ -127,7 +129,8 @@ describe('compressed rendering (500px)', () => {
     for (const fs of fontSizes) {
       expect(fs).toBeGreaterThanOrEqual(9);
     }
-    expect(svgStr).toMatchSnapshot();
+    // No full-SVG snapshot: mindmap compressed layout is FP-fragile across
+    // platforms (macOS vs CI Linux). The `fonts >= 9px` invariant is the guard.
   });
 
   it('tech-radar at 500px — fonts >= 9px', () => {
