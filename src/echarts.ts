@@ -1,5 +1,5 @@
 import * as echarts from 'echarts/core';
-import type { EChartsOption } from 'echarts';
+import type { EChartsOption, LabelLayoutOptionCallback } from 'echarts';
 import {
   BarChart,
   LineChart,
@@ -3217,6 +3217,35 @@ function buildPolarAreaOption(
 
 // ── Bar Stacked ──────────────────────────────────────────────
 
+// Suppress a stacked segment's value label when the text can't fit inside the
+// segment box. Many-series stacks otherwise pile short-segment labels on top of
+// each other and onto the chart background. Segments too small to hold their
+// value simply drop the label; the value stays available on hover in the live
+// preview (see the item tooltip enabled below). `hideOverlap` is kept on for
+// fitting labels so any residual collisions are resolved too.
+//
+// A small padding keeps a kept label from rendering flush against the segment
+// border (a label that only fits edge-to-edge reads as cramped/overflowing).
+const FIT_PADDING = 2;
+// Hiding a non-fitting label is renderer-dependent: `fontSize: 0` drops it in
+// the SVG renderer (CLI/SSR/export) and in Chromium canvas, but WebKit canvas
+// (Tauri's WKWebView — the desktop app) IGNORES `fontSize: 0` and still paints
+// the text. Moving it far off-canvas (`x/y`) hides it in WebKit canvas too.
+// Both together cover SVG export + Chromium + WebKit. `OFFSCREEN` is large
+// enough to clear any realistic chart but finite (avoids NaN/Infinity layout).
+const OFFSCREEN = -99999;
+const fitStackedLabelToSegment: LabelLayoutOptionCallback = ({
+  rect,
+  labelRect,
+}) => {
+  const fits =
+    labelRect.width <= rect.width - FIT_PADDING &&
+    labelRect.height <= rect.height - FIT_PADDING;
+  return fits
+    ? { hideOverlap: true }
+    : { x: OFFSCREEN, y: OFFSCREEN, fontSize: 0 };
+};
+
 function buildBarStackedOption(
   parsed: ParsedChart,
   palette: PaletteColors,
@@ -3273,6 +3302,7 @@ function buildBarStackedOption(
         fontWeight: 'bold' as const,
         fontFamily: FONT_FAMILY,
       },
+      labelLayout: fitStackedLabelToSegment,
       emphasis: EMPHASIS_SERIES,
       blur: BLUR_DIM,
     };
@@ -3329,6 +3359,9 @@ function buildBarStackedOption(
     xAxis: isHorizontal ? valueAxis : categoryAxis,
     yAxis: isHorizontal ? { ...categoryAxis, inverse: true } : valueAxis,
     series,
+    // No native tooltip — consistent with every other chart type (CHART_BASE
+    // suppresses it). Values culled by the resting fit-gate are surfaced by the
+    // app's hover label-reveal instead.
   };
 }
 

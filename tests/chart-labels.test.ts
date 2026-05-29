@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { parseChart } from '../src/chart';
-import { buildSimpleChartOption } from '../src/echarts';
+import {
+  buildSimpleChartOption,
+  renderExtendedChartForExport,
+} from '../src/echarts';
 import { getPalette } from '../src/palettes';
+import { nordPalette } from '../src/palettes/nord';
 
 const palette = getPalette('nord').light;
 
@@ -165,5 +169,119 @@ describe('no-value suppression on default-on charts', () => {
       series: { label?: { show?: boolean } }[];
     };
     expect(opt.series?.[0]?.label?.show).toBe(false);
+  });
+});
+
+// ─── Stacked-segment label fit-gating + hover ────────────────────
+
+describe('bar-stacked label fit-gating', () => {
+  const data = '\nseries A, B\nQ1 10, 20\nQ2 30, 40';
+
+  type FitFn = (p: {
+    rect: { width: number; height: number };
+    labelRect: { width: number; height: number };
+  }) => { fontSize?: number; hideOverlap?: boolean };
+
+  function fitFn(): FitFn {
+    const opt = build('bar-stacked' + data) as {
+      series: { labelLayout?: FitFn }[];
+    };
+    const fn = opt.series?.[0]?.labelLayout;
+    if (typeof fn !== 'function') throw new Error('no labelLayout callback');
+    return fn;
+  }
+
+  it('attaches a labelLayout fit-check to each segment series', () => {
+    const opt = build('bar-stacked' + data) as {
+      series: { labelLayout?: unknown }[];
+    };
+    for (const s of opt.series) expect(typeof s.labelLayout).toBe('function');
+  });
+
+  it('keeps the label when the value fits inside the segment', () => {
+    const out = fitFn()({
+      rect: { width: 80, height: 40 },
+      labelRect: { width: 30, height: 16 },
+    });
+    expect(out.fontSize).toBeUndefined();
+    expect(out.hideOverlap).toBe(true);
+  });
+
+  it('hides the label when the segment is too short to hold it', () => {
+    const out = fitFn()({
+      rect: { width: 80, height: 10 },
+      labelRect: { width: 30, height: 16 },
+    });
+    expect(out.fontSize).toBe(0);
+  });
+
+  it('hides the label when the segment is too narrow to hold it', () => {
+    const out = fitFn()({
+      rect: { width: 20, height: 40 },
+      labelRect: { width: 30, height: 16 },
+    });
+    expect(out.fontSize).toBe(0);
+  });
+
+  it('does not enable a native tooltip (consistent with other charts; hidden values are revealed on hover instead)', () => {
+    const opt = build('bar-stacked' + data) as {
+      tooltip?: { show?: boolean };
+    };
+    expect(opt.tooltip?.show).not.toBe(true);
+  });
+});
+
+// ─── Many-series resting cull (AC9) — rendered SSR output ─────────
+
+describe('bar-stacked many-series fit-gate culls multiple labels (AC9)', () => {
+  // ~9 series with several segments too small to hold their value text,
+  // mirroring the motivating "Monthly Cost by Service" pile-up case.
+  const manySeries = `bar-stacked Monthly Cost by Service
+x-label Month
+y-label Cost USD
+
+series
+  Others gray
+  Cloud Run blue
+  Invoice green
+  reCAPTCHA orange
+  Cloud Logging red
+  Cloud Dataflow purple
+  Networking yellow
+  Cloud Monitoring cyan
+  Big teal
+
+Jan-25 4839 98 828 265 404 1128 3032 5828 52177
+Feb-25 5549 94 789 239 533 1028 2968 5303 51078
+Mar-25 4802 130 855 488 808 1138 3886 6850 62152`;
+
+  // All 27 segment values, in row order.
+  const allValues = [
+    4839, 98, 828, 265, 404, 1128, 3032, 5828, 52177, 5549, 94, 789, 239, 533,
+    1028, 2968, 5303, 51078, 4802, 130, 855, 488, 808, 1138, 3886, 6850, 62152,
+  ].map(String);
+
+  it('culls a large fraction of segment labels, not just one', async () => {
+    const svg = await renderExtendedChartForExport(
+      manySeries,
+      'dark',
+      nordPalette.dark
+    );
+
+    // Count-based (not cherry-picked): of 27 segments, materially fewer than
+    // all are labeled — proving multiple culls. A regression that stopped
+    // culling (or that culled everything) fails this bound.
+    const shown = allValues.filter((v) => svg.includes(`>${v}<`));
+    expect(shown.length).toBeLessThan(allValues.length - 6);
+    expect(shown.length).toBeGreaterThan(0);
+
+    // The dominant segments must still be labeled.
+    for (const v of ['52177', '51078', '62152']) {
+      expect(svg, `large value ${v} should be shown`).toContain(`>${v}<`);
+    }
+    // Clearly-too-small segments must be culled.
+    for (const v of ['98', '94', '130']) {
+      expect(svg, `tiny value ${v} should be culled`).not.toContain(`>${v}<`);
+    }
   });
 });
