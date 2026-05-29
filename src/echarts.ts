@@ -43,6 +43,7 @@ echarts.use([
 ]);
 import { FONT_FAMILY } from './fonts';
 import { renderLegendSvg } from './utils/legend-svg';
+import { LEGEND_HEIGHT } from './utils/legend-constants';
 import type { LegendGroupData } from './utils/legend-svg';
 import {
   type LabelRect,
@@ -3443,11 +3444,45 @@ export async function renderExtendedChartForExport(
   }
   if (!option || Object.keys(option).length === 0) return '';
 
-  // When using custom legend, strip ECharts' built-in legend
+  // When using custom legend, strip ECharts' built-in legend and pre-render
+  // the wrapped legend so we can reserve enough top space for it (a long
+  // legend wraps onto multiple rows and must not overlap the plot).
+  let legendSvgStr = '';
+  let legendY = 0;
   if (legendGroups.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { legend: _legend, ...rest } = option;
     option = rest;
+
+    const titleHeight =
+      option.title && (option.title as { text?: string }).text ? 40 : 0;
+    legendY = 8 + titleHeight;
+    const { svg, height: legendH } = renderLegendSvg(legendGroups, {
+      palette: effectivePalette,
+      isDark,
+      containerWidth: ECHART_EXPORT_WIDTH,
+      // In-bounds by legendGroups.length > 0 guard above.
+      activeGroup: legendGroups[0]!.name,
+      className: 'chart-legend',
+    });
+    legendSvgStr = svg;
+
+    // Grow the grid's top inset when the legend wraps past its single-row
+    // reservation so bars/lines don't render under the wrapped rows.
+    const grid = option.grid as Record<string, unknown> | undefined;
+    if (grid && legendH > LEGEND_HEIGHT) {
+      const requiredTopPx = legendY + legendH + 12;
+      const curTop = grid['top'];
+      const curTopPx =
+        typeof curTop === 'string' && curTop.endsWith('%')
+          ? (parseFloat(curTop) / 100) * ECHART_EXPORT_HEIGHT
+          : typeof curTop === 'number'
+            ? curTop
+            : typeof curTop === 'string'
+              ? parseFloat(curTop)
+              : 0;
+      if (requiredTopPx > curTopPx) grid['top'] = `${requiredTopPx}px`;
+    }
   }
 
   const chart = echarts.init(null, null, {
@@ -3471,31 +3506,10 @@ export async function renderExtendedChartForExport(
       `<svg style="${bgStyle}font-family: ${FONT_FAMILY}" `
     );
 
-    // Inject custom legend SVG when present
-    if (legendGroups.length > 0) {
-      const titleHeight =
-        option.title && (option.title as { text?: string }).text ? 40 : 0;
-      const legendY = 8 + titleHeight;
-      // In static export, expand the first group so entries are visible
-      // Extract grid offsets for plot-area-centered legend
-      const grid = option.grid as Record<string, unknown> | undefined;
-      const gridLeftPct = grid?.['left']
-        ? parseFloat(String(grid['left']))
-        : undefined;
-      const gridRightPct = grid?.['right']
-        ? parseFloat(String(grid['right']))
-        : undefined;
-      const { svg: legendSvgStr } = renderLegendSvg(legendGroups, {
-        palette: effectivePalette,
-        isDark,
-        containerWidth: ECHART_EXPORT_WIDTH,
-        ...(gridLeftPct !== undefined && { gridLeftPct }),
-        ...(gridRightPct !== undefined && { gridRightPct }),
-        // In-bounds by legendGroups.length > 0 guard above.
-        activeGroup: legendGroups[0]!.name,
-        className: 'chart-legend',
-      });
-      // Insert legend group right after the opening <svg ...> tag
+    // Inject the pre-rendered custom legend SVG (computed above so its
+    // wrapped height could reserve grid space). Centered within the full
+    // canvas width by the layout engine, so no x offset is needed.
+    if (legendSvgStr) {
       result = result.replace(
         /(<svg[^>]*>)/,
         `$1<g transform="translate(0,${legendY})">${legendSvgStr}</g>`

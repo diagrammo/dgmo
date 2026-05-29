@@ -3,23 +3,29 @@
 // Produces SVG <g> elements matching the standard legend style
 // used across all diagram types (capsule pills with colored dots).
 //
-// New config-based API: renderLegendSvgFromConfig()
-// Legacy API: renderLegendSvg() — unchanged, used by ECharts
+// Both renderLegendSvg() (string, used by ECharts + static export) and
+// renderLegendD3() (DOM, used by every structured diagram) now drive off
+// the SAME layout engine — `computeLegendLayout` — so the ECharts legend
+// wraps long entry lists onto multiple rows exactly like the D3 diagrams.
+// This file is the SSR/string view of that layout; legend-d3.ts is the
+// interactive DOM view. Text is positioned with explicit baseline math
+// (not dominant-baseline) so resvg renders it correctly in PNG export.
 // ============================================================
 
-import type { LegendConfig, LegendState, LegendPalette } from './legend-types';
+import type {
+  LegendConfig,
+  LegendState,
+  LegendPalette,
+  LegendCapsuleLayout,
+  LegendPillLayout,
+} from './legend-types';
 import {
   LEGEND_HEIGHT,
-  LEGEND_PILL_PAD,
   LEGEND_PILL_FONT_SIZE,
-  LEGEND_CAPSULE_PAD,
   LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_DOT_GAP,
-  LEGEND_ENTRY_TRAIL,
-  LEGEND_GROUP_GAP,
-  measureLegendText,
 } from './legend-constants';
+import { computeLegendLayout } from './legend-layout';
 import { mix } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
 
@@ -36,11 +42,12 @@ export interface LegendGroupData {
 interface LegendRenderOptions {
   palette: { bg: string; surface: string; text: string; textMuted: string };
   isDark: boolean;
+  /**
+   * Width to wrap entries against (entries flow onto new rows past this).
+   * Pass 0 when the caller CSS-centers a natural-width legend; a generous
+   * fallback budget is used so a single row still fits on one line.
+   */
   containerWidth: number;
-  /** Grid left offset as percentage (e.g. 12 for '12%'). Centers legend over plot area. */
-  gridLeftPct?: number;
-  /** Grid right offset as percentage (e.g. 4 for '4%'). Centers legend over plot area. */
-  gridRightPct?: number;
   activeGroup?: string | null;
   className?: string;
 }
@@ -62,32 +69,58 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function pillWidth(name: string): number {
-  return measureLegendText(name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-}
+/** Active capsule (group pill + wrapped colored-dot entries) → SVG string. */
+function emitCapsule(
+  capsule: LegendCapsuleLayout,
+  palette: LegendRenderOptions['palette'],
+  groupBg: string,
+  pillBorder: string
+): string {
+  const inner: string[] = [];
+  const pill = capsule.pill;
 
-function entriesWidth(
-  entries: ReadonlyArray<{ readonly value: string }>
-): number {
-  let w = 0;
-  for (const e of entries) {
-    w +=
-      LEGEND_DOT_R * 2 +
-      LEGEND_ENTRY_DOT_GAP +
-      measureLegendText(e.value, LEGEND_ENTRY_FONT_SIZE) +
-      LEGEND_ENTRY_TRAIL;
+  // Outer capsule background (grows to the wrapped entry rows' height)
+  inner.push(
+    `<rect width="${capsule.width}" height="${capsule.height}" rx="${LEGEND_HEIGHT / 2}" fill="${esc(groupBg)}"/>`
+  );
+
+  // Inner pill background + border
+  inner.push(
+    `<rect x="${pill.x}" y="${pill.y}" width="${pill.width}" height="${pill.height}" rx="${pill.height / 2}" fill="${esc(palette.bg)}"/>`,
+    `<rect x="${pill.x}" y="${pill.y}" width="${pill.width}" height="${pill.height}" rx="${pill.height / 2}" fill="none" stroke="${esc(pillBorder)}" stroke-width="0.75"/>`
+  );
+
+  // Pill text — vertically centered in the first row.
+  inner.push(
+    `<text x="${pill.x + pill.width / 2}" y="${LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2}" font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(palette.text)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(capsule.groupName)}</text>`
+  );
+
+  // Wrapped entries — dots + labels positioned by the layout engine.
+  for (const entry of capsule.entries) {
+    const label = entry.displayValue ?? entry.value;
+    inner.push(
+      `<g data-legend-entry="${esc(entry.value.toLowerCase())}" data-series-name="${esc(entry.value)}" style="cursor:pointer">` +
+        `<circle cx="${entry.dotCx}" cy="${entry.dotCy}" r="${LEGEND_DOT_R}" fill="${esc(entry.color)}"/>` +
+        `<text x="${entry.textX}" y="${entry.dotCy + LEGEND_ENTRY_FONT_SIZE / 2 - 1}" font-size="${LEGEND_ENTRY_FONT_SIZE}" fill="${esc(palette.textMuted)}" font-family="${esc(FONT_FAMILY)}">${esc(label)}</text>` +
+        `</g>`
+    );
   }
-  return w;
+
+  return `<g transform="translate(${capsule.x},${capsule.y})" data-legend-group="${esc(capsule.groupName.toLowerCase())}" style="cursor:pointer">${inner.join('')}</g>`;
 }
 
-function groupTotalWidth(
-  name: string,
-  entries: ReadonlyArray<{ readonly value: string }>,
-  isActive: boolean
-): number {
-  const pw = pillWidth(name);
-  if (!isActive) return pw;
-  return LEGEND_CAPSULE_PAD * 2 + pw + 4 + entriesWidth(entries);
+/** Collapsed group pill (no active group) → SVG string. */
+function emitPill(
+  pill: LegendPillLayout,
+  palette: LegendRenderOptions['palette'],
+  groupBg: string
+): string {
+  return (
+    `<g transform="translate(${pill.x},${pill.y})" data-legend-group="${esc(pill.groupName.toLowerCase())}" style="cursor:pointer">` +
+    `<rect width="${pill.width}" height="${pill.height}" rx="${pill.height / 2}" fill="${esc(groupBg)}"/>` +
+    `<text x="${pill.width / 2}" y="${pill.height / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2}" font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(palette.textMuted)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(pill.groupName)}</text>` +
+    `</g>`
+  );
 }
 
 // ── Main renderer ────────────────────────────────────────────
@@ -99,95 +132,48 @@ export function renderLegendSvg(
   if (groups.length === 0) return { svg: '', height: 0, width: 0 };
 
   const { palette, isDark, containerWidth, activeGroup, className } = options;
+
+  // The layout engine wraps entries against the available width. Callers that
+  // CSS-center the legend pass containerWidth: 0 — fall back to a generous
+  // budget so a single row still fits rather than wrapping one-per-line.
+  const wrapWidth = containerWidth > 0 ? containerWidth : 1200;
+
+  const config: LegendConfig = {
+    groups,
+    position: { placement: 'top-center', titleRelation: 'below-title' },
+    mode: 'preview',
+  };
+  const state: LegendState = { activeGroup: activeGroup ?? null };
+  const layout = computeLegendLayout(config, state, wrapWidth);
+
+  if (!layout.activeCapsule && layout.pills.length === 0) {
+    return { svg: '', height: 0, width: 0 };
+  }
+
   const groupBg = isDark
     ? mix(palette.surface, palette.bg, 50)
     : mix(palette.surface, palette.bg, 30);
-
-  // Pre-compute layout
-  const items = groups
-    .filter((g) => g.entries.length > 0)
-    .map((g) => {
-      const isActive =
-        !!activeGroup && g.name.toLowerCase() === activeGroup.toLowerCase();
-      const pw = pillWidth(g.name);
-      const tw = groupTotalWidth(g.name, g.entries, isActive);
-      return { group: g, isActive, pillWidth: pw, totalWidth: tw };
-    });
-
-  if (items.length === 0) return { svg: '', height: 0, width: 0 };
-
-  const totalWidth =
-    items.reduce((s, it) => s + it.totalWidth, 0) +
-    (items.length - 1) * LEGEND_GROUP_GAP;
-
-  // Center over the plot area when grid offsets are provided, otherwise full container
-  const plotLeft = options.gridLeftPct
-    ? (containerWidth * options.gridLeftPct) / 100
-    : 0;
-  const plotRight = options.gridRightPct
-    ? containerWidth - (containerWidth * options.gridRightPct) / 100
-    : containerWidth;
-  const plotWidth = plotRight - plotLeft;
-  let x = Math.max(0, plotLeft + (plotWidth - totalWidth) / 2);
+  const pillBorder = mix(palette.textMuted, palette.bg, 50);
 
   const parts: string[] = [];
-  const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
+  let bottom = 0;
+  let left = Infinity;
+  let right = 0;
 
-  for (const item of items) {
-    const groupKey = item.group.name.toLowerCase();
-    const inner: string[] = [];
+  const track = (x: number, y: number, w: number, h: number): void => {
+    left = Math.min(left, x);
+    right = Math.max(right, x + w);
+    bottom = Math.max(bottom, y + h);
+  };
 
-    // Outer capsule (active only)
-    if (item.isActive) {
-      inner.push(
-        `<rect width="${item.totalWidth}" height="${LEGEND_HEIGHT}" rx="${LEGEND_HEIGHT / 2}" fill="${esc(groupBg)}"/>`
-      );
-    }
-
-    const pillXOff = item.isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillYOff = LEGEND_CAPSULE_PAD;
-    const h = pillH;
-
-    // Pill background
-    inner.push(
-      `<rect x="${pillXOff}" y="${pillYOff}" width="${item.pillWidth}" height="${h}" rx="${h / 2}" fill="${esc(item.isActive ? palette.bg : groupBg)}"/>`
-    );
-
-    // Active pill border
-    if (item.isActive) {
-      inner.push(
-        `<rect x="${pillXOff}" y="${pillYOff}" width="${item.pillWidth}" height="${h}" rx="${h / 2}" fill="none" stroke="${esc(mix(palette.textMuted, palette.bg, 50))}" stroke-width="0.75"/>`
-      );
-    }
-
-    // Pill text
-    inner.push(
-      `<text x="${pillXOff + item.pillWidth / 2}" y="${LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2}" font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(item.isActive ? palette.text : palette.textMuted)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(item.group.name)}</text>`
-    );
-
-    // Entry dots + labels (active only)
-    if (item.isActive) {
-      let entryX = pillXOff + item.pillWidth + 4;
-      for (const entry of item.group.entries) {
-        const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
-        inner.push(
-          `<g data-legend-entry="${esc(entry.value.toLowerCase())}" data-series-name="${esc(entry.value)}" style="cursor:pointer">` +
-            `<circle cx="${entryX + LEGEND_DOT_R}" cy="${LEGEND_HEIGHT / 2}" r="${LEGEND_DOT_R}" fill="${esc(entry.color)}"/>` +
-            `<text x="${textX}" y="${LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1}" font-size="${LEGEND_ENTRY_FONT_SIZE}" fill="${esc(palette.textMuted)}" font-family="${esc(FONT_FAMILY)}">${esc(entry.value)}</text>` +
-            `</g>`
-        );
-        entryX =
-          textX +
-          measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
-          LEGEND_ENTRY_TRAIL;
-      }
-    }
-
-    parts.push(
-      `<g transform="translate(${x},0)" data-legend-group="${esc(groupKey)}" style="cursor:pointer">${inner.join('')}</g>`
-    );
-
-    x += item.totalWidth + LEGEND_GROUP_GAP;
+  if (layout.activeCapsule) {
+    const c = layout.activeCapsule;
+    parts.push(emitCapsule(c, palette, groupBg, pillBorder));
+    track(c.x, c.y, c.width, c.height);
+  }
+  for (const pill of layout.pills) {
+    parts.push(emitPill(pill, palette, groupBg));
+    track(pill.x, pill.y, pill.width, pill.height);
   }
 
   const classAttr = className ? ` class="${esc(className)}"` : '';
@@ -196,7 +182,11 @@ export function renderLegendSvg(
     : '';
   const svg = `<g${classAttr}${activeAttr}>${parts.join('')}</g>`;
 
-  return { svg, height: LEGEND_HEIGHT, width: totalWidth };
+  return {
+    svg,
+    height: bottom,
+    width: right - (left === Infinity ? 0 : left),
+  };
 }
 
 // ── Config-based API ────────────────────────────────────────
