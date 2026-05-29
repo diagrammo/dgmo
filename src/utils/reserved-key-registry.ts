@@ -72,6 +72,21 @@ export const INFRA_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'icon',
 ]);
 
+// NOTE: `color` is deliberately OMITTED (unlike sibling registries) — per
+// §24B.9 the map chart type carries color as a trailing token (peeled by
+// `peelTrailingColorName`) / via the tag system, not a `color:` metadata key.
+// `date`/`weight`/`style` are reserved seams (§24B.12): included so they require
+// colons and don't bleed into a name region, but inert in v1.
+export const MAP_REGISTRY: ReservedKeyRegistry = staticRegistry([
+  'score',
+  'label',
+  'size',
+  'description',
+  'weight',
+  'style',
+  'date',
+]);
+
 export const ORG_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',

@@ -47,6 +47,7 @@ export const CHART_TYPES = new Set([
   'timeline',
   'venn',
   'quadrant',
+  'map',
 ]);
 
 /** Metadata keys recognized across chart types. */
@@ -79,6 +80,11 @@ export const METADATA_KEYS = new Set([
   'quadrant',
   'ring',
   'trend',
+  // Map (§24B) metadata keys
+  'score',
+  'label',
+  'description',
+  'weight',
 ]);
 
 /** Tag declaration keyword. */
@@ -144,6 +150,20 @@ export const DIRECTIVE_KEYWORDS = new Set([
   // Sequence
   'activations',
   'no-activations',
+  // Map (§24B) directives
+  'region',
+  'projection',
+  'metric',
+  'size-metric',
+  'region-labels',
+  'poi-labels',
+  'default-country',
+  'default-state',
+  'no-legend',
+  'subtitle',
+  'caption',
+  'poi',
+  'route',
   // Data charts
   'stacked',
   'no-name',

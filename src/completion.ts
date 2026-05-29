@@ -506,6 +506,35 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // layer pipe-metadata, not directives — they live in PIPE_METADATA.
     withGlobals({}),
   ],
+  [
+    'map',
+    // Geographic map directives (§24B.2/.7). `poi`/`route` are content
+    // keywords, not directives; metadata keys (score/size/label) live in the
+    // reserved-key registry.
+    withGlobals({
+      region: { description: 'Force a basemap/extent (world | us-states)' },
+      projection: {
+        description: 'Override the auto projection',
+        values: ['natural-earth', 'albers-usa', 'mercator'],
+      },
+      metric: { description: 'Label for the region score ramp' },
+      'size-metric': { description: 'Label for the POI size channel' },
+      scale: { description: 'Override score ramp anchors: scale <min> <max>' },
+      'region-labels': {
+        description: 'Subdivision name labels',
+        values: ['full', 'abbrev', 'off'],
+      },
+      'poi-labels': {
+        description: 'POI labels/values',
+        values: ['off', 'auto', 'all'],
+      },
+      'default-country': { description: 'ISO scope for bare city resolution' },
+      'default-state': { description: 'ISO subdivision scope' },
+      'no-legend': { description: 'Suppress the legend' },
+      subtitle: { description: 'Subtitle line' },
+      caption: { description: 'Caption line' },
+    }),
+  ],
 ]);
 
 // `rasci` and `daci` accept the same directives as `raci` (they're variants of

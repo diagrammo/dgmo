@@ -290,6 +290,19 @@ export const chartTypes: readonly ChartTypeMeta[] = [
       'nested circles',
     ],
   },
+  {
+    id: 'map',
+    description:
+      'Geographic concept map: highlight/score regions, drop points of interest, connect with routes or edges',
+    triggers: [
+      'world map',
+      'us states map',
+      'choropleth map',
+      'geographic map',
+      'map of countries',
+      'map with cities',
+    ],
+  },
 
   // ── Tier 3 — Specialized analytical charts ────────────────
   {

@@ -1,0 +1,9 @@
+map Caribbean Cruise
+projection mercator
+
+route style: arc
+  Miami label: Embark
+  Havana
+  Kingston
+  Santo Domingo
+  Miami

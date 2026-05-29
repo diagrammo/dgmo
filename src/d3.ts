@@ -8451,6 +8451,39 @@ export async function renderForExport(
     return finalizeSvgExport(container, theme, effectivePalette);
   }
 
+  if (detectedType === 'map') {
+    const { parseMap } = await import('./map/parser');
+    const { resolveMap } = await import('./map/resolver');
+    const { loadMapData } = await import('./map/load-data');
+    const { renderMapForExport } = await import('./map/renderer');
+
+    const effectivePalette = await resolveExportPalette(theme, palette);
+    const mapParsed = parseMap(content);
+    // Always render — an empty or partially-resolved map still draws the
+    // inferred base map (§24B.10 / layout AC23); diagnostics surface separately.
+    // Degrade like every other branch (return '') if the assets can't load,
+    // rather than throwing out of render() — e.g. a deployment without
+    // dist/map-data or the not-yet-supported browser fs path.
+    let mapData;
+    try {
+      mapData = await loadMapData();
+    } catch {
+      return '';
+    }
+    const mapResolved = resolveMap(mapParsed, mapData);
+
+    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+    renderMapForExport(
+      container,
+      mapResolved,
+      mapData,
+      effectivePalette,
+      theme === 'dark',
+      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+    );
+    return finalizeSvgExport(container, theme, effectivePalette);
+  }
+
   if (detectedType === 'pyramid') {
     const { parsePyramid } = await import('./pyramid/parser');
     const { renderPyramidForExport } = await import('./pyramid/renderer');
