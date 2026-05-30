@@ -34,6 +34,42 @@ export function rectCircleOverlap(
   return dx * dx + dy * dy < circle.r * circle.r;
 }
 
+/** Line-segment vs axis-aligned rect intersection (Liang–Barsky clip). True
+ *  when any part of the segment lies inside or crosses the rect. */
+export function segmentRectOverlap(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  rect: LabelRect
+): boolean {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  let t0 = 0;
+  let t1 = 1;
+  const edges: Array<[number, number]> = [
+    [-dx, x0 - rect.x],
+    [dx, rect.x + rect.w - x0],
+    [-dy, y0 - rect.y],
+    [dy, rect.y + rect.h - y0],
+  ];
+  for (const [p, q] of edges) {
+    if (p === 0) {
+      if (q < 0) return false; // parallel and outside this edge
+    } else {
+      const t = q / p;
+      if (p < 0) {
+        if (t > t1) return false;
+        if (t > t0) t0 = t;
+      } else {
+        if (t < t0) return false;
+        if (t < t1) t1 = t;
+      }
+    }
+  }
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Quadrant chart point label placement
 // ---------------------------------------------------------------------------

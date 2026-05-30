@@ -12,7 +12,6 @@ import {
   TITLE_Y,
 } from '../utils/title-constants';
 import { mix } from '../palettes/color-utils';
-import { measureLegendText } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes/types';
@@ -78,21 +77,13 @@ export function renderMap(
     .attr('height', height)
     .attr('fill', layout.background);
 
-  // Arrowhead marker for directed legs.
-  const arrowColor = mix(palette.text, palette.bg, 50);
+  // Arrowhead markers for directed legs. Sized in user-space (NOT the SVG
+  // default of stroke-width units) so a heavy weighted line doesn't blow the
+  // arrowhead up to a giant wedge. The size grows gently with the line width —
+  // enough to stay distinct from the stroke — but is firmly capped.
   const defs = svg.append('defs');
-  defs
-    .append('marker')
-    .attr('id', 'dgmo-map-arrow')
-    .attr('viewBox', '0 0 10 10')
-    .attr('refX', 9)
-    .attr('refY', 5)
-    .attr('markerWidth', 7)
-    .attr('markerHeight', 7)
-    .attr('orient', 'auto-start-reverse')
-    .append('path')
-    .attr('d', 'M0,0L10,5L0,10z')
-    .attr('fill', arrowColor);
+  // Dampened: ~8px at the thinnest leg, easing toward a 15px cap as legs widen.
+  const arrowSize = (w: number): number => Math.min(15, 7 + w * 0.95);
 
   // Neutral bg (not the water-tinted backdrop) so label halos read over both
   // land and ocean.
@@ -181,14 +172,31 @@ export function renderMap(
     .append('g')
     .attr('class', 'dgmo-map-legs')
     .attr('fill', 'none');
-  for (const leg of layout.legs) {
+  layout.legs.forEach((leg, i) => {
     const p = gLegs
       .append('path')
       .attr('d', leg.d)
       .attr('stroke', leg.color)
       .attr('stroke-width', leg.width)
       .attr('stroke-linecap', 'round');
-    if (leg.arrow) p.attr('marker-end', 'url(#dgmo-map-arrow)');
+    if (leg.arrow) {
+      const id = `dgmo-map-arrow-${i}`;
+      const s = arrowSize(leg.width);
+      defs
+        .append('marker')
+        .attr('id', id)
+        .attr('viewBox', '0 0 10 10')
+        .attr('refX', 10)
+        .attr('refY', 5)
+        .attr('markerUnits', 'userSpaceOnUse')
+        .attr('markerWidth', s)
+        .attr('markerHeight', s)
+        .attr('orient', 'auto-start-reverse')
+        .append('path')
+        .attr('d', 'M0,0L10,5L0,10z')
+        .attr('fill', leg.color);
+      p.attr('marker-end', `url(#${id})`);
+    }
     if (leg.label !== undefined && leg.labelX !== undefined) {
       emitText(
         gLegs,
@@ -202,7 +210,7 @@ export function renderMap(
         LABEL_FONT - 1
       );
     }
-  }
+  });
 
   // ── POIs ──
   const gPois = svg.append('g').attr('class', 'dgmo-map-pois');
@@ -259,77 +267,17 @@ export function renderMap(
         .attr('stroke', mix(palette.textMuted, palette.bg, 60))
         .attr('stroke-width', 0.75);
     }
-    if (lab.pin !== undefined) {
-      gLabels
-        .append('rect')
-        .attr('x', lab.x - 1)
-        .attr('y', lab.y - LABEL_FONT)
-        .attr('width', LABEL_FONT * 1.3)
-        .attr('height', LABEL_FONT * 1.3)
-        .attr('rx', 2)
-        .attr('fill', palette.surface)
-        .attr('stroke', palette.border);
-    }
-    if (lab.badge) {
-      // Solid rounded badge: a dark slate backing (a darker tint of the water
-      // shade, set in layout) + light text. Mostly opaque so it stays a uniform
-      // slate across every state — only a hint of the underlying fill tints
-      // through, so saturated states (red Texas/California) don't warp the pill.
-      const padX = 6;
-      const padY = 3;
-      const w = measureLegendText(lab.text, LABEL_FONT) + 2 * padX;
-      const h = LABEL_FONT + 2 * padY;
-      gLabels
-        .append('rect')
-        .attr('x', lab.x - w / 2)
-        .attr('y', lab.y - LABEL_FONT / 2 - padY)
-        .attr('width', w)
-        .attr('height', h)
-        .attr('rx', h / 2)
-        .attr('fill', lab.badgeFill ?? palette.text)
-        .attr('fill-opacity', 0.88);
-      gLabels
-        .append('text')
-        .attr('x', lab.x)
-        .attr('y', lab.y + LABEL_FONT * 0.34)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', LABEL_FONT)
-        .attr('font-weight', 600)
-        .attr('fill', lab.color)
-        .text(lab.text);
-    } else {
-      emitText(
-        gLabels,
-        lab.x,
-        lab.y,
-        lab.text,
-        lab.anchor,
-        lab.color,
-        lab.haloColor,
-        lab.halo,
-        LABEL_FONT
-      );
-    }
-  }
-
-  // ── Pin legend list ──
-  if (layout.pinList.length > 0) {
-    const gPins = svg
-      .append('g')
-      .attr('class', 'dgmo-map-pin-list')
-      .attr(
-        'transform',
-        `translate(12, ${height - layout.pinList.length * 14 - 8})`
-      );
-    layout.pinList.forEach((entry, i) => {
-      gPins
-        .append('text')
-        .attr('x', 0)
-        .attr('y', i * 14)
-        .attr('font-size', LABEL_FONT - 1)
-        .attr('fill', palette.textMuted)
-        .text(`${entry.pin} — ${entry.label}`);
-    });
+    emitText(
+      gLabels,
+      lab.x,
+      lab.y,
+      lab.text,
+      lab.anchor,
+      lab.color,
+      lab.haloColor,
+      lab.halo,
+      LABEL_FONT
+    );
   }
 
   // ── Legend (categorical via renderLegendD3 + ramp/size/weight blocks; AR1) ──
@@ -377,14 +325,14 @@ export function renderMap(
       const state: LegendState = { activeGroup: layout.legend.activeGroup };
       renderLegendD3(legendG, config, state, palette, isDark, undefined, width);
     }
-    // Custom keys (size / weight) — the score ramp now lives in the top legend
-    // above. Stacked above the pin list so they never overlap it (#3).
-    const pinGap = layout.pinList.length ? layout.pinList.length * 14 + 14 : 0;
-    emitExtraLegend(svg, layout, palette, height, pinGap);
+    // Custom keys (size / weight) — the score ramp now lives in the top legend.
+    emitExtraLegend(svg, layout, palette, height, 0);
   }
 
   // ── Title / subtitle / caption (foreground — drawn last so they sit above the
   // basemap, POIs, and labels; layout reserves top padding so POIs clear them) ──
+  // Soft bg halo so the banner stays legible over busy land/water (the muted
+  // subtitle/caption otherwise wash out on mid-toned palettes like gruvbox).
   if (layout.title) {
     svg
       .append('text')
@@ -394,6 +342,11 @@ export function renderMap(
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
+      .attr('paint-order', 'stroke fill')
+      .attr('stroke', palette.bg)
+      .attr('stroke-width', 4)
+      .attr('stroke-linejoin', 'round')
+      .attr('stroke-opacity', 0.7)
       .text(layout.title);
   }
   if (layout.subtitle) {
@@ -404,6 +357,11 @@ export function renderMap(
       .attr('text-anchor', 'middle')
       .attr('font-size', LABEL_FONT + 1)
       .attr('fill', palette.textMuted)
+      .attr('paint-order', 'stroke fill')
+      .attr('stroke', palette.bg)
+      .attr('stroke-width', 3)
+      .attr('stroke-linejoin', 'round')
+      .attr('stroke-opacity', 0.7)
       .text(layout.subtitle);
   }
   if (layout.caption) {
@@ -414,6 +372,11 @@ export function renderMap(
       .attr('text-anchor', 'middle')
       .attr('font-size', LABEL_FONT)
       .attr('fill', palette.textMuted)
+      .attr('paint-order', 'stroke fill')
+      .attr('stroke', palette.bg)
+      .attr('stroke-width', 3)
+      .attr('stroke-linejoin', 'round')
+      .attr('stroke-opacity', 0.7)
       .text(layout.caption);
   }
 }

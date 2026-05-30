@@ -16,9 +16,13 @@ import {
   type GeoPath,
 } from 'd3-geo';
 import { feature } from 'topojson-client';
-import { mix, shapeFill } from '../palettes/color-utils';
+import { mix, shapeFill, contrastText } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes/types';
-import { rectsOverlap, rectCircleOverlap } from '../label-layout';
+import {
+  rectsOverlap,
+  rectCircleOverlap,
+  segmentRectOverlap,
+} from '../label-layout';
 import type { LabelRect, PointCircle } from '../label-layout';
 import { measureLegendText } from '../utils/legend-constants';
 import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
@@ -149,12 +153,7 @@ export interface PlacedLabel {
   /** Halo/outline colour — the OPPOSITE lightness of `color`, so the text reads
    *  whether it sits on its fill or overflows onto a different-coloured area. */
   readonly haloColor: string;
-  /** Render inside a solid rounded badge (state abbrev labels) vs plain haloed
-   *  text (POI labels). The badge colours come from `badgeFill`/`color`. */
-  readonly badge: boolean;
-  readonly badgeFill?: string;
   readonly leader?: { x1: number; y1: number; x2: number; y2: number };
-  readonly pin?: number; // numbered-pin fallback
   readonly lineNumber: number;
 }
 
@@ -196,8 +195,6 @@ export interface MapLayout {
   readonly legs: readonly MapLayoutLeg[];
   readonly pois: readonly MapLayoutPoi[];
   readonly labels: readonly PlacedLabel[];
-  /** Numbered-pin fallback legend list (pin -> label). */
-  readonly pinList: ReadonlyArray<{ pin: number; label: string }>;
   readonly legend: MapLayoutLegend | null;
   /** Framed AK/HI inset cutouts (albers-usa only; empty otherwise). */
   readonly insets: readonly MapLayoutInset[];
@@ -535,7 +532,7 @@ export function layoutMap(
   const insets: MapLayoutInset[] = [];
   const insetRegions: MapLayoutRegion[] = [];
   // Seeds for AK/HI labels (centroid in inset-projection coords) — turned into
-  // PlacedLabels in the labels section so they share the badge styling.
+  // PlacedLabels in the labels section so they share the region-label styling.
   const insetLabelSeeds: {
     x: number;
     y: number;
@@ -1017,7 +1014,7 @@ export function layoutMap(
     });
   }
 
-  const poiScreen = new Map<string, { cx: number; cy: number }>();
+  const poiScreen = new Map<string, { cx: number; cy: number; r: number }>();
   const pois: MapLayoutPoi[] = [];
   // Stable order for deterministic co-location indices (AR9).
   const orderedPois = [...resolved.pois].sort(
@@ -1049,7 +1046,7 @@ export function layoutMap(
         cy += Math.sin(ang) * COLO_R;
       }
       const { fill, stroke } = poiFill(e.p);
-      poiScreen.set(e.p.id, { cx, cy });
+      poiScreen.set(e.p.id, { cx, cy, r: radiusFor(e.p) });
       const num = routeNumberById.get(e.p.id);
       pois.push({
         id: e.p.id,
@@ -1068,22 +1065,46 @@ export function layoutMap(
 
   // -- Connectors: routes + edges (with parallel fan-out) --
   const legs: MapLayoutLeg[] = [];
+  // Gap between a leg's endpoint and the POI rim, so the line/arrow touches the
+  // circle edge rather than burying its tip at the centre dot.
+  const RIM_GAP = 1.5;
   const legPath = (
-    a: { cx: number; cy: number },
-    b: { cx: number; cy: number },
+    a: { cx: number; cy: number; r: number },
+    b: { cx: number; cy: number; r: number },
     curved: boolean,
     offset: number
   ): string => {
-    if (!curved && offset === 0) return `M${a.cx},${a.cy}L${b.cx},${b.cy}`;
     const mx = (a.cx + b.cx) / 2;
     const my = (a.cy + b.cy) / 2;
     const dx = b.cx - a.cx;
     const dy = b.cy - a.cy;
     const len = Math.hypot(dx, dy) || 1;
+    // Trim each end back to its POI rim, but never cross past the midpoint when
+    // the circles nearly touch (keeps a hair of line rather than inverting).
+    const trimA = Math.min(a.r + RIM_GAP, len * 0.45);
+    const trimB = Math.min(b.r + RIM_GAP, len * 0.45);
+    if (!curved && offset === 0) {
+      const ux = dx / len;
+      const uy = dy / len;
+      const ax = a.cx + ux * trimA;
+      const ay = a.cy + uy * trimA;
+      const bx = b.cx - ux * trimB;
+      const by = b.cy - uy * trimB;
+      return `M${ax},${ay}L${bx},${by}`;
+    }
     const nx = -dy / len;
     const ny = dx / len;
     const bow = offset !== 0 ? offset : len * ARC_CURVE_FRAC;
-    return `M${a.cx},${a.cy}Q${mx + nx * bow},${my + ny * bow} ${b.cx},${b.cy}`;
+    const px = mx + nx * bow;
+    const py = my + ny * bow;
+    // Tangent at each end of the quadratic Q is toward/from the control point.
+    const ta = Math.hypot(px - a.cx, py - a.cy) || 1;
+    const tb = Math.hypot(b.cx - px, b.cy - py) || 1;
+    const ax = a.cx + ((px - a.cx) / ta) * trimA;
+    const ay = a.cy + ((py - a.cy) / ta) * trimA;
+    const bx = b.cx - ((b.cx - px) / tb) * trimB;
+    const by = b.cy - ((b.cy - py) / tb) * trimB;
+    return `M${ax},${ay}Q${px},${py} ${bx},${by}`;
   };
 
   // Routes: legs between consecutive stops (loop closing leg included).
@@ -1096,7 +1117,7 @@ export function layoutMap(
       legs.push({
         d: legPath(a, b, curved, 0),
         width: W_MIN,
-        color: mix(palette.text, palette.bg, 55),
+        color: mix(palette.text, palette.bg, 72),
         arrow: true,
         lineNumber: rt.lineNumber,
       });
@@ -1136,7 +1157,7 @@ export function layoutMap(
       legs.push({
         d: legPath(a, b, curved, offset),
         width: widthFor(e),
-        color: mix(palette.text, palette.bg, 45),
+        color: mix(palette.text, palette.bg, 66),
         arrow: e.directed,
         lineNumber: e.lineNumber,
         ...(e.label !== undefined && {
@@ -1150,52 +1171,95 @@ export function layoutMap(
 
   // -- Labels: regions + POIs with escalation (AR5) --
   const labels: PlacedLabel[] = [];
-  const pinList: { pin: number; label: string }[] = [];
   const obstacles: LabelRect[] = [];
   const markers: PointCircle[] = pois.map((p) => ({
     cx: p.cx,
     cy: p.cy,
     r: p.r,
   }));
+  // Sample every drawn leg into straight segments so POI labels can dodge the
+  // connector lines (not just markers + other labels) — otherwise a hub POI's
+  // label lands on top of the fan of edges leaving it (e.g. Los Angeles).
+  const legSegments: Array<[number, number, number, number]> = [];
+  for (const leg of legs) {
+    const m =
+      /^M(-?[\d.]+),(-?[\d.]+)(?:L(-?[\d.]+),(-?[\d.]+)|Q(-?[\d.]+),(-?[\d.]+) (-?[\d.]+),(-?[\d.]+))$/.exec(
+        leg.d
+      );
+    if (!m) continue;
+    const x0 = +m[1]!;
+    const y0 = +m[2]!;
+    if (m[3] !== undefined) {
+      legSegments.push([x0, y0, +m[3]!, +m[4]!]);
+    } else {
+      const cx = +m[5]!;
+      const cy = +m[6]!;
+      const ex = +m[7]!;
+      const ey = +m[8]!;
+      const N = 8;
+      let px = x0;
+      let py = y0;
+      for (let i = 1; i <= N; i++) {
+        const t = i / N;
+        const u = 1 - t;
+        const qx = u * u * x0 + 2 * u * t * cx + t * t * ex;
+        const qy = u * u * y0 + 2 * u * t * cy + t * t * ey;
+        legSegments.push([px, py, qx, qy]);
+        px = qx;
+        py = qy;
+      }
+    }
+  }
   const collides = (rect: LabelRect): boolean =>
     markers.some((m) => rectCircleOverlap(rect, m)) ||
-    obstacles.some((o) => rectsOverlap(rect, o));
+    obstacles.some((o) => rectsOverlap(rect, o)) ||
+    legSegments.some((s) => segmentRectOverlap(s[0], s[1], s[2], s[3], rect));
 
-  // Region labels (default off). Each abbrev sits in a solid rounded BADGE —
-  // dark backing + light text — so it reads consistently on any fill colour. A
-  // label is shown only when its badge fits inside the region (small states like
-  // the NE cluster auto-hide rather than overlap / spill onto the ocean).
+  // Region labels (default off). Rendered as haloed text — NO pill — so the
+  // choropleth fill (which encodes the data) stays fully visible. The text
+  // colour is contrast-picked against each region's OWN fill (dark on
+  // pastel/unscored land, light on saturated fills) with an opposite-lightness
+  // paint-order halo, the same convention POI labels use. A label is shown only
+  // when its (padded) footprint fits inside the region, so small states like the
+  // NE cluster auto-hide rather than overlap / spill onto the ocean.
   const regionLabelMode = resolved.directives.regionLabels ?? 'off';
-  const BADGE_PADX = 6;
-  const BADGE_PADY = 3;
-  const badgeW = (text: string): number =>
-    measureLegendText(text, FONT) + 2 * BADGE_PADX;
-  const badgeH = FONT + 2 * BADGE_PADY;
-  // Badge backing: a darker tint of the map's water/backdrop shade rather than a
-  // generic near-black pill — it ties the labels to the basemap and reads as a
-  // soft slate instead of a heavy black blob over the pastel fills. Built from
-  // the theme's dark anchor (text on light, bg on dark — same convention as the
-  // region stroke) blended toward the water colour.
-  const labelDarkAnchor = isDark ? palette.bg : palette.text;
-  const badgeFill = mix(labelDarkAnchor, water, 64);
-  const pushBadge = (
+  const LABEL_PADX = 6;
+  const LABEL_PADY = 3;
+  const labelW = (text: string): number =>
+    measureLegendText(text, FONT) + 2 * LABEL_PADX;
+  const labelH = FONT + 2 * LABEL_PADY;
+  const pushRegionLabel = (
     x: number,
     y: number,
     text: string,
+    fill: string,
     lineNumber: number
   ): void => {
+    const color = contrastText(
+      fill,
+      palette.textOnFillLight,
+      palette.textOnFillDark
+    );
+    const haloColor =
+      color === palette.textOnFillLight
+        ? palette.textOnFillDark
+        : palette.textOnFillLight;
     labels.push({
       x,
       y,
       text,
       anchor: 'middle',
-      color: palette.textOnFillLight,
-      halo: false,
-      haloColor: palette.textOnFillDark,
-      badge: true,
-      badgeFill,
+      color,
+      halo: true,
+      haloColor,
       lineNumber,
     });
+  };
+  // A few countries have far-flung territory that drags the area-weighted
+  // centroid off the mainland (US → Alaska pulls it up into Canada). Anchor
+  // their world-layer label to a mainland [lon, lat] instead.
+  const WORLD_LABEL_ANCHORS: Record<string, [number, number]> = {
+    US: [-98.5, 39.5], // CONUS geographic centre (near Lebanon, Kansas)
   };
   if (regionLabelMode === 'full' || regionLabelMode === 'abbrev') {
     for (const r of regions) {
@@ -1206,17 +1270,28 @@ export function layoutMap(
       const [[x0, y0], [x1, y1]] = path.bounds(f as never);
       const text =
         regionLabelMode === 'abbrev' ? r.id.replace(/^US-/, '') : r.label;
-      // Hide if the badge wouldn't fit inside the region's footprint.
-      if (badgeW(text) > x1 - x0 || badgeH > y1 - y0) continue;
-      const c = path.centroid(f as never);
-      if (!Number.isFinite(c[0])) continue;
-      pushBadge(c[0], c[1], text, r.lineNumber);
+      // Hide if the label wouldn't fit inside the region's footprint.
+      if (labelW(text) > x1 - x0 || labelH > y1 - y0) continue;
+      const anchor =
+        r.layer !== 'us-state' ? WORLD_LABEL_ANCHORS[r.id] : undefined;
+      const c = anchor
+        ? project(anchor[0], anchor[1])
+        : path.centroid(f as never);
+      if (!c || !Number.isFinite(c[0])) continue;
+      pushRegionLabel(c[0], c[1], text, r.fill, r.lineNumber);
     }
     // AK/HI labels live in their insets (own projection centroids).
     for (const seed of insetLabelSeeds) {
       const text =
         regionLabelMode === 'abbrev' ? seed.iso.replace(/^US-/, '') : seed.name;
-      pushBadge(seed.x, seed.y, text, seed.lineNumber);
+      const src = regionById.get(seed.iso);
+      pushRegionLabel(
+        seed.x,
+        seed.y,
+        text,
+        src ? regionFill(src) : neutralFill,
+        seed.lineNumber
+      );
     }
   }
 
@@ -1231,14 +1306,14 @@ export function layoutMap(
       const src = poiById.get(p.id);
       return src?.label ?? src?.name ?? p.id;
     };
-    let pinCounter = 0;
     for (const p of ordered) {
       const text = labelText(p);
       const w = measureLegendText(text, FONT);
       const h = FONT * 1.25;
       // Inline placement: prefer the right of the marker, but flip to the left
-      // when the right would run OFF-CANVAS (a coastal POI near the edge). A mere
-      // collision still escalates (the ring already tries left, with a leader).
+      // when the right runs off-canvas OR is blocked (a marker, another label, or
+      // the fan of legs leaving the POI). Only if neither side is clear do we
+      // escalate to the ring (with a leader).
       const placeInline = (side: 'right' | 'left'): boolean => {
         const tx = side === 'right' ? p.cx + p.r + 3 : p.cx - p.r - 3;
         const rect: LabelRect = {
@@ -1258,17 +1333,13 @@ export function layoutMap(
           color: palette.text,
           halo: true,
           haloColor: palette.bg,
-          badge: false,
           lineNumber: p.lineNumber,
         });
         return true;
       };
-      const rightFitsCanvas = p.cx + p.r + 3 + w <= width;
-      if (rightFitsCanvas) {
-        if (placeInline('right')) continue;
-      } else if (placeInline('left')) {
-        continue;
-      }
+      // placeInline self-rejects off-canvas or blocked sides, so just try both.
+      if (placeInline('right')) continue;
+      if (placeInline('left')) continue;
       // Escalate: fixed candidate ring -> leader line to first free slot.
       let placed = false;
       for (let k = 1; k <= 2 && !placed; k++) {
@@ -1300,7 +1371,6 @@ export function layoutMap(
             color: palette.text,
             halo: true,
             haloColor: palette.bg,
-            badge: false,
             leader: { x1: p.cx, y1: p.cy, x2: cx, y2: cy },
             lineNumber: p.lineNumber,
           });
@@ -1308,22 +1378,9 @@ export function layoutMap(
           break;
         }
       }
-      if (placed) continue;
-      // Final fallback: numbered pin + legend list entry.
-      pinCounter += 1;
-      pinList.push({ pin: pinCounter, label: text });
-      labels.push({
-        x: p.cx + p.r + 2,
-        y: p.cy - p.r,
-        text: String(pinCounter),
-        anchor: 'start',
-        color: palette.text,
-        halo: true,
-        haloColor: palette.bg,
-        badge: false,
-        pin: pinCounter,
-        lineNumber: p.lineNumber,
-      });
+      // If even the ring can't seat the label, drop it. A truly hopeless
+      // cluster (overlapping POIs on a wide viewport) sheds its excess labels
+      // rather than spilling a numbered key into the corner.
     }
   }
 
@@ -1382,7 +1439,6 @@ export function layoutMap(
     legs,
     pois,
     labels,
-    pinList,
     legend,
     insets,
     insetRegions,
