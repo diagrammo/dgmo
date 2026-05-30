@@ -127,20 +127,20 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     expect(r.insetRegions.map((x) => x.id).sort()).toEqual(['US-AK', 'US-HI']);
     const yB = 800 - 24; // height - FIT_PAD
     for (const box of r.insets) {
-      // Polyline top (more than the 4 corners of a plain rectangle) → angled.
-      expect(box.points.length).toBeGreaterThan(4);
-      const xs = box.points.map((p) => p[0]);
-      const ys = box.points.map((p) => p[1]);
-      // Lower-left anchored, fully on-canvas.
-      expect(Math.min(...xs)).toBeGreaterThanOrEqual(0);
-      expect(Math.max(...xs)).toBeLessThanOrEqual(1200);
-      expect(Math.max(...ys)).toBeLessThanOrEqual(800);
-      // Exactly the two bottom corners sit on the shared bottom edge; the rest
-      // form the angled top above it.
-      expect(box.points.filter((p) => Math.abs(p[1] - yB) < 0.5)).toHaveLength(
-        2
-      );
-      expect(Math.min(...ys)).toBeLessThan(yB - 40); // box has real height
+      // A 4-sided quad: top-left, top-right, bottom-right, bottom-left.
+      expect(box.points).toHaveLength(4);
+      const [tl, tr, br, bl] = box.points;
+      // Both bottom corners on the shared bottom edge; both top corners above it.
+      expect(br[1]).toBeCloseTo(yB, 1);
+      expect(bl[1]).toBeCloseTo(yB, 1);
+      expect(tl[1]).toBeLessThan(yB - 40); // real height
+      expect(tr[1]).toBeLessThan(yB - 40);
+      // Vertical left/right sides → genuine 4-sided box.
+      expect(tl[0]).toBeCloseTo(bl[0], 1);
+      expect(tr[0]).toBeCloseTo(br[0], 1);
+      // Fully on-canvas.
+      expect(Math.min(tl[0], bl[0])).toBeGreaterThanOrEqual(0);
+      expect(Math.max(tr[0], br[0])).toBeLessThanOrEqual(1200);
     }
   });
   it('non-albers cluster zooms to fill the canvas (extent-corner fit, not globe)', () => {

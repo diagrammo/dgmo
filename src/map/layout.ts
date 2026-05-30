@@ -10,7 +10,6 @@ import {
   geoNaturalEarth1,
   geoConicEqualArea,
   geoMercator,
-  geoContains,
   type GeoProjection,
   type GeoPath,
 } from 'd3-geo';
@@ -460,89 +459,84 @@ export function layoutMap(
   }[] = [];
   if (resolved.projection === 'albers-usa' && usLayer) {
     const PAD = 8;
-    const GAP = 12; // px the box top rides below the coast
-    const MAX_H = height * 0.42; // box height cap (open-ocean columns)
+    const GAP = 12; // px the top edge rides below the coast
+    const MAX_H = height * 0.42; // box height cap
+    const MIN_H = 70; // box height floor
     const yB = height - FIT_PAD; // box bottom (shared by both insets)
-    // Screen y of the conus southern coast at a given screen x. A bounding-box
-    // approximation fails here — Texas's Rio Grande border is a long diagonal,
-    // so its bbox bottom (Brownsville) sits far south of the actual coast at
-    // western (El Paso) longitudes. Instead we probe the real projected
-    // geometry: invert each screen point back to lon/lat and `geoContains`-test
-    // the states whose bbox straddles the column, scanning UP from the bottom to
-    // the first land hit. Returns -Infinity for open-ocean columns (no land).
-    const conus: Array<{ f: GeoFeature; x0: number; x1: number; y0: number }> =
-      [];
+    // Southern-coast profile: the lowest (max-y) projected vertex of any conus
+    // state per x-column. One pass over the real polygon vertices — accurate
+    // even where a bounding box would lie (Texas's diagonal Rio Grande border
+    // puts its bbox bottom at Brownsville, far south of the El Paso coast).
+    const ceil = yB - MAX_H; // open-ocean columns may rise to here
+    const BW = 4; // x-bucket width (px)
+    const coast = new Map<number, number>(); // bucket → southern-most y
+    const addPt = (lon: number, lat: number): void => {
+      const p = projection([lon, lat]);
+      if (!p) return;
+      const bi = Math.floor(p[0] / BW);
+      const cur = coast.get(bi);
+      if (cur === undefined || p[1] > cur) coast.set(bi, p[1]);
+    };
+    const walk = (co: unknown): void => {
+      if (Array.isArray(co) && typeof co[0] === 'number') {
+        addPt(co[0] as number, co[1] as number);
+      } else if (Array.isArray(co)) for (const c of co) walk(c);
+    };
     for (const [iso, f] of usLayer) {
       if (US_NON_CONUS.has(iso)) continue;
-      const b = path.bounds(f as never);
-      if (!Number.isFinite(b[0][0])) continue;
-      conus.push({ f, x0: b[0][0], x1: b[1][0], y0: b[0][1] });
+      walk((f.geometry as { coordinates?: unknown }).coordinates);
     }
-    const inside = (x: number, y: number): boolean => {
-      const ll = projection.invert?.([x, y]);
-      if (!ll) return false;
-      for (const c of conus) {
-        if (x < c.x0 || x > c.x1) continue;
-        if (geoContains(c.f as never, ll)) return true;
+    // South coast at x (checks neighbour buckets); ceil over open ocean.
+    const at = (x: number): number => {
+      const bi = Math.floor(x / BW);
+      let y = -Infinity;
+      for (let k = bi - 1; k <= bi + 1; k++) {
+        const v = coast.get(k);
+        if (v !== undefined && v > y) y = v;
       }
-      return false;
+      return y === -Infinity ? ceil : y;
     };
-    const STEP = 6; // px scan resolution for the coast
-    // Only scan within the box's reach: anything above the MAX_H ceiling is
-    // irrelevant (the box caps there anyway), which bounds the probe cost.
-    const scanCeil = yB - MAX_H;
-    const southEdgeAt = (x: number): number => {
-      let straddles = false;
-      for (const c of conus)
-        if (x >= c.x0 && x <= c.x1) {
-          straddles = true;
-          break;
-        }
-      if (!straddles) return -Infinity; // no land in this column
-      // Scan up from the bottom to the first point inside conus land.
-      for (let y = yB; y >= scanCeil; y -= STEP) if (inside(x, y)) return y;
-      return -Infinity;
-    };
-    // Boxes anchored to the lower-left, claiming the deep lower-left water. The
-    // TOP edge is a POLYLINE that rides `GAP` px below the southern coast across
-    // the box width, so a tall box hugs the coastline and never covers AZ/TX even
-    // where their borders dip. Height is capped at `MAX_H` so an open-ocean
-    // column doesn't shoot the box to the title; a floor keeps it usable.
-    const akW = Math.max(150, width * 0.22);
-    const hiW = Math.max(95, width * 0.14);
-    const akX = FIT_PAD;
-    const hiX = FIT_PAD + akW + 12;
-    const topAt = (x: number): number => {
-      const edge = southEdgeAt(x);
-      const y = edge === -Infinity ? yB - MAX_H : edge + GAP;
-      return Math.min(Math.max(y, yB - MAX_H), yB - 60);
-    };
-    // Sample the coast every ~12px to build the angled top polyline.
-    const topEdge = (x0: number, x1: number): Array<[number, number]> => {
-      const n = Math.max(2, Math.ceil((x1 - x0) / 12));
-      const pts: Array<[number, number]> = [];
+    // One straight top edge across [x0, xr]: slope from the endpoints, then the
+    // whole line pushed down until it clears the sampled coast (+GAP). The result
+    // is always a single straight segment — it just sits below the coast.
+    const topLine = (boxX: number, w: number, maxH: number) => {
+      const xr = boxX + w;
+      const clamp = (y: number): number =>
+        Math.min(Math.max(y, yB - maxH), yB - MIN_H);
+      const slope = xr > boxX ? (at(xr) - at(boxX)) / (xr - boxX) : 0;
+      let b = at(boxX); // intercept of the endpoint line at boxX
+      const n = 24;
       for (let i = 0; i <= n; i++) {
-        const x = x0 + ((x1 - x0) * i) / n;
-        pts.push([x, topAt(x)]);
+        const x = boxX + ((xr - boxX) * i) / n;
+        const need = at(x) - slope * (x - boxX);
+        if (need > b) b = need;
       }
-      return pts;
+      return {
+        x0: boxX,
+        xr,
+        yL: clamp(b + GAP),
+        yR: clamp(slope * (xr - boxX) + b + GAP),
+      };
     };
-    const akBox = { x: akX, w: akW, top: topEdge(akX, akX + akW) };
-    const hiBox = { x: hiX, w: hiW, top: topEdge(hiX, hiX + hiW) };
+    // AK gets the big box (the state is big); HI a modest one.
+    const akW = Math.max(150, width * 0.2);
+    const hiW = Math.max(110, width * 0.16);
+    const akLine = topLine(FIT_PAD, akW, height * 0.42);
+    const hiLine = topLine(FIT_PAD + akW + 14, hiW, height * 0.26);
     const drawInset = (
       iso: string,
       proj: GeoProjection,
-      box: { x: number; w: number; top: Array<[number, number]> }
+      line: { x0: number; xr: number; yL: number; yR: number }
     ): void => {
       const f = usLayer.get(iso);
       if (!f) return;
-      // State fits the rectangle BELOW the whole polyline (below its lowest
-      // point) so it is never clipped by the angled top.
-      const topFit = Math.max(...box.top.map((p) => p[1]));
+      const { x0, xr, yL, yR } = line;
+      // State fits below the LOWER top corner so the slope never clips it.
+      const topFit = Math.max(yL, yR);
       proj.fitExtent(
         [
-          [box.x + PAD, topFit + PAD],
-          [box.x + box.w - PAD, yB - PAD],
+          [x0 + PAD, topFit + PAD],
+          [xr - PAD, yB - PAD],
         ],
         f as never
       );
@@ -556,13 +550,17 @@ export function layoutMap(
         else fill = tagFill(r.tags, activeGroup) ?? neutralFill;
         lineNumber = r.lineNumber;
       }
-      const minTop = Math.min(...box.top.map((p) => p[1]));
       insets.push({
-        x: box.x,
-        y: minTop,
-        w: box.w,
-        h: yB - minTop,
-        points: [...box.top, [box.x + box.w, yB], [box.x, yB]],
+        x: x0,
+        y: Math.min(yL, yR),
+        w: xr - x0,
+        h: yB - Math.min(yL, yR),
+        points: [
+          [x0, yL],
+          [xr, yR],
+          [xr, yB],
+          [x0, yB],
+        ],
       });
       insetRegions.push({
         id: iso,
@@ -578,8 +576,8 @@ export function layoutMap(
         insetLabelSeeds.push({ x: ctr[0], y: ctr[1], iso, name, lineNumber });
       }
     };
-    drawInset('US-AK', alaskaProjection(), akBox);
-    drawInset('US-HI', hawaiiProjection(), hiBox);
+    drawInset('US-AK', alaskaProjection(), akLine);
+    drawInset('US-HI', hawaiiProjection(), hiLine);
   }
 
   // -- Basemap culling --
