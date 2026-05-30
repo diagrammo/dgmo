@@ -58,6 +58,8 @@ const COLO_EPS = 1.5; // px: POIs closer than this are "co-located"
 // yellow reads as yellow rather than muddying toward tan against the dark bg.
 const LAND_TINT_LIGHT = 58;
 const LAND_TINT_DARK = 75;
+const WATER_TINT = 55; // % palette-blue of bg for the ocean / backdrop
+const FOREIGN_TINT = 24; // % palette-gray of bg for non-US neighbour land
 const COLO_R = 9; // spiderfy radius
 const GOLDEN_ANGLE = 2.399963229728653; // rad (137.5deg) -- even spiral, no random
 const FAN_STEP = 16; // px perpendicular offset between parallel edges
@@ -224,17 +226,19 @@ export function layoutMap(
     ? decodeLayer(data.usStates)
     : null;
 
-  // Land is a muted yellow; the backdrop stays the flat palette bg. The
-  // background, ocean, and letterbox bands all share that one bg (no band, no
-  // patchwork), while every land region — unscored states, AK/HI, neighbours —
-  // reads yellow. Scored/tagged regions paint over this land base, and the
-  // score ramp blends FROM the land colour so low scores stay land-toned rather
-  // than fading into the dark background.
+  // Land is a muted yellow; the ocean/backdrop is blue. Scored/tagged regions
+  // paint over the land base, and the score ramp blends FROM the land colour so
+  // low scores stay land-toned rather than fading out. In a US view the world
+  // layer is just neighbour context (Mexico/Canada at the frame edge) — fill it
+  // gray so the yellow US reads as the subject; world maps (no us-states layer)
+  // keep yellow land for every country.
   const landTint = isDark ? LAND_TINT_DARK : LAND_TINT_LIGHT;
   const neutralFill = mix(palette.colors.yellow, palette.bg, landTint);
-  const water = palette.bg;
+  const water = mix(palette.colors.blue, palette.bg, WATER_TINT);
+  const usContext = usLayer !== null;
+  const foreignFill = mix(palette.colors.gray, palette.bg, FOREIGN_TINT);
   // Region borders: a clear neutral gray, mixed toward bg so it reads as a
-  // hairline that delineates regions on the flat background.
+  // hairline that delineates regions on the backdrop.
   const regionStroke = mix(palette.colors.gray, palette.bg, 55);
 
   // -- Region fill model (choropleth + categorical; AR4/AR6) --
@@ -502,7 +506,9 @@ export function layoutMap(
       const d = path(viewF as never) ?? '';
       if (!d) continue;
       const isThisLayer = r?.layer === layerKind;
-      let fill = neutralFill;
+      // Non-US neighbour land in a US view is gray context, not yellow land.
+      const isForeign = layerKind === 'country' && usContext && iso !== 'US';
+      let fill = isForeign ? foreignFill : neutralFill;
       let label: string | undefined;
       let lineNumber = -1;
       let layer: MapLayoutRegion['layer'] = 'base';
