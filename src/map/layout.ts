@@ -375,16 +375,36 @@ export function layoutMap(
       TITLE_FONT_SIZE / 2;
     topPad = Math.max(FIT_PAD, bannerBottom + TITLE_GAP);
   }
-  projection.fitExtent(
+  const fitBox: [[number, number], [number, number]] = [
+    [FIT_PAD, topPad],
     [
-      [FIT_PAD, topPad],
-      [
-        Math.max(FIT_PAD + 1, width - FIT_PAD),
-        Math.max(topPad + 1, height - FIT_PAD),
-      ],
+      Math.max(FIT_PAD + 1, width - FIT_PAD),
+      Math.max(topPad + 1, height - FIT_PAD),
     ],
-    fitTarget as never
-  );
+  ];
+  projection.fitExtent(fitBox, fitTarget as never);
+  // albers-usa: fitExtent centres the US vertically, so a panel taller than the
+  // map's aspect leaves a band of empty water ABOVE the (clipped) neighbour land
+  // — e.g. Canada floats with ocean above it. Top-anchor instead: shift the map
+  // up so the northernmost visible land (Canada's clipped edge, or the US itself)
+  // sits near the top. The surplus moves to the BOTTOM, where it's correctly
+  // ocean (the Gulf/Atlantic below the US). No scaling, so US states are never
+  // cropped (cover-to-fill would clip California on a narrow panel).
+  if (resolved.projection === 'albers-usa') {
+    const gp = geoPath(projection);
+    const landParts = [fitTarget, worldLayer.get('CA')].filter(
+      Boolean
+    ) as GeoFeature[];
+    let visTop = Infinity;
+    for (const f of landParts) {
+      const b = gp.bounds(f as never);
+      if (Number.isFinite(b[0][1])) visTop = Math.min(visTop, b[0][1]);
+    }
+    if (Number.isFinite(visTop) && visTop > topPad) {
+      const [tx, ty] = projection.translate();
+      projection.translate([tx, ty - (visTop - topPad)]);
+    }
+  }
   const path: GeoPath = geoPath(projection);
   const project = (lon: number, lat: number): [number, number] | null =>
     projection([lon, lat]) ?? null;
