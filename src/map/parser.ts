@@ -446,12 +446,23 @@ export function parseMap(content: string): ParsedMap {
         line,
         'A region has both `score:` and a tag value — v1 renders only the score (bivariate is a future seam).'
       );
+    // Peel a trailing ISO scope token (§24B.8) — same qualifier POIs accept,
+    // so `Georgia US-GA` / `Georgia US` can force the country-vs-state pick.
+    let regionName = split.name;
+    let regionScope: string | undefined;
+    const rToks = regionName.split(/\s+/);
+    const rLast = rToks[rToks.length - 1]!;
+    if (rToks.length > 1 && SCOPE_RE.test(rLast)) {
+      regionName = rToks.slice(0, -1).join(' ');
+      regionScope = rLast;
+    }
     const region: Writable<MapRegion> = {
-      name: split.name,
+      name: regionName,
       tags,
       meta,
       lineNumber: line,
     };
+    if (regionScope !== undefined) region.scope = regionScope;
     if (scoreNum !== undefined) region.score = scoreNum;
     regions.push(region);
   }

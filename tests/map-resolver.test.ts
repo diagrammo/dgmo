@@ -138,6 +138,46 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     const worldScoped = resolve('map\nGeorgia score: 2');
     expect(worldScoped.regions[0]!.iso).toBe('GE');
   });
+  it('region scope qualifier forces state and silences ambiguity (§24B.8)', () => {
+    for (const src of [
+      'map\nGeorgia US score: 2',
+      'map\nGeorgia US-GA score: 2',
+    ]) {
+      const r = resolve(src);
+      expect(r.regions[0]).toMatchObject({ iso: 'US-GA', layer: 'us-state' });
+      expect(
+        r.diagnostics.some((d) =>
+          /both a country and a US state/.test(d.message)
+        )
+      ).toBe(false);
+    }
+  });
+  it('region country-code scope forces country even in US context', () => {
+    const r = resolve('map\nCalifornia score: 1\nGeorgia GE score: 2');
+    expect(r.regions.find((x) => x.iso === 'GE')).toBeTruthy();
+    expect(
+      r.diagnostics.some((d) => /both a country and a US state/.test(d.message))
+    ).toBe(false);
+  });
+  it('ambiguity warning teaches the non-redundant scope syntax', () => {
+    const r = resolve('map\nCalifornia score: 1\nGeorgia score: 2');
+    const w = r.diagnostics.find((d) =>
+      /both a country and a US state/.test(d.message)
+    );
+    // bare ISO codes + name-and-scope, NOT the redundant "Georgia US-GA"
+    expect(w!.message).toContain('US-GA');
+    expect(w!.message).toContain('GE');
+    expect(w!.message).toContain('"Georgia US"');
+    expect(w!.message).not.toContain('Georgia US-GA');
+  });
+  it('region subdivision-scope mismatch errors', () => {
+    const r = resolve('map\nGeorgia US-CA score: 2');
+    expect(
+      r.diagnostics.some(
+        (d) => d.severity === 'error' && /scope US-CA/.test(d.message)
+      )
+    ).toBe(true);
+  });
 });
 
 describe('resolver — POIs (AC4-9, AC23)', () => {

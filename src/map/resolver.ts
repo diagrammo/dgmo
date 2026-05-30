@@ -122,6 +122,9 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       const f = fold(r.name);
       return usStateIndex.has(f) && !countryIndex.has(f);
     }) ||
+    parsed.regions.some(
+      (r) => r.scope === 'US' || r.scope?.startsWith('US-')
+    ) ||
     parsed.pois.some(
       (p) => p.pos.kind === 'name' && p.pos.scope?.startsWith('US-')
     );
@@ -144,15 +147,42 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       name: string;
       layer: 'country' | 'us-state';
     } | null = null;
-    if (inCountry && inState) {
+    // Explicit ISO scope (§24B.8): force the country-vs-state pick and skip the
+    // ambiguity warning. `US`/`US-XX` → state; any other 2-letter code → country.
+    const scope = r.scope;
+    if (scope) {
+      const wantsState = scope === 'US' || scope.startsWith('US-');
+      if (wantsState && inState) {
+        if (scope.startsWith('US-') && inState.id !== scope) {
+          err(
+            r.lineNumber,
+            `No subdivision "${r.name}" in scope ${scope} (it is ${inState.id}).`,
+            'E_MAP_SCOPE_MISS'
+          );
+          continue;
+        }
+        chosen = { ...inState, layer: 'us-state' };
+      } else if (!wantsState && inCountry) {
+        chosen = { ...inCountry, layer: 'country' };
+      } else {
+        err(
+          r.lineNumber,
+          `No region "${r.name}" found in scope ${scope}.`,
+          'E_MAP_SCOPE_MISS'
+        );
+        continue;
+      }
+    } else if (inCountry && inState) {
       if (usScoped) {
         chosen = { ...inState, layer: 'us-state' };
       } else {
         chosen = { ...inCountry, layer: 'country' };
       }
+      // Teach the disambiguation syntax so the author can pin it explicitly.
+      // Suggest the non-redundant forms: a bare ISO code, or name + scope.
       warn(
         r.lineNumber,
-        `"${r.name}" is both a country and a US state — resolved as ${chosen.layer} (${chosen.id}).`,
+        `"${r.name}" is both a country and a US state — resolved as ${chosen.layer} (${chosen.id}). Pin it with an ISO code (${inState.id} / ${inCountry.id}) or name + scope ("${r.name} US" / "${r.name} ${inCountry.id}").`,
         'W_MAP_REGION_AMBIGUOUS'
       );
     } else if (inState) {

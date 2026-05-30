@@ -2745,6 +2745,10 @@ dcw                     # hub/star — indented edges share the source
 - `default-country` / `default-state <ISO>` scopes bare city resolution (inferred from content if unset).
 - A bare ambiguous, undeclared name → most-populous in scope (info note).
 - **Disambiguate once:** trailing ISO code at first declaration — `San Jose CR` (country) or `Portland US-OR` (subdivision). Thereafter reference the bare name. Two same-named cities → `as <alias>` each.
+- **Region fills disambiguate the country-vs-state collision** (`Georgia` = country `GE` or US state `US-GA`) by ISO code or name + scope — pick whichever reads best:
+  - **Bare ISO code** (terse): `US-GA score: 5` → the state, `GE score: 5` → the country. Codes resolve directly and never warn.
+  - **Name + scope** (readable): `Georgia US score: 5` → the state, `Georgia GE score: 5` → the country.
+  - The redundant `Georgia US-GA` still works but isn't needed (a mismatched code like `Georgia US-CA` is rejected). A bare ambiguous `Georgia` follows the inferred US-scope signal and warns with both fixes named.
 - Positional coordinates are the escape hatch for anything missing/ambiguous.
 
 ### Directives & reserved keys

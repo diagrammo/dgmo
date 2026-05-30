@@ -120,6 +120,16 @@ describe('parseMap — region fills (AC4, AC5, AC6)', () => {
       )
     ).toBe(true);
   });
+  it('peels a trailing ISO scope off region names (§24B.8)', () => {
+    const r = parseMap('map\nGeorgia US-GA score: 5\nGeorgia US score: 6');
+    expect(r.regions[0]).toMatchObject({ name: 'Georgia', scope: 'US-GA' });
+    expect(r.regions[1]).toMatchObject({ name: 'Georgia', scope: 'US' });
+  });
+  it('does not peel a non-scope trailing token', () => {
+    const r = parseMap('map\nNew York score: 5');
+    expect(r.regions[0]!.name).toBe('New York');
+    expect(r.regions[0]!.scope).toBeUndefined();
+  });
 });
 
 describe('parseMap — POIs (AC7–AC11, AC22, AC23)', () => {

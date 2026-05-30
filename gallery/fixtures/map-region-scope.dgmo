@@ -1,0 +1,15 @@
+map Region Scope Disambiguation
+region us-states
+metric Sales ($M)
+region-labels abbrev
+subtitle Pin a country/state name clash by ISO code (US-GA) or name + scope (Georgia US)
+
+California score: 92
+Texas score: 78
+// "Georgia" clashes with the country GE — pin the state. Both lines are
+// equivalent; use whichever reads best:
+//   terse ISO code:  US-GA score: 64
+//   name + scope:    Georgia US score: 64
+US-GA score: 64
+Florida score: 51
+Washington score: 40

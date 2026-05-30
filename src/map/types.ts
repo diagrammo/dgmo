@@ -38,6 +38,10 @@ export interface MapDirectives {
  *  (§24B.3/.4 — BOTH may be present; bivariate seam). */
 export interface MapRegion {
   readonly name: string;
+  /** Optional trailing ISO scope qualifier (§24B.8) — a 3166-1 country code
+   *  (`Georgia US` → US context) or 3166-2 subdivision (`Georgia US-GA`).
+   *  Forces the country-vs-state interpretation and silences the ambiguity warning. */
+  readonly scope?: string;
   readonly score?: number;
   /** Tag values keyed by lowercased tag GROUP name (alias is resolved away). */
   readonly tags: Readonly<Record<string, string>>;
