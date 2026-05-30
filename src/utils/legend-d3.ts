@@ -198,6 +198,43 @@ function renderCapsule(
     .attr('font-family', FONT_FAMILY)
     .text(capsule.groupName);
 
+  // Continuous ramp (choropleth group): min | gradient | max, in place of dots.
+  if (capsule.gradient) {
+    const gr = capsule.gradient;
+    const gradId = `dgmo-legend-ramp-${capsule.groupName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+    const def = g.append('defs').append('linearGradient').attr('id', gradId);
+    def
+      .append('stop')
+      .attr('offset', '0%')
+      .attr('stop-color', mix(gr.hue, gr.base, 15));
+    def.append('stop').attr('offset', '100%').attr('stop-color', gr.hue);
+    g.append('text')
+      .attr('x', gr.minX)
+      .attr('y', gr.textY)
+      .attr('dominant-baseline', 'central')
+      .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
+      .attr('fill', palette.textMuted)
+      .attr('pointer-events', 'none')
+      .attr('font-family', FONT_FAMILY)
+      .text(gr.minText);
+    g.append('rect')
+      .attr('x', gr.rampX)
+      .attr('y', gr.rampY)
+      .attr('width', gr.rampW)
+      .attr('height', gr.rampH)
+      .attr('rx', 2)
+      .attr('fill', `url(#${gradId})`);
+    g.append('text')
+      .attr('x', gr.maxX)
+      .attr('y', gr.textY)
+      .attr('dominant-baseline', 'central')
+      .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
+      .attr('fill', palette.textMuted)
+      .attr('pointer-events', 'none')
+      .attr('font-family', FONT_FAMILY)
+      .text(gr.maxText);
+  }
+
   // Entry dots + labels
   for (const entry of capsule.entries) {
     const entryG = g

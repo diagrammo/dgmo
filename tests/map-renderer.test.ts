@@ -128,12 +128,17 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(svg.textContent).toContain('A note');
   });
 
-  it('categorical legend group + ramp keys are emitted (AC24)', () => {
+  it('categorical group + score ramp both render in the top legend (AC24)', () => {
     const tag = render(
       'map\ntag M as m\n  HQ blue\nactive-tag M\nUnited States m: HQ'
     );
     expect(tag.querySelector('.dgmo-map-legend')).toBeTruthy();
+    // The score ramp now lives in the top legend as a gradient group (not the
+    // old bottom-right keys block).
     const ramp = render('map\nmetric Sales\nCalifornia score: 50');
-    expect(ramp.querySelector('.dgmo-map-legend-keys')).toBeTruthy();
+    expect(ramp.querySelector('.dgmo-map-legend')).toBeTruthy();
+    expect(
+      ramp.querySelector('linearGradient[id^="dgmo-legend-ramp"]')
+    ).toBeTruthy();
   });
 });

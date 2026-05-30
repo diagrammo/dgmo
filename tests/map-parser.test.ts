@@ -106,7 +106,7 @@ describe('parseMap — region fills (AC4, AC5, AC6)', () => {
       tags: { market: 'HQ' },
     });
   });
-  it('accepts score + tag together with an info/warning note (AC6)', () => {
+  it('accepts score + tag together with NO warning (bivariate handled) (AC6)', () => {
     const r = parseMap(
       'map\ntag Market as m\n  HQ blue\nTexas score: 50, m: HQ'
     );
@@ -114,11 +114,13 @@ describe('parseMap — region fills (AC4, AC5, AC6)', () => {
     expect(reg.score).toBe(50);
     expect(reg.tags).toEqual({ market: 'HQ' });
     expect(r.error).toBeNull();
+    // Both are now selectable colouring dimensions (legend flips between them),
+    // so coexistence is no longer warned.
     expect(
       r.diagnostics.some(
         (d) => /score/.test(d.message) && /tag/.test(d.message)
       )
-    ).toBe(true);
+    ).toBe(false);
   });
   it('peels a trailing ISO scope off region names (§24B.8)', () => {
     const r = parseMap('map\nGeorgia US-GA score: 5\nGeorgia US score: 6');

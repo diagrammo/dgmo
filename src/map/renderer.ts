@@ -35,7 +35,9 @@ export function renderMap(
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
-  exportDims?: D3ExportDimensions
+  exportDims?: D3ExportDimensions,
+  /** Live override of the active colouring group (interactive legend flip). */
+  activeGroupOverride?: string | null
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
   const width = exportDims?.width ?? container.clientWidth;
@@ -49,6 +51,9 @@ export function renderMap(
     {
       palette,
       isDark,
+      ...(activeGroupOverride !== undefined && {
+        activeGroup: activeGroupOverride,
+      }),
     }
   );
 
@@ -323,19 +328,43 @@ export function renderMap(
       .append('g')
       .attr('class', 'dgmo-map-legend')
       .attr('transform', `translate(0, ${legendY})`);
-    const groups = layout.legend.tagGroups.filter((g) => g.entries.length > 0);
+    // The score ramp is a selectable colouring group alongside the tag groups
+    // (the user flips between them); its capsule renders the gradient inline.
+    // Reserved name "Score" when no metric label is set — must match SCORE_NAME
+    // in layout.ts so the resolved activeGroup selects it.
+    const ramp = layout.legend.ramp;
+    const scoreGroup = ramp
+      ? {
+          name: ramp.metric?.trim() || 'Score',
+          entries: [],
+          gradient: {
+            min: ramp.min,
+            max: ramp.max,
+            hue: ramp.hue,
+            base: ramp.base,
+          },
+        }
+      : null;
+    const tagGroups = layout.legend.tagGroups
+      .filter((g) => g.entries.length > 0)
+      .map((g) => ({ name: g.name, entries: [...g.entries] }));
+    const groups = [...(scoreGroup ? [scoreGroup] : []), ...tagGroups];
     if (groups.length > 0) {
       const config: LegendConfig = {
-        groups: groups.map((g) => ({ name: g.name, entries: [...g.entries] })),
+        groups,
         position: { placement: 'top-center', titleRelation: 'below-title' },
         mode: exportDims ? 'export' : 'preview',
         showEmptyGroups: false,
+        // Keep inactive siblings visible as pills so the user can click to flip
+        // the active colouring dimension (preview only — export shows just the
+        // active group).
+        showInactivePills: true,
       };
       const state: LegendState = { activeGroup: layout.legend.activeGroup };
       renderLegendD3(legendG, config, state, palette, isDark, undefined, width);
     }
-    // Custom keys (ramp / size / weight), stacked above the pin list so they
-    // never overlap it (#3).
+    // Custom keys (size / weight) — the score ramp now lives in the top legend
+    // above. Stacked above the pin list so they never overlap it (#3).
     const pinGap = layout.pinList.length ? layout.pinList.length * 14 + 14 : 0;
     emitExtraLegend(svg, layout, palette, height, pinGap);
   }
@@ -428,60 +457,13 @@ function emitExtraLegend(
 ): void {
   const { legend } = layout;
   if (!legend) return;
-  // Nothing to draw if there are only categorical swatches (#4).
-  if (!legend.ramp && !legend.size && !legend.weight) return;
+  // The score ramp moved into the top legend (selectable colouring group); only
+  // the size + weight keys remain here. Nothing to draw without them (#4).
+  if (!legend.size && !legend.weight) return;
   const blocks: Array<() => void> = [];
   const g = svg.append('g').attr('class', 'dgmo-map-legend-keys');
   let xCursor = 0;
 
-  if (legend.ramp) {
-    const ramp = legend.ramp;
-    blocks.push(() => {
-      const block = g.append('g').attr('transform', `translate(${xCursor},0)`);
-      const gradId = 'dgmo-map-ramp';
-      const grad = block
-        .append('defs')
-        .append('linearGradient')
-        .attr('id', gradId)
-        .attr('x1', '0%')
-        .attr('x2', '100%');
-      grad
-        .append('stop')
-        .attr('offset', '0%')
-        .attr('stop-color', mix(ramp.hue, ramp.base, 15));
-      grad.append('stop').attr('offset', '100%').attr('stop-color', ramp.hue);
-      block
-        .append('rect')
-        .attr('width', 80)
-        .attr('height', 8)
-        .attr('fill', `url(#${gradId})`);
-      block
-        .append('text')
-        .attr('x', 0)
-        .attr('y', 22)
-        .attr('font-size', 9)
-        .attr('fill', palette.textMuted)
-        .text(String(ramp.min));
-      block
-        .append('text')
-        .attr('x', 80)
-        .attr('y', 22)
-        .attr('text-anchor', 'end')
-        .attr('font-size', 9)
-        .attr('fill', palette.textMuted)
-        .text(String(ramp.max));
-      if (ramp.metric) {
-        block
-          .append('text')
-          .attr('x', 0)
-          .attr('y', -4)
-          .attr('font-size', 9)
-          .attr('fill', palette.textMuted)
-          .text(ramp.metric);
-      }
-      xCursor += 110;
-    });
-  }
   if (legend.size) {
     const sz = legend.size;
     blocks.push(() => {

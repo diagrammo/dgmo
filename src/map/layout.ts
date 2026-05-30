@@ -17,8 +17,6 @@ import {
 import { feature } from 'topojson-client';
 import { mix, shapeFill } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes/types';
-import { resolveActiveTagGroup } from '../utils/tag-groups';
-import type { TagGroup } from '../utils/tag-groups';
 import { rectsOverlap, rectCircleOverlap } from '../label-layout';
 import type { LabelRect, PointCircle } from '../label-layout';
 import { measureLegendText } from '../utils/legend-constants';
@@ -204,6 +202,12 @@ export interface MapLayout {
 export interface LayoutOptions {
   readonly palette: PaletteColors;
   readonly isDark: boolean;
+  /** Live override of the active colouring group (the score ramp or a tag
+   *  group). Highest priority — beats the `active-tag` directive. The app's
+   *  interactive legend flip passes this; `'score'` (or the metric label)
+   *  selects the choropleth ramp, a tag-group name selects that group, `'none'`
+   *  / `null` clears it. `undefined` = not provided (use the directive/default). */
+  readonly activeGroup?: string | null;
 }
 
 interface Size {
@@ -338,10 +342,35 @@ export function layoutMap(
   const rampHue = palette.colors.red;
   const hasRamp = scores.length > 0;
 
-  const activeGroup = resolveActiveTagGroup(
-    resolved.tagGroups as TagGroup[],
-    resolved.directives.activeTag
-  );
+  // Colouring dimension (AR4, bivariate): the score ramp and each tag group are
+  // mutually-exclusive selectable groups. `SCORE_NAME` is the ramp's group name
+  // (the metric label, or "Score"); the reserved token `score` also selects it.
+  // Exactly one dimension is active and drives every region's fill.
+  const SCORE_NAME = hasRamp
+    ? resolved.directives.metric?.trim() || 'Score'
+    : null;
+  const matchColorGroup = (v: string): string | null => {
+    const lv = v.trim().toLowerCase();
+    if (lv === 'none') return null;
+    if (SCORE_NAME && (lv === 'score' || lv === SCORE_NAME.toLowerCase()))
+      return SCORE_NAME;
+    const tg = resolved.tagGroups.find((g) => g.name.toLowerCase() === lv);
+    return tg ? tg.name : v; // unknown name passes through → renders neutral
+  };
+  const override = opts.activeGroup; // string | null | undefined
+  let activeGroup: string | null;
+  if (override !== undefined) {
+    activeGroup = override === null ? null : matchColorGroup(override);
+  } else if (resolved.directives.activeTag !== undefined) {
+    activeGroup = matchColorGroup(resolved.directives.activeTag);
+  } else {
+    // Default: colour by score when scores exist (preserves the historical
+    // "score wins" default), else the first declared tag group.
+    activeGroup =
+      SCORE_NAME ??
+      (resolved.tagGroups.length > 0 ? resolved.tagGroups[0]!.name : null);
+  }
+  const activeIsScore = SCORE_NAME !== null && activeGroup === SCORE_NAME;
 
   // Score ramp base: a NEUTRAL tint of the page, NOT the (green) land colour —
   // blending red toward green produced muddy brown mid-tones that blurred into
@@ -377,6 +406,19 @@ export function layoutMap(
     // An unknown tag VALUE (no matching entry) falls back to neutral (AR4/AC25).
     if (!entry?.color) return null;
     return shapeFill(palette, entry.color, isDark); // 25% tint, never solid by default
+  };
+
+  /** A region's fill under the ACTIVE colouring dimension (AR4, bivariate):
+   *  score-active → ramp for scored regions, neutral otherwise; a tag group
+   *  active → that group's tag colour, neutral otherwise (score ignored). */
+  const regionFill = (r: {
+    score?: number;
+    tags: Readonly<Record<string, string>>;
+  }): string => {
+    if (activeIsScore) {
+      return r.score !== undefined ? fillForScore(r.score) : neutralFill;
+    }
+    return tagFill(r.tags, activeGroup) ?? neutralFill;
   };
 
   const regionById = new Map(resolved.regions.map((r) => [r.iso, r]));
@@ -607,8 +649,7 @@ export function layoutMap(
       let fill = neutralFill;
       let lineNumber = -1;
       if (r?.layer === 'us-state') {
-        if (r.score !== undefined) fill = fillForScore(r.score);
-        else fill = tagFill(r.tags, activeGroup) ?? neutralFill;
+        fill = regionFill(r);
         lineNumber = r.lineNumber;
       }
       insets.push({
@@ -824,9 +865,8 @@ export function layoutMap(
       let lineNumber = -1;
       let layer: MapLayoutRegion['layer'] = 'base';
       if (isThisLayer) {
-        // score wins over tag (24B.4 / AR4)
-        if (r.score !== undefined) fill = fillForScore(r.score);
-        else fill = tagFill(r.tags, activeGroup) ?? neutralFill;
+        // Fill by the ACTIVE colouring dimension (score ramp or tag group).
+        fill = regionFill(r);
         lineNumber = r.lineNumber;
         layer = layerKind;
         label = r.name;

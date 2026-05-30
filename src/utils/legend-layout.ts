@@ -41,6 +41,83 @@ const CONTROL_FONT_SIZE = 11;
 const CONTROL_ICON_GAP = 4;
 const CONTROL_GAP = 8;
 
+// Continuous-ramp swatch dims (choropleth groups) — match the legacy map ramp
+// block so the gradient reads the same now that it lives in the top legend.
+const RAMP_LEGEND_W = 80;
+const RAMP_LEGEND_H = 8;
+const RAMP_LABEL_GAP = 6;
+
+/** Compact numeric label for a ramp end (integers bare; else 1 decimal). */
+function fmtRamp(n: number): string {
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
+}
+
+/** Width of a gradient group's capsule: pill + min label + ramp + max label. */
+function gradientCapsuleWidth(
+  name: string,
+  gradient: NonNullable<LegendGroupData['gradient']>
+): number {
+  const pw = pillWidth(name);
+  const minW = measureLegendText(fmtRamp(gradient.min), LEGEND_ENTRY_FONT_SIZE);
+  const maxW = measureLegendText(fmtRamp(gradient.max), LEGEND_ENTRY_FONT_SIZE);
+  return (
+    LEGEND_CAPSULE_PAD +
+    pw +
+    4 +
+    minW +
+    RAMP_LABEL_GAP +
+    RAMP_LEGEND_W +
+    RAMP_LABEL_GAP +
+    maxW +
+    LEGEND_CAPSULE_PAD
+  );
+}
+
+/** Active capsule for a continuous-ramp (choropleth) group. */
+function buildGradientCapsuleLayout(
+  group: LegendGroupData,
+  gradient: NonNullable<LegendGroupData['gradient']>
+): LegendCapsuleLayout {
+  const pw = pillWidth(group.name);
+  const minText = fmtRamp(gradient.min);
+  const maxText = fmtRamp(gradient.max);
+  const minW = measureLegendText(minText, LEGEND_ENTRY_FONT_SIZE);
+  const gx = LEGEND_CAPSULE_PAD + pw + 4;
+  const minX = gx;
+  const rampX = gx + minW + RAMP_LABEL_GAP;
+  const maxX = rampX + RAMP_LEGEND_W + RAMP_LABEL_GAP;
+  const width = gradientCapsuleWidth(group.name, gradient);
+  return {
+    groupName: group.name,
+    x: 0,
+    y: 0,
+    width,
+    height: LEGEND_HEIGHT,
+    pill: {
+      groupName: group.name,
+      x: LEGEND_CAPSULE_PAD,
+      y: LEGEND_CAPSULE_PAD,
+      width: pw,
+      height: LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2,
+      isActive: true,
+    },
+    entries: [],
+    gradient: {
+      rampX,
+      rampY: (LEGEND_HEIGHT - RAMP_LEGEND_H) / 2,
+      rampW: RAMP_LEGEND_W,
+      rampH: RAMP_LEGEND_H,
+      minText,
+      minX,
+      maxText,
+      maxX,
+      textY: LEGEND_HEIGHT / 2,
+      hue: gradient.hue,
+      base: gradient.base,
+    },
+  };
+}
+
 // ── Measurement helpers ─────────────────────────────────────
 
 export function pillWidth(name: string): number {
@@ -267,7 +344,7 @@ export function computeLegendLayout(
 
   const visibleGroups = config.showEmptyGroups
     ? groups
-    : groups.filter((g) => g.entries.length > 0);
+    : groups.filter((g) => g.entries.length > 0 || !!g.gradient);
   if (
     visibleGroups.length === 0 &&
     (!configControls || configControls.length === 0) &&
@@ -364,7 +441,7 @@ export function computeLegendLayout(
         groupAvailW,
         config.capsulePillAddonWidth ?? 0
       );
-    } else if (!activeGroupName) {
+    } else if (!activeGroupName || config.showInactivePills) {
       const pw = pillWidth(g.name);
       pills.push({
         groupName: g.name,
@@ -413,6 +490,7 @@ function buildCapsuleLayout(
   containerWidth: number,
   addonWidth = 0
 ): LegendCapsuleLayout {
+  if (group.gradient) return buildGradientCapsuleLayout(group, group.gradient);
   const pw = pillWidth(group.name);
   const info = capsuleWidth(
     group.name,

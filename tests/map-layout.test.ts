@@ -227,12 +227,21 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
     expect(r.legend?.tagGroups.some((g) => g.name === 'Market')).toBe(true);
     expect(r.legend?.activeGroup).toBe('Market');
   });
-  it('score wins over tag (AC5)', () => {
-    const r = lay(
-      'map\ntag M as m\n  HQ blue\nactive-tag M\nCalifornia score: 50, m: HQ'
+  it('active colouring dimension decides fill — score vs tag (AC5, bivariate)', () => {
+    const src = 'map\ntag M as m\n  HQ blue\nCalifornia score: 50, m: HQ';
+    // Default: scores present → colour by score (sole score → ramp full hue).
+    expect(lay(src).regions.find((x) => x.id === 'US-CA')!.fill).toBe(
+      P.colors.red
     );
-    const ca = r.regions.find((x) => x.id === 'US-CA')!;
-    expect(ca.fill).toBe(P.colors.red); // single score → ramp full hue, NOT tag blue
+    // `active-tag M` flips to the tag dimension → NOT the score ramp.
+    expect(
+      lay(`${src}\nactive-tag M`).regions.find((x) => x.id === 'US-CA')!.fill
+    ).not.toBe(P.colors.red);
+    // `active-tag score` flips back to the ramp.
+    expect(
+      lay(`${src}\nactive-tag score`).regions.find((x) => x.id === 'US-CA')!
+        .fill
+    ).toBe(P.colors.red);
   });
   it('unknown tag value → neutral, no throw (AC25)', () => {
     const r = lay(

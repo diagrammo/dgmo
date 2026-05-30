@@ -2689,7 +2689,7 @@ Germany m: Region
 Japan m: Region
 ```
 
-`score:` + a tag on the same region: v1 renders the **score** (tag ignored for fill); both parse.
+`score:` + a tag on the same region (bivariate): both are kept as **two selectable colouring dimensions**. The top legend shows the score ramp and each tag group as mutually-exclusive, collapsible groups; the active one fills the map. Default is the score ramp (when any `score:` exists). `active-tag <GroupName>` colours by that tag; `active-tag score` colours by the ramp. In the app, clicking a legend group flips the active dimension (live preview only — no source edit). No warning.
 
 ### Points of interest (`poi`)
 
@@ -2737,7 +2737,7 @@ dcw                     # hub/star — indented edges share the source
 ### Labels, legend & chrome
 
 - Title is the declaration line; `subtitle` / `caption` are directives.
-- Legend auto-composes (tag swatches, score ramp + `metric`, POI size key + `size-metric`, edge-weight key); `no-legend` suppresses it.
+- Legend auto-composes below the title: the score ramp + `metric` and each tag group are **selectable colouring groups** (collapse/activate to flip the fill); the POI size key (`size-metric`) and edge-weight key sit in a separate lower-corner block. `no-legend` suppresses all of it.
 - `region-labels full | abbrev | off` (default `off`); `poi-labels off | auto | all` (default `auto`). Labels render **on the map** (export-safe), escalating inline → leader line → numbered pin in dense clusters; markers never move.
 
 ### Name resolution

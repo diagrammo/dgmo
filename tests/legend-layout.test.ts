@@ -377,3 +377,62 @@ describe('entry label truncation', () => {
     );
   });
 });
+
+describe('computeLegendLayout — gradient (choropleth) groups', () => {
+  const scoreGroup: LegendGroupData = {
+    name: 'Pipeline',
+    entries: [],
+    gradient: { min: 11, max: 92, hue: '#bf616a', base: '#ffffff' },
+  };
+  const tierGroup: LegendGroupData = {
+    name: 'Tier',
+    entries: [
+      { value: 'Core', color: '#5e81ac' },
+      { value: 'Growth', color: '#88c0d0' },
+    ],
+  };
+
+  it('renders an active gradient group as a swatch capsule (no entry dots)', () => {
+    const layout = computeLegendLayout(
+      defaultConfig([scoreGroup, tierGroup]),
+      { activeGroup: 'Pipeline' },
+      800
+    );
+    const cap = layout.activeCapsule!;
+    expect(cap.groupName).toBe('Pipeline');
+    expect(cap.entries).toHaveLength(0);
+    expect(cap.gradient).toBeDefined();
+    expect(cap.gradient!.minText).toBe('11');
+    expect(cap.gradient!.maxText).toBe('92');
+    expect(cap.gradient!.rampW).toBeGreaterThan(0);
+  });
+
+  it('a gradient group survives the empty-entries filter (it has no dots)', () => {
+    const layout = computeLegendLayout(
+      defaultConfig([scoreGroup]),
+      { activeGroup: 'Pipeline' },
+      800
+    );
+    expect(layout.height).toBe(LEGEND_HEIGHT);
+    expect(layout.activeCapsule?.gradient).toBeDefined();
+  });
+
+  it('showInactivePills keeps siblings as clickable pills while one is active', () => {
+    const layout = computeLegendLayout(
+      defaultConfig([scoreGroup, tierGroup], { showInactivePills: true }),
+      { activeGroup: 'Pipeline' },
+      800
+    );
+    expect(layout.activeCapsule?.groupName).toBe('Pipeline');
+    expect(layout.pills.map((p) => p.groupName)).toContain('Tier');
+  });
+
+  it('without showInactivePills, an active group hides its siblings (legacy)', () => {
+    const layout = computeLegendLayout(
+      defaultConfig([scoreGroup, tierGroup]),
+      { activeGroup: 'Pipeline' },
+      800
+    );
+    expect(layout.pills).toHaveLength(0);
+  });
+});

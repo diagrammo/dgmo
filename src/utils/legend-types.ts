@@ -87,6 +87,11 @@ export interface LegendConfig {
   capsulePillAddonWidth?: number;
   /** When true, groups with no entries are still rendered as collapsed pills. Default: false (empty groups hidden). */
   showEmptyGroups?: boolean;
+  /** When true, INACTIVE sibling groups still render as collapsed pills next to
+   *  the active capsule (preview only — export still shows just the active
+   *  group). Lets the user click a sibling to switch the active group. Default
+   *  false (legacy: when one group is active the others are hidden). */
+  showInactivePills?: boolean;
 }
 
 export interface LegendPalette {
@@ -132,6 +137,21 @@ export interface LegendCapsuleLayout {
   moreCount?: number;
   /** X offset where addon content (e.g. eye icon) can be placed — after pill, before entries */
   addonX?: number;
+  /** Continuous-ramp swatch (choropleth groups) drawn in place of entry dots:
+   *  `minText` | gradient rect | `maxText`, all vertically centred. */
+  gradient?: {
+    rampX: number;
+    rampY: number;
+    rampW: number;
+    rampH: number;
+    minText: string;
+    minX: number;
+    maxText: string;
+    maxX: number;
+    textY: number;
+    hue: string;
+    base: string;
+  };
 }
 
 export interface LegendControlLayout {

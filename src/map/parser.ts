@@ -105,11 +105,6 @@ export function parseMap(content: string): ParsedMap {
   const pushWarning = (line: number, message: string): void => {
     diagnostics.push(makeDgmoError(line, message, 'warning'));
   };
-  // §24B calls the score+tag-coexistence note "info", but DgmoSeverity is only
-  // error|warning — emit at warning (lowest available informational severity).
-  const pushInfo = (line: number, message: string): void => {
-    diagnostics.push(makeDgmoError(line, message, 'warning'));
-  };
 
   const lines = content.split('\n');
 
@@ -446,11 +441,9 @@ export function parseMap(content: string): ParsedMap {
         scoreNum = undefined;
       }
     }
-    if (scoreNum !== undefined && Object.keys(tags).length)
-      pushInfo(
-        line,
-        'A region has both `score:` and a tag value — v1 renders only the score (bivariate is a future seam).'
-      );
+    // A region may carry BOTH a `score:` and a tag value — they are two
+    // selectable colouring dimensions (the legend flips between the score ramp
+    // and the tag group), so this is no longer warned (bivariate is handled).
     // Peel a trailing ISO scope token (§24B.8) — same qualifier POIs accept,
     // so `Georgia US-GA` / `Georgia US` can force the country-vs-state pick.
     let regionName = split.name;
