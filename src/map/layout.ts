@@ -385,24 +385,55 @@ export function layoutMap(
   projection.fitExtent(fitBox, fitTarget as never);
   // albers-usa: fitExtent centres the US vertically, so a panel taller than the
   // map's aspect leaves a band of empty water ABOVE the (clipped) neighbour land
-  // — e.g. Canada floats with ocean above it. Top-anchor instead: shift the map
-  // up so the northernmost visible land (Canada's clipped edge, or the US itself)
-  // sits near the top. The surplus moves to the BOTTOM, where it's correctly
-  // ocean (the Gulf/Atlantic below the US). No scaling, so US states are never
-  // cropped (cover-to-fill would clip California on a narrow panel).
+  // — e.g. Canada floats with a band of ocean above it and the albers clip cuts
+  // a hard horizontal line short of the canvas. Zoom to FILL the box vertically
+  // with the visible land (Canada's clipped edge down through Mexico/the insets)
+  // so the geography bleeds off the top/bottom edges instead of being cut short.
+  // Horizontally we centre on the contiguous US and crop the surplus OCEAN at the
+  // left/right edges — but clamp the zoom so the contiguous US is never cropped.
   if (resolved.projection === 'albers-usa') {
     const gp = geoPath(projection);
-    const landParts = [fitTarget, worldLayer.get('CA')].filter(
+    const conusFeat = extentCorners();
+    const boundsOf = (
+      feats: GeoFeature[]
+    ): [number, number, number, number] => {
+      let x0 = Infinity,
+        y0 = Infinity,
+        x1 = -Infinity,
+        y1 = -Infinity;
+      for (const f of feats) {
+        const b = gp.bounds(f as never);
+        if (!Number.isFinite(b[0][0])) continue;
+        x0 = Math.min(x0, b[0][0]);
+        y0 = Math.min(y0, b[0][1]);
+        x1 = Math.max(x1, b[1][0]);
+        y1 = Math.max(y1, b[1][1]);
+      }
+      return [x0, y0, x1, y1];
+    };
+    const land = [fitTarget, worldLayer.get('CA'), worldLayer.get('MX')].filter(
       Boolean
     ) as GeoFeature[];
-    let visTop = Infinity;
-    for (const f of landParts) {
-      const b = gp.bounds(f as never);
-      if (Number.isFinite(b[0][1])) visTop = Math.min(visTop, b[0][1]);
-    }
-    if (Number.isFinite(visTop) && visTop > topPad) {
-      const [tx, ty] = projection.translate();
-      projection.translate([tx, ty - (visTop - topPad)]);
+    const lb = boundsOf(land);
+    const cb = boundsOf([conusFeat]);
+    const landH = lb[3] - lb[1];
+    const conusW = cb[2] - cb[0];
+    const boxW = fitBox[1][0] - fitBox[0][0];
+    const boxH = fitBox[1][1] - fitBox[0][1];
+    if (landH > 0 && conusW > 0) {
+      // Fill the height, but never zoom so far that the contiguous US (conus)
+      // overflows the box width — that would clip California / the east coast.
+      const zoom = Math.min(boxH / landH, boxW / conusW);
+      if (zoom > 1.001) {
+        projection.scale(projection.scale() * zoom);
+        const lb2 = boundsOf(land);
+        const cb2 = boundsOf([conusFeat]);
+        const [tx, ty] = projection.translate();
+        projection.translate([
+          tx + ((fitBox[0][0] + fitBox[1][0]) / 2 - (cb2[0] + cb2[2]) / 2),
+          ty + ((fitBox[0][1] + fitBox[1][1]) / 2 - (lb2[1] + lb2[3]) / 2),
+        ]);
+      }
     }
   }
   const path: GeoPath = geoPath(projection);
