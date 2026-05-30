@@ -85,6 +85,25 @@ export function renderMap(
   // Title / subtitle / caption are rendered LAST (see end of function) so they
   // sit in the foreground above the basemap, POIs, and labels.
 
+  // ── AK / HI inset cutouts (albers-usa) — framed cards drawn behind the
+  // regions so the composited insets read as insets (and Hawaii doesn't vanish
+  // into the ocean). Neutral bg fill separates them from the water tint. ──
+  if (layout.insets.length) {
+    const insetG = svg.append('g').attr('class', 'dgmo-map-insets');
+    for (const box of layout.insets) {
+      insetG
+        .append('rect')
+        .attr('x', box.x)
+        .attr('y', box.y)
+        .attr('width', box.w)
+        .attr('height', box.h)
+        .attr('rx', 4)
+        .attr('fill', palette.bg)
+        .attr('stroke', mix(palette.text, palette.bg, 35))
+        .attr('stroke-width', 1);
+    }
+  }
+
   // ── Regions ──
   const gRegions = svg.append('g').attr('class', 'dgmo-map-regions');
   for (const r of layout.regions) {
@@ -349,10 +368,7 @@ function emitExtraLegend(
   // Nothing to draw if there are only categorical swatches (#4).
   if (!legend.ramp && !legend.size && !legend.weight) return;
   const blocks: Array<() => void> = [];
-  const g = svg
-    .append('g')
-    .attr('class', 'dgmo-map-legend-keys')
-    .attr('transform', `translate(12, ${height - 56 - bottomGap})`);
+  const g = svg.append('g').attr('class', 'dgmo-map-legend-keys');
   let xCursor = 0;
 
   if (legend.ramp) {
@@ -450,5 +466,12 @@ function emitExtraLegend(
       xCursor += 110;
     });
   }
+  // Each block is ~110px wide. When AK/HI insets occupy the lower-left, push
+  // the key strip to the lower-right so it doesn't sit on top of the insets.
+  const totalW = blocks.length * 110;
+  const x = layout.insets.length
+    ? Math.max(12, layout.width - 12 - totalW)
+    : 12;
+  g.attr('transform', `translate(${x}, ${height - 56 - bottomGap})`);
   for (const draw of blocks) draw();
 }

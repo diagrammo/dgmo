@@ -85,6 +85,14 @@ export interface MapLayoutRegion {
   readonly layer: 'base' | 'country' | 'us-state';
 }
 
+/** A framed inset "cutout" (albers-usa AK/HI), in screen px. */
+export interface MapLayoutInset {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
 export interface MapLayoutPoi {
   readonly id: string;
   readonly cx: number;
@@ -147,6 +155,8 @@ export interface MapLayout {
   /** Numbered-pin fallback legend list (pin -> label). */
   readonly pinList: ReadonlyArray<{ pin: number; label: string }>;
   readonly legend: MapLayoutLegend | null;
+  /** Framed AK/HI inset cutouts (albers-usa only; empty otherwise). */
+  readonly insets: readonly MapLayoutInset[];
 }
 
 export interface LayoutOptions {
@@ -350,6 +360,34 @@ export function layoutMap(
   const project = (lon: number, lat: number): [number, number] | null =>
     projection([lon, lat]) ?? null;
 
+  // -- AK / HI inset cutouts (albers-usa) --
+  // geoAlbersUsa composites Alaska and Hawaii into the lower-left but draws no
+  // separator, so they read as ocean — Hawaii nearly vanishes. Frame each as an
+  // inset "card" so they stand out as insets. The screen bbox comes from
+  // projecting the feature's own vertices through the composite projection.
+  const insets: MapLayoutInset[] = [];
+  if (resolved.projection === 'albers-usa' && usLayer) {
+    const INSET_PAD = 10;
+    for (const iso of ['US-AK', 'US-HI']) {
+      const f = usLayer.get(iso);
+      if (!f) continue;
+      // path.bounds is projection-aware (handles the albers composite + the
+      // antimeridian Aleutians exactly like the rendered path), so the frame
+      // always contains the drawn inset — manual vertex projection does not.
+      const b = path.bounds(f as never);
+      if (!b || !Number.isFinite(b[0][0])) continue;
+      // Clamp to the canvas (small margin) so a frame never bleeds off an edge
+      // — Alaska's inset sits hard against the lower-left corner.
+      const m = 4;
+      const x0 = Math.max(m, b[0][0] - INSET_PAD);
+      const y0 = Math.max(m, b[0][1] - INSET_PAD);
+      const x1 = Math.min(width - m, b[1][0] + INSET_PAD);
+      const y1 = Math.min(height - m, b[1][1] + INSET_PAD);
+      if (x1 - x0 < 4 || y1 - y0 < 4) continue;
+      insets.push({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+    }
+  }
+
   // -- Basemap culling --
   // At a regional zoom (e.g. a Caribbean route) far-away land — especially the
   // poles and antimeridian-spanning countries (Antarctica, Russia, Canada) —
@@ -359,7 +397,11 @@ export function layoutMap(
   const [[exW, exS], [exE, exN]] = resolved.extent;
   const lonSpan = exE - exW;
   const latSpan = exN - exS;
-  const isGlobalView = lonSpan >= 270 || latSpan >= 130;
+  // albers-usa is a US-only composite that ALWAYS shows Alaska & Hawaii in
+  // their insets; culling by the contiguous-US geographic extent would wrongly
+  // drop Hawaii (whose true coords sit far outside that box). Never cull there.
+  const isGlobalView =
+    lonSpan >= 270 || latSpan >= 130 || resolved.projection === 'albers-usa';
   const padLon = Math.max(8, lonSpan * 0.35);
   const padLat = Math.max(8, latSpan * 0.35);
   const vW = exW - padLon;
@@ -834,5 +876,6 @@ export function layoutMap(
     labels,
     pinList,
     legend,
+    insets,
   };
 }
