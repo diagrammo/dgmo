@@ -157,6 +157,28 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
       expect(p.cx).toBeLessThanOrEqual(800);
     }
   });
+  it('antimeridian seam-sliver (Fiji-like) is dropped, not painted across the frame', () => {
+    // A country crossing the dateline whose true arc is tiny (177°E..178°W)
+    // inverts under equirectangular to fill the WHOLE ocean as land. It must be
+    // dropped from the world layer (the global view skips view-culling, so the
+    // frame-fill guard has to run regardless). Regression for the green-ocean.
+    const seamWorld = rectTopo('countries', [
+      { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
+      { id: 'JP', name: 'Japan', box: [129, 31, 146, 45] },
+      { id: 'FJ', name: 'Fiji', box: [177, -19, -178, -16] }, // wraps the seam
+    ]);
+    const data = { ...DATA, worldCoarse: seamWorld, worldDetail: seamWorld };
+    const r = layoutMap(
+      resolveMap(parseMap('map\nUnited States score: 5\nJapan score: 3'), data),
+      data,
+      { width: 800, height: 600 },
+      { palette: P, isDark: false }
+    );
+    // Fiji is gone entirely — its only ring is a seam sliver, so it would have
+    // been the frame-filling polygon. US/JP (no seam crossing) are unaffected.
+    expect(r.regions.some((x) => x.id === 'FJ')).toBe(false);
+    expect(r.regions.some((x) => x.id === 'US')).toBe(true);
+  });
   it('country fill found on the resolver-chosen tier (AC27 / AR7 invariant)', () => {
     const resolved = resolveMap(parseMap('map\nJapan score: 5'), DATA);
     // AR7: country isos exist in BOTH tiers (coarse ⊆ detail), so the fill is

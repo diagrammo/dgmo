@@ -733,6 +733,60 @@ export function layoutMap(
     return f;
   };
 
+  // View-INDEPENDENT frame-fill guard. An antimeridian-crossing ring whose true
+  // occupied longitude arc is small (e.g. Fiji: islands at 177°E and 178°W, a
+  // ~5° arc straddling the seam) projects under equirectangular to two slivers
+  // at opposite frame edges; the fill between them inverts to paint the WHOLE
+  // ocean as land. `cullFeatureToView` drops these in a regional view, but a
+  // global/world view skips culling — so they must be dropped here regardless.
+  // Distinguishes a real seam-crosser (Russia ≈170° arc, kept) from a sliver
+  // (Fiji ≈5° arc, dropped) by the occupied-arc width, computed from the ring's
+  // own longitudes (no view frame), so it's correct at any projection centre.
+  const SEAM_SLIVER_MAX_SPAN = 100; // ° — wider seam-crossers are real, kept
+  const ringIsFrameFiller = (ring: Ring): boolean => {
+    const lons = ring.map(([lon]) => lon).sort((a, b) => a - b);
+    if (lons.length < 2) return false;
+    let maxGap = -1;
+    let gapIdx = 0;
+    for (let i = 1; i < lons.length; i++) {
+      const g = lons[i]! - lons[i - 1]!;
+      if (g > maxGap) {
+        maxGap = g;
+        gapIdx = i;
+      }
+    }
+    const wrapGap = lons[0]! + 360 - lons[lons.length - 1]!;
+    // Occupied arc = complement of the largest empty gap. If the gap straddles
+    // the seam the data is contiguous in [−180,180] (no inversion); otherwise
+    // the occupied arc wraps the seam (east > 180).
+    if (wrapGap >= maxGap) return false; // contiguous, doesn't cross the seam
+    const span = 360 - maxGap;
+    const east = lons[gapIdx - 1]! + 360;
+    return east > 180 && span < SEAM_SLIVER_MAX_SPAN;
+  };
+  // Drop a feature's seam-sliver sub-polygons (always, even in a global view).
+  const dropFrameFillers = (f: GeoFeature): GeoFeature | null => {
+    const g = f.geometry as {
+      type: string;
+      coordinates: number[][][] | number[][][][];
+    } | null;
+    if (!g) return f;
+    if (g.type === 'Polygon') {
+      const ring = (g.coordinates as number[][][])[0] as unknown as Ring;
+      return ringIsFrameFiller(ring) ? null : f;
+    }
+    if (g.type === 'MultiPolygon') {
+      const polys = g.coordinates as number[][][][];
+      const keep = polys.filter(
+        (p) => !ringIsFrameFiller(p[0] as unknown as Ring)
+      );
+      if (!keep.length) return null;
+      if (keep.length === polys.length) return f;
+      return { ...f, geometry: { ...g, coordinates: keep } } as GeoFeature;
+    }
+    return f;
+  };
+
   // -- Regions: base layer (neutral) then resolved fills on top --
   const regions: MapLayoutRegion[] = [];
   const pushRegionLayer = (
@@ -750,7 +804,9 @@ export function layoutMap(
       // and a doubled outline).
       if (layerKind === 'country' && usContext && iso === 'US') continue;
       const r = regionById.get(iso);
-      const viewF = shouldCull ? cullFeatureToView(f) : f; // drop far/off-view land
+      // Cull off-view land in a regional view; in a global view keep all land
+      // but still drop antimeridian frame-fillers (Fiji et al.).
+      const viewF = shouldCull ? cullFeatureToView(f) : dropFrameFillers(f);
       if (!viewF) continue;
       const d = path(viewF as never) ?? '';
       if (!d) continue;
@@ -796,7 +852,7 @@ export function layoutMap(
   const lakesTopo = usCrisp && data.naLakes ? data.naLakes : data.lakes;
   if (lakesTopo) {
     for (const [, f] of decodeLayer(lakesTopo)) {
-      const viewF = isGlobalView ? f : cullFeatureToView(f);
+      const viewF = isGlobalView ? dropFrameFillers(f) : cullFeatureToView(f);
       if (!viewF) continue;
       const d = path(viewF as never) ?? '';
       if (!d) continue;
@@ -817,7 +873,7 @@ export function layoutMap(
   const rivers: MapLayoutRiver[] = [];
   if (data.rivers) {
     for (const [, f] of decodeLayer(data.rivers)) {
-      const viewF = isGlobalView ? f : cullFeatureToView(f);
+      const viewF = isGlobalView ? dropFrameFillers(f) : cullFeatureToView(f);
       if (!viewF) continue;
       const d = path(viewF as never) ?? '';
       if (!d) continue;
