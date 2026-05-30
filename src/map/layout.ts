@@ -230,6 +230,12 @@ export function layoutMap(
   // Coastlines / borders: a clear neutral gray (not the bg-tinted border, which
   // reads greenish over land). Mixed toward bg so it stays a subtle hairline.
   const regionStroke = mix(palette.colors.gray, palette.bg, 55);
+  // When a US-states basemap is active, the world layer is just neighbor
+  // context (Mexico/Canada bordering the albers frame). Fill that foreign land
+  // a muted gray so it recedes behind the US data canvas (green) and the blue
+  // water. World maps (no us-states layer) keep the green atlas land for all.
+  const usContext = usLayer !== null;
+  const foreignFill = mix(palette.colors.gray, palette.bg, LAND_TINT - 6);
 
   // -- Region fill model (choropleth + categorical; AR4/AR6) --
   const scores = resolved.regions
@@ -494,7 +500,9 @@ export function layoutMap(
       const d = path(viewF as never) ?? '';
       if (!d) continue;
       const isThisLayer = r?.layer === layerKind;
-      let fill = neutralFill;
+      // Non-US neighbor land in a US view defaults to gray, not the green land.
+      const isForeign = layerKind === 'country' && usContext && iso !== 'US';
+      let fill = isForeign ? foreignFill : neutralFill;
       let label: string | undefined;
       let lineNumber = -1;
       let layer: MapLayoutRegion['layer'] = 'base';
