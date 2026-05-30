@@ -526,7 +526,7 @@ export type { ParsedRing, RingLayer } from './ring/types';
 export { parseMap, looksLikeMap } from './map/parser';
 export { resolveMap } from './map/resolver';
 export { loadMapData } from './map/load-data';
-export { layoutMap } from './map/layout';
+export { layoutMap, mapBackgroundColor } from './map/layout';
 export type {
   MapLayout,
   MapLayoutRegion,

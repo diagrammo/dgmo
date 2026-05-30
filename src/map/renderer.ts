@@ -54,7 +54,12 @@ export function renderMap(
     .attr('viewBox', `0 0 ${width} ${height}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
-    .style('font-family', FONT_FAMILY);
+    .style('font-family', FONT_FAMILY)
+    // Match the SVG element background to the water rect so any letterboxing
+    // (when the host container's aspect differs from the viewBox) shows water,
+    // not the gray palette bg that finalizeSvgExport would otherwise apply —
+    // i.e. no stray band above/below the map.
+    .style('background', layout.background);
 
   svg
     .append('rect')

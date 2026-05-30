@@ -209,6 +209,13 @@ function projectionFor(family: ProjectionFamily): GeoProjection {
   }
 }
 
+/** The map's water / backdrop colour for a palette — the single source of truth
+ *  shared by the renderer's `<rect>` fill and any host wrapper that needs to
+ *  match it (so letterbox gaps around the SVG don't show a stray band). */
+export function mapBackgroundColor(palette: PaletteColors): string {
+  return mix(palette.colors.blue, palette.bg, WATER_TINT);
+}
+
 export function layoutMap(
   resolved: ResolvedMap,
   data: MapData,
@@ -234,7 +241,7 @@ export function layoutMap(
   // keep yellow land for every country.
   const landTint = isDark ? LAND_TINT_DARK : LAND_TINT_LIGHT;
   const neutralFill = mix(palette.colors.yellow, palette.bg, landTint);
-  const water = mix(palette.colors.blue, palette.bg, WATER_TINT);
+  const water = mapBackgroundColor(palette);
   const usContext = usLayer !== null;
   const foreignFill = mix(palette.colors.gray, palette.bg, FOREIGN_TINT);
   // Region borders: a clear neutral gray, mixed toward bg so it reads as a
