@@ -8,7 +8,7 @@
 import {
   geoPath,
   geoNaturalEarth1,
-  geoAlbersUsa,
+  geoConicEqualArea,
   geoMercator,
   type GeoProjection,
   type GeoPath,
@@ -200,10 +200,21 @@ function decodeLayer(topo: BoundaryTopology): Map<string, GeoFeature> {
   return out;
 }
 
+// Our own US map (replaces d3 geoAlbersUsa, whose fixed composite clips
+// Canada/Mexico to hard lines and bakes in inset boxes we can't control). A
+// plain Albers conic for the contiguous 48 — it does NOT clip, so neighbour land
+// projects naturally and bleeds off the canvas edges. Alaska & Hawaii are drawn
+// as our own insets with the dedicated projections below.
+const usConusProjection = (): GeoProjection =>
+  geoConicEqualArea().parallels([29.5, 45.5]).rotate([96, 0]);
+const alaskaProjection = (): GeoProjection =>
+  geoConicEqualArea().rotate([154, 0]).center([-2, 58.5]).parallels([55, 65]);
+const hawaiiProjection = (): GeoProjection => geoMercator();
+
 function projectionFor(family: ProjectionFamily): GeoProjection {
   switch (family) {
     case 'albers-usa':
-      return geoAlbersUsa();
+      return usConusProjection();
     case 'mercator':
       return geoMercator();
     case 'natural-earth':
@@ -211,6 +222,19 @@ function projectionFor(family: ProjectionFamily): GeoProjection {
       return geoNaturalEarth1();
   }
 }
+
+/** US state ISO codes that render as insets (drawn off the conus). */
+const INSET_STATES = new Set(['US-AK', 'US-HI']);
+/** US territories excluded from the contiguous-US fit frame. */
+const US_NON_CONUS = new Set([
+  'US-AK',
+  'US-HI',
+  'US-AS',
+  'US-GU',
+  'US-MP',
+  'US-PR',
+  'US-VI',
+]);
 
 /** The map's water / backdrop colour for a palette — the single source of truth
  *  shared by the renderer's `<rect>` fill and any host wrapper that needs to
@@ -306,18 +330,11 @@ export function layoutMap(
   const regionById = new Map(resolved.regions.map((r) => [r.iso, r]));
 
   // -- Projection + fit (AR2, refined) --
-  // The drawn region polygons drive an albers fit; for world projections we fit
-  // to the resolver's (padded, never-degenerate) extent box — fitting to raw
-  // drawn points would collapse to a zero-size target (single/coincident POIs →
-  // Infinity scale → NaN). albers-usa is US-only with AK/HI insets, so a
-  // geographic bbox is wrong there — fit to the actual US features instead, and
-  // fall back to the whole-US base when only POIs are present.
-  const regionFeatures: GeoFeature[] = [];
-  for (const r of resolved.regions) {
-    const f =
-      r.layer === 'us-state' ? usLayer?.get(r.iso) : worldLayer.get(r.iso);
-    if (f) regionFeatures.push(f);
-  }
+  // For world projections we fit to the resolver's (padded, never-degenerate)
+  // extent box — fitting to raw drawn points would collapse to a zero-size
+  // target (single/coincident POIs → Infinity scale → NaN). albers-usa fits to
+  // its own conus features (below).
+  //
   // The extent's four CORNERS as a MultiPoint — NOT a Polygon. A hand-built
   // lat/lon rectangle's spherical winding is ambiguous to d3-geo, which can
   // read it as the whole-globe complement (→ tiny content framed on a world
@@ -341,13 +358,13 @@ export function layoutMap(
   };
 
   let fitFeatures: GeoFeature[];
-  if (resolved.projection === 'albers-usa') {
-    if (regionFeatures.length > 0) fitFeatures = regionFeatures;
-    else if (usLayer) fitFeatures = [...usLayer.values()];
-    else {
-      const us = worldLayer.get('US');
-      fitFeatures = us ? [us] : [...worldLayer.values()];
-    }
+  if (resolved.projection === 'albers-usa' && usLayer) {
+    // Frame the contiguous 48 + DC (insets/territories excluded). The conic
+    // projects everything else — Canada, Mexico — around it, bleeding off the
+    // canvas edges so there's no empty water band and no hard clip line.
+    fitFeatures = [...usLayer.entries()]
+      .filter(([iso]) => !US_NON_CONUS.has(iso))
+      .map(([, f]) => f);
   } else {
     fitFeatures = [extentCorners()];
   }
@@ -383,89 +400,68 @@ export function layoutMap(
     ],
   ];
   projection.fitExtent(fitBox, fitTarget as never);
-  // albers-usa: fitExtent centres the US vertically, so a panel taller than the
-  // map's aspect leaves a band of empty water ABOVE the (clipped) neighbour land
-  // — e.g. Canada floats with a band of ocean above it and the albers clip cuts
-  // a hard horizontal line short of the canvas. Zoom to FILL the box vertically
-  // with the visible land (Canada's clipped edge down through Mexico/the insets)
-  // so the geography bleeds off the top/bottom edges instead of being cut short.
-  // Horizontally we centre on the contiguous US and crop the surplus OCEAN at the
-  // left/right edges — but clamp the zoom so the contiguous US is never cropped.
-  if (resolved.projection === 'albers-usa') {
-    const gp = geoPath(projection);
-    const conusFeat = extentCorners();
-    const boundsOf = (
-      feats: GeoFeature[]
-    ): [number, number, number, number] => {
-      let x0 = Infinity,
-        y0 = Infinity,
-        x1 = -Infinity,
-        y1 = -Infinity;
-      for (const f of feats) {
-        const b = gp.bounds(f as never);
-        if (!Number.isFinite(b[0][0])) continue;
-        x0 = Math.min(x0, b[0][0]);
-        y0 = Math.min(y0, b[0][1]);
-        x1 = Math.max(x1, b[1][0]);
-        y1 = Math.max(y1, b[1][1]);
-      }
-      return [x0, y0, x1, y1];
-    };
-    const land = [fitTarget, worldLayer.get('CA'), worldLayer.get('MX')].filter(
-      Boolean
-    ) as GeoFeature[];
-    const lb = boundsOf(land);
-    const cb = boundsOf([conusFeat]);
-    const landH = lb[3] - lb[1];
-    const conusW = cb[2] - cb[0];
-    const boxW = fitBox[1][0] - fitBox[0][0];
-    const boxH = fitBox[1][1] - fitBox[0][1];
-    if (landH > 0 && conusW > 0) {
-      // Fill the height, but never zoom so far that the contiguous US (conus)
-      // overflows the box width — that would clip California / the east coast.
-      const zoom = Math.min(boxH / landH, boxW / conusW);
-      if (zoom > 1.001) {
-        projection.scale(projection.scale() * zoom);
-        const lb2 = boundsOf(land);
-        const cb2 = boundsOf([conusFeat]);
-        const [tx, ty] = projection.translate();
-        projection.translate([
-          tx + ((fitBox[0][0] + fitBox[1][0]) / 2 - (cb2[0] + cb2[2]) / 2),
-          ty + ((fitBox[0][1] + fitBox[1][1]) / 2 - (lb2[1] + lb2[3]) / 2),
-        ]);
-      }
-    }
-  }
   const path: GeoPath = geoPath(projection);
   const project = (lon: number, lat: number): [number, number] | null =>
     projection([lon, lat]) ?? null;
 
-  // -- AK / HI inset cutouts (albers-usa) --
-  // geoAlbersUsa composites Alaska and Hawaii into the lower-left but draws no
-  // separator, so they read as ocean — Hawaii nearly vanishes. Frame each as an
-  // inset "card" so they stand out as insets. The screen bbox comes from
-  // projecting the feature's own vertices through the composite projection.
+  // -- Alaska & Hawaii insets (our own, replacing geoAlbersUsa's fixed boxes) --
+  // The conus conic projects AK/HI to their real positions (far off-frame), so
+  // they're culled from the main layer; instead each is drawn in its own framed
+  // box in the lower-left with a dedicated projection fit to that box. Inset
+  // region paths (computed here, in inset-projection screen coords) are appended
+  // to `regions` so the renderer draws them like any other region.
   const insets: MapLayoutInset[] = [];
+  const insetRegions: MapLayoutRegion[] = [];
   if (resolved.projection === 'albers-usa' && usLayer) {
-    const INSET_PAD = 10;
-    for (const iso of ['US-AK', 'US-HI']) {
+    const PAD = 8;
+    // Boxes anchored to the lower-left; sizes scale with the canvas.
+    const akW = Math.max(120, width * 0.16);
+    const akH = Math.max(90, height * 0.24);
+    const hiW = Math.max(70, width * 0.09);
+    const hiH = Math.max(55, height * 0.14);
+    const akBox = { x: FIT_PAD, y: height - FIT_PAD - akH, w: akW, h: akH };
+    const hiBox = {
+      x: FIT_PAD + akW + 10,
+      y: height - FIT_PAD - hiH,
+      w: hiW,
+      h: hiH,
+    };
+    const drawInset = (
+      iso: string,
+      proj: GeoProjection,
+      box: { x: number; y: number; w: number; h: number }
+    ): void => {
       const f = usLayer.get(iso);
-      if (!f) continue;
-      // path.bounds is projection-aware (handles the albers composite + the
-      // antimeridian Aleutians exactly like the rendered path), so the frame
-      // always contains the drawn inset — manual vertex projection does not.
-      const b = path.bounds(f as never);
-      if (!b || !Number.isFinite(b[0][0])) continue;
-      // Clamp to the canvas (small margin) so a frame never bleeds off an edge
-      // — Alaska's inset sits hard against the lower-left corner.
-      const m = 4;
-      const x0 = Math.max(m, b[0][0] - INSET_PAD);
-      const y0 = Math.max(m, b[0][1] - INSET_PAD);
-      const x1 = Math.min(width - m, b[1][0] + INSET_PAD);
-      const y1 = Math.min(height - m, b[1][1] + INSET_PAD);
-      if (x1 - x0 < 4 || y1 - y0 < 4) continue;
-      insets.push({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
-    }
+      if (!f) return;
+      proj.fitExtent(
+        [
+          [box.x + PAD, box.y + PAD],
+          [box.x + box.w - PAD, box.y + box.h - PAD],
+        ],
+        f as never
+      );
+      const d = geoPath(proj)(f as never) ?? '';
+      if (!d) return;
+      const r = regionById.get(iso);
+      let fill = neutralFill;
+      let lineNumber = -1;
+      if (r?.layer === 'us-state') {
+        if (r.score !== undefined) fill = fillForScore(r.score);
+        else fill = tagFill(r.tags, activeGroup) ?? neutralFill;
+        lineNumber = r.lineNumber;
+      }
+      insets.push(box);
+      insetRegions.push({
+        id: iso,
+        d,
+        fill,
+        stroke: regionStroke,
+        lineNumber,
+        layer: 'us-state',
+      });
+    };
+    drawInset('US-AK', alaskaProjection(), akBox);
+    drawInset('US-HI', hawaiiProjection(), hiBox);
   }
 
   // -- Basemap culling --
@@ -567,6 +563,10 @@ export function layoutMap(
     shouldCull: boolean
   ): void => {
     for (const [iso, f] of layerFeatures) {
+      // Alaska/Hawaii are drawn as insets under albers-usa — skip them in the
+      // main conus layer (the conic would otherwise place them far off-frame).
+      if (layerKind === 'us-state' && usContext && INSET_STATES.has(iso))
+        continue;
       const r = regionById.get(iso);
       const viewF = shouldCull ? cullFeatureToView(f) : f; // drop far/off-view land
       if (!viewF) continue;
@@ -601,14 +601,10 @@ export function layoutMap(
   // World/foreign layer: cull by the visible extent (unless near-global) so far
   // countries don't project to frame-filling garbage under albers-usa.
   pushRegionLayer(worldLayer, 'country', !isGlobalView);
-  // US-states layer: never cull under albers-usa, or Alaska/Hawaii (far outside
-  // the contiguous extent) would be dropped.
-  if (usLayer)
-    pushRegionLayer(
-      usLayer,
-      'us-state',
-      !isGlobalView && resolved.projection !== 'albers-usa'
-    );
+  // US-states layer (cull off-view; AK/HI are handled as insets above).
+  if (usLayer) pushRegionLayer(usLayer, 'us-state', !isGlobalView);
+  // Append the AK/HI inset region paths (already in inset-projection coords).
+  regions.push(...insetRegions);
 
   // Lakes (Great Lakes etc.) painted as water OVER the land so they don't read
   // as land — the coarse country polygons don't carve them out. Drawn last so

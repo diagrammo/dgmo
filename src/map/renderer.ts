@@ -104,7 +104,7 @@ export function renderMap(
         .attr('height', box.h)
         .attr('rx', 4)
         .attr('fill', layout.background)
-        .attr('stroke', mix(palette.text, palette.bg, 35))
+        .attr('stroke', mix(palette.text, palette.bg, 55))
         .attr('stroke-width', 1);
     }
   }
