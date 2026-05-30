@@ -269,6 +269,11 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     expect(r.projection).toBe('equirectangular');
     expect(r.extent[0][0]).toBe(-180);
     expect(r.extent[1][0]).toBe(180);
+    // Latitude widens to the populated world band even though the data sits at
+    // ~10°N — so every continent shows, not a thin band that crops S. Africa /
+    // Argentina / N. Russia.
+    expect(r.extent[0][1]).toBeLessThanOrEqual(-55);
+    expect(r.extent[1][1]).toBeGreaterThanOrEqual(75);
   });
   it('extent bounds POIs with padding (AC14)', () => {
     const r = resolve('map\npoi 40 -74 as a\npoi 42 -71 as b');

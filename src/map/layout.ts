@@ -387,25 +387,31 @@ export function layoutMap(
   // target (single/coincident POIs → Infinity scale → NaN). albers-usa fits to
   // its own conus features (below).
   //
-  // The extent's four CORNERS as a MultiPoint — NOT a Polygon. A hand-built
+  // The extent outline sampled as a MultiPoint — NOT a Polygon. A hand-built
   // lat/lon rectangle's spherical winding is ambiguous to d3-geo, which can
   // read it as the whole-globe complement (→ tiny content framed on a world
-  // map). Corner points have no interior/winding ambiguity, so fitExtent frames
-  // exactly the extent box.
-  const extentCorners = (): GeoFeature => {
+  // map). Points have no interior/winding ambiguity, so fitExtent frames the
+  // box exactly. We sample ALONG the four edges (not just the corners) because
+  // a curved projection (natural-earth) bulges between corners — its widest x
+  // is at the equator and its lowest/highest y at the central meridian, neither
+  // of which is a corner. Fitting only corners under-frames the curve, so the
+  // continents at the frame's top/bottom/sides spill off and clip (S. Africa,
+  // Argentina, N. Russia). Equirectangular/mercator are linear, so the extra
+  // samples are redundant-but-harmless there.
+  const extentOutline = (): GeoFeature => {
     const [[w, s], [e, n]] = resolved.extent;
+    const N = 16;
+    const coords: Array<[number, number]> = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const lon = w + (e - w) * t;
+      const lat = s + (n - s) * t;
+      coords.push([lon, s], [lon, n], [w, lat], [e, lat]);
+    }
     return {
       type: 'Feature',
       properties: {},
-      geometry: {
-        type: 'MultiPoint',
-        coordinates: [
-          [w, s],
-          [e, s],
-          [e, n],
-          [w, n],
-        ],
-      },
+      geometry: { type: 'MultiPoint', coordinates: coords },
     };
   };
 
@@ -418,7 +424,7 @@ export function layoutMap(
       .filter(([iso]) => !US_NON_CONUS.has(iso))
       .map(([, f]) => f);
   } else {
-    fitFeatures = [extentCorners()];
+    fitFeatures = [extentOutline()];
   }
   const fitTarget: GeoFC = { type: 'FeatureCollection', features: fitFeatures };
 

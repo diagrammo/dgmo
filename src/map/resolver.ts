@@ -31,6 +31,11 @@ type LookupResult =
 const WORLD_SPAN = 90;
 const MERCATOR_MAX_SPAN = 25;
 const PAD_FRACTION = 0.05;
+// Latitude band for a snapped world view — Tierra del Fuego (≈ −55°) to northern
+// Russia/Canada (≈ +78°). Excludes most of Antarctica + the high Arctic so the
+// populated continents fill the frame rather than waste it on ice.
+const WORLD_LAT_SOUTH = -58;
+const WORLD_LAT_NORTH = 78;
 
 // Long-form (or common-alias) country name → the folded Natural-Earth display
 // name actually shipped in world-coarse (#6). The NE coarse layer abbreviates a
@@ -533,14 +538,18 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   // union is unstable for sparse global points — and an antimeridian-crossing
   // country box (the US, via its Aleutians) wraps the union to an Asia-centred
   // window that splits the Americas at the seam. When the data occupies at
-  // least half the globe in longitude, snap to full longitude so the map reads
-  // as a standard world view (US left, Asia right). The ≥180° gate leaves
-  // regional spreads tight — `region` continents (Europe ≈70°, Asia ≈155°) and
-  // small antimeridian clusters (which frame as mercator anyway) are untouched.
-  if (projection === 'equirectangular' && lonSpan >= 180) {
+  // least half the globe in longitude, snap to full longitude AND widen the
+  // latitude band to the populated world (≈ Tierra del Fuego → northern
+  // Russia/Canada) so the map reads as a standard world view with every
+  // continent shown — not a thin band cropped to the data's latitudes (which
+  // would slice off South Africa, southern Argentina, northern Russia, …). The
+  // ≥180° gate leaves regional spreads tight — `region` continents (Europe
+  // ≈70°, Asia ≈155°) and antimeridian clusters (mercator anyway) untouched.
+  // Applies to both world projections (equirectangular default + natural-earth).
+  if (lonSpan >= 180) {
     extent = [
-      [-180, extent[0][1]],
-      [180, extent[1][1]],
+      [-180, Math.min(extent[0][1], WORLD_LAT_SOUTH)],
+      [180, Math.max(extent[1][1], WORLD_LAT_NORTH)],
     ];
   }
 
