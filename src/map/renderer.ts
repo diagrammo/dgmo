@@ -78,40 +78,12 @@ export function renderMap(
     .attr('d', 'M0,0L10,5L0,10z')
     .attr('fill', arrowColor);
 
-  const haloColor = layout.background;
+  // Neutral bg (not the water-tinted backdrop) so label halos read over both
+  // land and ocean.
+  const haloColor = palette.bg;
 
-  // ── Title / subtitle ──
-  if (layout.title) {
-    svg
-      .append('text')
-      .attr('x', width / 2)
-      .attr('y', TITLE_Y)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', TITLE_FONT_SIZE)
-      .attr('font-weight', TITLE_FONT_WEIGHT)
-      .attr('fill', palette.text)
-      .text(layout.title);
-  }
-  if (layout.subtitle) {
-    svg
-      .append('text')
-      .attr('x', width / 2)
-      .attr('y', TITLE_Y + TITLE_FONT_SIZE)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', LABEL_FONT + 1)
-      .attr('fill', palette.textMuted)
-      .text(layout.subtitle);
-  }
-  if (layout.caption) {
-    svg
-      .append('text')
-      .attr('x', width / 2)
-      .attr('y', height - 8)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', LABEL_FONT)
-      .attr('fill', palette.textMuted)
-      .text(layout.caption);
-  }
+  // Title / subtitle / caption are rendered LAST (see end of function) so they
+  // sit in the foreground above the basemap, POIs, and labels.
 
   // ── Regions ──
   const gRegions = svg.append('g').attr('class', 'dgmo-map-regions');
@@ -284,6 +256,40 @@ export function renderMap(
     // never overlap it (#3).
     const pinGap = layout.pinList.length ? layout.pinList.length * 14 + 14 : 0;
     emitExtraLegend(svg, layout, palette, height, pinGap);
+  }
+
+  // ── Title / subtitle / caption (foreground — drawn last so they sit above the
+  // basemap, POIs, and labels; layout reserves top padding so POIs clear them) ──
+  if (layout.title) {
+    svg
+      .append('text')
+      .attr('x', width / 2)
+      .attr('y', TITLE_Y)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-weight', TITLE_FONT_WEIGHT)
+      .attr('fill', palette.text)
+      .text(layout.title);
+  }
+  if (layout.subtitle) {
+    svg
+      .append('text')
+      .attr('x', width / 2)
+      .attr('y', TITLE_Y + TITLE_FONT_SIZE)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', LABEL_FONT + 1)
+      .attr('fill', palette.textMuted)
+      .text(layout.subtitle);
+  }
+  if (layout.caption) {
+    svg
+      .append('text')
+      .attr('x', width / 2)
+      .attr('y', height - 8)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', LABEL_FONT)
+      .attr('fill', palette.textMuted)
+      .text(layout.caption);
   }
 }
 

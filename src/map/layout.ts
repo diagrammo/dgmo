@@ -21,6 +21,7 @@ import type { TagGroup } from '../utils/tag-groups';
 import { rectsOverlap, rectCircleOverlap } from '../label-layout';
 import type { LabelRect, PointCircle } from '../label-layout';
 import { measureLegendText } from '../utils/legend-constants';
+import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
 import type { BoundaryTopology } from './data/types';
 import type {
   MapData,
@@ -53,6 +54,9 @@ const W_MAX = 8;
 const FONT = 11; // on-map label font px
 const LEADER_STEP = 14; // px ring radius step for label escalation
 const COLO_EPS = 1.5; // px: POIs closer than this are "co-located"
+const WATER_TINT = 38; // % blue-of-bg for the ocean backdrop
+const LAND_TINT = 34; // % land-hue-of-bg for unscored land
+const LAND_GREEN_BIAS = 72; // % green vs yellow in the land hue (natural sage)
 const COLO_R = 9; // spiderfy radius
 const GOLDEN_ANGLE = 2.399963229728653; // rad (137.5deg) -- even spiral, no random
 const FAN_STEP = 16; // px perpendicular offset between parallel edges
@@ -202,8 +206,20 @@ export function layoutMap(
     ? decodeLayer(data.usStates)
     : null;
 
-  const neutralFill = mix(palette.border, palette.bg, 32);
-  const regionStroke = mix(palette.border, palette.bg, 70);
+  // Default geographic shading: green land on a blue ocean, both derived from
+  // the active palette's named colors and tinted toward bg so they stay subtle
+  // and theme-aware (light = pale, dark = muted). Scored/tagged regions paint
+  // over the land base; `water` backs the whole canvas.
+  const landHue = mix(
+    palette.colors.green,
+    palette.colors.yellow,
+    LAND_GREEN_BIAS
+  );
+  const neutralFill = mix(landHue, palette.bg, LAND_TINT);
+  const water = mix(palette.colors.blue, palette.bg, WATER_TINT);
+  // Coastlines / borders: a clear neutral gray (not the bg-tinted border, which
+  // reads greenish over land). Mixed toward bg so it stays a subtle hairline.
+  const regionStroke = mix(palette.colors.gray, palette.bg, 55);
 
   // -- Region fill model (choropleth + categorical; AR4/AR6) --
   const scores = resolved.regions
@@ -308,12 +324,24 @@ export function layoutMap(
     if (centerLon > 180) centerLon -= 360;
     projection.rotate([-centerLon, 0]);
   }
+  // Reserve top padding for the title/subtitle banner so POIs and their labels
+  // don't project up under the title text (which renders in the foreground).
+  // Title baseline is TITLE_Y; subtitle (when present) sits one title-font-size
+  // below it. Push the fit box below the lowest banner baseline + a clear gap.
+  const TITLE_GAP = 16;
+  let topPad = FIT_PAD;
+  if (resolved.title) {
+    const bannerBottom =
+      (resolved.subtitle ? TITLE_Y + TITLE_FONT_SIZE : TITLE_Y) +
+      TITLE_FONT_SIZE / 2;
+    topPad = Math.max(FIT_PAD, bannerBottom + TITLE_GAP);
+  }
   projection.fitExtent(
     [
-      [FIT_PAD, FIT_PAD],
+      [FIT_PAD, topPad],
       [
         Math.max(FIT_PAD + 1, width - FIT_PAD),
-        Math.max(FIT_PAD + 1, height - FIT_PAD),
+        Math.max(topPad + 1, height - FIT_PAD),
       ],
     ],
     fitTarget as never
@@ -322,6 +350,93 @@ export function layoutMap(
   const project = (lon: number, lat: number): [number, number] | null =>
     projection([lon, lat]) ?? null;
 
+  // -- Basemap culling --
+  // At a regional zoom (e.g. a Caribbean route) far-away land — especially the
+  // poles and antimeridian-spanning countries (Antarctica, Russia, Canada) —
+  // projects to frame-filling garbage whose fill covers the whole viewport,
+  // painting "sea" as land. Only draw features whose geographic bounds overlap
+  // the (padded) visible extent. A near-global view draws everything.
+  const [[exW, exS], [exE, exN]] = resolved.extent;
+  const lonSpan = exE - exW;
+  const latSpan = exN - exS;
+  const isGlobalView = lonSpan >= 270 || latSpan >= 130;
+  const padLon = Math.max(8, lonSpan * 0.35);
+  const padLat = Math.max(8, latSpan * 0.35);
+  const vW = exW - padLon;
+  const vE = exE + padLon;
+  const vS = exS - padLat;
+  const vN = exN + padLat;
+  // Pacific-crossing extents use extended longitudes (e.g. 247 = 113°W), but
+  // ring vertices are in [-180,180]. Shift each vertex into the extent's frame
+  // so the overlap test compares like-for-like.
+  const vLonCenter = (exW + exE) / 2;
+  const normLon = (lon: number): number => {
+    let L = lon;
+    while (L < vLonCenter - 180) L += 360;
+    while (L > vLonCenter + 180) L -= 360;
+    return L;
+  };
+  // True if an outer ring overlaps the padded view box. A ring with a vertex
+  // inside is in; otherwise a non-wrapping bbox overlap also counts (a big
+  // coastal polygon whose edge clips the box). Antimeridian-wrapping rings with
+  // no in-view vertex are dropped — they are the frame-fill artifact source.
+  type Ring = ReadonlyArray<readonly [number, number]>;
+  const ringOverlapsView = (ring: Ring): boolean => {
+    let anyIn = false;
+    let loMin = Infinity,
+      loMax = -Infinity,
+      laMin = Infinity,
+      laMax = -Infinity,
+      rawMin = Infinity,
+      rawMax = -Infinity;
+    for (const [rawLon, lat] of ring) {
+      const lon = normLon(rawLon);
+      if (lon >= vW && lon <= vE && lat >= vS && lat <= vN) anyIn = true;
+      if (lon < loMin) loMin = lon;
+      if (lon > loMax) loMax = lon;
+      if (rawLon < rawMin) rawMin = rawLon;
+      if (rawLon > rawMax) rawMax = rawLon;
+      if (lat < laMin) laMin = lat;
+      if (lat > laMax) laMax = lat;
+    }
+    // A near-circumpolar ring (Antarctica, polar wrap) spans almost all
+    // longitudes and projects to a frame-filling fill at regional zoom — drop it.
+    if (loMax - loMin > 270) return false;
+    // An antimeridian-crossing ring (raw lons span >180 but normalize to a small
+    // arc — e.g. Fiji at 177°E..178°W) inverts under a rotated projection and
+    // fills the frame. At coarse tier these are tiny islands; drop them in
+    // regional views rather than paint the whole ocean as land.
+    if (rawMax - rawMin > 180 && loMax - loMin < 90) return false;
+    if (anyIn) return true;
+    if (loMax - loMin > 180) return false; // wraps antimeridian, none in view
+    return !(loMax < vW || loMin > vE || laMax < vS || laMin > vN);
+  };
+  // Drop a feature's sub-polygons that don't touch the view (e.g. Alaska's
+  // Aleutians on a US feature framed over the Caribbean). Returns null if the
+  // whole feature is out of view. Near-global views keep everything.
+  const cullFeatureToView = (f: GeoFeature): GeoFeature | null => {
+    if (isGlobalView) return f;
+    const g = f.geometry as {
+      type: string;
+      coordinates: number[][][] | number[][][][];
+    } | null;
+    if (!g) return f;
+    if (g.type === 'Polygon') {
+      const ring = (g.coordinates as number[][][])[0] as unknown as Ring;
+      return ringOverlapsView(ring) ? f : null;
+    }
+    if (g.type === 'MultiPolygon') {
+      const polys = g.coordinates as number[][][][];
+      const keep = polys.filter((p) =>
+        ringOverlapsView(p[0] as unknown as Ring)
+      );
+      if (!keep.length) return null;
+      if (keep.length === polys.length) return f;
+      return { ...f, geometry: { ...g, coordinates: keep } } as GeoFeature;
+    }
+    return f;
+  };
+
   // -- Regions: base layer (neutral) then resolved fills on top --
   const regions: MapLayoutRegion[] = [];
   const pushRegionLayer = (
@@ -329,9 +444,11 @@ export function layoutMap(
     layerKind: 'country' | 'us-state'
   ): void => {
     for (const [iso, f] of layerFeatures) {
-      const d = path(f as never) ?? '';
-      if (!d) continue;
       const r = regionById.get(iso);
+      const viewF = cullFeatureToView(f); // drop off-view land / far rings
+      if (!viewF) continue;
+      const d = path(viewF as never) ?? '';
+      if (!d) continue;
       const isThisLayer = r?.layer === layerKind;
       let fill = neutralFill;
       let label: string | undefined;
@@ -707,7 +824,7 @@ export function layoutMap(
   return {
     width,
     height,
-    background: palette.bg,
+    background: water,
     title: resolved.title,
     ...(resolved.subtitle !== undefined && { subtitle: resolved.subtitle }),
     ...(resolved.caption !== undefined && { caption: resolved.caption }),
