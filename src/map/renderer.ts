@@ -143,16 +143,18 @@ export function renderMap(
   if (layout.insets.length) {
     const insetG = svg.append('g').attr('class', 'dgmo-map-insets');
     for (const box of layout.insets) {
+      // Angled-top quad frame — rides under the conus coast so it never covers
+      // neighbouring states. Closed path from the four corners.
+      const d =
+        box.points.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join('') +
+        'Z';
       insetG
-        .append('rect')
-        .attr('x', box.x)
-        .attr('y', box.y)
-        .attr('width', box.w)
-        .attr('height', box.h)
-        .attr('rx', 4)
+        .append('path')
+        .attr('d', d)
         .attr('fill', layout.background)
         .attr('stroke', mix(palette.text, palette.bg, 55))
-        .attr('stroke-width', 1);
+        .attr('stroke-width', 1)
+        .attr('stroke-linejoin', 'round');
     }
     for (const r of layout.insetRegions) drawRegion(insetG, r, 0.5);
   }

@@ -80,6 +80,8 @@ const DATA: MapData = {
     { id: 'US-OR', name: 'Oregon', box: [-124, 42, -116, 46] },
     { id: 'US-ME', name: 'Maine', box: [-71, 43, -67, 47] },
     { id: 'US-GA', name: 'Georgia', box: [-85, 30, -81, 35] },
+    { id: 'US-AK', name: 'Alaska', box: [-170, 52, -130, 71] },
+    { id: 'US-HI', name: 'Hawaii', box: [-160, 18, -154, 23] },
   ]),
   gazetteer,
 };
@@ -114,6 +116,32 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     const ca = r.regions.find((x) => x.id === 'US-CA')!;
     expect(ca.d.length).toBeGreaterThan(0);
     expect(ca.d).not.toMatch(/NaN/);
+  });
+  it('us-states → AK/HI insets with coast-hugging angled tops', () => {
+    const r = lay(
+      'map\nregion us-states\nCalifornia score: 1\nAlaska score: 2\nHawaii score: 3',
+      1200,
+      800
+    );
+    expect(r.insets).toHaveLength(2);
+    expect(r.insetRegions.map((x) => x.id).sort()).toEqual(['US-AK', 'US-HI']);
+    const yB = 800 - 24; // height - FIT_PAD
+    for (const box of r.insets) {
+      // Polyline top (more than the 4 corners of a plain rectangle) → angled.
+      expect(box.points.length).toBeGreaterThan(4);
+      const xs = box.points.map((p) => p[0]);
+      const ys = box.points.map((p) => p[1]);
+      // Lower-left anchored, fully on-canvas.
+      expect(Math.min(...xs)).toBeGreaterThanOrEqual(0);
+      expect(Math.max(...xs)).toBeLessThanOrEqual(1200);
+      expect(Math.max(...ys)).toBeLessThanOrEqual(800);
+      // Exactly the two bottom corners sit on the shared bottom edge; the rest
+      // form the angled top above it.
+      expect(box.points.filter((p) => Math.abs(p[1] - yB) < 0.5)).toHaveLength(
+        2
+      );
+      expect(Math.min(...ys)).toBeLessThan(yB - 40); // box has real height
+    }
   });
   it('non-albers cluster zooms to fill the canvas (extent-corner fit, not globe)', () => {
     // Regression: a tight mercator cluster must NOT render tiny on a world map.
