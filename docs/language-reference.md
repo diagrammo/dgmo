@@ -646,9 +646,8 @@ API Gateway
   max-rps: 8000
 ```
 
-- `description: text` (colon required)
+- `description: text` (colon required; a description always needs the `description:` keyword — bare prose lines are NOT auto-promoted)
 - Multiple `description:` lines accumulate into a multi-line description
-- **Keywordless form:** indented prose lines that don't match a known property key or numeric value are treated as descriptions automatically
 - Supports inline markdown: `**bold**`, `*italic*`, `` `code` ``, `[links](url)`
 - `- bullet text` renders as `• bullet text`
 - Descriptions are ignored on `edge` and `internet` nodes

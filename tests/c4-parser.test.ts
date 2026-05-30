@@ -264,13 +264,28 @@ describe('parseC4', () => {
       expect(result.elements[0].metadata.tech).toBe('Java');
     });
 
-    it('description text (keyword without colon) as unrecognized line collects as description', () => {
+    it('bare "description" keyword (no colon) still collects but warns (DD-1)', () => {
       const result = parseC4(
         ['c4', 'Banking is a system', '  description Handles all banking'].join(
           '\n'
         )
       );
       expect(result.elements[0].description).toEqual(['Handles all banking']);
+      expect(
+        result.diagnostics.some((d) =>
+          d.message.includes('bare "description" is deprecated')
+        )
+      ).toBe(true);
+    });
+
+    it('keywordless prose under an element is NOT promoted to a description (DD-2)', () => {
+      const result = parseC4(
+        ['c4', 'Banking is a system', '  Handles all banking ops'].join('\n')
+      );
+      expect(result.elements[0].description).toBeUndefined();
+      expect(
+        result.diagnostics.some((d) => d.message.includes('Unexpected content'))
+      ).toBe(true);
     });
 
     it('description does not appear in general metadata record', () => {

@@ -1004,10 +1004,11 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       }
     }
 
-    // If inside a parent, try as keyword-based or keywordless description
+    // If inside a parent, only the `description` keyword attaches as a
+    // description; a bare prose line is no longer auto-promoted.
     const parent = findParentElement(indent, stack);
-    if (parent) {
-      const descResult = tryStripDescriptionKeyword(trimmed);
+    const descResult = tryStripDescriptionKeyword(trimmed);
+    if (parent && descResult.isKeyword) {
       if (descResult.needsColon) {
         pushError(
           lineNumber,
@@ -1015,14 +1016,13 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           'warning'
         );
       }
-      const descText = descResult.isKeyword ? descResult.text : trimmed;
       let desc = elementDescription.get(parent.element);
       if (!desc) {
         desc = [];
         elementDescription.set(parent.element, desc);
         parent.element.description = desc;
       }
-      desc.push(descText);
+      desc.push(descResult.text);
     } else {
       pushError(lineNumber, `Unexpected content: "${trimmed}"`);
     }

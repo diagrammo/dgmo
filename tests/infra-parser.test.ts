@@ -862,6 +862,20 @@ MyService
 `);
       expect(result.diagnostics).toHaveLength(0);
     });
+
+    it('keywordless prose inside a component is NOT promoted to a description (DD-2)', () => {
+      const result = parseInfra(`
+infra
+APIServer
+  Handles all REST API calls
+`);
+      expect(result.nodes[0].description).toBeUndefined();
+      expect(
+        result.diagnostics.some((d) =>
+          d.message.includes('Unexpected line inside component')
+        )
+      ).toBe(true);
+    });
   });
 
   describe('SLO chart-level options', () => {

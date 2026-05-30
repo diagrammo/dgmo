@@ -910,26 +910,26 @@ export function parseInfra(content: string): ParsedInfra {
         }
       }
 
-      // Unknown indented line — try as keywordless description
+      // Indented line inside a component: only the `description` keyword
+      // attaches as a description; a bare prose line is no longer auto-promoted.
       const descResult = tryStripDescriptionKeyword(trimmed);
-      if (descResult.isKeyword && currentNode.isEdge) {
-        // description on edge nodes is silently ignored
-        continue;
-      }
-      if (!currentNode.isEdge) {
+      if (descResult.isKeyword) {
+        if (currentNode.isEdge) {
+          // description on edge nodes is silently ignored
+          continue;
+        }
         if (descResult.needsColon) {
           warn(
             lineNumber,
             `Use "description: ${descResult.text}" — bare "description" is deprecated.`
           );
         }
-        const descText = descResult.isKeyword ? descResult.text : trimmed;
-        pushDescription(currentNode, descText);
+        pushDescription(currentNode, descResult.text);
         continue;
       }
       warn(
         lineNumber,
-        `Unexpected line inside component '${currentNode.label}'. Expected a property (key: value), connection (-> Target), or description text.`
+        `Unexpected line inside component '${currentNode.label}'. Expected a property (key: value), connection (-> Target), or a description (description: text).`
       );
       continue;
     }
