@@ -59,7 +59,6 @@ const COLO_EPS = 1.5; // px: POIs closer than this are "co-located"
 const LAND_TINT_LIGHT = 58;
 const LAND_TINT_DARK = 75;
 const WATER_TINT = 55; // % palette-blue of bg for the ocean / backdrop
-const FOREIGN_TINT = 24; // % palette-gray of bg for non-US neighbour land
 const COLO_R = 9; // spiderfy radius
 const GOLDEN_ANGLE = 2.399963229728653; // rad (137.5deg) -- even spiral, no random
 const FAN_STEP = 16; // px perpendicular offset between parallel edges
@@ -243,7 +242,6 @@ export function layoutMap(
   const neutralFill = mix(palette.colors.yellow, palette.bg, landTint);
   const water = mapBackgroundColor(palette);
   const usContext = usLayer !== null;
-  const foreignFill = mix(palette.colors.gray, palette.bg, FOREIGN_TINT);
   // Region borders: a clear neutral gray, mixed toward bg so it reads as a
   // hairline that delineates regions on the backdrop.
   const regionStroke = mix(palette.colors.gray, palette.bg, 55);
@@ -508,14 +506,18 @@ export function layoutMap(
   ): void => {
     for (const [iso, f] of layerFeatures) {
       const r = regionById.get(iso);
+      // In a US-states view the us-states layer already covers the US, so the
+      // world layer is pure clutter: neutral neighbour land (and albers-usa
+      // projection garbage from far countries) would fill the frame and make
+      // the title/letterbox water read as a banner. Draw only EXPLICITLY-scored
+      // countries here; everything else is the uniform water backdrop.
+      if (layerKind === 'country' && usContext && !r) continue;
       const viewF = cullFeatureToView(f); // drop off-view land / far rings
       if (!viewF) continue;
       const d = path(viewF as never) ?? '';
       if (!d) continue;
       const isThisLayer = r?.layer === layerKind;
-      // Non-US neighbour land in a US view is gray context, not yellow land.
-      const isForeign = layerKind === 'country' && usContext && iso !== 'US';
-      let fill = isForeign ? foreignFill : neutralFill;
+      let fill = neutralFill;
       let label: string | undefined;
       let lineNumber = -1;
       let layer: MapLayoutRegion['layer'] = 'base';
