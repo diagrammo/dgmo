@@ -253,7 +253,7 @@ export function layoutMap(
   );
   // Region borders: a darker line (toward the text colour) so state outlines
   // read clearly over the land fills rather than as a faint hairline.
-  const regionStroke = mix(palette.text, palette.bg, isDark ? 45 : 55);
+  const regionStroke = mix(palette.text, palette.bg, isDark ? 58 : 72);
 
   // -- Region fill model (choropleth + categorical; AR4/AR6) --
   const scores = resolved.regions
@@ -362,13 +362,14 @@ export function layoutMap(
     if (centerLon > 180) centerLon -= 360;
     projection.rotate([-centerLon, 0]);
   }
-  // Reserve top padding for the title/subtitle banner so POIs and their labels
-  // don't project up under the title text (which renders in the foreground).
-  // Title baseline is TITLE_Y; subtitle (when present) sits one title-font-size
-  // below it. Push the fit box below the lowest banner baseline + a clear gap.
+  // Reserve top padding for the title/subtitle banner ONLY when there are POIs,
+  // so their markers/labels don't project up under the title (which renders in
+  // the foreground). A POI-less choropleth needs no reserve — the land fills to
+  // the top and the title simply overlays it, so neighbour land (e.g. Canada)
+  // isn't cut short by a band of empty water above it.
   const TITLE_GAP = 16;
   let topPad = FIT_PAD;
-  if (resolved.title) {
+  if (resolved.title && resolved.pois.length > 0) {
     const bannerBottom =
       (resolved.subtitle ? TITLE_Y + TITLE_FONT_SIZE : TITLE_Y) +
       TITLE_FONT_SIZE / 2;
