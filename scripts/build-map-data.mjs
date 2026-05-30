@@ -77,6 +77,19 @@ const SOURCES = {
     version: 'natural-earth 110m (martynafford snapshot)',
     url: 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_rivers_lake_centerlines.json',
   },
+  naLand: {
+    // Natural Earth 10m countries, CLIPPED to a North-America bbox: crisp
+    // neighbour context (Canada/Mexico) under the albers-usa US view so the
+    // surrounding land matches the 10m states instead of the coarser world tiers.
+    version: 'natural-earth 10m (nvkelso vector snapshot)',
+    url: 'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_10m_admin_0_countries.geojson',
+  },
+  naLakes: {
+    // Natural Earth 10m lakes, clipped to the same NA bbox and filtered to the
+    // major (scalerank ≤ 2) lakes — the Great Lakes etc. at states resolution.
+    version: 'natural-earth 10m (martynafford snapshot)',
+    url: 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/10m/physical/ne_10m_lakes.json',
+  },
 };
 
 // --- Tunable constants (tuned empirically; see build log for actual sizes) --
@@ -90,6 +103,14 @@ const LAKES_RETAIN = 20; // % of 110m lakes
 const QUANT_LAKES = 10_000;
 const RIVERS_RETAIN = 40; // % of 110m river centerlines (thin lines — keep shape)
 const QUANT_RIVERS = 10_000;
+// North-America clip: lon -140..-52, lat 10..66 (CONUS + Canada/Mexico/Caribbean
+// edge). Keeps the crisp 10m assets small while covering everything the conic
+// US frame can show.
+const NA_BBOX = '-140,10,-52,66';
+const NA_LAND_RETAIN = 18; // % of 10m countries (post-clip)
+const NA_LAKES_RETAIN = 35; // % of 10m lakes (post-clip)
+const NA_LAKES_SCALERANK = 2; // keep only major lakes (Great Lakes etc.)
+const QUANT_NA = 10_000;
 const COORD_PRECISION = 3; // gazetteer lat/lon decimals
 const WORLD_POP_FLOOR = 500_000; // "world majors"
 const US_POP_FLOOR = 50_000; // US cities; capitals force-included below this
@@ -101,6 +122,8 @@ const GZ_CEILINGS = {
   'us-states.json': 15_000,
   'lakes.json': 6_000,
   'rivers.json': 8_000,
+  'na-land.json': 40_000,
+  'na-lakes.json': 14_000,
   'gazetteer.json': 70_000,
   'region-names.json': 8_000,
 };
@@ -339,6 +362,59 @@ async function buildRivers(url) {
   return topo;
 }
 
+/** Build the NA-clipped 10m land layer: crisp neighbour context for the
+ *  albers-usa US view. Clip to NA_BBOX, simplify, rekey by ISO 3166-1 alpha-2
+ *  (matching the world tiers so the resolver/renderer treat it identically),
+ *  and strip per-feature properties (renderer derives nothing from them). */
+async function buildNaLand(url) {
+  console.log('• na-land (10m countries, NA-clipped)');
+  console.log(`  fetch ${url}`);
+  const buf = await download(url);
+  if (buf.length < 1024) throw new Error(`na-land: suspiciously small (${buf.length}B)`);
+  sourceHashes[url] = { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+  const out = await mapshaper.applyCommands(
+    `-i in.json -clip bbox=${NA_BBOX} -simplify ${NA_LAND_RETAIN}% keep-shapes -rename-layers countries -o quantization=${QUANT_NA} format=topojson out.json`,
+    { 'in.json': buf }
+  );
+  const topo = JSON.parse(Buffer.from(out['out.json']).toString('utf8'));
+  const geoms = topo.objects.countries.geometries;
+  const kept = [];
+  for (const g of geoms) {
+    const p = g.properties || {};
+    const iso = p.ISO_A2_EH || p.ISO_A2 || p.iso_a2;
+    if (iso && iso !== '-99') {
+      g.id = iso;
+      delete g.properties;
+      kept.push(g);
+    }
+  }
+  topo.objects.countries.geometries = kept;
+  console.log(`  na-land countries: ${kept.length}`);
+  return topo;
+}
+
+/** Build the NA-clipped 10m major-lakes layer (Great Lakes etc.) — the lakes
+ *  counterpart to buildNaLand, used in place of the coarse 110m `lakes` under
+ *  the US view. Clip to NA_BBOX, drop minor lakes by scalerank, simplify. */
+async function buildNaLakes(url) {
+  console.log('• na-lakes (10m lakes, NA-clipped)');
+  console.log(`  fetch ${url}`);
+  const buf = await download(url);
+  if (buf.length < 1024) throw new Error(`na-lakes: suspiciously small (${buf.length}B)`);
+  sourceHashes[url] = { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+  const geo = JSON.parse(buf.toString('utf8'));
+  geo.features.forEach((f, i) => { f.id = `lake-${i}`; });
+  const out = await mapshaper.applyCommands(
+    `-i in.json -clip bbox=${NA_BBOX} -filter 'scalerank <= ${NA_LAKES_SCALERANK}' -simplify ${NA_LAKES_RETAIN}% keep-shapes -rename-layers lakes -o quantization=${QUANT_NA} format=topojson out.json`,
+    { 'in.json': Buffer.from(JSON.stringify(geo)) }
+  );
+  const topo = JSON.parse(Buffer.from(out['out.json']).toString('utf8'));
+  const geoms = topo.objects.lakes.geometries;
+  geoms.forEach((g, i) => { g.id = `lake-${i}`; delete g.properties; });
+  console.log(`  na-lakes: ${geoms.length}`);
+  return topo;
+}
+
 /** Simplify a TopoJSON Buffer (keep-shapes; quantization is the size lever). */
 async function simplify(topoBuf, retainPct, quantization) {
   const out = await mapshaper.applyCommands(
@@ -544,6 +620,12 @@ async function main() {
   const rivers = await buildRivers(SOURCES.rivers.url);
   provenance.sources.rivers = { ...SOURCES.rivers };
 
+  const naLand = await buildNaLand(SOURCES.naLand.url);
+  provenance.sources.naLand = { ...SOURCES.naLand };
+
+  const naLakes = await buildNaLakes(SOURCES.naLakes.url);
+  provenance.sources.naLakes = { ...SOURCES.naLakes };
+
   console.log('• gazetteer (cities5000)');
   const citiesZip = await fetchValidated(SOURCES.geonames.citiesUrl, 'zip');
   const tsv = unzipEntry(citiesZip, 'cities5000.txt');
@@ -594,6 +676,8 @@ async function main() {
     'us-states.json': us.topo,
     'lakes.json': lakes,
     'rivers.json': rivers,
+    'na-land.json': naLand,
+    'na-lakes.json': naLakes,
     'gazetteer.json': gaz,
     'region-names.json': regionNames,
   };
@@ -643,6 +727,8 @@ hand-edit — regenerate from source.
 - \`us-states.json\` — US states + DC + territories (TopoJSON), keyed by ISO 3166-2.
 - \`lakes.json\` — major lakes (Natural Earth 110m, TopoJSON), drawn as water over land.
 - \`rivers.json\` — major river centerlines (Natural Earth 110m, TopoJSON), drawn as thin water lines.
+- \`na-land.json\` — NA-clipped 10m country land (TopoJSON, ISO-keyed): crisp neighbour context under the albers-usa US view.
+- \`na-lakes.json\` — NA-clipped 10m major lakes (TopoJSON): the lakes counterpart to \`na-land.json\` for the US view.
 - \`gazetteer.json\` — \`{ cities, byName, alt }\` city index (see \`types.ts\`).
   \`byName\`/\`alt\` reference \`cities\` by array index (normalized).
 - \`PROVENANCE.json\` — source versions + per-asset sha256/sizes + GeoNames date range.

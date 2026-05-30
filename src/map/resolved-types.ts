@@ -17,6 +17,13 @@ export interface MapData {
   /** Major river centerlines (Natural Earth 110m) drawn as thin water lines over
    *  land — e.g. the Amazon, Nile, Mississippi. Optional, like `lakes`. */
   rivers?: BoundaryTopology;
+  /** North-America-clipped 10m country land, used as crisp neighbour context
+   *  under the albers-usa US view so Canada/Mexico match the 10m states instead
+   *  of the coarser world tiers. Optional, like `lakes`. */
+  naLand?: BoundaryTopology;
+  /** North-America-clipped 10m major lakes (Great Lakes etc.), used in place of
+   *  the coarse `lakes` under the albers-usa US view. Optional. */
+  naLakes?: BoundaryTopology;
   gazetteer: Gazetteer;
 }
 

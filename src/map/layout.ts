@@ -281,12 +281,20 @@ export function layoutMap(
   const { width, height } = size;
 
   // -- Basemap decode --
-  const worldTopo =
-    resolved.basemaps.world === 'detail' ? data.worldDetail : data.worldCoarse;
+  const wantsUsStates = resolved.basemaps.subdivisions.includes('us-states');
+  // In a US (albers-usa + us-states) view the surrounding land was world-atlas
+  // 50m/110m — visibly coarser than the 10m states. When the NA-clipped 10m
+  // assets are present, swap them in so neighbours (Canada/Mexico) and the Great
+  // Lakes match the states' resolution. Falls back to the world tiers otherwise.
+  const usCrisp =
+    resolved.projection === 'albers-usa' && wantsUsStates && !!data.naLand;
+  const worldTopo = usCrisp
+    ? data.naLand!
+    : resolved.basemaps.world === 'detail'
+      ? data.worldDetail
+      : data.worldCoarse;
   const worldLayer = decodeLayer(worldTopo);
-  const usLayer = resolved.basemaps.subdivisions.includes('us-states')
-    ? decodeLayer(data.usStates)
-    : null;
+  const usLayer = wantsUsStates ? decodeLayer(data.usStates) : null;
 
   // Land is a muted green; the ocean/backdrop is blue. Scored/tagged regions
   // paint over the land base, and the score ramp blends FROM the land colour so
@@ -729,6 +737,10 @@ export function layoutMap(
       // main conus layer (the conic would otherwise place them far off-frame).
       if (layerKind === 'us-state' && usContext && INSET_STATES.has(iso))
         continue;
+      // In a US view the us-states layer paints the whole country — drop the
+      // redundant US country polygon underneath it (it only adds a coarser base
+      // and a doubled outline).
+      if (layerKind === 'country' && usContext && iso === 'US') continue;
       const r = regionById.get(iso);
       const viewF = shouldCull ? cullFeatureToView(f) : f; // drop far/off-view land
       if (!viewF) continue;
@@ -773,8 +785,9 @@ export function layoutMap(
   // as land — the coarse country polygons don't carve them out. Drawn last so
   // they sit above both neighbour land and US states; culled like the world
   // layer, and far lakes null-project away under albers-usa.
-  if (data.lakes) {
-    for (const [, f] of decodeLayer(data.lakes)) {
+  const lakesTopo = usCrisp && data.naLakes ? data.naLakes : data.lakes;
+  if (lakesTopo) {
+    for (const [, f] of decodeLayer(lakesTopo)) {
       const viewF = isGlobalView ? f : cullFeatureToView(f);
       if (!viewF) continue;
       const d = path(viewF as never) ?? '';

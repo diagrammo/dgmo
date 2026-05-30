@@ -22,6 +22,8 @@ const FILES = {
   usStates: 'us-states.json',
   lakes: 'lakes.json',
   rivers: 'rivers.json',
+  naLand: 'na-land.json',
+  naLakes: 'na-lakes.json',
   gazetteer: 'gazetteer.json',
 } as const;
 
@@ -94,16 +96,26 @@ function moduleBaseDir(): string {
 export function loadMapData(): Promise<MapData> {
   cache ??= (async (): Promise<MapData> => {
     const dir = await firstExistingDir(moduleBaseDir());
-    const [worldCoarse, worldDetail, usStates, lakes, rivers, gazetteer] =
-      await Promise.all([
-        readJson<BoundaryTopology>(dir, FILES.worldCoarse),
-        readJson<BoundaryTopology>(dir, FILES.worldDetail),
-        readJson<BoundaryTopology>(dir, FILES.usStates),
-        // Lakes/rivers are optional — older asset bundles may predate the files.
-        readJson<BoundaryTopology>(dir, FILES.lakes).catch(() => undefined),
-        readJson<BoundaryTopology>(dir, FILES.rivers).catch(() => undefined),
-        readJson<Gazetteer>(dir, FILES.gazetteer),
-      ]);
+    const [
+      worldCoarse,
+      worldDetail,
+      usStates,
+      lakes,
+      rivers,
+      naLand,
+      naLakes,
+      gazetteer,
+    ] = await Promise.all([
+      readJson<BoundaryTopology>(dir, FILES.worldCoarse),
+      readJson<BoundaryTopology>(dir, FILES.worldDetail),
+      readJson<BoundaryTopology>(dir, FILES.usStates),
+      // Lakes/rivers/NA assets are optional — older bundles may predate them.
+      readJson<BoundaryTopology>(dir, FILES.lakes).catch(() => undefined),
+      readJson<BoundaryTopology>(dir, FILES.rivers).catch(() => undefined),
+      readJson<BoundaryTopology>(dir, FILES.naLand).catch(() => undefined),
+      readJson<BoundaryTopology>(dir, FILES.naLakes).catch(() => undefined),
+      readJson<Gazetteer>(dir, FILES.gazetteer),
+    ]);
     return validate({
       worldCoarse,
       worldDetail,
@@ -111,6 +123,8 @@ export function loadMapData(): Promise<MapData> {
       gazetteer,
       ...(lakes && { lakes }),
       ...(rivers && { rivers }),
+      ...(naLand && { naLand }),
+      ...(naLakes && { naLakes }),
     });
   })().catch((e: unknown) => {
     cache = undefined; // don't poison future calls with a rejected promise
