@@ -492,9 +492,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     [-180, -85],
     [180, 85],
   ];
-  const extent: GeoExtent = unioned
-    ? pad(unioned, PAD_FRACTION)
-    : DEFAULT_EXTENT; // empty → default
+  let extent: GeoExtent = unioned ? pad(unioned, PAD_FRACTION) : DEFAULT_EXTENT; // empty → default
 
   const lonSpan = extent[1][0] - extent[0][0];
   const latSpan = extent[1][1] - extent[0][1];
@@ -510,6 +508,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   let projection: ProjectionFamily;
   const override = parsed.directives.projection;
   if (
+    override === 'equirectangular' ||
     override === 'natural-earth' ||
     override === 'albers-usa' ||
     override === 'mercator'
@@ -518,11 +517,31 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   } else if (usDominant) {
     projection = 'albers-usa';
   } else if (span > WORLD_SPAN) {
-    projection = 'natural-earth';
+    // World/continental scale: equirectangular fills the frame edge-to-edge and
+    // never clips the continents at the boundary (naturalEarth's curved sides
+    // overrun a corner-based fit). `projection natural-earth` opts back into the
+    // curved look explicitly.
+    projection = 'equirectangular';
   } else if (span < MERCATOR_MAX_SPAN) {
     projection = 'mercator';
   } else {
-    projection = 'natural-earth';
+    projection = 'equirectangular';
+  }
+
+  // World-scale framing (R10): a multi-continent spread frames most cleanly as
+  // the conventional Greenwich-centred world rectangle. The tight-arc longitude
+  // union is unstable for sparse global points — and an antimeridian-crossing
+  // country box (the US, via its Aleutians) wraps the union to an Asia-centred
+  // window that splits the Americas at the seam. When the data occupies at
+  // least half the globe in longitude, snap to full longitude so the map reads
+  // as a standard world view (US left, Asia right). The ≥180° gate leaves
+  // regional spreads tight — `region` continents (Europe ≈70°, Asia ≈155°) and
+  // small antimeridian clusters (which frame as mercator anyway) are untouched.
+  if (projection === 'equirectangular' && lonSpan >= 180) {
+    extent = [
+      [-180, extent[0][1]],
+      [180, extent[1][1]],
+    ];
   }
 
   result.regions = regions;

@@ -515,7 +515,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       region: { description: 'Force a basemap/extent (world | us-states)' },
       projection: {
         description: 'Override the auto projection',
-        values: ['natural-earth', 'albers-usa', 'mercator'],
+        values: ['equirectangular', 'natural-earth', 'albers-usa', 'mercator'],
       },
       metric: { description: 'Label for the region score ramp' },
       'size-metric': { description: 'Label for the POI size channel' },

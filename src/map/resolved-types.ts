@@ -27,7 +27,11 @@ export interface MapData {
   gazetteer: Gazetteer;
 }
 
-export type ProjectionFamily = 'natural-earth' | 'albers-usa' | 'mercator';
+export type ProjectionFamily =
+  | 'equirectangular'
+  | 'natural-earth'
+  | 'albers-usa'
+  | 'mercator';
 
 /** Which geometry layers the renderer draws. */
 export interface Basemaps {

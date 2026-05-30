@@ -2752,7 +2752,7 @@ dcw                     # hub/star — indented edges share the source
 
 ### Directives & reserved keys
 
-Directives (no colon): `region` (world | us-states), `projection` (natural-earth | albers-usa | mercator), `metric`, `size-metric`, `scale`, `region-labels`, `poi-labels`, `default-country`, `default-state`, `active-tag`, `no-legend`, `subtitle`, `caption`. Reserved metadata keys (need colons): `score`, `label`, `size`, `description`, `weight`, `style`. Coordinates are positional (no `at:` key). Projection is auto-picked by extent span (wide → natural-earth / albers-usa for US; tight → mercator) unless overridden.
+Directives (no colon): `region` (world | us-states), `projection` (equirectangular | natural-earth | albers-usa | mercator), `metric`, `size-metric`, `scale`, `region-labels`, `poi-labels`, `default-country`, `default-state`, `active-tag`, `no-legend`, `subtitle`, `caption`. Reserved metadata keys (need colons): `score`, `label`, `size`, `description`, `weight`, `style`. Coordinates are positional (no `at:` key). Projection is auto-picked by extent span (world → equirectangular, full Greenwich frame; US → albers-usa with Alaska/Hawaii insets; tight regional → mercator) unless overridden.
 
 ---
 

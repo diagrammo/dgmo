@@ -8,6 +8,7 @@
 import {
   geoPath,
   geoNaturalEarth1,
+  geoEquirectangular,
   geoConicEqualArea,
   geoMercator,
   type GeoProjection,
@@ -246,8 +247,15 @@ function projectionFor(family: ProjectionFamily): GeoProjection {
     case 'mercator':
       return geoMercator();
     case 'natural-earth':
-    default:
       return geoNaturalEarth1();
+    case 'equirectangular':
+    default:
+      // Plate carrée: x = λ, y = -φ. Cylindrical, so the extent's four CORNERS
+      // are its projected extremes — fitExtent frames it edge-to-edge with no
+      // bulge overflow (unlike naturalEarth, whose curved sides overrun a
+      // corner fit and clip the continents). Fills the rectangle: no rounded
+      // gray corners, no split landmass at the frame edge.
+      return geoEquirectangular();
   }
 }
 

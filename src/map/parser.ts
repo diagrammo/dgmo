@@ -289,11 +289,16 @@ export function parseMap(content: string): ParsedMap {
         dup(d.projection);
         if (
           value &&
-          !['natural-earth', 'albers-usa', 'mercator'].includes(value)
+          ![
+            'equirectangular',
+            'natural-earth',
+            'albers-usa',
+            'mercator',
+          ].includes(value)
         )
           pushWarning(
             line,
-            `Unknown projection "${value}" (expected natural-earth | albers-usa | mercator).`
+            `Unknown projection "${value}" (expected equirectangular | natural-earth | albers-usa | mercator).`
           );
         d.projection = value;
         break;

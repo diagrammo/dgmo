@@ -242,9 +242,9 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const r = resolve('map\nCalifornia score: 1\nOregon score: 2');
     expect(r.projection).toBe('albers-usa');
   });
-  it('world span → natural-earth (AC15)', () => {
+  it('world span → equirectangular (AC15)', () => {
     const r = resolve('map\npoi Tokyo\npoi 40 -74 as ny');
-    expect(r.projection).toBe('natural-earth');
+    expect(r.projection).toBe('equirectangular');
   });
   it('tight cluster → mercator (AC15)', () => {
     const r = resolve('map\npoi 40.70 -74.00 as a\npoi 40.75 -74.02 as b');
@@ -253,6 +253,22 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
   it('projection directive overrides (AC15)', () => {
     const r = resolve('map\nprojection mercator\npoi Tokyo\npoi 40 -74 as ny');
     expect(r.projection).toBe('mercator');
+  });
+  it('projection equirectangular is a valid override (AC15)', () => {
+    const r = resolve('map\nprojection equirectangular\nCalifornia score: 1');
+    expect(r.projection).toBe('equirectangular');
+  });
+  it('world-scale frame snaps to full Greenwich longitude, not an antimeridian wrap (no US split)', () => {
+    // POIs spanning the globe (Americas + Europe + Asia). The world-scale
+    // equirectangular frame must be the conventional full [-180, 180] Greenwich
+    // rectangle — NOT a wrapped window (east > 180) that splits the Americas at
+    // the seam (the real US country box wraps via its Aleutians). POIs (not the
+    // hand-built rect fixtures, whose ring winding confuses geoBounds) so the
+    // extent is asserted on real coordinates.
+    const r = resolve('map\npoi 10 -120 as a\npoi 10 20 as b\npoi 10 150 as c');
+    expect(r.projection).toBe('equirectangular');
+    expect(r.extent[0][0]).toBe(-180);
+    expect(r.extent[1][0]).toBe(180);
   });
   it('extent bounds POIs with padding (AC14)', () => {
     const r = resolve('map\npoi 40 -74 as a\npoi 42 -71 as b');
