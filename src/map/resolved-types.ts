@@ -14,6 +14,9 @@ export interface MapData {
   /** Major lakes (Natural Earth 110m) drawn as water over land — e.g. the Great
    *  Lakes. Optional so hand-built test fixtures need not supply it. */
   lakes?: BoundaryTopology;
+  /** Major river centerlines (Natural Earth 110m) drawn as thin water lines over
+   *  land — e.g. the Amazon, Nile, Mississippi. Optional, like `lakes`. */
+  rivers?: BoundaryTopology;
   gazetteer: Gazetteer;
 }
 

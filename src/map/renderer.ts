@@ -120,6 +120,23 @@ export function renderMap(
   };
   for (const r of layout.regions) drawRegion(gRegions, r, 0.5);
 
+  // ── Rivers (thin water centerlines over the land, under POIs/edges) ──
+  if (layout.rivers.length) {
+    const gRivers = svg
+      .append('g')
+      .attr('class', 'dgmo-map-rivers')
+      .attr('fill', 'none');
+    for (const r of layout.rivers) {
+      gRivers
+        .append('path')
+        .attr('d', r.d)
+        .attr('stroke', r.color)
+        .attr('stroke-width', r.width)
+        .attr('stroke-linecap', 'round')
+        .attr('stroke-linejoin', 'round');
+    }
+  }
+
   // ── AK / HI insets (albers-usa) — drawn in the FOREGROUND so the opaque ocean
   // box hides the main-map neighbour land (Mexico's Baja) behind it; the state
   // then draws on top, framed by the box border. ──

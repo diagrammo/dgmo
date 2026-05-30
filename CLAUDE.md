@@ -125,4 +125,4 @@ Before committing any change, always build, run the test suite, and verify visua
 1. **What changed** — brief description of the modification
 2. **How to validate** — specific commands or manual checks (e.g. render a specific fixture with a specific palette/theme, open a PNG to inspect)
 
-Wait for the user to confirm before committing.
+Once build/tests/visual checks pass, commit autonomously — no need to wait for confirmation. Only pause if validation fails or the change is ambiguous.

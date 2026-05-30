@@ -70,6 +70,13 @@ const SOURCES = {
     version: 'natural-earth 110m (martynafford snapshot)',
     url: 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_lakes.json',
   },
+  rivers: {
+    // Natural Earth 110m river + lake centerlines — drawn as thin water lines
+    // over land. The 110m tier is Natural Earth's own "major rivers" curation
+    // (Amazon, Nile, Mississippi, Yangtze, …) — small by design ("nothing big").
+    version: 'natural-earth 110m (martynafford snapshot)',
+    url: 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_rivers_lake_centerlines.json',
+  },
 };
 
 // --- Tunable constants (tuned empirically; see build log for actual sizes) --
@@ -81,6 +88,8 @@ const QUANT_DETAIL = 6_000;
 const QUANT_US = 10_000;
 const LAKES_RETAIN = 20; // % of 110m lakes
 const QUANT_LAKES = 10_000;
+const RIVERS_RETAIN = 40; // % of 110m river centerlines (thin lines — keep shape)
+const QUANT_RIVERS = 10_000;
 const COORD_PRECISION = 3; // gazetteer lat/lon decimals
 const WORLD_POP_FLOOR = 500_000; // "world majors"
 const US_POP_FLOOR = 50_000; // US cities; capitals force-included below this
@@ -91,6 +100,7 @@ const GZ_CEILINGS = {
   'world-detail.json': 60_000,
   'us-states.json': 15_000,
   'lakes.json': 6_000,
+  'rivers.json': 8_000,
   'gazetteer.json': 70_000,
   'region-names.json': 8_000,
 };
@@ -306,6 +316,29 @@ async function buildLakes(url) {
   return topo;
 }
 
+/** Build the rivers layer (Natural Earth 110m river/lake centerlines) as a
+ *  simplified TopoJSON `rivers` object, ids assigned by index. Source is GeoJSON
+ *  (LineString/MultiLineString), fetched raw and converted via mapshaper. Unlike
+ *  lakes there is no `keep-shapes` (a polygon flag) — these are open lines. */
+async function buildRivers(url) {
+  console.log('• rivers (110m centerlines)');
+  console.log(`  fetch ${url}`);
+  const buf = await download(url);
+  if (buf.length < 1024) throw new Error(`rivers: suspiciously small (${buf.length}B)`);
+  sourceHashes[url] = { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+  const geo = JSON.parse(buf.toString('utf8'));
+  geo.features.forEach((f, i) => { f.id = `river-${i}`; });
+  const out = await mapshaper.applyCommands(
+    `-i in.json -rename-layers rivers -simplify ${RIVERS_RETAIN}% -o quantization=${QUANT_RIVERS} format=topojson out.json`,
+    { 'in.json': Buffer.from(JSON.stringify(geo)) }
+  );
+  const topo = JSON.parse(Buffer.from(out['out.json']).toString('utf8'));
+  const geoms = topo.objects.rivers.geometries;
+  geoms.forEach((g, i) => { if (g.id == null) g.id = `river-${i}`; });
+  console.log(`  rivers: ${geoms.length}`);
+  return topo;
+}
+
 /** Simplify a TopoJSON Buffer (keep-shapes; quantization is the size lever). */
 async function simplify(topoBuf, retainPct, quantization) {
   const out = await mapshaper.applyCommands(
@@ -508,6 +541,9 @@ async function main() {
   const lakes = await buildLakes(SOURCES.lakes.url);
   provenance.sources.lakes = { ...SOURCES.lakes };
 
+  const rivers = await buildRivers(SOURCES.rivers.url);
+  provenance.sources.rivers = { ...SOURCES.rivers };
+
   console.log('• gazetteer (cities5000)');
   const citiesZip = await fetchValidated(SOURCES.geonames.citiesUrl, 'zip');
   const tsv = unzipEntry(citiesZip, 'cities5000.txt');
@@ -557,6 +593,7 @@ async function main() {
     'world-detail.json': detail.topo,
     'us-states.json': us.topo,
     'lakes.json': lakes,
+    'rivers.json': rivers,
     'gazetteer.json': gaz,
     'region-names.json': regionNames,
   };
@@ -604,6 +641,8 @@ hand-edit — regenerate from source.
 - \`world-coarse.json\` / \`world-detail.json\` — world country boundaries (TopoJSON),
   keyed by ISO 3166-1 alpha-2. Coarse = world-scale; detail = regional/zoom.
 - \`us-states.json\` — US states + DC + territories (TopoJSON), keyed by ISO 3166-2.
+- \`lakes.json\` — major lakes (Natural Earth 110m, TopoJSON), drawn as water over land.
+- \`rivers.json\` — major river centerlines (Natural Earth 110m, TopoJSON), drawn as thin water lines.
 - \`gazetteer.json\` — \`{ cities, byName, alt }\` city index (see \`types.ts\`).
   \`byName\`/\`alt\` reference \`cities\` by array index (normalized).
 - \`PROVENANCE.json\` — source versions + per-asset sha256/sizes + GeoNames date range.

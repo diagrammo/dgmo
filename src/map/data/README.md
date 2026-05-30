@@ -8,6 +8,8 @@ hand-edit — regenerate from source.
 - `world-coarse.json` / `world-detail.json` — world country boundaries (TopoJSON),
   keyed by ISO 3166-1 alpha-2. Coarse = world-scale; detail = regional/zoom.
 - `us-states.json` — US states + DC + territories (TopoJSON), keyed by ISO 3166-2.
+- `lakes.json` — major lakes (Natural Earth 110m, TopoJSON), drawn as water over land.
+- `rivers.json` — major river centerlines (Natural Earth 110m, TopoJSON), drawn as thin water lines.
 - `gazetteer.json` — `{ cities, byName, alt }` city index (see `types.ts`).
   `byName`/`alt` reference `cities` by array index (normalized).
 - `PROVENANCE.json` — source versions + per-asset sha256/sizes + GeoNames date range.

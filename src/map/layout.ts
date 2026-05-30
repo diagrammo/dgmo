@@ -59,6 +59,10 @@ const COLO_EPS = 1.5; // px: POIs closer than this are "co-located"
 const LAND_TINT_LIGHT = 58;
 const LAND_TINT_DARK = 75;
 const WATER_TINT = 55; // % palette-blue of bg for the ocean / backdrop
+// Rivers are thin lines over land, so they need a more saturated blue than the
+// flat ocean/lake fill to stay legible against the green land.
+const RIVER_TINT = 88; // % palette-blue of bg for river centerlines
+const RIVER_WIDTH = 1.3; // px stroke width for river lines
 // % palette-gray of bg for non-US neighbour land. Higher on dark so it reads as
 // a clear gray rather than sinking into the dark background.
 const FOREIGN_TINT_LIGHT = 30;
@@ -160,6 +164,13 @@ export interface MapLayoutLegend {
   readonly weight?: { metric?: string; min: number; max: number };
 }
 
+/** A drawn river centerline — an open stroked path (no fill). */
+export interface MapLayoutRiver {
+  readonly d: string;
+  readonly color: string;
+  readonly width: number;
+}
+
 export interface MapLayout {
   readonly width: number;
   readonly height: number;
@@ -168,6 +179,8 @@ export interface MapLayout {
   readonly subtitle?: string;
   readonly caption?: string;
   readonly regions: readonly MapLayoutRegion[];
+  /** Major river centerlines, drawn over land/lakes and under POIs/edges. */
+  readonly rivers: readonly MapLayoutRiver[];
   readonly legs: readonly MapLayoutLeg[];
   readonly pois: readonly MapLayoutPoi[];
   readonly labels: readonly PlacedLabel[];
@@ -440,11 +453,14 @@ export function layoutMap(
   }[] = [];
   if (resolved.projection === 'albers-usa' && usLayer) {
     const PAD = 8;
-    // Boxes anchored to the lower-left; sizes scale with the canvas.
-    const akW = Math.max(120, width * 0.16);
-    const akH = Math.max(90, height * 0.24);
-    const hiW = Math.max(70, width * 0.09);
-    const hiH = Math.max(55, height * 0.14);
+    // Boxes anchored to the lower-left; sizes scale with the canvas. Sized to
+    // claim as much of the empty lower-left water as possible — the conus
+    // (albers-usa) leaves a wide band there since California's coast recedes
+    // up-and-left of the inset corner.
+    const akW = Math.max(150, width * 0.21);
+    const akH = Math.max(110, height * 0.3);
+    const hiW = Math.max(95, width * 0.13);
+    const hiH = Math.max(75, height * 0.2);
     const akBox = { x: FIT_PAD, y: height - FIT_PAD - akH, w: akW, h: akH };
     const hiBox = {
       x: FIT_PAD + akW + 10,
@@ -656,6 +672,20 @@ export function layoutMap(
         lineNumber: -1,
         layer: 'base',
       });
+    }
+  }
+
+  // Rivers (Amazon, Nile, Mississippi, …) as thin water lines over the land.
+  // Open paths: stroked, no fill. Drawn over lakes but under POIs/edges/labels.
+  const riverColor = mix(palette.colors.blue, palette.bg, RIVER_TINT);
+  const rivers: MapLayoutRiver[] = [];
+  if (data.rivers) {
+    for (const [, f] of decodeLayer(data.rivers)) {
+      const viewF = isGlobalView ? f : cullFeatureToView(f);
+      if (!viewF) continue;
+      const d = path(viewF as never) ?? '';
+      if (!d) continue;
+      rivers.push({ d, color: riverColor, width: RIVER_WIDTH });
     }
   }
 
@@ -1058,6 +1088,7 @@ export function layoutMap(
     ...(resolved.subtitle !== undefined && { subtitle: resolved.subtitle }),
     ...(resolved.caption !== undefined && { caption: resolved.caption }),
     regions,
+    rivers,
     legs,
     pois,
     labels,
