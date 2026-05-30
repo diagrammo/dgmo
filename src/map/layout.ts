@@ -910,9 +910,12 @@ export function layoutMap(
       const hex = entry?.color; // already hex (parser-resolved)
       if (hex) return { fill: hex, stroke: mix(hex, palette.text, 18) };
     }
+    // Untagged markers default to orange — a warm hue that contrasts with BOTH
+    // the green land and the blue water/lakes/rivers. `palette.accent` is a
+    // blue-ish tone in some palettes (e.g. nord) and vanished against the ocean.
     return {
-      fill: palette.accent,
-      stroke: mix(palette.accent, palette.text, 18),
+      fill: palette.colors.orange,
+      stroke: mix(palette.colors.orange, palette.text, 18),
     };
   };
 
