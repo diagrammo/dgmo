@@ -1,4 +1,4 @@
-import { defineConfig } from 'tsup';
+import { defineConfig, type Options } from 'tsup';
 import type { Plugin } from 'esbuild';
 import { readFile, writeFile, mkdir, readdir, copyFile } from 'fs/promises';
 import { resolve, dirname } from 'path';
@@ -96,7 +96,30 @@ const inlineJsdomStylesheet: Plugin = {
   },
 };
 
-export default defineConfig([
+// Dev-only: after a watch rebuild finishes (ALL chunks written), touch a
+// sentinel file that the diagrammo-app Vite dev server watches, prompting it to
+// restart and serve the fresh dgmo dist WITHOUT a manual app restart. Firing on
+// onSuccess (once, post-build) avoids the mid-write parse-500 / flicker storm
+// that made Vite watch the dist directly a bad idea. Gated on an env var the
+// workspace `dev` script sets, so plain `pnpm build` / CI never write it.
+const DEV_RELOAD_SENTINEL = resolve('./.vite-reload');
+async function touchDevReload(): Promise<void> {
+  if (!process.env.DGMO_DEV_RELOAD) return;
+  try {
+    await writeFile(DEV_RELOAD_SENTINEL, String(Date.now()), 'utf8');
+  } catch {
+    // best-effort — never fail a build over the reload sentinel
+  }
+}
+/** Chain `touchDevReload` after any existing onSuccess (preserving it). */
+function withReload(existing: Options['onSuccess']): () => Promise<void> {
+  return async () => {
+    if (typeof existing === 'function') await existing();
+    await touchDevReload();
+  };
+}
+
+const BUILDS: Options[] = [
   {
     entry: ['src/index.ts'],
     format: ['esm', 'cjs'],
@@ -217,4 +240,10 @@ export default defineConfig([
     },
     esbuildPlugins: [fixJsdomXhrWorker],
   },
-]);
+];
+
+// Wrap every build's onSuccess so the dev-reload sentinel is touched once each
+// chunk finishes, regardless of which entry a source edit rebuilt.
+export default defineConfig(
+  BUILDS.map((b) => ({ ...b, onSuccess: withReload(b.onSuccess) }))
+);
