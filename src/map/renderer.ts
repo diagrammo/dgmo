@@ -385,7 +385,7 @@ function emitExtraLegend(
       grad
         .append('stop')
         .attr('offset', '0%')
-        .attr('stop-color', mix(ramp.hue, palette.bg, 15));
+        .attr('stop-color', mix(ramp.hue, ramp.base, 15));
       grad.append('stop').attr('offset', '100%').attr('stop-color', ramp.hue);
       block
         .append('rect')

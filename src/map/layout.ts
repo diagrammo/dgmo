@@ -54,6 +54,10 @@ const W_MAX = 8;
 const FONT = 11; // on-map label font px
 const LEADER_STEP = 14; // px ring radius step for label escalation
 const COLO_EPS = 1.5; // px: POIs closer than this are "co-located"
+// % palette-yellow of bg for unscored land. Higher on dark so the soft palette
+// yellow reads as yellow rather than muddying toward tan against the dark bg.
+const LAND_TINT_LIGHT = 58;
+const LAND_TINT_DARK = 75;
 const COLO_R = 9; // spiderfy radius
 const GOLDEN_ANGLE = 2.399963229728653; // rad (137.5deg) -- even spiral, no random
 const FAN_STEP = 16; // px perpendicular offset between parallel edges
@@ -133,7 +137,14 @@ export interface MapLayoutLegend {
     entries: ReadonlyArray<{ value: string; color: string }>;
   }>;
   readonly activeGroup: string | null;
-  readonly ramp?: { metric?: string; min: number; max: number; hue: string };
+  readonly ramp?: {
+    metric?: string;
+    min: number;
+    max: number;
+    hue: string;
+    /** Low end of the ramp gradient (the land colour the fills blend from). */
+    base: string;
+  };
   readonly size?: { metric?: string; min: number; max: number };
   readonly weight?: { metric?: string; min: number; max: number };
 }
@@ -213,12 +224,14 @@ export function layoutMap(
     ? decodeLayer(data.usStates)
     : null;
 
-  // One consistent backdrop. The whole canvas — letterbox bands, ocean, and
-  // unscored/neighbour land — shares the neutral bg, so there's no blue water
-  // band or grey/green patchwork. Scored/tagged regions (ramp + tag colours)
-  // and hairline borders carry all the signal; this matches the flat bg every
-  // other chart type renders on.
-  const neutralFill = palette.bg;
+  // Land is a muted yellow; the backdrop stays the flat palette bg. The
+  // background, ocean, and letterbox bands all share that one bg (no band, no
+  // patchwork), while every land region — unscored states, AK/HI, neighbours —
+  // reads yellow. Scored/tagged regions paint over this land base, and the
+  // score ramp blends FROM the land colour so low scores stay land-toned rather
+  // than fading into the dark background.
+  const landTint = isDark ? LAND_TINT_DARK : LAND_TINT_LIGHT;
+  const neutralFill = mix(palette.colors.yellow, palette.bg, landTint);
   const water = palette.bg;
   // Region borders: a clear neutral gray, mixed toward bg so it reads as a
   // hairline that delineates regions on the flat background.
@@ -244,7 +257,9 @@ export function layoutMap(
   const fillForScore = (s: number): string => {
     const t = rampMax > rampMin ? (s - rampMin) / (rampMax - rampMin) : 1;
     const pct = RAMP_FLOOR + Math.max(0, Math.min(1, t)) * (100 - RAMP_FLOOR);
-    return mix(rampHue, isDark ? palette.surface : palette.bg, pct);
+    // Blend from the land colour up to the ramp hue, so the lowest scores read
+    // as faintly-tinted land rather than fading into the dark background.
+    return mix(rampHue, neutralFill, pct);
   };
 
   /** Resolve a tag value (name) -> tinted hex via a declared group, or null. */
@@ -840,6 +855,7 @@ export function layoutMap(
             min: rampMin,
             max: rampMax,
             hue: rampHue,
+            base: neutralFill,
           },
         }),
         ...(sizeVals.length > 0 && {

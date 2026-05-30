@@ -85,8 +85,8 @@ const DATA: MapData = {
 };
 
 const P = getPalette('nord').light;
-// Unscored/neighbour land shares the flat neutral backdrop (palette bg).
-const neutral = P.bg;
+// Land is a muted yellow (see layout.ts LAND_TINT_LIGHT); backdrop stays bg.
+const neutral = mix(P.colors.yellow, P.bg, 58);
 const lay = (src: string, w = 800, h = 600) =>
   layoutMap(
     resolveMap(parseMap(src), DATA),
@@ -166,7 +166,7 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
     const ca = r.regions.find((x) => x.id === 'US-CA')!;
     const or = r.regions.find((x) => x.id === 'US-OR')!;
     expect(or.fill).toBe(P.colors.red); // t=1 → 100% hue (red ramp)
-    expect(ca.fill).toBe(mix(P.colors.red, P.bg, 15)); // floor
+    expect(ca.fill).toBe(mix(P.colors.red, neutral, 15)); // floor blends from land
   });
   it('scale override sets ramp anchors (AC3)', () => {
     const r = lay('map\nscale 0 200\nCalifornia score: 100');
