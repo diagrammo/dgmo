@@ -86,7 +86,7 @@ const DATA: MapData = {
 
 const P = getPalette('nord').light;
 // Land is a muted yellow (see layout.ts LAND_TINT_LIGHT); backdrop stays bg.
-const neutral = mix(P.colors.yellow, P.bg, 58);
+const neutral = mix(P.colors.green, P.bg, 58);
 const lay = (src: string, w = 800, h = 600) =>
   layoutMap(
     resolveMap(parseMap(src), DATA),

@@ -170,6 +170,9 @@ export interface MapLayout {
   readonly legend: MapLayoutLegend | null;
   /** Framed AK/HI inset cutouts (albers-usa only; empty otherwise). */
   readonly insets: readonly MapLayoutInset[];
+  /** AK/HI region paths drawn inside the inset boxes (foreground, over an
+   *  opaque ocean fill). Paired positionally with `insets`. */
+  readonly insetRegions: readonly MapLayoutRegion[];
 }
 
 export interface LayoutOptions {
@@ -260,14 +263,14 @@ export function layoutMap(
     ? decodeLayer(data.usStates)
     : null;
 
-  // Land is a muted yellow; the ocean/backdrop is blue. Scored/tagged regions
+  // Land is a muted green; the ocean/backdrop is blue. Scored/tagged regions
   // paint over the land base, and the score ramp blends FROM the land colour so
   // low scores stay land-toned rather than fading out. In a US view the world
   // layer is just neighbour context (Mexico/Canada at the frame edge) — fill it
-  // gray so the yellow US reads as the subject; world maps (no us-states layer)
-  // keep yellow land for every country.
+  // gray so the green US reads as the subject; world maps (no us-states layer)
+  // keep green land for every country.
   const landTint = isDark ? LAND_TINT_DARK : LAND_TINT_LIGHT;
-  const neutralFill = mix(palette.colors.yellow, palette.bg, landTint);
+  const neutralFill = mix(palette.colors.green, palette.bg, landTint);
   const water = mapBackgroundColor(palette);
   const usContext = usLayer !== null;
   const foreignFill = mix(
@@ -275,9 +278,12 @@ export function layoutMap(
     palette.bg,
     isDark ? FOREIGN_TINT_DARK : FOREIGN_TINT_LIGHT
   );
-  // Region borders: a darker line (toward the text colour) so state outlines
-  // read clearly over the land fills rather than as a faint hairline.
-  const regionStroke = mix(palette.text, palette.bg, isDark ? 58 : 72);
+  // Region borders: a clearly dark outline in BOTH themes. palette.text flips
+  // (dark on light, light on dark), so mix toward whichever of text/bg is the
+  // dark one — never a light hairline over the land fills.
+  const regionStroke = isDark
+    ? mix(palette.bg, palette.text, 78) // dark theme: near-bg dark outline
+    : mix(palette.text, palette.bg, 78); // light theme: near-text dark outline
 
   // -- Region fill model (choropleth + categorical; AR4/AR6) --
   const scores = resolved.regions
@@ -603,8 +609,9 @@ export function layoutMap(
   pushRegionLayer(worldLayer, 'country', !isGlobalView);
   // US-states layer (cull off-view; AK/HI are handled as insets above).
   if (usLayer) pushRegionLayer(usLayer, 'us-state', !isGlobalView);
-  // Append the AK/HI inset region paths (already in inset-projection coords).
-  regions.push(...insetRegions);
+  // NOTE: insetRegions (AK/HI) are returned SEPARATELY so the renderer can draw
+  // them in the foreground over an opaque box — drawn inline here they'd sit
+  // behind neighbour land (Mexico) showing through the inset.
 
   // Lakes (Great Lakes etc.) painted as water OVER the land so they don't read
   // as land — the coarse country polygons don't carve them out. Drawn last so
@@ -987,5 +994,6 @@ export function layoutMap(
     pinList,
     legend,
     insets,
+    insetRegions,
   };
 }

@@ -17,7 +17,12 @@ import type { LegendConfig, LegendState } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes/types';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { MapData, ResolvedMap } from './resolved-types';
-import { layoutMap, type MapLayout, type PlacedLabel } from './layout';
+import {
+  layoutMap,
+  type MapLayout,
+  type MapLayoutRegion,
+  type PlacedLabel,
+} from './layout';
 
 const LABEL_FONT = 11;
 
@@ -90,9 +95,33 @@ export function renderMap(
   // Title / subtitle / caption are rendered LAST (see end of function) so they
   // sit in the foreground above the basemap, POIs, and labels.
 
-  // ── AK / HI inset cutouts (albers-usa) — framed cards drawn behind the
-  // regions so the composited insets read as insets (and Hawaii doesn't vanish
-  // into the ocean). Neutral bg fill separates them from the water tint. ──
+  // ── Regions ──
+  const gRegions = svg.append('g').attr('class', 'dgmo-map-regions');
+  const drawRegion = (
+    g: Sel,
+    r: MapLayoutRegion,
+    strokeWidth: number
+  ): void => {
+    const p = g
+      .append('path')
+      .attr('d', r.d)
+      .attr('fill', r.fill)
+      .attr('stroke', r.stroke)
+      .attr('stroke-width', strokeWidth);
+    if (r.lineNumber >= 0) {
+      p.attr('data-line-number', r.lineNumber);
+      if (onClickItem) {
+        p.style('cursor', 'pointer').on('click', () =>
+          onClickItem(r.lineNumber)
+        );
+      }
+    }
+  };
+  for (const r of layout.regions) drawRegion(gRegions, r, 0.5);
+
+  // ── AK / HI insets (albers-usa) — drawn in the FOREGROUND so the opaque ocean
+  // box hides the main-map neighbour land (Mexico's Baja) behind it; the state
+  // then draws on top, framed by the box border. ──
   if (layout.insets.length) {
     const insetG = svg.append('g').attr('class', 'dgmo-map-insets');
     for (const box of layout.insets) {
@@ -107,25 +136,7 @@ export function renderMap(
         .attr('stroke', mix(palette.text, palette.bg, 55))
         .attr('stroke-width', 1);
     }
-  }
-
-  // ── Regions ──
-  const gRegions = svg.append('g').attr('class', 'dgmo-map-regions');
-  for (const r of layout.regions) {
-    const p = gRegions
-      .append('path')
-      .attr('d', r.d)
-      .attr('fill', r.fill)
-      .attr('stroke', r.stroke)
-      .attr('stroke-width', 0.5);
-    if (r.lineNumber >= 0) {
-      p.attr('data-line-number', r.lineNumber);
-      if (onClickItem) {
-        p.style('cursor', 'pointer').on('click', () =>
-          onClickItem(r.lineNumber)
-        );
-      }
-    }
+    for (const r of layout.insetRegions) drawRegion(insetG, r, 0.5);
   }
 
   // ── Legs (edges + route legs) ──
