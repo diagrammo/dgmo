@@ -85,9 +85,8 @@ const DATA: MapData = {
 };
 
 const P = getPalette('nord').light;
-// Default land shade: green/yellow land hue tinted toward bg (see layout.ts
-// LAND_TINT / LAND_GREEN_BIAS).
-const neutral = mix(mix(P.colors.green, P.colors.yellow, 72), P.bg, 34);
+// Unscored/neighbour land shares the flat neutral backdrop (palette bg).
+const neutral = P.bg;
 const lay = (src: string, w = 800, h = 600) =>
   layoutMap(
     resolveMap(parseMap(src), DATA),

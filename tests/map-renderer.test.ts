@@ -3,7 +3,6 @@ import { parseMap } from '../src/map/parser';
 import { resolveMap } from '../src/map/resolver';
 import { renderMap, renderMapForExport } from '../src/map/renderer';
 import { getPalette } from '../src/palettes';
-import { mix } from '../src/palettes/color-utils';
 import type { MapData } from '../src/map/resolved-types';
 import type { BoundaryTopology, Gazetteer } from '../src/map/data/types';
 
@@ -80,8 +79,8 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     const svg = render('map');
     expect(svg).toBeTruthy();
     const bg = svg.querySelector('rect');
-    // Background is the water tint (blue-of-bg), not raw bg (see WATER_TINT).
-    expect(bg?.getAttribute('fill')).toBe(mix(P.colors.blue, P.bg, 55));
+    // Flat, consistent backdrop — the whole canvas shares the neutral bg.
+    expect(bg?.getAttribute('fill')).toBe(P.bg);
     expect(
       svg.querySelectorAll('.dgmo-map-regions path').length
     ).toBeGreaterThan(0);

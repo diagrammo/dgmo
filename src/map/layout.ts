@@ -54,9 +54,6 @@ const W_MAX = 8;
 const FONT = 11; // on-map label font px
 const LEADER_STEP = 14; // px ring radius step for label escalation
 const COLO_EPS = 1.5; // px: POIs closer than this are "co-located"
-const WATER_TINT = 55; // % blue-of-bg for the ocean backdrop (reads clearly blue)
-const LAND_TINT = 34; // % land-hue-of-bg for unscored land
-const LAND_GREEN_BIAS = 72; // % green vs yellow in the land hue (natural sage)
 const COLO_R = 9; // spiderfy radius
 const GOLDEN_ANGLE = 2.399963229728653; // rad (137.5deg) -- even spiral, no random
 const FAN_STEP = 16; // px perpendicular offset between parallel edges
@@ -216,26 +213,16 @@ export function layoutMap(
     ? decodeLayer(data.usStates)
     : null;
 
-  // Default geographic shading: green land on a blue ocean, both derived from
-  // the active palette's named colors and tinted toward bg so they stay subtle
-  // and theme-aware (light = pale, dark = muted). Scored/tagged regions paint
-  // over the land base; `water` backs the whole canvas.
-  const landHue = mix(
-    palette.colors.green,
-    palette.colors.yellow,
-    LAND_GREEN_BIAS
-  );
-  const neutralFill = mix(landHue, palette.bg, LAND_TINT);
-  const water = mix(palette.colors.blue, palette.bg, WATER_TINT);
-  // Coastlines / borders: a clear neutral gray (not the bg-tinted border, which
-  // reads greenish over land). Mixed toward bg so it stays a subtle hairline.
+  // One consistent backdrop. The whole canvas — letterbox bands, ocean, and
+  // unscored/neighbour land — shares the neutral bg, so there's no blue water
+  // band or grey/green patchwork. Scored/tagged regions (ramp + tag colours)
+  // and hairline borders carry all the signal; this matches the flat bg every
+  // other chart type renders on.
+  const neutralFill = palette.bg;
+  const water = palette.bg;
+  // Region borders: a clear neutral gray, mixed toward bg so it reads as a
+  // hairline that delineates regions on the flat background.
   const regionStroke = mix(palette.colors.gray, palette.bg, 55);
-  // When a US-states basemap is active, the world layer is just neighbor
-  // context (Mexico/Canada bordering the albers frame). Fill that foreign land
-  // a muted gray so it recedes behind the US data canvas (green) and the blue
-  // water. World maps (no us-states layer) keep the green atlas land for all.
-  const usContext = usLayer !== null;
-  const foreignFill = mix(palette.colors.gray, palette.bg, LAND_TINT - 6);
 
   // -- Region fill model (choropleth + categorical; AR4/AR6) --
   const scores = resolved.regions
@@ -500,9 +487,7 @@ export function layoutMap(
       const d = path(viewF as never) ?? '';
       if (!d) continue;
       const isThisLayer = r?.layer === layerKind;
-      // Non-US neighbor land in a US view defaults to gray, not the green land.
-      const isForeign = layerKind === 'country' && usContext && iso !== 'US';
-      let fill = isForeign ? foreignFill : neutralFill;
+      let fill = neutralFill;
       let label: string | undefined;
       let lineNumber = -1;
       let layer: MapLayoutRegion['layer'] = 'base';
