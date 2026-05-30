@@ -512,7 +512,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // keywords, not directives; metadata keys (score/size/label) live in the
     // reserved-key registry.
     withGlobals({
-      region: { description: 'Force a basemap/extent (world | us-states)' },
+      region: {
+        description:
+          'Basemap: us-states (force US state mesh + scoping) | world (inert — already the default)',
+      },
       projection: {
         description: 'Override the auto projection',
         values: ['equirectangular', 'natural-earth', 'albers-usa', 'mercator'],

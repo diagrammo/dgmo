@@ -2643,6 +2643,8 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 
 Geographic concept maps: highlight/score political subdivisions, drop points of interest (POIs), and connect them with routes or edges. For "share a concept" business maps, not cartography. Renders at a fixed, auto-fit position — no pan/zoom. Basemap and viewport are **inferred from the content you reference** — most maps need no directives. v1 boundaries: world countries + US states.
 
+**How the map type is decided (inference):** the resolver takes the bounding box of everything referenced (scored/tagged regions + POIs + edge endpoints), pads it, and measures its span. Projection: `albers-usa` (US conic + AK/HI insets) when the map is US-only; else `equirectangular` snapped to the full Greenwich world when the span is world-scale (≥ ~90°); else `mercator` for a tight regional cluster; else `equirectangular`. The US-state mesh is added whenever you name a US state. Directives only matter to *override* this: `region us-states` forces the state mesh + US scoping (useful on a POI-only US map, redundant once you name a state); `projection …` forces the projection; **`region world` is currently inert** — world is already the default, so it changes nothing (the frame widens from a world-scale longitude span, not this directive).
+
 ### Declaration
 
 ```
