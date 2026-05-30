@@ -460,16 +460,15 @@ export function layoutMap(
   if (resolved.projection === 'albers-usa' && usLayer) {
     const PAD = 8;
     const GAP = 12; // px the top edge rides below the coast
-    const MAX_H = height * 0.42; // box height cap
-    const MIN_H = 70; // box height floor
-    const yB = height - FIT_PAD; // box bottom (shared by both insets)
-    // Southern-coast profile: the lowest (max-y) projected vertex of any conus
-    // state per x-column. One pass over the real polygon vertices — accurate
-    // even where a bounding box would lie (Texas's diagonal Rio Grande border
-    // puts its bbox bottom at Brownsville, far south of the El Paso coast).
-    const ceil = yB - MAX_H; // open-ocean columns may rise to here
-    const BW = 4; // x-bucket width (px)
-    const coast = new Map<number, number>(); // bucket → southern-most y
+    const yB = height - FIT_PAD; // lowest a box may reach (canvas bottom pad)
+    // Southern-coast profile sampled from the conus polygon VERTICES: the lowest
+    // (max-y) projected vertex per x-bucket. Accurate everywhere — including
+    // Texas's diagonal Rio Grande border, which a bounding box would misread.
+    // Open-ocean columns (no vertex) impose NO constraint, so a box may sit there
+    // freely; that lets the insets live anywhere in the lower water (no need to
+    // dodge Texas) and is what keeps both boxes placeable in any aspect ratio.
+    const BW = 8; // x-bucket width (px)
+    const coast = new Map<number, number>();
     const addPt = (lon: number, lat: number): void => {
       const p = projection([lon, lat]);
       if (!p) return;
@@ -478,15 +477,15 @@ export function layoutMap(
       if (cur === undefined || p[1] > cur) coast.set(bi, p[1]);
     };
     const walk = (co: unknown): void => {
-      if (Array.isArray(co) && typeof co[0] === 'number') {
+      if (Array.isArray(co) && typeof co[0] === 'number')
         addPt(co[0] as number, co[1] as number);
-      } else if (Array.isArray(co)) for (const c of co) walk(c);
+      else if (Array.isArray(co)) for (const c of co) walk(c);
     };
     for (const [iso, f] of usLayer) {
       if (US_NON_CONUS.has(iso)) continue;
       walk((f.geometry as { coordinates?: unknown }).coordinates);
     }
-    // South coast at x (checks neighbour buckets); ceil over open ocean.
+    // Coast y at x, or -Infinity over open ocean (no land above → no constraint).
     const at = (x: number): number => {
       const bi = Math.floor(x / BW);
       let y = -Infinity;
@@ -494,54 +493,94 @@ export function layoutMap(
         const v = coast.get(k);
         if (v !== undefined && v > y) y = v;
       }
-      return y === -Infinity ? ceil : y;
+      return y;
     };
-    // One straight top edge across [x0, xr]: slope from the endpoints, then the
-    // whole line pushed down until it clears the sampled coast (+GAP). The result
-    // is always a single straight segment — it just sits below the coast.
-    const topLine = (boxX: number, w: number, maxH: number) => {
-      const xr = boxX + w;
-      const clamp = (y: number): number =>
-        Math.min(Math.max(y, yB - maxH), yB - MIN_H);
-      const slope = xr > boxX ? (at(xr) - at(boxX)) / (xr - boxX) : 0;
-      let b = at(boxX); // intercept of the endpoint line at boxX
+    // Top edge for a box over [x0, xr]: a straight line PARALLEL to the local
+    // coast (least-squares over the land samples), pushed down so it clears every
+    // land sample by GAP. Parallel → uniform, maximal clearance for how close it
+    // sits, tilting the way the coast tilts. Open-ocean samples are skipped, so a
+    // box reaching past the coast isn't dragged down by water. Falls back to a
+    // flat line just under the lowest land if the fit is underdetermined.
+    const coastTop = (x0: number, xr: number): ((x: number) => number) => {
       const n = 24;
+      const pts: Array<[number, number]> = [];
+      let maxY = -Infinity;
       for (let i = 0; i <= n; i++) {
-        const x = boxX + ((xr - boxX) * i) / n;
-        const need = at(x) - slope * (x - boxX);
-        if (need > b) b = need;
+        const x = x0 + ((xr - x0) * i) / n;
+        const y = at(x);
+        if (y > -Infinity) {
+          pts.push([x, y]);
+          if (y > maxY) maxY = y;
+        }
       }
-      return {
-        x0: boxX,
-        xr,
-        yL: clamp(b + GAP),
-        yR: clamp(slope * (xr - boxX) + b + GAP),
-      };
+      if (pts.length === 0) return () => yB - height * 0.42; // all ocean
+      let m = 0;
+      if (pts.length >= 2) {
+        let sx = 0,
+          sy = 0,
+          sxx = 0,
+          sxy = 0;
+        for (const [x, y] of pts) {
+          sx += x;
+          sy += y;
+          sxx += x * x;
+          sxy += x * y;
+        }
+        const den = pts.length * sxx - sx * sx;
+        if (den !== 0) m = (pts.length * sxy - sx * sy) / den;
+      }
+      // Cap the tilt so a steep coast (e.g. California's) doesn't turn the box
+      // into a tall triangle — keep it a compact, gently-angled quad.
+      m = Math.max(-0.35, Math.min(0.35, m));
+      let c = -Infinity; // raise the line until it clears every land sample + GAP
+      for (const [x, y] of pts) {
+        const need = y - m * x + GAP;
+        if (need > c) c = need;
+      }
+      return (x: number) => m * x + c;
     };
-    // AK gets the big box (the state is big); HI a modest one.
-    const akW = Math.max(150, width * 0.2);
-    const hiW = Math.max(110, width * 0.16);
-    const akLine = topLine(FIT_PAD, akW, height * 0.42);
-    const hiLine = topLine(FIT_PAD + akW + 14, hiW, height * 0.26);
-    const drawInset = (
+    // A snug floating box that just contains the state, tucked up under the coast
+    // with a coast-parallel slanted top. `iwReq` is the requested inner width.
+    // Returns the box's right edge so the next inset can sit beside it.
+    const placeInset = (
       iso: string,
       proj: GeoProjection,
-      line: { x0: number; xr: number; yL: number; yR: number }
-    ): void => {
+      boxX: number,
+      iwReq: number
+    ): number => {
       const f = usLayer.get(iso);
-      if (!f) return;
-      const { x0, xr, yL, yR } = line;
-      // State fits below the LOWER top corner so the slope never clips it.
-      const topFit = Math.max(yL, yR);
+      if (!f) return boxX;
+      const x0 = boxX;
+      // Clamp the width to the remaining canvas so the box can't run off-frame.
+      const iw = Math.min(iwReq, width - FIT_PAD - x0 - 2 * PAD);
+      if (iw < 24) return boxX; // canvas truly too narrow for another inset
+      const xr = x0 + iw + 2 * PAD;
+      const top = coastTop(x0, xr);
+      const yL = top(x0);
+      const yR = top(xr);
+      // Learn the state's height at this width, then size the box to just hold it.
+      proj.fitWidth(iw, f as never);
+      const bb = geoPath(proj).bounds(f as never);
+      const sh = Number.isFinite(bb[0][0]) ? bb[1][1] - bb[0][1] : iw;
+      // State sits below the lower top corner. If the coast runs so low the state
+      // wouldn't fit above yB, raise the top (the corner stays over ocean) — the
+      // box must never collapse and vanish.
+      const needH = sh + 2 * PAD;
+      let topFit = Math.max(yL, yR);
+      const bottom = Math.min(topFit + needH, yB);
+      if (bottom - topFit < needH) topFit = bottom - needH;
+      const lift = topFit - Math.max(yL, yR); // keep the slanted top straight
+      const topL = yL + lift;
+      const topR = yR + lift;
       proj.fitExtent(
         [
           [x0 + PAD, topFit + PAD],
-          [xr - PAD, yB - PAD],
+          [xr - PAD, bottom - PAD],
         ],
         f as never
       );
       const d = geoPath(proj)(f as never) ?? '';
-      if (!d) return;
+      if (!d) return xr;
       const r = regionById.get(iso);
       let fill = neutralFill;
       let lineNumber = -1;
@@ -552,14 +591,14 @@ export function layoutMap(
       }
       insets.push({
         x: x0,
-        y: Math.min(yL, yR),
+        y: Math.min(topL, topR),
         w: xr - x0,
-        h: yB - Math.min(yL, yR),
+        h: bottom - Math.min(topL, topR),
         points: [
-          [x0, yL],
-          [xr, yR],
-          [xr, yB],
-          [x0, yB],
+          [x0, topL],
+          [xr, topR],
+          [xr, bottom],
+          [x0, bottom],
         ],
       });
       insetRegions.push({
@@ -575,9 +614,16 @@ export function layoutMap(
         const name = (f.properties as { name?: string } | null)?.name ?? iso;
         insetLabelSeeds.push({ x: ctr[0], y: ctr[1], iso, name, lineNumber });
       }
+      return xr;
     };
-    drawInset('US-AK', alaskaProjection(), akLine);
-    drawInset('US-HI', hawaiiProjection(), hiLine);
+    // AK is the larger state; HI a small island group tucked to its right.
+    const akRight = placeInset(
+      'US-AK',
+      alaskaProjection(),
+      FIT_PAD,
+      width * 0.15
+    );
+    placeInset('US-HI', hawaiiProjection(), akRight + 24, width * 0.1);
   }
 
   // -- Basemap culling --
