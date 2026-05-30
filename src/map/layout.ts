@@ -289,6 +289,21 @@ export function mapBackgroundColor(palette: PaletteColors): string {
   return mix(palette.colors.blue, palette.bg, WATER_TINT);
 }
 
+/** The map's neutral (unscored/untagged) LAND colour — the green base every
+ *  region blends from. Exported so a host can DIM a region to plain land
+ *  (rather than lowering opacity, which would let the blue water show through
+ *  and make the shape read as ocean). Matches the layout's `neutralFill`. */
+export function mapNeutralLandColor(
+  palette: PaletteColors,
+  isDark: boolean
+): string {
+  return mix(
+    palette.colors.green,
+    palette.bg,
+    isDark ? LAND_TINT_DARK : LAND_TINT_LIGHT
+  );
+}
+
 export function layoutMap(
   resolved: ResolvedMap,
   data: MapData,
