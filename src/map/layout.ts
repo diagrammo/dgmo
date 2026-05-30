@@ -11,6 +11,7 @@ import {
   geoEquirectangular,
   geoConicEqualArea,
   geoMercator,
+  geoBounds,
   type GeoProjection,
   type GeoPath,
 } from 'd3-geo';
@@ -718,7 +719,19 @@ export function layoutMap(
   // projects to frame-filling garbage whose fill covers the whole viewport,
   // painting "sea" as land. Only draw features whose geographic bounds overlap
   // the (padded) visible extent. A near-global view draws everything.
-  const [[exW, exS], [exE, exN]] = resolved.extent;
+  // In an albers-usa + us-states view the projection frames the ENTIRE
+  // contiguous 48 (it fits to `fitTarget` = the conus states, NOT the POI
+  // extent), so the cull box must be the CONUS bounds. Culling by
+  // resolved.extent — which is the POI cluster, often a single metro — would
+  // drop every in-frame state outside that cluster, leaving gray gaps where
+  // land should be. Far countries are still culled (to the conus box) so the
+  // unclipped conic doesn't paint frame-filling garbage; the us-states layer
+  // itself is never culled (every conus state is in frame by construction).
+  const conusFit = resolved.projection === 'albers-usa' && !!usLayer;
+  const cullExtent = conusFit
+    ? (geoBounds(fitTarget as never) as [[number, number], [number, number]])
+    : resolved.extent;
+  const [[exW, exS], [exE, exN]] = cullExtent;
   const lonSpan = exE - exW;
   const latSpan = exN - exS;
   // A near-global view draws everything. (albers-usa is handled per-layer at the
@@ -908,10 +921,14 @@ export function layoutMap(
     }
   };
   // World/foreign layer: cull by the visible extent (unless near-global) so far
-  // countries don't project to frame-filling garbage under albers-usa.
+  // countries don't project to frame-filling garbage under albers-usa. In a
+  // conus fit the cull box is the whole-CONUS bounds (above), so neighbour land
+  // around the US survives and only truly-distant countries drop.
   pushRegionLayer(worldLayer, 'country', !isGlobalView);
-  // US-states layer (cull off-view; AK/HI are handled as insets above).
-  if (usLayer) pushRegionLayer(usLayer, 'us-state', !isGlobalView);
+  // US-states layer: NEVER culled in a conus fit — every contiguous state is in
+  // frame by construction, and culling by a tight POI extent would blank most of
+  // them. AK/HI are handled as insets above. Outside a conus fit, cull off-view.
+  if (usLayer) pushRegionLayer(usLayer, 'us-state', !conusFit && !isGlobalView);
   // NOTE: insetRegions (AK/HI) are returned SEPARATELY so the renderer can draw
   // them in the foreground over an opaque box — drawn inline here they'd sit
   // behind neighbour land (Mexico) showing through the inset.
@@ -1154,6 +1171,13 @@ export function layoutMap(
   const badgeW = (text: string): number =>
     measureLegendText(text, FONT) + 2 * BADGE_PADX;
   const badgeH = FONT + 2 * BADGE_PADY;
+  // Badge backing: a darker tint of the map's water/backdrop shade rather than a
+  // generic near-black pill — it ties the labels to the basemap and reads as a
+  // soft slate instead of a heavy black blob over the pastel fills. Built from
+  // the theme's dark anchor (text on light, bg on dark — same convention as the
+  // region stroke) blended toward the water colour.
+  const labelDarkAnchor = isDark ? palette.bg : palette.text;
+  const badgeFill = mix(labelDarkAnchor, water, 64);
   const pushBadge = (
     x: number,
     y: number,
@@ -1169,7 +1193,7 @@ export function layoutMap(
       halo: false,
       haloColor: palette.textOnFillDark,
       badge: true,
-      badgeFill: palette.textOnFillDark,
+      badgeFill,
       lineNumber,
     });
   };

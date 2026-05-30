@@ -139,6 +139,20 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
       expect(br[1]).toBeCloseTo(bl[1], 1); // bottom flat
     }
   });
+  it('us-states view draws ALL conus states even with a tight POI cluster (cull box = conus, not the cluster)', () => {
+    // Regression: `region us-states` fits the projection to the whole contiguous
+    // US, but the cull box was the POI extent — so a metro-sized cluster blanked
+    // every far state, leaving gray gaps where land should be. The cull box must
+    // be the conus bounds. POIs sit in the far west (Portland OR); the eastern
+    // fixture states (Maine, Georgia) must still render as land.
+    const r = lay('map\nregion us-states\npoi 45.52 -122.68 as office');
+    const me = r.regions.find((x) => x.id === 'US-ME');
+    const ga = r.regions.find((x) => x.id === 'US-GA');
+    expect(me).toBeDefined();
+    expect(ga).toBeDefined();
+    expect(me!.d).not.toMatch(/NaN/);
+    expect(me!.fill).toBe(neutral); // unscored → plain land, not culled away
+  });
   it('non-albers cluster zooms to fill the canvas (extent-corner fit, not globe)', () => {
     // Regression: a tight mercator cluster must NOT render tiny on a world map.
     // A lat/lon Polygon fit target was being read as the whole-globe complement.

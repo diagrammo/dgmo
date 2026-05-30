@@ -271,8 +271,10 @@ export function renderMap(
         .attr('stroke', palette.border);
     }
     if (lab.badge) {
-      // Solid rounded badge: dark backing (semi-opaque so the fill tints
-      // through) + light text. Reads consistently on any state colour.
+      // Solid rounded badge: a dark slate backing (a darker tint of the water
+      // shade, set in layout) + light text. Mostly opaque so it stays a uniform
+      // slate across every state — only a hint of the underlying fill tints
+      // through, so saturated states (red Texas/California) don't warp the pill.
       const padX = 6;
       const padY = 3;
       const w = measureLegendText(lab.text, LABEL_FONT) + 2 * padX;
@@ -285,7 +287,7 @@ export function renderMap(
         .attr('height', h)
         .attr('rx', h / 2)
         .attr('fill', lab.badgeFill ?? palette.text)
-        .attr('fill-opacity', 0.74);
+        .attr('fill-opacity', 0.88);
       gLabels
         .append('text')
         .attr('x', lab.x)
