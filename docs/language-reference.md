@@ -2689,7 +2689,7 @@ Germany m: Region
 Japan m: Region
 ```
 
-`score:` + a tag on the same region (bivariate): both are kept as **two selectable colouring dimensions**. The top legend shows the score ramp and each tag group as mutually-exclusive, collapsible groups; the active one fills the map. Default is the score ramp (when any `score:` exists). `active-tag <GroupName>` colours by that tag; `active-tag score` colours by the ramp. In the app, clicking a legend group flips the active dimension (live preview only — no source edit). No warning.
+`score:` + a tag on the same region (bivariate): both are kept as **two selectable colouring dimensions**. The top legend shows the score ramp and each tag group as mutually-exclusive, collapsible groups; the active one fills the map. Default is the score ramp (when any `score:` exists). `active-tag <GroupName>` colours by that tag; `active-tag score` colours by the ramp. In the app, clicking a legend group flips the active dimension (live preview only — no source edit); hovering a tag entry highlights the regions with that value, and scrubbing across the score gradient highlights the regions whose score is near the cursor (non-matching regions dim). No warning.
 
 ### Points of interest (`poi`)
 

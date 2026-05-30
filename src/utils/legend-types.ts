@@ -144,6 +144,9 @@ export interface LegendCapsuleLayout {
     rampY: number;
     rampW: number;
     rampH: number;
+    /** Raw numeric ends (for the app's gradient-scrub: x → value). */
+    min: number;
+    max: number;
     minText: string;
     minX: number;
     maxText: string;

@@ -107,6 +107,8 @@ function buildGradientCapsuleLayout(
       rampY: (LEGEND_HEIGHT - RAMP_LEGEND_H) / 2,
       rampW: RAMP_LEGEND_W,
       rampH: RAMP_LEGEND_H,
+      min: gradient.min,
+      max: gradient.max,
       minText,
       minX,
       maxText,

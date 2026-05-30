@@ -217,7 +217,12 @@ function renderCapsule(
       .attr('pointer-events', 'none')
       .attr('font-family', FONT_FAMILY)
       .text(gr.minText);
+    // Class + raw min/max so the app can scrub the ramp (x → value) and
+    // highlight the regions whose score lands near the cursor.
     g.append('rect')
+      .attr('class', 'dgmo-legend-gradient-ramp')
+      .attr('data-ramp-min', gr.min)
+      .attr('data-ramp-max', gr.max)
       .attr('x', gr.rampX)
       .attr('y', gr.rampY)
       .attr('width', gr.rampW)

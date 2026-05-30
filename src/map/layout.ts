@@ -91,6 +91,12 @@ export interface MapLayoutRegion {
   readonly label?: string;
   readonly lineNumber: number;
   readonly layer: 'base' | 'country' | 'us-state';
+  /** The region's score (if any) — emitted as `data-score` so the app can
+   *  highlight by gradient-scrub proximity. */
+  readonly score?: number;
+  /** The region's tag values keyed by group (lowercased) — emitted as
+   *  `data-tag-<group>` so the app can highlight on legend-entry hover. */
+  readonly tags?: Readonly<Record<string, string>>;
 }
 
 /** A framed inset "cutout" (albers-usa AK/HI), in screen px. The frame is a
@@ -671,6 +677,8 @@ export function layoutMap(
         stroke: regionStroke,
         lineNumber,
         layer: 'us-state',
+        ...(r?.score !== undefined && { score: r.score }),
+        ...(r && Object.keys(r.tags).length > 0 && { tags: r.tags }),
       });
       const ctr = geoPath(proj).centroid(f as never);
       if (Number.isFinite(ctr[0])) {
@@ -879,6 +887,8 @@ export function layoutMap(
         lineNumber,
         layer,
         ...(label !== undefined && { label }),
+        ...(isThisLayer && r.score !== undefined && { score: r.score }),
+        ...(isThisLayer && Object.keys(r.tags).length > 0 && { tags: r.tags }),
       });
     }
   };

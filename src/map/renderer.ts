@@ -114,6 +114,18 @@ export function renderMap(
       .attr('fill', r.fill)
       .attr('stroke', r.stroke)
       .attr('stroke-width', strokeWidth);
+    // Data layer? Tag it so the app can highlight on legend hover / gradient
+    // scrub. `data-score` for ramp-proximity, `data-tag-<group>` per tag value
+    // (both lowercased to match the lowercased legend-entry attributes).
+    if (r.layer !== 'base') {
+      p.classed('dgmo-map-region', true).attr('data-region', r.id);
+      if (r.score !== undefined) p.attr('data-score', r.score);
+      if (r.tags) {
+        for (const [group, value] of Object.entries(r.tags)) {
+          p.attr(`data-tag-${group.toLowerCase()}`, value.toLowerCase());
+        }
+      }
+    }
     if (r.lineNumber >= 0) {
       p.attr('data-line-number', r.lineNumber);
       if (onClickItem) {
