@@ -302,12 +302,17 @@ export function layoutMap(
     resolved.directives.activeTag
   );
 
+  // Score ramp base: a NEUTRAL tint of the page, NOT the (green) land colour —
+  // blending red toward green produced muddy brown mid-tones that blurred into
+  // the unscored land. Anchored to a neutral, the ramp is a clean single-hue red
+  // scale (light → deep) distinct from the green base. On dark, lift the anchor
+  // off the near-black surface so the lowest scores read as a clear muted red
+  // rather than sinking to maroon-black.
+  const rampBase = isDark ? mix(palette.surface, palette.text, 28) : palette.bg;
   const fillForScore = (s: number): string => {
     const t = rampMax > rampMin ? (s - rampMin) / (rampMax - rampMin) : 1;
     const pct = RAMP_FLOOR + Math.max(0, Math.min(1, t)) * (100 - RAMP_FLOOR);
-    // Blend from the land colour up to the ramp hue, so the lowest scores read
-    // as faintly-tinted land rather than fading into the dark background.
-    return mix(rampHue, neutralFill, pct);
+    return mix(rampHue, rampBase, pct);
   };
 
   /** Resolve a tag value (name) -> tinted hex via a declared group, or null. */
@@ -961,7 +966,7 @@ export function layoutMap(
             min: rampMin,
             max: rampMax,
             hue: rampHue,
-            base: neutralFill,
+            base: rampBase,
           },
         }),
         ...(sizeVals.length > 0 && {

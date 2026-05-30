@@ -166,7 +166,7 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
     const ca = r.regions.find((x) => x.id === 'US-CA')!;
     const or = r.regions.find((x) => x.id === 'US-OR')!;
     expect(or.fill).toBe(P.colors.red); // t=1 → 100% hue (red ramp)
-    expect(ca.fill).toBe(mix(P.colors.red, neutral, 15)); // floor blends from land
+    expect(ca.fill).toBe(mix(P.colors.red, P.bg, 15)); // floor: ramp base (bg), not land
   });
   it('scale override sets ramp anchors (AC3)', () => {
     const r = lay('map\nscale 0 200\nCalifornia score: 100');
