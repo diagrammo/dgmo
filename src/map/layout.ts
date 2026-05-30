@@ -916,20 +916,37 @@ export function layoutMap(
       const text = labelText(p);
       const w = measureLegendText(text, FONT);
       const h = FONT * 1.25;
-      const inline: LabelRect = { x: p.cx + p.r + 3, y: p.cy - h / 2, w, h };
-      if (!collides(inline)) {
-        obstacles.push(inline);
+      // Inline placement: prefer the right of the marker, but flip to the left
+      // when the right would run OFF-CANVAS (a coastal POI near the edge). A mere
+      // collision still escalates (the ring already tries left, with a leader).
+      const placeInline = (side: 'right' | 'left'): boolean => {
+        const tx = side === 'right' ? p.cx + p.r + 3 : p.cx - p.r - 3;
+        const rect: LabelRect = {
+          x: side === 'right' ? tx : tx - w,
+          y: p.cy - h / 2,
+          w,
+          h,
+        };
+        if (rect.x < 0 || rect.x + rect.w > width) return false; // off-canvas
+        if (collides(rect)) return false;
+        obstacles.push(rect);
         labels.push({
-          x: inline.x,
+          x: tx,
           y: p.cy + FONT / 3,
           text,
-          anchor: 'start',
+          anchor: side === 'right' ? 'start' : 'end',
           color: palette.text,
           halo: true,
           haloColor: palette.bg,
           badge: false,
           lineNumber: p.lineNumber,
         });
+        return true;
+      };
+      const rightFitsCanvas = p.cx + p.r + 3 + w <= width;
+      if (rightFitsCanvas) {
+        if (placeInline('right')) continue;
+      } else if (placeInline('left')) {
         continue;
       }
       // Escalate: fixed candidate ring -> leader line to first free slot.
