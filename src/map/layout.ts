@@ -14,7 +14,7 @@ import {
   type GeoPath,
 } from 'd3-geo';
 import { feature } from 'topojson-client';
-import { mix, shapeFill, contrastText } from '../palettes/color-utils';
+import { mix, shapeFill } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes/types';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
@@ -66,7 +66,6 @@ const FOREIGN_TINT_DARK = 62;
 const COLO_R = 9; // spiderfy radius
 const GOLDEN_ANGLE = 2.399963229728653; // rad (137.5deg) -- even spiral, no random
 const FAN_STEP = 16; // px perpendicular offset between parallel edges
-const TINY_REGION_AREA = 600; // px^2: region label auto-hidden below this
 const ARC_CURVE_FRAC = 0.18; // default arc bow as a fraction of leg length
 
 // Fixed candidate ring for label escalation (E, S, W, N, then diagonals).
@@ -134,6 +133,10 @@ export interface PlacedLabel {
   /** Halo/outline colour — the OPPOSITE lightness of `color`, so the text reads
    *  whether it sits on its fill or overflows onto a different-coloured area. */
   readonly haloColor: string;
+  /** Render inside a solid rounded badge (state abbrev labels) vs plain haloed
+   *  text (POI labels). The badge colours come from `badgeFill`/`color`. */
+  readonly badge: boolean;
+  readonly badgeFill?: string;
   readonly leader?: { x1: number; y1: number; x2: number; y2: number };
   readonly pin?: number; // numbered-pin fallback
   readonly lineNumber: number;
@@ -426,6 +429,15 @@ export function layoutMap(
   // to `regions` so the renderer draws them like any other region.
   const insets: MapLayoutInset[] = [];
   const insetRegions: MapLayoutRegion[] = [];
+  // Seeds for AK/HI labels (centroid in inset-projection coords) — turned into
+  // PlacedLabels in the labels section so they share the badge styling.
+  const insetLabelSeeds: {
+    x: number;
+    y: number;
+    iso: string;
+    name: string;
+    lineNumber: number;
+  }[] = [];
   if (resolved.projection === 'albers-usa' && usLayer) {
     const PAD = 8;
     // Boxes anchored to the lower-left; sizes scale with the canvas.
@@ -473,6 +485,11 @@ export function layoutMap(
         lineNumber,
         layer: 'us-state',
       });
+      const ctr = geoPath(proj).centroid(f as never);
+      if (Number.isFinite(ctr[0])) {
+        const name = (f.properties as { name?: string } | null)?.name ?? iso;
+        insetLabelSeeds.push({ x: ctr[0], y: ctr[1], iso, name, lineNumber });
+      }
     };
     drawInset('US-AK', alaskaProjection(), akBox);
     drawInset('US-HI', hawaiiProjection(), hiBox);
@@ -831,8 +848,35 @@ export function layoutMap(
     markers.some((m) => rectCircleOverlap(rect, m)) ||
     obstacles.some((o) => rectsOverlap(rect, o));
 
-  // Region labels (default off; auto-hide tiny).
+  // Region labels (default off). Each abbrev sits in a solid rounded BADGE —
+  // dark backing + light text — so it reads consistently on any fill colour. A
+  // label is shown only when its badge fits inside the region (small states like
+  // the NE cluster auto-hide rather than overlap / spill onto the ocean).
   const regionLabelMode = resolved.directives.regionLabels ?? 'off';
+  const BADGE_PADX = 6;
+  const BADGE_PADY = 3;
+  const badgeW = (text: string): number =>
+    measureLegendText(text, FONT) + 2 * BADGE_PADX;
+  const badgeH = FONT + 2 * BADGE_PADY;
+  const pushBadge = (
+    x: number,
+    y: number,
+    text: string,
+    lineNumber: number
+  ): void => {
+    labels.push({
+      x,
+      y,
+      text,
+      anchor: 'middle',
+      color: palette.textOnFillLight,
+      halo: false,
+      haloColor: palette.textOnFillDark,
+      badge: true,
+      badgeFill: palette.textOnFillDark,
+      lineNumber,
+    });
+  };
   if (regionLabelMode === 'full' || regionLabelMode === 'abbrev') {
     for (const r of regions) {
       if (r.layer === 'base' || r.label === undefined) continue;
@@ -840,31 +884,19 @@ export function layoutMap(
         r.layer === 'us-state' ? usLayer?.get(r.id) : worldLayer.get(r.id);
       if (!f) continue;
       const [[x0, y0], [x1, y1]] = path.bounds(f as never);
-      if ((x1 - x0) * (y1 - y0) < TINY_REGION_AREA) continue; // auto-hide
-      const c = path.centroid(f as never);
-      if (!Number.isFinite(c[0])) continue;
       const text =
         regionLabelMode === 'abbrev' ? r.id.replace(/^US-/, '') : r.label;
-      // Text contrasts the FILL; the halo is its OPPOSITE so the outline always
-      // reads — including where a label overflows a small state onto the ocean.
-      const labelColor = contrastText(
-        r.fill,
-        palette.textOnFillLight,
-        palette.textOnFillDark
-      );
-      labels.push({
-        x: c[0],
-        y: c[1],
-        text,
-        anchor: 'middle',
-        color: labelColor,
-        halo: true,
-        haloColor:
-          labelColor === palette.textOnFillLight
-            ? palette.textOnFillDark
-            : palette.textOnFillLight,
-        lineNumber: r.lineNumber,
-      });
+      // Hide if the badge wouldn't fit inside the region's footprint.
+      if (badgeW(text) > x1 - x0 || badgeH > y1 - y0) continue;
+      const c = path.centroid(f as never);
+      if (!Number.isFinite(c[0])) continue;
+      pushBadge(c[0], c[1], text, r.lineNumber);
+    }
+    // AK/HI labels live in their insets (own projection centroids).
+    for (const seed of insetLabelSeeds) {
+      const text =
+        regionLabelMode === 'abbrev' ? seed.iso.replace(/^US-/, '') : seed.name;
+      pushBadge(seed.x, seed.y, text, seed.lineNumber);
     }
   }
 
@@ -895,6 +927,7 @@ export function layoutMap(
           color: palette.text,
           halo: true,
           haloColor: palette.bg,
+          badge: false,
           lineNumber: p.lineNumber,
         });
         continue;
@@ -930,6 +963,7 @@ export function layoutMap(
             color: palette.text,
             halo: true,
             haloColor: palette.bg,
+            badge: false,
             leader: { x1: p.cx, y1: p.cy, x2: cx, y2: cy },
             lineNumber: p.lineNumber,
           });
@@ -949,6 +983,7 @@ export function layoutMap(
         color: palette.text,
         halo: true,
         haloColor: palette.bg,
+        badge: false,
         pin: pinCounter,
         lineNumber: p.lineNumber,
       });

@@ -12,6 +12,7 @@ import {
   TITLE_Y,
 } from '../utils/title-constants';
 import { mix } from '../palettes/color-utils';
+import { measureLegendText } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes/types';
@@ -233,17 +234,44 @@ export function renderMap(
         .attr('fill', palette.surface)
         .attr('stroke', palette.border);
     }
-    emitText(
-      gLabels,
-      lab.x,
-      lab.y,
-      lab.text,
-      lab.anchor,
-      lab.color,
-      lab.haloColor,
-      lab.halo,
-      LABEL_FONT
-    );
+    if (lab.badge) {
+      // Solid rounded badge: dark backing (semi-opaque so the fill tints
+      // through) + light text. Reads consistently on any state colour.
+      const padX = 6;
+      const padY = 3;
+      const w = measureLegendText(lab.text, LABEL_FONT) + 2 * padX;
+      const h = LABEL_FONT + 2 * padY;
+      gLabels
+        .append('rect')
+        .attr('x', lab.x - w / 2)
+        .attr('y', lab.y - LABEL_FONT / 2 - padY)
+        .attr('width', w)
+        .attr('height', h)
+        .attr('rx', h / 2)
+        .attr('fill', lab.badgeFill ?? palette.text)
+        .attr('fill-opacity', 0.74);
+      gLabels
+        .append('text')
+        .attr('x', lab.x)
+        .attr('y', lab.y + LABEL_FONT * 0.34)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', LABEL_FONT)
+        .attr('font-weight', 600)
+        .attr('fill', lab.color)
+        .text(lab.text);
+    } else {
+      emitText(
+        gLabels,
+        lab.x,
+        lab.y,
+        lab.text,
+        lab.anchor,
+        lab.color,
+        lab.haloColor,
+        lab.halo,
+        LABEL_FONT
+      );
+    }
   }
 
   // ── Pin legend list ──
