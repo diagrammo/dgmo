@@ -64,6 +64,12 @@ const SOURCES = {
     citiesUrl: 'https://download.geonames.org/export/dump/cities5000.zip',
     license: 'CC BY 4.0 — https://creativecommons.org/licenses/by/4.0/',
   },
+  lakes: {
+    // Natural Earth 110m physical lakes (incl. the Great Lakes) — drawn as water
+    // over land, since the country/state polygons don't carve lakes out.
+    version: 'natural-earth 110m (martynafford snapshot)',
+    url: 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/110m/physical/ne_110m_lakes.json',
+  },
 };
 
 // --- Tunable constants (tuned empirically; see build log for actual sizes) --
@@ -73,6 +79,8 @@ const US_RETAIN = 15; // % of 10m
 const QUANT_COARSE = 10_000; // TopoJSON quantization (size lever)
 const QUANT_DETAIL = 6_000;
 const QUANT_US = 10_000;
+const LAKES_RETAIN = 20; // % of 110m lakes
+const QUANT_LAKES = 10_000;
 const COORD_PRECISION = 3; // gazetteer lat/lon decimals
 const WORLD_POP_FLOOR = 500_000; // "world majors"
 const US_POP_FLOOR = 50_000; // US cities; capitals force-included below this
@@ -82,6 +90,7 @@ const GZ_CEILINGS = {
   'world-coarse.json': 25_000,
   'world-detail.json': 60_000,
   'us-states.json': 15_000,
+  'lakes.json': 6_000,
   'gazetteer.json': 70_000,
   'region-names.json': 8_000,
 };
@@ -274,6 +283,28 @@ function unzipEntry(zipBuf, expectedName) {
 // =============================================================================
 // Geometry: re-key TopoJSON by ISO code
 // =============================================================================
+
+/** Build the lakes layer (Natural Earth 110m physical lakes) as a simplified
+ *  TopoJSON `lakes` object, ids assigned by index. Source is GeoJSON (not
+ *  TopoJSON), so it's fetched raw and converted via mapshaper. */
+async function buildLakes(url) {
+  console.log('• lakes (110m physical)');
+  console.log(`  fetch ${url}`);
+  const buf = await download(url);
+  if (buf.length < 1024) throw new Error(`lakes: suspiciously small (${buf.length}B)`);
+  sourceHashes[url] = { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+  const geo = JSON.parse(buf.toString('utf8'));
+  geo.features.forEach((f, i) => { f.id = `lake-${i}`; });
+  const out = await mapshaper.applyCommands(
+    `-i in.json -rename-layers lakes -simplify ${LAKES_RETAIN}% keep-shapes -o quantization=${QUANT_LAKES} format=topojson out.json`,
+    { 'in.json': Buffer.from(JSON.stringify(geo)) }
+  );
+  const topo = JSON.parse(Buffer.from(out['out.json']).toString('utf8'));
+  const geoms = topo.objects.lakes.geometries;
+  geoms.forEach((g, i) => { if (g.id == null) g.id = `lake-${i}`; });
+  console.log(`  lakes: ${geoms.length}`);
+  return topo;
+}
 
 /** Simplify a TopoJSON Buffer (keep-shapes; quantization is the size lever). */
 async function simplify(topoBuf, retainPct, quantization) {
@@ -474,6 +505,9 @@ async function main() {
   const us = rekeyUS(await simplify(usBuf, US_RETAIN, QUANT_US));
   console.log(`  states+DC+territories: ${us.keys.length}`);
 
+  const lakes = await buildLakes(SOURCES.lakes.url);
+  provenance.sources.lakes = { ...SOURCES.lakes };
+
   console.log('• gazetteer (cities5000)');
   const citiesZip = await fetchValidated(SOURCES.geonames.citiesUrl, 'zip');
   const tsv = unzipEntry(citiesZip, 'cities5000.txt');
@@ -522,6 +556,7 @@ async function main() {
     'world-coarse.json': coarse.topo,
     'world-detail.json': detail.topo,
     'us-states.json': us.topo,
+    'lakes.json': lakes,
     'gazetteer.json': gaz,
     'region-names.json': regionNames,
   };

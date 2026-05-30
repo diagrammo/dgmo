@@ -20,6 +20,7 @@ const FILES = {
   worldCoarse: 'world-coarse.json',
   worldDetail: 'world-detail.json',
   usStates: 'us-states.json',
+  lakes: 'lakes.json',
   gazetteer: 'gazetteer.json',
 } as const;
 
@@ -92,13 +93,22 @@ function moduleBaseDir(): string {
 export function loadMapData(): Promise<MapData> {
   cache ??= (async (): Promise<MapData> => {
     const dir = await firstExistingDir(moduleBaseDir());
-    const [worldCoarse, worldDetail, usStates, gazetteer] = await Promise.all([
-      readJson<BoundaryTopology>(dir, FILES.worldCoarse),
-      readJson<BoundaryTopology>(dir, FILES.worldDetail),
-      readJson<BoundaryTopology>(dir, FILES.usStates),
-      readJson<Gazetteer>(dir, FILES.gazetteer),
-    ]);
-    return validate({ worldCoarse, worldDetail, usStates, gazetteer });
+    const [worldCoarse, worldDetail, usStates, lakes, gazetteer] =
+      await Promise.all([
+        readJson<BoundaryTopology>(dir, FILES.worldCoarse),
+        readJson<BoundaryTopology>(dir, FILES.worldDetail),
+        readJson<BoundaryTopology>(dir, FILES.usStates),
+        // Lakes are optional — older asset bundles may predate the file.
+        readJson<BoundaryTopology>(dir, FILES.lakes).catch(() => undefined),
+        readJson<Gazetteer>(dir, FILES.gazetteer),
+      ]);
+    return validate({
+      worldCoarse,
+      worldDetail,
+      usStates,
+      gazetteer,
+      ...(lakes && { lakes }),
+    });
   })().catch((e: unknown) => {
     cache = undefined; // don't poison future calls with a rejected promise
     throw e;

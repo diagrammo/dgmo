@@ -11,6 +11,9 @@ export interface MapData {
   worldCoarse: BoundaryTopology;
   worldDetail: BoundaryTopology;
   usStates: BoundaryTopology;
+  /** Major lakes (Natural Earth 110m) drawn as water over land — e.g. the Great
+   *  Lakes. Optional so hand-built test fixtures need not supply it. */
+  lakes?: BoundaryTopology;
   gazetteer: Gazetteer;
 }
 

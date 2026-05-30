@@ -59,6 +59,10 @@ const COLO_EPS = 1.5; // px: POIs closer than this are "co-located"
 const LAND_TINT_LIGHT = 58;
 const LAND_TINT_DARK = 75;
 const WATER_TINT = 55; // % palette-blue of bg for the ocean / backdrop
+// % palette-gray of bg for non-US neighbour land. Higher on dark so it reads as
+// a clear gray rather than sinking into the dark background.
+const FOREIGN_TINT_LIGHT = 30;
+const FOREIGN_TINT_DARK = 62;
 const COLO_R = 9; // spiderfy radius
 const GOLDEN_ANGLE = 2.399963229728653; // rad (137.5deg) -- even spiral, no random
 const FAN_STEP = 16; // px perpendicular offset between parallel edges
@@ -242,9 +246,14 @@ export function layoutMap(
   const neutralFill = mix(palette.colors.yellow, palette.bg, landTint);
   const water = mapBackgroundColor(palette);
   const usContext = usLayer !== null;
-  // Region borders: a clear neutral gray, mixed toward bg so it reads as a
-  // hairline that delineates regions on the backdrop.
-  const regionStroke = mix(palette.colors.gray, palette.bg, 55);
+  const foreignFill = mix(
+    palette.colors.gray,
+    palette.bg,
+    isDark ? FOREIGN_TINT_DARK : FOREIGN_TINT_LIGHT
+  );
+  // Region borders: a darker line (toward the text colour) so state outlines
+  // read clearly over the land fills rather than as a faint hairline.
+  const regionStroke = mix(palette.text, palette.bg, isDark ? 45 : 55);
 
   // -- Region fill model (choropleth + categorical; AR4/AR6) --
   const scores = resolved.regions
@@ -416,11 +425,11 @@ export function layoutMap(
   const [[exW, exS], [exE, exN]] = resolved.extent;
   const lonSpan = exE - exW;
   const latSpan = exN - exS;
-  // albers-usa is a US-only composite that ALWAYS shows Alaska & Hawaii in
-  // their insets; culling by the contiguous-US geographic extent would wrongly
-  // drop Hawaii (whose true coords sit far outside that box). Never cull there.
-  const isGlobalView =
-    lonSpan >= 270 || latSpan >= 130 || resolved.projection === 'albers-usa';
+  // A near-global view draws everything. (albers-usa is handled per-layer at the
+  // pushRegionLayer calls: the world layer IS culled by the contiguous-US extent
+  // so far countries don't project to frame-filling garbage, while the us-states
+  // layer is NEVER culled so Alaska & Hawaii — far outside that extent — survive.)
+  const isGlobalView = lonSpan >= 270 || latSpan >= 130;
   const padLon = Math.max(8, lonSpan * 0.35);
   const padLat = Math.max(8, latSpan * 0.35);
   const vW = exW - padLon;
@@ -502,22 +511,19 @@ export function layoutMap(
   const regions: MapLayoutRegion[] = [];
   const pushRegionLayer = (
     layerFeatures: Map<string, GeoFeature>,
-    layerKind: 'country' | 'us-state'
+    layerKind: 'country' | 'us-state',
+    shouldCull: boolean
   ): void => {
     for (const [iso, f] of layerFeatures) {
       const r = regionById.get(iso);
-      // In a US-states view the us-states layer already covers the US, so the
-      // world layer is pure clutter: neutral neighbour land (and albers-usa
-      // projection garbage from far countries) would fill the frame and make
-      // the title/letterbox water read as a banner. Draw only EXPLICITLY-scored
-      // countries here; everything else is the uniform water backdrop.
-      if (layerKind === 'country' && usContext && !r) continue;
-      const viewF = cullFeatureToView(f); // drop off-view land / far rings
+      const viewF = shouldCull ? cullFeatureToView(f) : f; // drop far/off-view land
       if (!viewF) continue;
       const d = path(viewF as never) ?? '';
       if (!d) continue;
       const isThisLayer = r?.layer === layerKind;
-      let fill = neutralFill;
+      // Non-US neighbour land in a US view is gray context, not yellow land.
+      const isForeign = layerKind === 'country' && usContext && iso !== 'US';
+      let fill = isForeign ? foreignFill : neutralFill;
       let label: string | undefined;
       let lineNumber = -1;
       let layer: MapLayoutRegion['layer'] = 'base';
@@ -540,8 +546,38 @@ export function layoutMap(
       });
     }
   };
-  pushRegionLayer(worldLayer, 'country');
-  if (usLayer) pushRegionLayer(usLayer, 'us-state');
+  // World/foreign layer: cull by the visible extent (unless near-global) so far
+  // countries don't project to frame-filling garbage under albers-usa.
+  pushRegionLayer(worldLayer, 'country', !isGlobalView);
+  // US-states layer: never cull under albers-usa, or Alaska/Hawaii (far outside
+  // the contiguous extent) would be dropped.
+  if (usLayer)
+    pushRegionLayer(
+      usLayer,
+      'us-state',
+      !isGlobalView && resolved.projection !== 'albers-usa'
+    );
+
+  // Lakes (Great Lakes etc.) painted as water OVER the land so they don't read
+  // as land — the coarse country polygons don't carve them out. Drawn last so
+  // they sit above both neighbour land and US states; culled like the world
+  // layer, and far lakes null-project away under albers-usa.
+  if (data.lakes) {
+    for (const [, f] of decodeLayer(data.lakes)) {
+      const viewF = isGlobalView ? f : cullFeatureToView(f);
+      if (!viewF) continue;
+      const d = path(viewF as never) ?? '';
+      if (!d) continue;
+      regions.push({
+        id: 'lake',
+        d,
+        fill: water,
+        stroke: 'none',
+        lineNumber: -1,
+        layer: 'base',
+      });
+    }
+  }
 
   // -- POIs: project, size-scale, co-located spiderfy --
   const sizeVals = resolved.pois
