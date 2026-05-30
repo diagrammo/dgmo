@@ -131,6 +131,9 @@ export interface PlacedLabel {
   readonly anchor: 'start' | 'middle' | 'end';
   readonly color: string;
   readonly halo: boolean;
+  /** Halo/outline colour — the OPPOSITE lightness of `color`, so the text reads
+   *  whether it sits on its fill or overflows onto a different-coloured area. */
+  readonly haloColor: string;
   readonly leader?: { x1: number; y1: number; x2: number; y2: number };
   readonly pin?: number; // numbered-pin fallback
   readonly lineNumber: number;
@@ -842,17 +845,24 @@ export function layoutMap(
       if (!Number.isFinite(c[0])) continue;
       const text =
         regionLabelMode === 'abbrev' ? r.id.replace(/^US-/, '') : r.label;
+      // Text contrasts the FILL; the halo is its OPPOSITE so the outline always
+      // reads — including where a label overflows a small state onto the ocean.
+      const labelColor = contrastText(
+        r.fill,
+        palette.textOnFillLight,
+        palette.textOnFillDark
+      );
       labels.push({
         x: c[0],
         y: c[1],
         text,
         anchor: 'middle',
-        color: contrastText(
-          r.fill,
-          palette.textOnFillLight,
-          palette.textOnFillDark
-        ),
+        color: labelColor,
         halo: true,
+        haloColor:
+          labelColor === palette.textOnFillLight
+            ? palette.textOnFillDark
+            : palette.textOnFillLight,
         lineNumber: r.lineNumber,
       });
     }
@@ -884,6 +894,7 @@ export function layoutMap(
           anchor: 'start',
           color: palette.text,
           halo: true,
+          haloColor: palette.bg,
           lineNumber: p.lineNumber,
         });
         continue;
@@ -918,6 +929,7 @@ export function layoutMap(
             anchor: dx >= 0 ? 'start' : 'end',
             color: palette.text,
             halo: true,
+            haloColor: palette.bg,
             leader: { x1: p.cx, y1: p.cy, x2: cx, y2: cy },
             lineNumber: p.lineNumber,
           });
@@ -936,6 +948,7 @@ export function layoutMap(
         anchor: 'start',
         color: palette.text,
         halo: true,
+        haloColor: palette.bg,
         pin: pinCounter,
         lineNumber: p.lineNumber,
       });

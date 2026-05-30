@@ -240,7 +240,7 @@ export function renderMap(
       lab.text,
       lab.anchor,
       lab.color,
-      haloColor,
+      lab.haloColor,
       lab.halo,
       LABEL_FONT
     );
