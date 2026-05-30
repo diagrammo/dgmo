@@ -166,8 +166,8 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
     expect(r.legend?.ramp).toMatchObject({ metric: 'Sales', min: 0, max: 100 });
     const ca = r.regions.find((x) => x.id === 'US-CA')!;
     const or = r.regions.find((x) => x.id === 'US-OR')!;
-    expect(or.fill).toBe(P.primary); // t=1 → 100% hue
-    expect(ca.fill).toBe(mix(P.primary, P.bg, 15)); // floor
+    expect(or.fill).toBe(P.colors.red); // t=1 → 100% hue (red ramp)
+    expect(ca.fill).toBe(mix(P.colors.red, P.bg, 15)); // floor
   });
   it('scale override sets ramp anchors (AC3)', () => {
     const r = lay('map\nscale 0 200\nCalifornia score: 100');
@@ -187,7 +187,7 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
       'map\ntag M as m\n  HQ blue\nactive-tag M\nCalifornia score: 50, m: HQ'
     );
     const ca = r.regions.find((x) => x.id === 'US-CA')!;
-    expect(ca.fill).toBe(P.primary); // single score → ramp full hue, NOT tag blue
+    expect(ca.fill).toBe(P.colors.red); // single score → ramp full hue, NOT tag blue
   });
   it('unknown tag value → neutral, no throw (AC25)', () => {
     const r = lay(

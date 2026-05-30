@@ -54,7 +54,7 @@ const W_MAX = 8;
 const FONT = 11; // on-map label font px
 const LEADER_STEP = 14; // px ring radius step for label escalation
 const COLO_EPS = 1.5; // px: POIs closer than this are "co-located"
-const WATER_TINT = 38; // % blue-of-bg for the ocean backdrop
+const WATER_TINT = 55; // % blue-of-bg for the ocean backdrop (reads clearly blue)
 const LAND_TINT = 34; // % land-hue-of-bg for unscored land
 const LAND_GREEN_BIAS = 72; // % green vs yellow in the land hue (natural sage)
 const COLO_R = 9; // spiderfy radius
@@ -238,7 +238,9 @@ export function layoutMap(
   const scaleOverride = resolved.directives.scale;
   const rampMin = scaleOverride ? scaleOverride.min : Math.min(...scores);
   const rampMax = scaleOverride ? scaleOverride.max : Math.max(...scores);
-  const rampHue = palette.primary;
+  // Score ramp is red so scored regions stand out against the blue water
+  // (palette.primary is a blue in most palettes and would blend in).
+  const rampHue = palette.colors.red;
   const hasRamp = scores.length > 0;
 
   const activeGroup = resolveActiveTagGroup(
