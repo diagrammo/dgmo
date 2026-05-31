@@ -813,127 +813,72 @@ export function layoutMap(
   // unclipped conic doesn't paint frame-filling garbage; the us-states layer
   // itself is never culled (every conus state is in frame by construction).
   const conusFit = resolved.projection === 'albers-usa' && !!usLayer;
-  // Base cull box: the conus bounds for an albers fit (it frames all 48 states,
-  // not the POI cluster), else the resolved data extent.
-  const dataCullExtent = conusFit
+  // Extent used only to classify a near-global view (draw everything) vs a
+  // regional one (cull to the canvas). For an albers fit that's the CONUS bounds;
+  // else the resolved data extent.
+  const classifyExtent = conusFit
     ? (geoBounds(fitTarget as never) as [[number, number], [number, number]])
     : resolved.extent;
-  const dLonSpan = dataCullExtent[1][0] - dataCullExtent[0][0];
-  const dLatSpan = dataCullExtent[1][1] - dataCullExtent[0][1];
-  // A near-global view draws everything. (albers-usa is handled per-layer at the
-  // pushRegionLayer calls: the world layer IS culled by the contiguous-US extent
-  // so far countries don't project to frame-filling garbage, while the us-states
-  // layer is NEVER culled so Alaska & Hawaii — far outside that extent — survive.)
+  const dLonSpan = classifyExtent[1][0] - classifyExtent[0][0];
+  const dLatSpan = classifyExtent[1][1] - classifyExtent[0][1];
+  // A near-global view draws everything; a regional one culls each ring to what
+  // actually projects onto the canvas (see ringOverlapsView — projection-based,
+  // so it's correct for the US conic and for route maps alike).
   const isGlobalView = dLonSpan >= 270 || dLatSpan >= 130;
-  // For a regional view, cull to what the canvas actually shows, not to the tight
-  // data extent — so neighbour land that's on-screen but outside the data cluster
-  // (Mexico, Central America, the Caribbean, southern Canada, …) still draws. The
-  // visible geographic window is found by inverse-projecting a grid of screen
-  // points. This applies to the albers-usa conus fit TOO: geoAlbersUsa projects
-  // (and its own clipExtent trims) neighbour land continuously around the CONUS,
-  // so the only thing keeping it off-canvas was the tight conus cull box. The
-  // composite's invert returns sane lon/lat for the conus frame (and the AK/HI
-  // inset corners invert to those states — harmless: they only widen the box, and
-  // anything not actually visible is dropped by the per-ring overlap test or the
-  // projection's clipExtent).
-  let cullExtent = dataCullExtent;
-  const invertFn = (
-    projection as unknown as {
-      invert?: (p: [number, number]) => [number, number] | null;
-    }
-  ).invert;
-  if (!isGlobalView && invertFn) {
-    let fW = Infinity,
-      fE = -Infinity,
-      fS = Infinity,
-      fN = -Infinity,
-      ok = 0;
-    const N = 16;
-    for (let i = 0; i <= N; i++) {
-      for (let j = 0; j <= N; j++) {
-        const p = invertFn([(i / N) * width, (j / N) * height]);
-        if (!p) continue;
-        const [lon, lat] = p;
-        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
-        ok++;
-        if (lon < fW) fW = lon;
-        if (lon > fE) fE = lon;
-        if (lat < fS) fS = lat;
-        if (lat > fN) fN = lat;
-      }
-    }
-    // Use the frame only when enough samples inverted AND it's a sane regional
-    // window (not a wrapped/near-global blow-up). Union with the base cull box so
-    // the cluster / whole CONUS is always covered even if sampling under-covers it.
-    if (ok >= 8 && fE - fW < 270 && fN - fS < 200) {
-      cullExtent = [
-        [
-          Math.min(fW, dataCullExtent[0][0]),
-          Math.min(fS, dataCullExtent[0][1]),
-        ],
-        [
-          Math.max(fE, dataCullExtent[1][0]),
-          Math.max(fN, dataCullExtent[1][1]),
-        ],
-      ];
-    }
-  }
-  const usingFrameCull = cullExtent !== dataCullExtent;
-  const [[exW, exS], [exE, exN]] = cullExtent;
-  const lonSpan = exE - exW;
-  const latSpan = exN - exS;
-  // The frame box already bounds visibility, so it needs only a hairline pad; the
-  // data/conus box still pads generously to admit edge-clipping coastlines.
-  const padLon = usingFrameCull ? 2 : Math.max(8, lonSpan * 0.35);
-  const padLat = usingFrameCull ? 2 : Math.max(8, latSpan * 0.35);
-  const vW = exW - padLon;
-  const vE = exE + padLon;
-  const vS = exS - padLat;
-  const vN = exN + padLat;
-  // Pacific-crossing extents use extended longitudes (e.g. 247 = 113°W), but
-  // ring vertices are in [-180,180]. Shift each vertex into the extent's frame
-  // so the overlap test compares like-for-like.
-  const vLonCenter = (exW + exE) / 2;
+  // Pacific-crossing extents use extended longitudes (e.g. 247 = 113°W), but ring
+  // vertices are in [-180,180]. Normalise each ring lon into the view's frame so
+  // the circumpolar / antimeridian-sliver guards compare like-for-like.
+  const vLonCenter = (classifyExtent[0][0] + classifyExtent[1][0]) / 2;
   const normLon = (lon: number): number => {
     let L = lon;
     while (L < vLonCenter - 180) L += 360;
     while (L > vLonCenter + 180) L -= 360;
     return L;
   };
-  // True if an outer ring overlaps the padded view box. A ring with a vertex
-  // inside is in; otherwise a non-wrapping bbox overlap also counts (a big
-  // coastal polygon whose edge clips the box). Antimeridian-wrapping rings with
-  // no in-view vertex are dropped — they are the frame-fill artifact source.
+  // True if an outer ring should be drawn in a regional view. Visibility is
+  // decided by the PROJECTION, not a lat/lon box: the ring is kept iff its
+  // projected screen bbox intersects the canvas (the projection's clipExtent then
+  // trims it to the viewport). A lat/lon box can't model what a conic actually
+  // shows — under the US Albers conic, Panama/Colombia land on-canvas at a tall
+  // aspect yet sit outside any tidy CONUS-ish box. Two geometry guards still drop
+  // the antimeridian/circumpolar rings that would otherwise project to a
+  // frame-filling garbage fill (their projected bbox spuriously covers the
+  // canvas): a near-circumpolar ring (>270° span) and an antimeridian sliver
+  // (raw span >180° but a small normalized arc, e.g. Fiji).
   type Ring = ReadonlyArray<readonly [number, number]>;
   const ringOverlapsView = (ring: Ring): boolean => {
-    let anyIn = false;
     let loMin = Infinity,
       loMax = -Infinity,
-      laMin = Infinity,
-      laMax = -Infinity,
       rawMin = Infinity,
       rawMax = -Infinity;
-    for (const [rawLon, lat] of ring) {
+    for (const [rawLon] of ring) {
       const lon = normLon(rawLon);
-      if (lon >= vW && lon <= vE && lat >= vS && lat <= vN) anyIn = true;
       if (lon < loMin) loMin = lon;
       if (lon > loMax) loMax = lon;
       if (rawLon < rawMin) rawMin = rawLon;
       if (rawLon > rawMax) rawMax = rawLon;
-      if (lat < laMin) laMin = lat;
-      if (lat > laMax) laMax = lat;
     }
-    // A near-circumpolar ring (Antarctica, polar wrap) spans almost all
-    // longitudes and projects to a frame-filling fill at regional zoom — drop it.
-    if (loMax - loMin > 270) return false;
-    // An antimeridian-crossing ring (raw lons span >180 but normalize to a small
-    // arc — e.g. Fiji at 177°E..178°W) inverts under a rotated projection and
-    // fills the frame. At coarse tier these are tiny islands; drop them in
-    // regional views rather than paint the whole ocean as land.
-    if (rawMax - rawMin > 180 && loMax - loMin < 90) return false;
-    if (anyIn) return true;
-    if (loMax - loMin > 180) return false; // wraps antimeridian, none in view
-    return !(loMax < vW || loMin > vE || laMax < vS || laMin > vN);
+    if (loMax - loMin > 270) return false; // circumpolar/polar-wrap garbage
+    if (rawMax - rawMin > 180 && loMax - loMin < 90) return false; // seam sliver
+    // Projected-bbox ∩ canvas. project() honours the active projection (and
+    // ignores clipExtent, so positions are true), so this is exactly "does any
+    // of this ring fall on the canvas".
+    let px0 = Infinity,
+      py0 = Infinity,
+      px1 = -Infinity,
+      py1 = -Infinity,
+      anyFinite = false;
+    for (const [lon, lat] of ring) {
+      const p = project(lon, lat);
+      if (!p || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) continue;
+      anyFinite = true;
+      if (p[0] < px0) px0 = p[0];
+      if (p[0] > px1) px1 = p[0];
+      if (p[1] < py0) py0 = p[1];
+      if (p[1] > py1) py1 = p[1];
+    }
+    if (!anyFinite) return false;
+    return !(px1 < 0 || px0 > width || py1 < 0 || py0 > height);
   };
   // Drop a feature's sub-polygons that don't touch the view (e.g. Alaska's
   // Aleutians on a US feature framed over the Caribbean). Returns null if the
