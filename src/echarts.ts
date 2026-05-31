@@ -44,7 +44,7 @@ echarts.use([
 import { FONT_FAMILY } from './fonts';
 import { renderLegendSvg } from './utils/legend-svg';
 import { LEGEND_HEIGHT } from './utils/legend-constants';
-import type { LegendGroupData } from './utils/legend-svg';
+import type { LegendGroupData } from './utils/legend-types';
 import {
   type LabelRect,
   type PointCircle,

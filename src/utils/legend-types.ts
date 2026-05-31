@@ -73,10 +73,30 @@ export interface ControlsGroupConfig {
   toggles: ControlsGroupToggle[];
 }
 
+// ── Group Data ──────────────────────────────────────────────
+
+export interface LegendGroupData {
+  readonly name: string;
+  readonly entries: ReadonlyArray<{
+    readonly value: string;
+    readonly color: string;
+  }>;
+  /** Continuous (choropleth) groups carry a gradient ramp instead of discrete
+   *  entries — its active capsule renders `min ▭gradient▭ max` rather than dots.
+   *  Additive: only the map sets it; every other caller omits it and renders
+   *  unchanged. When set, `entries` is empty. */
+  readonly gradient?: {
+    readonly min: number;
+    readonly max: number;
+    readonly hue: string;
+    readonly base: string;
+  };
+}
+
 // ── Config ──────────────────────────────────────────────────
 
 export interface LegendConfig {
-  groups: readonly import('./legend-svg').LegendGroupData[];
+  groups: readonly LegendGroupData[];
   position: LegendPosition;
   controls?: LegendControl[];
   controlsGroup?: ControlsGroupConfig;

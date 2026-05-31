@@ -631,11 +631,8 @@ export {
 } from './echarts';
 export type { ScatterLabelPoint } from './echarts';
 export { ScaleContext } from './utils/scaling';
-export {
-  renderLegendSvg,
-  renderLegendSvgFromConfig,
-  type LegendGroupData,
-} from './utils/legend-svg';
+export { renderLegendSvg, renderLegendSvgFromConfig } from './utils/legend-svg';
+export type { LegendGroupData } from './utils/legend-types';
 export { LEGEND_HEIGHT, LEGEND_GEAR_PILL_W } from './utils/legend-constants';
 export { renderLegendD3 } from './utils/legend-d3';
 export {

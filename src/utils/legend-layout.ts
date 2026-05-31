@@ -20,7 +20,7 @@ import {
   truncateLegendText,
 } from './legend-constants';
 
-import type { LegendGroupData } from './legend-svg';
+import type { LegendGroupData } from './legend-types';
 import type {
   LegendConfig,
   LegendState,

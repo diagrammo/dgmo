@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-05-30
+
+### Added: `map` chart type
+
+DGMO now renders geographic maps. Plot points of interest, shade
+regions, and draw weighted routes/links over a world or US base map.
+
+- **Base maps**: equirectangular world (snapped to a full Greenwich
+  frame, every continent in view) and a purpose-built US projection
+  (Albers conic with custom Alaska/Hawaii insets). Land fills the
+  canvas; oceans render blue, lakes blue, neighbouring land neutral.
+- **Points of interest** with inline labels that flip left when they
+  would run off-canvas; dense clusters break into callout columns.
+- **Regions** shaded by a selectable colouring dimension — `score`
+  (continuous ramp) or `tag` (categorical) — with a bivariate flip
+  between the two.
+- **Routes/links** drawn as weighted arrows between points.
+- **Legend** with hover highlighting and a score-gradient scrubber;
+  hovering dims non-matching regions to neutral land.
+- Natural Earth 110m rivers overlaid on world maps; crisp 10m North
+  America surroundings under the US view.
+- `mapNeutralLandColor` exported for hosts that dim the base map.
+
+### ⚠ BREAKING: `description`/`technology` keywords now required (C4 + infra)
+
+Keywordless-prose promotion is gone. In C4 and infrastructure
+diagrams, a bare line under a node is no longer silently promoted to
+its description — you must use the `description` (and `technology`)
+keyword explicitly. The deprecation message has been corrected to
+point at the keyword form. (DD-1, DD-2)
+
+```dgmo
+# Before (0.19.x) — bare prose promoted to description
+Service API
+  Handles all the things
+
+# After (0.20.0)
+Service API
+  description: Handles all the things
+```
+
+### Fixed
+
+- Map: blue ocean on world maps (dropped antimeridian frame-fillers);
+  region-label halos use the opposite colour of the text so they
+  always read; clean red score ramp with no muddy brown over green
+  land; POI markers default to orange rather than the blue accent.
+
 ## [0.18.1] - 2026-05-28
 
 ### Documentation
