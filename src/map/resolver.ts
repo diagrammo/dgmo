@@ -405,9 +405,23 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   }
 
   // ── Edges + routes: bind endpoints, create implicit POIs (R7/R8) ──
+  // A POI declared with an alias (`poi Chicago as central`) registers under its
+  // id (`central`), so an endpoint that references it by NAME (`… -> Chicago`)
+  // misses the id registry. Map declared names → id so such a reference binds to
+  // the existing POI instead of spawning a duplicate implicit one on the same
+  // spot (only aliased POIs need this — a name-only POI's id already IS its
+  // folded name).
+  const declaredByName = new Map<string, string>();
+  for (const p of pois) {
+    const fn = p.name ? fold(p.name) : undefined;
+    if (fn && fn !== p.id && !declaredByName.has(fn))
+      declaredByName.set(fn, p.id);
+  }
   const resolveEndpoint = (ref: string, line: number): string | null => {
     const f = fold(ref);
     if (registry.has(f)) return f;
+    const aliased = declaredByName.get(f);
+    if (aliased) return aliased;
     const got = lookupName(ref, undefined, line, inferredCountry, true);
     if (got.kind !== 'ok') return null;
     noteCountry(got.iso);

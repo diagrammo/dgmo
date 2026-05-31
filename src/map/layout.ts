@@ -57,7 +57,6 @@ const R_MAX = 22;
 const W_MIN = 1.25; // edge stroke width
 const W_MAX = 8;
 const FONT = 11; // on-map label font px
-const LEADER_STEP = 14; // px ring radius step for label escalation
 const COLO_EPS = 1.5; // px: POIs closer than this are "co-located"
 // % palette-yellow of bg for unscored land. Higher on dark so the soft palette
 // yellow reads as yellow rather than muddying toward tan against the dark bg.
@@ -69,9 +68,6 @@ const LAND_TINT_DARK = 75;
 const TAG_TINT_LIGHT = 60;
 const TAG_TINT_DARK = 68;
 const WATER_TINT = 55; // % palette-blue of bg for the ocean / backdrop
-// Rivers are thin lines over land, so they need a more saturated blue than the
-// flat ocean/lake fill to stay legible against the green land.
-const RIVER_TINT = 88; // % palette-blue of bg for river centerlines
 const RIVER_WIDTH = 1.3; // px stroke width for river lines
 // % palette-gray of bg for non-US neighbour land. Higher on dark so it reads as
 // a clear gray rather than sinking into the dark background.
@@ -81,18 +77,6 @@ const COLO_R = 9; // spiderfy radius
 const GOLDEN_ANGLE = 2.399963229728653; // rad (137.5deg) -- even spiral, no random
 const FAN_STEP = 16; // px perpendicular offset between parallel edges
 const ARC_CURVE_FRAC = 0.18; // default arc bow as a fraction of leg length
-
-// Fixed candidate ring for label escalation (E, S, W, N, then diagonals).
-const RING_DIRS: ReadonlyArray<[number, number]> = [
-  [1, 0],
-  [0, 1],
-  [-1, 0],
-  [0, -1],
-  [1, 1],
-  [-1, 1],
-  [-1, -1],
-  [1, -1],
-];
 
 export interface MapLayoutRegion {
   readonly id: string; // iso
@@ -160,6 +144,12 @@ export interface PlacedLabel {
    *  whether it sits on its fill or overflows onto a different-coloured area. */
   readonly haloColor: string;
   readonly leader?: { x1: number; y1: number; x2: number; y2: number };
+  /** Leader-line colour — the POI's own marker colour, so a called-out label
+   *  reads as belonging to its dot. Falls back to a neutral grey when absent. */
+  readonly leaderColor?: string;
+  /** The POI this label belongs to (POI labels only) — emitted as `data-poi` on
+   *  the label + leader so the app can spotlight the dot on label hover. */
+  readonly poiId?: string;
   readonly lineNumber: number;
 }
 
@@ -1014,9 +1004,10 @@ export function layoutMap(
     }
   }
 
-  // Rivers (Amazon, Nile, Mississippi, …) as thin water lines over the land.
-  // Open paths: stroked, no fill. Drawn over lakes but under POIs/edges/labels.
-  const riverColor = mix(palette.colors.blue, palette.bg, RIVER_TINT);
+  // Rivers (Amazon, Nile, Mississippi, …) as thin water lines over the land,
+  // the SAME blue as the ocean/lakes so a river reads as continuous with the
+  // water it drains into. Open paths: stroked, no fill; under POIs/edges/labels.
+  const riverColor = water;
   const rivers: MapLayoutRiver[] = [];
   if (data.rivers) {
     for (const [, f] of decodeLayer(data.rivers)) {
@@ -1368,81 +1359,134 @@ export function layoutMap(
       const src = poiById.get(p.id);
       return src?.label ?? src?.name ?? p.id;
     };
-    for (const p of ordered) {
+    const poiLabH = FONT * 1.25;
+    const labelInfo = (p: MapLayoutPoi): { text: string; w: number } => {
       const text = labelText(p);
-      const w = measureLegendText(text, FONT);
-      const h = FONT * 1.25;
-      // Inline placement: prefer the right of the marker, but flip to the left
-      // when the right runs off-canvas OR is blocked (a marker, another label, or
-      // the fan of legs leaving the POI). Only if neither side is clear do we
-      // escalate to the ring (with a leader).
-      const placeInline = (side: 'right' | 'left'): boolean => {
-        const tx = side === 'right' ? p.cx + p.r + 3 : p.cx - p.r - 3;
-        const rect: LabelRect = {
-          x: side === 'right' ? tx : tx - w,
-          y: p.cy - h / 2,
-          w,
-          h,
-        };
-        if (rect.x < 0 || rect.x + rect.w > width) return false; // off-canvas
-        if (collides(rect)) return false;
-        obstacles.push(rect);
+      return { text, w: measureLegendText(text, FONT) };
+    };
+    const pushInline = (
+      p: MapLayoutPoi,
+      text: string,
+      w: number,
+      side: 'right' | 'left'
+    ): void => {
+      const tx = side === 'right' ? p.cx + p.r + 3 : p.cx - p.r - 3;
+      obstacles.push({
+        x: side === 'right' ? tx : tx - w,
+        y: p.cy - poiLabH / 2,
+        w,
+        h: poiLabH,
+      });
+      labels.push({
+        x: tx,
+        y: p.cy + FONT / 3,
+        text,
+        anchor: side === 'right' ? 'start' : 'end',
+        color: palette.text,
+        halo: true,
+        haloColor: palette.bg,
+        poiId: p.id,
+        lineNumber: p.lineNumber,
+      });
+    };
+    const inlineFits = (
+      p: MapLayoutPoi,
+      w: number,
+      side: 'right' | 'left'
+    ): boolean => {
+      const tx = side === 'right' ? p.cx + p.r + 3 : p.cx - p.r - 3;
+      const rect: LabelRect = {
+        x: side === 'right' ? tx : tx - w,
+        y: p.cy - poiLabH / 2,
+        w,
+        h: poiLabH,
+      };
+      return rect.x >= 0 && rect.x + rect.w <= width && !collides(rect);
+    };
+
+    // Pre-group POIs by proximity. A tight cluster (offshore platforms, a metro
+    // of offices) gets ONE tidy callout column so its labels never pile up; an
+    // isolated POI gets a normal inline label. This keeps the whole cluster's
+    // labels together rather than seating a lucky few inline and stacking the
+    // rest.
+    const GROUP_R = 30; // px: POIs within this are one cluster
+    const groups: MapLayoutPoi[][] = [];
+    for (const p of ordered) {
+      const near = groups.find((g) =>
+        g.some((q) => Math.hypot(q.cx - p.cx, q.cy - p.cy) < GROUP_R)
+      );
+      if (near) near.push(p);
+      else groups.push([p]);
+    }
+
+    // Tidy callout column: stack a cluster's labels beside it (collision-free by
+    // row spacing), each row leader-lined back to its dot in the dot's colour.
+    const ROW_GAP = 3;
+    const step = poiLabH + ROW_GAP;
+    const COL_GAP = 16;
+    const placeColumn = (group: MapLayoutPoi[]): void => {
+      const items = group
+        .map((p) => ({ p, ...labelInfo(p) }))
+        .sort((a, b) => a.p.cy - b.p.cy || (a.text < b.text ? -1 : 1));
+      const left = Math.min(...items.map((o) => o.p.cx - o.p.r));
+      const right = Math.max(...items.map((o) => o.p.cx + o.p.r));
+      const cyMid =
+        (Math.min(...items.map((o) => o.p.cy)) +
+          Math.max(...items.map((o) => o.p.cy))) /
+        2;
+      const maxW = Math.max(...items.map((o) => o.w));
+      // Prefer the right of the cluster; fall to the left if it runs off-canvas.
+      const side: 'right' | 'left' =
+        right + COL_GAP + maxW <= width - 2 ? 'right' : 'left';
+      const colX = side === 'right' ? right + COL_GAP : left - COL_GAP;
+      const totalH = items.length * step;
+      let startY = cyMid - totalH / 2;
+      startY = Math.max(2, Math.min(startY, height - totalH - 2));
+      items.forEach((o, i) => {
+        const rowCy = startY + i * step + step / 2;
+        obstacles.push({
+          x: side === 'right' ? colX : colX - o.w,
+          y: rowCy - poiLabH / 2,
+          w: o.w,
+          h: poiLabH,
+        });
         labels.push({
-          x: tx,
-          y: p.cy + FONT / 3,
-          text,
+          x: colX,
+          y: rowCy + FONT / 3,
+          text: o.text,
           anchor: side === 'right' ? 'start' : 'end',
           color: palette.text,
           halo: true,
           haloColor: palette.bg,
-          lineNumber: p.lineNumber,
+          leader: {
+            x1: o.p.cx,
+            y1: o.p.cy,
+            x2: side === 'right' ? colX - 2 : colX + 2,
+            y2: rowCy,
+          },
+          leaderColor: o.p.fill,
+          poiId: o.p.id,
+          lineNumber: o.p.lineNumber,
         });
-        return true;
-      };
-      // placeInline self-rejects off-canvas or blocked sides, so just try both.
-      if (placeInline('right')) continue;
-      if (placeInline('left')) continue;
-      // Escalate: fixed candidate ring -> leader line to first free slot.
-      let placed = false;
-      for (let k = 1; k <= 2 && !placed; k++) {
-        for (const [dx, dy] of RING_DIRS) {
-          const cx = p.cx + dx * LEADER_STEP * k;
-          const cy = p.cy + dy * LEADER_STEP * k;
-          const rect: LabelRect = {
-            x: dx >= 0 ? cx : cx - w,
-            y: cy - h / 2,
-            w,
-            h,
-          };
-          // Keep escalated labels on-canvas (#8) and collision-free.
-          if (
-            rect.x < 0 ||
-            rect.x + rect.w > width ||
-            rect.y < 0 ||
-            rect.y + rect.h > height
-          ) {
-            continue;
-          }
-          if (collides(rect)) continue;
-          obstacles.push(rect);
-          labels.push({
-            x: cx,
-            y: cy + FONT / 3,
-            text,
-            anchor: dx >= 0 ? 'start' : 'end',
-            color: palette.text,
-            halo: true,
-            haloColor: palette.bg,
-            leader: { x1: p.cx, y1: p.cy, x2: cx, y2: cy },
-            lineNumber: p.lineNumber,
-          });
-          placed = true;
-          break;
+      });
+    };
+
+    for (const g of groups) {
+      // Singleton that fits inline → inline; everything else → callout column
+      // (the whole cluster, or a lone POI boxed in by legs/edges).
+      if (g.length === 1) {
+        const p = g[0]!;
+        const { text, w } = labelInfo(p);
+        if (inlineFits(p, w, 'right')) {
+          pushInline(p, text, w, 'right');
+          continue;
+        }
+        if (inlineFits(p, w, 'left')) {
+          pushInline(p, text, w, 'left');
+          continue;
         }
       }
-      // If even the ring can't seat the label, drop it. A truly hopeless
-      // cluster (overlapping POIs on a wide viewport) sheds its excess labels
-      // rather than spilling a numbered key into the corner.
+      placeColumn(g);
     }
   }
 

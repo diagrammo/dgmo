@@ -227,6 +227,14 @@ describe('resolver — edges & routes (AC10-12, AC23)', () => {
     expect(r.edges[0]!.fromId).toBe('tokyo');
     expect(r.pois.filter((p) => p.id === 'tokyo')).toHaveLength(1); // no duplicate
   });
+  it('edge referencing an aliased POI by NAME binds to it (no duplicate)', () => {
+    const r = resolve('map\npoi Tokyo as hq\npoi Osaka as branch\nhq -> Tokyo');
+    // `Tokyo` is the hq POI's name; the edge must bind to `hq`, not spawn a
+    // second implicit "tokyo" dot on the same spot.
+    expect(r.pois.map((p) => p.id).sort()).toEqual(['branch', 'hq']);
+    expect(r.pois.some((p) => p.id === 'tokyo')).toBe(false);
+    expect(r.edges[0]).toMatchObject({ fromId: 'hq', toId: 'hq' });
+  });
   it('route loop preserved (AC12)', () => {
     const r = resolve('map\nroute\n  Tokyo\n  Osaka\n  Tokyo');
     expect(r.routes[0]!.stopIds).toEqual(['tokyo', 'osaka', 'tokyo']);

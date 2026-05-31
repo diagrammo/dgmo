@@ -374,6 +374,17 @@ describe('layout — labels & legend (AC13, AC14, AC15, AC16, AC17)', () => {
       all.labels.some((l) => l.leader) || all.labels.length < all.pois.length
     ).toBe(true);
   });
+  it('dense cluster labels EVERY POI in a leader-lined callout column', () => {
+    const r = lay(
+      'map\npoi-labels all\npoi 0 0 as alphaone\npoi 0 0 as bravotwo\npoi 0 0 as charlie3\npoi 0 0 as deltafour'
+    );
+    // No POI is dropped — all four keep a label.
+    expect(r.labels).toHaveLength(4);
+    // Each is called out with a leader tinted to its own dot colour.
+    expect(
+      r.labels.every((l) => l.leader && typeof l.leaderColor === 'string')
+    ).toBe(true);
+  });
   it('labels carry a halo flag (AC16)', () => {
     expect(lay('map\npoi Tokyo').labels.every((l) => l.halo)).toBe(true);
   });

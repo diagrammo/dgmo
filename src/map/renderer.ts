@@ -228,7 +228,8 @@ export function renderMap(
       .attr('fill', poi.fill)
       .attr('stroke', poi.stroke)
       .attr('stroke-width', 1)
-      .attr('data-line-number', poi.lineNumber);
+      .attr('data-line-number', poi.lineNumber)
+      .attr('data-poi', poi.id);
     if (onClickItem) {
       c.style('cursor', 'pointer').on('click', () =>
         onClickItem(poi.lineNumber)
@@ -249,20 +250,25 @@ export function renderMap(
     }
   }
 
-  // ── Labels (leaders, halo text, numbered pins) ──
+  // ── Labels (leaders + halo text) ──
   const gLabels = svg.append('g').attr('class', 'dgmo-map-labels');
   for (const lab of layout.labels) {
     if (lab.leader) {
-      gLabels
+      const line = gLabels
         .append('line')
         .attr('x1', lab.leader.x1)
         .attr('y1', lab.leader.y1)
         .attr('x2', lab.leader.x2)
         .attr('y2', lab.leader.y2)
-        .attr('stroke', mix(palette.textMuted, palette.bg, 60))
-        .attr('stroke-width', 0.75);
+        // Tie the leader to its dot by colour; neutral grey when it has none.
+        .attr(
+          'stroke',
+          lab.leaderColor ?? mix(palette.textMuted, palette.bg, 60)
+        )
+        .attr('stroke-width', lab.leaderColor ? 1 : 0.75);
+      if (lab.poiId !== undefined) line.attr('data-poi', lab.poiId);
     }
-    emitText(
+    const t = emitText(
       gLabels,
       lab.x,
       lab.y,
@@ -273,6 +279,11 @@ export function renderMap(
       lab.halo,
       LABEL_FONT
     );
+    // POI labels are spotlightable: tag with the POI id and make the text the
+    // hover target (the app dims the other dots/labels on enter).
+    if (lab.poiId !== undefined) {
+      t.attr('data-poi', lab.poiId).style('cursor', 'default');
+    }
   }
 
   // ── Legend (categorical via renderLegendD3 + ramp/size/weight blocks; AR1) ──
@@ -398,7 +409,7 @@ function emitText(
   halo: string,
   withHalo: boolean,
   fontSize: number
-): void {
+): d3Selection.Selection<SVGTextElement, unknown, null, undefined> {
   const t = g
     .append('text')
     .attr('x', x)
@@ -414,4 +425,5 @@ function emitText(
       .attr('stroke-linejoin', 'round')
       .attr('stroke-opacity', 0.7);
   }
+  return t;
 }

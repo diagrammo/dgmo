@@ -110,6 +110,17 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(clicked).toBe(ln);
   });
 
+  it('POI marker + label share a data-poi id (label-hover spotlight)', () => {
+    const svg = render('map\npoi-labels all\npoi Tokyo');
+    const marker = svg.querySelector<SVGCircleElement>('circle[data-poi]');
+    const label = svg.querySelector<SVGTextElement>('text[data-poi]');
+    expect(marker).toBeTruthy();
+    expect(label).toBeTruthy();
+    expect(label!.getAttribute('data-poi')).toBe(
+      marker!.getAttribute('data-poi')
+    );
+  });
+
   it('still renders an svg when the resolved map has errors (AC22)', () => {
     const el = document.createElement('div');
     const resolved = resolveMap(parseMap('map\npoi Nowheresville'), DATA);
