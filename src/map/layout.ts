@@ -777,19 +777,74 @@ export function layoutMap(
   // unclipped conic doesn't paint frame-filling garbage; the us-states layer
   // itself is never culled (every conus state is in frame by construction).
   const conusFit = resolved.projection === 'albers-usa' && !!usLayer;
-  const cullExtent = conusFit
+  // Base cull box: the conus bounds for an albers fit (it frames all 48 states,
+  // not the POI cluster), else the resolved data extent.
+  const dataCullExtent = conusFit
     ? (geoBounds(fitTarget as never) as [[number, number], [number, number]])
     : resolved.extent;
-  const [[exW, exS], [exE, exN]] = cullExtent;
-  const lonSpan = exE - exW;
-  const latSpan = exN - exS;
+  const dLonSpan = dataCullExtent[1][0] - dataCullExtent[0][0];
+  const dLatSpan = dataCullExtent[1][1] - dataCullExtent[0][1];
   // A near-global view draws everything. (albers-usa is handled per-layer at the
   // pushRegionLayer calls: the world layer IS culled by the contiguous-US extent
   // so far countries don't project to frame-filling garbage, while the us-states
   // layer is NEVER culled so Alaska & Hawaii — far outside that extent — survive.)
-  const isGlobalView = lonSpan >= 270 || latSpan >= 130;
-  const padLon = Math.max(8, lonSpan * 0.35);
-  const padLat = Math.max(8, latSpan * 0.35);
+  const isGlobalView = dLonSpan >= 270 || dLatSpan >= 130;
+  // For a GEOGRAPHIC regional view, cull to what the canvas actually shows, not
+  // to the tight data extent — so neighbour land that's on-screen but outside the
+  // data cluster (Mexico, Central America, the Caribbean, …) still draws. The
+  // visible geographic window is found by inverse-projecting a grid of screen
+  // points. (The albers conus fit keeps its bounds box: that composite hard-clips
+  // non-US land anyway, and its invert is per-sub-projection.)
+  let cullExtent = dataCullExtent;
+  const invertFn = (
+    projection as unknown as {
+      invert?: (p: [number, number]) => [number, number] | null;
+    }
+  ).invert;
+  if (!conusFit && !isGlobalView && invertFn) {
+    let fW = Infinity,
+      fE = -Infinity,
+      fS = Infinity,
+      fN = -Infinity,
+      ok = 0;
+    const N = 16;
+    for (let i = 0; i <= N; i++) {
+      for (let j = 0; j <= N; j++) {
+        const p = invertFn([(i / N) * width, (j / N) * height]);
+        if (!p) continue;
+        const [lon, lat] = p;
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        ok++;
+        if (lon < fW) fW = lon;
+        if (lon > fE) fE = lon;
+        if (lat < fS) fS = lat;
+        if (lat > fN) fN = lat;
+      }
+    }
+    // Use the frame only when enough samples inverted AND it's a sane regional
+    // window (not a wrapped/near-global blow-up). Union with the data extent so
+    // the cluster is always covered even if sampling under-covers it.
+    if (ok >= 8 && fE - fW < 270 && fN - fS < 200) {
+      cullExtent = [
+        [
+          Math.min(fW, resolved.extent[0][0]),
+          Math.min(fS, resolved.extent[0][1]),
+        ],
+        [
+          Math.max(fE, resolved.extent[1][0]),
+          Math.max(fN, resolved.extent[1][1]),
+        ],
+      ];
+    }
+  }
+  const usingFrameCull = cullExtent !== dataCullExtent;
+  const [[exW, exS], [exE, exN]] = cullExtent;
+  const lonSpan = exE - exW;
+  const latSpan = exN - exS;
+  // The frame box already bounds visibility, so it needs only a hairline pad; the
+  // data/conus box still pads generously to admit edge-clipping coastlines.
+  const padLon = usingFrameCull ? 2 : Math.max(8, lonSpan * 0.35);
+  const padLat = usingFrameCull ? 2 : Math.max(8, latSpan * 0.35);
   const vW = exW - padLon;
   const vE = exE + padLon;
   const vS = exS - padLat;
@@ -1364,24 +1419,50 @@ export function layoutMap(
       const text = labelText(p);
       return { text, w: measureLegendText(text, FONT) };
     };
+    // Candidate inline placements around a marker, in escalation order: the two
+    // horizontal sides first (most legible), then above/below for a hub whose
+    // edges all leave sideways and block both flanks (e.g. a POI fed by routes
+    // from the east AND west — Boulder in the route-cluster gauntlet).
+    type Side = 'right' | 'left' | 'above' | 'below';
+    const GAP = 3;
+    const inlineRect = (p: MapLayoutPoi, w: number, side: Side): LabelRect => {
+      switch (side) {
+        case 'right':
+          return { x: p.cx + p.r + GAP, y: p.cy - poiLabH / 2, w, h: poiLabH };
+        case 'left':
+          return {
+            x: p.cx - p.r - GAP - w,
+            y: p.cy - poiLabH / 2,
+            w,
+            h: poiLabH,
+          };
+        case 'above':
+          return {
+            x: p.cx - w / 2,
+            y: p.cy - p.r - GAP - poiLabH,
+            w,
+            h: poiLabH,
+          };
+        case 'below':
+          return { x: p.cx - w / 2, y: p.cy + p.r + GAP, w, h: poiLabH };
+      }
+    };
     const pushInline = (
       p: MapLayoutPoi,
       text: string,
       w: number,
-      side: 'right' | 'left'
+      side: Side
     ): void => {
-      const tx = side === 'right' ? p.cx + p.r + 3 : p.cx - p.r - 3;
-      obstacles.push({
-        x: side === 'right' ? tx : tx - w,
-        y: p.cy - poiLabH / 2,
-        w,
-        h: poiLabH,
-      });
+      const rect = inlineRect(p, w, side);
+      obstacles.push(rect);
+      const anchor =
+        side === 'right' ? 'start' : side === 'left' ? 'end' : 'middle';
+      const x = side === 'right' ? rect.x : side === 'left' ? rect.x + w : p.cx;
       labels.push({
-        x: tx,
-        y: p.cy + FONT / 3,
+        x,
+        y: rect.y + poiLabH / 2 + FONT / 3,
         text,
-        anchor: side === 'right' ? 'start' : 'end',
+        anchor,
         color: palette.text,
         halo: true,
         haloColor: palette.bg,
@@ -1389,19 +1470,15 @@ export function layoutMap(
         lineNumber: p.lineNumber,
       });
     };
-    const inlineFits = (
-      p: MapLayoutPoi,
-      w: number,
-      side: 'right' | 'left'
-    ): boolean => {
-      const tx = side === 'right' ? p.cx + p.r + 3 : p.cx - p.r - 3;
-      const rect: LabelRect = {
-        x: side === 'right' ? tx : tx - w,
-        y: p.cy - poiLabH / 2,
-        w,
-        h: poiLabH,
-      };
-      return rect.x >= 0 && rect.x + rect.w <= width && !collides(rect);
+    const inlineFits = (p: MapLayoutPoi, w: number, side: Side): boolean => {
+      const rect = inlineRect(p, w, side);
+      return (
+        rect.x >= 0 &&
+        rect.x + rect.w <= width &&
+        rect.y >= 0 &&
+        rect.y + rect.h <= height &&
+        !collides(rect)
+      );
     };
 
     // Pre-group POIs by proximity. A tight cluster (offshore platforms, a metro
@@ -1477,12 +1554,11 @@ export function layoutMap(
       if (g.length === 1) {
         const p = g[0]!;
         const { text, w } = labelInfo(p);
-        if (inlineFits(p, w, 'right')) {
-          pushInline(p, text, w, 'right');
-          continue;
-        }
-        if (inlineFits(p, w, 'left')) {
-          pushInline(p, text, w, 'left');
+        const side = (['right', 'left', 'above', 'below'] as const).find((s) =>
+          inlineFits(p, w, s)
+        );
+        if (side) {
+          pushInline(p, text, w, side);
           continue;
         }
       }
