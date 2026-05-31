@@ -571,6 +571,19 @@ export function layoutMap(
       return p ? stretch(p[0], p[1]) : null;
     };
   } else {
+    // Clip the projected geometry to the canvas. fitExtent frames the focus
+    // region, but the rest of the world mesh still projects to coordinates far
+    // off-canvas — invisible under our viewBox, but they bloat the SVG and,
+    // critically, blow up any downstream getBBox()/bbox recompute (remark-dgmo
+    // embeddings tighten the viewBox to real content bounds, which would
+    // otherwise shrink the map to a dot). clipExtent trims the path `d` data to
+    // the viewport so drawn content == frame. Point projection (POIs/edges,
+    // albers-usa coast sampling) ignores clipExtent so positions are unaffected,
+    // and the AK/HI insets use their own dedicated projection — both safe.
+    projection.clipExtent([
+      [0, 0],
+      [width, height],
+    ]);
     path = geoPath(projection);
     project = (lon, lat) => projection([lon, lat]) ?? null;
   }
@@ -789,19 +802,24 @@ export function layoutMap(
   // so far countries don't project to frame-filling garbage, while the us-states
   // layer is NEVER culled so Alaska & Hawaii — far outside that extent — survive.)
   const isGlobalView = dLonSpan >= 270 || dLatSpan >= 130;
-  // For a GEOGRAPHIC regional view, cull to what the canvas actually shows, not
-  // to the tight data extent — so neighbour land that's on-screen but outside the
-  // data cluster (Mexico, Central America, the Caribbean, …) still draws. The
+  // For a regional view, cull to what the canvas actually shows, not to the tight
+  // data extent — so neighbour land that's on-screen but outside the data cluster
+  // (Mexico, Central America, the Caribbean, southern Canada, …) still draws. The
   // visible geographic window is found by inverse-projecting a grid of screen
-  // points. (The albers conus fit keeps its bounds box: that composite hard-clips
-  // non-US land anyway, and its invert is per-sub-projection.)
+  // points. This applies to the albers-usa conus fit TOO: geoAlbersUsa projects
+  // (and its own clipExtent trims) neighbour land continuously around the CONUS,
+  // so the only thing keeping it off-canvas was the tight conus cull box. The
+  // composite's invert returns sane lon/lat for the conus frame (and the AK/HI
+  // inset corners invert to those states — harmless: they only widen the box, and
+  // anything not actually visible is dropped by the per-ring overlap test or the
+  // projection's clipExtent).
   let cullExtent = dataCullExtent;
   const invertFn = (
     projection as unknown as {
       invert?: (p: [number, number]) => [number, number] | null;
     }
   ).invert;
-  if (!conusFit && !isGlobalView && invertFn) {
+  if (!isGlobalView && invertFn) {
     let fW = Infinity,
       fE = -Infinity,
       fS = Infinity,
@@ -822,17 +840,17 @@ export function layoutMap(
       }
     }
     // Use the frame only when enough samples inverted AND it's a sane regional
-    // window (not a wrapped/near-global blow-up). Union with the data extent so
-    // the cluster is always covered even if sampling under-covers it.
+    // window (not a wrapped/near-global blow-up). Union with the base cull box so
+    // the cluster / whole CONUS is always covered even if sampling under-covers it.
     if (ok >= 8 && fE - fW < 270 && fN - fS < 200) {
       cullExtent = [
         [
-          Math.min(fW, resolved.extent[0][0]),
-          Math.min(fS, resolved.extent[0][1]),
+          Math.min(fW, dataCullExtent[0][0]),
+          Math.min(fS, dataCullExtent[0][1]),
         ],
         [
-          Math.max(fE, resolved.extent[1][0]),
-          Math.max(fN, resolved.extent[1][1]),
+          Math.max(fE, dataCullExtent[1][0]),
+          Math.max(fN, dataCullExtent[1][1]),
         ],
       ];
     }
