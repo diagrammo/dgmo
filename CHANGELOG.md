@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-05-30
+
+### Fixed
+
+- Map data loader (`src/map/load-data.ts`) now imports Node builtins
+  (`fs/promises`, `url`, `path`) lazily, inside the async load path,
+  rather than at module top level. The static imports were hoisted into
+  `dist/index.js` and broke browser bundlers (Obsidian's esbuild, the
+  app's Vite/Rollup web build) that pull dgmo in. The loader is Node-only
+  by contract — the web build injects `MapData` via DI and never calls
+  it — so deferring the imports keeps the node code out of the eager
+  browser chunk. Mirrors the existing `await import('jsdom')` seam.
+
 ## [0.20.0] - 2026-05-30
 
 ### Added: `map` chart type
