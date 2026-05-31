@@ -74,7 +74,8 @@ tag GroupName as <alias>
 - Alias: optional postfix `as <alias>` per §2A (universal alias syntax — `[A-Za-z][A-Za-z0-9_]{0,11}`)
 - Inline values also supported: `tag Priority as p Low green, High red`
 - Color follows the value as a bare trailing token (see §1.5). Capitalize the color word (`Red`, `Yellow`) to keep it as a literal value with no color.
-- First entry is the default — reorder to change
+- First entry is the default value — reorder to change
+- The first declared group is active by default (colors nodes immediately); `active-tag <GroupName>` only matters with ≥2 groups to pick a non-first group, and `active-tag none` suppresses all coloring
 - Must appear before diagram content
 - Legacy bare shorthand (`tag Priority p`) and `alias` keyword (`tag Priority alias p`) emit `E_TAG_SHORTHAND_REMOVED` per TD-18
 
@@ -1362,7 +1363,7 @@ recruit crew 1 2 4 c: Quartermaster
 load powder 0.5 1 2 c: Bosun
 ```
 
-Coloring is opt-in: without an `active-tag <GroupName>` directive (or a click in the app), the legend renders all groups as collapsed pills and nodes stay neutral. When a group is active, the activity card's middle (name) band picks up the tag color while the border continues to communicate criticality. Milestone diamonds adopt the tag color across the full pill.
+The first declared tag group is active by default and colors nodes; `active-tag <GroupName>` only matters with two or more groups when you want a non-first group active, and `active-tag none` suppresses coloring entirely. When a group is active, the activity card's middle (name) band picks up the tag color while the border continues to communicate criticality. Milestone diamonds adopt the tag color across the full pill.
 
 ### Date anchoring
 
@@ -2672,7 +2673,7 @@ Florida score: 51
 
 ### Region fill — categorical (tags)
 
-Uses the universal tag model (§1.3): declare a `tag` group, apply its alias as a key, `active-tag` to color.
+Uses the universal tag model (§1.3): declare a `tag` group and apply its alias as a key. The first declared group colors regions by default; `active-tag` only selects a different dimension (another group, or the `score` ramp).
 
 ```
 map Global Presence
@@ -2682,7 +2683,6 @@ tag Market as m
   HQ blue
   Region teal
   Prospect orange
-active-tag Market
 
 United States m: HQ
 Germany m: Region
