@@ -313,12 +313,35 @@ export function layoutMap(
   // Lakes match the states' resolution. Falls back to the world tiers otherwise.
   const usCrisp =
     resolved.projection === 'albers-usa' && wantsUsStates && !!data.naLand;
+  // Base world layer. In a US view use the DETAIL tier (full global coverage) so
+  // distant context — South America, northern Canada, etc. — is present and can
+  // draw when it falls inside the frame. (`naLand` alone is bbox-clipped to lon
+  // -140..-52 / lat 10..66, so it has no S. America and a truncated Canada; using
+  // it as the base would leave ocean where that land belongs.)
   const worldTopo = usCrisp
-    ? data.naLand!
+    ? data.worldDetail
     : resolved.basemaps.world === 'detail'
       ? data.worldDetail
       : data.worldCoarse;
   const worldLayer = decodeLayer(worldTopo);
+  // Crisp upgrade: `naLand` is 10m country land (vs the base's 50m) but clipped to
+  // a North-America bbox. Swap a country's geometry to the crisp version ONLY when
+  // its full (base) bounds lie inside that clip box — so contained neighbours
+  // (Mexico, Central America, the Caribbean) sharpen to match the 10m states,
+  // while countries the clip would truncate (Canada, Greenland) keep their full
+  // base shape. Coast off-frame still bleeds; nothing is lost.
+  if (usCrisp && data.naLand) {
+    // NA clip bbox from the data build (scripts/build-map-data.mjs NA_BBOX).
+    const [nbW, nbS, nbE, nbN] = [-140, 10, -52, 66];
+    const crisp = decodeLayer(data.naLand);
+    for (const [iso, cf] of crisp) {
+      const base = worldLayer.get(iso);
+      if (!base) continue; // crisp-only id with no base → skip (avoid orphans)
+      const [[bw, bs], [be, bn]] = geoBounds(base as never);
+      if (bw >= nbW && be <= nbE && bs >= nbS && bn <= nbN)
+        worldLayer.set(iso, cf);
+    }
+  }
   const usLayer = wantsUsStates ? decodeLayer(data.usStates) : null;
 
   // Land is a muted green; the ocean/backdrop is blue. Scored/tagged regions
