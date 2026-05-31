@@ -509,6 +509,27 @@ describe('COMPLETION_REGISTRY', () => {
     expect(refContent).toContain('critical-path');
   });
 
+  it('map registry enumerates directive values (region, projection, labels)', () => {
+    const mapSpec = COMPLETION_REGISTRY.get('map')!;
+    expect(mapSpec.directives.region?.values).toEqual(['us-states', 'world']);
+    expect(mapSpec.directives.projection?.values).toEqual([
+      'equirectangular',
+      'natural-earth',
+      'albers-usa',
+      'mercator',
+    ]);
+    expect(mapSpec.directives['region-labels']?.values).toEqual([
+      'full',
+      'abbrev',
+      'off',
+    ]);
+    expect(mapSpec.directives['poi-labels']?.values).toEqual([
+      'off',
+      'auto',
+      'all',
+    ]);
+  });
+
   it('infra registry includes top-level default directives', () => {
     const infraSpec = COMPLETION_REGISTRY.get('infra')!;
     const expected = [

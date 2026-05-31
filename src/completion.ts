@@ -515,6 +515,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       region: {
         description:
           'Basemap: us-states (force US state mesh + scoping) | world (inert — already the default)',
+        values: ['us-states', 'world'],
       },
       projection: {
         description: 'Override the auto projection',

@@ -282,14 +282,15 @@ describe('layout — POIs (AC6, AC7, AC8, AC18)', () => {
     expect(Number.isFinite(r.pois[0]!.cx)).toBe(true);
     expect(r.labels.some((l) => l.text === 'Tokyo')).toBe(true);
   });
-  it('size scaling: larger value → larger radius + size legend (AC7)', () => {
+  it('size scaling: larger value → larger radius, no size legend key (AC7)', () => {
     const r = lay(
       'map\nsize-metric Pop\npoi 40 -74 as a size: 10\npoi 41 -73 as b size: 100'
     );
     const a = r.pois.find((p) => p.id === 'a')!;
     const b = r.pois.find((p) => p.id === 'b')!;
     expect(b.r).toBeGreaterThan(a.r);
-    expect(r.legend?.size).toMatchObject({ metric: 'Pop' });
+    // POI size is self-evident from the marker scale — no legend key for it.
+    expect(r.legend).toBeNull();
   });
   it('coords POI placed + labeled by alias (AC8)', () => {
     const r = lay('map\npoi 39.74 -104.99 as dcw');

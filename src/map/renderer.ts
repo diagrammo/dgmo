@@ -17,12 +17,7 @@ import type { LegendConfig, LegendState } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes/types';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { MapData, ResolvedMap } from './resolved-types';
-import {
-  layoutMap,
-  type MapLayout,
-  type MapLayoutRegion,
-  type PlacedLabel,
-} from './layout';
+import { layoutMap, type MapLayoutRegion, type PlacedLabel } from './layout';
 
 const LABEL_FONT = 11;
 
@@ -325,8 +320,6 @@ export function renderMap(
       const state: LegendState = { activeGroup: layout.legend.activeGroup };
       renderLegendD3(legendG, config, state, palette, isDark, undefined, width);
     }
-    // Custom keys (size / weight) — the score ramp now lives in the top legend.
-    emitExtraLegend(svg, layout, palette, height, 0);
   }
 
   // ── Title / subtitle / caption (foreground — drawn last so they sit above the
@@ -394,7 +387,6 @@ export function renderMapForExport(
 }
 
 type Sel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
-type SvgSel = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
 
 function emitText(
   g: Sel,
@@ -422,78 +414,4 @@ function emitText(
       .attr('stroke-linejoin', 'round')
       .attr('stroke-opacity', 0.7);
   }
-}
-
-/** Ramp gradient bar + graduated size/weight keys (not legend swatch groups). */
-function emitExtraLegend(
-  svg: SvgSel,
-  layout: MapLayout,
-  palette: PaletteColors,
-  height: number,
-  bottomGap: number
-): void {
-  const { legend } = layout;
-  if (!legend) return;
-  // The score ramp moved into the top legend (selectable colouring group); only
-  // the size + weight keys remain here. Nothing to draw without them (#4).
-  if (!legend.size && !legend.weight) return;
-  const blocks: Array<() => void> = [];
-  const g = svg.append('g').attr('class', 'dgmo-map-legend-keys');
-  let xCursor = 0;
-
-  if (legend.size) {
-    const sz = legend.size;
-    blocks.push(() => {
-      const block = g.append('g').attr('transform', `translate(${xCursor},0)`);
-      [3, 6, 10].forEach((r, i) => {
-        block
-          .append('circle')
-          .attr('cx', i * 26 + r)
-          .attr('cy', 8)
-          .attr('r', r)
-          .attr('fill', 'none')
-          .attr('stroke', palette.textMuted);
-      });
-      block
-        .append('text')
-        .attr('x', 0)
-        .attr('y', -4)
-        .attr('font-size', 9)
-        .attr('fill', palette.textMuted)
-        .text(sz.metric ?? 'size');
-      xCursor += 110;
-    });
-  }
-  if (legend.weight) {
-    const wt = legend.weight;
-    blocks.push(() => {
-      const block = g.append('g').attr('transform', `translate(${xCursor},0)`);
-      [1, 3, 6].forEach((w, i) => {
-        block
-          .append('line')
-          .attr('x1', i * 26)
-          .attr('y1', 8)
-          .attr('x2', i * 26 + 20)
-          .attr('y2', 8)
-          .attr('stroke', palette.textMuted)
-          .attr('stroke-width', w);
-      });
-      block
-        .append('text')
-        .attr('x', 0)
-        .attr('y', -4)
-        .attr('font-size', 9)
-        .attr('fill', palette.textMuted)
-        .text(wt.metric ?? 'weight');
-      xCursor += 110;
-    });
-  }
-  // Each block is ~110px wide. When AK/HI insets occupy the lower-left, push
-  // the key strip to the lower-right so it doesn't sit on top of the insets.
-  const totalW = blocks.length * 110;
-  const x = layout.insets.length
-    ? Math.max(12, layout.width - 12 - totalW)
-    : 12;
-  g.attr('transform', `translate(${x}, ${height - 56 - bottomGap})`);
-  for (const draw of blocks) draw();
 }
