@@ -519,8 +519,15 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   // albers-usa only covers US territory: choose it only when the map is truly
   // US-only — no non-US country region AND no POI outside the US (#13). Without
   // the POI guard a `default-country US` + Tokyo map projected to garbage.
+  // albers-usa is the US-only composite projection — it insets AK/HI and clips
+  // out all non-US land. Use it only when the map actually renders US STATES (an
+  // explicit `region us-states` or US-state region fills), NOT merely because the
+  // POIs happen to be US: a pure POI/route map across the US should stay on a
+  // geographic projection so neighbour land (Mexico, Central America, the
+  // Caribbean, Canada) still draws.
   const usDominant =
-    (inferredCountry === 'US' || subdivisions.includes('us-states')) &&
+    (subdivisions.includes('us-states') ||
+      regions.some((r) => r.layer === 'us-state')) &&
     !regions.some((r) => r.layer === 'country' && r.iso !== 'US') &&
     !anyNonUsPoi;
 

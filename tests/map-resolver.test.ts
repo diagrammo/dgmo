@@ -317,11 +317,13 @@ describe('resolver — robustness (AC17, AC18, AC21)', () => {
 });
 
 describe('resolver — impl-review fixes (#3/#6/#8/#13/#15)', () => {
-  it('POI-only US map infers default-country US → albers-usa (#3)', () => {
-    // No regions; both POIs are US. Before #3, POI ISOs were voided so US was
-    // never inferred and the tight extent fell through to mercator.
+  it('POI-only US map stays geographic, NOT albers-usa, so neighbours draw (#3)', () => {
+    // No us-state regions — just US POIs. albers-usa clips out all non-US land,
+    // so a pure POI/route map must stay on a geographic projection; only an
+    // actual US-states basemap (state region fills / `region us-states`) picks
+    // albers. (Default-country US is still inferred for POI scoping — see below.)
     const r = resolve('map\npoi New York City\npoi Office');
-    expect(r.projection).toBe('albers-usa');
+    expect(r.projection).not.toBe('albers-usa');
   });
   it('US region + a non-US POI does NOT pick albers-usa (#13)', () => {
     const r = resolve('map\nCalifornia score: 1\npoi Tokyo');
