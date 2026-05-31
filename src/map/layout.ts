@@ -12,11 +12,12 @@ import {
   geoConicEqualArea,
   geoMercator,
   geoBounds,
+  geoTransform,
   type GeoProjection,
   type GeoPath,
 } from 'd3-geo';
 import { feature } from 'topojson-client';
-import { mix, shapeFill, contrastText } from '../palettes/color-utils';
+import { mix, contrastText } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes/types';
 import {
   rectsOverlap,
@@ -62,6 +63,11 @@ const COLO_EPS = 1.5; // px: POIs closer than this are "co-located"
 // yellow reads as yellow rather than muddying toward tan against the dark bg.
 const LAND_TINT_LIGHT = 58;
 const LAND_TINT_DARK = 75;
+// Categorical (tag) region fill: a flat, fairly saturated tint of the tag
+// colour so a tagged region reads as its CATEGORY against the tinted land base
+// — the generic 25% shape tint washes out and lets the olive land dominate.
+const TAG_TINT_LIGHT = 60;
+const TAG_TINT_DARK = 68;
 const WATER_TINT = 55; // % palette-blue of bg for the ocean / backdrop
 // Rivers are thin lines over land, so they need a more saturated blue than the
 // flat ocean/lake fill to stay legible against the green land.
@@ -171,8 +177,6 @@ export interface MapLayoutLegend {
     /** Low end of the ramp gradient (the land colour the fills blend from). */
     base: string;
   };
-  readonly size?: { metric?: string; min: number; max: number };
-  readonly weight?: { metric?: string; min: number; max: number };
 }
 
 /** A drawn river centerline — an open stroked path (no fill). */
@@ -424,7 +428,13 @@ export function layoutMap(
     // is used directly (do NOT run it through resolveColor, which rejects `#`).
     // An unknown tag VALUE (no matching entry) falls back to neutral (AR4/AC25).
     if (!entry?.color) return null;
-    return shapeFill(palette, entry.color, isDark); // 25% tint, never solid by default
+    // Flat saturated tint (NOT the 25% shape default) so the category reads
+    // clearly over the tinted land — see TAG_TINT_*.
+    return mix(
+      entry.color,
+      palette.bg,
+      isDark ? TAG_TINT_DARK : TAG_TINT_LIGHT
+    );
   };
 
   /** A region's fill under the ACTIVE colouring dimension (AR4, bivariate):
@@ -519,9 +529,61 @@ export function layoutMap(
     ],
   ];
   projection.fitExtent(fitBox, fitTarget as never);
-  const path: GeoPath = geoPath(projection);
-  const project = (lon: number, lat: number): [number, number] | null =>
-    projection([lon, lat]) ?? null;
+
+  // Global views stretch-fill the canvas. A whole-world map is ~2:1 but the
+  // preview pane is often near-square, so the honest contain-fit letterboxes it
+  // with large water bands. For GLOBAL extents we stretch the PROJECTED geometry
+  // non-uniformly to fill both axes — countries distort (a deliberate trade for
+  // a full canvas), but POI radii + label font sizes are applied in the renderer
+  // (NOT here), so markers stay round and text stays un-squashed. Regional views
+  // keep contain-fit: no distortion, neighbour land not cropped.
+  const fitGB = geoBounds(fitTarget as never) as [
+    [number, number],
+    [number, number],
+  ];
+  const fitIsGlobal =
+    fitGB[1][0] - fitGB[0][0] >= 270 || fitGB[1][1] - fitGB[0][1] >= 130;
+  let path: GeoPath;
+  let project: (lon: number, lat: number) => [number, number] | null;
+  if (fitIsGlobal) {
+    const cb = geoPath(projection).bounds(fitTarget as never);
+    const bx0 = cb[0][0];
+    const by0 = cb[0][1];
+    const cw = cb[1][0] - bx0;
+    const ch = cb[1][1] - by0;
+    const ox = fitBox[0][0];
+    const oy = fitBox[0][1];
+    const sx = cw > 0 ? (fitBox[1][0] - ox) / cw : 1;
+    const sy = ch > 0 ? (fitBox[1][1] - oy) / ch : 1;
+    const stretch = (x: number, y: number): [number, number] => [
+      ox + (x - bx0) * sx,
+      oy + (y - by0) * sy,
+    ];
+    const baseProjection = projection;
+    // Post-projection non-uniform scale: baseProjection.stream projects each
+    // point, then this transform stretches it before it reaches the path sink.
+    const tx = geoTransform({
+      point(x: number, y: number) {
+        const [px, py] = stretch(x, y);
+        (
+          this as unknown as { stream: { point(x: number, y: number): void } }
+        ).stream.point(px, py);
+      },
+    });
+    path = geoPath({
+      stream: (s: never) =>
+        baseProjection.stream(
+          (tx as unknown as { stream: (d: never) => never }).stream(s)
+        ),
+    } as never);
+    project = (lon, lat) => {
+      const p = baseProjection([lon, lat]);
+      return p ? stretch(p[0], p[1]) : null;
+    };
+  } else {
+    path = geoPath(projection);
+    project = (lon, lat) => projection([lon, lat]) ?? null;
+  }
 
   // -- Alaska & Hawaii insets (our own, replacing geoAlbersUsa's fixed boxes) --
   // The conus conic projects AK/HI to their real positions (far off-frame), so
@@ -1391,12 +1453,10 @@ export function layoutMap(
       name: g.name,
       entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
     }));
-    const hasAnything =
-      tagGroups.length > 0 ||
-      hasRamp ||
-      sizeVals.length > 0 ||
-      weightVals.length > 0;
-    if (hasAnything) {
+    // Only the colouring dimensions (score ramp + tag groups) get a legend.
+    // POI size and edge weight are self-evident from the marker/line scale and
+    // intentionally carry no key.
+    if (tagGroups.length > 0 || hasRamp) {
       legend = {
         tagGroups,
         activeGroup,
@@ -1410,18 +1470,6 @@ export function layoutMap(
             hue: rampHue,
             base: rampBase,
           },
-        }),
-        ...(sizeVals.length > 0 && {
-          size: {
-            ...(resolved.directives.sizeMetric !== undefined && {
-              metric: resolved.directives.sizeMetric,
-            }),
-            min: sizeMin,
-            max: sizeMax,
-          },
-        }),
-        ...(weightVals.length > 0 && {
-          weight: { min: wMin, max: wMax },
         }),
       };
     }
