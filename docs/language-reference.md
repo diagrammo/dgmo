@@ -2642,9 +2642,9 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 
 ## 25. Map Diagrams
 
-Geographic concept maps: highlight/score political subdivisions, drop points of interest (POIs), and connect them with routes or edges. For "share a concept" business maps, not cartography. Renders at a fixed, auto-fit position — no pan/zoom. Basemap and viewport are **inferred from the content you reference** — most maps need no directives. v1 boundaries: world countries + US states.
+Geographic concept maps: highlight/shade political subdivisions, drop points of interest (POIs), and connect them with routes or edges. For "share a concept" business maps, not cartography. Renders at a fixed, auto-fit position — no pan/zoom. Basemap and viewport are **inferred from the content you reference** — most maps need no directives. v1 boundaries: world countries + US states.
 
-**How the map type is decided (inference):** the resolver takes the bounding box of everything referenced (scored/tagged regions + POIs + edge endpoints), pads it, and measures its span. Projection: `albers-usa` (US conic + AK/HI insets) when the map is US-only; else `equirectangular` snapped to the full Greenwich world when the span is world-scale (≥ ~90°); else `mercator` for a tight regional cluster; else `equirectangular`. The US-state mesh is added whenever you name a US state. Directives only matter to *override* this: `region us-states` forces the state mesh + US scoping (useful on a POI-only US map, redundant once you name a state); `projection …` forces the projection; **`region world` is currently inert** — world is already the default, so it changes nothing (the frame widens from a world-scale longitude span, not this directive).
+**How the map type is decided (inference):** the resolver takes the bounding box of everything referenced (valued/tagged regions + POIs + edge endpoints), pads it, and measures its span. Projection: `albers-usa` (US conic + AK/HI insets) when the map is US-only; else `equirectangular` snapped to the full Greenwich world when the span is world-scale (≥ ~90°); else `mercator` for a tight regional cluster; else `equirectangular`. The US-state mesh is added whenever you name a US state. Directives only matter to *override* this: `region us-states` forces the state mesh + US scoping (useful on a POI-only US map, redundant once you name a state); `projection …` forces the projection; **`region world` is currently inert** — world is already the default, so it changes nothing (the frame widens from a world-scale longitude span, not this directive).
 
 ### Declaration
 
@@ -2654,26 +2654,26 @@ map [Title]
 
 Requires the explicit first line `map` — no content inference.
 
-### Region fill — score (choropleth)
+### Region fill — value (choropleth)
 
-A subdivision name on its own line with a `score:` fills with a single-hue tint ramp (auto min→max, ~15% floor):
+A subdivision name on its own line with a `value:` fills with a single-hue tint ramp (auto min→max, ~15% floor). `value:` is the single numeric channel — region shade, POI marker size, or edge/leg thickness depending on the element:
 
 ```
 map US Sales
 region us-states
-metric Sales ($M)
+region-metric Sales ($M)
 
-California score: 92
-Texas score: 78
-Florida score: 51
+California value: 92
+Texas value: 78
+Florida value: 51
 ```
 
-- `metric <label>` labels the ramp in the legend; `scale <min> <max>` overrides the auto anchors.
-- A subdivision with no `score:`/tag renders as the neutral base.
+- `region-metric <label>` labels the ramp in the legend; `scale <min> <max>` overrides the auto anchors.
+- A subdivision with no `value:`/tag renders as the neutral base.
 
 ### Region fill — categorical (tags)
 
-Uses the universal tag model (§1.3): declare a `tag` group and apply its alias as a key. The first declared group colors regions by default; `active-tag` only selects a different dimension (another group, or the `score` ramp).
+Uses the universal tag model (§1.3): declare a `tag` group and apply its alias as a key. The first declared group colors regions by default; `active-tag` only selects a different dimension (another group, or the value ramp).
 
 ```
 map Global Presence
@@ -2689,7 +2689,7 @@ Germany m: Region
 Japan m: Region
 ```
 
-`score:` + a tag on the same region (bivariate): both are kept as **two selectable colouring dimensions**. The top legend shows the score ramp and each tag group as mutually-exclusive, collapsible groups; the active one fills the map. Default is the score ramp (when any `score:` exists). `active-tag <GroupName>` colours by that tag; `active-tag score` colours by the ramp. In the app, clicking a legend group flips the active dimension (live preview only — no source edit); hovering a tag entry highlights the regions with that value, and scrubbing across the score gradient highlights the regions whose score is near the cursor (non-matching regions dim). No warning.
+`value:` + a tag on the same region (bivariate): both are kept as **two selectable colouring dimensions**. The top legend shows the value ramp and each tag group as mutually-exclusive, collapsible groups; the active one fills the map. Default is the value ramp (whenever any `value:` exists). `active-tag <GroupName>` colours by that tag; `active-tag <ValueLabel>` (the `region-metric` label, or `Value`) re-selects the ramp. In the app, clicking a legend group flips the active dimension (live preview only — no source edit); hovering a tag entry highlights the regions with that value, and scrubbing across the value gradient highlights the regions whose value is near the cursor (non-matching regions dim). No warning.
 
 ### Points of interest (`poi`)
 
@@ -2701,31 +2701,30 @@ poi <name | <lat> <lon>> [as <alias>] [<key>: <value>, …]
 poi Austin                          # label defaults to "Austin"
 poi Austin label: West HQ           # anchored at Austin; shows "West HQ"
 poi 39.74 -104.99 as dcw            # positional coords (lat lon), signed
-poi Dallas size: 320                # size: value-scales the marker radius (a data channel)
+poi Dallas value: 320               # value: scales the marker radius (a data channel)
 poi Chicago m: Office               # categorical color via a tag alias
 ```
 
 - **Coordinates are positional** — two leading signed numbers (lat then lon); cities never start with a number.
-- `size:` scales marker area (use `size-metric <label>` for the legend key). POI properties: `label`, `size`, `description`, applied tag alias, `as`. No `icon` in v1.
+- `value:` scales marker area (use `poi-metric <label>` for the legend key). POI properties: `label`, `value`, `style`, applied tag alias, `as`. No `icon` in v1.
 - Coord-positioned or relabeled POIs take `as <alias>` for route/edge references; named POIs are referenced by name.
 
 ### Routes & connectors
 
-`route` — an ordered, auto-numbered stop list; the origin gets a distinct marker. Repeat the first stop as the last to close a loop. `style: arc` curves the legs:
+`route <origin> [style: arc]` — an ordered, auto-numbered voyage; the origin gets a distinct marker. Each indented line is a `[-label->] destination` leg that continues from the previous stop — a leg is an edge (in-arrow label, `value:` thickness, `->`/`~>` or header `style: arc` shape). A tag/`label:` on a leg decorates its destination stop. Repeat the origin as a leg's destination to close a loop (no second marker):
 
 ```
-route style: arc
-  Miami label: Embark
-  Havana
-  Kingston
-  Miami                 # repeats origin → closed loop
+route Miami style: arc
+  -weigh anchor-> Havana value: 40
+  -> Kingston
+  -> Miami              # destination == origin → closed loop
 ```
 
 Native `->` edges handle any other connection (no `link`/`leg` keyword):
 
 ```
 A -> B                  # one-off
-A -ships-> B weight: 22 # labeled; weight = thickness
+A -ships-> B value: 22  # labeled; value = line thickness
 A -> B -> C             # inline chain
 dcw                     # hub/star — indented edges share the source
   -> office-east
@@ -2737,7 +2736,7 @@ dcw                     # hub/star — indented edges share the source
 ### Labels, legend & chrome
 
 - Title is the declaration line; `subtitle` / `caption` are directives.
-- Legend auto-composes below the title: the score ramp + `metric` and each tag group are **selectable colouring groups** (collapse/activate to flip the fill); the POI size key (`size-metric`) and edge-weight key sit in a separate lower-corner block. `no-legend` suppresses all of it.
+- Legend auto-composes below the title: the value ramp + `region-metric` and each tag group are **selectable colouring groups** (collapse/activate to flip the fill); POI size (`poi-metric`) and edge thickness (`flow-metric`) are self-evident from scale and carry no legend key in v1. `no-legend` suppresses all of it.
 - `region-labels full | abbrev | off` (default `off`); `poi-labels off | auto | all` (default `auto`). Labels render **on the map** (export-safe), escalating inline → leader line → numbered pin in dense clusters; markers never move.
 
 ### Name resolution
@@ -2747,14 +2746,14 @@ dcw                     # hub/star — indented edges share the source
 - A bare ambiguous, undeclared name → most-populous in scope (info note).
 - **Disambiguate once:** trailing ISO code at first declaration — `San Jose CR` (country) or `Portland US-OR` (subdivision). Thereafter reference the bare name. Two same-named cities → `as <alias>` each.
 - **Region fills disambiguate the country-vs-state collision** (`Georgia` = country `GE` or US state `US-GA`) by ISO code or name + scope — pick whichever reads best:
-  - **Bare ISO code** (terse): `US-GA score: 5` → the state, `GE score: 5` → the country. Codes resolve directly and never warn.
-  - **Name + scope** (readable): `Georgia US score: 5` → the state, `Georgia GE score: 5` → the country.
+  - **Bare ISO code** (terse): `US-GA value: 5` → the state, `GE value: 5` → the country. Codes resolve directly and never warn.
+  - **Name + scope** (readable): `Georgia US value: 5` → the state, `Georgia GE value: 5` → the country.
   - The redundant `Georgia US-GA` still works but isn't needed (a mismatched code like `Georgia US-CA` is rejected). A bare ambiguous `Georgia` follows the inferred US-scope signal and warns with both fixes named.
 - Positional coordinates are the escape hatch for anything missing/ambiguous.
 
 ### Directives & reserved keys
 
-Directives (no colon): `region` (world | us-states), `projection` (equirectangular | natural-earth | albers-usa | mercator), `metric`, `size-metric`, `scale`, `region-labels`, `poi-labels`, `default-country`, `default-state`, `active-tag`, `no-legend`, `subtitle`, `caption`. Reserved metadata keys (need colons): `score`, `label`, `size`, `description`, `weight`, `style`. Coordinates are positional (no `at:` key). Projection is auto-picked by extent span (world → equirectangular, full Greenwich frame; US → albers-usa with Alaska/Hawaii insets; tight regional → mercator) unless overridden.
+Directives (no colon): `region` (world | us-states), `projection` (equirectangular | natural-earth | albers-usa | mercator), `region-metric`, `poi-metric`, `flow-metric`, `scale`, `region-labels`, `poi-labels`, `default-country`, `default-state`, `active-tag`, `no-legend`, `subtitle`, `caption`. Reserved metadata keys (need colons): `value`, `label`, `style` (`value` = the one numeric channel: region shade / POI size / edge thickness). A bare US state postal code resolves to that state (`poi Portland OR` → Oregon; `CA` = California). Coordinates are positional (no `at:` key). Projection is auto-picked by extent span (world → equirectangular, full Greenwich frame; US → albers-usa with Alaska/Hawaii insets; tight regional → mercator) unless overridden.
 
 ---
 
