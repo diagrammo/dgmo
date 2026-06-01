@@ -389,6 +389,14 @@ export function layoutMap(
   const regionStroke = isDark
     ? mix(palette.bg, palette.text, 78) // dark theme: near-bg dark outline
     : mix(palette.text, palette.bg, 78); // light theme: near-text dark outline
+  // Lake shoreline. Lakes are painted as water OVER the land and the region
+  // borders, so without an edge they read as a featureless patch that simply
+  // erases whatever state/country border ran beneath them (worst in muted/data
+  // mode, where the water is a pale gray barely distinct from the land). A soft
+  // coastline — between the border colour and the water, not a hard black line —
+  // gives the lake a defined edge; that edge legitimately REPLACES the border
+  // running through it (real choropleths carve lakes out of the land, so the
+  // shoreline IS the boundary at the water). Defined here; `water` is below.
 
   // -- Region fill model (choropleth + categorical; AR4/AR6) --
   const values = resolved.regions
@@ -449,6 +457,7 @@ export function layoutMap(
         : activeGroup !== null;
   const neutralFill = mapNeutralLandColor(palette, isDark, mutedBasemap);
   const water = mapBackgroundColor(palette, isDark, mutedBasemap);
+  const lakeStroke = mix(regionStroke, water, 45); // soft coastline (see above)
   const foreignFill = mix(
     palette.colors.gray,
     palette.bg,
@@ -1065,17 +1074,19 @@ export function layoutMap(
         id: 'lake',
         d,
         fill: water,
-        stroke: 'none',
+        stroke: lakeStroke,
         lineNumber: -1,
         layer: 'base',
       });
     }
   }
 
-  // Rivers (Amazon, Nile, Mississippi, …) as thin water lines over the land,
-  // the SAME blue as the ocean/lakes so a river reads as continuous with the
-  // water it drains into. Open paths: stroked, no fill; under POIs/edges/labels.
-  const riverColor = water;
+  // Rivers (Amazon, Nile, Mississippi, …) as thin water lines over the land.
+  // Nudged slightly toward the border tone (off flat `water`) so the line reads
+  // as a deliberate water course rather than a gap where it crosses a border —
+  // in muted/data mode flat water is a pale gray that just looks like a broken
+  // boundary. Open paths: stroked, no fill; under POIs/edges/labels.
+  const riverColor = mix(water, regionStroke, 16);
   const rivers: MapLayoutRiver[] = [];
   if (data.rivers) {
     for (const [, f] of decodeLayer(data.rivers)) {
