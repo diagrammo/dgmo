@@ -826,7 +826,7 @@ export function layoutMap(
   // so it's correct for the US conic and for route maps alike).
   const isGlobalView = dLonSpan >= 270 || dLatSpan >= 130;
   // Pacific-crossing extents use extended longitudes (e.g. 247 = 113°W), but ring
-  // vertices are in [-180,180]. Normalise each ring lon into the view's frame so
+  // vertices are in [-180,180]. Normalize each ring lon into the view's frame so
   // the circumpolar / antimeridian-sliver guards compare like-for-like.
   const vLonCenter = (classifyExtent[0][0] + classifyExtent[1][0]) / 2;
   const normLon = (lon: number): number => {

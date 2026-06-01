@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.2] - 2026-05-31
+
+### Fixed
+
+- **Map rendering** — a batch of fixes that make regional and US-states
+  views render with correct geographic context instead of a tiny,
+  context-free landmass:
+  - Basemap is now culled by projected canvas overlap rather than a
+    lat/lon bounding box, so neighbouring land is included whenever it
+    actually falls inside the viewport.
+  - Projected geometry is clipped to the canvas, eliminating stray
+    off-canvas paths.
+  - Regional POI/route maps and `us-states` (albers-usa) views now draw
+    neighbouring land (e.g. South America, northern Canada) for context.
+  - Hub POI labels seat above/below when both flanks are blocked.
+
+### Docs
+
+- Corrected the active-tag default in the language reference and a stale
+  tsup dev-reload comment.
+
 ## [0.20.1] - 2026-05-30
 
 ### Fixed
