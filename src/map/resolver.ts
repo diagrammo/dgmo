@@ -255,17 +255,19 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       }
     } else if (inCountry && inState) {
       if (usScoped) {
+        // A US scope (e.g. `region us-states`) makes the state the unambiguous
+        // intent — resolve silently, no disambiguation warning needed.
         chosen = { ...inState, layer: 'us-state' };
       } else {
         chosen = { ...inCountry, layer: 'country' };
+        // Teach the disambiguation syntax so the author can pin it explicitly.
+        // Suggest the non-redundant forms: a bare ISO code, or name + scope.
+        warn(
+          r.lineNumber,
+          `"${r.name}" is both a country and a US state — resolved as ${chosen.layer} (${chosen.id}). Pin it with an ISO code (${inState.id} / ${inCountry.id}) or name + scope ("${r.name} US" / "${r.name} ${inCountry.id}").`,
+          'W_MAP_REGION_AMBIGUOUS'
+        );
       }
-      // Teach the disambiguation syntax so the author can pin it explicitly.
-      // Suggest the non-redundant forms: a bare ISO code, or name + scope.
-      warn(
-        r.lineNumber,
-        `"${r.name}" is both a country and a US state — resolved as ${chosen.layer} (${chosen.id}). Pin it with an ISO code (${inState.id} / ${inCountry.id}) or name + scope ("${r.name} US" / "${r.name} ${inCountry.id}").`,
-        'W_MAP_REGION_AMBIGUOUS'
-      );
     } else if (inState) {
       chosen = { ...inState, layer: 'us-state' };
     } else if (inCountry) {

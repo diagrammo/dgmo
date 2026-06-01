@@ -125,18 +125,27 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
       )
     ).toBe(true);
   });
-  it('country-vs-state collision: US-scoped → state, else country (AC20)', () => {
+  it('country-vs-state collision: US-scoped → state (silent), else country (AC20)', () => {
     const usScoped = resolve('map\nCalifornia value: 1\nGeorgia value: 2');
     expect(usScoped.regions.find((x) => x.name === 'Georgia')!.iso).toBe(
       'US-GA'
     );
+    // A US context (here, the California state reference) makes the state the
+    // obvious intent — resolve silently, no ambiguity warning.
     expect(
       usScoped.diagnostics.some((d) =>
         /both a country and a US state/.test(d.message)
       )
-    ).toBe(true);
+    ).toBe(false);
     const worldScoped = resolve('map\nGeorgia value: 2');
     expect(worldScoped.regions[0]!.iso).toBe('GE');
+  });
+  it('region us-states directive silences country-vs-state ambiguity', () => {
+    const r = resolve('map\nregion us-states\nGeorgia value: 2');
+    expect(r.regions[0]).toMatchObject({ iso: 'US-GA', layer: 'us-state' });
+    expect(
+      r.diagnostics.some((d) => /both a country and a US state/.test(d.message))
+    ).toBe(false);
   });
   it('region scope qualifier forces state and silences ambiguity (§24B.8)', () => {
     for (const src of [
@@ -160,7 +169,7 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     ).toBe(false);
   });
   it('ambiguity warning teaches the non-redundant scope syntax', () => {
-    const r = resolve('map\nCalifornia value: 1\nGeorgia value: 2');
+    const r = resolve('map\nGeorgia value: 2');
     const w = r.diagnostics.find((d) =>
       /both a country and a US state/.test(d.message)
     );
