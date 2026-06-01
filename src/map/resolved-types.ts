@@ -46,7 +46,7 @@ export interface ResolvedRegion {
   readonly iso: string;
   readonly name: string; // display name
   readonly layer: 'country' | 'us-state';
-  readonly score?: number;
+  readonly value?: number;
   readonly tags: Readonly<Record<string, string>>;
   readonly meta: Readonly<Record<string, string>>;
   readonly lineNumber: number;
@@ -79,9 +79,20 @@ export interface ResolvedEdge {
   readonly lineNumber: number;
 }
 
+export interface ResolvedRouteLeg {
+  readonly fromId: string;
+  readonly toId: string;
+  readonly label?: string;
+  readonly style: 'straight' | 'arc';
+  readonly value?: string; // leg thickness
+  readonly lineNumber: number;
+}
+
 export interface ResolvedRoute {
+  /** Ordered UNIQUE stop ids (for numbering + the origin marker). A loop-closing
+   *  leg whose destination is an earlier stop adds a leg but no duplicate stop. */
   readonly stopIds: readonly string[];
-  readonly meta: Readonly<Record<string, string>>;
+  readonly legs: readonly ResolvedRouteLeg[];
   readonly lineNumber: number;
 }
 

@@ -106,7 +106,7 @@ const lay = (src: string, w = 800, h = 600) =>
 
 describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => {
   it('us-states layer decoded + drawn (AC2)', () => {
-    const r = lay('map\nCalifornia score: 50');
+    const r = lay('map\nCalifornia value: 50');
     expect(r.regions.some((x) => x.layer === 'us-state')).toBe(true);
   });
   it('empty map → base regions only, no pois (AC23)', () => {
@@ -116,7 +116,7 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     expect(r.legend).toBeNull();
   });
   it('US-only → albers-usa, finite paths (AC19)', () => {
-    const r = lay('map\nCalifornia score: 1\nOregon score: 2');
+    const r = lay('map\nCalifornia value: 1\nOregon value: 2');
     const ca = r.regions.find((x) => x.id === 'US-CA')!;
     expect(ca.d.length).toBeGreaterThan(0);
     expect(ca.d).not.toMatch(/NaN/);
@@ -126,7 +126,7 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     // visually; the hand-built rect fixture can't reproduce real albers bounds,
     // so this only asserts the structural contract of whatever frames render.
     const r = lay(
-      'map\nregion us-states\nCalifornia score: 1\nAlaska score: 2\nHawaii score: 3',
+      'map\nregion us-states\nCalifornia value: 1\nAlaska value: 2\nHawaii value: 3',
       1200,
       800
     );
@@ -187,7 +187,7 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     ]);
     const data = { ...DATA, worldCoarse: seamWorld, worldDetail: seamWorld };
     const r = layoutMap(
-      resolveMap(parseMap('map\nUnited States score: 5\nJapan score: 3'), data),
+      resolveMap(parseMap('map\nUnited States value: 5\nJapan value: 3'), data),
       data,
       { width: 800, height: 600 },
       { palette: P, isDark: false }
@@ -198,7 +198,7 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     expect(r.regions.some((x) => x.id === 'US')).toBe(true);
   });
   it('country fill found on the resolver-chosen tier (AC27 / AR7 invariant)', () => {
-    const resolved = resolveMap(parseMap('map\nJapan score: 5'), DATA);
+    const resolved = resolveMap(parseMap('map\nJapan value: 5'), DATA);
     // AR7: country isos exist in BOTH tiers (coarse ⊆ detail), so the fill is
     // found whichever tier the resolver picks.
     const tier =
@@ -225,7 +225,9 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
 
 describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
   it('choropleth ramp: min at floor, max at full hue (AC3)', () => {
-    const r = lay('map\nmetric Sales\nCalifornia score: 0\nOregon score: 100');
+    const r = lay(
+      'map\nregion-metric Sales\nCalifornia value: 0\nOregon value: 100'
+    );
     expect(r.legend?.ramp).toMatchObject({ metric: 'Sales', min: 0, max: 100 });
     const ca = r.regions.find((x) => x.id === 'US-CA')!;
     const or = r.regions.find((x) => x.id === 'US-OR')!;
@@ -233,7 +235,7 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
     expect(ca.fill).toBe(mix(P.colors.red, P.bg, 15)); // floor: ramp base (bg), not land
   });
   it('scale override sets ramp anchors (AC3)', () => {
-    const r = lay('map\nscale 0 200\nCalifornia score: 100');
+    const r = lay('map\nscale 0 200\nCalifornia value: 100');
     expect(r.legend?.ramp).toMatchObject({ min: 0, max: 200 });
   });
   it('categorical fill + active-tag + legend group (AC4)', () => {
@@ -245,19 +247,21 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
     expect(r.legend?.tagGroups.some((g) => g.name === 'Market')).toBe(true);
     expect(r.legend?.activeGroup).toBe('Market');
   });
-  it('active colouring dimension decides fill — score vs tag (AC5, bivariate)', () => {
-    const src = 'map\ntag M as m\n  HQ blue\nCalifornia score: 50, m: HQ';
-    // Default: scores present → colour by score (sole score → ramp full hue).
+  it('active colouring dimension decides fill — value vs tag (AC5, bivariate)', () => {
+    const src = 'map\ntag M as m\n  HQ blue\nCalifornia value: 50, m: HQ';
+    // Default: values present → colour by the value ramp (sole value → full hue).
     expect(lay(src).regions.find((x) => x.id === 'US-CA')!.fill).toBe(
       P.colors.red
     );
-    // `active-tag M` flips to the tag dimension → NOT the score ramp.
+    // `active-tag M` flips to the tag dimension → NOT the value ramp.
     expect(
       lay(`${src}\nactive-tag M`).regions.find((x) => x.id === 'US-CA')!.fill
     ).not.toBe(P.colors.red);
-    // `active-tag score` flips back to the ramp.
+    // `active-tag Value` flips back to the ramp by its default group name (the
+    // old `active-tag score` token was dropped — selecting the ramp uses its
+    // legend name, "Value", or the region-metric label).
     expect(
-      lay(`${src}\nactive-tag score`).regions.find((x) => x.id === 'US-CA')!
+      lay(`${src}\nactive-tag Value`).regions.find((x) => x.id === 'US-CA')!
         .fill
     ).toBe(P.colors.red);
   });
@@ -315,7 +319,7 @@ describe('layout — POIs (AC6, AC7, AC8, AC18)', () => {
   });
   it('size scaling: larger value → larger radius, no size legend key (AC7)', () => {
     const r = lay(
-      'map\nsize-metric Pop\npoi 40 -74 as a size: 10\npoi 41 -73 as b size: 100'
+      'map\npoi-metric Pop\npoi 40 -74 as a value: 10\npoi 41 -73 as b value: 100'
     );
     const a = r.pois.find((p) => p.id === 'a')!;
     const b = r.pois.find((p) => p.id === 'b')!;
@@ -340,18 +344,23 @@ describe('layout — POIs (AC6, AC7, AC8, AC18)', () => {
 
 describe('layout — routes & edges (AC9, AC10, AC11, AC12, AC28)', () => {
   it('route: shared origin once, numbered, closing leg (AC9)', () => {
-    const r = lay('map\nroute\n  Tokyo\n  Osaka\n  Tokyo');
+    const r = lay('map\nroute Tokyo\n  -> Osaka\n  -> Tokyo');
     expect(r.pois.filter((p) => p.id === 'tokyo')).toHaveLength(1);
     expect(r.pois.find((p) => p.id === 'tokyo')!.isOrigin).toBe(true);
     expect(r.pois.find((p) => p.id === 'tokyo')!.routeNumber).toBe(1);
     expect(r.legs).toHaveLength(2); // tokyo→osaka, osaka→tokyo (closing)
   });
   it('arc route → curved leg path (AC10)', () => {
-    const r = lay('map\nroute style: arc\n  Tokyo\n  Osaka');
+    const r = lay('map\nroute Tokyo style: arc\n  -> Osaka');
     expect(r.legs[0]!.d).toMatch(/Q/);
   });
+  it('route leg carries an in-arrow label + value→thickness (AC11)', () => {
+    const r = lay('map\nroute Tokyo\n  -ferry-> Osaka value: 40');
+    expect(r.legs[0]!.label).toBe('ferry');
+    expect(r.legs[0]!.width).toBeGreaterThan(1.25); // value lifts it above W_MIN
+  });
   it('edge weight + arrow + label (AC11)', () => {
-    const r = lay('map\npoi Tokyo\npoi Osaka\nTokyo -ships-> Osaka weight: 22');
+    const r = lay('map\npoi Tokyo\npoi Osaka\nTokyo -ships-> Osaka value: 22');
     const leg = r.legs[0]!;
     expect(leg.arrow).toBe(true);
     expect(leg.label).toBe('ships');
@@ -374,12 +383,12 @@ describe('layout — routes & edges (AC9, AC10, AC11, AC12, AC28)', () => {
 describe('layout — labels & legend (AC13, AC14, AC15, AC16, AC17)', () => {
   it('region labels off by default, on with full (AC13)', () => {
     expect(
-      lay('map\nCalifornia score: 50').labels.some(
+      lay('map\nCalifornia value: 50').labels.some(
         (l) => l.text === 'California'
       )
     ).toBe(false);
     expect(
-      lay('map\nregion-labels full\nCalifornia score: 50').labels.some(
+      lay('map\nregion-labels full\nCalifornia value: 50').labels.some(
         (l) => l.text === 'California'
       )
     ).toBe(true);
@@ -420,7 +429,7 @@ describe('layout — labels & legend (AC13, AC14, AC15, AC16, AC17)', () => {
     expect(lay('map\npoi Tokyo').labels.every((l) => l.halo)).toBe(true);
   });
   it('no-legend suppresses the legend model (AC17)', () => {
-    expect(lay('map\nno-legend\nCalifornia score: 5').legend).toBeNull();
+    expect(lay('map\nno-legend\nCalifornia value: 5').legend).toBeNull();
   });
 });
 
@@ -439,7 +448,7 @@ describe('layout — purity & determinism (AC22)', () => {
         }
       )
     ).not.toThrow();
-    const src = 'map\npoi Tokyo\nCalifornia score: 5';
+    const src = 'map\npoi Tokyo\nCalifornia value: 5';
     expect(JSON.stringify(lay(src))).toBe(JSON.stringify(lay(src)));
   });
 });

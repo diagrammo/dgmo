@@ -93,13 +93,13 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
   });
 
   it('no-legend suppresses the legend group (AC17)', () => {
-    const svg = render('map\nno-legend\nCalifornia score: 5');
+    const svg = render('map\nno-legend\nCalifornia value: 5');
     expect(svg.querySelector('.dgmo-map-legend')).toBeNull();
   });
 
   it('region paths carry data-line-number and fire onClickItem (AC21)', () => {
     let clicked: number | null = null;
-    const svg = render('map\nCalifornia score: 5', (n) => (clicked = n));
+    const svg = render('map\nCalifornia value: 5', (n) => (clicked = n));
     const target = svg.querySelector<SVGPathElement>(
       '.dgmo-map-regions path[data-line-number]'
     );
@@ -146,7 +146,7 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(tag.querySelector('.dgmo-map-legend')).toBeTruthy();
     // The score ramp now lives in the top legend as a gradient group (not the
     // old bottom-right keys block).
-    const ramp = render('map\nmetric Sales\nCalifornia score: 50');
+    const ramp = render('map\nregion-metric Sales\nCalifornia value: 50');
     expect(ramp.querySelector('.dgmo-map-legend')).toBeTruthy();
     expect(
       ramp.querySelector('linearGradient[id^="dgmo-legend-ramp"]')

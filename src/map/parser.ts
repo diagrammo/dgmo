@@ -28,7 +28,7 @@ import type {
   MapRegion,
   MapPoi,
   MapRoute,
-  MapRouteStop,
+  MapRouteLeg,
   MapEdge,
   PoiPos,
   MapScale,
@@ -42,13 +42,16 @@ const SCOPE_RE = /^[A-Z]{2}(?:-[A-Z0-9]{1,3})?$/;
 // whitespace, so hyphens inside names (`office-east`) and `foo-bar` are safe.
 const ARROW_SPLIT = /\s+(-[^>]*?->|->|~[^>]*?~>|~>|--)\s+/;
 const HUB_RE = /^(->|~>)\s+(.+)$/;
+// A route leg line: an optional leading arrow (with in-arrow label) + a destination.
+const LEG_ARROW_RE = /^(-[^>]*?->|->|~[^>]*?~>|~>|--)\s+(.+)$/;
 const AT_RE = /(^|[\s,])at\s*:/i; // the removed `at:` coord form (§24B.9)
 
 const DIRECTIVE_SET: ReadonlySet<string> = new Set([
   'region',
   'projection',
-  'metric',
-  'size-metric',
+  'region-metric',
+  'poi-metric',
+  'flow-metric',
   'scale',
   'region-labels',
   'poi-labels',
@@ -177,9 +180,10 @@ export function parseMap(content: string): ParsedMap {
       addTagEntry(open.tag, trimmed, lineNumber);
       continue;
     }
-    // (1a) Indented child of an open route → a stop.
+    // (1a) Indented child of an open route → a leg (an edge from the prev stop).
     if (open.route && indent > open.route.indent) {
-      open.route.route.stops.push(parseStop(trimmed, lineNumber));
+      const leg = parseLeg(trimmed, lineNumber, open.route.route.style);
+      (open.route.route.legs as MapRouteLeg[]).push(leg);
       continue;
     }
     // (1b) Indented child of an open POI → hub edge or extra metadata.
@@ -306,13 +310,17 @@ export function parseMap(content: string): ParsedMap {
           );
         d.projection = value;
         break;
-      case 'metric':
-        dup(d.metric);
-        d.metric = value;
+      case 'region-metric':
+        dup(d.regionMetric);
+        d.regionMetric = value;
         break;
-      case 'size-metric':
-        dup(d.sizeMetric);
-        d.sizeMetric = value;
+      case 'poi-metric':
+        dup(d.poiMetric);
+        d.poiMetric = value;
+        break;
+      case 'flow-metric':
+        dup(d.flowMetric);
+        d.flowMetric = value;
         break;
       case 'scale':
         dup(d.scale);
@@ -449,18 +457,18 @@ export function parseMap(content: string): ParsedMap {
       line
     );
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
-    let scoreNum: number | undefined;
-    const score = meta['score'];
-    if (score !== undefined) {
-      delete (meta as Record<string, string>)['score']; // lifted out of inert meta
-      scoreNum = Number(score);
-      if (!Number.isFinite(scoreNum)) {
-        pushError(line, `score must be a number (got "${score}").`);
-        scoreNum = undefined;
+    let valueNum: number | undefined;
+    const value = meta['value'];
+    if (value !== undefined) {
+      delete (meta as Record<string, string>)['value']; // lifted out of meta
+      valueNum = Number(value);
+      if (!Number.isFinite(valueNum)) {
+        pushError(line, `value must be a number (got "${value}").`);
+        valueNum = undefined;
       }
     }
-    // A region may carry BOTH a `score:` and a tag value — they are two
-    // selectable colouring dimensions (the legend flips between the score ramp
+    // A region may carry BOTH a `value:` and a tag value — they are two
+    // selectable colouring dimensions (the legend flips between the value ramp
     // and the tag group), so this is no longer warned (bivariate is handled).
     // Peel a trailing ISO scope token (§24B.8) — same qualifier POIs accept,
     // so `Georgia US-GA` / `Georgia US` can force the country-vs-state pick.
@@ -479,7 +487,7 @@ export function parseMap(content: string): ParsedMap {
       lineNumber: line,
     };
     if (regionScope !== undefined) region.scope = regionScope;
-    if (scoreNum !== undefined) region.score = scoreNum;
+    if (valueNum !== undefined) region.value = valueNum;
     regions.push(region);
   }
 
@@ -500,7 +508,7 @@ export function parseMap(content: string): ParsedMap {
     const pos = parsePos(split.name, line);
     if (!pos) return; // error already pushed
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
-    const label = meta['label']; // label lifted out of meta; `score`/`size`/`date` stay inert (#2)
+    const label = meta['label']; // label lifted out of meta; `value` (→ marker size) stays in meta
     if (label !== undefined) delete (meta as Record<string, string>)['label'];
     const poi: Writable<MapPoi> = { pos, tags, meta, lineNumber: line };
     if (split.alias) poi.alias = split.alias;
@@ -510,25 +518,88 @@ export function parseMap(content: string): ParsedMap {
   }
 
   function handleRoute(rest: string, line: number, indent: number): void {
-    const meta = rest ? splitNameAndMeta(rest, registry(), aliasMap).meta : {};
-    const route: Writable<MapRoute> = { stops: [], meta, lineNumber: line };
+    const split = rest
+      ? splitNameAndMeta(
+          rest,
+          registry(),
+          aliasMap,
+          undefined,
+          diagnostics,
+          line
+        )
+      : { name: '', meta: {} as Record<string, string>, alias: undefined };
+    const pos = parsePos(split.name, line);
+    if (!pos || (pos.kind === 'name' && !pos.name)) {
+      pushError(
+        line,
+        'route requires an origin: `route <origin> [style: arc]`.'
+      );
+      return;
+    }
+    const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
+    const originLabel = meta['label'];
+    const originValue = meta['value'];
+    const style: 'straight' | 'arc' =
+      meta['style'] === 'arc' ? 'arc' : 'straight';
+    const route: Writable<MapRoute> = {
+      origin: pos,
+      ...(split.alias !== undefined && { originAlias: split.alias }),
+      ...(originLabel !== undefined && { originLabel }),
+      ...(originValue !== undefined && { originValue }),
+      originTags: tags,
+      style,
+      legs: [],
+      lineNumber: line,
+    };
     routes.push(route);
     open.route = { route, indent };
   }
 
-  function parseStop(trimmed: string, line: number): MapRouteStop {
-    const split = splitNameAndMeta(trimmed, registry(), aliasMap);
-    const ref = parsePos(split.name, line) ?? {
+  /** Parse one route body line into a leg: `[-label->] <destination> [keys]`.
+   *  The arrow (if any) gives the leg label + shape; `value:` is leg thickness;
+   *  a tag / `label:` decorate the destination stop. Bare `<dest>` = plain leg. */
+  function parseLeg(
+    trimmed: string,
+    line: number,
+    headerStyle: 'straight' | 'arc'
+  ): MapRouteLeg {
+    let arrowStyle: 'straight' | 'arc' = 'straight';
+    let label: string | undefined;
+    let rest = trimmed;
+    const m = trimmed.match(LEG_ARROW_RE);
+    if (m) {
+      const arr = classifyArrow(m[1]!, line);
+      arrowStyle = arr.style;
+      label = arr.label;
+      rest = m[2]!;
+    }
+    const split = splitNameAndMeta(
+      rest,
+      registry(),
+      aliasMap,
+      undefined,
+      diagnostics,
+      line
+    );
+    const pos = parsePos(split.name, line) ?? {
       kind: 'name',
       name: split.name,
     };
-    const stop: Writable<MapRouteStop> = {
-      ref,
-      meta: split.meta,
+    const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
+    const value = meta['value'];
+    const destLabel = meta['label'];
+    const style: 'straight' | 'arc' =
+      arrowStyle === 'arc' || headerStyle === 'arc' ? 'arc' : 'straight';
+    return {
+      ...(label !== undefined && { label }),
+      style,
+      ...(value !== undefined && { value }),
+      dest: pos,
+      ...(split.alias !== undefined && { destAlias: split.alias }),
+      ...(destLabel !== undefined && { destLabel }),
+      destTags: tags,
       lineNumber: line,
     };
-    if (split.alias) stop.alias = split.alias;
-    return stop;
   }
 
   function handleEdges(trimmed: string, line: number): void {

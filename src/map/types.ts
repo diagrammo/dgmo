@@ -21,8 +21,12 @@ export interface MapScale {
 export interface MapDirectives {
   region?: string;
   projection?: string;
-  metric?: string;
-  sizeMetric?: string;
+  /** Legend label for the region value ramp (`region-metric <label>`). */
+  regionMetric?: string;
+  /** Legend label for the POI value (marker size) channel (`poi-metric`). */
+  poiMetric?: string;
+  /** Legend label for the edge/leg value (thickness) channel (`flow-metric`). */
+  flowMetric?: string;
   scale?: MapScale;
   regionLabels?: string; // full | abbrev | off
   poiLabels?: string; // off | auto | all
@@ -48,16 +52,17 @@ export interface MapRegion {
    *  (`Georgia US` → US context) or 3166-2 subdivision (`Georgia US-GA`).
    *  Forces the country-vs-state interpretation and silences the ambiguity warning. */
   readonly scope?: string;
-  readonly score?: number;
+  /** Numeric value → choropleth shade (§24B.3). Lifted out of `meta`. */
+  readonly value?: number;
   /** Tag values keyed by lowercased tag GROUP name (alias is resolved away). */
   readonly tags: Readonly<Record<string, string>>;
-  /** Other reserved-but-inert keys (description/date/…) captured verbatim. */
+  /** Any remaining reserved keys captured verbatim (`label`/`style`/…). */
   readonly meta: Readonly<Record<string, string>>;
   readonly lineNumber: number;
 }
 
-/** A point of interest (§24B.5). `meta` holds reserved-but-inert keys
- *  (size/score/description/weight/date) verbatim; `label` is lifted out. */
+/** A point of interest (§24B.5). `meta` holds the numeric `value` (→ marker
+ *  size) and `style` verbatim; `label` is lifted out. */
 export interface MapPoi {
   readonly pos: PoiPos;
   readonly alias?: string;
@@ -67,18 +72,32 @@ export interface MapPoi {
   readonly lineNumber: number;
 }
 
-/** A route stop (§24B.6); raw order preserved incl. a repeated first==last (loop). */
-export interface MapRouteStop {
-  readonly ref: PoiPos;
-  readonly alias?: string;
-  readonly meta: Readonly<Record<string, string>>;
+/** One leg of a route (§24B.6): an edge from the previous stop to `dest`. Reuses
+ *  the edge arrow idiom — in-arrow text = leg label, `value:` = leg thickness,
+ *  `->`/`~>` (or the header `style: arc`) = shape. Stop-targeted keys on the leg
+ *  line (`tag`, `label:`) decorate the DESTINATION point. */
+export interface MapRouteLeg {
+  readonly label?: string; // in-arrow leg label
+  readonly style: 'straight' | 'arc';
+  readonly value?: string; // leg thickness (numeric string, like an edge)
+  readonly dest: PoiPos;
+  readonly destAlias?: string;
+  readonly destLabel?: string;
+  readonly destTags: Readonly<Record<string, string>>;
   readonly lineNumber: number;
 }
 
-/** An ordered, auto-numbered route (§24B.6). `meta.style==='arc'` curves legs. */
+/** An ordered, auto-numbered route (§24B.6): `route <origin> [style: arc]` + a
+ *  sequence of indented arrow legs, each continuing from the previous stop.
+ *  Repeat the origin as a leg's destination to close a loop. */
 export interface MapRoute {
-  readonly stops: readonly MapRouteStop[];
-  readonly meta: Readonly<Record<string, string>>;
+  readonly origin: PoiPos;
+  readonly originAlias?: string;
+  readonly originLabel?: string;
+  readonly originValue?: string; // header value → origin marker size
+  readonly originTags: Readonly<Record<string, string>>;
+  readonly style: 'straight' | 'arc'; // header default leg shape
+  readonly legs: readonly MapRouteLeg[];
   readonly lineNumber: number;
 }
 

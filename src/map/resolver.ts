@@ -14,6 +14,7 @@ import type {
   ResolvedPoi,
   ResolvedEdge,
   ResolvedRoute,
+  ResolvedRouteLeg,
   ProjectionFamily,
   GeoExtent,
 } from './resolved-types';
@@ -63,6 +64,75 @@ const REGION_ALIASES: Readonly<Record<string, string>> = {
   'north macedonia': 'macedonia',
   'czech republic': 'czechia',
 };
+
+// US state (+ DC) postal abbreviations. A bare trailing two-letter scope token
+// that is one of these resolves to the US STATE `US-XX` (not the colliding
+// ISO 3166-1 country code — e.g. `CA` = California, not Canada) and signals US
+// scope (§24B.8, 2026-06-01). Non-state two-letter tokens (`CR`, `FR`) stay
+// country codes. Trade-off: a foreign country whose code collides with a state
+// (DE/IN/AR/CO/LA/PA/…) can't be picked by bare code — use the city name alone
+// (most-populous) or coordinates.
+const US_STATE_POSTAL: ReadonlySet<string> = new Set([
+  'AL',
+  'AK',
+  'AZ',
+  'AR',
+  'CA',
+  'CO',
+  'CT',
+  'DE',
+  'FL',
+  'GA',
+  'HI',
+  'ID',
+  'IL',
+  'IN',
+  'IA',
+  'KS',
+  'KY',
+  'LA',
+  'ME',
+  'MD',
+  'MA',
+  'MI',
+  'MN',
+  'MS',
+  'MO',
+  'MT',
+  'NE',
+  'NV',
+  'NH',
+  'NJ',
+  'NM',
+  'NY',
+  'NC',
+  'ND',
+  'OH',
+  'OK',
+  'OR',
+  'PA',
+  'RI',
+  'SC',
+  'SD',
+  'TN',
+  'TX',
+  'UT',
+  'VT',
+  'VA',
+  'WA',
+  'WV',
+  'WI',
+  'WY',
+  'DC',
+]);
+
+/** A bare two-letter scope token that names a US state → its `US-XX` 3166-2 id
+ *  (`OR` → `US-OR`), else null. Case-insensitive. */
+function usStateFromBareScope(scope: string | undefined): string | null {
+  if (!scope) return null;
+  const up = scope.toUpperCase();
+  return US_STATE_POSTAL.has(up) ? `US-${up}` : null;
+}
 
 /** Rough US bounding box (incl. AK across the dateline, HI, PR) for classifying
  *  bare coordinate POIs as US-or-not when deciding `albers-usa` (#13). */
@@ -128,10 +198,16 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       return usStateIndex.has(f) && !countryIndex.has(f);
     }) ||
     parsed.regions.some(
-      (r) => r.scope === 'US' || r.scope?.startsWith('US-')
+      (r) =>
+        r.scope === 'US' ||
+        r.scope?.startsWith('US-') ||
+        usStateFromBareScope(r.scope) !== null
     ) ||
     parsed.pois.some(
-      (p) => p.pos.kind === 'name' && p.pos.scope?.startsWith('US-')
+      (p) =>
+        p.pos.kind === 'name' &&
+        (p.pos.scope?.startsWith('US-') ||
+          usStateFromBareScope(p.pos.scope) !== null)
     );
 
   // ── Regions (R2/R12) ──
@@ -212,7 +288,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       iso: chosen.id,
       name: chosen.name,
       layer: chosen.layer,
-      ...(r.score !== undefined && { score: r.score }),
+      ...(r.value !== undefined && { value: r.value }),
       tags: r.tags,
       meta: r.meta,
       lineNumber: r.lineNumber,
@@ -289,11 +365,14 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     let cands = idxs.map((i) => data.gazetteer.cities[i]!);
     const scopeUse = scope ?? scopeHint;
     if (scopeUse) {
-      // ISO 3166-2 subdivision scope is `XX-…` (two letters + dash); a bare
-      // 2-letter token is a country code (#9 — regex, not a brittle dash test).
-      const isSub = /^[A-Za-z]{2}-/.test(scopeUse);
+      // ISO 3166-2 subdivision scope is `XX-…` (two letters + dash). A bare
+      // two-letter token that names a US state resolves as the `US-XX`
+      // subdivision (`CA` = California, §24B.8) — NOT the colliding country
+      // code; any other bare two-letter token is a 3166-1 country code.
+      const bareState = usStateFromBareScope(scopeUse);
+      const subScope = /^[A-Za-z]{2}-/.test(scopeUse) ? scopeUse : bareState;
       const filtered = cands.filter((c) =>
-        isSub ? c[5] === scopeUse : c[2] === scopeUse
+        subScope ? c[5] === subScope : c[2] === scopeUse
       );
       if (filtered.length) cands = filtered;
       else if (scope) {
@@ -455,36 +534,102 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     });
   }
 
+  // Resolve a route stop to a POI id, registering it (with its inline tags/label/
+  // size value) or binding to an already-declared POI. Returns null if a named
+  // stop can't be geocoded. Unlike the old code, stop metadata is NO LONGER
+  // dropped — it rides onto the created POI (fixes the named-stop meta bug).
+  const resolveStop = (
+    pos: PoiPos,
+    alias: string | undefined,
+    label: string | undefined,
+    tags: Readonly<Record<string, string>>,
+    sizeValue: string | undefined,
+    line: number
+  ): string | null => {
+    const meta: Record<string, string> =
+      sizeValue !== undefined ? { value: sizeValue } : {};
+    if (pos.kind === 'coords') {
+      const id = alias ? fold(alias) : `@${pos.lat},${pos.lon}`;
+      if (!looksUS(pos.lat, pos.lon)) anyNonUsPoi = true;
+      if (!registry.has(id)) {
+        registerPoi(
+          id,
+          {
+            id,
+            ...(alias !== undefined && { name: alias }),
+            lat: pos.lat,
+            lon: pos.lon,
+            ...(label !== undefined && { label }),
+            tags,
+            meta,
+            lineNumber: line,
+          },
+          line
+        );
+      }
+      return id;
+    }
+    // Named stop: bind to an existing declared POI if present, else geocode + create.
+    const f = fold(pos.name);
+    if (registry.has(f)) return f;
+    const aliased = declaredByName.get(f);
+    if (aliased) return aliased;
+    const got = lookupName(pos.name, pos.scope, line, inferredCountry, true);
+    if (got.kind !== 'ok') return null;
+    noteCountry(got.iso);
+    registerPoi(
+      f,
+      {
+        id: f,
+        name: pos.name,
+        lat: got.lat,
+        lon: got.lon,
+        ...(label !== undefined && { label }),
+        tags,
+        meta,
+        lineNumber: line,
+      },
+      line
+    );
+    return f;
+  };
+
   const routes: ResolvedRoute[] = [];
   for (const rt of parsed.routes) {
-    const stopIds: string[] = [];
-    for (const stop of rt.stops) {
-      let id: string | null;
-      if (stop.ref.kind === 'coords') {
-        id = stop.alias ? fold(stop.alias) : `@${stop.ref.lat},${stop.ref.lon}`;
-        if (!looksUS(stop.ref.lat, stop.ref.lon)) anyNonUsPoi = true;
-        if (!registry.has(id)) {
-          const poi: Writable<ResolvedPoi> = {
-            id,
-            ...(stop.alias !== undefined && { name: stop.alias }),
-            lat: stop.ref.lat,
-            lon: stop.ref.lon,
-            tags: {},
-            meta: stop.meta,
-            lineNumber: stop.lineNumber,
-            implicit: true,
-          };
-          registerPoi(id, poi, stop.lineNumber);
-        }
-      } else {
-        id =
-          stop.alias && registry.has(fold(stop.alias))
-            ? fold(stop.alias)
-            : resolveEndpoint(stop.ref.name, stop.lineNumber);
-      }
-      if (id) stopIds.push(id);
+    const originId = resolveStop(
+      rt.origin,
+      rt.originAlias,
+      rt.originLabel,
+      rt.originTags,
+      rt.originValue,
+      rt.lineNumber
+    );
+    if (!originId) continue; // can't anchor the route → drop (error already pushed)
+    const stopIds: string[] = [originId];
+    const legs: ResolvedRouteLeg[] = [];
+    let prevId = originId;
+    for (const leg of rt.legs) {
+      const destId = resolveStop(
+        leg.dest,
+        leg.destAlias,
+        leg.destLabel,
+        leg.destTags,
+        undefined, // a leg's `value:` is leg thickness, not the dest's size
+        leg.lineNumber
+      );
+      if (!destId) continue; // ungeocodable destination → skip this leg
+      legs.push({
+        fromId: prevId,
+        toId: destId,
+        ...(leg.label !== undefined && { label: leg.label }),
+        style: leg.style,
+        ...(leg.value !== undefined && { value: leg.value }),
+        lineNumber: leg.lineNumber,
+      });
+      if (!stopIds.includes(destId)) stopIds.push(destId); // unique markers (loop-close dedupe)
+      prevId = destId;
     }
-    routes.push({ stopIds, meta: rt.meta, lineNumber: rt.lineNumber });
+    routes.push({ stopIds, legs, lineNumber: rt.lineNumber });
   }
 
   // ── Basemaps + scope ──

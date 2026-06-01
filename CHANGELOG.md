@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-06-01
+
+### Changed
+
+- **Map syntax — one `value:` keyword** (breaking) — the `map` chart type's three
+  numeric channels collapse into a single `value:`, rendered per element: region
+  shade, POI marker size, edge/route-leg thickness. Replaces `score:` (regions),
+  `size:` (POIs), and `weight:` (edges).
+- **Map routes — origin header + arrow legs** (breaking) — a route is now
+  `route <origin> [style: arc]` followed by indented `[-label->] destination`
+  legs, each an edge with its own in-arrow label, `value:` thickness, and arc
+  shape. Replaces the bare-stop list. Fixes two latent bugs: named-stop metadata
+  is no longer silently dropped, and a loop-closing leg no longer double-draws the
+  origin marker.
+- **Map legend labels** — `region-metric` / `poi-metric` / `flow-metric` replace
+  `metric` / `size-metric` (one `value:` keyword now drives three element
+  channels that often carry different quantities).
+- **Map scope** — a bare US state postal code resolves to that state
+  (`poi Portland OR` → Oregon; `CA` = California) and signals US scope.
+
+### Removed
+
+- **Map** — the `description:` and `date:` reserved keys (no v1 surface — they now
+  raise an unknown-key error instead of silently no-opping) and the
+  `active-tag score` token (the value ramp is the default; select it by its
+  legend name).
+
 ## [0.20.3] - 2026-05-31
 
 ### Fixed

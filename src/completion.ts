@@ -509,7 +509,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'map',
     // Geographic map directives (§24B.2/.7). `poi`/`route` are content
-    // keywords, not directives; metadata keys (score/size/label) live in the
+    // keywords, not directives; metadata keys (value/label/style) live in the
     // reserved-key registry.
     withGlobals({
       region: {
@@ -521,9 +521,14 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Override the auto projection',
         values: ['equirectangular', 'natural-earth', 'albers-usa', 'mercator'],
       },
-      metric: { description: 'Label for the region score ramp' },
-      'size-metric': { description: 'Label for the POI size channel' },
-      scale: { description: 'Override score ramp anchors: scale <min> <max>' },
+      'region-metric': { description: 'Label for the region value ramp' },
+      'poi-metric': {
+        description: 'Label for the POI value (marker size) channel',
+      },
+      'flow-metric': {
+        description: 'Label for the edge/leg value (thickness) channel',
+      },
+      scale: { description: 'Override value ramp anchors: scale <min> <max>' },
       'region-labels': {
         description: 'Subdivision name labels',
         values: ['full', 'abbrev', 'off'],

@@ -1,9 +1,8 @@
 map Caribbean Cruise
 projection mercator
 
-route style: arc
-  Miami label: Embark
-  Havana
-  Kingston
-  Santo Domingo
-  Miami
+route Miami style: arc
+  -weigh anchor-> Havana
+  -> Kingston
+  -> Santo Domingo
+  -> Miami

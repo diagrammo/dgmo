@@ -75,16 +75,16 @@ export const INFRA_REGISTRY: ReservedKeyRegistry = staticRegistry([
 // NOTE: `color` is deliberately OMITTED (unlike sibling registries) — per
 // §24B.9 the map chart type carries color as a trailing token (peeled by
 // `peelTrailingColorName`) / via the tag system, not a `color:` metadata key.
-// `date`/`weight`/`style` are reserved seams (§24B.12): included so they require
-// colons and don't bleed into a name region, but inert in v1.
+// `value` is the single numeric data channel (§24B): it renders as region shade,
+// POI marker size, or edge/leg thickness depending on the element. `style` is the
+// route/edge shape key. `description`/`date`/`score`/`size`/`weight` were removed
+// in the 2026-06-01 syntax review — `value` collapses the old three numeric keys,
+// and description/date had no v1 surface (they now raise an unknown-key error
+// rather than silently no-op).
 export const MAP_REGISTRY: ReservedKeyRegistry = staticRegistry([
-  'score',
+  'value',
   'label',
-  'size',
-  'description',
-  'weight',
   'style',
-  'date',
 ]);
 
 export const ORG_REGISTRY: ReservedKeyRegistry = staticRegistry([
