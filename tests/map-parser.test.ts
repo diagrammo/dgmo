@@ -37,6 +37,12 @@ describe('parseMap — directives (AC2, AC20)', () => {
     expect(r.directives.defaultCountry).toBe('US');
     expect(r.directives.noLegend).toBe(true);
   });
+  it('parses the bare `no-insets` flag', () => {
+    expect(parseMap('map\nno-insets').directives.noInsets).toBe(true);
+    expect(
+      parseMap('map\nCalifornia value: 5').directives.noInsets
+    ).toBeUndefined();
+  });
   it('warns on unknown enum value but records it', () => {
     const r = parseMap('map\nprojection mercatorr');
     expect(r.directives.projection).toBe('mercatorr');

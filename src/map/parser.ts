@@ -59,6 +59,7 @@ const DIRECTIVE_SET: ReadonlySet<string> = new Set([
   'default-state',
   'active-tag',
   'no-legend',
+  'no-insets',
   'subtitle',
   'caption',
 ]);
@@ -361,6 +362,9 @@ export function parseMap(content: string): ParsedMap {
         break;
       case 'no-legend':
         d.noLegend = true;
+        break;
+      case 'no-insets':
+        d.noInsets = true;
         break;
       case 'muted':
       case 'natural':

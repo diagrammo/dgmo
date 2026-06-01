@@ -143,6 +143,13 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
       expect(br[1]).toBeCloseTo(bl[1], 1); // bottom flat
     }
   });
+  it('`no-insets` suppresses the AK/HI inset boxes under albers-usa', () => {
+    const src =
+      'map\nregion us-states\nno-insets\nCalifornia value: 1\nAlaska value: 2\nHawaii value: 3';
+    const r = lay(src, 1200, 800);
+    expect(r.insets).toHaveLength(0);
+    expect(r.insetRegions).toHaveLength(0);
+  });
   it('us-states view draws ALL conus states even with a tight POI cluster (cull box = conus, not the cluster)', () => {
     // Regression: `region us-states` fits the projection to the whole contiguous
     // US, but the cull box was the POI extent — so a metro-sized cluster blanked

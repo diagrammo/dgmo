@@ -34,6 +34,10 @@ export interface MapDirectives {
   defaultState?: string;
   activeTag?: string;
   noLegend?: boolean;
+  /** Suppress the Alaska & Hawaii inset boxes drawn under the `albers-usa`
+   *  projection (bare flag `no-insets`). Only meaningful for the US states
+   *  basemap; silently ignored under any other projection. */
+  noInsets?: boolean;
   subtitle?: string;
   caption?: string;
   /** Basemap dress override (bare flags `muted` / `natural`). Forces the

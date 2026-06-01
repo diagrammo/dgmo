@@ -681,7 +681,11 @@ export function layoutMap(
     name: string;
     lineNumber: number;
   }[] = [];
-  if (resolved.projection === 'albers-usa' && usLayer) {
+  if (
+    resolved.projection === 'albers-usa' &&
+    usLayer &&
+    !resolved.directives.noInsets
+  ) {
     const PAD = 8;
     const GAP = 12; // px the top edge rides below the coast
     const yB = height - FIT_PAD; // lowest a box may reach (canvas bottom pad)
