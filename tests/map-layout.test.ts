@@ -87,8 +87,12 @@ const DATA: MapData = {
 };
 
 const P = getPalette('nord').light;
-// Land is a muted yellow (see layout.ts LAND_TINT_LIGHT); backdrop stays bg.
+// Plain reference dress (no colouring dimension active): green land.
 const neutral = mix(P.colors.green, P.bg, 58);
+// Muted land used once a colouring dimension is active — the basemap recedes to
+// neutral so data hues own the saturation. Light theme → page bg (see layout.ts
+// mapNeutralLandColor / MUTED_LAND_*).
+const mutedNeutral = P.bg;
 const lay = (src: string, w = 800, h = 600) =>
   layoutMap(
     resolveMap(parseMap(src), DATA),
@@ -262,7 +266,7 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
       'map\ntag M as m\n  HQ blue\nactive-tag M\nCalifornia m: Ghost'
     );
     const ca = r.regions.find((x) => x.id === 'US-CA')!;
-    expect(ca.fill).toBe(neutral);
+    expect(ca.fill).toBe(mutedNeutral);
   });
   it('auto-first-group colors with no active-tag; none suppresses (AC26)', () => {
     const auto = lay('map\ntag M as m\n  HQ blue\nUnited States m: HQ');
@@ -272,6 +276,33 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
       'map\ntag M as m\n  HQ blue\nactive-tag none\nUnited States m: HQ'
     );
     expect(none.regions.find((x) => x.id === 'US')!.fill).toBe(neutral);
+  });
+});
+
+describe('layout — basemap dress override (muted / natural flags)', () => {
+  const decoWater = mix(P.colors.blue, P.bg, 55);
+  const mutedWater = mix(P.colors.gray, P.bg, 14);
+  it('no data → natural dress (decorative water + green land)', () => {
+    const r = lay('map\nCalifornia');
+    expect(r.background).toBe(decoWater);
+    expect(r.regions.find((x) => x.id === 'US-CA')!.fill).toBe(neutral);
+  });
+  it('`muted` forces recede even with no data', () => {
+    const r = lay('map\nmuted\nCalifornia');
+    expect(r.background).toBe(mutedWater);
+    expect(r.regions.find((x) => x.id === 'US-CA')!.fill).toBe(mutedNeutral);
+  });
+  it('`natural` keeps decorative dress even with a tag dimension active', () => {
+    const r = lay(
+      'map\ntag M as m\n  HQ blue\nactive-tag M\nnatural\nCalifornia m: HQ'
+    );
+    expect(r.background).toBe(decoWater);
+    // unscored/untagged land stays green, not muted
+    expect(r.regions.find((x) => x.id === 'US-OR')!.fill).toBe(neutral);
+  });
+  it('tag dimension active with no flag → auto-muted basemap', () => {
+    const r = lay('map\ntag M as m\n  HQ blue\nactive-tag M\nCalifornia m: HQ');
+    expect(r.background).toBe(mutedWater);
   });
 });
 

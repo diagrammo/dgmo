@@ -217,6 +217,15 @@ export function parseMap(content: string): ParsedMap {
       handleTag(trimmed, lineNumber);
       continue;
     }
+    // Bare-flag directives (no value) — only when the line is exactly the flag,
+    // so a region named e.g. "Natural Bridge" still parses as a region.
+    if (
+      (firstWord === 'muted' || firstWord === 'natural') &&
+      trimmed === firstWord
+    ) {
+      handleDirective(firstWord, '', lineNumber);
+      continue;
+    }
     if (
       DIRECTIVE_SET.has(firstWord) &&
       !trimmed.slice(firstWord.length).trimStart().startsWith(':')
@@ -344,6 +353,15 @@ export function parseMap(content: string): ParsedMap {
         break;
       case 'no-legend':
         d.noLegend = true;
+        break;
+      case 'muted':
+      case 'natural':
+        if (d.basemapStyle !== undefined && d.basemapStyle !== key)
+          pushWarning(
+            line,
+            `Conflicting basemap dress — "${d.basemapStyle}" then "${key}"; last wins.`
+          );
+        d.basemapStyle = key;
         break;
       case 'subtitle':
         dup(d.subtitle);

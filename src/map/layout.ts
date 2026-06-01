@@ -73,6 +73,21 @@ const RIVER_WIDTH = 1.3; // px stroke width for river lines
 // a clear gray rather than sinking into the dark background.
 const FOREIGN_TINT_LIGHT = 30;
 const FOREIGN_TINT_DARK = 62;
+// MUTED basemap — used when a colouring dimension (score ramp or a tag group) is
+// active. The data hues may themselves be blue or green (e.g. `Core blue`,
+// `Growth teal`), which collide with the decorative blue-water / green-land
+// dress: a blue region vanishes into the ocean, a green one into the land. So
+// when regions carry the data signal the basemap RECEDES to neutral grays —
+// water and unscored/neighbour land become low-saturation gray, leaving the data
+// fills as the only saturated thing on the map (the cartographic norm for a
+// choropleth). Plain reference maps with no data keep the blue/green dress.
+// Light land is left at the page bg (cleanest white ground for the data hues);
+// dark land lifts off the near-black surface so dark-mixed tints stay legible.
+const MUTED_WATER_LIGHT = 14; // % gray of bg — pale sea
+const MUTED_WATER_DARK = 10;
+const MUTED_FOREIGN_LIGHT = 28; // neighbour land — grayer than the sea
+const MUTED_FOREIGN_DARK = 16;
+const MUTED_LAND_DARK = 24; // subject land on dark (light land = palette.bg)
 const COLO_R = 9; // spiderfy radius
 const GOLDEN_ANGLE = 2.399963229728653; // rad (137.5deg) -- even spiral, no random
 const FAN_STEP = 16; // px perpendicular offset between parallel edges
@@ -276,19 +291,37 @@ const US_NON_CONUS = new Set([
 
 /** The map's water / backdrop colour for a palette — the single source of truth
  *  shared by the renderer's `<rect>` fill and any host wrapper that needs to
- *  match it (so letterbox gaps around the SVG don't show a stray band). */
-export function mapBackgroundColor(palette: PaletteColors): string {
+ *  match it (so letterbox gaps around the SVG don't show a stray band). When
+ *  `dataActive` (a score ramp or tag group is colouring regions) the sea recedes
+ *  to a pale neutral so blue/green data hues don't blend into it. */
+export function mapBackgroundColor(
+  palette: PaletteColors,
+  isDark = false,
+  dataActive = false
+): string {
+  if (dataActive)
+    return mix(
+      palette.colors.gray,
+      palette.bg,
+      isDark ? MUTED_WATER_DARK : MUTED_WATER_LIGHT
+    );
   return mix(palette.colors.blue, palette.bg, WATER_TINT);
 }
 
-/** The map's neutral (unscored/untagged) LAND colour — the green base every
- *  region blends from. Exported so a host can DIM a region to plain land
- *  (rather than lowering opacity, which would let the blue water show through
- *  and make the shape read as ocean). Matches the layout's `neutralFill`. */
+/** The map's neutral (unscored/untagged) LAND colour — the base every region
+ *  blends from. Exported so a host can DIM a region to plain land (rather than
+ *  lowering opacity, which would let the water show through and make the shape
+ *  read as ocean). Matches the layout's `neutralFill`. Green reference dress by
+ *  default; neutral (page bg on light, lifted gray on dark) when `dataActive`. */
 export function mapNeutralLandColor(
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  dataActive = false
 ): string {
+  if (dataActive)
+    return isDark
+      ? mix(palette.colors.gray, palette.bg, MUTED_LAND_DARK)
+      : palette.bg;
   return mix(
     palette.colors.green,
     palette.bg,
@@ -344,21 +377,9 @@ export function layoutMap(
   }
   const usLayer = wantsUsStates ? decodeLayer(data.usStates) : null;
 
-  // Land is a muted green; the ocean/backdrop is blue. Scored/tagged regions
-  // paint over the land base, and the score ramp blends FROM the land colour so
-  // low scores stay land-toned rather than fading out. In a US view the world
-  // layer is just neighbour context (Mexico/Canada at the frame edge) — fill it
-  // gray so the green US reads as the subject; world maps (no us-states layer)
-  // keep green land for every country.
-  const landTint = isDark ? LAND_TINT_DARK : LAND_TINT_LIGHT;
-  const neutralFill = mix(palette.colors.green, palette.bg, landTint);
-  const water = mapBackgroundColor(palette);
   const usContext = usLayer !== null;
-  const foreignFill = mix(
-    palette.colors.gray,
-    palette.bg,
-    isDark ? FOREIGN_TINT_DARK : FOREIGN_TINT_LIGHT
-  );
+  // Basemap fills (`water` / `neutralFill` / `foreignFill`) depend on whether a
+  // colouring dimension is active — defined below, once `activeGroup` is known.
   // Region borders: a clearly dark outline in BOTH themes. palette.text flips
   // (dark on light, light on dark), so mix toward whichever of text/bg is the
   // dark one — never a light hairline over the land fills.
@@ -407,6 +428,34 @@ export function layoutMap(
       (resolved.tagGroups.length > 0 ? resolved.tagGroups[0]!.name : null);
   }
   const activeIsScore = SCORE_NAME !== null && activeGroup === SCORE_NAME;
+
+  // Basemap dress. When a colouring dimension is active the regions carry the
+  // signal, so the sea/land recede to neutral grays (the data hues — which may be
+  // blue or green — would otherwise blend into a blue ocean / green land). A
+  // plain reference map (no score, no tag → activeGroup null) keeps the blue
+  // water + green land. The bare `muted` / `natural` flags force either dress
+  // regardless (so two maps in a deck can match); absent → this auto rule. In a
+  // US view the surrounding world layer is always recessive gray so the US reads
+  // as the subject.
+  const mutedBasemap =
+    resolved.directives.basemapStyle === 'muted'
+      ? true
+      : resolved.directives.basemapStyle === 'natural'
+        ? false
+        : activeGroup !== null;
+  const neutralFill = mapNeutralLandColor(palette, isDark, mutedBasemap);
+  const water = mapBackgroundColor(palette, isDark, mutedBasemap);
+  const foreignFill = mix(
+    palette.colors.gray,
+    palette.bg,
+    mutedBasemap
+      ? isDark
+        ? MUTED_FOREIGN_DARK
+        : MUTED_FOREIGN_LIGHT
+      : isDark
+        ? FOREIGN_TINT_DARK
+        : FOREIGN_TINT_LIGHT
+  );
 
   // Score ramp base: a NEUTRAL tint of the page, NOT the (green) land colour —
   // blending red toward green produced muddy brown mid-tones that blurred into

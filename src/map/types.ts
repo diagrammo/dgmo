@@ -32,6 +32,12 @@ export interface MapDirectives {
   noLegend?: boolean;
   subtitle?: string;
   caption?: string;
+  /** Basemap dress override (bare flags `muted` / `natural`). Forces the
+   *  land/water styling regardless of whether a colouring dimension is active —
+   *  `muted` recedes to neutral grays, `natural` keeps the green/blue reference
+   *  dress. Absent → auto (muted iff a score/tag dimension is active). Lets two
+   *  maps in one deck share a look. */
+  basemapStyle?: 'muted' | 'natural';
 }
 
 /** A region-fill: a subdivision name with an optional score and/or tag values

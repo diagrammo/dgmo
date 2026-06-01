@@ -160,6 +160,8 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'default-country',
   'default-state',
   'no-legend',
+  'muted',
+  'natural',
   'subtitle',
   'caption',
   'poi',

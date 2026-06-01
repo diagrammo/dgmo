@@ -60,6 +60,17 @@ describe('parseMap — directives (AC2, AC20)', () => {
     expect(r.directives.regionLabels).toBe('abbrev');
     expect(r.directives.poiLabels).toBe('all');
   });
+  it('parses bare `muted` / `natural` basemap flags', () => {
+    expect(parseMap('map\nmuted').directives.basemapStyle).toBe('muted');
+    expect(parseMap('map\nnatural').directives.basemapStyle).toBe('natural');
+    expect(parseMap('map\nCalifornia').directives.basemapStyle).toBeUndefined();
+  });
+  it('a region whose name starts with the flag word is NOT a flag', () => {
+    const r = parseMap('map\nNatural Bridge score: 5');
+    expect(r.directives.basemapStyle).toBeUndefined();
+    expect(r.regions).toHaveLength(1);
+    expect(r.regions[0]!.name).toBe('Natural Bridge');
+  });
 });
 
 describe('parseMap — tag groups (AC3)', () => {
