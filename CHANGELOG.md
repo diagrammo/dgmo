@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.3] - 2026-05-31
+
+### Fixed
+
+- **Map — Antarctica** — Antarctica is no longer drawn on the world basemap.
+  The natural-earth world frame is clamped to ~-58°N and global views take a
+  canvas-filling stretch path with no clip, so Antarctica's -90° geometry
+  spilled out the bottom of the canvas as a distorted strip. It's now omitted
+  by convention (matching standard data world maps) unless explicitly
+  referenced as a region.
+
 ## [0.20.2] - 2026-05-31
 
 ### Fixed
