@@ -723,53 +723,20 @@ export function layoutMap(
       }
       return y;
     };
-    // Top edge for a box over [x0, xr]: a straight line PARALLEL to the local
-    // coast (least-squares over the land samples), pushed down so it clears every
-    // land sample by GAP. Parallel → uniform, maximal clearance for how close it
-    // sits, tilting the way the coast tilts. Open-ocean samples are skipped, so a
-    // box reaching past the coast isn't dragged down by water. Falls back to a
-    // flat line just under the lowest land if the fit is underdetermined.
-    const coastTop = (x0: number, xr: number): ((x: number) => number) => {
+    // Lowest the coast reaches across [x0, xr], or -Infinity over open ocean.
+    const coastFloor = (x0: number, xr: number): number => {
       const n = 24;
-      const pts: Array<[number, number]> = [];
       let maxY = -Infinity;
       for (let i = 0; i <= n; i++) {
-        const x = x0 + ((xr - x0) * i) / n;
-        const y = at(x);
-        if (y > -Infinity) {
-          pts.push([x, y]);
-          if (y > maxY) maxY = y;
-        }
+        const y = at(x0 + ((xr - x0) * i) / n);
+        if (y > maxY) maxY = y;
       }
-      if (pts.length === 0) return () => yB - height * 0.42; // all ocean
-      let m = 0;
-      if (pts.length >= 2) {
-        let sx = 0,
-          sy = 0,
-          sxx = 0,
-          sxy = 0;
-        for (const [x, y] of pts) {
-          sx += x;
-          sy += y;
-          sxx += x * x;
-          sxy += x * y;
-        }
-        const den = pts.length * sxx - sx * sx;
-        if (den !== 0) m = (pts.length * sxy - sx * sy) / den;
-      }
-      // Cap the tilt so a steep coast (e.g. California's) doesn't turn the box
-      // into a tall triangle — keep it a compact, gently-angled quad.
-      m = Math.max(-0.35, Math.min(0.35, m));
-      let c = -Infinity; // raise the line until it clears every land sample + GAP
-      for (const [x, y] of pts) {
-        const need = y - m * x + GAP;
-        if (need > c) c = need;
-      }
-      return (x: number) => m * x + c;
+      return maxY;
     };
     // A snug floating box that just contains the state, tucked up under the coast
-    // with a coast-parallel slanted top. `iwReq` is the requested inner width.
-    // Returns the box's right edge so the next inset can sit beside it.
+    // with a flat top sitting GAP below the lowest the coast reaches over its
+    // span. `iwReq` is the requested inner width. Returns the box's right edge so
+    // the next inset can sit beside it.
     const placeInset = (
       iso: string,
       proj: GeoProjection,
@@ -783,23 +750,19 @@ export function layoutMap(
       const iw = Math.min(iwReq, width - FIT_PAD - x0 - 2 * PAD);
       if (iw < 24) return boxX; // canvas truly too narrow for another inset
       const xr = x0 + iw + 2 * PAD;
-      const top = coastTop(x0, xr);
-      const yL = top(x0);
-      const yR = top(xr);
+      const floor = coastFloor(x0, xr);
+      const topGuess = floor > -Infinity ? floor + GAP : yB - height * 0.42;
       // Learn the state's height at this width, then size the box to just hold it.
       proj.fitWidth(iw, f as never);
       const bb = geoPath(proj).bounds(f as never);
       const sh = Number.isFinite(bb[0][0]) ? bb[1][1] - bb[0][1] : iw;
-      // State sits below the lower top corner. If the coast runs so low the state
-      // wouldn't fit above yB, raise the top (the corner stays over ocean) — the
-      // box must never collapse and vanish.
+      // Flat top sits just under the coast. If the coast runs so low the state
+      // wouldn't fit above yB, raise the top (it stays over ocean) — the box must
+      // never collapse and vanish.
       const needH = sh + 2 * PAD;
-      let topFit = Math.max(yL, yR);
+      let topFit = topGuess;
       const bottom = Math.min(topFit + needH, yB);
       if (bottom - topFit < needH) topFit = bottom - needH;
-      const lift = topFit - Math.max(yL, yR); // keep the slanted top straight
-      const topL = yL + lift;
-      const topR = yR + lift;
       proj.fitExtent(
         [
           [x0 + PAD, topFit + PAD],
@@ -818,12 +781,12 @@ export function layoutMap(
       }
       insets.push({
         x: x0,
-        y: Math.min(topL, topR),
+        y: topFit,
         w: xr - x0,
-        h: bottom - Math.min(topL, topR),
+        h: bottom - topFit,
         points: [
-          [x0, topL],
-          [xr, topR],
+          [x0, topFit],
+          [xr, topFit],
           [xr, bottom],
           [x0, bottom],
         ],

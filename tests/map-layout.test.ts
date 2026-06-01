@@ -121,7 +121,7 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     expect(ca.d.length).toBeGreaterThan(0);
     expect(ca.d).not.toMatch(/NaN/);
   });
-  it('us-states insets are paired 4-sided quad frames (AK/HI)', () => {
+  it('us-states insets are flat-top rectangles (AK/HI)', () => {
     // NOTE: faithful placement is geometry/projection-dependent and verified
     // visually; the hand-built rect fixture can't reproduce real albers bounds,
     // so this only asserts the structural contract of whatever frames render.
@@ -135,11 +135,12 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     for (const reg of r.insetRegions)
       expect(['US-AK', 'US-HI']).toContain(reg.id);
     for (const box of r.insets) {
-      // Each frame is a 4-corner quad with vertical sides and a flat bottom.
+      // Each frame is a 4-corner axis-aligned rectangle.
       expect(box.points).toHaveLength(4);
       const [tl, tr, br, bl] = box.points;
       expect(tl[0]).toBeCloseTo(bl[0], 1); // left side vertical
       expect(tr[0]).toBeCloseTo(br[0], 1); // right side vertical
+      expect(tl[1]).toBeCloseTo(tr[1], 1); // top flat
       expect(br[1]).toBeCloseTo(bl[1], 1); // bottom flat
     }
   });
