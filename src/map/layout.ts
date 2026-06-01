@@ -101,9 +101,9 @@ export interface MapLayoutRegion {
   readonly label?: string;
   readonly lineNumber: number;
   readonly layer: 'base' | 'country' | 'us-state';
-  /** The region's score (if any) — emitted as `data-score` so the app can
+  /** The region's value (if any) — emitted as `data-value` so the app can
    *  highlight by gradient-scrub proximity. */
-  readonly score?: number;
+  readonly value?: number;
   /** The region's tag values keyed by group (lowercased) — emitted as
    *  `data-tag-<group>` so the app can highlight on legend-entry hover. */
   readonly tags?: Readonly<Record<string, string>>;
@@ -134,6 +134,9 @@ export interface MapLayoutPoi {
   readonly implicit: boolean;
   readonly isOrigin: boolean; // route origin -> distinct marker
   readonly routeNumber?: number; // route stop badge
+  /** Tag values keyed by lowercased group name — emitted as `data-tag-<group>`
+   *  so the app can spotlight markers on legend-entry hover (mirrors regions). */
+  readonly tags?: Readonly<Record<string, string>>;
 }
 
 /** A drawn connector -- an edge or a route leg (same geometry contract). */
@@ -388,29 +391,30 @@ export function layoutMap(
     : mix(palette.text, palette.bg, 78); // light theme: near-text dark outline
 
   // -- Region fill model (choropleth + categorical; AR4/AR6) --
-  const scores = resolved.regions
-    .filter((r) => r.score !== undefined)
-    .map((r) => r.score!);
+  const values = resolved.regions
+    .filter((r) => r.value !== undefined)
+    .map((r) => r.value!);
   const scaleOverride = resolved.directives.scale;
-  const rampMin = scaleOverride ? scaleOverride.min : Math.min(...scores);
-  const rampMax = scaleOverride ? scaleOverride.max : Math.max(...scores);
-  // Score ramp is red so scored regions stand out against the blue water
+  const rampMin = scaleOverride ? scaleOverride.min : Math.min(...values);
+  const rampMax = scaleOverride ? scaleOverride.max : Math.max(...values);
+  // Value ramp is red so valued regions stand out against the blue water
   // (palette.primary is a blue in most palettes and would blend in).
   const rampHue = palette.colors.red;
-  const hasRamp = scores.length > 0;
+  const hasRamp = values.length > 0;
 
-  // Colouring dimension (AR4, bivariate): the score ramp and each tag group are
-  // mutually-exclusive selectable groups. `SCORE_NAME` is the ramp's group name
-  // (the metric label, or "Score"); the reserved token `score` also selects it.
-  // Exactly one dimension is active and drives every region's fill.
-  const SCORE_NAME = hasRamp
-    ? resolved.directives.metric?.trim() || 'Score'
+  // Colouring dimension (AR4, bivariate): the value ramp and each tag group are
+  // mutually-exclusive selectable groups. `VALUE_NAME` is the ramp's group name
+  // (the region-metric label, or "Value"). Exactly one dimension is active and
+  // drives every region's fill. The value ramp is the default-active dimension
+  // whenever any region has a value (the old `active-tag score` token is gone —
+  // there is nothing to force; selecting a tag group is what `active-tag` does).
+  const VALUE_NAME = hasRamp
+    ? resolved.directives.regionMetric?.trim() || 'Value'
     : null;
   const matchColorGroup = (v: string): string | null => {
     const lv = v.trim().toLowerCase();
     if (lv === 'none') return null;
-    if (SCORE_NAME && (lv === 'score' || lv === SCORE_NAME.toLowerCase()))
-      return SCORE_NAME;
+    if (lv === VALUE_NAME?.toLowerCase()) return VALUE_NAME;
     const tg = resolved.tagGroups.find((g) => g.name.toLowerCase() === lv);
     return tg ? tg.name : v; // unknown name passes through → renders neutral
   };
@@ -421,13 +425,13 @@ export function layoutMap(
   } else if (resolved.directives.activeTag !== undefined) {
     activeGroup = matchColorGroup(resolved.directives.activeTag);
   } else {
-    // Default: colour by score when scores exist (preserves the historical
-    // "score wins" default), else the first declared tag group.
+    // Default: colour by the value ramp when values exist, else the first
+    // declared tag group.
     activeGroup =
-      SCORE_NAME ??
+      VALUE_NAME ??
       (resolved.tagGroups.length > 0 ? resolved.tagGroups[0]!.name : null);
   }
-  const activeIsScore = SCORE_NAME !== null && activeGroup === SCORE_NAME;
+  const activeIsScore = VALUE_NAME !== null && activeGroup === VALUE_NAME;
 
   // Basemap dress. When a colouring dimension is active the regions carry the
   // signal, so the sea/land recede to neutral grays (the data hues — which may be
@@ -464,7 +468,7 @@ export function layoutMap(
   // off the near-black surface so the lowest scores read as a clear muted red
   // rather than sinking to maroon-black.
   const rampBase = isDark ? mix(palette.surface, palette.text, 28) : palette.bg;
-  const fillForScore = (s: number): string => {
+  const fillForValue = (s: number): string => {
     const t = rampMax > rampMin ? (s - rampMin) / (rampMax - rampMin) : 1;
     const pct = RAMP_FLOOR + Math.max(0, Math.min(1, t)) * (100 - RAMP_FLOOR);
     return mix(rampHue, rampBase, pct);
@@ -500,14 +504,14 @@ export function layoutMap(
   };
 
   /** A region's fill under the ACTIVE colouring dimension (AR4, bivariate):
-   *  score-active → ramp for scored regions, neutral otherwise; a tag group
-   *  active → that group's tag colour, neutral otherwise (score ignored). */
+   *  value-active → ramp for valued regions, neutral otherwise; a tag group
+   *  active → that group's tag colour, neutral otherwise (value ignored). */
   const regionFill = (r: {
-    score?: number;
+    value?: number;
     tags: Readonly<Record<string, string>>;
   }): string => {
     if (activeIsScore) {
-      return r.score !== undefined ? fillForScore(r.score) : neutralFill;
+      return r.value !== undefined ? fillForValue(r.value) : neutralFill;
     }
     return tagFill(r.tags, activeGroup) ?? neutralFill;
   };
@@ -827,7 +831,7 @@ export function layoutMap(
         stroke: regionStroke,
         lineNumber,
         layer: 'us-state',
-        ...(r?.score !== undefined && { score: r.score }),
+        ...(r?.value !== undefined && { value: r.value }),
         ...(r && Object.keys(r.tags).length > 0 && { tags: r.tags }),
       });
       const ctr = geoPath(proj).centroid(f as never);
@@ -1061,7 +1065,7 @@ export function layoutMap(
         lineNumber,
         layer,
         ...(label !== undefined && { label }),
-        ...(isThisLayer && r.score !== undefined && { score: r.score }),
+        ...(isThisLayer && r.value !== undefined && { value: r.value }),
         ...(isThisLayer && Object.keys(r.tags).length > 0 && { tags: r.tags }),
       });
     }
@@ -1116,14 +1120,14 @@ export function layoutMap(
     }
   }
 
-  // -- POIs: project, size-scale, co-located spiderfy --
+  // -- POIs: project, value→size-scale, co-located spiderfy --
   const sizeVals = resolved.pois
-    .map((p) => Number(p.meta['size']))
+    .map((p) => Number(p.meta['value']))
     .filter((n) => Number.isFinite(n) && n > 0);
   const sizeMin = sizeVals.length ? Math.min(...sizeVals) : 0;
   const sizeMax = sizeVals.length ? Math.max(...sizeVals) : 0;
   const radiusFor = (p: ResolvedPoi): number => {
-    const v = Number(p.meta['size']);
+    const v = Number(p.meta['value']);
     if (!Number.isFinite(v) || v <= 0 || sizeMax <= 0) return R_DEFAULT;
     // sqrt so AREA encodes the value
     const t =
@@ -1209,6 +1213,7 @@ export function layoutMap(
         implicit: !!e.p.implicit,
         isOrigin: originIds.has(e.p.id),
         ...(num !== undefined && { routeNumber: num }),
+        ...(Object.keys(e.p.tags).length > 0 && { tags: e.p.tags }),
       });
     });
   }
@@ -1257,31 +1262,50 @@ export function layoutMap(
     return `M${ax},${ay}Q${px},${py} ${bx},${by}`;
   };
 
-  // Routes: legs between consecutive stops (loop closing leg included).
+  // Routes: each leg is an edge (fromId → toId) carrying its own label,
+  // value→thickness, and arc shape. Loop-closing legs are explicit in `rt.legs`;
+  // the origin is never double-marked because `stopIds` is unique.
+  const routeLegVals = resolved.routes
+    .flatMap((rt) => rt.legs)
+    .map((l) => Number(l.value))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const rlMin = routeLegVals.length ? Math.min(...routeLegVals) : 0;
+  const rlMax = routeLegVals.length ? Math.max(...routeLegVals) : 0;
+  const routeWidthFor = (v: number): number => {
+    if (!Number.isFinite(v) || v <= 0 || rlMax <= 0) return W_MIN;
+    const t = rlMax > rlMin ? (v - rlMin) / (rlMax - rlMin) : 1;
+    return W_MIN + t * (W_MAX - W_MIN);
+  };
   for (const rt of resolved.routes) {
-    const curved = rt.meta['style'] === 'arc';
-    for (let i = 1; i < rt.stopIds.length; i++) {
-      const a = poiScreen.get(rt.stopIds[i - 1]!);
-      const b = poiScreen.get(rt.stopIds[i]!);
+    for (const leg of rt.legs) {
+      const a = poiScreen.get(leg.fromId);
+      const b = poiScreen.get(leg.toId);
       if (!a || !b) continue;
+      const mx = (a.cx + b.cx) / 2;
+      const my = (a.cy + b.cy) / 2;
       legs.push({
-        d: legPath(a, b, curved, 0),
-        width: W_MIN,
+        d: legPath(a, b, leg.style === 'arc', 0),
+        width: routeWidthFor(Number(leg.value)),
         color: mix(palette.text, palette.bg, 72),
         arrow: true,
-        lineNumber: rt.lineNumber,
+        lineNumber: leg.lineNumber,
+        ...(leg.label !== undefined && {
+          label: leg.label,
+          labelX: mx,
+          labelY: my - 4,
+        }),
       });
     }
   }
 
   // Edges: group by unordered endpoint pair for deterministic fan-out (AR9).
   const weightVals = resolved.edges
-    .map((e) => Number(e.meta['weight']))
+    .map((e) => Number(e.meta['value']))
     .filter((n) => Number.isFinite(n) && n > 0);
   const wMin = weightVals.length ? Math.min(...weightVals) : 0;
   const wMax = weightVals.length ? Math.max(...weightVals) : 0;
   const widthFor = (e: ResolvedEdge): number => {
-    const v = Number(e.meta['weight']);
+    const v = Number(e.meta['value']);
     if (!Number.isFinite(v) || v <= 0 || wMax <= 0) return W_MIN;
     const t = wMax > wMin ? (v - wMin) / (wMax - wMin) : 1;
     return W_MIN + t * (W_MAX - W_MIN);
@@ -1615,17 +1639,18 @@ export function layoutMap(
       name: g.name,
       entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
     }));
-    // Only the colouring dimensions (score ramp + tag groups) get a legend.
-    // POI size and edge weight are self-evident from the marker/line scale and
-    // intentionally carry no key.
+    // Only the colouring dimensions (value ramp + tag groups) get a legend.
+    // POI size and edge thickness are self-evident from the marker/line scale and
+    // intentionally carry no key (the poi-metric/flow-metric labels are captured
+    // for future use but not rendered as legend keys in v1).
     if (tagGroups.length > 0 || hasRamp) {
       legend = {
         tagGroups,
         activeGroup,
         ...(hasRamp && {
           ramp: {
-            ...(resolved.directives.metric !== undefined && {
-              metric: resolved.directives.metric,
+            ...(resolved.directives.regionMetric !== undefined && {
+              metric: resolved.directives.regionMetric,
             }),
             min: rampMin,
             max: rampMax,

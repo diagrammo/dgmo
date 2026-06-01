@@ -101,11 +101,11 @@ export function renderMap(
       .attr('stroke', r.stroke)
       .attr('stroke-width', strokeWidth);
     // Data layer? Tag it so the app can highlight on legend hover / gradient
-    // scrub. `data-score` for ramp-proximity, `data-tag-<group>` per tag value
+    // scrub. `data-value` for ramp-proximity, `data-tag-<group>` per tag value
     // (both lowercased to match the lowercased legend-entry attributes).
     if (r.layer !== 'base') {
       p.classed('dgmo-map-region', true).attr('data-region', r.id);
-      if (r.score !== undefined) p.attr('data-score', r.score);
+      if (r.value !== undefined) p.attr('data-value', r.value);
       if (r.tags) {
         for (const [group, value] of Object.entries(r.tags)) {
           p.attr(`data-tag-${group.toLowerCase()}`, value.toLowerCase());
@@ -230,6 +230,13 @@ export function renderMap(
       .attr('stroke-width', 1)
       .attr('data-line-number', poi.lineNumber)
       .attr('data-poi', poi.id);
+    // Tag the marker per tag value (lowercased, matching the lowercased
+    // legend-entry attributes) so the app can spotlight it on legend hover.
+    if (poi.tags) {
+      for (const [group, value] of Object.entries(poi.tags)) {
+        c.attr(`data-tag-${group.toLowerCase()}`, value.toLowerCase());
+      }
+    }
     if (onClickItem) {
       c.style('cursor', 'pointer').on('click', () =>
         onClickItem(poi.lineNumber)
@@ -296,14 +303,14 @@ export function renderMap(
       .append('g')
       .attr('class', 'dgmo-map-legend')
       .attr('transform', `translate(0, ${legendY})`);
-    // The score ramp is a selectable colouring group alongside the tag groups
+    // The value ramp is a selectable colouring group alongside the tag groups
     // (the user flips between them); its capsule renders the gradient inline.
-    // Reserved name "Score" when no metric label is set — must match SCORE_NAME
-    // in layout.ts so the resolved activeGroup selects it.
+    // Reserved name "Value" when no region-metric label is set — must match
+    // VALUE_NAME in layout.ts so the resolved activeGroup selects it.
     const ramp = layout.legend.ramp;
     const scoreGroup = ramp
       ? {
-          name: ramp.metric?.trim() || 'Score',
+          name: ramp.metric?.trim() || 'Value',
           entries: [],
           gradient: {
             min: ramp.min,

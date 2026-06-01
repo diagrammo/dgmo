@@ -1,9 +1,9 @@
 map Data Center Footprint
-size-metric Requests/s
+poi-metric Requests/s
 
-poi Denver as hub size: 90
-poi Dallas size: 320
-poi Seattle size: 180
+poi Denver as hub value: 90
+poi Dallas value: 320
+poi Seattle value: 180
 
 hub -> Dallas
 hub -> Seattle

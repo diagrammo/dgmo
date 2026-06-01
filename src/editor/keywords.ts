@@ -153,8 +153,9 @@ export const DIRECTIVE_KEYWORDS = new Set([
   // Map (§24B) directives
   'region',
   'projection',
-  'metric',
-  'size-metric',
+  'region-metric',
+  'poi-metric',
+  'flow-metric',
   'region-labels',
   'poi-labels',
   'default-country',

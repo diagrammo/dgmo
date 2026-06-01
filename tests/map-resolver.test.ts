@@ -93,16 +93,16 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     expect(r.regions[0]).toMatchObject({ iso: 'US', layer: 'country' });
   });
   it('region → us-state + basemap (AC2)', () => {
-    const r = resolve('map\nCalifornia score: 92');
+    const r = resolve('map\nCalifornia value: 92');
     expect(r.regions[0]).toMatchObject({
       iso: 'US-CA',
       layer: 'us-state',
-      score: 92,
+      value: 92,
     });
     expect(r.basemaps.subdivisions).toContain('us-states');
   });
   it('region miss → did-you-mean (AC3)', () => {
-    const r = resolve('map\nCaliforna score: 1');
+    const r = resolve('map\nCaliforna value: 1');
     expect(
       r.diagnostics.some(
         (d) => d.severity === 'error' && /Unknown subdivision/.test(d.message)
@@ -110,15 +110,15 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     ).toBe(true);
   });
   it('duplicate region last-wins (AC16)', () => {
-    const r = resolve('map\nCalifornia score: 1\nCalifornia score: 9');
+    const r = resolve('map\nCalifornia value: 1\nCalifornia value: 9');
     expect(r.regions).toHaveLength(1);
-    expect(r.regions[0]!.score).toBe(9);
+    expect(r.regions[0]!.value).toBe(9);
     expect(r.diagnostics.some((d) => /[Dd]uplicate/.test(d.message))).toBe(
       true
     );
   });
   it('unsupported subdivision errors (AC22)', () => {
-    const r = resolve('map\nBavaria score: 1');
+    const r = resolve('map\nBavaria value: 1');
     expect(
       r.diagnostics.some(
         (d) => d.severity === 'error' && /Bavaria/.test(d.message)
@@ -126,7 +126,7 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     ).toBe(true);
   });
   it('country-vs-state collision: US-scoped → state, else country (AC20)', () => {
-    const usScoped = resolve('map\nCalifornia score: 1\nGeorgia score: 2');
+    const usScoped = resolve('map\nCalifornia value: 1\nGeorgia value: 2');
     expect(usScoped.regions.find((x) => x.name === 'Georgia')!.iso).toBe(
       'US-GA'
     );
@@ -135,13 +135,13 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
         /both a country and a US state/.test(d.message)
       )
     ).toBe(true);
-    const worldScoped = resolve('map\nGeorgia score: 2');
+    const worldScoped = resolve('map\nGeorgia value: 2');
     expect(worldScoped.regions[0]!.iso).toBe('GE');
   });
   it('region scope qualifier forces state and silences ambiguity (§24B.8)', () => {
     for (const src of [
-      'map\nGeorgia US score: 2',
-      'map\nGeorgia US-GA score: 2',
+      'map\nGeorgia US value: 2',
+      'map\nGeorgia US-GA value: 2',
     ]) {
       const r = resolve(src);
       expect(r.regions[0]).toMatchObject({ iso: 'US-GA', layer: 'us-state' });
@@ -153,14 +153,14 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     }
   });
   it('region country-code scope forces country even in US context', () => {
-    const r = resolve('map\nCalifornia score: 1\nGeorgia GE score: 2');
+    const r = resolve('map\nCalifornia value: 1\nGeorgia GE value: 2');
     expect(r.regions.find((x) => x.iso === 'GE')).toBeTruthy();
     expect(
       r.diagnostics.some((d) => /both a country and a US state/.test(d.message))
     ).toBe(false);
   });
   it('ambiguity warning teaches the non-redundant scope syntax', () => {
-    const r = resolve('map\nCalifornia score: 1\nGeorgia score: 2');
+    const r = resolve('map\nCalifornia value: 1\nGeorgia value: 2');
     const w = r.diagnostics.find((d) =>
       /both a country and a US state/.test(d.message)
     );
@@ -171,7 +171,7 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     expect(w!.message).not.toContain('Georgia US-GA');
   });
   it('region subdivision-scope mismatch errors', () => {
-    const r = resolve('map\nGeorgia US-CA score: 2');
+    const r = resolve('map\nGeorgia US-CA value: 2');
     expect(
       r.diagnostics.some(
         (d) => d.severity === 'error' && /scope US-CA/.test(d.message)
@@ -188,6 +188,12 @@ describe('resolver — POIs (AC4-9, AC23)', () => {
   it('scope disambiguation US-ME not US-OR (AC5)', () => {
     const r = resolve('map\npoi Portland US-ME');
     expect(r.pois[0]!.lat).toBe(43.66); // Maine
+  });
+  it('bare US state postal code resolves to the state (§24B.8, 2026-06-01)', () => {
+    // `OR` is a US state postal code → US-OR (Oregon), NOT a country code; it
+    // also bootstraps US scope so this works standalone.
+    const r = resolve('map\npoi Portland OR');
+    expect(r.pois[0]!.lat).toBe(45.52); // Oregon
   });
   it('most-populous + warning for ambiguous (AC6)', () => {
     const r = resolve('map\npoi Portland');
@@ -235,9 +241,22 @@ describe('resolver — edges & routes (AC10-12, AC23)', () => {
     expect(r.pois.some((p) => p.id === 'tokyo')).toBe(false);
     expect(r.edges[0]).toMatchObject({ fromId: 'hq', toId: 'hq' });
   });
-  it('route loop preserved (AC12)', () => {
-    const r = resolve('map\nroute\n  Tokyo\n  Osaka\n  Tokyo');
-    expect(r.routes[0]!.stopIds).toEqual(['tokyo', 'osaka', 'tokyo']);
+  it('route loop: unique stop markers + explicit closing leg (AC12)', () => {
+    const r = resolve('map\nroute Tokyo\n  -> Osaka\n  -> Tokyo');
+    // stopIds are UNIQUE (origin not duplicated by the loop close)…
+    expect(r.routes[0]!.stopIds).toEqual(['tokyo', 'osaka']);
+    // …but the closing leg back to the origin is explicit.
+    expect(r.routes[0]!.legs.map((l) => [l.fromId, l.toId])).toEqual([
+      ['tokyo', 'osaka'],
+      ['osaka', 'tokyo'],
+    ]);
+  });
+  it('named route-stop metadata is no longer dropped (rides the stop POI)', () => {
+    const r = resolve(
+      'map\ntag Port as p\n  Prize orange\nroute Tokyo\n  -raid-> Osaka p: Prize'
+    );
+    const osaka = r.pois.find((x) => x.id === 'osaka')!;
+    expect(osaka.tags).toEqual({ port: 'Prize' });
   });
 });
 
@@ -247,7 +266,7 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     expect(r.basemaps.subdivisions).toHaveLength(0);
   });
   it('US-only regions → albers-usa, not natural-earth (AC15/AC24)', () => {
-    const r = resolve('map\nCalifornia score: 1\nOregon score: 2');
+    const r = resolve('map\nCalifornia value: 1\nOregon value: 2');
     expect(r.projection).toBe('albers-usa');
   });
   it('world span → equirectangular (AC15)', () => {
@@ -263,7 +282,7 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     expect(r.projection).toBe('mercator');
   });
   it('projection equirectangular is a valid override (AC15)', () => {
-    const r = resolve('map\nprojection equirectangular\nCalifornia score: 1');
+    const r = resolve('map\nprojection equirectangular\nCalifornia value: 1');
     expect(r.projection).toBe('equirectangular');
   });
   it('world-scale frame snaps to full Greenwich longitude, not an antimeridian wrap (no US split)', () => {
@@ -309,8 +328,8 @@ describe('resolver — robustness (AC17, AC18, AC21)', () => {
     expect(r.diagnostics.some((d) => /at:/.test(d.message))).toBe(true);
   });
   it('resolveMap is sync, pure, never throws, deterministic (AC18)', () => {
-    const a = resolve('map\npoi Tokyo\nCalifornia score: 5');
-    const b = resolve('map\npoi Tokyo\nCalifornia score: 5');
+    const a = resolve('map\npoi Tokyo\nCalifornia value: 5');
+    const b = resolve('map\npoi Tokyo\nCalifornia value: 5');
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     expect(() => resolve('map\nA -> \npoi 999 999')).not.toThrow();
   });
@@ -326,19 +345,19 @@ describe('resolver — impl-review fixes (#3/#6/#8/#13/#15)', () => {
     expect(r.projection).not.toBe('albers-usa');
   });
   it('US region + a non-US POI does NOT pick albers-usa (#13)', () => {
-    const r = resolve('map\nCalifornia score: 1\npoi Tokyo');
+    const r = resolve('map\nCalifornia value: 1\npoi Tokyo');
     expect(r.projection).not.toBe('albers-usa');
   });
   it('far-flung coordinate POI also blocks albers-usa (#13)', () => {
-    const r = resolve('map\nCalifornia score: 1\npoi 35.68 139.69 as t');
+    const r = resolve('map\nCalifornia value: 1\npoi 35.68 139.69 as t');
     expect(r.projection).not.toBe('albers-usa');
   });
   it('region matched by ISO code (#6)', () => {
-    const r = resolve('map\nJP score: 5');
+    const r = resolve('map\nJP value: 5');
     expect(r.regions[0]).toMatchObject({ iso: 'JP', layer: 'country' });
   });
   it('region matched via long-form → NE-abbrev alias (#6)', () => {
-    const r = resolve('map\nDemocratic Republic of the Congo score: 7');
+    const r = resolve('map\nDemocratic Republic of the Congo value: 7');
     expect(r.regions[0]).toMatchObject({ iso: 'CD', layer: 'country' });
   });
   it('ambiguous-name warning uses the W_ code (#15)', () => {
@@ -370,7 +389,7 @@ describe('loadMapData — real committed assets (AC19)', () => {
   it('common US aliases resolve against the real NE name "United States of America" (#6)', async () => {
     const data = await loadMapData();
     for (const name of ['United States', 'USA', 'America']) {
-      const r = resolveMap(parseMap(`map\n${name} score: 5`), data);
+      const r = resolveMap(parseMap(`map\n${name} value: 5`), data);
       expect(r.regions[0]?.iso, name).toBe('US');
     }
   });

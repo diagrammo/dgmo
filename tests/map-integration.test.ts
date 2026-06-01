@@ -18,7 +18,7 @@ describe('map router + render() wiring (step 5)', () => {
   });
 
   it('render() produces a map SVG with regions + background (AC4)', async () => {
-    const { svg } = await render('map\nCalifornia score: 92');
+    const { svg } = await render('map\nCalifornia value: 92');
     expect(svg).toContain('<svg');
     expect(svg).toContain('dgmo-map-regions');
     expect(svg).toContain('<path');
@@ -53,12 +53,12 @@ describe('map router + render() wiring (step 5)', () => {
   });
 
   it('a fully-valid map reports no diagnostics', async () => {
-    const { diagnostics } = await render('map\nCalifornia score: 50');
+    const { diagnostics } = await render('map\nCalifornia value: 50');
     expect(diagnostics).toHaveLength(0);
   });
 
   it('renders in dark theme without throwing', async () => {
-    const { svg } = await render('map\nCalifornia score: 5', {
+    const { svg } = await render('map\nCalifornia value: 5', {
       theme: 'dark',
     });
     expect(svg).toContain('<svg');

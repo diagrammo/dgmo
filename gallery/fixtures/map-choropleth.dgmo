@@ -1,10 +1,10 @@
 map US Sales by State
 region us-states
-metric Sales ($M)
+region-metric Sales ($M)
 
-California score: 92
-Texas score: 78
-New York score: 64
-Florida score: 51
-Washington score: 40
-Colorado score: 30
+California value: 92
+Texas value: 78
+New York value: 64
+Florida value: 51
+Washington value: 40
+Colorado value: 30
