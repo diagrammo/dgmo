@@ -976,6 +976,13 @@ export function layoutMap(
       // redundant US country polygon underneath it (it only adds a coarser base
       // and a doubled outline).
       if (layerKind === 'country' && usContext && iso === 'US') continue;
+      // Antarctica is omitted from the world basemap. The natural-earth world
+      // frame is clamped to ~-58°N and global views take the stretch path (no
+      // clipExtent), so AQ's -90° geometry projects below the frame and spills
+      // out the bottom of the canvas as a distorted strip. Data world maps omit
+      // Antarctica by convention anyway. Keep it only if explicitly referenced.
+      if (layerKind === 'country' && iso === 'AQ' && !regionById.has('AQ'))
+        continue;
       const r = regionById.get(iso);
       // Cull off-view land in a regional view; in a global view keep all land
       // but still drop antimeridian frame-fillers (Fiji et al.).
