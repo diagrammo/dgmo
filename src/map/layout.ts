@@ -82,7 +82,7 @@ const RELIEF_MIN_DIM = 2; // px
 // stroke so every line snaps to the same device-pixel coverage — no AA-driven
 // thickness variance or moire as the SVG is scaled / re-rasterised at any DPR.
 const RELIEF_HATCH_SPACING = 3; // px between lines
-const RELIEF_HATCH_WIDTH = 0.5; // px stroke
+const RELIEF_HATCH_WIDTH = 0.25; // px stroke
 // % of the DARK reference (palette.bg on dark themes, palette.text on light)
 // blended into the land colour — so the lines read DARKER than the land in both
 // themes (palette.text alone flips to light on dark themes).
