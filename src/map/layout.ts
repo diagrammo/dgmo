@@ -17,12 +17,7 @@ import {
   type GeoPath,
 } from 'd3-geo';
 import { feature } from 'topojson-client';
-import {
-  mix,
-  contrastText,
-  contrastRatio,
-  relativeLuminance,
-} from '../palettes/color-utils';
+import { mix, contrastRatio, relativeLuminance } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes/types';
 import {
@@ -513,20 +508,14 @@ export function layoutMap(
   }
   const activeIsScore = VALUE_NAME !== null && activeGroup === VALUE_NAME;
 
-  // Basemap dress. Subject water + land always wear the SAME faded blue/green
-  // dress (subtle enough that saturated tag/score tints never blend into it), so
-  // every map looks consistent. `mutedBasemap` now governs only the NEIGHBOUR
-  // land: when a colouring dimension is active (or `muted` is forced) the
-  // surrounding world recedes to a paler gray so the subject + its data fills
-  // dominate; a plain reference map keeps neighbour land at the fuller gray. The
-  // bare `muted` / `natural` flags force either neighbour treatment regardless
-  // (so two maps in a deck can match); absent → this auto rule.
-  const mutedBasemap =
-    resolved.directives.basemapStyle === 'muted'
-      ? true
-      : resolved.directives.basemapStyle === 'natural'
-        ? false
-        : activeGroup !== null;
+  // Basemap dress (fixed automatic aesthetic — no directive). Subject water +
+  // land always wear the SAME faded blue/green dress (subtle enough that
+  // saturated tag/score tints never blend into it), so every map looks
+  // consistent. `mutedBasemap` governs only the NEIGHBOUR land: when a colouring
+  // dimension is active the surrounding world recedes to a paler gray so the
+  // subject + its data fills dominate; a plain reference map keeps neighbour
+  // land at the fuller gray.
+  const mutedBasemap = activeGroup !== null;
   const neutralFill = mapNeutralLandColor(palette, isDark, mutedBasemap);
   const water = mapBackgroundColor(palette, isDark, mutedBasemap);
   const lakeStroke = mix(regionStroke, water, 45); // soft coastline (see above)
@@ -1534,11 +1523,16 @@ export function layoutMap(
     fill: string,
     lineNumber: number
   ): void => {
-    const color = contrastText(
-      fill,
-      palette.textOnFillLight,
-      palette.textOnFillDark
-    );
+    // Pick the genuinely higher-contrast text for legibility ON the fill —
+    // NOT contrastText's "light text on saturated for visual punch" rule, which
+    // on mid-tone reds (FL/NY) picks washed-out light text and then leans on a
+    // heavy dark halo to compensate. Max-contrast means most labels need no
+    // halo at all, and the rare borderline one gets a light (subtle) halo.
+    const color =
+      contrastRatio(fill, palette.textOnFillDark) >=
+      contrastRatio(fill, palette.textOnFillLight)
+        ? palette.textOnFillDark
+        : palette.textOnFillLight;
     const haloColor =
       color === palette.textOnFillLight
         ? palette.textOnFillDark
