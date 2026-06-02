@@ -70,19 +70,17 @@ const TAG_TINT_DARK = 68;
 const WATER_TINT = 55; // % palette-blue of bg for the ocean / backdrop
 const RIVER_WIDTH = 1.3; // px stroke width for river lines
 // Relief (mountain-range shading). A projected range below this px² area is
-// dropped (no confetti slivers at world zoom). The gradient stops sit a narrow
-// step either side of the land colour — "subtle = compressed value range".
+// dropped (no confetti slivers at world zoom).
 const RELIEF_MIN_AREA = 12; // px²
-// Each projected bbox side must clear this — a sliver that passes the area gate
-// but is near-degenerate (e.g. 24×0.5px) makes an objectBoundingBox gradient
-// undefined per SVG spec (resvg/WebKit may drop the fill), so drop it.
+// Each projected bbox side must clear this — drop near-degenerate slivers.
 const RELIEF_MIN_DIM = 2; // px
-// Gradient stops: land nudged toward bg (light, NW) and text (shadow, SE). A
-// 15% nudge (mix 85) is imperceptible at world zoom, so the range is widened to
-// a clearly-readable-but-still-subtle hillshade. Shadow steps a touch further
-// than light so the lit form reads as raised relief.
-const RELIEF_LIGHT_MIX = 68; // % land toward bg (NW light stop)
-const RELIEF_SHADOW_MIX = 60; // % land toward text (SE shadow stop)
+// Relief = horizontal hachure lines clipped to each range: a distinct
+// dark-on-light / light-on-dark texture that reads as "mountains here". Spacing
+// is SCREEN-space so density is constant regardless of zoom (geo-space spacing
+// would collapse a small range to 1–2 lines and read as a glitch).
+const RELIEF_HATCH_SPACING = 4.5; // px between lines
+const RELIEF_HATCH_WIDTH = 0.6; // px stroke
+const RELIEF_HATCH_CONTRAST = 40; // % palette.text mixed into the land colour
 // % palette-gray of bg for non-US neighbour land. Higher on dark so it reads as
 // a clear gray rather than sinking into the dark background.
 const FOREIGN_TINT_LIGHT = 30;
@@ -208,22 +206,21 @@ export interface MapLayoutRiver {
   readonly width: number;
 }
 
-/** A drawn mountain-range relief shape — a projected polygon path filled with
- *  the shared directional gradient (ADR-3). No per-shape colour: every shape
- *  references the one `reliefGradient` def. */
+/** A drawn mountain-range relief shape — a projected polygon path. The renderer
+ *  unions these into one clip and rules horizontal hachure lines through them. */
 export interface MapLayoutRelief {
   readonly d: string;
 }
 
-/** The single shared relief gradient (ADR-3/ADR-5): one `objectBoundingBox`
- *  light→shadow sweep referenced by every relief shape. `null` when relief is
- *  off or no range survives the gates. */
-export interface MapLayoutReliefGradient {
-  readonly id: string;
-  /** NW (top-left) light stop — land nudged toward bg. */
-  readonly light: string;
-  /** SE (bottom-right) shadow stop — land nudged toward text. */
-  readonly shadow: string;
+/** The shared hachure style for the relief lines. `null` when relief is off or
+ *  no range survives the gates. */
+export interface MapLayoutReliefHatch {
+  /** Line stroke — palette.text mixed into the land colour (so it's dark-on-
+   *  light and light-on-dark automatically as palette.text flips with theme). */
+  readonly color: string;
+  /** Vertical gap between lines in SCREEN px (constant density, zoom-stable). */
+  readonly spacing: number;
+  readonly width: number;
 }
 
 export interface MapLayout {
@@ -237,10 +234,11 @@ export interface MapLayout {
   /** Major river centerlines, drawn over land/lakes and under POIs/edges. */
   readonly rivers: readonly MapLayoutRiver[];
   /** Mountain-range relief shapes (empty unless `relief` is on + the asset is
-   *  present); drawn over base land, under rivers/POIs/data fills. */
+   *  present); the renderer clips horizontal hachure lines to their union,
+   *  drawn over base land, under rivers/POIs/data fills. */
   readonly relief: readonly MapLayoutRelief[];
-  /** The single shared gradient def the relief shapes reference (null = none). */
-  readonly reliefGradient: MapLayoutReliefGradient | null;
+  /** Hachure style for the relief lines (null = relief off / none survived). */
+  readonly reliefHatch: MapLayoutReliefHatch | null;
   readonly legs: readonly MapLayoutLeg[];
   readonly pois: readonly MapLayoutPoi[];
   readonly labels: readonly PlacedLabel[];
@@ -1128,16 +1126,16 @@ export function layoutMap(
     }
   }
 
-  // Relief (notable mountain ranges) — a subtle directional gradient drawn over
-  // the base land and under rivers/POIs/data fills. Opt-in via the `relief`
-  // flag; needs the optional `mountainRanges` asset. Each surviving range is a
-  // projected polygon filled with ONE shared light→shadow gradient (a
-  // "degenerate hillshade", light from the top-left of each range), giving
-  // terrain character without elevation data. Ranges below a min projected area are
-  // dropped (no slivers), and any range overlapping a data-coloured region is
-  // suppressed so the data tint stays clean (ADR-2).
+  // Relief (notable mountain ranges) — horizontal hachure lines clipped to each
+  // range, drawn over the base land and under rivers/POIs/data fills. Opt-in via
+  // the `relief` flag; needs the optional `mountainRanges` asset. Each surviving
+  // range is projected to a polygon path; the renderer unions them into a clip
+  // and rules screen-spaced horizontal lines through it — a distinct texture
+  // that reads as "mountains here" without elevation data. Ranges below a min
+  // projected area/dimension are dropped (no slivers), and any range overlapping
+  // a data-coloured region is suppressed so the data tint stays clean (ADR-2).
   const relief: MapLayoutRelief[] = [];
-  let reliefGradient: MapLayoutReliefGradient | null = null;
+  let reliefHatch: MapLayoutReliefHatch | null = null;
   if (resolved.directives.relief === true && data.mountainRanges) {
     const boxesOverlap = (
       a: [[number, number], [number, number]],
@@ -1158,7 +1156,6 @@ export function layoutMap(
         [number, number],
         [number, number],
       ];
-      // Drop near-degenerate bboxes (undefined objectBoundingBox gradient).
       if (
         box[1][0] - box[0][0] < RELIEF_MIN_DIM ||
         box[1][1] - box[0][1] < RELIEF_MIN_DIM
@@ -1170,11 +1167,10 @@ export function layoutMap(
       relief.push({ d });
     }
     if (relief.length)
-      reliefGradient = {
-        id: 'dgmo-relief-grad',
-        // Compressed range either side of the land colour (ADR-5) — subtle.
-        light: mix(neutralFill, palette.bg, RELIEF_LIGHT_MIX),
-        shadow: mix(neutralFill, palette.text, RELIEF_SHADOW_MIX),
+      reliefHatch = {
+        color: mix(neutralFill, palette.text, RELIEF_HATCH_CONTRAST),
+        spacing: RELIEF_HATCH_SPACING,
+        width: RELIEF_HATCH_WIDTH,
       };
   }
 
@@ -1747,7 +1743,7 @@ export function layoutMap(
     regions,
     rivers,
     relief,
-    reliefGradient,
+    reliefHatch,
     legs,
     pois,
     labels,

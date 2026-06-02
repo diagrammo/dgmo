@@ -123,28 +123,38 @@ export function renderMap(
   };
   for (const r of layout.regions) drawRegion(gRegions, r, 0.5);
 
-  // ── Relief (mountain-range shading over the base land, under rivers/data) ──
-  // ONE shared objectBoundingBox gradient (NW light → SE shadow) referenced by
-  // every range path, so tiny and huge ranges alike get a full top-left→
-  // bottom-right lit sweep across their own bbox (ADR-3 — objectBoundingBox is
-  // chosen over a canvas-global userSpaceOnUse vector precisely so small ranges
-  // aren't flattened; the light reads as upper-left for every range).
-  // Decorative — no data attrs/handlers.
-  if (layout.relief.length && layout.reliefGradient) {
-    const grad = layout.reliefGradient;
-    const lg = defs
-      .append('linearGradient')
-      .attr('id', grad.id)
-      .attr('x1', 0)
-      .attr('y1', 0)
-      .attr('x2', 1)
-      .attr('y2', 1);
-    lg.append('stop').attr('offset', '0%').attr('stop-color', grad.light);
-    lg.append('stop').attr('offset', '100%').attr('stop-color', grad.shadow);
-    const gRelief = svg.append('g').attr('class', 'dgmo-map-relief');
-    const fill = `url(#${grad.id})`;
-    for (const s of layout.relief) {
-      gRelief.append('path').attr('d', s.d).attr('fill', fill);
+  // ── Relief (mountain-range hachure over the base land, under rivers/data) ──
+  // Rule horizontal lines across the whole canvas, clipped to the INTERSECTION
+  // of (a) the union of range polygons and (b) the land — nested clipPaths, so
+  // the hachure never bleeds onto water (the coarse range polygons overrun the
+  // coast, and horizontal lines on the sea read as the water convention). The
+  // land clip is every drawn region except lakes. Explicit <line>s in a
+  // <clipPath> (not a tiled <pattern>) dodge WKWebView/resvg pattern quirks.
+  // Decorative — no data attrs.
+  if (layout.relief.length && layout.reliefHatch) {
+    const h = layout.reliefHatch;
+    const rangeClipId = 'dgmo-relief-clip';
+    const landClipId = 'dgmo-relief-land';
+    const rangeClip = defs.append('clipPath').attr('id', rangeClipId);
+    for (const s of layout.relief) rangeClip.append('path').attr('d', s.d);
+    const landClip = defs.append('clipPath').attr('id', landClipId);
+    for (const r of layout.regions)
+      if (r.id !== 'lake') landClip.append('path').attr('d', r.d);
+    const gRelief = svg
+      .append('g')
+      .attr('clip-path', `url(#${landClipId})`) // outer: land only
+      .append('g')
+      .attr('class', 'dgmo-map-relief')
+      .attr('clip-path', `url(#${rangeClipId})`) // inner: ∩ ranges
+      .attr('stroke', h.color)
+      .attr('stroke-width', h.width);
+    for (let y = h.spacing; y < height; y += h.spacing) {
+      gRelief
+        .append('line')
+        .attr('x1', 0)
+        .attr('y1', y)
+        .attr('x2', width)
+        .attr('y2', y);
     }
   }
 

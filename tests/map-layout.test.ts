@@ -445,23 +445,22 @@ describe('layout — labels & legend (AC13, AC14, AC15, AC16, AC17)', () => {
 });
 
 describe('layout — relief (AC2, AC3, AC5, AC8, AC9)', () => {
-  it('off by default → no relief shapes, no gradient (AC2)', () => {
+  it('off by default → no relief shapes, no hatch (AC2)', () => {
     const r = lay('map');
     expect(r.relief).toHaveLength(0);
-    expect(r.reliefGradient).toBeNull();
+    expect(r.reliefHatch).toBeNull();
   });
-  it('`relief` on → ≥1 shape with finite path + palette-mixed gradient (AC3, AC5)', () => {
+  it('`relief` on → ≥1 shape with finite path + palette-mixed hatch (AC3, AC5)', () => {
     const r = lay('map\nrelief');
     expect(r.relief.length).toBeGreaterThan(0);
     expect(r.relief[0]!.d.length).toBeGreaterThan(0);
     expect(r.relief[0]!.d).not.toMatch(/NaN/);
-    expect(r.reliefGradient).not.toBeNull();
-    // Stops are palette-mixed hex (no hardcoded colour), and compressed —
-    // light nudges land toward bg, shadow toward text.
-    expect(r.reliefGradient!.light).toMatch(/^#[0-9a-f]{6}$/i);
-    expect(r.reliefGradient!.shadow).toMatch(/^#[0-9a-f]{6}$/i);
-    expect(r.reliefGradient!.light).not.toBe(r.reliefGradient!.shadow);
-    expect(r.reliefGradient!.id).toBe('dgmo-relief-grad');
+    expect(r.reliefHatch).not.toBeNull();
+    // Line colour is a palette-mixed hex (no hardcoded colour); spacing/width
+    // are positive screen-space numbers.
+    expect(r.reliefHatch!.color).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(r.reliefHatch!.spacing).toBeGreaterThan(0);
+    expect(r.reliefHatch!.width).toBeGreaterThan(0);
   });
   it('absent asset → relief empty, no throw (AC6)', () => {
     const noAsset: MapData = { ...DATA };
@@ -473,7 +472,7 @@ describe('layout — relief (AC2, AC3, AC5, AC8, AC9)', () => {
       { palette: P, isDark: false }
     );
     expect(r.relief).toHaveLength(0);
-    expect(r.reliefGradient).toBeNull();
+    expect(r.reliefHatch).toBeNull();
   });
   it('a range over a data-coloured region is suppressed (ADR-2)', () => {
     // The only fixture range (Rockies) sits inside the US bbox. With no data it
@@ -496,7 +495,7 @@ describe('layout — relief (AC2, AC3, AC5, AC8, AC9)', () => {
       { palette: P, isDark: false }
     );
     expect(r.relief).toHaveLength(0);
-    expect(r.reliefGradient).toBeNull();
+    expect(r.reliefHatch).toBeNull();
   });
   it('relief layout is deterministic (AC8)', () => {
     const src = 'map\nrelief';

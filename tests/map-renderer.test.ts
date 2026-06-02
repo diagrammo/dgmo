@@ -146,19 +146,22 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(render('map').querySelector('.dgmo-map-relief')).toBeNull();
   });
 
-  it('`relief` → relief group with a path + a shared linearGradient (AC3)', () => {
+  it('`relief` → hachure lines clipped to a range-union clipPath (AC3)', () => {
     const svg = render('map\nrelief');
     const group = svg.querySelector('.dgmo-map-relief');
     expect(group).toBeTruthy();
-    const path = group!.querySelector('path');
-    expect(path).toBeTruthy();
-    expect(path!.getAttribute('d')!.length).toBeGreaterThan(0);
-    expect(path!.getAttribute('fill')).toBe('url(#dgmo-relief-grad)');
-    expect(
-      svg.querySelector('defs linearGradient#dgmo-relief-grad')
-    ).toBeTruthy();
-    // Decorative — no click target / line-number on relief paths.
-    expect(path!.getAttribute('data-line-number')).toBeNull();
+    // Clipped to the union of range paths.
+    expect(group!.getAttribute('clip-path')).toBe('url(#dgmo-relief-clip)');
+    const clip = svg.querySelector('defs clipPath#dgmo-relief-clip');
+    expect(clip).toBeTruthy();
+    expect(clip!.querySelectorAll('path').length).toBeGreaterThan(0);
+    // Horizontal hachure lines (x spans, y constant).
+    const lines = group!.querySelectorAll('line');
+    expect(lines.length).toBeGreaterThan(0);
+    const ln = lines[0]!;
+    expect(ln.getAttribute('y1')).toBe(ln.getAttribute('y2'));
+    // Decorative — no click target / line-number.
+    expect(group!.querySelector('[data-line-number]')).toBeNull();
   });
 
   it('categorical group + score ramp both render in the top legend (AC24)', () => {
