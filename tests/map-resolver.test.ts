@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseMap } from '../src/map/parser';
 import { resolveMap } from '../src/map/resolver';
+import { featureBbox, featureBboxPrimary } from '../src/map/geo';
 import { loadMapData } from '../src/map/load-data';
 import type { MapData } from '../src/map/resolved-types';
 import type { BoundaryTopology, Gazetteer } from '../src/map/data/types';
@@ -286,6 +287,18 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const r = resolve('map\npoi 40.70 -74.00 as a\npoi 40.75 -74.02 as b');
     expect(r.projection).toBe('mercator');
   });
+  it('single-continent regional span → mercator, not equirectangular (familiar shapes)', () => {
+    // A ~40°-span mid-latitude continental frame (think Europe) reads with its
+    // conventional shape under Mercator; equirectangular squashes it.
+    const r = resolve('map\npoi 35 -10 as sw\npoi 60 30 as ne');
+    expect(r.projection).toBe('mercator');
+  });
+  it('polar-reaching wide frame → equirectangular (Mercator area blow-up guard)', () => {
+    // Sub-world longitude span but the frame reaches past ~80° latitude — Mercator
+    // would grossly inflate the high-latitude land, so fall back to equirectangular.
+    const r = resolve('map\npoi 84 -40 as a\npoi 60 40 as b');
+    expect(r.projection).toBe('equirectangular');
+  });
   it('projection directive overrides (AC15)', () => {
     const r = resolve('map\nprojection mercator\npoi Tokyo\npoi 40 -74 as ny');
     expect(r.projection).toBe('mercator');
@@ -322,6 +335,42 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const lonSpan = r.extent[1][0] - r.extent[0][0];
     expect(lonSpan).toBeLessThan(30); // tight wrap, not ~356
     expect(r.projection).toBe('mercator'); // tight → mercator, not natural-earth
+  });
+});
+
+const WORLD_SPAN_DEG = 90;
+
+describe('featureBboxPrimary — drop far-detached territories from framing (R5)', () => {
+  // Real committed geometry (hand-built rect rings confuse geoBounds' winding —
+  // see the world-scale test above — so assert on the shipped data).
+  it('France: full bbox reaches the overseas territories; primary frames on the mainland', async () => {
+    const data = await loadMapData();
+    const full = featureBbox(data.worldCoarse, 'FR')!;
+    const primary = featureBboxPrimary(data.worldCoarse, 'FR')!;
+    // Full bbox is dragged across the Atlantic by French Guiana / Caribbean DOM.
+    expect(full[0][0]).toBeLessThan(-50);
+    // Primary stays on metropolitan France (west of Brittany ≈ −5°, not −58°).
+    expect(primary[0][0]).toBeGreaterThan(-15);
+    expect(primary[0][0]).toBeGreaterThan(full[0][0]);
+  });
+  it('single-part features are unchanged (falls back to full bbox)', async () => {
+    const data = await loadMapData();
+    expect(featureBboxPrimary(data.worldCoarse, 'DE')).toEqual(
+      featureBbox(data.worldCoarse, 'DE')
+    );
+  });
+  it('a Europe choropleth naming France frames on Europe, not the Atlantic', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(
+      parseMap(
+        'map\nregion-metric V\nFrance value: 1\nGermany value: 2\nSpain value: 3'
+      ),
+      data
+    );
+    // Pre-fix the west edge sat near −58° (French Guiana); now it stays on the
+    // Atlantic-European margin and the span is sub-continental, not world-scale.
+    expect(r.extent[0][0]).toBeGreaterThan(-20);
+    expect(r.extent[1][0] - r.extent[0][0]).toBeLessThan(WORLD_SPAN_DEG);
   });
 });
 

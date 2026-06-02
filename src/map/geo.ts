@@ -2,7 +2,7 @@
 // feature bounds (via d3-geo geoBounds — NOT naive min/max, which breaks on the
 // antimeridian and on multi-part features like US Alaska/Hawaii; R5/R6).
 import { feature } from 'topojson-client';
-import { geoBounds } from 'd3-geo';
+import { geoBounds, geoArea } from 'd3-geo';
 import type { BoundaryTopology } from './data/types';
 import type { GeoExtent } from './resolved-types';
 
@@ -63,6 +63,110 @@ export function featureBbox(
     [b[0][0], b[0][1]],
     [b[1][0], b[1][1]],
   ];
+}
+
+// Framing-extent thresholds for `featureBboxPrimary` (R5). A detached polygon is
+// kept in the framing bbox only if it is either near the dominant cluster
+// (within GAP degrees in both axes) or large enough to matter (≥ AREA_FRAC of
+// the largest polygon). This drops far-flung minor territories — French Guiana,
+// Hawaii, the Canaries are already absent from coarse Spain — so a "Europe"
+// choropleth that names France frames on metropolitan France, not the Atlantic,
+// while keeping near islands and large detached parts (Alaska) in frame.
+const DETACH_GAP_DEG = 10;
+const DETACH_AREA_FRAC = 0.25;
+
+/** Decompose a Polygon/MultiPolygon GeoJSON geometry into per-polygon features. */
+function explodePolygons(gj: {
+  type: string;
+  geometry?: { type: string; coordinates: unknown };
+}): Array<{
+  type: 'Feature';
+  geometry: { type: 'Polygon'; coordinates: unknown };
+}> {
+  const g = gj.geometry ?? (gj as never);
+  const t = (g as { type: string }).type;
+  const coords = (g as { coordinates: unknown[] }).coordinates;
+  if (t === 'Polygon') {
+    return [
+      { type: 'Feature', geometry: { type: 'Polygon', coordinates: coords } },
+    ];
+  }
+  if (t === 'MultiPolygon') {
+    return (coords as unknown[]).map((rings) => ({
+      type: 'Feature' as const,
+      geometry: { type: 'Polygon' as const, coordinates: rings },
+    }));
+  }
+  return [];
+}
+
+/** Gap (degrees) between two bboxes — 0 if they overlap/touch on an axis. */
+function bboxGap(a: GeoExtent, b: GeoExtent): number {
+  const lonGap = Math.max(0, a[0][0] - b[1][0], b[0][0] - a[1][0]);
+  const latGap = Math.max(0, a[0][1] - b[1][1], b[0][1] - a[1][1]);
+  return Math.max(lonGap, latGap);
+}
+
+/** Like `featureBbox`, but for FRAMING: ignores far-detached minor territories
+ *  (overseas DOM-TOM, distant small islands) so a multi-part country frames on
+ *  its dominant landmass cluster. Falls back to the full bbox for single-part
+ *  features or when decomposition fails. Antimeridian-spanning parts (geoBounds
+ *  west > east) are treated as full-bbox to avoid mis-clustering across the seam. */
+export function featureBboxPrimary(
+  topo: BoundaryTopology,
+  geomId: string
+): GeoExtent | null {
+  const geom = geomObject(topo).geometries.find((g) => g.id === geomId);
+  if (!geom) return null;
+  const gj = feature(topo as never, geom as never) as never;
+  const parts = explodePolygons(gj);
+  if (parts.length <= 1) return featureBbox(topo, geomId);
+
+  const polys = parts
+    .map((p) => {
+      const b = geoBounds(p as never);
+      if (!b || !Number.isFinite(b[0][0])) return null;
+      // Skip antimeridian-wrapping parts for clustering math (handled by full bbox).
+      const wraps = b[1][0] < b[0][0];
+      const bbox: GeoExtent = [
+        [b[0][0], b[0][1]],
+        [b[1][0], b[1][1]],
+      ];
+      return { bbox, area: geoArea(p as never), wraps };
+    })
+    .filter(
+      (p): p is { bbox: GeoExtent; area: number; wraps: boolean } => p !== null
+    );
+
+  if (polys.length <= 1 || polys.some((p) => p.wraps))
+    return featureBbox(topo, geomId);
+
+  const maxArea = Math.max(...polys.map((p) => p.area));
+  const anchor = polys.find((p) => p.area === maxArea)!;
+  // Grow the cluster: keep a part if it is near the current cluster OR large.
+  const cluster: GeoExtent = [
+    [anchor.bbox[0][0], anchor.bbox[0][1]],
+    [anchor.bbox[1][0], anchor.bbox[1][1]],
+  ];
+  const remaining = polys.filter((p) => p !== anchor);
+  let added = true;
+  while (added) {
+    added = false;
+    for (let i = remaining.length - 1; i >= 0; i--) {
+      const p = remaining[i]!;
+      const near = bboxGap(p.bbox, cluster) <= DETACH_GAP_DEG;
+      const large = p.area >= DETACH_AREA_FRAC * maxArea;
+      if (near || large) {
+        cluster[0][0] = Math.min(cluster[0][0], p.bbox[0][0]);
+        cluster[0][1] = Math.min(cluster[0][1], p.bbox[0][1]);
+        cluster[1][0] = Math.max(cluster[1][0], p.bbox[1][0]);
+        cluster[1][1] = Math.max(cluster[1][1], p.bbox[1][1]);
+        remaining.splice(i, 1);
+        added = true;
+      }
+    }
+  }
+  return cluster;
 }
 
 /** Union of bboxes + POI points into one extent; null if empty. Longitude union

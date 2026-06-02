@@ -18,7 +18,13 @@ import type {
   ProjectionFamily,
   GeoExtent,
 } from './resolved-types';
-import { featureIndex, featureBbox, unionExtent, fold } from './geo';
+import {
+  featureIndex,
+  featureBbox,
+  featureBboxPrimary,
+  unionExtent,
+  fold,
+} from './geo';
 
 /** Discriminated result of a gazetteer name lookup (#5): `defer` is "ambiguous,
  *  retry in pass B with inferred scope" — distinct from `miss` (errored, drop) so
@@ -30,7 +36,13 @@ type LookupResult =
 
 // Projection / tier thresholds (degrees of span) — tunable (R10).
 const WORLD_SPAN = 90;
-const MERCATOR_MAX_SPAN = 25;
+// Mercator is used for everything sub-world (tight clusters AND single-continent
+// regional views — a mid-latitude continent reads with its familiar conventional
+// shape, where equirectangular squashes it). Two guards push back to
+// equirectangular: a world/multi-continent `span` (> WORLD_SPAN), or a frame that
+// reaches into polar latitudes (> MERCATOR_MAX_LAT) where Mercator's sec(φ) area
+// blow-up turns gross. Europe (≈71°N) and East Asia stay comfortably on Mercator.
+const MERCATOR_MAX_LAT = 80;
 const PAD_FRACTION = 0.05;
 // Latitude band for a snapped world view — Tierra del Fuego (≈ −55°) to northern
 // Russia/Canada (≈ +78°). Excludes most of Antarctica + the high Arctic so the
@@ -645,10 +657,12 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     const bb = featureBbox(data.usStates, ref.id);
     if (bb) regionBoxes.push(bb);
   }
-  // country regions contribute their country bbox
+  // country regions contribute their country bbox — but framed on the dominant
+  // landmass, ignoring far-detached minor territories (e.g. French Guiana) so a
+  // Europe map naming France doesn't auto-fit across the Atlantic (R5).
   for (const r of regions) {
     if (r.layer === 'country') {
-      const bb = featureBbox(data.worldCoarse, r.iso);
+      const bb = featureBboxPrimary(data.worldCoarse, r.iso);
       if (bb) regionBoxes.push(bb);
     }
   }
@@ -663,6 +677,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const lonSpan = extent[1][0] - extent[0][0];
   const latSpan = extent[1][1] - extent[0][1];
   const span = Math.max(lonSpan, latSpan);
+  const maxAbsLat = Math.max(Math.abs(extent[0][1]), Math.abs(extent[1][1]));
   // albers-usa only covers US territory: choose it only when the map is truly
   // US-only — no non-US country region AND no POI outside the US (#13). Without
   // the POI guard a `default-country US` + Tokyo map projected to garbage.
@@ -689,16 +704,18 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     projection = override;
   } else if (usDominant) {
     projection = 'albers-usa';
-  } else if (span > WORLD_SPAN) {
-    // World/continental scale: equirectangular fills the frame edge-to-edge and
-    // never clips the continents at the boundary (naturalEarth's curved sides
-    // overrun a corner-based fit). `projection natural-earth` opts back into the
-    // curved look explicitly.
+  } else if (span > WORLD_SPAN || maxAbsLat > MERCATOR_MAX_LAT) {
+    // World/multi-continent scale (or a polar-reaching frame): equirectangular
+    // fills the frame edge-to-edge, never clips the continents at the boundary
+    // (naturalEarth's curved sides overrun a corner-based fit), and avoids
+    // Mercator's gross sec(φ) area blow-up near the poles. `projection
+    // natural-earth` opts back into the curved look explicitly.
     projection = 'equirectangular';
-  } else if (span < MERCATOR_MAX_SPAN) {
-    projection = 'mercator';
   } else {
-    projection = 'equirectangular';
+    // Tight clusters AND single-continent regional views: Mercator gives every
+    // mid-latitude landmass its familiar conventional shape (equirectangular
+    // squashes a continent like Europe horizontally).
+    projection = 'mercator';
   }
 
   // World-scale framing (R10): a multi-continent spread frames most cleanly as
