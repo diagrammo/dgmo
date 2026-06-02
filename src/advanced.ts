@@ -540,6 +540,20 @@ export type {
   MapLayoutLegend,
 } from './map/layout';
 export { renderMap, renderMapForExport } from './map/renderer';
+// Map geo-query (step-5 coordinate/location inspector) — a SEPARATE entry from
+// the renderer; takes `MapData` by DI so it's browser-safe (never calls the
+// Node-only `loadMapData`).
+export { createMapGeoQuery } from './map/geo-query';
+export type {
+  MapGeoQuery,
+  CreateMapGeoQueryOptions,
+  ResultCard,
+  ResultTokens,
+  RegionToken,
+  NearestCity,
+  ProjectedCity,
+} from './map/geo-query';
+export type { MapLayoutInset, MapLayoutStretch } from './map/layout';
 export type {
   ParsedMap,
   MapDirectives,

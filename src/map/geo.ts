@@ -47,6 +47,159 @@ export function idSet(topo: BoundaryTopology): Set<string> {
   return new Set(geomObject(topo).geometries.map((g) => g.id));
 }
 
+/** A decoded boundary feature: the GeoJSON geometry plus its ISO id and display
+ *  name (carried straight from the topology's `properties.name`). Used for
+ *  point-in-polygon reverse-geocoding by the geo-query. */
+export interface DecodedFeature {
+  readonly type: 'Feature';
+  readonly id: string;
+  readonly properties: { readonly name: string };
+  readonly geometry: unknown;
+}
+
+/** Decode every feature of a topology into GeoJSON, keyed nowhere — returned as a
+ *  flat array so the geo-query can decode ONCE at construction and reuse the
+ *  result across every `regionAt` call (no per-click re-decode). Uses this
+ *  module's own `geomObject`/`feature` (never layout.ts's private decoder). */
+export function decodeFeatures(topo: BoundaryTopology): DecodedFeature[] {
+  return geomObject(topo).geometries.map((g) => {
+    const f = feature(topo as never, g as never) as unknown as {
+      geometry: unknown;
+    };
+    return {
+      type: 'Feature',
+      id: g.id,
+      properties: g.properties,
+      geometry: f.geometry,
+    };
+  });
+}
+
+/** Even-odd ray-cast: is `[lon, lat]` inside a single lon/lat ring? Planar (NOT
+ *  spherical): d3-geo `geoContains` is winding-sensitive and the Natural-Earth
+ *  rings invert under it (a small country reads as covering the globe). A planar
+ *  ray-cast on the raw lon/lat coordinates is the correct, robust test at this
+ *  reverse-geocode resolution (antimeridian crossers ship as seam-split parts, so
+ *  no ring actually wraps ±180). */
+function pointInRing(
+  lon: number,
+  lat: number,
+  ring: ReadonlyArray<readonly number[]>
+): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i]![0]!;
+    const yi = ring[i]![1]!;
+    const xj = ring[j]![0]!;
+    const yj = ring[j]![1]!;
+    const intersect =
+      yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// On-boundary tolerance (degrees). A click landing exactly on a shared border or
+// a ring vertex is otherwise float-dependent (ray-cast vertex double-count → the
+// point reads as inside neither neighbour, returning ocean over land). Treating
+// an on-edge point as INSIDE makes `regionAt` deterministic: the first iterated
+// country whose boundary the point sits on wins, rather than a rounding coin-flip.
+const EDGE_EPS = 1e-9;
+
+/** Is `[lon, lat]` on any edge of `ring` (within EDGE_EPS)? */
+function pointOnRingEdge(
+  lon: number,
+  lat: number,
+  ring: ReadonlyArray<readonly number[]>
+): boolean {
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i]![0]!;
+    const yi = ring[i]![1]!;
+    const xj = ring[j]![0]!;
+    const yj = ring[j]![1]!;
+    // Bounding-box reject first (cheap).
+    if (lon < Math.min(xi, xj) - EDGE_EPS || lon > Math.max(xi, xj) + EDGE_EPS)
+      continue;
+    if (lat < Math.min(yi, yj) - EDGE_EPS || lat > Math.max(yi, yj) + EDGE_EPS)
+      continue;
+    // Collinear with the segment ⇒ on it (bbox already bounded the extent).
+    const cross = (xj - xi) * (lat - yi) - (yj - yi) * (lon - xi);
+    if (Math.abs(cross) <= EDGE_EPS) return true;
+  }
+  return false;
+}
+
+/** Point-in-polygon for a Polygon/MultiPolygon geometry (outer ring minus holes).
+ *  A point on the outer boundary counts as inside (deterministic border handling). */
+function pointInGeometry(geometry: unknown, lon: number, lat: number): boolean {
+  const g = geometry as {
+    type: string;
+    coordinates: number[][][] | number[][][][];
+  } | null;
+  if (!g) return false;
+  const polys: number[][][][] =
+    g.type === 'Polygon'
+      ? [g.coordinates as number[][][]]
+      : g.type === 'MultiPolygon'
+        ? (g.coordinates as number[][][][])
+        : [];
+  for (const rings of polys) {
+    if (!rings.length) continue;
+    // On the outer boundary ⇒ inside (deterministic; beats the ray-cast coin-flip).
+    if (pointOnRingEdge(lon, lat, rings[0]!)) return true;
+    if (!pointInRing(lon, lat, rings[0]!)) continue;
+    // Inside the outer ring — exclude if it falls strictly within a hole (a point
+    // on the hole boundary is still land, so it stays inside).
+    let inHole = false;
+    for (let h = 1; h < rings.length; h++) {
+      if (
+        pointInRing(lon, lat, rings[h]!) &&
+        !pointOnRingEdge(lon, lat, rings[h]!)
+      ) {
+        inHole = true;
+        break;
+      }
+    }
+    if (!inHole) return true;
+  }
+  return false;
+}
+
+/** Reverse-geocode a `[lon, lat]` to its containing country and (US-only) state
+ *  via planar point-in-polygon. Honest about misses: returns `country: null`
+ *  when no polygon contains the point (open ocean / outside any country) rather
+ *  than guessing (F4). State is tested only when the country is the US.
+ *  `countries` should be world-detail (50m) features; `states` the us-states
+ *  (10m) features. Both are pre-decoded by the caller. */
+export function regionAt(
+  lonLat: readonly [number, number],
+  countries: readonly DecodedFeature[],
+  states: readonly DecodedFeature[] | null
+): {
+  country: { iso: string; name: string } | null;
+  state: { iso: string; name: string } | null;
+} {
+  const lon = lonLat[0];
+  const lat = lonLat[1];
+  let country: { iso: string; name: string } | null = null;
+  for (const f of countries) {
+    if (pointInGeometry(f.geometry, lon, lat)) {
+      country = { iso: f.id, name: f.properties.name };
+      break;
+    }
+  }
+  let state: { iso: string; name: string } | null = null;
+  if (country?.iso === 'US' && states) {
+    for (const f of states) {
+      if (pointInGeometry(f.geometry, lon, lat)) {
+        state = { iso: f.id, name: f.properties.name };
+        break;
+      }
+    }
+  }
+  return { country, state };
+}
+
 /** Antimeridian-correct geographic bbox of one feature (by id), or null. */
 export function featureBbox(
   topo: BoundaryTopology,

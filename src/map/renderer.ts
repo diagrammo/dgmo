@@ -390,6 +390,7 @@ export function renderMap(
   if (layout.title) {
     svg
       .append('text')
+      .attr('class', 'dgmo-map-title')
       .attr('x', width / 2)
       .attr('y', TITLE_Y)
       .attr('text-anchor', 'middle')
