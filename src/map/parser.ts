@@ -32,7 +32,6 @@ import type {
   MapRouteLeg,
   MapEdge,
   PoiPos,
-  MapScale,
 } from './types';
 import type { TagGroup, TagEntry } from '../utils/tag-groups';
 
@@ -47,23 +46,21 @@ const HUB_RE = /^(->|~>)\s+(.+)$/;
 const LEG_ARROW_RE = /^(-[^>]*?->|->|~[^>]*?~>|~>|--)\s+(.+)$/;
 const AT_RE = /(^|[\s,])at\s*:/i; // the removed `at:` coord form (§24B.9)
 
+// Final 12 (§24B.2): 6 irreducible-intent directives + 6 `no-*` cosmetic
+// opt-outs. Every cosmetic is on by default; its `no-*` flag is the only switch.
 const DIRECTIVE_SET: ReadonlySet<string> = new Set([
-  'projection',
   'region-metric',
   'poi-metric',
   'flow-metric',
-  'scale',
-  'region-labels',
-  'context-labels',
-  'poi-labels',
   'locale',
   'active-tag',
-  'no-legend',
-  'relief',
-  'coastline',
-  'surface',
-  'subtitle',
   'caption',
+  'no-legend',
+  'no-coastline',
+  'no-relief',
+  'no-context-labels',
+  'no-region-labels',
+  'no-poi-labels',
 ]);
 
 /** True when the first non-blank/non-comment line declares `map`. */
@@ -185,12 +182,7 @@ export function parseMap(content: string): ParsedMap {
     }
     // (1a) Indented child of an open route → a leg (an edge from the prev stop).
     if (open.route && indent > open.route.indent) {
-      const leg = parseLeg(
-        trimmed,
-        lineNumber,
-        open.route.route.style,
-        open.route.route.surface
-      );
+      const leg = parseLeg(trimmed, lineNumber, open.route.route.style);
       (open.route.route.legs as MapRouteLeg[]).push(leg);
       continue;
     }
@@ -288,23 +280,6 @@ export function parseMap(content: string): ParsedMap {
         pushWarning(line, `Duplicate directive "${key}" — last value wins.`);
     };
     switch (key) {
-      case 'projection':
-        dup(d.projection);
-        if (
-          value &&
-          ![
-            'equirectangular',
-            'natural-earth',
-            'albers-usa',
-            'mercator',
-          ].includes(value)
-        )
-          pushWarning(
-            line,
-            `Unknown projection "${value}" (expected equirectangular | natural-earth | albers-usa | mercator).`
-          );
-        d.projection = value;
-        break;
       case 'region-metric': {
         dup(d.regionMetric);
         // A trailing color names the choropleth ramp hue (§24B.3): the
@@ -323,41 +298,6 @@ export function parseMap(content: string): ParsedMap {
         dup(d.flowMetric);
         d.flowMetric = value;
         break;
-      case 'scale':
-        dup(d.scale);
-        {
-          const s = parseScale(value, line);
-          if (s) d.scale = s;
-        }
-        break;
-      case 'region-labels':
-        dup(d.regionLabels);
-        if (value && !['full', 'abbrev', 'off'].includes(value))
-          pushWarning(
-            line,
-            `Unknown region-labels "${value}" (expected full | abbrev | off).`
-          );
-        d.regionLabels = value;
-        break;
-      case 'context-labels':
-        // on|off → boolean (bare ⇒ on). Idempotent like `relief` — no dup
-        // warning; last value wins silently. Only an unknown VALUE warns.
-        if (value && !['on', 'off'].includes(value))
-          pushWarning(
-            line,
-            `Unknown context-labels "${value}" (expected on | off).`
-          );
-        d.contextLabels = value !== 'off';
-        break;
-      case 'poi-labels':
-        dup(d.poiLabels);
-        if (value && !['off', 'auto', 'all'].includes(value))
-          pushWarning(
-            line,
-            `Unknown poi-labels "${value}" (expected off | auto | all).`
-          );
-        d.poiLabels = value;
-        break;
       case 'locale':
         dup(d.locale);
         d.locale = value;
@@ -366,47 +306,31 @@ export function parseMap(content: string): ParsedMap {
         dup(d.activeTag);
         d.activeTag = value;
         break;
-      case 'no-legend':
-        d.noLegend = true;
-        break;
-      case 'relief':
-        // Bare flag (idempotent — `relief\nrelief` is no warning).
-        d.relief = true;
-        break;
-      case 'coastline':
-        // Bare flag (idempotent — `coastline\ncoastline` is no warning).
-        d.coastline = true;
-        break;
-      case 'surface':
-        dup(d.surface);
-        if (value === 'water' || value === 'land') d.surface = value;
-        else
-          pushWarning(
-            line,
-            `Unknown surface "${value}" (expected water | land).`
-          );
-        break;
-      case 'subtitle':
-        dup(d.subtitle);
-        d.subtitle = value;
-        break;
       case 'caption':
         dup(d.caption);
         d.caption = value;
         break;
+      // ── Cosmetic `no-*` opt-outs: bare flags, idempotent (mirror `no-legend`,
+      //    no dup warning); each defaults the feature ON when absent. ──
+      case 'no-legend':
+        d.noLegend = true;
+        break;
+      case 'no-coastline':
+        d.noCoastline = true;
+        break;
+      case 'no-relief':
+        d.noRelief = true;
+        break;
+      case 'no-context-labels':
+        d.noContextLabels = true;
+        break;
+      case 'no-region-labels':
+        d.noRegionLabels = true;
+        break;
+      case 'no-poi-labels':
+        d.noPoiLabels = true;
+        break;
     }
-  }
-
-  function parseScale(value: string, line: number): MapScale | null {
-    const toks = value.split(/\s+/).filter(Boolean);
-    const min = Number(toks[0]);
-    const max = Number(toks[1]);
-    if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      pushError(line, `scale requires numeric <min> <max> (got "${value}").`);
-      return null;
-    }
-    // `center <n>` (diverging ramp) is a future seam (§24B.12) — not parsed in v1.
-    return { min, max };
   }
 
   function handleTag(trimmed: string, line: number): void {
@@ -549,10 +473,10 @@ export function parseMap(content: string): ParsedMap {
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
     const originLabel = meta['label'];
     const originValue = meta['value'];
-    const surface = parseSurface(meta['surface'], line);
-    // `surface:` implies arc (F9) — a straight leg has no bow to move.
+    // Leg shape comes only from `style: arc` / arrow style (surface parsing
+    // removed — a leg no longer bows just because it crosses water).
     const style: 'straight' | 'arc' =
-      meta['style'] === 'arc' || surface !== undefined ? 'arc' : 'straight';
+      meta['style'] === 'arc' ? 'arc' : 'straight';
     const route: Writable<MapRoute> = {
       origin: pos,
       ...(split.alias !== undefined && { originAlias: split.alias }),
@@ -560,23 +484,11 @@ export function parseMap(content: string): ParsedMap {
       ...(originValue !== undefined && { originValue }),
       originTags: tags,
       style,
-      ...(surface !== undefined && { surface }),
       legs: [],
       lineNumber: line,
     };
     routes.push(route);
     open.route = { route, indent };
-  }
-
-  /** Validate a raw `surface:` value into the `water|land` union (else warn). */
-  function parseSurface(
-    raw: string | undefined,
-    line: number
-  ): 'water' | 'land' | undefined {
-    if (raw === undefined) return undefined;
-    if (raw === 'water' || raw === 'land') return raw;
-    pushWarning(line, `Unknown surface "${raw}" (expected water | land).`);
-    return undefined;
   }
 
   /** Parse one route body line into a leg: `[-label->] <destination> [keys]`.
@@ -585,8 +497,7 @@ export function parseMap(content: string): ParsedMap {
   function parseLeg(
     trimmed: string,
     line: number,
-    headerStyle: 'straight' | 'arc',
-    headerSurface: 'water' | 'land' | undefined
+    headerStyle: 'straight' | 'arc'
   ): MapRouteLeg {
     let arrowStyle: 'straight' | 'arc' = 'straight';
     let label: string | undefined;
@@ -613,18 +524,13 @@ export function parseMap(content: string): ParsedMap {
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
     const value = meta['value'];
     const destLabel = meta['label'];
-    // Leg-level `surface:` overrides the route-header default (narrower wins).
-    const legSurface = parseSurface(meta['surface'], line);
-    const surface = legSurface ?? headerSurface;
-    // `surface:` implies arc (F9) — at header or leg level.
+    // Leg shape comes only from the arrow style or the route header `style: arc`
+    // (surface parsing removed — no implied bow).
     const style: 'straight' | 'arc' =
-      arrowStyle === 'arc' || headerStyle === 'arc' || surface !== undefined
-        ? 'arc'
-        : 'straight';
+      arrowStyle === 'arc' || headerStyle === 'arc' ? 'arc' : 'straight';
     return {
       ...(label !== undefined && { label }),
       style,
-      ...(surface !== undefined && { surface }),
       ...(value !== undefined && { value }),
       dest: pos,
       ...(split.alias !== undefined && { destAlias: split.alias }),
@@ -659,8 +565,6 @@ export function parseMap(content: string): ParsedMap {
       aliasMap
     );
     endpoints[endpoints.length - 1] = lastSplit.name;
-    // Trailing `surface:` attaches to the FINAL hop only (mirrors value:/label: — F4).
-    const lastSurface = parseSurface(lastSplit.meta['surface'], line);
     for (let k = 0; k < links.length; k++) {
       const from = endpoints[k]!;
       const to = endpoints[k + 1]!;
@@ -670,17 +574,15 @@ export function parseMap(content: string): ParsedMap {
       }
       const isLast = k === links.length - 1;
       const meta = isLast ? lastSplit.meta : {};
-      const surface = isLast ? lastSurface : undefined;
-      // `surface:` implies arc (F9).
+      // Edge shape comes only from the arrow token (surface parsing removed).
       const style: 'straight' | 'arc' =
-        links[k]!.style === 'arc' || surface !== undefined ? 'arc' : 'straight';
+        links[k]!.style === 'arc' ? 'arc' : 'straight';
       edges.push({
         from,
         to,
         ...(links[k]!.label !== undefined && { label: links[k]!.label }),
         directed: links[k]!.directed,
         style,
-        ...(surface !== undefined && { surface }),
         meta,
         lineNumber: line,
       });

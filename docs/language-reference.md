@@ -2644,7 +2644,9 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 
 Geographic concept maps: highlight/shade political subdivisions, drop points of interest (POIs), and connect them with routes or edges. For "share a concept" business maps, not cartography. Renders at a fixed, auto-fit position — no pan/zoom. Basemap and viewport are **inferred from the content you reference** — most maps need no directives. v1 boundaries: world countries + US states.
 
-**How the map type is decided (inference):** the resolver takes the bounding box of everything referenced (valued/tagged regions + POIs + edge endpoints), pads it, and measures its span. Projection: `albers-usa` (US conic + AK/HI insets) when the map is US-only; else `equirectangular` snapped to the full Greenwich world when the span is world-scale (≥ ~90°); else `mercator` for a tight regional cluster; else `equirectangular`. The US-state mesh is added whenever you name a US state. Directives only matter to *override* this: `region us-states` forces the state mesh + US scoping (useful on a POI-only US map, redundant once you name a state); `projection …` forces the projection; **`region world` is currently inert** — world is already the default, so it changes nothing (the frame widens from a world-scale longitude span, not this directive).
+**The zero-config map is the good-looking map.** Type `map`, name some places, and you're done — coastlines, mountain relief (on reference maps), region/POI labels, and orientation labels all render by default. There is no projection, scale, or label directive; the only knobs are the bare `no-*` opt-outs.
+
+**How the map type is decided (inference):** the resolver takes the bounding box of everything referenced (valued/tagged regions + POIs + edge endpoints), pads it, and measures its span. Projection is **always inferred — never configured**: `albers-usa` (US conic + AK/HI insets) when the map is US-oriented; at world/multi-continent scale a **data** map (any region/POI carries `value:` or a tag) gets **Equal Earth** (equal-area — honest for thematic comparison) while a **dataless reference** map gets **natural-earth** (the prettier curved compromise); `mercator` for a tight regional or single-continent cluster. The US-state mesh is added whenever you name a US state (or the map is US-oriented).
 
 ### Declaration
 
@@ -2660,7 +2662,6 @@ A subdivision name on its own line with a `value:` fills with a single-hue tint 
 
 ```
 map US Sales
-region us-states
 region-metric Sales ($M)
 
 California value: 92
@@ -2668,7 +2669,8 @@ Texas value: 78
 Florida value: 51
 ```
 
-- `region-metric <label>` labels the ramp in the legend; a trailing color on it sets the ramp hue (`region-metric Sales ($M) blue` → blue ramp, default red). `scale <min> <max>` overrides the auto anchors.
+- `region-metric <label>` labels the ramp in the legend; a trailing color on it sets the ramp hue (`region-metric Sales ($M) blue` → blue ramp, default red).
+- The ramp **auto-fits**: all-non-negative data anchors the low end at **0** (shared baseline); mixed-sign data fits data-min→data-max. There is no `scale` directive.
 - A subdivision with no `value:`/tag renders as the neutral base.
 
 ### Region fill — categorical (tags)
@@ -2677,7 +2679,6 @@ Uses the universal tag model (§1.3): declare a `tag` group and apply its alias 
 
 ```
 map Global Presence
-region world
 
 tag Market as m
   HQ blue
@@ -2734,31 +2735,28 @@ dcw                     # hub/star — indented edges share the source
   -> office-west
 ```
 
-`~>` curves a single edge.
-
-`surface: water | land` (best-effort) bows a leg/edge arrow to stay over the named surface — a cruise over water, a road trip over land. Opt-in at three scope levels (narrower wins): a colon-free map directive `surface water` → route/edge header `route Miami surface: water` (cascades to legs) → per-leg/edge override `-> Cairo surface: land`. It implies an arc (`style: arc` is redundant). It's best-effort, not a router: a single bow rounds one obstacle, and when none can clear (a peninsula, both sides blocked, a too-short coastal hop, or under `albers-usa`) the closest arc is drawn with a warning — it never silently lies. On a chain `A -> B -> C surface: water` the constraint attaches to the final hop only. v1 detects against country polygons (open ocean = outside every country; lakes/rivers not yet water). Without `surface:` there is no path-finding — legs are plain straight or arced geometry and may cross land.
+`~>` curves a single edge. There is no geographic path-finding and no `surface:` — legs are plain straight or arced geometry (`style: arc` to bow one) and may cross land.
 
 ```
 map Caribbean Cruise
-projection mercator
-surface water           # whole map sails over water
 
-route Miami
+route Miami style: arc
   -weigh anchor-> Havana
   -> Kingston
-  -> Cartagena surface: land   # one overland leg overrides
+  -> Cartagena
 ```
 
 ### Labels, legend & chrome
 
-- Title is the declaration line; `subtitle` / `caption` are directives.
+- Title is the declaration line; `caption` (data-source attribution, travels with the exported PNG) is the only chrome directive. There is no `subtitle`.
 - Legend auto-composes below the title: the value ramp + `region-metric` and each tag group are **selectable colouring groups** (collapse/activate to flip the fill); POI size (`poi-metric`) and edge thickness (`flow-metric`) are self-evident from scale and carry no legend key in v1. `no-legend` suppresses all of it.
-- `region-labels full | abbrev | off` (default `off`); `poi-labels off | auto | all` (default `auto`). Labels render **on the map** (export-safe), escalating inline → leader line → numbered pin in dense clusters; markers never move.
+- **Region and POI labels are on by default.** Region labels auto-fit **full → abbrev → hide** (a US-state 2-letter abbreviation is tried when the full name doesn't fit; other regions degrade full → hide); POI labels are collision-managed. Labels render **on the map** (export-safe), escalating inline → leader line → numbered pin in dense clusters; markers never move. A wide map in a narrow column (< ~480px) prefers abbreviations and drops reference relief, as if zoomed out.
+- **Cosmetic features are on by default**; the only switches are bare `no-*` opt-outs (no positive opt-in flag): `no-coastline`, `no-relief`, `no-context-labels`, `no-region-labels`, `no-poi-labels`, `no-legend`. A plain look = the four basemap flags together.
 
 ### Name resolution
 
 - Admin units use **ISO 3166** (geometry keyed by code, so "United States" / "USA" / "US" resolve alike); cities use **GeoNames** (alias/accent matching, population ranking, did-you-mean).
-- `default-country` / `default-state <ISO>` scopes bare city resolution (inferred from content if unset).
+- `locale <ISO>` scopes bare city resolution to a country (`locale US`) or subdivision (`locale US-GA`) — inferred from content if unset.
 - A bare ambiguous, undeclared name → most-populous in scope (info note).
 - **Disambiguate once:** trailing ISO code at first declaration — `San Jose CR` (country) or `Portland US-OR` (subdivision). Thereafter reference the bare name. Two same-named cities → `as <alias>` each.
 - **Region fills disambiguate the country-vs-state collision** (`Georgia` = country `GE` or US state `US-GA`) by ISO code or name + scope — pick whichever reads best:
@@ -2769,7 +2767,7 @@ route Miami
 
 ### Directives & reserved keys
 
-Directives (no colon): `region` (world | us-states), `projection` (equirectangular | natural-earth | albers-usa | mercator), `region-metric`, `poi-metric`, `flow-metric`, `scale`, `region-labels`, `poi-labels`, `default-country`, `default-state`, `active-tag`, `no-legend`, `subtitle`, `caption`. Reserved metadata keys (need colons): `value`, `label`, `style` (`value` = the one numeric channel: region shade / POI size / edge thickness). A bare US state postal code resolves to that state (`poi Portland OR` → Oregon; `CA` = California). Coordinates are positional (no `at:` key). Projection is auto-picked by extent span (world → equirectangular, full Greenwich frame; US → albers-usa with Alaska/Hawaii insets; tight regional → mercator) unless overridden.
+The directive set is **12, all colon-free**: six naming intent the renderer can't infer — `region-metric`, `poi-metric`, `flow-metric`, `locale`, `active-tag`, `caption` — and six `no-*` cosmetic opt-outs — `no-legend`, `no-coastline`, `no-relief`, `no-context-labels`, `no-region-labels`, `no-poi-labels`. There is **no** `projection`, `scale`, `subtitle`, `surface`, `region`, or label-enum directive, and cosmetics have no positive opt-in form. Reserved metadata keys (need colons): `value`, `label`, `style` (`value` = the one numeric channel: region shade / POI size / edge thickness); `surface:` is no longer recognized. A bare US state postal code resolves to that state (`poi Portland OR` → Oregon; `CA` = California). Coordinates are positional (no `at:` key). Projection is inferred from extent + whether the map carries data (US → albers-usa; world data → Equal Earth; world reference → natural-earth; regional → mercator) and cannot be overridden.
 
 ---
 

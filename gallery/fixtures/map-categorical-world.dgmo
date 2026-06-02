@@ -1,6 +1,4 @@
 map Global Market Presence
-relief
-coastline
 
 tag Market as m
   HQ blue

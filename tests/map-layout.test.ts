@@ -331,9 +331,17 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
     expect(or.fill).toBe(P.colors.red); // t=1 → 100% hue (red ramp)
     expect(ca.fill).toBe(mix(P.colors.red, P.bg, 15)); // floor: ramp base (bg), not land
   });
-  it('scale override sets ramp anchors (AC3)', () => {
-    const r = lay('map\nscale 0 200\nCalifornia value: 100');
-    expect(r.legend?.ramp).toMatchObject({ min: 0, max: 200 });
+  it('ramp 0-anchors all-non-negative data; data-min for mixed sign (AC6)', () => {
+    // All values ≥ 0 → low end anchors at 0 (shared baseline), not data-min.
+    const nonNeg = lay(
+      'map\nregion-metric Sales\nCalifornia value: 40\nOregon value: 100'
+    );
+    expect(nonNeg.legend?.ramp).toMatchObject({ min: 0, max: 100 });
+    // Mixed-sign data → fit data-min→data-max (no 0-anchor).
+    const mixed = lay(
+      'map\nregion-metric Net\nCalifornia value: -20\nOregon value: 80'
+    );
+    expect(mixed.legend?.ramp).toMatchObject({ min: -20, max: 80 });
   });
   it('categorical fill + active-tag + legend group (AC4)', () => {
     const r = lay(
@@ -512,94 +520,54 @@ describe('layout — routes & edges (AC9, AC10, AC11, AC12, AC28)', () => {
   });
 });
 
-describe('layout — surface-route avoidance (§24B.6)', () => {
-  it('opt-out: no surface anywhere → no surface path, deterministic (AC3/P6)', () => {
+describe('layout — surface parsing removed (AC9)', () => {
+  it('a plain route leg (no surface) renders straight', () => {
     const r = lay('map\nroute Tokyo\n  -> Osaka');
-    // Plain straight leg (no surface code path engaged).
     expect(r.legs[0]!.d).toMatch(/^M[\d.,-]+L[\d.,-]+$/);
     expect(r.legs[0]!.d).not.toMatch(/Q/);
-    // No surface diagnostics, and byte-identical across runs.
     expect(r.diagnostics).toHaveLength(0);
-    expect(JSON.stringify(lay('map\nroute Tokyo\n  -> Osaka'))).toBe(
-      JSON.stringify(lay('map\nroute Tokyo\n  -> Osaka'))
-    );
   });
-  it('surface: water leg is drawn as an arc (F9 implies arc)', () => {
-    const r = lay('map\nroute Tokyo surface: water\n  -> Osaka');
+  it('`style: arc` still bows a leg (explicit arc unaffected)', () => {
+    const r = lay('map\nroute Tokyo style: arc\n  -> Osaka');
     expect(r.legs[0]!.d).toMatch(/Q/);
-  });
-  it('determinism: identical surface input → byte-identical legs (AC9)', () => {
-    const src = 'map\nroute Tokyo surface: water\n  -> Osaka';
-    expect(JSON.stringify(lay(src).legs)).toBe(JSON.stringify(lay(src).legs));
-  });
-  it('unsatisfiable water leg over land → smallest-deviation + diagnostic (AC7)', () => {
-    // Tokyo→Osaka both sit inside the Japan land rect → no bow clears.
-    const r = lay('map\nroute Tokyo surface: water\n  -> Osaka');
-    expect(r.legs[0]!.d).toMatch(/Q/); // still drawn (closest arc)
-    expect(
-      r.diagnostics.some((d) => d.code === 'W_MAP_SURFACE_UNSATISFIED')
-    ).toBe(true);
-  });
-  it('parallel surface edges fan out to distinct arcs (AC11/F12)', () => {
-    const r = lay(
-      'map\npoi Tokyo\npoi Osaka\nTokyo -> Osaka surface: water\nOsaka -> Tokyo surface: water'
-    );
-    expect(r.legs).toHaveLength(2);
-    expect(r.legs[0]!.d).toMatch(/Q/);
-    expect(r.legs[1]!.d).toMatch(/Q/);
-    expect(r.legs[0]!.d).not.toBe(r.legs[1]!.d);
-  });
-  it('albers-usa projection guard: surface skipped with a diagnostic (AC12/F7)', () => {
-    const r = lay(
-      'map\nprojection albers-usa\npoi 40 -100 as x\npoi 45 -110 as y\nx -> y surface: water'
-    );
-    expect(
-      r.diagnostics.some(
-        (d) =>
-          d.code === 'W_MAP_SURFACE_UNSATISFIED' && /albers-usa/.test(d.message)
-      )
-    ).toBe(true);
-    expect(r.legs).toHaveLength(1); // still drawn
   });
 });
 
 describe('layout — labels & legend (AC13, AC14, AC15, AC16, AC17)', () => {
-  it('region labels off by default, on with full (AC13)', () => {
+  it('region labels on by default; no-region-labels suppresses (AC13)', () => {
+    const isCA = (t: string): boolean => t === 'California' || t === 'CA';
     expect(
-      lay('map\nCalifornia value: 50').labels.some(
-        (l) => l.text === 'California'
+      lay('map\nCalifornia value: 50').labels.some((l) => isCA(l.text))
+    ).toBe(true);
+    expect(
+      lay('map\nno-region-labels\nCalifornia value: 50').labels.some((l) =>
+        isCA(l.text)
       )
     ).toBe(false);
-    expect(
-      lay('map\nregion-labels full\nCalifornia value: 50').labels.some(
-        (l) => l.text === 'California'
-      )
-    ).toBe(true);
   });
-  it('poi-labels off → none; all → every POI labeled (AC14)', () => {
-    expect(lay('map\npoi-labels off\npoi Tokyo').labels).toHaveLength(0);
-    const all = lay('map\npoi-labels all\npoi 0 0 as aa\npoi 0 0 as bb');
-    expect(all.labels.length).toBeGreaterThanOrEqual(2);
+  it('poi labels on by default; no-poi-labels suppresses (AC14)', () => {
+    expect(lay('map\npoi Tokyo').labels.length).toBeGreaterThanOrEqual(1);
+    expect(lay('map\nno-poi-labels\npoi Tokyo').labels).toHaveLength(0);
   });
   it('POI layout is label-mode-independent — markers never move (AC15)', () => {
     // A co-located cluster spiderfies during POI layout (independent of label
-    // mode), so off-labels and all-labels must place identical marker positions.
+    // visibility), so suppressed-labels and shown-labels place identical markers.
     const src =
       'map\npoi 0 0 as alphaonelong\npoi 0 0 as bravotwolong\npoi 0 0 as charlie3long\npoi 0 0 as deltafourlong\npoi 0 0 as echofivelong\npoi 0 0 as foxtrot6long';
-    const off = lay(`map\npoi-labels off\n${src.slice(4)}`);
-    const all = lay(`map\npoi-labels all\n${src.slice(4)}`);
+    const off = lay(`map\nno-poi-labels\n${src.slice(4)}`);
+    const on = lay(src);
     expect(off.pois.map((p) => [p.cx, p.cy])).toEqual(
-      all.pois.map((p) => [p.cx, p.cy])
+      on.pois.map((p) => [p.cx, p.cy])
     );
     // The co-located cluster spiderfied: one stack, every member keeps a label.
-    expect(all.clusters).toHaveLength(1);
-    expect(all.labels.filter((l) => l.clusterMember).length).toBe(
-      all.pois.length
+    expect(on.clusters).toHaveLength(1);
+    expect(on.labels.filter((l) => l.clusterMember).length).toBe(
+      on.pois.length
     );
   });
   it('co-located cluster labels EVERY member via spiderfy (none dropped/hidden)', () => {
     const r = lay(
-      'map\npoi-labels all\npoi 0 0 as alphaone\npoi 0 0 as bravotwo\npoi 0 0 as charlie3\npoi 0 0 as deltafour'
+      'map\npoi 0 0 as alphaone\npoi 0 0 as bravotwo\npoi 0 0 as charlie3\npoi 0 0 as deltafour'
     );
     // No member is dropped — all four keep a (cluster-member) label, visible.
     expect(r.labels).toHaveLength(4);
@@ -809,13 +777,9 @@ describe('layout — coincident-POI spiderfy (stacks)', () => {
 });
 
 describe('layout — relief (AC2, AC3, AC5, AC8, AC9)', () => {
-  it('off by default → no relief shapes, no hatch (AC2)', () => {
+  it('default-ON for a dataless reference world map → ≥1 shape + hatch (AC8)', () => {
+    // Bare `map` = dataless world extent, wide canvas → relief shows by default.
     const r = lay('map');
-    expect(r.relief).toHaveLength(0);
-    expect(r.reliefHatch).toBeNull();
-  });
-  it('`relief` on → ≥1 shape with finite path + palette-mixed hatch (AC3, AC5)', () => {
-    const r = lay('map\nrelief');
     expect(r.relief.length).toBeGreaterThan(0);
     expect(r.relief[0]!.d.length).toBeGreaterThan(0);
     expect(r.relief[0]!.d).not.toMatch(/NaN/);
@@ -826,26 +790,37 @@ describe('layout — relief (AC2, AC3, AC5, AC8, AC9)', () => {
     expect(r.reliefHatch!.spacing).toBeGreaterThan(0);
     expect(r.reliefHatch!.width).toBeGreaterThan(0);
   });
+  it('suppressed on a DATA map (any region value/tag) (AC8)', () => {
+    // A global choropleth is a data map → relief auto-suppresses (it would
+    // compete with the data shading).
+    const r = lay(
+      'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3'
+    );
+    expect(r.relief).toHaveLength(0);
+    expect(r.reliefHatch).toBeNull();
+  });
+  it('`no-relief` forces off even on a dataless world map (AC8)', () => {
+    const r = lay('map\nno-relief');
+    expect(r.relief).toHaveLength(0);
+    expect(r.reliefHatch).toBeNull();
+  });
+  it('suppressed below the compact render-width breakpoint (AC14)', () => {
+    // The same dataless world map in a narrow column reads as zoomed-out.
+    const r = lay('map', 400, 300);
+    expect(r.relief).toHaveLength(0);
+    expect(r.reliefHatch).toBeNull();
+  });
   it('absent asset → relief empty, no throw (AC6)', () => {
     const noAsset: MapData = { ...DATA };
     delete (noAsset as { mountainRanges?: unknown }).mountainRanges;
     const r = layoutMap(
-      resolveMap(parseMap('map\nrelief'), noAsset),
+      resolveMap(parseMap('map'), noAsset),
       noAsset,
       { width: 800, height: 600 },
       { palette: P, isDark: false }
     );
     expect(r.relief).toHaveLength(0);
     expect(r.reliefHatch).toBeNull();
-  });
-  it('layout keeps ranges even over data regions (ADR-2 is a render clip)', () => {
-    // Suppression is polygon-level at render (land-minus-data clip), NOT a
-    // whole-range drop here — else a range crossing one valued state would
-    // vanish over the un-valued land around it too. So the range stays emitted.
-    expect(lay('map\nrelief').relief.length).toBeGreaterThan(0);
-    expect(
-      lay('map\nrelief\nUnited States value: 50').relief.length
-    ).toBeGreaterThan(0);
   });
   it('a sub-min-area range is dropped (AC9 sliver gate)', () => {
     const tiny: MapData = {
@@ -856,7 +831,7 @@ describe('layout — relief (AC2, AC3, AC5, AC8, AC9)', () => {
       ]),
     };
     const r = layoutMap(
-      resolveMap(parseMap('map\nrelief'), tiny),
+      resolveMap(parseMap('map'), tiny),
       tiny,
       { width: 800, height: 600 },
       { palette: P, isDark: false }
@@ -865,17 +840,18 @@ describe('layout — relief (AC2, AC3, AC5, AC8, AC9)', () => {
     expect(r.reliefHatch).toBeNull();
   });
   it('relief layout is deterministic (AC8)', () => {
-    const src = 'map\nrelief';
+    const src = 'map';
     expect(JSON.stringify(lay(src))).toBe(JSON.stringify(lay(src)));
   });
 });
 
-describe('layout — coastline water-lines style (AC3, AC8)', () => {
-  it('off by default → coastlineStyle is null (AC3)', () => {
-    expect(lay('map').coastlineStyle).toBeNull();
+describe('layout — coastline water-lines style (AC2, AC8)', () => {
+  it('on by default → non-null style; no-coastline → null (AC2)', () => {
+    expect(lay('map').coastlineStyle).not.toBeNull();
+    expect(lay('map\nno-coastline').coastlineStyle).toBeNull();
   });
-  it('`coastline` on → non-null style with 5 equal-width rings + palette-mixed colour', () => {
-    const cs = lay('map\ncoastline').coastlineStyle;
+  it('default → 5 equal-width rings + palette-mixed colour', () => {
+    const cs = lay('map').coastlineStyle;
     expect(cs).not.toBeNull();
     expect(cs!.color).toMatch(/^#[0-9a-f]{6}$/i);
     expect(cs!.lines).toHaveLength(5);
@@ -897,21 +873,21 @@ describe('layout — coastline water-lines style (AC3, AC8)', () => {
     expect(cs!.minExtent).toBeGreaterThan(0);
   });
   it('offshore distance scales with canvas size — same fraction at 2× (AC8)', () => {
-    const a = lay('map\ncoastline', 400, 300).coastlineStyle!;
-    const b = lay('map\ncoastline', 800, 600).coastlineStyle!;
+    const a = lay('map', 400, 300).coastlineStyle!;
+    const b = lay('map', 800, 600).coastlineStyle!;
     // d is a fraction of min(w,h): doubling the canvas doubles the px distance,
     // so the offshore gap stays the SAME fraction of the map (ADR-3).
     expect(b.lines[0]!.d).toBeCloseTo(a.lines[0]!.d * 2, 5);
     expect(b.lines[1]!.d).toBeCloseTo(a.lines[1]!.d * 2, 5);
   });
   it('coastline layout is deterministic', () => {
-    const src = 'map\ncoastline';
+    const src = 'map';
     expect(JSON.stringify(lay(src))).toBe(JSON.stringify(lay(src)));
   });
   it('holds the load-bearing invariant d_k + thickness < d_(k+1) for every ring (a ring never reaches the next out)', () => {
     // The renderer draws outer→inner and erodes each band to radius d_k; if a
     // ring's d_k+thickness reached d_(k+1) the inner overdraw would erase it.
-    const lines = lay('map\ncoastline').coastlineStyle!.lines;
+    const lines = lay('map').coastlineStyle!.lines;
     for (let k = 1; k < lines.length; k++)
       expect(lines[k - 1]!.d + lines[k - 1]!.thickness).toBeLessThan(
         lines[k]!.d
@@ -954,11 +930,11 @@ describe('context labels — orientation backdrop (§24B, AC2/AC8)', () => {
     expect(a).toBe(b);
   });
 
-  it('context-labels on places water labels over open ocean (offshore POIs)', () => {
+  it('context labels (default-on) place water labels over open ocean (offshore POIs)', () => {
     // Two POIs in the mid-Atlantic frame an open-water view; the North Atlantic
     // anchor lands in clear water → an italic water label is emitted. (World-view
     // tiering / oceans-only is covered deterministically in the module tests.)
-    const r = lay('map\ncontext-labels on\npoi 22 -42\npoi 18 -38');
+    const r = lay('map\npoi 22 -42\npoi 18 -38');
     const water = italicLabels(r);
     expect(water.length).toBeGreaterThan(0);
     expect(water.some((l) => /Ocean/.test(l.text))).toBe(true);
@@ -967,16 +943,17 @@ describe('context labels — orientation backdrop (§24B, AC2/AC8)', () => {
   it('context labels never displace data labels (dead-last, AC8)', () => {
     const src = 'map\npoi Tokyo\npoi New York City';
     // POI labels are the data labels here (poiId set); context labels carry no
-    // poiId. Turning context-labels on must not move/drop any data label.
+    // poiId. They are placed dead-last, so suppressing them (no-context-labels)
+    // must leave every data label exactly where it was.
     const dataLabels = (s: string) =>
       lay(s)
         .labels.filter((l) => l.poiId !== undefined)
         .map((l) => `${l.text}@${Math.round(l.x)},${Math.round(l.y)}`)
         .sort();
-    expect(dataLabels(`${src}\ncontext-labels on`)).toEqual(dataLabels(src));
+    expect(dataLabels(src)).toEqual(dataLabels(`${src}\nno-context-labels`));
   });
 
-  it('albers-usa US view: context-labels on is not hard-disabled and does not disturb data', () => {
+  it('albers-usa US view: context labels are not hard-disabled and do not disturb data', () => {
     // Decision 8 was relaxed — albers-usa is supported (the module test proves
     // the layer still places under albers-usa; real US maps show Pacific/Atlantic/
     // Gulf — see manual verification). On the crude rect fixture the synthetic
@@ -987,23 +964,22 @@ describe('context labels — orientation backdrop (§24B, AC2/AC8)', () => {
         .labels.filter((l) => l.lineNumber > 0)
         .map((l) => `${l.text}@${Math.round(l.x)},${Math.round(l.y)}`)
         .sort();
-    const base =
-      'map\nregion-labels full\nCalifornia value: 1\nOregon value: 2';
-    expect(() => lay(`${base}\ncontext-labels on`)).not.toThrow();
-    expect(dataLabels(`${base}\ncontext-labels on`)).toEqual(dataLabels(base));
+    const base = 'map\nCalifornia value: 1\nOregon value: 2';
+    expect(() => lay(base)).not.toThrow();
+    expect(dataLabels(base)).toEqual(dataLabels(`${base}\nno-context-labels`));
   });
 });
 
-describe('context labels — composition with relief (AC16)', () => {
-  it('stacking relief + region-labels + data does not inflate context density', () => {
-    const ctxOnly = lay(
-      'map\ncontext-labels on\npoi Tokyo\npoi New York City'
-    ).labels.filter((l) => l.italic).length;
+describe('context labels — composition with data layers (AC16)', () => {
+  it('adding region data does not inflate context-label density', () => {
+    const ctxOnly = lay('map\npoi Tokyo\npoi New York City').labels.filter(
+      (l) => l.italic
+    ).length;
     const stacked = lay(
-      'map\ncontext-labels on\nrelief\nregion-labels full\npoi Tokyo\npoi New York City'
+      'map\nUnited States value: 5\npoi Tokyo\npoi New York City'
     );
     const stackedCtx = stacked.labels.filter((l) => l.italic).length;
-    // Combined layer stays within the same budget — no extra headroom for relief.
+    // Combined layer stays within the same budget — no extra headroom.
     expect(stackedCtx).toBeLessThanOrEqual(ctxOnly);
     // And the stack still produces finite, drawable geometry.
     expect(stacked.regions.every((r) => !/NaN/.test(r.d))).toBe(true);
@@ -1030,9 +1006,7 @@ describe('context labels — review fixes (F1, F3)', () => {
   ) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
   it('context (water) labels never overlap region/POI labels (F1)', () => {
-    const r = lay(
-      'map\ncontext-labels on\nregion-labels full\nUnited States value: 5\npoi Tokyo'
-    );
+    const r = lay('map\nUnited States value: 5\npoi Tokyo');
     const ctx = r.labels.filter((l) => l.italic).map(rectOf);
     const other = r.labels.filter((l) => !l.italic).map(rectOf);
     for (const c of ctx)
@@ -1042,9 +1016,7 @@ describe('context labels — review fixes (F1, F3)', () => {
   it('a US-state map on a world projection emits no "United States" context label (F3)', () => {
     // Mixed content (JP POI) keeps it off albers-usa; the US states are the data
     // so the country itself must not be context-labeled.
-    const r = lay(
-      'map\ncontext-labels on\nCalifornia value: 5\nMaine value: 8\npoi Tokyo'
-    );
+    const r = lay('map\nCalifornia value: 5\nMaine value: 8\npoi Tokyo');
     expect(r.labels.some((l) => l.text === 'United States')).toBe(false);
   });
 });

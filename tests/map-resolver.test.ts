@@ -278,39 +278,17 @@ describe('resolver — edges & routes (AC10-12, AC23)', () => {
   });
 });
 
-describe('resolver — surface cascade (AC4, §24B.6)', () => {
-  it('route-header surface cascades to every leg (baked at parse time)', () => {
-    const r = resolve(
-      'map\nroute Tokyo surface: water\n  -> Osaka\n  -> Tokyo'
-    );
-    expect(r.routes[0]!.legs.map((l) => l.surface)).toEqual(['water', 'water']);
-    expect(r.routes[0]!.legs.every((l) => l.style === 'arc')).toBe(true);
+describe('resolver — surface removed (AC9)', () => {
+  it('`surface:` is unrecognized — it folds into the endpoint name and errors', () => {
+    // `surface: water` is no longer split off as metadata, so `Osaka surface:
+    // water` becomes the destination NAME, which fails to resolve (AC9 — surface
+    // errors as unknown rather than silently bowing the leg).
+    const r = resolve('map\nTokyo -> Osaka surface: water');
+    expect(r.diagnostics.some((d) => d.severity === 'error')).toBe(true);
   });
-  it('per-leg surface overrides the route-header default (narrower wins)', () => {
-    const r = resolve(
-      'map\nroute Tokyo surface: water\n  -> Osaka\n  -> Tokyo surface: land'
-    );
-    expect(r.routes[0]!.legs.map((l) => l.surface)).toEqual(['water', 'land']);
-  });
-  it('map-level directive fills unset legs/edges (resolver fallback)', () => {
-    const r = resolve(
-      'map\nsurface water\nroute Tokyo\n  -> Osaka\nTokyo -> Osaka'
-    );
-    expect(r.routes[0]!.legs[0]!.surface).toBe('water');
-    expect(r.edges[0]!.surface).toBe('water');
-  });
-  it('three-level cascade: directive + route default + leg override (ADR-4)', () => {
-    const r = resolve(
-      'map\nsurface water\nroute Tokyo\n  -> Osaka\n  -> Tokyo surface: land'
-    );
-    // route has no surface → legs inherit the map directive (water), except the
-    // overridden final leg (land).
-    expect(r.routes[0]!.legs.map((l) => l.surface)).toEqual(['water', 'land']);
-  });
-  it('edge surface implies arc, even when inherited from the directive', () => {
-    const r = resolve('map\nsurface water\nTokyo -> Osaka');
-    expect(r.edges[0]!.surface).toBe('water');
-    expect(r.edges[0]!.style).toBe('arc');
+  it('a plain route (no surface) resolves with straight legs', () => {
+    const r = resolve('map\nroute Tokyo\n  -> Osaka\n  -> Tokyo');
+    expect(r.routes[0]!.legs.every((l) => l.style === 'straight')).toBe(true);
   });
 });
 
@@ -323,9 +301,17 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const r = resolve('map\nCalifornia value: 1\nOregon value: 2');
     expect(r.projection).toBe('albers-usa');
   });
-  it('world span → equirectangular (AC15)', () => {
+  it('dataless world span → natural-earth (AC5)', () => {
     const r = resolve('map\npoi Tokyo\npoi 40 -74 as ny');
-    expect(r.projection).toBe('equirectangular');
+    expect(r.projection).toBe('natural-earth');
+  });
+  it('data world span → equal-earth (equal-area, AC5)', () => {
+    // A choropleth spanning the globe (US + China, beyond North America so not
+    // US-oriented) is a DATA map → Equal Earth so areas stay honest.
+    const r = resolve(
+      'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3'
+    );
+    expect(r.projection).toBe('equal-earth');
   });
   it('tight cluster → mercator (AC15)', () => {
     // Non-US coords (London) so the cluster isn't pulled to the national
@@ -339,29 +325,38 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const r = resolve('map\npoi 35 -10 as sw\npoi 60 30 as ne');
     expect(r.projection).toBe('mercator');
   });
-  it('polar-reaching wide frame → equirectangular (Mercator area blow-up guard)', () => {
+  it('polar-reaching wide frame (dataless) → natural-earth (Mercator area blow-up guard)', () => {
     // Sub-world longitude span but the frame reaches past ~80° latitude — Mercator
-    // would grossly inflate the high-latitude land, so fall back to equirectangular.
+    // would grossly inflate the high-latitude land, so fall back to a world
+    // projection. Dataless → natural-earth.
     const r = resolve('map\npoi 84 -40 as a\npoi 60 40 as b');
-    expect(r.projection).toBe('equirectangular');
+    expect(r.projection).toBe('natural-earth');
   });
-  it('projection directive overrides (AC15)', () => {
-    const r = resolve('map\nprojection mercator\npoi Tokyo\npoi 40 -74 as ny');
-    expect(r.projection).toBe('mercator');
-  });
-  it('projection equirectangular is a valid override (AC15)', () => {
-    const r = resolve('map\nprojection equirectangular\nCalifornia value: 1');
-    expect(r.projection).toBe('equirectangular');
+  it('equirectangular is never selected for any extent (AC12)', () => {
+    const cases = [
+      'map\npoi Tokyo\npoi 40 -74 as ny', // dataless world
+      'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3', // data world
+      'map\nCalifornia value: 1\nOregon value: 2', // US
+      'map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b', // tight cluster
+    ];
+    for (const src of cases) {
+      const proj = resolve(src).projection;
+      expect(proj).not.toBe('equirectangular');
+      expect([
+        'equal-earth',
+        'natural-earth',
+        'albers-usa',
+        'mercator',
+      ]).toContain(proj);
+    }
   });
   it('world-scale frame snaps to full Greenwich longitude, not an antimeridian wrap (no US split)', () => {
-    // POIs spanning the globe (Americas + Europe + Asia). The world-scale
-    // equirectangular frame must be the conventional full [-180, 180] Greenwich
-    // rectangle — NOT a wrapped window (east > 180) that splits the Americas at
-    // the seam (the real US country box wraps via its Aleutians). POIs (not the
-    // hand-built rect fixtures, whose ring winding confuses geoBounds) so the
-    // extent is asserted on real coordinates.
+    // POIs spanning the globe (Americas + Europe + Asia). The world-scale frame
+    // must be the conventional full [-180, 180] Greenwich rectangle — NOT a
+    // wrapped window (east > 180) that splits the Americas at the seam. Dataless
+    // POIs → natural-earth.
     const r = resolve('map\npoi 10 -120 as a\npoi 10 20 as b\npoi 10 150 as c');
-    expect(r.projection).toBe('equirectangular');
+    expect(r.projection).toBe('natural-earth');
     expect(r.extent[0][0]).toBe(-180);
     expect(r.extent[1][0]).toBe(180);
     // Latitude widens to the populated world band even though the data sits at

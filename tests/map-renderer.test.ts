@@ -122,7 +122,7 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
   });
 
   it('POI marker + label share a data-poi id (label-hover spotlight)', () => {
-    const svg = render('map\npoi-labels all\npoi Tokyo');
+    const svg = render('map\npoi Tokyo');
     const marker = svg.querySelector<SVGCircleElement>('circle[data-poi]');
     const label = svg.querySelector<SVGTextElement>('text[data-poi]');
     expect(marker).toBeTruthy();
@@ -142,20 +142,20 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(el.querySelector('svg')).toBeTruthy();
   });
 
-  it('renders subtitle + caption directives', () => {
-    const svg = render(
-      'map My Title\nsubtitle A sub\ncaption A note\npoi Tokyo'
-    );
-    expect(svg.textContent).toContain('A sub');
+  it('renders the caption directive (AC4)', () => {
+    const svg = render('map My Title\ncaption A note\npoi Tokyo');
     expect(svg.textContent).toContain('A note');
   });
 
-  it('off by default → no relief group (AC2)', () => {
-    expect(render('map').querySelector('.dgmo-map-relief')).toBeNull();
+  it('relief default-on (dataless world); no-relief removes it (AC8)', () => {
+    expect(render('map').querySelector('.dgmo-map-relief')).toBeTruthy();
+    expect(
+      render('map\nno-relief').querySelector('.dgmo-map-relief')
+    ).toBeNull();
   });
 
   it('`relief` → hachure lines clipped to a range-union clipPath (AC3)', () => {
-    const svg = render('map\nrelief');
+    const svg = render('map');
     const group = svg.querySelector('.dgmo-map-relief');
     expect(group).toBeTruthy();
     // Clipped to the union of range paths.
@@ -172,54 +172,25 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(group!.querySelector('[data-line-number]')).toBeNull();
   });
 
-  it('includes data-coloured regions in the relief land clip (relief atop fills)', () => {
-    // Relief sits ATOP the choropleth/tag fills now: a valued region stays in
-    // the land clip so the hachure draws over its data colour too. Local
-    // fixture: a valued US + an un-valued Canada, with a range spanning both.
-    const data: MapData = {
-      ...DATA,
-      worldCoarse: rectTopo('countries', [
-        { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
-        { id: 'CA', name: 'Canada', box: [-125, 49, -66, 60] },
-      ]),
-      worldDetail: rectTopo('countries', [
-        { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
-        { id: 'CA', name: 'Canada', box: [-125, 49, -66, 60] },
-      ]),
-      mountainRanges: rectTopo('ranges', [
-        { id: 'mtn-0', name: 'Rockies', box: [-120, 35, -105, 58] },
-      ]),
-    };
-    const el = document.createElement('div');
-    renderMap(
-      el,
-      resolveMap(parseMap('map\nrelief\nUnited States value: 5'), data),
-      data,
-      P,
-      false,
-      undefined,
-      DIMS
-    );
-    const svg = el.querySelector('svg')!;
-    const us = svg.querySelector<SVGPathElement>(
-      '.dgmo-map-region[data-region="US"]'
-    );
-    expect(us).toBeTruthy();
-    const landClip = svg.querySelector('clipPath#dgmo-relief-land')!;
-    const clipDs = [...landClip.querySelectorAll('path')].map((p) =>
-      p.getAttribute('d')
-    );
-    expect(clipDs.length).toBeGreaterThan(0);
-    expect(clipDs).toContain(us!.getAttribute('d')); // valued US land included
+  it('relief is suppressed entirely on a data map (decision B, AC8)', () => {
+    // A region value makes it a data map → relief auto-suppresses (it competes
+    // with the data shading). The relief group must be absent.
+    const svg = render('map\nUnited States value: 5');
+    expect(svg.querySelector('.dgmo-map-relief')).toBeNull();
   });
 
-  it('off by default → no water-lines group (AC3)', () => {
-    expect(render('map').querySelector('.dgmo-map-water-lines')).toBeNull();
-    expect(render('map').querySelector('mask#dgmo-map-water-mask')).toBeNull();
+  it('coastline default-on; no-coastline removes the water-lines group (AC2)', () => {
+    expect(render('map').querySelector('.dgmo-map-water-lines')).toBeTruthy();
+    expect(
+      render('map\nno-coastline').querySelector('.dgmo-map-water-lines')
+    ).toBeNull();
+    expect(
+      render('map\nno-coastline').querySelector('mask#dgmo-map-water-mask')
+    ).toBeNull();
   });
 
   it('`coastline` → masked water-lines group with stroked region paths (AC1)', () => {
-    const svg = render('map\ncoastline');
+    const svg = render('map');
     const group = svg.querySelector('.dgmo-map-water-lines');
     expect(group).toBeTruthy();
     // Masked to the water side (NOT a clipPath — a mask can subtract land).
@@ -232,7 +203,7 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
   });
 
   it('water mask = white canvas − black land + userSpaceOnUse (AC2)', () => {
-    const svg = render('map\ncoastline');
+    const svg = render('map');
     const mask = svg.querySelector('mask#dgmo-map-water-mask')!;
     expect(mask).toBeTruthy();
     // userSpaceOnUse so the reveal reaches the canvas edges (round-2 #2).
@@ -258,17 +229,13 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
   });
 
   it('water-lines are decorative — no data attributes (AC1)', () => {
-    const group = render('map\ncoastline').querySelector(
-      '.dgmo-map-water-lines'
-    )!;
+    const group = render('map').querySelector('.dgmo-map-water-lines')!;
     expect(group.querySelector('[data-line-number]')).toBeNull();
     expect(group.querySelector('[data-region]')).toBeNull();
   });
 
   it('outer band is the widest stroke + each colour band exceeds its overdraw → a ring survives (AC1)', () => {
-    const group = render('map\ncoastline').querySelector(
-      '.dgmo-map-water-lines'
-    )!;
+    const group = render('map').querySelector('.dgmo-map-water-lines')!;
     const paths = [...group.querySelectorAll('path')];
     // Colour bands carry stroke-opacity; flat-water overdraws do not.
     const colour = paths.filter((p) => p.getAttribute('stroke-opacity'));
@@ -287,9 +254,7 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
   });
 
   it('water mask is a single white reveal rect with NO frame band — rings carry to every edge (AC2b)', () => {
-    const mask = render('map\ncoastline').querySelector(
-      'mask#dgmo-map-water-mask'
-    )!;
+    const mask = render('map').querySelector('mask#dgmo-map-water-mask')!;
     const rects = [...mask.querySelectorAll('rect')];
     // Exactly one white full-canvas reveal rect; no black frame-band rects (the
     // mask's black land paths already hide any synthetic frame-cut edge).
@@ -302,9 +267,7 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
   });
 
   it('re-strokes coast outlines inside the masked group so coastlines stay crisp (not faded by the erosion overdraw)', () => {
-    const group = render('map\ncoastline').querySelector(
-      '.dgmo-map-water-lines'
-    )!;
+    const group = render('map').querySelector('.dgmo-map-water-lines')!;
     // The restroke pass appends one plain region outline per region (stroke, no
     // stroke-opacity, width 0.5) on TOP of the ring passes.
     const restrokes = [...group.querySelectorAll('path')].filter(
@@ -325,7 +288,7 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     const el = document.createElement('div');
     renderMap(
       el,
-      resolveMap(parseMap('map\ncoastline'), data),
+      resolveMap(parseMap('map'), data),
       data,
       P,
       false,
@@ -342,9 +305,7 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(whitePaths.length).toBeGreaterThan(0); // lake interior re-revealed
     expect(blackPaths.length).toBeGreaterThan(0); // land hidden
     // Control: no lakes → no white PATHS (only the white reveal rect).
-    const noLake = render('map\ncoastline').querySelector(
-      'mask#dgmo-map-water-mask'
-    )!;
+    const noLake = render('map').querySelector('mask#dgmo-map-water-mask')!;
     expect(
       [...noLake.querySelectorAll('path')].filter(
         (p) => p.getAttribute('fill') === 'white'
@@ -370,13 +331,12 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
 describe('renderer — coincident-stack spiderfy + hover-only (AC1/AC8)', () => {
   // 8 co-located POIs collapse into ONE spiderfy stack.
   const STACK_SRC =
-    'map\npoi-labels all\n' +
+    'map\n' +
     Array.from({ length: 8 }, (_, i) => `poi 0 0 as poi${i}long`).join('\n');
   // A dense-but-DISTINCT compact chain (US corners anchor the fit) still goes
   // hover-only — no stack, no badge.
   const HOVER_SRC = [
     'map',
-    'poi-labels all',
     'poi 49 -124 as anchorNW',
     'poi 26 -67 as anchorSE',
     ...Array.from(
@@ -468,7 +428,7 @@ describe('context labels — cartographic styling (AC12)', () => {
   it('water context labels render italic + letter-spaced + haloed <text>', () => {
     // Offshore POIs frame open ocean so the North Atlantic anchor lands in clear
     // water (over land it would be excluded — water names belong over water).
-    const svg = render('map\ncontext-labels on\npoi 22 -42\npoi 18 -38');
+    const svg = render('map\npoi 22 -42\npoi 18 -38');
     const labels = [...svg.querySelectorAll('.dgmo-map-labels text')];
     const italic = labels.filter(
       (t) => t.getAttribute('font-style') === 'italic'

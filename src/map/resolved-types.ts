@@ -36,7 +36,7 @@ export interface MapData {
 }
 
 export type ProjectionFamily =
-  | 'equirectangular'
+  | 'equal-earth'
   | 'natural-earth'
   | 'albers-usa'
   | 'mercator';
@@ -126,6 +126,9 @@ export type GeoExtent = [[number, number], [number, number]];
 
 export interface ResolvedMap {
   readonly title: string | null;
+  /** DEAD — the `subtitle` directive was removed (2026-06-02 defaults-on review).
+   *  Never populated; the renderer's subtitle branch is now unreachable. Left for
+   *  a later cleanup pass (mirrors the deferred surface dead code). */
   readonly subtitle?: string;
   readonly caption?: string;
   readonly tagGroups: readonly TagGroup[];

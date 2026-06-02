@@ -26,77 +26,78 @@ describe('parseMap — declaration & title (AC1)', () => {
 });
 
 describe('parseMap — directives (AC2, AC20)', () => {
-  it('captures directives incl. multi-word values', () => {
+  it('captures the surviving intent directives', () => {
     const r = parseMap(
-      'map\nprojection albers-usa\nregion-metric Sales ($M)\nlocale US\nno-legend'
+      'map\nregion-metric Sales ($M)\nlocale US\nno-legend\ncaption src ACME'
     );
     expect(r.error).toBeNull();
-    expect(r.directives.projection).toBe('albers-usa');
     expect(r.directives.regionMetric).toBe('Sales ($M)');
     expect(r.directives.locale).toBe('US');
     expect(r.directives.noLegend).toBe(true);
+    expect(r.directives.caption).toBe('src ACME');
   });
   it('merges country + subdivision into the one `locale` field', () => {
     expect(parseMap('map\nlocale US').directives.locale).toBe('US');
     expect(parseMap('map\nlocale US-GA').directives.locale).toBe('US-GA');
   });
-  it('warns on unknown enum value but records it', () => {
-    const r = parseMap('map\nprojection mercatorr');
-    expect(r.directives.projection).toBe('mercatorr');
-    expect(
-      r.diagnostics.some(
-        (d) => d.severity === 'warning' && /projection/.test(d.message)
-      )
-    ).toBe(true);
+  it('region-metric trailing color names the ramp hue (§24B.3)', () => {
+    const r = parseMap('map\nregion-metric Sales blue');
+    expect(r.directives.regionMetric).toBe('Sales');
+    expect(r.directives.regionMetricColor).toBe('blue');
   });
-  it('parses scale <min> <max> (center is no longer parsed)', () => {
-    expect(parseMap('map\nscale 0 100').directives.scale).toEqual({
-      min: 0,
-      max: 100,
-    });
-    // `center` is a future seam (§24B.12) — trailing tokens are ignored, no field.
-    expect(parseMap('map\nscale 0 100 center 50').directives.scale).toEqual({
-      min: 0,
-      max: 100,
-    });
-  });
-  it('captures subtitle/caption/poi-metric/flow-metric/region-labels/poi-labels', () => {
+  it('parses each `no-*` cosmetic opt-out as a boolean true (AC2)', () => {
     const r = parseMap(
-      'map\nsubtitle Q3 plan\ncaption src ACME\npoi-metric Headcount\nflow-metric Shipments\nregion-labels abbrev\npoi-labels all'
+      'map\nno-coastline\nno-relief\nno-context-labels\nno-region-labels\nno-poi-labels'
     );
-    expect(r.directives.subtitle).toBe('Q3 plan');
-    expect(r.directives.caption).toBe('src ACME');
-    expect(r.directives.poiMetric).toBe('Headcount');
-    expect(r.directives.flowMetric).toBe('Shipments');
-    expect(r.directives.regionLabels).toBe('abbrev');
-    expect(r.directives.poiLabels).toBe('all');
+    expect(r.directives.noCoastline).toBe(true);
+    expect(r.directives.noRelief).toBe(true);
+    expect(r.directives.noContextLabels).toBe(true);
+    expect(r.directives.noRegionLabels).toBe(true);
+    expect(r.directives.noPoiLabels).toBe(true);
   });
-  it('context-labels on|off|bare|invalid (AC1)', () => {
-    expect(parseMap('map\ncontext-labels on').directives.contextLabels).toBe(
-      true
-    );
-    expect(parseMap('map\ncontext-labels off').directives.contextLabels).toBe(
+  it('`no-*` flags are idempotent — no duplicate warning (mirror no-legend) (AC13)', () => {
+    const r = parseMap('map\nno-coastline\nno-coastline');
+    expect(r.directives.noCoastline).toBe(true);
+    expect(r.diagnostics.some((d) => /[Dd]uplicate/.test(d.message))).toBe(
       false
     );
-    // Bare flag ⇒ on (modeled on `relief`).
-    expect(parseMap('map\ncontext-labels').directives.contextLabels).toBe(true);
-    // Absent ⇒ undefined (off by default).
-    expect(parseMap('map').directives.contextLabels).toBeUndefined();
-    // Unknown value warns and is treated as on.
-    const bogus = parseMap('map\ncontext-labels bogus');
-    expect(bogus.directives.contextLabels).toBe(true);
-    expect(
-      bogus.diagnostics.some(
-        (d) => d.severity === 'warning' && /context-labels/.test(d.message)
-      )
-    ).toBe(true);
   });
-  it('context-labels is idempotent — no duplicate warning (like relief)', () => {
-    const r = parseMap('map\ncontext-labels on\ncontext-labels on');
-    expect(r.directives.contextLabels).toBe(true);
+  it('a duplicated value-directive still warns / last-wins (AC13)', () => {
+    const r = parseMap('map\ncaption A\ncaption B');
+    expect(r.directives.caption).toBe('B');
     expect(
       r.diagnostics.some((d) => /Duplicate directive/.test(d.message))
-    ).toBe(false);
+    ).toBe(true);
+  });
+  it('hard break: removed directive tokens are no longer directives (AC3)', () => {
+    // projection / scale / subtitle / coastline / relief / context-labels /
+    // region-labels / poi-labels are gone ENTIRELY — a line beginning with one
+    // is treated as content (a region-fill), never a directive (no silent
+    // accept, no compat shim). The resolver then errors on the bogus region.
+    const lines = [
+      'projection mercator',
+      'scale 0 100',
+      'subtitle Q3 plan',
+      'coastline',
+      'relief',
+      'context-labels on',
+      'region-labels abbrev',
+      'poi-labels all',
+    ];
+    for (const line of lines) {
+      const r = parseMap('map\n' + line);
+      const d = r.directives as Record<string, unknown>;
+      expect(d['projection']).toBeUndefined();
+      expect(d['scale']).toBeUndefined();
+      expect(d['subtitle']).toBeUndefined();
+      expect(d['relief']).toBeUndefined();
+      expect(d['coastline']).toBeUndefined();
+      expect(d['regionLabels']).toBeUndefined();
+      expect(d['poiLabels']).toBeUndefined();
+      expect(d['contextLabels']).toBeUndefined();
+      // Not recognized as a directive → parsed as a region-fill line.
+      expect(r.regions).toHaveLength(1);
+    }
   });
   it('removed `muted` / `natural` flags now parse as region-fill lines', () => {
     // No basemap-dress directive any more — a bare `muted` line is just a name.
@@ -108,47 +109,6 @@ describe('parseMap — directives (AC2, AC20)', () => {
     const r = parseMap('map\nNatural Bridge value: 5');
     expect(r.regions).toHaveLength(1);
     expect(r.regions[0]!.name).toBe('Natural Bridge');
-  });
-  it('parses the bare `relief` flag (AC4)', () => {
-    expect(parseMap('map\nrelief').directives.relief).toBe(true);
-    expect(
-      parseMap('map\nCalifornia value: 5').directives.relief
-    ).toBeUndefined();
-  });
-  it('`relief\\nrelief` sets true idempotently with no duplicate warning', () => {
-    const r = parseMap('map\nrelief\nrelief');
-    expect(r.directives.relief).toBe(true);
-    expect(r.diagnostics.some((d) => /[Dd]uplicate/.test(d.message))).toBe(
-      false
-    );
-  });
-  it('a region literally named "Relief Basin" is a region, not the flag (AC4)', () => {
-    const r = parseMap('map\nRelief Basin value: 5');
-    expect(r.directives.relief).toBeUndefined();
-    expect(r.regions).toHaveLength(1);
-    expect(r.regions[0]!.name).toBe('Relief Basin');
-  });
-});
-
-describe('parseMap — coastline flag (AC4)', () => {
-  it('parses the bare `coastline` flag', () => {
-    expect(parseMap('map\ncoastline').directives.coastline).toBe(true);
-    expect(
-      parseMap('map\nCalifornia value: 5').directives.coastline
-    ).toBeUndefined();
-  });
-  it('`coastline\\ncoastline` sets true idempotently with no duplicate warning', () => {
-    const r = parseMap('map\ncoastline\ncoastline');
-    expect(r.directives.coastline).toBe(true);
-    expect(r.diagnostics.some((d) => /[Dd]uplicate/.test(d.message))).toBe(
-      false
-    );
-  });
-  it('a region literally named "Coastline Park" is a region, not the flag', () => {
-    const r = parseMap('map\nCoastline Park value: 5');
-    expect(r.directives.coastline).toBeUndefined();
-    expect(r.regions).toHaveLength(1);
-    expect(r.regions[0]!.name).toBe('Coastline Park');
   });
 });
 
@@ -470,34 +430,36 @@ describe('parseMap — adversarial-review fixes', () => {
   });
 });
 
-describe('parseMap — surface constraint (AC5, AC6, §24B.6)', () => {
-  it('map-level surface directive parsed (water | land)', () => {
-    expect(parseMap('map\nsurface water').directives.surface).toBe('water');
-    expect(parseMap('map\nsurface land').directives.surface).toBe('land');
+describe('parseMap — surface removed (AC9)', () => {
+  it('`surface` is no longer a directive — line parses as content', () => {
+    const r = parseMap('map\nsurface water');
+    expect(
+      (r.directives as Record<string, unknown>)['surface']
+    ).toBeUndefined();
   });
-  it('invalid surface value warns and is not recorded', () => {
-    const r = parseMap('map\nsurface lava');
-    expect(r.directives.surface).toBeUndefined();
-    expect(r.diagnostics.some((d) => /surface/i.test(d.message))).toBe(true);
+  it('a route leg formerly written with `surface:` now renders straight (no implied bow)', () => {
+    const r = parseMap('map\nroute Tokyo\n  -> Osaka surface: water');
+    expect(r.routes[0]!.legs[0]!.style).toBe('straight');
+    // surface is no longer lifted onto the leg.
+    expect(
+      (r.routes[0]!.legs[0]! as Record<string, unknown>)['surface']
+    ).toBeUndefined();
+    // `surface:` is no longer a recognized key — it is NOT split off as metadata,
+    // so it folds into the destination name (which then fails resolution: AC9).
+    expect(r.routes[0]!.legs[0]!.dest).toMatchObject({
+      kind: 'name',
+      name: 'Osaka surface: water',
+    });
   });
-  it('route-header surface bakes into legs and implies arc (AC5/F9)', () => {
-    const r = parseMap('map\nroute Tokyo surface: water\n  -> Osaka');
-    expect(r.routes[0]!.surface).toBe('water');
-    expect(r.routes[0]!.legs[0]!.surface).toBe('water');
+  it('`style: arc` still bows a route leg (explicit arc unaffected)', () => {
+    const r = parseMap('map\nroute Tokyo style: arc\n  -> Osaka');
     expect(r.routes[0]!.style).toBe('arc');
     expect(r.routes[0]!.legs[0]!.style).toBe('arc');
   });
-  it('leg-level surface overrides the route default', () => {
-    const r = parseMap(
-      'map\nroute Tokyo surface: water\n  -> Osaka\n  -> Kyoto surface: land'
-    );
-    expect(r.routes[0]!.legs.map((l) => l.surface)).toEqual(['water', 'land']);
-  });
-  it('edge trailing surface attaches to the final hop only + implies arc (AC6/F4)', () => {
-    const r = parseMap('map\nA -> B -> C surface: water');
-    expect(r.edges[0]!.surface).toBeUndefined();
-    expect(r.edges[1]!.surface).toBe('water');
-    expect(r.edges[1]!.style).toBe('arc');
+  it('an edge with `surface:` metadata renders straight unless ~>/style arc', () => {
+    const r = parseMap('map\nA -> B surface: water');
+    expect(r.edges[0]!.style).toBe('straight');
+    expect((r.edges[0]! as Record<string, unknown>)['surface']).toBeUndefined();
   });
 });
 

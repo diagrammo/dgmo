@@ -8,7 +8,7 @@
 import {
   geoPath,
   geoNaturalEarth1,
-  geoEquirectangular,
+  geoEqualEarth,
   geoConicEqualArea,
   geoMercator,
   geoBounds,
@@ -94,6 +94,10 @@ const TAG_TINT_DARK = 68;
 const WATER_TINT_LIGHT = 13;
 const WATER_TINT_DARK = 14;
 const RIVER_WIDTH = 1.3; // px stroke width for river lines
+// Compact breakpoint (decision D2): below this effective render width a wide
+// extent reads as zoomed-out — prefer abbreviated region labels and suppress
+// relief, regardless of geographic extent.
+const COMPACT_WIDTH_PX = 480;
 // Relief (mountain-range shading). A projected range below this px² area is
 // dropped (no confetti slivers at world zoom).
 const RELIEF_MIN_AREA = 12; // px²
@@ -489,16 +493,15 @@ function projectionFor(family: ProjectionFamily): GeoProjection {
       return usConusProjection();
     case 'mercator':
       return geoMercator();
+    case 'equal-earth':
+      // Equal-area pseudocylindrical: areas stay honest so a choropleth's shading
+      // isn't distorted by projection (the default for *data* world maps).
+      return geoEqualEarth();
     case 'natural-earth':
-      return geoNaturalEarth1();
-    case 'equirectangular':
     default:
-      // Plate carrée: x = λ, y = -φ. Cylindrical, so the extent's four CORNERS
-      // are its projected extremes — fitExtent frames it edge-to-edge with no
-      // bulge overflow (unlike naturalEarth, whose curved sides overrun a
-      // corner fit and clip the continents). Fills the rectangle: no rounded
-      // gray corners, no split landmass at the frame edge.
-      return geoEquirectangular();
+      // Prettier curved compromise for dataless *reference* world maps; also the
+      // fallback. Areas are only approximately preserved — fine without data.
+      return geoNaturalEarth1();
   }
 }
 
@@ -774,9 +777,14 @@ export function layoutMap(
   const values = resolved.regions
     .filter((r) => r.value !== undefined)
     .map((r) => r.value!);
-  const scaleOverride = resolved.directives.scale;
-  const rampMin = scaleOverride ? scaleOverride.min : Math.min(...values);
-  const rampMax = scaleOverride ? scaleOverride.max : Math.max(...values);
+  // Ramp auto-fits (the `scale` directive is gone). For all-non-negative data the
+  // low end anchors at 0 so every such choropleth shares a 0 baseline (decision
+  // C); mixed-sign data fits data-min→data-max. Only the LOW end is shared —
+  // different maxes still differ at the high end (cross-map comparability is not
+  // recovered, by design).
+  const allNonNegative = values.length > 0 && values.every((v) => v >= 0);
+  const rampMin = allNonNegative ? 0 : Math.min(...values);
+  const rampMax = Math.max(...values);
   // Value ramp defaults to red so valued regions stand out against the blue
   // water (palette.primary is a blue in most palettes and would blend in). A
   // trailing color on `region-metric` (§24B.3) overrides the hue idiomatically.
@@ -1283,7 +1291,7 @@ export function layoutMap(
 
   // View-INDEPENDENT frame-fill guard. An antimeridian-crossing ring whose true
   // occupied longitude arc is small (e.g. Fiji: islands at 177°E and 178°W, a
-  // ~5° arc straddling the seam) projects under equirectangular to two slivers
+  // ~5° arc straddling the seam) projects under a world projection to two slivers
   // at opposite frame edges; the fill between them inverts to paint the WHOLE
   // ocean as land. `cullFeatureToView` drops these in a regional view, but a
   // global/world view skips culling — so they must be dropped here regardless.
@@ -1507,9 +1515,27 @@ export function layoutMap(
   // (ADR-2) is handled at the RENDER clip — relief is clipped to land MINUS the
   // data-coloured regions, so a range that crosses a valued state still shows on
   // the un-valued land around it (a bbox drop here would nuke the whole range).
+  // Relief default-ON, but auto-gated: it is reference decoration, so it shows
+  // only on a *dataless* reference map (any region/POI value-or-tag suppresses
+  // it — it would compete with the data shading), only at continent/world zoom
+  // (`isGlobalView`), and only when the canvas is wide enough to read (a wide
+  // extent crammed into a narrow column reads as zoomed-out — decision B/D2:
+  // suppress under the compact breakpoint). `no-relief` forces off everywhere.
+  const hasData =
+    resolved.regions.some(
+      (r) => r.value !== undefined || Object.keys(r.tags).length > 0
+    ) ||
+    resolved.pois.some(
+      (p) => p.meta['value'] !== undefined || Object.keys(p.tags).length > 0
+    );
+  const reliefAllowed =
+    resolved.directives.noRelief !== true &&
+    !hasData &&
+    isGlobalView &&
+    width >= COMPACT_WIDTH_PX;
   const relief: MapLayoutRelief[] = [];
   let reliefHatch: MapLayoutReliefHatch | null = null;
-  if (resolved.directives.relief === true && data.mountainRanges) {
+  if (reliefAllowed && data.mountainRanges) {
     for (const [, f] of decodeLayer(data.mountainRanges)) {
       const viewF = isGlobalView ? dropFrameFillers(f) : cullFeatureToView(f);
       if (!viewF) continue;
@@ -1556,7 +1582,7 @@ export function layoutMap(
   // relief: a touch more contrast than `lakeStroke` so the offshore lines read as
   // distinct from the coast stroke (R10/F14).
   let coastlineStyle: MapLayoutCoastlineStyle | null = null;
-  if (resolved.directives.coastline === true) {
+  if (resolved.directives.noCoastline !== true) {
     const minDim = Math.min(width, height);
     coastlineStyle = {
       color: mix(regionStroke, water, COASTLINE_STROKE_MIX),
@@ -2084,14 +2110,17 @@ export function layoutMap(
     obstacles.some((o) => rectsOverlap(rect, o)) ||
     legSegments.some((s) => segmentRectOverlap(s[0], s[1], s[2], s[3], rect));
 
-  // Region labels (default off). Rendered as plain text — NO pill, NO halo — so
-  // the choropleth fill (which encodes the data) stays fully visible. The text
-  // colour is contrast-picked against each region's OWN fill (dark on
-  // pastel/unscored land, light on saturated fills). A label is shown only when
-  // its (padded) footprint fits inside the region, so it always sits on that
-  // fill (no halo needed) and small states like the NE cluster auto-hide rather
-  // than overlap / spill onto the ocean.
-  const regionLabelMode = resolved.directives.regionLabels ?? 'off';
+  // Region labels (default ON; `no-region-labels` suppresses). Rendered as plain
+  // text — NO pill, NO halo — so the choropleth fill (which encodes the data)
+  // stays fully visible. The text colour is contrast-picked against each region's
+  // OWN fill. Auto-fit cascade full → abbrev → hide (decision A): the full name
+  // shows when it fits its footprint; otherwise a US-state 2-letter abbreviation
+  // is tried (countries have no abbrev source, so they degrade full → hide); if
+  // nothing fits the label is hidden rather than overlapping / spilling onto the
+  // ocean. At the compact breakpoint (decision D2) the abbreviation is preferred
+  // FIRST for US states.
+  const showRegionLabels = resolved.directives.noRegionLabels !== true;
+  const isCompact = width < COMPACT_WIDTH_PX;
   const LABEL_PADX = 6;
   const LABEL_PADY = 3;
   const labelW = (text: string): number =>
@@ -2125,17 +2154,28 @@ export function layoutMap(
   const WORLD_LABEL_ANCHORS: Record<string, [number, number]> = {
     US: [-98.5, 39.5], // CONUS geographic centre (near Lebanon, Kansas)
   };
-  if (regionLabelMode === 'full' || regionLabelMode === 'abbrev') {
+  if (showRegionLabels) {
     for (const r of regions) {
       if (r.layer === 'base' || r.label === undefined) continue;
       const f =
         r.layer === 'us-state' ? usLayer?.get(r.id) : worldLayer.get(r.id);
       if (!f) continue;
       const [[x0, y0], [x1, y1]] = path.bounds(f as never);
-      const text =
-        regionLabelMode === 'abbrev' ? r.id.replace(/^US-/, '') : r.label;
-      // Hide if the label wouldn't fit inside the region's footprint.
-      if (labelW(text) > x1 - x0 || labelH > y1 - y0) continue;
+      const boxW = x1 - x0;
+      const boxH = y1 - y0;
+      // full → abbrev → hide. Abbrev exists only for US states; at the compact
+      // breakpoint abbrev is tried first. The first candidate that fits the
+      // footprint wins; none fits → hidden.
+      const abbrev =
+        r.layer === 'us-state' ? r.id.replace(/^US-/, '') : undefined;
+      const candidates =
+        abbrev !== undefined
+          ? isCompact
+            ? [abbrev, r.label]
+            : [r.label, abbrev]
+          : [r.label];
+      const text = candidates.find((t) => labelW(t) <= boxW && labelH <= boxH);
+      if (text === undefined) continue; // doesn't fit even abbreviated → hide
       const anchor =
         r.layer !== 'us-state' ? WORLD_LABEL_ANCHORS[r.id] : undefined;
       const c = anchor
@@ -2144,10 +2184,10 @@ export function layoutMap(
       if (!c || !Number.isFinite(c[0])) continue;
       pushRegionLabel(c[0], c[1], text, r.fill, r.lineNumber);
     }
-    // AK/HI labels live in their insets (own projection centroids).
+    // AK/HI labels live in their insets (own projection centroids). Insets are
+    // tiny, so prefer the abbreviation when the canvas is compact.
     for (const seed of insetLabelSeeds) {
-      const text =
-        regionLabelMode === 'abbrev' ? seed.iso.replace(/^US-/, '') : seed.name;
+      const text = isCompact ? seed.iso.replace(/^US-/, '') : seed.name;
       const src = regionById.get(seed.iso);
       pushRegionLabel(
         seed.x,
@@ -2159,9 +2199,8 @@ export function layoutMap(
     }
   }
 
-  // POI labels (default auto; off -> none; all -> every POI).
-  const poiLabelMode = resolved.directives.poiLabels ?? 'auto';
-  if (poiLabelMode !== 'off') {
+  // POI labels: default-on, collision-managed auto. `no-poi-labels` suppresses.
+  if (resolved.directives.noPoiLabels !== true) {
     // Cluster (stack) members are laid out + labelled by the spiderfy block; keep
     // them out of the singleton/proximity-column placement here.
     const ordered = [...pois]
@@ -2446,7 +2485,7 @@ export function layoutMap(
   // -- Context labels (orientation backdrop, §24B). Placed DEAD LAST so they
   // only fill leftover space and never displace a data/region/POI label
   // (Decision 7). Off by default; gated on the directive so it costs nothing. --
-  if (resolved.directives.contextLabels) {
+  if (resolved.directives.noContextLabels !== true) {
     // F1: context labels must dodge EVERY committed label (region/inset/POI/
     // route), not just the POI-label rects already in `obstacles`. Region
     // labels go into `labels` but never into `obstacles`, so add a footprint
@@ -2509,7 +2548,9 @@ export function layoutMap(
       height,
       waterBodies: data.waterBodies,
       countries: countryCandidates,
-      regionLabels: regionLabelMode,
+      // Context country labels mirror the region-label abbreviation policy: the
+      // ISO code at the compact breakpoint, the full name otherwise.
+      regionLabels: isCompact ? 'abbrev' : 'full',
       palette,
       project,
       collides,
