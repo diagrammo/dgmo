@@ -1603,11 +1603,12 @@ export function layoutMap(
   }
 
   // Rivers (Amazon, Nile, Mississippi, …) as thin water lines over the land.
-  // Nudged slightly toward the border tone (off flat `water`) so the line reads
-  // as a deliberate water course rather than a gap where it crosses a border —
-  // in muted/data mode flat water is a pale gray that just looks like a broken
-  // boundary. Open paths: stroked, no fill; under POIs/edges/labels.
-  const riverColor = mix(water, regionStroke, 16);
+  // A deliberate water-blue — a more saturated cousin of the body-of-water
+  // `water` tone (which is a very faded blue, §mapBackgroundColor) so the line
+  // reads clearly as a water course, not a dark gap where it crosses a border.
+  // Mixing toward the border tone instead reads as a broken boundary in
+  // muted/data mode. Open paths: stroked, no fill; under POIs/edges/labels.
+  const riverColor = mix(palette.colors.blue, water, 42);
   const rivers: MapLayoutRiver[] = [];
   if (data.rivers) {
     for (const [, f] of decodeLayer(data.rivers)) {
