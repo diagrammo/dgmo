@@ -158,6 +158,8 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'poi-labels',
   'locale',
   'no-legend',
+  'relief',
+  'coastline',
   'subtitle',
   'caption',
   'poi',

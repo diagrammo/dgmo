@@ -542,6 +542,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       'no-legend': { description: 'Suppress the legend' },
       relief: { description: 'Subtle mountain-range relief shading' },
+      coastline: {
+        description: 'Faint water-lines along coasts/shorelines',
+      },
       subtitle: { description: 'Subtitle line' },
       caption: { description: 'Caption line' },
     }),

@@ -600,6 +600,55 @@ describe('layout — relief (AC2, AC3, AC5, AC8, AC9)', () => {
   });
 });
 
+describe('layout — coastline water-lines style (AC3, AC8)', () => {
+  it('off by default → coastlineStyle is null (AC3)', () => {
+    expect(lay('map').coastlineStyle).toBeNull();
+  });
+  it('`coastline` on → non-null style with 5 equal-width rings + palette-mixed colour', () => {
+    const cs = lay('map\ncoastline').coastlineStyle;
+    expect(cs).not.toBeNull();
+    expect(cs!.color).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(cs!.lines).toHaveLength(5);
+    // Every ring: positive offshore distance + thickness; opacity in (0,1].
+    for (const l of cs!.lines) {
+      expect(l.d).toBeGreaterThan(0);
+      expect(l.thickness).toBeGreaterThan(0);
+      expect(l.opacity).toBeGreaterThan(0);
+      expect(l.opacity).toBeLessThanOrEqual(1);
+    }
+    // All rings share the SAME width; distance steps strictly outward; opacity
+    // fades monotonically seaward (a gradual fade, not a step).
+    const t = cs!.lines[0]!.thickness;
+    for (let k = 1; k < cs!.lines.length; k++) {
+      expect(cs!.lines[k]!.thickness).toBeCloseTo(t, 9);
+      expect(cs!.lines[k]!.d).toBeGreaterThan(cs!.lines[k - 1]!.d);
+      expect(cs!.lines[k]!.opacity).toBeLessThan(cs!.lines[k - 1]!.opacity);
+    }
+    expect(cs!.minExtent).toBeGreaterThan(0);
+  });
+  it('offshore distance scales with canvas size — same fraction at 2× (AC8)', () => {
+    const a = lay('map\ncoastline', 400, 300).coastlineStyle!;
+    const b = lay('map\ncoastline', 800, 600).coastlineStyle!;
+    // d is a fraction of min(w,h): doubling the canvas doubles the px distance,
+    // so the offshore gap stays the SAME fraction of the map (ADR-3).
+    expect(b.lines[0]!.d).toBeCloseTo(a.lines[0]!.d * 2, 5);
+    expect(b.lines[1]!.d).toBeCloseTo(a.lines[1]!.d * 2, 5);
+  });
+  it('coastline layout is deterministic', () => {
+    const src = 'map\ncoastline';
+    expect(JSON.stringify(lay(src))).toBe(JSON.stringify(lay(src)));
+  });
+  it('holds the load-bearing invariant d_k + thickness < d_(k+1) for every ring (a ring never reaches the next out)', () => {
+    // The renderer draws outer→inner and erodes each band to radius d_k; if a
+    // ring's d_k+thickness reached d_(k+1) the inner overdraw would erase it.
+    const lines = lay('map\ncoastline').coastlineStyle!.lines;
+    for (let k = 1; k < lines.length; k++)
+      expect(lines[k - 1]!.d + lines[k - 1]!.thickness).toBeLessThan(
+        lines[k]!.d
+      );
+  });
+});
+
 describe('layout — purity & determinism (AC22)', () => {
   it('deterministic, never throws on a resolved map with errors (AC22)', () => {
     const resolved = resolveMap(parseMap('map\npoi Nowheresville'), DATA);

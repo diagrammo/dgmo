@@ -1,0 +1,9 @@
+map Smuggler's Run
+projection mercator
+coastline
+
+poi Havana value: 90
+poi Kingston value: 120
+
+route Havana style: arc
+  -run the blockade-> Kingston

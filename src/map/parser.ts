@@ -60,6 +60,7 @@ const DIRECTIVE_SET: ReadonlySet<string> = new Set([
   'active-tag',
   'no-legend',
   'relief',
+  'coastline',
   'surface',
   'subtitle',
   'caption',
@@ -371,6 +372,10 @@ export function parseMap(content: string): ParsedMap {
       case 'relief':
         // Bare flag (idempotent — `relief\nrelief` is no warning).
         d.relief = true;
+        break;
+      case 'coastline':
+        // Bare flag (idempotent — `coastline\ncoastline` is no warning).
+        d.coastline = true;
         break;
       case 'surface':
         dup(d.surface);

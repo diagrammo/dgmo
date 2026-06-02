@@ -103,6 +103,31 @@ const RELIEF_HATCH_WIDTH = 0.25; // px stroke
 // blended into the land colour — so the lines read DARKER than the land in both
 // themes (palette.text alone flips to light on dark themes).
 const RELIEF_HATCH_STRENGTH = 32;
+// Coastline water-lines (opt-in `coastline`, §24B.2). N equal-width coast-parallel
+// rings on the water side, evenly spaced and FADING seaward — the antique
+// nautical-chart depth-contour look. Offshore distances + thickness are
+// SCREEN-space FRACTIONS of min(w,h) so the rings stay a constant fraction of the
+// canvas at ANY export size and ANY geographic extent (a decorative screen-space
+// cue, not a geographic offset — ADR-3). Tuned faint, water-toned, low-contrast.
+// minExtent = per-subpath island floor (drop tiny islands; bounds the stroke cost
+// on world maps — R5/R11).
+// INVARIANT (load-bearing): COASTLINE_STEP > COASTLINE_THICKNESS — i.e. every
+// ring's d_k + thickness < d_(k+1). The renderer draws outer→inner; ring k's
+// colour band reaches radius d_k+thickness and its flat-water overdraw reaches
+// d_k. If a ring's band reached the next ring out, the inner overdraw would erase
+// it. Keep step > thickness; a layout test pins it (map-layout.test.ts).
+const COASTLINE_RING_COUNT = 5; // discrete coast-parallel rings
+const COASTLINE_D0 = 0.0016; // innermost ring offshore distance (frac of min dim)
+const COASTLINE_STEP = 0.0028; // spacing between rings (frac of min dim)
+const COASTLINE_THICKNESS = 0.0014; // ring width — SAME for every ring (frac)
+const COASTLINE_OPACITY_NEAR = 0.5; // innermost ring opacity
+const COASTLINE_OPACITY_FAR = 0.1; // outermost ring opacity (gradual fade)
+const COASTLINE_MIN_EXTENT = 0.004; // ring bbox extent floor (frac of min dim)
+const COASTLINE_MIN_EXTENT_GLOBAL = 0.006; // tighter floor at world zoom
+// Water-line tone: mix regionStroke into water. LESS water than `lakeStroke`
+// (mix 45) so the offshore lines carry a touch MORE contrast than the existing
+// coast stroke and stay distinguishable from it (R10/F14).
+const COASTLINE_STROKE_MIX = 32;
 // % palette-gray of bg for non-US neighbour land. Higher on dark so it reads as
 // a clear gray rather than sinking into the dark background.
 const FOREIGN_TINT_LIGHT = 30;
@@ -270,6 +295,27 @@ export interface MapLayoutReliefHatch {
   readonly width: number;
 }
 
+/** Style object for the opt-in coastline water-lines (`coastline`, §24B.2).
+ *  `null` when the flag is off. Carries only STYLE — no geometry; the renderer
+ *  buffers the existing region paths (`layout.regions[].d`) and masks them to the
+ *  water side. `d`/`thickness` are absolute SCREEN px (already resolved from a
+ *  fraction of the fitted canvas, so they stay proportional across export sizes —
+ *  ADR-3). */
+export interface MapLayoutCoastlineStyle {
+  /** Water-toned line colour (a touch more contrast than `lakeStroke`). */
+  readonly color: string;
+  /** The 2 coast-parallel lines, inner→outer. `d` = offshore distance,
+   *  `thickness` = ring width (both screen px), `opacity` fades seaward. */
+  readonly lines: ReadonlyArray<{
+    readonly d: number;
+    readonly thickness: number;
+    readonly opacity: number;
+  }>;
+  /** Per-subpath bbox-extent floor (screen px): rings smaller than this are
+   *  dropped (de-noise tiny islands, bound the stroke cost — R5/R11). */
+  readonly minExtent: number;
+}
+
 export interface MapLayout {
   readonly width: number;
   readonly height: number;
@@ -286,6 +332,10 @@ export interface MapLayout {
   readonly relief: readonly MapLayoutRelief[];
   /** Hachure style for the relief lines (null = relief off / none survived). */
   readonly reliefHatch: MapLayoutReliefHatch | null;
+  /** Style for the opt-in coastline water-lines (null = `coastline` off). The
+   *  renderer buffers `regions[]`/`insetRegions[]` paths against this style and
+   *  masks them to the water side. */
+  readonly coastlineStyle: MapLayoutCoastlineStyle | null;
   readonly legs: readonly MapLayoutLeg[];
   readonly pois: readonly MapLayoutPoi[];
   readonly labels: readonly PlacedLabel[];
@@ -569,6 +619,37 @@ export function buildMapProjection(
     usCrisp,
     wantsUsStates,
   };
+}
+
+/** Split a projected geoPath `d` into its subpath rings (point arrays). geoPath
+ *  emits polygons as straight `M`/`L`/`Z` segments (no curves), so a flat parse
+ *  is exact. Each ring is one subpath (an outer boundary OR a hole); classify
+ *  outer-vs-hole downstream (e.g. via containment depth or signed area). Used by
+ *  fill hit-testing here and by the renderer's coastline water-lines. */
+export function parsePathRings(d: string): Array<Array<[number, number]>> {
+  const rings: Array<Array<[number, number]>> = [];
+  let cur: Array<[number, number]> = [];
+  const re = /([MLZ])([^MLZ]*)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(d))) {
+    if (m[1] === 'Z') {
+      if (cur.length) rings.push(cur);
+      cur = [];
+      continue;
+    }
+    if (m[1] === 'M' && cur.length) {
+      rings.push(cur);
+      cur = [];
+    }
+    const nums = m[2]!.split(/[ ,]+/).map(Number);
+    for (let i = 0; i + 1 < nums.length; i += 2) {
+      const x = nums[i]!;
+      const y = nums[i + 1]!;
+      if (Number.isFinite(x) && Number.isFinite(y)) cur.push([x, y]);
+    }
+  }
+  if (cur.length) rings.push(cur);
+  return rings;
 }
 
 export function layoutMap(
@@ -1268,34 +1349,7 @@ export function layoutMap(
   // skip the ghost halo when not needed) we need the fill UNDER the label point.
   // Test in SCREEN space against the already-drawn region paths: that sidesteps
   // every projection wrinkle (global stretch, antimeridian, AK/HI insets) because
-  // the geometry is already projected. geoPath emits polygons as straight M/L/Z
-  // segments (no curves), so a parity ray-cast over all of a path's rings — outer
-  // boundaries and holes alike — is exact.
-  const parsePathRings = (d: string): Array<Array<[number, number]>> => {
-    const rings: Array<Array<[number, number]>> = [];
-    let cur: Array<[number, number]> = [];
-    const re = /([MLZ])([^MLZ]*)/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(d))) {
-      if (m[1] === 'Z') {
-        if (cur.length) rings.push(cur);
-        cur = [];
-        continue;
-      }
-      if (m[1] === 'M' && cur.length) {
-        rings.push(cur);
-        cur = [];
-      }
-      const nums = m[2]!.split(/[ ,]+/).map(Number);
-      for (let i = 0; i + 1 < nums.length; i += 2) {
-        const x = nums[i]!;
-        const y = nums[i + 1]!;
-        if (Number.isFinite(x) && Number.isFinite(y)) cur.push([x, y]);
-      }
-    }
-    if (cur.length) rings.push(cur);
-    return rings;
-  };
+  // the geometry is already projected (see module-level `parsePathRings`).
   // Even-odd ray cast across ALL of a feature's rings at once, so polygons with
   // holes (a ring inside a ring) toggle correctly.
   const pointInRings = (
@@ -1401,6 +1455,34 @@ export function layoutMap(
         width: RELIEF_HATCH_WIDTH,
       };
     }
+  }
+
+  // Coastline water-lines style (opt-in `coastline`, §24B.2). No geometry/asset:
+  // the renderer derives the lines from the already-drawn region paths and masks
+  // them to the water side. We only resolve the proportional screen-space style
+  // here (fractions of min(w,h) → absolute px, so the offshore distance stays a
+  // constant fraction of the canvas at any export size — ADR-3). Differs from
+  // relief: a touch more contrast than `lakeStroke` so the offshore lines read as
+  // distinct from the coast stroke (R10/F14).
+  let coastlineStyle: MapLayoutCoastlineStyle | null = null;
+  if (resolved.directives.coastline === true) {
+    const minDim = Math.min(width, height);
+    coastlineStyle = {
+      color: mix(regionStroke, water, COASTLINE_STROKE_MIX),
+      // N equal-width rings: distance steps outward by COASTLINE_STEP; opacity
+      // fades linearly from NEAR (innermost) to FAR (outermost).
+      lines: Array.from({ length: COASTLINE_RING_COUNT }, (_, k) => ({
+        d: (COASTLINE_D0 + k * COASTLINE_STEP) * minDim,
+        thickness: COASTLINE_THICKNESS * minDim,
+        opacity:
+          COASTLINE_OPACITY_NEAR +
+          ((COASTLINE_OPACITY_FAR - COASTLINE_OPACITY_NEAR) * k) /
+            (COASTLINE_RING_COUNT - 1),
+      })),
+      minExtent:
+        (isGlobalView ? COASTLINE_MIN_EXTENT_GLOBAL : COASTLINE_MIN_EXTENT) *
+        minDim,
+    };
   }
 
   // Rivers (Amazon, Nile, Mississippi, …) as thin water lines over the land.
@@ -2172,6 +2254,7 @@ export function layoutMap(
     rivers,
     relief,
     reliefHatch,
+    coastlineStyle,
     legs,
     pois,
     labels,

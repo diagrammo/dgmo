@@ -130,6 +130,28 @@ describe('parseMap — directives (AC2, AC20)', () => {
   });
 });
 
+describe('parseMap — coastline flag (AC4)', () => {
+  it('parses the bare `coastline` flag', () => {
+    expect(parseMap('map\ncoastline').directives.coastline).toBe(true);
+    expect(
+      parseMap('map\nCalifornia value: 5').directives.coastline
+    ).toBeUndefined();
+  });
+  it('`coastline\\ncoastline` sets true idempotently with no duplicate warning', () => {
+    const r = parseMap('map\ncoastline\ncoastline');
+    expect(r.directives.coastline).toBe(true);
+    expect(r.diagnostics.some((d) => /[Dd]uplicate/.test(d.message))).toBe(
+      false
+    );
+  });
+  it('a region literally named "Coastline Park" is a region, not the flag', () => {
+    const r = parseMap('map\nCoastline Park value: 5');
+    expect(r.directives.coastline).toBeUndefined();
+    expect(r.regions).toHaveLength(1);
+    expect(r.regions[0]!.name).toBe('Coastline Park');
+  });
+});
+
 describe('parseMap — tag groups (AC3)', () => {
   it('parses an indented tag block', () => {
     const r = parseMap(

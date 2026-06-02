@@ -49,6 +49,11 @@ export interface MapDirectives {
    *  each notable mountain-range polygon, over base land and under data fills.
    *  Off by default; needs the optional `mountain-ranges.json` asset. */
   relief?: boolean;
+  /** Opt-in faint nautical-chart water-lines along coasts/shorelines (bare flag
+   *  `coastline`, §24B.2). Draws 2 discrete coast-parallel lines on the water
+   *  side (ocean + lake shores + AK/HI insets), fading seaward. Off by default;
+   *  no data asset — geometry is derived from the drawn region paths. */
+  coastline?: boolean;
   /** Map-level default for the best-effort route/edge surface constraint
    *  (`surface water` | `surface land`, colon-free directive). Cascades to every
    *  leg/edge left unset (resolver fallback). Off by default. See §24B.6. */

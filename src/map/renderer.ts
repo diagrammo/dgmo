@@ -17,9 +17,119 @@ import type { LegendConfig, LegendState } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes/types';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { MapData, ResolvedMap } from './resolved-types';
-import { layoutMap, type MapLayoutRegion, type PlacedLabel } from './layout';
+import {
+  layoutMap,
+  parsePathRings,
+  type MapLayoutRegion,
+  type MapLayoutCoastlineStyle,
+  type PlacedLabel,
+} from './layout';
 
 const LABEL_FONT = 11;
+
+// ── Coastline water-lines helpers (opt-in `coastline`, §24B.2) ──
+// Geometry is derived from the already-drawn region paths: each outer ring is
+// buffered as a symmetric SVG stroke band then eroded (flat-water overdraw) to a
+// thin offshore ring; a luminance <mask> reveals only the water side. See the
+// render block + ADR-1/6 in the tech-spec.
+
+/** Even-odd point-in-ring test (screen space). */
+function pointInRing(
+  px: number,
+  py: number,
+  ring: ReadonlyArray<[number, number]>
+): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]!;
+    const [xj, yj] = ring[j]!;
+    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi)
+      inside = !inside;
+  }
+  return inside;
+}
+
+/** Build an SVG subpath `d` (`M…L…Z`) from a ring's points. */
+function ringToPath(ring: ReadonlyArray<[number, number]>): string {
+  let d = '';
+  for (let i = 0; i < ring.length; i++)
+    d += (i ? 'L' : 'M') + ring[i]![0] + ',' + ring[i]![1];
+  return d + 'Z';
+}
+
+/** Coast outlines to buffer: every region's OUTER rings whose bbox extent clears
+ *  `minExtent`. Holes/enclaves are skipped via containment depth (even depth =
+ *  outer landmass boundary, odd = a hole) so an enclave (Lesotho) or a lake-hole
+ *  is never ringed as a fake coast on land (R11). Tiny islands are dropped to
+ *  de-noise world maps and bound the stroke cost (R5). */
+function coastlineOuterRings(
+  regions: readonly MapLayoutRegion[],
+  minExtent: number
+): string[] {
+  const paths: string[] = [];
+  for (const r of regions) {
+    const rings = parsePathRings(r.d);
+    for (let i = 0; i < rings.length; i++) {
+      const ring = rings[i]!;
+      if (ring.length < 3) continue;
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const [x, y] of ring) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+      if (Math.max(maxX - minX, maxY - minY) < minExtent) continue;
+      const [fx, fy] = ring[0]!;
+      let depth = 0;
+      for (let j = 0; j < rings.length; j++)
+        if (j !== i && pointInRing(fx, fy, rings[j]!)) depth++;
+      if (depth % 2 === 1) continue; // hole/enclave — skip
+      paths.push(ringToPath(ring));
+    }
+  }
+  return paths;
+}
+
+/** Stroke the coast-parallel water-lines into a masked group. Per line, outer→
+ *  inner so the inner ring draws on top: a colour pass (the symmetric buffer
+ *  band) then a flat-water overdraw that erodes it to a thin offshore ring. The
+ *  group's `<mask>` keeps only the water-side half of each band.
+ *
+ *  The outer→inner ordering protects a single ring (the inner band never reaches
+ *  the outer ring because `d1+thickness < d2`, the layout invariant). It does NOT
+ *  protect across regions: where two coasts sit closer than ~2·d1 (a tripoint, a
+ *  narrow strait, an inset box edge), one region's flat-water overdraw can paint
+ *  over a neighbour's inner ring — the same accepted "tripoint stub / narrow
+ *  inlet fills solid" artifact the tech-spec calls out, bounded by small d. */
+function appendWaterLines(
+  g: Sel,
+  outerRings: readonly string[],
+  style: MapLayoutCoastlineStyle,
+  flatWater: string
+): void {
+  const linesOuterFirst = [...style.lines].sort((a, b) => b.d - a.d);
+  for (const line of linesOuterFirst) {
+    for (const d of outerRings)
+      g.append('path')
+        .attr('d', d)
+        .attr('stroke', style.color)
+        .attr('stroke-width', 2 * (line.d + line.thickness))
+        .attr('stroke-opacity', line.opacity)
+        .attr('stroke-linejoin', 'round')
+        .attr('stroke-linecap', 'round');
+    for (const d of outerRings)
+      g.append('path')
+        .attr('d', d)
+        .attr('stroke', flatWater)
+        .attr('stroke-width', 2 * line.d)
+        .attr('stroke-linejoin', 'round')
+        .attr('stroke-linecap', 'round');
+  }
+}
 
 /** Render a resolved map into `container` (d3-selection appends an `<svg>`). */
 export function renderMap(
@@ -171,6 +281,76 @@ export function renderMap(
     }
   }
 
+  // ── Coastline water-lines (faint nautical-chart lines on the WATER side) ──
+  // 2 discrete coast-parallel lines hugging the ocean shore + lake shores, fading
+  // seaward. Each region's outer ring is buffered as a symmetric SVG stroke band
+  // then eroded with a flat-water overdraw to a thin offshore ring; a luminance
+  // <mask> (white canvas − black land + white lakes) reveals only the water side,
+  // so land/land borders self-remove (their band falls on
+  // the neighbour's land, which the mask hides — no topojson.mesh needed). NOT a
+  // clipPath: sibling clip paths UNION (can't subtract land). Decorative — no data
+  // attrs, plain strokes. Below rivers/POIs/legs/labels, above region/relief fills
+  // (so with `relief` on, water-lines sit on water and relief on land — disjoint).
+  // §24B.2, ADR-1/3/6.
+  if (layout.coastlineStyle) {
+    const cs = layout.coastlineStyle;
+    const maskId = 'dgmo-map-water-mask';
+    const mask = defs
+      .append('mask')
+      .attr('id', maskId)
+      // userSpaceOnUse: the default objectBoundingBox clamps the mask region to
+      // the group's own bbox and drops the canvas-edge reveal (round-2 #2).
+      .attr('maskUnits', 'userSpaceOnUse')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', width)
+      .attr('height', height);
+    mask
+      .append('rect')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', width)
+      .attr('height', height)
+      .attr('fill', 'white');
+    for (const r of layout.regions)
+      if (r.id !== 'lake')
+        mask.append('path').attr('d', r.d).attr('fill', 'black');
+    for (const r of layout.regions)
+      if (r.id === 'lake')
+        mask.append('path').attr('d', r.d).attr('fill', 'white');
+    // NO frame band: a synthetic frame-cut edge (clipExtent/cullFeatureToView
+    // trims region `d` to the view rect) has the region INTERIOR — land — on the
+    // canvas-interior side, which the mask already paints black, so its band is
+    // hidden anyway. A border band here only suppressed REAL coastal rings near
+    // the canvas edge, leaving an empty top/bottom strip — so the water-lines now
+    // carry through to every edge of the visible map.
+    const gWater = svg
+      .append('g')
+      .attr('class', 'dgmo-map-water-lines')
+      .attr('fill', 'none')
+      .attr('mask', `url(#${maskId})`);
+    appendWaterLines(
+      gWater,
+      coastlineOuterRings(layout.regions, cs.minExtent),
+      cs,
+      layout.background
+    );
+    // Restore the seaward half of the coast stroke: the rings' flat-water erosion
+    // overdraws repaint the water out to d_max, which paints over the water-side
+    // half of each region's coast outline and makes coastlines read faded. Re-
+    // stroke every region inside the SAME masked group (so it only repaints the
+    // water side — the land side was never touched, and interior land/land borders
+    // stay hidden), on top of the rings. The strokes sit at the coast (offset 0),
+    // well inside d0, so they never cover the offshore rings.
+    for (const r of layout.regions)
+      gWater
+        .append('path')
+        .attr('d', r.d)
+        .attr('stroke', r.stroke)
+        .attr('stroke-width', 0.5)
+        .attr('stroke-linejoin', 'round');
+  }
+
   // ── Rivers (thin water centerlines over the land, under POIs/edges) ──
   if (layout.rivers.length) {
     const gRivers = svg
@@ -208,6 +388,54 @@ export function renderMap(
         .attr('stroke-linejoin', 'round');
     }
     for (const r of layout.insetRegions) drawRegion(insetG, r, 0.5);
+
+    // Inset coastline water-lines (AK/HI box interiors) for visual parity with
+    // the main map. Mask = the inset box quads (white reveal) − inset regions
+    // (black land / white lake); buffer+erode the inset region outer rings the
+    // same way. Inside the inset group so it composites over the box fills.
+    if (layout.coastlineStyle) {
+      const cs = layout.coastlineStyle;
+      const maskId = 'dgmo-map-inset-water-mask';
+      const mask = defs
+        .append('mask')
+        .attr('id', maskId)
+        .attr('maskUnits', 'userSpaceOnUse')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('width', width)
+        .attr('height', height);
+      for (const box of layout.insets) {
+        const d =
+          box.points.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join('') +
+          'Z';
+        mask.append('path').attr('d', d).attr('fill', 'white');
+      }
+      for (const r of layout.insetRegions)
+        if (r.id !== 'lake')
+          mask.append('path').attr('d', r.d).attr('fill', 'black');
+      for (const r of layout.insetRegions)
+        if (r.id === 'lake')
+          mask.append('path').attr('d', r.d).attr('fill', 'white');
+      const gInsetWater = insetG
+        .append('g')
+        .attr('class', 'dgmo-map-inset-water-lines')
+        .attr('fill', 'none')
+        .attr('mask', `url(#${maskId})`);
+      appendWaterLines(
+        gInsetWater,
+        coastlineOuterRings(layout.insetRegions, cs.minExtent),
+        cs,
+        layout.background
+      );
+      // Restore the seaward half of the inset coast strokes (see main pass).
+      for (const r of layout.insetRegions)
+        gInsetWater
+          .append('path')
+          .attr('d', r.d)
+          .attr('stroke', r.stroke)
+          .attr('stroke-width', 0.5)
+          .attr('stroke-linejoin', 'round');
+    }
   }
 
   // ── Legs (edges + route legs) ──
