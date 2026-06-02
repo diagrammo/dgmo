@@ -178,7 +178,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     // renderer's job (step 4) — the resolver only carries `tags` + `tagGroups`
     // through; it never resolves a tag value to a palette color (#10).
     directives: { ...parsed.directives },
-    basemaps: { world: 'coarse', subdivisions: [] },
+    basemaps: { world: 'detail', subdivisions: [] },
     regions: [],
     pois: [],
     edges: [],
@@ -193,7 +193,11 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   };
 
   // Per-layer indexes (never merged — R12; coarse is the authoritative name
-  // index, ids shared with detail — R13).
+  // index, ids shared with detail — R13). LOAD-BEARING: `worldCoarse` (110m) is
+  // NOT used for rendering anymore (the world basemap is pinned to detail/50m,
+  // see basemaps assignment below) — it is retained solely as this name index
+  // (featureIndex) and the dominant-landmass bbox source (featureBboxPrimary).
+  // Do not delete it.
   const countryIndex = featureIndex(data.worldCoarse);
   const usStateIndex = featureIndex(data.usStates);
   const allNames = [
@@ -774,7 +778,15 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   result.edges = edges;
   result.routes = routes;
   result.basemaps = {
-    world: span > WORLD_SPAN ? 'coarse' : 'detail',
+    // Tier is intentionally pinned to detail (50m) at ALL scales. Diagrammo maps
+    // are presentational (palette tints, relief hachures, POI hubs), not
+    // survey-grade — recognizability > generalization: 110m coarse drops the
+    // Italian boot to a stump at world scale. `WORLD_SPAN` lives on only for the
+    // projection decision (the `usOriented`/`span > WORLD_SPAN` chain above); it
+    // no longer gates basemap resolution.
+    // `worldCoarse` is still loaded — it's the authoritative name/bbox index
+    // (featureIndex, featureBboxPrimary), not dead code.
+    world: 'detail',
     subdivisions,
   };
   result.extent = extent;

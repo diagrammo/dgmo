@@ -224,16 +224,16 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     expect(r.regions.some((x) => x.id === 'FJ')).toBe(false);
     expect(r.regions.some((x) => x.id === 'US')).toBe(true);
   });
-  it('country fill found on the resolver-chosen tier (AC27 / AR7 invariant)', () => {
+  it('world basemap renders from the detail (50m) tier at all scales', () => {
+    // The render tier is pinned to detail — recognizability > generalization
+    // (110m coarse drops the Italian boot to a stump at world scale).
     const resolved = resolveMap(parseMap('map\nJapan value: 5'), DATA);
-    // AR7: country isos exist in BOTH tiers (coarse ⊆ detail), so the fill is
-    // found whichever tier the resolver picks.
-    const tier =
-      resolved.basemaps.world === 'detail'
-        ? DATA.worldDetail
-        : DATA.worldCoarse;
+    expect(resolved.basemaps.world).toBe('detail');
+    // Country fill is still found — the JP id lives in worldDetail.
     expect(
-      tier.objects['countries']!.geometries.some((g) => g.id === 'JP')
+      DATA.worldDetail.objects['countries']!.geometries.some(
+        (g) => g.id === 'JP'
+      )
     ).toBe(true);
     const r = layoutMap(
       resolved,
@@ -247,6 +247,15 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     const jp = r.regions.find((x) => x.id === 'JP' && x.layer === 'country')!;
     expect(jp).toBeDefined();
     expect(jp.fill).not.toBe(neutral);
+  });
+  it('world-extent map (span > WORLD_SPAN) resolves to detail, not coarse — cliff regression guard', () => {
+    // A US + Japan spread is world-extent: pre-change this snapped to the coarse
+    // (110m) tier and the Italian boot collapsed. Now it stays on detail.
+    const resolved = resolveMap(
+      parseMap('map\nUnited States value: 5\nJapan value: 3'),
+      DATA
+    );
+    expect(resolved.basemaps.world).toBe('detail');
   });
 });
 

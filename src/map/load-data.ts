@@ -139,6 +139,10 @@ export function loadMapData(): Promise<MapData> {
       waterBodies,
       gazetteer,
     ] = await Promise.all([
+      // worldCoarse (110m) is LOAD-BEARING but NOT a render source: the world
+      // basemap renders from worldDetail (50m) at all scales (resolver pins
+      // basemaps.world = 'detail'). Coarse stays as the authoritative region
+      // name index + dominant-landmass bbox source in resolver.ts. Do not drop it.
       readJson<BoundaryTopology>(nb, dir, FILES.worldCoarse),
       readJson<BoundaryTopology>(nb, dir, FILES.worldDetail),
       readJson<BoundaryTopology>(nb, dir, FILES.usStates),

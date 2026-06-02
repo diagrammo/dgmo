@@ -1,0 +1,18 @@
+map Global Market Presence
+relief
+coastline
+
+tag Market as m
+  HQ blue
+  Region teal
+  Prospect orange
+active-tag Market
+
+United States m: HQ
+Germany m: Region
+Japan m: Region
+Brazil m: Prospect
+India m: Region
+Australia m: Prospect
+South Africa m: Prospect
+Indonesia m: Prospect
