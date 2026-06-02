@@ -1283,7 +1283,14 @@ export function layoutMap(
     for (const [iso, f] of layerFeatures) {
       // Alaska/Hawaii are drawn as insets under albers-usa — skip them in the
       // main conus layer (the conic would otherwise place them far off-frame).
-      if (layerKind === 'us-state' && usContext && INSET_STATES.has(iso))
+      // Only albers-usa relocates them to insets; on a world/regional projection
+      // they have no inset and must draw in place from the us-states layer.
+      if (
+        layerKind === 'us-state' &&
+        usContext &&
+        resolved.projection === 'albers-usa' &&
+        INSET_STATES.has(iso)
+      )
         continue;
       // In a US view the us-states layer paints the whole country — drop the
       // redundant US country polygon underneath it (it only adds a coarser base
