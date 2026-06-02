@@ -1608,7 +1608,7 @@ export function layoutMap(
   // reads clearly as a water course, not a dark gap where it crosses a border.
   // Mixing toward the border tone instead reads as a broken boundary in
   // muted/data mode. Open paths: stroked, no fill; under POIs/edges/labels.
-  const riverColor = mix(palette.colors.blue, water, 42);
+  const riverColor = mix(palette.colors.blue, water, 32);
   const rivers: MapLayoutRiver[] = [];
   if (data.rivers) {
     for (const [, f] of decodeLayer(data.rivers)) {
