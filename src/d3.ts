@@ -7739,6 +7739,10 @@ export async function renderForExport(
     c4Container?: string;
     tagGroup?: string;
     exportMode?: boolean;
+    // Browser callers (the app / Obsidian) bundle the map JSON and inject it
+    // here — the Node fs `loadMapData()` seam can't run in a browser. CLI/SSR
+    // omit this and fall back to the fs loader.
+    mapData?: import('./map/resolved-types').MapData;
   }
 ): Promise<string> {
   const exportMode = options?.exportMode ?? false;
@@ -8454,21 +8458,23 @@ export async function renderForExport(
   if (detectedType === 'map') {
     const { parseMap } = await import('./map/parser');
     const { resolveMap } = await import('./map/resolver');
-    const { loadMapData } = await import('./map/load-data');
     const { renderMapForExport } = await import('./map/renderer');
 
     const effectivePalette = await resolveExportPalette(theme, palette);
     const mapParsed = parseMap(content);
     // Always render — an empty or partially-resolved map still draws the
     // inferred base map (§24B.10 / layout AC23); diagnostics surface separately.
-    // Degrade like every other branch (return '') if the assets can't load,
-    // rather than throwing out of render() — e.g. a deployment without
-    // dist/map-data or the not-yet-supported browser fs path.
-    let mapData;
-    try {
-      mapData = await loadMapData();
-    } catch {
-      return '';
+    // Prefer injected `mapData` (browser bundles it; the fs loader can't run
+    // there); fall back to the Node fs loader for CLI/SSR. Degrade like every
+    // other branch (return '') if neither yields data.
+    let mapData = options?.mapData;
+    if (!mapData) {
+      const { loadMapData } = await import('./map/load-data');
+      try {
+        mapData = await loadMapData();
+      } catch {
+        return '';
+      }
     }
     const mapResolved = resolveMap(mapParsed, mapData);
 
