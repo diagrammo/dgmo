@@ -58,16 +58,21 @@ const W_MIN = 1.25; // edge stroke width
 const W_MAX = 8;
 const FONT = 11; // on-map label font px
 const COLO_EPS = 1.5; // px: POIs closer than this are "co-located"
-// % palette-yellow of bg for unscored land. Higher on dark so the soft palette
-// yellow reads as yellow rather than muddying toward tan against the dark bg.
-const LAND_TINT_LIGHT = 58;
-const LAND_TINT_DARK = 75;
+// % palette-green of bg for unscored land — a VERY faded green so every map
+// (plain reference OR data-coloured) wears the same subtle dress and the green
+// never competes with saturated tag/score tints. Dark lifts a touch off the
+// near-black surface so the faint green stays legible.
+const LAND_TINT_LIGHT = 12;
+const LAND_TINT_DARK = 24;
 // Categorical (tag) region fill: a flat, fairly saturated tint of the tag
 // colour so a tagged region reads as its CATEGORY against the tinted land base
 // — the generic 25% shape tint washes out and lets the olive land dominate.
 const TAG_TINT_LIGHT = 60;
 const TAG_TINT_DARK = 68;
-const WATER_TINT = 55; // % palette-blue of bg for the ocean / backdrop
+// % palette-blue of bg for the ocean / backdrop — a VERY faded blue, matching
+// the land's subtlety so the whole basemap reads as a quiet dress under the data.
+const WATER_TINT_LIGHT = 13;
+const WATER_TINT_DARK = 14;
 const RIVER_WIDTH = 1.3; // px stroke width for river lines
 // Relief (mountain-range shading). A projected range below this px² area is
 // dropped (no confetti slivers at world zoom).
@@ -92,20 +97,12 @@ const RELIEF_HATCH_STRENGTH = 32;
 const FOREIGN_TINT_LIGHT = 30;
 const FOREIGN_TINT_DARK = 62;
 // MUTED basemap — used when a colouring dimension (score ramp or a tag group) is
-// active. The data hues may themselves be blue or green (e.g. `Core blue`,
-// `Growth teal`), which collide with the decorative blue-water / green-land
-// dress: a blue region vanishes into the ocean, a green one into the land. So
-// when regions carry the data signal the basemap RECEDES to neutral grays —
-// water and unscored/neighbour land become low-saturation gray, leaving the data
-// fills as the only saturated thing on the map (the cartographic norm for a
-// choropleth). Plain reference maps with no data keep the blue/green dress.
-// Light land is left at the page bg (cleanest white ground for the data hues);
-// dark land lifts off the near-black surface so dark-mixed tints stay legible.
-const MUTED_WATER_LIGHT = 14; // % gray of bg — pale sea
-const MUTED_WATER_DARK = 10;
-const MUTED_FOREIGN_LIGHT = 28; // neighbour land — grayer than the sea
+// active. The subject water + land are ALWAYS the same faded blue/green dress
+// (WATER_TINT_* / LAND_TINT_*); muted only pushes NEIGHBOUR land to a recessive
+// gray so the subject country reads as the subject and the data fills own the
+// saturation. Plain reference maps keep neighbour land at the fuller gray tint.
+const MUTED_FOREIGN_LIGHT = 28; // neighbour land — recessive gray, not green
 const MUTED_FOREIGN_DARK = 16;
-const MUTED_LAND_DARK = 24; // subject land on dark (light land = palette.bg)
 const COLO_R = 9; // spiderfy radius
 const GOLDEN_ANGLE = 2.399963229728653; // rad (137.5deg) -- even spiral, no random
 const FAN_STEP = 16; // px perpendicular offset between parallel edges
@@ -359,37 +356,34 @@ const US_NON_CONUS = new Set([
 
 /** The map's water / backdrop colour for a palette — the single source of truth
  *  shared by the renderer's `<rect>` fill and any host wrapper that needs to
- *  match it (so letterbox gaps around the SVG don't show a stray band). When
- *  `dataActive` (a score ramp or tag group is colouring regions) the sea recedes
- *  to a pale neutral so blue/green data hues don't blend into it. */
+ *  match it (so letterbox gaps around the SVG don't show a stray band). Always a
+ *  VERY faded blue — uniform whether or not a colouring dimension is active — so
+ *  it reads as water without competing with saturated blue/green data hues.
+ *  `_dataActive` is retained for signature stability (the sea no longer changes
+ *  with data; only neighbour land recedes — see layout's `foreignFill`). */
 export function mapBackgroundColor(
   palette: PaletteColors,
   isDark = false,
-  dataActive = false
+  _dataActive = false
 ): string {
-  if (dataActive)
-    return mix(
-      palette.colors.gray,
-      palette.bg,
-      isDark ? MUTED_WATER_DARK : MUTED_WATER_LIGHT
-    );
-  return mix(palette.colors.blue, palette.bg, WATER_TINT);
+  return mix(
+    palette.colors.blue,
+    palette.bg,
+    isDark ? WATER_TINT_DARK : WATER_TINT_LIGHT
+  );
 }
 
 /** The map's neutral (unscored/untagged) LAND colour — the base every region
  *  blends from. Exported so a host can DIM a region to plain land (rather than
  *  lowering opacity, which would let the water show through and make the shape
- *  read as ocean). Matches the layout's `neutralFill`. Green reference dress by
- *  default; neutral (page bg on light, lifted gray on dark) when `dataActive`. */
+ *  read as ocean). Matches the layout's `neutralFill`. Always a VERY faded green
+ *  — uniform whether or not data is active — so saturated tag/score tints read
+ *  clearly against it. `_dataActive` is retained for signature stability. */
 export function mapNeutralLandColor(
   palette: PaletteColors,
   isDark: boolean,
-  dataActive = false
+  _dataActive = false
 ): string {
-  if (dataActive)
-    return isDark
-      ? mix(palette.colors.gray, palette.bg, MUTED_LAND_DARK)
-      : palette.bg;
   return mix(
     palette.colors.green,
     palette.bg,
@@ -506,14 +500,14 @@ export function layoutMap(
   }
   const activeIsScore = VALUE_NAME !== null && activeGroup === VALUE_NAME;
 
-  // Basemap dress. When a colouring dimension is active the regions carry the
-  // signal, so the sea/land recede to neutral grays (the data hues — which may be
-  // blue or green — would otherwise blend into a blue ocean / green land). A
-  // plain reference map (no score, no tag → activeGroup null) keeps the blue
-  // water + green land. The bare `muted` / `natural` flags force either dress
-  // regardless (so two maps in a deck can match); absent → this auto rule. In a
-  // US view the surrounding world layer is always recessive gray so the US reads
-  // as the subject.
+  // Basemap dress. Subject water + land always wear the SAME faded blue/green
+  // dress (subtle enough that saturated tag/score tints never blend into it), so
+  // every map looks consistent. `mutedBasemap` now governs only the NEIGHBOUR
+  // land: when a colouring dimension is active (or `muted` is forced) the
+  // surrounding world recedes to a paler gray so the subject + its data fills
+  // dominate; a plain reference map keeps neighbour land at the fuller gray. The
+  // bare `muted` / `natural` flags force either neighbour treatment regardless
+  // (so two maps in a deck can match); absent → this auto rule.
   const mutedBasemap =
     resolved.directives.basemapStyle === 'muted'
       ? true

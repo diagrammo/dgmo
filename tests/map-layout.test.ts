@@ -90,12 +90,11 @@ const DATA: MapData = {
 };
 
 const P = getPalette('nord').light;
-// Plain reference dress (no colouring dimension active): green land.
-const neutral = mix(P.colors.green, P.bg, 58);
-// Muted land used once a colouring dimension is active — the basemap recedes to
-// neutral so data hues own the saturation. Light theme → page bg (see layout.ts
-// mapNeutralLandColor / MUTED_LAND_*).
-const mutedNeutral = P.bg;
+// Unscored/untagged subject land — a VERY faded green, uniform whether or not a
+// colouring dimension is active (see layout.ts mapNeutralLandColor /
+// LAND_TINT_LIGHT). Data activity no longer changes the subject dress.
+const neutral = mix(P.colors.green, P.bg, 12);
+const mutedNeutral = neutral;
 const lay = (src: string, w = 800, h = 600) =>
   layoutMap(
     resolveMap(parseMap(src), DATA),
@@ -294,30 +293,25 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
   });
 });
 
-describe('layout — basemap dress override (muted / natural flags)', () => {
-  const decoWater = mix(P.colors.blue, P.bg, 55);
-  const mutedWater = mix(P.colors.gray, P.bg, 14);
-  it('no data → natural dress (decorative water + green land)', () => {
+describe('layout — uniform subtle basemap dress (subject water + land)', () => {
+  // Subject water + land wear the SAME faded blue/green dress regardless of data
+  // activity or the muted/natural flags — only neighbour land changes (below).
+  const water = mix(P.colors.blue, P.bg, 13);
+  it('no data → subtle water + faded green land', () => {
     const r = lay('map\nCalifornia');
-    expect(r.background).toBe(decoWater);
+    expect(r.background).toBe(water);
     expect(r.regions.find((x) => x.id === 'US-CA')!.fill).toBe(neutral);
   });
-  it('`muted` forces recede even with no data', () => {
+  it('`muted` does not change subject water/land', () => {
     const r = lay('map\nmuted\nCalifornia');
-    expect(r.background).toBe(mutedWater);
-    expect(r.regions.find((x) => x.id === 'US-CA')!.fill).toBe(mutedNeutral);
+    expect(r.background).toBe(water);
+    expect(r.regions.find((x) => x.id === 'US-CA')!.fill).toBe(neutral);
   });
-  it('`natural` keeps decorative dress even with a tag dimension active', () => {
-    const r = lay(
-      'map\ntag M as m\n  HQ blue\nactive-tag M\nnatural\nCalifornia m: HQ'
-    );
-    expect(r.background).toBe(decoWater);
-    // unscored/untagged land stays green, not muted
-    expect(r.regions.find((x) => x.id === 'US-OR')!.fill).toBe(neutral);
-  });
-  it('tag dimension active with no flag → auto-muted basemap', () => {
+  it('tag dimension active → subject water/land unchanged', () => {
     const r = lay('map\ntag M as m\n  HQ blue\nactive-tag M\nCalifornia m: HQ');
-    expect(r.background).toBe(mutedWater);
+    expect(r.background).toBe(water);
+    // unscored/untagged subject land stays the same faded green
+    expect(r.regions.find((x) => x.id === 'US-OR')!.fill).toBe(neutral);
   });
 });
 
