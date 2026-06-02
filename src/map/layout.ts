@@ -97,8 +97,8 @@ const RELIEF_MIN_DIM = 2; // px
 // thin sub-pixel lines drawn with a non-scaling stroke (constant device width at
 // any zoom/DPR) and low-contrast colour. NOT crispEdges — that snaps the stroke
 // to a solid ~1px in WebKit and reads far too heavy; plain AA keeps them whisper-thin.
-const RELIEF_HATCH_SPACING = 3; // px between lines
-const RELIEF_HATCH_WIDTH = 0.25; // px stroke
+const RELIEF_HATCH_SPACING = 2; // px between lines
+const RELIEF_HATCH_WIDTH = 0.15; // px stroke
 // % of the DARK reference (palette.bg on dark themes, palette.text on light)
 // blended into the land colour — so the lines read DARKER than the land in both
 // themes (palette.text alone flips to light on dark themes).
