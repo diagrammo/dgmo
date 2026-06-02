@@ -470,11 +470,15 @@ function emitText(
     .attr('fill', color)
     .text(text);
   if (withHalo) {
+    // Thin, even outline (2px / 1px-per-side at the 11px label font — 3px read
+    // top-heavy as adjacent glyph tops merged their strokes). Round join + cap
+    // keep the edge uniform around every glyph.
     t.attr('paint-order', 'stroke fill')
       .attr('stroke', halo)
-      .attr('stroke-width', 3)
+      .attr('stroke-width', 2)
       .attr('stroke-linejoin', 'round')
-      .attr('stroke-opacity', 0.7);
+      .attr('stroke-linecap', 'round')
+      .attr('stroke-opacity', 0.55);
   }
   return t;
 }

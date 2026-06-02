@@ -1505,13 +1505,13 @@ export function layoutMap(
     obstacles.some((o) => rectsOverlap(rect, o)) ||
     legSegments.some((s) => segmentRectOverlap(s[0], s[1], s[2], s[3], rect));
 
-  // Region labels (default off). Rendered as haloed text — NO pill — so the
-  // choropleth fill (which encodes the data) stays fully visible. The text
+  // Region labels (default off). Rendered as plain text — NO pill, NO halo — so
+  // the choropleth fill (which encodes the data) stays fully visible. The text
   // colour is contrast-picked against each region's OWN fill (dark on
-  // pastel/unscored land, light on saturated fills) with an opposite-lightness
-  // paint-order halo, the same convention POI labels use. A label is shown only
-  // when its (padded) footprint fits inside the region, so small states like the
-  // NE cluster auto-hide rather than overlap / spill onto the ocean.
+  // pastel/unscored land, light on saturated fills). A label is shown only when
+  // its (padded) footprint fits inside the region, so it always sits on that
+  // fill (no halo needed) and small states like the NE cluster auto-hide rather
+  // than overlap / spill onto the ocean.
   const regionLabelMode = resolved.directives.regionLabels ?? 'off';
   const LABEL_PADX = 6;
   const LABEL_PADY = 3;
@@ -1540,7 +1540,12 @@ export function layoutMap(
       text,
       anchor: 'middle',
       color,
-      halo: true,
+      // No halo: a region label is only placed when its footprint fits inside
+      // the region, so it always sits on that region's OWN fill, against which
+      // `color` is already contrast-picked. A halo there is redundant and just
+      // fattens the glyph tops into a top-heavy ghost. POI labels (arbitrary
+      // terrain) keep the halo.
+      halo: false,
       haloColor,
       lineNumber,
     });
