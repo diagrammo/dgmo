@@ -51,6 +51,8 @@ export interface ResolvedRegion {
   readonly name: string; // display name
   readonly layer: 'country' | 'us-state';
   readonly value?: number;
+  /** §1.5 trailing-token color NAME → flat override fill (§24B.4). */
+  readonly color?: string;
   readonly tags: Readonly<Record<string, string>>;
   readonly meta: Readonly<Record<string, string>>;
   readonly lineNumber: number;
@@ -66,6 +68,8 @@ export interface ResolvedPoi {
   readonly lat: number;
   readonly lon: number;
   readonly label?: string;
+  /** §1.5 trailing-token color NAME → flat marker fill (§24B.5). */
+  readonly color?: string;
   readonly tags: Readonly<Record<string, string>>;
   readonly meta: Readonly<Record<string, string>>;
   readonly lineNumber: number;

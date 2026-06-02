@@ -23,6 +23,9 @@ export interface MapDirectives {
   projection?: string;
   /** Legend label for the region value ramp (`region-metric <label>`). */
   regionMetric?: string;
+  /** Recognized color NAME for the choropleth ramp hue, peeled off the
+   *  `region-metric` trailing token (§24B.3). Defaults to red when absent. */
+  regionMetricColor?: string;
   /** Legend label for the POI value (marker size) channel (`poi-metric`). */
   poiMetric?: string;
   /** Legend label for the edge/leg value (thickness) channel (`flow-metric`). */
@@ -63,6 +66,9 @@ export interface MapRegion {
   readonly scope?: string;
   /** Numeric value → choropleth shade (§24B.3). Lifted out of `meta`. */
   readonly value?: number;
+  /** §1.5 trailing-token color NAME → flat categorical override fill (§24B.4);
+   *  painted regardless of the active colouring dimension, no legend entry. */
+  readonly color?: string;
   /** Tag values keyed by lowercased tag GROUP name (alias is resolved away). */
   readonly tags: Readonly<Record<string, string>>;
   /** Any remaining reserved keys captured verbatim (`label`/`style`/…). */
@@ -76,6 +82,9 @@ export interface MapPoi {
   readonly pos: PoiPos;
   readonly alias?: string;
   readonly label?: string;
+  /** §1.5 trailing-token color NAME → flat marker fill (§24B.5); wins over a
+   *  tag color and the default orange. */
+  readonly color?: string;
   readonly tags: Readonly<Record<string, string>>;
   readonly meta: Readonly<Record<string, string>>;
   readonly lineNumber: number;

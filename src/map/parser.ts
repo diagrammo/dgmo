@@ -9,6 +9,7 @@ import {
   measureIndent,
   splitNameAndMeta,
   extractColor,
+  peelTrailingColorName,
 } from '../utils/parsing';
 import {
   MAP_REGISTRY,
@@ -312,10 +313,16 @@ export function parseMap(content: string): ParsedMap {
           );
         d.projection = value;
         break;
-      case 'region-metric':
+      case 'region-metric': {
         dup(d.regionMetric);
-        d.regionMetric = value;
+        // A trailing color names the choropleth ramp hue (§24B.3): the
+        // label keeps the rest. `region-metric Sales ($M) blue` → blue ramp.
+        const { label: rmLabel, colorName: rmColor } =
+          peelTrailingColorName(value);
+        d.regionMetric = rmLabel;
+        if (rmColor) d.regionMetricColor = rmColor;
         break;
+      }
       case 'poi-metric':
         dup(d.poiMetric);
         d.poiMetric = value;
@@ -497,6 +504,8 @@ export function parseMap(content: string): ParsedMap {
     };
     if (regionScope !== undefined) region.scope = regionScope;
     if (valueNum !== undefined) region.value = valueNum;
+    // §1.5 trailing color → flat categorical override fill (§24B.4).
+    if (split.color) region.color = split.color;
     regions.push(region);
   }
 
@@ -522,6 +531,8 @@ export function parseMap(content: string): ParsedMap {
     const poi: Writable<MapPoi> = { pos, tags, meta, lineNumber: line };
     if (split.alias) poi.alias = split.alias;
     if (label !== undefined) poi.label = label;
+    // §1.5 trailing color → flat marker fill (§24B.5); wins over a tag color.
+    if (split.color) poi.color = split.color;
     pois.push(poi);
     open.poi = { poi, indent };
   }

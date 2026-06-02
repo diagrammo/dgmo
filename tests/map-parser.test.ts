@@ -171,6 +171,57 @@ describe('parseMap — region fills (AC4, AC5, AC6)', () => {
   });
 });
 
+describe('parseMap — direct trailing colors (§1.5)', () => {
+  it('peels a trailing color off a region into `color`', () => {
+    const r = parseMap('map\nCalifornia blue');
+    expect(r.regions[0]).toMatchObject({ name: 'California', color: 'blue' });
+  });
+  it('region trailing color coexists with value (color before metadata)', () => {
+    const r = parseMap('map\nCalifornia blue value: 92');
+    expect(r.regions[0]).toMatchObject({
+      name: 'California',
+      color: 'blue',
+      value: 92,
+    });
+  });
+  it('peels a trailing color off a POI into `color`', () => {
+    const r = parseMap('map\npoi Austin red');
+    expect(r.pois[0]!.pos).toEqual({ kind: 'name', name: 'Austin' });
+    expect(r.pois[0]!.color).toBe('red');
+  });
+  it('peels a trailing color off a coord POI (not malformed)', () => {
+    const r = parseMap('map\npoi 39.74 -104.99 as dcw green');
+    expect(r.pois[0]!.pos).toEqual({
+      kind: 'coords',
+      lat: 39.74,
+      lon: -104.99,
+    });
+    expect(r.pois[0]!.alias).toBe('dcw');
+    expect(r.pois[0]!.color).toBe('green');
+    expect(r.diagnostics.some((d) => d.severity === 'error')).toBe(false);
+  });
+  it('leaves a capitalized color word as part of the name (escape hatch)', () => {
+    const r = parseMap('map\npoi Orange');
+    expect(r.pois[0]!.color).toBeUndefined();
+    expect(r.pois[0]!.pos).toEqual({ kind: 'name', name: 'Orange' });
+  });
+});
+
+describe('parseMap — region-metric ramp hue (§24B.3)', () => {
+  it('peels a trailing color off region-metric into regionMetricColor', () => {
+    const r = parseMap(
+      'map\nregion-metric Sales ($M) blue\nCalifornia value: 5'
+    );
+    expect(r.directives.regionMetric).toBe('Sales ($M)');
+    expect(r.directives.regionMetricColor).toBe('blue');
+  });
+  it('no trailing color leaves the hue unset (defaults to red downstream)', () => {
+    const r = parseMap('map\nregion-metric Sales\nCalifornia value: 5');
+    expect(r.directives.regionMetric).toBe('Sales');
+    expect(r.directives.regionMetricColor).toBeUndefined();
+  });
+});
+
 describe('parseMap — POIs (AC7–AC11, AC22, AC23)', () => {
   it('POI by name + label', () => {
     const r = parseMap('map\npoi Austin label: West HQ');

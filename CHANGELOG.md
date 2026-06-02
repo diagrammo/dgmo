@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-06-02
+
+### Added
+
+- **Map direct colors** — color a map with the same trailing-token idiom used
+  everywhere else in dgmo, no tag group required:
+  - `poi Austin red` sets a POI's marker fill directly (wins over a tag color
+    and the default orange).
+  - `Texas red` (or `California blue value: 92`) paints a region a flat
+    categorical highlight that ignores the active colouring dimension and adds
+    no legend entry — the lightweight "make this one stand out" escape hatch.
+  - `region-metric Sales ($M) blue` sets the choropleth ramp hue (was always
+    red). A place literally named for a color keeps it via capitalization
+    (`poi Orange`).
+
 ## [0.21.0] - 2026-06-01
 
 ### Changed

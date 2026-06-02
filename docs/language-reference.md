@@ -2668,7 +2668,7 @@ Texas value: 78
 Florida value: 51
 ```
 
-- `region-metric <label>` labels the ramp in the legend; `scale <min> <max>` overrides the auto anchors.
+- `region-metric <label>` labels the ramp in the legend; a trailing color on it sets the ramp hue (`region-metric Sales ($M) blue` → blue ramp, default red). `scale <min> <max>` overrides the auto anchors.
 - A subdivision with no `value:`/tag renders as the neutral base.
 
 ### Region fill — categorical (tags)
@@ -2691,6 +2691,8 @@ Japan m: Region
 
 `value:` + a tag on the same region (bivariate): both are kept as **two selectable colouring dimensions**. The top legend shows the value ramp and each tag group as mutually-exclusive, collapsible groups; the active one fills the map. Default is the value ramp (whenever any `value:` exists). `active-tag <GroupName>` colours by that tag; `active-tag <ValueLabel>` (the `region-metric` label, or `Value`) re-selects the ramp. In the app, clicking a legend group flips the active dimension (live preview only — no source edit); hovering a tag entry highlights the regions with that value, and scrubbing across the value gradient highlights the regions whose value is near the cursor (non-matching regions dim). No warning.
 
+A **trailing color** on a region line (§1.5) is the lightweight highlight: `Texas red` (or `Texas red value: 90`, color before metadata) paints a flat fill with no tag group, ignoring the active dimension and adding no legend entry. It wins over the ramp and any tag on that region.
+
 ### Points of interest (`poi`)
 
 ```
@@ -2703,10 +2705,11 @@ poi Austin label: West HQ           # anchored at Austin; shows "West HQ"
 poi 39.74 -104.99 as dcw            # positional coords (lat lon), signed
 poi Dallas value: 320               # value: scales the marker radius (a data channel)
 poi Chicago m: Office               # categorical color via a tag alias
+poi Austin red                      # direct marker color (trailing token, §1.5)
 ```
 
 - **Coordinates are positional** — two leading signed numbers (lat then lon); cities never start with a number.
-- `value:` scales marker area (use `poi-metric <label>` for the legend key). POI properties: `label`, `value`, `style`, applied tag alias, `as`. No `icon` in v1.
+- `value:` scales marker area (use `poi-metric <label>` for the legend key). A trailing color (`poi Austin red`) sets the marker fill directly — winning over a tag color and the default orange. POI properties: `label`, `value`, `style`, applied tag alias, `as`. No `icon` in v1.
 - Coord-positioned or relabeled POIs take `as <alias>` for route/edge references; named POIs are referenced by name.
 
 ### Routes & connectors

@@ -18,6 +18,7 @@ import {
 } from 'd3-geo';
 import { feature } from 'topojson-client';
 import { mix, contrastText, relativeLuminance } from '../palettes/color-utils';
+import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes/types';
 import {
   rectsOverlap,
@@ -464,9 +465,12 @@ export function layoutMap(
   const scaleOverride = resolved.directives.scale;
   const rampMin = scaleOverride ? scaleOverride.min : Math.min(...values);
   const rampMax = scaleOverride ? scaleOverride.max : Math.max(...values);
-  // Value ramp is red so valued regions stand out against the blue water
-  // (palette.primary is a blue in most palettes and would blend in).
-  const rampHue = palette.colors.red;
+  // Value ramp defaults to red so valued regions stand out against the blue
+  // water (palette.primary is a blue in most palettes and would blend in). A
+  // trailing color on `region-metric` (§24B.3) overrides the hue idiomatically.
+  const rampHue =
+    resolveColor(resolved.directives.regionMetricColor ?? '', palette) ??
+    palette.colors.red;
   const hasRamp = values.length > 0;
 
   // Colouring dimension (AR4, bivariate): the value ramp and each tag group are
@@ -571,13 +575,27 @@ export function layoutMap(
     );
   };
 
-  /** A region's fill under the ACTIVE colouring dimension (AR4, bivariate):
-   *  value-active → ramp for valued regions, neutral otherwise; a tag group
-   *  active → that group's tag colour, neutral otherwise (value ignored). */
+  /** A §1.5 trailing-token color on a region/POI → flat categorical fill, the
+   *  same saturated tint a tag entry gets (so direct colors and tag colors read
+   *  alike). Resolves the NAME against the active palette; null if unrecognized. */
+  const directFill = (name: string | undefined): string | null => {
+    const hex = name ? resolveColor(name, palette) : null;
+    if (!hex) return null;
+    return mix(hex, palette.bg, isDark ? TAG_TINT_DARK : TAG_TINT_LIGHT);
+  };
+
+  /** A region's fill. A direct trailing color (§24B.4) is a flat override that
+   *  paints regardless of the active dimension (no legend entry). Otherwise the
+   *  ACTIVE colouring dimension (AR4, bivariate): value-active → ramp for valued
+   *  regions, neutral otherwise; a tag group active → that group's tag colour,
+   *  neutral otherwise (value ignored). */
   const regionFill = (r: {
     value?: number;
+    color?: string;
     tags: Readonly<Record<string, string>>;
   }): string => {
+    const direct = directFill(r.color);
+    if (direct) return direct;
     if (activeIsScore) {
       return r.value !== undefined ? fillForValue(r.value) : neutralFill;
     }
@@ -1232,8 +1250,12 @@ export function layoutMap(
     return R_MIN + Math.max(0, Math.min(1, t)) * (R_MAX - R_MIN);
   };
 
-  // POI tag color: FIRST declared group for which the POI has a value (AR4).
+  // POI fill precedence (§24B.5): a direct §1.5 trailing color wins, then the
+  // FIRST declared tag group for which the POI has a value (AR4), then orange.
   const poiFill = (p: ResolvedPoi): { fill: string; stroke: string } => {
+    const directHex = p.color ? resolveColor(p.color, palette) : null;
+    if (directHex)
+      return { fill: directHex, stroke: mix(directHex, palette.text, 18) };
     for (const group of resolved.tagGroups) {
       const val = p.tags[group.name.toLowerCase()];
       if (!val) continue;

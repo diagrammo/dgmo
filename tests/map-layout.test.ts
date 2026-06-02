@@ -293,6 +293,38 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
   });
 });
 
+describe('layout — direct trailing colors & ramp hue (§1.5, §24B.3)', () => {
+  const TAG_TINT_LIGHT = 60;
+  it('region trailing color → flat override fill, ignores active dimension', () => {
+    const r = lay('map\nCalifornia blue');
+    const ca = r.regions.find((x) => x.id === 'US-CA')!;
+    expect(ca.fill).toBe(mix(P.colors.blue, P.bg, TAG_TINT_LIGHT));
+  });
+  it('region trailing color overrides the value ramp on the same region', () => {
+    const r = lay('map\nregion-metric Sales\nCalifornia blue value: 100');
+    const ca = r.regions.find((x) => x.id === 'US-CA')!;
+    // Painted blue (direct), not the red ramp full-hue it would otherwise get.
+    expect(ca.fill).toBe(mix(P.colors.blue, P.bg, TAG_TINT_LIGHT));
+  });
+  it('region-metric trailing color sets the choropleth ramp hue', () => {
+    const r = lay(
+      'map\nregion-metric Sales blue\nCalifornia value: 0\nOregon value: 100'
+    );
+    const or = r.regions.find((x) => x.id === 'US-OR')!;
+    expect(or.fill).toBe(P.colors.blue); // t=1 → full hue, now blue not red
+    expect(r.legend?.ramp).toMatchObject({ metric: 'Sales' });
+  });
+  it('POI trailing color → flat marker fill, overrides default orange', () => {
+    const r = lay('map\npoi Tokyo red');
+    expect(r.pois[0]!.fill).toBe(P.colors.red);
+    expect(r.pois[0]!.fill).not.toBe(P.colors.orange);
+  });
+  it('POI trailing color wins over a tag color', () => {
+    const r = lay('map\ntag M as m\n  Office blue\npoi Tokyo red m: Office');
+    expect(r.pois[0]!.fill).toBe(P.colors.red);
+  });
+});
+
 describe('layout — uniform subtle basemap dress (subject water + land)', () => {
   // Subject water + land wear the SAME faded blue/green dress regardless of data
   // activity or the muted/natural flags — only neighbour land changes (below).

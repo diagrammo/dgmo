@@ -1,0 +1,10 @@
+map Regional Focus
+region us-states
+region-metric Sales ($M) blue
+
+California value: 92
+Oregon value: 40
+Texas red
+
+poi Portland US-OR green
+poi Denver
