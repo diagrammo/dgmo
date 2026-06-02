@@ -30,6 +30,10 @@ export interface MapDirectives {
   flowMetric?: string;
   scale?: MapScale;
   regionLabels?: string; // full | abbrev | off
+  /** Opt-in orientation backdrop (`context-labels on|off`, default off, §24B.2).
+   *  Paints a sparse, density-thinned layer of water-body names + unreferenced
+   *  notable country names distinct from `region-labels`. Off by default. */
+  contextLabels?: boolean;
   poiLabels?: string; // off | auto | all
   /** Default ISO scope for bare-name resolution (§24B.8): a 3166-1 country
    *  (`locale US`) or 3166-2 subdivision (`locale US-GA`). The country part

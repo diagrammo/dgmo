@@ -66,6 +66,14 @@ const DATA: MapData = {
   mountainRanges: rectTopo('ranges', [
     { id: 'mtn-0', name: 'Rockies', box: [-120, 35, -105, 45] },
   ]),
+  waterBodies: {
+    entries: [
+      [20, -40, 'North Atlantic Ocean', 0, 'ocean'],
+      [0, -150, 'North Pacific Ocean', 0, 'ocean'],
+      [-30, 0, 'South Atlantic Ocean', 0, 'ocean'],
+      [10, 70, 'Indian Ocean', 0, 'ocean'],
+    ],
+  },
   gazetteer,
 };
 
@@ -217,5 +225,30 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(
       ramp.querySelector('linearGradient[id^="dgmo-legend-ramp"]')
     ).toBeTruthy();
+  });
+});
+
+describe('context labels — cartographic styling (AC12)', () => {
+  it('water context labels render italic + letter-spaced + haloed <text>', () => {
+    // Offshore POIs frame open ocean so the North Atlantic anchor lands in clear
+    // water (over land it would be excluded — water names belong over water).
+    const svg = render('map\ncontext-labels on\npoi 22 -42\npoi 18 -38');
+    const labels = [...svg.querySelectorAll('.dgmo-map-labels text')];
+    const italic = labels.filter(
+      (t) => t.getAttribute('font-style') === 'italic'
+    );
+    expect(italic.length).toBeGreaterThan(0);
+    for (const t of italic) {
+      expect(Number(t.getAttribute('letter-spacing'))).toBeGreaterThan(0);
+      expect(t.getAttribute('paint-order')).toBe('stroke fill'); // halo
+      expect(t.getAttribute('stroke')).toBeTruthy();
+    }
+  });
+  it('off by default → no italic context text (no regression)', () => {
+    const svg = render('map\npoi Tokyo\npoi 40 -74');
+    const italic = [...svg.querySelectorAll('text')].filter(
+      (t) => t.getAttribute('font-style') === 'italic'
+    );
+    expect(italic).toHaveLength(0);
   });
 });

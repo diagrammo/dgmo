@@ -71,6 +71,33 @@ describe('parseMap — directives (AC2, AC20)', () => {
     expect(r.directives.regionLabels).toBe('abbrev');
     expect(r.directives.poiLabels).toBe('all');
   });
+  it('context-labels on|off|bare|invalid (AC1)', () => {
+    expect(parseMap('map\ncontext-labels on').directives.contextLabels).toBe(
+      true
+    );
+    expect(parseMap('map\ncontext-labels off').directives.contextLabels).toBe(
+      false
+    );
+    // Bare flag ⇒ on (modeled on `relief`).
+    expect(parseMap('map\ncontext-labels').directives.contextLabels).toBe(true);
+    // Absent ⇒ undefined (off by default).
+    expect(parseMap('map').directives.contextLabels).toBeUndefined();
+    // Unknown value warns and is treated as on.
+    const bogus = parseMap('map\ncontext-labels bogus');
+    expect(bogus.directives.contextLabels).toBe(true);
+    expect(
+      bogus.diagnostics.some(
+        (d) => d.severity === 'warning' && /context-labels/.test(d.message)
+      )
+    ).toBe(true);
+  });
+  it('context-labels is idempotent — no duplicate warning (like relief)', () => {
+    const r = parseMap('map\ncontext-labels on\ncontext-labels on');
+    expect(r.directives.contextLabels).toBe(true);
+    expect(
+      r.diagnostics.some((d) => /Duplicate directive/.test(d.message))
+    ).toBe(false);
+  });
   it('removed `muted` / `natural` flags now parse as region-fill lines', () => {
     // No basemap-dress directive any more — a bare `muted` line is just a name.
     const r = parseMap('map\nmuted');

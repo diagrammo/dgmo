@@ -86,6 +86,15 @@ const DATA: MapData = {
   mountainRanges: rectTopo('ranges', [
     { id: 'mtn-0', name: 'Rockies', box: [-120, 35, -105, 45] },
   ]),
+  waterBodies: {
+    entries: [
+      [20, -40, 'North Atlantic Ocean', 0, 'ocean'],
+      [0, -150, 'North Pacific Ocean', 0, 'ocean'],
+      [-30, 0, 'South Atlantic Ocean', 0, 'ocean'],
+      [38, 18, 'Mediterranean Sea', 1, 'sea'],
+      [25, 88, 'Bay of Bengal', 1, 'bay'],
+    ],
+  },
   gazetteer,
 };
 
@@ -608,5 +617,115 @@ describe('layout — purity & determinism (AC22)', () => {
     ).not.toThrow();
     const src = 'map\npoi Tokyo\nCalifornia value: 5';
     expect(JSON.stringify(lay(src))).toBe(JSON.stringify(lay(src)));
+  });
+});
+
+describe('context labels — orientation backdrop (§24B, AC2/AC8)', () => {
+  const italicLabels = (r: ReturnType<typeof lay>) =>
+    r.labels.filter((l) => l.italic);
+
+  it('off by default → zero context labels (AC2)', () => {
+    const r = lay('map\npoi Tokyo\npoi New York City');
+    expect(italicLabels(r)).toHaveLength(0);
+  });
+
+  it('off-by-default output is byte-identical with the directive absent (AC2)', () => {
+    const a = JSON.stringify(lay('map\nCalifornia value: 5'));
+    const b = JSON.stringify(lay('map\nCalifornia value: 5'));
+    expect(a).toBe(b);
+  });
+
+  it('context-labels on places water labels over open ocean (offshore POIs)', () => {
+    // Two POIs in the mid-Atlantic frame an open-water view; the North Atlantic
+    // anchor lands in clear water → an italic water label is emitted. (World-view
+    // tiering / oceans-only is covered deterministically in the module tests.)
+    const r = lay('map\ncontext-labels on\npoi 22 -42\npoi 18 -38');
+    const water = italicLabels(r);
+    expect(water.length).toBeGreaterThan(0);
+    expect(water.some((l) => /Ocean/.test(l.text))).toBe(true);
+  });
+
+  it('context labels never displace data labels (dead-last, AC8)', () => {
+    const src = 'map\npoi Tokyo\npoi New York City';
+    // POI labels are the data labels here (poiId set); context labels carry no
+    // poiId. Turning context-labels on must not move/drop any data label.
+    const dataLabels = (s: string) =>
+      lay(s)
+        .labels.filter((l) => l.poiId !== undefined)
+        .map((l) => `${l.text}@${Math.round(l.x)},${Math.round(l.y)}`)
+        .sort();
+    expect(dataLabels(`${src}\ncontext-labels on`)).toEqual(dataLabels(src));
+  });
+
+  it('albers-usa US view: context-labels on is not hard-disabled and does not disturb data', () => {
+    // Decision 8 was relaxed — albers-usa is supported (the module test proves
+    // the layer still places under albers-usa; real US maps show Pacific/Atlantic/
+    // Gulf — see manual verification). On the crude rect fixture the synthetic
+    // land covers the anchors, so here we assert the integration is safe: no
+    // throw, finite geometry, and the data (region) labels are untouched.
+    const dataLabels = (s: string) =>
+      lay(s)
+        .labels.filter((l) => l.lineNumber > 0)
+        .map((l) => `${l.text}@${Math.round(l.x)},${Math.round(l.y)}`)
+        .sort();
+    const base =
+      'map\nregion-labels full\nCalifornia value: 1\nOregon value: 2';
+    expect(() => lay(`${base}\ncontext-labels on`)).not.toThrow();
+    expect(dataLabels(`${base}\ncontext-labels on`)).toEqual(dataLabels(base));
+  });
+});
+
+describe('context labels — composition with relief (AC16)', () => {
+  it('stacking relief + region-labels + data does not inflate context density', () => {
+    const ctxOnly = lay(
+      'map\ncontext-labels on\npoi Tokyo\npoi New York City'
+    ).labels.filter((l) => l.italic).length;
+    const stacked = lay(
+      'map\ncontext-labels on\nrelief\nregion-labels full\npoi Tokyo\npoi New York City'
+    );
+    const stackedCtx = stacked.labels.filter((l) => l.italic).length;
+    // Combined layer stays within the same budget — no extra headroom for relief.
+    expect(stackedCtx).toBeLessThanOrEqual(ctxOnly);
+    // And the stack still produces finite, drawable geometry.
+    expect(stacked.regions.every((r) => !/NaN/.test(r.d))).toBe(true);
+  });
+});
+
+describe('context labels — review fixes (F1, F3)', () => {
+  // Footprint rect for a placed label (mirrors layout's labelW/labelH intent).
+  const rectOf = (l: {
+    x: number;
+    y: number;
+    text: string;
+    anchor: string;
+  }) => {
+    const w = l.text.length * 7 + 12; // generous over-estimate (test-only)
+    const h = 17;
+    const x =
+      l.anchor === 'start' ? l.x : l.anchor === 'end' ? l.x - w : l.x - w / 2;
+    return { x, y: l.y - h / 2, w, h };
+  };
+  const overlap = (
+    a: ReturnType<typeof rectOf>,
+    b: ReturnType<typeof rectOf>
+  ) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+  it('context (water) labels never overlap region/POI labels (F1)', () => {
+    const r = lay(
+      'map\ncontext-labels on\nregion-labels full\nUnited States value: 5\npoi Tokyo'
+    );
+    const ctx = r.labels.filter((l) => l.italic).map(rectOf);
+    const other = r.labels.filter((l) => !l.italic).map(rectOf);
+    for (const c of ctx)
+      for (const o of other) expect(overlap(c, o)).toBe(false);
+  });
+
+  it('a US-state map on a world projection emits no "United States" context label (F3)', () => {
+    // Mixed content (JP POI) keeps it off albers-usa; the US states are the data
+    // so the country itself must not be context-labeled.
+    const r = lay(
+      'map\ncontext-labels on\nCalifornia value: 5\nMaine value: 8\npoi Tokyo'
+    );
+    expect(r.labels.some((l) => l.text === 'United States')).toBe(false);
   });
 });

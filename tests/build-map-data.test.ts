@@ -339,3 +339,75 @@ describe('buildGazetteer', () => {
     expect(paris[5]).toBeUndefined();
   });
 });
+
+describe('water bodies (context-labels) — naming + size (AC14, AC15)', () => {
+  const { normalizeWaterName, GZ_CEILINGS } = build as {
+    normalizeWaterName: (s: string) => string;
+    GZ_CEILINGS: Record<string, number>;
+  };
+
+  it('title-cases ALL-CAPS multi-word names, leaves the rest', () => {
+    expect(normalizeWaterName('INDIAN OCEAN')).toBe('Indian Ocean');
+    expect(normalizeWaterName('SOUTHERN OCEAN')).toBe('Southern Ocean');
+    expect(normalizeWaterName('Black Sea')).toBe('Black Sea'); // already mixed
+    expect(normalizeWaterName('Gulf of Mexico')).toBe('Gulf of Mexico');
+  });
+
+  it('declares a gz ceiling for water-bodies.json (AC14)', () => {
+    expect(typeof GZ_CEILINGS['water-bodies.json']).toBe('number');
+  });
+});
+
+describe('committed water-bodies.json (AC14, AC15)', async () => {
+  // Validate the shipped asset: tuple shape, NE override applied once, under gz.
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+  const { gzipSync } = await import('node:zlib');
+  // vitest runs with cwd = package root.
+  const path = resolve(process.cwd(), 'src/map/data/water-bodies.json');
+  const raw = readFileSync(path);
+  const data = JSON.parse(raw.toString('utf8')) as {
+    entries: Array<[number, number, string, number, string]>;
+  };
+
+  it('is well-formed tuple entries sorted by (tier, name)', () => {
+    expect(Array.isArray(data.entries)).toBe(true);
+    expect(data.entries.length).toBeGreaterThan(50);
+    const kinds = new Set([
+      'ocean',
+      'sea',
+      'gulf',
+      'bay',
+      'strait',
+      'channel',
+      'sound',
+    ]);
+    for (const [lat, lon, name, tier, kind] of data.entries) {
+      expect(typeof lat).toBe('number');
+      expect(typeof lon).toBe('number');
+      expect(typeof name).toBe('string');
+      expect(Number.isInteger(tier)).toBe(true);
+      expect(kinds.has(kind)).toBe(true);
+    }
+  });
+
+  it('applies the single Gulf override exactly once (AC15)', () => {
+    const america = data.entries.filter((e) => e[2] === 'Gulf of America');
+    expect(america).toHaveLength(1);
+    expect(data.entries.some((e) => e[2] === 'Gulf of Mexico')).toBe(false);
+  });
+
+  it('excludes rivers and reefs (Decision 5)', () => {
+    expect(
+      data.entries.some((e) => /river|reef/i.test(e[2]) && e[4] !== 'sea')
+    ).toBe(false);
+  });
+
+  it('gzips under its GZ_CEILINGS budget (AC14)', () => {
+    const gz = gzipSync(raw).length;
+    const ceil = (build as { GZ_CEILINGS: Record<string, number> }).GZ_CEILINGS[
+      'water-bodies.json'
+    ];
+    expect(gz).toBeLessThanOrEqual(ceil);
+  });
+});

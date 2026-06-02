@@ -18,7 +18,7 @@
 // `await import('jsdom')` seam in render.ts. The web build injects `MapData` via
 // DI and never calls `loadMapData`, so the dynamic import only runs in Node.
 import type { MapData } from './resolved-types';
-import type { BoundaryTopology, Gazetteer } from './data/types';
+import type { BoundaryTopology, Gazetteer, WaterBodies } from './data/types';
 
 type NodeBuiltins = {
   readFile: typeof import('node:fs/promises').readFile;
@@ -46,6 +46,7 @@ const FILES = {
   mountainRanges: 'mountain-ranges.json',
   naLand: 'na-land.json',
   naLakes: 'na-lakes.json',
+  waterBodies: 'water-bodies.json',
   gazetteer: 'gazetteer.json',
 } as const;
 
@@ -135,12 +136,13 @@ export function loadMapData(): Promise<MapData> {
       mountainRanges,
       naLand,
       naLakes,
+      waterBodies,
       gazetteer,
     ] = await Promise.all([
       readJson<BoundaryTopology>(nb, dir, FILES.worldCoarse),
       readJson<BoundaryTopology>(nb, dir, FILES.worldDetail),
       readJson<BoundaryTopology>(nb, dir, FILES.usStates),
-      // Lakes/rivers/mountain/NA assets are optional — older bundles may predate them.
+      // Lakes/rivers/mountain/NA/water assets are optional — older bundles may predate them.
       readJson<BoundaryTopology>(nb, dir, FILES.lakes).catch(() => undefined),
       readJson<BoundaryTopology>(nb, dir, FILES.rivers).catch(() => undefined),
       readJson<BoundaryTopology>(nb, dir, FILES.mountainRanges).catch(
@@ -148,6 +150,7 @@ export function loadMapData(): Promise<MapData> {
       ),
       readJson<BoundaryTopology>(nb, dir, FILES.naLand).catch(() => undefined),
       readJson<BoundaryTopology>(nb, dir, FILES.naLakes).catch(() => undefined),
+      readJson<WaterBodies>(nb, dir, FILES.waterBodies).catch(() => undefined),
       readJson<Gazetteer>(nb, dir, FILES.gazetteer),
     ]);
     return validate({
@@ -160,6 +163,7 @@ export function loadMapData(): Promise<MapData> {
       ...(mountainRanges && { mountainRanges }),
       ...(naLand && { naLand }),
       ...(naLakes && { naLakes }),
+      ...(waterBodies && { waterBodies }),
     });
   })().catch((e: unknown) => {
     cache = undefined; // don't poison future calls with a rejected promise

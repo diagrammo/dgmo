@@ -54,6 +54,7 @@ const DIRECTIVE_SET: ReadonlySet<string> = new Set([
   'flow-metric',
   'scale',
   'region-labels',
+  'context-labels',
   'poi-labels',
   'locale',
   'active-tag',
@@ -336,6 +337,16 @@ export function parseMap(content: string): ParsedMap {
             `Unknown region-labels "${value}" (expected full | abbrev | off).`
           );
         d.regionLabels = value;
+        break;
+      case 'context-labels':
+        // on|off → boolean (bare ⇒ on). Idempotent like `relief` — no dup
+        // warning; last value wins silently. Only an unknown VALUE warns.
+        if (value && !['on', 'off'].includes(value))
+          pushWarning(
+            line,
+            `Unknown context-labels "${value}" (expected on | off).`
+          );
+        d.contextLabels = value !== 'off';
         break;
       case 'poi-labels':
         dup(d.poiLabels);

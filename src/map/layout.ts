@@ -39,6 +39,8 @@ import type {
   ProjectionFamily,
 } from './resolved-types';
 import { resolveSurfaceBow } from './surface-route';
+import { placeContextLabels } from './context-labels';
+import type { CountryCandidate } from './context-labels';
 import type { DecodedFeature } from './geo';
 
 // Minimal GeoJSON shapes (avoid a hard @types/geojson dep; cast at d3 calls).
@@ -221,6 +223,10 @@ export interface PlacedLabel {
   /** The POI this label belongs to (POI labels only) — emitted as `data-poi` on
    *  the label + leader so the app can spotlight the dot on label hover. */
   readonly poiId?: string;
+  /** Cartographic italic (context-label water names, §24B). Default upright. */
+  readonly italic?: boolean;
+  /** Cartographic letter-spacing in px (context-label water names). Default 0. */
+  readonly letterSpacing?: number;
   readonly lineNumber: number;
 }
 
@@ -2048,6 +2054,81 @@ export function layoutMap(
       }
       placeColumn(g);
     }
+  }
+
+  // -- Context labels (orientation backdrop, §24B). Placed DEAD LAST so they
+  // only fill leftover space and never displace a data/region/POI label
+  // (Decision 7). Off by default; gated on the directive so it costs nothing. --
+  if (resolved.directives.contextLabels) {
+    // F1: context labels must dodge EVERY committed label (region/inset/POI/
+    // route), not just the POI-label rects already in `obstacles`. Region
+    // labels go into `labels` but never into `obstacles`, so add a footprint
+    // rect for each committed label here (POI rects are already present —
+    // duplicates are harmless). This upholds Decision 7's "never displace a
+    // data/region/POI label" against the live `collides` closure.
+    for (const l of labels) {
+      const w = labelW(l.text);
+      const x =
+        l.anchor === 'start' ? l.x : l.anchor === 'end' ? l.x - w : l.x - w / 2;
+      obstacles.push({ x, y: l.y - labelH / 2, w, h: labelH });
+    }
+    // Under albers-usa the AK/HI inset frames occupy the lower-left; a context
+    // label must never sit on one (the original Decision 8 hazard). Feed each
+    // inset box into the collision set so the placement dodges them.
+    for (const box of insets)
+      obstacles.push({ x: box.x, y: box.y, w: box.w, h: box.h });
+    // Unreferenced notable countries: the FULL decoded country set (worldLayer
+    // holds every country in the chosen tier — crisp `.set()` upgrades never
+    // delete), minus any already labelled by region-labels (Decision 1). Geo
+    // work (bbox/anchor) stays here; area-rank + fit + collision live in the
+    // pure module so the strict density invariants (AC7) are unit-testable.
+    const countryCandidates: CountryCandidate[] = [];
+    for (const f of worldLayer.values()) {
+      const iso = typeof f.id === 'string' ? f.id : String(f.id ?? '');
+      if (!iso || regionById.has(iso)) continue;
+      // F3: skip a country whose SUBDIVISIONS are the referenced data (e.g. a
+      // US-states choropleth on a world projection) — the states ARE the data,
+      // so don't slap a redundant "United States" context label over them.
+      let hasReferencedSub = false;
+      for (const k of regionById.keys())
+        if (k.startsWith(iso + '-')) {
+          hasReferencedSub = true;
+          break;
+        }
+      if (hasReferencedSub) continue;
+      const b = path.bounds(f as never) as [[number, number], [number, number]];
+      const [x0, y0] = b[0];
+      const [x1, y1] = b[1];
+      if (!Number.isFinite(x0) || !Number.isFinite(x1)) continue;
+      const anchorLngLat = WORLD_LABEL_ANCHORS[iso];
+      const a = anchorLngLat
+        ? project(anchorLngLat[0], anchorLngLat[1])
+        : (path.centroid(f as never) as [number, number]);
+      countryCandidates.push({
+        iso,
+        name: (f.properties as { name?: string } | undefined)?.name ?? iso,
+        bbox: [x0, y0, x1, y1],
+        anchor: a && Number.isFinite(a[0]) ? [a[0], a[1]] : null,
+      });
+    }
+    const contextLabels = placeContextLabels({
+      projection: resolved.projection,
+      dLonSpan,
+      dLatSpan,
+      width,
+      height,
+      waterBodies: data.waterBodies,
+      countries: countryCandidates,
+      regionLabels: regionLabelMode,
+      palette,
+      project,
+      collides,
+      // Water labels must stay over open water — `fillAt` returns the ocean
+      // backdrop colour off-land and a region fill on-land (lakes/states count
+      // as land here, which is the safe side for an ocean name).
+      overLand: (x, y) => fillAt(x, y) !== water,
+    });
+    labels.push(...contextLabels);
   }
 
   // -- Legend model (AR1: categorical via renderer's renderLegendD3) --

@@ -336,7 +336,9 @@ export function renderMap(
       lab.color,
       lab.haloColor,
       lab.halo,
-      LABEL_FONT
+      LABEL_FONT,
+      lab.italic,
+      lab.letterSpacing
     );
     // POI labels are spotlightable: tag with the POI id and make the text the
     // hover target (the app dims the other dots/labels on enter).
@@ -469,7 +471,9 @@ function emitText(
   color: string,
   halo: string,
   withHalo: boolean,
-  fontSize: number
+  fontSize: number,
+  italic?: boolean,
+  letterSpacing?: number
 ): d3Selection.Selection<SVGTextElement, unknown, null, undefined> {
   const t = g
     .append('text')
@@ -479,6 +483,10 @@ function emitText(
     .attr('font-size', fontSize)
     .attr('fill', color)
     .text(text);
+  // Cartographic styling for context labels; absent on every other call site so
+  // existing output stays byte-identical (only emitted when explicitly set).
+  if (italic) t.attr('font-style', 'italic');
+  if (letterSpacing) t.attr('letter-spacing', letterSpacing);
   if (withHalo) {
     // Thin, even outline (2px / 1px-per-side at the 11px label font — 3px read
     // top-heavy as adjacent glyph tops merged their strokes). Round join + cap

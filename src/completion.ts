@@ -528,6 +528,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Subdivision name labels',
         values: ['full', 'abbrev', 'off'],
       },
+      'context-labels': {
+        description: 'Orientation labels (water + nearby countries)',
+        values: ['on', 'off'],
+      },
       'poi-labels': {
         description: 'POI labels/values',
         values: ['off', 'auto', 'all'],

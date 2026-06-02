@@ -50,6 +50,40 @@ export interface Gazetteer {
   alt: Record<string, number>;
 }
 
+/** Water-feature class (Natural Earth `featurecla`, rivers/reefs excluded). */
+export type WaterKind =
+  | 'ocean'
+  | 'sea'
+  | 'gulf'
+  | 'bay'
+  | 'strait'
+  | 'channel'
+  | 'sound';
+
+/**
+ * A water-body label entry: `[lat, lon, name, tier, kind, alt?]`.
+ * - `lat`/`lon` — label anchor (Natural Earth inner point), rounded to 3 decimals.
+ * - `name` — full display name (no abbreviation exists for water bodies).
+ * - `tier` — Natural Earth `scalerank` (0 = most prominent → orientation priority).
+ * - `kind` — feature class (drives styling/priority bucketing).
+ * - `alt` — optional extra anchor points `[lat, lon][]`; the layout picks the
+ *   one nearest the viewport center (Decision 5 multi-anchor seam). Absent today.
+ */
+export type WaterBodyEntry = [
+  lat: number,
+  lon: number,
+  name: string,
+  tier: number,
+  kind: WaterKind,
+  alt?: ReadonlyArray<readonly [number, number]>,
+];
+
+export interface WaterBodies {
+  /** Deterministically ordered (tier, then name). Generated from Natural Earth
+   *  marine polys by scripts/build-map-data.mjs into `water-bodies.json`. */
+  readonly entries: readonly WaterBodyEntry[];
+}
+
 /** A fill-able region (country or US state) — the display name + its ISO id +
  *  layer. Powers region-name autocomplete (completion-only; the renderer derives
  *  names from the topology directly). Extracted from the topologies by
