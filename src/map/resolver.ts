@@ -155,6 +155,22 @@ function looksUS(lat: number, lon: number): boolean {
   return (lon >= -180 && lon <= -64) || lon >= 172;
 }
 
+/** Classifies a bare-coordinate POI as a North-American neighbour (vs a far-away
+ *  blocker) when deciding `albers-usa`. Used only for bare coords — named POIs
+ *  carry an ISO. This deliberately only covers what `looksUS`'s broad box does
+ *  NOT: the Atlantic-Canada strip east of −64° (Newfoundland/Labrador/Nova
+ *  Scotia, e.g. St. John's at −52.7) which falls outside `looksUS`'s
+ *  [−180, −64] longitude window. Most of Canada and all of Mexico already pass
+ *  `looksUS` (their lon is ≤ −64, lat ≥ 15) so they never reach here. The
+ *  latitude is capped at 72° (matching `looksUS`) so a high-Arctic coord is NOT
+ *  treated as a neighbour — that would both distort the conus fit and collide
+ *  with the Alaska inset bbox (`inAlaska`, lat ≥ 51 ∧ lon ≤ −129). NOTE: the
+ *  east strip can also catch the SE-Greenland coast (rare, acceptable; named
+ *  GL/DK POIs are unaffected since they classify by ISO). */
+function looksNorthAmericaNeighbor(lat: number, lon: number): boolean {
+  return lat >= 14 && lat <= 72 && lon >= -141 && lon <= -52;
+}
+
 export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const diagnostics: DgmoError[] = [...parsed.diagnostics]; // seed with parse diags (R14)
   const err = (line: number, message: string, code?: string): void => {
@@ -431,13 +447,16 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   // projection test (#13). Named POIs contribute their gazetteer ISO; bare-coord
   // POIs contribute a rough US-or-not classification (no reverse-geocode).
   const poiCountries: string[] = [];
-  let anyNonUsPoi = false;
   let anyUsPoi = false;
+  // `anyNonNaPoi` = a POI outside North America (not US/CA/MX). Gates the relaxed
+  // US-orientation test (#13): US + Canada/Mexico content keeps `albers-usa`, but
+  // anything beyond NA forces a geographic projection that frames all content.
+  let anyNonNaPoi = false;
   const noteCountry = (iso: string | undefined): void => {
     if (iso) {
       poiCountries.push(iso);
-      if (iso !== 'US') anyNonUsPoi = true;
-      else anyUsPoi = true;
+      if (iso === 'US') anyUsPoi = true;
+      if (iso !== 'US' && iso !== 'CA' && iso !== 'MX') anyNonNaPoi = true;
     }
   };
 
@@ -446,7 +465,8 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   for (const p of parsed.pois) {
     if (p.pos.kind === 'coords') {
       if (looksUS(p.pos.lat, p.pos.lon)) anyUsPoi = true;
-      else anyNonUsPoi = true;
+      else if (!looksNorthAmericaNeighbor(p.pos.lat, p.pos.lon))
+        anyNonNaPoi = true;
       addResolvedPoi(p.pos.lat, p.pos.lon, p);
       continue;
     }
@@ -588,7 +608,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     if (pos.kind === 'coords') {
       const id = alias ? fold(alias) : `@${pos.lat},${pos.lon}`;
       if (looksUS(pos.lat, pos.lon)) anyUsPoi = true;
-      else anyNonUsPoi = true;
+      else if (!looksNorthAmericaNeighbor(pos.lat, pos.lon)) anyNonNaPoi = true;
       if (!registry.has(id)) {
         registerPoi(
           id,
@@ -674,23 +694,31 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   }
 
   // ── Basemaps + scope ──
-  // "US-oriented" = ALL content is US (no non-US country fill, no non-US POI) AND
-  // there is some US content. Such a map renders as the conventional US states
-  // map: the full state mesh on albers-usa, every state outlined even with no
-  // data — including a POI-only named-city map (§24B.2).
+  // "US-oriented" = there is US content AND all other content stays within North
+  // America (US, Canada, or Mexico — no non-NA POI, no non-US/CA/MX country
+  // fill). Such a map renders as the conventional US states map: the full state
+  // mesh on albers-usa, every state outlined even with no data — including a
+  // POI-only named-city map (§24B.2), and now also a US map with a Canadian or
+  // Mexican neighbour POI/fill (the neighbour is framed alongside, never clipped).
   // "Has US content" is STATE-level (a US state fill, a US POI, or `locale US`)
   // — NOT a country-level `United States` fill, which means "treat the US as one
   // unit" and should keep the country shape, not explode into 50 states.
+  const hasUsContent =
+    usSubdivisionReferenced || anyUsPoi || localeCountry === 'US';
   const usOriented =
-    !anyNonUsPoi &&
-    !regions.some((r) => r.layer === 'country' && r.iso !== 'US') &&
-    (usSubdivisionReferenced || anyUsPoi || localeCountry === 'US');
+    !anyNonNaPoi &&
+    !regions.some(
+      (r) => r.layer === 'country' && !['US', 'CA', 'MX'].includes(r.iso)
+    ) &&
+    hasUsContent;
 
   const subdivisions: Array<'us-states'> = [];
-  // Load/draw the state mesh when US-oriented (show all states) OR whenever a
-  // single US state is referenced (geometry needed to draw it even on a mixed
-  // world map, e.g. California + Germany).
-  if (usSubdivisionReferenced || usOriented) subdivisions.push('us-states');
+  // Draw the US state mesh whenever the map has any US content (a referenced US
+  // state, a US POI, or `locale US` — all folded into `hasUsContent`), even
+  // alongside non-NA content on a geographic projection (e.g. US POIs + Tokyo, or
+  // California + Germany). `usSubdivisionReferenced` and `usOriented` both already
+  // imply `hasUsContent`, so the single term covers every case.
+  if (hasUsContent) subdivisions.push('us-states');
 
   // ── Extent + projection (R5/R10) ──
   const regionBoxes: GeoExtent[] = [];
@@ -719,15 +747,13 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const latSpan = extent[1][1] - extent[0][1];
   const span = Math.max(lonSpan, latSpan);
   const maxAbsLat = Math.max(Math.abs(extent[0][1]), Math.abs(extent[1][1]));
-  // albers-usa only covers US territory: choose it exactly when the map is
-  // US-oriented (#13 — all content US, some US content). This is the national
-  // US composite (insets AK/HI when referenced, clips non-US land). A map with
-  // ANY non-US content is excluded by `usOriented` and stays on a geographic
-  // world/regional projection so neighbour land draws. Note: this intentionally
-  // snaps a POI-only US city map to the national frame ("show all states"),
-  // rather than fit-zooming to the cluster on a geographic projection.
-  const usDominant = usOriented;
-
+  // albers-usa is the national US composite (insets AK/HI when referenced, the
+  // conic projects neighbour land around the states). Choose it exactly when the
+  // map is US-oriented (#13): US content plus only US/Canada/Mexico elsewhere.
+  // Content reaching BEYOND North America fails `usOriented` and stays on a
+  // geographic world/regional projection that frames everything. Note: this
+  // intentionally snaps a POI-only US city map to the national frame ("show all
+  // states") rather than fit-zooming to the cluster on a geographic projection.
   let projection: ProjectionFamily;
   const override = parsed.directives.projection;
   if (
@@ -737,7 +763,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     override === 'mercator'
   ) {
     projection = override;
-  } else if (usDominant) {
+  } else if (usOriented) {
     projection = 'albers-usa';
   } else if (span > WORLD_SPAN || maxAbsLat > MERCATOR_MAX_LAT) {
     // World/multi-continent scale (or a polar-reaching frame): equirectangular

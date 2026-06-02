@@ -583,10 +583,32 @@ export function buildMapProjection(
   let fitFeatures: GeoFeature[];
   if (resolved.projection === 'albers-usa' && usLayer) {
     // Frame the contiguous 48 + DC (insets/territories excluded). The conic
-    // projects everything else around it, bleeding off the canvas edges.
+    // projects everything else around it.
     fitFeatures = [...usLayer.entries()]
       .filter(([iso]) => !US_NON_CONUS.has(iso))
       .map(([, f]) => f);
+    // Expand the frame to include referenced Canada/Mexico content so a
+    // near-border neighbour (e.g. Toronto) is visible rather than bleeding off
+    // the canvas edge. Only CA/MX content can reach this branch (the resolver's
+    // NA rule), so the frame can only grow toward those neighbours. AK/HI POIs
+    // stay insets — excluded here. Content-driven: a neighbour POI adds only its
+    // point (US barely shrinks); a neighbour country fill adds its full geometry.
+    const neighborPoints: Array<[number, number]> = resolved.pois
+      .filter((p) => !inAlaska(p.lon, p.lat) && !inHawaii(p.lon, p.lat))
+      .map((p) => [p.lon, p.lat]);
+    if (neighborPoints.length > 0) {
+      fitFeatures.push({
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'MultiPoint', coordinates: neighborPoints },
+      });
+    }
+    for (const r of resolved.regions) {
+      if (r.layer === 'country' && (r.iso === 'CA' || r.iso === 'MX')) {
+        const cf = worldLayer.get(r.iso);
+        if (cf) fitFeatures.push(cf);
+      }
+    }
   } else {
     fitFeatures = [extentOutline()];
   }

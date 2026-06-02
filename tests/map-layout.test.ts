@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseMap } from '../src/map/parser';
 import { resolveMap } from '../src/map/resolver';
-import { layoutMap } from '../src/map/layout';
+import { layoutMap, buildMapProjection } from '../src/map/layout';
 import { getPalette } from '../src/palettes';
 import { mix } from '../src/palettes/color-utils';
 import type { MapData } from '../src/map/resolved-types';
@@ -65,12 +65,16 @@ const gazetteer: Gazetteer = {
 const DATA: MapData = {
   worldCoarse: rectTopo('countries', [
     { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
+    { id: 'CA', name: 'Canada', box: [-141, 49, -52, 70] },
+    { id: 'MX', name: 'Mexico', box: [-117, 14, -86, 33] },
     { id: 'JP', name: 'Japan', box: [129, 31, 146, 45] },
     { id: 'GE', name: 'Georgia', box: [40, 41, 47, 44] },
     { id: 'CD', name: 'Dem. Rep. Congo', box: [12, -13, 31, 5] },
   ]),
   worldDetail: rectTopo('countries', [
     { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
+    { id: 'CA', name: 'Canada', box: [-141, 49, -52, 70] },
+    { id: 'MX', name: 'Mexico', box: [-117, 14, -86, 33] },
     { id: 'JP', name: 'Japan', box: [129, 31, 146, 45] },
     { id: 'GE', name: 'Georgia', box: [40, 41, 47, 44] },
     { id: 'CD', name: 'Dem. Rep. Congo', box: [12, -13, 31, 5] },
@@ -256,6 +260,59 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
       DATA
     );
     expect(resolved.basemaps.world).toBe('detail');
+  });
+});
+
+describe('layout — albers-usa neighbour frame (map-us-orientation-north-america)', () => {
+  it('AC2: a near-border Canadian POI projects on-canvas under albers-usa (frame expanded, not clipped)', () => {
+    // Toronto ~43.65,-79.38 is a Canadian neighbour POI (no `locale`/`projection`).
+    // It keeps albers-usa (NA rule) and the fit frame expands to include the point
+    // so it lands inside the canvas rather than bleeding off the top edge.
+    const src =
+      'map\nCalifornia value: 1\nOregon value: 2\npoi 43.65 -79.38 as toronto';
+    expect(resolveMap(parseMap(src), DATA).projection).toBe('albers-usa');
+    const r = lay(src);
+    const t = r.pois.find((p) => p.id === 'toronto')!;
+    expect(t).toBeDefined();
+    expect(Number.isFinite(t.cx)).toBe(true);
+    expect(Number.isFinite(t.cy)).toBe(true);
+    expect(t.cx).toBeGreaterThanOrEqual(0);
+    expect(t.cx).toBeLessThanOrEqual(800);
+    expect(t.cy).toBeGreaterThanOrEqual(0);
+    expect(t.cy).toBeLessThanOrEqual(600);
+  });
+  it('a conus-interior POI does NOT materially shift the US frame', () => {
+    // A POI already inside the contiguous-48 adds nothing to the expanded fit —
+    // the US framing must be unchanged from the POI-free map.
+    const base = lay('map\nCalifornia value: 1\nOregon value: 2');
+    const withPoi = lay(
+      'map\nCalifornia value: 1\nOregon value: 2\npoi 40 -100 as mid'
+    );
+    const caBase = base.regions.find((x) => x.id === 'US-CA')!;
+    const caPoi = withPoi.regions.find((x) => x.id === 'US-CA')!;
+    expect(caPoi.d).toBe(caBase.d);
+  });
+  it('AC3: a Mexico country fill is pulled into the albers-usa fit target', () => {
+    // A neighbour COUNTRY fill (not just a POI) unions its full geometry into the
+    // conus fit target, so Mexico is framed in full rather than bleeding off the
+    // canvas. Exercises the layout.ts worldLayer.get(iso) expansion path. (The
+    // hand-built rect fixture's ambiguous polygon winding makes geoBounds global,
+    // so we assert the fit-target membership directly rather than projected size.)
+    const withMx = buildMapProjection(
+      resolveMap(parseMap('map\nCalifornia value: 1\nMexico value: 2'), DATA),
+      DATA
+    );
+    const usOnly = buildMapProjection(
+      resolveMap(parseMap('map\nCalifornia value: 1'), DATA),
+      DATA
+    );
+    const hasMx = (b: typeof withMx): boolean =>
+      b.fitTarget.features.some((f) => (f as { id?: string }).id === 'MX');
+    expect(hasMx(usOnly)).toBe(false); // US-only fit = conus states only
+    expect(hasMx(withMx)).toBe(true); // neighbour fill expands the fit
+    expect(withMx.fitTarget.features.length).toBe(
+      usOnly.fitTarget.features.length + 1
+    );
   });
 });
 
