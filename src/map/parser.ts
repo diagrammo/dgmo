@@ -60,6 +60,7 @@ const DIRECTIVE_SET: ReadonlySet<string> = new Set([
   'active-tag',
   'no-legend',
   'no-insets',
+  'relief',
   'subtitle',
   'caption',
 ]);
@@ -365,6 +366,10 @@ export function parseMap(content: string): ParsedMap {
         break;
       case 'no-insets':
         d.noInsets = true;
+        break;
+      case 'relief':
+        // Bare flag (idempotent like no-insets — `relief\nrelief` is no warning).
+        d.relief = true;
         break;
       case 'muted':
       case 'natural':

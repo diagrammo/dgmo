@@ -46,6 +46,11 @@ export interface MapDirectives {
    *  dress. Absent → auto (muted iff a score/tag dimension is active). Lets two
    *  maps in one deck share a look. */
   basemapStyle?: 'muted' | 'natural';
+  /** Opt-in subtle mountain-range relief shading (bare flag `relief`, §24B.2).
+   *  Draws a shared directional gradient ("degenerate hillshade") clipped to
+   *  each notable mountain-range polygon, over base land and under data fills.
+   *  Off by default; needs the optional `mountain-ranges.json` asset. */
+  relief?: boolean;
 }
 
 /** A region-fill: a subdivision name with an optional score and/or tag values

@@ -90,6 +90,15 @@ const SOURCES = {
     version: 'natural-earth 10m (martynafford snapshot)',
     url: 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/10m/physical/ne_10m_lakes.json',
   },
+  mountainRanges: {
+    // Natural Earth 50m geography regions, filtered to FEATURECLA "Range/mtn" —
+    // notable mountain ranges (Rockies, Andes, Alps, Himalayas, …) drawn as a
+    // subtle gradient relief cue when the `relief` directive is on. Hand-drawn
+    // label-regions (not elevation-derived), so coarse by nature; v1 is single
+    // tier (no height). License: public domain (Natural Earth).
+    version: 'natural-earth 50m (nvkelso vector snapshot)',
+    url: 'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_geography_regions_polys.geojson',
+  },
 };
 
 // --- Tunable constants (tuned empirically; see build log for actual sizes) --
@@ -103,6 +112,11 @@ const LAKES_RETAIN = 20; // % of 110m lakes
 const QUANT_LAKES = 10_000;
 const RIVERS_RETAIN = 40; // % of 110m river centerlines (thin lines — keep shape)
 const QUANT_RIVERS = 10_000;
+// Mountain ranges: `-simplify N%` RETAINS N% of vertices — higher = crisper AND
+// bigger. Tuned for SHAPE FIDELITY first, not size (the Task 0 eyeball lever).
+// Measured on the real data: 3%→13KB, 8%→15KB, 15%→17KB gz.
+const MOUNTAIN_RETAIN = 8; // % of 50m geography_regions_polys mountain polys
+const QUANT_MOUNTAIN = 10_000;
 // North-America clip: lon -140..-52, lat 10..66 (CONUS + Canada/Mexico/Caribbean
 // edge). Keeps the crisp 10m assets small while covering everything the conic
 // US frame can show.
@@ -124,6 +138,10 @@ const GZ_CEILINGS = {
   'rivers.json': 8_000,
   'na-land.json': 40_000,
   'na-lakes.json': 14_000,
+  // ~30KB (not 20) — headroom for fidelity escalation (higher retain %, 10m
+  // bump, or widening to Plateau/Foothills). A deliberate bump past this means
+  // re-baselining the ceiling, not silently raising simplification.
+  'mountain-ranges.json': 30_000,
   'gazetteer.json': 70_000,
   'region-names.json': 8_000,
 };
@@ -415,6 +433,47 @@ async function buildNaLakes(url) {
   return topo;
 }
 
+/** Build the mountain-ranges layer (Natural Earth 50m geography_regions_polys,
+ *  filtered to FEATURECLA "Range/mtn"). Source is GeoJSON with UPPERCASE props
+ *  (FEATURECLA/NAME/REGION + ~30 multilingual NAME_* fields that MUST be
+ *  stripped). Drops Antarctica (a relief smear on the clipped world frame),
+ *  strips to {name, cla}, assigns synthetic ids (decodeLayer keys by g.id — NE
+ *  polys have none, so without ids the layer collapses to one feature), then
+ *  simplifies. Single tier (NE has no elevation on these polys). */
+async function buildMountainRanges(url) {
+  console.log('• mountain-ranges (50m geography regions, Range/mtn)');
+  console.log(`  fetch ${url}`);
+  const buf = await download(url);
+  if (buf.length < 1024) throw new Error(`mountain-ranges: suspiciously small (${buf.length}B)`);
+  sourceHashes[url] = { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+  const geo = JSON.parse(buf.toString('utf8'));
+  const kept = [];
+  for (const f of geo.features) {
+    const p = f.properties || {};
+    const cla = p.FEATURECLA ?? p.featurecla;
+    const region = p.REGION ?? p.region;
+    if (cla !== 'Range/mtn') continue;
+    if (region === 'Antarctica') continue;
+    const name = p.NAME ?? p.name ?? '';
+    f.properties = { name, cla }; // drop the ~30 multilingual NAME_* fields
+    f.id = `mtn-${kept.length}`;
+    kept.push(f);
+  }
+  if (!kept.length) throw new Error('mountain-ranges: no Range/mtn features (source schema drift?)');
+  geo.features = kept;
+  const out = await mapshaper.applyCommands(
+    `-i in.json -rename-layers ranges -simplify ${MOUNTAIN_RETAIN}% keep-shapes -o quantization=${QUANT_MOUNTAIN} format=topojson out.json`,
+    { 'in.json': Buffer.from(JSON.stringify(geo)) }
+  );
+  const topo = JSON.parse(Buffer.from(out['out.json']).toString('utf8'));
+  const geoms = topo.objects.ranges.geometries;
+  // Re-assign synthetic ids by index (topojson conversion may not carry the
+  // GeoJSON Feature.id through); decodeLayer requires unique non-null ids.
+  geoms.forEach((g, i) => { g.id = `mtn-${i}`; });
+  console.log(`  mountain-ranges: ${geoms.length}`);
+  return topo;
+}
+
 /** Simplify a TopoJSON Buffer (keep-shapes; quantization is the size lever). */
 async function simplify(topoBuf, retainPct, quantization) {
   const out = await mapshaper.applyCommands(
@@ -626,6 +685,9 @@ async function main() {
   const naLakes = await buildNaLakes(SOURCES.naLakes.url);
   provenance.sources.naLakes = { ...SOURCES.naLakes };
 
+  const mountainRanges = await buildMountainRanges(SOURCES.mountainRanges.url);
+  provenance.sources.mountainRanges = { ...SOURCES.mountainRanges };
+
   console.log('• gazetteer (cities5000)');
   const citiesZip = await fetchValidated(SOURCES.geonames.citiesUrl, 'zip');
   const tsv = unzipEntry(citiesZip, 'cities5000.txt');
@@ -678,6 +740,7 @@ async function main() {
     'rivers.json': rivers,
     'na-land.json': naLand,
     'na-lakes.json': naLakes,
+    'mountain-ranges.json': mountainRanges,
     'gazetteer.json': gaz,
     'region-names.json': regionNames,
   };
@@ -700,6 +763,7 @@ async function main() {
   provenance.counts = {
     countries: coarse.keys.length,
     usStates: us.keys.length,
+    mountainRanges: mountainRanges.objects.ranges.geometries.length,
     gazetteerCities: stats.kept,
     gazetteerAliases: Object.keys(gaz.alt).length,
   };
@@ -729,6 +793,7 @@ hand-edit — regenerate from source.
 - \`rivers.json\` — major river centerlines (Natural Earth 110m, TopoJSON), drawn as thin water lines.
 - \`na-land.json\` — NA-clipped 10m country land (TopoJSON, ISO-keyed): crisp neighbour context under the albers-usa US view.
 - \`na-lakes.json\` — NA-clipped 10m major lakes (TopoJSON): the lakes counterpart to \`na-land.json\` for the US view.
+- \`mountain-ranges.json\` — notable mountain ranges (Natural Earth 50m geography regions, FEATURECLA "Range/mtn", TopoJSON), drawn as a subtle gradient relief cue when the \`relief\` directive is on. Optional; single tier (no elevation).
 - \`gazetteer.json\` — \`{ cities, byName, alt }\` city index (see \`types.ts\`).
   \`byName\`/\`alt\` reference \`cities\` by array index (normalized).
 - \`PROVENANCE.json\` — source versions + per-asset sha256/sizes + GeoNames date range.
@@ -737,6 +802,7 @@ hand-edit — regenerate from source.
 ## Sources & attribution
 - **Country boundaries:** Natural Earth via \`world-atlas@2.0.2\` (public domain).
 - **US states:** US Census via \`us-atlas@3.0.1\` (public domain).
+- **Mountain ranges:** Natural Earth 50m \`geography_regions_polys\` via \`nvkelso/natural-earth-vector\` (public domain).
 - **Cities:** Data © **GeoNames**, licensed under **CC BY 4.0**
   (https://creativecommons.org/licenses/by/4.0/) — https://www.geonames.org/.
 
@@ -765,6 +831,9 @@ export {
   rekeyWorld,
   rekeyUS,
   buildGazetteer,
+  buildMountainRanges,
+  writeJson,
+  GZ_CEILINGS,
   ISO_NUMERIC_TO_ALPHA2,
   FIPS_TO_ISO2,
   CURATED_ALIASES,

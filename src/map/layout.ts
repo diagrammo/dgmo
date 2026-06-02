@@ -69,6 +69,20 @@ const TAG_TINT_LIGHT = 60;
 const TAG_TINT_DARK = 68;
 const WATER_TINT = 55; // % palette-blue of bg for the ocean / backdrop
 const RIVER_WIDTH = 1.3; // px stroke width for river lines
+// Relief (mountain-range shading). A projected range below this px² area is
+// dropped (no confetti slivers at world zoom). The gradient stops sit a narrow
+// step either side of the land colour — "subtle = compressed value range".
+const RELIEF_MIN_AREA = 12; // px²
+// Each projected bbox side must clear this — a sliver that passes the area gate
+// but is near-degenerate (e.g. 24×0.5px) makes an objectBoundingBox gradient
+// undefined per SVG spec (resvg/WebKit may drop the fill), so drop it.
+const RELIEF_MIN_DIM = 2; // px
+// Gradient stops: land nudged toward bg (light, NW) and text (shadow, SE). A
+// 15% nudge (mix 85) is imperceptible at world zoom, so the range is widened to
+// a clearly-readable-but-still-subtle hillshade. Shadow steps a touch further
+// than light so the lit form reads as raised relief.
+const RELIEF_LIGHT_MIX = 68; // % land toward bg (NW light stop)
+const RELIEF_SHADOW_MIX = 60; // % land toward text (SE shadow stop)
 // % palette-gray of bg for non-US neighbour land. Higher on dark so it reads as
 // a clear gray rather than sinking into the dark background.
 const FOREIGN_TINT_LIGHT = 30;
@@ -194,6 +208,24 @@ export interface MapLayoutRiver {
   readonly width: number;
 }
 
+/** A drawn mountain-range relief shape — a projected polygon path filled with
+ *  the shared directional gradient (ADR-3). No per-shape colour: every shape
+ *  references the one `reliefGradient` def. */
+export interface MapLayoutRelief {
+  readonly d: string;
+}
+
+/** The single shared relief gradient (ADR-3/ADR-5): one `objectBoundingBox`
+ *  light→shadow sweep referenced by every relief shape. `null` when relief is
+ *  off or no range survives the gates. */
+export interface MapLayoutReliefGradient {
+  readonly id: string;
+  /** NW (top-left) light stop — land nudged toward bg. */
+  readonly light: string;
+  /** SE (bottom-right) shadow stop — land nudged toward text. */
+  readonly shadow: string;
+}
+
 export interface MapLayout {
   readonly width: number;
   readonly height: number;
@@ -204,6 +236,11 @@ export interface MapLayout {
   readonly regions: readonly MapLayoutRegion[];
   /** Major river centerlines, drawn over land/lakes and under POIs/edges. */
   readonly rivers: readonly MapLayoutRiver[];
+  /** Mountain-range relief shapes (empty unless `relief` is on + the asset is
+   *  present); drawn over base land, under rivers/POIs/data fills. */
+  readonly relief: readonly MapLayoutRelief[];
+  /** The single shared gradient def the relief shapes reference (null = none). */
+  readonly reliefGradient: MapLayoutReliefGradient | null;
   readonly legs: readonly MapLayoutLeg[];
   readonly pois: readonly MapLayoutPoi[];
   readonly labels: readonly PlacedLabel[];
@@ -991,6 +1028,9 @@ export function layoutMap(
 
   // -- Regions: base layer (neutral) then resolved fills on top --
   const regions: MapLayoutRegion[] = [];
+  // Projected screen bboxes of data-coloured regions — relief is suppressed
+  // where it would underlie one so the (opaque) data tint stays clean (ADR-2).
+  const dataRegionBoxes: Array<[[number, number], [number, number]]> = [];
   const pushRegionLayer = (
     layerFeatures: Map<string, GeoFeature>,
     layerKind: 'country' | 'us-state',
@@ -1032,6 +1072,13 @@ export function layoutMap(
         lineNumber = r.lineNumber;
         layer = layerKind;
         label = r.name;
+        // Record the screen bbox of any data-bearing region for relief
+        // suppression (ADR-2). Value- or tag-carrying region → its tint must
+        // not be muddied by relief bleeding through underneath.
+        if (r.value !== undefined || Object.keys(r.tags).length > 0)
+          dataRegionBoxes.push(
+            path.bounds(viewF as never) as [[number, number], [number, number]]
+          );
       }
       regions.push({
         id: iso,
@@ -1079,6 +1126,56 @@ export function layoutMap(
         layer: 'base',
       });
     }
+  }
+
+  // Relief (notable mountain ranges) — a subtle directional gradient drawn over
+  // the base land and under rivers/POIs/data fills. Opt-in via the `relief`
+  // flag; needs the optional `mountainRanges` asset. Each surviving range is a
+  // projected polygon filled with ONE shared light→shadow gradient (a
+  // "degenerate hillshade", light from the top-left of each range), giving
+  // terrain character without elevation data. Ranges below a min projected area are
+  // dropped (no slivers), and any range overlapping a data-coloured region is
+  // suppressed so the data tint stays clean (ADR-2).
+  const relief: MapLayoutRelief[] = [];
+  let reliefGradient: MapLayoutReliefGradient | null = null;
+  if (resolved.directives.relief === true && data.mountainRanges) {
+    const boxesOverlap = (
+      a: [[number, number], [number, number]],
+      b: [[number, number], [number, number]]
+    ): boolean =>
+      !(
+        a[1][0] < b[0][0] ||
+        a[0][0] > b[1][0] ||
+        a[1][1] < b[0][1] ||
+        a[0][1] > b[1][1]
+      );
+    for (const [, f] of decodeLayer(data.mountainRanges)) {
+      const viewF = isGlobalView ? dropFrameFillers(f) : cullFeatureToView(f);
+      if (!viewF) continue;
+      const area = path.area(viewF as never);
+      if (!Number.isFinite(area) || area < RELIEF_MIN_AREA) continue;
+      const box = path.bounds(viewF as never) as [
+        [number, number],
+        [number, number],
+      ];
+      // Drop near-degenerate bboxes (undefined objectBoundingBox gradient).
+      if (
+        box[1][0] - box[0][0] < RELIEF_MIN_DIM ||
+        box[1][1] - box[0][1] < RELIEF_MIN_DIM
+      )
+        continue;
+      if (dataRegionBoxes.some((b) => boxesOverlap(box, b))) continue;
+      const d = path(viewF as never) ?? '';
+      if (!d) continue;
+      relief.push({ d });
+    }
+    if (relief.length)
+      reliefGradient = {
+        id: 'dgmo-relief-grad',
+        // Compressed range either side of the land colour (ADR-5) — subtle.
+        light: mix(neutralFill, palette.bg, RELIEF_LIGHT_MIX),
+        shadow: mix(neutralFill, palette.text, RELIEF_SHADOW_MIX),
+      };
   }
 
   // Rivers (Amazon, Nile, Mississippi, …) as thin water lines over the land.
@@ -1649,6 +1746,8 @@ export function layoutMap(
     ...(resolved.caption !== undefined && { caption: resolved.caption }),
     regions,
     rivers,
+    relief,
+    reliefGradient,
     legs,
     pois,
     labels,

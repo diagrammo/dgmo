@@ -83,6 +83,9 @@ const DATA: MapData = {
     { id: 'US-AK', name: 'Alaska', box: [-170, 52, -130, 71] },
     { id: 'US-HI', name: 'Hawaii', box: [-160, 18, -154, 23] },
   ]),
+  mountainRanges: rectTopo('ranges', [
+    { id: 'mtn-0', name: 'Rockies', box: [-120, 35, -105, 45] },
+  ]),
   gazetteer,
 };
 
@@ -438,6 +441,66 @@ describe('layout — labels & legend (AC13, AC14, AC15, AC16, AC17)', () => {
   });
   it('no-legend suppresses the legend model (AC17)', () => {
     expect(lay('map\nno-legend\nCalifornia value: 5').legend).toBeNull();
+  });
+});
+
+describe('layout — relief (AC2, AC3, AC5, AC8, AC9)', () => {
+  it('off by default → no relief shapes, no gradient (AC2)', () => {
+    const r = lay('map');
+    expect(r.relief).toHaveLength(0);
+    expect(r.reliefGradient).toBeNull();
+  });
+  it('`relief` on → ≥1 shape with finite path + palette-mixed gradient (AC3, AC5)', () => {
+    const r = lay('map\nrelief');
+    expect(r.relief.length).toBeGreaterThan(0);
+    expect(r.relief[0]!.d.length).toBeGreaterThan(0);
+    expect(r.relief[0]!.d).not.toMatch(/NaN/);
+    expect(r.reliefGradient).not.toBeNull();
+    // Stops are palette-mixed hex (no hardcoded colour), and compressed —
+    // light nudges land toward bg, shadow toward text.
+    expect(r.reliefGradient!.light).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(r.reliefGradient!.shadow).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(r.reliefGradient!.light).not.toBe(r.reliefGradient!.shadow);
+    expect(r.reliefGradient!.id).toBe('dgmo-relief-grad');
+  });
+  it('absent asset → relief empty, no throw (AC6)', () => {
+    const noAsset: MapData = { ...DATA };
+    delete (noAsset as { mountainRanges?: unknown }).mountainRanges;
+    const r = layoutMap(
+      resolveMap(parseMap('map\nrelief'), noAsset),
+      noAsset,
+      { width: 800, height: 600 },
+      { palette: P, isDark: false }
+    );
+    expect(r.relief).toHaveLength(0);
+    expect(r.reliefGradient).toBeNull();
+  });
+  it('a range over a data-coloured region is suppressed (ADR-2)', () => {
+    // The only fixture range (Rockies) sits inside the US bbox. With no data it
+    // draws; valuing the US (a data fill covering it) must suppress it entirely.
+    expect(lay('map\nrelief').relief.length).toBeGreaterThan(0);
+    expect(lay('map\nrelief\nUnited States value: 50').relief).toHaveLength(0);
+  });
+  it('a sub-min-area range is dropped (AC9 sliver gate)', () => {
+    const tiny: MapData = {
+      ...DATA,
+      // Zero-width box → projected area 0, dropped regardless of map scale.
+      mountainRanges: rectTopo('ranges', [
+        { id: 'mtn-0', name: 'Speck', box: [10, 10, 10, 12] },
+      ]),
+    };
+    const r = layoutMap(
+      resolveMap(parseMap('map\nrelief'), tiny),
+      tiny,
+      { width: 800, height: 600 },
+      { palette: P, isDark: false }
+    );
+    expect(r.relief).toHaveLength(0);
+    expect(r.reliefGradient).toBeNull();
+  });
+  it('relief layout is deterministic (AC8)', () => {
+    const src = 'map\nrelief';
+    expect(JSON.stringify(lay(src))).toBe(JSON.stringify(lay(src)));
   });
 });
 

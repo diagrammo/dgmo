@@ -63,6 +63,9 @@ const DATA: MapData = {
   usStates: rectTopo('states', [
     { id: 'US-CA', name: 'California', box: [-124, 32, -114, 42] },
   ]),
+  mountainRanges: rectTopo('ranges', [
+    { id: 'mtn-0', name: 'Rockies', box: [-120, 35, -105, 45] },
+  ]),
   gazetteer,
 };
 
@@ -137,6 +140,25 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     );
     expect(svg.textContent).toContain('A sub');
     expect(svg.textContent).toContain('A note');
+  });
+
+  it('off by default → no relief group (AC2)', () => {
+    expect(render('map').querySelector('.dgmo-map-relief')).toBeNull();
+  });
+
+  it('`relief` → relief group with a path + a shared linearGradient (AC3)', () => {
+    const svg = render('map\nrelief');
+    const group = svg.querySelector('.dgmo-map-relief');
+    expect(group).toBeTruthy();
+    const path = group!.querySelector('path');
+    expect(path).toBeTruthy();
+    expect(path!.getAttribute('d')!.length).toBeGreaterThan(0);
+    expect(path!.getAttribute('fill')).toBe('url(#dgmo-relief-grad)');
+    expect(
+      svg.querySelector('defs linearGradient#dgmo-relief-grad')
+    ).toBeTruthy();
+    // Decorative — no click target / line-number on relief paths.
+    expect(path!.getAttribute('data-line-number')).toBeNull();
   });
 
   it('categorical group + score ramp both render in the top legend (AC24)', () => {

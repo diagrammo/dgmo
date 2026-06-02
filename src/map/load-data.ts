@@ -43,6 +43,7 @@ const FILES = {
   usStates: 'us-states.json',
   lakes: 'lakes.json',
   rivers: 'rivers.json',
+  mountainRanges: 'mountain-ranges.json',
   naLand: 'na-land.json',
   naLakes: 'na-lakes.json',
   gazetteer: 'gazetteer.json',
@@ -131,6 +132,7 @@ export function loadMapData(): Promise<MapData> {
       usStates,
       lakes,
       rivers,
+      mountainRanges,
       naLand,
       naLakes,
       gazetteer,
@@ -138,9 +140,12 @@ export function loadMapData(): Promise<MapData> {
       readJson<BoundaryTopology>(nb, dir, FILES.worldCoarse),
       readJson<BoundaryTopology>(nb, dir, FILES.worldDetail),
       readJson<BoundaryTopology>(nb, dir, FILES.usStates),
-      // Lakes/rivers/NA assets are optional — older bundles may predate them.
+      // Lakes/rivers/mountain/NA assets are optional — older bundles may predate them.
       readJson<BoundaryTopology>(nb, dir, FILES.lakes).catch(() => undefined),
       readJson<BoundaryTopology>(nb, dir, FILES.rivers).catch(() => undefined),
+      readJson<BoundaryTopology>(nb, dir, FILES.mountainRanges).catch(
+        () => undefined
+      ),
       readJson<BoundaryTopology>(nb, dir, FILES.naLand).catch(() => undefined),
       readJson<BoundaryTopology>(nb, dir, FILES.naLakes).catch(() => undefined),
       readJson<Gazetteer>(nb, dir, FILES.gazetteer),
@@ -152,6 +157,7 @@ export function loadMapData(): Promise<MapData> {
       gazetteer,
       ...(lakes && { lakes }),
       ...(rivers && { rivers }),
+      ...(mountainRanges && { mountainRanges }),
       ...(naLand && { naLand }),
       ...(naLakes && { naLakes }),
     });

@@ -78,6 +78,25 @@ describe('parseMap — directives (AC2, AC20)', () => {
     expect(r.regions).toHaveLength(1);
     expect(r.regions[0]!.name).toBe('Natural Bridge');
   });
+  it('parses the bare `relief` flag (AC4)', () => {
+    expect(parseMap('map\nrelief').directives.relief).toBe(true);
+    expect(
+      parseMap('map\nCalifornia value: 5').directives.relief
+    ).toBeUndefined();
+  });
+  it('`relief\\nrelief` sets true idempotently with no duplicate warning', () => {
+    const r = parseMap('map\nrelief\nrelief');
+    expect(r.directives.relief).toBe(true);
+    expect(r.diagnostics.some((d) => /[Dd]uplicate/.test(d.message))).toBe(
+      false
+    );
+  });
+  it('a region literally named "Relief Basin" is a region, not the flag (AC4)', () => {
+    const r = parseMap('map\nRelief Basin value: 5');
+    expect(r.directives.relief).toBeUndefined();
+    expect(r.regions).toHaveLength(1);
+    expect(r.regions[0]!.name).toBe('Relief Basin');
+  });
 });
 
 describe('parseMap — tag groups (AC3)', () => {

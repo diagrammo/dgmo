@@ -17,6 +17,10 @@ export interface MapData {
   /** Major river centerlines (Natural Earth 110m) drawn as thin water lines over
    *  land — e.g. the Amazon, Nile, Mississippi. Optional, like `lakes`. */
   rivers?: BoundaryTopology;
+  /** Notable mountain-range polygons (Natural Earth 50m geography regions) drawn
+   *  as a subtle gradient relief cue over base land when the `relief` directive
+   *  is on — e.g. the Rockies, Andes, Himalayas. Optional, like `lakes`. */
+  mountainRanges?: BoundaryTopology;
   /** North-America-clipped 10m country land, used as crisp neighbour context
    *  under the albers-usa US view so Canada/Mexico match the 10m states instead
    *  of the coarser world tiers. Optional, like `lakes`. */

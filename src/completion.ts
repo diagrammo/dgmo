@@ -540,6 +540,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'default-country': { description: 'ISO scope for bare city resolution' },
       'default-state': { description: 'ISO subdivision scope' },
       'no-legend': { description: 'Suppress the legend' },
+      relief: { description: 'Subtle mountain-range relief shading' },
       subtitle: { description: 'Subtitle line' },
       caption: { description: 'Caption line' },
     }),
