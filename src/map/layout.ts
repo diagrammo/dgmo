@@ -190,6 +190,17 @@ export interface MapLayoutLeg {
   readonly label?: string;
   readonly labelX?: number;
   readonly labelY?: number;
+  /** Text colour for the label — contrast-picked against the background fill the
+   *  label sits on (the choropleth/tag region under it, or land/water), so a
+   *  freight tag over a dark scored country reads light, over pale land reads
+   *  dark. Absent ⇒ renderer falls back to the muted default. */
+  readonly labelColor?: string;
+  /** Whether the label needs a halo. Only set when the chosen text colour's
+   *  contrast against the underlying fill is marginal (mid-tone fills); clear
+   *  fills get no ghost. */
+  readonly labelHalo?: boolean;
+  /** Halo colour (opposite lightness of `labelColor`) when {@link labelHalo}. */
+  readonly labelHaloColor?: string;
   readonly lineNumber: number;
 }
 
@@ -1245,6 +1256,96 @@ export function layoutMap(
     }
   }
 
+  // -- Background-fill hit-testing (for connector-label contrast) --
+  // A freight/edge label floats over whatever region the route crosses — a dark
+  // scored country, pale land, or open water. To pick a legible text shade (and
+  // skip the ghost halo when not needed) we need the fill UNDER the label point.
+  // Test in SCREEN space against the already-drawn region paths: that sidesteps
+  // every projection wrinkle (global stretch, antimeridian, AK/HI insets) because
+  // the geometry is already projected. geoPath emits polygons as straight M/L/Z
+  // segments (no curves), so a parity ray-cast over all of a path's rings — outer
+  // boundaries and holes alike — is exact.
+  const parsePathRings = (d: string): Array<Array<[number, number]>> => {
+    const rings: Array<Array<[number, number]>> = [];
+    let cur: Array<[number, number]> = [];
+    const re = /([MLZ])([^MLZ]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(d))) {
+      if (m[1] === 'Z') {
+        if (cur.length) rings.push(cur);
+        cur = [];
+        continue;
+      }
+      if (m[1] === 'M' && cur.length) {
+        rings.push(cur);
+        cur = [];
+      }
+      const nums = m[2]!.split(/[ ,]+/).map(Number);
+      for (let i = 0; i + 1 < nums.length; i += 2) {
+        const x = nums[i]!;
+        const y = nums[i + 1]!;
+        if (Number.isFinite(x) && Number.isFinite(y)) cur.push([x, y]);
+      }
+    }
+    if (cur.length) rings.push(cur);
+    return rings;
+  };
+  // Even-odd ray cast across ALL of a feature's rings at once, so polygons with
+  // holes (a ring inside a ring) toggle correctly.
+  const pointInRings = (
+    px: number,
+    py: number,
+    rings: Array<Array<[number, number]>>
+  ): boolean => {
+    let inside = false;
+    for (const ring of rings) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i]!;
+        const [xj, yj] = ring[j]!;
+        if (
+          yi > py !== yj > py &&
+          px < ((xj - xi) * (py - yi)) / (yj - yi) + xi
+        )
+          inside = !inside;
+      }
+    }
+    return inside;
+  };
+  // Precompute hit targets once (regions are drawn in array order, so the LAST
+  // containing one is topmost). Insets paint over neighbour land in their own box.
+  const fillHitTargets = [...regions, ...insetRegions].map((r) => ({
+    fill: r.fill,
+    rings: parsePathRings(r.d),
+  }));
+  const fillAt = (x: number, y: number): string => {
+    let hit = water; // open ocean / canvas backdrop when over no land
+    for (const t of fillHitTargets)
+      if (pointInRings(x, y, t.rings)) hit = t.fill;
+    return hit;
+  };
+  // Contrast-pick text colour for a label sitting ON `fill` (shared by region
+  // labels and connector labels): the genuinely higher-contrast of the palette's
+  // light/dark on-fill text, with a halo only when that contrast is marginal
+  // (mid-tone fills), so clear fills carry no ghost.
+  const labelOnFill = (
+    fill: string
+  ): { color: string; halo: boolean; haloColor: string } => {
+    const color =
+      contrastRatio(fill, palette.textOnFillDark) >=
+      contrastRatio(fill, palette.textOnFillLight)
+        ? palette.textOnFillDark
+        : palette.textOnFillLight;
+    const haloColor =
+      color === palette.textOnFillLight
+        ? palette.textOnFillDark
+        : palette.textOnFillLight;
+    return {
+      color,
+      halo: contrastRatio(fill, color) < REGION_LABEL_HALO_RATIO,
+      haloColor,
+    };
+  };
+
   // Relief (notable mountain ranges) — horizontal hachure lines clipped to each
   // range, drawn over the base land and under rivers/POIs/data fills. Opt-in via
   // the `relief` flag; needs the optional `mountainRanges` asset. Each surviving
@@ -1574,6 +1675,10 @@ export function layoutMap(
           leg.lineNumber,
           bow
         );
+      const routeLabelStyle =
+        leg.label !== undefined
+          ? labelOnFill(fillAt(bow.labelX, bow.labelY))
+          : undefined;
       legs.push({
         d: legPath(a, b, bow.curved, bow.offset),
         width: routeWidthFor(Number(leg.value)),
@@ -1584,6 +1689,9 @@ export function layoutMap(
           label: leg.label,
           labelX: bow.labelX,
           labelY: bow.labelY,
+          labelColor: routeLabelStyle!.color,
+          labelHalo: routeLabelStyle!.halo,
+          labelHaloColor: routeLabelStyle!.haloColor,
         }),
       });
     }
@@ -1636,6 +1744,10 @@ export function layoutMap(
           e.lineNumber,
           bow
         );
+      const edgeLabelStyle =
+        e.label !== undefined
+          ? labelOnFill(fillAt(bow.labelX, bow.labelY))
+          : undefined;
       legs.push({
         d: legPath(a, b, bow.curved, bow.offset),
         width: widthFor(e),
@@ -1646,6 +1758,9 @@ export function layoutMap(
           label: e.label,
           labelX: bow.labelX,
           labelY: bow.labelY,
+          labelColor: edgeLabelStyle!.color,
+          labelHalo: edgeLabelStyle!.halo,
+          labelHaloColor: edgeLabelStyle!.haloColor,
         }),
       });
     });
@@ -1717,28 +1832,10 @@ export function layoutMap(
     fill: string,
     lineNumber: number
   ): void => {
-    // Pick the genuinely higher-contrast text for legibility ON the fill —
-    // NOT contrastText's "light text on saturated for visual punch" rule, which
-    // on mid-tone reds (FL/NY) picks washed-out light text and then leans on a
-    // heavy dark halo to compensate. Max-contrast means most labels need no
-    // halo at all, and the rare borderline one gets a light (subtle) halo.
-    const color =
-      contrastRatio(fill, palette.textOnFillDark) >=
-      contrastRatio(fill, palette.textOnFillLight)
-        ? palette.textOnFillDark
-        : palette.textOnFillLight;
-    const haloColor =
-      color === palette.textOnFillLight
-        ? palette.textOnFillDark
-        : palette.textOnFillLight;
-    // A region label sits on its own fill, against which `color` is already the
-    // better of light/dark — so usually no halo is needed (a halo just fattens
-    // the glyph tops into a top-heavy ghost). But mid-tone fills (e.g. a choro-
-    // pleth's middle reds) are the crossover zone where NEITHER text colour
-    // reads strongly; there the opposite-lightness halo rescues legibility.
-    // Gate on the WCAG ratio of the chosen text vs. the fill: halo only when
-    // contrast is marginal.
-    const halo = contrastRatio(fill, color) < REGION_LABEL_HALO_RATIO;
+    // Pick the genuinely higher-contrast text for legibility ON the fill (see
+    // labelOnFill): max-contrast light/dark on-fill text, with a halo only on
+    // mid-tone fills where neither reads strongly — clear fills carry no ghost.
+    const { color, halo, haloColor } = labelOnFill(fill);
     labels.push({
       x,
       y,

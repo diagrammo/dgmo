@@ -241,15 +241,19 @@ export function renderMap(
       p.attr('marker-end', `url(#${id})`);
     }
     if (leg.label !== undefined && leg.labelX !== undefined) {
+      // Text shade is contrast-picked in layout against the fill under the label
+      // (dark scored country ⇒ light text, pale land ⇒ dark), with the ghost halo
+      // only when that contrast is marginal. Fall back to the muted default for
+      // legs that predate the computed style.
       emitText(
         gLegs,
         leg.labelX,
         leg.labelY ?? 0,
         leg.label,
         'middle',
-        palette.textMuted,
-        haloColor,
-        true,
+        leg.labelColor ?? palette.textMuted,
+        leg.labelHaloColor ?? haloColor,
+        leg.labelHalo ?? true,
         LABEL_FONT - 1
       );
     }
