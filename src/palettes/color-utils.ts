@@ -182,7 +182,7 @@ export function relativeLuminance(hex: string): number {
  * Range: 1.0 (identical) to 21.0 (black on white). Internal helper used by
  * `contrastText`'s pastel branch.
  */
-function contrastRatio(a: string, b: string): number {
+export function contrastRatio(a: string, b: string): number {
   const la = relativeLuminance(a);
   const lb = relativeLuminance(b);
   const lighter = Math.max(la, lb);

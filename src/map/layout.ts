@@ -17,7 +17,12 @@ import {
   type GeoPath,
 } from 'd3-geo';
 import { feature } from 'topojson-client';
-import { mix, contrastText, relativeLuminance } from '../palettes/color-utils';
+import {
+  mix,
+  contrastText,
+  contrastRatio,
+  relativeLuminance,
+} from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes/types';
 import {
@@ -58,6 +63,10 @@ const R_MAX = 22;
 const W_MIN = 1.25; // edge stroke width
 const W_MAX = 8;
 const FONT = 11; // on-map label font px
+// WCAG ratio below which a region label needs a halo to read on its own fill.
+// 4.5 = AA for normal text; mid-tone choropleth fills fall below this and get
+// the rescue halo, while saturated/pastel fills (Texas, light land) clear it.
+const REGION_LABEL_HALO_RATIO = 4.5;
 const COLO_EPS = 1.5; // px: POIs closer than this are "co-located"
 // % palette-green of bg for unscored land — a VERY faded green so every map
 // (plain reference OR data-coloured) wears the same subtle dress and the green
@@ -1534,18 +1543,21 @@ export function layoutMap(
       color === palette.textOnFillLight
         ? palette.textOnFillDark
         : palette.textOnFillLight;
+    // A region label sits on its own fill, against which `color` is already the
+    // better of light/dark — so usually no halo is needed (a halo just fattens
+    // the glyph tops into a top-heavy ghost). But mid-tone fills (e.g. a choro-
+    // pleth's middle reds) are the crossover zone where NEITHER text colour
+    // reads strongly; there the opposite-lightness halo rescues legibility.
+    // Gate on the WCAG ratio of the chosen text vs. the fill: halo only when
+    // contrast is marginal.
+    const halo = contrastRatio(fill, color) < REGION_LABEL_HALO_RATIO;
     labels.push({
       x,
       y,
       text,
       anchor: 'middle',
       color,
-      // No halo: a region label is only placed when its footprint fits inside
-      // the region, so it always sits on that region's OWN fill, against which
-      // `color` is already contrast-picked. A halo there is redundant and just
-      // fattens the glyph tops into a top-heavy ghost. POI labels (arbitrary
-      // terrain) keep the halo.
-      halo: false,
+      halo,
       haloColor,
       lineNumber,
     });
