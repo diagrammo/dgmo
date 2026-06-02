@@ -10,16 +10,14 @@ export type PoiPos =
   | { readonly kind: 'coords'; readonly lat: number; readonly lon: number }
   | { readonly kind: 'name'; readonly name: string; readonly scope?: string };
 
-/** `scale <min> <max> [center <n>]` (center reserved for the diverging seam, §24B.12). */
+/** `scale <min> <max>`. (A `center <n>` diverging seam is reserved — §24B.12 — but not parsed in v1.) */
 export interface MapScale {
   readonly min: number;
   readonly max: number;
-  readonly center?: number;
 }
 
 /** One-shot directives (§24B.2/.7). Values are raw strings unless typed. */
 export interface MapDirectives {
-  region?: string;
   projection?: string;
   /** Legend label for the region value ramp (`region-metric <label>`). */
   regionMetric?: string;
@@ -33,22 +31,15 @@ export interface MapDirectives {
   scale?: MapScale;
   regionLabels?: string; // full | abbrev | off
   poiLabels?: string; // off | auto | all
-  defaultCountry?: string;
-  defaultState?: string;
+  /** Default ISO scope for bare-name resolution (§24B.8): a 3166-1 country
+   *  (`locale US`) or 3166-2 subdivision (`locale US-GA`). The country part
+   *  biases ambiguous bare cities to that nation; the subdivision part further
+   *  prefers that state. Inferred from content; explicit only to steer a guess. */
+  locale?: string;
   activeTag?: string;
   noLegend?: boolean;
-  /** Suppress the Alaska & Hawaii inset boxes drawn under the `albers-usa`
-   *  projection (bare flag `no-insets`). Only meaningful for the US states
-   *  basemap; silently ignored under any other projection. */
-  noInsets?: boolean;
   subtitle?: string;
   caption?: string;
-  /** Basemap dress override (bare flags `muted` / `natural`). Forces the
-   *  land/water styling regardless of whether a colouring dimension is active —
-   *  `muted` recedes to neutral grays, `natural` keeps the green/blue reference
-   *  dress. Absent → auto (muted iff a score/tag dimension is active). Lets two
-   *  maps in one deck share a look. */
-  basemapStyle?: 'muted' | 'natural';
   /** Opt-in subtle mountain-range relief shading (bare flag `relief`, §24B.2).
    *  Draws a shared directional gradient ("degenerate hillshade") clipped to
    *  each notable mountain-range polygon, over base land and under data fills.

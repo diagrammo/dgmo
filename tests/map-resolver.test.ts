@@ -141,8 +141,8 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     const worldScoped = resolve('map\nGeorgia value: 2');
     expect(worldScoped.regions[0]!.iso).toBe('GE');
   });
-  it('region us-states directive silences country-vs-state ambiguity', () => {
-    const r = resolve('map\nregion us-states\nGeorgia value: 2');
+  it('`locale US` silences country-vs-state ambiguity', () => {
+    const r = resolve('map\nlocale US\nGeorgia value: 2');
     expect(r.regions[0]).toMatchObject({ iso: 'US-GA', layer: 'us-state' });
     expect(
       r.diagnostics.some((d) => /both a country and a US state/.test(d.message))
@@ -284,7 +284,9 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     expect(r.projection).toBe('equirectangular');
   });
   it('tight cluster → mercator (AC15)', () => {
-    const r = resolve('map\npoi 40.70 -74.00 as a\npoi 40.75 -74.02 as b');
+    // Non-US coords (London) so the cluster isn't pulled to the national
+    // albers-usa frame (US content is US-oriented — §24B.2).
+    const r = resolve('map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b');
     expect(r.projection).toBe('mercator');
   });
   it('single-continent regional span → mercator, not equirectangular (familiar shapes)', () => {
@@ -394,13 +396,18 @@ describe('resolver — robustness (AC17, AC18, AC21)', () => {
 });
 
 describe('resolver — impl-review fixes (#3/#6/#8/#13/#15)', () => {
-  it('POI-only US map stays geographic, NOT albers-usa, so neighbours draw (#3)', () => {
-    // No us-state regions — just US POIs. albers-usa clips out all non-US land,
-    // so a pure POI/route map must stay on a geographic projection; only an
-    // actual US-states basemap (state region fills / `region us-states`) picks
-    // albers. (Default-country US is still inferred for POI scoping — see below.)
-    const r = resolve('map\npoi New York City\npoi Office');
-    expect(r.projection).not.toBe('albers-usa');
+  it('POI-only US map IS US-oriented → albers-usa + full state mesh (§24B.2)', () => {
+    // No us-state regions — just US cities. A map whose content is entirely US
+    // renders as the national US states map (every state outlined), not three
+    // floating dots on a geographic frame.
+    const r = resolve('map\npoi New York City\npoi Los Angeles');
+    expect(r.projection).toBe('albers-usa');
+    expect(r.basemaps.subdivisions).toContain('us-states');
+  });
+  it('`locale US` alone makes a map US-oriented (albers-usa)', () => {
+    const r = resolve('map\nlocale US\npoi Chicago');
+    expect(r.projection).toBe('albers-usa');
+    expect(r.basemaps.subdivisions).toContain('us-states');
   });
   it('US region + a non-US POI does NOT pick albers-usa (#13)', () => {
     const r = resolve('map\nCalifornia value: 1\npoi Tokyo');

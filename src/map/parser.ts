@@ -48,7 +48,6 @@ const LEG_ARROW_RE = /^(-[^>]*?->|->|~[^>]*?~>|~>|--)\s+(.+)$/;
 const AT_RE = /(^|[\s,])at\s*:/i; // the removed `at:` coord form (§24B.9)
 
 const DIRECTIVE_SET: ReadonlySet<string> = new Set([
-  'region',
   'projection',
   'region-metric',
   'poi-metric',
@@ -56,11 +55,9 @@ const DIRECTIVE_SET: ReadonlySet<string> = new Set([
   'scale',
   'region-labels',
   'poi-labels',
-  'default-country',
-  'default-state',
+  'locale',
   'active-tag',
   'no-legend',
-  'no-insets',
   'relief',
   'subtitle',
   'caption',
@@ -224,15 +221,6 @@ export function parseMap(content: string): ParsedMap {
       handleTag(trimmed, lineNumber);
       continue;
     }
-    // Bare-flag directives (no value) — only when the line is exactly the flag,
-    // so a region named e.g. "Natural Bridge" still parses as a region.
-    if (
-      (firstWord === 'muted' || firstWord === 'natural') &&
-      trimmed === firstWord
-    ) {
-      handleDirective(firstWord, '', lineNumber);
-      continue;
-    }
     if (
       DIRECTIVE_SET.has(firstWord) &&
       !trimmed.slice(firstWord.length).trimStart().startsWith(':')
@@ -292,10 +280,6 @@ export function parseMap(content: string): ParsedMap {
         pushWarning(line, `Duplicate directive "${key}" — last value wins.`);
     };
     switch (key) {
-      case 'region':
-        dup(d.region);
-        d.region = value;
-        break;
       case 'projection':
         dup(d.projection);
         if (
@@ -356,13 +340,9 @@ export function parseMap(content: string): ParsedMap {
           );
         d.poiLabels = value;
         break;
-      case 'default-country':
-        dup(d.defaultCountry);
-        d.defaultCountry = value;
-        break;
-      case 'default-state':
-        dup(d.defaultState);
-        d.defaultState = value;
+      case 'locale':
+        dup(d.locale);
+        d.locale = value;
         break;
       case 'active-tag':
         dup(d.activeTag);
@@ -371,21 +351,9 @@ export function parseMap(content: string): ParsedMap {
       case 'no-legend':
         d.noLegend = true;
         break;
-      case 'no-insets':
-        d.noInsets = true;
-        break;
       case 'relief':
-        // Bare flag (idempotent like no-insets — `relief\nrelief` is no warning).
+        // Bare flag (idempotent — `relief\nrelief` is no warning).
         d.relief = true;
-        break;
-      case 'muted':
-      case 'natural':
-        if (d.basemapStyle !== undefined && d.basemapStyle !== key)
-          pushWarning(
-            line,
-            `Conflicting basemap dress — "${d.basemapStyle}" then "${key}"; last wins.`
-          );
-        d.basemapStyle = key;
         break;
       case 'subtitle':
         dup(d.subtitle);
@@ -406,17 +374,8 @@ export function parseMap(content: string): ParsedMap {
       pushError(line, `scale requires numeric <min> <max> (got "${value}").`);
       return null;
     }
-    const scale: Writable<MapScale> = { min, max };
-    if (toks[2] === 'center') {
-      const c = Number(toks[3]);
-      if (Number.isFinite(c)) scale.center = c;
-      else
-        pushError(
-          line,
-          `scale center requires a number (got "${toks[3] ?? ''}").`
-        );
-    }
-    return scale;
+    // `center <n>` (diverging ramp) is a future seam (§24B.12) — not parsed in v1.
+    return { min, max };
   }
 
   function handleTag(trimmed: string, line: number): void {

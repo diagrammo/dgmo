@@ -200,6 +200,10 @@ const ATTRIBUTE_KEYS = new Set([
   'tech',
   'span',
   'split',
+  // Map (§24B) reserved keys
+  'value',
+  'label',
+  'style',
 ]);
 
 /**

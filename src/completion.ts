@@ -512,11 +512,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // keywords, not directives; metadata keys (value/label/style) live in the
     // reserved-key registry.
     withGlobals({
-      region: {
-        description:
-          'Basemap: us-states (force US state mesh + scoping) | world (inert — already the default)',
-        values: ['us-states', 'world'],
-      },
       projection: {
         description: 'Override the auto projection',
         values: ['equirectangular', 'natural-earth', 'albers-usa', 'mercator'],
@@ -537,8 +532,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'POI labels/values',
         values: ['off', 'auto', 'all'],
       },
-      'default-country': { description: 'ISO scope for bare city resolution' },
-      'default-state': { description: 'ISO subdivision scope' },
+      locale: {
+        description:
+          'Default country/state for bare place names, e.g. locale US-GA',
+      },
       'no-legend': { description: 'Suppress the legend' },
       relief: { description: 'Subtle mountain-range relief shading' },
       subtitle: { description: 'Subtitle line' },

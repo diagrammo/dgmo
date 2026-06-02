@@ -1,5 +1,4 @@
 map Region Scope Disambiguation
-region us-states
 region-metric Sales ($M)
 region-labels abbrev
 subtitle Pin a country/state name clash by ISO code (US-GA) or name + scope (Georgia US)

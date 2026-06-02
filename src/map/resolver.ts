@@ -201,10 +201,15 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     ...[...usStateIndex.values()].map((v) => v.name),
   ];
 
+  // ── locale <ISO> → country + optional subdivision (§24B.8) ──
+  const localeRaw = parsed.directives.locale?.toUpperCase();
+  const localeCountry = localeRaw ? localeRaw.split('-')[0] : undefined;
+  const localeSubdivision =
+    localeRaw && /^[A-Z]{2}-/.test(localeRaw) ? localeRaw : undefined;
+
   // ── US-scope signal (drives the country-vs-state collision, R2) ──
   const usScoped =
-    parsed.directives.region === 'us-states' ||
-    parsed.directives.defaultCountry?.toUpperCase() === 'US' ||
+    localeCountry === 'US' ||
     parsed.regions.some((r) => {
       const f = fold(r.name);
       return usStateIndex.has(f) && !countryIndex.has(f);
@@ -267,7 +272,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       }
     } else if (inCountry && inState) {
       if (usScoped) {
-        // A US scope (e.g. `region us-states`) makes the state the unambiguous
+        // A US scope (e.g. `locale US`) makes the state the unambiguous
         // intent — resolve silently, no disambiguation warning needed.
         chosen = { ...inState, layer: 'us-state' };
       } else {
@@ -404,7 +409,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       if (!scope)
         warn(
           line,
-          `"${name}" is ambiguous — resolved to the most-populous match.`,
+          `"${name}" is ambiguous — resolved to the most-populous match. Set a default with \`locale <ISO>\` (e.g. \`locale US\` / \`locale US-GA\`) to steer it.`,
           'W_MAP_AMBIGUOUS_NAME'
         );
     }
@@ -423,10 +428,12 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   // POIs contribute a rough US-or-not classification (no reverse-geocode).
   const poiCountries: string[] = [];
   let anyNonUsPoi = false;
+  let anyUsPoi = false;
   const noteCountry = (iso: string | undefined): void => {
     if (iso) {
       poiCountries.push(iso);
       if (iso !== 'US') anyNonUsPoi = true;
+      else anyUsPoi = true;
     }
   };
 
@@ -434,7 +441,8 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const deferred: (typeof parsed.pois)[number][] = [];
   for (const p of parsed.pois) {
     if (p.pos.kind === 'coords') {
-      if (!looksUS(p.pos.lat, p.pos.lon)) anyNonUsPoi = true;
+      if (looksUS(p.pos.lat, p.pos.lon)) anyUsPoi = true;
+      else anyNonUsPoi = true;
       addResolvedPoi(p.pos.lat, p.pos.lon, p);
       continue;
     }
@@ -458,18 +466,19 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   // resolved regions AND Pass-A POIs (#3 — POIs were previously voided, so a
   // POI-only US map never inferred US).
   const inferredCountry =
-    parsed.directives.defaultCountry?.toUpperCase() ??
-    mostCommonCountry(regions, poiCountries) ??
-    undefined;
+    localeCountry ?? mostCommonCountry(regions, poiCountries) ?? undefined;
+  // A `locale US-GA` subdivision further scopes ambiguous bare cities to that
+  // state (soft preference — see lookupName); else fall back to the country.
+  const inferredScope = localeSubdivision ?? inferredCountry;
 
-  // Pass B: ambiguous bare names, scoped by inferred default-country.
+  // Pass B: ambiguous bare names, scoped by the inferred locale.
   for (const p of deferred) {
     if (p.pos.kind !== 'name') continue;
     const got = lookupName(
       p.pos.name,
       p.pos.scope,
       p.lineNumber,
-      inferredCountry,
+      inferredScope,
       true
     );
     if (got.kind === 'ok') {
@@ -566,7 +575,8 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       sizeValue !== undefined ? { value: sizeValue } : {};
     if (pos.kind === 'coords') {
       const id = alias ? fold(alias) : `@${pos.lat},${pos.lon}`;
-      if (!looksUS(pos.lat, pos.lon)) anyNonUsPoi = true;
+      if (looksUS(pos.lat, pos.lon)) anyUsPoi = true;
+      else anyNonUsPoi = true;
       if (!registry.has(id)) {
         registerPoi(
           id,
@@ -590,7 +600,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     if (registry.has(f)) return f;
     const aliased = declaredByName.get(f);
     if (aliased) return aliased;
-    const got = lookupName(pos.name, pos.scope, line, inferredCountry, true);
+    const got = lookupName(pos.name, pos.scope, line, inferredScope, true);
     if (got.kind !== 'ok') return null;
     noteCountry(got.iso);
     registerPoi(
@@ -649,9 +659,23 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   }
 
   // ── Basemaps + scope ──
+  // "US-oriented" = ALL content is US (no non-US country fill, no non-US POI) AND
+  // there is some US content. Such a map renders as the conventional US states
+  // map: the full state mesh on albers-usa, every state outlined even with no
+  // data — including a POI-only named-city map (§24B.2).
+  // "Has US content" is STATE-level (a US state fill, a US POI, or `locale US`)
+  // — NOT a country-level `United States` fill, which means "treat the US as one
+  // unit" and should keep the country shape, not explode into 50 states.
+  const usOriented =
+    !anyNonUsPoi &&
+    !regions.some((r) => r.layer === 'country' && r.iso !== 'US') &&
+    (usSubdivisionReferenced || anyUsPoi || localeCountry === 'US');
+
   const subdivisions: Array<'us-states'> = [];
-  if (usSubdivisionReferenced || parsed.directives.region === 'us-states')
-    subdivisions.push('us-states');
+  // Load/draw the state mesh when US-oriented (show all states) OR whenever a
+  // single US state is referenced (geometry needed to draw it even on a mixed
+  // world map, e.g. California + Germany).
+  if (usSubdivisionReferenced || usOriented) subdivisions.push('us-states');
 
   // ── Extent + projection (R5/R10) ──
   const regionBoxes: GeoExtent[] = [];
@@ -680,20 +704,14 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const latSpan = extent[1][1] - extent[0][1];
   const span = Math.max(lonSpan, latSpan);
   const maxAbsLat = Math.max(Math.abs(extent[0][1]), Math.abs(extent[1][1]));
-  // albers-usa only covers US territory: choose it only when the map is truly
-  // US-only — no non-US country region AND no POI outside the US (#13). Without
-  // the POI guard a `default-country US` + Tokyo map projected to garbage.
-  // albers-usa is the US-only composite projection — it insets AK/HI and clips
-  // out all non-US land. Use it only when the map actually renders US STATES (an
-  // explicit `region us-states` or US-state region fills), NOT merely because the
-  // POIs happen to be US: a pure POI/route map across the US should stay on a
-  // geographic projection so neighbour land (Mexico, Central America, the
-  // Caribbean, Canada) still draws.
-  const usDominant =
-    (subdivisions.includes('us-states') ||
-      regions.some((r) => r.layer === 'us-state')) &&
-    !regions.some((r) => r.layer === 'country' && r.iso !== 'US') &&
-    !anyNonUsPoi;
+  // albers-usa only covers US territory: choose it exactly when the map is
+  // US-oriented (#13 — all content US, some US content). This is the national
+  // US composite (insets AK/HI when referenced, clips non-US land). A map with
+  // ANY non-US content is excluded by `usOriented` and stays on a geographic
+  // world/regional projection so neighbour land draws. Note: this intentionally
+  // snaps a POI-only US city map to the national frame ("show all states"),
+  // rather than fit-zooming to the cluster on a geographic projection.
+  const usDominant = usOriented;
 
   let projection: ProjectionFamily;
   const override = parsed.directives.projection;

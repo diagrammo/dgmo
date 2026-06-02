@@ -80,11 +80,10 @@ export const METADATA_KEYS = new Set([
   'quadrant',
   'ring',
   'trend',
-  // Map (§24B) metadata keys
-  'score',
+  // Map (§24B) reserved metadata keys
+  'value',
   'label',
-  'description',
-  'weight',
+  'style',
 ]);
 
 /** Tag declaration keyword. */
@@ -151,19 +150,14 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'activations',
   'no-activations',
   // Map (§24B) directives
-  'region',
   'projection',
   'region-metric',
   'poi-metric',
   'flow-metric',
   'region-labels',
   'poi-labels',
-  'default-country',
-  'default-state',
+  'locale',
   'no-legend',
-  'no-insets',
-  'muted',
-  'natural',
   'subtitle',
   'caption',
   'poi',

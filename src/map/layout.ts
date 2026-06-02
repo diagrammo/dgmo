@@ -348,6 +348,13 @@ function projectionFor(family: ProjectionFamily): GeoProjection {
 
 /** US state ISO codes that render as insets (drawn off the conus). */
 const INSET_STATES = new Set(['US-AK', 'US-HI']);
+// Rough bboxes deciding whether a point sits in Alaska / Hawaii — the AK/HI
+// insets render only when the map references that state (§24B.2). Alaska's
+// Aleutians cross the antimeridian, so its longitude test is two-sided.
+const inAlaska = (lon: number, lat: number): boolean =>
+  lat >= 51 && (lon <= -129 || lon >= 172);
+const inHawaii = (lon: number, lat: number): boolean =>
+  lat >= 18 && lat <= 23 && lon >= -161 && lon <= -154;
 /** US territories excluded from the contiguous-US fit frame. */
 const US_NON_CONUS = new Set([
   'US-AK',
@@ -768,11 +775,16 @@ export function layoutMap(
     name: string;
     lineNumber: number;
   }[] = [];
-  if (
-    resolved.projection === 'albers-usa' &&
-    usLayer &&
-    !resolved.directives.noInsets
-  ) {
+  // AK/HI insets are inferred (no directive): draw a state's inset only when the
+  // map references it (a valued/tagged state or a POI inside it). An all-US map
+  // that names neither frames the contiguous states alone (§24B.2).
+  const akRef =
+    resolved.regions.some((r) => r.iso === 'US-AK') ||
+    resolved.pois.some((p) => inAlaska(p.lon, p.lat));
+  const hiRef =
+    resolved.regions.some((r) => r.iso === 'US-HI') ||
+    resolved.pois.some((p) => inHawaii(p.lon, p.lat));
+  if (resolved.projection === 'albers-usa' && usLayer && (akRef || hiRef)) {
     const PAD = 8;
     const GAP = 12; // px the top edge rides below the coast
     const yB = height - FIT_PAD; // lowest a box may reach (canvas bottom pad)
@@ -899,13 +911,17 @@ export function layoutMap(
       return xr;
     };
     // AK is the larger state; HI a small island group tucked to its right.
-    const akRight = placeInset(
-      'US-AK',
-      alaskaProjection(),
-      FIT_PAD,
-      width * 0.15
-    );
-    placeInset('US-HI', hawaiiProjection(), akRight + 24, width * 0.1);
+    // Each draws only when referenced; HI slides left to FIT_PAD if AK is absent.
+    let akRight = FIT_PAD;
+    if (akRef)
+      akRight = placeInset('US-AK', alaskaProjection(), FIT_PAD, width * 0.15);
+    if (hiRef)
+      placeInset(
+        'US-HI',
+        hawaiiProjection(),
+        akRef ? akRight + 24 : FIT_PAD,
+        width * 0.1
+      );
   }
 
   // -- Basemap culling --

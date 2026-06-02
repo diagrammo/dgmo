@@ -1,5 +1,4 @@
 map US Sales by State
-region us-states
 region-metric Sales ($M)
 
 California value: 92

@@ -28,20 +28,17 @@ describe('parseMap — declaration & title (AC1)', () => {
 describe('parseMap — directives (AC2, AC20)', () => {
   it('captures directives incl. multi-word values', () => {
     const r = parseMap(
-      'map\nregion world\nprojection albers-usa\nregion-metric Sales ($M)\ndefault-country US\nno-legend'
+      'map\nprojection albers-usa\nregion-metric Sales ($M)\nlocale US\nno-legend'
     );
     expect(r.error).toBeNull();
-    expect(r.directives.region).toBe('world');
     expect(r.directives.projection).toBe('albers-usa');
     expect(r.directives.regionMetric).toBe('Sales ($M)');
-    expect(r.directives.defaultCountry).toBe('US');
+    expect(r.directives.locale).toBe('US');
     expect(r.directives.noLegend).toBe(true);
   });
-  it('parses the bare `no-insets` flag', () => {
-    expect(parseMap('map\nno-insets').directives.noInsets).toBe(true);
-    expect(
-      parseMap('map\nCalifornia value: 5').directives.noInsets
-    ).toBeUndefined();
+  it('merges country + subdivision into the one `locale` field', () => {
+    expect(parseMap('map\nlocale US').directives.locale).toBe('US');
+    expect(parseMap('map\nlocale US-GA').directives.locale).toBe('US-GA');
   });
   it('warns on unknown enum value but records it', () => {
     const r = parseMap('map\nprojection mercatorr');
@@ -52,9 +49,16 @@ describe('parseMap — directives (AC2, AC20)', () => {
       )
     ).toBe(true);
   });
-  it('parses scale with center', () => {
-    const r = parseMap('map\nscale 0 100 center 50');
-    expect(r.directives.scale).toEqual({ min: 0, max: 100, center: 50 });
+  it('parses scale <min> <max> (center is no longer parsed)', () => {
+    expect(parseMap('map\nscale 0 100').directives.scale).toEqual({
+      min: 0,
+      max: 100,
+    });
+    // `center` is a future seam (§24B.12) — trailing tokens are ignored, no field.
+    expect(parseMap('map\nscale 0 100 center 50').directives.scale).toEqual({
+      min: 0,
+      max: 100,
+    });
   });
   it('captures subtitle/caption/poi-metric/flow-metric/region-labels/poi-labels', () => {
     const r = parseMap(
@@ -67,14 +71,14 @@ describe('parseMap — directives (AC2, AC20)', () => {
     expect(r.directives.regionLabels).toBe('abbrev');
     expect(r.directives.poiLabels).toBe('all');
   });
-  it('parses bare `muted` / `natural` basemap flags', () => {
-    expect(parseMap('map\nmuted').directives.basemapStyle).toBe('muted');
-    expect(parseMap('map\nnatural').directives.basemapStyle).toBe('natural');
-    expect(parseMap('map\nCalifornia').directives.basemapStyle).toBeUndefined();
+  it('removed `muted` / `natural` flags now parse as region-fill lines', () => {
+    // No basemap-dress directive any more — a bare `muted` line is just a name.
+    const r = parseMap('map\nmuted');
+    expect(r.regions).toHaveLength(1);
+    expect(r.regions[0]!.name).toBe('muted');
   });
-  it('a region whose name starts with the flag word is NOT a flag', () => {
+  it('a region whose name starts with a former flag word is a region', () => {
     const r = parseMap('map\nNatural Bridge value: 5');
-    expect(r.directives.basemapStyle).toBeUndefined();
     expect(r.regions).toHaveLength(1);
     expect(r.regions[0]!.name).toBe('Natural Bridge');
   });

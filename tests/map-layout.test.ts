@@ -128,7 +128,7 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     // visually; the hand-built rect fixture can't reproduce real albers bounds,
     // so this only asserts the structural contract of whatever frames render.
     const r = lay(
-      'map\nregion us-states\nCalifornia value: 1\nAlaska value: 2\nHawaii value: 3',
+      'map\nCalifornia value: 1\nAlaska value: 2\nHawaii value: 3',
       1200,
       800
     );
@@ -146,20 +146,25 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
       expect(br[1]).toBeCloseTo(bl[1], 1); // bottom flat
     }
   });
-  it('`no-insets` suppresses the AK/HI inset boxes under albers-usa', () => {
-    const src =
-      'map\nregion us-states\nno-insets\nCalifornia value: 1\nAlaska value: 2\nHawaii value: 3';
-    const r = lay(src, 1200, 800);
+  it('AK/HI insets are inferred — absent when neither is referenced', () => {
+    // A US-oriented map that names no AK/HI content frames the contiguous states
+    // alone, with no empty inset boxes (§24B.2 — replaces the old `no-insets`).
+    const r = lay('map\nCalifornia value: 1\nTexas value: 2', 1200, 800);
     expect(r.insets).toHaveLength(0);
     expect(r.insetRegions).toHaveLength(0);
   });
+  it('only the referenced AK/HI inset renders (Hawaii alone)', () => {
+    const r = lay('map\nCalifornia value: 1\nHawaii value: 2', 1200, 800);
+    expect(r.insetRegions.map((x) => x.id)).toEqual(['US-HI']);
+  });
   it('us-states view draws ALL conus states even with a tight POI cluster (cull box = conus, not the cluster)', () => {
-    // Regression: `region us-states` fits the projection to the whole contiguous
+    // Regression: a US-oriented map fits the projection to the whole contiguous
     // US, but the cull box was the POI extent — so a metro-sized cluster blanked
     // every far state, leaving gray gaps where land should be. The cull box must
-    // be the conus bounds. POIs sit in the far west (Portland OR); the eastern
-    // fixture states (Maine, Georgia) must still render as land.
-    const r = lay('map\nregion us-states\npoi 45.52 -122.68 as office');
+    // be the conus bounds. The single US POI (Portland OR) makes the map
+    // US-oriented (albers-usa); the eastern fixture states (Maine, Georgia) must
+    // still render as land.
+    const r = lay('map\npoi 45.52 -122.68 as office');
     const me = r.regions.find((x) => x.id === 'US-ME');
     const ga = r.regions.find((x) => x.id === 'US-GA');
     expect(me).toBeDefined();
@@ -170,7 +175,10 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
   it('non-albers cluster zooms to fill the canvas (extent-corner fit, not globe)', () => {
     // Regression: a tight mercator cluster must NOT render tiny on a world map.
     // A lat/lon Polygon fit target was being read as the whole-globe complement.
-    const r = lay('map\npoi 40 -74 as a\npoi 42 -71 as b', 800, 600);
+    // Non-US coords (Paris/Berlin) keep it off albers-usa so we test the
+    // geographic-cluster fit path.
+    const r = lay('map\npoi 48.85 2.35 as a\npoi 52.52 13.4 as b', 800, 600);
+    expect(r.projection).not.toBe('albers-usa');
     const a = r.pois.find((p) => p.id === 'a')!;
     const b = r.pois.find((p) => p.id === 'b')!;
     const span = Math.hypot(a.cx - b.cx, a.cy - b.cy);

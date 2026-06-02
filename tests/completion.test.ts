@@ -509,9 +509,10 @@ describe('COMPLETION_REGISTRY', () => {
     expect(refContent).toContain('critical-path');
   });
 
-  it('map registry enumerates directive values (region, projection, labels)', () => {
+  it('map registry enumerates directive values (projection, labels)', () => {
     const mapSpec = COMPLETION_REGISTRY.get('map')!;
-    expect(mapSpec.directives.region?.values).toEqual(['us-states', 'world']);
+    expect(mapSpec.directives.region).toBeUndefined();
+    expect(mapSpec.directives.locale).toBeDefined();
     expect(mapSpec.directives.projection?.values).toEqual([
       'equirectangular',
       'natural-earth',
