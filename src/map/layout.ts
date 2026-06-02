@@ -64,6 +64,16 @@ const R_MAX = 22;
 const W_MIN = 1.25; // edge stroke width
 const W_MAX = 8;
 const FONT = 11; // on-map label font px
+// POI-cluster hover-only gate (Decision #1). A ≥2-member cluster's callout
+// column falls back to hover-only labels when it would sprawl or overflow:
+//  - MAX_CLUSTER_EXTENT_FACTOR × min(width,height) = the px diagonal beyond which
+//    a cluster is a sprawling chain (its leaders would fan across the map), not a
+//    tight blob. Resolution-relative so the decision is stable across zoom — the
+//    px threshold is computed per-render, NOT a constant.
+//  - MAX_COLUMN_ROWS = the most rows a single column can stack readably.
+// Exported for tests to drive the boundaries directly.
+export const MAX_CLUSTER_EXTENT_FACTOR = 0.18;
+export const MAX_COLUMN_ROWS = 7;
 // WCAG ratio below which a region label needs a halo to read on its own fill.
 // 4.5 = AA for normal text; mid-tone choropleth fills fall below this and get
 // the rescue halo, while saturated/pastel fills (Texas, light land) clear it.
@@ -252,6 +262,12 @@ export interface PlacedLabel {
   readonly italic?: boolean;
   /** Cartographic letter-spacing in px (context-label water names). Default 0. */
   readonly letterSpacing?: number;
+  /** Hover-only label: emitted invisible (opacity 0 + `data-poi-hidden`) in the
+   *  preview and revealed on POI/label hover; OMITTED entirely from static
+   *  export. Set when a POI cluster can't place its labels cleanly (see the
+   *  extent/count/clean gate in the POI-label block). Default-undefined =
+   *  visible. Hidden labels are NOT pushed into `obstacles`. */
+  readonly hidden?: boolean;
   readonly lineNumber: number;
 }
 
@@ -2102,32 +2118,67 @@ export function layoutMap(
     const ROW_GAP = 3;
     const step = poiLabH + ROW_GAP;
     const COL_GAP = 16;
-    const placeColumn = (group: MapLayoutPoi[]): void => {
-      const items = group
+    type ColItem = { p: MapLayoutPoi; text: string; w: number };
+    const makeItems = (group: MapLayoutPoi[]): ColItem[] =>
+      group
         .map((p) => ({ p, ...labelInfo(p) }))
         .sort((a, b) => a.p.cy - b.p.cy || (a.text < b.text ? -1 : 1));
+    // The column's per-row layout (side, colX, clamped startY, each row's rect).
+    // Shared by the clean-check gate and the commit path so they never diverge.
+    const columnRows = (
+      items: ColItem[],
+      side: 'right' | 'left'
+    ): Array<{ o: ColItem; colX: number; rowCy: number; rect: LabelRect }> => {
       const left = Math.min(...items.map((o) => o.p.cx - o.p.r));
       const right = Math.max(...items.map((o) => o.p.cx + o.p.r));
       const cyMid =
         (Math.min(...items.map((o) => o.p.cy)) +
           Math.max(...items.map((o) => o.p.cy))) /
         2;
-      const maxW = Math.max(...items.map((o) => o.w));
-      // Prefer the right of the cluster; fall to the left if it runs off-canvas.
-      const side: 'right' | 'left' =
-        right + COL_GAP + maxW <= width - 2 ? 'right' : 'left';
       const colX = side === 'right' ? right + COL_GAP : left - COL_GAP;
       const totalH = items.length * step;
       let startY = cyMid - totalH / 2;
       startY = Math.max(2, Math.min(startY, height - totalH - 2));
-      items.forEach((o, i) => {
+      return items.map((o, i) => {
         const rowCy = startY + i * step + step / 2;
-        obstacles.push({
-          x: side === 'right' ? colX : colX - o.w,
-          y: rowCy - poiLabH / 2,
-          w: o.w,
-          h: poiLabH,
-        });
+        return {
+          o,
+          colX,
+          rowCy,
+          rect: {
+            x: side === 'right' ? colX : colX - o.w,
+            y: rowCy - poiLabH / 2,
+            w: o.w,
+            h: poiLabH,
+          },
+        };
+      });
+    };
+    // Pure gate (NO mutation): every row on-canvas AND collision-free, at the
+    // post-startY-clamp positions the commit path will use.
+    const wouldColumnBeClean = (
+      items: ColItem[],
+      side: 'right' | 'left'
+    ): boolean =>
+      columnRows(items, side).every(
+        ({ rect }) =>
+          rect.x >= 0 &&
+          rect.x + rect.w <= width &&
+          rect.y >= 0 &&
+          rect.y + rect.h <= height &&
+          !collides(rect)
+      );
+    // Today's side heuristic — used only for ungated singleton callouts.
+    const defaultColumnSide = (items: ColItem[]): 'right' | 'left' => {
+      const right = Math.max(...items.map((o) => o.p.cx + o.p.r));
+      const maxW = Math.max(...items.map((o) => o.w));
+      return right + COL_GAP + maxW <= width - 2 ? 'right' : 'left';
+    };
+    // Commit a visible callout column on the GIVEN side (no re-deriving the
+    // side — the caller has already validated it).
+    const commitColumn = (items: ColItem[], side: 'right' | 'left'): void => {
+      for (const { o, colX, rowCy, rect } of columnRows(items, side)) {
+        obstacles.push(rect);
         labels.push({
           x: colX,
           y: rowCy + FONT / 3,
@@ -2146,24 +2197,78 @@ export function layoutMap(
           poiId: o.p.id,
           lineNumber: o.p.lineNumber,
         });
+      }
+    };
+    // Hover-only fallback: a single inline label beside the dot (no leader),
+    // emitted invisible and revealed on hover. NOT added to obstacles (it's
+    // invisible and must not displace visible labels). y is clamped on-canvas
+    // because we skip the inlineFits four-edge check (F8).
+    const pushHidden = (p: MapLayoutPoi): void => {
+      const { text, w } = labelInfo(p);
+      let x = p.cx + p.r + GAP;
+      let anchor: 'start' | 'end' = 'start';
+      if (x + w > width) {
+        x = p.cx - p.r - GAP - w;
+        anchor = 'end';
+      }
+      const y = Math.max(0, Math.min(p.cy - poiLabH / 2, height - poiLabH));
+      labels.push({
+        x: anchor === 'start' ? x : x + w,
+        y: y + poiLabH / 2 + FONT / 3,
+        text,
+        anchor,
+        color: palette.text,
+        halo: true,
+        haloColor: palette.bg,
+        poiId: p.id,
+        hidden: true,
+        lineNumber: p.lineNumber,
       });
     };
 
+    // Per-render extent threshold (resolution-relative; Decision #1, F9).
+    const maxExtent = MAX_CLUSTER_EXTENT_FACTOR * Math.min(width, height);
+    // Pass 1: place singletons (unchanged); for ≥2 clusters resolve gate
+    // (a)/(a2) — sprawl/overflow → hover-only. These hides push NOTHING to
+    // obstacles, so doing them first decouples the gate-(b) clean-checks below
+    // from commit order (F4). Surviving clusters defer to pass 2.
+    const clusterPending: ColItem[][] = [];
     for (const g of groups) {
-      // Singleton that fits inline → inline; everything else → callout column
-      // (the whole cluster, or a lone POI boxed in by legs/edges).
+      const items = makeItems(g);
       if (g.length === 1) {
-        const p = g[0]!;
-        const { text, w } = labelInfo(p);
+        // Singleton: inline if it fits, else today's single-row callout —
+        // always placed, never hover-only (Decision #2 / AC9).
+        const { p, text, w } = items[0]!;
         const side = (['right', 'left', 'above', 'below'] as const).find((s) =>
           inlineFits(p, w, s)
         );
-        if (side) {
-          pushInline(p, text, w, side);
-          continue;
-        }
+        if (side) pushInline(p, text, w, side);
+        else commitColumn(items, defaultColumnSide(items));
+        continue;
       }
-      placeColumn(g);
+      // Gate (a): bounding-box diagonal over marker extents — a sprawling chain
+      // whose column leaders would fan across the map. Gate (a2): too many rows
+      // to stack readably. Either → whole cluster hover-only.
+      const left = Math.min(...items.map((o) => o.p.cx - o.p.r));
+      const right = Math.max(...items.map((o) => o.p.cx + o.p.r));
+      const minCy = Math.min(...items.map((o) => o.p.cy));
+      const maxCy = Math.max(...items.map((o) => o.p.cy));
+      const diag = Math.hypot(right - left, maxCy - minCy);
+      if (diag > maxExtent || items.length > MAX_COLUMN_ROWS) {
+        items.forEach((o) => pushHidden(o.p));
+      } else {
+        clusterPending.push(items);
+      }
+    }
+    // Pass 2: gate (b) — a surviving cluster shows its column only if a right-
+    // or left-side column places fully clean; commit on that exact side, else
+    // the whole cluster goes hover-only.
+    for (const items of clusterPending) {
+      const side = (['right', 'left'] as const).find((s) =>
+        wouldColumnBeClean(items, s)
+      );
+      if (side) commitColumn(items, side);
+      else items.forEach((o) => pushHidden(o.p));
     }
   }
 
@@ -2178,6 +2283,9 @@ export function layoutMap(
     // duplicates are harmless). This upholds Decision 7's "never displace a
     // data/region/POI label" against the live `collides` closure.
     for (const l of labels) {
+      // Hidden (hover-only) labels are invisible — context labels must not
+      // reserve space around them (Decision #7).
+      if (l.hidden) continue;
       const w = labelW(l.text);
       const x =
         l.anchor === 'start' ? l.x : l.anchor === 'end' ? l.x - w : l.x - w / 2;

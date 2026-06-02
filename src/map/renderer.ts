@@ -540,6 +540,31 @@ export function renderMap(
   // ── Labels (leaders + halo text) ──
   const gLabels = svg.append('g').attr('class', 'dgmo-map-labels');
   for (const lab of layout.labels) {
+    // Hover-only labels: OMIT entirely from static export (export = the
+    // hover-less default view); in preview emit invisible + flagged so the app
+    // can reveal them on hover. They carry no leader, so the leader block below
+    // is skipped naturally.
+    if (lab.hidden) {
+      if (exportDims) continue;
+      emitText(
+        gLabels,
+        lab.x,
+        lab.y,
+        lab.text,
+        lab.anchor,
+        lab.color,
+        lab.haloColor,
+        lab.halo,
+        LABEL_FONT,
+        lab.italic,
+        lab.letterSpacing
+      )
+        .attr('data-poi', lab.poiId ?? null)
+        .attr('data-poi-hidden', '')
+        .style('opacity', 0)
+        .style('pointer-events', 'none');
+      continue;
+    }
     if (lab.leader) {
       const line = gLabels
         .append('line')

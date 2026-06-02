@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { parseMap } from '../src/map/parser';
 import { resolveMap } from '../src/map/resolver';
-import { layoutMap, buildMapProjection } from '../src/map/layout';
+import {
+  layoutMap,
+  buildMapProjection,
+  MAX_COLUMN_ROWS,
+} from '../src/map/layout';
 import { getPalette } from '../src/palettes';
 import { mix } from '../src/palettes/color-utils';
 import type { MapData } from '../src/map/resolved-types';
@@ -601,6 +605,129 @@ describe('layout — labels & legend (AC13, AC14, AC15, AC16, AC17)', () => {
   });
   it('no-legend suppresses the legend model (AC17)', () => {
     expect(lay('map\nno-legend\nCalifornia value: 5').legend).toBeNull();
+  });
+});
+
+describe('layout — POI label hover-only gate (extent/count/clean)', () => {
+  // Co-located POIs spread into a tight blob (~25px diagonal regardless of
+  // count), so they exercise the COUNT guard at a fixed small extent.
+  const coLocated = (n: number): string =>
+    'map\n' +
+    Array.from({ length: n }, (_, i) => `poi 0 0 as poi${i}long`).join('\n');
+  // The EXTENT gate needs a chain whose PIXEL span is controllable. The shared
+  // DATA spans the globe (JP/Congo), so it auto-fits everything into a tiny blob
+  // — useless for an extent test. A US-only topology keeps the fit local and
+  // predictable. Anchor POIs at opposite US corners enlarge the fit bbox so a
+  // line of mid POIs stepped by `deg` projects to a CHAIN (neighbours <
+  // GROUP_R) of a controlled diagonal.
+  const US_ONLY = {
+    worldCoarse: rectTopo('countries', [
+      { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
+    ]),
+    worldDetail: rectTopo('countries', [
+      { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
+    ]),
+    usStates: rectTopo('states', []),
+    gazetteer: { cities: [], byName: {}, alt: {} },
+  } as unknown as MapData;
+  const layUS = (src: string, w = 800, h = 600) =>
+    layoutMap(
+      resolveMap(parseMap(src), US_ONLY),
+      US_ONLY,
+      { width: w, height: h },
+      { palette: P, isDark: false }
+    );
+  const anchoredChain = (deg: number, n = 7): string =>
+    [
+      'map',
+      'poi 49 -124 as anchorNW',
+      'poi 26 -67 as anchorSE',
+      ...Array.from(
+        { length: n },
+        (_, i) => `poi ${38 + i * deg} ${-100 - i * deg} as mid${i}long`
+      ),
+    ].join('\n');
+  const midLabels = (src: string) =>
+    layUS(src).labels.filter((l) => /^mid\d/.test(l.text));
+
+  it('tight compact cluster → all labels visible, none hidden (AC2)', () => {
+    const r = lay(coLocated(3));
+    expect(r.labels).toHaveLength(3);
+    expect(r.labels.every((l) => !l.hidden)).toBe(true);
+    expect(r.labels.every((l) => l.leader)).toBe(true);
+  });
+
+  it('sprawling chain (diagonal > extent threshold) → all hover-only (AC1)', () => {
+    // 7 members (≤ MAX_COLUMN_ROWS) stepped 1.0° → ~128px diagonal > the ~108px
+    // threshold; hidden via the EXTENT gate, NOT the count guard.
+    const mids = midLabels(anchoredChain(1.0));
+    expect(mids).toHaveLength(7);
+    expect(mids.every((l) => l.hidden)).toBe(true);
+    // Hover-only labels carry no leader and stay POI-tagged for the app.
+    expect(mids.every((l) => !l.leader && typeof l.poiId === 'string')).toBe(
+      true
+    );
+    // The far anchors are singletons → still visible (never hover-only).
+    const anchors = layUS(anchoredChain(1.0)).labels.filter((l) =>
+      /anchor/.test(l.text)
+    );
+    expect(anchors.length).toBe(2);
+    expect(anchors.every((l) => !l.hidden)).toBe(true);
+  });
+
+  it('compact chain (diagonal < extent threshold) → visible column (AC3)', () => {
+    // Same 7-member chain stepped 0.6° → ~77px diagonal < threshold → shown.
+    const mids = midLabels(anchoredChain(0.6));
+    expect(mids).toHaveLength(7);
+    expect(mids.every((l) => !l.hidden)).toBe(true);
+    expect(mids.every((l) => l.leader)).toBe(true);
+  });
+
+  it('count boundary: 7 compact rows shown, 8 hidden (AC3 — count guard)', () => {
+    // Extent is tiny in both (~25px) so only MAX_COLUMN_ROWS decides.
+    const seven = lay(coLocated(MAX_COLUMN_ROWS)); // 7
+    expect(seven.labels).toHaveLength(7);
+    expect(seven.labels.every((l) => !l.hidden)).toBe(true);
+    expect(seven.labels.every((l) => l.leader)).toBe(true);
+    const eight = lay(coLocated(MAX_COLUMN_ROWS + 1)); // 8
+    expect(eight.labels).toHaveLength(8);
+    expect(eight.labels.every((l) => l.hidden)).toBe(true);
+  });
+
+  it('dense-but-compact cluster (≤7, tiny extent) → shown, proving extent ≠ count', () => {
+    // 7 co-located dots: count is at the limit but extent is tiny → visible.
+    // Paired with the "8 → hidden" case above (which trips the count guard),
+    // this shows the (a) signal is spatial extent, not row count.
+    const r = lay(coLocated(7));
+    expect(r.labels.every((l) => !l.hidden)).toBe(true);
+  });
+
+  it('isolated POIs (own clusters) → visible inline, never hover-only (AC4)', () => {
+    // Two well-separated POIs each form their own singleton cluster → inline.
+    const r = lay('map\npoi 35 -110 as alpha\npoi 42 -90 as bravo');
+    expect(r.labels).toHaveLength(2);
+    expect(r.labels.every((l) => !l.hidden && !l.leader)).toBe(true);
+  });
+
+  it('lone boxed-in hub (no inline side fits) → visible callout, not hidden (AC9)', () => {
+    // A hub fed by legs on all sides can't place an inline label, so it falls to
+    // a single-row callout — a singleton is NEVER routed to hover-only.
+    const src = [
+      'map',
+      'poi 40 -100 as hublongname',
+      'poi 48 -100 as north',
+      'poi 32 -100 as south',
+      'poi 40 -88 as east',
+      'poi 40 -112 as west',
+      'hublongname -> north',
+      'hublongname -> south',
+      'hublongname -> east',
+      'hublongname -> west',
+    ].join('\n');
+    const hub = lay(src).labels.find((l) => l.text === 'hublongname')!;
+    expect(hub).toBeDefined();
+    expect(hub.hidden).toBeFalsy();
+    expect(hub.leader).toBeTruthy();
   });
 });
 

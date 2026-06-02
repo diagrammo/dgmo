@@ -367,6 +367,46 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
   });
 });
 
+describe('renderer — hover-only labels (preview emit vs export omit, AC1/AC8)', () => {
+  // 8 co-located POIs trip the count guard → the whole cluster is hover-only.
+  const HIDDEN_SRC =
+    'map\npoi-labels all\n' +
+    Array.from({ length: 8 }, (_, i) => `poi 0 0 as poi${i}long`).join('\n');
+
+  // Preview render: NO exportDims (param 7 undefined) — hover-only labels are
+  // emitted invisible so the app can reveal them. renderMap reads the container
+  // size when exportDims is absent; jsdom reports 0, so stub it.
+  function renderPreview(src: string): SVGSVGElement {
+    const el = document.createElement('div');
+    Object.defineProperty(el, 'clientWidth', { value: 800 });
+    Object.defineProperty(el, 'clientHeight', { value: 600 });
+    renderMap(el, resolveMap(parseMap(src), DATA), DATA, P, false, undefined);
+    return el.querySelector('svg')!;
+  }
+
+  it('preview emits hover-only labels invisible (opacity 0 + data-poi-hidden, no leader)', () => {
+    const svg = renderPreview(HIDDEN_SRC);
+    const hidden = svg.querySelectorAll<SVGTextElement>('[data-poi-hidden]');
+    expect(hidden.length).toBe(8);
+    for (const el of Array.from(hidden)) {
+      expect(el.style.opacity).toBe('0');
+      expect(el.style.pointerEvents).toBe('none');
+      // Tagged for spotlight, and no leader line accompanies a hover-only label.
+      expect(el.getAttribute('data-poi')).toBeTruthy();
+    }
+    // Hover-only labels carry no leader lines.
+    expect(svg.querySelectorAll('.dgmo-map-labels line').length).toBe(0);
+  });
+
+  it('export omits hover-only labels entirely (no data-poi-hidden nodes, AC8)', () => {
+    // The shared render() helper passes DIMS (export mode).
+    const svg = render(HIDDEN_SRC);
+    expect(svg.querySelectorAll('[data-poi-hidden]').length).toBe(0);
+    // And no stray label <text> for the hidden cluster leaked through.
+    expect(svg.querySelectorAll('.dgmo-map-labels text').length).toBe(0);
+  });
+});
+
 describe('context labels — cartographic styling (AC12)', () => {
   it('water context labels render italic + letter-spaced + haloed <text>', () => {
     // Offshore POIs frame open ocean so the North Atlantic anchor lands in clear
