@@ -77,9 +77,12 @@ const RELIEF_MIN_DIM = 2; // px
 // Relief = horizontal hachure lines clipped to each range: a distinct
 // dark-on-light / light-on-dark texture that reads as "mountains here". Spacing
 // is SCREEN-space so density is constant regardless of zoom (geo-space spacing
-// would collapse a small range to 1–2 lines and read as a glitch).
-const RELIEF_HATCH_SPACING = 4.5; // px between lines
-const RELIEF_HATCH_WIDTH = 0.6; // px stroke
+// would collapse a small range to 1–2 lines and read as a glitch). Tight + thin:
+// the renderer draws these crisp (shape-rendering=crispEdges) with a non-scaling
+// stroke so every line snaps to the same device-pixel coverage — no AA-driven
+// thickness variance or moire as the SVG is scaled / re-rasterised at any DPR.
+const RELIEF_HATCH_SPACING = 3; // px between lines
+const RELIEF_HATCH_WIDTH = 0.75; // px stroke
 // % of the DARK reference (palette.bg on dark themes, palette.text on light)
 // blended into the land colour — so the lines read DARKER than the land in both
 // themes (palette.text alone flips to light on dark themes).

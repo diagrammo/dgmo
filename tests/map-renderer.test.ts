@@ -164,11 +164,10 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(group!.querySelector('[data-line-number]')).toBeNull();
   });
 
-  it('excludes data-coloured regions from the relief land clip (ADR-2)', () => {
-    // Valuing a region drops its polygon from the land clip, so relief is cut
-    // out of the data fill but still shows on the un-valued land around it.
-    // Local fixture: a valued US + an un-valued Canada to its north (stays in
-    // view), with a range spanning both.
+  it('includes data-coloured regions in the relief land clip (relief atop fills)', () => {
+    // Relief sits ATOP the choropleth/tag fills now: a valued region stays in
+    // the land clip so the hachure draws over its data colour too. Local
+    // fixture: a valued US + an un-valued Canada, with a range spanning both.
     const data: MapData = {
       ...DATA,
       worldCoarse: rectTopo('countries', [
@@ -202,8 +201,8 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     const clipDs = [...landClip.querySelectorAll('path')].map((p) =>
       p.getAttribute('d')
     );
-    expect(clipDs.length).toBeGreaterThan(0); // un-valued Canada land remains
-    expect(clipDs).not.toContain(us!.getAttribute('d'));
+    expect(clipDs.length).toBeGreaterThan(0);
+    expect(clipDs).toContain(us!.getAttribute('d')); // valued US land included
   });
 
   it('categorical group + score ramp both render in the top legend (AC24)', () => {

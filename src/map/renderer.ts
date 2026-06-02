@@ -123,29 +123,28 @@ export function renderMap(
   };
   for (const r of layout.regions) drawRegion(gRegions, r, 0.5);
 
-  // ── Relief (mountain-range hachure over the base land, under rivers/data) ──
+  // ── Relief (mountain-range hachure over ALL land, under rivers/POIs/labels) ──
   // Rule horizontal lines across the whole canvas, clipped to the INTERSECTION
-  // of (a) the union of range polygons and (b) the NON-DATA land — nested
-  // clipPaths, so the hachure never bleeds onto water (coarse range polygons
-  // overrun the coast, and horizontal lines on the sea read as the water
-  // convention) and never draws over a value-/tag-coloured region (ADR-2 — the
-  // data tint stays clean; a range crossing a valued state still shows on the
-  // un-valued land around it). The land clip is every drawn region except lakes
-  // and data fills. Explicit <line>s in a <clipPath> (not a tiled <pattern>)
-  // dodge WKWebView/resvg pattern quirks. Decorative — no data attrs.
+  // of (a) the union of range polygons and (b) the land — nested clipPaths, so
+  // the hachure never bleeds onto water (coarse range polygons overrun the
+  // coast, and horizontal lines on the sea read as the water convention). The
+  // land clip is every drawn region except lakes — INCLUDING value-/tag-coloured
+  // regions, so the relief texture sits ATOP the choropleth/tag fills (a range
+  // crossing a valued state still reads as mountains there). It stays below
+  // rivers, POIs, and labels. Explicit <line>s in a <clipPath> (not a tiled
+  // <pattern>) dodge WKWebView/resvg pattern quirks. crispEdges + a non-scaling
+  // stroke snap every line to identical device-pixel coverage — uniform
+  // thickness with no moire as the SVG is scaled / re-rasterised. Decorative —
+  // no data attrs.
   if (layout.relief.length && layout.reliefHatch) {
     const h = layout.reliefHatch;
     const rangeClipId = 'dgmo-relief-clip';
     const landClipId = 'dgmo-relief-land';
     const rangeClip = defs.append('clipPath').attr('id', rangeClipId);
     for (const s of layout.relief) rangeClip.append('path').attr('d', s.d);
-    const isDataRegion = (r: MapLayoutRegion): boolean =>
-      r.value !== undefined ||
-      (r.tags !== undefined && Object.keys(r.tags).length > 0);
     const landClip = defs.append('clipPath').attr('id', landClipId);
     for (const r of layout.regions)
-      if (r.id !== 'lake' && !isDataRegion(r))
-        landClip.append('path').attr('d', r.d);
+      if (r.id !== 'lake') landClip.append('path').attr('d', r.d);
     const gRelief = svg
       .append('g')
       .attr('clip-path', `url(#${landClipId})`) // outer: land only
@@ -153,7 +152,9 @@ export function renderMap(
       .attr('class', 'dgmo-map-relief')
       .attr('clip-path', `url(#${rangeClipId})`) // inner: ∩ ranges
       .attr('stroke', h.color)
-      .attr('stroke-width', h.width);
+      .attr('stroke-width', h.width)
+      .attr('shape-rendering', 'crispEdges')
+      .attr('vector-effect', 'non-scaling-stroke');
     for (let y = h.spacing; y < height; y += h.spacing) {
       gRelief
         .append('line')
