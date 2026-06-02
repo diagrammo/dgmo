@@ -23,12 +23,16 @@ import type { MapData, GeoExtent } from './resolved-types';
 import type { Gazetteer } from './data/types';
 
 /** Nearest gazetteer city to a point: the real haversine distance, plus the
- *  canonical name + ISO + (US-only) subdivision for token shaping. */
+ *  canonical name + ISO + (US-only) subdivision for token shaping. `lon`/`lat`
+ *  are the city's own gazetteer coordinates (so callers can mark it on the map,
+ *  distinct from the inspected point). */
 export interface NearestCity {
   readonly name: string;
   readonly iso: string;
   readonly sub?: string;
   readonly distanceKm: number;
+  readonly lon: number;
+  readonly lat: number;
 }
 
 /** A region declaration with its canonical/primary form plus bare alternates
@@ -144,6 +148,8 @@ function nearestCity(
     iso: c[2],
     ...(c[5] !== undefined && { sub: c[5] }),
     distanceKm: best.dist,
+    lat: c[0],
+    lon: c[1],
   };
 }
 
