@@ -80,7 +80,10 @@ const RELIEF_MIN_DIM = 2; // px
 // would collapse a small range to 1–2 lines and read as a glitch).
 const RELIEF_HATCH_SPACING = 4.5; // px between lines
 const RELIEF_HATCH_WIDTH = 0.6; // px stroke
-const RELIEF_HATCH_CONTRAST = 40; // % palette.text mixed into the land colour
+// % of the DARK reference (palette.bg on dark themes, palette.text on light)
+// blended into the land colour — so the lines read DARKER than the land in both
+// themes (palette.text alone flips to light on dark themes).
+const RELIEF_HATCH_STRENGTH = 55;
 // % palette-gray of bg for non-US neighbour land. Higher on dark so it reads as
 // a clear gray rather than sinking into the dark background.
 const FOREIGN_TINT_LIGHT = 30;
@@ -1166,12 +1169,16 @@ export function layoutMap(
       if (!d) continue;
       relief.push({ d });
     }
-    if (relief.length)
+    if (relief.length) {
+      // Dark in both themes: blend land toward bg (dark) on dark themes, toward
+      // text (dark) on light themes — never the light-flipping palette.text.
+      const hatchDark = isDark ? palette.bg : palette.text;
       reliefHatch = {
-        color: mix(neutralFill, palette.text, RELIEF_HATCH_CONTRAST),
+        color: mix(hatchDark, neutralFill, RELIEF_HATCH_STRENGTH),
         spacing: RELIEF_HATCH_SPACING,
         width: RELIEF_HATCH_WIDTH,
       };
+    }
   }
 
   // Rivers (Amazon, Nile, Mississippi, …) as thin water lines over the land.
