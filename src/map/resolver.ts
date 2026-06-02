@@ -713,12 +713,18 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     hasUsContent;
 
   const subdivisions: Array<'us-states'> = [];
-  // Draw the US state mesh whenever the map has any US content (a referenced US
-  // state, a US POI, or `locale US` — all folded into `hasUsContent`), even
-  // alongside non-NA content on a geographic projection (e.g. US POIs + Tokyo, or
-  // California + Germany). `usSubdivisionReferenced` and `usOriented` both already
-  // imply `hasUsContent`, so the single term covers every case.
-  if (hasUsContent) subdivisions.push('us-states');
+  // Draw the US state mesh in two cases:
+  //   1. `usSubdivisionReferenced` — a US state is named as a data region
+  //      (e.g. `California value: 92`), so the states ARE the subject; detail
+  //      them even on a global projection alongside non-NA content.
+  //   2. `usOriented` — US content with everything else inside North America,
+  //      i.e. the conventional US states map (including a POI-only named-city
+  //      map, or a US map with a Canadian/Mexican neighbour).
+  // Deliberately NOT drawn for bare US POIs on an otherwise-global map (e.g. a
+  // worldwide backbone with `us-east-1` + Tokyo + Mumbai): the map already knows
+  // it spans beyond NA (`anyNonNaPoi`), so exploding the US into 50 states reads
+  // as noise, not signal. Such a map renders country-only.
+  if (usSubdivisionReferenced || usOriented) subdivisions.push('us-states');
 
   // ── Extent + projection (R5/R10) ──
   const regionBoxes: GeoExtent[] = [];

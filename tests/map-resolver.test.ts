@@ -476,8 +476,19 @@ describe('resolver — impl-review fixes (#3/#6/#8/#13/#15)', () => {
     const r = resolve('map\nCalifornia value: 1\nMexico value: 2');
     expect(r.projection).toBe('albers-usa');
   });
-  it('AC4: US POIs + a non-NA POI (Tokyo) → NOT albers-usa, but states still draw', () => {
+  it('AC4: US POIs + a non-NA POI (Tokyo) → NOT albers-usa, and NO state mesh (global map)', () => {
+    // A US POI on an otherwise-global map (e.g. a worldwide backbone) must NOT
+    // explode the US into 50 states — the map spans beyond NA, so country-only
+    // reads as signal, not noise. States only draw when US states are referenced
+    // as data, or the whole map stays within North America (usOriented).
     const r = resolve('map\npoi New York City\npoi Tokyo');
+    expect(r.projection).not.toBe('albers-usa');
+    expect(r.basemaps.subdivisions).toHaveLength(0);
+  });
+  it('AC4b: US state DATA + a non-NA POI → states still draw (states are the subject)', () => {
+    // Contrast with AC4: here the US state is referenced as data, so the mesh
+    // stays even on a global projection.
+    const r = resolve('map\nCalifornia value: 5\npoi Tokyo');
     expect(r.projection).not.toBe('albers-usa');
     expect(r.basemaps.subdivisions).toContain('us-states');
   });
