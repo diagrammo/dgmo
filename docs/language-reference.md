@@ -2734,20 +2734,7 @@ dcw                     # hub/star — indented edges share the source
   -> office-west
 ```
 
-`~>` curves a single edge.
-
-`surface: water | land` (best-effort) bows a leg/edge arrow to stay over the named surface — a cruise over water, a road trip over land. Opt-in at three scope levels (narrower wins): a colon-free map directive `surface water` → route/edge header `route Miami surface: water` (cascades to legs) → per-leg/edge override `-> Cairo surface: land`. It implies an arc (`style: arc` is redundant). It's best-effort, not a router: a single bow rounds one obstacle, and when none can clear (a peninsula, both sides blocked, a too-short coastal hop, or under `albers-usa`) the closest arc is drawn with a warning — it never silently lies. On a chain `A -> B -> C surface: water` the constraint attaches to the final hop only. v1 detects against country polygons (open ocean = outside every country; lakes/rivers not yet water). Without `surface:` there is no path-finding — legs are plain straight or arced geometry and may cross land.
-
-```
-map Caribbean Cruise
-projection mercator
-surface water           # whole map sails over water
-
-route Miami
-  -weigh anchor-> Havana
-  -> Kingston
-  -> Cartagena surface: land   # one overland leg overrides
-```
+`~>` curves a single edge. No geographic path-finding — legs are straight or arced.
 
 ### Labels, legend & chrome
 

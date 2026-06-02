@@ -59,7 +59,6 @@ const DIRECTIVE_SET: ReadonlySet<string> = new Set([
   'active-tag',
   'no-legend',
   'relief',
-  'surface',
   'subtitle',
   'caption',
 ]);
@@ -183,12 +182,7 @@ export function parseMap(content: string): ParsedMap {
     }
     // (1a) Indented child of an open route → a leg (an edge from the prev stop).
     if (open.route && indent > open.route.indent) {
-      const leg = parseLeg(
-        trimmed,
-        lineNumber,
-        open.route.route.style,
-        open.route.route.surface
-      );
+      const leg = parseLeg(trimmed, lineNumber, open.route.route.style);
       (open.route.route.legs as MapRouteLeg[]).push(leg);
       continue;
     }
@@ -361,15 +355,6 @@ export function parseMap(content: string): ParsedMap {
         // Bare flag (idempotent — `relief\nrelief` is no warning).
         d.relief = true;
         break;
-      case 'surface':
-        dup(d.surface);
-        if (value === 'water' || value === 'land') d.surface = value;
-        else
-          pushWarning(
-            line,
-            `Unknown surface "${value}" (expected water | land).`
-          );
-        break;
       case 'subtitle':
         dup(d.subtitle);
         d.subtitle = value;
@@ -533,10 +518,8 @@ export function parseMap(content: string): ParsedMap {
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
     const originLabel = meta['label'];
     const originValue = meta['value'];
-    const surface = parseSurface(meta['surface'], line);
-    // `surface:` implies arc (F9) — a straight leg has no bow to move.
     const style: 'straight' | 'arc' =
-      meta['style'] === 'arc' || surface !== undefined ? 'arc' : 'straight';
+      meta['style'] === 'arc' ? 'arc' : 'straight';
     const route: Writable<MapRoute> = {
       origin: pos,
       ...(split.alias !== undefined && { originAlias: split.alias }),
@@ -544,23 +527,11 @@ export function parseMap(content: string): ParsedMap {
       ...(originValue !== undefined && { originValue }),
       originTags: tags,
       style,
-      ...(surface !== undefined && { surface }),
       legs: [],
       lineNumber: line,
     };
     routes.push(route);
     open.route = { route, indent };
-  }
-
-  /** Validate a raw `surface:` value into the `water|land` union (else warn). */
-  function parseSurface(
-    raw: string | undefined,
-    line: number
-  ): 'water' | 'land' | undefined {
-    if (raw === undefined) return undefined;
-    if (raw === 'water' || raw === 'land') return raw;
-    pushWarning(line, `Unknown surface "${raw}" (expected water | land).`);
-    return undefined;
   }
 
   /** Parse one route body line into a leg: `[-label->] <destination> [keys]`.
@@ -569,8 +540,7 @@ export function parseMap(content: string): ParsedMap {
   function parseLeg(
     trimmed: string,
     line: number,
-    headerStyle: 'straight' | 'arc',
-    headerSurface: 'water' | 'land' | undefined
+    headerStyle: 'straight' | 'arc'
   ): MapRouteLeg {
     let arrowStyle: 'straight' | 'arc' = 'straight';
     let label: string | undefined;
@@ -597,18 +567,11 @@ export function parseMap(content: string): ParsedMap {
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
     const value = meta['value'];
     const destLabel = meta['label'];
-    // Leg-level `surface:` overrides the route-header default (narrower wins).
-    const legSurface = parseSurface(meta['surface'], line);
-    const surface = legSurface ?? headerSurface;
-    // `surface:` implies arc (F9) — at header or leg level.
     const style: 'straight' | 'arc' =
-      arrowStyle === 'arc' || headerStyle === 'arc' || surface !== undefined
-        ? 'arc'
-        : 'straight';
+      arrowStyle === 'arc' || headerStyle === 'arc' ? 'arc' : 'straight';
     return {
       ...(label !== undefined && { label }),
       style,
-      ...(surface !== undefined && { surface }),
       ...(value !== undefined && { value }),
       dest: pos,
       ...(split.alias !== undefined && { destAlias: split.alias }),
@@ -643,8 +606,6 @@ export function parseMap(content: string): ParsedMap {
       aliasMap
     );
     endpoints[endpoints.length - 1] = lastSplit.name;
-    // Trailing `surface:` attaches to the FINAL hop only (mirrors value:/label: — F4).
-    const lastSurface = parseSurface(lastSplit.meta['surface'], line);
     for (let k = 0; k < links.length; k++) {
       const from = endpoints[k]!;
       const to = endpoints[k + 1]!;
@@ -652,19 +613,13 @@ export function parseMap(content: string): ParsedMap {
         pushError(line, `Edge has an empty endpoint: "${trimmed}".`);
         continue;
       }
-      const isLast = k === links.length - 1;
-      const meta = isLast ? lastSplit.meta : {};
-      const surface = isLast ? lastSurface : undefined;
-      // `surface:` implies arc (F9).
-      const style: 'straight' | 'arc' =
-        links[k]!.style === 'arc' || surface !== undefined ? 'arc' : 'straight';
+      const meta = k === links.length - 1 ? lastSplit.meta : {};
       edges.push({
         from,
         to,
         ...(links[k]!.label !== undefined && { label: links[k]!.label }),
         directed: links[k]!.directed,
-        style,
-        ...(surface !== undefined && { surface }),
+        style: links[k]!.style,
         meta,
         lineNumber: line,
       });

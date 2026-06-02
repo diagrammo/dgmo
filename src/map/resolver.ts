@@ -543,25 +543,17 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     return f;
   };
 
-  // Map-level default surface (ADR-4): fills any leg/edge that set none. The
-  // route→leg cascade is already baked at parse time, so only the directive
-  // fallback is applied here (do NOT re-apply the route default — F3).
-  const directiveSurface = parsed.directives.surface;
-
   const edges: ResolvedEdge[] = [];
   for (const e of parsed.edges) {
     const fromId = resolveEndpoint(e.from, e.lineNumber);
     const toId = resolveEndpoint(e.to, e.lineNumber);
     if (!fromId || !toId) continue; // ungeocodable endpoint → drop (error already pushed)
-    const surface = e.surface ?? directiveSurface;
     edges.push({
       fromId,
       toId,
       ...(e.label !== undefined && { label: e.label }),
       directed: e.directed,
-      // `surface:` implies arc (F9) — also true when inherited from the directive.
-      style: surface !== undefined ? 'arc' : e.style,
-      ...(surface !== undefined && { surface }),
+      style: e.style,
       meta: e.meta,
       lineNumber: e.lineNumber,
     });
@@ -652,14 +644,11 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
         leg.lineNumber
       );
       if (!destId) continue; // ungeocodable destination → skip this leg
-      const surface = leg.surface ?? directiveSurface;
       legs.push({
         fromId: prevId,
         toId: destId,
         ...(leg.label !== undefined && { label: leg.label }),
-        // `surface:` implies arc (F9) — including the directive-inherited case.
-        style: surface !== undefined ? 'arc' : leg.style,
-        ...(surface !== undefined && { surface }),
+        style: leg.style,
         ...(leg.value !== undefined && { value: leg.value }),
         lineNumber: leg.lineNumber,
       });
