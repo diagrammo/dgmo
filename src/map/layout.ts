@@ -78,7 +78,6 @@ export const MAX_COLUMN_ROWS = 7;
 // 4.5 = AA for normal text; mid-tone choropleth fills fall below this and get
 // the rescue halo, while saturated/pastel fills (Texas, light land) clear it.
 const REGION_LABEL_HALO_RATIO = 4.5;
-const COLO_EPS = 1.5; // px: POIs closer than this are "co-located"
 // % palette-green of bg for unscored land — a VERY faded green so every map
 // (plain reference OR data-coloured) wears the same subtle dress and the green
 // never competes with saturated tag/score tints. Dark lifts a touch off the
@@ -149,8 +148,16 @@ const FOREIGN_TINT_DARK = 62;
 // saturation. Plain reference maps keep neighbour land at the fuller gray tint.
 const MUTED_FOREIGN_LIGHT = 28; // neighbour land — recessive gray, not green
 const MUTED_FOREIGN_DARK = 16;
-const COLO_R = 9; // spiderfy radius
+const COLO_R = 9; // spiderfy ring radius floor (px)
 const GOLDEN_ANGLE = 2.399963229728653; // rad (137.5deg) -- even spiral, no random
+// Coincident-POI spiderfy (stacks): two dots "stack" when their centre distance is
+// below (rA+rB)*STACK_OVERLAP — i.e. the markers visibly overlap. A ≥2-member stack
+// collapses to a single ringed `+N` badge at rest and fans out on click; export
+// renders the expanded fan directly (all labels visible). Distinct-but-dense
+// clusters (centres farther than combined radii) are untouched — current behavior.
+const STACK_OVERLAP = 1.0; // overlap factor for the coincidence threshold
+const STACK_RING_MAX = 8; // ≤ this many → even circle; more → golden-angle spiral
+const STACK_RING_GAP = 4; // px min gap between adjacent expanded dots
 const FAN_STEP = 16; // px perpendicular offset between parallel edges
 const ARC_CURVE_FRAC = 0.18; // default arc bow as a fraction of leg length
 
@@ -216,6 +223,38 @@ export interface MapLayoutPoi {
   /** Tag values keyed by lowercased group name — emitted as `data-tag-<group>`
    *  so the app can spotlight markers on legend-entry hover (mirrors regions). */
   readonly tags?: Readonly<Record<string, string>>;
+  /** Set when this marker is a member of a coincident stack (spiderfy). Its
+   *  `cx/cy` is the EXPANDED ring position (the source-of-truth used by export +
+   *  the no-JS default); the app collapses the stack to a single badge at rest
+   *  via `data-cluster-member`. */
+  readonly clusterId?: string;
+}
+
+/** A coincident POI stack (≥2 markers whose dots overlap). Laid out EXPANDED
+ *  (members fanned onto a ring/spiral with legs to the centroid) — that geometry
+ *  is the source of truth: a static export shows every member + label with no
+ *  special-casing. The renderer ALSO emits a collapsed `+N`-style badge (a neutral
+ *  dot ringed with the bare count) at the centroid, hidden by default; the app
+ *  collapses each stack at rest (hide members, show badge) and expands on click. */
+export interface MapLayoutCluster {
+  /** Stable id (the first member's POI id). Mirrored on member dots/labels/legs as
+   *  `data-cluster-member` and on the badge as `data-cluster`. */
+  readonly id: string;
+  /** Centroid (collapsed badge position + spider-leg hub). */
+  readonly cx: number;
+  readonly cy: number;
+  /** Member count = badge text (bare `N`, RQ1). */
+  readonly count: number;
+  /** Radius of the transparent pointer hit-area centred on the centroid — covers
+   *  the collapsed badge AND the expanded dot ring so a hover/click anywhere over
+   *  the stack drives the spiderfy controller. */
+  readonly hitR: number;
+  /** Spider legs: centroid → each expanded member dot (member's own colour). */
+  readonly legs: ReadonlyArray<{
+    readonly x2: number;
+    readonly y2: number;
+    readonly color: string;
+  }>;
 }
 
 /** A drawn connector -- an edge or a route leg (same geometry contract). */
@@ -268,6 +307,10 @@ export interface PlacedLabel {
    *  extent/count/clean gate in the POI-label block). Default-undefined =
    *  visible. Hidden labels are NOT pushed into `obstacles`. */
   readonly hidden?: boolean;
+  /** Set when this label belongs to a coincident-stack member (spiderfy). Emitted
+   *  visible (export + expanded view) but tagged `data-cluster-member` so the app
+   *  hides it when the stack is collapsed to its badge. */
+  readonly clusterMember?: string;
   readonly lineNumber: number;
 }
 
@@ -354,6 +397,9 @@ export interface MapLayout {
   readonly coastlineStyle: MapLayoutCoastlineStyle | null;
   readonly legs: readonly MapLayoutLeg[];
   readonly pois: readonly MapLayoutPoi[];
+  /** Coincident POI stacks (spiderfy). Empty when no ≥2-member overlap exists.
+   *  The renderer draws a collapsed badge per stack; the app collapses/expands. */
+  readonly clusters: readonly MapLayoutCluster[];
   readonly labels: readonly PlacedLabel[];
   readonly legend: MapLayoutLegend | null;
   /** Framed AK/HI inset cutouts (albers-usa only; empty otherwise). */
@@ -1614,38 +1660,131 @@ export function layoutMap(
     const xy = project(p.lon, p.lat);
     if (xy) projected.push({ p, xy });
   }
-  const coloGroups = new Map<string, Proj[]>();
-  for (const e of projected) {
-    const key = `${Math.round(e.xy[0] / COLO_EPS)},${Math.round(e.xy[1] / COLO_EPS)}`;
-    const arr = coloGroups.get(key);
-    if (arr) arr.push(e);
-    else coloGroups.set(key, [e]);
+  const placePoi = (
+    e: Proj,
+    cx: number,
+    cy: number,
+    clusterId?: string
+  ): void => {
+    const { fill, stroke } = poiFill(e.p);
+    poiScreen.set(e.p.id, { cx, cy, r: radiusFor(e.p) });
+    const num = routeNumberById.get(e.p.id);
+    pois.push({
+      id: e.p.id,
+      cx,
+      cy,
+      r: radiusFor(e.p),
+      fill,
+      stroke,
+      lineNumber: e.p.lineNumber,
+      implicit: !!e.p.implicit,
+      isOrigin: originIds.has(e.p.id),
+      ...(num !== undefined && { routeNumber: num }),
+      ...(Object.keys(e.p.tags).length > 0 && { tags: e.p.tags }),
+      ...(clusterId !== undefined && { clusterId }),
+    });
+  };
+
+  // -- Coincident-POI spiderfy (stacks). Two dots "stack" when they visibly
+  // overlap (centre distance < combined radii × STACK_OVERLAP). A ≥2-member stack
+  // is laid out EXPANDED — members fanned onto a ring (golden-angle spiral past
+  // STACK_RING_MAX), legs back to the centroid — which is the source of truth for
+  // export + the no-JS default; the app collapses it to one ringed `+N` badge at
+  // rest and expands on click. POIs that anchor an edge or route leg are EXCLUDED
+  // (kept at true position; collapsing a connector endpoint is out of v1 scope).
+  // Distinct-but-dense clusters never overlap at the combined-radii threshold, so
+  // they keep today's true-position + leader/column behavior.
+  const clusters: MapLayoutCluster[] = [];
+  const connected = new Set<string>();
+  for (const e of resolved.edges) {
+    connected.add(e.fromId);
+    connected.add(e.toId);
   }
-  for (const group of coloGroups.values()) {
-    group.forEach((e, i) => {
-      let cx = e.xy[0];
-      let cy = e.xy[1];
-      if (group.length > 1) {
-        const ang = i * GOLDEN_ANGLE;
-        cx += Math.cos(ang) * COLO_R;
-        cy += Math.sin(ang) * COLO_R;
+  for (const rt of resolved.routes) {
+    rt.stopIds.forEach((id) => connected.add(id));
+  }
+  const radiusOf = (e: Proj): number => radiusFor(e.p);
+  // Connected endpoints: always true position.
+  for (const e of projected) {
+    if (connected.has(e.p.id)) placePoi(e, e.xy[0], e.xy[1]);
+  }
+  // Distance-based transitive grouping among stackable POIs (first-matching-group
+  // heuristic, matching the GROUP_R label-column grouping below).
+  const groups: Proj[][] = [];
+  for (const e of projected) {
+    if (connected.has(e.p.id)) continue;
+    const r = radiusOf(e);
+    const near = groups.find((g) =>
+      g.some(
+        (q) =>
+          Math.hypot(q.xy[0] - e.xy[0], q.xy[1] - e.xy[1]) <
+          (r + radiusOf(q)) * STACK_OVERLAP
+      )
+    );
+    if (near) near.push(e);
+    else groups.push([e]);
+  }
+  for (const g of groups) {
+    if (g.length === 1) {
+      placePoi(g[0]!, g[0]!.xy[0], g[0]!.xy[1]);
+      continue;
+    }
+    const clusterId = g[0]!.p.id; // line-number-ordered first member → stable
+    const cx0 = g.reduce((s, e) => s + e.xy[0], 0) / g.length;
+    const cy0 = g.reduce((s, e) => s + e.xy[1], 0) / g.length;
+    const maxR = Math.max(...g.map(radiusOf));
+    // Ring radius so adjacent expanded dots clear each other by STACK_RING_GAP.
+    const sep = 2 * maxR + STACK_RING_GAP;
+    const ringR = Math.max(
+      COLO_R,
+      sep / (2 * Math.sin(Math.PI / Math.max(g.length, 2)))
+    );
+    const positions = g.map((e, i) => {
+      if (g.length <= STACK_RING_MAX) {
+        const ang = -Math.PI / 2 + (i * 2 * Math.PI) / g.length;
+        return {
+          e,
+          mx: cx0 + Math.cos(ang) * ringR,
+          my: cy0 + Math.sin(ang) * ringR,
+        };
       }
-      const { fill, stroke } = poiFill(e.p);
-      poiScreen.set(e.p.id, { cx, cy, r: radiusFor(e.p) });
-      const num = routeNumberById.get(e.p.id);
-      pois.push({
-        id: e.p.id,
-        cx,
-        cy,
-        r: radiusFor(e.p),
-        fill,
-        stroke,
-        lineNumber: e.p.lineNumber,
-        implicit: !!e.p.implicit,
-        isOrigin: originIds.has(e.p.id),
-        ...(num !== undefined && { routeNumber: num }),
-        ...(Object.keys(e.p.tags).length > 0 && { tags: e.p.tags }),
-      });
+      const ang = i * GOLDEN_ANGLE;
+      const rr = ringR * Math.sqrt((i + 1) / g.length);
+      return { e, mx: cx0 + Math.cos(ang) * rr, my: cy0 + Math.sin(ang) * rr };
+    });
+    // Off-canvas guard: translate the whole fan (centroid + members together) so
+    // every dot stays on-canvas. A pure shift preserves the spider geometry.
+    let minX = cx0 - maxR;
+    let maxX = cx0 + maxR;
+    let minY = cy0 - maxR;
+    let maxY = cy0 + maxR;
+    for (const { mx, my, e } of positions) {
+      const r = radiusOf(e);
+      minX = Math.min(minX, mx - r);
+      maxX = Math.max(maxX, mx + r);
+      minY = Math.min(minY, my - r);
+      maxY = Math.max(maxY, my + r);
+    }
+    let dx = 0;
+    let dy = 0;
+    if (minX + dx < 2) dx = 2 - minX;
+    if (maxX + dx > width - 2) dx = width - 2 - maxX;
+    if (minY + dy < 2) dy = 2 - minY;
+    if (maxY + dy > height - 2) dy = height - 2 - maxY;
+    const legsOut: Array<{ x2: number; y2: number; color: string }> = [];
+    for (const { e, mx, my } of positions) {
+      const fx = mx + dx;
+      const fy = my + dy;
+      placePoi(e, fx, fy, clusterId);
+      legsOut.push({ x2: fx, y2: fy, color: poiFill(e.p).fill });
+    }
+    clusters.push({
+      id: clusterId,
+      cx: cx0 + dx,
+      cy: cy0 + dy,
+      count: g.length,
+      hitR: ringR + maxR + 6,
+      legs: legsOut,
     });
   }
 
@@ -2023,9 +2162,11 @@ export function layoutMap(
   // POI labels (default auto; off -> none; all -> every POI).
   const poiLabelMode = resolved.directives.poiLabels ?? 'auto';
   if (poiLabelMode !== 'off') {
-    const ordered = [...pois].sort(
-      (a, b) => a.lineNumber - b.lineNumber || (a.id < b.id ? -1 : 1)
-    );
+    // Cluster (stack) members are laid out + labelled by the spiderfy block; keep
+    // them out of the singleton/proximity-column placement here.
+    const ordered = [...pois]
+      .filter((p) => p.clusterId === undefined)
+      .sort((a, b) => a.lineNumber - b.lineNumber || (a.id < b.id ? -1 : 1));
     const poiById = new Map(resolved.pois.map((q) => [q.id, q]));
     const labelText = (p: MapLayoutPoi): string => {
       const src = poiById.get(p.id);
@@ -2042,6 +2183,36 @@ export function layoutMap(
     // from the east AND west — Boulder in the route-cluster gauntlet).
     type Side = 'right' | 'left' | 'above' | 'below';
     const GAP = 3;
+    // Coincident-stack members (spiderfy): each expanded dot gets a radial inline
+    // label pointing away from the centroid. Emitted VISIBLE (export + expanded
+    // view) but tagged `clusterMember` so the app hides it when the stack collapses
+    // to its badge. These bypass the proximity-column logic below.
+    const clusterById = new Map(clusters.map((c) => [c.id, c]));
+    for (const p of pois) {
+      if (p.clusterId === undefined) continue;
+      const c = clusterById.get(p.clusterId);
+      const { text, w } = labelInfo(p);
+      const right = c ? p.cx >= c.cx : true;
+      const x = right ? p.cx + p.r + GAP : p.cx - p.r - GAP;
+      labels.push({
+        x,
+        y: p.cy + FONT / 3,
+        text,
+        anchor: right ? 'start' : 'end',
+        color: palette.text,
+        halo: true,
+        haloColor: palette.bg,
+        poiId: p.id,
+        clusterMember: p.clusterId,
+        lineNumber: p.lineNumber,
+      });
+      obstacles.push({
+        x: right ? x : x - w,
+        y: p.cy - poiLabH / 2,
+        w,
+        h: poiLabH,
+      });
+    }
     const inlineRect = (p: MapLayoutPoi, w: number, side: Side): LabelRect => {
       switch (side) {
         case 'right':
@@ -2394,6 +2565,7 @@ export function layoutMap(
     coastlineStyle,
     legs,
     pois,
+    clusters,
     labels,
     legend,
     insets,

@@ -460,7 +460,15 @@ describe('layout — POIs (AC6, AC7, AC8, AC18)', () => {
   });
   it('co-located POIs spiderfy to distinct, deterministic positions (AC18)', () => {
     const a = lay('map\npoi 0 0 as aa\npoi 0 0 as bb');
-    expect(a.pois[0]!.cx).not.toBe(a.pois[1]!.cx);
+    // Both members move off the shared point to distinct expanded positions
+    // (a 2-member ring is vertical → same cx, different cy).
+    expect([a.pois[0]!.cx, a.pois[0]!.cy]).not.toEqual([
+      a.pois[1]!.cx,
+      a.pois[1]!.cy,
+    ]);
+    // …and are emitted as one collapsible stack.
+    expect(a.clusters).toHaveLength(1);
+    expect(a.clusters[0]!.count).toBe(2);
     const b = lay('map\npoi 0 0 as aa\npoi 0 0 as bb');
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
@@ -573,9 +581,9 @@ describe('layout — labels & legend (AC13, AC14, AC15, AC16, AC17)', () => {
     const all = lay('map\npoi-labels all\npoi 0 0 as aa\npoi 0 0 as bb');
     expect(all.labels.length).toBeGreaterThanOrEqual(2);
   });
-  it('label escalation never moves markers (AC15)', () => {
-    // A dense co-located cluster: more labels than the two inline sides can
-    // hold, so at least one must escalate to a leader/pin.
+  it('POI layout is label-mode-independent — markers never move (AC15)', () => {
+    // A co-located cluster spiderfies during POI layout (independent of label
+    // mode), so off-labels and all-labels must place identical marker positions.
     const src =
       'map\npoi 0 0 as alphaonelong\npoi 0 0 as bravotwolong\npoi 0 0 as charlie3long\npoi 0 0 as deltafourlong\npoi 0 0 as echofivelong\npoi 0 0 as foxtrot6long';
     const off = lay(`map\npoi-labels off\n${src.slice(4)}`);
@@ -583,22 +591,21 @@ describe('layout — labels & legend (AC13, AC14, AC15, AC16, AC17)', () => {
     expect(off.pois.map((p) => [p.cx, p.cy])).toEqual(
       all.pois.map((p) => [p.cx, p.cy])
     );
-    // The colliding cluster escalated: at least one label gets a leader, or an
-    // unplaceable label is dropped (fewer labels than POIs).
-    expect(
-      all.labels.some((l) => l.leader) || all.labels.length < all.pois.length
-    ).toBe(true);
+    // The co-located cluster spiderfied: one stack, every member keeps a label.
+    expect(all.clusters).toHaveLength(1);
+    expect(all.labels.filter((l) => l.clusterMember).length).toBe(
+      all.pois.length
+    );
   });
-  it('dense cluster labels EVERY POI in a leader-lined callout column', () => {
+  it('co-located cluster labels EVERY member via spiderfy (none dropped/hidden)', () => {
     const r = lay(
       'map\npoi-labels all\npoi 0 0 as alphaone\npoi 0 0 as bravotwo\npoi 0 0 as charlie3\npoi 0 0 as deltafour'
     );
-    // No POI is dropped — all four keep a label.
+    // No member is dropped — all four keep a (cluster-member) label, visible.
     expect(r.labels).toHaveLength(4);
-    // Each is called out with a leader tinted to its own dot colour.
-    expect(
-      r.labels.every((l) => l.leader && typeof l.leaderColor === 'string')
-    ).toBe(true);
+    expect(r.labels.every((l) => l.clusterMember && !l.hidden)).toBe(true);
+    expect(r.clusters).toHaveLength(1);
+    expect(r.clusters[0]!.count).toBe(4);
   });
   it('labels carry a halo flag (AC16)', () => {
     expect(lay('map\npoi Tokyo').labels.every((l) => l.halo)).toBe(true);
@@ -650,11 +657,13 @@ describe('layout — POI label hover-only gate (extent/count/clean)', () => {
   const midLabels = (src: string) =>
     layUS(src).labels.filter((l) => /^mid\d/.test(l.text));
 
-  it('tight compact cluster → all labels visible, none hidden (AC2)', () => {
+  it('co-located dots spiderfy → all labels visible, none hidden (AC2)', () => {
     const r = lay(coLocated(3));
     expect(r.labels).toHaveLength(3);
     expect(r.labels.every((l) => !l.hidden)).toBe(true);
-    expect(r.labels.every((l) => l.leader)).toBe(true);
+    // Spiderfied members carry radial cluster-member labels (no leader column).
+    expect(r.labels.every((l) => l.clusterMember)).toBe(true);
+    expect(r.clusters).toHaveLength(1);
   });
 
   it('sprawling chain (diagonal > extent threshold) → all hover-only (AC1)', () => {
@@ -683,15 +692,21 @@ describe('layout — POI label hover-only gate (extent/count/clean)', () => {
     expect(mids.every((l) => l.leader)).toBe(true);
   });
 
-  it('count boundary: 7 compact rows shown, 8 hidden (AC3 — count guard)', () => {
-    // Extent is tiny in both (~25px) so only MAX_COLUMN_ROWS decides.
+  it('count guard governs distinct columns; co-located dots always spiderfy (AC3)', () => {
+    // Co-located dots spiderfy regardless of count — they never hit the hover-only
+    // count guard (it now governs only dense-but-DISTINCT proximity columns).
     const seven = lay(coLocated(MAX_COLUMN_ROWS)); // 7
-    expect(seven.labels).toHaveLength(7);
     expect(seven.labels.every((l) => !l.hidden)).toBe(true);
-    expect(seven.labels.every((l) => l.leader)).toBe(true);
+    expect(seven.clusters).toHaveLength(1);
     const eight = lay(coLocated(MAX_COLUMN_ROWS + 1)); // 8
-    expect(eight.labels).toHaveLength(8);
-    expect(eight.labels.every((l) => l.hidden)).toBe(true);
+    expect(eight.labels.every((l) => !l.hidden)).toBe(true);
+    expect(eight.clusters).toHaveLength(1);
+    // A dense-but-distinct compact chain still trips the count guard: a 7-row
+    // column shows; the 8th row tips the whole column to hover-only.
+    expect(midLabels(anchoredChain(0.6, 7)).every((l) => !l.hidden)).toBe(true);
+    const eightChain = midLabels(anchoredChain(0.6, 8));
+    expect(eightChain).toHaveLength(8);
+    expect(eightChain.every((l) => l.hidden)).toBe(true);
   });
 
   it('dense-but-compact cluster (≤7, tiny extent) → shown, proving extent ≠ count', () => {
@@ -728,6 +743,68 @@ describe('layout — POI label hover-only gate (extent/count/clean)', () => {
     expect(hub).toBeDefined();
     expect(hub.hidden).toBeFalsy();
     expect(hub.leader).toBeTruthy();
+  });
+});
+
+describe('layout — coincident-POI spiderfy (stacks)', () => {
+  it('overlapping dots form a stack; well-separated dots do not', () => {
+    // Same point → one stack.
+    expect(lay('map\npoi 0 0 as aa\npoi 0 0 as bb').clusters).toHaveLength(1);
+    // Far apart → no stack (each a singleton).
+    expect(
+      lay('map\npoi 35 -110 as alpha\npoi 42 -90 as bravo').clusters
+    ).toHaveLength(0);
+  });
+
+  it('edge/route endpoints are excluded from stacking (kept at true position)', () => {
+    // Two coincident POIs that anchor an edge are NOT collapsed.
+    const r = lay('map\npoi 0 0 as aa\npoi 0 0 as bb\naa -> bb');
+    expect(r.clusters).toHaveLength(0);
+    expect(r.pois.every((p) => p.clusterId === undefined)).toBe(true);
+  });
+
+  it('a large stack spiderfies every member to a distinct position (spiral)', () => {
+    const n = 10; // > STACK_RING_MAX → golden-angle spiral
+    const src =
+      'map\n' +
+      Array.from({ length: n }, (_, i) => `poi 0 0 as poi${i}long`).join('\n');
+    const r = lay(src);
+    expect(r.clusters).toHaveLength(1);
+    expect(r.clusters[0]!.count).toBe(n);
+    const keys = new Set(
+      r.pois.map((p) => `${p.cx.toFixed(3)},${p.cy.toFixed(3)}`)
+    );
+    expect(keys.size).toBe(n); // all distinct
+    // Every member is tagged with the same stack id; legs match member count.
+    expect(r.pois.every((p) => p.clusterId === r.clusters[0]!.id)).toBe(true);
+    expect(r.clusters[0]!.legs).toHaveLength(n);
+  });
+
+  it('off-canvas guard keeps every spiderfied member on-canvas', () => {
+    // A far anchor pushes the stack toward an edge; the fan must stay in-bounds.
+    const src =
+      'map\npoi 35 139 as anchor\n' +
+      Array.from({ length: 8 }, (_, i) => `poi 0 0 as poi${i}long`).join('\n');
+    const r = lay(src, 240, 180);
+    const members = r.pois.filter((p) => p.clusterId !== undefined);
+    expect(members.length).toBe(8);
+    for (const p of members) {
+      expect(p.cx - p.r).toBeGreaterThanOrEqual(0);
+      expect(p.cx + p.r).toBeLessThanOrEqual(240);
+      expect(p.cy - p.r).toBeGreaterThanOrEqual(0);
+      expect(p.cy + p.r).toBeLessThanOrEqual(180);
+    }
+  });
+
+  it('cluster legs originate at the centroid and reach each member dot', () => {
+    const r = lay('map\npoi 0 0 as aa\npoi 0 0 as bb\npoi 0 0 as cc');
+    const cl = r.clusters[0]!;
+    const members = r.pois.filter((p) => p.clusterId === cl.id);
+    for (const leg of cl.legs) {
+      expect(members.some((p) => p.cx === leg.x2 && p.cy === leg.y2)).toBe(
+        true
+      );
+    }
   });
 });
 

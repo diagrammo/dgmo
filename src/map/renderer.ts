@@ -487,6 +487,48 @@ export function renderMap(
     }
   });
 
+  // ── Coincident-stack spider legs + hub (under the dots) ──
+  // Legs + hub are DECORATIVE (`data-cluster-deco`, pointer-events none) — the app
+  // toggles only their opacity. Drawn VISIBLE so export + the no-JS default show
+  // the expanded fan. An invisible hit-area circle (interactive only) owns all
+  // pointer interaction so hover/click drives the spiderfy controller robustly.
+  const gSpider = svg.append('g').attr('class', 'dgmo-map-spider');
+  for (const cl of layout.clusters) {
+    // Pointer hit-area — bottom of the stack so member dots still take their own
+    // clicks (line-jump); clicks on the empty centre fall through to here.
+    if (!exportDims) {
+      gSpider
+        .append('circle')
+        .attr('cx', cl.cx)
+        .attr('cy', cl.cy)
+        .attr('r', cl.hitR)
+        .attr('fill', 'transparent')
+        .attr('data-cluster-hit', cl.id)
+        .style('cursor', 'pointer');
+    }
+    for (const leg of cl.legs) {
+      gSpider
+        .append('line')
+        .attr('x1', cl.cx)
+        .attr('y1', cl.cy)
+        .attr('x2', leg.x2)
+        .attr('y2', leg.y2)
+        .attr('stroke', leg.color)
+        .attr('stroke-width', 1)
+        .attr('data-cluster-deco', cl.id)
+        .style('pointer-events', 'none');
+    }
+    // Faint neutral hub anchoring the legs (RQ3).
+    gSpider
+      .append('circle')
+      .attr('cx', cl.cx)
+      .attr('cy', cl.cy)
+      .attr('r', 2)
+      .attr('fill', mix(palette.textMuted, palette.bg, 40))
+      .attr('data-cluster-deco', cl.id)
+      .style('pointer-events', 'none');
+  }
+
   // ── POIs ──
   const gPois = svg.append('g').attr('class', 'dgmo-map-pois');
   for (const poi of layout.pois) {
@@ -510,6 +552,9 @@ export function renderMap(
       .attr('stroke-width', 1)
       .attr('data-line-number', poi.lineNumber)
       .attr('data-poi', poi.id);
+    // Coincident-stack member: tag so the app hides it when collapsing the stack.
+    if (poi.clusterId !== undefined)
+      c.attr('data-cluster-member', poi.clusterId);
     // Tag the marker per tag value (lowercased, matching the lowercased
     // legend-entry attributes) so the app can spotlight it on legend hover.
     if (poi.tags) {
@@ -597,6 +642,55 @@ export function renderMap(
     // hover target (the app dims the other dots/labels on enter).
     if (lab.poiId !== undefined) {
       t.attr('data-poi', lab.poiId).style('cursor', 'default');
+    }
+    // Coincident-stack member label: hidden by the app when its stack collapses.
+    if (lab.clusterMember !== undefined) {
+      t.attr('data-cluster-member', lab.clusterMember);
+    }
+  }
+
+  // ── Coincident-stack badges (collapsed view). Interactive ONLY — a static
+  // export keeps the expanded fan (every label visible), so no badge there. A
+  // neutral dot ringed with the bare member count, emitted hidden; the app shows
+  // it at rest and hides it (revealing the spider) on click. ──
+  if (!exportDims && layout.clusters.length) {
+    const gBadge = svg.append('g').attr('class', 'dgmo-map-cluster-badges');
+    for (const cl of layout.clusters) {
+      // Decorative: the hit-area (drawn under the dots) owns hover + click; the
+      // badge just shows the count, so it never intercepts pointer events.
+      const g = gBadge
+        .append('g')
+        .attr('data-cluster', cl.id)
+        .style('opacity', 0)
+        .style('pointer-events', 'none');
+      const R = 9;
+      // Inner neutral disc + outer ring → reads as "more than one here" (RQ2).
+      g.append('circle')
+        .attr('cx', cl.cx)
+        .attr('cy', cl.cy)
+        .attr('r', R)
+        .attr('fill', mix(palette.textMuted, palette.bg, 35))
+        .attr('stroke', palette.textMuted)
+        .attr('stroke-width', 1);
+      g.append('circle')
+        .attr('cx', cl.cx)
+        .attr('cy', cl.cy)
+        .attr('r', R + 2.5)
+        .attr('fill', 'none')
+        .attr('stroke', palette.textMuted)
+        .attr('stroke-width', 1);
+      // Bare count (RQ1).
+      emitText(
+        g,
+        cl.cx,
+        cl.cy + 3,
+        String(cl.count),
+        'middle',
+        palette.text,
+        palette.bg,
+        false,
+        LABEL_FONT
+      );
     }
   }
 

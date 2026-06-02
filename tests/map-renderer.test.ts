@@ -367,43 +367,100 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
   });
 });
 
-describe('renderer — hover-only labels (preview emit vs export omit, AC1/AC8)', () => {
-  // 8 co-located POIs trip the count guard → the whole cluster is hover-only.
-  const HIDDEN_SRC =
+describe('renderer — coincident-stack spiderfy + hover-only (AC1/AC8)', () => {
+  // 8 co-located POIs collapse into ONE spiderfy stack.
+  const STACK_SRC =
     'map\npoi-labels all\n' +
     Array.from({ length: 8 }, (_, i) => `poi 0 0 as poi${i}long`).join('\n');
+  // A dense-but-DISTINCT compact chain (US corners anchor the fit) still goes
+  // hover-only — no stack, no badge.
+  const HOVER_SRC = [
+    'map',
+    'poi-labels all',
+    'poi 49 -124 as anchorNW',
+    'poi 26 -67 as anchorSE',
+    ...Array.from(
+      { length: 8 },
+      (_, i) => `poi ${38 + i * 0.6} ${-100 - i * 0.6} as mid${i}long`
+    ),
+  ].join('\n');
 
-  // Preview render: NO exportDims (param 7 undefined) — hover-only labels are
-  // emitted invisible so the app can reveal them. renderMap reads the container
-  // size when exportDims is absent; jsdom reports 0, so stub it.
-  function renderPreview(src: string): SVGSVGElement {
+  // US-only data so the hover-only chain fits locally (the shared DATA includes
+  // Japan, which compresses US POIs into an overlapping stack).
+  const US_ONLY = {
+    worldCoarse: rectTopo('countries', [
+      { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
+    ]),
+    worldDetail: rectTopo('countries', [
+      { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
+    ]),
+    usStates: rectTopo('states', []),
+    gazetteer: { cities: [], byName: {}, alt: {} },
+  } as unknown as MapData;
+
+  // Preview render: NO exportDims (param 7 undefined). renderMap reads the
+  // container size when exportDims is absent; jsdom reports 0, so stub it.
+  function renderPreview(src: string, data: MapData = DATA): SVGSVGElement {
     const el = document.createElement('div');
     Object.defineProperty(el, 'clientWidth', { value: 800 });
     Object.defineProperty(el, 'clientHeight', { value: 600 });
-    renderMap(el, resolveMap(parseMap(src), DATA), DATA, P, false, undefined);
+    renderMap(el, resolveMap(parseMap(src), data), data, P, false, undefined);
+    return el.querySelector('svg')!;
+  }
+  function renderExport(src: string, data: MapData): SVGSVGElement {
+    const el = document.createElement('div');
+    renderMap(
+      el,
+      resolveMap(parseMap(src), data),
+      data,
+      P,
+      false,
+      undefined,
+      DIMS
+    );
     return el.querySelector('svg')!;
   }
 
-  it('preview emits hover-only labels invisible (opacity 0 + data-poi-hidden, no leader)', () => {
-    const svg = renderPreview(HIDDEN_SRC);
-    const hidden = svg.querySelectorAll<SVGTextElement>('[data-poi-hidden]');
-    expect(hidden.length).toBe(8);
+  it('preview emits a hidden collapse badge + visible spiderfied members', () => {
+    const svg = renderPreview(STACK_SRC);
+    // One collapsed badge, hidden by default (the app reveals it at rest).
+    const badges = svg.querySelectorAll('[data-cluster]');
+    expect(badges.length).toBe(1);
+    expect((badges[0] as SVGGElement).style.opacity).toBe('0');
+    // All 8 member dots/labels/legs present and tagged for app collapse.
+    expect(
+      svg.querySelectorAll('[data-cluster-member]').length
+    ).toBeGreaterThanOrEqual(8);
+    // Members are spiderfied, NOT hover-only.
+    expect(svg.querySelectorAll('[data-poi-hidden]').length).toBe(0);
+  });
+
+  it('export shows every spiderfied label and NO collapse badge (AC8)', () => {
+    const svg = render(STACK_SRC);
+    expect(svg.querySelectorAll('[data-cluster]').length).toBe(0);
+    const memberLabels = svg.querySelectorAll(
+      '.dgmo-map-labels [data-cluster-member]'
+    );
+    expect(memberLabels.length).toBe(8);
+  });
+
+  it('dense-but-distinct chain stays hover-only: preview hides, export omits', () => {
+    const preview = renderPreview(HOVER_SRC, US_ONLY);
+    const hidden =
+      preview.querySelectorAll<SVGTextElement>('[data-poi-hidden]');
+    expect(hidden.length).toBe(8); // the 8 mid POIs
     for (const el of Array.from(hidden)) {
       expect(el.style.opacity).toBe('0');
       expect(el.style.pointerEvents).toBe('none');
-      // Tagged for spotlight, and no leader line accompanies a hover-only label.
       expect(el.getAttribute('data-poi')).toBeTruthy();
     }
-    // Hover-only labels carry no leader lines.
-    expect(svg.querySelectorAll('.dgmo-map-labels line').length).toBe(0);
-  });
-
-  it('export omits hover-only labels entirely (no data-poi-hidden nodes, AC8)', () => {
-    // The shared render() helper passes DIMS (export mode).
-    const svg = render(HIDDEN_SRC);
-    expect(svg.querySelectorAll('[data-poi-hidden]').length).toBe(0);
-    // And no stray label <text> for the hidden cluster leaked through.
-    expect(svg.querySelectorAll('.dgmo-map-labels text').length).toBe(0);
+    // No stack badge for a distinct chain.
+    expect(preview.querySelectorAll('[data-cluster]').length).toBe(0);
+    // Export omits hover-only labels entirely.
+    expect(
+      renderExport(HOVER_SRC, US_ONLY).querySelectorAll('[data-poi-hidden]')
+        .length
+    ).toBe(0);
   });
 });
 
