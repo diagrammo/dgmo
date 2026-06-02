@@ -74,19 +74,19 @@ const RIVER_WIDTH = 1.3; // px stroke width for river lines
 const RELIEF_MIN_AREA = 12; // px²
 // Each projected bbox side must clear this — drop near-degenerate slivers.
 const RELIEF_MIN_DIM = 2; // px
-// Relief = horizontal hachure lines clipped to each range: a distinct
+// Relief = horizontal hachure lines clipped to each range: a subtle
 // dark-on-light / light-on-dark texture that reads as "mountains here". Spacing
 // is SCREEN-space so density is constant regardless of zoom (geo-space spacing
-// would collapse a small range to 1–2 lines and read as a glitch). Tight + thin:
-// the renderer draws these crisp (shape-rendering=crispEdges) with a non-scaling
-// stroke so every line snaps to the same device-pixel coverage — no AA-driven
-// thickness variance or moire as the SVG is scaled / re-rasterised at any DPR.
+// would collapse a small range to 1–2 lines and read as a glitch). Kept FAINT:
+// thin sub-pixel lines drawn with a non-scaling stroke (constant device width at
+// any zoom/DPR) and low-contrast colour. NOT crispEdges — that snaps the stroke
+// to a solid ~1px in WebKit and reads far too heavy; plain AA keeps them whisper-thin.
 const RELIEF_HATCH_SPACING = 3; // px between lines
 const RELIEF_HATCH_WIDTH = 0.25; // px stroke
 // % of the DARK reference (palette.bg on dark themes, palette.text on light)
 // blended into the land colour — so the lines read DARKER than the land in both
 // themes (palette.text alone flips to light on dark themes).
-const RELIEF_HATCH_STRENGTH = 55;
+const RELIEF_HATCH_STRENGTH = 32;
 // % palette-gray of bg for non-US neighbour land. Higher on dark so it reads as
 // a clear gray rather than sinking into the dark background.
 const FOREIGN_TINT_LIGHT = 30;
@@ -139,6 +139,24 @@ export interface MapLayoutInset {
   readonly w: number;
   readonly h: number;
   readonly points: ReadonlyArray<readonly [number, number]>;
+  /** The FITTED inset projection (fit to this frame's screen box inside
+   *  `placeInset`). Load-bearing for pixel↔lonLat over the AK/HI insets: the
+   *  un-fitted `alaskaProjection()`/`hawaiiProjection()` factories would invert
+   *  to garbage, so the geo-query inverts against THIS instance. */
+  readonly projection: GeoProjection;
+}
+
+/** Post-projection non-uniform stretch applied to GLOBAL fits (fill-the-canvas).
+ *  `null` for regional fits. The geo-query applies the forward form when
+ *  projecting and the inverse before `projection.invert`. Mirrors the `stretch`
+ *  closure used for the path stream:  px = ox + (x - bx0) * sx. */
+export interface MapLayoutStretch {
+  readonly sx: number;
+  readonly sy: number;
+  readonly ox: number;
+  readonly oy: number;
+  readonly bx0: number;
+  readonly by0: number;
 }
 
 export interface MapLayoutPoi {
@@ -254,6 +272,12 @@ export interface MapLayout {
   /** AK/HI region paths drawn inside the inset boxes (foreground, over an
    *  opaque ocean fill). Paired positionally with `insets`. */
   readonly insetRegions: readonly MapLayoutRegion[];
+  /** The fitted MAIN projection (the conus conic for albers-usa). Exposed for
+   *  the geo-query's pixel↔lonLat inversion — the app NEVER reconstructs it from
+   *  metadata; it binds to this exact instance. */
+  readonly projection: GeoProjection;
+  /** Non-uniform stretch applied for GLOBAL fits (null for regional fits). */
+  readonly stretch: MapLayoutStretch | null;
 }
 
 export interface LayoutOptions {
@@ -661,6 +685,8 @@ export function layoutMap(
     fitGB[1][0] - fitGB[0][0] >= 270 || fitGB[1][1] - fitGB[0][1] >= 130;
   let path: GeoPath;
   let project: (lon: number, lat: number) => [number, number] | null;
+  // Captured for the geo-query (null unless this is a global stretch fit).
+  let stretchParams: MapLayoutStretch | null = null;
   if (fitIsGlobal) {
     const cb = geoPath(projection).bounds(fitTarget as never);
     const bx0 = cb[0][0];
@@ -671,6 +697,7 @@ export function layoutMap(
     const oy = fitBox[0][1];
     const sx = cw > 0 ? (fitBox[1][0] - ox) / cw : 1;
     const sy = ch > 0 ? (fitBox[1][1] - oy) / ch : 1;
+    stretchParams = { sx, sy, ox, oy, bx0, by0 };
     const stretch = (x: number, y: number): [number, number] => [
       ox + (x - bx0) * sx,
       oy + (y - by0) * sy,
@@ -840,6 +867,9 @@ export function layoutMap(
           [xr, bottom],
           [x0, bottom],
         ],
+        // The FITTED inset projection (just fit to this box) — captured so the
+        // geo-query can invert pixels inside the frame back to AK/HI coords.
+        projection: proj,
       });
       insetRegions.push({
         id: iso,
@@ -1749,5 +1779,7 @@ export function layoutMap(
     legend,
     insets,
     insetRegions,
+    projection,
+    stretch: stretchParams,
   };
 }

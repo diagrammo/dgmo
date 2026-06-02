@@ -132,10 +132,9 @@ export function renderMap(
   // regions, so the relief texture sits ATOP the choropleth/tag fills (a range
   // crossing a valued state still reads as mountains there). It stays below
   // rivers, POIs, and labels. Explicit <line>s in a <clipPath> (not a tiled
-  // <pattern>) dodge WKWebView/resvg pattern quirks. crispEdges + a non-scaling
-  // stroke snap every line to identical device-pixel coverage — uniform
-  // thickness with no moire as the SVG is scaled / re-rasterised. Decorative —
-  // no data attrs.
+  // <pattern>) dodge WKWebView/resvg pattern quirks. A non-scaling stroke keeps
+  // the width constant in device px at any zoom/DPR (uniform, no moire); kept
+  // sub-pixel + low-contrast so the texture stays faint. Decorative — no data attrs.
   if (layout.relief.length && layout.reliefHatch) {
     const h = layout.reliefHatch;
     const rangeClipId = 'dgmo-relief-clip';
@@ -153,7 +152,9 @@ export function renderMap(
       .attr('clip-path', `url(#${rangeClipId})`) // inner: ∩ ranges
       .attr('stroke', h.color)
       .attr('stroke-width', h.width)
-      .attr('shape-rendering', 'crispEdges')
+      // Non-scaling stroke = constant device width at any zoom/DPR (uniform,
+      // no moire). NOT crispEdges — that snaps to a solid ~1px in WebKit and
+      // reads far too heavy; plain AA keeps the sub-pixel lines whisper-thin.
       .attr('vector-effect', 'non-scaling-stroke');
     for (let y = h.spacing; y < height; y += h.spacing) {
       gRelief
