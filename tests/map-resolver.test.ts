@@ -270,6 +270,42 @@ describe('resolver — edges & routes (AC10-12, AC23)', () => {
   });
 });
 
+describe('resolver — surface cascade (AC4, §24B.6)', () => {
+  it('route-header surface cascades to every leg (baked at parse time)', () => {
+    const r = resolve(
+      'map\nroute Tokyo surface: water\n  -> Osaka\n  -> Tokyo'
+    );
+    expect(r.routes[0]!.legs.map((l) => l.surface)).toEqual(['water', 'water']);
+    expect(r.routes[0]!.legs.every((l) => l.style === 'arc')).toBe(true);
+  });
+  it('per-leg surface overrides the route-header default (narrower wins)', () => {
+    const r = resolve(
+      'map\nroute Tokyo surface: water\n  -> Osaka\n  -> Tokyo surface: land'
+    );
+    expect(r.routes[0]!.legs.map((l) => l.surface)).toEqual(['water', 'land']);
+  });
+  it('map-level directive fills unset legs/edges (resolver fallback)', () => {
+    const r = resolve(
+      'map\nsurface water\nroute Tokyo\n  -> Osaka\nTokyo -> Osaka'
+    );
+    expect(r.routes[0]!.legs[0]!.surface).toBe('water');
+    expect(r.edges[0]!.surface).toBe('water');
+  });
+  it('three-level cascade: directive + route default + leg override (ADR-4)', () => {
+    const r = resolve(
+      'map\nsurface water\nroute Tokyo\n  -> Osaka\n  -> Tokyo surface: land'
+    );
+    // route has no surface → legs inherit the map directive (water), except the
+    // overridden final leg (land).
+    expect(r.routes[0]!.legs.map((l) => l.surface)).toEqual(['water', 'land']);
+  });
+  it('edge surface implies arc, even when inherited from the directive', () => {
+    const r = resolve('map\nsurface water\nTokyo -> Osaka');
+    expect(r.edges[0]!.surface).toBe('water');
+    expect(r.edges[0]!.style).toBe('arc');
+  });
+});
+
 describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
   it('world-only → no subdivisions (AC13)', () => {
     const r = resolve('map\nUnited States m: HQ\ntag M as m\n  HQ blue');

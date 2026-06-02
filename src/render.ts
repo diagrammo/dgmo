@@ -142,15 +142,39 @@ export async function render(
   // loadMapData is memoized (renderForExport already loaded it) — no double read.
   if (chartType === 'map') {
     try {
-      const [{ parseMap }, { resolveMap }, { loadMapData }] = await Promise.all(
-        [
+      const [{ parseMap }, { resolveMap }, { loadMapData }, { layoutMap }] =
+        await Promise.all([
           import('./map/parser'),
           import('./map/resolver'),
           import('./map/load-data'),
-        ]
-      );
+          import('./map/layout'),
+        ]);
       const data = await loadMapData();
-      diagnostics = [...resolveMap(parseMap(content), data).diagnostics];
+      const resolvedMap = resolveMap(parseMap(content), data);
+      // Layout-time, dimension-dependent diagnostics (best-effort surface-route
+      // warnings) live on the MapLayout, not the ResolvedMap. Run the layout at
+      // the SAME export dimensions the renderer used (d3.ts EXPORT_WIDTH/HEIGHT)
+      // so the diagnostics match what was drawn, then merge (deduped).
+      let layoutDiags: DgmoError[] = [];
+      try {
+        layoutDiags = [
+          ...layoutMap(
+            resolvedMap,
+            data,
+            { width: 1200, height: 800 },
+            { palette: paletteColors, isDark: theme === 'dark' }
+          ).diagnostics,
+        ];
+      } catch {
+        /* layout failed → keep resolver diagnostics only */
+      }
+      const seen = new Set<string>();
+      diagnostics = [...resolvedMap.diagnostics, ...layoutDiags].filter((d) => {
+        const key = `${d.code}|${d.line}|${d.message}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
     } catch {
       /* asset load failed — keep the parser diagnostics */
     }

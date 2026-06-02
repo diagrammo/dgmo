@@ -421,6 +421,37 @@ describe('parseMap — adversarial-review fixes', () => {
   });
 });
 
+describe('parseMap — surface constraint (AC5, AC6, §24B.6)', () => {
+  it('map-level surface directive parsed (water | land)', () => {
+    expect(parseMap('map\nsurface water').directives.surface).toBe('water');
+    expect(parseMap('map\nsurface land').directives.surface).toBe('land');
+  });
+  it('invalid surface value warns and is not recorded', () => {
+    const r = parseMap('map\nsurface lava');
+    expect(r.directives.surface).toBeUndefined();
+    expect(r.diagnostics.some((d) => /surface/i.test(d.message))).toBe(true);
+  });
+  it('route-header surface bakes into legs and implies arc (AC5/F9)', () => {
+    const r = parseMap('map\nroute Tokyo surface: water\n  -> Osaka');
+    expect(r.routes[0]!.surface).toBe('water');
+    expect(r.routes[0]!.legs[0]!.surface).toBe('water');
+    expect(r.routes[0]!.style).toBe('arc');
+    expect(r.routes[0]!.legs[0]!.style).toBe('arc');
+  });
+  it('leg-level surface overrides the route default', () => {
+    const r = parseMap(
+      'map\nroute Tokyo surface: water\n  -> Osaka\n  -> Kyoto surface: land'
+    );
+    expect(r.routes[0]!.legs.map((l) => l.surface)).toEqual(['water', 'land']);
+  });
+  it('edge trailing surface attaches to the final hop only + implies arc (AC6/F4)', () => {
+    const r = parseMap('map\nA -> B -> C surface: water');
+    expect(r.edges[0]!.surface).toBeUndefined();
+    expect(r.edges[1]!.surface).toBe('water');
+    expect(r.edges[1]!.style).toBe('arc');
+  });
+});
+
 describe('parseMap — classification & robustness (AC16, AC18, AC19, AC21)', () => {
   it('bare line is a region, not a POI; poi keyword is load-bearing (AC16)', () => {
     const r = parseMap('map\nGermany');

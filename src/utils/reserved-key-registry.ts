@@ -85,6 +85,9 @@ export const MAP_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'value',
   'label',
   'style',
+  // Best-effort route/edge surface constraint (§24B.6): `surface: water|land` on
+  // a route header (cascades to legs), a leg, or the trailing meta of an edge.
+  'surface',
 ]);
 
 export const ORG_REGISTRY: ReservedKeyRegistry = staticRegistry([

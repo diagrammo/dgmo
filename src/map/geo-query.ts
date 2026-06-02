@@ -21,6 +21,7 @@ import type { DecodedFeature } from './geo';
 import { pixelToLonLat, lonLatToPixel } from './invert';
 import type { MapData, GeoExtent } from './resolved-types';
 import type { Gazetteer } from './data/types';
+import type { DgmoError } from '../diagnostics';
 
 /** Nearest gazetteer city to a point: the real haversine distance, plus the
  *  canonical name + ISO + (US-only) subdivision for token shaping. `lon`/`lat`
@@ -89,6 +90,10 @@ export interface MapGeoQuery {
   locate(px: number, py: number): ResultCard | null;
   /** Culled + projected cities for the all-cities layer (population-primary). */
   cities(extent?: GeoExtent): ProjectedCity[];
+  /** Layout-time diagnostics (e.g. best-effort surface-route warnings). These are
+   *  dimension-dependent, so they live on the geo-query (bound to the rendered
+   *  layout) rather than the resolver. Callers merge them with `resolved.diagnostics`. */
+  readonly diagnostics: readonly DgmoError[];
 }
 
 export interface CreateMapGeoQueryOptions {
@@ -279,5 +284,5 @@ export function createMapGeoQuery(opts: CreateMapGeoQueryOptions): MapGeoQuery {
     return out;
   };
 
-  return { invert, project, locate, cities };
+  return { invert, project, locate, cities, diagnostics: layout.diagnostics };
 }

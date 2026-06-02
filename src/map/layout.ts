@@ -28,6 +28,8 @@ import {
 import type { LabelRect, PointCircle } from '../label-layout';
 import { measureLegendText } from '../utils/legend-constants';
 import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
+import { makeDgmoError } from '../diagnostics';
+import type { DgmoError } from '../diagnostics';
 import type { BoundaryTopology } from './data/types';
 import type {
   MapData,
@@ -36,6 +38,8 @@ import type {
   ResolvedEdge,
   ProjectionFamily,
 } from './resolved-types';
+import { resolveSurfaceBow } from './surface-route';
+import type { DecodedFeature } from './geo';
 
 // Minimal GeoJSON shapes (avoid a hard @types/geojson dep; cast at d3 calls).
 interface GeoFeature {
@@ -280,6 +284,10 @@ export interface MapLayout {
   readonly projection: GeoProjection;
   /** Non-uniform stretch applied for GLOBAL fits (null for regional fits). */
   readonly stretch: MapLayoutStretch | null;
+  /** Diagnostics raised during layout — currently only best-effort surface-route
+   *  warnings (W_MAP_SURFACE_UNSATISFIED). Empty when nothing fired. Callers
+   *  merge these with the resolver's diagnostics for the editor lint channel. */
+  readonly diagnostics: readonly DgmoError[];
 }
 
 export interface LayoutOptions {
@@ -1406,6 +1414,83 @@ export function layoutMap(
     const t = rlMax > rlMin ? (v - rlMin) / (rlMax - rlMin) : 1;
     return W_MIN + t * (W_MAX - W_MIN);
   };
+  // -- Surface-route avoidance (§24B.6) shared setup --
+  // Best-effort land/water-avoiding bow for legs/edges that set `surface:`. The
+  // helper samples in geo space (it needs each endpoint's lon/lat + the decoded
+  // country land), forward-projects through the SAME `project` closure used for
+  // POIs (F1), and returns a single screen-space `offset` for `legPath`.
+  const surfaceDiagnostics: DgmoError[] = [];
+  const poiLonLat = new Map<string, [number, number]>();
+  for (const p of resolved.pois) poiLonLat.set(p.id, [p.lon, p.lat]);
+  // Country polygons = land; open ocean is outside them all (v1; lakes deferred).
+  const landFeatures = [...worldLayer.values()] as unknown as DecodedFeature[];
+  // F7: albers-usa composes non-geographic AK/HI gutters, so a geo-space bow test
+  // is nonsensical there — disable surface mode (with a diagnostic) in v1.
+  const surfaceDisabled = resolved.projection === 'albers-usa';
+  // The albers-usa skip applies to the whole map for the same reason, so emit
+  // that warning ONCE (on the first surface leg) rather than once per leg.
+  let albersWarned = false;
+  /** Resolve a leg/edge's `surface` into legPath bow params (+ label apex). */
+  const resolveLegSurface = (
+    surface: 'water' | 'land',
+    a: { cx: number; cy: number },
+    b: { cx: number; cy: number },
+    fromId: string,
+    toId: string,
+    fanDelta: number,
+    lineNumber: number,
+    fallback: {
+      curved: boolean;
+      offset: number;
+      labelX: number;
+      labelY: number;
+    }
+  ): { curved: boolean; offset: number; labelX: number; labelY: number } => {
+    if (surfaceDisabled) {
+      if (!albersWarned) {
+        albersWarned = true;
+        surfaceDiagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            `surface: ${surface} is not supported under the albers-usa projection (non-geographic insets) — drawn as a plain arc.`,
+            'warning',
+            'W_MAP_SURFACE_UNSATISFIED'
+          )
+        );
+      }
+      return fallback;
+    }
+    const lonLatA = poiLonLat.get(fromId);
+    const lonLatB = poiLonLat.get(toId);
+    if (!lonLatA || !lonLatB) return fallback;
+    const r = resolveSurfaceBow({
+      a,
+      b,
+      lonLatA,
+      lonLatB,
+      surface,
+      project,
+      landFeatures,
+      fanDelta,
+      lineNumber,
+    });
+    if (r.diagnostic)
+      surfaceDiagnostics.push(
+        makeDgmoError(
+          r.diagnostic.line,
+          r.diagnostic.message,
+          'warning',
+          r.diagnostic.code
+        )
+      );
+    return {
+      curved: r.curved,
+      offset: r.offset,
+      labelX: r.apex[0],
+      labelY: r.apex[1] - 4,
+    };
+  };
+
   for (const rt of resolved.routes) {
     for (const leg of rt.legs) {
       const a = poiScreen.get(leg.fromId);
@@ -1413,16 +1498,33 @@ export function layoutMap(
       if (!a || !b) continue;
       const mx = (a.cx + b.cx) / 2;
       const my = (a.cy + b.cy) / 2;
+      let bow = {
+        curved: leg.style === 'arc',
+        offset: 0,
+        labelX: mx,
+        labelY: my - 4,
+      };
+      if (leg.surface)
+        bow = resolveLegSurface(
+          leg.surface,
+          a,
+          b,
+          leg.fromId,
+          leg.toId,
+          0,
+          leg.lineNumber,
+          bow
+        );
       legs.push({
-        d: legPath(a, b, leg.style === 'arc', 0),
+        d: legPath(a, b, bow.curved, bow.offset),
         width: routeWidthFor(Number(leg.value)),
         color: mix(palette.text, palette.bg, 72),
         arrow: true,
         lineNumber: leg.lineNumber,
         ...(leg.label !== undefined && {
           label: leg.label,
-          labelX: mx,
-          labelY: my - 4,
+          labelX: bow.labelX,
+          labelY: bow.labelY,
         }),
       });
     }
@@ -1454,20 +1556,37 @@ export function layoutMap(
       const a = poiScreen.get(e.fromId);
       const b = poiScreen.get(e.toId);
       if (!a || !b) return;
-      const curved = e.style === 'arc' || n > 1;
-      const offset = n > 1 ? (i - (n - 1) / 2) * FAN_STEP : 0;
+      const fanOffset = n > 1 ? (i - (n - 1) / 2) * FAN_STEP : 0;
       const mx = (a.cx + b.cx) / 2;
       const my = (a.cy + b.cy) / 2;
+      let bow = {
+        curved: e.style === 'arc' || n > 1,
+        offset: fanOffset,
+        labelX: mx,
+        labelY: my - 4,
+      };
+      if (e.surface)
+        // Pass the fan offset as fanDelta so parallel surface edges stay spread (F12).
+        bow = resolveLegSurface(
+          e.surface,
+          a,
+          b,
+          e.fromId,
+          e.toId,
+          fanOffset,
+          e.lineNumber,
+          bow
+        );
       legs.push({
-        d: legPath(a, b, curved, offset),
+        d: legPath(a, b, bow.curved, bow.offset),
         width: widthFor(e),
         color: mix(palette.text, palette.bg, 66),
         arrow: e.directed,
         lineNumber: e.lineNumber,
         ...(e.label !== undefined && {
           label: e.label,
-          labelX: mx,
-          labelY: my - 4,
+          labelX: bow.labelX,
+          labelY: bow.labelY,
         }),
       });
     });
@@ -1824,5 +1943,6 @@ export function layoutMap(
     insetRegions,
     projection,
     stretch: stretchParams,
+    diagnostics: surfaceDiagnostics,
   };
 }

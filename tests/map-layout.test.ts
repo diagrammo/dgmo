@@ -425,6 +425,57 @@ describe('layout — routes & edges (AC9, AC10, AC11, AC12, AC28)', () => {
   });
 });
 
+describe('layout — surface-route avoidance (§24B.6)', () => {
+  it('opt-out: no surface anywhere → no surface path, deterministic (AC3/P6)', () => {
+    const r = lay('map\nroute Tokyo\n  -> Osaka');
+    // Plain straight leg (no surface code path engaged).
+    expect(r.legs[0]!.d).toMatch(/^M[\d.,-]+L[\d.,-]+$/);
+    expect(r.legs[0]!.d).not.toMatch(/Q/);
+    // No surface diagnostics, and byte-identical across runs.
+    expect(r.diagnostics).toHaveLength(0);
+    expect(JSON.stringify(lay('map\nroute Tokyo\n  -> Osaka'))).toBe(
+      JSON.stringify(lay('map\nroute Tokyo\n  -> Osaka'))
+    );
+  });
+  it('surface: water leg is drawn as an arc (F9 implies arc)', () => {
+    const r = lay('map\nroute Tokyo surface: water\n  -> Osaka');
+    expect(r.legs[0]!.d).toMatch(/Q/);
+  });
+  it('determinism: identical surface input → byte-identical legs (AC9)', () => {
+    const src = 'map\nroute Tokyo surface: water\n  -> Osaka';
+    expect(JSON.stringify(lay(src).legs)).toBe(JSON.stringify(lay(src).legs));
+  });
+  it('unsatisfiable water leg over land → smallest-deviation + diagnostic (AC7)', () => {
+    // Tokyo→Osaka both sit inside the Japan land rect → no bow clears.
+    const r = lay('map\nroute Tokyo surface: water\n  -> Osaka');
+    expect(r.legs[0]!.d).toMatch(/Q/); // still drawn (closest arc)
+    expect(
+      r.diagnostics.some((d) => d.code === 'W_MAP_SURFACE_UNSATISFIED')
+    ).toBe(true);
+  });
+  it('parallel surface edges fan out to distinct arcs (AC11/F12)', () => {
+    const r = lay(
+      'map\npoi Tokyo\npoi Osaka\nTokyo -> Osaka surface: water\nOsaka -> Tokyo surface: water'
+    );
+    expect(r.legs).toHaveLength(2);
+    expect(r.legs[0]!.d).toMatch(/Q/);
+    expect(r.legs[1]!.d).toMatch(/Q/);
+    expect(r.legs[0]!.d).not.toBe(r.legs[1]!.d);
+  });
+  it('albers-usa projection guard: surface skipped with a diagnostic (AC12/F7)', () => {
+    const r = lay(
+      'map\nprojection albers-usa\npoi 40 -100 as x\npoi 45 -110 as y\nx -> y surface: water'
+    );
+    expect(
+      r.diagnostics.some(
+        (d) =>
+          d.code === 'W_MAP_SURFACE_UNSATISFIED' && /albers-usa/.test(d.message)
+      )
+    ).toBe(true);
+    expect(r.legs).toHaveLength(1); // still drawn
+  });
+});
+
 describe('layout — labels & legend (AC13, AC14, AC15, AC16, AC17)', () => {
   it('region labels off by default, on with full (AC13)', () => {
     expect(
