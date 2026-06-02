@@ -299,6 +299,11 @@ export interface LayoutOptions {
    *  selects the choropleth ramp, a tag-group name selects that group, `'none'`
    *  / `null` clears it. `undefined` = not provided (use the directive/default). */
   readonly activeGroup?: string | null;
+  /** Export-only: when true, suppress the global stretch-fill and contain-fit
+   *  (letterbox) instead. Set by `mapExportDimensions` when it clamps/floors the
+   *  canvas away from the content aspect, so the off-aspect canvas doesn't
+   *  re-distort. The in-app preview pane leaves this unset (keeps stretch-fill). */
+  readonly preferContain?: boolean;
 }
 
 interface Size {
@@ -314,13 +319,27 @@ function geomObject(topo: BoundaryTopology): {
   return topo.objects[key]!;
 }
 
-/** Decode every feature of a topology into GeoJSON, keyed by ISO id. */
+// Cache the (expensive) topojson→GeoJSON decode by topology object identity. The
+// MapData topology objects are stable within a session, so the same layer is
+// decoded once even though the export path now builds the projection twice (once
+// for dimension sizing, once for layout). Keyed by object identity (WeakMap), so
+// it never holds stale data across a data reload. CALLERS MUST TREAT THE RESULT AS
+// IMMUTABLE — `buildMapProjection` copies the world layer before its crisp-upgrade
+// `.set()` so the cached map is never mutated.
+const decodeCache = new WeakMap<BoundaryTopology, Map<string, GeoFeature>>();
+
+/** Decode every feature of a topology into GeoJSON, keyed by ISO id. Memoized by
+ *  topology identity — the returned map is shared, so do NOT mutate it (copy first
+ *  if you need to). */
 function decodeLayer(topo: BoundaryTopology): Map<string, GeoFeature> {
+  const cached = decodeCache.get(topo);
+  if (cached) return cached;
   const out = new Map<string, GeoFeature>();
   for (const g of geomObject(topo).geometries) {
     const f = feature(topo as never, g as never) as unknown as GeoFeature;
     out.set(g.id, { ...f, id: g.id });
   }
+  decodeCache.set(topo, out);
   return out;
 }
 
@@ -411,15 +430,34 @@ export function mapNeutralLandColor(
   );
 }
 
-export function layoutMap(
-  resolved: ResolvedMap,
-  data: MapData,
-  size: Size,
-  opts: LayoutOptions
-): MapLayout {
-  const { palette, isDark } = opts;
-  const { width, height } = size;
+/** Result of {@link buildMapProjection}: the (fresh, un-fitted) projection, fit
+ *  target, global/regional classification, and decoded basemap layers — all
+ *  derived from `(resolved, data)` alone (NOT canvas-size dependent). `layoutMap`
+ *  consumes these then does the size-dependent `fitExtent` + stretch/clip;
+ *  `mapContentAspect` consumes `projection`/`fitTarget` (+ the layers, for the
+ *  contain-fit ink bounds). MUST be rebuilt per call — d3 projections are mutated
+ *  in place by `fitExtent`/`clipExtent`, so the instance is never shared. */
+export interface MapProjectionBuild {
+  readonly projection: GeoProjection;
+  readonly fitTarget: GeoFC;
+  /** ≥270° lon or ≥130° lat span ⇒ global (stretch-fill) vs regional (contain). */
+  readonly fitIsGlobal: boolean;
+  readonly worldLayer: Map<string, GeoFeature>;
+  readonly usLayer: Map<string, GeoFeature> | null;
+  readonly usCrisp: boolean;
+  readonly wantsUsStates: boolean;
+}
 
+/** Build the projection, fit target, and decoded basemap layers for a resolved
+ *  map. Extracted from `layoutMap` so the export-dimension helper
+ *  (`mapContentAspect`) frames the canvas with the IDENTICAL projection + fit
+ *  target the renderer draws with — divergence here would mismatch the canvas
+ *  aspect against the geometry. The returned projection has `.rotate` applied but
+ *  NOT `.fitExtent` (that is canvas-size dependent and stays in `layoutMap`). */
+export function buildMapProjection(
+  resolved: ResolvedMap,
+  data: MapData
+): MapProjectionBuild {
   // -- Basemap decode --
   const wantsUsStates = resolved.basemaps.subdivisions.includes('us-states');
   // In a US (albers-usa + us-states) view the surrounding land was world-atlas
@@ -430,23 +468,18 @@ export function layoutMap(
     resolved.projection === 'albers-usa' && wantsUsStates && !!data.naLand;
   // Base world layer. In a US view use the DETAIL tier (full global coverage) so
   // distant context — South America, northern Canada, etc. — is present and can
-  // draw when it falls inside the frame. (`naLand` alone is bbox-clipped to lon
-  // -140..-52 / lat 10..66, so it has no S. America and a truncated Canada; using
-  // it as the base would leave ocean where that land belongs.)
+  // draw when it falls inside the frame.
   const worldTopo = usCrisp
     ? data.worldDetail
     : resolved.basemaps.world === 'detail'
       ? data.worldDetail
       : data.worldCoarse;
-  const worldLayer = decodeLayer(worldTopo);
-  // Crisp upgrade: `naLand` is 10m country land (vs the base's 50m) but clipped to
-  // a North-America bbox. Swap a country's geometry to the crisp version ONLY when
-  // its full (base) bounds lie inside that clip box — so contained neighbours
-  // (Mexico, Central America, the Caribbean) sharpen to match the 10m states,
-  // while countries the clip would truncate (Canada, Greenland) keep their full
-  // base shape. Coast off-frame still bleeds; nothing is lost.
+  // Copy the cached decode — the crisp-upgrade below mutates `worldLayer` via
+  // `.set()`, which must not poison the shared `decodeLayer` cache.
+  const worldLayer = new Map(decodeLayer(worldTopo));
+  // Crisp upgrade: swap a country's geometry to the 10m `naLand` version ONLY
+  // when its full (base) bounds lie inside the NA clip box.
   if (usCrisp && data.naLand) {
-    // NA clip bbox from the data build (scripts/build-map-data.mjs NA_BBOX).
     const [nbW, nbS, nbE, nbN] = [-140, 10, -52, 66];
     const crisp = decodeLayer(data.naLand);
     for (const [iso, cf] of crisp) {
@@ -458,6 +491,84 @@ export function layoutMap(
     }
   }
   const usLayer = wantsUsStates ? decodeLayer(data.usStates) : null;
+
+  // -- Projection + fit (AR2) --
+  // The extent outline sampled as a MultiPoint (NOT a Polygon — a hand-built
+  // lat/lon rectangle's spherical winding is ambiguous to d3-geo). Sampled ALONG
+  // the four edges so a curved projection (natural-earth) is framed at its bulge.
+  const extentOutline = (): GeoFeature => {
+    const [[w, s], [e, n]] = resolved.extent;
+    const N = 16;
+    const coords: Array<[number, number]> = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const lon = w + (e - w) * t;
+      const lat = s + (n - s) * t;
+      coords.push([lon, s], [lon, n], [w, lat], [e, lat]);
+    }
+    return {
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'MultiPoint', coordinates: coords },
+    };
+  };
+
+  let fitFeatures: GeoFeature[];
+  if (resolved.projection === 'albers-usa' && usLayer) {
+    // Frame the contiguous 48 + DC (insets/territories excluded). The conic
+    // projects everything else around it, bleeding off the canvas edges.
+    fitFeatures = [...usLayer.entries()]
+      .filter(([iso]) => !US_NON_CONUS.has(iso))
+      .map(([, f]) => f);
+  } else {
+    fitFeatures = [extentOutline()];
+  }
+  const fitTarget: GeoFC = { type: 'FeatureCollection', features: fitFeatures };
+
+  const projection = projectionFor(resolved.projection);
+  // mercator / natural-earth: rotate to the extent's center longitude BEFORE
+  // fitting (rotate changes the bounds fitExtent measures). albers-usa is a
+  // US-only composite with NO .rotate -- never call it (AR2).
+  if (resolved.projection !== 'albers-usa') {
+    let centerLon = (resolved.extent[0][0] + resolved.extent[1][0]) / 2;
+    if (centerLon > 180) centerLon -= 360;
+    projection.rotate([-centerLon, 0]);
+  }
+
+  // Global vs regional classification (drives stretch-fill vs contain-fit).
+  const fitGB = geoBounds(fitTarget as never) as [
+    [number, number],
+    [number, number],
+  ];
+  const fitIsGlobal =
+    fitGB[1][0] - fitGB[0][0] >= 270 || fitGB[1][1] - fitGB[0][1] >= 130;
+
+  return {
+    projection,
+    fitTarget,
+    fitIsGlobal,
+    worldLayer,
+    usLayer,
+    usCrisp,
+    wantsUsStates,
+  };
+}
+
+export function layoutMap(
+  resolved: ResolvedMap,
+  data: MapData,
+  size: Size,
+  opts: LayoutOptions
+): MapLayout {
+  const { palette, isDark } = opts;
+  const { width, height } = size;
+
+  // -- Projection, fit target & basemap decode (shared with mapContentAspect so
+  // the export canvas aspect matches the drawn geometry — see buildMapProjection).
+  // The projection here has .rotate applied but NOT .fitExtent (done below, as it
+  // depends on canvas width/height). --
+  const { projection, fitTarget, fitIsGlobal, worldLayer, usLayer, usCrisp } =
+    buildMapProjection(resolved, data);
 
   const usContext = usLayer !== null;
   // Basemap fills (`water` / `neutralFill` / `foreignFill`) depend on whether a
@@ -617,62 +728,8 @@ export function layoutMap(
 
   const regionById = new Map(resolved.regions.map((r) => [r.iso, r]));
 
-  // -- Projection + fit (AR2, refined) --
-  // For world projections we fit to the resolver's (padded, never-degenerate)
-  // extent box — fitting to raw drawn points would collapse to a zero-size
-  // target (single/coincident POIs → Infinity scale → NaN). albers-usa fits to
-  // its own conus features (below).
-  //
-  // The extent outline sampled as a MultiPoint — NOT a Polygon. A hand-built
-  // lat/lon rectangle's spherical winding is ambiguous to d3-geo, which can
-  // read it as the whole-globe complement (→ tiny content framed on a world
-  // map). Points have no interior/winding ambiguity, so fitExtent frames the
-  // box exactly. We sample ALONG the four edges (not just the corners) because
-  // a curved projection (natural-earth) bulges between corners — its widest x
-  // is at the equator and its lowest/highest y at the central meridian, neither
-  // of which is a corner. Fitting only corners under-frames the curve, so the
-  // continents at the frame's top/bottom/sides spill off and clip (S. Africa,
-  // Argentina, N. Russia). Equirectangular/mercator are linear, so the extra
-  // samples are redundant-but-harmless there.
-  const extentOutline = (): GeoFeature => {
-    const [[w, s], [e, n]] = resolved.extent;
-    const N = 16;
-    const coords: Array<[number, number]> = [];
-    for (let i = 0; i <= N; i++) {
-      const t = i / N;
-      const lon = w + (e - w) * t;
-      const lat = s + (n - s) * t;
-      coords.push([lon, s], [lon, n], [w, lat], [e, lat]);
-    }
-    return {
-      type: 'Feature',
-      properties: {},
-      geometry: { type: 'MultiPoint', coordinates: coords },
-    };
-  };
-
-  let fitFeatures: GeoFeature[];
-  if (resolved.projection === 'albers-usa' && usLayer) {
-    // Frame the contiguous 48 + DC (insets/territories excluded). The conic
-    // projects everything else — Canada, Mexico — around it, bleeding off the
-    // canvas edges so there's no empty water band and no hard clip line.
-    fitFeatures = [...usLayer.entries()]
-      .filter(([iso]) => !US_NON_CONUS.has(iso))
-      .map(([, f]) => f);
-  } else {
-    fitFeatures = [extentOutline()];
-  }
-  const fitTarget: GeoFC = { type: 'FeatureCollection', features: fitFeatures };
-
-  const projection = projectionFor(resolved.projection);
-  // mercator / natural-earth: rotate to the extent's center longitude BEFORE
-  // fitting (rotate changes the bounds fitExtent measures). albers-usa is a
-  // US-only composite with NO .rotate -- never call it (AR2).
-  if (resolved.projection !== 'albers-usa') {
-    let centerLon = (resolved.extent[0][0] + resolved.extent[1][0]) / 2;
-    if (centerLon > 180) centerLon -= 360;
-    projection.rotate([-centerLon, 0]);
-  }
+  // -- Fit the projection to the canvas (size-dependent; the projection + fit
+  // target themselves came from buildMapProjection above). --
   // Reserve top padding for the title/subtitle banner ONLY when there are POIs,
   // so their markers/labels don't project up under the title (which renders in
   // the foreground). A POI-less choropleth needs no reserve — the land fills to
@@ -702,17 +759,19 @@ export function layoutMap(
   // a full canvas), but POI radii + label font sizes are applied in the renderer
   // (NOT here), so markers stay round and text stays un-squashed. Regional views
   // keep contain-fit: no distortion, neighbour land not cropped.
-  const fitGB = geoBounds(fitTarget as never) as [
-    [number, number],
-    [number, number],
-  ];
-  const fitIsGlobal =
-    fitGB[1][0] - fitGB[0][0] >= 270 || fitGB[1][1] - fitGB[0][1] >= 130;
+  //
+  // `preferContain` (set by the export-dimension helper when it clamps/floors the
+  // canvas away from the content aspect) suppresses the stretch even for a global
+  // extent: the canvas was intentionally sized off-aspect, so stretching would
+  // re-introduce the very distortion the content-aware sizing removes. We then
+  // contain-fit (letterbox over water) instead. The in-app preview pane never
+  // sets preferContain, so it keeps stretch-filling the pane. (`fitIsGlobal` comes
+  // from buildMapProjection.)
   let path: GeoPath;
   let project: (lon: number, lat: number) => [number, number] | null;
   // Captured for the geo-query (null unless this is a global stretch fit).
   let stretchParams: MapLayoutStretch | null = null;
-  if (fitIsGlobal) {
+  if (fitIsGlobal && !opts.preferContain) {
     const cb = geoPath(projection).bounds(fitTarget as never);
     const bx0 = cb[0][0];
     const by0 = cb[0][1];

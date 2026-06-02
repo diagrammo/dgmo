@@ -256,8 +256,10 @@ The subpath exposes implementation details: per-chart-type parsers
 `layoutInfra`, ...), individual renderers, view-state encoding
 (`CompactViewState`, rich `encodeDiagramUrl`/`decodeDiagramUrl`),
 collapse/focus mutations, completion-registry constants, chart-type
-scoring (`suggestChartTypes`), legend helpers, color utilities, and the
-sequence renderer's internals.
+scoring (`suggestChartTypes`), legend helpers, color utilities, the map
+DI render + content-aware export sizing (`renderMapForExport`,
+`mapExportDimensions`, `mapContentAspect`), and the sequence renderer's
+internals.
 
 ## Usage patterns
 

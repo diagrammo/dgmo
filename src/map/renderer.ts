@@ -45,6 +45,11 @@ export function renderMap(
     {
       palette,
       isDark,
+      // Export-only: forward the contain-fit request from mapExportDimensions so a
+      // clamped/floored (off-aspect) export canvas letterboxes instead of
+      // stretch-distorting. The in-app preview pane passes no exportDims → unset →
+      // keeps the global stretch-fill.
+      preferContain: exportDims?.preferContain ?? false,
       ...(activeGroupOverride !== undefined && {
         activeGroup: activeGroupOverride,
       }),

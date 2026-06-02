@@ -217,7 +217,14 @@ const MAX_CITY_DOTS = 250;
 
 /** Construct a geo-query handle bound to the layout for `(content, width,
  *  height, data, palette, isDark)`. Deterministic: identical inputs ⇒ the same
- *  fitted projection the rendered SVG used, so inverted clicks align. */
+ *  fitted projection the rendered SVG used, so inverted clicks align.
+ *
+ *  INVARIANT: this is the PREVIEW path — it never passes `preferContain`, so its
+ *  layout matches the in-app preview (stretch-fill), where geo-query is used. It is
+ *  NOT valid against a content-aware EXPORT canvas (which may set `preferContain` →
+ *  contain-fit): the inverted positions would not match that export's pixels. If
+ *  geo-query is ever pointed at an export canvas, thread `preferContain` through
+ *  `CreateMapGeoQueryOptions` to keep the projection in sync. */
 export function createMapGeoQuery(opts: CreateMapGeoQueryOptions): MapGeoQuery {
   const { content, width, height, data, palette, isDark } = opts;
   const resolved = resolveMap(parseMap(content), data);

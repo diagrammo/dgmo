@@ -540,6 +540,14 @@ export type {
   MapLayoutLegend,
 } from './map/layout';
 export { renderMap, renderMapForExport } from './map/renderer';
+// Content-aware export dimensions — derive the canvas height from a map's intrinsic
+// projected aspect so exports/embeds match the content's natural shape (no vertical
+// stretch). Used by the CLI/MCP/SSG export path and by Obsidian's DI render.
+export {
+  mapContentAspect,
+  mapExportDimensions,
+  type MapExportDimensions,
+} from './map/dimensions';
 // Map geo-query (step-5 coordinate/location inspector) — a SEPARATE entry from
 // the renderer; takes `MapData` by DI so it's browser-safe (never calls the
 // Node-only `loadMapData`).
