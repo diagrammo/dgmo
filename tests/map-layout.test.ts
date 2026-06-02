@@ -474,11 +474,14 @@ describe('layout — relief (AC2, AC3, AC5, AC8, AC9)', () => {
     expect(r.relief).toHaveLength(0);
     expect(r.reliefHatch).toBeNull();
   });
-  it('a range over a data-coloured region is suppressed (ADR-2)', () => {
-    // The only fixture range (Rockies) sits inside the US bbox. With no data it
-    // draws; valuing the US (a data fill covering it) must suppress it entirely.
+  it('layout keeps ranges even over data regions (ADR-2 is a render clip)', () => {
+    // Suppression is polygon-level at render (land-minus-data clip), NOT a
+    // whole-range drop here — else a range crossing one valued state would
+    // vanish over the un-valued land around it too. So the range stays emitted.
     expect(lay('map\nrelief').relief.length).toBeGreaterThan(0);
-    expect(lay('map\nrelief\nUnited States value: 50').relief).toHaveLength(0);
+    expect(
+      lay('map\nrelief\nUnited States value: 50').relief.length
+    ).toBeGreaterThan(0);
   });
   it('a sub-min-area range is dropped (AC9 sliver gate)', () => {
     const tiny: MapData = {

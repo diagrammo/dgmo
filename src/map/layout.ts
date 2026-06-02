@@ -17,7 +17,7 @@ import {
   type GeoPath,
 } from 'd3-geo';
 import { feature } from 'topojson-client';
-import { mix, contrastText } from '../palettes/color-utils';
+import { mix, contrastText, relativeLuminance } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes/types';
 import {
   rectsOverlap,
@@ -1029,9 +1029,6 @@ export function layoutMap(
 
   // -- Regions: base layer (neutral) then resolved fills on top --
   const regions: MapLayoutRegion[] = [];
-  // Projected screen bboxes of data-coloured regions — relief is suppressed
-  // where it would underlie one so the (opaque) data tint stays clean (ADR-2).
-  const dataRegionBoxes: Array<[[number, number], [number, number]]> = [];
   const pushRegionLayer = (
     layerFeatures: Map<string, GeoFeature>,
     layerKind: 'country' | 'us-state',
@@ -1073,13 +1070,6 @@ export function layoutMap(
         lineNumber = r.lineNumber;
         layer = layerKind;
         label = r.name;
-        // Record the screen bbox of any data-bearing region for relief
-        // suppression (ADR-2). Value- or tag-carrying region → its tint must
-        // not be muddied by relief bleeding through underneath.
-        if (r.value !== undefined || Object.keys(r.tags).length > 0)
-          dataRegionBoxes.push(
-            path.bounds(viewF as never) as [[number, number], [number, number]]
-          );
       }
       regions.push({
         id: iso,
@@ -1135,21 +1125,13 @@ export function layoutMap(
   // range is projected to a polygon path; the renderer unions them into a clip
   // and rules screen-spaced horizontal lines through it — a distinct texture
   // that reads as "mountains here" without elevation data. Ranges below a min
-  // projected area/dimension are dropped (no slivers), and any range overlapping
-  // a data-coloured region is suppressed so the data tint stays clean (ADR-2).
+  // projected area/dimension are dropped (no slivers). Data-region suppression
+  // (ADR-2) is handled at the RENDER clip — relief is clipped to land MINUS the
+  // data-coloured regions, so a range that crosses a valued state still shows on
+  // the un-valued land around it (a bbox drop here would nuke the whole range).
   const relief: MapLayoutRelief[] = [];
   let reliefHatch: MapLayoutReliefHatch | null = null;
   if (resolved.directives.relief === true && data.mountainRanges) {
-    const boxesOverlap = (
-      a: [[number, number], [number, number]],
-      b: [[number, number], [number, number]]
-    ): boolean =>
-      !(
-        a[1][0] < b[0][0] ||
-        a[0][0] > b[1][0] ||
-        a[1][1] < b[0][1] ||
-        a[0][1] > b[1][1]
-      );
     for (const [, f] of decodeLayer(data.mountainRanges)) {
       const viewF = isGlobalView ? dropFrameFillers(f) : cullFeatureToView(f);
       if (!viewF) continue;
@@ -1164,17 +1146,24 @@ export function layoutMap(
         box[1][1] - box[0][1] < RELIEF_MIN_DIM
       )
         continue;
-      if (dataRegionBoxes.some((b) => boxesOverlap(box, b))) continue;
       const d = path(viewF as never) ?? '';
       if (!d) continue;
       relief.push({ d });
     }
     if (relief.length) {
-      // Dark in both themes: blend land toward bg (dark) on dark themes, toward
-      // text (dark) on light themes — never the light-flipping palette.text.
-      const hatchDark = isDark ? palette.bg : palette.text;
+      // Prefer DARK hachure (blend land toward the dark tone — bg on dark
+      // themes, text on light). But on a muted/data map the un-valued land is
+      // already near-black, so darkness can't show: if the dark tone barely
+      // differs from the land, flip to the light tone so the lines stay visible.
+      const darkTone = isDark ? palette.bg : palette.text;
+      const lightTone = isDark ? palette.text : palette.bg;
+      const landLum = relativeLuminance(neutralFill);
+      const tone =
+        Math.abs(landLum - relativeLuminance(darkTone)) > 0.04
+          ? darkTone
+          : lightTone;
       reliefHatch = {
-        color: mix(hatchDark, neutralFill, RELIEF_HATCH_STRENGTH),
+        color: mix(tone, neutralFill, RELIEF_HATCH_STRENGTH),
         spacing: RELIEF_HATCH_SPACING,
         width: RELIEF_HATCH_WIDTH,
       };

@@ -164,6 +164,48 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(group!.querySelector('[data-line-number]')).toBeNull();
   });
 
+  it('excludes data-coloured regions from the relief land clip (ADR-2)', () => {
+    // Valuing a region drops its polygon from the land clip, so relief is cut
+    // out of the data fill but still shows on the un-valued land around it.
+    // Local fixture: a valued US + an un-valued Canada to its north (stays in
+    // view), with a range spanning both.
+    const data: MapData = {
+      ...DATA,
+      worldCoarse: rectTopo('countries', [
+        { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
+        { id: 'CA', name: 'Canada', box: [-125, 49, -66, 60] },
+      ]),
+      worldDetail: rectTopo('countries', [
+        { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
+        { id: 'CA', name: 'Canada', box: [-125, 49, -66, 60] },
+      ]),
+      mountainRanges: rectTopo('ranges', [
+        { id: 'mtn-0', name: 'Rockies', box: [-120, 35, -105, 58] },
+      ]),
+    };
+    const el = document.createElement('div');
+    renderMap(
+      el,
+      resolveMap(parseMap('map\nrelief\nUnited States value: 5'), data),
+      data,
+      P,
+      false,
+      undefined,
+      DIMS
+    );
+    const svg = el.querySelector('svg')!;
+    const us = svg.querySelector<SVGPathElement>(
+      '.dgmo-map-region[data-region="US"]'
+    );
+    expect(us).toBeTruthy();
+    const landClip = svg.querySelector('clipPath#dgmo-relief-land')!;
+    const clipDs = [...landClip.querySelectorAll('path')].map((p) =>
+      p.getAttribute('d')
+    );
+    expect(clipDs.length).toBeGreaterThan(0); // un-valued Canada land remains
+    expect(clipDs).not.toContain(us!.getAttribute('d'));
+  });
+
   it('categorical group + score ramp both render in the top legend (AC24)', () => {
     const tag = render(
       'map\ntag M as m\n  HQ blue\nactive-tag M\nUnited States m: HQ'
