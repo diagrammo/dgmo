@@ -172,6 +172,9 @@ export interface MapLayoutRegion {
   readonly d: string; // SVG path data
   readonly fill: string;
   readonly stroke: string;
+  /** Human-readable display name (e.g. "France", "California"). Set for EVERY
+   *  region — authored and base/context alike — and emitted as
+   *  `data-region-name` so the app can show it on hover. */
   readonly label?: string;
   readonly lineNumber: number;
   readonly layer: 'base' | 'country' | 'us-state';
@@ -1454,6 +1457,11 @@ export function layoutMap(
         lineNumber = r.lineNumber;
         layer = layerKind;
         label = r.name;
+      } else {
+        // Base/context land (not authored): still carry the display name so the
+        // app can show it on hover. Names live on the geo feature's properties
+        // (the same source the resolver/inset/context-label layers read).
+        label = (f.properties as { name?: string } | null)?.name;
       }
       regions.push({
         id: iso,
@@ -2136,27 +2144,32 @@ export function layoutMap(
     // smaller one yields; zoom in and the footprints separate, no collision
     // fires, and both labels show. Order is by projected box AREA (visual claim)
     // so the result is scale-driven, not source-order-driven.
+    // POI-only region framing: the region(s) CONTAINING the POIs are labelled
+    // prominently even though they carry no data (layer 'base'). Neighbour land
+    // gets the muted context-label treatment further down.
+    const frameContainers = new Set(resolved.poiFrameContainers);
     const entries = regions
       .map((r) => {
-        if (r.layer === 'base' || r.label === undefined) return null;
-        const f =
-          r.layer === 'us-state' ? usLayer?.get(r.id) : worldLayer.get(r.id);
+        const isContainer = frameContainers.has(r.id);
+        if ((r.layer === 'base' && !isContainer) || r.label === undefined)
+          return null;
+        // A container state carries layer 'base', so key off the id shape too.
+        const isUsState = r.layer === 'us-state' || r.id.startsWith('US-');
+        const f = isUsState ? usLayer?.get(r.id) : worldLayer.get(r.id);
         if (!f) return null;
         const [[x0, y0], [x1, y1]] = path.bounds(f as never);
         const boxW = x1 - x0;
         const boxH = y1 - y0;
         // full → abbrev → hide. Abbrev exists only for US states; at the compact
         // breakpoint abbrev is tried first.
-        const abbrev =
-          r.layer === 'us-state' ? r.id.replace(/^US-/, '') : undefined;
+        const abbrev = isUsState ? r.id.replace(/^US-/, '') : undefined;
         const candidates =
           abbrev !== undefined
             ? isCompact
               ? [abbrev, r.label]
               : [r.label, abbrev]
             : [r.label];
-        const anchor =
-          r.layer !== 'us-state' ? WORLD_LABEL_ANCHORS[r.id] : undefined;
+        const anchor = !isUsState ? WORLD_LABEL_ANCHORS[r.id] : undefined;
         const c = anchor
           ? project(anchor[0], anchor[1])
           : path.centroid(f as never);
@@ -2551,6 +2564,37 @@ export function layoutMap(
         bbox: [x0, y0, x1, y1],
         anchor: a && Number.isFinite(a[0]) ? [a[0], a[1]] : null,
       });
+    }
+    // Neighbour US states (POI-only region framing): when the frame is snapped to
+    // a US-state container (e.g. California), label the surrounding in-frame states
+    // (Nevada, Oregon, Arizona…) in the muted context style for orientation. They
+    // are NOT containers and NOT data, so the region-label pass skipped them.
+    // Anchor each to the centroid of its VISIBLE (culled) geometry so a state only
+    // partly in frame (a sliver of Oregon at the top) still anchors on-screen
+    // rather than at an off-frame centroid that `insideViewport` would reject.
+    const framedStateContainers = (resolved.poiFrameContainers ?? []).some(
+      (id) => id.startsWith('US-')
+    );
+    if (usLayer && framedStateContainers) {
+      const containerSet = new Set(resolved.poiFrameContainers);
+      for (const [iso, f] of usLayer) {
+        if (containerSet.has(iso) || regionById.has(iso)) continue;
+        const viewF = cullFeatureToView(f);
+        if (!viewF) continue; // not in frame
+        const b = path.bounds(viewF as never) as [
+          [number, number],
+          [number, number],
+        ];
+        const [x0, y0] = b[0];
+        const [x1, y1] = b[1];
+        if (!Number.isFinite(x0) || !Number.isFinite(x1)) continue;
+        const a = path.centroid(viewF as never) as [number, number];
+        countryCandidates.push({
+          name: (f.properties as { name?: string } | undefined)?.name ?? iso,
+          bbox: [x0, y0, x1, y1],
+          anchor: a && Number.isFinite(a[0]) ? [a[0], a[1]] : null,
+        });
+      }
     }
     const contextLabels = placeContextLabels({
       projection: resolved.projection,
