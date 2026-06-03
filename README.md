@@ -60,7 +60,7 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 | Flag | Values | Default |
 |------|--------|---------|
 | `--theme` | `light`, `dark`, `transparent` | `light` |
-| `--palette` | `nord`, `solarized`, `catppuccin`, `rose-pine`, `gruvbox`, `tokyo-night`, `one-dark`, `bold` | `nord` |
+| `--palette` | `nord`, `atlas`, `blueprint`, `slate`, `tidewater`, `solarized`, `catppuccin`, `rose-pine`, `gruvbox`, `tokyo-night`, `one-dark`, `dracula`, `monokai` | `nord` |
 | `-o` | Output file path (`.svg` extension → SVG, otherwise PNG) | `<input>.png` |
 
 ## Supported chart types
@@ -473,16 +473,21 @@ Colors can be specified inline as named colors (`red`, `blue`, `teal`, etc.) or 
 
 ## Palettes
 
-Eight built-in palettes, each with light and dark variants:
+Thirteen built-in palettes, each with light and dark variants:
 
 - `nordPalette` — cool, muted Scandinavian tones (default)
+- `atlasPalette` — vintage classroom-map pastels on warm manila paper
+- `blueprintPalette` — cyanotype engineering drawing (chalk on blueprint blue)
+- `slatePalette` — restrained corporate/BI neutrals with one corporate blue
+- `tidewaterPalette` — nautical maritime-chart (sea-mist, navy ink, brass)
 - `solarizedPalette` — warm/cool Solarized
 - `catppuccinPalette` — modern pastels
 - `rosePinePalette` — soft mauve and rose
 - `gruvboxPalette` — retro groove
 - `tokyoNightPalette` — Tokyo night
 - `oneDarkPalette` — Atom One Dark inspired
-- `boldPalette` — high-contrast
+- `draculaPalette` — Dracula
+- `monokaiPalette` — Monokai
 
 ```typescript
 import { getPalette, getAvailablePalettes, registerPalette } from '@diagrammo/dgmo';
@@ -572,7 +577,7 @@ Configure via JSON on the bundle's own `<script>` tag — no inline JS, CSP-frie
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `theme` | `'auto' \| 'light' \| 'dark' \| 'transparent'` | `'auto'` | `'auto'` reads `prefers-color-scheme`, `<html data-theme>`, and `<html class="dark">`; re-renders live when the system preference flips |
-| `palette` | palette id (string) | `'nord'` | Any registered palette: `bold`, `catppuccin`, `dracula`, `gruvbox`, `monokai`, `nord`, `one-dark`, `rose-pine`, `solarized`, `tokyo-night` |
+| `palette` | palette id (string) | `'nord'` | Any registered palette: `atlas`, `blueprint`, `catppuccin`, `dracula`, `gruvbox`, `monokai`, `nord`, `one-dark`, `rose-pine`, `slate`, `solarized`, `tidewater`, `tokyo-night` |
 | `showSource` | `boolean` | `true` | Show the collapsible "DGMO source" panel under each diagram |
 | `showEditorLink` | `boolean` | `true` | Include the "Open in editor" button (set `false` for air-gapped intranets) |
 
@@ -858,14 +863,19 @@ src/
     ├── registry.ts           # getPalette, registerPalette
     ├── color-utils.ts        # HSL conversions, mix(), mute(), tint()
     ├── mermaid-bridge.ts     # Mermaid CSS variable builder
-    ├── nord.ts               # Nord palette
+    ├── nord.ts               # Nord palette (default)
+    ├── atlas.ts              # Atlas palette
+    ├── blueprint.ts          # Blueprint palette
+    ├── slate.ts              # Slate palette
+    ├── tidewater.ts          # Tidewater palette
     ├── solarized.ts          # Solarized palette
     ├── catppuccin.ts         # Catppuccin palette
     ├── rose-pine.ts          # Rose Pine palette
     ├── gruvbox.ts            # Gruvbox palette
     ├── tokyo-night.ts        # Tokyo Night palette
     ├── one-dark.ts           # One Dark palette
-    └── bold.ts               # Bold palette
+    ├── dracula.ts            # Dracula palette
+    └── monokai.ts            # Monokai palette
 ```
 
 ### Build output

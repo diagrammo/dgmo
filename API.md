@@ -130,11 +130,15 @@ if (decoded) {
 
 ### `palettes`
 
-Namespace containing all 10 built-in palettes, keyed by camelCase id. Each
+Namespace containing all 13 built-in palettes, keyed by camelCase id. Each
 value is a `PaletteConfig`.
 
 ```ts
 palettes.nord
+palettes.atlas
+palettes.blueprint
+palettes.slate
+palettes.tidewater
 palettes.catppuccin
 palettes.solarized
 palettes.gruvbox
@@ -143,7 +147,6 @@ palettes.oneDark
 palettes.rosePine
 palettes.dracula
 palettes.monokai
-palettes.bold
 ```
 
 Each palette's `.id` field is the canonical kebab-case string used by
@@ -313,7 +316,7 @@ import { palettes } from '@diagrammo/dgmo';
 const options = Object.values(palettes).sort((a, b) =>
   a.name.localeCompare(b.name)
 );
-// → [{ id: 'bold', name: 'Bold', ... }, { id: 'catppuccin', ... }, ...]
+// → [{ id: 'atlas', name: 'Atlas', ... }, { id: 'blueprint', name: 'Blueprint', ... }, ...]
 ```
 
 ### Custom error handling

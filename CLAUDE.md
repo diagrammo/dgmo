@@ -69,7 +69,7 @@ src/
     ├── types.ts                # PaletteConfig, PaletteColors
     ├── color-utils.ts          # HSL conversions, color mixing
     ├── registry.ts             # Palette registry
-    └── [palette].ts            # bold, catppuccin, dracula, gruvbox, monokai, nord, one-dark, rose-pine, solarized, tokyo-night
+    └── [palette].ts            # atlas, blueprint, catppuccin, dracula, gruvbox, monokai, nord, one-dark, rose-pine, slate, solarized, tidewater, tokyo-night
 ```
 
 ## Architecture
@@ -99,7 +99,7 @@ SVG renderer using D3. Key concepts:
 
 ### Color System
 
-10 palettes (bold, catppuccin, dracula, gruvbox, monokai, nord, one-dark, rose-pine, solarized, tokyo-night), each with light/dark/transparent themes. `color-utils.ts` provides HSL conversion and a `mix()` helper for blending colors.
+13 palettes (atlas, blueprint, catppuccin, dracula, gruvbox, monokai, nord, one-dark, rose-pine, slate, solarized, tidewater, tokyo-night), each with light/dark/transparent themes. `color-utils.ts` provides HSL conversion and a `mix()` helper for blending colors.
 
 ## Constraints
 
