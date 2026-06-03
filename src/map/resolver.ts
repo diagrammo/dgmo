@@ -46,6 +46,12 @@ const WORLD_SPAN = 90;
 // sec(φ) area blow-up turns gross. Europe (≈71°N) and East Asia stay on Mercator.
 const MERCATOR_MAX_LAT = 80;
 const PAD_FRACTION = 0.05;
+// Region/choropleth maps frame to the NAMED countries/states; a tight 5% pad cuts
+// the surrounding continent right at the data edge (a Europe choropleth stops at
+// ~31°E, slicing off western Russia/Ukraine). A larger pad lets the neighbouring
+// land peek in as gray context for orientation. POI maps keep the tight pad — they
+// already get container-region framing + the zoom floor.
+const REGION_PAD_FRACTION = 0.12;
 // Latitude band for a snapped world view — Tierra del Fuego (≈ −55°) to northern
 // Russia/Canada (≈ +78°). Excludes most of Antarctica + the high Arctic so the
 // populated continents fill the frame rather than waste it on ice.
@@ -755,7 +761,10 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     [-180, -85],
     [180, 85],
   ];
-  let extent: GeoExtent = unioned ? pad(unioned, PAD_FRACTION) : DEFAULT_EXTENT; // empty → default
+  // Region/choropleth maps get a wider context pad; POI maps stay tight (the
+  // isPoiOnly block below re-pads container bboxes with PAD_FRACTION anyway).
+  const basePad = regions.length > 0 ? REGION_PAD_FRACTION : PAD_FRACTION;
+  let extent: GeoExtent = unioned ? pad(unioned, basePad) : DEFAULT_EXTENT; // empty → default
 
   const isPoiOnly = pois.length > 0 && regions.length === 0;
 
