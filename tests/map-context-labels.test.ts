@@ -21,12 +21,15 @@ const linProject =
     ((90 - lat) / 180) * height,
   ];
 
+// Anchors are deliberately spread far apart on the 800×600 canvas so the
+// (now multi-line, taller) water labels don't collide with each other — these
+// tests assert tiering/budget, not overlap.
 const WATER: WaterBodies = {
   entries: [
     [0, 0, 'Test Ocean', 0, 'ocean'],
-    [10, 10, 'Major Sea', 1, 'sea'],
-    [-20, 20, 'Some Bay', 1, 'bay'],
-    [30, -30, 'Minor Sea', 2, 'sea'],
+    [60, -140, 'Major Sea', 1, 'sea'],
+    [-50, 140, 'Some Bay', 1, 'bay'],
+    [55, 150, 'Minor Sea', 2, 'sea'],
     [40, 40, 'A Channel', 3, 'channel'],
   ],
 };

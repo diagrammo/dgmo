@@ -309,6 +309,10 @@ export interface PlacedLabel {
   readonly italic?: boolean;
   /** Cartographic letter-spacing in px (context-label water names). Default 0. */
   readonly letterSpacing?: number;
+  /** Pre-wrapped display lines (context-label water names — §24B). When present
+   *  the renderer stacks these as centred tspans instead of `text`; `text` keeps
+   *  the single-string form for hit-testing/measurement. Absent ⇒ single line. */
+  readonly lines?: readonly string[];
   /** Hover-only label: emitted invisible (opacity 0 + `data-poi-hidden`) in the
    *  preview and revealed on POI/label hover; OMITTED entirely from static
    *  export. Set when a POI cluster can't place its labels cleanly (see the
@@ -1800,17 +1804,27 @@ export function layoutMap(
       return { e, mx: cx0 + Math.cos(ang) * rr, my: cy0 + Math.sin(ang) * rr };
     });
     // Off-canvas guard: translate the whole fan (centroid + members together) so
-    // every dot stays on-canvas. A pure shift preserves the spider geometry.
+    // every dot AND its radial label stays on-canvas. A pure shift preserves the
+    // spider geometry. Each member's inline label fans away from the centroid
+    // (right if mx >= cx0, else left — same rule the label block below uses), so
+    // its far edge extends r + LABEL_GAP + textWidth past the dot on that side.
+    const LABEL_GAP = 3; // matches GAP used for cluster member labels below
+    const labelH = FONT * 1.25;
     let minX = cx0 - maxR;
     let maxX = cx0 + maxR;
     let minY = cy0 - maxR;
     let maxY = cy0 + maxR;
     for (const { mx, my, e } of positions) {
       const r = radiusOf(e);
-      minX = Math.min(minX, mx - r);
-      maxX = Math.max(maxX, mx + r);
-      minY = Math.min(minY, my - r);
-      maxY = Math.max(maxY, my + r);
+      const labelW = measureLegendText(e.p.label ?? e.p.name ?? e.p.id, FONT);
+      const right = mx >= cx0;
+      const labelFar = right
+        ? mx + r + LABEL_GAP + labelW
+        : mx - r - LABEL_GAP - labelW;
+      minX = Math.min(minX, mx - r, labelFar);
+      maxX = Math.max(maxX, mx + r, labelFar);
+      minY = Math.min(minY, my - r, my - labelH / 2);
+      maxY = Math.max(maxY, my + r, my + labelH / 2);
     }
     let dx = 0;
     let dy = 0;

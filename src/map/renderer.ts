@@ -657,7 +657,8 @@ export function renderMap(
       lab.halo,
       LABEL_FONT,
       lab.italic,
-      lab.letterSpacing
+      lab.letterSpacing,
+      lab.lines
     );
     // POI labels are spotlightable: tag with the POI id and make the text the
     // hover target (the app dims the other dots/labels on enter).
@@ -841,7 +842,8 @@ function emitText(
   withHalo: boolean,
   fontSize: number,
   italic?: boolean,
-  letterSpacing?: number
+  letterSpacing?: number,
+  lines?: readonly string[]
 ): d3Selection.Selection<SVGTextElement, unknown, null, undefined> {
   const t = g
     .append('text')
@@ -849,8 +851,22 @@ function emitText(
     .attr('y', y)
     .attr('text-anchor', anchor)
     .attr('font-size', fontSize)
-    .attr('fill', color)
-    .text(text);
+    .attr('fill', color);
+  // Multi-line context labels (water names): stack centred tspans around `y` so
+  // the block's vertical centre matches the placement rect. Single-line keeps the
+  // bare `.text()` form so every other call site stays byte-identical.
+  if (lines && lines.length > 1) {
+    const lineHeight = fontSize + 2; // MUST match context-labels LINE_HEIGHT
+    const startDy = -((lines.length - 1) / 2) * lineHeight;
+    lines.forEach((ln, i) => {
+      t.append('tspan')
+        .attr('x', x)
+        .attr('dy', i === 0 ? startDy : lineHeight)
+        .text(ln);
+    });
+  } else {
+    t.text(text);
+  }
   // Cartographic styling for context labels; absent on every other call site so
   // existing output stays byte-identical (only emitted when explicitly set).
   if (italic) t.attr('font-style', 'italic');

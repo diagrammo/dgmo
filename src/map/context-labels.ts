@@ -55,6 +55,7 @@ export interface ContextLabelArgs {
 }
 
 const FONT = 11; // matches layout's on-map label font
+const LINE_HEIGHT = FONT + 2; // px per wrapped line — MUST match the renderer's
 const PADX = 4; // half-padding around a context label rect
 const PADY = 3;
 const WATER_LETTER_SPACING = 1.5; // px — cartographic spread for water names
@@ -144,14 +145,56 @@ export function labelWidth(text: string, letterSpacing: number): number {
   return measureLegendText(text, FONT) + spacing + 2 * PADX;
 }
 
+/** Wrap a multi-word name into balanced lines, biased to wrap READILY — water
+ *  names ("North Pacific Ocean") read better stacked, and a narrower footprint
+ *  is far likelier to clear surrounding land (the hard rule below). Of every
+ *  contiguous split into ≤`maxLines`, picks the one minimising the widest line
+ *  (so it shrinks horizontally whenever a break helps); ties break to fewer
+ *  lines, then top-heavy ("North Pacific" / "Ocean", not "North" / "Pacific
+ *  Ocean"). Single-word names pass through unwrapped. */
+export function wrapLabel(text: string, letterSpacing: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= 1) return [text];
+  const maxLines = words.length >= 4 ? 3 : 2;
+  const n = words.length;
+  type Split = { lines: string[]; cost: number; head: number };
+  let best: Split | null = null;
+  for (let mask = 0; mask < 1 << (n - 1); mask++) {
+    const lines: string[] = [];
+    let cur = [words[0]!];
+    for (let i = 1; i < n; i++) {
+      if (mask & (1 << (i - 1))) {
+        lines.push(cur.join(' '));
+        cur = [words[i]!];
+      } else cur.push(words[i]!);
+    }
+    lines.push(cur.join(' '));
+    if (lines.length > maxLines) continue;
+    const cost = Math.round(
+      Math.max(...lines.map((l) => labelWidth(l, letterSpacing)))
+    );
+    const head = labelWidth(lines[0]!, letterSpacing);
+    if (
+      !best ||
+      cost < best.cost ||
+      (cost === best.cost && lines.length < best.lines.length) ||
+      (cost === best.cost &&
+        lines.length === best.lines.length &&
+        head > best.head)
+    )
+      best = { lines, cost, head };
+  }
+  return best?.lines ?? [text];
+}
+
 function rectAround(
   cx: number,
   cy: number,
-  text: string,
+  lines: readonly string[],
   letterSpacing: number
 ): LabelRect {
-  const w = labelWidth(text, letterSpacing);
-  const h = FONT + 2 * PADY;
+  const w = Math.max(...lines.map((l) => labelWidth(l, letterSpacing)));
+  const h = (lines.length - 1) * LINE_HEIGHT + FONT + 2 * PADY;
   return { x: cx - w / 2, y: cy - h / 2, w, h };
 }
 
@@ -207,6 +250,7 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
 
   type Candidate = {
     text: string;
+    lines: string[];
     cx: number;
     cy: number;
     italic: boolean;
@@ -221,6 +265,9 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
   for (const e of waterBodies?.entries ?? []) {
     const [lat, lon, name, tier, kind, alt] = e;
     if (!waterEligible(tier, kind, band)) continue;
+    // Wrap eagerly (Decision: water names stack readily) so the clamp/fit math
+    // below sees the real, narrower wrapped footprint, not the one-line width.
+    const wlines = wrapLabel(name, WATER_LETTER_SPACING);
     // Multi-anchor (Decision 5 / ADR-4): of the anchors that project inside the
     // viewport, pick the one nearest the viewport centre.
     const anchorsLngLat: Array<[number, number]> = [[lon, lat]];
@@ -265,8 +312,10 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
         // anchored) rect stays on-canvas — clamping to the bare margin would
         // overflow a wide name like "North Atlantic Ocean" off the edge.
         // letter-spacing IS counted (labelWidth) so the clamp matches render.
-        const halfW = labelWidth(name, WATER_LETTER_SPACING) / 2;
-        const halfH = (FONT + 2 * PADY) / 2;
+        const halfW =
+          Math.max(...wlines.map((l) => labelWidth(l, WATER_LETTER_SPACING))) /
+          2;
+        const halfH = ((wlines.length - 1) * LINE_HEIGHT + FONT + 2 * PADY) / 2;
         const m = EDGE_CLAMP_MARGIN;
         best = [
           Math.min(Math.max(nearestProj[0], halfW + m), width - halfW - m),
@@ -277,6 +326,7 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     if (!best) continue;
     candidates.push({
       text: name,
+      lines: wlines,
       cx: best[0],
       cy: best[1],
       italic: true,
@@ -316,6 +366,7 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     if (tw > w || FONT + 2 * PADY > h) continue;
     candidates.push({
       text,
+      lines: [text],
       cx: c.anchor[0],
       cy: c.anchor[1],
       italic: false,
@@ -332,21 +383,30 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
   const placedRects: LabelRect[] = [];
   for (const cand of candidates) {
     if (placed.length >= budget) break;
-    const rect = rectAround(cand.cx, cand.cy, cand.text, cand.letterSpacing);
+    const rect = rectAround(cand.cx, cand.cy, cand.lines, cand.letterSpacing);
     if (!rectFits(rect, width, height)) continue;
-    // Water labels must sit over OPEN WATER, not land — sample the footprint's
-    // centre + horizontal extremes; drop if any touches land (Decision: optional
-    // orientation aids, so exclude rather than misplace over a coastline). Country
-    // labels are exempt — they belong on their country.
+    // Water labels must sit over OPEN WATER and NEVER touch land — sample a grid
+    // over every wrapped line (each line's own horizontal extent at five points);
+    // drop the whole label if ANY sample hits land (Decision: optional orientation
+    // aids, so exclude rather than misplace over a coastline). Country labels are
+    // exempt — they belong on their country.
     if (cand.italic && overLand) {
-      const yMid = cand.cy;
       const inset = 2;
-      if (
-        overLand(rect.x + inset, yMid) ||
-        overLand(cand.cx, yMid) ||
-        overLand(rect.x + rect.w - inset, yMid)
-      )
-        continue;
+      const top = cand.cy - ((cand.lines.length - 1) / 2) * LINE_HEIGHT;
+      const touchesLand = cand.lines.some((line, li) => {
+        const lw = labelWidth(line, cand.letterSpacing);
+        const x0 = cand.cx - lw / 2 + inset;
+        const x1 = cand.cx + lw / 2 - inset;
+        const xs = [x0, (x0 + cand.cx) / 2, cand.cx, (cand.cx + x1) / 2, x1];
+        const base = top + li * LINE_HEIGHT;
+        // Sample the glyph body top→baseline (text rises above the baseline) so a
+        // label whose ascenders clip a coastline is rejected, not just one whose
+        // baseline sits on land.
+        return [base, base - FONT * 0.4, base - FONT * 0.8].some((y) =>
+          xs.some((x) => overLand(x, y))
+        );
+      });
+      if (touchesLand) continue;
     }
     if (collides(rect)) continue;
     if (placedRects.some((r) => overlapsPadded(rect, r, CONTEXT_PAD))) continue;
@@ -361,6 +421,7 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
       haloColor,
       italic: cand.italic,
       letterSpacing: cand.letterSpacing,
+      ...(cand.lines.length > 1 ? { lines: cand.lines } : {}),
       lineNumber: 0,
     });
   }
