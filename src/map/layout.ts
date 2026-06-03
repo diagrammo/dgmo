@@ -1545,9 +1545,11 @@ export function layoutMap(
   // Relief default-ON, but auto-gated: it is reference decoration, so it shows
   // only on a *dataless* reference map (any region/POI value-or-tag suppresses
   // it — it would compete with the data shading), only at continent/world zoom
-  // (`isGlobalView`), and only when the canvas is wide enough to read (a wide
-  // extent crammed into a narrow column reads as zoomed-out — decision B/D2:
-  // suppress under the compact breakpoint). `no-relief` forces off everywhere.
+  // (`isGlobalView` OR the US national albers frame `conusFit` — a whole-country
+  // view is continent-scale even though its span falls short of the global
+  // threshold), and only when the canvas is wide enough to read (a wide extent
+  // crammed into a narrow column reads as zoomed-out — decision B/D2: suppress
+  // under the compact breakpoint). `no-relief` forces off everywhere.
   const hasData =
     resolved.regions.some(
       (r) => r.value !== undefined || Object.keys(r.tags).length > 0
@@ -1558,7 +1560,7 @@ export function layoutMap(
   const reliefAllowed =
     resolved.directives.noRelief !== true &&
     !hasData &&
-    isGlobalView &&
+    (isGlobalView || conusFit) &&
     width >= COMPACT_WIDTH_PX;
   const relief: MapLayoutRelief[] = [];
   let reliefHatch: MapLayoutReliefHatch | null = null;
