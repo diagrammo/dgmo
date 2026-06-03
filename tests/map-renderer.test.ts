@@ -172,11 +172,18 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(group!.querySelector('[data-line-number]')).toBeNull();
   });
 
-  it('relief is suppressed entirely on a data map (decision B, AC8)', () => {
-    // A region value makes it a data map → relief auto-suppresses (it competes
-    // with the data shading). The relief group must be absent.
-    const svg = render('map\nUnited States value: 5');
-    expect(svg.querySelector('.dgmo-map-relief')).toBeNull();
+  it('relief still renders on a data map (always on; only `no-relief` hides it)', () => {
+    // Relief is unconditional now: a region value no longer suppresses it — the
+    // renderer lays the hachure atop the data fills. The group must be present,
+    // and `no-relief` is the only switch that removes it.
+    expect(
+      render('map\nUnited States value: 5').querySelector('.dgmo-map-relief')
+    ).toBeTruthy();
+    expect(
+      render('map\nUnited States value: 5\nno-relief').querySelector(
+        '.dgmo-map-relief'
+      )
+    ).toBeNull();
   });
 
   it('coastline default-on; no-coastline removes the water-lines group (AC2)', () => {

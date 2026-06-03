@@ -829,25 +829,26 @@ describe('layout — relief (AC2, AC3, AC5, AC8, AC9)', () => {
     expect(r.reliefHatch!.spacing).toBeGreaterThan(0);
     expect(r.reliefHatch!.width).toBeGreaterThan(0);
   });
-  it('suppressed on a DATA map (any region value/tag) (AC8)', () => {
-    // A global choropleth is a data map → relief auto-suppresses (it would
-    // compete with the data shading).
+  it('still shows on a DATA map (relief is always on; only `no-relief` hides it)', () => {
+    // A global choropleth is a data map; relief still renders (the renderer lays
+    // the hachure atop the data fills and the hatch tone flips to stay visible).
     const r = lay(
       'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3'
     );
-    expect(r.relief).toHaveLength(0);
-    expect(r.reliefHatch).toBeNull();
+    expect(r.relief.length).toBeGreaterThan(0);
+    expect(r.reliefHatch).not.toBeNull();
   });
   it('`no-relief` forces off even on a dataless world map (AC8)', () => {
     const r = lay('map\nno-relief');
     expect(r.relief).toHaveLength(0);
     expect(r.reliefHatch).toBeNull();
   });
-  it('suppressed below the compact render-width breakpoint (AC14)', () => {
-    // The same dataless world map in a narrow column reads as zoomed-out.
+  it('still shows in a narrow column (relief is always on, width-independent)', () => {
+    // Relief no longer auto-suppresses at the compact breakpoint — only the
+    // `no-relief` directive hides it.
     const r = lay('map', 400, 300);
-    expect(r.relief).toHaveLength(0);
-    expect(r.reliefHatch).toBeNull();
+    expect(r.relief.length).toBeGreaterThan(0);
+    expect(r.reliefHatch).not.toBeNull();
   });
   it('absent asset → relief empty, no throw (AC6)', () => {
     const noAsset: MapData = { ...DATA };

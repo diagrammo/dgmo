@@ -1542,26 +1542,13 @@ export function layoutMap(
   // (ADR-2) is handled at the RENDER clip — relief is clipped to land MINUS the
   // data-coloured regions, so a range that crosses a valued state still shows on
   // the un-valued land around it (a bbox drop here would nuke the whole range).
-  // Relief default-ON, but auto-gated: it is reference decoration, so it shows
-  // only on a *dataless* reference map (any region/POI value-or-tag suppresses
-  // it — it would compete with the data shading), only at continent/world zoom
-  // (`isGlobalView` OR the US national albers frame `conusFit` — a whole-country
-  // view is continent-scale even though its span falls short of the global
-  // threshold), and only when the canvas is wide enough to read (a wide extent
-  // crammed into a narrow column reads as zoomed-out — decision B/D2: suppress
-  // under the compact breakpoint). `no-relief` forces off everywhere.
-  const hasData =
-    resolved.regions.some(
-      (r) => r.value !== undefined || Object.keys(r.tags).length > 0
-    ) ||
-    resolved.pois.some(
-      (p) => p.meta['value'] !== undefined || Object.keys(p.tags).length > 0
-    );
-  const reliefAllowed =
-    resolved.directives.noRelief !== true &&
-    !hasData &&
-    (isGlobalView || conusFit) &&
-    width >= COMPACT_WIDTH_PX;
+  // Relief is ALWAYS on; only the `no-relief` directive turns it off. It renders
+  // on data maps too (the renderer lays the hachure ATOP the choropleth/tag fills
+  // and the hatch tone flips to stay visible over muted land), at every zoom, and
+  // at every width. The only remaining filters are per-range quality guards below
+  // (sub-min-area / sub-min-dimension slivers are skipped so a range never draws
+  // as a sub-pixel smudge) — those drop individual ranges, never the feature.
+  const reliefAllowed = resolved.directives.noRelief !== true;
   const relief: MapLayoutRelief[] = [];
   let reliefHatch: MapLayoutReliefHatch | null = null;
   if (reliefAllowed && data.mountainRanges) {
