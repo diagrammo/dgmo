@@ -437,7 +437,24 @@ export function renderMap(
       for (const r of layout.insetRegions)
         if (r.id === 'lake')
           mask.append('path').attr('d', r.d).attr('fill', 'white');
+      // Clip the water-line strokes to the inset box quads — the mask controls
+      // which side reads as water, but SVG strokes still extend stroke-width/2
+      // past their path, so without this the seaward rings bleed over the box
+      // border. Union of all inset quads = one clipPath shared by the group.
+      const clipId = 'dgmo-map-inset-water-clip';
+      const clip = defs.append('clipPath').attr('id', clipId);
+      for (const box of layout.insets) {
+        const d =
+          box.points.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join('') +
+          'Z';
+        clip.append('path').attr('d', d);
+      }
+      // Nest clip (outer) + mask (inner) rather than both on one element —
+      // WebKit (Tauri) renders the combined attributes inconsistently; the
+      // nested form is honored by every engine.
       const gInsetWater = insetG
+        .append('g')
+        .attr('clip-path', `url(#${clipId})`)
         .append('g')
         .attr('class', 'dgmo-map-inset-water-lines')
         .attr('fill', 'none')
