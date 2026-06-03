@@ -473,16 +473,46 @@ function geomObject(topo: BoundaryTopology): {
 // `.set()` so the cached map is never mutated.
 const decodeCache = new WeakMap<BoundaryTopology, Map<string, GeoFeature>>();
 
+/** Combine two decoded features that share an ISO id into one MultiPolygon — so a
+ *  country split across multiple topology geometries (e.g. na-land's `FR`) draws
+ *  all its parts rather than only the last. Polygon/MultiPolygon coordinates are
+ *  flattened into a single MultiPolygon ring list; a feature whose geometry is
+ *  neither is returned unchanged (nothing sensible to merge). */
+function mergeFeatures(a: GeoFeature, b: GeoFeature): GeoFeature {
+  const polysOf = (f: GeoFeature): number[][][][] | null => {
+    const g = f.geometry as { type?: string; coordinates?: unknown } | null;
+    if (!g) return null;
+    if (g.type === 'Polygon') return [g.coordinates as number[][][]];
+    if (g.type === 'MultiPolygon') return g.coordinates as number[][][][];
+    return null;
+  };
+  const pa = polysOf(a);
+  const pb = polysOf(b);
+  if (!pa || !pb) return a; // can't merge non-polygonal geometry — keep the first
+  return {
+    ...a,
+    geometry: { type: 'MultiPolygon', coordinates: [...pa, ...pb] },
+  };
+}
+
 /** Decode every feature of a topology into GeoJSON, keyed by ISO id. Memoized by
  *  topology identity — the returned map is shared, so do NOT mutate it (copy first
- *  if you need to). */
+ *  if you need to). Natural-Earth source carries hazards this guards against: a
+ *  null-geometry sovereignty stub tagged with a real ISO code (e.g. "Ashmore and
+ *  Cartier Is." shares `AU` with Australia) would otherwise CLOBBER the real
+ *  country's geometry — `set` keeps the last write. So null geometries are
+ *  skipped, and a genuine duplicate id (two real geometries, e.g. na-land `FR`)
+ *  is MERGED into one MultiPolygon instead of one part overwriting the other. */
 function decodeLayer(topo: BoundaryTopology): Map<string, GeoFeature> {
   const cached = decodeCache.get(topo);
   if (cached) return cached;
   const out = new Map<string, GeoFeature>();
   for (const g of geomObject(topo).geometries) {
     const f = feature(topo as never, g as never) as unknown as GeoFeature;
-    out.set(g.id, { ...f, id: g.id });
+    if (!f.geometry) continue; // null-geometry stub — never renders, must not clobber
+    const tagged = { ...f, id: g.id };
+    const existing = out.get(g.id);
+    out.set(g.id, existing ? mergeFeatures(existing, tagged) : tagged);
   }
   decodeCache.set(topo, out);
   return out;
@@ -2091,34 +2121,63 @@ export function layoutMap(
   const WORLD_LABEL_ANCHORS: Record<string, [number, number]> = {
     US: [-98.5, 39.5], // CONUS geographic centre (near Lebanon, Kansas)
   };
+  // A region label's screen footprint, middle-anchored on its centroid, used to
+  // keep two region labels from overlapping (a small gap adds breathing room).
+  const REGION_LABEL_GAP = 2;
+  const regionLabelRect = (cx: number, cy: number, text: string): LabelRect => {
+    const w = measureLegendText(text, FONT) + 2 * REGION_LABEL_GAP;
+    return { x: cx - w / 2, y: cy - FONT / 2, w, h: FONT };
+  };
   if (showRegionLabels) {
-    for (const r of regions) {
-      if (r.layer === 'base' || r.label === undefined) continue;
-      const f =
-        r.layer === 'us-state' ? usLayer?.get(r.id) : worldLayer.get(r.id);
-      if (!f) continue;
-      const [[x0, y0], [x1, y1]] = path.bounds(f as never);
-      const boxW = x1 - x0;
-      const boxH = y1 - y0;
-      // full → abbrev → hide. Abbrev exists only for US states; at the compact
-      // breakpoint abbrev is tried first. The first candidate that fits the
-      // footprint wins; none fits → hidden.
-      const abbrev =
-        r.layer === 'us-state' ? r.id.replace(/^US-/, '') : undefined;
-      const candidates =
-        abbrev !== undefined
-          ? isCompact
-            ? [abbrev, r.label]
-            : [r.label, abbrev]
-          : [r.label];
-      const text = candidates.find((t) => labelW(t) <= boxW && labelH <= boxH);
-      if (text === undefined) continue; // doesn't fit even abbreviated → hide
-      const anchor =
-        r.layer !== 'us-state' ? WORLD_LABEL_ANCHORS[r.id] : undefined;
-      const c = anchor
-        ? project(anchor[0], anchor[1])
-        : path.centroid(f as never);
-      if (!c || !Number.isFinite(c[0])) continue;
+    // Gather the placeable region labels, then commit them largest-footprint
+    // first. Two adjacent regions can sit too close to both carry a label at the
+    // current scale (Spain + Portugal on a whole-world view collapse to ~32px
+    // apart). Rather than overlap, the bigger region keeps its label and the
+    // smaller one yields; zoom in and the footprints separate, no collision
+    // fires, and both labels show. Order is by projected box AREA (visual claim)
+    // so the result is scale-driven, not source-order-driven.
+    const entries = regions
+      .map((r) => {
+        if (r.layer === 'base' || r.label === undefined) return null;
+        const f =
+          r.layer === 'us-state' ? usLayer?.get(r.id) : worldLayer.get(r.id);
+        if (!f) return null;
+        const [[x0, y0], [x1, y1]] = path.bounds(f as never);
+        const boxW = x1 - x0;
+        const boxH = y1 - y0;
+        // full → abbrev → hide. Abbrev exists only for US states; at the compact
+        // breakpoint abbrev is tried first.
+        const abbrev =
+          r.layer === 'us-state' ? r.id.replace(/^US-/, '') : undefined;
+        const candidates =
+          abbrev !== undefined
+            ? isCompact
+              ? [abbrev, r.label]
+              : [r.label, abbrev]
+            : [r.label];
+        const anchor =
+          r.layer !== 'us-state' ? WORLD_LABEL_ANCHORS[r.id] : undefined;
+        const c = anchor
+          ? project(anchor[0], anchor[1])
+          : path.centroid(f as never);
+        if (!c || !Number.isFinite(c[0])) return null;
+        return { r, c, boxW, boxH, area: boxW * boxH, candidates };
+      })
+      .filter((e): e is NonNullable<typeof e> => e !== null)
+      .sort((a, b) => b.area - a.area || a.r.lineNumber - b.r.lineNumber);
+    const placedRegionRects: LabelRect[] = [];
+    for (const { r, c, boxW, boxH, candidates } of entries) {
+      // The first candidate that BOTH fits its own footprint AND clears every
+      // already-placed region label wins; none qualifies → the label is hidden
+      // (a country has no abbrev, so it degrades full → hide; a US state may fall
+      // back to its 2-letter code before hiding).
+      const text = candidates.find((t) => {
+        if (labelW(t) > boxW || labelH > boxH) return false;
+        const rect = regionLabelRect(c[0], c[1], t);
+        return !placedRegionRects.some((p) => rectsOverlap(rect, p));
+      });
+      if (text === undefined) continue;
+      placedRegionRects.push(regionLabelRect(c[0], c[1], text));
       pushRegionLabel(c[0], c[1], text, r.fill, r.lineNumber);
     }
     // AK/HI labels live in their insets (own projection centroids). Insets are
