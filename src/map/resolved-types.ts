@@ -87,10 +87,6 @@ export interface ResolvedEdge {
   readonly label?: string;
   readonly directed: boolean;
   readonly style: 'straight' | 'arc';
-  /** Best-effort surface constraint (§24B.6): the leg arrow bows to stay over the
-   *  named surface. Absent = feature off. After resolve this carries the map-level
-   *  directive default when the edge set none. */
-  readonly surface?: 'water' | 'land';
   readonly meta: Readonly<Record<string, string>>;
   readonly lineNumber: number;
 }
@@ -100,8 +96,6 @@ export interface ResolvedRouteLeg {
   readonly toId: string;
   readonly label?: string;
   readonly style: 'straight' | 'arc';
-  /** Best-effort surface constraint (§24B.6); see {@link ResolvedEdge.surface}. */
-  readonly surface?: 'water' | 'land';
   readonly value?: string; // leg thickness
   readonly lineNumber: number;
 }
@@ -128,7 +122,7 @@ export interface ResolvedMap {
   readonly title: string | null;
   /** DEAD — the `subtitle` directive was removed (2026-06-02 defaults-on review).
    *  Never populated; the renderer's subtitle branch is now unreachable. Left for
-   *  a later cleanup pass (mirrors the deferred surface dead code). */
+   *  a later cleanup pass. */
   readonly subtitle?: string;
   readonly caption?: string;
   readonly tagGroups: readonly TagGroup[];

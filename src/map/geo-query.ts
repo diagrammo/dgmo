@@ -90,9 +90,9 @@ export interface MapGeoQuery {
   locate(px: number, py: number): ResultCard | null;
   /** Culled + projected cities for the all-cities layer (population-primary). */
   cities(extent?: GeoExtent): ProjectedCity[];
-  /** Layout-time diagnostics (e.g. best-effort surface-route warnings). These are
-   *  dimension-dependent, so they live on the geo-query (bound to the rendered
-   *  layout) rather than the resolver. Callers merge them with `resolved.diagnostics`. */
+  /** Layout-time, dimension-dependent diagnostics. They live on the geo-query
+   *  (bound to the rendered layout) rather than the resolver. Callers merge them
+   *  with `resolved.diagnostics`. (No producers currently — always empty.) */
   readonly diagnostics: readonly DgmoError[];
 }
 

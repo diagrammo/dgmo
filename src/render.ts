@@ -88,6 +88,9 @@ export async function render(
     legendState?: { activeGroup?: string; hiddenAttributes?: string[] };
     /** View state for export — controls interactive state (collapse, swimlanes, etc.) */
     viewState?: CompactViewState;
+    /** Bundled map data for `map` charts in the browser, where the Node fs
+     *  `loadMapData()` seam can't run. CLI/SSR omit this and fall back to fs. */
+    mapData?: import('./map/resolved-types').MapData;
   }
 ): Promise<{ svg: string; diagnostics: DgmoError[] }> {
   const theme = options?.theme ?? 'light';
@@ -133,6 +136,7 @@ export async function render(
       c4Container: options.c4Container,
     }),
     ...(options?.tagGroup !== undefined && { tagGroup: options.tagGroup }),
+    ...(options?.mapData !== undefined && { mapData: options.mapData }),
   });
 
   // The map pipeline resolves names AFTER parsing (gazetteer/ISO lookup), so its
@@ -142,39 +146,18 @@ export async function render(
   // loadMapData is memoized (renderForExport already loaded it) — no double read.
   if (chartType === 'map') {
     try {
-      const [{ parseMap }, { resolveMap }, { loadMapData }, { layoutMap }] =
-        await Promise.all([
+      const [{ parseMap }, { resolveMap }, { loadMapData }] = await Promise.all(
+        [
           import('./map/parser'),
           import('./map/resolver'),
           import('./map/load-data'),
-          import('./map/layout'),
-        ]);
-      const data = await loadMapData();
-      const resolvedMap = resolveMap(parseMap(content), data);
-      // Layout-time, dimension-dependent diagnostics (best-effort surface-route
-      // warnings) live on the MapLayout, not the ResolvedMap. Run the layout at
-      // the SAME export dimensions the renderer used (d3.ts EXPORT_WIDTH/HEIGHT)
-      // so the diagnostics match what was drawn, then merge (deduped).
-      let layoutDiags: DgmoError[] = [];
-      try {
-        layoutDiags = [
-          ...layoutMap(
-            resolvedMap,
-            data,
-            { width: 1200, height: 800 },
-            { palette: paletteColors, isDark: theme === 'dark' }
-          ).diagnostics,
-        ];
-      } catch {
-        /* layout failed → keep resolver diagnostics only */
-      }
-      const seen = new Set<string>();
-      diagnostics = [...resolvedMap.diagnostics, ...layoutDiags].filter((d) => {
-        const key = `${d.code}|${d.line}|${d.message}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+        ]
+      );
+      // Prefer injected data (browser); fall back to the fs loader (CLI/SSR).
+      const data = options?.mapData ?? (await loadMapData());
+      // resolveMap seeds its diagnostics with the parser's, so this is a superset.
+      // (The layout stage has no diagnostics producer, so there is nothing to merge.)
+      diagnostics = [...resolveMap(parseMap(content), data).diagnostics];
     } catch {
       /* asset load failed — keep the parser diagnostics */
     }

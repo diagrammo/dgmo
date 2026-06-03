@@ -130,13 +130,8 @@ function pointOnRingEdge(
 }
 
 /** Point-in-polygon for a Polygon/MultiPolygon geometry (outer ring minus holes).
- *  A point on the outer boundary counts as inside (deterministic border handling).
- *  Exported for the surface-route helper + its unit tests (surface-route.ts). */
-export function pointInGeometry(
-  geometry: unknown,
-  lon: number,
-  lat: number
-): boolean {
+ *  A point on the outer boundary counts as inside (deterministic border handling). */
+function pointInGeometry(geometry: unknown, lon: number, lat: number): boolean {
   const g = geometry as {
     type: string;
     coordinates: number[][][] | number[][][][];

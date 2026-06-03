@@ -48,9 +48,6 @@ export interface MapDirectives {
   noRegionLabels?: boolean;
   /** `no-poi-labels` — suppress POI labels (default-on, collision-managed auto). */
   noPoiLabels?: boolean;
-  /** DEAD — no longer parsed (surface parsing removed this session). Left until
-   *  the deferred `surface-route.ts` renderer-removal session. Never populated. */
-  surface?: 'water' | 'land';
 }
 
 /** A region-fill: a subdivision name with an optional score and/or tag values
@@ -94,9 +91,6 @@ export interface MapPoi {
 export interface MapRouteLeg {
   readonly label?: string; // in-arrow leg label
   readonly style: 'straight' | 'arc';
-  /** Best-effort surface the leg arrow should stay over (§24B.6). Baked at parse
-   *  time from a leg override or the route-header default; absent = feature off. */
-  readonly surface?: 'water' | 'land';
   readonly value?: string; // leg thickness (numeric string, like an edge)
   readonly dest: PoiPos;
   readonly destAlias?: string;
@@ -115,9 +109,6 @@ export interface MapRoute {
   readonly originValue?: string; // header value → origin marker size
   readonly originTags: Readonly<Record<string, string>>;
   readonly style: 'straight' | 'arc'; // header default leg shape
-  /** Header default surface constraint (§24B.6), cascaded into each leg at parse
-   *  time (mirrors `style`). `ResolvedRoute` carries no surface field. */
-  readonly surface?: 'water' | 'land';
   readonly legs: readonly MapRouteLeg[];
   readonly lineNumber: number;
 }
@@ -130,9 +121,6 @@ export interface MapEdge {
   readonly label?: string;
   readonly directed: boolean;
   readonly style: 'straight' | 'arc';
-  /** Best-effort surface constraint (§24B.6) read from trailing edge metadata;
-   *  on a chain it attaches to the final hop only (mirrors `value:`/`label:`). */
-  readonly surface?: 'water' | 'land';
   readonly meta: Readonly<Record<string, string>>;
   readonly lineNumber: number;
 }
