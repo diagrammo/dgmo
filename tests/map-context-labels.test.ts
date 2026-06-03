@@ -278,7 +278,6 @@ describe('placeContextLabels — styling (AC12)', () => {
     const ocean = placed.find((l) => l.text === 'Test Ocean')!;
     expect(ocean.italic).toBe(true);
     expect(ocean.letterSpacing).toBeGreaterThan(0);
-    expect(ocean.halo).toBe(true);
-    expect(ocean.haloColor).toBe(P.bg);
+    expect(ocean.halo).toBe(false);
   });
 });

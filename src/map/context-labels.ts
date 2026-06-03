@@ -414,7 +414,10 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
       text: cand.text,
       anchor: 'middle',
       color: cand.color,
-      halo: true,
+      // No halo: the bg-coloured outline reads as a ghost box behind the text
+      // over the tinted water/land. Context labels are muted enough to sit
+      // cleanly on the basemap without one.
+      halo: false,
       haloColor,
       italic: cand.italic,
       letterSpacing: cand.letterSpacing,

@@ -475,7 +475,7 @@ describe('renderer — coincident-stack spiderfy + hover-only (AC1/AC8)', () => 
 });
 
 describe('context labels — cartographic styling (AC12)', () => {
-  it('water context labels render italic + letter-spaced + haloed <text>', () => {
+  it('water context labels render italic + letter-spaced, no halo', () => {
     // Offshore POIs frame open ocean so the North Atlantic anchor lands in clear
     // water (over land it would be excluded — water names belong over water).
     const svg = render('map\npoi 22 -42\npoi 18 -38');
@@ -486,8 +486,9 @@ describe('context labels — cartographic styling (AC12)', () => {
     expect(italic.length).toBeGreaterThan(0);
     for (const t of italic) {
       expect(Number(t.getAttribute('letter-spacing'))).toBeGreaterThan(0);
-      expect(t.getAttribute('paint-order')).toBe('stroke fill'); // halo
-      expect(t.getAttribute('stroke')).toBeTruthy();
+      // No halo: a bg-coloured outline reads as a ghost box over tinted water.
+      expect(t.getAttribute('paint-order')).toBeNull();
+      expect(t.getAttribute('stroke')).toBeNull();
     }
   });
   it('off by default → no italic context text (no regression)', () => {
