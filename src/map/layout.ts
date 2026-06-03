@@ -631,8 +631,11 @@ export function buildMapProjection(
       const base = worldLayer.get(iso);
       if (!base) continue; // crisp-only id with no base → skip (avoid orphans)
       const [[bw, bs], [be, bn]] = geoBounds(base as never);
+      // Keep the base feature's `properties` (the country name) — the crisp
+      // `naLand` geometry carries none, and the context-label layer reads the
+      // name from here. Without this the label falls back to the bare ISO code.
       if (bw >= nbW && be <= nbE && bs >= nbS && bn <= nbN)
-        worldLayer.set(iso, cf);
+        worldLayer.set(iso, { ...cf, properties: base.properties });
     }
   }
   const usLayer = wantsUsStates ? decodeLayer(data.usStates) : null;
@@ -2469,7 +2472,6 @@ export function layoutMap(
         ? project(anchorLngLat[0], anchorLngLat[1])
         : (path.centroid(f as never) as [number, number]);
       countryCandidates.push({
-        iso,
         name: (f.properties as { name?: string } | undefined)?.name ?? iso,
         bbox: [x0, y0, x1, y1],
         anchor: a && Number.isFinite(a[0]) ? [a[0], a[1]] : null,
@@ -2483,9 +2485,6 @@ export function layoutMap(
       height,
       waterBodies: data.waterBodies,
       countries: countryCandidates,
-      // Context country labels mirror the region-label abbreviation policy: the
-      // ISO code at the compact breakpoint, the full name otherwise.
-      regionLabels: isCompact ? 'abbrev' : 'full',
       palette,
       project,
       collides,

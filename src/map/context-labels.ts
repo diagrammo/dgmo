@@ -23,7 +23,6 @@ export type TierBand = 'world' | 'continental' | 'regional' | 'local';
 /** An unreferenced country, pre-projected by layout (geo work stays in layout;
  *  area-rank + name-fit + collision live here so the module is unit-testable). */
 export interface CountryCandidate {
-  readonly iso: string;
   readonly name: string;
   /** Projected screen bbox `[x0, y0, x1, y1]` (from `path.bounds`). */
   readonly bbox: readonly [number, number, number, number];
@@ -40,8 +39,6 @@ export interface ContextLabelArgs {
   readonly height: number;
   readonly waterBodies?: WaterBodies | undefined;
   readonly countries: readonly CountryCandidate[];
-  /** `region-labels` mode — context country names inherit `abbrev` (Decision 3). */
-  readonly regionLabels: string;
   readonly palette: PaletteColors;
   readonly project: (lon: number, lat: number) => [number, number] | null;
   /** Collision test against every committed data/region/POI/route obstacle. */
@@ -222,7 +219,6 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     height,
     waterBodies,
     countries,
-    regionLabels,
     palette,
     project,
     collides,
@@ -358,8 +354,9 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     // rather than spend a top-priority slot on a mispositioned name.
     if (w > width * 0.66 || h > height * 0.66) continue;
     if (!insideViewport(c.anchor, width, height)) continue;
-    const abbrev = regionLabels === 'abbrev';
-    const text = abbrev ? c.iso : c.name;
+    // Always the full country name — never an ISO abbreviation. If the name
+    // doesn't fit the footprint, drop the label rather than abbreviate.
+    const text = c.name;
     const tw = labelWidth(text, 0);
     // Approximate fit (Decision 4): name fits inside the footprint bbox. NOT
     // true point-in-polygon — cartographic labels routinely overrun coastlines.

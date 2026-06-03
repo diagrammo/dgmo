@@ -42,7 +42,6 @@ const baseArgs = (over: Partial<ContextLabelArgs> = {}): ContextLabelArgs => ({
   height: 600,
   waterBodies: WATER,
   countries: [],
-  regionLabels: 'off',
   palette: P,
   project: linProject(800, 600),
   collides: () => false,
@@ -137,7 +136,6 @@ describe('placeContextLabels — density invariants (AC7)', () => {
     expect(waterOut).toHaveLength(0);
 
     const country: CountryCandidate = {
-      iso: 'BR',
       name: 'Brazil',
       bbox: [100, 100, 360, 200],
       anchor: [230, 150],
@@ -204,19 +202,16 @@ describe('placeContextLabels — guards', () => {
 
 describe('placeContextLabels — countries (AC5, AC6)', () => {
   const bigFit: CountryCandidate = {
-    iso: 'BR',
     name: 'Brazil',
     bbox: [100, 100, 360, 200],
     anchor: [230, 150],
   };
   const tooSmall: CountryCandidate = {
-    iso: 'LU',
     name: 'Luxembourg',
     bbox: [400, 400, 420, 412],
     anchor: [410, 406],
   };
   const offscreen: CountryCandidate = {
-    iso: 'ZZ',
     name: 'Faraway',
     bbox: [10, 10, 300, 120],
     anchor: null,
@@ -237,7 +232,6 @@ describe('placeContextLabels — countries (AC5, AC6)', () => {
     // A near-full-canvas bbox (e.g. Russia split across the antimeridian) has an
     // unreliable centroid anchor → must NOT be placed despite ranking first.
     const wide: CountryCandidate = {
-      iso: 'RU',
       name: 'Russia',
       bbox: [10, 200, 780, 360], // width 770 > 0.66 * 800
       anchor: [395, 280],
@@ -248,16 +242,16 @@ describe('placeContextLabels — countries (AC5, AC6)', () => {
     expect(out).not.toContain('Russia');
     expect(out).toContain('Brazil');
   });
-  it('country names inherit region-labels abbrev; water always full (AC6)', () => {
-    const abbrev = placeContextLabels(
+  it('country labels always use the full name, never an ISO abbreviation (AC6)', () => {
+    const placed = placeContextLabels(
       baseArgs({
-        regionLabels: 'abbrev',
         waterBodies: { entries: [[0, 0, 'Test Ocean', 0, 'ocean']] },
         countries: [bigFit],
       })
     );
-    expect(abbrev.map((l) => l.text)).toContain('BR'); // ISO, not "Brazil"
-    expect(abbrev.map((l) => l.text)).toContain('Test Ocean'); // water full
+    expect(placed.map((l) => l.text)).toContain('Brazil'); // full name, not "BR"
+    expect(placed.map((l) => l.text)).not.toContain('BR');
+    expect(placed.map((l) => l.text)).toContain('Test Ocean'); // water full
   });
   it('water sorts before countries (orientation core first)', () => {
     const placed = placeContextLabels(
