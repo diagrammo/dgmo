@@ -481,13 +481,14 @@ describe('layout — POIs (AC6, AC7, AC8, AC18)', () => {
     const b = lay('map\npoi 0 0 as aa\npoi 0 0 as bb');
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
-  it('spiderfied member labels stay fully on-canvas (off-canvas guard counts label extents)', () => {
-    // A dense co-located stack of wide-labelled POIs on a narrow canvas: the
-    // fan's radial labels (not just the dots) must not bleed off either edge.
-    // On an 800-wide canvas these all fit comfortably, so use a narrow band that
-    // forces the guard to shift the whole fan inward. Aliases are capped at 12
-    // chars by the parser (AS_ALIAS_RE), so each label is a maxed-out 12-char
-    // token (~70px wide) — wide enough to overrun without the guard.
+  it('spiderfied members get a readable leader-lined column: on-canvas, spread out, badge honest', () => {
+    // A dense co-located stack of wide-labelled POIs on a narrow canvas. The
+    // members must be labelled via a tidy vertical column (each row leader-lined
+    // to its dot) — NOT radial inline labels, which pile up unreadably. Three
+    // invariants: (1) every label is fully on-canvas, (2) rows are vertically
+    // separated (no overlap), (3) the collapsed badge stays at the TRUE location
+    // — earlier attempts either clipped labels or shifted the whole fan, dragging
+    // the badge off the real point. Aliases cap at 12 chars (AS_ALIAS_RE).
     const FONT = 11;
     const W = 220;
     const H = 600;
@@ -502,14 +503,16 @@ describe('layout — POIs (AC6, AC7, AC8, AC18)', () => {
       'OfficeHotelo',
       'OfficeIndiaa',
     ];
-    const r = lay(
+    const wide = lay(
       'map\n' + names.map((n) => `poi 0 0 as ${n}`).join('\n'),
       W,
       H
     );
-    expect(r.clusters).toHaveLength(1);
-    const members = r.labels.filter((l) => l.clusterMember !== undefined);
+    expect(wide.clusters).toHaveLength(1);
+    const members = wide.labels.filter((l) => l.clusterMember !== undefined);
     expect(members.length).toBe(names.length);
+    // (1) Every member label is fully inside the frame, and (column layout) each
+    // carries a leader line back to its dot.
     for (const l of members) {
       const w = measureLegendText(l.text, FONT);
       // anchor 'start' extends right (x → x+w); 'end' extends left (x-w → x).
@@ -517,7 +520,28 @@ describe('layout — POIs (AC6, AC7, AC8, AC18)', () => {
       const right = l.anchor === 'end' ? l.x : l.x + w;
       expect(left).toBeGreaterThanOrEqual(0);
       expect(right).toBeLessThanOrEqual(W);
+      expect(l.leader).toBeDefined();
     }
+    // (2) Spread out: the member label y's are all distinct and separated by at
+    // least the font height — no two stacked on the same row.
+    const ys = members.map((l) => l.y).sort((a, b) => a - b);
+    for (let i = 1; i < ys.length; i++) {
+      expect(ys[i]! - ys[i - 1]!).toBeGreaterThanOrEqual(FONT);
+    }
+    // (3) The badge stays honest: swapping in 2-char labels (no overflow
+    // pressure) must NOT move the cluster centroid — the badge tracks the dots,
+    // never the labels.
+    const narrow = lay(
+      'map\n' +
+        names
+          .map((n, i) => `poi 0 0 as x${String.fromCharCode(97 + i)}`)
+          .join('\n'),
+      W,
+      H
+    );
+    expect(narrow.clusters).toHaveLength(1);
+    expect(wide.clusters[0]!.cx).toBeCloseTo(narrow.clusters[0]!.cx, 5);
+    expect(wide.clusters[0]!.cy).toBeCloseTo(narrow.clusters[0]!.cy, 5);
   });
 });
 

@@ -405,10 +405,17 @@ describe('renderer — coincident-stack spiderfy + hover-only (AC1/AC8)', () => 
   it('export shows every spiderfied label and NO collapse badge (AC8)', () => {
     const svg = render(STACK_SRC);
     expect(svg.querySelectorAll('[data-cluster]').length).toBe(0);
+    // One text label per member (members are now labelled via a leader-lined
+    // column; each row is a <text> plus a <line> leader, both tagged for the
+    // app's collapse toggle — count text only here).
     const memberLabels = svg.querySelectorAll(
-      '.dgmo-map-labels [data-cluster-member]'
+      '.dgmo-map-labels text[data-cluster-member]'
     );
     expect(memberLabels.length).toBe(8);
+    // Each labelled member also carries a leader line tagged for the toggle.
+    expect(
+      svg.querySelectorAll('.dgmo-map-labels line[data-cluster-member]').length
+    ).toBe(8);
   });
 
   it('dense-but-distinct chain stays hover-only: preview hides, export omits', () => {

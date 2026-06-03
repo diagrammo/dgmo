@@ -645,6 +645,9 @@ export function renderMap(
         )
         .attr('stroke-width', lab.leaderColor ? 1 : 0.75);
       if (lab.poiId !== undefined) line.attr('data-poi', lab.poiId);
+      // Spiderfy member leader: toggle it with the badge (same as its text).
+      if (lab.clusterMember !== undefined)
+        line.attr('data-cluster-member', lab.clusterMember);
     }
     const t = emitText(
       gLabels,

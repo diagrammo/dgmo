@@ -1796,27 +1796,22 @@ export function layoutMap(
       return { e, mx: cx0 + Math.cos(ang) * rr, my: cy0 + Math.sin(ang) * rr };
     });
     // Off-canvas guard: translate the whole fan (centroid + members together) so
-    // every dot AND its radial label stays on-canvas. A pure shift preserves the
-    // spider geometry. Each member's inline label fans away from the centroid
-    // (right if mx >= cx0, else left — same rule the label block below uses), so
-    // its far edge extends r + LABEL_GAP + textWidth past the dot on that side.
-    const LABEL_GAP = 3; // matches GAP used for cluster member labels below
-    const labelH = FONT * 1.25;
+    // every DOT stays on-canvas. A pure shift preserves the spider geometry AND
+    // keeps the collapsed badge honest — the ring is small, so the badge barely
+    // moves off the true centroid. (Labels are NOT folded into this box: a label
+    // is wide enough that shifting to fit it would drag the badge far from the
+    // real location — a geographic lie. Instead the label block below flips each
+    // member's radial label to the side that fits and clamps it to the frame.)
     let minX = cx0 - maxR;
     let maxX = cx0 + maxR;
     let minY = cy0 - maxR;
     let maxY = cy0 + maxR;
     for (const { mx, my, e } of positions) {
       const r = radiusOf(e);
-      const labelW = measureLegendText(e.p.label ?? e.p.name ?? e.p.id, FONT);
-      const right = mx >= cx0;
-      const labelFar = right
-        ? mx + r + LABEL_GAP + labelW
-        : mx - r - LABEL_GAP - labelW;
-      minX = Math.min(minX, mx - r, labelFar);
-      maxX = Math.max(maxX, mx + r, labelFar);
-      minY = Math.min(minY, my - r, my - labelH / 2);
-      maxY = Math.max(maxY, my + r, my + labelH / 2);
+      minX = Math.min(minX, mx - r);
+      maxX = Math.max(maxX, mx + r);
+      minY = Math.min(minY, my - r);
+      maxY = Math.max(maxY, my + r);
     }
     let dx = 0;
     let dy = 0;
@@ -2149,35 +2144,17 @@ export function layoutMap(
     // from the east AND west — Boulder in the route-cluster gauntlet).
     type Side = 'right' | 'left' | 'above' | 'below';
     const GAP = 3;
-    // Coincident-stack members (spiderfy): each expanded dot gets a radial inline
-    // label pointing away from the centroid. Emitted VISIBLE (export + expanded
-    // view) but tagged `clusterMember` so the app hides it when the stack collapses
-    // to its badge. These bypass the proximity-column logic below.
-    const clusterById = new Map(clusters.map((c) => [c.id, c]));
+    // Coincident-stack members (spiderfy) are labelled via a tidy leader-lined
+    // COLUMN beside the cluster (see the cluster-column pass after the column
+    // helpers below) — NOT radial inline labels, which pile up unreadably when
+    // the ring is tight. Group the members here; the pass commits them once the
+    // column machinery is defined.
+    const clusterMembersById = new Map<string, MapLayoutPoi[]>();
     for (const p of pois) {
       if (p.clusterId === undefined) continue;
-      const c = clusterById.get(p.clusterId);
-      const { text, w } = labelInfo(p);
-      const right = c ? p.cx >= c.cx : true;
-      const x = right ? p.cx + p.r + GAP : p.cx - p.r - GAP;
-      labels.push({
-        x,
-        y: p.cy + FONT / 3,
-        text,
-        anchor: right ? 'start' : 'end',
-        color: palette.text,
-        halo: true,
-        haloColor: palette.bg,
-        poiId: p.id,
-        clusterMember: p.clusterId,
-        lineNumber: p.lineNumber,
-      });
-      obstacles.push({
-        x: right ? x : x - w,
-        y: p.cy - poiLabH / 2,
-        w,
-        h: poiLabH,
-      });
+      const arr = clusterMembersById.get(p.clusterId);
+      if (arr) arr.push(p);
+      else clusterMembersById.set(p.clusterId, [p]);
     }
     const inlineRect = (p: MapLayoutPoi, w: number, side: Side): LabelRect => {
       switch (side) {
@@ -2268,11 +2245,20 @@ export function layoutMap(
     ): Array<{ o: ColItem; colX: number; rowCy: number; rect: LabelRect }> => {
       const left = Math.min(...items.map((o) => o.p.cx - o.p.r));
       const right = Math.max(...items.map((o) => o.p.cx + o.p.r));
+      const maxW = Math.max(...items.map((o) => o.w));
       const cyMid =
         (Math.min(...items.map((o) => o.p.cy)) +
           Math.max(...items.map((o) => o.p.cy))) /
         2;
-      const colX = side === 'right' ? right + COL_GAP : left - COL_GAP;
+      // Column anchor x, clamped so the widest row's text box stays on-canvas.
+      // (No-op for the clean callers; matters when a fallback column — e.g. a
+      // second spider cluster boxed out of its preferred side — would otherwise
+      // run a label off the frame.) A right column anchors its text start at
+      // colX; a left column anchors its end at colX (text spans colX-maxW..colX).
+      const colX =
+        side === 'right'
+          ? Math.min(right + COL_GAP, width - 2 - maxW)
+          : Math.max(left - COL_GAP, 2 + maxW);
       const totalH = items.length * step;
       let startY = cyMid - totalH / 2;
       startY = Math.max(2, Math.min(startY, height - totalH - 2));
@@ -2312,8 +2298,14 @@ export function layoutMap(
       return right + COL_GAP + maxW <= width - 2 ? 'right' : 'left';
     };
     // Commit a visible callout column on the GIVEN side (no re-deriving the
-    // side — the caller has already validated it).
-    const commitColumn = (items: ColItem[], side: 'right' | 'left'): void => {
+    // side — the caller has already validated it). When `clusterId` is set the
+    // rows are tagged `clusterMember` so the app shows/hides them (text AND
+    // leader) with the collapsed-stack badge.
+    const commitColumn = (
+      items: ColItem[],
+      side: 'right' | 'left',
+      clusterId?: string
+    ): void => {
       for (const { o, colX, rowCy, rect } of columnRows(items, side)) {
         obstacles.push(rect);
         labels.push({
@@ -2333,6 +2325,7 @@ export function layoutMap(
           leaderColor: o.p.fill,
           poiId: o.p.id,
           lineNumber: o.p.lineNumber,
+          ...(clusterId !== undefined && { clusterMember: clusterId }),
         });
       }
     };
@@ -2362,6 +2355,25 @@ export function layoutMap(
         lineNumber: p.lineNumber,
       });
     };
+
+    // Spiderfy clusters: label every member in a tidy leader-lined column beside
+    // the ring (collision-free by row spacing), tagged `clusterMember` so the app
+    // toggles them with the badge. Committed FIRST so the singleton/group passes
+    // route around the column. The dots/legs/badge keep their true location — only
+    // the labels move out to the column, which the startY-clamp keeps on-canvas.
+    for (const [clusterId, members] of clusterMembersById) {
+      if (members.length === 0) continue;
+      const items = makeItems(members);
+      // Prefer a clean (on-canvas, collision-free) side; fall back to the side
+      // with more horizontal room. Cluster labels are always placed (never
+      // hover-only) — readability beats the odd overlap with a faint basemap.
+      const side = wouldColumnBeClean(items, 'right')
+        ? 'right'
+        : wouldColumnBeClean(items, 'left')
+          ? 'left'
+          : defaultColumnSide(items);
+      commitColumn(items, side, clusterId);
+    }
 
     // Per-render extent threshold (resolution-relative; Decision #1, F9).
     const maxExtent = MAX_CLUSTER_EXTENT_FACTOR * Math.min(width, height);
