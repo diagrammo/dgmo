@@ -499,3 +499,30 @@ describe('context labels — cartographic styling (AC12)', () => {
     expect(italic).toHaveLength(0);
   });
 });
+
+describe('renderer — colorize border + override (AC8, AC12)', () => {
+  const ca = (svg: SVGSVGElement) =>
+    svg.querySelector<SVGPathElement>('.dgmo-map-region[data-region="US-CA"]')!;
+
+  it('region stroke darkens per-region toward text, differs from green baseline (AC12)', () => {
+    const colored = ca(render('map\nCalifornia'));
+    const plain = ca(render('map\nno-colorize\nCalifornia'));
+    const fill = colored.getAttribute('fill')!;
+    // Per-region darkened outline = mix(fill, text, 35); width is the renderer
+    // constant 0.5 (not layout-controlled), so only the colour changes.
+    expect(colored.getAttribute('stroke')).toBe(mix(fill, P.text, 35));
+    expect(colored.getAttribute('stroke-width')).toBe('0.5');
+    expect(colored.getAttribute('stroke')).not.toBe(
+      plain.getAttribute('stroke')
+    );
+  });
+
+  it('direct trailing color wins over the colorize pastel (AC8)', () => {
+    const TAG_TINT_LIGHT = 60;
+    const svg = render('map\nCalifornia red');
+    // Flat red tint (direct override), NOT the political pastel.
+    expect(ca(svg).getAttribute('fill')).toBe(
+      mix(P.colors.red, P.bg, TAG_TINT_LIGHT)
+    );
+  });
+});

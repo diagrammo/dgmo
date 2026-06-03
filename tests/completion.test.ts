@@ -509,9 +509,9 @@ describe('COMPLETION_REGISTRY', () => {
     expect(refContent).toContain('critical-path');
   });
 
-  it('map registry lists the 12 map directives incl. active-tag + no-* (AC10)', () => {
+  it('map registry lists the 13 map directives incl. active-tag + no-* (AC10)', () => {
     const mapSpec = COMPLETION_REGISTRY.get('map')!;
-    // Surviving intent directives + the 6 `no-*` cosmetic opt-outs.
+    // Surviving intent directives + the 7 `no-*` cosmetic opt-outs.
     for (const k of [
       'region-metric',
       'poi-metric',
@@ -525,6 +525,7 @@ describe('COMPLETION_REGISTRY', () => {
       'no-context-labels',
       'no-region-labels',
       'no-poi-labels',
+      'no-colorize',
     ])
       expect(mapSpec.directives[k]).toBeDefined();
     // Removed tokens are gone entirely.

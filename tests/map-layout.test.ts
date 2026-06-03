@@ -8,7 +8,7 @@ import {
 } from '../src/map/layout';
 import { getPalette } from '../src/palettes';
 import { measureLegendText } from '../src/utils/legend-constants';
-import { mix } from '../src/palettes/color-utils';
+import { mix, politicalTints } from '../src/palettes/color-utils';
 import type { MapData } from '../src/map/resolved-types';
 import type { BoundaryTopology, Gazetteer } from '../src/map/data/types';
 
@@ -187,7 +187,9 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     const or = r.regions.find((x) => x.id === 'US-OR');
     expect(or).toBeDefined();
     expect(or!.d).not.toMatch(/NaN/);
-    expect(or!.fill).toBe(neutral); // unscored → plain land
+    // POI-only map carries no region data → colorize is the default dress, so
+    // Oregon renders a political pastel (not the plain green land).
+    expect(or!.fill).not.toBe(neutral);
     expect(r.regions.find((x) => x.id === 'US-ME')).toBeUndefined(); // out of frame
   });
   it('non-albers cluster zooms to fill the canvas (extent-corner fit, not globe)', () => {
@@ -426,12 +428,13 @@ describe('layout — uniform subtle basemap dress (subject water + land)', () =>
   // activity or the muted/natural flags — only neighbour land changes (below).
   const water = mix(P.colors.blue, P.bg, 24);
   it('no data → subtle water + faded green land', () => {
-    const r = lay('map\nCalifornia');
+    // `no-colorize` is the green-land dress now that bare regions auto-colorize.
+    const r = lay('map\nno-colorize\nCalifornia');
     expect(r.background).toBe(water);
     expect(r.regions.find((x) => x.id === 'US-CA')!.fill).toBe(neutral);
   });
   it('`muted` does not change subject water/land', () => {
-    const r = lay('map\nmuted\nCalifornia');
+    const r = lay('map\nno-colorize\nmuted\nCalifornia');
     expect(r.background).toBe(water);
     expect(r.regions.find((x) => x.id === 'US-CA')!.fill).toBe(neutral);
   });
@@ -1132,5 +1135,139 @@ describe('layout — antimeridian-crossing landmass renders (#russia-cull)', () 
     // The full mainland (not just a few far-east islands) must be present — the
     // pre-fix bug left only ~1.8k chars of small islands; the mainland is ~7k+.
     expect(ru!.d.length).toBeGreaterThan(4000);
+  });
+});
+
+describe('layout — colorize (content-inferred political fills, §24B)', () => {
+  // The hand-built fixture gives each rect its own arc → no intra-topology
+  // adjacency; the cross-topology border seam (FOREIGN_BORDER) still applies, so
+  // border states (US-CA↔MX, US-AK/US-ME↔CA) take a SECOND tint. So we assert
+  // MEMBERSHIP in the palette's political tints, not a single colour. The
+  // neighbour-distinctness guarantee is proven on the REAL graphs (incl. the
+  // international seam) in tests/map-colorize.test.ts.
+  const TINTS = new Set(politicalTints(P, 8, false));
+  const isPolitical = (fill: string): boolean => TINTS.has(fill);
+  const politicalRegions = (r: ReturnType<typeof lay>) =>
+    r.regions.filter((x) => x.id !== 'lake');
+  const fillOf = (r: ReturnType<typeof lay>, id: string) =>
+    r.regions.find((x) => x.id === id)?.fill;
+
+  it('bare regions colorize: referenced + base mesh + context all on-palette (AC1)', () => {
+    const r = lay('map\nCalifornia');
+    const ca = r.regions.find((x) => x.id === 'US-CA')!;
+    expect(isPolitical(ca.fill)).toBe(true); // referenced state
+    expect(ca.fill).not.toBe(neutral);
+    // Full mesh: an UNREFERENCED state is coloured too (not just California).
+    expect(isPolitical(fillOf(r, 'US-OR')!)).toBe(true);
+    // Context country (neighbour land) colorized — foreignFill bypassed (F9).
+    expect(isPolitical(fillOf(r, 'MX')!)).toBe(true);
+  });
+
+  it('no drawn political region leaks to green neutral (AC11)', () => {
+    const r = lay('map\nCalifornia');
+    for (const reg of politicalRegions(r))
+      expect(isPolitical(reg.fill)).toBe(true);
+  });
+
+  it('border state never shares a hue with the country it abuts (international seam)', () => {
+    const r = lay('map\nCalifornia');
+    expect(fillOf(r, 'US-CA')).not.toBe(fillOf(r, 'MX')); // California ↔ Mexico
+    expect(fillOf(r, 'US-ME')).not.toBe(fillOf(r, 'CA')); // Maine ↔ Canada
+    expect(fillOf(r, 'US-AK')).not.toBe(fillOf(r, 'CA')); // Alaska ↔ Canada
+  });
+
+  it('bare map (no content) colorizes the whole world (AC3)', () => {
+    // Colorize is the default dress for any non-data map — even an empty `map`
+    // gets the political backdrop (no region is being coloured by data).
+    const r = lay('map');
+    const political = politicalRegions(r);
+    expect(political.length).toBeGreaterThan(0);
+    for (const reg of political) expect(isPolitical(reg.fill)).toBe(true);
+  });
+
+  it('POI-only map colorizes too — markers draw on top (AC3)', () => {
+    // A US-framed POI draws the full state mesh; with no region data it colorizes
+    // and the POI markers render over the tints.
+    const r = lay('map\npoi New York City');
+    const political = politicalRegions(r);
+    expect(political.length).toBeGreaterThan(0);
+    expect(political.every((x) => isPolitical(x.fill))).toBe(true);
+    expect(r.pois.length).toBeGreaterThan(0);
+  });
+
+  it('value data suppresses colorize (AC4)', () => {
+    const r = lay('map\nCalifornia value: 50');
+    expect(isPolitical(fillOf(r, 'US-CA')!)).toBe(false);
+    expect(politicalRegions(r).some((x) => isPolitical(x.fill))).toBe(false);
+  });
+
+  it('tag data suppresses colorize, even with active-tag none (AC5)', () => {
+    const tagged = lay('map\ntag M as m\n  HQ blue\nCalifornia m: HQ');
+    expect(politicalRegions(tagged).some((x) => isPolitical(x.fill))).toBe(
+      false
+    );
+    const none = lay(
+      'map\ntag M as m\n  HQ blue\nactive-tag none\nCalifornia m: HQ'
+    );
+    expect(politicalRegions(none).some((x) => isPolitical(x.fill))).toBe(false);
+  });
+
+  it('`no-colorize` forces green-land even with regions (AC6)', () => {
+    const r = lay('map\nno-colorize\nCalifornia');
+    expect(fillOf(r, 'US-CA')).toBe(neutral);
+    expect(politicalRegions(r).some((x) => isPolitical(x.fill))).toBe(false);
+  });
+
+  it('`no-colorize` is a true no-op under data — byte-identical layout (AC7)', () => {
+    // Flag placed AFTER the data line so removing it does not shift any region's
+    // lineNumber — isolating the flag's (nil) effect on the data dress.
+    const withFlag = JSON.stringify(
+      lay('map\nCalifornia value: 92\nno-colorize')
+    );
+    const without = JSON.stringify(lay('map\nCalifornia value: 92'));
+    expect(withFlag).toBe(without);
+  });
+
+  it('direct color wins over colorize, colorize still active (AC8)', () => {
+    const TAG_TINT_LIGHT = 60;
+    const r = lay('map\nOregon blue\nCalifornia');
+    // Oregon painted its direct blue tint (override), California stays on-palette.
+    expect(fillOf(r, 'US-OR')).toBe(mix(P.colors.blue, P.bg, TAG_TINT_LIGHT));
+    expect(isPolitical(fillOf(r, 'US-CA')!)).toBe(true);
+  });
+
+  it('boundary stroke darkens per-region under colorize, differs from green baseline (AC12)', () => {
+    const colored = lay('map\nCalifornia');
+    const plain = lay('map\nno-colorize\nCalifornia');
+    const ca = colored.regions.find((x) => x.id === 'US-CA')!;
+    const caPlain = plain.regions.find((x) => x.id === 'US-CA')!;
+    expect(ca.stroke).toBe(mix(ca.fill, P.text, 35)); // per-region darken
+    expect(ca.stroke).not.toBe(caPlain.stroke); // ≠ green-land baseline
+  });
+
+  it('AK/HI insets colorize and match the main-frame colorByIso (AC11)', () => {
+    const r = lay('map\nCalifornia\nAlaska\nHawaii', 1200, 800);
+    expect(r.insetRegions.length).toBeGreaterThan(0);
+    for (const ins of r.insetRegions) expect(isPolitical(ins.fill)).toBe(true);
+    // An inset state's colour matches its main-frame colour (same colorByIso).
+    // Alaska borders Canada → it carries the seam-aware tint in BOTH places.
+    const akInset = r.insetRegions.find((x) => x.id === 'US-AK');
+    if (akInset) expect(isPolitical(akInset.fill)).toBe(true);
+  });
+
+  it('deterministic + extent-independent (AC10)', () => {
+    const src = 'map\nCalifornia';
+    expect(JSON.stringify(lay(src))).toBe(JSON.stringify(lay(src)));
+    // Same region, different source/extent → same colour (unified global graph).
+    const a = fillOf(lay('map\nCalifornia'), 'US-CA');
+    const b = fillOf(lay('map\nCalifornia\nOregon\nMaine'), 'US-CA');
+    expect(a).toBe(b);
+  });
+
+  it('all-typo map still colorizes — no region data present (AC14)', () => {
+    // Unresolved region lines carry no data, so the map is a non-data map and
+    // colorizes (the typos surface as diagnostics, the world stays political).
+    const r = lay('map\nNotARealPlace\nAlsoFake');
+    expect(politicalRegions(r).every((x) => isPolitical(x.fill))).toBe(true);
   });
 });

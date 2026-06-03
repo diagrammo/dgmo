@@ -47,13 +47,14 @@ describe('parseMap — directives (AC2, AC20)', () => {
   });
   it('parses each `no-*` cosmetic opt-out as a boolean true (AC2)', () => {
     const r = parseMap(
-      'map\nno-coastline\nno-relief\nno-context-labels\nno-region-labels\nno-poi-labels'
+      'map\nno-coastline\nno-relief\nno-context-labels\nno-region-labels\nno-poi-labels\nno-colorize'
     );
     expect(r.directives.noCoastline).toBe(true);
     expect(r.directives.noRelief).toBe(true);
     expect(r.directives.noContextLabels).toBe(true);
     expect(r.directives.noRegionLabels).toBe(true);
     expect(r.directives.noPoiLabels).toBe(true);
+    expect(r.directives.noColorize).toBe(true);
   });
   it('`no-*` flags are idempotent — no duplicate warning (mirror no-legend) (AC13)', () => {
     const r = parseMap('map\nno-coastline\nno-coastline');

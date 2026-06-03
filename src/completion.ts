@@ -546,6 +546,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Turn off subdivision name labels (on by default)',
       },
       'no-poi-labels': { description: 'Turn off POI labels (on by default)' },
+      'no-colorize': {
+        description:
+          'Force plain green-land reference dress (regions are auto-coloured by default)',
+      },
     }),
   ],
 ]);

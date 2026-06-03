@@ -1,7 +1,7 @@
 // Geometry helpers for the resolver: topology indexing + antimeridian-correct
 // feature bounds (via d3-geo geoBounds — NOT naive min/max, which breaks on the
 // antimeridian and on multi-part features like US Alaska/Hawaii; R5/R6).
-import { feature } from 'topojson-client';
+import { feature, neighbors } from 'topojson-client';
 import { geoBounds, geoArea } from 'd3-geo';
 import type { BoundaryTopology } from './data/types';
 import type { GeoExtent } from './resolved-types';
@@ -45,6 +45,52 @@ export function featureIndex(
 /** Set of geometry ids (ISO codes) present in a topology. */
 export function idSet(topo: BoundaryTopology): Set<string> {
   return new Set(geomObject(topo).geometries.map((g) => g.id));
+}
+
+// Memoize adjacency on the RAW asset object (never the per-render-mutated
+// `worldLayer`). Keyed by topology identity — the assets are stable singletons
+// from load-data.ts, so one build per topology lasts the process (G13).
+const adjacencyCache = new WeakMap<BoundaryTopology, Map<string, string[]>>();
+
+/** Per-topology arc-adjacency: ISO → neighbour ISOs, from shared TopoJSON arcs
+ *  (`topojson-client.neighbors()` on the RAW topology geometries — arcs live on
+ *  the topology, independent of any `feature()` decode — F2/ADR-4). Computed
+ *  per-topology (a country never neighbours a state) and memoized.
+ *
+ *  DATA HYGIENE (G1): the raw geometry array can carry (a) `type: null`
+ *  sovereignty stubs with no arcs (e.g. "Ashmore & Cartier Is." tagged `AU`) and
+ *  (b) genuine duplicate ISO ids. Null stubs are skipped (no arcs → no
+ *  adjacency), and every geometry sharing one ISO is UNIONED into a single ISO
+ *  node — matching the merged layer `decodeLayer` actually draws. Without this
+ *  the ISO-keyed graph corrupts and the AC9 no-collision guarantee degrades. */
+export function buildAdjacency(topo: BoundaryTopology): Map<string, string[]> {
+  const cached = adjacencyCache.get(topo);
+  if (cached) return cached;
+  const geometries = geomObject(topo).geometries as Array<{
+    id: string;
+    type?: string;
+  }>;
+  // neighbors() returns, per geometry BY ARRAY POSITION, the indices of
+  // arc-sharing geometries. Null-geometry stubs share no arcs → empty lists.
+  const nb = neighbors(geometries as never);
+  const sets = new Map<string, Set<string>>();
+  geometries.forEach((g, i) => {
+    if (!g.type || g.type === 'null') return; // skip arc-less sovereignty stubs
+    let set = sets.get(g.id);
+    if (!set) {
+      set = new Set<string>();
+      sets.set(g.id, set);
+    }
+    for (const j of nb[i] ?? []) {
+      const nid = geometries[j]?.id;
+      if (nid && nid !== g.id) set.add(nid); // union; never self
+    }
+  });
+  const out = new Map<string, string[]>();
+  // Deterministic neighbour order (sorted) so downstream coloring is stable.
+  for (const [iso, set] of sets) out.set(iso, [...set].sort());
+  adjacencyCache.set(topo, out);
+  return out;
 }
 
 /** A decoded boundary feature: the GeoJSON geometry plus its ISO id and display

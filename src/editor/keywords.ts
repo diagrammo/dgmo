@@ -162,6 +162,7 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'no-context-labels',
   'no-region-labels',
   'no-poi-labels',
+  'no-colorize',
   'poi',
   'route',
   // Data charts

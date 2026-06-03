@@ -18,7 +18,14 @@ import {
   type GeoPath,
 } from 'd3-geo';
 import { feature } from 'topojson-client';
-import { mix, contrastRatio, relativeLuminance } from '../palettes/color-utils';
+import {
+  mix,
+  contrastRatio,
+  relativeLuminance,
+  politicalTints,
+} from '../palettes/color-utils';
+import { buildAdjacency } from './geo';
+import { assignColors } from './colorize';
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes/types';
 import {
@@ -564,6 +571,29 @@ const inAlaska = (lon: number, lat: number): boolean =>
   lat >= 51 && (lon <= -129 || lon >= 172);
 const inHawaii = (lon: number, lat: number): boolean =>
   lat >= 18 && lat <= 23 && lon >= -161 && lon <= -154;
+/** US states that visually abut a foreign country (Canada `CA` / Mexico `MX`) in
+ *  the drawn map — a fixed, extent-independent geographic fact. Used ONLY by the
+ *  colorize pass to bridge the US-states and world topologies (which share no
+ *  TopoJSON arcs) so a border state never shares a hue with the country it touches
+ *  (§24B colorize). Great-Lakes water-gap states (OH/PA) are excluded — they don't
+ *  visually touch Canada's drawn polygon. */
+const FOREIGN_BORDER: Readonly<Record<string, readonly string[]>> = {
+  CA: [
+    'US-AK',
+    'US-WA',
+    'US-ID',
+    'US-MT',
+    'US-ND',
+    'US-MN',
+    'US-MI',
+    'US-NY',
+    'US-VT',
+    'US-NH',
+    'US-ME',
+  ],
+  MX: ['US-CA', 'US-AZ', 'US-NM', 'US-TX'],
+};
+
 /** US territories excluded from the contiguous-US fit frame. */
 const US_NON_CONUS = new Set([
   'US-AK',
@@ -628,6 +658,10 @@ export interface MapProjectionBuild {
   readonly usLayer: Map<string, GeoFeature> | null;
   readonly usCrisp: boolean;
   readonly wantsUsStates: boolean;
+  /** The RAW world topology `worldLayer` derives from (coarse vs detail). Carried
+   *  out so the colorize pass can build arc-adjacency on the same source the
+   *  drawn countries came from — memoized on this stable asset object. */
+  readonly worldTopo: BoundaryTopology;
 }
 
 /** Build the projection, fit target, and decoded basemap layers for a resolved
@@ -767,6 +801,7 @@ export function buildMapProjection(
     usLayer,
     usCrisp,
     wantsUsStates,
+    worldTopo,
   };
 }
 
@@ -814,8 +849,15 @@ export function layoutMap(
   // the export canvas aspect matches the drawn geometry — see buildMapProjection).
   // The projection here has .rotate applied but NOT .fitExtent (done below, as it
   // depends on canvas width/height). --
-  const { projection, fitTarget, fitIsGlobal, worldLayer, usLayer, usCrisp } =
-    buildMapProjection(resolved, data);
+  const {
+    projection,
+    fitTarget,
+    fitIsGlobal,
+    worldLayer,
+    usLayer,
+    usCrisp,
+    worldTopo,
+  } = buildMapProjection(resolved, data);
 
   const usContext = usLayer !== null;
   // Basemap fills (`water` / `neutralFill` / `foreignFill`) depend on whether a
@@ -909,6 +951,70 @@ export function layoutMap(
         : FOREIGN_TINT_LIGHT
   );
 
+  // -- Colorize: content-inferred distinct political fills (§24B) --
+  // Colorize is the DEFAULT dress for any map that is NOT colouring regions by
+  // data. The ONLY two things that turn it off: (1) a data dimension exists on a
+  // region (any `value:` or tag group) — data owns the saturation, so the basemap
+  // recedes to the gray choropleth/categorical dress; or (2) the `no-colorize`
+  // opt-out. Everything else — bare `map`, POI/route-only maps, named regions
+  // without data — gets distinct political pastels (markers/routes draw on top).
+  // Data EXISTENCE (not which dimension is *active*) is the discriminator, so a
+  // tag map viewed with `active-tag none` still keeps its neutral data dress; and
+  // the live-preview `California` → `California value: 92` edit transitions
+  // colorized → choropleth cleanly.
+  const colorizeActive =
+    resolved.directives.noColorize !== true &&
+    !hasRamp &&
+    resolved.tagGroups.length === 0;
+  // Hue per ISO over ONE UNIFIED graph spanning every drawn topology, so no two
+  // bordering regions share a hue — INCLUDING across the international seam. The
+  // world and us-states topologies share no TopoJSON arcs, so neighbors() is blind
+  // to the US↔Canada/Mexico border; those edges are fixed geographic facts (FOREIGN
+  // _BORDER) added explicitly. Coloring is global (whole topologies, not the drawn
+  // subset) and country codes sort before `US-XX`, so a country's colour is decided
+  // before any state is visited → extent-independent (France identical at any width
+  // and in an inset; AC10) and the same whether or not states are drawn. Every drawn
+  // ISO is in the graph, so the lookup never misses → no green leak (F14).
+  const colorByIso = new Map<string, string>();
+  if (colorizeActive) {
+    const adjacency = new Map<string, string[]>();
+    const addEdges = (src: ReadonlyMap<string, readonly string[]>): void => {
+      for (const [iso, ns] of src) {
+        const cur = adjacency.get(iso);
+        if (cur) cur.push(...ns);
+        else adjacency.set(iso, [...ns]);
+      }
+    };
+    addEdges(buildAdjacency(worldTopo)); // countries
+    if (usLayer) {
+      addEdges(buildAdjacency(data.usStates)); // US states
+      // International border seam (US states ↔ Canada/Mexico), both directions —
+      // the two topologies don't share arcs, so this is the only place the seam
+      // is expressible. Skip any endpoint not in the graph (defensive).
+      for (const [country, states] of Object.entries(FOREIGN_BORDER)) {
+        const cn = adjacency.get(country);
+        if (!cn) continue;
+        for (const st of states) {
+          const sn = adjacency.get(st);
+          if (!sn) continue;
+          cn.push(st);
+          sn.push(country);
+        }
+      }
+    }
+    const { byIso, huesNeeded } = assignColors(
+      [...adjacency.keys()],
+      adjacency
+    );
+    const tints = politicalTints(palette, huesNeeded, isDark);
+    for (const [iso, idx] of byIso) colorByIso.set(iso, tints[idx]!);
+  }
+  /** Per-region boundary stroke under colorize. Distinct FILLS aren't enough —
+   *  the boundary sells the separation (F10). Darken per-region toward the
+   *  palette text so the outline tracks each pastel; width stays the renderer
+   *  constant (the darker tone, not weight, does the work — AC12). */
+  const colorizeStroke = (fill: string): string => mix(fill, palette.text, 35);
+
   // Score ramp base: a NEUTRAL tint of the page, NOT the (green) land colour —
   // blending red toward green produced muddy brown mid-tones that blurred into
   // the unscored land. Anchored to a neutral, the ramp is a clean single-hue red
@@ -966,15 +1072,20 @@ export function layoutMap(
    *  regions, neutral otherwise; a tag group active → that group's tag colour,
    *  neutral otherwise (value ignored). */
   const regionFill = (r: {
+    iso?: string;
     value?: number;
     color?: string;
     tags: Readonly<Record<string, string>>;
   }): string => {
     const direct = directFill(r.color);
-    if (direct) return direct;
+    if (direct) return direct; // §24B.4 direct color wins over colorize (F4)
     if (activeIsScore) {
       return r.value !== undefined ? fillForValue(r.value) : neutralFill;
     }
+    // Under colorize (activeGroup === null ⇒ not score) the terminal neutralFill
+    // is replaced by the region's political pastel; the value-path above is dead
+    // here (activeIsScore is false). Data/tag maps are untouched.
+    if (colorizeActive) return (r.iso && colorByIso.get(r.iso)) ?? neutralFill;
     return tagFill(r.tags, activeGroup) ?? neutralFill;
   };
 
@@ -1198,10 +1309,20 @@ export function layoutMap(
       if (iso === 'US-AK') {
         const can = worldLayer.get('CA');
         const cd = can ? (geoPath(proj)(can as never) ?? '') : '';
-        if (cd) contextLand = { d: cd, fill: foreignFill };
+        if (cd)
+          contextLand = {
+            d: cd,
+            fill: colorizeActive
+              ? (colorByIso.get('CA') ?? foreignFill)
+              : foreignFill,
+          };
       }
       const r = regionById.get(iso);
-      let fill = neutralFill;
+      // Inset land reads the SAME colorByIso as the main frame → AK/HI identical
+      // to their main-frame colour (extent-independent; AC10/AC11).
+      let fill = colorizeActive
+        ? (colorByIso.get(iso) ?? neutralFill)
+        : neutralFill;
       let lineNumber = -1;
       if (r?.layer === 'us-state') {
         fill = regionFill(r);
@@ -1227,7 +1348,7 @@ export function layoutMap(
         id: iso,
         d,
         fill,
-        stroke: regionStroke,
+        stroke: colorizeActive ? colorizeStroke(fill) : regionStroke,
         lineNumber,
         layer: 'us-state',
         ...(r?.value !== undefined && { value: r.value }),
@@ -1472,7 +1593,12 @@ export function layoutMap(
       const isThisLayer = r?.layer === layerKind;
       // Non-US neighbour land in a US view is gray context, not yellow land.
       const isForeign = layerKind === 'country' && usContext && iso !== 'US';
-      let fill = isForeign ? foreignFill : neutralFill;
+      // Under colorize EVERY drawn political region — referenced, context, or
+      // neighbour — gets its pastel, so the whole visible set reads as one map
+      // (foreignFill/neutralFill bypassed; F9). The referenced branch below routes
+      // through regionFill (direct color still wins).
+      const baseFill = isForeign ? foreignFill : neutralFill;
+      let fill = colorizeActive ? (colorByIso.get(iso) ?? baseFill) : baseFill;
       let label: string | undefined;
       let lineNumber = -1;
       let layer: MapLayoutRegion['layer'] = 'base';
@@ -1492,7 +1618,7 @@ export function layoutMap(
         id: iso,
         d,
         fill,
-        stroke: regionStroke,
+        stroke: colorizeActive ? colorizeStroke(fill) : regionStroke,
         lineNumber,
         layer,
         ...(label !== undefined && { label }),
@@ -1644,13 +1770,23 @@ export function layoutMap(
       // differs from the land, flip to the light tone so the lines stay visible.
       const darkTone = isDark ? palette.bg : palette.text;
       const lightTone = isDark ? palette.text : palette.bg;
-      const landLum = relativeLuminance(neutralFill);
+      // Relief is ONE global clipped layer with a single colour (renderer.ts) —
+      // a per-region hatch tone over varied pastels would need a renderer
+      // rearchitecture (out of scope; v2). Under colorize the political tints are
+      // pale washes sitting near the surface/bg, so referencing that base picks a
+      // fixed mid-contrast hatch tone that reads over all of them (AC15/G2).
+      const reliefLandRef = colorizeActive
+        ? isDark
+          ? palette.surface
+          : palette.bg
+        : neutralFill;
+      const landLum = relativeLuminance(reliefLandRef);
       const tone =
         Math.abs(landLum - relativeLuminance(darkTone)) > 0.04
           ? darkTone
           : lightTone;
       reliefHatch = {
-        color: mix(tone, neutralFill, RELIEF_HATCH_STRENGTH),
+        color: mix(tone, reliefLandRef, RELIEF_HATCH_STRENGTH),
         spacing: RELIEF_HATCH_SPACING,
         width: RELIEF_HATCH_WIDTH,
       };

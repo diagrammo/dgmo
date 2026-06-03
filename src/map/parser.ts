@@ -46,7 +46,7 @@ const HUB_RE = /^(->|~>)\s+(.+)$/;
 const LEG_ARROW_RE = /^(-[^>]*?->|->|~[^>]*?~>|~>|--)\s+(.+)$/;
 const AT_RE = /(^|[\s,])at\s*:/i; // the removed `at:` coord form (§24B.9)
 
-// Final 12 (§24B.2): 6 irreducible-intent directives + 6 `no-*` cosmetic
+// Final 13 (§24B.2): 6 irreducible-intent directives + 7 `no-*` cosmetic
 // opt-outs. Every cosmetic is on by default; its `no-*` flag is the only switch.
 const DIRECTIVE_SET: ReadonlySet<string> = new Set([
   'region-metric',
@@ -61,6 +61,7 @@ const DIRECTIVE_SET: ReadonlySet<string> = new Set([
   'no-context-labels',
   'no-region-labels',
   'no-poi-labels',
+  'no-colorize',
 ]);
 
 /** True when the first non-blank/non-comment line declares `map`. */
@@ -329,6 +330,9 @@ export function parseMap(content: string): ParsedMap {
         break;
       case 'no-poi-labels':
         d.noPoiLabels = true;
+        break;
+      case 'no-colorize':
+        d.noColorize = true;
         break;
     }
   }

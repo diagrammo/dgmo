@@ -48,6 +48,10 @@ export interface MapDirectives {
   noRegionLabels?: boolean;
   /** `no-poi-labels` — suppress POI labels (default-on, collision-managed auto). */
   noPoiLabels?: boolean;
+  /** `no-colorize` — force the plain green-land reference dress even when regions
+   *  are referenced (regions are auto-coloured by default; §24B colorize). A
+   *  no-op under data — the basemap is already gray there. */
+  noColorize?: boolean;
 }
 
 /** A region-fill: a subdivision name with an optional score and/or tag values
