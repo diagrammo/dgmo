@@ -111,7 +111,7 @@ const P = getPalette('nord').light;
 // Unscored/untagged subject land — a VERY faded green, uniform whether or not a
 // colouring dimension is active (see layout.ts mapNeutralLandColor /
 // LAND_TINT_LIGHT). Data activity no longer changes the subject dress.
-const neutral = mix(P.colors.green, P.bg, 12);
+const neutral = mix(P.colors.green, P.bg, 6);
 const mutedNeutral = neutral;
 const lay = (src: string, w = 800, h = 600) =>
   layoutMap(

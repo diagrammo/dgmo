@@ -80,8 +80,8 @@ const REGION_LABEL_HALO_RATIO = 4.5;
 // (plain reference OR data-coloured) wears the same subtle dress and the green
 // never competes with saturated tag/score tints. Dark lifts a touch off the
 // near-black surface so the faint green stays legible.
-const LAND_TINT_LIGHT = 12;
-const LAND_TINT_DARK = 24;
+const LAND_TINT_LIGHT = 6;
+const LAND_TINT_DARK = 16;
 // Categorical (tag) region fill: a flat, fairly saturated tint of the tag
 // colour so a tagged region reads as its CATEGORY against the tinted land base
 // — the generic 25% shape tint washes out and lets the olive land dominate.
