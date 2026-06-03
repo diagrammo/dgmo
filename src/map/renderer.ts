@@ -215,6 +215,9 @@ export function renderMap(
       .attr('fill', r.fill)
       .attr('stroke', r.stroke)
       .attr('stroke-width', strokeWidth);
+    // Display name on EVERY region (authored + base/context) so the app can
+    // surface it on hover — decorative metadata, no visible text drawn here.
+    if (r.label) p.attr('data-region-name', r.label);
     // Data layer? Tag it so the app can highlight on legend hover / gradient
     // scrub. `data-value` for ramp-proximity, `data-tag-<group>` per tag value
     // (both lowercased to match the lowercased legend-entry attributes).
@@ -318,6 +321,27 @@ export function renderMap(
     for (const r of layout.regions)
       if (r.id === 'lake')
         mask.append('path').attr('d', r.d).attr('fill', 'white');
+    // Moat around each AK/HI inset box: the opaque box is drawn in the FOREGROUND
+    // over open ocean, so the main-map offshore rings get chopped by its border
+    // and butt into it — sloppy. Paint each box quad black (interior, under the
+    // box) with a black stroke whose half-width = the band's outer reach, so the
+    // main rings also clear a margin OUTSIDE the border. The ring-ends then fall
+    // in open water away from the frame instead of crashing into it.
+    if (layout.insets.length) {
+      const reach = Math.max(0, ...cs.lines.map((l) => l.d + l.thickness));
+      for (const box of layout.insets) {
+        const d =
+          box.points.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join('') +
+          'Z';
+        mask
+          .append('path')
+          .attr('d', d)
+          .attr('fill', 'black')
+          .attr('stroke', 'black')
+          .attr('stroke-width', 2 * reach)
+          .attr('stroke-linejoin', 'round');
+      }
+    }
     // NO frame band: a synthetic frame-cut edge (clipExtent/cullFeatureToView
     // trims region `d` to the view rect) has the region INTERIOR — land — on the
     // canvas-interior side, which the mask already paints black, so its band is
