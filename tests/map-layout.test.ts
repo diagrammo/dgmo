@@ -1107,3 +1107,30 @@ describe('layout — region label yields to a POI on its centroid (#poi-overlap)
     expect(texts).not.toContain('Colorado');
   });
 });
+
+describe('layout — antimeridian-crossing landmass renders (#russia-cull)', () => {
+  it('Russia (dateline-crossing) is NOT culled from a regional Europe view', async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    // A Europe choropleth frames regionally; Russia's mainland is a single polygon
+    // crossing the antimeridian. The cull must keep it (occupied arc ~171°, not the
+    // ~360° raw span) so western Russia draws as land instead of leaving ocean.
+    const r = layoutMap(
+      resolveMap(
+        parseMap(
+          'map\nGermany value: 1\nPoland value: 2\nRomania value: 3\nSweden value: 4'
+        ),
+        data
+      ),
+      data,
+      { width: 1300, height: 850 },
+      { palette: P, isDark: false }
+    );
+    const ru = r.regions.find((x) => x.id === 'RU');
+    expect(ru).toBeDefined();
+    expect(ru!.d).not.toMatch(/NaN/);
+    // The full mainland (not just a few far-east islands) must be present — the
+    // pre-fix bug left only ~1.8k chars of small islands; the mainland is ~7k+.
+    expect(ru!.d.length).toBeGreaterThan(4000);
+  });
+});
