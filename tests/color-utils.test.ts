@@ -11,7 +11,8 @@ import {
 } from '../src/palettes/color-utils';
 import { resolveColor } from '../src/colors';
 import { nordPalette } from '../src/palettes/nord';
-import { boldPalette } from '../src/palettes/bold';
+import { atlasPalette } from '../src/palettes/atlas';
+import { slatePalette } from '../src/palettes/slate';
 import { catppuccinPalette } from '../src/palettes/catppuccin';
 
 describe('mix', () => {
@@ -114,7 +115,8 @@ describe('shade', () => {
 describe('shapeFill', () => {
   const palettes = [
     { name: 'nord', cfg: nordPalette },
-    { name: 'bold', cfg: boldPalette },
+    { name: 'atlas', cfg: atlasPalette },
+    { name: 'slate', cfg: slatePalette },
     { name: 'catppuccin', cfg: catppuccinPalette },
   ];
 

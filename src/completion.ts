@@ -98,9 +98,10 @@ const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
       'gruvbox',
       'tokyo-night',
       'one-dark',
-      'bold',
       'dracula',
       'monokai',
+      'atlas',
+      'slate',
     ],
   },
   theme: {

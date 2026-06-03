@@ -742,7 +742,8 @@ export {
   gruvboxPalette,
   tokyoNightPalette,
   oneDarkPalette,
-  boldPalette,
+  atlasPalette,
+  slatePalette,
   draculaPalette,
   monokaiPalette,
 } from './palettes';

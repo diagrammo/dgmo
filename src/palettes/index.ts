@@ -23,12 +23,13 @@ export {
 } from './color-utils';
 
 // Re-export palette definitions (alphabetical)
-export { boldPalette } from './bold';
+export { atlasPalette } from './atlas';
 export { catppuccinPalette } from './catppuccin';
 export { gruvboxPalette } from './gruvbox';
 export { nordPalette } from './nord';
 export { oneDarkPalette } from './one-dark';
 export { rosePinePalette } from './rose-pine';
+export { slatePalette } from './slate';
 export { solarizedPalette } from './solarized';
 export { tokyoNightPalette } from './tokyo-night';
 
@@ -39,7 +40,7 @@ export { monokaiPalette } from './monokai';
 // Public namespace — `palettes` for use with render()
 // ============================================================
 
-import { boldPalette } from './bold';
+import { atlasPalette } from './atlas';
 import { catppuccinPalette } from './catppuccin';
 import { draculaPalette } from './dracula';
 import { gruvboxPalette } from './gruvbox';
@@ -47,6 +48,7 @@ import { monokaiPalette } from './monokai';
 import { nordPalette } from './nord';
 import { oneDarkPalette } from './one-dark';
 import { rosePinePalette } from './rose-pine';
+import { slatePalette } from './slate';
 import { solarizedPalette } from './solarized';
 import { tokyoNightPalette } from './tokyo-night';
 
@@ -62,6 +64,8 @@ import type { PaletteConfig } from './types';
  * used by share URLs and the CLI `--palette` flag.
  */
 export const palettes = {
+  atlas: atlasPalette,
+  slate: slatePalette,
   nord: nordPalette,
   catppuccin: catppuccinPalette,
   solarized: solarizedPalette,
@@ -71,5 +75,4 @@ export const palettes = {
   rosePine: rosePinePalette,
   dracula: draculaPalette,
   monokai: monokaiPalette,
-  bold: boldPalette,
 } as const satisfies Record<string, PaletteConfig>;
