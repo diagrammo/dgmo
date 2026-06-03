@@ -119,23 +119,6 @@ export function renderLegendD3(
         config.controls
       );
     }
-
-    // App-hosted controls anchor: invisible, export-ignored marker the app's
-    // overlay strip aligns to (top-right of the reserved controls row). No gear.
-    if (currentLayout.controlsAnchor) {
-      const a = currentLayout.controlsAnchor;
-      legendG
-        .append('g')
-        .attr('data-controls-anchor', '')
-        .attr('data-export-ignore', 'true')
-        .append('rect')
-        .attr('x', a.x)
-        .attr('y', a.y)
-        .attr('width', a.width)
-        .attr('height', a.height)
-        .attr('fill', 'none')
-        .attr('pointer-events', 'none');
-    }
   }
 
   render();

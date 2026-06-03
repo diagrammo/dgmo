@@ -114,10 +114,10 @@ export interface LegendConfig {
   showInactivePills?: boolean;
   /** Where the controlsGroup is hosted. Default (undefined / 'inline') renders
    *  the in-SVG gear exactly as before — every non-app consumer (Obsidian,
-   *  site, remark-family, CLI) is unaffected. When 'app', the gear is suppressed
-   *  and the layout reserves a fixed-height controls row + emits a
-   *  `data-controls-anchor` element for the app's overlay strip. App preview
-   *  only; never set on the export path. */
+   *  site, remark-family, CLI) is unaffected. When 'app', the controlsGroup is
+   *  dropped entirely (no gear, no reserved row): the app overlay strip owns the
+   *  controls, pinned to the top edge of the preview. App preview only; never
+   *  set on the export path. */
   controlsHost?: 'app' | 'inline';
 }
 
@@ -245,10 +245,6 @@ export interface LegendLayout {
   pills: LegendPillLayout[];
   /** Controls group layout (gear pill / capsule) */
   controlsGroup?: ControlsGroupLayout;
-  /** App-hosted controls anchor rect (only when `controlsHost: 'app'` and a
-   *  controlsGroup with toggles exists). The app overlay strip aligns to this
-   *  rect's top-right; rendered as an invisible, export-ignored `<g>`. */
-  controlsAnchor?: { x: number; y: number; width: number; height: number };
 }
 
 // ── Handle ──────────────────────────────────────────────────

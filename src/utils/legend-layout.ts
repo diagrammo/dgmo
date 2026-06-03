@@ -16,8 +16,6 @@ import {
   LEGEND_MAX_ENTRY_ROWS,
   LEGEND_GEAR_PILL_W,
   LEGEND_TOGGLE_DOT_R,
-  CONTROLS_ROW_H,
-  CONTROLS_ANCHOR_W,
   measureLegendText,
   truncateLegendText,
 } from './legend-constants';
@@ -366,8 +364,7 @@ export function computeLegendLayout(
   if (
     visibleGroups.length === 0 &&
     (!configControls || configControls.length === 0) &&
-    !controlsGroupLayout &&
-    !gated
+    !controlsGroupLayout
   ) {
     return {
       height: 0,
@@ -486,36 +483,11 @@ export function computeLegendLayout(
     controlsGroupLayout
   );
 
-  let height = rows.length * LEGEND_HEIGHT;
+  // App-hosted controls: the controlsGroup was dropped above (no gear), and the
+  // app overlay strip pins itself to the top edge of the preview — dgmo reserves
+  // no row and emits no anchor, so the chart reclaims that space.
+  const height = rows.length * LEGEND_HEIGHT;
   const width = containerWidth;
-
-  // App-hosted controls: reserve a dedicated header controls row at the top so
-  // the overlay strip never occludes the title/legend. The empty "ensure one
-  // row" case already IS the controls row (no shift); otherwise push the real
-  // content rows down by one row height.
-  let controlsAnchor:
-    | { x: number; y: number; width: number; height: number }
-    | undefined;
-  if (gated) {
-    const hasContentRows = rows.some((r) => r.items.length > 0);
-    if (hasContentRows) {
-      for (const row of rows) {
-        row.y += CONTROLS_ROW_H;
-        for (const item of row.items) item.y += CONTROLS_ROW_H;
-      }
-      height += CONTROLS_ROW_H;
-    } else {
-      // The single empty row is the controls row; height is already one row.
-      height = CONTROLS_ROW_H;
-    }
-    const anchorW = Math.min(CONTROLS_ANCHOR_W, containerWidth);
-    controlsAnchor = {
-      x: Math.max(0, containerWidth - anchorW),
-      y: 0,
-      width: anchorW,
-      height: CONTROLS_ROW_H,
-    };
-  }
 
   return {
     height,
@@ -527,7 +499,6 @@ export function computeLegendLayout(
     ...(controlsGroupLayout !== undefined && {
       controlsGroup: controlsGroupLayout,
     }),
-    ...(controlsAnchor !== undefined && { controlsAnchor }),
   };
 }
 
@@ -787,14 +758,8 @@ export function getMaxLegendReservedHeight(
   config: LegendConfig,
   containerWidth: number
 ): number {
-  // App-hosted controls add a dedicated header row on top of the group rows —
-  // mirror computeLegendLayout so the renderer reserves enough vertical space.
-  const controlsRow = isAppHostedControls(config, config.mode === 'export')
-    ? CONTROLS_ROW_H
-    : 0;
   const groups = config.groups;
-  // No groups: the controls row (if gated) IS the only row; otherwise one row.
-  if (groups.length === 0) return controlsRow > 0 ? controlsRow : LEGEND_HEIGHT;
+  if (groups.length === 0) return LEGEND_HEIGHT;
   const addon = config.capsulePillAddonWidth ?? 0;
   let max = LEGEND_HEIGHT;
   for (const g of groups) {
@@ -803,5 +768,5 @@ export function getMaxLegendReservedHeight(
     const h = info.entryRows * LEGEND_HEIGHT;
     if (h > max) max = h;
   }
-  return max + controlsRow;
+  return max;
 }

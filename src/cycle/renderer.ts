@@ -96,12 +96,13 @@ export function renderCycle(
   const hasDescriptions =
     parsed.nodes.some((n) => n.description.length > 0) ||
     parsed.edges.some((e) => e.description.length > 0);
-  // App-hosted controls own the toggling, so the legend row is reserved on the
-  // presence of descriptions alone (no inline-gear callback required).
+  // App-hosted: controls live in the app overlay strip. Cycle has no tag groups,
+  // so there's no in-SVG legend left to render — don't reserve a legend band.
   const appHostedControls = renderOptions?.controlsHost === 'app';
   const hasLegend =
+    !appHostedControls &&
     hasDescriptions &&
-    (!!renderOptions?.onToggleDescriptions || appHostedControls);
+    !!renderOptions?.onToggleDescriptions;
 
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const legendOffset = hasLegend ? sLegendHeight : 0;

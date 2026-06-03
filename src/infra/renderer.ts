@@ -2269,7 +2269,10 @@ export function renderInfra(
     palette,
     layout.edges
   );
-  const hasLegend = legendGroups.length > 0 || !!playback;
+  // App-hosted: the playback pill moves to the app overlay, so a playback-only
+  // legend (no tag groups) has nothing left to render.
+  const hasLegend =
+    legendGroups.length > 0 || (!!playback && !appHostedPlayback);
   const fixedLegend = !exportMode && hasLegend;
   const legendDynamicH = hasLegend
     ? getMaxLegendReservedHeight(
@@ -2278,20 +2281,6 @@ export function renderInfra(
           position: { placement: 'top-center', titleRelation: 'below-title' },
           mode: exportMode ? 'export' : 'preview',
           showEmptyGroups: true,
-          ...(appHostedPlayback && {
-            controlsHost: 'app' as const,
-            controlsGroup: {
-              toggles: [
-                {
-                  id: 'playback',
-                  type: 'toggle' as const,
-                  label: 'Playback',
-                  active: true,
-                  onToggle: () => {},
-                },
-              ],
-            },
-          }),
         },
         container.clientWidth || layout.width
       )

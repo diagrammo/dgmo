@@ -2,19 +2,19 @@
  * Tests for app-hosted controls (`controlsHost: 'app'`) in the centralized
  * legend layout engine (tech-spec-chart-controls-to-rail).
  *
- * The gate must be strictly opt-in: with `controlsHost` unset (the default for
- * every non-app consumer — Obsidian, site, remark-family, CLI), the inline gear
- * controlsGroup renders exactly as before and NO controls anchor is emitted.
- * When `controlsHost: 'app'`, the inline gear is suppressed, a fixed-height
- * controls row is reserved at the top, and a controls anchor is emitted at the
- * top-right for the app overlay strip to align to.
+ * The gate is strictly opt-in: with `controlsHost` unset (the default for every
+ * non-app consumer — Obsidian, site, remark-family, CLI), the inline gear
+ * controlsGroup renders exactly as before. When `controlsHost: 'app'`, the
+ * controlsGroup is dropped entirely (no gear, no reserved row) — the app overlay
+ * strip owns the controls, pinned to the top edge of the preview, so dgmo
+ * reclaims that space.
  */
 import { describe, it, expect } from 'vitest';
 import {
   computeLegendLayout,
   getMaxLegendReservedHeight,
 } from '../src/utils/legend-layout';
-import { LEGEND_HEIGHT, CONTROLS_ROW_H } from '../src/utils/legend-constants';
+import { LEGEND_HEIGHT } from '../src/utils/legend-constants';
 import type {
   LegendConfig,
   LegendState,
@@ -51,41 +51,33 @@ const groups = (n: number): LegendGroupData[] =>
 const noActive: LegendState = { activeGroup: null };
 
 describe('controlsHost gating', () => {
-  it('default (unset) renders the inline gear and emits no anchor', () => {
+  it('default (unset) renders the inline gear', () => {
     const layout = computeLegendLayout(baseConfig(), noActive, 800);
     expect(layout.controlsGroup).toBeDefined();
-    expect(layout.controlsAnchor).toBeUndefined();
     expect(layout.height).toBe(LEGEND_HEIGHT);
   });
 
-  it("'inline' is treated as default — gear present, no anchor", () => {
+  it("'inline' is treated as default — gear present", () => {
     const layout = computeLegendLayout(
       baseConfig({ controlsHost: 'inline' }),
       noActive,
       800
     );
     expect(layout.controlsGroup).toBeDefined();
-    expect(layout.controlsAnchor).toBeUndefined();
   });
 
-  it("'app' suppresses the gear and emits a top-right anchor (no groups)", () => {
+  it("'app' drops the controlsGroup entirely (no gear, no row) when there are no groups", () => {
     const layout = computeLegendLayout(
       baseConfig({ controlsHost: 'app' }),
       noActive,
       800
     );
     expect(layout.controlsGroup).toBeUndefined();
-    expect(layout.controlsAnchor).toBeDefined();
-    const a = layout.controlsAnchor!;
-    expect(a.y).toBe(0);
-    expect(a.height).toBe(CONTROLS_ROW_H);
-    // Right-aligned: right edge reaches the container width.
-    expect(a.x + a.width).toBe(800);
-    // No extra row reserved beyond the single controls row.
-    expect(layout.height).toBe(CONTROLS_ROW_H);
+    // Controls-only legend collapses to nothing — the chart reclaims the space.
+    expect(layout.height).toBe(0);
   });
 
-  it("'app' with groups reserves a controls row on top and shifts content down", () => {
+  it("'app' with groups renders the groups only, no reserved controls row", () => {
     const inline = computeLegendLayout(
       baseConfig({ groups: groups(2) }),
       noActive,
@@ -96,14 +88,11 @@ describe('controlsHost gating', () => {
       noActive,
       800
     );
-    expect(gated.controlsAnchor).toBeDefined();
-    expect(gated.controlsAnchor!.y).toBe(0);
-    // One extra row of height for the controls band.
-    expect(gated.height).toBe(inline.height + CONTROLS_ROW_H);
-    // Every legend item is pushed down by exactly one controls row.
-    const inlinePillY = inline.pills[0]!.y;
-    const gatedPillY = gated.pills[0]!.y;
-    expect(gatedPillY).toBe(inlinePillY + CONTROLS_ROW_H);
+    expect(gated.controlsGroup).toBeUndefined();
+    // The inline gear shares row 0 with the groups, so dropping it doesn't add
+    // or remove a row — same height, no extra band.
+    expect(gated.height).toBe(inline.height);
+    expect(gated.pills[0]!.y).toBe(inline.pills[0]!.y);
   });
 
   it('never gates on the export path', () => {
@@ -112,10 +101,11 @@ describe('controlsHost gating', () => {
       { activeGroup: 'group1' },
       800
     );
-    expect(layout.controlsAnchor).toBeUndefined();
+    // Export ignores controlsHost; controlsGroup is stripped in export anyway.
+    expect(layout.controlsGroup).toBeUndefined();
   });
 
-  it('getMaxLegendReservedHeight adds the controls row only when gated', () => {
+  it('getMaxLegendReservedHeight is unaffected by controlsHost', () => {
     const inline = getMaxLegendReservedHeight(
       baseConfig({ groups: groups(2) }),
       800
@@ -124,14 +114,6 @@ describe('controlsHost gating', () => {
       baseConfig({ groups: groups(2), controlsHost: 'app' }),
       800
     );
-    expect(gated).toBe(inline + CONTROLS_ROW_H);
-  });
-
-  it('getMaxLegendReservedHeight reserves a single row when gated with no groups', () => {
-    const gated = getMaxLegendReservedHeight(
-      baseConfig({ controlsHost: 'app' }),
-      800
-    );
-    expect(gated).toBe(CONTROLS_ROW_H);
+    expect(gated).toBe(inline);
   });
 });

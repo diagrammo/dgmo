@@ -122,9 +122,12 @@ export function renderMindmap(
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('font-family', FONT_FAMILY);
 
+  const appHosted = options?.controlsHost === 'app';
+  // App-hosted: Descriptions / Depth Colors move to the app overlay, so a
+  // controls-only legend (no tag groups) has nothing left to render.
   const hasControls =
     !!options?.onToggleColorByDepth || !!options?.onToggleDescriptions;
-  const hasLegend = parsed.tagGroups.length > 0 || hasControls;
+  const hasLegend = parsed.tagGroups.length > 0 || (hasControls && !appHosted);
   const fixedLegend = !isExport && hasLegend;
   const legendReserve = fixedLegend
     ? getMaxLegendReservedHeight(
@@ -132,23 +135,6 @@ export function renderMindmap(
           groups: parsed.tagGroups,
           position: { placement: 'top-center', titleRelation: 'below-title' },
           mode: 'preview',
-          ...(options?.controlsHost !== undefined && {
-            controlsHost: options.controlsHost,
-          }),
-          // App-hosted controls reserve an extra row; surface the toggle count.
-          ...(hasControls && {
-            controlsGroup: {
-              toggles: [
-                {
-                  id: 'controls',
-                  type: 'toggle' as const,
-                  label: 'Controls',
-                  active: true,
-                  onToggle: () => {},
-                },
-              ],
-            },
-          }),
         },
         containerWidth
       ) + LEGEND_GROUP_GAP

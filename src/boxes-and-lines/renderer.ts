@@ -368,35 +368,27 @@ export function renderBoxesAndLines(
   const sGroupLabelZone = sctx.structural(GROUP_LABEL_ZONE);
   const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
   const sTitleY = sctx.structural(TITLE_Y);
-  // App-hosted controls reserve a dedicated controls row; surface the toggle
-  // count to the reservation so the height matches the actual layout.
+  // Reserve legend height only when a legend will actually render. App-hosted
+  // controls move the Descriptions toggle to the app overlay, so a
+  // descriptions-only chart (no tag groups) reserves nothing.
   const reserveHasDescriptions = parsed.nodes.some(
     (n) => n.description && n.description.length > 0
   );
-  const sLegendHeight = sctx.structural(
-    getMaxLegendReservedHeight(
-      {
-        groups: parsed.tagGroups,
-        position: { placement: 'top-center', titleRelation: 'below-title' },
-        mode: exportMode ? 'export' : 'preview',
-        ...(controlsHost !== undefined && { controlsHost }),
-        ...(reserveHasDescriptions && {
-          controlsGroup: {
-            toggles: [
-              {
-                id: 'descriptions',
-                type: 'toggle',
-                label: 'Descriptions',
-                active: true,
-                onToggle: () => {},
-              },
-            ],
+  const willRenderLegend =
+    parsed.tagGroups.length > 0 ||
+    (reserveHasDescriptions && controlsHost !== 'app');
+  const sLegendHeight = willRenderLegend
+    ? sctx.structural(
+        getMaxLegendReservedHeight(
+          {
+            groups: parsed.tagGroups,
+            position: { placement: 'top-center', titleRelation: 'below-title' },
+            mode: exportMode ? 'export' : 'preview',
           },
-        }),
-      },
-      width
-    )
-  );
+          width
+        )
+      )
+    : 0;
 
   const activeGroup = resolveActiveTagGroup(
     parsed.tagGroups,
@@ -1018,7 +1010,10 @@ export function renderBoxesAndLines(
   const hasDescriptions = parsed.nodes.some(
     (n) => n.description && n.description.length > 0
   );
-  const hasLegend = parsed.tagGroups.length > 0 || hasDescriptions;
+  // App-hosted: the Descriptions control moves to the app overlay, so a
+  // descriptions-only legend (no tag groups) has nothing left to render.
+  const hasLegend =
+    parsed.tagGroups.length > 0 || (hasDescriptions && controlsHost !== 'app');
 
   if (hasLegend) {
     // Build controls group for description toggle. App-hosted controls own the
