@@ -38,8 +38,8 @@ type LookupResult =
 const WORLD_SPAN = 90;
 // Mercator is used for everything sub-world (tight clusters AND single-continent
 // regional views — a mid-latitude continent reads with its familiar conventional
-// shape). Two guards push back to a world projection (Equal Earth for data maps,
-// equirectangular for reference): a world/multi-continent `span` (> WORLD_SPAN), or
+// shape). Two guards push back to the equirectangular world projection: a
+// world/multi-continent `span` (> WORLD_SPAN), or
 // a frame that reaches into polar latitudes (> MERCATOR_MAX_LAT) where Mercator's
 // sec(φ) area blow-up turns gross. Europe (≈71°N) and East Asia stay on Mercator.
 const MERCATOR_MAX_LAT = 80;
@@ -746,25 +746,17 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   // geographic world/regional projection that frames everything. Note: this
   // intentionally snaps a POI-only US city map to the national frame ("show all
   // states") rather than fit-zooming to the cluster on a geographic projection.
-  // A *data* map carries at least one region/POI value or tag (choropleth /
-  // thematic). It drives the world projection pick: equal-area honesty matters
-  // when colour encodes a quantity; a bare reference map prefers the clean
-  // equirectangular wall-map. (§24B.2 — projection is inferred, never configured.)
-  const hasData =
-    regions.some(
-      (r) => r.value !== undefined || Object.keys(r.tags).length > 0
-    ) ||
-    pois.some(
-      (p) => p.meta['value'] !== undefined || Object.keys(p.tags).length > 0
-    );
+  // (§24B.2 — projection is inferred, never configured.)
   let projection: ProjectionFamily;
   if (usOriented) {
     projection = 'albers-usa';
   } else if (span > WORLD_SPAN || maxAbsLat > MERCATOR_MAX_LAT) {
-    // World/multi-continent scale (or a polar-reaching frame). A data map gets
-    // Equal Earth (equal-area — areas stay honest for thematic comparison); a
-    // dataless reference map gets equirectangular (clean rectangular wall-map).
-    projection = hasData ? 'equal-earth' : 'equirectangular';
+    // World/multi-continent scale (or a polar-reaching frame). Every world map —
+    // data choropleth OR dataless reference — gets equirectangular: a clean,
+    // conventional rectangular wall-map frame. (Trade: not equal-area, so a
+    // choropleth's high-latitude regions stretch vertically — accepted for the
+    // consistent rectangular look over Equal Earth's area honesty.)
+    projection = 'equirectangular';
   } else {
     // Tight clusters AND single-continent regional views: Mercator gives every
     // mid-latitude landmass its familiar conventional shape (a world projection
@@ -784,7 +776,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   // would slice off South Africa, southern Argentina, northern Russia, …). The
   // ≥180° gate leaves regional spreads tight — `region` continents (Europe
   // ≈70°, Asia ≈155°) and antimeridian clusters (mercator anyway) untouched.
-  // Applies to both world projections (Equal Earth data + equirectangular reference).
+  // Applies to the equirectangular world projection (data + reference alike).
   if (lonSpan >= 180) {
     extent = [
       [-180, Math.min(extent[0][1], WORLD_LAT_SOUTH)],

@@ -305,13 +305,14 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const r = resolve('map\npoi Tokyo\npoi 40 -74 as ny');
     expect(r.projection).toBe('equirectangular');
   });
-  it('data world span → equal-earth (equal-area, AC5)', () => {
+  it('data world span → equirectangular (consistent rectangular frame, AC5)', () => {
     // A choropleth spanning the globe (US + China, beyond North America so not
-    // US-oriented) is a DATA map → Equal Earth so areas stay honest.
+    // US-oriented) is a DATA map — but world maps now use equirectangular too,
+    // for one consistent rectangular look across data + reference maps.
     const r = resolve(
       'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3'
     );
-    expect(r.projection).toBe('equal-earth');
+    expect(r.projection).toBe('equirectangular');
   });
   it('tight cluster → mercator (AC15)', () => {
     // Non-US coords (London) so the cluster isn't pulled to the national
@@ -332,12 +333,12 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const r = resolve('map\npoi 84 -40 as a\npoi 60 40 as b');
     expect(r.projection).toBe('equirectangular');
   });
-  it('equirectangular only for dataless world maps, not data/US/cluster', () => {
+  it('equirectangular for all world maps (data + dataless), not US/cluster', () => {
     const cases: Array<[string, string]> = [
       ['map\npoi Tokyo\npoi 40 -74 as ny', 'equirectangular'], // dataless world
       [
         'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3',
-        'equal-earth',
+        'equirectangular',
       ], // data world
       ['map\nCalifornia value: 1\nOregon value: 2', 'albers-usa'], // US
       ['map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b', 'mercator'], // tight cluster
