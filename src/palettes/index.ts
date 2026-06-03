@@ -31,6 +31,7 @@ export { oneDarkPalette } from './one-dark';
 export { rosePinePalette } from './rose-pine';
 export { slatePalette } from './slate';
 export { solarizedPalette } from './solarized';
+export { tidewaterPalette } from './tidewater';
 export { tokyoNightPalette } from './tokyo-night';
 
 export { draculaPalette } from './dracula';
@@ -50,6 +51,7 @@ import { oneDarkPalette } from './one-dark';
 import { rosePinePalette } from './rose-pine';
 import { slatePalette } from './slate';
 import { solarizedPalette } from './solarized';
+import { tidewaterPalette } from './tidewater';
 import { tokyoNightPalette } from './tokyo-night';
 
 import type { PaletteConfig } from './types';
@@ -66,6 +68,7 @@ import type { PaletteConfig } from './types';
 export const palettes = {
   atlas: atlasPalette,
   slate: slatePalette,
+  tidewater: tidewaterPalette,
   nord: nordPalette,
   catppuccin: catppuccinPalette,
   solarized: solarizedPalette,

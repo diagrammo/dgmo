@@ -13,6 +13,7 @@ import { nordPalette } from '../src/palettes/nord';
 import { oneDarkPalette } from '../src/palettes/one-dark';
 import { rosePinePalette } from '../src/palettes/rose-pine';
 import { slatePalette } from '../src/palettes/slate';
+import { tidewaterPalette } from '../src/palettes/tidewater';
 import { solarizedPalette } from '../src/palettes/solarized';
 import { tokyoNightPalette } from '../src/palettes/tokyo-night';
 import type { PaletteColors } from '../src/palettes/types';
@@ -28,6 +29,7 @@ function contrastRatio(a: string, b: string): number {
 const PALETTES = [
   { name: 'atlas', cfg: atlasPalette },
   { name: 'slate', cfg: slatePalette },
+  { name: 'tidewater', cfg: tidewaterPalette },
   { name: 'catppuccin', cfg: catppuccinPalette },
   { name: 'dracula', cfg: draculaPalette },
   { name: 'gruvbox', cfg: gruvboxPalette },

@@ -744,6 +744,7 @@ export {
   oneDarkPalette,
   atlasPalette,
   slatePalette,
+  tidewaterPalette,
   draculaPalette,
   monokaiPalette,
 } from './palettes';

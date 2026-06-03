@@ -102,6 +102,7 @@ const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
       'monokai',
       'atlas',
       'slate',
+      'tidewater',
     ],
   },
   theme: {
