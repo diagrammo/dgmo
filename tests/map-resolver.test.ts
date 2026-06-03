@@ -376,6 +376,73 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
   });
 });
 
+describe('resolver — POI-only fit-to-cluster zoom floor (#poi-fit)', () => {
+  const longerAxis = (r: ReturnType<typeof resolve>) =>
+    Math.max(r.extent[1][0] - r.extent[0][0], r.extent[1][1] - r.extent[0][1]);
+
+  it('tight US POI cluster zooms to the floor + goes mercator (not the national frame)', () => {
+    // A Bay-Area-like cluster (~0.3° span). Without the floor this snaps to the
+    // albers-usa national frame; with it, the frame is a multi-state window and
+    // the projection is regional mercator. locale US makes it US-oriented.
+    const r = resolve(
+      'map\nlocale US\npoi 37.77 -122.42 as sf\npoi 37.80 -122.27 as oak\npoi 37.34 -121.89 as sj'
+    );
+    expect(r.projection).toBe('mercator');
+    expect(longerAxis(r)).toBeCloseTo(7, 5); // floored to POI_ZOOM_FLOOR_DEG
+    // centred on the POI centroid (~37.6°N, −122.2°W)
+    const cx = (r.extent[0][0] + r.extent[1][0]) / 2;
+    const cy = (r.extent[0][1] + r.extent[1][1]) / 2;
+    expect(cx).toBeCloseTo(-122.2, 0);
+    expect(cy).toBeCloseTo(37.6, 0);
+    // us-states mesh still drawn so the home state + neighbours frame the dots
+    expect(r.basemaps.subdivisions).toContain('us-states');
+  });
+
+  it('floor is a no-op for a cluster already wider than the floor', () => {
+    // CA + CO POIs span ~22° lon — wider than the floor, narrower than national.
+    const r = resolve(
+      'map\nlocale US\npoi 37.77 -122.42 as sf\npoi 39.74 -104.99 as den'
+    );
+    expect(r.projection).toBe('mercator');
+    expect(longerAxis(r)).toBeGreaterThan(7); // untouched by the floor
+    expect(r.extent[0][0]).toBeLessThan(-122.42); // still bounds the POIs + pad
+    expect(r.extent[1][0]).toBeGreaterThan(-104.99);
+  });
+
+  it('national-span US POIs stay on the albers-usa composite', () => {
+    // SF + NYC + Miami span ≳ 48° lon → genuinely national → national frame.
+    const r = resolve(
+      'map\nlocale US\npoi 37.77 -122.42 as sf\npoi 40.71 -74.0 as ny\npoi 25.76 -80.19 as mia'
+    );
+    expect(r.projection).toBe('albers-usa');
+    expect(longerAxis(r)).toBeGreaterThan(7); // not floored
+  });
+
+  it('named-region choropleth is untouched (floor is POI-only)', () => {
+    // regions present → not isPoiOnly → national albers-usa frame as before.
+    const r = resolve('map\nCalifornia value: 1\nOregon value: 2');
+    expect(r.projection).toBe('albers-usa');
+  });
+
+  it('floor applies to non-US POI-only clusters too (no zoom into emptiness)', () => {
+    // London pair (~0.01° span): mercator (non-US), and the floor still expands
+    // the extent so the dots aren’t framed on a near-empty box.
+    const r = resolve('map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b');
+    expect(r.projection).toBe('mercator');
+    expect(longerAxis(r)).toBeCloseTo(7, 5);
+  });
+
+  it('single POI floors to a centred window without NaN', () => {
+    const r = resolve('map\nlocale US\npoi 37.6 -122.1 as a');
+    expect(r.projection).toBe('mercator');
+    expect(longerAxis(r)).toBeCloseTo(7, 5);
+    const cx = (r.extent[0][0] + r.extent[1][0]) / 2;
+    const cy = (r.extent[0][1] + r.extent[1][1]) / 2;
+    expect(cx).toBeCloseTo(-122.1, 5);
+    expect(cy).toBeCloseTo(37.6, 5);
+  });
+});
+
 const WORLD_SPAN_DEG = 90;
 
 describe('featureBboxPrimary — drop far-detached territories from framing (R5)', () => {
@@ -412,6 +479,39 @@ describe('featureBboxPrimary — drop far-detached territories from framing (R5)
   });
 });
 
+describe('POI-only region framing — real geometry (#poi-region)', () => {
+  // Reverse-geocode POIs to their containing region, then frame to that region's
+  // bbox. Requires shipped geometry — hand-built rect rings confuse geoBounds'
+  // winding (every featureBbox returns the whole sphere), so assert on real data.
+  it('a Bay-Area POI cluster frames the whole of California (not a tiny window)', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(
+      parseMap(
+        'map\npoi 37.77 -122.42 as sf\npoi 37.80 -122.27 as oak\npoi 37.34 -121.89 as sj'
+      ),
+      data
+    );
+    // California spans ≈ −124.4°…−114.1° lon, 32.5°…42° lat. The frame must be the
+    // whole state (+pad), far wider than the ~0.5° POI cluster.
+    expect(r.poiFrameContainers).toContain('US-CA');
+    expect(r.extent[0][0]).toBeLessThan(-123); // reaches the Pacific coast
+    expect(r.extent[1][0]).toBeGreaterThan(-115); // reaches the Nevada border
+    expect(r.extent[0][1]).toBeLessThan(34); // reaches SoCal / the south
+    expect(r.extent[1][1]).toBeGreaterThan(41); // reaches the Oregon border
+    expect(r.projection).toBe('mercator');
+  });
+
+  it('records the containing country for a non-US cluster', async () => {
+    const data = await loadMapData();
+    // Two French cities (Paris, Lyon) → framed to France, container recorded.
+    const r = resolveMap(
+      parseMap('map\npoi 48.85 2.35 as paris\npoi 45.76 4.83 as lyon'),
+      data
+    );
+    expect(r.poiFrameContainers).toContain('FR');
+  });
+});
+
 describe('resolver — robustness (AC17, AC18, AC21)', () => {
   it('empty map is valid (AC17)', () => {
     const r = resolve('map');
@@ -432,11 +532,14 @@ describe('resolver — robustness (AC17, AC18, AC21)', () => {
 });
 
 describe('resolver — impl-review fixes (#3/#6/#8/#13/#15)', () => {
-  it('POI-only US map IS US-oriented → albers-usa + full state mesh (§24B.2)', () => {
-    // No us-state regions — just US cities. A map whose content is entirely US
-    // renders as the national US states map (every state outlined), not three
-    // floating dots on a geographic frame.
-    const r = resolve('map\npoi New York City\npoi Los Angeles');
+  it('national-span POI-only US map IS US-oriented → albers-usa + full state mesh (§24B.2)', () => {
+    // No us-state regions — just US cities spanning the nation (NYC + SF). A
+    // POI map whose content actually spans the country renders as the national
+    // US states map (every state outlined). A *local* cluster instead fit-zooms
+    // to a regional mercator frame — see the "fit-to-cluster zoom floor" suite.
+    const r = resolve(
+      'map\nlocale US\npoi 40.71 -74.0 as ny\npoi 37.77 -122.42 as sf'
+    );
     expect(r.projection).toBe('albers-usa');
     expect(r.basemaps.subdivisions).toContain('us-states');
   });

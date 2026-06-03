@@ -135,6 +135,12 @@ export interface ResolvedMap {
   readonly routes: readonly ResolvedRoute[];
   readonly extent: GeoExtent;
   readonly projection: ProjectionFamily;
+  /** POI-only region framing: the region(s) that CONTAIN the POIs — us-state ids
+   *  (`US-CA`) or country isos (`FR`). The frame is snapped to the union of their
+   *  bboxes, and the layout labels them prominently (vs. muted neighbours). Empty
+   *  for non-POI-only maps or when POIs fall outside every polygon. Optional so
+   *  older/foreign ResolvedMap literals need not supply it. */
+  readonly poiFrameContainers?: readonly string[];
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }

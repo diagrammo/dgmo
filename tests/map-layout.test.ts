@@ -175,20 +175,20 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     const r = lay('map\nCalifornia value: 1\nHawaii value: 2', 1200, 800);
     expect(r.insetRegions.map((x) => x.id)).toEqual(['US-HI']);
   });
-  it('us-states view draws ALL conus states even with a tight POI cluster (cull box = conus, not the cluster)', () => {
-    // Regression: a US-oriented map fits the projection to the whole contiguous
-    // US, but the cull box was the POI extent — so a metro-sized cluster blanked
-    // every far state, leaving gray gaps where land should be. The cull box must
-    // be the conus bounds. The single US POI (Portland OR) makes the map
-    // US-oriented (albers-usa); the eastern fixture states (Maine, Georgia) must
-    // still render as land.
-    const r = lay('map\npoi 45.52 -122.68 as office');
-    const me = r.regions.find((x) => x.id === 'US-ME');
-    const ga = r.regions.find((x) => x.id === 'US-GA');
-    expect(me).toBeDefined();
-    expect(ga).toBeDefined();
-    expect(me!.d).not.toMatch(/NaN/);
-    expect(me!.fill).toBe(neutral); // unscored → plain land, not culled away
+  it('tight US POI cluster fit-zooms to a regional mercator frame (home state renders, distant states culled)', () => {
+    // A local US POI cluster no longer snaps to the national albers-usa frame —
+    // it fit-zooms to a multi-state mercator window around the dots (#poi-fit,
+    // §24B.2). The single US POI (Portland OR) frames the Pacific Northwest:
+    // Oregon renders as land; the far eastern fixture states (Maine, Georgia)
+    // fall outside the frame and are culled.
+    const src = 'map\npoi 45.52 -122.68 as office';
+    expect(resolveMap(parseMap(src), DATA).projection).toBe('mercator');
+    const r = lay(src);
+    const or = r.regions.find((x) => x.id === 'US-OR');
+    expect(or).toBeDefined();
+    expect(or!.d).not.toMatch(/NaN/);
+    expect(or!.fill).toBe(neutral); // unscored → plain land
+    expect(r.regions.find((x) => x.id === 'US-ME')).toBeUndefined(); // out of frame
   });
   it('non-albers cluster zooms to fill the canvas (extent-corner fit, not globe)', () => {
     // Regression: a tight mercator cluster must NOT render tiny on a world map.

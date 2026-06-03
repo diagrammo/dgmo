@@ -24,6 +24,8 @@ import {
   featureBboxPrimary,
   unionExtent,
   fold,
+  decodeFeatures,
+  regionAt,
 } from './geo';
 
 /** Discriminated result of a gazetteer name lookup (#5): `defer` is "ambiguous,
@@ -49,6 +51,17 @@ const PAD_FRACTION = 0.05;
 // populated continents fill the frame rather than waste it on ice.
 const WORLD_LAT_SOUTH = -58;
 const WORLD_LAT_NORTH = 78;
+// Tightest zoom for a POI-only cluster: never frame narrower than this many
+// degrees on the longer axis. The basemap is state/country geometry only (no
+// counties/cities/roads), so a metro-scale frame is an empty box — clamp up to a
+// multi-state window that always shows coastline + a state outline or two around
+// the dots. A tight cluster (e.g. Bay Area cities) therefore frames as ≈ its
+// home state + neighbours rather than the whole nation. Tunable.
+const POI_ZOOM_FLOOR_DEG = 7;
+// Above this longitudinal span a US POI-only extent is "national" — use the
+// albers-usa composite (CONUS conic + AK/HI insets) instead of regional Mercator.
+// CONUS spans ≈58° lon; 48° is "most of the country". Tunable.
+const US_NATIONAL_LON_SPAN = 48;
 
 // Long-form (or common-alias) country name → the folded Natural-Earth display
 // name actually shipped in world-coarse (#6). The NE coarse layer abbreviates a
@@ -171,6 +184,14 @@ function looksNorthAmericaNeighbor(lat: number, lon: number): boolean {
   return lat >= 14 && lat <= 72 && lon >= -141 && lon <= -52;
 }
 
+/** A bbox that (near-)spans the whole globe — the sentinel spherical geoBounds
+ *  returns for a malformed/missing feature. Such a box is useless for framing. */
+function isWholeSphere(bb: GeoExtent): boolean {
+  return (
+    bb[0][0] <= -179 && bb[1][0] >= 179 && bb[0][1] <= -89 && bb[1][1] >= 89
+  );
+}
+
 export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const diagnostics: DgmoError[] = [...parsed.diagnostics]; // seed with parse diags (R14)
   const err = (line: number, message: string, code?: string): void => {
@@ -201,6 +222,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       [180, 85],
     ] as GeoExtent,
     projection: 'equirectangular',
+    poiFrameContainers: [],
     diagnostics,
     error: parsed.error,
   };
@@ -735,6 +757,64 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   ];
   let extent: GeoExtent = unioned ? pad(unioned, PAD_FRACTION) : DEFAULT_EXTENT; // empty → default
 
+  const isPoiOnly = pois.length > 0 && regions.length === 0;
+
+  // POI-only region framing (R-poi-region): snap the frame to the region(s) that
+  // CONTAIN the POIs, not an arbitrary window. Reverse-geocode each POI to its US
+  // state / country (point-in-polygon), then frame to the union of those regions'
+  // bboxes — so a cluster of Bay Area cities shows the whole of California, with
+  // the containing region available for labelling. Falls back to the raw POI
+  // extent when a POI sits outside every polygon (open ocean). The floor below
+  // still applies as a *minimum* so a tiny container (e.g. Rhode Island) keeps
+  // breathing room.
+  const containerRegionIds: string[] = []; // 'US-CA' (state) or 'FR' (country)
+  if (isPoiOnly) {
+    const countries = decodeFeatures(data.worldDetail);
+    const states = decodeFeatures(data.usStates);
+    const seen = new Set<string>();
+    const containerBoxes: GeoExtent[] = [];
+    for (const p of pois) {
+      const { country, state } = regionAt([p.lon, p.lat], countries, states);
+      const id = state?.iso ?? country?.iso;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      containerRegionIds.push(id);
+      const bb = state
+        ? featureBbox(data.usStates, id)
+        : featureBboxPrimary(data.worldCoarse, id);
+      // Skip a degenerate whole-sphere bbox: spherical geoBounds returns the full
+      // globe for a malformed/missing geometry, which would blow the frame out to
+      // the entire world. Real region geometry never spans the full sphere — fall
+      // back to the raw POI extent (+ floor) instead.
+      if (bb && !isWholeSphere(bb)) containerBoxes.push(bb);
+    }
+    const containerUnion = unionExtent(containerBoxes, points);
+    if (containerUnion) extent = pad(containerUnion, PAD_FRACTION);
+  }
+
+  // POI-only fit-to-cluster zoom floor. With region framing above, the extent is
+  // usually the containing region(s); the floor only kicks in for a tiny region
+  // or a POI that fell outside every polygon. Expand a too-tight extent
+  // symmetrically about its centroid until the longer axis reaches
+  // POI_ZOOM_FLOOR_DEG so recognizable land always frames the dots. Uniform scale
+  // preserves the aspect; the layout's fitExtent letterboxes to canvas.
+  if (isPoiOnly) {
+    const cx = (extent[0][0] + extent[1][0]) / 2;
+    const cy = (extent[0][1] + extent[1][1]) / 2;
+    const lon = extent[1][0] - extent[0][0];
+    const lat = extent[1][1] - extent[0][1];
+    const longer = Math.max(lon, lat);
+    if (longer > 0 && longer < POI_ZOOM_FLOOR_DEG) {
+      const k = POI_ZOOM_FLOOR_DEG / longer;
+      const halfLon = (lon * k) / 2;
+      const halfLat = (lat * k) / 2;
+      extent = [
+        [cx - halfLon, cy - halfLat],
+        [cx + halfLon, cy + halfLat],
+      ];
+    }
+  }
+
   const lonSpan = extent[1][0] - extent[0][0];
   const latSpan = extent[1][1] - extent[0][1];
   const span = Math.max(lonSpan, latSpan);
@@ -748,7 +828,14 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   // states") rather than fit-zooming to the cluster on a geographic projection.
   // (§24B.2 — projection is inferred, never configured.)
   let projection: ProjectionFamily;
-  if (usOriented) {
+  if (isPoiOnly && usOriented && lonSpan < US_NATIONAL_LON_SPAN) {
+    // Sub-national US POI cluster: regional Mercator (familiar shapes), fit to
+    // the floored extent above. The us-states mesh is still drawn (subdivisions
+    // pushed via usOriented), so the home state + neighbours frame the dots.
+    // albers-usa is reserved for genuinely national-span content below — a local
+    // cluster no longer snaps to the whole-nation composite (#13, §24B.2).
+    projection = 'mercator';
+  } else if (usOriented) {
     projection = 'albers-usa';
   } else if (span > WORLD_SPAN || maxAbsLat > MERCATOR_MAX_LAT) {
     // World/multi-continent scale (or a polar-reaching frame). Every world map —
@@ -802,6 +889,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   };
   result.extent = extent;
   result.projection = projection;
+  result.poiFrameContainers = containerRegionIds;
   result.error = parsed.error ?? firstError(diagnostics);
   // `Writable` widens the GeoExtent tuple to an array; the runtime value is a
   // correct GeoExtent, so cast back on return (through unknown — tuple vs array).
