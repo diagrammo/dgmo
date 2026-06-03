@@ -2058,17 +2058,28 @@ export function layoutMap(
     fill: string,
     lineNumber: number
   ): void => {
-    // Pick the genuinely higher-contrast text for legibility ON the fill (see
-    // labelOnFill): max-contrast light/dark on-fill text, with a halo only on
-    // mid-tone fills where neither reads strongly — clear fills carry no ghost.
-    const { color, halo, haloColor } = labelOnFill(fill);
+    // Colour is contrast-picked against the region's own fill (see labelOnFill).
+    // The halo, though, is gated by CONTAINMENT — not fill tone. A label that
+    // sits wholly within its own fill reads against a single known colour, so
+    // the picked shade suffices and a halo is just noise (big states: TX, CA).
+    // But when the glyphs spill past the region — a narrow shape (FL peninsula),
+    // a tiny state (MD), or a small inset island (HI) — the text crosses onto
+    // ocean / neighbour land whose tone we can't predict, so it needs the halo
+    // to stay legible. Sample the label's screen footprint against the drawn
+    // fills: if any extreme lands on a fill other than the region's own, the
+    // label overflows and earns a halo.
+    const { color, haloColor } = labelOnFill(fill);
+    const halfW = measureLegendText(text, FONT) / 2;
+    const overflows = [y - FONT * 0.55, y - FONT * 0.1].some(
+      (sy) => fillAt(x - halfW, sy) !== fill || fillAt(x + halfW, sy) !== fill
+    );
     labels.push({
       x,
       y,
       text,
       anchor: 'middle',
       color,
-      halo,
+      halo: overflows,
       haloColor,
       lineNumber,
     });
