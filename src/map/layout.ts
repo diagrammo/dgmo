@@ -90,8 +90,8 @@ const TAG_TINT_DARK = 68;
 // % palette-blue of bg for the ocean / backdrop — a faded blue, kept light
 // enough not to compete with saturated blue/green data hues but distinctly
 // bluer than the land so the sea reads as water rather than blank canvas.
-const WATER_TINT_LIGHT = 38;
-const WATER_TINT_DARK = 34;
+const WATER_TINT_LIGHT = 24;
+const WATER_TINT_DARK = 24;
 const RIVER_WIDTH = 1.3; // px stroke width for river lines
 // Compact breakpoint (decision D2): below this effective render width a wide
 // extent reads as zoomed-out — prefer abbreviated region labels and suppress
@@ -1307,15 +1307,31 @@ export function layoutMap(
       loMax = -Infinity,
       rawMin = Infinity,
       rawMax = -Infinity;
+    const lons: number[] = [];
     for (const [rawLon] of ring) {
       const lon = normLon(rawLon);
+      lons.push(lon);
       if (lon < loMin) loMin = lon;
       if (lon > loMax) loMax = lon;
       if (rawLon < rawMin) rawMin = rawLon;
       if (rawLon > rawMax) rawMax = rawLon;
     }
-    if (loMax - loMin > 270) return false; // circumpolar/polar-wrap garbage
-    if (rawMax - rawMin > 180 && loMax - loMin < 90) return false; // seam sliver
+    // OCCUPIED longitude arc (complement of the largest empty gap), NOT the raw
+    // min→max span: a landmass crossing the antimeridian (Russia: points near
+    // −180° AND +180° via Chukotka) has a ~360° min→max span but only a ~171°
+    // occupied arc. The naive `loMax−loMin > 270` test mistook Russia for
+    // circumpolar garbage and dropped all of mainland Russia from regional views.
+    // A truly pole-wrapping ring occupies ~360° (no large gap) and is still
+    // dropped. (#russia-cull)
+    lons.sort((a, b) => a - b);
+    let maxGap = 0;
+    for (let i = 1; i < lons.length; i++)
+      maxGap = Math.max(maxGap, lons[i]! - lons[i - 1]!);
+    if (lons.length > 1)
+      maxGap = Math.max(maxGap, lons[0]! + 360 - lons[lons.length - 1]!);
+    const occupiedArc = 360 - maxGap;
+    if (occupiedArc > 270) return false; // circumpolar/polar-wrap garbage
+    if (rawMax - rawMin > 180 && occupiedArc < 90) return false; // seam sliver
     // Projected-bbox ∩ canvas. project() honours the active projection (and
     // ignores clipExtent, so positions are true), so this is exactly "does any
     // of this ring fall on the canvas".
