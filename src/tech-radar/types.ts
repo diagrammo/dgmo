@@ -80,4 +80,7 @@ export interface TechRadarRenderOptions {
   activeLine?: number | null;
   /** True when rendering for export (PNG/SVG/PDF) — controls whether collapsed legend pills and cog are stripped. */
   exportMode?: boolean;
+  /** When 'app', the Blip Legend toggle is hosted by the app overlay strip
+   *  (inline gear suppressed, controls row + anchor reserved). */
+  controlsHost?: 'app' | 'inline';
 }

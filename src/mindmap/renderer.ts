@@ -99,6 +99,9 @@ export function renderMindmap(
     controlsExpanded?: boolean;
     onToggleControlsExpand?: () => void;
     exportMode?: boolean;
+    /** When 'app', controls (Descriptions / Depth Colors) are hosted by the app
+     *  overlay strip — inline gear suppressed, controls row + anchor reserved. */
+    controlsHost?: 'app' | 'inline';
   }
 ): void {
   const isExport = !!exportDims;
@@ -129,6 +132,23 @@ export function renderMindmap(
           groups: parsed.tagGroups,
           position: { placement: 'top-center', titleRelation: 'below-title' },
           mode: 'preview',
+          ...(options?.controlsHost !== undefined && {
+            controlsHost: options.controlsHost,
+          }),
+          // App-hosted controls reserve an extra row; surface the toggle count.
+          ...(hasControls && {
+            controlsGroup: {
+              toggles: [
+                {
+                  id: 'controls',
+                  type: 'toggle' as const,
+                  label: 'Controls',
+                  active: true,
+                  onToggle: () => {},
+                },
+              ],
+            },
+          }),
         },
         containerWidth
       ) + LEGEND_GROUP_GAP
@@ -262,6 +282,9 @@ export function renderMindmap(
       position: { placement: 'top-center', titleRelation: 'below-title' },
       mode: options?.exportMode ? 'export' : 'preview',
       ...(controlsToggles !== undefined && { controlsGroup: controlsToggles }),
+      ...(options?.controlsHost !== undefined && {
+        controlsHost: options.controlsHost,
+      }),
     };
     const legendState: LegendState = {
       activeGroup: options?.colorByDepth

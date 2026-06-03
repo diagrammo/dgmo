@@ -324,6 +324,9 @@ interface BLRenderOptions {
   onToggleDescriptions?: (active: boolean) => void;
   onToggleControlsExpand?: () => void;
   exportMode?: boolean;
+  /** When 'app', the description toggle is hosted by the app overlay strip
+   *  (inline gear suppressed, controls row + anchor reserved). */
+  controlsHost?: 'app' | 'inline';
 }
 
 export function renderBoxesAndLines(
@@ -344,6 +347,7 @@ export function renderBoxesAndLines(
     onToggleDescriptions,
     onToggleControlsExpand,
     exportMode = false,
+    controlsHost,
   } = options ?? {};
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -364,12 +368,31 @@ export function renderBoxesAndLines(
   const sGroupLabelZone = sctx.structural(GROUP_LABEL_ZONE);
   const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
   const sTitleY = sctx.structural(TITLE_Y);
+  // App-hosted controls reserve a dedicated controls row; surface the toggle
+  // count to the reservation so the height matches the actual layout.
+  const reserveHasDescriptions = parsed.nodes.some(
+    (n) => n.description && n.description.length > 0
+  );
   const sLegendHeight = sctx.structural(
     getMaxLegendReservedHeight(
       {
         groups: parsed.tagGroups,
         position: { placement: 'top-center', titleRelation: 'below-title' },
         mode: exportMode ? 'export' : 'preview',
+        ...(controlsHost !== undefined && { controlsHost }),
+        ...(reserveHasDescriptions && {
+          controlsGroup: {
+            toggles: [
+              {
+                id: 'descriptions',
+                type: 'toggle',
+                label: 'Descriptions',
+                active: true,
+                onToggle: () => {},
+              },
+            ],
+          },
+        }),
       },
       width
     )
@@ -998,9 +1021,11 @@ export function renderBoxesAndLines(
   const hasLegend = parsed.tagGroups.length > 0 || hasDescriptions;
 
   if (hasLegend) {
-    // Build controls group for description toggle
+    // Build controls group for description toggle. App-hosted controls own the
+    // toggling, so the group is built (to gate + size the row) even without the
+    // inline-gear callback.
     let controlsGroup: { toggles: ControlsGroupToggle[] } | undefined;
-    if (hasDescriptions && onToggleDescriptions) {
+    if (hasDescriptions && (onToggleDescriptions || controlsHost === 'app')) {
       controlsGroup = {
         toggles: [
           {
@@ -1019,6 +1044,7 @@ export function renderBoxesAndLines(
       position: { placement: 'top-center', titleRelation: 'below-title' },
       mode: exportMode ? 'export' : 'preview',
       ...(controlsGroup !== undefined && { controlsGroup }),
+      ...(controlsHost !== undefined && { controlsHost }),
     };
     const legendState: LegendState = {
       activeGroup,

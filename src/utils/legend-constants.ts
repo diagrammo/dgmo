@@ -92,3 +92,16 @@ export const CONTROLS_ICON_PATH =
 export const LEGEND_TOGGLE_DOT_R = LEGEND_DOT_R;
 export const LEGEND_TOGGLE_OFF_OPACITY = 0.4;
 export const LEGEND_GEAR_PILL_W = 14 + LEGEND_PILL_PAD; // gear icon (14) + padding
+
+// ── App-hosted controls row (controlsHost: 'app') ────────────
+// When a renderer opts the controls into the app overlay strip
+// (`controlsHost: 'app'`), dgmo stops drawing the gear and instead reserves a
+// fixed-height header row at the top and emits a `data-controls-anchor` element
+// the app overlay aligns to. Only a vertical constant + the anchor rect are the
+// dgmo↔app contract; the chip width is the app's concern (it overlays). 0
+// controls → 0 row (the gate never fires).
+export const CONTROLS_ROW_H = LEGEND_HEIGHT;
+// Width of the invisible anchor rect reserved at the top-right of the controls
+// row. The app reads its bounding rect (right edge + top) and slides chips in
+// leftward within the empty row. Informational only — the strip is an overlay.
+export const CONTROLS_ANCHOR_W = 220;

@@ -48,6 +48,10 @@ export interface CycleRenderOptions {
   onToggleDescriptions?: (active: boolean) => void;
   onToggleControlsExpand?: () => void;
   exportMode?: boolean;
+  /** When 'app', the description toggle is hosted by the app overlay strip:
+   *  the inline gear is suppressed and a controls row + anchor are reserved.
+   *  Default (inline) renders the gear as before. */
+  controlsHost?: 'app' | 'inline';
 }
 
 /**
@@ -92,7 +96,12 @@ export function renderCycle(
   const hasDescriptions =
     parsed.nodes.some((n) => n.description.length > 0) ||
     parsed.edges.some((e) => e.description.length > 0);
-  const hasLegend = hasDescriptions && !!renderOptions?.onToggleDescriptions;
+  // App-hosted controls own the toggling, so the legend row is reserved on the
+  // presence of descriptions alone (no inline-gear callback required).
+  const appHostedControls = renderOptions?.controlsHost === 'app';
+  const hasLegend =
+    hasDescriptions &&
+    (!!renderOptions?.onToggleDescriptions || appHostedControls);
 
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const legendOffset = hasLegend ? sLegendHeight : 0;
@@ -160,6 +169,9 @@ export function renderCycle(
       position: { placement: 'top-center', titleRelation: 'below-title' },
       mode: renderOptions?.exportMode ? 'export' : 'preview',
       controlsGroup,
+      ...(renderOptions?.controlsHost !== undefined && {
+        controlsHost: renderOptions.controlsHost,
+      }),
     };
     const legendState: LegendState = {
       activeGroup: null,

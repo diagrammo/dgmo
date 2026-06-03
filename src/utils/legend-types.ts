@@ -112,6 +112,13 @@ export interface LegendConfig {
    *  group). Lets the user click a sibling to switch the active group. Default
    *  false (legacy: when one group is active the others are hidden). */
   showInactivePills?: boolean;
+  /** Where the controlsGroup is hosted. Default (undefined / 'inline') renders
+   *  the in-SVG gear exactly as before — every non-app consumer (Obsidian,
+   *  site, remark-family, CLI) is unaffected. When 'app', the gear is suppressed
+   *  and the layout reserves a fixed-height controls row + emits a
+   *  `data-controls-anchor` element for the app's overlay strip. App preview
+   *  only; never set on the export path. */
+  controlsHost?: 'app' | 'inline';
 }
 
 export interface LegendPalette {
@@ -238,6 +245,10 @@ export interface LegendLayout {
   pills: LegendPillLayout[];
   /** Controls group layout (gear pill / capsule) */
   controlsGroup?: ControlsGroupLayout;
+  /** App-hosted controls anchor rect (only when `controlsHost: 'app'` and a
+   *  controlsGroup with toggles exists). The app overlay strip aligns to this
+   *  rect's top-right; rendered as an invisible, export-ignored `<g>`. */
+  controlsAnchor?: { x: number; y: number; width: number; height: number };
 }
 
 // ── Handle ──────────────────────────────────────────────────
