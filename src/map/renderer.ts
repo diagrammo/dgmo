@@ -459,6 +459,20 @@ export function renderMap(
     }
   }
 
+  // Code↔diagram sync: tag a synced element with its 1-based source line and,
+  // in preview, make it jump the editor cursor on click. Source-derived elements
+  // (regions, POIs, legs, labels) all carry `lineNumber`; generated context
+  // labels use 0 as a "no source line" sentinel, so guard on `>= 1`.
+  const wireSync = <E extends Element>(
+    sel: d3Selection.Selection<E, unknown, null, undefined>,
+    lineNumber: number
+  ): void => {
+    if (lineNumber < 1) return;
+    sel.attr('data-line-number', lineNumber);
+    if (onClickItem)
+      sel.style('cursor', 'pointer').on('click', () => onClickItem(lineNumber));
+  };
+
   // ── Legs (edges + route legs) ──
   const gLegs = svg
     .append('g')
@@ -471,6 +485,9 @@ export function renderMap(
       .attr('stroke', leg.color)
       .attr('stroke-width', leg.width)
       .attr('stroke-linecap', 'round');
+    // A 0-width invisible leg path is hard to hit; pointer-events on the visible
+    // stroke is enough for the line widths legs use.
+    wireSync(p, leg.lineNumber);
     if (leg.arrow) {
       const id = `dgmo-map-arrow-${i}`;
       const s = arrowSize(leg.width);
@@ -494,7 +511,7 @@ export function renderMap(
       // (dark scored country ⇒ light text, pale land ⇒ dark), with the ghost halo
       // only when that contrast is marginal. Fall back to the muted default for
       // legs that predate the computed style.
-      emitText(
+      const lt = emitText(
         gLegs,
         leg.labelX,
         leg.labelY ?? 0,
@@ -505,6 +522,7 @@ export function renderMap(
         leg.labelHalo ?? true,
         LABEL_FONT - 1
       );
+      wireSync(lt, leg.lineNumber);
     }
   });
 
@@ -648,6 +666,7 @@ export function renderMap(
       // Spiderfy member leader: toggle it with the badge (same as its text).
       if (lab.clusterMember !== undefined)
         line.attr('data-cluster-member', lab.clusterMember);
+      wireSync(line, lab.lineNumber);
     }
     const t = emitText(
       gLabels,
@@ -672,6 +691,9 @@ export function renderMap(
     if (lab.clusterMember !== undefined) {
       t.attr('data-cluster-member', lab.clusterMember);
     }
+    // Click a region/POI label to jump to its source line (sets cursor:pointer,
+    // overriding the default above for POI labels).
+    wireSync(t, lab.lineNumber);
   }
 
   // ── Coincident-stack badges (collapsed view). Interactive ONLY — a static

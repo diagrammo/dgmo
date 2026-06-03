@@ -121,6 +121,41 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(clicked).toBe(ln);
   });
 
+  it('route legs + leg labels carry data-line-number and fire onClickItem', () => {
+    let clicked: number | null = null;
+    // Leg line is line 3 (`  -ferry-> Osaka value: 40`).
+    const svg = render(
+      'map\nroute Tokyo\n  -ferry-> Osaka value: 40',
+      (n) => (clicked = n)
+    );
+    const path = svg.querySelector<SVGPathElement>(
+      '.dgmo-map-legs path[data-line-number]'
+    );
+    expect(path).toBeTruthy();
+    expect(Number(path!.getAttribute('data-line-number'))).toBe(3);
+    path!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    expect(clicked).toBe(3);
+    // The in-arrow "ferry" label is clickable too.
+    const label = svg.querySelector<SVGTextElement>(
+      '.dgmo-map-legs text[data-line-number]'
+    );
+    expect(label).toBeTruthy();
+    expect(Number(label!.getAttribute('data-line-number'))).toBe(3);
+  });
+
+  it('POI labels carry data-line-number and fire onClickItem', () => {
+    let clicked: number | null = null;
+    // POI line is line 2 (`poi Tokyo`).
+    const svg = render('map\npoi Tokyo', (n) => (clicked = n));
+    const label = svg.querySelector<SVGTextElement>(
+      '.dgmo-map-labels text[data-line-number]'
+    );
+    expect(label).toBeTruthy();
+    expect(Number(label!.getAttribute('data-line-number'))).toBe(2);
+    label!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    expect(clicked).toBe(2);
+  });
+
   it('POI marker + label share a data-poi id (label-hover spotlight)', () => {
     const svg = render('map\npoi Tokyo');
     const marker = svg.querySelector<SVGCircleElement>('circle[data-poi]');
