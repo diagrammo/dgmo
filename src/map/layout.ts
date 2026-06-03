@@ -120,8 +120,11 @@ const RELIEF_HATCH_STRENGTH = 32;
 // SCREEN-space FRACTIONS of min(w,h) so the rings stay a constant fraction of the
 // canvas at ANY export size and ANY geographic extent (a decorative screen-space
 // cue, not a geographic offset — ADR-3). Tuned faint, water-toned, low-contrast.
-// minExtent = per-subpath island floor (drop tiny islands; bounds the stroke cost
-// on world maps — R5/R11).
+// minExtent = per-subpath degenerate-ring floor. Kept just above zero so EVERY
+// island — down to the smallest specks — grows coast rings; it only drops
+// sub-pixel/degenerate subpaths that would render nothing (R11). (Earlier it
+// culled small islands to de-noise world maps, but every island should carry the
+// nautical hashing, so the floor is now a bare degenerate guard.)
 // INVARIANT (load-bearing): COASTLINE_STEP > COASTLINE_THICKNESS — i.e. every
 // ring's d_k + thickness < d_(k+1). The renderer draws outer→inner; ring k's
 // colour band reaches radius d_k+thickness and its flat-water overdraw reaches
@@ -133,8 +136,8 @@ const COASTLINE_STEP = 0.0028; // spacing between rings (frac of min dim)
 const COASTLINE_THICKNESS = 0.0014; // ring width — SAME for every ring (frac)
 const COASTLINE_OPACITY_NEAR = 0.5; // innermost ring opacity
 const COASTLINE_OPACITY_FAR = 0.1; // outermost ring opacity (gradual fade)
-const COASTLINE_MIN_EXTENT = 0.004; // ring bbox extent floor (frac of min dim)
-const COASTLINE_MIN_EXTENT_GLOBAL = 0.006; // tighter floor at world zoom
+const COASTLINE_MIN_EXTENT = 0.0006; // degenerate-ring floor (frac of min dim)
+const COASTLINE_MIN_EXTENT_GLOBAL = 0.0006; // same at world zoom — ring every island
 // Water-line tone: mix regionStroke into water. LESS water than `lakeStroke`
 // (mix 45) so the offshore lines carry a touch MORE contrast than the existing
 // coast stroke and stay distinguishable from it (R10/F14).

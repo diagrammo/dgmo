@@ -60,8 +60,8 @@ function ringToPath(ring: ReadonlyArray<[number, number]>): string {
 /** Coast outlines to buffer: every region's OUTER rings whose bbox extent clears
  *  `minExtent`. Holes/enclaves are skipped via containment depth (even depth =
  *  outer landmass boundary, odd = a hole) so an enclave (Lesotho) or a lake-hole
- *  is never ringed as a fake coast on land (R11). Tiny islands are dropped to
- *  de-noise world maps and bound the stroke cost (R5). */
+ *  is never ringed as a fake coast on land (R11). `minExtent` is a bare
+ *  degenerate-ring floor now — every island, however small, grows coast rings. */
 function coastlineOuterRings(
   regions: readonly MapLayoutRegion[],
   minExtent: number
