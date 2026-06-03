@@ -373,7 +373,7 @@ export function renderMap(
   // then draws on top, framed by the box border. ──
   if (layout.insets.length) {
     const insetG = svg.append('g').attr('class', 'dgmo-map-insets');
-    for (const box of layout.insets) {
+    layout.insets.forEach((box, bi) => {
       // Angled-top quad frame — rides under the conus coast so it never covers
       // neighbouring states. Closed path from the four corners.
       const d =
@@ -386,7 +386,18 @@ export function renderMap(
         .attr('stroke', mix(palette.text, palette.bg, 55))
         .attr('stroke-width', 1)
         .attr('stroke-linejoin', 'round');
-    }
+      // Neighbour land (Canada beside Alaska) clipped to this box, behind the
+      // state — so a land border reads as land rather than sprouting coast rings.
+      if (box.contextLand) {
+        const clipId = `dgmo-map-inset-clip-${bi}`;
+        defs.append('clipPath').attr('id', clipId).append('path').attr('d', d);
+        insetG
+          .append('path')
+          .attr('d', box.contextLand.d)
+          .attr('fill', box.contextLand.fill)
+          .attr('clip-path', `url(#${clipId})`);
+      }
+    });
     for (const r of layout.insetRegions) drawRegion(insetG, r, 0.5);
 
     // Inset coastline water-lines (AK/HI box interiors) for visual parity with
@@ -410,6 +421,16 @@ export function renderMap(
           'Z';
         mask.append('path').attr('d', d).attr('fill', 'white');
       }
+      // Neighbour land masks as land too — clipped to its box so it can't darken
+      // an adjacent inset — keeping the AK/Canada land border free of rings.
+      layout.insets.forEach((box, bi) => {
+        if (box.contextLand)
+          mask
+            .append('path')
+            .attr('d', box.contextLand.d)
+            .attr('fill', 'black')
+            .attr('clip-path', `url(#dgmo-map-inset-clip-${bi})`);
+      });
       for (const r of layout.insetRegions)
         if (r.id !== 'lake')
           mask.append('path').attr('d', r.d).attr('fill', 'black');

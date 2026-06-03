@@ -198,6 +198,12 @@ export interface MapLayoutInset {
    *  un-fitted `alaskaProjection()`/`hawaiiProjection()` factories would invert
    *  to garbage, so the geo-query inverts against THIS instance. */
   readonly projection: GeoProjection;
+  /** Neighbour land (e.g. Canada beside Alaska) projected with this inset's
+   *  fitted projection and clipped to the box — drawn BEHIND the state so a land
+   *  border reads as land, not coast. Without it the state's outer ring buffers
+   *  outward over open box-ocean and the land border sprouts coastline rings.
+   *  `undefined` when no neighbour land falls inside the box. */
+  readonly contextLand?: { readonly d: string; readonly fill: string };
 }
 
 /** Post-projection non-uniform stretch applied to GLOBAL fits (fill-the-canvas).
@@ -1128,6 +1134,16 @@ export function layoutMap(
       );
       const d = geoPath(proj)(f as never) ?? '';
       if (!d) return xr;
+      // Neighbour land projected with this same fitted projection, clipped to the
+      // box. Alaska's only land neighbour is Canada; drawing it behind AK turns
+      // the eastern AK/Canada border into a land boundary so it grows no coastline
+      // rings (and fills the box's upper-right corner with recessive context).
+      let contextLand: { d: string; fill: string } | undefined;
+      if (iso === 'US-AK') {
+        const can = worldLayer.get('CA');
+        const cd = can ? (geoPath(proj)(can as never) ?? '') : '';
+        if (cd) contextLand = { d: cd, fill: foreignFill };
+      }
       const r = regionById.get(iso);
       let fill = neutralFill;
       let lineNumber = -1;
@@ -1149,6 +1165,7 @@ export function layoutMap(
         // The FITTED inset projection (just fit to this box) — captured so the
         // geo-query can invert pixels inside the frame back to AK/HI coords.
         projection: proj,
+        ...(contextLand && { contextLand }),
       });
       insetRegions.push({
         id: iso,
