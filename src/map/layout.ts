@@ -646,8 +646,17 @@ export function buildMapProjection(
   // 50m/110m — visibly coarser than the 10m states. When the NA-clipped 10m
   // assets are present, swap them in so neighbours (Canada/Mexico) and the Great
   // Lakes match the states' resolution. Falls back to the world tiers otherwise.
+  // Crisp NA assets apply to BOTH the national albers-usa view AND a regional
+  // US mercator view (POI-only region framing — e.g. a single state). A
+  // US-oriented mercator frame is sub-world and entirely within North America by
+  // construction, so the NA-clipped 10m land/lakes fit it; the bbox guard below
+  // still keeps non-NA countries on world geometry. Excludes equirectangular
+  // (a world US-states choropleth) where the NA clip would crop the globe.
   const usCrisp =
-    resolved.projection === 'albers-usa' && wantsUsStates && !!data.naLand;
+    (resolved.projection === 'albers-usa' ||
+      resolved.projection === 'mercator') &&
+    wantsUsStates &&
+    !!data.naLand;
   // Base world layer. In a US view use the DETAIL tier (full global coverage) so
   // distant context — South America, northern Canada, etc. — is present and can
   // draw when it falls inside the frame.
