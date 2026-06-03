@@ -9,6 +9,7 @@ import {
   geoPath,
   geoNaturalEarth1,
   geoEqualEarth,
+  geoEquirectangular,
   geoConicEqualArea,
   geoMercator,
   geoBounds,
@@ -500,11 +501,16 @@ function projectionFor(family: ProjectionFamily): GeoProjection {
       // Equal-area pseudocylindrical: areas stay honest so a choropleth's shading
       // isn't distorted by projection (the default for *data* world maps).
       return geoEqualEarth();
+    case 'equirectangular':
+      // Plate carrée: straight lat/lon grid, fully rectangular frame. The default
+      // for dataless *reference* world maps — a clean conventional wall-map look.
+      return geoEquirectangular();
     case 'natural-earth':
-    default:
-      // Prettier curved compromise for dataless *reference* world maps; also the
-      // fallback. Areas are only approximately preserved — fine without data.
+      // Curved pseudocylindrical compromise. Retained for completeness; areas are
+      // only approximately preserved.
       return geoNaturalEarth1();
+    default:
+      return geoEquirectangular();
   }
 }
 

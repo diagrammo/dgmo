@@ -301,9 +301,9 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const r = resolve('map\nCalifornia value: 1\nOregon value: 2');
     expect(r.projection).toBe('albers-usa');
   });
-  it('dataless world span → natural-earth (AC5)', () => {
+  it('dataless world span → equirectangular (AC5)', () => {
     const r = resolve('map\npoi Tokyo\npoi 40 -74 as ny');
-    expect(r.projection).toBe('natural-earth');
+    expect(r.projection).toBe('equirectangular');
   });
   it('data world span → equal-earth (equal-area, AC5)', () => {
     // A choropleth spanning the globe (US + China, beyond North America so not
@@ -325,38 +325,34 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const r = resolve('map\npoi 35 -10 as sw\npoi 60 30 as ne');
     expect(r.projection).toBe('mercator');
   });
-  it('polar-reaching wide frame (dataless) → natural-earth (Mercator area blow-up guard)', () => {
+  it('polar-reaching wide frame (dataless) → equirectangular (Mercator area blow-up guard)', () => {
     // Sub-world longitude span but the frame reaches past ~80° latitude — Mercator
     // would grossly inflate the high-latitude land, so fall back to a world
-    // projection. Dataless → natural-earth.
+    // projection. Dataless → equirectangular.
     const r = resolve('map\npoi 84 -40 as a\npoi 60 40 as b');
-    expect(r.projection).toBe('natural-earth');
+    expect(r.projection).toBe('equirectangular');
   });
-  it('equirectangular is never selected for any extent (AC12)', () => {
-    const cases = [
-      'map\npoi Tokyo\npoi 40 -74 as ny', // dataless world
-      'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3', // data world
-      'map\nCalifornia value: 1\nOregon value: 2', // US
-      'map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b', // tight cluster
-    ];
-    for (const src of cases) {
-      const proj = resolve(src).projection;
-      expect(proj).not.toBe('equirectangular');
-      expect([
+  it('equirectangular only for dataless world maps, not data/US/cluster', () => {
+    const cases: Array<[string, string]> = [
+      ['map\npoi Tokyo\npoi 40 -74 as ny', 'equirectangular'], // dataless world
+      [
+        'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3',
         'equal-earth',
-        'natural-earth',
-        'albers-usa',
-        'mercator',
-      ]).toContain(proj);
+      ], // data world
+      ['map\nCalifornia value: 1\nOregon value: 2', 'albers-usa'], // US
+      ['map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b', 'mercator'], // tight cluster
+    ];
+    for (const [src, expected] of cases) {
+      expect(resolve(src).projection).toBe(expected);
     }
   });
   it('world-scale frame snaps to full Greenwich longitude, not an antimeridian wrap (no US split)', () => {
     // POIs spanning the globe (Americas + Europe + Asia). The world-scale frame
     // must be the conventional full [-180, 180] Greenwich rectangle — NOT a
     // wrapped window (east > 180) that splits the Americas at the seam. Dataless
-    // POIs → natural-earth.
+    // POIs → equirectangular.
     const r = resolve('map\npoi 10 -120 as a\npoi 10 20 as b\npoi 10 150 as c');
-    expect(r.projection).toBe('natural-earth');
+    expect(r.projection).toBe('equirectangular');
     expect(r.extent[0][0]).toBe(-180);
     expect(r.extent[1][0]).toBe(180);
     // Latitude widens to the populated world band even though the data sits at

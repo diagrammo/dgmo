@@ -38,6 +38,7 @@ export interface MapData {
 export type ProjectionFamily =
   | 'equal-earth'
   | 'natural-earth'
+  | 'equirectangular'
   | 'albers-usa'
   | 'mercator';
 
