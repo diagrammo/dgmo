@@ -92,7 +92,7 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(svg).toBeTruthy();
     const bg = svg.querySelector('rect');
     // Ocean / backdrop is the faded blue water tint (see WATER_TINT_LIGHT).
-    expect(bg?.getAttribute('fill')).toBe(mix(P.colors.blue, P.bg, 13));
+    expect(bg?.getAttribute('fill')).toBe(mix(P.colors.blue, P.bg, 24));
     expect(
       svg.querySelectorAll('.dgmo-map-regions path').length
     ).toBeGreaterThan(0);

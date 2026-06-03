@@ -87,10 +87,11 @@ const LAND_TINT_DARK = 24;
 // — the generic 25% shape tint washes out and lets the olive land dominate.
 const TAG_TINT_LIGHT = 60;
 const TAG_TINT_DARK = 68;
-// % palette-blue of bg for the ocean / backdrop — a VERY faded blue, matching
-// the land's subtlety so the whole basemap reads as a quiet dress under the data.
-const WATER_TINT_LIGHT = 13;
-const WATER_TINT_DARK = 14;
+// % palette-blue of bg for the ocean / backdrop — a faded blue, kept light
+// enough not to compete with saturated blue/green data hues but distinctly
+// bluer than the land so the sea reads as water rather than blank canvas.
+const WATER_TINT_LIGHT = 24;
+const WATER_TINT_DARK = 24;
 const RIVER_WIDTH = 1.3; // px stroke width for river lines
 // Compact breakpoint (decision D2): below this effective render width a wide
 // extent reads as zoomed-out — prefer abbreviated region labels and suppress

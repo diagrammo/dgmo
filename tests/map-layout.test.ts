@@ -424,7 +424,7 @@ describe('layout — direct trailing colors & ramp hue (§1.5, §24B.3)', () => 
 describe('layout — uniform subtle basemap dress (subject water + land)', () => {
   // Subject water + land wear the SAME faded blue/green dress regardless of data
   // activity or the muted/natural flags — only neighbour land changes (below).
-  const water = mix(P.colors.blue, P.bg, 13);
+  const water = mix(P.colors.blue, P.bg, 24);
   it('no data → subtle water + faded green land', () => {
     const r = lay('map\nCalifornia');
     expect(r.background).toBe(water);
