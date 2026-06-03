@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-06-03
+
+### Added
+
+- **Content-aware export canvas** (`mapExportDimensions`) — map exports size the
+  canvas to the content's own aspect ratio instead of a fixed box, so regional
+  maps no longer letterbox.
+- **Colorize** — region maps with no data auto-colour every region a distinct
+  pastel (greedy 4-colouring so no neighbours share a hue); `no-colorize` opts
+  out.
+- **New palettes** — Atlas, Slate, Blueprint (cyanotype), and Tidewater
+  (nautical).
+- Relief is unconditional — only `no-relief` hides it; now also shown on the US
+  national Albers view.
+- Coastal ocean anchors and container-region labels so zoomed-in coastal frames
+  still label the surrounding ocean and the parent region.
+- POI-only maps fit-zoom to their containing region.
+- Route legs and labels are click-to-line navigable.
+
+### Changed
+
+- Wider context pad for region/choropleth maps.
+- Legend controls can be app-hosted (`controlsHost: 'app'`), letting the host UI
+  own the colouring controls.
+- Removed the Bold palette.
+
+### Fixed
+
+- Antimeridian-crossing landmasses (e.g. Russia) now render in regional views.
+- Ocean reads clearly as water and neutral land reads as land (contrast tuning).
+- Inset coastline water-lines clipped to their box, with a water moat around
+  inset borders.
+- Adjacent region/POI labels no longer overlap at small scales; label halo gated
+  on overflow.
+
+### Performance
+
+- Coastline and mask geometry collapsed into compound paths for faster
+  legend-hover recolours on heavy maps.
+
 ## [0.21.1] - 2026-06-02
 
 ### Added
