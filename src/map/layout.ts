@@ -80,8 +80,8 @@ const REGION_LABEL_HALO_RATIO = 4.5;
 // (plain reference OR data-coloured) wears the same subtle dress and the green
 // never competes with saturated tag/score tints. Dark lifts a touch off the
 // near-black surface so the faint green stays legible.
-const LAND_TINT_LIGHT = 6;
-const LAND_TINT_DARK = 16;
+const LAND_TINT_LIGHT = 12;
+const LAND_TINT_DARK = 24;
 // Categorical (tag) region fill: a flat, fairly saturated tint of the tag
 // colour so a tagged region reads as its CATEGORY against the tinted land base
 // — the generic 25% shape tint washes out and lets the olive land dominate.
@@ -90,8 +90,8 @@ const TAG_TINT_DARK = 68;
 // % palette-blue of bg for the ocean / backdrop — a faded blue, kept light
 // enough not to compete with saturated blue/green data hues but distinctly
 // bluer than the land so the sea reads as water rather than blank canvas.
-const WATER_TINT_LIGHT = 24;
-const WATER_TINT_DARK = 24;
+const WATER_TINT_LIGHT = 38;
+const WATER_TINT_DARK = 34;
 const RIVER_WIDTH = 1.3; // px stroke width for river lines
 // Compact breakpoint (decision D2): below this effective render width a wide
 // extent reads as zoomed-out — prefer abbreviated region labels and suppress

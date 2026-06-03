@@ -111,7 +111,7 @@ const P = getPalette('nord').light;
 // Unscored/untagged subject land — a VERY faded green, uniform whether or not a
 // colouring dimension is active (see layout.ts mapNeutralLandColor /
 // LAND_TINT_LIGHT). Data activity no longer changes the subject dress.
-const neutral = mix(P.colors.green, P.bg, 6);
+const neutral = mix(P.colors.green, P.bg, 12);
 const mutedNeutral = neutral;
 const lay = (src: string, w = 800, h = 600) =>
   layoutMap(
@@ -424,7 +424,7 @@ describe('layout — direct trailing colors & ramp hue (§1.5, §24B.3)', () => 
 describe('layout — uniform subtle basemap dress (subject water + land)', () => {
   // Subject water + land wear the SAME faded blue/green dress regardless of data
   // activity or the muted/natural flags — only neighbour land changes (below).
-  const water = mix(P.colors.blue, P.bg, 24);
+  const water = mix(P.colors.blue, P.bg, 38);
   it('no data → subtle water + faded green land', () => {
     const r = lay('map\nCalifornia');
     expect(r.background).toBe(water);
