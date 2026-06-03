@@ -496,6 +496,20 @@ const WATER_KIND = new Set(['ocean', 'sea', 'gulf', 'bay', 'strait', 'channel', 
 // generated name can be hand-adjusted. Keyed by the Natural Earth `name`.
 const WATER_NAME_OVERRIDES = { 'Gulf of Mexico': 'Gulf of America' };
 
+// Curated extra label anchors for the big oceans, keyed by display name. Natural
+// Earth ships ONE inner point per ocean (mid-basin), which projects off-frame on
+// a zoomed-in COASTAL view — so the layout's edge-clamp drops it and a regional
+// map of, say, California shows no "Pacific Ocean". These coastal `[lat, lon]`
+// alternates (all open water) give the multi-anchor picker a point near a coast
+// to clamp to the frame edge. The mid-basin NE point stays primary for world
+// views. Emitted as the optional 6th tuple element `alt` (see WaterBodyEntry).
+const WATER_ALT_ANCHORS = {
+  'North Pacific Ocean': [[36, -126], [47, -131], [55, -143], [35, 160], [15, 165]],
+  'South Pacific Ocean': [[-20, -110], [-40, -95], [-15, 170], [-35, 170]],
+  'North Atlantic Ocean': [[40, -55], [30, -45], [50, -25], [15, -45]],
+  'South Atlantic Ocean': [[-25, -35], [-40, -15], [-10, -20]],
+};
+
 /** Natural Earth ships a few names ALL-CAPS (SOUTHERN OCEAN, INDIAN OCEAN);
  *  title-case multi-word all-caps names for display consistency with the rest. */
 function normalizeWaterName(name) {
@@ -540,7 +554,12 @@ async function buildWaterBodies(coarseUrl, detailUrl) {
       seen.add(key);
       const [lon, lat] = f.geometry.coordinates;
       const tier = Number.isFinite(p.scalerank) ? p.scalerank : 5;
-      entries.push([round(lat), round(lon), name, tier, cla]);
+      const alt = WATER_ALT_ANCHORS[name];
+      entries.push(
+        alt
+          ? [round(lat), round(lon), name, tier, cla, alt]
+          : [round(lat), round(lon), name, tier, cla]
+      );
     }
   }
   if (!entries.length) throw new Error('water-bodies: no marine features (source schema drift?)');
