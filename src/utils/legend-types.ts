@@ -112,6 +112,13 @@ export interface LegendConfig {
    *  group). Lets the user click a sibling to switch the active group. Default
    *  false (legacy: when one group is active the others are hidden). */
   showInactivePills?: boolean;
+  /** Where the controlsGroup is hosted. Default (undefined / 'inline') renders
+   *  the in-SVG gear exactly as before — every non-app consumer (Obsidian,
+   *  site, remark-family, CLI) is unaffected. When 'app', the controlsGroup is
+   *  dropped entirely (no gear, no reserved row): the app overlay strip owns the
+   *  controls, pinned to the top edge of the preview. App preview only; never
+   *  set on the export path. */
+  controlsHost?: 'app' | 'inline';
 }
 
 export interface LegendPalette {

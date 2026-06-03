@@ -1,237 +1,5 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`sankey baseline (TD-4 exception) > bold dark: sankey output is stable 1`] = `
-"<svg style="background: #000000; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
-<rect width="1200" height="800" x="0" y="0" fill="none"></rect>
-<path d="M20 0C120 0 120 23.8 220 23.8L220 293.8C120 293.8 120 270 20 270Z" transform="translate(60 40)" fill="#097c09" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr3-cls-45"></path>
-<path d="M20 282C120 282 120 293.8 220 293.8L220 461.8C120 461.8 120 450 20 450Z" transform="translate(60 40)" fill="#7c4309" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr3-cls-46"></path>
-<path d="M20 462C120 462 120 461.8 220 461.8L220 569.8C120 569.8 120 570 20 570Z" transform="translate(60 40)" fill="#09377c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr3-cls-47"></path>
-<path d="M20 582C120 582 120 569.8 220 569.8L220 641.8C120 641.8 120 654 20 654Z" transform="translate(60 40)" fill="#7c097c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr3-cls-48"></path>
-<path d="M20 666C120 666 120 641.8 220 641.8L220 695.8C120 695.8 120 720 20 720Z" transform="translate(60 40)" fill="#096565" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr3-cls-49"></path>
-<path d="M240 335.8C340 335.8 340 348 440 348L440 552C340 552 340 539.8 240 539.8Z" transform="translate(60 40)" fill="#097c09" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart" class="zr3-cls-45"></path>
-<path d="M240 23.8C340 23.8 340 24 440 24L440 336C340 336 340 335.8 240 335.8Z" transform="translate(60 40)" fill="#097c09" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart" class="zr3-cls-45"></path>
-<path d="M240 539.8C340 539.8 340 564 440 564L440 720C340 720 340 695.8 240 695.8Z" transform="translate(60 40)" fill="#7c0909" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart" class="zr3-cls-50"></path>
-<path d="M460 348C560 348 560 504 660 504L660 648C560 648 560 492 460 492Z" transform="translate(60 40)" fill="#096565" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart" class="zr3-cls-49"></path>
-<path d="M460 492C560 492 560 660 660 660L660 720C560 720 560 552 460 552Z" transform="translate(60 40)" fill="#096565" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart" class="zr3-cls-49"></path>
-<path d="M460 24C560 24 560 168 660 168L660 354C560 354 560 210 460 210Z" transform="translate(60 40)" fill="#097c7c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="10" ecmeta_ssr_type="chart" class="zr3-cls-51"></path>
-<path d="M460 210C560 210 560 366 660 366L660 492C560 492 560 336 460 336Z" transform="translate(60 40)" fill="#7c0909" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="11" ecmeta_ssr_type="chart" class="zr3-cls-50"></path>
-<path d="M680 168C780 168 780 231.2 880 231.2L880 363.2C780 363.2 780 300 680 300Z" transform="translate(60 40)" fill="#7c4309" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="12" ecmeta_ssr_type="chart" class="zr3-cls-46"></path>
-<path d="M680 300C780 300 780 375.2 880 375.2L880 429.2C780 429.2 780 354 680 354Z" transform="translate(60 40)" fill="#7c0909" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="13" ecmeta_ssr_type="chart" class="zr3-cls-50"></path>
-<path d="M0 0l20 0l0 270l-20 0Z" transform="translate(60 40)" fill="#04c404" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr3-cls-52"></path>
-<path d="M220 23.8l20 0l0 672l-20 0Z" transform="translate(60 40)" fill="#04c404" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr3-cls-52"></path>
-<path d="M0 282l20 0l0 168l-20 0Z" transform="translate(60 40)" fill="#c46404" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr3-cls-53"></path>
-<path d="M0 462l20 0l0 108l-20 0Z" transform="translate(60 40)" fill="#0451c4" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr3-cls-54"></path>
-<path d="M0 582l20 0l0 72l-20 0Z" transform="translate(60 40)" fill="#c404c4" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr3-cls-55"></path>
-<path d="M0 666l20 0l0 54l-20 0Z" transform="translate(60 40)" fill="#049d9d" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart" class="zr3-cls-56"></path>
-<path d="M440 348l20 0l0 204l-20 0Z" transform="translate(60 40)" fill="#049d9d" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart" class="zr3-cls-56"></path>
-<path d="M440 24l20 0l0 312l-20 0Z" transform="translate(60 40)" fill="#04c4c4" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart" class="zr3-cls-57"></path>
-<path d="M440 564l20 0l0 156l-20 0Z" transform="translate(60 40)" fill="#0451c4" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart" class="zr3-cls-54"></path>
-<path d="M660 504l20 0l0 144l-20 0Z" transform="translate(60 40)" fill="#04c404" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart" class="zr3-cls-52"></path>
-<path d="M660 660l20 0l0 60l-20 0Z" transform="translate(60 40)" fill="#c4c404" ecmeta_series_index="0" ecmeta_data_index="10" ecmeta_ssr_type="chart" class="zr3-cls-58"></path>
-<path d="M660 168l20 0l0 186l-20 0Z" transform="translate(60 40)" fill="#c46404" ecmeta_series_index="0" ecmeta_data_index="11" ecmeta_ssr_type="chart" class="zr3-cls-53"></path>
-<path d="M660 366l20 0l0 126l-20 0Z" transform="translate(60 40)" fill="#c404c4" ecmeta_series_index="0" ecmeta_data_index="12" ecmeta_ssr_type="chart" class="zr3-cls-55"></path>
-<path d="M880 231.2l20 0l0 132l-20 0Z" transform="translate(60 40)" fill="#04c404" ecmeta_series_index="0" ecmeta_data_index="13" ecmeta_ssr_type="chart" class="zr3-cls-52"></path>
-<path d="M880 375.2l20 0l0 54l-20 0Z" transform="translate(60 40)" fill="#049d9d" ecmeta_series_index="0" ecmeta_data_index="14" ecmeta_ssr_type="chart" class="zr3-cls-56"></path>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(85 175)" fill="#ffffff">Organic Search</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(305 399.7649)" fill="#ffffff">Landing Page</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(85 406)" fill="#ffffff">Paid Ads</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(85 556)" fill="#ffffff">Social Media</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(85 658)" fill="#ffffff">Email</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(85 733)" fill="#ffffff">Direct</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(525 490)" fill="#ffffff">Sign Up</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(525 220)" fill="#ffffff">Browse Products</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(525 682)" fill="#ffffff">Bounce</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(745 616)" fill="#ffffff">Free Trial</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(745 730)" fill="#ffffff">Paid Plan</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(745 301)" fill="#ffffff">Add to Cart</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(745 469)" fill="#ffffff">Exit</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(965 337.2107)" fill="#ffffff">Purchase</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(965 442.2107)" fill="#ffffff">Abandon</text>
-<path d="M-95.7 -5l191.4 0l0 30l-191.4 0Z" transform="translate(600 13)" fill="rgb(0,0,0)" fill-opacity="0" stroke="#3c3c41" stroke-width="0" class="zr3-cls-59"></path>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:20px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;font-weight:bold;" xml:space="preserve" y="10" transform="translate(600 13)" fill="#ffffff">Website Traffic Flow</text>
-<style ><![CDATA[
-.zr3-cls-45:hover {
-cursor:pointer;
-fill:rgba(9,136,9,1);
-}
-.zr3-cls-46:hover {
-cursor:pointer;
-fill:rgba(136,73,9,1);
-}
-.zr3-cls-47:hover {
-cursor:pointer;
-fill:rgba(9,60,136,1);
-}
-.zr3-cls-48:hover {
-cursor:pointer;
-fill:rgba(136,9,136,1);
-}
-.zr3-cls-49:hover {
-cursor:pointer;
-fill:rgba(9,111,111,1);
-}
-.zr3-cls-50:hover {
-cursor:pointer;
-fill:rgba(136,9,9,1);
-}
-.zr3-cls-51:hover {
-cursor:pointer;
-fill:rgba(9,136,136,1);
-}
-.zr3-cls-52:hover {
-cursor:pointer;
-fill:rgba(4,215,4,1);
-}
-.zr3-cls-53:hover {
-cursor:pointer;
-fill:rgba(215,110,4,1);
-}
-.zr3-cls-54:hover {
-cursor:pointer;
-fill:rgba(4,89,215,1);
-}
-.zr3-cls-55:hover {
-cursor:pointer;
-fill:rgba(215,4,215,1);
-}
-.zr3-cls-56:hover {
-cursor:pointer;
-fill:rgba(4,172,172,1);
-}
-.zr3-cls-57:hover {
-cursor:pointer;
-fill:rgba(4,215,215,1);
-}
-.zr3-cls-58:hover {
-cursor:pointer;
-fill:rgba(215,215,4,1);
-}
-.zr3-cls-59:hover {
-pointer-events:none;
-}
-
-]]>
-
-</style>
-</svg>"
-`;
-
-exports[`sankey baseline (TD-4 exception) > bold light: sankey output is stable 1`] = `
-"<svg style="background: #ffffff; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
-<rect width="1200" height="800" x="0" y="0" fill="none"></rect>
-<path d="M20 0C120 0 120 23.8 220 23.8L220 293.8C120 293.8 120 270 20 270Z" transform="translate(60 40)" fill="#8ce88c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr2-cls-30"></path>
-<path d="M20 282C120 282 120 293.8 220 293.8L220 461.8C120 461.8 120 450 20 450Z" transform="translate(60 40)" fill="#ffc68c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr2-cls-31"></path>
-<path d="M20 462C120 462 120 461.8 220 461.8L220 569.8C120 569.8 120 570 20 570Z" transform="translate(60 40)" fill="#8c8cff" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr2-cls-32"></path>
-<path d="M20 582C120 582 120 569.8 220 569.8L220 641.8C120 641.8 120 654 20 654Z" transform="translate(60 40)" fill="#e88ce8" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr2-cls-33"></path>
-<path d="M20 666C120 666 120 641.8 220 641.8L220 695.8C120 695.8 120 720 20 720Z" transform="translate(60 40)" fill="#8cc6c6" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr2-cls-34"></path>
-<path d="M240 335.8C340 335.8 340 348 440 348L440 552C340 552 340 539.8 240 539.8Z" transform="translate(60 40)" fill="#8ce88c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart" class="zr2-cls-30"></path>
-<path d="M240 23.8C340 23.8 340 24 440 24L440 336C340 336 340 335.8 240 335.8Z" transform="translate(60 40)" fill="#8ce88c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart" class="zr2-cls-30"></path>
-<path d="M240 539.8C340 539.8 340 564 440 564L440 720C340 720 340 695.8 240 695.8Z" transform="translate(60 40)" fill="#ff8c8c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart" class="zr2-cls-35"></path>
-<path d="M460 348C560 348 560 504 660 504L660 648C560 648 560 492 460 492Z" transform="translate(60 40)" fill="#8cc6c6" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart" class="zr2-cls-34"></path>
-<path d="M460 492C560 492 560 660 660 660L660 720C560 720 560 552 460 552Z" transform="translate(60 40)" fill="#8cc6c6" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart" class="zr2-cls-34"></path>
-<path d="M460 24C560 24 560 168 660 168L660 354C560 354 560 210 460 210Z" transform="translate(60 40)" fill="#8ce8e8" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="10" ecmeta_ssr_type="chart" class="zr2-cls-36"></path>
-<path d="M460 210C560 210 560 366 660 366L660 492C560 492 560 336 460 336Z" transform="translate(60 40)" fill="#ff8c8c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="11" ecmeta_ssr_type="chart" class="zr2-cls-35"></path>
-<path d="M680 168C780 168 780 231.2 880 231.2L880 363.2C780 363.2 780 300 680 300Z" transform="translate(60 40)" fill="#ffc68c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="12" ecmeta_ssr_type="chart" class="zr2-cls-31"></path>
-<path d="M680 300C780 300 780 375.2 880 375.2L880 429.2C780 429.2 780 354 680 354Z" transform="translate(60 40)" fill="#ff8c8c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="13" ecmeta_ssr_type="chart" class="zr2-cls-35"></path>
-<path d="M0 0l20 0l0 270l-20 0Z" transform="translate(60 40)" fill="#40d940" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr2-cls-37"></path>
-<path d="M220 23.8l20 0l0 672l-20 0Z" transform="translate(60 40)" fill="#40d940" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr2-cls-37"></path>
-<path d="M0 282l20 0l0 168l-20 0Z" transform="translate(60 40)" fill="#ffa040" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr2-cls-38"></path>
-<path d="M0 462l20 0l0 108l-20 0Z" transform="translate(60 40)" fill="#4040ff" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr2-cls-39"></path>
-<path d="M0 582l20 0l0 72l-20 0Z" transform="translate(60 40)" fill="#d940d9" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr2-cls-40"></path>
-<path d="M0 666l20 0l0 54l-20 0Z" transform="translate(60 40)" fill="#40a0a0" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart" class="zr2-cls-41"></path>
-<path d="M440 348l20 0l0 204l-20 0Z" transform="translate(60 40)" fill="#40a0a0" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart" class="zr2-cls-41"></path>
-<path d="M440 24l20 0l0 312l-20 0Z" transform="translate(60 40)" fill="#40d9d9" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart" class="zr2-cls-42"></path>
-<path d="M440 564l20 0l0 156l-20 0Z" transform="translate(60 40)" fill="#4040ff" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart" class="zr2-cls-39"></path>
-<path d="M660 504l20 0l0 144l-20 0Z" transform="translate(60 40)" fill="#40d940" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart" class="zr2-cls-37"></path>
-<path d="M660 660l20 0l0 60l-20 0Z" transform="translate(60 40)" fill="#ffd940" ecmeta_series_index="0" ecmeta_data_index="10" ecmeta_ssr_type="chart" class="zr2-cls-43"></path>
-<path d="M660 168l20 0l0 186l-20 0Z" transform="translate(60 40)" fill="#ffa040" ecmeta_series_index="0" ecmeta_data_index="11" ecmeta_ssr_type="chart" class="zr2-cls-38"></path>
-<path d="M660 366l20 0l0 126l-20 0Z" transform="translate(60 40)" fill="#d940d9" ecmeta_series_index="0" ecmeta_data_index="12" ecmeta_ssr_type="chart" class="zr2-cls-40"></path>
-<path d="M880 231.2l20 0l0 132l-20 0Z" transform="translate(60 40)" fill="#40d940" ecmeta_series_index="0" ecmeta_data_index="13" ecmeta_ssr_type="chart" class="zr2-cls-37"></path>
-<path d="M880 375.2l20 0l0 54l-20 0Z" transform="translate(60 40)" fill="#40a0a0" ecmeta_series_index="0" ecmeta_data_index="14" ecmeta_ssr_type="chart" class="zr2-cls-41"></path>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(85 175)" fill="#000000">Organic Search</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(305 399.7649)" fill="#000000">Landing Page</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(85 406)" fill="#000000">Paid Ads</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(85 556)" fill="#000000">Social Media</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(85 658)" fill="#000000">Email</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(85 733)" fill="#000000">Direct</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(525 490)" fill="#000000">Sign Up</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(525 220)" fill="#000000">Browse Products</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(525 682)" fill="#000000">Bounce</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(745 616)" fill="#000000">Free Trial</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(745 730)" fill="#000000">Paid Plan</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(745 301)" fill="#000000">Add to Cart</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(745 469)" fill="#000000">Exit</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(965 337.2107)" fill="#000000">Purchase</text>
-<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(965 442.2107)" fill="#000000">Abandon</text>
-<path d="M-95.7 -5l191.4 0l0 30l-191.4 0Z" transform="translate(600 13)" fill="rgb(0,0,0)" fill-opacity="0" stroke="#3c3c41" stroke-width="0" class="zr2-cls-44"></path>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:20px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;font-weight:bold;" xml:space="preserve" y="10" transform="translate(600 13)" fill="#000000">Website Traffic Flow</text>
-<style ><![CDATA[
-.zr2-cls-30:hover {
-cursor:pointer;
-fill:rgba(154,255,154,1);
-}
-.zr2-cls-31:hover {
-cursor:pointer;
-fill:rgba(255,217,154,1);
-}
-.zr2-cls-32:hover {
-cursor:pointer;
-fill:rgba(154,154,255,1);
-}
-.zr2-cls-33:hover {
-cursor:pointer;
-fill:rgba(255,154,255,1);
-}
-.zr2-cls-34:hover {
-cursor:pointer;
-fill:rgba(154,217,217,1);
-}
-.zr2-cls-35:hover {
-cursor:pointer;
-fill:rgba(255,154,154,1);
-}
-.zr2-cls-36:hover {
-cursor:pointer;
-fill:rgba(154,255,255,1);
-}
-.zr2-cls-37:hover {
-cursor:pointer;
-fill:rgba(70,238,70,1);
-}
-.zr2-cls-38:hover {
-cursor:pointer;
-fill:rgba(255,176,70,1);
-}
-.zr2-cls-39:hover {
-cursor:pointer;
-fill:rgba(70,70,255,1);
-}
-.zr2-cls-40:hover {
-cursor:pointer;
-fill:rgba(238,70,238,1);
-}
-.zr2-cls-41:hover {
-cursor:pointer;
-fill:rgba(70,176,176,1);
-}
-.zr2-cls-42:hover {
-cursor:pointer;
-fill:rgba(70,238,238,1);
-}
-.zr2-cls-43:hover {
-cursor:pointer;
-fill:rgba(255,238,70,1);
-}
-.zr2-cls-44:hover {
-pointer-events:none;
-}
-
-]]>
-
-</style>
-</svg>"
-`;
-
 exports[`sankey baseline (TD-4 exception) > nord dark: sankey output is stable 1`] = `
 "<svg style="background: #2e3440; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
 <rect width="1200" height="800" x="0" y="0" fill="none"></rect>
@@ -455,6 +223,238 @@ cursor:pointer;
 fill:rgba(255,233,181,1);
 }
 .zr0-cls-14:hover {
+pointer-events:none;
+}
+
+]]>
+
+</style>
+</svg>"
+`;
+
+exports[`sankey baseline (TD-4 exception) > slate dark: sankey output is stable 1`] = `
+"<svg style="background: #161b22; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
+<rect width="1200" height="800" x="0" y="0" fill="none"></rect>
+<path d="M20 0C120 0 120 23.8 220 23.8L220 293.8C120 293.8 120 270 20 270Z" transform="translate(60 40)" fill="#46674e" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr3-cls-45"></path>
+<path d="M20 282C120 282 120 293.8 220 293.8L220 461.8C120 461.8 120 450 20 450Z" transform="translate(60 40)" fill="#765a45" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr3-cls-46"></path>
+<path d="M20 462C120 462 120 461.8 220 461.8L220 569.8C120 569.8 120 570 20 570Z" transform="translate(60 40)" fill="#3b5c7c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr3-cls-47"></path>
+<path d="M20 582C120 582 120 569.8 220 569.8L220 641.8C120 641.8 120 654 20 654Z" transform="translate(60 40)" fill="#5c5277" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr3-cls-48"></path>
+<path d="M20 666C120 666 120 641.8 220 641.8L220 695.8C120 695.8 120 720 20 720Z" transform="translate(60 40)" fill="#316765" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr3-cls-49"></path>
+<path d="M240 335.8C340 335.8 340 348 440 348L440 552C340 552 340 539.8 240 539.8Z" transform="translate(60 40)" fill="#46674e" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart" class="zr3-cls-45"></path>
+<path d="M240 23.8C340 23.8 340 24 440 24L440 336C340 336 340 335.8 240 335.8Z" transform="translate(60 40)" fill="#46674e" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart" class="zr3-cls-45"></path>
+<path d="M240 539.8C340 539.8 340 564 440 564L440 720C340 720 340 695.8 240 695.8Z" transform="translate(60 40)" fill="#764d4e" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart" class="zr3-cls-50"></path>
+<path d="M460 348C560 348 560 504 660 504L660 648C560 648 560 492 460 492Z" transform="translate(60 40)" fill="#316765" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart" class="zr3-cls-49"></path>
+<path d="M460 492C560 492 560 660 660 660L660 720C560 720 560 552 460 552Z" transform="translate(60 40)" fill="#316765" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart" class="zr3-cls-49"></path>
+<path d="M460 24C560 24 560 168 660 168L660 354C560 354 560 210 460 210Z" transform="translate(60 40)" fill="#3e657e" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="10" ecmeta_ssr_type="chart" class="zr3-cls-51"></path>
+<path d="M460 210C560 210 560 366 660 366L660 492C560 492 560 336 460 336Z" transform="translate(60 40)" fill="#764d4e" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="11" ecmeta_ssr_type="chart" class="zr3-cls-50"></path>
+<path d="M680 168C780 168 780 231.2 880 231.2L880 363.2C780 363.2 780 300 680 300Z" transform="translate(60 40)" fill="#765a45" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="12" ecmeta_ssr_type="chart" class="zr3-cls-46"></path>
+<path d="M680 300C780 300 780 375.2 880 375.2L880 429.2C780 429.2 780 354 680 354Z" transform="translate(60 40)" fill="#764d4e" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="13" ecmeta_ssr_type="chart" class="zr3-cls-50"></path>
+<path d="M0 0l20 0l0 270l-20 0Z" transform="translate(60 40)" fill="#5f925f" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr3-cls-52"></path>
+<path d="M220 23.8l20 0l0 672l-20 0Z" transform="translate(60 40)" fill="#5f925f" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr3-cls-52"></path>
+<path d="M0 282l20 0l0 168l-20 0Z" transform="translate(60 40)" fill="#b07b50" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr3-cls-53"></path>
+<path d="M0 462l20 0l0 108l-20 0Z" transform="translate(60 40)" fill="#4c7ead" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr3-cls-54"></path>
+<path d="M0 582l20 0l0 72l-20 0Z" transform="translate(60 40)" fill="#846ea4" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr3-cls-55"></path>
+<path d="M0 666l20 0l0 54l-20 0Z" transform="translate(60 40)" fill="#3c9087" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart" class="zr3-cls-56"></path>
+<path d="M440 348l20 0l0 204l-20 0Z" transform="translate(60 40)" fill="#3c9087" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart" class="zr3-cls-56"></path>
+<path d="M440 24l20 0l0 312l-20 0Z" transform="translate(60 40)" fill="#528eb0" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart" class="zr3-cls-57"></path>
+<path d="M440 564l20 0l0 156l-20 0Z" transform="translate(60 40)" fill="#4c7ead" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart" class="zr3-cls-54"></path>
+<path d="M660 504l20 0l0 144l-20 0Z" transform="translate(60 40)" fill="#5f925f" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart" class="zr3-cls-52"></path>
+<path d="M660 660l20 0l0 60l-20 0Z" transform="translate(60 40)" fill="#ab9850" ecmeta_series_index="0" ecmeta_data_index="10" ecmeta_ssr_type="chart" class="zr3-cls-58"></path>
+<path d="M660 168l20 0l0 186l-20 0Z" transform="translate(60 40)" fill="#b07b50" ecmeta_series_index="0" ecmeta_data_index="11" ecmeta_ssr_type="chart" class="zr3-cls-53"></path>
+<path d="M660 366l20 0l0 126l-20 0Z" transform="translate(60 40)" fill="#846ea4" ecmeta_series_index="0" ecmeta_data_index="12" ecmeta_ssr_type="chart" class="zr3-cls-55"></path>
+<path d="M880 231.2l20 0l0 132l-20 0Z" transform="translate(60 40)" fill="#5f925f" ecmeta_series_index="0" ecmeta_data_index="13" ecmeta_ssr_type="chart" class="zr3-cls-52"></path>
+<path d="M880 375.2l20 0l0 54l-20 0Z" transform="translate(60 40)" fill="#3c9087" ecmeta_series_index="0" ecmeta_data_index="14" ecmeta_ssr_type="chart" class="zr3-cls-56"></path>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(85 175)" fill="#e6eaef">Organic Search</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(305 399.7649)" fill="#e6eaef">Landing Page</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(85 406)" fill="#e6eaef">Paid Ads</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(85 556)" fill="#e6eaef">Social Media</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(85 658)" fill="#e6eaef">Email</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(85 733)" fill="#e6eaef">Direct</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(525 490)" fill="#e6eaef">Sign Up</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(525 220)" fill="#e6eaef">Browse Products</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(525 682)" fill="#e6eaef">Bounce</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(745 616)" fill="#e6eaef">Free Trial</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(745 730)" fill="#e6eaef">Paid Plan</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(745 301)" fill="#e6eaef">Add to Cart</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(745 469)" fill="#e6eaef">Exit</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(965 337.2107)" fill="#e6eaef">Purchase</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(965 442.2107)" fill="#e6eaef">Abandon</text>
+<path d="M-95.7 -5l191.4 0l0 30l-191.4 0Z" transform="translate(600 13)" fill="rgb(0,0,0)" fill-opacity="0" stroke="#3c3c41" stroke-width="0" class="zr3-cls-59"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:20px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;font-weight:bold;" xml:space="preserve" y="10" transform="translate(600 13)" fill="#e6eaef">Website Traffic Flow</text>
+<style ><![CDATA[
+.zr3-cls-45:hover {
+cursor:pointer;
+fill:rgba(77,113,85,1);
+}
+.zr3-cls-46:hover {
+cursor:pointer;
+fill:rgba(129,99,75,1);
+}
+.zr3-cls-47:hover {
+cursor:pointer;
+fill:rgba(64,101,136,1);
+}
+.zr3-cls-48:hover {
+cursor:pointer;
+fill:rgba(101,90,130,1);
+}
+.zr3-cls-49:hover {
+cursor:pointer;
+fill:rgba(53,113,111,1);
+}
+.zr3-cls-50:hover {
+cursor:pointer;
+fill:rgba(129,84,85,1);
+}
+.zr3-cls-51:hover {
+cursor:pointer;
+fill:rgba(68,111,138,1);
+}
+.zr3-cls-52:hover {
+cursor:pointer;
+fill:rgba(104,160,104,1);
+}
+.zr3-cls-53:hover {
+cursor:pointer;
+fill:rgba(193,135,88,1);
+}
+.zr3-cls-54:hover {
+cursor:pointer;
+fill:rgba(83,138,190,1);
+}
+.zr3-cls-55:hover {
+cursor:pointer;
+fill:rgba(145,121,180,1);
+}
+.zr3-cls-56:hover {
+cursor:pointer;
+fill:rgba(66,158,148,1);
+}
+.zr3-cls-57:hover {
+cursor:pointer;
+fill:rgba(90,156,193,1);
+}
+.zr3-cls-58:hover {
+cursor:pointer;
+fill:rgba(188,167,88,1);
+}
+.zr3-cls-59:hover {
+pointer-events:none;
+}
+
+]]>
+
+</style>
+</svg>"
+`;
+
+exports[`sankey baseline (TD-4 exception) > slate light: sankey output is stable 1`] = `
+"<svg style="background: #ffffff; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
+<rect width="1200" height="800" x="0" y="0" fill="none"></rect>
+<path d="M20 0C120 0 120 23.8 220 23.8L220 293.8C120 293.8 120 270 20 270Z" transform="translate(60 40)" fill="#b5ceb3" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr2-cls-30"></path>
+<path d="M20 282C120 282 120 293.8 220 293.8L220 461.8C120 461.8 120 450 20 450Z" transform="translate(60 40)" fill="#e8c3a3" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr2-cls-31"></path>
+<path d="M20 462C120 462 120 461.8 220 461.8L220 569.8C120 569.8 120 570 20 570Z" transform="translate(60 40)" fill="#a7bed7" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr2-cls-32"></path>
+<path d="M20 582C120 582 120 569.8 220 569.8L220 641.8C120 641.8 120 654 20 654Z" transform="translate(60 40)" fill="#c5b5d7" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr2-cls-33"></path>
+<path d="M20 666C120 666 120 641.8 220 641.8L220 695.8C120 695.8 120 720 20 720Z" transform="translate(60 40)" fill="#a6cec9" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr2-cls-34"></path>
+<path d="M240 335.8C340 335.8 340 348 440 348L440 552C340 552 340 539.8 240 539.8Z" transform="translate(60 40)" fill="#b5ceb3" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart" class="zr2-cls-30"></path>
+<path d="M240 23.8C340 23.8 340 24 440 24L440 336C340 336 340 335.8 240 335.8Z" transform="translate(60 40)" fill="#b5ceb3" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart" class="zr2-cls-30"></path>
+<path d="M240 539.8C340 539.8 340 564 440 564L440 720C340 720 340 695.8 240 695.8Z" transform="translate(60 40)" fill="#e3b0af" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart" class="zr2-cls-35"></path>
+<path d="M460 348C560 348 560 504 660 504L660 648C560 648 560 492 460 492Z" transform="translate(60 40)" fill="#a6cec9" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart" class="zr2-cls-34"></path>
+<path d="M460 492C560 492 560 660 660 660L660 720C560 720 560 552 460 552Z" transform="translate(60 40)" fill="#a6cec9" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart" class="zr2-cls-34"></path>
+<path d="M460 24C560 24 560 168 660 168L660 354C560 354 560 210 460 210Z" transform="translate(60 40)" fill="#b0d0e4" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="10" ecmeta_ssr_type="chart" class="zr2-cls-36"></path>
+<path d="M460 210C560 210 560 366 660 366L660 492C560 492 560 336 460 336Z" transform="translate(60 40)" fill="#e3b0af" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="11" ecmeta_ssr_type="chart" class="zr2-cls-35"></path>
+<path d="M680 168C780 168 780 231.2 880 231.2L880 363.2C780 363.2 780 300 680 300Z" transform="translate(60 40)" fill="#e8c3a3" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="12" ecmeta_ssr_type="chart" class="zr2-cls-31"></path>
+<path d="M680 300C780 300 780 375.2 880 375.2L880 429.2C780 429.2 780 354 680 354Z" transform="translate(60 40)" fill="#e3b0af" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="13" ecmeta_ssr_type="chart" class="zr2-cls-35"></path>
+<path d="M0 0l20 0l0 270l-20 0Z" transform="translate(60 40)" fill="#84ae81" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr2-cls-37"></path>
+<path d="M220 23.8l20 0l0 672l-20 0Z" transform="translate(60 40)" fill="#84ae81" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr2-cls-37"></path>
+<path d="M0 282l20 0l0 168l-20 0Z" transform="translate(60 40)" fill="#d99b66" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr2-cls-38"></path>
+<path d="M0 462l20 0l0 108l-20 0Z" transform="translate(60 40)" fill="#6c92bc" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr2-cls-39"></path>
+<path d="M0 582l20 0l0 72l-20 0Z" transform="translate(60 40)" fill="#9e84bc" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr2-cls-40"></path>
+<path d="M0 666l20 0l0 54l-20 0Z" transform="translate(60 40)" fill="#6bada6" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart" class="zr2-cls-41"></path>
+<path d="M440 348l20 0l0 204l-20 0Z" transform="translate(60 40)" fill="#6bada6" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart" class="zr2-cls-41"></path>
+<path d="M440 24l20 0l0 312l-20 0Z" transform="translate(60 40)" fill="#7bb0d3" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart" class="zr2-cls-42"></path>
+<path d="M440 564l20 0l0 156l-20 0Z" transform="translate(60 40)" fill="#6c92bc" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart" class="zr2-cls-39"></path>
+<path d="M660 504l20 0l0 144l-20 0Z" transform="translate(60 40)" fill="#84ae81" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart" class="zr2-cls-37"></path>
+<path d="M660 660l20 0l0 60l-20 0Z" transform="translate(60 40)" fill="#d7b95d" ecmeta_series_index="0" ecmeta_data_index="10" ecmeta_ssr_type="chart" class="zr2-cls-43"></path>
+<path d="M660 168l20 0l0 186l-20 0Z" transform="translate(60 40)" fill="#d99b66" ecmeta_series_index="0" ecmeta_data_index="11" ecmeta_ssr_type="chart" class="zr2-cls-38"></path>
+<path d="M660 366l20 0l0 126l-20 0Z" transform="translate(60 40)" fill="#9e84bc" ecmeta_series_index="0" ecmeta_data_index="12" ecmeta_ssr_type="chart" class="zr2-cls-40"></path>
+<path d="M880 231.2l20 0l0 132l-20 0Z" transform="translate(60 40)" fill="#84ae81" ecmeta_series_index="0" ecmeta_data_index="13" ecmeta_ssr_type="chart" class="zr2-cls-37"></path>
+<path d="M880 375.2l20 0l0 54l-20 0Z" transform="translate(60 40)" fill="#6bada6" ecmeta_series_index="0" ecmeta_data_index="14" ecmeta_ssr_type="chart" class="zr2-cls-41"></path>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(85 175)" fill="#1f2933">Organic Search</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(305 399.7649)" fill="#1f2933">Landing Page</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(85 406)" fill="#1f2933">Paid Ads</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(85 556)" fill="#1f2933">Social Media</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(85 658)" fill="#1f2933">Email</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(85 733)" fill="#1f2933">Direct</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(525 490)" fill="#1f2933">Sign Up</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(525 220)" fill="#1f2933">Browse Products</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(525 682)" fill="#1f2933">Bounce</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(745 616)" fill="#1f2933">Free Trial</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(745 730)" fill="#1f2933">Paid Plan</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(745 301)" fill="#1f2933">Add to Cart</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(745 469)" fill="#1f2933">Exit</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(965 337.2107)" fill="#1f2933">Purchase</text>
+<text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="translate(965 442.2107)" fill="#1f2933">Abandon</text>
+<path d="M-95.7 -5l191.4 0l0 30l-191.4 0Z" transform="translate(600 13)" fill="rgb(0,0,0)" fill-opacity="0" stroke="#3c3c41" stroke-width="0" class="zr2-cls-44"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:20px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;font-weight:bold;" xml:space="preserve" y="10" transform="translate(600 13)" fill="#1f2933">Website Traffic Flow</text>
+<style ><![CDATA[
+.zr2-cls-30:hover {
+cursor:pointer;
+fill:rgba(199,226,196,1);
+}
+.zr2-cls-31:hover {
+cursor:pointer;
+fill:rgba(255,214,179,1);
+}
+.zr2-cls-32:hover {
+cursor:pointer;
+fill:rgba(183,209,236,1);
+}
+.zr2-cls-33:hover {
+cursor:pointer;
+fill:rgba(216,199,236,1);
+}
+.zr2-cls-34:hover {
+cursor:pointer;
+fill:rgba(182,226,221,1);
+}
+.zr2-cls-35:hover {
+cursor:pointer;
+fill:rgba(249,193,192,1);
+}
+.zr2-cls-36:hover {
+cursor:pointer;
+fill:rgba(193,228,250,1);
+}
+.zr2-cls-37:hover {
+cursor:pointer;
+fill:rgba(145,191,141,1);
+}
+.zr2-cls-38:hover {
+cursor:pointer;
+fill:rgba(238,170,112,1);
+}
+.zr2-cls-39:hover {
+cursor:pointer;
+fill:rgba(118,160,206,1);
+}
+.zr2-cls-40:hover {
+cursor:pointer;
+fill:rgba(173,145,206,1);
+}
+.zr2-cls-41:hover {
+cursor:pointer;
+fill:rgba(117,190,182,1);
+}
+.zr2-cls-42:hover {
+cursor:pointer;
+fill:rgba(135,193,232,1);
+}
+.zr2-cls-43:hover {
+cursor:pointer;
+fill:rgba(236,203,102,1);
+}
+.zr2-cls-44:hover {
 pointer-events:none;
 }
 

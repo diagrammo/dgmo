@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderExtendedChartForExport } from '../../src/echarts';
 import { nordPalette } from '../../src/palettes/nord';
-import { boldPalette } from '../../src/palettes/bold';
+import { slatePalette } from '../../src/palettes/slate';
 
 // TD-4 / AC5: Sankey desaturation (75% nodes / 45% links) is the only
 // documented exception to the canonical shapeFill() 25% tint. This test
@@ -34,20 +34,20 @@ describe('sankey baseline (TD-4 exception)', () => {
     expect(svg).toMatchSnapshot();
   });
 
-  it('bold light: sankey output is stable', async () => {
+  it('slate light: sankey output is stable', async () => {
     const svg = await renderExtendedChartForExport(
       sankeyFixture,
       'light',
-      boldPalette.light
+      slatePalette.light
     );
     expect(svg).toMatchSnapshot();
   });
 
-  it('bold dark: sankey output is stable', async () => {
+  it('slate dark: sankey output is stable', async () => {
     const svg = await renderExtendedChartForExport(
       sankeyFixture,
       'dark',
-      boldPalette.dark
+      slatePalette.dark
     );
     expect(svg).toMatchSnapshot();
   });

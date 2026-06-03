@@ -509,26 +509,37 @@ describe('COMPLETION_REGISTRY', () => {
     expect(refContent).toContain('critical-path');
   });
 
-  it('map registry enumerates directive values (projection, labels)', () => {
+  it('map registry lists the 13 map directives incl. active-tag + no-* (AC10)', () => {
     const mapSpec = COMPLETION_REGISTRY.get('map')!;
-    expect(mapSpec.directives.region).toBeUndefined();
-    expect(mapSpec.directives.locale).toBeDefined();
-    expect(mapSpec.directives.projection?.values).toEqual([
-      'equirectangular',
-      'natural-earth',
-      'albers-usa',
-      'mercator',
-    ]);
-    expect(mapSpec.directives['region-labels']?.values).toEqual([
-      'full',
-      'abbrev',
-      'off',
-    ]);
-    expect(mapSpec.directives['poi-labels']?.values).toEqual([
-      'off',
-      'auto',
-      'all',
-    ]);
+    // Surviving intent directives + the 7 `no-*` cosmetic opt-outs.
+    for (const k of [
+      'region-metric',
+      'poi-metric',
+      'flow-metric',
+      'locale',
+      'active-tag',
+      'caption',
+      'no-legend',
+      'no-coastline',
+      'no-relief',
+      'no-context-labels',
+      'no-region-labels',
+      'no-poi-labels',
+      'no-colorize',
+    ])
+      expect(mapSpec.directives[k]).toBeDefined();
+    // Removed tokens are gone entirely.
+    for (const k of [
+      'projection',
+      'scale',
+      'subtitle',
+      'relief',
+      'coastline',
+      'context-labels',
+      'region-labels',
+      'poi-labels',
+    ])
+      expect(mapSpec.directives[k]).toBeUndefined();
   });
 
   it('infra registry includes top-level default directives', () => {

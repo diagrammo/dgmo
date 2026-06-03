@@ -17,9 +17,130 @@ import type { LegendConfig, LegendState } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes/types';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { MapData, ResolvedMap } from './resolved-types';
-import { layoutMap, type MapLayoutRegion, type PlacedLabel } from './layout';
+import {
+  layoutMap,
+  parsePathRings,
+  type MapLayoutRegion,
+  type MapLayoutCoastlineStyle,
+  type PlacedLabel,
+} from './layout';
 
 const LABEL_FONT = 11;
+
+// ── Coastline water-lines helpers (opt-in `coastline`, §24B.2) ──
+// Geometry is derived from the already-drawn region paths: each outer ring is
+// buffered as a symmetric SVG stroke band then eroded (flat-water overdraw) to a
+// thin offshore ring; a luminance <mask> reveals only the water side. See the
+// render block + ADR-1/6 in the tech-spec.
+
+/** Even-odd point-in-ring test (screen space). */
+function pointInRing(
+  px: number,
+  py: number,
+  ring: ReadonlyArray<[number, number]>
+): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]!;
+    const [xj, yj] = ring[j]!;
+    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi)
+      inside = !inside;
+  }
+  return inside;
+}
+
+/** Build an SVG subpath `d` (`M…L…Z`) from a ring's points. */
+function ringToPath(ring: ReadonlyArray<[number, number]>): string {
+  let d = '';
+  for (let i = 0; i < ring.length; i++)
+    d += (i ? 'L' : 'M') + ring[i]![0] + ',' + ring[i]![1];
+  return d + 'Z';
+}
+
+/** Coast outlines to buffer: every region's OUTER rings whose bbox extent clears
+ *  `minExtent`. Holes/enclaves are skipped via containment depth (even depth =
+ *  outer landmass boundary, odd = a hole) so an enclave (Lesotho) or a lake-hole
+ *  is never ringed as a fake coast on land (R11). `minExtent` is a bare
+ *  degenerate-ring floor now — every island, however small, grows coast rings. */
+function coastlineOuterRings(
+  regions: readonly MapLayoutRegion[],
+  minExtent: number
+): string[] {
+  const paths: string[] = [];
+  for (const r of regions) {
+    const rings = parsePathRings(r.d);
+    for (let i = 0; i < rings.length; i++) {
+      const ring = rings[i]!;
+      if (ring.length < 3) continue;
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const [x, y] of ring) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+      if (Math.max(maxX - minX, maxY - minY) < minExtent) continue;
+      const [fx, fy] = ring[0]!;
+      let depth = 0;
+      for (let j = 0; j < rings.length; j++)
+        if (j !== i && pointInRing(fx, fy, rings[j]!)) depth++;
+      if (depth % 2 === 1) continue; // hole/enclave — skip
+      paths.push(ringToPath(ring));
+    }
+  }
+  return paths;
+}
+
+/** Stroke the coast-parallel water-lines into a masked group. Per line, outer→
+ *  inner so the inner ring draws on top: a colour pass (the symmetric buffer
+ *  band) then a flat-water overdraw that erodes it to a thin offshore ring. The
+ *  group's `<mask>` keeps only the water-side half of each band.
+ *
+ *  The outer→inner ordering protects a single ring (the inner band never reaches
+ *  the outer ring because `d1+thickness < d2`, the layout invariant). It does NOT
+ *  protect across regions: where two coasts sit closer than ~2·d1 (a tripoint, a
+ *  narrow strait, an inset box edge), one region's flat-water overdraw can paint
+ *  over a neighbour's inner ring — the same accepted "tripoint stub / narrow
+ *  inlet fills solid" artifact the tech-spec calls out, bounded by small d.
+ *
+ *  Perf: every outer ring in a given (level, pass) shares identical stroke
+ *  attributes, so they collapse into ONE multi-subpath `<path>` (each ring's
+ *  `d` already starts with `M`, so joining is a valid compound path). A world
+ *  map drops from ~6k coastline paths to 2 per ring-level (~10 total), which is
+ *  ~87% of the whole map's path count — the dominant cost in any repaint. The
+ *  only visible consequence: the colour-band pass strokes at `stroke-opacity`,
+ *  and a single path's stroke rasterises as ONE coverage region, so adjacent
+ *  bands that overlap (straits/tripoints) no longer double-darken — they read
+ *  uniform, which is if anything cleaner. Draw order (all colour bands, then all
+ *  flat-water, outer level first) is unchanged, so the single-ring invariant and
+ *  the accepted cross-region overdraw artifact behave exactly as before. */
+function appendWaterLines(
+  g: Sel,
+  outerRings: readonly string[],
+  style: MapLayoutCoastlineStyle,
+  flatWater: string
+): void {
+  const d = outerRings.join(' ');
+  const linesOuterFirst = [...style.lines].sort((a, b) => b.d - a.d);
+  for (const line of linesOuterFirst) {
+    g.append('path')
+      .attr('d', d)
+      .attr('stroke', style.color)
+      .attr('stroke-width', 2 * (line.d + line.thickness))
+      .attr('stroke-opacity', line.opacity)
+      .attr('stroke-linejoin', 'round')
+      .attr('stroke-linecap', 'round');
+    g.append('path')
+      .attr('d', d)
+      .attr('stroke', flatWater)
+      .attr('stroke-width', 2 * line.d)
+      .attr('stroke-linejoin', 'round')
+      .attr('stroke-linecap', 'round');
+  }
+}
 
 /** Render a resolved map into `container` (d3-selection appends an `<svg>`). */
 export function renderMap(
@@ -45,6 +166,11 @@ export function renderMap(
     {
       palette,
       isDark,
+      // Export-only: forward the contain-fit request from mapExportDimensions so a
+      // clamped/floored (off-aspect) export canvas letterboxes instead of
+      // stretch-distorting. The in-app preview pane passes no exportDims → unset →
+      // keeps the global stretch-fill.
+      preferContain: exportDims?.preferContain ?? false,
       ...(activeGroupOverride !== undefined && {
         activeGroup: activeGroupOverride,
       }),
@@ -100,6 +226,9 @@ export function renderMap(
       .attr('fill', r.fill)
       .attr('stroke', r.stroke)
       .attr('stroke-width', strokeWidth);
+    // Display name on EVERY region (authored + base/context) so the app can
+    // surface it on hover — decorative metadata, no visible text drawn here.
+    if (r.label) p.attr('data-region-name', r.label);
     // Data layer? Tag it so the app can highlight on legend hover / gradient
     // scrub. `data-value` for ramp-proximity, `data-tag-<group>` per tag value
     // (both lowercased to match the lowercased legend-entry attributes).
@@ -166,6 +295,113 @@ export function renderMap(
     }
   }
 
+  // ── Coastline water-lines (faint nautical-chart lines on the WATER side) ──
+  // 2 discrete coast-parallel lines hugging the ocean shore + lake shores, fading
+  // seaward. Each region's outer ring is buffered as a symmetric SVG stroke band
+  // then eroded with a flat-water overdraw to a thin offshore ring; a luminance
+  // <mask> (white canvas − black land + white lakes) reveals only the water side,
+  // so land/land borders self-remove (their band falls on
+  // the neighbour's land, which the mask hides — no topojson.mesh needed). NOT a
+  // clipPath: sibling clip paths UNION (can't subtract land). Decorative — no data
+  // attrs, plain strokes. Below rivers/POIs/legs/labels, above region/relief fills
+  // (so with `relief` on, water-lines sit on water and relief on land — disjoint).
+  // §24B.2, ADR-1/3/6.
+  if (layout.coastlineStyle) {
+    const cs = layout.coastlineStyle;
+    const maskId = 'dgmo-map-water-mask';
+    const mask = defs
+      .append('mask')
+      .attr('id', maskId)
+      // userSpaceOnUse: the default objectBoundingBox clamps the mask region to
+      // the group's own bbox and drops the canvas-edge reveal (round-2 #2).
+      .attr('maskUnits', 'userSpaceOnUse')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', width)
+      .attr('height', height);
+    mask
+      .append('rect')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', width)
+      .attr('height', height)
+      .attr('fill', 'white');
+    // All land fills are opaque black and all lake fills opaque white, so each
+    // group collapses into ONE compound path (land first, lakes over it to
+    // re-reveal their interiors). Identical pixels, ~hundreds of paths → 2.
+    const landD = layout.regions
+      .filter((r) => r.id !== 'lake')
+      .map((r) => r.d)
+      .join(' ');
+    const lakeD = layout.regions
+      .filter((r) => r.id === 'lake')
+      .map((r) => r.d)
+      .join(' ');
+    if (landD) mask.append('path').attr('d', landD).attr('fill', 'black');
+    if (lakeD) mask.append('path').attr('d', lakeD).attr('fill', 'white');
+    // Moat around each AK/HI inset box: the opaque box is drawn in the FOREGROUND
+    // over open ocean, so the main-map offshore rings get chopped by its border
+    // and butt into it — sloppy. Paint each box quad black (interior, under the
+    // box) with a black stroke whose half-width = the band's outer reach, so the
+    // main rings also clear a margin OUTSIDE the border. The ring-ends then fall
+    // in open water away from the frame instead of crashing into it.
+    if (layout.insets.length) {
+      const reach = Math.max(0, ...cs.lines.map((l) => l.d + l.thickness));
+      for (const box of layout.insets) {
+        const d =
+          box.points.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join('') +
+          'Z';
+        mask
+          .append('path')
+          .attr('d', d)
+          .attr('fill', 'black')
+          .attr('stroke', 'black')
+          .attr('stroke-width', 2 * reach)
+          .attr('stroke-linejoin', 'round');
+      }
+    }
+    // NO frame band: a synthetic frame-cut edge (clipExtent/cullFeatureToView
+    // trims region `d` to the view rect) has the region INTERIOR — land — on the
+    // canvas-interior side, which the mask already paints black, so its band is
+    // hidden anyway. A border band here only suppressed REAL coastal rings near
+    // the canvas edge, leaving an empty top/bottom strip — so the water-lines now
+    // carry through to every edge of the visible map.
+    const gWater = svg
+      .append('g')
+      .attr('class', 'dgmo-map-water-lines')
+      .attr('fill', 'none')
+      .attr('mask', `url(#${maskId})`);
+    appendWaterLines(
+      gWater,
+      coastlineOuterRings(layout.regions, cs.minExtent),
+      cs,
+      layout.background
+    );
+    // Restore the seaward half of the coast stroke: the rings' flat-water erosion
+    // overdraws repaint the water out to d_max, which paints over the water-side
+    // half of each region's coast outline and makes coastlines read faded. Re-
+    // stroke every region inside the SAME masked group (so it only repaints the
+    // water side — the land side was never touched, and interior land/land borders
+    // stay hidden), on top of the rings. The strokes sit at the coast (offset 0),
+    // well inside d0, so they never cover the offshore rings.
+    // Group the restroke by stroke colour (base borders share one colour; the
+    // occasional data region may differ) so same-coloured coasts collapse into a
+    // single compound path instead of one path per region.
+    const byStroke = new Map<string, string[]>();
+    for (const r of layout.regions) {
+      const arr = byStroke.get(r.stroke);
+      if (arr) arr.push(r.d);
+      else byStroke.set(r.stroke, [r.d]);
+    }
+    for (const [stroke, ds] of byStroke)
+      gWater
+        .append('path')
+        .attr('d', ds.join(' '))
+        .attr('stroke', stroke)
+        .attr('stroke-width', 0.5)
+        .attr('stroke-linejoin', 'round');
+  }
+
   // ── Rivers (thin water centerlines over the land, under POIs/edges) ──
   if (layout.rivers.length) {
     const gRivers = svg
@@ -188,7 +424,7 @@ export function renderMap(
   // then draws on top, framed by the box border. ──
   if (layout.insets.length) {
     const insetG = svg.append('g').attr('class', 'dgmo-map-insets');
-    for (const box of layout.insets) {
+    layout.insets.forEach((box, bi) => {
       // Angled-top quad frame — rides under the conus coast so it never covers
       // neighbouring states. Closed path from the four corners.
       const d =
@@ -201,9 +437,109 @@ export function renderMap(
         .attr('stroke', mix(palette.text, palette.bg, 55))
         .attr('stroke-width', 1)
         .attr('stroke-linejoin', 'round');
-    }
+      // Neighbour land (Canada beside Alaska) clipped to this box, behind the
+      // state — so a land border reads as land rather than sprouting coast rings.
+      if (box.contextLand) {
+        const clipId = `dgmo-map-inset-clip-${bi}`;
+        defs.append('clipPath').attr('id', clipId).append('path').attr('d', d);
+        insetG
+          .append('path')
+          .attr('d', box.contextLand.d)
+          .attr('fill', box.contextLand.fill)
+          .attr('clip-path', `url(#${clipId})`);
+      }
+    });
     for (const r of layout.insetRegions) drawRegion(insetG, r, 0.5);
+
+    // Inset coastline water-lines (AK/HI box interiors) for visual parity with
+    // the main map. Mask = the inset box quads (white reveal) − inset regions
+    // (black land / white lake); buffer+erode the inset region outer rings the
+    // same way. Inside the inset group so it composites over the box fills.
+    if (layout.coastlineStyle) {
+      const cs = layout.coastlineStyle;
+      const maskId = 'dgmo-map-inset-water-mask';
+      const mask = defs
+        .append('mask')
+        .attr('id', maskId)
+        .attr('maskUnits', 'userSpaceOnUse')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('width', width)
+        .attr('height', height);
+      for (const box of layout.insets) {
+        const d =
+          box.points.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join('') +
+          'Z';
+        mask.append('path').attr('d', d).attr('fill', 'white');
+      }
+      // Neighbour land masks as land too — clipped to its box so it can't darken
+      // an adjacent inset — keeping the AK/Canada land border free of rings.
+      layout.insets.forEach((box, bi) => {
+        if (box.contextLand)
+          mask
+            .append('path')
+            .attr('d', box.contextLand.d)
+            .attr('fill', 'black')
+            .attr('clip-path', `url(#dgmo-map-inset-clip-${bi})`);
+      });
+      for (const r of layout.insetRegions)
+        if (r.id !== 'lake')
+          mask.append('path').attr('d', r.d).attr('fill', 'black');
+      for (const r of layout.insetRegions)
+        if (r.id === 'lake')
+          mask.append('path').attr('d', r.d).attr('fill', 'white');
+      // Clip the water-line strokes to the inset box quads — the mask controls
+      // which side reads as water, but SVG strokes still extend stroke-width/2
+      // past their path, so without this the seaward rings bleed over the box
+      // border. Union of all inset quads = one clipPath shared by the group.
+      const clipId = 'dgmo-map-inset-water-clip';
+      const clip = defs.append('clipPath').attr('id', clipId);
+      for (const box of layout.insets) {
+        const d =
+          box.points.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join('') +
+          'Z';
+        clip.append('path').attr('d', d);
+      }
+      // Nest clip (outer) + mask (inner) rather than both on one element —
+      // WebKit (Tauri) renders the combined attributes inconsistently; the
+      // nested form is honored by every engine.
+      const gInsetWater = insetG
+        .append('g')
+        .attr('clip-path', `url(#${clipId})`)
+        .append('g')
+        .attr('class', 'dgmo-map-inset-water-lines')
+        .attr('fill', 'none')
+        .attr('mask', `url(#${maskId})`);
+      appendWaterLines(
+        gInsetWater,
+        coastlineOuterRings(layout.insetRegions, cs.minExtent),
+        cs,
+        layout.background
+      );
+      // Restore the seaward half of the inset coast strokes (see main pass).
+      for (const r of layout.insetRegions)
+        gInsetWater
+          .append('path')
+          .attr('d', r.d)
+          .attr('stroke', r.stroke)
+          .attr('stroke-width', 0.5)
+          .attr('stroke-linejoin', 'round');
+    }
   }
+
+  // Code↔diagram sync: tag a synced element with its 1-based source line and,
+  // in preview, make it jump the editor cursor on click. Source-derived elements
+  // (regions, POIs, legs, labels) all carry `lineNumber`; generated context
+  // labels use 0 as a "no source line" sentinel, so guard on `>= 1`.
+  const wireSync = <E extends Element>(
+    sel: d3Selection.Selection<E, unknown, null, undefined>,
+    lineNumber: number
+  ): void => {
+    if (lineNumber < 1) return;
+    sel.attr('data-line-number', lineNumber);
+    if (onClickItem)
+      sel.style('cursor', 'pointer').on('click', () => onClickItem(lineNumber));
+  };
 
   // ── Legs (edges + route legs) ──
   const gLegs = svg
@@ -217,6 +553,9 @@ export function renderMap(
       .attr('stroke', leg.color)
       .attr('stroke-width', leg.width)
       .attr('stroke-linecap', 'round');
+    // A 0-width invisible leg path is hard to hit; pointer-events on the visible
+    // stroke is enough for the line widths legs use.
+    wireSync(p, leg.lineNumber);
     if (leg.arrow) {
       const id = `dgmo-map-arrow-${i}`;
       const s = arrowSize(leg.width);
@@ -236,19 +575,66 @@ export function renderMap(
       p.attr('marker-end', `url(#${id})`);
     }
     if (leg.label !== undefined && leg.labelX !== undefined) {
-      emitText(
+      // Text shade is contrast-picked in layout against the fill under the label
+      // (dark scored country ⇒ light text, pale land ⇒ dark), with the ghost halo
+      // only when that contrast is marginal. Fall back to the muted default for
+      // legs that predate the computed style.
+      const lt = emitText(
         gLegs,
         leg.labelX,
         leg.labelY ?? 0,
         leg.label,
         'middle',
-        palette.textMuted,
-        haloColor,
-        true,
+        leg.labelColor ?? palette.textMuted,
+        leg.labelHaloColor ?? haloColor,
+        leg.labelHalo ?? true,
         LABEL_FONT - 1
       );
+      wireSync(lt, leg.lineNumber);
     }
   });
+
+  // ── Coincident-stack spider legs + hub (under the dots) ──
+  // Legs + hub are DECORATIVE (`data-cluster-deco`, pointer-events none) — the app
+  // toggles only their opacity. Drawn VISIBLE so export + the no-JS default show
+  // the expanded fan. An invisible hit-area circle (interactive only) owns all
+  // pointer interaction so hover/click drives the spiderfy controller robustly.
+  const gSpider = svg.append('g').attr('class', 'dgmo-map-spider');
+  for (const cl of layout.clusters) {
+    // Pointer hit-area — bottom of the stack so member dots still take their own
+    // clicks (line-jump); clicks on the empty centre fall through to here.
+    if (!exportDims) {
+      gSpider
+        .append('circle')
+        .attr('cx', cl.cx)
+        .attr('cy', cl.cy)
+        .attr('r', cl.hitR)
+        .attr('fill', 'transparent')
+        .attr('data-cluster-hit', cl.id)
+        .style('cursor', 'pointer');
+    }
+    for (const leg of cl.legs) {
+      gSpider
+        .append('line')
+        .attr('x1', cl.cx)
+        .attr('y1', cl.cy)
+        .attr('x2', leg.x2)
+        .attr('y2', leg.y2)
+        .attr('stroke', leg.color)
+        .attr('stroke-width', 1)
+        .attr('data-cluster-deco', cl.id)
+        .style('pointer-events', 'none');
+    }
+    // Faint neutral hub anchoring the legs (RQ3).
+    gSpider
+      .append('circle')
+      .attr('cx', cl.cx)
+      .attr('cy', cl.cy)
+      .attr('r', 2)
+      .attr('fill', mix(palette.textMuted, palette.bg, 40))
+      .attr('data-cluster-deco', cl.id)
+      .style('pointer-events', 'none');
+  }
 
   // ── POIs ──
   const gPois = svg.append('g').attr('class', 'dgmo-map-pois');
@@ -273,6 +659,9 @@ export function renderMap(
       .attr('stroke-width', 1)
       .attr('data-line-number', poi.lineNumber)
       .attr('data-poi', poi.id);
+    // Coincident-stack member: tag so the app hides it when collapsing the stack.
+    if (poi.clusterId !== undefined)
+      c.attr('data-cluster-member', poi.clusterId);
     // Tag the marker per tag value (lowercased, matching the lowercased
     // legend-entry attributes) so the app can spotlight it on legend hover.
     if (poi.tags) {
@@ -303,6 +692,31 @@ export function renderMap(
   // ── Labels (leaders + halo text) ──
   const gLabels = svg.append('g').attr('class', 'dgmo-map-labels');
   for (const lab of layout.labels) {
+    // Hover-only labels: OMIT entirely from static export (export = the
+    // hover-less default view); in preview emit invisible + flagged so the app
+    // can reveal them on hover. They carry no leader, so the leader block below
+    // is skipped naturally.
+    if (lab.hidden) {
+      if (exportDims) continue;
+      emitText(
+        gLabels,
+        lab.x,
+        lab.y,
+        lab.text,
+        lab.anchor,
+        lab.color,
+        lab.haloColor,
+        lab.halo,
+        LABEL_FONT,
+        lab.italic,
+        lab.letterSpacing
+      )
+        .attr('data-poi', lab.poiId ?? null)
+        .attr('data-poi-hidden', '')
+        .style('opacity', 0)
+        .style('pointer-events', 'none');
+      continue;
+    }
     if (lab.leader) {
       const line = gLabels
         .append('line')
@@ -317,6 +731,10 @@ export function renderMap(
         )
         .attr('stroke-width', lab.leaderColor ? 1 : 0.75);
       if (lab.poiId !== undefined) line.attr('data-poi', lab.poiId);
+      // Spiderfy member leader: toggle it with the badge (same as its text).
+      if (lab.clusterMember !== undefined)
+        line.attr('data-cluster-member', lab.clusterMember);
+      wireSync(line, lab.lineNumber);
     }
     const t = emitText(
       gLabels,
@@ -327,12 +745,67 @@ export function renderMap(
       lab.color,
       lab.haloColor,
       lab.halo,
-      LABEL_FONT
+      LABEL_FONT,
+      lab.italic,
+      lab.letterSpacing,
+      lab.lines
     );
     // POI labels are spotlightable: tag with the POI id and make the text the
     // hover target (the app dims the other dots/labels on enter).
     if (lab.poiId !== undefined) {
       t.attr('data-poi', lab.poiId).style('cursor', 'default');
+    }
+    // Coincident-stack member label: hidden by the app when its stack collapses.
+    if (lab.clusterMember !== undefined) {
+      t.attr('data-cluster-member', lab.clusterMember);
+    }
+    // Click a region/POI label to jump to its source line (sets cursor:pointer,
+    // overriding the default above for POI labels).
+    wireSync(t, lab.lineNumber);
+  }
+
+  // ── Coincident-stack badges (collapsed view). Interactive ONLY — a static
+  // export keeps the expanded fan (every label visible), so no badge there. A
+  // neutral dot ringed with the bare member count, emitted hidden; the app shows
+  // it at rest and hides it (revealing the spider) on click. ──
+  if (!exportDims && layout.clusters.length) {
+    const gBadge = svg.append('g').attr('class', 'dgmo-map-cluster-badges');
+    for (const cl of layout.clusters) {
+      // Decorative: the hit-area (drawn under the dots) owns hover + click; the
+      // badge just shows the count, so it never intercepts pointer events.
+      const g = gBadge
+        .append('g')
+        .attr('data-cluster', cl.id)
+        .style('opacity', 0)
+        .style('pointer-events', 'none');
+      const R = 9;
+      // Inner neutral disc + outer ring → reads as "more than one here" (RQ2).
+      g.append('circle')
+        .attr('cx', cl.cx)
+        .attr('cy', cl.cy)
+        .attr('r', R)
+        .attr('fill', mix(palette.textMuted, palette.bg, 35))
+        .attr('stroke', palette.textMuted)
+        .attr('stroke-width', 1);
+      g.append('circle')
+        .attr('cx', cl.cx)
+        .attr('cy', cl.cy)
+        .attr('r', R + 2.5)
+        .attr('fill', 'none')
+        .attr('stroke', palette.textMuted)
+        .attr('stroke-width', 1);
+      // Bare count (RQ1).
+      emitText(
+        g,
+        cl.cx,
+        cl.cy + 3,
+        String(cl.count),
+        'middle',
+        palette.text,
+        palette.bg,
+        false,
+        LABEL_FONT
+      );
     }
   }
 
@@ -460,7 +933,10 @@ function emitText(
   color: string,
   halo: string,
   withHalo: boolean,
-  fontSize: number
+  fontSize: number,
+  italic?: boolean,
+  letterSpacing?: number,
+  lines?: readonly string[]
 ): d3Selection.Selection<SVGTextElement, unknown, null, undefined> {
   const t = g
     .append('text')
@@ -468,8 +944,26 @@ function emitText(
     .attr('y', y)
     .attr('text-anchor', anchor)
     .attr('font-size', fontSize)
-    .attr('fill', color)
-    .text(text);
+    .attr('fill', color);
+  // Multi-line context labels (water names): stack centred tspans around `y` so
+  // the block's vertical centre matches the placement rect. Single-line keeps the
+  // bare `.text()` form so every other call site stays byte-identical.
+  if (lines && lines.length > 1) {
+    const lineHeight = fontSize + 2; // MUST match context-labels LINE_HEIGHT
+    const startDy = -((lines.length - 1) / 2) * lineHeight;
+    lines.forEach((ln, i) => {
+      t.append('tspan')
+        .attr('x', x)
+        .attr('dy', i === 0 ? startDy : lineHeight)
+        .text(ln);
+    });
+  } else {
+    t.text(text);
+  }
+  // Cartographic styling for context labels; absent on every other call site so
+  // existing output stays byte-identical (only emitted when explicitly set).
+  if (italic) t.attr('font-style', 'italic');
+  if (letterSpacing) t.attr('letter-spacing', letterSpacing);
   if (withHalo) {
     // Thin, even outline (2px / 1px-per-side at the 11px label font — 3px read
     // top-heavy as adjacent glyph tops merged their strokes). Round join + cap

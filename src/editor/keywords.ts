@@ -149,17 +149,20 @@ export const DIRECTIVE_KEYWORDS = new Set([
   // Sequence
   'activations',
   'no-activations',
-  // Map (§24B) directives
-  'projection',
+  // Map (§24B) directives — cosmetics on by default, bare `no-*` opt-outs
   'region-metric',
   'poi-metric',
   'flow-metric',
-  'region-labels',
-  'poi-labels',
   'locale',
-  'no-legend',
-  'subtitle',
+  'active-tag',
   'caption',
+  'no-legend',
+  'no-coastline',
+  'no-relief',
+  'no-context-labels',
+  'no-region-labels',
+  'no-poi-labels',
+  'no-colorize',
   'poi',
   'route',
   // Data charts

@@ -24,6 +24,8 @@ import {
   featureBboxPrimary,
   unionExtent,
   fold,
+  decodeFeatures,
+  regionAt,
 } from './geo';
 
 /** Discriminated result of a gazetteer name lookup (#5): `defer` is "ambiguous,
@@ -38,17 +40,34 @@ type LookupResult =
 const WORLD_SPAN = 90;
 // Mercator is used for everything sub-world (tight clusters AND single-continent
 // regional views — a mid-latitude continent reads with its familiar conventional
-// shape, where equirectangular squashes it). Two guards push back to
-// equirectangular: a world/multi-continent `span` (> WORLD_SPAN), or a frame that
-// reaches into polar latitudes (> MERCATOR_MAX_LAT) where Mercator's sec(φ) area
-// blow-up turns gross. Europe (≈71°N) and East Asia stay comfortably on Mercator.
+// shape). Two guards push back to the equirectangular world projection: a
+// world/multi-continent `span` (> WORLD_SPAN), or
+// a frame that reaches into polar latitudes (> MERCATOR_MAX_LAT) where Mercator's
+// sec(φ) area blow-up turns gross. Europe (≈71°N) and East Asia stay on Mercator.
 const MERCATOR_MAX_LAT = 80;
 const PAD_FRACTION = 0.05;
+// Region/choropleth maps frame to the NAMED countries/states; a tight 5% pad cuts
+// the surrounding continent right at the data edge (a Europe choropleth stops at
+// ~31°E, slicing off western Russia/Ukraine). A larger pad lets the neighbouring
+// land peek in as gray context for orientation. POI maps keep the tight pad — they
+// already get container-region framing + the zoom floor.
+const REGION_PAD_FRACTION = 0.12;
 // Latitude band for a snapped world view — Tierra del Fuego (≈ −55°) to northern
 // Russia/Canada (≈ +78°). Excludes most of Antarctica + the high Arctic so the
 // populated continents fill the frame rather than waste it on ice.
 const WORLD_LAT_SOUTH = -58;
 const WORLD_LAT_NORTH = 78;
+// Tightest zoom for a POI-only cluster: never frame narrower than this many
+// degrees on the longer axis. The basemap is state/country geometry only (no
+// counties/cities/roads), so a metro-scale frame is an empty box — clamp up to a
+// multi-state window that always shows coastline + a state outline or two around
+// the dots. A tight cluster (e.g. Bay Area cities) therefore frames as ≈ its
+// home state + neighbours rather than the whole nation. Tunable.
+const POI_ZOOM_FLOOR_DEG = 7;
+// Above this longitudinal span a US POI-only extent is "national" — use the
+// albers-usa composite (CONUS conic + AK/HI insets) instead of regional Mercator.
+// CONUS spans ≈58° lon; 48° is "most of the country". Tunable.
+const US_NATIONAL_LON_SPAN = 48;
 
 // Long-form (or common-alias) country name → the folded Natural-Earth display
 // name actually shipped in world-coarse (#6). The NE coarse layer abbreviates a
@@ -155,6 +174,30 @@ function looksUS(lat: number, lon: number): boolean {
   return (lon >= -180 && lon <= -64) || lon >= 172;
 }
 
+/** Classifies a bare-coordinate POI as a North-American neighbour (vs a far-away
+ *  blocker) when deciding `albers-usa`. Used only for bare coords — named POIs
+ *  carry an ISO. This deliberately only covers what `looksUS`'s broad box does
+ *  NOT: the Atlantic-Canada strip east of −64° (Newfoundland/Labrador/Nova
+ *  Scotia, e.g. St. John's at −52.7) which falls outside `looksUS`'s
+ *  [−180, −64] longitude window. Most of Canada and all of Mexico already pass
+ *  `looksUS` (their lon is ≤ −64, lat ≥ 15) so they never reach here. The
+ *  latitude is capped at 72° (matching `looksUS`) so a high-Arctic coord is NOT
+ *  treated as a neighbour — that would both distort the conus fit and collide
+ *  with the Alaska inset bbox (`inAlaska`, lat ≥ 51 ∧ lon ≤ −129). NOTE: the
+ *  east strip can also catch the SE-Greenland coast (rare, acceptable; named
+ *  GL/DK POIs are unaffected since they classify by ISO). */
+function looksNorthAmericaNeighbor(lat: number, lon: number): boolean {
+  return lat >= 14 && lat <= 72 && lon >= -141 && lon <= -52;
+}
+
+/** A bbox that (near-)spans the whole globe — the sentinel spherical geoBounds
+ *  returns for a malformed/missing feature. Such a box is useless for framing. */
+function isWholeSphere(bb: GeoExtent): boolean {
+  return (
+    bb[0][0] <= -179 && bb[1][0] >= 179 && bb[0][1] <= -89 && bb[1][1] >= 89
+  );
+}
+
 export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const diagnostics: DgmoError[] = [...parsed.diagnostics]; // seed with parse diags (R14)
   const err = (line: number, message: string, code?: string): void => {
@@ -166,9 +209,6 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
 
   const result: Writable<ResolvedMap> = {
     title: parsed.title,
-    ...(parsed.directives.subtitle !== undefined && {
-      subtitle: parsed.directives.subtitle,
-    }),
     ...(parsed.directives.caption !== undefined && {
       caption: parsed.directives.caption,
     }),
@@ -178,7 +218,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     // renderer's job (step 4) — the resolver only carries `tags` + `tagGroups`
     // through; it never resolves a tag value to a palette color (#10).
     directives: { ...parsed.directives },
-    basemaps: { world: 'coarse', subdivisions: [] },
+    basemaps: { world: 'detail', subdivisions: [] },
     regions: [],
     pois: [],
     edges: [],
@@ -187,13 +227,18 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       [-180, -85],
       [180, 85],
     ] as GeoExtent,
-    projection: 'natural-earth',
+    projection: 'equirectangular',
+    poiFrameContainers: [],
     diagnostics,
     error: parsed.error,
   };
 
   // Per-layer indexes (never merged — R12; coarse is the authoritative name
-  // index, ids shared with detail — R13).
+  // index, ids shared with detail — R13). LOAD-BEARING: `worldCoarse` (110m) is
+  // NOT used for rendering anymore (the world basemap is pinned to detail/50m,
+  // see basemaps assignment below) — it is retained solely as this name index
+  // (featureIndex) and the dominant-landmass bbox source (featureBboxPrimary).
+  // Do not delete it.
   const countryIndex = featureIndex(data.worldCoarse);
   const usStateIndex = featureIndex(data.usStates);
   const allNames = [
@@ -427,13 +472,16 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   // projection test (#13). Named POIs contribute their gazetteer ISO; bare-coord
   // POIs contribute a rough US-or-not classification (no reverse-geocode).
   const poiCountries: string[] = [];
-  let anyNonUsPoi = false;
   let anyUsPoi = false;
+  // `anyNonNaPoi` = a POI outside North America (not US/CA/MX). Gates the relaxed
+  // US-orientation test (#13): US + Canada/Mexico content keeps `albers-usa`, but
+  // anything beyond NA forces a geographic projection that frames all content.
+  let anyNonNaPoi = false;
   const noteCountry = (iso: string | undefined): void => {
     if (iso) {
       poiCountries.push(iso);
-      if (iso !== 'US') anyNonUsPoi = true;
-      else anyUsPoi = true;
+      if (iso === 'US') anyUsPoi = true;
+      if (iso !== 'US' && iso !== 'CA' && iso !== 'MX') anyNonNaPoi = true;
     }
   };
 
@@ -442,7 +490,8 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   for (const p of parsed.pois) {
     if (p.pos.kind === 'coords') {
       if (looksUS(p.pos.lat, p.pos.lon)) anyUsPoi = true;
-      else anyNonUsPoi = true;
+      else if (!looksNorthAmericaNeighbor(p.pos.lat, p.pos.lon))
+        anyNonNaPoi = true;
       addResolvedPoi(p.pos.lat, p.pos.lon, p);
       continue;
     }
@@ -576,7 +625,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     if (pos.kind === 'coords') {
       const id = alias ? fold(alias) : `@${pos.lat},${pos.lon}`;
       if (looksUS(pos.lat, pos.lon)) anyUsPoi = true;
-      else anyNonUsPoi = true;
+      else if (!looksNorthAmericaNeighbor(pos.lat, pos.lon)) anyNonNaPoi = true;
       if (!registry.has(id)) {
         registerPoi(
           id,
@@ -659,22 +708,36 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   }
 
   // ── Basemaps + scope ──
-  // "US-oriented" = ALL content is US (no non-US country fill, no non-US POI) AND
-  // there is some US content. Such a map renders as the conventional US states
-  // map: the full state mesh on albers-usa, every state outlined even with no
-  // data — including a POI-only named-city map (§24B.2).
+  // "US-oriented" = there is US content AND all other content stays within North
+  // America (US, Canada, or Mexico — no non-NA POI, no non-US/CA/MX country
+  // fill). Such a map renders as the conventional US states map: the full state
+  // mesh on albers-usa, every state outlined even with no data — including a
+  // POI-only named-city map (§24B.2), and now also a US map with a Canadian or
+  // Mexican neighbour POI/fill (the neighbour is framed alongside, never clipped).
   // "Has US content" is STATE-level (a US state fill, a US POI, or `locale US`)
   // — NOT a country-level `United States` fill, which means "treat the US as one
   // unit" and should keep the country shape, not explode into 50 states.
+  const hasUsContent =
+    usSubdivisionReferenced || anyUsPoi || localeCountry === 'US';
   const usOriented =
-    !anyNonUsPoi &&
-    !regions.some((r) => r.layer === 'country' && r.iso !== 'US') &&
-    (usSubdivisionReferenced || anyUsPoi || localeCountry === 'US');
+    !anyNonNaPoi &&
+    !regions.some(
+      (r) => r.layer === 'country' && !['US', 'CA', 'MX'].includes(r.iso)
+    ) &&
+    hasUsContent;
 
   const subdivisions: Array<'us-states'> = [];
-  // Load/draw the state mesh when US-oriented (show all states) OR whenever a
-  // single US state is referenced (geometry needed to draw it even on a mixed
-  // world map, e.g. California + Germany).
+  // Draw the US state mesh in two cases:
+  //   1. `usSubdivisionReferenced` — a US state is named as a data region
+  //      (e.g. `California value: 92`), so the states ARE the subject; detail
+  //      them even on a global projection alongside non-NA content.
+  //   2. `usOriented` — US content with everything else inside North America,
+  //      i.e. the conventional US states map (including a POI-only named-city
+  //      map, or a US map with a Canadian/Mexican neighbour).
+  // Deliberately NOT drawn for bare US POIs on an otherwise-global map (e.g. a
+  // worldwide backbone with `us-east-1` + Tokyo + Mumbai): the map already knows
+  // it spans beyond NA (`anyNonNaPoi`), so exploding the US into 50 states reads
+  // as noise, not signal. Such a map renders country-only.
   if (usSubdivisionReferenced || usOriented) subdivisions.push('us-states');
 
   // ── Extent + projection (R5/R10) ──
@@ -698,42 +761,101 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     [-180, -85],
     [180, 85],
   ];
-  let extent: GeoExtent = unioned ? pad(unioned, PAD_FRACTION) : DEFAULT_EXTENT; // empty → default
+  // Region/choropleth maps get a wider context pad; POI maps stay tight (the
+  // isPoiOnly block below re-pads container bboxes with PAD_FRACTION anyway).
+  const basePad = regions.length > 0 ? REGION_PAD_FRACTION : PAD_FRACTION;
+  let extent: GeoExtent = unioned ? pad(unioned, basePad) : DEFAULT_EXTENT; // empty → default
+
+  const isPoiOnly = pois.length > 0 && regions.length === 0;
+
+  // POI-only region framing (R-poi-region): snap the frame to the region(s) that
+  // CONTAIN the POIs, not an arbitrary window. Reverse-geocode each POI to its US
+  // state / country (point-in-polygon), then frame to the union of those regions'
+  // bboxes — so a cluster of Bay Area cities shows the whole of California, with
+  // the containing region available for labelling. Falls back to the raw POI
+  // extent when a POI sits outside every polygon (open ocean). The floor below
+  // still applies as a *minimum* so a tiny container (e.g. Rhode Island) keeps
+  // breathing room.
+  const containerRegionIds: string[] = []; // 'US-CA' (state) or 'FR' (country)
+  if (isPoiOnly) {
+    const countries = decodeFeatures(data.worldDetail);
+    const states = decodeFeatures(data.usStates);
+    const seen = new Set<string>();
+    const containerBoxes: GeoExtent[] = [];
+    for (const p of pois) {
+      const { country, state } = regionAt([p.lon, p.lat], countries, states);
+      const id = state?.iso ?? country?.iso;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      containerRegionIds.push(id);
+      const bb = state
+        ? featureBbox(data.usStates, id)
+        : featureBboxPrimary(data.worldCoarse, id);
+      // Skip a degenerate whole-sphere bbox: spherical geoBounds returns the full
+      // globe for a malformed/missing geometry, which would blow the frame out to
+      // the entire world. Real region geometry never spans the full sphere — fall
+      // back to the raw POI extent (+ floor) instead.
+      if (bb && !isWholeSphere(bb)) containerBoxes.push(bb);
+    }
+    const containerUnion = unionExtent(containerBoxes, points);
+    if (containerUnion) extent = pad(containerUnion, PAD_FRACTION);
+  }
+
+  // POI-only fit-to-cluster zoom floor. With region framing above, the extent is
+  // usually the containing region(s); the floor only kicks in for a tiny region
+  // or a POI that fell outside every polygon. Expand a too-tight extent
+  // symmetrically about its centroid until the longer axis reaches
+  // POI_ZOOM_FLOOR_DEG so recognizable land always frames the dots. Uniform scale
+  // preserves the aspect; the layout's fitExtent letterboxes to canvas.
+  if (isPoiOnly) {
+    const cx = (extent[0][0] + extent[1][0]) / 2;
+    const cy = (extent[0][1] + extent[1][1]) / 2;
+    const lon = extent[1][0] - extent[0][0];
+    const lat = extent[1][1] - extent[0][1];
+    const longer = Math.max(lon, lat);
+    if (longer > 0 && longer < POI_ZOOM_FLOOR_DEG) {
+      const k = POI_ZOOM_FLOOR_DEG / longer;
+      const halfLon = (lon * k) / 2;
+      const halfLat = (lat * k) / 2;
+      extent = [
+        [cx - halfLon, cy - halfLat],
+        [cx + halfLon, cy + halfLat],
+      ];
+    }
+  }
 
   const lonSpan = extent[1][0] - extent[0][0];
   const latSpan = extent[1][1] - extent[0][1];
   const span = Math.max(lonSpan, latSpan);
   const maxAbsLat = Math.max(Math.abs(extent[0][1]), Math.abs(extent[1][1]));
-  // albers-usa only covers US territory: choose it exactly when the map is
-  // US-oriented (#13 — all content US, some US content). This is the national
-  // US composite (insets AK/HI when referenced, clips non-US land). A map with
-  // ANY non-US content is excluded by `usOriented` and stays on a geographic
-  // world/regional projection so neighbour land draws. Note: this intentionally
-  // snaps a POI-only US city map to the national frame ("show all states"),
-  // rather than fit-zooming to the cluster on a geographic projection.
-  const usDominant = usOriented;
-
+  // albers-usa is the national US composite (insets AK/HI when referenced, the
+  // conic projects neighbour land around the states). Choose it exactly when the
+  // map is US-oriented (#13): US content plus only US/Canada/Mexico elsewhere.
+  // Content reaching BEYOND North America fails `usOriented` and stays on a
+  // geographic world/regional projection that frames everything. Note: this
+  // intentionally snaps a POI-only US city map to the national frame ("show all
+  // states") rather than fit-zooming to the cluster on a geographic projection.
+  // (§24B.2 — projection is inferred, never configured.)
   let projection: ProjectionFamily;
-  const override = parsed.directives.projection;
-  if (
-    override === 'equirectangular' ||
-    override === 'natural-earth' ||
-    override === 'albers-usa' ||
-    override === 'mercator'
-  ) {
-    projection = override;
-  } else if (usDominant) {
+  if (isPoiOnly && usOriented && lonSpan < US_NATIONAL_LON_SPAN) {
+    // Sub-national US POI cluster: regional Mercator (familiar shapes), fit to
+    // the floored extent above. The us-states mesh is still drawn (subdivisions
+    // pushed via usOriented), so the home state + neighbours frame the dots.
+    // albers-usa is reserved for genuinely national-span content below — a local
+    // cluster no longer snaps to the whole-nation composite (#13, §24B.2).
+    projection = 'mercator';
+  } else if (usOriented) {
     projection = 'albers-usa';
   } else if (span > WORLD_SPAN || maxAbsLat > MERCATOR_MAX_LAT) {
-    // World/multi-continent scale (or a polar-reaching frame): equirectangular
-    // fills the frame edge-to-edge, never clips the continents at the boundary
-    // (naturalEarth's curved sides overrun a corner-based fit), and avoids
-    // Mercator's gross sec(φ) area blow-up near the poles. `projection
-    // natural-earth` opts back into the curved look explicitly.
+    // World/multi-continent scale (or a polar-reaching frame). Every world map —
+    // data choropleth OR dataless reference — gets equirectangular: a clean,
+    // conventional rectangular wall-map frame. (Trade: not equal-area, so a
+    // choropleth's high-latitude regions stretch vertically — accepted for the
+    // consistent rectangular look over Equal Earth's area honesty.)
     projection = 'equirectangular';
   } else {
     // Tight clusters AND single-continent regional views: Mercator gives every
-    // mid-latitude landmass its familiar conventional shape (equirectangular
+    // mid-latitude landmass its familiar conventional shape (a world projection
     // squashes a continent like Europe horizontally).
     projection = 'mercator';
   }
@@ -750,7 +872,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   // would slice off South Africa, southern Argentina, northern Russia, …). The
   // ≥180° gate leaves regional spreads tight — `region` continents (Europe
   // ≈70°, Asia ≈155°) and antimeridian clusters (mercator anyway) untouched.
-  // Applies to both world projections (equirectangular default + natural-earth).
+  // Applies to the equirectangular world projection (data + reference alike).
   if (lonSpan >= 180) {
     extent = [
       [-180, Math.min(extent[0][1], WORLD_LAT_SOUTH)],
@@ -763,11 +885,20 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   result.edges = edges;
   result.routes = routes;
   result.basemaps = {
-    world: span > WORLD_SPAN ? 'coarse' : 'detail',
+    // Tier is intentionally pinned to detail (50m) at ALL scales. Diagrammo maps
+    // are presentational (palette tints, relief hachures, POI hubs), not
+    // survey-grade — recognizability > generalization: 110m coarse drops the
+    // Italian boot to a stump at world scale. `WORLD_SPAN` lives on only for the
+    // projection decision (the `usOriented`/`span > WORLD_SPAN` chain above); it
+    // no longer gates basemap resolution.
+    // `worldCoarse` is still loaded — it's the authoritative name/bbox index
+    // (featureIndex, featureBboxPrimary), not dead code.
+    world: 'detail',
     subdivisions,
   };
   result.extent = extent;
   result.projection = projection;
+  result.poiFrameContainers = containerRegionIds;
   result.error = parsed.error ?? firstError(diagnostics);
   // `Writable` widens the GeoExtent tuple to an array; the runtime value is a
   // correct GeoExtent, so cast back on return (through unknown — tuple vs array).

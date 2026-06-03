@@ -2080,9 +2080,13 @@ function renderLegend(
   isDark: boolean,
   activeGroup: string | null,
   playback?: InfraPlaybackState,
-  exportMode = false
+  exportMode = false,
+  controlsHost?: 'app' | 'inline'
 ) {
   if (legendGroups.length === 0 && !playback) return;
+  // App-hosted playback: the play/pause + speed UI lives in the app overlay
+  // strip, so suppress the in-SVG Playback pill and emit the controls anchor.
+  const appHostedPlayback = controlsHost === 'app' && !!playback;
 
   const legendG = rootSvg
     .append('g')
@@ -2097,8 +2101,9 @@ function renderLegend(
     name: g.name,
     entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
   }));
-  // Add Playback as a group with empty entries (collapsed pill) or dummy entries (expanded)
-  if (playback) {
+  // Add Playback as a group with empty entries (collapsed pill) or dummy entries
+  // (expanded) — unless the app hosts it, in which case it's suppressed.
+  if (playback && !appHostedPlayback) {
     allGroups.push({ name: 'Playback', entries: [] });
   }
 
@@ -2107,6 +2112,20 @@ function renderLegend(
     position: { placement: 'top-center', titleRelation: 'below-title' },
     mode: exportMode ? 'export' : 'preview',
     showEmptyGroups: true,
+    ...(appHostedPlayback && {
+      controlsHost: 'app' as const,
+      controlsGroup: {
+        toggles: [
+          {
+            id: 'playback',
+            type: 'toggle' as const,
+            label: 'Playback',
+            active: true,
+            onToggle: () => {},
+          },
+        ],
+      },
+    }),
   };
   const legendState: LegendState = { activeGroup };
   renderLegendD3(
@@ -2233,9 +2252,13 @@ export function renderInfra(
   playback?: InfraPlaybackState | null,
   expandedNodeIds?: Set<string> | null,
   exportMode?: boolean,
-  collapsedNodes?: Set<string> | null
+  collapsedNodes?: Set<string> | null,
+  /** When 'app', the playback pill is suppressed and a controls row + anchor are
+   *  reserved for the app overlay strip (play/pause + speed live there). */
+  controlsHost?: 'app' | 'inline'
 ) {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
+  const appHostedPlayback = controlsHost === 'app' && !!playback;
 
   const ctx = ScaleContext.identity();
   const sc = buildScaledConstants(ctx);
@@ -2246,7 +2269,10 @@ export function renderInfra(
     palette,
     layout.edges
   );
-  const hasLegend = legendGroups.length > 0 || !!playback;
+  // App-hosted: the playback pill moves to the app overlay, so a playback-only
+  // legend (no tag groups) has nothing left to render.
+  const hasLegend =
+    legendGroups.length > 0 || (!!playback && !appHostedPlayback);
   const fixedLegend = !exportMode && hasLegend;
   const legendDynamicH = hasLegend
     ? getMaxLegendReservedHeight(
@@ -2461,7 +2487,8 @@ export function renderInfra(
         isDark,
         activeGroup ?? null,
         playback ?? undefined,
-        exportMode
+        exportMode,
+        controlsHost
       );
       // Re-enable pointer events on interactive legend elements
       legendSvg
@@ -2478,7 +2505,8 @@ export function renderInfra(
         isDark,
         activeGroup ?? null,
         playback ?? undefined,
-        exportMode
+        exportMode,
+        controlsHost
       );
     }
   }

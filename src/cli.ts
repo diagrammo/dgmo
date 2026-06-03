@@ -136,7 +136,7 @@ Key options:
 - \`-o <file>\` — output file; format inferred from extension (\`.svg\` → SVG, else PNG)
 - \`-o url\` — output a shareable diagrammo.app URL
 - \`--theme <theme>\` — \`light\` (default), \`dark\`, \`transparent\`
-- \`--palette <name>\` — \`nord\` (default), \`solarized\`, \`catppuccin\`, \`rose-pine\`, \`gruvbox\`, \`tokyo-night\`, \`one-dark\`, \`bold\`
+- \`--palette <name>\` — \`nord\` (default), \`atlas\`, \`blueprint\`, \`slate\`, \`tidewater\`, \`solarized\`, \`catppuccin\`, \`rose-pine\`, \`gruvbox\`, \`tokyo-night\`, \`one-dark\`, \`dracula\`, \`monokai\`
 - \`--copy\` — copy the URL to clipboard (use with \`-o url\`)
 - \`--chart-types\` — list all supported chart types
 

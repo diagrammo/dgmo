@@ -4,7 +4,7 @@
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import type { MapDirectives } from './types';
-import type { Gazetteer, BoundaryTopology } from './data/types';
+import type { Gazetteer, BoundaryTopology, WaterBodies } from './data/types';
 
 /** The four static assets, injected into the pure resolver (DI). */
 export interface MapData {
@@ -28,12 +28,17 @@ export interface MapData {
   /** North-America-clipped 10m major lakes (Great Lakes etc.), used in place of
    *  the coarse `lakes` under the albers-usa US view. Optional. */
   naLakes?: BoundaryTopology;
+  /** Water-body orientation labels (Natural Earth marine polys) drawn when the
+   *  `context-labels` directive is on — oceans/seas/gulfs/bays/etc. Optional, so
+   *  hand-built test fixtures and older bundles need not supply it. */
+  waterBodies?: WaterBodies;
   gazetteer: Gazetteer;
 }
 
 export type ProjectionFamily =
-  | 'equirectangular'
+  | 'equal-earth'
   | 'natural-earth'
+  | 'equirectangular'
   | 'albers-usa'
   | 'mercator';
 
@@ -116,6 +121,9 @@ export type GeoExtent = [[number, number], [number, number]];
 
 export interface ResolvedMap {
   readonly title: string | null;
+  /** DEAD — the `subtitle` directive was removed (2026-06-02 defaults-on review).
+   *  Never populated; the renderer's subtitle branch is now unreachable. Left for
+   *  a later cleanup pass. */
   readonly subtitle?: string;
   readonly caption?: string;
   readonly tagGroups: readonly TagGroup[];
@@ -127,6 +135,12 @@ export interface ResolvedMap {
   readonly routes: readonly ResolvedRoute[];
   readonly extent: GeoExtent;
   readonly projection: ProjectionFamily;
+  /** POI-only region framing: the region(s) that CONTAIN the POIs — us-state ids
+   *  (`US-CA`) or country isos (`FR`). The frame is snapped to the union of their
+   *  bboxes, and the layout labels them prominently (vs. muted neighbours). Empty
+   *  for non-POI-only maps or when POIs fall outside every polygon. Optional so
+   *  older/foreign ResolvedMap literals need not supply it. */
+  readonly poiFrameContainers?: readonly string[];
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }

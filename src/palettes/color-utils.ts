@@ -308,3 +308,60 @@ export function getSegmentColors(
     hslToHex(Math.round((startHue + i * step) % 360), avgS, avgL)
   );
 }
+
+// ============================================================
+// Political map fills (map colorize, §24B)
+// ============================================================
+
+/** Mix-toward-surface bands (% of the raw swatch retained) for political fills,
+ *  mode-aware. Colorize fills must stay ON-PALETTE — they're soft tints of the
+ *  palette's OWN named hues, not wheel-generated colours. The retained-% is kept
+ *  clear of the water backdrop's own blue tint (WATER_TINT_*), so a country fill
+ *  never coincides with the ocean. The first band is the normal soft tint; later
+ *  bands only come into play if a map needs more colours than the palette has
+ *  distinct land hues (rare — first-fit coloring needs ≤6 on the shipped graphs). */
+const POLITICAL_TINT_BANDS = {
+  light: [32, 48, 64, 80],
+  dark: [44, 58, 72, 86],
+} as const;
+
+/**
+ * Generate `count` political-fill tints from the active palette's OWN hues
+ * (§24B colorize). Each is a palette swatch softened toward the surface, so the
+ * fills always read as that palette (Atlas tints look like Atlas, not neon wheel
+ * samples). Hues are ordered LAND-FIRST — blue/cyan (the ocean-adjacent hues) go
+ * last, so country fills never read as water; they are only reached if a map
+ * needs >6 colours (it never does — first-fit needs ≤6, palettes ship ≥6 land
+ * hues). `count` distinct colours come from walking the deduped hues; if more are
+ * needed, additional lightness BANDS of the same hues are appended (still
+ * on-palette). Deterministic; resvg-safe (hex out).
+ */
+export function politicalTints(
+  palette: PaletteColors,
+  count: number,
+  isDark: boolean
+): string[] {
+  if (count <= 0) return [];
+  const base = isDark ? palette.surface : palette.bg;
+  const c = palette.colors;
+  // Land-first: greens/earth tones lead; water-like blue & cyan trail.
+  const swatches = [
+    ...new Set([
+      c.green,
+      c.yellow,
+      c.orange,
+      c.purple,
+      c.red,
+      c.teal,
+      c.cyan,
+      c.blue,
+    ]),
+  ];
+  const bands = isDark ? POLITICAL_TINT_BANDS.dark : POLITICAL_TINT_BANDS.light;
+  const out: string[] = [];
+  for (const pct of bands) {
+    if (out.length >= count) break;
+    for (const s of swatches) out.push(mix(s, base, pct));
+  }
+  return out.slice(0, count);
+}

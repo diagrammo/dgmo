@@ -201,6 +201,9 @@ export function renderTechRadar(
           },
         ],
       },
+      ...(options.controlsHost !== undefined && {
+        controlsHost: options.controlsHost,
+      }),
     };
     const legendState: LegendState = {
       activeGroup: options?.activeLegendGroup ?? null,

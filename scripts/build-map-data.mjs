@@ -99,6 +99,18 @@ const SOURCES = {
     version: 'natural-earth 50m (nvkelso vector snapshot)',
     url: 'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_geography_regions_polys.geojson',
   },
+  marineCoarse: {
+    // Natural Earth 110m geography marine polys — oceans + major seas/bays/gulfs.
+    // Source of the `context-labels` orientation water names (no rivers/reefs).
+    version: 'natural-earth 110m (nvkelso vector snapshot)',
+    url: 'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_geography_marine_polys.geojson',
+  },
+  marineDetail: {
+    // Natural Earth 50m geography marine polys — adds smaller seas, gulfs, bays,
+    // straits, channels, sounds (scalerank 0..4). The detail tier for water names.
+    version: 'natural-earth 50m (nvkelso vector snapshot)',
+    url: 'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_geography_marine_polys.geojson',
+  },
 };
 
 // --- Tunable constants (tuned empirically; see build log for actual sizes) --
@@ -142,6 +154,9 @@ const GZ_CEILINGS = {
   // bump, or widening to Plateau/Foothills). A deliberate bump past this means
   // re-baselining the ceiling, not silently raising simplification.
   'mountain-ranges.json': 30_000,
+  // ~115 tuple entries (oceans/seas/gulfs/bays/straits/channels/sounds) at ~3KB
+  // gz; 6KB leaves headroom for name growth without re-baselining.
+  'water-bodies.json': 6_000,
   'gazetteer.json': 70_000,
   'region-names.json': 8_000,
 };
@@ -474,6 +489,86 @@ async function buildMountainRanges(url) {
   return topo;
 }
 
+// --- Water bodies (context-labels orientation layer) ------------------------
+// featurecla → WaterKind. `river`/`reef` are intentionally excluded (Decision 5).
+const WATER_KIND = new Set(['ocean', 'sea', 'gulf', 'bay', 'strait', 'channel', 'sound']);
+// Single editorial override layer (Decision 11): the ONE auditable place a
+// generated name can be hand-adjusted. Keyed by the Natural Earth `name`.
+const WATER_NAME_OVERRIDES = { 'Gulf of Mexico': 'Gulf of America' };
+
+// Curated extra label anchors for the big oceans, keyed by display name. Natural
+// Earth ships ONE inner point per ocean (mid-basin), which projects off-frame on
+// a zoomed-in COASTAL view — so the layout's edge-clamp drops it and a regional
+// map of, say, California shows no "Pacific Ocean". These coastal `[lat, lon]`
+// alternates (all open water) give the multi-anchor picker a point near a coast
+// to clamp to the frame edge. The mid-basin NE point stays primary for world
+// views. Emitted as the optional 6th tuple element `alt` (see WaterBodyEntry).
+const WATER_ALT_ANCHORS = {
+  'North Pacific Ocean': [[36, -126], [47, -131], [55, -143], [35, 160], [15, 165]],
+  'South Pacific Ocean': [[-20, -110], [-40, -95], [-15, 170], [-35, 170]],
+  'North Atlantic Ocean': [[40, -55], [30, -45], [50, -25], [15, -45]],
+  'South Atlantic Ocean': [[-25, -35], [-40, -15], [-10, -20]],
+};
+
+/** Natural Earth ships a few names ALL-CAPS (SOUTHERN OCEAN, INDIAN OCEAN);
+ *  title-case multi-word all-caps names for display consistency with the rest. */
+function normalizeWaterName(name) {
+  if (name !== name.toUpperCase() || !/\s/.test(name)) return name;
+  return name
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Build the water-bodies orientation gazetteer from Natural Earth marine polys
+ *  (110m oceans/major-seas + 50m detail). Emits TUPLE entries `[lat, lon, name,
+ *  tier, kind]` (NOT topology — the layout just needs label anchors). Anchor =
+ *  mapshaper inner point (guaranteed inside the polygon). De-duped across tiers
+ *  by folded name (110m first → oceans keep their broad-tier anchor). Rivers and
+ *  reefs are dropped (Decision 5). Single editorial override applied (Decision 11). */
+async function buildWaterBodies(coarseUrl, detailUrl) {
+  console.log('• water-bodies (110m + 50m geography marine polys)');
+  const seen = new Set();
+  const entries = [];
+  for (const url of [coarseUrl, detailUrl]) {
+    console.log(`  fetch ${url}`);
+    const buf = await download(url);
+    if (buf.length < 1024) throw new Error(`water-bodies: suspiciously small (${buf.length}B)`);
+    sourceHashes[url] = { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
+    const geo = JSON.parse(buf.toString('utf8'));
+    // Inner label points (one per polygon feature), carrying properties through.
+    geo.features.forEach((f, i) => { f.id = `w-${i}`; });
+    const out = await mapshaper.applyCommands(
+      '-i in.json -points inner -o out.json',
+      { 'in.json': Buffer.from(JSON.stringify(geo)) }
+    );
+    const pts = JSON.parse(Buffer.from(out['out.json']).toString('utf8'));
+    for (const f of pts.features) {
+      const p = f.properties || {};
+      const cla = p.featurecla ?? p.FEATURECLA;
+      if (!WATER_KIND.has(cla)) continue; // drop river/reef/unknown
+      const rawName = p.name ?? p.NAME;
+      if (!rawName) continue;
+      const name = WATER_NAME_OVERRIDES[rawName] ?? normalizeWaterName(rawName);
+      const key = fold(rawName);
+      if (seen.has(key)) continue; // 110m wins for oceans/major seas
+      seen.add(key);
+      const [lon, lat] = f.geometry.coordinates;
+      const tier = Number.isFinite(p.scalerank) ? p.scalerank : 5;
+      const alt = WATER_ALT_ANCHORS[name];
+      entries.push(
+        alt
+          ? [round(lat), round(lon), name, tier, cla, alt]
+          : [round(lat), round(lon), name, tier, cla]
+      );
+    }
+  }
+  if (!entries.length) throw new Error('water-bodies: no marine features (source schema drift?)');
+  // Deterministic order: tier, then name (codepoint).
+  entries.sort((a, b) => a[3] - b[3] || cmp(a[2], b[2]));
+  console.log(`  water-bodies: ${entries.length}`);
+  return { entries };
+}
+
 /** Simplify a TopoJSON Buffer (keep-shapes; quantization is the size lever). */
 async function simplify(topoBuf, retainPct, quantization) {
   const out = await mapshaper.applyCommands(
@@ -688,6 +783,13 @@ async function main() {
   const mountainRanges = await buildMountainRanges(SOURCES.mountainRanges.url);
   provenance.sources.mountainRanges = { ...SOURCES.mountainRanges };
 
+  const waterBodies = await buildWaterBodies(
+    SOURCES.marineCoarse.url,
+    SOURCES.marineDetail.url
+  );
+  provenance.sources.marineCoarse = { ...SOURCES.marineCoarse };
+  provenance.sources.marineDetail = { ...SOURCES.marineDetail };
+
   console.log('• gazetteer (cities5000)');
   const citiesZip = await fetchValidated(SOURCES.geonames.citiesUrl, 'zip');
   const tsv = unzipEntry(citiesZip, 'cities5000.txt');
@@ -741,6 +843,7 @@ async function main() {
     'na-land.json': naLand,
     'na-lakes.json': naLakes,
     'mountain-ranges.json': mountainRanges,
+    'water-bodies.json': waterBodies,
     'gazetteer.json': gaz,
     'region-names.json': regionNames,
   };
@@ -764,6 +867,7 @@ async function main() {
     countries: coarse.keys.length,
     usStates: us.keys.length,
     mountainRanges: mountainRanges.objects.ranges.geometries.length,
+    waterBodies: waterBodies.entries.length,
     gazetteerCities: stats.kept,
     gazetteerAliases: Object.keys(gaz.alt).length,
   };
@@ -794,6 +898,7 @@ hand-edit — regenerate from source.
 - \`na-land.json\` — NA-clipped 10m country land (TopoJSON, ISO-keyed): crisp neighbour context under the albers-usa US view.
 - \`na-lakes.json\` — NA-clipped 10m major lakes (TopoJSON): the lakes counterpart to \`na-land.json\` for the US view.
 - \`mountain-ranges.json\` — notable mountain ranges (Natural Earth 50m geography regions, FEATURECLA "Range/mtn", TopoJSON), drawn as a subtle gradient relief cue when the \`relief\` directive is on. Optional; single tier (no elevation).
+- \`water-bodies.json\` — water-body orientation labels (\`{ entries: [lat, lon, name, tier, kind] }\`) from Natural Earth 110m+50m geography marine polys (oceans/seas/gulfs/bays/straits/channels/sounds; rivers + reefs excluded). Anchors are mapshaper inner points; \`tier\` is the NE scalerank. Drawn only when the \`context-labels\` directive is on. Optional.
 - \`gazetteer.json\` — \`{ cities, byName, alt }\` city index (see \`types.ts\`).
   \`byName\`/\`alt\` reference \`cities\` by array index (normalized).
 - \`PROVENANCE.json\` — source versions + per-asset sha256/sizes + GeoNames date range.
@@ -803,6 +908,7 @@ hand-edit — regenerate from source.
 - **Country boundaries:** Natural Earth via \`world-atlas@2.0.2\` (public domain).
 - **US states:** US Census via \`us-atlas@3.0.1\` (public domain).
 - **Mountain ranges:** Natural Earth 50m \`geography_regions_polys\` via \`nvkelso/natural-earth-vector\` (public domain).
+- **Water bodies:** Natural Earth 110m+50m \`geography_marine_polys\` via \`nvkelso/natural-earth-vector\` (public domain). One editorial override applied (\`Gulf of Mexico\` → \`Gulf of America\`).
 - **Cities:** Data © **GeoNames**, licensed under **CC BY 4.0**
   (https://creativecommons.org/licenses/by/4.0/) — https://www.geonames.org/.
 
@@ -832,6 +938,8 @@ export {
   rekeyUS,
   buildGazetteer,
   buildMountainRanges,
+  buildWaterBodies,
+  normalizeWaterName,
   writeJson,
   GZ_CEILINGS,
   ISO_NUMERIC_TO_ALPHA2,

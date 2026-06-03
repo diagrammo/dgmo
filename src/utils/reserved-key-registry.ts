@@ -85,6 +85,9 @@ export const MAP_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'value',
   'label',
   'style',
+  // `surface:` was removed in the 2026-06-02 defaults-on review — it is no longer
+  // a recognized metadata key (the route/edge surface feature was cut; §24B.7).
+  // A stray `surface: water` is no longer captured as a reserved key.
 ]);
 
 export const ORG_REGISTRY: ReservedKeyRegistry = staticRegistry([

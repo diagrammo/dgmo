@@ -324,6 +324,9 @@ interface BLRenderOptions {
   onToggleDescriptions?: (active: boolean) => void;
   onToggleControlsExpand?: () => void;
   exportMode?: boolean;
+  /** When 'app', the description toggle is hosted by the app overlay strip
+   *  (inline gear suppressed, controls row + anchor reserved). */
+  controlsHost?: 'app' | 'inline';
 }
 
 export function renderBoxesAndLines(
@@ -344,6 +347,7 @@ export function renderBoxesAndLines(
     onToggleDescriptions,
     onToggleControlsExpand,
     exportMode = false,
+    controlsHost,
   } = options ?? {};
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -364,16 +368,27 @@ export function renderBoxesAndLines(
   const sGroupLabelZone = sctx.structural(GROUP_LABEL_ZONE);
   const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
   const sTitleY = sctx.structural(TITLE_Y);
-  const sLegendHeight = sctx.structural(
-    getMaxLegendReservedHeight(
-      {
-        groups: parsed.tagGroups,
-        position: { placement: 'top-center', titleRelation: 'below-title' },
-        mode: exportMode ? 'export' : 'preview',
-      },
-      width
-    )
+  // Reserve legend height only when a legend will actually render. App-hosted
+  // controls move the Descriptions toggle to the app overlay, so a
+  // descriptions-only chart (no tag groups) reserves nothing.
+  const reserveHasDescriptions = parsed.nodes.some(
+    (n) => n.description && n.description.length > 0
   );
+  const willRenderLegend =
+    parsed.tagGroups.length > 0 ||
+    (reserveHasDescriptions && controlsHost !== 'app');
+  const sLegendHeight = willRenderLegend
+    ? sctx.structural(
+        getMaxLegendReservedHeight(
+          {
+            groups: parsed.tagGroups,
+            position: { placement: 'top-center', titleRelation: 'below-title' },
+            mode: exportMode ? 'export' : 'preview',
+          },
+          width
+        )
+      )
+    : 0;
 
   const activeGroup = resolveActiveTagGroup(
     parsed.tagGroups,
@@ -995,12 +1010,17 @@ export function renderBoxesAndLines(
   const hasDescriptions = parsed.nodes.some(
     (n) => n.description && n.description.length > 0
   );
-  const hasLegend = parsed.tagGroups.length > 0 || hasDescriptions;
+  // App-hosted: the Descriptions control moves to the app overlay, so a
+  // descriptions-only legend (no tag groups) has nothing left to render.
+  const hasLegend =
+    parsed.tagGroups.length > 0 || (hasDescriptions && controlsHost !== 'app');
 
   if (hasLegend) {
-    // Build controls group for description toggle
+    // Build controls group for description toggle. App-hosted controls own the
+    // toggling, so the group is built (to gate + size the row) even without the
+    // inline-gear callback.
     let controlsGroup: { toggles: ControlsGroupToggle[] } | undefined;
-    if (hasDescriptions && onToggleDescriptions) {
+    if (hasDescriptions && (onToggleDescriptions || controlsHost === 'app')) {
       controlsGroup = {
         toggles: [
           {
@@ -1019,6 +1039,7 @@ export function renderBoxesAndLines(
       position: { placement: 'top-center', titleRelation: 'below-title' },
       mode: exportMode ? 'export' : 'preview',
       ...(controlsGroup !== undefined && { controlsGroup }),
+      ...(controlsHost !== undefined && { controlsHost }),
     };
     const legendState: LegendState = {
       activeGroup,

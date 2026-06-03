@@ -1,5 +1,4 @@
 map Caribbean Cruise
-projection mercator
 
 route Miami style: arc
   -weigh anchor-> Havana

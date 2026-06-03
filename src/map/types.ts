@@ -10,15 +10,13 @@ export type PoiPos =
   | { readonly kind: 'coords'; readonly lat: number; readonly lon: number }
   | { readonly kind: 'name'; readonly name: string; readonly scope?: string };
 
-/** `scale <min> <max>`. (A `center <n>` diverging seam is reserved — §24B.12 — but not parsed in v1.) */
-export interface MapScale {
-  readonly min: number;
-  readonly max: number;
-}
-
-/** One-shot directives (§24B.2/.7). Values are raw strings unless typed. */
+/** One-shot directives (§24B.2/.7). Values are raw strings unless typed.
+ *
+ *  COSMETIC DEFAULTS ARE ON. Every basemap feature renders by default; the only
+ *  control is a bare `no-*` opt-out flag that sets the matching `noXxx` boolean.
+ *  Absent (undefined) = feature ON — so render gates test `!== true`, never
+ *  `=== true`. There are NO positive opt-in cosmetic flags (§24B.2). */
 export interface MapDirectives {
-  projection?: string;
   /** Legend label for the region value ramp (`region-metric <label>`). */
   regionMetric?: string;
   /** Recognized color NAME for the choropleth ramp hue, peeled off the
@@ -28,23 +26,32 @@ export interface MapDirectives {
   poiMetric?: string;
   /** Legend label for the edge/leg value (thickness) channel (`flow-metric`). */
   flowMetric?: string;
-  scale?: MapScale;
-  regionLabels?: string; // full | abbrev | off
-  poiLabels?: string; // off | auto | all
   /** Default ISO scope for bare-name resolution (§24B.8): a 3166-1 country
    *  (`locale US`) or 3166-2 subdivision (`locale US-GA`). The country part
    *  biases ambiguous bare cities to that nation; the subdivision part further
    *  prefers that state. Inferred from content; explicit only to steer a guess. */
   locale?: string;
   activeTag?: string;
-  noLegend?: boolean;
-  subtitle?: string;
   caption?: string;
-  /** Opt-in subtle mountain-range relief shading (bare flag `relief`, §24B.2).
-   *  Draws a shared directional gradient ("degenerate hillshade") clipped to
-   *  each notable mountain-range polygon, over base land and under data fills.
-   *  Off by default; needs the optional `mountain-ranges.json` asset. */
-  relief?: boolean;
+  /** `no-legend` — suppress the legend (default-on). */
+  noLegend?: boolean;
+  /** `no-coastline` — suppress the faint nautical-chart water-lines along
+   *  coasts/shorelines (default-on; geometry derived from drawn region paths). */
+  noCoastline?: boolean;
+  /** `no-relief` — suppress mountain-range relief hachures. Relief is default-on
+   *  but auto-gated to dataless reference maps at continent/world zoom (§24B.2). */
+  noRelief?: boolean;
+  /** `no-context-labels` — suppress the orientation backdrop (water-body names +
+   *  unreferenced notable country names), distinct from `region-labels`. */
+  noContextLabels?: boolean;
+  /** `no-region-labels` — suppress region labels (default-on, full→abbrev→hide). */
+  noRegionLabels?: boolean;
+  /** `no-poi-labels` — suppress POI labels (default-on, collision-managed auto). */
+  noPoiLabels?: boolean;
+  /** `no-colorize` — force the plain green-land reference dress even when regions
+   *  are referenced (regions are auto-coloured by default; §24B colorize). A
+   *  no-op under data — the basemap is already gray there. */
+  noColorize?: boolean;
 }
 
 /** A region-fill: a subdivision name with an optional score and/or tag values

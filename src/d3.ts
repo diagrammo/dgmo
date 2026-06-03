@@ -8459,6 +8459,7 @@ export async function renderForExport(
     const { parseMap } = await import('./map/parser');
     const { resolveMap } = await import('./map/resolver');
     const { renderMapForExport } = await import('./map/renderer');
+    const { mapExportDimensions } = await import('./map/dimensions');
 
     const effectivePalette = await resolveExportPalette(theme, palette);
     const mapParsed = parseMap(content);
@@ -8478,14 +8479,19 @@ export async function renderForExport(
     }
     const mapResolved = resolveMap(mapParsed, mapData);
 
-    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+    // Content-aware canvas: derive the height from the map's intrinsic projected
+    // aspect (world ~2.3:1, a region taller, etc.) instead of the fixed 800, so the
+    // export matches the content's natural shape — no vertical stretch, no
+    // letterbox bands. `preferContain` rides along to the renderer.
+    const dims = mapExportDimensions(mapResolved, mapData, EXPORT_WIDTH);
+    const container = createExportContainer(dims.width, dims.height);
     renderMapForExport(
       container,
       mapResolved,
       mapData,
       effectivePalette,
       theme === 'dark',
-      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+      dims
     );
     return finalizeSvgExport(container, theme, effectivePalette);
   }

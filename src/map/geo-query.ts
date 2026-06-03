@@ -21,6 +21,7 @@ import type { DecodedFeature } from './geo';
 import { pixelToLonLat, lonLatToPixel } from './invert';
 import type { MapData, GeoExtent } from './resolved-types';
 import type { Gazetteer } from './data/types';
+import type { DgmoError } from '../diagnostics';
 
 /** Nearest gazetteer city to a point: the real haversine distance, plus the
  *  canonical name + ISO + (US-only) subdivision for token shaping. `lon`/`lat`
@@ -89,6 +90,10 @@ export interface MapGeoQuery {
   locate(px: number, py: number): ResultCard | null;
   /** Culled + projected cities for the all-cities layer (population-primary). */
   cities(extent?: GeoExtent): ProjectedCity[];
+  /** Layout-time, dimension-dependent diagnostics. They live on the geo-query
+   *  (bound to the rendered layout) rather than the resolver. Callers merge them
+   *  with `resolved.diagnostics`. (No producers currently — always empty.) */
+  readonly diagnostics: readonly DgmoError[];
 }
 
 export interface CreateMapGeoQueryOptions {
@@ -212,7 +217,14 @@ const MAX_CITY_DOTS = 250;
 
 /** Construct a geo-query handle bound to the layout for `(content, width,
  *  height, data, palette, isDark)`. Deterministic: identical inputs ⇒ the same
- *  fitted projection the rendered SVG used, so inverted clicks align. */
+ *  fitted projection the rendered SVG used, so inverted clicks align.
+ *
+ *  INVARIANT: this is the PREVIEW path — it never passes `preferContain`, so its
+ *  layout matches the in-app preview (stretch-fill), where geo-query is used. It is
+ *  NOT valid against a content-aware EXPORT canvas (which may set `preferContain` →
+ *  contain-fit): the inverted positions would not match that export's pixels. If
+ *  geo-query is ever pointed at an export canvas, thread `preferContain` through
+ *  `CreateMapGeoQueryOptions` to keep the projection in sync. */
 export function createMapGeoQuery(opts: CreateMapGeoQueryOptions): MapGeoQuery {
   const { content, width, height, data, palette, isDark } = opts;
   const resolved = resolveMap(parseMap(content), data);
@@ -279,5 +291,5 @@ export function createMapGeoQuery(opts: CreateMapGeoQueryOptions): MapGeoQuery {
     return out;
   };
 
-  return { invert, project, locate, cities };
+  return { invert, project, locate, cities, diagnostics: layout.diagnostics };
 }

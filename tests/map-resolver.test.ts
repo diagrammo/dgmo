@@ -53,6 +53,8 @@ const gazetteer: Gazetteer = {
     [45.52, -122.68, 'US', 652_503, 'Portland', 'US-OR'], // 3 (higher pop)
     [40.71, -74.0, 'US', 8_800_000, 'New York City', 'US-NY'], // 4
     [38.9, -77.04, 'US', 5_000, 'Office', 'US-DC'], // 5
+    [43.65, -79.38, 'CA', 2_700_000, 'Toronto'], // 6 — Canadian neighbour
+    [25.67, -100.32, 'MX', 1_100_000, 'Monterrey'], // 7 — Mexican neighbour
   ],
   byName: {
     tokyo: [0],
@@ -60,6 +62,8 @@ const gazetteer: Gazetteer = {
     portland: [2, 3], // ME before OR — NOT pop-ordered (R11)
     'new york city': [4],
     office: [5],
+    toronto: [6],
+    monterrey: [7],
   },
   alt: { nyc: 4 },
 };
@@ -67,12 +71,16 @@ const gazetteer: Gazetteer = {
 const DATA: MapData = {
   worldCoarse: rectTopo('countries', [
     { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
+    { id: 'CA', name: 'Canada', box: [-141, 49, -52, 70] }, // northern neighbour
+    { id: 'MX', name: 'Mexico', box: [-117, 14, -86, 33] }, // southern neighbour
     { id: 'JP', name: 'Japan', box: [129, 31, 146, 45] },
     { id: 'GE', name: 'Georgia', box: [40, 41, 47, 44] }, // country Georgia
     { id: 'CD', name: 'Dem. Rep. Congo', box: [12, -13, 31, 5] }, // NE-abbreviated
   ]),
   worldDetail: rectTopo('countries', [
     { id: 'US', name: 'United States', box: [-125, 25, -66, 49] },
+    { id: 'CA', name: 'Canada', box: [-141, 49, -52, 70] },
+    { id: 'MX', name: 'Mexico', box: [-117, 14, -86, 33] },
     { id: 'JP', name: 'Japan', box: [129, 31, 146, 45] },
     { id: 'GE', name: 'Georgia', box: [40, 41, 47, 44] },
     { id: 'CD', name: 'Dem. Rep. Congo', box: [12, -13, 31, 5] },
@@ -270,6 +278,20 @@ describe('resolver — edges & routes (AC10-12, AC23)', () => {
   });
 });
 
+describe('resolver — surface removed (AC9)', () => {
+  it('`surface:` is unrecognized — it folds into the endpoint name and errors', () => {
+    // `surface: water` is no longer split off as metadata, so `Osaka surface:
+    // water` becomes the destination NAME, which fails to resolve (AC9 — surface
+    // errors as unknown rather than silently bowing the leg).
+    const r = resolve('map\nTokyo -> Osaka surface: water');
+    expect(r.diagnostics.some((d) => d.severity === 'error')).toBe(true);
+  });
+  it('a plain route (no surface) resolves with straight legs', () => {
+    const r = resolve('map\nroute Tokyo\n  -> Osaka\n  -> Tokyo');
+    expect(r.routes[0]!.legs.every((l) => l.style === 'straight')).toBe(true);
+  });
+});
+
 describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
   it('world-only → no subdivisions (AC13)', () => {
     const r = resolve('map\nUnited States m: HQ\ntag M as m\n  HQ blue');
@@ -279,8 +301,17 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const r = resolve('map\nCalifornia value: 1\nOregon value: 2');
     expect(r.projection).toBe('albers-usa');
   });
-  it('world span → equirectangular (AC15)', () => {
+  it('dataless world span → equirectangular (AC5)', () => {
     const r = resolve('map\npoi Tokyo\npoi 40 -74 as ny');
+    expect(r.projection).toBe('equirectangular');
+  });
+  it('data world span → equirectangular (consistent rectangular frame, AC5)', () => {
+    // A choropleth spanning the globe (US + China, beyond North America so not
+    // US-oriented) is a DATA map — but world maps now use equirectangular too,
+    // for one consistent rectangular look across data + reference maps.
+    const r = resolve(
+      'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3'
+    );
     expect(r.projection).toBe('equirectangular');
   });
   it('tight cluster → mercator (AC15)', () => {
@@ -295,27 +326,32 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const r = resolve('map\npoi 35 -10 as sw\npoi 60 30 as ne');
     expect(r.projection).toBe('mercator');
   });
-  it('polar-reaching wide frame → equirectangular (Mercator area blow-up guard)', () => {
+  it('polar-reaching wide frame (dataless) → equirectangular (Mercator area blow-up guard)', () => {
     // Sub-world longitude span but the frame reaches past ~80° latitude — Mercator
-    // would grossly inflate the high-latitude land, so fall back to equirectangular.
+    // would grossly inflate the high-latitude land, so fall back to a world
+    // projection. Dataless → equirectangular.
     const r = resolve('map\npoi 84 -40 as a\npoi 60 40 as b');
     expect(r.projection).toBe('equirectangular');
   });
-  it('projection directive overrides (AC15)', () => {
-    const r = resolve('map\nprojection mercator\npoi Tokyo\npoi 40 -74 as ny');
-    expect(r.projection).toBe('mercator');
-  });
-  it('projection equirectangular is a valid override (AC15)', () => {
-    const r = resolve('map\nprojection equirectangular\nCalifornia value: 1');
-    expect(r.projection).toBe('equirectangular');
+  it('equirectangular for all world maps (data + dataless), not US/cluster', () => {
+    const cases: Array<[string, string]> = [
+      ['map\npoi Tokyo\npoi 40 -74 as ny', 'equirectangular'], // dataless world
+      [
+        'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3',
+        'equirectangular',
+      ], // data world
+      ['map\nCalifornia value: 1\nOregon value: 2', 'albers-usa'], // US
+      ['map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b', 'mercator'], // tight cluster
+    ];
+    for (const [src, expected] of cases) {
+      expect(resolve(src).projection).toBe(expected);
+    }
   });
   it('world-scale frame snaps to full Greenwich longitude, not an antimeridian wrap (no US split)', () => {
-    // POIs spanning the globe (Americas + Europe + Asia). The world-scale
-    // equirectangular frame must be the conventional full [-180, 180] Greenwich
-    // rectangle — NOT a wrapped window (east > 180) that splits the Americas at
-    // the seam (the real US country box wraps via its Aleutians). POIs (not the
-    // hand-built rect fixtures, whose ring winding confuses geoBounds) so the
-    // extent is asserted on real coordinates.
+    // POIs spanning the globe (Americas + Europe + Asia). The world-scale frame
+    // must be the conventional full [-180, 180] Greenwich rectangle — NOT a
+    // wrapped window (east > 180) that splits the Americas at the seam. Dataless
+    // POIs → equirectangular.
     const r = resolve('map\npoi 10 -120 as a\npoi 10 20 as b\npoi 10 150 as c');
     expect(r.projection).toBe('equirectangular');
     expect(r.extent[0][0]).toBe(-180);
@@ -337,6 +373,73 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const lonSpan = r.extent[1][0] - r.extent[0][0];
     expect(lonSpan).toBeLessThan(30); // tight wrap, not ~356
     expect(r.projection).toBe('mercator'); // tight → mercator, not natural-earth
+  });
+});
+
+describe('resolver — POI-only fit-to-cluster zoom floor (#poi-fit)', () => {
+  const longerAxis = (r: ReturnType<typeof resolve>) =>
+    Math.max(r.extent[1][0] - r.extent[0][0], r.extent[1][1] - r.extent[0][1]);
+
+  it('tight US POI cluster zooms to the floor + goes mercator (not the national frame)', () => {
+    // A Bay-Area-like cluster (~0.3° span). Without the floor this snaps to the
+    // albers-usa national frame; with it, the frame is a multi-state window and
+    // the projection is regional mercator. locale US makes it US-oriented.
+    const r = resolve(
+      'map\nlocale US\npoi 37.77 -122.42 as sf\npoi 37.80 -122.27 as oak\npoi 37.34 -121.89 as sj'
+    );
+    expect(r.projection).toBe('mercator');
+    expect(longerAxis(r)).toBeCloseTo(7, 5); // floored to POI_ZOOM_FLOOR_DEG
+    // centred on the POI centroid (~37.6°N, −122.2°W)
+    const cx = (r.extent[0][0] + r.extent[1][0]) / 2;
+    const cy = (r.extent[0][1] + r.extent[1][1]) / 2;
+    expect(cx).toBeCloseTo(-122.2, 0);
+    expect(cy).toBeCloseTo(37.6, 0);
+    // us-states mesh still drawn so the home state + neighbours frame the dots
+    expect(r.basemaps.subdivisions).toContain('us-states');
+  });
+
+  it('floor is a no-op for a cluster already wider than the floor', () => {
+    // CA + CO POIs span ~22° lon — wider than the floor, narrower than national.
+    const r = resolve(
+      'map\nlocale US\npoi 37.77 -122.42 as sf\npoi 39.74 -104.99 as den'
+    );
+    expect(r.projection).toBe('mercator');
+    expect(longerAxis(r)).toBeGreaterThan(7); // untouched by the floor
+    expect(r.extent[0][0]).toBeLessThan(-122.42); // still bounds the POIs + pad
+    expect(r.extent[1][0]).toBeGreaterThan(-104.99);
+  });
+
+  it('national-span US POIs stay on the albers-usa composite', () => {
+    // SF + NYC + Miami span ≳ 48° lon → genuinely national → national frame.
+    const r = resolve(
+      'map\nlocale US\npoi 37.77 -122.42 as sf\npoi 40.71 -74.0 as ny\npoi 25.76 -80.19 as mia'
+    );
+    expect(r.projection).toBe('albers-usa');
+    expect(longerAxis(r)).toBeGreaterThan(7); // not floored
+  });
+
+  it('named-region choropleth is untouched (floor is POI-only)', () => {
+    // regions present → not isPoiOnly → national albers-usa frame as before.
+    const r = resolve('map\nCalifornia value: 1\nOregon value: 2');
+    expect(r.projection).toBe('albers-usa');
+  });
+
+  it('floor applies to non-US POI-only clusters too (no zoom into emptiness)', () => {
+    // London pair (~0.01° span): mercator (non-US), and the floor still expands
+    // the extent so the dots aren’t framed on a near-empty box.
+    const r = resolve('map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b');
+    expect(r.projection).toBe('mercator');
+    expect(longerAxis(r)).toBeCloseTo(7, 5);
+  });
+
+  it('single POI floors to a centred window without NaN', () => {
+    const r = resolve('map\nlocale US\npoi 37.6 -122.1 as a');
+    expect(r.projection).toBe('mercator');
+    expect(longerAxis(r)).toBeCloseTo(7, 5);
+    const cx = (r.extent[0][0] + r.extent[1][0]) / 2;
+    const cy = (r.extent[0][1] + r.extent[1][1]) / 2;
+    expect(cx).toBeCloseTo(-122.1, 5);
+    expect(cy).toBeCloseTo(37.6, 5);
   });
 });
 
@@ -376,6 +479,39 @@ describe('featureBboxPrimary — drop far-detached territories from framing (R5)
   });
 });
 
+describe('POI-only region framing — real geometry (#poi-region)', () => {
+  // Reverse-geocode POIs to their containing region, then frame to that region's
+  // bbox. Requires shipped geometry — hand-built rect rings confuse geoBounds'
+  // winding (every featureBbox returns the whole sphere), so assert on real data.
+  it('a Bay-Area POI cluster frames the whole of California (not a tiny window)', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(
+      parseMap(
+        'map\npoi 37.77 -122.42 as sf\npoi 37.80 -122.27 as oak\npoi 37.34 -121.89 as sj'
+      ),
+      data
+    );
+    // California spans ≈ −124.4°…−114.1° lon, 32.5°…42° lat. The frame must be the
+    // whole state (+pad), far wider than the ~0.5° POI cluster.
+    expect(r.poiFrameContainers).toContain('US-CA');
+    expect(r.extent[0][0]).toBeLessThan(-123); // reaches the Pacific coast
+    expect(r.extent[1][0]).toBeGreaterThan(-115); // reaches the Nevada border
+    expect(r.extent[0][1]).toBeLessThan(34); // reaches SoCal / the south
+    expect(r.extent[1][1]).toBeGreaterThan(41); // reaches the Oregon border
+    expect(r.projection).toBe('mercator');
+  });
+
+  it('records the containing country for a non-US cluster', async () => {
+    const data = await loadMapData();
+    // Two French cities (Paris, Lyon) → framed to France, container recorded.
+    const r = resolveMap(
+      parseMap('map\npoi 48.85 2.35 as paris\npoi 45.76 4.83 as lyon'),
+      data
+    );
+    expect(r.poiFrameContainers).toContain('FR');
+  });
+});
+
 describe('resolver — robustness (AC17, AC18, AC21)', () => {
   it('empty map is valid (AC17)', () => {
     const r = resolve('map');
@@ -396,11 +532,14 @@ describe('resolver — robustness (AC17, AC18, AC21)', () => {
 });
 
 describe('resolver — impl-review fixes (#3/#6/#8/#13/#15)', () => {
-  it('POI-only US map IS US-oriented → albers-usa + full state mesh (§24B.2)', () => {
-    // No us-state regions — just US cities. A map whose content is entirely US
-    // renders as the national US states map (every state outlined), not three
-    // floating dots on a geographic frame.
-    const r = resolve('map\npoi New York City\npoi Los Angeles');
+  it('national-span POI-only US map IS US-oriented → albers-usa + full state mesh (§24B.2)', () => {
+    // No us-state regions — just US cities spanning the nation (NYC + SF). A
+    // POI map whose content actually spans the country renders as the national
+    // US states map (every state outlined). A *local* cluster instead fit-zooms
+    // to a regional mercator frame — see the "fit-to-cluster zoom floor" suite.
+    const r = resolve(
+      'map\nlocale US\npoi 40.71 -74.0 as ny\npoi 37.77 -122.42 as sf'
+    );
     expect(r.projection).toBe('albers-usa');
     expect(r.basemaps.subdivisions).toContain('us-states');
   });
@@ -416,6 +555,54 @@ describe('resolver — impl-review fixes (#3/#6/#8/#13/#15)', () => {
   it('far-flung coordinate POI also blocks albers-usa (#13)', () => {
     const r = resolve('map\nCalifornia value: 1\npoi 35.68 139.69 as t');
     expect(r.projection).not.toBe('albers-usa');
+  });
+
+  // ── North-American-neighbour relaxation (map-us-orientation-north-america) ──
+  it('AC1: US states + a Canadian city POI → albers-usa + us-states', () => {
+    const r = resolve('map\nCalifornia value: 1\npoi Toronto');
+    expect(r.projection).toBe('albers-usa');
+    expect(r.basemaps.subdivisions).toContain('us-states');
+  });
+  it('AC3: US states + a Mexican city POI → albers-usa', () => {
+    const r = resolve('map\nCalifornia value: 1\npoi Monterrey');
+    expect(r.projection).toBe('albers-usa');
+  });
+  it('AC3: US state fill + a Mexico country fill → albers-usa', () => {
+    const r = resolve('map\nCalifornia value: 1\nMexico value: 2');
+    expect(r.projection).toBe('albers-usa');
+  });
+  it('AC4: US POIs + a non-NA POI (Tokyo) → NOT albers-usa, and NO state mesh (global map)', () => {
+    // A US POI on an otherwise-global map (e.g. a worldwide backbone) must NOT
+    // explode the US into 50 states — the map spans beyond NA, so country-only
+    // reads as signal, not noise. States only draw when US states are referenced
+    // as data, or the whole map stays within North America (usOriented).
+    const r = resolve('map\npoi New York City\npoi Tokyo');
+    expect(r.projection).not.toBe('albers-usa');
+    expect(r.basemaps.subdivisions).toHaveLength(0);
+  });
+  it('AC4b: US state DATA + a non-NA POI → states still draw (states are the subject)', () => {
+    // Contrast with AC4: here the US state is referenced as data, so the mesh
+    // stays even on a global projection.
+    const r = resolve('map\nCalifornia value: 5\npoi Tokyo');
+    expect(r.projection).not.toBe('albers-usa');
+    expect(r.basemaps.subdivisions).toContain('us-states');
+  });
+  it('AC5: US state fill + a non-NA country fill (Japan) → NOT albers-usa', () => {
+    const r = resolve('map\nCalifornia value: 1\nJP value: 2');
+    expect(r.projection).not.toBe('albers-usa');
+  });
+  it('AC6: US state fill + a bare coord POI inside Canada (Vancouver) → albers-usa', () => {
+    const r = resolve('map\nCalifornia value: 1\npoi 49 -123 as van');
+    expect(r.projection).toBe('albers-usa');
+  });
+  it('AC6: US state fill + a bare coord POI outside NA (Tokyo) → NOT albers-usa', () => {
+    const r = resolve('map\nCalifornia value: 1\npoi 35 139 as tk');
+    expect(r.projection).not.toBe('albers-usa');
+  });
+  it('AC10: a `United States` country fill alone is NOT US-oriented (no state mesh)', () => {
+    const r = resolve('map\nUnited States value: 1');
+    expect(r.projection).not.toBe('albers-usa');
+    expect(r.basemaps.subdivisions).toHaveLength(0);
   });
   it('region matched by ISO code (#6)', () => {
     const r = resolve('map\nJP value: 5');

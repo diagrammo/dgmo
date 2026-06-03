@@ -98,9 +98,12 @@ const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
       'gruvbox',
       'tokyo-night',
       'one-dark',
-      'bold',
       'dracula',
       'monokai',
+      'atlas',
+      'blueprint',
+      'slate',
+      'tidewater',
     ],
   },
   theme: {
@@ -508,14 +511,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'map',
-    // Geographic map directives (§24B.2/.7). `poi`/`route` are content
-    // keywords, not directives; metadata keys (value/label/style) live in the
-    // reserved-key registry.
+    // Geographic map directives (§24B.2/.7). Cosmetics are ON by default — the
+    // only switches are bare `no-*` opt-outs, surfaced proactively so a
+    // zero-config map still hints at what can be turned off. `poi`/`route` are
+    // content keywords, not directives; metadata keys (value/label/style) live
+    // in the reserved-key registry.
     withGlobals({
-      projection: {
-        description: 'Override the auto projection',
-        values: ['equirectangular', 'natural-earth', 'albers-usa', 'mercator'],
-      },
       'region-metric': { description: 'Label for the region value ramp' },
       'poi-metric': {
         description: 'Label for the POI value (marker size) channel',
@@ -523,23 +524,32 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'flow-metric': {
         description: 'Label for the edge/leg value (thickness) channel',
       },
-      scale: { description: 'Override value ramp anchors: scale <min> <max>' },
-      'region-labels': {
-        description: 'Subdivision name labels',
-        values: ['full', 'abbrev', 'off'],
-      },
-      'poi-labels': {
-        description: 'POI labels/values',
-        values: ['off', 'auto', 'all'],
-      },
       locale: {
         description:
           'Default country/state for bare place names, e.g. locale US-GA',
       },
+      'active-tag': {
+        description: 'Which tag group leads when several are present',
+      },
+      caption: { description: 'Caption line (data-source attribution)' },
       'no-legend': { description: 'Suppress the legend' },
-      relief: { description: 'Subtle mountain-range relief shading' },
-      subtitle: { description: 'Subtitle line' },
-      caption: { description: 'Caption line' },
+      'no-coastline': {
+        description: 'Turn off coastal water-lines (on by default)',
+      },
+      'no-relief': {
+        description: 'Turn off mountain-range relief shading (on by default)',
+      },
+      'no-context-labels': {
+        description: 'Turn off orientation labels for water + nearby countries',
+      },
+      'no-region-labels': {
+        description: 'Turn off subdivision name labels (on by default)',
+      },
+      'no-poi-labels': { description: 'Turn off POI labels (on by default)' },
+      'no-colorize': {
+        description:
+          'Force plain green-land reference dress (regions are auto-coloured by default)',
+      },
     }),
   ],
 ]);

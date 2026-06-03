@@ -88,6 +88,9 @@ export async function render(
     legendState?: { activeGroup?: string; hiddenAttributes?: string[] };
     /** View state for export — controls interactive state (collapse, swimlanes, etc.) */
     viewState?: CompactViewState;
+    /** Bundled map data for `map` charts in the browser, where the Node fs
+     *  `loadMapData()` seam can't run. CLI/SSR omit this and fall back to fs. */
+    mapData?: import('./map/resolved-types').MapData;
   }
 ): Promise<{ svg: string; diagnostics: DgmoError[] }> {
   const theme = options?.theme ?? 'light';
@@ -133,6 +136,7 @@ export async function render(
       c4Container: options.c4Container,
     }),
     ...(options?.tagGroup !== undefined && { tagGroup: options.tagGroup }),
+    ...(options?.mapData !== undefined && { mapData: options.mapData }),
   });
 
   // The map pipeline resolves names AFTER parsing (gazetteer/ISO lookup), so its
@@ -149,7 +153,10 @@ export async function render(
           import('./map/load-data'),
         ]
       );
-      const data = await loadMapData();
+      // Prefer injected data (browser); fall back to the fs loader (CLI/SSR).
+      const data = options?.mapData ?? (await loadMapData());
+      // resolveMap seeds its diagnostics with the parser's, so this is a superset.
+      // (The layout stage has no diagnostics producer, so there is nothing to merge.)
       diagnostics = [...resolveMap(parseMap(content), data).diagnostics];
     } catch {
       /* asset load failed — keep the parser diagnostics */

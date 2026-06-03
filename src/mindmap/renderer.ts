@@ -99,6 +99,9 @@ export function renderMindmap(
     controlsExpanded?: boolean;
     onToggleControlsExpand?: () => void;
     exportMode?: boolean;
+    /** When 'app', controls (Descriptions / Depth Colors) are hosted by the app
+     *  overlay strip — inline gear suppressed, controls row + anchor reserved. */
+    controlsHost?: 'app' | 'inline';
   }
 ): void {
   const isExport = !!exportDims;
@@ -119,9 +122,12 @@ export function renderMindmap(
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('font-family', FONT_FAMILY);
 
+  const appHosted = options?.controlsHost === 'app';
+  // App-hosted: Descriptions / Depth Colors move to the app overlay, so a
+  // controls-only legend (no tag groups) has nothing left to render.
   const hasControls =
     !!options?.onToggleColorByDepth || !!options?.onToggleDescriptions;
-  const hasLegend = parsed.tagGroups.length > 0 || hasControls;
+  const hasLegend = parsed.tagGroups.length > 0 || (hasControls && !appHosted);
   const fixedLegend = !isExport && hasLegend;
   const legendReserve = fixedLegend
     ? getMaxLegendReservedHeight(
@@ -262,6 +268,9 @@ export function renderMindmap(
       position: { placement: 'top-center', titleRelation: 'below-title' },
       mode: options?.exportMode ? 'export' : 'preview',
       ...(controlsToggles !== undefined && { controlsGroup: controlsToggles }),
+      ...(options?.controlsHost !== undefined && {
+        controlsHost: options.controlsHost,
+      }),
     };
     const legendState: LegendState = {
       activeGroup: options?.colorByDepth

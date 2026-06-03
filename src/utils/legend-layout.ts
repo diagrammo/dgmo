@@ -248,6 +248,18 @@ export function controlsGroupCapsuleWidth(
   return w;
 }
 
+/** True when the controlsGroup should be hosted by the app overlay strip
+ *  (gear suppressed, controls row + anchor reserved) rather than drawn inline.
+ *  Never gates on the export path. */
+function isAppHostedControls(config: LegendConfig, isExport: boolean): boolean {
+  return (
+    !isExport &&
+    config.controlsHost === 'app' &&
+    !!config.controlsGroup &&
+    config.controlsGroup.toggles.length > 0
+  );
+}
+
 function buildControlsGroupLayout(
   config: LegendConfig,
   state: LegendState
@@ -325,6 +337,9 @@ export function computeLegendLayout(
   const { groups, controls: configControls, mode } = config;
   const isExport = mode === 'export';
 
+  // App-hosted controls: suppress the inline gear, reserve a header row + anchor.
+  const gated = isAppHostedControls(config, isExport);
+
   // Filter groups for export: only active group shown
   const activeGroupName = state.activeGroup?.toLowerCase() ?? null;
 
@@ -339,10 +354,9 @@ export function computeLegendLayout(
     };
   }
 
-  // Controls group (strip in export mode)
-  const controlsGroupLayout = isExport
-    ? undefined
-    : buildControlsGroupLayout(config, state);
+  // Controls group (gear): suppressed in export and when app-hosted.
+  const controlsGroupLayout =
+    isExport || gated ? undefined : buildControlsGroupLayout(config, state);
 
   const visibleGroups = config.showEmptyGroups
     ? groups
@@ -469,6 +483,9 @@ export function computeLegendLayout(
     controlsGroupLayout
   );
 
+  // App-hosted controls: the controlsGroup was dropped above (no gear), and the
+  // app overlay strip pins itself to the top edge of the preview — dgmo reserves
+  // no row and emits no anchor, so the chart reclaims that space.
   const height = rows.length * LEGEND_HEIGHT;
   const width = containerWidth;
 
