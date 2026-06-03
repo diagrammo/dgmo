@@ -2188,15 +2188,33 @@ export function layoutMap(
       .filter((e): e is NonNullable<typeof e> => e !== null)
       .sort((a, b) => b.area - a.area || a.r.lineNumber - b.r.lineNumber);
     const placedRegionRects: LabelRect[] = [];
+    // POI markers are obstacles for region labels: a region whose centroid sits on
+    // a POI (e.g. Colorado's centroid under the "Core POP" dot in Denver) must NOT
+    // stamp its name there — the POI's own label owns that spot, and two names by
+    // one dot is ambiguous. The dot rect is padded to also keep the region name
+    // clear of the POI's adjacent label. Region labels with no nearby POI (a
+    // container whose POIs cluster in one corner, or an empty neighbour state) are
+    // unaffected. POI markers are positioned above; their labels place further
+    // down, so dot-proximity is the signal available here.
+    const POI_LABEL_PAD = 14; // px — rough room for the POI's own hugging label
+    const poiObstacles: LabelRect[] = pois.map((p) => ({
+      x: p.cx - p.r - POI_LABEL_PAD,
+      y: p.cy - p.r - POI_LABEL_PAD,
+      w: 2 * (p.r + POI_LABEL_PAD),
+      h: 2 * (p.r + POI_LABEL_PAD),
+    }));
     for (const { r, c, boxW, boxH, candidates } of entries) {
       // The first candidate that BOTH fits its own footprint AND clears every
-      // already-placed region label wins; none qualifies → the label is hidden
-      // (a country has no abbrev, so it degrades full → hide; a US state may fall
-      // back to its 2-letter code before hiding).
+      // already-placed region label AND every POI marker wins; none qualifies →
+      // the label is hidden (a country has no abbrev, so it degrades full → hide;
+      // a US state may fall back to its 2-letter code before hiding).
       const text = candidates.find((t) => {
         if (labelW(t) > boxW || labelH > boxH) return false;
         const rect = regionLabelRect(c[0], c[1], t);
-        return !placedRegionRects.some((p) => rectsOverlap(rect, p));
+        return (
+          !placedRegionRects.some((p) => rectsOverlap(rect, p)) &&
+          !poiObstacles.some((o) => rectsOverlap(rect, o))
+        );
       });
       if (text === undefined) continue;
       placedRegionRects.push(regionLabelRect(c[0], c[1], text));

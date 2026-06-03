@@ -1084,3 +1084,26 @@ describe('context labels — review fixes (F1, F3)', () => {
     expect(r.labels.some((l) => l.text === 'United States')).toBe(false);
   });
 });
+
+describe('layout — region label yields to a POI on its centroid (#poi-overlap)', () => {
+  it('drops a state label that would sit on a POI in that state (real geometry)', async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    const r = layoutMap(
+      resolveMap(
+        parseMap(
+          'map\npoi 39.74 -104.99 as core value: 400, label: Core POP\n  -> Seattle\n  -> Atlanta\npoi Seattle value: 120\npoi Atlanta value: 180'
+        ),
+        data
+      ),
+      data,
+      { width: 1300, height: 800 },
+      { palette: P, isDark: false }
+    );
+    const texts = r.labels.map((l) => l.text);
+    // The Denver "Core POP" dot sits on Colorado's centroid → no "Colorado" label
+    // stacked on the POI, but the POI's own label survives.
+    expect(texts).toContain('Core POP');
+    expect(texts).not.toContain('Colorado');
+  });
+});
