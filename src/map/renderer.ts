@@ -104,30 +104,41 @@ function coastlineOuterRings(
  *  protect across regions: where two coasts sit closer than ~2·d1 (a tripoint, a
  *  narrow strait, an inset box edge), one region's flat-water overdraw can paint
  *  over a neighbour's inner ring — the same accepted "tripoint stub / narrow
- *  inlet fills solid" artifact the tech-spec calls out, bounded by small d. */
+ *  inlet fills solid" artifact the tech-spec calls out, bounded by small d.
+ *
+ *  Perf: every outer ring in a given (level, pass) shares identical stroke
+ *  attributes, so they collapse into ONE multi-subpath `<path>` (each ring's
+ *  `d` already starts with `M`, so joining is a valid compound path). A world
+ *  map drops from ~6k coastline paths to 2 per ring-level (~10 total), which is
+ *  ~87% of the whole map's path count — the dominant cost in any repaint. The
+ *  only visible consequence: the colour-band pass strokes at `stroke-opacity`,
+ *  and a single path's stroke rasterises as ONE coverage region, so adjacent
+ *  bands that overlap (straits/tripoints) no longer double-darken — they read
+ *  uniform, which is if anything cleaner. Draw order (all colour bands, then all
+ *  flat-water, outer level first) is unchanged, so the single-ring invariant and
+ *  the accepted cross-region overdraw artifact behave exactly as before. */
 function appendWaterLines(
   g: Sel,
   outerRings: readonly string[],
   style: MapLayoutCoastlineStyle,
   flatWater: string
 ): void {
+  const d = outerRings.join(' ');
   const linesOuterFirst = [...style.lines].sort((a, b) => b.d - a.d);
   for (const line of linesOuterFirst) {
-    for (const d of outerRings)
-      g.append('path')
-        .attr('d', d)
-        .attr('stroke', style.color)
-        .attr('stroke-width', 2 * (line.d + line.thickness))
-        .attr('stroke-opacity', line.opacity)
-        .attr('stroke-linejoin', 'round')
-        .attr('stroke-linecap', 'round');
-    for (const d of outerRings)
-      g.append('path')
-        .attr('d', d)
-        .attr('stroke', flatWater)
-        .attr('stroke-width', 2 * line.d)
-        .attr('stroke-linejoin', 'round')
-        .attr('stroke-linecap', 'round');
+    g.append('path')
+      .attr('d', d)
+      .attr('stroke', style.color)
+      .attr('stroke-width', 2 * (line.d + line.thickness))
+      .attr('stroke-opacity', line.opacity)
+      .attr('stroke-linejoin', 'round')
+      .attr('stroke-linecap', 'round');
+    g.append('path')
+      .attr('d', d)
+      .attr('stroke', flatWater)
+      .attr('stroke-width', 2 * line.d)
+      .attr('stroke-linejoin', 'round')
+      .attr('stroke-linecap', 'round');
   }
 }
 
@@ -315,12 +326,19 @@ export function renderMap(
       .attr('width', width)
       .attr('height', height)
       .attr('fill', 'white');
-    for (const r of layout.regions)
-      if (r.id !== 'lake')
-        mask.append('path').attr('d', r.d).attr('fill', 'black');
-    for (const r of layout.regions)
-      if (r.id === 'lake')
-        mask.append('path').attr('d', r.d).attr('fill', 'white');
+    // All land fills are opaque black and all lake fills opaque white, so each
+    // group collapses into ONE compound path (land first, lakes over it to
+    // re-reveal their interiors). Identical pixels, ~hundreds of paths → 2.
+    const landD = layout.regions
+      .filter((r) => r.id !== 'lake')
+      .map((r) => r.d)
+      .join(' ');
+    const lakeD = layout.regions
+      .filter((r) => r.id === 'lake')
+      .map((r) => r.d)
+      .join(' ');
+    if (landD) mask.append('path').attr('d', landD).attr('fill', 'black');
+    if (lakeD) mask.append('path').attr('d', lakeD).attr('fill', 'white');
     // Moat around each AK/HI inset box: the opaque box is drawn in the FOREGROUND
     // over open ocean, so the main-map offshore rings get chopped by its border
     // and butt into it — sloppy. Paint each box quad black (interior, under the
@@ -366,11 +384,20 @@ export function renderMap(
     // water side — the land side was never touched, and interior land/land borders
     // stay hidden), on top of the rings. The strokes sit at the coast (offset 0),
     // well inside d0, so they never cover the offshore rings.
-    for (const r of layout.regions)
+    // Group the restroke by stroke colour (base borders share one colour; the
+    // occasional data region may differ) so same-coloured coasts collapse into a
+    // single compound path instead of one path per region.
+    const byStroke = new Map<string, string[]>();
+    for (const r of layout.regions) {
+      const arr = byStroke.get(r.stroke);
+      if (arr) arr.push(r.d);
+      else byStroke.set(r.stroke, [r.d]);
+    }
+    for (const [stroke, ds] of byStroke)
       gWater
         .append('path')
-        .attr('d', r.d)
-        .attr('stroke', r.stroke)
+        .attr('d', ds.join(' '))
+        .attr('stroke', stroke)
         .attr('stroke-width', 0.5)
         .attr('stroke-linejoin', 'round');
   }

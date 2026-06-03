@@ -260,15 +260,15 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     );
     expect(whites.length).toBeGreaterThan(0);
     expect(blacks.length).toBeGreaterThan(0);
-    // A land region's own path appears (black) in the mask, so any band along
-    // its land/land border falls on hidden land (AC2).
+    // A land region's geometry appears (black) in the mask, so any band along
+    // its land/land border falls on hidden land (AC2). Land fills are merged
+    // into one compound black path for perf, so the region's `d` is a SUBSTRING
+    // of that path rather than a standalone element.
     const usD = svg
       .querySelector<SVGPathElement>('.dgmo-map-regions path')!
-      .getAttribute('d');
-    const maskDs = [...mask.querySelectorAll('path')].map((p) =>
-      p.getAttribute('d')
-    );
-    expect(maskDs).toContain(usD);
+      .getAttribute('d')!;
+    const blackDs = blacks.map((p) => p.getAttribute('d') ?? '');
+    expect(blackDs.some((d) => d.includes(usD))).toBe(true);
   });
 
   it('water-lines are decorative — no data attributes (AC1)', () => {
