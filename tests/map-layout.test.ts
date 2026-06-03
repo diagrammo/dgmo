@@ -638,8 +638,8 @@ describe('layout — labels & legend (AC13, AC14, AC15, AC16, AC17)', () => {
     expect(r.clusters).toHaveLength(1);
     expect(r.clusters[0]!.count).toBe(4);
   });
-  it('labels carry a halo flag (AC16)', () => {
-    expect(lay('map\npoi Tokyo').labels.every((l) => l.halo)).toBe(true);
+  it('POI labels carry no halo flag (AC16)', () => {
+    expect(lay('map\npoi Tokyo').labels.every((l) => !l.halo)).toBe(true);
   });
   it('no-legend suppresses the legend model (AC17)', () => {
     expect(lay('map\nno-legend\nCalifornia value: 5').legend).toBeNull();

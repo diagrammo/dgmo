@@ -98,9 +98,10 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     ).toBeGreaterThan(0);
   });
 
-  it('on-map labels carry a paint-order halo (AC16)', () => {
+  it('POI labels render without a paint-order halo (AC16)', () => {
     const svg = render('map\npoi Tokyo');
-    expect(svg.innerHTML).toContain('paint-order');
+    const t = svg.querySelector('.dgmo-map-labels text');
+    expect(t?.getAttribute('paint-order')).toBeNull();
   });
 
   it('no-legend suppresses the legend group (AC17)', () => {
