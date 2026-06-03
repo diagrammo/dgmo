@@ -743,6 +743,7 @@ export {
   tokyoNightPalette,
   oneDarkPalette,
   atlasPalette,
+  blueprintPalette,
   slatePalette,
   tidewaterPalette,
   draculaPalette,

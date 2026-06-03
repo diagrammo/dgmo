@@ -101,6 +101,7 @@ const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
       'dracula',
       'monokai',
       'atlas',
+      'blueprint',
       'slate',
       'tidewater',
     ],

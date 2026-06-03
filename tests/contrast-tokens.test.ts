@@ -5,6 +5,7 @@ import {
   relativeLuminance,
 } from '../src/palettes/color-utils';
 import { atlasPalette } from '../src/palettes/atlas';
+import { blueprintPalette } from '../src/palettes/blueprint';
 import { catppuccinPalette } from '../src/palettes/catppuccin';
 import { draculaPalette } from '../src/palettes/dracula';
 import { gruvboxPalette } from '../src/palettes/gruvbox';
@@ -28,6 +29,7 @@ function contrastRatio(a: string, b: string): number {
 
 const PALETTES = [
   { name: 'atlas', cfg: atlasPalette },
+  { name: 'blueprint', cfg: blueprintPalette },
   { name: 'slate', cfg: slatePalette },
   { name: 'tidewater', cfg: tidewaterPalette },
   { name: 'catppuccin', cfg: catppuccinPalette },

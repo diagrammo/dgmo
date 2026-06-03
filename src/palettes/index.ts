@@ -24,6 +24,7 @@ export {
 
 // Re-export palette definitions (alphabetical)
 export { atlasPalette } from './atlas';
+export { blueprintPalette } from './blueprint';
 export { catppuccinPalette } from './catppuccin';
 export { gruvboxPalette } from './gruvbox';
 export { nordPalette } from './nord';
@@ -42,6 +43,7 @@ export { monokaiPalette } from './monokai';
 // ============================================================
 
 import { atlasPalette } from './atlas';
+import { blueprintPalette } from './blueprint';
 import { catppuccinPalette } from './catppuccin';
 import { draculaPalette } from './dracula';
 import { gruvboxPalette } from './gruvbox';
@@ -67,6 +69,7 @@ import type { PaletteConfig } from './types';
  */
 export const palettes = {
   atlas: atlasPalette,
+  blueprint: blueprintPalette,
   slate: slatePalette,
   tidewater: tidewaterPalette,
   nord: nordPalette,
