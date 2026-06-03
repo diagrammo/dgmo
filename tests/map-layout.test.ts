@@ -7,6 +7,7 @@ import {
   MAX_COLUMN_ROWS,
 } from '../src/map/layout';
 import { getPalette } from '../src/palettes';
+import { measureLegendText } from '../src/utils/legend-constants';
 import { mix } from '../src/palettes/color-utils';
 import type { MapData } from '../src/map/resolved-types';
 import type { BoundaryTopology, Gazetteer } from '../src/map/data/types';
@@ -479,6 +480,44 @@ describe('layout — POIs (AC6, AC7, AC8, AC18)', () => {
     expect(a.clusters[0]!.count).toBe(2);
     const b = lay('map\npoi 0 0 as aa\npoi 0 0 as bb');
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+  it('spiderfied member labels stay fully on-canvas (off-canvas guard counts label extents)', () => {
+    // A dense co-located stack of wide-labelled POIs on a narrow canvas: the
+    // fan's radial labels (not just the dots) must not bleed off either edge.
+    // On an 800-wide canvas these all fit comfortably, so use a narrow band that
+    // forces the guard to shift the whole fan inward. Aliases are capped at 12
+    // chars by the parser (AS_ALIAS_RE), so each label is a maxed-out 12-char
+    // token (~70px wide) — wide enough to overrun without the guard.
+    const FONT = 11;
+    const W = 220;
+    const H = 600;
+    const names = [
+      'OfficeAlphaa',
+      'OfficeBravoo',
+      'OfficeCharli',
+      'OfficeDeltaa',
+      'OfficeEchooo',
+      'OfficeFoxtro',
+      'OfficeGolffo',
+      'OfficeHotelo',
+      'OfficeIndiaa',
+    ];
+    const r = lay(
+      'map\n' + names.map((n) => `poi 0 0 as ${n}`).join('\n'),
+      W,
+      H
+    );
+    expect(r.clusters).toHaveLength(1);
+    const members = r.labels.filter((l) => l.clusterMember !== undefined);
+    expect(members.length).toBe(names.length);
+    for (const l of members) {
+      const w = measureLegendText(l.text, FONT);
+      // anchor 'start' extends right (x → x+w); 'end' extends left (x-w → x).
+      const left = l.anchor === 'end' ? l.x - w : l.x;
+      const right = l.anchor === 'end' ? l.x : l.x + w;
+      expect(left).toBeGreaterThanOrEqual(0);
+      expect(right).toBeLessThanOrEqual(W);
+    }
   });
 });
 
