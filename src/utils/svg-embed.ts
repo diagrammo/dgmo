@@ -204,9 +204,18 @@ function computeBBox(
     const y = attr(tag, 'y');
     if (x !== null && y !== null) {
       const w = text.length * 7;
-      // text-anchor may be start/middle/end; assume worst case (middle).
-      push(x - w / 2, y - 14);
-      push(x + w / 2, y + 4);
+      // Honor text-anchor so the horizontal extent points the right way:
+      // `start` (SVG default) grows rightward from x, `end` grows leftward,
+      // `middle` straddles x. Assuming middle for everything under-measures
+      // start-anchored text (e.g. pyramid right-column descriptions), which
+      // collapses the tight viewBox and clips that text in embeds.
+      const anchor = tag.match(/\btext-anchor="([^"]*)"/)?.[1] ?? 'start';
+      const left =
+        anchor === 'middle' ? x - w / 2 : anchor === 'end' ? x - w : x;
+      const right =
+        anchor === 'middle' ? x + w / 2 : anchor === 'end' ? x : x + w;
+      push(left, y - 14);
+      push(right, y + 4);
     }
   }
 

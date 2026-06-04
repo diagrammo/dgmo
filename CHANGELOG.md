@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.3] - 2026-06-04
+
+### Fixed
+
+- **Pyramid descriptions no longer clip at the right edge in embeds** (Obsidian,
+  remark/markdown, web embeds). `normalizeSvgForEmbed`'s string bounding-box
+  estimator assumed every `<text>` was `text-anchor="middle"`, so it
+  under-measured the right extent of `start`-anchored text (e.g. pyramid
+  right-column descriptions) by half the text width — collapsing the tight
+  viewBox and clipping that text when scaled to fit. The estimator now honors
+  each element's `text-anchor` (`start`/`middle`/`end`). Benefits any chart type
+  with anchored text near a margin.
+
 ## [0.25.2] - 2026-06-04
 
 ### Fixed
