@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.2] - 2026-06-04
+
+### Fixed
+
+- **Word clouds no longer collapse to their title in embeds** (Obsidian,
+  remark/markdown, web embeds). Word-cloud words are positioned with
+  `transform="translate()"` and have no `x`/`y` attributes, so
+  `normalizeSvgForEmbed`'s string bounding-box estimator couldn't see them — it
+  measured only the title and zoomed that fragment to fill the frame. Tightening
+  is now rejected when the measured box covers less than half of the renderer's
+  canvas (a sign content was missed), keeping the correct full-canvas viewBox.
+  Extends the embed-clipping fix in 0.25.1.
+
 ## [0.25.1] - 2026-06-04
 
 ### Fixed

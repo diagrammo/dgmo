@@ -4,24 +4,54 @@ import { getEmbedSvgViewBox, normalizeSvgForEmbed } from '../src/index';
 
 describe('normalizeSvgForEmbed', () => {
   it('tightens a fixed-canvas viewBox to the content bbox (+padding)', () => {
-    // Content occupies y 100..150 within an 800-tall canvas — the classic
-    // "short diagram, tons of dead space" case.
+    // Content fills most of the canvas with modest dead margins — a genuine
+    // trim (covers well over half of each axis, so it's trusted).
     const input =
       '<svg width="1200" height="800" viewBox="0 0 1200 800">' +
-      '<rect x="100" y="100" width="200" height="50"></rect>' +
+      '<rect x="100" y="100" width="1000" height="600"></rect>' +
       '</svg>';
     const out = normalizeSvgForEmbed(input);
 
     const vb = out.match(/viewBox="([^"]+)"/)?.[1];
     expect(vb).toBeDefined();
     const [x, y, w, h] = vb!.split(/\s+/).map(Number);
-    // bbox = (100,100)..(300,150); pad 16 each side.
+    // bbox = (100,100)..(1100,700); pad 16 each side.
     expect(x).toBe(100 - 16);
     expect(y).toBe(100 - 16);
-    expect(w).toBe(200 + 32);
-    expect(h).toBe(50 + 32);
-    // Content aspect, not the 1200/800 canvas aspect.
-    expect(w / h).toBeCloseTo(232 / 82, 5);
+    expect(w).toBe(1000 + 32);
+    expect(h).toBe(600 + 32);
+  });
+
+  it('does NOT tighten when the measured box covers little of the canvas', () => {
+    // computeBBox is a string estimator that can't see transform-positioned
+    // elements (e.g. word-cloud words use `transform`, not x/y). When it
+    // measures only a fragment (here a small rect), the box collapses far
+    // below the canvas — distrust it and keep the renderer's correct viewBox,
+    // rather than zooming the fragment to fill the frame.
+    const input =
+      '<svg width="1200" height="800" viewBox="0 0 1200 800">' +
+      '<rect x="100" y="100" width="200" height="50"></rect>' +
+      '</svg>';
+    const out = normalizeSvgForEmbed(input);
+    expect(out).toMatch(/viewBox="0 0 1200 800"/);
+  });
+
+  it('does NOT shift the viewBox out of bounds (path arc misparse guard)', () => {
+    // A box that strays outside the canvas (negative origin) is a parse error,
+    // not real content — keep the renderer's viewBox.
+    const input =
+      '<svg viewBox="0 0 800 500">' +
+      '<path d="M 10 10 A 50 50 0 0 1 700 400"></path>' +
+      '</svg>';
+    const out = normalizeSvgForEmbed(input);
+    // The arc's `A 50 50 0 0 1` params get mis-paired as coords; whatever box
+    // results, it must never escape the canvas. Either unchanged or in-bounds.
+    const vb = out.match(/viewBox="([^"]+)"/)?.[1];
+    const [x, y, w, h] = vb!.split(/\s+/).map(Number);
+    expect(x).toBeGreaterThanOrEqual(-2);
+    expect(y).toBeGreaterThanOrEqual(-2);
+    expect(x + w).toBeLessThanOrEqual(800 + 2);
+    expect(y + h).toBeLessThanOrEqual(500 + 2);
   });
 
   it('strips fixed width/height and inline background', () => {

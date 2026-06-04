@@ -38,23 +38,30 @@ export function normalizeSvgForEmbed(input: string): string {
     const y = tight.y - pad;
     const w = tight.width + pad * 2;
     const h = tight.height + pad * 2;
-    // Genuine content-tightening is ALWAYS a sub-rectangle of the renderer's
-    // export canvas. computeBBox is a best-effort string parser: it misreads
-    // path arc commands (`A rx ry rot … x y`) and ignores `<g transform>`, so
-    // it can return a box that strays OUTSIDE the canvas (negative origin or
-    // over-wide). That's a parse error, not real content — applying it shifts the
-    // viewBox and CLIPS the diagram (the right/bottom fall off in embeds). Only
-    // tighten when the computed box sits within the renderer's viewBox;
-    // otherwise keep the already-correct canvas bounds.
+    // The renderer's viewBox is authoritative; computeBBox may only shave dead
+    // margins off it. computeBBox is a best-effort string parser with two
+    // failure modes, and the renderer's canvas bounds catch both:
+    //   1. OVER-shoot — it misreads path arc commands (`A rx ry rot … x y`) and
+    //      yields a box that strays OUTSIDE the canvas (negative origin /
+    //      over-wide). Applying it shifts the viewBox and CLIPS the diagram.
+    //   2. UNDER-shoot — it can't see elements positioned via `transform`
+    //      (no x/y attrs), e.g. word-cloud words. It then measures only the
+    //      stragglers (the title) and collapses the box to a tiny region,
+    //      zooming that fragment to fill the frame.
+    // So only tighten when the computed box sits WITHIN the canvas AND still
+    // covers most of it; otherwise keep the renderer's correct bounds.
     const canvas = readViewBox(svg);
     const TOL = 2;
-    const withinCanvas =
+    const MIN_COVERAGE = 0.5; // a real trim shaves margins, not the diagram
+    const trustworthy =
       !canvas ||
       (x >= canvas.x - TOL &&
         y >= canvas.y - TOL &&
         x + w <= canvas.x + canvas.width + TOL &&
-        y + h <= canvas.y + canvas.height + TOL);
-    if (withinCanvas) {
+        y + h <= canvas.y + canvas.height + TOL &&
+        w >= canvas.width * MIN_COVERAGE &&
+        h >= canvas.height * MIN_COVERAGE);
+    if (trustworthy) {
       const vb = `${x} ${y} ${w} ${h}`;
       svg = svg.replace(/(<svg[^>]*?)viewBox="[^"]*"/, `$1viewBox="${vb}"`);
     }
