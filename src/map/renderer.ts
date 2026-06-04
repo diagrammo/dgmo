@@ -286,6 +286,10 @@ export function renderMap(
     const gRelief = svg
       .append('g')
       .attr('clip-path', `url(#${landClipId})`) // outer: land only
+      // Decorative texture — never a pointer target, so region hover (the app's
+      // name-on-hover) always reaches the region path beneath. WebKit hit-tests
+      // masked/clipped overlays unlike Chromium, so this must be explicit.
+      .style('pointer-events', 'none')
       .append('g')
       .attr('class', 'dgmo-map-relief')
       .attr('clip-path', `url(#${rangeClipId})`) // inner: ∩ ranges
@@ -380,6 +384,10 @@ export function renderMap(
       .append('g')
       .attr('class', 'dgmo-map-water-lines')
       .attr('fill', 'none')
+      // Decorative nautical lines — never a pointer target. Without this the wide
+      // pre-mask coastal ring bands swallow region hover over coastal countries in
+      // WebKit (which hit-tests masked content unlike Chromium); e.g. Portugal.
+      .style('pointer-events', 'none')
       .attr('mask', `url(#${maskId})`);
     appendWaterLines(
       gWater,
@@ -417,7 +425,8 @@ export function renderMap(
     const gRivers = svg
       .append('g')
       .attr('class', 'dgmo-map-rivers')
-      .attr('fill', 'none');
+      .attr('fill', 'none')
+      .style('pointer-events', 'none'); // decorative — pass hover to regions below
     for (const r of layout.rivers) {
       gRivers
         .append('path')
@@ -519,6 +528,7 @@ export function renderMap(
         .append('g')
         .attr('class', 'dgmo-map-inset-water-lines')
         .attr('fill', 'none')
+        .style('pointer-events', 'none') // decorative — pass hover to inset regions
         .attr('mask', `url(#${maskId})`);
       appendWaterLines(
         gInsetWater,
