@@ -64,6 +64,16 @@ const WORLD_LAT_NORTH = 78;
 // the dots. A tight cluster (e.g. Bay Area cities) therefore frames as ≈ its
 // home state + neighbours rather than the whole nation. Tunable.
 const POI_ZOOM_FLOOR_DEG = 7;
+// POI-only container framing reveals the region(s) that CONTAIN the dots, but a
+// single POI near the edge of a tall/wide country (e.g. Cartagena at the north
+// tip of Colombia) would otherwise drag the frame to that country's far edge —
+// all the way to the Amazon, ~15° below the southernmost dot. Clamp the container
+// union so it reveals at most this many degrees of container BEYOND the POI
+// cluster on each side: northern Colombia stays for orientation, the empty
+// interior is cropped. Sized so an edge cluster still reaches across a US
+// state-scale container (a Bay-Area cluster sits on the coast, ~8° from the
+// Nevada border, and must still show the whole of California). Tunable.
+const CONTAINER_OVERSHOOT_DEG = 8;
 // Above this longitudinal span a US POI-only extent is "national" — use the
 // albers-usa composite (CONUS conic + AK/HI insets) instead of regional Mercator.
 // CONUS spans ≈58° lon; 48° is "most of the country". Tunable.
@@ -798,7 +808,11 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       if (bb && !isWholeSphere(bb)) containerBoxes.push(bb);
     }
     const containerUnion = unionExtent(containerBoxes, points);
-    if (containerUnion) extent = pad(containerUnion, PAD_FRACTION);
+    if (containerUnion)
+      extent = pad(
+        clampContainerToCluster(containerUnion, points),
+        PAD_FRACTION
+      );
   }
 
   // POI-only fit-to-cluster zoom floor. With region framing above, the extent is
@@ -932,6 +946,34 @@ function mostCommonCountry(
     }
   }
   return best;
+}
+
+/** Asymmetric container clamp (R-poi-region overshoot guard). Container framing
+ *  reveals the region(s) holding the POIs, but one POI at the edge of a tall/wide
+ *  country drags the frame to that country's far edge. Cap how far the frame
+ *  extends BEYOND the POI cluster on each side at CONTAINER_OVERSHOOT_DEG. Latitude
+ *  always clamps; longitude clamps only when neither extent crosses the
+ *  antimeridian seam (a wrapped extent carries east > 180), where naive min/max
+ *  would be wrong. Never tightens past the cluster itself, so the dots stay
+ *  framed, and never widens it — the container edge is still the outer bound. */
+function clampContainerToCluster(
+  container: GeoExtent,
+  points: Array<[number, number]>
+): GeoExtent {
+  const poi = unionExtent([], points);
+  if (!poi) return container;
+  let [[west, south], [east, north]] = container;
+  const [[pWest, pSouth], [pEast, pNorth]] = poi;
+  south = Math.max(south, pSouth - CONTAINER_OVERSHOOT_DEG);
+  north = Math.min(north, pNorth + CONTAINER_OVERSHOOT_DEG);
+  if (east <= 180 && pEast <= 180) {
+    west = Math.max(west, pWest - CONTAINER_OVERSHOOT_DEG);
+    east = Math.min(east, pEast + CONTAINER_OVERSHOOT_DEG);
+  }
+  return [
+    [west, south],
+    [east, north],
+  ];
 }
 
 function pad(e: GeoExtent, frac: number): GeoExtent {

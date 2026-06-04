@@ -501,6 +501,26 @@ describe('POI-only region framing — real geometry (#poi-region)', () => {
     expect(r.projection).toBe('mercator');
   });
 
+  it('a POI at the edge of a tall country crops the empty interior (overshoot clamp)', async () => {
+    const data = await loadMapData();
+    // A Caribbean route: the southernmost dot (Cartagena, ≈10.4°N) sits at the
+    // NORTH tip of Colombia, whose bbox runs to ≈−4°S in the Amazon. Without the
+    // clamp the frame would chase Colombia's far edge ~15° below the dots. The
+    // clamp caps the southern reveal at CONTAINER_OVERSHOOT_DEG (8°) below the
+    // cluster, so the frame stays north of the equator — northern Colombia for
+    // context, no empty Amazon.
+    const r = resolveMap(
+      parseMap(
+        'map\npoi 25.79 -80.19 as miami\npoi 23.11 -82.36 as havana\npoi 17.97 -76.79 as kingston\npoi 18.47 -69.89 as santo-domingo\npoi 10.39 -75.51 as cartagena'
+      ),
+      data
+    );
+    expect(r.poiFrameContainers).toContain('CO'); // Cartagena → Colombia
+    // Southernmost POI is 10.39°N; the frame must not dive more than ~8° below it.
+    expect(r.extent[0][1]).toBeGreaterThan(0); // stays north of the equator
+    expect(r.extent[0][1]).toBeLessThan(10.39); // but still reveals land south of the dots
+  });
+
   it('records the containing country for a non-US cluster', async () => {
     const data = await loadMapData();
     // Two French cities (Paris, Lyon) → framed to France, container recorded.
