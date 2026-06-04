@@ -57,6 +57,70 @@ function ringToPath(ring: ReadonlyArray<[number, number]>): string {
   return d + 'Z';
 }
 
+/** Open SVG polyline (`M…L…`, no `Z`) from a run of points. */
+function polylineToPath(pts: ReadonlyArray<[number, number]>): string {
+  let d = '';
+  for (let i = 0; i < pts.length; i++)
+    d += (i ? 'L' : 'M') + pts[i]![0] + ',' + pts[i]![1];
+  return d;
+}
+
+/** Coast subpaths for one ring, dropping any edge that runs ALONG a canvas edge.
+ *  A region clipped to the viewport (the antimeridian on a world map, or a
+ *  regional clipExtent cut) gains a synthetic straight edge collinear with the
+ *  frame — that edge is NOT a real coast and must not be buffered into a coast
+ *  band (which would ring the cut with water-lines short of the edge). Without a
+ *  `frame` the ring is returned closed (`M…Z`) as before. With one, the ring is
+ *  split at every frame-collinear edge into open coast arcs (`M…L…`), so the land
+ *  runs cleanly to the edge and only true coastline gets a water-line. */
+function ringToCoastPaths(
+  ring: ReadonlyArray<[number, number]>,
+  frame?: { w: number; h: number }
+): string[] {
+  if (!frame) return [ringToPath(ring)];
+  const n = ring.length;
+  const eps = 0.75;
+  const onL = (x: number): boolean => Math.abs(x) <= eps;
+  const onR = (x: number): boolean => Math.abs(x - frame.w) <= eps;
+  const onT = (y: number): boolean => Math.abs(y) <= eps;
+  const onB = (y: number): boolean => Math.abs(y - frame.h) <= eps;
+  const isFrameEdge = (
+    a: readonly [number, number],
+    b: readonly [number, number]
+  ): boolean =>
+    (onL(a[0]) && onL(b[0])) ||
+    (onR(a[0]) && onR(b[0])) ||
+    (onT(a[1]) && onT(b[1])) ||
+    (onB(a[1]) && onB(b[1]));
+  // No frame-collinear edge anywhere → ordinary interior coastline (closed).
+  let firstBreak = -1;
+  for (let i = 0; i < n; i++)
+    if (isFrameEdge(ring[i]!, ring[(i + 1) % n]!)) {
+      firstBreak = i;
+      break;
+    }
+  if (firstBreak === -1) return [ringToPath(ring)];
+  // Walk the loop from just after the first cut, accumulating runs of real-coast
+  // edges into open polylines and breaking at each frame-collinear edge.
+  const paths: string[] = [];
+  let cur: Array<[number, number]> = [];
+  const start = (firstBreak + 1) % n;
+  for (let k = 0; k < n; k++) {
+    const i = (start + k) % n;
+    const a = ring[i]!;
+    const b = ring[(i + 1) % n]!;
+    if (isFrameEdge(a, b)) {
+      if (cur.length >= 2) paths.push(polylineToPath(cur));
+      cur = [];
+      continue;
+    }
+    if (cur.length === 0) cur.push(a);
+    cur.push(b);
+  }
+  if (cur.length >= 2) paths.push(polylineToPath(cur));
+  return paths;
+}
+
 /** Coast outlines to buffer: every region's OUTER rings whose bbox extent clears
  *  `minExtent`. Holes/enclaves are skipped via containment depth (even depth =
  *  outer landmass boundary, odd = a hole) so an enclave (Lesotho) or a lake-hole
@@ -64,7 +128,8 @@ function ringToPath(ring: ReadonlyArray<[number, number]>): string {
  *  degenerate-ring floor now — every island, however small, grows coast rings. */
 function coastlineOuterRings(
   regions: readonly MapLayoutRegion[],
-  minExtent: number
+  minExtent: number,
+  frame?: { w: number; h: number }
 ): string[] {
   const paths: string[] = [];
   for (const r of regions) {
@@ -88,7 +153,7 @@ function coastlineOuterRings(
       for (let j = 0; j < rings.length; j++)
         if (j !== i && pointInRing(fx, fy, rings[j]!)) depth++;
       if (depth % 2 === 1) continue; // hole/enclave — skip
-      paths.push(ringToPath(ring));
+      paths.push(...ringToCoastPaths(ring, frame));
     }
   }
   return paths;
@@ -391,7 +456,13 @@ export function renderMap(
       .attr('mask', `url(#${maskId})`);
     appendWaterLines(
       gWater,
-      coastlineOuterRings(layout.regions, cs.minExtent),
+      // Pass the canvas frame so edges collinear with it (the antimeridian on a
+      // world map, regional clipExtent cuts) don't get ringed as fake coast —
+      // land runs cleanly to the render-area edge.
+      coastlineOuterRings(layout.regions, cs.minExtent, {
+        w: width,
+        h: height,
+      }),
       cs,
       layout.background
     );

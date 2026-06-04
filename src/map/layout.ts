@@ -859,6 +859,60 @@ export function parsePathRings(d: string): Array<Array<[number, number]>> {
   return rings;
 }
 
+/** Drop antimeridian wrap-slivers from a GLOBAL-view region path. A landmass that
+ *  crosses ±180° (Russia's Chukotka, the western Aleutians, Fiji…) is clipped into
+ *  fragments; the far one is a small sliver pinned to the OPPOSITE vertical frame
+ *  edge — it reads as a stray island floating beside its true continent (e.g. the
+ *  "island left of Alaska"). We drop any ring that (a) has an edge collinear with
+ *  the LEFT or RIGHT canvas edge AND (b) is small AND (c) isn't the region's
+ *  largest ring. The mainland (large, on its own edge) and interior islands (not
+ *  frame-cut) are kept. Vertical edges only — a ring cut by the top/bottom lat
+ *  crop is real content, not a wrap. Global-only: regional clipExtent cuts ARE
+ *  real land at the viewport edge and must survive. */
+function dropAntimeridianWrapSlivers(
+  d: string,
+  width: number,
+  height: number
+): string {
+  const rings = parsePathRings(d);
+  if (rings.length <= 1) return d;
+  const eps = 0.75;
+  const minArea = 0.003 * width * height; // 0.3% of canvas
+  const ringArea = (r: ReadonlyArray<[number, number]>): number => {
+    let s = 0;
+    for (let i = 0; i < r.length; i++) {
+      const a = r[i]!;
+      const b = r[(i + 1) % r.length]!;
+      s += a[0] * b[1] - b[0] * a[1];
+    }
+    return Math.abs(s) / 2;
+  };
+  const areas = rings.map(ringArea);
+  const maxArea = Math.max(...areas);
+  const onVEdge = (
+    a: readonly [number, number],
+    b: readonly [number, number]
+  ): boolean =>
+    (Math.abs(a[0]) <= eps && Math.abs(b[0]) <= eps) ||
+    (Math.abs(a[0] - width) <= eps && Math.abs(b[0] - width) <= eps);
+  let dropped = false;
+  const kept = rings.filter((r, idx) => {
+    if (areas[idx]! >= maxArea || areas[idx]! >= minArea) return true;
+    const touches = r.some((p, i) => onVEdge(p, r[(i + 1) % r.length]!));
+    if (touches) {
+      dropped = true;
+      return false;
+    }
+    return true;
+  });
+  if (!dropped) return d;
+  return kept
+    .map(
+      (r) => r.map((p, i) => (i ? 'L' : 'M') + p[0] + ',' + p[1]).join('') + 'Z'
+    )
+    .join('');
+}
+
 export function layoutMap(
   resolved: ResolvedMap,
   data: MapData,
@@ -1163,10 +1217,17 @@ export function layoutMap(
     const by0 = cb[0][1];
     const cw = cb[1][0] - bx0;
     const ch = cb[1][1] - by0;
-    const ox = fitBox[0][0];
-    const oy = fitBox[0][1];
-    const sx = cw > 0 ? (fitBox[1][0] - ox) / cw : 1;
-    const sy = ch > 0 ? (fitBox[1][1] - oy) / ch : 1;
+    // A global stretch-fill runs the world to EVERY edge of the canvas — no
+    // FIT_PAD inset. The equirectangular rectangle is the map, so its edges ARE
+    // the render-area edges (the antimeridian sits exactly on the left/right
+    // edge, not 24px short of it with a coastline ringing the gap). The title
+    // overlays the top; we reserve a top band only when POIs are present (so
+    // their markers don't project up under the foreground title banner).
+    const topReserve = resolved.title && resolved.pois.length > 0 ? topPad : 0;
+    const ox = 0;
+    const oy = topReserve;
+    const sx = cw > 0 ? width / cw : 1;
+    const sy = ch > 0 ? (height - topReserve) / ch : 1;
     stretchParams = { sx, sy, ox, oy, bx0, by0 };
     const stretch = (x: number, y: number): [number, number] => [
       ox + (x - bx0) * sx,
@@ -1611,7 +1672,12 @@ export function layoutMap(
       // but still drop antimeridian frame-fillers (Fiji et al.).
       const viewF = shouldCull ? cullFeatureToView(f) : dropFrameFillers(f);
       if (!viewF) continue;
-      const d = path(viewF as never) ?? '';
+      const raw = path(viewF as never) ?? '';
+      // Global views: strip the wrap-sliver a crossing landmass leaves pinned to
+      // the far edge (Russia's Chukotka beside Alaska). Regional cuts are real.
+      const d = fitIsGlobal
+        ? dropAntimeridianWrapSlivers(raw, width, height)
+        : raw;
       if (!d) continue;
       const isThisLayer = r?.layer === layerKind;
       // Non-US neighbour land in a US view is gray context, not yellow land.
