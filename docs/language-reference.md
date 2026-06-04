@@ -1469,11 +1469,46 @@ Indented shorthand also supports groups (place arrow directly after group header
 ### 13.6 Directives
 
 - `direction TB` — top-to-bottom layout (default: `LR`)
+- `box-metric <Label> [color]` — name a numeric value dimension (see §13.8); optional trailing color sets the ramp hue
+- `show-values` — print each box's numeric value as text (off by default)
 
 ### 13.7 Options
 
 - `active-tag GroupName` — set active tag group for coloring
+- `active-tag none` — suppress tag coloring
+- `active-tag <metric>` — make the value ramp the active dimension (see §13.8)
 - `hide team:Backend, team:Frontend` — hide nodes with matching tag values (colon syntax for tag:value)
+
+### 13.8 Value metric (numeric ramp)
+
+Boxes can carry a numeric measure that drives a continuous color ramp — a
+choropleth-style "value dimension" alongside the categorical tag groups.
+
+```
+boxes-and-lines Fleet Crews
+box-metric Crew blue
+show-values
+
+Flagship value: 120
+Frigate value: 40
+Sloop value: 12
+Flagship -> Frigate
+Flagship -> Sloop
+```
+
+- `value: <number>` on any box records its measure (a reserved metadata key —
+  lifted out, never rendered as a tag). Non-numeric values are an error.
+- `box-metric <Label> [color]` names the dimension and optionally sets the ramp
+  hue (default: the palette's primary color).
+- The ramp anchors at `0` for all-non-negative data, else at the data minimum.
+- The value ramp is the resting-active dimension whenever any box has a
+  `value:` (so value shading works in static export with no interaction).
+  `active-tag <tag-group>` switches to a tag group; `active-tag none` suppresses
+  tinting; `active-tag <metric>` forces the value ramp. On a name collision
+  between a tag group and the metric label, the tag group wins.
+- When the value ramp is active, every box tints along the min→max ramp and the
+  legend shows a gradient capsule; boxes without a `value:` get a neutral fill.
+- `show-values` additionally prints each box's number as text.
 
 ---
 

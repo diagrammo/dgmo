@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-06-03
+
+### Added
+
+- **Boxes-and-lines value ramp** — a box can carry numeric `value:` metadata;
+  `box-metric <label> [color]` names the value-ramp dimension and sets its hue,
+  and `show-values` prints each box's number. Mirrors map's `region-metric`.
+- **Higher-resolution relief** — finer relief polygons and hachure on maps.
+- Map Inspect outlining — every region path is stamped with `data-iso`.
+
+### Fixed
+
+- **World maps fill the canvas edge-to-edge** — the global stretch-fill no
+  longer leaves a padded margin; the antimeridian sits on the canvas edge with
+  no fake coastline ringing the cut, and the wrap-sliver a landmass leaves on the
+  far edge (Russia's Chukotka beside Alaska) is dropped.
+- Decorative map overlays (relief, water-lines, rivers) no longer intercept
+  region hover in WebKit.
+- Region hover label is anchored to the area-weighted centroid.
+- Disputed territories are merged into their parent region to fill holes.
+- Horizontal time-sort timelines size their SVG to the content height instead of
+  leaving a large vertical gap below the chart.
+
 ## [0.22.0] - 2026-06-03
 
 ### Added
