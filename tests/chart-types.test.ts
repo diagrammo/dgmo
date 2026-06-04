@@ -209,20 +209,25 @@ describe('confidence() rules', () => {
 });
 
 describe('scoreChartType', () => {
-  it('trigger hit contributes at least 1.0', () => {
+  it('distinctive trigger token contributes at least 1.0', () => {
     const seq = chartTypes.find((c) => c.id === 'sequence')!;
     const { score, matched } = scoreChartType('I need a sequence diagram', seq);
+    // "sequence" is distinctive (IDF weight 1.0); "diagram" is a stopword.
     expect(matched).toContain('sequence diagram');
-    expect(score).toBeGreaterThanOrEqual(2.0); // "sequence" + "diagram" = 2 tokens
+    expect(score).toBeGreaterThanOrEqual(1.0);
   });
 
-  it('description hit contributes 0.25 per token', () => {
-    // Use a type whose description has a distinctive word not in any trigger.
-    // "Reporting hierarchy" — the word "reporting" is only in org's description.
-    const org = chartTypes.find((c) => c.id === 'org')!;
-    const { score, matched } = scoreChartType('map the reporting chain', org);
+  it('description-only hit contributes 0.25 per token (no trigger match)', () => {
+    // Synthetic type with no triggers isolates the description tiebreak from
+    // the IDF token-subset matcher.
+    const synthetic = {
+      id: 'synthetic',
+      description: 'xylophone quokka',
+      triggers: [],
+    };
+    const { score, matched } = scoreChartType('a xylophone please', synthetic);
     expect(matched).toEqual([]);
-    expect(score).toBeCloseTo(0.25, 5); // one description-token hit
+    expect(score).toBeCloseTo(0.25, 5); // one description-token hit ("xylophone")
   });
 });
 

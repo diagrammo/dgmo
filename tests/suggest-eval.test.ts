@@ -10,9 +10,11 @@ import corpus from './fixtures/suggest-corpus.json';
 // to lock the gain in. Iterate interactively with `pnpm cockpit`; regenerate the
 // human-readable report with `pnpm suggest-audit`.
 //
-// Baseline recorded 2026-06-04: top-1 7/46, top-3 7/46.
-const BASELINE_TOP1 = 7;
-const BASELINE_TOP3 = 7;
+// Baselines (raise these when you improve the scorer, to lock the gain in):
+//   2026-06-04 contiguous-phrase matcher:        top-1 7/46,  top-3 7/46
+//   2026-06-04 IDF token-subset matcher (now):   top-1 23/46, top-3 28/46
+const BASELINE_TOP1 = 23;
+const BASELINE_TOP3 = 28;
 
 interface Entry {
   prompt: string;

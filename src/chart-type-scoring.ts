@@ -51,36 +51,153 @@ export interface ChartTypeScore {
   readonly matched: string[];
 }
 
+// Generic English function words + generic chart vocabulary. Stripped before
+// matching so a prompt token only counts when it carries chart-selection signal
+// ("chart"/"diagram" match nothing — every type is a diagram).
+const STOPWORDS = new Set([
+  'of',
+  'the',
+  'a',
+  'an',
+  'our',
+  'their',
+  'your',
+  'my',
+  'with',
+  'and',
+  'to',
+  'for',
+  'in',
+  'on',
+  'by',
+  'from',
+  'how',
+  'what',
+  'show',
+  'me',
+  'us',
+  'we',
+  'i',
+  'is',
+  'are',
+  'do',
+  'does',
+  'each',
+  'between',
+  'across',
+  'over',
+  'per',
+  'that',
+  'this',
+  'they',
+  'them',
+  'take',
+  'through',
+  'works',
+  'work',
+  'about',
+  'into',
+  'as',
+  'it',
+  'its',
+  'chart',
+  'diagram',
+  'graph',
+  'plot',
+  'view',
+  'display',
+  'visualize',
+  'yesterday',
+  'using',
+  'need',
+  'want',
+  'use',
+  'create',
+  'make',
+  'give',
+  'help',
+]);
+
+/** Conservative plural stemmer (plurals only — NOT -ing/-ed, which would
+ *  over-match e.g. "scattered" → "scatter"). Generalizes locations→location,
+ *  tables→table, relationships→relationship, reports→report. */
+function stemPlural(t: string): string {
+  if (t.length > 4 && t.endsWith('ies')) return t.slice(0, -3) + 'y';
+  if (t.length > 3 && t.endsWith('es') && !t.endsWith('sses'))
+    return t.slice(0, -2);
+  if (t.length > 3 && t.endsWith('s') && !t.endsWith('ss'))
+    return t.slice(0, -1);
+  return t;
+}
+
+/** Tokens for matching: normalized, plural-stemmed, stopword-stripped. */
+function matchTokens(s: string): string[] {
+  return normalize(s)
+    .map(stemPlural)
+    .filter((t) => !STOPWORDS.has(t));
+}
+
+// IDF: how many chart types use a token in any trigger. A token shared by many
+// types ("flow", "structure") carries little selection signal and is down-
+// weighted; a distinctive token ("sankey", "raci", "venn") weighs full. Built
+// once from the registry at module load.
+const triggerDocFreq = ((): Map<string, number> => {
+  const df = new Map<string, number>();
+  for (const type of chartTypes) {
+    const seen = new Set<string>();
+    for (const trigger of type.triggers)
+      for (const tok of matchTokens(trigger)) seen.add(tok);
+    for (const tok of seen) df.set(tok, (df.get(tok) ?? 0) + 1);
+  }
+  return df;
+})();
+
+/** Token weight: 1.0 for distinctive tokens (≤2 types), decaying for generic
+ *  ones. A single generic token (e.g. "flow", in 6 types) stays below
+ *  MIN_PRIMARY_SCORE so it can't alone produce a confident match. */
+function tokenWeight(tok: string): number {
+  const d = triggerDocFreq.get(tok) ?? 1;
+  return d <= 2 ? 1 : 1 / Math.sqrt(d - 1);
+}
+
 /**
  * Score a single chart type against a prompt.
  *
- * Primary signal: contiguous trigger-phrase matches weighted by token count
- * (longer phrases beat shorter ones). Secondary signal: description-word
- * overlap at 0.25× weight — a tiebreak-only hint that rescues prompts which
- * miss every trigger but touch description vocabulary. Triggers always win
- * over descriptions because any trigger match is ≥1.0 and descriptions
- * contribute ≤0.25 per token.
+ * Signal: IDF-weighted token-subset overlap. Each prompt token (plural-stemmed,
+ * stopword-stripped) that appears anywhere in the type's trigger phrases adds
+ * its IDF weight — counted ONCE per type (not once per trigger), so a type with
+ * many "…flow" triggers doesn't over-score a single "flow". Non-contiguous and
+ * stem-tolerant, so natural paraphrases match ("who reports to whom" → org via
+ * "reporting structure"). Secondary signal: description-word overlap at 0.25×,
+ * a tiebreak for prompts that miss every trigger but touch description vocab.
  */
 export function scoreChartType(
   prompt: string,
   type: ChartTypeMeta
 ): { score: number; matched: string[] } {
-  const promptTokens = normalize(prompt);
-  const matched: string[] = [];
-  let score = 0;
+  const promptTokens = new Set(matchTokens(prompt));
 
+  // Union of this type's trigger tokens; remember which phrases lit up.
+  const triggerTokens = new Set<string>();
+  const matched: string[] = [];
   for (const trigger of type.triggers) {
-    const triggerTokens = normalize(trigger);
-    if (matchesContiguously(promptTokens, triggerTokens)) {
-      matched.push(trigger);
-      score += triggerTokens.length;
+    let hit = false;
+    for (const tok of matchTokens(trigger)) {
+      triggerTokens.add(tok);
+      if (promptTokens.has(tok)) hit = true;
     }
+    if (hit) matched.push(trigger);
   }
 
-  const descTokens = new Set(normalize(type.description));
-  let descHits = 0;
-  for (const t of promptTokens) if (descTokens.has(t)) descHits++;
-  score += descHits * 0.25;
+  // Each matched prompt token contributes its weight once.
+  let score = 0;
+  for (const tok of promptTokens)
+    if (triggerTokens.has(tok)) score += tokenWeight(tok);
+
+  // Description tiebreak — only for prompt tokens not already credited above.
+  const descTokens = new Set(matchTokens(type.description));
+  for (const tok of promptTokens)
+    if (descTokens.has(tok) && !triggerTokens.has(tok)) score += 0.25;
 
   return { score, matched };
 }
