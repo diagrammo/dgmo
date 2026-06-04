@@ -56,6 +56,11 @@ describe('parseMap — directives (AC2, AC20)', () => {
     expect(r.directives.noPoiLabels).toBe(true);
     expect(r.directives.noColorize).toBe(true);
   });
+  it('`no-title` parses as a directive, not a phantom region', () => {
+    const r = parseMap('map Title Here\nno-title\nCalifornia value: 5');
+    expect(r.directives.noTitle).toBe(true);
+    expect(r.regions.some((reg) => /no-title/i.test(reg.name))).toBe(false);
+  });
   it('`no-*` flags are idempotent — no duplicate warning (mirror no-legend) (AC13)', () => {
     const r = parseMap('map\nno-coastline\nno-coastline');
     expect(r.directives.noCoastline).toBe(true);

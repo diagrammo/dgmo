@@ -109,6 +109,17 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(svg.querySelector('.dgmo-map-legend')).toBeNull();
   });
 
+  it('renders the title banner from the first-line text', () => {
+    const svg = render('map Western States\nCalifornia value: 5');
+    const title = svg.querySelector('.dgmo-map-title');
+    expect(title?.textContent).toBe('Western States');
+  });
+
+  it('no-title suppresses the title banner', () => {
+    const svg = render('map Western States\nno-title\nCalifornia value: 5');
+    expect(svg.querySelector('.dgmo-map-title')).toBeNull();
+  });
+
   it('region paths carry data-line-number and fire onClickItem (AC21)', () => {
     let clicked: number | null = null;
     const svg = render('map\nCalifornia value: 5', (n) => (clicked = n));

@@ -1201,9 +1201,12 @@ export function layoutMap(
   // the foreground). A POI-less choropleth needs no reserve — the land fills to
   // the top and the title simply overlays it, so neighbour land (e.g. Canada)
   // isn't cut short by a band of empty water above it.
+  // `no-title` suppresses the banner entirely — drop it from layout so the title
+  // reserves no top band and the renderer's `if (layout.title)` skips it.
+  const shownTitle = resolved.directives.noTitle ? null : resolved.title;
   const TITLE_GAP = 16;
   let topPad = FIT_PAD;
-  if (resolved.title && resolved.pois.length > 0) {
+  if (shownTitle && resolved.pois.length > 0) {
     const bannerBottom =
       (resolved.subtitle ? TITLE_Y + TITLE_FONT_SIZE : TITLE_Y) +
       TITLE_FONT_SIZE / 2;
@@ -1217,7 +1220,7 @@ export function layoutMap(
   const legendBand = mapLegendBand(legend, {
     width,
     mode: opts.legendMode ?? 'preview',
-    hasTitle: Boolean(resolved.title),
+    hasTitle: Boolean(shownTitle),
     hasSubtitle: Boolean(resolved.subtitle),
   });
   if (legendBand > topPad) topPad = legendBand;
@@ -2932,7 +2935,7 @@ export function layoutMap(
     width,
     height,
     background: water,
-    title: resolved.title,
+    title: shownTitle,
     ...(resolved.subtitle !== undefined && { subtitle: resolved.subtitle }),
     ...(resolved.caption !== undefined && { caption: resolved.caption }),
     regions,

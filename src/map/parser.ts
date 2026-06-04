@@ -46,8 +46,10 @@ const HUB_RE = /^(->|~>)\s+(.+)$/;
 const LEG_ARROW_RE = /^(-[^>]*?->|->|~[^>]*?~>|~>|--)\s+(.+)$/;
 const AT_RE = /(^|[\s,])at\s*:/i; // the removed `at:` coord form (§24B.9)
 
-// Final 13 (§24B.2): 6 irreducible-intent directives + 7 `no-*` cosmetic
-// opt-outs. Every cosmetic is on by default; its `no-*` flag is the only switch.
+// The 13 map-specific directives (§24B.2): 6 irreducible-intent + 7 `no-*`
+// cosmetic opt-outs (every cosmetic on by default; its `no-*` flag is the only
+// switch). Plus `no-title` — the universal banner-suppression flag (§1), wired
+// in here so the map parser recognizes it rather than mis-parsing it as a region.
 const DIRECTIVE_SET: ReadonlySet<string> = new Set([
   'region-metric',
   'poi-metric',
@@ -55,6 +57,7 @@ const DIRECTIVE_SET: ReadonlySet<string> = new Set([
   'locale',
   'active-tag',
   'caption',
+  'no-title',
   'no-legend',
   'no-coastline',
   'no-relief',
@@ -313,6 +316,9 @@ export function parseMap(content: string): ParsedMap {
         break;
       // ── Cosmetic `no-*` opt-outs: bare flags, idempotent (mirror `no-legend`,
       //    no dup warning); each defaults the feature ON when absent. ──
+      case 'no-title':
+        d.noTitle = true;
+        break;
       case 'no-legend':
         d.noLegend = true;
         break;

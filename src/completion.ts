@@ -534,6 +534,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Which tag group leads when several are present',
       },
       caption: { description: 'Caption line (data-source attribution)' },
+      'no-title': { description: 'Suppress the title banner' },
       'no-legend': { description: 'Suppress the legend' },
       'no-coastline': {
         description: 'Turn off coastal water-lines (on by default)',

@@ -33,6 +33,9 @@ export interface MapDirectives {
   locale?: string;
   activeTag?: string;
   caption?: string;
+  /** `no-title` — suppress the title banner (the subtitle/caption, if any, still
+   *  render). Mirrors the `no-title` directive across the other chart types. */
+  noTitle?: boolean;
   /** `no-legend` — suppress the legend (default-on). */
   noLegend?: boolean;
   /** `no-coastline` — suppress the faint nautical-chart water-lines along
