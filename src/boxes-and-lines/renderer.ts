@@ -1038,6 +1038,12 @@ export function renderBoxesAndLines(
       groups: parsed.tagGroups,
       position: { placement: 'top-center', titleRelation: 'below-title' },
       mode: exportMode ? 'export' : 'preview',
+      // Keep inactive sibling tag groups visible as collapsed pills so the user
+      // can click one to flip the active colouring dimension (preview only —
+      // export shows just the active group). Without this, declaring a second
+      // tag group (e.g. Team) leaves it invisible whenever another group is
+      // active. The app's BoxesAndLinesPreview already wires pill clicks.
+      showInactivePills: true,
       ...(controlsGroup !== undefined && { controlsGroup }),
       ...(controlsHost !== undefined && { controlsHost }),
     };
