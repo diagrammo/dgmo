@@ -34,8 +34,30 @@ export function normalizeSvgForEmbed(input: string): string {
   const tight = computeBBox(svg);
   if (tight && tight.width > 0 && tight.height > 0) {
     const pad = 16;
-    const vb = `${tight.x - pad} ${tight.y - pad} ${tight.width + pad * 2} ${tight.height + pad * 2}`;
-    svg = svg.replace(/(<svg[^>]*?)viewBox="[^"]*"/, `$1viewBox="${vb}"`);
+    const x = tight.x - pad;
+    const y = tight.y - pad;
+    const w = tight.width + pad * 2;
+    const h = tight.height + pad * 2;
+    // Genuine content-tightening is ALWAYS a sub-rectangle of the renderer's
+    // export canvas. computeBBox is a best-effort string parser: it misreads
+    // path arc commands (`A rx ry rot … x y`) and ignores `<g transform>`, so
+    // it can return a box that strays OUTSIDE the canvas (negative origin or
+    // over-wide). That's a parse error, not real content — applying it shifts the
+    // viewBox and CLIPS the diagram (the right/bottom fall off in embeds). Only
+    // tighten when the computed box sits within the renderer's viewBox;
+    // otherwise keep the already-correct canvas bounds.
+    const canvas = readViewBox(svg);
+    const TOL = 2;
+    const withinCanvas =
+      !canvas ||
+      (x >= canvas.x - TOL &&
+        y >= canvas.y - TOL &&
+        x + w <= canvas.x + canvas.width + TOL &&
+        y + h <= canvas.y + canvas.height + TOL);
+    if (withinCanvas) {
+      const vb = `${x} ${y} ${w} ${h}`;
+      svg = svg.replace(/(<svg[^>]*?)viewBox="[^"]*"/, `$1viewBox="${vb}"`);
+    }
   }
 
   svg = svg.replace(/(<svg[^>]*?) width="[^"]*"/g, '$1');
@@ -63,6 +85,26 @@ export function getEmbedSvgViewBox(
     width: tight.width + pad * 2,
     height: tight.height + pad * 2,
   };
+}
+
+/** Read the root `<svg>` viewBox as numbers, if present and well-formed. */
+function readViewBox(
+  svg: string
+): { x: number; y: number; width: number; height: number } | null {
+  const m = svg.match(/<svg[^>]*?\bviewBox="([^"]+)"/);
+  if (!m) return null;
+  const n = m[1]!
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  if (
+    n.length !== 4 ||
+    n.some((v) => !Number.isFinite(v)) ||
+    n[2]! <= 0 ||
+    n[3]! <= 0
+  )
+    return null;
+  return { x: n[0]!, y: n[1]!, width: n[2]!, height: n[3]! };
 }
 
 /**

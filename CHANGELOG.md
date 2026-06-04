@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-06-04
+
+### Fixed
+
+- **Embedded diagrams no longer clip in hosts** (Obsidian, remark/markdown, web
+  embeds). `normalizeSvgForEmbed`'s content-tightening used a string bounding-box
+  estimator that ignores `<g transform>` and misparses path arc commands, so it
+  could compute a shifted, out-of-bounds box that overrode each renderer's
+  already-correct viewBox and cut off the right/bottom of the diagram (ER tables,
+  mindmap nodes, flowchart elements). Tightening is now only applied when the
+  computed box sits within the renderer's canvas — a genuine sub-rectangle —
+  otherwise the renderer's correct bounds are kept.
+
 ## [0.25.0] - 2026-06-04
 
 ### Fixed
