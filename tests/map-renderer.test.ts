@@ -122,6 +122,28 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(clicked).toBe(ln);
   });
 
+  it('every political region carries data-iso (base + data), lakes do not', () => {
+    // Plain world map: both countries are base/context land (no data), and each
+    // is reachable by ISO so Inspect can outline the reverse-geocoded region.
+    const base = [
+      ...render('map').querySelectorAll<SVGPathElement>(
+        '.dgmo-map-regions [data-iso]'
+      ),
+    ].map((p) => p.getAttribute('data-iso'));
+    expect(base).toContain('US');
+    expect(base).toContain('JP');
+    // Authored data region carries it too (matches the reverse-geocoded state iso).
+    const withData = [
+      ...render('map\nCalifornia value: 5').querySelectorAll<SVGPathElement>(
+        '.dgmo-map-regions [data-iso]'
+      ),
+    ].map((p) => p.getAttribute('data-iso'));
+    expect(withData).toContain('US-CA');
+    // Lakes are not places — never tagged with the lake sentinel id.
+    expect(base).not.toContain('lake');
+    expect(withData).not.toContain('lake');
+  });
+
   it('route legs + leg labels carry data-line-number and fire onClickItem', () => {
     let clicked: number | null = null;
     // Leg line is line 3 (`  -ferry-> Osaka value: 40`).

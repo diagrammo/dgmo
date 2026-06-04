@@ -229,6 +229,11 @@ export function renderMap(
     // Display name on EVERY region (authored + base/context) so the app can
     // surface it on hover — decorative metadata, no visible text drawn here.
     if (r.label) p.attr('data-region-name', r.label);
+    // ISO id on EVERY political region (authored + base/context + inset states),
+    // so the Inspect tool can resolve a reverse-geocoded `{iso}` to its drawn path
+    // and outline it. Distinct from `data-region` (data-layer-only, legend hover):
+    // this lands on base/context land too. Lakes carry no iso (not a place).
+    if (r.id && r.id !== 'lake') p.attr('data-iso', r.id);
     // Area-weighted centroid (px) the app anchors the hover label to — robust to
     // antimeridian crossers where a bounding-box centre lands in open ocean.
     if (r.labelX !== undefined && r.labelY !== undefined) {
