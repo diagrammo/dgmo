@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-06-03
+
+### Added
+
+- **`normalizeSvgForEmbed` / `getEmbedSvgViewBox`** — public helpers that tighten
+  a rendered SVG's `viewBox` to its content so inline embeds (Obsidian, host
+  integrations) take the diagram's intrinsic aspect ratio instead of the fixed
+  1200×800 export canvas. Short diagrams no longer reserve a tall dead band.
+- **WYSIWYG map export** — map PNG export honors the preview pane's aspect
+  ratio, and the legend reserves a top band so it no longer covers land.
+- **Boxes-and-lines `show-values`** — refined value card layout.
+
+### Fixed
+
+- **Timeline** — fixed row height so events never overlap on short surfaces.
+- **Map** — POI-only frames no longer chase a tall container's far edge.
+
 ## [0.23.0] - 2026-06-03
 
 ### Added
