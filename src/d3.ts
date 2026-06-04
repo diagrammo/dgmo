@@ -4301,8 +4301,16 @@ function renderTimelineHorizontalTimeSort(
     ? -(topScaleH + markerReserve + ERA_ROW_H / 2)
     : 0;
   const innerWidth = width - margin.left - margin.right;
-  const innerHeight = height - margin.top - margin.bottom;
-  const rowH = Math.min(ctx.structural(28), innerHeight / sorted.length);
+  const availInnerHeight = height - margin.top - margin.bottom;
+  const rowH = Math.min(ctx.structural(28), availInnerHeight / sorted.length);
+  // Each event needs only `rowH` of vertical space. When the container is
+  // taller than the rows require (rowH hits its 28px cap), draw the era
+  // bands and time axis to the content height instead of the full container
+  // so the axis sits just below the last event rather than leaving a large
+  // vertical gap. The SVG itself shrinks to match (top-aligned via
+  // preserveAspectRatio) so callers don't reserve dead space below the chart.
+  const innerHeight = rowH * sorted.length;
+  const usedHeight = margin.top + innerHeight + margin.bottom;
 
   const xScale = d3Scale
     .scaleLinear()
@@ -4313,8 +4321,8 @@ function renderTimelineHorizontalTimeSort(
     .select(container)
     .append('svg')
     .attr('width', width)
-    .attr('height', height)
-    .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('height', usedHeight)
+    .attr('viewBox', `0 0 ${width} ${usedHeight}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('background', bgColor);
 
