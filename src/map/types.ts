@@ -55,6 +55,12 @@ export interface MapDirectives {
    *  are referenced (regions are auto-coloured by default; §24B colorize). A
    *  no-op under data — the basemap is already gray there. */
   noColorize?: boolean;
+  /** `no-cluster-pois` — never collapse coincident POI markers into a count badge
+   *  (clustering/spiderfy is default-on in the interactive preview). With this set
+   *  the markers always render fanned out with their legs — the same as a static
+   *  export — so a dense map reads the same on screen as on paper. No-op for
+   *  export (already always expanded). */
+  noClusterPois?: boolean;
 }
 
 /** A region-fill: a subdivision name with an optional score and/or tag values

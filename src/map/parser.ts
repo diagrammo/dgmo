@@ -46,7 +46,7 @@ const HUB_RE = /^(->|~>)\s+(.+)$/;
 const LEG_ARROW_RE = /^(-[^>]*?->|->|~[^>]*?~>|~>|--)\s+(.+)$/;
 const AT_RE = /(^|[\s,])at\s*:/i; // the removed `at:` coord form (§24B.9)
 
-// The 13 map-specific directives (§24B.2): 6 irreducible-intent + 7 `no-*`
+// The 14 map-specific directives (§24B.2): 6 irreducible-intent + 8 `no-*`
 // cosmetic opt-outs (every cosmetic on by default; its `no-*` flag is the only
 // switch). Plus `no-title` — the universal banner-suppression flag (§1), wired
 // in here so the map parser recognizes it rather than mis-parsing it as a region.
@@ -65,6 +65,7 @@ const DIRECTIVE_SET: ReadonlySet<string> = new Set([
   'no-region-labels',
   'no-poi-labels',
   'no-colorize',
+  'no-cluster-pois',
 ]);
 
 /** True when the first non-blank/non-comment line declares `map`. */
@@ -339,6 +340,9 @@ export function parseMap(content: string): ParsedMap {
         break;
       case 'no-colorize':
         d.noColorize = true;
+        break;
+      case 'no-cluster-pois':
+        d.noClusterPois = true;
         break;
     }
   }

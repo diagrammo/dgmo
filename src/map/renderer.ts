@@ -694,11 +694,16 @@ export function renderMap(
   // toggles only their opacity. Drawn VISIBLE so export + the no-JS default show
   // the expanded fan. An invisible hit-area circle (interactive only) owns all
   // pointer interaction so hover/click drives the spiderfy controller robustly.
+  // `no-cluster-pois` (or any export) keeps the fan permanently expanded: draw
+  // the legs/hub/members visible but emit NO hit-area + NO badge, so there is
+  // nothing for the app's spiderfy controller to collapse — the map reads the
+  // same on screen as on paper.
+  const clusterUi = !exportDims && !resolved.directives.noClusterPois;
   const gSpider = svg.append('g').attr('class', 'dgmo-map-spider');
   for (const cl of layout.clusters) {
     // Pointer hit-area — bottom of the stack so member dots still take their own
     // clicks (line-jump); clicks on the empty centre fall through to here.
-    if (!exportDims) {
+    if (clusterUi) {
       gSpider
         .append('circle')
         .attr('cx', cl.cx)
@@ -863,7 +868,7 @@ export function renderMap(
   // export keeps the expanded fan (every label visible), so no badge there. A
   // neutral dot ringed with the bare member count, emitted hidden; the app shows
   // it at rest and hides it (revealing the spider) on click. ──
-  if (!exportDims && layout.clusters.length) {
+  if (clusterUi && layout.clusters.length) {
     const gBadge = svg.append('g').attr('class', 'dgmo-map-cluster-badges');
     for (const cl of layout.clusters) {
       // Decorative: the hit-area (drawn under the dots) owns hover + click; the
@@ -889,6 +894,24 @@ export function renderMap(
         .attr('fill', 'none')
         .attr('stroke', palette.textMuted)
         .attr('stroke-width', 1);
+      // Directional colour beads: one small dot threaded on the outer ring per
+      // member, placed at the ANGLE of that member's spider leg (centroid → its
+      // expanded position) and filled with the member's own marker colour. So the
+      // collapsed badge previews WHAT is stacked here and roughly WHERE each item
+      // will fan out, before the spider opens. A bg-coloured halo keeps adjacent
+      // beads + the ring line legible.
+      const beadR = R + 2.5;
+      for (const leg of cl.legs) {
+        const a = Math.atan2(leg.y2 - cl.cy, leg.x2 - cl.cx);
+        g.append('circle')
+          .attr('class', 'dgmo-map-cluster-bead')
+          .attr('cx', cl.cx + beadR * Math.cos(a))
+          .attr('cy', cl.cy + beadR * Math.sin(a))
+          .attr('r', 1.8)
+          .attr('fill', leg.color)
+          .attr('stroke', palette.bg)
+          .attr('stroke-width', 0.5);
+      }
       // Bare count (RQ1).
       emitText(
         g,

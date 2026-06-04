@@ -553,6 +553,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Force plain green-land reference dress (regions are auto-coloured by default)',
       },
+      'no-cluster-pois': {
+        description:
+          'Always fan out coincident POI markers instead of collapsing them into a count badge',
+      },
     }),
   ],
 ]);

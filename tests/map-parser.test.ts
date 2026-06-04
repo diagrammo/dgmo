@@ -56,6 +56,21 @@ describe('parseMap — directives (AC2, AC20)', () => {
     expect(r.directives.noPoiLabels).toBe(true);
     expect(r.directives.noColorize).toBe(true);
   });
+  it('parses `no-cluster-pois` as a boolean flag', () => {
+    const r = parseMap('map\nno-cluster-pois\nCalifornia value: 5');
+    expect(r.error).toBeNull();
+    expect(r.directives.noClusterPois).toBe(true);
+    expect(r.regions.some((reg) => /no-cluster-pois/i.test(reg.name))).toBe(
+      false
+    );
+  });
+  it('`no-cluster-pois` is idempotent — no duplicate warning', () => {
+    const r = parseMap('map\nno-cluster-pois\nno-cluster-pois');
+    expect(r.directives.noClusterPois).toBe(true);
+    expect(r.diagnostics.some((d) => /[Dd]uplicate/.test(d.message))).toBe(
+      false
+    );
+  });
   it('`no-title` parses as a directive, not a phantom region', () => {
     const r = parseMap('map Title Here\nno-title\nCalifornia value: 5');
     expect(r.directives.noTitle).toBe(true);

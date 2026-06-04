@@ -469,6 +469,9 @@ describe('renderer — coincident-stack spiderfy + hover-only (AC1/AC8)', () => 
     ).toBeGreaterThanOrEqual(8);
     // Members are spiderfied, NOT hover-only.
     expect(svg.querySelectorAll('[data-poi-hidden]').length).toBe(0);
+    // The collapsed badge previews its contents: one colour bead per member,
+    // threaded on the ring (a hint of what/where before the fan opens).
+    expect(svg.querySelectorAll('.dgmo-map-cluster-bead').length).toBe(8);
   });
 
   it('export shows every spiderfied label and NO collapse badge (AC8)', () => {
@@ -485,6 +488,22 @@ describe('renderer — coincident-stack spiderfy + hover-only (AC1/AC8)', () => 
     expect(
       svg.querySelectorAll('.dgmo-map-labels line[data-cluster-member]').length
     ).toBe(8);
+  });
+
+  it('`no-cluster-pois` preview renders the expanded fan with NO badge/hit-area', () => {
+    const svg = renderPreview('map\nno-cluster-pois\n' + STACK_SRC.slice(4));
+    // Nothing for the app's spiderfy controller to drive: no badge, no hit-area.
+    expect(svg.querySelectorAll('[data-cluster]').length).toBe(0);
+    expect(svg.querySelectorAll('[data-cluster-hit]').length).toBe(0);
+    // But the fan is still drawn: members + their decorative legs are present.
+    expect(
+      svg.querySelectorAll('[data-cluster-member]').length
+    ).toBeGreaterThanOrEqual(8);
+    expect(svg.querySelectorAll('[data-cluster-deco]').length).toBeGreaterThan(
+      0
+    );
+    // Members render visible (not hover-only) — same as a static export.
+    expect(svg.querySelectorAll('[data-poi-hidden]').length).toBe(0);
   });
 
   it('dense-but-distinct chain stays hover-only: preview hides, export omits', () => {
