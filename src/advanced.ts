@@ -402,14 +402,6 @@ export {
   renderPertForExport,
   renderPertAnalysisBlock,
   measurePertAnalysisBlock,
-  highlightPertCriticalPath,
-  highlightPertSet,
-  pertLegendEntries,
-  pertLegendBlockWidth,
-  PERT_LEGEND_PILL_HEIGHT,
-  renderLegendBlock as renderPertLegendBlock,
-  resetPertCriticalPath,
-  resetPertHighlight,
 } from './pert/renderer';
 export type { PertRenderOptions } from './pert/renderer';
 export type {

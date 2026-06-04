@@ -46,13 +46,7 @@ import {
   CAPTION_BOX_PADDING_X,
   CAPTION_BOX_PADDING_Y,
 } from '../utils/title-constants';
-import {
-  LEGEND_HEIGHT as LEGEND_HEIGHT_CONST,
-  LEGEND_PILL_FONT_SIZE as LEGEND_PILL_FONT_SIZE_CONST,
-  LEGEND_ENTRY_DOT_GAP as LEGEND_ENTRY_DOT_GAP_CONST,
-  LEGEND_DOT_R as LEGEND_DOT_R_CONST,
-  measureLegendText,
-} from '../utils/legend-constants';
+import { LEGEND_HEIGHT as LEGEND_HEIGHT_CONST } from '../utils/legend-constants';
 import { resolveActiveTagGroup, resolveTagColor } from '../utils/tag-groups';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type {
@@ -126,10 +120,6 @@ const CONTAINER_HEADER_HEIGHT = 28;
 // Collapse-bar height — see conventions doc §3 Pattern A/B (matches
 // org's `COLLAPSE_BAR_HEIGHT`). Universal "this is collapsed" signal.
 const COLLAPSE_BAR_HEIGHT = 6;
-// Fade applied to non-critical elements when the Critical Path toggle
-// is on. Matches gantt's `FADE_OPACITY` (renderer.ts:1815) so the same
-// "spotlight" effect reads consistently across diagrams.
-const FADE_OPACITY = 0.15;
 // Always-on fade applied to bottom-20% (by duration) activity nodes
 // so the eye is drawn to the longer, schedule-dominating work first.
 // Less aggressive than FADE_OPACITY because these cards still need to
@@ -141,16 +131,11 @@ const DURATION_FADE_OPACITY = 0.55;
 const PIN_ICON_W = 13;
 const PIN_ICON_H = 13;
 
-// Top legend — a horizontal row of pills (Critical Path, Anchor,
-// Milestone) that sits between the title and the diagram body. Pills
-// match the visual conventions of the shared `renderLegendD3` legend
-// used by Cycle/Mindmap/BoxesAndLines (see `utils/legend-constants.ts`):
-// 28px tall, 11pt label, fully-rounded rx, mix-fill against surface.
+// Legend pill height — matches the shared `renderLegendD3` legend used
+// by Cycle/Mindmap/BoxesAndLines (see `utils/legend-constants.ts`):
+// 28px tall, fully-rounded rx, mix-fill against surface. Drives the
+// tag-group legend block's reserved height.
 const LEGEND_PILL_HEIGHT = LEGEND_HEIGHT_CONST;
-const LEGEND_PILL_PADDING_X = 8;
-const LEGEND_PILL_GAP = 8;
-const LEGEND_SWATCH_GAP = LEGEND_ENTRY_DOT_GAP_CONST;
-const LEGEND_FONT_SIZE = LEGEND_PILL_FONT_SIZE_CONST;
 // Top gap is the breathing room between the title baseline (or canvas
 // top when there's no title) and the pill row. Bottom gap separates
 // the pills from the diagram body. Together with LEGEND_PILL_HEIGHT
@@ -371,14 +356,14 @@ export interface PertRenderOptions {
    */
   showFieldLegend?: boolean;
   /**
-   * Render the top legend (Critical Path / Anchor / Milestone pills)
-   * inside the SVG, between the title and the diagram. Defaults to
-   * true so CLI exports and share-link images include the legend; the
-   * desktop preview flips it off and renders the legend in a sibling
-   * native-pixel SVG instead, so the pill text stays at intended size
-   * even when the diagram SVG gets scale-to-fit'd into the panel.
+   * Render the tag-group legend inside the SVG, between the title and
+   * the diagram. Defaults to true so CLI exports and share-link images
+   * include it; the desktop preview flips it off and renders the legend
+   * in a sibling native-pixel SVG instead, so the pill text stays at
+   * intended size even when the diagram SVG gets scale-to-fit'd into the
+   * panel.
    */
-  showTopLegend?: boolean;
+  showLegend?: boolean;
   /**
    * Render the project-stats Summary box below the diagram. Defaults
    * to true so CLI exports / share-link images keep showing it; the
@@ -460,21 +445,16 @@ export function renderPert(
     ? CAPTION_TOP_GAP +
       fieldLegendHeightFor(standaloneFieldLegendWidthForExport)
     : 0;
-  const showTopLegend = options.showTopLegend ?? true;
-  const legendEntries = showTopLegend ? pertLegendEntries(resolved) : [];
+  const showLegend = options.showLegend ?? true;
   const tagLegendActive = resolveActiveTagGroup(
     resolved.tagGroups,
     resolved.options.activeTag,
     options.activeTagOverride
   );
-  const showTagLegend = showTopLegend && resolved.tagGroups.length > 0;
-  const tagLegendBlockHeight = showTagLegend
-    ? LEGEND_PILL_HEIGHT + LEGEND_BOTTOM_GAP
+  const showTagLegend = showLegend && resolved.tagGroups.length > 0;
+  const legendBlockHeight = showTagLegend
+    ? LEGEND_TOP_GAP + LEGEND_PILL_HEIGHT + LEGEND_BOTTOM_GAP
     : 0;
-  const legendBlockHeight =
-    (legendEntries.length > 0
-      ? LEGEND_TOP_GAP + LEGEND_PILL_HEIGHT + LEGEND_BOTTOM_GAP
-      : 0) + tagLegendBlockHeight;
 
   const naturalChartWidth = layout.width + DIAGRAM_PADDING * 2;
   const minAnalysisRowW = analysisLayer.analysisHasContent
@@ -512,13 +492,9 @@ export function renderPert(
   const sLegendTopGap = ctx.aesthetic(LEGEND_TOP_GAP);
   const sLegendBottomGap = ctx.aesthetic(LEGEND_BOTTOM_GAP);
   const sLegendPillHeight = ctx.structural(LEGEND_PILL_HEIGHT);
-  const sTagLegendBlockHeight = showTagLegend
-    ? sLegendPillHeight + sLegendBottomGap
+  const sLegendBlockHeight = showTagLegend
+    ? sLegendTopGap + sLegendPillHeight + sLegendBottomGap
     : 0;
-  const sLegendBlockHeight =
-    (legendEntries.length > 0
-      ? sLegendTopGap + sLegendPillHeight + sLegendBottomGap
-      : 0) + sTagLegendBlockHeight;
   const sNodeRadius = ctx.structural(NODE_RADIUS);
   const sNodeStrokeWidth = ctx.structural(NODE_STROKE_WIDTH);
   const sNodeFontSize = ctx.text(NODE_FONT_SIZE);
@@ -587,22 +563,8 @@ export function renderPert(
   const offsetX = Math.max(sDiagramPad, (svgW - layout.width) / 2);
   const offsetY = sDiagramPad + sTitleHeight + sLegendBlockHeight;
 
-  if (legendEntries.length > 0) {
-    renderLegendBlock(svg, legendEntries, {
-      x: 0,
-      y: sDiagramPad + sTitleHeight + sLegendTopGap,
-      width: svgW,
-      palette,
-      isDark,
-    });
-  }
   if (showTagLegend) {
-    const tagLegendY =
-      sDiagramPad +
-      sTitleHeight +
-      (legendEntries.length > 0
-        ? sLegendTopGap + sLegendPillHeight
-        : sLegendTopGap);
+    const tagLegendY = sDiagramPad + sTitleHeight + sLegendTopGap;
     renderTagLegendRow(svg, resolved, palette, isDark, {
       x: 0,
       y: tagLegendY,
@@ -720,11 +682,10 @@ export function renderPertForExport(
       : 0;
   const captionBlockHeight =
     captionBullets.length > 0 ? CAPTION_TOP_GAP + captionBoxHeight : 0;
-  // Mirror renderPert's top-legend reservation so the offscreen
+  // Mirror renderPert's tag-legend reservation so the offscreen
   // container matches the natural canvas height.
-  const legendEntries = pertLegendEntries(resolved);
   const legendBlockHeight =
-    legendEntries.length > 0
+    resolved.tagGroups.length > 0
       ? LEGEND_TOP_GAP + LEGEND_PILL_HEIGHT + LEGEND_BOTTOM_GAP
       : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
@@ -2502,131 +2463,6 @@ function computeAnchorPinSet(resolved: ResolvedPert): Set<string> {
   return pinned;
 }
 
-// ============================================================
-// Section: critical-path highlight (React-callable)
-// ============================================================
-//
-// Helpers that React (PertPreview) calls when the user toggles the
-// "Highlight Critical Path" entry inside the cog dropdown. Operates
-// on the diagram's container element — finds the SVG inside, fades
-// non-critical nodes/edges/groups to 15%.
-//
-// In Monte-Carlo mode the binary critical chain is a misleading lens
-// (every activity has some criticality), so the highlight rule keeps
-// the high-band activities (red / orange / yellow) visible and fades
-// the rest. In analytical mode it falls back to the binary path.
-
-const HIGHLIGHT_BANDS = new Set<string>(['red', 'orange', 'yellow']);
-
-function isCritical(el: Element, mcOn: boolean): boolean {
-  if (mcOn) {
-    return HIGHLIGHT_BANDS.has(el.getAttribute('data-criticality-band') ?? '');
-  }
-  return el.getAttribute('data-critical-path') === 'true';
-}
-
-/**
- * Predicate for whether a node/edge belongs to the highlighted set
- * for a given legend entry. Edges only apply to the critical kind —
- * anchor and milestone are node-only properties.
- */
-function isInHighlightSet(
-  el: Element,
-  kind: LegendKind,
-  mcOn: boolean
-): boolean {
-  if (kind === 'critical') return isCritical(el, mcOn);
-  if (kind === 'milestone') {
-    return el.getAttribute('data-milestone') === 'true';
-  }
-  // anchor
-  return el.hasAttribute('data-anchor');
-}
-
-/**
- * Fade everything in the diagram that doesn't belong to the given
- * legend set (`'critical'`, `'anchor'`, or `'milestone'`). Auto-detects
- * MC vs analytical mode for the critical-path rule.
- *
- * No-op when nothing qualifies (e.g. hovering Anchor on a diagram with
- * no anchor — shouldn't happen because the pill wouldn't render, but
- * defensive). The React layer is responsible for resetting via
- * `resetPertHighlight` when hover/click goes away.
- */
-export function highlightPertSet(container: Element, kind: LegendKind): void {
-  const svg = container.querySelector('svg');
-  if (!svg) return;
-  // Detect MC mode: edges in MC mode have non-empty data-criticality-band
-  // bands like 'red'/'orange'/etc. Analytical mode uses only 'red' or ''.
-  const mcOn = Array.from(svg.querySelectorAll('.pert-edge')).some((e) => {
-    const b = e.getAttribute('data-criticality-band');
-    return b !== null && b !== '' && b !== 'red';
-  });
-
-  const candidates = svg.querySelectorAll(
-    '.pert-node, .pert-edge, .pert-group-collapsed'
-  );
-  let anyMatch = false;
-  for (const el of candidates) {
-    if (isInHighlightSet(el, kind, mcOn)) {
-      anyMatch = true;
-      break;
-    }
-  }
-  if (!anyMatch) return;
-
-  svg.setAttribute('data-pert-highlight-active', kind);
-  for (const el of svg.querySelectorAll('.pert-node, .pert-edge')) {
-    (el as SVGElement).setAttribute(
-      'opacity',
-      isInHighlightSet(el, kind, mcOn) ? '1' : String(FADE_OPACITY)
-    );
-  }
-  // Group containers always dim to scenery; collapsed group cards
-  // behave like nodes and follow the membership rule.
-  for (const el of svg.querySelectorAll('.pert-group')) {
-    const inSet =
-      el.classList.contains('pert-group-collapsed') &&
-      isInHighlightSet(el, kind, mcOn);
-    (el as SVGElement).setAttribute(
-      'opacity',
-      inSet ? '1' : String(FADE_OPACITY)
-    );
-  }
-}
-
-/**
- * Critical-path-specific shorthand for `highlightPertSet(container,
- * 'critical')`. Kept for backwards compatibility with existing callers.
- */
-export function highlightPertCriticalPath(container: Element): void {
-  highlightPertSet(container, 'critical');
-}
-
-/**
- * Reset opacities applied by `highlightPertSet`. Safe to call when no
- * highlight is active.
- */
-export function resetPertHighlight(container: Element): void {
-  const svg = container.querySelector('svg');
-  if (!svg) return;
-  svg.removeAttribute('data-pert-highlight-active');
-  // Drop the legacy attribute too in case an older bundle wrote it.
-  svg.removeAttribute('data-critical-path-active');
-  for (const el of svg.querySelectorAll(
-    '.pert-node, .pert-edge, .pert-group'
-  )) {
-    (el as SVGElement).removeAttribute('opacity');
-  }
-}
-
-/**
- * Backwards-compatible alias for `resetPertHighlight`.
- */
-export function resetPertCriticalPath(container: Element): void {
-  resetPertHighlight(container);
-}
-
 /**
  * Build the anchor framing bullet, or `null` when no anchor is set.
  * Surfaces the user-pinned date in plain language; the start/finish
@@ -2854,179 +2690,6 @@ interface FieldLegendArgs {
  *   top:    [ Early Start | Duration | Early Finish ]
  *   bottom: [ Late Start  | Slack    | Late Finish  ]
  */
-// ============================================================
-// Section: top legend (Critical Path / Anchor / Milestone pills)
-// ============================================================
-
-type LegendKind = 'critical' | 'anchor' | 'milestone';
-
-interface LegendEntry {
-  kind: LegendKind;
-  label: string;
-}
-
-/**
- * Returns the PERT-specific legend entries (Critical Path / Anchor /
- * Milestone). Tag groups are rendered separately via the shared
- * `renderLegendD3` helper so they get the standard collapsible-capsule
- * treatment used by org / kanban / gantt.
- */
-export function pertLegendEntries(resolved: ResolvedPert): LegendEntry[] {
-  const entries: LegendEntry[] = [];
-  if (resolved.activities.length > 0) {
-    entries.push({ kind: 'critical', label: 'Critical Path' });
-  }
-  if (resolved.options.anchor !== null) {
-    entries.push({ kind: 'anchor', label: 'Anchor' });
-  }
-  if (resolved.activities.some((a) => a.activity.isMilestone)) {
-    entries.push({ kind: 'milestone', label: 'Milestone' });
-  }
-  return entries;
-}
-
-// Visual swatch widths per kind. Critical = a small filled circle the
-// same size as the entry-dot used by the shared legend (renders as a
-// crisp 8px dot). Anchor = anchor icon at PIN_ICON_W. Milestone = ◆
-// glyph rendered at the pill font size.
-function legendSwatchWidth(kind: LegendKind): number {
-  if (kind === 'critical') return LEGEND_DOT_R_CONST * 2;
-  if (kind === 'anchor') return PIN_ICON_W;
-  return LEGEND_FONT_SIZE; // ◆ glyph width approx = font size
-}
-
-function legendPillWidth(entry: LegendEntry): number {
-  const labelW = measureLegendText(entry.label, LEGEND_FONT_SIZE);
-  return Math.ceil(
-    LEGEND_PILL_PADDING_X +
-      legendSwatchWidth(entry.kind) +
-      LEGEND_SWATCH_GAP +
-      labelW +
-      LEGEND_PILL_PADDING_X
-  );
-}
-
-function legendNaturalWidth(entries: LegendEntry[]): number {
-  if (entries.length === 0) return 0;
-  let total = 0;
-  for (const e of entries) total += legendPillWidth(e);
-  total += (entries.length - 1) * LEGEND_PILL_GAP;
-  return total;
-}
-
-interface LegendBlockArgs {
-  x: number;
-  y: number;
-  width: number;
-  palette: PaletteColors;
-  isDark: boolean;
-}
-
-/**
- * Render the top-legend pill row. Each pill carries
- * `data-legend-entry="critical|anchor|milestone"` so the React layer
- * can attach hover/click wiring to fade the matching set.
- *
- * Visual style mirrors the shared `renderLegendD3` pill convention so
- * PERT looks consistent with Cycle / Mindmap / BoxesAndLines: 28px tall,
- * fully-rounded rx, mix-fill against surface, no stroke, 11pt label.
- */
-export const PERT_LEGEND_PILL_HEIGHT = LEGEND_PILL_HEIGHT;
-
-export function pertLegendBlockWidth(entries: LegendEntry[]): number {
-  return legendNaturalWidth(entries);
-}
-
-export function renderLegendBlock(
-  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
-  entries: LegendEntry[],
-  args: LegendBlockArgs
-): void {
-  if (entries.length === 0) return;
-  const { x, y, width, palette, isDark } = args;
-  // Same fill recipe as the shared legend pills.
-  const groupBg = isDark
-    ? mix(palette.surface, palette.bg, 50)
-    : mix(palette.surface, palette.bg, 30);
-
-  const block = svg
-    .append('g')
-    .attr('class', 'pert-legend')
-    .attr('data-pert-legend', '');
-
-  // Pill row centered horizontally inside [x, x+width].
-  const totalW = legendNaturalWidth(entries);
-  let pillX = x + (width - totalW) / 2;
-
-  for (const entry of entries) {
-    const pillW = legendPillWidth(entry);
-    const pill = block
-      .append('g')
-      .attr('class', 'pert-legend-entry')
-      .attr('data-legend-entry', entry.kind)
-      .attr('transform', `translate(${pillX}, ${y})`)
-      .style('cursor', 'pointer');
-
-    pill
-      .append('rect')
-      .attr('class', 'pert-legend-pill')
-      .attr('width', pillW)
-      .attr('height', LEGEND_PILL_HEIGHT)
-      .attr('rx', LEGEND_PILL_HEIGHT / 2)
-      .attr('ry', LEGEND_PILL_HEIGHT / 2)
-      .attr('fill', groupBg);
-
-    // Swatch — small inline mark for the kind. Critical = filled dot
-    // matching the shared-legend entry-dot style; Anchor = anchor icon;
-    // Milestone = ◆ glyph.
-    const swatchW = legendSwatchWidth(entry.kind);
-    const swatchCx = LEGEND_PILL_PADDING_X + swatchW / 2;
-    const swatchCy = LEGEND_PILL_HEIGHT / 2;
-    if (entry.kind === 'critical') {
-      pill
-        .append('circle')
-        .attr('class', 'pert-legend-swatch')
-        .attr('cx', swatchCx)
-        .attr('cy', swatchCy)
-        .attr('r', LEGEND_DOT_R_CONST)
-        .attr('fill', palette.colors.red);
-    } else if (entry.kind === 'anchor') {
-      drawAnchorPin(
-        pill,
-        swatchCx - PIN_ICON_W / 2,
-        swatchCy,
-        palette.textMuted
-      );
-    } else {
-      pill
-        .append('text')
-        .attr('class', 'pert-legend-swatch')
-        .attr('x', swatchCx)
-        .attr('y', swatchCy)
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'central')
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', LEGEND_FONT_SIZE + 1)
-        .attr('fill', palette.textMuted)
-        .text('◆');
-    }
-
-    pill
-      .append('text')
-      .attr('class', 'pert-legend-label')
-      .attr('x', LEGEND_PILL_PADDING_X + swatchW + LEGEND_SWATCH_GAP)
-      .attr('y', swatchCy)
-      .attr('dominant-baseline', 'central')
-      .attr('font-family', FONT_FAMILY)
-      .attr('font-size', LEGEND_FONT_SIZE)
-      .attr('font-weight', 500)
-      .attr('fill', palette.textMuted)
-      .text(entry.label);
-
-    pillX += pillW + LEGEND_PILL_GAP;
-  }
-}
-
 interface TagLegendArgs {
   x: number;
   y: number;

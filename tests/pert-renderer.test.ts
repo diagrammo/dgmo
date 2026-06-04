@@ -147,38 +147,6 @@ describe('pert renderer — structural assertions', () => {
     document.body.removeChild(c);
   });
 
-  it('highlightPertCriticalPath fades non-critical activities', async () => {
-    const { highlightPertCriticalPath, resetPertCriticalPath } =
-      await import('../src/pert/renderer');
-    const c = document.createElement('div');
-    document.body.appendChild(c);
-
-    const parsed = parsePert(loadFixture('three-point.dgmo'));
-    const resolved = analyzePert(parsed);
-    const layout = relayoutPert(resolved, {});
-    const colors = getPalette('nord').light;
-    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
-      title: parsed.title,
-    });
-
-    highlightPertCriticalPath(c);
-    const svg = c.querySelector('svg')!;
-    expect(svg.getAttribute('data-pert-highlight-active')).toBe('critical');
-
-    const fadedNodes = c.querySelectorAll('g.pert-node[opacity="0.15"]');
-    const fullNodes = c.querySelectorAll('g.pert-node[opacity="1"]');
-    // Some critical, some not — both buckets must be non-empty for the
-    // fade to be doing something useful.
-    expect(fadedNodes.length).toBeGreaterThan(0);
-    expect(fullNodes.length).toBeGreaterThan(0);
-
-    resetPertCriticalPath(c);
-    expect(svg.getAttribute('data-pert-highlight-active')).toBeNull();
-    expect(c.querySelectorAll('g.pert-node[opacity]').length).toBe(0);
-
-    document.body.removeChild(c);
-  });
-
   describe('anchor pin never collides with name text', () => {
     // The bug: char-width approximation underestimated wide-glyph text
     // widths (caps, M, W). When `actualTextW > approxTextW` the centered
