@@ -2006,9 +2006,15 @@ export function renderSequenceDiagram(
       .attr('class', 'group-box-wrapper')
       .attr('data-group-toggle', '')
       .attr('data-group-line', String(group.lineNumber))
+      .attr('tabindex', '0')
+      .attr('role', 'button')
+      .attr('aria-expanded', 'true')
       .attr('cursor', 'pointer');
     groupG.append('title').text('Click to collapse');
 
+    // Visual group frame — pointer-events:none so it never intercepts clicks.
+    // The box is rendered behind the participant shapes, so the only reliable
+    // toggle target is the header strip above the participants (hit area below).
     groupG
       .append('rect')
       .attr('x', minX)
@@ -2020,17 +2026,43 @@ export function renderSequenceDiagram(
       .attr('stroke', strokeColor)
       .attr('stroke-width', 1)
       .attr('stroke-opacity', 0.5)
+      .attr('pointer-events', 'none')
       .attr('class', 'group-box');
 
-    // Group label
+    // Transparent hit area over the header strip (above the participant boxes,
+    // so it is never occluded). Gives the toggle a generous, discoverable
+    // click target — mirrors the section-label-hit pattern.
+    groupG
+      .append('rect')
+      .attr('x', minX)
+      .attr('y', boxY)
+      .attr('width', maxX - minX)
+      .attr('height', participantStartY - boxY)
+      .attr('fill', 'transparent')
+      .attr('class', 'group-label-hit');
+
+    // Collapse chevron — visual affordance signalling the header is clickable.
     groupG
       .append('text')
       .attr('x', minX + 8)
       .attr('y', boxY + GROUP_LABEL_SIZE + 4)
       .attr('fill', strokeColor)
       .attr('font-size', GROUP_LABEL_SIZE)
+      .attr('opacity', 0.7)
+      .attr('pointer-events', 'none')
+      .attr('class', 'group-chevron')
+      .text('▾'); // ▾ expanded
+
+    // Group label
+    groupG
+      .append('text')
+      .attr('x', minX + 8 + GROUP_LABEL_SIZE + 2)
+      .attr('y', boxY + GROUP_LABEL_SIZE + 4)
+      .attr('fill', strokeColor)
+      .attr('font-size', GROUP_LABEL_SIZE)
       .attr('font-weight', 'bold')
       .attr('opacity', 0.7)
+      .attr('pointer-events', 'none')
       .attr('class', 'group-label')
       .text(group.name);
   }
@@ -2091,6 +2123,9 @@ export function renderSequenceDiagram(
       participantG
         .attr('data-group-toggle', '')
         .attr('data-group-line', String(meta.lineNumber))
+        .attr('tabindex', '0')
+        .attr('role', 'button')
+        .attr('aria-expanded', 'false')
         .attr('cursor', 'pointer');
       participantG.append('title').text('Click to expand');
 
