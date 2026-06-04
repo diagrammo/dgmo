@@ -4238,7 +4238,6 @@ function renderTimelineHorizontalTimeSort(
 ): void {
   const {
     width,
-    height,
     tooltip,
     solid,
     textColor,
@@ -4301,14 +4300,18 @@ function renderTimelineHorizontalTimeSort(
     ? -(topScaleH + markerReserve + ERA_ROW_H / 2)
     : 0;
   const innerWidth = width - margin.left - margin.right;
-  const availInnerHeight = height - margin.top - margin.bottom;
-  const rowH = Math.min(ctx.structural(28), availInnerHeight / sorted.length);
-  // Each event needs only `rowH` of vertical space. When the container is
-  // taller than the rows require (rowH hits its 28px cap), draw the era
-  // bands and time axis to the content height instead of the full container
-  // so the axis sits just below the last event rather than leaving a large
-  // vertical gap. The SVG itself shrinks to match (top-aligned via
-  // preserveAspectRatio) so callers don't reserve dead space below the chart.
+  // Each event gets a fixed comfortable row. The old behaviour compressed rowH
+  // to fit the container height (`min(28, avail / n)`), but that only ever
+  // shrank rows BELOW the 22px bar height — cramming events into overlap when
+  // the host surface was shorter than the content required (e.g. the app's
+  // fixed-height embedded-diagram surface). A constant rowH never overlaps:
+  // when the container is taller than needed the SVG shrinks to the content
+  // (top-aligned via preserveAspectRatio); when shorter, the SVG grows past it
+  // and the host collapses/expands to the rendered height. This also makes the
+  // interactive preview match the exported image, which already used rowH=28.
+  const rowH = ctx.structural(28);
+  // Draw the era bands and time axis to the content height (not the full
+  // container) so the axis sits just below the last event.
   const innerHeight = rowH * sorted.length;
   const usedHeight = margin.top + innerHeight + margin.bottom;
 
