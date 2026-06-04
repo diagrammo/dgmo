@@ -119,6 +119,8 @@
     "build": "DGMO_DEV_RELOAD=1 tsup; _e=$?; rm -rf ../diagrammo-app/node_modules/.vite/deps 2>/dev/null; exit $_e",
     "typecheck": "tsc --noEmit",
     "dev": "DGMO_DEV_RELOAD=1 tsup --watch",
+    "cockpit": "vite tools/suggest-cockpit",
+    "suggest-audit": "node scripts/suggest-audit.mjs",
     "pretest": "pnpm codegen",
     "test": "vitest run --coverage",
     "test:watch": "vitest",

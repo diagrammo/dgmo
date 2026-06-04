@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>suggest_chart_type — cockpit</title>
+    <style>
+      :root {
+        --bg: #2e3440; --surface: #3b4252; --surface2: #434c5e;
+        --border: #4c566a; --text: #eceff4; --muted: #9aa5b8;
+        --green: #a3be8c; --yellow: #ebcb8b; --red: #bf616a; --blue: #88c0d0;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--text);
+        font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+      .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+      h1 { font-size: 18px; margin: 0 0 4px; }
+      h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 28px 0 10px; }
+      .sub { color: var(--muted); margin: 0 0 8px; font-size: 13px; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .hit { display: flex; gap: 20px; align-items: baseline; margin: 6px 0 0; }
+      .hit b { font-size: 26px; }
+      .hit .delta { font-size: 13px; color: var(--muted); }
+      input, textarea, select, button {
+        font: inherit; color: var(--text); background: var(--surface);
+        border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+      }
+      input[type=text] { width: 100%; }
+      button { cursor: pointer; background: var(--surface2); }
+      button:hover { border-color: var(--blue); }
+      .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+      .cands { margin: 10px 0 0; display: grid; gap: 6px; }
+      .cand { display: flex; gap: 10px; align-items: baseline; }
+      .cand .id { font-weight: 600; min-width: 130px; }
+      .cand .sc { color: var(--blue); min-width: 46px; }
+      .cand .mt { color: var(--muted); font-size: 13px; }
+      .pill { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); }
+      .pill.high { color: var(--green); border-color: var(--green); }
+      .pill.medium { color: var(--yellow); border-color: var(--yellow); }
+      .pill.ambiguous { color: var(--red); border-color: var(--red); }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+      th { color: var(--muted); font-weight: 500; }
+      .v-top1 { color: var(--green); } .v-top3 { color: var(--yellow); } .v-miss { color: var(--red); }
+      .filters { display: flex; gap: 8px; margin: 0 0 8px; }
+      .filters button.active { border-color: var(--blue); color: var(--blue); }
+      .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      textarea { width: 100%; min-height: 150px; resize: vertical; font-family: ui-monospace, monospace; font-size: 13px; }
+      .editrow { display: flex; gap: 8px; align-items: center; margin: 0 0 8px; }
+      .muted { color: var(--muted); }
+      .note { color: var(--muted); font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap" id="app"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
