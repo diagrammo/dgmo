@@ -36,6 +36,8 @@ import {
 import type { LabelRect, PointCircle } from '../label-layout';
 import { measureLegendText } from '../utils/legend-constants';
 import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
+import type { LegendMode } from '../utils/legend-types';
+import { mapLegendBand } from './legend-band';
 import type { DgmoError } from '../diagnostics';
 import type { BoundaryTopology } from './data/types';
 import type {
@@ -482,6 +484,10 @@ export interface LayoutOptions {
    *  canvas away from the content aspect, so the off-aspect canvas doesn't
    *  re-distort. The in-app preview pane leaves this unset (keeps stretch-fill). */
   readonly preferContain?: boolean;
+  /** Which legend variant gets drawn — `'export'` shows only the active group,
+   *  `'preview'` keeps inactive pills. Used to size the reserved legend band so
+   *  the projected land starts below the legend. Defaults to `'preview'`. */
+  readonly legendMode?: LegendMode;
 }
 
 interface Size {
@@ -1168,6 +1174,35 @@ export function layoutMap(
 
   const regionById = new Map(resolved.regions.map((r) => [r.iso, r]));
 
+  // -- Legend model (AR1: categorical via renderer's renderLegendD3). Built here
+  // (before the fit) so the fit can reserve a band for it. Only the colouring
+  // dimensions (value ramp + tag groups) get a legend; POI size and edge
+  // thickness are self-evident from the marker/line scale and carry no key. --
+  let legend: MapLayoutLegend | null = null;
+  if (!resolved.directives.noLegend) {
+    const legendTagGroups = resolved.tagGroups.map((g) => ({
+      name: g.name,
+      entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
+    }));
+    if (legendTagGroups.length > 0 || hasRamp) {
+      legend = {
+        tagGroups: legendTagGroups,
+        activeGroup,
+        ...(hasRamp && {
+          ramp: {
+            ...(resolved.directives.regionMetric !== undefined && {
+              metric: resolved.directives.regionMetric,
+            }),
+            min: rampMin,
+            max: rampMax,
+            hue: rampHue,
+            base: rampBase,
+          },
+        }),
+      };
+    }
+  }
+
   // -- Fit the projection to the canvas (size-dependent; the projection + fit
   // target themselves came from buildMapProjection above). --
   // Reserve top padding for the title/subtitle banner ONLY when there are POIs,
@@ -1183,6 +1218,18 @@ export function layoutMap(
       TITLE_FONT_SIZE / 2;
     topPad = Math.max(FIT_PAD, bannerBottom + TITLE_GAP);
   }
+  // Reserve a band for the top-center legend so the projected land starts BELOW
+  // it (the legend is a foreground overlay — without this it covers land, e.g.
+  // Europe on a world map). The band is measured from the SAME groups/config the
+  // renderer draws (mode-aware: export shows only the active group), so the
+  // reserve matches the rendered legend exactly.
+  const legendBand = mapLegendBand(legend, {
+    width,
+    mode: opts.legendMode ?? 'preview',
+    hasTitle: Boolean(resolved.title),
+    hasSubtitle: Boolean(resolved.subtitle),
+  });
+  if (legendBand > topPad) topPad = legendBand;
   const fitBox: [[number, number], [number, number]] = [
     [FIT_PAD, topPad],
     [
@@ -1223,7 +1270,10 @@ export function layoutMap(
     // edge, not 24px short of it with a coastline ringing the gap). The title
     // overlays the top; we reserve a top band only when POIs are present (so
     // their markers don't project up under the foreground title banner).
-    const topReserve = resolved.title && resolved.pois.length > 0 ? topPad : 0;
+    const topReserve =
+      (resolved.title && resolved.pois.length > 0) || legendBand > 0
+        ? topPad
+        : 0;
     const ox = 0;
     const oy = topReserve;
     const sx = cw > 0 ? width / cw : 1;
@@ -2885,36 +2935,6 @@ export function layoutMap(
       overLand: (x, y) => fillAt(x, y) !== water,
     });
     labels.push(...contextLabels);
-  }
-
-  // -- Legend model (AR1: categorical via renderer's renderLegendD3) --
-  let legend: MapLayoutLegend | null = null;
-  if (!resolved.directives.noLegend) {
-    const tagGroups = resolved.tagGroups.map((g) => ({
-      name: g.name,
-      entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
-    }));
-    // Only the colouring dimensions (value ramp + tag groups) get a legend.
-    // POI size and edge thickness are self-evident from the marker/line scale and
-    // intentionally carry no key (the poi-metric/flow-metric labels are captured
-    // for future use but not rendered as legend keys in v1).
-    if (tagGroups.length > 0 || hasRamp) {
-      legend = {
-        tagGroups,
-        activeGroup,
-        ...(hasRamp && {
-          ramp: {
-            ...(resolved.directives.regionMetric !== undefined && {
-              metric: resolved.directives.regionMetric,
-            }),
-            min: rampMin,
-            max: rampMax,
-            hue: rampHue,
-            base: rampBase,
-          },
-        }),
-      };
-    }
   }
 
   return {

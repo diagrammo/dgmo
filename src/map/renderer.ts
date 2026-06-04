@@ -14,6 +14,7 @@ import {
 import { mix } from '../palettes/color-utils';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
+import { mapLegendConfig, mapLegendGroups } from './legend-band';
 import type { PaletteColors } from '../palettes/types';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { MapData, ResolvedMap } from './resolved-types';
@@ -236,6 +237,9 @@ export function renderMap(
       // stretch-distorting. The in-app preview pane passes no exportDims → unset →
       // keeps the global stretch-fill.
       preferContain: exportDims?.preferContain ?? false,
+      // Reserve the legend band for the mode actually drawn below (export shows
+      // only the active group; preview keeps the inactive pills).
+      legendMode: exportDims ? 'export' : 'preview',
       ...(activeGroupOverride !== undefined && {
         activeGroup: activeGroupOverride,
       }),
@@ -912,36 +916,14 @@ export function renderMap(
       .attr('transform', `translate(0, ${legendY})`);
     // The value ramp is a selectable colouring group alongside the tag groups
     // (the user flips between them); its capsule renders the gradient inline.
-    // Reserved name "Value" when no region-metric label is set — must match
-    // VALUE_NAME in layout.ts so the resolved activeGroup selects it.
-    const ramp = layout.legend.ramp;
-    const scoreGroup = ramp
-      ? {
-          name: ramp.metric?.trim() || 'Value',
-          entries: [],
-          gradient: {
-            min: ramp.min,
-            max: ramp.max,
-            hue: ramp.hue,
-            base: ramp.base,
-          },
-        }
-      : null;
-    const tagGroups = layout.legend.tagGroups
-      .filter((g) => g.entries.length > 0)
-      .map((g) => ({ name: g.name, entries: [...g.entries] }));
-    const groups = [...(scoreGroup ? [scoreGroup] : []), ...tagGroups];
+    // Built from the shared helper so the drawn legend matches the band the
+    // layout reserved for it (see legend-band.ts).
+    const groups = mapLegendGroups(layout.legend);
     if (groups.length > 0) {
-      const config: LegendConfig = {
+      const config: LegendConfig = mapLegendConfig(
         groups,
-        position: { placement: 'top-center', titleRelation: 'below-title' },
-        mode: exportDims ? 'export' : 'preview',
-        showEmptyGroups: false,
-        // Keep inactive siblings visible as pills so the user can click to flip
-        // the active colouring dimension (preview only — export shows just the
-        // active group).
-        showInactivePills: true,
-      };
+        exportDims ? 'export' : 'preview'
+      );
       const state: LegendState = { activeGroup: layout.legend.activeGroup };
       renderLegendD3(legendG, config, state, palette, isDark, undefined, width);
     }

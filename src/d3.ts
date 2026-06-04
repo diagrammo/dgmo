@@ -7754,6 +7754,10 @@ export async function renderForExport(
     // here — the Node fs `loadMapData()` seam can't run in a browser. CLI/SSR
     // omit this and fall back to the fs loader.
     mapData?: import('./map/resolved-types').MapData;
+    // WYSIWYG map export: the live preview pane's displayed aspect (w/h). When
+    // set, the map canvas adopts it + stretch-fills so the PNG matches the
+    // on-screen map. The app passes this; headless consumers omit it.
+    mapAspect?: number;
   }
 ): Promise<string> {
   const exportMode = options?.exportMode ?? false;
@@ -8494,7 +8498,12 @@ export async function renderForExport(
     // aspect (world ~2.3:1, a region taller, etc.) instead of the fixed 800, so the
     // export matches the content's natural shape — no vertical stretch, no
     // letterbox bands. `preferContain` rides along to the renderer.
-    const dims = mapExportDimensions(mapResolved, mapData, EXPORT_WIDTH);
+    const dims = mapExportDimensions(
+      mapResolved,
+      mapData,
+      EXPORT_WIDTH,
+      options?.mapAspect
+    );
     const container = createExportContainer(dims.width, dims.height);
     renderMapForExport(
       container,

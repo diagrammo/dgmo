@@ -83,10 +83,24 @@ export interface MapExportDimensions {
 export function mapExportDimensions(
   resolved: ResolvedMap,
   data: MapData,
-  baseWidth = 1200
+  baseWidth = 1200,
+  /** WYSIWYG override (app export): the live preview pane's displayed aspect
+   *  (width / height). When provided, the canvas adopts it verbatim and
+   *  stretch-fills (no clamp, no contain) so the PNG matches exactly what's on
+   *  screen. Omitted by every headless consumer (CLI / MCP / SSG / Obsidian),
+   *  which keep the intrinsic-aspect sizing below. */
+  aspectOverride?: number
 ): MapExportDimensions {
-  const raw = mapContentAspect(resolved, data);
-  const clamped = Math.max(ASPECT_MIN, Math.min(ASPECT_MAX, raw));
+  const useOverride =
+    aspectOverride !== undefined &&
+    Number.isFinite(aspectOverride) &&
+    aspectOverride > 0;
+  const raw = useOverride ? aspectOverride : mapContentAspect(resolved, data);
+  // The override is the user's on-screen aspect — honour it as-is (no clamp);
+  // only the intrinsic path guards against pathological extents.
+  const clamped = useOverride
+    ? raw
+    : Math.max(ASPECT_MIN, Math.min(ASPECT_MAX, raw));
   const width = baseWidth;
   let height = Math.round(width / clamped);
 
@@ -111,7 +125,9 @@ export function mapExportDimensions(
   }
 
   // The canvas was forced off the content aspect ⇒ tell the renderer to
-  // contain-fit (letterbox) rather than stretch-distort.
-  const preferContain = clamped !== raw || floored;
+  // contain-fit (letterbox) rather than stretch-distort. The WYSIWYG override is
+  // exempt: it stretch-fills (mirroring the preview pane) unless the MIN_MAP_BAND
+  // floor had to grow the canvas off-aspect.
+  const preferContain = useOverride ? floored : clamped !== raw || floored;
   return { width, height, preferContain };
 }

@@ -190,6 +190,37 @@ describe('map dimensions — mapExportDimensions', () => {
       expect(d.preferContain).toBe(false);
     }
   });
+
+  describe('WYSIWYG aspect override', () => {
+    it('adopts the override aspect verbatim and stretch-fills', () => {
+      const r = resolve('map\nUnited States value: 1\nJapan value: 2');
+      // Without an override this extent clamps + contain-fits; the override must
+      // bypass both — height tracks the supplied aspect, preferContain false.
+      const d = mapExportDimensions(r, DATA, 1200, 2.2);
+      expect(d.width).toBe(1200);
+      expect(d.width / d.height).toBeCloseTo(2.2, 1);
+      expect(d.preferContain).toBe(false);
+    });
+
+    it('honours an aspect outside the intrinsic clamp band', () => {
+      const r = resolve('map\nCalifornia value: 1');
+      // 3.4 is past ASPECT_MAX (3.0) — the intrinsic path would clamp, the
+      // override must not (it is the user's real on-screen shape).
+      const d = mapExportDimensions(r, DATA, 1200, 3.4);
+      expect(d.width / d.height).toBeCloseTo(3.4, 1);
+      expect(d.preferContain).toBe(false);
+    });
+
+    it('ignores a non-finite / non-positive override (falls back to intrinsic)', () => {
+      const r = resolve('map\nCalifornia value: 1');
+      const intrinsic = mapExportDimensions(r, DATA, 1200);
+      for (const bad of [0, -2, Number.NaN, Number.POSITIVE_INFINITY]) {
+        const d = mapExportDimensions(r, DATA, 1200, bad);
+        expect(d.height).toBe(intrinsic.height);
+        expect(d.preferContain).toBe(intrinsic.preferContain);
+      }
+    });
+  });
 });
 
 describe('map dimensions — renderer honors preferContain (Task 4)', () => {
@@ -224,5 +255,42 @@ describe('map dimensions — renderer honors preferContain (Task 4)', () => {
       }
     );
     expect(lay.stretch).toBeNull();
+  });
+});
+
+describe('map dimensions — legend band reserve', () => {
+  // A POI-less world choropleth carries a value-ramp legend. The legend is a
+  // top-center foreground overlay; without a reserve it covers land (Europe), so
+  // the fit must push the stretch-filled world down (stretch.oy > 0).
+  const legendSrc =
+    'map World\nregion-metric Employees\nGermany value: 1800\nUnited States value: 4200';
+
+  it('a value-ramp legend reserves a top band (global stretch oy > 0)', () => {
+    const r = resolve(legendSrc);
+    expect(r.pois.length).toBe(0); // precondition: no POIs (only land carries data)
+    expect(buildMapProjection(r, DATA).fitIsGlobal).toBe(true);
+    const lay = layoutMap(
+      r,
+      DATA,
+      { width: 1200, height: 800 },
+      { palette: P, isDark: false }
+    );
+    expect(lay.legend).not.toBeNull();
+    expect(lay.stretch).not.toBeNull();
+    // The legend band pushed the world down — without the reserve oy would be 0.
+    expect(lay.stretch!.oy).toBeGreaterThan(0);
+  });
+
+  it('no-legend opts out of the band (global stretch oy === 0)', () => {
+    const r = resolve(`${legendSrc}\nno-legend`);
+    const lay = layoutMap(
+      r,
+      DATA,
+      { width: 1200, height: 800 },
+      { palette: P, isDark: false }
+    );
+    expect(lay.legend).toBeNull();
+    expect(lay.stretch).not.toBeNull();
+    expect(lay.stretch!.oy).toBe(0);
   });
 });
