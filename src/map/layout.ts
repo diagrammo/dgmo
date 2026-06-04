@@ -1027,18 +1027,22 @@ export function layoutMap(
 
   // -- Colorize: content-inferred distinct political fills (§24B) --
   // Colorize is the DEFAULT dress for any map that is NOT colouring regions by
-  // data. The ONLY two things that turn it off: (1) a data dimension exists on a
+  // data. The things that turn it off: (1) a data dimension exists on a
   // region (any `value:` or tag group) — data owns the saturation, so the basemap
-  // recedes to the gray choropleth/categorical dress; or (2) the `no-colorize`
-  // opt-out. Everything else — bare `map`, POI/route-only maps, named regions
-  // without data — gets distinct political pastels (markers/routes draw on top).
-  // Data EXISTENCE (not which dimension is *active*) is the discriminator, so a
-  // tag map viewed with `active-tag none` still keeps its neutral data dress; and
-  // the live-preview `California` → `California value: 92` edit transitions
-  // colorized → choropleth cleanly.
+  // recedes to the gray choropleth/categorical dress; (2) any region carries a
+  // direct trailing color (`Japan red`) — that's explicit authoring intent, so
+  // auto-political-tinting would only fight the hand-picked colours; or (3) the
+  // `no-colorize` opt-out. Everything else — bare `map`, POI/route-only maps,
+  // named regions without data or direct colours — gets distinct political
+  // pastels (markers/routes draw on top). Data EXISTENCE (not which dimension is
+  // *active*) is the discriminator, so a tag map viewed with `active-tag none`
+  // still keeps its neutral data dress; and the live-preview `California` →
+  // `California value: 92` edit transitions colorized → choropleth cleanly.
+  const hasDirectColor = resolved.regions.some((r) => r.color !== undefined);
   const colorizeActive =
     resolved.directives.noColorize !== true &&
     !hasRamp &&
+    !hasDirectColor &&
     resolved.tagGroups.length === 0;
   // Hue per ISO over ONE UNIFIED graph spanning every drawn topology, so no two
   // bordering regions share a hue — INCLUDING across the international seam. The

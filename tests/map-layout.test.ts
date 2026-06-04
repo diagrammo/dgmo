@@ -1228,12 +1228,15 @@ describe('layout — colorize (content-inferred political fills, §24B)', () => 
     expect(withFlag).toBe(without);
   });
 
-  it('direct color wins over colorize, colorize still active (AC8)', () => {
+  it('a direct color anywhere suppresses colorize — hand-picked colours win (AC8)', () => {
     const TAG_TINT_LIGHT = 60;
     const r = lay('map\nOregon blue\nCalifornia');
-    // Oregon painted its direct blue tint (override), California stays on-palette.
+    // Oregon painted its direct blue tint (override); the explicit colour is
+    // authoring intent, so the rest of the map drops to the neutral dress rather
+    // than fighting the hand-picked colours with auto political tints.
     expect(fillOf(r, 'US-OR')).toBe(mix(P.colors.blue, P.bg, TAG_TINT_LIGHT));
-    expect(isPolitical(fillOf(r, 'US-CA')!)).toBe(true);
+    expect(fillOf(r, 'US-CA')).toBe(neutral);
+    expect(politicalRegions(r).some((x) => isPolitical(x.fill))).toBe(false);
   });
 
   it('boundary stroke darkens per-region under colorize, differs from green baseline (AC12)', () => {
