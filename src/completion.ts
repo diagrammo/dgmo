@@ -447,6 +447,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       direction: { description: 'Layout direction', values: ['LR', 'TB'] },
       'active-tag': { description: 'Active tag group name' },
       hide: { description: 'Hide tag:value pairs' },
+      'box-metric': { description: 'Metric label for the value ramp' },
+      'show-values': { description: 'Print box values as text' },
     }),
   ],
   [
@@ -740,12 +742,9 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
     {
       node: {
         description: { description: 'Node description text' },
+        value: { description: 'Numeric value for the metric ramp' },
       },
-      edge: {
-        width: { description: 'Edge stroke width in pixels' },
-        split: { description: 'Traffic split percentage' },
-        fanout: { description: 'Fanout multiplier (integer >= 1)' },
-      },
+      edge: {},
     },
   ],
   [

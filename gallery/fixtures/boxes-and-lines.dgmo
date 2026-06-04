@@ -6,28 +6,30 @@ tag Priority p High red, Medium orange, Low gray
 active-tag Team
 hide priority:Low
 
+box-metric Load orange
+
 direction LR
 
 // --- Services ---
-API Gateway t: Backend
+API Gateway t: Backend, value: 850
   Main entry point for all requests
   Routes to **backend services**
   -routes-> UserService
   -routes-> ProductService
   -routes-> OrderService
 
-UserService t: Backend
+UserService t: Backend, value: 430
   Handles auth and profiles
   Uses `JWT` tokens for sessions
   -reads-> UserDB
   -checks-> SessionCache
 
-ProductService t: Frontend, description: Product catalog and search
+ProductService t: Frontend, value: 620, description: Product catalog and search
   Supports *full-text* search
   -queries-> ProductDB
   -invalidates-> ProductCache
 
-OrderService t: Backend
+OrderService t: Backend, value: 290
   Order processing pipeline
   Validates inventory before commit
   -writes-> OrderDB

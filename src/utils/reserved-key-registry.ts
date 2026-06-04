@@ -148,12 +148,14 @@ export const PERT_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'collapsed',
 ]);
 
+// `width`/`split`/`fanout` were copy-pasted from an infra-flavored template
+// during the §1.4 metadata migration but boxes-and-lines never read them
+// (split/fanout are infra-only edge-flow keys, consumed in src/infra/*). Removed
+// 2026-06-03 — only `value` (the numeric ramp) is a real BL data channel.
 export const BOXES_AND_LINES_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',
-  'width',
-  'split',
-  'fanout',
+  'value',
 ]);
 
 export const TIMELINE_REGISTRY: ReservedKeyRegistry = staticRegistry([

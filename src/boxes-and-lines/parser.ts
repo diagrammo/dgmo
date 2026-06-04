@@ -26,6 +26,7 @@ import {
   extractColor,
   parseFirstLine,
   OPTION_NOCOLON_RE,
+  peelTrailingColorName,
   splitNameAndMeta,
   tryParseSharedOption,
   warnUnknownMetaKeys,
@@ -295,6 +296,26 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
           }
         }
         continue;
+      }
+
+      // box-metric / show-values directives — pre-content only (like
+      // active-tag). Explicit regex branches: a bare flag and a
+      // `key value` form won't both match the active-tag OPTION codepath.
+      if (!contentStarted) {
+        const metricMatch = trimmed.match(/^box-metric\s+(.+)$/i);
+        if (metricMatch) {
+          // Regex capture group present after successful match.
+          const { label, colorName } = peelTrailingColorName(
+            metricMatch[1]!.trim()
+          );
+          result.boxMetric = label;
+          if (colorName !== undefined) result.boxMetricColor = colorName;
+          continue;
+        }
+        if (/^show-values$/i.test(trimmed)) {
+          result.showValues = true;
+          continue;
+        }
       }
 
       // active-tag directive
@@ -784,6 +805,23 @@ function parseNodeLine(
     delete metadata['description'];
   }
 
+  // Lift `value: X` out of metadata into a typed numeric field (mirror of the
+  // map parser). Validate finite-numeric; delete from metadata so it never
+  // becomes a `data-tag-value` attribute.
+  let value: number | undefined;
+  if (metadata['value'] !== undefined) {
+    const raw = metadata['value'];
+    const num = Number(raw);
+    if (Number.isFinite(num)) {
+      value = num;
+    } else {
+      diagnostics.push(
+        makeDgmoError(lineNum, `value must be a number (got "${raw}")`, 'error')
+      );
+    }
+    delete metadata['value'];
+  }
+
   // TD-18 alias is now peeled by splitNameAndMeta — re-register if set.
   if (split.alias) {
     nameAliasMap?.set(normalizeName(split.alias), label);
@@ -796,6 +834,7 @@ function parseNodeLine(
     lineNumber: lineNum,
     metadata,
     ...(description !== undefined && { description }),
+    ...(value !== undefined && { value }),
   };
 }
 

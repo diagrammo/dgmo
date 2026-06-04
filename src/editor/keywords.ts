@@ -110,6 +110,9 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'hide',
   'mode',
   'direction',
+  // Boxes-and-lines
+  'box-metric',
+  'show-values',
   // ER
   'notation',
   // Class

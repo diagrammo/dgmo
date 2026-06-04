@@ -11,6 +11,7 @@ import type {
   LegendConfig,
   LegendState,
   LegendCallbacks,
+  LegendGroupData,
   ControlsGroupToggle,
 } from '../utils/legend-types';
 import {
@@ -19,7 +20,8 @@ import {
   TITLE_Y,
 } from '../utils/title-constants';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
-import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
+import { resolveColor } from '../colors';
+import { resolveTagColor } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import { renderInlineText } from '../utils/inline-markdown';
@@ -50,6 +52,9 @@ const NODE_TEXT_PADDING = 12;
 const GROUP_RX = 8;
 const GROUP_LABEL_FONT_SIZE = 14;
 const GROUP_LABEL_ZONE = 32;
+// % tint floor so the ramp minimum still reads as "low, present" (mirror map).
+const RAMP_FLOOR = 15;
+const VALUE_FONT_SIZE = 11;
 
 type D3G = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 type D3Svg = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
@@ -184,8 +189,30 @@ function nodeColors(
   activeGroupName: string | null,
   palette: PaletteColors,
   isDark: boolean,
+  value: {
+    active: boolean;
+    hue: string;
+    fillForValue: (v: number) => string;
+  },
   solid?: boolean
 ): { fill: string; stroke: string; text: string } {
+  // Untagged-neutral fill, reused by the value path for no-value boxes.
+  const neutralFill = mix(palette.bg, palette.text, isDark ? 90 : 95);
+  // Value dimension active: choropleth tint by the node's value, neutral when a
+  // box has no value (mirror map: `value !== undefined ? fillForValue : neutral`).
+  if (value.active) {
+    const fill =
+      node.value !== undefined ? value.fillForValue(node.value) : neutralFill;
+    // Stroke = the ramp hue (NOT a tag color — there may be none); a present
+    // stroke is required for the app's --bl-node-stroke hover-dim to work.
+    const stroke = value.hue;
+    const text = contrastText(
+      fill,
+      palette.textOnFillLight,
+      palette.textOnFillDark
+    );
+    return { fill, stroke, text };
+  }
   const tagColor = resolveTagColor(
     node.metadata,
     [...tagGroups],
@@ -368,6 +395,83 @@ export function renderBoxesAndLines(
   const sGroupLabelZone = sctx.structural(GROUP_LABEL_ZONE);
   const sTitleFontSize = sctx.text(TITLE_FONT_SIZE);
   const sTitleY = sctx.structural(TITLE_Y);
+
+  // ── Value ramp + active-dimension resolution (mirror of map's value model) ──
+  // The ramp is computed in the renderer (architectural divergence from the
+  // map, which precomputes in layout) — node sizes are value-independent, and
+  // this file already owns all colouring + the legend build. Hoisted ONCE
+  // before the node loop so `fillForValue` is not recomputed per node.
+  const nodeValues = parsed.nodes
+    .filter((n) => n.value !== undefined)
+    .map((n) => n.value!);
+  const hasRamp = nodeValues.length > 0;
+  const allNonNegative = hasRamp && nodeValues.every((v) => v >= 0);
+  const rampMin = allNonNegative ? 0 : Math.min(...nodeValues);
+  const rampMax = Math.max(...nodeValues);
+  // Default hue = palette.primary (NOT red like the map — boxes have no water to
+  // stand out against, and red reads as alarm on a neutral metric). A trailing
+  // color on `box-metric` overrides.
+  const rampHue =
+    resolveColor(parsed.boxMetricColor ?? '', palette) ?? palette.primary;
+  // Lift the ramp anchor off the near-black surface on dark themes so the
+  // lowest values read as a clear muted tint rather than sinking to the surface.
+  const rampBase = isDark ? mix(palette.surface, palette.text, 28) : palette.bg;
+  const fillForValue = (v: number): string => {
+    const t = rampMax > rampMin ? (v - rampMin) / (rampMax - rampMin) : 1;
+    const pct = RAMP_FLOOR + Math.max(0, Math.min(1, t)) * (100 - RAMP_FLOOR);
+    return mix(rampHue, rampBase, pct);
+  };
+  const VALUE_NAME = hasRamp ? parsed.boxMetric?.trim() || 'Value' : null;
+
+  // Local active-dimension resolver — mirror map's inline matchColorGroup /
+  // activeIsScore. Do NOT extend the shared resolveActiveTagGroup (it has a
+  // fixed 3-arg signature consumed by 7 chart types). On a name collision
+  // between a tag group and the metric label, the tag group wins (AC9).
+  const matchColorGroup = (v: string): string | null => {
+    const lv = v.trim().toLowerCase();
+    if (lv === 'none') return null;
+    const tg = parsed.tagGroups.find((g) => g.name.toLowerCase() === lv);
+    if (tg) return tg.name;
+    if (lv === VALUE_NAME?.toLowerCase()) return VALUE_NAME;
+    return v; // unknown name passes through → renders neutral
+  };
+  const override = activeTagGroup; // string | null | undefined
+  let activeGroup: string | null;
+  if (override !== undefined) {
+    activeGroup = override === null ? null : matchColorGroup(override);
+  } else if (parsed.options['active-tag'] !== undefined) {
+    activeGroup = matchColorGroup(parsed.options['active-tag']);
+  } else {
+    // Default-active dimension: value ramp when any box has a value, else the
+    // first declared tag group, else none.
+    activeGroup =
+      VALUE_NAME ??
+      (parsed.tagGroups.length > 0 ? parsed.tagGroups[0]!.name : null);
+  }
+  const activeIsValue = VALUE_NAME !== null && activeGroup === VALUE_NAME;
+
+  // Synthetic legend group for the value ramp (empty entries + gradient),
+  // prepended to the tag groups handed to renderLegendD3 — exactly like the
+  // map's VALUE_NAME group. The shared legend infra renders the gradient capsule
+  // ONLY when it is the active group (legendState.activeGroup === its name).
+  const valueGroup: LegendGroupData | null =
+    VALUE_NAME !== null
+      ? {
+          name: VALUE_NAME,
+          entries: [],
+          gradient: {
+            min: rampMin,
+            max: rampMax,
+            hue: rampHue,
+            base: rampBase,
+          },
+        }
+      : null;
+  const legendGroups: readonly LegendGroupData[] = [
+    ...(valueGroup ? [valueGroup] : []),
+    ...parsed.tagGroups,
+  ];
+
   // Reserve legend height only when a legend will actually render. App-hosted
   // controls move the Descriptions toggle to the app overlay, so a
   // descriptions-only chart (no tag groups) reserves nothing.
@@ -375,13 +479,13 @@ export function renderBoxesAndLines(
     (n) => n.description && n.description.length > 0
   );
   const willRenderLegend =
-    parsed.tagGroups.length > 0 ||
+    legendGroups.length > 0 ||
     (reserveHasDescriptions && controlsHost !== 'app');
   const sLegendHeight = willRenderLegend
     ? sctx.structural(
         getMaxLegendReservedHeight(
           {
-            groups: parsed.tagGroups,
+            groups: legendGroups,
             position: { placement: 'top-center', titleRelation: 'below-title' },
             mode: exportMode ? 'export' : 'preview',
           },
@@ -389,12 +493,6 @@ export function renderBoxesAndLines(
         )
       )
     : 0;
-
-  const activeGroup = resolveActiveTagGroup(
-    parsed.tagGroups,
-    parsed.options['active-tag'],
-    activeTagGroup
-  );
 
   // Build hidden set
   const hidden = hiddenTagValues ?? parsed.initialHiddenTagValues;
@@ -414,7 +512,7 @@ export function renderBoxesAndLines(
     (n) => n.description && n.description.length > 0
   );
   const needsLegend =
-    parsed.tagGroups.length > 0 || (hasAnyDescriptions && onToggleDescriptions);
+    legendGroups.length > 0 || (hasAnyDescriptions && onToggleDescriptions);
   const legendH = needsLegend ? sLegendHeight + 8 : 0;
 
   const groupLabelsSet = new Set(layout.groups.map((g) => g.label));
@@ -809,6 +907,7 @@ export function renderBoxesAndLines(
       activeGroup,
       palette,
       isDark,
+      { active: activeIsValue, hue: rampHue, fillForValue },
       parsed.options['solid-fill'] === 'on'
     );
 
@@ -824,6 +923,12 @@ export function renderBoxesAndLines(
     // Add tag metadata as data attributes for legend hover dimming
     for (const [key, val] of Object.entries(node.metadata)) {
       nodeG.attr(`data-tag-${key.toLowerCase()}`, val.toLowerCase());
+    }
+
+    // Numeric value drives the gradient scrub; guard on !== undefined so a
+    // legitimate `value: 0` still emits data-value="0" (0 is falsy).
+    if (node.value !== undefined) {
+      nodeG.attr('data-value', node.value);
     }
 
     if (onClickItem) {
@@ -1004,6 +1109,58 @@ export function renderBoxesAndLines(
           .text(fitted.lines[li]!);
       }
     }
+
+    // ── show-values: print the numeric value as text (opt-in) ──
+    // Independent of the active dimension (a user may want the numbers printed
+    // while a tag group tints). Plain nodes: centered below the label. Described
+    // nodes: a top-right corner badge so it never overflows the full body (R2-6).
+    if (parsed.showValues && node.value !== undefined) {
+      const valueText = String(node.value);
+      const descShown = !!(desc && desc.length > 0 && !hideDescriptions);
+      if (descShown) {
+        // Corner badge — pill behind the number so it reads over the header.
+        const padX = 6;
+        const padY = 5;
+        const bw = valueText.length * VALUE_FONT_SIZE * CHAR_WIDTH_RATIO + 8;
+        const bh = VALUE_FONT_SIZE + 4;
+        const bx = ln.width / 2 - bw - 4;
+        const by = -ln.height / 2 + 4;
+        nodeG
+          .append('rect')
+          .attr('x', bx)
+          .attr('y', by)
+          .attr('width', bw)
+          .attr('height', bh)
+          .attr('rx', 3)
+          .attr('fill', palette.bg)
+          .attr('opacity', 0.85);
+        nodeG
+          .append('text')
+          .attr('class', 'bl-node-value')
+          .attr('x', bx + bw - padX)
+          .attr('y', by + padY)
+          .attr('text-anchor', 'end')
+          .attr('dominant-baseline', 'central')
+          .attr('font-size', VALUE_FONT_SIZE)
+          .attr('font-weight', '600')
+          .attr('fill', palette.textMuted)
+          .text(valueText);
+      } else {
+        // Plain node: value centered just above the bottom edge.
+        nodeG
+          .append('text')
+          .attr('class', 'bl-node-value')
+          .attr('x', 0)
+          .attr('y', ln.height / 2 - VALUE_FONT_SIZE)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('font-size', VALUE_FONT_SIZE)
+          .attr('font-weight', '600')
+          .attr('fill', colors.text)
+          .attr('opacity', 0.8)
+          .text(valueText);
+      }
+    }
   }
 
   // ── Render legend ──────────────────────────────────────
@@ -1011,9 +1168,10 @@ export function renderBoxesAndLines(
     (n) => n.description && n.description.length > 0
   );
   // App-hosted: the Descriptions control moves to the app overlay, so a
-  // descriptions-only legend (no tag groups) has nothing left to render.
+  // descriptions-only legend (no tag groups) has nothing left to render. The
+  // value ramp (a synthetic group in legendGroups) also forces a legend.
   const hasLegend =
-    parsed.tagGroups.length > 0 || (hasDescriptions && controlsHost !== 'app');
+    legendGroups.length > 0 || (hasDescriptions && controlsHost !== 'app');
 
   if (hasLegend) {
     // Build controls group for description toggle. App-hosted controls own the
@@ -1035,7 +1193,7 @@ export function renderBoxesAndLines(
     }
 
     const legendConfig: LegendConfig = {
-      groups: parsed.tagGroups,
+      groups: legendGroups,
       position: { placement: 'top-center', titleRelation: 'below-title' },
       mode: exportMode ? 'export' : 'preview',
       // Keep inactive sibling tag groups visible as collapsed pills so the user
