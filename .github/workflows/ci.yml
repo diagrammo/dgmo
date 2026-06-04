@@ -23,6 +23,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Run the hygiene trio explicitly (not `check:all`, whose superset
+      # pulls in pnpm audit / publint / attw — covered elsewhere and flaky).
+      - name: Hygiene checks (dead code, duplication, deps)
+        run: pnpm check:deadcode && pnpm check:duplication && pnpm check:deps
+
       - name: Reject legacy alias syntaxes (TD-18)
         run: bash scripts/lint-no-legacy-alias.sh
 
