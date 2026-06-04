@@ -229,6 +229,11 @@ export function renderMap(
     // Display name on EVERY region (authored + base/context) so the app can
     // surface it on hover — decorative metadata, no visible text drawn here.
     if (r.label) p.attr('data-region-name', r.label);
+    // Area-weighted centroid (px) the app anchors the hover label to — robust to
+    // antimeridian crossers where a bounding-box centre lands in open ocean.
+    if (r.labelX !== undefined && r.labelY !== undefined) {
+      p.attr('data-label-x', r.labelX).attr('data-label-y', r.labelY);
+    }
     // Data layer? Tag it so the app can highlight on legend hover / gradient
     // scrub. `data-value` for ramp-proximity, `data-tag-<group>` per tag value
     // (both lowercased to match the lowercased legend-entry attributes).

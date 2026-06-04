@@ -69,6 +69,16 @@ const R_MAX = 22;
 const W_MIN = 1.25; // edge stroke width
 const W_MAX = 8;
 const FONT = 11; // on-map label font px
+
+// A few countries have far-flung territory that drags the area-weighted centroid
+// off the mainland (US → Alaska pulls it up into Canada). Anchor their world-layer
+// label/hover point to a mainland [lon, lat] instead. Antimeridian crossers whose
+// body dominates by area (Russia) are NOT listed — their area-weighted centroid
+// already lands on the mainland; only the naive bounding-box centre (which the app
+// previously used for hover) mistook the wrapped sliver for half the shape.
+const WORLD_LABEL_ANCHORS: Record<string, [number, number]> = {
+  US: [-98.5, 39.5], // CONUS geographic centre (near Lebanon, Kansas)
+};
 // POI-cluster hover-only gate (Decision #1). A ≥2-member cluster's callout
 // column falls back to hover-only labels when it would sprawl or overflow:
 //  - MAX_CLUSTER_EXTENT_FACTOR × min(width,height) = the px diagonal beyond which
@@ -191,6 +201,14 @@ export interface MapLayoutRegion {
   /** The region's tag values keyed by group (lowercased) — emitted as
    *  `data-tag-<group>` so the app can highlight on legend-entry hover. */
   readonly tags?: Readonly<Record<string, string>>;
+  /** Area-weighted screen centroid (px) of the DRAWN geometry — emitted as
+   *  `data-label-x`/`data-label-y` so the app can anchor the hover label here
+   *  instead of the path's bounding-box centre. The bbox centre breaks for
+   *  antimeridian crossers (Russia's wrapped Chukotka sliver pins the box's left
+   *  edge to the far side of the map, dropping the centre into the Atlantic); the
+   *  area-weighted centroid stays on the body. Honours WORLD_LABEL_ANCHORS. */
+  readonly labelX?: number;
+  readonly labelY?: number;
 }
 
 /** A framed inset "cutout" (albers-usa AK/HI), in screen px. The frame is a
@@ -1614,6 +1632,15 @@ export function layoutMap(
         // (the same source the resolver/inset/context-label layers read).
         label = (f.properties as { name?: string } | null)?.name;
       }
+      // Label/hover anchor: a hardcoded mainland anchor when far-flung territory
+      // would skew it, else the area-weighted screen centroid of the drawn shape.
+      // The latter (unlike a bounding-box centre) survives antimeridian crossers.
+      const labelAnchor = WORLD_LABEL_ANCHORS[iso];
+      const c = labelAnchor
+        ? project(labelAnchor[0], labelAnchor[1])
+        : path.centroid(viewF as never);
+      const hasCentroid =
+        c != null && Number.isFinite(c[0]) && Number.isFinite(c[1]);
       regions.push({
         id: iso,
         d,
@@ -1622,6 +1649,7 @@ export function layoutMap(
         lineNumber,
         layer,
         ...(label !== undefined && { label }),
+        ...(hasCentroid && { labelX: c[0], labelY: c[1] }),
         ...(isThisLayer && r.value !== undefined && { value: r.value }),
         ...(isThisLayer && Object.keys(r.tags).length > 0 && { tags: r.tags }),
       });
@@ -2283,12 +2311,6 @@ export function layoutMap(
       haloColor,
       lineNumber,
     });
-  };
-  // A few countries have far-flung territory that drags the area-weighted
-  // centroid off the mainland (US → Alaska pulls it up into Canada). Anchor
-  // their world-layer label to a mainland [lon, lat] instead.
-  const WORLD_LABEL_ANCHORS: Record<string, [number, number]> = {
-    US: [-98.5, 39.5], // CONUS geographic centre (near Lebanon, Kansas)
   };
   // A region label's screen footprint, middle-anchored on its centroid, used to
   // keep two region labels from overlapping (a small gap adds breathing room).
