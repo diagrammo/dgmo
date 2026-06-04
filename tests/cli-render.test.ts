@@ -270,13 +270,10 @@ const D3_TYPES = [
   'journey-map',
   'pyramid',
   'ring',
+  // Wordcloud renders headless via a canvas-free spiral packer (d3-cloud's
+  // sprite-based collision needs a real 2D canvas, absent in JSDOM/Node).
+  'wordcloud',
 ];
-
-// Wordcloud is intentionally not covered here: it requires
-// HTMLCanvasElement.getContext('2d') for d3-cloud text measurement, which
-// JSDOM does not provide. Wordcloud has parser, completion, and diagnostics
-// coverage elsewhere; adding the `canvas` native dep just for one render
-// smoke-test is not worth the toolchain weight.
 
 const ECHART_INPUTS: Record<string, string> = {
   scatter: `scatter
@@ -374,6 +371,14 @@ describe('renderForExport', () => {
       expect(svg).toContain('<svg');
     });
   }
+
+  // Regression: word clouds must place every word headlessly (no real canvas).
+  it('wordcloud places all words as text in headless Node', async () => {
+    const svg = await renderForExport(D3_INPUTS.wordcloud, 'light');
+    for (const word of ['hello', 'world', 'test', 'data']) {
+      expect(svg).toContain(`>${word}</text>`);
+    }
+  });
 });
 
 // ============================================================

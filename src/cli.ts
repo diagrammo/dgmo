@@ -1506,15 +1506,6 @@ async function main(): Promise<void> {
     opts.theme === 'dark' ? 'dark' : 'light'
   ];
 
-  // Word clouds require Canvas APIs (HTMLCanvasElement.getContext('2d'))
-  // which are unavailable in Node.js — check before attempting render.
-  const wordcloudRe = /^\s*chart\s*:\s*wordcloud\b/im;
-  if (wordcloudRe.test(content)) {
-    exitWithJsonError(
-      'Error: Word clouds are not supported in the CLI (requires Canvas). Use the desktop app or browser instead.'
-    );
-  }
-
   // Parse first to collect diagnostics
   const { diagnostics } = parseDgmo(content);
   const errors = diagnostics.filter((d) => d.severity === 'error');
