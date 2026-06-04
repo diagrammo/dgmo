@@ -31,6 +31,16 @@ import type {
   D3Sel,
 } from './legend-types';
 
+// Vertically center an SVG <text> across engines. WebKit drops
+// `dominant-baseline` on <text>, and resvg has limited support too
+// (see legend-svg.ts), so we use the alphabetic baseline (the shared
+// default) plus an em-relative dy. 0.32em matches legend-svg.ts's
+// proven pill offset (fontSize/2 - 2 = 0.318em at 11px).
+const LEGEND_TEXT_DY = '0.32em';
+function centerText(sel: D3Sel): D3Sel {
+  return sel.attr('dy', LEGEND_TEXT_DY);
+}
+
 // ── Main renderer ───────────────────────────────────────────
 
 export function renderLegendD3(
@@ -190,7 +200,7 @@ function renderCapsule(
     .attr('x', pill.x + pill.width / 2)
     .attr('y', LEGEND_HEIGHT / 2)
     .attr('text-anchor', 'middle')
-    .attr('dominant-baseline', 'central')
+    .call(centerText)
     .attr('font-size', LEGEND_PILL_FONT_SIZE)
     .attr('font-weight', 500)
     .attr('fill', palette.text)
@@ -211,7 +221,7 @@ function renderCapsule(
     g.append('text')
       .attr('x', gr.minX)
       .attr('y', gr.textY)
-      .attr('dominant-baseline', 'central')
+      .call(centerText)
       .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
       .attr('fill', palette.textMuted)
       .attr('pointer-events', 'none')
@@ -232,7 +242,7 @@ function renderCapsule(
     g.append('text')
       .attr('x', gr.maxX)
       .attr('y', gr.textY)
-      .attr('dominant-baseline', 'central')
+      .call(centerText)
       .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
       .attr('fill', palette.textMuted)
       .attr('pointer-events', 'none')
@@ -259,7 +269,7 @@ function renderCapsule(
       .append('text')
       .attr('x', entry.textX)
       .attr('y', entry.textY)
-      .attr('dominant-baseline', 'central')
+      .call(centerText)
       .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
       .attr('fill', palette.textMuted)
       .attr('font-family', FONT_FAMILY)
@@ -318,7 +328,7 @@ function renderPill(
     .attr('x', pill.width / 2)
     .attr('y', pill.height / 2)
     .attr('text-anchor', 'middle')
-    .attr('dominant-baseline', 'central')
+    .call(centerText)
     .attr('font-size', LEGEND_PILL_FONT_SIZE)
     .attr('font-weight', 500)
     .attr('fill', palette.textMuted)
@@ -387,7 +397,7 @@ function renderControl(
       .attr('x', textX)
       .attr('y', ctrl.height / 2)
       .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'central')
+      .call(centerText)
       .attr('font-size', LEGEND_PILL_FONT_SIZE)
       .attr('font-weight', 500)
       .attr('fill', palette.textMuted)
@@ -422,7 +432,7 @@ function renderControl(
         .attr('x', child.width / 2)
         .attr('y', ctrl.height / 2)
         .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'central')
+        .call(centerText)
         .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
         .attr('fill', child.isActive ? palette.bg : palette.textMuted)
         .attr('font-family', FONT_FAMILY)
@@ -585,7 +595,7 @@ function renderControlsGroup(
         .append('text')
         .attr('x', tl.textX)
         .attr('y', tl.textY)
-        .attr('dominant-baseline', 'central')
+        .call(centerText)
         .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
         .attr('fill', palette.textMuted)
         .attr('opacity', tl.active ? 1 : LEGEND_TOGGLE_OFF_OPACITY)

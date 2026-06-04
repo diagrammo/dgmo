@@ -287,6 +287,132 @@ describe('renderLegendD3', () => {
     expect(layout.activeCapsule!.addonX!).toBeGreaterThan(0);
   });
 
+  // Asserts every <text> under `g` is centered the cross-engine way:
+  // explicit `dy="0.32em"` and NO `dominant-baseline` (which WebKit drops).
+  // Returns the rendered text nodes so callers can also assert an expected
+  // count — a positive control against a label silently failing to render.
+  function expectAllTextCentered(g: SVGGElement): SVGTextElement[] {
+    const texts = Array.from(g.querySelectorAll('text'));
+    expect(texts.length).toBeGreaterThan(0);
+    for (const t of texts) {
+      expect(t.getAttribute('dy')).toBe('0.32em');
+      expect(t.hasAttribute('dominant-baseline')).toBe(false);
+    }
+    return texts;
+  }
+
+  it('centers collapsed-pill text via dy, not dominant-baseline', () => {
+    const g = makeContainer();
+    renderLegendD3(
+      select(g),
+      defaultConfig,
+      { activeGroup: null },
+      palette,
+      false
+    );
+
+    // One pill label per group — count guards against a label vanishing.
+    const texts = expectAllTextCentered(g);
+    expect(texts.length).toBe(2);
+  });
+
+  it('centers active-capsule text (group name + entries) via dy', () => {
+    const g = makeContainer();
+    renderLegendD3(
+      select(g),
+      defaultConfig,
+      { activeGroup: 'Priority' },
+      palette,
+      false
+    );
+
+    // Group name + one label per entry (2) = 3 texts.
+    const texts = expectAllTextCentered(g);
+    expect(texts.length).toBe(3);
+  });
+
+  it('centers gradient (choropleth) min/max labels via dy', () => {
+    const g = makeContainer();
+    const config: LegendConfig = {
+      ...defaultConfig,
+      groups: [
+        {
+          name: 'Score',
+          entries: [],
+          gradient: { min: 0, max: 100, hue: '#3182ce', base: '#ffffff' },
+        },
+      ],
+    };
+    renderLegendD3(select(g), config, { activeGroup: 'Score' }, palette, false);
+
+    // Group-name pill + min label + max label.
+    const texts = expectAllTextCentered(g);
+    const labels = texts.map((t) => t.textContent);
+    expect(labels).toContain('0');
+    expect(labels).toContain('100');
+  });
+
+  it('centers control label + child labels via dy', () => {
+    const g = makeContainer();
+    const config: LegendConfig = {
+      ...defaultConfig,
+      controls: [
+        {
+          id: 'speed',
+          icon: '<circle r="5"/>',
+          label: 'Speed',
+          exportBehavior: 'keep',
+          children: [
+            { id: 's1', label: '1x', isActive: true },
+            { id: 's2', label: '2x' },
+          ],
+        },
+      ],
+    };
+    renderLegendD3(select(g), config, { activeGroup: null }, palette, false);
+
+    const labels = expectAllTextCentered(g).map((t) => t.textContent);
+    expect(labels).toContain('Speed');
+    expect(labels).toContain('1x');
+    expect(labels).toContain('2x');
+  });
+
+  it('centers expanded controlsGroup toggle labels via dy', () => {
+    const g = makeContainer();
+    const config: LegendConfig = {
+      ...defaultConfig,
+      controlsGroup: {
+        toggles: [
+          {
+            id: 't1',
+            type: 'toggle',
+            label: 'Relief',
+            active: true,
+            onToggle: () => {},
+          },
+          {
+            id: 't2',
+            type: 'toggle',
+            label: 'Coast',
+            active: false,
+            onToggle: () => {},
+          },
+        ],
+      },
+    };
+    renderLegendD3(
+      select(g),
+      config,
+      { activeGroup: null, controlsExpanded: true },
+      palette,
+      false
+    );
+
+    const labels = expectAllTextCentered(g).map((t) => t.textContent);
+    expect(labels).toContain('Relief');
+    expect(labels).toContain('Coast');
+  });
+
   it('invokes onGroupToggle callback on pill click', () => {
     const g = makeContainer();
     const container = select(g);
