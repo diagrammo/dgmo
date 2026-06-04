@@ -10,6 +10,10 @@ hand-edit — regenerate from source.
 - `us-states.json` — US states + DC + territories (TopoJSON), keyed by ISO 3166-2.
 - `lakes.json` — major lakes (Natural Earth 110m, TopoJSON), drawn as water over land.
 - `rivers.json` — major river centerlines (Natural Earth 110m, TopoJSON), drawn as thin water lines.
+- `na-land.json` — NA-clipped 10m country land (TopoJSON, ISO-keyed): crisp neighbour context under the albers-usa US view.
+- `na-lakes.json` — NA-clipped 10m major lakes (TopoJSON): the lakes counterpart to `na-land.json` for the US view.
+- `mountain-ranges.json` — notable mountain ranges (Natural Earth 50m geography regions, FEATURECLA "Range/mtn", TopoJSON), drawn as a subtle gradient relief cue when the `relief` directive is on. Optional; single tier (no elevation).
+- `water-bodies.json` — water-body orientation labels (`{ entries: [lat, lon, name, tier, kind] }`) from Natural Earth 110m+50m geography marine polys (oceans/seas/gulfs/bays/straits/channels/sounds; rivers + reefs excluded). Anchors are mapshaper inner points; `tier` is the NE scalerank. Drawn only when the `context-labels` directive is on. Optional.
 - `gazetteer.json` — `{ cities, byName, alt }` city index (see `types.ts`).
   `byName`/`alt` reference `cities` by array index (normalized).
 - `PROVENANCE.json` — source versions + per-asset sha256/sizes + GeoNames date range.
@@ -18,6 +22,8 @@ hand-edit — regenerate from source.
 ## Sources & attribution
 - **Country boundaries:** Natural Earth via `world-atlas@2.0.2` (public domain).
 - **US states:** US Census via `us-atlas@3.0.1` (public domain).
+- **Mountain ranges:** Natural Earth 50m `geography_regions_polys` via `nvkelso/natural-earth-vector` (public domain).
+- **Water bodies:** Natural Earth 110m+50m `geography_marine_polys` via `nvkelso/natural-earth-vector` (public domain). One editorial override applied (`Gulf of Mexico` → `Gulf of America`).
 - **Cities:** Data © **GeoNames**, licensed under **CC BY 4.0**
   (https://creativecommons.org/licenses/by/4.0/) — https://www.geonames.org/.
 

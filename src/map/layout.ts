@@ -122,16 +122,21 @@ const RELIEF_MIN_DIM = 2; // px
 // Relief = horizontal hachure lines clipped to each range: a subtle
 // dark-on-light / light-on-dark texture that reads as "mountains here". Spacing
 // is SCREEN-space so density is constant regardless of zoom (geo-space spacing
-// would collapse a small range to 1–2 lines and read as a glitch). Kept FAINT:
-// thin sub-pixel lines drawn with a non-scaling stroke (constant device width at
-// any zoom/DPR) and low-contrast colour. NOT crispEdges — that snaps the stroke
-// to a solid ~1px in WebKit and reads far too heavy; plain AA keeps them whisper-thin.
-const RELIEF_HATCH_SPACING = 2; // px between lines
-const RELIEF_HATCH_WIDTH = 0.15; // px stroke
+// would collapse a small range to 1–2 lines and read as a glitch). Drawn with a
+// non-scaling stroke (constant device width at any zoom/DPR) and a low-contrast
+// colour so it reads as faint, fine terrain hachure — dense thin lines that are
+// almost indistinguishable as individual strokes (a whisper of texture, not
+// stripes). NOT crispEdges — that snaps the stroke to a solid ~1px in WebKit and
+// reads too heavy; plain AA keeps the lines soft. The width is kept just ABOVE
+// sub-pixel: at ~0.15px the AA fuzz spreads each line to ~1px and tight spacing
+// merges them into a flat grey wash (a "blob"). 0.25px every 1.5px stays a fine,
+// faint hatch on both zoomed-out world maps and zoomed-in regional views.
+const RELIEF_HATCH_SPACING = 1.5; // px between lines
+const RELIEF_HATCH_WIDTH = 0.2; // px stroke
 // % of the DARK reference (palette.bg on dark themes, palette.text on light)
 // blended into the land colour — so the lines read DARKER than the land in both
 // themes (palette.text alone flips to light on dark themes).
-const RELIEF_HATCH_STRENGTH = 32;
+const RELIEF_HATCH_STRENGTH = 26;
 // Coastline water-lines (opt-in `coastline`, §24B.2). N equal-width coast-parallel
 // rings on the water side, evenly spaced and FADING seaward — the antique
 // nautical-chart depth-contour look. Offshore distances + thickness are

@@ -91,13 +91,16 @@ const SOURCES = {
     url: 'https://cdn.jsdelivr.net/gh/martynafford/natural-earth-geojson@master/10m/physical/ne_10m_lakes.json',
   },
   mountainRanges: {
-    // Natural Earth 50m geography regions, filtered to FEATURECLA "Range/mtn" —
+    // Natural Earth 10m geography regions, filtered to FEATURECLA "Range/mtn" —
     // notable mountain ranges (Rockies, Andes, Alps, Himalayas, …) drawn as a
-    // subtle gradient relief cue when the `relief` directive is on. Hand-drawn
+    // subtle hachure relief cue when the `relief` directive is on. Hand-drawn
     // label-regions (not elevation-derived), so coarse by nature; v1 is single
-    // tier (no height). License: public domain (Natural Earth).
-    version: 'natural-earth 50m (nvkelso vector snapshot)',
-    url: 'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_geography_regions_polys.geojson',
+    // tier (no height). The 10m tier carries ~70 more ranges than 50m (better
+    // coverage of smaller CA/inter-mountain ranges); per-range outlines match 50m,
+    // so MOUNTAIN_RETAIN does the heavy lifting on shape fidelity (see below).
+    // License: public domain (Natural Earth).
+    version: 'natural-earth 10m (nvkelso vector snapshot)',
+    url: 'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_10m_geography_regions_polys.geojson',
   },
   marineCoarse: {
     // Natural Earth 110m geography marine polys — oceans + major seas/bays/gulfs.
@@ -126,8 +129,12 @@ const RIVERS_RETAIN = 40; // % of 110m river centerlines (thin lines — keep sh
 const QUANT_RIVERS = 10_000;
 // Mountain ranges: `-simplify N%` RETAINS N% of vertices — higher = crisper AND
 // bigger. Tuned for SHAPE FIDELITY first, not size (the Task 0 eyeball lever).
-// Measured on the real data: 3%→13KB, 8%→15KB, 15%→17KB gz.
-const MOUNTAIN_RETAIN = 8; // % of 50m geography_regions_polys mountain polys
+// These polys are coarse hand-drawn label-regions (Sierra Nevada is ~36 verts,
+// the Rockies ~114), so over-simplifying collapses CA/Rockies into ugly triangles
+// — at the old 8% Sierra Nevada was ~3 verts. Measured on the 10m data: 8%→14KB,
+// 30%→21KB, 50%→26.5KB, 80%→33KB gz. 50% keeps the outlines smooth while staying
+// under the 30KB ceiling; raise the ceiling (not lower this) for more fidelity.
+const MOUNTAIN_RETAIN = 50; // % of 10m geography_regions_polys mountain polys
 const QUANT_MOUNTAIN = 10_000;
 // North-America clip: lon -140..-52, lat 10..66 (CONUS + Canada/Mexico/Caribbean
 // edge). Keeps the crisp 10m assets small while covering everything the conic
@@ -466,7 +473,7 @@ async function buildNaLakes(url) {
  *  polys have none, so without ids the layer collapses to one feature), then
  *  simplifies. Single tier (NE has no elevation on these polys). */
 async function buildMountainRanges(url) {
-  console.log('• mountain-ranges (50m geography regions, Range/mtn)');
+  console.log('• mountain-ranges (10m geography regions, Range/mtn)');
   console.log(`  fetch ${url}`);
   const buf = await download(url);
   if (buf.length < 1024) throw new Error(`mountain-ranges: suspiciously small (${buf.length}B)`);
