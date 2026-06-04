@@ -170,14 +170,24 @@ const ISO_NUMERIC_TO_ALPHA2 = Object.fromEntries(
 );
 
 // world-atlas features with no numeric id (R4). Kosovo -> de-facto XK; the rest
-// have no ISO code and are dropped (documented). Any NEW no-id feature = hard fail.
+// have no ISO code and are dropped or merged (documented). Any NEW no-id feature
+// = hard fail.
 const NAME_TO_ISO2_FALLBACK = { Kosovo: 'XK' };
-const DROP_NAMES = new Set([
-  'Somaliland',
-  'N. Cyprus',
-  'Indian Ocean Ter.',
-  'Siachen Glacier',
-]);
+// Disputed/unrecognized territories that border a sovereign parent in the source
+// and would otherwise leave an unfilled HOLE if simply dropped: world-atlas models
+// them as a SEPARATE polygon sharing a border arc with the parent (Somaliland is
+// carved OUT of Somalia, N. Cyprus out of Cyprus). Dropping the child orphaned
+// that shared boundary and the child's interior rendered as background. Merge each
+// child into its parent (dissolving the shared arc) so the parent fills solid —
+// the politically-neutral default of folding the territory into the internationally
+// recognized state. Keyed by child feature name -> parent feature name.
+const MERGE_INTO_PARENT = {
+  Somaliland: 'Somalia',
+  'N. Cyprus': 'Cyprus',
+};
+// No sovereign parent to merge into / negligible footprint — dropped outright
+// (scattered islands, a glacier high in Kashmir); neither leaves a visible hole.
+const DROP_NAMES = new Set(['Indian Ocean Ter.', 'Siachen Glacier']);
 
 // --- US FIPS -> ISO 3166-2 (embedded; 56 = 50 states + DC + 5 territories, R7) -
 const FIPS_TO_ISO2 = {
@@ -578,11 +588,95 @@ async function simplify(topoBuf, retainPct, quantization) {
   return JSON.parse(Buffer.from(out['out.json']).toString('utf8'));
 }
 
+/** TopoJSON arc-index -> ones'-complement real index (negative = reversed arc). */
+const arcRealIdx = (v) => (v < 0 ? ~v : v);
+
+/** Absolute (quantized-integer) start/end nodes of an arc reference, accounting
+ *  for reversal. Arcs are delta-encoded; equality of these nodes is exact, so
+ *  rings can be stitched by node matching. */
+function arcEndpoints(arcs, v) {
+  const rev = v < 0;
+  const arc = arcs[rev ? ~v : v];
+  let x = 0,
+    y = 0,
+    first = null,
+    last = null;
+  for (const d of arc) {
+    x += d[0];
+    y += d[1];
+    if (first === null) first = [x, y];
+    last = [x, y];
+  }
+  return rev ? { start: last, end: first } : { start: first, end: last };
+}
+const sameNode = (a, b) => a[0] === b[0] && a[1] === b[1];
+
+/** Dissolve two single-ring polygons that share exactly one boundary arc into one
+ *  ring: drop the shared arc (present in both with opposite orientation) and
+ *  re-stitch the survivors into a single closed ring by node matching. Returns the
+ *  merged ring (array of arc indices) or null if the inputs don't fit that shape
+ *  (caller falls back to dropping the child — no crash, worst case the old hole). */
+function dissolveSharedArcRing(arcs, ringA, ringB) {
+  let shared = null;
+  for (const a of ringA)
+    for (const b of ringB)
+      if (arcRealIdx(a) === arcRealIdx(b) && a < 0 !== b < 0) shared = arcRealIdx(a);
+  if (shared == null) return null;
+  const pool = [...ringA, ...ringB].filter((v) => arcRealIdx(v) !== shared);
+  if (!pool.length) return null;
+  const ring = [pool.shift()];
+  const startNode = arcEndpoints(arcs, ring[0]).start;
+  let endNode = arcEndpoints(arcs, ring[0]).end;
+  while (pool.length) {
+    const i = pool.findIndex((v) => sameNode(arcEndpoints(arcs, v).start, endNode));
+    if (i < 0) return null; // dangling — can't form a single ring
+    const next = pool.splice(i, 1)[0];
+    ring.push(next);
+    endNode = arcEndpoints(arcs, next).end;
+  }
+  return sameNode(endNode, startNode) ? ring : null;
+}
+
+/** Fold disputed-territory child polygons (Somaliland, N. Cyprus) into their
+ *  sovereign parent so the parent fills solid instead of leaving an orphaned-
+ *  boundary hole. Mutates the geometry list in place. Each child must share a
+ *  single arc with a single-ring parent; otherwise it's left for the rekey loop
+ *  to drop (the prior behaviour). Returns the set of merged child names. */
+function mergeDisputedTerritories(topo, obj) {
+  const arcs = topo.arcs;
+  const byName = new Map(obj.geometries.map((g) => [g.properties?.name, g]));
+  const merged = new Set();
+  for (const [childName, parentName] of Object.entries(MERGE_INTO_PARENT)) {
+    const child = byName.get(childName);
+    const parent = byName.get(parentName);
+    // Tier may omit either; only Polygon↔Polygon single-ring merges are handled.
+    if (
+      !child ||
+      !parent ||
+      child.type !== 'Polygon' ||
+      parent.type !== 'Polygon' ||
+      parent.arcs.length !== 1 ||
+      child.arcs.length !== 1
+    )
+      continue;
+    const ring = dissolveSharedArcRing(arcs, parent.arcs[0], child.arcs[0]);
+    if (!ring) continue;
+    parent.arcs = [ring];
+    merged.add(childName);
+    child.__drop = true;
+  }
+  obj.geometries = obj.geometries.filter((g) => !g.__drop);
+  return merged;
+}
+
 /** Re-key world geometries by ISO 3166-1 alpha-2 (fail-loud, R1/R4/R8/R15). */
 function rekeyWorld(topo) {
   const objName = topo.objects.countries ? 'countries' : Object.keys(topo.objects)[0];
   const obj = topo.objects[objName];
   if (!obj) throw new Error('world: no geometry object');
+  // Fold Somaliland/N. Cyprus into Somalia/Cyprus before keying — afterwards no
+  // unmapped child remains (any that failed to merge falls through to the drop).
+  const merged = [...mergeDisputedTerritories(topo, obj)];
   const dropped = [];
   for (const g of obj.geometries) {
     if (g.id != null && typeof g.id !== 'string') {
@@ -592,7 +686,9 @@ function rekeyWorld(topo) {
     let iso = g.id != null ? ISO_NUMERIC_TO_ALPHA2[g.id] : undefined;
     if (!iso) iso = NAME_TO_ISO2_FALLBACK[name];
     if (!iso) {
-      if (DROP_NAMES.has(name)) {
+      // Outright-drop names, plus any merge child that couldn't be merged in this
+      // tier (no parent / unexpected shape) — drop rather than crash the build.
+      if (DROP_NAMES.has(name) || name in MERGE_INTO_PARENT) {
         dropped.push(name);
         g.__drop = true;
         continue;
@@ -604,7 +700,7 @@ function rekeyWorld(topo) {
   obj.geometries = obj.geometries.filter((g) => !g.__drop);
   // keep only the named object; drop 'land'/etc (R1)
   topo.objects = { countries: obj };
-  return { topo, dropped, keys: obj.geometries.map((g) => g.id) };
+  return { topo, dropped, merged, keys: obj.geometries.map((g) => g.id) };
 }
 
 /** Re-key US states by ISO 3166-2 US-XX (fail-loud, R7). */
@@ -758,7 +854,8 @@ async function main() {
   const orphan = coarse.keys.filter((k) => !dk.has(k));
   if (orphan.length) throw new Error(`coarse has keys absent from detail: ${orphan.join(', ')}`);
   console.log(`  coarse ${coarse.keys.length} / detail ${detail.keys.length} countries ` +
-    `(coarse dropped no-ISO: ${coarse.dropped.join(', ') || 'none'}; detail dropped: ${detail.dropped.join(', ') || 'none'})`);
+    `(merged into parent: ${detail.merged.join(', ') || 'none'}; ` +
+    `dropped no-ISO: ${detail.dropped.join(', ') || 'none'})`);
 
   console.log('• US states');
   const usBuf = Buffer.from(
@@ -935,6 +1032,7 @@ export {
   sortKeys,
   round,
   rekeyWorld,
+  dissolveSharedArcRing,
   rekeyUS,
   buildGazetteer,
   buildMountainRanges,

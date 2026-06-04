@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 // @ts-expect-error — .mjs build script, no .d.ts; exercised for behavior only.
 import * as build from '../scripts/build-map-data.mjs';
 
+const { dissolveSharedArcRing } = build;
 const { fold, cmp, sortKeys, round, rekeyWorld, rekeyUS, buildGazetteer } =
   build;
 
@@ -205,6 +206,95 @@ describe('rekeyWorld (fail-loud, ISO re-key, R1/R4)', () => {
     );
     expect(keys).toEqual(['US']);
     expect(dropped).toContain('Somaliland');
+  });
+
+  it('merges Somaliland into Somalia, filling the hole (no orphaned arc)', () => {
+    // Two unit squares sharing the x=1 edge (arc 1): a stand-in for Somalia +
+    // the Somaliland cutout that shares its border arc. The merge must dissolve
+    // the shared arc so the parent fills solid.
+    const arcs = [
+      [
+        [0, 0],
+        [1, 0],
+      ], // 0
+      [
+        [1, 0],
+        [0, 1],
+      ], // 1  SHARED
+      [
+        [1, 1],
+        [-1, 0],
+        [0, -1],
+      ], // 2
+      [
+        [1, 0],
+        [1, 0],
+        [0, 1],
+        [-1, 0],
+      ], // 3
+    ];
+    const topo = {
+      type: 'Topology',
+      arcs,
+      objects: {
+        countries: {
+          type: 'GeometryCollection',
+          geometries: [
+            {
+              type: 'Polygon',
+              id: '706',
+              properties: { name: 'Somalia' },
+              arcs: [[0, 1, 2]],
+            },
+            {
+              type: 'Polygon',
+              id: undefined,
+              properties: { name: 'Somaliland' },
+              arcs: [[~1, 3]],
+            },
+          ],
+        },
+      },
+    };
+    const { keys, merged, dropped } = rekeyWorld(topo as never);
+    expect(keys).toEqual(['SO']); // Somaliland folded in, only Somalia remains
+    expect(merged).toContain('Somaliland');
+    expect(dropped).not.toContain('Somaliland'); // merged, not dropped
+    // Somalia's outer ring grew to absorb Somaliland and the shared arc is gone.
+    const ring = topo.objects.countries.geometries[0].arcs[0];
+    expect(ring).toHaveLength(3);
+    expect(ring.every((v: number) => (v < 0 ? ~v : v) !== 1)).toBe(true);
+  });
+
+  it('dissolveSharedArcRing stitches two squares sharing one edge into one ring', () => {
+    // Two unit squares sharing the x=1 edge (arc 1).
+    const arcs = [
+      [
+        [0, 0],
+        [1, 0],
+      ], // 0
+      [
+        [1, 0],
+        [0, 1],
+      ], // 1  SHARED
+      [
+        [1, 1],
+        [-1, 0],
+        [0, -1],
+      ], // 2
+      [
+        [1, 0],
+        [1, 0],
+        [0, 1],
+        [-1, 0],
+      ], // 3
+    ];
+    const ring = dissolveSharedArcRing(arcs, [0, 1, 2], [~1, 3]);
+    expect(ring).not.toBeNull();
+    expect(ring).toHaveLength(3); // shared arc dropped, survivors stitched
+    expect(ring.every((v: number) => (v < 0 ? ~v : v) !== 1)).toBe(true);
+    // No shared arc → null (caller then drops the child instead of merging).
+    expect(dissolveSharedArcRing(arcs, [0, 1, 2], [3])).toBeNull();
   });
 
   it('HARD-FAILS on an unmapped id (AC3)', () => {
