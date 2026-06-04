@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-06-04
+
+### Fixed
+
+- **Legend text vertical centering** now uses an explicit `dy` offset instead of
+  `dominant-baseline`, which WebKit (WKWebView / Safari) rendered inconsistently.
+  Legend labels are now vertically centered in the desktop app and Obsidian.
+
+### Removed
+
+- Removed 9 confirmed-dead internal exports (pre-1.0 cleanup). These were never
+  part of the documented public API.
+
+### Internal
+
+- Added a LICENSE file and a `license` field to `package.json`.
+- CI now runs the hygiene trio (dead-code, duplication, and dependency checks)
+  on push/PR.
+
 ## [0.24.0] - 2026-06-03
 
 ### Added
