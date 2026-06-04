@@ -16,7 +16,7 @@ import type {
   LegendMode,
   LegendState,
 } from '../utils/legend-types';
-import type { MapLayoutLegend } from './layout';
+import type { MapLayoutLegend } from './types';
 
 // Gap between the title/subtitle banner and the legend top — mirrors the `+ 8`
 // in renderer.ts `legendY`.

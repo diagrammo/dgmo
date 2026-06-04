@@ -142,3 +142,23 @@ export interface ParsedMap {
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }
+
+/** Legend descriptor for a rendered map (a layout-stage output, re-exported from
+ *  `layout.ts`). It lives here so the `legend-band` helper can consume it without
+ *  importing `layout` — `layout` already value-imports `mapLegendBand`, so the
+ *  reverse type import would form a layout↔legend-band cycle. */
+export interface MapLayoutLegend {
+  readonly tagGroups: ReadonlyArray<{
+    name: string;
+    entries: ReadonlyArray<{ value: string; color: string }>;
+  }>;
+  readonly activeGroup: string | null;
+  readonly ramp?: {
+    metric?: string;
+    min: number;
+    max: number;
+    hue: string;
+    /** Low end of the ramp gradient (the land colour the fills blend from). */
+    base: string;
+  };
+}

@@ -38,6 +38,7 @@ import { measureLegendText } from '../utils/legend-constants';
 import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
 import type { LegendMode } from '../utils/legend-types';
 import { mapLegendBand } from './legend-band';
+import type { MapLayoutLegend } from './types';
 import type { DgmoError } from '../diagnostics';
 import type { BoundaryTopology } from './data/types';
 import type {
@@ -365,21 +366,11 @@ export interface PlacedLabel {
   readonly lineNumber: number;
 }
 
-export interface MapLayoutLegend {
-  readonly tagGroups: ReadonlyArray<{
-    name: string;
-    entries: ReadonlyArray<{ value: string; color: string }>;
-  }>;
-  readonly activeGroup: string | null;
-  readonly ramp?: {
-    metric?: string;
-    min: number;
-    max: number;
-    hue: string;
-    /** Low end of the ramp gradient (the land colour the fills blend from). */
-    base: string;
-  };
-}
+// MapLayoutLegend now lives in ./types (imported for local use + re-exported
+// below) so that ./legend-band can consume the type without importing this
+// module, which would re-introduce the layout↔legend-band cycle (this module
+// value-imports mapLegendBand from ./legend-band).
+export type { MapLayoutLegend };
 
 /** A drawn river centerline — an open stroked path (no fill). */
 export interface MapLayoutRiver {
