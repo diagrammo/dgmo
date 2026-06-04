@@ -1,6 +1,6 @@
 {
   "ignoreDependencies": ["@lezer/common", "@lezer/highlight", "@lezer/lr", "axe-core", "type-coverage"],
-  "ignoreBinaries": ["du"],
+  "ignoreBinaries": ["du", "vite"],
   "ignore": [
     "src/editor/tokens.ts",
     "scripts/audit-solid-fill-contrast.ts",
@@ -8,7 +8,8 @@
     "scripts/check-bundle-size.cjs",
     "scripts/migrate-as-aliases.mjs",
     "scripts/migrate-as-aliases.test.mjs",
-    "api-baseline/**"
+    "api-baseline/**",
+    "tools/**"
   ],
   "ignoreExportsUsedInFile": true,
   "rules": {
