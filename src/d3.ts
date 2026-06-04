@@ -8609,6 +8609,14 @@ export async function renderForExport(
     const { renderSequenceDiagram } = await import('./sequence/renderer');
     const seqParsed = parseSequenceDgmo(content);
     if (seqParsed.error || seqParsed.participants.length === 0) return '';
+    // Apply interactive view state from share links (read from unified viewState).
+    // Sequences key both sections and groups by source line number; `cg` is the
+    // shared string[] field, so coerce its entries back to numbers.
+    const collapsedSections = viewState?.cs ? new Set(viewState.cs) : undefined;
+    const collapsedGroups = viewState?.cg
+      ? new Set(viewState.cg.map(Number).filter((n) => Number.isFinite(n)))
+      : undefined;
+    const seqActiveTagGroup = viewState?.tag ?? options?.tagGroup;
     renderSequenceDiagram(
       container,
       seqParsed,
@@ -8617,9 +8625,11 @@ export async function renderForExport(
       undefined,
       {
         exportWidth: EXPORT_WIDTH,
-        ...(options?.tagGroup !== undefined && {
-          activeTagGroup: options.tagGroup,
+        ...(seqActiveTagGroup !== undefined && {
+          activeTagGroup: seqActiveTagGroup,
         }),
+        ...(collapsedSections !== undefined && { collapsedSections }),
+        ...(collapsedGroups !== undefined && { collapsedGroups }),
       }
     );
   } else if (parsed.type === 'wordcloud') {

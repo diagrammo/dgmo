@@ -10,6 +10,7 @@ import { renderSequenceDiagram } from '../src/sequence/renderer';
 import type { SequenceRenderOptions } from '../src/sequence/renderer';
 import { getPalette } from '../src/palettes';
 import { applyCollapseProjection } from '../src/sequence/collapse';
+import { renderForExport } from '../src/d3';
 
 // Helper to build a parsed diagram and apply collapse
 function collapseFixture(dgmo: string, collapsedGroupLines?: number[]) {
@@ -456,6 +457,29 @@ describe('Collapse rendering', () => {
     expect(ids).not.toContain('API');
   });
 
+  it('expanded group exposes a header hit area + chevron affordance', () => {
+    const expandedDiagram = [
+      '[Backend]',
+      '  API',
+      '  DB',
+      'User -request-> API',
+    ].join('\n');
+    const svg = renderToSvg(expandedDiagram)!;
+    // Toggle wrapper carries the group line + a11y role
+    const wrapper = svg.querySelector('.group-box-wrapper')!;
+    expect(wrapper.getAttribute('data-group-toggle')).toBe('');
+    expect(wrapper.getAttribute('role')).toBe('button');
+    expect(wrapper.getAttribute('aria-expanded')).toBe('true');
+    // Generous, non-occluded click target over the header strip
+    expect(svg.querySelector('.group-label-hit')).not.toBeNull();
+    // Visible frame must not steal clicks (it sits behind the participants)
+    expect(
+      svg.querySelector('.group-box')!.getAttribute('pointer-events')
+    ).toBe('none');
+    // Discoverable chevron next to the label
+    expect(svg.querySelector('.group-chevron')).not.toBeNull();
+  });
+
   it('section collapse hides messages even when a group is also collapsed', () => {
     // Regression: collapse projection creates spread copies of message objects
     // for messages[] and elements[], breaking reference equality in
@@ -507,5 +531,66 @@ describe('collapse keyword deprecation', () => {
     expect(
       parsed.diagnostics.some((d) => d.message.includes('deprecated'))
     ).toBe(false);
+  });
+});
+
+describe('renderForExport applies sequence share-link viewState', () => {
+  const diagram = [
+    '[Backend]',
+    '  API',
+    '  DB',
+    '== Setup ==',
+    'User -request-> API',
+    'API -query-> DB',
+  ].join('\n');
+
+  const countParticipants = (svg: string) =>
+    (svg.match(/class="participant"/g) ?? []).length;
+
+  it('collapses a group from viewState.cg (group line numbers as strings)', async () => {
+    const parsed = parseSequenceDgmo(diagram);
+    const groupLine = parsed.groups[0].lineNumber;
+    const base = await renderForExport(diagram, 'light', palette, undefined, {
+      exportMode: true,
+    });
+    const collapsed = await renderForExport(
+      diagram,
+      'light',
+      palette,
+      { cg: [String(groupLine)] },
+      { exportMode: true }
+    );
+    // Backend's two members (API, DB) collapse into one virtual participant
+    expect(countParticipants(collapsed)).toBe(countParticipants(base) - 1);
+    expect(collapsed).toContain('data-participant-id="Backend"');
+    expect(collapsed).not.toContain('data-participant-id="API"');
+  });
+
+  it('collapses a section from viewState.cs (section line numbers)', async () => {
+    const parsed = parseSequenceDgmo(diagram);
+    const sectionLine = parsed.elements
+      .filter((el): el is SequenceSection => el.kind === 'section')
+      .map((s) => s.lineNumber)[0];
+    const collapsed = await renderForExport(
+      diagram,
+      'light',
+      palette,
+      { cs: [sectionLine] },
+      { exportMode: true }
+    );
+    // Messages inside the collapsed section are suppressed
+    expect(collapsed).not.toContain('class="message-arrow"');
+  });
+
+  it('ignores malformed viewState.cg entries without throwing', async () => {
+    const out = await renderForExport(
+      diagram,
+      'light',
+      palette,
+      { cg: ['not-a-number'] },
+      { exportMode: true }
+    );
+    // Non-numeric entries are filtered → nothing collapses, render still succeeds
+    expect(out).toContain('data-participant-id="API"');
   });
 });
