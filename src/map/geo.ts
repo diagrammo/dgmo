@@ -42,11 +42,6 @@ export function featureIndex(
   return idx;
 }
 
-/** Set of geometry ids (ISO codes) present in a topology. */
-export function idSet(topo: BoundaryTopology): Set<string> {
-  return new Set(geomObject(topo).geometries.map((g) => g.id));
-}
-
 // Memoize adjacency on the RAW asset object (never the per-render-mutated
 // `worldLayer`). Keyed by topology identity — the assets are stable singletons
 // from load-data.ts, so one build per topology lasts the process (G13).

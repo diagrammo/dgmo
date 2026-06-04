@@ -27,23 +27,6 @@
  */
 export type Brand<T, B extends string> = T & { readonly __brand: B };
 
-/**
- * Cast a raw value to a branded type. The only legal "mint" point —
- * call this at the boundary where unbranded data (parser input,
- * external API) enters branded territory.
- *
- *   const id = asBrand<NodeId>(rawString);
- *
- * Inverts trivially: a `Brand<T, B>` is assignable to `T` without a
- * cast, so consumers that want the underlying primitive lose the
- * brand naturally.
- */
-export function asBrand<B>(
-  value: B extends Brand<infer T, string> ? T : never
-): B {
-  return value as B;
-}
-
 // ============================================================
 // Writable<T> — escape hatch for parsers that need a mutable
 // construction phase before returning a `readonly`-typed value.

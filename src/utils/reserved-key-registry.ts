@@ -113,11 +113,6 @@ export const ER_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'domain',
 ]);
 
-export const CLASS_REGISTRY: ReservedKeyRegistry = staticRegistry([
-  'color',
-  'description',
-]);
-
 export const KANBAN_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',
@@ -221,10 +216,3 @@ export const RACI_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',
 ]);
-
-/**
- * Wireframe uses a trailing-keyword flag list (§19.5), not key-value
- * metadata. This empty registry exists so callers can still pass a
- * registry to shared helpers without a special-case.
- */
-export const WIREFRAME_REGISTRY: ReservedKeyRegistry = staticRegistry([]);

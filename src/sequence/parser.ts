@@ -200,10 +200,6 @@ export type SequenceElement =
   | SequenceSection
   | SequenceNote;
 
-export function isSequenceMessage(el: SequenceElement): el is SequenceMessage {
-  return el.kind === 'message';
-}
-
 export function isSequenceBlock(el: SequenceElement): el is SequenceBlock {
   return el.kind === 'block';
 }

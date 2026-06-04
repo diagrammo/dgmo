@@ -348,13 +348,6 @@ export function bareDescriptionRemovedMessage(args: {
 }
 
 /**
- * Canonical message for `E_TAG_DECLARED_AFTER_CONTENT`.
- */
-export function tagDeclaredAfterContentMessage(tagName: string): string {
-  return `'tag ${tagName}' must appear before content — move it above diagram lines`;
-}
-
-/**
  * Canonical message for `W_EMPTY_METADATA_VALUE`. Emitted when a
  * `key:` token has no value following the colon.
  */
@@ -362,17 +355,5 @@ export function emptyMetadataValueMessage(key: string): string {
   return (
     `Metadata key '${key}:' has no value — the pair is dropped. ` +
     `Provide a value or remove the key.`
-  );
-}
-
-/**
- * Canonical message for `W_ATTRIBUTE_AT_PARENT_INDENT`. Emitted
- * when an indented reserved-key attribute appears at the same indent
- * level as preceding structural children.
- */
-export function attributeAtParentIndentMessage(key: string): string {
-  return (
-    `Attribute '${key}:' attaches to the parent above — ` +
-    `indent further if you meant it on the preceding structural child.`
   );
 }
