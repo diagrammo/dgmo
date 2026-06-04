@@ -214,6 +214,14 @@ export { themes, type Theme } from './themes';
 export { getMinDimensions } from './dimensions';
 
 // ============================================================
+// SVG embed normalization (responsive inline embedding)
+// ============================================================
+// Tightens a static render() SVG's viewBox to its content + strips fixed
+// width/height so hosts (Obsidian, remark/markdown, web) can size it to its
+// natural aspect ratio with no dead space. Pure string transform.
+export { normalizeSvgForEmbed, getEmbedSvgViewBox } from './utils/svg-embed';
+
+// ============================================================
 // Map chart-type completion (gazetteer-fed; §24B.5/.8)
 // ============================================================
 // Pure + dependency-injected: the caller supplies the `Gazetteer` asset. Safe
