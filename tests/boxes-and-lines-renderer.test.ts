@@ -126,6 +126,18 @@ describe('boxes-and-lines renderer — value ramp', () => {
     );
     const valText = on.querySelector('.bl-node-value');
     expect(valText).toBeTruthy();
+    // No box-metric → bare number.
     expect(valText!.textContent).toBe('42');
+  });
+
+  it('prefixes the value with the metric label ("Crew: 120") on plain nodes (AC16)', async () => {
+    const svg = await render(
+      'boxes-and-lines\nbox-metric Crew\nshow-values\nFlagship value: 120\nSloop value: 12\nFlagship -> Sloop'
+    );
+    const flagship = nodeFor(svg, 'Flagship');
+    const valText = flagship.querySelector('.bl-node-value')!;
+    expect(valText.textContent).toBe('Crew: 120');
+    // A thin divider sits between the title and the value line.
+    expect(flagship.querySelector('line')).toBeTruthy();
   });
 });

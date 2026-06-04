@@ -35,7 +35,9 @@ import { ScaleContext } from '../utils/scaling';
 
 // ── Constants (aligned with infra pattern) ─────────────────
 const DIAGRAM_PADDING = 20;
-const NODE_FONT_SIZE = 13;
+// Box labels run smaller than the 13px org/infra use — boxes-and-lines nodes are
+// narrower (~97px), so a smaller label fits more text per line before wrapping.
+const NODE_FONT_SIZE = 11;
 const MIN_NODE_FONT_SIZE = 9;
 const EDGE_LABEL_FONT_SIZE = 11;
 const EDGE_STROKE_WIDTH = 1.5;
@@ -429,7 +431,7 @@ export function renderBoxesAndLines(
   // between a tag group and the metric label, the tag group wins (AC9).
   const matchColorGroup = (v: string): string | null => {
     const lv = v.trim().toLowerCase();
-    if (lv === 'none') return null;
+    if (lv === '' || lv === 'none') return null;
     const tg = parsed.tagGroups.find((g) => g.name.toLowerCase() === lv);
     if (tg) return tg.name;
     if (lv === VALUE_NAME?.toLowerCase()) return VALUE_NAME;
@@ -1087,6 +1089,61 @@ export function renderBoxesAndLines(
           fullText.length > 200 ? fullText.slice(0, 199) + '\u2026' : fullText;
         nodeG.append('title').text(tooltipText);
       }
+    } else if (parsed.showValues && node.value !== undefined) {
+      // Plain node with show-values: label header + thin divider + a
+      // "Metric: value" line below (org/infra card style), instead of a
+      // vertically-centered label with a floating number.
+      const valueLabel = parsed.boxMetric
+        ? `${parsed.boxMetric}: ${node.value}`
+        : String(node.value);
+      // Fixed header zone (not label-height-driven) so the divider sits at a
+      // UNIFORM Y across every box, regardless of label line count (infra/org
+      // both anchor the separator to a constant header height).
+      const headerH = ln.height / 2;
+      const sepY = -ln.height / 2 + headerH;
+      const fitted = fitLabelToHeader(node.label, ln.width, 2);
+      const labelLineH = fitted.fontSize * 1.3;
+      const labelTotalH = fitted.lines.length * labelLineH;
+      const headerCenterY = -ln.height / 2 + headerH / 2;
+      for (let li = 0; li < fitted.lines.length; li++) {
+        nodeG
+          .append('text')
+          .attr('x', 0)
+          .attr(
+            'y',
+            headerCenterY - labelTotalH / 2 + labelLineH / 2 + li * labelLineH
+          )
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('font-size', fitted.fontSize)
+          .attr('font-weight', '600')
+          .attr('fill', colors.text)
+          // In-bounds by loop guard.
+          .text(fitted.lines[li]!);
+      }
+      // Thin divider under the title — a tint of the box's own stroke colour
+      // (matches org / infra card separators), not a neutral text line.
+      nodeG
+        .append('line')
+        .attr('x1', -ln.width / 2)
+        .attr('y1', sepY)
+        .attr('x2', ln.width / 2)
+        .attr('y2', sepY)
+        .attr('stroke', colors.stroke)
+        .attr('stroke-opacity', 0.3)
+        .attr('stroke-width', 1);
+      // "Metric: value" centered in the space below the divider.
+      nodeG
+        .append('text')
+        .attr('class', 'bl-node-value')
+        .attr('x', 0)
+        .attr('y', (sepY + ln.height / 2) / 2)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', VALUE_FONT_SIZE)
+        .attr('fill', colors.text)
+        .attr('opacity', 0.85)
+        .text(valueLabel);
     } else {
       const maxLabelLines = Math.max(
         2,
@@ -1110,56 +1167,46 @@ export function renderBoxesAndLines(
       }
     }
 
-    // ── show-values: print the numeric value as text (opt-in) ──
-    // Independent of the active dimension (a user may want the numbers printed
-    // while a tag group tints). Plain nodes: centered below the label. Described
-    // nodes: a top-right corner badge so it never overflows the full body (R2-6).
-    if (parsed.showValues && node.value !== undefined) {
+    // ── show-values on a DESCRIBED node ── the body is already full, so the
+    // value rides in a top-right corner badge (plain nodes are handled in the
+    // header/divider branch above; a described node with descriptions hidden
+    // also falls through to that plain branch).
+    if (
+      parsed.showValues &&
+      node.value !== undefined &&
+      desc &&
+      desc.length > 0 &&
+      !hideDescriptions
+    ) {
       const valueText = String(node.value);
-      const descShown = !!(desc && desc.length > 0 && !hideDescriptions);
-      if (descShown) {
-        // Corner badge — pill behind the number so it reads over the header.
-        const padX = 6;
-        const padY = 5;
-        const bw = valueText.length * VALUE_FONT_SIZE * CHAR_WIDTH_RATIO + 8;
-        const bh = VALUE_FONT_SIZE + 4;
-        const bx = ln.width / 2 - bw - 4;
-        const by = -ln.height / 2 + 4;
-        nodeG
-          .append('rect')
-          .attr('x', bx)
-          .attr('y', by)
-          .attr('width', bw)
-          .attr('height', bh)
-          .attr('rx', 3)
-          .attr('fill', palette.bg)
-          .attr('opacity', 0.85);
-        nodeG
-          .append('text')
-          .attr('class', 'bl-node-value')
-          .attr('x', bx + bw - padX)
-          .attr('y', by + padY)
-          .attr('text-anchor', 'end')
-          .attr('dominant-baseline', 'central')
-          .attr('font-size', VALUE_FONT_SIZE)
-          .attr('font-weight', '600')
-          .attr('fill', palette.textMuted)
-          .text(valueText);
-      } else {
-        // Plain node: value centered just above the bottom edge.
-        nodeG
-          .append('text')
-          .attr('class', 'bl-node-value')
-          .attr('x', 0)
-          .attr('y', ln.height / 2 - VALUE_FONT_SIZE)
-          .attr('text-anchor', 'middle')
-          .attr('dominant-baseline', 'central')
-          .attr('font-size', VALUE_FONT_SIZE)
-          .attr('font-weight', '600')
-          .attr('fill', colors.text)
-          .attr('opacity', 0.8)
-          .text(valueText);
-      }
+      const padX = 6;
+      const padY = 5;
+      const bw = valueText.length * VALUE_FONT_SIZE * CHAR_WIDTH_RATIO + 8;
+      const bh = VALUE_FONT_SIZE + 4;
+      // Clamp to the left padding so a long value on a narrow node never
+      // slides past the box edge / over the label (R2-6 / AC23).
+      const bx = Math.max(-ln.width / 2 + 4, ln.width / 2 - bw - 4);
+      const by = -ln.height / 2 + 4;
+      nodeG
+        .append('rect')
+        .attr('x', bx)
+        .attr('y', by)
+        .attr('width', bw)
+        .attr('height', bh)
+        .attr('rx', 3)
+        .attr('fill', palette.bg)
+        .attr('opacity', 0.85);
+      nodeG
+        .append('text')
+        .attr('class', 'bl-node-value')
+        .attr('x', bx + bw - padX)
+        .attr('y', by + padY)
+        .attr('text-anchor', 'end')
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', VALUE_FONT_SIZE)
+        .attr('font-weight', '600')
+        .attr('fill', palette.textMuted)
+        .text(valueText);
     }
   }
 
