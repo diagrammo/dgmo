@@ -4,6 +4,14 @@ import type { ConformanceFixture } from './_types';
 // inverse of spec's `no-dependencies` — kept in allowExtras as legacy.
 export const fixture: ConformanceFixture = {
   chartType: 'gantt',
+  structuralKeywords: [
+    'era',
+    'marker',
+    'holiday',
+    'workweek',
+    'parallel',
+    'tag',
+  ],
   specSection: '13',
   firstLineKeyword: 'gantt',
   directives: [

@@ -5,6 +5,7 @@ import type { ConformanceFixture } from './_types';
 // sprint-length, sprint-number, sprint-start, active-tag.
 export const fixture: ConformanceFixture = {
   chartType: 'pert',
+  structuralKeywords: ['tag'],
   specSection: '21',
   firstLineKeyword: 'pert',
   directives: [

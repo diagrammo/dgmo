@@ -43,6 +43,15 @@ export interface ConformanceFixture {
   >;
 
   /**
+   * Structural keywords the parser recognizes as line-leading tokens in the
+   * data zone (block openers, section headers, `tag` declaration, etc.) — the
+   * exact set the editor's structural-keyword popup should offer. Omit (or use
+   * `[]`) for chart types with no structural keywords. Validated against
+   * STRUCTURAL_KEYWORDS in completion.ts; every token must be parser-recognized.
+   */
+  structuralKeywords?: string[];
+
+  /**
    * Tokens to exclude from the "stale registry entry" check — useful for
    * intentional internal aliases that the spec doesn't expose. Use sparingly;
    * each entry is a small reason that drift could be hiding.

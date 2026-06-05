@@ -21,6 +21,8 @@ import { describe, expect, it } from 'vitest';
 import {
   COMPLETION_REGISTRY,
   PIPE_METADATA,
+  STRUCTURAL_KEYWORDS,
+  TAG_SUPPORTING_TYPES,
   ALL_CHART_TYPES,
 } from '../src/internal';
 import { getAvailablePalettes } from '../src/palettes';
@@ -204,6 +206,26 @@ for (const f of fixtures) {
           `'${token}' is in ALL_CHART_TYPES but spec §${f.specSection} says it's NOT a first-line keyword.`
         ).toBe(false);
       }
+    });
+
+    it('structural keywords match the spec (no parser-invalid tokens)', () => {
+      const actual = [...(STRUCTURAL_KEYWORDS.get(f.chartType) ?? [])].sort();
+      const expected = [...(f.structuralKeywords ?? [])].sort();
+      expect(
+        actual,
+        `Structural-keyword drift in '${f.chartType}'. STRUCTURAL_KEYWORDS must match the parser-recognized tokens documented in this fixture (spec §${f.specSection}). Every token must be something the parser actually accepts — never a removed/diagnostic-only token.`
+      ).toEqual(expected);
+    });
+
+    it('tag-support derivation matches spec §1.3 list', () => {
+      // TAG_SUPPORTING_TYPES is derived from STRUCTURAL_KEYWORDS — a chart
+      // supports `tag` blocks iff it offers the `tag` keyword. This keeps the
+      // spec §1.3 "Diagram types that support tags" list honest.
+      const offersTag = (f.structuralKeywords ?? []).includes('tag');
+      expect(
+        TAG_SUPPORTING_TYPES.has(f.chartType),
+        `Tag-support drift in '${f.chartType}': structuralKeywords ${offersTag ? 'includes' : 'omits'} 'tag' but TAG_SUPPORTING_TYPES ${TAG_SUPPORTING_TYPES.has(f.chartType) ? 'includes' : 'omits'} it.`
+      ).toBe(offersTag);
     });
 
     for (const check of f.enumChecks ?? []) {

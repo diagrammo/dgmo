@@ -1159,5 +1159,5 @@ export function extractSymbols(docText: string): DiagramSymbols {
       }
     }
   }
-  return { kind: 'infra', entities, keywords: [] };
+  return { kind: 'infra', entities };
 }

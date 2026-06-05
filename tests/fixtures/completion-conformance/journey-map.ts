@@ -4,6 +4,7 @@ import type { ConformanceFixture } from './_types';
 // plus solid-fill via SOLID_FILL_CAPABLE.
 export const fixture: ConformanceFixture = {
   chartType: 'journey-map',
+  structuralKeywords: ['persona', 'tag'],
   specSection: '22',
   firstLineKeyword: 'journey-map',
 

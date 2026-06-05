@@ -8,6 +8,7 @@ import type { ConformanceFixture } from './_types';
 // stale from when mindmap was §17. Tracked separately.
 export const fixture: ConformanceFixture = {
   chartType: 'mindmap',
+  structuralKeywords: ['tag'],
   specSection: '18',
   firstLineKeyword: 'mindmap',
 

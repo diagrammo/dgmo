@@ -774,6 +774,8 @@ export {
   METADATA_KEY_SET,
   ENTITY_TYPES,
   PIPE_METADATA,
+  STRUCTURAL_KEYWORDS,
+  TAG_SUPPORTING_TYPES,
   extractTagDeclarations,
 } from './completion';
 export type {

@@ -5,6 +5,19 @@ import type { ConformanceFixture } from './_types';
 // key-value) per §18.5 — flags aren't surfaced via PIPE_METADATA today.
 export const fixture: ConformanceFixture = {
   chartType: 'wireframe',
+  structuralKeywords: [
+    'nav',
+    'tabs',
+    'table',
+    'image',
+    'modal',
+    'skeleton',
+    'alert',
+    'progress',
+    'chart',
+    'mobile',
+    'tag',
+  ],
   specSection: '19',
   firstLineKeyword: 'wireframe',
   directives: ['mobile', 'active-tag', 'solid-fill'],

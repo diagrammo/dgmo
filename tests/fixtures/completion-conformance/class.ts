@@ -3,6 +3,13 @@ import type { ConformanceFixture } from './_types';
 // Spec §10 §9.5 Options: solid-fill via SOLID_FILL_CAPABLE.
 export const fixture: ConformanceFixture = {
   chartType: 'class',
+  structuralKeywords: [
+    'abstract',
+    'interface',
+    'enum',
+    'extends',
+    'implements',
+  ],
   specSection: '10',
   firstLineKeyword: 'class',
   directives: ['solid-fill'],

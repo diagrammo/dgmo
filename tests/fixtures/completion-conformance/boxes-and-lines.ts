@@ -4,6 +4,7 @@ import type { ConformanceFixture } from './_types';
 // active-tag, hide, box-metric, show-values. solid-fill via SOLID_FILL_CAPABLE.
 export const fixture: ConformanceFixture = {
   chartType: 'boxes-and-lines',
+  structuralKeywords: ['tag'],
   specSection: '14',
   firstLineKeyword: 'boxes-and-lines',
   directives: [

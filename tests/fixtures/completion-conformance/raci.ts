@@ -18,6 +18,7 @@ import type { ConformanceFixture } from './_types';
 
 export const fixture: ConformanceFixture = {
   chartType: 'raci',
+  structuralKeywords: ['roles'],
   specSection: '24A',
   firstLineKeyword: 'raci',
   // `rasci` and `daci` are also valid first-line keywords — writing either as

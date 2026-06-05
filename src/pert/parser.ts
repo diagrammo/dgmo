@@ -1639,20 +1639,6 @@ export function extractPertSymbols(docText: string): DiagramSymbols {
   return {
     kind: 'pert',
     entities,
-    keywords: [
-      'time-unit',
-      'default-confidence',
-      'direction',
-      'node-detail',
-      'trials',
-      'seed',
-      'scrubber-trials',
-      'start-date',
-      'end-date',
-      'active-tag',
-      'tag',
-      'as',
-    ],
   };
 }
 

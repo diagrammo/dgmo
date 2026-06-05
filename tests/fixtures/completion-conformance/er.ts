@@ -4,6 +4,7 @@ import type { ConformanceFixture } from './_types';
 // via SOLID_FILL_CAPABLE.
 export const fixture: ConformanceFixture = {
   chartType: 'er',
+  structuralKeywords: ['tag'],
   specSection: '9',
   firstLineKeyword: 'er',
   directives: ['notation', 'active-tag', 'solid-fill'],

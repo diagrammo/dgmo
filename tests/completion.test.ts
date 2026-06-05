@@ -105,21 +105,6 @@ describe('ER extractSymbols', () => {
     const doc = 'er\ntitle: Empty\n';
     const result = extractErSymbols(doc);
     expect(result.entities).toEqual([]);
-    expect(result.keywords).toContain('pk');
-    expect(result.keywords).toContain('fk');
-  });
-
-  it('returns ER keywords', () => {
-    const result = extractErSymbols('er\n');
-    expect(result.keywords).toEqual([
-      'pk',
-      'fk',
-      'unique',
-      'nullable',
-      '1',
-      '*',
-      '?',
-    ]);
   });
 
   it('handles 100-entity fixture under 10ms', () => {
@@ -331,13 +316,6 @@ describe('Class extractSymbols', () => {
     const entities = extractClassSymbols(doc).entities;
     expect(entities).toContain('User');
     expect(entities).not.toContain('abstract');
-  });
-
-  it('returns class keywords', () => {
-    const result = extractClassSymbols('class\n');
-    expect(result.keywords).toContain('extends');
-    expect(result.keywords).toContain('implements');
-    expect(result.keywords).toContain('abstract');
   });
 
   it('returns empty entities for empty data section', () => {
@@ -649,16 +627,6 @@ describe('Sequence extractSymbols', () => {
     expect(result!.entities).not.toContain('else');
   });
 
-  it('returns sequence keywords', () => {
-    const doc = 'sequence\nA -> B\n';
-    const result = extractDiagramSymbols(doc);
-    expect(result!.keywords).toContain('if');
-    expect(result!.keywords).toContain('loop');
-    expect(result!.keywords).toContain('parallel');
-    expect(result!.keywords).toContain('note');
-    expect(result!.keywords).not.toContain('note on');
-  });
-
   it('returns empty entities for empty sequence', () => {
     const doc = 'sequence\n';
     const result = extractDiagramSymbols(doc);
@@ -892,28 +860,6 @@ rings
     expect(symbols!.entities).toContain('Trial');
     expect(symbols!.entities).toContain('t');
     expect(symbols!.entities).toContain('Assess');
-  });
-
-  it('includes tech-radar keywords', () => {
-    const doc = `tech-radar My Radar
-
-rings
-  Adopt
-`;
-    const symbols = extractDiagramSymbols(doc);
-    expect(symbols).not.toBeNull();
-    expect(symbols!.keywords).toContain('rings');
-    expect(symbols!.keywords).toContain('quadrant');
-    expect(symbols!.keywords).toContain('ring');
-    expect(symbols!.keywords).toContain('trend');
-    expect(symbols!.keywords).toContain('new');
-    expect(symbols!.keywords).toContain('up');
-    expect(symbols!.keywords).toContain('down');
-    expect(symbols!.keywords).toContain('stable');
-    expect(symbols!.keywords).toContain('top-left');
-    expect(symbols!.keywords).toContain('top-right');
-    expect(symbols!.keywords).toContain('bottom-left');
-    expect(symbols!.keywords).toContain('bottom-right');
   });
 
   it('stops ring extraction at unindented line', () => {

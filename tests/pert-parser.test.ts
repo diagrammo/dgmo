@@ -326,13 +326,6 @@ describe('pert parser — extractPertSymbols', () => {
     expect(symbols.entities).toContain('recruit crew');
     expect(symbols.entities).toContain('rc'); // alias
     expect(symbols.entities).toContain('outfit ship'); // group
-    // `milestone` keyword removed — zero-duration activities replace it.
-    expect(symbols.keywords).not.toContain('milestone');
-    // `analysis` and `monte-carlo` are not offered: `analysis` is the
-    // deprecated-inert directive, and the live control is `no-analysis`
-    // (a bare flag, not surfaced in keyword completion like `no-title`).
-    expect(symbols.keywords).not.toContain('analysis');
-    expect(symbols.keywords).not.toContain('monte-carlo');
   });
 });
 
@@ -499,14 +492,6 @@ describe('pert parser — date anchoring', () => {
       expect(findCode(parsed, 'W_PERT_BD_WITH_ANCHOR')).toBeUndefined();
       expect(findCode(parsed, 'W_PERT_SUBDAY_WITH_ANCHOR')).toBeUndefined();
     }
-  });
-});
-
-describe('pert parser — extractPertSymbols includes anchor keywords', () => {
-  it('exposes `start-date` and `end-date` for autocomplete', () => {
-    const symbols = extractPertSymbols(' ');
-    expect(symbols.keywords).toContain('start-date');
-    expect(symbols.keywords).toContain('end-date');
   });
 });
 

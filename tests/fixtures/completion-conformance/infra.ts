@@ -3,6 +3,7 @@ import type { ConformanceFixture } from './_types';
 // Spec §4 §3.6 Infra Options. Many performance/SLO knobs.
 export const fixture: ConformanceFixture = {
   chartType: 'infra',
+  structuralKeywords: ['tag'],
   specSection: '4',
   firstLineKeyword: 'infra',
   directives: [

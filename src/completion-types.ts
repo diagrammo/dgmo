@@ -15,7 +15,6 @@ export type ChartType = string;
 export interface DiagramSymbols {
   kind: ChartType;
   entities: string[]; // table names, node IDs, class names, etc.
-  keywords: string[]; // diagram-specific reserved words
   /**
    * Map of alias-literal → canonical entity name, collected from
    * `Name as <alias>` declarations in the document. Editor surfaces

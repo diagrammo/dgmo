@@ -4,6 +4,7 @@ import type { ConformanceFixture } from './_types';
 // hide, active-tag. solid-fill via SOLID_FILL_CAPABLE.
 export const fixture: ConformanceFixture = {
   chartType: 'org',
+  structuralKeywords: ['tag'],
   specSection: '7',
   firstLineKeyword: 'org',
   directives: [

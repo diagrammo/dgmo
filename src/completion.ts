@@ -649,6 +649,69 @@ export const ENTITY_TYPES = new Map<string, string[]>([
 ]);
 
 // ============================================================
+// Structural keywords for line-leading completion
+// ============================================================
+
+/**
+ * Chart-type-specific structural keywords offered on an empty/start-of-line in
+ * the data zone (block openers like `loop`, section headers like `containers`,
+ * the `tag` block declaration, etc.). This is the single source of truth for
+ * the editor's structural-keyword popup — every entry MUST be a token the
+ * corresponding parser actually recognizes (validated by the
+ * completion-conformance suite). Do NOT add removed/diagnostic-only tokens
+ * (e.g. cycle's `no-descriptions`) or tokens the parser ignores.
+ *
+ * Chart types not listed here have no structural keywords (most data charts).
+ */
+export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
+  ['sequence', ['if', 'else', 'loop', 'parallel', 'note', 'tag']],
+  ['gantt', ['era', 'marker', 'holiday', 'workweek', 'parallel', 'tag']],
+  ['c4', ['containers', 'components', 'deployment', 'tag']],
+  ['timeline', ['era', 'marker', 'tag']],
+  ['org', ['tag']],
+  ['kanban', ['tag']],
+  ['sitemap', ['tag']],
+  ['infra', ['tag']],
+  ['pert', ['tag']],
+  ['mindmap', ['tag']],
+  ['boxes-and-lines', ['tag']],
+  ['er', ['tag']],
+  ['cycle', ['direction-counterclockwise', 'circle-nodes']],
+  ['journey-map', ['persona', 'tag']],
+  ['raci', ['roles']],
+  ['tech-radar', ['rings']],
+  [
+    'wireframe',
+    [
+      'nav',
+      'tabs',
+      'table',
+      'image',
+      'modal',
+      'skeleton',
+      'alert',
+      'progress',
+      'chart',
+      'mobile',
+      'tag',
+    ],
+  ],
+  ['class', ['abstract', 'interface', 'enum', 'extends', 'implements']],
+]);
+
+/**
+ * Chart types that support `tag` block declarations (and thus the
+ * `alias`/`default` sub-keywords inside a tag block). Derived from
+ * STRUCTURAL_KEYWORDS so the two can never drift — a chart supports tag blocks
+ * iff it offers the `tag` keyword.
+ */
+export const TAG_SUPPORTING_TYPES: ReadonlySet<string> = new Set(
+  [...STRUCTURAL_KEYWORDS]
+    .filter(([, kws]) => kws.includes('tag'))
+    .map(([type]) => type)
+);
+
+// ============================================================
 // Pipe metadata for inline `| key value` on data lines
 // ============================================================
 
@@ -992,7 +1055,6 @@ function extractSequenceSymbols(docText: string): DiagramSymbols {
   return {
     kind: 'sequence',
     entities,
-    keywords: ['if', 'else', 'loop', 'parallel', 'note'],
   };
 }
 
@@ -1031,7 +1093,7 @@ function extractStateSymbols(docText: string): DiagramSymbols {
     }
   }
 
-  return { kind: 'state', entities, keywords: [] };
+  return { kind: 'state', entities };
 }
 
 // ============================================================
@@ -1247,7 +1309,7 @@ function extractSitemapSymbols(docText: string): DiagramSymbols {
     }
   }
 
-  return { kind: 'sitemap', entities, keywords: [] };
+  return { kind: 'sitemap', entities };
 }
 
 // ============================================================
@@ -1326,7 +1388,6 @@ function extractC4Symbols(docText: string): DiagramSymbols {
   return {
     kind: 'c4',
     entities,
-    keywords: ['containers', 'components', 'deployment'],
   };
 }
 
@@ -1429,7 +1490,7 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
     }
   }
 
-  return { kind: 'gantt', entities, keywords: [] };
+  return { kind: 'gantt', entities };
 }
 
 // ============================================================
@@ -1487,7 +1548,7 @@ function extractBoxesAndLinesSymbols(docText: string): DiagramSymbols {
     if (label && !entities.includes(label)) entities.push(label);
   }
 
-  return { kind: 'boxes-and-lines', entities, keywords: [] };
+  return { kind: 'boxes-and-lines', entities };
 }
 
 // ============================================================
@@ -1540,7 +1601,7 @@ function extractOrgSymbols(docText: string): DiagramSymbols {
     if (label && !entities.includes(label)) entities.push(label);
   }
 
-  return { kind: 'org', entities, keywords: [] };
+  return { kind: 'org', entities };
 }
 
 // ============================================================
@@ -1592,7 +1653,7 @@ function extractKanbanSymbols(docText: string): DiagramSymbols {
     }
   }
 
-  return { kind: 'kanban', entities, keywords: [] };
+  return { kind: 'kanban', entities };
 }
 
 // ============================================================
@@ -1635,7 +1696,7 @@ function extractMindmapSymbols(docText: string): DiagramSymbols {
     if (label && !entities.includes(label)) entities.push(label);
   }
 
-  return { kind: 'mindmap', entities, keywords: [] };
+  return { kind: 'mindmap', entities };
 }
 
 // ============================================================
@@ -1668,7 +1729,7 @@ function extractPyramidSymbols(docText: string): DiagramSymbols {
     if (label && !entities.includes(label)) entities.push(label);
   }
 
-  return { kind: 'pyramid', entities, keywords: ['inverted'] };
+  return { kind: 'pyramid', entities };
 }
 
 // ============================================================
@@ -1701,7 +1762,7 @@ function extractRingSymbols(docText: string): DiagramSymbols {
     if (label && !entities.includes(label)) entities.push(label);
   }
 
-  return { kind: 'ring', entities, keywords: [] };
+  return { kind: 'ring', entities };
 }
 
 // ============================================================
@@ -1736,7 +1797,7 @@ function extractArcSymbols(docText: string): DiagramSymbols {
     }
   }
 
-  return { kind: 'arc', entities, keywords: [] };
+  return { kind: 'arc', entities };
 }
 
 // ============================================================
@@ -1775,7 +1836,7 @@ function extractSankeySymbols(docText: string): DiagramSymbols {
     }
   }
 
-  return { kind: 'sankey', entities, keywords: [] };
+  return { kind: 'sankey', entities };
 }
 
 // ============================================================
@@ -1835,7 +1896,7 @@ function extractTimelineSymbols(docText: string): DiagramSymbols {
     if (label && !entities.includes(label)) entities.push(label);
   }
 
-  return { kind: 'timeline', entities, keywords: ['era', 'marker'] };
+  return { kind: 'timeline', entities };
 }
 
 // ============================================================
@@ -1867,7 +1928,7 @@ function extractVennSymbols(docText: string): DiagramSymbols {
     if (label && !entities.includes(label)) entities.push(label);
   }
 
-  return { kind: 'venn', entities, keywords: [] };
+  return { kind: 'venn', entities };
 }
 
 // ============================================================
@@ -1901,7 +1962,7 @@ function extractQuadrantSymbols(docText: string): DiagramSymbols {
     if (label && !entities.includes(label)) entities.push(label);
   }
 
-  return { kind: 'quadrant', entities, keywords: [] };
+  return { kind: 'quadrant', entities };
 }
 
 // ============================================================
@@ -1936,7 +1997,7 @@ function extractSlopeSymbols(docText: string): DiagramSymbols {
     if (label && !entities.includes(label)) entities.push(label);
   }
 
-  return { kind: 'slope', entities, keywords: ['period'] };
+  return { kind: 'slope', entities };
 }
 
 // ============================================================
@@ -1983,7 +2044,7 @@ function extractDataChartSymbols(docText: string): DiagramSymbols {
     }
   }
 
-  return { kind: chartType, entities, keywords: [] };
+  return { kind: chartType, entities };
 }
 
 // ============================================================
@@ -2034,23 +2095,6 @@ registerExtractor('chord', extractDataChartSymbols);
 
 function extractTechRadarSymbols(docText: string): DiagramSymbols {
   const entities: string[] = [];
-  const keywords: string[] = [
-    'rings',
-    'quadrant',
-    'ring',
-    'trend',
-    'new',
-    'up',
-    'down',
-    'stable',
-    'top-left',
-    'top-right',
-    'bottom-left',
-    'bottom-right',
-    'alias',
-    'aka',
-    'color',
-  ];
 
   // Extract ring names and aliases from the rings block
   const lines = docText.split('\n');
@@ -2078,7 +2122,7 @@ function extractTechRadarSymbols(docText: string): DiagramSymbols {
     }
   }
 
-  return { kind: 'tech-radar', entities, keywords };
+  return { kind: 'tech-radar', entities };
 }
 
 // ============================================================
@@ -2121,7 +2165,6 @@ function extractCycleSymbols(docText: string): DiagramSymbols {
   return {
     kind: 'cycle',
     entities,
-    keywords: ['direction-counterclockwise', 'circle-nodes'],
   };
 }
 
@@ -2218,7 +2261,6 @@ function extractRaciSymbols(docText: string): DiagramSymbols {
   return {
     kind: chartType,
     entities,
-    keywords: ['variant', 'roles'],
   };
 }
 
@@ -2271,6 +2313,5 @@ function extractJourneyMapSymbols(docText: string): DiagramSymbols {
   return {
     kind: 'journey-map',
     entities,
-    keywords: ['persona', 'pain', 'opportunity', 'thought', 'description'],
   };
 }

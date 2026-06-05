@@ -4,6 +4,7 @@ import type { ConformanceFixture } from './_types';
 // solid-fill via SOLID_FILL_CAPABLE.
 export const fixture: ConformanceFixture = {
   chartType: 'kanban',
+  structuralKeywords: ['tag'],
   specSection: '11',
   firstLineKeyword: 'kanban',
   directives: ['hide', 'active-tag', 'solid-fill'],

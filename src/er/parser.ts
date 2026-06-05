@@ -719,6 +719,5 @@ export function extractSymbols(docText: string): DiagramSymbols {
   return {
     kind: 'er',
     entities,
-    keywords: ['pk', 'fk', 'unique', 'nullable', '1', '*', '?'],
   };
 }

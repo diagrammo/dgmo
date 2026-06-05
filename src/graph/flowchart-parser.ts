@@ -647,5 +647,5 @@ export function extractSymbols(docText: string): DiagramSymbols {
     const m = NODE_ID_RE.exec(line);
     if (m && !entities.includes(m[1]!)) entities.push(m[1]!);
   }
-  return { kind: 'flowchart', entities, keywords: [] };
+  return { kind: 'flowchart', entities };
 }

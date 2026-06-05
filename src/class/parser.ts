@@ -592,6 +592,5 @@ export function extractSymbols(docText: string): DiagramSymbols {
   return {
     kind: 'class',
     entities,
-    keywords: ['extends', 'implements', 'abstract', 'interface', 'enum'],
   };
 }

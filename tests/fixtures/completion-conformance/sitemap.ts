@@ -4,6 +4,7 @@ import type { ConformanceFixture } from './_types';
 // solid-fill via SOLID_FILL_CAPABLE.
 export const fixture: ConformanceFixture = {
   chartType: 'sitemap',
+  structuralKeywords: ['tag'],
   specSection: '12',
   firstLineKeyword: 'sitemap',
   directives: ['direction-tb', 'active-tag', 'solid-fill'],

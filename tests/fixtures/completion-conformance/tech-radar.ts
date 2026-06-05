@@ -5,6 +5,7 @@ import type { ConformanceFixture } from './_types';
 // headers (quadrant, color) and blip lines (ring, trend).
 export const fixture: ConformanceFixture = {
   chartType: 'tech-radar',
+  structuralKeywords: ['rings'],
   specSection: '20',
   firstLineKeyword: 'tech-radar',
   directives: ['show-blip-legend'],
