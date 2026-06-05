@@ -1,5 +1,6 @@
 import type { PaletteColors } from '../palettes';
 import { mix, shapeFill } from '../palettes/color-utils';
+import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import type {
   ParsedJourneyMap,
   JourneyMapPhase,
@@ -61,8 +62,6 @@ const TITLE_HEIGHT = 36;
 const PERSONA_HEIGHT = 48;
 // Must match renderer.ts persona panel width
 const PERSONA_PANEL_WIDTH = 280;
-// Approx char width for FONT_SIZE_TITLE 18px bold (Inter)
-const TITLE_HEADER_CHAR_WIDTH = 10;
 const HEADER_GAP = 24;
 const CURVE_AREA_HEIGHT = 260;
 const CARD_GAP = 8;
@@ -127,35 +126,41 @@ export function layoutJourneyMap(
     : parsed.steps;
 
   // Compute step card heights based on content (matches kanban card sizing).
-  // Char-width constants MUST match the renderer's wrapText() in renderer.ts
-  // (`fontSize * 0.6`) and the title wrap (`TITLE_CHAR_WIDTH`) — otherwise the
-  // layout reserves too little vertical space and rendered text overflows.
+  // Line counts route through the same `wrapTextToWidth` the renderer uses,
+  // at the same font sizes, so reserved height always matches rendered text.
   const annoIconIndent = ANNO_ICON_SIZE + ANNO_ICON_GAP;
   const annoTextW = STEP_CARD_WIDTH - CARD_PADDING_X * 2 - annoIconIndent;
   const descTextWidth = STEP_CARD_WIDTH - CARD_PADDING_X * 2;
-  const FONT_SIZE_META = 10;
-  const charWidth = FONT_SIZE_META * 0.6; // matches renderer wrapText()
+  const FONT_SIZE_META = 10; // renderer FONT_SIZE_META (desc/anno)
+  const FONT_SIZE_STEP = 12; // renderer FONT_SIZE_STEP (title)
 
   const titleTextWidth = STEP_CARD_WIDTH - CARD_PADDING_X * 2;
-  const titleCharWidth = 6.5; // matches renderer TITLE_CHAR_WIDTH (FONT_SIZE_STEP 12px)
   const TITLE_LINE_HEIGHT = 16;
 
   const stepHeights = allSteps.map((step) => {
-    const titleLines = wrapLineCount(
+    const titleLines = wrapTextToWidth(
       step.title,
-      titleTextWidth,
-      titleCharWidth
-    );
+      FONT_SIZE_STEP,
+      titleTextWidth
+    ).length;
     let h = CARD_PADDING_Y + titleLines * TITLE_LINE_HEIGHT + CARD_PADDING_Y;
     const cardAnnos = step.annotations;
     let contentLines = 0;
     // Description may wrap
     if (step.description) {
-      contentLines += wrapLineCount(step.description, descTextWidth, charWidth);
+      contentLines += wrapTextToWidth(
+        step.description,
+        FONT_SIZE_META,
+        descTextWidth
+      ).length;
     }
     // Annotations: all lines indented past icon
     for (const anno of cardAnnos) {
-      contentLines += wrapLineCount(anno.text, annoTextW, charWidth);
+      contentLines += wrapTextToWidth(
+        anno.text,
+        FONT_SIZE_META,
+        annoTextW
+      ).length;
     }
     if (contentLines > 0) {
       h += contentLines * CARD_META_LINE_HEIGHT + 4; // 4px bottom padding
@@ -373,7 +378,7 @@ export function layoutJourneyMap(
   // this, a single-step journey produces a totalWidth that's narrower than
   // the title + persona row, and the persona panel overlaps the title.
   const headerTitleWidth = hasTitle
-    ? parsed.title!.length * TITLE_HEADER_CHAR_WIDTH
+    ? measureText(parsed.title!, 18) // FONT_SIZE_TITLE (18px bold)
     : 0;
   const personaPanelWidth = parsed.persona ? PERSONA_PANEL_WIDTH : 0;
   const headerWidth =
@@ -401,26 +406,4 @@ export function layoutJourneyMap(
     titleHeight,
     hasThoughts,
   };
-}
-
-/** Count how many visual lines a text string will occupy when wrapped. */
-function wrapLineCount(
-  text: string,
-  maxWidth: number,
-  charWidth: number
-): number {
-  const maxChars = Math.max(1, Math.floor(maxWidth / charWidth));
-  const words = text.split(/\s+/);
-  let lines = 1;
-  let currentLen = 0;
-  for (const word of words) {
-    const needed = currentLen > 0 ? word.length + 1 : word.length;
-    if (currentLen + needed > maxChars && currentLen > 0) {
-      lines++;
-      currentLen = word.length;
-    } else {
-      currentLen += needed;
-    }
-  }
-  return lines;
 }

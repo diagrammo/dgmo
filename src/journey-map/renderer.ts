@@ -21,6 +21,11 @@ import { renderLegendD3 } from '../utils/legend-d3';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
 import { ScaleContext } from '../utils/scaling';
+import {
+  measureText,
+  wrapTextToWidth,
+  truncateText as truncateToWidth,
+} from '../utils/text-measure';
 
 // ============================================================
 // Interactive Options
@@ -66,7 +71,6 @@ const CURVE_STROKE_WIDTH = 2.5;
 const FACE_RADIUS = 14;
 const DIM_HOVER = 0.25;
 const TITLE_LINE_HEIGHT = 16;
-const TITLE_CHAR_WIDTH = 6.5;
 
 // ============================================================
 // Renderer
@@ -621,7 +625,11 @@ export function renderJourneyMap(
         .attr('fill', onHeaderText)
         .text(
           isCollapsed
-            ? truncateText(pl.phase.name, pl.width - COLUMN_PADDING * 2)
+            ? truncateText(
+                pl.phase.name,
+                pl.width - COLUMN_PADDING * 2,
+                FONT_SIZE_PHASE
+              )
             : pl.phase.name
         );
 
@@ -728,7 +736,7 @@ export function renderJourneyMap(
             .attr('y', itemY + COLLAPSED_CARD_H / 2 + FONT_SIZE_META / 2 - 1)
             .attr('font-size', FONT_SIZE_META)
             .attr('fill', palette.text)
-            .text(truncateText(step.title, maxTextW));
+            .text(truncateText(step.title, maxTextW, FONT_SIZE_META));
 
           if (onNavigateToLine) {
             itemG.style('cursor', 'pointer').on('click', (event: Event) => {
@@ -893,7 +901,7 @@ export function renderJourneyMap(
       const lines = wrapText(thoughtText, THOUGHT_MAX_W, THOUGHT_FONT);
       const textW = Math.min(
         THOUGHT_MAX_W,
-        Math.max(...lines.map((l) => l.length * THOUGHT_FONT * 0.6))
+        Math.max(...lines.map((l) => measureText(l, THOUGHT_FONT)))
       );
       const bw = textW + THOUGHT_PAD_X * 2;
       const bh = lines.length * THOUGHT_LINE_H + THOUGHT_PAD_Y * 2;
@@ -1170,20 +1178,7 @@ function renderStepCard(
 
   // Title (wrapped)
   const titleMaxW = sl.width - CARD_PADDING_X * 2;
-  const titleMaxChars = Math.max(1, Math.floor(titleMaxW / TITLE_CHAR_WIDTH));
-  const titleWords = sl.step.title.split(/\s+/);
-  const titleLines: string[] = [];
-  let titleCur = '';
-  for (const w of titleWords) {
-    const candidate = titleCur ? `${titleCur} ${w}` : w;
-    if (candidate.length > titleMaxChars && titleCur) {
-      titleLines.push(titleCur);
-      titleCur = w;
-    } else {
-      titleCur = candidate;
-    }
-  }
-  if (titleCur) titleLines.push(titleCur);
+  const titleLines = wrapTextToWidth(sl.step.title, FONT_SIZE_STEP, titleMaxW);
 
   for (let i = 0; i < titleLines.length; i++) {
     stepG
@@ -1459,31 +1454,15 @@ function renderScoreFace(
 }
 
 function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
-  const charWidth = fontSize * 0.6;
-  const maxChars = Math.floor(maxWidth / charWidth);
-  if (maxChars <= 0) return [text];
-
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = '';
-
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word;
-    if (candidate.length > maxChars && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = candidate;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
+  return wrapTextToWidth(text, fontSize, maxWidth);
 }
 
-function truncateText(text: string, maxWidth: number): string {
-  const maxChars = Math.floor(maxWidth / 6.6);
-  if (text.length <= maxChars) return text;
-  return text.substring(0, maxChars - 1) + '\u2026';
+function truncateText(
+  text: string,
+  maxWidth: number,
+  fontSize: number
+): string {
+  return truncateToWidth(text, fontSize, maxWidth);
 }
 
 function annotationColor(
