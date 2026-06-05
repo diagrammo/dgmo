@@ -136,7 +136,7 @@ Key options:
 - \`-o <file>\` — output file; format inferred from extension (\`.svg\` → SVG, else PNG)
 - \`-o url\` — output a shareable diagrammo.app URL
 - \`--theme <theme>\` — \`light\` (default), \`dark\`, \`transparent\`
-- \`--palette <name>\` — \`nord\` (default), \`atlas\`, \`blueprint\`, \`slate\`, \`tidewater\`, \`solarized\`, \`catppuccin\`, \`rose-pine\`, \`gruvbox\`, \`tokyo-night\`
+- \`--palette <name>\` — \`slate\` (default), \`atlas\`, \`blueprint\`, \`nord\`, \`tidewater\`, \`solarized\`, \`catppuccin\`, \`rose-pine\`, \`gruvbox\`, \`tokyo-night\`
 - \`--copy\` — copy the URL to clipboard (use with \`-o url\`)
 - \`--chart-types\` — list all supported chart types
 
@@ -309,7 +309,7 @@ end                ❌  not needed — indentation closes blocks in sequence dia
 
 ## Tips
 
-- Default theme: \`light\`, default palette: \`nord\` — ask the user their preference before a final export.
+- Default theme: \`light\`, default palette: \`slate\` — ask the user their preference before a final export.
 - Stdin mode for quick renders: \`echo "..." | dgmo -o out.png\`
 - For C4, \`--c4-level\` drills from context → containers → components → deployment.
 - When auto-detection picks the wrong chart type, add an explicit \`chart:\` directive.
@@ -477,7 +477,7 @@ Options:
                        Use -o url to output a shareable diagrammo.app URL
                        With stdin and no -o, PNG is written to stdout
   --theme <theme>      Theme: ${THEMES.join(', ')} (default: light)
-  --palette <name>     Palette: ${PALETTES.join(', ')} (default: nord)
+  --palette <name>     Palette: ${PALETTES.join(', ')} (default: slate)
   --copy               Copy URL to clipboard (only with -o url)
   --json               Output structured JSON to stdout
   --chart-types        List all supported chart types
@@ -528,7 +528,7 @@ function parseArgs(argv: string[]): {
     input: undefined as string | undefined,
     output: undefined as string | undefined,
     theme: 'light' as (typeof THEMES)[number],
-    palette: 'nord',
+    palette: 'slate',
     help: false,
     version: false,
     copy: false,

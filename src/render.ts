@@ -130,7 +130,7 @@ export async function render(
   }
 ): Promise<{ svg: string; diagnostics: DgmoError[] }> {
   const theme = options?.theme ?? 'light';
-  const paletteName = options?.palette ?? 'nord';
+  const paletteName = options?.palette ?? 'slate';
 
   const paletteColors =
     getPalette(paletteName)[theme === 'dark' ? 'dark' : 'light'];

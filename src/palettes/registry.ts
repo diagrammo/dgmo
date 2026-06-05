@@ -5,7 +5,7 @@ import type { PaletteConfig, PaletteColors } from './types';
 // ============================================================
 
 const PALETTE_REGISTRY = new Map<string, PaletteConfig>();
-const DEFAULT_PALETTE_ID = 'nord';
+const DEFAULT_PALETTE_ID = 'slate';
 
 // ============================================================
 // Validation

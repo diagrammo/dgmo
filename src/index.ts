@@ -68,7 +68,7 @@ export async function render(
   text: string,
   options?: RenderOptions
 ): Promise<RenderResult> {
-  const palette = options?.palette ?? palettes.nord;
+  const palette = options?.palette ?? palettes.slate;
   const onError = options?.onError ?? 'svg';
 
   const result = await renderInternal(text, {

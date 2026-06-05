@@ -46,7 +46,7 @@ declare const __DGMO_VERSION__: string;
 
 const DEFAULTS: Required<AutoConfig> = {
   theme: 'auto',
-  palette: 'nord',
+  palette: 'slate',
   showSource: true,
   showEditorLink: true,
 };
