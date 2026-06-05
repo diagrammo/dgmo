@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-06-04
+
+### Changed
+
+- **Editor completion now offers only parser-valid keywords per chart type.**
+  Structural keywords are sourced from a single authoritative, parser-validated
+  registry (`STRUCTURAL_KEYWORDS`), with `TAG_SUPPORTING_TYPES` derived from it.
+  Fixes two keywords the popup offered that the parser rejects: `tag` on RACI
+  (no tag-block support) and `no-descriptions` on cycle (a removed keyword). The
+  completion-conformance suite now locks structural keywords and the spec §1.3
+  tag-support list against the parsers so they can't drift again.
+
+### Removed
+
+- **`DiagramSymbols.keywords`** (from `@diagrammo/dgmo/advanced` and the
+  deprecated `/internal`). The field carried per-extractor reserved-word lists
+  that nothing consumed in production; structural-keyword completion is now
+  driven by `STRUCTURAL_KEYWORDS`. Breaking for any direct consumer of the
+  extractor symbol shape.
+
+### Fixed
+
+- **Export renders no longer leave a tall band of dead space** below short
+  flowchart, state, and RACI diagrams. In export mode the canvas height is now
+  fitted to the scaled content; the interactive preview keeps its fit-to-pane
+  behaviour.
+
 ## [0.25.3] - 2026-06-04
 
 ### Fixed
