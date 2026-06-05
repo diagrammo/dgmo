@@ -515,6 +515,12 @@ export function renderRaci(
   const colBottomY = cursorY + sColumnBottomPad;
   const totalHeight = colBottomY + sVMargin;
 
+  // Export renders a fixed canvas (e.g. 1200×800); a short matrix would
+  // otherwise reserve a tall band of dead space below the last row. Size the
+  // export canvas to the content height. The interactive preview keeps the
+  // `max(pane, content)` behaviour so a short matrix still fills the pane.
+  const svgHeight = exportDims ? totalHeight : Math.max(height, totalHeight);
+
   // ── SVG root ───────────────────────────────────────────────
 
   const svg = d3Selection
@@ -522,8 +528,8 @@ export function renderRaci(
     .append('svg')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
     .attr('width', width)
-    .attr('height', Math.max(height, totalHeight))
-    .attr('viewBox', `0 0 ${width} ${Math.max(height, totalHeight)}`)
+    .attr('height', svgHeight)
+    .attr('viewBox', `0 0 ${width} ${svgHeight}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('font-family', FONT_FAMILY)
     .style('background', 'transparent');

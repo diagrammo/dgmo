@@ -476,10 +476,24 @@ export function renderFlowchart(
 
   const diagramW = layout.width;
   const diagramH = layout.height;
-  const availH = height - titleHeight;
   const scaleX = (width - sDiagramPadding * 2) / diagramW;
-  const scaleY = (availH - sDiagramPadding * 2) / diagramH;
-  const scale = Math.min(MAX_SCALE, scaleX, scaleY);
+
+  // Export renders a fixed canvas (e.g. 1200×800). Fitting a small graph into
+  // it and top-anchoring leaves a tall band of dead space below. In export
+  // mode, scale to width (capped by MAX_SCALE) and size the canvas to the
+  // scaled content height. The interactive preview keeps the fit-to-pane
+  // behaviour so a small graph still fills its pane.
+  let scale: number;
+  let canvasHeight: number;
+  if (exportDims) {
+    scale = Math.min(MAX_SCALE, scaleX);
+    canvasHeight = titleHeight + diagramH * scale + sDiagramPadding * 2;
+  } else {
+    const availH = height - titleHeight;
+    const scaleY = (availH - sDiagramPadding * 2) / diagramH;
+    scale = Math.min(MAX_SCALE, scaleX, scaleY);
+    canvasHeight = height;
+  }
 
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
@@ -489,8 +503,8 @@ export function renderFlowchart(
     .select(container)
     .append('svg')
     .attr('width', width)
-    .attr('height', height)
-    .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('height', canvasHeight)
+    .attr('viewBox', `0 0 ${width} ${canvasHeight}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('font-family', FONT_FAMILY);
 
