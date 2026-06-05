@@ -7,6 +7,7 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import { measureText } from '../utils/text-measure';
 import type { WireframeElement, ParsedWireframe } from './types';
 import type { WireframeLayout, WireframeLayoutNode } from './layout';
 import { ScaleContext } from '../utils/scaling';
@@ -386,7 +387,7 @@ function renderTextInput(
   // Cursor line
   if (el.fieldVariant !== 'password') {
     const textWidth = Math.min(
-      (el.label || 'Text input').length * 7 + 14,
+      measureText(el.label || 'Text input', 13) + 14,
       node.width - 20
     );
     g.append('line')
@@ -711,19 +712,20 @@ function renderNav(
       .attr('font-weight', isActive ? '600' : 'normal')
       .text(child.label);
 
+    const labelW = measureText(child.label, 13);
+
     // Active underline
     if (isActive) {
-      const textW = child.label.length * 7.5;
       g.append('line')
         .attr('x1', x)
         .attr('y1', node.height - 4)
-        .attr('x2', x + textW)
+        .attr('x2', x + labelW)
         .attr('y2', node.height - 4)
         .attr('stroke', palette.primary)
         .attr('stroke-width', 2);
     }
 
-    x += child.label.length * 7.5 + 24;
+    x += labelW + 24;
   }
 }
 
@@ -748,7 +750,7 @@ function renderTabs(
   let x = 0;
   for (const child of el.children) {
     const isActive = child.states.includes('active');
-    const tabW = child.label.length * 7.5 + 24;
+    const tabW = measureText(child.label, 13) + 24;
 
     if (isActive) {
       // Active tab bottom border
@@ -884,7 +886,7 @@ function renderTableCell(
     const isGhost = stateStr === 'ghost';
     const isDestructive = stateStr === 'destructive';
     const fill = isDestructive ? palette.destructive : palette.primary;
-    const btnW = Math.min(label.length * 7 + 16, maxW);
+    const btnW = Math.min(measureText(label, 10) + 16, maxW);
     const btnH = 20;
     const by = y + (rowH - btnH) / 2;
 

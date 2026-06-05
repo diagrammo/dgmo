@@ -2,6 +2,8 @@
 // Shared label collision detection and placement utilities
 // ---------------------------------------------------------------------------
 
+import { measureText } from './utils/text-measure';
+
 export interface LabelRect {
   x: number;
   y: number;
@@ -74,8 +76,6 @@ export function segmentRectOverlap(
 // Quadrant chart point label placement
 // ---------------------------------------------------------------------------
 
-const CHAR_WIDTH_RATIO = 0.6;
-
 export interface QuadrantLabelPoint {
   label: string;
   cx: number; // pixel x
@@ -120,7 +120,7 @@ export function computeQuadrantPointLabels(
 
   for (let i = 0; i < points.length; i++) {
     const pt = points[i]!; // In-bounds by loop guard.
-    const labelWidth = pt.label.length * fontSize * CHAR_WIDTH_RATIO + 8;
+    const labelWidth = measureText(pt.label, fontSize) + 8;
 
     // Try 4 directions: above, below, left, right
     // Each direction generates candidate (labelX, labelY, anchor)

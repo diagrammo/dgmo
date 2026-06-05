@@ -23,6 +23,7 @@ import {
   LEGEND_ENTRY_FONT_SIZE,
   measureLegendText,
 } from '../utils/legend-constants';
+import { measureText, wrapTextToWidth } from '../utils/text-measure';
 
 /** dagre node label shape after layout(). */
 interface DagreNodeLabel {
@@ -115,18 +116,18 @@ export interface C4LayoutResult {
 // Constants
 // ============================================================
 
-const CHAR_WIDTH = 8;
 const MIN_NODE_WIDTH = 160;
 const MAX_NODE_WIDTH = 260;
 const TYPE_LABEL_HEIGHT = 18;
 const DIVIDER_GAP = 6;
 const NAME_HEIGHT = 20;
+const NAME_FONT_SIZE = 14;
 const DESC_LINE_HEIGHT = 16;
-const DESC_CHAR_WIDTH = 6.5;
+const DESC_FONT_SIZE = 11;
 const CARD_V_PAD = 14;
 const CARD_H_PAD = 20;
 const META_LINE_HEIGHT = 16;
-const META_CHAR_WIDTH = 6.5;
+const META_FONT_SIZE = 11;
 const MARGIN = 40;
 const BOUNDARY_PAD = 40;
 const GROUP_BOUNDARY_PAD = 24;
@@ -640,24 +641,6 @@ function resolveNodeColor(
 // Node Sizing
 // ============================================================
 
-function wrapText(text: string, maxWidth: number, charWidth: number): string[] {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = '';
-
-  for (const word of words) {
-    const test = current ? `${current} ${word}` : word;
-    if (test.length * charWidth > maxWidth && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = test;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
-}
-
 /** Keys to exclude from the below-divider metadata display. */
 const META_EXCLUDE_KEYS = new Set([
   'description',
@@ -689,7 +672,7 @@ export function computeC4NodeDimensions(
   options?: { showTechnology?: boolean }
 ): { width: number; height: number } {
   // Width: based on name length, clamped
-  const nameWidth = el.name.length * CHAR_WIDTH + CARD_H_PAD * 2;
+  const nameWidth = measureText(el.name, NAME_FONT_SIZE) + CARD_H_PAD * 2;
   let width = Math.max(MIN_NODE_WIDTH, Math.min(MAX_NODE_WIDTH, nameWidth));
 
   if (options?.showTechnology) {
@@ -700,7 +683,7 @@ export function computeC4NodeDimensions(
     const desc = el.description?.join('\n');
     if (desc) {
       const contentWidth = width - CARD_H_PAD * 2;
-      const lines = wrapText(desc, contentWidth, DESC_CHAR_WIDTH);
+      const lines = wrapTextToWidth(desc, DESC_FONT_SIZE, contentWidth);
       height += lines.length * DESC_LINE_HEIGHT;
     }
 
@@ -713,8 +696,7 @@ export function computeC4NodeDimensions(
       const maxMetaWidth = Math.max(
         ...metaEntries.map(
           (e) =>
-            (e.key.length + 2 + e.value.length) * META_CHAR_WIDTH +
-            CARD_H_PAD * 2
+            measureText(`${e.key}: ${e.value}`, META_FONT_SIZE) + CARD_H_PAD * 2
         )
       );
       if (maxMetaWidth > width) width = Math.min(MAX_NODE_WIDTH, maxMetaWidth);
@@ -730,7 +712,7 @@ export function computeC4NodeDimensions(
   const desc = el.description?.join('\n');
   if (desc) {
     const contentWidth = width - CARD_H_PAD * 2;
-    const lines = wrapText(desc, contentWidth, DESC_CHAR_WIDTH);
+    const lines = wrapTextToWidth(desc, DESC_FONT_SIZE, contentWidth);
     height += lines.length * DESC_LINE_HEIGHT;
   }
 

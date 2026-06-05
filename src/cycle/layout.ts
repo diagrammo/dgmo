@@ -16,23 +16,18 @@ import {
   wrapDescriptionLines,
   type WrappedDescLine,
 } from '../utils/wrapped-desc';
+import { measureText, wrapTextToWidth } from '../utils/text-measure';
 
 /** Minimum arc angle in radians (~15°) to keep arcs readable. */
 const MIN_ARC_ANGLE = (15 * Math.PI) / 180;
 
-/** Estimated character width at 13px label font. */
-const LABEL_CHAR_W = 8;
-
-/** Estimated character width at 16px circle label font. */
-const CIRCLE_LABEL_CHAR_W = 10;
-
-/**
- * Estimated character width at 11px description font (Inter).
- * Average glyph width is ~5.5–6.0 px for typical English text — using 6.0
- * gives us a small margin of safety for wide glyphs (m, w) without leaving
- * obvious dead space on the right side of the rectangle.
- */
-const DESC_CHAR_W = 6.0;
+// ── Font sizes (must match cycle/renderer.ts) ──
+// Layout sizes nodes/labels from text; the renderer draws them. Both measure
+// the same string at the same font size so reserved space matches ink.
+const LABEL_FONT_SIZE = 13;
+const CIRCLE_LABEL_FONT_SIZE = 16;
+const DESC_FONT_SIZE = 11;
+const EDGE_LABEL_FONT_SIZE = 11;
 
 /** Minimum node width. */
 const MIN_NODE_WIDTH = 70;
@@ -105,7 +100,7 @@ export function computeCycleLayout(
     const hasDesc = !hideDescriptions && node.description.length > 0;
     const labelWidth = Math.max(
       MIN_NODE_WIDTH,
-      node.label.length * LABEL_CHAR_W + NODE_PAD_X * 2
+      measureText(node.label, LABEL_FONT_SIZE) + NODE_PAD_X * 2
     );
 
     if (circleNodes) {
@@ -422,9 +417,13 @@ function wrapDescForWidth(
   description: readonly string[],
   nodeWidth: number
 ): WrappedDescLine[] {
-  const textWidth = nodeWidth - NODE_PAD_X * 2;
-  const charsPerLine = Math.max(8, Math.floor(textWidth / DESC_CHAR_W));
-  return wrapDescriptionLines([...description], charsPerLine);
+  // Wrap to a real pixel budget. `wrapDescriptionLines` is bullet-aware (it
+  // emits bullet-first/cont kinds the renderer relies on), so feed it a pixel
+  // `lengthFn` + pixel limit instead of a character count.
+  const textWidth = Math.max(40, nodeWidth - NODE_PAD_X * 2);
+  return wrapDescriptionLines([...description], textWidth, (s) =>
+    measureText(s, DESC_FONT_SIZE)
+  );
 }
 
 // ── Renderer-aligned font/line-height clamps ──
@@ -463,11 +462,12 @@ function renderedDescNodeHeight(numLines: number, scale: number): number {
 // ── Edge-label wrapping (shared with renderer) ──
 
 /**
- * Maximum characters per line for edge labels and edge descriptions.
+ * Maximum pixel width per line for edge labels and edge descriptions.
  * Long single-line text gets wrapped to multiple lines so it doesn't
- * shoot off-canvas when positioned at a cycle quadrant.
+ * shoot off-canvas when positioned at a cycle quadrant. ~197px ≈ the old
+ * 32-char budget at the 11px edge-label font.
  */
-export const EDGE_LABEL_MAX_CHARS = 32;
+export const EDGE_LABEL_MAX_WIDTH = 197;
 
 /**
  * Wrap an edge label string + description lines into rendered lines.
@@ -478,35 +478,16 @@ export const EDGE_LABEL_MAX_CHARS = 32;
 export function wrapEdgeLabelText(
   label: string | undefined,
   description: readonly string[],
-  maxChars: number = EDGE_LABEL_MAX_CHARS
+  maxWidth: number = EDGE_LABEL_MAX_WIDTH
 ): { labelLines: string[]; descLines: string[] } {
-  const labelLines = label ? wrapLines([label], maxChars) : [];
+  const labelLines = label
+    ? wrapTextToWidth(label, EDGE_LABEL_FONT_SIZE, maxWidth)
+    : [];
   const descLines: string[] = [];
   for (const d of description) {
-    descLines.push(...wrapLines([d], maxChars));
+    descLines.push(...wrapTextToWidth(d, EDGE_LABEL_FONT_SIZE, maxWidth));
   }
   return { labelLines, descLines };
-}
-
-// ── Helper: word-wrap lines ──
-
-function wrapLines(lines: readonly string[], charsPerLine: number): string[] {
-  const result: string[] = [];
-  for (const line of lines) {
-    const words = line.split(/\s+/);
-    let current = '';
-    for (const word of words) {
-      const test = current ? `${current} ${word}` : word;
-      if (test.length > charsPerLine && current) {
-        result.push(current);
-        current = word;
-      } else {
-        current = test;
-      }
-    }
-    if (current) result.push(current);
-  }
-  return result;
 }
 
 // ── Helper: circle node dimensions ──
@@ -516,7 +497,7 @@ function computeCircleNodeDims(
   hasDesc: boolean
 ): { width: number; height: number; wrappedDesc: WrappedDescLine[] } {
   if (!hasDesc) {
-    const textW = node.label.length * CIRCLE_LABEL_CHAR_W;
+    const textW = measureText(node.label, CIRCLE_LABEL_FONT_SIZE);
     const r = Math.max(MIN_CIRCLE_RADIUS, textW / 2 + CIRCLE_PAD);
     return { width: r * 2, height: r * 2, wrappedDesc: [] };
   }
@@ -529,7 +510,7 @@ function computeCircleNodeDims(
     const textBlockH = totalLines * DESC_LINE_HEIGHT + CIRCLE_PAD;
 
     if (textBlockH / 2 <= r * 0.85) {
-      const labelW = node.label.length * CIRCLE_LABEL_CHAR_W;
+      const labelW = measureText(node.label, CIRCLE_LABEL_FONT_SIZE);
       const labelY = -textBlockH / 2 + DESC_LINE_HEIGHT;
       const availW = 2 * Math.sqrt(Math.max(0, r * r - labelY * labelY));
       if (labelW <= availW - CIRCLE_PAD) {
@@ -563,29 +544,32 @@ function wrapLinesForCircle(
   descriptions: readonly string[],
   radius: number
 ): string[] {
-  // First pass: wrap with center-width to estimate line count
+  // First pass: wrap to the center pixel-width to estimate line count.
   const centerWidth = radius * 2 * 0.75;
-  const centerChars = Math.max(8, Math.floor(centerWidth / DESC_CHAR_W));
-  const roughWrapped = wrapLines(descriptions, centerChars);
+  const roughWrapped = descriptions.flatMap((d) =>
+    wrapTextToWidth(d, DESC_FONT_SIZE, centerWidth)
+  );
   const totalLines = 1 + roughWrapped.length; // +1 for label line
   const blockH = totalLines * DESC_LINE_HEIGHT;
 
-  // Second pass: re-wrap each source line with position-aware width
+  // Second pass: re-wrap each source line with a position-aware pixel width —
+  // wider near the circle's vertical center, narrower toward the edges.
   const result: string[] = [];
   let lineIdx = 1; // start after label line
   for (const srcLine of descriptions) {
-    const words = srcLine.split(/\s+/);
+    const words = srcLine.split(/\s+/).filter((w) => w.length > 0);
     let current = '';
     for (const word of words) {
-      // Compute available width at this line's y position
+      // Compute available pixel width at this line's y position.
       const y = -blockH / 2 + (lineIdx + 0.5) * DESC_LINE_HEIGHT;
       const rSq = radius * radius;
-      const availPx =
-        y * y < rSq ? 2 * Math.sqrt(rSq - y * y) - CIRCLE_PAD * 2 : centerWidth;
-      const maxChars = Math.max(6, Math.floor(availPx / DESC_CHAR_W));
+      const availPx = Math.max(
+        20,
+        y * y < rSq ? 2 * Math.sqrt(rSq - y * y) - CIRCLE_PAD * 2 : centerWidth
+      );
 
       const test = current ? `${current} ${word}` : word;
-      if (test.length > maxChars && current) {
+      if (measureText(test, DESC_FONT_SIZE) > availPx && current) {
         result.push(current);
         lineIdx++;
         current = word;
@@ -725,16 +709,18 @@ function computeEdgePaths(
       edge.description
     );
     const lineCount = labelLines.length + descLines.length;
-    let maxCharLen = 0;
-    for (const l of labelLines) maxCharLen = Math.max(maxCharLen, l.length);
-    for (const l of descLines) maxCharLen = Math.max(maxCharLen, l.length);
+    let labelPxW = 0;
+    for (const l of labelLines)
+      labelPxW = Math.max(labelPxW, measureText(l, EDGE_LABEL_FONT_SIZE));
+    for (const l of descLines)
+      labelPxW = Math.max(labelPxW, measureText(l, EDGE_LABEL_FONT_SIZE));
     const { labelX, labelY, labelAngle } = computeEdgeLabelPosition(
       midAngle,
       radius,
       cx,
       cy,
       lineCount,
-      maxCharLen,
+      labelPxW,
       layoutNodes
     );
     const layoutEdge: CycleLayoutEdge = {
@@ -769,10 +755,10 @@ function computeEdgeLabelPosition(
   cx: number,
   cy: number,
   lineCount: number,
-  maxCharLen: number,
+  labelPxW: number,
   layoutNodes: CycleLayoutNode[]
 ): { labelX: number; labelY: number; labelAngle: number } {
-  if (lineCount === 0 || maxCharLen === 0) {
+  if (lineCount === 0 || labelPxW === 0) {
     return {
       labelX: cx + radius * Math.cos(midAngle),
       labelY: cy + radius * Math.sin(midAngle),
@@ -781,7 +767,7 @@ function computeEdgeLabelPosition(
   }
 
   const EDGE_LABEL_CORNER_OFFSET = 10;
-  const labelW = maxCharLen * EDGE_LABEL_CHAR_W;
+  const labelW = labelPxW;
   const labelH = lineCount * 15;
   const cosT = Math.cos(midAngle);
   const sinT = Math.sin(midAngle);
@@ -867,9 +853,6 @@ function computeEdgeLabelPosition(
   };
 }
 
-/** Estimated character width at 11px edge label font. */
-const EDGE_LABEL_CHAR_W = 7;
-
 /**
  * Check if edge labels overflow the canvas and return a reduced radius if needed.
  * Returns null if everything fits.
@@ -910,12 +893,12 @@ function fitToCanvas(
       le.label,
       edge.description
     );
-    let maxLineLen = 0;
-    for (const l of labelLines) maxLineLen = Math.max(maxLineLen, l.length);
-    for (const l of descLines) maxLineLen = Math.max(maxLineLen, l.length);
-    if (maxLineLen === 0) continue;
-
-    const textWidth = maxLineLen * EDGE_LABEL_CHAR_W;
+    let textWidth = 0;
+    for (const l of labelLines)
+      textWidth = Math.max(textWidth, measureText(l, EDGE_LABEL_FONT_SIZE));
+    for (const l of descLines)
+      textWidth = Math.max(textWidth, measureText(l, EDGE_LABEL_FONT_SIZE));
+    if (textWidth === 0) continue;
 
     // Determine text-anchor direction from label angle (mirrors renderer logic)
     const normAngle =

@@ -8,6 +8,11 @@
 import dagre from '@dagrejs/dagre';
 import type { Writable } from '../utils/brand';
 import type { ComputedInfraModel, ComputedInfraNode } from './types';
+import {
+  measureText,
+  truncateText,
+  CHAR_WIDTH_RATIO,
+} from '../utils/text-measure';
 
 // ============================================================
 // Layout types
@@ -86,8 +91,11 @@ const NODE_SEPARATOR_GAP = 4;
 const NODE_PAD_BOTTOM = 10;
 const ROLE_DOT_ROW = 12;
 const COLLAPSE_BAR_HEIGHT = 6;
-const CHAR_WIDTH = 7;
-const META_CHAR_WIDTH = 6;
+// Font sizes used when sizing nodes from text — must match renderer.ts
+// (NODE_FONT_SIZE / META_FONT_SIZE) so measured widths agree.
+const NODE_FONT_SIZE = 13;
+const META_FONT_SIZE = 10;
+const EDGE_LABEL_FONT_SIZE = 11;
 const PADDING_X = 24;
 const GROUP_PADDING = 20;
 const GROUP_HEADER_HEIGHT = 24;
@@ -201,8 +209,15 @@ function computeNodeWidth(
     node.computedConcurrentInvocations === 0 && node.computedInstances > 1
       ? node.computedInstances
       : 0;
-  const badgeLen = badgeVal > 0 ? `${badgeVal}x`.length + 2 : 0;
-  const labelWidth = (node.label.length + badgeLen) * CHAR_WIDTH + PADDING_X;
+  // Badge ("3x") renders at META_FONT_SIZE at the header's right edge; reserve
+  // its width plus a small gap alongside the bold label at NODE_FONT_SIZE.
+  const badgeWidth =
+    badgeVal > 0
+      ? measureText(`${badgeVal}x`, META_FONT_SIZE) +
+        2 * CHAR_WIDTH_RATIO * NODE_FONT_SIZE
+      : 0;
+  const labelWidth =
+    measureText(node.label, NODE_FONT_SIZE) + badgeWidth + PADDING_X;
 
   // Collect all key names (including "RPS" and computed rows) to compute aligned value column
   const allKeys: string[] = [];
@@ -269,8 +284,12 @@ function computeNodeWidth(
   }
   if (allKeys.length === 0) return Math.max(MIN_NODE_WIDTH, labelWidth);
 
-  const maxKeyLen = Math.max(...allKeys.map((k) => k.length));
-  // key + ": " + value
+  // Width of the aligned key column ("key: "), measured in pixels at the meta
+  // font size — mirrors renderer.ts's valueX = x + 10 + measureText("key: ").
+  const keyColWidth = Math.max(
+    ...allKeys.map((k) => measureText(`${k}: `, META_FONT_SIZE))
+  );
+  // keyColWidth + measured value width
   let maxRowWidth = 0;
   if (node.computedRps > 0) {
     // RPS row may show "29.3k / 50k" when an effective cap exists
@@ -296,7 +315,7 @@ function computeNodeWidth(
         : formatRps(node.computedRps);
     maxRowWidth = Math.max(
       maxRowWidth,
-      (maxKeyLen + 2 + rpsVal.length) * META_CHAR_WIDTH
+      keyColWidth + measureText(rpsVal, META_FONT_SIZE)
     );
   }
   // Declared property value widths only when expanded
@@ -314,20 +333,20 @@ function computeNodeWidth(
         'uptime',
         'cb-error-threshold',
       ];
-      const valLen =
+      const valStr =
         p.key === 'max-rps' || p.key === 'ratelimit-rps'
-          ? formatRpsShort(numVal).length
+          ? formatRpsShort(numVal)
           : p.key === 'latency-ms' ||
               p.key === 'cb-latency-threshold-ms' ||
               p.key === 'duration-ms' ||
               p.key === 'cold-start-ms'
-            ? formatMs(numVal).length
+            ? formatMs(numVal)
             : PCT_KEYS.includes(p.key)
-              ? `${numVal}%`.length
-              : String(p.value).length;
+              ? `${numVal}%`
+              : String(p.value);
       maxRowWidth = Math.max(
         maxRowWidth,
-        (maxKeyLen + 2 + valLen) * META_CHAR_WIDTH
+        keyColWidth + measureText(valStr, META_FONT_SIZE)
       );
     }
   }
@@ -337,10 +356,9 @@ function computeNodeWidth(
     const msValues = expanded ? [perc.p50, perc.p90, perc.p99] : [perc.p90];
     for (const ms of msValues) {
       if (ms > 0) {
-        const valLen = formatMs(ms).length;
         maxRowWidth = Math.max(
           maxRowWidth,
-          (maxKeyLen + 2 + valLen) * META_CHAR_WIDTH
+          keyColWidth + measureText(formatMs(ms), META_FONT_SIZE)
         );
       }
     }
@@ -358,43 +376,44 @@ function computeNodeWidth(
         const combinedVal = `${formatMs(perc.p90)} / ${formatMs(threshold)}`;
         maxRowWidth = Math.max(
           maxRowWidth,
-          (maxKeyLen + 2 + combinedVal.length) * META_CHAR_WIDTH
+          keyColWidth + measureText(combinedVal, META_FONT_SIZE)
         );
       }
     }
     if (node.computedUptime < 1) {
-      const valLen = formatUptime(node.computedUptime).length;
       maxRowWidth = Math.max(
         maxRowWidth,
-        (maxKeyLen + 2 + valLen) * META_CHAR_WIDTH
+        keyColWidth +
+          measureText(formatUptime(node.computedUptime), META_FONT_SIZE)
       );
     }
     if (node.computedAvailability < 1) {
-      const valLen = formatUptime(node.computedAvailability).length;
       maxRowWidth = Math.max(
         maxRowWidth,
-        (maxKeyLen + 2 + valLen) * META_CHAR_WIDTH
+        keyColWidth +
+          measureText(formatUptime(node.computedAvailability), META_FONT_SIZE)
       );
     }
     // CB state row ("CB: OPEN") — inverted pill, use full text width
     if (node.computedCbState === 'open') {
       maxRowWidth = Math.max(
         maxRowWidth,
-        'CB: OPEN'.length * META_CHAR_WIDTH + 8
+        measureText('CB: OPEN', META_FONT_SIZE) + 8
       );
     }
   }
 
-  const DESC_MAX_CHARS = 120;
+  // Pixel-width cap for description lines, derived from the legacy 120-char cap
+  // at META_FONT_SIZE — must match renderer.ts's DESC_MAX_WIDTH.
+  const DESC_MAX_WIDTH = 120 * CHAR_WIDTH_RATIO * META_FONT_SIZE;
   const descLines =
     expanded && node.description && !node.isEdge ? node.description : [];
   let descWidth = 0;
   for (const dl of descLines) {
-    const truncated =
-      dl.length > DESC_MAX_CHARS ? dl.slice(0, DESC_MAX_CHARS - 1) + '…' : dl;
+    const truncated = truncateText(dl, META_FONT_SIZE, DESC_MAX_WIDTH);
     descWidth = Math.max(
       descWidth,
-      truncated.length * META_CHAR_WIDTH + PADDING_X
+      measureText(truncated, META_FONT_SIZE) + PADDING_X
     );
   }
   return Math.max(MIN_NODE_WIDTH, labelWidth, maxRowWidth + 20, descWidth);
@@ -828,7 +847,8 @@ export function layoutInfra(
       const midIdx = Math.floor(edge.points.length / 2);
       const midPt = edge.points[midIdx];
       if (midPt) {
-        const halfWidth = (edge.label.length * 6.5 + 8) / 2;
+        const halfWidth =
+          (measureText(edge.label, EDGE_LABEL_FONT_SIZE) + 8) / 2;
         if (midPt.x - halfWidth < minX) minX = midPt.x - halfWidth;
         if (midPt.x + halfWidth > maxX) maxX = midPt.x + halfWidth;
       }

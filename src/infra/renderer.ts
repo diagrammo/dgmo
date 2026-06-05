@@ -11,6 +11,11 @@ import type { InfraTagGroup } from './types';
 import { resolveColor } from '../colors';
 import { renderInlineText } from '../utils/inline-markdown';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
+import {
+  measureText,
+  truncateText,
+  CHAR_WIDTH_RATIO,
+} from '../utils/text-measure';
 import type {
   InfraLayoutResult,
   InfraLayoutNode,
@@ -706,11 +711,12 @@ const PROP_DISPLAY: Record<string, string> = {
 };
 
 const DESC_MAX_CHARS = 120;
+/** Pixel-width cap for description lines, derived from the legacy char cap at META_FONT_SIZE. */
+const DESC_MAX_WIDTH = DESC_MAX_CHARS * CHAR_WIDTH_RATIO * META_FONT_SIZE;
 
-/** Truncate description text to DESC_MAX_CHARS. */
+/** Truncate description text to fit DESC_MAX_WIDTH at META_FONT_SIZE. */
 function truncateDesc(text: string): string {
-  if (text.length <= DESC_MAX_CHARS) return text;
-  return text.slice(0, DESC_MAX_CHARS - 1) + '…';
+  return truncateText(text, META_FONT_SIZE, DESC_MAX_WIDTH);
 }
 
 /** Keys whose values are RPS counts and should be formatted like RPS. */
@@ -1338,7 +1344,7 @@ function renderEdgeLabels(
 
     const g = svg.append('g').attr('class', animate ? 'infra-edge-label' : '');
 
-    const textWidth = labelText.length * 6.5 + 8;
+    const textWidth = measureText(labelText, EDGE_LABEL_FONT_SIZE) + 8;
     g.append('rect')
       .attr('x', midPt.x - textWidth / 2)
       .attr('y', midPt.y - 8)
@@ -1687,9 +1693,12 @@ function renderNodes(
 
         const rows = [...computedSection, ...declaredSection];
 
-        // Compute max key width so values align vertically
-        const maxKeyLen = Math.max(...rows.map((r) => r.key.length));
-        const valueX = x + 10 + (maxKeyLen + 2) * (sc.sMetaFontSize * 0.6);
+        // Compute max key width (pixels) so values align vertically.
+        // Keys are drawn as "${key}: ", so measure that exact string.
+        const maxKeyWidth = Math.max(
+          ...rows.map((r) => measureText(`${r.key}: `, sc.sMetaFontSize))
+        );
+        const valueX = x + 10 + maxKeyWidth;
 
         let rowY = sepY + NODE_SEPARATOR_GAP + sc.sMetaFontSize;
         const needsSectionSep =

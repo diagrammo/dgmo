@@ -20,6 +20,7 @@ import {
   formatSprintCell,
   formatSlackValue,
 } from './internal';
+import { measureText } from '../utils/text-measure';
 
 // Textbook 3×3 PERT/CPM box: top row [ES | dur | EF], middle row
 // [name spanning all three columns], bottom row [LS | slack | LF].
@@ -46,9 +47,8 @@ const SWIMLANE_GAP = 24;
 // Cell-sizing constants — see `computeNodeSizing` below.
 const NODE_CELL_FONT_SIZE = 11;
 const NODE_NAME_FONT_SIZE = 13;
-// Average char width for Inter at sans-serif weights. Conservative;
-// produces a small over-estimate which prevents text from clipping.
-const CELL_CHAR_WIDTH_RATIO = 0.55;
+// Milestone name renders at 12pt with a leading `◆ ` glyph (see renderer).
+const MILESTONE_NAME_FONT_SIZE = 12;
 const CELL_PAD_X = 8;
 const NAME_PAD_X = 6;
 // Anchor icon + gap (renderer reserves space to the left of the name
@@ -88,8 +88,6 @@ export function computeNodeSizing(resolved: ResolvedPert): NodeSizing {
   const sprintMode = resolved.options.sprintMode;
   const sprintNumber = resolved.options.sprintNumber ?? 1;
   const projectStart = resolved.projectStart;
-  const cellCharW = NODE_CELL_FONT_SIZE * CELL_CHAR_WIDTH_RATIO;
-  const nameCharW = NODE_NAME_FONT_SIZE * CELL_CHAR_WIDTH_RATIO;
 
   const fmtSchedule = (v: number | null, isTbd: boolean): string =>
     sprintMode
@@ -100,12 +98,15 @@ export function computeNodeSizing(resolved: ResolvedPert): NodeSizing {
   const fmtDur = (v: number | null, isTbd: boolean): string =>
     formatDuration(v, unit, isTbd ? '?' : null);
 
-  let maxOuterChars = 1;
-  let maxMidChars = 1;
-  let maxNameChars = 1;
-  let maxMilestoneTopChars = 1;
-  let maxMilestoneSlackChars = 0;
-  let maxMilestoneNameChars = 1;
+  // Track the widest rendered pixel width per cell category — measured at
+  // the exact font sizes the renderer draws with so reserved width
+  // matches drawn text.
+  let maxOuterW = 0;
+  let maxMidW = 0;
+  let maxNameW = 0;
+  let maxMilestoneTopW = 0;
+  let maxMilestoneSlackW = 0;
+  let maxMilestoneNameW = 0;
 
   for (const r of resolved.activities) {
     const isTbd = r.es === null;
@@ -113,17 +114,20 @@ export function computeNodeSizing(resolved: ResolvedPert): NodeSizing {
       const dateStr = fmtSchedule(r.es, isTbd);
       const slackStr = fmtSlack(r.slack, isTbd);
       const slackHidden = !isTbd && /^0[a-z]?$/.test(slackStr);
-      maxMilestoneTopChars = Math.max(maxMilestoneTopChars, dateStr.length);
+      maxMilestoneTopW = Math.max(
+        maxMilestoneTopW,
+        measureText(dateStr, NODE_CELL_FONT_SIZE)
+      );
       if (!slackHidden) {
-        maxMilestoneSlackChars = Math.max(
-          maxMilestoneSlackChars,
-          slackStr.length
+        maxMilestoneSlackW = Math.max(
+          maxMilestoneSlackW,
+          measureText(slackStr, NODE_CELL_FONT_SIZE)
         );
       }
-      // The milestone glyph prefix `◆ ` (2 chars worth of width).
-      maxMilestoneNameChars = Math.max(
-        maxMilestoneNameChars,
-        r.activity.name.length + 2
+      // The milestone glyph prefix `◆ ` precedes the name.
+      maxMilestoneNameW = Math.max(
+        maxMilestoneNameW,
+        measureText(`◆ ${r.activity.name}`, MILESTONE_NAME_FONT_SIZE)
       );
       continue;
     }
@@ -133,33 +137,43 @@ export function computeNodeSizing(resolved: ResolvedPert): NodeSizing {
     const lfStr = fmtSchedule(r.lf, isTbd);
     const durStr = fmtDur(r.mu, isTbd);
     const slackStr = fmtSlack(r.slack, isTbd);
-    maxOuterChars = Math.max(
-      maxOuterChars,
-      esStr.length,
-      efStr.length,
-      lsStr.length,
-      lfStr.length
+    maxOuterW = Math.max(
+      maxOuterW,
+      measureText(esStr, NODE_CELL_FONT_SIZE),
+      measureText(efStr, NODE_CELL_FONT_SIZE),
+      measureText(lsStr, NODE_CELL_FONT_SIZE),
+      measureText(lfStr, NODE_CELL_FONT_SIZE)
     );
-    maxMidChars = Math.max(maxMidChars, durStr.length, slackStr.length);
-    maxNameChars = Math.max(maxNameChars, r.activity.name.length);
+    maxMidW = Math.max(
+      maxMidW,
+      measureText(durStr, NODE_CELL_FONT_SIZE),
+      measureText(slackStr, NODE_CELL_FONT_SIZE)
+    );
+    maxNameW = Math.max(
+      maxNameW,
+      measureText(r.activity.name, NODE_NAME_FONT_SIZE)
+    );
   }
 
   // Also account for any collapsed-group rolled-up label width — the
   // renderer draws those with the same textbook-card chrome, so their
   // name needs to fit in the shared `activityWidth`.
   for (const rg of resolved.groups) {
-    maxNameChars = Math.max(maxNameChars, rg.group.name.length);
+    maxNameW = Math.max(
+      maxNameW,
+      measureText(rg.group.name, NODE_NAME_FONT_SIZE)
+    );
   }
 
-  const outerCell = Math.ceil(maxOuterChars * cellCharW) + 2 * CELL_PAD_X;
-  const midCell = Math.ceil(maxMidChars * cellCharW) + 2 * CELL_PAD_X;
+  const outerCell = Math.ceil(maxOuterW) + 2 * CELL_PAD_X;
+  const midCell = Math.ceil(maxMidW) + 2 * CELL_PAD_X;
   const outerNeeded = Math.max(MIN_CELL_WIDTH, outerCell);
   const midNeeded = Math.max(MIN_CELL_WIDTH, midCell);
   const cellsTotalW = 2 * outerNeeded + midNeeded;
 
   // The name dictates a lower bound too — anchor-pinned cards reserve
   // a NAME_PIN_WIDTH on the left, so size for the worst case.
-  const nameTextW = Math.ceil(maxNameChars * nameCharW);
+  const nameTextW = Math.ceil(maxNameW);
   const nameTotalW = nameTextW + NAME_PIN_WIDTH + 2 * NAME_PAD_X;
 
   const activityWidth = Math.max(
@@ -183,17 +197,11 @@ export function computeNodeSizing(resolved: ResolvedPert): NodeSizing {
 
   // Milestones are independent: a one-cell-tall date row, a name row,
   // and (optionally) a slack row. Width should fit whichever is widest.
-  const mTop = Math.ceil(maxMilestoneTopChars * cellCharW) + 2 * CELL_PAD_X;
+  const mTop = Math.ceil(maxMilestoneTopW) + 2 * CELL_PAD_X;
   const mSlack =
-    maxMilestoneSlackChars > 0
-      ? Math.ceil(maxMilestoneSlackChars * cellCharW) + 2 * CELL_PAD_X
-      : 0;
+    maxMilestoneSlackW > 0 ? Math.ceil(maxMilestoneSlackW) + 2 * CELL_PAD_X : 0;
   // Milestone name renders at 12pt with anchor-pin reserve.
-  const mNameCharW = 12 * CELL_CHAR_WIDTH_RATIO;
-  const mName =
-    Math.ceil(maxMilestoneNameChars * mNameCharW) +
-    NAME_PIN_WIDTH +
-    2 * NAME_PAD_X;
+  const mName = Math.ceil(maxMilestoneNameW) + NAME_PIN_WIDTH + 2 * NAME_PAD_X;
   const milestoneWidth = Math.max(
     MIN_MILESTONE_WIDTH,
     Math.min(MAX_MILESTONE_WIDTH, Math.max(mTop, mSlack, mName))

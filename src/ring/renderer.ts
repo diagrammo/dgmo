@@ -16,6 +16,7 @@ import {
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { renderInlineText } from '../utils/inline-markdown';
+import { CHAR_WIDTH_RATIO } from '../utils/text-measure';
 import {
   wrapDescriptionLines,
   type WrappedDescLine,
@@ -41,8 +42,6 @@ const DESC_GAP = 28;
 const DESC_ACCENT_WIDTH = 3;
 /** Gap between accent bar and description text. */
 const DESC_ACCENT_GAP = 12;
-/** Approximate ratio of average glyph width to font size (sans-serif). */
-const CHAR_WIDTH_RATIO = 0.55;
 /** Pixel offset between bullet glyph column and body-text column. */
 const BULLET_BODY_INDENT = 10;
 /** Outer-edge stroke width per ring (Decision 14 — adjacent-ring contrast). */

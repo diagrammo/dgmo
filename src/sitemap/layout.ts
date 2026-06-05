@@ -12,6 +12,13 @@ import {
   LEGEND_ENTRY_FONT_SIZE,
   measureLegendText,
 } from '../utils/legend-constants';
+import { measureText } from '../utils/text-measure';
+
+// Font sizes — must match the renderer (renderer.ts) so card sizing here
+// agrees pixel-for-pixel with what gets drawn.
+const LABEL_FONT_SIZE = 13;
+const META_FONT_SIZE = 11;
+const CONTAINER_LABEL_FONT_SIZE = 13;
 
 // ============================================================
 // Types
@@ -119,7 +126,6 @@ function clipToRectBorder(
 // Constants
 // ============================================================
 
-const CHAR_WIDTH = 7.5;
 const META_LINE_HEIGHT = 16;
 const HEADER_HEIGHT = 28;
 const SEPARATOR_GAP = 6;
@@ -167,20 +173,22 @@ function computeCardWidth(
   meta: Record<string, string>,
   descLines?: readonly string[]
 ): number {
-  let maxChars = label.length;
+  // Measure each text element at the font size the renderer draws it with so
+  // the card never under-sizes its content.
+  let maxContentWidth = measureText(label, LABEL_FONT_SIZE);
   for (const [key, value] of Object.entries(meta)) {
-    const lineChars = key.length + 2 + value.length;
-    if (lineChars > maxChars) maxChars = lineChars;
+    // Renderer draws meta as "key:" then the value, both at META_FONT_SIZE,
+    // with a space separating them.
+    const lineWidth = measureText(`${key}: ${value}`, META_FONT_SIZE);
+    if (lineWidth > maxContentWidth) maxContentWidth = lineWidth;
   }
   if (descLines) {
     for (const dl of descLines) {
-      if (dl.length > maxChars) maxChars = dl.length;
+      const dlWidth = measureText(dl, META_FONT_SIZE);
+      if (dlWidth > maxContentWidth) maxContentWidth = dlWidth;
     }
   }
-  return Math.max(
-    MIN_CARD_WIDTH,
-    Math.ceil(maxChars * CHAR_WIDTH) + CARD_H_PAD * 2
-  );
+  return Math.max(MIN_CARD_WIDTH, Math.ceil(maxContentWidth) + CARD_H_PAD * 2);
 }
 
 function computeCardHeight(
@@ -301,7 +309,7 @@ function flattenNodes(
         fullMeta: { ...node.metadata },
         width: Math.max(
           MIN_CARD_WIDTH,
-          node.label.length * CHAR_WIDTH + CARD_H_PAD * 2
+          measureText(node.label, CONTAINER_LABEL_FONT_SIZE) + CARD_H_PAD * 2
         ),
         height: labelHeight + CONTAINER_PAD_BOTTOM,
       });

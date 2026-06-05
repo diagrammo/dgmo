@@ -10,6 +10,7 @@
 
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ParsedBoxesAndLines, BLNode, BLGroup } from './types';
+import { measureText, wrapTextToWidth } from '../utils/text-measure';
 
 // ── Constants ──────────────────────────────────────────────
 const MARGIN = 40;
@@ -113,15 +114,14 @@ function estimateLabelLines(label: string, nodeWidth = NODE_WIDTH): number {
     if (!part) continue;
     words.push(...splitCamelCase(part));
   }
+  const maxTextWidth = nodeWidth - 24;
   for (let fontSize = 13; fontSize >= 9; fontSize--) {
-    const charWidth = fontSize * 0.6;
-    const maxChars = Math.floor((nodeWidth - 24) / charWidth);
-    if (maxChars < 2) continue;
+    if (maxTextWidth < measureText('MM', fontSize)) continue;
     let lines = 1;
     let current = '';
     for (const word of words) {
       const test = current ? `${current} ${word}` : word;
-      if (test.length <= maxChars) {
+      if (measureText(test, fontSize) <= maxTextWidth) {
         current = test;
       } else {
         lines++;
@@ -140,28 +140,21 @@ function computeNodeSize(node: BLNode): { width: number; height: number } {
   const w = DESC_NODE_WIDTH;
   const labelLines = estimateLabelLines(node.label, w);
   const labelHeight = labelLines * 13 * LABEL_LINE_HEIGHT + LABEL_PAD;
-  const charsPerLine = Math.floor((w - 24) / (DESC_FONT_SIZE * 0.6));
+  const maxTextWidth = w - 24;
   let totalRenderedLines = 0;
   for (const line of node.description) {
-    if (line.length <= charsPerLine) {
+    if (measureText(line, DESC_FONT_SIZE) <= maxTextWidth) {
       totalRenderedLines += 1;
     } else {
-      const words = line.split(/\s+/);
-      let current = '';
-      let lineCount = 0;
-      for (const word of words) {
-        const fitted =
-          word.length > charsPerLine ? word.slice(0, charsPerLine) : word;
-        const test = current ? `${current} ${fitted}` : fitted;
-        if (test.length <= charsPerLine) {
-          current = test;
-        } else {
-          if (current) lineCount++;
-          current = fitted;
+      // Hard-break long words to match the renderer's slicing behaviour.
+      totalRenderedLines += wrapTextToWidth(
+        line,
+        DESC_FONT_SIZE,
+        maxTextWidth,
+        {
+          hardBreak: true,
         }
-      }
-      if (current) lineCount++;
-      totalRenderedLines += lineCount;
+      ).length;
     }
   }
   totalRenderedLines = Math.min(totalRenderedLines, MAX_DESC_LINES);

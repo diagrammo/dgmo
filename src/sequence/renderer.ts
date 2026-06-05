@@ -27,6 +27,7 @@ import {
   wrapDescriptionLines,
   type WrappedDescLine,
 } from '../utils/wrapped-desc';
+import { measureText, truncateText } from '../utils/text-measure';
 import { resolveSequenceTags } from './tag-resolution';
 import type { ResolvedTagMap } from './tag-resolution';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
@@ -67,48 +68,57 @@ const NOTE_PAD_V = 6;
 const NOTE_FONT_SIZE = 10;
 const NOTE_LINE_H = 14;
 const NOTE_GAP = 15;
-const NOTE_CHAR_W = 6;
 const ACTIVATION_WIDTH = 10;
 const SELF_CALL_HEIGHT = 25;
 const SELF_CALL_WIDTH = 30;
 // Actors render their label below the stick figure (at boxH + 14). Their
 // lifeline starts this far below the box so the dashes clear the label text.
 const ACTOR_LABEL_CLEARANCE = 22;
-function wrapTextLines(text: string, maxChars: number): WrappedDescLine[] {
+function wrapTextLines(
+  text: string,
+  maxWidth: number,
+  fontSize: number
+): WrappedDescLine[] {
   // Convert leading "- " to the canonical bullet prefix so the shared wrap
   // helper can split bullet lines into bullet-first / bullet-cont kinds and
   // give us hanging-indent alignment on continuation lines.
   const rawLines = text
     .split('\n')
     .map((l) => (l.startsWith('- ') ? '• ' + l.slice(2) : l));
-  return wrapDescriptionLines(rawLines, maxChars);
+  // Drive the shared bullet-aware wrapper by pixel width: passing the note's
+  // available text width as the limit and a glyph-accurate measurer as the
+  // length function turns its char-count comparison into a true pixel wrap.
+  return wrapDescriptionLines(rawLines, maxWidth, (s) =>
+    measureText(s, fontSize)
+  );
 }
+
+/**
+ * Available pixel width for a participant label inside a box of the given
+ * width (the 10px accounts for the same left/right inset the layout uses).
+ */
+const labelTextWidth = (boxW: number): number => boxW - 10;
 
 /**
  * Split a participant label into multiple lines if it exceeds the box width.
  * Splits on spaces first, then dashes, then camelCase boundaries.
- * Approximate max chars based on font-size 13 (~7.5px per char average).
  */
-const LABEL_CHAR_WIDTH = 7.5;
-const LABEL_MAX_CHARS = Math.floor(
-  (PARTICIPANT_BOX_WIDTH - 10) / LABEL_CHAR_WIDTH
-); // ~14 chars
-
 function splitParticipantLabel(
   label: string,
-  maxChars: number = LABEL_MAX_CHARS
+  maxWidth: number,
+  fontSize: number
 ): string[] {
-  if (label.length <= maxChars) return [label];
+  if (measureText(label, fontSize) <= maxWidth) return [label];
 
   // Split on spaces
   if (label.includes(' ')) {
-    return wrapLabelWords(label.split(' '), maxChars);
+    return wrapLabelWords(label.split(' '), maxWidth, fontSize);
   }
 
   // Split on dashes/underscores/colons/slashes
   if (/[-_:/]/.test(label)) {
     const parts = label.split(/[-_:/]+/);
-    return wrapLabelWords(parts, maxChars);
+    return wrapLabelWords(parts, maxWidth, fontSize);
   }
 
   // Split on camelCase boundaries: "UserLookupCloudFx" → ["User", "Lookup", "Cloud", "Fx"]
@@ -117,19 +127,23 @@ function splitParticipantLabel(
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1\x00$2')
     .split('\x00');
   if (camelParts.length > 1) {
-    return wrapLabelWords(camelParts, maxChars);
+    return wrapLabelWords(camelParts, maxWidth, fontSize);
   }
 
   return [label];
 }
 
-/** Greedily join word parts into lines that fit within maxChars. */
-function wrapLabelWords(words: string[], maxChars: number): string[] {
+/** Greedily join word parts into lines that fit within maxWidth pixels. */
+function wrapLabelWords(
+  words: string[],
+  maxWidth: number,
+  fontSize: number
+): string[] {
   const lines: string[] = [];
   let current = '';
   for (const word of words) {
     const test = current ? current + word : word;
-    if (test.length > maxChars && current) {
+    if (measureText(test, fontSize) > maxWidth && current) {
       lines.push(current);
       current = word;
     } else {
@@ -929,10 +943,16 @@ export function renderSequenceDiagram(
   const MAX_BOX_WIDTH = 225;
   let uniformBoxWidth = PARTICIPANT_BOX_WIDTH;
   for (const p of participants) {
-    const lines = splitParticipantLabel(p.label, LABEL_MAX_CHARS);
+    const lines = splitParticipantLabel(
+      p.label,
+      labelTextWidth(PARTICIPANT_BOX_WIDTH),
+      LABEL_FONT_SIZE
+    );
     if (lines.length === 0) continue;
-    const widest = Math.max(...lines.map((l) => l.length));
-    const labelWidth = widest * LABEL_CHAR_WIDTH + 10;
+    const widest = Math.max(
+      ...lines.map((l) => measureText(l, LABEL_FONT_SIZE))
+    );
+    const labelWidth = widest + 10;
     uniformBoxWidth = Math.max(uniformBoxWidth, labelWidth);
   }
   uniformBoxWidth = Math.min(MAX_BOX_WIDTH, uniformBoxWidth);
@@ -964,17 +984,16 @@ export function renderSequenceDiagram(
   const sNoteFontSize = ctx.text(NOTE_FONT_SIZE);
   const sNoteLineH = ctx.structural(NOTE_LINE_H);
   const sNoteGap = ctx.structural(NOTE_GAP);
-  const sNoteCharW = ctx.text(NOTE_CHAR_W, 4);
   const sActivationWidth = ctx.structural(ACTIVATION_WIDTH);
   const sSelfCallHeight = SELF_CALL_HEIGHT;
   const sSelfCallWidth = ctx.structural(SELF_CALL_WIDTH);
-  const sNoteCharsPerLine = Math.floor(
-    (sNoteMaxW - sNotePadH * 2 - sNoteFold) / sNoteCharW
-  );
+  // Pixel width available for note text inside the widest allowed note box
+  // (box width minus the horizontal padding on both sides and the fold cut).
+  const sNoteTextWidthMax = sNoteMaxW - sNotePadH * 2 - sNoteFold;
   const sNoteLaneMax = sGap - sActivationWidth - sNoteGap;
-  const sLabelCharWidth = ctx.text(LABEL_CHAR_WIDTH, 5);
-  const sLabelMaxChars = Math.floor((sBoxW - 10) / sLabelCharWidth);
   const sLabelFontSize = ctx.text(LABEL_FONT_SIZE);
+  // Pixel width available for a participant label inside the scaled box.
+  const sLabelTextWidth = labelTextWidth(sBoxW);
 
   // Participant index lookup — used to clamp note width within one lane
   const participantIndexMap = new Map<string, number>();
@@ -1017,8 +1036,10 @@ export function renderSequenceDiagram(
     return Math.min(sNoteMaxW, laneMax);
   };
 
-  const charsForWidth = (maxW: number): number =>
-    Math.floor((maxW - sNotePadH * 2 - sNoteFold) / sNoteCharW);
+  // Pixel width available for note text inside a note box of the given outer
+  // width — outer width minus horizontal padding (both sides) and the fold cut.
+  const noteTextWidth = (maxW: number): number =>
+    maxW - sNotePadH * 2 - sNoteFold;
 
   const activationsOff = parsedOptions['activations']?.toLowerCase() === 'off';
 
@@ -1249,9 +1270,9 @@ export function renderSequenceDiagram(
   const NOTE_TRAILING_GAP = ctx.aesthetic(35);
   const computeNoteHeight = (
     text: string,
-    maxChars: number = sNoteCharsPerLine
+    textWidth: number = sNoteTextWidthMax
   ): number => {
-    const lines = wrapTextLines(text, maxChars);
+    const lines = wrapTextLines(text, textWidth, sNoteFontSize);
     return lines.length * sNoteLineH + sNotePadV * 2;
   };
   let trailingNoteSpace = 0; // extra space for notes at the end with no following message
@@ -1273,7 +1294,7 @@ export function renderSequenceDiagram(
           const note = els[j]! as SequenceNote;
           const sc = isNoteAfterSelfCall(note);
           const maxW = noteEffectiveMaxW(note.participantId, note.position, sc);
-          const noteH = computeNoteHeight(note.text, charsForWidth(maxW));
+          const noteH = computeNoteHeight(note.text, noteTextWidth(maxW));
           totalExtent += noteH + NOTE_OFFSET_BELOW;
           j++;
         }
@@ -1571,7 +1592,7 @@ export function renderSequenceDiagram(
             );
             const prevNoteH = computeNoteHeight(
               prevNote.text,
-              charsForWidth(prevMaxW)
+              noteTextWidth(prevMaxW)
             );
             noteTopY = prevNoteY + prevNoteH + NOTE_OFFSET_BELOW;
           } else {
@@ -1615,7 +1636,7 @@ export function renderSequenceDiagram(
       effectiveNotePosition(note),
       isNoteAfterSelfCall(note)
     );
-    const noteH = computeNoteHeight(note.text, charsForWidth(maxW));
+    const noteH = computeNoteHeight(note.text, noteTextWidth(maxW));
     contentBottomY = Math.max(
       contentBottomY,
       noteTopY + noteH + NOTE_TRAILING_GAP
@@ -1651,7 +1672,8 @@ export function renderSequenceDiagram(
       if (step.from === step.to && step.from === rightmostId) {
         const selfProj = sActivationWidth + sSelfCallWidth;
         let labelProj = 0;
-        if (step.label) labelProj = step.label.length * sLabelCharWidth + 15;
+        // Self-call labels render at the fixed 12px message-label size.
+        if (step.label) labelProj = measureText(step.label, 12) + 15;
         rightProjection = Math.max(rightProjection, selfProj + labelProj);
       }
     }
@@ -1726,12 +1748,11 @@ export function renderSequenceDiagram(
   // Post-layout content scan: detect labels/notes that overflow the SVG boundaries.
   // Message labels render at a fixed 12px font (unscaled) so they can extend past
   // the scaled participant grid at small scale factors.
-  const MSG_LABEL_CHAR_W = 7;
   let contentLeft = 0;
   let contentRight = svgWidth;
   for (const step of renderSteps) {
     if (!step.label) continue;
-    const labelW = step.label.length * MSG_LABEL_CHAR_W;
+    const labelW = measureText(step.label, 12);
     if (step.from === step.to) {
       const px = participantX.get(step.from);
       if (px !== undefined) {
@@ -2101,7 +2122,7 @@ export function renderSequenceDiagram(
       solid,
       sBoxW,
       sBoxH,
-      sLabelMaxChars,
+      sLabelTextWidth,
       sLabelFontSize
     );
 
@@ -2651,7 +2672,8 @@ export function renderSequenceDiagram(
 
     // Transparent hit area scoped to the label so the toggle stays clickable
     // without the band swallowing clicks across the full diagram width.
-    const labelHitW = Math.max(80, labelText.length * 7 + 24);
+    // Label renders at the fixed 11px section-label size.
+    const labelHitW = Math.max(80, measureText(labelText, 11) + 24);
     sectionG
       .append('rect')
       .attr('x', labelX - labelHitW / 2)
@@ -2915,13 +2937,15 @@ export function renderSequenceDiagram(
           position,
           afterSelfCall
         );
-        const maxChars = charsForWidth(maxW);
-        const wrappedLines = wrapTextLines(el.text, maxChars);
+        const textWidth = noteTextWidth(maxW);
+        const wrappedLines = wrapTextLines(el.text, textWidth, sNoteFontSize);
         const noteH = wrappedLines.length * sNoteLineH + sNotePadV * 2;
-        const maxLineLen = Math.max(...wrappedLines.map((l) => l.text.length));
+        const maxLineW = Math.max(
+          ...wrappedLines.map((l) => measureText(l.text, sNoteFontSize))
+        );
         const noteW = Math.min(
           maxW,
-          Math.max(80, maxLineLen * sNoteCharW + sNotePadH * 2 + sNoteFold)
+          Math.max(80, maxLineW + sNotePadH * 2 + sNoteFold)
         );
         // Shift notes past self-call loopback when applicable
         const rightOffset =
@@ -3089,7 +3113,7 @@ function renderParticipant(
   solid?: boolean,
   boxW: number = W,
   boxH: number = H,
-  labelMaxChars: number = LABEL_MAX_CHARS,
+  labelTextW: number = labelTextWidth(W),
   labelFontSize: number = LABEL_FONT_SIZE
 ): void {
   const g = svg
@@ -3124,7 +3148,11 @@ function renderParticipant(
 
   // Render label — below the shape for actors, centered inside for others
   const isActor = participant.type === 'actor';
-  const labelLines = splitParticipantLabel(participant.label, labelMaxChars);
+  const labelLines = splitParticipantLabel(
+    participant.label,
+    labelTextW,
+    labelFontSize
+  );
   const fontSize = labelFontSize;
   const lineHeight = fontSize + 2;
   const labelFill = isActor
@@ -3142,12 +3170,9 @@ function renderParticipant(
     .attr('font-size', fontSize)
     .attr('font-weight', 500);
 
-  const maxLabelW = boxW - 10;
-  const truncLine = (text: string): string => {
-    if (text.length * (fontSize * 0.6) <= maxLabelW) return text;
-    const maxCharsEst = Math.floor(maxLabelW / (fontSize * 0.6));
-    return maxCharsEst > 2 ? text.slice(0, maxCharsEst - 1) + '…' : text;
-  };
+  const maxLabelW = labelTextWidth(boxW);
+  const truncLine = (text: string): string =>
+    truncateText(text, fontSize, maxLabelW);
 
   if (labelLines.length === 1) {
     textEl

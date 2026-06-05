@@ -36,6 +36,11 @@ import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { ScaleContext } from '../utils/scaling';
 import {
+  measureText,
+  truncateText,
+  wrapTextToWidth,
+} from '../utils/text-measure';
+import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
@@ -164,21 +169,23 @@ function fieldLegendRowHeight(maxDescLines: number): number {
     maxDescLines * FIELD_LEGEND_DESC_LINE_HEIGHT
   );
 }
-// Chars-per-line the description text wraps at for the given column
-// width. 0.55× char-width estimator; floors at 10 so a long single
-// word doesn't run off.
-function fieldLegendWrapChars(colW: number): number {
-  const charW = FIELD_LEGEND_DESC_FONT_SIZE * 0.55;
-  return Math.max(10, Math.floor((colW - 8) / charW));
+// Pixel width the description text wraps within for the given column
+// width (column minus 8px of horizontal padding).
+function fieldLegendDescWidth(colW: number): number {
+  return colW - 8;
 }
 // Total height the field-legend block needs at the given outer width.
 // Accounts for the worst-case description wrap across all 6 cells.
 function fieldLegendHeightFor(width: number): number {
   const colW = width / 3;
-  const wrapChars = fieldLegendWrapChars(colW);
+  const wrapW = fieldLegendDescWidth(colW);
   let maxLines = 1;
   for (const cell of FIELD_LEGEND_CELLS) {
-    const n = wrapTextByChars(cell.desc, wrapChars).length;
+    const n = wrapTextToWidth(
+      cell.desc,
+      FIELD_LEGEND_DESC_FONT_SIZE,
+      wrapW
+    ).length;
     if (n > maxLines) maxLines = n;
   }
   return (
@@ -222,24 +229,6 @@ const FIELD_LEGEND_CELLS: readonly { label: string; desc: string }[] = [
     desc: 'latest this activity can finish without delaying the project',
   },
 ];
-
-function wrapTextByChars(text: string, maxChars: number): string[] {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let line = '';
-  for (const word of words) {
-    if (line.length === 0) {
-      line = word;
-    } else if (line.length + 1 + word.length <= maxChars) {
-      line += ` ${word}`;
-    } else {
-      lines.push(line);
-      line = word;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
 
 interface ScaledNodeConstants {
   nodeRadius?: number;
@@ -2172,14 +2161,9 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   const midCenterY = midRowTop + midRowH / 2;
   const NAME_PAD_X = 6;
   const NAME_PIN_GAP = 4;
-  const charW = sNFS * 0.62;
   const pinReserve = a.pinned ? sPIW + NAME_PIN_GAP : 0;
   const availTextW = Math.max(0, w - 2 * NAME_PAD_X - pinReserve);
-  const maxChars = Math.max(1, Math.floor(availTextW / charW));
-  const displayName =
-    a.name.length > maxChars
-      ? a.name.slice(0, Math.max(1, maxChars - 1)) + '…'
-      : a.name;
+  const displayName = truncateText(a.name, sNFS, availTextW);
   const nameColor = a.midBandLabelColor ?? a.labelColor;
   if (a.pinned) {
     drawAnchorPin(g, x + NAME_PAD_X, midCenterY, nameColor, sPIW, sPIH);
@@ -2342,7 +2326,6 @@ function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
   const NAME_PAD_X = 6;
   const NAME_PIN_GAP = 4;
   const NAME_LINE_HEIGHT = 14;
-  const charW = nameSize * 0.62;
 
   let textAreaLeft = x + NAME_PAD_X;
   const textAreaRight = x + w - NAME_PAD_X;
@@ -2352,20 +2335,20 @@ function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
   }
   const textCx = (textAreaLeft + textAreaRight) / 2;
   const availW = textAreaRight - textAreaLeft;
-  const maxChars = Math.max(1, Math.floor(availW / charW));
-  const lines = wrapTextByChars(a.name, maxChars).map((line) =>
-    line.length > maxChars
-      ? line.slice(0, Math.max(1, maxChars - 1)) + '…'
-      : line
-  );
+  // Hard-break over-long words so a single long token still fits the
+  // narrow milestone pill rather than overflowing.
+  const lines = wrapTextToWidth(a.name, nameSize, availW, { hardBreak: true });
   const maxLines = Math.max(1, Math.floor(midRowH / NAME_LINE_HEIGHT));
   const visibleLines = lines.slice(0, maxLines);
   if (lines.length > maxLines && visibleLines.length > 0) {
+    // More lines than fit — force a trailing ellipsis on the last
+    // visible line to signal the truncation, fitting it to the text area.
     const last = visibleLines[visibleLines.length - 1]!;
+    const withEllipsis = `${last}…`;
     visibleLines[visibleLines.length - 1] =
-      last.length > maxChars - 1
-        ? last.slice(0, Math.max(1, maxChars - 1)) + '…'
-        : last + '…';
+      measureText(withEllipsis, nameSize) <= availW
+        ? withEllipsis
+        : truncateText(last, nameSize, availW);
   }
   const startCy =
     midCenterY - ((visibleLines.length - 1) * NAME_LINE_HEIGHT) / 2;
@@ -2853,7 +2836,11 @@ function renderFieldLegendBlock(
       .attr('fill-opacity', 0)
       .attr('pointer-events', 'all');
 
-    const descLines = wrapTextByChars(cell.desc, fieldLegendWrapChars(colW));
+    const descLines = wrapTextToWidth(
+      cell.desc,
+      FIELD_LEGEND_DESC_FONT_SIZE,
+      fieldLegendDescWidth(colW)
+    );
     const descBlockHeight =
       FIELD_LEGEND_DESC_FONT_SIZE +
       Math.max(descLines.length - 1, 0) * FIELD_LEGEND_DESC_LINE_HEIGHT;

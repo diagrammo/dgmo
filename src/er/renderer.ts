@@ -18,6 +18,7 @@ import {
   TITLE_Y,
 } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
+import { measureText } from '../utils/text-measure';
 import type { ParsedERDiagram, ERConstraint } from './types';
 import type { ERLayoutResult } from './layout';
 import { parseERDiagram } from './parser';
@@ -388,8 +389,7 @@ export function renderERDiagram(
       const midIdx = Math.floor(pts.length / 2);
       // In-bounds: midIdx is in [0, pts.length-1] since pts.length >= 2.
       const midPt = pts[midIdx]!;
-      const labelLen = edge.label.length;
-      const bgW = labelLen * 7 + 8;
+      const bgW = measureText(edge.label, sEdgeLabelFontSize) + 8;
       const bgH = 16;
 
       edgeG

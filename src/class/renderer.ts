@@ -28,6 +28,7 @@ import type { ClassLayoutResult } from './layout';
 import { parseClassDiagram } from './parser';
 import { layoutClassDiagram } from './layout';
 import { ScaleContext } from '../utils/scaling';
+import { measureText } from '../utils/text-measure';
 
 // ============================================================
 // Constants
@@ -468,8 +469,7 @@ export function renderClassDiagram(
       const midIdx = Math.floor(edge.points.length / 2);
       // Edges are always non-empty (drawn from a valid graph layout).
       const midPt = edge.points[midIdx]!;
-      const labelLen = edge.label.length;
-      const bgW = labelLen * 7 + 8;
+      const bgW = measureText(edge.label, sEdgeLabelFontSize) + 8;
       const bgH = 16;
 
       edgeG

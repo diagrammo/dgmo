@@ -654,8 +654,11 @@ API
     );
     const apiC = collapsedResult.nodes.find((n) => n.id === 'api')!;
     const apiE = expandedResult.nodes.find((n) => n.id === 'api')!;
-    // Collapsed must have width > MIN_NODE_WIDTH (140) since it shows a p90 row with value
-    expect(apiC.width).toBeGreaterThan(140);
+    // With accurate glyph measurement the single collapsed p90 row fits within
+    // MIN_NODE_WIDTH, so the card clamps to the 140 floor (content never exceeds
+    // the box, so no clipping). Previously the char-count over-estimate pushed it
+    // just past 140.
+    expect(apiC.width).toBeGreaterThanOrEqual(140);
     // Expanded is wider (shows p50 which can be shorter value, but declared props increase width)
     // Both should be positive widths
     expect(apiE.width).toBeGreaterThan(0);

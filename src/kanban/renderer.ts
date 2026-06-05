@@ -25,6 +25,7 @@ import type {
   D3Sel,
 } from '../utils/legend-types';
 import { ScaleContext } from '../utils/scaling';
+import { measureText } from '../utils/text-measure';
 
 // ============================================================
 // Public options object
@@ -163,7 +164,6 @@ function computeLayout(
   const headerHeight = showTitle ? sTitleHeight + 8 : 0;
   const startY = sDiagramPadding + headerHeight;
 
-  const charWidth = sCardTitleFontSize * 0.6;
   const columnLayouts: ColumnLayout[] = [];
 
   let maxColumnHeight = 0;
@@ -185,13 +185,13 @@ function computeLayout(
       continue;
     }
 
-    let maxCardTextWidth = col.name.length * (sColumnHeaderFontSize * 0.65);
+    let maxCardTextWidth = measureText(col.name, sColumnHeaderFontSize);
 
     const cardLayouts: CardLayout[] = [];
     let cardY = sColumnHeaderHeight + sColumnPadding;
 
     for (const card of col.cards) {
-      const titleWidth = card.title.length * charWidth;
+      const titleWidth = measureText(card.title, sCardTitleFontSize);
       maxCardTextWidth = Math.max(
         maxCardTextWidth,
         titleWidth + sCardPaddingX * 2
@@ -214,7 +214,7 @@ function computeLayout(
 
       for (const m of tagMeta) {
         const metaW =
-          (m.label.length + 2 + m.value.length) * sCardMetaFontSize * 0.6 +
+          measureText(`${m.label}: ${m.value}`, sCardMetaFontSize) +
           sCardPaddingX * 2;
         maxCardTextWidth = Math.max(maxCardTextWidth, metaW);
       }
@@ -697,7 +697,7 @@ export function renderKanban(
             .attr('fill', onCardText)
             .text(`${meta.label}: `);
 
-          const labelWidth = (meta.label.length + 2) * sCardMetaFontSize * 0.6;
+          const labelWidth = measureText(`${meta.label}: `, sCardMetaFontSize);
           cg.append('text')
             .attr('x', cx + sCardPaddingX + labelWidth)
             .attr('y', metaY)
@@ -1413,7 +1413,7 @@ function renderSwimlaneCard(
         .attr('font-size', sCardMetaFontSize)
         .attr('fill', palette.textMuted)
         .text(`${meta.label}: `);
-      const labelWidth = (meta.label.length + 2) * sCardMetaFontSize * 0.6;
+      const labelWidth = measureText(`${meta.label}: `, sCardMetaFontSize);
       cg.append('text')
         .attr('x', cx + sCardPaddingX + labelWidth)
         .attr('y', metaY)

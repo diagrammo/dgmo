@@ -16,6 +16,7 @@ import {
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { renderInlineText } from '../utils/inline-markdown';
+import { CHAR_WIDTH_RATIO, measureText } from '../utils/text-measure';
 import {
   wrapDescriptionLines,
   type WrappedDescLine,
@@ -45,8 +46,6 @@ const DESC_GAP = 28;
 const DESC_ACCENT_WIDTH = 3;
 /** Gap between accent bar and description text. */
 const DESC_ACCENT_GAP = 12;
-/** Approximate ratio of average glyph width to font size (sans-serif). */
-const CHAR_WIDTH_RATIO = 0.55;
 /** Pixel offset between bullet glyph column and body-text column. */
 const BULLET_BODY_INDENT = 10;
 
@@ -250,7 +249,8 @@ export function renderPyramid(
     // portion stays readable. Only when needed — wide segments don't need
     // the visual noise of a stroke.
     const labelFitsInside =
-      Math.min(topHalf, botHalf) * 2 > layout.labelFont * 4;
+      Math.min(topHalf, botHalf) * 2 >
+      measureText(layer.label, layout.labelFont);
     const haloColor =
       textColor === palette.textOnFillLight
         ? palette.textOnFillDark
@@ -496,11 +496,10 @@ function renderLayerDescriptions(
   const bulletColRightEdge = layout.leftAccentX - DESC_ACCENT_GAP;
   const computeBulletColLeftX = (lines: WrappedDescLine[]): number => {
     if (side === 'right') return layout.rightTextX;
-    const charW = descFont * CHAR_WIDTH_RATIO;
     let maxBodyW = 0;
     for (const l of lines) {
       if (l.kind === 'bullet-first' || l.kind === 'bullet-cont') {
-        maxBodyW = Math.max(maxBodyW, l.text.length * charW);
+        maxBodyW = Math.max(maxBodyW, measureText(l.text, descFont));
       }
     }
     return bulletColRightEdge - maxBodyW - BULLET_BODY_INDENT;

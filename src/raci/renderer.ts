@@ -43,6 +43,11 @@ import type {
 import { allTasks } from './parser';
 import { VARIANTS } from './variants';
 import { ScaleContext } from '../utils/scaling';
+import {
+  measureText,
+  truncateText,
+  wrapTextToWidth,
+} from '../utils/text-measure';
 
 /**
  * Group `parsed.diagnostics` per task, so the renderer can paint a
@@ -551,20 +556,21 @@ export function renderRaci(
 
   // Size full-mode chips to actually fit the longest label without truncation.
   // chip = 4 pad + 24 slab + 8 gap + label + 8 right pad.
-  const longestLabel = legendMarkers.reduce(
-    (n, m) => Math.max(n, (variantLabels[m] ?? '').length),
+  const longestLabelPx = legendMarkers.reduce(
+    (n, m) =>
+      Math.max(n, measureText(variantLabels[m] ?? '', sLegendLabelFont)),
     0
   );
   const fullChipW = Math.max(
     sLegendChipLabelMin,
-    Math.ceil(4 + 24 + 8 + longestLabel * sLegendLabelFont * 0.6 + 8)
+    Math.ceil(4 + 24 + 8 + longestLabelPx + 8)
   );
   const fullLegendW = numChips * fullChipW + chipGapTotal;
   const letterLegendW = numChips * sLegendLetterChipW + chipGapTotal;
 
-  // Estimate title pixel width with the same heuristic used in truncateForWidth.
+  // Estimate title pixel width using the shared glyph measurer.
   const titleEstW =
-    parsed.title && !hideTitle ? parsed.title.length * sTitleFontSize * 0.6 : 0;
+    parsed.title && !hideTitle ? measureText(parsed.title, sTitleFontSize) : 0;
 
   // Pick legend mode: full chips if everything fits, else letter-only.
   // If even letters won't fit beside the title, the title is truncated below.
@@ -597,7 +603,7 @@ export function renderRaci(
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
-      .text(truncateForWidth(parsed.title, titleMaxW, sTitleFontSize));
+      .text(truncateText(parsed.title, sTitleFontSize, titleMaxW));
   }
 
   // Legend — right-aligned in the same row.
@@ -715,10 +721,10 @@ export function renderRaci(
       .attr('font-weight', 600)
       .attr('fill', palette.text)
       .text(
-        truncateForWidth(
+        truncateText(
           parsed.roleDisplayNames[i] ?? '',
-          roleColW - 2 * sCellPad,
-          sRoleHeaderFont
+          sRoleHeaderFont,
+          roleColW - 2 * sCellPad
         )
       );
   });
@@ -1027,10 +1033,10 @@ function renderLegend(
       .attr('font-weight', 600)
       .attr('fill', palette.text)
       .text(
-        truncateForWidth(
+        truncateText(
           labelText,
-          chipW - slabW - slabPad * 2 - 12,
-          sLegendLabelFont
+          sLegendLabelFont,
+          chipW - slabW - slabPad * 2 - 12
         )
       );
   });
@@ -1124,7 +1130,7 @@ function renderPhaseBar(
     // can see at a glance what's in the rolled-up phase.
     const taskCount = phase.tasks.length;
     if (taskCount > 0) {
-      const labelTextWidth = phase.displayName.length * sPhaseFont * 0.6;
+      const labelTextWidth = measureText(phase.displayName, sPhaseFont);
       phaseG
         .append('text')
         .attr('x', x + 26 + labelTextWidth + 10)
@@ -1459,7 +1465,7 @@ function renderTaskRow(
       // ("Responsible") instead of the bare letter. Same primitive as the
       // legend chip, so cells and legend read as the same UI element.
       const fullLabel = variantLabels[m] ?? m;
-      const labelPx = fullLabel.length * sLegendLabelFont * 0.6;
+      const labelPx = measureText(fullLabel, sLegendLabelFont);
       const showFullLabel = labelPx + 16 <= sliceW;
       const textContent = showFullLabel ? fullLabel : m;
       const textFont = showFullLabel ? sLegendLabelFont : sMarkerFont;
@@ -1513,45 +1519,6 @@ function renderTaskRow(
 // ── Helpers ──────────────────────────────────────────────────
 
 /**
- * Greedy word-wrap to a per-line character cap. Whitespace runs that
- * happen to fall at a wrap point are dropped (no leading-space lines).
- * Words longer than the cap are hard-split so the output never exceeds.
- */
-function wordWrap(s: string, charsPerLine: number): string[] {
-  if (charsPerLine <= 0 || s.length <= charsPerLine) return [s];
-  const out: string[] = [];
-  const tokens = s.split(/(\s+)/);
-  let cur = '';
-  for (const tok of tokens) {
-    if (!tok) continue;
-    const isSpace = /^\s+$/.test(tok);
-    if (cur.length + tok.length <= charsPerLine) {
-      cur += tok;
-      continue;
-    }
-    if (cur.trimEnd().length > 0) out.push(cur.trimEnd());
-    if (!isSpace && tok.length > charsPerLine) {
-      let chunk = tok;
-      while (chunk.length > charsPerLine) {
-        out.push(chunk.slice(0, charsPerLine));
-        chunk = chunk.slice(charsPerLine);
-      }
-      cur = chunk;
-    } else {
-      cur = isSpace ? '' : tok;
-    }
-  }
-  if (cur.trimEnd().length > 0) out.push(cur.trimEnd());
-  return out.length > 0 ? out : [''];
-}
-
-function wrapText(s: string, maxPx: number, fontSize: number): string[] {
-  const charPx = fontSize * 0.6;
-  const cap = Math.max(8, Math.floor(maxPx / charPx));
-  return wordWrap(s, cap);
-}
-
-/**
  * Wrapped text content for a task row plus the height that fits it.
  * Pre-computed once per task and reused by both the y-cursor layout
  * pass (which needs the height) and the renderer (which paints the
@@ -1582,13 +1549,17 @@ function prepareRowContent(
   sStackTopGap = STACK_TOP_GAP,
   sViolationLineHeight = VIOLATION_LINE_HEIGHT
 ): RowContent {
-  const nameLines = wrapText(task.displayName, labelMaxW, sLabelFont);
+  const nameLines = wrapTextToWidth(task.displayName, sLabelFont, labelMaxW, {
+    hardBreak: true,
+  });
   const description = task.description?.trim() ?? '';
   const descLines =
     description.length > 0
       ? description
           .split('\n')
-          .flatMap((line) => wrapText(line, labelMaxW, sDescFont))
+          .flatMap((line) =>
+            wrapTextToWidth(line, sDescFont, labelMaxW, { hardBreak: true })
+          )
       : [];
   const violations: RowContent['violations'] = [];
   if (bucket) {
@@ -1602,7 +1573,9 @@ function prepareRowContent(
           severity,
           sourceLine: e.line,
           text,
-          lines: wrapText(text, labelMaxW, sLabelFont - 2),
+          lines: wrapTextToWidth(text, sLabelFont - 2, labelMaxW, {
+            hardBreak: true,
+          }),
         });
       }
     };
@@ -1626,14 +1599,6 @@ function prepareRowContent(
     totalViolationLines * sViolationLineHeight;
 
   return { nameLines, descLines, violations, rowHeight };
-}
-
-function truncateForWidth(s: string, maxPx: number, fontSize: number): string {
-  // Conservative: 0.6 em per char for sans-serif at this weight.
-  const charPx = fontSize * 0.6;
-  const cap = Math.max(3, Math.floor(maxPx / charPx));
-  if (s.length <= cap) return s;
-  return s.substring(0, cap - 1) + '…';
 }
 
 /**

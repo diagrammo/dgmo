@@ -9,6 +9,7 @@ import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { renderInlineText } from '../utils/inline-markdown';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
+import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import type { ParsedC4 } from './types';
 import type { C4LayoutResult, C4LayoutEdge } from './layout';
 import { parseC4 } from './parser';
@@ -35,7 +36,6 @@ const TYPE_FONT_SIZE = 10;
 const NAME_FONT_SIZE = 14;
 const DESC_FONT_SIZE = 11;
 const DESC_LINE_HEIGHT = 16;
-const DESC_CHAR_WIDTH = 6.5;
 const EDGE_LABEL_FONT_SIZE = 11;
 const TECH_FONT_SIZE = 10;
 const EDGE_STROKE_WIDTH = 1.5;
@@ -47,7 +47,6 @@ const TYPE_LABEL_HEIGHT = 18;
 const DIVIDER_GAP = 6;
 const NAME_HEIGHT = 20;
 const META_FONT_SIZE = 11;
-const META_CHAR_WIDTH = 6.5;
 const META_LINE_HEIGHT = 16;
 const BOUNDARY_LABEL_FONT_SIZE = 12;
 const BOUNDARY_STROKE_WIDTH = 1.5;
@@ -109,28 +108,6 @@ function nodeStroke(
   nodeColor?: string
 ): string {
   return typeColor(type, palette, nodeColor);
-}
-
-// ============================================================
-// Text wrapping helper
-// ============================================================
-
-function wrapText(text: string, maxWidth: number, charWidth: number): string[] {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = '';
-
-  for (const word of words) {
-    const test = current ? `${current} ${word}` : word;
-    if (test.length * charWidth > maxWidth && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = test;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
 }
 
 // ============================================================
@@ -394,8 +371,11 @@ export function renderC4Context(
       const techText = edge.technology ? `[${edge.technology}]` : '';
 
       // Background rect
-      const textLen = Math.max(labelText.length, techText.length);
-      const bgW = textLen * 7 + 12;
+      const textW = Math.max(
+        measureText(labelText, EDGE_LABEL_FONT_SIZE),
+        measureText(techText, TECH_FONT_SIZE)
+      );
+      const bgW = textW + 12;
       const bgH = (labelText ? 16 : 0) + (techText ? 14 : 0) + 4;
 
       edgeG
@@ -522,8 +502,7 @@ export function renderC4Context(
     // Name (bold) — above divider
     if (node.type === 'person') {
       // Person icon to the left of name
-      const nameCharWidth = NAME_FONT_SIZE * 0.6;
-      const textWidth = node.name.length * nameCharWidth;
+      const textWidth = measureText(node.name, NAME_FONT_SIZE);
       const gap = 6;
       const totalWidth = PERSON_ICON_W + gap + textWidth;
       const iconCx = -totalWidth / 2 + PERSON_ICON_W / 2;
@@ -577,7 +556,11 @@ export function renderC4Context(
     // Description (wrapping, inline markdown) — must contrast against fill
     if (node.description) {
       const contentWidth = w - CARD_H_PAD * 2;
-      const lines = wrapText(node.description, contentWidth, DESC_CHAR_WIDTH);
+      const lines = wrapTextToWidth(
+        node.description,
+        DESC_FONT_SIZE,
+        contentWidth
+      );
       for (const line of lines) {
         const textEl = nodeG
           .append('text')
@@ -840,8 +823,11 @@ function renderEdges(
     if (edge.label || edge.technology) {
       const labelText = edge.label ?? '';
       const techText = edge.technology ? `[${edge.technology}]` : '';
-      const textLen = Math.max(labelText.length, techText.length);
-      const bgW = textLen * 7 + 12;
+      const textW = Math.max(
+        measureText(labelText, EDGE_LABEL_FONT_SIZE),
+        measureText(techText, TECH_FONT_SIZE)
+      );
+      const bgW = textW + 12;
       const bgH = (labelText ? 16 : 0) + (techText ? 14 : 0) + 4;
 
       pendingLabels.push({
@@ -1508,12 +1494,12 @@ export function renderC4Containers(
   if (layout.boundary) {
     const b = layout.boundary;
     const labelText = `${b.label} \u2014 ${b.typeLabel}`;
-    const w = labelText.length * 7 + 12;
+    const w = measureText(labelText, BOUNDARY_LABEL_FONT_SIZE) + 12;
     const h = BOUNDARY_LABEL_FONT_SIZE + 4;
     boundaryLabelObstacles.push({ x: b.x + 12, y: b.y + 16 - h + 4, w, h });
   }
   for (const gb of layout.groupBoundaries) {
-    const w = gb.label.length * 7 + 12;
+    const w = measureText(gb.label, BOUNDARY_LABEL_FONT_SIZE) + 12;
     const h = BOUNDARY_LABEL_FONT_SIZE + 4;
     boundaryLabelObstacles.push({ x: gb.x + 10, y: gb.y + 14 - h + 4, w, h });
   }
@@ -1621,8 +1607,7 @@ export function renderC4Containers(
 
     // Name (bold)
     if (node.type === 'person') {
-      const nameCharWidth = NAME_FONT_SIZE * 0.6;
-      const textWidth = node.name.length * nameCharWidth;
+      const textWidth = measureText(node.name, NAME_FONT_SIZE);
       const gap = 6;
       const totalWidth = PERSON_ICON_W + gap + textWidth;
       const iconCx = -totalWidth / 2 + PERSON_ICON_W / 2;
@@ -1666,7 +1651,11 @@ export function renderC4Containers(
       // Description (above divider, inline markdown) — contrast against fill
       if (node.description) {
         const contentWidth = w - CARD_H_PAD * 2;
-        const lines = wrapText(node.description, contentWidth, DESC_CHAR_WIDTH);
+        const lines = wrapTextToWidth(
+          node.description,
+          DESC_FONT_SIZE,
+          contentWidth
+        );
         for (const line of lines) {
           const textEl = nodeG
             .append('text')
@@ -1702,8 +1691,10 @@ export function renderC4Containers(
 
         yPos += DIVIDER_GAP;
 
-        const maxKeyLen = Math.max(...metaEntries.map((e) => e.key.length));
-        const valueX = -w / 2 + CARD_H_PAD + (maxKeyLen + 2) * META_CHAR_WIDTH;
+        const maxKeyWidth = Math.max(
+          ...metaEntries.map((e) => measureText(`${e.key}: `, META_FONT_SIZE))
+        );
+        const valueX = -w / 2 + CARD_H_PAD + maxKeyWidth;
 
         for (const entry of metaEntries) {
           // Key — contrast against fill (textMuted is illegible on solid fills)
@@ -1750,7 +1741,11 @@ export function renderC4Containers(
       // Description (inline markdown) — contrast against fill
       if (node.description) {
         const contentWidth = w - CARD_H_PAD * 2;
-        const lines = wrapText(node.description, contentWidth, DESC_CHAR_WIDTH);
+        const lines = wrapTextToWidth(
+          node.description,
+          DESC_FONT_SIZE,
+          contentWidth
+        );
         for (const line of lines) {
           const textEl = nodeG
             .append('text')

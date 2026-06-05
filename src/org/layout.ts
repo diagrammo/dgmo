@@ -12,6 +12,7 @@ import {
   LEGEND_ENTRY_FONT_SIZE,
   measureLegendText,
 } from '../utils/legend-constants';
+import { measureText } from '../utils/text-measure';
 
 // ============================================================
 // Types
@@ -91,7 +92,10 @@ export interface OrgLayoutResult {
 // Constants
 // ============================================================
 
-const CHAR_WIDTH = 7.5;
+// Card text font sizes — MUST match the renderer (LABEL_FONT_SIZE / META_FONT_SIZE)
+// so node sizing measures text at the exact size it is drawn.
+const LABEL_FONT_SIZE = 13;
+const META_FONT_SIZE = 11;
 const META_LINE_HEIGHT = 16;
 const HEADER_HEIGHT = 28;
 const SEPARATOR_GAP = 6;
@@ -156,17 +160,15 @@ function filterMetadata(
 }
 
 function computeCardWidth(label: string, meta: Record<string, string>): number {
-  let maxChars = label.length;
+  // Label is drawn bold at LABEL_FONT_SIZE; meta rows at META_FONT_SIZE.
+  let maxTextWidth = measureText(label, LABEL_FONT_SIZE);
 
   for (const [key, value] of Object.entries(meta)) {
-    const lineChars = key.length + 2 + value.length; // "key: value"
-    if (lineChars > maxChars) maxChars = lineChars;
+    const lineWidth = measureText(`${key}: ${value}`, META_FONT_SIZE);
+    if (lineWidth > maxTextWidth) maxTextWidth = lineWidth;
   }
 
-  return Math.max(
-    MIN_CARD_WIDTH,
-    Math.ceil(maxChars * CHAR_WIDTH) + CARD_H_PAD * 2
-  );
+  return Math.max(MIN_CARD_WIDTH, Math.ceil(maxTextWidth) + CARD_H_PAD * 2);
 }
 
 function computeCardHeight(meta: Record<string, string>): number {

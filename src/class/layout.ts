@@ -1,4 +1,5 @@
 import dagre from '@dagrejs/dagre';
+import { measureText } from '../utils/text-measure';
 import type { ParsedClassDiagram, ClassNode, RelationshipType } from './types';
 
 // ============================================================
@@ -36,9 +37,12 @@ export interface ClassLayoutResult {
 // ============================================================
 
 const MIN_WIDTH = 140;
-const CHAR_WIDTH = 7.5;
 const PADDING_X = 24;
 const HEADER_BASE = 36;
+// Font sizes mirror the renderer: class name at CLASS_FONT_SIZE, members and
+// the modifier badge at MEMBER_FONT_SIZE. Keep these in sync with renderer.ts.
+const CLASS_FONT_SIZE = 13;
+const MEMBER_FONT_SIZE = 11;
 const MODIFIER_BADGE = 16; // extra height for <<interface>> etc.
 const MEMBER_LINE_HEIGHT = 18;
 const COMPARTMENT_PADDING_Y = 8;
@@ -59,10 +63,15 @@ function computeNodeDimensions(node: ClassNode): {
   const methods = node.members.filter((m) => m.isMethod);
   const isEnum = node.modifier === 'enum';
 
-  // Width: max of class name, member text lengths
-  let maxTextLen = node.name.length;
+  // Width: max rendered pixel width of class name, modifier badge, and members.
+  // Measure each at the font size the renderer draws it with.
+  let maxTextWidth = measureText(node.name, CLASS_FONT_SIZE);
   if (node.modifier) {
-    maxTextLen = Math.max(maxTextLen, `<<${node.modifier}>>`.length);
+    // Renderer draws the badge as «modifier» at MEMBER_FONT_SIZE.
+    maxTextWidth = Math.max(
+      maxTextWidth,
+      measureText(`«${node.modifier}»`, MEMBER_FONT_SIZE)
+    );
   }
   for (const m of node.members) {
     let memberText = m.name;
@@ -74,9 +83,12 @@ function computeNodeDimensions(node: ClassNode): {
     }
     // Add visibility prefix width
     memberText = `+ ${memberText}`;
-    maxTextLen = Math.max(maxTextLen, memberText.length);
+    maxTextWidth = Math.max(
+      maxTextWidth,
+      measureText(memberText, MEMBER_FONT_SIZE)
+    );
   }
-  const width = Math.max(MIN_WIDTH, maxTextLen * CHAR_WIDTH + PADDING_X);
+  const width = Math.max(MIN_WIDTH, maxTextWidth + PADDING_X);
 
   // Header height
   const headerHeight = HEADER_BASE + (node.modifier ? MODIFIER_BADGE : 0);

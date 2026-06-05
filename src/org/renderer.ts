@@ -26,6 +26,7 @@ import {
   EYE_CLOSED_PATH,
 } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
+import { measureText } from '../utils/text-measure';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
 
@@ -329,8 +330,12 @@ export function renderOrg(
       const metaDisplayKeys = metaEntries.map(
         ([k]) => displayNames.get(k) ?? k
       );
-      const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
-      const valueX = 10 + (maxKeyLen + 2) * (sContainerMetaFontSize * 0.6);
+      const maxKeyWidth = Math.max(
+        ...metaDisplayKeys.map((k) =>
+          measureText(`${k}: `, sContainerMetaFontSize)
+        )
+      );
+      const valueX = 10 + maxKeyWidth;
 
       const metaStartY = sContainerHeaderHeight + sContainerMetaFontSize - 2;
       for (let i = 0; i < metaEntries.length; i++) {
@@ -529,8 +534,10 @@ export function renderOrg(
       const metaDisplayKeys = metaEntries.map(
         ([k]) => displayNames.get(k) ?? k
       );
-      const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
-      const valueX = 10 + (maxKeyLen + 2) * (sMetaFontSize * 0.6);
+      const maxKeyWidth = Math.max(
+        ...metaDisplayKeys.map((k) => measureText(`${k}: `, sMetaFontSize))
+      );
+      const valueX = 10 + maxKeyWidth;
 
       const metaStartY = sHeaderHeight + sSeparatorGap + sMetaFontSize;
       for (let i = 0; i < metaEntries.length; i++) {

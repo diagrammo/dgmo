@@ -31,6 +31,7 @@ import {
 } from './types';
 import { computeCycleLayout, wrapEdgeLabelText } from './layout';
 import { ScaleContext } from '../utils/scaling';
+import { measureText } from '../utils/text-measure';
 
 // ── Constants ────────────────────────────────────────────────
 const NODE_FONT_SIZE = 13;
@@ -502,12 +503,16 @@ export function renderCycle(
     const anchor = isRight ? 'start' : isLeft ? 'end' : 'middle';
 
     const lineCount = labelLines.length + descLines.length;
-    let maxCharLen = 0;
-    for (const l of labelLines) maxCharLen = Math.max(maxCharLen, l.length);
-    for (const l of descLines) maxCharLen = Math.max(maxCharLen, l.length);
+    // Measure the widest rendered line in pixels at the scaled edge-label font
+    // so the background box matches the actual ink (same measurer the layout
+    // uses to size + place the label).
+    let maxLineW = 0;
+    for (const l of labelLines)
+      maxLineW = Math.max(maxLineW, measureText(l, scaledEdgeLabelFont));
+    for (const l of descLines)
+      maxLineW = Math.max(maxLineW, measureText(l, scaledDescFont));
 
-    const edgeCharW = Math.max(4, 7 * layout.scale);
-    const bgW = maxCharLen * edgeCharW + 12;
+    const bgW = maxLineW + 12;
     const bgH = lineCount * scaledEdgeLineH + 6;
     const bgX = isRight
       ? le.labelX - 4

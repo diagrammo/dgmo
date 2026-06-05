@@ -11,6 +11,7 @@ import type { ParsedSitemap } from './types';
 import type { SitemapLayoutResult, SitemapLegendGroup } from './layout';
 import { renderInlineText } from '../utils/inline-markdown';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
+import { measureText } from '../utils/text-measure';
 import {
   LEGEND_HEIGHT,
   LEGEND_GROUP_GAP,
@@ -347,8 +348,12 @@ export function renderSitemap(
       const metaDisplayKeys = metaEntries.map(
         ([k]) => displayNames.get(k) ?? k
       );
-      const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
-      const valueX = 10 + (maxKeyLen + 2) * (sContainerMetaFontSize * 0.6);
+      const maxKeyWidth = Math.max(
+        ...metaDisplayKeys.map((k) =>
+          measureText(`${k}: `, sContainerMetaFontSize)
+        )
+      );
+      const valueX = 10 + maxKeyWidth;
       const metaStartY = sContainerHeaderHeight + sContainerMetaFontSize - 2;
 
       for (let i = 0; i < metaEntries.length; i++) {
@@ -429,7 +434,7 @@ export function renderSitemap(
     // Edge label with background badge
     if (edge.label && edge.points.length >= 2) {
       const mid = edge.points[Math.floor(edge.points.length / 2)]!;
-      const labelW = edge.label.length * sEdgeLabelFontSize * 0.6 + 10;
+      const labelW = measureText(edge.label, sEdgeLabelFontSize) + 10;
       const labelH = sEdgeLabelFontSize + 6;
 
       edgeG
@@ -529,8 +534,10 @@ export function renderSitemap(
       const metaDisplayKeys = metaEntries.map(
         ([k]) => displayNames.get(k) ?? k
       );
-      const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
-      const valueX = 10 + (maxKeyLen + 2) * (sMetaFontSize * 0.6);
+      const maxKeyWidth = Math.max(
+        ...metaDisplayKeys.map((k) => measureText(`${k}: `, sMetaFontSize))
+      );
+      const valueX = 10 + maxKeyWidth;
 
       for (let i = 0; i < metaEntries.length; i++) {
         // In-bounds by loop guard.

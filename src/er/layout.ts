@@ -1,4 +1,5 @@
 import dagre from '@dagrejs/dagre';
+import { measureText } from '../utils/text-measure';
 import type { ParsedERDiagram, ERTable, ERRelationship } from './types';
 
 // ============================================================
@@ -35,9 +36,15 @@ export interface ERLayoutResult {
 // ============================================================
 
 const MIN_WIDTH = 140;
-const CHAR_WIDTH = 7.5;
 const PADDING_X = 24;
 const HEADER_BASE = 36;
+// Font sizes mirror the renderer: table name at TABLE_FONT_SIZE, columns at
+// COLUMN_FONT_SIZE. Keep these in sync with renderer.ts.
+const TABLE_FONT_SIZE = 13;
+const COLUMN_FONT_SIZE = 11;
+const EDGE_LABEL_FONT_SIZE = 11;
+// Renderer offsets column text by 16px when a constraint icon is present.
+const CONSTRAINT_ICON_WIDTH = 16;
 const MEMBER_LINE_HEIGHT = 18;
 const COMPARTMENT_PADDING_Y = 8;
 const SEPARATOR_HEIGHT = 1;
@@ -55,14 +62,18 @@ function computeNodeDimensions(table: ERTable): {
   headerHeight: number;
   columnsHeight: number;
 } {
-  let maxTextLen = table.name.length;
+  // Width: max rendered pixel width of table name and column rows. Measure
+  // each at the font size the renderer draws it with; reserve the constraint
+  // icon's horizontal offset when a column carries one.
+  let maxTextWidth = measureText(table.name, TABLE_FONT_SIZE);
   for (const col of table.columns) {
     let colText = col.name;
-    if (col.type) colText += `  ${col.type}`;
-    if (col.constraints.length > 0) colText += `  XX`; // icon space
-    maxTextLen = Math.max(maxTextLen, colText.length);
+    if (col.type) colText += `: ${col.type}`;
+    let colWidth = measureText(colText, COLUMN_FONT_SIZE);
+    if (col.constraints.length > 0) colWidth += CONSTRAINT_ICON_WIDTH;
+    maxTextWidth = Math.max(maxTextWidth, colWidth);
   }
-  const width = Math.max(MIN_WIDTH, maxTextLen * CHAR_WIDTH + PADDING_X);
+  const width = Math.max(MIN_WIDTH, maxTextWidth + PADDING_X);
   const headerHeight = HEADER_BASE;
 
   let columnsHeight = 0;
@@ -227,7 +238,7 @@ function layoutComponent(
     if (rel.label && (ed?.points ?? []).length > 0) {
       const pts = ed!.points;
       const mid = pts[Math.floor(pts.length / 2)];
-      const hw = (rel.label.length * 7 + 8) / 2;
+      const hw = (measureText(rel.label, EDGE_LABEL_FONT_SIZE) + 8) / 2;
       minX = Math.min(minX, mid.x - hw);
       maxX = Math.max(maxX, mid.x + hw);
     }

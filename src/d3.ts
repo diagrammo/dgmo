@@ -6,6 +6,7 @@ import cloud from 'd3-cloud';
 import { FONT_FAMILY } from './fonts';
 import { computeQuadrantPointLabels, type LabelRect } from './label-layout';
 import { MONTH_ABBR, computeTimeTicks } from './utils/time-ticks';
+import { measureText, wrapTextToWidth } from './utils/text-measure';
 import type { D3ExportDimensions } from './utils/d3-types';
 import { ScaleContext } from './utils/scaling';
 
@@ -1845,7 +1846,6 @@ export function resolveVerticalCollisions(
 
 const SLOPE_MARGIN = { top: 80, bottom: 40, left: 80 };
 const SLOPE_LABEL_FONT_SIZE = 14;
-const SLOPE_CHAR_WIDTH = 8; // approximate px per character at 14px
 
 /**
  * Renders a slope chart into the given container using D3.
@@ -1874,7 +1874,6 @@ export function renderSlopeChart(
   const sMarginTop = ctx.aesthetic(SLOPE_MARGIN.top);
   const sMarginBottom = ctx.aesthetic(SLOPE_MARGIN.bottom);
   const sMarginLeft = ctx.aesthetic(SLOPE_MARGIN.left);
-  const sCharWidth = ctx.structural(SLOPE_CHAR_WIDTH);
   const sLabelFontSize = ctx.text(SLOPE_LABEL_FONT_SIZE);
   const sPeriodFont = ctx.text(18);
   const sValueFont = ctx.text(16);
@@ -1897,7 +1896,7 @@ export function renderSlopeChart(
     const text = `${item.values[item.values.length - 1]} — ${item.label}`;
     return text.length > longest.length ? text : longest;
   }, '');
-  const estimatedLabelWidth = maxLabelText.length * sCharWidth;
+  const estimatedLabelWidth = measureText(maxLabelText, sLabelFontSize);
   const maxRightMargin = Math.floor(width * 0.35);
   const rightMargin = Math.min(
     Math.max(estimatedLabelWidth + ctx.aesthetic(30), ctx.aesthetic(120)),
@@ -1989,24 +1988,11 @@ export function renderSlopeChart(
     const lastX = xScale(periods[periods.length - 1]!)!;
     const labelText = `${lastVal} — ${item.label}`;
     const availableWidth = rightMargin - ctx.aesthetic(15);
-    const maxChars = Math.floor(availableWidth / sCharWidth);
 
     let labelLineCount = 1;
     let wrappedLines: string[] | null = null;
-    if (labelText.length > maxChars) {
-      const words = labelText.split(/\s+/);
-      const lines: string[] = [];
-      let current = '';
-      for (const word of words) {
-        const test = current ? `${current} ${word}` : word;
-        if (test.length > maxChars && current) {
-          lines.push(current);
-          current = word;
-        } else {
-          current = test;
-        }
-      }
-      if (current) lines.push(current);
+    if (measureText(labelText, sLabelFontSize) > availableWidth) {
+      const lines = wrapTextToWidth(labelText, sLabelFontSize, availableWidth);
       labelLineCount = lines.length;
       wrappedLines = lines;
     }
@@ -2023,7 +2009,6 @@ export function renderSlopeChart(
       tipHtml,
       lastX,
       labelText,
-      maxChars,
       wrappedLines,
       labelHeight,
     };
@@ -5813,12 +5798,8 @@ function hasCanvas2d(): boolean {
   }
 }
 
-/** Average glyph advance for Inter as a fraction of the font size. Slightly
- * generous so estimated boxes err toward not overlapping. */
-const WORDCLOUD_GLYPH_ADVANCE = 0.62;
-
 function estimateWordWidth(text: string, size: number): number {
-  return text.length * size * WORDCLOUD_GLYPH_ADVANCE;
+  return measureText(text, size);
 }
 
 type PlacedCloudWord = WordCloudWord & {
@@ -6314,12 +6295,15 @@ export function renderVenn(
   const edgePad = ctx.aesthetic(8);
   const labelTextPad = ctx.aesthetic(4);
 
-  const sCharW = ctx.structural(8.5);
+  const sSetLabelFont = ctx.text(14);
 
   for (let i = 0; i < n; i++) {
     // In-bounds by loop guard (n === vennSets.length === rawCircles.length).
     const estimatedWidth =
-      vennSets[i]!.name.length * sCharW + stubLen + edgePad + labelTextPad;
+      measureText(vennSets[i]!.name, sSetLabelFont) +
+      stubLen +
+      edgePad +
+      labelTextPad;
     const dx = rawCircles[i]!.x - clusterCx;
     const dy = rawCircles[i]!.y - clusterCy;
     if (Math.abs(dx) >= Math.abs(dy)) {
@@ -6337,7 +6321,6 @@ export function renderVenn(
   // to leave readable space outside for leader+text. Wrap target scales
   // with the canvas so labels stay narrow on small windows.
   const OVERLAP_FONT = ctx.text(13);
-  const OVERLAP_CH_W = ctx.structural(7);
   const OVERLAP_LINE_H = ctx.structural(16);
   const OVERLAP_LEADER_PAD = ctx.structural(18);
   const OVERLAP_TEXT_GAP = ctx.aesthetic(6);
@@ -6346,27 +6329,6 @@ export function renderVenn(
     ctx.structural(80),
     Math.min(ctx.structural(170), width * 0.18)
   );
-  const MAX_WRAP_CHARS = Math.max(
-    8,
-    Math.floor(OVERLAP_WRAP_TARGET_W / OVERLAP_CH_W)
-  );
-
-  function wrapLabel(text: string, maxChars: number): string[] {
-    const words = text.split(/\s+/).filter(Boolean);
-    const lines: string[] = [];
-    let cur = '';
-    for (const w of words) {
-      const cand = cur ? cur + ' ' + w : w;
-      if (cand.length > maxChars && cur) {
-        lines.push(cur);
-        cur = w;
-      } else {
-        cur = cand;
-      }
-    }
-    if (cur) lines.push(cur);
-    return lines.length ? lines : [text];
-  }
 
   function predictOverlapDirRaw(idxs: number[]): { x: number; y: number } {
     const excluded = rawCircles
@@ -6405,12 +6367,18 @@ export function renderVenn(
     if (!ov.label) continue;
     const idxs = ov.sets.map((s) => vennSets.findIndex((vs) => vs.name === s));
     if (idxs.some((idx) => idx < 0)) continue;
-    const lines = wrapLabel(ov.label, MAX_WRAP_CHARS);
+    const lines = wrapTextToWidth(
+      ov.label,
+      OVERLAP_FONT,
+      OVERLAP_WRAP_TARGET_W
+    );
     wrappedOverlapLabels.set(ov, lines);
 
     const dir = predictOverlapDirRaw(idxs);
-    const longest = lines.reduce((m, l) => Math.max(m, l.length), 0);
-    const labelW = longest * OVERLAP_CH_W;
+    const labelW = lines.reduce(
+      (m, l) => Math.max(m, measureText(l, OVERLAP_FONT)),
+      0
+    );
     const labelH = lines.length * OVERLAP_LINE_H;
     const baseLeader =
       OVERLAP_LEADER_PAD + OVERLAP_TEXT_GAP + OVERLAP_MARGIN_PAD;
@@ -6675,7 +6643,6 @@ export function renderVenn(
     return Math.max(0, right - left);
   }
 
-  const CH_RATIO = 0.6;
   const MIN_FONT = ctx.text(10);
   const MAX_FONT = ctx.text(22);
   const INTERNAL_PAD = ctx.aesthetic(12);
@@ -6695,11 +6662,13 @@ export function renderVenn(
     const centroid = regionCentroid(circles, inside);
 
     const availW = exclusiveHSpan(centroid.x, centroid.y, i);
+    // Width of `text` at fontSize 1; scale to solve for the largest fitting font.
+    const textWidthPerPx = measureText(text, 1);
     const fitFont = Math.min(
       MAX_FONT,
-      Math.max(MIN_FONT, (availW - INTERNAL_PAD * 2) / (text.length * CH_RATIO))
+      Math.max(MIN_FONT, (availW - INTERNAL_PAD * 2) / textWidthPerPx)
     );
-    const estTextW = text.length * CH_RATIO * fitFont;
+    const estTextW = measureText(text, fitFont);
 
     const fitsInside =
       estTextW + INTERNAL_PAD * 2 < availW &&
@@ -6763,8 +6732,7 @@ export function renderVenn(
       const textAnchor = isRight ? 'start' : 'end';
       let textX = stubEndX + (isRight ? labelTextPad : -labelTextPad);
       const textY = stubEndY;
-      const sSetLabelFont = ctx.text(14);
-      const estW = text.length * sCharW;
+      const estW = measureText(text, sSetLabelFont);
       if (isRight) textX = Math.min(textX, width - estW - 4);
       else textX = Math.max(textX, estW + 4);
 
@@ -6782,7 +6750,7 @@ export function renderVenn(
         .attr('font-size', `${sSetLabelFont}px`)
         .attr('font-weight', 'bold')
         .text(text);
-      const externalEstW = text.length * sCharW;
+      const externalEstW = measureText(text, sSetLabelFont);
       setLabelBBoxes[i] = {
         x: isRight ? textX : textX - externalEstW,
         y: renderedTextY - sSetLabelFont / 2,
@@ -6992,8 +6960,10 @@ export function renderVenn(
       textY = stubEndY + sign * OVERLAP_TEXT_GAP;
     }
 
-    const longest = lines.reduce((m, l) => Math.max(m, l.length), 0);
-    const blockW = longest * OVERLAP_CH_W;
+    const blockW = lines.reduce(
+      (m, l) => Math.max(m, measureText(l, OVERLAP_FONT)),
+      0
+    );
     const blockH = lines.length * OVERLAP_LINE_H;
 
     if (textAnchor === 'start') textX = Math.min(textX, width - blockW - 4);
@@ -7364,10 +7334,6 @@ export function renderQuadrant(
   const LABEL_MAX_FONT = ctx.text(48);
   const LABEL_MIN_FONT = ctx.text(14);
   const LABEL_PAD = ctx.aesthetic(40);
-  const CHAR_WIDTH_RATIO = 0.6;
-
-  const estTextWidth = (text: string, fontSize: number): number =>
-    text.length * fontSize * CHAR_WIDTH_RATIO;
 
   interface QuadrantLabelLayout {
     lines: string[];
@@ -7381,10 +7347,9 @@ export function renderQuadrant(
   ): QuadrantLabelLayout => {
     const availW = qw - LABEL_PAD;
     const availH = qh - LABEL_PAD;
-    const words = text.split(/\s+/);
 
     // Try single line first
-    if (estTextWidth(text, LABEL_MAX_FONT) <= availW) {
+    if (measureText(text, LABEL_MAX_FONT) <= availW) {
       const fs = Math.min(LABEL_MAX_FONT, availH);
       return {
         lines: [text],
@@ -7393,21 +7358,8 @@ export function renderQuadrant(
     }
 
     // Try wrapping into 2+ lines: greedily pack words so each line fits availW
-    const wrapLines = (fs: number): string[] => {
-      const result: string[] = [];
-      let cur = '';
-      for (const w of words) {
-        const trial = cur ? `${cur} ${w}` : w;
-        if (estTextWidth(trial, fs) > availW && cur) {
-          result.push(cur);
-          cur = w;
-        } else {
-          cur = trial;
-        }
-      }
-      if (cur) result.push(cur);
-      return result;
-    };
+    const wrapLines = (fs: number): string[] =>
+      wrapTextToWidth(text, fs, availW);
 
     // Binary-search for largest font size where wrapped text fits both width and height
     let lo = LABEL_MIN_FONT;
@@ -7418,7 +7370,7 @@ export function renderQuadrant(
       const mid = Math.round((lo + hi) / 2);
       const lines = wrapLines(mid);
       const totalH = lines.length * mid * 1.2; // line height ~1.2em
-      const maxLineW = Math.max(...lines.map((l) => estTextWidth(l, mid)));
+      const maxLineW = Math.max(...lines.map((l) => measureText(l, mid)));
       if (maxLineW <= availW && totalH <= availH) {
         bestFs = mid;
         bestLines = lines;
@@ -7650,10 +7602,9 @@ export function renderQuadrant(
   const POINT_LABEL_FONT_SIZE = ctx.text(12);
   const quadrantLabelObstacles: LabelRect[] = quadrantDefsWithLabel.map((d) => {
     const layout = labelLayouts.get(d.label!.text)!;
-    const totalW =
-      Math.max(...layout.lines.map((l) => l.length)) *
-      layout.fontSize *
-      CHAR_WIDTH_RATIO;
+    const totalW = Math.max(
+      ...layout.lines.map((l) => measureText(l, layout.fontSize))
+    );
     const totalH = layout.lines.length * layout.fontSize * 1.2;
     return {
       x: d.labelX - totalW / 2,

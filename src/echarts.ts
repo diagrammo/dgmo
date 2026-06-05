@@ -52,6 +52,7 @@ import {
   rectCircleOverlap,
 } from './label-layout';
 import { ScaleContext } from './utils/scaling';
+import { measureText, wrapTextToWidth } from './utils/text-measure';
 
 // ============================================================
 // Types
@@ -1458,7 +1459,7 @@ export function computeScatterLabelGraphics(
     const pt = points[i]!;
     const ptSize = pt.size ?? symbolSize;
     const minGap = ptSize / 2 + 4;
-    const labelWidth = pt.name.length * fontSize * 0.6 + 8;
+    const labelWidth = measureText(pt.name, fontSize) + 8;
     const labelX = pt.px - labelWidth / 2; // centered horizontally
 
     // Try both directions, pick whichever keeps the label closest to the point
@@ -2037,15 +2038,18 @@ function buildHeatmapOption(
   });
 
   // Rotate column labels only when they'd overlap at the default font size.
-  // Estimate: each char ~7px at 12px font; rotate if longest label exceeds
-  // an even share of a ~900px-wide chart.
-  const CHAR_WIDTH = 7;
+  // Measure the widest label at the actual 12px axis font; rotate if it
+  // exceeds an even share of a ~900px-wide chart.
   const ESTIMATED_CHART_WIDTH = 900;
   const scaledChartWidth = sc.structural(ESTIMATED_CHART_WIDTH);
-  const longestCol = Math.max(...columns.map((c) => c.length), 0);
+  const colLabelFontSize = sc.text(12);
+  const longestColWidth = Math.max(
+    0,
+    ...columns.map((c) => measureText(c, colLabelFontSize))
+  );
   const slotWidth =
     columns.length > 0 ? scaledChartWidth / columns.length : Infinity;
-  const needsRotation = longestCol * CHAR_WIDTH > slotWidth * 0.85;
+  const needsRotation = longestColWidth > slotWidth * 0.85;
 
   const ESTIMATED_PLOT_W = 770;
   const ESTIMATED_PLOT_H = 380;
@@ -2054,11 +2058,15 @@ function buildHeatmapOption(
   const cellW = columns.length > 0 ? scaledPlotW / columns.length : scaledPlotW;
   const cellH =
     heatmapRows.length > 0 ? scaledPlotH / heatmapRows.length : scaledPlotH;
-  const maxValueChars = Math.max(
-    1,
-    ...heatmapRows.flatMap((r) => r.values.map((v) => String(v).length))
+  // Width (in fontSize units) of the widest cell value string, measured with
+  // accurate glyph widths so the fitted font size matches what renders.
+  const maxValueWidthPerUnit = Math.max(
+    measureText('0', 1),
+    ...heatmapRows.flatMap((r) =>
+      r.values.map((v) => measureText(String(v), 1))
+    )
   );
-  const fontFromWidth = (cellW * 0.75) / (maxValueChars * 0.55);
+  const fontFromWidth = (cellW * 0.75) / maxValueWidthPerUnit;
   const fontFromHeight = (cellH * 0.75) / 0.72;
   const cellFontFloor = sc.text(16);
   const labelFontSize = Math.max(
@@ -2540,21 +2548,9 @@ function makeChartGrid(options: {
   };
 }
 
-/** Wrap a label string at word boundaries to fit within `maxChars` per line. */
-function wrapLabel(text: string, maxChars: number): string {
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let current = '';
-  for (const word of words) {
-    if (current && current.length + 1 + word.length > maxChars) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = current ? current + ' ' + word : word;
-    }
-  }
-  if (current) lines.push(current);
-  return lines.join('\n');
+/** Wrap a label string at word boundaries to fit within `maxWidthPx` per line. */
+function wrapLabel(text: string, fontSize: number, maxWidthPx: number): string {
+  return wrapTextToWidth(text, fontSize, maxWidthPx).join('\n');
 }
 
 // ── Bar ──────────────────────────────────────────────────────
@@ -2592,15 +2588,26 @@ function buildBarOption(
   });
 
   // For horizontal bars, wrap long category labels at word boundaries so they
-  // don't consume too much horizontal space on the y-axis.
-  const catLabels = isHorizontal ? labels.map((l) => wrapLabel(l, 12)) : labels;
+  // don't consume too much horizontal space on the y-axis. The wrap budget is
+  // a ~12-char line measured at the actual category-label font (16px) so
+  // narrow/wide glyphs wrap by real rendered width, not raw char count.
+  const catLabelFontSize = (sc ?? ScaleContext.identity()).text(16);
+  const catWrapWidth = measureText('0'.repeat(12), catLabelFontSize);
+  const catLabels = isHorizontal
+    ? labels.map((l) => wrapLabel(l, catLabelFontSize, catWrapWidth))
+    : labels;
 
-  // Compute the max visible line width after wrapping for nameGap calculation.
-  const maxVisibleLen = Math.max(
-    ...catLabels.map((l) => Math.max(...l.split('\n').map((seg) => seg.length)))
+  // Compute the max visible line width (px) after wrapping for nameGap.
+  const maxVisibleWidth = Math.max(
+    0,
+    ...catLabels.map((l) =>
+      Math.max(
+        ...l.split('\n').map((seg) => measureText(seg, catLabelFontSize))
+      )
+    )
   );
   const hCatGap =
-    isHorizontal && yLabel ? Math.max(40, maxVisibleLen * 8 + 16) : undefined;
+    isHorizontal && yLabel ? Math.max(40, maxVisibleWidth + 16) : undefined;
   const categoryAxis = makeGridAxis(
     'category',
     textColor,
@@ -3309,9 +3316,15 @@ function buildBarStackedOption(
     };
   });
 
+  const stackCatLabelFontSize = s.text(16);
   const hCatGap =
     isHorizontal && yLabel
-      ? Math.max(40, Math.max(...labels.map((l) => l.length)) * 8 + 16)
+      ? Math.max(
+          40,
+          Math.max(
+            ...labels.map((l) => measureText(l, stackCatLabelFontSize))
+          ) + 16
+        )
       : undefined;
   const categoryAxis = makeGridAxis(
     'category',

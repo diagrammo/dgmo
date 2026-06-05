@@ -32,6 +32,11 @@ import {
 import type { ParsedBoxesAndLines, BLNode } from './types';
 import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
 import { ScaleContext } from '../utils/scaling';
+import {
+  CHAR_WIDTH_RATIO,
+  measureText,
+  truncateText,
+} from '../utils/text-measure';
 
 // ── Constants (aligned with infra pattern) ─────────────────
 const DIAGRAM_PADDING = 20;
@@ -49,7 +54,6 @@ const ARROWHEAD_H = 4;
 const DESC_FONT_SIZE = 10; // matches infra META_FONT_SIZE
 const DESC_LINE_HEIGHT = 1.4; // 14px row height at 10px font (matches infra META_LINE_HEIGHT)
 const MAX_DESC_LINES = 6;
-const CHAR_WIDTH_RATIO = 0.6;
 const NODE_TEXT_PADDING = 12;
 const GROUP_RX = 8;
 const GROUP_LABEL_FONT_SIZE = 14;
@@ -127,16 +131,14 @@ function fitLabelToHeader(
     fontSize >= MIN_NODE_FONT_SIZE;
     fontSize--
   ) {
-    const charWidth = fontSize * CHAR_WIDTH_RATIO;
-    const maxChars = Math.floor(maxTextWidth / charWidth);
-    if (maxChars < 2) continue;
+    if (maxTextWidth < measureText('MM', fontSize)) continue;
 
-    // Wrap words into lines
+    // Wrap words into lines (greedy, by measured pixel width)
     const lines: string[] = [];
     let current = '';
     for (const word of words) {
       const test = current ? `${current} ${word}` : word;
-      if (test.length <= maxChars) {
+      if (measureText(test, fontSize) <= maxTextWidth) {
         current = test;
       } else {
         if (current) lines.push(current);
@@ -145,15 +147,18 @@ function fitLabelToHeader(
     }
     if (current) lines.push(current);
 
+    const fits = (l: string): boolean =>
+      measureText(l, fontSize) <= maxTextWidth;
+
     // All lines fit at this font? Done.
-    if (lines.length <= maxLines && lines.every((l) => l.length <= maxChars)) {
+    if (lines.length <= maxLines && lines.every(fits)) {
       return { lines, fontSize };
     }
 
     // Lines fit in count but some are too wide? Truncate those lines.
     if (lines.length <= maxLines) {
       const result = lines.map((l) =>
-        l.length > maxChars ? l.slice(0, maxChars - 1) + '\u2026' : l
+        fits(l) ? l : truncateText(l, fontSize, maxTextWidth)
       );
       return { lines: result, fontSize };
     }
@@ -161,25 +166,21 @@ function fitLabelToHeader(
     // Too many lines — take first maxLines, truncate last + any oversized
     const result = lines
       .slice(0, maxLines)
-      .map((l) =>
-        l.length > maxChars ? l.slice(0, maxChars - 1) + '\u2026' : l
-      );
+      .map((l) => (fits(l) ? l : truncateText(l, fontSize, maxTextWidth)));
     // In-bounds: result has exactly maxLines entries (from .slice(0, maxLines)).
     const last = result[maxLines - 1]!;
     if (!last.endsWith('\u2026')) {
-      result[maxLines - 1] =
-        last.length >= maxChars
-          ? last.slice(0, maxChars - 1) + '\u2026'
-          : last + '\u2026';
+      result[maxLines - 1] = truncateText(
+        last + '\u2026',
+        fontSize,
+        maxTextWidth
+      );
     }
     return { lines: result, fontSize };
   }
 
   // Fallback at min font
-  const charWidth = MIN_NODE_FONT_SIZE * CHAR_WIDTH_RATIO;
-  const maxChars = Math.floor(maxTextWidth / charWidth);
-  const truncated =
-    label.length > maxChars ? label.slice(0, maxChars - 1) + '\u2026' : label;
+  const truncated = truncateText(label, MIN_NODE_FONT_SIZE, maxTextWidth);
   return { lines: [truncated], fontSize: MIN_NODE_FONT_SIZE };
 }
 
@@ -832,7 +833,7 @@ export function renderBoxesAndLines(
     // Edge label — for parallel edges, place relative to each line:
     // negative offset (top line) → label above, zero → on line, positive → below
     if (le.label && le.labelX != null && le.labelY != null) {
-      const lw = le.label.length * sEdgeLabelFontSize * CHAR_WIDTH_RATIO;
+      const lw = measureText(le.label, sEdgeLabelFontSize);
       const labelH = sEdgeLabelFontSize + 6;
       let ly: number;
       if (le.parallelCount > 1 && le.yOffset !== 0) {
@@ -1000,6 +1001,9 @@ export function renderBoxesAndLines(
 
       const descStartY = sepY + 4 + sDescFontSize;
       const maxTextWidth = ln.width - NODE_TEXT_PADDING * 2;
+      // Char budget for the shared (char-based) bullet-aware wrapper. Derived
+      // from the shared average glyph ratio so it stays in step with the
+      // pixel measurer used everywhere else here.
       const charsPerLine = Math.floor(
         maxTextWidth / (sDescFontSize * CHAR_WIDTH_RATIO)
       );
@@ -1053,8 +1057,8 @@ export function renderBoxesAndLines(
         // Truncate last line if there are more lines beyond the cap
         if (truncated && li === visibleLines.length - 1) {
           lineText =
-            lineText.length >= charsPerLine
-              ? lineText.slice(0, charsPerLine - 1) + '\u2026'
+            measureText(lineText, sDescFontSize) >= maxTextWidth
+              ? truncateText(lineText, sDescFontSize, maxTextWidth)
               : lineText + '\u2026';
         }
         const y = descStartY + li * descLineH;
@@ -1181,7 +1185,7 @@ export function renderBoxesAndLines(
       const valueText = String(node.value);
       const padX = 6;
       const padY = 5;
-      const bw = valueText.length * VALUE_FONT_SIZE * CHAR_WIDTH_RATIO + 8;
+      const bw = measureText(valueText, VALUE_FONT_SIZE) + 8;
       const bh = VALUE_FONT_SIZE + 4;
       // Clamp to the left padding so a long value on a narrow node never
       // slides past the box edge / over the label (R2-6 / AC23).

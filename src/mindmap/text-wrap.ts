@@ -7,8 +7,8 @@
 // (for drawing). Ensures both agree on line breaks and font size.
 
 import { preprocessDescriptionLine } from '../utils/description-helpers';
+import { measureText, truncateText } from '../utils/text-measure';
 
-const CHAR_WIDTH_RATIO = 0.58; // avg char width / fontSize for Helvetica
 const H_PAD = 16; // 8px padding each side
 const MAX_LABEL_LINES = 3;
 const MAX_DESC_LINES = 2;
@@ -38,8 +38,6 @@ function tryWrap(
   maxLines: number
 ): string[] | null {
   const availWidth = maxWidth - H_PAD;
-  const charWidth = fontSize * CHAR_WIDTH_RATIO;
-  const maxChars = Math.max(1, Math.floor(availWidth / charWidth));
 
   const lines: string[] = [];
   let currentLine = '';
@@ -49,7 +47,7 @@ function tryWrap(
     const sep = currentLine && !currentLine.endsWith('-') ? ' ' : '';
     const candidate = currentLine + sep + token;
 
-    if (candidate.length <= maxChars) {
+    if (measureText(candidate, fontSize) <= availWidth) {
       currentLine = candidate;
     } else if (!currentLine) {
       // Single token exceeds line — force it onto this line (will be truncated later if needed)
@@ -72,21 +70,19 @@ function tryWrap(
   return lines;
 }
 
-/** Truncate the last line of a lines array with ellipsis to fit maxChars. */
+/** Truncate the last line of a lines array with ellipsis to fit maxWidth. */
 function truncateLastLine(
   lines: string[],
   maxWidth: number,
   fontSize: number
 ): string[] {
   const availWidth = maxWidth - H_PAD;
-  const charWidth = fontSize * CHAR_WIDTH_RATIO;
-  const maxChars = Math.max(1, Math.floor(availWidth / charWidth));
 
   const result = [...lines];
   // In-bounds: caller passes non-empty lines; tryWrap returns at least one line.
   const last = result[result.length - 1]!;
-  if (last.length > maxChars) {
-    result[result.length - 1] = last.substring(0, maxChars - 1) + '\u2026';
+  if (measureText(last, fontSize) > availWidth) {
+    result[result.length - 1] = truncateText(last, fontSize, availWidth);
   }
   return result;
 }
@@ -132,11 +128,14 @@ export function wrapText(
     const last = truncated[truncated.length - 1]!;
     if (!last.endsWith('\u2026')) {
       const availWidth = maxWidth - H_PAD;
-      const charWidth = minFontSize * CHAR_WIDTH_RATIO;
-      const maxChars = Math.max(1, Math.floor(availWidth / charWidth));
-      if (last.length >= maxChars - 1) {
-        truncated[truncated.length - 1] =
-          last.substring(0, maxChars - 1) + '\u2026';
+      // If appending an ellipsis would overflow, truncate to fit; otherwise
+      // just append it to signal that lines were dropped.
+      if (measureText(last + '\u2026', minFontSize) > availWidth) {
+        truncated[truncated.length - 1] = truncateText(
+          last,
+          minFontSize,
+          availWidth
+        );
       } else {
         truncated[truncated.length - 1] = last + '\u2026';
       }

@@ -6,6 +6,11 @@ import type { D3ExportDimensions } from '../utils/d3-types';
 import type { CompactViewState } from '../sharing';
 import { parseInlineMarkdown } from '../utils/inline-markdown';
 import { safeHref } from '../utils/safe-href';
+import {
+  measureText,
+  truncateText,
+  wrapTextToWidth,
+} from '../utils/text-measure';
 import type {
   ParsedTechRadar,
   QuadrantPosition,
@@ -780,7 +785,7 @@ function renderBlipListing(
       const textX = colX + sListingBlipR * 2 + 6;
       const availableWidth = colWidth - sListingBlipR * 2 - 8;
       const fullLabel = `${blip.name} (${blip.ring})`;
-      const label = truncateLabel(fullLabel, availableWidth, sListingFontSize);
+      const label = truncateText(fullLabel, sListingFontSize, availableWidth);
 
       itemGroup
         .append('text')
@@ -832,20 +837,6 @@ function renderBlipListing(
       y += sListingLineHeight;
     }
   }
-}
-
-/** Estimate max characters that fit in `availablePx` at the given font size. */
-function truncateLabel(
-  text: string,
-  availablePx: number,
-  fontSize: number
-): string {
-  // Average character width ≈ 0.58 × fontSize for Helvetica/Inter
-  const avgCharWidth = fontSize * 0.58;
-  const maxChars = Math.floor(availablePx / avgCharWidth);
-  if (maxChars <= 0) return '';
-  if (text.length <= maxChars) return text;
-  return text.substring(0, maxChars - 1) + '\u2026';
 }
 
 // ============================================================
@@ -1164,28 +1155,13 @@ function renderQuadrantLabel(
   maxWidth: number,
   baseFontSize = QUADRANT_LABEL_FONT_SIZE
 ): void {
-  const avgCharWidth = baseFontSize * 0.58;
-  const maxCharsPerLine = Math.floor(maxWidth / avgCharWidth);
-
-  // Split into words and wrap
-  const words = name.split(/\s+/);
-  const lines: string[] = [];
-  let currentLine = '';
-
-  for (const word of words) {
-    const testLine = currentLine ? `${currentLine} ${word}` : word;
-    if (testLine.length > maxCharsPerLine && currentLine) {
-      lines.push(currentLine);
-      currentLine = word;
-    } else {
-      currentLine = testLine;
-    }
-  }
-  if (currentLine) lines.push(currentLine);
+  // Greedy word-wrap to the available pixel width.
+  const lines = wrapTextToWidth(name, baseFontSize, maxWidth);
 
   // Scale font down if any line is still too wide
-  const longestLine = Math.max(...lines.map((l) => l.length));
-  const estimatedWidth = longestLine * avgCharWidth;
+  const estimatedWidth = Math.max(
+    ...lines.map((l) => measureText(l, baseFontSize))
+  );
   const fontSize =
     estimatedWidth > maxWidth
       ? Math.max(12, baseFontSize * (maxWidth / estimatedWidth))

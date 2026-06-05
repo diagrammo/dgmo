@@ -12,6 +12,11 @@ import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import { ScaleContext } from '../utils/scaling';
 import { computeTimeTicks, MONTH_ABBR } from '../utils/time-ticks';
 import {
+  measureText,
+  truncateText,
+  CHAR_WIDTH_RATIO,
+} from '../utils/text-measure';
+import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
   LEGEND_PILL_FONT_SIZE,
@@ -60,7 +65,6 @@ const MILESTONE_SIZE = 10;
 const MIN_LEFT_MARGIN = 120;
 const BOTTOM_MARGIN = 40;
 const RIGHT_MARGIN = 20;
-const CHAR_W = 6.5; // estimated px per character for bar labels
 const LABEL_PAD = 8; // inner padding to decide if label fits inside bar
 const LABEL_GAP = 5; // gap between bar edge and external label
 
@@ -80,11 +84,11 @@ function computeBarLabel(
   innerWidth: number,
   textColor: string,
   onFillColor?: string,
-  charW = CHAR_W,
+  fontSize = 10,
   labelPad = LABEL_PAD,
   labelGap = LABEL_GAP
 ): BarLabelPlacement | null {
-  const textWidth = label.length * charW;
+  const textWidth = measureText(label, fontSize);
   const x2 = x1 + barWidth;
 
   if (textWidth < barWidth - labelPad) {
@@ -105,13 +109,15 @@ function computeBarLabel(
   }
 
   const availWidth = x1 - labelGap;
-  if (availWidth > charW * 3) {
-    const maxChars = Math.floor(availWidth / charW) - 1;
+  // Roughly three average glyphs' worth of room before truncation is worthwhile.
+  if (availWidth > fontSize * CHAR_WIDTH_RATIO * 3) {
+    const truncated = truncateText(label, fontSize, availWidth);
+    if (!truncated) return null;
     return {
       x: x1 - labelGap,
       anchor: 'end',
       fill: textColor,
-      text: label.slice(0, maxChars) + '\u2026',
+      text: truncated,
     };
   }
 
@@ -270,25 +276,34 @@ export function renderGantt(
   const rows = tagRows ?? buildRowList(resolved, collapsedGroups);
   const isTagMode = tagRows !== null;
 
-  // Compute left margin based on longest visible label (include ● /◆  prefix for tasks)
-  const allLabels = isTagMode
+  // Compute left margin based on longest visible label (include ● /◆  prefix
+  // for tasks). Labels render at font 11; group labels carry a pixel indent.
+  const LABEL_FONT = 11;
+  const labelWidths = isTagMode
     ? [
         ...rows
           .filter((r): r is LaneHeaderRow => r.type === 'lane-header')
-          .map((r) => r.laneName),
+          .map((r) => measureText(r.laneName, LABEL_FONT)),
         ...rows
           .filter((r): r is TaskRow => r.type === 'task')
-          .map((r) => '● ' + r.task.task.label),
+          .map((r) => measureText('● ' + r.task.task.label, LABEL_FONT)),
       ]
     : [
-        ...resolved.tasks.map((t) => '● ' + t.task.label),
+        ...resolved.tasks.map((t) =>
+          measureText('● ' + t.task.label, LABEL_FONT)
+        ),
         ...resolved.groups.map((g) => {
-          const px = g.depth <= 2 ? g.depth * 14 : 2 * 14 + (g.depth - 2) * 8;
-          return ' '.repeat(Math.ceil(px / 7)) + g.name;
+          const indentPx =
+            g.depth <= 2 ? g.depth * 14 : 2 * 14 + (g.depth - 2) * 8;
+          return indentPx + measureText(g.name, LABEL_FONT);
         }),
       ];
-  const maxLabelLen = Math.max(...allLabels.map((l) => l.length), 10);
-  const leftMargin = Math.max(MIN_LEFT_MARGIN, maxLabelLen * 7 + 30);
+  // Floor on a 10-char label so very short schedules still get a usable gutter.
+  const maxLabelWidth = Math.max(
+    ...labelWidths,
+    measureText('0000000000', LABEL_FONT)
+  );
+  const leftMargin = Math.max(MIN_LEFT_MARGIN, maxLabelWidth + 30);
 
   const totalRows = rows.length;
 
@@ -356,7 +371,6 @@ export function renderGantt(
   const sMilestoneSize = ctx.structural(MILESTONE_SIZE);
   const sBottomMargin = ctx.aesthetic(BOTTOM_MARGIN);
   const sRightMargin = ctx.aesthetic(RIGHT_MARGIN);
-  const sCharW = ctx.text(CHAR_W, 4);
   const sLabelPad = ctx.structural(LABEL_PAD);
   const sLabelGap = ctx.structural(LABEL_GAP);
   const sBandAccentW = ctx.structural(BAND_ACCENT_W);
@@ -923,7 +937,7 @@ export function renderGantt(
               palette.textOnFillLight,
               palette.textOnFillDark
             ),
-            sCharW,
+            sFont10,
             sLabelPad,
             sLabelGap
           );
@@ -1007,7 +1021,7 @@ export function renderGantt(
               palette.textOnFillLight,
               palette.textOnFillDark
             ),
-            sCharW,
+            sFont10,
             sLabelPad,
             sLabelGap
           );
@@ -1311,7 +1325,7 @@ export function renderGantt(
             palette.textOnFillLight,
             palette.textOnFillDark
           ),
-          sCharW,
+          sFont10,
           sLabelPad,
           sLabelGap
         );
@@ -1625,7 +1639,7 @@ function drawHolidayBand(
   // Hover label in SVG-space (date header row) — hidden by default
   // Background rect to mask date labels underneath
   const labelX = chartLeftMargin + x1 + bandW / 2;
-  const textLen = label.length * 6 + 8;
+  const textLen = measureText(label, 10) + 8;
   const labelBg = svg
     .append('rect')
     .attr('class', 'gantt-holiday-hover-bg')

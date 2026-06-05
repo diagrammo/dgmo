@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { Writable } from '../utils/brand';
+import { measureText } from '../utils/text-measure';
 import type {
   WireframeElement,
   ParsedWireframe,
@@ -16,8 +17,9 @@ import type {
 const DESKTOP_WIDTH = 1200;
 const MOBILE_WIDTH = 375;
 
-const CHAR_WIDTH = 7.5;
 const LABEL_PADDING = 16;
+/** Font size for label-field label text — matches renderer's renderText (13px). */
+const LABEL_FIELD_FONT_SIZE = 13;
 
 /** Element type-specific heights */
 const ELEMENT_HEIGHTS: Record<string, number> = {
@@ -466,7 +468,7 @@ function computeFieldAlignX(children: readonly WireframeElement[]): number {
     ) {
       // In-bounds by length-check above.
       const labelEl = child.children[0]!;
-      const labelWidth = labelEl.label.length * CHAR_WIDTH;
+      const labelWidth = measureText(labelEl.label, LABEL_FIELD_FONT_SIZE);
       maxLabelWidth = Math.max(maxLabelWidth, labelWidth);
       labelFieldCount++;
     }
