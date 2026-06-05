@@ -21,6 +21,12 @@ type MutableC4LayoutEdge = Writable<C4LayoutEdge> & {
 import {
   LEGEND_PILL_FONT_SIZE,
   LEGEND_ENTRY_FONT_SIZE,
+  LEGEND_HEIGHT,
+  LEGEND_PILL_PAD,
+  LEGEND_DOT_R,
+  LEGEND_ENTRY_DOT_GAP,
+  LEGEND_ENTRY_TRAIL,
+  LEGEND_CAPSULE_PAD,
   measureLegendText,
 } from '../utils/legend-constants';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
@@ -133,12 +139,6 @@ const BOUNDARY_PAD = 40;
 const GROUP_BOUNDARY_PAD = 24;
 
 // Legend constants (match org)
-const LEGEND_HEIGHT = 28;
-const LEGEND_PILL_PAD = 16;
-const LEGEND_DOT_R = 4;
-const LEGEND_ENTRY_DOT_GAP = 4;
-const LEGEND_ENTRY_TRAIL = 8;
-const LEGEND_CAPSULE_PAD = 4;
 
 // ============================================================
 // Post-Layout Crossing Reduction

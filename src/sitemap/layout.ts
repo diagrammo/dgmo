@@ -10,6 +10,15 @@ import { resolveTagColor, injectDefaultTagMetadata } from '../utils/tag-groups';
 import {
   LEGEND_PILL_FONT_SIZE,
   LEGEND_ENTRY_FONT_SIZE,
+  LEGEND_HEIGHT,
+  LEGEND_PILL_PAD,
+  LEGEND_CAPSULE_PAD,
+  LEGEND_DOT_R,
+  LEGEND_ENTRY_DOT_GAP,
+  LEGEND_ENTRY_TRAIL,
+  LEGEND_GROUP_GAP,
+  LEGEND_EYE_SIZE,
+  LEGEND_EYE_GAP,
   measureLegendText,
 } from '../utils/legend-constants';
 import { measureText } from '../utils/text-measure';
@@ -140,15 +149,6 @@ const CONTAINER_LABEL_HEIGHT = 28;
 const CONTAINER_META_LINE_HEIGHT = 16;
 
 // Legend (kanban-style pills)
-const LEGEND_HEIGHT = 28;
-const LEGEND_PILL_PAD = 16;
-const LEGEND_CAPSULE_PAD = 4;
-const LEGEND_DOT_R = 4;
-const LEGEND_ENTRY_DOT_GAP = 4;
-const LEGEND_ENTRY_TRAIL = 8;
-const LEGEND_GROUP_GAP = 12;
-const LEGEND_EYE_SIZE = 14;
-const LEGEND_EYE_GAP = 6;
 
 // ============================================================
 // Helpers
