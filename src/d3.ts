@@ -140,6 +140,8 @@ export interface ParsedVisualization {
   timelineDefaultSwimlaneTG?: string;
   timelineScale: boolean;
   timelineSwimlanes: boolean;
+  /** Authored `active-tag <group|none|metric>` directive (§15.6); resolved at render. */
+  timelineActiveTag?: string;
   vennSets: VennSet[];
   vennOverlaps: VennOverlap[];
   // Quadrant chart fields
@@ -181,6 +183,7 @@ import {
 import {
   collectIndentedValues,
   extractColor,
+  measureIndent,
   normalizeNumericToken,
   parseFirstLine,
   peelTrailingColorName,
@@ -396,7 +399,7 @@ export function parseVisualization(
     // In-bounds by loop guard.
     const rawLine = lines[i]!;
     const line = rawLine.trim();
-    const indent = rawLine.length - rawLine.trimStart().length;
+    const indent = measureIndent(rawLine);
     const lineNumber = i + 1;
 
     // Skip empty lines
@@ -796,6 +799,27 @@ export function parseVisualization(
           result.timelineSort = 'tag';
           result.timelineDefaultSwimlaneTG = sortMatch[2]!.trim();
         }
+        continue;
+      }
+    }
+
+    // Timeline display directives (§15.6, space-separated, no colon):
+    //   no-scale         — drop the date axis/scale
+    //   swimlanes        — force lane backgrounds
+    //   active-tag <X>   — authored active tag group / `none` / value-ramp label
+    if (result.type === 'timeline') {
+      const lower = line.toLowerCase();
+      if (lower === 'no-scale') {
+        result.timelineScale = false;
+        continue;
+      }
+      if (lower === 'swimlanes') {
+        result.timelineSwimlanes = true;
+        continue;
+      }
+      const activeTagMatch = line.match(/^active-tag\s+(.+)$/i);
+      if (activeTagMatch) {
+        result.timelineActiveTag = activeTagMatch[1]!.trim();
         continue;
       }
     }
@@ -7238,29 +7262,6 @@ export function renderQuadrant(
     .append('g')
     .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
-  // Mix two hex colors: pct=100 → all `a`, pct=0 → all `b`
-  const mixHex = (a: string, b: string, pct: number): string => {
-    const parse = (h: string): [number, number, number] => {
-      const r = h.replace('#', '');
-      // In-bounds: 3-char path indexes [0],[1],[2].
-      const f =
-        r.length === 3 ? r[0]! + r[0]! + r[1]! + r[1]! + r[2]! + r[2]! : r;
-      return [
-        parseInt(f.substring(0, 2), 16),
-        parseInt(f.substring(2, 4), 16),
-        parseInt(f.substring(4, 6), 16),
-      ];
-    };
-    const [ar, ag, ab] = parse(a),
-      [br, bg, bb] = parse(b),
-      t = pct / 100;
-    const c = (x: number, y: number) =>
-      Math.round(x * t + y * (1 - t))
-        .toString(16)
-        .padStart(2, '0');
-    return `#${c(ar, br)}${c(ag, bg)}${c(ab, bb)}`;
-  };
-
   const bg = isDark ? palette.surface : palette.bg;
 
   // Full palette color for a quadrant (used for border and label tinting)
@@ -7277,7 +7278,7 @@ export function renderQuadrant(
     label: QuadrantLabel | null,
     defaultIdx: number
   ): string => {
-    return mixHex(getQuadrantColor(label, defaultIdx), bg, 30);
+    return mix(getQuadrantColor(label, defaultIdx), bg, 30);
   };
 
   // Quadrant definitions: position, rect bounds, label position
@@ -7357,7 +7358,7 @@ export function renderQuadrant(
   const shadowColor = 'rgba(0,0,0,0.4)';
 
   // Single muted shade of textColor — watermark-style, readable against any quadrant fill
-  const quadrantLabelColor = mixHex(textColor, bg, 35);
+  const quadrantLabelColor = mix(textColor, bg, 35);
 
   // Scale label font size to fit within quadrant bounds, wrapping into multiple lines if needed
   const LABEL_MAX_FONT = ctx.text(48);
@@ -8793,7 +8794,7 @@ export async function renderForExport(
       dims,
       resolveActiveTagGroup(
         parsed.timelineTagGroups,
-        undefined,
+        parsed.timelineActiveTag,
         viewState?.tag ?? options?.tagGroup
       ),
       viewState?.swim,

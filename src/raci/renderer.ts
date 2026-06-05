@@ -253,7 +253,8 @@ const ROLE_HEADER_FONT = 12;
 const PHASE_FONT = 13;
 
 // Cell-fill tint percentage of the marker color over surface bg.
-const TINT_PCT = 28;
+// 25 = the canonical `shapeFill` tint used by every other chart type.
+const TINT_PCT = 25;
 /**
  * Marker rect stroke + radius — matches the codebase's node styling
  * convention (flowchart `NODE_STROKE_WIDTH = 1.5`, kanban
@@ -931,7 +932,7 @@ function renderLegend(
     if (mode === 'letters') {
       // Compact: a single colored pill with just the marker letter.
       // The full label moves to a native tooltip so hover still teaches it.
-      const fill = solid ? rawColor : mix(rawColor, surfaceBg, 28);
+      const fill = solid ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
       const stroke = solid ? mix(rawColor, surfaceBg, 70) : rawColor;
       chipG
         .append('rect')
@@ -966,7 +967,7 @@ function renderLegend(
     }
 
     // Full mode: bordered chip with a letter slab on the left and label text.
-    const fill = solid ? rawColor : mix(rawColor, surfaceBg, 28);
+    const fill = solid ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
     const stroke = mix(rawColor, surfaceBg, 70);
 
     chipG
@@ -1172,7 +1173,7 @@ function renderPhaseBar(
         // corner radius. Stroke width is a touch thinner than
         // NODE_STROKE_WIDTH because at the smaller summary scale the
         // full 1.5 reads as too heavy.
-        const fill = solid ? rawColor : mix(rawColor, surfaceBg, 28);
+        const fill = solid ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
         const stroke = solid ? mix(rawColor, surfaceBg, 70) : rawColor;
         const chipG = phaseG.append('g').attr('class', 'raci-phase-summary');
         chipG

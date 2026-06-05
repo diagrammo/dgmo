@@ -476,3 +476,45 @@ marker 1720-01 End of Golden Age red`;
     });
   });
 });
+
+describe('timeline parser — display directives (§15.6)', () => {
+  it('defaults: scale on, swimlanes off, no active-tag', () => {
+    const p = parse('timeline\n1716 Joins crew');
+    expect(p.timelineScale).toBe(true);
+    expect(p.timelineSwimlanes).toBe(false);
+    expect(p.timelineActiveTag).toBeUndefined();
+  });
+
+  it('`no-scale` drops the date scale', () => {
+    const p = parse('timeline\nno-scale\n1716 Joins crew');
+    expect(p.timelineScale).toBe(false);
+    // directive is consumed, not treated as an event
+    expect(p.timelineEvents).toHaveLength(1);
+    expect(warnings('timeline\nno-scale\n1716 Joins crew')).toHaveLength(0);
+  });
+
+  it('`swimlanes` forces swimlane rendering', () => {
+    const p = parse('timeline\nswimlanes\n1716 Joins crew');
+    expect(p.timelineSwimlanes).toBe(true);
+    expect(p.timelineEvents).toHaveLength(1);
+  });
+
+  it('`active-tag <group>` is captured for render-time resolution', () => {
+    const p = parse(
+      'timeline\ntag Crew as c\n  Blackbeard red\n  Bonnet green\nactive-tag Crew\n1716 Joins crew c: Blackbeard'
+    );
+    expect(p.timelineActiveTag).toBe('Crew');
+  });
+
+  it('`active-tag none` is captured (suppresses colouring at render)', () => {
+    const p = parse('timeline\nactive-tag none\n1716 Joins crew');
+    expect(p.timelineActiveTag).toBe('none');
+  });
+
+  it('none of the directives emit "expected a date" warnings', () => {
+    const w = warnings(
+      'timeline\nno-scale\nswimlanes\nactive-tag none\n1716 Joins crew'
+    );
+    expect(w).toHaveLength(0);
+  });
+});

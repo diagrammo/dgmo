@@ -55,6 +55,13 @@ export function collectTasks(nodes: readonly GanttNode[]): GanttTask[] {
 /** Strip bracket syntax: `[Backend].API Design` → `Backend.API Design` */
 const BRACKET_GROUP_RE = /^\[(.+?)\]\.(.+)$/;
 
+/** Disambiguation message when a name matches more than one task. */
+function ambiguousTaskMessage(trimmed: string, suggestions: string[]): string {
+  return `Multiple tasks match "${trimmed}". Did you mean ${suggestions
+    .map((s) => `\`${s}\``)
+    .join(' or ')}?`;
+}
+
 export function resolveTaskName(
   name: string,
   allTasks: GanttTask[]
@@ -86,7 +93,7 @@ export function resolveTaskName(
     );
     return {
       kind: 'ambiguous',
-      message: `Multiple tasks match "${trimmed}". Did you mean ${suggestions.map((s) => `\`${s}\``).join(' or ')}?`,
+      message: ambiguousTaskMessage(trimmed, suggestions),
     };
   }
 
@@ -113,7 +120,7 @@ export function resolveTaskName(
       );
       return {
         kind: 'ambiguous',
-        message: `Multiple tasks match "${trimmed}". Did you mean ${suggestions.map((s) => `\`${s}\``).join(' or ')}?`,
+        message: ambiguousTaskMessage(trimmed, suggestions),
       };
     }
 

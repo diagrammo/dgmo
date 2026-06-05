@@ -12,17 +12,19 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
 import { parseDgmo } from '../dgmo-router';
+import { METADATA_DIAGNOSTIC_CODES } from '../diagnostics';
 import { migrateContent } from './index';
 
 // Diagnostic codes the migration tool itself is repairing — these
 // MUST NOT count as "block fails to parse" reasons, otherwise every
-// legacy block would be skipped.
-const MIGRATION_TARGET_CODES = new Set([
-  'E_PIPE_OPERATOR_REMOVED',
-  'E_GANTT_BARE_PERCENT_REMOVED',
-  'E_JOURNEY_BARE_SCORE_REMOVED',
-  'E_PYRAMID_BARE_DESCRIPTION_REMOVED',
-  'E_RING_BARE_DESCRIPTION_REMOVED',
+// legacy block would be skipped. Derived from the canonical registry
+// so a code rename can't silently desync the migrator.
+const MIGRATION_TARGET_CODES = new Set<string>([
+  METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED,
+  METADATA_DIAGNOSTIC_CODES.GANTT_BARE_PERCENT_REMOVED,
+  METADATA_DIAGNOSTIC_CODES.JOURNEY_BARE_SCORE_REMOVED,
+  METADATA_DIAGNOSTIC_CODES.PYRAMID_BARE_DESCRIPTION_REMOVED,
+  METADATA_DIAGNOSTIC_CODES.RING_BARE_DESCRIPTION_REMOVED,
 ]);
 
 const FENCE_RE = /^(\s*)(```+|~~~+)\s*(dgmo|diagrammo)\b([^\n]*)$/i;

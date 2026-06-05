@@ -10,7 +10,7 @@ import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { normalizeName } from '../utils/name-normalize';
 import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import { ScaleContext } from '../utils/scaling';
-import { computeTimeTicks } from '../utils/time-ticks';
+import { computeTimeTicks, MONTH_ABBR } from '../utils/time-ticks';
 import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
@@ -3498,21 +3498,6 @@ function diamondPoints(cx: number, cy: number, size: number): string {
 }
 
 // ── Hover Date Indicators ───────────────────────────────────
-
-const MONTH_ABBR = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
 
 function formatGanttDate(d: Date): string {
   const base = `${MONTH_ABBR[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
