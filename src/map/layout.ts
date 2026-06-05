@@ -936,11 +936,14 @@ export function layoutMap(
   const usContext = usLayer !== null;
   // Basemap fills (`water` / `neutralFill` / `foreignFill`) depend on whether a
   // colouring dimension is active — defined below, once `activeGroup` is known.
-  // Region borders: a clearly dark outline in BOTH themes. palette.text flips
-  // (dark on light, light on dark), so mix toward whichever of text/bg is the
-  // dark one — never a light hairline over the land fills.
+  // Region borders. Light theme: a near-text dark outline (a dark hairline
+  // reads well over the pale ground). Dark theme: a near-bg dark outline
+  // vanishes against the deep ground, so instead lean on the palette's
+  // dedicated `border` grid-line token (tuned to pop against that ground) and
+  // nudge it toward `text` for a touch more lift — a visible boundary that
+  // still reads as a line, not a glaring white seam over the land fills.
   const regionStroke = isDark
-    ? mix(palette.bg, palette.text, 78) // dark theme: near-bg dark outline
+    ? mix(palette.border, palette.text, 65) // dark theme: lifted grid-line
     : mix(palette.text, palette.bg, 78); // light theme: near-text dark outline
   // Lake shoreline. Lakes are painted as water OVER the land and the region
   // borders, so without an edge they read as a featureless patch that simply
