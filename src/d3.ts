@@ -2799,7 +2799,7 @@ function renderEras(
 ): void {
   const eraColors = palette
     ? getEraColors(palette)
-    : ['#5e81ac', '#a3be8c', '#ebcb8b', '#d08770', '#b48ead'];
+    : ['#3b6ea5', '#5b9357', '#c9a227', '#cc7a33', '#7d5ba6'];
   eras.forEach((era, i) => {
     const startVal = parseTimelineDate(era.startDate);
     const endVal = parseTimelineDate(era.endDate);
@@ -2916,7 +2916,7 @@ function renderMarkers(
   reservedLabelY?: number
 ): void {
   // Default marker color - bright orange/red that "pops"
-  const defaultColor = palette?.accent || '#d08770';
+  const defaultColor = palette?.accent || '#3a9188';
 
   // Pre-compute marker positions so each can size its label based on the
   // distance to its nearest neighbor (or chart edge).
@@ -8563,7 +8563,7 @@ export async function renderForExport(
     const { mapExportDimensions } = await import('./map/dimensions');
 
     const effectivePalette = await resolveExportPalette(theme, palette);
-    const mapParsed = parseMap(content);
+    const mapParsed = parseMap(content, effectivePalette);
     // Always render — an empty or partially-resolved map still draws the
     // inferred base map (§24B.10 / layout AC23); diagnostics surface separately.
     // Prefer injected `mapData` (browser bundles it; the fs loader can't run
@@ -8693,7 +8693,7 @@ export async function renderForExport(
   if (parsed.type === 'sequence') {
     const { parseSequenceDgmo } = await import('./sequence/parser');
     const { renderSequenceDiagram } = await import('./sequence/renderer');
-    const seqParsed = parseSequenceDgmo(content);
+    const seqParsed = parseSequenceDgmo(content, effectivePalette);
     if (seqParsed.error || seqParsed.participants.length === 0) return '';
     // Apply interactive view state from share links (read from unified viewState).
     // Sequences key both sections and groups by source line number; `cg` is the

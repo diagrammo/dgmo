@@ -2356,7 +2356,7 @@ function renderTagLegend(
 
 // ── Era & Marker Rendering ──────────────────────────────────
 
-const ERA_COLORS = ['#5e81ac', '#a3be8c', '#ebcb8b', '#d08770', '#b48ead'];
+const ERA_COLORS = ['#3b6ea5', '#5b9357', '#c9a227', '#cc7a33', '#7d5ba6'];
 
 function renderErasAndMarkers(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
@@ -2481,7 +2481,7 @@ function renderErasAndMarkers(
   for (let i = 0; i < resolved.markers.length; i++) {
     const marker = resolved.markers[i];
     if (!marker) continue; // In-bounds by loop guard; appeases TS.
-    const color = marker.color || palette.accent || '#d08770';
+    const color = marker.color || palette.accent || '#3a9188';
     // In-bounds: markerXs.length === resolved.markers.length.
     const mx = markerXs[i]!;
     const markerDate = parseDateStringToDate(marker.date);

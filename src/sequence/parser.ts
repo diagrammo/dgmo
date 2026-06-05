@@ -5,6 +5,7 @@
 import { inferParticipantType } from './participant-inference';
 import type { Brand, Writable } from '../utils/brand';
 import type { DgmoError } from '../diagnostics';
+import type { PaletteColors } from '../palettes/types';
 import {
   akaRemovedMessage,
   formatDgmoError,
@@ -488,7 +489,10 @@ function resolveParticipantAndText(
 /**
  * Parse a .dgmo file with `chart: sequence` into a structured representation.
  */
-export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
+export function parseSequenceDgmo(
+  content: string,
+  palette?: PaletteColors
+): ParsedSequenceDgmo {
   // Diagram-level options accumulator (Readonly<Record<...>> on the public
   // type; mutated locally during parse and assigned back via `result.options`).
   const optionsAccumulator: Record<string, string> = {};
@@ -906,7 +910,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
       const { label, color } = extractColor(
         cleanEntry,
-        undefined,
+        palette,
         result.diagnostics,
         lineNumber
       );

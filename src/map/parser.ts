@@ -5,6 +5,7 @@
 import { makeDgmoError, formatDgmoError } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import type { Writable } from '../utils/brand';
+import type { PaletteColors } from '../palettes/types';
 import {
   measureIndent,
   splitNameAndMeta,
@@ -86,7 +87,7 @@ function stripInlineComment(line: string): string {
     .replace(/\s+$/, '');
 }
 
-export function parseMap(content: string): ParsedMap {
+export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
   const result: Writable<ParsedMap> = {
     title: null,
     titleLineNumber: null,
@@ -376,7 +377,7 @@ export function parseMap(content: string): ParsedMap {
     line: number
   ): void {
     const { text: clean, isDefault } = stripDefaultModifier(text);
-    const { label, color } = extractColor(clean, undefined, diagnostics, line);
+    const { label, color } = extractColor(clean, palette, diagnostics, line);
     if (!color) {
       pushError(line, `Expected 'Value color' in tag group '${group.name}'`);
       return;
