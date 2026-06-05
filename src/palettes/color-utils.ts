@@ -204,7 +204,7 @@ export function contrastRatio(a: string, b: string): number {
  *     tokyo-night green `#9ece6a` min 106, ratio 11.4:1 all correctly pick dark).
  *  3. **Saturated fill (min RGB < 100, luminance ≤ 0.55)** → `lightText`. At least
  *     one channel near zero signals true saturation — gruvbox dark green
- *     `#b8bb26` (min 38), one-dark blue `#4078f2` (min 64), bold red/blue
+ *     `#b8bb26` (min 38), blueprint blue `#1f5e8c` (min 31), bold red/blue
  *     (min 0), solarized blue `#268bd2` (min 38). The user consistently
  *     prefers light text on these for visual punch.
  *

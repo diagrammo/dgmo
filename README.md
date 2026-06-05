@@ -53,7 +53,7 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 | Flag | Values | Default |
 |------|--------|---------|
 | `--theme` | `light`, `dark`, `transparent` | `light` |
-| `--palette` | one of 13 palettes (see below) | `nord` |
+| `--palette` | one of 10 palettes (see below) | `nord` |
 | `-o` | output path (`.svg` → SVG, else PNG) | `<input>.png` |
 
 ## Library
@@ -110,7 +110,7 @@ Each type's full syntax, directives, and options live in the **[Language Referen
 
 Thirteen built-in palettes, each with light, dark, and transparent variants:
 
-`nord` (default) · `atlas` · `blueprint` · `slate` · `tidewater` · `solarized` · `catppuccin` · `rose-pine` · `gruvbox` · `tokyo-night` · `one-dark` · `dracula` · `monokai`
+`nord` (default) · `atlas` · `blueprint` · `slate` · `tidewater` · `solarized` · `catppuccin` · `rose-pine` · `gruvbox` · `tokyo-night`
 
 Register your own with `registerPalette()`. Color helpers (`getPalette`, `tint`, `mute`, `contrastText`, …) and Mermaid theme-variable generation ship from the package too — see the [docs](https://diagrammo.app/dev).
 

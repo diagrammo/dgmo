@@ -107,11 +107,11 @@ describe('politicalTints — on-palette pale tints (AC13)', () => {
   });
 
   // Colorize must look right on EVERY palette, not just Atlas — the feature reads
-  // the active palette's own hues, so this guards all 13 at once.
+  // the active palette's own hues, so this guards all 10 at once.
   it('every palette yields 6 distinct land tints, none equal to its water', () => {
     const WATER = 24; // WATER_TINT_LIGHT / WATER_TINT_DARK (both 24)
     const palettes = getAvailablePalettes();
-    expect(palettes.length).toBeGreaterThanOrEqual(13); // guard: really iterating
+    expect(palettes.length).toBeGreaterThanOrEqual(10); // guard: really iterating
     for (const config of palettes) {
       for (const mode of ['light', 'dark'] as const) {
         const p = config[mode];

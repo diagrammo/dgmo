@@ -16,7 +16,11 @@ import { extractSymbols as extractFlowchartSymbols } from './graph/flowchart-par
 import { extractSymbols as extractInfraSymbols } from './infra/parser';
 import { extractSymbols as extractClassSymbols } from './class/parser';
 import { extractPertSymbols } from './pert/parser';
-import { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';
+import {
+  parseFirstLine,
+  ALL_CHART_TYPES,
+  measureIndent,
+} from './utils/parsing';
 import { RECOGNIZED_COLOR_NAMES } from './colors';
 
 const RECOGNIZED_COLOR_SET: ReadonlySet<string> = new Set(
@@ -97,9 +101,6 @@ const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
       'rose-pine',
       'gruvbox',
       'tokyo-night',
-      'one-dark',
-      'dracula',
-      'monokai',
       'atlas',
       'blueprint',
       'slate',
@@ -2212,7 +2213,7 @@ function extractRaciSymbols(docText: string): DiagramSymbols {
       continue;
     }
 
-    const indent = line.length - line.trimStart().length;
+    const indent = measureIndent(line);
 
     // Header directives
     if (indent === 0) {

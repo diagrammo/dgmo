@@ -15,30 +15,30 @@
  */
 
 import {
-  boldPalette,
+  atlasPalette,
+  blueprintPalette,
   catppuccinPalette,
-  draculaPalette,
   gruvboxPalette,
-  monokaiPalette,
   nordPalette,
-  oneDarkPalette,
   rosePinePalette,
+  slatePalette,
   solarizedPalette,
+  tidewaterPalette,
   tokyoNightPalette,
 } from '../src/palettes';
 import type { PaletteColors, PaletteConfig } from '../src/palettes/types';
 import { contrastText, relativeLuminance } from '../src/palettes/color-utils';
 
 const PALETTES: PaletteConfig[] = [
-  boldPalette,
+  atlasPalette,
+  blueprintPalette,
   catppuccinPalette,
-  draculaPalette,
   gruvboxPalette,
-  monokaiPalette,
   nordPalette,
-  oneDarkPalette,
   rosePinePalette,
+  slatePalette,
   solarizedPalette,
+  tidewaterPalette,
   tokyoNightPalette,
 ];
 

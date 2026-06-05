@@ -28,15 +28,11 @@ export { blueprintPalette } from './blueprint';
 export { catppuccinPalette } from './catppuccin';
 export { gruvboxPalette } from './gruvbox';
 export { nordPalette } from './nord';
-export { oneDarkPalette } from './one-dark';
 export { rosePinePalette } from './rose-pine';
 export { slatePalette } from './slate';
 export { solarizedPalette } from './solarized';
 export { tidewaterPalette } from './tidewater';
 export { tokyoNightPalette } from './tokyo-night';
-
-export { draculaPalette } from './dracula';
-export { monokaiPalette } from './monokai';
 
 // ============================================================
 // Public namespace — `palettes` for use with render()
@@ -45,11 +41,8 @@ export { monokaiPalette } from './monokai';
 import { atlasPalette } from './atlas';
 import { blueprintPalette } from './blueprint';
 import { catppuccinPalette } from './catppuccin';
-import { draculaPalette } from './dracula';
 import { gruvboxPalette } from './gruvbox';
-import { monokaiPalette } from './monokai';
 import { nordPalette } from './nord';
-import { oneDarkPalette } from './one-dark';
 import { rosePinePalette } from './rose-pine';
 import { slatePalette } from './slate';
 import { solarizedPalette } from './solarized';
@@ -77,8 +70,5 @@ export const palettes = {
   solarized: solarizedPalette,
   gruvbox: gruvboxPalette,
   tokyoNight: tokyoNightPalette,
-  oneDark: oneDarkPalette,
   rosePine: rosePinePalette,
-  dracula: draculaPalette,
-  monokai: monokaiPalette,
 } as const satisfies Record<string, PaletteConfig>;

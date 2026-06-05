@@ -733,13 +733,10 @@ export {
   rosePinePalette,
   gruvboxPalette,
   tokyoNightPalette,
-  oneDarkPalette,
   atlasPalette,
   blueprintPalette,
   slatePalette,
   tidewaterPalette,
-  draculaPalette,
-  monokaiPalette,
 } from './palettes';
 
 export type { PaletteConfig, PaletteColors } from './palettes';

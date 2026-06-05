@@ -595,7 +595,7 @@ A
     document.body.removeChild(c);
   });
 
-  it('renders cleanly across all 10 palettes (smoke)', () => {
+  it('renders cleanly across palettes (smoke)', () => {
     const palettes = [
       'nord',
       'solarized',
@@ -603,10 +603,7 @@ A
       'rose-pine',
       'gruvbox',
       'tokyo-night',
-      'one-dark',
       'bold',
-      'dracula',
-      'monokai',
     ] as const;
     for (const p of palettes) {
       const colors = getPalette(p).light;
