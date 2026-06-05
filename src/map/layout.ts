@@ -65,6 +65,75 @@ interface GeoFC {
 
 // -- Tunable constants (deterministic; no magic at call sites) --
 const FIT_PAD = 24; // px padding inside the viewport
+// Fractional digits for projected path `d` coordinates. d3-geo defaults to 3
+// (sub-micropixel at our canvas scale) — full-world detail geometry then emits
+// multi-MB SVGs that bloat the page and overflow downstream HTML reparsers.
+// One decimal is 0.1px: visually identical, ~half the coordinate bytes.
+const PATH_DIGITS = 1;
+
+// Screen-space vertex tolerance for thinning (px). Projected points within this
+// distance of the previously kept point are dropped. Sub-pixel, so invisible.
+const THIN_TOL = 0.6;
+
+interface ThinStream {
+  stream: {
+    point(x: number, y: number): void;
+    lineStart(): void;
+    lineEnd(): void;
+  };
+  _has?: boolean;
+  _pending?: boolean;
+  _ex?: number;
+  _ey?: number;
+  _lx?: number;
+  _ly?: number;
+}
+
+/**
+ * A geoTransform that thins projected vertices in screen space: it forwards a
+ * point only when it lies more than THIN_TOL px from the last forwarded point.
+ * Inserted just before the path serializer so it sees final screen coordinates,
+ * it is scale-aware by construction — at world scale the dense 50m coastline
+ * collapses to a few px-spaced vertices (the multi-MB bloat that overflows the
+ * SSG HTML reparse), while a regional zoom spreads the same coastline over many
+ * px so almost nothing is dropped (full detail preserved). The last vertex of
+ * every ring is always emitted so polygon fills stay gap-free.
+ */
+function geoThin(): ReturnType<typeof geoTransform> {
+  const tol2 = THIN_TOL * THIN_TOL;
+  return geoTransform({
+    lineStart(this: unknown) {
+      const t = this as ThinStream;
+      t._has = false;
+      t._pending = false;
+      t.stream.lineStart();
+    },
+    point(this: unknown, x: number, y: number) {
+      const t = this as ThinStream;
+      t._lx = x;
+      t._ly = y;
+      if (t._has) {
+        const dx = x - (t._ex as number);
+        const dy = y - (t._ey as number);
+        if (dx * dx + dy * dy < tol2) {
+          t._pending = true;
+          return;
+        }
+      }
+      t.stream.point(x, y);
+      t._ex = x;
+      t._ey = y;
+      t._has = true;
+      t._pending = false;
+    },
+    lineEnd(this: unknown) {
+      const t = this as ThinStream;
+      if (t._pending) t.stream.point(t._lx as number, t._ly as number);
+      t._pending = false;
+      t.stream.lineEnd();
+    },
+  });
+}
 const RAMP_FLOOR = 15; // % tint floor so min still reads as "low, present" (24B.3)
 const R_DEFAULT = 6; // POI radius without size:
 const R_MIN = 4;
@@ -1295,12 +1364,15 @@ export function layoutMap(
         ).stream.point(px, py);
       },
     });
+    const thin = geoThin();
     path = geoPath({
       stream: (s: never) =>
         baseProjection.stream(
-          (tx as unknown as { stream: (d: never) => never }).stream(s)
+          (tx as unknown as { stream: (d: never) => never }).stream(
+            (thin as unknown as { stream: (d: never) => never }).stream(s)
+          )
         ),
-    } as never);
+    } as never).digits(PATH_DIGITS);
     project = (lon, lat) => {
       const p = baseProjection([lon, lat]);
       return p ? stretch(p[0], p[1]) : null;
@@ -1319,7 +1391,13 @@ export function layoutMap(
       [0, 0],
       [width, height],
     ]);
-    path = geoPath(projection);
+    const thin = geoThin();
+    path = geoPath({
+      stream: (s: never) =>
+        projection.stream(
+          (thin as unknown as { stream: (d: never) => never }).stream(s)
+        ),
+    } as never).digits(PATH_DIGITS);
     project = (lon, lat) => projection([lon, lat]) ?? null;
   }
 
@@ -1434,7 +1512,8 @@ export function layoutMap(
         ],
         f as never
       );
-      const d = geoPath(proj)(f as never) ?? '';
+      const insetPath = geoPath(proj).digits(PATH_DIGITS);
+      const d = insetPath(f as never) ?? '';
       if (!d) return xr;
       // Neighbour land projected with this same fitted projection, clipped to the
       // box. Alaska's only land neighbour is Canada; drawing it behind AK turns
@@ -1443,7 +1522,7 @@ export function layoutMap(
       let contextLand: { d: string; fill: string } | undefined;
       if (iso === 'US-AK') {
         const can = worldLayer.get('CA');
-        const cd = can ? (geoPath(proj)(can as never) ?? '') : '';
+        const cd = can ? (insetPath(can as never) ?? '') : '';
         if (cd)
           contextLand = {
             d: cd,

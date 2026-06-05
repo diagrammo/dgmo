@@ -185,22 +185,32 @@ function coastlineOuterRings(
  *  the accepted cross-region overdraw artifact behave exactly as before. */
 function appendWaterLines(
   g: Sel,
+  defs: Sel,
+  coastId: string,
   outerRings: readonly string[],
   style: MapLayoutCoastlineStyle,
   flatWater: string
 ): void {
   const d = outerRings.join(' ');
+  if (!d) return;
+  // The coast geometry is byte-for-byte identical across every line-level and
+  // both passes (only stroke colour/width differ). On a world map that compound
+  // path is ~200KB, so emitting it ~12× inline ballooned the SVG to multi-MB and
+  // overflowed the SSG HTML reparse. Define it once and `<use>` it: same pixels,
+  // a fraction of the bytes.
+  defs.append('path').attr('id', coastId).attr('d', d).attr('fill', 'none');
+  const ref = `#${coastId}`;
   const linesOuterFirst = [...style.lines].sort((a, b) => b.d - a.d);
   for (const line of linesOuterFirst) {
-    g.append('path')
-      .attr('d', d)
+    g.append('use')
+      .attr('href', ref)
       .attr('stroke', style.color)
       .attr('stroke-width', 2 * (line.d + line.thickness))
       .attr('stroke-opacity', line.opacity)
       .attr('stroke-linejoin', 'round')
       .attr('stroke-linecap', 'round');
-    g.append('path')
-      .attr('d', d)
+    g.append('use')
+      .attr('href', ref)
       .attr('stroke', flatWater)
       .attr('stroke-width', 2 * line.d)
       .attr('stroke-linejoin', 'round')
@@ -460,6 +470,8 @@ export function renderMap(
       .attr('mask', `url(#${maskId})`);
     appendWaterLines(
       gWater,
+      defs,
+      'dgmo-map-coast',
       // Pass the canvas frame so edges collinear with it (the antimeridian on a
       // world map, regional clipExtent cuts) don't get ringed as fake coast —
       // land runs cleanly to the render-area edge.
@@ -607,6 +619,8 @@ export function renderMap(
         .attr('mask', `url(#${maskId})`);
       appendWaterLines(
         gInsetWater,
+        defs,
+        'dgmo-map-inset-coast',
         coastlineOuterRings(layout.insetRegions, cs.minExtent),
         cs,
         layout.background

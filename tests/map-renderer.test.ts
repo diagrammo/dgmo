@@ -312,7 +312,10 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
 
   it('outer band is the widest stroke + each colour band exceeds its overdraw → a ring survives (AC1)', () => {
     const group = render('map').querySelector('.dgmo-map-water-lines')!;
-    const paths = [...group.querySelectorAll('path')];
+    // Bands are `<use>` refs to a single shared coast path (dedup); the coast
+    // restrokes that follow are plain `<path>` — so query the uses to isolate the
+    // colour/overdraw bands.
+    const paths = [...group.querySelectorAll('use')];
     // Colour bands carry stroke-opacity; flat-water overdraws do not.
     const colour = paths.filter((p) => p.getAttribute('stroke-opacity'));
     const water = paths.filter((p) => !p.getAttribute('stroke-opacity'));
