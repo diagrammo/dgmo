@@ -1007,8 +1007,9 @@ function parseEdgeLine(
     };
   }
 
-  // Check for labeled arrow: `Source -label-> Target`
-  const labeledMatch = trimmed.match(/^(.+?)\s+-(.+)->\s*(.+)$/);
+  // Check for labeled arrow: `Source -label-> Target` (label lazy → split
+  // at the first arrow, consistent with the other parsers).
+  const labeledMatch = trimmed.match(/^(.+?)\s+-(.+?)->\s*(.+)$/);
   if (labeledMatch) {
     // Regex capture groups present after successful match.
     const rawSource = labeledMatch[1]!.trim();

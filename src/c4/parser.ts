@@ -63,11 +63,15 @@ const C4_IS_A_RE =
 /** Matches relationship arrows: `->`, `~>`, `<->`, `<~>` */
 const RELATIONSHIP_RE = /^(<?-?>|<?~?>)\s*(.+)$/;
 
-/** Labeled arrow relationships: -label->, ~label~>, <-label->, <~label~> */
-const C4_LABELED_SYNC_RE = /^-(.+)->\s*(.+)$/;
-const C4_LABELED_ASYNC_RE = /^~(.+)~>\s*(.+)$/;
-const C4_LABELED_BIDI_SYNC_RE = /^<-(.+)->\s*(.+)$/;
-const C4_LABELED_BIDI_ASYNC_RE = /^<~(.+)~>\s*(.+)$/;
+/**
+ * Labeled arrow relationships: -label->, ~label~>, <-label->, <~label~>.
+ * Label captured lazily so a line splits at the FIRST arrow — matches every
+ * other chart parser (which use lazy `.+?`); greedy `.+` split at the last.
+ */
+const C4_LABELED_SYNC_RE = /^-(.+?)->\s*(.+)$/;
+const C4_LABELED_ASYNC_RE = /^~(.+?)~>\s*(.+)$/;
+const C4_LABELED_BIDI_SYNC_RE = /^<-(.+?)->\s*(.+)$/;
+const C4_LABELED_BIDI_ASYNC_RE = /^<~(.+?)~>\s*(.+)$/;
 
 /** Matches section headers: `containers`, `components`, `deployment` (bare keyword) */
 const SECTION_HEADER_RE = /^(containers|components|deployment)\s*$/i;
