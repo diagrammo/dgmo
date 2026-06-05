@@ -2342,6 +2342,11 @@ export function layoutMap(
   // -- Labels: regions + POIs with escalation (AR5) --
   const labels: PlacedLabel[] = [];
   const obstacles: LabelRect[] = [];
+  // Region/orientation labels are the frame; POI labels are the subject. The
+  // region pass runs first (can't yet see where POI labels land), so each region
+  // label registers a guard here; after POI placement any guard a POI label
+  // overlaps yields — the region label is removed rather than crammed.
+  const regionLabelGuards: Array<{ label: PlacedLabel; rect: LabelRect }> = [];
   const markers: PointCircle[] = pois.map((p) => ({
     cx: p.cx,
     cy: p.cy,
@@ -2466,13 +2471,18 @@ export function layoutMap(
         const boxW = x1 - x0;
         const boxH = y1 - y0;
         // full → abbrev → hide. Abbrev exists only for US states; at the compact
-        // breakpoint abbrev is tried first.
+        // breakpoint abbrev is tried first. A POI-frame CONTAINER (e.g. the
+        // "California" framing a US cloud-regions map) never degrades to the
+        // 2-letter code to squeeze past its own POIs — it stays full or yields
+        // entirely (the post-POI guard below hides it on collision).
         const abbrev = isUsState ? r.id.replace(/^US-/, '') : undefined;
         const candidates =
           abbrev !== undefined
             ? isCompact
               ? [abbrev, r.label]
-              : [r.label, abbrev]
+              : isContainer
+                ? [r.label]
+                : [r.label, abbrev]
             : [r.label];
         const anchor = !isUsState ? WORLD_LABEL_ANCHORS[r.id] : undefined;
         const c = anchor
@@ -2513,8 +2523,14 @@ export function layoutMap(
         );
       });
       if (text === undefined) continue;
-      placedRegionRects.push(regionLabelRect(c[0], c[1], text));
+      const rRect = regionLabelRect(c[0], c[1], text);
+      placedRegionRects.push(rRect);
       pushRegionLabel(c[0], c[1], text, r.fill, r.lineNumber);
+      // Guard so a POI label landing here later makes this label yield (below).
+      regionLabelGuards.push({
+        label: labels[labels.length - 1]!,
+        rect: rRect,
+      });
     }
     // AK/HI labels live in their insets (own projection centroids). Insets are
     // tiny, so prefer the abbreviation when the canvas is compact.
@@ -2528,6 +2544,10 @@ export function layoutMap(
         src ? regionFill(src) : neutralFill,
         seed.lineNumber
       );
+      regionLabelGuards.push({
+        label: labels[labels.length - 1]!,
+        rect: regionLabelRect(seed.x, seed.y, text),
+      });
     }
   }
 
@@ -2592,7 +2612,8 @@ export function layoutMap(
       p: MapLayoutPoi,
       text: string,
       w: number,
-      side: Side
+      side: Side,
+      clusterId?: string
     ): void => {
       const rect = inlineRect(p, w, side);
       obstacles.push(rect);
@@ -2609,6 +2630,7 @@ export function layoutMap(
         haloColor: palette.bg,
         poiId: p.id,
         lineNumber: p.lineNumber,
+        ...(clusterId !== undefined && { clusterMember: clusterId }),
       });
     };
     const inlineFits = (p: MapLayoutPoi, w: number, side: Side): boolean => {
@@ -2701,12 +2723,50 @@ export function layoutMap(
           rect.y + rect.h <= height &&
           !collides(rect)
       );
-    // Today's side heuristic — used only for ungated singleton callouts.
-    const defaultColumnSide = (items: ColItem[]): 'right' | 'left' => {
-      const right = Math.max(...items.map((o) => o.p.cx + o.p.r));
-      const maxW = Math.max(...items.map((o) => o.w));
-      return right + COL_GAP + maxW <= width - 2 ? 'right' : 'left';
+    // Open-space score for a candidate label rect (higher = better). Cartographic
+    // convention: a coastal point throws its label out over the water, never back
+    // across the land it sits on. So a side whose label footprint lands over open
+    // water dominates; among equally-wet (or equally-dry) sides, the one with more
+    // clearance to the canvas edge wins. Sampled at a fixed 3×2 grid → deterministic.
+    const WATER_PREF = 1000; // a water-facing side beats any land-facing side
+    const openness = (rect: LabelRect): number => {
+      const xs = [
+        rect.x + rect.w * 0.15,
+        rect.x + rect.w * 0.5,
+        rect.x + rect.w * 0.85,
+      ];
+      const ys = [rect.y + rect.h * 0.25, rect.y + rect.h * 0.75];
+      let waterHits = 0;
+      for (const x of xs)
+        for (const y of ys) if (fillAt(x, y) === water) waterHits++;
+      const waterFrac = waterHits / (xs.length * ys.length);
+      const edgeClear = Math.max(
+        0,
+        Math.min(
+          rect.x,
+          width - (rect.x + rect.w),
+          rect.y,
+          height - (rect.y + rect.h)
+        )
+      );
+      // edgeClear scaled to ~0..30 so it only breaks ties, never overrides water.
+      return WATER_PREF * waterFrac + edgeClear * 0.1;
     };
+    // A column side's openness = mean openness over its rows' label rects.
+    const columnSideScore = (
+      items: ColItem[],
+      side: 'right' | 'left'
+    ): number => {
+      const rows = columnRows(items, side);
+      if (rows.length === 0) return -Infinity;
+      return rows.reduce((s, { rect }) => s + openness(rect), 0) / rows.length;
+    };
+    // Side heuristic for ungated callouts: prefer the more open (water-facing,
+    // then roomier) flank rather than blindly seating the column on the right.
+    const defaultColumnSide = (items: ColItem[]): 'right' | 'left' =>
+      columnSideScore(items, 'right') >= columnSideScore(items, 'left')
+        ? 'right'
+        : 'left';
     // Commit a visible callout column on the GIVEN side (no re-deriving the
     // side — the caller has already validated it). When `clusterId` is set the
     // rows are tagged `clusterMember` so the app shows/hides them (text AND
@@ -2766,22 +2826,83 @@ export function layoutMap(
       });
     };
 
-    // Spiderfy clusters: label every member in a tidy leader-lined column beside
-    // the ring (collision-free by row spacing), tagged `clusterMember` so the app
-    // toggles them with the badge. Committed FIRST so the singleton/group passes
-    // route around the column. The dots/legs/badge keep their true location — only
-    // the labels move out to the column, which the startY-clamp keeps on-canvas.
+    // A small coincident stack reads best with each member's label hugging its
+    // OWN fanned dot on the side it fans toward — the fan already seats the dots
+    // radially (member 0 due North, the next due South for a pair, …), so a top
+    // dot takes its label ABOVE and a bottom dot takes it BELOW. Compact and
+    // symmetric, and — unlike a one-sided leader column — it never overruns the
+    // frame when the stack sits hard against a coast (the San Jose case). The
+    // labels carry `clusterMember` so the app still toggles them with the badge.
+    const STACK_RADIAL_MAX = 4; // above/below/left/right — one slot per member
+    const radialSide = (p: MapLayoutPoi, cx: number, cy: number): Side => {
+      const dx = p.cx - cx;
+      const dy = p.cy - cy;
+      return Math.abs(dy) >= Math.abs(dx)
+        ? dy <= 0
+          ? 'above'
+          : 'below'
+        : dx < 0
+          ? 'left'
+          : 'right';
+    };
+    // Seat every member radially (preferred side first, then the rest), each new
+    // label blocking the next. All-or-nothing: if any member can't seat on-canvas
+    // and clean, bail so the caller falls back to the leader-lined column.
+    const tryStackRadial = (items: ColItem[], clusterId: string): boolean => {
+      const cluster = clusters.find((c) => c.id === clusterId);
+      if (!cluster || items.length > STACK_RADIAL_MAX) return false;
+      const temp: LabelRect[] = [];
+      const seated: Array<{
+        p: MapLayoutPoi;
+        text: string;
+        w: number;
+        side: Side;
+      }> = [];
+      for (const { p, text, w } of items) {
+        const pref = radialSide(p, cluster.cx, cluster.cy);
+        const order: Side[] = [
+          pref,
+          ...(['above', 'below', 'right', 'left'] as Side[]).filter(
+            (s) => s !== pref
+          ),
+        ];
+        const side = order.find((s) => {
+          const rect = inlineRect(p, w, s);
+          return (
+            rect.x >= 0 &&
+            rect.x + rect.w <= width &&
+            rect.y >= 0 &&
+            rect.y + rect.h <= height &&
+            !collides(rect) &&
+            !temp.some((t) => rectsOverlap(t, rect))
+          );
+        });
+        if (side === undefined) return false;
+        temp.push(inlineRect(p, w, side));
+        seated.push({ p, text, w, side });
+      }
+      for (const { p, text, w, side } of seated)
+        pushInline(p, text, w, side, clusterId);
+      return true;
+    };
+    // Spiderfy clusters: committed FIRST so the singleton/group passes route
+    // around them. Try the compact radial layout; only a stack too big (or too
+    // boxed-in) for cardinal slots falls back to a tidy leader-lined column,
+    // thrown to the cleaner/seaward flank.
     for (const [clusterId, members] of clusterMembersById) {
       if (members.length === 0) continue;
       const items = makeItems(members);
-      // Prefer a clean (on-canvas, collision-free) side; fall back to the side
-      // with more horizontal room. Cluster labels are always placed (never
-      // hover-only) — readability beats the odd overlap with a faint basemap.
-      const side = wouldColumnBeClean(items, 'right')
-        ? 'right'
-        : wouldColumnBeClean(items, 'left')
-          ? 'left'
-          : defaultColumnSide(items);
+      if (tryStackRadial(items, clusterId)) continue;
+      const cleanR = wouldColumnBeClean(items, 'right');
+      const cleanL = wouldColumnBeClean(items, 'left');
+      const side =
+        cleanR && cleanL
+          ? defaultColumnSide(items)
+          : cleanR
+            ? 'right'
+            : cleanL
+              ? 'left'
+              : defaultColumnSide(items);
       commitColumn(items, side, clusterId);
     }
 
@@ -2798,11 +2919,25 @@ export function layoutMap(
         // Singleton: inline if it fits, else today's single-row callout —
         // always placed, never hover-only (Decision #2 / AC9).
         const { p, text, w } = items[0]!;
-        const side = (['right', 'left', 'above', 'below'] as const).find((s) =>
-          inlineFits(p, w, s)
+        const fits = (['right', 'left', 'above', 'below'] as const).filter(
+          (s) => inlineFits(p, w, s)
         );
-        if (side) pushInline(p, text, w, side);
-        else commitColumn(items, defaultColumnSide(items));
+        if (fits.length === 0) {
+          commitColumn(items, defaultColumnSide(items));
+          continue;
+        }
+        // Horizontal sides read best; fall to vertical only if neither flank
+        // fits. Among the pool, divert to a water-facing side when one exists
+        // (seaward coastal label); otherwise keep the right-first reading order.
+        const horiz = fits.filter((s) => s === 'right' || s === 'left');
+        const pool = horiz.length > 0 ? horiz : fits;
+        const score = (s: Side): number => openness(inlineRect(p, w, s));
+        const wet = pool.filter((s) => score(s) >= WATER_PREF * 0.5);
+        const side =
+          wet.length > 0
+            ? wet.reduce((b, s) => (score(s) > score(b) ? s : b))
+            : pool[0]!;
+        pushInline(p, text, w, side);
         continue;
       }
       // Gate (a): bounding-box diagonal over marker extents — a sprawling chain
@@ -2823,11 +2958,48 @@ export function layoutMap(
     // or left-side column places fully clean; commit on that exact side, else
     // the whole cluster goes hover-only.
     for (const items of clusterPending) {
-      const side = (['right', 'left'] as const).find((s) =>
+      const cleanSides = (['right', 'left'] as const).filter((s) =>
         wouldColumnBeClean(items, s)
       );
+      const side =
+        cleanSides.length > 1
+          ? defaultColumnSide(items) // both clean → most open flank
+          : cleanSides[0];
       if (side) commitColumn(items, side);
       else items.forEach((o) => pushHidden(o.p));
+    }
+  }
+
+  // Region/orientation labels yield to POI labels (the subject). A region label
+  // whose footprint a visible POI label now overlaps is removed — the POI data
+  // owns that spot, and the region label is orientation that reads fine absent
+  // here (vs. crammed atop a dot). Done after POI placement because the region
+  // pass runs first and couldn't see where the POI labels would land. POI label
+  // rects are padded a touch so a near-touch also triggers the yield.
+  if (regionLabelGuards.length > 0) {
+    const PAD = 2;
+    const poiRects = labels
+      .filter((l) => l.poiId !== undefined && l.hidden !== true)
+      .map((l) => {
+        const w = measureLegendText(l.text, FONT);
+        const x =
+          l.anchor === 'start'
+            ? l.x
+            : l.anchor === 'end'
+              ? l.x - w
+              : l.x - w / 2;
+        return {
+          x: x - PAD,
+          y: l.y - FONT,
+          w: w + 2 * PAD,
+          h: FONT * 1.4 + 2 * PAD,
+        };
+      });
+    for (const g of regionLabelGuards) {
+      if (poiRects.some((pr) => rectsOverlap(pr, g.rect))) {
+        const i = labels.indexOf(g.label);
+        if (i >= 0) labels.splice(i, 1);
+      }
     }
   }
 

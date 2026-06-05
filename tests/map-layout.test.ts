@@ -780,6 +780,61 @@ describe('layout — POI label hover-only gate (extent/count/clean)', () => {
   });
 });
 
+describe('layout — coincident stack: radial (above/below) labels + region yield', () => {
+  // Real albers geometry: a US cloud-regions map with a tight San Jose pair
+  // (us-west-1 + us-sanjose-1, ~6km apart → a coincident stack) on the Pacific
+  // coast. A one-sided callout column here overran the frame and the "California"
+  // container label degraded to a crammed "CA" beside the dots. The stack must
+  // now split its labels above/below its own dots, and California must YIELD
+  // (hidden) rather than cram a 2-letter squeeze.
+  const SJ_SRC = [
+    'map US Cloud Regions',
+    'no-cluster-pois',
+    'poi 38.95 -77.45 as east1 label: us-east-1',
+    'poi 45.87 -119.69 as west2 label: us-west-2',
+    'poi 37.35 -121.96 as west1 label: us-west-1',
+    'poi 37.34 -121.89 as sanjose label: us-sanjose-1',
+    'poi 33.45 -112.07 as phoenix label: us-phoenix-1',
+    'poi 41.88 -87.63 as chicago label: us-chicago-1',
+  ].join('\n');
+
+  // The squarish aspect that broke (San Jose hard against the left edge) plus a
+  // wide one — both must split the labels vertically and stay on-canvas.
+  for (const [w, h] of [
+    [900, 760],
+    [1600, 820],
+  ] as const) {
+    it(`San Jose stack splits labels above/below; California yields (${w}x${h})`, async () => {
+      const { loadMapData } = await import('../src/map/load-data');
+      const data = await loadMapData();
+      const r = layoutMap(
+        resolveMap(parseMap(SJ_SRC), data),
+        data,
+        { width: w, height: h },
+        { palette: P, isDark: false }
+      );
+      const sj = r.labels.filter((l) => /us-(west-1|sanjose-1)/.test(l.text));
+      expect(sj.length).toBe(2);
+      // (1) Radial layout: both labels are centred (anchor middle) on their dot
+      // — one strictly above it, one strictly below — never a side column.
+      const sides = sj.map((l) => {
+        const dot = r.pois.find((p) => p.id === l.poiId)!;
+        expect(l.anchor).toBe('middle');
+        expect(l.leader).toBeUndefined();
+        // on-canvas: the centred label never runs off the frame edge
+        const lw = measureLegendText(l.text, 11);
+        expect(l.x - lw / 2).toBeGreaterThanOrEqual(0);
+        expect(l.x + lw / 2).toBeLessThanOrEqual(w);
+        return l.y < dot.cy ? 'above' : 'below';
+      });
+      expect(new Set(sides)).toEqual(new Set(['above', 'below']));
+      // (2) California container label yields rather than crams a "CA" squeeze:
+      // no abbreviation is shown next to the stack.
+      expect(r.labels.some((l) => l.text === 'CA')).toBe(false);
+    });
+  }
+});
+
 describe('layout — coincident-POI spiderfy (stacks)', () => {
   it('overlapping dots form a stack; well-separated dots do not', () => {
     // Same point → one stack.
