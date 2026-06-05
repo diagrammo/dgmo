@@ -5,45 +5,81 @@ import type { DgmoError } from './diagnostics';
 import { getPalette } from './palettes/registry';
 import type { CompactViewState } from './sharing';
 
-/**
- * Ensures DOM globals are available for D3 renderers.
- * No-ops in browser environments where `document` already exists.
- * Dynamically imports jsdom only in Node.js to avoid bundling it for browsers.
- */
-async function ensureDom(): Promise<void> {
-  if (typeof document !== 'undefined') return;
+// DOM globals installed for Node-side D3 rendering, scoped with ref-counting.
+//
+// These need to exist on `globalThis` while a D3 renderer runs (it reaches for
+// `document`). The naive approach — install them once and leave them — leaks a
+// jsdom `window` into the host Node process forever. That breaks hosts that run
+// their OWN SSR/SSG in the same process after calling render(): notably
+// Docusaurus static export, whose theme then believes it is in a browser
+// (`canUseDOM` true) and crashes on bare globals this shim does NOT define
+// (`requestAnimationFrame`, `MutationObserver`) or on opaque-origin
+// `localStorage`. So we install on the first concurrent render and tear down
+// once the last one finishes, leaving the host a clean Node environment.
+const DOM_GLOBALS = [
+  'document',
+  'window',
+  'navigator',
+  'HTMLElement',
+  'SVGElement',
+] as const;
+let domRefCount = 0;
+let domInstallPromise: Promise<void> | null = null;
+let domInstalledByUs = false;
 
+async function installDom(): Promise<void> {
   const { JSDOM } = await loadJsdom();
-  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+  // Concrete URL → non-opaque origin, so host code that touches
+  // window.localStorage during a same-process render doesn't throw.
+  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
+    url: 'http://localhost/',
+  });
   const win = dom.window;
+  const values: Record<(typeof DOM_GLOBALS)[number], unknown> = {
+    document: win.document,
+    window: win,
+    navigator: win.navigator,
+    HTMLElement: win.HTMLElement,
+    SVGElement: win.SVGElement,
+  };
+  for (const key of DOM_GLOBALS) {
+    Object.defineProperty(globalThis, key, {
+      value: values[key],
+      configurable: true,
+    });
+  }
+  domInstalledByUs = true;
+}
 
-  Object.defineProperty(globalThis, 'document', {
-    value: win.document,
-    configurable: true,
-  });
-  Object.defineProperty(globalThis, 'window', {
-    value: win,
-    configurable: true,
-  });
-  Object.defineProperty(globalThis, 'navigator', {
-    value: win.navigator,
-    configurable: true,
-  });
-  Object.defineProperty(globalThis, 'HTMLElement', {
-    value: win.HTMLElement,
-    configurable: true,
-  });
-  Object.defineProperty(globalThis, 'SVGElement', {
-    value: win.SVGElement,
-    configurable: true,
-  });
+/**
+ * Make DOM globals available for the duration of a render. No-ops in a real
+ * browser or any host that already provides `document` (we never touch globals
+ * we did not install). Pair every successful call with `releaseDom()`.
+ */
+async function acquireDom(): Promise<void> {
+  if (typeof document !== 'undefined' && !domInstalledByUs) return;
+  domRefCount++;
+  if (!domInstallPromise) domInstallPromise = installDom();
+  await domInstallPromise;
+}
+
+/** Tear down the jsdom globals once no render is in flight. */
+function releaseDom(): void {
+  if (!domInstalledByUs) return;
+  if (--domRefCount > 0) return;
+  for (const key of DOM_GLOBALS) {
+    delete (globalThis as Record<string, unknown>)[key];
+  }
+  domInstalledByUs = false;
+  domInstallPromise = null;
+  domRefCount = 0;
 }
 
 /**
  * Load jsdom server-side. The specifier is constructed at runtime so
  * downstream bundlers (Vite, Rollup, esbuild, webpack) cannot statically
  * resolve it. Without this indirection, every browser bundle of
- * @diagrammo/dgmo emits a 5+ MB jsdom chunk even though `ensureDom()`
+ * @diagrammo/dgmo emits a 5+ MB jsdom chunk even though `acquireDom()`
  * guards execution with a `typeof document` check — the guard prevents
  * runtime evaluation, but the static dependency edge still pulls jsdom
  * into the bundle.
@@ -128,16 +164,21 @@ export async function render(
   }
 
   // Visualization/diagram and unknown/null types all go through the unified renderer
-  await ensureDom();
-  const svg = await renderForExport(content, theme, paletteColors, viewState, {
-    ...(options?.c4Level !== undefined && { c4Level: options.c4Level }),
-    ...(options?.c4System !== undefined && { c4System: options.c4System }),
-    ...(options?.c4Container !== undefined && {
-      c4Container: options.c4Container,
-    }),
-    ...(options?.tagGroup !== undefined && { tagGroup: options.tagGroup }),
-    ...(options?.mapData !== undefined && { mapData: options.mapData }),
-  });
+  await acquireDom();
+  let svg: string;
+  try {
+    svg = await renderForExport(content, theme, paletteColors, viewState, {
+      ...(options?.c4Level !== undefined && { c4Level: options.c4Level }),
+      ...(options?.c4System !== undefined && { c4System: options.c4System }),
+      ...(options?.c4Container !== undefined && {
+        c4Container: options.c4Container,
+      }),
+      ...(options?.tagGroup !== undefined && { tagGroup: options.tagGroup }),
+      ...(options?.mapData !== undefined && { mapData: options.mapData }),
+    });
+  } finally {
+    releaseDom();
+  }
 
   // The map pipeline resolves names AFTER parsing (gazetteer/ISO lookup), so its
   // unknown-place / unknown-subdivision errors live on the ResolvedMap, not the
