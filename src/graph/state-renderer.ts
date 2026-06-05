@@ -5,6 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
+import { fitDiagramToCanvas } from '../utils/fit-canvas';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
@@ -132,28 +133,16 @@ export function renderState(
 
   const diagramW = layout.width;
   const diagramH = layout.height;
-  const scaleX = (width - sDiagramPadding * 2) / diagramW;
-
-  // Export renders a fixed canvas (e.g. 1200×800). Fitting a small graph into
-  // it and top-anchoring leaves a tall band of dead space below. In export
-  // mode, scale to width (capped by MAX_SCALE) and size the canvas to the
-  // scaled content height. The interactive preview keeps the fit-to-pane
-  // behaviour so a small graph still fills its pane.
-  let scale: number;
-  let canvasHeight: number;
-  if (exportDims) {
-    scale = Math.min(MAX_SCALE, scaleX);
-    canvasHeight = titleHeight + diagramH * scale + sDiagramPadding * 2;
-  } else {
-    const availH = height - titleHeight;
-    const scaleY = (availH - sDiagramPadding * 2) / diagramH;
-    scale = Math.min(MAX_SCALE, scaleX, scaleY);
-    canvasHeight = height;
-  }
-
-  const scaledW = diagramW * scale;
-  const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + sDiagramPadding;
+  const { scale, offsetX, offsetY, canvasHeight } = fitDiagramToCanvas({
+    width,
+    height,
+    diagramW,
+    diagramH,
+    padding: sDiagramPadding,
+    titleHeight,
+    maxScale: MAX_SCALE,
+    exportMode: !!exportDims,
+  });
 
   const svg = d3Selection
     .select(container)
