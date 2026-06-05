@@ -4,6 +4,7 @@
 
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
+import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
@@ -17,6 +18,7 @@ import {
   TITLE_Y,
 } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
+import { measureText } from '../utils/text-measure';
 
 // ============================================================
 // Constants
@@ -168,35 +170,14 @@ export function renderState(
 
   const defs = svg.append('defs');
 
-  defs
-    .append('marker')
-    .attr('id', 'st-arrow')
-    .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
-    .attr('refX', sArrowheadW)
-    .attr('refY', sArrowheadH / 2)
-    .attr('markerWidth', sArrowheadW)
-    .attr('markerHeight', sArrowheadH)
-    .attr('orient', 'auto')
-    .append('polygon')
-    .attr('points', `0,0 ${sArrowheadW},${sArrowheadH / 2} 0,${sArrowheadH}`)
-    .attr('fill', palette.textMuted);
-
   const edgeColors = new Set<string>();
-  for (const color of edgeColors) {
-    const id = `st-arrow-${color.replace('#', '')}`;
-    defs
-      .append('marker')
-      .attr('id', id)
-      .attr('viewBox', `0 0 ${sArrowheadW} ${sArrowheadH}`)
-      .attr('refX', sArrowheadW)
-      .attr('refY', sArrowheadH / 2)
-      .attr('markerWidth', sArrowheadW)
-      .attr('markerHeight', sArrowheadH)
-      .attr('orient', 'auto')
-      .append('polygon')
-      .attr('points', `0,0 ${sArrowheadW},${sArrowheadH / 2} 0,${sArrowheadH}`)
-      .attr('fill', color);
-  }
+  appendArrowheadMarkers(defs, {
+    idPrefix: 'st',
+    width: sArrowheadW,
+    height: sArrowheadH,
+    baseFill: palette.textMuted,
+    colors: edgeColors,
+  });
 
   if (showTitle) {
     const titleEl = svg
@@ -295,7 +276,6 @@ export function renderState(
     nodePositionMap.set(node.id, node);
   }
 
-  const LABEL_CHAR_W = 7;
   const LABEL_PAD = 8;
   const LABEL_H = 16;
   const PERP_OFFSET = 10;
@@ -312,7 +292,7 @@ export function renderState(
   for (let ei = 0; ei < layout.edges.length; ei++) {
     const edge = layout.edges[ei]!;
     if (!edge.label) continue;
-    const bgW = edge.label.length * LABEL_CHAR_W + LABEL_PAD;
+    const bgW = measureText(edge.label, sEdgeLabelFontSize) + LABEL_PAD;
     let lx: number, ly: number;
 
     if (edge.source === edge.target) {
