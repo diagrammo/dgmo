@@ -40,6 +40,7 @@ export type ProjectionFamily =
   | 'natural-earth'
   | 'equirectangular'
   | 'albers-usa'
+  | 'conic-equal-area'
   | 'mercator';
 
 /** Which geometry layers the renderer draws. */

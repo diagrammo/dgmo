@@ -868,10 +868,15 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     // consistent rectangular look over Equal Earth's area honesty.)
     projection = 'equirectangular';
   } else {
-    // Tight clusters AND single-continent regional views: Mercator gives every
-    // mid-latitude landmass its familiar conventional shape (a world projection
-    // squashes a continent like Europe horizontally).
-    projection = 'mercator';
+    // Tight clusters AND single-continent regional views: a conic equal-area
+    // (Albers) projection, parameterized per-extent in the layout. This is the
+    // conventional atlas projection for a single mid-latitude continent — it
+    // keeps familiar country shapes (no world-projection horizontal squash) and,
+    // unlike Mercator, does NOT vertically inflate high-latitude land. That
+    // inflation is what pushed a Europe choropleth's colored mass into the bottom
+    // ~30% of the frame (Scandinavia's stretch wasted the upper half on empty
+    // ocean); equal-area framing re-centers the data and scales the land larger.
+    projection = 'conic-equal-area';
   }
 
   // World-scale framing (R10): a multi-continent spread frames most cleanly as

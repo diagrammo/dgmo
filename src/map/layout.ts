@@ -24,7 +24,7 @@ import {
   relativeLuminance,
   politicalTints,
 } from '../palettes/color-utils';
-import { buildAdjacency } from './geo';
+import { buildAdjacency, featureBboxPrimary } from './geo';
 import { assignColors } from './colorize';
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes/types';
@@ -47,6 +47,7 @@ import type {
   ResolvedPoi,
   ResolvedEdge,
   ProjectionFamily,
+  GeoExtent,
 } from './resolved-types';
 import { placeContextLabels } from './context-labels';
 import type { CountryCandidate } from './context-labels';
@@ -637,10 +638,23 @@ const alaskaProjection = (): GeoProjection =>
   geoConicEqualArea().rotate([154, 0]).center([-2, 58.5]).parallels([55, 65]);
 const hawaiiProjection = (): GeoProjection => geoMercator();
 
-function projectionFor(family: ProjectionFamily): GeoProjection {
+function projectionFor(
+  family: ProjectionFamily,
+  extent: GeoExtent
+): GeoProjection {
   switch (family) {
     case 'albers-usa':
       return usConusProjection();
+    case 'conic-equal-area': {
+      // Albers for a single continent: standard parallels at 1/6 and 5/6 of the
+      // extent's latitude band (distortion-minimizing), centered on the band's
+      // mid-latitude. Longitude centering is handled by the shared .rotate below.
+      const s = extent[0][1];
+      const n = extent[1][1];
+      return geoConicEqualArea()
+        .parallels([s + (n - s) / 6, s + ((n - s) * 5) / 6])
+        .center([0, (s + n) / 2]);
+    }
     case 'mercator':
       return geoMercator();
     case 'equal-earth':
@@ -873,7 +887,7 @@ export function buildMapProjection(
   }
   const fitTarget: GeoFC = { type: 'FeatureCollection', features: fitFeatures };
 
-  const projection = projectionFor(resolved.projection);
+  const projection = projectionFor(resolved.projection, resolved.extent);
   // mercator / natural-earth: rotate to the extent's center longitude BEFORE
   // fitting (rotate changes the bounds fitExtent measures). albers-usa is a
   // US-only composite with NO .rotate -- never call it (AR2).
@@ -1317,6 +1331,56 @@ export function layoutMap(
     ],
   ];
   projection.fitExtent(fitBox, fitTarget as never);
+
+  // Data-centered vertical fit (regional region-maps only). `fitExtent` centers
+  // the EXTENT rectangle in the box; when a choropleth's data clusters away from
+  // that rectangle's vertical center it lands off-center — e.g. a Europe map's
+  // colored countries are mostly central/southern, but Sweden drags the extent's
+  // north edge into empty Arctic, so the data sits low under a band of ocean.
+  // Shift the projection vertically so the data's vertical SPAN is centered in the
+  // fit box, CLAMPED so the data still fits inside the box (we never push a colored
+  // region off-frame). The span comes from each region's PRIMARY landmass bbox
+  // (featureBboxPrimary) — NOT the full feature, whose detached overseas
+  // territories (French Guiana, the Canaries, the Dutch Caribbean) would project
+  // far off-frame and wreck the bounds. POI-only regional frames are already
+  // cluster-centered (container + zoom floor) and the albers-usa composite frames
+  // the nation itself — both skip this.
+  if (
+    !fitIsGlobal &&
+    resolved.projection !== 'albers-usa' &&
+    resolved.regions.length > 0
+  ) {
+    let yMin = Infinity;
+    let yMax = -Infinity;
+    for (const r of resolved.regions) {
+      const bb = r.iso ? featureBboxPrimary(data.worldCoarse, r.iso) : null;
+      if (!bb) continue;
+      for (const lon of [bb[0][0], bb[1][0]]) {
+        for (const lat of [bb[0][1], bb[1][1]]) {
+          const p = projection([lon, lat]);
+          if (p && Number.isFinite(p[1])) {
+            if (p[1] < yMin) yMin = p[1];
+            if (p[1] > yMax) yMax = p[1];
+          }
+        }
+      }
+    }
+    if (yMin < yMax) {
+      const boxTop = topPad;
+      const boxBottom = height - FIT_PAD;
+      // Center the data's vertical span; the bbox midpoint balances the northern
+      // and southern extremes evenly (an area-weighted centroid would skew toward
+      // the larger landmasses and over-shoot the frame).
+      let dy = (boxTop + boxBottom) / 2 - (yMin + yMax) / 2;
+      // Clamp so the data span stays within [boxTop, boxBottom]; if it is taller
+      // than the box, the midpoint target already gives symmetric overflow.
+      const minDy = boxTop - yMin;
+      const maxDy = boxBottom - yMax;
+      if (minDy <= maxDy) dy = Math.max(minDy, Math.min(maxDy, dy));
+      const [tx, ty] = projection.translate();
+      projection.translate([tx, ty + dy]);
+    }
+  }
 
   // Global views stretch-fill the canvas. A whole-world map is ~2:1 but the
   // preview pane is often near-square, so the honest contain-fit letterboxes it

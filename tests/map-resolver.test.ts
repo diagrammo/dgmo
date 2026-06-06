@@ -314,17 +314,19 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     );
     expect(r.projection).toBe('equirectangular');
   });
-  it('tight cluster → mercator (AC15)', () => {
+  it('tight cluster → conic-equal-area (AC15)', () => {
     // Non-US coords (London) so the cluster isn't pulled to the national
-    // albers-usa frame (US content is US-oriented — §24B.2).
+    // albers-usa frame (US content is US-oriented — §24B.2). Non-US regional
+    // frames use a per-extent conic equal-area (Albers), not Mercator.
     const r = resolve('map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b');
-    expect(r.projection).toBe('mercator');
+    expect(r.projection).toBe('conic-equal-area');
   });
-  it('single-continent regional span → mercator, not equirectangular (familiar shapes)', () => {
+  it('single-continent regional span → conic-equal-area, not equirectangular (familiar shapes)', () => {
     // A ~40°-span mid-latitude continental frame (think Europe) reads with its
-    // conventional shape under Mercator; equirectangular squashes it.
+    // conventional shape under a conic equal-area; equirectangular squashes it
+    // and Mercator inflates high-latitude land (pushing the data low).
     const r = resolve('map\npoi 35 -10 as sw\npoi 60 30 as ne');
-    expect(r.projection).toBe('mercator');
+    expect(r.projection).toBe('conic-equal-area');
   });
   it('polar-reaching wide frame (dataless) → equirectangular (Mercator area blow-up guard)', () => {
     // Sub-world longitude span but the frame reaches past ~80° latitude — Mercator
@@ -341,7 +343,7 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
         'equirectangular',
       ], // data world
       ['map\nCalifornia value: 1\nOregon value: 2', 'albers-usa'], // US
-      ['map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b', 'mercator'], // tight cluster
+      ['map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b', 'conic-equal-area'], // tight cluster (non-US)
     ];
     for (const [src, expected] of cases) {
       expect(resolve(src).projection).toBe(expected);
@@ -372,7 +374,7 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const r = resolve('map\npoi 0 178 as a\npoi 0 -178 as b');
     const lonSpan = r.extent[1][0] - r.extent[0][0];
     expect(lonSpan).toBeLessThan(30); // tight wrap, not ~356
-    expect(r.projection).toBe('mercator'); // tight → mercator, not natural-earth
+    expect(r.projection).toBe('conic-equal-area'); // tight non-US → conic, not natural-earth
   });
 });
 
@@ -425,10 +427,10 @@ describe('resolver — POI-only fit-to-cluster zoom floor (#poi-fit)', () => {
   });
 
   it('floor applies to non-US POI-only clusters too (no zoom into emptiness)', () => {
-    // London pair (~0.01° span): mercator (non-US), and the floor still expands
-    // the extent so the dots aren’t framed on a near-empty box.
+    // London pair (~0.01° span): conic equal-area (non-US), and the floor still
+    // expands the extent so the dots aren’t framed on a near-empty box.
     const r = resolve('map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b');
-    expect(r.projection).toBe('mercator');
+    expect(r.projection).toBe('conic-equal-area');
     expect(longerAxis(r)).toBeCloseTo(7, 5);
   });
 
