@@ -138,6 +138,12 @@ const RAMP_FLOOR = 15; // % tint floor so min still reads as "low, present" (24B
 const R_DEFAULT = 6; // POI radius without size:
 const R_MIN = 4;
 const R_MAX = 22;
+// Larger POIs fade their FILL so big bubbles read as light/airy instead of heavy
+// solid slabs (overlaps stay legible); the stroke stays fully opaque so every
+// marker keeps a crisp edge regardless of size. Gentle so the largest (= most
+// important) marker still reads. Linear in radius over [R_MIN, R_MAX].
+const POI_FILL_OPACITY_MAX = 0.92; // at R_MIN (smallest)
+const POI_FILL_OPACITY_MIN = 0.55; // at R_MAX (largest)
 const W_MIN = 1.25; // edge stroke width
 const W_MAX = 8;
 const FONT = 11; // on-map label font px
@@ -332,6 +338,9 @@ export interface MapLayoutPoi {
   readonly cy: number;
   readonly r: number;
   readonly fill: string;
+  /** Fill opacity scaled by radius — larger bubbles fade so they read as light
+   *  rather than heavy. Stroke stays fully opaque (crisp edge at every size). */
+  readonly fillOpacity: number;
   readonly stroke: string;
   readonly lineNumber: number;
   readonly implicit: boolean;
@@ -2085,6 +2094,13 @@ export function layoutMap(
         : 1;
     return R_MIN + Math.max(0, Math.min(1, t)) * (R_MAX - R_MIN);
   };
+  // Fade the fill as the bubble grows (stroke handled separately at render).
+  const fillOpacityFor = (r: number): number => {
+    const t = Math.max(0, Math.min(1, (r - R_MIN) / (R_MAX - R_MIN)));
+    return (
+      POI_FILL_OPACITY_MAX - t * (POI_FILL_OPACITY_MAX - POI_FILL_OPACITY_MIN)
+    );
+  };
 
   // POI fill precedence (§24B.5): a direct §1.5 trailing color wins, then the
   // FIRST declared tag group for which the POI has a value (AR4), then orange.
@@ -2142,14 +2158,16 @@ export function layoutMap(
     clusterId?: string
   ): void => {
     const { fill, stroke } = poiFill(e.p);
-    poiScreen.set(e.p.id, { cx, cy, r: radiusFor(e.p) });
+    const r = radiusFor(e.p);
+    poiScreen.set(e.p.id, { cx, cy, r });
     const num = routeNumberById.get(e.p.id);
     pois.push({
       id: e.p.id,
       cx,
       cy,
-      r: radiusFor(e.p),
+      r,
       fill,
+      fillOpacity: fillOpacityFor(r),
       stroke,
       lineNumber: e.p.lineNumber,
       implicit: !!e.p.implicit,

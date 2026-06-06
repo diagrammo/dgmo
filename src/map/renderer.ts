@@ -769,6 +769,7 @@ export function renderMap(
       .attr('cy', poi.cy)
       .attr('r', poi.r)
       .attr('fill', poi.fill)
+      .attr('fill-opacity', poi.fillOpacity)
       .attr('stroke', poi.stroke)
       .attr('stroke-width', 1)
       .attr('data-line-number', poi.lineNumber)
