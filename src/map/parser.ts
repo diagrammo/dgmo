@@ -10,7 +10,7 @@ import {
   measureIndent,
   splitNameAndMeta,
   extractColor,
-  peelTrailingColorName,
+  peelRampColors,
 } from '../utils/parsing';
 import {
   MAP_REGISTRY,
@@ -41,10 +41,14 @@ const NUMERIC_LEAD_RE = /^[+-]?\d/; // a name region that starts like a number
 const SCOPE_RE = /^[A-Z]{2}(?:-[A-Z0-9]{1,3})?$/;
 // Arrow tokens (longest-match first); only recognized with surrounding
 // whitespace, so hyphens inside names (`office-east`) and `foo-bar` are safe.
-const ARROW_SPLIT = /\s+(-[^>]*?->|->|~[^>]*?~>|~>|--)\s+/;
-const HUB_RE = /^(->|~>)\s+(.+)$/;
+// Drop the trailing `>` to drop the arrowhead: `--`/`-label-` are undirected
+// straight, `~~`/`~label~` undirected arc. `[^>]` excludes `>` so an undirected
+// branch can never swallow a directed token; directed branches are listed first.
+const ARROW_TOKENS = '-[^>]*?->|->|~[^>]*?~>|~>|-[^>]*?-|~[^>]*?~';
+const ARROW_SPLIT = new RegExp(`\\s+(${ARROW_TOKENS})\\s+`);
+const HUB_RE = new RegExp(`^(${ARROW_TOKENS})\\s+(.+)$`);
 // A route leg line: an optional leading arrow (with in-arrow label) + a destination.
-const LEG_ARROW_RE = /^(-[^>]*?->|->|~[^>]*?~>|~>|--)\s+(.+)$/;
+const LEG_ARROW_RE = new RegExp(`^(${ARROW_TOKENS})\\s+(.+)$`);
 const AT_RE = /(^|[\s,])at\s*:/i; // the removed `at:` coord form (§24B.9)
 
 // The 14 map-specific directives (§24B.2): 6 irreducible-intent + 8 `no-*`
@@ -198,11 +202,13 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       if (hub) {
         const src = open.poi.poi.alias ?? poiName(open.poi.poi.pos);
         if (src) {
+          const arr = classifyArrow(hub[1]!, lineNumber);
           edges.push({
             from: src,
             to: hub[2]!.trim(),
-            directed: true,
-            style: hub[1] === '~>' ? 'arc' : 'straight',
+            ...(arr.label !== undefined && { label: arr.label }),
+            directed: arr.directed,
+            style: arr.style,
             meta: {},
             lineNumber,
           });
@@ -288,12 +294,18 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     switch (key) {
       case 'region-metric': {
         dup(d.regionMetric);
-        // A trailing color names the choropleth ramp hue (§24B.3): the
-        // label keeps the rest. `region-metric Sales ($M) blue` → blue ramp.
-        const { label: rmLabel, colorName: rmColor } =
-          peelTrailingColorName(value);
+        // Up to two trailing colors name the choropleth ramp endpoints
+        // (§24B.3): one ⇒ high hue over a neutral low; two ⇒ `low high`. The
+        // label keeps the rest. `region-metric Sales ($M) green red` →
+        // green→red ramp.
+        const {
+          label: rmLabel,
+          low: rmLow,
+          high: rmHigh,
+        } = peelRampColors(value);
         d.regionMetric = rmLabel;
-        if (rmColor) d.regionMetricColor = rmColor;
+        if (rmHigh) d.regionMetricColor = rmHigh;
+        if (rmLow) d.regionMetricLowColor = rmLow;
         break;
       }
       case 'poi-metric':
@@ -609,24 +621,21 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     line: number
   ): { label?: string; directed: boolean; style: 'straight' | 'arc' } {
     if (tok === '--') return { directed: false, style: 'straight' };
+    if (tok === '~~') return { directed: false, style: 'arc' };
     if (tok === '->') return { directed: true, style: 'straight' };
     if (tok === '~>') return { directed: true, style: 'arc' };
-    if (tok.startsWith('~')) {
-      const lbl = parseInArrowLabel(tok.slice(1, -2), line);
-      lbl.diagnostics.forEach((d) => diagnostics.push(d));
-      return {
-        ...(lbl.label !== undefined && { label: lbl.label }),
-        directed: true,
-        style: 'arc',
-      };
-    }
-    // directed labeled `-…->`
-    const lbl = parseInArrowLabel(tok.slice(1, -2), line);
+    // Labeled form: arrowhead iff it ends in `>`, arc iff it starts with `~`.
+    // The label sits between the delimiters — drop 2 trailing chars for the
+    // directed `…->`/`…~>`, 1 for the undirected `…-`/`…~`.
+    const directed = tok.endsWith('>');
+    const style: 'straight' | 'arc' = tok.startsWith('~') ? 'arc' : 'straight';
+    const inner = directed ? tok.slice(1, -2) : tok.slice(1, -1);
+    const lbl = parseInArrowLabel(inner, line);
     lbl.diagnostics.forEach((d) => diagnostics.push(d));
     return {
       ...(lbl.label !== undefined && { label: lbl.label }),
-      directed: true,
-      style: 'straight',
+      directed,
+      style,
     };
   }
 

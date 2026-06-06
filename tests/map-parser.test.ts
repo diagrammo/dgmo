@@ -253,6 +253,38 @@ describe('parseMap — region-metric ramp hue (§24B.3)', () => {
     const r = parseMap('map\nregion-metric Sales\nCalifornia value: 5');
     expect(r.directives.regionMetric).toBe('Sales');
     expect(r.directives.regionMetricColor).toBeUndefined();
+    expect(r.directives.regionMetricLowColor).toBeUndefined();
+  });
+  it('two trailing colors set low (first) and high (second) — AC1', () => {
+    const r = parseMap(
+      'map\nregion-metric Sales green red\nCalifornia value: 5'
+    );
+    expect(r.directives.regionMetric).toBe('Sales');
+    expect(r.directives.regionMetricLowColor).toBe('green');
+    expect(r.directives.regionMetricColor).toBe('red');
+  });
+  it('order is respected — no sorting/intent correction (AC4)', () => {
+    const r = parseMap('map\nregion-metric Risk red green');
+    expect(r.directives.regionMetricLowColor).toBe('red');
+    expect(r.directives.regionMetricColor).toBe('green');
+  });
+  it('single color stays high-only with two colors absent (AC2)', () => {
+    const r = parseMap('map\nregion-metric Coverage blue');
+    expect(r.directives.regionMetric).toBe('Coverage');
+    expect(r.directives.regionMetricColor).toBe('blue');
+    expect(r.directives.regionMetricLowColor).toBeUndefined();
+  });
+  it('label that is itself a color word is not emptied (AC5)', () => {
+    const r = parseMap('map\nregion-metric Red blue');
+    expect(r.directives.regionMetric).toBe('Red');
+    expect(r.directives.regionMetricColor).toBe('blue');
+    expect(r.directives.regionMetricLowColor).toBeUndefined();
+  });
+  it('a non-color trailing token stops the peel', () => {
+    const r = parseMap('map\nregion-metric Sales 2024');
+    expect(r.directives.regionMetric).toBe('Sales 2024');
+    expect(r.directives.regionMetricColor).toBeUndefined();
+    expect(r.directives.regionMetricLowColor).toBeUndefined();
   });
 });
 
@@ -391,6 +423,39 @@ describe('parseMap — edges (AC13–AC15, AC17)', () => {
     expect(r2.edges[0]).toMatchObject({ from: 'A', to: 'B', directed: false });
     expect(r2.error).toBeNull();
   });
+  it('labeled undirected `-label-` (no arrowhead, keeps label)', () => {
+    const r = parseMap('map\nA -ferry- B value: 12');
+    expect(r.edges[0]).toMatchObject({
+      from: 'A',
+      to: 'B',
+      label: 'ferry',
+      directed: false,
+      style: 'straight',
+    });
+    expect(r.edges[0]!.meta.value).toBe('12');
+    expect(r.error).toBeNull();
+  });
+  it('undirected arc `~~` and labeled `~label~`', () => {
+    const r = parseMap('map\nA ~~ B');
+    expect(r.edges[0]).toMatchObject({ directed: false, style: 'arc' });
+    const r2 = parseMap('map\nA ~trade~ B');
+    expect(r2.edges[0]).toMatchObject({
+      label: 'trade',
+      directed: false,
+      style: 'arc',
+    });
+    expect(r2.error).toBeNull();
+  });
+  it('directed labeled forms still win over undirected (regex ordering)', () => {
+    const r = parseMap('map\nA -ships-> B');
+    expect(r.edges[0]).toMatchObject({ label: 'ships', directed: true });
+    const r2 = parseMap('map\nA ~sails~> B');
+    expect(r2.edges[0]).toMatchObject({
+      label: 'sails',
+      directed: true,
+      style: 'arc',
+    });
+  });
   it('hyphenated endpoint names are not split (R5)', () => {
     const r = parseMap('map\noffice-east -> hub-west');
     expect(r.edges[0]).toMatchObject({ from: 'office-east', to: 'hub-west' });
@@ -401,6 +466,20 @@ describe('parseMap — edges (AC13–AC15, AC17)', () => {
       ['dcw', 'office-east'],
       ['dcw', 'office-west'],
     ]);
+  });
+  it('hub legs accept undirected + labeled tokens', () => {
+    const r = parseMap('map\npoi dcw\n  -- office-east\n  -link- office-west');
+    expect(r.edges[0]).toMatchObject({
+      from: 'dcw',
+      to: 'office-east',
+      directed: false,
+    });
+    expect(r.edges[1]).toMatchObject({
+      from: 'dcw',
+      to: 'office-west',
+      label: 'link',
+      directed: false,
+    });
   });
 });
 

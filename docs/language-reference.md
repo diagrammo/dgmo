@@ -1469,7 +1469,7 @@ Indented shorthand also supports groups (place arrow directly after group header
 ### 13.6 Directives
 
 - `direction TB` — top-to-bottom layout (default: `LR`)
-- `box-metric <Label> [color]` — name a numeric value dimension (see §13.8); optional trailing color sets the ramp hue
+- `box-metric <Label> [low] [high]` — name a numeric value dimension (see §13.8); one trailing color sets the high hue over a neutral low, two set explicit `low high` ramp endpoints
 - `show-values` — print each box's numeric value as text (off by default)
 
 ### 13.7 Options
@@ -1498,8 +1498,12 @@ Flagship -> Sloop
 
 - `value: <number>` on any box records its measure (a reserved metadata key —
   lifted out, never rendered as a tag). Non-numeric values are an error.
-- `box-metric <Label> [color]` names the dimension and optionally sets the ramp
-  hue (default: the palette's primary color).
+- `box-metric <Label> [low] [high]` names the dimension and optionally sets the
+  ramp endpoint colors: no color → primary hue / neutral low; one color → that
+  high hue / neutral low; two → explicit `low high` (e.g. `box-metric Risk green
+  red`). Order is literal — polarity (good vs bad) is your choice. A wide-hue-gap
+  pair routes through a neutral midpoint (so green→red mid values stay clean);
+  analogous pairs blend directly.
 - The ramp anchors at `0` for all-non-negative data, else at the data minimum.
 - The value ramp is the resting-active dimension whenever any box has a
   `value:` (so value shading works in static export with no interaction).
@@ -2704,7 +2708,7 @@ Texas value: 78
 Florida value: 51
 ```
 
-- `region-metric <label>` labels the ramp in the legend; a trailing color on it sets the ramp hue (`region-metric Sales ($M) blue` → blue ramp, default red).
+- `region-metric <label> [low] [high]` labels the ramp in the legend; one trailing color sets the high hue over a neutral low (`region-metric Sales ($M) blue` → blue ramp, default red), two set explicit `low high` endpoints (`region-metric Peril green red` → green→red, routed through a neutral midpoint). Order is literal — polarity is your choice.
 - The ramp **auto-fits**: all-non-negative data anchors the low end at **0** (shared baseline); mixed-sign data fits data-min→data-max. There is no `scale` directive.
 - A subdivision with no `value:`/tag renders as the neutral base.
 
@@ -2759,18 +2763,26 @@ route Miami style: arc
   -> Miami              # destination == origin → closed loop
 ```
 
-Native `->` edges handle any other connection (no `link`/`leg` keyword):
+Native edges handle any other connection (no `link`/`leg` keyword). A token draws an arrowhead iff it ends in `>`, an arc iff it starts with `~`; drop the `>` for a plain line when an arrow would mislead. The label always sits between the delimiters:
+
+| | no label | labeled |
+|---|---|---|
+| directed straight | `A -> B` | `A -ships-> B` |
+| directed arc | `A ~> B` | `A ~trade~> B` |
+| undirected straight | `A -- B` | `A -ferry- B` |
+| undirected arc | `A ~~ B` | `A ~cable~ B` |
 
 ```
-A -> B                  # one-off
-A -ships-> B value: 22  # labeled; value = line thickness
+A -> B                  # one-off, directed
+A -ferry- B value: 12   # undirected line; value = line thickness
+A ~cable~ B             # undirected arc with a label
 A -> B -> C             # inline chain
 dcw                     # hub/star — indented edges share the source
   -> office-east
-  -> office-west
+  -- office-west        # hub legs accept any connector token
 ```
 
-`~>` curves a single edge. There is no geographic path-finding and no `surface:` — legs are plain straight or arced geometry (`style: arc` to bow one) and may cross land.
+There is no geographic path-finding and no `surface:` — legs are plain straight or arced geometry (`style: arc` to bow one) and may cross land.
 
 ```
 map Caribbean Cruise

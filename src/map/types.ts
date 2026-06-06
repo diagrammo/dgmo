@@ -19,9 +19,13 @@ export type PoiPos =
 export interface MapDirectives {
   /** Legend label for the region value ramp (`region-metric <label>`). */
   regionMetric?: string;
-  /** Recognized color NAME for the choropleth ramp hue, peeled off the
+  /** Recognized color NAME for the choropleth ramp HIGH endpoint, peeled off the
    *  `region-metric` trailing token (§24B.3). Defaults to red when absent. */
   regionMetricColor?: string;
+  /** Recognized color NAME for the choropleth ramp LOW endpoint (the second,
+   *  left-of-two trailing colors on `region-metric`, §24B.3). Absent ⇒ the low
+   *  end is the implied floored neutral (today's single-colour behaviour). */
+  regionMetricLowColor?: string;
   /** Legend label for the POI value (marker size) channel (`poi-metric`). */
   poiMetric?: string;
   /** Legend label for the edge/leg value (thickness) channel (`flow-metric`). */
@@ -127,7 +131,9 @@ export interface MapRoute {
 }
 
 /** A connector (§24B.6). Endpoints are RAW identifier strings (name or alias);
- *  binding to POIs/regions is the resolver's job. `~>`→arc; `--`→directed:false. */
+ *  binding to POIs/regions is the resolver's job. Token = arrowhead iff it ends
+ *  in `>`, arc iff it starts with `~`: `->` straight, `~>` arc, `--`/`-label-`
+ *  undirected straight, `~~`/`~label~` undirected arc. */
 export interface MapEdge {
   readonly from: string;
   readonly to: string;
@@ -166,8 +172,10 @@ export interface MapLayoutLegend {
     metric?: string;
     min: number;
     max: number;
-    hue: string;
-    /** Low end of the ramp gradient (the land colour the fills blend from). */
-    base: string;
+    /** Resolved hex of the LOW (t=0) endpoint — the explicit low colour, or the
+     *  floored neutral the single-colour fills blend up from. */
+    low: string;
+    /** Resolved hex of the HIGH (t=1) endpoint (the named ramp hue). */
+    high: string;
   };
 }

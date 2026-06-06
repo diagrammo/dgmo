@@ -1,0 +1,12 @@
+map Sister Ports of the Spanish Main
+flow-metric Shared cargo runs
+
+poi Tortuga
+poi Port Royal
+poi Nassau
+poi Havana
+
+Tortuga -ferry- Port Royal value: 18
+Port Royal ~cable~ Nassau
+Nassau -- Havana
+Havana -ships-> Tortuga value: 30
