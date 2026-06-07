@@ -597,11 +597,13 @@ export interface LayoutOptions {
     bottom?: number;
   };
   /** INTERNAL (set by layoutMap's own POI-clearance pass — do not pass in). After
-   *  the first POI-label placement, a POI whose seaward label would cross the edge
-   *  clearance band triggers a re-fit reserving that band on the leaning side, so
-   *  the cluster slides inward and its label seats fully on-canvas. Guards the
-   *  recursion so the measure runs exactly once. */
-  readonly _poiClearanceDone?: boolean;
+   *  POI-label placement, any POI dot/label crossing the edge-clearance band
+   *  triggers a re-fit that ADDS the residual intrusion to the reserved band on
+   *  that side, sliding the data inward. Re-measured each pass and accumulated
+   *  until nothing intrudes (or the pass cap), so a tight cluster on a small canvas
+   *  converges instead of giving up after one under-shoot. This counts the passes
+   *  taken to bound the recursion. */
+  readonly _poiClearancePass?: number;
 }
 
 interface Size {
@@ -3164,6 +3166,16 @@ export function layoutMap(
     // from the east AND west — Boulder in the route-cluster gauntlet).
     type Side = 'right' | 'left' | 'above' | 'below';
     const GAP = 3;
+    // Comfort buffer between any dot/label and the canvas edge — canvas-proportional
+    // (≈3% of the shorter axis, floored) so a big preview pane breathes more than a
+    // thumbnail. Used BOTH by the leader-column clamp (so a column never seats hard
+    // against the frame) and by the edge-clearance re-fit below (dots + inline
+    // labels). Keeping the two in sync is what stops the re-fit from fighting a
+    // column that would otherwise re-clamp to the edge each pass.
+    const POI_EDGE_CLEAR = Math.max(
+      20,
+      Math.round(Math.min(width, height) * 0.03)
+    );
     // Coincident-stack members (spiderfy) are labelled via a tidy leader-lined
     // COLUMN beside the cluster (see the cluster-column pass after the column
     // helpers below) — NOT radial inline labels, which pile up unreadably when
@@ -3279,11 +3291,14 @@ export function layoutMap(
       // colX; a left column anchors its end at colX (text spans colX-maxW..colX).
       const colX =
         side === 'right'
-          ? Math.min(right + COL_GAP, width - 2 - maxW)
-          : Math.max(left - COL_GAP, 2 + maxW);
+          ? Math.min(right + COL_GAP, width - POI_EDGE_CLEAR - maxW)
+          : Math.max(left - COL_GAP, POI_EDGE_CLEAR + maxW);
       const totalH = items.length * step;
       let startY = cyMid - totalH / 2;
-      startY = Math.max(2, Math.min(startY, height - totalH - 2));
+      startY = Math.max(
+        POI_EDGE_CLEAR,
+        Math.min(startY, height - totalH - POI_EDGE_CLEAR)
+      );
       return items.map((o, i) => {
         const rowCy = startY + i * step + step / 2;
         return {
@@ -3559,20 +3574,25 @@ export function layoutMap(
       else items.forEach((o) => pushHidden(o.p));
     }
 
-    // ── Label-aware edge clearance (re-fit, first pass → re-run) ──
-    // The tight fit (FIT_PAD = 24px) can seat a POI so near a side that its label
-    // (inline OR leader column) is forced off-canvas, jammed into the edge, or
-    // demoted to hover-only. Measure how far each POI label crosses an 8px
+    // ── Edge clearance (re-fit, first pass → re-run) ──
+    // The tight fit (FIT_PAD = 24px) can seat a POI — or its label (inline OR
+    // leader column) — hard against a side, off-canvas, or demoted to hover-only.
+    // Measure how far every POI dot AND every POI label crosses a comfort
     // clearance line on each of the four sides, reserve the deepest intrusion per
     // side as a band, and re-fit the whole map into the canvas MINUS those bands —
-    // the data slides inward and every label seats with ≥8px breathing room.
+    // the data (dots and labels together) slides inward so nothing hugs the frame.
+    // The clearance scales with the canvas (≈3% of the shorter axis, floored) so a
+    // big preview pane gets proportionally more breathing room than a thumbnail.
     // Asymmetric and "just enough": only the crowded sides zoom out, the rest stay
     // tight. A committed label's box is reconstructed from its baseline/anchor; a
     // still-hidden (hover-only) label is measured at its IDEAL seaward position
     // (its stored rect is clamped on-canvas and would read as no intrusion).
-    // Guarded by `_poiClearanceDone` to recurse exactly once.
-    if (!opts._poiClearanceDone && pois.length > 0) {
-      const EDGE_CLEAR = 8; // px comfort buffer between any label and the edge
+    // Re-measured and accumulated each pass until nothing intrudes, capped at
+    // `MAX_CLEARANCE_PASSES` so a pathologically small canvas can't loop forever.
+    const clearancePass = opts._poiClearancePass ?? 0;
+    const MAX_CLEARANCE_PASSES = 4;
+    if (clearancePass < MAX_CLEARANCE_PASSES && pois.length > 0) {
+      const EDGE_CLEAR = POI_EDGE_CLEAR; // shared with the leader-column clamp
       const capH = Math.floor(width * 0.3); // never starve the map for one wide name
       const capV = Math.floor(height * 0.3);
       const poiById2 = new Map(pois.map((p) => [p.id, p]));
@@ -3580,22 +3600,35 @@ export function layoutMap(
       let needRight = 0;
       let needTop = 0;
       let needBottom = 0;
+      // Dots first: a marker itself must clear every edge by the buffer, so a
+      // corner cluster is pulled bodily inward (its labels ride along).
+      // Top is measured against the canvas edge (y=0), NOT topPad: the title band
+      // (topPad) already separates content from the top, so a dot/label just under
+      // it is not "hugging the edge" — referencing topPad would shove every POI map
+      // down by the buffer for no reason.
+      for (const p of pois) {
+        needLeft = Math.max(needLeft, EDGE_CLEAR - (p.cx - p.r));
+        needRight = Math.max(needRight, p.cx + p.r + EDGE_CLEAR - width);
+        needTop = Math.max(needTop, EDGE_CLEAR - (p.cy - p.r));
+        needBottom = Math.max(needBottom, p.cy + p.r + EDGE_CLEAR - height);
+      }
       for (const l of labels) {
         if (l.poiId === undefined) continue;
         const p = poiById2.get(l.poiId);
         if (!p) continue;
-        if (l.hidden) {
-          // No on-canvas seat was found — reserve toward the dot's seaward edge so
-          // the re-fit opens room for a horizontal label there.
-          const { w } = labelInfo(p);
-          const reach = p.r + GAP + w;
-          if (p.cx >= width / 2)
-            needRight = Math.max(needRight, p.cx + reach + EDGE_CLEAR - width);
-          else needLeft = Math.max(needLeft, EDGE_CLEAR - (p.cx - reach));
-          continue;
-        }
-        // Visible label: reconstruct its box from baseline + anchor and measure how
-        // far it crosses each clearance line (negative = comfortably inside).
+        // A hover-only (hidden) label contributes nothing: a cluster that can't
+        // seat does so because of COLLISION at this zoom, not the edge (its column
+        // already self-clamps to POI_EDGE_CLEAR and stays on-canvas). Reserving for
+        // it would just over-shrink the map without ever un-hiding it.
+        if (l.hidden) continue;
+        // A visible leader-lined COLUMN/callout label already self-clamps to
+        // POI_EDGE_CLEAR from the frame (its colX/startY use the same buffer), so it
+        // never crosses the line — and measuring it would feed a runaway, since
+        // reserving more just lengthens its leader while it re-clamps to the edge.
+        // Only inline labels (no leader) ride the data and need the re-fit.
+        if (l.leader) continue;
+        // Visible inline label: reconstruct its box from baseline + anchor and
+        // measure how far it crosses each clearance line (negative = inside).
         const w = measureLegendText(l.text, FONT);
         const boxLeft =
           l.anchor === 'start'
@@ -3608,7 +3641,7 @@ export function layoutMap(
         const boxBottom = boxTop + poiLabH;
         needLeft = Math.max(needLeft, EDGE_CLEAR - boxLeft);
         needRight = Math.max(needRight, boxRight + EDGE_CLEAR - width);
-        needTop = Math.max(needTop, topPad + EDGE_CLEAR - boxTop);
+        needTop = Math.max(needTop, EDGE_CLEAR - boxTop);
         needBottom = Math.max(needBottom, boxBottom + EDGE_CLEAR - height);
       }
       needLeft = Math.min(Math.max(0, Math.ceil(needLeft)), capH);
@@ -3616,14 +3649,18 @@ export function layoutMap(
       needTop = Math.min(Math.max(0, Math.ceil(needTop)), capV);
       needBottom = Math.min(Math.max(0, Math.ceil(needBottom)), capV);
       if (needLeft >= 1 || needRight >= 1 || needTop >= 1 || needBottom >= 1) {
+        // ADD the residual intrusion to the band already reserved (the measured
+        // positions already reflect prior bands, so `need` is what's still over the
+        // line) and re-fit. Accumulating — not max — is what makes a too-tight
+        // first shift converge on the next pass instead of stalling.
         const prev = opts._calloutReserve;
-        const left = Math.max(prev?.left ?? 0, needLeft);
-        const right = Math.max(prev?.right ?? 0, needRight);
-        const top = Math.max(prev?.top ?? 0, needTop);
-        const bottom = Math.max(prev?.bottom ?? 0, needBottom);
+        const left = Math.min((prev?.left ?? 0) + needLeft, capH);
+        const right = Math.min((prev?.right ?? 0) + needRight, capH);
+        const top = Math.min((prev?.top ?? 0) + needTop, capV);
+        const bottom = Math.min((prev?.bottom ?? 0) + needBottom, capV);
         return layoutMap(resolved, data, size, {
           ...opts,
-          _poiClearanceDone: true,
+          _poiClearancePass: clearancePass + 1,
           _calloutReserve: {
             ...(left > 0 && { left }),
             ...(right > 0 && { right }),
