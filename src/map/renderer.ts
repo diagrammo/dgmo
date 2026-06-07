@@ -12,6 +12,7 @@ import {
   TITLE_Y,
 } from '../utils/title-constants';
 import { mix } from '../palettes/color-utils';
+import { measureText } from '../utils/text-measure';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
 import { mapLegendConfig, mapLegendGroups } from './legend-band';
@@ -522,6 +523,118 @@ export function renderMap(
         .attr('stroke-width', r.width)
         .attr('stroke-linecap', 'round')
         .attr('stroke-linejoin', 'round');
+    }
+  }
+
+  // ── Label clarity patch — repaint the clean region FILL under each POI label
+  // so the basemap line work beneath it (region borders, relief hachure, coast +
+  // river lines) dissolves where it would clutter the text. Crucially this is NOT
+  // a halo: the patch IS the same fill that already surrounds the label, so over
+  // plain land it is invisible and ONLY the crossing lines disappear — no white
+  // pad over flat colour. A blurred-blob mask feathers each patch into the map
+  // (soft edges, no hard rectangle). Sits above all basemap line work, below the
+  // dots / legs / labels. POI labels only; context/water labels keep their lines
+  // (they read as cartographic texture, not clutter). Applies to preview AND
+  // export so the static image matches what's on screen.
+  const patchLabels = layout.labels.filter(
+    (l) => l.poiId !== undefined && !l.hidden
+  );
+  if (patchLabels.length) {
+    const patchMaskId = 'dgmo-map-label-patch';
+    const patchBlurId = 'dgmo-map-label-patch-blur';
+    // Soft falloff so the patch dissolves into the surrounding basemap instead of
+    // ending on a hard edge. Tuned at the 11px label font.
+    defs
+      .append('filter')
+      .attr('id', patchBlurId)
+      .attr('x', '-50%')
+      .attr('y', '-50%')
+      .attr('width', '200%')
+      .attr('height', '200%')
+      .append('feGaussianBlur')
+      .attr('in', 'SourceGraphic')
+      .attr('stdDeviation', 2.5);
+    const patchMask = defs
+      .append('mask')
+      .attr('id', patchMaskId)
+      // userSpaceOnUse: the patch group's bbox is the whole basemap, but keep the
+      // mask region pinned to the canvas (parity with the water masks).
+      .attr('maskUnits', 'userSpaceOnUse')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', width)
+      .attr('height', height);
+    // White blobs = where the patch shows; the surrounding black hides it. Each
+    // blob is a SOLID rounded rect sized to the text bbox so the core fully hides
+    // the line work behind the glyphs; the blur (above) only feathers the outer
+    // edge into a gentle reveal. Solid core → if an engine drops the in-mask blur
+    // (some WebKit builds), it degrades to a clean stadium patch, never a halo.
+    const blobs = patchMask.append('g').attr('filter', `url(#${patchBlurId})`);
+    // Padded rects (incl. the blur reach) drive both the mask AND the region
+    // cull below, so the two never disagree.
+    const PAD = 8; // ≳ blur reach so culled regions can't lose a fringe
+    const blobRects: Array<{ x0: number; y0: number; x1: number; y1: number }> =
+      [];
+    for (const l of patchLabels) {
+      const multi = l.lines && l.lines.length > 1;
+      const tw = multi
+        ? Math.max(...l.lines!.map((s) => measureText(s, LABEL_FONT)))
+        : measureText(l.text, LABEL_FONT);
+      const th = multi ? l.lines!.length * (LABEL_FONT + 2) : LABEL_FONT;
+      // Anchor → blob centre x; cy nudged up from the text baseline to the glyph
+      // visual centre.
+      const cx =
+        l.anchor === 'start'
+          ? l.x + tw / 2
+          : l.anchor === 'end'
+            ? l.x - tw / 2
+            : l.x;
+      const cy = l.y - LABEL_FONT * 0.3;
+      const w = tw + 8;
+      const h = th + 6;
+      blobs
+        .append('rect')
+        .attr('x', cx - w / 2)
+        .attr('y', cy - h / 2)
+        .attr('width', w)
+        .attr('height', h)
+        .attr('rx', h / 2)
+        .attr('fill', 'white');
+      blobRects.push({
+        x0: cx - w / 2 - PAD,
+        y0: cy - h / 2 - PAD,
+        x1: cx + w / 2 + PAD,
+        y1: cy + h / 2 + PAD,
+      });
+    }
+    const gPatch = svg
+      .append('g')
+      .attr('class', 'dgmo-map-label-patch')
+      .attr('mask', `url(#${patchMaskId})`)
+      // Decorative cover — never a pointer target so region hover / name-on-hover
+      // reaches the real region paths beneath (WebKit hit-tests masked content).
+      .style('pointer-events', 'none');
+    // Redraw fills only (no stroke), in document order, but ONLY for regions
+    // whose bbox overlaps a label blob — the mask already hides everything else,
+    // so emitting the rest is pure SVG weight (matters on dense world maps). The
+    // kept regions reproduce the exact composite colour under each label, so the
+    // patch is seamless and the only visible change is the vanished line work.
+    for (const r of layout.regions) {
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
+      for (const ring of parsePathRings(r.d))
+        for (const [px, py] of ring) {
+          if (px < minX) minX = px;
+          if (px > maxX) maxX = px;
+          if (py < minY) minY = py;
+          if (py > maxY) maxY = py;
+        }
+      const hit = blobRects.some(
+        (b) => minX <= b.x1 && maxX >= b.x0 && minY <= b.y1 && maxY >= b.y0
+      );
+      if (hit) gPatch.append('path').attr('d', r.d).attr('fill', r.fill);
     }
   }
 
