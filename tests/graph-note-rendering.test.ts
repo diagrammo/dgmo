@@ -98,7 +98,7 @@ describe('graph notes — rendering markup', () => {
   });
 });
 
-describe('graph notes — layout (Strategy B)', () => {
+describe('graph notes — layout (float, no shape displacement)', () => {
   const noteAbsRect = (n: {
     x: number;
     y: number;
