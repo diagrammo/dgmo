@@ -2783,28 +2783,65 @@ export function layoutMap(
         !placedRegionRects.some((p) => rectsOverlap(rect, p));
       const fitsPois = (rect: LabelRect): boolean =>
         !poiObstacles.some((o) => rectsOverlap(rect, o));
-      let chosen: { text: string; valueLine?: string } | undefined;
-      for (const t of candidates) {
-        const nameRect = regionLabelRect(c[0], c[1], t);
-        if (valStr && stackW(t, valStr) <= boxW && stackH(true) <= boxH) {
-          const stackRect = regionLabelRect(c[0], c[1], t, valStr);
-          if (fitsRegions(stackRect) && fitsPois(nameRect)) {
-            chosen = { text: t, valueLine: valStr };
-            break;
+      // Try the centroid first (existing placement — unchanged when it fits),
+      // then a ring of offsets WITHIN the region's box so a label blocked at the
+      // centroid (typically a POI marker sitting on it — Dallas on Texas) is
+      // re-seated on open land of the SAME region rather than exiled to a far
+      // callout column. Off-centroid anchors are kept on the region's own fill
+      // (fillAt) so the label never drifts onto a neighbour or the sea.
+      // Centroid is always tried. The off-centroid re-seat ring is added ONLY for
+      // a region that carries a value — the point of seeking is to not lose the
+      // region's VALUE to a POI on its centroid. A valueless frame container
+      // (e.g. the state hosting a POI hub) keeps the old behaviour: it yields the
+      // spot to the POI rather than sprouting a re-seated name near the hub.
+      const seekAnchors: Array<{ x: number; y: number; guard: boolean }> = [
+        { x: c[0], y: c[1], guard: false },
+      ];
+      if (valStr) {
+        seekAnchors.push(
+          { x: c[0], y: c[1] + boxH * 0.26, guard: true },
+          { x: c[0], y: c[1] - boxH * 0.26, guard: true },
+          { x: c[0] + boxW * 0.26, y: c[1], guard: true },
+          { x: c[0] - boxW * 0.26, y: c[1], guard: true },
+          { x: c[0] + boxW * 0.22, y: c[1] + boxH * 0.22, guard: true },
+          { x: c[0] - boxW * 0.22, y: c[1] + boxH * 0.22, guard: true },
+          { x: c[0] + boxW * 0.22, y: c[1] - boxH * 0.22, guard: true },
+          { x: c[0] - boxW * 0.22, y: c[1] - boxH * 0.22, guard: true }
+        );
+      }
+      let chosen:
+        | { text: string; valueLine?: string; ax: number; ay: number }
+        | undefined;
+      for (const a of seekAnchors) {
+        if (a.guard && fillAt(a.x, a.y) !== r.fill) continue;
+        for (const t of candidates) {
+          const nameRect = regionLabelRect(a.x, a.y, t);
+          if (valStr && stackW(t, valStr) <= boxW && stackH(true) <= boxH) {
+            const stackRect = regionLabelRect(a.x, a.y, t, valStr);
+            if (fitsRegions(stackRect) && fitsPois(nameRect)) {
+              chosen = { text: t, valueLine: valStr, ax: a.x, ay: a.y };
+              break;
+            }
+          }
+          if (labelW(t) <= boxW && labelH <= boxH) {
+            if (fitsRegions(nameRect) && fitsPois(nameRect)) {
+              chosen = { text: t, ax: a.x, ay: a.y };
+              break;
+            }
           }
         }
-        if (labelW(t) <= boxW && labelH <= boxH) {
-          if (fitsRegions(nameRect) && fitsPois(nameRect)) {
-            chosen = { text: t };
-            break;
-          }
-        }
+        if (chosen) break;
       }
       if (chosen === undefined) {
-        // Couldn't seat the label in place. If the region carries a value, defer
-        // it to the margin callout column (a tiny region — RI/DE — surfaces its
-        // value there rather than vanishing). `r.label` is the full name.
-        if (valStr && r.label !== undefined) {
+        // No spot found anywhere on the region. Route to the margin callout
+        // column ONLY when the region is genuinely too small to carry even its
+        // bare name in its own box (a tiny state — RI/DE). A big region merely
+        // boxed-in by POIs/other labels is NOT exiled to a far column (that
+        // produced the cross-map leaders for Texas/Illinois/Georgia) — it drops.
+        const tooSmall = candidates.every(
+          (t) => labelW(t) > boxW || labelH > boxH
+        );
+        if (valStr && tooSmall && r.label !== undefined) {
           regionCallouts.push({
             name: r.label,
             value: valStr,
@@ -2816,11 +2853,16 @@ export function layoutMap(
         }
         continue;
       }
-      const rRect = regionLabelRect(c[0], c[1], chosen.text, chosen.valueLine);
+      const rRect = regionLabelRect(
+        chosen.ax,
+        chosen.ay,
+        chosen.text,
+        chosen.valueLine
+      );
       placedRegionRects.push(rRect);
       pushRegionLabel(
-        c[0],
-        c[1],
+        chosen.ax,
+        chosen.ay,
         chosen.text,
         r.fill,
         r.lineNumber,

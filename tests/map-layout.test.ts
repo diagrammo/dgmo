@@ -1463,3 +1463,32 @@ describe('layout — region value survives a nearby POI (combo map)', () => {
     expect(tx!.valueLine).toBe('72');
   });
 });
+
+describe('layout — POI-blocked valued region re-seats on its own land (not a far callout)', () => {
+  it('places Texas/Illinois/Georgia labels in-place when a POI sits on each centroid', async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    const r = layoutMap(
+      resolveMap(
+        parseMap(
+          'map Distribution\nregion-metric Demand\nCalifornia value: 90\nTexas value: 72\nIllinois value: 55\nGeorgia value: 48\npoi Dallas as south value: 320\npoi Chicago as central value: 280\npoi Atlanta as east value: 210'
+        ),
+        data
+      ),
+      data,
+      { width: 1020, height: 660 },
+      { palette: P, isDark: false }
+    );
+    // Each big POI-blocked state keeps its value, placed in-place (no callout dot,
+    // no leader) — re-seated on its own land away from the marker.
+    for (const name of ['Texas', 'Illinois', 'Georgia']) {
+      const l = r.labels.find((x) => x.text === name);
+      expect(l, name).toBeDefined();
+      expect(l!.valueLine, name).toBeDefined();
+      expect(l!.calloutDot, name).toBeUndefined();
+      expect(l!.leader, name).toBeUndefined();
+    }
+    // No region in this diagram is exiled to the margin callout column.
+    expect(r.labels.some((l) => l.calloutDot)).toBe(false);
+  });
+});
