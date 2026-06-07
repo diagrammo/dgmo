@@ -25,6 +25,11 @@ import {
 
 type GSelection = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
+// Subdued stroke styling for the note box, fold, and leader line — thin and
+// a little lighter so the annotation stays quiet next to the diagram.
+const NOTE_STROKE_WIDTH = 0.6;
+const NOTE_STROKE_OPACITY = 0.6;
+
 export interface NoteRect {
   /** Left edge of the box, in the parent group's coordinate space. */
   readonly x: number;
@@ -72,7 +77,8 @@ export function renderNoteConnector(
     .attr('x2', x2)
     .attr('y2', y2)
     .attr('stroke', palette.textMuted)
-    .attr('stroke-width', 1)
+    .attr('stroke-width', NOTE_STROKE_WIDTH)
+    .attr('stroke-opacity', NOTE_STROKE_OPACITY)
     .attr('class', 'note-connector')
     .style('pointer-events', 'none');
 }
@@ -169,7 +175,8 @@ export function renderNoteBox(
     )
     .attr('fill', fill)
     .attr('stroke', palette.textMuted)
-    .attr('stroke-width', 0.75)
+    .attr('stroke-width', NOTE_STROKE_WIDTH)
+    .attr('stroke-opacity', NOTE_STROKE_OPACITY)
     .attr('class', 'note-box');
   if (!interactive) boxPath.style('pointer-events', 'none');
 
@@ -186,7 +193,8 @@ export function renderNoteBox(
     )
     .attr('fill', 'none')
     .attr('stroke', palette.textMuted)
-    .attr('stroke-width', 0.75)
+    .attr('stroke-width', NOTE_STROKE_WIDTH)
+    .attr('stroke-opacity', NOTE_STROKE_OPACITY)
     .attr('class', 'note-fold')
     .style('pointer-events', 'none');
 
