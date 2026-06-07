@@ -116,11 +116,16 @@ export function noteConnectorPoints(
   }
 }
 
-/** Resvg-safe note fill — mirrors the sequence renderer. */
+/** Faded-yellow note fill (resvg-safe — `mix`, never CSS color-mix). */
 export function noteBoxFill(palette: PaletteColors, isDark: boolean): string {
   return isDark
-    ? mix(palette.surface, palette.bg, 50)
-    : mix(palette.bg, palette.surface, 15);
+    ? mix(palette.colors.yellow, palette.bg, 24)
+    : mix(palette.colors.yellow, palette.bg, 16);
+}
+
+/** Note accent (border) colour — the palette's yellow. */
+export function noteAccent(palette: PaletteColors): string {
+  return palette.colors.yellow;
 }
 
 /**
@@ -174,7 +179,7 @@ export function renderNoteBox(
       ].join(' ')
     )
     .attr('fill', fill)
-    .attr('stroke', palette.textMuted)
+    .attr('stroke', noteAccent(palette))
     .attr('stroke-width', NOTE_STROKE_WIDTH)
     .attr('stroke-opacity', NOTE_STROKE_OPACITY)
     .attr('class', 'note-box');
@@ -192,7 +197,7 @@ export function renderNoteBox(
       ].join(' ')
     )
     .attr('fill', 'none')
-    .attr('stroke', palette.textMuted)
+    .attr('stroke', noteAccent(palette))
     .attr('stroke-width', NOTE_STROKE_WIDTH)
     .attr('stroke-opacity', NOTE_STROKE_OPACITY)
     .attr('class', 'note-fold')
@@ -291,7 +296,7 @@ export function renderNoteBadge(
       ].join(' ')
     )
     .attr('fill', fill)
-    .attr('stroke', palette.textMuted)
+    .attr('stroke', noteAccent(palette))
     .attr('stroke-width', 0.55)
     .attr('class', 'note-badge-bubble');
 
