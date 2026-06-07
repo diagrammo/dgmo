@@ -2811,7 +2811,8 @@ route Miami style: arc
   - **Bare ISO code** (terse): `US-GA value: 5` → the state, `GE value: 5` → the country. Codes resolve directly and never warn.
   - **Name + scope** (readable): `Georgia US value: 5` → the state, `Georgia GE value: 5` → the country.
   - The redundant `Georgia US-GA` still works but isn't needed (a mismatched code like `Georgia US-CA` is rejected). A bare ambiguous `Georgia` follows the inferred US-scope signal and warns with both fixes named.
-- Positional coordinates are the escape hatch for anything missing/ambiguous.
+- **IATA airport codes** resolve to airport coordinates — `poi JFK`, `route JFK -> LAX` — with no new syntax (large international hubs + all US scheduled-commercial airports). Case-insensitive (`jfk`/`JFK`). Airports are the **lowest-precedence** identifier: a token that is both a city and a code resolves to the **city** (`Ufa` → the city, not UFA airport), with a hint naming the airport. Resolution is by **code only** (never by airport name); the POI label is the typed code. An unknown three-letter code errors with an `as <CODE>` coordinates hint.
+- Positional coordinates are the escape hatch for anything missing/ambiguous (including forcing an airport over a colliding city: `poi 54.56 55.87 as UFA`).
 
 ### Directives & reserved keys
 

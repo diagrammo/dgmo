@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Map: IATA airport codes resolve as place identifiers.** `poi JFK`,
+  `route JFK -> LAX` and any three-letter IATA code now resolve to airport
+  coordinates through the existing name-lookup path — no new syntax, no parser
+  change. Coverage is large international hubs + all US scheduled-commercial
+  airports, shipped as a separate optional `airports.json` data asset
+  (OurAirports, public domain; ~38 KB gz, loaded only for map diagrams).
+  Resolution is case-insensitive and **by code only** (airports never resolve by
+  name); the POI label is the typed code. Airports are the lowest-precedence
+  identifier — a token that is both a city and a code resolves to the **city**
+  (with a non-blocking shadow hint naming the airport), so existing maps are
+  unaffected. Editor completion lists airport codes as a labeled group below
+  cities, with optional scope-aware ranking. Unknown three-letter codes emit
+  `E_MAP_UNKNOWN_AIRPORT_CODE` with an `as <CODE>` coordinates hint.
+
 ## [0.26.0] - 2026-06-04
 
 ### Changed
