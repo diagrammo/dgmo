@@ -3,7 +3,6 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
-import * as d3Shape from 'd3-shape';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import { fitDiagramToCanvas } from '../utils/fit-canvas';
 import { FONT_FAMILY } from '../fonts';
@@ -13,6 +12,7 @@ import type { ParsedGraph, GraphShape } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseFlowchart } from './flowchart-parser';
 import { layoutGraph } from './layout';
+import { edgeSplinePath } from './edge-spline';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -436,16 +436,6 @@ function renderNodeShape(
 }
 
 // ============================================================
-// Edge path generator
-// ============================================================
-
-const lineGenerator = d3Shape
-  .line<{ x: number; y: number }>()
-  .x((d) => d.x)
-  .y((d) => d.y)
-  .curve(d3Shape.curveBasis);
-
-// ============================================================
 // Main renderer
 // ============================================================
 
@@ -616,7 +606,7 @@ export function renderFlowchart(
     const edgeColor = palette.textMuted;
     const markerId = 'fc-arrow';
 
-    const pathD = lineGenerator(edge.points);
+    const pathD = edgeSplinePath(edge.points);
     if (pathD) {
       edgeG
         .append('path')
