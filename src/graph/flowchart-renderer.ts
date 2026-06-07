@@ -20,7 +20,11 @@ import {
 } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
 import { measureText } from '../utils/text-measure';
-import { renderNoteBox, renderNoteConnector } from '../utils/note-box';
+import {
+  renderNoteBox,
+  renderNoteConnector,
+  noteConnectorPoints,
+} from '../utils/note-box';
 
 // ============================================================
 // Constants
@@ -721,32 +725,10 @@ export function renderFlowchart(
       .text(node.label);
 
     if (hasNote && node.note) {
-      // Solid tether from the shape edge to the floated note. Horizontal
-      // for top-down graphs (note on the right), vertical for left-right
-      // graphs (note below).
-      if (graph.direction === 'LR') {
-        const cx = Math.max(
-          node.note.x,
-          Math.min(0, node.note.x + node.note.width)
-        );
-        renderNoteConnector(
-          nodeG as GSelection,
-          cx,
-          node.height / 2,
-          cx,
-          node.note.y,
-          palette
-        );
-      } else {
-        renderNoteConnector(
-          nodeG as GSelection,
-          node.width / 2,
-          0,
-          node.note.x,
-          node.note.y + node.note.height / 2,
-          palette
-        );
-      }
+      // Solid tether from the shape edge to the floated note, on whichever
+      // side the collision-aware placement chose.
+      const [cx1, cy1, cx2, cy2] = noteConnectorPoints(node, node.note);
+      renderNoteConnector(nodeG as GSelection, cx1, cy1, cx2, cy2, palette);
       renderNoteBox(
         nodeG as GSelection,
         {

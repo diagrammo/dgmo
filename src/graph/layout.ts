@@ -10,12 +10,16 @@ import { resolveNotes } from './notes';
 import { noteBoxSize, NOTE_GAP } from '../utils/note-box';
 import type { WrappedDescLine } from '../utils/wrapped-desc';
 
+export type NoteSide = 'above' | 'below' | 'left' | 'right';
+
 /** A note box positioned relative to its anchor node's center. */
 export interface NoteLayout {
   readonly x: number;
   readonly y: number;
   readonly width: number;
   readonly height: number;
+  /** Which side of the node the box sits on (drives the connector). */
+  readonly side: NoteSide;
   readonly lines: readonly WrappedDescLine[];
   readonly lineNumber: number;
   readonly endLineNumber: number;
@@ -209,9 +213,121 @@ export function layoutGraph(
     ? new Set(collapsedChildCounts.keys())
     : new Set<string>();
 
-  const layoutNodes: LayoutNode[] = allNodes.map((node): LayoutNode => {
+  // Positioned nodes (no notes yet) — feeds collision-aware placement.
+  const basePositioned = allNodes.map((node) => {
     const pos = g.node(node.id);
+    return { node, x: pos.x, y: pos.y, width: pos.width, height: pos.height };
+  });
+
+  // ── Collision-aware note placement ──────────────────────────
+  // The note floats beside its node WITHOUT moving it. Try the default
+  // side (right for top-down, below for left-right); if it would overlap
+  // another shape flip to the opposite side; if both collide, push the
+  // default side outward past the blockers. Each placed note then becomes
+  // an obstacle for later notes, so notes keep a comfortable distance from
+  // every shape and from each other.
+  type Rect = { left: number; top: number; right: number; bottom: number };
+  const NOTE_CLEAR = 14;
+  const intersects = (a: Rect, b: Rect, pad: number): boolean =>
+    !(
+      a.right + pad <= b.left ||
+      b.right + pad <= a.left ||
+      a.bottom + pad <= b.top ||
+      b.bottom + pad <= a.top
+    );
+  const occupied: Rect[] = basePositioned.map((p) => ({
+    left: p.x - p.width / 2,
+    top: p.y - p.height / 2,
+    right: p.x + p.width / 2,
+    bottom: p.y + p.height / 2,
+  }));
+
+  const noteRects = new Map<string, { rect: Rect; side: NoteSide }>();
+  for (const p of basePositioned) {
+    const ng = noteGeoms.get(p.node.id);
+    if (!ng) continue;
+    const cx = p.x;
+    const cy = p.y;
+    const nodeLeft = cx - p.width / 2;
+    const nodeRight = cx + p.width / 2;
+    const nodeTop = cy - p.height / 2;
+    const nodeBottom = cy + p.height / 2;
+    const { noteW, noteH } = ng;
+
+    const rectFor = (side: NoteSide): Rect => {
+      switch (side) {
+        case 'right': {
+          const left = nodeRight + NOTE_GAP;
+          const top = cy - noteH / 2;
+          return { left, top, right: left + noteW, bottom: top + noteH };
+        }
+        case 'left': {
+          const right = nodeLeft - NOTE_GAP;
+          const top = cy - noteH / 2;
+          return { left: right - noteW, top, right, bottom: top + noteH };
+        }
+        case 'below': {
+          const left = cx - noteW / 2;
+          const top = nodeBottom + NOTE_GAP;
+          return { left, top, right: left + noteW, bottom: top + noteH };
+        }
+        case 'above':
+        default: {
+          const left = cx - noteW / 2;
+          const bottom = nodeTop - NOTE_GAP;
+          return { left, top: bottom - noteH, right: left + noteW, bottom };
+        }
+      }
+    };
+
+    const order: NoteSide[] =
+      graph.direction === 'LR' ? ['below', 'above'] : ['right', 'left'];
+
+    let chosen: { rect: Rect; side: NoteSide } | null = null;
+    for (const side of order) {
+      const rect = rectFor(side);
+      if (!occupied.some((o) => intersects(rect, o, NOTE_CLEAR))) {
+        chosen = { rect, side };
+        break;
+      }
+    }
+
+    if (!chosen) {
+      // Both sides blocked — push the default side outward past blockers.
+      const side = order[0]!;
+      let rect = rectFor(side);
+      const axisIsY = side === 'above' || side === 'below';
+      const outward = side === 'below' || side === 'right' ? 1 : -1;
+      for (let guard = 0; guard < 50; guard++) {
+        const blockers = occupied.filter((o) =>
+          intersects(rect, o, NOTE_CLEAR)
+        );
+        if (blockers.length === 0) break;
+        if (axisIsY && outward > 0) {
+          const top = Math.max(...blockers.map((b) => b.bottom)) + NOTE_CLEAR;
+          rect = { ...rect, top, bottom: top + noteH };
+        } else if (axisIsY) {
+          const bottom = Math.min(...blockers.map((b) => b.top)) - NOTE_CLEAR;
+          rect = { ...rect, bottom, top: bottom - noteH };
+        } else if (outward > 0) {
+          const left = Math.max(...blockers.map((b) => b.right)) + NOTE_CLEAR;
+          rect = { ...rect, left, right: left + noteW };
+        } else {
+          const right = Math.min(...blockers.map((b) => b.left)) - NOTE_CLEAR;
+          rect = { ...rect, right, left: right - noteW };
+        }
+      }
+      chosen = { rect, side };
+    }
+
+    occupied.push(chosen.rect);
+    noteRects.set(p.node.id, chosen);
+  }
+
+  const layoutNodes: LayoutNode[] = basePositioned.map((p): LayoutNode => {
+    const node = p.node;
     const ng = noteGeoms.get(node.id);
+    const placed = noteRects.get(node.id);
     return {
       id: node.id,
       label: node.label,
@@ -219,36 +335,24 @@ export function layoutGraph(
       ...(node.color !== undefined && { color: node.color }),
       ...(node.group !== undefined && { group: node.group }),
       lineNumber: node.lineNumber,
-      x: pos.x,
-      y: pos.y,
-      width: pos.width,
-      height: pos.height,
-      ...(ng && {
-        // Local coords relative to the node center (translate origin). The
-        // note floats into the rank-gap direction so it lands beside the
-        // flow, not across it: to the RIGHT for top-down graphs, BELOW for
-        // left-right graphs. The shape itself is never moved.
-        note:
-          graph.direction === 'LR'
-            ? {
-                x: -pos.width / 2,
-                y: pos.height / 2 + NOTE_GAP,
-                width: ng.noteW,
-                height: ng.noteH,
-                lines: ng.lines,
-                lineNumber: ng.lineNumber,
-                endLineNumber: ng.endLineNumber,
-              }
-            : {
-                x: pos.width / 2 + NOTE_GAP,
-                y: -ng.noteH / 2,
-                width: ng.noteW,
-                height: ng.noteH,
-                lines: ng.lines,
-                lineNumber: ng.lineNumber,
-                endLineNumber: ng.endLineNumber,
-              },
-      }),
+      x: p.x,
+      y: p.y,
+      width: p.width,
+      height: p.height,
+      ...(ng &&
+        placed && {
+          // Local coords relative to the node center (translate origin).
+          note: {
+            x: placed.rect.left - p.x,
+            y: placed.rect.top - p.y,
+            width: ng.noteW,
+            height: ng.noteH,
+            side: placed.side,
+            lines: ng.lines,
+            lineNumber: ng.lineNumber,
+            endLineNumber: ng.endLineNumber,
+          },
+        }),
     };
   });
 
@@ -342,37 +446,74 @@ export function layoutGraph(
     }
   }
 
-  // Compute total diagram dimensions
-  let totalWidth = 0;
-  let totalHeight = 0;
+  // Content bounding box over nodes, their (floated) notes, and groups.
+  // Notes placed above/left of a node can land at negative coordinates;
+  // when they do, everything is shifted so nothing clips on export. Edges
+  // are intentionally excluded (matching the prior bounds behavior) so
+  // un-annotated layouts are byte-for-byte unchanged.
+  let bbMinX = Infinity;
+  let bbMinY = Infinity;
+  let bbMaxX = -Infinity;
+  let bbMaxY = -Infinity;
+  const extend = (l: number, t: number, r: number, b: number): void => {
+    if (l < bbMinX) bbMinX = l;
+    if (t < bbMinY) bbMinY = t;
+    if (r > bbMaxX) bbMaxX = r;
+    if (b > bbMaxY) bbMaxY = b;
+  };
   for (const node of layoutNodes) {
-    const right = node.x + node.width / 2;
-    const bottom = node.y + node.height / 2;
-    if (right > totalWidth) totalWidth = right;
-    if (bottom > totalHeight) totalHeight = bottom;
-    // Floated notes live outside the node extent — expand bounds so the
-    // box is never clipped on export (the shape's position is untouched).
+    extend(
+      node.x - node.width / 2,
+      node.y - node.height / 2,
+      node.x + node.width / 2,
+      node.y + node.height / 2
+    );
     if (node.note) {
-      const noteRight = node.x + node.note.x + node.note.width;
-      const noteBottom = node.y + node.note.y + node.note.height;
-      if (noteRight > totalWidth) totalWidth = noteRight;
-      if (noteBottom > totalHeight) totalHeight = noteBottom;
+      extend(
+        node.x + node.note.x,
+        node.y + node.note.y,
+        node.x + node.note.x + node.note.width,
+        node.y + node.note.y + node.note.height
+      );
     }
   }
   for (const group of layoutGroups) {
-    const right = group.x + group.width;
-    const bottom = group.y + group.height;
-    if (right > totalWidth) totalWidth = right;
-    if (bottom > totalHeight) totalHeight = bottom;
+    extend(group.x, group.y, group.x + group.width, group.y + group.height);
   }
-  // Add margin
-  totalWidth += 40;
-  totalHeight += 40;
+  if (!Number.isFinite(bbMinX)) {
+    bbMinX = 0;
+    bbMinY = 0;
+    bbMaxX = 0;
+    bbMaxY = 0;
+  }
+
+  // Shift only when content runs off the top/left (note placed above/left).
+  const SHIFT_MARGIN = 20;
+  const shiftX = bbMinX < 0 ? SHIFT_MARGIN - bbMinX : 0;
+  const shiftY = bbMinY < 0 ? SHIFT_MARGIN - bbMinY : 0;
+
+  const shifted = shiftX !== 0 || shiftY !== 0;
+  const finalNodes = shifted
+    ? layoutNodes.map((n) => ({ ...n, x: n.x + shiftX, y: n.y + shiftY }))
+    : layoutNodes;
+  const finalEdges = shifted
+    ? layoutEdges.map((e) => ({
+        ...e,
+        points: e.points.map((pt) => ({ x: pt.x + shiftX, y: pt.y + shiftY })),
+      }))
+    : layoutEdges;
+  const finalGroups = shifted
+    ? layoutGroups.map((gr) => ({ ...gr, x: gr.x + shiftX, y: gr.y + shiftY }))
+    : layoutGroups;
+
+  // Add margin (matches prior behavior: max-edge + 40).
+  const totalWidth = bbMaxX + shiftX + 40;
+  const totalHeight = bbMaxY + shiftY + 40;
 
   return {
-    nodes: layoutNodes,
-    edges: layoutEdges,
-    groups: layoutGroups,
+    nodes: finalNodes,
+    edges: finalEdges,
+    groups: finalGroups,
     width: totalWidth,
     height: totalHeight,
   };

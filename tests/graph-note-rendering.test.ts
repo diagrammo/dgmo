@@ -176,6 +176,51 @@ describe('graph notes — layout (float, no shape displacement)', () => {
     expect(n.note!.x).toBeCloseTo(n.width / 2 + NOTE_GAP, 5);
   });
 
+  // Collision-aware placement: a note never overlaps another node's box,
+  // flipping to the opposite side (or pushing out) when the default side
+  // is blocked. Regression for "Wait" dropping its note onto "Give Chase".
+  it('keeps notes clear of other shapes (collision-aware placement)', () => {
+    const layout = layoutGraph(
+      parseFlowchart(
+        [
+          'flowchart',
+          'direction-lr',
+          '(Spot) -> <Wind?>',
+          '  -nay-> [Wait] -> <Wind?>',
+          '  -aye-> [Chase] -> [Board]',
+          'note Wait patience the wind always turns eventually',
+          'note Chase close the gap before dusk falls',
+        ].join('\n')
+      )
+    );
+    const nodeRect = (n: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }) => ({
+      left: n.x - n.width / 2,
+      top: n.y - n.height / 2,
+      right: n.x + n.width / 2,
+      bottom: n.y + n.height / 2,
+    });
+    const annotated = layout.nodes.filter((n) => n.note);
+    expect(annotated.length).toBe(2);
+    for (const a of annotated) {
+      const r = noteAbsRect(a);
+      for (const other of layout.nodes) {
+        if (other.id === a.id) continue;
+        const o = nodeRect(other);
+        const overlap =
+          r.right > o.left &&
+          o.right > r.left &&
+          r.bottom > o.top &&
+          o.bottom > r.top;
+        expect(overlap).toBe(false);
+      }
+    }
+  });
+
   // AC8
   it('no-notes drops the note entirely (no box, layout unchanged) (AC8)', () => {
     const annotated = layoutGraph(

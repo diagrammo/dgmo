@@ -70,6 +70,39 @@ export function renderNoteConnector(
     .style('pointer-events', 'none');
 }
 
+/**
+ * Connector endpoints `[x1, y1, x2, y2]` (node-center-local) from the
+ * shape edge to the note's near edge, for the side the note sits on.
+ */
+export function noteConnectorPoints(
+  node: { width: number; height: number },
+  note: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    side: 'above' | 'below' | 'left' | 'right';
+  }
+): [number, number, number, number] {
+  const clampX = Math.max(note.x, Math.min(0, note.x + note.width));
+  switch (note.side) {
+    case 'right':
+      return [node.width / 2, 0, note.x, note.y + note.height / 2];
+    case 'left':
+      return [
+        -node.width / 2,
+        0,
+        note.x + note.width,
+        note.y + note.height / 2,
+      ];
+    case 'below':
+      return [clampX, node.height / 2, clampX, note.y];
+    case 'above':
+    default:
+      return [clampX, -node.height / 2, clampX, note.y + note.height];
+  }
+}
+
 /** Resvg-safe note fill — mirrors the sequence renderer. */
 export function noteBoxFill(palette: PaletteColors, isDark: boolean): string {
   return isDark
