@@ -823,8 +823,9 @@ export function buildMapProjection(
   // 50m/110m — visibly coarser than the 10m states. When the NA-clipped 10m
   // assets are present, swap them in so neighbours (Canada/Mexico) and the Great
   // Lakes match the states' resolution. Falls back to the world tiers otherwise.
-  // Crisp NA assets apply to BOTH the national albers-usa view AND a regional
-  // US mercator view (POI-only region framing — e.g. a single state). A
+  // Crisp NA assets apply to BOTH the national albers-usa view AND a regional US
+  // mercator view (POI-only region framing — e.g. a single state — OR a compact
+  // region/choropleth that auto-zooms; map-us-subnational-zoom, both mercator). A
   // US-oriented mercator frame is sub-world and entirely within North America by
   // construction, so the NA-clipped 10m land/lakes fit it; the bbox guard below
   // still keeps non-NA countries on world geometry. Excludes equirectangular
@@ -2622,6 +2623,18 @@ export function layoutMap(
   const regionValueStr = (value: number | undefined): string | undefined =>
     showRegionValues && value !== undefined ? compactNumber(value) : undefined;
   const isCompact = width < COMPACT_WIDTH_PX;
+  // Zoomed sub-national US choropleth (map-us-subnational-zoom): a US-states
+  // mercator view with the score ramp active. Here a cramped state (NH, RI, CT,
+  // NJ, DE) should NOT degrade to its 2-letter abbreviation — the user reads the
+  // abbreviation poorly and a stray hover-name then steps on it. Instead it keeps
+  // its FULL name and, if that won't fit in place, takes a leader-lined margin
+  // callout (full name + value). Only a handful of states are in frame at this
+  // zoom, so the callout column stays short. National (albers) maps keep the
+  // abbreviation cascade — 50 full-name callouts would be unreadable.
+  const usChoroplethZoom =
+    resolved.projection === 'mercator' &&
+    resolved.basemaps.subdivisions.includes('us-states') &&
+    activeIsScore;
   const LABEL_PADX = 6;
   const LABEL_PADY = 3;
   // The value line is ~0.82× the name size; a hair of vertical gap separates them.
@@ -2727,7 +2740,12 @@ export function layoutMap(
         // "California" framing a US cloud-regions map) never degrades to the
         // 2-letter code to squeeze past its own POIs — it stays full or yields
         // entirely (the post-POI guard below hides it on collision).
-        const abbrev = isUsState ? r.id.replace(/^US-/, '') : undefined;
+        // On a zoomed US choropleth, drop the abbreviation entirely (full name or
+        // a leader callout — never "NH"). Elsewhere the full → abbrev → hide
+        // cascade stands (compact tries abbrev first; a POI container never
+        // abbreviates).
+        const abbrev =
+          isUsState && !usChoroplethZoom ? r.id.replace(/^US-/, '') : undefined;
         const candidates =
           abbrev !== undefined
             ? isCompact
@@ -2773,6 +2791,22 @@ export function layoutMap(
       w: 2 * (p.r + POI_LABEL_PAD),
       h: 2 * (p.r + POI_LABEL_PAD),
     }));
+    // Ocean side of the frame (zoomed US choropleth callouts column there). Sample
+    // a vertical strip just inside each side edge; the side with more open water
+    // hosts the callout column, so leaders run over sea, not across the interior.
+    const waterSideOf = (): 'left' | 'right' => {
+      let leftHits = 0;
+      let rightHits = 0;
+      const lx = width * 0.06;
+      const rx = width * 0.94;
+      for (let i = 1; i < 12; i++) {
+        const y = topPad + ((height - topPad) * i) / 12;
+        if (fillAt(lx, y) === water) leftHits++;
+        if (fillAt(rx, y) === water) rightHits++;
+      }
+      return rightHits >= leftHits ? 'right' : 'left';
+    };
+    const calloutSide = usChoroplethZoom ? waterSideOf() : undefined;
     for (const { r, c, boxW, boxH, candidates } of entries) {
       const valStr = regionValueStr(r.value);
       // A region hugs a canvas edge if it sits within a short leader's reach of
@@ -2786,7 +2820,15 @@ export function layoutMap(
       const rsv = opts._calloutReserve;
       const rEdge = rsv?.right ? width - rsv.right : width;
       const lEdge = rsv?.left ?? 0;
-      const nearEdge = c[0] >= rEdge - maxLeader || c[0] <= lEdge + maxLeader;
+      // On a zoomed US choropleth a cramped state always takes a margin callout (a
+      // full-name + value chip in the ocean-side column, leader from its centroid)
+      // rather than degrading to an abbreviation — only a handful of states are in
+      // frame, so the column stays short. Otherwise a callout is reserved for
+      // edge-hugging regions so no leader runs across a wide view.
+      const nearEdge =
+        usChoroplethZoom ||
+        c[0] >= rEdge - maxLeader ||
+        c[0] <= lEdge + maxLeader;
       // A tiny region hugging a canvas edge — one whose FULL name won't fit its
       // own box (RI/CT/NH/MA on a US map) — goes straight to a clean margin
       // column: a tidy full-name list reads far better than crammed 2-letter
@@ -2978,8 +3020,21 @@ export function layoutMap(
         );
         return Math.max(130, Math.min(maxChipW + 96, Math.floor(width * 0.3)));
       };
-      const right = regionCallouts.filter((rc) => rc.cx >= width / 2);
-      const left = regionCallouts.filter((rc) => rc.cx < width / 2);
+      // On a zoomed US choropleth all callouts share the ocean-side column (leaders
+      // over sea, never across the interior); elsewhere split by the side each
+      // region leans toward.
+      const right =
+        calloutSide === 'right'
+          ? regionCallouts
+          : calloutSide === 'left'
+            ? []
+            : regionCallouts.filter((rc) => rc.cx >= width / 2);
+      const left =
+        calloutSide === 'left'
+          ? regionCallouts
+          : calloutSide === 'right'
+            ? []
+            : regionCallouts.filter((rc) => rc.cx < width / 2);
       const leftPx = bandFor(left);
       const rightPx = bandFor(right);
       return layoutMap(resolved, data, size, {
@@ -3054,8 +3109,18 @@ export function layoutMap(
           });
         });
       };
-      const right = regionCallouts.filter((rc) => rc.cx >= width / 2);
-      const left = regionCallouts.filter((rc) => rc.cx < width / 2);
+      const right =
+        calloutSide === 'right'
+          ? regionCallouts
+          : calloutSide === 'left'
+            ? []
+            : regionCallouts.filter((rc) => rc.cx >= width / 2);
+      const left =
+        calloutSide === 'left'
+          ? regionCallouts
+          : calloutSide === 'right'
+            ? []
+            : regionCallouts.filter((rc) => rc.cx < width / 2);
       placeColumn(right, 'right', reserveInfo?.right ?? 150);
       placeColumn(left, 'left', reserveInfo?.left ?? 150);
     }

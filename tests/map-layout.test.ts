@@ -300,9 +300,13 @@ describe('layout — albers-usa neighbour frame (map-us-orientation-north-americ
   it('a conus-interior POI does NOT materially shift the US frame', () => {
     // A POI already inside the contiguous-48 adds nothing to the expanded fit —
     // the US framing must be unchanged from the POI-free map.
-    const base = lay('map\nCalifornia value: 1\nOregon value: 2');
+    // `locale US` pins the national albers frame (without it a compact CA+OR map
+    // auto-zooms to conic — map-us-subnational-zoom — where an interior POI would
+    // legitimately shift the data-fit extent). National framing fits the CONUS
+    // states, so an interior POI must not move it.
+    const base = lay('map\nlocale US\nCalifornia value: 1\nOregon value: 2');
     const withPoi = lay(
-      'map\nCalifornia value: 1\nOregon value: 2\npoi 40 -100 as mid'
+      'map\nlocale US\nCalifornia value: 1\nOregon value: 2\npoi 40 -100 as mid'
     );
     const caBase = base.regions.find((x) => x.id === 'US-CA')!;
     const caPoi = withPoi.regions.find((x) => x.id === 'US-CA')!;
@@ -314,12 +318,18 @@ describe('layout — albers-usa neighbour frame (map-us-orientation-north-americ
     // canvas. Exercises the layout.ts worldLayer.get(iso) expansion path. (The
     // hand-built rect fixture's ambiguous polygon winding makes geoBounds global,
     // so we assert the fit-target membership directly rather than projected size.)
+    // `locale US` pins the national albers frame so both sides share the conus
+    // fit target (a compact CA map auto-zooms to conic otherwise — the neighbour-
+    // fit expansion is an albers-only path).
     const withMx = buildMapProjection(
-      resolveMap(parseMap('map\nCalifornia value: 1\nMexico value: 2'), DATA),
+      resolveMap(
+        parseMap('map\nlocale US\nCalifornia value: 1\nMexico value: 2'),
+        DATA
+      ),
       DATA
     );
     const usOnly = buildMapProjection(
-      resolveMap(parseMap('map\nCalifornia value: 1'), DATA),
+      resolveMap(parseMap('map\nlocale US\nCalifornia value: 1'), DATA),
       DATA
     );
     const hasMx = (b: typeof withMx): boolean =>
@@ -1370,7 +1380,10 @@ describe('layout — colorize (content-inferred political fills, §24B)', () => 
 
 describe('layout — subtle city dots (basemap orientation, no-cities)', () => {
   it('scatters on-canvas gazetteer cities by default', () => {
-    const r = lay('map\nCalifornia value: 50');
+    // `locale US` pins the national frame so the spread-out fixture cities land in
+    // view (a bare compact CA map auto-zooms to conic — map-us-subnational-zoom —
+    // and the fixture has no city inside California to scatter).
+    const r = lay('map\nlocale US\nCalifornia value: 50');
     expect(r.cityDots.length).toBeGreaterThan(0);
     // Every dot is on-canvas (the sole cull) with a positive radius.
     for (const d of r.cityDots) {
@@ -1532,14 +1545,18 @@ describe('layout — POI-blocked valued region re-seats on its own land (not a f
 });
 
 describe('layout — zoom-out reserve places tiny-region callouts in a margin column', () => {
-  it('reserves a right band and columns the NE callouts when the cluster leans east', async () => {
+  it('reserves a right band and columns the tiny eastern callouts on a national-scale map', async () => {
     const { loadMapData } = await import('../src/map/load-data');
     const data = await loadMapData();
     const W = 1020;
+    // A coast-to-coast spread (California anchors the west) keeps the map at the
+    // national albers frame, so the cramped eastern states still need the margin
+    // column. A NE-only set now auto-zooms (map-us-subnational-zoom) and labels
+    // those states in place — see the sub-national-zoom suite.
     const r = layoutMap(
       resolveMap(
         parseMap(
-          'map NE\nregion-metric Pop\nNew York value: 19600000\nMassachusetts value: 7000000\nRhode Island value: 1100000\nConnecticut value: 3600000\nVermont value: 650000\nNew Hampshire value: 1400000\nDelaware value: 1000000\nNew Jersey value: 9300000'
+          'map US\nregion-metric Pop\nCalifornia value: 39000000\nNew York value: 19600000\nMassachusetts value: 7000000\nRhode Island value: 1100000\nConnecticut value: 3600000\nVermont value: 650000\nNew Hampshire value: 1400000\nDelaware value: 1000000\nNew Jersey value: 9300000'
         ),
         data
       ),
@@ -1560,6 +1577,103 @@ describe('layout — zoom-out reserve places tiny-region callouts in a margin co
     // The column is vertically ordered + spread (distinct rows).
     const ys = callouts.map((c) => c.y).sort((a, b) => a - b);
     expect(ys[ys.length - 1]! - ys[0]!).toBeGreaterThan(40);
+  });
+});
+
+describe('layout — sub-national US auto-zoom render proof (map-us-subnational-zoom)', () => {
+  // Real geometry (the rect-topo mock can't fit a region to a real bbox).
+  const NE8 =
+    'New York value: 196\nMassachusetts value: 70\nConnecticut value: 36\nVermont value: 6\nNew Hampshire value: 14\nMaine value: 13\nPennsylvania value: 128\nNew Jersey value: 93';
+
+  it('AC1: a Northeast choropleth lays out under mercator with non-empty data-state paths', async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    const res = resolveMap(
+      parseMap(`map Northeast\nregion-metric Pop\n${NE8}`),
+      data
+    );
+    expect(res.projection).toBe('mercator');
+    const r = layoutMap(
+      res,
+      data,
+      { width: 1000, height: 700 },
+      { palette: P, isDark: false }
+    );
+    // Every named NE state draws a finite, non-empty path carrying its value.
+    for (const iso of ['US-NY', 'US-MA', 'US-PA', 'US-ME']) {
+      const reg = r.regions.find((x) => x.id === iso && x.layer === 'us-state');
+      expect(reg, iso).toBeDefined();
+      expect(reg!.d.length, iso).toBeGreaterThan(0);
+      expect(reg!.d, iso).not.toMatch(/NaN/);
+      expect(reg!.value, iso).toBeGreaterThan(0);
+    }
+  });
+
+  it('AC8: an in-frame non-data neighbour (Ohio) is base context — no fill value, no value label', async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    const r = layoutMap(
+      resolveMap(parseMap(`map Northeast\nregion-metric Pop\n${NE8}`), data),
+      data,
+      { width: 1000, height: 700 },
+      { palette: P, isDark: false }
+    );
+    const ohio = r.regions.find((x) => x.id === 'US-OH');
+    expect(ohio).toBeDefined(); // it's inside the zoomed frame
+    expect(ohio!.layer).toBe('base'); // neutral context, not a data region
+    expect(ohio!.value).toBeUndefined(); // no data-value attribute
+    expect(r.labels.some((l) => l.text === 'Ohio' && l.valueLine)).toBe(false);
+  });
+
+  it('F5/R12: Alaska and Hawaii are culled (no on-canvas garbage, no insets)', async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    const r = layoutMap(
+      resolveMap(parseMap(`map Northeast\nregion-metric Pop\n${NE8}`), data),
+      data,
+      { width: 1000, height: 700 },
+      { palette: P, isDark: false }
+    );
+    // The off-frame composite states must geometry-drop (not paint-clip): no
+    // region path at all, and no inset boxes (insets are an albers-usa device).
+    expect(r.regions.some((x) => x.id === 'US-AK')).toBe(false);
+    expect(r.regions.some((x) => x.id === 'US-HI')).toBe(false);
+    expect(r.insets).toHaveLength(0);
+    expect(r.insetRegions).toHaveLength(0);
+  });
+
+  it('region labels are full names, never 2-letter abbreviations, on the zoom', async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    const r = layoutMap(
+      // include the smallest states (RI) so the cramped path is exercised
+      resolveMap(
+        parseMap(
+          `map Northeast\nregion-metric Pop\n${NE8}\nRhode Island value: 11`
+        ),
+        data
+      ),
+      data,
+      { width: 1000, height: 700 },
+      { palette: P, isDark: false }
+    );
+    const regionLabels = r.labels.filter(
+      (l) => l.lineNumber > 0 && /^[A-Za-z]/.test(l.text)
+    );
+    // No region label is a bare 2-letter state code (NH/RI/CT/NJ/DE).
+    expect(regionLabels.some((l) => /^[A-Z]{2}$/.test(l.text))).toBe(false);
+    // Every NE data state is labeled by its FULL name somewhere (in place or in a
+    // leader callout).
+    for (const name of ['New Hampshire', 'Rhode Island', 'Connecticut']) {
+      expect(
+        regionLabels.some((l) => l.text === name),
+        name
+      ).toBe(true);
+    }
+    // The smallest state is offset to a leader callout rather than abbreviated.
+    const ri = regionLabels.find((l) => l.text === 'Rhode Island');
+    expect(ri?.leader).toBeDefined();
+    expect(ri?.calloutDot).toBeDefined();
   });
 });
 

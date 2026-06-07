@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseMap } from '../src/map/parser';
-import { resolveMap } from '../src/map/resolver';
+import { resolveMap, isSubNationalUsExtent } from '../src/map/resolver';
 import { featureBbox, featureBboxPrimary } from '../src/map/geo';
 import { loadMapData } from '../src/map/load-data';
 import type { MapData } from '../src/map/resolved-types';
@@ -392,9 +392,15 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const r = resolve('map\nUnited States m: HQ\ntag M as m\n  HQ blue');
     expect(r.basemaps.subdivisions).toHaveLength(0);
   });
-  it('US-only regions → albers-usa, not natural-earth (AC15/AC24)', () => {
-    const r = resolve('map\nCalifornia value: 1\nOregon value: 2');
+  it('US regions with `locale US` → albers-usa national frame (AC15/AC24)', () => {
+    // `locale US` (no subdivision) forces the whole-country frame even on compact
+    // data (map-us-subnational-zoom escape hatch). Without it, a compact US
+    // region map now auto-zooms to conic-equal-area — covered by the real-data
+    // sub-national-zoom suite below (the hand-built rect topo's geoBounds returns
+    // a whole-sphere bbox, so it can't exercise the area-fraction gate faithfully).
+    const r = resolve('map\nlocale US\nCalifornia value: 1\nOregon value: 2');
     expect(r.projection).toBe('albers-usa');
+    expect(r.basemaps.subdivisions).toContain('us-states');
   });
   it('dataless world span → equirectangular (AC5)', () => {
     const r = resolve('map\npoi Tokyo\npoi 40 -74 as ny');
@@ -437,7 +443,7 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
         'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3',
         'equirectangular',
       ], // data world
-      ['map\nCalifornia value: 1\nOregon value: 2', 'albers-usa'], // US
+      ['map\nlocale US\nCalifornia value: 1\nOregon value: 2', 'albers-usa'], // US national (locale-forced)
       ['map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b', 'conic-equal-area'], // tight cluster (non-US)
     ];
     for (const [src, expected] of cases) {
@@ -515,9 +521,11 @@ describe('resolver — POI-only fit-to-cluster zoom floor (#poi-fit)', () => {
     expect(longerAxis(r)).toBeGreaterThan(7); // not floored
   });
 
-  it('named-region choropleth is untouched (floor is POI-only)', () => {
-    // regions present → not isPoiOnly → national albers-usa frame as before.
-    const r = resolve('map\nCalifornia value: 1\nOregon value: 2');
+  it('national-region map (locale US) stays albers-usa', () => {
+    // The zoom floor now ALSO extends to sub-national US region maps
+    // (map-us-subnational-zoom), but a `locale US`-forced national frame keeps
+    // albers-usa regardless — the floor only mutates the (irrelevant) extent.
+    const r = resolve('map\nlocale US\nCalifornia value: 1\nOregon value: 2');
     expect(r.projection).toBe('albers-usa');
   });
 
@@ -537,6 +545,179 @@ describe('resolver — POI-only fit-to-cluster zoom floor (#poi-fit)', () => {
     const cy = (r.extent[0][1] + r.extent[1][1]) / 2;
     expect(cx).toBeCloseTo(-122.1, 5);
     expect(cy).toBeCloseTo(37.6, 5);
+  });
+});
+
+describe('isSubNationalUsExtent — pure area-fraction gate (map-us-subnational-zoom, AC11)', () => {
+  // Pure helper: area-fraction of CONUS (≈1416 deg²), threshold f = 0.4 (so the
+  // threshold area is ≈566 deg²). Synthetic bboxes — lon/lat positions are
+  // irrelevant, only the rectangular area matters.
+  it('null bbox → false (no data / reference-only)', () => {
+    expect(isSubNationalUsExtent(null)).toBe(false);
+  });
+  it('compact NE-sized bbox → true', () => {
+    expect(
+      isSubNationalUsExtent([
+        [-80, 38],
+        [-67, 47],
+      ])
+    ).toBe(true); // 13×9 = 117 deg² → 0.08 of CONUS
+  });
+  it('coast-to-coast (all-50) bbox → false', () => {
+    expect(
+      isSubNationalUsExtent([
+        [-124, 25],
+        [-66, 49],
+      ])
+    ).toBe(false); // ≈58×24 → ~0.98 of CONUS
+  });
+  it('WA+FL near-national diagonal → false (area guard, not lon-span)', () => {
+    expect(
+      isSubNationalUsExtent([
+        [-124, 25],
+        [-80, 49],
+      ])
+    ).toBe(false); // 44×24 = 1056 → 0.75 of CONUS
+  });
+  it('boundary determinism: just-under f → true, just-over f → false (AC6)', () => {
+    // threshold area = 0.4 × 1416 = 566.4 deg²
+    expect(
+      isSubNationalUsExtent([
+        [0, 0],
+        [20, 28],
+      ])
+    ).toBe(true); // 560 deg² → 0.395 < 0.4
+    expect(
+      isSubNationalUsExtent([
+        [0, 0],
+        [20, 29],
+      ])
+    ).toBe(false); // 580 deg² → 0.41 > 0.4
+  });
+  it('no side effects — same input, same output (purity, AC11)', () => {
+    const bbox: [[number, number], [number, number]] = [
+      [-80, 38],
+      [-67, 47],
+    ];
+    expect(isSubNationalUsExtent(bbox)).toBe(isSubNationalUsExtent(bbox));
+  });
+});
+
+describe('resolver — sub-national US auto-zoom, real geometry (map-us-subnational-zoom)', () => {
+  // The hand-built rect-topo mock above can't produce faithful state/country
+  // bboxes (its geoBounds returns a whole-sphere box), so the area-fraction gate
+  // is exercised here against the SHIPPED geometry.
+  const NE8 =
+    'New York value: 196\nMassachusetts value: 70\nConnecticut value: 36\nVermont value: 6\nNew Hampshire value: 14\nMaine value: 13\nPennsylvania value: 128\nNew Jersey value: 93';
+
+  it('AC1: compact Northeast choropleth → mercator (North-up) + us-states mesh', async () => {
+    // Sub-national US zoom uses Mercator (straight vertical meridians = North-up);
+    // a conic would fan its meridians and visibly tilt the region. Non-US regional
+    // views still use conic-equal-area (see the AC10 case below).
+    const data = await loadMapData();
+    const r = resolveMap(parseMap(`map Northeast\n${NE8}`), data);
+    expect(r.projection).toBe('mercator');
+    expect(r.basemaps.subdivisions).toContain('us-states');
+    // Fit extent is the compact region, NOT the whole CONUS (~58° lon).
+    expect(r.extent[1][0] - r.extent[0][0]).toBeLessThan(30);
+  });
+
+  it('AC2: coast-to-coast spread → albers-usa national frame', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(
+      parseMap(
+        'map\nCalifornia value: 1\nMaine value: 2\nFlorida value: 3\nWashington value: 4\nTexas value: 5'
+      ),
+      data
+    );
+    expect(r.projection).toBe('albers-usa');
+  });
+
+  it('AC2: WA+FL near-national diagonal stays albers-usa (area guard)', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(
+      parseMap('map\nWashington value: 1\nFlorida value: 2'),
+      data
+    );
+    expect(r.projection).toBe('albers-usa');
+  });
+
+  it('AC3: a Hawaii-only choropleth stays albers-usa (ISO guard, not bbox)', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(parseMap('map\nHawaii value: 5'), data);
+    expect(r.projection).toBe('albers-usa');
+  });
+
+  it('AC3: Alaska in the data forces albers-usa even alongside a compact state', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(
+      parseMap('map\nAlaska value: 5\nCalifornia value: 3'),
+      data
+    );
+    expect(r.projection).toBe('albers-usa');
+  });
+
+  it('AC4: `locale US` forces the national frame on compact data', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(
+      parseMap('map\nlocale US\nNew York value: 1\nMassachusetts value: 2'),
+      data
+    );
+    expect(r.projection).toBe('albers-usa');
+  });
+
+  it('AC5: `locale US` with zero data regions → albers-usa national reference map', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(parseMap('map\nlocale US'), data);
+    expect(r.projection).toBe('albers-usa');
+  });
+
+  it('R6: a single tiny state floors to ~7° and stays mercator', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(parseMap('map\nRhode Island value: 5'), data);
+    expect(r.projection).toBe('mercator');
+    const longer = Math.max(
+      r.extent[1][0] - r.extent[0][0],
+      r.extent[1][1] - r.extent[0][1]
+    );
+    expect(longer).toBeGreaterThanOrEqual(7 - 1e-6);
+  });
+
+  it('AC7: compact regions + a near POI → mercator, pin inside the frame', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(
+      parseMap(
+        'map\nNew York value: 1\nMassachusetts value: 2\npoi 42.36 -71.06 as bos'
+      ),
+      data
+    );
+    expect(r.projection).toBe('mercator');
+    const bos = r.pois.find((p) => p.id === 'bos')!;
+    expect(bos.lon).toBeGreaterThanOrEqual(r.extent[0][0]);
+    expect(bos.lon).toBeLessThanOrEqual(r.extent[1][0]);
+  });
+
+  it('AC7: compact regions + a far cross-country POI → albers-usa', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(
+      parseMap(`map\n${NE8}\npoi 34.05 -118.24 as la`),
+      data
+    );
+    expect(r.projection).toBe('albers-usa');
+  });
+
+  it('AC10: a compact NON-US region is unaffected — tight frame, no US zoom floor', async () => {
+    // `isSubNationalUsExtent` is a pure area-vs-CONUS ratio (true for any small
+    // bbox), so the zoom floor must be gated on `usOriented` or a tiny European
+    // country would get the 7° US floor. A small-country choropleth stays tight.
+    const data = await loadMapData();
+    const r = resolveMap(parseMap('map\nNetherlands value: 5'), data);
+    const longer = Math.max(
+      r.extent[1][0] - r.extent[0][0],
+      r.extent[1][1] - r.extent[0][1]
+    );
+    expect(r.projection).toBe('conic-equal-area');
+    expect(longer).toBeLessThan(7); // NOT floored to the US POI/region floor
   });
 });
 
@@ -685,7 +866,10 @@ describe('resolver — impl-review fixes (#3/#6/#8/#13/#15)', () => {
     expect(r.projection).toBe('albers-usa');
   });
   it('AC3: US state fill + a Mexico country fill → albers-usa', () => {
-    const r = resolve('map\nCalifornia value: 1\nMexico value: 2');
+    // `locale US` pins the national frame (the rect-topo mock can't produce a
+    // faithful MX bbox for the area gate); the point here is that a Mexico country
+    // fill keeps the map US-oriented rather than flipping it to a world projection.
+    const r = resolve('map\nlocale US\nCalifornia value: 1\nMexico value: 2');
     expect(r.projection).toBe('albers-usa');
   });
   it('AC4: US POIs + a non-NA POI (Tokyo) → NOT albers-usa, and NO state mesh (global map)', () => {

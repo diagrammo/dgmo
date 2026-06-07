@@ -78,6 +78,36 @@ const CONTAINER_OVERSHOOT_DEG = 8;
 // albers-usa composite (CONUS conic + AK/HI insets) instead of regional Mercator.
 // CONUS spans ≈58° lon; 48° is "most of the country". Tunable.
 const US_NATIONAL_LON_SPAN = 48;
+// Sub-national US auto-zoom (map-us-subnational-zoom). A US region/choropleth map
+// whose authored data occupies a geographically COMPACT slice of the country
+// zooms to that slice (conic-equal-area, like every non-US regional view) instead
+// of always framing the whole nation on albers-usa. "Compact" = the raw data bbox
+// covers less than US_SUBNATIONAL_AREA_FRACTION of the CONUS bbox AREA. Area (not
+// lon-span) is used so a near-national diagonal (e.g. WA+FL) stays national while
+// a tight cluster (the Northeast) or a tall corridor zooms. CONUS_BBOX ≈ the
+// contiguous 48 (≈1416 deg²); the fraction bisects the empty gap between a
+// regional cluster (≲0.15) and a national map (≳0.9). Tunable.
+const CONUS_BBOX: GeoExtent = [
+  [-125, 25],
+  [-66, 49],
+];
+const US_SUBNATIONAL_AREA_FRACTION = 0.4;
+
+/** Rectangular (lon×lat) area of a bbox in deg² — NOT d3 `geoArea` (spherical).
+ *  The gate frames with a lon/lat bbox anyway, so a planar ratio is the honest
+ *  measure of "how much of the country does this occupy". */
+function bboxArea(b: GeoExtent): number {
+  return (b[1][0] - b[0][0]) * (b[1][1] - b[0][1]);
+}
+
+/** True when a US data extent is compact enough to zoom to (sub-national) rather
+ *  than frame the whole nation. Pure + side-effect-free (unit-tested in isolation
+ *  with no fixtures/render). Pass the RAW unpadded data-union bbox, not the padded
+ *  framing extent — the fraction is calibrated on raw data bboxes. */
+export function isSubNationalUsExtent(bbox: GeoExtent | null): boolean {
+  if (!bbox) return false;
+  return bboxArea(bbox) / bboxArea(CONUS_BBOX) < US_SUBNATIONAL_AREA_FRACTION;
+}
 
 // Long-form (or common-alias) country name → the folded Natural-Earth display
 // name actually shipped in world-coarse (#6). The NE coarse layer abbreviates a
@@ -289,6 +319,12 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const regions: ResolvedRegion[] = [];
   const seenRegion = new Map<string, number>(); // iso → index in regions
   let usSubdivisionReferenced = false;
+  // AK/HI national guard (map-us-subnational-zoom): a choropleth that colors
+  // Alaska or Hawaii is inherently a national composite map (the insets only make
+  // sense on albers-usa), so it never sub-national auto-zooms. Tracked ISO-based
+  // here because `referencedRegionIds` is not in scope at the projection block.
+  let hasAlaskaRef = false;
+  let hasHawaiiRef = false;
   const referencedRegionIds: { topo: 'us'; id: string }[] = [];
   for (const r of parsed.regions) {
     const f = fold(r.name);
@@ -359,6 +395,8 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     }
     if (chosen.layer === 'us-state') {
       usSubdivisionReferenced = true;
+      if (chosen.id === 'US-AK') hasAlaskaRef = true;
+      if (chosen.id === 'US-HI') hasHawaiiRef = true;
       referencedRegionIds.push({ topo: 'us', id: chosen.id });
     }
     const resolved: ResolvedRegion = {
@@ -808,6 +846,14 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   }
   const points: Array<[number, number]> = pois.map((p) => [p.lon, p.lat]);
   const unioned = unionExtent(regionBoxes, points);
+  // Sub-national US auto-zoom gate (map-us-subnational-zoom). Computed from the
+  // RAW unpadded union (NOT the padded `extent` below, which inflates area ~1.5×).
+  // `usSubNational` decides WHETHER to zoom; the projection-family picker below
+  // still keys off span as before. `localeUsForced` = `locale US` with no
+  // subdivision → the author asked for the whole-country frame, so stay national
+  // even on compact data.
+  const usSubNational = isSubNationalUsExtent(unioned);
+  const localeUsForced = localeCountry === 'US' && !localeSubdivision;
   const DEFAULT_EXTENT: GeoExtent = [
     [-180, -85],
     [180, 85],
@@ -862,7 +908,14 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   // symmetrically about its centroid until the longer axis reaches
   // POI_ZOOM_FLOOR_DEG so recognizable land always frames the dots. Uniform scale
   // preserves the aspect; the layout's fitExtent letterboxes to canvas.
-  if (isPoiOnly) {
+  // Also applies to a sub-national US region map (map-us-subnational-zoom) so a
+  // single tiny state (e.g. Rhode Island) keeps neighbour context instead of
+  // over-zooming into near-blank land. `usSubNational` is derived from the raw
+  // union above, so flooring the framing `extent` here doesn't feed back into it.
+  // Gated on `usOriented` — `usSubNational` is a pure area-vs-CONUS ratio, true
+  // for ANY small bbox, so without this guard a compact non-US region (e.g. a
+  // single small European country) would be floored too, regressing AC10.
+  if (isPoiOnly || (usSubNational && usOriented)) {
     const cx = (extent[0][0] + extent[1][0]) / 2;
     const cy = (extent[0][1] + extent[1][1]) / 2;
     const lon = extent[1][0] - extent[0][0];
@@ -891,15 +944,34 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   // intentionally snaps a POI-only US city map to the national frame ("show all
   // states") rather than fit-zooming to the cluster on a geographic projection.
   // (§24B.2 — projection is inferred, never configured.)
+  // A compact US region/choropleth that should zoom rather than frame the nation
+  // (map-us-subnational-zoom): US-oriented, area-compact, not a POI map, and not
+  // forced national by an AK/HI inset or `locale US`.
+  const usSubNationalZoom =
+    usOriented &&
+    usSubNational &&
+    !isPoiOnly &&
+    !hasAlaskaRef &&
+    !hasHawaiiRef &&
+    !localeUsForced;
   let projection: ProjectionFamily;
-  if (isPoiOnly && usOriented && lonSpan < US_NATIONAL_LON_SPAN) {
-    // Sub-national US POI cluster: regional Mercator (familiar shapes), fit to
-    // the floored extent above. The us-states mesh is still drawn (subdivisions
-    // pushed via usOriented), so the home state + neighbours frame the dots.
-    // albers-usa is reserved for genuinely national-span content below — a local
-    // cluster no longer snaps to the whole-nation composite (#13, §24B.2).
+  if (
+    usOriented &&
+    lonSpan < US_NATIONAL_LON_SPAN &&
+    (isPoiOnly || usSubNationalZoom)
+  ) {
+    // Sub-national US, zoomed: regional Mercator. North is straight up everywhere
+    // (vertical meridians) — a conic equal-area fans its meridians toward the pole
+    // so an off-centre region visibly tilts, which reads wrong for a "zoom into the
+    // US" view. Area distortion across a sub-national frame is negligible, and the
+    // POI-cluster path already uses Mercator here. Covers both a POI cluster (fit
+    // to the floored extent) and a compact region/choropleth. The us-states mesh
+    // is still drawn (subdivisions via usOriented), so neighbours frame the data.
     projection = 'mercator';
   } else if (usOriented) {
+    // National US frame: spread-out region data, a wide corridor (lonSpan ≥ the
+    // national threshold), a POI map that spans the country, an AK/HI composite,
+    // or an explicit `locale US` whole-country request. (§24B.2 — albers-usa.)
     projection = 'albers-usa';
   } else if (span > WORLD_SPAN || maxAbsLat > MERCATOR_MAX_LAT) {
     // World/multi-continent scale (or a polar-reaching frame). Every world map —
