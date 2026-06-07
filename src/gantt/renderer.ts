@@ -1971,6 +1971,15 @@ function drawSwimlaneIcon(
     .attr('class', 'gantt-swimlane-icon')
     .attr('transform', `translate(${x}, ${y})`);
 
+  // Transparent hit area so the whole icon (not just the 2px bars) is clickable
+  iconG
+    .append('rect')
+    .attr('x', -5)
+    .attr('y', -5)
+    .attr('width', 22)
+    .attr('height', 18)
+    .attr('fill', 'transparent');
+
   const color = isActive ? palette.primary : palette.textMuted;
   const opacity = isActive ? 1 : 0.35;
   const barWidths = [8, 12, 6];

@@ -4004,6 +4004,15 @@ function renderTimelineTagLegendOverlay(
         .attr('transform', `translate(${x}, ${y})`)
         .style('cursor', 'pointer');
 
+      // Transparent hit area so the whole icon (not just the 2px bars) is clickable
+      iconG
+        .append('rect')
+        .attr('x', -5)
+        .attr('y', -5)
+        .attr('width', 22)
+        .attr('height', 20)
+        .attr('fill', 'transparent');
+
       const barColor = isSwimActive ? palette.primary : palette.textMuted;
       const barOpacity = isSwimActive ? 1 : 0.35;
       const bars = [
