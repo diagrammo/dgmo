@@ -759,6 +759,25 @@ export function renderMap(
           .attr('stroke-width', 0.5)
           .attr('stroke-linejoin', 'round');
     }
+
+    // Re-stroke each inset frame ON TOP (stroke-only, no fill) as the final
+    // inset layer — the early border path sits under the contextLand fill,
+    // region fills, and water-lines, so its inner half gets covered near the
+    // top/right edges and the frame reads as thin/fuzzy. This overlay keeps a
+    // crisp full-width border on every side.
+    for (const box of layout.insets) {
+      const d =
+        box.points.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join('') +
+        'Z';
+      insetG
+        .append('path')
+        .attr('d', d)
+        .attr('fill', 'none')
+        .attr('stroke', mix(palette.text, palette.bg, 55))
+        .attr('stroke-width', 1)
+        .attr('stroke-linejoin', 'round')
+        .style('pointer-events', 'none');
+    }
   }
 
   // Code↔diagram sync: tag a synced element with its 1-based source line and,
