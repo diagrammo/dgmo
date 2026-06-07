@@ -11,21 +11,19 @@ const lineGenerator = d3Shape
   .curve(d3Shape.curveBasis);
 
 /**
- * Build a smooth edge path that PASSES THROUGH its first and last points.
+ * Build a smooth edge path through dagre waypoints.
  *
- * `d3.curveBasis` is an *approximating* cubic B-spline: it starts at
- * `(P0 + 4·P1 + P2)/6`, not at `P0`. For a gently curved edge that barely
- * shows, but a sharply-turning edge (e.g. a back-edge / loop) visibly
- * detaches from the node border. Triplicating the endpoints clamps the
- * spline so it begins exactly at `P0` and ends exactly at `Pn`, keeping the
- * smooth interior while reconnecting the arrow to its shapes.
+ * `d3.curveBasis` already begins with `moveTo(P0)` and ends with
+ * `lineTo(Pn)`, so the path reaches both node borders and its final
+ * segment carries a real direction (correct `marker-end` orientation).
+ *
+ * NOTE: do NOT clamp by triplicating the endpoints — that appends
+ * zero-length trailing segments, and WebKit then computes a degenerate
+ * tangent for the arrowhead, rendering it at the wrong angle (resvg and
+ * Chromium tolerate it; WKWebView does not).
  */
 export function edgeSplinePath(
   points: ReadonlyArray<{ readonly x: number; readonly y: number }>
 ): string | null {
-  const pts = points as ReadonlyArray<{ x: number; y: number }>;
-  if (pts.length < 2) return lineGenerator(pts as { x: number; y: number }[]);
-  const first = pts[0]!;
-  const last = pts[pts.length - 1]!;
-  return lineGenerator([first, first, ...pts, last, last]);
+  return lineGenerator(points as { x: number; y: number }[]);
 }
