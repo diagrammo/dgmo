@@ -2938,7 +2938,11 @@ export function layoutMap(
       ];
       const STEP = 8;
       const maxDist = Math.min(width, height) * 0.5;
-      const yMin = topPad;
+      // Keep callout chips a comfortable margin off every canvas edge — a chip
+      // hugging (or running off) the edge reads as clipped. The top edge also
+      // clears the legend/title band (topPad).
+      const EDGE = 28;
+      const yMin = topPad + 6;
       for (const { rc, ang: baseAng } of items) {
         const chipW = Math.max(
           measureLegendText(rc.name, FONT),
@@ -2971,8 +2975,8 @@ export function layoutMap(
               w: chipW + 4,
               h: chipH + 4,
             };
-            if (rect.x < 4 || rect.x + rect.w > width - 4) continue;
-            if (rect.y < yMin || rect.y + rect.h > height - 4) continue;
+            if (rect.x < EDGE || rect.x + rect.w > width - EDGE) continue;
+            if (rect.y < yMin || rect.y + rect.h > height - EDGE) continue;
             if (valuedFills.has(fillAt(px, py))) continue;
             if (chipObstacles.some((o) => rectsOverlap(rect, o))) continue;
             best = { x: px, y: py, anchor, rect };
@@ -2986,12 +2990,12 @@ export function layoutMap(
           const ux = Math.cos(baseAng);
           const anchor: PlacedLabel['anchor'] = ux >= 0 ? 'start' : 'end';
           const px = Math.min(
-            Math.max(rc.cx + ux * d0, 4 + (anchor === 'end' ? chipW : 0)),
-            width - 4 - (anchor === 'start' ? chipW : 0)
+            Math.max(rc.cx + ux * d0, EDGE + (anchor === 'end' ? chipW : 0)),
+            width - EDGE - (anchor === 'start' ? chipW : 0)
           );
           const py = Math.min(
             Math.max(rc.cy, yMin + chipH),
-            height - 4 - chipH
+            height - EDGE - chipH
           );
           const rx = anchor === 'start' ? px : px - chipW;
           best = {
@@ -3019,8 +3023,15 @@ export function layoutMap(
           haloColor: palette.bg,
           valueLine: rc.value,
           leader: { x1: rc.cx, y1: rc.cy, x2: best.x + gap, y2: best.y },
-          leaderColor: rc.fill,
-          calloutDot: { x: rc.cx, y: rc.cy, color: rc.fill },
+          // Darken the region's own hue toward the text colour so the leader has
+          // real contrast against the basemap (a pale low-value fill on its own is
+          // near-invisible) while still tying the line to its region by colour.
+          leaderColor: mix(rc.fill, palette.text, 60),
+          calloutDot: {
+            x: rc.cx,
+            y: rc.cy,
+            color: mix(rc.fill, palette.text, 60),
+          },
           lineNumber: rc.lineNumber,
         });
       }
