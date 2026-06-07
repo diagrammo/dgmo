@@ -685,11 +685,23 @@ export function renderMap(
         .attr('y', 0)
         .attr('width', width)
         .attr('height', height);
+      // White reveal = the box interior, but eroded inward by `reach` (a black
+      // border stroke) so the seaward rings fade out before the frame instead of
+      // being hard-clipped at it — clipped ring fragments otherwise read as
+      // artifacts bumping into the crisp 1px border. Mirrors the main-map moat,
+      // applied inward.
+      const reach = Math.max(0, ...cs.lines.map((l) => l.d + l.thickness));
       for (const box of layout.insets) {
         const d =
           box.points.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join('') +
           'Z';
-        mask.append('path').attr('d', d).attr('fill', 'white');
+        mask
+          .append('path')
+          .attr('d', d)
+          .attr('fill', 'white')
+          .attr('stroke', 'black')
+          .attr('stroke-width', 2 * reach)
+          .attr('stroke-linejoin', 'round');
       }
       // Neighbour land masks as land too — clipped to its box so it can't darken
       // an adjacent inset — keeping the AK/Canada land border free of rings.
