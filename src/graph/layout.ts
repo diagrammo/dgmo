@@ -6,6 +6,20 @@ import type {
   GraphGroup,
   GraphShape,
 } from './types';
+import { resolveNotes } from './notes';
+import { noteBoxSize, NOTE_GAP } from '../utils/note-box';
+import type { WrappedDescLine } from '../utils/wrapped-desc';
+
+/** A note box positioned relative to its anchor node's center. */
+export interface NoteLayout {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly lines: readonly WrappedDescLine[];
+  readonly lineNumber: number;
+  readonly endLineNumber: number;
+}
 
 export interface LayoutNode {
   readonly id: string;
@@ -18,6 +32,13 @@ export interface LayoutNode {
   readonly y: number;
   readonly width: number;
   readonly height: number;
+  /**
+   * A note floated beside this node. The shape keeps its natural dagre
+   * position and dimensions (so its edges stay connected) — the note is
+   * placed in adjacent space and the canvas bounds are expanded to fit
+   * it. Absent on un-annotated nodes.
+   */
+  readonly note?: NoteLayout;
 }
 
 export interface LayoutEdge {
@@ -124,11 +145,45 @@ export function layoutGraph(
     }
   }
 
-  // Add nodes with computed dimensions
+  // Resolve note anchors (no diagnostics here — the parser already
+  // emitted them). `no-notes` drops the reserved footprint entirely so
+  // layout matches an un-annotated diagram (ADR-4 / AC8).
+  const notesSuppressed = graph.options?.['no-notes'] === 'on';
+  const noteByNode =
+    notesSuppressed || !graph.notes
+      ? new Map()
+      : resolveNotes(graph.notes, graph.nodes);
+
+  // Pre-computed note geometry, keyed by node id, threaded into LayoutNode.
+  // The note does NOT change the node's dagre dims — the shape keeps its
+  // position and its edge connections; the note floats beside it and the
+  // canvas bounds are expanded to fit it.
+  interface NoteGeom {
+    noteW: number;
+    noteH: number;
+    lines: WrappedDescLine[];
+    lineNumber: number;
+    endLineNumber: number;
+  }
+  const noteGeoms = new Map<string, NoteGeom>();
+
+  // Add nodes with their natural dimensions (notes never inflate them).
   for (const node of allNodes) {
     const width = computeNodeWidth(node.label, node.shape);
     const height = computeNodeHeight(node.shape);
     g.setNode(node.id, { label: node.label, width, height });
+
+    const note = noteByNode.get(node.id);
+    if (note) {
+      const size = noteBoxSize(note.body);
+      noteGeoms.set(node.id, {
+        noteW: size.width,
+        noteH: size.height,
+        lines: size.lines,
+        lineNumber: note.lineNumber,
+        endLineNumber: note.endLineNumber,
+      });
+    }
 
     // Set parent for grouped nodes (only for non-collapsed groups)
     if (node.group && graph.groups?.some((gr) => gr.id === node.group)) {
@@ -156,6 +211,7 @@ export function layoutGraph(
 
   const layoutNodes: LayoutNode[] = allNodes.map((node): LayoutNode => {
     const pos = g.node(node.id);
+    const ng = noteGeoms.get(node.id);
     return {
       id: node.id,
       label: node.label,
@@ -167,6 +223,32 @@ export function layoutGraph(
       y: pos.y,
       width: pos.width,
       height: pos.height,
+      ...(ng && {
+        // Local coords relative to the node center (translate origin). The
+        // note floats into the rank-gap direction so it lands beside the
+        // flow, not across it: to the RIGHT for top-down graphs, BELOW for
+        // left-right graphs. The shape itself is never moved.
+        note:
+          graph.direction === 'LR'
+            ? {
+                x: -pos.width / 2,
+                y: pos.height / 2 + NOTE_GAP,
+                width: ng.noteW,
+                height: ng.noteH,
+                lines: ng.lines,
+                lineNumber: ng.lineNumber,
+                endLineNumber: ng.endLineNumber,
+              }
+            : {
+                x: pos.width / 2 + NOTE_GAP,
+                y: -ng.noteH / 2,
+                width: ng.noteW,
+                height: ng.noteH,
+                lines: ng.lines,
+                lineNumber: ng.lineNumber,
+                endLineNumber: ng.endLineNumber,
+              },
+      }),
     };
   });
 
@@ -268,6 +350,14 @@ export function layoutGraph(
     const bottom = node.y + node.height / 2;
     if (right > totalWidth) totalWidth = right;
     if (bottom > totalHeight) totalHeight = bottom;
+    // Floated notes live outside the node extent — expand bounds so the
+    // box is never clipped on export (the shape's position is untouched).
+    if (node.note) {
+      const noteRight = node.x + node.note.x + node.note.width;
+      const noteBottom = node.y + node.note.y + node.note.height;
+      if (noteRight > totalWidth) totalWidth = noteRight;
+      if (noteBottom > totalHeight) totalHeight = noteBottom;
+    }
   }
   for (const group of layoutGroups) {
     const right = group.x + group.width;

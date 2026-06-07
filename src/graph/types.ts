@@ -35,6 +35,20 @@ export interface GraphGroup {
   readonly lineNumber: number;
 }
 
+/**
+ * A generic note as authored — anchors to a node by `ref` (the
+ * author-typed id/label) and carries a multi-line `body`. Resolution
+ * to a concrete node happens at end-of-parse via `resolveNotes`; this
+ * model is intentionally a top-level list (ADR-1), not a field on
+ * `GraphNode`, so the placement pass sees the whole set at once.
+ */
+export interface GraphNote {
+  readonly ref: string;
+  readonly body: string;
+  readonly lineNumber: number;
+  readonly endLineNumber: number;
+}
+
 import type { DgmoError } from '../diagnostics';
 
 export interface ParsedGraph {
@@ -45,6 +59,7 @@ export interface ParsedGraph {
   readonly nodes: readonly GraphNode[];
   readonly edges: readonly GraphEdge[];
   readonly groups?: readonly GraphGroup[];
+  readonly notes?: readonly GraphNote[];
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;

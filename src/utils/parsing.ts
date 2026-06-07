@@ -146,6 +146,7 @@ export const OPTION_NOCOLON_RE = /^([a-z][a-z0-9-]*)\s+(.+)$/i;
 export const GLOBAL_BOOLEANS: ReadonlySet<string> = new Set([
   'solid-fill',
   'no-title',
+  'no-notes',
 ]);
 
 /**

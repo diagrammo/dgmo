@@ -209,6 +209,8 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'color',
   // Title suppression (cross-chart-type)
   'no-title',
+  // Note suppression (cross-chart-type — graph notes)
+  'no-notes',
   // Flowchart layout
   'orientation-vertical',
   // RACI

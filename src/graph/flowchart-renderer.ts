@@ -20,6 +20,7 @@ import {
 } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
 import { measureText } from '../utils/text-measure';
+import { renderNoteBox, renderNoteConnector } from '../utils/note-box';
 
 // ============================================================
 // Constants
@@ -659,6 +660,7 @@ export function renderFlowchart(
 
   const colorOff = graph.options?.['color'] === 'off';
   const solid = graph.options?.['solid-fill'] === 'on';
+  const noNotes = graph.options?.['no-notes'] === 'on';
   for (const node of layout.nodes) {
     const nodeG = contentG
       .append('g')
@@ -672,6 +674,10 @@ export function renderFlowchart(
         onClickItem(node.lineNumber);
       });
     }
+
+    // The shape is drawn at its dagre position — a note never moves it,
+    // so its edges stay connected. The note floats beside it.
+    const hasNote = !!node.note && !noNotes;
 
     renderNodeShape(
       nodeG as GSelection,
@@ -713,6 +719,51 @@ export function renderFlowchart(
       )
       .attr('font-size', sNodeFontSize)
       .text(node.label);
+
+    if (hasNote && node.note) {
+      // Solid tether from the shape edge to the floated note. Horizontal
+      // for top-down graphs (note on the right), vertical for left-right
+      // graphs (note below).
+      if (graph.direction === 'LR') {
+        const cx = Math.max(
+          node.note.x,
+          Math.min(0, node.note.x + node.note.width)
+        );
+        renderNoteConnector(
+          nodeG as GSelection,
+          cx,
+          node.height / 2,
+          cx,
+          node.note.y,
+          palette
+        );
+      } else {
+        renderNoteConnector(
+          nodeG as GSelection,
+          node.width / 2,
+          0,
+          node.note.x,
+          node.note.y + node.note.height / 2,
+          palette
+        );
+      }
+      renderNoteBox(
+        nodeG as GSelection,
+        {
+          x: node.note.x,
+          y: node.note.y,
+          width: node.note.width,
+          height: node.note.height,
+        },
+        node.note.lines,
+        palette,
+        {
+          isDark,
+          lineNumber: node.note.lineNumber,
+          endLineNumber: node.note.endLineNumber,
+        }
+      );
+    }
   }
 }
 

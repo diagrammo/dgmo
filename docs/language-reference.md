@@ -706,8 +706,25 @@ Bracket syntax only.
 - `orientation-vertical` (boolean; default is horizontal)
 - `no-color` (boolean; default off — when on, all nodes resolve to the muted neutral fill instead of their default intent color)
 - `solid-fill` (boolean; default off — render shapes with their full intent color instead of the canonical 25% tint)
+- `no-notes` (boolean; default off — suppress all note boxes, see §4.7)
 
 `no-color` + `solid-fill` precedence: `no-color` wins for nodes with no explicit color (the muted neutral path bypasses `solid-fill`). Nodes with an explicit color survive `no-color` and are then rendered at full saturation if `solid-fill` is also on.
+
+### 4.7 Notes (Nodes)
+
+Attach an annotation to a node with `note <NodeId> text` (quote the id
+for multi-word labels). The note renders as a folded-corner box beside
+the node, expanded at rest.
+
+```
+note Validate checks the payload schema
+note "Read Map" the map is half-burned
+```
+
+Indent lines below the heading for a multi-line body (bullets + inline
+markdown, same as sequence notes). Notes may forward-reference a node;
+an unknown id is an error, a duplicate note on a node is a warning
+(first kept). `no-notes` suppresses every box.
 
 ---
 
@@ -741,11 +758,18 @@ StateName color
 [Group Name] color
 ```
 
-### 5.5 Options
+### 5.5 Notes (States)
+
+State diagrams support the same `note <StateName> text` annotation as
+flowcharts — single-line or indented multi-line body, forward
+references, and the `no-notes` opt-out (see §4.7).
+
+### 5.6 Options
 
 - `direction-tb` (boolean; default is LR)
 - `no-color` (boolean; default off — when on, all states resolve to the muted neutral fill instead of their default intent color)
 - `solid-fill` (boolean; default off — render states with their full intent color instead of the canonical 25% tint; collapsed groups are also rendered at full saturation)
+- `no-notes` (boolean; default off — suppress all note boxes, see §4.7)
 
 `no-color` + `solid-fill` precedence: `no-color` wins for states with no explicit color (the muted neutral path bypasses `solid-fill`). Group colors survive `no-color` and are then rendered at full saturation if `solid-fill` is also on.
 

@@ -17,7 +17,14 @@ import {
 } from '../utils/parsing';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import type { Writable } from '../utils/brand';
-import type { ParsedGraph, GraphNode, GraphEdge, GraphShape } from './types';
+import type {
+  ParsedGraph,
+  GraphNode,
+  GraphEdge,
+  GraphShape,
+  GraphNote,
+} from './types';
+import { parseNoteHeader, collectNoteBody, resolveNotes } from './notes';
 
 // ============================================================
 // Helpers
@@ -260,6 +267,7 @@ export function parseFlowchart(
 
   const nodeMap = new Map<string, GraphNode>();
   const indentStack: { nodeId: string; indent: number }[] = [];
+  const notes: GraphNote[] = [];
   let contentStarted = false;
   let firstLineParsed = false;
 
@@ -499,6 +507,34 @@ export function parseFlowchart(
       }
     }
 
+    // Note annotation: `note <ref> [inline body]` + optional indented
+    // body. Handled before options so `note foo bar` is never mistaken
+    // for an option. Only `note -> X` (arrow immediately after `note`) is
+    // excluded so it can edge; arrows are allowed inside a note body.
+    const noteMatch = trimmed.match(/^note\s+(.+)$/i);
+    if (noteMatch && !/^note\s+->/i.test(trimmed)) {
+      const { ref, inlineBody } = parseNoteHeader(noteMatch[1]!);
+      const collected = collectNoteBody(lines, i, indent, inlineBody);
+      if (!collected.body.trim()) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            `Note on "${ref}" has no text — ignored.`,
+            'warning'
+          )
+        );
+      } else {
+        notes.push({
+          ref,
+          body: collected.body,
+          lineNumber,
+          endLineNumber: collected.endLineNumber,
+        });
+      }
+      i = collected.lastIndex;
+      continue;
+    }
+
     // Options (space-separated, before content)
     if (!contentStarted) {
       // Bare boolean: direction-lr
@@ -557,6 +593,14 @@ export function parseFlowchart(
     );
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
+  }
+
+  // Resolve note refs (forward refs OK — runs after all nodes parsed).
+  // Emits diagnostics for unknown/ambiguous/duplicate refs; the resolved
+  // binding is recomputed in layout from `result.notes`.
+  if (notes.length > 0) {
+    result.notes = notes;
+    resolveNotes(notes, result.nodes, result.diagnostics);
   }
 
   // Warn about orphaned nodes (not referenced in any edge)

@@ -290,12 +290,13 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'flowchart',
-    // Spec §5 §4.6: direction-lr, orientation-vertical, solid-fill
+    // Spec §5 §4.6: direction-lr, orientation-vertical, solid-fill, no-notes
     withGlobals({
       'direction-lr': { description: 'Switch to left-to-right layout' },
       'orientation-vertical': {
         description: 'Use vertical orientation for ranks',
       },
+      'no-notes': { description: 'Suppress all node note boxes' },
     }),
   ],
   ['class', withGlobals({})],
@@ -364,9 +365,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'state',
-    // Spec §6 §5.5: direction-tb, solid-fill.
+    // Spec §6 §5.6: direction-tb, solid-fill, no-notes.
     withGlobals({
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'no-notes': { description: 'Suppress all state note boxes' },
     }),
   ],
   [

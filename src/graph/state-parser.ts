@@ -18,7 +18,8 @@ import {
 } from '../utils/parsing';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import type { Writable } from '../utils/brand';
-import type { ParsedGraph, GraphNode, GraphGroup } from './types';
+import type { ParsedGraph, GraphNode, GraphGroup, GraphNote } from './types';
+import { parseNoteHeader, collectNoteBody, resolveNotes } from './notes';
 
 // ============================================================
 // Constants
@@ -203,6 +204,7 @@ export function parseState(
 
   const nodeMap = new Map<string, Writable<GraphNode>>();
   const indentStack: { nodeId: string; indent: number }[] = [];
+  const notes: GraphNote[] = [];
   let currentGroup: Writable<GraphGroup> | null = null;
   let groupIndent = -1;
   const groups: Writable<GraphGroup>[] = [];
@@ -307,6 +309,34 @@ export function parseState(
         }
         continue;
       }
+    }
+
+    // Note annotation: `note <ref> [inline body]` + optional indented
+    // body. Only `note -> X` (arrow immediately after `note`) is excluded
+    // so a transition FROM a state named "note" still parses; arrows are
+    // allowed inside a note body.
+    const noteMatch = trimmed.match(/^note\s+(.+)$/i);
+    if (noteMatch && !/^note\s+->/i.test(trimmed)) {
+      const { ref, inlineBody } = parseNoteHeader(noteMatch[1]!);
+      const collected = collectNoteBody(lines, i, indent, inlineBody);
+      if (!collected.body.trim()) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            `Note on "${ref}" has no text — ignored.`,
+            'warning'
+          )
+        );
+      } else {
+        notes.push({
+          ref,
+          body: collected.body,
+          lineNumber,
+          endLineNumber: collected.endLineNumber,
+        });
+      }
+      i = collected.lastIndex;
+      continue;
     }
 
     // Group brackets: [Name] or [Name](color)
@@ -491,6 +521,12 @@ export function parseState(
   }
 
   if (groups.length > 0) result.groups = groups;
+
+  // Resolve note refs against the state node map (forward refs OK).
+  if (notes.length > 0) {
+    result.notes = notes;
+    resolveNotes(notes, result.nodes, result.diagnostics);
+  }
 
   // Validation: no nodes found
   if (result.nodes.length === 0 && !result.error) {
