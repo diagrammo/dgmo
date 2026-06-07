@@ -20,6 +20,8 @@ export interface NoteLayout {
   readonly height: number;
   /** Which side of the node the box sits on (drives the connector). */
   readonly side: NoteSide;
+  /** Resolved hex accent (border + faded fill); default yellow if absent. */
+  readonly color?: string;
   readonly lines: readonly WrappedDescLine[];
   readonly lineNumber: number;
   readonly endLineNumber: number;
@@ -177,6 +179,7 @@ export function layoutGraph(
   interface NoteGeom {
     noteW: number;
     noteH: number;
+    color?: string;
     lines: WrappedDescLine[];
     lineNumber: number;
     endLineNumber: number;
@@ -195,6 +198,7 @@ export function layoutGraph(
       noteGeoms.set(node.id, {
         noteW: size.width,
         noteH: size.height,
+        ...(note.color && { color: note.color }),
         lines: size.lines,
         lineNumber: note.lineNumber,
         endLineNumber: note.endLineNumber,
@@ -370,6 +374,7 @@ export function layoutGraph(
                   width: 0,
                   height: 0,
                   side: 'right' as NoteSide,
+                  ...(ng.color && { color: ng.color }),
                   lines: [],
                   lineNumber: ng.lineNumber,
                   endLineNumber: ng.endLineNumber,
@@ -381,6 +386,7 @@ export function layoutGraph(
                   width: ng.noteW,
                   height: ng.noteH,
                   side: placed.side,
+                  ...(ng.color && { color: ng.color }),
                   lines: ng.lines,
                   lineNumber: ng.lineNumber,
                   endLineNumber: ng.endLineNumber,

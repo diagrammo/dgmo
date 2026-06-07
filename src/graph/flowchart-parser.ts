@@ -14,6 +14,7 @@ import {
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
   tryParseSharedOption,
+  extractColor,
 } from '../utils/parsing';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import type { Writable } from '../utils/brand';
@@ -513,7 +514,15 @@ export function parseFlowchart(
     // excluded so it can edge; arrows are allowed inside a note body.
     const noteMatch = trimmed.match(/^note\s+(.+)$/i);
     if (noteMatch && !/^note\s+->/i.test(trimmed)) {
-      const { ref, inlineBody } = parseNoteHeader(noteMatch[1]!);
+      // Trailing lowercase color word colors the note (§1.5 convention);
+      // capitalize it to keep it as literal body text.
+      const { label: headerNoColor, color } = extractColor(
+        noteMatch[1]!,
+        palette,
+        result.diagnostics,
+        lineNumber
+      );
+      const { ref, inlineBody } = parseNoteHeader(headerNoColor);
       const collected = collectNoteBody(lines, i, indent, inlineBody);
       if (!collected.body.trim()) {
         result.diagnostics.push(
@@ -527,6 +536,7 @@ export function parseFlowchart(
         notes.push({
           ref,
           body: collected.body,
+          ...(color && { color }),
           lineNumber,
           endLineNumber: collected.endLineNumber,
         });

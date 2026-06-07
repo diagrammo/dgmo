@@ -123,6 +123,22 @@ describe('graph notes — rendering markup', () => {
     expect(box.getAttribute('fill')).toMatch(/^#[0-9a-f]{6}$/i);
   });
 
+  it('colors the note border via a trailing color word', () => {
+    const svg = parseSvg(
+      fc(
+        [
+          'flowchart',
+          '(Start) -> [Validate] -> (Done)',
+          'note Validate checks the manifest red',
+        ].join('\n')
+      )
+    );
+    const box = svg.querySelector('.note-box') as SVGElement;
+    expect(box.getAttribute('stroke')).toBe(palette.colors.red);
+    // Faded fill = the color mixed over bg, never CSS color-mix.
+    expect(box.getAttribute('fill')).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+
   // AC7
   it('no-notes suppresses note markup (AC7)', () => {
     const out = fc(

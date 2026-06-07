@@ -728,6 +728,7 @@ export function renderFlowchart(
           palette,
           {
             isDark,
+            ...(node.note.color && { color: node.note.color }),
             lineNumber: node.note.lineNumber,
             endLineNumber: node.note.endLineNumber,
           }
@@ -749,6 +750,7 @@ export function renderFlowchart(
           palette,
           {
             isDark,
+            ...(node.note.color && { color: node.note.color }),
             lineNumber: node.note.lineNumber,
             endLineNumber: node.note.endLineNumber,
             interactive: true,

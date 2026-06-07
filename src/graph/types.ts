@@ -45,6 +45,8 @@ export interface GraphGroup {
 export interface GraphNote {
   readonly ref: string;
   readonly body: string;
+  /** Resolved hex accent (border + faded fill); default yellow if absent. */
+  readonly color?: string;
   readonly lineNumber: number;
   readonly endLineNumber: number;
 }

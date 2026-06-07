@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { parseFlowchart } from '../src/graph/flowchart-parser';
 import { parseState } from '../src/graph/state-parser';
 import { resolveNotes } from '../src/graph/notes';
+import { getPalette } from '../src/palettes';
+
+const nord = getPalette('nord').light;
 
 const errors = (d: { severity: string }[]) =>
   d.filter((x) => x.severity === 'error');
@@ -169,6 +172,53 @@ describe('graph notes — parsing', () => {
     expect(
       warnings([...parsed.diagnostics]).some((w) => /no text/.test(w.message))
     ).toBe(true);
+  });
+
+  it('colors a note via a trailing lowercase color word', () => {
+    const parsed = parseFlowchart(
+      [
+        'flowchart',
+        '(Start) -> [Validate] -> (Done)',
+        'note Validate checks the manifest red',
+      ].join('\n'),
+      nord
+    );
+    const note = parsed.notes![0]!;
+    expect(note.color).toBe(nord.colors.red);
+    expect(note.body).toBe('checks the manifest');
+  });
+
+  it('keeps a capitalized color word as literal body text (escape hatch)', () => {
+    const parsed = parseFlowchart(
+      ['flowchart', '(Start) -> [Validate]', 'note Validate stays Red'].join(
+        '\n'
+      ),
+      nord
+    );
+    const note = parsed.notes![0]!;
+    expect(note.color).toBeUndefined();
+    expect(note.body).toBe('stays Red');
+  });
+
+  it('does not peel a color from a single-token header (ref only)', () => {
+    // `note red` is a note on a node "red", not a color-only note.
+    const parsed = parseFlowchart(
+      ['flowchart', '(red) -> (Done)', 'note red be careful'].join('\n'),
+      nord
+    );
+    const note = parsed.notes![0]!;
+    expect(note.ref).toBe('red');
+    expect(note.color).toBeUndefined();
+    expect(note.body).toBe('be careful');
+  });
+
+  it('colors a state note too', () => {
+    const parsed = parseState(
+      ['state', '[*] -> Idle -> Active', 'note Idle waiting green'].join('\n'),
+      nord
+    );
+    expect(parsed.notes![0]!.color).toBe(nord.colors.green);
+    expect(parsed.notes![0]!.body).toBe('waiting');
   });
 
   it('supports a quoted multi-word ref', () => {

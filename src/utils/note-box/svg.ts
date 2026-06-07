@@ -42,6 +42,8 @@ export interface NoteRect {
 export interface RenderNoteBoxOptions {
   readonly isDark: boolean;
   readonly fontSize?: number;
+  /** Resolved hex accent (border + faded fill); default yellow if absent. */
+  readonly color?: string;
   /** 1-based source line of the note (drives the toggle hook). */
   readonly lineNumber?: number;
   /** 1-based last source line of the note body. */
@@ -116,16 +118,19 @@ export function noteConnectorPoints(
   }
 }
 
-/** Faded-yellow note fill (resvg-safe — `mix`, never CSS color-mix). */
-export function noteBoxFill(palette: PaletteColors, isDark: boolean): string {
-  return isDark
-    ? mix(palette.colors.yellow, palette.bg, 24)
-    : mix(palette.colors.yellow, palette.bg, 16);
+/** Note accent (border) colour — the note's color, else the palette yellow. */
+export function noteAccent(palette: PaletteColors, color?: string): string {
+  return color ?? palette.colors.yellow;
 }
 
-/** Note accent (border) colour — the palette's yellow. */
-export function noteAccent(palette: PaletteColors): string {
-  return palette.colors.yellow;
+/** Faded note fill (resvg-safe — `mix`, never CSS color-mix). */
+export function noteBoxFill(
+  palette: PaletteColors,
+  isDark: boolean,
+  color?: string
+): string {
+  const accent = noteAccent(palette, color);
+  return isDark ? mix(accent, palette.bg, 24) : mix(accent, palette.bg, 16);
 }
 
 /**
@@ -142,7 +147,8 @@ export function renderNoteBox(
   const fontSize = opts.fontSize ?? NOTE_FONT_SIZE;
   const interactive = opts.interactive ?? false;
   const { x, y, width, height } = rect;
-  const fill = noteBoxFill(palette, opts.isDark);
+  const fill = noteBoxFill(palette, opts.isDark, opts.color);
+  const accent = noteAccent(palette, opts.color);
 
   const noteG = parent
     .append('g')
@@ -179,7 +185,7 @@ export function renderNoteBox(
       ].join(' ')
     )
     .attr('fill', fill)
-    .attr('stroke', noteAccent(palette))
+    .attr('stroke', accent)
     .attr('stroke-width', NOTE_STROKE_WIDTH)
     .attr('stroke-opacity', NOTE_STROKE_OPACITY)
     .attr('class', 'note-box');
@@ -197,7 +203,7 @@ export function renderNoteBox(
       ].join(' ')
     )
     .attr('fill', 'none')
-    .attr('stroke', noteAccent(palette))
+    .attr('stroke', accent)
     .attr('stroke-width', NOTE_STROKE_WIDTH)
     .attr('stroke-opacity', NOTE_STROKE_OPACITY)
     .attr('class', 'note-fold')
@@ -232,6 +238,8 @@ export function renderNoteBox(
 
 export interface RenderNoteBadgeOptions {
   readonly isDark: boolean;
+  /** Resolved hex accent; default yellow if absent. */
+  readonly color?: string;
   /** 1-based source line of the note (drives the toggle hook). */
   readonly lineNumber?: number;
   readonly endLineNumber?: number;
@@ -256,7 +264,8 @@ export function renderNoteBadge(
   palette: PaletteColors,
   opts: RenderNoteBadgeOptions
 ): GSelection {
-  const fill = noteBoxFill(palette, opts.isDark);
+  const fill = noteBoxFill(palette, opts.isDark, opts.color);
+  const accent = noteAccent(palette, opts.color);
   const g = parent
     .append('g')
     .attr('class', 'note note-badge')
@@ -296,7 +305,7 @@ export function renderNoteBadge(
       ].join(' ')
     )
     .attr('fill', fill)
-    .attr('stroke', noteAccent(palette))
+    .attr('stroke', accent)
     .attr('stroke-width', 0.55)
     .attr('class', 'note-badge-bubble');
 

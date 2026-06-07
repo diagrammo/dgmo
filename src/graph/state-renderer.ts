@@ -560,6 +560,7 @@ export function renderState(
           palette,
           {
             isDark,
+            ...(node.note.color && { color: node.note.color }),
             lineNumber: node.note.lineNumber,
             endLineNumber: node.note.endLineNumber,
           }
@@ -581,6 +582,7 @@ export function renderState(
           palette,
           {
             isDark,
+            ...(node.note.color && { color: node.note.color }),
             lineNumber: node.note.lineNumber,
             endLineNumber: node.note.endLineNumber,
             interactive: true,
