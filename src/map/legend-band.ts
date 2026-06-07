@@ -38,8 +38,8 @@ export function mapLegendGroups(legend: MapLayoutLegend): LegendGroupData[] {
         gradient: {
           min: ramp.min,
           max: ramp.max,
-          hue: ramp.hue,
-          base: ramp.base,
+          low: ramp.low,
+          high: ramp.high,
         },
       }
     : null;

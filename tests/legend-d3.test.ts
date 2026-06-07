@@ -339,7 +339,7 @@ describe('renderLegendD3', () => {
         {
           name: 'Score',
           entries: [],
-          gradient: { min: 0, max: 100, hue: '#3182ce', base: '#ffffff' },
+          gradient: { min: 0, max: 100, low: '#ffffff', high: '#3182ce' },
         },
       ],
     };

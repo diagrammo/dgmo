@@ -68,8 +68,10 @@ const DIRECTIVE_SET: ReadonlySet<string> = new Set([
   'no-relief',
   'no-context-labels',
   'no-region-labels',
+  'no-region-value',
   'no-poi-labels',
   'no-colorize',
+  'no-cities',
   'no-cluster-pois',
 ]);
 
@@ -348,11 +350,17 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       case 'no-region-labels':
         d.noRegionLabels = true;
         break;
+      case 'no-region-value':
+        d.noRegionValue = true;
+        break;
       case 'no-poi-labels':
         d.noPoiLabels = true;
         break;
       case 'no-colorize':
         d.noColorize = true;
+        break;
+      case 'no-cities':
+        d.noCities = true;
         break;
       case 'no-cluster-pois':
         d.noClusterPois = true;

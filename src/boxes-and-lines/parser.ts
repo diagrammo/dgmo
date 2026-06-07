@@ -26,7 +26,7 @@ import {
   extractColor,
   parseFirstLine,
   OPTION_NOCOLON_RE,
-  peelTrailingColorName,
+  peelRampColors,
   splitNameAndMeta,
   tryParseSharedOption,
   warnUnknownMetaKeys,
@@ -305,11 +305,10 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
         const metricMatch = trimmed.match(/^box-metric\s+(.+)$/i);
         if (metricMatch) {
           // Regex capture group present after successful match.
-          const { label, colorName } = peelTrailingColorName(
-            metricMatch[1]!.trim()
-          );
+          const { label, low, high } = peelRampColors(metricMatch[1]!.trim());
           result.boxMetric = label;
-          if (colorName !== undefined) result.boxMetricColor = colorName;
+          if (high !== undefined) result.boxMetricColor = high;
+          if (low !== undefined) result.boxMetricLowColor = low;
           continue;
         }
         if (/^show-values$/i.test(trimmed)) {

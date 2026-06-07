@@ -1,0 +1,15 @@
+boxes-and-lines Fleet Readiness
+
+box-metric Readiness blue green
+show-values
+
+direction LR
+
+Flagship value: 95
+  Fully provisioned and battle-ready
+  -escorts-> Frigate
+Frigate value: 60
+  Seaworthy, half-stocked
+  -scouts-> Sloop
+Sloop value: 18
+  Barely afloat, crew restless

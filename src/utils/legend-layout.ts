@@ -20,6 +20,7 @@ import {
   truncateLegendText,
 } from './legend-constants';
 
+import { compactNumber } from './number-format';
 import type { LegendGroupData } from './legend-types';
 import type {
   LegendConfig,
@@ -47,9 +48,11 @@ const RAMP_LEGEND_W = 80;
 const RAMP_LEGEND_H = 8;
 const RAMP_LABEL_GAP = 6;
 
-/** Compact numeric label for a ramp end (integers bare; else 1 decimal). */
+/** Compact numeric label for a ramp end — shared with the map's on-region value
+ *  labels (`compactNumber`) so the gradient ends and region values read the same
+ *  (`40M` legend end ↔ a `39.5M` region). */
 function fmtRamp(n: number): string {
-  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
+  return compactNumber(n);
 }
 
 /** Width of a gradient group's capsule: pill + min label + ramp + max label. */
@@ -114,8 +117,8 @@ function buildGradientCapsuleLayout(
       maxText,
       maxX,
       textY: LEGEND_HEIGHT / 2,
-      hue: gradient.hue,
-      base: gradient.base,
+      low: gradient.low,
+      high: gradient.high,
     },
   };
 }

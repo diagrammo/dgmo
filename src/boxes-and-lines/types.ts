@@ -39,10 +39,14 @@ export interface ParsedBoxesAndLines {
   readonly options: Readonly<Record<string, string>>;
   readonly initialHiddenTagValues: ReadonlyMap<string, ReadonlySet<string>>;
   readonly direction: 'LR' | 'TB';
-  /** `box-metric <label> [color]` — names the value-ramp dimension and
-   *  optionally sets its hue. Mirror of map's `region-metric`. */
+  /** `box-metric <label> [low] [high]` — names the value-ramp dimension and
+   *  optionally sets its endpoint colours. One color = high hue over a neutral
+   *  low; two = explicit `low high`. Mirror of map's `region-metric`. */
   readonly boxMetric?: string;
+  /** Recognized color NAME for the ramp HIGH endpoint. */
   readonly boxMetricColor?: string;
+  /** Recognized color NAME for the ramp LOW endpoint (two-colour form). */
+  readonly boxMetricLowColor?: string;
   /** `show-values` — print each box's numeric value as text (opt-in). */
   readonly showValues?: boolean;
   readonly diagnostics: readonly DgmoError[];

@@ -526,6 +526,22 @@ export function renderMap(
     }
   }
 
+  // ── City dots — a faint gazetteer scatter for geographic orientation, over
+  // the basemap but under connectors/POIs/labels. Decorative (no pointer events,
+  // no data attributes); muted ink at low opacity so it reads as texture, not
+  // data. Suppressed entirely by the `no-cities` directive (empty array). ──
+  if (layout.cityDots.length) {
+    const gCities = svg
+      .append('g')
+      .attr('class', 'dgmo-map-cities')
+      .attr('fill', palette.textMuted)
+      .attr('fill-opacity', 0.45)
+      .style('pointer-events', 'none');
+    for (const c of layout.cityDots) {
+      gCities.append('circle').attr('cx', c.cx).attr('cy', c.cy).attr('r', c.r);
+    }
+  }
+
   // ── Label clarity patch — repaint the clean region FILL under each POI label
   // so the basemap line work beneath it (region borders, relief hachure, coast +
   // river lines) dissolves where it would clutter the text. Crucially this is NOT
@@ -1007,7 +1023,8 @@ export function renderMap(
       LABEL_FONT,
       lab.italic,
       lab.letterSpacing,
-      lab.lines
+      lab.lines,
+      lab.valueLine
     );
     // POI labels are spotlightable: tag with the POI id and make the text the
     // hover target (the app dims the other dots/labels on enter).
@@ -1191,7 +1208,8 @@ function emitText(
   fontSize: number,
   italic?: boolean,
   letterSpacing?: number,
-  lines?: readonly string[]
+  lines?: readonly string[],
+  valueLine?: string
 ): d3Selection.Selection<SVGTextElement, unknown, null, undefined> {
   const t = g
     .append('text')
@@ -1212,6 +1230,21 @@ function emitText(
         .attr('dy', i === 0 ? startDy : lineHeight)
         .text(ln);
     });
+  } else if (valueLine !== undefined) {
+    // A choropleth region's name over its metric value: name on top, value below
+    // in a smaller, dimmer line (same fill, reduced opacity). Raise the block so
+    // its centre sits on the placement `y`. The halo (set below) wraps both lines.
+    const valueSize = Math.round(fontSize * 0.82);
+    t.append('tspan')
+      .attr('x', x)
+      .attr('dy', -fontSize * 0.28)
+      .text(text);
+    t.append('tspan')
+      .attr('x', x)
+      .attr('dy', fontSize * 0.92)
+      .attr('font-size', valueSize)
+      .attr('fill-opacity', 0.72)
+      .text(valueLine);
   } else {
     t.text(text);
   }

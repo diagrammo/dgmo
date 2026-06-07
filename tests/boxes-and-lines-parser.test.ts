@@ -732,6 +732,33 @@ describe('boxes-and-lines parser', () => {
       );
       expect(r.boxMetric).toBe('Cost');
       expect(r.boxMetricColor).toBeUndefined();
+      expect(r.boxMetricLowColor).toBeUndefined();
+    });
+
+    it('parses two trailing colors into low (first) + high (second) — AC1', () => {
+      const r = parseBoxesAndLines(
+        'boxes-and-lines\nbox-metric Revenue blue green\nAPI value: 12'
+      );
+      expect(r.boxMetric).toBe('Revenue');
+      expect(r.boxMetricLowColor).toBe('blue');
+      expect(r.boxMetricColor).toBe('green');
+    });
+
+    it('respects color order — no sorting (AC4)', () => {
+      const r = parseBoxesAndLines(
+        'boxes-and-lines\nbox-metric Risk red green\nAPI value: 1'
+      );
+      expect(r.boxMetricLowColor).toBe('red');
+      expect(r.boxMetricColor).toBe('green');
+    });
+
+    it('does not empty a color-word label (AC5)', () => {
+      const r = parseBoxesAndLines(
+        'boxes-and-lines\nbox-metric Red blue\nAPI value: 1'
+      );
+      expect(r.boxMetric).toBe('Red');
+      expect(r.boxMetricColor).toBe('blue');
+      expect(r.boxMetricLowColor).toBeUndefined();
     });
 
     it('parses `show-values` flag (off by default)', () => {

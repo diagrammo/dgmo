@@ -581,3 +581,32 @@ describe('renderer — colorize border + override (AC8, AC12)', () => {
     );
   });
 });
+
+describe('renderer — region metric value line', () => {
+  it('draws the compact value as a second tspan under the region name', () => {
+    const svg = render(
+      'map\nregion-metric Population\nCalifornia value: 39500000'
+    );
+    const labels = svg.querySelector('.dgmo-map-labels')!;
+    const texts = Array.from(labels.querySelectorAll('text'));
+    const caText = texts.find((t) => t.textContent?.includes('California'));
+    expect(caText).toBeDefined();
+    const tspans = Array.from(caText!.querySelectorAll('tspan'));
+    expect(tspans.map((t) => t.textContent)).toEqual(['California', '39.5M']);
+    // Value tspan is smaller + dimmer than the name.
+    const valueTspan = tspans[1]!;
+    expect(valueTspan.getAttribute('fill-opacity')).toBe('0.72');
+    expect(Number(valueTspan.getAttribute('font-size'))).toBeLessThan(
+      Number(caText!.getAttribute('font-size'))
+    );
+  });
+  it('omits the value tspan under no-region-value', () => {
+    const svg = render('map\nno-region-value\nCalifornia value: 39500000');
+    const texts = Array.from(
+      svg.querySelector('.dgmo-map-labels')!.querySelectorAll('text')
+    );
+    const caText = texts.find((t) => t.textContent?.includes('California'));
+    expect(caText?.textContent).toBe('California');
+    expect(caText?.querySelectorAll('tspan').length ?? 0).toBe(0);
+  });
+});

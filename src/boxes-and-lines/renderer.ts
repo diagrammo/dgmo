@@ -19,7 +19,13 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  relativeLuminance,
+  shapeFill,
+  valueRampColor,
+} from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { resolveTagColor } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
@@ -195,20 +201,40 @@ function nodeColors(
   value: {
     active: boolean;
     hue: string;
+    /** Two explicit endpoint colours (`box-metric Risk green red`). When set, the
+     *  value's position on the ramp is carried by HUE, so the box follows the
+     *  STANDARD box convention (solid colour outline + 25% faded fill) rather than
+     *  the map's saturated choropleth fill. A single-colour ramp encodes value by
+     *  saturation/lightness and keeps the choropleth fill (no hue to spare). */
+    twoColor: boolean;
     fillForValue: (v: number) => string;
   },
   solid?: boolean
 ): { fill: string; stroke: string; text: string } {
   // Untagged-neutral fill, reused by the value path for no-value boxes.
   const neutralFill = mix(palette.bg, palette.text, isDark ? 90 : 95);
-  // Value dimension active: choropleth tint by the node's value, neutral when a
-  // box has no value (mirror map: `value !== undefined ? fillForValue : neutral`).
   if (value.active) {
-    const fill =
-      node.value !== undefined ? value.fillForValue(node.value) : neutralFill;
-    // Stroke = the ramp hue (NOT a tag color — there may be none); a present
-    // stroke is required for the app's --bl-node-stroke hover-dim to work.
-    const stroke = value.hue;
+    if (node.value === undefined) {
+      // No-value box: neutral fill, ramp-hue stroke (present so the app's
+      // --bl-node-stroke hover-dim still works).
+      const text = contrastText(
+        neutralFill,
+        palette.textOnFillLight,
+        palette.textOnFillDark
+      );
+      return { fill: neutralFill, stroke: value.hue, text };
+    }
+    // Value box: render the ramp colour like any tagged box — a 25% faded
+    // (muted) fill + a solid colour outline; `solid-fill` opts into the full
+    // fill. The outline differs by ramp kind: a two-colour ramp carries value by
+    // HUE, so each box's outline is its own ramp colour (red→green); a
+    // single-colour ramp has one hue, so the outline is the constant ramp hue and
+    // value reads from the muted fill depth.
+    const rampColor = value.fillForValue(node.value);
+    const fill = shapeFill(palette, rampColor, isDark, {
+      ...(solid !== undefined && { solid }),
+    });
+    const stroke = value.twoColor ? rampColor : value.hue;
     const text = contrastText(
       fill,
       palette.textOnFillLight,
@@ -305,6 +331,43 @@ function ensureArrowMarkers(
       )
       .attr('fill', color);
   }
+}
+
+// ── Edge label placement ───────────────────────────────────
+
+/** Point at the half-way arc length along an edge polyline — the geometric
+ *  centre of the connector, so a label sits in the gap BETWEEN the two nodes
+ *  (ELK's own label anchor drifts toward the target and ends up clipped under
+ *  it). Falls back gracefully for degenerate point lists. */
+function edgePolylineMidpoint(
+  points: ReadonlyArray<{ readonly x: number; readonly y: number }>
+): { x: number; y: number } {
+  if (points.length === 0) return { x: 0, y: 0 };
+  if (points.length === 1) return { x: points[0]!.x, y: points[0]!.y };
+  let total = 0;
+  const segLen: number[] = [];
+  for (let k = 1; k < points.length; k++) {
+    const len = Math.hypot(
+      points[k]!.x - points[k - 1]!.x,
+      points[k]!.y - points[k - 1]!.y
+    );
+    segLen.push(len);
+    total += len;
+  }
+  let half = total / 2;
+  for (let k = 1; k < points.length; k++) {
+    const len = segLen[k - 1]!;
+    if (half <= len || k === points.length - 1) {
+      const t = len === 0 ? 0 : Math.min(1, half / len);
+      return {
+        x: points[k - 1]!.x + (points[k]!.x - points[k - 1]!.x) * t,
+        y: points[k - 1]!.y + (points[k]!.y - points[k - 1]!.y) * t,
+      };
+    }
+    half -= len;
+  }
+  const last = points[points.length - 1]!;
+  return { x: last.x, y: last.y };
 }
 
 // ── Edge label overlap resolution ──────────────────────────
@@ -416,11 +479,22 @@ export function renderBoxesAndLines(
   // color on `box-metric` overrides.
   const rampHue =
     resolveColor(parsed.boxMetricColor ?? '', palette) ?? palette.primary;
+  // Explicit LOW endpoint (`box-metric Risk green red`); absent ⇒ single-colour
+  // (neutral low). Only recognized names peel, so resolveColor always succeeds.
+  const rampLow = parsed.boxMetricLowColor
+    ? (resolveColor(parsed.boxMetricLowColor, palette) ?? undefined)
+    : undefined;
   // Lift the ramp anchor off the near-black surface on dark themes so the
   // lowest values read as a clear muted tint rather than sinking to the surface.
   const rampBase = isDark ? mix(palette.surface, palette.text, 28) : palette.bg;
+  const rampLowFloor = mix(rampHue, rampBase, RAMP_FLOOR);
   const fillForValue = (v: number): string => {
     const t = rampMax > rampMin ? (v - rampMin) / (rampMax - rampMin) : 1;
+    // Two-colour ramp: shared low→high interpolation (direct or via midpoint).
+    if (rampLow !== undefined)
+      return valueRampColor(rampLow, rampHue, t, { isDark });
+    // Single/zero-colour: byte-identical to pre-change (same numeric pct, no
+    // float round-trip).
     const pct = RAMP_FLOOR + Math.max(0, Math.min(1, t)) * (100 - RAMP_FLOOR);
     return mix(rampHue, rampBase, pct);
   };
@@ -465,8 +539,8 @@ export function renderBoxesAndLines(
           gradient: {
             min: rampMin,
             max: rampMax,
-            hue: rampHue,
-            base: rampBase,
+            low: rampLow ?? rampLowFloor,
+            high: rampHue,
           },
         }
       : null;
@@ -830,22 +904,19 @@ export function renderBoxesAndLines(
       path.attr('marker-start', `url(#${revId})`);
     }
 
-    // Edge label — for parallel edges, place relative to each line:
-    // negative offset (top line) → label above, zero → on line, positive → below
-    if (le.label && le.labelX != null && le.labelY != null) {
+    // Edge label — centred on the connector's polyline midpoint (the gap
+    // between the two nodes), NOT ELK's target-biased anchor. For parallel
+    // edges, nudge above/below so each line's label clears the line.
+    if (le.label && le.points.length > 0) {
       const lw = measureText(le.label, sEdgeLabelFontSize);
       const labelH = sEdgeLabelFontSize + 6;
-      let ly: number;
+      const mid = edgePolylineMidpoint(le.points);
+      let ly = mid.y;
       if (le.parallelCount > 1 && le.yOffset !== 0) {
-        // Position label on the line at midpoint, shifted above/below based on offset sign
-        const lineY = le.labelY + 10 + le.yOffset; // +10 to undo the -10 in layout
-        const labelShift = le.yOffset < 0 ? -labelH : labelH;
-        ly = lineY + labelShift * 0.5;
-      } else {
-        ly = le.labelY + le.yOffset;
+        ly += (le.yOffset < 0 ? -labelH : labelH) * 0.5;
       }
       labelPositions.push({
-        x: le.labelX,
+        x: mid.x,
         y: ly,
         width: lw + 8,
         height: labelH,
@@ -904,15 +975,24 @@ export function renderBoxesAndLines(
       if (isHidden) continue;
     }
 
+    const solid = parsed.options['solid-fill'] === 'on';
     const colors = nodeColors(
       node,
       parsed.tagGroups,
       activeGroup,
       palette,
       isDark,
-      { active: activeIsValue, hue: rampHue, fillForValue },
-      parsed.options['solid-fill'] === 'on'
+      {
+        active: activeIsValue,
+        hue: rampHue,
+        twoColor: rampLow !== undefined,
+        fillForValue,
+      },
+      solid
     );
+    // Divider matches the org-card convention: the box stroke normally, but the
+    // contrast text colour in solid mode (where stroke == fill and would vanish).
+    const dividerStroke = solid ? colors.text : colors.stroke;
 
     const nodeG = diagramG
       .append('g')
@@ -981,13 +1061,14 @@ export function renderBoxesAndLines(
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'central')
           .attr('font-size', fitted.fontSize)
-          .attr('font-weight', '600')
+          .attr('font-weight', 'bold')
           .attr('fill', colors.text)
           // In-bounds by loop guard.
           .text(labelLines[li]!);
       }
 
-      // Separator line (full width, matches infra style)
+      // Single divider under the title (org-card convention) — everything else
+      // renders below it as one body section (no second divider / footer band).
       const sepY = -ln.height / 2 + headerH;
       nodeG
         .append('line')
@@ -995,7 +1076,7 @@ export function renderBoxesAndLines(
         .attr('y1', sepY)
         .attr('x2', ln.width / 2)
         .attr('y2', sepY)
-        .attr('stroke', colors.stroke)
+        .attr('stroke', dividerStroke)
         .attr('stroke-opacity', 0.3)
         .attr('stroke-width', 1);
 
@@ -1050,6 +1131,16 @@ export function renderBoxesAndLines(
       const BULLET_GLYPH_X = -ln.width / 2 + 6;
       const BULLET_BODY_X = BULLET_GLYPH_X + 10;
 
+      // Description must stay legible on ANY fill. On the default light/tinted
+      // fills keep the subtle muted grey; on a dark/saturated fill (e.g.
+      // solid-fill) the fixed grey sinks in — switch to a muted tint of the
+      // box's contrast-correct text colour so it reads while staying
+      // subordinate to the title.
+      const descColor =
+        relativeLuminance(colors.fill) > 0.5
+          ? palette.textMuted
+          : mix(colors.text, colors.fill, 75);
+
       for (let li = 0; li < visibleLines.length; li++) {
         // In-bounds by loop guard.
         const line = visibleLines[li]!;
@@ -1070,7 +1161,7 @@ export function renderBoxesAndLines(
             .attr('text-anchor', 'start')
             .attr('dominant-baseline', 'central')
             .attr('font-size', sDescFontSize)
-            .attr('fill', palette.textMuted)
+            .attr('fill', descColor)
             .text('\u2022');
         }
         const isBullet =
@@ -1082,7 +1173,7 @@ export function renderBoxesAndLines(
           .attr('text-anchor', isBullet ? 'start' : 'middle')
           .attr('dominant-baseline', 'central')
           .attr('font-size', DESC_FONT_SIZE)
-          .attr('fill', palette.textMuted);
+          .attr('fill', descColor);
         renderInlineText(textEl, lineText, palette, sDescFontSize);
       }
 
@@ -1092,6 +1183,25 @@ export function renderBoxesAndLines(
         const tooltipText =
           fullText.length > 200 ? fullText.slice(0, 199) + '\u2026' : fullText;
         nodeG.append('title').text(tooltipText);
+      }
+
+      // Value sits in the SAME body section, directly after the description \u2014
+      // no second divider / footer band (org-card: title, one line, body).
+      if (parsed.showValues && node.value !== undefined) {
+        const valueLabel = parsed.boxMetric
+          ? `${parsed.boxMetric}: ${node.value}`
+          : String(node.value);
+        nodeG
+          .append('text')
+          .attr('class', 'bl-node-value')
+          .attr('x', 0)
+          .attr('y', descStartY + visibleLines.length * descLineH)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('font-size', VALUE_FONT_SIZE)
+          .attr('font-weight', '600')
+          .attr('fill', colors.text)
+          .text(valueLabel);
       }
     } else if (parsed.showValues && node.value !== undefined) {
       // Plain node with show-values: label header + thin divider + a
@@ -1120,20 +1230,20 @@ export function renderBoxesAndLines(
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'central')
           .attr('font-size', fitted.fontSize)
-          .attr('font-weight', '600')
+          .attr('font-weight', 'bold')
           .attr('fill', colors.text)
           // In-bounds by loop guard.
           .text(fitted.lines[li]!);
       }
-      // Thin divider under the title — a tint of the box's own stroke colour
-      // (matches org / infra card separators), not a neutral text line.
+      // Single divider under the title (org-card convention; solid-aware so it
+      // stays visible when stroke == fill).
       nodeG
         .append('line')
         .attr('x1', -ln.width / 2)
         .attr('y1', sepY)
         .attr('x2', ln.width / 2)
         .attr('y2', sepY)
-        .attr('stroke', colors.stroke)
+        .attr('stroke', dividerStroke)
         .attr('stroke-opacity', 0.3)
         .attr('stroke-width', 1);
       // "Metric: value" centered in the space below the divider.
@@ -1169,48 +1279,6 @@ export function renderBoxesAndLines(
           // In-bounds by loop guard.
           .text(fitted.lines[li]!);
       }
-    }
-
-    // ── show-values on a DESCRIBED node ── the body is already full, so the
-    // value rides in a top-right corner badge (plain nodes are handled in the
-    // header/divider branch above; a described node with descriptions hidden
-    // also falls through to that plain branch).
-    if (
-      parsed.showValues &&
-      node.value !== undefined &&
-      desc &&
-      desc.length > 0 &&
-      !hideDescriptions
-    ) {
-      const valueText = String(node.value);
-      const padX = 6;
-      const padY = 5;
-      const bw = measureText(valueText, VALUE_FONT_SIZE) + 8;
-      const bh = VALUE_FONT_SIZE + 4;
-      // Clamp to the left padding so a long value on a narrow node never
-      // slides past the box edge / over the label (R2-6 / AC23).
-      const bx = Math.max(-ln.width / 2 + 4, ln.width / 2 - bw - 4);
-      const by = -ln.height / 2 + 4;
-      nodeG
-        .append('rect')
-        .attr('x', bx)
-        .attr('y', by)
-        .attr('width', bw)
-        .attr('height', bh)
-        .attr('rx', 3)
-        .attr('fill', palette.bg)
-        .attr('opacity', 0.85);
-      nodeG
-        .append('text')
-        .attr('class', 'bl-node-value')
-        .attr('x', bx + bw - padX)
-        .attr('y', by + padY)
-        .attr('text-anchor', 'end')
-        .attr('dominant-baseline', 'central')
-        .attr('font-size', VALUE_FONT_SIZE)
-        .attr('font-weight', '600')
-        .attr('fill', palette.textMuted)
-        .text(valueText);
     }
   }
 

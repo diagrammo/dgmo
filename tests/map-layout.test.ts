@@ -1329,3 +1329,96 @@ describe('layout — colorize (content-inferred political fills, §24B)', () => 
     expect(politicalRegions(r).every((x) => isPolitical(x.fill))).toBe(true);
   });
 });
+
+describe('layout — subtle city dots (basemap orientation, no-cities)', () => {
+  it('scatters on-canvas gazetteer cities by default', () => {
+    const r = lay('map\nCalifornia value: 50');
+    expect(r.cityDots.length).toBeGreaterThan(0);
+    // Every dot is on-canvas (the sole cull) with a positive radius.
+    for (const d of r.cityDots) {
+      expect(d.cx).toBeGreaterThanOrEqual(0);
+      expect(d.cx).toBeLessThanOrEqual(800);
+      expect(d.cy).toBeGreaterThanOrEqual(0);
+      expect(d.cy).toBeLessThanOrEqual(600);
+      expect(d.r).toBeGreaterThan(0);
+    }
+  });
+
+  it('no-cities suppresses the layer entirely', () => {
+    const r = lay('map\nno-cities\nCalifornia value: 50');
+    expect(r.cityDots).toHaveLength(0);
+  });
+
+  it('dots never land under an explicit POI (spacing dodge)', () => {
+    // NYC is a gazetteer city AND declared as a POI — it must not double-draw as
+    // a faint dot beneath its own marker.
+    const r = lay('map\npoi New York City US-NY');
+    for (const poi of r.pois) {
+      for (const d of r.cityDots) {
+        const dist = Math.hypot(d.cx - poi.cx, d.cy - poi.cy);
+        expect(dist).toBeGreaterThanOrEqual(12);
+      }
+    }
+  });
+
+  it('renders dots on a US albers map valuing AK/HI (antimeridian regression)', async () => {
+    // Valuing Alaska + Hawaii wraps resolved.extent across the antimeridian
+    // (west lon > east lon). A lon/lat box-cull would reject every mainland city
+    // → a blank map; the on-canvas pixel cull must still emit dots. Uses real
+    // bundled geometry/gazetteer (the hand-built DATA fixture has no AK/HI).
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    const r = layoutMap(
+      resolveMap(
+        parseMap(
+          'map US Sales\nCalifornia value: 92\nTexas value: 78\nAlaska value: 100\nHawaii value: 100'
+        ),
+        data
+      ),
+      data,
+      { width: 1200, height: 800 },
+      { palette: P, isDark: false }
+    );
+    expect(r.cityDots.length).toBeGreaterThan(0);
+  });
+});
+
+describe('layout — region metric value labels (no-region-value)', () => {
+  it('shows the metric value as a dimmer second line under a big region by default', () => {
+    const r = lay('map\nregion-metric Population\nCalifornia value: 39500000');
+    const ca = r.labels.find((l) => l.text === 'California');
+    expect(ca).toBeDefined();
+    expect(ca!.valueLine).toBe('39.5M');
+  });
+  it('formats the value with the shared compact formatter', () => {
+    expect(
+      lay('map\nCalifornia value: 1100').labels.find(
+        (l) => l.text === 'California'
+      )?.valueLine
+    ).toBe('1.1K');
+    expect(
+      lay('map\nCalifornia value: 2300000').labels.find(
+        (l) => l.text === 'California'
+      )?.valueLine
+    ).toBe('2.3M');
+  });
+  it('degrades a small region (Oregon) to its bare name when the stack will not fit', () => {
+    const r = lay('map\nCalifornia value: 1\nOregon value: 2300000');
+    const or = r.labels.find((l) => l.text === 'Oregon');
+    // Oregon is too narrow for a two-line stack here → name only, no value line.
+    if (or) expect(or.valueLine).toBeUndefined();
+  });
+  it('no-region-value suppresses the value line but keeps the name', () => {
+    const r = lay('map\nno-region-value\nCalifornia value: 39500000');
+    const ca = r.labels.find((l) => l.text === 'California');
+    expect(ca).toBeDefined();
+    expect(ca!.valueLine).toBeUndefined();
+  });
+  it('a tag-coloured (non-score) map shows no value line', () => {
+    const r = lay(
+      'map\ntag Tier\n  gold\n  silver\nactive-tag Tier\nCalifornia value: 50, Tier: gold'
+    );
+    const ca = r.labels.find((l) => l.text === 'California');
+    if (ca) expect(ca.valueLine).toBeUndefined();
+  });
+});

@@ -3,7 +3,12 @@ import { parseBoxesAndLines } from '../src/boxes-and-lines/parser';
 import { layoutBoxesAndLines } from '../src/boxes-and-lines/layout';
 import { renderBoxesAndLines } from '../src/boxes-and-lines/renderer';
 import { getPalette } from '../src/palettes';
-import { mix } from '../src/palettes/color-utils';
+import {
+  mix,
+  relativeLuminance,
+  shapeFill,
+  valueRampColor,
+} from '../src/palettes/color-utils';
 
 const P = getPalette('nord').light;
 const DIMS = { width: 800, height: 600 };
@@ -25,6 +30,29 @@ async function render(
 function nodeFor(svg: SVGSVGElement, label: string): SVGGElement {
   return svg.querySelector<SVGGElement>(`.bl-node[data-node-id="${label}"]`)!;
 }
+
+function nodeCenterX(svg: SVGSVGElement, label: string): number {
+  const t = nodeFor(svg, label).getAttribute('transform')!;
+  return Number(/translate\(([\d.]+)/.exec(t)![1]);
+}
+
+describe('boxes-and-lines renderer — edge labels', () => {
+  it('centers an edge label between its two nodes (not clipped under the target)', async () => {
+    const svg = await render('boxes-and-lines\nA -guards-> B');
+    const labels = [...svg.querySelectorAll('text')].filter(
+      (t) => t.textContent === 'guards'
+    );
+    expect(labels.length).toBe(1);
+    const lx = Number(labels[0]!.getAttribute('x'));
+    const ax = nodeCenterX(svg, 'A');
+    const bx = nodeCenterX(svg, 'B');
+    // Label sits in the gap between the node centres, ~centred (not at the
+    // target edge where it would clip under the node).
+    expect(lx).toBeGreaterThan(Math.min(ax, bx));
+    expect(lx).toBeLessThan(Math.max(ax, bx));
+    expect(Math.abs(lx - (ax + bx) / 2)).toBeLessThan(Math.abs(bx - ax) / 4);
+  });
+});
 
 describe('boxes-and-lines renderer — value ramp', () => {
   it('emits data-value (incl "0") and never data-tag-value (AC14, AC22, AC24)', async () => {
@@ -88,6 +116,87 @@ describe('boxes-and-lines renderer — value ramp', () => {
     expect(b.getAttribute('stroke')).toBe(P.colors.red);
   });
 
+  it('single-colour ramp uses a muted 25% fill + solid ramp-hue outline', async () => {
+    const svg = await render(
+      'boxes-and-lines\nbox-metric Heat blue\nA value: 0\nB value: 100\nA -> B'
+    );
+    const b = nodeFor(svg, 'B').querySelector('rect')!;
+    // Max value → ramp colour is the full hue, but the fill is its muted 25%
+    // tint (NOT the raw saturated hue), with a solid hue outline.
+    expect(b.getAttribute('stroke')).toBe(P.colors.blue);
+    expect(b.getAttribute('fill')).toBe(shapeFill(P, P.colors.blue, false));
+    expect(b.getAttribute('fill')).not.toBe(P.colors.blue);
+  });
+
+  it('single-colour ramp honours solid-fill (full hue at max)', async () => {
+    const svg = await render(
+      'boxes-and-lines\nsolid-fill\nbox-metric Heat blue\nA value: 0\nB value: 100\nA -> B'
+    );
+    const b = nodeFor(svg, 'B').querySelector('rect')!;
+    expect(b.getAttribute('fill')).toBe(P.colors.blue);
+  });
+
+  it('two-colour ramp: standard convention — outline = ramp colour, fill = 25% tint (AC1, AC10)', async () => {
+    const svg = await render(
+      'boxes-and-lines\nbox-metric Heat blue green\nA value: 0\nB value: 100\nA -> B'
+    );
+    const a = nodeFor(svg, 'A').querySelector('rect')!;
+    const b = nodeFor(svg, 'B').querySelector('rect')!;
+    // The box's INTENT colour = its ramp position (t=0 → blue, t=1 → green);
+    // outline is that colour, fill is the standard 25% faded tint of it.
+    const aRamp = valueRampColor(P.colors.blue, P.colors.green, 0, {
+      isDark: false,
+    });
+    const bRamp = valueRampColor(P.colors.blue, P.colors.green, 1, {
+      isDark: false,
+    });
+    expect(a.getAttribute('stroke')).toBe(aRamp);
+    expect(a.getAttribute('fill')).toBe(shapeFill(P, aRamp, false));
+    expect(b.getAttribute('stroke')).toBe(bRamp);
+    expect(b.getAttribute('fill')).toBe(shapeFill(P, bRamp, false));
+  });
+
+  it('two-colour ramp honours solid-fill (full ramp colour) (AC1)', async () => {
+    const svg = await render(
+      'boxes-and-lines\nsolid-fill\nbox-metric Heat blue green\nA value: 0\nB value: 100\nA -> B'
+    );
+    const b = nodeFor(svg, 'B').querySelector('rect')!;
+    const bRamp = valueRampColor(P.colors.blue, P.colors.green, 1, {
+      isDark: false,
+    });
+    // solid-fill ⇒ fill == the full ramp colour (no 25% tint).
+    expect(b.getAttribute('fill')).toBe(bRamp);
+    expect(b.getAttribute('stroke')).toBe(bRamp);
+  });
+
+  it('diverging green→red mid outline is not a muddy direct blend (AC6)', async () => {
+    const svg = await render(
+      'boxes-and-lines\nbox-metric Heat green red\nA value: 0\nMid value: 50\nB value: 100\nA -> B'
+    );
+    // The saturated intent is carried on the outline (fill is its 25% tint).
+    const midStroke = nodeFor(svg, 'Mid')
+      .querySelector('rect')!
+      .getAttribute('stroke')!;
+    expect(midStroke).toBe(
+      valueRampColor(P.colors.green, P.colors.red, 0.5, { isDark: false })
+    );
+    expect(midStroke).not.toBe(mix(P.colors.red, P.colors.green, 50));
+  });
+
+  it('legend gradient stops reproduce the fills (AC9)', async () => {
+    const svg = await render(
+      'boxes-and-lines\nbox-metric Heat green red\nA value: 0\nB value: 100\nA -> B'
+    );
+    const stops = [...svg.querySelectorAll('stop')] as SVGStopElement[];
+    expect(stops.length).toBeGreaterThan(2); // diverging → sampled stops
+    for (const s of stops) {
+      const offset = parseFloat(s.getAttribute('offset')!) / 100;
+      expect(s.getAttribute('stop-color')).toBe(
+        valueRampColor(P.colors.green, P.colors.red, offset, { isDark: false })
+      );
+    }
+  });
+
   it('gives a no-value box the neutral fill while value is active (AC10)', async () => {
     const svg = await render('boxes-and-lines\nA value: 10\nB\nA -> B');
     const b = nodeFor(svg, 'B').querySelector('rect')!;
@@ -139,5 +248,64 @@ describe('boxes-and-lines renderer — value ramp', () => {
     expect(valText.textContent).toBe('Crew: 120');
     // A thin divider sits between the title and the value line.
     expect(flagship.querySelector('line')).toBeTruthy();
+  });
+
+  it('keeps the description legible on a dark solid fill (contrast-aware, not fixed grey)', async () => {
+    const svg = await render(
+      'boxes-and-lines\nsolid-fill\nbox-metric Heat red blue\nA value: 0\n  Forgotten coin in the bilge\n  -> B\nB value: 100\n  Full chest'
+    );
+    const a = nodeFor(svg, 'A');
+    const fill = a.querySelector('rect')!.getAttribute('fill')!;
+    // A (value 0) is the saturated low endpoint → dark fill under solid-fill.
+    expect(relativeLuminance(fill)).toBeLessThan(0.5);
+    const descEl = [...a.querySelectorAll('text')].find((t) =>
+      t.textContent?.includes('Forgotten')
+    )!;
+    expect(descEl).toBeTruthy();
+    // Description colour adapts to the dark fill — NOT the fixed muted grey that
+    // would sink into the saturated box.
+    expect(descEl.getAttribute('fill')).not.toBe(P.textMuted);
+  });
+
+  it('keeps the subtle muted description colour on default (light/tinted) fills', async () => {
+    const svg = await render(
+      'boxes-and-lines\nbox-metric Heat red blue\nA value: 0\n  Forgotten coin in the bilge\n  -> B\nB value: 100\n  Full chest'
+    );
+    const a = nodeFor(svg, 'A');
+    const descEl = [...a.querySelectorAll('text')].find((t) =>
+      t.textContent?.includes('Forgotten')
+    )!;
+    expect(descEl.getAttribute('fill')).toBe(P.textMuted);
+  });
+
+  it('described node: title, ONE divider, then description + value as one body (org-card style, no 3rd section)', async () => {
+    const svg = await render(
+      'boxes-and-lines\nbox-metric Readiness red green\nshow-values\nFlagship value: 96\n  Fully crewed and battle-ready\n  -> Sloop\nSloop value: 22\n  Barely afloat'
+    );
+    const flagship = nodeFor(svg, 'Flagship');
+    const valText = flagship.querySelector('.bl-node-value')!;
+    expect(valText.textContent).toBe('Readiness: 96');
+    expect(valText.getAttribute('text-anchor')).toBe('middle');
+    // Exactly ONE divider (title | body) — the old layout added a second divider
+    // for a bottom value footer, making it read as three sections.
+    expect(flagship.querySelectorAll('line').length).toBe(1);
+    // No corner-badge rect.
+    expect(flagship.querySelectorAll('rect').length).toBeLessThanOrEqual(2);
+    // Title is bold (matches the org card).
+    const title = [...flagship.querySelectorAll('text')].find(
+      (t) => t.textContent === 'Flagship'
+    )!;
+    expect(title.getAttribute('font-weight')).toBe('bold');
+  });
+
+  it('described value-card divider stays visible in solid-fill (uses contrast colour, not the equal stroke)', async () => {
+    const svg = await render(
+      'boxes-and-lines\nsolid-fill\nbox-metric Readiness red green\nshow-values\nFlagship value: 96\n  Fully crewed\n  -> Sloop\nSloop value: 22\n  Barely afloat'
+    );
+    const flagship = nodeFor(svg, 'Flagship');
+    const rectFill = flagship.querySelector('rect')!.getAttribute('fill');
+    const divider = flagship.querySelector('line')!;
+    // In solid mode stroke == fill; the divider must NOT use it (it would vanish).
+    expect(divider.getAttribute('stroke')).not.toBe(rectFill);
   });
 });

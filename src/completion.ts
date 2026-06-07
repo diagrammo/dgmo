@@ -448,7 +448,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       direction: { description: 'Layout direction', values: ['LR', 'TB'] },
       'active-tag': { description: 'Active tag group name' },
       hide: { description: 'Hide tag:value pairs' },
-      'box-metric': { description: 'Metric label for the value ramp' },
+      'box-metric': {
+        description:
+          'Metric label for the value ramp, with an optional trailing [low] [high] color pair',
+      },
       'show-values': { description: 'Print box values as text' },
     }),
   ],
@@ -520,7 +523,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // content keywords, not directives; metadata keys (value/label/style) live
     // in the reserved-key registry.
     withGlobals({
-      'region-metric': { description: 'Label for the region value ramp' },
+      'region-metric': {
+        description:
+          'Label for the region value ramp, with an optional trailing [low] [high] color pair',
+      },
       'poi-metric': {
         description: 'Label for the POI value (marker size) channel',
       },
@@ -549,10 +555,18 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-region-labels': {
         description: 'Turn off subdivision name labels (on by default)',
       },
+      'no-region-value': {
+        description:
+          'Turn off the metric value shown under each region (on by default)',
+      },
       'no-poi-labels': { description: 'Turn off POI labels (on by default)' },
       'no-colorize': {
         description:
           'Force plain green-land reference dress (regions are auto-coloured by default)',
+      },
+      'no-cities': {
+        description:
+          'Turn off the subtle city dots scattered across the basemap (on by default)',
       },
       'no-cluster-pois': {
         description:

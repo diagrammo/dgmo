@@ -53,12 +53,20 @@ export interface MapDirectives {
   noContextLabels?: boolean;
   /** `no-region-labels` — suppress region labels (default-on, full→abbrev→hide). */
   noRegionLabels?: boolean;
+  /** `no-region-value` — suppress the metric VALUE shown under each data region's
+   *  name on a `region-metric` choropleth (default-on). The region NAME still
+   *  renders (governed by `no-region-labels`); only the numeric value line goes. */
+  noRegionValue?: boolean;
   /** `no-poi-labels` — suppress POI labels (default-on, collision-managed auto). */
   noPoiLabels?: boolean;
   /** `no-colorize` — force the plain green-land reference dress even when regions
    *  are referenced (regions are auto-coloured by default; §24B colorize). A
    *  no-op under data — the basemap is already gray there. */
   noColorize?: boolean;
+  /** `no-cities` — suppress the subtle gazetteer city dots scattered across the
+   *  basemap for geographic orientation (default-on; population-ranked, spacing-
+   *  thinned so density adapts to zoom). Explicit POIs always draw regardless. */
+  noCities?: boolean;
   /** `no-cluster-pois` — never collapse coincident POI markers into a count badge
    *  (clustering/spiderfy is default-on in the interactive preview). With this set
    *  the markers always render fanned out with their legs — the same as a static

@@ -64,6 +64,12 @@ describe('parseMap — directives (AC2, AC20)', () => {
       false
     );
   });
+  it('parses `no-cities` as a boolean flag', () => {
+    const r = parseMap('map\nno-cities\nCalifornia value: 5');
+    expect(r.error).toBeNull();
+    expect(r.directives.noCities).toBe(true);
+    expect(r.regions.some((reg) => /no-cities/i.test(reg.name))).toBe(false);
+  });
   it('`no-cluster-pois` is idempotent — no duplicate warning', () => {
     const r = parseMap('map\nno-cluster-pois\nno-cluster-pois');
     expect(r.directives.noClusterPois).toBe(true);

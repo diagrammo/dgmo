@@ -511,6 +511,46 @@ export function peelTrailingColorName(label: string): {
   };
 }
 
+/**
+ * Peel up to TWO trailing recognized color names from a label region — the
+ * shared value-ramp coloring convention (`<metric> <low?> <high?>`). Peels from
+ * the right, stops at the first non-color token, peels AT MOST 2, and NEVER
+ * reduces the label to empty (a 2nd peel that would empty the label is left as
+ * label text).
+ *
+ * Mapping (locked): one peeled color ⇒ `{ high }` only (today's neutral→hue
+ * meaning); two peeled ⇒ first(left) = `low`, second(right) = `high`.
+ * Order-respecting — NO sorting, NO "did-you-mean" intent detection.
+ *
+ * Shared by any value-ramp chart type (map `region-metric`, b&l `box-metric`,
+ * and future ramps). `peelTrailingColorName` (single-token) stays untouched for
+ * the non-ramp callers (d3, sitemap, cycle, …).
+ */
+export function peelRampColors(label: string): {
+  label: string;
+  low?: string;
+  high?: string;
+} {
+  // Peel a single trailing recognized color, but only if a token remains in
+  // front of it (a lone token is never peeled — that would empty the label).
+  const peelOne = (s: string): { rest: string; color?: string } => {
+    const idx = Math.max(s.lastIndexOf(' '), s.lastIndexOf('\t'));
+    if (idx < 0) return { rest: s };
+    const trailing = s.substring(idx + 1);
+    if (!RECOGNIZED_COLOR_SET.has(trailing)) return { rest: s };
+    return { rest: s.substring(0, idx).trimEnd(), color: trailing };
+  };
+  // High (rightmost) first.
+  const first = peelOne(label);
+  if (first.color === undefined) return { label };
+  // Low (second-from-right) — only if a non-empty label still remains after.
+  const second = peelOne(first.rest);
+  if (second.color === undefined) {
+    return { label: first.rest, high: first.color };
+  }
+  return { label: second.rest, low: second.color, high: first.color };
+}
+
 /** Error message for multiple pipes on a single line. */
 export const MULTIPLE_PIPE_ERROR =
   'Use a single "|" to start metadata, then separate items with commas.';

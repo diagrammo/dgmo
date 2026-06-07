@@ -88,8 +88,12 @@ export interface LegendGroupData {
   readonly gradient?: {
     readonly min: number;
     readonly max: number;
-    readonly hue: string;
-    readonly base: string;
+    /** Resolved hex of the LOW (t=0) endpoint. For a single-colour ramp this is
+     *  the floored neutral (`mix(hue, base, RAMP_FLOOR)`); for an explicit
+     *  two-colour ramp it is the user's low colour. */
+    readonly low: string;
+    /** Resolved hex of the HIGH (t=1) endpoint (the named hue). */
+    readonly high: string;
   };
 }
 
@@ -179,8 +183,10 @@ export interface LegendCapsuleLayout {
     maxText: string;
     maxX: number;
     textY: number;
-    hue: string;
-    base: string;
+    /** Resolved hex endpoints (low = t0, high = t1); the renderer samples the
+     *  ramp between them via `valueRampStops`. */
+    low: string;
+    high: string;
   };
 }
 

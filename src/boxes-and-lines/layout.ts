@@ -32,6 +32,11 @@ const MAX_DESC_LINES = 6;
 const MAX_LABEL_LINES = 3;
 const LABEL_LINE_HEIGHT = 1.3;
 const LABEL_PAD = 12;
+// Bottom value-row reserved on a DESCRIBED node under `show-values`: a thin
+// divider + a "Metric: value" footer line (replaces the old corner badge).
+const VALUE_ROW_FONT = 11;
+const VALUE_ROW_H =
+  SEPARATOR_GAP + VALUE_ROW_FONT * DESC_LINE_HEIGHT + DESC_PADDING;
 
 // ── Result types ───────────────────────────────────────────
 
@@ -133,7 +138,10 @@ function estimateLabelLines(label: string, nodeWidth = NODE_WIDTH): number {
   return MAX_LABEL_LINES;
 }
 
-function computeNodeSize(node: BLNode): { width: number; height: number } {
+function computeNodeSize(
+  node: BLNode,
+  reserveValueRow: boolean
+): { width: number; height: number } {
   if (!node.description || node.description.length === 0) {
     return { width: NODE_WIDTH, height: NODE_HEIGHT };
   }
@@ -165,7 +173,8 @@ function computeNodeSize(node: BLNode): { width: number; height: number } {
     SEPARATOR_GAP +
     DESC_PADDING +
     descriptionHeight +
-    DESC_PADDING;
+    DESC_PADDING +
+    (reserveValueRow ? VALUE_ROW_H : 0);
   return { width: w, height: Math.max(NODE_HEIGHT, totalHeight) };
 }
 
@@ -416,7 +425,7 @@ export async function layoutBoxesAndLines(
   for (const node of parsed.nodes) {
     const size = hideDescriptions
       ? { width: NODE_WIDTH, height: NODE_HEIGHT }
-      : computeNodeSize(node);
+      : computeNodeSize(node, parsed.showValues === true);
     nodeSizes.set(node.label, size);
     if (!hideDescriptions && node.description && node.description.length > 0) {
       maxDescHeight = Math.max(maxDescHeight, size.height);

@@ -10,7 +10,51 @@ import {
   normalizeNumericToken,
   stripQuotes,
   tokenizeQuoteAware,
+  peelRampColors,
 } from '../src/utils/parsing';
+
+describe('peelRampColors', () => {
+  it('peels two trailing colors → low (left) + high (right)', () => {
+    expect(peelRampColors('Sales green red')).toEqual({
+      label: 'Sales',
+      low: 'green',
+      high: 'red',
+    });
+  });
+  it('peels one trailing color → high only', () => {
+    expect(peelRampColors('Coverage blue')).toEqual({
+      label: 'Coverage',
+      high: 'blue',
+    });
+  });
+  it('peels nothing when there is no trailing color', () => {
+    expect(peelRampColors('Density')).toEqual({ label: 'Density' });
+    expect(peelRampColors('Sales 2024')).toEqual({ label: 'Sales 2024' });
+  });
+  it('respects order (no sorting)', () => {
+    expect(peelRampColors('Risk red green')).toEqual({
+      label: 'Risk',
+      low: 'red',
+      high: 'green',
+    });
+  });
+  it('never empties the label — a color-word label survives a 2nd peel', () => {
+    expect(peelRampColors('Red blue')).toEqual({ label: 'Red', high: 'blue' });
+  });
+  it('stops the peel at the first non-color token', () => {
+    expect(peelRampColors('Q3 2024 red')).toEqual({
+      label: 'Q3 2024',
+      high: 'red',
+    });
+  });
+  it('preserves parenthetical label text', () => {
+    expect(peelRampColors('Sales ($M) green red')).toEqual({
+      label: 'Sales ($M)',
+      low: 'green',
+      high: 'red',
+    });
+  });
+});
 
 describe('measureIndent', () => {
   it('counts spaces', () => expect(measureIndent('    hello')).toBe(4));

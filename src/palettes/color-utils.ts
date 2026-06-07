@@ -156,6 +156,130 @@ export function mix(a: string, b: string, pct: number): string {
 }
 
 // ============================================================
+// Value Ramp (the shared `<metric> <low?> <high?>` coloring convention)
+// ============================================================
+//
+// Single source of truth for value-ramp fills across chart types (map
+// `region-metric`, boxes-and-lines `box-metric`, and any future ramp). Callers
+// resolve the two endpoint NAMES to palette hex, then ask for the fill at a
+// normalized position `t∈[0,1]`. The helper owns ONLY the low→high hue blend;
+// each caller keeps its own RAMP_FLOOR / base remap of `t`.
+//
+// Diverging endpoints (wide hue gap, e.g. green→red) blend through a
+// theme-aware neutral midpoint so the mid never goes muddy brown (straight sRGB
+// green↔red passes through brown). Analogous or achromatic endpoints take a
+// direct sRGB blend — that reads better and avoids a spurious neutral band.
+// (resvg has no `color-mix()`; OKLab interpolation is the deferred principled
+// fix — see the spec's ADR-4.)
+
+/** Below this HSL saturation an endpoint is treated as achromatic
+ *  (gray/black/white) — its hue is meaningless, so the ramp blends directly.
+ *  Evaluated BEFORE the hue-gap test (a hue gap between achromatics is noise). */
+const RAMP_S_MIN = 18;
+/** Circular hue gap (degrees) above which two saturated endpoints are
+ *  "diverging" and route through the neutral midpoint (green→red ≈ 120°). */
+const RAMP_HUE_GAP_MAX = 90;
+/** Fixed saturation floor at the inserted midpoint, so mid-range regions keep a
+ *  hint of colour and never read as "empty / no data". Internal quality
+ *  guarantee, deliberately NOT a config surface. */
+const RAMP_S_MID = 30;
+
+/** Shorter-arc hue bisector (degrees, 0..360); order-independent. */
+function bisectorHue(h1: number, h2: number): number {
+  const delta = ((((h2 - h1) % 360) + 540) % 360) - 180; // signed shortest delta
+  return (((h1 + delta / 2) % 360) + 360) % 360;
+}
+
+/** Classify a low→high endpoint pair: 'direct' sRGB blend vs via the neutral
+ *  midpoint. Saturation gate fires FIRST (achromatic endpoints have no
+ *  meaningful hue gap). Shared by `valueRampColor` + `valueRampStops`. */
+function rampMode(
+  a: { h: number; s: number; l: number },
+  b: { h: number; s: number; l: number }
+): 'direct' | 'midpoint' {
+  if (a.s < RAMP_S_MIN || b.s < RAMP_S_MIN) return 'direct';
+  const raw = Math.abs(a.h - b.h);
+  const gap = Math.min(raw, 360 - raw);
+  return gap <= RAMP_HUE_GAP_MAX ? 'direct' : 'midpoint';
+}
+
+/** Theme-aware neutral midpoint for a diverging ramp: the shorter-arc hue
+ *  bisector at the saturation floor, with a lightness between the two
+ *  endpoints. On dark themes the midpoint's WCAG luminance is additionally
+ *  clamped at or below the brighter endpoint so a perceptually-bright bisector
+ *  hue (e.g. yellow for green↔red) can't out-shine both ends and glow — the
+ *  dark-theme inversion AC8 guards against. HSL lightness ≠ luminance, so the
+ *  clamp can't be expressed as a fixed L; it darkens (lowers L, keeping hue +
+ *  saturation) until luminance is in range. Constructed from `isDark` alone. */
+function rampMidpoint(
+  lowHex: string,
+  highHex: string,
+  a: { h: number; s: number; l: number },
+  b: { h: number; s: number; l: number },
+  isDark: boolean
+): string {
+  const loL = Math.min(a.l, b.l);
+  const hiL = Math.max(a.l, b.l);
+  const hue = bisectorHue(a.h, b.h);
+  let midL = loL + (hiL - loL) * (isDark ? 0.4 : 0.5);
+  let mid = hslToHex(hue, RAMP_S_MID, midL);
+  if (isDark) {
+    const cap = Math.max(relativeLuminance(lowHex), relativeLuminance(highHex));
+    while (midL > 0 && relativeLuminance(mid) > cap) {
+      midL = Math.max(0, midL - 4);
+      mid = hslToHex(hue, RAMP_S_MID, midL);
+    }
+  }
+  return mid;
+}
+
+/**
+ * Value-ramp fill at normalized position `t`. PURE and order-respecting:
+ * `t=0` → exactly `low`, `t=1` → exactly `high`, no sorting or intent
+ * correction. `low`/`high` are resolved hex (the caller maps colour names →
+ * palette hex). See the section header for the direct-vs-midpoint rule.
+ */
+export function valueRampColor(
+  low: string,
+  high: string,
+  t: number,
+  opts: { isDark: boolean }
+): string {
+  const tc = Math.max(0, Math.min(1, t));
+  const a = hexToHSL(low);
+  const b = hexToHSL(high);
+  if (rampMode(a, b) === 'direct') return mix(high, low, tc * 100);
+  const mid = rampMidpoint(low, high, a, b, opts.isDark);
+  return tc < 0.5
+    ? mix(mid, low, (tc / 0.5) * 100)
+    : mix(high, mid, ((tc - 0.5) / 0.5) * 100);
+}
+
+/**
+ * Gradient stops that reproduce `valueRampColor` for a legend
+ * `<linearGradient>`. Direct ramps return just the two endpoints (so a
+ * single-colour legend stays byte-identical to the legacy 2-stop output);
+ * diverging ramps return sampled stops through the midpoint so the legend
+ * capsule matches the region/box fills exactly.
+ */
+export function valueRampStops(
+  low: string,
+  high: string,
+  opts: { isDark: boolean }
+): ReadonlyArray<{ offset: number; color: string }> {
+  if (rampMode(hexToHSL(low), hexToHSL(high)) === 'direct') {
+    return [
+      { offset: 0, color: low },
+      { offset: 1, color: high },
+    ];
+  }
+  return [0, 0.25, 0.5, 0.75, 1].map((offset) => ({
+    offset,
+    color: valueRampColor(low, high, offset, opts),
+  }));
+}
+
+// ============================================================
 // Contrast / Accessibility
 // ============================================================
 

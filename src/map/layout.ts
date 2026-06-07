@@ -23,6 +23,7 @@ import {
   contrastRatio,
   relativeLuminance,
   politicalTints,
+  valueRampColor,
 } from '../palettes/color-utils';
 import { buildAdjacency, featureBboxPrimary } from './geo';
 import { assignColors } from './colorize';
@@ -35,6 +36,7 @@ import {
 } from '../label-layout';
 import type { LabelRect, PointCircle } from '../label-layout';
 import { measureLegendText } from '../utils/legend-constants';
+import { compactNumber } from '../utils/number-format';
 import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
 import type { LegendMode } from '../utils/legend-types';
 import { mapLegendBand } from './legend-band';
@@ -442,6 +444,11 @@ export interface PlacedLabel {
    *  visible (export + expanded view) but tagged `data-cluster-member` so the app
    *  hides it when the stack is collapsed to its badge. */
   readonly clusterMember?: string;
+  /** A choropleth region's metric VALUE (already compact-formatted, e.g. `39.5M`),
+   *  drawn as a smaller, dimmer second line UNDER `text` (the region name). Set
+   *  only on region labels of a `region-metric` map when `no-region-value` is off.
+   *  The renderer stacks it as a sub-line; absent ⇒ single name line. */
+  readonly valueLine?: string;
   readonly lineNumber: number;
 }
 
@@ -450,6 +457,15 @@ export interface PlacedLabel {
 // module, which would re-introduce the layout↔legend-band cycle (this module
 // value-imports mapLegendBand from ./legend-band).
 export type { MapLayoutLegend };
+
+/** A subtle gazetteer city dot for basemap orientation (§24B `no-cities`). Just
+ *  a position + radius; the renderer paints it muted/low-opacity. No label, no
+ *  interactivity — purely decorative context. */
+export interface MapLayoutCityDot {
+  readonly cx: number;
+  readonly cy: number;
+  readonly r: number;
+}
 
 /** A drawn river centerline — an open stroked path (no fill). */
 export interface MapLayoutRiver {
@@ -518,6 +534,9 @@ export interface MapLayout {
   readonly coastlineStyle: MapLayoutCoastlineStyle | null;
   readonly legs: readonly MapLayoutLeg[];
   readonly pois: readonly MapLayoutPoi[];
+  /** Subtle gazetteer city dots for orientation (empty when `no-cities` or no
+   *  cities fall on-canvas). Drawn over the basemap, under connectors/POIs. */
+  readonly cityDots: readonly MapLayoutCityDot[];
   /** Coincident POI stacks (spiderfy). Empty when no ≥2-member overlap exists.
    *  The renderer draws a collapsed badge per stack; the app collapses/expands. */
   readonly clusters: readonly MapLayoutCluster[];
@@ -1064,6 +1083,13 @@ export function layoutMap(
   const rampHue =
     resolveColor(resolved.directives.regionMetricColor ?? '', palette) ??
     palette.colors.red;
+  // Explicit LOW endpoint (`region-metric Sales green red`). Only the 11
+  // recognized names peel, so resolveColor always succeeds when a name is
+  // present; absent ⇒ single-colour behaviour (neutral low). §24B.3.
+  const rampLow = resolved.directives.regionMetricLowColor
+    ? (resolveColor(resolved.directives.regionMetricLowColor, palette) ??
+      undefined)
+    : undefined;
   const hasRamp = values.length > 0;
 
   // Colouring dimension (AR4, bivariate): the value ramp and each tag group are
@@ -1195,8 +1221,16 @@ export function layoutMap(
   // off the near-black surface so the lowest scores read as a clear muted red
   // rather than sinking to maroon-black.
   const rampBase = isDark ? mix(palette.surface, palette.text, 28) : palette.bg;
+  // Floored neutral the single-colour ramp blends up from — also the LOW
+  // endpoint the legend shows when no explicit low colour was given.
+  const rampLowFloor = mix(rampHue, rampBase, RAMP_FLOOR);
   const fillForValue = (s: number): string => {
     const t = rampMax > rampMin ? (s - rampMin) / (rampMax - rampMin) : 1;
+    // Two-colour ramp: shared low→high interpolation (direct or via midpoint).
+    if (rampLow !== undefined)
+      return valueRampColor(rampLow, rampHue, t, { isDark });
+    // Single/zero-colour ramp: byte-identical to pre-change output — feed `mix`
+    // the SAME numeric pct (NO float round-trip, which could drift a channel).
     const pct = RAMP_FLOOR + Math.max(0, Math.min(1, t)) * (100 - RAMP_FLOOR);
     return mix(rampHue, rampBase, pct);
   };
@@ -1285,8 +1319,8 @@ export function layoutMap(
             }),
             min: rampMin,
             max: rampMax,
-            hue: rampHue,
-            base: rampBase,
+            low: rampLow ?? rampLowFloor,
+            high: rampHue,
           },
         }),
       };
@@ -2561,18 +2595,41 @@ export function layoutMap(
   // ocean. At the compact breakpoint (decision D2) the abbreviation is preferred
   // FIRST for US states.
   const showRegionLabels = resolved.directives.noRegionLabels !== true;
+  // Metric value shown UNDER each data region's name (`no-region-value` opts out).
+  // The value line is rendered smaller + dimmer than the name; see the renderer.
+  // Scoped to a `region-metric` choropleth: only when the SCORE ramp is the active
+  // colouring dimension (not a tag-coloured / categorical map) is the numeric
+  // value the data on display, so that's the only case it's surfaced.
+  const showRegionValues =
+    resolved.directives.noRegionValue !== true && activeIsScore;
+  // Compact value string for a region, or undefined when there's nothing to show
+  // (no value, or the feature is off). Shared formatter so it matches the legend.
+  const regionValueStr = (value: number | undefined): string | undefined =>
+    showRegionValues && value !== undefined ? compactNumber(value) : undefined;
   const isCompact = width < COMPACT_WIDTH_PX;
   const LABEL_PADX = 6;
   const LABEL_PADY = 3;
+  // The value line is ~0.82× the name size; a hair of vertical gap separates them.
+  const VALUE_FONT = Math.round(FONT * 0.82);
+  const VALUE_GAP = 1;
   const labelW = (text: string): number =>
     measureLegendText(text, FONT) + 2 * LABEL_PADX;
   const labelH = FONT + 2 * LABEL_PADY;
+  // Footprint of a name (+optional value) stack used for the box-fit cascade.
+  const stackW = (text: string, valueText?: string): number =>
+    Math.max(
+      labelW(text),
+      valueText ? measureLegendText(valueText, VALUE_FONT) + 2 * LABEL_PADX : 0
+    );
+  const stackH = (hasValue: boolean): number =>
+    hasValue ? labelH + VALUE_GAP + VALUE_FONT : labelH;
   const pushRegionLabel = (
     x: number,
     y: number,
     text: string,
     fill: string,
-    lineNumber: number
+    lineNumber: number,
+    valueLine?: string
   ): void => {
     // Colour is contrast-picked against the region's own fill (see labelOnFill).
     // The halo, though, is gated by CONTAINMENT — not fill tone. A label that
@@ -2585,7 +2642,13 @@ export function layoutMap(
     // fills: if any extreme lands on a fill other than the region's own, the
     // label overflows and earns a halo.
     const { color, haloColor } = labelOnFill(fill);
-    const halfW = measureLegendText(text, FONT) / 2;
+    // Widest of name / value drives the overflow sample (the value line can be
+    // the wider of the two, e.g. a short name over a long number).
+    const halfW =
+      Math.max(
+        measureLegendText(text, FONT),
+        valueLine ? measureLegendText(valueLine, VALUE_FONT) : 0
+      ) / 2;
     const overflows = [y - FONT * 0.55, y - FONT * 0.1].some(
       (sy) => fillAt(x - halfW, sy) !== fill || fillAt(x + halfW, sy) !== fill
     );
@@ -2597,15 +2660,28 @@ export function layoutMap(
       color,
       halo: overflows,
       haloColor,
+      ...(valueLine !== undefined && { valueLine }),
       lineNumber,
     });
   };
   // A region label's screen footprint, middle-anchored on its centroid, used to
   // keep two region labels from overlapping (a small gap adds breathing room).
+  // With a value line the box grows to the taller two-line stack.
   const REGION_LABEL_GAP = 2;
-  const regionLabelRect = (cx: number, cy: number, text: string): LabelRect => {
-    const w = measureLegendText(text, FONT) + 2 * REGION_LABEL_GAP;
-    return { x: cx - w / 2, y: cy - FONT / 2, w, h: FONT };
+  const regionLabelRect = (
+    cx: number,
+    cy: number,
+    text: string,
+    valueText?: string
+  ): LabelRect => {
+    const w =
+      Math.max(
+        measureLegendText(text, FONT),
+        valueText ? measureLegendText(valueText, VALUE_FONT) : 0
+      ) +
+      2 * REGION_LABEL_GAP;
+    const h = valueText ? FONT + VALUE_GAP + VALUE_FONT : FONT;
+    return { x: cx - w / 2, y: cy - h / 2, w, h };
   };
   if (showRegionLabels) {
     // Gather the placeable region labels, then commit them largest-footprint
@@ -2671,22 +2747,45 @@ export function layoutMap(
       h: 2 * (p.r + POI_LABEL_PAD),
     }));
     for (const { r, c, boxW, boxH, candidates } of entries) {
+      const valStr = regionValueStr(r.value);
       // The first candidate that BOTH fits its own footprint AND clears every
       // already-placed region label AND every POI marker wins; none qualifies →
       // the label is hidden (a country has no abbrev, so it degrades full → hide;
       // a US state may fall back to its 2-letter code before hiding).
-      const text = candidates.find((t) => {
-        if (labelW(t) > boxW || labelH > boxH) return false;
-        const rect = regionLabelRect(c[0], c[1], t);
-        return (
-          !placedRegionRects.some((p) => rectsOverlap(rect, p)) &&
-          !poiObstacles.some((o) => rectsOverlap(rect, o))
-        );
-      });
-      if (text === undefined) continue;
-      const rRect = regionLabelRect(c[0], c[1], text);
+      // When the region carries a metric value, the name+value STACK is tried
+      // first; if the stack won't fit (a smaller state), it degrades to the bare
+      // name (today's behaviour) so adding values never costs an existing label.
+      const fits = (rect: LabelRect): boolean =>
+        !placedRegionRects.some((p) => rectsOverlap(rect, p)) &&
+        !poiObstacles.some((o) => rectsOverlap(rect, o));
+      let chosen: { text: string; valueLine?: string } | undefined;
+      for (const t of candidates) {
+        if (valStr && stackW(t, valStr) <= boxW && stackH(true) <= boxH) {
+          const rect = regionLabelRect(c[0], c[1], t, valStr);
+          if (fits(rect)) {
+            chosen = { text: t, valueLine: valStr };
+            break;
+          }
+        }
+        if (labelW(t) <= boxW && labelH <= boxH) {
+          const rect = regionLabelRect(c[0], c[1], t);
+          if (fits(rect)) {
+            chosen = { text: t };
+            break;
+          }
+        }
+      }
+      if (chosen === undefined) continue;
+      const rRect = regionLabelRect(c[0], c[1], chosen.text, chosen.valueLine);
       placedRegionRects.push(rRect);
-      pushRegionLabel(c[0], c[1], text, r.fill, r.lineNumber);
+      pushRegionLabel(
+        c[0],
+        c[1],
+        chosen.text,
+        r.fill,
+        r.lineNumber,
+        chosen.valueLine
+      );
       // Guard so a POI label landing here later makes this label yield (below).
       regionLabelGuards.push({
         label: labels[labels.length - 1]!,
@@ -2698,16 +2797,18 @@ export function layoutMap(
     for (const seed of insetLabelSeeds) {
       const text = isCompact ? seed.iso.replace(/^US-/, '') : seed.name;
       const src = regionById.get(seed.iso);
+      const valStr = regionValueStr(src?.value);
       pushRegionLabel(
         seed.x,
         seed.y,
         text,
         src ? regionFill(src) : neutralFill,
-        seed.lineNumber
+        seed.lineNumber,
+        valStr
       );
       regionLabelGuards.push({
         label: labels[labels.length - 1]!,
-        rect: regionLabelRect(seed.x, seed.y, text),
+        rect: regionLabelRect(seed.x, seed.y, text, valStr),
       });
     }
   }
@@ -3271,6 +3372,54 @@ export function layoutMap(
     labels.push(...contextLabels);
   }
 
+  // ── Subtle city dots (basemap orientation, §24B `no-cities`) ──
+  // A faint scatter of gazetteer cities for geographic context. Population-ranked
+  // and spacing-thinned: the min-pixel gap makes density adapt to zoom for free —
+  // at world scale only the biggest of a dense cluster (Europe) survive; zoomed
+  // into one country the same cities spread apart and more local ones fill in.
+  // Explicit POIs always win — a city dot never sits under a referenced marker.
+  //
+  // The ON-CANVAS projected-pixel test is the ONLY cull — NOT a lon/lat extent
+  // box. `resolved.extent` wraps the antimeridian for albers-usa whenever AK/HI
+  // are referenced (west lon > east lon), which a naive `lon<w||lon>e` box reads
+  // as "reject every mainland city" → an all-blank US map. The pixel test is
+  // projection-agnostic and antimeridian-safe, and it naturally includes the
+  // near-border neighbour cities the viewport actually shows.
+  const cityDots: MapLayoutCityDot[] = [];
+  if (resolved.directives.noCities !== true) {
+    const CITY_DOT_R = 1.0;
+    const CITY_DOT_SPACING = 12; // min px between two dots (and dot↔POI)
+    const CITY_DOT_CAP = 220;
+    const SPACING_SQ = CITY_DOT_SPACING * CITY_DOT_SPACING;
+    // Seed the occupancy set with explicit POI positions so dots dodge markers.
+    const placed: { x: number; y: number }[] = pois.map((p) => ({
+      x: p.cx,
+      y: p.cy,
+    }));
+    const sorted = [...data.gazetteer.cities].sort((a, b) => b[3] - a[3]);
+    for (const c of sorted) {
+      if (cityDots.length >= CITY_DOT_CAP) break;
+      const lat = c[0];
+      const lon = c[1];
+      const p = project(lon, lat);
+      if (!p) continue;
+      const [px, py] = p;
+      if (px < 0 || px > width || py < 0 || py > height) continue;
+      let tooClose = false;
+      for (const q of placed) {
+        const dx = q.x - px;
+        const dy = q.y - py;
+        if (dx * dx + dy * dy < SPACING_SQ) {
+          tooClose = true;
+          break;
+        }
+      }
+      if (tooClose) continue;
+      placed.push({ x: px, y: py });
+      cityDots.push({ cx: px, cy: py, r: CITY_DOT_R });
+    }
+  }
+
   return {
     width,
     height,
@@ -3285,6 +3434,7 @@ export function layoutMap(
     coastlineStyle,
     legs,
     pois,
+    cityDots,
     clusters,
     labels,
     legend,

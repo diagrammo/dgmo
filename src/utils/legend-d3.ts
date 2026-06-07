@@ -15,7 +15,7 @@ import {
   measureLegendText,
 } from './legend-constants';
 import { computeLegendLayout } from './legend-layout';
-import { mix } from '../palettes/color-utils';
+import { mix, valueRampStops } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
 import type {
   LegendConfig,
@@ -158,7 +158,7 @@ function renderCapsule(
   palette: LegendPalette,
   groupBg: string,
   pillBorder: string,
-  _isDark: boolean,
+  isDark: boolean,
   callbacks?: LegendCallbacks
 ): void {
   const g = parent
@@ -213,11 +213,14 @@ function renderCapsule(
     const gr = capsule.gradient;
     const gradId = `dgmo-legend-ramp-${capsule.groupName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
     const def = g.append('defs').append('linearGradient').attr('id', gradId);
-    def
-      .append('stop')
-      .attr('offset', '0%')
-      .attr('stop-color', mix(gr.hue, gr.base, 15));
-    def.append('stop').attr('offset', '100%').attr('stop-color', gr.hue);
+    // Sample the SAME ramp the fills use (direct = 2 endpoints; diverging =
+    // stops through the neutral midpoint), so the legend matches the basemap.
+    for (const stop of valueRampStops(gr.low, gr.high, { isDark })) {
+      def
+        .append('stop')
+        .attr('offset', `${stop.offset * 100}%`)
+        .attr('stop-color', stop.color);
+    }
     g.append('text')
       .attr('x', gr.minX)
       .attr('y', gr.textY)
