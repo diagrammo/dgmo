@@ -23,6 +23,12 @@ export interface NoteLayout {
   readonly lines: readonly WrappedDescLine[];
   readonly lineNumber: number;
   readonly endLineNumber: number;
+  /**
+   * When true the note is collapsed: the renderer draws a small badge at
+   * the node corner instead of the floated box, and `x/y/width/height/side/
+   * lines` are unused. Collapsed notes reserve no layout space.
+   */
+  readonly collapsed?: boolean;
 }
 
 export interface LayoutNode {
@@ -70,6 +76,11 @@ export interface LayoutOptions {
   collapsedChildCounts?: Map<string, number>;
   /** Original groups before collapse (includes collapsed ones) */
   originalGroups?: readonly GraphGroup[];
+  /**
+   * 1-based source line numbers of notes the user has collapsed. A
+   * collapsed note renders as a corner badge and reserves no space.
+   */
+  collapsedNotes?: ReadonlySet<number>;
 }
 
 export interface LayoutResult {
@@ -100,6 +111,7 @@ export function layoutGraph(
 ): LayoutResult {
   const collapsedChildCounts = options?.collapsedChildCounts;
   const originalGroups = options?.originalGroups;
+  const collapsedNotes = options?.collapsedNotes;
 
   // Collapsed groups become synthetic nodes in the graph
   const collapsedGroupNodes: GraphNode[] = [];
@@ -242,10 +254,18 @@ export function layoutGraph(
     bottom: p.y + p.height / 2,
   }));
 
-  const noteRects = new Map<string, { rect: Rect; side: NoteSide }>();
+  const noteRects = new Map<
+    string,
+    { rect: Rect; side: NoteSide } | { collapsed: true }
+  >();
   for (const p of basePositioned) {
     const ng = noteGeoms.get(p.node.id);
     if (!ng) continue;
+    // Collapsed notes draw as a corner badge — no float, no reserved space.
+    if (collapsedNotes?.has(ng.lineNumber)) {
+      noteRects.set(p.node.id, { collapsed: true });
+      continue;
+    }
     const cx = p.x;
     const cy = p.y;
     const nodeLeft = cx - p.width / 2;
@@ -342,16 +362,29 @@ export function layoutGraph(
       ...(ng &&
         placed && {
           // Local coords relative to the node center (translate origin).
-          note: {
-            x: placed.rect.left - p.x,
-            y: placed.rect.top - p.y,
-            width: ng.noteW,
-            height: ng.noteH,
-            side: placed.side,
-            lines: ng.lines,
-            lineNumber: ng.lineNumber,
-            endLineNumber: ng.endLineNumber,
-          },
+          note:
+            'collapsed' in placed
+              ? {
+                  x: 0,
+                  y: 0,
+                  width: 0,
+                  height: 0,
+                  side: 'right' as NoteSide,
+                  lines: [],
+                  lineNumber: ng.lineNumber,
+                  endLineNumber: ng.endLineNumber,
+                  collapsed: true,
+                }
+              : {
+                  x: placed.rect.left - p.x,
+                  y: placed.rect.top - p.y,
+                  width: ng.noteW,
+                  height: ng.noteH,
+                  side: placed.side,
+                  lines: ng.lines,
+                  lineNumber: ng.lineNumber,
+                  endLineNumber: ng.endLineNumber,
+                },
         }),
     };
   });

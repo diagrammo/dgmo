@@ -41,18 +41,70 @@ describe('graph notes — rendering markup', () => {
   ].join('\n');
 
   // AC13 + AC11
-  it('emits a note group with the toggle hook + line attrs (AC13)', () => {
+  it('emits an interactive note group with the toggle hook + line attrs (AC13)', () => {
     const svg = parseSvg(fc(src));
     const note = svg.querySelector('.note');
     expect(note).not.toBeNull();
     expect(note!.hasAttribute('data-note-toggle')).toBe(true);
     expect(note!.getAttribute('data-line-number')).toBe('3');
     expect(note!.getAttribute('data-line-end')).toBe('3');
+    // Interactive: the group is a clickable button that collapses the note.
+    expect(note!.getAttribute('role')).toBe('button');
+    expect(note!.getAttribute('aria-expanded')).toBe('true');
+    expect(note!.getAttribute('style')).toContain('cursor: pointer');
 
+    // The box catches clicks (no pointer-events:none); the fold stays inert.
     const box = note!.querySelector('.note-box') as SVGElement;
     const fold = note!.querySelector('.note-fold') as SVGElement;
-    expect(box.getAttribute('style')).toContain('pointer-events: none');
+    expect(box.getAttribute('style') ?? '').not.toContain(
+      'pointer-events: none'
+    );
     expect(fold.getAttribute('style')).toContain('pointer-events: none');
+  });
+
+  it('renders a collapsed note as a comment-bubble badge, not a box', () => {
+    // Collapse the only note by its source line (line 3).
+    const parsed = parseFlowchart(src);
+    const note = parsed.notes![0]!;
+    const layout = layoutGraph(parsed, {
+      collapsedNotes: new Set([note.lineNumber]),
+    });
+    const container = doc.createElement('div') as unknown as HTMLDivElement;
+    doc.body.appendChild(container);
+    renderFlowchart(container, parsed, layout, palette, false, undefined, {
+      width: 800,
+      height: 600,
+    });
+    const badge = container.querySelector('.note-badge');
+    expect(badge).not.toBeNull();
+    // Same toggle hook + line attrs as the expanded box, for re-expansion.
+    expect(badge!.hasAttribute('data-note-toggle')).toBe(true);
+    expect(badge!.getAttribute('data-line-number')).toBe(
+      String(note.lineNumber)
+    );
+    expect(badge!.getAttribute('role')).toBe('button');
+    expect(badge!.getAttribute('aria-expanded')).toBe('false');
+    // No expanded box / connector for the collapsed note.
+    expect(container.querySelector('.note-box')).toBeNull();
+    expect(container.querySelector('.note-connector')).toBeNull();
+    doc.body.removeChild(container);
+  });
+
+  it('a collapsed note reserves no layout space (matches un-annotated)', () => {
+    const parsed = parseFlowchart(src);
+    const note = parsed.notes![0]!;
+    const collapsed = layoutGraph(parsed, {
+      collapsedNotes: new Set([note.lineNumber]),
+    });
+    const plain = layoutGraph(
+      parseFlowchart(
+        ['flowchart', '(Start) -> [Validate] -> (Done)'].join('\n')
+      )
+    );
+    expect(collapsed.width).toBeCloseTo(plain.width, 5);
+    expect(collapsed.height).toBeCloseTo(plain.height, 5);
+    const n = collapsed.nodes.find((x) => x.note)!;
+    expect(n.note!.collapsed).toBe(true);
   });
 
   it('tethers the note to its node with a solid connector', () => {

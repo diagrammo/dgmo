@@ -37,10 +37,17 @@ export interface NoteRect {
 export interface RenderNoteBoxOptions {
   readonly isDark: boolean;
   readonly fontSize?: number;
-  /** 1-based source line of the note (for the future toggle hook). */
+  /** 1-based source line of the note (drives the toggle hook). */
   readonly lineNumber?: number;
   /** 1-based last source line of the note body. */
   readonly endLineNumber?: number;
+  /**
+   * When true, the box is a click target that collapses the note (the app
+   * wires `data-note-toggle`): the group gets `cursor:pointer` + button
+   * a11y and the box fill catches pointer events. When false (the default,
+   * e.g. static export contexts), the box is inert.
+   */
+  readonly interactive?: boolean;
 }
 
 /**
@@ -122,6 +129,7 @@ export function renderNoteBox(
   opts: RenderNoteBoxOptions
 ): GSelection {
   const fontSize = opts.fontSize ?? NOTE_FONT_SIZE;
+  const interactive = opts.interactive ?? false;
   const { x, y, width, height } = rect;
   const fill = noteBoxFill(palette, opts.isDark);
 
@@ -135,9 +143,18 @@ export function renderNoteBox(
   if (opts.endLineNumber !== undefined) {
     noteG.attr('data-line-end', String(opts.endLineNumber));
   }
+  if (interactive) {
+    noteG
+      .style('cursor', 'pointer')
+      .attr('role', 'button')
+      .attr('tabindex', '0')
+      .attr('aria-expanded', 'true')
+      .attr('aria-label', 'Collapse note');
+  }
 
-  // Folded-corner body path.
-  noteG
+  // Folded-corner body path. When interactive it doubles as the click
+  // target (default pointer-events); otherwise it's inert.
+  const boxPath = noteG
     .append('path')
     .attr(
       'd',
@@ -153,8 +170,8 @@ export function renderNoteBox(
     .attr('fill', fill)
     .attr('stroke', palette.textMuted)
     .attr('stroke-width', 0.75)
-    .attr('class', 'note-box')
-    .style('pointer-events', 'none');
+    .attr('class', 'note-box');
+  if (!interactive) boxPath.style('pointer-events', 'none');
 
   // Fold triangle.
   noteG
@@ -198,4 +215,92 @@ export function renderNoteBox(
   });
 
   return noteG;
+}
+
+export interface RenderNoteBadgeOptions {
+  readonly isDark: boolean;
+  /** 1-based source line of the note (drives the toggle hook). */
+  readonly lineNumber?: number;
+  readonly endLineNumber?: number;
+}
+
+/** Half the badge's footprint (px) — for callers reserving corner space. */
+export const NOTE_BADGE_RADIUS = 9;
+
+/**
+ * Draw the collapsed-note badge: a small comment bubble pinned at `center`
+ * (parent-group coords). Carries the same `data-note-toggle` + line attrs
+ * as the expanded box, so clicking it re-expands the note. Interactive by
+ * design (button a11y + `cursor:pointer`).
+ */
+export function renderNoteBadge(
+  parent: GSelection,
+  center: { readonly x: number; readonly y: number },
+  palette: PaletteColors,
+  opts: RenderNoteBadgeOptions
+): GSelection {
+  const fill = noteBoxFill(palette, opts.isDark);
+  const g = parent
+    .append('g')
+    .attr('class', 'note note-badge')
+    .attr('data-note-toggle', '')
+    .attr('transform', `translate(${center.x}, ${center.y})`)
+    .style('cursor', 'pointer')
+    .attr('role', 'button')
+    .attr('tabindex', '0')
+    .attr('aria-expanded', 'false')
+    .attr('aria-label', 'Expand note');
+  if (opts.lineNumber !== undefined) {
+    g.attr('data-line-number', String(opts.lineNumber));
+  }
+  if (opts.endLineNumber !== undefined) {
+    g.attr('data-line-end', String(opts.endLineNumber));
+  }
+
+  // Comment bubble: rounded body (16×12) with a tail at the bottom-left.
+  // Single path so the body and tail share one seamless outline.
+  g.append('path')
+    .attr(
+      'd',
+      [
+        'M -8 -4.5',
+        'Q -8 -7 -5.5 -7',
+        'L 5.5 -7',
+        'Q 8 -7 8 -4.5',
+        'L 8 2.5',
+        'Q 8 5 5.5 5',
+        'L -1 5',
+        'L -5 8.5',
+        'L -4 5',
+        'L -5.5 5',
+        'Q -8 5 -8 2.5',
+        'Z',
+      ].join(' ')
+    )
+    .attr('fill', fill)
+    .attr('stroke', palette.textMuted)
+    .attr('stroke-width', 0.75)
+    .attr('class', 'note-badge-bubble');
+
+  // Two short "text" strokes inside the bubble.
+  g.append('line')
+    .attr('x1', -4.5)
+    .attr('y1', -3.5)
+    .attr('x2', 4.5)
+    .attr('y2', -3.5)
+    .attr('stroke', palette.textMuted)
+    .attr('stroke-width', 0.9)
+    .attr('opacity', 0.7)
+    .style('pointer-events', 'none');
+  g.append('line')
+    .attr('x1', -4.5)
+    .attr('y1', -0.5)
+    .attr('x2', 2)
+    .attr('y2', -0.5)
+    .attr('stroke', palette.textMuted)
+    .attr('stroke-width', 0.9)
+    .attr('opacity', 0.7)
+    .style('pointer-events', 'none');
+
+  return g;
 }

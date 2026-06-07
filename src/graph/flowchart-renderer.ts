@@ -23,7 +23,9 @@ import { measureText } from '../utils/text-measure';
 import {
   renderNoteBox,
   renderNoteConnector,
+  renderNoteBadge,
   noteConnectorPoints,
+  NOTE_BADGE_RADIUS,
 } from '../utils/note-box';
 
 // ============================================================
@@ -715,26 +717,44 @@ export function renderFlowchart(
       .text(node.label);
 
     if (hasNote && node.note) {
-      // Solid tether from the shape edge to the floated note, on whichever
-      // side the collision-aware placement chose.
-      const [cx1, cy1, cx2, cy2] = noteConnectorPoints(node, node.note);
-      renderNoteConnector(nodeG as GSelection, cx1, cy1, cx2, cy2, palette);
-      renderNoteBox(
-        nodeG as GSelection,
-        {
-          x: node.note.x,
-          y: node.note.y,
-          width: node.note.width,
-          height: node.note.height,
-        },
-        node.note.lines,
-        palette,
-        {
-          isDark,
-          lineNumber: node.note.lineNumber,
-          endLineNumber: node.note.endLineNumber,
-        }
-      );
+      if (node.note.collapsed) {
+        // Collapsed → comment-bubble badge in the node's top-right corner.
+        renderNoteBadge(
+          nodeG as GSelection,
+          {
+            x: node.width / 2 - NOTE_BADGE_RADIUS - 3,
+            y: -node.height / 2 + NOTE_BADGE_RADIUS + 3,
+          },
+          palette,
+          {
+            isDark,
+            lineNumber: node.note.lineNumber,
+            endLineNumber: node.note.endLineNumber,
+          }
+        );
+      } else {
+        // Solid tether from the shape edge to the floated note, on whichever
+        // side the collision-aware placement chose.
+        const [cx1, cy1, cx2, cy2] = noteConnectorPoints(node, node.note);
+        renderNoteConnector(nodeG as GSelection, cx1, cy1, cx2, cy2, palette);
+        renderNoteBox(
+          nodeG as GSelection,
+          {
+            x: node.note.x,
+            y: node.note.y,
+            width: node.note.width,
+            height: node.note.height,
+          },
+          node.note.lines,
+          palette,
+          {
+            isDark,
+            lineNumber: node.note.lineNumber,
+            endLineNumber: node.note.endLineNumber,
+            interactive: true,
+          }
+        );
+      }
     }
   }
 }
