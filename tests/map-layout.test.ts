@@ -1562,3 +1562,25 @@ describe('layout — zoom-out reserve places tiny-region callouts in a margin co
     expect(ys[ys.length - 1]! - ys[0]!).toBeGreaterThan(40);
   });
 });
+
+describe('layout — two-sided callout reserve (clusters on both edges)', () => {
+  it('columns tiny regions on the left AND right when they fall on both sides', async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    const W = 1020;
+    const r = layoutMap(
+      resolveMap(
+        parseMap(
+          'map Europe\nregion-metric Index\nPortugal value: 10\nSpain value: 47\nFrance value: 67\nGermany value: 83\nPoland value: 38\nLuxembourg value: 2\nMoldova value: 3\nNorth Macedonia value: 2\nMontenegro value: 1\nSlovenia value: 2\nCyprus value: 1'
+        ),
+        data
+      ),
+      data,
+      { width: W, height: 660 },
+      { palette: P, isDark: false }
+    );
+    const callouts = r.labels.filter((l) => l.calloutDot);
+    expect(callouts.some((c) => c.x < W / 2)).toBe(true); // a left column exists
+    expect(callouts.some((c) => c.x > W / 2)).toBe(true); // a right column exists
+  });
+});

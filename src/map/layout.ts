@@ -584,9 +584,11 @@ export interface LayoutOptions {
   readonly legendMode?: LegendMode;
   /** INTERNAL (set by layoutMap's own second pass — do not pass in). When tiny
    *  valued regions need margin callouts, the first pass measures them and
-   *  re-runs with a reserved band: the projection fits into the canvas MINUS this
-   *  band so the data shrinks/shifts away from that side, opening label room. */
-  readonly _calloutReserve?: { side: 'left' | 'right'; px: number };
+   *  re-runs with reserved bands: the projection fits into the canvas MINUS these
+   *  bands so the data shrinks/shifts inward, opening label room. A cluster on
+   *  EACH side reserves its own band (px), so tiny regions on both coasts each get
+   *  a column. An absent side reserves nothing there. */
+  readonly _calloutReserve?: { left?: number; right?: number };
 }
 
 interface Size {
@@ -1371,9 +1373,8 @@ export function layoutMap(
   // fits into the canvas MINUS this band, so the data shrinks and slides away
   // from that edge, opening room for the callout chips + leaders.
   const reserve = opts._calloutReserve;
-  const fitLeft = FIT_PAD + (reserve?.side === 'left' ? reserve.px : 0);
-  const fitRight =
-    width - FIT_PAD - (reserve?.side === 'right' ? reserve.px : 0);
+  const fitLeft = FIT_PAD + (reserve?.left ?? 0);
+  const fitRight = width - FIT_PAD - (reserve?.right ?? 0);
   const fitBox: [[number, number], [number, number]] = [
     [fitLeft, topPad],
     [Math.max(fitLeft + 1, fitRight), Math.max(topPad + 1, height - FIT_PAD)],
@@ -2914,27 +2915,33 @@ export function layoutMap(
     // shrinks/shifts away from that edge and the callouts get real room. Guarded
     // by `_calloutReserve` so it recurses exactly once.
     if (regionCallouts.length > 0 && !opts._calloutReserve) {
-      const meanCx =
-        regionCallouts.reduce((s, rc) => s + rc.cx, 0) / regionCallouts.length;
-      const side: 'left' | 'right' = meanCx >= width / 2 ? 'right' : 'left';
-      const maxChipW = regionCallouts.reduce(
-        (m, rc) =>
-          Math.max(
-            m,
-            measureLegendText(rc.name, FONT),
-            measureLegendText(rc.value, VALUE_FONT)
-          ),
-        0
-      );
-      // Band = chip + a leader run + edge padding, clamped so we never over-shrink
-      // (one stray callout) nor starve the map (a very long name).
-      const px = Math.max(
-        130,
-        Math.min(maxChipW + 96, Math.floor(width * 0.33))
-      );
+      // Split the callouts by the side of the canvas they fall on — a cluster on
+      // each coast gets its own reserved band + column. Band = widest chip in the
+      // group + a leader run + edge padding, clamped so one stray callout never
+      // over-shrinks the map nor a long name starves it.
+      const bandFor = (group: typeof regionCallouts): number | undefined => {
+        if (group.length === 0) return undefined;
+        const maxChipW = group.reduce(
+          (m, rc) =>
+            Math.max(
+              m,
+              measureLegendText(rc.name, FONT),
+              measureLegendText(rc.value, VALUE_FONT)
+            ),
+          0
+        );
+        return Math.max(130, Math.min(maxChipW + 96, Math.floor(width * 0.3)));
+      };
+      const right = regionCallouts.filter((rc) => rc.cx >= width / 2);
+      const left = regionCallouts.filter((rc) => rc.cx < width / 2);
+      const leftPx = bandFor(left);
+      const rightPx = bandFor(right);
       return layoutMap(resolved, data, size, {
         ...opts,
-        _calloutReserve: { side, px },
+        _calloutReserve: {
+          ...(leftPx !== undefined && { left: leftPx }),
+          ...(rightPx !== undefined && { right: rightPx }),
+        },
       });
     }
 
@@ -2948,55 +2955,63 @@ export function layoutMap(
     // centroid; the leader runs dot → chip. Chips may overlay unvalued base land
     // (e.g. Canada) but never a VALUED region's fill (keep the choropleth clean).
     if (regionCallouts.length > 0) {
-      // Tidy callout column in the reserved margin the zoom-out pass opened on
-      // `side`. Each chip is a name+value stack anchored just inside the band; a
-      // leader runs from the region's centroid dot to the chip's inner edge. Rows
-      // are ordered top→bottom by the region's screen latitude so the column reads
-      // in geographic order and the leaders stay short and roughly parallel.
+      // Tidy callout column(s) in the reserved margin(s) the zoom-out pass opened.
+      // Each chip is a name+value stack anchored just inside the band; a leader
+      // runs from the region's centroid dot to the chip's inner edge. Rows are
+      // ordered top→bottom by screen latitude so the column reads geographically
+      // and the leaders stay short and roughly parallel. A cluster on each side of
+      // the canvas gets its own column in its own reserved band.
       const reserveInfo = opts._calloutReserve;
-      const meanCx =
-        regionCallouts.reduce((s, rc) => s + rc.cx, 0) / regionCallouts.length;
-      const side: 'left' | 'right' =
-        reserveInfo?.side ?? (meanCx >= width / 2 ? 'right' : 'left');
-      const bandPx = reserveInfo?.px ?? 150;
       const EDGE = 28;
       const COL_GAP = 16; // chip inset from the land-facing edge of the band
-      const anchor: PlacedLabel['anchor'] = side === 'right' ? 'start' : 'end';
-      const colX =
-        side === 'right' ? width - bandPx + COL_GAP : bandPx - COL_GAP;
       const chipH = FONT + VALUE_GAP + VALUE_FONT;
       const ROW = chipH + 10;
-      const rows = [...regionCallouts].sort((a, b) => a.cy - b.cy);
-      const meanCy = rows.reduce((s, rc) => s + rc.cy, 0) / rows.length;
-      const totalH = rows.length * ROW;
-      const minTop = topPad + 6 + ROW / 2;
-      const maxTop = Math.max(minTop, height - EDGE - totalH + ROW / 2);
-      const startY = Math.max(
-        minTop,
-        Math.min(meanCy - totalH / 2 + ROW / 2, maxTop)
-      );
-      rows.forEach((rc, i) => {
-        const ry = startY + i * ROW;
-        const innerX = side === 'right' ? colX - 4 : colX + 4;
-        // Darken the region's hue toward the text colour for leader/dot contrast
-        // (a pale low-value fill on its own is near-invisible) while still tying
-        // the line to its region by colour.
-        const dark = mix(rc.fill, palette.text, 60);
-        labels.push({
-          x: colX,
-          y: ry,
-          text: rc.name,
-          anchor,
-          color: palette.text,
-          halo: true,
-          haloColor: palette.bg,
-          valueLine: rc.value,
-          leader: { x1: rc.cx, y1: rc.cy, x2: innerX, y2: ry },
-          leaderColor: dark,
-          calloutDot: { x: rc.cx, y: rc.cy, color: dark },
-          lineNumber: rc.lineNumber,
+      const placeColumn = (
+        group: typeof regionCallouts,
+        side: 'left' | 'right',
+        bandPx: number
+      ): void => {
+        if (group.length === 0) return;
+        const anchor: PlacedLabel['anchor'] =
+          side === 'right' ? 'start' : 'end';
+        const colX =
+          side === 'right' ? width - bandPx + COL_GAP : bandPx - COL_GAP;
+        const rows = [...group].sort((a, b) => a.cy - b.cy);
+        const meanCy = rows.reduce((s, rc) => s + rc.cy, 0) / rows.length;
+        const totalH = rows.length * ROW;
+        const minTop = topPad + 6 + ROW / 2;
+        const maxTop = Math.max(minTop, height - EDGE - totalH + ROW / 2);
+        const startY = Math.max(
+          minTop,
+          Math.min(meanCy - totalH / 2 + ROW / 2, maxTop)
+        );
+        rows.forEach((rc, i) => {
+          const ry = startY + i * ROW;
+          const innerX = side === 'right' ? colX - 4 : colX + 4;
+          // Darken the region's hue toward the text colour for leader/dot contrast
+          // (a pale low-value fill on its own is near-invisible) while still tying
+          // the line to its region by colour.
+          const dark = mix(rc.fill, palette.text, 60);
+          labels.push({
+            x: colX,
+            y: ry,
+            text: rc.name,
+            anchor,
+            color: palette.text,
+            halo: true,
+            haloColor: palette.bg,
+            valueLine: rc.value,
+            leader: { x1: rc.cx, y1: rc.cy, x2: innerX, y2: ry },
+            leaderColor: dark,
+            calloutDot: { x: rc.cx, y: rc.cy, color: dark },
+            lineNumber: rc.lineNumber,
+          });
         });
-      });
+      };
+      const right = regionCallouts.filter((rc) => rc.cx >= width / 2);
+      const left = regionCallouts.filter((rc) => rc.cx < width / 2);
+      placeColumn(right, 'right', reserveInfo?.right ?? 150);
+      placeColumn(left, 'left', reserveInfo?.left ?? 150);
     }
   }
 
