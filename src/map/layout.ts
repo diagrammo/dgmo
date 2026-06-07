@@ -587,8 +587,21 @@ export interface LayoutOptions {
    *  re-runs with reserved bands: the projection fits into the canvas MINUS these
    *  bands so the data shrinks/shifts inward, opening label room. A cluster on
    *  EACH side reserves its own band (px), so tiny regions on both coasts each get
-   *  a column. An absent side reserves nothing there. */
-  readonly _calloutReserve?: { left?: number; right?: number };
+   *  a column. An absent side reserves nothing there. Also carries the POI
+   *  edge-clearance bands (any of the four sides) measured by the POI-label pass
+   *  (same fit-box mechanism). Region callouts only ever set left/right. */
+  readonly _calloutReserve?: {
+    left?: number;
+    right?: number;
+    top?: number;
+    bottom?: number;
+  };
+  /** INTERNAL (set by layoutMap's own POI-clearance pass — do not pass in). After
+   *  the first POI-label placement, a POI whose seaward label would cross the edge
+   *  clearance band triggers a re-fit reserving that band on the leaning side, so
+   *  the cluster slides inward and its label seats fully on-canvas. Guards the
+   *  recursion so the measure runs exactly once. */
+  readonly _poiClearanceDone?: boolean;
 }
 
 interface Size {
@@ -1376,9 +1389,11 @@ export function layoutMap(
   const reserve = opts._calloutReserve;
   const fitLeft = FIT_PAD + (reserve?.left ?? 0);
   const fitRight = width - FIT_PAD - (reserve?.right ?? 0);
+  const fitTop = topPad + (reserve?.top ?? 0);
+  const fitBottom = height - FIT_PAD - (reserve?.bottom ?? 0);
   const fitBox: [[number, number], [number, number]] = [
-    [fitLeft, topPad],
-    [Math.max(fitLeft + 1, fitRight), Math.max(topPad + 1, height - FIT_PAD)],
+    [fitLeft, fitTop],
+    [Math.max(fitLeft + 1, fitRight), Math.max(fitTop + 1, fitBottom)],
   ];
   projection.fitExtent(fitBox, fitTarget as never);
 
@@ -1416,8 +1431,8 @@ export function layoutMap(
       }
     }
     if (yMin < yMax) {
-      const boxTop = topPad;
-      const boxBottom = height - FIT_PAD;
+      const boxTop = fitTop;
+      const boxBottom = fitBottom;
       // Center the data's vertical span; the bbox midpoint balances the northern
       // and southern extremes evenly (an area-weighted centroid would skew toward
       // the larger landmasses and over-shoot the frame).
@@ -3542,6 +3557,81 @@ export function layoutMap(
           : cleanSides[0];
       if (side) commitColumn(items, side);
       else items.forEach((o) => pushHidden(o.p));
+    }
+
+    // ── Label-aware edge clearance (re-fit, first pass → re-run) ──
+    // The tight fit (FIT_PAD = 24px) can seat a POI so near a side that its label
+    // (inline OR leader column) is forced off-canvas, jammed into the edge, or
+    // demoted to hover-only. Measure how far each POI label crosses an 8px
+    // clearance line on each of the four sides, reserve the deepest intrusion per
+    // side as a band, and re-fit the whole map into the canvas MINUS those bands —
+    // the data slides inward and every label seats with ≥8px breathing room.
+    // Asymmetric and "just enough": only the crowded sides zoom out, the rest stay
+    // tight. A committed label's box is reconstructed from its baseline/anchor; a
+    // still-hidden (hover-only) label is measured at its IDEAL seaward position
+    // (its stored rect is clamped on-canvas and would read as no intrusion).
+    // Guarded by `_poiClearanceDone` to recurse exactly once.
+    if (!opts._poiClearanceDone && pois.length > 0) {
+      const EDGE_CLEAR = 8; // px comfort buffer between any label and the edge
+      const capH = Math.floor(width * 0.3); // never starve the map for one wide name
+      const capV = Math.floor(height * 0.3);
+      const poiById2 = new Map(pois.map((p) => [p.id, p]));
+      let needLeft = 0;
+      let needRight = 0;
+      let needTop = 0;
+      let needBottom = 0;
+      for (const l of labels) {
+        if (l.poiId === undefined) continue;
+        const p = poiById2.get(l.poiId);
+        if (!p) continue;
+        if (l.hidden) {
+          // No on-canvas seat was found — reserve toward the dot's seaward edge so
+          // the re-fit opens room for a horizontal label there.
+          const { w } = labelInfo(p);
+          const reach = p.r + GAP + w;
+          if (p.cx >= width / 2)
+            needRight = Math.max(needRight, p.cx + reach + EDGE_CLEAR - width);
+          else needLeft = Math.max(needLeft, EDGE_CLEAR - (p.cx - reach));
+          continue;
+        }
+        // Visible label: reconstruct its box from baseline + anchor and measure how
+        // far it crosses each clearance line (negative = comfortably inside).
+        const w = measureLegendText(l.text, FONT);
+        const boxLeft =
+          l.anchor === 'start'
+            ? l.x
+            : l.anchor === 'end'
+              ? l.x - w
+              : l.x - w / 2;
+        const boxTop = l.y - FONT / 3 - poiLabH / 2;
+        const boxRight = boxLeft + w;
+        const boxBottom = boxTop + poiLabH;
+        needLeft = Math.max(needLeft, EDGE_CLEAR - boxLeft);
+        needRight = Math.max(needRight, boxRight + EDGE_CLEAR - width);
+        needTop = Math.max(needTop, topPad + EDGE_CLEAR - boxTop);
+        needBottom = Math.max(needBottom, boxBottom + EDGE_CLEAR - height);
+      }
+      needLeft = Math.min(Math.max(0, Math.ceil(needLeft)), capH);
+      needRight = Math.min(Math.max(0, Math.ceil(needRight)), capH);
+      needTop = Math.min(Math.max(0, Math.ceil(needTop)), capV);
+      needBottom = Math.min(Math.max(0, Math.ceil(needBottom)), capV);
+      if (needLeft >= 1 || needRight >= 1 || needTop >= 1 || needBottom >= 1) {
+        const prev = opts._calloutReserve;
+        const left = Math.max(prev?.left ?? 0, needLeft);
+        const right = Math.max(prev?.right ?? 0, needRight);
+        const top = Math.max(prev?.top ?? 0, needTop);
+        const bottom = Math.max(prev?.bottom ?? 0, needBottom);
+        return layoutMap(resolved, data, size, {
+          ...opts,
+          _poiClearanceDone: true,
+          _calloutReserve: {
+            ...(left > 0 && { left }),
+            ...(right > 0 && { right }),
+            ...(top > 0 && { top }),
+            ...(bottom > 0 && { bottom }),
+          },
+        });
+      }
     }
   }
 

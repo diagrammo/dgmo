@@ -579,9 +579,12 @@ describe('layout — POIs (AC6, AC7, AC8, AC18)', () => {
     for (let i = 1; i < ys.length; i++) {
       expect(ys[i]! - ys[i - 1]!).toBeGreaterThanOrEqual(FONT);
     }
-    // (3) The badge stays honest: swapping in 2-char labels (no overflow
-    // pressure) must NOT move the cluster centroid — the badge tracks the dots,
-    // never the labels.
+    // (3) The badge stays honest: it tracks the coincident DOTS, never the label
+    // text. Label-aware edge clearance may reframe the map when long labels crowd
+    // a narrow edge — but that shift moves the badge AND the dots together (the
+    // spiderfy fan is screen-px, applied after the projection), so the invariant
+    // is that the badge's offset from the member-dot centroid is identical whether
+    // the labels are long or short.
     const narrow = lay(
       'map\n' +
         names
@@ -591,8 +594,16 @@ describe('layout — POIs (AC6, AC7, AC8, AC18)', () => {
       H
     );
     expect(narrow.clusters).toHaveLength(1);
-    expect(wide.clusters[0]!.cx).toBeCloseTo(narrow.clusters[0]!.cx, 5);
-    expect(wide.clusters[0]!.cy).toBeCloseTo(narrow.clusters[0]!.cy, 5);
+    const badgeOffset = (l: typeof wide): { dx: number; dy: number } => {
+      const dots = l.pois.filter((p) => p.clusterId !== undefined);
+      const mx = dots.reduce((s, p) => s + p.cx, 0) / dots.length;
+      const my = dots.reduce((s, p) => s + p.cy, 0) / dots.length;
+      return { dx: l.clusters[0]!.cx - mx, dy: l.clusters[0]!.cy - my };
+    };
+    const ow = badgeOffset(wide);
+    const on = badgeOffset(narrow);
+    expect(ow.dx).toBeCloseTo(on.dx, 5);
+    expect(ow.dy).toBeCloseTo(on.dy, 5);
   });
 });
 
