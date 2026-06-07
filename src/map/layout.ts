@@ -582,6 +582,11 @@ export interface LayoutOptions {
    *  `'preview'` keeps inactive pills. Used to size the reserved legend band so
    *  the projected land starts below the legend. Defaults to `'preview'`. */
   readonly legendMode?: LegendMode;
+  /** INTERNAL (set by layoutMap's own second pass — do not pass in). When tiny
+   *  valued regions need margin callouts, the first pass measures them and
+   *  re-runs with a reserved band: the projection fits into the canvas MINUS this
+   *  band so the data shrinks/shifts away from that side, opening label room. */
+  readonly _calloutReserve?: { side: 'left' | 'right'; px: number };
 }
 
 interface Size {
@@ -1362,12 +1367,16 @@ export function layoutMap(
     hasSubtitle: Boolean(resolved.subtitle),
   });
   if (legendBand > topPad) topPad = legendBand;
+  // Reserve a side band for margin callouts (second pass only): the projection
+  // fits into the canvas MINUS this band, so the data shrinks and slides away
+  // from that edge, opening room for the callout chips + leaders.
+  const reserve = opts._calloutReserve;
+  const fitLeft = FIT_PAD + (reserve?.side === 'left' ? reserve.px : 0);
+  const fitRight =
+    width - FIT_PAD - (reserve?.side === 'right' ? reserve.px : 0);
   const fitBox: [[number, number], [number, number]] = [
-    [FIT_PAD, topPad],
-    [
-      Math.max(FIT_PAD + 1, width - FIT_PAD),
-      Math.max(topPad + 1, height - FIT_PAD),
-    ],
+    [fitLeft, topPad],
+    [Math.max(fitLeft + 1, fitRight), Math.max(topPad + 1, height - FIT_PAD)],
   ];
   projection.fitExtent(fitBox, fitTarget as never);
 
@@ -2898,6 +2907,37 @@ export function layoutMap(
       });
     }
 
+    // Zoom-out reserve (first pass → re-run): tiny valued regions need margin
+    // callouts, and the map currently fills the canvas with no room for them.
+    // Measure them, reserve a band on the side the cluster leans toward, and
+    // re-run the whole layout fitted into the canvas MINUS that band — the map
+    // shrinks/shifts away from that edge and the callouts get real room. Guarded
+    // by `_calloutReserve` so it recurses exactly once.
+    if (regionCallouts.length > 0 && !opts._calloutReserve) {
+      const meanCx =
+        regionCallouts.reduce((s, rc) => s + rc.cx, 0) / regionCallouts.length;
+      const side: 'left' | 'right' = meanCx >= width / 2 ? 'right' : 'left';
+      const maxChipW = regionCallouts.reduce(
+        (m, rc) =>
+          Math.max(
+            m,
+            measureLegendText(rc.name, FONT),
+            measureLegendText(rc.value, VALUE_FONT)
+          ),
+        0
+      );
+      // Band = chip + a leader run + edge padding, clamped so we never over-shrink
+      // (one stray callout) nor starve the map (a very long name).
+      const px = Math.max(
+        130,
+        Math.min(maxChipW + 96, Math.floor(width * 0.33))
+      );
+      return layoutMap(resolved, data, size, {
+        ...opts,
+        _calloutReserve: { side, px },
+      });
+    }
+
     // ── Radial callouts for valued regions too small to label in place ──
     // Each gathered region gets a leader-lined chip (its name over the metric
     // value, same stack as an in-place label) placed in the OPEN SPACE around the
@@ -2908,133 +2948,55 @@ export function layoutMap(
     // centroid; the leader runs dot → chip. Chips may overlay unvalued base land
     // (e.g. Canada) but never a VALUED region's fill (keep the choropleth clean).
     if (regionCallouts.length > 0) {
-      const ccx =
+      // Tidy callout column in the reserved margin the zoom-out pass opened on
+      // `side`. Each chip is a name+value stack anchored just inside the band; a
+      // leader runs from the region's centroid dot to the chip's inner edge. Rows
+      // are ordered top→bottom by the region's screen latitude so the column reads
+      // in geographic order and the leaders stay short and roughly parallel.
+      const reserveInfo = opts._calloutReserve;
+      const meanCx =
         regionCallouts.reduce((s, rc) => s + rc.cx, 0) / regionCallouts.length;
-      const ccy =
-        regionCallouts.reduce((s, rc) => s + rc.cy, 0) / regionCallouts.length;
-      // Fills of the data (valued) regions — a chip's centre must not land on one.
-      const valuedFills = new Set(
-        regions.filter((rr) => rr.value !== undefined).map((rr) => rr.fill)
-      );
-      // Obstacles accumulate: the in-place region labels, the POI pads, and each
-      // chip already placed this pass.
-      const chipObstacles: LabelRect[] = [
-        ...placedRegionRects,
-        ...poiObstacles,
-      ];
-      // Fan order: by outward angle, so neighbours spread around the ring instead
-      // of stacking; ties broken by distance from centre (inner regions first).
-      const items = regionCallouts
-        .map((rc) => ({
-          rc,
-          ang: Math.atan2(rc.cy - ccy, rc.cx - ccx),
-          d2: (rc.cx - ccx) ** 2 + (rc.cy - ccy) ** 2,
-        }))
-        .sort((a, b) => a.ang - b.ang || a.d2 - b.d2);
-      // Angle nudges (radians, ~18° steps out to ±90°) tried in order so a blocked
-      // direction rotates toward open space before giving up.
-      const angOffsets = [
-        0, 0.32, -0.32, 0.64, -0.64, 0.96, -0.96, 1.3, -1.3, 1.6, -1.6,
-      ];
-      const STEP = 8;
-      const maxDist = Math.min(width, height) * 0.5;
-      // Keep callout chips a comfortable margin off every canvas edge — a chip
-      // hugging (or running off) the edge reads as clipped. The top edge also
-      // clears the legend/title band (topPad).
+      const side: 'left' | 'right' =
+        reserveInfo?.side ?? (meanCx >= width / 2 ? 'right' : 'left');
+      const bandPx = reserveInfo?.px ?? 150;
       const EDGE = 28;
-      const yMin = topPad + 6;
-      for (const { rc, ang: baseAng } of items) {
-        const chipW = Math.max(
-          measureLegendText(rc.name, FONT),
-          measureLegendText(rc.value, VALUE_FONT)
-        );
-        const chipH = FONT + VALUE_GAP + VALUE_FONT;
-        // Start just outside the region's own footprint.
-        const d0 = Math.max(rc.bw, rc.bh) * 0.6 + 10;
-        let best:
-          | {
-              x: number;
-              y: number;
-              anchor: PlacedLabel['anchor'];
-              rect: LabelRect;
-            }
-          | undefined;
-        for (const off of angOffsets) {
-          const ang = baseAng + off;
-          const ux = Math.cos(ang);
-          const uy = Math.sin(ang);
-          const anchor: PlacedLabel['anchor'] = ux >= 0 ? 'start' : 'end';
-          for (let dist = d0; dist <= maxDist; dist += STEP) {
-            const px = rc.cx + ux * dist;
-            const py = rc.cy + uy * dist;
-            // Chip rect from the anchor x (text extends away from the map).
-            const rx = anchor === 'start' ? px : px - chipW;
-            const rect: LabelRect = {
-              x: rx - 2,
-              y: py - chipH / 2 - 2,
-              w: chipW + 4,
-              h: chipH + 4,
-            };
-            if (rect.x < EDGE || rect.x + rect.w > width - EDGE) continue;
-            if (rect.y < yMin || rect.y + rect.h > height - EDGE) continue;
-            if (valuedFills.has(fillAt(px, py))) continue;
-            if (chipObstacles.some((o) => rectsOverlap(rect, o))) continue;
-            best = { x: px, y: py, anchor, rect };
-            break;
-          }
-          if (best) break;
-        }
-        // Fallback: park it just outside the region along the base angle, clamped
-        // to the canvas (rare — only if every direction is boxed in).
-        if (!best) {
-          const ux = Math.cos(baseAng);
-          const anchor: PlacedLabel['anchor'] = ux >= 0 ? 'start' : 'end';
-          const px = Math.min(
-            Math.max(rc.cx + ux * d0, EDGE + (anchor === 'end' ? chipW : 0)),
-            width - EDGE - (anchor === 'start' ? chipW : 0)
-          );
-          const py = Math.min(
-            Math.max(rc.cy, yMin + chipH),
-            height - EDGE - chipH
-          );
-          const rx = anchor === 'start' ? px : px - chipW;
-          best = {
-            x: px,
-            y: py,
-            anchor,
-            rect: {
-              x: rx - 2,
-              y: py - chipH / 2 - 2,
-              w: chipW + 4,
-              h: chipH + 4,
-            },
-          };
-        }
-        chipObstacles.push(best.rect);
-        // Leader ends a hair short of the chip's inner edge (the anchor x).
-        const gap = best.anchor === 'start' ? -3 : 3;
+      const COL_GAP = 16; // chip inset from the land-facing edge of the band
+      const anchor: PlacedLabel['anchor'] = side === 'right' ? 'start' : 'end';
+      const colX =
+        side === 'right' ? width - bandPx + COL_GAP : bandPx - COL_GAP;
+      const chipH = FONT + VALUE_GAP + VALUE_FONT;
+      const ROW = chipH + 10;
+      const rows = [...regionCallouts].sort((a, b) => a.cy - b.cy);
+      const meanCy = rows.reduce((s, rc) => s + rc.cy, 0) / rows.length;
+      const totalH = rows.length * ROW;
+      const minTop = topPad + 6 + ROW / 2;
+      const maxTop = Math.max(minTop, height - EDGE - totalH + ROW / 2);
+      const startY = Math.max(
+        minTop,
+        Math.min(meanCy - totalH / 2 + ROW / 2, maxTop)
+      );
+      rows.forEach((rc, i) => {
+        const ry = startY + i * ROW;
+        const innerX = side === 'right' ? colX - 4 : colX + 4;
+        // Darken the region's hue toward the text colour for leader/dot contrast
+        // (a pale low-value fill on its own is near-invisible) while still tying
+        // the line to its region by colour.
+        const dark = mix(rc.fill, palette.text, 60);
         labels.push({
-          x: best.x,
-          y: best.y,
+          x: colX,
+          y: ry,
           text: rc.name,
-          anchor: best.anchor,
+          anchor,
           color: palette.text,
           halo: true,
           haloColor: palette.bg,
           valueLine: rc.value,
-          leader: { x1: rc.cx, y1: rc.cy, x2: best.x + gap, y2: best.y },
-          // Darken the region's own hue toward the text colour so the leader has
-          // real contrast against the basemap (a pale low-value fill on its own is
-          // near-invisible) while still tying the line to its region by colour.
-          leaderColor: mix(rc.fill, palette.text, 60),
-          calloutDot: {
-            x: rc.cx,
-            y: rc.cy,
-            color: mix(rc.fill, palette.text, 60),
-          },
+          leader: { x1: rc.cx, y1: rc.cy, x2: innerX, y2: ry },
+          leaderColor: dark,
+          calloutDot: { x: rc.cx, y: rc.cy, color: dark },
           lineNumber: rc.lineNumber,
         });
-      }
+      });
     }
   }
 

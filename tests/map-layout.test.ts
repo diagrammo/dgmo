@@ -1530,3 +1530,35 @@ describe('layout — POI-blocked valued region re-seats on its own land (not a f
     expect(r.labels.some((l) => l.calloutDot)).toBe(false);
   });
 });
+
+describe('layout — zoom-out reserve places tiny-region callouts in a margin column', () => {
+  it('reserves a right band and columns the NE callouts when the cluster leans east', async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    const W = 1020;
+    const r = layoutMap(
+      resolveMap(
+        parseMap(
+          'map NE\nregion-metric Pop\nNew York value: 19600000\nMassachusetts value: 7000000\nRhode Island value: 1100000\nConnecticut value: 3600000\nVermont value: 650000\nNew Hampshire value: 1400000\nDelaware value: 1000000\nNew Jersey value: 9300000'
+        ),
+        data
+      ),
+      data,
+      { width: W, height: 660 },
+      { palette: P, isDark: false }
+    );
+    const callouts = r.labels.filter((l) => l.calloutDot);
+    // Several tiny NE states are columned, not labeled in place.
+    expect(callouts.length).toBeGreaterThanOrEqual(3);
+    // Their chips sit in the reserved RIGHT band (a tidy column), each with a
+    // leader back to its dot.
+    for (const c of callouts) {
+      expect(c.x).toBeGreaterThan(W * 0.62);
+      expect(c.leader).toBeDefined();
+      expect(c.valueLine).toBeDefined();
+    }
+    // The column is vertically ordered + spread (distinct rows).
+    const ys = callouts.map((c) => c.y).sort((a, b) => a - b);
+    expect(ys[ys.length - 1]! - ys[0]!).toBeGreaterThan(40);
+  });
+});
