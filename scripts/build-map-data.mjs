@@ -840,6 +840,12 @@ function buildGazetteer(tsv) {
 
 // =============================================================================
 // Airports (OurAirports, IATA-coded) — emitted as a SEPARATE airports.json
+//
+// MAINTENANCE: see docs/dev-notes/map-airport-data.md. The pinned snapshot is
+// refreshed deliberately (~annually) via scripts/build-airports-snapshot.mjs;
+// to regenerate airports.json WITHOUT a full network rebuild (which would drift
+// the daily-rebuilt GeoNames gazetteer), call buildAirports() against the
+// committed gazetteer.json — the dev-note has the exact recipe.
 // =============================================================================
 
 // Pinned, OFFLINE source: a committed lean slice of OurAirports' airports.csv
