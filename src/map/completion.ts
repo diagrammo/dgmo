@@ -8,7 +8,7 @@
 // ./geo) so this module — exported from the main index — stays free of the
 // d3-geo / topojson imports that geo.ts pulls in. Keep it byte-identical to the
 // resolver/geo folding so matches agree.
-import type { Gazetteer, RegionName } from './data/types';
+import type { Gazetteer, RegionName, AirportData } from './data/types';
 
 const fold = (s: string): string =>
   s
@@ -34,11 +34,24 @@ export interface MapPlaceCompletion {
   readonly iso: string;
   readonly sub?: string;
   readonly pop: number;
+  /** `'airport'` for IATA-code entries (icon/grouping affordance); absent or
+   *  `'city'` for gazetteer cities. Cities rank above airports for a shared
+   *  prefix so ~1500 codes never bury city names (ADR-5). */
+  readonly kind?: 'city' | 'airport';
 }
 
 export interface MapCompletionOptions {
   /** Max results (default 12). */
   readonly limit?: number;
+  /** IATA-coded airports (`airports.json`). When supplied, airport codes
+   *  matching the prefix are offered as a second (post-city) group. Optional —
+   *  absent (old DI bundles / no asset) just yields city-only completions. */
+  readonly airports?: AirportData;
+  /** Resolver-inferred map scope (country `US` or subdivision `US-CA`). Biases
+   *  airport ranking so in-region airports sort above out-of-region same-prefix
+   *  ones (ADR-6). Pure rank, never a filter — cross-region airports still
+   *  appear. App passes the document's inferred scope in (Slice 2). */
+  readonly scopeISO?: string;
 }
 
 /**
@@ -65,35 +78,77 @@ export function completeMapPlaces(
   for (const [key, idx] of Object.entries(gazetteer.alt)) {
     if (key.startsWith(q)) matched.add(idx);
   }
-  if (matched.size === 0) return [];
 
-  const ranked = [...matched]
+  // Airport prefix matches (optional asset; guarded for absent bundles, F5/#8).
+  // Folded IATA code → index into `airports`. Scope-match (current map's country)
+  // then code-alpha — NOT pop (always 0) and NOT type (the tuple has no type).
+  const airports = opts?.airports;
+  const scopeCountry = opts?.scopeISO ? opts.scopeISO.slice(0, 2) : undefined;
+  const airportHits: Array<{ code: string; name: string; iso: string }> = [];
+  if (airports?.airportIata) {
+    for (const [key, idx] of Object.entries(airports.airportIata)) {
+      if (!key.startsWith(q)) continue;
+      const a = airports.airports[idx];
+      if (a) airportHits.push({ code: key, name: a[4], iso: a[2] });
+    }
+  }
+
+  // Relaxed early-return: only when BOTH groups are empty (an airport-only prefix
+  // must still complete — the old city-only `matched.size === 0` blocked it).
+  if (matched.size === 0 && airportHits.length === 0) return [];
+
+  // Cities first (pop desc), then airports — cities fill the limit slots first.
+  // Slice the sorted index list to `limit` BEFORE building items (a short prefix
+  // matches thousands of cities; mapping them all per keystroke is wasted work —
+  // airports are appended after, so they never starve cities).
+  const cityItems: MapPlaceCompletion[] = [...matched]
     .filter((i) => gazetteer.cities[i] !== undefined)
     .sort((a, b) => {
       const pa = gazetteer.cities[a]![3];
       const pb = gazetteer.cities[b]![3];
       return pb - pa || a - b; // pop desc, then deterministic index
     })
-    .slice(0, limit);
+    .slice(0, limit)
+    .map((i) => {
+      const c = gazetteer.cities[i]!;
+      const [, , iso, pop, name, sub] = c;
+      const ambiguous = (gazetteer.byName[fold(name)]?.length ?? 0) > 1;
+      const qualifier = sub ?? iso;
+      const insert = ambiguous ? `${name} ${qualifier}` : name;
+      const label = ambiguous ? `${name} — ${qualifier}` : name;
+      const detail = `${qualifier} · ${groupThousands(pop)}`;
+      return {
+        name,
+        insert,
+        label,
+        detail,
+        iso,
+        pop,
+        kind: 'city' as const,
+        ...(sub !== undefined && { sub }),
+      };
+    });
 
-  return ranked.map((i) => {
-    const c = gazetteer.cities[i]!;
-    const [, , iso, pop, name, sub] = c;
-    const ambiguous = (gazetteer.byName[fold(name)]?.length ?? 0) > 1;
-    const qualifier = sub ?? iso;
-    const insert = ambiguous ? `${name} ${qualifier}` : name;
-    const label = ambiguous ? `${name} — ${qualifier}` : name;
-    const detail = `${qualifier} · ${groupThousands(pop)}`;
-    return {
-      name,
-      insert,
-      label,
-      detail,
-      iso,
-      pop,
-      ...(sub !== undefined && { sub }),
-    };
-  });
+  const airportItems: MapPlaceCompletion[] = airportHits
+    .sort((a, b) => {
+      const sa = scopeCountry && a.iso === scopeCountry ? 0 : 1;
+      const sb = scopeCountry && b.iso === scopeCountry ? 0 : 1;
+      return sa - sb || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0);
+    })
+    .map(({ code, name, iso }) => {
+      const upper = code.toUpperCase();
+      return {
+        name,
+        insert: upper,
+        label: upper,
+        detail: `Airport · ${name}`,
+        iso,
+        pop: 0,
+        kind: 'airport' as const,
+      };
+    });
+
+  return [...cityItems, ...airportItems].slice(0, limit);
 }
 
 export interface MapRegionCompletion {

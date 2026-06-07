@@ -19,7 +19,7 @@
 // PROVENANCE.json is the audit trail.
 // =============================================================================
 
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -166,6 +166,10 @@ const GZ_CEILINGS = {
   'water-bodies.json': 6_000,
   'gazetteer.json': 70_000,
   'region-names.json': 8_000,
+  // Airports (OurAirports IATA-coded): own ceiling, separate from gazetteer's
+  // 70KB gate. Measured ~38KB gz at 1565 airports / 2-decimal coords; 42KB
+  // leaves headroom for name growth. A deliberate bump means re-baselining here.
+  'airports.json': 42_000,
 };
 
 // --- ISO 3166-1 numeric -> alpha-2 (embedded; from lukes/ISO-3166, ADR-6) ---
@@ -835,6 +839,151 @@ function buildGazetteer(tsv) {
 }
 
 // =============================================================================
+// Airports (OurAirports, IATA-coded) — emitted as a SEPARATE airports.json
+// =============================================================================
+
+// Pinned, OFFLINE source: a committed lean slice of OurAirports' airports.csv
+// (rows with scheduled_service=yes + a 3-letter iata_code; only the columns we
+// use). ADR-4: a frozen/hashed snapshot, not a live rebuild — OurAirports is
+// community-edited with no release tags, so a live fetch could silently drift a
+// coord or drop a hub. Regenerating the snapshot is a deliberate, reviewed bump.
+const AIRPORT_SNAPSHOT = resolve(ROOT, 'scripts/airports-snapshot.csv');
+// Airport coords are rounded to 2 decimals (~1km) — sub-pixel at world/regional
+// map scale (a 10km airport↔city offset is already invisible), and the size lever
+// that keeps airports.json under its ceiling. Distinct from the gazetteer's 3.
+const AIRPORT_COORD_PRECISION = 2;
+const roundAirport = (n) => Number(n.toFixed(AIRPORT_COORD_PRECISION));
+// Geo-weighted tier (§Technical Decisions): US gets all scheduled commercial
+// (large + medium — captures John Wayne SNA etc.); the rest of the world gets
+// large hubs only. Higher rank wins a duplicate-IATA conflict.
+const AIRPORT_TYPE_RANK = { large_airport: 2, medium_airport: 1 };
+// Schema-drift guard: a snapshot prune/column-shift that empties the set must
+// hard-fail, not silently ship a near-empty airports.json.
+const MIN_AIRPORTS = 800;
+
+/** Minimal RFC-4180-ish CSV row parser (quoted fields may embed commas/quotes).
+ *  Sufficient for the OurAirports snapshot; no embedded newlines in fields. */
+function parseCsvLine(line) {
+  const out = [];
+  let cur = '';
+  let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else q = false;
+      } else cur += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === ',') {
+      out.push(cur);
+      cur = '';
+    } else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+/** Build the airports layer from the committed OurAirports snapshot. Reads
+ *  `gaz.byName` ONLY to compute the city↔IATA collision report (ADR-2: city
+ *  wins, airport is the lowest tier); NEVER mutates the gazetteer. Emits a
+ *  separate `airports.json` = `{ airports, airportIata }` with its own gz ceiling.
+ *
+ *  Tuple `[lat, lon, iso_country, 0, name]`: pop is always 0 (OurAirports has no
+ *  enplanement column — verified), name is the full airport name (completion
+ *  display only — airports resolve by IATA code, never by name). */
+function buildAirports(gaz) {
+  console.log('• airports (OurAirports snapshot, IATA-coded)');
+  const text = readFileSync(AIRPORT_SNAPSHOT, 'utf8');
+  sourceHashes['file:scripts/airports-snapshot.csv'] = {
+    sha256: createHash('sha256').update(Buffer.from(text, 'utf8')).digest('hex'),
+    bytes: Buffer.byteLength(text, 'utf8'),
+  };
+  const lines = text.split('\n').filter(Boolean);
+  const header = parseCsvLine(lines[0]);
+  const col = Object.fromEntries(header.map((h, i) => [h, i]));
+  // Dedup by folded IATA code (OurAirports has duplicate/retired rows): keep the
+  // higher-`type` row, tie-break by lower IATA string for determinism.
+  const byCode = new Map();
+  let blankOrBadIata = 0;
+  let dups = 0;
+  for (let i = 1; i < lines.length; i++) {
+    const c = parseCsvLine(lines[i]);
+    const iata = c[col.iata_code];
+    const sched = c[col.scheduled_service];
+    const type = c[col.type];
+    const iso = c[col.iso_country];
+    const name = c[col.name];
+    const lat = Number(c[col.latitude_deg]);
+    const lon = Number(c[col.longitude_deg]);
+    if (sched !== 'yes') continue;
+    if (!iata || !/^[A-Za-z]{3}$/.test(iata)) {
+      blankOrBadIata++;
+      continue;
+    }
+    const include =
+      iso === 'US'
+        ? type === 'large_airport' || type === 'medium_airport'
+        : type === 'large_airport';
+    if (!include) continue;
+    if (
+      !Number.isFinite(lat) || lat < -90 || lat > 90 ||
+      !Number.isFinite(lon) || lon < -180 || lon > 180 ||
+      !iso
+    )
+      continue;
+    const key = fold(iata);
+    const rec = { iata, type, name, lat, lon, iso };
+    const ex = byCode.get(key);
+    if (ex) {
+      dups++;
+      const better =
+        AIRPORT_TYPE_RANK[type] > AIRPORT_TYPE_RANK[ex.type] ||
+        (AIRPORT_TYPE_RANK[type] === AIRPORT_TYPE_RANK[ex.type] &&
+          iata < ex.iata);
+      if (better) byCode.set(key, rec);
+      console.warn(
+        `  ⚠ duplicate IATA ${iata.toUpperCase()}: kept ${(better ? rec : ex).name}`
+      );
+    } else byCode.set(key, rec);
+  }
+  // Total order by folded code → deterministic array indices.
+  const recs = [...byCode.entries()]
+    .sort((a, b) => cmp(a[0], b[0]))
+    .map(([, r]) => r);
+  if (recs.length < MIN_AIRPORTS) {
+    throw new Error(
+      `airports near-empty: kept ${recs.length} < ${MIN_AIRPORTS} (snapshot drift?)`
+    );
+  }
+  const airports = recs.map((r) => [
+    roundAirport(r.lat),
+    roundAirport(r.lon),
+    r.iso,
+    0,
+    r.name,
+  ]);
+  const airportIata = {};
+  recs.forEach((r, i) => {
+    airportIata[fold(r.iata)] = i;
+  });
+  // Collision report (ADR-2 / AC4): folded IATA codes that ALSO name a gazetteer
+  // city via `byName`. The committed airport-collisions.json turns "city wins"
+  // from an assumption into a guarded invariant. (alt-alias overlaps are NOT
+  // tracked — the precedence rule is defined on byName; a known limit.)
+  const collisions = Object.keys(airportIata)
+    .filter((k) => gaz.byName[k])
+    .sort(cmp);
+  return {
+    airports: { airports, airportIata },
+    collisions,
+    stats: { count: recs.length, dups, blankOrBadIata },
+  };
+}
+
+// =============================================================================
 // Main
 // =============================================================================
 
@@ -918,6 +1067,21 @@ async function main() {
   if (missingCaps.length) console.warn(`  ⚠ capitals not matched: ${missingCaps.join(', ')}`);
   if (stats.missingAliases.length) console.warn(`  ⚠ aliases not resolved: ${stats.missingAliases.join(', ')}`);
 
+  // Airports — reads gaz.byName for the collision report only; never mutates it.
+  const airportsBuilt = buildAirports(gaz);
+  console.log(
+    `  kept ${airportsBuilt.stats.count} airports ` +
+      `(dropped ${airportsBuilt.stats.blankOrBadIata} blank/bad IATA, ` +
+      `${airportsBuilt.stats.dups} dup-code conflicts); ` +
+      `city collisions: ${airportsBuilt.collisions.join(', ') || 'none'}`
+  );
+  provenance.sources.ourairports = {
+    snapshot: 'scripts/airports-snapshot.csv',
+    source: 'https://davidmegginson.github.io/ourairports-data/airports.csv',
+    license: 'Public Domain — https://ourairports.com/data/',
+    note: 'Lean committed slice (scheduled_service=yes + 3-letter iata_code). Regenerate is a deliberate, reviewed bump (ADR-4).',
+  };
+
   // region-names.json — completion-only asset: country + US-state display names
   // (the renderer derives names from the topology; this feeds the editor's
   // region autocomplete). Deterministic order: layer, then name (codepoint).
@@ -950,6 +1114,7 @@ async function main() {
     'water-bodies.json': waterBodies,
     'gazetteer.json': gaz,
     'region-names.json': regionNames,
+    'airports.json': airportsBuilt.airports,
   };
   console.log('• emit + size-gate');
   for (const [name, obj] of Object.entries(emitted)) {
@@ -974,11 +1139,18 @@ async function main() {
     waterBodies: waterBodies.entries.length,
     gazetteerCities: stats.kept,
     gazetteerAliases: Object.keys(gaz.alt).length,
+    airports: airportsBuilt.stats.count,
+    airportCollisions: airportsBuilt.collisions.length,
   };
   // mapshaper version (determinism hinges on it) + raw source-byte hashes so a
   // future regen diff can pin upstream drift vs a real regression (F14).
   provenance.tooling = { mapshaper: require('mapshaper/package.json').version };
   provenance.sourceHashes = sourceHashes;
+
+  // Committed collision fixture (AC4): the build's authoritative enumeration of
+  // folded IATA codes shadowed by a gazetteer city. The map-data test asserts the
+  // emitted set equals this file, so "city wins" stays a verified invariant.
+  writeJson('airport-collisions.json', { collisions: airportsBuilt.collisions });
 
   writeJson('PROVENANCE.json', provenance);
   writeReadme();
@@ -1005,6 +1177,12 @@ hand-edit — regenerate from source.
 - \`water-bodies.json\` — water-body orientation labels (\`{ entries: [lat, lon, name, tier, kind] }\`) from Natural Earth 110m+50m geography marine polys (oceans/seas/gulfs/bays/straits/channels/sounds; rivers + reefs excluded). Anchors are mapshaper inner points; \`tier\` is the NE scalerank. Drawn only when the \`context-labels\` directive is on. Optional.
 - \`gazetteer.json\` — \`{ cities, byName, alt }\` city index (see \`types.ts\`).
   \`byName\`/\`alt\` reference \`cities\` by array index (normalized).
+- \`airports.json\` — \`{ airports, airportIata }\` IATA-coded airport index (see \`types.ts\`).
+  Built OFFLINE from the committed \`scripts/airports-snapshot.csv\` (OurAirports, public domain).
+  \`airports\` reuses the gazetteer tuple (\`pop\` always 0; name = full airport name, completion-only);
+  \`airportIata\` maps a folded 3-letter IATA code → index. Resolves \`poi JFK\` / \`route JFK -> LAX\`.
+- \`airport-collisions.json\` — \`{ collisions }\`: folded IATA codes shadowed by a gazetteer
+  city (city wins, ADR-2). The data test asserts the build's set equals this committed fixture.
 - \`PROVENANCE.json\` — source versions + per-asset sha256/sizes + GeoNames date range.
 - \`types.ts\` — the typed data contract consumed by the parser/resolver/renderer.
 
@@ -1042,6 +1220,9 @@ export {
   dissolveSharedArcRing,
   rekeyUS,
   buildGazetteer,
+  buildAirports,
+  parseCsvLine,
+  roundAirport,
   buildMountainRanges,
   buildWaterBodies,
   normalizeWaterName,

@@ -4,7 +4,12 @@
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import type { MapDirectives } from './types';
-import type { Gazetteer, BoundaryTopology, WaterBodies } from './data/types';
+import type {
+  Gazetteer,
+  BoundaryTopology,
+  WaterBodies,
+  AirportData,
+} from './data/types';
 
 /** The four static assets, injected into the pure resolver (DI). */
 export interface MapData {
@@ -32,6 +37,10 @@ export interface MapData {
    *  `context-labels` directive is on — oceans/seas/gulfs/bays/etc. Optional, so
    *  hand-built test fixtures and older bundles need not supply it. */
   waterBodies?: WaterBodies;
+  /** IATA-coded airports (`airports.json`) — lets `poi JFK` / `route JFK -> LAX`
+   *  resolve. Optional so hand-built fixtures and older DI bundles need not supply
+   *  it; the resolver guards `data.airports?.…` everywhere. */
+  airports?: AirportData;
   gazetteer: Gazetteer;
 }
 

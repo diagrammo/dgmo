@@ -4,7 +4,11 @@ import { resolveMap } from '../src/map/resolver';
 import { featureBbox, featureBboxPrimary } from '../src/map/geo';
 import { loadMapData } from '../src/map/load-data';
 import type { MapData } from '../src/map/resolved-types';
-import type { BoundaryTopology, Gazetteer } from '../src/map/data/types';
+import type {
+  BoundaryTopology,
+  Gazetteer,
+  AirportData,
+} from '../src/map/data/types';
 
 // ── Tiny hand-built MapData fixture (no I/O; pure unit testing). ──
 // A minimal world topo (US, JP, GE=Georgia country) + us-states (CA, OR, ME, GA)
@@ -55,6 +59,7 @@ const gazetteer: Gazetteer = {
     [38.9, -77.04, 'US', 5_000, 'Office', 'US-DC'], // 5
     [43.65, -79.38, 'CA', 2_700_000, 'Toronto'], // 6 — Canadian neighbour
     [25.67, -100.32, 'MX', 1_100_000, 'Monterrey'], // 7 — Mexican neighbour
+    [54.74, 55.97, 'RU', 1_100_000, 'Ufa'], // 8 — city that ALSO is IATA code UFA
   ],
   byName: {
     tokyo: [0],
@@ -64,8 +69,24 @@ const gazetteer: Gazetteer = {
     office: [5],
     toronto: [6],
     monterrey: [7],
+    ufa: [8],
   },
   alt: { nyc: 4 },
+};
+
+// IATA-coded airports (separate optional asset, ADR-1). Three NYC-area airports
+// (EWR/JFK/LGA — coincident at national scale, for the spiderfy AC), LAX, LHR,
+// and UFA (collides with the gazetteer city `Ufa` → shadow-hint test).
+const airports: AirportData = {
+  airports: [
+    [40.64, -73.78, 'US', 0, 'John F. Kennedy'], // 0 jfk
+    [33.94, -118.41, 'US', 0, 'Los Angeles'], // 1 lax
+    [40.69, -74.17, 'US', 0, 'Newark Liberty'], // 2 ewr
+    [40.78, -73.87, 'US', 0, 'LaGuardia'], // 3 lga
+    [51.47, -0.46, 'GB', 0, 'London Heathrow'], // 4 lhr
+    [54.56, 55.87, 'RU', 0, 'Ufa International'], // 5 ufa
+  ],
+  airportIata: { jfk: 0, lax: 1, ewr: 2, lga: 3, lhr: 4, ufa: 5 },
 };
 
 const DATA: MapData = {
@@ -91,6 +112,7 @@ const DATA: MapData = {
     { id: 'US-ME', name: 'Maine', box: [-71, 43, -67, 47] },
     { id: 'US-GA', name: 'Georgia', box: [-85, 30, -81, 35] }, // state Georgia (collides)
   ]),
+  airports,
   gazetteer,
 };
 
@@ -275,6 +297,79 @@ describe('resolver — edges & routes (AC10-12, AC23)', () => {
     );
     const osaka = r.pois.find((x) => x.id === 'osaka')!;
     expect(osaka.tags).toEqual({ port: 'Prize' });
+  });
+});
+
+describe('resolver — airport IATA codes (map-airport-iata-codes)', () => {
+  it('poi JFK resolves to the airport; POI label = typed token (AC1)', () => {
+    const r = resolve('map\npoi JFK');
+    const jfk = r.pois.find((p) => p.id === 'jfk')!;
+    expect(jfk).toBeDefined();
+    expect(jfk.name).toBe('JFK'); // typed token → renders "JFK" (no label work)
+    expect([jfk.lat, jfk.lon]).toEqual([40.64, -73.78]);
+    expect(r.diagnostics.some((d) => d.severity === 'error')).toBe(false);
+  });
+
+  it('route JFK -> LAX resolves both endpoints to airports + US projection (AC1/AC2)', () => {
+    const r = resolve('map\nroute JFK\n  -> LAX');
+    expect(r.routes[0]!.stopIds).toEqual(['jfk', 'lax']);
+    const jfk = r.pois.find((p) => p.id === 'jfk')!;
+    const lax = r.pois.find((p) => p.id === 'lax')!;
+    expect(jfk.name).toBe('JFK');
+    expect(lax.name).toBe('LAX');
+    expect([lax.lat, lax.lon]).toEqual([33.94, -118.41]);
+    // US-airport iso is honored for projection inference (G2 — not dropped).
+    expect(r.projection).toBe('albers-usa');
+  });
+
+  it('case-insensitive: jfk / Jfk / JFK all resolve (ADR-3)', () => {
+    for (const tok of ['jfk', 'Jfk', 'JFK']) {
+      const r = resolve(`map\npoi ${tok}`);
+      expect(r.pois.find((p) => p.id === 'jfk')).toBeDefined();
+    }
+  });
+
+  it('exact IATA hit never enters the ambiguity defer branch (#10)', () => {
+    // An airport code resolves directly in pass A — no W_MAP_AMBIGUOUS_NAME, and
+    // the POI is placed (a deferred POI that never resolves would be absent).
+    const r = resolve('map\npoi JFK');
+    expect(r.pois.find((p) => p.id === 'jfk')).toBeDefined();
+    expect(r.diagnostics.some((d) => d.code === 'W_MAP_AMBIGUOUS_NAME')).toBe(
+      false
+    );
+  });
+
+  it('city wins a shared token + shadow hint (AC4, ADR-2)', () => {
+    // `Ufa` is both a gazetteer city (RU) and IATA code UFA. The CITY wins…
+    const r = resolve('map\npoi Ufa');
+    const ufa = r.pois.find((p) => p.id === 'ufa')!;
+    expect([ufa.lat, ufa.lon]).toEqual([54.74, 55.97]); // city coords, not airport
+    // …and a non-blocking shadow hint names the airport escape hatch.
+    const hint = r.diagnostics.find(
+      (d) => d.code === 'W_MAP_AIRPORT_SHADOWED_BY_CITY'
+    );
+    expect(hint).toBeDefined();
+    expect(hint!.severity).toBe('warning');
+  });
+
+  it('unknown 3-letter code → E_MAP_UNKNOWN_AIRPORT_CODE (AC5)', () => {
+    const r = resolve('map\npoi ZZZ');
+    const e = r.diagnostics.find(
+      (d) => d.code === 'E_MAP_UNKNOWN_AIRPORT_CODE'
+    );
+    expect(e).toBeDefined();
+    expect(e!.message).toMatch(/as ZZZ/); // suggests the coords escape hatch
+    expect(r.pois.find((p) => p.id === 'zzz')).toBeUndefined();
+  });
+
+  it('same-metro route resolves 3 distinct near-coincident airports (AC6)', () => {
+    const r = resolve('map\nroute EWR\n  -> JFK\n  -> LGA');
+    expect(r.routes[0]!.stopIds).toEqual(['ewr', 'jfk', 'lga']);
+    const names = r.pois
+      .filter((p) => ['ewr', 'jfk', 'lga'].includes(p.id))
+      .map((p) => p.name)
+      .sort();
+    expect(names).toEqual(['EWR', 'JFK', 'LGA']);
   });
 });
 

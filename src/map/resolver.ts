@@ -216,6 +216,9 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const warn = (line: number, message: string, code?: string): void => {
     diagnostics.push(makeDgmoError(line, message, 'warning', code));
   };
+  // Folded tokens already flagged as "city shadows an airport code" — emit the
+  // W_MAP_AIRPORT_SHADOWED_BY_CITY hint at most once per code (ADR-2, F9).
+  const shadowedAirports = new Set<string>();
 
   const result: Writable<ResolvedMap> = {
     title: parsed.title,
@@ -428,6 +431,28 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       if (aliasIdx !== undefined) idxs = [aliasIdx];
     }
     if (!idxs?.length) {
+      // Airports are the LOWEST-precedence identifier tier (ADR-2): consulted
+      // only after city `byName` + `alt` miss, so a real city always wins a
+      // shared token. Exact folded-code match — never defers. Returns just
+      // {lat,lon,iso} like a city; the POI renders the user's typed token ("JFK")
+      // as its label, so there is no airport-specific label work.
+      const airIdx = data.airports?.airportIata?.[f];
+      if (airIdx !== undefined) {
+        const a = data.airports!.airports[airIdx];
+        if (a) return { kind: 'ok', lat: a[0], lon: a[1], iso: a[2] };
+      }
+      // A 3-letter token that resolved to neither a city nor a bundled airport is
+      // almost always an airport code the set doesn't cover — give the targeted
+      // hint (with the `as XXX` coords escape hatch) instead of the generic miss.
+      if (/^[A-Za-z]{3}$/.test(name)) {
+        const code = name.toUpperCase();
+        err(
+          line,
+          `Unknown airport code "${code}" — not in the bundled airport set (large hubs + US commercial). Use coordinates with \`as ${code}\` if you need it.`,
+          'E_MAP_UNKNOWN_AIRPORT_CODE'
+        );
+        return { kind: 'miss' };
+      }
       const cityNames = data.gazetteer.cities.map((c) => c[4]);
       const hint = suggest(name, cityNames);
       err(
@@ -469,6 +494,22 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
         );
     }
     const c = cands[0]!;
+    // Shadow hint (ADR-2/F9): the token resolved to a city but is ALSO a bundled
+    // IATA code (e.g. `Ufa` city vs UFA airport). Non-blocking, once per code, and
+    // only for the `byName` overlap set (an `alt`-alias hit whose key differs from
+    // the IATA fold is not flagged — a documented limit).
+    if (
+      data.airports?.airportIata?.[f] !== undefined &&
+      !shadowedAirports.has(f)
+    ) {
+      shadowedAirports.add(f);
+      const code = name.toUpperCase();
+      warn(
+        line,
+        `"${name}" resolved to the city; "${code}" is also an airport code. Use coordinates with \`as ${code}\` for the airport.`,
+        'W_MAP_AIRPORT_SHADOWED_BY_CITY'
+      );
+    }
     return { kind: 'ok', lat: c[0], lon: c[1], iso: c[2] };
   };
 

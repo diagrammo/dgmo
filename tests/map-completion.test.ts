@@ -4,7 +4,12 @@ import { loadMapData } from '../src/map/load-data';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import type { Gazetteer, RegionName, RegionNames } from '../src/map/data/types';
+import type {
+  Gazetteer,
+  RegionName,
+  RegionNames,
+  AirportData,
+} from '../src/map/data/types';
 
 // Hand-built gazetteer: Tokyo/Osaka, two Portlands (ambiguous, with `sub`),
 // an NYC alias, and an accented city.
@@ -88,6 +93,68 @@ describe('completeMapPlaces (step 6)', () => {
     expect(completeMapPlaces('xyzzy', gz)).toEqual([]);
     expect(JSON.stringify(completeMapPlaces('san', gz))).toBe(
       JSON.stringify(completeMapPlaces('san', gz))
+    );
+  });
+
+  // IATA-coded airports (separate optional asset). LAX(US)/LAP(MX) share the `la`
+  // prefix (alpha LAP<LAX, so scope reordering is observable); SAN shares `san`
+  // with the two San cities; SEA is an airport-only prefix.
+  const airports: AirportData = {
+    airports: [
+      [33.94, -118.41, 'US', 0, 'Los Angeles'], // 0 lax
+      [24.07, -110.36, 'MX', 0, 'La Paz'], // 1 lap
+      [47.45, -122.31, 'US', 0, 'Seattle-Tacoma'], // 2 sea
+      [32.73, -117.19, 'US', 0, 'San Diego'], // 3 san
+    ],
+    airportIata: { lax: 0, lap: 1, sea: 2, san: 3 },
+  };
+
+  it('airport-only prefix still completes (relaxed early-return, AC9)', () => {
+    const r = completeMapPlaces('sea', gz, { airports });
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({
+      insert: 'SEA',
+      label: 'SEA',
+      kind: 'airport',
+      detail: 'Airport · Seattle-Tacoma',
+    });
+  });
+
+  it('cities rank above airports for a shared prefix (AC9)', () => {
+    const r = completeMapPlaces('san', gz, { airports });
+    // San Antonio (city) > San Francisco (city) > SAN (airport)
+    expect(r.map((c) => c.kind)).toEqual(['city', 'city', 'airport']);
+    expect(r[r.length - 1]).toMatchObject({ insert: 'SAN', kind: 'airport' });
+  });
+
+  it('scopeISO biases in-region airports up; out-of-region still appears (AC9)', () => {
+    // No scope: code-alpha → LAP before LAX.
+    expect(
+      completeMapPlaces('la', gz, { airports }).map((c) => c.insert)
+    ).toEqual(['LAP', 'LAX']);
+    // scopeISO US: the US airport (LAX) sorts first, the MX one (LAP) still shows.
+    const scoped = completeMapPlaces('la', gz, { airports, scopeISO: 'US' });
+    expect(scoped.map((c) => c.insert)).toEqual(['LAX', 'LAP']);
+    // A subdivision scope (US-CA) biases by country too.
+    const sub = completeMapPlaces('la', gz, { airports, scopeISO: 'US-CA' });
+    expect(sub[0]!.insert).toBe('LAX');
+  });
+
+  it('absent airports asset → city-only, no throw (old DI bundle, AC9)', () => {
+    expect(() => completeMapPlaces('lax', gz)).not.toThrow();
+    expect(completeMapPlaces('lax', gz)).toEqual([]); // no city 'lax'
+    expect(completeMapPlaces('tok', gz).every((c) => c.kind === 'city')).toBe(
+      true
+    );
+  });
+
+  it('real airports.json smoke', () => {
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const path = resolve(dir, '../src/map/data/airports.json');
+    const air = JSON.parse(readFileSync(path, 'utf8')) as AirportData;
+    const r = completeMapPlaces('jfk', gz, { airports: air });
+    expect(r.some((c) => c.insert === 'JFK' && c.kind === 'airport')).toBe(
+      true
     );
   });
 

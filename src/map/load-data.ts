@@ -18,7 +18,12 @@
 // `await import('jsdom')` seam in render.ts. The web build injects `MapData` via
 // DI and never calls `loadMapData`, so the dynamic import only runs in Node.
 import type { MapData } from './resolved-types';
-import type { BoundaryTopology, Gazetteer, WaterBodies } from './data/types';
+import type {
+  BoundaryTopology,
+  Gazetteer,
+  WaterBodies,
+  AirportData,
+} from './data/types';
 
 type NodeBuiltins = {
   readFile: typeof import('node:fs/promises').readFile;
@@ -47,6 +52,7 @@ const FILES = {
   naLand: 'na-land.json',
   naLakes: 'na-lakes.json',
   waterBodies: 'water-bodies.json',
+  airports: 'airports.json',
   gazetteer: 'gazetteer.json',
 } as const;
 
@@ -137,6 +143,7 @@ export function loadMapData(): Promise<MapData> {
       naLand,
       naLakes,
       waterBodies,
+      airports,
       gazetteer,
     ] = await Promise.all([
       // worldCoarse (110m) is LOAD-BEARING but NOT a render source: the world
@@ -155,6 +162,7 @@ export function loadMapData(): Promise<MapData> {
       readJson<BoundaryTopology>(nb, dir, FILES.naLand).catch(() => undefined),
       readJson<BoundaryTopology>(nb, dir, FILES.naLakes).catch(() => undefined),
       readJson<WaterBodies>(nb, dir, FILES.waterBodies).catch(() => undefined),
+      readJson<AirportData>(nb, dir, FILES.airports).catch(() => undefined),
       readJson<Gazetteer>(nb, dir, FILES.gazetteer),
     ]);
     return validate({
@@ -168,6 +176,7 @@ export function loadMapData(): Promise<MapData> {
       ...(naLand && { naLand }),
       ...(naLakes && { naLakes }),
       ...(waterBodies && { waterBodies }),
+      ...(airports && { airports }),
     });
   })().catch((e: unknown) => {
     cache = undefined; // don't poison future calls with a rejected promise

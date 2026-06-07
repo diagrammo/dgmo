@@ -585,6 +585,7 @@ export type {
   BoundaryTopology,
   RegionName,
   RegionNames,
+  AirportData,
 } from './map/data/types';
 
 export type { RaciDragSource, RaciInteractionHandlers } from './raci';

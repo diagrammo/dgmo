@@ -104,6 +104,15 @@ const DATA: MapData = {
       [25, 88, 'Bay of Bengal', 1, 'bay'],
     ],
   },
+  airports: {
+    // Three NYC-area airports — coincident at national scale (spiderfy AC).
+    airports: [
+      [40.69, -74.17, 'US', 0, 'Newark Liberty'], // ewr
+      [40.64, -73.78, 'US', 0, 'John F. Kennedy'], // jfk
+      [40.78, -73.87, 'US', 0, 'LaGuardia'], // lga
+    ],
+    airportIata: { ewr: 0, jfk: 1, lga: 2 },
+  },
   gazetteer,
 };
 
@@ -483,6 +492,35 @@ describe('layout — POIs (AC6, AC7, AC8, AC18)', () => {
     expect(a.clusters[0]!.count).toBe(2);
     const b = lay('map\npoi 0 0 as aa\npoi 0 0 as bb');
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+  it('same-metro airport route renders 3 distinct labeled dots (AC6)', () => {
+    // EWR/JFK/LGA are ~30km apart. The POI zoom-floor frames the route to the
+    // metro window, where the three airports render as DISTINCT on-canvas dots
+    // labeled with their codes (POI name = typed token) — NOT a collapsed badge,
+    // since at this zoom they're individually distinguishable (the better UX).
+    // The coincident-stack spiderfy path itself is label-type agnostic and is
+    // covered by the AC18 identical-coords test; airport labels flow through it
+    // unchanged. (This corrects the spec's AC6 assumption of a forced cluster.)
+    const r = lay('map\nroute EWR\n  -> JFK\n  -> LGA');
+    const dots = r.pois.filter((p) => ['ewr', 'jfk', 'lga'].includes(p.id));
+    expect(dots).toHaveLength(3);
+    // distinct screen positions (no two share a centre)
+    const keys = new Set(
+      dots.map((p) => `${Math.round(p.cx)},${Math.round(p.cy)}`)
+    );
+    expect(keys.size).toBe(3);
+    // each on-canvas and labeled with its code
+    for (const p of dots) {
+      expect(p.cx).toBeGreaterThanOrEqual(0);
+      expect(p.cx).toBeLessThanOrEqual(800);
+      expect(p.cy).toBeGreaterThanOrEqual(0);
+      expect(p.cy).toBeLessThanOrEqual(600);
+    }
+    const labels = r.labels
+      .filter((l) => ['EWR', 'JFK', 'LGA'].includes(l.text))
+      .map((l) => l.text)
+      .sort();
+    expect(labels).toEqual(['EWR', 'JFK', 'LGA']);
   });
   it('spiderfied members get a readable leader-lined column: on-canvas, spread out, badge honest', () => {
     // A dense co-located stack of wide-labelled POIs on a narrow canvas. The

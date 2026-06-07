@@ -50,6 +50,25 @@ export interface Gazetteer {
   alt: Record<string, number>;
 }
 
+/**
+ * IATA-coded airport index (a SEPARATE optional asset — `airports.json`; ADR-1).
+ * Lets memorized airport codes resolve to coordinates through the resolver's
+ * existing fold→lookup path (`poi JFK`, `route JFK -> LAX`) — no parser change.
+ *
+ * - `airports` — `GazetteerEntry` tuples `[lat, lon, iso, 0, name]`. `pop` is
+ *   always 0 (OurAirports has no enplanement column); `name` is the full airport
+ *   name, used for COMPLETION DISPLAY only — airports resolve by IATA code, never
+ *   by name. Coords are rounded to 2 decimals (~1km; sub-pixel at map scale).
+ * - `airportIata` — folded 3-letter IATA code → index into `airports`. Consulted
+ *   LAST in resolution (after city `byName` + `alt`), so a real city always wins
+ *   a shared token (ADR-2). Airports never enter `cities[]`, so the city-scatter
+ *   and reverse-geocode layers never see them.
+ */
+export interface AirportData {
+  readonly airports: GazetteerEntry[];
+  readonly airportIata: Record<string, number>;
+}
+
 /** Water-feature class (Natural Earth `featurecla`, rivers/reefs excluded). */
 export type WaterKind =
   | 'ocean'
