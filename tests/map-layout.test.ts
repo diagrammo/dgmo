@@ -1422,3 +1422,27 @@ describe('layout — region metric value labels (no-region-value)', () => {
     if (ca) expect(ca.valueLine).toBeUndefined();
   });
 });
+
+describe('layout — region value survives a nearby POI (combo map)', () => {
+  it('keeps a valued region label whose name clears a POI but whose taller stack overlaps the POI pad', async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    // A big POI (Dallas, size 320) sits on Texas. Texas's name clears the marker
+    // pad, but the taller name+value stack grazes it — the value must NOT be
+    // dropped just for that (POI collision is tested against the name rect only).
+    const r = layoutMap(
+      resolveMap(
+        parseMap(
+          'map Distribution Network\nregion-metric Demand\nCalifornia value: 90\nTexas value: 72\npoi Dallas as south value: 320'
+        ),
+        data
+      ),
+      data,
+      { width: 1400, height: 880 },
+      { palette: P, isDark: false }
+    );
+    const tx = r.labels.find((l) => l.text === 'Texas');
+    expect(tx).toBeDefined();
+    expect(tx!.valueLine).toBe('72');
+  });
+});

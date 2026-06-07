@@ -2755,21 +2755,31 @@ export function layoutMap(
       // When the region carries a metric value, the name+value STACK is tried
       // first; if the stack won't fit (a smaller state), it degrades to the bare
       // name (today's behaviour) so adding values never costs an existing label.
-      const fits = (rect: LabelRect): boolean =>
-        !placedRegionRects.some((p) => rectsOverlap(rect, p)) &&
+      //
+      // Two collision tests, deliberately different footprints:
+      //  - vs other REGION labels: use the FULL stack rect (two stacks must not
+      //    overlap).
+      //  - vs POI obstacles: use only the NAME rect. A POI obstacle exists to keep
+      //    the region NAME off a POI's dot/label; the (shorter, dimmer) value line
+      //    hanging below a name that already clears the dot is fine. Testing the
+      //    taller stack here made a region with a nearby POI (Texas under the big
+      //    Dallas marker) silently drop its value even though the name fit.
+      const fitsRegions = (rect: LabelRect): boolean =>
+        !placedRegionRects.some((p) => rectsOverlap(rect, p));
+      const fitsPois = (rect: LabelRect): boolean =>
         !poiObstacles.some((o) => rectsOverlap(rect, o));
       let chosen: { text: string; valueLine?: string } | undefined;
       for (const t of candidates) {
+        const nameRect = regionLabelRect(c[0], c[1], t);
         if (valStr && stackW(t, valStr) <= boxW && stackH(true) <= boxH) {
-          const rect = regionLabelRect(c[0], c[1], t, valStr);
-          if (fits(rect)) {
+          const stackRect = regionLabelRect(c[0], c[1], t, valStr);
+          if (fitsRegions(stackRect) && fitsPois(nameRect)) {
             chosen = { text: t, valueLine: valStr };
             break;
           }
         }
         if (labelW(t) <= boxW && labelH <= boxH) {
-          const rect = regionLabelRect(c[0], c[1], t);
-          if (fits(rect)) {
+          if (fitsRegions(nameRect) && fitsPois(nameRect)) {
             chosen = { text: t };
             break;
           }
