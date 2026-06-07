@@ -53,20 +53,20 @@
 <text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:sans-serif;" y="8" transform="translate(1055.9426 664)" fill="#2e3440">60</text>
 <text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:sans-serif;" y="8" transform="translate(1140.04 664)" fill="#2e3440">66</text>
 <path d="M286.7 579L286.7 558" fill="none" pointer-events="visible" stroke="#5e81ac" class="zr0-cls-0"></path>
-<path d="M325.1 566.9L325.1 604.9" fill="none" pointer-events="visible" stroke="#5e81ac" class="zr0-cls-0"></path>
+<path d="M325.1 566.9L325.1 587.9" fill="none" pointer-events="visible" stroke="#5e81ac" class="zr0-cls-0"></path>
 <path d="M311.4 571.7L311.4 516.7" fill="none" pointer-events="visible" stroke="#bf616a" class="zr0-cls-0"></path>
-<path d="M341.1 501.7l78 0l0 19l-78 0Z" fill="#eceff4" class="zr0-cls-0"></path>
-<path d="M254.3 541l64.8 0l0 19l-64.8 0Z" fill="#eceff4" class="zr0-cls-0"></path>
-<path d="M526.3 398.6l64.8 0l0 19l-64.8 0Z" fill="#eceff4" class="zr0-cls-0"></path>
-<path d="M289.4 602.9l71.4 0l0 19l-71.4 0Z" fill="#eceff4" class="zr0-cls-0"></path>
-<path d="M237.5 615.8l51.6 0l0 19l-51.6 0Z" fill="#eceff4" class="zr0-cls-0"></path>
-<path d="M804.4 256.9l58.2 0l0 19l-58.2 0Z" fill="#eceff4" class="zr0-cls-0"></path>
-<path d="M430.1 460l64.8 0l0 19l-64.8 0Z" fill="#eceff4" class="zr0-cls-0"></path>
-<path d="M1003.9 163.2l71.4 0l0 19l-71.4 0Z" fill="#eceff4" class="zr0-cls-0"></path>
-<path d="M306.5 519.4l64.8 0l0 19l-64.8 0Z" fill="#eceff4" class="zr0-cls-0"></path>
-<path d="M388.9 553.3l64.8 0l0 19l-64.8 0Z" fill="#eceff4" class="zr0-cls-0"></path>
-<path d="M485.1 443.4l64.8 0l0 19l-64.8 0Z" fill="#eceff4" class="zr0-cls-0"></path>
-<path d="M279 499.7l64.8 0l0 19l-64.8 0Z" fill="#eceff4" class="zr0-cls-0"></path>
+<path d="M344.1 501.7l72.1 0l0 19l-72.1 0Z" fill="#eceff4" class="zr0-cls-0"></path>
+<path d="M256.7 541l59.9 0l0 19l-59.8 0Z" fill="#eceff4" class="zr0-cls-0"></path>
+<path d="M528.2 398.6l61.1 0l0 19l-61.1 0Z" fill="#eceff4" class="zr0-cls-0"></path>
+<path d="M294.9 585.9l60.4 0l0 19l-60.4 0Z" fill="#eceff4" class="zr0-cls-0"></path>
+<path d="M237.1 615.8l52.5 0l0 19l-52.5 0Z" fill="#eceff4" class="zr0-cls-0"></path>
+<path d="M806.4 256.9l54.2 0l0 19l-54.2 0Z" fill="#eceff4" class="zr0-cls-0"></path>
+<path d="M431.9 460l61.2 0l0 19l-61.2 0Z" fill="#eceff4" class="zr0-cls-0"></path>
+<path d="M1006.5 163.2l66.2 0l0 19l-66.2 0Z" fill="#eceff4" class="zr0-cls-0"></path>
+<path d="M309.3 519.4l59.2 0l0 19l-59.2 0Z" fill="#eceff4" class="zr0-cls-0"></path>
+<path d="M390.8 553.3l61.1 0l0 19l-61.1 0Z" fill="#eceff4" class="zr0-cls-0"></path>
+<path d="M490.3 443.4l54.4 0l0 19l-54.3 0Z" fill="#eceff4" class="zr0-cls-0"></path>
+<path d="M283.3 499.7l56.1 0l0 19l-56.1 0Z" fill="#eceff4" class="zr0-cls-0"></path>
 <path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(7.5,0,0,7.5,383.1635,529.5)" fill="#c9d4e2" fill-opacity="0.8" stroke="#5e81ac" stroke-width="0.26666666666666666" stroke-opacity="0.8" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-1"></path>
 <path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(7.5,0,0,7.5,287.8531,588.9)" fill="#c9d4e2" fill-opacity="0.8" stroke="#5e81ac" stroke-width="0.26666666666666666" stroke-opacity="0.8" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr0-cls-1"></path>
 <path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(7.5,0,0,7.5,565.3745,420.6)" fill="#c9d4e2" fill-opacity="0.8" stroke="#5e81ac" stroke-width="0.26666666666666666" stroke-opacity="0.8" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr0-cls-1"></path>
@@ -82,7 +82,7 @@
 <text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" transform="translate(380.087 511.2083)" fill="#5e81ac" stroke="#eceff4" stroke-width="3" paint-order="stroke" stroke-miterlimit="2">Acme Cloud</text>
 <text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(286.6609 550.4583)" fill="#5e81ac" stroke="#eceff4" stroke-width="3" paint-order="stroke" stroke-miterlimit="2">DataSync</text>
 <text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(558.6957 408.0833)" fill="#5e81ac" stroke="#eceff4" stroke-width="3" paint-order="stroke" stroke-miterlimit="2">CloudOps</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(325.1304 612.375)" fill="#5e81ac" stroke="#eceff4" stroke-width="3" paint-order="stroke" stroke-miterlimit="2">PlatformX</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(325.1304 595.375)" fill="#5e81ac" stroke="#eceff4" stroke-width="3" paint-order="stroke" stroke-miterlimit="2">PlatformX</text>
 <text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(263.3043 625.25)" fill="#5e81ac" stroke="#eceff4" stroke-width="3" paint-order="stroke" stroke-miterlimit="2">NexGen</text>
 <text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(833.4783 266.4167)" fill="#a3be8c" stroke="#eceff4" stroke-width="3" paint-order="stroke" stroke-miterlimit="2">PayFlow</text>
 <text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(462.5217 469.5417)" fill="#a3be8c" stroke="#eceff4" stroke-width="3" paint-order="stroke" stroke-miterlimit="2">LendTech</text>
