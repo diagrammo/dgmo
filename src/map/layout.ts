@@ -449,6 +449,11 @@ export interface PlacedLabel {
    *  only on region labels of a `region-metric` map when `no-region-value` is off.
    *  The renderer stacks it as a sub-line; absent ⇒ single name line. */
   readonly valueLine?: string;
+  /** A region too small to carry its name+value stack in place gets a leader-lined
+   *  callout in a margin column; this marks the region's true centroid so the
+   *  renderer draws a small anchor dot there (the leader runs dot → chip). The
+   *  colour is the region's fill, tying the dot/leader/chip together. */
+  readonly calloutDot?: { x: number; y: number; color: string };
   readonly lineNumber: number;
 }
 
@@ -2731,6 +2736,16 @@ export function layoutMap(
       .filter((e): e is NonNullable<typeof e> => e !== null)
       .sort((a, b) => b.area - a.area || a.r.lineNumber - b.r.lineNumber);
     const placedRegionRects: LabelRect[] = [];
+    // Valued regions too small to carry their name+value stack in place — gathered
+    // here and laid out as a margin callout column after the in-place pass.
+    const regionCallouts: Array<{
+      name: string;
+      value: string;
+      cx: number;
+      cy: number;
+      fill: string;
+      lineNumber: number;
+    }> = [];
     // POI markers are obstacles for region labels: a region whose centroid sits on
     // a POI (e.g. Colorado's centroid under the "Core POP" dot in Denver) must NOT
     // stamp its name there — the POI's own label owns that spot, and two names by
@@ -2785,7 +2800,22 @@ export function layoutMap(
           }
         }
       }
-      if (chosen === undefined) continue;
+      if (chosen === undefined) {
+        // Couldn't seat the label in place. If the region carries a value, defer
+        // it to the margin callout column (a tiny region — RI/DE — surfaces its
+        // value there rather than vanishing). `r.label` is the full name.
+        if (valStr && r.label !== undefined) {
+          regionCallouts.push({
+            name: r.label,
+            value: valStr,
+            cx: c[0],
+            cy: c[1],
+            fill: r.fill,
+            lineNumber: r.lineNumber,
+          });
+        }
+        continue;
+      }
       const rRect = regionLabelRect(c[0], c[1], chosen.text, chosen.valueLine);
       placedRegionRects.push(rRect);
       pushRegionLabel(
@@ -2819,6 +2849,61 @@ export function layoutMap(
       regionLabelGuards.push({
         label: labels[labels.length - 1]!,
         rect: regionLabelRect(seed.x, seed.y, text, valStr),
+      });
+    }
+
+    // ── Margin callout column for valued regions too small to label in place ──
+    // Each gathered region gets a leader-lined chip (its name over the metric
+    // value, same stack as an in-place label) in a tidy vertical column on the
+    // more-open vertical margin, with a small dot at the region's true centroid.
+    // v1 places the column in the existing canvas padding / open water beside the
+    // land (no fit-box reserve) — the US-northeast cluster sits against the
+    // Atlantic margin, the classic printed-choropleth treatment.
+    if (regionCallouts.length > 0) {
+      // Seat the column on the margin nearer the dropped regions (northeast US →
+      // the right/Atlantic side); mean centroid x decides.
+      const meanX =
+        regionCallouts.reduce((s, rc) => s + rc.cx, 0) / regionCallouts.length;
+      const side: 'left' | 'right' = meanX >= width / 2 ? 'right' : 'left';
+      const anchor: PlacedLabel['anchor'] = side === 'right' ? 'end' : 'start';
+      const colX = side === 'right' ? width - FIT_PAD : FIT_PAD;
+      // Each chip is a name+value stack; row pitch leaves a little breathing room.
+      const ROW_H = FONT + VALUE_GAP + VALUE_FONT + 8;
+      // Top→bottom by centroid y for a tidy column, then centre the block on the
+      // mean dot y, clamped within the canvas (below the legend/title band).
+      const rows = [...regionCallouts].sort((a, b) => a.cy - b.cy);
+      const meanY = rows.reduce((s, rc) => s + rc.cy, 0) / rows.length;
+      const totalH = rows.length * ROW_H;
+      const minTop = topPad + ROW_H / 2;
+      const maxTop = Math.max(minTop, height - FIT_PAD - totalH + ROW_H / 2);
+      const startY = Math.max(
+        minTop,
+        Math.min(meanY - totalH / 2 + ROW_H / 2, maxTop)
+      );
+      rows.forEach((rc, i) => {
+        const rowCy = startY + i * ROW_H;
+        // Leader runs from the region's centroid dot to the chip's inner edge
+        // (the side facing the map); the chip text reads against the open margin,
+        // so it's neutral-toned with a bg halo rather than fill-contrast picked.
+        const chipW = Math.max(
+          measureLegendText(rc.name, FONT),
+          measureLegendText(rc.value, VALUE_FONT)
+        );
+        const innerX = side === 'right' ? colX - chipW - 4 : colX + chipW + 4;
+        labels.push({
+          x: colX,
+          y: rowCy,
+          text: rc.name,
+          anchor,
+          color: palette.text,
+          halo: true,
+          haloColor: palette.bg,
+          valueLine: rc.value,
+          leader: { x1: rc.cx, y1: rc.cy, x2: innerX, y2: rowCy },
+          leaderColor: rc.fill,
+          calloutDot: { x: rc.cx, y: rc.cy, color: rc.fill },
+          lineNumber: rc.lineNumber,
+        });
       });
     }
   }

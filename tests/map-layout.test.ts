@@ -1402,11 +1402,28 @@ describe('layout — region metric value labels (no-region-value)', () => {
       )?.valueLine
     ).toBe('2.3M');
   });
-  it('degrades a small region (Oregon) to its bare name when the stack will not fit', () => {
-    const r = lay('map\nCalifornia value: 1\nOregon value: 2300000');
-    const or = r.labels.find((l) => l.text === 'Oregon');
-    // Oregon is too narrow for a two-line stack here → name only, no value line.
-    if (or) expect(or.valueLine).toBeUndefined();
+  it('routes a region too small to label in place into a leader-lined callout', async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    const data = await loadMapData();
+    // Rhode Island can't carry a name+value stack in place at this size → it
+    // surfaces in a margin callout column: a chip (name + value) with a leader
+    // back to a dot at its centroid.
+    const r = layoutMap(
+      resolveMap(
+        parseMap(
+          'map US Demand\nregion-metric Demand\nCalifornia value: 90\nRhode Island value: 11'
+        ),
+        data
+      ),
+      data,
+      { width: 1100, height: 700 },
+      { palette: P, isDark: false }
+    );
+    const ri = r.labels.find((l) => l.text === 'Rhode Island');
+    expect(ri).toBeDefined();
+    expect(ri!.valueLine).toBe('11');
+    expect(ri!.leader).toBeDefined();
+    expect(ri!.calloutDot).toBeDefined();
   });
   it('no-region-value suppresses the value line but keeps the name', () => {
     const r = lay('map\nno-region-value\nCalifornia value: 39500000');

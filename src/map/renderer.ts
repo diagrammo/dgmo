@@ -1011,6 +1011,18 @@ export function renderMap(
         line.attr('data-cluster-member', lab.clusterMember);
       wireSync(line, lab.lineNumber);
     }
+    // Region callout anchor dot: a small disc at the (too-small) region's true
+    // centroid, in the region's fill, so the leader visibly originates on the map.
+    if (lab.calloutDot) {
+      gLabels
+        .append('circle')
+        .attr('cx', lab.calloutDot.x)
+        .attr('cy', lab.calloutDot.y)
+        .attr('r', 2.5)
+        .attr('fill', lab.calloutDot.color)
+        .attr('stroke', mix(palette.text, palette.bg, 55))
+        .attr('stroke-width', 0.75);
+    }
     const t = emitText(
       gLabels,
       lab.x,
