@@ -225,7 +225,11 @@ export interface RenderNoteBadgeOptions {
 }
 
 /** Half the badge's footprint (px) — for callers reserving corner space. */
-export const NOTE_BADGE_RADIUS = 9;
+export const NOTE_BADGE_RADIUS = 7;
+
+/** Overall opacity of the collapsed badge — kept quiet so it reads as a
+ *  subtle affordance, not a loud icon competing with the node. */
+const NOTE_BADGE_OPACITY = 0.6;
 
 /**
  * Draw the collapsed-note badge: a small comment bubble pinned at `center`
@@ -245,6 +249,7 @@ export function renderNoteBadge(
     .attr('class', 'note note-badge')
     .attr('data-note-toggle', '')
     .attr('transform', `translate(${center.x}, ${center.y})`)
+    .attr('opacity', NOTE_BADGE_OPACITY)
     .style('cursor', 'pointer')
     .attr('role', 'button')
     .attr('tabindex', '0')
@@ -257,49 +262,47 @@ export function renderNoteBadge(
     g.attr('data-line-end', String(opts.endLineNumber));
   }
 
-  // Comment bubble: rounded body (16×12) with a tail at the bottom-left.
-  // Single path so the body and tail share one seamless outline.
+  // Comment bubble: small rounded body (13×9) with a tail at the
+  // bottom-left. Single path so body + tail share one seamless outline.
   g.append('path')
     .attr(
       'd',
       [
-        'M -8 -4.5',
-        'Q -8 -7 -5.5 -7',
-        'L 5.5 -7',
-        'Q 8 -7 8 -4.5',
-        'L 8 2.5',
-        'Q 8 5 5.5 5',
-        'L -1 5',
-        'L -5 8.5',
-        'L -4 5',
-        'L -5.5 5',
-        'Q -8 5 -8 2.5',
+        'M -6.5 -4',
+        'Q -6.5 -6 -4.5 -6',
+        'L 4.5 -6',
+        'Q 6.5 -6 6.5 -4',
+        'L 6.5 1',
+        'Q 6.5 3 4.5 3',
+        'L -1 3',
+        'L -4 6',
+        'L -2.5 3',
+        'L -4.5 3',
+        'Q -6.5 3 -6.5 1',
         'Z',
       ].join(' ')
     )
     .attr('fill', fill)
     .attr('stroke', palette.textMuted)
-    .attr('stroke-width', 0.75)
+    .attr('stroke-width', 0.55)
     .attr('class', 'note-badge-bubble');
 
-  // Two short "text" strokes inside the bubble.
+  // Two short "text" strokes inside the bubble (group opacity tones them).
   g.append('line')
-    .attr('x1', -4.5)
-    .attr('y1', -3.5)
-    .attr('x2', 4.5)
-    .attr('y2', -3.5)
+    .attr('x1', -3.5)
+    .attr('y1', -3)
+    .attr('x2', 3.5)
+    .attr('y2', -3)
     .attr('stroke', palette.textMuted)
-    .attr('stroke-width', 0.9)
-    .attr('opacity', 0.7)
+    .attr('stroke-width', 0.75)
     .style('pointer-events', 'none');
   g.append('line')
-    .attr('x1', -4.5)
+    .attr('x1', -3.5)
     .attr('y1', -0.5)
-    .attr('x2', 2)
+    .attr('x2', 1.5)
     .attr('y2', -0.5)
     .attr('stroke', palette.textMuted)
-    .attr('stroke-width', 0.9)
-    .attr('opacity', 0.7)
+    .attr('stroke-width', 0.75)
     .style('pointer-events', 'none');
 
   return g;
