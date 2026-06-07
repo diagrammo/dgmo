@@ -2743,6 +2743,8 @@ export function layoutMap(
       value: string;
       cx: number;
       cy: number;
+      bw: number;
+      bh: number;
       fill: string;
       lineNumber: number;
     }> = [];
@@ -2847,6 +2849,8 @@ export function layoutMap(
             value: valStr,
             cx: c[0],
             cy: c[1],
+            bw: boxW,
+            bh: boxH,
             fill: r.fill,
             lineNumber: r.lineNumber,
           });
@@ -2894,59 +2898,132 @@ export function layoutMap(
       });
     }
 
-    // ── Margin callout column for valued regions too small to label in place ──
+    // ── Radial callouts for valued regions too small to label in place ──
     // Each gathered region gets a leader-lined chip (its name over the metric
-    // value, same stack as an in-place label) in a tidy vertical column on the
-    // more-open vertical margin, with a small dot at the region's true centroid.
-    // v1 places the column in the existing canvas padding / open water beside the
-    // land (no fit-box reserve) — the US-northeast cluster sits against the
-    // Atlantic margin, the classic printed-choropleth treatment.
+    // value, same stack as an in-place label) placed in the OPEN SPACE around the
+    // cluster: the chip marches OUTWARD from the cluster centre along its own
+    // angle (so a dense cluster fans its labels out in all directions — east into
+    // the ocean, north over Canada, etc.) until it clears the data regions, the
+    // in-place labels, and the other chips. A small dot marks the region's true
+    // centroid; the leader runs dot → chip. Chips may overlay unvalued base land
+    // (e.g. Canada) but never a VALUED region's fill (keep the choropleth clean).
     if (regionCallouts.length > 0) {
-      // Seat the column on the margin nearer the dropped regions (northeast US →
-      // the right/Atlantic side); mean centroid x decides.
-      const meanX =
+      const ccx =
         regionCallouts.reduce((s, rc) => s + rc.cx, 0) / regionCallouts.length;
-      const side: 'left' | 'right' = meanX >= width / 2 ? 'right' : 'left';
-      const anchor: PlacedLabel['anchor'] = side === 'right' ? 'end' : 'start';
-      const colX = side === 'right' ? width - FIT_PAD : FIT_PAD;
-      // Each chip is a name+value stack; row pitch leaves a little breathing room.
-      const ROW_H = FONT + VALUE_GAP + VALUE_FONT + 8;
-      // Top→bottom by centroid y for a tidy column, then centre the block on the
-      // mean dot y, clamped within the canvas (below the legend/title band).
-      const rows = [...regionCallouts].sort((a, b) => a.cy - b.cy);
-      const meanY = rows.reduce((s, rc) => s + rc.cy, 0) / rows.length;
-      const totalH = rows.length * ROW_H;
-      const minTop = topPad + ROW_H / 2;
-      const maxTop = Math.max(minTop, height - FIT_PAD - totalH + ROW_H / 2);
-      const startY = Math.max(
-        minTop,
-        Math.min(meanY - totalH / 2 + ROW_H / 2, maxTop)
+      const ccy =
+        regionCallouts.reduce((s, rc) => s + rc.cy, 0) / regionCallouts.length;
+      // Fills of the data (valued) regions — a chip's centre must not land on one.
+      const valuedFills = new Set(
+        regions.filter((rr) => rr.value !== undefined).map((rr) => rr.fill)
       );
-      rows.forEach((rc, i) => {
-        const rowCy = startY + i * ROW_H;
-        // Leader runs from the region's centroid dot to the chip's inner edge
-        // (the side facing the map); the chip text reads against the open margin,
-        // so it's neutral-toned with a bg halo rather than fill-contrast picked.
+      // Obstacles accumulate: the in-place region labels, the POI pads, and each
+      // chip already placed this pass.
+      const chipObstacles: LabelRect[] = [
+        ...placedRegionRects,
+        ...poiObstacles,
+      ];
+      // Fan order: by outward angle, so neighbours spread around the ring instead
+      // of stacking; ties broken by distance from centre (inner regions first).
+      const items = regionCallouts
+        .map((rc) => ({
+          rc,
+          ang: Math.atan2(rc.cy - ccy, rc.cx - ccx),
+          d2: (rc.cx - ccx) ** 2 + (rc.cy - ccy) ** 2,
+        }))
+        .sort((a, b) => a.ang - b.ang || a.d2 - b.d2);
+      // Angle nudges (radians, ~18° steps out to ±90°) tried in order so a blocked
+      // direction rotates toward open space before giving up.
+      const angOffsets = [
+        0, 0.32, -0.32, 0.64, -0.64, 0.96, -0.96, 1.3, -1.3, 1.6, -1.6,
+      ];
+      const STEP = 8;
+      const maxDist = Math.min(width, height) * 0.5;
+      const yMin = topPad;
+      for (const { rc, ang: baseAng } of items) {
         const chipW = Math.max(
           measureLegendText(rc.name, FONT),
           measureLegendText(rc.value, VALUE_FONT)
         );
-        const innerX = side === 'right' ? colX - chipW - 4 : colX + chipW + 4;
+        const chipH = FONT + VALUE_GAP + VALUE_FONT;
+        // Start just outside the region's own footprint.
+        const d0 = Math.max(rc.bw, rc.bh) * 0.6 + 10;
+        let best:
+          | {
+              x: number;
+              y: number;
+              anchor: PlacedLabel['anchor'];
+              rect: LabelRect;
+            }
+          | undefined;
+        for (const off of angOffsets) {
+          const ang = baseAng + off;
+          const ux = Math.cos(ang);
+          const uy = Math.sin(ang);
+          const anchor: PlacedLabel['anchor'] = ux >= 0 ? 'start' : 'end';
+          for (let dist = d0; dist <= maxDist; dist += STEP) {
+            const px = rc.cx + ux * dist;
+            const py = rc.cy + uy * dist;
+            // Chip rect from the anchor x (text extends away from the map).
+            const rx = anchor === 'start' ? px : px - chipW;
+            const rect: LabelRect = {
+              x: rx - 2,
+              y: py - chipH / 2 - 2,
+              w: chipW + 4,
+              h: chipH + 4,
+            };
+            if (rect.x < 4 || rect.x + rect.w > width - 4) continue;
+            if (rect.y < yMin || rect.y + rect.h > height - 4) continue;
+            if (valuedFills.has(fillAt(px, py))) continue;
+            if (chipObstacles.some((o) => rectsOverlap(rect, o))) continue;
+            best = { x: px, y: py, anchor, rect };
+            break;
+          }
+          if (best) break;
+        }
+        // Fallback: park it just outside the region along the base angle, clamped
+        // to the canvas (rare — only if every direction is boxed in).
+        if (!best) {
+          const ux = Math.cos(baseAng);
+          const anchor: PlacedLabel['anchor'] = ux >= 0 ? 'start' : 'end';
+          const px = Math.min(
+            Math.max(rc.cx + ux * d0, 4 + (anchor === 'end' ? chipW : 0)),
+            width - 4 - (anchor === 'start' ? chipW : 0)
+          );
+          const py = Math.min(
+            Math.max(rc.cy, yMin + chipH),
+            height - 4 - chipH
+          );
+          const rx = anchor === 'start' ? px : px - chipW;
+          best = {
+            x: px,
+            y: py,
+            anchor,
+            rect: {
+              x: rx - 2,
+              y: py - chipH / 2 - 2,
+              w: chipW + 4,
+              h: chipH + 4,
+            },
+          };
+        }
+        chipObstacles.push(best.rect);
+        // Leader ends a hair short of the chip's inner edge (the anchor x).
+        const gap = best.anchor === 'start' ? -3 : 3;
         labels.push({
-          x: colX,
-          y: rowCy,
+          x: best.x,
+          y: best.y,
           text: rc.name,
-          anchor,
+          anchor: best.anchor,
           color: palette.text,
           halo: true,
           haloColor: palette.bg,
           valueLine: rc.value,
-          leader: { x1: rc.cx, y1: rc.cy, x2: innerX, y2: rowCy },
+          leader: { x1: rc.cx, y1: rc.cy, x2: best.x + gap, y2: best.y },
           leaderColor: rc.fill,
           calloutDot: { x: rc.cx, y: rc.cy, color: rc.fill },
           lineNumber: rc.lineNumber,
         });
-      });
+      }
     }
   }
 
