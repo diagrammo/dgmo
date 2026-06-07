@@ -2775,6 +2775,43 @@ export function layoutMap(
     }));
     for (const { r, c, boxW, boxH, candidates } of entries) {
       const valStr = regionValueStr(r.value);
+      // A region hugs a canvas edge if it sits within a short leader's reach of
+      // it — only such a region may use a margin callout column, so the leader is
+      // always SHORT (no cross-map lines for a centred region).
+      const maxLeader = Math.min(width * 0.26, 300);
+      // "Near an edge" is measured against the LAND-facing edge of each reserved
+      // band when a reserve is active (second pass) — the map has shrunk away from
+      // that side, so the cluster now sits at the band's inner edge, not the raw
+      // canvas edge. Without a reserve (first pass) this is just the canvas edge.
+      const rsv = opts._calloutReserve;
+      const rEdge = rsv?.right ? width - rsv.right : width;
+      const lEdge = rsv?.left ?? 0;
+      const nearEdge = c[0] >= rEdge - maxLeader || c[0] <= lEdge + maxLeader;
+      // A tiny region hugging a canvas edge — one whose FULL name won't fit its
+      // own box (RI/CT/NH/MA on a US map) — goes straight to a clean margin
+      // column: a tidy full-name list reads far better than crammed 2-letter
+      // abbreviations piled on the cluster, and the edge keeps the leader short. A
+      // region whose full name DOES fit labels in place as usual; an interior tiny
+      // region (a centred world-map country) is handled by the on-land overflow
+      // below — never a long cross-map leader.
+      if (
+        valStr &&
+        nearEdge &&
+        r.label !== undefined &&
+        (labelW(r.label) > boxW || labelH > boxH)
+      ) {
+        regionCallouts.push({
+          name: r.label,
+          value: valStr,
+          cx: c[0],
+          cy: c[1],
+          bw: boxW,
+          bh: boxH,
+          fill: r.fill,
+          lineNumber: r.lineNumber,
+        });
+        continue;
+      }
       // The first candidate that BOTH fits its own footprint AND clears every
       // already-placed region label AND every POI marker wins; none qualifies →
       // the label is hidden (a country has no abbrev, so it degrades full → hide;
@@ -2844,29 +2881,38 @@ export function layoutMap(
         }
         if (chosen) break;
       }
-      if (chosen === undefined) {
-        // No spot found anywhere on the region. Route to the margin callout
-        // column ONLY when the region is genuinely too small to carry even its
-        // bare name in its own box (a tiny state — RI/DE). A big region merely
-        // boxed-in by POIs/other labels is NOT exiled to a far column (that
-        // produced the cross-map leaders for Texas/Illinois/Georgia) — it drops.
-        const tooSmall = candidates.every(
-          (t) => labelW(t) > boxW || labelH > boxH
-        );
-        if (valStr && tooSmall && r.label !== undefined) {
-          regionCallouts.push({
-            name: r.label,
-            value: valStr,
-            cx: c[0],
-            cy: c[1],
-            bw: boxW,
-            bh: boxH,
-            fill: r.fill,
-            lineNumber: r.lineNumber,
-          });
+      if (chosen === undefined && valStr) {
+        // A VALUED region not placed in-box, and not an edge-hugging tiny region
+        // (those columned above). Label it ON its own land, letting the name
+        // OVERFLOW its small box onto neighbours/ocean (the halo keeps it legible),
+        // as long as it clears already-placed labels + POIs. This keeps a country
+        // on a world choropleth (Germany, France) labelled in place instead of
+        // exiled to a far margin. If even that collides, the label simply drops —
+        // never a long cross-map leader. Gated to valued regions so a valueless
+        // POI-frame container keeps its old behaviour (yield rather than overflow).
+        for (const a of seekAnchors) {
+          if (fillAt(a.x, a.y) !== r.fill) continue;
+          for (const t of candidates) {
+            const nameRect = regionLabelRect(a.x, a.y, t);
+            if (
+              valStr &&
+              fitsRegions(regionLabelRect(a.x, a.y, t, valStr)) &&
+              fitsPois(nameRect)
+            ) {
+              chosen = { text: t, valueLine: valStr, ax: a.x, ay: a.y };
+              break;
+            }
+            if (fitsRegions(nameRect) && fitsPois(nameRect)) {
+              chosen = { text: t, ax: a.x, ay: a.y };
+              break;
+            }
+          }
+          if (chosen) break;
         }
-        continue;
       }
+      // Nothing placed (a valueless region that didn't fit, or a valued region
+      // whose overflow also collided) → drop, leaving the map clean.
+      if (chosen === undefined) continue;
       const rRect = regionLabelRect(
         chosen.ax,
         chosen.ay,

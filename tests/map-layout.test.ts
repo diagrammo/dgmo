@@ -1563,24 +1563,38 @@ describe('layout — zoom-out reserve places tiny-region callouts in a margin co
   });
 });
 
-describe('layout — two-sided callout reserve (clusters on both edges)', () => {
-  it('columns tiny regions on the left AND right when they fall on both sides', async () => {
+describe('layout — world choropleth: countries on land, no cross-map leaders', () => {
+  it('never exiles a country to a callout column and keeps every callout leader short', async () => {
     const { loadMapData } = await import('../src/map/load-data');
     const data = await loadMapData();
-    const W = 1020;
+    const W = 1040;
     const r = layoutMap(
       resolveMap(
         parseMap(
-          'map Europe\nregion-metric Index\nPortugal value: 10\nSpain value: 47\nFrance value: 67\nGermany value: 83\nPoland value: 38\nLuxembourg value: 2\nMoldova value: 3\nNorth Macedonia value: 2\nMontenegro value: 1\nSlovenia value: 2\nCyprus value: 1'
+          'map Global Headcount\nregion-metric Employees\nUnited States value: 4200\nGermany value: 1800\nIndia value: 3100\nUnited Kingdom value: 1200\nFrance value: 720\nNetherlands value: 300\nJapan value: 950\nBrazil value: 640'
         ),
         data
       ),
       data,
-      { width: W, height: 660 },
+      { width: W, height: 600 },
       { palette: P, isDark: false }
     );
     const callouts = r.labels.filter((l) => l.calloutDot);
-    expect(callouts.some((c) => c.x < W / 2)).toBe(true); // a left column exists
-    expect(callouts.some((c) => c.x > W / 2)).toBe(true); // a right column exists
+    // A centred-cluster country (Europe) is labelled on its own land or dropped —
+    // never sent to a far margin column (the "Germany next to Japan" bug).
+    const euNames = new Set([
+      'Germany',
+      'France',
+      'United Kingdom',
+      'Netherlands',
+    ]);
+    expect(callouts.every((c) => !euNames.has(c.text))).toBe(true);
+    // No callout leader stretches across the map.
+    const cap = W * 0.3;
+    for (const c of callouts) {
+      const lead = c.leader!;
+      const len = Math.hypot(lead.x2 - lead.x1, lead.y2 - lead.y1);
+      expect(len).toBeLessThan(cap);
+    }
   });
 });
