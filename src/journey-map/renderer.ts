@@ -7,6 +7,7 @@ import { parseJourneyMap } from './parser';
 import {
   layoutJourneyMap,
   scoreToColor,
+  scoreToCurveY,
   TAG_STRIP_HEIGHT,
   type CurvePoint,
   type StepLayout,
@@ -419,10 +420,7 @@ export function renderJourneyMap(
 
   // Grid lines at score levels 1-5
   for (let score = 1; score <= 5; score++) {
-    const y =
-      layout.curveAreaBottom -
-      ((score - 1) / 4) * (layout.curveAreaBottom - layout.curveAreaTop - 120) -
-      10;
+    const y = scoreToCurveY(score, layout.curveAreaBottom);
 
     curveG
       .append('line')

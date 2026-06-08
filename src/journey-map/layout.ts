@@ -88,6 +88,21 @@ export function scoreToColor(score: number, palette: PaletteColors): string {
   return mix(palette.colors.red, palette.colors.green, t);
 }
 
+// Vertical headroom reserved at the top of the curve area (px). Keep faces
+// off the very edge while still using the full height.
+const CURVE_TOP_RESERVE = 20;
+
+// Map an emotion score (1-5) to a y coordinate within the curve area. Shared
+// by the curve points, the grid lines, and the left-edge score-label faces so
+// all three stay on the same scale (else the labels bunch at the bottom).
+export function scoreToCurveY(score: number, curveAreaBottom: number): number {
+  return (
+    curveAreaBottom -
+    ((score - 1) / 4) * (CURVE_AREA_HEIGHT - CURVE_TOP_RESERVE) -
+    10
+  );
+}
+
 // ============================================================
 // Layout Engine
 // ============================================================
@@ -222,10 +237,7 @@ export function layoutJourneyMap(
           // Curve point
           if (step.score !== undefined) {
             const curveX = stepX + STEP_CARD_WIDTH / 2;
-            const curveY =
-              curveAreaBottom -
-              ((step.score - 1) / 4) * (CURVE_AREA_HEIGHT - 120) -
-              10;
+            const curveY = scoreToCurveY(step.score, curveAreaBottom);
             curvePoints.push({
               x: curveX,
               y: curveY,
@@ -253,10 +265,7 @@ export function layoutJourneyMap(
               stepCount === 1
                 ? phaseX + phaseWidth / 2
                 : phaseX + padX + (si / (stepCount - 1)) * availW;
-            const curveY =
-              curveAreaBottom -
-              ((step.score - 1) / 4) * (CURVE_AREA_HEIGHT - 120) -
-              10;
+            const curveY = scoreToCurveY(step.score, curveAreaBottom);
             curvePoints.push({
               x: curveX,
               y: curveY,
@@ -333,10 +342,7 @@ export function layoutJourneyMap(
 
       if (step.score !== undefined) {
         const curveX = stepX + STEP_CARD_WIDTH / 2;
-        const curveY =
-          curveAreaBottom -
-          ((step.score - 1) / 4) * (CURVE_AREA_HEIGHT - 20) -
-          10;
+        const curveY = scoreToCurveY(step.score, curveAreaBottom);
         curvePoints.push({
           x: curveX,
           y: curveY,
