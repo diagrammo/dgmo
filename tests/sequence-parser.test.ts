@@ -1349,14 +1349,47 @@ describe('pipe metadata on participants', () => {
     expect(svc?.metadata).toBeUndefined();
   });
 
-  it('parses metadata on position declaration', () => {
-    const content = ['DB position -1 | role: Storage', 'API -req-> DB'].join(
+  it('parses colon-keyed position alongside other metadata', () => {
+    const content = ['DB position: -1, role: Storage', 'API -req-> DB'].join(
       '\n'
     );
     const result = parseSequenceDgmo(content);
     const db = result.participants.find((p) => p.id === 'DB');
     expect(db?.position).toBe(-1);
+    // `position` is a layout directive, not display metadata — it must not
+    // leak into the metadata record.
     expect(db?.metadata).toEqual({ role: 'Storage' });
+  });
+
+  it('rejects bare-keyword `position N` (colon required)', () => {
+    const content = ['DB position -1', 'API -req-> DB'].join('\n');
+    const result = parseSequenceDgmo(content);
+    const err = result.diagnostics.find(
+      (d) => d.code === 'E_SEQUENCE_BARE_POSITION_REMOVED'
+    );
+    expect(err).toBeDefined();
+    // Participant still registers (so message refs resolve) but with no
+    // order override.
+    const db = result.participants.find((p) => p.id === 'DB');
+    expect(db).toBeDefined();
+    expect(db?.position).toBeUndefined();
+  });
+
+  it('rejects bare `position N` in an `is a` declaration', () => {
+    const result = parseSequenceDgmo('DB is a database position -1');
+    const err = result.diagnostics.find(
+      (d) => d.code === 'E_SEQUENCE_BARE_POSITION_REMOVED'
+    );
+    expect(err).toBeDefined();
+    const db = result.participants.find((p) => p.id === 'DB');
+    expect(db?.position).toBeUndefined();
+  });
+
+  it('accepts colon-keyed position on an `is a` declaration', () => {
+    const result = parseSequenceDgmo('DB is a database position: -1');
+    const db = result.participants.find((p) => p.id === 'DB');
+    expect(db?.position).toBe(-1);
+    expect(db?.metadata).toBeUndefined();
   });
 
   it('resolves in participant metadata', () => {
@@ -1874,9 +1907,10 @@ a -hello-> Bob`);
     expect(result.messages[0].to).toBe('Bob');
   });
 
-  it('keeps `position N as <alias>` working', () => {
+  it('keeps `as <alias> position: N` working together', () => {
+    // `as <alias>` precedes the colon-keyed metadata (which runs to EOL).
     const result = parseSequenceDgmo(`sequence
-Alice is an actor position 1 as a
+Alice is an actor as a position: 1
 a -hi-> Bob`);
     expect(result.participants[0].position).toBe(1);
     expect(result.messages[0].from).toBe('Alice');

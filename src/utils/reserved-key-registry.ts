@@ -63,6 +63,10 @@ export const SEQUENCE_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'description',
   'role',
   'collapsed',
+  // Participant layout-order override (§2.2). Colon-keyed `position: N`
+  // replaced the legacy bare-keyword `position N` form — a stray bare
+  // `position N` now raises E_SEQUENCE_BARE_POSITION_REMOVED.
+  'position',
 ]);
 
 export const INFRA_REGISTRY: ReservedKeyRegistry = staticRegistry([

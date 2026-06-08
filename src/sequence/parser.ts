@@ -15,6 +15,7 @@ import {
   nameMergedMessage,
   participantTypeRemovedMessage,
   pipeOperatorRemovedMessage,
+  sequenceBarePositionRemovedMessage,
   suggest,
 } from '../diagnostics';
 import { normalizeName, displayName } from '../utils/name-normalize';
@@ -246,11 +247,14 @@ export interface ParsedSequenceDgmo {
 // "Name is a type" pattern — e.g. "Auth Server is a database"
 // Participant names may contain spaces; [^:]+? stops at colons so that
 // note lines like "note right of A: this is an actor" are not falsely matched.
-// Remainder after type is parsed separately for `position N` modifier.
+// Remainder after type carries the optional `as <alias>` modifier.
 const IS_A_PATTERN = /^([^:]+?)\s+is\s+an?\s+(\w+)(?:\s+(.+))?$/i;
 
-// Standalone "Name position N" pattern — e.g. "DB position -1"
-const POSITION_ONLY_PATTERN = /^([^:]+?)\s+position\s+(-?\d+)$/i;
+// Legacy bare-keyword "Name position N" detector — e.g. "DB position -1".
+// Position is now colon-keyed metadata (`position: N`, §2.2); a surviving
+// bare `position N` raises E_SEQUENCE_BARE_POSITION_REMOVED. Group 1 is the
+// participant name (so it can still register), group 2 the offending number.
+const BARE_POSITION_PATTERN = /^([^:]+?)\s+position\s+(-?\d+)$/i;
 
 // Colored participant declaration — e.g. "Tapin2(green)", "API(blue)"
 // Scoped to recognized 11-name palette colors only (§1.5) so legitimate
@@ -641,7 +645,11 @@ export function parseSequenceDgmo(
       type: extras?.type ?? inferParticipantType(name),
       lineNumber,
       ...(extras?.position !== undefined ? { position: extras.position } : {}),
-      ...(extras?.metadata ? { metadata: extras.metadata } : {}),
+      // takePosition() may have emptied the metadata record (position was
+      // its only key) — don't attach an empty object.
+      ...(extras?.metadata && Object.keys(extras.metadata).length > 0
+        ? { metadata: extras.metadata }
+        : {}),
     });
     return trimmed;
   };
@@ -678,7 +686,7 @@ export function parseSequenceDgmo(
   const splitPipe = (
     text: string,
     ln?: number
-  ): { core: string; meta?: Record<string, string> } => {
+  ): { core: string; meta?: Record<string, string>; alias?: string } => {
     const idx = text.indexOf('|');
     if (idx >= 0) {
       if (ln !== undefined) {
@@ -713,9 +721,39 @@ export function parseSequenceDgmo(
       );
     }
     if (Object.keys(split.meta).length > 0) {
-      return { core: split.name, meta: split.meta };
+      // splitNameAndMeta peels a trailing `as <alias>` off the name region
+      // when same-line metadata is present (the alias must precede the meta,
+      // which runs to EOL). Propagate it so callers can register the alias —
+      // the no-meta branch below leaves `as <alias>` in `core` for the
+      // caller's own peeling.
+      return {
+        core: split.name,
+        meta: split.meta,
+        ...(split.alias !== undefined && { alias: split.alias }),
+      };
     }
     return { core: text };
+  };
+
+  /**
+   * Pull the layout-order `position:` key out of a participant's
+   * parsed metadata (§2.2). Position is a layout directive, not display
+   * metadata, so it is *removed* from the record after extraction. A
+   * non-integer value raises an error and yields no position.
+   */
+  const takePosition = (
+    meta: Record<string, string> | undefined,
+    ln: number
+  ): number | undefined => {
+    if (meta?.['position'] === undefined) return undefined;
+    const raw = meta['position'];
+    delete meta['position'];
+    const n = parseInt(raw, 10);
+    if (!/^-?\d+$/.test(raw.trim()) || Number.isNaN(n)) {
+      pushError(ln, `'position: ${raw}' must be an integer slot index`);
+      return undefined;
+    }
+    return n;
   };
 
   // Block parsing state — blocks are built mutably during parse, then
@@ -1074,7 +1112,11 @@ export function parseSequenceDgmo(
     // Handling makes aliasing unnecessary because forgiving normalization
     // handles casing/whitespace differences automatically.
     // Skip lines starting with 'note' — handled by note parsing below.
-    const { core: isACore, meta: isAMeta } = splitPipe(trimmed, lineNumber);
+    const {
+      core: isACore,
+      meta: isAMeta,
+      alias: isAAlias,
+    } = splitPipe(trimmed, lineNumber);
     const isAMatch = !/^note(\s|$)/i.test(trimmed)
       ? isACore.match(IS_A_PATTERN)
       : null;
@@ -1119,11 +1161,14 @@ export function parseSequenceDgmo(
         continue;
       }
 
-      // TD-18: extract trailing `as <alias>` from the remainder and
-      // register it. Order on the line is `Name is a TYPE [position N] as <alias>`.
-      // The leading `(.*?)\s*\b` allows the remainder to be just
-      // `as <alias>` (empty prefix) — the canonical example writes
-      // `Alice is an actor as a` where the entire remainder is `as a`.
+      // TD-18: extract trailing `as <alias>` and register it. Order on the
+      // line is `Name is a TYPE as <alias> [position: N]`. When same-line
+      // metadata is present, splitPipe already peeled the alias (it must
+      // precede the metadata) and handed it back as `isAAlias`; otherwise
+      // the alias is still in `remainder` for us to peel here.
+      if (isAAlias !== undefined) {
+        nameAliasMap.set(isAAlias, id);
+      }
       const asInRemainder = remainder.match(
         /^(.*?)\s*\bas\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
       );
@@ -1133,9 +1178,21 @@ export function parseSequenceDgmo(
         remainder = asInRemainder[1]!.trim();
       }
 
-      const posMatch = remainder.match(/\bposition\s+(-?\d+)/i);
-      // Capture group 1 guaranteed present after successful match.
-      const position = posMatch ? parseInt(posMatch[1]!, 10) : undefined;
+      // Position is colon-keyed metadata (§2.2) — pull it from the parsed
+      // meta. A bare `position N` surviving in the remainder is the retired
+      // form: flag it and drop the token (participant still registers).
+      const position = takePosition(isAMeta, lineNumber);
+      const baretail = remainder.match(/^position\s+(-?\d+)$/i);
+      if (baretail) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            sequenceBarePositionRemovedMessage(baretail[1]!),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.SEQUENCE_BARE_POSITION_REMOVED
+          )
+        );
+      }
 
       // Avoid duplicate participant declarations
       const key = addParticipant(id, lineNumber, {
@@ -1161,17 +1218,26 @@ export function parseSequenceDgmo(
       continue;
     }
 
-    // Parse standalone "Name position N" (no "is a" type)
+    // Reject the retired standalone bare-keyword "Name position N"
+    // (no "is a" type). Position is now colon-keyed `position: N` (§2.2),
+    // which flows through the bare-participant path below. The participant
+    // still registers (without an order override) so message refs resolve.
     const { core: posCore, meta: posMeta } = splitPipe(trimmed, lineNumber);
-    const posOnlyMatch = posCore.match(POSITION_ONLY_PATTERN);
+    const posOnlyMatch = posCore.match(BARE_POSITION_PATTERN);
     if (posOnlyMatch) {
       contentStarted = true;
       // Capture groups 1 and 2 guaranteed present after successful match.
       const id = posOnlyMatch[1]!;
-      const position = parseInt(posOnlyMatch[2]!, 10);
+      result.diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          sequenceBarePositionRemovedMessage(posOnlyMatch[2]!),
+          'error',
+          METADATA_DIAGNOSTIC_CODES.SEQUENCE_BARE_POSITION_REMOVED
+        )
+      );
 
       const key = addParticipant(id, lineNumber, {
-        position,
         ...(posMeta !== undefined && { metadata: posMeta }),
       });
       // Track group membership
@@ -1226,7 +1292,11 @@ export function parseSequenceDgmo(
     // Bare participant name — either inside an active group (indented) or top-level declaration
     // Supports pipe metadata: "  API | c: Gateway" or "Tapin2 | l:Park"
     {
-      const { core: bareCore, meta: bareMeta } = splitPipe(trimmed, lineNumber);
+      const {
+        core: bareCore,
+        meta: bareMeta,
+        alias: bareAlias,
+      } = splitPipe(trimmed, lineNumber);
       const inGroup = activeGroup && measureIndent(raw) > 0;
       if (
         /^\S+$/.test(bareCore) &&
@@ -1235,7 +1305,11 @@ export function parseSequenceDgmo(
       ) {
         contentStarted = true;
         const id = bareCore;
+        if (bareAlias !== undefined) nameAliasMap.set(bareAlias, id);
+        // Colon-keyed `position: N` (§2.2) arrives as metadata here.
+        const position = takePosition(bareMeta, lineNumber);
         const key = addParticipant(id, lineNumber, {
+          ...(position !== undefined && { position }),
           ...(bareMeta !== undefined && { metadata: bareMeta }),
         });
         if (activeGroup && !activeGroup.participantIds.includes(key)) {

@@ -386,7 +386,7 @@ rarely benefit. Aliases should aid comprehension, not obscure it.
 ### 2.1 Participants
 
 ```
-Name is a <type> [position N]
+Name is a <type> [as <alias>] [position: N]
 Name key: value
 ```
 

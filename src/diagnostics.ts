@@ -278,6 +278,12 @@ export const METADATA_DIAGNOSTIC_CODES = {
    */
   RING_BARE_DESCRIPTION_REMOVED: 'E_RING_BARE_DESCRIPTION_REMOVED',
   /**
+   * Error: legacy sequence bare-keyword `position N` participant
+   * ordering shorthand. Replaced by the colon-keyed `position: <N>`
+   * metadata form, consistent with §1.4 same-line metadata.
+   */
+  SEQUENCE_BARE_POSITION_REMOVED: 'E_SEQUENCE_BARE_POSITION_REMOVED',
+  /**
    * Error: a `tag` declaration appears after the first non-tag
    * content line. The reserved-key registry is finalized before
    * content-line mode begins; downstream-declared tag aliases
@@ -345,6 +351,16 @@ export function bareDescriptionRemovedMessage(args: {
 }): string {
   const quoted = args.text.includes(',') ? `"${args.text}"` : args.text;
   return `'|' description shorthand removed in ${args.chartType} — use 'description: ${quoted}'`;
+}
+
+/**
+ * Canonical message for `E_SEQUENCE_BARE_POSITION_REMOVED`. Emitted
+ * when a sequence participant uses the legacy bare-keyword
+ * `position N` ordering shorthand instead of the colon-keyed
+ * `position: N` metadata form.
+ */
+export function sequenceBarePositionRemovedMessage(n: string): string {
+  return `Bare 'position ${n}' removed — use 'position: ${n}' (colon required, per §1.4 metadata)`;
 }
 
 /**
