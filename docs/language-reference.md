@@ -722,9 +722,15 @@ note "Read Map" the map is half-burned
 ```
 
 Indent lines below the heading for a multi-line body (bullets + inline
-markdown, same as sequence notes). Notes may forward-reference a node;
-an unknown id is an error, a duplicate note on a node is a warning
+markdown, same as sequence notes). End the heading with a lowercase
+palette color word to recolor the note. Notes may forward-reference a
+node; an unknown id is an error, a duplicate note on a node is a warning
 (first kept). `no-notes` suppresses every box.
+
+Notes work on **flowchart**, **state**, **class** (`note <ClassName>`),
+**er** (`note <Table>`), and **boxes-and-lines** (`note <Box>`). Org and
+sitemap are excluded — their indentation *is* the tree structure, which
+collides with the indented-body grammar.
 
 ---
 
