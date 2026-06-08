@@ -19,6 +19,13 @@ import {
 } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
 import { measureText } from '../utils/text-measure';
+import {
+  renderNoteBox,
+  renderNoteConnector,
+  renderNoteBadge,
+  noteConnectorPoints,
+  NOTE_BADGE_RADIUS,
+} from '../utils/note-box';
 import type { ParsedERDiagram, ERConstraint } from './types';
 import type { ERLayoutResult } from './layout';
 import { parseERDiagram } from './parser';
@@ -547,6 +554,52 @@ export function renderERDiagram(
           .text(colText);
 
         memberY += sMemberLineHeight;
+      }
+    }
+
+    // ── Note (floated beside the table, or a collapsed corner badge) ──
+    // The table keeps its layout position; the note floats in adjacent
+    // space. Coords are node-center-local (the node `<g>` is at the center).
+    if (node.note) {
+      if (node.note.collapsed) {
+        renderNoteBadge(
+          nodeG,
+          {
+            x: w / 2 - NOTE_BADGE_RADIUS - 3,
+            y: -h / 2 + NOTE_BADGE_RADIUS + 3,
+          },
+          palette,
+          {
+            isDark,
+            ...(node.note.color && { color: node.note.color }),
+            lineNumber: node.note.lineNumber,
+            endLineNumber: node.note.endLineNumber,
+          }
+        );
+      } else {
+        const [cx1, cy1, cx2, cy2] = noteConnectorPoints(
+          { width: w, height: h },
+          node.note
+        );
+        renderNoteConnector(nodeG, cx1, cy1, cx2, cy2, palette);
+        renderNoteBox(
+          nodeG,
+          {
+            x: node.note.x,
+            y: node.note.y,
+            width: node.note.width,
+            height: node.note.height,
+          },
+          node.note.lines,
+          palette,
+          {
+            isDark,
+            ...(node.note.color && { color: node.note.color }),
+            lineNumber: node.note.lineNumber,
+            endLineNumber: node.note.endLineNumber,
+            interactive: true,
+          }
+        );
       }
     }
   }

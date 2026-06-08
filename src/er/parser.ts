@@ -31,6 +31,7 @@ import {
   stripDefaultModifier,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
+import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
 import type { Writable } from '../utils/brand';
 import type {
   ParsedERDiagram,
@@ -252,6 +253,7 @@ export function parseERDiagram(
   // assign into it (table.metadata is `Readonly<Record<...>>` per the spec).
   const tableMetadataMap = new Map<string, Record<string, string>>();
   let currentTable: Writable<ERTable> | null = null;
+  const notes: DiagramNote[] = [];
   let contentStarted = false;
   let currentTagGroup: Writable<TagGroup> | null = null;
   // metaAliasMap: tag-group metadata-key aliases (per A1 convention).
@@ -466,6 +468,21 @@ export function parseERDiagram(
     currentTable = null;
     contentStarted = true;
 
+    // Note annotation (top-level): `note <Table> [inline body]` + an optional
+    // indented body. `note -> X` is excluded so it can still parse as content.
+    const noteResult = tryCollectNote(
+      lines,
+      i,
+      indent,
+      palette,
+      result.diagnostics
+    );
+    if (noteResult) {
+      if (noteResult.note) notes.push(noteResult.note);
+      i = noteResult.lastIndex;
+      continue;
+    }
+
     // Reject top-level relationships — must be indented under source table
     const rel = parseRelationship(trimmed, lineNumber, pushError);
     if (rel) {
@@ -594,6 +611,17 @@ export function parseERDiagram(
         }
       }
     }
+  }
+
+  // Resolve note refs against table names (forward refs OK). The id→note
+  // binding is recomputed in layout; this pass surfaces diagnostics.
+  if (notes.length > 0) {
+    result.notes = notes;
+    resolveNotes(
+      notes,
+      result.tables.map((t) => ({ id: t.id, label: t.name })),
+      result.diagnostics
+    );
   }
 
   // Warn about isolated tables (not in any relationship)

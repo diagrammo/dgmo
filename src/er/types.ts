@@ -35,6 +35,7 @@ export interface ERRelationship {
 
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
+import type { DiagramNote } from '../utils/notes';
 
 export interface ParsedERDiagram {
   readonly type: 'er';
@@ -44,6 +45,8 @@ export interface ParsedERDiagram {
   readonly tables: readonly ERTable[];
   readonly relationships: readonly ERRelationship[];
   readonly tagGroups: readonly TagGroup[];
+  /** Generic node notes (`note <Table> …`); resolved in layout. */
+  readonly notes?: readonly DiagramNote[];
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }

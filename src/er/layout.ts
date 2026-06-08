@@ -1,5 +1,11 @@
 import dagre from '@dagrejs/dagre';
 import { measureText } from '../utils/text-measure';
+import {
+  resolveNotes,
+  buildPlacedNotes,
+  noteCanvasShift,
+  type PlacedNote,
+} from '../utils/notes';
 import type { ParsedERDiagram, ERTable, ERRelationship } from './types';
 
 // ============================================================
@@ -13,6 +19,13 @@ export interface ERLayoutNode extends ERTable {
   readonly height: number;
   readonly headerHeight: number;
   readonly columnsHeight: number;
+  /** A note floated beside this table (never moves the box). */
+  readonly note?: PlacedNote;
+}
+
+export interface ERLayoutOptions {
+  /** 1-based source lines of notes the user collapsed (corner badge). */
+  collapsedNotes?: ReadonlySet<number>;
 }
 
 export interface ERLayoutEdge {
@@ -344,7 +357,10 @@ function packComponents(
 // Layout engine
 // ============================================================
 
-export function layoutERDiagram(parsed: ParsedERDiagram): ERLayoutResult {
+export function layoutERDiagram(
+  parsed: ParsedERDiagram,
+  options?: ERLayoutOptions
+): ERLayoutResult {
   if (parsed.tables.length === 0) {
     return { nodes: [], edges: [], width: 0, height: 0 };
   }
@@ -426,24 +442,89 @@ export function layoutERDiagram(parsed: ParsedERDiagram): ERLayoutResult {
     };
   });
 
-  // ── 6. Total canvas dimensions ───────────────────────────────────────────────
-  let maxX = 0;
-  let maxY = 0;
-  for (const node of layoutNodes) {
-    maxX = Math.max(maxX, node.x + node.width / 2);
-    maxY = Math.max(maxY, node.y + node.height / 2);
-  }
-  for (const edge of layoutEdges) {
-    for (const pt of edge.points) {
-      maxX = Math.max(maxX, pt.x);
-      maxY = Math.max(maxY, pt.y);
+  // ── 6. Notes ─────────────────────────────────────────────────────────────────
+  // Resolve note anchors (no diagnostics — the parser already emitted them).
+  // `no-notes` drops the footprint so layout matches an un-annotated diagram.
+  // The note floats beside its table WITHOUT moving it (ER nodes are center
+  // -positioned → default side right).
+  const notesSuppressed = parsed.options?.['no-notes'] === 'on';
+  const noteByNode =
+    notesSuppressed || !parsed.notes
+      ? new Map()
+      : resolveNotes(
+          parsed.notes,
+          parsed.tables.map((t) => ({ id: t.id, label: t.name }))
+        );
+  const placedNotes = buildPlacedNotes(
+    layoutNodes.map((n) => ({
+      id: n.id,
+      x: n.x,
+      y: n.y,
+      width: n.width,
+      height: n.height,
+    })),
+    noteByNode,
+    'TB',
+    options?.collapsedNotes
+  );
+  const notedNodes: ERLayoutNode[] = layoutNodes.map((n) => {
+    const note = placedNotes.get(n.id);
+    return note ? { ...n, note } : n;
+  });
+
+  // ── 7. Content bbox (incl. floated notes) + off-canvas shift ─────────────────
+  let bbMinX = Infinity;
+  let bbMinY = Infinity;
+  let bbMaxX = -Infinity;
+  let bbMaxY = -Infinity;
+  const extend = (l: number, t: number, r: number, b: number): void => {
+    if (l < bbMinX) bbMinX = l;
+    if (t < bbMinY) bbMinY = t;
+    if (r > bbMaxX) bbMaxX = r;
+    if (b > bbMaxY) bbMaxY = b;
+  };
+  for (const node of notedNodes) {
+    extend(
+      node.x - node.width / 2,
+      node.y - node.height / 2,
+      node.x + node.width / 2,
+      node.y + node.height / 2
+    );
+    if (node.note && !node.note.collapsed) {
+      extend(
+        node.x + node.note.x,
+        node.y + node.note.y,
+        node.x + node.note.x + node.note.width,
+        node.y + node.note.y + node.note.height
+      );
     }
   }
+  for (const edge of layoutEdges) {
+    for (const pt of edge.points) extend(pt.x, pt.y, pt.x, pt.y);
+  }
+  if (!Number.isFinite(bbMinX)) {
+    bbMinX = 0;
+    bbMinY = 0;
+    bbMaxX = 0;
+    bbMaxY = 0;
+  }
+
+  const { shiftX, shiftY } = noteCanvasShift(bbMinX, bbMinY);
+  const shifted = shiftX !== 0 || shiftY !== 0;
+  const finalNodes = shifted
+    ? notedNodes.map((n) => ({ ...n, x: n.x + shiftX, y: n.y + shiftY }))
+    : notedNodes;
+  const finalEdges = shifted
+    ? layoutEdges.map((e) => ({
+        ...e,
+        points: e.points.map((pt) => ({ x: pt.x + shiftX, y: pt.y + shiftY })),
+      }))
+    : layoutEdges;
 
   return {
-    nodes: layoutNodes,
-    edges: layoutEdges,
-    width: maxX + HALF_MARGIN,
-    height: maxY + HALF_MARGIN,
+    nodes: finalNodes,
+    edges: finalEdges,
+    width: bbMaxX + shiftX + HALF_MARGIN,
+    height: bbMaxY + shiftY + HALF_MARGIN,
   };
 }
