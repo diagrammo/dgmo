@@ -22,6 +22,12 @@ import {
   measureLegendText,
 } from '../utils/legend-constants';
 import { measureText } from '../utils/text-measure';
+import {
+  resolveNotes,
+  buildPlacedNotes,
+  noteCanvasShift,
+  type PlacedNote,
+} from '../utils/notes';
 
 // ============================================================
 // Types
@@ -44,6 +50,8 @@ export interface OrgLayoutNode {
   readonly hiddenCount?: number;
   /** True if node has children (expanded or collapsed) — drives toggle UI */
   readonly hasChildren?: boolean;
+  /** A note floated beside this card (never moves the card). */
+  readonly note?: PlacedNote;
 }
 
 export interface OrgLayoutEdge {
@@ -374,7 +382,8 @@ export function layoutOrg(
   hiddenCounts?: Map<string, number>,
   activeTagGroup?: string | null,
   hiddenAttributes?: Set<string>,
-  expandAllLegend?: boolean
+  expandAllLegend?: boolean,
+  collapsedNotes?: ReadonlySet<number>
 ): OrgLayoutResult {
   if (parsed.roots.length === 0) {
     // Legend-only: compute and position legend groups even without nodes
@@ -1247,6 +1256,81 @@ export function layoutOrg(
     const neededWidth = totalGroupsWidth + MARGIN * 2;
     if (neededWidth > finalWidth) {
       finalWidth = neededWidth;
+    }
+  }
+
+  // ── Notes ──────────────────────────────────────────────────
+  // Float a note beside each annotated card. Org cards are top-left
+  // positioned (x = center, y = TOP), so the placer anchors on the card
+  // CENTER (y + height/2) and the renderer draws the note in a centered
+  // sub-group. `no-notes` opts out. A note off the top/left shifts every
+  // positioned element; a note past the right/bottom grows the canvas.
+  const notesSuppressed = parsed.options?.['no-notes'] === 'on';
+  if (!notesSuppressed && parsed.notes && parsed.notes.length > 0) {
+    const flat: { id: string; label: string }[] = [];
+    const collectFlat = (nodes: readonly OrgNode[]) => {
+      for (const node of nodes) {
+        flat.push({ id: node.id, label: node.label });
+        collectFlat(node.children);
+      }
+    };
+    for (const root of parsed.roots) collectFlat([root]);
+
+    const noteByNode = resolveNotes(parsed.notes, flat);
+    if (noteByNode.size > 0) {
+      const placed = buildPlacedNotes(
+        layoutNodes.map((n) => ({
+          id: n.id,
+          x: n.x,
+          y: n.y + n.height / 2,
+          width: n.width,
+          height: n.height,
+        })),
+        noteByNode,
+        'TB',
+        collapsedNotes
+      );
+
+      let noteMinX = 0;
+      let noteMinY = 0;
+      let noteMaxX = finalWidth;
+      let noteMaxY = finalHeight;
+      for (const n of layoutNodes) {
+        const note = placed.get(n.id);
+        if (!note) continue;
+        n.note = note;
+        if (note.collapsed) continue;
+        const cx0 = n.x + note.x;
+        const cy0 = n.y + n.height / 2 + note.y;
+        noteMinX = Math.min(noteMinX, cx0);
+        noteMinY = Math.min(noteMinY, cy0);
+        noteMaxX = Math.max(noteMaxX, cx0 + note.width);
+        noteMaxY = Math.max(noteMaxY, cy0 + note.height);
+      }
+
+      const { shiftX, shiftY } = noteCanvasShift(noteMinX, noteMinY);
+      if (shiftX !== 0 || shiftY !== 0) {
+        for (const n of layoutNodes) {
+          n.x += shiftX;
+          n.y += shiftY;
+        }
+        for (const c of containers) {
+          c.x += shiftX;
+          c.y += shiftY;
+        }
+        for (const e of layoutEdges) {
+          for (const p of e.points as Writable<(typeof e.points)[number]>[]) {
+            p.x += shiftX;
+            p.y += shiftY;
+          }
+        }
+        for (const g of legendGroups) {
+          g.x += shiftX;
+          g.y += shiftY;
+        }
+      }
+      finalWidth = Math.max(finalWidth + shiftX, noteMaxX + shiftX + MARGIN);
+      finalHeight = Math.max(finalHeight + shiftY, noteMaxY + shiftY + MARGIN);
     }
   }
 

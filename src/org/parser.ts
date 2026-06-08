@@ -9,6 +9,7 @@ import {
 } from '../diagnostics';
 import { ORG_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
 import type { TagGroup } from '../utils/tag-groups';
+import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
 import type { Writable } from '../utils/brand';
 import {
   isTagBlockHeading,
@@ -49,6 +50,8 @@ export interface ParsedOrg {
   readonly roots: readonly OrgNode[];
   readonly tagGroups: readonly TagGroup[];
   readonly options: Readonly<Record<string, string>>;
+  /** Generic node notes (`note <Person> …`); resolved in layout. */
+  readonly notes?: readonly DiagramNote[];
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }
@@ -73,6 +76,7 @@ const KNOWN_BOOLEANS = new Set([
   'direction-tb',
   'solid-fill',
   'no-title',
+  'no-notes',
 ]);
 
 // ============================================================
@@ -129,6 +133,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   }
 
   const lines = content.split('\n');
+  const notes: DiagramNote[] = [];
   let contentStarted = false;
   let nodeCounter = 0;
   let containerCounter = 0;
@@ -289,6 +294,24 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
 
     const indent = measureIndent(line);
 
+    // Note annotation (top-level): `note <Person> [inline body]` + an optional
+    // indented body. Gated to indent 0 so the indent-based hierarchy never
+    // mistakes it for a node; its indented body is consumed via i advance.
+    if (indent === 0) {
+      const noteResult = tryCollectNote(
+        lines,
+        i,
+        indent,
+        palette,
+        result.diagnostics
+      );
+      if (noteResult) {
+        if (noteResult.note) notes.push(noteResult.note);
+        i = noteResult.lastIndex;
+        continue;
+      }
+    }
+
     // Check for container syntax: [Team Name]
     const containerMatch = trimmed.match(CONTAINER_RE);
 
@@ -397,6 +420,21 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
 
     validateTagValues(allNodes, result.tagGroups, pushWarning, suggest);
     validateTagGroupNames(result.tagGroups, pushWarning, pushError);
+  }
+
+  // Resolve note refs against node labels (forward refs OK). The id→note
+  // binding is recomputed in layout; this pass surfaces diagnostics.
+  if (notes.length > 0) {
+    const flat: { id: string; label: string }[] = [];
+    const collect = (nodes: readonly OrgNode[]) => {
+      for (const node of nodes) {
+        flat.push({ id: node.id, label: node.label });
+        collect(node.children);
+      }
+    };
+    collect(result.roots);
+    result.notes = notes;
+    resolveNotes(notes, flat, result.diagnostics);
   }
 
   if (

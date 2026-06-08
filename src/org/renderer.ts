@@ -12,6 +12,13 @@ import { ScaleContext } from '../utils/scaling';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { resolveTagColor } from '../utils/tag-groups';
+import {
+  renderNoteBox,
+  renderNoteConnector,
+  renderNoteBadge,
+  noteConnectorPoints,
+  NOTE_BADGE_RADIUS,
+} from '../utils/note-box';
 import type { ParsedOrg } from './parser';
 import type { OrgLayoutResult } from './layout';
 import type { AncestorInfo } from './collapse';
@@ -628,6 +635,58 @@ export function renderOrg(
         .attr('cy', cy)
         .attr('r', 2)
         .attr('fill', palette.textMuted);
+    }
+
+    // ── Note (floated beside the card, or a collapsed corner badge) ──
+    // The card `<g>` is top-left positioned, so the note draws inside a
+    // sub-group translated to the card CENTER (note coords are center-local).
+    if (node.note) {
+      const noteCenterG = nodeG
+        .append('g')
+        .attr(
+          'transform',
+          `translate(${node.width / 2}, ${node.height / 2})`
+        ) as GSelection;
+      if (node.note.collapsed) {
+        renderNoteBadge(
+          noteCenterG,
+          {
+            x: node.width / 2 - NOTE_BADGE_RADIUS - 3,
+            y: -node.height / 2 + NOTE_BADGE_RADIUS + 3,
+          },
+          palette,
+          {
+            isDark,
+            ...(node.note.color && { color: node.note.color }),
+            lineNumber: node.note.lineNumber,
+            endLineNumber: node.note.endLineNumber,
+          }
+        );
+      } else {
+        const [cx1, cy1, cx2, cy2] = noteConnectorPoints(
+          { width: node.width, height: node.height },
+          node.note
+        );
+        renderNoteConnector(noteCenterG, cx1, cy1, cx2, cy2, palette);
+        renderNoteBox(
+          noteCenterG,
+          {
+            x: node.note.x,
+            y: node.note.y,
+            width: node.note.width,
+            height: node.note.height,
+          },
+          node.note.lines,
+          palette,
+          {
+            isDark,
+            ...(node.note.color && { color: node.note.color }),
+            lineNumber: node.note.lineNumber,
+            endLineNumber: node.note.endLineNumber,
+            interactive: true,
+          }
+        );
+      }
     }
   }
 
