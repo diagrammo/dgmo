@@ -35,6 +35,8 @@ import {
   BOXES_AND_LINES_REGISTRY,
   withTagAliases,
 } from '../utils/reserved-key-registry';
+import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
+import type { PaletteColors } from '../palettes';
 
 const MAX_GROUP_DEPTH = 2;
 
@@ -113,8 +115,12 @@ type MutBLGroup = Omit<Writable<BLGroup>, 'metadata' | 'children'> & {
   children: string[];
 };
 
-export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
+export function parseBoxesAndLines(
+  content: string,
+  palette?: PaletteColors
+): ParsedBoxesAndLines {
   const options: Record<string, string> = {};
+  const notes: DiagramNote[] = [];
   const initialHiddenTagValues = new Map<string, Set<string>>();
   const nodes: MutBLNode[] = [];
   const edges: MutBLEdge[] = [];
@@ -332,6 +338,24 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
         if (tryParseSharedOption(trimmed, options)) {
           continue;
         }
+      }
+    }
+
+    // Note annotation (top-level): `note <Box> [inline body]` + an optional
+    // indented body. Checked before tag/group/node/edge matching so a note is
+    // never mistaken for a box; gated to indent 0. `note -> X` is excluded.
+    if (indent === 0) {
+      const noteResult = tryCollectNote(
+        lines,
+        i,
+        indent,
+        palette,
+        result.diagnostics
+      );
+      if (noteResult) {
+        if (noteResult.note) notes.push(noteResult.note);
+        i = noteResult.lastIndex;
+        continue;
       }
     }
 
@@ -719,6 +743,17 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     }
   }
   result.edges = validEdges;
+
+  // Resolve note refs against box labels (forward refs OK). The id→note
+  // binding is recomputed in layout; this pass surfaces diagnostics.
+  if (notes.length > 0) {
+    result.notes = notes;
+    resolveNotes(
+      notes,
+      result.nodes.map((n) => ({ id: n.label, label: n.label })),
+      result.diagnostics
+    );
+  }
 
   // Post-parse: inject default tag metadata and validate tag values
   if (result.tagGroups.length > 0) {

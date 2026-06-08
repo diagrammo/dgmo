@@ -1,5 +1,6 @@
 import type { TagGroup } from '../utils/tag-groups';
 import type { DgmoError } from '../diagnostics';
+import type { DiagramNote } from '../utils/notes';
 
 export interface BLNode {
   readonly label: string;
@@ -37,6 +38,8 @@ export interface ParsedBoxesAndLines {
   readonly groups: readonly BLGroup[];
   readonly tagGroups: readonly TagGroup[];
   readonly options: Readonly<Record<string, string>>;
+  /** Generic node notes (`note <Box> …`); resolved in layout. */
+  readonly notes?: readonly DiagramNote[];
   readonly initialHiddenTagValues: ReadonlyMap<string, ReadonlySet<string>>;
   readonly direction: 'LR' | 'TB';
   /** `box-metric <label> [low] [high]` — names the value-ramp dimension and

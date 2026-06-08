@@ -3,6 +3,13 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
+import {
+  renderNoteBox,
+  renderNoteConnector,
+  renderNoteBadge,
+  noteConnectorPoints,
+  NOTE_BADGE_RADIUS,
+} from '../utils/note-box';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import { renderLegendD3 } from '../utils/legend-d3';
@@ -1278,6 +1285,52 @@ export function renderBoxesAndLines(
           .attr('fill', colors.text)
           // In-bounds by loop guard.
           .text(fitted.lines[li]!);
+      }
+    }
+
+    // ── Note (floated beside the box, or a collapsed corner badge) ──
+    // The box keeps its layout position; the note floats in adjacent space.
+    // Coords are node-center-local (the node `<g>` is at the box center).
+    if (ln.note) {
+      if (ln.note.collapsed) {
+        renderNoteBadge(
+          nodeG,
+          {
+            x: ln.width / 2 - NOTE_BADGE_RADIUS - 3,
+            y: -ln.height / 2 + NOTE_BADGE_RADIUS + 3,
+          },
+          palette,
+          {
+            isDark,
+            ...(ln.note.color && { color: ln.note.color }),
+            lineNumber: ln.note.lineNumber,
+            endLineNumber: ln.note.endLineNumber,
+          }
+        );
+      } else {
+        const [cx1, cy1, cx2, cy2] = noteConnectorPoints(
+          { width: ln.width, height: ln.height },
+          ln.note
+        );
+        renderNoteConnector(nodeG, cx1, cy1, cx2, cy2, palette);
+        renderNoteBox(
+          nodeG,
+          {
+            x: ln.note.x,
+            y: ln.note.y,
+            width: ln.note.width,
+            height: ln.note.height,
+          },
+          ln.note.lines,
+          palette,
+          {
+            isDark,
+            ...(ln.note.color && { color: ln.note.color }),
+            lineNumber: ln.note.lineNumber,
+            endLineNumber: ln.note.endLineNumber,
+            interactive: true,
+          }
+        );
       }
     }
   }

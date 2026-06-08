@@ -8078,7 +8078,7 @@ export async function renderForExport(
   if (detectedType === 'boxes-and-lines') {
     const { parseBoxesAndLines } = await import('./boxes-and-lines/parser');
     const effectivePalette = await resolveExportPalette(theme, palette);
-    const blParsed = parseBoxesAndLines(content);
+    const blParsed = parseBoxesAndLines(content, effectivePalette);
     if (blParsed.error || blParsed.nodes.length === 0) return '';
 
     // Convert viewState.htv (Record<string, string[]>) to Map<string, Set<string>>

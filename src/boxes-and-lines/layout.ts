@@ -11,6 +11,12 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ParsedBoxesAndLines, BLNode, BLGroup } from './types';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
+import {
+  resolveNotes,
+  buildPlacedNotes,
+  noteCanvasShift,
+  type PlacedNote,
+} from '../utils/notes';
 
 // ── Constants ──────────────────────────────────────────────
 const MARGIN = 40;
@@ -46,6 +52,8 @@ export interface BLLayoutNode {
   readonly y: number;
   readonly width: number;
   readonly height: number;
+  /** A note floated beside this box (never moves the box). */
+  readonly note?: PlacedNote;
 }
 
 export interface BLLayoutEdge {
@@ -396,7 +404,10 @@ export async function layoutBoxesAndLines(
     collapsedChildCounts: Map<string, number>;
     originalGroups: readonly BLGroup[];
   },
-  layoutOptions?: { hideDescriptions?: boolean }
+  layoutOptions?: {
+    hideDescriptions?: boolean;
+    collapsedNotes?: ReadonlySet<number>;
+  }
 ): Promise<BLLayoutResult> {
   const hideDescriptions = layoutOptions?.hideDescriptions ?? false;
   const direction = parsed.direction === 'TB' ? 'DOWN' : 'RIGHT';
@@ -730,5 +741,112 @@ export async function layoutBoxesAndLines(
       bestScore = s;
     }
   }
-  return best;
+
+  return attachNotes(best, parsed, layoutOptions?.collapsedNotes);
+}
+
+/**
+ * Float notes beside their boxes on the chosen layout (runs after variant
+ * selection — notes don't affect scoring). `no-notes` opts out. A note placed
+ * above/left can land off-canvas, so the whole layout is shifted to fit.
+ * Un-annotated diagrams are returned unchanged (min coords stay ≥ 0).
+ */
+function attachNotes(
+  layout: BLLayoutResult,
+  parsed: ParsedBoxesAndLines,
+  collapsedNotes?: ReadonlySet<number>
+): BLLayoutResult {
+  const notesSuppressed = parsed.options?.['no-notes'] === 'on';
+  const noteByNode =
+    notesSuppressed || !parsed.notes
+      ? new Map()
+      : resolveNotes(
+          parsed.notes,
+          parsed.nodes.map((n) => ({ id: n.label, label: n.label }))
+        );
+  if (noteByNode.size === 0) return layout;
+
+  const placed = buildPlacedNotes(
+    layout.nodes.map((n) => ({
+      id: n.label,
+      x: n.x,
+      y: n.y,
+      width: n.width,
+      height: n.height,
+    })),
+    noteByNode,
+    parsed.direction === 'TB' ? 'TB' : 'LR',
+    collapsedNotes
+  );
+  const notedNodes: BLLayoutNode[] = layout.nodes.map((n) => {
+    const note = placed.get(n.label);
+    return note ? { ...n, note } : n;
+  });
+
+  // Content bbox over nodes (+ their floated notes) and groups — matches the
+  // prior max-extent computation plus the notes.
+  let bbMinX = Infinity;
+  let bbMinY = Infinity;
+  let bbMaxX = -Infinity;
+  let bbMaxY = -Infinity;
+  const extend = (l: number, t: number, r: number, b: number): void => {
+    if (l < bbMinX) bbMinX = l;
+    if (t < bbMinY) bbMinY = t;
+    if (r > bbMaxX) bbMaxX = r;
+    if (b > bbMaxY) bbMaxY = b;
+  };
+  for (const n of notedNodes) {
+    extend(
+      n.x - n.width / 2,
+      n.y - n.height / 2,
+      n.x + n.width / 2,
+      n.y + n.height / 2
+    );
+    if (n.note && !n.note.collapsed) {
+      extend(
+        n.x + n.note.x,
+        n.y + n.note.y,
+        n.x + n.note.x + n.note.width,
+        n.y + n.note.y + n.note.height
+      );
+    }
+  }
+  for (const grp of layout.groups) {
+    extend(
+      grp.x - grp.width / 2,
+      grp.y - grp.height / 2,
+      grp.x + grp.width / 2,
+      grp.y + grp.height / 2
+    );
+  }
+  if (!Number.isFinite(bbMinX)) return { ...layout, nodes: notedNodes };
+
+  const { shiftX, shiftY } = noteCanvasShift(bbMinX, bbMinY);
+  const shifted = shiftX !== 0 || shiftY !== 0;
+  const finalNodes = shifted
+    ? notedNodes.map((n) => ({ ...n, x: n.x + shiftX, y: n.y + shiftY }))
+    : notedNodes;
+  const finalEdges = shifted
+    ? layout.edges.map((e) => ({
+        ...e,
+        points: e.points.map((pt) => ({ x: pt.x + shiftX, y: pt.y + shiftY })),
+        ...(e.labelX !== undefined && { labelX: e.labelX + shiftX }),
+        ...(e.labelY !== undefined && { labelY: e.labelY + shiftY }),
+      }))
+    : layout.edges;
+  const finalGroups = shifted
+    ? layout.groups.map((grp) => ({
+        ...grp,
+        x: grp.x + shiftX,
+        y: grp.y + shiftY,
+      }))
+    : layout.groups;
+
+  return {
+    nodes: finalNodes,
+    edges: finalEdges,
+    groups: finalGroups,
+    width: bbMaxX + shiftX + MARGIN,
+    height: bbMaxY + shiftY + MARGIN,
+  };
 }
