@@ -3616,17 +3616,25 @@ export function layoutMap(
         if (l.poiId === undefined) continue;
         const p = poiById2.get(l.poiId);
         if (!p) continue;
-        // A hover-only (hidden) label contributes nothing: a cluster that can't
-        // seat does so because of COLLISION at this zoom, not the edge (its column
-        // already self-clamps to POI_EDGE_CLEAR and stays on-canvas). Reserving for
-        // it would just over-shrink the map without ever un-hiding it.
-        if (l.hidden) continue;
-        // A visible leader-lined COLUMN/callout label already self-clamps to
-        // POI_EDGE_CLEAR from the frame (its colX/startY use the same buffer), so it
-        // never crosses the line — and measuring it would feed a runaway, since
-        // reserving more just lengthens its leader while it re-clamps to the edge.
-        // Only inline labels (no leader) ride the data and need the re-fit.
-        if (l.leader) continue;
+        // A leader-lined COLUMN (visible) or a hover-only HIDDEN label both want a
+        // seaward column beside the dot. Measuring their CLAMPED rect is useless —
+        // a column self-clamps to the edge (so it reads as no intrusion yet sits on
+        // the dots), and a hidden label's stored rect is clamped too. Instead
+        // reserve from the DOT so the column fits at its NATURAL seat (dot edge +
+        // COL_GAP + label width + buffer). This is dot-based, so it CONVERGES as
+        // the data slides in — unlike measuring the self-clamped label, which would
+        // never move off the edge. The column then seats beside the dots (no clamp,
+        // no overlap) and shows. COL_GAP matches the column layout's own gap.
+        if (l.hidden || l.leader) {
+          const lw = l.hidden
+            ? labelInfo(p).w
+            : measureLegendText(l.text, FONT);
+          const reach = p.r + COL_GAP + lw + EDGE_CLEAR;
+          if (p.cx >= width / 2)
+            needRight = Math.max(needRight, p.cx + reach - width);
+          else needLeft = Math.max(needLeft, reach - p.cx);
+          continue;
+        }
         // Visible inline label: reconstruct its box from baseline + anchor and
         // measure how far it crosses each clearance line (negative = inside).
         const w = measureLegendText(l.text, FONT);
