@@ -527,6 +527,35 @@ describe('renderer — coincident-stack spiderfy + hover-only (AC1/AC8)', () => 
         .length
     ).toBe(0);
   });
+
+  it('collapsed cluster label-clarity patch is gated behind expansion (preview)', () => {
+    const svg = renderPreview(STACK_SRC);
+    // The clustered members' clarity patch rides on a `data-cluster-deco` group
+    // so the spiderfy controller fades it in/out with the fan — NOT an always-on
+    // patch that would dim the basemap under the hidden, collapsed labels.
+    const clusterPatches = svg.querySelectorAll(
+      '.dgmo-map-label-patch[data-cluster-deco]'
+    );
+    expect(clusterPatches.length).toBe(1); // one stack → one gated patch
+    // The always-on patch (no data-cluster-deco) carries nothing for an all-
+    // clustered map: every POI label belongs to the collapsed stack.
+    expect(
+      svg.querySelectorAll('.dgmo-map-label-patch:not([data-cluster-deco])')
+        .length
+    ).toBe(0);
+  });
+
+  it('export label-clarity patch is always-on (no cluster gating)', () => {
+    // Export = permanently-expanded fan, so the patch must NOT be gated — it
+    // ships in the static image. No `data-cluster-deco` patch groups.
+    const svg = render(STACK_SRC);
+    expect(
+      svg.querySelectorAll('.dgmo-map-label-patch[data-cluster-deco]').length
+    ).toBe(0);
+    expect(
+      svg.querySelectorAll('.dgmo-map-label-patch').length
+    ).toBeGreaterThan(0);
+  });
 });
 
 describe('context labels — cartographic styling (AC12)', () => {

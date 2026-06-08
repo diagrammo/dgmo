@@ -550,16 +550,25 @@ export function renderMap(
   // pad over flat colour. A blurred-blob mask feathers each patch into the map
   // (soft edges, no hard rectangle). Sits above all basemap line work, below the
   // dots / legs / labels. POI labels only; context/water labels keep their lines
-  // (they read as cartographic texture, not clutter). Applies to preview AND
-  // export so the static image matches what's on screen.
-  const patchLabels = layout.labels.filter(
+  // (they read as cartographic texture, not clutter).
+  //
+  // Collapsed cluster members are HIDDEN at rest, so their labels aren't on screen
+  // — patching under them would fade the basemap beneath an invisible label. So
+  // each cluster's member patches go in a per-cluster group tagged
+  // `data-cluster-deco`, which the app's spiderfy controller toggles in lockstep
+  // with the legs / member dots: the fade only appears once the fan is expanded.
+  // Non-clustered POI labels (and ALL labels in export / `no-cluster-pois`, where
+  // the fan is permanently open) keep the always-on patch so the static image
+  // matches what's on screen.
+  const clusterUi = !exportDims && !resolved.directives.noClusterPois;
+  const poiLabels = layout.labels.filter(
     (l) => l.poiId !== undefined && !l.hidden
   );
-  if (patchLabels.length) {
-    const patchMaskId = 'dgmo-map-label-patch';
+  if (poiLabels.length) {
     const patchBlurId = 'dgmo-map-label-patch-blur';
     // Soft falloff so the patch dissolves into the surrounding basemap instead of
-    // ending on a hard edge. Tuned at the 11px label font.
+    // ending on a hard edge. Tuned at the 11px label font. One shared filter for
+    // every patch group.
     defs
       .append('filter')
       .attr('id', patchBlurId)
@@ -570,87 +579,137 @@ export function renderMap(
       .append('feGaussianBlur')
       .attr('in', 'SourceGraphic')
       .attr('stdDeviation', 2.5);
-    const patchMask = defs
-      .append('mask')
-      .attr('id', patchMaskId)
-      // userSpaceOnUse: the patch group's bbox is the whole basemap, but keep the
-      // mask region pinned to the canvas (parity with the water masks).
-      .attr('maskUnits', 'userSpaceOnUse')
-      .attr('x', 0)
-      .attr('y', 0)
-      .attr('width', width)
-      .attr('height', height);
-    // White blobs = where the patch shows; the surrounding black hides it. Each
-    // blob is a SOLID rounded rect sized to the text bbox so the core fully hides
-    // the line work behind the glyphs; the blur (above) only feathers the outer
-    // edge into a gentle reveal. Solid core → if an engine drops the in-mask blur
-    // (some WebKit builds), it degrades to a clean stadium patch, never a halo.
-    const blobs = patchMask.append('g').attr('filter', `url(#${patchBlurId})`);
-    // Padded rects (incl. the blur reach) drive both the mask AND the region
-    // cull below, so the two never disagree.
     const PAD = 8; // ≳ blur reach so culled regions can't lose a fringe
-    const blobRects: Array<{ x0: number; y0: number; x1: number; y1: number }> =
-      [];
-    for (const l of patchLabels) {
-      const multi = l.lines && l.lines.length > 1;
-      const tw = multi
-        ? Math.max(...l.lines!.map((s) => measureText(s, LABEL_FONT)))
-        : measureText(l.text, LABEL_FONT);
-      const th = multi ? l.lines!.length * (LABEL_FONT + 2) : LABEL_FONT;
-      // Anchor → blob centre x; cy nudged up from the text baseline to the glyph
-      // visual centre.
-      const cx =
-        l.anchor === 'start'
-          ? l.x + tw / 2
-          : l.anchor === 'end'
-            ? l.x - tw / 2
-            : l.x;
-      const cy = l.y - LABEL_FONT * 0.3;
-      const w = tw + 8;
-      const h = th + 6;
-      blobs
-        .append('rect')
-        .attr('x', cx - w / 2)
-        .attr('y', cy - h / 2)
-        .attr('width', w)
-        .attr('height', h)
-        .attr('rx', h / 2)
-        .attr('fill', 'white');
-      blobRects.push({
-        x0: cx - w / 2 - PAD,
-        y0: cy - h / 2 - PAD,
-        x1: cx + w / 2 + PAD,
-        y1: cy + h / 2 + PAD,
-      });
-    }
-    const gPatch = svg
-      .append('g')
-      .attr('class', 'dgmo-map-label-patch')
-      .attr('mask', `url(#${patchMaskId})`)
-      // Decorative cover — never a pointer target so region hover / name-on-hover
-      // reaches the real region paths beneath (WebKit hit-tests masked content).
-      .style('pointer-events', 'none');
-    // Redraw fills only (no stroke), in document order, but ONLY for regions
-    // whose bbox overlaps a label blob — the mask already hides everything else,
-    // so emitting the rest is pure SVG weight (matters on dense world maps). The
-    // kept regions reproduce the exact composite colour under each label, so the
-    // patch is seamless and the only visible change is the vanished line work.
-    for (const r of layout.regions) {
-      let minX = Infinity,
-        minY = Infinity,
-        maxX = -Infinity,
-        maxY = -Infinity;
-      for (const ring of parsePathRings(r.d))
-        for (const [px, py] of ring) {
-          if (px < minX) minX = px;
-          if (px > maxX) maxX = px;
-          if (py < minY) minY = py;
-          if (py > maxY) maxY = py;
-        }
-      const hit = blobRects.some(
-        (b) => minX <= b.x1 && maxX >= b.x0 && minY <= b.y1 && maxY >= b.y0
+
+    // Build one patch (mask of blurred blobs + the region fills they cross) for a
+    // set of labels. `decoCluster` tags the group so the app toggles it with the
+    // rest of the cluster's spiderfy decoration.
+    const buildPatch = (
+      labels: typeof poiLabels,
+      maskId: string,
+      decoCluster?: string
+    ): void => {
+      if (!labels.length) return;
+      const patchMask = defs
+        .append('mask')
+        .attr('id', maskId)
+        // userSpaceOnUse: the patch group's bbox is the whole basemap, but keep
+        // the mask region pinned to the canvas (parity with the water masks).
+        .attr('maskUnits', 'userSpaceOnUse')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('width', width)
+        .attr('height', height);
+      // White blobs = where the patch shows; the surrounding black hides it. Each
+      // blob is a SOLID rounded rect sized to the text bbox so the core fully
+      // hides the line work behind the glyphs; the blur only feathers the outer
+      // edge. Solid core → if an engine drops the in-mask blur (some WebKit
+      // builds), it degrades to a clean stadium patch, never a halo.
+      const blobs = patchMask
+        .append('g')
+        .attr('filter', `url(#${patchBlurId})`);
+      // Padded rects (incl. the blur reach) drive both the mask AND the region
+      // cull below, so the two never disagree.
+      const blobRects: Array<{
+        x0: number;
+        y0: number;
+        x1: number;
+        y1: number;
+      }> = [];
+      for (const l of labels) {
+        const multi = l.lines && l.lines.length > 1;
+        const tw = multi
+          ? Math.max(...l.lines!.map((s) => measureText(s, LABEL_FONT)))
+          : measureText(l.text, LABEL_FONT);
+        const th = multi ? l.lines!.length * (LABEL_FONT + 2) : LABEL_FONT;
+        // Anchor → blob centre x; cy nudged up from the text baseline to the
+        // glyph visual centre.
+        const cx =
+          l.anchor === 'start'
+            ? l.x + tw / 2
+            : l.anchor === 'end'
+              ? l.x - tw / 2
+              : l.x;
+        const cy = l.y - LABEL_FONT * 0.3;
+        const w = tw + 8;
+        const h = th + 6;
+        blobs
+          .append('rect')
+          .attr('x', cx - w / 2)
+          .attr('y', cy - h / 2)
+          .attr('width', w)
+          .attr('height', h)
+          .attr('rx', h / 2)
+          .attr('fill', 'white');
+        blobRects.push({
+          x0: cx - w / 2 - PAD,
+          y0: cy - h / 2 - PAD,
+          x1: cx + w / 2 + PAD,
+          y1: cy + h / 2 + PAD,
+        });
+      }
+      const gPatch = svg
+        .append('g')
+        .attr('class', 'dgmo-map-label-patch')
+        .attr('mask', `url(#${maskId})`)
+        // Decorative cover — never a pointer target so region hover / name-on-
+        // hover reaches the real region paths beneath (WebKit hit-tests masked
+        // content).
+        .style('pointer-events', 'none');
+      // Per-cluster patch: tag as cluster decoration so the spiderfy controller
+      // shows/hides it in step with the fan. (The app collapses all `[data-
+      // cluster-deco]` to opacity 0 at rest, pre-paint, so there's no flash.)
+      if (decoCluster !== undefined)
+        gPatch.attr('data-cluster-deco', decoCluster);
+      // Redraw fills only (no stroke), in document order, but ONLY for regions
+      // whose bbox overlaps a label blob — the mask already hides everything
+      // else, so emitting the rest is pure SVG weight (matters on dense world
+      // maps). The kept regions reproduce the exact composite colour under each
+      // label, so the patch is seamless and the only visible change is the
+      // vanished line work.
+      for (const r of layout.regions) {
+        let minX = Infinity,
+          minY = Infinity,
+          maxX = -Infinity,
+          maxY = -Infinity;
+        for (const ring of parsePathRings(r.d))
+          for (const [px, py] of ring) {
+            if (px < minX) minX = px;
+            if (px > maxX) maxX = px;
+            if (py < minY) minY = py;
+            if (py > maxY) maxY = py;
+          }
+        const hit = blobRects.some(
+          (b) => minX <= b.x1 && maxX >= b.x0 && minY <= b.y1 && maxY >= b.y0
+        );
+        if (hit) gPatch.append('path').attr('d', r.d).attr('fill', r.fill);
+      }
+    };
+
+    if (clusterUi) {
+      // Always-on patch for labels that are visible at rest (non-cluster members).
+      buildPatch(
+        poiLabels.filter((l) => l.clusterMember === undefined),
+        'dgmo-map-label-patch'
       );
-      if (hit) gPatch.append('path').attr('d', r.d).attr('fill', r.fill);
+      // Per-cluster patches, hidden until the fan expands.
+      const byCluster = new Map<string, typeof poiLabels>();
+      for (const l of poiLabels) {
+        if (l.clusterMember === undefined) continue;
+        const arr = byCluster.get(l.clusterMember);
+        if (arr) arr.push(l);
+        else byCluster.set(l.clusterMember, [l]);
+      }
+      // Safe mask id from the iteration index — cluster ids can be coord-based
+      // (`@lat,lon`) and aren't `url(#…)`-safe; the raw id rides on the
+      // data-cluster-deco attribute instead.
+      let ci = 0;
+      for (const [cid, labs] of byCluster)
+        buildPatch(labs, `dgmo-map-label-patch-c${ci++}`, cid);
+    } else {
+      // Export / `no-cluster-pois`: fan is permanently open → one always-on patch
+      // over every POI label.
+      buildPatch(poiLabels, 'dgmo-map-label-patch');
     }
   }
 
@@ -872,7 +931,6 @@ export function renderMap(
   // the legs/hub/members visible but emit NO hit-area + NO badge, so there is
   // nothing for the app's spiderfy controller to collapse — the map reads the
   // same on screen as on paper.
-  const clusterUi = !exportDims && !resolved.directives.noClusterPois;
   const gSpider = svg.append('g').attr('class', 'dgmo-map-spider');
   for (const cl of layout.clusters) {
     // Pointer hit-area — bottom of the stack so member dots still take their own
@@ -982,7 +1040,7 @@ export function renderMap(
         lab.color,
         lab.haloColor,
         lab.halo,
-        LABEL_FONT,
+        lab.fontSize ?? LABEL_FONT,
         lab.italic,
         lab.letterSpacing
       )
@@ -1032,7 +1090,7 @@ export function renderMap(
       lab.color,
       lab.haloColor,
       lab.halo,
-      LABEL_FONT,
+      lab.fontSize ?? LABEL_FONT,
       lab.italic,
       lab.letterSpacing,
       lab.lines,
