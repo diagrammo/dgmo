@@ -478,8 +478,10 @@ export function renderBoxesAndLines(
     .filter((n) => n.value !== undefined)
     .map((n) => n.value!);
   const hasRamp = nodeValues.length > 0;
-  const allNonNegative = hasRamp && nodeValues.every((v) => v >= 0);
-  const rampMin = allNonNegative ? 0 : Math.min(...nodeValues);
+  // Anchor the low end at the lowest value (not 0) to maximise within-diagram
+  // dynamic range; mirrors the map's region-metric ramp. Equal-value data
+  // (rampMin === rampMax) falls back to t = 1 in fillForValue below.
+  const rampMin = hasRamp ? Math.min(...nodeValues) : 0;
   const rampMax = Math.max(...nodeValues);
   // Default hue = palette.primary (NOT red like the map — boxes have no water to
   // stand out against, and red reads as alarm on a neutral metric). A trailing

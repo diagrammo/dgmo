@@ -353,13 +353,13 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
     expect(or.fill).toBe(P.colors.red); // t=1 → 100% hue (red ramp)
     expect(ca.fill).toBe(mix(P.colors.red, P.bg, 15)); // floor: ramp base (bg), not land
   });
-  it('ramp 0-anchors all-non-negative data; data-min for mixed sign (AC6)', () => {
-    // All values ≥ 0 → low end anchors at 0 (shared baseline), not data-min.
+  it('ramp anchors at data-min for all data, signed or not (AC6)', () => {
+    // All values ≥ 0 → low end anchors at the data minimum, not 0 (2026-06-08).
     const nonNeg = lay(
       'map\nregion-metric Sales\nCalifornia value: 40\nOregon value: 100'
     );
-    expect(nonNeg.legend?.ramp).toMatchObject({ min: 0, max: 100 });
-    // Mixed-sign data → fit data-min→data-max (no 0-anchor).
+    expect(nonNeg.legend?.ramp).toMatchObject({ min: 40, max: 100 });
+    // Mixed-sign data → fit data-min→data-max (unchanged).
     const mixed = lay(
       'map\nregion-metric Net\nCalifornia value: -20\nOregon value: 80'
     );

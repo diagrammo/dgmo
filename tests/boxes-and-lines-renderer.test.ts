@@ -73,7 +73,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
     );
     const ramp = svg.querySelector('.dgmo-legend-gradient-ramp');
     expect(ramp).toBeTruthy();
-    expect(ramp!.getAttribute('data-ramp-min')).toBe('0');
+    expect(ramp!.getAttribute('data-ramp-min')).toBe('10');
     expect(ramp!.getAttribute('data-ramp-max')).toBe('90');
   });
 
@@ -86,12 +86,23 @@ describe('boxes-and-lines renderer — value ramp', () => {
     expect(ramp.getAttribute('data-ramp-max')).toBe('40');
   });
 
+  it('anchors all-non-negative data at the data minimum, not 0 (AC12)', async () => {
+    const svg = await render(
+      'boxes-and-lines\nA value: 40\nB value: 100\nA -> B'
+    );
+    const ramp = svg.querySelector('.dgmo-legend-gradient-ramp')!;
+    // 2026-06-08: low end = lowest value (40), not the old 0-anchor.
+    expect(ramp.getAttribute('data-ramp-min')).toBe('40');
+    expect(ramp.getAttribute('data-ramp-max')).toBe('100');
+  });
+
   it('survives a degenerate single-value ramp with no NaN (AC11)', async () => {
     const svg = await render('boxes-and-lines\nA value: 7\nB\nA -> B');
     expect(svg).toBeTruthy();
     const ramp = svg.querySelector('.dgmo-legend-gradient-ramp')!;
-    // allNonNegative → min anchors at 0, max is the lone value.
-    expect(ramp.getAttribute('data-ramp-min')).toBe('0');
+    // Single value → min === max === the lone value; fillForValue falls back to
+    // t = 1 (no divide-by-zero), so the box renders without NaN.
+    expect(ramp.getAttribute('data-ramp-min')).toBe('7');
     expect(ramp.getAttribute('data-ramp-max')).toBe('7');
     const a = nodeFor(svg, 'A').querySelector('rect')!;
     expect(a.getAttribute('fill')).not.toContain('NaN');

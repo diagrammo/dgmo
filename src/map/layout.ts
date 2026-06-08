@@ -426,6 +426,11 @@ export interface PlacedLabel {
   /** The POI this label belongs to (POI labels only) — emitted as `data-poi` on
    *  the label + leader so the app can spotlight the dot on label hover. */
   readonly poiId?: string;
+  /** Per-label font size in px. Set on context COUNTRY labels, which scale up with
+   *  their projected footprint (a big country reads as a faded backdrop name, a
+   *  small one stays at the base label font). Absent ⇒ the renderer's default
+   *  LABEL_FONT, so every other label type renders byte-identically. */
+  readonly fontSize?: number;
   /** Cartographic italic (context-label water names, §24B). Default upright. */
   readonly italic?: boolean;
   /** Cartographic letter-spacing in px (context-label water names). Default 0. */
@@ -1097,13 +1102,14 @@ export function layoutMap(
   const values = resolved.regions
     .filter((r) => r.value !== undefined)
     .map((r) => r.value!);
-  // Ramp auto-fits (the `scale` directive is gone). For all-non-negative data the
-  // low end anchors at 0 so every such choropleth shares a 0 baseline (decision
-  // C); mixed-sign data fits data-min→data-max. Only the LOW end is shared —
-  // different maxes still differ at the high end (cross-map comparability is not
-  // recovered, by design).
-  const allNonNegative = values.length > 0 && values.every((v) => v >= 0);
-  const rampMin = allNonNegative ? 0 : Math.min(...values);
+  // Ramp auto-fits (the `scale` directive is gone) to data-min→data-max — the
+  // low end anchors at the lowest value, not 0. This maximises within-map
+  // dynamic range and matches the size/thickness metric ramps (poi-metric,
+  // flow-metric), which already floor at their data minimum. Cross-map low-end
+  // comparability (the old 0-anchor, "decision C") is intentionally dropped: a
+  // shared baseline only helped side-by-side maps and flattened single-map
+  // contrast. Equal-value data (rampMin === rampMax) falls back to t = 1 below.
+  const rampMin = values.length > 0 ? Math.min(...values) : 0;
   const rampMax = Math.max(...values);
   // Value ramp defaults to red so valued regions stand out against the blue
   // water (palette.primary is a blue in most palettes and would blend in). A
