@@ -26,7 +26,6 @@ export {
 export { atlasPalette } from './atlas';
 export { blueprintPalette } from './blueprint';
 export { catppuccinPalette } from './catppuccin';
-export { facetPalette } from './facet';
 export { nordPalette } from './nord';
 export { slatePalette } from './slate';
 export { tidewaterPalette } from './tidewater';
@@ -39,7 +38,6 @@ export { tokyoNightPalette } from './tokyo-night';
 import { atlasPalette } from './atlas';
 import { blueprintPalette } from './blueprint';
 import { catppuccinPalette } from './catppuccin';
-import { facetPalette } from './facet';
 import { nordPalette } from './nord';
 import { slatePalette } from './slate';
 import { tidewaterPalette } from './tidewater';
@@ -61,7 +59,6 @@ export const palettes = {
   blueprint: blueprintPalette,
   slate: slatePalette,
   tidewater: tidewaterPalette,
-  facet: facetPalette,
   nord: nordPalette,
   catppuccin: catppuccinPalette,
   tokyoNight: tokyoNightPalette,

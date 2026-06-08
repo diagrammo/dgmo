@@ -22,12 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unaffected. Editor completion lists airport codes as a labeled group below
   cities, with optional scope-aware ranking. Unknown three-letter codes emit
   `E_MAP_UNKNOWN_AIRPORT_CODE` with an `as <CODE>` coordinates hint.
-- **New palette: Facet.** A vivid, high-chroma palette of saturated gemstone
-  categoricals (ruby, amber, citrine, emerald, sapphire, amethyst, tourmaline,
-  aquamarine). Light-forward — it's the one option that makes colour pop on a
-  bright ground for busy multi-series charts, infographics, and dashboards —
-  with a strong dark mode on a cool ink ground. All nine categoricals are
-  mutually distinct (no hue-slot reuse).
 
 ### Removed
 
@@ -37,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `blue==cyan`) or collapse hues, so multi-category diagrams render different
   categories with identical colours. `getPalette()` falls back to the default
   (`slate`) for any removed id, so saved preferences and share URLs degrade
-  gracefully. The registry is now eight curated palettes.
+  gracefully. The registry is now seven curated palettes.
 
 ## [0.26.0] - 2026-06-04
 

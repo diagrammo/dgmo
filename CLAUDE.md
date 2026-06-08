@@ -69,7 +69,7 @@ src/
     ├── types.ts                # PaletteConfig, PaletteColors
     ├── color-utils.ts          # HSL conversions, color mixing
     ├── registry.ts             # Palette registry
-    └── [palette].ts            # atlas, blueprint, catppuccin, facet, nord, slate, tidewater, tokyo-night
+    └── [palette].ts            # atlas, blueprint, catppuccin, nord, slate, tidewater, tokyo-night
 ```
 
 ## Architecture
@@ -99,7 +99,7 @@ SVG renderer using D3. Key concepts:
 
 ### Color System
 
-8 palettes (atlas, blueprint, catppuccin, facet, nord, slate, tidewater, tokyo-night), each with light/dark/transparent themes. `color-utils.ts` provides HSL conversion and a `mix()` helper for blending colors.
+7 palettes (atlas, blueprint, catppuccin, nord, slate, tidewater, tokyo-night), each with light/dark/transparent themes. `color-utils.ts` provides HSL conversion and a `mix()` helper for blending colors.
 
 ## Constraints
 

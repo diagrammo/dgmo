@@ -130,7 +130,7 @@ if (decoded) {
 
 ### `palettes`
 
-Namespace containing all 10 built-in palettes, keyed by camelCase id. Each
+Namespace containing all 7 built-in palettes, keyed by camelCase id. Each
 value is a `PaletteConfig`.
 
 ```ts
@@ -139,7 +139,6 @@ palettes.atlas
 palettes.blueprint
 palettes.slate
 palettes.tidewater
-palettes.facet
 palettes.catppuccin
 palettes.tokyoNight
 ```

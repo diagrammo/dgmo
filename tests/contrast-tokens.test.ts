@@ -7,7 +7,6 @@ import {
 import { atlasPalette } from '../src/palettes/atlas';
 import { blueprintPalette } from '../src/palettes/blueprint';
 import { catppuccinPalette } from '../src/palettes/catppuccin';
-import { facetPalette } from '../src/palettes/facet';
 import { nordPalette } from '../src/palettes/nord';
 import { slatePalette } from '../src/palettes/slate';
 import { tidewaterPalette } from '../src/palettes/tidewater';
@@ -27,7 +26,6 @@ const PALETTES = [
   { name: 'blueprint', cfg: blueprintPalette },
   { name: 'slate', cfg: slatePalette },
   { name: 'tidewater', cfg: tidewaterPalette },
-  { name: 'facet', cfg: facetPalette },
   { name: 'catppuccin', cfg: catppuccinPalette },
   { name: 'nord', cfg: nordPalette },
   { name: 'tokyo-night', cfg: tokyoNightPalette },

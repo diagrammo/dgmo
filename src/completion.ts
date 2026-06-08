@@ -102,7 +102,6 @@ const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
       'blueprint',
       'slate',
       'tidewater',
-      'facet',
     ],
   },
   theme: {
