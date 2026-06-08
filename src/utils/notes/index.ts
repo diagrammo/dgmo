@@ -11,6 +11,7 @@ export * from './model';
 export * from './parse';
 export * from './resolve';
 export * from './place';
+export * from './build';
 export * from './bounds';
 
 // Re-export the drawer so charts have one import site for the whole feature.

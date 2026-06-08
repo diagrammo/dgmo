@@ -14,6 +14,7 @@ import {
   tryParseSharedOption,
 } from '../utils/parsing';
 import { normalizeName, displayName } from '../utils/name-normalize';
+import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
 import type { Writable } from '../utils/brand';
 import type {
   ParsedClassDiagram,
@@ -192,6 +193,7 @@ export function parseClassDiagram(
   };
 
   const classMap = new Map<string, Writable<ClassNode>>();
+  const notes: DiagramNote[] = [];
 
   // Per-parse alias literal → canonical class id (TD-18). Per C8.
   const nameAliasMap = new Map<string, string>();
@@ -265,6 +267,27 @@ export function parseClassDiagram(
 
     // Skip comments
     if (trimmed.startsWith('//')) continue;
+
+    // Note annotation (top-level): `note <ClassName> [inline body]` + an
+    // optional indented body. Checked before options so a note is never
+    // swallowed as an option; gated to indent 0 so an indented member
+    // starting with "note" stays a member. `note -> X` is excluded.
+    if (indent === 0) {
+      const noteResult = tryCollectNote(
+        lines,
+        i,
+        indent,
+        palette,
+        result.diagnostics
+      );
+      if (noteResult) {
+        currentClass = null;
+        contentStarted = true;
+        if (noteResult.note) notes.push(noteResult.note);
+        i = noteResult.lastIndex;
+        continue;
+      }
+    }
 
     // First line: bare chart type + optional title (new syntax)
     if (!contentStarted && indent === 0 && i === 0) {
@@ -436,6 +459,18 @@ export function parseClassDiagram(
     // Catch-all: nothing matched this line
     result.diagnostics.push(
       makeDgmoError(lineNumber, `Unexpected line: '${trimmed}'.`, 'warning')
+    );
+  }
+
+  // Resolve note refs against class names (forward refs OK — runs after all
+  // classes parsed). The id→note binding is recomputed in layout; this pass
+  // only surfaces unknown/ambiguous/duplicate diagnostics.
+  if (notes.length > 0) {
+    result.notes = notes;
+    resolveNotes(
+      notes,
+      result.classes.map((c) => ({ id: c.id, label: c.name })),
+      result.diagnostics
     );
   }
 

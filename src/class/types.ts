@@ -42,6 +42,7 @@ export interface ClassRelationship {
 }
 
 import type { DgmoError } from '../diagnostics';
+import type { DiagramNote } from '../utils/notes';
 
 export interface ParsedClassDiagram {
   readonly type: 'class';
@@ -50,6 +51,8 @@ export interface ParsedClassDiagram {
   readonly classes: readonly ClassNode[];
   readonly relationships: readonly ClassRelationship[];
   readonly options: Readonly<Record<string, string>>;
+  /** Generic node notes (`note <ClassName> …`); resolved in layout. */
+  readonly notes?: readonly DiagramNote[];
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }

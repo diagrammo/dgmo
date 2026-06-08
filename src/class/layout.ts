@@ -1,5 +1,11 @@
 import dagre from '@dagrejs/dagre';
 import { measureText } from '../utils/text-measure';
+import {
+  resolveNotes,
+  buildPlacedNotes,
+  noteCanvasShift,
+  type PlacedNote,
+} from '../utils/notes';
 import type { ParsedClassDiagram, ClassNode, RelationshipType } from './types';
 
 // ============================================================
@@ -14,6 +20,16 @@ export interface ClassLayoutNode extends ClassNode {
   readonly headerHeight: number;
   readonly fieldsHeight: number;
   readonly methodsHeight: number;
+  /** A note floated beside this class (never moves the box). */
+  readonly note?: PlacedNote;
+}
+
+export interface ClassLayoutOptions {
+  /**
+   * 1-based source line numbers of notes the user has collapsed. A
+   * collapsed note renders as a corner badge and reserves no space.
+   */
+  collapsedNotes?: ReadonlySet<number>;
 }
 
 export interface ClassLayoutEdge {
@@ -142,7 +158,8 @@ function computeNodeDimensions(node: ClassNode): {
 // ============================================================
 
 export function layoutClassDiagram(
-  parsed: ParsedClassDiagram
+  parsed: ParsedClassDiagram,
+  options?: ClassLayoutOptions
 ): ClassLayoutResult {
   if (parsed.classes.length === 0) {
     return { nodes: [], edges: [], width: 0, height: 0 };
@@ -187,10 +204,40 @@ export function layoutClassDiagram(
   // Run layout
   dagre.layout(g);
 
+  // ── Notes ──────────────────────────────────────────────────
+  // Resolve note anchors (no diagnostics here — the parser already emitted
+  // them). `no-notes` drops the reserved footprint so layout matches an
+  // un-annotated diagram. The note floats beside its class WITHOUT moving
+  // it (class TB layout → default side right).
+  const notesSuppressed = parsed.options?.['no-notes'] === 'on';
+  const noteByNode =
+    notesSuppressed || !parsed.notes
+      ? new Map()
+      : resolveNotes(
+          parsed.notes,
+          parsed.classes.map((c) => ({ id: c.id, label: c.name }))
+        );
+  const placedNotes = buildPlacedNotes(
+    parsed.classes.map((node) => {
+      const pos = g.node(node.id);
+      return {
+        id: node.id,
+        x: pos.x,
+        y: pos.y,
+        width: pos.width,
+        height: pos.height,
+      };
+    }),
+    noteByNode,
+    'TB',
+    options?.collapsedNotes
+  );
+
   // Extract positioned nodes
   const layoutNodes: ClassLayoutNode[] = parsed.classes.map((node) => {
     const pos = g.node(node.id);
     const dims = dimMap.get(node.id)!;
+    const note = placedNotes.get(node.id);
     return {
       ...node,
       x: pos.x,
@@ -200,6 +247,7 @@ export function layoutClassDiagram(
       headerHeight: dims.headerHeight,
       fieldsHeight: dims.fieldsHeight,
       methodsHeight: dims.methodsHeight,
+      ...(note && { note }),
     };
   });
 
@@ -217,21 +265,61 @@ export function layoutClassDiagram(
     return layoutEdge;
   });
 
-  // Compute total dimensions
-  let totalWidth = 0;
-  let totalHeight = 0;
+  // Content bbox over nodes and their (floated) notes. A note placed
+  // above/left can land at negative coords; when it does, shift everything
+  // so nothing clips. Un-annotated diagrams keep min ≥ 0 → no shift.
+  let bbMinX = Infinity;
+  let bbMinY = Infinity;
+  let bbMaxX = -Infinity;
+  let bbMaxY = -Infinity;
+  const extend = (l: number, t: number, r: number, b: number): void => {
+    if (l < bbMinX) bbMinX = l;
+    if (t < bbMinY) bbMinY = t;
+    if (r > bbMaxX) bbMaxX = r;
+    if (b > bbMaxY) bbMaxY = b;
+  };
   for (const node of layoutNodes) {
-    const right = node.x + node.width / 2;
-    const bottom = node.y + node.height / 2;
-    if (right > totalWidth) totalWidth = right;
-    if (bottom > totalHeight) totalHeight = bottom;
+    extend(
+      node.x - node.width / 2,
+      node.y - node.height / 2,
+      node.x + node.width / 2,
+      node.y + node.height / 2
+    );
+    if (node.note && !node.note.collapsed) {
+      extend(
+        node.x + node.note.x,
+        node.y + node.note.y,
+        node.x + node.note.x + node.note.width,
+        node.y + node.note.y + node.note.height
+      );
+    }
   }
-  totalWidth += 40;
-  totalHeight += 40;
+  if (!Number.isFinite(bbMinX)) {
+    bbMinX = 0;
+    bbMinY = 0;
+    bbMaxX = 0;
+    bbMaxY = 0;
+  }
+
+  const { shiftX, shiftY } = noteCanvasShift(bbMinX, bbMinY);
+  const shifted = shiftX !== 0 || shiftY !== 0;
+  const finalNodes = shifted
+    ? layoutNodes.map((n) => ({ ...n, x: n.x + shiftX, y: n.y + shiftY }))
+    : layoutNodes;
+  const finalEdges = shifted
+    ? layoutEdges.map((e) => ({
+        ...e,
+        points: e.points.map((pt) => ({ x: pt.x + shiftX, y: pt.y + shiftY })),
+      }))
+    : layoutEdges;
+
+  // Totals: max extent (incl. notes) + the prior 40 px margin.
+  const totalWidth = bbMaxX + shiftX + 40;
+  const totalHeight = bbMaxY + shiftY + 40;
 
   return {
-    nodes: layoutNodes,
-    edges: layoutEdges,
+    nodes: finalNodes,
+    edges: finalEdges,
     width: totalWidth,
     height: totalHeight,
   };
