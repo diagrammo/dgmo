@@ -3835,10 +3835,25 @@ export function layoutMap(
   // near-border neighbour cities the viewport actually shows.
   const cityDots: MapLayoutCityDot[] = [];
   if (resolved.directives.noCities !== true) {
-    const CITY_DOT_R = 1.0;
     const CITY_DOT_SPACING = 12; // min px between two dots (and dot↔POI)
     const CITY_DOT_CAP = 220;
     const SPACING_SQ = CITY_DOT_SPACING * CITY_DOT_SPACING;
+    // Radius scales with population on a log axis (pop spans ~50k → 37M, so a
+    // linear map would collapse everything but the megacities to one size). A
+    // metropolis reads as a slightly fatter dot; a small town stays a faint
+    // speck. Still decorative — the range is deliberately tight so the layer
+    // never competes with POIs.
+    const CITY_DOT_R_MIN = 0.7;
+    const CITY_DOT_R_MAX = 2.6;
+    const CITY_POP_MIN = 50_000; // ≤ this → R_MIN
+    const CITY_POP_MAX = 15_000_000; // ≥ this → R_MAX
+    const LOG_MIN = Math.log10(CITY_POP_MIN);
+    const LOG_SPAN = Math.log10(CITY_POP_MAX) - LOG_MIN;
+    const cityDotRadius = (pop: number): number => {
+      if (!(pop > CITY_POP_MIN)) return CITY_DOT_R_MIN;
+      const t = Math.min(1, (Math.log10(pop) - LOG_MIN) / LOG_SPAN);
+      return CITY_DOT_R_MIN + t * (CITY_DOT_R_MAX - CITY_DOT_R_MIN);
+    };
     // Seed the occupancy set with explicit POI positions so dots dodge markers.
     const placed: { x: number; y: number }[] = pois.map((p) => ({
       x: p.cx,
@@ -3864,7 +3879,7 @@ export function layoutMap(
       }
       if (tooClose) continue;
       placed.push({ x: px, y: py });
-      cityDots.push({ cx: px, cy: py, r: CITY_DOT_R });
+      cityDots.push({ cx: px, cy: py, r: cityDotRadius(c[3]) });
     }
   }
 

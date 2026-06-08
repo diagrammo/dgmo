@@ -535,7 +535,7 @@ export function renderMap(
       .append('g')
       .attr('class', 'dgmo-map-cities')
       .attr('fill', palette.textMuted)
-      .attr('fill-opacity', 0.45)
+      .attr('fill-opacity', 0.28)
       .style('pointer-events', 'none');
     for (const c of layout.cityDots) {
       gCities.append('circle').attr('cx', c.cx).attr('cy', c.cy).attr('r', c.r);
