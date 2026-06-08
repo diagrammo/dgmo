@@ -7,7 +7,8 @@ import type {
   GraphShape,
 } from './types';
 import { resolveNotes } from './notes';
-import { noteBoxSize, NOTE_GAP } from '../utils/note-box';
+import { noteBoxSize } from '../utils/note-box';
+import { placeNotes, noteCanvasShift } from '../utils/notes';
 import type { WrappedDescLine } from '../utils/wrapped-desc';
 
 export type NoteSide = 'above' | 'below' | 'left' | 'right';
@@ -235,123 +236,38 @@ export function layoutGraph(
     return { node, x: pos.x, y: pos.y, width: pos.width, height: pos.height };
   });
 
-  // ── Collision-aware note placement ──────────────────────────
-  // The note floats beside its node WITHOUT moving it. Try the default
-  // side (right for top-down, below for left-right); if it would overlap
-  // another shape flip to the opposite side; if both collide, push the
-  // default side outward past the blockers. Each placed note then becomes
-  // an obstacle for later notes, so notes keep a comfortable distance from
-  // every shape and from each other.
-  type Rect = { left: number; top: number; right: number; bottom: number };
-  const NOTE_CLEAR = 14;
-  const intersects = (a: Rect, b: Rect, pad: number): boolean =>
-    !(
-      a.right + pad <= b.left ||
-      b.right + pad <= a.left ||
-      a.bottom + pad <= b.top ||
-      b.bottom + pad <= a.top
-    );
-  const occupied: Rect[] = basePositioned.map((p) => ({
-    left: p.x - p.width / 2,
-    top: p.y - p.height / 2,
-    right: p.x + p.width / 2,
-    bottom: p.y + p.height / 2,
-  }));
-
-  const noteRects = new Map<
-    string,
-    { rect: Rect; side: NoteSide } | { collapsed: true }
-  >();
-  for (const p of basePositioned) {
-    const ng = noteGeoms.get(p.node.id);
-    if (!ng) continue;
-    // Collapsed notes draw as a corner badge — no float, no reserved space.
-    if (collapsedNotes?.has(ng.lineNumber)) {
-      noteRects.set(p.node.id, { collapsed: true });
-      continue;
-    }
-    const cx = p.x;
-    const cy = p.y;
-    const nodeLeft = cx - p.width / 2;
-    const nodeRight = cx + p.width / 2;
-    const nodeTop = cy - p.height / 2;
-    const nodeBottom = cy + p.height / 2;
-    const { noteW, noteH } = ng;
-
-    const rectFor = (side: NoteSide): Rect => {
-      switch (side) {
-        case 'right': {
-          const left = nodeRight + NOTE_GAP;
-          const top = cy - noteH / 2;
-          return { left, top, right: left + noteW, bottom: top + noteH };
-        }
-        case 'left': {
-          const right = nodeLeft - NOTE_GAP;
-          const top = cy - noteH / 2;
-          return { left: right - noteW, top, right, bottom: top + noteH };
-        }
-        case 'below': {
-          const left = cx - noteW / 2;
-          const top = nodeBottom + NOTE_GAP;
-          return { left, top, right: left + noteW, bottom: top + noteH };
-        }
-        case 'above':
-        default: {
-          const left = cx - noteW / 2;
-          const bottom = nodeTop - NOTE_GAP;
-          return { left, top: bottom - noteH, right: left + noteW, bottom };
-        }
-      }
-    };
-
-    const order: NoteSide[] =
-      graph.direction === 'LR' ? ['below', 'above'] : ['right', 'left'];
-
-    let chosen: { rect: Rect; side: NoteSide } | null = null;
-    for (const side of order) {
-      const rect = rectFor(side);
-      if (!occupied.some((o) => intersects(rect, o, NOTE_CLEAR))) {
-        chosen = { rect, side };
-        break;
-      }
-    }
-
-    if (!chosen) {
-      // Both sides blocked — push the default side outward past blockers.
-      const side = order[0]!;
-      let rect = rectFor(side);
-      const axisIsY = side === 'above' || side === 'below';
-      const outward = side === 'below' || side === 'right' ? 1 : -1;
-      for (let guard = 0; guard < 50; guard++) {
-        const blockers = occupied.filter((o) =>
-          intersects(rect, o, NOTE_CLEAR)
-        );
-        if (blockers.length === 0) break;
-        if (axisIsY && outward > 0) {
-          const top = Math.max(...blockers.map((b) => b.bottom)) + NOTE_CLEAR;
-          rect = { ...rect, top, bottom: top + noteH };
-        } else if (axisIsY) {
-          const bottom = Math.min(...blockers.map((b) => b.top)) - NOTE_CLEAR;
-          rect = { ...rect, bottom, top: bottom - noteH };
-        } else if (outward > 0) {
-          const left = Math.max(...blockers.map((b) => b.right)) + NOTE_CLEAR;
-          rect = { ...rect, left, right: left + noteW };
-        } else {
-          const right = Math.min(...blockers.map((b) => b.left)) - NOTE_CLEAR;
-          rect = { ...rect, right, left: right - noteW };
-        }
-      }
-      chosen = { rect, side };
-    }
-
-    occupied.push(chosen.rect);
-    noteRects.set(p.node.id, chosen);
-  }
+  // ── Collision-aware note placement (shared `utils/notes`) ───
+  // The note floats beside its node WITHOUT moving it: try the default
+  // side, flip to the opposite, then push outward past blockers — each
+  // placed note becoming an obstacle for later notes. Collapsed notes
+  // reserve no space (drawn as a corner badge).
+  const noteRequests = basePositioned
+    .filter((p) => noteGeoms.has(p.node.id))
+    .map((p) => {
+      const ng = noteGeoms.get(p.node.id)!;
+      return {
+        key: p.node.id,
+        node: { x: p.x, y: p.y, width: p.width, height: p.height },
+        noteW: ng.noteW,
+        noteH: ng.noteH,
+        collapsed: collapsedNotes?.has(ng.lineNumber) ?? false,
+      };
+    });
+  const placements = placeNotes(
+    basePositioned.map((p) => ({
+      x: p.x,
+      y: p.y,
+      width: p.width,
+      height: p.height,
+    })),
+    noteRequests,
+    graph.direction === 'LR' ? 'LR' : 'TB'
+  );
 
   const layoutNodes: LayoutNode[] = basePositioned.map((p): LayoutNode => {
     const node = p.node;
     const ng = noteGeoms.get(node.id);
-    const placed = noteRects.get(node.id);
+    const placed = placements.get(node.id);
     return {
       id: node.id,
       label: node.label,
@@ -366,31 +282,30 @@ export function layoutGraph(
       ...(ng &&
         placed && {
           // Local coords relative to the node center (translate origin).
-          note:
-            'collapsed' in placed
-              ? {
-                  x: 0,
-                  y: 0,
-                  width: 0,
-                  height: 0,
-                  side: 'right' as NoteSide,
-                  ...(ng.color && { color: ng.color }),
-                  lines: [],
-                  lineNumber: ng.lineNumber,
-                  endLineNumber: ng.endLineNumber,
-                  collapsed: true,
-                }
-              : {
-                  x: placed.rect.left - p.x,
-                  y: placed.rect.top - p.y,
-                  width: ng.noteW,
-                  height: ng.noteH,
-                  side: placed.side,
-                  ...(ng.color && { color: ng.color }),
-                  lines: ng.lines,
-                  lineNumber: ng.lineNumber,
-                  endLineNumber: ng.endLineNumber,
-                },
+          note: placed.collapsed
+            ? {
+                x: 0,
+                y: 0,
+                width: 0,
+                height: 0,
+                side: 'right' as NoteSide,
+                ...(ng.color && { color: ng.color }),
+                lines: [],
+                lineNumber: ng.lineNumber,
+                endLineNumber: ng.endLineNumber,
+                collapsed: true,
+              }
+            : {
+                x: placed.x,
+                y: placed.y,
+                width: ng.noteW,
+                height: ng.noteH,
+                side: placed.side,
+                ...(ng.color && { color: ng.color }),
+                lines: ng.lines,
+                lineNumber: ng.lineNumber,
+                endLineNumber: ng.endLineNumber,
+              },
         }),
     };
   });
@@ -527,9 +442,7 @@ export function layoutGraph(
   }
 
   // Shift only when content runs off the top/left (note placed above/left).
-  const SHIFT_MARGIN = 20;
-  const shiftX = bbMinX < 0 ? SHIFT_MARGIN - bbMinX : 0;
-  const shiftY = bbMinY < 0 ? SHIFT_MARGIN - bbMinY : 0;
+  const { shiftX, shiftY } = noteCanvasShift(bbMinX, bbMinY);
 
   const shifted = shiftX !== 0 || shiftY !== 0;
   const finalNodes = shifted

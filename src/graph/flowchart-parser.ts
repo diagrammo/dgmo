@@ -14,7 +14,6 @@ import {
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
   tryParseSharedOption,
-  extractColor,
 } from '../utils/parsing';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import type { Writable } from '../utils/brand';
@@ -25,7 +24,7 @@ import type {
   GraphShape,
   GraphNote,
 } from './types';
-import { parseNoteHeader, collectNoteBody, resolveNotes } from './notes';
+import { tryCollectNote, resolveNotes } from './notes';
 
 // ============================================================
 // Helpers
@@ -512,36 +511,16 @@ export function parseFlowchart(
     // body. Handled before options so `note foo bar` is never mistaken
     // for an option. Only `note -> X` (arrow immediately after `note`) is
     // excluded so it can edge; arrows are allowed inside a note body.
-    const noteMatch = trimmed.match(/^note\s+(.+)$/i);
-    if (noteMatch && !/^note\s+->/i.test(trimmed)) {
-      // Trailing lowercase color word colors the note (§1.5 convention);
-      // capitalize it to keep it as literal body text.
-      const { label: headerNoColor, color } = extractColor(
-        noteMatch[1]!,
-        palette,
-        result.diagnostics,
-        lineNumber
-      );
-      const { ref, inlineBody } = parseNoteHeader(headerNoColor);
-      const collected = collectNoteBody(lines, i, indent, inlineBody);
-      if (!collected.body.trim()) {
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            `Note on "${ref}" has no text — ignored.`,
-            'warning'
-          )
-        );
-      } else {
-        notes.push({
-          ref,
-          body: collected.body,
-          ...(color && { color }),
-          lineNumber,
-          endLineNumber: collected.endLineNumber,
-        });
-      }
-      i = collected.lastIndex;
+    const noteResult = tryCollectNote(
+      lines,
+      i,
+      indent,
+      palette,
+      result.diagnostics
+    );
+    if (noteResult) {
+      if (noteResult.note) notes.push(noteResult.note);
+      i = noteResult.lastIndex;
       continue;
     }
 

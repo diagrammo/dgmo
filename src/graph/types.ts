@@ -42,14 +42,10 @@ export interface GraphGroup {
  * model is intentionally a top-level list (ADR-1), not a field on
  * `GraphNode`, so the placement pass sees the whole set at once.
  */
-export interface GraphNote {
-  readonly ref: string;
-  readonly body: string;
-  /** Resolved hex accent (border + faded fill); default yellow if absent. */
-  readonly color?: string;
-  readonly lineNumber: number;
-  readonly endLineNumber: number;
-}
+// The graph note is now the chart-neutral `DiagramNote`; kept as a named
+// alias so existing `graph/` imports of `GraphNote` stay valid.
+import type { DiagramNote } from '../utils/notes/model';
+export type GraphNote = DiagramNote;
 
 import type { DgmoError } from '../diagnostics';
 
