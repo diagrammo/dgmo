@@ -4,6 +4,13 @@
 
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
+import {
+  renderNoteBox,
+  renderNoteConnector,
+  renderNoteBadge,
+  noteConnectorPoints,
+  NOTE_BADGE_RADIUS,
+} from '../utils/note-box';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
@@ -614,6 +621,58 @@ export function renderSitemap(
         .attr('fill', solid ? labelColor : (node.color ?? palette.primary))
         .attr('opacity', 0.5)
         .attr('clip-path', `url(#${clipId})`);
+    }
+
+    // ── Note (floated beside the page, or a collapsed corner badge) ──
+    // The card `<g>` is top-left positioned, so the note draws inside a
+    // sub-group translated to the card CENTER (note coords are center-local).
+    if (node.note) {
+      const noteCenterG = nodeG
+        .append('g')
+        .attr(
+          'transform',
+          `translate(${node.width / 2}, ${node.height / 2})`
+        ) as GSelection;
+      if (node.note.collapsed) {
+        renderNoteBadge(
+          noteCenterG,
+          {
+            x: node.width / 2 - NOTE_BADGE_RADIUS - 3,
+            y: -node.height / 2 + NOTE_BADGE_RADIUS + 3,
+          },
+          palette,
+          {
+            isDark,
+            ...(node.note.color && { color: node.note.color }),
+            lineNumber: node.note.lineNumber,
+            endLineNumber: node.note.endLineNumber,
+          }
+        );
+      } else {
+        const [cx1, cy1, cx2, cy2] = noteConnectorPoints(
+          { width: node.width, height: node.height },
+          node.note
+        );
+        renderNoteConnector(noteCenterG, cx1, cy1, cx2, cy2, palette);
+        renderNoteBox(
+          noteCenterG,
+          {
+            x: node.note.x,
+            y: node.note.y,
+            width: node.note.width,
+            height: node.note.height,
+          },
+          node.note.lines,
+          palette,
+          {
+            isDark,
+            ...(node.note.color && { color: node.note.color }),
+            lineNumber: node.note.lineNumber,
+            endLineNumber: node.note.endLineNumber,
+            interactive: true,
+          }
+        );
+      }
     }
   }
 

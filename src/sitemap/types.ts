@@ -4,6 +4,7 @@
 
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
+import type { DiagramNote } from '../utils/notes';
 
 export interface SitemapNode {
   readonly id: string;
@@ -37,6 +38,8 @@ export interface ParsedSitemap {
   readonly edges: readonly SitemapEdge[];
   readonly tagGroups: readonly TagGroup[];
   readonly options: Readonly<Record<string, string>>;
+  /** Generic node notes (`note <Page> …`); resolved in layout. */
+  readonly notes?: readonly DiagramNote[];
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }

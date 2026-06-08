@@ -39,6 +39,7 @@ import {
 } from '../utils/parsing';
 import type { SitemapNode, ParsedSitemap } from './types';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
+import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
 
 // ============================================================
 // Regexes
@@ -184,6 +185,7 @@ export function parseSitemap(
   }
 
   const lines = content.split('\n');
+  const notes: DiagramNote[] = [];
   let contentStarted = false;
   let nodeCounter = 0;
   let containerCounter = 0;
@@ -350,6 +352,24 @@ export function parseSitemap(
     currentTagGroup = null;
 
     const indent = measureIndent(line);
+
+    // Note annotation (top-level): `note <Page> [inline body]` + an optional
+    // indented body. Gated to indent 0 so the indent-based page tree never
+    // mistakes it for a page; its indented body is consumed via i advance.
+    if (indent === 0) {
+      const noteResult = tryCollectNote(
+        lines,
+        i,
+        indent,
+        palette,
+        result.diagnostics
+      );
+      if (noteResult) {
+        if (noteResult.note) notes.push(noteResult.note);
+        i = noteResult.lastIndex;
+        continue;
+      }
+    }
 
     // Check for arrow syntax (must check before metadata — arrows contain `:` in labels
     // but also start with `-`)
@@ -580,6 +600,21 @@ export function parseSitemap(
     collectAll(result.roots);
     validateTagValues(allNodes, result.tagGroups, pushWarning, suggest);
     validateTagGroupNames(result.tagGroups, pushWarning, pushError);
+  }
+
+  // Resolve note refs against page labels (forward refs OK). The id→note
+  // binding is recomputed in layout; this pass surfaces diagnostics.
+  if (notes.length > 0) {
+    const flat: { id: string; label: string }[] = [];
+    const collect = (nodes: readonly SitemapNode[]) => {
+      for (const node of nodes) {
+        flat.push({ id: node.id, label: node.label });
+        collect(node.children);
+      }
+    };
+    collect(result.roots);
+    result.notes = notes;
+    resolveNotes(notes, flat, result.diagnostics);
   }
 
   if (
