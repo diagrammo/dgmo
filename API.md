@@ -139,6 +139,7 @@ palettes.atlas
 palettes.blueprint
 palettes.slate
 palettes.tidewater
+palettes.facet
 palettes.catppuccin
 palettes.tokyoNight
 ```
