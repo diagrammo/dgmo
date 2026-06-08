@@ -729,10 +729,7 @@ export {
   contrastText,
   // Palette definitions
   nordPalette,
-  solarizedPalette,
   catppuccinPalette,
-  rosePinePalette,
-  gruvboxPalette,
   tokyoNightPalette,
   atlasPalette,
   blueprintPalette,

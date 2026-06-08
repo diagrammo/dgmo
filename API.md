@@ -140,14 +140,11 @@ palettes.blueprint
 palettes.slate
 palettes.tidewater
 palettes.catppuccin
-palettes.solarized
-palettes.gruvbox
 palettes.tokyoNight
-palettes.rosePine
 ```
 
 Each palette's `.id` field is the canonical kebab-case string used by
-share URLs and the CLI `--palette` flag (`'tokyo-night'`, `'rose-pine'`,
+share URLs and the CLI `--palette` flag (`'tokyo-night'`, `'catppuccin'`,
 etc.). Use `Object.values(palettes)` to iterate.
 
 Custom palettes are not supported on the public surface — use
@@ -285,7 +282,7 @@ const { svg } = await render(source, { palette: palettes.tokyoNight });
 import { render, palettes } from '@diagrammo/dgmo';
 
 export async function Diagram({ text }: { text: string }) {
-  const { svg } = await render(text, { palette: palettes.rosePine });
+  const { svg } = await render(text, { palette: palettes.catppuccin });
   return <div dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 ```

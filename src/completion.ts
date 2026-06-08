@@ -96,10 +96,7 @@ const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
     description: 'Color palette name',
     values: [
       'nord',
-      'solarized',
       'catppuccin',
-      'rose-pine',
-      'gruvbox',
       'tokyo-night',
       'atlas',
       'blueprint',

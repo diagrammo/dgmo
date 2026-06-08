@@ -104,7 +104,7 @@ describe('renderExtendedChartForExport', () => {
 
   it('renders with explicit palette', async () => {
     const { getPalette } = await import('../src/palettes');
-    const palette = getPalette('solarized').light;
+    const palette = getPalette('catppuccin').light;
     const svg = await renderExtendedChartForExport(
       SCATTER_INPUT,
       'light',

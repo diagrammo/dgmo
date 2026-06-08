@@ -70,7 +70,7 @@ describe('assignColors — first-fit collision-free, minimal colours (AC9)', () 
 
 describe('politicalTints — on-palette pale tints (AC13)', () => {
   const atlas = getPalette('atlas').light;
-  const rosePine = getPalette('rose-pine').light; // thinnest palette
+  const nord = getPalette('nord').light;
 
   it("tints are soft versions of the palette's OWN hues, land-first", () => {
     // First-band tints are mix(swatch, bg, 32) of actual palette hues, ordered
@@ -94,24 +94,24 @@ describe('politicalTints — on-palette pale tints (AC13)', () => {
     // Overflow beyond the palette's distinct hues falls to a second lightness
     // band of the SAME hues (still on-palette), staying all-distinct.
     const count = 12;
-    const tints = politicalTints(rosePine, count, false);
+    const tints = politicalTints(nord, count, false);
     expect(tints).toHaveLength(count);
     expect(new Set(tints).size).toBe(count);
   });
 
   it('is deterministic and works at any count incl. 1', () => {
-    expect(politicalTints(rosePine, 1, false)).toHaveLength(1);
-    expect(politicalTints(rosePine, 6, true)).toEqual(
-      politicalTints(rosePine, 6, true)
+    expect(politicalTints(nord, 1, false)).toHaveLength(1);
+    expect(politicalTints(nord, 6, true)).toEqual(
+      politicalTints(nord, 6, true)
     );
   });
 
   // Colorize must look right on EVERY palette, not just Atlas — the feature reads
-  // the active palette's own hues, so this guards all 10 at once.
+  // the active palette's own hues, so this guards all of them at once.
   it('every palette yields 6 distinct land tints, none equal to its water', () => {
     const WATER = 24; // WATER_TINT_LIGHT / WATER_TINT_DARK (both 24)
     const palettes = getAvailablePalettes();
-    expect(palettes.length).toBeGreaterThanOrEqual(10); // guard: really iterating
+    expect(palettes.length).toBeGreaterThanOrEqual(7); // guard: really iterating
     for (const config of palettes) {
       for (const mode of ['light', 'dark'] as const) {
         const p = config[mode];

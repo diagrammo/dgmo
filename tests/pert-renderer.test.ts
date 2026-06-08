@@ -596,15 +596,7 @@ A
   });
 
   it('renders cleanly across palettes (smoke)', () => {
-    const palettes = [
-      'nord',
-      'solarized',
-      'catppuccin',
-      'rose-pine',
-      'gruvbox',
-      'tokyo-night',
-      'bold',
-    ] as const;
+    const palettes = ['nord', 'catppuccin', 'tokyo-night', 'bold'] as const;
     for (const p of palettes) {
       const colors = getPalette(p).light;
       const svg = renderPertForExport(

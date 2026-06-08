@@ -24,8 +24,8 @@ const OUTPUT_DIR = join(ROOT, 'gallery', 'output');
 const RENDERS_DIR = join(OUTPUT_DIR, 'renders');
 
 const PALETTES = [
-  'nord', 'solarized', 'catppuccin', 'rose-pine',
-  'gruvbox', 'tokyo-night', 'one-dark', 'bold',
+  'slate', 'atlas', 'blueprint', 'tidewater',
+  'nord', 'catppuccin', 'tokyo-night',
 ];
 
 const THEMES = ['light', 'dark', 'transparent'];

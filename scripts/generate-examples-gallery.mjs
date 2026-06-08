@@ -31,8 +31,8 @@ const OUT_DIR = join(WORKSPACE_ROOT, '_bmad-output', 'galleries', 'dgmo-examples
 const RENDERS_DIR = join(OUT_DIR, 'renders');
 
 const PALETTES = [
-  'bold', 'catppuccin', 'dracula', 'gruvbox', 'monokai',
-  'nord', 'one-dark', 'rose-pine', 'solarized', 'tokyo-night',
+  'slate', 'atlas', 'blueprint', 'tidewater',
+  'nord', 'catppuccin', 'tokyo-night',
 ];
 const THEMES = ['light', 'dark'];
 

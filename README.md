@@ -108,9 +108,9 @@ Each type's full syntax, directives, and options live in the **[Language Referen
 
 ## Palettes & themes
 
-Thirteen built-in palettes, each with light, dark, and transparent variants:
+Built-in palettes, each with light, dark, and transparent variants:
 
-`nord` (default) · `atlas` · `blueprint` · `slate` · `tidewater` · `solarized` · `catppuccin` · `rose-pine` · `gruvbox` · `tokyo-night`
+`slate` (default) · `atlas` · `blueprint` · `tidewater` · `nord` · `catppuccin` · `tokyo-night`
 
 Register your own with `registerPalette()`. Color helpers (`getPalette`, `tint`, `mute`, `contrastText`, …) and Mermaid theme-variable generation ship from the package too — see the [docs](https://diagrammo.app/dev).
 

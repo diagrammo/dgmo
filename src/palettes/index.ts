@@ -26,11 +26,8 @@ export {
 export { atlasPalette } from './atlas';
 export { blueprintPalette } from './blueprint';
 export { catppuccinPalette } from './catppuccin';
-export { gruvboxPalette } from './gruvbox';
 export { nordPalette } from './nord';
-export { rosePinePalette } from './rose-pine';
 export { slatePalette } from './slate';
-export { solarizedPalette } from './solarized';
 export { tidewaterPalette } from './tidewater';
 export { tokyoNightPalette } from './tokyo-night';
 
@@ -41,11 +38,8 @@ export { tokyoNightPalette } from './tokyo-night';
 import { atlasPalette } from './atlas';
 import { blueprintPalette } from './blueprint';
 import { catppuccinPalette } from './catppuccin';
-import { gruvboxPalette } from './gruvbox';
 import { nordPalette } from './nord';
-import { rosePinePalette } from './rose-pine';
 import { slatePalette } from './slate';
-import { solarizedPalette } from './solarized';
 import { tidewaterPalette } from './tidewater';
 import { tokyoNightPalette } from './tokyo-night';
 
@@ -67,8 +61,5 @@ export const palettes = {
   tidewater: tidewaterPalette,
   nord: nordPalette,
   catppuccin: catppuccinPalette,
-  solarized: solarizedPalette,
-  gruvbox: gruvboxPalette,
   tokyoNight: tokyoNightPalette,
-  rosePine: rosePinePalette,
 } as const satisfies Record<string, PaletteConfig>;

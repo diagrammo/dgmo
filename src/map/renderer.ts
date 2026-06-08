@@ -1143,7 +1143,7 @@ export function renderMap(
   // ── Title / subtitle / caption (foreground — drawn last so they sit above the
   // basemap, POIs, and labels; layout reserves top padding so POIs clear them) ──
   // Soft bg halo so the banner stays legible over busy land/water (the muted
-  // subtitle/caption otherwise wash out on mid-toned palettes like gruvbox).
+  // subtitle/caption otherwise wash out on mid-toned palettes like nord).
   if (layout.title) {
     svg
       .append('text')

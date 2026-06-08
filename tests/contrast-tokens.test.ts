@@ -7,12 +7,9 @@ import {
 import { atlasPalette } from '../src/palettes/atlas';
 import { blueprintPalette } from '../src/palettes/blueprint';
 import { catppuccinPalette } from '../src/palettes/catppuccin';
-import { gruvboxPalette } from '../src/palettes/gruvbox';
 import { nordPalette } from '../src/palettes/nord';
-import { rosePinePalette } from '../src/palettes/rose-pine';
 import { slatePalette } from '../src/palettes/slate';
 import { tidewaterPalette } from '../src/palettes/tidewater';
-import { solarizedPalette } from '../src/palettes/solarized';
 import { tokyoNightPalette } from '../src/palettes/tokyo-night';
 import type { PaletteColors } from '../src/palettes/types';
 
@@ -30,10 +27,7 @@ const PALETTES = [
   { name: 'slate', cfg: slatePalette },
   { name: 'tidewater', cfg: tidewaterPalette },
   { name: 'catppuccin', cfg: catppuccinPalette },
-  { name: 'gruvbox', cfg: gruvboxPalette },
   { name: 'nord', cfg: nordPalette },
-  { name: 'rose-pine', cfg: rosePinePalette },
-  { name: 'solarized', cfg: solarizedPalette },
   { name: 'tokyo-night', cfg: tokyoNightPalette },
 ];
 

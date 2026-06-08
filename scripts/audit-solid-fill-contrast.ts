@@ -18,11 +18,8 @@ import {
   atlasPalette,
   blueprintPalette,
   catppuccinPalette,
-  gruvboxPalette,
   nordPalette,
-  rosePinePalette,
   slatePalette,
-  solarizedPalette,
   tidewaterPalette,
   tokyoNightPalette,
 } from '../src/palettes';
@@ -33,11 +30,8 @@ const PALETTES: PaletteConfig[] = [
   atlasPalette,
   blueprintPalette,
   catppuccinPalette,
-  gruvboxPalette,
   nordPalette,
-  rosePinePalette,
   slatePalette,
-  solarizedPalette,
   tidewaterPalette,
   tokyoNightPalette,
 ];

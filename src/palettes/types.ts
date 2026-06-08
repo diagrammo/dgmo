@@ -77,7 +77,7 @@ export interface PaletteColors {
  * hands out the same frozen-shape object on every `getPalette(id)`.
  */
 export interface PaletteConfig {
-  /** Registry key: 'nord', 'solarized', 'catppuccin' */
+  /** Registry key: 'nord', 'slate', 'catppuccin' */
   readonly id: string;
   /** Display name: 'Nord', 'Solarized', 'Catppuccin' */
   readonly name: string;
