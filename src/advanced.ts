@@ -735,6 +735,7 @@ export {
   blueprintPalette,
   slatePalette,
   tidewaterPalette,
+  facetPalette,
 } from './palettes';
 
 export type { PaletteConfig, PaletteColors } from './palettes';

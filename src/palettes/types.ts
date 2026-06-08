@@ -79,7 +79,7 @@ export interface PaletteColors {
 export interface PaletteConfig {
   /** Registry key: 'nord', 'slate', 'catppuccin' */
   readonly id: string;
-  /** Display name: 'Nord', 'Solarized', 'Catppuccin' */
+  /** Display name: 'Nord', 'Slate', 'Catppuccin' */
   readonly name: string;
   /** Light mode color definitions */
   readonly light: PaletteColors;
