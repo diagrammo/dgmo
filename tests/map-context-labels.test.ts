@@ -253,6 +253,31 @@ describe('placeContextLabels — countries (AC5, AC6)', () => {
     expect(placed.map((l) => l.text)).not.toContain('BR');
     expect(placed.map((l) => l.text)).toContain('Test Ocean'); // water full
   });
+  it('scales font up + subdues colour with footprint; small stays base', () => {
+    // A large footprint reads as a big, faded backdrop name; a small one keeps
+    // the base font at full muted strength (gradual, footprint-driven).
+    const big: CountryCandidate = {
+      name: 'Bigland',
+      bbox: [100, 100, 380, 260],
+      anchor: [240, 180],
+    };
+    const small: CountryCandidate = {
+      name: 'Tiny',
+      bbox: [420, 320, 464, 350],
+      anchor: [442, 335],
+    };
+    const placed = placeContextLabels(
+      baseArgs({ waterBodies: { entries: [] }, countries: [big, small] })
+    );
+    const b = placed.find((l) => l.text === 'Bigland')!;
+    const s = placed.find((l) => l.text === 'Tiny')!;
+    expect(b).toBeDefined();
+    expect(s).toBeDefined();
+    expect(b.fontSize!).toBeGreaterThan(s.fontSize!);
+    expect(s.fontSize).toBe(11); // unscaled base font
+    expect(s.color).toBe(P.textMuted); // full-strength muted (no fade)
+    expect(b.color).not.toBe(s.color); // big name subdued toward bg
+  });
   it('water sorts before countries (orientation core first)', () => {
     const placed = placeContextLabels(
       baseArgs({

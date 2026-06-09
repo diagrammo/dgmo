@@ -392,6 +392,11 @@ export interface MapLayoutLeg {
   readonly width: number;
   readonly color: string;
   readonly arrow: boolean;
+  /** Endpoint POI ids (resolved `fromId`/`toId`), emitted as `data-from-id` /
+   *  `data-to-id`. Lets an interactive preview co-highlight a leg's two endpoint
+   *  POIs when the leg is focused (§17 sync). */
+  readonly fromId: string;
+  readonly toId: string;
   readonly label?: string;
   readonly labelX?: number;
   readonly labelY?: number;
@@ -1142,6 +1147,21 @@ export function layoutMap(
     const tg = resolved.tagGroups.find((g) => g.name.toLowerCase() === lv);
     return tg ? tg.name : v; // unknown name passes through → renders neutral
   };
+  // A tag group is a "fill group" only if its alias actually lands on a region
+  // or a POI. A group used solely on connector lines (§24B.6) colours edges,
+  // never the basemap — so it must not drive the region/active-tag dress or
+  // suppress colorize.
+  const fillGroupNames = new Set<string>();
+  for (const g of resolved.tagGroups) {
+    const k = g.name.toLowerCase();
+    if (
+      resolved.regions.some((r) => r.tags[k]) ||
+      resolved.pois.some((p) => p.tags[k])
+    )
+      fillGroupNames.add(g.name);
+  }
+  const firstFillGroup =
+    resolved.tagGroups.find((g) => fillGroupNames.has(g.name))?.name ?? null;
   const override = opts.activeGroup; // string | null | undefined
   let activeGroup: string | null;
   if (override !== undefined) {
@@ -1150,21 +1170,25 @@ export function layoutMap(
     activeGroup = matchColorGroup(resolved.directives.activeTag);
   } else {
     // Default: colour by the value ramp when values exist, else the first
-    // declared tag group.
+    // declared tag group that fills a region/POI. When the only groups are
+    // edge/leg groups (no fill group), fall back to the first declared group so
+    // the legend still renders it as a line-colour KEY — but it won't mute the
+    // basemap (see mutedBasemap below) since it fills no region.
     activeGroup =
-      VALUE_NAME ??
-      (resolved.tagGroups.length > 0 ? resolved.tagGroups[0]!.name : null);
+      VALUE_NAME ?? firstFillGroup ?? resolved.tagGroups[0]?.name ?? null;
   }
   const activeIsScore = VALUE_NAME !== null && activeGroup === VALUE_NAME;
 
   // Basemap dress (fixed automatic aesthetic — no directive). Subject water +
   // land always wear the SAME faded blue/green dress (subtle enough that
   // saturated tag/score tints never blend into it), so every map looks
-  // consistent. `mutedBasemap` governs only the NEIGHBOUR land: when a colouring
-  // dimension is active the surrounding world recedes to a paler gray so the
-  // subject + its data fills dominate; a plain reference map keeps neighbour
-  // land at the fuller gray.
-  const mutedBasemap = activeGroup !== null;
+  // consistent. `mutedBasemap` governs only the NEIGHBOUR land: when a REGION-
+  // filling dimension is active the surrounding world recedes to a paler gray so
+  // the subject + its data fills dominate; a plain reference map — or one whose
+  // only tag group colours connector LINES (§24B.6), not regions — keeps
+  // neighbour land at the fuller gray.
+  const mutedBasemap =
+    activeIsScore || (activeGroup !== null && fillGroupNames.has(activeGroup));
   const neutralFill = mapNeutralLandColor(palette, isDark, mutedBasemap);
   const water = mapBackgroundColor(palette, isDark, mutedBasemap);
   const lakeStroke = mix(regionStroke, water, 45); // soft coastline (see above)
@@ -1198,7 +1222,7 @@ export function layoutMap(
     resolved.directives.noColorize !== true &&
     !hasRamp &&
     !hasDirectColor &&
-    resolved.tagGroups.length === 0;
+    fillGroupNames.size === 0;
   // Hue per ISO over ONE UNIFIED graph spanning every drawn topology, so no two
   // bordering regions share a hue — INCLUDING across the international seam. The
   // world and us-states topologies share no TopoJSON arcs, so neighbors() is blind
@@ -2263,6 +2287,21 @@ export function layoutMap(
     };
   };
 
+  // Connector colour (§24B.6): a tag on the edge/leg LINE colours the line. Walk
+  // the declared tag groups (first match wins, like poiFill) and return its hex,
+  // or null → caller falls back to the neutral connector mix.
+  const lineColor = (tags: Readonly<Record<string, string>>): string | null => {
+    for (const group of resolved.tagGroups) {
+      const val = tags[group.name.toLowerCase()];
+      if (!val) continue;
+      const entry = group.entries.find(
+        (e) => e.value.toLowerCase() === val.toLowerCase()
+      );
+      if (entry?.color) return entry.color; // already hex (parser-resolved)
+    }
+    return null;
+  };
+
   // Route metadata first so POIs know origin/number.
   const routeNumberById = new Map<string, number>();
   const originIds = new Set<string>();
@@ -2501,8 +2540,10 @@ export function layoutMap(
       legs.push({
         d: legPath(a, b, bow.curved, bow.offset),
         width: routeWidthFor(Number(leg.value)),
-        color: mix(palette.text, palette.bg, 72),
+        color: lineColor(leg.tags) ?? mix(palette.text, palette.bg, 72),
         arrow: true,
+        fromId: leg.fromId,
+        toId: leg.toId,
         lineNumber: leg.lineNumber,
         ...(leg.label !== undefined && {
           label: leg.label,
@@ -2558,8 +2599,10 @@ export function layoutMap(
       legs.push({
         d: legPath(a, b, bow.curved, bow.offset),
         width: widthFor(e),
-        color: mix(palette.text, palette.bg, 66),
+        color: lineColor(e.tags) ?? mix(palette.text, palette.bg, 66),
         arrow: e.directed,
+        fromId: e.fromId,
+        toId: e.toId,
         lineNumber: e.lineNumber,
         ...(e.label !== undefined && {
           label: e.label,
@@ -2663,24 +2706,62 @@ export function layoutMap(
   // The value line is ~0.82× the name size; a hair of vertical gap separates them.
   const VALUE_FONT = Math.round(FONT * 0.82);
   const VALUE_GAP = 1;
-  const labelW = (text: string): number =>
-    measureLegendText(text, FONT) + 2 * LABEL_PADX;
+  const labelW = (text: string, font: number = FONT): number =>
+    measureLegendText(text, font) + 2 * LABEL_PADX;
   const labelH = FONT + 2 * LABEL_PADY;
   // Footprint of a name (+optional value) stack used for the box-fit cascade.
-  const stackW = (text: string, valueText?: string): number =>
+  // `font` defaults to the base size (every existing call is byte-identical);
+  // the post-placement growth pass passes a larger size to test an upscaled fit.
+  const stackW = (
+    text: string,
+    valueText?: string,
+    font: number = FONT
+  ): number =>
     Math.max(
-      labelW(text),
-      valueText ? measureLegendText(valueText, VALUE_FONT) + 2 * LABEL_PADX : 0
+      labelW(text, font),
+      valueText
+        ? measureLegendText(valueText, Math.round(font * 0.82)) + 2 * LABEL_PADX
+        : 0
     );
-  const stackH = (hasValue: boolean): number =>
-    hasValue ? labelH + VALUE_GAP + VALUE_FONT : labelH;
+  const stackH = (hasValue: boolean, font: number = FONT): number => {
+    const lh = font + 2 * LABEL_PADY;
+    return hasValue ? lh + VALUE_GAP + Math.round(font * 0.82) : lh;
+  };
+  // Footprint-driven label growth (size-up + fade), gradual + resolution-free.
+  // Applies to ORIENTATION backdrop names ONLY (neighbour land / frame
+  // containers with no data value): a big one reads as a large, gently-faded
+  // backdrop, a small one stays at the base font. DATA labels are deliberately
+  // EXCLUDED — fading a choropleth value washes it lighter than its own fill and
+  // a loose bbox overran irregular regions. Size scales with the region's
+  // projected footprint as a fraction of the canvas's linear extent. Growth runs
+  // AFTER the base-font fit cascade picks the text+anchor, and only while the
+  // larger glyphs still fit the box, clear neighbours/POIs, and stay inside the
+  // region's own fill.
+  const REGION_FONT_MAX_ORIENT = 22; // px ceiling, backdrop names
+  const REGION_SIZE_FRAC_MIN = 0.06; // footprint linear-frac at base font
+  const REGION_SIZE_FRAC_MAX = 0.32; // footprint linear-frac at max font
+  const REGION_FADE_ORIENT = 45; // % toward bg at max size, backdrop
+  const canvasLinear = Math.sqrt(Math.max(1, width * height));
+  const sizeT = (boxW: number, boxH: number): number => {
+    const frac = Math.sqrt(Math.max(0, boxW * boxH)) / canvasLinear;
+    return Math.min(
+      1,
+      Math.max(
+        0,
+        (frac - REGION_SIZE_FRAC_MIN) /
+          (REGION_SIZE_FRAC_MAX - REGION_SIZE_FRAC_MIN)
+      )
+    );
+  };
   const pushRegionLabel = (
     x: number,
     y: number,
     text: string,
     fill: string,
     lineNumber: number,
-    valueLine?: string
+    valueLine?: string,
+    fontSize: number = FONT,
+    fade: number = 0
   ): void => {
     // Colour is contrast-picked against the region's own fill (see labelOnFill).
     // The halo, though, is gated by CONTAINMENT — not fill tone. A label that
@@ -2692,15 +2773,20 @@ export function layoutMap(
     // to stay legible. Sample the label's screen footprint against the drawn
     // fills: if any extreme lands on a fill other than the region's own, the
     // label overflows and earns a halo.
-    const { color, haloColor } = labelOnFill(fill);
+    const { color: baseColor, haloColor } = labelOnFill(fill);
+    // Subdue a grown label toward the background — gentle on data (value stays
+    // readable), stronger on orientation backdrop. Zero fade ⇒ exact base color.
+    const color = fade > 0 ? mix(baseColor, palette.bg, fade) : baseColor;
     // Widest of name / value drives the overflow sample (the value line can be
-    // the wider of the two, e.g. a short name over a long number).
+    // the wider of the two, e.g. a short name over a long number). Scales with
+    // the actual (possibly grown) font so the halo gate matches what's drawn.
+    const vf = Math.round(fontSize * 0.82);
     const halfW =
       Math.max(
-        measureLegendText(text, FONT),
-        valueLine ? measureLegendText(valueLine, VALUE_FONT) : 0
+        measureLegendText(text, fontSize),
+        valueLine ? measureLegendText(valueLine, vf) : 0
       ) / 2;
-    const overflows = [y - FONT * 0.55, y - FONT * 0.1].some(
+    const overflows = [y - fontSize * 0.55, y - fontSize * 0.1].some(
       (sy) => fillAt(x - halfW, sy) !== fill || fillAt(x + halfW, sy) !== fill
     );
     labels.push({
@@ -2711,6 +2797,7 @@ export function layoutMap(
       color,
       halo: overflows,
       haloColor,
+      ...(fontSize !== FONT && { fontSize }),
       ...(valueLine !== undefined && { valueLine }),
       lineNumber,
     });
@@ -2723,15 +2810,17 @@ export function layoutMap(
     cx: number,
     cy: number,
     text: string,
-    valueText?: string
+    valueText?: string,
+    font: number = FONT
   ): LabelRect => {
+    const vf = Math.round(font * 0.82);
     const w =
       Math.max(
-        measureLegendText(text, FONT),
-        valueText ? measureLegendText(valueText, VALUE_FONT) : 0
+        measureLegendText(text, font),
+        valueText ? measureLegendText(valueText, vf) : 0
       ) +
       2 * REGION_LABEL_GAP;
-    const h = valueText ? FONT + VALUE_GAP + VALUE_FONT : FONT;
+    const h = valueText ? font + VALUE_GAP + vf : font;
     return { x: cx - w / 2, y: cy - h / 2, w, h };
   };
   if (showRegionLabels) {
@@ -2978,11 +3067,65 @@ export function layoutMap(
       // Nothing placed (a valueless region that didn't fit, or a valued region
       // whose overflow also collided) → drop, leaving the map clean.
       if (chosen === undefined) continue;
+      // Footprint-driven growth applies ONLY to orientation backdrop names — a
+      // data-less neighbour/frame region (Canada framing a POI, foreign land).
+      // DATA labels (a choropleth value) keep the base font + full contrast and
+      // the existing fit-inside cascade UNCHANGED: fading a value washed it
+      // lighter than its own region fill, and a loose bbox let a wide name
+      // ("United States of America") spill past its region. Orientation names sit
+      // on neutral basemap land where a larger, gently-faded backdrop reads well.
+      const isOrient = r.value === undefined && r.layer === 'base';
+      let font = FONT;
+      let fade = 0;
+      if (isOrient) {
+        const growT = sizeT(boxW, boxH);
+        const desiredFont = Math.round(
+          FONT + growT * (REGION_FONT_MAX_ORIENT - FONT)
+        );
+        const hasVal = chosen.valueLine !== undefined;
+        for (let f = desiredFont; f > FONT; f--) {
+          // Fit the footprint box, clear neighbours/POIs, AND — the real guard —
+          // stay INSIDE the region's own fill at the bigger size. The bbox is far
+          // too loose for an irregular shape (Alaska blows up the US bbox), so
+          // sample the grown name's horizontal extremes against `fillAt`: if
+          // either leaves this region's fill, don't grow that far.
+          if (
+            stackW(chosen.text, chosen.valueLine, f) > boxW ||
+            stackH(hasVal, f) > boxH
+          )
+            continue;
+          const gRect = regionLabelRect(
+            chosen.ax,
+            chosen.ay,
+            chosen.text,
+            chosen.valueLine,
+            f
+          );
+          const gName = regionLabelRect(
+            chosen.ax,
+            chosen.ay,
+            chosen.text,
+            undefined,
+            f
+          );
+          if (!fitsRegions(gRect) || !fitsPois(gName)) continue;
+          const halfW = measureLegendText(chosen.text, f) / 2;
+          if (
+            fillAt(chosen.ax - halfW, chosen.ay) !== r.fill ||
+            fillAt(chosen.ax + halfW, chosen.ay) !== r.fill
+          )
+            continue;
+          font = f;
+          break;
+        }
+        fade = font > FONT ? Math.round(growT * REGION_FADE_ORIENT) : 0;
+      }
       const rRect = regionLabelRect(
         chosen.ax,
         chosen.ay,
         chosen.text,
-        chosen.valueLine
+        chosen.valueLine,
+        font
       );
       placedRegionRects.push(rRect);
       pushRegionLabel(
@@ -2991,7 +3134,9 @@ export function layoutMap(
         chosen.text,
         r.fill,
         r.lineNumber,
-        chosen.valueLine
+        chosen.valueLine,
+        font,
+        fade
       );
       // Guard so a POI label landing here later makes this label yield (below).
       regionLabelGuards.push({

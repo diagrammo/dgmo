@@ -60,6 +60,17 @@ const CONTEXT_PAD = 4; // extra gap enforced between two context labels
 const EDGE_CLAMP_MARGIN = 8; // px inset for edge-clamped ocean labels
 const EDGE_CLAMP_OVERSHOOT = 0.35; // max off-frame overshoot (× dim) to still clamp
 
+// Country labels scale with their projected footprint: a big landmass (Canada,
+// Mexico on a US view) reads as a large, FADED backdrop name; a small one stays
+// at the base font, fully muted. Size metric is the footprint's linear extent
+// (√bbox-area) as a fraction of the canvas's linear extent (√canvas-area), so
+// the ramp is resolution-independent. Below MIN ⇒ base font / no extra fade;
+// at/above MAX ⇒ max font / max fade; linear between.
+const COUNTRY_FONT_MAX = 22; // px ceiling for the largest footprint
+const COUNTRY_SIZE_FRAC_MIN = 0.06; // footprint linear-frac at base font
+const COUNTRY_SIZE_FRAC_MAX = 0.32; // footprint linear-frac at max font
+const COUNTRY_FADE_MAX = 45; // % blend toward bg at max font (subdue big names)
+
 // Water-kind priority within a tier (oceans first, then seas, then the rest) so
 // a thin budget always spends on the highest-orientation-value names.
 const KIND_ORDER: Record<WaterKind, number> = {
@@ -136,10 +147,14 @@ function insideViewport(
  *  the per-gap `letter-spacing` the renderer applies to water names, so without
  *  this the fit/clamp math under-measures by ~`(len-1)*spacing` and the label
  *  clips at the canvas edge. */
-export function labelWidth(text: string, letterSpacing: number): number {
+export function labelWidth(
+  text: string,
+  letterSpacing: number,
+  font: number = FONT
+): number {
   const spacing =
     letterSpacing > 0 ? Math.max(0, text.length - 1) * letterSpacing : 0;
-  return measureLegendText(text, FONT) + spacing + 2 * PADX;
+  return measureLegendText(text, font) + spacing + 2 * PADX;
 }
 
 /** Wrap a multi-word name into balanced lines, biased to wrap READILY — water
@@ -188,10 +203,12 @@ function rectAround(
   cx: number,
   cy: number,
   lines: readonly string[],
-  letterSpacing: number
+  letterSpacing: number,
+  font: number = FONT
 ): LabelRect {
-  const w = Math.max(...lines.map((l) => labelWidth(l, letterSpacing)));
-  const h = (lines.length - 1) * LINE_HEIGHT + FONT + 2 * PADY;
+  const lineHeight = font + 2; // MUST match the renderer's per-line stride
+  const w = Math.max(...lines.map((l) => labelWidth(l, letterSpacing, font)));
+  const h = (lines.length - 1) * lineHeight + font + 2 * PADY;
   return { x: cx - w / 2, y: cy - h / 2, w, h };
 }
 
@@ -252,6 +269,7 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     italic: boolean;
     letterSpacing: number;
     color: string;
+    fontSize: number;
     sort: number; // priority key (lower first)
   };
   const candidates: Candidate[] = [];
@@ -328,6 +346,7 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
       italic: true,
       letterSpacing: WATER_LETTER_SPACING,
       color: waterColor,
+      fontSize: FONT, // water names keep the base font (no footprint to scale on)
       // Water before any country (×1000), then by tier, then kind, then name.
       sort: tier * 10 + KIND_ORDER[kind],
     });
@@ -345,22 +364,40 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     })
     .filter((r) => Number.isFinite(r.area) && r.area > 0)
     .sort((a, b) => b.area - a.area);
+  // Canvas linear extent — the denominator for the footprint size ramp below.
+  const canvasLinear = Math.sqrt(Math.max(1, width * height));
   let ci = 0;
   for (const r of ranked) {
-    const { c, w, h } = r;
+    const { c, w, h, area } = r;
     // F2: an antimeridian-crossing / global-smear country yields a near-full-
     // canvas bbox while its real landmass is split — the `path.centroid` anchor
     // is then unreliable (mid-map, wrong basin). Drop such over-wide candidates
     // rather than spend a top-priority slot on a mispositioned name.
     if (w > width * 0.66 || h > height * 0.66) continue;
     if (!insideViewport(c.anchor, width, height)) continue;
+    // Footprint-driven scale (Decision: big landmass = large, faded backdrop
+    // name). t∈[0,1] over the [MIN,MAX] linear-fraction band; font ramps up and
+    // colour fades toward bg in lockstep so a bigger name is also a quieter one.
+    const sizeFrac = Math.sqrt(area) / canvasLinear;
+    const t = Math.min(
+      1,
+      Math.max(
+        0,
+        (sizeFrac - COUNTRY_SIZE_FRAC_MIN) /
+          (COUNTRY_SIZE_FRAC_MAX - COUNTRY_SIZE_FRAC_MIN)
+      )
+    );
+    const fontSize = Math.round(FONT + t * (COUNTRY_FONT_MAX - FONT));
+    const fade = Math.round(t * COUNTRY_FADE_MAX);
+    const color = fade > 0 ? mix(countryColor, palette.bg, fade) : countryColor;
     // Always the full country name — never an ISO abbreviation. If the name
     // doesn't fit the footprint, drop the label rather than abbreviate.
     const text = c.name;
-    const tw = labelWidth(text, 0);
-    // Approximate fit (Decision 4): name fits inside the footprint bbox. NOT
-    // true point-in-polygon — cartographic labels routinely overrun coastlines.
-    if (tw > w || FONT + 2 * PADY > h) continue;
+    const tw = labelWidth(text, 0, fontSize);
+    // Approximate fit (Decision 4): the (scaled) name fits inside the footprint
+    // bbox. NOT true point-in-polygon — cartographic labels routinely overrun
+    // coastlines. The bigger the font, the bigger the box it must clear.
+    if (tw > w || fontSize + 2 * PADY > h) continue;
     candidates.push({
       text,
       lines: [text],
@@ -368,7 +405,8 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
       cy: c.anchor[1],
       italic: false,
       letterSpacing: 0,
-      color: countryColor,
+      color,
+      fontSize,
       // Always after every water body (+1e6); larger area = earlier.
       sort: 1_000_000 + ci++,
     });
@@ -380,7 +418,13 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
   const placedRects: LabelRect[] = [];
   for (const cand of candidates) {
     if (placed.length >= budget) break;
-    const rect = rectAround(cand.cx, cand.cy, cand.lines, cand.letterSpacing);
+    const rect = rectAround(
+      cand.cx,
+      cand.cy,
+      cand.lines,
+      cand.letterSpacing,
+      cand.fontSize
+    );
     if (!rectFits(rect, width, height)) continue;
     // Water labels must sit over OPEN WATER and NEVER touch land — sample a grid
     // over every wrapped line (each line's own horizontal extent at five points);
@@ -419,6 +463,7 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
       // cleanly on the basemap without one.
       halo: false,
       haloColor,
+      fontSize: cand.fontSize,
       italic: cand.italic,
       letterSpacing: cand.letterSpacing,
       ...(cand.lines.length > 1 ? { lines: cand.lines } : {}),
