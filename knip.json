@@ -8,6 +8,7 @@
     "scripts/check-bundle-size.cjs",
     "scripts/migrate-as-aliases.mjs",
     "scripts/migrate-as-aliases.test.mjs",
+    "scripts/build-airports-snapshot.mjs",
     "api-baseline/**",
     "tools/**"
   ],
