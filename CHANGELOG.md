@@ -7,31 +7,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-06-08
+
 ### Added
 
+- **Node notes across five chart types.** Flowchart, state, class, ER, and
+  boxes-and-lines diagrams gain `note <id>` — a floating comment bubble tethered
+  to a node, placed by a shared collision-aware layout (`utils/notes/`) that
+  keeps notes clear of shapes and never moves the diagram's own geometry. Notes
+  collapse to a small comment-bubble badge and expand on click; colour a note
+  with a trailing colour word (`note A This is a warning red`). `no-notes` opts
+  out. Org and sitemap were evaluated and excluded — their indentation grammar
+  conflicts with the note syntax.
+- **Map: region values on choropleths.** Regions can carry their own numeric
+  `value`, rendering a true choropleth alongside POIs. Tiny or POI-blocked
+  regions get a leader-lined callout — placed in a reserved column on either
+  edge, fanned out radially, or revealed by a zoom-out reserve — with chips kept
+  off the canvas edge and high-contrast leaders.
 - **Map: IATA airport codes resolve as place identifiers.** `poi JFK`,
-  `route JFK -> LAX` and any three-letter IATA code now resolve to airport
-  coordinates through the existing name-lookup path — no new syntax, no parser
-  change. Coverage is large international hubs + all US scheduled-commercial
-  airports, shipped as a separate optional `airports.json` data asset
-  (OurAirports, public domain; ~38 KB gz, loaded only for map diagrams).
-  Resolution is case-insensitive and **by code only** (airports never resolve by
-  name); the POI label is the typed code. Airports are the lowest-precedence
-  identifier — a token that is both a city and a code resolves to the **city**
-  (with a non-blocking shadow hint naming the airport), so existing maps are
-  unaffected. Editor completion lists airport codes as a labeled group below
-  cities, with optional scope-aware ranking. Unknown three-letter codes emit
-  `E_MAP_UNKNOWN_AIRPORT_CODE` with an `as <CODE>` coordinates hint.
+  `route JFK -> LAX` and any three-letter IATA code resolve to airport
+  coordinates through the existing name-lookup path — no new syntax. Coverage is
+  large international hubs + all US scheduled-commercial airports, shipped as a
+  separate optional `airports.json` asset (OurAirports, public domain; ~38 KB
+  gz, loaded only for map diagrams). Resolution is case-insensitive and **by
+  code only**; airports are the lowest-precedence identifier, so a token that is
+  both a city and a code resolves to the **city** (with a non-blocking shadow
+  hint). Editor completion lists codes as a labeled group below cities. Unknown
+  codes emit `E_MAP_UNKNOWN_AIRPORT_CODE` with an `as <CODE>` hint.
+- **Map: tagged connector/leg colours.** A trailing tag on a connector or route
+  leg colours the line (`A ~> B l: Cruise`); focusing a leg co-highlights its
+  endpoint POIs and the matching legend line, without dimming the basemap.
+- **Map: undirected + labeled-undirected connector tokens.**
+- **Map: population-sized city dots** as a subtle default layer (`no-cities`
+  opts out), and **footprint-scaled, faded orientation backdrop labels** for
+  context.
+- **Map: auto-zoom for compact US region maps** — North-up framing with
+  full-name labels; conic equal-area projection with a data-centered fit for
+  regional maps.
+- **Metric: colour ramps anchor at the data minimum** rather than zero, so
+  value ranges that don't start at 0 use the full ramp.
+
+### Changed
+
+- **Default palette is now Slate** (was Nord), part of the Epic 108 rebrand. The
+  active palette is correctly threaded into named-colour resolution so themed
+  colours track the selected palette everywhere.
+- **Sequence: participant position override requires a colon** — `position: N`
+  (was bare `position N`). Pre-1.0, this is a hard break with no compat shim.
+- Region borders now stay legible on dark themes; value ramps and segment fills
+  stay strictly on-palette (no invented hues); journey-map emotion faces align
+  to the curve scale; the swimlane legend toggle has a larger hit area.
 
 ### Removed
 
-- **Dropped three borrowed palettes: Solarized, Gruvbox, Rosé Pine.** Each
-  failed the categorical-distinctness bar a diagram palette must meet — they
-  reuse a single hex across distinct slots (`cyan==teal`, `green==teal`,
-  `blue==cyan`) or collapse hues, so multi-category diagrams render different
-  categories with identical colours. `getPalette()` falls back to the default
-  (`slate`) for any removed id, so saved preferences and share URLs degrade
-  gracefully. The registry is now seven curated palettes.
+- **Trimmed the palette registry to seven curated palettes.** Dropped Dracula,
+  Monokai, One Dark, Solarized, Gruvbox, and Rosé Pine — each failed the
+  categorical-distinctness bar a diagram palette must meet (a single hex reused
+  across distinct slots, or collapsed hues, so multi-category diagrams render
+  different categories with identical colours). `getPalette()` falls back to the
+  default (`slate`) for any removed id, so saved preferences and share URLs
+  degrade gracefully. The kept seven: atlas, blueprint, catppuccin, nord, slate,
+  tidewater, tokyo-night.
+
+### Performance
+
+- **World-map SVG shrunk ~75% (4.5 MB → 1.2 MB)** via render-side coordinate
+  rounding, screen-space vertex thinning, and `<use>`-deduplicated coastline
+  water-lines — unblocking globe/world maps in static-site builds.
+
+### Internal
+
+- Shared glyph-table text measurement now backs chart-type text sizing; extracted
+  shared helpers for arrowhead `<marker>`s, `fitDiagramToCanvas`, and legend
+  geometry; general dedup across renderers. No intended user-visible change.
 
 ## [0.26.0] - 2026-06-04
 
