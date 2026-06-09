@@ -162,121 +162,45 @@ export function mix(a: string, b: string, pct: number): string {
 // Single source of truth for value-ramp fills across chart types (map
 // `region-metric`, boxes-and-lines `box-metric`, and any future ramp). Callers
 // resolve the two endpoint NAMES to palette hex, then ask for the fill at a
-// normalized position `t∈[0,1]`. The helper owns ONLY the low→high hue blend;
-// each caller keeps its own RAMP_FLOOR / base remap of `t`.
+// normalized position `t∈[0,1]`. The helper owns ONLY the low→high blend; each
+// caller keeps its own RAMP_FLOOR / base remap of `t`.
 //
-// Diverging endpoints (wide hue gap, e.g. green→red) blend through a
-// theme-aware neutral midpoint so the mid never goes muddy brown (straight sRGB
-// green↔red passes through brown). Analogous or achromatic endpoints take a
-// direct sRGB blend — that reads better and avoids a spurious neutral band.
-// (resvg has no `color-mix()`; OKLab interpolation is the deferred principled
-// fix — see the spec's ADR-4.)
-
-/** Below this HSL saturation an endpoint is treated as achromatic
- *  (gray/black/white) — its hue is meaningless, so the ramp blends directly.
- *  Evaluated BEFORE the hue-gap test (a hue gap between achromatics is noise). */
-const RAMP_S_MIN = 18;
-/** Circular hue gap (degrees) above which two saturated endpoints are
- *  "diverging" and route through the neutral midpoint (green→red ≈ 120°). */
-const RAMP_HUE_GAP_MAX = 90;
-/** Fixed saturation floor at the inserted midpoint, so mid-range regions keep a
- *  hint of colour and never read as "empty / no data". Internal quality
- *  guarantee, deliberately NOT a config surface. */
-const RAMP_S_MID = 30;
-
-/** Shorter-arc hue bisector (degrees, 0..360); order-independent. */
-function bisectorHue(h1: number, h2: number): number {
-  const delta = ((((h2 - h1) % 360) + 540) % 360) - 180; // signed shortest delta
-  return (((h1 + delta / 2) % 360) + 360) % 360;
-}
-
-/** Classify a low→high endpoint pair: 'direct' sRGB blend vs via the neutral
- *  midpoint. Saturation gate fires FIRST (achromatic endpoints have no
- *  meaningful hue gap). Shared by `valueRampColor` + `valueRampStops`. */
-function rampMode(
-  a: { h: number; s: number; l: number },
-  b: { h: number; s: number; l: number }
-): 'direct' | 'midpoint' {
-  if (a.s < RAMP_S_MIN || b.s < RAMP_S_MIN) return 'direct';
-  const raw = Math.abs(a.h - b.h);
-  const gap = Math.min(raw, 360 - raw);
-  return gap <= RAMP_HUE_GAP_MAX ? 'direct' : 'midpoint';
-}
-
-/** Theme-aware neutral midpoint for a diverging ramp: the shorter-arc hue
- *  bisector at the saturation floor, with a lightness between the two
- *  endpoints. On dark themes the midpoint's WCAG luminance is additionally
- *  clamped at or below the brighter endpoint so a perceptually-bright bisector
- *  hue (e.g. yellow for green↔red) can't out-shine both ends and glow — the
- *  dark-theme inversion AC8 guards against. HSL lightness ≠ luminance, so the
- *  clamp can't be expressed as a fixed L; it darkens (lowers L, keeping hue +
- *  saturation) until luminance is in range. Constructed from `isDark` alone. */
-function rampMidpoint(
-  lowHex: string,
-  highHex: string,
-  a: { h: number; s: number; l: number },
-  b: { h: number; s: number; l: number },
-  isDark: boolean
-): string {
-  const loL = Math.min(a.l, b.l);
-  const hiL = Math.max(a.l, b.l);
-  const hue = bisectorHue(a.h, b.h);
-  let midL = loL + (hiL - loL) * (isDark ? 0.4 : 0.5);
-  let mid = hslToHex(hue, RAMP_S_MID, midL);
-  if (isDark) {
-    const cap = Math.max(relativeLuminance(lowHex), relativeLuminance(highHex));
-    while (midL > 0 && relativeLuminance(mid) > cap) {
-      midL = Math.max(0, midL - 4);
-      mid = hslToHex(hue, RAMP_S_MID, midL);
-    }
-  }
-  return mid;
-}
+// The blend is a straight sRGB fade between the two true palette endpoints — no
+// invented intermediate hue. `t=0` is exactly `low`, `t=1` is exactly `high`,
+// and everything between is a direct interpolation of those two palette colours.
+// (resvg has no `color-mix()`; `mix()` pre-computes the hex.)
 
 /**
  * Value-ramp fill at normalized position `t`. PURE and order-respecting:
  * `t=0` → exactly `low`, `t=1` → exactly `high`, no sorting or intent
  * correction. `low`/`high` are resolved hex (the caller maps colour names →
- * palette hex). See the section header for the direct-vs-midpoint rule.
+ * palette hex). A straight sRGB fade between the two palette colours — no
+ * synthetic midpoint hue. `_opts` is retained for call-site/theme compat.
  */
 export function valueRampColor(
   low: string,
   high: string,
   t: number,
-  opts: { isDark: boolean }
+  _opts: { isDark: boolean }
 ): string {
   const tc = Math.max(0, Math.min(1, t));
-  const a = hexToHSL(low);
-  const b = hexToHSL(high);
-  if (rampMode(a, b) === 'direct') return mix(high, low, tc * 100);
-  const mid = rampMidpoint(low, high, a, b, opts.isDark);
-  return tc < 0.5
-    ? mix(mid, low, (tc / 0.5) * 100)
-    : mix(high, mid, ((tc - 0.5) / 0.5) * 100);
+  return mix(high, low, tc * 100);
 }
 
 /**
  * Gradient stops that reproduce `valueRampColor` for a legend
- * `<linearGradient>`. Direct ramps return just the two endpoints (so a
- * single-colour legend stays byte-identical to the legacy 2-stop output);
- * diverging ramps return sampled stops through the midpoint so the legend
- * capsule matches the region/box fills exactly.
+ * `<linearGradient>`. A direct two-endpoint fade needs only the two stops; the
+ * gradient itself interpolates between the palette colours.
  */
 export function valueRampStops(
   low: string,
   high: string,
-  opts: { isDark: boolean }
+  _opts: { isDark: boolean }
 ): ReadonlyArray<{ offset: number; color: string }> {
-  if (rampMode(hexToHSL(low), hexToHSL(high)) === 'direct') {
-    return [
-      { offset: 0, color: low },
-      { offset: 1, color: high },
-    ];
-  }
-  return [0, 0.25, 0.5, 0.75, 1].map((offset) => ({
-    offset,
-    color: valueRampColor(low, high, offset, opts),
-  }));
+  return [
+    { offset: 0, color: low },
+    { offset: 1, color: high },
+  ];
 }
 
 // ============================================================
@@ -404,33 +328,46 @@ export function getSeriesColors(palette: PaletteColors): string[] {
  * Generate `count` visually distinct colors for segment-based charts
  * (pie, doughnut, polar-area).
  *
- * Problem: several palettes have duplicate hex values for different named
- * colors (e.g. Solarized teal===cyan, One Dark orange===yellow), and the
- * 8-color modulo cycle repeats when there are more than 8 segments.
+ * Stays ON-PALETTE: the first pass is the palette's own series hues at full
+ * strength. When a chart needs more segments than the palette has distinct
+ * hues, additional passes reuse the SAME hues at shifted lightness — each a
+ * tint (mixed toward `bg`) or shade (mixed toward `text`) of a true palette
+ * colour. Hue is never rotated or invented; extra segments read as lighter /
+ * darker variants of the palette, not as wheel-generated colours.
  *
- * Solution: generate evenly-spaced hues using the palette's characteristic
- * saturation and lightness, guaranteeing every segment gets a unique,
- * perceptually distinct color regardless of segment count.
+ * (Several palettes have duplicate hex for different named colours — e.g.
+ * teal===cyan — so the first pass is deduped before the lightness bands kick in.)
  */
 export function getSegmentColors(
   palette: PaletteColors,
   count: number
 ): string[] {
-  const base = getSeriesColors(palette);
-  const unique = [...new Set(base)];
-  const hsls = unique.map(hexToHSL);
+  if (count <= 0) return [];
+  const base = [...new Set(getSeriesColors(palette))];
+  if (count <= base.length) return base.slice(0, count);
 
-  const avgS = Math.round(hsls.reduce((s, c) => s + c.s, 0) / hsls.length);
-  const avgL = Math.round(hsls.reduce((s, c) => s + c.l, 0) / hsls.length);
+  // Lightness bands of the SAME hues — alternating tint/shade, progressively
+  // stronger. Mixing toward the neutral bg/text keeps hue, varying only
+  // lightness/saturation (a tint/fade). Symmetric across light & dark themes:
+  // `bg` is light/dark and `text` is its inverse, so the two directions always
+  // diverge.
+  const { bg, text } = palette;
+  const variants: ReadonlyArray<(c: string) => string> = [
+    (c) => mix(c, bg, 55), // lighter
+    (c) => mix(c, text, 55), // darker
+    (c) => mix(c, bg, 35),
+    (c) => mix(c, text, 35),
+  ];
 
-  // Start from the palette's blue hue (first in series) for consistency.
-  // hsls has at least 1 entry because getSeriesColors always returns 8.
-  const startHue = hsls[0]?.h ?? 0;
-  const step = 360 / count;
-
-  return Array.from({ length: count }, (_, i) =>
-    hslToHex(Math.round((startHue + i * step) % 360), avgS, avgL)
-  );
+  const out = [...base];
+  for (let w = 0; out.length < count; w++) {
+    const variant = variants[w % variants.length]!;
+    for (const c of base) {
+      if (out.length >= count) break;
+      out.push(variant(c));
+    }
+  }
+  return out.slice(0, count);
 }
 
 // ============================================================

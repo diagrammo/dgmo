@@ -180,7 +180,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
     expect(b.getAttribute('stroke')).toBe(bRamp);
   });
 
-  it('diverging green→red mid outline is not a muddy direct blend (AC6)', async () => {
+  it('diverging green→red mid outline is a straight palette fade (no synthetic hue)', async () => {
     const svg = await render(
       'boxes-and-lines\nbox-metric Heat green red\nA value: 0\nMid value: 50\nB value: 100\nA -> B'
     );
@@ -188,18 +188,20 @@ describe('boxes-and-lines renderer — value ramp', () => {
     const midStroke = nodeFor(svg, 'Mid')
       .querySelector('rect')!
       .getAttribute('stroke')!;
+    // Direct sRGB fade between the two palette endpoints — on-palette, no
+    // invented bisector hue.
     expect(midStroke).toBe(
       valueRampColor(P.colors.green, P.colors.red, 0.5, { isDark: false })
     );
-    expect(midStroke).not.toBe(mix(P.colors.red, P.colors.green, 50));
+    expect(midStroke).toBe(mix(P.colors.red, P.colors.green, 50));
   });
 
-  it('legend gradient stops reproduce the fills (AC9)', async () => {
+  it('legend gradient stops reproduce the fills', async () => {
     const svg = await render(
       'boxes-and-lines\nbox-metric Heat green red\nA value: 0\nB value: 100\nA -> B'
     );
     const stops = [...svg.querySelectorAll('stop')] as SVGStopElement[];
-    expect(stops.length).toBeGreaterThan(2); // diverging → sampled stops
+    expect(stops.length).toBe(2); // direct fade → two endpoints
     for (const s of stops) {
       const offset = parseFloat(s.getAttribute('offset')!) / 100;
       expect(s.getAttribute('stop-color')).toBe(

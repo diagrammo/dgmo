@@ -44,16 +44,13 @@ describe('valueRampColor', () => {
     expect(valueRampColor(YELLOW, RED, 0.5, opts)).toBe(mix(RED, YELLOW, 50));
   });
 
-  it('diverging endpoints route through a midpoint, not a muddy direct blend (AC6)', () => {
-    const mid = valueRampColor(GREEN, RED, 0.5, opts);
-    const directMid = mix(RED, GREEN, 50);
-    expect(mid).not.toBe(directMid);
-    // Midpoint keeps a hint of colour (above the internal saturation floor) —
-    // it is not a dead gray.
-    expect(hexToHSL(mid).s).toBeGreaterThan(10);
+  it('diverging endpoints take the same direct blend — no synthetic midpoint hue', () => {
+    // Stays on-palette: the fill at any t is a straight sRGB fade between the
+    // two true palette endpoints, never a wheel-generated bisector hue.
+    expect(valueRampColor(GREEN, RED, 0.5, opts)).toBe(mix(RED, GREEN, 50));
   });
 
-  it('dark-theme midpoint never exceeds both endpoints in luminance (AC8)', () => {
+  it('direct mix never exceeds both endpoints in luminance', () => {
     const dGreen = '#3aa15f';
     const dRed = '#e06c75';
     const mid = valueRampColor(dGreen, dRed, 0.5, { isDark: true });
@@ -62,8 +59,7 @@ describe('valueRampColor', () => {
     expect(lMid).toBeLessThanOrEqual(lHi + 1e-9);
   });
 
-  it('achromatic endpoint takes the direct branch (saturation gate first — AC15)', () => {
-    // gray→red: gray has s≈0 so the hue-gap test is skipped → direct blend.
+  it('achromatic endpoint also takes the direct blend', () => {
     const mid = valueRampColor('#808080', RED, 0.5, opts);
     expect(mid).toBe(mix(RED, '#808080', 50));
     // black/white never produce NaN/undefined-hue artifacts.
@@ -95,15 +91,12 @@ describe('valueRampStops', () => {
     ]);
   });
 
-  it('samples through the midpoint for a diverging ramp (AC9)', () => {
+  it('returns just the two endpoints for a diverging ramp too (direct fade)', () => {
     const stops = valueRampStops('#2e8b57', '#c0392b', { isDark: false });
-    expect(stops.length).toBeGreaterThan(2);
-    // Every stop reproduces valueRampColor at its offset.
-    for (const s of stops) {
-      expect(s.color).toBe(
-        valueRampColor('#2e8b57', '#c0392b', s.offset, { isDark: false })
-      );
-    }
+    expect(stops).toEqual([
+      { offset: 0, color: '#2e8b57' },
+      { offset: 1, color: '#c0392b' },
+    ]);
   });
 });
 
