@@ -99,6 +99,8 @@ export interface ResolvedEdge {
   readonly directed: boolean;
   readonly style: 'straight' | 'arc';
   readonly meta: Readonly<Record<string, string>>;
+  /** Tag(s) on the edge line → colour the LINE (§24B.6). */
+  readonly tags: Readonly<Record<string, string>>;
   readonly lineNumber: number;
 }
 
@@ -108,6 +110,8 @@ export interface ResolvedRouteLeg {
   readonly label?: string;
   readonly style: 'straight' | 'arc';
   readonly value?: string; // leg thickness
+  /** Tag(s) on the leg line → colour the LINE (§24B.6). */
+  readonly tags: Readonly<Record<string, string>>;
   readonly lineNumber: number;
 }
 

@@ -693,6 +693,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       directed: e.directed,
       style: e.style,
       meta: e.meta,
+      tags: e.tags,
       lineNumber: e.lineNumber,
     });
   }
@@ -777,7 +778,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
         leg.dest,
         leg.destAlias,
         leg.destLabel,
-        leg.destTags,
+        {}, // a leg tag colours the LINE (§24B.6), not the destination stop
         undefined, // a leg's `value:` is leg thickness, not the dest's size
         leg.lineNumber
       );
@@ -788,6 +789,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
         ...(leg.label !== undefined && { label: leg.label }),
         style: leg.style,
         ...(leg.value !== undefined && { value: leg.value }),
+        tags: leg.tags,
         lineNumber: leg.lineNumber,
       });
       if (!stopIds.includes(destId)) stopIds.push(destId); // unique markers (loop-close dedupe)

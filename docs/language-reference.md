@@ -2784,7 +2784,7 @@ poi Austin red                      # direct marker color (trailing token, §1.5
 
 ### Routes & connectors
 
-`route <origin> [style: arc]` — an ordered, auto-numbered voyage; the origin gets a distinct marker. Each indented line is a `[-label->] destination` leg that continues from the previous stop — a leg is an edge (in-arrow label, `value:` thickness, `->`/`~>` or header `style: arc` shape). A tag/`label:` on a leg decorates its destination stop. Repeat the origin as a leg's destination to close a loop (no second marker):
+`route <origin> [style: arc]` — an ordered, auto-numbered voyage; the origin gets a distinct marker. Each indented line is a `[-label->] destination` leg that continues from the previous stop — a leg is an edge (in-arrow label, `value:` thickness, `->`/`~>` or header `style: arc` shape). A **tag on a leg colours the LINE** (categorical leg-type colouring — flights vs cruises vs trains); `label:`/`as` still name the destination stop. Repeat the origin as a leg's destination to close a loop (no second marker):
 
 ```
 route Miami style: arc
@@ -2814,13 +2814,20 @@ dcw                     # hub/star — indented edges share the source
 
 There is no geographic path-finding and no `surface:` — legs are plain straight or arced geometry (`style: arc` to bow one) and may cross land.
 
-```
-map Caribbean Cruise
+**Tagging the line.** A tag value on any connector or route leg colours the **line itself** (the universal tag model applied to edges) — the "trip-leg type" idiom. Edge-only tag groups show in the legend as a line-colour key; hovering a legend entry dims the lines that don't match. To categorise a **stop** instead, tag its own `poi` line. An edge-only tag group never tints regions or suppresses the colorize dress.
 
-route Miami style: arc
-  -weigh anchor-> Havana
-  -> Kingston
-  -> Cartagena
+```
+map Smuggler's Run
+
+tag Leg as l
+  Sail blue
+  March green
+
+poi 23.13 -82.38 as hav label: Havana
+poi 18.02 -76.79 as cove label: Pirate's Cove
+
+hav ~> cove l: Sail     # the LINE turns blue
+cove -> hav l: March    # the LINE turns green
 ```
 
 ### Labels, legend & chrome

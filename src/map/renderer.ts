@@ -880,7 +880,17 @@ export function renderMap(
       .attr('d', leg.d)
       .attr('stroke', leg.color)
       .attr('stroke-width', leg.width)
-      .attr('stroke-linecap', 'round');
+      .attr('stroke-linecap', 'round')
+      // Endpoint POI ids so a focused leg can co-highlight its two POIs (§17 sync).
+      .attr('data-from-id', leg.fromId)
+      .attr('data-to-id', leg.toId);
+    // Tag the line per tag value (lowercased, matching the legend-entry attrs) so
+    // a legend hover spotlights only the matching lines (§24B.6) — mirrors POIs.
+    if (leg.tags) {
+      for (const [group, value] of Object.entries(leg.tags)) {
+        p.attr(`data-tag-${group.toLowerCase()}`, value.toLowerCase());
+      }
+    }
     // A 0-width invisible leg path is hard to hit; pointer-events on the visible
     // stroke is enough for the line widths legs use.
     wireSync(p, leg.lineNumber);

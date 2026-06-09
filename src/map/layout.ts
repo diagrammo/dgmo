@@ -397,6 +397,10 @@ export interface MapLayoutLeg {
    *  POIs when the leg is focused (§17 sync). */
   readonly fromId: string;
   readonly toId: string;
+  /** Tag values (keyed by lowercased group name) — emitted as `data-tag-*`, like
+   *  POI markers, so a legend-entry hover spotlights only the matching lines
+   *  (§24B.6). Omitted when the leg carries no tag. */
+  readonly tags?: Readonly<Record<string, string>>;
   readonly label?: string;
   readonly labelX?: number;
   readonly labelY?: number;
@@ -2544,6 +2548,7 @@ export function layoutMap(
         arrow: true,
         fromId: leg.fromId,
         toId: leg.toId,
+        ...(Object.keys(leg.tags).length > 0 && { tags: leg.tags }),
         lineNumber: leg.lineNumber,
         ...(leg.label !== undefined && {
           label: leg.label,
@@ -2603,6 +2608,7 @@ export function layoutMap(
         arrow: e.directed,
         fromId: e.fromId,
         toId: e.toId,
+        ...(Object.keys(e.tags).length > 0 && { tags: e.tags }),
         lineNumber: e.lineNumber,
         ...(e.label !== undefined && {
           label: e.label,

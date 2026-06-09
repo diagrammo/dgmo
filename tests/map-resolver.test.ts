@@ -291,12 +291,14 @@ describe('resolver — edges & routes (AC10-12, AC23)', () => {
       ['osaka', 'tokyo'],
     ]);
   });
-  it('named route-stop metadata is no longer dropped (rides the stop POI)', () => {
+  it('a leg tag colours the LINE; label: still rides the stop POI (§24B.6)', () => {
     const r = resolve(
-      'map\ntag Port as p\n  Prize orange\nroute Tokyo\n  -raid-> Osaka p: Prize'
+      'map\ntag Port as p\n  Prize orange\nroute Tokyo\n  -raid-> Osaka p: Prize, label: Hideout'
     );
     const osaka = r.pois.find((x) => x.id === 'osaka')!;
-    expect(osaka.tags).toEqual({ port: 'Prize' });
+    expect(osaka.tags).toEqual({}); // the tag colours the leg LINE, not the stop
+    expect(osaka.label).toBe('Hideout'); // label: still names the destination
+    expect(r.routes[0]!.legs[0]!.tags).toEqual({ port: 'Prize' }); // rides the line
   });
 });
 

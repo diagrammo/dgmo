@@ -111,8 +111,8 @@ export interface MapPoi {
 
 /** One leg of a route (§24B.6): an edge from the previous stop to `dest`. Reuses
  *  the edge arrow idiom — in-arrow text = leg label, `value:` = leg thickness,
- *  `->`/`~>` (or the header `style: arc`) = shape. Stop-targeted keys on the leg
- *  line (`tag`, `label:`) decorate the DESTINATION point. */
+ *  `->`/`~>` (or the header `style: arc`) = shape. A tag on the leg line colours
+ *  the LINE (§24B.6); `label:`/`as` still name the DESTINATION stop. */
 export interface MapRouteLeg {
   readonly label?: string; // in-arrow leg label
   readonly style: 'straight' | 'arc';
@@ -120,7 +120,9 @@ export interface MapRouteLeg {
   readonly dest: PoiPos;
   readonly destAlias?: string;
   readonly destLabel?: string;
-  readonly destTags: Readonly<Record<string, string>>;
+  /** Tag(s) on the leg line → colour the LINE itself. To categorise a STOP,
+   *  tag its own `poi` line. */
+  readonly tags: Readonly<Record<string, string>>;
   readonly lineNumber: number;
 }
 
@@ -149,6 +151,8 @@ export interface MapEdge {
   readonly directed: boolean;
   readonly style: 'straight' | 'arc';
   readonly meta: Readonly<Record<string, string>>;
+  /** Tag(s) on the edge line → colour the LINE itself (§24B.6). */
+  readonly tags: Readonly<Record<string, string>>;
   readonly lineNumber: number;
 }
 

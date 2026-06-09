@@ -205,13 +205,16 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
         const src = open.poi.poi.alias ?? poiName(open.poi.poi.pos);
         if (src) {
           const arr = classifyArrow(hub[1]!, lineNumber);
+          const hubSplit = splitNameAndMeta(hub[2]!, registry(), aliasMap);
+          const { tags, meta } = partitionMeta(hubSplit.meta, tagGroupNames());
           edges.push({
             from: src,
-            to: hub[2]!.trim(),
+            to: hubSplit.name.trim(),
             ...(arr.label !== undefined && { label: arr.label }),
             directed: arr.directed,
             style: arr.style,
-            meta: {},
+            meta,
+            tags,
             lineNumber,
           });
         }
@@ -528,7 +531,8 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
 
   /** Parse one route body line into a leg: `[-label->] <destination> [keys]`.
    *  The arrow (if any) gives the leg label + shape; `value:` is leg thickness;
-   *  a tag / `label:` decorate the destination stop. Bare `<dest>` = plain leg. */
+   *  a tag colours the LINE (§24B.6); `label:`/`as` name the destination stop.
+   *  Bare `<dest>` = plain leg. */
   function parseLeg(
     trimmed: string,
     line: number,
@@ -570,7 +574,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       dest: pos,
       ...(split.alias !== undefined && { destAlias: split.alias }),
       ...(destLabel !== undefined && { destLabel }),
-      destTags: tags,
+      tags, // colour the LINE (§24B.6); stop tags go on the poi line
       lineNumber: line,
     };
   }
@@ -593,13 +597,18 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       else links.push(classifyArrow(parts[k]!, line));
     }
     // Trailing metadata rides on the final endpoint only (R5), and attaches to
-    // the FINAL leg only — not broadcast to every leg of a chain (#7).
+    // the FINAL leg only — not broadcast to every leg of a chain (#7). A tag on
+    // the line colours the LINE (§24B.6), so peel tags out of the meta here.
     const lastSplit = splitNameAndMeta(
       endpoints[endpoints.length - 1]!,
       registry(),
       aliasMap
     );
     endpoints[endpoints.length - 1] = lastSplit.name;
+    const { tags: lastTags, meta: lastMeta } = partitionMeta(
+      lastSplit.meta,
+      tagGroupNames()
+    );
     for (let k = 0; k < links.length; k++) {
       const from = endpoints[k]!;
       const to = endpoints[k + 1]!;
@@ -608,7 +617,8 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
         continue;
       }
       const isLast = k === links.length - 1;
-      const meta = isLast ? lastSplit.meta : {};
+      const meta = isLast ? lastMeta : {};
+      const tags = isLast ? lastTags : {};
       // Edge shape comes only from the arrow token (surface parsing removed).
       const style: 'straight' | 'arc' =
         links[k]!.style === 'arc' ? 'arc' : 'straight';
@@ -619,6 +629,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
         directed: links[k]!.directed,
         style,
         meta,
+        tags,
         lineNumber: line,
       });
     }

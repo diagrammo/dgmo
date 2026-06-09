@@ -382,13 +382,13 @@ describe('parseMap — routes (AC12)', () => {
     // leg 3 closes the loop back to the origin
     expect(rt.legs[2]!.dest).toEqual({ kind: 'name', name: 'Miami' });
   });
-  it('a leg tag/label decorates the destination stop', () => {
+  it('a leg tag colours the LINE; label: still names the destination stop', () => {
     const r = parseMap(
       'map\ntag Port as p\n  Prize orange\nroute Tortuga\n  -raid-> Nassau p: Prize, label: Hideout'
     );
     const leg = r.routes[0]!.legs[0]!;
-    expect(leg.destTags).toEqual({ port: 'Prize' });
-    expect(leg.destLabel).toBe('Hideout');
+    expect(leg.tags).toEqual({ port: 'Prize' }); // tag rides on the LINE now
+    expect(leg.destLabel).toBe('Hideout'); // label: still names the stop
     expect(leg.label).toBe('raid'); // in-arrow text is the LEG label
   });
   it('route requires an origin on the header', () => {
@@ -421,6 +421,12 @@ describe('parseMap — edges (AC13–AC15, AC17)', () => {
       ['A', 'B'],
       ['B', 'C'],
     ]);
+  });
+  it('a tag on an edge line rides on the LINE (§24B.6)', () => {
+    const r = parseMap('map\ntag Leg as l\n  Cruise blue\nA ~> B l: Cruise');
+    expect(r.edges[0]).toMatchObject({ from: 'A', to: 'B', directed: true });
+    expect(r.edges[0]!.tags).toEqual({ leg: 'Cruise' }); // keyed by group name
+    expect(r.edges[0]!.label).toBeUndefined(); // tag is not the arrow label
   });
   it('~> arc and -- undirected seam (AC14)', () => {
     const r = parseMap('map\nA ~> B');

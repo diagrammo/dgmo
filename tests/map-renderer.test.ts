@@ -177,6 +177,31 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(Number(label!.getAttribute('data-line-number'))).toBe(3);
   });
 
+  it('leg paths carry data-from-id/data-to-id (focus → endpoint co-highlight)', () => {
+    const svg = render('map\nroute Tokyo\n  -ferry-> Osaka');
+    const path = svg.querySelector<SVGPathElement>(
+      '.dgmo-map-legs path[data-from-id]'
+    );
+    expect(path).toBeTruthy();
+    expect(path!.getAttribute('data-from-id')).toBe('tokyo');
+    expect(path!.getAttribute('data-to-id')).toBe('osaka');
+    // those ids resolve to real POI markers, so the app can un-dim them
+    expect(svg.querySelector(`circle[data-poi="tokyo"]`)).toBeTruthy();
+    expect(svg.querySelector(`circle[data-poi="osaka"]`)).toBeTruthy();
+  });
+
+  it('a tagged leg carries data-tag-<group> (legend-hover spotlight)', () => {
+    const svg = render(
+      'map\ntag Leg as l\n  Fly red\n  Cruise blue\npoi Tokyo\npoi Osaka\nTokyo ~> Osaka l: Cruise'
+    );
+    const path = svg.querySelector<SVGPathElement>(
+      '.dgmo-map-legs path[data-from-id]'
+    );
+    expect(path).toBeTruthy();
+    // lowercased group + value, matching the legend-entry attrs the app reads
+    expect(path!.getAttribute('data-tag-leg')).toBe('cruise');
+  });
+
   it('POI labels carry data-line-number and fire onClickItem', () => {
     let clicked: number | null = null;
     // POI line is line 2 (`poi Tokyo`).

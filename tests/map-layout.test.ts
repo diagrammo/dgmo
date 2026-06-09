@@ -638,6 +638,32 @@ describe('layout — routes & edges (AC9, AC10, AC11, AC12, AC28)', () => {
     expect(r.legs[1]!.d).toMatch(/Q/);
     expect(r.legs[0]!.d).not.toBe(r.legs[1]!.d);
   });
+  it('a tag on an edge/leg colours the LINE (§24B.6)', () => {
+    const src =
+      'map\ntag Leg as l\n  Fly red\n  Cruise blue\npoi Tokyo\npoi Osaka\nTokyo ~> Osaka l: Cruise';
+    const cruiseHex = resolveMap(
+      parseMap(src),
+      DATA
+    ).tagGroups[0]!.entries.find((e) => e.value === 'Cruise')!.color;
+    expect(lay(src).legs[0]!.color).toBe(cruiseHex); // line wears the tag colour
+    // an untagged edge keeps the neutral connector mix, not the tag colour
+    const plain = lay('map\npoi Tokyo\npoi Osaka\nTokyo ~> Osaka');
+    expect(plain.legs[0]!.color).not.toBe(cruiseHex);
+  });
+  it('an edge-only tag group shows as a legend key but leaves the basemap dress', () => {
+    // No region/POI carries the Leg tag → the group colours the LINE only. It
+    // must still appear in the legend as a line-colour key, yet NOT mute the
+    // basemap or suppress the political colorize dress: the drawn region fills
+    // are byte-identical to the same map without the tag group.
+    const base = lay('map\npoi Tokyo\npoi Osaka\nTokyo -> Osaka');
+    const tagged = lay(
+      'map\ntag Leg as l\n  Cruise blue\npoi Tokyo\npoi Osaka\nTokyo -> Osaka l: Cruise'
+    );
+    expect(tagged.legend?.tagGroups.some((g) => g.name === 'Leg')).toBe(true);
+    const fills = (r: typeof base): string[] =>
+      r.regions.map((x) => x.fill).sort();
+    expect(fills(tagged)).toEqual(fills(base)); // basemap unchanged by the edge group
+  });
   it('parallel edges + colliding cluster is byte-deterministic (AC28)', () => {
     const src =
       'map\npoi 0 0 as aaaa\npoi 0 0 as bbbb\naaaa -> bbbb\nbbbb -> aaaa';
