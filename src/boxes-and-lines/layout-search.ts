@@ -181,6 +181,139 @@ export function countSplineCrossings(layout: BLLayoutResult): number {
     }
   return total;
 }
+
+// distance from point p to segment a–b
+function pointSegDist(p: Pt, a: Pt, b: Pt): number {
+  const dx = b.x - a.x,
+    dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-9) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+function distToPoly(p: Pt, poly: readonly Pt[]): number {
+  let m = Infinity;
+  for (let i = 1; i < poly.length; i++)
+    m = Math.min(m, pointSegDist(p, poly[i - 1]!, poly[i]!));
+  return m;
+}
+type Rect = { x: number; y: number; w: number; h: number };
+// distance from point p to an axis-aligned rectangle (0 if inside)
+function pointRectDist(p: Pt, r: Rect): number {
+  const dx = Math.max(r.x - r.w / 2 - p.x, 0, p.x - (r.x + r.w / 2));
+  const dy = Math.max(r.y - r.h / 2 - p.y, 0, p.y - (r.y + r.h / 2));
+  return Math.hypot(dx, dy);
+}
+
+/** A stretch where one edge runs ALONG another (within `dist`, for at least
+ *  `minLen` of length) — i.e. two lines "stepping on" each other. Distinct from
+ *  a true X-crossing (which is a momentary touch, not a sustained run). */
+export interface OverlapRun {
+  mid: Pt;
+  length: number;
+  pts: Pt[];
+}
+
+/**
+ * Detect edge-overlap runs on the rendered spline geometry. Two edges sharing
+ * an endpoint legitimately CONVERGE at that node's port — runs within `nodeClear`
+ * of a shared node centre are excluded; only overlap along the open path counts.
+ */
+export function detectEdgeOverlaps(
+  layout: BLLayoutResult,
+  opts?: { dist?: number; minLen?: number; nodeClear?: number }
+): OverlapRun[] {
+  const dist = opts?.dist ?? 8;
+  const minLen = opts?.minLen ?? 16;
+  // Margin BEYOND the shared node's box that still counts as "converging to the
+  // port" (excluded). Edges legitimately meet at a node — only overlap out in
+  // the open, away from any shared node, is a real "stepping on another line".
+  const nodeClear = opts?.nodeClear ?? 12;
+
+  const rect = new Map<string, Rect>();
+  for (const n of layout.nodes)
+    rect.set(n.label, { x: n.x, y: n.y, w: n.width, h: n.height });
+  for (const g of layout.groups)
+    if (g.collapsed)
+      rect.set('__group_' + g.label, {
+        x: g.x,
+        y: g.y,
+        w: g.width,
+        h: g.height,
+      });
+
+  const polys = layout.edges.map((e) => {
+    const pts =
+      e.points.length >= 2 ? flatten(splineGen(e.points as Pt[]) ?? '') : [];
+    let x0 = Infinity,
+      y0 = Infinity,
+      x1 = -Infinity,
+      y1 = -Infinity;
+    for (const p of pts) {
+      if (p.x < x0) x0 = p.x;
+      if (p.x > x1) x1 = p.x;
+      if (p.y < y0) y0 = p.y;
+      if (p.y > y1) y1 = p.y;
+    }
+    return { pts, s: e.source, t: e.target, x0, y0, x1, y1 };
+  });
+
+  const runs: OverlapRun[] = [];
+  for (let a = 0; a < polys.length; a++)
+    for (let b = a + 1; b < polys.length; b++) {
+      const A = polys[a]!,
+        B = polys[b]!;
+      if (A.pts.length < 2 || B.pts.length < 2) continue;
+      if (
+        A.x1 + dist < B.x0 ||
+        B.x1 + dist < A.x0 ||
+        A.y1 + dist < B.y0 ||
+        B.y1 + dist < A.y0
+      )
+        continue;
+      const shared = [A.s, A.t]
+        .filter((n) => n === B.s || n === B.t)
+        .map((n) => rect.get(n))
+        .filter(Boolean) as Rect[];
+      // Walk A; accumulate contiguous "covered" runs (close to B, off any shared
+      // node). A run counts once if it reaches minLen.
+      let run: Pt[] = [];
+      let runLen = 0;
+      const flush = (): void => {
+        if (runLen >= minLen && run.length >= 2)
+          runs.push({
+            mid: run[Math.floor(run.length / 2)]!,
+            length: runLen,
+            pts: run.slice(),
+          });
+        run = [];
+        runLen = 0;
+      };
+      for (const p of A.pts) {
+        const nearShared = shared.some((r) => pointRectDist(p, r) < nodeClear);
+        const covered = !nearShared && distToPoly(p, B.pts) < dist;
+        if (covered) {
+          if (run.length)
+            runLen += Math.hypot(
+              p.x - run[run.length - 1]!.x,
+              p.y - run[run.length - 1]!.y
+            );
+          run.push(p);
+        } else flush();
+      }
+      flush();
+    }
+  return runs;
+}
+
+/** Count of edge-overlap runs — the "stepping on another line" metric. */
+export function countEdgeOverlaps(
+  layout: BLLayoutResult,
+  opts?: { dist?: number; minLen?: number; nodeClear?: number }
+): number {
+  return detectEdgeOverlaps(layout, opts).length;
+}
 // Fast crossing estimate for RANKING candidates: straight segments on raw
 // waypoints (no curveBasis flatten) + bbox pruning + early-out per pair.
 // ~10× cheaper than countSplineCrossings; topology-equivalent for ranking.

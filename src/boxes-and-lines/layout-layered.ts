@@ -507,14 +507,17 @@ export function layeredCandidates(
     }
     const GAP = 34;
     const LANE = 18;
-    const centerCross = (minCross + maxCross) / 2;
+    // Pick the loop side by the SOURCE's position — it's the endpoint that must
+    // escape sideways to a lane; the target is typically central (a hub). A
+    // left-of-centre source loops left, a right-of-centre source loops right, so
+    // returns don't all pile onto one side and stack.
     const sideOf = (b: { src: string; tgt: string }): number => {
       if (backEdgeSide === 'left') return -1;
       if (backEdgeSide === 'right') return 1;
-      return (node.get(b.src)!.cross + node.get(b.tgt)!.cross) / 2 >=
-        centerCross
-        ? 1
-        : -1;
+      // Loop on the side the source sits relative to its (usually central) target
+      // — splits returns left/right instead of piling them on one side.
+      const d = node.get(b.src)!.cross - node.get(b.tgt)!.cross;
+      return d >= 0 ? 1 : -1;
     };
     // Assign lanes: per side, longer rank-spans go further out (lower k = inner).
     const backSorted = backEdges
@@ -524,31 +527,44 @@ export function layeredCandidates(
         span: Math.abs(node.get(b.src)!.rank - node.get(b.tgt)!.rank),
       }))
       .sort((a, b) => a.side - b.side || a.span - b.span);
+    const sideCounts = new Map<number, number>();
+    for (const b of backSorted)
+      sideCounts.set(b.side, (sideCounts.get(b.side) ?? 0) + 1);
     const laneCounter = new Map<number, number>();
     const backPoints = new Map<number, Pt[]>();
+    const faceLim = (depth: number): number => Math.max(0, depth / 2 - 6);
     for (const b of backSorted) {
       const s = b.side;
       const k = laneCounter.get(s) ?? 0;
       laneCounter.set(s, k + 1);
+      const K = sideCounts.get(s)!;
       const src = node.get(b.src)!;
       const tgt = node.get(b.tgt)!;
       const laneC =
         s > 0 ? maxCross + GAP + k * LANE : minCross - GAP - k * LANE;
-      const srcEdgeC = src.cross + (s * src.thick) / 2;
-      const tgtEdgeC = tgt.cross + (s * tgt.thick) / 2;
-      const srcR = bandCenter[src.rank]!;
-      const tgtR = bandCenter[tgt.rank]!;
+      const srcCtr = bandCenter[src.rank]!;
+      const tgtCtr = bandCenter[tgt.rank]!;
+      // Nested attachments for same-side siblings: outer lane attaches further
+      // out at BOTH ends so the arcs nest (never cross). Enter the (upper) target
+      // from its top half — away from its downward forward edges; leave the
+      // (lower) source from its bottom half. Distributed by lane order across the
+      // node face, so siblings into a shared hub fan apart instead of stacking.
+      const frac = K > 1 ? (k + 1) / (K + 1) : 0;
+      const srcR = srcCtr + frac * faceLim(src.depth);
+      const tgtR = tgtCtr - frac * faceLim(tgt.depth);
       const m = (c: number, r: number): Pt =>
         isTB ? { x: c, y: r } : { x: r, y: c };
+      // The arc runs from the node centre DIAGONALLY out to its lane corner (no
+      // shared horizontal node-edge stub), up the lane, then diagonally back in.
+      // Distinct lane x + corner height per sibling ⇒ the approaches diverge from
+      // the port instead of running collinear into it.
       backPoints.set(b.edgeIdx, [
-        m(src.cross, srcR),
-        m(srcEdgeC, srcR),
+        m(src.cross, srcCtr),
         m(laneC, srcR),
         m(laneC, srcR),
         m(laneC, tgtR),
         m(laneC, tgtR),
-        m(tgtEdgeC, tgtR),
-        m(tgt.cross, tgtR),
+        m(tgt.cross, tgtCtr),
       ]);
     }
 

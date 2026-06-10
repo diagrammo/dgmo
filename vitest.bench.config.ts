@@ -9,6 +9,7 @@ export default defineConfig({
       'tests/bl-layout-bench.ts',
       'tests/bl-collapse-bench.ts',
       'tests/bl-options.ts',
+      'tests/bl-overlap-debug.ts',
     ],
     disableConsoleIntercept: true,
     testTimeout: 300_000,
