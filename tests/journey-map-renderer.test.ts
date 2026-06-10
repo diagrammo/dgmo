@@ -100,6 +100,47 @@ tag Channel ch
     });
   });
 
+  // ── Emotion labels ──────────────────────────────────────
+
+  describe('emotion labels', () => {
+    const emoInput = `journey-map Checkout
+
+[Flow]
+  Browse score: 5, emotion: Delighted
+  Forced login score: 1, emotion: Frustrated
+  No feeling score: 3`;
+
+    it('captions each scored step that has an emotion label', () => {
+      const { container } = renderToContainer(emoInput);
+      const labels = container.querySelectorAll('.journey-emotion-label');
+      const texts = [...labels].map((l) => l.textContent);
+      expect(texts).toContain('Delighted');
+      expect(texts).toContain('Frustrated');
+      // Step without an emotion gets no caption
+      expect(labels).toHaveLength(2);
+    });
+
+    it('always places captions below the face (clear of the hover bubble above)', () => {
+      const { container } = renderToContainer(emoInput);
+      const faces = [...container.querySelectorAll('.journey-face')];
+      const labelY = (emotion: string): number => {
+        const g = faces.find(
+          (f) =>
+            f.querySelector('.journey-emotion-label')?.textContent === emotion
+        )!;
+        const cy = parseFloat(g.querySelector('circle')!.getAttribute('cy')!);
+        const ly = parseFloat(
+          g.querySelector('.journey-emotion-label')!.getAttribute('y')!
+        );
+        return ly - cy;
+      };
+      // The thought bubble always pops above the face, so captions sit below
+      // (positive offset) for both high and low scores to stay visible on hover.
+      expect(labelY('Delighted')).toBeGreaterThan(0);
+      expect(labelY('Frustrated')).toBeGreaterThan(0);
+    });
+  });
+
   // ── Grid lines ──────────────────────────────────────────
 
   describe('grid lines', () => {

@@ -512,6 +512,7 @@ export function renderJourneyMap(
     for (const pt of layout.curvePoints) {
       const step = allSteps[pt.stepIndex];
       const faceG = renderScoreFace(curveG, pt.x, pt.y, pt.score, palette);
+      addEmotionLabel(faceG, pt, palette);
       if (step) {
         faceG.attr('data-line-number', step.lineNumber);
         faceG.attr('data-score', pt.score);
@@ -543,6 +544,7 @@ export function renderJourneyMap(
         : parsed.steps;
     const step = allSteps[pt.stepIndex];
     const faceG = renderScoreFace(curveG, pt.x, pt.y, pt.score, palette);
+    addEmotionLabel(faceG, pt, palette);
     if (step) {
       faceG.attr('data-line-number', step.lineNumber);
       faceG.attr('data-score', pt.score);
@@ -1449,6 +1451,53 @@ function renderScoreFace(
     .attr('stroke-linecap', 'round');
 
   return g;
+}
+
+// Max width an emotion caption may occupy. Curve faces sit at card centers
+// (columns are ~190px wide and never overlap), so clamping each caption below
+// the column width guarantees adjacent captions can never collide horizontally,
+// however tight the journey gets.
+const EMOTION_LABEL_MAX_WIDTH = 180;
+const EMOTION_LABEL_FONT_SIZE = FONT_SIZE_META;
+
+/**
+ * Caption a curve face with its emotion word. Appended INTO the face group so
+ * it dims / navigates with the face. Always placed BELOW the face: the curve
+ * band reserves a gap beneath the lowest face before the cards, and — crucially
+ * — the hover thought-bubble always pops ABOVE the face, so a below-caption is
+ * never occluded on hover (above-captions were). Below also keeps every caption
+ * clear of the persona box / title at the top of the band.
+ */
+function addEmotionLabel(
+  faceG: d3.Selection<SVGGElement, unknown, null, undefined>,
+  pt: CurvePoint,
+  palette: PaletteColors
+): void {
+  if (!pt.emotionLabel) return;
+  const text = truncateText(
+    pt.emotionLabel,
+    EMOTION_LABEL_MAX_WIDTH,
+    EMOTION_LABEL_FONT_SIZE
+  );
+  const y = pt.y + FACE_RADIUS + 5 + EMOTION_LABEL_FONT_SIZE;
+
+  faceG
+    .append('text')
+    .attr('class', 'journey-emotion-label')
+    .attr('x', pt.x)
+    .attr('y', y)
+    .attr('text-anchor', 'middle')
+    .attr('font-family', FONT_FAMILY)
+    .attr('font-size', EMOTION_LABEL_FONT_SIZE)
+    .attr('font-weight', 500)
+    .attr('fill', palette.text)
+    .attr('stroke', palette.bg)
+    .attr('stroke-width', 3)
+    .attr('stroke-linejoin', 'round')
+    .attr('stroke-opacity', 0.8)
+    .attr('paint-order', 'stroke')
+    .attr('pointer-events', 'none')
+    .text(text);
 }
 
 function wrapText(text: string, maxWidth: number, fontSize: number): string[] {

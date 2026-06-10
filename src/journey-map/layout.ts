@@ -77,15 +77,23 @@ export const TAG_STRIP_HEIGHT = 18;
 const PHASE_GAP = 16;
 const COLUMN_PADDING = 12;
 const FACE_ICON_SIZE = 20;
+// Extra room reserved below the curve band for emotion captions (which hang
+// beneath the lowest face) so they clear the phase header bar.
+const EMOTION_CAPTION_BAND = 18;
 
 // ============================================================
 // Score-to-color
 // ============================================================
 
 export function scoreToColor(score: number, palette: PaletteColors): string {
-  // 5=green, 1=red — interpolate
-  const t = ((5 - score) / 4) * 100;
-  return mix(palette.colors.red, palette.colors.green, t);
+  // Diverging red → amber → green ramp (RAG). A straight red→green sRGB lerp
+  // muddies the midrange into olive/brown; routing through yellow at score 3
+  // keeps the negative/neutral faces clean amber instead.
+  const s = Math.max(1, Math.min(5, score));
+  const { red, yellow, green } = palette.colors;
+  return s <= 3
+    ? mix(yellow, red, ((s - 1) / 2) * 100) // 1→red, 3→yellow
+    : mix(green, yellow, ((s - 3) / 2) * 100); // 3→yellow, 5→green
 }
 
 // Vertical headroom reserved at the top of the curve area (px). Keep faces
@@ -132,9 +140,18 @@ export function layoutJourneyMap(
     s.annotations.some((a) => a.type === 'thought')
   );
 
+  // Emotion captions render below their face. The score-1 face sits at the very
+  // bottom of the curve band, so without reserved room its caption collides with
+  // the phase header bar just below. Reserve a caption band in the curve→card gap
+  // whenever any scored step carries an emotion label.
+  const hasEmotions = allStepsForThoughts.some(
+    (s) => s.score !== undefined && s.emotionLabel !== undefined
+  );
+
   const curveAreaTop = PADDING + titleHeight + personaHeight;
   const curveAreaBottom = curveAreaTop + CURVE_AREA_HEIGHT;
-  const cardAreaTop = curveAreaBottom + PADDING;
+  const cardAreaTop =
+    curveAreaBottom + PADDING + (hasEmotions ? EMOTION_CAPTION_BAND : 0);
 
   const allSteps = hasPhases
     ? parsed.phases.flatMap((p) => p.steps)
