@@ -663,10 +663,22 @@ export function layoutBoxesAndLinesSearch(
       seed: s,
     });
 
-  // Objective: crossings dominate (×1e6, strictly fewer wins); ties broken by
+  // Honest "badness" — every kind of line-in-the-wrong-place counts equally:
+  //   X true crossings + O overlap runs (lines stepping on each other)
+  //     + P edges piercing unrelated node boxes.
+  // (A line through a node and two lines sharing a path are crossings too.)
+  // `floor` lets callers skip the expensive O/P passes once X alone already
+  // exceeds the best badness found so far (it can't win, return Infinity).
+  const badness = (lay: BLLayoutResult, floor: number): number => {
+    const x = countSplineCrossings(lay);
+    if (x > floor) return Infinity;
+    return x + countEdgeOverlaps(lay) + countEdgeNodePierces(lay);
+  };
+
+  // Objective: badness dominates (×1e6, strictly fewer wins); ties broken by
   // total edge length (positioning) + stability drift (only when prev given).
-  const objective = (lay: BLLayoutResult, crossings: number) =>
-    crossings * 1e6 + edgeLength(lay) + lambda * meanDrift(lay, prev) * 10;
+  const objective = (lay: BLLayoutResult, viol: number) =>
+    viol * 1e6 + edgeLength(lay) + lambda * meanDrift(lay, prev) * 10;
 
   // Build the candidate pool.
   const pool: BLLayoutResult[] = [];
@@ -693,36 +705,40 @@ export function layoutBoxesAndLinesSearch(
     /* ignore */
   }
 
-  // Stage 1: rank the dagre pool with the cheap straight-segment counter.
+  // Stage 1: rank the dagre pool with the cheap straight-segment counter — a
+  // cheap proxy to pick which candidates are worth the expensive exact scoring.
+  // Widen REFINE_K a little since the proxy only sees crossings, not O/P.
   pool.sort(
     (a, b) =>
       objective(a, countCrossingsFast(a)) - objective(b, countCrossingsFast(b))
   );
+  const refineK = Math.min(REFINE_K, pool.length);
 
-  // Stage 2: exact-score the top-K dagre candidates with the trustworthy
-  // curveBasis counter and pick the best.
+  // Stage 2: exact-score the top-K dagre candidates on the FULL badness (X+O+P)
+  // and pick the best — so the placement search avoids overlaps and node-pierces,
+  // not just crossings.
   let best = pool[0]!;
-  let bestExact = Infinity;
-  let bestCrossings = Infinity;
-  for (const lay of pool.slice(0, REFINE_K)) {
-    const cr = countSplineCrossings(lay);
-    const sc = objective(lay, cr);
-    if (sc < bestExact) {
-      bestExact = sc;
-      bestCrossings = cr;
+  let bestObj = Infinity;
+  let bestBad = Infinity;
+  for (const lay of pool.slice(0, refineK)) {
+    const bad = badness(lay, bestBad);
+    if (bad === Infinity) continue;
+    const sc = objective(lay, bad);
+    if (sc < bestObj) {
+      bestObj = sc;
+      bestBad = bad;
       best = lay;
     }
   }
 
   // A layered candidate replaces the dagre winner ONLY when it STRICTLY reduces
-  // crossings — never on an edge-length tiebreak. This keeps the dagre layout's
-  // visual character on the (common) cases where crossings already tie, and lets
-  // the home-grown engine in only when it genuinely clears an avoidable crossing
-  // dagre can't (e.g. pirate-fleet's back-edge routing).
+  // total badness — never on an edge-length tiebreak. Keeps the dagre layout's
+  // visual character where badness ties, and lets the home-grown engine in only
+  // when it genuinely clears violations dagre can't.
   for (const lay of layered) {
-    const cr = countSplineCrossings(lay);
-    if (cr < bestCrossings) {
-      bestCrossings = cr;
+    const bad = badness(lay, bestBad - 1);
+    if (bad < bestBad) {
+      bestBad = bad;
       best = lay;
     }
   }
