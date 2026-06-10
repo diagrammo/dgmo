@@ -10,6 +10,7 @@ import { layoutBoxesAndLines } from '../src/boxes-and-lines/layout';
 import {
   layoutBoxesAndLinesSearch,
   countSplineCrossings,
+  countEdgeOverlaps,
 } from '../src/boxes-and-lines/layout-search';
 
 const GAUNTLET =
@@ -40,13 +41,15 @@ function corpus(): { name: string; src: string }[] {
   return out;
 }
 
-test('ELK vs search crossings across corpus', async () => {
+test('ELK vs search — crossings AND overlaps across corpus', async () => {
   const rows: {
     name: string;
     n: number;
     e: number;
-    elk: number;
-    search: number;
+    elkX: number;
+    elkO: number;
+    searchX: number;
+    searchO: number;
   }[] = [];
   for (const { name, src } of corpus()) {
     const parsed = parseBoxesAndLines(src);
@@ -56,55 +59,64 @@ test('ELK vs search crossings across corpus', async () => {
       name,
       n: parsed.nodes.length,
       e: parsed.edges.length,
-      elk: countSplineCrossings(elk),
-      search: countSplineCrossings(search),
+      elkX: countSplineCrossings(elk),
+      elkO: countEdgeOverlaps(elk),
+      searchX: countSplineCrossings(search),
+      searchO: countEdgeOverlaps(search),
     });
   }
   const pad = (s: string | number, w: number) => String(s).padEnd(w);
   const num = (s: string | number, w: number) => String(s).padStart(w);
-  let elkTot = 0,
-    searchTot = 0,
-    wins = 0,
-    losses = 0;
+  // X = true crossings, O = overlap runs (lines stepping on each other).
+  let exT = 0,
+    eoT = 0,
+    sxT = 0,
+    soT = 0;
   console.log(
     '\n  ' +
-      pad('diagram', 30) +
-      num('nodes', 6) +
-      num('edges', 6) +
-      num('ELK', 6) +
-      num('search', 8) +
-      num('Δ', 6)
+      pad('diagram', 28) +
+      num('n', 4) +
+      num('e', 4) +
+      num('ELK X', 7) +
+      num('ELK O', 7) +
+      num('srch X', 8) +
+      num('srch O', 8)
   );
-  console.log('  ' + '-'.repeat(62));
+  console.log('  ' + '-'.repeat(66));
   for (const r of rows) {
-    elkTot += r.elk;
-    searchTot += r.search;
-    const d = r.search - r.elk;
-    if (d < 0) wins++;
-    else if (d > 0) losses++;
-    const mark = d < 0 ? '  ✓' : d > 0 ? '  ✗' : '';
+    exT += r.elkX;
+    eoT += r.elkO;
+    sxT += r.searchX;
+    soT += r.searchO;
+    const mark = r.searchO > 0 ? '  ⚠ overlap' : '';
     console.log(
       '  ' +
-        pad(r.name, 30) +
-        num(r.n, 6) +
-        num(r.e, 6) +
-        num(r.elk, 6) +
-        num(r.search, 8) +
-        num(d > 0 ? '+' + d : d, 6) +
+        pad(r.name, 28) +
+        num(r.n, 4) +
+        num(r.e, 4) +
+        num(r.elkX, 7) +
+        num(r.elkO, 7) +
+        num(r.searchX, 8) +
+        num(r.searchO, 8) +
         mark
     );
   }
-  console.log('  ' + '-'.repeat(62));
+  console.log('  ' + '-'.repeat(66));
   console.log(
     '  ' +
-      pad('TOTAL', 30) +
-      num('', 6) +
-      num('', 6) +
-      num(elkTot, 6) +
-      num(searchTot, 8) +
-      num(searchTot - elkTot, 6)
+      pad('TOTAL', 28) +
+      num('', 4) +
+      num('', 4) +
+      num(exT, 7) +
+      num(eoT, 7) +
+      num(sxT, 8) +
+      num(soT, 8)
+  );
+  const overlapDiagrams = rows.filter((r) => r.searchO > 0);
+  console.log(
+    `\n  search totals — crossings ${sxT} (ELK ${exT}), overlaps ${soT} (ELK ${eoT})`
   );
   console.log(
-    `\n  search beats ELK on ${wins}, loses on ${losses}, ties on ${rows.length - wins - losses} of ${rows.length}\n`
+    `  search has overlaps on ${overlapDiagrams.length}/${rows.length} diagrams: ${overlapDiagrams.map((r) => r.name).join(', ') || '(none)'}\n`
   );
 });
