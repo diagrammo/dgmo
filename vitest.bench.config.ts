@@ -5,7 +5,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'jsdom',
-    include: ['tests/bl-layout-bench.ts'],
+    include: ['tests/bl-layout-bench.ts', 'tests/bl-collapse-bench.ts'],
     disableConsoleIntercept: true,
+    testTimeout: 300_000,
   },
 });
