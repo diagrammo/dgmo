@@ -554,16 +554,21 @@ export function layeredCandidates(
       const tgtR = tgtCtr - frac * faceLim(tgt.depth);
       const m = (c: number, r: number): Pt =>
         isTB ? { x: c, y: r } : { x: r, y: c };
-      // The arc runs from the node centre DIAGONALLY out to its lane corner (no
-      // shared horizontal node-edge stub), up the lane, then diagonally back in.
-      // Distinct lane x + corner height per sibling ⇒ the approaches diverge from
-      // the port instead of running collinear into it.
+      // Aesthetic swoop: a single smooth loop, not a pinned rectangle. The curve
+      // eases off the source's side, bows out to its lane (single control points
+      // → curveBasis rounds the corners gracefully, no overshoot-and-return), and
+      // eases back into the target's side. Whatever node a softer curve now clips
+      // is bent away by the de-pierce pass downstream — so routing stays pretty
+      // and obstacle-avoidance is handled separately.
+      const off = 10;
+      const srcEdgeC = src.cross + s * (src.thick / 2 + off);
+      const tgtEdgeC = tgt.cross + s * (tgt.thick / 2 + off);
       backPoints.set(b.edgeIdx, [
         m(src.cross, srcCtr),
-        m(laneC, srcR),
+        m(srcEdgeC, srcR),
         m(laneC, srcR),
         m(laneC, tgtR),
-        m(laneC, tgtR),
+        m(tgtEdgeC, tgtR),
         m(tgt.cross, tgtCtr),
       ]);
     }

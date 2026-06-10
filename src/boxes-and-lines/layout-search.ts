@@ -463,11 +463,29 @@ function detourAround(pts: Pt[], r: Rect): Pt[] {
   const nlen = Math.hypot(nx, ny) || 1;
   nx /= nlen;
   ny /= nlen;
-  const clear = Math.hypot(r.w, r.h) / 2 + 16;
-  const detour = { x: c.x + nx * clear, y: c.y + ny * clear };
+  // Local edge direction (along the closest segment), for shaping a SMOOTH hump
+  // around the node instead of a single spike: ease out → peak → ease back in.
+  const a = pts[bestSeg]!,
+    b = pts[bestSeg + 1]!;
+  let ex = b.x - a.x,
+    ey = b.y - a.y;
+  const elen = Math.hypot(ex, ey) || 1;
+  ex /= elen;
+  ey /= elen;
+  const clear = Math.hypot(r.w, r.h) / 2 + 18;
+  const hw = Math.hypot(r.w, r.h) / 2; // hump half-width along the edge
   void bestT;
+  const before = {
+    x: bestPt.x - ex * hw + nx * clear * 0.5,
+    y: bestPt.y - ey * hw + ny * clear * 0.5,
+  };
+  const peak = { x: c.x + nx * clear, y: c.y + ny * clear };
+  const after = {
+    x: bestPt.x + ex * hw + nx * clear * 0.5,
+    y: bestPt.y + ey * hw + ny * clear * 0.5,
+  };
   const out = pts.slice(0, bestSeg + 1);
-  out.push(detour, detour);
+  out.push(before, peak, after);
   out.push(...pts.slice(bestSeg + 1));
   return out;
 }
