@@ -597,6 +597,180 @@ export function countGroupOverlaps(
     }
   return count;
 }
+/**
+ * Separated copy of a layout that pushes overlapping TOP-LEVEL group bands apart
+ * along the cross-axis. dagre's compound layout sometimes wedges a small group
+ * into a too-tight channel between two others (the multi-cloud On-Prem box lands
+ * in AWS's label zone). Translating each top-level group rigidly along the
+ * cross-axis preserves every node's rank/column, so the only thing that changes
+ * is the gap between bands. Member nodes + nested sub-group boxes move by their
+ * band's delta; edge waypoints blend smoothly between their endpoints' deltas
+ * (intra-band edges keep their shape exactly; cross-band edges ease across).
+ *
+ * Returned as an ALTERNATIVE candidate — the caller keeps it only if total
+ * badness drops, so a separation that introduces a crossing/pierce is rejected.
+ * Fully-expanded graphs only (skips when any group is collapsed).
+ */
+export function separateGroupBands(
+  layout: BLLayoutResult,
+  parsed: ParsedBoxesAndLines
+): BLLayoutResult {
+  if (layout.groups.some((g) => g.collapsed)) return layout;
+  if (countGroupOverlaps(layout) === 0) return layout;
+
+  // Resolve each group label to its top-level ancestor (walk parentGroup).
+  const parentOf = new Map<string, string | undefined>();
+  for (const g of parsed.groups) parentOf.set(g.label, g.parentGroup);
+  const topOf = (label: string): string => {
+    let cur = label;
+    const seen = new Set<string>();
+    for (;;) {
+      const p = parentOf.get(cur);
+      if (!p || seen.has(p)) return cur;
+      seen.add(cur);
+      cur = p;
+    }
+  };
+  const topLabels = parsed.groups
+    .filter((g) => !g.parentGroup)
+    .map((g) => g.label);
+  if (topLabels.length < 2) return layout;
+
+  // Each node's top-level group (a node sits in exactly one leaf group).
+  const nodeTop = new Map<string, string>();
+  for (const g of parsed.groups)
+    for (const child of g.children)
+      if (!parsed.groups.some((gg) => gg.label === child))
+        nodeTop.set(child, topOf(g.label));
+
+  // Cross-axis: LR stacks bands vertically (Y); TB stacks them horizontally (X).
+  // The label zone always extends a parent's box upward (Y), so it only lands on
+  // the cross-axis for LR — for TB this pass can still separate plain X overlaps.
+  const axis: 'x' | 'y' = parsed.direction === 'TB' ? 'x' : 'y';
+  const boxByLabel = new Map(layout.groups.map((g) => [g.label, g]));
+
+  // Rendered cross-interval per top-level group (label zone folded in on Y).
+  type Band = { label: string; lo: number; hi: number; c: number };
+  const bands: Band[] = topLabels.map((label) => {
+    const g = boxByLabel.get(label)!;
+    const half = (axis === 'y' ? g.height : g.width) / 2;
+    let lo = (axis === 'y' ? g.y : g.x) - half;
+    const hi = (axis === 'y' ? g.y : g.x) + half;
+    // A top-level group with children is a parent → its rendered box grows up.
+    const isParent = parsed.groups.some((c) => c.parentGroup === label);
+    if (axis === 'y' && isParent) lo -= GROUP_LABEL_ZONE;
+    return { label, lo, hi, c: (lo + hi) / 2 };
+  });
+  bands.sort((a, b) => a.c - b.c);
+
+  // 1D block-merge (PAV) separation: keep each band's centre as close to where
+  // it is as possible, subject to a minimum gap between consecutive bands.
+  const GAP = 16;
+  const half = bands.map((b) => (b.hi - b.lo) / 2);
+  const off: number[] = [0];
+  for (let i = 1; i < bands.length; i++)
+    off[i] = off[i - 1]! + half[i - 1]! + GAP + half[i]!;
+  const desired = bands.map((b, i) => b.c - off[i]!);
+  type Blk = { pos: number; count: number; sum: number; first: number };
+  const blocks: Blk[] = [];
+  for (let i = 0; i < bands.length; i++) {
+    let blk: Blk = { pos: desired[i]!, count: 1, sum: desired[i]!, first: i };
+    while (blocks.length && blocks[blocks.length - 1]!.pos >= blk.pos) {
+      const prev = blocks.pop()!;
+      const count = prev.count + blk.count;
+      const sum = prev.sum + blk.sum;
+      blk = { pos: sum / count, count, sum, first: prev.first };
+    }
+    blocks.push(blk);
+  }
+  const newC = new Array<number>(bands.length);
+  for (const blk of blocks)
+    for (let k = 0; k < blk.count; k++)
+      newC[blk.first + k] = blk.pos + off[blk.first + k]!;
+
+  // Delta per top-level group; bail if nothing actually moves.
+  const delta = new Map<string, number>();
+  let moved = false;
+  bands.forEach((b, i) => {
+    const d = newC[i]! - b.c;
+    delta.set(b.label, d);
+    if (Math.abs(d) > 0.5) moved = true;
+  });
+  if (!moved) return layout;
+
+  const nodeDelta = (label: string): number => {
+    const top = nodeTop.get(label);
+    return top ? (delta.get(top) ?? 0) : 0;
+  };
+  const shift = (p: Pt, d: number): Pt =>
+    axis === 'y' ? { x: p.x, y: p.y + d } : { x: p.x + d, y: p.y };
+
+  const nodes = layout.nodes.map((n) => {
+    const d = nodeDelta(n.label);
+    return d
+      ? { ...n, ...(axis === 'y' ? { y: n.y + d } : { x: n.x + d }) }
+      : n;
+  });
+  const groups = layout.groups.map((g) => {
+    const d = delta.get(topOf(g.label)) ?? 0;
+    return d
+      ? { ...g, ...(axis === 'y' ? { y: g.y + d } : { x: g.x + d }) }
+      : g;
+  });
+  const edges = layout.edges.map((e) => {
+    const ds = nodeDelta(e.source);
+    const dt = nodeDelta(e.target);
+    if (!ds && !dt) return e;
+    const N = e.points.length;
+    const points = e.points.map((p, i) => {
+      const f = N > 1 ? i / (N - 1) : 0;
+      return shift(p, ds * (1 - f) + dt * f);
+    });
+    return { ...e, points };
+  });
+
+  // Recompute canvas bbox (+ margin) over the shifted content.
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  const acc = (x: number, y: number) => {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  };
+  for (const n of nodes) {
+    acc(n.x - n.width / 2, n.y - n.height / 2);
+    acc(n.x + n.width / 2, n.y + n.height / 2);
+  }
+  for (const g of groups) {
+    acc(g.x - g.width / 2, g.y - g.height / 2 - GROUP_LABEL_ZONE);
+    acc(g.x + g.width / 2, g.y + g.height / 2);
+  }
+  for (const e of edges) for (const p of e.points) acc(p.x, p.y);
+  const M = 40;
+  const sx = M - minX,
+    sy = M - minY;
+  const reshift = sx !== 0 || sy !== 0;
+  return {
+    nodes: reshift
+      ? nodes.map((n) => ({ ...n, x: n.x + sx, y: n.y + sy }))
+      : nodes,
+    groups: reshift
+      ? groups.map((g) => ({ ...g, x: g.x + sx, y: g.y + sy }))
+      : groups,
+    edges: reshift
+      ? edges.map((e) => ({
+          ...e,
+          points: e.points.map((p) => ({ x: p.x + sx, y: p.y + sy })),
+        }))
+      : edges,
+    width: maxX - minX + 2 * M,
+    height: maxY - minY + 2 * M,
+  };
+}
+
 // Fast crossing estimate for RANKING candidates: straight segments on raw
 // waypoints (no curveBasis flatten) + bbox pruning + early-out per pair.
 // ~10× cheaper than countSplineCrossings; topology-equivalent for ranking.
@@ -1012,6 +1186,15 @@ export function layoutBoxesAndLinesSearch(
     const rerouted = deroutePierces(best);
     if (rerouted !== best && badness(rerouted, bestBad - 1) < bestBad)
       best = rerouted;
+  }
+
+  // Better-placed alternative: if the winner still has overlapping group bands
+  // (dagre wedged a small group into a tight channel), push the bands apart along
+  // the cross-axis. Kept only on strict total-badness drop.
+  if (bestBad > 0 && countGroupOverlaps(best) > 0) {
+    const separated = separateGroupBands(best, parsed);
+    if (separated !== best && badness(separated, bestBad - 1) < bestBad)
+      best = separated;
   }
   return best;
 }
