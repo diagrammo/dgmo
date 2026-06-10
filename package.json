@@ -121,6 +121,7 @@
     "dev": "DGMO_DEV_RELOAD=1 tsup --watch",
     "pretest": "pnpm codegen",
     "test": "vitest run --coverage",
+    "bench:bl": "vitest run --config vitest.bench.config.ts",
     "test:watch": "vitest",
     "test:auto": "pnpm build && vitest run tests/auto.test.ts tests/safe-href.test.ts",
     "sri": "node scripts/sri.mjs",

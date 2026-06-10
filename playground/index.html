@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf8" />
+  <title>dgmo — boxes-and-lines router playground</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 13px system-ui, sans-serif; color: #1c2530; background: #eef1f4; }
+    #app { display: grid; grid-template-columns: 340px 1fr; height: 100vh; }
+    #left { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-right: 1px solid #d7dce2; background: #fff; }
+    #left .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    #left label { display: flex; gap: 4px; align-items: center; font-size: 12px; color: #44505c; }
+    select, textarea { font-family: ui-monospace, Menlo, monospace; border: 1px solid #ccd2d9; border-radius: 6px; }
+    select { padding: 4px 6px; font-size: 12px; }
+    textarea { flex: 1; padding: 8px; font-size: 12px; line-height: 1.45; resize: none; }
+    #right { overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+    figure { margin: 0; background: #fff; border: 1px solid #d7dce2; border-radius: 10px; padding: 12px; }
+    figcaption { font-weight: 600; margin-bottom: 8px; font-size: 13px; }
+    figcaption .m { font-weight: 400; color: #6b7785; margin-left: 8px; }
+    figcaption .bad { color: #c0392b; }
+    figcaption .good { color: #1e8449; }
+    svg { max-width: 100%; height: auto; }
+    h1 { font-size: 14px; margin: 0 0 4px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="left">
+      <h1>boxes-and-lines router</h1>
+      <div class="row">
+        <select id="preset"></select>
+      </div>
+      <div class="row">
+        <label>seeds <input type="range" id="seeds" min="1" max="60" value="24" /></label>
+        <span id="seedsval">24</span>
+        <label>stability &lambda; <input type="range" id="lambda" min="0" max="30" value="0" /></label>
+        <span id="lambdaval">0</span>
+      </div>
+      <div class="row" id="groups" style="font-size:11px;color:#44505c"></div>
+      <textarea id="src" spellcheck="false"></textarea>
+    </div>
+    <div id="right">
+      <figure><figcaption id="capA"></figcaption><div id="panelA"></div></figure>
+      <figure><figcaption id="capB"></figcaption><div id="panelB"></div></figure>
+    </div>
+  </div>
+  <script type="module" src="/main.ts"></script>
+</body>
+</html>

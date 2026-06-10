@@ -27,8 +27,8 @@ const MAX_PARALLEL_EDGES = 5;
 const PARALLEL_SPACING = 22;
 
 const PHI = 1.618;
-const NODE_HEIGHT = 60;
-const NODE_WIDTH = Math.round(NODE_HEIGHT * PHI);
+export const NODE_HEIGHT = 60;
+export const NODE_WIDTH = Math.round(NODE_HEIGHT * PHI);
 const DESC_NODE_WIDTH = 140;
 const DESC_FONT_SIZE = 10;
 const DESC_LINE_HEIGHT = 1.4;
@@ -146,7 +146,7 @@ function estimateLabelLines(label: string, nodeWidth = NODE_WIDTH): number {
   return MAX_LABEL_LINES;
 }
 
-function computeNodeSize(
+export function computeNodeSize(
   node: BLNode,
   reserveValueRow: boolean
 ): { width: number; height: number } {
@@ -407,8 +407,24 @@ export async function layoutBoxesAndLines(
   layoutOptions?: {
     hideDescriptions?: boolean;
     collapsedNotes?: ReadonlySet<number>;
+    /** Experimental: 'search' uses the dagre placement-search engine. */
+    layoutMode?: 'elk' | 'search';
+    /** Previous node positions (label → {x,y}) for layout stability under
+     *  the 'search' engine — minimizes node drift on edit/collapse. */
+    previousPositions?: ReadonlyMap<string, { x: number; y: number }>;
   }
 ): Promise<BLLayoutResult> {
+  if (layoutOptions?.layoutMode === 'search') {
+    const { layoutBoxesAndLinesSearch } = await import('./layout-search');
+    return layoutBoxesAndLinesSearch(parsed, collapseInfo, {
+      ...(layoutOptions.hideDescriptions !== undefined && {
+        hideDescriptions: layoutOptions.hideDescriptions,
+      }),
+      ...(layoutOptions.previousPositions !== undefined && {
+        previousPositions: layoutOptions.previousPositions,
+      }),
+    });
+  }
   const hideDescriptions = layoutOptions?.hideDescriptions ?? false;
   const direction = parsed.direction === 'TB' ? 'DOWN' : 'RIGHT';
 
