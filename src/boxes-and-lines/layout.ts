@@ -416,7 +416,7 @@ export async function layoutBoxesAndLines(
 ): Promise<BLLayoutResult> {
   if (layoutOptions?.layoutMode === 'search') {
     const { layoutBoxesAndLinesSearch } = await import('./layout-search');
-    return layoutBoxesAndLinesSearch(parsed, collapseInfo, {
+    const searched = layoutBoxesAndLinesSearch(parsed, collapseInfo, {
       ...(layoutOptions.hideDescriptions !== undefined && {
         hideDescriptions: layoutOptions.hideDescriptions,
       }),
@@ -424,6 +424,13 @@ export async function layoutBoxesAndLines(
         previousPositions: layoutOptions.previousPositions,
       }),
     });
+    // Engine-agnostic post-processing the ELK path also applies: fan parallel
+    // edges, then float notes (and shift the canvas to fit them).
+    return attachNotes(
+      applyParallelEdgeOffsets(searched),
+      parsed,
+      layoutOptions?.collapsedNotes
+    );
   }
   const hideDescriptions = layoutOptions?.hideDescriptions ?? false;
   const direction = parsed.direction === 'TB' ? 'DOWN' : 'RIGHT';
@@ -864,5 +871,46 @@ function attachNotes(
     groups: finalGroups,
     width: bbMaxX + shiftX + MARGIN,
     height: bbMaxY + shiftY + MARGIN,
+  };
+}
+
+/**
+ * Assign parallel-edge fan offsets on any layout (engine-agnostic). Edges sharing
+ * an unordered {source,target} pair are bundled at their ports and spread in the
+ * middle by the renderer using `yOffset`/`parallelCount`; beyond `MAX_PARALLEL_EDGES`
+ * the extras are dropped (`parallelCount: 0` ⇒ renderer skips them). The ELK path
+ * computes this inside extractLayout; the search engine produces a single set of
+ * points per pair, so it needs the same offsets applied here.
+ */
+function applyParallelEdgeOffsets(layout: BLLayoutResult): BLLayoutResult {
+  const groups = new Map<string, number[]>();
+  layout.edges.forEach((e, i) => {
+    const [a, b] =
+      e.source < e.target ? [e.source, e.target] : [e.target, e.source];
+    const key = `${a}\x00${b}`;
+    const arr = groups.get(key);
+    if (arr) arr.push(i);
+    else groups.set(key, [i]);
+  });
+  if ([...groups.values()].every((g) => g.length < 2)) return layout;
+
+  const yOffset = new Array(layout.edges.length).fill(0);
+  const count = new Array(layout.edges.length).fill(1);
+  for (const idxs of groups.values()) {
+    const capped = idxs.slice(0, MAX_PARALLEL_EDGES);
+    for (const drop of idxs.slice(MAX_PARALLEL_EDGES)) count[drop] = 0;
+    if (capped.length < 2) continue;
+    capped.forEach((idx, j) => {
+      yOffset[idx] = (j - (capped.length - 1) / 2) * PARALLEL_SPACING;
+      count[idx] = capped.length;
+    });
+  }
+  return {
+    ...layout,
+    edges: layout.edges.map((e, i) => ({
+      ...e,
+      yOffset: yOffset[i]!,
+      parallelCount: count[i]!,
+    })),
   };
 }
