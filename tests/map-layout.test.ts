@@ -340,6 +340,14 @@ describe('layout — albers-usa neighbour frame (map-us-orientation-north-americ
       usOnly.fitTarget.features.length + 1
     );
   });
+  it('a POI-framed state labels its FOCUS container, not just neighbours', () => {
+    // POIs inside California with NO region data snap the frame to US-CA. The
+    // focus container itself must get a muted context label (its headline name),
+    // alongside neighbour states — it is no longer skipped. A data-referenced
+    // state stays region-labelled instead (covered by the region-fill tests).
+    const r = lay('map\npoi 37 -120 as a\npoi 36 -119 as b');
+    expect(r.labels.some((l) => l.text === 'California')).toBe(true);
+  });
 });
 
 describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {

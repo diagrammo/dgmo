@@ -70,6 +70,13 @@ describe('labelBudget (Decision 6, ADR-3 — biased low, floors)', () => {
     expect(labelBudget(320, 200, 'world')).toBe(1);
     expect(labelBudget(100, 80, 'world')).toBe(0);
   });
+  it('per-band caps bind on a large canvas (broadened headroom)', () => {
+    // sqrt(2000*2000)/150 ≈ 13 area-slots, so the per-band cap is what binds.
+    expect(labelBudget(2000, 2000, 'world')).toBe(7);
+    expect(labelBudget(2000, 2000, 'continental')).toBe(6);
+    expect(labelBudget(2000, 2000, 'regional')).toBe(5);
+    expect(labelBudget(2000, 2000, 'local')).toBe(4);
+  });
 });
 
 describe('placeContextLabels — water tiering (AC3, AC4)', () => {
@@ -228,19 +235,66 @@ describe('placeContextLabels — countries (AC5, AC6)', () => {
     expect(out).not.toContain('Luxembourg'); // name wider than footprint
     expect(out).not.toContain('Faraway'); // anchor projects nowhere
   });
-  it('drops an over-wide (antimeridian/global-smear) country candidate (F2)', () => {
-    // A near-full-canvas bbox (e.g. Russia split across the antimeridian) has an
-    // unreliable centroid anchor → must NOT be placed despite ranking first.
-    const wide: CountryCandidate = {
+  it('drops a both-axes canvas-smear country candidate (F2)', () => {
+    // A bbox that fills the canvas in BOTH dimensions (e.g. a country whose
+    // projected fill inverts to cover the whole frame) has an unreliable centroid
+    // anchor → must NOT be placed despite ranking first.
+    const smear: CountryCandidate = {
       name: 'Russia',
-      bbox: [10, 200, 780, 360], // width 770 > 0.66 * 800
-      anchor: [395, 280],
+      bbox: [10, 10, 780, 580], // w 770 > 0.66*800 AND h 570 > 0.66*600
+      anchor: [395, 295],
     };
     const out = texts(
-      baseArgs({ waterBodies: { entries: [] }, countries: [wide, bigFit] })
+      baseArgs({ waterBodies: { entries: [] }, countries: [smear, bigFit] })
     );
     expect(out).not.toContain('Russia');
     expect(out).toContain('Brazil');
+  });
+  it('keeps a both-axes smear country that has a CURATED anchor (Russia)', () => {
+    // Same full-canvas smear bbox, but `curatedAnchor` marks the anchor as a
+    // trusted WORLD_LABEL_ANCHORS mainland point (e.g. European Russia) — the
+    // smear gate's unreliable-centroid concern is moot, so it must PLACE. The
+    // in-viewport anchor check still applies (here the anchor is on-frame).
+    const russia: CountryCandidate = {
+      name: 'Russia',
+      bbox: [0, 0, 800, 600], // full canvas in both axes
+      anchor: [620, 180], // trusted mainland point, inside the viewport
+      curatedAnchor: true,
+    };
+    const placed = placeContextLabels(
+      baseArgs({ waterBodies: { entries: [] }, countries: [russia] })
+    );
+    const ru = placed.find((l) => l.text === 'Russia');
+    expect(ru).toBeDefined();
+    // Rendered as a subdued backdrop name, not an off-frame mid-map ghost.
+    expect(ru!.x).toBe(620);
+    expect(ru!.y).toBe(180);
+  });
+  it('still drops a curated-anchor country whose anchor projects off-frame', () => {
+    const offFrame: CountryCandidate = {
+      name: 'Russia',
+      bbox: [0, 0, 800, 600],
+      anchor: [900, 180], // x > width → off the right edge
+      curatedAnchor: true,
+    };
+    const out = texts(
+      baseArgs({ waterBodies: { entries: [] }, countries: [offFrame] })
+    );
+    expect(out).not.toContain('Russia');
+  });
+  it('keeps a wide-but-short landmass whose anchor is over its land (Canada)', () => {
+    // A country hugging the top of a US-focused frame is legitimately wide but
+    // short; its clipExtent-clipped, area-weighted centroid still lands over its
+    // own ground, so it must NOT be dropped for footprint width alone.
+    const canada: CountryCandidate = {
+      name: 'Canada',
+      bbox: [40, 30, 760, 200], // w 720 > 0.66*800 but h 170 < 0.66*600
+      anchor: [400, 70],
+    };
+    const out = texts(
+      baseArgs({ waterBodies: { entries: [] }, countries: [canada] })
+    );
+    expect(out).toContain('Canada');
   });
   it('country labels always use the full name, never an ISO abbreviation (AC6)', () => {
     const placed = placeContextLabels(
@@ -278,16 +332,30 @@ describe('placeContextLabels — countries (AC5, AC6)', () => {
     expect(s.color).toBe(P.textMuted); // full-strength muted (no fade)
     expect(b.color).not.toBe(s.color); // big name subdued toward bg
   });
-  it('water sorts before countries (orientation core first)', () => {
+  it('orientation-value ranking: major water < country < minor water', () => {
+    // The orientation core (oceans + major seas, tier ≤ 1) leads; a big country
+    // outranks MINOR water (tier ≥ 2) but never an ocean/major sea. Three well-
+    // separated candidates so all place at budget 4.
     const placed = placeContextLabels(
       baseArgs({
         dLonSpan: 10,
-        countries: [bigFit],
+        waterBodies: {
+          entries: [
+            [0, 0, 'Big Ocean', 0, 'ocean'], // major water (band 0)
+            [55, 150, 'Tiny Sea', 2, 'sea'], // minor water (band 2)
+          ],
+        },
+        countries: [bigFit], // 'Brazil', big footprint (band 1)
       })
     );
-    const waterIdx = placed.findIndex((l) => l.italic);
+    const oceanIdx = placed.findIndex((l) => l.text === 'Big Ocean');
     const countryIdx = placed.findIndex((l) => l.text === 'Brazil');
-    if (countryIdx >= 0) expect(waterIdx).toBeLessThan(countryIdx);
+    const minorIdx = placed.findIndex((l) => l.text === 'Tiny Sea');
+    expect(oceanIdx).toBeGreaterThanOrEqual(0);
+    expect(countryIdx).toBeGreaterThanOrEqual(0);
+    expect(minorIdx).toBeGreaterThanOrEqual(0);
+    expect(oceanIdx).toBeLessThan(countryIdx); // major water leads the country
+    expect(countryIdx).toBeLessThan(minorIdx); // country outranks minor water
   });
 });
 

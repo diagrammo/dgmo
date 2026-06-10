@@ -29,6 +29,11 @@ export interface CountryCandidate {
   /** Projected screen anchor `[x, y]` (mainland anchor or `path.centroid`), or
    *  null when the feature doesn't project to a finite point. */
   readonly anchor: readonly [number, number] | null;
+  /** True when `anchor` came from a curated WORLD_LABEL_ANCHORS entry (a trusted
+   *  mainland point) rather than the area-weighted centroid. Such a country
+   *  bypasses the both-axes smear gate (its full-canvas bbox is an antimeridian
+   *  artifact, not a real footprint, so the unreliable-centroid concern is moot). */
+  readonly curatedAnchor?: boolean;
 }
 
 export interface ContextLabelArgs {
@@ -102,10 +107,10 @@ export function labelBudget(
   band: TierBand
 ): number {
   const bandCap: Record<TierBand, number> = {
-    world: 6,
-    continental: 5,
-    regional: 4,
-    local: 3,
+    world: 7,
+    continental: 6,
+    regional: 5,
+    local: 4,
   };
   const area = Math.floor(Math.sqrt(Math.max(0, width * height)) / 150);
   return Math.max(0, Math.min(area, bandCap[band]));
@@ -347,8 +352,11 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
       letterSpacing: WATER_LETTER_SPACING,
       color: waterColor,
       fontSize: FONT, // water names keep the base font (no footprint to scale on)
-      // Water before any country (×1000), then by tier, then kind, then name.
-      sort: tier * 10 + KIND_ORDER[kind],
+      // Orientation-value bands (lower = earlier): MAJOR water (oceans + major
+      // seas, tier ≤ 1) leads at `tier*10+kind` (0..~16); MINOR water (tier ≥ 2:
+      // smaller seas, bays, gulfs, straits) drops to band 2 (2000+) — BELOW the
+      // country band (1000+), so a big country outranks a minor basin.
+      sort: (tier <= 1 ? 0 : 2000) + tier * 10 + KIND_ORDER[kind],
     });
   }
 
@@ -369,15 +377,24 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
   let ci = 0;
   for (const r of ranked) {
     const { c, w, h, area } = r;
-    // F2: an antimeridian-crossing / global-smear country yields a near-full-
-    // canvas bbox while its real landmass is split — the `path.centroid` anchor
-    // is then unreliable (mid-map, wrong basin). Drop such over-wide candidates
-    // rather than spend a top-priority slot on a mispositioned name.
-    if (w > width * 0.66 || h > height * 0.66) continue;
+    // F2: an antimeridian-crossing / global-smear country fills the canvas in
+    // BOTH dimensions while its real landmass is split — the `path.centroid`
+    // anchor is then unreliable (mid-map, wrong basin). Reject only that
+    // both-axes canvas-smear: a country that is merely wide-but-short (Canada
+    // hugging the top of a US frame) or tall-but-narrow (Chile) is a legitimate
+    // landmass whose clipExtent-clipped centroid still lands over its own ground,
+    // so it must NOT be dropped for footprint shape alone. A `curatedAnchor`
+    // (WORLD_LABEL_ANCHORS, e.g. Russia → European Russia) is trustworthy by
+    // construction — the smear concern is moot, so it bypasses this gate (the
+    // `insideViewport` check below still drops an anchor that projects off-frame).
+    if (!c.curatedAnchor && w > width * 0.66 && h > height * 0.66) continue;
     if (!insideViewport(c.anchor, width, height)) continue;
     // Footprint-driven scale (Decision: big landmass = large, faded backdrop
     // name). t∈[0,1] over the [MIN,MAX] linear-fraction band; font ramps up and
-    // colour fades toward bg in lockstep so a bigger name is also a quieter one.
+    // ink rises in lockstep, so a bigger name reads as a large, softly-inked
+    // backdrop. A curated-anchor giant (Russia) keeps the standard big-country
+    // styling — its full-canvas bbox lands at the top of the ramp (font/ink like
+    // any large in-frame country), which is the intended subdued-backdrop look.
     const sizeFrac = Math.sqrt(area) / canvasLinear;
     const t = Math.min(
       1,
@@ -407,8 +424,12 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
       letterSpacing: 0,
       color,
       fontSize,
-      // Always after every water body (+1e6); larger area = earlier.
-      sort: 1_000_000 + ci++,
+      // Band 1 (orientation-value ranking): above MINOR water (band 2, 2000+) but
+      // below MAJOR water — oceans + major seas (band 0, ≤~16). So a big country
+      // (US, Canada, Russia) outranks a minor sea/bay (Sargasso, Bahía de
+      // Campeche) yet never displaces an ocean. Larger area = earlier within the
+      // band (`ci` is the area-desc rank index).
+      sort: 1000 + ci++,
     });
   }
 
@@ -416,8 +437,17 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
   candidates.sort((a, b) => a.sort - b.sort);
   const placed: PlacedLabel[] = [];
   const placedRects: LabelRect[] = [];
+  // Guarantee country/state room: water can otherwise monopolise a small budget
+  // (a coastal view borders many oceans/seas), so reserve up to 2 slots for
+  // countries whenever any country candidate exists. No effect on pure-water
+  // views (`countryCount` 0 ⇒ cap = budget). Major water still leads by sort, so
+  // this only trims the LAST water bodies that would have crowded out a country.
+  const countryCount = candidates.reduce((n, c) => n + (c.italic ? 0 : 1), 0);
+  const waterCap = budget - Math.min(2, countryCount);
+  let waterPlaced = 0;
   for (const cand of candidates) {
     if (placed.length >= budget) break;
+    if (cand.italic && waterPlaced >= waterCap) continue;
     const rect = rectAround(
       cand.cx,
       cand.cy,
@@ -452,6 +482,7 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     if (collides(rect)) continue;
     if (placedRects.some((r) => overlapsPadded(rect, r, CONTEXT_PAD))) continue;
     placedRects.push(rect);
+    if (cand.italic) waterPlaced++;
     placed.push({
       x: cand.cx,
       y: cand.cy,

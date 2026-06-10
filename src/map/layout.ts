@@ -159,6 +159,13 @@ const FONT = 11; // on-map label font px
 // previously used for hover) mistook the wrapped sliver for half the shape.
 const WORLD_LABEL_ANCHORS: Record<string, [number, number]> = {
   US: [-98.5, 39.5], // CONUS geographic centre (near Lebanon, Kansas)
+  // Russia crosses the antimeridian (Chukotka at ~170°W), so on a non-global
+  // (e.g. Europe) projection its geometry smears across the whole frame and the
+  // area-weighted centroid lands mid-map (over Europe) — useless as a label
+  // anchor. Pin it to European Russia (~Volga) so a Europe view labels visible
+  // western Russia on its eastern margin; on a world view this still sits over
+  // Russian land. (See the curated-anchor smear-gate bypass in context-labels.)
+  RU: [45, 58],
 };
 // POI-cluster hover-only gate (Decision #1). A ≥2-member cluster's callout
 // column falls back to hover-only labels when it would sprawl or overflow:
@@ -3925,22 +3932,25 @@ export function layoutMap(
         name: (f.properties as { name?: string } | undefined)?.name ?? iso,
         bbox: [x0, y0, x1, y1],
         anchor: a && Number.isFinite(a[0]) ? [a[0], a[1]] : null,
+        curatedAnchor: !!anchorLngLat,
       });
     }
-    // Neighbour US states (POI-only region framing): when the frame is snapped to
-    // a US-state container (e.g. California), label the surrounding in-frame states
-    // (Nevada, Oregon, Arizona…) in the muted context style for orientation. They
-    // are NOT containers and NOT data, so the region-label pass skipped them.
+    // Framed US states (POI-only region framing): when the frame is snapped to a
+    // US-state container (e.g. California), label the focus state AND the
+    // surrounding in-frame states (Nevada, Oregon, Arizona…) in the muted context
+    // style for orientation. None are data (the region-label pass skipped them).
     // Anchor each to the centroid of its VISIBLE (culled) geometry so a state only
     // partly in frame (a sliver of Oregon at the top) still anchors on-screen
     // rather than at an off-frame centroid that `insideViewport` would reject.
+    // The focus container IS included (gives the map its headline name) — only a
+    // data-referenced state is skipped, to avoid double-labelling what
+    // region-labels already named.
     const framedStateContainers = (resolved.poiFrameContainers ?? []).some(
       (id) => id.startsWith('US-')
     );
     if (usLayer && framedStateContainers) {
-      const containerSet = new Set(resolved.poiFrameContainers);
       for (const [iso, f] of usLayer) {
-        if (containerSet.has(iso) || regionById.has(iso)) continue;
+        if (regionById.has(iso)) continue;
         const viewF = cullFeatureToView(f);
         if (!viewF) continue; // not in frame
         const b = path.bounds(viewF as never) as [
