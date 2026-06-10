@@ -55,20 +55,24 @@ declare function parseDgmo(content: string): {
 /**
  * Color definitions for a single mode (light or dark).
  * 10 semantic UI colors + 9 named accent colors = 19 total.
+ *
+ * `readonly` on every field (and the nested `colors` map) by design —
+ * palettes flow from the registry into every renderer; nothing in the
+ * pipeline should ever mutate a palette in place.
  */
 interface PaletteColors {
   /** Main background (#eceff4 light / #2e3440 dark for Nord) */
-  bg: string;
+  readonly bg: string;
   /** Cards, panels (#e5e9f0 / #3b4252) */
-  surface: string;
+  readonly surface: string;
   /** Popovers, dropdowns (#e5e9f0 / #434c5e) */
-  overlay: string;
+  readonly overlay: string;
   /** Borders, dividers, muted (#d8dee9 / #4c566a) */
-  border: string;
+  readonly border: string;
   /** Primary text (#2e3440 / #eceff4) */
-  text: string;
+  readonly text: string;
   /** Secondary/diminished text (#4c566a / #d8dee9) */
-  textMuted: string;
+  readonly textMuted: string;
   /**
    * Light-mode arg for `contrastText()` when text is rendered on a
    * tinted shape fill (e.g. `shapeFill()` output). Must guarantee
@@ -76,48 +80,51 @@ interface PaletteColors {
    * Distinct from `colors.white` because palette-aesthetic anchors don't
    * always meet contrast requirements (TD-5).
    */
-  textOnFillLight: string;
+  readonly textOnFillLight: string;
   /** Dark-mode counterpart to `textOnFillLight`. */
-  textOnFillDark: string;
+  readonly textOnFillDark: string;
   /** Primary accent — buttons, links */
-  primary: string;
+  readonly primary: string;
   /** Secondary accent */
-  secondary: string;
+  readonly secondary: string;
   /** Tertiary accent */
-  accent: string;
+  readonly accent: string;
   /** Error/danger */
-  destructive: string;
+  readonly destructive: string;
   /**
    * Used for: inline annotations (red), pie charts, cScale,
    * series rotation, journey actors, Gantt tasks.
    */
-  colors: {
-    red: string;
-    orange: string;
-    yellow: string;
-    green: string;
-    blue: string;
-    purple: string;
-    teal: string;
-    cyan: string;
-    gray: string;
-    black: string;
-    white: string;
+  readonly colors: {
+    readonly red: string;
+    readonly orange: string;
+    readonly yellow: string;
+    readonly green: string;
+    readonly blue: string;
+    readonly purple: string;
+    readonly teal: string;
+    readonly cyan: string;
+    readonly gray: string;
+    readonly black: string;
+    readonly white: string;
   };
 }
 /**
  * Complete palette definition. One object per color scheme.
  * This is what palette authors create — the single artifact for NFR1.
+ *
+ * Palettes are immutable from the consumer's perspective; the registry
+ * hands out the same frozen-shape object on every `getPalette(id)`.
  */
 interface PaletteConfig {
-  /** Registry key: 'nord', 'solarized', 'catppuccin' */
-  id: string;
-  /** Display name: 'Nord', 'Solarized', 'Catppuccin' */
-  name: string;
+  /** Registry key: 'nord', 'slate', 'catppuccin' */
+  readonly id: string;
+  /** Display name: 'Nord', 'Slate', 'Catppuccin' */
+  readonly name: string;
   /** Light mode color definitions */
-  light: PaletteColors;
+  readonly light: PaletteColors;
   /** Dark mode color definitions */
-  dark: PaletteColors;
+  readonly dark: PaletteColors;
 }
 
 /**
@@ -155,17 +162,183 @@ declare function getPalette(id: string): PaletteConfig;
  * used by share URLs and the CLI `--palette` flag.
  */
 declare const palettes: {
+  readonly atlas: PaletteConfig;
+  readonly blueprint: PaletteConfig;
+  readonly slate: PaletteConfig;
+  readonly tidewater: PaletteConfig;
   readonly nord: PaletteConfig;
   readonly catppuccin: PaletteConfig;
-  readonly solarized: PaletteConfig;
-  readonly gruvbox: PaletteConfig;
   readonly tokyoNight: PaletteConfig;
-  readonly oneDark: PaletteConfig;
-  readonly rosePine: PaletteConfig;
-  readonly dracula: PaletteConfig;
-  readonly monokai: PaletteConfig;
-  readonly bold: PaletteConfig;
 };
+
+declare function getMinDimensions(content: string): {
+  width: number;
+  height: number;
+};
+
+/**
+ * Make an SVG produced by `@diagrammo/dgmo`'s static `render()` suitable for
+ * responsive inline embedding in any host (Obsidian, remark/markdown, web
+ * pages):
+ *
+ * - dgmo renders diagrams inside a fixed export canvas (e.g.
+ *   `viewBox="0 0 1200 800"`), with content often occupying only a fraction
+ *   of it. We compute a tight content bounding box from element coordinates
+ *   and set the root `viewBox` to bbox+padding, so the diagram's intrinsic
+ *   aspect ratio matches its CONTENT — no dead space above/below or beside it.
+ * - Ensure the root `<svg>` has a `viewBox` so it scales responsively.
+ * - Strip fixed `width="N"` / `height="N"` so CSS (e.g. `width:100%;
+ *   height:auto`, or an aspect-ratio derived from the tight viewBox) controls
+ *   sizing.
+ * - Remove any inline `background:` from the root style so the page
+ *   background shows through.
+ *
+ * This is intentionally a string transform, not a DOM `getBBox()` step: dgmo
+ * can dual-render light/dark SVGs where one is hidden by color-mode CSS, and
+ * `getBBox()` returns 0 for the hidden copy. Parsing coordinates from the
+ * markup measures both copies reliably and works server-side (Node).
+ */
+declare function normalizeSvgForEmbed(input: string): string;
+/**
+ * Parse the content bounding box of a normalized embed SVG, if one can be
+ * derived. Returns `null` when no usable coordinates are found (e.g. an empty
+ * diagram). Useful for hosts that want to set an explicit `aspect-ratio` from
+ * the tight viewBox.
+ */
+declare function getEmbedSvgViewBox(svg: string): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} | null;
+
+/**
+ * A gazetteer city entry: `[lat, lon, iso, pop, name, sub?]`.
+ * - `lat`/`lon` — rounded to 3 decimals.
+ * - `iso` — ISO 3166-1 alpha-2 country code.
+ * - `pop` — population.
+ * - `name` — canonical display name (case/accents preserved).
+ * - `sub` — ISO 3166-2 subdivision (US cities only in v1, e.g. `US-OR`); absent otherwise.
+ */
+type GazetteerEntry = [
+  lat: number,
+  lon: number,
+  iso: string,
+  pop: number,
+  name: string,
+  sub?: string,
+];
+interface Gazetteer {
+  /** Every city, stored once. `byName`/`alt` reference cities by array index
+   *  (normalized — no tuple duplication; geonameid is a build-time-only linker). */
+  cities: GazetteerEntry[];
+  /** Folded (NFD, diacritic-stripped, lowercased) name → indices into `cities`.
+   *  Always an array; length > 1 for same-named cities (Portland US-OR / US-ME). */
+  byName: Record<string, number[]>;
+  /** Folded alias → index into `cities`. Never collides with a `byName` key. */
+  alt: Record<string, number>;
+}
+/**
+ * IATA-coded airport index (a SEPARATE optional asset — `airports.json`; ADR-1).
+ * Lets memorized airport codes resolve to coordinates through the resolver's
+ * existing fold→lookup path (`poi JFK`, `route JFK -> LAX`) — no parser change.
+ *
+ * - `airports` — `GazetteerEntry` tuples `[lat, lon, iso, 0, name]`. `pop` is
+ *   always 0 (OurAirports has no enplanement column); `name` is the full airport
+ *   name, used for COMPLETION DISPLAY only — airports resolve by IATA code, never
+ *   by name. Coords are rounded to 2 decimals (~1km; sub-pixel at map scale).
+ * - `airportIata` — folded 3-letter IATA code → index into `airports`. Consulted
+ *   LAST in resolution (after city `byName` + `alt`), so a real city always wins
+ *   a shared token (ADR-2). Airports never enter `cities[]`, so the city-scatter
+ *   and reverse-geocode layers never see them.
+ */
+interface AirportData {
+  readonly airports: GazetteerEntry[];
+  readonly airportIata: Record<string, number>;
+}
+/** A fill-able region (country or US state) — the display name + its ISO id +
+ *  layer. Powers region-name autocomplete (completion-only; the renderer derives
+ *  names from the topology directly). Extracted from the topologies by
+ *  scripts/build-map-data.mjs into `region-names.json`. */
+interface RegionName {
+  /** Display name (original casing), e.g. `California` / `Germany`. */
+  readonly name: string;
+  /** ISO 3166-1 alpha-2 (country) or 3166-2 `US-XX` (state). */
+  readonly iso: string;
+  readonly layer: 'country' | 'us-state';
+}
+interface RegionNames {
+  /** Deterministically ordered (layer, then name). */
+  readonly regions: readonly RegionName[];
+}
+
+interface MapPlaceCompletion {
+  /** Canonical display name (original casing), e.g. `Portland`. */
+  readonly name: string;
+  /** Text to insert. ISO-qualified (`Portland US-OR`) iff the name is
+   *  ambiguous in the gazetteer; bare otherwise (disambiguate-once, §24B.8). */
+  readonly insert: string;
+  /** Menu label (`Portland — US-OR` when ambiguous, else `Portland`). */
+  readonly label: string;
+  /** Secondary detail, e.g. `US-OR · 652,503`. */
+  readonly detail: string;
+  readonly iso: string;
+  readonly sub?: string;
+  readonly pop: number;
+  /** `'airport'` for IATA-code entries (icon/grouping affordance); absent or
+   *  `'city'` for gazetteer cities. Cities rank above airports for a shared
+   *  prefix so ~1500 codes never bury city names (ADR-5). */
+  readonly kind?: 'city' | 'airport';
+}
+interface MapCompletionOptions {
+  /** Max results (default 12). */
+  readonly limit?: number;
+  /** IATA-coded airports (`airports.json`). When supplied, airport codes
+   *  matching the prefix are offered as a second (post-city) group. Optional —
+   *  absent (old DI bundles / no asset) just yields city-only completions. */
+  readonly airports?: AirportData;
+  /** Resolver-inferred map scope (country `US` or subdivision `US-CA`). Biases
+   *  airport ranking so in-region airports sort above out-of-region same-prefix
+   *  ones (ADR-6). Pure rank, never a filter — cross-region airports still
+   *  appear. App passes the document's inferred scope in (Slice 2). */
+  readonly scopeISO?: string;
+}
+/**
+ * Prefix-match city names + alternate-name aliases against the gazetteer,
+ * rank by population (desc; stable tie-break by gazetteer index), and emit
+ * ISO-qualified insert text only for ambiguous (same-named) places.
+ *
+ * Pure + deterministic. Empty/blank query → `[]` (the caller gates min length).
+ */
+declare function completeMapPlaces(
+  query: string,
+  gazetteer: Gazetteer,
+  opts?: MapCompletionOptions
+): MapPlaceCompletion[];
+interface MapRegionCompletion {
+  /** Display name = insert text (the resolver disambiguates cross-layer
+   *  collisions like Georgia by map scope, §24B.8). */
+  readonly name: string;
+  /** ISO 3166-1/3166-2 id. */
+  readonly iso: string;
+  readonly layer: 'country' | 'us-state';
+  /** Secondary detail, e.g. `US state · US-CA` or `Country · DE`. */
+  readonly detail: string;
+}
+/**
+ * Prefix-match fill-able region names (countries + US states) for region-fill
+ * lines. Matches the folded display name OR the ISO code; deterministic
+ * (alphabetical by name, then layer). Pure. Empty query → `[]`.
+ *
+ * `regions` is injected (the `region-names.json` asset, shipped in dist/map-data
+ * alongside the gazetteer). Cross-layer same-name (Georgia: country GE + state
+ * US-GA) yields both entries, distinguished by `detail`.
+ */
+declare function completeMapRegions(
+  query: string,
+  regions: readonly RegionName[],
+  opts?: MapCompletionOptions
+): MapRegionCompletion[];
 
 interface RenderOptions {
   theme?: Theme;
@@ -244,15 +417,27 @@ export {
   type DgmoError,
   type DgmoSeverity,
   type EncodeDiagramUrlOptions,
+  type Gazetteer,
+  type GazetteerEntry,
+  type MapCompletionOptions,
+  type MapPlaceCompletion,
+  type MapRegionCompletion,
   type PaletteColors,
   type PaletteConfig,
+  type RegionName,
+  type RegionNames,
   type RenderOptions,
   type RenderResult,
   type Theme,
+  completeMapPlaces,
+  completeMapRegions,
   decodeDiagramUrl,
   encodeDiagramUrl,
   formatDgmoError,
+  getEmbedSvgViewBox,
+  getMinDimensions,
   getPalette,
+  normalizeSvgForEmbed,
   palettes,
   render,
   themes,

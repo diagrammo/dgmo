@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-06-10
+
+### Changed
+
+- **New boxes-and-lines layout engine.** Boxes-and-lines diagrams now lay out
+  with a placement-search engine (multi-seed dagre placement scored on the
+  rendered spline geometry — true crossings, line overlaps, and edges piercing
+  node boxes) instead of the previous layered engine. Across the test corpus it
+  roughly halves the combined badness (fewer line crossings and fewer lines
+  stepping on each other), keeps groups as readable bands, and stays stable on
+  edit and collapse (small change → small visual change). Cycle-closing edges
+  route as smooth peripheral swoops. Parallel edges and node notes are fully
+  supported. This changes the geometry of existing boxes-and-lines diagrams.
+
+### Removed
+
+- **Dropped the `elkjs` dependency** (~1.4 MB). It was only used by the
+  boxes-and-lines layout, now superseded by the built-in engine — smaller
+  install for every consumer and a lighter script-tag bundle.
+
+### Fixed
+
+- **Map context labels.** Wide-but-short countries (Canada along the top of a
+  US frame) and tall-but-narrow ones (Chile) keep their labels instead of being
+  dropped by the antimeridian smear guard; Russia anchors over visible western
+  Russia on regional projections; ocean and major-sea names outrank big
+  countries which outrank minor bays and straits, and a small label budget
+  always reserves room for countries so water can't crowd them out; framed
+  US-state views now label the focus state itself.
+
 ## [0.27.0] - 2026-06-08
 
 ### Added

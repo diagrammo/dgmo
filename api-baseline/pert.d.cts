@@ -14,18 +14,23 @@ interface DgmoError {
 
 /** A single entry inside a tag group: `Value color` */
 interface TagEntry {
-    value: string;
-    color: string;
-    lineNumber: number;
+    readonly value: string;
+    readonly color: string;
+    readonly lineNumber: number;
 }
-/** A tag group block: heading + entries */
+/**
+ * A tag group block: heading + entries.
+ *
+ * Parser internals build via `Writable<TagGroup>` from `utils/brand.ts`;
+ * once returned to a chart-type parser, consumers see the readonly view.
+ */
 interface TagGroup {
-    name: string;
-    alias?: string;
-    entries: TagEntry[];
+    readonly name: string;
+    readonly alias?: string;
+    readonly entries: readonly TagEntry[];
     /** Default value for nodes without explicit metadata. First entry unless another is marked `default`. */
-    defaultValue?: string;
-    lineNumber: number;
+    readonly defaultValue?: string;
+    readonly lineNumber: number;
 }
 
 /** Calendar units: d (days), w (weeks), m (months), q (quarters), y (years), h (hours), min (minutes). bd = business days. s = sprints. */
@@ -121,6 +126,13 @@ interface PertOptions {
     /** When true, the renderer suppresses the diagram banner title. */
     noTitle?: boolean;
     /**
+     * `no-analysis` directive — suppresses the analysis layer (tornado +
+     * S-curve). The layer renders by default whenever Monte Carlo ran;
+     * this bare flag turns it off (mirrors `no-title`). An explicit
+     * `viewState.an` (desktop-app toggle / share link) overrides it.
+     */
+    noAnalysis?: boolean;
+    /**
      * `active-tag <name>` directive — selects which declared tag group
      * drives node fill via `resolveTagColor()`. `'none'` (case-insensitive)
      * suppresses tag coloring; `undefined` lets `resolveActiveTagGroup()`
@@ -156,27 +168,27 @@ interface PertOptions {
  */
 interface PertActivity {
     /** Stable id — alias if `as` was given, otherwise normalized name. */
-    id: string;
+    readonly id: string;
     /** Human-readable label as written in source. */
-    name: string;
+    readonly name: string;
     /** Optional alias from `<name> <durs> as <id>`. */
-    alias?: string;
+    readonly alias?: string;
     /**
      * Activity duration estimate.
      * - `null` → TBD (no estimate); analyzer poisons descendants with `null`.
      */
-    duration: DurationEstimate | null;
+    readonly duration: DurationEstimate | null;
     /**
      * Per-activity confidence override from pipe metadata (`| confidence: low`).
      * When unset, analyzer uses `options.confidence`.
      */
-    confidence?: string;
+    readonly confidence?: string;
     /** Group id this activity belongs to (post-resolve). */
-    groupId?: string;
+    readonly groupId?: string;
     /** Source line of the declaration site (1-based). */
-    lineNumber: number;
+    readonly lineNumber: number;
     /** True for `milestone <name>` primitives (zero-duration, diamond shape). */
-    isMilestone: boolean;
+    readonly isMilestone: boolean;
     /**
      * Resolved tag-group metadata from pipe-metadata aliases. Keys are
      * lowercased tag-group names (e.g. `priority`, `team`); values are the
@@ -184,7 +196,7 @@ interface PertActivity {
      * when an `active-tag` group is set. Empty when no tag groups are
      * declared or the activity carried no tag metadata.
      */
-    tags?: Record<string, string>;
+    readonly tags?: Readonly<Record<string, string>>;
 }
 /**
  * Forward-style milestone shorthand. Stored as a `PertActivity` with
@@ -208,58 +220,58 @@ type EdgeType = 'FS' | 'SS' | 'FF' | 'SF';
  * negative (a lead — predecessor and successor overlap).
  */
 interface PertEdge {
-    source: string;
-    target: string;
-    lineNumber: number;
-    type: EdgeType;
-    lag: Duration | null;
+    readonly source: string;
+    readonly target: string;
+    readonly lineNumber: number;
+    readonly type: EdgeType;
+    readonly lag: Duration | null;
 }
 /** Group declared via `[group-name] | metadata`. */
 interface PertGroup {
-    id: string;
-    name: string;
+    readonly id: string;
+    readonly name: string;
     /** Activity ids belonging to this group, populated in Pass 2. */
-    activityIds: string[];
+    readonly activityIds: readonly string[];
     /** Whether the user authored `| collapsed: true`. */
-    collapsed: boolean;
+    readonly collapsed: boolean;
     /** Source line of the `[group-name]` header (1-based). */
-    lineNumber: number;
+    readonly lineNumber: number;
     /**
      * Resolved tag-group metadata for the cluster header — same shape as
      * `PertActivity.tags`. Currently informational; default-tag injection
      * skips groups (containers) so they appear "untagged" unless the user
      * authors an explicit value via pipe metadata.
      */
-    tags?: Record<string, string>;
+    readonly tags?: Readonly<Record<string, string>>;
     /**
      * Auto-detected group topology (Pass 2 result).
      * - `hammock`: single entry + single exit — collapses to a super-edge.
      * - `cluster`: multi-entry or multi-exit — collapses to a bounding rect.
      */
-    classification?: 'hammock' | 'cluster';
+    readonly classification?: 'hammock' | 'cluster';
 }
 /** Output of `parsePert(content)`. */
 interface ParsedPert {
     /** Optional title parsed from `pert <title>`. */
-    title: string | null;
-    options: PertOptions;
-    activities: PertActivity[];
-    edges: PertEdge[];
-    groups: PertGroup[];
+    readonly title: string | null;
+    readonly options: PertOptions;
+    readonly activities: readonly PertActivity[];
+    readonly edges: readonly PertEdge[];
+    readonly groups: readonly PertGroup[];
     /**
      * Tag groups declared at the top of the diagram (`tag Priority as p
      * High red, Low green`). Drive node fill via `resolveTagColor()`.
      * Empty when no `tag` blocks are declared.
      */
-    tagGroups: TagGroup[];
+    readonly tagGroups: readonly TagGroup[];
     /**
      * Map alias-or-name → canonical activity id. Useful for the analyzer
      * and for editor autocomplete; also populated in Pass 2.
      */
-    idMap: Record<string, string>;
-    diagnostics: DgmoError[];
+    readonly idMap: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
     /** First fatal error message; `null` when parse succeeded. */
-    error: string | null;
+    readonly error: string | null;
 }
 /**
  * Fully-resolved per-activity analysis output. ES/EF/LS/LF/slack are
@@ -460,40 +472,40 @@ interface ResolvedPert {
     error: string | null;
 }
 interface PertLayoutNode {
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
+    readonly id: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
 }
 interface PertLayoutEdge {
-    source: string;
-    target: string;
-    points: {
-        x: number;
-        y: number;
-    }[];
+    readonly source: string;
+    readonly target: string;
+    readonly points: ReadonlyArray<{
+        readonly x: number;
+        readonly y: number;
+    }>;
 }
 interface PertLayoutGroup {
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    classification: 'hammock' | 'cluster';
+    readonly id: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly classification: 'hammock' | 'cluster';
     /**
      * True when the group is currently collapsed. Layout sized this rect
      * as a single rolled-up node and hid the group's member activities
      * from `nodes` / re-routed external edges to land on this rect.
      */
-    collapsed?: boolean;
+    readonly collapsed?: boolean;
 }
 interface LayoutResult {
-    nodes: PertLayoutNode[];
-    edges: PertLayoutEdge[];
-    groups: PertLayoutGroup[];
-    width: number;
-    height: number;
+    readonly nodes: readonly PertLayoutNode[];
+    readonly edges: readonly PertLayoutEdge[];
+    readonly groups: readonly PertLayoutGroup[];
+    readonly width: number;
+    readonly height: number;
 }
 
 /**

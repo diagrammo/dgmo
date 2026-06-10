@@ -1,7 +1,7 @@
 import { EChartsOption } from 'echarts';
-import * as d3Selection from 'd3-selection';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
+import { GeoProjection } from 'd3-geo';
 
 type DgmoSeverity = 'error' | 'warning';
 interface DgmoError {
@@ -77,6 +77,457 @@ interface ParseInArrowLabelResult {
  * pure label text.
  */
 declare function parseInArrowLabel(rawLabel: string, lineNumber: number): ParseInArrowLabelResult;
+
+/** A single entry inside a tag group: `Value color` */
+interface TagEntry {
+    readonly value: string;
+    readonly color: string;
+    readonly lineNumber: number;
+}
+/**
+ * A tag group block: heading + entries.
+ *
+ * Parser internals build via `Writable<TagGroup>` from `utils/brand.ts`;
+ * once returned to a chart-type parser, consumers see the readonly view.
+ */
+interface TagGroup {
+    readonly name: string;
+    readonly alias?: string;
+    readonly entries: readonly TagEntry[];
+    /** Default value for nodes without explicit metadata. First entry unless another is marked `default`. */
+    readonly defaultValue?: string;
+    readonly lineNumber: number;
+}
+
+/** A POI / route-stop position: gazetteer name (+ optional ISO scope) or coords. */
+type PoiPos = {
+    readonly kind: 'coords';
+    readonly lat: number;
+    readonly lon: number;
+} | {
+    readonly kind: 'name';
+    readonly name: string;
+    readonly scope?: string;
+};
+/** One-shot directives (§24B.2/.7). Values are raw strings unless typed.
+ *
+ *  COSMETIC DEFAULTS ARE ON. Every basemap feature renders by default; the only
+ *  control is a bare `no-*` opt-out flag that sets the matching `noXxx` boolean.
+ *  Absent (undefined) = feature ON — so render gates test `!== true`, never
+ *  `=== true`. There are NO positive opt-in cosmetic flags (§24B.2). */
+interface MapDirectives {
+    /** Legend label for the region value ramp (`region-metric <label>`). */
+    regionMetric?: string;
+    /** Recognized color NAME for the choropleth ramp HIGH endpoint, peeled off the
+     *  `region-metric` trailing token (§24B.3). Defaults to red when absent. */
+    regionMetricColor?: string;
+    /** Recognized color NAME for the choropleth ramp LOW endpoint (the second,
+     *  left-of-two trailing colors on `region-metric`, §24B.3). Absent ⇒ the low
+     *  end is the implied floored neutral (today's single-colour behaviour). */
+    regionMetricLowColor?: string;
+    /** Legend label for the POI value (marker size) channel (`poi-metric`). */
+    poiMetric?: string;
+    /** Legend label for the edge/leg value (thickness) channel (`flow-metric`). */
+    flowMetric?: string;
+    /** Default ISO scope for bare-name resolution (§24B.8): a 3166-1 country
+     *  (`locale US`) or 3166-2 subdivision (`locale US-GA`). The country part
+     *  biases ambiguous bare cities to that nation; the subdivision part further
+     *  prefers that state. Inferred from content; explicit only to steer a guess. */
+    locale?: string;
+    activeTag?: string;
+    caption?: string;
+    /** `no-title` — suppress the title banner (the subtitle/caption, if any, still
+     *  render). Mirrors the `no-title` directive across the other chart types. */
+    noTitle?: boolean;
+    /** `no-legend` — suppress the legend (default-on). */
+    noLegend?: boolean;
+    /** `no-coastline` — suppress the faint nautical-chart water-lines along
+     *  coasts/shorelines (default-on; geometry derived from drawn region paths). */
+    noCoastline?: boolean;
+    /** `no-relief` — suppress mountain-range relief hachures. Relief is default-on
+     *  but auto-gated to dataless reference maps at continent/world zoom (§24B.2). */
+    noRelief?: boolean;
+    /** `no-context-labels` — suppress the orientation backdrop (water-body names +
+     *  unreferenced notable country names), distinct from `region-labels`. */
+    noContextLabels?: boolean;
+    /** `no-region-labels` — suppress region labels (default-on, full→abbrev→hide). */
+    noRegionLabels?: boolean;
+    /** `no-region-value` — suppress the metric VALUE shown under each data region's
+     *  name on a `region-metric` choropleth (default-on). The region NAME still
+     *  renders (governed by `no-region-labels`); only the numeric value line goes. */
+    noRegionValue?: boolean;
+    /** `no-poi-labels` — suppress POI labels (default-on, collision-managed auto). */
+    noPoiLabels?: boolean;
+    /** `no-colorize` — force the plain green-land reference dress even when regions
+     *  are referenced (regions are auto-coloured by default; §24B colorize). A
+     *  no-op under data — the basemap is already gray there. */
+    noColorize?: boolean;
+    /** `no-cities` — suppress the subtle gazetteer city dots scattered across the
+     *  basemap for geographic orientation (default-on; population-ranked, spacing-
+     *  thinned so density adapts to zoom). Explicit POIs always draw regardless. */
+    noCities?: boolean;
+    /** `no-cluster-pois` — never collapse coincident POI markers into a count badge
+     *  (clustering/spiderfy is default-on in the interactive preview). With this set
+     *  the markers always render fanned out with their legs — the same as a static
+     *  export — so a dense map reads the same on screen as on paper. No-op for
+     *  export (already always expanded). */
+    noClusterPois?: boolean;
+}
+/** A region-fill: a subdivision name with an optional score and/or tag values
+ *  (§24B.3/.4 — BOTH may be present; bivariate seam). */
+interface MapRegion {
+    readonly name: string;
+    /** Optional trailing ISO scope qualifier (§24B.8) — a 3166-1 country code
+     *  (`Georgia US` → US context) or 3166-2 subdivision (`Georgia US-GA`).
+     *  Forces the country-vs-state interpretation and silences the ambiguity warning. */
+    readonly scope?: string;
+    /** Numeric value → choropleth shade (§24B.3). Lifted out of `meta`. */
+    readonly value?: number;
+    /** §1.5 trailing-token color NAME → flat categorical override fill (§24B.4);
+     *  painted regardless of the active colouring dimension, no legend entry. */
+    readonly color?: string;
+    /** Tag values keyed by lowercased tag GROUP name (alias is resolved away). */
+    readonly tags: Readonly<Record<string, string>>;
+    /** Any remaining reserved keys captured verbatim (`label`/`style`/…). */
+    readonly meta: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
+}
+/** A point of interest (§24B.5). `meta` holds the numeric `value` (→ marker
+ *  size) and `style` verbatim; `label` is lifted out. */
+interface MapPoi {
+    readonly pos: PoiPos;
+    readonly alias?: string;
+    readonly label?: string;
+    /** §1.5 trailing-token color NAME → flat marker fill (§24B.5); wins over a
+     *  tag color and the default orange. */
+    readonly color?: string;
+    readonly tags: Readonly<Record<string, string>>;
+    readonly meta: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
+}
+/** One leg of a route (§24B.6): an edge from the previous stop to `dest`. Reuses
+ *  the edge arrow idiom — in-arrow text = leg label, `value:` = leg thickness,
+ *  `->`/`~>` (or the header `style: arc`) = shape. A tag on the leg line colours
+ *  the LINE (§24B.6); `label:`/`as` still name the DESTINATION stop. */
+interface MapRouteLeg {
+    readonly label?: string;
+    readonly style: 'straight' | 'arc';
+    readonly value?: string;
+    readonly dest: PoiPos;
+    readonly destAlias?: string;
+    readonly destLabel?: string;
+    /** Tag(s) on the leg line → colour the LINE itself. To categorise a STOP,
+     *  tag its own `poi` line. */
+    readonly tags: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
+}
+/** An ordered, auto-numbered route (§24B.6): `route <origin> [style: arc]` + a
+ *  sequence of indented arrow legs, each continuing from the previous stop.
+ *  Repeat the origin as a leg's destination to close a loop. */
+interface MapRoute {
+    readonly origin: PoiPos;
+    readonly originAlias?: string;
+    readonly originLabel?: string;
+    readonly originValue?: string;
+    readonly originTags: Readonly<Record<string, string>>;
+    readonly style: 'straight' | 'arc';
+    readonly legs: readonly MapRouteLeg[];
+    readonly lineNumber: number;
+}
+/** A connector (§24B.6). Endpoints are RAW identifier strings (name or alias);
+ *  binding to POIs/regions is the resolver's job. Token = arrowhead iff it ends
+ *  in `>`, arc iff it starts with `~`: `->` straight, `~>` arc, `--`/`-label-`
+ *  undirected straight, `~~`/`~label~` undirected arc. */
+interface MapEdge {
+    readonly from: string;
+    readonly to: string;
+    readonly label?: string;
+    readonly directed: boolean;
+    readonly style: 'straight' | 'arc';
+    readonly meta: Readonly<Record<string, string>>;
+    /** Tag(s) on the edge line → colour the LINE itself (§24B.6). */
+    readonly tags: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
+}
+interface ParsedMap {
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly directives: MapDirectives;
+    readonly tagGroups: readonly TagGroup[];
+    readonly regions: readonly MapRegion[];
+    readonly pois: readonly MapPoi[];
+    readonly routes: readonly MapRoute[];
+    readonly edges: readonly MapEdge[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
+}
+/** Legend descriptor for a rendered map (a layout-stage output, re-exported from
+ *  `layout.ts`). It lives here so the `legend-band` helper can consume it without
+ *  importing `layout` — `layout` already value-imports `mapLegendBand`, so the
+ *  reverse type import would form a layout↔legend-band cycle. */
+interface MapLayoutLegend {
+    readonly tagGroups: ReadonlyArray<{
+        name: string;
+        entries: ReadonlyArray<{
+            value: string;
+            color: string;
+        }>;
+    }>;
+    readonly activeGroup: string | null;
+    readonly ramp?: {
+        metric?: string;
+        min: number;
+        max: number;
+        /** Resolved hex of the LOW (t=0) endpoint — the explicit low colour, or the
+         *  floored neutral the single-colour fills blend up from. */
+        low: string;
+        /** Resolved hex of the HIGH (t=1) endpoint (the named ramp hue). */
+        high: string;
+    };
+}
+
+/** A TopoJSON topology (world-coarse/world-detail keyed by ISO 3166-1 alpha-2;
+ *  us-states keyed by ISO 3166-2). Geometry feature `id` is the ISO code;
+ *  `properties.name` is the display string. Kept loose to avoid a topojson dep. */
+interface BoundaryTopology {
+    type: 'Topology';
+    objects: Record<string, {
+        type: string;
+        geometries: BoundaryGeometry[];
+    }>;
+    arcs: number[][][];
+    transform?: {
+        scale: [number, number];
+        translate: [number, number];
+    };
+    bbox?: number[];
+}
+interface BoundaryGeometry {
+    type: string;
+    /** ISO code: alpha-2 (countries) or 3166-2 `US-XX` (states). */
+    id: string;
+    properties: {
+        name: string;
+    };
+    arcs?: unknown;
+}
+/**
+ * A gazetteer city entry: `[lat, lon, iso, pop, name, sub?]`.
+ * - `lat`/`lon` — rounded to 3 decimals.
+ * - `iso` — ISO 3166-1 alpha-2 country code.
+ * - `pop` — population.
+ * - `name` — canonical display name (case/accents preserved).
+ * - `sub` — ISO 3166-2 subdivision (US cities only in v1, e.g. `US-OR`); absent otherwise.
+ */
+type GazetteerEntry = [
+    lat: number,
+    lon: number,
+    iso: string,
+    pop: number,
+    name: string,
+    sub?: string
+];
+interface Gazetteer {
+    /** Every city, stored once. `byName`/`alt` reference cities by array index
+     *  (normalized — no tuple duplication; geonameid is a build-time-only linker). */
+    cities: GazetteerEntry[];
+    /** Folded (NFD, diacritic-stripped, lowercased) name → indices into `cities`.
+     *  Always an array; length > 1 for same-named cities (Portland US-OR / US-ME). */
+    byName: Record<string, number[]>;
+    /** Folded alias → index into `cities`. Never collides with a `byName` key. */
+    alt: Record<string, number>;
+}
+/**
+ * IATA-coded airport index (a SEPARATE optional asset — `airports.json`; ADR-1).
+ * Lets memorized airport codes resolve to coordinates through the resolver's
+ * existing fold→lookup path (`poi JFK`, `route JFK -> LAX`) — no parser change.
+ *
+ * - `airports` — `GazetteerEntry` tuples `[lat, lon, iso, 0, name]`. `pop` is
+ *   always 0 (OurAirports has no enplanement column); `name` is the full airport
+ *   name, used for COMPLETION DISPLAY only — airports resolve by IATA code, never
+ *   by name. Coords are rounded to 2 decimals (~1km; sub-pixel at map scale).
+ * - `airportIata` — folded 3-letter IATA code → index into `airports`. Consulted
+ *   LAST in resolution (after city `byName` + `alt`), so a real city always wins
+ *   a shared token (ADR-2). Airports never enter `cities[]`, so the city-scatter
+ *   and reverse-geocode layers never see them.
+ */
+interface AirportData {
+    readonly airports: GazetteerEntry[];
+    readonly airportIata: Record<string, number>;
+}
+/** Water-feature class (Natural Earth `featurecla`, rivers/reefs excluded). */
+type WaterKind = 'ocean' | 'sea' | 'gulf' | 'bay' | 'strait' | 'channel' | 'sound';
+/**
+ * A water-body label entry: `[lat, lon, name, tier, kind, alt?]`.
+ * - `lat`/`lon` — label anchor (Natural Earth inner point), rounded to 3 decimals.
+ * - `name` — full display name (no abbreviation exists for water bodies).
+ * - `tier` — Natural Earth `scalerank` (0 = most prominent → orientation priority).
+ * - `kind` — feature class (drives styling/priority bucketing).
+ * - `alt` — optional extra anchor points `[lat, lon][]`; the layout picks the
+ *   one nearest the viewport center (Decision 5 multi-anchor seam). Absent today.
+ */
+type WaterBodyEntry = [
+    lat: number,
+    lon: number,
+    name: string,
+    tier: number,
+    kind: WaterKind,
+    alt?: ReadonlyArray<readonly [number, number]>
+];
+interface WaterBodies {
+    /** Deterministically ordered (tier, then name). Generated from Natural Earth
+     *  marine polys by scripts/build-map-data.mjs into `water-bodies.json`. */
+    readonly entries: readonly WaterBodyEntry[];
+}
+/** A fill-able region (country or US state) — the display name + its ISO id +
+ *  layer. Powers region-name autocomplete (completion-only; the renderer derives
+ *  names from the topology directly). Extracted from the topologies by
+ *  scripts/build-map-data.mjs into `region-names.json`. */
+interface RegionName {
+    /** Display name (original casing), e.g. `California` / `Germany`. */
+    readonly name: string;
+    /** ISO 3166-1 alpha-2 (country) or 3166-2 `US-XX` (state). */
+    readonly iso: string;
+    readonly layer: 'country' | 'us-state';
+}
+interface RegionNames {
+    /** Deterministically ordered (layer, then name). */
+    readonly regions: readonly RegionName[];
+}
+
+/** The four static assets, injected into the pure resolver (DI). */
+interface MapData {
+    worldCoarse: BoundaryTopology;
+    worldDetail: BoundaryTopology;
+    usStates: BoundaryTopology;
+    /** Major lakes (Natural Earth 110m) drawn as water over land — e.g. the Great
+     *  Lakes. Optional so hand-built test fixtures need not supply it. */
+    lakes?: BoundaryTopology;
+    /** Major river centerlines (Natural Earth 110m) drawn as thin water lines over
+     *  land — e.g. the Amazon, Nile, Mississippi. Optional, like `lakes`. */
+    rivers?: BoundaryTopology;
+    /** Notable mountain-range polygons (Natural Earth 50m geography regions) drawn
+     *  as a subtle gradient relief cue over base land when the `relief` directive
+     *  is on — e.g. the Rockies, Andes, Himalayas. Optional, like `lakes`. */
+    mountainRanges?: BoundaryTopology;
+    /** North-America-clipped 10m country land, used as crisp neighbour context
+     *  under the albers-usa US view so Canada/Mexico match the 10m states instead
+     *  of the coarser world tiers. Optional, like `lakes`. */
+    naLand?: BoundaryTopology;
+    /** North-America-clipped 10m major lakes (Great Lakes etc.), used in place of
+     *  the coarse `lakes` under the albers-usa US view. Optional. */
+    naLakes?: BoundaryTopology;
+    /** Water-body orientation labels (Natural Earth marine polys) drawn when the
+     *  `context-labels` directive is on — oceans/seas/gulfs/bays/etc. Optional, so
+     *  hand-built test fixtures and older bundles need not supply it. */
+    waterBodies?: WaterBodies;
+    /** IATA-coded airports (`airports.json`) — lets `poi JFK` / `route JFK -> LAX`
+     *  resolve. Optional so hand-built fixtures and older DI bundles need not supply
+     *  it; the resolver guards `data.airports?.…` everywhere. */
+    airports?: AirportData;
+    gazetteer: Gazetteer;
+}
+type ProjectionFamily = 'equal-earth' | 'natural-earth' | 'equirectangular' | 'albers-usa' | 'conic-equal-area' | 'mercator';
+/** Which geometry layers the renderer draws. */
+interface Basemaps {
+    /** World country tier: coarse (world-scale) | detail (regional/zoom). */
+    world: 'coarse' | 'detail';
+    /** Loaded subdivision layers (v1: only 'us-states'). */
+    subdivisions: Array<'us-states'>;
+}
+interface ResolvedRegion {
+    /** ISO code: alpha-2 (country) or 3166-2 `US-XX` (state) — the geometry id. */
+    readonly iso: string;
+    readonly name: string;
+    readonly layer: 'country' | 'us-state';
+    readonly value?: number;
+    /** §1.5 trailing-token color NAME → flat override fill (§24B.4). */
+    readonly color?: string;
+    readonly tags: Readonly<Record<string, string>>;
+    readonly meta: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
+}
+interface ResolvedPoi {
+    /** Folded registry id (alias|name folded, or `@lat,lon` for coord POIs). */
+    readonly id: string;
+    /** Display name (original casing): the city/place name, alias, or endpoint
+     *  string. The on-map label falls back to this when `label` is absent (the
+     *  folded `id` is for binding, not display). */
+    readonly name?: string;
+    readonly lat: number;
+    readonly lon: number;
+    readonly label?: string;
+    /** §1.5 trailing-token color NAME → flat marker fill (§24B.5). */
+    readonly color?: string;
+    readonly tags: Readonly<Record<string, string>>;
+    readonly meta: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
+    /** True when created from an undeclared edge/route endpoint (§24B.10). */
+    readonly implicit?: boolean;
+}
+interface ResolvedEdge {
+    readonly fromId: string;
+    readonly toId: string;
+    readonly label?: string;
+    readonly directed: boolean;
+    readonly style: 'straight' | 'arc';
+    readonly meta: Readonly<Record<string, string>>;
+    /** Tag(s) on the edge line → colour the LINE (§24B.6). */
+    readonly tags: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
+}
+interface ResolvedRouteLeg {
+    readonly fromId: string;
+    readonly toId: string;
+    readonly label?: string;
+    readonly style: 'straight' | 'arc';
+    readonly value?: string;
+    /** Tag(s) on the leg line → colour the LINE (§24B.6). */
+    readonly tags: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
+}
+interface ResolvedRoute {
+    /** Ordered UNIQUE stop ids (for numbering + the origin marker). A loop-closing
+     *  leg whose destination is an earlier stop adds a leg but no duplicate stop. */
+    readonly stopIds: readonly string[];
+    readonly legs: readonly ResolvedRouteLeg[];
+    readonly lineNumber: number;
+}
+/** Geographic bounding box `[[west, south], [east, north]]` in degrees.
+ *
+ *  WRAP CONVENTION (#12): for an antimeridian-crossing extent the resolver keeps
+ *  `west` in [−180, 180] and returns `east` UNWRAPPED in (180, 540] (i.e.
+ *  `east = west + span`, span ≤ 360). So `east > 180` signals a dateline-crossing
+ *  extent; the renderer (step 4) must mod `east` back into [−180, 180] (or shift
+ *  the projection's center) rather than assume `east ≤ 180`. `south`/`north` are
+ *  always plain degrees in [−90, 90]. */
+type GeoExtent = [[number, number], [number, number]];
+interface ResolvedMap {
+    readonly title: string | null;
+    /** DEAD — the `subtitle` directive was removed (2026-06-02 defaults-on review).
+     *  Never populated; the renderer's subtitle branch is now unreachable. Left for
+     *  a later cleanup pass. */
+    readonly subtitle?: string;
+    readonly caption?: string;
+    readonly tagGroups: readonly TagGroup[];
+    readonly directives: MapDirectives;
+    readonly basemaps: Basemaps;
+    readonly regions: readonly ResolvedRegion[];
+    readonly pois: readonly ResolvedPoi[];
+    readonly edges: readonly ResolvedEdge[];
+    readonly routes: readonly ResolvedRoute[];
+    readonly extent: GeoExtent;
+    readonly projection: ProjectionFamily;
+    /** POI-only region framing: the region(s) that CONTAIN the POIs — us-state ids
+     *  (`US-CA`) or country isos (`FR`). The frame is snapped to the union of their
+     *  bboxes, and the layout labels them prominently (vs. muted neighbours). Empty
+     *  for non-POI-only maps or when POIs fall outside every polygon. Optional so
+     *  older/foreign ResolvedMap literals need not supply it. */
+    readonly poiFrameContainers?: readonly string[];
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
+}
 
 /**
  * Compact view state schema (ADR-6).
@@ -192,6 +643,9 @@ declare function render(content: string, options?: {
     };
     /** View state for export — controls interactive state (collapse, swimlanes, etc.) */
     viewState?: CompactViewState;
+    /** Bundled map data for `map` charts in the browser, where the Node fs
+     *  `loadMapData()` seam can't run. CLI/SSR omit this and fall back to fs. */
+    mapData?: MapData;
 }): Promise<{
     svg: string;
     diagnostics: DgmoError[];
@@ -311,7 +765,7 @@ declare function getAllChartTypes(): string[];
  */
 declare const CHART_TYPE_DESCRIPTIONS: Record<string, string>;
 type ParseResult = {
-    diagnostics: DgmoError[];
+    diagnostics: readonly DgmoError[];
 };
 type ParseFn = (content: string) => ParseResult;
 /**
@@ -338,20 +792,24 @@ declare function parseDgmo(content: string): {
 /**
  * Color definitions for a single mode (light or dark).
  * 10 semantic UI colors + 9 named accent colors = 19 total.
+ *
+ * `readonly` on every field (and the nested `colors` map) by design —
+ * palettes flow from the registry into every renderer; nothing in the
+ * pipeline should ever mutate a palette in place.
  */
 interface PaletteColors {
     /** Main background (#eceff4 light / #2e3440 dark for Nord) */
-    bg: string;
+    readonly bg: string;
     /** Cards, panels (#e5e9f0 / #3b4252) */
-    surface: string;
+    readonly surface: string;
     /** Popovers, dropdowns (#e5e9f0 / #434c5e) */
-    overlay: string;
+    readonly overlay: string;
     /** Borders, dividers, muted (#d8dee9 / #4c566a) */
-    border: string;
+    readonly border: string;
     /** Primary text (#2e3440 / #eceff4) */
-    text: string;
+    readonly text: string;
     /** Secondary/diminished text (#4c566a / #d8dee9) */
-    textMuted: string;
+    readonly textMuted: string;
     /**
      * Light-mode arg for `contrastText()` when text is rendered on a
      * tinted shape fill (e.g. `shapeFill()` output). Must guarantee
@@ -359,48 +817,51 @@ interface PaletteColors {
      * Distinct from `colors.white` because palette-aesthetic anchors don't
      * always meet contrast requirements (TD-5).
      */
-    textOnFillLight: string;
+    readonly textOnFillLight: string;
     /** Dark-mode counterpart to `textOnFillLight`. */
-    textOnFillDark: string;
+    readonly textOnFillDark: string;
     /** Primary accent — buttons, links */
-    primary: string;
+    readonly primary: string;
     /** Secondary accent */
-    secondary: string;
+    readonly secondary: string;
     /** Tertiary accent */
-    accent: string;
+    readonly accent: string;
     /** Error/danger */
-    destructive: string;
+    readonly destructive: string;
     /**
      * Used for: inline annotations (red), pie charts, cScale,
      * series rotation, journey actors, Gantt tasks.
      */
-    colors: {
-        red: string;
-        orange: string;
-        yellow: string;
-        green: string;
-        blue: string;
-        purple: string;
-        teal: string;
-        cyan: string;
-        gray: string;
-        black: string;
-        white: string;
+    readonly colors: {
+        readonly red: string;
+        readonly orange: string;
+        readonly yellow: string;
+        readonly green: string;
+        readonly blue: string;
+        readonly purple: string;
+        readonly teal: string;
+        readonly cyan: string;
+        readonly gray: string;
+        readonly black: string;
+        readonly white: string;
     };
 }
 /**
  * Complete palette definition. One object per color scheme.
  * This is what palette authors create — the single artifact for NFR1.
+ *
+ * Palettes are immutable from the consumer's perspective; the registry
+ * hands out the same frozen-shape object on every `getPalette(id)`.
  */
 interface PaletteConfig {
-    /** Registry key: 'nord', 'solarized', 'catppuccin' */
-    id: string;
-    /** Display name: 'Nord', 'Solarized', 'Catppuccin' */
-    name: string;
+    /** Registry key: 'nord', 'slate', 'catppuccin' */
+    readonly id: string;
+    /** Display name: 'Nord', 'Slate', 'Catppuccin' */
+    readonly name: string;
     /** Light mode color definitions */
-    light: PaletteColors;
+    readonly light: PaletteColors;
     /** Dark mode color definitions */
-    dark: PaletteColors;
+    readonly dark: PaletteColors;
 }
 
 /** Validate that a hex string is well-formed (#RGB or #RRGGBB). */
@@ -457,7 +918,7 @@ declare function mix(a: string, b: string, pct: number): string;
  *     tokyo-night green `#9ece6a` min 106, ratio 11.4:1 all correctly pick dark).
  *  3. **Saturated fill (min RGB < 100, luminance ≤ 0.55)** → `lightText`. At least
  *     one channel near zero signals true saturation — gruvbox dark green
- *     `#b8bb26` (min 38), one-dark blue `#4078f2` (min 64), bold red/blue
+ *     `#b8bb26` (min 38), blueprint blue `#1f5e8c` (min 31), bold red/blue
  *     (min 0), solarized blue `#268bd2` (min 38). The user consistently
  *     prefers light text on these for visual punch.
  *
@@ -489,25 +950,19 @@ declare function shapeFill(palette: PaletteColors, intent: string, isDark: boole
 /** Derive the 8-color series rotation from a palette's named colors. */
 declare function getSeriesColors(palette: PaletteColors): string[];
 
-declare const boldPalette: PaletteConfig;
+declare const atlasPalette: PaletteConfig;
+
+declare const blueprintPalette: PaletteConfig;
 
 declare const catppuccinPalette: PaletteConfig;
 
-declare const gruvboxPalette: PaletteConfig;
-
 declare const nordPalette: PaletteConfig;
 
-declare const oneDarkPalette: PaletteConfig;
+declare const slatePalette: PaletteConfig;
 
-declare const rosePinePalette: PaletteConfig;
-
-declare const solarizedPalette: PaletteConfig;
+declare const tidewaterPalette: PaletteConfig;
 
 declare const tokyoNightPalette: PaletteConfig;
-
-declare const draculaPalette: PaletteConfig;
-
-declare const monokaiPalette: PaletteConfig;
 
 /**
  * All built-in palettes, keyed by camelCase id. Use directly with render():
@@ -519,16 +974,13 @@ declare const monokaiPalette: PaletteConfig;
  * used by share URLs and the CLI `--palette` flag.
  */
 declare const palettes: {
+    readonly atlas: PaletteConfig;
+    readonly blueprint: PaletteConfig;
+    readonly slate: PaletteConfig;
+    readonly tidewater: PaletteConfig;
     readonly nord: PaletteConfig;
     readonly catppuccin: PaletteConfig;
-    readonly solarized: PaletteConfig;
-    readonly gruvbox: PaletteConfig;
     readonly tokyoNight: PaletteConfig;
-    readonly oneDark: PaletteConfig;
-    readonly rosePine: PaletteConfig;
-    readonly dracula: PaletteConfig;
-    readonly monokai: PaletteConfig;
-    readonly bold: PaletteConfig;
 };
 
 type ChartType$1 = 'bar' | 'line' | 'pie' | 'doughnut' | 'area' | 'polar-area' | 'radar' | 'bar-stacked';
@@ -663,8 +1115,29 @@ interface ControlsGroupToggle {
 interface ControlsGroupConfig {
     toggles: ControlsGroupToggle[];
 }
+interface LegendGroupData {
+    readonly name: string;
+    readonly entries: ReadonlyArray<{
+        readonly value: string;
+        readonly color: string;
+    }>;
+    /** Continuous (choropleth) groups carry a gradient ramp instead of discrete
+     *  entries — its active capsule renders `min ▭gradient▭ max` rather than dots.
+     *  Additive: only the map sets it; every other caller omits it and renders
+     *  unchanged. When set, `entries` is empty. */
+    readonly gradient?: {
+        readonly min: number;
+        readonly max: number;
+        /** Resolved hex of the LOW (t=0) endpoint. For a single-colour ramp this is
+         *  the floored neutral (`mix(hue, base, RAMP_FLOOR)`); for an explicit
+         *  two-colour ramp it is the user's low colour. */
+        readonly low: string;
+        /** Resolved hex of the HIGH (t=1) endpoint (the named hue). */
+        readonly high: string;
+    };
+}
 interface LegendConfig {
-    groups: LegendGroupData[];
+    groups: readonly LegendGroupData[];
     position: LegendPosition;
     controls?: LegendControl[];
     controlsGroup?: ControlsGroupConfig;
@@ -675,6 +1148,18 @@ interface LegendConfig {
     capsulePillAddonWidth?: number;
     /** When true, groups with no entries are still rendered as collapsed pills. Default: false (empty groups hidden). */
     showEmptyGroups?: boolean;
+    /** When true, INACTIVE sibling groups still render as collapsed pills next to
+     *  the active capsule (preview only — export still shows just the active
+     *  group). Lets the user click a sibling to switch the active group. Default
+     *  false (legacy: when one group is active the others are hidden). */
+    showInactivePills?: boolean;
+    /** Where the controlsGroup is hosted. Default (undefined / 'inline') renders
+     *  the in-SVG gear exactly as before — every non-app consumer (Obsidian,
+     *  site, remark-family, CLI) is unaffected. When 'app', the controlsGroup is
+     *  dropped entirely (no gear, no reserved row): the app overlay strip owns the
+     *  controls, pinned to the top edge of the preview. App preview only; never
+     *  set on the export path. */
+    controlsHost?: 'app' | 'inline';
 }
 interface LegendPalette {
     bg: string;
@@ -700,6 +1185,7 @@ interface LegendEntryLayout {
     dotCy: number;
     textX: number;
     textY: number;
+    displayValue?: string;
 }
 interface LegendCapsuleLayout {
     groupName: string;
@@ -713,6 +1199,26 @@ interface LegendCapsuleLayout {
     moreCount?: number;
     /** X offset where addon content (e.g. eye icon) can be placed — after pill, before entries */
     addonX?: number;
+    /** Continuous-ramp swatch (choropleth groups) drawn in place of entry dots:
+     *  `minText` | gradient rect | `maxText`, all vertically centred. */
+    gradient?: {
+        rampX: number;
+        rampY: number;
+        rampW: number;
+        rampH: number;
+        /** Raw numeric ends (for the app's gradient-scrub: x → value). */
+        min: number;
+        max: number;
+        minText: string;
+        minX: number;
+        maxText: string;
+        maxX: number;
+        textY: number;
+        /** Resolved hex endpoints (low = t0, high = t1); the renderer samples the
+         *  ramp between them via `valueRampStops`. */
+        low: string;
+        high: string;
+    };
 }
 interface LegendControlLayout {
     id: string;
@@ -785,39 +1291,16 @@ interface LegendHandle {
 }
 type D3Sel = Selection<any, unknown, any, unknown>;
 
-interface LegendGroupData {
-    name: string;
-    entries: Array<{
-        value: string;
-        color: string;
-    }>;
+declare class ScaleContext {
+    readonly factor: number;
+    readonly isBelowFloor: boolean;
+    private constructor();
+    static from(containerSize: number, idealSize: number, minScaleFactor?: number): ScaleContext;
+    static identity(): ScaleContext;
+    aesthetic(value: number): number;
+    structural(value: number): number;
+    text(fontSize: number, floor?: number): number;
 }
-interface LegendRenderOptions {
-    palette: {
-        bg: string;
-        surface: string;
-        text: string;
-        textMuted: string;
-    };
-    isDark: boolean;
-    containerWidth: number;
-    /** Grid left offset as percentage (e.g. 12 for '12%'). Centers legend over plot area. */
-    gridLeftPct?: number;
-    /** Grid right offset as percentage (e.g. 4 for '4%'). Centers legend over plot area. */
-    gridRightPct?: number;
-    activeGroup?: string | null;
-    className?: string;
-}
-interface LegendRenderResult {
-    svg: string;
-    height: number;
-    /** Natural content width (px). Callers can use this for CSS-based centering. */
-    width: number;
-}
-declare function renderLegendSvg(groups: LegendGroupData[], options: LegendRenderOptions): LegendRenderResult;
-declare function renderLegendSvgFromConfig(config: LegendConfig, state: LegendState, palette: LegendPalette & {
-    isDark: boolean;
-}, containerWidth: number): LegendRenderResult;
 
 type ExtendedChartType = 'sankey' | 'chord' | 'function' | 'scatter' | 'heatmap' | 'funnel';
 interface ExtendedChartDataPoint {
@@ -913,7 +1396,7 @@ declare function parseExtendedChart(content: string, palette?: PaletteColors): P
  * Handles extended chart types: scatter, sankey, chord, function, heatmap, funnel.
  * @param parsed - Result of parseExtendedChart()
  */
-declare function buildExtendedChartOption(parsed: ParsedExtendedChart, palette: PaletteColors, isDark: boolean): EChartsOption;
+declare function buildExtendedChartOption(parsed: ParsedExtendedChart, palette: PaletteColors, isDark: boolean, ctx?: ScaleContext): EChartsOption;
 /**
  * Extracts legend group data from standard chart types (multi-line, bar-stacked).
  * Returns empty array if chart has no multi-series legend.
@@ -947,7 +1430,8 @@ declare function computeScatterLabelGraphics(points: ScatterLabelPoint[], chartB
  * Handles standard chart types: bar, line, area, pie, doughnut, radar, polar-area, bar-stacked, multi-line.
  * @param parsed - Result of parseChart()
  */
-declare function buildSimpleChartOption(parsed: ParsedChart, palette: PaletteColors, isDark: boolean, chartWidth?: number): EChartsOption;
+declare function buildSimpleChartOption(parsed: ParsedChart, palette: PaletteColors, isDark: boolean, chartWidth?: number, ctx?: ScaleContext): EChartsOption;
+declare const ECHART_EXPORT_WIDTH = 1200;
 /**
  * Renders an extended chart (scatter, sankey, chord, function, heatmap, funnel) to SVG using server-side rendering.
  * Mirrors the `renderForExport` API — returns an SVG string or empty string on failure.
@@ -957,23 +1441,46 @@ declare function renderExtendedChartForExport(content: string, theme: 'light' | 
 interface D3ExportDimensions {
     width?: number;
     height?: number;
+    /** Map-only: when true, the map renderer suppresses its global stretch-fill and
+     *  contain-fits (letterbox) instead. Set by `mapExportDimensions` when the export
+     *  canvas was clamped/floored away from the map's content aspect, so the
+     *  off-aspect canvas doesn't re-distort. Ignored by all non-map renderers. */
+    preferContain?: boolean;
 }
 
-/** A single entry inside a tag group: `Value color` */
-interface TagEntry {
-    value: string;
-    color: string;
+type TimelineSort = 'time' | 'group' | 'tag';
+interface TimelineEvent {
+    date: string;
+    endDate: string | null;
+    label: string;
+    group: string | null;
+    metadata: Record<string, string>;
     lineNumber: number;
+    uncertain?: boolean;
 }
-/** A tag group block: heading + entries */
-interface TagGroup {
+interface TimelineGroup {
     name: string;
-    alias?: string;
-    entries: TagEntry[];
-    /** Default value for nodes without explicit metadata. First entry unless another is marked `default`. */
-    defaultValue?: string;
+    color: string | null;
+    metadata: Record<string, string>;
     lineNumber: number;
 }
+interface TimelineEra {
+    startDate: string;
+    endDate: string;
+    label: string;
+    color: string | null;
+    lineNumber: number;
+}
+interface TimelineMarker {
+    date: string;
+    label: string;
+    color: string | null;
+    lineNumber: number;
+}
+
+type TimelineDurationUnit = 'd' | 'w' | 'm' | 'y' | 'h' | 'min';
+declare function addDurationToDate(startDate: string, amount: number, unit: TimelineDurationUnit): string;
+declare function parseTimelineDate(s: string): number;
 
 type VisualizationType = 'slope' | 'wordcloud' | 'arc' | 'timeline' | 'venn' | 'quadrant' | 'sequence' | 'tech-radar' | 'cycle' | 'pyramid' | 'ring';
 interface D3DataItem {
@@ -1008,34 +1515,7 @@ interface ArcNodeGroup {
     color: string | null;
     lineNumber: number;
 }
-type TimelineSort = 'time' | 'group' | 'tag';
-interface TimelineEvent {
-    date: string;
-    endDate: string | null;
-    label: string;
-    group: string | null;
-    metadata: Record<string, string>;
-    lineNumber: number;
-    uncertain?: boolean;
-}
-interface TimelineGroup {
-    name: string;
-    color: string | null;
-    lineNumber: number;
-}
-interface TimelineEra {
-    startDate: string;
-    endDate: string;
-    label: string;
-    color: string | null;
-    lineNumber: number;
-}
-interface TimelineMarker {
-    date: string;
-    label: string;
-    color: string | null;
-    lineNumber: number;
-}
+
 interface VennSet {
     name: string;
     alias: string | null;
@@ -1082,10 +1562,12 @@ interface ParsedVisualization {
     timelineEras: TimelineEra[];
     timelineMarkers: TimelineMarker[];
     timelineTagGroups: TagGroup[];
-    timelineSort: TimelineSort;
+    timelineSort: TimelineSort | null;
     timelineDefaultSwimlaneTG?: string;
     timelineScale: boolean;
     timelineSwimlanes: boolean;
+    /** Authored `active-tag <group|none|metric>` directive (§15.6); resolved at render. */
+    timelineActiveTag?: string;
     vennSets: VennSet[];
     vennOverlaps: VennOverlap[];
     quadrantLabels: QuadrantLabels;
@@ -1106,17 +1588,6 @@ interface ParsedVisualization {
     error: string | null;
 }
 
-/**
- * Converts a date string (YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DD HH:MM) to a fractional year number.
- */
-declare function parseTimelineDate(s: string): number;
-/**
- * Adds a duration to a date string and returns the resulting date string.
- * Supports: d (days), w (weeks), m (months), y (years), h (hours), min (minutes)
- * Supports decimals up to 2 places (e.g., 1.25y = 1 year 3 months)
- * Preserves the precision of the input date (YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DD HH:MM).
- */
-declare function addDurationToDate(startDate: string, amount: number, unit: 'd' | 'w' | 'm' | 'y' | 'h' | 'min'): string;
 /**
  * Parses D3 chart text format into structured data.
  */
@@ -1141,10 +1612,6 @@ declare function renderArcDiagram(container: HTMLDivElement, parsed: ParsedVisua
  *   '2024-06-15 14:30'  → 'Jun 15, 2024 14:30'
  */
 declare function formatDateLabel(dateStr: string): string;
-/**
- * Renders a timeline chart into the given container using D3.
- * Supports horizontal (default) and vertical orientation.
- */
 declare function renderTimeline(container: HTMLDivElement, parsed: ParsedVisualization, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions, activeTagGroup?: string | null, swimlaneTagGroup?: string | null, onTagStateChange?: (activeTagGroup: string | null, swimlaneTagGroup: string | null) => void, viewMode?: boolean, exportMode?: boolean): void;
 /**
  * Renders a word cloud into the given container using d3-cloud.
@@ -1166,6 +1633,8 @@ declare function renderForExport(content: string, theme: 'light' | 'dark' | 'tra
     c4Container?: string;
     tagGroup?: string;
     exportMode?: boolean;
+    mapData?: MapData;
+    mapAspect?: number;
 }): Promise<string>;
 
 /**
@@ -1183,74 +1652,103 @@ declare function computeTimeTicks(domainMin: number, domainMax: number, scale: d
 }[];
 
 /**
- * Participant types that can be declared via "Name is a type" syntax.
+ * Tag a primitive type `T` with a phantom brand `B`. The brand
+ * exists only in the type system — `Brand<string, 'X'>` is a `string`
+ * at runtime, but TypeScript treats it as nominally distinct from
+ * plain `string` and from any other `Brand<string, ...>`.
  */
-type ParticipantType = 'default' | 'service' | 'database' | 'actor' | 'queue' | 'cache' | 'gateway' | 'external' | 'networking' | 'frontend';
+type Brand<T, B extends string> = T & {
+    readonly __brand: B;
+};
+
+/**
+ * Participant types that can be declared via "Name is a type" syntax.
+ *
+ * The 0.16.0 trim retained only the types whose shapes carry semantic
+ * weight at a glance: stick figure (actor), cylinder (database),
+ * dashed cylinder (cache), horizontal pipe (queue), plus the default
+ * rectangle. The legacy `service`/`frontend`/`networking`/`gateway`/
+ * `external` keywords are rejected at parse time via
+ * `E_PARTICIPANT_TYPE_REMOVED`.
+ */
+type ParticipantType = 'default' | 'database' | 'actor' | 'queue' | 'cache';
+/**
+ * Branded participant identifier — a normalized name string that has
+ * been minted through `addParticipant` and registered in the parser's
+ * `participantMap`. Distinct from a raw display label or any other
+ * `string`, so the type system catches "passed label where id expected"
+ * at compile time.
+ */
+type ParticipantId = Brand<string, 'ParticipantId'>;
 /**
  * A declared or inferred participant in the sequence diagram.
  */
 interface SequenceParticipant {
     /** Internal identifier (e.g. "AuthService") */
-    id: string;
+    readonly id: ParticipantId;
     /** Display label — first-seen casing/spacing of the name */
-    label: string;
+    readonly label: string;
     /** Participant shape type */
-    type: ParticipantType;
+    readonly type: ParticipantType;
     /** Source line number (1-based) */
-    lineNumber: number;
+    readonly lineNumber: number;
     /** Explicit layout position override (0-based from left, negative from right) */
-    position?: number;
+    readonly position?: number;
     /** Pipe-delimited tag metadata (e.g. `| role: Gateway`) */
-    metadata?: Record<string, string>;
+    readonly metadata?: Readonly<Record<string, string>>;
 }
 /**
  * A message between two participants.
+ *
+ * `kind: 'message'` is the discriminator for the SequenceElement union.
+ * Pre-1.0 type addition — Epic 105 Story 105.17.
  */
 interface SequenceMessage {
-    from: string;
-    to: string;
-    label: string;
-    lineNumber: number;
-    async?: boolean;
+    readonly kind: 'message';
+    readonly from: ParticipantId;
+    readonly to: ParticipantId;
+    readonly label: string;
+    readonly lineNumber: number;
+    readonly async?: boolean;
     /** Pipe-delimited tag metadata (e.g. `| c: Caching`) */
-    metadata?: Record<string, string>;
+    readonly metadata?: Readonly<Record<string, string>>;
 }
 /**
  * A conditional or loop block in the sequence diagram.
  */
 interface ElseIfBranch {
-    label: string;
-    children: SequenceElement[];
-    lineNumber: number;
+    readonly label: string;
+    readonly children: readonly SequenceElement[];
+    readonly lineNumber: number;
 }
 interface SequenceBlock {
-    kind: 'block';
-    type: 'if' | 'loop' | 'parallel';
-    label: string;
-    children: SequenceElement[];
-    elseChildren: SequenceElement[];
-    elseIfBranches?: ElseIfBranch[];
-    elseLineNumber?: number;
-    lineNumber: number;
+    readonly kind: 'block';
+    readonly type: 'if' | 'loop' | 'parallel';
+    readonly label: string;
+    readonly children: readonly SequenceElement[];
+    readonly elseChildren: readonly SequenceElement[];
+    readonly elseIfBranches?: readonly ElseIfBranch[];
+    readonly elseLineNumber?: number;
+    readonly lineNumber: number;
 }
 /**
  * A labeled horizontal divider between message phases.
  */
 interface SequenceSection {
-    kind: 'section';
-    label: string;
-    lineNumber: number;
+    readonly kind: 'section';
+    readonly label: string;
+    readonly lineNumber: number;
 }
 /**
  * An annotation attached to a message, rendered as a folded-corner box.
  */
 interface SequenceNote {
-    kind: 'note';
-    text: string;
-    position: 'right' | 'left';
-    participantId: string;
-    lineNumber: number;
-    endLineNumber: number;
+    readonly kind: 'note';
+    readonly text: string;
+    readonly position: 'right' | 'left';
+    readonly participantId: ParticipantId;
+    readonly lineNumber: number;
+    readonly endLineNumber: number;
 }
 type SequenceElement = SequenceMessage | SequenceBlock | SequenceSection | SequenceNote;
 declare function isSequenceBlock(el: SequenceElement): el is SequenceBlock;
@@ -1259,34 +1757,34 @@ declare function isSequenceNote(el: SequenceElement): el is SequenceNote;
  * A named group of participants rendered as a labeled box.
  */
 interface SequenceGroup {
-    name: string;
-    participantIds: string[];
-    lineNumber: number;
+    readonly name: string;
+    readonly participantIds: readonly ParticipantId[];
+    readonly lineNumber: number;
     /** Pipe-delimited tag metadata (e.g. `[Backend | t: Product]`) */
-    metadata?: Record<string, string>;
+    readonly metadata?: Readonly<Record<string, string>>;
     /** Whether this group is collapsed by default */
-    collapsed?: boolean;
+    readonly collapsed?: boolean;
 }
 /**
  * Parsed result from a .dgmo sequence diagram.
  */
 interface ParsedSequenceDgmo {
-    title: string | null;
-    titleLineNumber: number | null;
-    participants: SequenceParticipant[];
-    messages: SequenceMessage[];
-    elements: SequenceElement[];
-    groups: SequenceGroup[];
-    sections: SequenceSection[];
-    tagGroups: TagGroup[];
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly participants: readonly SequenceParticipant[];
+    readonly messages: readonly SequenceMessage[];
+    readonly elements: readonly SequenceElement[];
+    readonly groups: readonly SequenceGroup[];
+    readonly sections: readonly SequenceSection[];
+    readonly tagGroups: readonly TagGroup[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 /**
  * Parse a .dgmo file with `chart: sequence` into a structured representation.
  */
-declare function parseSequenceDgmo(content: string): ParsedSequenceDgmo;
+declare function parseSequenceDgmo(content: string, palette?: PaletteColors): ParsedSequenceDgmo;
 /**
  * Detect whether raw content looks like a sequence diagram.
  * Used by the chart type inference logic.
@@ -1303,49 +1801,62 @@ declare function inferParticipantType(name: string): ParticipantType;
  */
 declare const RULE_COUNT: number;
 
+interface DiagramNote {
+    /** Author-typed node id/label the note attaches to. */
+    readonly ref: string;
+    /** Body text (inline + indented lines, joined with `\n`). */
+    readonly body: string;
+    /** Resolved hex accent (border + faded fill); default yellow if absent. */
+    readonly color?: string;
+    readonly lineNumber: number;
+    readonly endLineNumber: number;
+}
+
 type GraphShape = 'terminal' | 'process' | 'decision' | 'io' | 'subroutine' | 'document' | 'state' | 'pseudostate';
 type GraphDirection = 'TB' | 'LR';
 interface GraphNode {
-    id: string;
-    label: string;
-    shape: GraphShape;
-    color?: string;
-    group?: string;
-    lineNumber: number;
+    readonly id: string;
+    readonly label: string;
+    readonly shape: GraphShape;
+    readonly color?: string;
+    readonly group?: string;
+    readonly lineNumber: number;
 }
 interface GraphEdge {
-    source: string;
-    target: string;
-    label?: string;
-    color?: string;
-    lineNumber: number;
+    readonly source: string;
+    readonly target: string;
+    readonly label?: string;
+    readonly color?: string;
+    readonly lineNumber: number;
 }
 interface GraphGroup {
-    id: string;
-    label: string;
-    color?: string;
-    nodeIds: string[];
-    lineNumber: number;
+    readonly id: string;
+    readonly label: string;
+    readonly color?: string;
+    readonly nodeIds: readonly string[];
+    readonly lineNumber: number;
 }
 
+type GraphNote = DiagramNote;
+
 interface ParsedGraph {
-    type: 'flowchart' | 'state';
-    title?: string;
-    titleLineNumber?: number;
-    direction: GraphDirection;
-    nodes: GraphNode[];
-    edges: GraphEdge[];
-    groups?: GraphGroup[];
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly type: 'flowchart' | 'state';
+    readonly title?: string;
+    readonly titleLineNumber?: number;
+    readonly direction: GraphDirection;
+    readonly nodes: readonly GraphNode[];
+    readonly edges: readonly GraphEdge[];
+    readonly groups?: readonly GraphGroup[];
+    readonly notes?: readonly GraphNote[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 
 type ChartType = string;
 interface DiagramSymbols {
     kind: ChartType;
     entities: string[];
-    keywords: string[];
     /**
      * Map of alias-literal → canonical entity name, collected from
      * `Name as <alias>` declarations in the document. Editor surfaces
@@ -1371,53 +1882,102 @@ declare function parseState(content: string, palette?: PaletteColors): ParsedGra
  */
 declare function looksLikeState(content: string): boolean;
 
+/**
+ * One rendered description line. `kind` controls horizontal placement and
+ * whether the renderer draws a bullet glyph:
+ *  - `plain`        — flush left at the description's left edge
+ *  - `bullet-first` — "•" drawn at the left edge, body text at the bullet column
+ *  - `bullet-cont`  — body continuation at the bullet column (no glyph)
+ *
+ * Splitting first-line bullet rendering into separate text elements lets
+ * continuation lines align exactly under the first word past the bullet,
+ * regardless of font-width estimation drift.
+ */
+interface WrappedDescLine {
+    text: string;
+    kind: 'plain' | 'bullet-first' | 'bullet-cont';
+}
+
+type NoteSide$1 = 'above' | 'below' | 'left' | 'right';
+/** A note box positioned relative to its anchor node's center. */
+interface NoteLayout {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    /** Which side of the node the box sits on (drives the connector). */
+    readonly side: NoteSide$1;
+    /** Resolved hex accent (border + faded fill); default yellow if absent. */
+    readonly color?: string;
+    readonly lines: readonly WrappedDescLine[];
+    readonly lineNumber: number;
+    readonly endLineNumber: number;
+    /**
+     * When true the note is collapsed: the renderer draws a small badge at
+     * the node corner instead of the floated box, and `x/y/width/height/side/
+     * lines` are unused. Collapsed notes reserve no layout space.
+     */
+    readonly collapsed?: boolean;
+}
 interface LayoutNode {
-    id: string;
-    label: string;
-    shape: GraphShape;
-    color?: string;
-    group?: string;
-    lineNumber: number;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
+    readonly id: string;
+    readonly label: string;
+    readonly shape: GraphShape;
+    readonly color?: string;
+    readonly group?: string;
+    readonly lineNumber: number;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    /**
+     * A note floated beside this node. The shape keeps its natural dagre
+     * position and dimensions (so its edges stay connected) — the note is
+     * placed in adjacent space and the canvas bounds are expanded to fit
+     * it. Absent on un-annotated nodes.
+     */
+    readonly note?: NoteLayout;
 }
 interface LayoutEdge {
-    source: string;
-    target: string;
-    points: {
-        x: number;
-        y: number;
-    }[];
-    label?: string;
-    lineNumber: number;
+    readonly source: string;
+    readonly target: string;
+    readonly points: ReadonlyArray<{
+        readonly x: number;
+        readonly y: number;
+    }>;
+    readonly label?: string;
+    readonly lineNumber: number;
 }
 interface LayoutGroup {
-    id: string;
-    label: string;
-    color?: string;
-    lineNumber: number;
-    collapsed?: boolean;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
+    readonly id: string;
+    readonly label: string;
+    readonly color?: string;
+    readonly lineNumber: number;
+    readonly collapsed?: boolean;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
 }
-interface LayoutOptions {
+interface LayoutOptions$1 {
     /** Map of group ID → number of child nodes (for collapsed groups) */
     collapsedChildCounts?: Map<string, number>;
     /** Original groups before collapse (includes collapsed ones) */
-    originalGroups?: GraphGroup[];
+    originalGroups?: readonly GraphGroup[];
+    /**
+     * 1-based source line numbers of notes the user has collapsed. A
+     * collapsed note renders as a corner badge and reserves no space.
+     */
+    collapsedNotes?: ReadonlySet<number>;
 }
 interface LayoutResult$1 {
-    nodes: LayoutNode[];
-    edges: LayoutEdge[];
-    groups: LayoutGroup[];
-    width: number;
-    height: number;
+    readonly nodes: readonly LayoutNode[];
+    readonly edges: readonly LayoutEdge[];
+    readonly groups: readonly LayoutGroup[];
+    readonly width: number;
+    readonly height: number;
 }
-declare function layoutGraph(graph: ParsedGraph, options?: LayoutOptions): LayoutResult$1;
+declare function layoutGraph(graph: ParsedGraph, options?: LayoutOptions$1): LayoutResult$1;
 
 declare function renderState(container: HTMLDivElement, graph: ParsedGraph, layout: LayoutResult$1, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: {
     width?: number;
@@ -1428,7 +1988,7 @@ declare function renderStateForExport(content: string, theme: 'light' | 'dark' |
 interface StateCollapseResult {
     parsed: ParsedGraph;
     collapsedChildCounts: Map<string, number>;
-    originalGroups: GraphGroup[];
+    originalGroups: readonly GraphGroup[];
 }
 /**
  * Pure transform: returns a new ParsedGraph with collapsed groups
@@ -1442,43 +2002,65 @@ interface StateCollapseResult {
  */
 declare function collapseStateGroups(parsed: ParsedGraph, collapsedGroups: Set<string>): StateCollapseResult;
 
+type NoteSide = 'above' | 'below' | 'left' | 'right';
+
+/** A resolved, placed note ready for the note-box drawer. */
+interface PlacedNote {
+    /** Box left, LOCAL to the node center (add node.x). Unused if collapsed. */
+    readonly x: number;
+    /** Box top, LOCAL to the node center (add node.y). Unused if collapsed. */
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly side: NoteSide;
+    /** Resolved hex accent (border + faded fill); default yellow if absent. */
+    readonly color?: string;
+    readonly lines: readonly WrappedDescLine[];
+    readonly lineNumber: number;
+    readonly endLineNumber: number;
+    /** Collapsed → renderer draws a corner badge; box geometry is unused. */
+    readonly collapsed?: boolean;
+}
+
 type ClassModifier = 'abstract' | 'interface' | 'enum';
 type MemberVisibility = 'public' | 'private' | 'protected';
 type RelationshipType = 'extends' | 'implements' | 'composes' | 'aggregates' | 'depends' | 'associates';
 interface ClassMember {
-    name: string;
-    type?: string;
-    params?: string;
-    visibility: MemberVisibility;
-    isStatic: boolean;
-    isMethod: boolean;
-    lineNumber: number;
+    readonly name: string;
+    readonly type?: string;
+    readonly params?: string;
+    readonly visibility: MemberVisibility;
+    readonly isStatic: boolean;
+    readonly isMethod: boolean;
+    readonly lineNumber: number;
 }
 interface ClassNode {
-    id: string;
-    name: string;
-    modifier?: ClassModifier;
-    color?: string;
-    members: ClassMember[];
-    lineNumber: number;
+    readonly id: string;
+    readonly name: string;
+    readonly modifier?: ClassModifier;
+    readonly color?: string;
+    readonly members: readonly ClassMember[];
+    readonly lineNumber: number;
 }
 interface ClassRelationship {
-    source: string;
-    target: string;
-    type: RelationshipType;
-    label?: string;
-    lineNumber: number;
+    readonly source: string;
+    readonly target: string;
+    readonly type: RelationshipType;
+    readonly label?: string;
+    readonly lineNumber: number;
 }
 
 interface ParsedClassDiagram {
-    type: 'class';
-    title?: string;
-    titleLineNumber?: number;
-    classes: ClassNode[];
-    relationships: ClassRelationship[];
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly type: 'class';
+    readonly title?: string;
+    readonly titleLineNumber?: number;
+    readonly classes: readonly ClassNode[];
+    readonly relationships: readonly ClassRelationship[];
+    readonly options: Readonly<Record<string, string>>;
+    /** Generic node notes (`note <ClassName> …`); resolved in layout. */
+    readonly notes?: readonly DiagramNote[];
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 
 declare function parseClassDiagram(content: string, palette?: PaletteColors): ParsedClassDiagram;
@@ -1490,32 +2072,41 @@ declare function parseClassDiagram(content: string, palette?: PaletteColors): Pa
 declare function looksLikeClassDiagram(content: string): boolean;
 
 interface ClassLayoutNode extends ClassNode {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    headerHeight: number;
-    fieldsHeight: number;
-    methodsHeight: number;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly headerHeight: number;
+    readonly fieldsHeight: number;
+    readonly methodsHeight: number;
+    /** A note floated beside this class (never moves the box). */
+    readonly note?: PlacedNote;
+}
+interface ClassLayoutOptions {
+    /**
+     * 1-based source line numbers of notes the user has collapsed. A
+     * collapsed note renders as a corner badge and reserves no space.
+     */
+    collapsedNotes?: ReadonlySet<number>;
 }
 interface ClassLayoutEdge {
-    source: string;
-    target: string;
-    type: RelationshipType;
-    points: {
-        x: number;
-        y: number;
-    }[];
-    label?: string;
-    lineNumber: number;
+    readonly source: string;
+    readonly target: string;
+    readonly type: RelationshipType;
+    readonly points: ReadonlyArray<{
+        readonly x: number;
+        readonly y: number;
+    }>;
+    readonly label?: string;
+    readonly lineNumber: number;
 }
 interface ClassLayoutResult {
-    nodes: ClassLayoutNode[];
-    edges: ClassLayoutEdge[];
-    width: number;
-    height: number;
+    readonly nodes: readonly ClassLayoutNode[];
+    readonly edges: readonly ClassLayoutEdge[];
+    readonly width: number;
+    readonly height: number;
 }
-declare function layoutClassDiagram(parsed: ParsedClassDiagram): ClassLayoutResult;
+declare function layoutClassDiagram(parsed: ParsedClassDiagram, options?: ClassLayoutOptions): ClassLayoutResult;
 
 declare function renderClassDiagram(container: HTMLDivElement, parsed: ParsedClassDiagram, layout: ClassLayoutResult, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: {
     width?: number;
@@ -1526,40 +2117,42 @@ declare function renderClassDiagramForExport(content: string, theme: 'light' | '
 type ERConstraint = 'pk' | 'fk' | 'unique' | 'nullable';
 type ERCardinality = '1' | '*' | '?';
 interface ERColumn {
-    name: string;
-    type?: string;
-    constraints: ERConstraint[];
-    lineNumber: number;
+    readonly name: string;
+    readonly type?: string;
+    readonly constraints: readonly ERConstraint[];
+    readonly lineNumber: number;
 }
 interface ERTable {
-    id: string;
-    name: string;
-    color?: string;
-    columns: ERColumn[];
-    metadata: Record<string, string>;
-    lineNumber: number;
+    readonly id: string;
+    readonly name: string;
+    readonly color?: string;
+    readonly columns: readonly ERColumn[];
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
 }
 interface ERRelationship {
-    source: string;
-    target: string;
-    cardinality: {
-        from: ERCardinality;
-        to: ERCardinality;
+    readonly source: string;
+    readonly target: string;
+    readonly cardinality: {
+        readonly from: ERCardinality;
+        readonly to: ERCardinality;
     };
-    label?: string;
-    lineNumber: number;
+    readonly label?: string;
+    readonly lineNumber: number;
 }
 
 interface ParsedERDiagram {
-    type: 'er';
-    title?: string;
-    titleLineNumber?: number;
-    options: Record<string, string>;
-    tables: ERTable[];
-    relationships: ERRelationship[];
-    tagGroups: TagGroup[];
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly type: 'er';
+    readonly title?: string;
+    readonly titleLineNumber?: number;
+    readonly options: Readonly<Record<string, string>>;
+    readonly tables: readonly ERTable[];
+    readonly relationships: readonly ERRelationship[];
+    readonly tagGroups: readonly TagGroup[];
+    /** Generic node notes (`note <Table> …`); resolved in layout. */
+    readonly notes?: readonly DiagramNote[];
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 
 declare function parseERDiagram(content: string, palette?: PaletteColors): ParsedERDiagram;
@@ -1570,34 +2163,40 @@ declare function parseERDiagram(content: string, palette?: PaletteColors): Parse
 declare function looksLikeERDiagram(content: string): boolean;
 
 interface ERLayoutNode extends ERTable {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    headerHeight: number;
-    columnsHeight: number;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly headerHeight: number;
+    readonly columnsHeight: number;
+    /** A note floated beside this table (never moves the box). */
+    readonly note?: PlacedNote;
+}
+interface ERLayoutOptions {
+    /** 1-based source lines of notes the user collapsed (corner badge). */
+    collapsedNotes?: ReadonlySet<number>;
 }
 interface ERLayoutEdge {
-    source: string;
-    target: string;
-    cardinality: {
-        from: string;
-        to: string;
+    readonly source: string;
+    readonly target: string;
+    readonly cardinality: {
+        readonly from: string;
+        readonly to: string;
     };
-    points: {
-        x: number;
-        y: number;
-    }[];
-    label?: string;
-    lineNumber: number;
+    readonly points: ReadonlyArray<{
+        readonly x: number;
+        readonly y: number;
+    }>;
+    readonly label?: string;
+    readonly lineNumber: number;
 }
 interface ERLayoutResult {
-    nodes: ERLayoutNode[];
-    edges: ERLayoutEdge[];
-    width: number;
-    height: number;
+    readonly nodes: readonly ERLayoutNode[];
+    readonly edges: readonly ERLayoutEdge[];
+    readonly width: number;
+    readonly height: number;
 }
-declare function layoutERDiagram(parsed: ParsedERDiagram): ERLayoutResult;
+declare function layoutERDiagram(parsed: ParsedERDiagram, options?: ERLayoutOptions): ERLayoutResult;
 
 declare function renderERDiagram(container: HTMLDivElement, parsed: ParsedERDiagram, layout: ERLayoutResult, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: {
     width?: number;
@@ -1691,92 +2290,92 @@ declare function getOrCreateName(input: string, store: Map<string, NameEntry>, l
 type AliasMap = Map<string, NameEntry>;
 
 interface OrgNode {
-    id: string;
-    label: string;
-    metadata: Record<string, string>;
-    children: OrgNode[];
-    parentId: string | null;
-    isContainer: boolean;
-    lineNumber: number;
-    color?: string;
+    readonly id: string;
+    readonly label: string;
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly children: readonly OrgNode[];
+    readonly parentId: string | null;
+    readonly isContainer: boolean;
+    readonly lineNumber: number;
+    readonly color?: string;
 }
 interface ParsedOrg {
-    title: string | null;
-    titleLineNumber: number | null;
-    roots: OrgNode[];
-    tagGroups: TagGroup[];
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly roots: readonly OrgNode[];
+    readonly tagGroups: readonly TagGroup[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 declare function parseOrg(content: string, palette?: PaletteColors): ParsedOrg;
 
 interface OrgLayoutNode {
-    id: string;
-    label: string;
-    metadata: Record<string, string>;
+    readonly id: string;
+    readonly label: string;
+    readonly metadata: Readonly<Record<string, string>>;
     /** Original (unfiltered) metadata — used for tag-based hover dimming even when the group is hidden */
-    tagMetadata: Record<string, string>;
-    isContainer: boolean;
-    lineNumber: number;
-    color?: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
+    readonly tagMetadata: Readonly<Record<string, string>>;
+    readonly isContainer: boolean;
+    readonly lineNumber: number;
+    readonly color?: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
     /** Count of hidden descendants when this node is collapsed */
-    hiddenCount?: number;
+    readonly hiddenCount?: number;
     /** True if node has children (expanded or collapsed) — drives toggle UI */
-    hasChildren?: boolean;
+    readonly hasChildren?: boolean;
 }
 interface OrgLayoutEdge {
-    sourceId: string;
-    targetId: string;
-    points: {
-        x: number;
-        y: number;
-    }[];
+    readonly sourceId: string;
+    readonly targetId: string;
+    readonly points: ReadonlyArray<{
+        readonly x: number;
+        readonly y: number;
+    }>;
 }
 interface OrgContainerBounds {
-    nodeId: string;
-    label: string;
-    lineNumber: number;
-    color?: string;
-    metadata: Record<string, string>;
+    readonly nodeId: string;
+    readonly label: string;
+    readonly lineNumber: number;
+    readonly color?: string;
+    readonly metadata: Readonly<Record<string, string>>;
     /** Original (unfiltered) metadata — used for tag-based hover dimming even when the group is hidden */
-    tagMetadata: Record<string, string>;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    labelHeight: number;
+    readonly tagMetadata: Readonly<Record<string, string>>;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly labelHeight: number;
     /** Count of hidden descendants when this container is collapsed */
-    hiddenCount?: number;
+    readonly hiddenCount?: number;
     /** True if container has children (expanded or collapsed) — drives toggle UI */
-    hasChildren?: boolean;
+    readonly hasChildren?: boolean;
 }
 interface OrgLegendEntry {
-    value: string;
-    color: string;
+    readonly value: string;
+    readonly color: string;
 }
 interface OrgLegendGroup {
-    name: string;
-    alias?: string;
-    entries: OrgLegendEntry[];
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    minifiedWidth: number;
-    minifiedHeight: number;
+    readonly name: string;
+    readonly alias?: string;
+    readonly entries: readonly OrgLegendEntry[];
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly minifiedWidth: number;
+    readonly minifiedHeight: number;
 }
 interface OrgLayoutResult {
-    nodes: OrgLayoutNode[];
-    edges: OrgLayoutEdge[];
-    containers: OrgContainerBounds[];
-    legend: OrgLegendGroup[];
-    width: number;
-    height: number;
+    readonly nodes: readonly OrgLayoutNode[];
+    readonly edges: readonly OrgLayoutEdge[];
+    readonly containers: readonly OrgContainerBounds[];
+    readonly legend: readonly OrgLegendGroup[];
+    readonly width: number;
+    readonly height: number;
 }
 declare function layoutOrg(parsed: ParsedOrg, hiddenCounts?: Map<string, number>, activeTagGroup?: string | null, hiddenAttributes?: Set<string>, expandAllLegend?: boolean): OrgLayoutResult;
 
@@ -1818,32 +2417,32 @@ type KanbanTagEntry = TagEntry;
 /** @deprecated Use `TagGroup` from `utils/tag-groups` */
 type KanbanTagGroup = TagGroup;
 interface KanbanCard {
-    id: string;
-    title: string;
-    tags: Record<string, string>;
-    details: string[];
-    lineNumber: number;
-    endLineNumber: number;
-    color?: string;
+    readonly id: string;
+    readonly title: string;
+    readonly tags: Readonly<Record<string, string>>;
+    readonly details: readonly string[];
+    readonly lineNumber: number;
+    readonly endLineNumber: number;
+    readonly color?: string;
 }
 interface KanbanColumn {
-    id: string;
-    name: string;
-    wipLimit?: number;
-    color?: string;
-    metadata?: Record<string, string>;
-    cards: KanbanCard[];
-    lineNumber: number;
+    readonly id: string;
+    readonly name: string;
+    readonly wipLimit?: number;
+    readonly color?: string;
+    readonly metadata?: Readonly<Record<string, string>>;
+    readonly cards: readonly KanbanCard[];
+    readonly lineNumber: number;
 }
 interface ParsedKanban {
-    type: 'kanban';
-    title?: string;
-    titleLineNumber?: number;
-    columns: KanbanColumn[];
-    tagGroups: KanbanTagGroup[];
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly type: 'kanban';
+    readonly title?: string;
+    readonly titleLineNumber?: number;
+    readonly columns: readonly KanbanColumn[];
+    readonly tagGroups: readonly KanbanTagGroup[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 
 declare function parseKanban(content: string, palette?: PaletteColors): ParsedKanban;
@@ -1894,111 +2493,111 @@ type C4ElementType = 'person' | 'system' | 'container' | 'component';
 type C4Shape = 'default' | 'database' | 'cache' | 'queue' | 'cloud' | 'external';
 type C4ArrowType = 'sync' | 'async' | 'bidirectional' | 'bidirectional-async';
 interface C4Relationship {
-    target: string;
-    label?: string;
-    technology?: string;
-    arrowType: C4ArrowType;
-    lineNumber: number;
+    readonly target: string;
+    readonly label?: string;
+    readonly technology?: string;
+    readonly arrowType: C4ArrowType;
+    readonly lineNumber: number;
 }
 interface C4Group {
-    name: string;
-    children: C4Element[];
-    lineNumber: number;
+    readonly name: string;
+    readonly children: readonly C4Element[];
+    readonly lineNumber: number;
 }
 interface C4Element {
-    name: string;
-    type: C4ElementType;
-    shape: C4Shape;
-    metadata: Record<string, string>;
-    description?: string[];
-    children: C4Element[];
-    groups: C4Group[];
-    relationships: C4Relationship[];
-    importPath?: string;
-    lineNumber: number;
-    sectionHeader?: 'containers' | 'components';
-    sectionHeaderLineNumber?: number;
+    readonly name: string;
+    readonly type: C4ElementType;
+    readonly shape: C4Shape;
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly description?: readonly string[];
+    readonly children: readonly C4Element[];
+    readonly groups: readonly C4Group[];
+    readonly relationships: readonly C4Relationship[];
+    readonly importPath?: string;
+    readonly lineNumber: number;
+    readonly sectionHeader?: 'containers' | 'components';
+    readonly sectionHeaderLineNumber?: number;
 }
 interface C4DeploymentNode {
-    name: string;
-    metadata: Record<string, string>;
-    shape: C4Shape;
-    children: C4DeploymentNode[];
-    containerRefs: string[];
-    lineNumber: number;
+    readonly name: string;
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly shape: C4Shape;
+    readonly children: readonly C4DeploymentNode[];
+    readonly containerRefs: readonly string[];
+    readonly lineNumber: number;
 }
 interface ParsedC4 {
-    title: string | null;
-    titleLineNumber: number | null;
-    options: Record<string, string>;
-    tagGroups: TagGroup[];
-    elements: C4Element[];
-    relationships: C4Relationship[];
-    deployment: C4DeploymentNode[];
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly options: Readonly<Record<string, string>>;
+    readonly tagGroups: readonly TagGroup[];
+    readonly elements: readonly C4Element[];
+    readonly relationships: readonly C4Relationship[];
+    readonly deployment: readonly C4DeploymentNode[];
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 
 declare function parseC4(content: string, palette?: PaletteColors): ParsedC4;
 
 interface C4LayoutNode {
-    id: string;
-    name: string;
-    type: 'person' | 'system' | 'container' | 'component';
-    description?: string;
-    metadata: Record<string, string>;
-    lineNumber: number;
-    color?: string;
-    shape?: C4Shape;
-    technology?: string;
-    drillable?: boolean;
-    importPath?: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
+    readonly id: string;
+    readonly name: string;
+    readonly type: 'person' | 'system' | 'container' | 'component';
+    readonly description?: string;
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
+    readonly color?: string;
+    readonly shape?: C4Shape;
+    readonly technology?: string;
+    readonly drillable?: boolean;
+    readonly importPath?: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
 }
 interface C4LayoutEdge {
-    source: string;
-    target: string;
-    arrowType: C4ArrowType;
-    label?: string;
-    technology?: string;
-    lineNumber: number;
-    points: {
-        x: number;
-        y: number;
-    }[];
+    readonly source: string;
+    readonly target: string;
+    readonly arrowType: C4ArrowType;
+    readonly label?: string;
+    readonly technology?: string;
+    readonly lineNumber: number;
+    readonly points: ReadonlyArray<{
+        readonly x: number;
+        readonly y: number;
+    }>;
 }
 interface C4LegendEntry {
-    value: string;
-    color: string;
+    readonly value: string;
+    readonly color: string;
 }
 interface C4LegendGroup {
-    name: string;
-    entries: C4LegendEntry[];
-    x: number;
-    y: number;
-    width: number;
-    height: number;
+    readonly name: string;
+    readonly entries: readonly C4LegendEntry[];
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
 }
 interface C4LayoutBoundary {
-    label: string;
-    typeLabel: string;
-    lineNumber: number;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
+    readonly label: string;
+    readonly typeLabel: string;
+    readonly lineNumber: number;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
 }
 interface C4LayoutResult {
-    nodes: C4LayoutNode[];
-    edges: C4LayoutEdge[];
-    legend: C4LegendGroup[];
-    boundary?: C4LayoutBoundary;
-    groupBoundaries: C4LayoutBoundary[];
-    width: number;
-    height: number;
+    readonly nodes: readonly C4LayoutNode[];
+    readonly edges: readonly C4LayoutEdge[];
+    readonly legend: readonly C4LegendGroup[];
+    readonly boundary?: C4LayoutBoundary;
+    readonly groupBoundaries: readonly C4LayoutBoundary[];
+    readonly width: number;
+    readonly height: number;
 }
 interface ContextRelationship {
     sourceName: string;
@@ -2065,91 +2664,115 @@ declare function renderC4Deployment(container: HTMLDivElement, parsed: ParsedC4,
 declare function renderC4DeploymentForExport(content: string, theme: 'light' | 'dark' | 'transparent', palette: PaletteColors): string;
 
 interface BLNode {
-    label: string;
-    lineNumber: number;
-    metadata: Record<string, string>;
-    description?: string[];
+    readonly label: string;
+    readonly lineNumber: number;
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly description?: readonly string[];
+    /** Numeric measure lifted from `value: X` metadata (mirror of map's
+     *  `region.value`). Drives the value ramp / choropleth tinting. */
+    readonly value?: number;
 }
 interface BLEdge {
-    source: string;
-    target: string;
-    label?: string;
-    bidirectional: boolean;
-    lineNumber: number;
-    metadata: Record<string, string>;
+    readonly source: string;
+    readonly target: string;
+    readonly label?: string;
+    readonly bidirectional: boolean;
+    readonly lineNumber: number;
+    readonly metadata: Readonly<Record<string, string>>;
 }
 interface BLGroup {
-    label: string;
-    children: string[];
-    lineNumber: number;
-    metadata: Record<string, string>;
-    parentGroup?: string;
+    readonly label: string;
+    readonly children: readonly string[];
+    readonly lineNumber: number;
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly parentGroup?: string;
 }
 interface ParsedBoxesAndLines {
-    type: 'boxes-and-lines';
-    title: string | null;
-    titleLineNumber: number | null;
-    nodes: BLNode[];
-    edges: BLEdge[];
-    groups: BLGroup[];
-    tagGroups: TagGroup[];
-    options: Record<string, string>;
-    initialHiddenTagValues: Map<string, Set<string>>;
-    direction: 'LR' | 'TB';
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly type: 'boxes-and-lines';
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly nodes: readonly BLNode[];
+    readonly edges: readonly BLEdge[];
+    readonly groups: readonly BLGroup[];
+    readonly tagGroups: readonly TagGroup[];
+    readonly options: Readonly<Record<string, string>>;
+    /** Generic node notes (`note <Box> …`); resolved in layout. */
+    readonly notes?: readonly DiagramNote[];
+    readonly initialHiddenTagValues: ReadonlyMap<string, ReadonlySet<string>>;
+    readonly direction: 'LR' | 'TB';
+    /** `box-metric <label> [low] [high]` — names the value-ramp dimension and
+     *  optionally sets its endpoint colours. One color = high hue over a neutral
+     *  low; two = explicit `low high`. Mirror of map's `region-metric`. */
+    readonly boxMetric?: string;
+    /** Recognized color NAME for the ramp HIGH endpoint. */
+    readonly boxMetricColor?: string;
+    /** Recognized color NAME for the ramp LOW endpoint (two-colour form). */
+    readonly boxMetricLowColor?: string;
+    /** `show-values` — print each box's numeric value as text (opt-in). */
+    readonly showValues?: boolean;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 
-declare function parseBoxesAndLines(content: string): ParsedBoxesAndLines;
+declare function parseBoxesAndLines(content: string, palette?: PaletteColors): ParsedBoxesAndLines;
 
 interface BLLayoutNode {
-    label: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
+    readonly label: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    /** A note floated beside this box (never moves the box). */
+    readonly note?: PlacedNote;
 }
 interface BLLayoutEdge {
-    source: string;
-    target: string;
-    label?: string;
-    bidirectional: boolean;
-    lineNumber: number;
-    points: {
-        x: number;
-        y: number;
-    }[];
-    labelX?: number;
-    labelY?: number;
-    yOffset: number;
-    parallelCount: number;
-    metadata: Record<string, string>;
+    readonly source: string;
+    readonly target: string;
+    readonly label?: string;
+    readonly bidirectional: boolean;
+    readonly lineNumber: number;
+    readonly points: ReadonlyArray<{
+        readonly x: number;
+        readonly y: number;
+    }>;
+    readonly labelX?: number;
+    readonly labelY?: number;
+    readonly yOffset: number;
+    readonly parallelCount: number;
+    readonly metadata: Readonly<Record<string, string>>;
     /** Marker for renderer: draw with linear curve, not curveBasis (ELK gives
      * us orthogonal polylines and curveBasis would smooth corners into waves) */
-    deferred?: boolean;
+    readonly deferred?: boolean;
 }
 interface BLLayoutGroup {
-    label: string;
-    lineNumber: number;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    collapsed: boolean;
-    childCount?: number;
+    readonly label: string;
+    readonly lineNumber: number;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly collapsed: boolean;
+    readonly childCount?: number;
 }
 interface BLLayoutResult {
-    nodes: BLLayoutNode[];
-    edges: BLLayoutEdge[];
-    groups: BLLayoutGroup[];
-    width: number;
-    height: number;
+    readonly nodes: readonly BLLayoutNode[];
+    readonly edges: readonly BLLayoutEdge[];
+    readonly groups: readonly BLLayoutGroup[];
+    readonly width: number;
+    readonly height: number;
 }
 declare function layoutBoxesAndLines(parsed: ParsedBoxesAndLines, collapseInfo?: {
     collapsedChildCounts: Map<string, number>;
-    originalGroups: BLGroup[];
+    originalGroups: readonly BLGroup[];
 }, layoutOptions?: {
     hideDescriptions?: boolean;
+    collapsedNotes?: ReadonlySet<number>;
+    /** Previous node positions (label → {x,y}) for layout stability —
+     *  minimizes node drift on edit/collapse. */
+    previousPositions?: ReadonlyMap<string, {
+        x: number;
+        y: number;
+    }>;
 }): Promise<BLLayoutResult>;
 
 interface BLRenderOptions {
@@ -2165,6 +2788,9 @@ interface BLRenderOptions {
     onToggleDescriptions?: (active: boolean) => void;
     onToggleControlsExpand?: () => void;
     exportMode?: boolean;
+    /** When 'app', the description toggle is hosted by the app overlay strip
+     *  (inline gear suppressed, controls row + anchor reserved). */
+    controlsHost?: 'app' | 'inline';
 }
 declare function renderBoxesAndLines(container: HTMLDivElement, parsed: ParsedBoxesAndLines, layout: BLLayoutResult, palette: PaletteColors, isDark: boolean, options?: BLRenderOptions): void;
 declare function renderBoxesAndLinesForExport(container: HTMLDivElement, parsed: ParsedBoxesAndLines, layout: BLLayoutResult, palette: PaletteColors, isDark: boolean, options?: {
@@ -2180,7 +2806,7 @@ declare function renderBoxesAndLinesForExport(container: HTMLDivElement, parsed:
 interface BLCollapseResult {
     parsed: ParsedBoxesAndLines;
     collapsedChildCounts: Map<string, number>;
-    originalGroups: BLGroup[];
+    originalGroups: readonly BLGroup[];
 }
 /**
  * Pure transform: returns a new ParsedBoxesAndLines with collapsed groups
@@ -2195,36 +2821,36 @@ interface BLCollapseResult {
 declare function collapseBoxesAndLines(parsed: ParsedBoxesAndLines, collapsedGroups: Set<string>): BLCollapseResult;
 
 interface SitemapNode {
-    id: string;
-    label: string;
-    metadata: Record<string, string>;
-    children: SitemapNode[];
-    parentId: string | null;
-    description?: string[];
+    readonly id: string;
+    readonly label: string;
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly children: readonly SitemapNode[];
+    readonly parentId: string | null;
+    readonly description?: readonly string[];
     /** True for [Group Name] container nodes */
-    isContainer: boolean;
-    lineNumber: number;
-    color?: string;
+    readonly isContainer: boolean;
+    readonly lineNumber: number;
+    readonly color?: string;
 }
 interface SitemapEdge {
-    sourceId: string;
-    targetId: string;
-    label?: string;
-    lineNumber: number;
+    readonly sourceId: string;
+    readonly targetId: string;
+    readonly label?: string;
+    readonly lineNumber: number;
 }
 type SitemapDirection = 'TB' | 'LR';
 interface ParsedSitemap {
-    title: string | null;
-    titleLineNumber: number | null;
-    direction: SitemapDirection;
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly direction: SitemapDirection;
     /** Top-level nodes (roots of the hierarchy) */
-    roots: SitemapNode[];
+    readonly roots: readonly SitemapNode[];
     /** All cross-link edges */
-    edges: SitemapEdge[];
-    tagGroups: TagGroup[];
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly edges: readonly SitemapEdge[];
+    readonly tagGroups: readonly TagGroup[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 
 /**
@@ -2236,76 +2862,76 @@ declare function looksLikeSitemap(content: string): boolean;
 declare function parseSitemap(content: string, palette?: PaletteColors): ParsedSitemap;
 
 interface SitemapLayoutNode {
-    id: string;
-    label: string;
-    metadata: Record<string, string>;
+    readonly id: string;
+    readonly label: string;
+    readonly metadata: Readonly<Record<string, string>>;
     /** Original (unfiltered) metadata for tag-based coloring and hover dimming */
-    tagMetadata: Record<string, string>;
-    description?: string[];
-    isContainer: boolean;
-    lineNumber: number;
-    color?: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
+    readonly tagMetadata: Readonly<Record<string, string>>;
+    readonly description?: readonly string[];
+    readonly isContainer: boolean;
+    readonly lineNumber: number;
+    readonly color?: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
     /** Count of hidden descendants when collapsed */
-    hiddenCount?: number;
+    readonly hiddenCount?: number;
     /** True if node has children (expanded or collapsed) — drives toggle UI */
-    hasChildren?: boolean;
+    readonly hasChildren?: boolean;
 }
 interface SitemapLayoutEdge {
-    sourceId: string;
-    targetId: string;
-    points: {
-        x: number;
-        y: number;
-    }[];
-    label?: string;
-    lineNumber: number;
+    readonly sourceId: string;
+    readonly targetId: string;
+    readonly points: ReadonlyArray<{
+        readonly x: number;
+        readonly y: number;
+    }>;
+    readonly label?: string;
+    readonly lineNumber: number;
     /** True for edges deferred from dagre (container endpoints) — use linear curve */
-    deferred?: boolean;
+    readonly deferred?: boolean;
 }
 interface SitemapContainerBounds {
-    nodeId: string;
-    label: string;
-    lineNumber: number;
-    color?: string;
-    metadata: Record<string, string>;
+    readonly nodeId: string;
+    readonly label: string;
+    readonly lineNumber: number;
+    readonly color?: string;
+    readonly metadata: Readonly<Record<string, string>>;
     /** Original (unfiltered) metadata for tag-based coloring and hover dimming */
-    tagMetadata: Record<string, string>;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    labelHeight: number;
+    readonly tagMetadata: Readonly<Record<string, string>>;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly labelHeight: number;
     /** Count of hidden descendants when collapsed */
-    hiddenCount?: number;
+    readonly hiddenCount?: number;
     /** True if container has children (expanded or collapsed) */
-    hasChildren?: boolean;
+    readonly hasChildren?: boolean;
 }
 interface SitemapLegendEntry {
-    value: string;
-    color: string;
+    readonly value: string;
+    readonly color: string;
 }
 interface SitemapLegendGroup {
-    name: string;
-    alias?: string;
-    entries: SitemapLegendEntry[];
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    minifiedWidth: number;
-    minifiedHeight: number;
+    readonly name: string;
+    readonly alias?: string;
+    readonly entries: readonly SitemapLegendEntry[];
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly minifiedWidth: number;
+    readonly minifiedHeight: number;
 }
 interface SitemapLayoutResult {
-    nodes: SitemapLayoutNode[];
-    edges: SitemapLayoutEdge[];
-    containers: SitemapContainerBounds[];
-    legend: SitemapLegendGroup[];
-    width: number;
-    height: number;
+    readonly nodes: readonly SitemapLayoutNode[];
+    readonly edges: readonly SitemapLayoutEdge[];
+    readonly containers: readonly SitemapContainerBounds[];
+    readonly legend: readonly SitemapLegendGroup[];
+    readonly width: number;
+    readonly height: number;
 }
 declare function layoutSitemap(parsed: ParsedSitemap, hiddenCounts?: Map<string, number>, activeTagGroup?: string | null, hiddenAttributes?: Set<string>, expandAllLegend?: boolean): SitemapLayoutResult;
 
@@ -2328,64 +2954,64 @@ type InfraBehaviorKey = 'cache-hit' | 'firewall-block' | 'ratelimit-rps' | 'late
 /** All recognized property keys (behavior + structural). */
 declare const INFRA_BEHAVIOR_KEYS: Set<string>;
 interface InfraProperty {
-    key: string;
-    value: string | number;
-    lineNumber: number;
+    readonly key: string;
+    readonly value: string | number;
+    readonly lineNumber: number;
 }
 interface InfraNode {
-    id: string;
-    label: string;
-    properties: InfraProperty[];
-    groupId: string | null;
-    tags: Record<string, string>;
-    isEdge: boolean;
-    description?: string[];
-    lineNumber: number;
+    readonly id: string;
+    readonly label: string;
+    readonly properties: readonly InfraProperty[];
+    readonly groupId: string | null;
+    readonly tags: Readonly<Record<string, string>>;
+    readonly isEdge: boolean;
+    readonly description?: readonly string[];
+    readonly lineNumber: number;
 }
 interface InfraEdge {
-    sourceId: string;
-    targetId: string;
-    label: string;
-    async: boolean;
-    split: number | null;
-    fanout: number | null;
-    lineNumber: number;
+    readonly sourceId: string;
+    readonly targetId: string;
+    readonly label: string;
+    readonly async: boolean;
+    readonly split: number | null;
+    readonly fanout: number | null;
+    readonly lineNumber: number;
 }
 interface InfraGroup {
-    id: string;
-    label: string;
+    readonly id: string;
+    readonly label: string;
     /** Number of instances (or auto-scaling range "N-M") of this group as a unit. */
-    instances?: number | string;
+    readonly instances?: number | string;
     /** Whether this group should be collapsed by default in the source. */
-    collapsed?: boolean;
+    readonly collapsed?: boolean;
     /** Pipe metadata on the group header, cascaded to children. */
-    metadata?: Record<string, string>;
-    lineNumber: number;
+    readonly metadata?: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
 }
 interface InfraTagValue {
-    name: string;
-    color?: string;
+    readonly name: string;
+    readonly color?: string;
 }
 interface InfraTagGroup {
-    name: string;
-    alias: string | null;
-    values: InfraTagValue[];
+    readonly name: string;
+    readonly alias: string | null;
+    readonly values: readonly InfraTagValue[];
     /** Value of the entry marked `default` (nodes without this tag get it automatically). */
-    defaultValue?: string;
-    lineNumber: number;
+    readonly defaultValue?: string;
+    readonly lineNumber: number;
 }
 interface ParsedInfra {
-    type: 'infra';
-    title: string | null;
-    titleLineNumber: number | null;
-    direction: 'LR' | 'TB';
-    nodes: InfraNode[];
-    edges: InfraEdge[];
-    groups: InfraGroup[];
-    tagGroups: InfraTagGroup[];
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly type: 'infra';
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly direction: 'LR' | 'TB';
+    readonly nodes: readonly InfraNode[];
+    readonly edges: readonly InfraEdge[];
+    readonly groups: readonly InfraGroup[];
+    readonly tagGroups: readonly InfraTagGroup[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 interface InfraComputeParams {
     rps?: number;
@@ -2493,65 +3119,65 @@ declare function validateInfra(parsed: ParsedInfra): InfraDiagnostic[];
 declare function validateComputed(computed: ComputedInfraModel): InfraDiagnostic[];
 
 interface InfraLayoutNode {
-    id: string;
-    label: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    computedRps: number;
-    overloaded: boolean;
-    rateLimited: boolean;
-    isEdge: boolean;
-    groupId: string | null;
-    computedLatencyMs: number;
-    computedLatencyPercentiles: ComputedInfraNode['computedLatencyPercentiles'];
-    computedUptime: number;
-    computedAvailability: number;
-    computedAvailabilityPercentiles: ComputedInfraNode['computedAvailabilityPercentiles'];
-    computedInstances: number;
-    computedConcurrentInvocations: number;
-    computedCbState: ComputedInfraNode['computedCbState'];
-    childHealthState?: ComputedInfraNode['childHealthState'];
-    properties: ComputedInfraNode['properties'];
-    queueMetrics?: ComputedInfraNode['queueMetrics'];
-    tags: Record<string, string>;
-    description?: string[];
-    lineNumber: number;
+    readonly id: string;
+    readonly label: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly computedRps: number;
+    readonly overloaded: boolean;
+    readonly rateLimited: boolean;
+    readonly isEdge: boolean;
+    readonly groupId: string | null;
+    readonly computedLatencyMs: number;
+    readonly computedLatencyPercentiles: ComputedInfraNode['computedLatencyPercentiles'];
+    readonly computedUptime: number;
+    readonly computedAvailability: number;
+    readonly computedAvailabilityPercentiles: ComputedInfraNode['computedAvailabilityPercentiles'];
+    readonly computedInstances: number;
+    readonly computedConcurrentInvocations: number;
+    readonly computedCbState: ComputedInfraNode['computedCbState'];
+    readonly childHealthState?: ComputedInfraNode['childHealthState'];
+    readonly properties: ComputedInfraNode['properties'];
+    readonly queueMetrics?: ComputedInfraNode['queueMetrics'];
+    readonly tags: Readonly<Record<string, string>>;
+    readonly description?: readonly string[];
+    readonly lineNumber: number;
 }
 interface InfraLayoutEdge {
-    sourceId: string;
-    targetId: string;
-    label: string;
-    async: boolean;
-    computedRps: number;
-    split: number;
-    fanout: number | null;
-    points: {
-        x: number;
-        y: number;
-    }[];
-    lineNumber: number;
+    readonly sourceId: string;
+    readonly targetId: string;
+    readonly label: string;
+    readonly async: boolean;
+    readonly computedRps: number;
+    readonly split: number;
+    readonly fanout: number | null;
+    readonly points: ReadonlyArray<{
+        readonly x: number;
+        readonly y: number;
+    }>;
+    readonly lineNumber: number;
 }
 interface InfraLayoutGroup {
-    id: string;
-    label: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    instances?: number | string;
-    lineNumber: number;
+    readonly id: string;
+    readonly label: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly instances?: number | string;
+    readonly lineNumber: number;
 }
 interface InfraLayoutResult {
-    nodes: InfraLayoutNode[];
-    edges: InfraLayoutEdge[];
-    groups: InfraLayoutGroup[];
+    readonly nodes: readonly InfraLayoutNode[];
+    readonly edges: readonly InfraLayoutEdge[];
+    readonly groups: readonly InfraLayoutGroup[];
     /** Diagram-level options (e.g., default-latency-ms, default-uptime). */
-    options: Record<string, string>;
-    direction: 'LR' | 'TB';
-    width: number;
-    height: number;
+    readonly options: Readonly<Record<string, string>>;
+    readonly direction: 'LR' | 'TB';
+    readonly width: number;
+    readonly height: number;
 }
 declare function layoutInfra(computed: ComputedInfraModel, expandedNodeIds?: Set<string> | null, collapsedNodes?: Set<string> | null): InfraLayoutResult;
 
@@ -2585,14 +3211,17 @@ interface InfraLegendGroup {
     minifiedWidth: number;
 }
 /** Build legend groups from roles + tags. */
-declare function computeInfraLegendGroups(nodes: InfraLayoutNode[], tagGroups: InfraTagGroup[], palette: PaletteColors, edges?: InfraLayoutEdge[]): InfraLegendGroup[];
+declare function computeInfraLegendGroups(nodes: readonly InfraLayoutNode[], tagGroups: readonly InfraTagGroup[], palette: PaletteColors, edges?: readonly InfraLayoutEdge[]): InfraLegendGroup[];
 interface InfraPlaybackState {
     expanded: boolean;
     paused: boolean;
     speed: number;
     speedOptions: readonly number[];
 }
-declare function renderInfra(container: HTMLDivElement, layout: InfraLayoutResult, palette: PaletteColors, isDark: boolean, title: string | null, titleLineNumber: number | null, tagGroups?: InfraTagGroup[], activeGroup?: string | null, animate?: boolean, playback?: InfraPlaybackState | null, expandedNodeIds?: Set<string> | null, exportMode?: boolean, collapsedNodes?: Set<string> | null): void;
+declare function renderInfra(container: HTMLDivElement, layout: InfraLayoutResult, palette: PaletteColors, isDark: boolean, title: string | null, titleLineNumber: number | null, tagGroups?: readonly InfraTagGroup[], activeGroup?: string | null, animate?: boolean, playback?: InfraPlaybackState | null, expandedNodeIds?: Set<string> | null, exportMode?: boolean, collapsedNodes?: Set<string> | null, 
+/** When 'app', the playback pill is suppressed and a controls row + anchor are
+ *  reserved for the app overlay strip (play/pause + speed live there). */
+controlsHost?: 'app' | 'inline'): void;
 declare function parseAndLayoutInfra(content: string): {
     parsed: ParsedInfra;
     computed: null;
@@ -2614,36 +3243,38 @@ interface Offset {
     direction: 1 | -1;
 }
 interface GanttDependency {
-    targetName: string;
-    label?: string;
-    offset?: Offset;
-    lineNumber: number;
+    readonly targetName: string;
+    readonly label?: string;
+    readonly offset?: Offset;
+    readonly lineNumber: number;
 }
 interface GanttTask {
-    id: string;
-    label: string;
-    duration: Duration | null;
-    explicitStart?: string;
-    uncertain: boolean;
-    progress: number | null;
-    offset?: Offset;
-    dependencies: GanttDependency[];
-    metadata: Record<string, string>;
-    lineNumber: number;
-    groupPath: string[];
-    comment?: string;
+    readonly id: string;
+    readonly label: string;
+    readonly duration: Duration | null;
+    readonly explicitStart?: string;
+    readonly uncertain: boolean;
+    readonly progress: number | null;
+    readonly offset?: Offset;
+    readonly isDefinition: boolean;
+    readonly dependencies: readonly GanttDependency[];
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
+    readonly groupPath: readonly string[];
+    readonly comment?: string;
 }
 interface GanttGroup {
-    name: string;
-    color: string | null;
-    metadata: Record<string, string>;
-    lineNumber: number;
-    children: GanttNode[];
+    readonly name: string;
+    readonly color: string | null;
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly offset?: Offset;
+    readonly lineNumber: number;
+    readonly children: readonly GanttNode[];
 }
 interface GanttParallelBlock {
-    kind: 'parallel';
-    lineNumber: number;
-    children: GanttNode[];
+    readonly kind: 'parallel';
+    readonly lineNumber: number;
+    readonly children: readonly GanttNode[];
 }
 /** A node in the gantt tree: either a task, group, or parallel block. */
 type GanttNode = ({
@@ -2653,33 +3284,36 @@ type GanttNode = ({
 } & GanttGroup) | GanttParallelBlock;
 type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 interface HolidayDate {
-    date: string;
-    label: string;
-    lineNumber: number;
+    readonly date: string;
+    readonly label: string;
+    readonly lineNumber: number;
 }
 interface HolidayRange {
-    startDate: string;
-    endDate: string;
-    label: string;
-    lineNumber: number;
+    readonly startDate: string;
+    readonly endDate: string;
+    readonly label: string;
+    readonly lineNumber: number;
 }
 interface GanttHolidays {
-    dates: HolidayDate[];
-    ranges: HolidayRange[];
-    workweek: Weekday[];
+    readonly dates: readonly HolidayDate[];
+    readonly ranges: readonly HolidayRange[];
+    readonly workweek: readonly Weekday[];
 }
 interface GanttEra {
-    startDate: string;
-    endDate: string;
-    label: string;
-    color: string | null;
-    lineNumber: number;
+    readonly startDate: string;
+    readonly endDate: string;
+    readonly label: string;
+    readonly color: string | null;
+    readonly lineNumber: number;
+    readonly offsetStart?: Offset;
+    readonly offsetEnd?: Offset;
 }
 interface GanttMarker {
-    date: string;
-    label: string;
-    color: string | null;
-    lineNumber: number;
+    readonly date: string;
+    readonly label: string;
+    readonly color: string | null;
+    readonly lineNumber: number;
+    readonly offsetDate?: Offset;
 }
 interface GanttOptions {
     start: string | null;
@@ -2704,14 +3338,15 @@ interface GanttOptions {
     noTitle: boolean;
 }
 interface ParsedGantt {
-    nodes: GanttNode[];
-    holidays: GanttHolidays;
-    tagGroups: TagGroup[];
-    eras: GanttEra[];
-    markers: GanttMarker[];
-    options: GanttOptions;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly nodes: readonly GanttNode[];
+    readonly holidays: GanttHolidays;
+    readonly tagGroups: readonly TagGroup[];
+    readonly eras: readonly GanttEra[];
+    readonly markers: readonly GanttMarker[];
+    readonly options: GanttOptions;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
+    readonly syntaxMode: 'new' | 'legacy';
 }
 interface ResolvedTask {
     task: GanttTask;
@@ -2805,17 +3440,7 @@ type ResolverResult = ResolverMatch | ResolverError;
  * Collect all tasks from a tree of GanttNodes, annotating each with its
  * fully qualified group path (e.g., ["Backend", "API"]).
  */
-declare function collectTasks(nodes: GanttNode[]): GanttTask[];
-/**
- * Resolve a dependency target name to a task.
- *
- * Resolution strategy (greedy right-to-left):
- * 1. Try the full string as an exact task label match
- * 2. If no match, split at the last dot → group prefix + task label
- * 3. Recurse for deeper paths
- *
- * Returns a match or an error with helpful suggestions.
- */
+declare function collectTasks(nodes: readonly GanttNode[]): GanttTask[];
 declare function resolveTaskName(name: string, allTasks: GanttTask[]): ResolverResult;
 
 /**
@@ -2912,6 +3537,13 @@ interface PertOptions {
     /** When true, the renderer suppresses the diagram banner title. */
     noTitle?: boolean;
     /**
+     * `no-analysis` directive — suppresses the analysis layer (tornado +
+     * S-curve). The layer renders by default whenever Monte Carlo ran;
+     * this bare flag turns it off (mirrors `no-title`). An explicit
+     * `viewState.an` (desktop-app toggle / share link) overrides it.
+     */
+    noAnalysis?: boolean;
+    /**
      * `active-tag <name>` directive — selects which declared tag group
      * drives node fill via `resolveTagColor()`. `'none'` (case-insensitive)
      * suppresses tag coloring; `undefined` lets `resolveActiveTagGroup()`
@@ -2947,27 +3579,27 @@ interface PertOptions {
  */
 interface PertActivity {
     /** Stable id — alias if `as` was given, otherwise normalized name. */
-    id: string;
+    readonly id: string;
     /** Human-readable label as written in source. */
-    name: string;
+    readonly name: string;
     /** Optional alias from `<name> <durs> as <id>`. */
-    alias?: string;
+    readonly alias?: string;
     /**
      * Activity duration estimate.
      * - `null` → TBD (no estimate); analyzer poisons descendants with `null`.
      */
-    duration: DurationEstimate | null;
+    readonly duration: DurationEstimate | null;
     /**
      * Per-activity confidence override from pipe metadata (`| confidence: low`).
      * When unset, analyzer uses `options.confidence`.
      */
-    confidence?: string;
+    readonly confidence?: string;
     /** Group id this activity belongs to (post-resolve). */
-    groupId?: string;
+    readonly groupId?: string;
     /** Source line of the declaration site (1-based). */
-    lineNumber: number;
+    readonly lineNumber: number;
     /** True for `milestone <name>` primitives (zero-duration, diamond shape). */
-    isMilestone: boolean;
+    readonly isMilestone: boolean;
     /**
      * Resolved tag-group metadata from pipe-metadata aliases. Keys are
      * lowercased tag-group names (e.g. `priority`, `team`); values are the
@@ -2975,7 +3607,7 @@ interface PertActivity {
      * when an `active-tag` group is set. Empty when no tag groups are
      * declared or the activity carried no tag metadata.
      */
-    tags?: Record<string, string>;
+    readonly tags?: Readonly<Record<string, string>>;
 }
 /**
  * Forward-style milestone shorthand. Stored as a `PertActivity` with
@@ -2999,58 +3631,58 @@ type EdgeType = 'FS' | 'SS' | 'FF' | 'SF';
  * negative (a lead — predecessor and successor overlap).
  */
 interface PertEdge {
-    source: string;
-    target: string;
-    lineNumber: number;
-    type: EdgeType;
-    lag: Duration | null;
+    readonly source: string;
+    readonly target: string;
+    readonly lineNumber: number;
+    readonly type: EdgeType;
+    readonly lag: Duration | null;
 }
 /** Group declared via `[group-name] | metadata`. */
 interface PertGroup {
-    id: string;
-    name: string;
+    readonly id: string;
+    readonly name: string;
     /** Activity ids belonging to this group, populated in Pass 2. */
-    activityIds: string[];
+    readonly activityIds: readonly string[];
     /** Whether the user authored `| collapsed: true`. */
-    collapsed: boolean;
+    readonly collapsed: boolean;
     /** Source line of the `[group-name]` header (1-based). */
-    lineNumber: number;
+    readonly lineNumber: number;
     /**
      * Resolved tag-group metadata for the cluster header — same shape as
      * `PertActivity.tags`. Currently informational; default-tag injection
      * skips groups (containers) so they appear "untagged" unless the user
      * authors an explicit value via pipe metadata.
      */
-    tags?: Record<string, string>;
+    readonly tags?: Readonly<Record<string, string>>;
     /**
      * Auto-detected group topology (Pass 2 result).
      * - `hammock`: single entry + single exit — collapses to a super-edge.
      * - `cluster`: multi-entry or multi-exit — collapses to a bounding rect.
      */
-    classification?: 'hammock' | 'cluster';
+    readonly classification?: 'hammock' | 'cluster';
 }
 /** Output of `parsePert(content)`. */
 interface ParsedPert {
     /** Optional title parsed from `pert <title>`. */
-    title: string | null;
-    options: PertOptions;
-    activities: PertActivity[];
-    edges: PertEdge[];
-    groups: PertGroup[];
+    readonly title: string | null;
+    readonly options: PertOptions;
+    readonly activities: readonly PertActivity[];
+    readonly edges: readonly PertEdge[];
+    readonly groups: readonly PertGroup[];
     /**
      * Tag groups declared at the top of the diagram (`tag Priority as p
      * High red, Low green`). Drive node fill via `resolveTagColor()`.
      * Empty when no `tag` blocks are declared.
      */
-    tagGroups: TagGroup[];
+    readonly tagGroups: readonly TagGroup[];
     /**
      * Map alias-or-name → canonical activity id. Useful for the analyzer
      * and for editor autocomplete; also populated in Pass 2.
      */
-    idMap: Record<string, string>;
-    diagnostics: DgmoError[];
+    readonly idMap: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
     /** First fatal error message; `null` when parse succeeded. */
-    error: string | null;
+    readonly error: string | null;
 }
 /**
  * Fully-resolved per-activity analysis output. ES/EF/LS/LF/slack are
@@ -3251,40 +3883,40 @@ interface ResolvedPert {
     error: string | null;
 }
 interface PertLayoutNode {
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
+    readonly id: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
 }
 interface PertLayoutEdge {
-    source: string;
-    target: string;
-    points: {
-        x: number;
-        y: number;
-    }[];
+    readonly source: string;
+    readonly target: string;
+    readonly points: ReadonlyArray<{
+        readonly x: number;
+        readonly y: number;
+    }>;
 }
 interface PertLayoutGroup {
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    classification: 'hammock' | 'cluster';
+    readonly id: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly classification: 'hammock' | 'cluster';
     /**
      * True when the group is currently collapsed. Layout sized this rect
      * as a single rolled-up node and hid the group's member activities
      * from `nodes` / re-routed external edges to land on this rect.
      */
-    collapsed?: boolean;
+    readonly collapsed?: boolean;
 }
 interface LayoutResult {
-    nodes: PertLayoutNode[];
-    edges: PertLayoutEdge[];
-    groups: PertLayoutGroup[];
-    width: number;
-    height: number;
+    readonly nodes: readonly PertLayoutNode[];
+    readonly edges: readonly PertLayoutEdge[];
+    readonly groups: readonly PertLayoutGroup[];
+    readonly width: number;
+    readonly height: number;
 }
 
 interface ParsePertOptions {
@@ -3418,14 +4050,14 @@ interface PertRenderOptions {
      */
     showFieldLegend?: boolean;
     /**
-     * Render the top legend (Critical Path / Anchor / Milestone pills)
-     * inside the SVG, between the title and the diagram. Defaults to
-     * true so CLI exports and share-link images include the legend; the
-     * desktop preview flips it off and renders the legend in a sibling
-     * native-pixel SVG instead, so the pill text stays at intended size
-     * even when the diagram SVG gets scale-to-fit'd into the panel.
+     * Render the tag-group legend inside the SVG, between the title and
+     * the diagram. Defaults to true so CLI exports and share-link images
+     * include it; the desktop preview flips it off and renders the legend
+     * in a sibling native-pixel SVG instead, so the pill text stays at
+     * intended size even when the diagram SVG gets scale-to-fit'd into the
+     * panel.
      */
-    showTopLegend?: boolean;
+    showLegend?: boolean;
     /**
      * Render the project-stats Summary box below the diagram. Defaults
      * to true so CLI exports / share-link images keep showing it; the
@@ -3461,6 +4093,7 @@ interface PertRenderOptions {
     activeTagOverride?: string | null;
     /** True when rendering for export — strips collapsed pills and cog from legend. */
     exportMode?: boolean;
+    containerWidth?: number;
 }
 declare function renderPert(container: HTMLDivElement, resolved: ResolvedPert, layout: LayoutResult, palette: PaletteColors, isDark: boolean, options?: PertRenderOptions): void;
 declare function renderPertForExport(content: string, theme: 'light' | 'dark' | 'transparent', palette: PaletteColors, 
@@ -3500,125 +4133,54 @@ declare function renderPertAnalysisBlock(container: HTMLDivElement, resolved: Re
     showScurve?: boolean;
     showFieldLegend?: boolean;
 }): void;
-/**
- * Fade everything in the diagram that doesn't belong to the given
- * legend set (`'critical'`, `'anchor'`, or `'milestone'`). Auto-detects
- * MC vs analytical mode for the critical-path rule.
- *
- * No-op when nothing qualifies (e.g. hovering Anchor on a diagram with
- * no anchor — shouldn't happen because the pill wouldn't render, but
- * defensive). The React layer is responsible for resetting via
- * `resetPertHighlight` when hover/click goes away.
- */
-declare function highlightPertSet(container: Element, kind: LegendKind): void;
-/**
- * Critical-path-specific shorthand for `highlightPertSet(container,
- * 'critical')`. Kept for backwards compatibility with existing callers.
- */
-declare function highlightPertCriticalPath(container: Element): void;
-/**
- * Reset opacities applied by `highlightPertSet`. Safe to call when no
- * highlight is active.
- */
-declare function resetPertHighlight(container: Element): void;
-/**
- * Backwards-compatible alias for `resetPertHighlight`.
- */
-declare function resetPertCriticalPath(container: Element): void;
-/**
- * Render the 3×2 PERT-field reference card. A neutral-tinted rounded
- * rect with a "Activity card fields" header band on top (mirroring the
- * Summary's typographic idiom) and a 3×2 grid of labeled definitions
- * below — so the cells map 1-to-1 to the schedule cells of every
- * activity card without pretending to be a node themselves.
- *
- * The cell content is vertically centered inside each row, so the
- * legend looks balanced whether it's sized to a tall Summary (lots of
- * bullets) or its compact default height.
- *
- * Cell order follows `drawTextbookCard`:
- *   top:    [ Early Start | Duration | Early Finish ]
- *   bottom: [ Late Start  | Slack    | Late Finish  ]
- */
-type LegendKind = 'critical' | 'anchor' | 'milestone';
-interface LegendEntry {
-    kind: LegendKind;
-    label: string;
-}
-/**
- * Returns the PERT-specific legend entries (Critical Path / Anchor /
- * Milestone). Tag groups are rendered separately via the shared
- * `renderLegendD3` helper so they get the standard collapsible-capsule
- * treatment used by org / kanban / gantt.
- */
-declare function pertLegendEntries(resolved: ResolvedPert): LegendEntry[];
-interface LegendBlockArgs {
-    x: number;
-    y: number;
-    width: number;
-    palette: PaletteColors;
-    isDark: boolean;
-}
-/**
- * Render the top-legend pill row. Each pill carries
- * `data-legend-entry="critical|anchor|milestone"` so the React layer
- * can attach hover/click wiring to fade the matching set.
- *
- * Visual style mirrors the shared `renderLegendD3` pill convention so
- * PERT looks consistent with Cycle / Mindmap / BoxesAndLines: 28px tall,
- * fully-rounded rx, mix-fill against surface, no stroke, 11pt label.
- */
-declare const PERT_LEGEND_PILL_HEIGHT = 28;
-declare function pertLegendBlockWidth(entries: LegendEntry[]): number;
-declare function renderLegendBlock(svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>, entries: LegendEntry[], args: LegendBlockArgs): void;
 
 interface MindmapNode {
-    id: string;
-    label: string;
-    description?: string[];
-    metadata: Record<string, string>;
-    children: MindmapNode[];
-    parentId: string | null;
-    lineNumber: number;
-    color?: string;
-    collapsed?: boolean;
+    readonly id: string;
+    readonly label: string;
+    readonly description?: readonly string[];
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly children: readonly MindmapNode[];
+    readonly parentId: string | null;
+    readonly lineNumber: number;
+    readonly color?: string;
+    readonly collapsed?: boolean;
 }
 interface ParsedMindmap {
-    title: string | null;
-    titleLineNumber: number | null;
-    roots: MindmapNode[];
-    tagGroups: TagGroup[];
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly roots: readonly MindmapNode[];
+    readonly tagGroups: readonly TagGroup[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 interface MindmapLayoutNode {
-    id: string;
-    label: string;
-    description?: string[];
-    metadata: Record<string, string>;
-    lineNumber: number;
-    color?: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    depth: number;
-    angle: number;
-    radius: number;
-    hiddenCount?: number;
-    hasChildren?: boolean;
+    readonly id: string;
+    readonly label: string;
+    readonly description?: readonly string[];
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
+    readonly color?: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly depth: number;
+    readonly angle: number;
+    readonly radius: number;
+    readonly hiddenCount?: number;
+    readonly hasChildren?: boolean;
 }
 interface MindmapLayoutEdge {
-    sourceId: string;
-    targetId: string;
-    path: string;
+    readonly sourceId: string;
+    readonly targetId: string;
+    readonly path: string;
 }
 interface MindmapLayoutResult {
-    nodes: MindmapLayoutNode[];
-    edges: MindmapLayoutEdge[];
-    width: number;
-    height: number;
+    readonly nodes: readonly MindmapLayoutNode[];
+    readonly edges: readonly MindmapLayoutEdge[];
+    readonly width: number;
+    readonly height: number;
 }
 
 declare function parseMindmap(content: string, palette?: PaletteColors): ParsedMindmap;
@@ -3628,6 +4190,7 @@ declare function layoutMindmap(parsed: ParsedMindmap, _palette: PaletteColors, o
     hiddenCounts?: Map<string, number>;
     activeTagGroup?: string | null;
     hideDescriptions?: boolean;
+    ctx?: ScaleContext;
 }): MindmapLayoutResult;
 
 declare function renderMindmap(container: HTMLDivElement, parsed: ParsedMindmap, layout: MindmapLayoutResult, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: {
@@ -3640,6 +4203,9 @@ declare function renderMindmap(container: HTMLDivElement, parsed: ParsedMindmap,
     controlsExpanded?: boolean;
     onToggleControlsExpand?: () => void;
     exportMode?: boolean;
+    /** When 'app', controls (Descriptions / Depth Colors) are hosted by the app
+     *  overlay strip — inline gear suppressed, controls row + anchor reserved. */
+    controlsHost?: 'app' | 'inline';
 }): void;
 declare function renderMindmapForExport(content: string, theme: 'light' | 'dark' | 'transparent', palette: PaletteColors): string;
 
@@ -3649,7 +4215,7 @@ interface CollapsedMindmapResult {
     /** nodeId → count of hidden descendants */
     hiddenCounts: Map<string, number>;
 }
-declare function collapseMindmapTree(roots: MindmapNode[], collapsedIds: Set<string>): CollapsedMindmapResult;
+declare function collapseMindmapTree(roots: readonly MindmapNode[], collapsedIds: Set<string>): CollapsedMindmapResult;
 
 /**
  * All wireframe element types.
@@ -3663,93 +4229,93 @@ type WireframeElementType = 'group' | 'textInput' | 'button' | 'dropdown' | 'che
  * with sensible defaults (isContainer=false, orientation='vertical', isSkeleton=false).
  */
 interface WireframeElement {
-    id: string;
-    type: WireframeElementType;
+    readonly id: string;
+    readonly type: WireframeElementType;
     /** Display label / placeholder text / heading text */
-    label: string;
+    readonly label: string;
     /** Child elements (non-empty only when isContainer=true) */
-    children: WireframeElement[];
+    readonly children: readonly WireframeElement[];
     /** Pipe metadata key-value pairs */
-    metadata: Record<string, string>;
+    readonly metadata: Readonly<Record<string, string>>;
     /** State keywords: disabled, active, ghost, destructive, etc. */
-    states: string[];
+    readonly states: readonly string[];
     /** Free-text annotations from pipe metadata */
-    annotations: string[];
+    readonly annotations: readonly string[];
     /** 1-based line number in source */
-    lineNumber: number;
+    readonly lineNumber: number;
     /** Measured indentation (column) */
-    indent: number;
+    readonly indent: number;
     /** True when element has children (set during parse via indent stack) */
-    isContainer: boolean;
+    readonly isContainer: boolean;
     /** Stacking direction for group children */
-    orientation: 'vertical' | 'horizontal';
+    readonly orientation: 'vertical' | 'horizontal';
     /** True when inside a skeleton block */
-    isSkeleton: boolean;
+    readonly isSkeleton: boolean;
     /** Heading level: 1 for `#`, 2 for `##` */
-    headingLevel?: number;
+    readonly headingLevel?: number;
     /** Dropdown options (for type='dropdown') */
-    options?: string[];
+    readonly options?: readonly string[];
     /** Checked state (for type='checkbox') */
-    checked?: boolean;
+    readonly checked?: boolean;
     /** Selected state (for type='radio') */
-    selected?: boolean;
+    readonly selected?: boolean;
     /** Image hint: 'default' | 'round' | 'wide' */
-    imageHint?: 'default' | 'round' | 'wide';
+    readonly imageHint?: 'default' | 'round' | 'wide';
     /** Progress value 0-100 (for type='progress') */
-    progressValue?: number;
+    readonly progressValue?: number;
     /** Chart hint: 'line' | 'bar' | 'pie' */
-    chartHint?: 'line' | 'bar' | 'pie';
+    readonly chartHint?: 'line' | 'bar' | 'pie';
     /** Table dimensions for skeleton shorthand (for type='table') */
-    tableRows?: number;
-    tableCols?: number;
+    readonly tableRows?: number;
+    readonly tableCols?: number;
     /** Table header row labels (for type='table') */
-    tableHeaders?: string[];
+    readonly tableHeaders?: readonly string[];
     /** Table data rows — each row is an array of cell content strings (for type='table') */
-    tableData?: string[][];
+    readonly tableData?: ReadonlyArray<readonly string[]>;
     /** Inline elements on the same line (multi-element line) */
-    inlineElements?: WireframeElement[];
+    readonly inlineElements?: readonly WireframeElement[];
     /** Label element for label-field pairing */
-    labelFor?: WireframeElement;
+    readonly labelFor?: WireframeElement;
     /** Color from tag system */
-    color?: string;
+    readonly color?: string;
     /** Field variant: password, textarea */
-    fieldVariant?: 'password' | 'textarea';
+    readonly fieldVariant?: 'password' | 'textarea';
 }
 /** Form factor / layout mode */
 type WireframeFormFactor = 'desktop' | 'mobile';
 interface ParsedWireframe {
-    title: string | null;
-    titleLineNumber: number | null;
-    formFactor: WireframeFormFactor;
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly formFactor: WireframeFormFactor;
     /** Top-level elements (roots of the hierarchy) */
-    roots: WireframeElement[];
+    readonly roots: readonly WireframeElement[];
     /** Modal elements (rendered separately below main) */
-    modals: WireframeElement[];
-    tagGroups: TagGroup[];
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly modals: readonly WireframeElement[];
+    readonly tagGroups: readonly TagGroup[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 
 declare function parseWireframe(content: string): ParsedWireframe;
 
 interface WireframeLayoutNode {
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    element: WireframeElement;
-    children: WireframeLayoutNode[];
+    readonly id: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly element: WireframeElement;
+    readonly children: readonly WireframeLayoutNode[];
     /** For label-field pairs: the x offset where fields align */
-    fieldAlignX?: number;
+    readonly fieldAlignX?: number;
 }
 interface WireframeLayout {
-    width: number;
-    height: number;
-    titleHeight: number;
-    nodes: WireframeLayoutNode[];
-    modalNodes: WireframeLayoutNode[];
+    readonly width: number;
+    readonly height: number;
+    readonly titleHeight: number;
+    readonly nodes: readonly WireframeLayoutNode[];
+    readonly modalNodes: readonly WireframeLayoutNode[];
 }
 declare function layoutWireframe(parsed: ParsedWireframe, _options?: Record<string, string>, overrideWidth?: number, showGroupLabels?: boolean): WireframeLayout;
 
@@ -3775,35 +4341,35 @@ declare function renderWireframe(container: HTMLDivElement, parsed: ParsedWirefr
 type QuadrantPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 type BlipTrend = 'new' | 'up' | 'down' | 'stable';
 interface TechRadarRing {
-    name: string;
-    alias: string | null;
-    lineNumber: number;
+    readonly name: string;
+    readonly alias: string | null;
+    readonly lineNumber: number;
 }
 interface TechRadarBlip {
-    name: string;
-    ring: string;
-    trend: BlipTrend | null;
-    description: string[];
-    lineNumber: number;
+    readonly name: string;
+    readonly ring: string;
+    readonly trend: BlipTrend | null;
+    readonly description: readonly string[];
+    readonly lineNumber: number;
     /** Assigned after parsing — global numbering across all quadrants. */
-    globalNumber: number;
+    readonly globalNumber: number;
 }
 interface TechRadarQuadrant {
-    name: string;
-    position: QuadrantPosition;
-    color: string | null;
-    lineNumber: number;
-    blips: TechRadarBlip[];
+    readonly name: string;
+    readonly position: QuadrantPosition;
+    readonly color: string | null;
+    readonly lineNumber: number;
+    readonly blips: readonly TechRadarBlip[];
 }
 interface ParsedTechRadar {
-    type: 'tech-radar';
-    title: string;
-    titleLineNumber: number;
-    rings: TechRadarRing[];
-    quadrants: TechRadarQuadrant[];
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly type: 'tech-radar';
+    readonly title: string;
+    readonly titleLineNumber: number;
+    readonly rings: readonly TechRadarRing[];
+    readonly quadrants: readonly TechRadarQuadrant[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 interface TechRadarLayoutPoint {
     blip: TechRadarBlip;
@@ -3829,6 +4395,9 @@ interface TechRadarRenderOptions {
     activeLine?: number | null;
     /** True when rendering for export (PNG/SVG/PDF) — controls whether collapsed legend pills and cog are stripped. */
     exportMode?: boolean;
+    /** When 'app', the Blip Legend toggle is hosted by the app overlay strip
+     *  (inline gear suppressed, controls row + anchor reserved). */
+    controlsHost?: 'app' | 'inline';
 }
 
 declare function parseTechRadar(content: string): ParsedTechRadar;
@@ -3842,7 +4411,7 @@ declare function parseTechRadar(content: string): ParsedTechRadar;
  * - Deterministic: same input always produces same output
  * - Collision-avoiding: nudges overlapping blips radially within their ring band
  */
-declare function computeRadarLayout(parsed: ParsedTechRadar, width: number, height: number): TechRadarLayoutPoint[];
+declare function computeRadarLayout(parsed: ParsedTechRadar, width: number, height: number, ctx?: ScaleContext): TechRadarLayoutPoint[];
 /**
  * Get the center and max radius for a radar at the given dimensions.
  * Useful for renderers that need these values independently.
@@ -3863,98 +4432,82 @@ declare function renderQuadrantFocusForExport(container: HTMLDivElement, parsed:
     height: number;
 }): void;
 
-/**
- * One rendered description line. `kind` controls horizontal placement and
- * whether the renderer draws a bullet glyph:
- *  - `plain`        — flush left at the description's left edge
- *  - `bullet-first` — "•" drawn at the left edge, body text at the bullet column
- *  - `bullet-cont`  — body continuation at the bullet column (no glyph)
- *
- * Splitting first-line bullet rendering into separate text elements lets
- * continuation lines align exactly under the first word past the bullet,
- * regardless of font-width estimation drift.
- */
-interface WrappedDescLine {
-    text: string;
-    kind: 'plain' | 'bullet-first' | 'bullet-cont';
-}
-
 interface CycleNode {
-    label: string;
-    lineNumber: number;
-    color?: string;
-    span: number;
-    description: string[];
-    metadata: Record<string, string>;
+    readonly label: string;
+    readonly lineNumber: number;
+    readonly color?: string;
+    readonly span: number;
+    readonly description: readonly string[];
+    readonly metadata: Readonly<Record<string, string>>;
 }
 interface CycleEdge {
-    sourceIndex: number;
-    targetIndex: number;
-    label?: string;
-    color?: string;
-    width?: number;
-    description: string[];
-    lineNumber?: number;
-    metadata: Record<string, string>;
+    readonly sourceIndex: number;
+    readonly targetIndex: number;
+    readonly label?: string;
+    readonly color?: string;
+    readonly width?: number;
+    readonly description: readonly string[];
+    readonly lineNumber?: number;
+    readonly metadata: Readonly<Record<string, string>>;
 }
 interface ParsedCycle {
-    type: 'cycle';
-    title: string;
-    titleLineNumber: number;
-    nodes: CycleNode[];
-    edges: CycleEdge[];
-    direction: 'clockwise' | 'counterclockwise';
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly type: 'cycle';
+    readonly title: string;
+    readonly titleLineNumber: number;
+    readonly nodes: readonly CycleNode[];
+    readonly edges: readonly CycleEdge[];
+    readonly direction: 'clockwise' | 'counterclockwise';
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 
 interface CycleLayoutNode {
-    label: string;
-    x: number;
-    y: number;
-    angle: number;
-    width: number;
-    height: number;
+    readonly label: string;
+    readonly x: number;
+    readonly y: number;
+    readonly angle: number;
+    readonly width: number;
+    readonly height: number;
     /** Pre-wrapped description lines (fit to node width). Empty if no descriptions. */
-    wrappedDesc: WrappedDescLine[];
+    readonly wrappedDesc: readonly WrappedDescLine[];
     /** Whether this node should be rendered as a circle. */
-    isCircle: boolean;
+    readonly isCircle: boolean;
 }
 interface CycleLayoutEdge {
-    sourceIndex: number;
-    targetIndex: number;
-    path: string;
-    labelX: number;
-    labelY: number;
+    readonly sourceIndex: number;
+    readonly targetIndex: number;
+    readonly path: string;
+    readonly labelX: number;
+    readonly labelY: number;
     /** Angle of the label position on the circle (radians), for text-anchor. */
-    labelAngle: number;
-    label?: string;
+    readonly labelAngle: number;
+    readonly label?: string;
 }
 interface CycleLayoutResult {
-    nodes: CycleLayoutNode[];
-    edges: CycleLayoutEdge[];
-    cx: number;
-    cy: number;
-    radius: number;
-    width: number;
-    height: number;
+    readonly nodes: readonly CycleLayoutNode[];
+    readonly edges: readonly CycleLayoutEdge[];
+    readonly cx: number;
+    readonly cy: number;
+    readonly radius: number;
+    readonly width: number;
+    readonly height: number;
     /** Scale factor applied to nodes (1 = no scaling, <1 = shrunk to fit). */
-    scale: number;
+    readonly scale: number;
 }
 
 /**
  * Parse a `.dgmo` cycle diagram document.
  *
- * Syntax:
+ * Syntax (§1.4 unified metadata grammar):
  * ```
  * cycle Title
  *
  * direction-counterclockwise
  *
- * NodeLabel | color: blue, span: 3
+ * NodeLabel color: blue, span: 3
  *   Description line (indented under node)
- *   -Label-> | color: red, width: 6
+ *   -Label-> color: red, width: 6
  *     Edge description (indented under edge)
  * ```
  */
@@ -3979,6 +4532,10 @@ interface CycleRenderOptions {
     onToggleDescriptions?: (active: boolean) => void;
     onToggleControlsExpand?: () => void;
     exportMode?: boolean;
+    /** When 'app', the description toggle is hosted by the app overlay strip:
+     *  the inline gear is suppressed and a controls row + anchor are reserved.
+     *  Default (inline) renders the gear as before. */
+    controlsHost?: 'app' | 'inline';
 }
 /**
  * Render a cycle diagram into the given container.
@@ -3990,44 +4547,44 @@ declare function renderCycle(container: HTMLDivElement, parsed: ParsedCycle, pal
 declare function renderCycleForExport(container: HTMLDivElement, parsed: ParsedCycle, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, viewState?: CompactViewState, exportMode?: boolean): void;
 
 interface JourneyMapAnnotation {
-    type: 'pain' | 'opportunity' | 'thought';
-    text: string;
+    readonly type: 'pain' | 'opportunity' | 'thought';
+    readonly text: string;
 }
 interface JourneyMapStep {
-    id: string;
-    title: string;
-    score?: number;
-    emotionLabel?: string;
-    tags: Record<string, string>;
-    annotations: JourneyMapAnnotation[];
-    description?: string;
-    lineNumber: number;
-    endLineNumber: number;
+    readonly id: string;
+    readonly title: string;
+    readonly score?: number;
+    readonly emotionLabel?: string;
+    readonly tags: Readonly<Record<string, string>>;
+    readonly annotations: readonly JourneyMapAnnotation[];
+    readonly description?: string;
+    readonly lineNumber: number;
+    readonly endLineNumber: number;
 }
 interface JourneyMapPhase {
-    id: string;
-    name: string;
-    steps: JourneyMapStep[];
-    lineNumber: number;
+    readonly id: string;
+    readonly name: string;
+    readonly steps: readonly JourneyMapStep[];
+    readonly lineNumber: number;
 }
 interface JourneyMapPersona {
-    name: string;
-    description?: string;
-    color?: string;
-    lineNumber: number;
+    readonly name: string;
+    readonly description?: string;
+    readonly color?: string;
+    readonly lineNumber: number;
 }
 interface ParsedJourneyMap {
-    type: 'journey-map';
-    title?: string;
-    titleLineNumber?: number;
-    persona?: JourneyMapPersona;
-    phases: JourneyMapPhase[];
+    readonly type: 'journey-map';
+    readonly title?: string;
+    readonly titleLineNumber?: number;
+    readonly persona?: JourneyMapPersona;
+    readonly phases: readonly JourneyMapPhase[];
     /** Flat-mode steps (not inside any phase) */
-    steps: JourneyMapStep[];
-    tagGroups: TagGroup[];
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly steps: readonly JourneyMapStep[];
+    readonly tagGroups: readonly TagGroup[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 
 declare function parseJourneyMap(content: string, palette?: PaletteColors): ParsedJourneyMap;
@@ -4099,25 +4656,25 @@ declare function renderJourneyMap(container: HTMLElement, parsed: ParsedJourneyM
 declare function renderJourneyMapForExport(content: string, theme: 'light' | 'dark' | 'transparent', palette: PaletteColors): string;
 
 interface PyramidLayer {
-    label: string;
-    lineNumber: number;
+    readonly label: string;
+    readonly lineNumber: number;
     /** Optional palette color name (red/green/blue/…). */
-    color?: string;
+    readonly color?: string;
     /** Description lines — from bare pipe shorthand or indented body. */
-    description: string[];
+    readonly description: readonly string[];
     /** Unconsumed pipe metadata (reserved for future use). */
-    metadata: Record<string, string>;
+    readonly metadata: Readonly<Record<string, string>>;
 }
 interface ParsedPyramid {
-    type: 'pyramid';
-    title: string;
-    titleLineNumber: number;
-    layers: PyramidLayer[];
+    readonly type: 'pyramid';
+    readonly title: string;
+    readonly titleLineNumber: number;
+    readonly layers: readonly PyramidLayer[];
     /** When true, apex points down instead of up. */
-    inverted: boolean;
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly inverted: boolean;
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 
 /**
@@ -4154,24 +4711,24 @@ declare function renderPyramid(container: HTMLDivElement, parsed: ParsedPyramid,
 declare function renderPyramidForExport(container: HTMLDivElement, parsed: ParsedPyramid, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
 
 interface RingLayer {
-    label: string;
-    lineNumber: number;
+    readonly label: string;
+    readonly lineNumber: number;
     /** Optional palette color name (red/green/blue/…). */
-    color?: string;
+    readonly color?: string;
     /** Description lines — from bare pipe shorthand or indented body. */
-    description: string[];
+    readonly description: readonly string[];
     /** Unconsumed pipe metadata (reserved for future use). */
-    metadata: Record<string, string>;
+    readonly metadata: Readonly<Record<string, string>>;
 }
 interface ParsedRing {
-    type: 'ring';
-    title: string;
-    titleLineNumber: number;
+    readonly type: 'ring';
+    readonly title: string;
+    readonly titleLineNumber: number;
     /** Source order: layers[0] = innermost (filled disc); last = outermost ring. */
-    layers: RingLayer[];
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly layers: readonly RingLayer[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 
 /**
@@ -4191,6 +4748,579 @@ declare function renderRing(container: HTMLDivElement, parsed: ParsedRing, palet
  */
 declare function renderRingForExport(container: HTMLDivElement, parsed: ParsedRing, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
 
+/** True when the first non-blank/non-comment line declares `map`. */
+declare function looksLikeMap(content: string): boolean;
+declare function parseMap(content: string, palette?: PaletteColors): ParsedMap;
+
+declare function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap;
+
+/** Load + memoize the four map assets (Node). Throws if none of the candidate
+ *  locations contain them, or if a loaded asset fails shape validation. A
+ *  rejected load is NOT cached (#7): the memo is cleared on failure so a later
+ *  call can retry rather than inheriting a poisoned promise. */
+declare function loadMapData(): Promise<MapData>;
+
+interface MapLayoutRegion {
+    readonly id: string;
+    readonly d: string;
+    readonly fill: string;
+    readonly stroke: string;
+    /** Human-readable display name (e.g. "France", "California"). Set for EVERY
+     *  region — authored and base/context alike — and emitted as
+     *  `data-region-name` so the app can show it on hover. */
+    readonly label?: string;
+    readonly lineNumber: number;
+    readonly layer: 'base' | 'country' | 'us-state';
+    /** The region's value (if any) — emitted as `data-value` so the app can
+     *  highlight by gradient-scrub proximity. */
+    readonly value?: number;
+    /** The region's tag values keyed by group (lowercased) — emitted as
+     *  `data-tag-<group>` so the app can highlight on legend-entry hover. */
+    readonly tags?: Readonly<Record<string, string>>;
+    /** Area-weighted screen centroid (px) of the DRAWN geometry — emitted as
+     *  `data-label-x`/`data-label-y` so the app can anchor the hover label here
+     *  instead of the path's bounding-box centre. The bbox centre breaks for
+     *  antimeridian crossers (Russia's wrapped Chukotka sliver pins the box's left
+     *  edge to the far side of the map, dropping the centre into the Atlantic); the
+     *  area-weighted centroid stays on the body. Honours WORLD_LABEL_ANCHORS. */
+    readonly labelX?: number;
+    readonly labelY?: number;
+}
+/** A framed inset "cutout" (albers-usa AK/HI), in screen px. The frame is a
+ *  quad whose TOP edge is angled to ride just under the conus southern coast,
+ *  so a tall box can claim the deep lower-left water without covering AZ/TX.
+ *  `points` are the four corners (top-left, top-right, bottom-right,
+ *  bottom-left); `x/y/w/h` is the bounding box (legend-collision math + a
+ *  rectangular fallback). */
+interface MapLayoutInset {
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly h: number;
+    readonly points: ReadonlyArray<readonly [number, number]>;
+    /** The FITTED inset projection (fit to this frame's screen box inside
+     *  `placeInset`). Load-bearing for pixel↔lonLat over the AK/HI insets: the
+     *  un-fitted `alaskaProjection()`/`hawaiiProjection()` factories would invert
+     *  to garbage, so the geo-query inverts against THIS instance. */
+    readonly projection: GeoProjection;
+    /** Neighbour land (e.g. Canada beside Alaska) projected with this inset's
+     *  fitted projection and clipped to the box — drawn BEHIND the state so a land
+     *  border reads as land, not coast. Without it the state's outer ring buffers
+     *  outward over open box-ocean and the land border sprouts coastline rings.
+     *  `undefined` when no neighbour land falls inside the box. */
+    readonly contextLand?: {
+        readonly d: string;
+        readonly fill: string;
+    };
+}
+/** Post-projection non-uniform stretch applied to GLOBAL fits (fill-the-canvas).
+ *  `null` for regional fits. The geo-query applies the forward form when
+ *  projecting and the inverse before `projection.invert`. Mirrors the `stretch`
+ *  closure used for the path stream:  px = ox + (x - bx0) * sx. */
+interface MapLayoutStretch {
+    readonly sx: number;
+    readonly sy: number;
+    readonly ox: number;
+    readonly oy: number;
+    readonly bx0: number;
+    readonly by0: number;
+}
+interface MapLayoutPoi {
+    readonly id: string;
+    readonly cx: number;
+    readonly cy: number;
+    readonly r: number;
+    readonly fill: string;
+    /** Fill opacity scaled by radius — larger bubbles fade so they read as light
+     *  rather than heavy. Stroke stays fully opaque (crisp edge at every size). */
+    readonly fillOpacity: number;
+    readonly stroke: string;
+    readonly lineNumber: number;
+    readonly implicit: boolean;
+    readonly isOrigin: boolean;
+    readonly routeNumber?: number;
+    /** Tag values keyed by lowercased group name — emitted as `data-tag-<group>`
+     *  so the app can spotlight markers on legend-entry hover (mirrors regions). */
+    readonly tags?: Readonly<Record<string, string>>;
+    /** Set when this marker is a member of a coincident stack (spiderfy). Its
+     *  `cx/cy` is the EXPANDED ring position (the source-of-truth used by export +
+     *  the no-JS default); the app collapses the stack to a single badge at rest
+     *  via `data-cluster-member`. */
+    readonly clusterId?: string;
+}
+/** A coincident POI stack (≥2 markers whose dots overlap). Laid out EXPANDED
+ *  (members fanned onto a ring/spiral with legs to the centroid) — that geometry
+ *  is the source of truth: a static export shows every member + label with no
+ *  special-casing. The renderer ALSO emits a collapsed `+N`-style badge (a neutral
+ *  dot ringed with the bare count) at the centroid, hidden by default; the app
+ *  collapses each stack at rest (hide members, show badge) and expands on click. */
+interface MapLayoutCluster {
+    /** Stable id (the first member's POI id). Mirrored on member dots/labels/legs as
+     *  `data-cluster-member` and on the badge as `data-cluster`. */
+    readonly id: string;
+    /** Centroid (collapsed badge position + spider-leg hub). */
+    readonly cx: number;
+    readonly cy: number;
+    /** Member count = badge text (bare `N`, RQ1). */
+    readonly count: number;
+    /** Radius of the transparent pointer hit-area centred on the centroid — covers
+     *  the collapsed badge AND the expanded dot ring so a hover/click anywhere over
+     *  the stack drives the spiderfy controller. */
+    readonly hitR: number;
+    /** Spider legs: centroid → each expanded member dot (member's own colour). */
+    readonly legs: ReadonlyArray<{
+        readonly x2: number;
+        readonly y2: number;
+        readonly color: string;
+    }>;
+}
+/** A drawn connector -- an edge or a route leg (same geometry contract). */
+interface MapLayoutLeg {
+    readonly d: string;
+    readonly width: number;
+    readonly color: string;
+    readonly arrow: boolean;
+    /** Endpoint POI ids (resolved `fromId`/`toId`), emitted as `data-from-id` /
+     *  `data-to-id`. Lets an interactive preview co-highlight a leg's two endpoint
+     *  POIs when the leg is focused (§17 sync). */
+    readonly fromId: string;
+    readonly toId: string;
+    /** Tag values (keyed by lowercased group name) — emitted as `data-tag-*`, like
+     *  POI markers, so a legend-entry hover spotlights only the matching lines
+     *  (§24B.6). Omitted when the leg carries no tag. */
+    readonly tags?: Readonly<Record<string, string>>;
+    readonly label?: string;
+    readonly labelX?: number;
+    readonly labelY?: number;
+    /** Text colour for the label — contrast-picked against the background fill the
+     *  label sits on (the choropleth/tag region under it, or land/water), so a
+     *  freight tag over a dark scored country reads light, over pale land reads
+     *  dark. Absent ⇒ renderer falls back to the muted default. */
+    readonly labelColor?: string;
+    /** Whether the label needs a halo. Only set when the chosen text colour's
+     *  contrast against the underlying fill is marginal (mid-tone fills); clear
+     *  fills get no ghost. */
+    readonly labelHalo?: boolean;
+    /** Halo colour (opposite lightness of `labelColor`) when {@link labelHalo}. */
+    readonly labelHaloColor?: string;
+    readonly lineNumber: number;
+}
+interface PlacedLabel {
+    readonly x: number;
+    readonly y: number;
+    readonly text: string;
+    readonly anchor: 'start' | 'middle' | 'end';
+    readonly color: string;
+    readonly halo: boolean;
+    /** Halo/outline colour — the OPPOSITE lightness of `color`, so the text reads
+     *  whether it sits on its fill or overflows onto a different-coloured area. */
+    readonly haloColor: string;
+    readonly leader?: {
+        x1: number;
+        y1: number;
+        x2: number;
+        y2: number;
+    };
+    /** Leader-line colour — the POI's own marker colour, so a called-out label
+     *  reads as belonging to its dot. Falls back to a neutral grey when absent. */
+    readonly leaderColor?: string;
+    /** The POI this label belongs to (POI labels only) — emitted as `data-poi` on
+     *  the label + leader so the app can spotlight the dot on label hover. */
+    readonly poiId?: string;
+    /** Per-label font size in px. Set on context COUNTRY labels, which scale up with
+     *  their projected footprint (a big country reads as a faded backdrop name, a
+     *  small one stays at the base label font). Absent ⇒ the renderer's default
+     *  LABEL_FONT, so every other label type renders byte-identically. */
+    readonly fontSize?: number;
+    /** Cartographic italic (context-label water names, §24B). Default upright. */
+    readonly italic?: boolean;
+    /** Cartographic letter-spacing in px (context-label water names). Default 0. */
+    readonly letterSpacing?: number;
+    /** Pre-wrapped display lines (context-label water names — §24B). When present
+     *  the renderer stacks these as centred tspans instead of `text`; `text` keeps
+     *  the single-string form for hit-testing/measurement. Absent ⇒ single line. */
+    readonly lines?: readonly string[];
+    /** Hover-only label: emitted invisible (opacity 0 + `data-poi-hidden`) in the
+     *  preview and revealed on POI/label hover; OMITTED entirely from static
+     *  export. Set when a POI cluster can't place its labels cleanly (see the
+     *  extent/count/clean gate in the POI-label block). Default-undefined =
+     *  visible. Hidden labels are NOT pushed into `obstacles`. */
+    readonly hidden?: boolean;
+    /** Set when this label belongs to a coincident-stack member (spiderfy). Emitted
+     *  visible (export + expanded view) but tagged `data-cluster-member` so the app
+     *  hides it when the stack is collapsed to its badge. */
+    readonly clusterMember?: string;
+    /** A choropleth region's metric VALUE (already compact-formatted, e.g. `39.5M`),
+     *  drawn as a smaller, dimmer second line UNDER `text` (the region name). Set
+     *  only on region labels of a `region-metric` map when `no-region-value` is off.
+     *  The renderer stacks it as a sub-line; absent ⇒ single name line. */
+    readonly valueLine?: string;
+    /** A region too small to carry its name+value stack in place gets a leader-lined
+     *  callout in a margin column; this marks the region's true centroid so the
+     *  renderer draws a small anchor dot there (the leader runs dot → chip). The
+     *  colour is the region's fill, tying the dot/leader/chip together. */
+    readonly calloutDot?: {
+        x: number;
+        y: number;
+        color: string;
+    };
+    readonly lineNumber: number;
+}
+
+/** A subtle gazetteer city dot for basemap orientation (§24B `no-cities`). Just
+ *  a position + radius; the renderer paints it muted/low-opacity. No label, no
+ *  interactivity — purely decorative context. */
+interface MapLayoutCityDot {
+    readonly cx: number;
+    readonly cy: number;
+    readonly r: number;
+}
+/** A drawn river centerline — an open stroked path (no fill). */
+interface MapLayoutRiver {
+    readonly d: string;
+    readonly color: string;
+    readonly width: number;
+}
+/** A drawn mountain-range relief shape — a projected polygon path. The renderer
+ *  unions these into one clip and rules horizontal hachure lines through them. */
+interface MapLayoutRelief {
+    readonly d: string;
+}
+/** The shared hachure style for the relief lines. `null` when relief is off or
+ *  no range survives the gates. */
+interface MapLayoutReliefHatch {
+    /** Line stroke — palette.text mixed into the land colour (so it's dark-on-
+     *  light and light-on-dark automatically as palette.text flips with theme). */
+    readonly color: string;
+    /** Vertical gap between lines in SCREEN px (constant density, zoom-stable). */
+    readonly spacing: number;
+    readonly width: number;
+}
+/** Style object for the opt-in coastline water-lines (`coastline`, §24B.2).
+ *  `null` when the flag is off. Carries only STYLE — no geometry; the renderer
+ *  buffers the existing region paths (`layout.regions[].d`) and masks them to the
+ *  water side. `d`/`thickness` are absolute SCREEN px (already resolved from a
+ *  fraction of the fitted canvas, so they stay proportional across export sizes —
+ *  ADR-3). */
+interface MapLayoutCoastlineStyle {
+    /** Water-toned line colour (a touch more contrast than `lakeStroke`). */
+    readonly color: string;
+    /** The 2 coast-parallel lines, inner→outer. `d` = offshore distance,
+     *  `thickness` = ring width (both screen px), `opacity` fades seaward. */
+    readonly lines: ReadonlyArray<{
+        readonly d: number;
+        readonly thickness: number;
+        readonly opacity: number;
+    }>;
+    /** Per-subpath bbox-extent floor (screen px): rings smaller than this are
+     *  dropped (de-noise tiny islands, bound the stroke cost — R5/R11). */
+    readonly minExtent: number;
+}
+interface MapLayout {
+    readonly width: number;
+    readonly height: number;
+    readonly background: string;
+    readonly title: string | null;
+    readonly subtitle?: string;
+    readonly caption?: string;
+    readonly regions: readonly MapLayoutRegion[];
+    /** Major river centerlines, drawn over land/lakes and under POIs/edges. */
+    readonly rivers: readonly MapLayoutRiver[];
+    /** Mountain-range relief shapes (empty unless `relief` is on + the asset is
+     *  present); the renderer clips horizontal hachure lines to their union,
+     *  drawn over base land, under rivers/POIs/data fills. */
+    readonly relief: readonly MapLayoutRelief[];
+    /** Hachure style for the relief lines (null = relief off / none survived). */
+    readonly reliefHatch: MapLayoutReliefHatch | null;
+    /** Style for the opt-in coastline water-lines (null = `coastline` off). The
+     *  renderer buffers `regions[]`/`insetRegions[]` paths against this style and
+     *  masks them to the water side. */
+    readonly coastlineStyle: MapLayoutCoastlineStyle | null;
+    readonly legs: readonly MapLayoutLeg[];
+    readonly pois: readonly MapLayoutPoi[];
+    /** Subtle gazetteer city dots for orientation (empty when `no-cities` or no
+     *  cities fall on-canvas). Drawn over the basemap, under connectors/POIs. */
+    readonly cityDots: readonly MapLayoutCityDot[];
+    /** Coincident POI stacks (spiderfy). Empty when no ≥2-member overlap exists.
+     *  The renderer draws a collapsed badge per stack; the app collapses/expands. */
+    readonly clusters: readonly MapLayoutCluster[];
+    readonly labels: readonly PlacedLabel[];
+    readonly legend: MapLayoutLegend | null;
+    /** Framed AK/HI inset cutouts (albers-usa only; empty otherwise). */
+    readonly insets: readonly MapLayoutInset[];
+    /** AK/HI region paths drawn inside the inset boxes (foreground, over an
+     *  opaque ocean fill). Paired positionally with `insets`. */
+    readonly insetRegions: readonly MapLayoutRegion[];
+    /** The fitted MAIN projection (the conus conic for albers-usa). Exposed for
+     *  the geo-query's pixel↔lonLat inversion — the app NEVER reconstructs it from
+     *  metadata; it binds to this exact instance. */
+    readonly projection: GeoProjection;
+    /** Non-uniform stretch applied for GLOBAL fits (null for regional fits). */
+    readonly stretch: MapLayoutStretch | null;
+    /** Generic layout-time diagnostics channel — currently has no producers, so it
+     *  is always empty. Kept wired up because callers merge it with the resolver's
+     *  diagnostics for the editor lint channel. */
+    readonly diagnostics: readonly DgmoError[];
+}
+interface LayoutOptions {
+    readonly palette: PaletteColors;
+    readonly isDark: boolean;
+    /** Live override of the active colouring group (the score ramp or a tag
+     *  group). Highest priority — beats the `active-tag` directive. The app's
+     *  interactive legend flip passes this; `'score'` (or the metric label)
+     *  selects the choropleth ramp, a tag-group name selects that group, `'none'`
+     *  / `null` clears it. `undefined` = not provided (use the directive/default). */
+    readonly activeGroup?: string | null;
+    /** Export-only: when true, suppress the global stretch-fill and contain-fit
+     *  (letterbox) instead. Set by `mapExportDimensions` when it clamps/floors the
+     *  canvas away from the content aspect, so the off-aspect canvas doesn't
+     *  re-distort. The in-app preview pane leaves this unset (keeps stretch-fill). */
+    readonly preferContain?: boolean;
+    /** Which legend variant gets drawn — `'export'` shows only the active group,
+     *  `'preview'` keeps inactive pills. Used to size the reserved legend band so
+     *  the projected land starts below the legend. Defaults to `'preview'`. */
+    readonly legendMode?: LegendMode;
+    /** INTERNAL (set by layoutMap's own second pass — do not pass in). When tiny
+     *  valued regions need margin callouts, the first pass measures them and
+     *  re-runs with reserved bands: the projection fits into the canvas MINUS these
+     *  bands so the data shrinks/shifts inward, opening label room. A cluster on
+     *  EACH side reserves its own band (px), so tiny regions on both coasts each get
+     *  a column. An absent side reserves nothing there. Also carries the POI
+     *  edge-clearance bands (any of the four sides) measured by the POI-label pass
+     *  (same fit-box mechanism). Region callouts only ever set left/right. */
+    readonly _calloutReserve?: {
+        left?: number;
+        right?: number;
+        top?: number;
+        bottom?: number;
+    };
+    /** INTERNAL (set by layoutMap's own POI-clearance pass — do not pass in). After
+     *  POI-label placement, any POI dot/label crossing the edge-clearance band
+     *  triggers a re-fit that ADDS the residual intrusion to the reserved band on
+     *  that side, sliding the data inward. Re-measured each pass and accumulated
+     *  until nothing intrudes (or the pass cap), so a tight cluster on a small canvas
+     *  converges instead of giving up after one under-shoot. This counts the passes
+     *  taken to bound the recursion. */
+    readonly _poiClearancePass?: number;
+}
+interface Size {
+    readonly width: number;
+    readonly height: number;
+}
+/** The map's water / backdrop colour for a palette — the single source of truth
+ *  shared by the renderer's `<rect>` fill and any host wrapper that needs to
+ *  match it (so letterbox gaps around the SVG don't show a stray band). Always a
+ *  VERY faded blue — uniform whether or not a colouring dimension is active — so
+ *  it reads as water without competing with saturated blue/green data hues.
+ *  `_dataActive` is retained for signature stability (the sea no longer changes
+ *  with data; only neighbour land recedes — see layout's `foreignFill`). */
+declare function mapBackgroundColor(palette: PaletteColors, isDark?: boolean, _dataActive?: boolean): string;
+/** The map's neutral (unscored/untagged) LAND colour — the base every region
+ *  blends from. Exported so a host can DIM a region to plain land (rather than
+ *  lowering opacity, which would let the water show through and make the shape
+ *  read as ocean). Matches the layout's `neutralFill`. Always a VERY faded green
+ *  — uniform whether or not data is active — so saturated tag/score tints read
+ *  clearly against it. `_dataActive` is retained for signature stability. */
+declare function mapNeutralLandColor(palette: PaletteColors, isDark: boolean, _dataActive?: boolean): string;
+declare function layoutMap(resolved: ResolvedMap, data: MapData, size: Size, opts: LayoutOptions): MapLayout;
+
+/** Render a resolved map into `container` (d3-selection appends an `<svg>`). */
+declare function renderMap(container: HTMLDivElement, resolved: ResolvedMap, data: MapData, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions, 
+/** Live override of the active colouring group (interactive legend flip). */
+activeGroupOverride?: string | null): void;
+/** Export wrapper (no click handler) — matches the structured-renderer contract. */
+declare function renderMapForExport(container: HTMLDivElement, resolved: ResolvedMap, data: MapData, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
+
+/** The map's intrinsic projected aspect (width / height) for a resolved map.
+ *
+ *  Measured by fitting the projection + fit target (the SAME `buildMapProjection`
+ *  output the renderer draws with) into a square reference box and reading the
+ *  projected bounds of the fit target. `fitSize` scales uniformly, so the ratio is
+ *  independent of the box size (see the reference-box invariance test).
+ *
+ *  Returns {@link FALLBACK_ASPECT} (3:2) if the result is non-finite or ≤ 0 — the
+ *  helper never emits a NaN/0/Infinity aspect. */
+declare function mapContentAspect(resolved: ResolvedMap, data: MapData, 
+/** Square reference box for the measurement. Uniform `fitSize` scaling makes the
+ *  result invariant to this value; exposed only so tests can assert that. */
+ref?: number): number;
+/** Content-aware export dimensions for a map: `width` fixed at `baseWidth`,
+ *  `height` derived from the clamped intrinsic aspect, with a minimum-map-band
+ *  floor for very wide extents. `preferContain` is true when the clamp or floor
+ *  forced the canvas off the content aspect — the renderer then contain-fits
+ *  (letterbox) instead of stretching, so the off-aspect canvas doesn't re-distort. */
+interface MapExportDimensions {
+    readonly width: number;
+    readonly height: number;
+    readonly preferContain: boolean;
+}
+declare function mapExportDimensions(resolved: ResolvedMap, data: MapData, baseWidth?: number, 
+/** WYSIWYG override (app export): the live preview pane's displayed aspect
+ *  (width / height). When provided, the canvas adopts it verbatim and
+ *  stretch-fills (no clamp, no contain) so the PNG matches exactly what's on
+ *  screen. Omitted by every headless consumer (CLI / MCP / SSG / Obsidian),
+ *  which keep the intrinsic-aspect sizing below. */
+aspectOverride?: number): MapExportDimensions;
+
+/** Nearest gazetteer city to a point: the real haversine distance, plus the
+ *  canonical name + ISO + (US-only) subdivision for token shaping. `lon`/`lat`
+ *  are the city's own gazetteer coordinates (so callers can mark it on the map,
+ *  distinct from the inspected point). */
+interface NearestCity {
+    readonly name: string;
+    readonly iso: string;
+    readonly sub?: string;
+    readonly distanceKm: number;
+    readonly lon: number;
+    readonly lat: number;
+}
+/** A region declaration with its canonical/primary form plus bare alternates
+ *  (behind the card's "other forms" expander). */
+interface RegionToken {
+    /** Explicit scoped form, shown first (`Florida US-FL` / `France FR`). */
+    readonly primary: string;
+    /** Bare forms (bare ISO, bare code, bare name). */
+    readonly alternates: string[];
+}
+/** Paste-ready DGMO tokens for one inspected point — each round-trips through the
+ *  map parser with zero diagnostics (the app inserts verbatim, never synthesizes
+ *  syntax). */
+interface ResultTokens {
+    /** Positional POI line, e.g. `poi 40.7608 -111.891` (NEVER `@lat,lon`). */
+    readonly coordPoiLine: string;
+    /** US-state region tokens — null when the click isn't in a US state. */
+    readonly state: RegionToken | null;
+    /** Country region tokens — null over open ocean (no country). */
+    readonly country: RegionToken | null;
+    /** Scoped city token (`New York US-NY` / `Paris FR`), or a bare ambiguous name. */
+    readonly city: {
+        readonly token: string;
+        readonly ambiguous: boolean;
+    } | null;
+}
+/** The single unified Inspect result. */
+interface ResultCard {
+    readonly lonLat: [number, number];
+    readonly country: {
+        iso: string;
+        name: string;
+    } | null;
+    readonly state: {
+        iso: string;
+        name: string;
+    } | null;
+    readonly nearestCity: NearestCity | null;
+    readonly tokens: ResultTokens;
+}
+/** A gazetteer city projected to screen pixels for the all-cities overlay. */
+interface ProjectedCity {
+    readonly name: string;
+    readonly iso: string;
+    readonly sub?: string;
+    readonly lon: number;
+    readonly lat: number;
+    readonly px: number;
+    readonly py: number;
+    readonly pop: number;
+}
+interface MapGeoQuery {
+    /** Pixel → `[lon,lat]`, or null for an out-of-domain pixel. */
+    invert(px: number, py: number): [number, number] | null;
+    /** `[lon,lat]` → pixel, or null if it projects nowhere. */
+    project(lonLat: readonly [number, number]): [number, number] | null;
+    /** One click → the unified result card, or null if the pixel inverts to
+     *  nothing (graceful "no location"). */
+    locate(px: number, py: number): ResultCard | null;
+    /** Culled + projected cities for the all-cities layer (population-primary). */
+    cities(extent?: GeoExtent): ProjectedCity[];
+    /** Layout-time, dimension-dependent diagnostics. They live on the geo-query
+     *  (bound to the rendered layout) rather than the resolver. Callers merge them
+     *  with `resolved.diagnostics`. (No producers currently — always empty.) */
+    readonly diagnostics: readonly DgmoError[];
+}
+interface CreateMapGeoQueryOptions {
+    readonly content: string;
+    readonly width: number;
+    readonly height: number;
+    /** Injected map assets — same `MapData` the app passes to `renderMap`. */
+    readonly data: MapData;
+    /** Same palette/isDark the app renders with (geometry is palette-independent,
+     *  but `layoutMap` mandates them). */
+    readonly palette: PaletteColors;
+    readonly isDark: boolean;
+}
+/** Construct a geo-query handle bound to the layout for `(content, width,
+ *  height, data, palette, isDark)`. Deterministic: identical inputs ⇒ the same
+ *  fitted projection the rendered SVG used, so inverted clicks align.
+ *
+ *  INVARIANT: this is the PREVIEW path — it never passes `preferContain`, so its
+ *  layout matches the in-app preview (stretch-fill), where geo-query is used. It is
+ *  NOT valid against a content-aware EXPORT canvas (which may set `preferContain` →
+ *  contain-fit): the inverted positions would not match that export's pixels. If
+ *  geo-query is ever pointed at an export canvas, thread `preferContain` through
+ *  `CreateMapGeoQueryOptions` to keep the projection in sync. */
+declare function createMapGeoQuery(opts: CreateMapGeoQueryOptions): MapGeoQuery;
+
+interface MapPlaceCompletion {
+    /** Canonical display name (original casing), e.g. `Portland`. */
+    readonly name: string;
+    /** Text to insert. ISO-qualified (`Portland US-OR`) iff the name is
+     *  ambiguous in the gazetteer; bare otherwise (disambiguate-once, §24B.8). */
+    readonly insert: string;
+    /** Menu label (`Portland — US-OR` when ambiguous, else `Portland`). */
+    readonly label: string;
+    /** Secondary detail, e.g. `US-OR · 652,503`. */
+    readonly detail: string;
+    readonly iso: string;
+    readonly sub?: string;
+    readonly pop: number;
+    /** `'airport'` for IATA-code entries (icon/grouping affordance); absent or
+     *  `'city'` for gazetteer cities. Cities rank above airports for a shared
+     *  prefix so ~1500 codes never bury city names (ADR-5). */
+    readonly kind?: 'city' | 'airport';
+}
+interface MapCompletionOptions {
+    /** Max results (default 12). */
+    readonly limit?: number;
+    /** IATA-coded airports (`airports.json`). When supplied, airport codes
+     *  matching the prefix are offered as a second (post-city) group. Optional —
+     *  absent (old DI bundles / no asset) just yields city-only completions. */
+    readonly airports?: AirportData;
+    /** Resolver-inferred map scope (country `US` or subdivision `US-CA`). Biases
+     *  airport ranking so in-region airports sort above out-of-region same-prefix
+     *  ones (ADR-6). Pure rank, never a filter — cross-region airports still
+     *  appear. App passes the document's inferred scope in (Slice 2). */
+    readonly scopeISO?: string;
+}
+/**
+ * Prefix-match city names + alternate-name aliases against the gazetteer,
+ * rank by population (desc; stable tie-break by gazetteer index), and emit
+ * ISO-qualified insert text only for ambiguous (same-named) places.
+ *
+ * Pure + deterministic. Empty/blank query → `[]` (the caller gates min length).
+ */
+declare function completeMapPlaces(query: string, gazetteer: Gazetteer, opts?: MapCompletionOptions): MapPlaceCompletion[];
+interface MapRegionCompletion {
+    /** Display name = insert text (the resolver disambiguates cross-layer
+     *  collisions like Georgia by map scope, §24B.8). */
+    readonly name: string;
+    /** ISO 3166-1/3166-2 id. */
+    readonly iso: string;
+    readonly layer: 'country' | 'us-state';
+    /** Secondary detail, e.g. `US state · US-CA` or `Country · DE`. */
+    readonly detail: string;
+}
+/**
+ * Prefix-match fill-able region names (countries + US states) for region-fill
+ * lines. Matches the folded display name OR the ISO code; deterministic
+ * (alphabetical by name, then layer). Pure. Empty query → `[]`.
+ *
+ * `regions` is injected (the `region-names.json` asset, shipped in dist/map-data
+ * alongside the gazetteer). Cross-layer same-name (Georgia: country GE + state
+ * US-GA) yields both entries, distinguished by `detail`.
+ */
+declare function completeMapRegions(query: string, regions: readonly RegionName[], opts?: MapCompletionOptions): MapRegionCompletion[];
+
 /** Marker alphabet member for any variant. */
 type RaciMarker = 'R' | 'A' | 'S' | 'C' | 'I' | 'D';
 /** Variant identifier — selects alphabet + constraint rule set. */
@@ -4203,59 +5333,59 @@ type RaciVariant = 'raci' | 'rasci' | 'daci';
  * first-seen casing/spacing for rendering.
  */
 interface RaciRoleAssignment {
-    id: string;
-    displayName: string;
-    markers: RaciMarker[];
-    lineNumber: number;
-    endLineNumber: number;
+    readonly id: string;
+    readonly displayName: string;
+    readonly markers: readonly RaciMarker[];
+    readonly lineNumber: number;
+    readonly endLineNumber: number;
 }
 /** One task — flush-left under a phase or directly under the chart. */
 interface RaciTask {
-    id: string;
-    displayName: string;
-    description: string;
-    roleAssignments: RaciRoleAssignment[];
-    lineNumber: number;
-    endLineNumber: number;
+    readonly id: string;
+    readonly displayName: string;
+    readonly description: string;
+    readonly roleAssignments: readonly RaciRoleAssignment[];
+    readonly lineNumber: number;
+    readonly endLineNumber: number;
 }
 /** Optional `[Phase Label]` group header — one level deep. */
 interface RaciPhase {
-    id: string;
-    displayName: string;
+    readonly id: string;
+    readonly displayName: string;
     /** Optional palette color from a `[Label](color)` suffix on the bracket. */
-    color?: string;
-    tasks: RaciTask[];
-    lineNumber: number;
-    endLineNumber: number;
+    readonly color?: string;
+    readonly tasks: readonly RaciTask[];
+    readonly lineNumber: number;
+    readonly endLineNumber: number;
 }
 /** Top-level parse result. */
 interface ParsedRaci {
-    type: 'raci';
+    readonly type: 'raci';
     /** Optional title from the chart-type header line. */
-    title?: string;
-    titleLineNumber?: number;
+    readonly title?: string;
+    readonly titleLineNumber?: number;
     /** Variant selected by directive, or by chart-type id when absent. */
-    variant: RaciVariant;
+    readonly variant: RaciVariant;
     /**
      * Canonical column order. Populated either from an explicit
      * `roles:` directive or, when absent, from first-seen role usage.
      */
-    roles: string[];
+    readonly roles: readonly string[];
     /** Display name for each role (parallel to `roles`). */
-    roleDisplayNames: string[];
+    readonly roleDisplayNames: readonly string[];
     /**
      * Optional per-role palette color from the `Cap blue` trailing-token
      * suffix in the roles block (or the long pipe form `Cap | color: blue`).
      * Parallel to `roles`; entries default to `undefined` (renderer falls
      * back to the neutral column tint).
      */
-    roleColors: Array<string | undefined>;
-    phases: RaciPhase[];
+    readonly roleColors: ReadonlyArray<string | undefined>;
+    readonly phases: readonly RaciPhase[];
     /** Tasks declared without a parent phase. */
-    tasksWithoutPhase: RaciTask[];
-    options: Record<string, string>;
-    diagnostics: DgmoError[];
-    error: string | null;
+    readonly tasksWithoutPhase: readonly RaciTask[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
 }
 
 /**
@@ -4422,6 +5552,34 @@ declare function renderFlowchart(container: HTMLDivElement, graph: ParsedGraph, 
 }): void;
 declare function renderFlowchartForExport(content: string, theme: 'light' | 'dark' | 'transparent', palette: PaletteColors): string;
 
+interface LegendRenderOptions {
+    palette: {
+        bg: string;
+        surface: string;
+        text: string;
+        textMuted: string;
+    };
+    isDark: boolean;
+    /**
+     * Width to wrap entries against (entries flow onto new rows past this).
+     * Pass 0 when the caller CSS-centers a natural-width legend; a generous
+     * fallback budget is used so a single row still fits on one line.
+     */
+    containerWidth: number;
+    activeGroup?: string | null;
+    className?: string;
+}
+interface LegendRenderResult {
+    svg: string;
+    height: number;
+    /** Natural content width (px). Callers can use this for CSS-based centering. */
+    width: number;
+}
+declare function renderLegendSvg(groups: readonly LegendGroupData[], options: LegendRenderOptions): LegendRenderResult;
+declare function renderLegendSvgFromConfig(config: LegendConfig, state: LegendState, palette: LegendPalette & {
+    isDark: boolean;
+}, containerWidth: number): LegendRenderResult;
+
 declare const LEGEND_HEIGHT = 28;
 declare const LEGEND_GEAR_PILL_W: number;
 
@@ -4448,7 +5606,7 @@ interface SequenceRenderOptions {
  * Messages before the first section are ungrouped (always visible).
  * Only top-level sections are collapsible — sections inside blocks are excluded.
  */
-declare function groupMessagesBySection(elements: SequenceElement[], messages: SequenceMessage[]): SectionMessageGroup[];
+declare function groupMessagesBySection(elements: readonly SequenceElement[], messages: readonly SequenceMessage[]): SectionMessageGroup[];
 interface RenderStep {
     type: 'call' | 'return';
     from: string;
@@ -4462,7 +5620,7 @@ interface RenderStep {
  * Uses a call stack to infer where returns should be placed:
  * returns appear after all nested sub-calls complete.
  */
-declare function buildRenderSequence(messages: SequenceMessage[]): RenderStep[];
+declare function buildRenderSequence(messages: readonly SequenceMessage[]): RenderStep[];
 interface Activation {
     participantId: string;
     startStep: number;
@@ -4479,7 +5637,7 @@ declare function computeActivations(steps: RenderStep[]): Activation[];
  * Positive positions are 0-based from the left; negative positions count from the right (-1 = last).
  * Unpositioned participants maintain their relative order, filling remaining slots.
  */
-declare function applyPositionOverrides(participants: SequenceParticipant[]): SequenceParticipant[];
+declare function applyPositionOverrides(participants: readonly SequenceParticipant[]): SequenceParticipant[];
 /**
  * Reorder participants so that members of the same group are adjacent.
  * Groups are positioned at the point where their first member would naturally
@@ -4489,7 +5647,7 @@ declare function applyPositionOverrides(participants: SequenceParticipant[]): Se
  *
  * Explicit `position` overrides are handled separately by `applyPositionOverrides`.
  */
-declare function applyGroupOrdering(participants: SequenceParticipant[], groups: SequenceGroup[], messages?: SequenceMessage[]): SequenceParticipant[];
+declare function applyGroupOrdering(participants: readonly SequenceParticipant[], groups: readonly SequenceGroup[], messages?: readonly SequenceMessage[]): SequenceParticipant[];
 /**
  * Render a sequence diagram into the given container element.
  */
@@ -4499,15 +5657,15 @@ declare function renderSequenceDiagram(container: HTMLDivElement, parsed: Parsed
  * associated message (the last message before the note in document order).
  * Used by the app to highlight the associated message when cursor is on a note.
  */
-declare function buildNoteMessageMap(elements: SequenceElement[]): Map<number, number>;
+declare function buildNoteMessageMap(elements: readonly SequenceElement[]): Map<number, number>;
 
 interface CollapsedView {
-    participants: SequenceParticipant[];
-    messages: SequenceMessage[];
-    elements: SequenceElement[];
-    groups: SequenceGroup[];
-    /** Maps member participant ID → collapsed group name */
-    collapsedGroupIds: Map<string, string>;
+    participants: readonly SequenceParticipant[];
+    messages: readonly SequenceMessage[];
+    elements: readonly SequenceElement[];
+    groups: readonly SequenceGroup[];
+    /** Maps member participant ID → collapsed group name (as a virtual ParticipantId). */
+    collapsedGroupIds: Map<ParticipantId, ParticipantId>;
 }
 /**
  * Project a parsed sequence diagram into a collapsed view.
@@ -4612,6 +5770,25 @@ declare const CHART_TYPES: ReadonlyArray<{
  * C4_IS_A_RE).
  */
 declare const ENTITY_TYPES: Map<string, string[]>;
+/**
+ * Chart-type-specific structural keywords offered on an empty/start-of-line in
+ * the data zone (block openers like `loop`, section headers like `containers`,
+ * the `tag` block declaration, etc.). This is the single source of truth for
+ * the editor's structural-keyword popup — every entry MUST be a token the
+ * corresponding parser actually recognizes (validated by the
+ * completion-conformance suite). Do NOT add removed/diagnostic-only tokens
+ * (e.g. cycle's `no-descriptions`) or tokens the parser ignores.
+ *
+ * Chart types not listed here have no structural keywords (most data charts).
+ */
+declare const STRUCTURAL_KEYWORDS: Map<string, string[]>;
+/**
+ * Chart types that support `tag` block declarations (and thus the
+ * `alias`/`default` sub-keywords inside a tag block). Derived from
+ * STRUCTURAL_KEYWORDS so the two can never drift — a chart supports tag blocks
+ * iff it offers the `tag` keyword.
+ */
+declare const TAG_SUPPORTING_TYPES: ReadonlySet<string>;
 /** Specification for a single pipe metadata key. */
 interface PipeKeySpec {
     description: string;
@@ -4687,4 +5864,53 @@ declare const themes: {
     readonly transparent: "transparent";
 };
 
-export { ALL_CHART_TYPES, AMBIGUITY_THRESHOLD, ARROW_DIAGNOSTIC_CODES, type Activation, type AncestorInfo, type ArcLink, type ArcNodeGroup, type BLCollapseResult, type BLEdge, type BLGroup, type BLLayoutEdge, type BLLayoutGroup, type BLLayoutNode, type BLLayoutResult, type BLNode, type BlipTrend, type C4ArrowType, type C4DeploymentNode, type C4Element, type C4ElementType, type C4Group, type C4LayoutBoundary, type C4LayoutEdge, type C4LayoutNode, type C4LayoutResult, type C4LegendEntry, type C4LegendGroup, type C4Relationship, type C4Shape, type C4TagEntry, type C4TagGroup, CHART_TYPES, CHART_TYPE_DESCRIPTIONS, COMPLETION_REGISTRY, type ChartDataPoint, type ChartEra, type ChartType$1 as ChartType, type Confidence as ChartTypeConfidence, type ChartTypeMeta, type ChartTypeScore, type SuggestionResult as ChartTypeSuggestionResult, type ClassLayoutEdge, type ClassLayoutNode, type ClassLayoutResult, type ClassMember, type ClassModifier, type ClassNode, type ClassRelationship, type CollapsedMindmapResult, type CollapsedOrgResult, type CollapsedSitemapResult, type CollapsedView, type CompactViewState, type ComputedInfraEdge, type ComputedInfraModel, type ComputedInfraNode, type ContextRelationship, type CycleEdge, type CycleLayoutEdge, type CycleLayoutNode, type CycleLayoutResult, type CycleNode, type CycleRenderOptions, type D3ExportDimensions, type DecodedDiagramUrl, type DgmoError, type DgmoSeverity, type DiagramSymbols, type DirectiveSpec, type DirectiveValueSpec, type Duration, type DurationUnit, ENTITY_TYPES, type ERCardinality, type ERColumn, type ERConstraint, type ERLayoutEdge, type ERLayoutNode, type ERLayoutResult, type ERRelationship, type ERTable, type ElseIfBranch, type EncodeDiagramUrlOptions, type EncodeDiagramUrlResult, type ExpandedActivity, type ExtendedChartType, type ExtractFn, type FocusOrgResult, type GanttDependency, type GanttEra, type GanttGroup, type GroupRow as GanttGroupRow, type GanttHolidays, type GanttInteractiveOptions, type LaneHeaderRow as GanttLaneHeaderRow, type GanttMarker, type GanttNode, type GanttOptions, type GanttParallelBlock, type Row as GanttRow, type GanttTask, type TaskRow as GanttTaskRow, type GetOrCreateNameResult, type GraphDirection, type GraphEdge, type GraphGroup, type GraphNode, type GraphShape, INFRA_BEHAVIOR_KEYS, type ImportSource, type InfraAvailabilityPercentiles, type InfraBehaviorKey, type InfraCbState, type InfraComputeParams, type InfraDiagnostic, type InfraEdge, type InfraGroup, type InfraLatencyPercentiles, type InfraLayoutEdge, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutResult, type InfraLegendGroup, type InfraNode, type InfraPlaybackState, type InfraProperty, type InfraRole, type InfraTagGroup, type InlineSpan, type JourneyMapAnnotation, type JourneyMapInteractiveOptions, type JourneyMapLayout, type JourneyMapPersona, type JourneyMapPhase, type JourneyMapStep, type KanbanCard, type KanbanColumn, type KanbanTagEntry, type KanbanTagGroup, LEGEND_GEAR_PILL_W, LEGEND_HEIGHT, type LayoutEdge, type LayoutGroup, type LayoutNode, type LayoutOptions, type LayoutResult$1 as LayoutResult, type LegendCallbacks, type LegendConfig, type LegendControl, type LegendGroupData, type LegendHandle, type LegendLayout, type LegendMode, type LegendPalette, type LegendPosition, type LegendState, METADATA_KEY_SET, MIN_PRIMARY_SCORE, type MemberVisibility, type MindmapLayoutEdge, type MindmapLayoutNode, type MindmapLayoutResult, type MindmapNode, type MonteCarloResult, type NameEntry, type NodeDetail, type OrgContainerBounds, type OrgLayoutEdge, type OrgLayoutNode, type OrgLayoutResult, type OrgNode, PERT_LEGEND_PILL_HEIGHT, PIPE_METADATA, type PaletteColors, type PaletteConfig, type ParseInArrowLabelResult, type ParsedBoxesAndLines, type ParsedC4, type ParsedChart, type ParsedClassDiagram, type ParsedCycle, type ParsedERDiagram, type ParsedExtendedChart, type ParsedGantt, type ParsedGraph, type ParsedInfra, type ParsedJourneyMap, type ParsedKanban, type ParsedMindmap, type ParsedOrg, type ParsedPert, type ParsedPyramid, type ParsedRaci, type ParsedRing, type ParsedSequenceDgmo, type ParsedSitemap, type ParsedTechRadar, type ParsedVisualization, type ParsedWireframe, type ParticipantType, type PertActivity, type Anchor as PertAnchor, type PertDirection, type PertEdge, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type LayoutOverrides as PertLayoutOverrides, type LayoutResult as PertLayoutResult, type PertMilestone, type PertOptions, type PertRenderOptions, type PipeKeySpec, type PyramidLayer, type QuadrantPosition, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, type RaciDragSource, type RaciInteractionHandlers, type RaciMarker, type RaciPhase, type RaciRoleAssignment, type RaciTask, type RaciVariant, type ReadFileFn, type RelationshipType, type RenderCategory, type RenderStep, type ResolveImportsResult, type ResolvedActivity, type ResolvedGroup$1 as ResolvedGroup, type ResolvedPert, type ResolvedGroup as ResolvedPertGroup, type ResolvedSchedule, type ResolvedTask, type RingLayer, type ScatterLabelPoint, type SectionMessageGroup, type SequenceBlock, type SequenceElement, type SequenceGroup, type SequenceMessage, type SequenceNote, type SequenceParticipant, type SequenceRenderOptions, type SequenceSection, type SimulateOptions, type SitemapContainerBounds, type SitemapDirection, type SitemapEdge, type SitemapLayoutEdge, type SitemapLayoutNode, type SitemapLayoutResult, type SitemapLegendEntry, type SitemapLegendGroup, type SitemapNode, type StateCollapseResult, type TagEntry, type TagGroup, type TechRadarBlip, type TechRadarLayoutPoint, type TechRadarQuadrant, type TechRadarRing, type Theme, type VisualizationType, type WireframeElement, type WireframeElementType, type WireframeFormFactor, type WireframeLayout, type WireframeLayoutNode, addDurationToDate, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, boldPalette, buildExtendedChartOption, buildNoteMessageMap, buildRenderSequence, buildSimpleChartOption, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, confidence as chartTypeConfidence, chartTypeParsers, chartTypes, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeScatterLabelGraphics, computeTimeTicks, contrastText, controlsGroupCapsuleWidth, decodeDiagramUrl, decodeViewState, displayName, draculaPalette, encodeDiagramUrl, encodeViewState, extractDiagramSymbols, extractPertSymbols, extractTagDeclarations, focusOrgTree, formatDateLabel, formatDgmoError, getAllChartTypes, getAvailablePalettes, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getPalette, getRadarGeometry, getRenderCategory, getSeriesColors, getSimpleChartLegendGroups, groupMessagesBySection, gruvboxPalette, hexToHSL, hexToHSLString, highlightPertCriticalPath, highlightPertSet, hslToHex, inferParticipantType, inferRoles, isArchiveColumn, isExtendedChartType, isRecognizedColorName, isSequenceBlock, isSequenceNote, isValidHex, knownChartTypeIds, layoutBoxesAndLines, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutGraph, layoutInfra, layoutJourneyMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutWireframe, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, makeDgmoError, matchesContiguously, measurePertAnalysisBlock, mix, monokaiPalette, mulberry32, nord, nordPalette, normalize as normalizeChartTypePrompt, normalizeName, normalizePertSourceForShare, oneDarkPalette, orderArcNodes, palettes, parseAndLayoutInfra, parseBoxesAndLines, parseC4, parseChart, parseClassDiagram, parseCycle, parseDataRowValues, parseDgmo, parseDgmoChartType, parseERDiagram, parseExtendedChart, parseFirstLine, parseFlowchart, parseGantt, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseMindmap, parseOrg, parsePert, parsePyramid, parseRaci, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseState, parseTechRadar, parseTimelineDate, parseVisualization, parseWireframe, pertLegendBlockWidth, pertLegendEntries, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, registerExtractor, registerPalette, relayoutPert, render, renderArcDiagram, renderBoxesAndLines, renderBoxesAndLinesForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderExtendedChartForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderLegendBlock as renderPertLegendBlock, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSlopeChart, renderState, renderStateForExport, renderTechRadar, renderTechRadarForExport, renderTimeline, renderVenn, renderWireframe, renderWordCloud, resetPertCriticalPath, resetPertHighlight, resolveColor, resolveColorWithDiagnostic, resolveOrgImports, resolveTaskName, rollUpContextRelationships, rosePinePalette, sampleBetaPert, scoreChartType, seriesColors, shade, shapeFill, simulateCanonical, simulateFast, solarizedPalette, suggestChartTypes, themes, tint, tokyoNightPalette, truncateBareUrl, parseDgmo as validate, validateComputed, validateInfra, validateLabelCharacters };
+/**
+ * Returns the byte offsets of every `|` on `line` that is OUTSIDE the
+ * surviving non-metadata regions enumerated above. Empty array means
+ * "no legacy metadata pipe on this line."
+ */
+declare function findUnsafePipePositions(line: string): number[];
+/**
+ * True iff `line` carries at least one legacy metadata `|` (outside
+ * the surviving non-metadata regions). Pure, chart-type agnostic.
+ */
+declare function isLegacyMetadataLine(line: string): boolean;
+
+interface TransformResult {
+    /** New line content (indent preserved); equal to input when `changed: false`. */
+    readonly line: string;
+    /** Whether the transformer mutated the line. */
+    readonly changed: boolean;
+}
+/**
+ * Transform `line` from legacy `Foo | k: v, k: v` into the new §1.4
+ * same-line form. `chartType` enables chart-type-specific bare-positional
+ * promotions; pass `null` for the conservative generic transform.
+ */
+declare function transformLine(line: string, chartType: string | null): TransformResult;
+
+interface ContentMigration {
+    /** Updated source — equal to the input when `changed: false`. */
+    readonly migrated: string;
+    /** True iff at least one line changed. */
+    readonly changed: boolean;
+    /** Detected chart type (from line 1), or `null` if unrecognized. */
+    readonly chartType: string | null;
+    /** 1-based line numbers that were rewritten. */
+    readonly changedLines: readonly number[];
+}
+/**
+ * Whole-document migration. Pure transform: takes legacy source,
+ * returns new-grammar source plus a change report. Idempotent —
+ * running on already-migrated content produces zero changes.
+ */
+declare function migrateContent(source: string): ContentMigration;
+/**
+ * Minimal unified-style diff for printing changed lines.
+ * Not a full unified-diff: only outputs the touched lines with
+ * `- old` / `+ new` markers and a leading file header. Adequate
+ * for the `--diff` flag on the migration CLI; no patch consumer.
+ */
+declare function formatLineDiff(path: string, original: string, migrated: string): string;
+
+export { ALL_CHART_TYPES, AMBIGUITY_THRESHOLD, ARROW_DIAGNOSTIC_CODES, type Activation, type AirportData, type AncestorInfo, type ArcLink, type ArcNodeGroup, type BLCollapseResult, type BLEdge, type BLGroup, type BLLayoutEdge, type BLLayoutGroup, type BLLayoutNode, type BLLayoutResult, type BLNode, type BlipTrend, type BoundaryTopology, type C4ArrowType, type C4DeploymentNode, type C4Element, type C4ElementType, type C4Group, type C4LayoutBoundary, type C4LayoutEdge, type C4LayoutNode, type C4LayoutResult, type C4LegendEntry, type C4LegendGroup, type C4Relationship, type C4Shape, type C4TagEntry, type C4TagGroup, CHART_TYPES, CHART_TYPE_DESCRIPTIONS, COMPLETION_REGISTRY, type ChartDataPoint, type ChartEra, type ChartType$1 as ChartType, type Confidence as ChartTypeConfidence, type ChartTypeMeta, type ChartTypeScore, type SuggestionResult as ChartTypeSuggestionResult, type ClassLayoutEdge, type ClassLayoutNode, type ClassLayoutResult, type ClassMember, type ClassModifier, type ClassNode, type ClassRelationship, type CollapsedMindmapResult, type CollapsedOrgResult, type CollapsedSitemapResult, type CollapsedView, type CompactViewState, type ComputedInfraEdge, type ComputedInfraModel, type ComputedInfraNode, type ContentMigration, type ContextRelationship, type CreateMapGeoQueryOptions, type CycleEdge, type CycleLayoutEdge, type CycleLayoutNode, type CycleLayoutResult, type CycleNode, type CycleRenderOptions, type D3ExportDimensions, type DecodedDiagramUrl, type DgmoError, type DgmoSeverity, type DiagramSymbols, type DirectiveSpec, type DirectiveValueSpec, type Duration, type DurationUnit, ECHART_EXPORT_WIDTH, ENTITY_TYPES, type ERCardinality, type ERColumn, type ERConstraint, type ERLayoutEdge, type ERLayoutNode, type ERLayoutResult, type ERRelationship, type ERTable, type ElseIfBranch, type EncodeDiagramUrlOptions, type EncodeDiagramUrlResult, type ExpandedActivity, type ExtendedChartType, type ExtractFn, type FocusOrgResult, type GanttDependency, type GanttEra, type GanttGroup, type GroupRow as GanttGroupRow, type GanttHolidays, type GanttInteractiveOptions, type LaneHeaderRow as GanttLaneHeaderRow, type GanttMarker, type GanttNode, type GanttOptions, type Row as GanttRow, type GanttTask, type TaskRow as GanttTaskRow, type Gazetteer, type GazetteerEntry, type GeoExtent, type GetOrCreateNameResult, type GraphDirection, type GraphEdge, type GraphGroup, type GraphNode, type GraphShape, INFRA_BEHAVIOR_KEYS, type ImportSource, type InfraAvailabilityPercentiles, type InfraBehaviorKey, type InfraCbState, type InfraComputeParams, type InfraDiagnostic, type InfraEdge, type InfraGroup, type InfraLatencyPercentiles, type InfraLayoutEdge, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutResult, type InfraLegendGroup, type InfraNode, type InfraPlaybackState, type InfraProperty, type InfraRole, type InfraTagGroup, type InlineSpan, type JourneyMapAnnotation, type JourneyMapInteractiveOptions, type JourneyMapLayout, type JourneyMapPersona, type JourneyMapPhase, type JourneyMapStep, type KanbanCard, type KanbanColumn, type KanbanTagEntry, type KanbanTagGroup, LEGEND_GEAR_PILL_W, LEGEND_HEIGHT, type LayoutEdge, type LayoutGroup, type LayoutNode, type LayoutOptions$1 as LayoutOptions, type LayoutResult$1 as LayoutResult, type LegendCallbacks, type LegendConfig, type LegendControl, type LegendGroupData, type LegendHandle, type LegendLayout, type LegendMode, type LegendPalette, type LegendPosition, type LegendState, METADATA_KEY_SET, MIN_PRIMARY_SCORE, type MapCompletionOptions, type MapData, type MapDirectives, type MapEdge, type MapExportDimensions, type MapGeoQuery, type MapLayout, type MapLayoutInset, type MapLayoutLeg, type MapLayoutLegend, type MapLayoutPoi, type MapLayoutRegion, type MapLayoutStretch, type MapPlaceCompletion, type MapPoi, type MapRegion, type MapRegionCompletion, type MapRoute, type MemberVisibility, type MindmapLayoutEdge, type MindmapLayoutNode, type MindmapLayoutResult, type MindmapNode, type MonteCarloResult, type NameEntry, type NearestCity, type NodeDetail, type OrgContainerBounds, type OrgLayoutEdge, type OrgLayoutNode, type OrgLayoutResult, type OrgNode, PIPE_METADATA, type PaletteColors, type PaletteConfig, type ParseInArrowLabelResult, type ParsedBoxesAndLines, type ParsedC4, type ParsedChart, type ParsedClassDiagram, type ParsedCycle, type ParsedERDiagram, type ParsedExtendedChart, type ParsedGantt, type ParsedGraph, type ParsedInfra, type ParsedJourneyMap, type ParsedKanban, type ParsedMap, type ParsedMindmap, type ParsedOrg, type ParsedPert, type ParsedPyramid, type ParsedRaci, type ParsedRing, type ParsedSequenceDgmo, type ParsedSitemap, type ParsedTechRadar, type ParsedVisualization, type ParsedWireframe, type ParticipantType, type PertActivity, type Anchor as PertAnchor, type PertDirection, type PertEdge, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type LayoutOverrides as PertLayoutOverrides, type LayoutResult as PertLayoutResult, type PertMilestone, type PertOptions, type PertRenderOptions, type PipeKeySpec, type PlacedLabel, type PoiPos, type ProjectedCity, type ProjectionFamily, type PyramidLayer, type QuadrantPosition, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, type RaciDragSource, type RaciInteractionHandlers, type RaciMarker, type RaciPhase, type RaciRoleAssignment, type RaciTask, type RaciVariant, type ReadFileFn, type RegionName, type RegionNames, type RegionToken, type RelationshipType, type RenderCategory, type RenderStep, type ResolveImportsResult, type ResolvedActivity, type ResolvedEdge, type ResolvedGroup$1 as ResolvedGroup, type ResolvedMap, type ResolvedPert, type ResolvedGroup as ResolvedPertGroup, type ResolvedPoi, type ResolvedRegion, type ResolvedRoute, type ResolvedSchedule, type ResolvedTask, type ResultCard, type ResultTokens, type RingLayer, STRUCTURAL_KEYWORDS, ScaleContext, type ScatterLabelPoint, type SectionMessageGroup, type SequenceBlock, type SequenceElement, type SequenceGroup, type SequenceMessage, type SequenceNote, type SequenceParticipant, type SequenceRenderOptions, type SequenceSection, type SimulateOptions, type SitemapContainerBounds, type SitemapDirection, type SitemapEdge, type SitemapLayoutEdge, type SitemapLayoutNode, type SitemapLayoutResult, type SitemapLegendEntry, type SitemapLegendGroup, type SitemapNode, type StateCollapseResult, TAG_SUPPORTING_TYPES, type TagEntry, type TagGroup, type TechRadarBlip, type TechRadarLayoutPoint, type TechRadarQuadrant, type TechRadarRing, type Theme, type TransformResult, type VisualizationType, type WireframeElement, type WireframeElementType, type WireframeFormFactor, type WireframeLayout, type WireframeLayoutNode, addDurationToDate, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, blueprintPalette, buildExtendedChartOption, buildNoteMessageMap, buildRenderSequence, buildSimpleChartOption, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, confidence as chartTypeConfidence, chartTypeParsers, chartTypes, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, completeMapPlaces, completeMapRegions, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeScatterLabelGraphics, computeTimeTicks, contrastText, controlsGroupCapsuleWidth, createMapGeoQuery, decodeDiagramUrl, decodeViewState, displayName, encodeDiagramUrl, encodeViewState, extractDiagramSymbols, extractPertSymbols, extractTagDeclarations, findUnsafePipePositions, focusOrgTree, formatDateLabel, formatDgmoError, formatLineDiff, getAllChartTypes, getAvailablePalettes, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getPalette, getRadarGeometry, getRenderCategory, getSeriesColors, getSimpleChartLegendGroups, groupMessagesBySection, hexToHSL, hexToHSLString, hslToHex, inferParticipantType, inferRoles, isArchiveColumn, isExtendedChartType, isLegacyMetadataLine, isRecognizedColorName, isSequenceBlock, isSequenceNote, isValidHex, knownChartTypeIds, layoutBoxesAndLines, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutWireframe, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, makeDgmoError, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, matchesContiguously, measurePertAnalysisBlock, migrateContent, mix, mulberry32, nord, nordPalette, normalize as normalizeChartTypePrompt, normalizeName, normalizePertSourceForShare, orderArcNodes, palettes, parseAndLayoutInfra, parseBoxesAndLines, parseC4, parseChart, parseClassDiagram, parseCycle, parseDataRowValues, parseDgmo, parseDgmoChartType, parseERDiagram, parseExtendedChart, parseFirstLine, parseFlowchart, parseGantt, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseMap, parseMindmap, parseOrg, parsePert, parsePyramid, parseRaci, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseState, parseTechRadar, parseTimelineDate, parseVisualization, parseWireframe, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, registerExtractor, registerPalette, relayoutPert, render, renderArcDiagram, renderBoxesAndLines, renderBoxesAndLinesForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderExtendedChartForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderMap, renderMapForExport, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSlopeChart, renderState, renderStateForExport, renderTechRadar, renderTechRadarForExport, renderTimeline, renderVenn, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolveOrgImports, resolveTaskName, rollUpContextRelationships, sampleBetaPert, scoreChartType, seriesColors, shade, shapeFill, simulateCanonical, simulateFast, slatePalette, suggestChartTypes, themes, tidewaterPalette, tint, tokyoNightPalette, transformLine, truncateBareUrl, parseDgmo as validate, validateComputed, validateInfra, validateLabelCharacters };
