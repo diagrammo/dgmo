@@ -29,6 +29,14 @@ type Pt = { x: number; y: number };
 // Only applies when previousPositions is supplied (re-layout on edit/collapse).
 const DEFAULT_LAMBDA = 4;
 
+// Adaptive escalation thresholds (see layoutBoxesAndLinesSearch). Only graphs
+// whose base-budget badness is at least ESCALATE_THRESHOLD spend an extra seed
+// batch; ESCALATE_MAX_N bounds it so huge graphs don't blow the time budget.
+const ESCALATE_THRESHOLD = 4;
+const ESCALATE_MAX_N = 45;
+const ESCALATE_SEEDS = 18;
+const ESCALATE_REFINE = 10;
+
 function rng(s: number) {
   return () => {
     s |= 0;
@@ -937,15 +945,47 @@ export function layoutBoxesAndLinesSearch(
   let best = pool[0]!;
   let bestObj = Infinity;
   let bestBad = Infinity;
-  for (const lay of pool.slice(0, refineK)) {
+  const consider = (lay: BLLayoutResult): void => {
     const bad = badness(lay, bestBad);
-    if (bad === Infinity) continue;
+    if (bad === Infinity) return;
     const sc = objective(lay, bad);
     if (sc < bestObj) {
       bestObj = sc;
       bestBad = bad;
       best = lay;
     }
+  };
+  for (const lay of pool.slice(0, refineK)) consider(lay);
+
+  // Adaptive escalation: a still-high badness after the base seed budget means
+  // the graph is genuinely hard — dense layouts (e.g. the marketplace) need many
+  // more random restarts to stumble onto a low-crossing layer ordering, and the
+  // good ordering is rare enough that refining the existing pool can't find it
+  // (only generating fresh seeds can). Spend an extra seed batch — but ONLY when
+  // the result is actually bad, so the easy 0-badness majority of the corpus
+  // never pays the latency. Bounded by node count to keep the worst case ~1s.
+  if (bestBad >= ESCALATE_THRESHOLD && n <= ESCALATE_MAX_N) {
+    const extra: BLLayoutResult[] = [];
+    for (let s = seedCount; s < seedCount + ESCALATE_SEEDS; s++) {
+      try {
+        extra.push(
+          place({
+            ranker: 'network-simplex',
+            nodesep: 50,
+            ranksep: 60,
+            seed: s,
+          })
+        );
+      } catch {
+        /* ignore choking rankers */
+      }
+    }
+    extra.sort(
+      (a, b) =>
+        objective(a, countCrossingsFast(a)) -
+        objective(b, countCrossingsFast(b))
+    );
+    for (const lay of extra.slice(0, ESCALATE_REFINE)) consider(lay);
   }
 
   // Layered candidates (and their better-routed, de-pierced variants) replace
