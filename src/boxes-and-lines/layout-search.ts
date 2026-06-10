@@ -489,6 +489,106 @@ function detourAround(pts: Pt[], r: Rect): Pt[] {
   out.push(...pts.slice(bestSeg + 1));
   return out;
 }
+/** Count of edges that come CLOSE to another edge without overlapping — lines
+ *  that "almost touch". Runs within `near` px (but not already overlapping within
+ *  `tight` px). Same shared-node exclusion as overlaps. */
+export function countEdgeNearMiss(
+  layout: BLLayoutResult,
+  opts?: { near?: number; tight?: number; minLen?: number }
+): number {
+  const near = opts?.near ?? 14;
+  const tight = opts?.tight ?? 8;
+  const minLen = opts?.minLen ?? 18;
+  const close = detectEdgeOverlaps(layout, { dist: near, minLen }).length;
+  const over = detectEdgeOverlaps(layout, { dist: tight, minLen }).length;
+  return Math.max(0, close - over);
+}
+
+// Renderer extends a parent group's box UPWARD by this label zone (mirrors
+// GROUP_LABEL_ZONE in renderer.ts) — so the collision metric must use the
+// RENDERED box, or near-touching parents read as fine when they actually overlap.
+const GROUP_LABEL_ZONE = 32;
+
+/** Labels of GROUP boxes that touch/overlap a non-nested sibling group. Proper
+ *  nesting (one box fully inside another) is excluded; only sibling/unrelated
+ *  collisions count. Uses the RENDERED box (parent groups grow up by the label
+ *  zone, which is what actually makes near-touching parents collide). */
+export function detectGroupOverlaps(
+  layout: BLLayoutResult,
+  opts?: { margin?: number }
+): string[] {
+  const margin = opts?.margin ?? 4;
+  const raw = layout.groups.map((g) => ({
+    label: g.label,
+    l: g.x - g.width / 2,
+    r: g.x + g.width / 2,
+    t: g.y - g.height / 2,
+    b: g.y + g.height / 2,
+  }));
+  const contains = (
+    outer: (typeof raw)[number],
+    inner: (typeof raw)[number]
+  ): boolean =>
+    outer.l <= inner.l + margin &&
+    outer.r >= inner.r - margin &&
+    outer.t <= inner.t + margin &&
+    outer.b >= inner.b - margin;
+  const rend = raw.map((a, i) => {
+    const parent = raw.some((b, j) => j !== i && contains(a, b));
+    return parent ? { ...a, t: a.t - GROUP_LABEL_ZONE } : a;
+  });
+  const hit = new Set<string>();
+  for (let i = 0; i < raw.length; i++)
+    for (let j = i + 1; j < raw.length; j++) {
+      if (contains(raw[i]!, raw[j]!) || contains(raw[j]!, raw[i]!)) continue; // nesting
+      const a = rend[i]!,
+        b = rend[j]!;
+      const dx = Math.max(a.l - b.r, b.l - a.r);
+      const dy = Math.max(a.t - b.b, b.t - a.b);
+      if (Math.max(dx, dy) < margin) {
+        hit.add(raw[i]!.label);
+        hit.add(raw[j]!.label);
+      }
+    }
+  return [...hit];
+}
+
+/** Count of group-box collisions (pairs touching/overlapping). */
+export function countGroupOverlaps(
+  layout: BLLayoutResult,
+  opts?: { margin?: number }
+): number {
+  const margin = opts?.margin ?? 4;
+  const raw = layout.groups.map((g) => ({
+    l: g.x - g.width / 2,
+    r: g.x + g.width / 2,
+    t: g.y - g.height / 2,
+    b: g.y + g.height / 2,
+  }));
+  const contains = (
+    outer: (typeof raw)[number],
+    inner: (typeof raw)[number]
+  ): boolean =>
+    outer.l <= inner.l + margin &&
+    outer.r >= inner.r - margin &&
+    outer.t <= inner.t + margin &&
+    outer.b >= inner.b - margin;
+  const rend = raw.map((a, i) => {
+    const parent = raw.some((b, j) => j !== i && contains(a, b));
+    return parent ? { ...a, t: a.t - GROUP_LABEL_ZONE } : a;
+  });
+  let count = 0;
+  for (let i = 0; i < raw.length; i++)
+    for (let j = i + 1; j < raw.length; j++) {
+      if (contains(raw[i]!, raw[j]!) || contains(raw[j]!, raw[i]!)) continue;
+      const a = rend[i]!,
+        b = rend[j]!;
+      const dx = Math.max(a.l - b.r, b.l - a.r);
+      const dy = Math.max(a.t - b.b, b.t - a.b);
+      if (Math.max(dx, dy) < margin) count++;
+    }
+  return count;
+}
 // Fast crossing estimate for RANKING candidates: straight segments on raw
 // waypoints (no curveBasis flatten) + bbox pruning + early-out per pair.
 // ~10× cheaper than countSplineCrossings; topology-equivalent for ranking.
@@ -784,7 +884,12 @@ export function layoutBoxesAndLinesSearch(
   const badness = (lay: BLLayoutResult, floor: number): number => {
     const x = countSplineCrossings(lay);
     if (x > floor) return Infinity;
-    return x + countEdgeOverlaps(lay) + countEdgeNodePierces(lay);
+    return (
+      x +
+      countEdgeOverlaps(lay) +
+      countEdgeNodePierces(lay) +
+      countGroupOverlaps(lay)
+    );
   };
 
   // Objective: badness dominates (×1e6, strictly fewer wins); ties broken by

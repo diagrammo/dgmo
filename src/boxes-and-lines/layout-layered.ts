@@ -506,7 +506,7 @@ export function layeredCandidates(
       maxCross = Math.max(maxCross, n.cross + n.thick / 2);
     }
     const GAP = 34;
-    const LANE = 18;
+    const LANE = 28; // sibling back-edge lane spacing — wide enough not to "almost touch"
     // Pick the loop side by the SOURCE's position — it's the endpoint that must
     // escape sideways to a lane; the target is typically central (a hub). A
     // left-of-centre source loops left, a right-of-centre source loops right, so

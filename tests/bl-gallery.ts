@@ -17,8 +17,11 @@ import {
   countSplineCrossings,
   countEdgeOverlaps,
   countEdgeNodePierces,
+  countEdgeNearMiss,
+  countGroupOverlaps,
   detectEdgeOverlaps,
   detectEdgeNodePierces,
+  detectGroupOverlaps,
 } from '../src/boxes-and-lines/layout-search';
 import { getPalette } from '../src/palettes';
 import { renderBoxesAndLines } from '../src/boxes-and-lines/renderer';
@@ -46,8 +49,11 @@ function metrics(l: BLLayoutResult) {
     x: countSplineCrossings(l),
     o: countEdgeOverlaps(l),
     p: countEdgeNodePierces(l),
+    n: countEdgeNearMiss(l),
+    g: countGroupOverlaps(l),
   };
 }
+type M = ReturnType<typeof metrics>;
 
 // Real render → SVG string, with a toggleable issues overlay (<g class=issues>).
 function svgFor(
@@ -69,6 +75,12 @@ function svgFor(
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
   const overlay: string[] = ['<g class="bl-issues">'];
+  const collided = new Set(detectGroupOverlaps(layout));
+  for (const g of layout.groups)
+    if (collided.has(g.label))
+      overlay.push(
+        `<rect x="${g.x - g.width / 2}" y="${g.y - g.height / 2}" width="${g.width}" height="${g.height}" rx="6" fill="#8e4ec6" fill-opacity="0.12" stroke="#8e4ec6" stroke-width="2.5"/>`
+      );
   for (const pc of detectEdgeNodePierces(layout)) {
     const n = layout.nodes.find((nd) => nd.label === pc.node);
     if (n)
@@ -88,18 +100,24 @@ function svgFor(
   return svg.outerHTML.replace('</svg>', overlay.join('') + '</svg>');
 }
 
-const badge = (m: { x: number; o: number; p: number }) =>
-  `<span class="badges"><b class="${m.x ? 'hot' : ''}">${m.x}×</b><b class="${m.o ? 'hot' : ''}">${m.o}∥</b><b class="${m.p ? 'hot' : ''}">${m.p}⊘</b></span>`;
+const badge = (m: M) =>
+  `<span class="badges"><b class="${m.x ? 'hot' : ''}">${m.x}×</b><b class="${m.o ? 'hot' : ''}">${m.o}∥</b><b class="${m.p ? 'hot' : ''}">${m.p}⊘</b><b class="${m.n ? 'warn' : ''}">${m.n}≈</b><b class="${m.g ? 'hot' : ''}">${m.g}▢</b></span>`;
 
 test('build gallery', async () => {
   const sections: string[] = [];
   const cards: string[] = [];
-  let exT = 0,
-    eoT = 0,
-    epT = 0,
-    sxT = 0,
-    soT = 0,
-    spT = 0;
+  const tot = {
+    ex: 0,
+    eo: 0,
+    ep: 0,
+    en: 0,
+    eg: 0,
+    sx: 0,
+    so: 0,
+    sp: 0,
+    sn: 0,
+    sg: 0,
+  };
 
   for (let i = 0; i < CORPUS.length; i++) {
     const c = CORPUS[i]!;
@@ -113,12 +131,16 @@ test('build gallery', async () => {
     });
     const em = metrics(elk),
       sm = metrics(search);
-    exT += em.x;
-    eoT += em.o;
-    epT += em.p;
-    sxT += sm.x;
-    soT += sm.o;
-    spT += sm.p;
+    tot.ex += em.x;
+    tot.eo += em.o;
+    tot.ep += em.p;
+    tot.en += em.n;
+    tot.eg += em.g;
+    tot.sx += sm.x;
+    tot.so += sm.o;
+    tot.sp += sm.p;
+    tot.sn += sm.n;
+    tot.sg += sm.g;
     const elkSvg = svgFor(parsed, elk);
     const searchSvg = svgFor(parsed, search);
     cards.push(
@@ -132,8 +154,15 @@ test('build gallery', async () => {
       </div></section>`);
   }
 
-  const sumBadge = (label: string, x: number, o: number, p: number) =>
-    `<span class="tot"><em>${label}</em> ${x}× ${o}∥ ${p}⊘ <strong>= ${x + o + p}</strong></span>`;
+  const sumBadge = (
+    label: string,
+    x: number,
+    o: number,
+    p: number,
+    n: number,
+    g: number
+  ) =>
+    `<span class="tot"><em>${label}</em> ${x}× ${o}∥ ${p}⊘ ${n}≈ ${g}▢ <strong>= ${x + o + p + n + g}</strong></span>`;
 
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>B&L Layout Gallery</title>
 <style>
@@ -160,14 +189,15 @@ figure{margin:0}figcaption{font-size:12px;color:var(--mut);font-weight:600;margi
 .art svg{max-width:100%;height:auto}
 .badges{display:inline-flex;gap:5px}.badges b{font-weight:600;font-size:11px;color:var(--mut);background:#eef1f4;border-radius:5px;padding:1px 5px}
 .badges b.hot{color:#b42318;background:#fee4e2}
+.badges b.warn{color:#b54708;background:#fef0c7}
 .bl-issues{display:none}
 body.issues .bl-issues{display:inline}
 @media(max-width:760px){.panels{grid-template-columns:1fr}}
 </style></head><body>
 <header>
   <h1>B&amp;L Layout Gallery</h1>
-  ${sumBadge('ELK', exT, eoT, epT)} ${sumBadge('search', sxT, soT, spT)}
-  <span class="hint">× crossings · ∥ overlaps · ⊘ pierces</span>
+  ${sumBadge('ELK', tot.ex, tot.eo, tot.ep, tot.en, tot.eg)} ${sumBadge('search', tot.sx, tot.so, tot.sp, tot.sn, tot.sg)}
+  <span class="hint">× crossings · ∥ overlaps · ⊘ pierces · ≈ near-miss · ▢ group-collide</span>
   <label class="toggle"><input type="checkbox" id="iss"> highlight issues</label>
 </header>
 <div class="overview">${cards.join('')}</div>
@@ -178,7 +208,9 @@ body.issues .bl-issues{display:inline}
   mkdirSync('/tmp/bl-gallery', { recursive: true });
   writeFileSync('/tmp/bl-gallery/index.html', html);
 
+  const elkTot = tot.ex + tot.eo + tot.ep + tot.en + tot.eg;
+  const srchTot = tot.sx + tot.so + tot.sp + tot.sn + tot.sg;
   console.error(
-    `gallery → /tmp/bl-gallery/index.html  (${CORPUS.length} charts)\n  ELK ${exT + eoT + epT} vs search ${sxT + soT + spT} total badness`
+    `gallery → /tmp/bl-gallery/index.html  (${CORPUS.length} charts)\n  ELK ${elkTot} vs search ${srchTot} total badness  (search: ${tot.sx}× ${tot.so}∥ ${tot.sp}⊘ ${tot.sn}≈ ${tot.sg}▢)`
   );
 }, 120_000);
