@@ -6,5 +6,6 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['tests/bl-layout-bench.ts'],
+    disableConsoleIntercept: true,
   },
 });

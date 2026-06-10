@@ -21,6 +21,7 @@ import {
   type BLLayoutResult,
   type BLLayoutEdge,
 } from './layout';
+import { layeredCandidates } from './layout-layered';
 
 type Pt = { x: number; y: number };
 
@@ -483,21 +484,49 @@ export function layoutBoxesAndLinesSearch(
   if (!pool.length)
     return place({ ranker: 'network-simplex', nodesep: 50, ranksep: 60 });
 
-  // Stage 1: rank the whole pool with the cheap straight-segment counter.
+  // Home-grown layered candidates (flat graphs only). These own the
+  // crossing-minimization stage AND route back-edges around the periphery, so
+  // they can reach layouts below dagre's ordering+routing floor (e.g. the
+  // pirate-fleet K2,2). Their peripheral back-edges are curved loops that the
+  // cheap straight-segment ranker mis-scores, so they bypass stage-1 and are
+  // ALWAYS exact-scored in stage 2. Best-effort: never block the dagre pool.
+  let layered: BLLayoutResult[] = [];
+  try {
+    layered = layeredCandidates(parsed, sizes);
+  } catch {
+    /* ignore */
+  }
+
+  // Stage 1: rank the dagre pool with the cheap straight-segment counter.
   pool.sort(
     (a, b) =>
       objective(a, countCrossingsFast(a)) - objective(b, countCrossingsFast(b))
   );
 
-  // Stage 2: re-rank only the top-K with the trustworthy curveBasis counter
-  // (captures crossings the straight-segment estimate misses) and pick the best.
+  // Stage 2: exact-score the top-K dagre candidates with the trustworthy
+  // curveBasis counter and pick the best.
   let best = pool[0]!;
   let bestExact = Infinity;
-  for (let i = 0; i < Math.min(REFINE_K, pool.length); i++) {
-    const lay = pool[i]!;
-    const sc = objective(lay, countSplineCrossings(lay));
+  let bestCrossings = Infinity;
+  for (const lay of pool.slice(0, REFINE_K)) {
+    const cr = countSplineCrossings(lay);
+    const sc = objective(lay, cr);
     if (sc < bestExact) {
       bestExact = sc;
+      bestCrossings = cr;
+      best = lay;
+    }
+  }
+
+  // A layered candidate replaces the dagre winner ONLY when it STRICTLY reduces
+  // crossings — never on an edge-length tiebreak. This keeps the dagre layout's
+  // visual character on the (common) cases where crossings already tie, and lets
+  // the home-grown engine in only when it genuinely clears an avoidable crossing
+  // dagre can't (e.g. pirate-fleet's back-edge routing).
+  for (const lay of layered) {
+    const cr = countSplineCrossings(lay);
+    if (cr < bestCrossings) {
+      bestCrossings = cr;
       best = lay;
     }
   }
