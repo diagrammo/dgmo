@@ -123,6 +123,7 @@
     "test": "vitest run --coverage",
     "bench:bl": "vitest run --config vitest.bench.config.ts tests/bl-layout-bench.ts",
     "bench:bl-collapse": "vitest run --config vitest.bench.config.ts tests/bl-collapse-bench.ts",
+    "bench:bl-options": "vitest run --config vitest.bench.config.ts tests/bl-options.ts",
     "test:watch": "vitest",
     "test:auto": "pnpm build && vitest run tests/auto.test.ts tests/safe-href.test.ts",
     "sri": "node scripts/sri.mjs",

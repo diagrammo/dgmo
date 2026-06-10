@@ -79,7 +79,16 @@ interface EChain {
 export function layeredCandidates(
   parsed: ParsedBoxesAndLines,
   sizes: ReadonlyMap<string, Size>,
-  opts?: { restarts?: number; keepK?: number }
+  opts?: {
+    restarts?: number;
+    keepK?: number;
+    /** Cross-axis gap between siblings in a rank (default 50). */
+    nodesep?: number;
+    /** Rank-axis gap between layers (default 60). */
+    ranksep?: number;
+    /** Which side a back-edge loops around (default 'nearest'). */
+    backEdgeSide?: 'nearest' | 'left' | 'right';
+  }
 ): BLLayoutResult[] {
   // Flat graphs only — containers need a group-aware variant (future work).
   if (parsed.groups.length > 0) return [];
@@ -87,6 +96,9 @@ export function layeredCandidates(
   if (nCount < 3 || nCount > 40) return [];
 
   const isTB = parsed.direction === 'TB';
+  const nodesep = opts?.nodesep ?? NODESEP;
+  const ranksep = opts?.ranksep ?? RANKSEP;
+  const backEdgeSide = opts?.backEdgeSide ?? 'nearest';
   // Restart count scales down with size to stay inside the search budget; the
   // engine is additive, so fewer restarts only risks missing a win, never a
   // regression.
@@ -414,7 +426,7 @@ export function layeredCandidates(
     let acc = MARGIN;
     for (let r = 0; r <= maxRank; r++) {
       bandCenter[r] = acc + bandDepth[r]! / 2;
-      acc += bandDepth[r]! + RANKSEP;
+      acc += bandDepth[r]! + ranksep;
     }
 
     // Cross-axis: init evenly spaced, then iterate median alignment with a
@@ -424,7 +436,7 @@ export function layeredCandidates(
       for (const id of rk[r]!) {
         const n = node.get(id)!;
         n.cross = x + n.thick / 2;
-        x += n.thick + NODESEP;
+        x += n.thick + nodesep;
       }
     }
     const ITER = 18;
@@ -496,10 +508,14 @@ export function layeredCandidates(
     const GAP = 34;
     const LANE = 18;
     const centerCross = (minCross + maxCross) / 2;
-    const sideOf = (b: { src: string; tgt: string }): number =>
-      (node.get(b.src)!.cross + node.get(b.tgt)!.cross) / 2 >= centerCross
+    const sideOf = (b: { src: string; tgt: string }): number => {
+      if (backEdgeSide === 'left') return -1;
+      if (backEdgeSide === 'right') return 1;
+      return (node.get(b.src)!.cross + node.get(b.tgt)!.cross) / 2 >=
+        centerCross
         ? 1
         : -1;
+    };
     // Assign lanes: per side, longer rank-spans go further out (lower k = inner).
     const backSorted = backEdges
       .map((b) => ({
@@ -627,7 +643,7 @@ export function layeredCandidates(
     // Convert desired to "left-anchored" desired (subtract cumulative min gaps)
     const off: number[] = [0];
     for (let i = 1; i < n; i++)
-      off[i] = off[i - 1]! + half[i - 1]! + NODESEP + half[i]!;
+      off[i] = off[i - 1]! + half[i - 1]! + nodesep + half[i]!;
     const d = desired.map((v, i) => v - off[i]!);
     const blocks: Block[] = [];
     for (let i = 0; i < n; i++) {
