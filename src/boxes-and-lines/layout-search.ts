@@ -314,6 +314,69 @@ export function countEdgeOverlaps(
 ): number {
   return detectEdgeOverlaps(layout, opts).length;
 }
+
+/** An edge routing THROUGH a node box it doesn't connect to. Counts as a
+ *  crossing — the line is where it shouldn't be. */
+export interface NodePierce {
+  edgeIdx: number;
+  node: string;
+  pts: Pt[];
+}
+
+/**
+ * Detect edges that pass through (substantially inside, by `inset`) the box of a
+ * node that is NOT one of their endpoints. Endpoints — including collapsed group
+ * boxes (`__group_<label>`) — are excluded; an edge legitimately meets those.
+ */
+export function detectEdgeNodePierces(
+  layout: BLLayoutResult,
+  opts?: { inset?: number; minPts?: number }
+): NodePierce[] {
+  const inset = opts?.inset ?? 6;
+  const minPts = opts?.minPts ?? 2;
+  const rects: (Rect & { key: string })[] = [];
+  for (const n of layout.nodes)
+    rects.push({ key: n.label, x: n.x, y: n.y, w: n.width, h: n.height });
+  for (const g of layout.groups)
+    if (g.collapsed)
+      rects.push({
+        key: '__group_' + g.label,
+        x: g.x,
+        y: g.y,
+        w: g.width,
+        h: g.height,
+      });
+  const inside = (p: Pt, r: Rect): boolean =>
+    Math.abs(p.x - r.x) < r.w / 2 - inset &&
+    Math.abs(p.y - r.y) < r.h / 2 - inset;
+  const out: NodePierce[] = [];
+  layout.edges.forEach((e, idx) => {
+    if (e.points.length < 2) return;
+    const poly = flatten(splineGen(e.points as Pt[]) ?? '');
+    for (const r of rects) {
+      if (
+        r.key === e.source ||
+        r.key === e.target ||
+        '__group_' + r.key === e.source ||
+        '__group_' + r.key === e.target
+      )
+        continue;
+      const hits = poly.filter((p) => inside(p, r));
+      if (hits.length >= minPts)
+        out.push({ edgeIdx: idx, node: r.key, pts: hits });
+    }
+  });
+  return out;
+}
+
+/** Count of edges routing through unrelated node boxes — the "line going through
+ *  a node" metric. */
+export function countEdgeNodePierces(
+  layout: BLLayoutResult,
+  opts?: { inset?: number; minPts?: number }
+): number {
+  return detectEdgeNodePierces(layout, opts).length;
+}
 // Fast crossing estimate for RANKING candidates: straight segments on raw
 // waypoints (no curveBasis flatten) + bbox pruning + early-out per pair.
 // ~10× cheaper than countSplineCrossings; topology-equivalent for ranking.

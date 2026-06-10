@@ -23,6 +23,8 @@ import { layeredCandidates } from '../src/boxes-and-lines/layout-layered';
 import {
   countSplineCrossings,
   detectEdgeOverlaps,
+  detectEdgeNodePierces,
+  countEdgeNodePierces,
 } from '../src/boxes-and-lines/layout-search';
 
 const FILE =
@@ -48,6 +50,15 @@ function debugSvg(layout: BLLayoutResult, dist: number): string {
       parts.push(
         `<path d="${gen(e.points as { x: number; y: number }[])}" fill="none" stroke="#9aa3af" stroke-width="1.5"/>`
       );
+  // edges piercing unrelated node boxes — ORANGE node halo
+  for (const p of detectEdgeNodePierces(layout)) {
+    const n = layout.nodes.find((nd) => nd.label === p.node);
+    if (n)
+      parts.push(
+        `<rect x="${n.x - n.width / 2}" y="${n.y - n.height / 2}" width="${n.width}" height="${n.height}" rx="6" fill="none" stroke="#f76808" stroke-width="3"/>`
+      );
+  }
+  // overlap runs (lines stepping on each other) — RED
   for (const r of detectEdgeOverlaps(layout, { dist })) {
     const d = r.pts
       .map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
@@ -97,7 +108,7 @@ test('overlap debug', async () => {
         .asPng()
     );
     console.error(
-      `${o.name.padEnd(12)} X-crossings ${countSplineCrossings(o.layout)}  overlaps@${DIST}px ${detectEdgeOverlaps(o.layout, { dist: DIST }).length}  → ${out}`
+      `${o.name.padEnd(12)} X-crossings ${countSplineCrossings(o.layout)}  overlaps@${DIST}px ${detectEdgeOverlaps(o.layout, { dist: DIST }).length}  pierces ${countEdgeNodePierces(o.layout)}  → ${out}`
     );
   }
 }, 120_000);
