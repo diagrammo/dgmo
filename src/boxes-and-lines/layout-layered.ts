@@ -533,6 +533,23 @@ export function layeredCandidates(
     const laneCounter = new Map<number, number>();
     const backPoints = new Map<number, Pt[]>();
     const faceLim = (depth: number): number => Math.max(0, depth / 2 - 6);
+    // Group same-side returns by shared TARGET. Siblings converging on one hub
+    // would otherwise stack their final approach along the same node edge (the
+    // pirate-fleet residual: two right-side returns into Captain). Give the inner
+    // one the side face and route the outer one(s) over the target's rank-axis
+    // top face instead, so the two converging arcs enter on different faces.
+    const hubIndex = new Map<number, number>(); // edgeIdx → order among (side,tgt)
+    const hubSize = new Map<string, number>();
+    {
+      const counter = new Map<string, number>();
+      for (const b of backSorted) {
+        const key = `${b.side}|${b.tgt}`;
+        const idx = counter.get(key) ?? 0;
+        counter.set(key, idx + 1);
+        hubIndex.set(b.edgeIdx, idx);
+      }
+      for (const [key, v] of counter) hubSize.set(key, v);
+    }
     for (const b of backSorted) {
       const s = b.side;
       const k = laneCounter.get(s) ?? 0;
@@ -563,14 +580,34 @@ export function layeredCandidates(
       const off = 10;
       const srcEdgeC = src.cross + s * (src.thick / 2 + off);
       const tgtEdgeC = tgt.cross + s * (tgt.thick / 2 + off);
-      backPoints.set(b.edgeIdx, [
-        m(src.cross, srcCtr),
-        m(srcEdgeC, srcR),
-        m(laneC, srcR),
-        m(laneC, tgtR),
-        m(tgtEdgeC, tgtR),
-        m(tgt.cross, tgtCtr),
-      ]);
+      const hubK = hubIndex.get(b.edgeIdx)!;
+      const hubN = hubSize.get(`${s}|${b.tgt}`)!;
+      if (hubN > 1 && hubK > 0) {
+        // Outer sibling of a shared hub: come over the target's top (rank-axis)
+        // face. Rise up the lane past the node's top, cross above it, then drop
+        // straight into the centre — a clean loop that never shares the side
+        // edge the inner sibling hugs. Nested by hubK so 3+ returns stay apart.
+        const tgtTop = tgtCtr - (tgt.depth / 2 + GAP + (hubK - 1) * LANE);
+        const entryCross = tgt.cross + s * faceLim(tgt.thick) * (hubK / hubN);
+        backPoints.set(b.edgeIdx, [
+          m(src.cross, srcCtr),
+          m(srcEdgeC, srcR),
+          m(laneC, srcR),
+          m(laneC, tgtTop),
+          m(entryCross, tgtTop),
+          m(tgt.cross, tgtCtr),
+        ]);
+      } else {
+        // Aesthetic swoop into the side face (the inner / sole sibling).
+        backPoints.set(b.edgeIdx, [
+          m(src.cross, srcCtr),
+          m(srcEdgeC, srcR),
+          m(laneC, srcR),
+          m(laneC, tgtR),
+          m(tgtEdgeC, tgtR),
+          m(tgt.cross, tgtCtr),
+        ]);
+      }
     }
 
     const layoutEdges: BLLayoutEdge[] = [];
