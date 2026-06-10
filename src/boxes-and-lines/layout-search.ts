@@ -377,6 +377,100 @@ export function countEdgeNodePierces(
 ): number {
   return detectEdgeNodePierces(layout, opts).length;
 }
+
+/**
+ * Re-routed copy of a layout that bends edges AROUND any node box they pierce:
+ * for each pierced (edge, node) it inserts a waypoint pushing the edge out past
+ * the node, perpendicular to the edge, on the side it's already leaning. The
+ * curveBasis spline then bows around the node instead of through it. Returned as
+ * an ALTERNATIVE candidate — the caller keeps it only if total badness drops, so
+ * a detour that trades a pierce for a crossing is simply rejected.
+ */
+export function deroutePierces(layout: BLLayoutResult): BLLayoutResult {
+  const pierces = detectEdgeNodePierces(layout);
+  if (!pierces.length) return layout;
+  const rect = new Map<string, Rect>();
+  for (const n of layout.nodes)
+    rect.set(n.label, { x: n.x, y: n.y, w: n.width, h: n.height });
+  for (const g of layout.groups)
+    if (g.collapsed)
+      rect.set('__group_' + g.label, {
+        x: g.x,
+        y: g.y,
+        w: g.width,
+        h: g.height,
+      });
+  const byEdge = new Map<number, string[]>();
+  for (const p of pierces) {
+    const arr = byEdge.get(p.edgeIdx);
+    if (arr) arr.push(p.node);
+    else byEdge.set(p.edgeIdx, [p.node]);
+  }
+  const edges = layout.edges.map((e, idx) => {
+    const nodes = byEdge.get(idx);
+    if (!nodes) return e;
+    let pts: Pt[] = e.points.map((p) => ({ x: p.x, y: p.y }));
+    for (const label of nodes) {
+      const r = rect.get(label);
+      if (r) pts = detourAround(pts, r);
+    }
+    return { ...e, points: pts };
+  });
+  return { ...layout, edges };
+}
+
+// Bend a waypoint polyline around a rectangle it passes through: find the
+// segment whose closest point to the rect centre is nearest, and insert a
+// waypoint there pushed out past the rect corner (+margin) on the leaning side.
+function detourAround(pts: Pt[], r: Rect): Pt[] {
+  if (pts.length < 2) return pts;
+  const c = { x: r.x, y: r.y };
+  let bestSeg = -1;
+  let bestT = 0;
+  let bestD = Infinity;
+  let bestPt: Pt = pts[0]!;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]!,
+      b = pts[i + 1]!;
+    const dx = b.x - a.x,
+      dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy || 1e-9;
+    let t = ((c.x - a.x) * dx + (c.y - a.y) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const q = { x: a.x + t * dx, y: a.y + t * dy };
+    const d = Math.hypot(q.x - c.x, q.y - c.y);
+    if (d < bestD) {
+      bestD = d;
+      bestSeg = i;
+      bestT = t;
+      bestPt = q;
+    }
+  }
+  if (bestSeg < 0) return pts;
+  // push direction: away from rect centre, on the side the edge already leans;
+  // if the closest point is dead-centre, pick the box's shorter axis to exit.
+  let nx = bestPt.x - c.x;
+  let ny = bestPt.y - c.y;
+  if (Math.hypot(nx, ny) < 1) {
+    if (r.w <= r.h) {
+      nx = 1;
+      ny = 0;
+    } else {
+      nx = 0;
+      ny = 1;
+    }
+  }
+  const nlen = Math.hypot(nx, ny) || 1;
+  nx /= nlen;
+  ny /= nlen;
+  const clear = Math.hypot(r.w, r.h) / 2 + 16;
+  const detour = { x: c.x + nx * clear, y: c.y + ny * clear };
+  void bestT;
+  const out = pts.slice(0, bestSeg + 1);
+  out.push(detour, detour);
+  out.push(...pts.slice(bestSeg + 1));
+  return out;
+}
 // Fast crossing estimate for RANKING candidates: straight segments on raw
 // waypoints (no curveBasis flatten) + bbox pruning + early-out per pair.
 // ~10× cheaper than countSplineCrossings; topology-equivalent for ranking.
@@ -731,16 +825,30 @@ export function layoutBoxesAndLinesSearch(
     }
   }
 
-  // A layered candidate replaces the dagre winner ONLY when it STRICTLY reduces
-  // total badness — never on an edge-length tiebreak. Keeps the dagre layout's
-  // visual character where badness ties, and lets the home-grown engine in only
-  // when it genuinely clears violations dagre can't.
+  // Layered candidates (and their better-routed, de-pierced variants) replace
+  // the dagre winner ONLY on a STRICT total-badness reduction — never on an
+  // edge-length tiebreak. They're few, so de-piercing each is cheap.
   for (const lay of layered) {
-    const bad = badness(lay, bestBad - 1);
-    if (bad < bestBad) {
-      bestBad = bad;
-      best = lay;
+    const variants = [lay];
+    const dp = deroutePierces(lay);
+    if (dp !== lay) variants.push(dp);
+    for (const v of variants) {
+      const bad = badness(v, bestBad - 1);
+      if (bad < bestBad) {
+        bestBad = bad;
+        best = v;
+      }
     }
+  }
+
+  // Feed the objective one more BETTER-ROUTED alternative: bend the current
+  // winner's edges around any node they still pierce. Kept only if it strictly
+  // lowers total badness (a detour that trades a pierce for a crossing/overlap
+  // is rejected).
+  if (bestBad > 0) {
+    const rerouted = deroutePierces(best);
+    if (rerouted !== best && badness(rerouted, bestBad - 1) < bestBad)
+      best = rerouted;
   }
   return best;
 }
