@@ -699,6 +699,9 @@ export function separateGroupBands(
   if (!moved) return layout;
 
   const nodeDelta = (label: string): number => {
+    // Group-incident edge endpoints carry the group's gid, not a node label.
+    if (label.startsWith('__group_'))
+      return delta.get(topOf(label.slice('__group_'.length))) ?? 0;
     const top = nodeTop.get(label);
     return top ? (delta.get(top) ?? 0) : 0;
   };
@@ -911,6 +914,108 @@ export function layoutBoxesAndLinesSearch(
   const gid = (label: string) => `__group_${label}`;
   const rankdir = parsed.direction === 'TB' ? 'TB' : 'LR';
 
+  // Group-incident edges: dagre cannot attach edges to a compound cluster node
+  // (it throws while ranking). So for any edge whose endpoint is an EXPANDED
+  // group, we route the dagre edge through a representative descendant node and
+  // later clip the polyline back to the group's boundary rect. Collapsed groups
+  // are already plain (childless) nodes, so their edges need no redirect.
+  const nodeLabelSet = new Set(parsed.nodes.map((n) => n.label));
+  const directNodeChildren = new Map<string, string[]>();
+  const childGroupsOf = new Map<string, string[]>();
+  for (const grp of parsed.groups) {
+    directNodeChildren.set(
+      grp.label,
+      grp.children.filter((c) => nodeLabelSet.has(c))
+    );
+    if (grp.parentGroup) {
+      const arr = childGroupsOf.get(grp.parentGroup) ?? [];
+      arr.push(grp.label);
+      childGroupsOf.set(grp.parentGroup, arr);
+    }
+  }
+  // All descendant node labels of a group (direct children + nested subgroups).
+  const membersCache = new Map<string, string[]>();
+  const membersOf = (label: string): string[] => {
+    const cached = membersCache.get(label);
+    if (cached) return cached;
+    membersCache.set(label, []); // cycle guard
+    const out = [...(directNodeChildren.get(label) ?? [])];
+    for (const sub of childGroupsOf.get(label) ?? [])
+      out.push(...membersOf(sub));
+    membersCache.set(label, out);
+    return out;
+  };
+
+  // For a group used as an edge SOURCE the connector should leave from the
+  // group's internal exit (the member at the deepest rank); used as a TARGET it
+  // should enter at the group's entry (a member with no internal predecessor).
+  // Picking by internal-DAG depth keeps the group a contiguous block and the
+  // overall flow monotonic, instead of stretching it across the target's rank.
+  const gidSourceRep = new Map<string, string>(); // gid -> deepest member
+  const gidTargetRep = new Map<string, string>(); // gid -> shallowest member
+  for (const grp of parsed.groups) {
+    const members = membersOf(grp.label);
+    if (members.length === 0) continue;
+    const memberSet = new Set(members);
+    // Internal predecessors (node->node edges fully inside the group). A
+    // member's rank = longest predecessor chain, so entry members rank 0 and
+    // exit members rank highest — matching how dagre lays the members out.
+    const preds = new Map<string, string[]>();
+    for (const e of parsed.edges)
+      if (memberSet.has(e.source) && memberSet.has(e.target)) {
+        const arr = preds.get(e.target) ?? [];
+        arr.push(e.source);
+        preds.set(e.target, arr);
+      }
+    const rankCache = new Map<string, number>();
+    const onPath = new Set<string>();
+    const rankOf = (n: string): number => {
+      const c = rankCache.get(n);
+      if (c !== undefined) return c;
+      if (onPath.has(n)) return 0; // cycle: treat as root
+      onPath.add(n);
+      let r = 0;
+      for (const p of preds.get(n) ?? []) r = Math.max(r, rankOf(p) + 1);
+      onPath.delete(n);
+      rankCache.set(n, r);
+      return r;
+    };
+    let exit = members[0]!;
+    let entry = members[0]!;
+    for (const mem of members) {
+      if (rankOf(mem) > rankOf(exit)) exit = mem;
+      if (rankOf(mem) < rankOf(entry)) entry = mem;
+    }
+    gidSourceRep.set(gid(grp.label), exit);
+    gidTargetRep.set(gid(grp.label), entry);
+  }
+  const srcRep = (label: string) => gidSourceRep.get(label) ?? label;
+  const tgtRep = (label: string) => gidTargetRep.get(label) ?? label;
+  const edgeKey = (e: { source: string; target: string; lineNumber: number }) =>
+    `${e.source}->${e.target}#${e.lineNumber}`;
+
+  // Clip a polyline endpoint to a group's boundary rect. `rect` is centre-based.
+  // Returns the point where the ray from the rect centre toward `toward` exits
+  // the rect.
+  const rectBorderPoint = (
+    rect: { x: number; y: number; w: number; h: number },
+    toward: Pt
+  ): Pt => {
+    const dx = toward.x - rect.x;
+    const dy = toward.y - rect.y;
+    const sx = dx === 0 ? Infinity : rect.w / 2 / Math.abs(dx);
+    const sy = dy === 0 ? Infinity : rect.h / 2 / Math.abs(dy);
+    const s = Math.min(sx, sy);
+    if (!Number.isFinite(s)) return { x: rect.x, y: rect.y };
+    return { x: rect.x + dx * s, y: rect.y + dy * s };
+  };
+  const isInsideRect = (
+    p: Pt,
+    rect: { x: number; y: number; w: number; h: number }
+  ) =>
+    Math.abs(p.x - rect.x) <= rect.w / 2 &&
+    Math.abs(p.y - rect.y) <= rect.h / 2;
+
   function place(cfg: {
     ranker: string;
     nodesep: number;
@@ -955,9 +1060,12 @@ export function layoutBoxesAndLinesSearch(
         )
           g.setParent(gid(label), gid(og.parentGroup));
       }
-    for (const e of ord(parsed.edges))
-      if (g.hasNode(e.source) && g.hasNode(e.target))
-        g.setEdge(e.source, e.target, {});
+    for (const e of ord(parsed.edges)) {
+      const s = srcRep(e.source);
+      const t = tgtRep(e.target);
+      if (s !== t && g.hasNode(s) && g.hasNode(t))
+        g.setEdge(s, t, {}, edgeKey(e));
+    }
     dagre.layout(g);
 
     const nodes = parsed.nodes.map((n) => {
@@ -998,22 +1106,63 @@ export function layoutBoxesAndLinesSearch(
         childCount: collapseInfo?.collapsedChildCounts.get(label) ?? 0,
       });
     }
-    const edges: BLLayoutEdge[] = parsed.edges
-      .filter((e) => g.hasEdge(e.source, e.target))
-      .map((e) => {
-        const ed = g.edge(e.source, e.target) as { points?: Pt[] };
-        return {
+    // Boundary rects for expanded groups — used to clip group-incident edges.
+    const groupRectByGid = new Map<
+      string,
+      { x: number; y: number; w: number; h: number }
+    >();
+    for (const grp of parsed.groups) {
+      const p = g.node(gid(grp.label));
+      if (p)
+        groupRectByGid.set(gid(grp.label), {
+          x: p.x,
+          y: p.y,
+          w: p.width,
+          h: p.height,
+        });
+    }
+    const clipPointsToGroups = (
+      pts: Pt[],
+      source: string,
+      target: string
+    ): Pt[] => {
+      if (pts.length < 2) return pts;
+      let out = pts;
+      const srcRect = groupRectByGid.get(source);
+      if (srcRect) {
+        let k = 0;
+        while (k < out.length - 1 && isInsideRect(out[k]!, srcRect)) k++;
+        out = [rectBorderPoint(srcRect, out[k]!), ...out.slice(k)];
+      }
+      const tgtRect = groupRectByGid.get(target);
+      if (tgtRect) {
+        let k = out.length - 1;
+        while (k > 0 && isInsideRect(out[k]!, tgtRect)) k--;
+        out = [...out.slice(0, k + 1), rectBorderPoint(tgtRect, out[k]!)];
+      }
+      return out;
+    };
+    const edges: BLLayoutEdge[] = parsed.edges.flatMap((e) => {
+      const s = srcRep(e.source);
+      const t = tgtRep(e.target);
+      const key = edgeKey(e);
+      if (s === t || !g.hasEdge(s, t, key)) return [];
+      const ed = g.edge(s, t, key) as { points?: Pt[] };
+      const points = clipPointsToGroups(ed?.points ?? [], e.source, e.target);
+      return [
+        {
           source: e.source,
           target: e.target,
           ...(e.label !== undefined && { label: e.label }),
           bidirectional: e.bidirectional,
           lineNumber: e.lineNumber,
-          points: ed?.points ?? [],
+          points,
           yOffset: 0,
           parallelCount: 1,
           metadata: e.metadata,
-        };
-      });
+        },
+      ];
+    });
     const gg = g.graph() as { width?: number; height?: number };
     return {
       nodes,

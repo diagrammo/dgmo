@@ -154,4 +154,52 @@ D -> H`;
     // "doesn't hang" guard, not a flake under contended CI.
     expect(elapsed).toBeLessThan(2000);
   });
+
+  // Regression: group-incident edges used to crash dagre ("Cannot set
+  // properties of undefined (setting 'rank')") because an edge endpoint was a
+  // compound cluster node. They are now routed through a representative member
+  // and clipped back to the group boundary. See spec §13.3 / §13.5.
+  describe('group-incident edges (§13.3/§13.5)', () => {
+    const inside = (
+      p: { x: number; y: number },
+      g: { x: number; y: number; width: number; height: number }
+    ) =>
+      Math.abs(p.x - g.x) <= g.width / 2 + 0.5 &&
+      Math.abs(p.y - g.y) <= g.height / 2 + 0.5;
+
+    it('routes a group -> node edge from the group boundary', async () => {
+      const parsed = parseBoxesAndLines(
+        ['boxes-and-lines', '[G]', '  A', '  -> B', 'B'].join('\n')
+      );
+      const layout = await layoutBoxesAndLines(parsed);
+      const edge = layout.edges.find((e) => e.target === 'B')!;
+      expect(edge).toBeDefined();
+      expect(edge.source).toBe('__group_G');
+      expect(edge.points.length).toBeGreaterThanOrEqual(2);
+      const grp = layout.groups.find((g) => g.label === 'G')!;
+      // First point sits on (not inside) the group rect; last point is outside.
+      expect(inside(edge.points[edge.points.length - 1], grp)).toBe(false);
+    });
+
+    it('routes a node -> group edge into the group boundary', async () => {
+      const parsed = parseBoxesAndLines(
+        ['boxes-and-lines', 'A -> [G]', '[G]', '  B', '  C'].join('\n')
+      );
+      const layout = await layoutBoxesAndLines(parsed);
+      const edge = layout.edges.find((e) => e.source === 'A')!;
+      expect(edge.target).toBe('__group_G');
+      expect(edge.points.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('routes a group -> group edge between two boundaries', async () => {
+      const parsed = parseBoxesAndLines(
+        ['boxes-and-lines', '[A] -> [B]', '[A]', '  X', '[B]', '  Y'].join('\n')
+      );
+      const layout = await layoutBoxesAndLines(parsed);
+      const edge = layout.edges[0];
+      expect(edge.source).toBe('__group_A');
+      expect(edge.target).toBe('__group_B');
+      expect(edge.points.length).toBeGreaterThanOrEqual(2);
+    });
+  });
 });
