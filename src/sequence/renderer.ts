@@ -2062,23 +2062,12 @@ export function renderSequenceDiagram(
       .attr('fill', 'transparent')
       .attr('class', 'group-label-hit');
 
-    // Collapse chevron — visual affordance signalling the header is clickable.
+    // Group label — centered across the header strip.
     groupG
       .append('text')
-      .attr('x', minX + 8)
+      .attr('x', (minX + maxX) / 2)
       .attr('y', boxY + GROUP_LABEL_SIZE + 4)
-      .attr('fill', strokeColor)
-      .attr('font-size', GROUP_LABEL_SIZE)
-      .attr('opacity', 0.7)
-      .attr('pointer-events', 'none')
-      .attr('class', 'group-chevron')
-      .text('▾'); // ▾ expanded
-
-    // Group label
-    groupG
-      .append('text')
-      .attr('x', minX + 8 + GROUP_LABEL_SIZE + 2)
-      .attr('y', boxY + GROUP_LABEL_SIZE + 4)
+      .attr('text-anchor', 'middle')
       .attr('fill', strokeColor)
       .attr('font-size', GROUP_LABEL_SIZE)
       .attr('font-weight', 'bold')

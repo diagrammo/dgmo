@@ -457,7 +457,7 @@ describe('Collapse rendering', () => {
     expect(ids).not.toContain('API');
   });
 
-  it('expanded group exposes a header hit area + chevron affordance', () => {
+  it('expanded group exposes a header hit area + centered label', () => {
     const expandedDiagram = [
       '[Backend]',
       '  API',
@@ -476,8 +476,11 @@ describe('Collapse rendering', () => {
     expect(
       svg.querySelector('.group-box')!.getAttribute('pointer-events')
     ).toBe('none');
-    // Discoverable chevron next to the label
-    expect(svg.querySelector('.group-chevron')).not.toBeNull();
+    // Label is centered across the header strip (no chevron affordance)
+    expect(svg.querySelector('.group-chevron')).toBeNull();
+    expect(svg.querySelector('.group-label')!.getAttribute('text-anchor')).toBe(
+      'middle'
+    );
   });
 
   it('section collapse hides messages even when a group is also collapsed', () => {
