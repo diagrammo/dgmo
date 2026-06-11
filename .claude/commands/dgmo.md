@@ -222,7 +222,7 @@ Key options:
 - `-o <file>` — output file; format inferred from extension (`.svg` → SVG, else PNG)
 - `-o url` — output a shareable diagrammo.app URL
 - `--theme <theme>` — `light` (default), `dark`, `transparent`
-- `--palette <name>` — `nord` (default), `solarized`, `catppuccin`, `rose-pine`, `gruvbox`, `tokyo-night`, `one-dark`, `bold`
+- `--palette <name>` — `slate` (default), `atlas`, `blueprint`, `catppuccin`, `nord`, `tidewater`, `tokyo-night`
 - `--copy` — copy the URL to clipboard (use with `-o url`)
 - `--chart-types` — list all supported chart types
 
@@ -286,7 +286,7 @@ series A (red), B (blue), C (green)  ⚠  for ≥2 series, prefer the indented b
 
 ## Tips
 
-- Default theme: `dark`, default palette: `nord` — use these unless the user requests otherwise.
+- Default palette: `slate` — use it unless the user requests otherwise.
 - Always validate before rendering — `validate_diagram` is much faster than a failed render.
 - Always call `get_examples` before generating an unfamiliar chart type — real examples beat guessing.
 - Stdin mode for quick renders: `echo "..." | dgmo -o out.png`

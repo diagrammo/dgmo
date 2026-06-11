@@ -1,0 +1,5 @@
+{
+  "_doc": "Triage allowlist for DGMO fence-parse WARNINGS (the Phase-1 drift guard, tests/language-reference-examples.test.ts). Each entry permits one specific parser warning on one specific source surface. ERRORS are never allowlistable — they always fail the gate. Triage owner: the dgmo maintainer adds an entry only after confirming the warning is a known, acceptable property of a deliberately-minimal example (e.g. a no-title snippet). Empty `allow` means every gated fence must be 0 errors AND 0 warnings. Verified achievable: 45/45 dgmo-content/examples files parse 0/0, and every gated AI-surface fence parses 0/0.",
+  "_format": "allow: Array<{ sourcePath: string (substring match against the file path), code?: string (exact DgmoError.code), message?: string (substring of the warning message), reason: string }>. A warning is permitted iff some entry matches its sourcePath AND (code matches OR message-substring matches).",
+  "allow": []
+}

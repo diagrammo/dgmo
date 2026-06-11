@@ -1,11 +1,12 @@
-# DGMO Language Specification
+# DGMO Language Reference (AI-Facing)
 
-> **Authoritative reference** for the DGMO diagram language. This document describes what is valid syntax. If it is not in this document, it is not valid DGMO.
+> **This is the AI-facing derived view of the DGMO language.** The authoritative grammar is `docs/dgmo-language-spec.md` (workspace root) — it wins on any conflict, and this reference is corrected/regenerated to match it. Use this document to generate DGMO; reach for the spec only for deep/edge grammar questions.
 
-> **Note for AI generators:** Trust the show-everything default. Every renderable label part on every data chart is on by default. Emit `no-name` / `no-value` / `no-percent` only when the user explicitly requests suppression. Do not emit them defensively.
+> **Note for AI generators:** Trust the show-everything default. Every renderable label part on every data chart is on by default. Emit `no-name` / `no-value` / `no-percent` only when the user explicitly requests suppression. Do not emit them defensively. **Start at §0 (AI Core) — the anti-patterns there cover the highest-frequency mistakes.**
 
 ## Table of Contents
 
+0. [AI Core — Anti-Patterns & 45-Type Index](#0-ai-core) — **read first**
 1. [Universal Constructs](#1-universal-constructs)
 2. [Universal Name Handling](#2-universal-name-handling)
    2A. [Universal Aliases (`as` keyword)](#2a-universal-aliases-as-keyword)
@@ -36,6 +37,105 @@
 25. [Map Diagrams](#25-map-diagrams)
 26. [Colon Usage Summary](#26-colon-usage-summary)
 27. [Authoring Rules (Generators Read This First)](#27-authoring-rules-generators-read-this-first)
+
+---
+
+## 0. AI Core
+
+The universal core: the cross-cutting anti-patterns (highest value per token) and the one-line index of all 45 chart types. The blocks below are machine-extracted (HTML-comment anchors) and embedded verbatim into every AI surface — IDE rule files, the Claude skill, the CLAUDE.md snippet — by `scripts/gen-ai-core.mjs`. Edit them here; never hand-edit a generated surface.
+
+<!-- AI-CORE:ANTIPATTERNS start -->
+### Disambiguation — where DGMO diverges from LLM priors
+
+LLMs default to Mermaid / PlantUML habits; DGMO differs. These rules prevent the most common parse errors:
+
+- **No colons in declarations, directives, tags, or data rows.** `bar Revenue` (not `bar: Revenue`); `series Cloud blue, Legacy red` (not `series: ...`); `North 850` (not `North: 850`); `tag Team as t` (not `tag: Team`). A colon binds a value only in metadata (`key: value`), class/function type separators, and a few scoped spots — see §26.
+- **No Mermaid arrow-labels.** Put the label *between* the dashes: `A -Login-> B`, never `A -> B: Login`. Sequence: `->` sync, `~>` async; left-to-right only — no `<-` / `<~`.
+- **No `|` metadata delimiter** (removed 0.18.0 → `E_PIPE_OPERATOR_REMOVED`). Use same-line `Name key: value, k2: v2` or indented `key: value`. (`|` survives only in wireframe `{A | B}` dropdowns, in-arrow label text, and quoted names.)
+- **No removed participant keywords.** Do not write `X is a service` / `external` / `frontend` / `networking` / `gateway` — these were removed and error. A bare name renders the default shape; for a typed glyph use `is a person` / `is a database` / `is a queue`.
+- **No hex colors.** Named palette colors only: `red, orange, yellow, green, blue, purple, teal, cyan, gray, black, white`. Trailing token (`Done green`) or parenthesized suffix (`North(red) 850`).
+- **Show-everything is the default.** Every label / value / percent renders by default. Emit `no-name` / `no-value` / `no-percent` / `no-*` ONLY when the user explicitly asks to hide something — never defensively.
+- **`//` comments only** (never `#`). **Indentation closes blocks** — never `end`.
+- **Declare before reference.** An edge target must be declared on a prior line; put metadata and edges on/under one declaration to avoid `Duplicate node` warnings.
+
+Two traps in the *other* direction (DGMO wants a colon / a space where you might not expect):
+
+- **Infra node properties REQUIRE the colon** — `cache-hit: 80%`, `instances: 3`, `max-rps: 8000`, `latency-ms: 45`. But top-level infra **options** are space-separated (`default-rps 100`). Don't conflate them.
+- **ER columns are space-separated** — `id int pk`, `email varchar` (the one SQL-DDL carve-out; everything else indented-typed uses a colon).
+
+Idiomatic example — color via tags, metadata on the declaration line, indented edges:
+
+```dgmo
+boxes-and-lines Service Map
+tag Team as t
+  Platform blue
+  Product green
+active-tag Team
+
+API Gateway t: Platform
+  -routes-> Orders
+  -routes-> Billing
+Orders t: Product
+Billing t: Product
+```
+<!-- AI-CORE:ANTIPATTERNS end -->
+
+<!-- AI-CORE:TYPE-INDEX start -->
+### Chart-type index (45) — pick the type, then fetch its section
+
+| id | when to use |
+| -- | ----------- |
+| `sequence` | message / interaction flows over time |
+| `flowchart` | decision trees and process flows |
+| `state` | state-machine / lifecycle transitions |
+| `class` | UML class hierarchies |
+| `er` | database schemas and relationships |
+| `c4` | system architecture (context / container / component / deployment) |
+| `infra` | infrastructure traffic flow with RPS computation |
+| `boxes-and-lines` | general-purpose node-edge diagrams with groups and tags |
+| `sitemap` | site / app navigation structure |
+| `mindmap` | radial hierarchy of ideas from a central topic |
+| `org` | reporting hierarchy |
+| `kanban` | task-board columns |
+| `gantt` | project scheduling with task dependencies and milestones |
+| `pert` | project network with three-point estimates and critical path |
+| `timeline` | events, eras, and date ranges |
+| `journey-map` | UX flow with emotion scores, phases, annotations |
+| `cycle` | cyclical process (PDCA, OODA, DevOps loops) |
+| `raci` | tasks × roles responsibility matrix (`R A C I`) |
+| `rasci` | RACI variant adding Support (`R A S C I`) |
+| `daci` | decision matrix (Driver, Approver, Contributor, Informed) |
+| `tech-radar` | technology adoption quadrants (adopt / trial / assess / hold) |
+| `quadrant` | 2×2 positioning matrix |
+| `pyramid` | stacked hierarchy of layers (Maslow, DIKW) |
+| `ring` | concentric rings of nested categories |
+| `map` | geographic concept map: regions, points, routes |
+| `wireframe` | low-fidelity UI layout with panels and controls |
+| `bar` | categorical comparisons |
+| `bar-stacked` | multi-series categorical |
+| `line` | trends over time |
+| `multi-line` | multiple-series trends over time |
+| `area` | filled line chart |
+| `pie` | part-to-whole proportions |
+| `doughnut` | ring-style pie chart |
+| `radar` | multi-dimensional metrics |
+| `polar-area` | radial bar chart |
+| `scatter` | 2D points or bubble chart |
+| `heatmap` | matrix intensity |
+| `funnel` | conversion pipeline |
+| `sankey` | flow / allocation |
+| `chord` | circular flow relationships |
+| `arc` | network relationships on a line |
+| `slope` | change between two periods |
+| `venn` | set overlaps |
+| `wordcloud` | term-frequency |
+| `function` | mathematical expressions (colon required: `f(x): x^2`) |
+
+**Need more than the index gives you?** Fetch the per-type section: MCP `get_language_reference(type)` / `get_examples(type)`, or read that type's section below. The `suggest_chart_type` tool returns the chosen type's section automatically.
+<!-- AI-CORE:TYPE-INDEX end -->
+
+<!-- The grouped data-chart / matrix ids share one documented section. This map is the single source of truth for which TYPE block each id resolves to (read by gen-ai-core.mjs and the MCP slicer). -->
+<!-- TYPE-ALIASES: line=bar multi-line=bar area=bar pie=bar doughnut=bar radar=bar polar-area=bar bar-stacked=bar bubble=scatter rasci=raci daci=raci -->
 
 ---
 
@@ -383,6 +483,8 @@ rarely benefit. Aliases should aid comprehension, not obscure it.
 
 ## 3. Sequence Diagrams
 
+<!-- TYPE:sequence -->
+
 ### 2.1 Participants
 
 ```
@@ -512,6 +614,8 @@ parallel label
 ---
 
 ## 4. Infrastructure Diagrams
+
+<!-- TYPE:infra -->
 
 ### 4.1 Declaration
 
@@ -657,6 +761,8 @@ API Gateway
 
 ## 5. Flowchart Diagrams
 
+<!-- TYPE:flowchart -->
+
 ### 4.1 Declaration
 
 ```
@@ -736,6 +842,8 @@ collides with the indented-body grammar.
 
 ## 6. State Diagrams
 
+<!-- TYPE:state -->
+
 ### 5.1 Declaration
 
 ```
@@ -783,6 +891,8 @@ references, and the `no-notes` opt-out (see §4.7).
 
 ## 7. Org Charts
 
+<!-- TYPE:org -->
+
 ### 6.1 Declaration
 
 ```
@@ -829,6 +939,8 @@ This is key-value metadata assignment, consistent with same-line metadata syntax
 ---
 
 ## 8. C4 Architecture Diagrams
+
+<!-- TYPE:c4 -->
 
 ### 7.1 Declaration
 
@@ -910,6 +1022,8 @@ Database is a container description: PostgreSQL with read replicas
 
 ## 9. Entity-Relationship Diagrams
 
+<!-- TYPE:er -->
+
 ### 8.1 Declaration
 
 ```
@@ -957,6 +1071,8 @@ Cardinality symbols: `1` (one), `*` (many), `?` (optional)
 ---
 
 ## 10. Class Diagrams
+
+<!-- TYPE:class -->
 
 ### 9.1 Declaration
 
@@ -1034,6 +1150,8 @@ Optional label: `--|> Vessel : extends` (colon optional before label)
 
 ## 11. Kanban Boards
 
+<!-- TYPE:kanban -->
+
 ### 10.1 Declaration
 
 ```
@@ -1065,6 +1183,8 @@ Columns represent workflow stages and must flow left-to-right from least-done to
 ---
 
 ## 12. Sitemap Diagrams
+
+<!-- TYPE:sitemap -->
 
 ### 11.1 Declaration
 
@@ -1139,6 +1259,8 @@ Blog
 ---
 
 ## 13. Gantt Charts
+
+<!-- TYPE:gantt -->
 
 ### 12.1 Declaration
 
@@ -1250,6 +1372,8 @@ parallel
 ---
 
 ## 13A. PERT Diagrams
+
+<!-- TYPE:pert -->
 
 PERT diagrams visualize project networks with three-point duration estimates, surfacing critical path, slack, and project μ/σ. Each activity renders as a node card (rectangle, or diamond for milestones); dependencies are arrows between them. Monte Carlo simulation runs automatically whenever any activity carries duration data.
 
@@ -1411,6 +1535,8 @@ See spec §13A for full date-anchoring semantics, S-curve axes, and diagnostic c
 
 ## 14. Boxes and Lines Diagrams
 
+<!-- TYPE:boxes-and-lines -->
+
 ### 13.1 Declaration
 
 ```
@@ -1548,6 +1674,8 @@ Flagship -> Sloop
 
 ## 15. Timeline Diagrams
 
+<!-- TYPE:timeline -->
+
 ### 14.1 Declaration
 
 ```
@@ -1633,6 +1761,8 @@ marker
 ---
 
 ## 16. Data Charts
+
+<!-- TYPE:bar -->
 
 ### Conventions shared across all data charts
 
@@ -1720,6 +1850,8 @@ era Day 1 -> Day 3 Rough Seas red
 
 ### 15.2 Scatter / Bubble Charts
 
+<!-- TYPE:scatter -->
+
 **Data rows** — follows §15 Rule A (space-separated):
 
 ```
@@ -1747,6 +1879,8 @@ Point names render by default. Use `no-name` to hide them.
 
 ### 15.3 Heatmap
 
+<!-- TYPE:heatmap -->
+
 **Columns** — follows §15 Rule B (prefer the indented block for multiple columns):
 
 ```
@@ -1766,6 +1900,8 @@ RowLabel 5 4 3
 
 ### 15.4 Function Charts (Colon REQUIRED)
 
+<!-- TYPE:function -->
+
 ```
 function Trajectories
 x-label Distance
@@ -1783,6 +1919,8 @@ The colon between name and expression is **required** — both sides can contain
 - `shade` (boolean; off by default, shades area below curves when enabled)
 
 ### 15.5 Sankey Charts
+
+<!-- TYPE:sankey -->
 
 **Tree structure (indented, space-separated):**
 
@@ -1803,6 +1941,8 @@ Source -- Target 2000
 
 ### 15.6 Chord Charts
 
+<!-- TYPE:chord -->
+
 ```
 Blackbeard -- Bonnet 150        // undirected
 Roberts -> Rackham 20           // directed
@@ -1811,6 +1951,8 @@ Roberts -> Rackham 20           // directed
 Values follow §15 Rule A.
 
 ### 15.7 Funnel Charts
+
+<!-- TYPE:funnel -->
 
 **Data rows** — follows §15 Rule A (space-separated):
 
@@ -1825,6 +1967,8 @@ Purchases 200
 ## 17. Visualizations
 
 ### 16.1 Slope Charts
+
+<!-- TYPE:slope -->
 
 ```
 slope Fleet Strength
@@ -1848,6 +1992,8 @@ Roberts 12 52
 
 ### 16.2 Wordcloud
 
+<!-- TYPE:wordcloud -->
+
 ```
 wordcloud Pirate Skills
 rotate none
@@ -1863,6 +2009,8 @@ navigation 88
 
 ### 16.3 Arc Diagrams
 
+<!-- TYPE:arc -->
+
 ```
 arc Pirate Alliances
 
@@ -1877,6 +2025,8 @@ order group
 - Options: `order appearance|name|group|degree`
 
 ### 16.4 Venn Diagrams
+
+<!-- TYPE:venn -->
 
 ```
 venn Skill Overlap
@@ -1894,6 +2044,8 @@ sw + nav + lead Legendary Pirates
 - Legacy `Name(color) alias X` emits `E_VENN_ALIAS_KEYWORD_REMOVED` per TD-18
 
 ### 16.5 Quadrant Diagrams
+
+<!-- TYPE:quadrant -->
 
 ```
 quadrant Crew Assessment
@@ -1916,6 +2068,8 @@ Navigator 0.85 0.8
 ---
 
 ## 18. Mindmap Diagrams
+
+<!-- TYPE:mindmap -->
 
 A radial hierarchy of ideas branching out from a central root. Hierarchy is established by indentation, nodes accept descriptions and tag-driven coloring, and any subtree can be collapsed by default.
 
@@ -2042,6 +2196,8 @@ Universal options (`palette`, `theme`) apply as elsewhere.
 ---
 
 ## 19. Wireframe Diagrams
+
+<!-- TYPE:wireframe -->
 
 Wireframe diagrams use **visual-mnemonic syntax** where bracket characters communicate element type.
 
@@ -2175,6 +2331,8 @@ wireframe Login Page
 
 ## 20. Tech Radar Diagrams
 
+<!-- TYPE:tech-radar -->
+
 ```
 tech-radar Title
 
@@ -2240,6 +2398,8 @@ Blips receive sequential global numbers. Order: quadrants clockwise (top-left �
 ---
 
 ## 21. Cycle Diagrams
+
+<!-- TYPE:cycle -->
 
 Circular process flows where nodes sit on a ring and directed edges connect each to the next, wrapping from last back to first. Common use: OODA loops, PDCA, product lifecycles, continuous improvement.
 
@@ -2372,6 +2532,8 @@ Act red
 
 ## 22. Journey Map Diagrams
 
+<!-- TYPE:journey-map -->
+
 Persona-centric mood landscapes. Steps carry a 1–5 score and optional emotion label; the renderer draws an emotion curve over phase-grouped step cards. **Declaration is required** — the `journey-map` keyword must appear on the first line (no inference, to avoid colliding with kanban's `[Column]` + indented items shape).
 
 ### Declaration
@@ -2495,6 +2657,8 @@ Got resolution score: 5, emotion: Relieved
 
 ## 23. Pyramid Diagrams
 
+<!-- TYPE:pyramid -->
+
 Hierarchical pyramid visualization with stacked layers, descriptions, and optional per-layer color. Source order reads apex-first (top of file = top of pyramid).
 
 ### Declaration
@@ -2555,6 +2719,8 @@ When descriptions don't fit a layer's band the renderer wraps at the column edge
 ---
 
 ## 24. Ring Diagrams
+
+<!-- TYPE:ring -->
 
 Concentric-ring visualization for nested or hierarchical categories. Source order reads core-out: top of file = innermost element (rendered as a filled disc), last line = outermost ring. Min 2 layers, max 15.
 
@@ -2622,6 +2788,8 @@ When ring band thickness would force the in-band label below the readable floor 
 ---
 
 ## 24A. RACI Matrices (RACI / RASCI / DACI)
+
+<!-- TYPE:raci -->
 
 A tasks × roles responsibility matrix with author-time linting. **One chart type — `raci` — covers all three variants.** Variant is inferred from the markers used; an optional `variant-*` directive locks it explicitly.
 
@@ -2710,6 +2878,8 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 ---
 
 ## 25. Map Diagrams
+
+<!-- TYPE:map -->
 
 Geographic concept maps: highlight/shade political subdivisions, drop points of interest (POIs), and connect them with routes or edges. For "share a concept" business maps, not cartography. Renders at a fixed, auto-fit position — no pan/zoom. Basemap and viewport are **inferred from the content you reference** — most maps need no directives. v1 boundaries: world countries + US states.
 

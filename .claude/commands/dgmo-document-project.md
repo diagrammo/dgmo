@@ -94,7 +94,7 @@ mcp__dgmo__generate_report({
     ...
   ],
   theme: "dark",
-  palette: "nord",
+  palette: "slate",
   include_source: true,
   open: true
 })
