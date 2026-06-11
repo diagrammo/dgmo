@@ -40,6 +40,7 @@ import type {
   InfraTagGroup,
 } from './types';
 import { INFRA_BEHAVIOR_KEYS, EDGE_ONLY_KEYS } from './types';
+import { INFRA_TOP_LEVEL_OPTION_SET } from '../directives-registry';
 import type { Writable } from '../utils/brand';
 
 // ============================================================
@@ -107,16 +108,12 @@ const RANGE_RE = /^(\d+)-(\d+)$/;
 // Node names that act as the traffic entry point (edge node)
 const EDGE_NODE_NAMES = new Set(['edge', 'internet']);
 
-// Known top-level option keys (space-separated, no colon)
-const TOP_LEVEL_OPTIONS = new Set([
-  'slo-availability',
-  'slo-p90-latency-ms',
-  'slo-warning-margin',
-  'default-latency-ms',
-  'default-uptime',
-  'default-rps',
-  'active-tag',
-]);
+// Known top-level option keys (space-separated, no colon). Derived from the
+// single-source directives registry; the anti-drift guard
+// (tests/highlight-coverage.test.ts) cross-checks it against the editor sets.
+export const INFRA_TOP_LEVEL_OPTIONS: ReadonlySet<string> =
+  INFRA_TOP_LEVEL_OPTION_SET;
+const TOP_LEVEL_OPTIONS = INFRA_TOP_LEVEL_OPTIONS;
 
 // ============================================================
 // Helpers

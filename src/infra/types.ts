@@ -3,6 +3,10 @@
 // ============================================================
 
 import type { DgmoError } from '../diagnostics';
+import {
+  INFRA_BEHAVIOR_KEY_SET,
+  INFRA_EDGE_ONLY_KEY_SET,
+} from '../directives-registry';
 
 /** Namespaced behavior property keys recognized by the parser. */
 export type InfraBehaviorKey =
@@ -23,31 +27,14 @@ export type InfraBehaviorKey =
   | 'retention-hours'
   | 'partitions';
 
-/** All recognized property keys (behavior + structural). */
-export const INFRA_BEHAVIOR_KEYS = new Set<string>([
-  'cache-hit',
-  'firewall-block',
-  'ratelimit-rps',
-  'latency-ms',
-  'uptime',
-  'instances',
-  'max-rps',
-  'cb-error-threshold',
-  'cb-latency-threshold-ms',
-  'concurrency',
-  'duration-ms',
-  'cold-start-ms',
-  'buffer',
-  'drain-rate',
-  'retention-hours',
-  'partitions',
-  'slo-availability',
-  'slo-p90-latency-ms',
-  'slo-warning-margin',
-]);
+/**
+ * All recognized property keys (behavior + structural). Derived from the
+ * single-source directives registry — do NOT re-list literals here.
+ */
+export const INFRA_BEHAVIOR_KEYS: ReadonlySet<string> = INFRA_BEHAVIOR_KEY_SET;
 
 /** The `rps` key is only valid on the `edge` component. */
-export const EDGE_ONLY_KEYS = new Set<string>(['rps']);
+export const EDGE_ONLY_KEYS: ReadonlySet<string> = INFRA_EDGE_ONLY_KEY_SET;
 
 export interface InfraProperty {
   readonly key: string;

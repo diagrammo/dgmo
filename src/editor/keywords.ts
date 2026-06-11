@@ -1,3 +1,8 @@
+import {
+  REGISTRY_DIRECTIVE_TOKENS,
+  REGISTRY_CONTROL_TOKENS,
+} from '../directives-registry';
+
 /** All supported DGMO chart types. */
 export const CHART_TYPES = new Set([
   // Diagram types
@@ -91,24 +96,26 @@ export const TAG_KEYWORD = 'tag';
 
 /** Directive keywords — commands that configure chart behavior. */
 export const DIRECTIVE_KEYWORDS = new Set([
-  // Gantt
-  'start',
+  // Single-source: the infra / gantt / map vocab is owned by
+  // directives-registry.ts (the parsers derive their Sets from the same
+  // source). This spreads its bare-directive contribution in — do NOT re-list
+  // those tokens below. Provided here: start, sort, today-marker,
+  // critical-path, sprint-*, solid-fill, title, no-title, active-tag,
+  // default-rps/latency-ms/uptime, slo-* and all map `region-metric`/`no-*`
+  // directives. (Behavior/edge colon-keys go to ATTRIBUTE_KEYS instead.)
+  ...REGISTRY_DIRECTIVE_TOKENS,
+  // Gantt (registry covers start/sort/today-marker/critical-path/sprint-*)
   'era',
   'marker',
   'holiday',
   'workweek',
-  'today-marker',
-  'critical-path',
   'no-dependencies',
-  'sort',
   // Tech-radar
   'rings',
   // Tags
   'tags',
   'import',
-  'active-tag',
   'hide',
-  'mode',
   'direction',
   // Boxes-and-lines
   'box-metric',
@@ -125,50 +132,16 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'containers',
   'components',
   'deployment',
-  // Infra directives
+  // Infra directives (registry covers slo-*/default-*; behavior keys →
+  // ATTRIBUTE_KEYS)
   'sub-node-label',
   'show-sub-node-count',
-  // Infra node properties
-  'instances',
-  'max-rps',
-  'latency-ms',
-  'uptime',
-  'firewall-block',
-  'ratelimit-rps',
-  'cb-error-threshold',
-  'cb-latency-threshold-ms',
-  'buffer',
-  'drain-rate',
-  'retention-hours',
-  'partitions',
-  'slo-p90-latency-ms',
-  'slo-availability',
-  'slo-warning-margin',
-  'cache-hit',
-  'concurrency',
-  'duration-ms',
-  'cold-start-ms',
-  'rps',
+  'animate',
   // Sequence
   'activations',
   'no-activations',
-  // Map (§24B) directives — cosmetics on by default, bare `no-*` opt-outs
-  'region-metric',
-  'poi-metric',
-  'flow-metric',
-  'locale',
-  'active-tag',
-  'caption',
-  'no-legend',
-  'no-coastline',
-  'no-relief',
-  'no-context-labels',
-  'no-region-labels',
-  'no-region-value',
-  'no-poi-labels',
-  'no-colorize',
-  'no-cities',
-  'no-cluster-pois',
+  // Map element keywords (the `region-metric`/`no-*` directives come from the
+  // registry; `poi`/`route` are element leaders, not in DIRECTIVE_SET)
   'poi',
   'route',
   // Data charts
@@ -188,12 +161,9 @@ export const DIRECTIVE_KEYWORDS = new Set([
   // Layout
   'direction-tb',
   'direction-lr',
-  // Fill mode (cross-chart-type)
-  'solid-fill',
   // Pyramid
   'inverted',
-  // Data chart metadata
-  'title',
+  // Data chart metadata (registry covers `title`)
   'series',
   'orientation',
   'x-label',
@@ -207,8 +177,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'values',
   // Color (cross-chart-type)
   'color',
-  // Title suppression (cross-chart-type)
-  'no-title',
   // Note suppression (cross-chart-type — graph notes)
   'no-notes',
   // Flowchart layout
@@ -226,11 +194,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   // Tech-radar
   'show-blip-legend',
   'trend',
-  // Gantt
-  'no-dependencies',
-  'sprint-length',
-  'sprint-number',
-  'sprint-start',
   // Bar-stacked / data-chart layout
   'orientation-horizontal',
   // Function
@@ -243,11 +206,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'order',
   // C4
   'technology',
-  // Infra defaults + animate flags
-  'default-rps',
-  'default-latency-ms',
-  'default-uptime',
-  'animate',
   // PERT
   'time-unit',
   'default-confidence',
@@ -266,7 +224,8 @@ export const CONTROL_KEYWORDS = new Set([
   'loop',
   'parallel',
   'note',
-  // Wireframe elements
+  // Wireframe elements (`chart` is also a gantt option — registry-sourced)
+  ...REGISTRY_CONTROL_TOKENS,
   'nav',
   'tabs',
   'table',
@@ -275,7 +234,6 @@ export const CONTROL_KEYWORDS = new Set([
   'skeleton',
   'alert',
   'progress',
-  'chart',
   'mobile',
 ]);
 

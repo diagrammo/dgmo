@@ -13,6 +13,7 @@
  */
 
 import { parser } from './dgmo.grammar.js';
+import { REGISTRY_COLON_KEY_TOKENS } from '../directives-registry';
 
 // ============================================================
 // Types
@@ -27,7 +28,9 @@ export interface HighlightToken {
 // NODE_TO_ROLE — keep in sync with highlight.ts
 // ============================================================
 
-const NODE_TO_ROLE: Record<string, string> = {
+// Exported so the both-path anti-drift guard (tests/highlight-roles.test.ts)
+// can assert every emitted role has a render style (no orphan roles).
+export const NODE_TO_ROLE: Record<string, string> = {
   Comment: 'comment',
   ChartType: 'chartType',
   TagKeyword: 'definitionKeyword',
@@ -174,7 +177,13 @@ export function highlightDgmo(source: string): HighlightToken[] {
 // Post-processing: attribute key detection
 // ============================================================
 
-const ATTRIBUTE_KEYS = new Set([
+/**
+ * Colon `key: value` attribute keys that highlight as `propertyName`. This is
+ * the single source of truth for attribute-key highlighting — the standalone
+ * `applyAttributeKeys()` pass below and the desktop app's attribute-key
+ * ViewPlugin both consume it, so the two render paths can't drift.
+ */
+export const ATTRIBUTE_KEYS = new Set([
   'emotion',
   'role',
   'icon',
@@ -204,6 +213,11 @@ const ATTRIBUTE_KEYS = new Set([
   'value',
   'label',
   'style',
+  // Infra node behavior + edge colon-keys (§4) come from the single-source
+  // directives registry — the parser accepts them only as `key: value` node
+  // properties, so they render as `propertyName`. The dual-use top-level SLO
+  // options stay bare in DIRECTIVE_KEYWORDS (see keywords.ts).
+  ...REGISTRY_COLON_KEY_TOKENS,
 ]);
 
 /**

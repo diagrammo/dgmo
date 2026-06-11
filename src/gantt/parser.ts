@@ -15,6 +15,7 @@ import {
   isReservedKey,
 } from '../utils/reserved-key-registry';
 import { splitNameAndMeta, warnUnknownMetaKeys } from '../utils/parsing';
+import { GANTT_OPTION_SET, GANTT_BOOLEAN_SET } from '../directives-registry';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
@@ -1931,28 +1932,15 @@ function parseWorkweek(s: string): Weekday[] | null {
 
 // ── Known option keys ─────────────────────────────────────
 
-const KNOWN_OPTIONS = new Set([
-  'start',
-  'title',
-  'today-marker',
-  'critical-path',
-  'dependencies',
-  'chart',
-  'sort',
-  'active-tag',
-  'sprint-length',
-  'sprint-number',
-  'sprint-start',
-]);
+// Derived from the single-source directives registry; the anti-drift guard
+// (tests/highlight-coverage.test.ts) cross-checks this vocab against the
+// editor keyword sets. Re-exported under the historical names for callers.
+export const GANTT_KNOWN_OPTIONS = GANTT_OPTION_SET;
+const KNOWN_OPTIONS = GANTT_KNOWN_OPTIONS;
 
 /** Boolean options that can appear as bare keywords or with `no-` prefix. */
-const KNOWN_BOOLEANS = new Set([
-  'critical-path',
-  'today-marker',
-  'dependencies',
-  'solid-fill',
-  'no-title',
-]);
+export const GANTT_KNOWN_BOOLEANS = GANTT_BOOLEAN_SET;
+const KNOWN_BOOLEANS = GANTT_KNOWN_BOOLEANS;
 
 function isKnownOption(key: string): boolean {
   return KNOWN_OPTIONS.has(key);
