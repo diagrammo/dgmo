@@ -3,6 +3,7 @@
 // single-pass deterministic line classification of §24B.10. See the tech-spec
 // at _bmad-output/implementation-artifacts/tech-spec-map-parser.md.
 import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import { MAP_DIRECTIVE_KEY_SET } from '../directives-registry';
 import type { DgmoError } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import type { PaletteColors } from '../palettes/types';
@@ -55,25 +56,11 @@ const AT_RE = /(^|[\s,])at\s*:/i; // the removed `at:` coord form (§24B.9)
 // cosmetic opt-outs (every cosmetic on by default; its `no-*` flag is the only
 // switch). Plus `no-title` — the universal banner-suppression flag (§1), wired
 // in here so the map parser recognizes it rather than mis-parsing it as a region.
-const DIRECTIVE_SET: ReadonlySet<string> = new Set([
-  'region-metric',
-  'poi-metric',
-  'flow-metric',
-  'locale',
-  'active-tag',
-  'caption',
-  'no-title',
-  'no-legend',
-  'no-coastline',
-  'no-relief',
-  'no-context-labels',
-  'no-region-labels',
-  'no-region-value',
-  'no-poi-labels',
-  'no-colorize',
-  'no-cities',
-  'no-cluster-pois',
-]);
+// Derived from the single-source directives registry; the anti-drift guard
+// (tests/highlight-coverage.test.ts) cross-checks this vocab against the
+// editor keyword sets.
+export const MAP_DIRECTIVE_SET: ReadonlySet<string> = MAP_DIRECTIVE_KEY_SET;
+const DIRECTIVE_SET = MAP_DIRECTIVE_SET;
 
 /** True when the first non-blank/non-comment line declares `map`. */
 export function looksLikeMap(content: string): boolean {

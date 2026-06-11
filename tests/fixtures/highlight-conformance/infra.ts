@@ -16,6 +16,10 @@ active-tag X
 edge
   rps: 10000
   -> CDN
+
+API
+  latency-ms: 50
+  uptime: 0.99
 `,
   assertions: [
     { text: 'infra', role: 'chartType' },
@@ -23,10 +27,14 @@ edge
     { text: 'default-rps', role: 'keyword' },
     { text: 'default-latency-ms', role: 'keyword' },
     { text: 'default-uptime', role: 'keyword' },
+    // Top-level SLO options stay bare directives (space-separated form).
     { text: 'slo-availability', role: 'keyword' },
     { text: 'slo-p90-latency-ms', role: 'keyword' },
     { text: 'animate', role: 'keyword' },
     { text: 'active-tag', role: 'keyword' },
-    { text: 'rps', role: 'keyword' },
+    // Node behavior colon-keys are now property names, not bare directives.
+    { text: 'rps', role: 'propertyName' },
+    { text: 'latency-ms', role: 'propertyName' },
+    { text: 'uptime', role: 'propertyName' },
   ],
 };
