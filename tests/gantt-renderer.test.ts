@@ -967,4 +967,28 @@ describe('gantt controls group', () => {
     const controls = container.querySelector('[data-legend-controls]');
     expect(controls).not.toBeNull();
   });
+
+  it('suppresses the inline gear when controlsHost is "app"', () => {
+    const input =
+      'gantt\nstart 2024-01-15\ncritical-path\n10d Task A\n5d Task B';
+    const inline = renderFromInput(input);
+    expect(inline.querySelector('[data-legend-controls]')).not.toBeNull();
+
+    const appHosted = renderFromInput(input, { controlsHost: 'app' });
+    expect(appHosted.querySelector('[data-legend-controls]')).toBeNull();
+    expect(appHosted.querySelector('.controls-gear-pill')).toBeNull();
+  });
+
+  it('applies seeded critical-path highlight on first draw under app host', () => {
+    const input =
+      'gantt\nstart 2024-01-15\ncritical-path\n10d Task A\n5d Task B';
+    const container = renderFromInput(input, {
+      controlsHost: 'app',
+      criticalPathActive: true,
+    });
+    // No inline gear, but the highlight effect is applied at render time.
+    expect(container.querySelector('[data-legend-controls]')).toBeNull();
+    const svg = container.querySelector('svg');
+    expect(svg?.getAttribute('data-critical-path-active')).not.toBeNull();
+  });
 });

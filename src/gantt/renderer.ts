@@ -221,6 +221,19 @@ export interface GanttInteractiveOptions {
   onToggleLane?: (laneName: string) => void;
   viewMode?: boolean;
   exportMode?: boolean;
+  /**
+   * Where the Critical Path / Dependencies controls are hosted. Default
+   * `'inline'` draws the gear pill inside the SVG legend. `'app'` suppresses
+   * the inline gear so the desktop app can surface the same toggles in its
+   * unified ControlsStrip ("settings pull-down tab"); the toggle state is then
+   * driven by `criticalPathActive`/`dependenciesActive` below (re-render on
+   * change), matching every other ControlsStrip-hosted chart type.
+   */
+  controlsHost?: 'app' | 'inline';
+  /** Initial Critical Path highlight state (used when `controlsHost` is `'app'`). */
+  criticalPathActive?: boolean;
+  /** Initial Dependencies-arrow visibility (used when `controlsHost` is `'app'`). */
+  dependenciesActive?: boolean;
 }
 
 // ── Main Renderer ───────────────────────────────────────────
@@ -255,6 +268,7 @@ export function renderGantt(
   const onActiveGroupChange = options?.onActiveGroupChange;
   const collapsedLanes = options?.collapsedLanes;
   const onToggleLane = options?.onToggleLane;
+  const controlsHost = options?.controlsHost ?? 'inline';
 
   // ── Compute layout dimensions ───────────────────────────
 
@@ -264,8 +278,11 @@ export function renderGantt(
     resolved.options.activeTag ?? undefined,
     options?.currentActiveGroup
   );
-  let criticalPathActive = false;
-  let dependenciesActive = false;
+  // Seeded from options so app-hosted controls (controlsHost: 'app') render the
+  // correct state on the very first draw; in inline mode these stay false until
+  // the user clicks the gear (existing behavior).
+  let criticalPathActive = options?.criticalPathActive ?? false;
+  let dependenciesActive = options?.dependenciesActive ?? false;
   let controlsExpanded = false;
 
   // ── Build row list (structural vs tag mode) ─────────────
@@ -505,7 +522,8 @@ export function renderGantt(
           }
           drawLegend();
         },
-        options?.exportMode ?? false
+        options?.exportMode ?? false,
+        controlsHost
       );
     }
   }
@@ -2052,7 +2070,8 @@ function renderTagLegend(
   hasDependencies = false,
   dependenciesActive = false,
   onControlsToggle?: (toggleId: string, active: boolean) => void,
-  exportMode = false
+  exportMode = false,
+  controlsHost: 'app' | 'inline' = 'inline'
 ): void {
   // Build visible groups: active group expanded + swimlane group as compact pill
   let visibleGroups: TagGroup[];
@@ -2191,6 +2210,9 @@ function renderTagLegend(
       ...(controlsToggles.length > 0 && {
         controlsGroup: { toggles: controlsToggles },
       }),
+      // 'app' suppresses the inline gear so the desktop ControlsStrip hosts the
+      // Critical Path / Dependencies toggles instead (export keeps inline).
+      ...(controlsHost === 'app' && !exportMode && { controlsHost: 'app' }),
     };
     const legendState: LegendState = {
       activeGroup: activeGroupName,
@@ -2338,6 +2360,7 @@ function renderTagLegend(
       },
       mode: exportMode ? 'export' : 'preview',
       controlsGroup: { toggles: controlsToggles },
+      ...(controlsHost === 'app' && !exportMode && { controlsHost: 'app' }),
     };
 
     const tagGroupG = legendRow.append('g');
