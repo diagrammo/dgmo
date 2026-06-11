@@ -33,7 +33,22 @@ import {
   extractAiCore,
   listTypeAnchors,
 } from '../scripts/lib/ref-anchors.mjs';
+import {
+  loadExampleIndex,
+  resolveExample,
+} from '../scripts/lib/example-source.mjs';
 import { chartTypes } from '@diagrammo/dgmo/advanced';
+
+// The data-derived common set inlined into every core (must match
+// gen-ai-core.mjs's COMMON_N). dgmo-content may be absent in a standalone
+// dgmo checkout — guard the identity check on its presence.
+const COMMON_IDS = chartTypes.slice(0, 8).map((c) => c.id);
+let exampleIndex: Map<string, string> | null = null;
+try {
+  exampleIndex = loadExampleIndex();
+} catch {
+  exampleIndex = null;
+}
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..'); // dgmo/
@@ -223,6 +238,30 @@ describe('generated DGMO-AI-CORE blocks are complete + single-sourced (AC4/AC11/
       expect(missing.length, `missing ids: ${missing.join(', ')}`).toBe(0);
     });
   }
+
+  for (const rel of GENERATED_CORE_FILES) {
+    it(`${rel} core inlines all ${COMMON_IDS.length} common examples`, () => {
+      const core = cores.get(rel) ?? '';
+      const missing = COMMON_IDS.filter((id) => !core.includes(`#### ${id}\n`));
+      expect(
+        missing.length,
+        `missing example headers: ${missing.join(', ')}`
+      ).toBe(0);
+    });
+  }
+
+  it('each inlined common example is identical to its dgmo-content source (ADR-7/AC19)', () => {
+    if (!exampleIndex) return; // dgmo-content not present (standalone checkout)
+    const core = cores.get('.cursorrules') ?? '';
+    for (const id of COMMON_IDS) {
+      const source = resolveExample(id, exampleIndex);
+      expect(source, `no example source for ${id}`).toBeTruthy();
+      expect(
+        core.includes(source as string),
+        `${id} core example diverges from dgmo-content source`
+      ).toBe(true);
+    }
+  });
 
   it('the anti-patterns + type-index are identical across all surfaces (single source)', () => {
     // Compare the core minus the per-surface depth pointer (the only allowed diff).

@@ -28,6 +28,7 @@ import { dirname, join } from 'node:path';
 import { chartTypes } from '@diagrammo/dgmo/advanced';
 import { extractAiCore } from './lib/ref-anchors.mjs';
 import { extractDgmoFences, validateDgmoSource, formatDiagnostic } from './lib/fence-validate.mjs';
+import { loadExampleIndex, resolveExample } from './lib/example-source.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..'); // dgmo/
@@ -77,6 +78,31 @@ for (const f of extractDgmoFences(antipatterns, REF)) {
   if (bad.length) fail(`core example at ${REF}:${f.line} is not clean:\n  ${bad.map(formatDiagnostic).join('\n  ')}`);
 }
 
+// Data-derived "common" set: the first N ids in chart-types.ts source order
+// (Tier 1 — narrative/architecture, the curated front of the list), NOT a
+// hand-picked constant (AC21). Each carries its authoritative curated example
+// from dgmo-content/examples (ADR-7), inlined so a tool with no MCP can
+// generate the common case correctly from the core alone (ADR-3 / AC11).
+const COMMON_N = 8;
+const exampleIndex = loadExampleIndex();
+const common = chartTypes.slice(0, COMMON_N).map((c) => c.id);
+const commonExamples = common.map((id) => {
+  const source = resolveExample(id, exampleIndex);
+  if (!source) fail(`no curated example resolves for common type "${id}"`);
+  const { errors, warnings } = validateDgmoSource(source);
+  const bad = [...errors, ...warnings];
+  if (bad.length) fail(`curated example for "${id}" is not clean:\n  ${bad.map(formatDiagnostic).join('\n  ')}`);
+  return { id, source };
+});
+
+const examplesBlock = [
+  '### Common examples (curated, parse-clean)',
+  '',
+  '_The most common types, inline so you can generate them without a fetch. For the other 37, get the per-type section (see below)._',
+  '',
+  ...commonExamples.map((e) => `#### ${e.id}\n\n\`\`\`dgmo\n${e.source}\n\`\`\``),
+].join('\n');
+
 function buildCore(pointer) {
   return [
     BANNER,
@@ -88,6 +114,8 @@ function buildCore(pointer) {
     antipatterns,
     '',
     typeIndex,
+    '',
+    examplesBlock,
     '',
     POINTERS[pointer],
     END,
@@ -129,4 +157,16 @@ if (cursorWindsurf.length === 2 && cursorWindsurf[0] !== cursorWindsurf[1]) {
   fail('.cursorrules and .windsurfrules diverged — they must be byte-identical.');
 }
 
-console.log(`gen-ai-core: done (${wrote} file(s) changed, core = ${chartTypes.length} types).`);
+// AC21: measure the Copilot target against its instruction-size budget. There
+// is no hard documented cap, but flag if it grows unreasonable so a future
+// larger common set doesn't silently bloat it.
+const copilotBytes = readFileSync(join(repo, '.github/copilot-instructions.md'), 'utf8').length;
+const COPILOT_SOFT_BUDGET = 24_000;
+console.log(
+  `gen-ai-core: copilot-instructions.md = ${copilotBytes} bytes (soft budget ${COPILOT_SOFT_BUDGET})` +
+    (copilotBytes > COPILOT_SOFT_BUDGET ? ' — OVER: consider a smaller common set for Copilot' : ''),
+);
+
+console.log(
+  `gen-ai-core: done (${wrote} file(s) changed, core = ${chartTypes.length} types, common-${common.length} = ${common.join(', ')}).`,
+);

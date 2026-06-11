@@ -135,6 +135,315 @@ Billing t: Product
 
 **Need more than the index gives you?** Fetch the per-type section: MCP `get_language_reference(type)` / `get_examples(type)`, or read that type's section below. The `suggest_chart_type` tool returns the chosen type's section automatically.
 
+### Common examples (curated, parse-clean)
+
+_The most common types, inline so you can generate them without a fetch. For the other 37, get the per-type section (see below)._
+
+#### journey-map
+
+```dgmo
+journey-map A Cabin Boy's First Voyage
+solid-fill
+
+persona Squidlips Sam color: blue
+  Greenhorn cabin boy, first time at sea
+  Sworn to the crew but quietly terrified
+
+[Signing On]
+  Sign the articles score: 4, emotion: Hopeful
+    description: Captain reads the code aloud — pay shares, no women aboard, lights out at 8
+
+[The Tempest]
+  Caught in a squall off the reef score: 1, emotion: Terrified
+    pain: Two crewmates lost overboard before dawn
+    thought: Maybe the merchant fleet wasn't so bad after all
+  Dawn, and she still floats score: 3, emotion: Relieved
+
+[The Prize]
+  Strike the colors score: 5, emotion: Triumphant
+    description: Heavy with silver from the Veracruz mines
+
+[Homecoming]
+  Bury a share on the island score: 5, emotion: Proud
+    thought: Three doubloons hidden where only he can find them
+  Back to the Rusty Anchor score: 4, emotion: Content
+    opportunity: Next time he signs on as a full hand, not a boy
+```
+#### c4
+
+```dgmo
+c4 Pirate Treasure Map System
+solid-fill
+
+tag Scope as sc
+  Crew blue
+  External gray
+
+Captain is a person description Commands the fleet and plans raids
+
+TreasureMap is a system description Tracks buried treasure locations and raid intelligence
+  -Views treasure locations-> Captain
+  -Sends raid alerts [carrier pigeon]-> Lookout
+
+  containers
+    ChartRoom is a container description Interactive sea chart with treasure markers, tech Parchment
+      -Queries treasure data [secret code]-> Vault
+
+    Vault is a container description Encrypted treasure ledger and coordinates, tech Iron Chest
+      -Reads/writes [quill and ink]-> TreasureLog
+
+    TreasureLog is a container description Stores locations, guard counts, and loot inventories, tech Leather-Bound Tome
+
+Lookout is an external description Crow's nest spotter on allied ships, sc: External
+  ~Relays sightings to~> Captain
+
+deployment
+  Flagship
+    container ChartRoom
+    container Vault
+  SecretCave
+    container TreasureLog
+```
+#### er
+
+```dgmo
+er Pirate Fleet
+
+ships
+  id int pk
+  name varchar
+  ship_type varchar
+  cannons int
+  1-aboard-* crew_members
+  1-1 captains
+  1-carries-* treasure
+
+captains
+  id int pk
+  name varchar
+  ship_id int fk
+  bounty int
+  ?-frequents-1 ports
+  *-has-1 crew_members 
+
+crew_members
+  id int pk
+  name varchar
+  ship_id int fk
+  role varchar nullable
+
+treasure
+  id int pk
+  name varchar
+  value int
+  ship_id int fk, nullable
+
+ports
+  id int pk
+  name varchar
+  region varchar unique
+  1-docks-* ships
+```
+#### class
+
+```dgmo
+class Ship Class Hierarchy
+
+interface Vessel
+  + sail(): void
+  + anchor(): void
+
+abstract Ship implements Vessel
+  # name: string
+  # crew: number
+  + getName(): string
+
+Galleon extends Ship
+  - cannons: number
+  + fire(): void
+
+Sloop extends Ship
+  - speed: number
+  + flee(): void
+
+enum ShipType
+  Galleon
+  Sloop
+  Frigate
+
+Ship
+  -> ShipType has type
+```
+#### sequence
+
+```dgmo
+sequence Treasure Hunt App
+
+tag Concern as c
+  Search blue
+  Claims green
+  Notifications orange
+
+User is an actor
+
+[Treasure Service]
+  TreasureAPI
+  MapDB is a database
+  NotifyQueue is a queue
+
+User -Search nearby loot-> WebApp
+WebApp -GET /treasures?nearby-> TreasureAPI c: Search
+TreasureAPI -Find within 5nm-> MapDB c: Search
+note
+  - check location
+  - use compass
+MapDB -3 results-> TreasureAPI
+TreasureAPI -locations-> WebApp
+WebApp -Show treasure map-> User
+
+== Claim ==
+
+User -Claim chest #42-> WebApp
+WebApp -POST /claim-> TreasureAPI c: Claims
+if chest available
+  TreasureAPI -Set status = claimed-> MapDB c: Claims
+  MapDB -OK-> TreasureAPI
+  TreasureAPI ~treasure.claimed~> NotifyQueue c: Notifications
+  TreasureAPI -Claim accepted-> WebApp
+  WebApp -500 doubloons earned!-> User
+else
+  TreasureAPI -409 Already claimed-> WebApp
+  WebApp -Too slow, matey!-> User
+```
+#### state
+
+```dgmo
+state Ship Battle Lifecycle
+solid-fill
+
+[*] -> Sailing
+
+Sailing
+  -enemy spotted-> BattleStations
+
+BattleStations
+  -in range-> Engaging
+  -enemy retreats-> Sailing
+
+[Combat]
+  Engaging
+    -alongside-> Boarding
+    -hull breach-> Sinking
+    -outgunned-> Retreating
+
+  Boarding
+    -crew wins-> Victorious
+    -crew loses-> Captured
+
+[Aftermath]
+  Victorious
+    -loot taken-> Sailing
+
+  Retreating
+    -escaped-> Sailing
+    -caught-> Captured
+
+Captured -> [*]
+Sinking -> [*]
+```
+#### infra
+
+```dgmo
+infra Pirate Communication Network
+
+tag Fleet as f
+  Blackbeard red
+  Bonny purple
+  Rackham blue
+
+Edge
+  rps: 200
+  -> SignalFlags
+
+SignalFlags f: Blackbeard
+  description: Flag semaphore relay — ship-to-ship messaging
+  latency-ms: 30000
+  -> Flagship
+  -> ScoutShip
+
+Flagship f: Blackbeard
+  description: Command vessel — decrypts and routes all intelligence
+  instances: 1
+  max-rps: 50
+  latency-ms: 5000
+  -> CarrierPigeons
+  -> RumRunner
+
+ScoutShip f: Bonny
+  description: Fast sloop for reconnaissance
+  instances: 2
+  max-rps: 30
+  latency-ms: 8000
+  -> Flagship
+
+CarrierPigeons f: Rackham
+  description: Long-range bird relay — messages to allied ports
+  buffer: 100
+  drain-rate: 12
+  retention-hours: 72
+  -> TavernNetwork
+
+[Allied Ports]
+  instances: 3
+
+  TavernNetwork f: Rackham
+    description: Dockside tavern informants across the Caribbean
+    max-rps: 20
+    latency-ms: 86400000
+
+RumRunner f: Bonny
+  description: Smuggler supply line — moves coded messages in rum barrels
+  concurrency: 4
+  duration-ms: 172800000
+  -> TavernNetwork
+```
+#### gantt
+
+```dgmo
+gantt Blackbeard's Blockade — 1718
+
+start 1718-05-01
+today-marker 1718-05-15
+
+tag Role as r
+  Command red
+  Crew blue
+  Captives orange
+
+marker 1718-05-14 Ransom Deadline red
+era 1718-05-08 -> 1718-05-17 Blockade Active blue
+
+[Preparation] r: Command
+  Provision Ship 3d r: Crew, progress: 100
+    -> Anchor Fleet 2d r: Crew, progress: 100
+  Scout Harbor 3d r: Crew, progress: 100
+    -> Position Cannons 3d r: Crew, progress: 100
+  Recruit Hands 5d r: Crew, progress: 100
+
++7d [Blockade] r: Crew
+  Seize Merchants 4d progress: 100
+    -> Hold Hostages 5d r: Captives, progress: 60
+  Patrol Perimeter 9d progress: 75
+  Demand Medicine 4d r: Command, progress: 100
+    -> Threaten Executions 3d? r: Command, progress: 90
+
++17d [Resolution] r: Command
+  Receive Ransom 2d r: Captives
+    -> Release Prisoners 1d r: Captives
+      -> Set Sail 0d
+  Burn Evidence 2d r: Crew
+```
+
 **Fetch more:** call `get_language_reference(type)` for a type's full syntax and `get_examples(type)` for starter templates. `suggest_chart_type` returns the chosen type's reference automatically.
 <!-- DGMO-AI-CORE:END -->
 
