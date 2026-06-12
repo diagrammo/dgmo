@@ -776,6 +776,15 @@ export type {
   ReferenceGrammar,
 } from './completion';
 
+// Parser-integrated symbol extractors (parser API, NOT "completion"). These 5
+// call the real parsers, so they stay in dgmo; the app calls them as a parser
+// (ADR-001 / Task 5 of the context-aware-completion spec). extractPertSymbols
+// is already exported above with the PERT surface.
+export { extractSymbols as extractErSymbols } from './er/parser';
+export { extractSymbols as extractFlowchartSymbols } from './graph/flowchart-parser';
+export { extractSymbols as extractInfraSymbols } from './infra/parser';
+export { extractSymbols as extractClassSymbols } from './class/parser';
+
 export { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';
 
 // ============================================================
