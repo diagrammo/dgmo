@@ -6064,6 +6064,14 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   raci: exportRaci,
   rasci: exportRaci,
   daci: exportRaci,
+  // D3 visualizations — own handler per type (Story 109.2). Only `sequence`
+  // still falls through to exportVisualization (no chart-type of its own).
+  slope: exportSlope,
+  arc: exportArc,
+  timeline: exportTimeline,
+  wordcloud: exportWordcloud,
+  venn: exportVenn,
+  quadrant: exportQuadrant,
 };
 
 export async function renderForExport(
@@ -6084,9 +6092,10 @@ export async function renderForExport(
     options,
     exportMode,
   };
-  // Generic dispatch: structured diagrams + own-parser visualizations resolve
-  // through the handler table; the D3 visualization family (slope/arc/timeline/
-  // venn/quadrant/wordcloud) and sequence fall through to the unified renderer.
+  // Generic dispatch: every structured diagram AND every D3 visualization now
+  // resolves through the handler table. Only `sequence` — which has no chart
+  // type of its own and is auto-detected from arrow syntax — falls through to
+  // exportVisualization.
   const handler =
     detectedType !== null ? DIAGRAM_EXPORT_HANDLERS[detectedType] : undefined;
   return (handler ?? exportVisualization)(ctx);
@@ -6916,119 +6925,184 @@ async function exportRaci(ctx: ExportContext): Promise<string> {
   return finalizeSvgExport(container, theme, effectivePalette);
 }
 
-async function exportVisualization(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette, viewState, options, exportMode } = ctx;
-  const parsed = parseVisualization(content, palette);
-  // Allow sequence diagrams through even if parseVisualization errors —
-  // sequence is parsed by its own dedicated parser (parseSequenceDgmo)
-  // and may not have a "chart:" line (auto-detected from arrow syntax).
-  if (parsed.error && parsed.type !== 'sequence') {
-    // Check if content looks like a sequence diagram (has arrows but no chart: line)
-    const looksLikeSequence = /->|~>|<-/.test(content);
-    if (!looksLikeSequence) return '';
-    parsed.type = 'sequence';
-  }
-  if (parsed.type === 'wordcloud' && parsed.words.length === 0) return '';
-  if (parsed.type === 'slope' && parsed.data.length === 0) return '';
-  if (parsed.type === 'arc' && parsed.links.length === 0) return '';
-  if (parsed.type === 'timeline' && parsed.timelineEvents.length === 0)
-    return '';
-  if (parsed.type === 'venn' && parsed.vennSets.length < 2) return '';
-  if (parsed.type === 'quadrant' && parsed.quadrantPoints.length === 0)
-    return '';
-
-  const effectivePalette = await resolveExportPalette(theme, palette);
-  const isDark = theme === 'dark';
+/**
+ * Shared export prelude for the D3 visualizations: offscreen container + the
+ * canonical export dimensions. Each per-viz handler renders into the container
+ * then finalizes it.
+ */
+function beginVizExport(): {
+  container: HTMLDivElement;
+  dims: D3ExportDimensions;
+} {
   const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
   const dims: D3ExportDimensions = {
     width: EXPORT_WIDTH,
     height: EXPORT_HEIGHT,
   };
+  return { container, dims };
+}
 
-  if (parsed.type === 'sequence') {
-    const { parseSequenceDgmo } = await import('./sequence/parser');
-    const { renderSequenceDiagram } = await import('./sequence/renderer');
-    const seqParsed = parseSequenceDgmo(content, effectivePalette);
-    if (seqParsed.error || seqParsed.participants.length === 0) return '';
-    // Apply interactive view state from share links (read from unified viewState).
-    // Sequences key both sections and groups by source line number; `cg` is the
-    // shared string[] field, so coerce its entries back to numbers.
-    const collapsedSections = viewState?.cs ? new Set(viewState.cs) : undefined;
-    const collapsedGroups = viewState?.cg
-      ? new Set(viewState.cg.map(Number).filter((n) => Number.isFinite(n)))
-      : undefined;
-    const seqActiveTagGroup = viewState?.tag ?? options?.tagGroup;
-    renderSequenceDiagram(
-      container,
-      seqParsed,
-      effectivePalette,
-      isDark,
-      undefined,
-      {
-        exportWidth: EXPORT_WIDTH,
-        ...(seqActiveTagGroup !== undefined && {
-          activeTagGroup: seqActiveTagGroup,
-        }),
-        ...(collapsedSections !== undefined && { collapsedSections }),
-        ...(collapsedGroups !== undefined && { collapsedGroups }),
-      }
-    );
-  } else if (parsed.type === 'wordcloud') {
-    await renderWordCloudAsync(
-      container,
-      parsed,
-      effectivePalette,
-      isDark,
-      dims
-    );
-  } else if (parsed.type === 'arc') {
-    renderArcDiagram(
-      container,
-      parsed,
-      effectivePalette,
-      isDark,
-      undefined,
-      dims
-    );
-  } else if (parsed.type === 'timeline') {
-    renderTimeline(
-      container,
-      parsed,
-      effectivePalette,
-      isDark,
-      undefined,
-      dims,
-      resolveActiveTagGroup(
-        parsed.timelineTagGroups,
-        parsed.timelineActiveTag,
-        viewState?.tag ?? options?.tagGroup
-      ),
-      viewState?.swim,
-      undefined,
-      undefined,
-      exportMode
-    );
-  } else if (parsed.type === 'venn') {
-    renderVenn(container, parsed, effectivePalette, isDark, undefined, dims);
-  } else if (parsed.type === 'quadrant') {
-    renderQuadrant(
-      container,
-      parsed,
-      effectivePalette,
-      isDark,
-      undefined,
-      dims
-    );
-  } else {
-    renderSlopeChart(
-      container,
-      parsed,
-      effectivePalette,
-      isDark,
-      undefined,
-      dims
-    );
+async function exportSlope(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const parsed = parseVisualization(content, palette);
+  if (parsed.error || parsed.data.length === 0) return '';
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const { container, dims } = beginVizExport();
+  renderSlopeChart(
+    container,
+    parsed,
+    effectivePalette,
+    theme === 'dark',
+    undefined,
+    dims
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportArc(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const parsed = parseVisualization(content, palette);
+  if (parsed.error || parsed.links.length === 0) return '';
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const { container, dims } = beginVizExport();
+  renderArcDiagram(
+    container,
+    parsed,
+    effectivePalette,
+    theme === 'dark',
+    undefined,
+    dims
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportTimeline(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const parsed = parseVisualization(content, palette);
+  if (parsed.error || parsed.timelineEvents.length === 0) return '';
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const { container, dims } = beginVizExport();
+  renderTimeline(
+    container,
+    parsed,
+    effectivePalette,
+    theme === 'dark',
+    undefined,
+    dims,
+    resolveActiveTagGroup(
+      parsed.timelineTagGroups,
+      parsed.timelineActiveTag,
+      viewState?.tag ?? options?.tagGroup
+    ),
+    viewState?.swim,
+    undefined,
+    undefined,
+    exportMode
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportWordcloud(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const parsed = parseVisualization(content, palette);
+  if (parsed.error || parsed.words.length === 0) return '';
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const { container, dims } = beginVizExport();
+  await renderWordCloudAsync(
+    container,
+    parsed,
+    effectivePalette,
+    theme === 'dark',
+    dims
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportVenn(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const parsed = parseVisualization(content, palette);
+  if (parsed.error || parsed.vennSets.length < 2) return '';
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const { container, dims } = beginVizExport();
+  renderVenn(
+    container,
+    parsed,
+    effectivePalette,
+    theme === 'dark',
+    undefined,
+    dims
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportQuadrant(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const parsed = parseVisualization(content, palette);
+  if (parsed.error || parsed.quadrantPoints.length === 0) return '';
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const { container, dims } = beginVizExport();
+  renderQuadrant(
+    container,
+    parsed,
+    effectivePalette,
+    theme === 'dark',
+    undefined,
+    dims
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+/**
+ * Fallthrough export for `sequence` — the only type without a chart-type of its
+ * own (auto-detected from arrow syntax, parsed by parseSequenceDgmo). All other
+ * D3 visualizations now have their own handler in DIAGRAM_EXPORT_HANDLERS.
+ */
+async function exportVisualization(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, options } = ctx;
+  const parsed = parseVisualization(content, palette);
+  // Allow sequence diagrams through even if parseVisualization errors —
+  // sequence is parsed by its own dedicated parser (parseSequenceDgmo)
+  // and may not have a "chart:" line (auto-detected from arrow syntax).
+  if (parsed.type !== 'sequence') {
+    if (parsed.error) {
+      const looksLikeSequence = /->|~>|<-/.test(content);
+      if (!looksLikeSequence) return '';
+    } else {
+      return '';
+    }
   }
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const isDark = theme === 'dark';
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+
+  const { parseSequenceDgmo } = await import('./sequence/parser');
+  const { renderSequenceDiagram } = await import('./sequence/renderer');
+  const seqParsed = parseSequenceDgmo(content, effectivePalette);
+  if (seqParsed.error || seqParsed.participants.length === 0) return '';
+  // Apply interactive view state from share links (read from unified viewState).
+  // Sequences key both sections and groups by source line number; `cg` is the
+  // shared string[] field, so coerce its entries back to numbers.
+  const collapsedSections = viewState?.cs ? new Set(viewState.cs) : undefined;
+  const collapsedGroups = viewState?.cg
+    ? new Set(viewState.cg.map(Number).filter((n) => Number.isFinite(n)))
+    : undefined;
+  const seqActiveTagGroup = viewState?.tag ?? options?.tagGroup;
+  renderSequenceDiagram(
+    container,
+    seqParsed,
+    effectivePalette,
+    isDark,
+    undefined,
+    {
+      exportWidth: EXPORT_WIDTH,
+      ...(seqActiveTagGroup !== undefined && {
+        activeTagGroup: seqActiveTagGroup,
+      }),
+      ...(collapsedSections !== undefined && { collapsedSections }),
+      ...(collapsedGroups !== undefined && { collapsedGroups }),
+    }
+  );
 
   return finalizeSvgExport(container, theme, effectivePalette);
 }

@@ -17,19 +17,13 @@ import {
   CHART_TYPE_REGISTRY,
   REGISTRY_BY_ID,
 } from '../src/chart-type-registry';
-import { DIAGRAM_EXPORT_HANDLERS, parseVisualization } from '../src/d3';
+import { DIAGRAM_EXPORT_HANDLERS } from '../src/d3';
 
-// Diagram/visualization types NOT in the handler table on purpose: they fall
-// through to the unified D3 visualization renderer (exportVisualization).
-const FALLTHROUGH_IDS = new Set([
-  'sequence',
-  'slope',
-  'wordcloud',
-  'arc',
-  'timeline',
-  'venn',
-  'quadrant',
-]);
+// The only diagram/visualization id NOT in the handler table on purpose:
+// `sequence` has no chart-type of its own (auto-detected from arrow syntax) and
+// routes through the exportVisualization fallthrough. Story 109.2 gave every D3
+// visualization (slope/arc/timeline/wordcloud/venn/quadrant) its own handler.
+const FALLTHROUGH_IDS = new Set(['sequence']);
 
 // Frozen expectations — the category membership the previous hand-maintained
 // Sets in dgmo-router.ts encoded. If a future change moves a type between
@@ -195,17 +189,19 @@ describe('export-render dispatch covers the registry', () => {
     expect(missing).toEqual([]);
   });
 
-  it('FALLTHROUGH_IDS is exactly the types exportVisualization can render', () => {
-    // exportVisualization dispatches on parseVisualization()'s `parsed.type`, so
-    // it can only render the parseVisualization-bound types — plus `sequence`,
-    // which has its own parser but is routed through the fallthrough. Deriving
-    // the expected set from the parser BINDING (not a hand-copy) means a future
-    // own-parser visualization wrongly added to FALLTHROUGH_IDS — which would
-    // silently render '' — fails here instead of passing the coverage check.
-    const d3VizIds = CHART_TYPE_REGISTRY.filter(
-      (d) => d.parse === parseVisualization
-    ).map((d) => d.id);
-    expect(FALLTHROUGH_IDS).toEqual(new Set(['sequence', ...d3VizIds]));
+  it('FALLTHROUGH_IDS is exactly the diagram/viz ids with no dedicated handler', () => {
+    // Derive the fallthrough set from the registry MINUS the handler table
+    // (not a hand-copy): every diagram/visualization id must either have its own
+    // handler or be a deliberate fallthrough. A new type that is registered but
+    // wired to neither would surface here as an extra uncovered id.
+    const uncovered = CHART_TYPE_REGISTRY.filter(
+      (d) => d.category === 'diagram' || d.category === 'visualization'
+    )
+      .filter((d) => !DIAGRAM_EXPORT_HANDLERS[d.id])
+      .map((d) => d.id);
+    expect(new Set(uncovered)).toEqual(FALLTHROUGH_IDS);
+    // And the only legitimate fallthrough is sequence.
+    expect(FALLTHROUGH_IDS).toEqual(new Set(['sequence']));
   });
 
   it('the handler table has no stray keys', () => {
