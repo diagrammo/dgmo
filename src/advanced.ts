@@ -45,20 +45,10 @@ export { render } from './render';
 export { chartTypes } from './chart-types';
 export type { ChartTypeMeta } from './chart-types';
 
-export {
-  normalize as normalizeChartTypePrompt,
-  matchesContiguously,
-  scoreChartType,
-  confidence as chartTypeConfidence,
-  suggestChartTypes,
-  MIN_PRIMARY_SCORE,
-  AMBIGUITY_THRESHOLD,
-} from './chart-type-scoring';
-export type {
-  ChartTypeScore,
-  Confidence as ChartTypeConfidence,
-  SuggestionResult as ChartTypeSuggestionResult,
-} from './chart-type-scoring';
+// Chart-type SELECTION (suggestChartTypes + the trigger/scoring engine) moved
+// to the dgmo-mcp server — it is AI-authoring functionality that the render
+// library's consumers (Obsidian, Astro, the apps) never use. Only the registry
+// (above) stays here.
 
 // ============================================================
 // Router

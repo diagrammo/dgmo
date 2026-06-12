@@ -4,7 +4,6 @@ import { parseRing } from '../src/ring/parser';
 import { renderRing } from '../src/ring/renderer';
 import { getPalette } from '../src/palettes';
 import { getRenderCategory, parseDgmo } from '../src/dgmo-router';
-import { suggestChartTypes } from '../src/chart-type-scoring';
 import { COMPLETION_REGISTRY, PIPE_METADATA } from '../src/completion';
 import { CHART_TYPES as EDITOR_CHART_TYPES } from '../src/editor/keywords';
 
@@ -361,18 +360,8 @@ B`);
     expect(result.chartType).toBe('ring');
   });
 
-  it('chart-type suggestion engine ranks ring on its triggers (AC 13)', () => {
-    for (const prompt of [
-      'ring diagram',
-      'concentric rings',
-      'circles of influence',
-    ]) {
-      const top3 = suggestChartTypes(prompt)
-        .ranked.slice(0, 3)
-        .map((s) => s.type.id);
-      expect(top3, `top-3 for ${JSON.stringify(prompt)}`).toContain('ring');
-    }
-  });
+  // (chart-type suggestion for ring moved to dgmo-mcp/tests/suggest.test.ts —
+  // selection is no longer part of the render library.)
 
   it('completion registry exposes ring directives (AC 14)', () => {
     const spec = COMPLETION_REGISTRY.get('ring');
