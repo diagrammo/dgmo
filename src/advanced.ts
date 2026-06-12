@@ -750,31 +750,15 @@ export type {
 // ============================================================
 // Completion (symbol extraction API)
 // ============================================================
+//
+// The completion registries + symbol extractors moved to the app (the only
+// consumer) — see ADR-001 of the context-aware-completion spec. dgmo no longer
+// publishes COMPLETION_REGISTRY / extractDiagramSymbols / STRUCTURAL_KEYWORDS /
+// REFERENCE_GRAMMAR / PIPE_METADATA / etc. The `DiagramSymbols` shape stays
+// exported — it is the return type of the parser-integrated extractors below,
+// which the app calls as a parser.
 
-export {
-  registerExtractor,
-  extractDiagramSymbols,
-  COMPLETION_REGISTRY,
-  CHART_TYPES,
-  METADATA_KEY_SET,
-  ENTITY_TYPES,
-  PIPE_METADATA,
-  STRUCTURAL_KEYWORDS,
-  TAG_SUPPORTING_TYPES,
-  REFERENCE_GRAMMAR,
-  RACI_MARKER_ALPHABETS,
-  WIREFRAME_FLAGS,
-  WIREFRAME_GROUP_ONLY_FLAGS,
-  extractTagDeclarations,
-} from './completion';
-export type {
-  DiagramSymbols,
-  ExtractFn,
-  DirectiveSpec,
-  DirectiveValueSpec,
-  PipeKeySpec,
-  ReferenceGrammar,
-} from './completion';
+export type { DiagramSymbols } from './completion-types';
 
 // Parser-integrated symbol extractors (parser API, NOT "completion"). These 5
 // call the real parsers, so they stay in dgmo; the app calls them as a parser

@@ -18,15 +18,19 @@
  */
 import { describe, expect, it } from 'vitest';
 
+// Completion now lives in the app; dgmo no longer re-exports it from /internal
+// (ADR-001). dgmo keeps src/completion.ts internally as the home of the 5
+// parser-integrated extractors' registrations, so this drift-guard imports the
+// completion symbols directly from the module.
 import {
   COMPLETION_REGISTRY,
   PIPE_METADATA,
   STRUCTURAL_KEYWORDS,
   TAG_SUPPORTING_TYPES,
-  ALL_CHART_TYPES,
   REFERENCE_GRAMMAR,
   extractDiagramSymbols,
-} from '../src/internal';
+} from '../src/completion';
+import { ALL_CHART_TYPES } from '../src/internal';
 import { getAvailablePalettes } from '../src/palettes';
 
 import type { ConformanceFixture } from './fixtures/completion-conformance/_types';
