@@ -1,6 +1,23 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    // Tests (and the script helpers they import, e.g. scripts/lib/fence-validate.mjs)
+    // reference the package by its own name `@diagrammo/dgmo/advanced`, which resolves
+    // to the built `dist/` via package exports. CI runs Test BEFORE Build, so dist does
+    // not exist yet — alias the self-reference to source so vitest resolves it without a
+    // build. The .mjs helpers keep the by-name import for standalone node runs (where
+    // dist is present), so they cannot simply use a relative path.
+    alias: [
+      {
+        find: /^@diagrammo\/dgmo\/advanced$/,
+        replacement: fileURLToPath(
+          new URL('./src/advanced.ts', import.meta.url)
+        ),
+      },
+    ],
+  },
   test: {
     environment: 'jsdom',
     include: ['tests/**/*.test.ts'],
