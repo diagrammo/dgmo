@@ -130,6 +130,35 @@ export function createTooltip(
   return tip;
 }
 
+/**
+ * Positions and shows the shared hover tooltip near the pointer, clamped to its
+ * container. Shared by the slope and timeline renderers.
+ */
+export function showTooltip(
+  tooltip: HTMLDivElement,
+  html: string,
+  event: MouseEvent
+): void {
+  tooltip.innerHTML = html;
+  tooltip.style.display = 'block';
+  const container = tooltip.parentElement!;
+  const rect = container.getBoundingClientRect();
+  let left = event.clientX - rect.left + 12;
+  let top = event.clientY - rect.top - 28;
+  // Clamp so tooltip stays inside the container
+  const tipW = tooltip.offsetWidth;
+  const tipH = tooltip.offsetHeight;
+  if (left + tipW > rect.width) left = rect.width - tipW - 4;
+  if (top < 0) top = event.clientY - rect.top + 16;
+  if (top + tipH > rect.height) top = rect.height - tipH - 4;
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
+}
+
+export function hideTooltip(tooltip: HTMLDivElement): void {
+  tooltip.style.display = 'none';
+}
+
 // ============================================================
 // Export-render container lifecycle
 // ============================================================
