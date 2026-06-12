@@ -35,7 +35,15 @@ import { parseState } from './graph/state-parser';
 import { parseClassDiagram } from './class/parser';
 import { parseERDiagram } from './er/parser';
 import { parseChart } from './chart';
-import { parseExtendedChart } from './echarts';
+import {
+  parseSankey,
+  parseChord,
+  parseFunctionChart,
+  parseScatter,
+  parseHeatmap,
+  parseFunnel,
+  EXTENDED_CHART_DOORS,
+} from './echarts';
 import { parseSlope } from './slope/parser';
 import { parseArc } from './arc/parser';
 import { parseTimeline } from './timeline/viz-parser';
@@ -136,8 +144,7 @@ function measureTechRadar(content: string): ContentCounts {
 }
 
 function measureHeatmap(content: string): ContentCounts {
-  const parsed = parseExtendedChart(content);
-  if (parsed.type !== 'heatmap') return { columns: 0, rows: 0 };
+  const parsed = parseHeatmap(content);
   return {
     columns: parsed.columns?.length ?? 0,
     rows: parsed.heatmapRows?.length ?? parsed.rows?.length ?? 0,
@@ -283,18 +290,18 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
   { id: 'polar-area', category: 'data-chart', parse: parseChart },
   { id: 'bar-stacked', category: 'data-chart', parse: parseChart },
 
-  // ── Extended ECharts charts (parseExtendedChart) ──────────
-  { id: 'scatter', category: 'data-chart', parse: parseExtendedChart },
-  { id: 'sankey', category: 'data-chart', parse: parseExtendedChart },
-  { id: 'chord', category: 'data-chart', parse: parseExtendedChart },
-  { id: 'function', category: 'data-chart', parse: parseExtendedChart },
+  // ── Extended ECharts charts — own per-type parser door (Story 109.2a) ──
+  { id: 'scatter', category: 'data-chart', parse: parseScatter },
+  { id: 'sankey', category: 'data-chart', parse: parseSankey },
+  { id: 'chord', category: 'data-chart', parse: parseChord },
+  { id: 'function', category: 'data-chart', parse: parseFunctionChart },
   {
     id: 'heatmap',
     category: 'data-chart',
-    parse: parseExtendedChart,
+    parse: parseHeatmap,
     measure: measureHeatmap,
   },
-  { id: 'funnel', category: 'data-chart', parse: parseExtendedChart },
+  { id: 'funnel', category: 'data-chart', parse: parseFunnel },
 
   // ── D3 visualizations — own per-viz parser door (Story 109.2) ──
   { id: 'slope', category: 'visualization', parse: parseSlope },
@@ -329,7 +336,11 @@ export const REGISTRY_BY_ID: ReadonlyMap<string, ChartTypeDescriptor> = new Map(
   CHART_TYPE_REGISTRY.map((d) => [d.id, d])
 );
 
-/** True when a type is rendered by the extended-ECharts parser. */
+/**
+ * True when a type is rendered by the extended-ECharts engine. Story 109.2a gave
+ * each extended type its own parser door, so this checks membership in the door
+ * set rather than identity against the single former `parseExtendedChart`.
+ */
 export function isExtendedChartParser(parse: ParseFn): boolean {
-  return parse === parseExtendedChart;
+  return EXTENDED_CHART_DOORS.has(parse);
 }

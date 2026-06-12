@@ -334,6 +334,65 @@ export function parseExtendedChart(
   return parseExtendedChartFull(content, palette) as ParsedExtendedChart;
 }
 
+// ============================================================
+// Per-type parser doors — Story 109.2a (arch-review). Each extended data-chart's
+// typed entry point into the shared parse state machine, returning its narrowed
+// variant. The registry binds each id to its own door; `isExtendedChartParser`
+// recognises them by set membership (they replace the old single-identity check).
+// ============================================================
+
+export function parseSankey(
+  content: string,
+  palette?: PaletteColors
+): ParsedSankey {
+  return parseExtendedChart(content, palette) as ParsedSankey;
+}
+
+export function parseChord(
+  content: string,
+  palette?: PaletteColors
+): ParsedChord {
+  return parseExtendedChart(content, palette) as ParsedChord;
+}
+
+export function parseFunctionChart(
+  content: string,
+  palette?: PaletteColors
+): ParsedFunctionChart {
+  return parseExtendedChart(content, palette) as ParsedFunctionChart;
+}
+
+export function parseScatter(
+  content: string,
+  palette?: PaletteColors
+): ParsedScatter {
+  return parseExtendedChart(content, palette) as ParsedScatter;
+}
+
+export function parseHeatmap(
+  content: string,
+  palette?: PaletteColors
+): ParsedHeatmap {
+  return parseExtendedChart(content, palette) as ParsedHeatmap;
+}
+
+export function parseFunnel(
+  content: string,
+  palette?: PaletteColors
+): ParsedFunnel {
+  return parseExtendedChart(content, palette) as ParsedFunnel;
+}
+
+/** The six extended-data-chart parser doors, for `isExtendedChartParser`. */
+export const EXTENDED_CHART_DOORS = new Set<unknown>([
+  parseSankey,
+  parseChord,
+  parseFunctionChart,
+  parseScatter,
+  parseHeatmap,
+  parseFunnel,
+]);
+
 function parseExtendedChartFull(
   content: string,
   palette?: PaletteColors
