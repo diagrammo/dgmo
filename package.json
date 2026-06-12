@@ -144,7 +144,7 @@
     "check:spelling": "cspell \"src/**/*.ts\" \"tests/**/*.ts\"",
     "check:all": "pnpm check:deadcode && pnpm check:spelling && pnpm check:duplication && pnpm check:circular && pnpm check:deps && pnpm check:security && pnpm build && bash scripts/check-api.sh check && pnpm check:publish && pnpm check:types",
     "check:circular": "madge --circular --extensions ts src/ --json | node -e \"const c=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); const n=c.length; if(n>6){console.error('New circular deps found ('+n+' > 6 known type-only cycles)');process.exit(1)}else if(n>0){console.log(n+' known type-only/dynamic cycles (safe)')}else{console.log('No circular dependencies')}\"",
-    "check:deps": "depcheck --ignores='@codemirror/language,@lezer/*,husky,lint-staged,tsup,axe-core,type-coverage'",
+    "check:deps": "depcheck --ignores='@diagrammo/dgmo,@codemirror/language,@lezer/*,husky,lint-staged,tsup,axe-core,type-coverage'",
     "check:security": "pnpm audit --prod",
     "check:publish": "publint",
     "check:size": "pnpm build && du -sh dist/ && echo '---' && ls -lh dist/*.js dist/*.cjs",
