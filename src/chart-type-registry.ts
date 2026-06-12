@@ -36,7 +36,7 @@ import { parseClassDiagram } from './class/parser';
 import { parseERDiagram } from './er/parser';
 import { parseChart } from './chart';
 import { parseExtendedChart } from './echarts';
-import { parseVisualization } from './d3';
+import { parseVisualization } from './visualizations/parse';
 import { parseOrg } from './org/parser';
 import { parseKanban } from './kanban/parser';
 import { parseC4 } from './c4/parser';
