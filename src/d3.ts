@@ -51,7 +51,8 @@ export { renderWordCloud } from './wordcloud/renderer';
 export { renderVenn } from './venn/renderer';
 export { renderQuadrant } from './quadrant/renderer';
 
-// Export Renderer
+// ============================================================
+// Export-render dispatch
 // ============================================================
 
 /**
