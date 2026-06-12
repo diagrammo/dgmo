@@ -1,19 +1,19 @@
 <svg style="background: #eceff4; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
 <rect width="1200" height="800" x="0" y="0" fill="none"></rect>
-<polyline points="764.1 474.1 777.7 480.2 807.7 480.2" fill="none" pointer-events="visible" stroke="#d0dbe8" class="zr0-cls-0"></polyline>
-<polyline points="420.9 418.1 411 419.6 381 419.6" fill="none" pointer-events="visible" stroke="#d7d2e8" class="zr0-cls-0"></polyline>
-<polyline points="464.2 281.8 457.8 272 427.8 272" fill="none" pointer-events="visible" stroke="#e2d2e4" class="zr0-cls-0"></polyline>
-<polyline points="513.8 242 483.7 247.1 453.7 247.1" fill="none" pointer-events="visible" stroke="#e2d4d6" class="zr0-cls-0"></polyline>
-<polyline points="555.2 225.7 503.7 233.1 473.7 233.1" fill="none" pointer-events="visible" stroke="#e2e4d6" class="zr0-cls-0"></polyline>
-<polyline points="578.6 221.3 531.5 219.1 501.5 219.1" fill="none" pointer-events="visible" stroke="#d3e5d6" class="zr0-cls-0"></polyline>
-<polyline points="593.2 220.1 592.7 205.1 562.7 205.1" fill="none" pointer-events="visible" stroke="#d0e5e3" class="zr0-cls-0"></polyline>
-<path d="M600 220A180 180 0 1 1 465 519L600 400Z" fill="#d0dbe8" stroke="#7c9dc5" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-1"></path>
-<path d="M465 519A180 180 0 0 1 443.9 310.3L600 400Z" fill="#d7d2e8" stroke="#997cc5" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr0-cls-2"></path>
-<path d="M443.9 310.3A180 180 0 0 1 489.7 257.8L600 400Z" fill="#e2d2e4" stroke="#c57cb2" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
-<path d="M489.7 257.8A180 180 0 0 1 540.1 230.3L600 400Z" fill="#e2d4d6" stroke="#c5847c" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr0-cls-4"></path>
-<path d="M540.1 230.3A180 180 0 0 1 570.7 222.4L600 400Z" fill="#e2e4d6" stroke="#c5c47c" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr0-cls-5"></path>
-<path d="M570.7 222.4A180 180 0 0 1 586.4 220.5L600 400Z" fill="#d3e5d6" stroke="#88c57c" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart" class="zr0-cls-6"></path>
-<path d="M586.4 220.5A180 180 0 0 1 600 220L600 400Z" fill="#d0e5e3" stroke="#7cc5af" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart" class="zr0-cls-7"></path>
+<polyline points="764.1 474.1 777.7 480.2 807.7 480.2" fill="none" pointer-events="visible" stroke="#c9d4e2" class="zr0-cls-0"></polyline>
+<polyline points="420.9 418.1 411 419.6 381 419.6" fill="none" pointer-events="visible" stroke="#dae3da" class="zr0-cls-0"></polyline>
+<polyline points="464.2 281.8 457.8 272 427.8 272" fill="none" pointer-events="visible" stroke="#ece6da" class="zr0-cls-0"></polyline>
+<polyline points="513.8 242 483.7 247.1 453.7 247.1" fill="none" pointer-events="visible" stroke="#e5d5d3" class="zr0-cls-0"></polyline>
+<polyline points="555.2 225.7 503.7 233.1 473.7 233.1" fill="none" pointer-events="visible" stroke="#ded7e2" class="zr0-cls-0"></polyline>
+<polyline points="578.6 221.3 531.5 219.1 501.5 219.1" fill="none" pointer-events="visible" stroke="#e1ccd2" class="zr0-cls-0"></polyline>
+<polyline points="593.2 220.1 592.7 205.1 562.7 205.1" fill="none" pointer-events="visible" stroke="#d5e2e6" class="zr0-cls-0"></polyline>
+<path d="M600 220A180 180 0 1 1 465 519L600 400Z" fill="#c9d4e2" stroke="#5e81ac" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-1"></path>
+<path d="M465 519A180 180 0 0 1 443.9 310.3L600 400Z" fill="#dae3da" stroke="#a3be8c" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr0-cls-2"></path>
+<path d="M443.9 310.3A180 180 0 0 1 489.7 257.8L600 400Z" fill="#ece6da" stroke="#ebcb8b" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M489.7 257.8A180 180 0 0 1 540.1 230.3L600 400Z" fill="#e5d5d3" stroke="#d08770" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr0-cls-4"></path>
+<path d="M540.1 230.3A180 180 0 0 1 570.7 222.4L600 400Z" fill="#ded7e2" stroke="#b48ead" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr0-cls-5"></path>
+<path d="M570.7 222.4A180 180 0 0 1 586.4 220.5L600 400Z" fill="#e1ccd2" stroke="#bf616a" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart" class="zr0-cls-6"></path>
+<path d="M586.4 220.5A180 180 0 0 1 600 220L600 400Z" fill="#d5e2e6" stroke="#8fbcbb" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart" class="zr0-cls-7"></path>
 <text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" transform="translate(812.7236 480.2453)" fill="#2e3440">Chrome — 63.5 (63.5%)</text>
 <text dominant-baseline="central" text-anchor="end" style="font-size:12px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" transform="translate(375.9846 419.5705)" fill="#2e3440">Safari — 19.8 (19.8%)</text>
 <text dominant-baseline="central" text-anchor="end" style="font-size:12px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" transform="translate(422.7765 271.9658)" fill="#2e3440">Firefox — 6.2 (6.2%)</text>
@@ -29,31 +29,31 @@ cursor:pointer;
 }
 .zr0-cls-1:hover {
 cursor:pointer;
-fill:rgba(228,240,255,1);
+fill:rgba(221,233,248,1);
 }
 .zr0-cls-2:hover {
 cursor:pointer;
-fill:rgba(236,231,255,1);
+fill:rgba(239,249,239,1);
 }
 .zr0-cls-3:hover {
 cursor:pointer;
-fill:rgba(248,231,250,1);
+fill:rgba(255,253,239,1);
 }
 .zr0-cls-4:hover {
 cursor:pointer;
-fill:rgba(248,233,235,1);
+fill:rgba(251,234,232,1);
 }
 .zr0-cls-5:hover {
 cursor:pointer;
-fill:rgba(248,250,235,1);
+fill:rgba(244,236,248,1);
 }
 .zr0-cls-6:hover {
 cursor:pointer;
-fill:rgba(232,251,235,1);
+fill:rgba(247,224,231,1);
 }
 .zr0-cls-7:hover {
 cursor:pointer;
-fill:rgba(228,251,249,1);
+fill:rgba(234,248,253,1);
 }
 .zr0-cls-8:hover {
 pointer-events:none;
