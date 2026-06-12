@@ -9,7 +9,7 @@ import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
 import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
 import type {
-  ParsedVisualization,
+  ParsedArc,
   ArcLink,
   ArcOrder,
   ArcNodeGroup,
@@ -154,7 +154,7 @@ const ARC_BASELINE_STROKE_WIDTH = 1;
  */
 export function renderArcDiagram(
   container: HTMLDivElement,
-  parsed: ParsedVisualization,
+  parsed: ParsedArc,
   palette: PaletteColors,
   _isDark: boolean,
   onClickItem?: (lineNumber: number) => void,

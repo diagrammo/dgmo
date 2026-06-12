@@ -14,7 +14,7 @@ import {
   renderChartTitle,
   showTooltip,
 } from '../utils/d3-helpers';
-import type { ParsedVisualization } from '../visualizations/types';
+import type { ParsedTimeline } from '../visualizations/types';
 import type {
   TimelineEvent,
   TimelineGroup,
@@ -772,7 +772,7 @@ type TimelineSetup = {
  */
 function setupTimeline(
   container: HTMLDivElement,
-  parsed: ParsedVisualization,
+  parsed: ParsedTimeline,
   palette: PaletteColors,
   isDark: boolean,
   exportDims: D3ExportDimensions | undefined,
@@ -1135,7 +1135,7 @@ function makeTimelineHoverHelpers(): TimelineHoverHelpers {
 
 function renderTimelineTagLegendOverlay(
   container: HTMLDivElement,
-  parsed: ParsedVisualization,
+  parsed: ParsedTimeline,
   palette: PaletteColors,
   isDark: boolean,
   setup: TimelineSetup,
@@ -1452,7 +1452,7 @@ function renderTimelineTagLegendOverlay(
 
 function renderTimelineHorizontalTimeSort(
   container: HTMLDivElement,
-  parsed: ParsedVisualization,
+  parsed: ParsedTimeline,
   palette: PaletteColors,
   isDark: boolean,
   setup: TimelineSetup,
@@ -1810,7 +1810,7 @@ function renderTimelineHorizontalTimeSort(
 
 function renderTimelineHorizontalGrouped(
   container: HTMLDivElement,
-  parsed: ParsedVisualization,
+  parsed: ParsedTimeline,
   palette: PaletteColors,
   isDark: boolean,
   setup: TimelineSetup,
@@ -2268,7 +2268,7 @@ function renderTimelineHorizontalGrouped(
 
 function renderTimelineVertical(
   container: HTMLDivElement,
-  parsed: ParsedVisualization,
+  parsed: ParsedTimeline,
   palette: PaletteColors,
   isDark: boolean,
   setup: TimelineSetup,
@@ -2866,7 +2866,7 @@ let tlBandClipCounter = 0;
 
 export function renderTimeline(
   container: HTMLDivElement,
-  parsed: ParsedVisualization,
+  parsed: ParsedTimeline,
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,

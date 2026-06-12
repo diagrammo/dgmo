@@ -20,13 +20,19 @@ import {
   resolveExportPalette,
 } from './utils/d3-helpers';
 
-// Per-viz renderers used by the export handlers (own modules — Story 109.2).
+// Per-viz renderers + parser doors used by the export handlers (own modules — Story 109.2).
 import { renderSlopeChart } from './slope/renderer';
+import { parseSlope } from './slope/parser';
 import { renderArcDiagram } from './arc/renderer';
+import { parseArc } from './arc/parser';
 import { renderTimeline } from './timeline/renderer';
+import { parseTimeline } from './timeline/viz-parser';
 import { renderWordCloudAsync } from './wordcloud/renderer';
+import { parseWordcloud } from './wordcloud/parser';
 import { renderVenn } from './venn/renderer';
+import { parseVenn } from './venn/parser';
 import { renderQuadrant } from './quadrant/renderer';
+import { parseQuadrant } from './quadrant/parser';
 
 // ── Public re-export barrel (paths downstream consumers import from) ──
 export { parseVisualization } from './visualizations/parse';
@@ -991,7 +997,7 @@ function beginVizExport(): {
 
 async function exportSlope(ctx: ExportContext): Promise<string> {
   const { content, theme, palette } = ctx;
-  const parsed = parseVisualization(content, palette);
+  const parsed = parseSlope(content, palette);
   if (parsed.error || parsed.data.length === 0) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
   const { container, dims } = beginVizExport();
@@ -1008,7 +1014,7 @@ async function exportSlope(ctx: ExportContext): Promise<string> {
 
 async function exportArc(ctx: ExportContext): Promise<string> {
   const { content, theme, palette } = ctx;
-  const parsed = parseVisualization(content, palette);
+  const parsed = parseArc(content, palette);
   if (parsed.error || parsed.links.length === 0) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
   const { container, dims } = beginVizExport();
@@ -1025,7 +1031,7 @@ async function exportArc(ctx: ExportContext): Promise<string> {
 
 async function exportTimeline(ctx: ExportContext): Promise<string> {
   const { content, theme, palette, viewState, options, exportMode } = ctx;
-  const parsed = parseVisualization(content, palette);
+  const parsed = parseTimeline(content, palette);
   if (parsed.error || parsed.timelineEvents.length === 0) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
   const { container, dims } = beginVizExport();
@@ -1051,7 +1057,7 @@ async function exportTimeline(ctx: ExportContext): Promise<string> {
 
 async function exportWordcloud(ctx: ExportContext): Promise<string> {
   const { content, theme, palette } = ctx;
-  const parsed = parseVisualization(content, palette);
+  const parsed = parseWordcloud(content, palette);
   if (parsed.error || parsed.words.length === 0) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
   const { container, dims } = beginVizExport();
@@ -1067,7 +1073,7 @@ async function exportWordcloud(ctx: ExportContext): Promise<string> {
 
 async function exportVenn(ctx: ExportContext): Promise<string> {
   const { content, theme, palette } = ctx;
-  const parsed = parseVisualization(content, palette);
+  const parsed = parseVenn(content, palette);
   if (parsed.error || parsed.vennSets.length < 2) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
   const { container, dims } = beginVizExport();
@@ -1084,7 +1090,7 @@ async function exportVenn(ctx: ExportContext): Promise<string> {
 
 async function exportQuadrant(ctx: ExportContext): Promise<string> {
   const { content, theme, palette } = ctx;
-  const parsed = parseVisualization(content, palette);
+  const parsed = parseQuadrant(content, palette);
   if (parsed.error || parsed.quadrantPoints.length === 0) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
   const { container, dims } = beginVizExport();

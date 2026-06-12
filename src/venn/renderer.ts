@@ -7,7 +7,7 @@ import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
 import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
-import type { ParsedVisualization, VennOverlap } from '../visualizations/types';
+import type { ParsedVenn, VennOverlap } from '../visualizations/types';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 
@@ -126,7 +126,7 @@ function regionCentroid(circles: Circle[], inside: boolean[]): Point {
 
 export function renderVenn(
   container: HTMLDivElement,
-  parsed: ParsedVisualization,
+  parsed: ParsedVenn,
   palette: PaletteColors,
   _isDark: boolean,
   onClickItem?: (lineNumber: number) => void,

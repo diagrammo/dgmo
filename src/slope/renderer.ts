@@ -15,7 +15,7 @@ import {
   renderChartTitle,
   showTooltip,
 } from '../utils/d3-helpers';
-import type { ParsedVisualization } from '../visualizations/types';
+import type { ParsedSlope } from '../visualizations/types';
 import type { PaletteColors } from '../palettes';
 
 // ============================================================
@@ -59,7 +59,7 @@ const SLOPE_LABEL_FONT_SIZE = 14;
  */
 export function renderSlopeChart(
   container: HTMLDivElement,
-  parsed: ParsedVisualization,
+  parsed: ParsedSlope,
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,

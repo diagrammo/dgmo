@@ -111,10 +111,113 @@ export interface QuadrantLabels {
   bottomRight: QuadrantLabel | null;
 }
 
-export interface ParsedVisualization {
-  type: VisualizationType | null;
+// ============================================================
+// Discriminated union — Story 109.2. Each visualization carries only the fields
+// it actually uses; no renderer can see another's data. The parser builds a fat
+// `ParsedVizFull` accumulator internally and returns it narrowed to this union.
+// ============================================================
+
+/** Fields every visualization shares. */
+export interface ParsedVizBase {
   title: string | null;
   titleLineNumber: number | null;
+  /** When true, the renderer suppresses the chart title. */
+  noTitle?: boolean;
+  diagnostics: DgmoError[];
+  error: string | null;
+}
+
+export interface ParsedSlope extends ParsedVizBase {
+  type: 'slope';
+  periods: string[];
+  data: D3DataItem[];
+  noName?: boolean;
+  noValue?: boolean;
+  noPercent?: boolean;
+}
+
+export interface ParsedArc extends ParsedVizBase {
+  type: 'arc';
+  orientation: 'horizontal' | 'vertical';
+  links: ArcLink[];
+  arcOrder: ArcOrder;
+  arcNodeGroups: ArcNodeGroup[];
+  noName?: boolean;
+  noValue?: boolean;
+  noPercent?: boolean;
+}
+
+export interface ParsedTimeline extends ParsedVizBase {
+  type: 'timeline';
+  orientation: 'horizontal' | 'vertical';
+  timelineEvents: TimelineEvent[];
+  timelineGroups: TimelineGroup[];
+  timelineEras: TimelineEra[];
+  timelineMarkers: TimelineMarker[];
+  timelineTagGroups: TagGroup[];
+  timelineSort: TimelineSort | null;
+  timelineDefaultSwimlaneTG?: string;
+  timelineScale: boolean;
+  timelineSwimlanes: boolean;
+  /** Authored `active-tag <group|none|metric>` directive (§15.6); resolved at render. */
+  timelineActiveTag?: string;
+  /** Render with full intent saturation instead of the canonical 25% tint. */
+  solidFill?: boolean;
+}
+
+export interface ParsedWordcloud extends ParsedVizBase {
+  type: 'wordcloud';
+  words: WordCloudWord[];
+  cloudOptions: WordCloudOptions;
+}
+
+export interface ParsedVenn extends ParsedVizBase {
+  type: 'venn';
+  vennSets: VennSet[];
+  vennOverlaps: VennOverlap[];
+  noName?: boolean;
+  noValue?: boolean;
+  noPercent?: boolean;
+}
+
+export interface ParsedQuadrant extends ParsedVizBase {
+  type: 'quadrant';
+  quadrantLabels: QuadrantLabels;
+  quadrantPoints: QuadrantPoint[];
+  quadrantXAxis: [string, string] | null;
+  quadrantXAxisLineNumber: number | null;
+  quadrantYAxis: [string, string] | null;
+  quadrantYAxisLineNumber: number | null;
+  quadrantTitleLineNumber: number | null;
+}
+
+/**
+ * `sequence` (rendered by its own parser) or an unsupported/empty parse result
+ * (`type: null`). Carries only the base fields — callers branch on `error`.
+ */
+export interface ParsedVizEmpty extends ParsedVizBase {
+  type: 'sequence' | null;
+}
+
+/** What `parseVisualization` returns: discriminated on `type`. */
+export type ParsedVisualization =
+  | ParsedSlope
+  | ParsedArc
+  | ParsedTimeline
+  | ParsedWordcloud
+  | ParsedVenn
+  | ParsedQuadrant
+  | ParsedVizEmpty;
+
+/**
+ * The parser's mutable accumulator — every field present, so the single
+ * line-walking state machine can populate whichever the detected type needs.
+ * `parseVisualization` returns this narrowed to {@link ParsedVisualization};
+ * the object is structurally a superset of every variant, so the narrowing is
+ * sound and changes nothing at runtime.
+ */
+export interface ParsedVizFull extends ParsedVizBase {
+  type: VisualizationType | null;
   orientation: 'horizontal' | 'vertical';
   periods: string[];
   data: D3DataItem[];
@@ -132,11 +235,9 @@ export interface ParsedVisualization {
   timelineDefaultSwimlaneTG?: string;
   timelineScale: boolean;
   timelineSwimlanes: boolean;
-  /** Authored `active-tag <group|none|metric>` directive (§15.6); resolved at render. */
   timelineActiveTag?: string;
   vennSets: VennSet[];
   vennOverlaps: VennOverlap[];
-  // Quadrant chart fields
   quadrantLabels: QuadrantLabels;
   quadrantPoints: QuadrantPoint[];
   quadrantXAxis: [string, string] | null;
@@ -144,14 +245,8 @@ export interface ParsedVisualization {
   quadrantYAxis: [string, string] | null;
   quadrantYAxisLineNumber: number | null;
   quadrantTitleLineNumber: number | null;
-  // Show-everything-default flags (silent-ignore at parser; per-chart honoring at renderer)
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
-  /** Render with full intent saturation instead of the canonical 25% tint. */
   solidFill?: boolean;
-  /** Cross-chart-type: when true, the renderer suppresses the chart title. */
-  noTitle?: boolean;
-  diagnostics: DgmoError[];
-  error: string | null;
 }

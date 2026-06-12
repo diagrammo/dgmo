@@ -9,10 +9,7 @@ import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
 import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
-import type {
-  ParsedVisualization,
-  QuadrantLabel,
-} from '../visualizations/types';
+import type { ParsedQuadrant, QuadrantLabel } from '../visualizations/types';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 
@@ -31,7 +28,7 @@ type QuadrantPosition =
  */
 export function renderQuadrant(
   container: HTMLDivElement,
-  parsed: ParsedVisualization,
+  parsed: ParsedQuadrant,
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,

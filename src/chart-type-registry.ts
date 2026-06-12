@@ -36,7 +36,12 @@ import { parseClassDiagram } from './class/parser';
 import { parseERDiagram } from './er/parser';
 import { parseChart } from './chart';
 import { parseExtendedChart } from './echarts';
-import { parseVisualization } from './visualizations/parse';
+import { parseSlope } from './slope/parser';
+import { parseArc } from './arc/parser';
+import { parseTimeline } from './timeline/viz-parser';
+import { parseWordcloud } from './wordcloud/parser';
+import { parseVenn } from './venn/parser';
+import { parseQuadrant } from './quadrant/parser';
 import { parseOrg } from './org/parser';
 import { parseKanban } from './kanban/parser';
 import { parseC4 } from './c4/parser';
@@ -139,7 +144,7 @@ function measureHeatmap(content: string): ContentCounts {
 }
 
 function measureArc(content: string): ContentCounts {
-  const parsed = parseVisualization(content);
+  const parsed = parseArc(content);
   const allNodes = new Set<string>();
   for (const g of parsed.arcNodeGroups) {
     for (const n of g.nodes) allNodes.add(n);
@@ -290,18 +295,18 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
   },
   { id: 'funnel', category: 'data-chart', parse: parseExtendedChart },
 
-  // ── D3 visualizations (parseVisualization) ────────────────
-  { id: 'slope', category: 'visualization', parse: parseVisualization },
-  { id: 'wordcloud', category: 'visualization', parse: parseVisualization },
+  // ── D3 visualizations — own per-viz parser door (Story 109.2) ──
+  { id: 'slope', category: 'visualization', parse: parseSlope },
+  { id: 'wordcloud', category: 'visualization', parse: parseWordcloud },
   {
     id: 'arc',
     category: 'visualization',
-    parse: parseVisualization,
+    parse: parseArc,
     measure: measureArc,
   },
-  { id: 'timeline', category: 'visualization', parse: parseVisualization },
-  { id: 'venn', category: 'visualization', parse: parseVisualization },
-  { id: 'quadrant', category: 'visualization', parse: parseVisualization },
+  { id: 'timeline', category: 'visualization', parse: parseTimeline },
+  { id: 'venn', category: 'visualization', parse: parseVenn },
+  { id: 'quadrant', category: 'visualization', parse: parseQuadrant },
 
   // ── Visualizations with their own parsers ─────────────────
   {

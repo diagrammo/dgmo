@@ -10,7 +10,7 @@ import type { D3ExportDimensions } from '../utils/d3-types';
 import { ScaleContext } from '../utils/scaling';
 import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
 import type {
-  ParsedVisualization,
+  ParsedWordcloud,
   WordCloudWord,
   WordCloudRotate,
 } from '../visualizations/types';
@@ -128,7 +128,7 @@ function layoutWordsNoCanvas(
  */
 export function renderWordCloud(
   container: HTMLDivElement,
-  parsed: ParsedVisualization,
+  parsed: ParsedWordcloud,
   palette: PaletteColors,
   _isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
@@ -245,7 +245,7 @@ export function renderWordCloud(
 
 export function renderWordCloudAsync(
   container: HTMLDivElement,
-  parsed: ParsedVisualization,
+  parsed: ParsedWordcloud,
   palette: PaletteColors,
   _isDark: boolean,
   exportDims?: D3ExportDimensions

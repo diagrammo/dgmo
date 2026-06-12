@@ -44,16 +44,27 @@ import {
   type QuadrantLabel,
   type VennOverlap,
   type WordCloudWord,
+  type ParsedVizFull,
 } from './types';
 
 /**
- * Parses D3 chart text format into structured data.
+ * Parses D3 chart text format into structured data. Returns the discriminated
+ * {@link ParsedVisualization} union; internally the single state machine fills a
+ * fat {@link ParsedVizFull} accumulator, which is a structural superset of every
+ * variant, so the narrowing is sound and runtime-identical.
  */
 export function parseVisualization(
   content: string,
   palette?: PaletteColors
 ): ParsedVisualization {
-  const result: ParsedVisualization = {
+  return parseVisualizationFull(content, palette) as ParsedVisualization;
+}
+
+function parseVisualizationFull(
+  content: string,
+  palette?: PaletteColors
+): ParsedVizFull {
+  const result: ParsedVizFull = {
     type: null,
     title: null,
     titleLineNumber: null,
@@ -91,7 +102,7 @@ export function parseVisualization(
     error: null,
   };
 
-  const fail = (line: number, message: string): ParsedVisualization => {
+  const fail = (line: number, message: string): ParsedVizFull => {
     const diag = makeDgmoError(line, message);
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
