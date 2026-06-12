@@ -1,2 +1,7 @@
 208eb0cb696e3b955eff3e67297b46ffec6fa2e1:src/infra/layout.ts:generic-api-key:272
 bde0e16aa89745efff4a5008527c7a3f1e156b00:src/infra/layout.ts:generic-api-key:272
+# False positive: high-entropy hyphenated DGMO token `slo-p90-latency-ms` in the
+# directives registry (introduced on the highlight/drift-audit branch); gitleaks
+# scans all fetched refs on PRs, so the suppression must exist on main too.
+src/directives-registry.ts:generic-api-key:73
+src/directives-registry.ts:generic-api-key:78
