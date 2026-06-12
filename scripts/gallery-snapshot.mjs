@@ -160,6 +160,40 @@ async function runPool(items, concurrency, worker) {
 }
 
 // ============================================================
+// Cross-platform float tolerance
+// ============================================================
+// Map fixtures render through d3-geo projection math, whose last-digit results
+// differ by ~1 ULP between platforms (macOS libm vs the Linux CI runner). At
+// geoPath `.digits(1)` that surfaces as a handful of coordinates rounding one
+// step apart, so a baseline authored on one OS byte-mismatches the other even
+// though the geometry is identical. `withinFloatJitter` forgives ONLY that:
+// the structure with every numeric literal blanked must match exactly (so any
+// added/removed/reordered element, attribute, or token count still fails), and
+// each differing number must be coordinate-scale and within COORD_EPS. Small
+// values (opacity, etc.) and all non-numeric content are compared exactly.
+const NUM_RE = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
+const COORD_EPS = 0.2; // px; one digits(1) rounding step is 0.1
+
+function withinFloatJitter(baseline, fresh) {
+  const a = baseline.toString('utf8');
+  const b = fresh.toString('utf8');
+  if (a.replace(NUM_RE, '\0') !== b.replace(NUM_RE, '\0')) return false;
+  const an = a.match(NUM_RE) ?? [];
+  const bn = b.match(NUM_RE) ?? [];
+  if (an.length !== bn.length) return false;
+  for (let i = 0; i < an.length; i++) {
+    if (an[i] === bn[i]) continue;
+    const x = parseFloat(an[i]);
+    const y = parseFloat(bn[i]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+    // Forgive coordinate-scale sub-pixel noise only; exact for small values.
+    if (Math.abs(x - y) > COORD_EPS) return false;
+    if (Math.max(Math.abs(x), Math.abs(y)) < 1) return false;
+  }
+  return true;
+}
+
+// ============================================================
 // Diff helper — first differing byte offset (lazy)
 // ============================================================
 
@@ -250,6 +284,10 @@ async function main() {
       rmSync(tmpPath, { force: true });
       return { ...t, status: 'match' };
     }
+    if (withinFloatJitter(baseline, fresh)) {
+      rmSync(tmpPath, { force: true });
+      return { ...t, status: 'match', tolerant: true };
+    }
     return { ...t, status: 'diff', detail: describeDiff(baseline, fresh) };
   });
 
@@ -260,6 +298,15 @@ async function main() {
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`${matches.length}/${results.length} match (${elapsed}s)`);
+
+  const tolerant = matches.filter((m) => m.tolerant);
+  if (tolerant.length) {
+    console.log(
+      `  (${tolerant.length} matched within sub-pixel float tolerance: ${tolerant
+        .map((t) => t.rel)
+        .join(', ')})`
+    );
+  }
 
   if (errors.length) {
     console.error(`\n${errors.length} render error(s):`);
