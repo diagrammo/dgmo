@@ -166,6 +166,163 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'sort', category: 'directive', gantt: ['option'] },
   // `no-title`: gantt boolean + map directive (also general, hand-listed).
   { token: 'no-title', category: 'directive', gantt: ['boolean'], map: true },
+
+  // ══════════════════════════════════════════════════════════
+  // Highlight-only vocab (no extractable parser Set).
+  // ══════════════════════════════════════════════════════════
+  // These chart types validate their directives with inline checks rather than
+  // a literal Set, so there is no parser literal to delete — the registry is
+  // simply their single declaration site for highlighting. Grouped by chart
+  // type. Categories route to the specializer-read sets in keywords.ts.
+
+  // ── Gantt (extras beyond the option/boolean Sets) ────────
+  { token: 'era', category: 'directive' },
+  { token: 'marker', category: 'directive' },
+  { token: 'holiday', category: 'directive' },
+  { token: 'workweek', category: 'directive' },
+  { token: 'no-dependencies', category: 'directive' },
+  // ── Tech-radar ───────────────────────────────────────────
+  { token: 'rings', category: 'directive' },
+  { token: 'show-blip-legend', category: 'directive' },
+  { token: 'trend', category: 'directive' },
+  // ── Tags / shared directives ─────────────────────────────
+  { token: 'tags', category: 'directive' },
+  { token: 'import', category: 'directive' },
+  { token: 'hide', category: 'directive' },
+  { token: 'direction', category: 'directive' },
+  // ── Boxes-and-lines ──────────────────────────────────────
+  { token: 'box-metric', category: 'directive' },
+  { token: 'show-values', category: 'directive' },
+  // ── ER ───────────────────────────────────────────────────
+  { token: 'notation', category: 'directive' },
+  // ── Class ────────────────────────────────────────────────
+  { token: 'extends', category: 'directive' },
+  { token: 'implements', category: 'directive' },
+  { token: 'abstract', category: 'directive' },
+  { token: 'interface', category: 'directive' },
+  { token: 'enum', category: 'directive' },
+  // ── C4 ───────────────────────────────────────────────────
+  { token: 'containers', category: 'directive' },
+  { token: 'components', category: 'directive' },
+  { token: 'deployment', category: 'directive' },
+  { token: 'technology', category: 'directive' },
+  // ── Infra (directives beyond the option/behavior Sets) ───
+  { token: 'sub-node-label', category: 'directive' },
+  { token: 'show-sub-node-count', category: 'directive' },
+  { token: 'animate', category: 'directive' },
+  // ── Sequence ─────────────────────────────────────────────
+  { token: 'activations', category: 'directive' },
+  { token: 'no-activations', category: 'directive' },
+  // ── Map element leaders (not in DIRECTIVE_SET) ───────────
+  { token: 'poi', category: 'directive' },
+  { token: 'route', category: 'directive' },
+  // ── Data charts ──────────────────────────────────────────
+  { token: 'stacked', category: 'directive' },
+  { token: 'no-name', category: 'directive' },
+  { token: 'no-value', category: 'directive' },
+  { token: 'no-percent', category: 'directive' },
+  { token: 'series', category: 'directive' },
+  { token: 'orientation', category: 'directive' },
+  { token: 'x-label', category: 'directive' },
+  { token: 'y-label', category: 'directive' },
+  { token: 'size-label', category: 'directive' },
+  { token: 'columns', category: 'directive' },
+  { token: 'rows', category: 'directive' },
+  { token: 'labels', category: 'directive' },
+  { token: 'rotate', category: 'directive' },
+  { token: 'scale', category: 'directive' },
+  { token: 'values', category: 'directive' },
+  { token: 'orientation-horizontal', category: 'directive' },
+  // ── Slope ────────────────────────────────────────────────
+  { token: 'period', category: 'directive' },
+  // ── Quadrant ─────────────────────────────────────────────
+  { token: 'x-axis', category: 'directive' },
+  { token: 'y-axis', category: 'directive' },
+  { token: 'top-right', category: 'directive' },
+  { token: 'top-left', category: 'directive' },
+  { token: 'bottom-right', category: 'directive' },
+  { token: 'bottom-left', category: 'directive' },
+  // ── Layout (cross-chart) ─────────────────────────────────
+  { token: 'direction-tb', category: 'directive' },
+  { token: 'direction-lr', category: 'directive' },
+  { token: 'orientation-vertical', category: 'directive' },
+  // ── Pyramid ──────────────────────────────────────────────
+  { token: 'inverted', category: 'directive' },
+  // ── Color / notes (cross-chart) ──────────────────────────
+  { token: 'color', category: 'directive' },
+  { token: 'no-notes', category: 'directive' },
+  // ── RACI ─────────────────────────────────────────────────
+  { token: 'variant-raci', category: 'directive' },
+  { token: 'variant-rasci', category: 'directive' },
+  { token: 'variant-daci', category: 'directive' },
+  { token: 'roles', category: 'directive' },
+  // ── Cycle ────────────────────────────────────────────────
+  { token: 'direction-counterclockwise', category: 'directive' },
+  { token: 'circle-nodes', category: 'directive' },
+  // ── Journey-map ──────────────────────────────────────────
+  { token: 'persona', category: 'directive' },
+  // ── Function ─────────────────────────────────────────────
+  { token: 'x', category: 'directive' },
+  { token: 'shade', category: 'directive' },
+  // ── Wordcloud ────────────────────────────────────────────
+  { token: 'max', category: 'directive' },
+  { token: 'size', category: 'directive' },
+  // ── Arc ──────────────────────────────────────────────────
+  { token: 'order', category: 'directive' },
+  // ── PERT ─────────────────────────────────────────────────
+  { token: 'time-unit', category: 'directive' },
+  { token: 'default-confidence', category: 'directive' },
+  { token: 'node-detail', category: 'directive' },
+  { token: 'trials', category: 'directive' },
+  { token: 'seed', category: 'directive' },
+  { token: 'scrubber-trials', category: 'directive' },
+  { token: 'start-date', category: 'directive' },
+  { token: 'end-date', category: 'directive' },
+
+  // ── Control-flow + wireframe element keywords (CONTROL) ──
+  { token: 'if', category: 'control' },
+  { token: 'else', category: 'control' },
+  { token: 'loop', category: 'control' },
+  { token: 'parallel', category: 'control' },
+  { token: 'note', category: 'control' },
+  { token: 'nav', category: 'control' },
+  { token: 'tabs', category: 'control' },
+  { token: 'table', category: 'control' },
+  { token: 'image', category: 'control' },
+  { token: 'modal', category: 'control' },
+  { token: 'skeleton', category: 'control' },
+  { token: 'alert', category: 'control' },
+  { token: 'progress', category: 'control' },
+  { token: 'mobile', category: 'control' },
+
+  // ── Kanban status keywords (STATUS) ──────────────────────
+  { token: 'na', category: 'status' },
+  { token: 'todo', category: 'status' },
+  { token: 'wip', category: 'status' },
+  { token: 'done', category: 'status' },
+  { token: 'blocked', category: 'status' },
+  { token: 'in-progress', category: 'status' },
+  { token: 'backlog', category: 'status' },
+  { token: 'ready', category: 'status' },
+
+  // ── Modifiers + ER column types/modifiers (MODIFIER) ─────
+  { token: 'as', category: 'modifier' },
+  { token: 'alias', category: 'modifier' },
+  { token: 'aka', category: 'modifier' },
+  { token: 'position', category: 'modifier' },
+  { token: 'default', category: 'modifier' },
+  { token: 'pk', category: 'modifier' },
+  { token: 'fk', category: 'modifier' },
+  { token: 'nullable', category: 'modifier' },
+  { token: 'unique', category: 'modifier' },
+  { token: 'int', category: 'modifier' },
+  { token: 'varchar', category: 'modifier' },
+  { token: 'text', category: 'modifier' },
+  { token: 'boolean', category: 'modifier' },
+  { token: 'date', category: 'modifier' },
+  { token: 'timestamp', category: 'modifier' },
+  { token: 'float', category: 'modifier' },
+  { token: 'decimal', category: 'modifier' },
 ];
 
 // ============================================================
@@ -212,6 +369,14 @@ export const REGISTRY_DIRECTIVE_TOKENS = tokensWhere(
 /** Bare tokens that highlight as a control keyword (→ CONTROL_KEYWORDS). */
 export const REGISTRY_CONTROL_TOKENS = tokensWhere(
   (e) => e.category === 'control' && !e.colonKey && !e.noHighlight
+);
+/** Bare tokens that highlight as a status keyword (→ STATUS_KEYWORDS). */
+export const REGISTRY_STATUS_TOKENS = tokensWhere(
+  (e) => e.category === 'status' && !e.colonKey && !e.noHighlight
+);
+/** Bare tokens that highlight as a modifier keyword (→ MODIFIER_KEYWORDS). */
+export const REGISTRY_MODIFIER_TOKENS = tokensWhere(
+  (e) => e.category === 'modifier' && !e.colonKey && !e.noHighlight
 );
 /** Colon `key: value` tokens that highlight as propertyName (→ ATTRIBUTE_KEYS). */
 export const REGISTRY_COLON_KEY_TOKENS = tokensWhere((e) => !!e.colonKey);
