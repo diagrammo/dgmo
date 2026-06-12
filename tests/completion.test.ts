@@ -9,8 +9,12 @@ import {
   METADATA_KEY_SET,
   ENTITY_TYPES,
   PIPE_METADATA,
+  REFERENCE_GRAMMAR,
+  RACI_MARKER_ALPHABETS,
+  WIREFRAME_FLAGS,
   extractTagDeclarations,
 } from '../src/completion';
+import { parseDgmo } from '../src/dgmo-router';
 import { extractSymbols as extractErSymbols } from '../src/er/parser';
 import { extractSymbols as extractFlowchartSymbols } from '../src/graph/flowchart-parser';
 import { extractSymbols as extractInfraSymbols } from '../src/infra/parser';
@@ -913,5 +917,188 @@ describe('COMPLETION_REGISTRY — tech-radar', () => {
     expect(pipe!.quadrant).toHaveProperty('color');
     expect(pipe!.blip).toHaveProperty('ring');
     expect(pipe!.blip).toHaveProperty('trend');
+  });
+});
+
+// ============================================================
+// Coverage-parity additions (completion-coverage-parity spec)
+// ============================================================
+
+describe('extractDataChartSymbols — function curves (F1 registration)', () => {
+  it('registers function and extracts Name: expr curve names', () => {
+    // Generalization alone is inert without registerExtractor('function', …) —
+    // this guards F1: extractDiagramSymbols must NOT return null for function.
+    const result = extractDiagramSymbols(
+      'function\nSigmoid: 1/(1+e^-x)\nLinear: x\n'
+    );
+    expect(result).not.toBeNull();
+    expect(result!.kind).toBe('function');
+    expect(result!.entities).toEqual(['Sigmoid', 'Linear']);
+  });
+
+  it('does not misread an indented key: value metadata line as a curve', () => {
+    const result = extractDiagramSymbols(
+      'function\nSigmoid: 1/(1+e^-x)\n  color: blue\n'
+    );
+    expect(result!.entities).toEqual(['Sigmoid']);
+  });
+});
+
+describe('extractDataChartSymbols — chord edge endpoints', () => {
+  it('recovers BOTH endpoints of A -> B value instead of one junk entity', () => {
+    const result = extractDiagramSymbols('chord\nA -> B 10\nB -> C 5\n');
+    expect(result!.kind).toBe('chord');
+    expect(result!.entities).toEqual(['A', 'B', 'C']);
+    // The old classifier produced "A -> B" — assert that junk is gone.
+    expect(result!.entities).not.toContain('A -> B');
+  });
+});
+
+describe('extractWireframeSymbols', () => {
+  it('extracts [field], (button), and {a | b} option labels', () => {
+    const result = extractDiagramSymbols(
+      'wireframe\n[Email]\n(Submit)\n{Yes | No}\n'
+    );
+    expect(result!.kind).toBe('wireframe');
+    expect(result!.entities).toEqual(['Email', 'Submit', 'Yes', 'No']);
+  });
+
+  it('skips radio/checkbox markers but keeps real element labels', () => {
+    const result = extractDiagramSymbols(
+      'wireframe\n(*) Option A\n[Search] (Go)\n'
+    );
+    expect(result!.entities).toContain('Search');
+    expect(result!.entities).toContain('Go');
+    expect(result!.entities).not.toContain('*');
+  });
+});
+
+describe('extractVennSymbols — names + aliases for + references', () => {
+  it('emits clean set names and aliases, skipping intersection rows', () => {
+    const doc =
+      'venn Skill Overlap\nSwordsmanship as sw red\nNavigation as nav blue\nsw + nav Sea Raiders\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.kind).toBe('venn');
+    expect(result!.entities).toContain('sw');
+    expect(result!.entities).toContain('nav');
+    expect(result!.entities).toContain('Swordsmanship');
+    // The intersection line is a reference, not a declaration.
+    expect(result!.entities).not.toContain('sw + nav Sea Raiders');
+  });
+});
+
+describe('REFERENCE_GRAMMAR descriptor', () => {
+  it('marks chord and venn as reference-grammar types', () => {
+    expect(REFERENCE_GRAMMAR.get('chord')?.hasReferenceGrammar).toBe(true);
+    expect(REFERENCE_GRAMMAR.get('venn')?.hasReferenceGrammar).toBe(true);
+    expect(REFERENCE_GRAMMAR.get('venn')?.referenceOperators).toEqual(['+']);
+  });
+
+  it('marks pure data charts and radial types as non-reference', () => {
+    for (const t of [
+      'bar',
+      'pie',
+      'org',
+      'kanban',
+      'mindmap',
+      'wordcloud',
+      'function',
+    ]) {
+      expect(REFERENCE_GRAMMAR.get(t)?.hasReferenceGrammar).toBe(false);
+    }
+  });
+
+  it('keeps map reference-free (geo completion owns route refs)', () => {
+    expect(REFERENCE_GRAMMAR.get('map')?.hasReferenceGrammar).toBe(false);
+  });
+});
+
+describe('marker + flag enums (Task 5)', () => {
+  it('exposes per-variant RACI marker alphabets from the parser source', () => {
+    expect(RACI_MARKER_ALPHABETS.get('raci')).toEqual(['R', 'A', 'C', 'I']);
+    expect(RACI_MARKER_ALPHABETS.get('rasci')).toEqual([
+      'R',
+      'A',
+      'S',
+      'C',
+      'I',
+    ]);
+    expect(RACI_MARKER_ALPHABETS.get('daci')).toEqual(['D', 'A', 'C', 'I']);
+  });
+
+  it('exposes the 16 wireframe flags', () => {
+    expect(WIREFRAME_FLAGS).toHaveLength(16);
+    expect(WIREFRAME_FLAGS).toContain('primary');
+    expect(WIREFRAME_FLAGS).toContain('destructive');
+    expect(WIREFRAME_FLAGS).toContain('disabled');
+  });
+});
+
+describe('round-trip integrity (AC11) — newly-completed tokens parse clean', () => {
+  const errorsOf = (doc: string): string[] =>
+    (parseDgmo(doc).diagnostics ?? [])
+      .filter((d) => d.severity === 'error')
+      .map((d) => d.code ?? d.message);
+
+  it('RACI/RASCI/DACI marker assignments produce no error', () => {
+    expect(errorsOf('raci\nDeploy\n  Dev: R A\n  Ops: C I\n')).toEqual([]);
+    expect(
+      errorsOf('rasci\nShip\n  Dev: R\n  PM: A\n  QA: S\n  Sec: C\n  Exec: I\n')
+    ).toEqual([]);
+    expect(errorsOf('daci\nDecide\n  Lead: D\n  Mgr: A\n  Eng: C\n')).toEqual(
+      []
+    );
+  });
+
+  it('wireframe state flags produce no error', () => {
+    expect(
+      errorsOf('wireframe\n(Submit) primary destructive\n[Email] disabled\n')
+    ).toEqual([]);
+  });
+
+  it('tech-radar ring assignment to a declared ring produces no error', () => {
+    const doc = [
+      'tech-radar',
+      'rings',
+      '  Adopt',
+      '  Trial',
+      'Techniques quadrant: top-right',
+      '  CI/CD ring: Adopt, trend: stable',
+      'Tools quadrant: top-left',
+      '  Vite ring: Trial, trend: up',
+      'Platforms quadrant: bottom-left',
+      '  K8s ring: Adopt, trend: stable',
+      'Languages quadrant: bottom-right',
+      '  Rust ring: Trial, trend: up',
+    ].join('\n');
+    expect(errorsOf(doc)).toEqual([]);
+  });
+});
+
+describe('coverage-parity review fixes (H1/H2/M1)', () => {
+  it('H1: data-chart colon-form gated to function — colon labels survive', () => {
+    // A bar row with a colon in the label must NOT be truncated to pre-colon.
+    expect(extractDiagramSymbols('bar\n12:00 5\n13:00 8\n')!.entities).toEqual([
+      '12:00',
+      '13:00',
+    ]);
+    // function still extracts the colon-label form.
+    expect(
+      extractDiagramSymbols('function\nSigmoid: 1/(1+e^-x)\n')!.entities
+    ).toEqual(['Sigmoid']);
+  });
+
+  it('H2: sankey undirected `--` links yield clean endpoints, not junk', () => {
+    const r = extractDiagramSymbols('sankey\nA -- B 10\nB -> C 5\n');
+    expect(r!.entities).toEqual(['A', 'B', 'C']);
+    expect(r!.entities).not.toContain('A -- B 10');
+  });
+
+  it('M1: venn skips no-space `+` intersection rows', () => {
+    const r = extractDiagramSymbols(
+      'venn\nAlpha as a\nBeta as b\na+b Overlap\n'
+    );
+    expect(r!.entities).not.toContain('a+b Overlap');
+    expect(r!.entities).toEqual(expect.arrayContaining(['a', 'b']));
   });
 });

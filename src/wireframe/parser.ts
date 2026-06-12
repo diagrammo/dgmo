@@ -71,11 +71,17 @@ type MutableWireframeElement = Omit<
 /** Known wireframe option keys (header-phase options before content) */
 const KNOWN_OPTIONS = new Set(['palette', 'theme', 'active-tag']);
 
-/** Keywords that only make sense on groups — force group interpretation (EC1) */
-const GROUP_ONLY_METADATA = new Set(['horizontal', 'scrollable', 'collapsed']);
+/** Keywords that only make sense on groups — force group interpretation (EC1).
+ *  Exported so editor completion can drop them for non-group elements. */
+export const GROUP_ONLY_METADATA = new Set([
+  'horizontal',
+  'scrollable',
+  'collapsed',
+]);
 
-/** Recognized state keywords for pipe metadata */
-const STATE_KEYWORDS = new Set([
+/** Recognized state keywords for pipe metadata. Exported so editor completion
+ *  can consume the closed set directly instead of hand-copying it (one-oracle). */
+export const STATE_KEYWORDS = new Set([
   'disabled',
   'active',
   'selected',

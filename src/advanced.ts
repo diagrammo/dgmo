@@ -761,6 +761,10 @@ export {
   PIPE_METADATA,
   STRUCTURAL_KEYWORDS,
   TAG_SUPPORTING_TYPES,
+  REFERENCE_GRAMMAR,
+  RACI_MARKER_ALPHABETS,
+  WIREFRAME_FLAGS,
+  WIREFRAME_GROUP_ONLY_FLAGS,
   extractTagDeclarations,
 } from './completion';
 export type {
@@ -769,6 +773,7 @@ export type {
   DirectiveSpec,
   DirectiveValueSpec,
   PipeKeySpec,
+  ReferenceGrammar,
 } from './completion';
 
 export { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';
