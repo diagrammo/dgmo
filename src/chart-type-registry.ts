@@ -137,6 +137,7 @@ function measureTechRadar(content: string): ContentCounts {
 
 function measureHeatmap(content: string): ContentCounts {
   const parsed = parseExtendedChart(content);
+  if (parsed.type !== 'heatmap') return { columns: 0, rows: 0 };
   return {
     columns: parsed.columns?.length ?? 0,
     rows: parsed.heatmapRows?.length ?? parsed.rows?.length ?? 0,

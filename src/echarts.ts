@@ -107,8 +107,15 @@ interface ParsedHeatmapRow {
 
 import type { DgmoError } from './diagnostics';
 
-export interface ParsedExtendedChart {
-  type: ExtendedChartType;
+// ============================================================
+// Discriminated union — Story 109.2a (arch-review). Each extended data-chart
+// carries only its own type-specific fields; the parser fills a fat
+// `ParsedExtendedChartFull` accumulator and returns it narrowed (type-only,
+// runtime-identical). Shared fields live on ParsedExtendedBase.
+// ============================================================
+
+/** Fields shared by every extended data-chart. */
+export interface ParsedExtendedBase {
   title?: string;
   titleLineNumber?: number;
   series?: string;
@@ -117,18 +124,12 @@ export interface ParsedExtendedChart {
   seriesNameLineNumbers?: number[];
   seriesNameColors?: (string | undefined)[];
   data: ExtendedChartDataPoint[];
-  links?: ParsedSankeyLink[];
-  functions?: ParsedFunction[];
-  scatterPoints?: ParsedScatterPoint[];
-  heatmapRows?: ParsedHeatmapRow[];
-  columns?: string[];
-  rows?: string[];
-  xRange?: { min: number; max: number };
   xlabel?: string;
   xlabelLineNumber?: number;
   ylabel?: string;
   ylabelLineNumber?: number;
-  sizelabel?: string;
+  /** X-axis range — read by both function plots and scatter. */
+  xRange?: { min: number; max: number };
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
@@ -142,6 +143,66 @@ export interface ParsedExtendedChart {
   nodeColors?: Record<string, string>;
   diagnostics: DgmoError[];
   error: string | null;
+}
+
+export interface ParsedSankey extends ParsedExtendedBase {
+  type: 'sankey';
+  links?: ParsedSankeyLink[];
+}
+
+export interface ParsedChord extends ParsedExtendedBase {
+  type: 'chord';
+  links?: ParsedSankeyLink[];
+}
+
+export interface ParsedFunctionChart extends ParsedExtendedBase {
+  type: 'function';
+  functions?: ParsedFunction[];
+}
+
+export interface ParsedScatter extends ParsedExtendedBase {
+  type: 'scatter';
+  scatterPoints?: ParsedScatterPoint[];
+  sizelabel?: string;
+}
+
+export interface ParsedHeatmap extends ParsedExtendedBase {
+  type: 'heatmap';
+  heatmapRows?: ParsedHeatmapRow[];
+  columns?: string[];
+  rows?: string[];
+}
+
+export interface ParsedFunnel extends ParsedExtendedBase {
+  type: 'funnel';
+}
+
+/** What `parseExtendedChart` returns: discriminated on `type`. */
+export type ParsedExtendedChart =
+  | ParsedSankey
+  | ParsedChord
+  | ParsedFunctionChart
+  | ParsedScatter
+  | ParsedHeatmap
+  | ParsedFunnel;
+
+/**
+ * The parser's mutable accumulator — every type-specific field present, so the
+ * single state machine can populate whichever the detected type needs.
+ * `parseExtendedChart` returns this narrowed to {@link ParsedExtendedChart}; the
+ * object is a structural superset of every variant, so the narrowing is sound
+ * and changes nothing at runtime.
+ */
+export interface ParsedExtendedChartFull extends ParsedExtendedBase {
+  type: ExtendedChartType;
+  links?: ParsedSankeyLink[];
+  functions?: ParsedFunction[];
+  scatterPoints?: ParsedScatterPoint[];
+  heatmapRows?: ParsedHeatmapRow[];
+  columns?: string[];
+  rows?: string[];
+  xRange?: { min: number; max: number };
+  sizelabel?: string;
 }
 
 // ============================================================
@@ -270,8 +331,15 @@ export function parseExtendedChart(
   content: string,
   palette?: PaletteColors
 ): ParsedExtendedChart {
+  return parseExtendedChartFull(content, palette) as ParsedExtendedChart;
+}
+
+function parseExtendedChartFull(
+  content: string,
+  palette?: PaletteColors
+): ParsedExtendedChartFull {
   const lines = content.split('\n');
-  const result: ParsedExtendedChart = {
+  const result: ParsedExtendedChartFull = {
     type: 'scatter',
     data: [],
     diagnostics: [],
@@ -979,7 +1047,7 @@ export function buildExtendedChartOption(
  * Builds ECharts option for sankey diagrams.
  */
 function buildSankeyOption(
-  parsed: ParsedExtendedChart,
+  parsed: ParsedSankey,
   textColor: string,
   colors: string[],
   bg: string,
@@ -1064,7 +1132,7 @@ function buildSankeyOption(
  * Builds ECharts option for chord diagrams.
  */
 function buildChordOption(
-  parsed: ParsedExtendedChart,
+  parsed: ParsedChord,
   palette: PaletteColors,
   isDark: boolean,
   textColor: string,
@@ -1231,7 +1299,7 @@ function evaluateExpression(expr: string, x: number): number {
  * Builds ECharts option for function plots.
  */
 function buildFunctionOption(
-  parsed: ParsedExtendedChart,
+  parsed: ParsedFunctionChart,
   palette: PaletteColors,
   _isDark: boolean,
   textColor: string,
@@ -1656,7 +1724,7 @@ function dataToPixel(
  * - hasSize → dynamic symbol sizing from 3rd value
  */
 function buildScatterOption(
-  parsed: ParsedExtendedChart,
+  parsed: ParsedScatter,
   palette: PaletteColors,
   isDark: boolean,
   textColor: string,
@@ -1959,7 +2027,7 @@ function buildScatterOption(
  * Builds ECharts option for heatmap charts.
  */
 function buildHeatmapOption(
-  parsed: ParsedExtendedChart,
+  parsed: ParsedHeatmap,
   palette: PaletteColors,
   isDark: boolean,
   textColor: string,
@@ -2168,7 +2236,7 @@ function buildHeatmapOption(
  * Builds ECharts option for funnel charts.
  */
 function buildFunnelOption(
-  parsed: ParsedExtendedChart,
+  parsed: ParsedFunnel,
   palette: PaletteColors,
   isDark: boolean,
   textColor: string,
