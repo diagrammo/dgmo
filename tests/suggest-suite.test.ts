@@ -13,7 +13,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { suggestChartTypes, chartTypes } from '@diagrammo/dgmo/advanced';
+import { suggestChartTypes, chartTypes } from '../src/advanced';
 import { extractTypeBlock } from '../scripts/lib/ref-anchors.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));

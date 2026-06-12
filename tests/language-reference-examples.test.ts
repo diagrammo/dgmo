@@ -37,7 +37,7 @@ import {
   loadExampleIndex,
   resolveExample,
 } from '../scripts/lib/example-source.mjs';
-import { chartTypes } from '@diagrammo/dgmo/advanced';
+import { chartTypes } from '../src/advanced';
 
 // The data-derived common set inlined into every core (must match
 // gen-ai-core.mjs's COMMON_N). dgmo-content may be absent in a standalone
