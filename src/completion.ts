@@ -22,6 +22,13 @@ import {
   measureIndent,
 } from './utils/parsing';
 import { RECOGNIZED_COLOR_NAMES } from './colors';
+// Closed enum sets owned by their respective parsers — imported (never
+// hand-copied) so completion can't drift from the grammar (one-oracle rule).
+import { VARIANTS } from './raci/variants';
+import {
+  STATE_KEYWORDS as WIREFRAME_STATE_KEYWORDS,
+  GROUP_ONLY_METADATA as WIREFRAME_GROUP_ONLY_METADATA,
+} from './wireframe/parser';
 
 const RECOGNIZED_COLOR_SET: ReadonlySet<string> = new Set(
   RECOGNIZED_COLOR_NAMES
@@ -724,6 +731,114 @@ export const TAG_SUPPORTING_TYPES: ReadonlySet<string> = new Set(
     .filter(([, kws]) => kws.includes('tag'))
     .map(([type]) => type)
 );
+
+// ============================================================
+// Reference grammar descriptor (slot 5 — entity reference)
+// ============================================================
+
+/** Whether a chart type has a reference position (arrow/operator → a prior
+ *  declaration) and which operators open it. The single oracle that drives
+ *  the library extractor audit, the app's entity-trigger map, and the
+ *  conformance drift-guard — so the three can never disagree. v1 models
+ *  reference-after-operator only (NOT metadata-target references). */
+export interface ReferenceGrammar {
+  hasReferenceGrammar: boolean;
+  /** Literal operator tokens that introduce a reference (e.g. `->`, `<->`,
+   *  `~>`, `+`). The app derives its trigger regex from these (allowing the
+   *  labeled `-label->` / `~label~>` variants where applicable). */
+  referenceOperators: string[];
+}
+
+/**
+ * Per-type reference grammar. Grounded in each parser's arrow/operator
+ * grammar — NOT hand-typed blind. Types with no reference position (org,
+ * kanban, mindmap, all data charts, the radial/visualization types) declare
+ * `hasReferenceGrammar: false`. `map` references (`route A ~> B`) are owned by
+ * the app's bespoke geo-completion path, so it stays `false` here to avoid
+ * double-handling.
+ */
+export const REFERENCE_GRAMMAR = new Map<string, ReferenceGrammar>([
+  // Diagrams with a genuine reference position
+  ['sequence', { hasReferenceGrammar: true, referenceOperators: ['->', '~>'] }],
+  ['flowchart', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
+  ['state', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
+  ['sitemap', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
+  [
+    'c4',
+    {
+      hasReferenceGrammar: true,
+      referenceOperators: ['->', '<->', '~>', '<~>'],
+    },
+  ],
+  // ER/class/infra reference grammars are irregular (cardinality / typed
+  // relationship operators / indented arrows); the app keeps a special-cased
+  // trigger for those, but they're still reference-grammar types here so the
+  // drift-guard covers their extractors.
+  ['er', { hasReferenceGrammar: true, referenceOperators: ['--'] }],
+  [
+    'class',
+    {
+      hasReferenceGrammar: true,
+      referenceOperators: ['-->', '--|>', '..|>', '*--', 'o--', '..>'],
+    },
+  ],
+  ['infra', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
+  ['gantt', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
+  ['pert', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
+  ['arc', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
+  ['sankey', { hasReferenceGrammar: true, referenceOperators: ['->', '--'] }],
+  ['chord', { hasReferenceGrammar: true, referenceOperators: ['->', '--'] }],
+  [
+    'boxes-and-lines',
+    { hasReferenceGrammar: true, referenceOperators: ['->', '<->'] },
+  ],
+  // Venn references prior sets via the `+` intersection operator (not an arrow).
+  ['venn', { hasReferenceGrammar: true, referenceOperators: ['+'] }],
+]);
+
+// Every other registered chart type has no reference position.
+for (const type of ALL_CHART_TYPES) {
+  if (!REFERENCE_GRAMMAR.has(type)) {
+    REFERENCE_GRAMMAR.set(type, {
+      hasReferenceGrammar: false,
+      referenceOperators: [],
+    });
+  }
+}
+
+// ============================================================
+// Closed value enums (slot 7) sourced from parser constants
+// ============================================================
+
+/**
+ * Per-RACI-variant marker alphabets (slot-7 enum in the role-assignment value
+ * position). Consumed by editor completion; sourced from `raci/variants.ts`'s
+ * `VARIANTS` so the marker set can never drift from the parser. Mirrored for
+ * the `rasci`/`daci` first-line keyword variants.
+ */
+export const RACI_MARKER_ALPHABETS: ReadonlyMap<string, readonly string[]> =
+  new Map([
+    ['raci', VARIANTS.raci.alphabet],
+    ['rasci', VARIANTS.rasci.alphabet],
+    ['daci', VARIANTS.daci.alphabet],
+  ]);
+
+/**
+ * Closed set of wireframe element state flags (slot-7 trailing enum, e.g.
+ * `(Submit) primary destructive`). Sourced from the wireframe parser's
+ * `STATE_KEYWORDS` — exported there and consumed here, never re-typed.
+ */
+export const WIREFRAME_FLAGS: readonly string[] = [...WIREFRAME_STATE_KEYWORDS];
+
+/**
+ * The subset of `WIREFRAME_FLAGS` that only make sense on group elements
+ * (`horizontal`/`scrollable`/`collapsed`). Editor completion drops these for
+ * non-group elements (buttons, dropdowns). Sourced from the parser's
+ * `GROUP_ONLY_METADATA`, never hand-copied.
+ */
+export const WIREFRAME_GROUP_ONLY_FLAGS: readonly string[] = [
+  ...WIREFRAME_GROUP_ONLY_METADATA,
+];
 
 // ============================================================
 // Pipe metadata for inline `| key value` on data lines
@@ -1818,7 +1933,8 @@ function extractArcSymbols(docText: string): DiagramSymbols {
 // Sankey extractor
 // ============================================================
 
-const SANKEY_ARROW_RE = /^(.+?)\s+->\s+(.+?)\s+(\d[\d,_.]*)/;
+// Sankey links accept both directed `->` and undirected `--` (echarts.ts §1.5).
+const SANKEY_ARROW_RE = /^(.+?)\s+(?:->|--)\s+(.+?)\s+(\d[\d,_.]*)/;
 
 function extractSankeySymbols(docText: string): DiagramSymbols {
   const lines = docText.split('\n');
@@ -1937,8 +2053,29 @@ function extractVennSymbols(docText: string): DiagramSymbols {
     // Skip indented intersection lines
     if (line[0] === ' ' || line[0] === '\t') continue;
 
-    // Set name (strip pipe metadata, alias, color)
-    const label = trimmed.split('|')[0]!.trim();
+    // Skip intersection rows — those are references to prior sets, not
+    // declarations. Set NAMES + aliases come from the declaration lines below
+    // (the `+`-completion offers those). Match the parser's detection (d3.ts:
+    // any `+` on the line = intersection), not just the spaced form.
+    if (trimmed.includes('+')) continue;
+
+    // Set declaration: `Name [as <alias>] [color]`. Emit both the clean name
+    // and the alias so `Set + ` reference completion can offer either token.
+    const work = trimmed.split('|')[0]!.trim();
+    const asMatch = work.match(/^(.+?)\s+as\s+([A-Za-z][\w-]*)\b/i);
+    if (asMatch) {
+      const name = asMatch[1]!.trim();
+      const alias = asMatch[2]!;
+      if (name && !entities.includes(name)) entities.push(name);
+      if (alias && !entities.includes(alias)) entities.push(alias);
+      continue;
+    }
+    // No alias — strip a trailing color token if present.
+    const colorMatch = work.match(/^(.+?)\s+(\S+)$/);
+    const label =
+      colorMatch && RECOGNIZED_COLOR_SET.has(colorMatch[2]!.toLowerCase())
+        ? colorMatch[1]!.trim()
+        : work;
     if (label && !entities.includes(label)) entities.push(label);
   }
 
@@ -2019,6 +2156,9 @@ function extractSlopeSymbols(docText: string): DiagramSymbols {
 // ============================================================
 
 const SERIES_RE = /^series\s+(.+)$/i;
+// "A -> B value" / "A -- B value" flow-link rows (chord/sankey via the shared
+// extractor). Both endpoints captured; trailing weight optional.
+const DATA_EDGE_RE = /^(.+?)\s+(?:->|--)\s+(.+?)(?:\s+-?\d[\d,_.]*)?\s*$/;
 
 function extractDataChartSymbols(docText: string): DiagramSymbols {
   const lines = docText.split('\n');
@@ -2050,6 +2190,34 @@ function extractDataChartSymbols(docText: string): DiagramSymbols {
       continue;
     }
 
+    // Edge rows (chord / flow links): "A -> B value" / "A -- B value" — recover
+    // BOTH endpoints. Without this the trailing-number scan below mangles the
+    // whole "A -> B" into a single junk entity.
+    const edgeMatch = trimmed.match(DATA_EDGE_RE);
+    if (edgeMatch) {
+      const src = edgeMatch[1]!.trim();
+      const dst = edgeMatch[2]!.trim();
+      if (src && !entities.includes(src)) entities.push(src);
+      if (dst && !entities.includes(dst)) entities.push(dst);
+      continue;
+    }
+
+    // Label-expression rows (function curves §15.4): "Name: expression". ONLY
+    // for `function` — other data charts have no colon-form and would otherwise
+    // truncate legitimate colon-bearing labels (`12:00 5` → `12`). Column-0
+    // only, so indented `key: value` metadata is never misread as an entity.
+    if (chartType === 'function') {
+      const indent = line.length - line.trimStart().length;
+      const colonIdx = trimmed.indexOf(':');
+      if (indent === 0 && colonIdx > 0) {
+        const beforeColon = trimmed.slice(0, colonIdx).trim();
+        if (beforeColon && !METADATA_KEY_SET.has(beforeColon.toLowerCase())) {
+          if (!entities.includes(beforeColon)) entities.push(beforeColon);
+          continue;
+        }
+      }
+    }
+
     // Data rows: "Label value [value...] [color]"
     const numIdx = trimmed.search(/\s-?\d/);
     if (numIdx > 0) {
@@ -2059,6 +2227,64 @@ function extractDataChartSymbols(docText: string): DiagramSymbols {
   }
 
   return { kind: chartType, entities };
+}
+
+// ============================================================
+// Wireframe extractor
+// ============================================================
+
+// Wireframe element grammar is not a numeric-row variant, so it earns its own
+// extractor: `[label]` fields, `(button)`, `{a | b}` dropdowns/selects, with
+// possibly several elements per line. Returns the element labels as entities.
+const WF_FIELD_RE = /\[([^\]]*)\]/g;
+const WF_BUTTON_RE = /\(([^)]+)\)/g;
+const WF_DROPDOWN_RE = /\{([^}]+)\}/g;
+
+function extractWireframeSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+
+  const push = (s: string): void => {
+    // Strip any legacy trailing `| meta` inside a bracket; the `{a|b}` pipe is
+    // handled separately by the dropdown split below.
+    const t = s.split('|')[0]!.trim();
+    if (t && !entities.includes(t)) entities.push(t);
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    // `[label]` input/group fields.
+    for (const m of trimmed.matchAll(WF_FIELD_RE)) {
+      const inner = m[1]!.trim();
+      if (inner) push(inner);
+    }
+    // `(button)` — skip radio markers `(*)` / `( )`.
+    for (const m of trimmed.matchAll(WF_BUTTON_RE)) {
+      const inner = m[1]!.trim();
+      if (inner === '*' || inner === '') continue;
+      push(inner);
+    }
+    // `{opt1 | opt2}` dropdown/select — each option is an entity (carve-out pipe).
+    for (const m of trimmed.matchAll(WF_DROPDOWN_RE)) {
+      for (const opt of m[1]!.split('|')) {
+        const t = opt.trim();
+        if (t && !entities.includes(t)) entities.push(t);
+      }
+    }
+  }
+
+  return { kind: 'wireframe', entities };
 }
 
 // ============================================================
@@ -2106,6 +2332,12 @@ registerExtractor('scatter', extractDataChartSymbols);
 registerExtractor('heatmap', extractDataChartSymbols);
 registerExtractor('funnel', extractDataChartSymbols);
 registerExtractor('chord', extractDataChartSymbols);
+// `function` (`Name: expr`) and `wordcloud` (`Word weight`) had NO extractor
+// registered — extractDiagramSymbols returned null for them. The generalized
+// shared extractor now handles the colon-label form, so register both.
+registerExtractor('function', extractDataChartSymbols);
+registerExtractor('wordcloud', extractDataChartSymbols);
+registerExtractor('wireframe', extractWireframeSymbols);
 
 function extractTechRadarSymbols(docText: string): DiagramSymbols {
   const entities: string[] = [];

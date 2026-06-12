@@ -24,6 +24,8 @@ import {
   STRUCTURAL_KEYWORDS,
   TAG_SUPPORTING_TYPES,
   ALL_CHART_TYPES,
+  REFERENCE_GRAMMAR,
+  extractDiagramSymbols,
 } from '../src/internal';
 import { getAvailablePalettes } from '../src/palettes';
 
@@ -248,3 +250,78 @@ for (const f of fixtures) {
     }
   });
 }
+
+// ============================================================
+// Generative reference-grammar drift-guard (NOT the hand-maintained list above)
+// ============================================================
+//
+// The fixture suite above only covers a type once someone hand-adds an import,
+// so it can never catch a forgotten chart type. This block iterates
+// ALL_CHART_TYPES DIRECTLY and asserts the slot-5 invariant: every type whose
+// REFERENCE_GRAMMAR declares `hasReferenceGrammar: true` MUST have a registered
+// extractor that returns ≥1 entity on a reference fixture. A new `chartTypes`
+// entry with a reference grammar but no working extractor fails here at CI —
+// the "new chart type, forgot completion" failure class dies.
+//
+// Fixtures are minimal current-spec snippets (parser-verified). When a new
+// reference-grammar type lands, add its fixture here or the guard goes red.
+const REFERENCE_FIXTURES: Record<string, string> = {
+  sequence: 'sequence\nAuth -> API\n',
+  flowchart: 'flowchart\nStart -> End\n',
+  state: 'state\nIdle -> Running\n',
+  sitemap: 'sitemap\nHome\nAbout\n',
+  c4: 'c4\nperson User\nsystem App\nUser -> App\n',
+  er: 'er\nUsers\nOrders\nUsers 1--* Orders\n',
+  class: 'class\nUser\nOrder\nUser --|> Order\n',
+  infra: 'infra\nAPI\nCache\n  API -> Cache\n',
+  gantt: 'gantt\nDesign duration: 5d\nBuild duration: 3d\n',
+  pert: 'pert\nDesign 1 2 3\nBuild 2 3 4\n',
+  arc: 'arc\nA -> B\n',
+  sankey: 'sankey\nA -> B 10\n',
+  chord: 'chord\nA -> B 10\n',
+  'boxes-and-lines': 'boxes-and-lines\nA -> B\n',
+  venn: 'venn\nSwordsmanship as sw\nNavigation as nav\nsw + nav Overlap\n',
+};
+
+describe('reference-grammar drift-guard (generative over ALL_CHART_TYPES)', () => {
+  for (const type of ALL_CHART_TYPES) {
+    const grammar = REFERENCE_GRAMMAR.get(type);
+    if (!grammar?.hasReferenceGrammar) continue;
+
+    it(`'${type}' has a working extractor (slot-5 reference invariant)`, () => {
+      const fixture = REFERENCE_FIXTURES[type];
+      expect(
+        fixture,
+        `'${type}' declares hasReferenceGrammar: true in REFERENCE_GRAMMAR but has no reference fixture in this test. Add one so the drift-guard can prove its extractor works.`
+      ).toBeDefined();
+      if (!fixture) return;
+
+      const symbols = extractDiagramSymbols(fixture);
+      expect(
+        symbols,
+        `'${type}' has a reference grammar but extractDiagramSymbols returned null — no registered extractor. Register one in completion.ts.`
+      ).not.toBeNull();
+      expect(
+        symbols!.entities.length,
+        `'${type}' reference extractor returned zero entities for a fixture that declares some. Reference completion will never fire.`
+      ).toBeGreaterThanOrEqual(1);
+    });
+
+    it(`'${type}' declares at least one reference operator`, () => {
+      expect(
+        grammar.referenceOperators.length,
+        `'${type}' has hasReferenceGrammar: true but no referenceOperators — the app can't build a trigger.`
+      ).toBeGreaterThanOrEqual(1);
+    });
+  }
+
+  it('every ALL_CHART_TYPES entry has a REFERENCE_GRAMMAR descriptor', () => {
+    const missing = [...ALL_CHART_TYPES].filter(
+      (t) => !REFERENCE_GRAMMAR.has(t)
+    );
+    expect(
+      missing,
+      `These chart types have no REFERENCE_GRAMMAR entry — the auto-fill loop in completion.ts should cover every registered type.`
+    ).toEqual([]);
+  });
+});
