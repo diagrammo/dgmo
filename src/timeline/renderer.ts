@@ -39,12 +39,8 @@ import {
   measureLegendText,
   truncateLegendText,
 } from '../utils/legend-constants';
-import { renderLegendD3 } from '../utils/legend-d3';
-import type {
-  LegendConfig,
-  LegendState,
-  LegendCallbacks,
-} from '../utils/legend-types';
+import { renderIntegratedLegend } from '../utils/legend-integration';
+import type { LegendConfig, LegendCallbacks } from '../utils/legend-types';
 
 function getEraColors(palette: PaletteColors): string[] {
   return [
@@ -1313,8 +1309,6 @@ function renderTimelineTagLegendOverlay(
         mode: exportMode ? 'export' : 'preview',
         capsulePillAddonWidth: iconAddon,
       };
-      const centralState: LegendState = { activeGroup: centralActive };
-
       const centralCallbacks: LegendCallbacks = viewMode
         ? {}
         : {
@@ -1390,15 +1384,14 @@ function renderTimelineTagLegendOverlay(
       const legendInnerG = legendContainer
         .append('g')
         .attr('transform', `translate(0, ${legendY})`);
-      renderLegendD3(
-        legendInnerG,
-        centralConfig,
-        centralState,
+      renderIntegratedLegend(legendInnerG, {
+        ...centralConfig,
         palette,
         isDark,
-        centralCallbacks,
-        width
-      );
+        width,
+        activeGroup: centralActive,
+        callbacks: centralCallbacks,
+      });
     }
 
     // Build a quick lineNumber→event lookup
