@@ -4061,6 +4061,88 @@ export function layoutMap(
     }
   }
 
+  // -- Edge/leg labels: dodge POI dots + committed labels --
+  // A connector's label (a freight weight, a pact name) rides its line midpoint by
+  // default. Nudge it ALONG the chord — then a small perpendicular hop — to the
+  // first slot that clears every POI dot and every committed region/POI label, so a
+  // label crossing a busy port stops sitting on top of it. The line itself is NOT
+  // an obstacle (a label is meant to ride its own line); falls back to the midpoint
+  // if no slot is clean. Chosen rects also feed `obstacles` so the context-label
+  // pass below dodges them too. Runs on the settled layout (after the POI-clearance
+  // re-fit has converged), so dot/label positions are final.
+  if (legs.some((lg) => lg.label !== undefined)) {
+    const committedBoxes: LabelRect[] = labels
+      .filter((l) => !l.hidden)
+      .map((l) => {
+        const w = labelW(l.text);
+        const x =
+          l.anchor === 'start'
+            ? l.x
+            : l.anchor === 'end'
+              ? l.x - w
+              : l.x - w / 2;
+        return { x, y: l.y - labelH / 2, w, h: labelH };
+      });
+    const placedEdge: LabelRect[] = [];
+    const T_LIST = [0.5, 0.42, 0.58, 0.34, 0.66, 0.28, 0.72];
+    for (let i = 0; i < legs.length; i++) {
+      const lg = legs[i]!;
+      if (lg.label === undefined) continue;
+      const a = poiScreen.get(lg.fromId);
+      const b = poiScreen.get(lg.toId);
+      if (!a || !b) continue;
+      const w = labelW(lg.label);
+      const dx = b.cx - a.cx;
+      const dy = b.cy - a.cy;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len; // unit normal to the chord
+      const perp = labelH + 2;
+      // Stay ON the line first (slide along the chord), then escalate to a
+      // perpendicular hop — growing — so a label on a SHORT leg between two close
+      // dots (where every on-chord slot straddles an endpoint) can still escape
+      // clear above or below the line.
+      const candidates: Array<[number, number]> = [];
+      for (const off of [0, perp, -perp, 2 * perp, -2 * perp])
+        for (const t of T_LIST)
+          candidates.push([
+            a.cx + dx * t + nx * off,
+            a.cy + dy * t + ny * off - 4,
+          ]);
+      const clean = ([cx, cy]: [number, number]): boolean => {
+        const rect = { x: cx - w / 2, y: cy - labelH / 2, w, h: labelH };
+        if (
+          rect.x < 0 ||
+          rect.x + w > width ||
+          rect.y < 0 ||
+          rect.y + rect.h > height
+        )
+          return false;
+        if (markers.some((m) => rectCircleOverlap(rect, m))) return false;
+        if (committedBoxes.some((o) => rectsOverlap(o, rect))) return false;
+        if (placedEdge.some((o) => rectsOverlap(o, rect))) return false;
+        return true;
+      };
+      const [cx, cy] = candidates.find(clean) ?? [
+        a.cx + dx * 0.5,
+        a.cy + dy * 0.5 - 4,
+      ];
+      const style = labelOnFill(fillAt(cx, cy));
+      // MapLayoutLeg fields are readonly — replace the entry with an updated copy.
+      legs[i] = {
+        ...lg,
+        labelX: cx,
+        labelY: cy,
+        labelColor: style.color,
+        labelHalo: style.halo,
+        labelHaloColor: style.haloColor,
+      };
+      const rect = { x: cx - w / 2, y: cy - labelH / 2, w, h: labelH };
+      placedEdge.push(rect);
+      obstacles.push(rect);
+    }
+  }
+
   // -- Context labels (orientation backdrop, §24B). Placed DEAD LAST so they
   // only fill leftover space and never displace a data/region/POI label
   // (Decision 7). Off by default; gated on the directive so it costs nothing. --

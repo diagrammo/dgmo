@@ -1894,3 +1894,34 @@ describe('layout — region callout leaders hug the cluster (no cross-ocean line
     expect(Math.max(...leaders)).toBeLessThan(130);
   });
 });
+
+describe('layout — edge/leg labels dodge POI dots', () => {
+  it('a line label whose midpoint lands on a third POI moves off that dot', async () => {
+    const data = await loadMapData();
+    // a + b straddle c, so the a–b edge label's natural midpoint sits right on c's
+    // dot. The dodge must slide/hop it clear.
+    const r = resolveMap(
+      parseMap(
+        'map\npoi 20 -80 as a\npoi 20 -70 as b\npoi 20 -75 as c\na -trade pact- b'
+      ),
+      data
+    );
+    const L = layoutMap(
+      r,
+      data,
+      { width: 1000, height: 800 },
+      { palette: getPalette('slate').light, isDark: false }
+    );
+    const leg = L.legs.find((lg) => lg.label === 'trade pact')!;
+    expect(leg.labelX).toBeDefined();
+    const c = L.pois.find((p) => p.id === 'c')!;
+    const w = measureLegendText('trade pact', 11);
+    const h = 15;
+    const rect = { x: leg.labelX! - w / 2, y: leg.labelY! - h / 2, w, h };
+    // No overlap between the label box and c's dot circle.
+    const nearX = Math.max(rect.x, Math.min(c.cx, rect.x + rect.w));
+    const nearY = Math.max(rect.y, Math.min(c.cy, rect.y + rect.h));
+    const d2 = (nearX - c.cx) ** 2 + (nearY - c.cy) ** 2;
+    expect(d2).toBeGreaterThan(c.r * c.r);
+  });
+});
