@@ -853,9 +853,11 @@ describe('layout — POI label hover-only gate (extent/count/clean)', () => {
     expect(r.labels.every((l) => !l.hidden && !l.leader)).toBe(true);
   });
 
-  it('lone boxed-in hub (no inline side fits) → visible callout, not hidden (AC9)', () => {
-    // A hub fed by legs on all sides can't place an inline label, so it falls to
-    // a single-row callout — a singleton is NEVER routed to hover-only.
+  it('hub blocked on all four cardinal sides → clean diagonal inline label (8-position), not hidden (AC9)', () => {
+    // A hub fed by legs N/S/E/W blocks all four cardinal label sides. The diagonal
+    // corners (NE/NW/SE/SW) sit in the gaps between the legs, so the label places
+    // inline at a corner — no leader needed, never hover-only. (A leader column is
+    // the deeper fallback only when all eight positions are blocked.)
     const src = [
       'map',
       'poi 40 -100 as hublongname',
@@ -868,10 +870,16 @@ describe('layout — POI label hover-only gate (extent/count/clean)', () => {
       'hublongname -> east',
       'hublongname -> west',
     ].join('\n');
-    const hub = lay(src).labels.find((l) => l.text === 'hublongname')!;
+    const placed = lay(src);
+    const hub = placed.labels.find((l) => l.text === 'hublongname')!;
+    const hubDot = placed.pois.find((p) => p.id === 'hublongname')!;
     expect(hub).toBeDefined();
     expect(hub.hidden).toBeFalsy();
-    expect(hub.leader).toBeTruthy();
+    expect(hub.leader).toBeFalsy(); // inline, not a leadered column
+    // Diagonal placement: offset off BOTH axes (not a centred above/below, not a
+    // flank label sitting on the dot's own row).
+    expect(Math.abs(hub.y - hubDot.cy)).toBeGreaterThan(hubDot.r);
+    expect(hub.anchor === 'start' || hub.anchor === 'end').toBe(true);
   });
 });
 
@@ -1838,5 +1846,51 @@ describe('layout — albers-usa skew fallback (water-where-Alaska-is lie)', () =
     expect(tall.regions.length).toBeGreaterThan(0);
     expect(wide.regions.length).toBeGreaterThan(0);
     expect(tall.pois.length).toBe(wide.pois.length);
+  });
+});
+
+describe('layout — region callout leaders hug the cluster (no cross-ocean lines)', () => {
+  // A US national choropleth where crowded Northeastern states (NY/PA/MA/NC) are
+  // too small to label inline → margin callouts. The callout column must seat just
+  // off the coast, NOT at the canvas edge, so leaders stay short rather than firing
+  // clear across the Atlantic to an edge column.
+  const COVERAGE =
+    'map National Coverage\nregion-metric Stores\n' +
+    [
+      ['California', 480],
+      ['Texas', 410],
+      ['Florida', 320],
+      ['New York', 300],
+      ['Pennsylvania', 210],
+      ['Ohio', 190],
+      ['North Carolina', 165],
+      ['Massachusetts', 110],
+      ['Washington', 140],
+      ['Oregon', 70],
+      ['Nevada', 60],
+    ]
+      .map(([n, v]) => `${n} value: ${v}`)
+      .join('\n');
+
+  it('callout leaders stay short (hug the coast, not the frame edge)', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(parseMap(COVERAGE), data);
+    // A squarish national frame shrinks the states enough that the NE cluster
+    // callouts; this is the aspect that exposed the absurd cross-ocean leaders.
+    const L = layoutMap(
+      r,
+      data,
+      { width: 1000, height: 820 },
+      { palette: getPalette('slate').dark, isDark: true }
+    );
+    const leaders = L.labels
+      .filter((l) => l.leader)
+      .map((l) =>
+        Math.hypot(l.leader!.x2 - l.leader!.x1, l.leader!.y2 - l.leader!.y1)
+      );
+    expect(leaders.length).toBeGreaterThan(0); // some NE state did call out
+    // Every leader is a short hop to the near-shore column, well under the old
+    // ~300px edge-column reach.
+    expect(Math.max(...leaders)).toBeLessThan(130);
   });
 });

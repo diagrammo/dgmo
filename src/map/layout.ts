@@ -3309,21 +3309,44 @@ export function layoutMap(
       // ordered top→bottom by screen latitude so the column reads geographically
       // and the leaders stay short and roughly parallel. A cluster on each side of
       // the canvas gets its own column in its own reserved band.
-      const reserveInfo = opts._calloutReserve;
       const EDGE = 28;
-      const COL_GAP = 16; // chip inset from the land-facing edge of the band
+      const COL_GAP = 16; // min margin between a chip and the canvas edge
       const chipH = FONT + VALUE_GAP + VALUE_FONT;
       const ROW = chipH + 10;
+      const TARGET_LEADER = 40; // px: seat the column this far beyond the cluster
       const placeColumn = (
         group: typeof regionCallouts,
-        side: 'left' | 'right',
-        bandPx: number
+        side: 'left' | 'right'
       ): void => {
         if (group.length === 0) return;
         const anchor: PlacedLabel['anchor'] =
           side === 'right' ? 'start' : 'end';
+        // Widest chip in this column (name or value line) — bounds how far the
+        // column can sit from the edge while its text stays on-canvas.
+        const maxChipW = Math.max(
+          ...group.map((rc) =>
+            Math.max(
+              measureLegendText(rc.name, FONT),
+              measureLegendText(rc.value, VALUE_FONT)
+            )
+          )
+        );
+        // Hug the served cluster: seat the column a SHORT leader's reach beyond the
+        // cluster's outer centroid (into the near-shore ocean), NOT at the canvas
+        // edge. A coastal cluster (e.g. the US Northeast, with the Atlantic between
+        // it and the frame edge) otherwise fires leaders clear across open water to
+        // an edge column — the lines read as absurdly long. Clamp so the chips stay
+        // on-canvas; the reserved band is the outer bound, never the seat.
         const colX =
-          side === 'right' ? width - bandPx + COL_GAP : bandPx - COL_GAP;
+          side === 'right'
+            ? Math.min(
+                Math.max(...group.map((rc) => rc.cx)) + TARGET_LEADER,
+                width - COL_GAP - maxChipW
+              )
+            : Math.max(
+                Math.min(...group.map((rc) => rc.cx)) - TARGET_LEADER,
+                COL_GAP + maxChipW
+              );
         const rows = [...group].sort((a, b) => a.cy - b.cy);
         const meanCy = rows.reduce((s, rc) => s + rc.cy, 0) / rows.length;
         const totalH = rows.length * ROW;
@@ -3368,8 +3391,8 @@ export function layoutMap(
           : calloutSide === 'right'
             ? []
             : regionCallouts.filter((rc) => rc.cx < width / 2);
-      placeColumn(right, 'right', reserveInfo?.right ?? 150);
-      placeColumn(left, 'left', reserveInfo?.left ?? 150);
+      placeColumn(right, 'right');
+      placeColumn(left, 'left');
     }
   }
 
@@ -3390,11 +3413,22 @@ export function layoutMap(
       const text = labelText(p);
       return { text, w: measureLegendText(text, FONT) };
     };
-    // Candidate inline placements around a marker, in escalation order: the two
-    // horizontal sides first (most legible), then above/below for a hub whose
-    // edges all leave sideways and block both flanks (e.g. a POI fed by routes
-    // from the east AND west — Boulder in the route-cluster gauntlet).
-    type Side = 'right' | 'left' | 'above' | 'below';
+    // Candidate inline placements around a marker, in escalation order: the four
+    // cardinal sides first (most legible — horizontal flanks, then above/below for
+    // a hub whose edges leave sideways and block both flanks, e.g. a POI fed by
+    // routes from the east AND west). The four DIAGONAL corners are a fallback tier
+    // (standard 8-position cartographic placement): a route hub fed from several
+    // cardinal directions leaves the diagonal gaps open, so a corner label clears
+    // the arrows + neighbour dots instead of being dumped on top of them.
+    type Side =
+      | 'right'
+      | 'left'
+      | 'above'
+      | 'below'
+      | 'below-right'
+      | 'below-left'
+      | 'above-right'
+      | 'above-left';
     const GAP = 3;
     // Comfort buffer between any dot/label and the canvas edge — canvas-proportional
     // (≈3% of the shorter axis, floored) so a big preview pane breathes more than a
@@ -3438,6 +3472,24 @@ export function layoutMap(
           };
         case 'below':
           return { x: p.cx - w / 2, y: p.cy + p.r + GAP, w, h: poiLabH };
+        // Diagonal corners: offset both axes by (r+GAP)/√2 so the box's near
+        // corner clears the dot rim by the same gap as a cardinal side.
+        case 'below-right': {
+          const d = (p.r + GAP) * 0.7071;
+          return { x: p.cx + d, y: p.cy + d, w, h: poiLabH };
+        }
+        case 'below-left': {
+          const d = (p.r + GAP) * 0.7071;
+          return { x: p.cx - d - w, y: p.cy + d, w, h: poiLabH };
+        }
+        case 'above-right': {
+          const d = (p.r + GAP) * 0.7071;
+          return { x: p.cx + d, y: p.cy - d - poiLabH, w, h: poiLabH };
+        }
+        case 'above-left': {
+          const d = (p.r + GAP) * 0.7071;
+          return { x: p.cx - d - w, y: p.cy - d - poiLabH, w, h: poiLabH };
+        }
       }
     };
     const pushInline = (
@@ -3449,9 +3501,15 @@ export function layoutMap(
     ): void => {
       const rect = inlineRect(p, w, side);
       obstacles.push(rect);
-      const anchor =
-        side === 'right' ? 'start' : side === 'left' ? 'end' : 'middle';
-      const x = side === 'right' ? rect.x : side === 'left' ? rect.x + w : p.cx;
+      // Right-anchored (text grows rightward): the right flank + the two right
+      // corners. Left-anchored: the left flank + the two left corners. above/below
+      // stay centred.
+      const startSide =
+        side === 'right' || side === 'below-right' || side === 'above-right';
+      const endSide =
+        side === 'left' || side === 'below-left' || side === 'above-left';
+      const anchor = startSide ? 'start' : endSide ? 'end' : 'middle';
+      const x = startSide ? rect.x : endSide ? rect.x + w : p.cx;
       labels.push({
         x,
         y: rect.y + poiLabH / 2 + FONT / 3,
@@ -3741,6 +3799,70 @@ export function layoutMap(
       commitColumn(items, side, clusterId);
     }
 
+    // Placement quality for a singleton's inline label. Beyond the hard collision
+    // veto (inlineFits already drops any slot that overlaps a dot/label/arrow), we
+    // rank the SURVIVING candidates so the label takes the roomiest slot, not just
+    // the first clean cardinal flank. Three terms:
+    //   • clearance (PRIMARY) — how far the slot sits from the NEAREST other POI
+    //     dot and the nearest connector arrow (capped). This is what makes a hub
+    //     run its label out into the open AWAY from a neighbour cluster + the legs,
+    //     rather than hugging them on a technically-clean flank.
+    //   • openness (secondary tiebreaker) — water-facing + canvas-edge clearance
+    //     (existing helper), down-weighted so a roomy slot beats a cramped one even
+    //     when the cramped slot sits over slightly more open water.
+    //   • legibility (tertiary) — a mild prior: horizontal flanks read best, then
+    //     above/below, then the diagonal corners. Breaks near-ties toward the
+    //     conventional layout without overriding a clearly roomier slot.
+    const CLEAR_CAP = 48; // px past which a slot already reads as wide-open
+    const CLEAR_W = 8; // weight on clearance (CLEAR_CAP·W ≈ 384 — the dominant term)
+    const WATER_W = 0.25; // down-weight the openness term to a tiebreaker (≤ ~250)
+    const ptSegDist = (
+      px: number,
+      py: number,
+      ax: number,
+      ay: number,
+      bx: number,
+      by: number
+    ): number => {
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len2 = dx * dx + dy * dy;
+      let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    };
+    const clearanceOf = (rect: LabelRect, ownId: string): number => {
+      const cxL = rect.x + rect.w / 2;
+      const cyL = rect.y + rect.h / 2;
+      let d = CLEAR_CAP;
+      for (const q of pois) {
+        if (q.id === ownId) continue; // its own dot is meant to be adjacent
+        d = Math.min(d, Math.hypot(q.cx - cxL, q.cy - cyL) - q.r);
+      }
+      for (const s of legSegments)
+        d = Math.min(d, ptSegDist(cxL, cyL, s[0], s[1], s[2], s[3]));
+      return Math.max(0, d);
+    };
+    const LEGIBILITY: Record<Side, number> = {
+      right: 160,
+      left: 160,
+      above: 100,
+      below: 100,
+      'below-right': 0,
+      'below-left': 0,
+      'above-right': 0,
+      'above-left': 0,
+    };
+    const ALL_SIDES = Object.keys(LEGIBILITY) as Side[];
+    const placementScore = (p: MapLayoutPoi, w: number, side: Side): number => {
+      const rect = inlineRect(p, w, side);
+      return (
+        CLEAR_W * clearanceOf(rect, p.id) +
+        WATER_W * openness(rect) +
+        LEGIBILITY[side]
+      );
+    };
+
     // Per-render extent threshold (resolution-relative; Decision #1, F9).
     const maxExtent = MAX_CLUSTER_EXTENT_FACTOR * Math.min(width, height);
     // Pass 1: place singletons (unchanged); for ≥2 clusters resolve gate
@@ -3754,24 +3876,20 @@ export function layoutMap(
         // Singleton: inline if it fits, else today's single-row callout —
         // always placed, never hover-only (Decision #2 / AC9).
         const { p, text, w } = items[0]!;
-        const fits = (['right', 'left', 'above', 'below'] as const).filter(
-          (s) => inlineFits(p, w, s)
+        // Score every clean candidate (4 cardinal + 4 diagonal) and take the
+        // roomiest — see placementScore. A route hub blocked on every side falls
+        // to the always-placed leader column (a singleton is never hover-only).
+        const scored = ALL_SIDES.filter((s) => inlineFits(p, w, s)).map(
+          (s) => ({
+            s,
+            v: placementScore(p, w, s),
+          })
         );
-        if (fits.length === 0) {
+        if (scored.length === 0) {
           commitColumn(items, defaultColumnSide(items));
           continue;
         }
-        // Horizontal sides read best; fall to vertical only if neither flank
-        // fits. Among the pool, divert to a water-facing side when one exists
-        // (seaward coastal label); otherwise keep the right-first reading order.
-        const horiz = fits.filter((s) => s === 'right' || s === 'left');
-        const pool = horiz.length > 0 ? horiz : fits;
-        const score = (s: Side): number => openness(inlineRect(p, w, s));
-        const wet = pool.filter((s) => score(s) >= WATER_PREF * 0.5);
-        const side =
-          wet.length > 0
-            ? wet.reduce((b, s) => (score(s) > score(b) ? s : b))
-            : pool[0]!;
+        const side = scored.reduce((b, c) => (c.v > b.v ? c : b)).s;
         pushInline(p, text, w, side);
         continue;
       }
