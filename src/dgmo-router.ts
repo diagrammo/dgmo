@@ -12,7 +12,7 @@ import { looksLikeSitemap } from './sitemap/parser';
 import { looksLikePert } from './pert/parser';
 // parseVisualization is the no-explicit-type fallback parser in parseDgmo (not
 // part of the derived chartTypeParsers, which come from the registry).
-import { parseVisualization } from './d3';
+import { parseVisualization } from './visualizations/parse';
 import { parseFirstLine } from './utils/parsing';
 import { makeDgmoError, suggest } from './diagnostics';
 import type { DgmoError } from './diagnostics';
