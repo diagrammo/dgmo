@@ -33,6 +33,7 @@ import {
   rectsOverlap,
   rectCircleOverlap,
   segmentRectOverlap,
+  segmentsCross,
 } from '../label-layout';
 import type { LabelRect, PointCircle } from '../label-layout';
 import { measureLegendText } from '../utils/legend-constants';
@@ -2783,7 +2784,6 @@ export function layoutMap(
   const LABEL_PADX = 6;
   const LABEL_PADY = 3;
   // The value line is ~0.82× the name size; a hair of vertical gap separates them.
-  const VALUE_FONT = Math.round(FONT * 0.82);
   const VALUE_GAP = 1;
   const labelW = (text: string, font: number = FONT): number =>
     measureLegendText(text, font) + 2 * LABEL_PADX;
@@ -2955,18 +2955,21 @@ export function layoutMap(
       .filter((e): e is NonNullable<typeof e> => e !== null)
       .sort((a, b) => b.area - a.area || a.r.lineNumber - b.r.lineNumber);
     const placedRegionRects: LabelRect[] = [];
-    // Valued regions too small to carry their name+value stack in place — gathered
-    // here and laid out as a margin callout column after the in-place pass.
-    const regionCallouts: Array<{
-      name: string;
-      value: string;
-      cx: number;
-      cy: number;
-      bw: number;
-      bh: number;
-      fill: string;
-      lineNumber: number;
-    }> = [];
+    // Leaders already drawn (region short-hop callouts). A new short-hop leader
+    // that would cross any of these is rejected — crossing leaders read as
+    // spaghetti, so the label is dropped instead (the shading + legend + hover
+    // carry the region). Each entry is [x1,y1,x2,y2].
+    const placedLeaders: Array<[number, number, number, number]> = [];
+    // "Empty" screen space a short-hop callout chip may sit on: open water or
+    // un-valued base/foreign land (Canada, Mexico, neighbour states with no
+    // metric). A chip must NEVER cover another VALUED region's choropleth fill —
+    // that's the data, and a label box on top of it is worse than no label. On a
+    // region-metric map valued regions take `fillForValue` (never water / neutral
+    // / foreign), so testing the fill at a point cleanly separates data from
+    // empty. (Colorize mode — which recolours base land — is mutually exclusive
+    // with the score ramp that gates callouts, so this stays sound.)
+    const isEmptyFill = (f: string): boolean =>
+      f === water || f === neutralFill || f === foreignFill;
     // POI markers are obstacles for region labels: a region whose centroid sits on
     // a POI (e.g. Colorado's centroid under the "Core POP" dot in Denver) must NOT
     // stamp its name there — the POI's own label owns that spot, and two names by
@@ -2982,69 +2985,130 @@ export function layoutMap(
       w: 2 * (p.r + POI_LABEL_PAD),
       h: 2 * (p.r + POI_LABEL_PAD),
     }));
-    // Ocean side of the frame (zoomed US choropleth callouts column there). Sample
-    // a vertical strip just inside each side edge; the side with more open water
-    // hosts the callout column, so leaders run over sea, not across the interior.
-    const waterSideOf = (): 'left' | 'right' => {
-      let leftHits = 0;
-      let rightHits = 0;
-      const lx = width * 0.06;
-      const rx = width * 0.94;
-      for (let i = 1; i < 12; i++) {
-        const y = topPad + ((height - topPad) * i) / 12;
-        if (fillAt(lx, y) === water) leftHits++;
-        if (fillAt(rx, y) === water) rightHits++;
+    // ── Short-hop callout into adjacent empty space ────────────────────────
+    // A valued region whose name won't fit in place (even abbreviated) may nudge
+    // its full name+value chip a SHORT hop into the open space right next to it —
+    // north into Canada, south into Mexico, out into the ocean — joined by a tiny
+    // leader + centroid dot. This is deliberately LOCAL: the hop is capped well
+    // under a map-width, so a chip always hugs its own region. If no cardinal
+    // direction has clean adjacent space within reach — the chip would land on
+    // another valued region, run off-canvas, collide with a placed label/POI, or
+    // its leader would cross an existing leader — the region gets NO label and the
+    // choropleth shading speaks for it (hover still reveals the name+value). That
+    // "give up cleanly" rule is the whole point: a readable blank beats a tangle
+    // of crossing leaders and overlapping chips.
+    const SHORT_HOP_MAX = Math.max(46, Math.min(width, height) * 0.11);
+    const STEP = 4; // px probe granularity walking out of the region
+    const HOP_GAP = 9; // px clearance between region edge and chip
+    // Try to seat `name`(+`value`) as a short-hop chip for a region centred at
+    // (cx,cy) on fill `fill`. Returns the placement (chip rect + leader) or null.
+    const tryShortHopCallout = (
+      cx: number,
+      cy: number,
+      fill: string,
+      name: string,
+      value: string | undefined
+    ): {
+      x: number;
+      y: number;
+      rect: LabelRect;
+      leader: [number, number, number, number];
+    } | null => {
+      const chipW = stackW(name, value);
+      const chipH = stackH(value !== undefined);
+      const dirs: Array<[number, number]> = [
+        [0, -1], // north (over Canada)
+        [0, 1], // south (over Mexico / Gulf)
+        [1, 0], // east (Atlantic)
+        [-1, 0], // west (Pacific)
+      ];
+      let best: {
+        x: number;
+        y: number;
+        rect: LabelRect;
+        leader: [number, number, number, number];
+        len: number;
+      } | null = null;
+      for (const [dx, dy] of dirs) {
+        // Walk from the centroid outward until we leave the region's own fill —
+        // that exit point is the border the chip will sit just beyond.
+        let ex = cx;
+        let ey = cy;
+        let steps = 0;
+        const maxSteps = Math.ceil(SHORT_HOP_MAX / STEP) + 1;
+        while (steps < maxSteps && fillAt(ex, ey) === fill) {
+          ex += dx * STEP;
+          ey += dy * STEP;
+          steps++;
+        }
+        if (fillAt(ex, ey) === fill) continue; // never left the region in reach
+        // Chip centre sits a gap + half-extent beyond the border along the dir.
+        const halfAlong = (Math.abs(dx) * chipW + Math.abs(dy) * chipH) / 2;
+        const ccx = ex + dx * (HOP_GAP + halfAlong);
+        const ccy = ey + dy * (HOP_GAP + halfAlong);
+        const rect: LabelRect = {
+          x: ccx - chipW / 2,
+          y: ccy - chipH / 2,
+          w: chipW,
+          h: chipH,
+        };
+        // On-canvas (respect the title band at the top).
+        if (
+          rect.x < FIT_PAD ||
+          rect.y < topPad ||
+          rect.x + rect.w > width - FIT_PAD ||
+          rect.y + rect.h > height - FIT_PAD
+        )
+          continue;
+        // Every sampled point of the chip must be on EMPTY space (no covering a
+        // valued region's data fill). Sample the four corners + centre + edge mids.
+        const sx = [rect.x + 2, ccx, rect.x + rect.w - 2];
+        const sy = [rect.y + 2, ccy, rect.y + rect.h - 2];
+        let onEmpty = true;
+        for (const px of sx)
+          for (const py of sy)
+            if (!isEmptyFill(fillAt(px, py))) {
+              onEmpty = false;
+              break;
+            }
+        if (!onEmpty) continue;
+        // Clear every already-placed region label / chip, and every POI.
+        if (placedRegionRects.some((p) => rectsOverlap(rect, p))) continue;
+        if (poiObstacles.some((o) => rectsOverlap(rect, o))) continue;
+        if (markers.some((m) => rectCircleOverlap(rect, m))) continue;
+        // Leader runs centroid → chip inner edge; cap its length and forbid it
+        // from crossing any leader already drawn or any placed label box.
+        const innerX = ccx - dx * (chipW / 2);
+        const innerY = ccy - dy * (chipH / 2);
+        const len = Math.hypot(innerX - cx, innerY - cy);
+        if (len > SHORT_HOP_MAX) continue;
+        if (
+          placedLeaders.some((l) =>
+            segmentsCross(cx, cy, innerX, innerY, l[0], l[1], l[2], l[3])
+          )
+        )
+          continue;
+        if (
+          placedRegionRects.some((p) =>
+            segmentRectOverlap(cx, cy, innerX, innerY, p)
+          )
+        )
+          continue;
+        if (best === null || len < best.len)
+          best = {
+            x: ccx,
+            y: ccy,
+            rect,
+            leader: [cx, cy, innerX, innerY],
+            len,
+          };
       }
-      return rightHits >= leftHits ? 'right' : 'left';
+      return best
+        ? { x: best.x, y: best.y, rect: best.rect, leader: best.leader }
+        : null;
     };
-    const calloutSide = usChoroplethZoom ? waterSideOf() : undefined;
     for (const { r, c, boxW, boxH, candidates } of entries) {
       const valStr = regionValueStr(r.value);
-      // A region hugs a canvas edge if it sits within a short leader's reach of
-      // it — only such a region may use a margin callout column, so the leader is
-      // always SHORT (no cross-map lines for a centred region).
-      const maxLeader = Math.min(width * 0.26, 300);
-      // "Near an edge" is measured against the LAND-facing edge of each reserved
-      // band when a reserve is active (second pass) — the map has shrunk away from
-      // that side, so the cluster now sits at the band's inner edge, not the raw
-      // canvas edge. Without a reserve (first pass) this is just the canvas edge.
-      const rsv = opts._calloutReserve;
-      const rEdge = rsv?.right ? width - rsv.right : width;
-      const lEdge = rsv?.left ?? 0;
-      // On a zoomed US choropleth a cramped state always takes a margin callout (a
-      // full-name + value chip in the ocean-side column, leader from its centroid)
-      // rather than degrading to an abbreviation — only a handful of states are in
-      // frame, so the column stays short. Otherwise a callout is reserved for
-      // edge-hugging regions so no leader runs across a wide view.
-      const nearEdge =
-        usChoroplethZoom ||
-        c[0] >= rEdge - maxLeader ||
-        c[0] <= lEdge + maxLeader;
-      // A tiny region hugging a canvas edge — one whose FULL name won't fit its
-      // own box (RI/CT/NH/MA on a US map) — goes straight to a clean margin
-      // column: a tidy full-name list reads far better than crammed 2-letter
-      // abbreviations piled on the cluster, and the edge keeps the leader short. A
-      // region whose full name DOES fit labels in place as usual; an interior tiny
-      // region (a centred world-map country) is handled by the on-land overflow
-      // below — never a long cross-map leader.
-      if (
-        valStr &&
-        nearEdge &&
-        r.label !== undefined &&
-        (labelW(r.label) > boxW || labelH > boxH)
-      ) {
-        regionCallouts.push({
-          name: r.label,
-          value: valStr,
-          cx: c[0],
-          cy: c[1],
-          bw: boxW,
-          bh: boxH,
-          fill: r.fill,
-          lineNumber: r.lineNumber,
-        });
-        continue;
-      }
       // The first candidate that BOTH fits its own footprint AND clears every
       // already-placed region label AND every POI marker wins; none qualifies →
       // the label is hidden (a country has no abbrev, so it degrades full → hide;
@@ -3114,37 +3178,47 @@ export function layoutMap(
         }
         if (chosen) break;
       }
-      if (chosen === undefined && valStr) {
-        // A VALUED region not placed in-box, and not an edge-hugging tiny region
-        // (those columned above). Label it ON its own land, letting the name
-        // OVERFLOW its small box onto neighbours/ocean (the halo keeps it legible),
-        // as long as it clears already-placed labels + POIs. This keeps a country
-        // on a world choropleth (Germany, France) labelled in place instead of
-        // exiled to a far margin. If even that collides, the label simply drops —
-        // never a long cross-map leader. Gated to valued regions so a valueless
-        // POI-frame container keeps its old behaviour (yield rather than overflow).
-        for (const a of seekAnchors) {
-          if (fillAt(a.x, a.y) !== r.fill) continue;
-          for (const t of candidates) {
-            const nameRect = regionLabelRect(a.x, a.y, t);
-            if (
-              valStr &&
-              fitsRegions(regionLabelRect(a.x, a.y, t, valStr)) &&
-              fitsPois(nameRect)
-            ) {
-              chosen = { text: t, valueLine: valStr, ax: a.x, ay: a.y };
-              break;
-            }
-            if (fitsRegions(nameRect) && fitsPois(nameRect)) {
-              chosen = { text: t, ax: a.x, ay: a.y };
-              break;
-            }
-          }
-          if (chosen) break;
+      if (chosen === undefined && valStr && r.label !== undefined) {
+        // A VALUED region whose name won't fit in place (even abbreviated). Rather
+        // than overflow onto neighbours (illegible) or fire a long leader to a
+        // margin column (spaghetti), nudge the FULL name+value chip a short hop
+        // into the open space right beside it — north over Canada, south over
+        // Mexico, out to sea — joined by a tiny non-crossing leader. If no
+        // direction has clean adjacent room within reach, the region simply gets
+        // no static label: the choropleth shading + legend carry it and hover
+        // reveals the name+value. A readable blank beats a crammed tangle.
+        const hop = tryShortHopCallout(c[0], c[1], r.fill, r.label, valStr);
+        if (hop) {
+          placedRegionRects.push(hop.rect);
+          placedLeaders.push(hop.leader);
+          // Chip sits on base land / water of unpredictable tone → palette text
+          // + halo (matches the old column chips). The leader/dot are tinted from
+          // the region's own fill (darkened for contrast) to tie line to region.
+          const dark = mix(r.fill, palette.text, 60);
+          labels.push({
+            x: hop.x,
+            y: hop.y,
+            text: r.label,
+            anchor: 'middle',
+            color: palette.text,
+            halo: true,
+            haloColor: palette.bg,
+            valueLine: valStr,
+            leader: {
+              x1: hop.leader[0],
+              y1: hop.leader[1],
+              x2: hop.leader[2],
+              y2: hop.leader[3],
+            },
+            leaderColor: dark,
+            calloutDot: { x: c[0], y: c[1], color: dark },
+            lineNumber: r.lineNumber,
+          });
         }
+        continue;
       }
       // Nothing placed (a valueless region that didn't fit, or a valued region
-      // whose overflow also collided) → drop, leaving the map clean.
+      // with no clean adjacent space) → drop, leaving the map clean.
       if (chosen === undefined) continue;
       // Footprint-driven growth applies ONLY to orientation backdrop names — a
       // data-less neighbour/frame region (Canada framing a POI, foreign land).
@@ -3241,158 +3315,6 @@ export function layoutMap(
         label: labels[labels.length - 1]!,
         rect: regionLabelRect(seed.x, seed.y, text, valStr),
       });
-    }
-
-    // Zoom-out reserve (first pass → re-run): tiny valued regions need margin
-    // callouts, and the map currently fills the canvas with no room for them.
-    // Measure them, reserve a band on the side the cluster leans toward, and
-    // re-run the whole layout fitted into the canvas MINUS that band — the map
-    // shrinks/shifts away from that edge and the callouts get real room. Guarded
-    // by `_calloutReserve` so it recurses exactly once.
-    if (regionCallouts.length > 0 && !opts._calloutReserve) {
-      // Split the callouts by the side of the canvas they fall on — a cluster on
-      // each coast gets its own reserved band + column. Band = widest chip in the
-      // group + a leader run + edge padding, clamped so one stray callout never
-      // over-shrinks the map nor a long name starves it.
-      const bandFor = (group: typeof regionCallouts): number | undefined => {
-        if (group.length === 0) return undefined;
-        const maxChipW = group.reduce(
-          (m, rc) =>
-            Math.max(
-              m,
-              measureLegendText(rc.name, FONT),
-              measureLegendText(rc.value, VALUE_FONT)
-            ),
-          0
-        );
-        return Math.max(130, Math.min(maxChipW + 96, Math.floor(width * 0.3)));
-      };
-      // On a zoomed US choropleth all callouts share the ocean-side column (leaders
-      // over sea, never across the interior); elsewhere split by the side each
-      // region leans toward.
-      const right =
-        calloutSide === 'right'
-          ? regionCallouts
-          : calloutSide === 'left'
-            ? []
-            : regionCallouts.filter((rc) => rc.cx >= width / 2);
-      const left =
-        calloutSide === 'left'
-          ? regionCallouts
-          : calloutSide === 'right'
-            ? []
-            : regionCallouts.filter((rc) => rc.cx < width / 2);
-      const leftPx = bandFor(left);
-      const rightPx = bandFor(right);
-      return layoutMap(resolved, data, size, {
-        ...opts,
-        _calloutReserve: {
-          ...(leftPx !== undefined && { left: leftPx }),
-          ...(rightPx !== undefined && { right: rightPx }),
-        },
-      });
-    }
-
-    // ── Radial callouts for valued regions too small to label in place ──
-    // Each gathered region gets a leader-lined chip (its name over the metric
-    // value, same stack as an in-place label) placed in the OPEN SPACE around the
-    // cluster: the chip marches OUTWARD from the cluster centre along its own
-    // angle (so a dense cluster fans its labels out in all directions — east into
-    // the ocean, north over Canada, etc.) until it clears the data regions, the
-    // in-place labels, and the other chips. A small dot marks the region's true
-    // centroid; the leader runs dot → chip. Chips may overlay unvalued base land
-    // (e.g. Canada) but never a VALUED region's fill (keep the choropleth clean).
-    if (regionCallouts.length > 0) {
-      // Tidy callout column(s) in the reserved margin(s) the zoom-out pass opened.
-      // Each chip is a name+value stack anchored just inside the band; a leader
-      // runs from the region's centroid dot to the chip's inner edge. Rows are
-      // ordered top→bottom by screen latitude so the column reads geographically
-      // and the leaders stay short and roughly parallel. A cluster on each side of
-      // the canvas gets its own column in its own reserved band.
-      const EDGE = 28;
-      const COL_GAP = 16; // min margin between a chip and the canvas edge
-      const chipH = FONT + VALUE_GAP + VALUE_FONT;
-      const ROW = chipH + 10;
-      const TARGET_LEADER = 40; // px: seat the column this far beyond the cluster
-      const placeColumn = (
-        group: typeof regionCallouts,
-        side: 'left' | 'right'
-      ): void => {
-        if (group.length === 0) return;
-        const anchor: PlacedLabel['anchor'] =
-          side === 'right' ? 'start' : 'end';
-        // Widest chip in this column (name or value line) — bounds how far the
-        // column can sit from the edge while its text stays on-canvas.
-        const maxChipW = Math.max(
-          ...group.map((rc) =>
-            Math.max(
-              measureLegendText(rc.name, FONT),
-              measureLegendText(rc.value, VALUE_FONT)
-            )
-          )
-        );
-        // Hug the served cluster: seat the column a SHORT leader's reach beyond the
-        // cluster's outer centroid (into the near-shore ocean), NOT at the canvas
-        // edge. A coastal cluster (e.g. the US Northeast, with the Atlantic between
-        // it and the frame edge) otherwise fires leaders clear across open water to
-        // an edge column — the lines read as absurdly long. Clamp so the chips stay
-        // on-canvas; the reserved band is the outer bound, never the seat.
-        const colX =
-          side === 'right'
-            ? Math.min(
-                Math.max(...group.map((rc) => rc.cx)) + TARGET_LEADER,
-                width - COL_GAP - maxChipW
-              )
-            : Math.max(
-                Math.min(...group.map((rc) => rc.cx)) - TARGET_LEADER,
-                COL_GAP + maxChipW
-              );
-        const rows = [...group].sort((a, b) => a.cy - b.cy);
-        const meanCy = rows.reduce((s, rc) => s + rc.cy, 0) / rows.length;
-        const totalH = rows.length * ROW;
-        const minTop = topPad + 6 + ROW / 2;
-        const maxTop = Math.max(minTop, height - EDGE - totalH + ROW / 2);
-        const startY = Math.max(
-          minTop,
-          Math.min(meanCy - totalH / 2 + ROW / 2, maxTop)
-        );
-        rows.forEach((rc, i) => {
-          const ry = startY + i * ROW;
-          const innerX = side === 'right' ? colX - 4 : colX + 4;
-          // Darken the region's hue toward the text colour for leader/dot contrast
-          // (a pale low-value fill on its own is near-invisible) while still tying
-          // the line to its region by colour.
-          const dark = mix(rc.fill, palette.text, 60);
-          labels.push({
-            x: colX,
-            y: ry,
-            text: rc.name,
-            anchor,
-            color: palette.text,
-            halo: true,
-            haloColor: palette.bg,
-            valueLine: rc.value,
-            leader: { x1: rc.cx, y1: rc.cy, x2: innerX, y2: ry },
-            leaderColor: dark,
-            calloutDot: { x: rc.cx, y: rc.cy, color: dark },
-            lineNumber: rc.lineNumber,
-          });
-        });
-      };
-      const right =
-        calloutSide === 'right'
-          ? regionCallouts
-          : calloutSide === 'left'
-            ? []
-            : regionCallouts.filter((rc) => rc.cx >= width / 2);
-      const left =
-        calloutSide === 'left'
-          ? regionCallouts
-          : calloutSide === 'right'
-            ? []
-            : regionCallouts.filter((rc) => rc.cx < width / 2);
-      placeColumn(right, 'right');
-      placeColumn(left, 'left');
     }
   }
 

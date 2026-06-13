@@ -10,6 +10,7 @@ import {
 import { loadMapData } from '../src/map/load-data';
 import { getPalette } from '../src/palettes';
 import { measureLegendText } from '../src/utils/legend-constants';
+import { segmentsCross } from '../src/label-layout';
 import { mix, politicalTints } from '../src/palettes/color-utils';
 import type { MapData } from '../src/map/resolved-types';
 import type { BoundaryTopology, Gazetteer } from '../src/map/data/types';
@@ -1715,20 +1716,22 @@ describe('layout — sub-national US auto-zoom render proof (map-us-subnational-
     const regionLabels = r.labels.filter(
       (l) => l.lineNumber > 0 && /^[A-Za-z]/.test(l.text)
     );
-    // No region label is a bare 2-letter state code (NH/RI/CT/NJ/DE).
+    // No region label is a bare 2-letter state code (NH/RI/CT/NJ/DE): on the zoom
+    // a cramped state keeps its FULL name (in place or short-hopped into the
+    // adjacent ocean) or gets no label at all — it never degrades to "RI".
     expect(regionLabels.some((l) => /^[A-Z]{2}$/.test(l.text))).toBe(false);
-    // Every NE data state is labeled by its FULL name somewhere (in place or in a
-    // leader callout).
-    for (const name of ['New Hampshire', 'Rhode Island', 'Connecticut']) {
+    // Whatever DID get labelled used a full name, and any short-hop callout among
+    // them carries a leader + dot back to its region.
+    for (const l of regionLabels.filter((x) => x.calloutDot)) {
+      expect(l.leader).toBeDefined();
+    }
+    // The big NE states still anchor the map (they fit in place).
+    for (const name of ['New York', 'Pennsylvania']) {
       expect(
         regionLabels.some((l) => l.text === name),
         name
       ).toBe(true);
     }
-    // The smallest state is offset to a leader callout rather than abbreviated.
-    const ri = regionLabels.find((l) => l.text === 'Rhode Island');
-    expect(ri?.leader).toBeDefined();
-    expect(ri?.calloutDot).toBeDefined();
   });
 });
 
@@ -1749,22 +1752,25 @@ describe('layout — world choropleth: countries on land, no cross-map leaders',
       { palette: P, isDark: false }
     );
     const callouts = r.labels.filter((l) => l.calloutDot);
-    // A centred-cluster country (Europe) is labelled on its own land or dropped —
-    // never sent to a far margin column (the "Germany next to Japan" bug).
-    const euNames = new Set([
-      'Germany',
-      'France',
-      'United Kingdom',
-      'Netherlands',
-    ]);
-    expect(callouts.every((c) => !euNames.has(c.text))).toBe(true);
-    // No callout leader stretches across the map.
-    const cap = W * 0.3;
+    // A country is labelled on its own land, short-hopped a few px into adjacent
+    // empty space, or dropped — but NEVER fired across the map to a far margin
+    // column (the "Germany next to Japan" bug). The guarantee is now expressed as
+    // a hard cap on every callout leader: a short local hop, not a cross-map line.
+    const cap = Math.max(46, Math.min(W, 600) * 0.11) + 4;
     for (const c of callouts) {
       const lead = c.leader!;
       const len = Math.hypot(lead.x2 - lead.x1, lead.y2 - lead.y1);
       expect(len).toBeLessThan(cap);
     }
+    // No two callout leaders cross (the spaghetti the column produced).
+    for (let i = 0; i < callouts.length; i++)
+      for (let j = i + 1; j < callouts.length; j++) {
+        const a = callouts[i]!.leader!;
+        const b = callouts[j]!.leader!;
+        expect(
+          segmentsCross(a.x1, a.y1, a.x2, a.y2, b.x1, b.y1, b.x2, b.y2)
+        ).toBe(false);
+      }
   });
 });
 
@@ -1883,15 +1889,23 @@ describe('layout — region callout leaders hug the cluster (no cross-ocean line
       { width: 1000, height: 820 },
       { palette: getPalette('slate').dark, isDark: true }
     );
-    const leaders = L.labels
-      .filter((l) => l.leader)
-      .map((l) =>
-        Math.hypot(l.leader!.x2 - l.leader!.x1, l.leader!.y2 - l.leader!.y1)
-      );
-    expect(leaders.length).toBeGreaterThan(0); // some NE state did call out
-    // Every leader is a short hop to the near-shore column, well under the old
-    // ~300px edge-column reach.
-    expect(Math.max(...leaders)).toBeLessThan(130);
+    const leadered = L.labels.filter((l) => l.leader);
+    const leaders = leadered.map((l) =>
+      Math.hypot(l.leader!.x2 - l.leader!.x1, l.leader!.y2 - l.leader!.y1)
+    );
+    // A cramped NE state now abbreviates in place, short-hops a few px into the
+    // near-shore Atlantic, or drops — it is never fired across the ocean to an
+    // edge column. So leaders are OPTIONAL; whichever exist are short hops, well
+    // under the old ~300px edge-column reach, and none cross each other.
+    for (const len of leaders) expect(len).toBeLessThan(130);
+    for (let i = 0; i < leadered.length; i++)
+      for (let j = i + 1; j < leadered.length; j++) {
+        const a = leadered[i]!.leader!;
+        const b = leadered[j]!.leader!;
+        expect(
+          segmentsCross(a.x1, a.y1, a.x2, a.y2, b.x1, b.y1, b.x2, b.y2)
+        ).toBe(false);
+      }
   });
 });
 
