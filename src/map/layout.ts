@@ -2193,14 +2193,33 @@ export function layoutMap(
   };
   // Precompute hit targets once (regions are drawn in array order, so the LAST
   // containing one is topmost). Insets paint over neighbour land in their own box.
-  const fillHitTargets = [...regions, ...insetRegions].map((r) => ({
-    fill: r.fill,
-    rings: parsePathRings(r.d),
-  }));
+  // Each target carries its screen-space bounding box so `fillAt` can reject the
+  // vast majority of targets with four comparisons before paying for the full
+  // even-odd ray cast — on a world map this is the dominant layout cost (label
+  // placement samples `fillAt` hundreds of times, each otherwise looping every
+  // vertex of every region). bbox containment is a NECESSARY condition for ring
+  // containment, so the pre-filter is provably result-identical.
+  const fillHitTargets = [...regions, ...insetRegions].map((r) => {
+    const rings = parsePathRings(r.d);
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    for (const ring of rings)
+      for (const p of ring) {
+        if (p[0] < minX) minX = p[0];
+        if (p[0] > maxX) maxX = p[0];
+        if (p[1] < minY) minY = p[1];
+        if (p[1] > maxY) maxY = p[1];
+      }
+    return { fill: r.fill, rings, minX, minY, maxX, maxY };
+  });
   const fillAt = (x: number, y: number): string => {
     let hit = water; // open ocean / canvas backdrop when over no land
-    for (const t of fillHitTargets)
+    for (const t of fillHitTargets) {
+      if (x < t.minX || x > t.maxX || y < t.minY || y > t.maxY) continue;
       if (pointInRings(x, y, t.rings)) hit = t.fill;
+    }
     return hit;
   };
   // Contrast-pick text colour for a label sitting ON `fill` (shared by region
