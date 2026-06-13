@@ -72,6 +72,52 @@ export function segmentRectOverlap(
   return true;
 }
 
+/** Segment vs segment proper intersection (orientation test). True when the two
+ *  open segments cross. Shared endpoints / collinear touching count as crossing
+ *  too (the conservative choice for "do these two leader lines tangle?"). */
+export function segmentsCross(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number
+): boolean {
+  const o = (
+    px: number,
+    py: number,
+    qx: number,
+    qy: number,
+    rx: number,
+    ry: number
+  ): number => Math.sign((qx - px) * (ry - py) - (qy - py) * (rx - px));
+  const o1 = o(ax, ay, bx, by, cx, cy);
+  const o2 = o(ax, ay, bx, by, dx, dy);
+  const o3 = o(cx, cy, dx, dy, ax, ay);
+  const o4 = o(cx, cy, dx, dy, bx, by);
+  if (o1 !== o2 && o3 !== o4) return true;
+  // Collinear-overlap edge cases: treat any on-segment touch as a crossing.
+  const onSeg = (
+    px: number,
+    py: number,
+    qx: number,
+    qy: number,
+    rx: number,
+    ry: number
+  ): boolean =>
+    Math.min(px, qx) <= rx &&
+    rx <= Math.max(px, qx) &&
+    Math.min(py, qy) <= ry &&
+    ry <= Math.max(py, qy);
+  if (o1 === 0 && onSeg(ax, ay, bx, by, cx, cy)) return true;
+  if (o2 === 0 && onSeg(ax, ay, bx, by, dx, dy)) return true;
+  if (o3 === 0 && onSeg(cx, cy, dx, dy, ax, ay)) return true;
+  if (o4 === 0 && onSeg(cx, cy, dx, dy, bx, by)) return true;
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Quadrant chart point label placement
 // ---------------------------------------------------------------------------
