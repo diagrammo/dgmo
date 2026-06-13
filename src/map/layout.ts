@@ -1762,22 +1762,19 @@ export function layoutMap(
       if (iw < 24) return boxX; // canvas truly too narrow for another inset
       const xr = x0 + iw + 2 * PAD;
       const floor = coastFloor(x0, xr);
-      // Upper limit: the box top must ride at least GAP below the coast so it
-      // never overlaps CONUS (over open ocean there's no coast, so a soft default).
-      const coastTop = floor > -Infinity ? floor + GAP : yB - height * 0.42;
+      // Flat top sits just under the coast (GAP below the lowest the coast reaches
+      // over the box span) so the inset stays tucked close to CONUS — its SW corner,
+      // not stranded at the far canvas bottom. Over open ocean (no coast) a soft
+      // default keeps it in the lower band.
+      const topGuess = floor > -Infinity ? floor + GAP : yB - height * 0.42;
       // Learn the state's height at this width, then size the box to just hold it.
       proj.fitWidth(iw, f as never);
       const bb = geoPath(proj).bounds(f as never);
       const sh = Number.isFinite(bb[0][0]) ? bb[1][1] - bb[0][1] : iw;
-      // Size the box to just hold the state, then BOTTOM-ALIGN it to the canvas
-      // bottom (yB) so it sinks into the lower dead space instead of floating up
-      // under the coast. On a near-CONUS-aspect canvas the coast already sits near
-      // the bottom (yB − needH ≤ coastTop), so the box stays tucked under it — wide
-      // gallery renders are unchanged. On a tall app pane the coast is mid-canvas,
-      // so the box drops to the bottom edge, anchoring the empty lower band rather
-      // than stranding the inset mid-ocean.
+      // If the coast runs so low the state wouldn't fit above yB, raise the top (it
+      // stays over ocean) — the box must never collapse and vanish.
       const needH = sh + 2 * PAD;
-      let topFit = Math.max(coastTop, yB - needH);
+      let topFit = topGuess;
       const bottom = Math.min(topFit + needH, yB);
       if (bottom - topFit < needH) topFit = bottom - needH;
       proj.fitExtent(
@@ -1854,13 +1851,13 @@ export function layoutMap(
     // Each draws only when referenced; HI slides left to FIT_PAD if AK is absent.
     let akRight = FIT_PAD;
     if (akRef)
-      akRight = placeInset('US-AK', alaskaProjection(), FIT_PAD, width * 0.15);
+      akRight = placeInset('US-AK', alaskaProjection(), FIT_PAD, width * 0.18);
     if (hiRef)
       placeInset(
         'US-HI',
         hawaiiProjection(),
         akRef ? akRight + 24 : FIT_PAD,
-        width * 0.1
+        width * 0.12
       );
   }
 
