@@ -4,6 +4,10 @@
 
 import type { MindmapNode } from './types';
 import type { Writable } from '../utils/brand';
+import {
+  collapseTree,
+  type TreeCollapseShape,
+} from '../utils/collapse-engine/tree';
 
 // ============================================================
 // Types
@@ -36,38 +40,16 @@ function cloneNode(node: MindmapNode): Writable<MindmapNode> {
   };
 }
 
-function countDescendants(node: MindmapNode): number {
-  let count = 0;
-  for (const child of node.children) {
-    count += 1 + countDescendants(child);
-  }
-  return count;
-}
-
-function computeHiddenCounts(
-  nodes: readonly MindmapNode[],
-  collapsedIds: Set<string>,
-  hiddenCounts: Map<string, number>
-): void {
-  for (const node of nodes) {
-    if (collapsedIds.has(node.id) && node.children.length > 0) {
-      hiddenCounts.set(node.id, countDescendants(node));
-    }
-    computeHiddenCounts(node.children, collapsedIds, hiddenCounts);
-  }
-}
-
-function pruneCollapsed(
-  node: Writable<MindmapNode>,
-  collapsedIds: Set<string>
-): void {
-  for (const child of node.children) {
-    pruneCollapsed(child as Writable<MindmapNode>, collapsedIds);
-  }
-  if (collapsedIds.has(node.id) && node.children.length > 0) {
-    node.children = [];
-  }
-}
+/** Mindmap shape: every node counts toward the hidden tally (no containers). */
+const MINDMAP_SHAPE: TreeCollapseShape<MindmapNode> = {
+  getId: (node) => node.id,
+  getChildren: (node) => node.children,
+  clone: cloneNode,
+  setChildren: (node, children) => {
+    (node as Writable<MindmapNode>).children = children as MindmapNode[];
+  },
+  countsAsHidden: () => true,
+};
 
 // ============================================================
 // Main
@@ -77,18 +59,9 @@ export function collapseMindmapTree(
   roots: readonly MindmapNode[],
   collapsedIds: Set<string>
 ): CollapsedMindmapResult {
-  const hiddenCounts = new Map<string, number>();
-
   if (collapsedIds.size === 0) {
-    return { roots: [...roots], hiddenCounts };
+    return { roots: [...roots], hiddenCounts: new Map() };
   }
 
-  computeHiddenCounts(roots, collapsedIds, hiddenCounts);
-
-  const clonedRoots = roots.map(cloneNode);
-  for (const root of clonedRoots) {
-    pruneCollapsed(root, collapsedIds);
-  }
-
-  return { roots: clonedRoots, hiddenCounts };
+  return collapseTree(roots, collapsedIds, MINDMAP_SHAPE);
 }
