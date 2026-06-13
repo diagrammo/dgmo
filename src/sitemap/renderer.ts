@@ -20,9 +20,8 @@ import {
   EYE_OPEN_PATH,
   EYE_CLOSED_PATH,
 } from '../utils/legend-constants';
-import { renderLegendD3 } from '../utils/legend-d3';
+import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
-import type { LegendConfig, LegendState } from '../utils/legend-types';
 import { ScaleContext } from '../utils/scaling';
 
 // ============================================================
@@ -703,26 +702,19 @@ function renderLegend(
   const isFixedMode = fixedWidth != null;
   const eyeAddonWidth = isFixedMode ? LEGEND_EYE_SIZE + LEGEND_EYE_GAP : 0;
 
-  const legendConfig: LegendConfig = {
-    groups,
-    position: { placement: 'top-center', titleRelation: 'below-title' },
-    mode: exportMode ? 'export' : 'preview',
-    capsulePillAddonWidth: eyeAddonWidth,
-  };
-  const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
   const containerWidth =
     // In-bounds by length === 0 early return at top of function.
     fixedWidth ?? legendGroups[0]!.x + (legendGroups[0]!.width ?? 200);
 
-  const legendHandle = renderLegendD3(
-    parent,
-    legendConfig,
-    legendState,
+  const legendHandle = renderIntegratedLegend(parent, {
+    groups,
+    activeGroup: activeTagGroup ?? null,
+    mode: exportMode ? 'export' : 'preview',
+    capsulePillAddonWidth: eyeAddonWidth,
     palette,
     isDark,
-    undefined,
-    containerWidth
-  );
+    width: containerWidth,
+  });
 
   parent.selectAll('[data-legend-group]').classed('sitemap-legend-group', true);
 
