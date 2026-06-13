@@ -78,6 +78,19 @@ const PATH_DIGITS = 1;
 // distance of the previously kept point are dropped. Sub-pixel, so invisible.
 const THIN_TOL = 0.6;
 
+// albers-usa skew tolerance (canvas-aspect ÷ CONUS-projected-aspect, taken as the
+// larger of the ratio and its reciprocal). The US national composite elides
+// Alaska/Hawaii from the basemap and only re-adds them as corner insets when the
+// map references them. When the render canvas aspect is close to CONUS's own
+// projected aspect, that composite reads as a clean US map. But when a host forces
+// an off-aspect canvas (the app preview pane), contain-fitting CONUS opens margins
+// where the elided AK/HI used to sit — bare ocean painted exactly over Alaska's
+// real landmass, a lie. Past this skew an unreferenced-AK/HI map falls back to a
+// geographic conic (see albersSkewFallback). 1.25 keeps the national snap for
+// roughly-CONUS-shaped canvases (incl. the headless 1.81:1 intrinsic export) and
+// trips on the squarer/taller/wider panes that expose the gap.
+const ALBERS_SKEW_MAX = 1.25;
+
 interface ThinStream {
   stream: {
     point(x: number, y: number): void;
@@ -1070,14 +1083,67 @@ function dropAntimeridianWrapSlivers(
     .join('');
 }
 
-export function layoutMap(
+/** True when an `albers-usa` map should fall back to a geographic conic for this
+ *  canvas: the map references neither Alaska nor Hawaii (so the composite draws no
+ *  inset for them) AND the canvas aspect is skewed far enough from CONUS's own
+ *  projected aspect that contain-fitting CONUS would expose bare ocean where the
+ *  elided AK/HI landmass projects — the "water where Alaska is" lie. conic-equal-
+ *  area (framed on the data extent) instead draws every landmass in true position,
+ *  so Alaska is honestly off-frame rather than faked as sea. Referenced AK/HI keep
+ *  albers-usa (its inset boxes are the right tool); near-CONUS aspects keep the
+ *  national snap. Aspect comparison is chrome-free (raw width/height vs raw CONUS
+ *  bounds) so the headless intrinsic export — sized AT the CONUS aspect — never
+ *  trips. Exported for unit tests. */
+export function albersSkewFallback(
   resolved: ResolvedMap,
+  data: MapData,
+  width: number,
+  height: number
+): boolean {
+  if (resolved.projection !== 'albers-usa') return false;
+  if (!resolved.basemaps.subdivisions.includes('us-states')) return false;
+  if (!(width > 0) || !(height > 0)) return false;
+  const akRef =
+    resolved.regions.some((r) => r.iso === 'US-AK') ||
+    resolved.pois.some((p) => inAlaska(p.lon, p.lat));
+  const hiRef =
+    resolved.regions.some((r) => r.iso === 'US-HI') ||
+    resolved.pois.some((p) => inHawaii(p.lon, p.lat));
+  if (akRef || hiRef) return false;
+  const { projection, fitTarget, usLayer } = buildMapProjection(resolved, data);
+  // The lie only exists when a real CONUS basemap is drawn and elides AK/HI. With
+  // no contiguous state geometry there's nothing to elide (and no CONUS aspect to
+  // measure meaningfully), so leave the projection alone.
+  if (!usLayer || ![...usLayer.keys()].some((iso) => !US_NON_CONUS.has(iso)))
+    return false;
+  // Project the CONUS fit target to a unit square and read its bounds aspect. This
+  // throwaway projection is discarded — layoutMap fits its own afresh.
+  projection.fitSize([1000, 1000], fitTarget as never);
+  const b = geoPath(projection).bounds(fitTarget as never);
+  const conusAspect = (b[1][0] - b[0][0]) / (b[1][1] - b[0][1]);
+  if (!(conusAspect > 0)) return false;
+  const canvasAspect = width / height;
+  const skew = Math.max(canvasAspect / conusAspect, conusAspect / canvasAspect);
+  return skew > ALBERS_SKEW_MAX;
+}
+
+export function layoutMap(
+  resolvedIn: ResolvedMap,
   data: MapData,
   size: Size,
   opts: LayoutOptions
 ): MapLayout {
   const { palette, isDark } = opts;
   const { width, height } = size;
+  // §24B.2 addendum — swap the US national composite for a geographic conic when
+  // the canvas skew would otherwise paint ocean over Alaska's real position. All
+  // downstream branches key off `resolved.projection`, so reassigning the local
+  // here (the renderer never reads `resolved.projection`) flips the whole pipeline
+  // to the honest projection in one place.
+  let resolved = resolvedIn;
+  if (albersSkewFallback(resolved, data, width, height)) {
+    resolved = { ...resolved, projection: 'conic-equal-area' };
+  }
 
   // -- Projection, fit target & basemap decode (shared with mapContentAspect so
   // the export canvas aspect matches the drawn geometry — see buildMapProjection).

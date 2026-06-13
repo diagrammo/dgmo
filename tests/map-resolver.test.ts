@@ -810,6 +810,26 @@ describe('POI-only region framing — real geometry (#poi-region)', () => {
     );
     expect(r.poiFrameContainers).toContain('FR');
   });
+
+  it('a Canadian neighbour POI on a US map frames by its point, not all of Canada (§24B.2)', async () => {
+    const data = await loadMapData();
+    // US cities coast-to-coast + a Toronto POI. Toronto reverse-geocodes to country
+    // Canada, whose bbox runs to ~83°N — but on a US-oriented map a neighbour POI
+    // must expand the frame by just its POINT (43.6°N), never drag it up into the
+    // Arctic. Without the fix the north edge balloons past 55°N.
+    const r = resolveMap(
+      parseMap(
+        'map\npoi 47.61 -122.33 as seattle\npoi 25.78 -80.22 as miami\npoi 42.36 -71.06 as boston\npoi 43.64 -79.39 as toronto'
+      ),
+      data
+    );
+    // Container is still recorded (for labelling), but its bbox is not framed.
+    expect(r.poiFrameContainers).toContain('CA');
+    // North edge stays near the northernmost POI (Seattle ~47.6, Toronto ~43.6) +
+    // its containing US states' tops (~49) + pad — comfortably south of 53°N, not
+    // chasing Canada's ~83°N bbox.
+    expect(r.extent[1][1]).toBeLessThan(53);
+  });
 });
 
 describe('resolver — robustness (AC17, AC18, AC21)', () => {
