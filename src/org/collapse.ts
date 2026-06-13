@@ -4,6 +4,10 @@
 
 import type { Writable } from '../utils/brand';
 import type { OrgNode, ParsedOrg } from './parser';
+import {
+  collapseTree,
+  type TreeCollapseShape,
+} from '../utils/collapse-engine/tree';
 
 // ============================================================
 // Types
@@ -49,41 +53,16 @@ function cloneNode(node: OrgNode): Writable<OrgNode> {
   };
 }
 
-function countDescendants(node: OrgNode): number {
-  let count = 0;
-  for (const child of node.children) {
-    count += (child.isContainer ? 0 : 1) + countDescendants(child);
-  }
-  return count;
-}
-
-/** Compute hidden counts from the ORIGINAL (unpruned) tree so nested
- *  collapses don't lose ancestor descendant totals. */
-function computeHiddenCounts(
-  nodes: readonly OrgNode[],
-  collapsedIds: Set<string>,
-  hiddenCounts: Map<string, number>
-): void {
-  for (const node of nodes) {
-    if (collapsedIds.has(node.id) && node.children.length > 0) {
-      hiddenCounts.set(node.id, countDescendants(node));
-    }
-    computeHiddenCounts(node.children, collapsedIds, hiddenCounts);
-  }
-}
-
-/** Remove children of collapsed nodes on the cloned tree. */
-function pruneCollapsed(
-  node: Writable<OrgNode>,
-  collapsedIds: Set<string>
-): void {
-  for (const child of node.children) {
-    pruneCollapsed(child as Writable<OrgNode>, collapsedIds);
-  }
-  if (collapsedIds.has(node.id) && node.children.length > 0) {
-    node.children = [];
-  }
-}
+/** Org shape: containers don't count toward an ancestor's hidden tally. */
+const ORG_SHAPE: TreeCollapseShape<OrgNode> = {
+  getId: (node) => node.id,
+  getChildren: (node) => node.children,
+  clone: cloneNode,
+  setChildren: (node, children) => {
+    (node as Writable<OrgNode>).children = children as OrgNode[];
+  },
+  countsAsHidden: (node) => !node.isContainer,
+};
 
 // ============================================================
 // Main
@@ -93,28 +72,17 @@ export function collapseOrgTree(
   original: ParsedOrg,
   collapsedIds: Set<string>
 ): CollapsedOrgResult {
-  const hiddenCounts = new Map<string, number>();
-
   if (collapsedIds.size === 0) {
-    return { parsed: original, hiddenCounts };
+    return { parsed: original, hiddenCounts: new Map() };
   }
 
-  // Compute counts from the ORIGINAL tree before any pruning
-  computeHiddenCounts(original.roots, collapsedIds, hiddenCounts);
+  const { roots, hiddenCounts } = collapseTree(
+    original.roots,
+    collapsedIds,
+    ORG_SHAPE
+  );
 
-  // Deep-clone roots and prune collapsed subtrees
-  const clonedRoots = original.roots.map(cloneNode);
-  for (const root of clonedRoots) {
-    pruneCollapsed(root, collapsedIds);
-  }
-
-  return {
-    parsed: {
-      ...original,
-      roots: clonedRoots,
-    },
-    hiddenCounts,
-  };
+  return { parsed: { ...original, roots }, hiddenCounts };
 }
 
 // ============================================================

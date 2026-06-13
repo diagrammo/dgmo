@@ -4,6 +4,14 @@
 
 import type { SitemapNode, SitemapEdge, ParsedSitemap } from './types';
 import type { Writable } from '../utils/brand';
+import {
+  collapseTree,
+  type TreeCollapseShape,
+} from '../utils/collapse-engine/tree';
+import {
+  reterminateEdges,
+  type EdgeEndpointShape,
+} from '../utils/collapse-engine/tree-edges';
 
 // ============================================================
 // Types
@@ -33,83 +41,26 @@ function cloneNode(node: SitemapNode): Writable<SitemapNode> {
   };
 }
 
-function countDescendants(node: SitemapNode): number {
-  let count = 0;
-  for (const child of node.children) {
-    count += (child.isContainer ? 0 : 1) + countDescendants(child);
-  }
-  return count;
-}
+/** Sitemap shape: containers don't count toward an ancestor's hidden tally. */
+const SITEMAP_SHAPE: TreeCollapseShape<SitemapNode> = {
+  getId: (node) => node.id,
+  getChildren: (node) => node.children,
+  clone: cloneNode,
+  setChildren: (node, children) => {
+    (node as Writable<SitemapNode>).children = children as SitemapNode[];
+  },
+  countsAsHidden: (node) => !node.isContainer,
+};
 
-/** Compute hidden counts from the ORIGINAL (unpruned) tree. */
-function computeHiddenCounts(
-  nodes: readonly SitemapNode[],
-  collapsedIds: Set<string>,
-  hiddenCounts: Map<string, number>
-): void {
-  for (const node of nodes) {
-    if (collapsedIds.has(node.id) && node.children.length > 0) {
-      hiddenCounts.set(node.id, countDescendants(node));
-    }
-    computeHiddenCounts(node.children, collapsedIds, hiddenCounts);
-  }
-}
-
-/** Remove children of collapsed nodes on the cloned tree. */
-function pruneCollapsed(
-  node: Writable<SitemapNode>,
-  collapsedIds: Set<string>
-): void {
-  for (const child of node.children) {
-    pruneCollapsed(child as Writable<SitemapNode>, collapsedIds);
-  }
-  if (collapsedIds.has(node.id) && node.children.length > 0) {
-    node.children = [];
-  }
-}
-
-/** Collect all node IDs reachable in a tree. */
-function collectNodeIds(nodes: readonly SitemapNode[], ids: Set<string>): void {
-  for (const node of nodes) {
-    ids.add(node.id);
-    collectNodeIds(node.children, ids);
-  }
-}
-
-/**
- * Find the outermost visible ancestor for a hidden node.
- * Walk up the original tree to find which collapsed container should absorb the arrow.
- */
-function findVisibleAncestor(
-  nodeId: string,
-  parentMap: Map<string, string>,
-  visibleIds: Set<string>,
-  collapsedIds: Set<string>
-): string | null {
-  let current = nodeId;
-  while (true) {
-    const parentId = parentMap.get(current);
-    if (!parentId) return null;
-    // If the parent is visible and is a collapsed container, re-terminate here
-    if (visibleIds.has(parentId) && collapsedIds.has(parentId)) {
-      return parentId;
-    }
-    current = parentId;
-  }
-}
-
-/** Build nodeId → parentId map from the original tree. */
-function buildParentMap(
-  nodes: readonly SitemapNode[],
-  map: Map<string, string>
-): void {
-  for (const node of nodes) {
-    for (const child of node.children) {
-      map.set(child.id, node.id);
-      buildParentMap([child], map);
-    }
-  }
-}
+const SITEMAP_EDGE_SHAPE: EdgeEndpointShape<SitemapEdge> = {
+  getSource: (edge) => edge.sourceId,
+  getTarget: (edge) => edge.targetId,
+  withEndpoints: (edge, sourceId, targetId) => ({
+    ...edge,
+    sourceId,
+    targetId,
+  }),
+};
 
 // ============================================================
 // Main
@@ -119,86 +70,31 @@ export function collapseSitemapTree(
   original: ParsedSitemap,
   collapsedIds: Set<string>
 ): CollapsedSitemapResult {
-  const hiddenCounts = new Map<string, number>();
-
   if (collapsedIds.size === 0) {
-    return { parsed: original, hiddenCounts };
+    return { parsed: original, hiddenCounts: new Map() };
   }
 
-  // Compute counts from the ORIGINAL tree before pruning
-  computeHiddenCounts(original.roots, collapsedIds, hiddenCounts);
+  // Walk · filter · tally via the shared engine.
+  const { roots, hiddenCounts } = collapseTree(
+    original.roots,
+    collapsedIds,
+    SITEMAP_SHAPE
+  );
 
-  // Deep-clone roots and prune collapsed subtrees
-  const clonedRoots = original.roots.map(cloneNode);
-  for (const root of clonedRoots) {
-    pruneCollapsed(root, collapsedIds);
-  }
-
-  // Collect visible node IDs after pruning
-  const visibleIds = new Set<string>();
-  collectNodeIds(clonedRoots, visibleIds);
-
-  // Build parent map from the ORIGINAL tree for ancestor lookup
-  const parentMap = new Map<string, string>();
-  buildParentMap(original.roots, parentMap);
-
-  // Re-terminate edges that reference hidden nodes.
-  // No deduplication — multiple edges between the same collapsed pair are kept
-  // so each retains its own label (e.g. "settings" and "billing" both show).
-  // Layout uses dagre multigraph to route each edge separately.
-  const newEdges: SitemapEdge[] = [];
-
-  for (const edge of original.edges) {
-    let sourceId = edge.sourceId;
-    let targetId = edge.targetId;
-
-    const sourceVisible = visibleIds.has(sourceId);
-    const targetVisible = visibleIds.has(targetId);
-
-    if (sourceVisible && targetVisible) {
-      // Both visible — keep as-is
-      newEdges.push({ ...edge });
-      continue;
-    }
-
-    // Re-terminate hidden endpoints
-    if (!sourceVisible) {
-      const ancestor = findVisibleAncestor(
-        sourceId,
-        parentMap,
-        visibleIds,
-        collapsedIds
-      );
-      if (!ancestor) continue; // both endpoints hidden with no visible ancestor
-      sourceId = ancestor;
-    }
-    if (!targetVisible) {
-      const ancestor = findVisibleAncestor(
-        targetId,
-        parentMap,
-        visibleIds,
-        collapsedIds
-      );
-      if (!ancestor) continue;
-      targetId = ancestor;
-    }
-
-    // Remove self-loops (both endpoints re-terminated to same collapsed group)
-    if (sourceId === targetId) continue;
-
-    newEdges.push({
-      ...edge,
-      sourceId,
-      targetId,
-    });
-  }
+  // Remap: re-terminate edges that reference pruned nodes to their visible
+  // collapsed-container ancestor (parent-walk; no dedup — parallel edges keep
+  // distinct labels for dagre multigraph routing).
+  const edges = reterminateEdges(
+    original.roots,
+    roots,
+    original.edges,
+    collapsedIds,
+    SITEMAP_SHAPE,
+    SITEMAP_EDGE_SHAPE
+  );
 
   return {
-    parsed: {
-      ...original,
-      roots: clonedRoots,
-      edges: newEdges,
-    },
+    parsed: { ...original, roots, edges },
     hiddenCounts,
   };
 }
