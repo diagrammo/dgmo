@@ -2,35 +2,27 @@
 // .dgmo Unified Format — Chart Type Router
 // ============================================================
 
-import { looksLikeSequence, parseSequenceDgmo } from './sequence/parser';
-import { looksLikeFlowchart, parseFlowchart } from './graph/flowchart-parser';
-import { looksLikeState, parseState } from './graph/state-parser';
-import { looksLikeClassDiagram, parseClassDiagram } from './class/parser';
-import { looksLikeERDiagram, parseERDiagram } from './er/parser';
-import { parseChart } from './chart';
-import { parseExtendedChart } from './echarts';
+import { looksLikeSequence } from './sequence/parser';
+import { looksLikeFlowchart } from './graph/flowchart-parser';
+import { looksLikeState } from './graph/state-parser';
+import { looksLikeClassDiagram } from './class/parser';
+import { looksLikeERDiagram } from './er/parser';
+import { looksLikeOrg } from './org/parser';
+import { looksLikeSitemap } from './sitemap/parser';
+import { looksLikePert } from './pert/parser';
+// parseVisualization is the no-explicit-type fallback parser in parseDgmo (not
+// part of the derived chartTypeParsers, which come from the registry).
 import { parseVisualization } from './d3';
-import { parseOrg, looksLikeOrg } from './org/parser';
-import { parseKanban } from './kanban/parser';
-import { parseC4 } from './c4/parser';
-import { looksLikeSitemap, parseSitemap } from './sitemap/parser';
-import { parseInfra } from './infra/parser';
-import { parseGantt } from './gantt/parser';
-import { parsePert, looksLikePert } from './pert/parser';
-import { parseMap } from './map/parser';
-import { parseBoxesAndLines } from './boxes-and-lines/parser';
-import { parseMindmap } from './mindmap/parser';
-import { parseWireframe } from './wireframe/parser';
-import { parseTechRadar } from './tech-radar/parser';
-import { parseCycle } from './cycle/parser';
-import { parseJourneyMap } from './journey-map/parser';
-import { parsePyramid } from './pyramid/parser';
-import { parseRing } from './ring/parser';
-import { parseRaci } from './raci/parser';
 import { parseFirstLine } from './utils/parsing';
 import { makeDgmoError, suggest } from './diagnostics';
 import type { DgmoError } from './diagnostics';
 import { chartTypes } from './chart-types';
+import {
+  CHART_TYPE_REGISTRY,
+  REGISTRY_BY_ID,
+  isExtendedChartParser,
+} from './chart-type-registry';
+import type { RenderCategory } from './chart-type-registry';
 
 // ============================================================
 // Content-based chart type inference helpers
@@ -117,82 +109,18 @@ export function parseDgmoChartType(content: string): string | null {
 }
 
 // ============================================================
-// Public render-category API
+// Public render-category API — derived from the chart-type registry.
 // ============================================================
 
 /** User-visible rendering category for dispatch and routing. */
-export type RenderCategory = 'data-chart' | 'visualization' | 'diagram';
-
-const DATA_CHART_TYPES = new Set([
-  'bar',
-  'line',
-  'pie',
-  'doughnut',
-  'area',
-  'polar-area',
-  'radar',
-  'bar-stacked',
-  'multi-line',
-  'scatter',
-  'sankey',
-  'chord',
-  'function',
-  'heatmap',
-  'funnel',
-]);
-const VISUALIZATION_TYPES = new Set([
-  'slope',
-  'wordcloud',
-  'arc',
-  'timeline',
-  'venn',
-  'quadrant',
-  'tech-radar',
-  'cycle',
-  'pyramid',
-  'ring',
-  'map',
-]);
-const DIAGRAM_TYPES = new Set([
-  'sequence',
-  'flowchart',
-  'class',
-  'er',
-  'org',
-  'kanban',
-  'c4',
-  'state',
-  'sitemap',
-  'infra',
-  'gantt',
-  'pert',
-  'boxes-and-lines',
-  'mindmap',
-  'wireframe',
-  'journey-map',
-  'raci',
-  'rasci',
-  'daci',
-]);
-const EXTENDED_CHART_TYPES = new Set([
-  'scatter',
-  'sankey',
-  'chord',
-  'function',
-  'heatmap',
-  'funnel',
-]);
+export type { RenderCategory };
 
 /**
  * Returns the render category for a given chart type, or `null` if unknown.
  * Use this instead of the internal framework map for dispatch in consumers.
  */
 export function getRenderCategory(chartType: string): RenderCategory | null {
-  const type = chartType.toLowerCase();
-  if (DATA_CHART_TYPES.has(type)) return 'data-chart';
-  if (VISUALIZATION_TYPES.has(type)) return 'visualization';
-  if (DIAGRAM_TYPES.has(type)) return 'diagram';
-  return null;
+  return REGISTRY_BY_ID.get(chartType.toLowerCase())?.category ?? null;
 }
 
 /**
@@ -201,7 +129,8 @@ export function getRenderCategory(chartType: string): RenderCategory | null {
  * Returns false for standard chart types and all other types.
  */
 export function isExtendedChartType(chartType: string): boolean {
-  return EXTENDED_CHART_TYPES.has(chartType.toLowerCase());
+  const descriptor = REGISTRY_BY_ID.get(chartType.toLowerCase());
+  return descriptor ? isExtendedChartParser(descriptor.parse) : false;
 }
 
 /**
@@ -230,70 +159,14 @@ type ParseResult = { diagnostics: readonly DgmoError[] };
 type ParseFn = (content: string) => ParseResult;
 
 /**
- * Maps every chart-type id to the parser that handles it. Adding a new
- * chart type means:
- *   1. Add an entry here.
- *   2. Add an entry to `chartTypes` in `chart-types.ts`.
- *
- * The `chart-types.test.ts` cross-check asserts both sets are identical;
- * forgetting either side trips the test.
+ * Maps every chart-type id to the parser that handles it, DERIVED from
+ * `CHART_TYPE_REGISTRY` (src/chart-type-registry.ts). Adding a new chart type
+ * means adding ONE descriptor there plus its `chartTypes` metadata entry; the
+ * `chart-type-registry.test.ts` cross-check asserts the registry, `chartTypes`,
+ * the render-category sites, and the export handlers all stay in sync.
  */
-export const chartTypeParsers: ReadonlyArray<readonly [string, ParseFn]> = [
-  // Structured diagrams (direct parsers)
-  ['sequence', parseSequenceDgmo],
-  ['flowchart', parseFlowchart],
-  ['class', parseClassDiagram],
-  ['er', parseERDiagram],
-  ['state', parseState],
-  ['org', parseOrg],
-  ['kanban', parseKanban],
-  ['c4', parseC4],
-  ['sitemap', parseSitemap],
-  ['infra', parseInfra],
-  ['gantt', parseGantt],
-  ['pert', parsePert],
-  ['boxes-and-lines', parseBoxesAndLines],
-  ['mindmap', parseMindmap],
-  ['wireframe', parseWireframe],
-  ['tech-radar', parseTechRadar],
-  ['cycle', parseCycle],
-  ['journey-map', parseJourneyMap],
-  ['pyramid', parsePyramid],
-  ['ring', parseRing],
-  ['raci', parseRaci],
-  ['rasci', parseRaci],
-  ['daci', parseRaci],
-
-  // Standard ECharts charts (parseChart)
-  ['bar', parseChart],
-  ['line', parseChart],
-  ['multi-line', parseChart],
-  ['area', parseChart],
-  ['pie', parseChart],
-  ['doughnut', parseChart],
-  ['radar', parseChart],
-  ['polar-area', parseChart],
-  ['bar-stacked', parseChart],
-
-  // Extended ECharts charts (parseExtendedChart)
-  ['scatter', parseExtendedChart],
-  ['sankey', parseExtendedChart],
-  ['chord', parseExtendedChart],
-  ['function', parseExtendedChart],
-  ['heatmap', parseExtendedChart],
-  ['funnel', parseExtendedChart],
-
-  // D3 visualizations (parseVisualization)
-  ['slope', parseVisualization],
-  ['wordcloud', parseVisualization],
-  ['arc', parseVisualization],
-  ['timeline', parseVisualization],
-  ['venn', parseVisualization],
-  ['quadrant', parseVisualization],
-
-  // Geographic map (own parser → resolver → layout → renderer pipeline)
-  ['map', parseMap],
-];
+export const chartTypeParsers: ReadonlyArray<readonly [string, ParseFn]> =
+  CHART_TYPE_REGISTRY.map((d) => [d.id, d.parse] as const);
 
 /** Ids in the same order as `chartTypeParsers`; used for cross-checks. */
 export const knownChartTypeIds: readonly string[] = chartTypeParsers.map(

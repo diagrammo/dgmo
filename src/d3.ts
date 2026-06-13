@@ -7834,844 +7834,919 @@ function finalizeSvgExport(
  * Renders a D3 chart to an SVG string for export.
  * Creates a detached DOM element, renders into it, extracts the SVG, then cleans up.
  */
+type RenderForExportOptions = {
+  c4Level?: 'context' | 'containers' | 'components' | 'deployment';
+  c4System?: string;
+  c4Container?: string;
+  tagGroup?: string;
+  exportMode?: boolean;
+  // Browser callers (the app / Obsidian) bundle the map JSON and inject it
+  // here — the Node fs `loadMapData()` seam can't run in a browser. CLI/SSR
+  // omit this and fall back to the fs loader.
+  mapData?: import('./map/resolved-types').MapData;
+  // WYSIWYG map export: the live preview pane's displayed aspect (w/h). When
+  // set, the map canvas adopts it + stretch-fills so the PNG matches the
+  // on-screen map. The app passes this; headless consumers omit it.
+  mapAspect?: number;
+};
+
+/** Everything an export handler needs — one bundle threaded through dispatch. */
+interface ExportContext {
+  content: string;
+  theme: 'light' | 'dark' | 'transparent';
+  palette: PaletteColors | undefined;
+  viewState: import('./sharing').CompactViewState | undefined;
+  options: RenderForExportOptions | undefined;
+  exportMode: boolean;
+}
+
+type DiagramExportHandler = (ctx: ExportContext) => Promise<string>;
+
+/**
+ * Export-render dispatch, keyed by detected chart type. Story 109.1 (arch-review)
+ * replaced a 22-branch per-type if-ladder with this table.
+ * `chart-type-registry.test.ts` asserts every diagram/visualization id in
+ * CHART_TYPE_REGISTRY is covered here (or by the visualization fallthrough), so a
+ * newly-registered type can no longer silently render an empty string.
+ */
+export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
+  org: exportOrg,
+  sitemap: exportSitemap,
+  kanban: exportKanban,
+  class: exportClass,
+  er: exportEr,
+  'boxes-and-lines': exportBoxesAndLines,
+  mindmap: exportMindmap,
+  wireframe: exportWireframe,
+  c4: exportC4,
+  flowchart: exportFlowchart,
+  infra: exportInfra,
+  pert: exportPert,
+  gantt: exportGantt,
+  state: exportState,
+  'tech-radar': exportTechRadar,
+  'journey-map': exportJourneyMap,
+  cycle: exportCycle,
+  map: exportMap,
+  pyramid: exportPyramid,
+  ring: exportRing,
+  raci: exportRaci,
+  rasci: exportRaci,
+  daci: exportRaci,
+};
+
 export async function renderForExport(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
   palette?: PaletteColors,
   viewState?: import('./sharing').CompactViewState,
-  options?: {
-    c4Level?: 'context' | 'containers' | 'components' | 'deployment';
-    c4System?: string;
-    c4Container?: string;
-    tagGroup?: string;
-    exportMode?: boolean;
-    // Browser callers (the app / Obsidian) bundle the map JSON and inject it
-    // here — the Node fs `loadMapData()` seam can't run in a browser. CLI/SSR
-    // omit this and fall back to the fs loader.
-    mapData?: import('./map/resolved-types').MapData;
-    // WYSIWYG map export: the live preview pane's displayed aspect (w/h). When
-    // set, the map canvas adopts it + stretch-fills so the PNG matches the
-    // on-screen map. The app passes this; headless consumers omit it.
-    mapAspect?: number;
-  }
+  options?: RenderForExportOptions
 ): Promise<string> {
   const exportMode = options?.exportMode ?? false;
-  // Flowchart and org chart use their own parser pipelines — intercept before parseVisualization()
   const { parseDgmoChartType } = await import('./dgmo-router');
   const detectedType = parseDgmoChartType(content);
+  const ctx: ExportContext = {
+    content,
+    theme,
+    palette,
+    viewState,
+    options,
+    exportMode,
+  };
+  // Generic dispatch: structured diagrams + own-parser visualizations resolve
+  // through the handler table; the D3 visualization family (slope/arc/timeline/
+  // venn/quadrant/wordcloud) and sequence fall through to the unified renderer.
+  const handler =
+    detectedType !== null ? DIAGRAM_EXPORT_HANDLERS[detectedType] : undefined;
+  return (handler ?? exportVisualization)(ctx);
+}
 
-  if (detectedType === 'org') {
-    const { parseOrg } = await import('./org/parser');
-    const { layoutOrg } = await import('./org/layout');
-    const { collapseOrgTree } = await import('./org/collapse');
-    const { renderOrg } = await import('./org/renderer');
+async function exportOrg(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { parseOrg } = await import('./org/parser');
+  const { layoutOrg } = await import('./org/layout');
+  const { collapseOrgTree } = await import('./org/collapse');
+  const { renderOrg } = await import('./org/renderer');
 
-    const isDark = theme === 'dark';
-    const effectivePalette = await resolveExportPalette(theme, palette);
+  const isDark = theme === 'dark';
+  const effectivePalette = await resolveExportPalette(theme, palette);
 
-    const orgParsed = parseOrg(content, effectivePalette);
-    if (orgParsed.error) return '';
+  const orgParsed = parseOrg(content, effectivePalette);
+  if (orgParsed.error) return '';
 
-    // Apply interactive collapse state when provided (read from unified viewState)
-    const collapsedNodes = viewState?.cg ? new Set(viewState.cg) : undefined;
-    const activeTagGroup = resolveActiveTagGroup(
-      orgParsed.tagGroups,
-      orgParsed.options['active-tag'],
+  // Apply interactive collapse state when provided (read from unified viewState)
+  const collapsedNodes = viewState?.cg ? new Set(viewState.cg) : undefined;
+  const activeTagGroup = resolveActiveTagGroup(
+    orgParsed.tagGroups,
+    orgParsed.options['active-tag'],
+    viewState?.tag ?? options?.tagGroup
+  );
+  const hiddenAttributes = viewState?.ha ? new Set(viewState.ha) : undefined;
+
+  const { parsed: effectiveParsed, hiddenCounts } =
+    collapsedNodes && collapsedNodes.size > 0
+      ? collapseOrgTree(orgParsed, collapsedNodes)
+      : { parsed: orgParsed, hiddenCounts: new Map<string, number>() };
+
+  const orgLayout = layoutOrg(
+    effectiveParsed,
+    hiddenCounts.size > 0 ? hiddenCounts : undefined,
+    activeTagGroup,
+    hiddenAttributes,
+    false // expandAllLegend off — collapsed-by-default per §1.3
+  );
+
+  const PADDING = 20;
+  const titleOffset = effectiveParsed.title ? 30 : 0;
+  const exportWidth = orgLayout.width + PADDING * 2;
+  const exportHeight = orgLayout.height + PADDING * 2 + titleOffset;
+  const container = createExportContainer(exportWidth, exportHeight);
+
+  renderOrg(
+    container,
+    effectiveParsed,
+    orgLayout,
+    effectivePalette,
+    isDark,
+    undefined,
+    { width: exportWidth, height: exportHeight },
+    activeTagGroup,
+    hiddenAttributes,
+    undefined,
+    exportMode
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportSitemap(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { parseSitemap } = await import('./sitemap/parser');
+  const { layoutSitemap } = await import('./sitemap/layout');
+  const { collapseSitemapTree } = await import('./sitemap/collapse');
+  const { renderSitemap } = await import('./sitemap/renderer');
+
+  const isDark = theme === 'dark';
+  const effectivePalette = await resolveExportPalette(theme, palette);
+
+  const sitemapParsed = parseSitemap(content, effectivePalette);
+  if (sitemapParsed.error || sitemapParsed.roots.length === 0) return '';
+
+  // Apply interactive collapse state when provided (read from unified viewState)
+  const collapsedNodes = viewState?.cg ? new Set(viewState.cg) : undefined;
+  const activeTagGroup = resolveActiveTagGroup(
+    sitemapParsed.tagGroups,
+    sitemapParsed.options['active-tag'],
+    viewState?.tag ?? options?.tagGroup
+  );
+  const hiddenAttributes = viewState?.ha ? new Set(viewState.ha) : undefined;
+
+  const { parsed: effectiveParsed, hiddenCounts } =
+    collapsedNodes && collapsedNodes.size > 0
+      ? collapseSitemapTree(sitemapParsed, collapsedNodes)
+      : { parsed: sitemapParsed, hiddenCounts: new Map<string, number>() };
+
+  const sitemapLayout = layoutSitemap(
+    effectiveParsed,
+    hiddenCounts.size > 0 ? hiddenCounts : undefined,
+    activeTagGroup,
+    hiddenAttributes,
+    true
+  );
+
+  const PADDING = 20;
+  const titleOffset = effectiveParsed.title ? 30 : 0;
+  const exportWidth = sitemapLayout.width + PADDING * 2;
+  const exportHeight = sitemapLayout.height + PADDING * 2 + titleOffset;
+  const container = createExportContainer(exportWidth, exportHeight);
+
+  renderSitemap(
+    container,
+    effectiveParsed,
+    sitemapLayout,
+    effectivePalette,
+    isDark,
+    undefined,
+    { width: exportWidth, height: exportHeight },
+    activeTagGroup,
+    hiddenAttributes,
+    exportMode
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportKanban(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { parseKanban } = await import('./kanban/parser');
+  const { renderKanban } = await import('./kanban/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const kanbanParsed = parseKanban(content, effectivePalette);
+  if (kanbanParsed.error || kanbanParsed.columns.length === 0) return '';
+
+  // Kanban renderer self-sizes — no explicit width/height needed
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  document.body.appendChild(container);
+
+  const kanbanCollapsedLanes = viewState?.cl
+    ? new Set(viewState.cl)
+    : undefined;
+  const kanbanCollapsedColumns = viewState?.cc
+    ? new Set(viewState.cc)
+    : undefined;
+  renderKanban(container, kanbanParsed, effectivePalette, theme === 'dark', {
+    activeTagGroup: resolveActiveTagGroup(
+      kanbanParsed.tagGroups,
+      kanbanParsed.options['active-tag'],
       viewState?.tag ?? options?.tagGroup
-    );
-    const hiddenAttributes = viewState?.ha ? new Set(viewState.ha) : undefined;
+    ),
+    currentSwimlaneGroup: viewState?.swim ?? null,
+    ...(kanbanCollapsedLanes !== undefined && {
+      collapsedLanes: kanbanCollapsedLanes,
+    }),
+    ...(kanbanCollapsedColumns !== undefined && {
+      collapsedColumns: kanbanCollapsedColumns,
+    }),
+    ...(viewState?.cm !== undefined && { compactMeta: viewState.cm }),
+    exportMode,
+  });
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
 
-    const { parsed: effectiveParsed, hiddenCounts } =
-      collapsedNodes && collapsedNodes.size > 0
-        ? collapseOrgTree(orgParsed, collapsedNodes)
-        : { parsed: orgParsed, hiddenCounts: new Map<string, number>() };
+async function exportClass(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, exportMode } = ctx;
+  const { parseClassDiagram } = await import('./class/parser');
+  const { layoutClassDiagram } = await import('./class/layout');
+  const { renderClassDiagram } = await import('./class/renderer');
 
-    const orgLayout = layoutOrg(
-      effectiveParsed,
-      hiddenCounts.size > 0 ? hiddenCounts : undefined,
-      activeTagGroup,
-      hiddenAttributes,
-      false // expandAllLegend off — collapsed-by-default per §1.3
-    );
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const classParsed = parseClassDiagram(content, effectivePalette);
+  if (classParsed.error || classParsed.classes.length === 0) return '';
 
-    const PADDING = 20;
-    const titleOffset = effectiveParsed.title ? 30 : 0;
-    const exportWidth = orgLayout.width + PADDING * 2;
-    const exportHeight = orgLayout.height + PADDING * 2 + titleOffset;
-    const container = createExportContainer(exportWidth, exportHeight);
+  const classLayout = layoutClassDiagram(classParsed);
+  const PADDING = 20;
+  const titleOffset = classParsed.title ? 40 : 0;
+  const exportWidth = classLayout.width + PADDING * 2;
+  const exportHeight = classLayout.height + PADDING * 2 + titleOffset;
+  const container = createExportContainer(exportWidth, exportHeight);
 
-    renderOrg(
-      container,
-      effectiveParsed,
-      orgLayout,
-      effectivePalette,
-      isDark,
-      undefined,
-      { width: exportWidth, height: exportHeight },
-      activeTagGroup,
-      hiddenAttributes,
-      undefined,
-      exportMode
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
+  renderClassDiagram(
+    container,
+    classParsed,
+    classLayout,
+    effectivePalette,
+    theme === 'dark',
+    undefined,
+    { width: exportWidth, height: exportHeight },
+    undefined,
+    exportMode
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportEr(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { parseERDiagram } = await import('./er/parser');
+  const { layoutERDiagram } = await import('./er/layout');
+  const { renderERDiagram } = await import('./er/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const erParsed = parseERDiagram(content, effectivePalette);
+  if (erParsed.error || erParsed.tables.length === 0) return '';
+
+  const erLayout = layoutERDiagram(erParsed);
+  const PADDING = 20;
+  const titleOffset = erParsed.title ? 40 : 0;
+  const exportWidth = erLayout.width + PADDING * 2;
+  const exportHeight = erLayout.height + PADDING * 2 + titleOffset;
+  const container = createExportContainer(exportWidth, exportHeight);
+
+  renderERDiagram(
+    container,
+    erParsed,
+    erLayout,
+    effectivePalette,
+    theme === 'dark',
+    undefined,
+    { width: exportWidth, height: exportHeight },
+    resolveActiveTagGroup(
+      erParsed.tagGroups,
+      erParsed.options['active-tag'],
+      viewState?.tag ?? options?.tagGroup
+    ),
+    viewState?.sem,
+    exportMode
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportBoxesAndLines(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { parseBoxesAndLines } = await import('./boxes-and-lines/parser');
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const blParsed = parseBoxesAndLines(content, effectivePalette);
+  if (blParsed.error || blParsed.nodes.length === 0) return '';
+
+  // Convert viewState.htv (Record<string, string[]>) to Map<string, Set<string>>
+  let blHiddenTagValues: Map<string, Set<string>> | undefined;
+  if (viewState?.htv) {
+    blHiddenTagValues = new Map();
+    for (const [k, v] of Object.entries(viewState.htv)) {
+      blHiddenTagValues.set(k, new Set(v));
+    }
   }
 
-  if (detectedType === 'sitemap') {
-    const { parseSitemap } = await import('./sitemap/parser');
-    const { layoutSitemap } = await import('./sitemap/layout');
-    const { collapseSitemapTree } = await import('./sitemap/collapse');
-    const { renderSitemap } = await import('./sitemap/renderer');
+  const { renderBoxesAndLinesForExport } =
+    await import('./boxes-and-lines/renderer');
+  const { layoutBoxesAndLines } = await import('./boxes-and-lines/layout');
+  const blLayout = await layoutBoxesAndLines(blParsed);
+  const PADDING = 20;
+  const titleOffset = blParsed.title ? 40 : 0;
+  const exportWidth = blLayout.width + PADDING * 2;
+  const exportHeight = blLayout.height + PADDING * 2 + titleOffset;
+  const container = createExportContainer(exportWidth, exportHeight);
 
-    const isDark = theme === 'dark';
-    const effectivePalette = await resolveExportPalette(theme, palette);
-
-    const sitemapParsed = parseSitemap(content, effectivePalette);
-    if (sitemapParsed.error || sitemapParsed.roots.length === 0) return '';
-
-    // Apply interactive collapse state when provided (read from unified viewState)
-    const collapsedNodes = viewState?.cg ? new Set(viewState.cg) : undefined;
-    const activeTagGroup = resolveActiveTagGroup(
-      sitemapParsed.tagGroups,
-      sitemapParsed.options['active-tag'],
-      viewState?.tag ?? options?.tagGroup
-    );
-    const hiddenAttributes = viewState?.ha ? new Set(viewState.ha) : undefined;
-
-    const { parsed: effectiveParsed, hiddenCounts } =
-      collapsedNodes && collapsedNodes.size > 0
-        ? collapseSitemapTree(sitemapParsed, collapsedNodes)
-        : { parsed: sitemapParsed, hiddenCounts: new Map<string, number>() };
-
-    const sitemapLayout = layoutSitemap(
-      effectiveParsed,
-      hiddenCounts.size > 0 ? hiddenCounts : undefined,
-      activeTagGroup,
-      hiddenAttributes,
-      true
-    );
-
-    const PADDING = 20;
-    const titleOffset = effectiveParsed.title ? 30 : 0;
-    const exportWidth = sitemapLayout.width + PADDING * 2;
-    const exportHeight = sitemapLayout.height + PADDING * 2 + titleOffset;
-    const container = createExportContainer(exportWidth, exportHeight);
-
-    renderSitemap(
-      container,
-      effectiveParsed,
-      sitemapLayout,
-      effectivePalette,
-      isDark,
-      undefined,
-      { width: exportWidth, height: exportHeight },
-      activeTagGroup,
-      hiddenAttributes,
-      exportMode
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'kanban') {
-    const { parseKanban } = await import('./kanban/parser');
-    const { renderKanban } = await import('./kanban/renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const kanbanParsed = parseKanban(content, effectivePalette);
-    if (kanbanParsed.error || kanbanParsed.columns.length === 0) return '';
-
-    // Kanban renderer self-sizes — no explicit width/height needed
-    const container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
-
-    const kanbanCollapsedLanes = viewState?.cl
-      ? new Set(viewState.cl)
-      : undefined;
-    const kanbanCollapsedColumns = viewState?.cc
-      ? new Set(viewState.cc)
-      : undefined;
-    renderKanban(container, kanbanParsed, effectivePalette, theme === 'dark', {
-      activeTagGroup: resolveActiveTagGroup(
-        kanbanParsed.tagGroups,
-        kanbanParsed.options['active-tag'],
-        viewState?.tag ?? options?.tagGroup
-      ),
-      currentSwimlaneGroup: viewState?.swim ?? null,
-      ...(kanbanCollapsedLanes !== undefined && {
-        collapsedLanes: kanbanCollapsedLanes,
+  const blActiveTagGroup = viewState?.tag ?? options?.tagGroup;
+  renderBoxesAndLinesForExport(
+    container,
+    blParsed,
+    blLayout,
+    effectivePalette,
+    theme === 'dark',
+    {
+      exportDims: { width: exportWidth, height: exportHeight },
+      ...(blActiveTagGroup !== undefined && {
+        activeTagGroup: blActiveTagGroup,
       }),
-      ...(kanbanCollapsedColumns !== undefined && {
-        collapsedColumns: kanbanCollapsedColumns,
+      ...(blHiddenTagValues !== undefined && {
+        hiddenTagValues: blHiddenTagValues,
       }),
-      ...(viewState?.cm !== undefined && { compactMeta: viewState.cm }),
       exportMode,
-    });
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'class') {
-    const { parseClassDiagram } = await import('./class/parser');
-    const { layoutClassDiagram } = await import('./class/layout');
-    const { renderClassDiagram } = await import('./class/renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const classParsed = parseClassDiagram(content, effectivePalette);
-    if (classParsed.error || classParsed.classes.length === 0) return '';
-
-    const classLayout = layoutClassDiagram(classParsed);
-    const PADDING = 20;
-    const titleOffset = classParsed.title ? 40 : 0;
-    const exportWidth = classLayout.width + PADDING * 2;
-    const exportHeight = classLayout.height + PADDING * 2 + titleOffset;
-    const container = createExportContainer(exportWidth, exportHeight);
-
-    renderClassDiagram(
-      container,
-      classParsed,
-      classLayout,
-      effectivePalette,
-      theme === 'dark',
-      undefined,
-      { width: exportWidth, height: exportHeight },
-      undefined,
-      exportMode
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'er') {
-    const { parseERDiagram } = await import('./er/parser');
-    const { layoutERDiagram } = await import('./er/layout');
-    const { renderERDiagram } = await import('./er/renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const erParsed = parseERDiagram(content, effectivePalette);
-    if (erParsed.error || erParsed.tables.length === 0) return '';
-
-    const erLayout = layoutERDiagram(erParsed);
-    const PADDING = 20;
-    const titleOffset = erParsed.title ? 40 : 0;
-    const exportWidth = erLayout.width + PADDING * 2;
-    const exportHeight = erLayout.height + PADDING * 2 + titleOffset;
-    const container = createExportContainer(exportWidth, exportHeight);
-
-    renderERDiagram(
-      container,
-      erParsed,
-      erLayout,
-      effectivePalette,
-      theme === 'dark',
-      undefined,
-      { width: exportWidth, height: exportHeight },
-      resolveActiveTagGroup(
-        erParsed.tagGroups,
-        erParsed.options['active-tag'],
-        viewState?.tag ?? options?.tagGroup
-      ),
-      viewState?.sem,
-      exportMode
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'boxes-and-lines') {
-    const { parseBoxesAndLines } = await import('./boxes-and-lines/parser');
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const blParsed = parseBoxesAndLines(content, effectivePalette);
-    if (blParsed.error || blParsed.nodes.length === 0) return '';
-
-    // Convert viewState.htv (Record<string, string[]>) to Map<string, Set<string>>
-    let blHiddenTagValues: Map<string, Set<string>> | undefined;
-    if (viewState?.htv) {
-      blHiddenTagValues = new Map();
-      for (const [k, v] of Object.entries(viewState.htv)) {
-        blHiddenTagValues.set(k, new Set(v));
-      }
     }
-
-    const { renderBoxesAndLinesForExport } =
-      await import('./boxes-and-lines/renderer');
-    const { layoutBoxesAndLines } = await import('./boxes-and-lines/layout');
-    const blLayout = await layoutBoxesAndLines(blParsed);
-    const PADDING = 20;
-    const titleOffset = blParsed.title ? 40 : 0;
-    const exportWidth = blLayout.width + PADDING * 2;
-    const exportHeight = blLayout.height + PADDING * 2 + titleOffset;
-    const container = createExportContainer(exportWidth, exportHeight);
-
-    const blActiveTagGroup = viewState?.tag ?? options?.tagGroup;
-    renderBoxesAndLinesForExport(
-      container,
-      blParsed,
-      blLayout,
-      effectivePalette,
-      theme === 'dark',
-      {
-        exportDims: { width: exportWidth, height: exportHeight },
-        ...(blActiveTagGroup !== undefined && {
-          activeTagGroup: blActiveTagGroup,
-        }),
-        ...(blHiddenTagValues !== undefined && {
-          hiddenTagValues: blHiddenTagValues,
-        }),
-        exportMode,
-      }
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'mindmap') {
-    const { parseMindmap } = await import('./mindmap/parser');
-    const { layoutMindmap } = await import('./mindmap/layout');
-    const { collapseMindmapTree } = await import('./mindmap/collapse');
-    const { renderMindmap } = await import('./mindmap/renderer');
-
-    const isDark = theme === 'dark';
-    const effectivePalette = await resolveExportPalette(theme, palette);
-
-    const mmParsed = parseMindmap(content, effectivePalette);
-    if (mmParsed.error) return '';
-
-    const collapsedNodes = viewState?.cg ? new Set(viewState.cg) : undefined;
-    const activeTagGroup = resolveActiveTagGroup(
-      mmParsed.tagGroups,
-      mmParsed.options['active-tag'],
-      viewState?.tag ?? options?.tagGroup
-    );
-    const hideDescriptions =
-      mmParsed.options['no-descriptions'] === 'true' || viewState?.hd === true;
-
-    const { roots: effectiveRoots, hiddenCounts } =
-      collapsedNodes && collapsedNodes.size > 0
-        ? collapseMindmapTree(mmParsed.roots, collapsedNodes)
-        : { roots: mmParsed.roots, hiddenCounts: new Map<string, number>() };
-
-    const effectiveParsed = { ...mmParsed, roots: effectiveRoots };
-
-    const mmLayout = layoutMindmap(effectiveParsed, effectivePalette, {
-      interactive: false,
-      ...(hiddenCounts.size > 0 && { hiddenCounts }),
-      activeTagGroup,
-      hideDescriptions,
-    });
-
-    const PADDING = 20;
-    const titleOffset = effectiveParsed.title ? 30 : 0;
-    const exportWidth = mmLayout.width + PADDING * 2;
-    const exportHeight = mmLayout.height + PADDING * 2 + titleOffset;
-    const container = createExportContainer(exportWidth, exportHeight);
-
-    const colorByDepth = viewState?.cbd === true;
-
-    renderMindmap(
-      container,
-      effectiveParsed,
-      mmLayout,
-      effectivePalette,
-      isDark,
-      undefined,
-      { width: exportWidth, height: exportHeight },
-      undefined,
-      hideDescriptions,
-      colorByDepth ? null : activeTagGroup,
-      colorByDepth ? { colorByDepth: true, exportMode } : { exportMode }
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'wireframe') {
-    const { parseWireframe } = await import('./wireframe/parser');
-    const { layoutWireframe } = await import('./wireframe/layout');
-    const { renderWireframe } = await import('./wireframe/renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const wireframeParsed = parseWireframe(content);
-    if (
-      wireframeParsed.error ||
-      (wireframeParsed.roots.length === 0 &&
-        wireframeParsed.modals.length === 0)
-    )
-      return '';
-
-    const wireframeLayout = layoutWireframe(wireframeParsed);
-
-    const exportWidth = wireframeLayout.width;
-    const exportHeight = wireframeLayout.height;
-    const container = createExportContainer(exportWidth, exportHeight);
-
-    renderWireframe(
-      container,
-      wireframeParsed,
-      wireframeLayout,
-      effectivePalette,
-      theme === 'dark',
-      undefined,
-      { width: exportWidth, height: exportHeight },
-      theme
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'c4') {
-    const { parseC4 } = await import('./c4/parser');
-    const {
-      layoutC4Context,
-      layoutC4Containers,
-      layoutC4Components,
-      layoutC4Deployment,
-    } = await import('./c4/layout');
-    const { renderC4Context, renderC4Containers } =
-      await import('./c4/renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const c4Parsed = parseC4(content, effectivePalette);
-    if (c4Parsed.error || c4Parsed.elements.length === 0) return '';
-
-    // Container/component-level rendering (viewState fallback for share links)
-    const c4Level =
-      options?.c4Level ??
-      (viewState?.c4l as
-        | 'context'
-        | 'containers'
-        | 'components'
-        | 'deployment'
-        | undefined) ??
-      'context';
-    const c4System = options?.c4System ?? viewState?.c4s;
-    const c4Container = options?.c4Container ?? viewState?.c4c;
-
-    const c4Layout =
-      c4Level === 'deployment'
-        ? layoutC4Deployment(c4Parsed)
-        : c4Level === 'components' && c4System && c4Container
-          ? layoutC4Components(c4Parsed, c4System, c4Container)
-          : c4Level === 'containers' && c4System
-            ? layoutC4Containers(c4Parsed, c4System)
-            : layoutC4Context(c4Parsed);
-
-    if (c4Layout.nodes.length === 0) return '';
-
-    const PADDING = 20;
-    const titleOffset = c4Parsed.title ? 40 : 0;
-    const exportWidth = c4Layout.width + PADDING * 2;
-    const exportHeight = c4Layout.height + PADDING * 2 + titleOffset;
-    const container = createExportContainer(exportWidth, exportHeight);
-
-    const renderFn =
-      c4Level === 'deployment' ||
-      (c4Level === 'components' && c4System && c4Container) ||
-      (c4Level === 'containers' && c4System)
-        ? renderC4Containers
-        : renderC4Context;
-
-    renderFn(
-      container,
-      c4Parsed,
-      c4Layout,
-      effectivePalette,
-      theme === 'dark',
-      undefined,
-      { width: exportWidth, height: exportHeight },
-      resolveActiveTagGroup(
-        c4Parsed.tagGroups,
-        c4Parsed.options['active-tag'],
-        viewState?.tag ?? options?.tagGroup
-      ),
-      exportMode
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'flowchart') {
-    const { parseFlowchart } = await import('./graph/flowchart-parser');
-    const { layoutGraph } = await import('./graph/layout');
-    const { renderFlowchart } = await import('./graph/flowchart-renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const fcParsed = parseFlowchart(content, effectivePalette);
-    if (fcParsed.error || fcParsed.nodes.length === 0) return '';
-
-    const layout = layoutGraph(fcParsed);
-    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
-
-    renderFlowchart(
-      container,
-      fcParsed,
-      layout,
-      effectivePalette,
-      theme === 'dark',
-      undefined,
-      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'infra') {
-    const { parseInfra } = await import('./infra/parser');
-    const { computeInfra } = await import('./infra/compute');
-    const { layoutInfra } = await import('./infra/layout');
-    const { renderInfra, computeInfraLegendGroups } =
-      await import('./infra/renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const infraParsed = parseInfra(content);
-    if (infraParsed.error || infraParsed.nodes.length === 0) return '';
-
-    const infraComputed = computeInfra(infraParsed);
-    const infraLayout = layoutInfra(infraComputed);
-    const activeTagGroup = resolveActiveTagGroup(
-      infraParsed.tagGroups,
-      infraParsed.options['active-tag'],
-      viewState?.tag ?? options?.tagGroup
-    );
-
-    const showInfraTitle =
-      !!infraParsed.title && infraParsed.options['no-title'] !== 'on';
-    const titleOffset = showInfraTitle ? 40 : 0;
-    const infraTagGroups = [...infraParsed.tagGroups];
-    const legendGroups = computeInfraLegendGroups(
-      infraLayout.nodes,
-      infraTagGroups,
-      effectivePalette
-    );
-    const legendOffset = legendGroups.length > 0 ? 28 : 0;
-    const exportWidth = infraLayout.width;
-    const exportHeight = infraLayout.height + titleOffset + legendOffset;
-    const container = createExportContainer(exportWidth, exportHeight);
-
-    renderInfra(
-      container,
-      infraLayout,
-      effectivePalette,
-      theme === 'dark',
-      showInfraTitle ? infraParsed.title : null,
-      showInfraTitle ? infraParsed.titleLineNumber : null,
-      infraTagGroups,
-      activeTagGroup,
-      false,
-      null,
-      null,
-      true,
-      viewState?.cg ? new Set(viewState.cg) : null
-    );
-    // Restore explicit pixel dimensions for resvg (renderer uses 100%/viewBox for app scaling)
-    const infraSvg = container.querySelector('svg');
-    if (infraSvg) {
-      infraSvg.setAttribute('width', String(exportWidth));
-      infraSvg.setAttribute('height', String(exportHeight));
-    }
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'pert') {
-    const { parsePert } = await import('./pert/parser');
-    const { analyzePert } = await import('./pert/analyzer');
-    const { layoutPert } = await import('./pert/layout');
-    const { renderPert, measurePertAnalysisBlock } =
-      await import('./pert/renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const pertParsed = parsePert(content, { palette: effectivePalette });
-    if (pertParsed.error || pertParsed.activities.length === 0) return '';
-
-    const pertResolved = analyzePert(pertParsed);
-    const pertLayout = layoutPert(pertResolved);
-
-    const titleHeight =
-      pertParsed.title && !pertParsed.options.noTitle ? 80 : 0;
-    const PERT_PADDING = 20;
-    // Analysis layer renders by default whenever MC ran. Precedence:
-    // an explicit viewState.an (app toggle / share link) wins; else the
-    // `no-analysis` source directive suppresses it; else on. The
-    // renderer silently omits it in analytical mode (no MC output).
-    const analysisOn = viewState?.an ?? !pertParsed.options.noAnalysis;
-    const fieldLabelsOn = viewState?.fl === true;
-    const exportW = pertLayout.width + PERT_PADDING * 2;
-    const analysisMeasured =
-      analysisOn || fieldLabelsOn
-        ? measurePertAnalysisBlock(pertResolved, exportW - 2 * PERT_PADDING, {
-            showSummary: false,
-            showTornado: analysisOn,
-            showScurve: analysisOn,
-            showFieldLegend: fieldLabelsOn,
-          })
-        : { width: 0, height: 0 };
-    const exportH =
-      pertLayout.height +
-      PERT_PADDING * 2 +
-      titleHeight +
-      analysisMeasured.height;
-    const container = createExportContainer(exportW, exportH);
-
-    renderPert(
-      container,
-      pertResolved,
-      pertLayout,
-      effectivePalette,
-      theme === 'dark',
-      {
-        title: pertParsed.title,
-        exportDims: { width: exportW, height: exportH },
-        showSummary: false,
-        showTornado: analysisOn,
-        showScurve: analysisOn,
-        showFieldLegend: fieldLabelsOn,
-      }
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'gantt') {
-    const { parseGantt } = await import('./gantt/parser');
-    const { calculateSchedule } = await import('./gantt/calculator');
-    const { renderGantt } = await import('./gantt/renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const ganttParsed = parseGantt(content, effectivePalette);
-    const resolved = calculateSchedule(ganttParsed);
-    if (resolved.tasks.length === 0) return '';
-
-    const EXPORT_W = 1200;
-    const EXPORT_H = 800;
-    const container = createExportContainer(EXPORT_W, EXPORT_H);
-
-    const ganttCollapsedGroups = viewState?.cg
-      ? new Set(viewState.cg)
-      : undefined;
-    const ganttSwimlaneGroup = viewState?.swim ?? undefined;
-    const ganttCollapsedLanes = viewState?.cl
-      ? new Set(viewState.cl)
-      : undefined;
-    renderGantt(
-      container,
-      resolved,
-      effectivePalette,
-      theme === 'dark',
-      {
-        ...(ganttCollapsedGroups !== undefined && {
-          collapsedGroups: ganttCollapsedGroups,
-        }),
-        ...(ganttSwimlaneGroup !== undefined && {
-          currentSwimlaneGroup: ganttSwimlaneGroup,
-        }),
-        ...(ganttCollapsedLanes !== undefined && {
-          collapsedLanes: ganttCollapsedLanes,
-        }),
-        currentActiveGroup: resolveActiveTagGroup(
-          resolved.tagGroups,
-          resolved.options.activeTag ?? undefined,
-          viewState?.tag ?? options?.tagGroup
-        ),
-        exportMode,
-      },
-      { width: EXPORT_W, height: EXPORT_H }
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'state') {
-    const { parseState } = await import('./graph/state-parser');
-    const { layoutGraph } = await import('./graph/layout');
-    const { renderState } = await import('./graph/state-renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const stateParsed = parseState(content, effectivePalette);
-    if (stateParsed.error || stateParsed.nodes.length === 0) return '';
-
-    const layout = layoutGraph(stateParsed);
-    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
-
-    renderState(
-      container,
-      stateParsed,
-      layout,
-      effectivePalette,
-      theme === 'dark',
-      undefined,
-      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'tech-radar') {
-    const { parseTechRadar } = await import('./tech-radar/parser');
-    const { renderTechRadarForExport } = await import('./tech-radar/renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const radarParsed = parseTechRadar(content);
-    if (radarParsed.error || radarParsed.quadrants.length === 0) return '';
-
-    const RADAR_EXPORT_W = 1300;
-    const RADAR_EXPORT_H = 1500;
-    const container = createExportContainer(RADAR_EXPORT_W, RADAR_EXPORT_H);
-    renderTechRadarForExport(
-      container,
-      radarParsed,
-      effectivePalette,
-      theme === 'dark',
-      { width: RADAR_EXPORT_W, height: RADAR_EXPORT_H },
-      viewState,
-      exportMode
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'journey-map') {
-    const { parseJourneyMap } = await import('./journey-map/parser');
-    const { renderJourneyMap } = await import('./journey-map/renderer');
-    const { layoutJourneyMap } = await import('./journey-map/layout');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const jmParsed = parseJourneyMap(content, effectivePalette);
-    if (
-      jmParsed.error ||
-      (jmParsed.phases.length === 0 && jmParsed.steps.length === 0)
-    )
-      return '';
-
-    const jmLayout = layoutJourneyMap(jmParsed, effectivePalette, {
-      isDark: theme === 'dark',
-    });
-    const container = createExportContainer(
-      jmLayout.totalWidth,
-      jmLayout.totalHeight
-    );
-    renderJourneyMap(container, jmParsed, effectivePalette, theme === 'dark', {
-      exportDims: { width: jmLayout.totalWidth, height: jmLayout.totalHeight },
-      exportMode,
-    });
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'cycle') {
-    const { parseCycle } = await import('./cycle/parser');
-    const { renderCycleForExport } = await import('./cycle/renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const cycleParsed = parseCycle(content);
-    if (cycleParsed.error || cycleParsed.nodes.length === 0) return '';
-
-    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
-    renderCycleForExport(
-      container,
-      cycleParsed,
-      effectivePalette,
-      theme === 'dark',
-      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
-      viewState,
-      exportMode
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'map') {
-    const { parseMap } = await import('./map/parser');
-    const { resolveMap } = await import('./map/resolver');
-    const { renderMapForExport } = await import('./map/renderer');
-    const { mapExportDimensions } = await import('./map/dimensions');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const mapParsed = parseMap(content, effectivePalette);
-    // Always render — an empty or partially-resolved map still draws the
-    // inferred base map (§24B.10 / layout AC23); diagnostics surface separately.
-    // Prefer injected `mapData` (browser bundles it; the fs loader can't run
-    // there); fall back to the Node fs loader for CLI/SSR. Degrade like every
-    // other branch (return '') if neither yields data.
-    let mapData = options?.mapData;
-    if (!mapData) {
-      const { loadMapData } = await import('./map/load-data');
-      try {
-        mapData = await loadMapData();
-      } catch {
-        return '';
-      }
-    }
-    const mapResolved = resolveMap(mapParsed, mapData);
-
-    // Content-aware canvas: derive the height from the map's intrinsic projected
-    // aspect (world ~2.3:1, a region taller, etc.) instead of the fixed 800, so the
-    // export matches the content's natural shape — no vertical stretch, no
-    // letterbox bands. `preferContain` rides along to the renderer.
-    const dims = mapExportDimensions(
-      mapResolved,
-      mapData,
-      EXPORT_WIDTH,
-      options?.mapAspect
-    );
-    const container = createExportContainer(dims.width, dims.height);
-    renderMapForExport(
-      container,
-      mapResolved,
-      mapData,
-      effectivePalette,
-      theme === 'dark',
-      dims
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'pyramid') {
-    const { parsePyramid } = await import('./pyramid/parser');
-    const { renderPyramidForExport } = await import('./pyramid/renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const pyramidParsed = parsePyramid(content);
-    if (pyramidParsed.error || pyramidParsed.layers.length === 0) return '';
-
-    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
-    renderPyramidForExport(
-      container,
-      pyramidParsed,
-      effectivePalette,
-      theme === 'dark',
-      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
-  if (detectedType === 'ring') {
-    const { parseRing } = await import('./ring/parser');
-    const { renderRingForExport } = await import('./ring/renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const ringParsed = parseRing(content);
-    if (ringParsed.error || ringParsed.layers.length === 0) return '';
-
-    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
-    renderRingForExport(
-      container,
-      ringParsed,
-      effectivePalette,
-      theme === 'dark',
-      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
-  }
-
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportMindmap(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { parseMindmap } = await import('./mindmap/parser');
+  const { layoutMindmap } = await import('./mindmap/layout');
+  const { collapseMindmapTree } = await import('./mindmap/collapse');
+  const { renderMindmap } = await import('./mindmap/renderer');
+
+  const isDark = theme === 'dark';
+  const effectivePalette = await resolveExportPalette(theme, palette);
+
+  const mmParsed = parseMindmap(content, effectivePalette);
+  if (mmParsed.error) return '';
+
+  const collapsedNodes = viewState?.cg ? new Set(viewState.cg) : undefined;
+  const activeTagGroup = resolveActiveTagGroup(
+    mmParsed.tagGroups,
+    mmParsed.options['active-tag'],
+    viewState?.tag ?? options?.tagGroup
+  );
+  const hideDescriptions =
+    mmParsed.options['no-descriptions'] === 'true' || viewState?.hd === true;
+
+  const { roots: effectiveRoots, hiddenCounts } =
+    collapsedNodes && collapsedNodes.size > 0
+      ? collapseMindmapTree(mmParsed.roots, collapsedNodes)
+      : { roots: mmParsed.roots, hiddenCounts: new Map<string, number>() };
+
+  const effectiveParsed = { ...mmParsed, roots: effectiveRoots };
+
+  const mmLayout = layoutMindmap(effectiveParsed, effectivePalette, {
+    interactive: false,
+    ...(hiddenCounts.size > 0 && { hiddenCounts }),
+    activeTagGroup,
+    hideDescriptions,
+  });
+
+  const PADDING = 20;
+  const titleOffset = effectiveParsed.title ? 30 : 0;
+  const exportWidth = mmLayout.width + PADDING * 2;
+  const exportHeight = mmLayout.height + PADDING * 2 + titleOffset;
+  const container = createExportContainer(exportWidth, exportHeight);
+
+  const colorByDepth = viewState?.cbd === true;
+
+  renderMindmap(
+    container,
+    effectiveParsed,
+    mmLayout,
+    effectivePalette,
+    isDark,
+    undefined,
+    { width: exportWidth, height: exportHeight },
+    undefined,
+    hideDescriptions,
+    colorByDepth ? null : activeTagGroup,
+    colorByDepth ? { colorByDepth: true, exportMode } : { exportMode }
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportWireframe(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseWireframe } = await import('./wireframe/parser');
+  const { layoutWireframe } = await import('./wireframe/layout');
+  const { renderWireframe } = await import('./wireframe/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const wireframeParsed = parseWireframe(content);
   if (
-    detectedType === 'raci' ||
-    detectedType === 'rasci' ||
-    detectedType === 'daci'
-  ) {
-    const { parseRaci } = await import('./raci/parser');
-    const { renderRaciForExport } = await import('./raci/renderer');
+    wireframeParsed.error ||
+    (wireframeParsed.roots.length === 0 && wireframeParsed.modals.length === 0)
+  )
+    return '';
 
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const raciParsed = parseRaci(content, effectivePalette);
-    if (raciParsed.error) return '';
+  const wireframeLayout = layoutWireframe(wireframeParsed);
 
-    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
-    renderRaciForExport(
-      container,
-      raciParsed,
-      effectivePalette,
-      theme === 'dark',
-      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
-    );
-    return finalizeSvgExport(container, theme, effectivePalette);
+  const exportWidth = wireframeLayout.width;
+  const exportHeight = wireframeLayout.height;
+  const container = createExportContainer(exportWidth, exportHeight);
+
+  renderWireframe(
+    container,
+    wireframeParsed,
+    wireframeLayout,
+    effectivePalette,
+    theme === 'dark',
+    undefined,
+    { width: exportWidth, height: exportHeight },
+    theme
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportC4(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { parseC4 } = await import('./c4/parser');
+  const {
+    layoutC4Context,
+    layoutC4Containers,
+    layoutC4Components,
+    layoutC4Deployment,
+  } = await import('./c4/layout');
+  const { renderC4Context, renderC4Containers } = await import('./c4/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const c4Parsed = parseC4(content, effectivePalette);
+  if (c4Parsed.error || c4Parsed.elements.length === 0) return '';
+
+  // Container/component-level rendering (viewState fallback for share links)
+  const c4Level =
+    options?.c4Level ??
+    (viewState?.c4l as
+      | 'context'
+      | 'containers'
+      | 'components'
+      | 'deployment'
+      | undefined) ??
+    'context';
+  const c4System = options?.c4System ?? viewState?.c4s;
+  const c4Container = options?.c4Container ?? viewState?.c4c;
+
+  const c4Layout =
+    c4Level === 'deployment'
+      ? layoutC4Deployment(c4Parsed)
+      : c4Level === 'components' && c4System && c4Container
+        ? layoutC4Components(c4Parsed, c4System, c4Container)
+        : c4Level === 'containers' && c4System
+          ? layoutC4Containers(c4Parsed, c4System)
+          : layoutC4Context(c4Parsed);
+
+  if (c4Layout.nodes.length === 0) return '';
+
+  const PADDING = 20;
+  const titleOffset = c4Parsed.title ? 40 : 0;
+  const exportWidth = c4Layout.width + PADDING * 2;
+  const exportHeight = c4Layout.height + PADDING * 2 + titleOffset;
+  const container = createExportContainer(exportWidth, exportHeight);
+
+  const renderFn =
+    c4Level === 'deployment' ||
+    (c4Level === 'components' && c4System && c4Container) ||
+    (c4Level === 'containers' && c4System)
+      ? renderC4Containers
+      : renderC4Context;
+
+  renderFn(
+    container,
+    c4Parsed,
+    c4Layout,
+    effectivePalette,
+    theme === 'dark',
+    undefined,
+    { width: exportWidth, height: exportHeight },
+    resolveActiveTagGroup(
+      c4Parsed.tagGroups,
+      c4Parsed.options['active-tag'],
+      viewState?.tag ?? options?.tagGroup
+    ),
+    exportMode
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportFlowchart(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseFlowchart } = await import('./graph/flowchart-parser');
+  const { layoutGraph } = await import('./graph/layout');
+  const { renderFlowchart } = await import('./graph/flowchart-renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const fcParsed = parseFlowchart(content, effectivePalette);
+  if (fcParsed.error || fcParsed.nodes.length === 0) return '';
+
+  const layout = layoutGraph(fcParsed);
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+
+  renderFlowchart(
+    container,
+    fcParsed,
+    layout,
+    effectivePalette,
+    theme === 'dark',
+    undefined,
+    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportInfra(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, options } = ctx;
+  const { parseInfra } = await import('./infra/parser');
+  const { computeInfra } = await import('./infra/compute');
+  const { layoutInfra } = await import('./infra/layout');
+  const { renderInfra, computeInfraLegendGroups } =
+    await import('./infra/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const infraParsed = parseInfra(content);
+  if (infraParsed.error || infraParsed.nodes.length === 0) return '';
+
+  const infraComputed = computeInfra(infraParsed);
+  const infraLayout = layoutInfra(infraComputed);
+  const activeTagGroup = resolveActiveTagGroup(
+    infraParsed.tagGroups,
+    infraParsed.options['active-tag'],
+    viewState?.tag ?? options?.tagGroup
+  );
+
+  const showInfraTitle =
+    !!infraParsed.title && infraParsed.options['no-title'] !== 'on';
+  const titleOffset = showInfraTitle ? 40 : 0;
+  const infraTagGroups = [...infraParsed.tagGroups];
+  const legendGroups = computeInfraLegendGroups(
+    infraLayout.nodes,
+    infraTagGroups,
+    effectivePalette
+  );
+  const legendOffset = legendGroups.length > 0 ? 28 : 0;
+  const exportWidth = infraLayout.width;
+  const exportHeight = infraLayout.height + titleOffset + legendOffset;
+  const container = createExportContainer(exportWidth, exportHeight);
+
+  renderInfra(
+    container,
+    infraLayout,
+    effectivePalette,
+    theme === 'dark',
+    showInfraTitle ? infraParsed.title : null,
+    showInfraTitle ? infraParsed.titleLineNumber : null,
+    infraTagGroups,
+    activeTagGroup,
+    false,
+    null,
+    null,
+    true,
+    viewState?.cg ? new Set(viewState.cg) : null
+  );
+  // Restore explicit pixel dimensions for resvg (renderer uses 100%/viewBox for app scaling)
+  const infraSvg = container.querySelector('svg');
+  if (infraSvg) {
+    infraSvg.setAttribute('width', String(exportWidth));
+    infraSvg.setAttribute('height', String(exportHeight));
   }
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
 
+async function exportPert(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState } = ctx;
+  const { parsePert } = await import('./pert/parser');
+  const { analyzePert } = await import('./pert/analyzer');
+  const { layoutPert } = await import('./pert/layout');
+  const { renderPert, measurePertAnalysisBlock } =
+    await import('./pert/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const pertParsed = parsePert(content, { palette: effectivePalette });
+  if (pertParsed.error || pertParsed.activities.length === 0) return '';
+
+  const pertResolved = analyzePert(pertParsed);
+  const pertLayout = layoutPert(pertResolved);
+
+  const titleHeight = pertParsed.title && !pertParsed.options.noTitle ? 80 : 0;
+  const PERT_PADDING = 20;
+  // Analysis layer renders by default whenever MC ran. Precedence:
+  // an explicit viewState.an (app toggle / share link) wins; else the
+  // `no-analysis` source directive suppresses it; else on. The
+  // renderer silently omits it in analytical mode (no MC output).
+  const analysisOn = viewState?.an ?? !pertParsed.options.noAnalysis;
+  const fieldLabelsOn = viewState?.fl === true;
+  const exportW = pertLayout.width + PERT_PADDING * 2;
+  const analysisMeasured =
+    analysisOn || fieldLabelsOn
+      ? measurePertAnalysisBlock(pertResolved, exportW - 2 * PERT_PADDING, {
+          showSummary: false,
+          showTornado: analysisOn,
+          showScurve: analysisOn,
+          showFieldLegend: fieldLabelsOn,
+        })
+      : { width: 0, height: 0 };
+  const exportH =
+    pertLayout.height +
+    PERT_PADDING * 2 +
+    titleHeight +
+    analysisMeasured.height;
+  const container = createExportContainer(exportW, exportH);
+
+  renderPert(
+    container,
+    pertResolved,
+    pertLayout,
+    effectivePalette,
+    theme === 'dark',
+    {
+      title: pertParsed.title,
+      exportDims: { width: exportW, height: exportH },
+      showSummary: false,
+      showTornado: analysisOn,
+      showScurve: analysisOn,
+      showFieldLegend: fieldLabelsOn,
+    }
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportGantt(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { parseGantt } = await import('./gantt/parser');
+  const { calculateSchedule } = await import('./gantt/calculator');
+  const { renderGantt } = await import('./gantt/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const ganttParsed = parseGantt(content, effectivePalette);
+  const resolved = calculateSchedule(ganttParsed);
+  if (resolved.tasks.length === 0) return '';
+
+  const EXPORT_W = 1200;
+  const EXPORT_H = 800;
+  const container = createExportContainer(EXPORT_W, EXPORT_H);
+
+  const ganttCollapsedGroups = viewState?.cg
+    ? new Set(viewState.cg)
+    : undefined;
+  const ganttSwimlaneGroup = viewState?.swim ?? undefined;
+  const ganttCollapsedLanes = viewState?.cl ? new Set(viewState.cl) : undefined;
+  renderGantt(
+    container,
+    resolved,
+    effectivePalette,
+    theme === 'dark',
+    {
+      ...(ganttCollapsedGroups !== undefined && {
+        collapsedGroups: ganttCollapsedGroups,
+      }),
+      ...(ganttSwimlaneGroup !== undefined && {
+        currentSwimlaneGroup: ganttSwimlaneGroup,
+      }),
+      ...(ganttCollapsedLanes !== undefined && {
+        collapsedLanes: ganttCollapsedLanes,
+      }),
+      currentActiveGroup: resolveActiveTagGroup(
+        resolved.tagGroups,
+        resolved.options.activeTag ?? undefined,
+        viewState?.tag ?? options?.tagGroup
+      ),
+      exportMode,
+    },
+    { width: EXPORT_W, height: EXPORT_H }
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportState(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseState } = await import('./graph/state-parser');
+  const { layoutGraph } = await import('./graph/layout');
+  const { renderState } = await import('./graph/state-renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const stateParsed = parseState(content, effectivePalette);
+  if (stateParsed.error || stateParsed.nodes.length === 0) return '';
+
+  const layout = layoutGraph(stateParsed);
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+
+  renderState(
+    container,
+    stateParsed,
+    layout,
+    effectivePalette,
+    theme === 'dark',
+    undefined,
+    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportTechRadar(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, exportMode } = ctx;
+  const { parseTechRadar } = await import('./tech-radar/parser');
+  const { renderTechRadarForExport } = await import('./tech-radar/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const radarParsed = parseTechRadar(content);
+  if (radarParsed.error || radarParsed.quadrants.length === 0) return '';
+
+  const RADAR_EXPORT_W = 1300;
+  const RADAR_EXPORT_H = 1500;
+  const container = createExportContainer(RADAR_EXPORT_W, RADAR_EXPORT_H);
+  renderTechRadarForExport(
+    container,
+    radarParsed,
+    effectivePalette,
+    theme === 'dark',
+    { width: RADAR_EXPORT_W, height: RADAR_EXPORT_H },
+    viewState,
+    exportMode
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportJourneyMap(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, exportMode } = ctx;
+  const { parseJourneyMap } = await import('./journey-map/parser');
+  const { renderJourneyMap } = await import('./journey-map/renderer');
+  const { layoutJourneyMap } = await import('./journey-map/layout');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const jmParsed = parseJourneyMap(content, effectivePalette);
+  if (
+    jmParsed.error ||
+    (jmParsed.phases.length === 0 && jmParsed.steps.length === 0)
+  )
+    return '';
+
+  const jmLayout = layoutJourneyMap(jmParsed, effectivePalette, {
+    isDark: theme === 'dark',
+  });
+  const container = createExportContainer(
+    jmLayout.totalWidth,
+    jmLayout.totalHeight
+  );
+  renderJourneyMap(container, jmParsed, effectivePalette, theme === 'dark', {
+    exportDims: { width: jmLayout.totalWidth, height: jmLayout.totalHeight },
+    exportMode,
+  });
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportCycle(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, exportMode } = ctx;
+  const { parseCycle } = await import('./cycle/parser');
+  const { renderCycleForExport } = await import('./cycle/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const cycleParsed = parseCycle(content);
+  if (cycleParsed.error || cycleParsed.nodes.length === 0) return '';
+
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  renderCycleForExport(
+    container,
+    cycleParsed,
+    effectivePalette,
+    theme === 'dark',
+    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
+    viewState,
+    exportMode
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportMap(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, options } = ctx;
+  const { parseMap } = await import('./map/parser');
+  const { resolveMap } = await import('./map/resolver');
+  const { renderMapForExport } = await import('./map/renderer');
+  const { mapExportDimensions } = await import('./map/dimensions');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const mapParsed = parseMap(content, effectivePalette);
+  // Always render — an empty or partially-resolved map still draws the
+  // inferred base map (§24B.10 / layout AC23); diagnostics surface separately.
+  // Prefer injected `mapData` (browser bundles it; the fs loader can't run
+  // there); fall back to the Node fs loader for CLI/SSR. Degrade like every
+  // other branch (return '') if neither yields data.
+  let mapData = options?.mapData;
+  if (!mapData) {
+    const { loadMapData } = await import('./map/load-data');
+    try {
+      mapData = await loadMapData();
+    } catch {
+      return '';
+    }
+  }
+  const mapResolved = resolveMap(mapParsed, mapData);
+
+  // Content-aware canvas: derive the height from the map's intrinsic projected
+  // aspect (world ~2.3:1, a region taller, etc.) instead of the fixed 800, so the
+  // export matches the content's natural shape — no vertical stretch, no
+  // letterbox bands. `preferContain` rides along to the renderer.
+  const dims = mapExportDimensions(
+    mapResolved,
+    mapData,
+    EXPORT_WIDTH,
+    options?.mapAspect
+  );
+  const container = createExportContainer(dims.width, dims.height);
+  renderMapForExport(
+    container,
+    mapResolved,
+    mapData,
+    effectivePalette,
+    theme === 'dark',
+    dims
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportPyramid(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parsePyramid } = await import('./pyramid/parser');
+  const { renderPyramidForExport } = await import('./pyramid/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const pyramidParsed = parsePyramid(content);
+  if (pyramidParsed.error || pyramidParsed.layers.length === 0) return '';
+
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  renderPyramidForExport(
+    container,
+    pyramidParsed,
+    effectivePalette,
+    theme === 'dark',
+    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportRing(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseRing } = await import('./ring/parser');
+  const { renderRingForExport } = await import('./ring/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const ringParsed = parseRing(content);
+  if (ringParsed.error || ringParsed.layers.length === 0) return '';
+
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  renderRingForExport(
+    container,
+    ringParsed,
+    effectivePalette,
+    theme === 'dark',
+    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportRaci(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseRaci } = await import('./raci/parser');
+  const { renderRaciForExport } = await import('./raci/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const raciParsed = parseRaci(content, effectivePalette);
+  if (raciParsed.error) return '';
+
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  renderRaciForExport(
+    container,
+    raciParsed,
+    effectivePalette,
+    theme === 'dark',
+    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportVisualization(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette, viewState, options, exportMode } = ctx;
   const parsed = parseVisualization(content, palette);
   // Allow sequence diagrams through even if parseVisualization errors —
   // sequence is parsed by its own dedicated parser (parseSequenceDgmo)
