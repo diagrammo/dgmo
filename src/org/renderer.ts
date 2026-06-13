@@ -25,10 +25,10 @@ import {
   EYE_OPEN_PATH,
   EYE_CLOSED_PATH,
 } from '../utils/legend-constants';
-import { renderLegendD3 } from '../utils/legend-d3';
+import { renderIntegratedLegend } from '../utils/legend-integration';
 import { measureText } from '../utils/text-measure';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
-import type { LegendConfig, LegendState } from '../utils/legend-types';
+import type { LegendConfig } from '../utils/legend-types';
 
 // ============================================================
 // Constants
@@ -780,19 +780,16 @@ export function renderOrg(
           position: { placement: 'top-center', titleRelation: 'below-title' },
           mode: exportMode ? 'export' : 'preview',
         };
-        const singleState: LegendState = { activeGroup: lg.name };
         const groupG = legendParentBase
           .append('g')
           .attr('transform', `translate(${lg.x}, ${lg.y})`);
-        renderLegendD3(
-          groupG,
-          singleConfig,
-          singleState,
+        renderIntegratedLegend(groupG, {
+          ...singleConfig,
           palette,
           isDark,
-          undefined,
-          lg.width
-        );
+          width: lg.width,
+          activeGroup: lg.name,
+        });
         groupG
           .selectAll('[data-legend-group]')
           .classed('org-legend-group', true);
@@ -805,16 +802,13 @@ export function renderOrg(
         mode: exportMode ? 'export' : 'preview',
         capsulePillAddonWidth: eyeAddonWidth,
       };
-      const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
-      legendHandle = renderLegendD3(
-        legendParentBase,
-        legendConfig,
-        legendState,
+      legendHandle = renderIntegratedLegend(legendParentBase, {
+        ...legendConfig,
         palette,
         isDark,
-        undefined,
-        fixedLegend ? width : layout.width
-      );
+        width: fixedLegend ? width : layout.width,
+        activeGroup: activeTagGroup ?? null,
+      });
       legendParentBase
         .selectAll('[data-legend-group]')
         .classed('org-legend-group', true);

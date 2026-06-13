@@ -53,7 +53,7 @@ import {
 } from '../utils/title-constants';
 import { LEGEND_HEIGHT as LEGEND_HEIGHT_CONST } from '../utils/legend-constants';
 import { resolveActiveTagGroup, resolveTagColor } from '../utils/tag-groups';
-import { renderLegendD3 } from '../utils/legend-d3';
+import { renderIntegratedLegend } from '../utils/legend-integration';
 import type {
   CaptionRow,
   LayoutResult,
@@ -2708,19 +2708,14 @@ function renderTagLegendRow(
     .attr('class', 'pert-tag-legend')
     .attr('transform', `translate(${x}, ${y})`);
 
-  renderLegendD3(
-    block,
-    {
-      groups,
-      position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: exportMode ? 'export' : 'preview',
-    },
-    { activeGroup },
+  renderIntegratedLegend(block, {
+    groups,
+    mode: exportMode ? 'export' : 'preview',
     palette,
     isDark,
-    undefined,
-    width
-  );
+    width,
+    activeGroup,
+  });
 }
 
 function renderFieldLegendBlock(
