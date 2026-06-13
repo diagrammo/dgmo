@@ -10,10 +10,8 @@ import {
   TITLE_Y,
 } from '../utils/title-constants';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
-import { renderLegendD3 } from '../utils/legend-d3';
+import { renderIntegratedLegend } from '../utils/legend-integration';
 import type {
-  LegendConfig,
-  LegendState,
   LegendCallbacks,
   ControlsGroupToggle,
 } from '../utils/legend-types';
@@ -166,21 +164,6 @@ export function renderCycle(
         },
       ],
     };
-    const legendConfig: LegendConfig = {
-      groups: [],
-      position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: renderOptions?.exportMode ? 'export' : 'preview',
-      controlsGroup,
-      ...(renderOptions?.controlsHost !== undefined && {
-        controlsHost: renderOptions.controlsHost,
-      }),
-    };
-    const legendState: LegendState = {
-      activeGroup: null,
-      ...(renderOptions?.controlsExpanded !== undefined && {
-        controlsExpanded: renderOptions.controlsExpanded,
-      }),
-    };
     const legendCallbacks: LegendCallbacks = {
       ...(renderOptions?.onToggleControlsExpand !== undefined && {
         onControlsExpand: renderOptions.onToggleControlsExpand,
@@ -198,15 +181,22 @@ export function renderCycle(
     const legendG = svg
       .append('g')
       .attr('transform', `translate(0, ${titleOffsetForLegend + 4})`);
-    renderLegendD3(
-      legendG,
-      legendConfig,
-      legendState,
+    renderIntegratedLegend(legendG, {
+      groups: [],
+      activeGroup: null,
+      mode: renderOptions?.exportMode ? 'export' : 'preview',
+      controlsGroup,
+      ...(renderOptions?.controlsHost !== undefined && {
+        controlsHost: renderOptions.controlsHost,
+      }),
+      ...(renderOptions?.controlsExpanded !== undefined && {
+        controlsExpanded: renderOptions.controlsExpanded,
+      }),
+      callbacks: legendCallbacks,
       palette,
       isDark,
-      legendCallbacks,
-      width
-    );
+      width,
+    });
   }
 
   const diagramTop = (showTitle ? sTitleAreaHeight : 0) + legendOffset;
