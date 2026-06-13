@@ -42,9 +42,8 @@ import {
   LEGEND_ENTRY_TRAIL,
   measureLegendText,
 } from '../utils/legend-constants';
-import { renderLegendD3 } from '../utils/legend-d3';
+import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
-import type { LegendConfig, LegendState } from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -2116,9 +2115,9 @@ function renderLegend(
     allGroups.push({ name: 'Playback', entries: [] });
   }
 
-  const legendConfig: LegendConfig = {
+  renderIntegratedLegend(legendG, {
     groups: allGroups,
-    position: { placement: 'top-center', titleRelation: 'below-title' },
+    activeGroup,
     mode: exportMode ? 'export' : 'preview',
     showEmptyGroups: true,
     ...(appHostedPlayback && {
@@ -2135,17 +2134,10 @@ function renderLegend(
         ],
       },
     }),
-  };
-  const legendState: LegendState = { activeGroup };
-  renderLegendD3(
-    legendG,
-    legendConfig,
-    legendState,
     palette,
     isDark,
-    undefined,
-    totalWidth
-  );
+    width: totalWidth,
+  });
 
   // Add infra-specific classes and data attributes for app interactivity
   legendG.selectAll('[data-legend-group]').classed('infra-legend-group', true);

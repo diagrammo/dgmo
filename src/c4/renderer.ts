@@ -21,8 +21,7 @@ import {
   collectCardMetadata,
 } from './layout';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
-import { renderLegendD3 } from '../utils/legend-d3';
-import type { LegendConfig, LegendState } from '../utils/legend-types';
+import { renderIntegratedLegend } from '../utils/legend-integration';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 
 // ============================================================
@@ -1259,22 +1258,15 @@ function renderLegend(
     name: g.name,
     entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
   }));
-  const legendConfig: LegendConfig = {
-    groups,
-    position: { placement: 'top-center', titleRelation: 'below-title' },
-    mode: exportMode ? 'export' : 'preview',
-  };
-  const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
   const containerWidth = fixedWidth ?? layout.width;
-  renderLegendD3(
-    parent,
-    legendConfig,
-    legendState,
+  renderIntegratedLegend(parent, {
+    groups,
+    activeGroup: activeTagGroup ?? null,
+    mode: exportMode ? 'export' : 'preview',
     palette,
     isDark,
-    undefined,
-    containerWidth
-  );
+    width: containerWidth,
+  });
   parent.selectAll('[data-legend-group]').classed('c4-legend-group', true);
 }
 
