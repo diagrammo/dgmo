@@ -32,12 +32,8 @@ import { resolveSequenceTags } from './tag-resolution';
 import type { ResolvedTagMap } from './tag-resolution';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
-import { renderLegendD3 } from '../utils/legend-d3';
-import type {
-  LegendCallbacks,
-  LegendConfig,
-  LegendState,
-} from '../utils/legend-types';
+import { renderIntegratedLegend } from '../utils/legend-integration';
+import type { LegendCallbacks, LegendConfig } from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -3032,26 +3028,21 @@ export function renderSequenceDiagram(
   // (group boxes, lifelines, participants, etc.) and can receive clicks.
   if (hasTagGroups) {
     const legendY = sTopMargin + titleOffset;
-    const legendState: LegendState = {
-      activeGroup: activeTagGroup ?? null,
-      controlsExpanded: false,
-    };
-
     const legendCallbacks: LegendCallbacks = {};
 
     const legendG = svg
       .append('g')
       .attr('class', 'sequence-legend')
       .attr('transform', `translate(0,${legendY})`);
-    renderLegendD3(
-      legendG,
-      legendConfig,
-      legendState,
+    renderIntegratedLegend(legendG, {
+      ...legendConfig,
       palette,
       isDark,
-      legendCallbacks,
-      svgWidth
-    );
+      width: svgWidth,
+      activeGroup: activeTagGroup ?? null,
+      controlsExpanded: false,
+      callbacks: legendCallbacks,
+    });
   }
 }
 
