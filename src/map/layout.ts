@@ -1557,6 +1557,27 @@ export function layoutMap(
     }
   }
 
+  // Tall-pane CONUS nudge (albers-usa). `fitExtent` centers CONUS in the box, so
+  // an off-aspect (tall) app pane splits the vertical slack evenly — half empty
+  // above the nation, half below. Re-bias the slack so the area of interest rides
+  // UP: the top gap shrinks to ~30% of the slack and ~70% opens below, where the
+  // AK/HI inset boxes (bottom-aligned) + neighbour land (Mexico) now live. On a
+  // near-CONUS-aspect canvas the slack is ~0, so the shift is ~0 — wide gallery /
+  // export renders are untouched. CONUS never rides above the box top (gap ≥ 0)
+  // nor off the bottom (we only reduce the top gap, raising the southern coast).
+  if (!fitIsGlobal && resolved.projection === 'albers-usa') {
+    const cb = geoPath(projection).bounds(fitTarget as never);
+    if (Number.isFinite(cb[0][1])) {
+      const slack = fitBottom - fitTop - (cb[1][1] - cb[0][1]);
+      if (slack > 0) {
+        const currentTopGap = cb[0][1] - fitTop; // == slack/2 after centering
+        const dy = slack * 0.3 - currentTopGap; // negative → moves CONUS up
+        const [tx, ty] = projection.translate();
+        projection.translate([tx, ty + dy]);
+      }
+    }
+  }
+
   // Global views stretch-fill the canvas. A whole-world map is ~2:1 but the
   // preview pane is often near-square, so the honest contain-fit letterboxes it
   // with large water bands. For GLOBAL extents we stretch the PROJECTED geometry
@@ -1741,16 +1762,22 @@ export function layoutMap(
       if (iw < 24) return boxX; // canvas truly too narrow for another inset
       const xr = x0 + iw + 2 * PAD;
       const floor = coastFloor(x0, xr);
-      const topGuess = floor > -Infinity ? floor + GAP : yB - height * 0.42;
+      // Upper limit: the box top must ride at least GAP below the coast so it
+      // never overlaps CONUS (over open ocean there's no coast, so a soft default).
+      const coastTop = floor > -Infinity ? floor + GAP : yB - height * 0.42;
       // Learn the state's height at this width, then size the box to just hold it.
       proj.fitWidth(iw, f as never);
       const bb = geoPath(proj).bounds(f as never);
       const sh = Number.isFinite(bb[0][0]) ? bb[1][1] - bb[0][1] : iw;
-      // Flat top sits just under the coast. If the coast runs so low the state
-      // wouldn't fit above yB, raise the top (it stays over ocean) — the box must
-      // never collapse and vanish.
+      // Size the box to just hold the state, then BOTTOM-ALIGN it to the canvas
+      // bottom (yB) so it sinks into the lower dead space instead of floating up
+      // under the coast. On a near-CONUS-aspect canvas the coast already sits near
+      // the bottom (yB − needH ≤ coastTop), so the box stays tucked under it — wide
+      // gallery renders are unchanged. On a tall app pane the coast is mid-canvas,
+      // so the box drops to the bottom edge, anchoring the empty lower band rather
+      // than stranding the inset mid-ocean.
       const needH = sh + 2 * PAD;
-      let topFit = topGuess;
+      let topFit = Math.max(coastTop, yB - needH);
       const bottom = Math.min(topFit + needH, yB);
       if (bottom - topFit < needH) topFit = bottom - needH;
       proj.fitExtent(
