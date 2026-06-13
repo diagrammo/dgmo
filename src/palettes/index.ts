@@ -4,6 +4,7 @@ export type { PaletteConfig, PaletteColors } from './types';
 // Re-export registry
 export {
   getPalette,
+  resolvePaletteOrFallback,
   getAvailablePalettes,
   registerPalette,
   isValidHex,

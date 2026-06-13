@@ -81,9 +81,29 @@ export function registerPalette(palette: PaletteConfig): void {
   PALETTE_REGISTRY.set(palette.id, palette);
 }
 
-/** Get palette by id. Returns Nord if id is unrecognized (FR10). */
+/** Get palette by id. Silently returns the default palette if id is unrecognized. */
 export function getPalette(id: string): PaletteConfig {
   return PALETTE_REGISTRY.get(id) ?? PALETTE_REGISTRY.get(DEFAULT_PALETTE_ID)!;
+}
+
+/**
+ * Resolve a palette by id, falling back to the default palette when the id is
+ * unregistered. If a `warn` callback is supplied, it is invoked once with a
+ * human-readable fallback message on a miss — the single place the "resolve,
+ * fall back, warn" policy lives, so each host can surface it its own way
+ * (console.warn, Obsidian Notice, MCP response). Silent when the id resolves or
+ * when no callback is passed.
+ */
+export function resolvePaletteOrFallback(
+  id: string,
+  warn?: (message: string) => void
+): PaletteConfig {
+  const found = PALETTE_REGISTRY.get(id);
+  if (found) return found;
+  warn?.(
+    `Palette "${id}" is not registered — falling back to "${DEFAULT_PALETTE_ID}".`
+  );
+  return PALETTE_REGISTRY.get(DEFAULT_PALETTE_ID)!;
 }
 
 /** List all registered palettes alphabetically (for the selector UI). */
