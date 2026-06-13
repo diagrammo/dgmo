@@ -12,11 +12,9 @@ import {
 } from '../utils/note-box';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
-import { renderLegendD3 } from '../utils/legend-d3';
+import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import type {
-  LegendConfig,
-  LegendState,
   LegendCallbacks,
   LegendGroupData,
   ControlsGroupToggle,
@@ -1366,23 +1364,6 @@ export function renderBoxesAndLines(
       };
     }
 
-    const legendConfig: LegendConfig = {
-      groups: legendGroups,
-      position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: exportMode ? 'export' : 'preview',
-      // Keep inactive sibling tag groups visible as collapsed pills so the user
-      // can click one to flip the active colouring dimension (preview only —
-      // export shows just the active group). Without this, declaring a second
-      // tag group (e.g. Team) leaves it invisible whenever another group is
-      // active. The app's BoxesAndLinesPreview already wires pill clicks.
-      showInactivePills: true,
-      ...(controlsGroup !== undefined && { controlsGroup }),
-      ...(controlsHost !== undefined && { controlsHost }),
-    };
-    const legendState: LegendState = {
-      activeGroup,
-      ...(controlsExpanded !== undefined && { controlsExpanded }),
-    };
     const legendCallbacks: LegendCallbacks = {
       ...(onToggleControlsExpand !== undefined && {
         onControlsExpand: onToggleControlsExpand,
@@ -1396,15 +1377,21 @@ export function renderBoxesAndLines(
     const legendG = svg
       .append('g')
       .attr('transform', `translate(0,${titleOffset + 4})`);
-    renderLegendD3(
-      legendG,
-      legendConfig,
-      legendState,
+    renderIntegratedLegend(legendG, {
+      groups: legendGroups,
+      activeGroup,
+      mode: exportMode ? 'export' : 'preview',
+      // Keep inactive sibling tag groups visible as collapsed pills so the user
+      // can click one to flip the active colouring dimension (preview only).
+      showInactivePills: true,
+      ...(controlsGroup !== undefined && { controlsGroup }),
+      ...(controlsHost !== undefined && { controlsHost }),
+      ...(controlsExpanded !== undefined && { controlsExpanded }),
+      callbacks: legendCallbacks,
       palette,
       isDark,
-      legendCallbacks,
-      width
-    );
+      width,
+    });
     legendG.selectAll('[data-legend-group]').classed('bl-legend-group', true);
   }
 }

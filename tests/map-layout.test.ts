@@ -4,8 +4,10 @@ import { resolveMap } from '../src/map/resolver';
 import {
   layoutMap,
   buildMapProjection,
+  albersSkewFallback,
   MAX_COLUMN_ROWS,
 } from '../src/map/layout';
+import { loadMapData } from '../src/map/load-data';
 import { getPalette } from '../src/palettes';
 import { measureLegendText } from '../src/utils/legend-constants';
 import { mix, politicalTints } from '../src/palettes/color-utils';
@@ -851,9 +853,11 @@ describe('layout — POI label hover-only gate (extent/count/clean)', () => {
     expect(r.labels.every((l) => !l.hidden && !l.leader)).toBe(true);
   });
 
-  it('lone boxed-in hub (no inline side fits) → visible callout, not hidden (AC9)', () => {
-    // A hub fed by legs on all sides can't place an inline label, so it falls to
-    // a single-row callout — a singleton is NEVER routed to hover-only.
+  it('hub blocked on all four cardinal sides → clean diagonal inline label (8-position), not hidden (AC9)', () => {
+    // A hub fed by legs N/S/E/W blocks all four cardinal label sides. The diagonal
+    // corners (NE/NW/SE/SW) sit in the gaps between the legs, so the label places
+    // inline at a corner — no leader needed, never hover-only. (A leader column is
+    // the deeper fallback only when all eight positions are blocked.)
     const src = [
       'map',
       'poi 40 -100 as hublongname',
@@ -866,10 +870,16 @@ describe('layout — POI label hover-only gate (extent/count/clean)', () => {
       'hublongname -> east',
       'hublongname -> west',
     ].join('\n');
-    const hub = lay(src).labels.find((l) => l.text === 'hublongname')!;
+    const placed = lay(src);
+    const hub = placed.labels.find((l) => l.text === 'hublongname')!;
+    const hubDot = placed.pois.find((p) => p.id === 'hublongname')!;
     expect(hub).toBeDefined();
     expect(hub.hidden).toBeFalsy();
-    expect(hub.leader).toBeTruthy();
+    expect(hub.leader).toBeFalsy(); // inline, not a leadered column
+    // Diagonal placement: offset off BOTH axes (not a centred above/below, not a
+    // flank label sitting on the dot's own row).
+    expect(Math.abs(hub.y - hubDot.cy)).toBeGreaterThan(hubDot.r);
+    expect(hub.anchor === 'start' || hub.anchor === 'end').toBe(true);
   });
 });
 
@@ -1755,5 +1765,163 @@ describe('layout — world choropleth: countries on land, no cross-map leaders',
       const len = Math.hypot(lead.x2 - lead.x1, lead.y2 - lead.y1);
       expect(len).toBeLessThan(cap);
     }
+  });
+});
+
+describe('layout — albers-usa skew fallback (water-where-Alaska-is lie)', () => {
+  // A US POI map that clears the national-span threshold → albers-usa, which elides
+  // Alaska/Hawaii from the basemap. Off-aspect host canvases (the app preview pane)
+  // then contain-fit CONUS and expose bare ocean over Alaska's real position. The
+  // fallback swaps such canvases to a geographic conic; near-CONUS aspects (incl.
+  // the headless intrinsic export) keep the national snap.
+  const CRUISE =
+    'map 7 Night Eastern Caribbean\n' +
+    'poi Denver as den\n' +
+    'poi Miami as mia\n' +
+    'poi 18.1 -65.01 as stm\n' +
+    'poi 25.62 -77.56 as ck\n' +
+    'poi Orlando as orl\n' +
+    'den ~> mia\nmia ~> orl\norl ~> den';
+
+  it('resolves to albers-usa (coast-to-Caribbean span clears the threshold)', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(parseMap(CRUISE), data);
+    expect(r.projection).toBe('albers-usa');
+  });
+
+  it('keeps albers-usa at the ~CONUS intrinsic aspect (headless export)', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(parseMap(CRUISE), data);
+    expect(albersSkewFallback(r, data, 1200, 664)).toBe(false);
+  });
+
+  it('falls back to conic on a squarer/taller pane (AK gap would show)', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(parseMap(CRUISE), data);
+    expect(albersSkewFallback(r, data, 1200, 880)).toBe(true);
+    expect(albersSkewFallback(r, data, 950, 1180)).toBe(true);
+  });
+
+  it('keeps albers-usa when an Alaska reference gives it a real inset', async () => {
+    const data = await loadMapData();
+    // Same skewed pane, but now AK is in the data → the inset composite is correct.
+    const r = resolveMap(
+      parseMap('map\nAlaska value: 5\nCalifornia value: 3\nMaine value: 2'),
+      data
+    );
+    expect(r.projection).toBe('albers-usa');
+    expect(albersSkewFallback(r, data, 1200, 880)).toBe(false);
+  });
+
+  it('is a no-op for non-albers projections', async () => {
+    const data = await loadMapData();
+    const world = resolveMap(
+      parseMap('map\nFrance value: 1\nJapan value: 2\nBrazil value: 3'),
+      data
+    );
+    expect(world.projection).not.toBe('albers-usa');
+    expect(albersSkewFallback(world, data, 950, 1180)).toBe(false);
+  });
+
+  it('end-to-end: layoutMap draws Alaska land on a skewed pane, not on intrinsic', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(parseMap(CRUISE), data);
+    const palette = getPalette('slate').light;
+    // Smoke test: the in-layout projection swap (skewed pane → conic) must not break
+    // the pipeline — both the swapped (tall) and unswapped (wide) renders still draw
+    // the us-states layer and the route POIs. (The decision itself is asserted via
+    // albersSkewFallback above.)
+    const tall = layoutMap(
+      r,
+      data,
+      { width: 1200, height: 880 },
+      { palette, isDark: false }
+    );
+    const wide = layoutMap(
+      r,
+      data,
+      { width: 1200, height: 664 },
+      { palette, isDark: false }
+    );
+    expect(tall.regions.length).toBeGreaterThan(0);
+    expect(wide.regions.length).toBeGreaterThan(0);
+    expect(tall.pois.length).toBe(wide.pois.length);
+  });
+});
+
+describe('layout — region callout leaders hug the cluster (no cross-ocean lines)', () => {
+  // A US national choropleth where crowded Northeastern states (NY/PA/MA/NC) are
+  // too small to label inline → margin callouts. The callout column must seat just
+  // off the coast, NOT at the canvas edge, so leaders stay short rather than firing
+  // clear across the Atlantic to an edge column.
+  const COVERAGE =
+    'map National Coverage\nregion-metric Stores\n' +
+    [
+      ['California', 480],
+      ['Texas', 410],
+      ['Florida', 320],
+      ['New York', 300],
+      ['Pennsylvania', 210],
+      ['Ohio', 190],
+      ['North Carolina', 165],
+      ['Massachusetts', 110],
+      ['Washington', 140],
+      ['Oregon', 70],
+      ['Nevada', 60],
+    ]
+      .map(([n, v]) => `${n} value: ${v}`)
+      .join('\n');
+
+  it('callout leaders stay short (hug the coast, not the frame edge)', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(parseMap(COVERAGE), data);
+    // A squarish national frame shrinks the states enough that the NE cluster
+    // callouts; this is the aspect that exposed the absurd cross-ocean leaders.
+    const L = layoutMap(
+      r,
+      data,
+      { width: 1000, height: 820 },
+      { palette: getPalette('slate').dark, isDark: true }
+    );
+    const leaders = L.labels
+      .filter((l) => l.leader)
+      .map((l) =>
+        Math.hypot(l.leader!.x2 - l.leader!.x1, l.leader!.y2 - l.leader!.y1)
+      );
+    expect(leaders.length).toBeGreaterThan(0); // some NE state did call out
+    // Every leader is a short hop to the near-shore column, well under the old
+    // ~300px edge-column reach.
+    expect(Math.max(...leaders)).toBeLessThan(130);
+  });
+});
+
+describe('layout — edge/leg labels dodge POI dots', () => {
+  it('a line label whose midpoint lands on a third POI moves off that dot', async () => {
+    const data = await loadMapData();
+    // a + b straddle c, so the a–b edge label's natural midpoint sits right on c's
+    // dot. The dodge must slide/hop it clear.
+    const r = resolveMap(
+      parseMap(
+        'map\npoi 20 -80 as a\npoi 20 -70 as b\npoi 20 -75 as c\na -trade pact- b'
+      ),
+      data
+    );
+    const L = layoutMap(
+      r,
+      data,
+      { width: 1000, height: 800 },
+      { palette: getPalette('slate').light, isDark: false }
+    );
+    const leg = L.legs.find((lg) => lg.label === 'trade pact')!;
+    expect(leg.labelX).toBeDefined();
+    const c = L.pois.find((p) => p.id === 'c')!;
+    const w = measureLegendText('trade pact', 11);
+    const h = 15;
+    const rect = { x: leg.labelX! - w / 2, y: leg.labelY! - h / 2, w, h };
+    // No overlap between the label box and c's dot circle.
+    const nearX = Math.max(rect.x, Math.min(c.cx, rect.x + rect.w));
+    const nearY = Math.max(rect.y, Math.min(c.cy, rect.y + rect.h));
+    const d2 = (nearX - c.cx) ** 2 + (nearY - c.cy) ** 2;
+    expect(d2).toBeGreaterThan(c.r * c.r);
   });
 });

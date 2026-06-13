@@ -31,16 +31,12 @@ import {
   measureLegendText,
   truncateLegendText,
 } from '../utils/legend-constants';
-import { renderLegendD3 } from '../utils/legend-d3';
+import { renderIntegratedLegend } from '../utils/legend-integration';
 import {
   controlsGroupCapsuleWidth,
   getMaxLegendReservedHeight,
 } from '../utils/legend-layout';
-import type {
-  LegendConfig,
-  LegendState,
-  LegendCallbacks,
-} from '../utils/legend-types';
+import type { LegendCallbacks } from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -2199,26 +2195,6 @@ function renderTagLegend(
       dependenciesActive
     );
 
-    const legendConfig: LegendConfig = {
-      groups: legendGroups,
-      position: {
-        placement: 'top-center' as const,
-        titleRelation: 'below-title' as const,
-      },
-      mode: exportMode ? 'export' : 'preview',
-      capsulePillAddonWidth: iconReserve,
-      ...(controlsToggles.length > 0 && {
-        controlsGroup: { toggles: controlsToggles },
-      }),
-      // 'app' suppresses the inline gear so the desktop ControlsStrip hosts the
-      // Critical Path / Dependencies toggles instead (export keeps inline).
-      ...(controlsHost === 'app' && !exportMode && { controlsHost: 'app' }),
-    };
-    const legendState: LegendState = {
-      activeGroup: activeGroupName,
-      controlsExpanded,
-    };
-
     let tagGroupsW =
       // In-bounds: groupWidths has one entry per visibleGroups item.
       visibleGroups.reduce((s, _, i) => s + groupWidths[i]!, 0) +
@@ -2334,15 +2310,23 @@ function renderTagLegend(
       },
     };
 
-    renderLegendD3(
-      tagGroupG,
-      legendConfig,
-      legendState,
+    renderIntegratedLegend(tagGroupG, {
+      groups: legendGroups,
       palette,
       isDark,
-      legendCallbacks,
-      tagGroupsW
-    );
+      width: tagGroupsW,
+      mode: exportMode ? 'export' : 'preview',
+      capsulePillAddonWidth: iconReserve,
+      ...(controlsToggles.length > 0 && {
+        controlsGroup: { toggles: controlsToggles },
+      }),
+      // 'app' suppresses the inline gear so the desktop ControlsStrip hosts the
+      // Critical Path / Dependencies toggles instead (export keeps inline).
+      ...(controlsHost === 'app' && !exportMode && { controlsHost: 'app' }),
+      activeGroup: activeGroupName,
+      controlsExpanded,
+      callbacks: legendCallbacks,
+    });
   } else if (hasControls) {
     // No tag groups, but controls group needs rendering
     const controlsToggles = buildControlsToggles(
@@ -2352,32 +2336,24 @@ function renderTagLegend(
       dependenciesActive
     );
 
-    const legendConfig: LegendConfig = {
+    const tagGroupG = legendRow.append('g');
+    renderIntegratedLegend(tagGroupG, {
       groups: [],
-      position: {
-        placement: 'top-center' as const,
-        titleRelation: 'below-title' as const,
-      },
+      palette,
+      isDark,
+      width: totalW,
       mode: exportMode ? 'export' : 'preview',
       controlsGroup: { toggles: controlsToggles },
       ...(controlsHost === 'app' && !exportMode && { controlsHost: 'app' }),
-    };
-
-    const tagGroupG = legendRow.append('g');
-    renderLegendD3(
-      tagGroupG,
-      legendConfig,
-      { activeGroup: null, controlsExpanded },
-      palette,
-      isDark,
-      {
+      activeGroup: null,
+      controlsExpanded,
+      callbacks: {
         ...(onToggleControlsExpand !== undefined && {
           onControlsExpand: onToggleControlsExpand,
         }),
         ...(onControlsToggle !== undefined && { onControlsToggle }),
       },
-      totalW
-    );
+    });
   }
 
   // Apply persistent critical path highlighting when active

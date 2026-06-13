@@ -17,10 +17,9 @@ import { parseKanban } from './parser';
 import { isArchiveColumn } from './mutations';
 import { LEGEND_HEIGHT, measureLegendText } from '../utils/legend-constants';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
-import { renderLegendD3 } from '../utils/legend-d3';
+import { renderIntegratedLegend } from '../utils/legend-integration';
 import type {
   LegendConfig,
-  LegendState,
   LegendCallbacks,
   D3Sel,
 } from '../utils/legend-types';
@@ -408,7 +407,6 @@ export function renderKanban(
       width - legendX - sDiagramPadding
     );
     const legendY = sDiagramPadding + (sTitleFontSize - legendH) / 2;
-    const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
     const legendG = svg
       .append('g')
       .attr('class', 'kanban-legend')
@@ -440,15 +438,14 @@ export function renderKanban(
         }
       : undefined;
 
-    renderLegendD3(
-      legendG,
-      legendConfig,
-      legendState,
+    renderIntegratedLegend(legendG, {
+      ...legendConfig,
       palette,
       isDark,
-      legendCallbacks,
-      width - legendX - sDiagramPadding
-    );
+      width: width - legendX - sDiagramPadding,
+      activeGroup: activeTagGroup ?? null,
+      ...(legendCallbacks !== undefined && { callbacks: legendCallbacks }),
+    });
   }
 
   if (swimlaneGroup) {

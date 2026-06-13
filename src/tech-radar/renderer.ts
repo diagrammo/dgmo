@@ -30,11 +30,10 @@ import {
 } from './shared';
 import { ScaleContext } from '../utils/scaling';
 import { renderQuadrantFocus } from './interactive';
-import { renderLegendD3 } from '../utils/legend-d3';
+import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import type {
   LegendConfig,
-  LegendState,
   LegendCallbacks,
   LegendPalette,
 } from '../utils/legend-types';
@@ -210,12 +209,6 @@ export function renderTechRadar(
         controlsHost: options.controlsHost,
       }),
     };
-    const legendState: LegendState = {
-      activeGroup: options?.activeLegendGroup ?? null,
-      ...(options.controlsExpanded !== undefined && {
-        controlsExpanded: options.controlsExpanded,
-      }),
-    };
     const legendPalette: LegendPalette = {
       text: palette.text,
       textMuted: palette.textMuted,
@@ -257,15 +250,17 @@ export function renderTechRadar(
       },
     };
 
-    renderLegendD3(
-      legendG,
-      legendConfig,
-      legendState,
-      legendPalette,
+    renderIntegratedLegend(legendG, {
+      ...legendConfig,
+      palette: legendPalette,
       isDark,
-      legendCallbacks,
-      width
-    );
+      width,
+      activeGroup: options?.activeLegendGroup ?? null,
+      ...(options.controlsExpanded !== undefined && {
+        controlsExpanded: options.controlsExpanded,
+      }),
+      callbacks: legendCallbacks,
+    });
     legendReservedHeight = getMaxLegendReservedHeight(legendConfig, width) + 8;
   }
 

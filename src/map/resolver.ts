@@ -887,9 +887,17 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       if (!id || seen.has(id)) continue;
       seen.add(id);
       containerRegionIds.push(id);
+      // On a US-oriented map a foreign-NEIGHBOUR POI (a Canadian/Mexican city)
+      // frames by just its POINT, never its whole country — §24B.2: "A Canada/
+      // Mexico POI expands the frame by just its point (the US barely shrinks)".
+      // Pulling in Canada's full bbox here would drag the frame up to ~83°N (the
+      // point is already in `points`, so it still shows). US states still
+      // contribute their bbox (so a Bay Area cluster frames all of California).
       const bb = state
         ? featureBbox(data.usStates, id)
-        : featureBboxPrimary(data.worldCoarse, id);
+        : usOriented
+          ? null
+          : featureBboxPrimary(data.worldCoarse, id);
       // Skip a degenerate whole-sphere bbox: spherical geoBounds returns the full
       // globe for a malformed/missing geometry, which would blow the frame out to
       // the entire world. Real region geometry never spans the full sphere — fall

@@ -10,8 +10,7 @@ import { contrastText, shapeFill } from '../palettes/color-utils';
 import { getSeriesColors } from '../palettes';
 import { resolveTagColor } from '../utils/tag-groups';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
-import { renderLegendD3 } from '../utils/legend-d3';
-import type { LegendConfig, LegendState } from '../utils/legend-types';
+import { renderIntegratedLegend } from '../utils/legend-integration';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -607,25 +606,18 @@ export function renderERDiagram(
   // ── Tag Legend ──
   if (parsed.tagGroups.length > 0) {
     const legendY = sDiagramPadding + titleHeight;
-    const legendConfig: LegendConfig = {
-      groups: parsed.tagGroups,
-      position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: exportMode ? 'export' : 'preview',
-    };
-    const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
     const legendG = svg
       .append('g')
       .attr('class', 'er-tag-legend')
       .attr('transform', `translate(0,${legendY})`);
-    renderLegendD3(
-      legendG,
-      legendConfig,
-      legendState,
+    renderIntegratedLegend(legendG, {
+      groups: parsed.tagGroups,
+      activeGroup: activeTagGroup ?? null,
+      mode: exportMode ? 'export' : 'preview',
       palette,
       isDark,
-      undefined,
-      viewW
-    );
+      width: viewW,
+    });
     legendG.selectAll('[data-legend-group]').classed('er-legend-group', true);
   }
 
@@ -649,27 +641,18 @@ export function renderERDiagram(
           })),
         },
       ];
-      const legendConfig: LegendConfig = {
-        groups: semanticGroups,
-        position: { placement: 'top-center', titleRelation: 'below-title' },
-        mode: exportMode ? 'export' : 'preview',
-      };
-      const legendState: LegendState = {
-        activeGroup: semanticActive ? 'Role' : null,
-      };
       const legendG = svg
         .append('g')
         .attr('class', 'er-semantic-legend')
         .attr('transform', `translate(0,${legendY})`);
-      renderLegendD3(
-        legendG,
-        legendConfig,
-        legendState,
+      renderIntegratedLegend(legendG, {
+        groups: semanticGroups,
+        activeGroup: semanticActive ? 'Role' : null,
+        mode: exportMode ? 'export' : 'preview',
         palette,
         isDark,
-        undefined,
-        viewW
-      );
+        width: viewW,
+      });
       legendG.selectAll('[data-legend-group]').classed('er-legend-group', true);
     }
   }

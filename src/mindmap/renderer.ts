@@ -17,8 +17,8 @@ import { layoutMindmap } from './layout';
 import { computeNodeText } from './text-wrap';
 import { renderInlineText } from '../utils/inline-markdown';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
-import { renderLegendD3 } from '../utils/legend-d3';
-import type { LegendConfig, LegendState } from '../utils/legend-types';
+import { renderIntegratedLegend } from '../utils/legend-integration';
+import type { LegendConfig } from '../utils/legend-types';
 import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
@@ -272,17 +272,6 @@ export function renderMindmap(
         controlsHost: options.controlsHost,
       }),
     };
-    const legendState: LegendState = {
-      activeGroup: options?.colorByDepth
-        ? null
-        : activeTagGroup !== undefined
-          ? activeTagGroup
-          : (parsed.options['active-tag'] ?? null),
-      hiddenAttributes: new Set(),
-      ...(options?.controlsExpanded !== undefined && {
-        controlsExpanded: options.controlsExpanded,
-      }),
-    };
     const legendPalette = {
       text: palette.text,
       textMuted: palette.textMuted,
@@ -303,15 +292,22 @@ export function renderMindmap(
         }
       },
     };
-    renderLegendD3(
-      legendG,
-      legendConfig,
-      legendState,
-      legendPalette,
+    renderIntegratedLegend(legendG, {
+      ...legendConfig,
+      palette: legendPalette,
       isDark,
-      legendCallbacks,
-      containerWidth
-    );
+      width: containerWidth,
+      activeGroup: options?.colorByDepth
+        ? null
+        : activeTagGroup !== undefined
+          ? activeTagGroup
+          : (parsed.options['active-tag'] ?? null),
+      hiddenAttributes: new Set(),
+      ...(options?.controlsExpanded !== undefined && {
+        controlsExpanded: options.controlsExpanded,
+      }),
+      callbacks: legendCallbacks,
+    });
   }
 
   // Render edges (background layer)

@@ -10,8 +10,7 @@ import {
   extractExportSvg,
 } from '../utils/export-container';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
-import { renderLegendD3 } from '../utils/legend-d3';
-import type { LegendConfig, LegendState } from '../utils/legend-types';
+import { renderIntegratedLegend } from '../utils/legend-integration';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -410,27 +409,18 @@ export function renderClassDiagram(
         })),
       },
     ];
-    const legendConfig: LegendConfig = {
-      groups: legendGroups,
-      position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: exportMode ? 'export' : 'preview',
-    };
-    const legendState: LegendState = {
-      activeGroup: isLegendExpanded ? LEGEND_GROUP_NAME : null,
-    };
     const legendG = svg
       .append('g')
       .attr('class', 'cd-legend')
       .attr('transform', `translate(0,${titleHeight})`);
-    renderLegendD3(
-      legendG,
-      legendConfig,
-      legendState,
+    renderIntegratedLegend(legendG, {
+      groups: legendGroups,
+      activeGroup: isLegendExpanded ? LEGEND_GROUP_NAME : null,
+      mode: exportMode ? 'export' : 'preview',
       palette,
       isDark,
-      undefined,
-      width
-    );
+      width,
+    });
   }
 
   // ── Content group ──

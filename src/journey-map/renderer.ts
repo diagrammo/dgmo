@@ -18,8 +18,7 @@ import type {
   JourneyMapStep,
 } from './types';
 import { renderInlineText } from '../utils/inline-markdown';
-import { renderLegendD3 } from '../utils/legend-d3';
-import type { LegendConfig, LegendState } from '../utils/legend-types';
+import { renderIntegratedLegend } from '../utils/legend-integration';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
 import { ScaleContext } from '../utils/scaling';
 import {
@@ -320,18 +319,6 @@ export function renderJourneyMap(
       .attr('class', 'journey-legend')
       .attr('transform', `translate(${legendX},${legendY})`);
 
-    const legendConfig: LegendConfig = {
-      groups: parsed.tagGroups,
-      position: {
-        placement: 'top-center',
-        titleRelation: 'inline-with-title',
-      },
-      titleWidth: 0,
-      mode: options?.exportMode ? 'export' : 'preview',
-    };
-
-    const legendState: LegendState = { activeGroup: effectiveActiveGroup };
-
     const legendCallbacks: import('../utils/legend-types').LegendCallbacks = {
       ...(onActiveTagGroupChange
         ? {
@@ -401,18 +388,20 @@ export function renderJourneyMap(
         : {}),
     };
 
-    renderLegendD3(
-      legendG,
-      legendConfig,
-      legendState,
+    renderIntegratedLegend(legendG, {
+      groups: parsed.tagGroups,
+      activeGroup: effectiveActiveGroup,
+      mode: options?.exportMode ? 'export' : 'preview',
+      position: { placement: 'top-center', titleRelation: 'inline-with-title' },
+      titleWidth: 0,
+      callbacks: legendCallbacks,
       palette,
       isDark,
-      legendCallbacks,
       // Reduce available width if persona card exists to avoid collision
-      parsed.persona
+      width: parsed.persona
         ? layout.totalWidth - legendX - PADDING - 280 - PADDING
-        : layout.totalWidth - legendX - PADDING
-    );
+        : layout.totalWidth - legendX - PADDING,
+    });
   }
 
   // ── Curve Area ───────────────────────────────────────────

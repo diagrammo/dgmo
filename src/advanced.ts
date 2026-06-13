@@ -510,6 +510,7 @@ export { resolveMap } from './map/resolver';
 export { loadMapData } from './map/load-data';
 export {
   layoutMap,
+  albersSkewFallback,
   mapBackgroundColor,
   mapNeutralLandColor,
 } from './map/layout';

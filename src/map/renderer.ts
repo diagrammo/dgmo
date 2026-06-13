@@ -13,8 +13,8 @@ import {
 } from '../utils/title-constants';
 import { mix } from '../palettes/color-utils';
 import { measureText } from '../utils/text-measure';
-import { renderLegendD3 } from '../utils/legend-d3';
-import type { LegendConfig, LegendState } from '../utils/legend-types';
+import { renderIntegratedLegend } from '../utils/legend-integration';
+import type { LegendConfig } from '../utils/legend-types';
 import { mapLegendConfig, mapLegendGroups } from './legend-band';
 import type { PaletteColors } from '../palettes/types';
 import type { D3ExportDimensions } from '../utils/d3-types';
@@ -1203,8 +1203,13 @@ export function renderMap(
         groups,
         exportDims ? 'export' : 'preview'
       );
-      const state: LegendState = { activeGroup: layout.legend.activeGroup };
-      renderLegendD3(legendG, config, state, palette, isDark, undefined, width);
+      renderIntegratedLegend(legendG, {
+        ...config,
+        palette,
+        isDark,
+        width,
+        activeGroup: layout.legend.activeGroup,
+      });
     }
   }
 
