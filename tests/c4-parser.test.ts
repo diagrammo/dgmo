@@ -280,6 +280,17 @@ describe('parseC4', () => {
       ).toBe(true);
     });
 
+    it('bare same-line tail after `is a type` errors instead of dropping silently (1.0 freeze)', () => {
+      const result = parseC4('c4\nCaptain is a person Commands the fleet');
+      // Previously the tail "Commands the fleet" was silently dropped (data
+      // loss). Now it's a hard error directing to `description: ...`.
+      expect(
+        result.diagnostics.some(
+          (d) => d.code === 'E_C4_BARE_TAIL_REMOVED' && d.severity === 'error'
+        )
+      ).toBe(true);
+    });
+
     it('keywordless prose under an element is NOT promoted to a description (DD-2)', () => {
       const result = parseC4(
         ['c4', 'Banking is a system', '  Handles all banking ops'].join('\n')

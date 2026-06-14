@@ -189,22 +189,22 @@ tag Scope as sc
   Crew blue
   External gray
 
-Captain is a person description Commands the fleet and plans raids
+Captain is a person description: Commands the fleet and plans raids
 
-TreasureMap is a system description Tracks buried treasure locations and raid intelligence
+TreasureMap is a system description: Tracks buried treasure locations and raid intelligence
   -Views treasure locations-> Captain
   -Sends raid alerts [carrier pigeon]-> Lookout
 
   containers
-    ChartRoom is a container description Interactive sea chart with treasure markers, tech Parchment
+    ChartRoom is a container description: Interactive sea chart with treasure markers, tech: Parchment
       -Queries treasure data [secret code]-> Vault
 
-    Vault is a container description Encrypted treasure ledger and coordinates, tech Iron Chest
+    Vault is a container description: Encrypted treasure ledger and coordinates, tech: Iron Chest
       -Reads/writes [quill and ink]-> TreasureLog
 
-    TreasureLog is a container description Stores locations, guard counts, and loot inventories, tech Leather-Bound Tome
+    TreasureLog is a container description: "Stores locations, guard counts, and loot inventories", tech: Leather-Bound Tome
 
-Lookout is an external description Crow's nest spotter on allied ships, sc: External
+Lookout is an external description: Crow's nest spotter on allied ships, sc: External
   ~Relays sightings to~> Captain
 
 deployment

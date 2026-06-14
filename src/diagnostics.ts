@@ -316,6 +316,13 @@ export const METADATA_DIAGNOSTIC_CODES = {
    * use the bare `no-analysis` flag to hide the analysis layer.
    */
   PERT_ANALYSIS_REMOVED: 'E_PERT_ANALYSIS_REMOVED',
+  /**
+   * Error: a c4 element line has a non-empty same-line tail with no
+   * `key:` (e.g. `Captain is a person Commands the fleet`). The tail
+   * was previously dropped silently — data loss. Same-line metadata
+   * requires `key: value` (e.g. `description: ...`), per §1.4.
+   */
+  C4_BARE_TAIL_REMOVED: 'E_C4_BARE_TAIL_REMOVED',
 } as const;
 
 /**
@@ -374,6 +381,14 @@ export function bareDescriptionRemovedMessage(args: {
  */
 export function descriptionBareRemovedMessage(text: string): string {
   return `Bare 'description' removed — use 'description: ${text}' (colon required, per §1.4 metadata)`;
+}
+
+/**
+ * Canonical message for `E_C4_BARE_TAIL_REMOVED`. Emitted when a c4
+ * element line carries a non-empty same-line tail with no `key:`.
+ */
+export function c4BareTailRemovedMessage(tail: string): string {
+  return `Unexpected text '${tail}' after the element — same-line metadata requires 'key: value' (e.g. 'description: ${tail}'), per §1.4`;
 }
 
 /**

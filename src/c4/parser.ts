@@ -4,6 +4,7 @@
 
 import type { PaletteColors } from '../palettes';
 import {
+  c4BareTailRemovedMessage,
   descriptionBareRemovedMessage,
   formatDgmoError,
   makeDgmoError,
@@ -171,7 +172,8 @@ function inferC4Shape(name: string, tech?: string): C4Shape {
 function parseC4MetaTail(
   tail: string,
   metaAliasMap: Map<string, string>,
-  reportMultiPipes?: () => void
+  reportMultiPipes?: () => void,
+  reportBareTail?: (tail: string) => void
 ): Record<string, string> {
   const trimmed = tail.trim();
   if (!trimmed) return {};
@@ -179,7 +181,12 @@ function parseC4MetaTail(
     const segments = trimmed.split('|').map((s) => s.trim());
     return parsePipeMetadata(segments, metaAliasMap, reportMultiPipes);
   }
-  if (!trimmed.includes(':')) return {};
+  if (!trimmed.includes(':')) {
+    // Non-empty tail with no `key:` — previously dropped silently (data
+    // loss). At 1.0 this is a hard error directing to `key: value` form.
+    reportBareTail?.(trimmed);
+    return {};
+  }
   return parsePipeMetadata(['', trimmed], metaAliasMap);
 }
 
@@ -824,8 +831,19 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         namePart = namePart.substring(0, nameIsAMatch.index!).trim();
       }
 
-      const metadata = parseC4MetaTail(metaTail, metaAliasMap, () =>
-        pushError(lineNumber, MULTIPLE_PIPE_ERROR)
+      const metadata = parseC4MetaTail(
+        metaTail,
+        metaAliasMap,
+        () => pushError(lineNumber, MULTIPLE_PIPE_ERROR),
+        (bareTail) =>
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              c4BareTailRemovedMessage(bareTail),
+              'error',
+              METADATA_DIAGNOSTIC_CODES.C4_BARE_TAIL_REMOVED
+            )
+          )
       );
 
       const shape =
