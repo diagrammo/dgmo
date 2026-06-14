@@ -4,6 +4,7 @@
 
 import type { PaletteColors } from '../palettes';
 import {
+  descriptionBareRemovedMessage,
   formatDgmoError,
   makeDgmoError,
   METADATA_DIAGNOSTIC_CODES,
@@ -1014,10 +1015,13 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     const descResult = tryStripDescriptionKeyword(trimmed);
     if (parent && descResult.isKeyword) {
       if (descResult.needsColon) {
-        pushError(
-          lineNumber,
-          `Use "description: ${descResult.text}" — bare "description" is deprecated.`,
-          'warning'
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            descriptionBareRemovedMessage(descResult.text),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.DESCRIPTION_BARE_REMOVED
+          )
         );
       }
       let desc = elementDescription.get(parent.element);

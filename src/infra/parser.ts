@@ -7,6 +7,7 @@
 // and connections, [Group] containers, tag groups, pipe metadata.
 
 import {
+  descriptionBareRemovedMessage,
   formatDgmoError,
   makeDgmoError,
   METADATA_DIAGNOSTIC_CODES,
@@ -916,9 +917,13 @@ export function parseInfra(content: string): ParsedInfra {
           continue;
         }
         if (descResult.needsColon) {
-          warn(
-            lineNumber,
-            `Use "description: ${descResult.text}" — bare "description" is deprecated.`
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              descriptionBareRemovedMessage(descResult.text),
+              'error',
+              METADATA_DIAGNOSTIC_CODES.DESCRIPTION_BARE_REMOVED
+            )
           );
         }
         pushDescription(currentNode, descResult.text);

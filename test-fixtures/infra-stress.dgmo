@@ -19,23 +19,23 @@ edge
   -> GlobalLB
 
 GlobalLB t: Edge
-  description Global load balancer — GeoDNS routing
+  description: Global load balancer — GeoDNS routing
   -> CloudFrontUS split: 40%
   -> CloudFrontEU split: 35%
   -> CloudFrontAPAC split: 25%
 
 CloudFrontUS t: Edge, r: US
-  description CDN PoP — US East
+  description: CDN PoP — US East
   cache-hit: 82%
   -> WAF_US
 
 CloudFrontEU t: Edge, r: EU
-  description CDN PoP — Frankfurt
+  description: CDN PoP — Frankfurt
   cache-hit: 78%
   -> WAF_EU
 
 CloudFrontAPAC t: Edge, r: APAC
-  description CDN PoP — Tokyo
+  description: CDN PoP — Tokyo
   cache-hit: 75%
   -> WAF_APAC
 
@@ -72,14 +72,14 @@ RegionalLB_APAC t: Platform, r: APAC
 
 [US API Cluster] t: Backend, r: US
   UserAPI_US
-    description User profile and authentication
+    description: User profile and authentication
     instances: 6
     max-rps: 1200
     latency-ms: 25
     -> Redis_US fanout: 3
     -> PostgreSQL_US
   CatalogAPI_US
-    description Product catalog and pricing
+    description: Product catalog and pricing
     instances: 4
     max-rps: 800
     latency-ms: 15
@@ -88,14 +88,14 @@ RegionalLB_APAC t: Platform, r: APAC
 
 [US Commerce Cluster] t: Backend, r: US
   OrderSvc_US
-    description Order orchestration
+    description: Order orchestration
     instances: 4
     max-rps: 600
     latency-ms: 80
     -> PostgreSQL_US
     ~order.placed~> Kafka_US
   PaymentSvc_US
-    description Payment processing (Stripe)
+    description: Payment processing (Stripe)
     instances: 3
     max-rps: 400
     latency-ms: 200
@@ -169,15 +169,15 @@ SearchProxy_APAC t: Backend, r: APAC
 // ── Data Stores (per region) ────────────────────────────────
 
 Redis_US t: Data, r: US
-  description Session + query cache
+  description: Session + query cache
   latency-ms: 1
 
 PostgreSQL_US t: Data, r: US
-  description Primary relational store
+  description: Primary relational store
   latency-ms: 5
 
 Elasticsearch_US t: Data, r: US
-  description Full-text search index
+  description: Full-text search index
   latency-ms: 12
 
 Redis_EU t: Data, r: EU
@@ -201,7 +201,7 @@ Elasticsearch_APAC t: Data, r: APAC
 // ── Event Bus + Async Consumers ─────────────────────────────
 
 Kafka_US t: Platform, r: US
-  description Regional Kafka cluster
+  description: Regional Kafka cluster
   ~notifications~> NotifySvc
   ~analytics~> AnalyticsPipeline
   ~inventory~> InventorySvc
@@ -215,18 +215,18 @@ Kafka_APAC t: Platform, r: APAC
   ~analytics~> AnalyticsPipeline
 
 NotifySvc t: Backend
-  description Email/SMS/push dispatcher
+  description: Email/SMS/push dispatcher
   instances: 3
 
 AnalyticsPipeline t: ML
-  description Real-time analytics and ML feature pipeline
+  description: Real-time analytics and ML feature pipeline
   instances: 2
   -> ClickHouse
 
 InventorySvc t: Backend
-  description Inventory reconciliation
+  description: Inventory reconciliation
   instances: 2
   -> PostgreSQL_US
 
 ClickHouse t: Data
-  description OLAP analytics store
+  description: OLAP analytics store

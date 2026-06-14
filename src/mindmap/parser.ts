@@ -1,5 +1,6 @@
 import type { PaletteColors } from '../palettes';
 import {
+  descriptionBareRemovedMessage,
   formatDgmoError,
   makeDgmoError,
   METADATA_DIAGNOSTIC_CODES,
@@ -241,9 +242,13 @@ export function parseMindmap(
       const descResult = tryStripDescriptionKeyword(trimmed);
       if (descResult.isKeyword) {
         if (descResult.needsColon) {
-          pushWarning(
-            lineNumber,
-            `Use "description: ${descResult.text}" — bare "description" is deprecated.`
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              descriptionBareRemovedMessage(descResult.text),
+              'error',
+              METADATA_DIAGNOSTIC_CODES.DESCRIPTION_BARE_REMOVED
+            )
           );
         }
         // Find parent node from indent stack

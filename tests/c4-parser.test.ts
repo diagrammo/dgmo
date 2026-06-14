@@ -264,16 +264,18 @@ describe('parseC4', () => {
       expect(result.elements[0].metadata.tech).toBe('Java');
     });
 
-    it('bare "description" keyword (no colon) still collects but warns (DD-1)', () => {
+    it('bare "description" keyword (no colon) still collects but errors (DD-1)', () => {
       const result = parseC4(
         ['c4', 'Banking is a system', '  description Handles all banking'].join(
           '\n'
         )
       );
+      // Text is still applied (graceful), but the bare form is rejected at 1.0.
       expect(result.elements[0].description).toEqual(['Handles all banking']);
       expect(
-        result.diagnostics.some((d) =>
-          d.message.includes('bare "description" is deprecated')
+        result.diagnostics.some(
+          (d) =>
+            d.code === 'E_DESCRIPTION_BARE_REMOVED' && d.severity === 'error'
         )
       ).toBe(true);
     });

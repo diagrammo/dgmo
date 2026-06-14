@@ -302,6 +302,14 @@ export const METADATA_DIAGNOSTIC_CODES = {
    * to the parent — indent further to attach to the preceding child.
    */
   ATTRIBUTE_AT_PARENT_INDENT: 'W_ATTRIBUTE_AT_PARENT_INDENT',
+  /**
+   * Error: bare-keyword `description <text>` (no colon) on a
+   * description line in infra / c4 / sitemap / mindmap / journey-map.
+   * Replaced by the colon-keyed `description: <text>` form, consistent
+   * with §1.4 same-line metadata. The text is still applied so the
+   * diagram renders, but the bare form is rejected at 1.0.
+   */
+  DESCRIPTION_BARE_REMOVED: 'E_DESCRIPTION_BARE_REMOVED',
 } as const;
 
 /**
@@ -351,6 +359,15 @@ export function bareDescriptionRemovedMessage(args: {
 }): string {
   const quoted = args.text.includes(',') ? `"${args.text}"` : args.text;
   return `'|' description shorthand removed in ${args.chartType} — use 'description: ${quoted}'`;
+}
+
+/**
+ * Canonical message for `E_DESCRIPTION_BARE_REMOVED`. Emitted when a
+ * description line uses the bare-keyword `description <text>` form
+ * instead of the colon-keyed `description: <text>` form.
+ */
+export function descriptionBareRemovedMessage(text: string): string {
+  return `Bare 'description' removed — use 'description: ${text}' (colon required, per §1.4 metadata)`;
 }
 
 /**

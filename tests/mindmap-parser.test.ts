@@ -219,7 +219,7 @@ tag Status as status
     expect(node.description).toEqual(['line1', 'line2']);
   });
 
-  it('colon optional: both description: text and description text work', () => {
+  it('bare description still collects but errors; colon form is clean (1.0 freeze)', () => {
     const result = parseMindmap(
       `mindmap Root
   NodeA
@@ -229,8 +229,14 @@ tag Status as status
     );
     const nodeA = result.roots[0].children[0];
     const nodeB = result.roots[0].children[1];
+    // Both still apply (graceful), but the bare form is rejected at 1.0.
     expect(nodeA.description).toEqual(['with colon']);
     expect(nodeB.description).toEqual(['without colon']);
+    const bareErrors = result.diagnostics.filter(
+      (d) => d.code === 'E_DESCRIPTION_BARE_REMOVED'
+    );
+    expect(bareErrors).toHaveLength(1);
+    expect(bareErrors[0].severity).toBe('error');
   });
 
   it('bare Description (capitalized, no trailing text) creates a CHILD NODE, not a description', () => {

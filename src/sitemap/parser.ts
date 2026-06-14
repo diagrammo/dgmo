@@ -5,6 +5,7 @@
 import type { PaletteColors } from '../palettes';
 import type { DgmoError } from '../diagnostics';
 import {
+  descriptionBareRemovedMessage,
   formatDgmoError,
   makeDgmoError,
   METADATA_DIAGNOSTIC_CODES,
@@ -484,9 +485,13 @@ export function parseSitemap(
       const descResult = tryStripDescriptionKeyword(trimmed);
       if (descResult.isKeyword && indentStack.length > 0) {
         if (descResult.needsColon) {
-          pushWarning(
-            lineNumber,
-            `Use "description: ${descResult.text}" — bare "description" is deprecated.`
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              descriptionBareRemovedMessage(descResult.text),
+              'error',
+              METADATA_DIAGNOSTIC_CODES.DESCRIPTION_BARE_REMOVED
+            )
           );
         }
         const parent = findParentNode(indent, indentStack);

@@ -1,6 +1,7 @@
 import type { PaletteColors } from '../palettes';
 import { resolveColorWithDiagnostic } from '../colors';
 import {
+  descriptionBareRemovedMessage,
   formatDgmoError,
   journeyBareScoreRemovedMessage,
   makeDgmoError,
@@ -367,9 +368,13 @@ export function parseJourneyMap(
       const descResult = tryStripDescriptionKeyword(trimmed);
       if (descResult.isKeyword) {
         if (descResult.needsColon) {
-          warn(
-            lineNumber,
-            `Use "description: ${descResult.text}" — bare "description" is deprecated.`
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              descriptionBareRemovedMessage(descResult.text),
+              'error',
+              METADATA_DIAGNOSTIC_CODES.DESCRIPTION_BARE_REMOVED
+            )
           );
         }
         currentStep.description = descResult.text;

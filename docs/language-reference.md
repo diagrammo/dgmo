@@ -1019,7 +1019,7 @@ Web App is a container
 
 // Bare keyword form (DEPRECATED — emits a warning; prefer the colon form above)
 API is a container
-  description Handles all REST endpoints
+  description: Handles all REST endpoints
 
 // Same-line metadata form
 Database is a container description: PostgreSQL with read replicas
@@ -1252,7 +1252,7 @@ All permutations supported: node→group, group→node, group→group. Brackets 
 ```
 // Bare keyword form (DEPRECATED — emits a warning; prefer description: above)
 About
-  description Company history and team bios
+  description: Company history and team bios
 
 // Same-line metadata form
 Pricing description: Compare plans and features
@@ -2149,7 +2149,7 @@ mindmap Onboarding
 Surveys description: Quarterly NPS survey
 Auth System
   description: Handle login, signup, OAuth flows
-  description OAuth supports Google and GitHub
+  description: OAuth supports Google and GitHub
   Login Page
 ```
 
