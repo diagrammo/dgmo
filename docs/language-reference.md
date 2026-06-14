@@ -80,6 +80,18 @@ Billing t: Product
 ```
 <!-- AI-CORE:ANTIPATTERNS end -->
 
+<!-- AI-CORE:STYLING start -->
+### Make it look good — authoring guidance
+
+Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply these unless the prompt says otherwise:
+
+- **Title it.** Put a short title on the type-declaration line (`flowchart Checkout Flow`, `boxes-and-lines Service Map`) so the diagram is self-describing.
+- **Color by grouping, not at random.** When items fall into categories, declare a tag group and assign members so each category shares one color — far clearer than ad-hoc per-node colors. Use the tag-group syntax shown in the per-type section below (declare `tag Team as t`, indent the values with a trailing color, then assign `Node t: Team`). Only the 11 named palette colors exist.
+- **Keep labels short.** A few words per node. Move detail into notes or metadata, never a full sentence inside a label.
+- **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
+- **Pick a fitting direction.** Top-to-bottom for hierarchies and processes; left-to-right for pipelines and flows (where the type supports a direction).
+<!-- AI-CORE:STYLING end -->
+
 <!-- AI-CORE:TYPE-INDEX start -->
 ### Chart-type index (45) — pick the type, then fetch its section
 
@@ -762,6 +774,10 @@ API Gateway
 ## 5. Flowchart Diagrams
 
 <!-- TYPE:flowchart -->
+
+<!-- TIPS start -->
+**Styling tips:** label the edges out of a decision node (`-yes->`, `-no->`) so branches read unambiguously; color outcomes by category with a tag group (e.g. a `Status` group with `Approved green`, `Rejected red`) rather than coloring nodes individually; keep each node to a short action phrase.
+<!-- TIPS end -->
 
 ### 4.1 Declaration
 
@@ -2880,6 +2896,10 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 ## 25. Map Diagrams
 
 <!-- TYPE:map -->
+
+<!-- TIPS start -->
+**Styling tips:** the zero-config map already looks good — name places and stop. When POIs fall into categories, tag them so each category gets its own color; keep place labels to the place name; leave region colorize and coastlines on unless the user asks to hide them.
+<!-- TIPS end -->
 
 Geographic concept maps: highlight/shade political subdivisions, drop points of interest (POIs), and connect them with routes or edges. For "share a concept" business maps, not cartography. Renders at a fixed, auto-fit position — no pan/zoom. Basemap and viewport are **inferred from the content you reference** — most maps need no directives. v1 boundaries: world countries + US states.
 

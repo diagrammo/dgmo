@@ -61,9 +61,11 @@ function fail(msg) {
 // --- extract + validate the core -------------------------------------------
 const refMd = readFileSync(join(repo, REF), 'utf8');
 const antipatterns = extractAiCore(refMd, 'ANTIPATTERNS');
+const styling = extractAiCore(refMd, 'STYLING');
 const typeIndex = extractAiCore(refMd, 'TYPE-INDEX');
 
 if (!antipatterns) fail('AI-CORE:ANTIPATTERNS block missing or empty in ' + REF);
+if (!styling) fail('AI-CORE:STYLING block missing or empty in ' + REF);
 if (!typeIndex) fail('AI-CORE:TYPE-INDEX block missing or empty in ' + REF);
 
 // Completeness (AC12): every chart-type id must appear in the index.
@@ -71,7 +73,7 @@ const missing = chartTypes.filter((c) => !new RegExp(`\`${c.id}\``).test(typeInd
 if (missing.length) fail(`TYPE-INDEX is missing ${missing.length} id(s): ${missing.join(', ')}`);
 
 // Validate every fence in the core BEFORE emitting (fail fast for authors).
-for (const f of extractDgmoFences(antipatterns, REF)) {
+for (const f of extractDgmoFences(antipatterns + '\n' + styling, REF)) {
   if (f.counterExample) continue;
   const { errors, warnings } = validateDgmoSource(f.source);
   const bad = [...errors, ...warnings];
@@ -112,6 +114,8 @@ function buildCore(pointer) {
     '_Generated from `language-reference.md` — the anti-patterns and 45-type index below are identical across every DGMO AI surface._',
     '',
     antipatterns,
+    '',
+    styling,
     '',
     typeIndex,
     '',
