@@ -150,10 +150,26 @@ describe('timeline parser — date-first syntax', () => {
       expect(evts[0].endDate).not.toBeNull();
     });
 
-    it('uses duration: metadata key as fallback', () => {
-      const evts = events('timeline\n2026-03-20 Phase 2w Review duration: 30d');
+    it('duration: metadata key is canonical (no positional-duration error)', () => {
+      const src = 'timeline\n2026-03-20 Phase Review duration: 30d';
+      const evts = events(src);
       expect(evts).toHaveLength(1);
-      expect(evts[0].label).toBe('Phase 2w Review');
+      expect(evts[0].endDate).not.toBeNull();
+      expect(
+        diagnostics(src).some(
+          (d) => d.code === 'E_TIMELINE_BARE_DURATION_REMOVED'
+        )
+      ).toBe(false);
+    });
+
+    it('positional duration still applies but errors (1.0: duration: is canonical)', () => {
+      const src = 'timeline\n2026-03-20 Sprint 1 30d';
+      expect(events(src)[0].endDate).not.toBeNull();
+      const err = diagnostics(src).find(
+        (d) => d.code === 'E_TIMELINE_BARE_DURATION_REMOVED'
+      );
+      expect(err).toBeDefined();
+      expect(err!.severity).toBe('error');
     });
   });
 

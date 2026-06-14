@@ -1,5 +1,9 @@
 import type { DgmoError } from '../diagnostics';
-import { makeDgmoError } from '../diagnostics';
+import {
+  makeDgmoError,
+  METADATA_DIAGNOSTIC_CODES,
+  timelineBareDurationRemovedMessage,
+} from '../diagnostics';
 import { splitNameAndMeta, warnUnknownMetaKeys } from '../utils/parsing';
 import {
   TIMELINE_REGISTRY,
@@ -45,9 +49,7 @@ function parseTime(timeStr: string): { valid: boolean; h: number; m: number } {
   return { valid: h >= 0 && h <= 23 && m >= 0 && m <= 59, h, m };
 }
 
-function parseDateWithOptionalTime(
-  input: string
-): {
+function parseDateWithOptionalTime(input: string): {
   date: string;
   rest: string;
   timeValid: boolean;
@@ -361,6 +363,16 @@ export function parseTimelineEventLine(
       if (m) {
         // Guard: require at least one non-duration word before the duration token
         if (j < 1) break;
+        // Removed at 1.0: `duration:` is canonical; the positional form is a
+        // hard error directing to it. Value is still applied so it renders.
+        diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            timelineBareDurationRemovedMessage(tokens[j]!),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.TIMELINE_BARE_DURATION_REMOVED
+          )
+        );
         duration = {
           amount: parseFloat(m[1]!),
           unit: m[2]! as TimelineDurationUnit,

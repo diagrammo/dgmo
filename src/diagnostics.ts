@@ -323,6 +323,12 @@ export const METADATA_DIAGNOSTIC_CODES = {
    * requires `key: value` (e.g. `description: ...`), per §1.4.
    */
   C4_BARE_TAIL_REMOVED: 'E_C4_BARE_TAIL_REMOVED',
+  /**
+   * Error: timeline positional duration token (`2020 Project 30d`).
+   * Canonical form is colon-keyed `duration: 30d` (per §1.4). The
+   * duration is still applied so the diagram renders.
+   */
+  TIMELINE_BARE_DURATION_REMOVED: 'E_TIMELINE_BARE_DURATION_REMOVED',
 } as const;
 
 /**
@@ -389,6 +395,15 @@ export function descriptionBareRemovedMessage(text: string): string {
  */
 export function c4BareTailRemovedMessage(tail: string): string {
   return `Unexpected text '${tail}' after the element — same-line metadata requires 'key: value' (e.g. 'description: ${tail}'), per §1.4`;
+}
+
+/**
+ * Canonical message for `E_TIMELINE_BARE_DURATION_REMOVED`. Emitted
+ * when a timeline event uses a positional duration token instead of
+ * the colon-keyed `duration:` form (canonical at 1.0).
+ */
+export function timelineBareDurationRemovedMessage(token: string): string {
+  return `Positional duration '${token}' removed — use 'duration: ${token}' (colon required, per §1.4 metadata)`;
 }
 
 /**
