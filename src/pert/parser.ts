@@ -1456,14 +1456,13 @@ function applyDirective(
       return;
     }
     case 'analysis': {
-      // Reserved-but-inert: historically `analysis monte-carlo` opted
-      // into simulation, now auto-derived from O/M/P data. Stays
-      // recognized so cached share-link payloads keep rendering. To
-      // hide the analysis layer, use the bare `no-analysis` flag.
-      warn(
+      // Removed at 1.0: historically `analysis monte-carlo` opted into
+      // simulation, now auto-derived from O/M/P data. Hard error directing
+      // to the bare `no-analysis` flag (which hides the analysis layer).
+      error(
         lineNumber,
-        '`analysis` is no longer needed — Monte Carlo auto-enables when activities have O/M/P estimates. Use `no-analysis` to hide the analysis layer (tornado + S-curve).',
-        'pert.deprecated.analysis-directive'
+        '`analysis` was removed — Monte Carlo auto-enables when activities have O/M/P estimates. Use `no-analysis` to hide the analysis layer (tornado + S-curve).',
+        METADATA_DIAGNOSTIC_CODES.PERT_ANALYSIS_REMOVED
       );
       return;
     }

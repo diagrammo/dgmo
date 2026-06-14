@@ -350,19 +350,19 @@ A 1 2 4
   });
 });
 
-describe('pert parser — `analysis` reserved-but-inert', () => {
-  it('emits warning with code pert.deprecated.analysis-directive and parses without error', () => {
+describe('pert parser — `analysis` removed at 1.0', () => {
+  it('emits E_PERT_ANALYSIS_REMOVED (error) and still parses (Monte Carlo auto-enables)', () => {
     const parsed = parsePert(`pert
 analysis monte-carlo
 A 1 2 4
 `);
-    expect(parsed.error).toBeNull();
     expect(parsed.options.noAnalysis).toBeUndefined();
-    const warn = findWarning(parsed, {
-      code: 'pert.deprecated.analysis-directive',
-    });
-    expect(warn).toBeDefined();
-    expect(warn!.message).toContain('no-analysis');
+    const err = parsed.diagnostics.find(
+      (d) => d.code === 'E_PERT_ANALYSIS_REMOVED'
+    );
+    expect(err).toBeDefined();
+    expect(err!.severity).toBe('error');
+    expect(err!.message).toContain('no-analysis');
   });
 
   it('emits no analysis-deprecation warning when the directive is absent', () => {

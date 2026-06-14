@@ -310,6 +310,12 @@ export const METADATA_DIAGNOSTIC_CODES = {
    * diagram renders, but the bare form is rejected at 1.0.
    */
   DESCRIPTION_BARE_REMOVED: 'E_DESCRIPTION_BARE_REMOVED',
+  /**
+   * Error: the PERT `analysis` directive (historically `analysis
+   * monte-carlo`). Monte Carlo now auto-enables from O/M/P estimates;
+   * use the bare `no-analysis` flag to hide the analysis layer.
+   */
+  PERT_ANALYSIS_REMOVED: 'E_PERT_ANALYSIS_REMOVED',
 } as const;
 
 /**
