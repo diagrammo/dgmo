@@ -1128,6 +1128,56 @@ export function albersSkewFallback(
   return skew > ALBERS_SKEW_MAX;
 }
 
+// ── Region-geometry memo (recolor fast-path) ──────────────────────────────
+// The projected region path + label centroid depend ONLY on the fit and the
+// source feature — never on palette, theme, or the active colouring group. The
+// app re-runs `layoutMap` on every recolor (theme toggle, legend flip), which
+// otherwise re-projects ~700 country/state polygons (the single dominant layout
+// cost, ~14ms on a world map). This memo reuses that geometry when the fit is
+// unchanged.
+//
+// Correctness hinges on the key: it is the ACTUAL post-fit projection transform
+// (sampled via probe points pushed through the same `project` closure the
+// geometry uses), NOT the render options. So a recolor that leaves the fit
+// alone hits; a flip that resizes the legend → moves `topPad` → re-fits the
+// projection produces different probes → misses and recomputes. The internal
+// callout-reserve passes (which re-fit, then recurse) each get their own key and
+// reproduce identically on the next render. Keyed by the ORIGINAL `resolvedIn`
+// reference (the app `useMemo`s it on content, so it is stable across recolor
+// and replaced on edit), so a content edit is a fresh bucket and the old one is
+// GC'd. One-shot callers (CLI/MCP/SSG) populate but never re-read — negligible.
+type CachedRegionGeo = {
+  d: string;
+  cx: number | undefined;
+  cy: number | undefined;
+};
+const REGION_GEO_MEMO = new WeakMap<
+  ResolvedMap,
+  Map<string, Map<string, CachedRegionGeo | null>>
+>();
+// Bound per-map growth (each distinct fit — resize step, reserve pass — is a key).
+const REGION_GEO_MAX_FITS = 8;
+function regionGeoBucket(
+  resolved: ResolvedMap,
+  projKey: string
+): Map<string, CachedRegionGeo | null> {
+  let byFit = REGION_GEO_MEMO.get(resolved);
+  if (!byFit) {
+    byFit = new Map();
+    REGION_GEO_MEMO.set(resolved, byFit);
+  }
+  let bucket = byFit.get(projKey);
+  if (!bucket) {
+    bucket = new Map();
+    byFit.set(projKey, bucket);
+    if (byFit.size > REGION_GEO_MAX_FITS) {
+      const oldest = byFit.keys().next().value; // insertion order → FIFO evict
+      if (oldest !== undefined) byFit.delete(oldest);
+    }
+  }
+  return bucket;
+}
+
 export function layoutMap(
   resolvedIn: ResolvedMap,
   data: MapData,
@@ -1670,6 +1720,35 @@ export function layoutMap(
     project = (lon, lat) => projection([lon, lat]) ?? null;
   }
 
+  // The main projection is now fully fitted (no further scale/translate/clip
+  // mutation below — insets use their own projection). Sample it at fixed probe
+  // points to fingerprint the exact transform, including the global-view stretch
+  // that `projection.scale()/translate()` alone don't capture. This is the
+  // region-geometry memo key (see REGION_GEO_MEMO): identical probes ⇒ identical
+  // projected paths ⇒ a recolor can reuse the cached geometry. World + US probes
+  // so both equirectangular and albers-usa fits discriminate.
+  const regionGeo = regionGeoBucket(
+    resolvedIn,
+    JSON.stringify([
+      width,
+      height,
+      (
+        [
+          [-100, 40],
+          [-120, 37],
+          [-80, 40],
+          [0, 0],
+          [60, 30],
+          [-60, -30],
+          [150, 60],
+          [-150, -60],
+          [100, -40],
+          [-30, 50],
+        ] as Array<[number, number]>
+      ).map(([lo, la]) => project(lo, la)),
+    ])
+  );
+
   // -- Alaska & Hawaii insets (our own, replacing geoAlbersUsa's fixed boxes) --
   // The conus conic projects AK/HI to their real positions (far off-frame), so
   // they're culled from the main layer; instead each is drawn in its own framed
@@ -2070,17 +2149,47 @@ export function layoutMap(
       if (layerKind === 'country' && iso === 'AQ' && !regionById.has('AQ'))
         continue;
       const r = regionById.get(iso);
-      // Cull off-view land in a regional view; in a global view keep all land
-      // but still drop antimeridian frame-fillers (Fiji et al.).
-      const viewF = shouldCull ? cullFeatureToView(f) : dropFrameFillers(f);
-      if (!viewF) continue;
-      const raw = path(viewF as never) ?? '';
-      // Global views: strip the wrap-sliver a crossing landmass leaves pinned to
-      // the far edge (Russia's Chukotka beside Alaska). Regional cuts are real.
-      const d = fitIsGlobal
-        ? dropAntimeridianWrapSlivers(raw, width, height)
-        : raw;
-      if (!d) continue;
+      // Projected path + label centroid: reuse the memo when this fit already
+      // produced them (recolor fast-path; see REGION_GEO_MEMO). `null` memoizes a
+      // region the cull dropped so a recolor skips it without re-streaming. Both
+      // the centroid anchor and the cull/sliver geometry are fit-only, never
+      // palette/active-group dependent — safe to cache under `regionGeo`.
+      const geoK = layerKind + ':' + iso;
+      let geo = regionGeo.get(geoK);
+      if (geo === undefined) {
+        // Cull off-view land in a regional view; in a global view keep all land
+        // but still drop antimeridian frame-fillers (Fiji et al.).
+        const viewF = shouldCull ? cullFeatureToView(f) : dropFrameFillers(f);
+        if (!viewF) {
+          regionGeo.set(geoK, null);
+          continue;
+        }
+        const raw = path(viewF as never) ?? '';
+        // Global views: strip the wrap-sliver a crossing landmass leaves pinned
+        // to the far edge (Russia's Chukotka beside Alaska). Regional cuts real.
+        const d0 = fitIsGlobal
+          ? dropAntimeridianWrapSlivers(raw, width, height)
+          : raw;
+        if (!d0) {
+          regionGeo.set(geoK, null);
+          continue;
+        }
+        // Label/hover anchor: a hardcoded mainland anchor when far-flung
+        // territory would skew it, else the area-weighted screen centroid of the
+        // drawn shape (survives antimeridian crossers, unlike a bbox centre).
+        const anchor = WORLD_LABEL_ANCHORS[iso];
+        const cc = anchor
+          ? project(anchor[0], anchor[1])
+          : path.centroid(viewF as never);
+        const ok =
+          cc != null && Number.isFinite(cc[0]) && Number.isFinite(cc[1]);
+        geo = { d: d0, cx: ok ? cc[0] : undefined, cy: ok ? cc[1] : undefined };
+        regionGeo.set(geoK, geo);
+      } else if (geo === null) {
+        continue;
+      }
+      const d = geo.d;
+      const hasCentroid = geo.cx !== undefined && geo.cy !== undefined;
       const isThisLayer = r?.layer === layerKind;
       // Non-US neighbour land in a US view is gray context, not yellow land.
       const isForeign = layerKind === 'country' && usContext && iso !== 'US';
@@ -2105,15 +2214,6 @@ export function layoutMap(
         // (the same source the resolver/inset/context-label layers read).
         label = (f.properties as { name?: string } | null)?.name;
       }
-      // Label/hover anchor: a hardcoded mainland anchor when far-flung territory
-      // would skew it, else the area-weighted screen centroid of the drawn shape.
-      // The latter (unlike a bounding-box centre) survives antimeridian crossers.
-      const labelAnchor = WORLD_LABEL_ANCHORS[iso];
-      const c = labelAnchor
-        ? project(labelAnchor[0], labelAnchor[1])
-        : path.centroid(viewF as never);
-      const hasCentroid =
-        c != null && Number.isFinite(c[0]) && Number.isFinite(c[1]);
       regions.push({
         id: iso,
         d,
@@ -2122,7 +2222,7 @@ export function layoutMap(
         lineNumber,
         layer,
         ...(label !== undefined && { label }),
-        ...(hasCentroid && { labelX: c[0], labelY: c[1] }),
+        ...(hasCentroid && { labelX: geo.cx!, labelY: geo.cy! }),
         ...(isThisLayer && r.value !== undefined && { value: r.value }),
         ...(isThisLayer && Object.keys(r.tags).length > 0 && { tags: r.tags }),
       });
