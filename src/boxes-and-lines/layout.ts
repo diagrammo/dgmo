@@ -66,6 +66,10 @@ export interface BLLayoutEdge {
   /** Marker for renderer: draw with linear curve, not curveBasis (ELK gives
    * us orthogonal polylines and curveBasis would smooth corners into waves) */
   readonly deferred?: boolean;
+  /** Pinned-layout connector: a border-clipped straight 2-point segment (Canvas
+   *  Editor spike, Decision 7). Renderer draws it with a linear generator —
+   *  curveBasis collapses a 2-point polyline. */
+  readonly straight?: boolean;
 }
 
 export interface BLLayoutGroup {

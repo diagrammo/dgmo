@@ -1016,6 +1016,66 @@ export function layoutBoxesAndLinesSearch(
     Math.abs(p.x - rect.x) <= rect.w / 2 &&
     Math.abs(p.y - rect.y) <= rect.h / 2;
 
+  // ── Pinned-layout bypass (Canvas Editor spike, Decisions 3/7) ──
+  // When a `layout` block positions EVERY node (and the diagram is group-free —
+  // partial pinning and pinned-inside-groups are deferred), place nodes directly
+  // from the stored coordinates and skip the whole dagre search. Edges become
+  // border-clipped straight connectors (no obstacle avoidance — honest-but-ugly).
+  const pinned = parsed.nodePositions;
+  const allPinned =
+    pinned !== undefined &&
+    parsed.groups.length === 0 &&
+    parsed.nodes.length > 0 &&
+    parsed.nodes.every((n) => pinned.has(n.label));
+  function placePinned(pins: ReadonlyMap<string, Pt>): BLLayoutResult {
+    const rectOf = (label: string) => {
+      const p = pins.get(label)!;
+      const s = sizes.get(label) ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
+      return { x: p.x, y: p.y, w: s.width, h: s.height };
+    };
+    const nodes = parsed.nodes.map((n) => {
+      const r = rectOf(n.label);
+      return { label: n.label, x: r.x, y: r.y, width: r.w, height: r.h };
+    });
+    const edges: BLLayoutEdge[] = parsed.edges.flatMap((e) => {
+      const sp = pins.get(e.source);
+      const tp = pins.get(e.target);
+      if (!sp || !tp) return [];
+      const srcRect = rectOf(e.source);
+      const tgtRect = rectOf(e.target);
+      const p0 = rectBorderPoint(srcRect, tp);
+      const p1 = rectBorderPoint(tgtRect, sp);
+      return [
+        {
+          source: e.source,
+          target: e.target,
+          ...(e.label !== undefined && { label: e.label }),
+          bidirectional: e.bidirectional,
+          lineNumber: e.lineNumber,
+          points: [p0, p1],
+          yOffset: 0,
+          parallelCount: 1,
+          metadata: e.metadata,
+          straight: true,
+        },
+      ];
+    });
+    const margin = 40;
+    let maxX = 0;
+    let maxY = 0;
+    for (const n of nodes) {
+      maxX = Math.max(maxX, n.x + n.width / 2);
+      maxY = Math.max(maxY, n.y + n.height / 2);
+    }
+    return {
+      nodes,
+      edges,
+      groups: [],
+      width: maxX + margin,
+      height: maxY + margin,
+    };
+  }
+
   function place(cfg: {
     ranker: string;
     nodesep: number;
@@ -1172,6 +1232,9 @@ export function layoutBoxesAndLinesSearch(
       height: gg.height ?? 600,
     } as BLLayoutResult;
   }
+
+  // Pinned mode short-circuits the entire search.
+  if (allPinned) return placePinned(pinned!);
 
   const n = parsed.nodes.length;
   // ~500ms budget: search a larger pool, then refine the top few exactly.

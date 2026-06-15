@@ -1,0 +1,24 @@
+boxes-and-lines E-Commerce Platform
+
+tag Team as t Backend blue, Frontend green, Platform purple
+
+active-tag Team
+
+direction LR
+
+// --- Services ---
+API Gateway t: Backend
+  Main entry point for all requests
+  -routes-> UserService
+  -routes-> ProductService
+
+UserService t: Backend
+  Handles auth and profiles
+  -reads-> UserDB
+
+ProductService t: Frontend, description: Product catalog and search
+  -queries-> ProductDB
+
+// --- Data Stores ---
+UserDB t: Platform
+ProductDB t: Platform

@@ -89,6 +89,15 @@ const lineGeneratorTB = d3Shape
   .y((d) => d.y)
   .curve(d3Shape.curveBasis);
 
+// Straight (linear) generator for pinned-layout connectors (Canvas Editor
+// spike). curveBasis collapses a 2-point polyline, so border-clipped straight
+// edges must draw linearly.
+const lineGeneratorStraight = d3Shape
+  .line<{ x: number; y: number }>()
+  .x((d) => d.x)
+  .y((d) => d.y)
+  .curve(d3Shape.curveLinear);
+
 // ── Text fitting ───────────────────────────────────────────
 
 function splitCamelCase(word: string): string[] {
@@ -896,7 +905,11 @@ export function renderBoxesAndLines(
     edgeGroups.set(i, edgeG as unknown as D3G);
 
     const markerId = `bl-arrow-${color.replace('#', '')}`;
-    const gen = parsed.direction === 'TB' ? lineGeneratorTB : lineGeneratorLR;
+    const gen = le.straight
+      ? lineGeneratorStraight
+      : parsed.direction === 'TB'
+        ? lineGeneratorTB
+        : lineGeneratorLR;
     const path = edgeG
       .append('path')
       .attr('class', 'bl-edge')

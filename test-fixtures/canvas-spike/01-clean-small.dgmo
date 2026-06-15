@@ -1,0 +1,8 @@
+boxes-and-lines Auth Flow
+
+direction LR
+
+Login -> Validate
+Validate -> Session
+Validate -> Error
+Session -> Dashboard

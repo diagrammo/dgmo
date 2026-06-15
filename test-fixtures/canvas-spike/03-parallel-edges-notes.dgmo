@@ -1,0 +1,15 @@
+boxes-and-lines Sync Pipeline
+
+direction LR
+
+// Two services with parallel edges between them
+Producer -emits-> Queue
+Producer -retries-> Queue
+
+Queue -drains-> Worker
+Worker <-acks-> Queue
+
+Worker -> Sink
+
+note Worker pulls in batches of 100
+note Queue durable, at-least-once delivery
