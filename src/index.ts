@@ -240,6 +240,19 @@ export type {
 } from './map/data/types';
 
 // ============================================================
+// Chart-type registry (stable; cross-consumer essential — promoted to
+// root at 1.0 so consumers needn't reach into the no-semver `/advanced`)
+// ============================================================
+export { chartTypes } from './chart-types';
+export type { ChartTypeMeta } from './chart-types';
+
+// ============================================================
+// Map data (DI asset shape; stable — promoted to root at 1.0 for the
+// obsidian/app browser-render path that injects bundled map JSON)
+// ============================================================
+export type { MapData } from './map/resolved-types';
+
+// ============================================================
 // Public types
 // ============================================================
 
