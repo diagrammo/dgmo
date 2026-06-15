@@ -9,7 +9,9 @@ import {
   tagShorthandRemovedMessage,
   type DgmoError,
 } from '../diagnostics';
-import { RECOGNIZED_COLOR_NAMES } from '../colors';
+import { RECOGNIZED_COLOR_NAMES, resolveColor } from '../colors';
+import type { PaletteColors } from '../palettes/types';
+import type { Writable } from './brand';
 
 /** A single entry inside a tag group: `Value color` */
 export interface TagEntry {
@@ -70,6 +72,114 @@ export function stripDefaultModifier(text: string): {
     return { text: text.replace(/\s+default\s*$/, '').trim(), isDefault: true };
   }
   return { text, isDefault: false };
+}
+
+// ── Auto Color Assignment ───────────────────────────────────
+
+/**
+ * Sentinel stored in `TagEntry.color` for an entry declared WITHOUT an
+ * explicit color (a "bare" tag value). The per-group finalize pass
+ * (`assignAutoTagColors`) replaces every sentinel with a deterministic
+ * palette color. Parsers MUST run that pass before returning, otherwise a
+ * sentinel-colored entry would render with an empty fill.
+ *
+ * Empty string is used (rather than e.g. `undefined`) so the existing
+ * `if (!color)` shape in callers naturally treats it as "needs a color",
+ * and so `TagEntry.color` stays a plain `string`.
+ */
+export const AUTO_TAG_COLOR_SENTINEL = '';
+
+/**
+ * The categorical name cycle used to auto-assign colors to bare tag values,
+ * in deterministic order. Drawn from `RECOGNIZED_COLOR_NAMES` but excludes
+ * the non-categorical neutrals (`gray`/`black`/`white`) so auto-picked
+ * colors are visually distinct legend swatches. If a group has more
+ * colorless entries than free categorical names, the cycle wraps.
+ */
+export const autoTagColorCycle: readonly string[] = Object.freeze(
+  RECOGNIZED_COLOR_NAMES.filter(
+    (n) => n !== 'gray' && n !== 'black' && n !== 'white'
+  )
+);
+
+/**
+ * Finalize a tag group's auto-color assignment.
+ *
+ * Walks the group's entries in declaration order and replaces each
+ * `AUTO_TAG_COLOR_SENTINEL` (a bare value with no explicit color) with a
+ * deterministic palette color, resolved to the SAME hex form that
+ * `extractColor` stores for explicit entries (so renderers/legends treat
+ * auto and explicit entries identically).
+ *
+ * Rules:
+ *  - Skip any cycle name whose resolved hex is already used by an EXPLICIT
+ *    entry in this group — INCLUDING explicit entries that appear after the
+ *    bare one (this is why assignment must be a post-build pass, not inline).
+ *  - Skip any cycle name already consumed by an earlier auto-assignment in
+ *    this same group, so two bare values never collide while names remain.
+ *  - Cycle in `autoTagColorCycle` order; wrap around once names are
+ *    exhausted (collisions acceptable past exhaustion).
+ *
+ * Idempotent: entries that already have a non-sentinel color are left
+ * untouched, so it is safe to call once over every group at end of parse.
+ *
+ * @param group   The group being finalized (mutable construction view).
+ * @param palette Active palette; when omitted, names resolve to the
+ *                built-in Nord defaults (still deterministic).
+ */
+export function assignAutoTagColors(
+  group: Writable<TagGroup>,
+  palette?: PaletteColors
+): void {
+  const entries = group.entries as TagEntry[];
+  // Hexes claimed by explicit entries (anywhere in the group).
+  const explicitHexes = new Set<string>();
+  let hasSentinel = false;
+  for (const e of entries) {
+    if (e.color === AUTO_TAG_COLOR_SENTINEL) hasSentinel = true;
+    else explicitHexes.add(e.color.toLowerCase());
+  }
+  if (!hasSentinel) return;
+
+  // Pre-resolve cycle names → hex once for this palette.
+  const cycle = autoTagColorCycle.map((name) => ({
+    name,
+    hex: resolveColor(name, palette) ?? name,
+  }));
+
+  // Hexes consumed by earlier auto-assignments in this group.
+  const autoHexes = new Set<string>();
+
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i]!;
+    if (e.color !== AUTO_TAG_COLOR_SENTINEL) continue;
+
+    // First pass: a name whose hex collides with neither an explicit nor a
+    // prior auto color. Fall back to the next cycle slot (wrap) once the
+    // categorical names are exhausted, accepting collisions.
+    let chosen = cycle.find(
+      (c) =>
+        !explicitHexes.has(c.hex.toLowerCase()) &&
+        !autoHexes.has(c.hex.toLowerCase())
+    );
+    if (!chosen) {
+      // Exhausted distinct names — wrap deterministically by auto-index.
+      chosen = cycle[autoHexes.size % cycle.length]!;
+    }
+    autoHexes.add(chosen.hex.toLowerCase());
+    entries[i] = { ...e, color: chosen.hex };
+  }
+}
+
+/**
+ * Convenience: run {@link assignAutoTagColors} over every group in a list
+ * (e.g. `result.tagGroups`). Safe to call once at the end of a parser.
+ */
+export function finalizeAutoTagColors(
+  groups: ReadonlyArray<Writable<TagGroup>>,
+  palette?: PaletteColors
+): void {
+  for (const g of groups) assignAutoTagColors(g, palette);
 }
 
 // ── Regexes ─────────────────────────────────────────────────

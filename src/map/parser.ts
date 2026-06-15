@@ -23,6 +23,8 @@ import {
   emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
+  finalizeAutoTagColors,
+  AUTO_TAG_COLOR_SENTINEL,
 } from '../utils/tag-groups';
 import { parseInArrowLabel } from '../utils/arrows';
 import type {
@@ -255,6 +257,9 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     handleRegion(trimmed, lineNumber);
   }
 
+  // Assign palette colors to bare (colorless) tag values (all groups known).
+  finalizeAutoTagColors(tagGroups, palette);
+
   // ── Post-parse validation (all groups now known). ──
   validateTagGroupNames(tagGroups, pushWarning, (line, m) =>
     pushError(line, m)
@@ -388,13 +393,14 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
   ): void {
     const { text: clean, isDefault } = stripDefaultModifier(text);
     const { label, color } = extractColor(clean, palette, diagnostics, line);
-    if (!color) {
-      pushError(line, `Expected 'Value color' in tag group '${group.name}'`);
-      return;
-    }
+    // Bare value (no explicit color) → keep it; finalized at end of parse.
     const entries = group.entries as TagEntry[];
     if (isDefault || entries.length === 0) group.defaultValue = label;
-    entries.push({ value: label, color, lineNumber: line });
+    entries.push({
+      value: label,
+      color: color ?? AUTO_TAG_COLOR_SENTINEL,
+      lineNumber: line,
+    });
   }
 
   function handleRegion(trimmed: string, line: number): void {

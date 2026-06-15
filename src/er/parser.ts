@@ -29,6 +29,8 @@ import {
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
+  finalizeAutoTagColors,
+  AUTO_TAG_COLOR_SENTINEL,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
@@ -376,22 +378,17 @@ export function parseERDiagram(
     if (currentTagGroup && !contentStarted && indent > 0) {
       const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
       const { label, color } = extractColor(cleanEntry, palette);
-      if (!color) {
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            `Expected 'Value color' in tag group '${currentTagGroup.name}'`,
-            'warning'
-          )
-        );
-        continue;
-      }
+      // Bare value (no explicit color) → keep it; finalized below.
       if (isDefault) {
         currentTagGroup.defaultValue = label;
       } else if (currentTagGroup.entries.length === 0) {
         currentTagGroup.defaultValue = label;
       }
-      currentTagGroup.entries.push({ value: label, color, lineNumber });
+      currentTagGroup.entries.push({
+        value: label,
+        color: color ?? AUTO_TAG_COLOR_SENTINEL,
+        lineNumber,
+      });
       continue;
     }
 
@@ -582,6 +579,9 @@ export function parseERDiagram(
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
   }
+
+  // Assign palette colors to bare (colorless) tag values.
+  finalizeAutoTagColors(result.tagGroups as Writable<TagGroup>[], palette);
 
   // Validate tag values on tables
   if (result.tagGroups.length > 0) {

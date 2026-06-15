@@ -19,6 +19,8 @@ import {
   emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
+  finalizeAutoTagColors,
+  AUTO_TAG_COLOR_SENTINEL,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -251,19 +253,17 @@ export function parseJourneyMap(
       if (indent > 0) {
         const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
         const { label, color } = extractColor(cleanEntry, palette);
-        if (!color) {
-          warn(
-            lineNumber,
-            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
-          );
-          continue;
-        }
+        // Bare value (no explicit color) → keep it; finalized below.
         if (isDefault) {
           currentTagGroup.defaultValue = label;
         } else if (currentTagGroup.entries.length === 0) {
           currentTagGroup.defaultValue = label;
         }
-        currentTagGroup.entries.push({ value: label, color, lineNumber });
+        currentTagGroup.entries.push({
+          value: label,
+          color: color ?? AUTO_TAG_COLOR_SENTINEL,
+          lineNumber,
+        });
         continue;
       }
       currentTagGroup = null;
@@ -473,6 +473,9 @@ export function parseJourneyMap(
   ) {
     return fail(1, 'No phases or steps found');
   }
+
+  // Assign palette colors to bare (colorless) tag values.
+  finalizeAutoTagColors(result.tagGroups as Writable<TagGroup>[], palette);
 
   validateTagGroupNames(result.tagGroups, warn, (line, msg) => {
     const diag = makeDgmoError(line, msg);

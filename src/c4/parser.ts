@@ -21,6 +21,8 @@ import {
   emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
+  finalizeAutoTagColors,
+  AUTO_TAG_COLOR_SENTINEL,
 } from '../utils/tag-groups';
 import { inferParticipantType } from '../sequence/participant-inference';
 import {
@@ -454,13 +456,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       if (indent > 0) {
         const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
         const { label, color } = extractColor(cleanEntry, palette);
-        if (!color) {
-          pushError(
-            lineNumber,
-            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
-          );
-          continue;
-        }
+        // Bare value (no explicit color) → keep it; the post-parse
+        // finalize pass assigns a deterministic palette color.
         if (isDefault) {
           currentTagGroup.defaultValue = label;
         } else if (currentTagGroup.entries.length === 0) {
@@ -468,7 +465,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         }
         currentTagGroup.entries.push({
           value: label,
-          color,
+          color: color ?? AUTO_TAG_COLOR_SENTINEL,
           lineNumber,
         });
         continue;
@@ -1053,6 +1050,9 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       pushError(lineNumber, `Unexpected content: "${trimmed}"`);
     }
   }
+
+  // Assign palette colors to bare (colorless) tag values.
+  finalizeAutoTagColors(result.tagGroups as Writable<TagGroup>[], palette);
 
   // ── Post-parse validation ───────────────────────────────
   validateRelationshipTargets(result, knownNames, pushError);

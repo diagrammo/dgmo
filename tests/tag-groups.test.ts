@@ -10,8 +10,14 @@ import {
   injectDefaultTagMetadata,
   stripDefaultModifier,
   resolveActiveTagGroup,
+  assignAutoTagColors,
+  finalizeAutoTagColors,
+  autoTagColorCycle,
+  AUTO_TAG_COLOR_SENTINEL,
 } from '../src/utils/tag-groups';
-import type { TagGroup } from '../src/utils/tag-groups';
+import type { TagGroup, TagEntry } from '../src/utils/tag-groups';
+import type { Writable } from '../src/utils/brand';
+import { resolveColor } from '../src/colors';
 
 // ============================================================
 // stripDefaultModifier
@@ -707,5 +713,125 @@ describe('resolveActiveTagGroup', () => {
     expect(resolveActiveTagGroup(groups, undefined, undefined)).toBe(
       'Priority'
     );
+  });
+});
+
+// ============================================================
+// assignAutoTagColors — auto-pick palette colors for bare values
+// ============================================================
+
+describe('assignAutoTagColors', () => {
+  const mkGroup = (
+    entries: Array<{ value: string; color: string }>
+  ): Writable<TagGroup> => ({
+    name: 'Priority',
+    entries: entries.map((e, i) => ({ ...e, lineNumber: i + 1 })),
+    lineNumber: 1,
+  });
+
+  it('assigns a deterministic palette color to a bare value', () => {
+    const g = mkGroup([{ value: 'High', color: AUTO_TAG_COLOR_SENTINEL }]);
+    assignAutoTagColors(g);
+    const [e] = g.entries as TagEntry[];
+    expect(e!.color).not.toBe(AUTO_TAG_COLOR_SENTINEL);
+    expect(e!.color).toMatch(/^#/);
+    // First free cycle color is the first cycle name (red).
+    expect(e!.color).toBe(resolveColor(autoTagColorCycle[0]!));
+  });
+
+  it('leaves explicit colors untouched (explicit wins)', () => {
+    const explicit = resolveColor('blue')!;
+    const g = mkGroup([{ value: 'High', color: explicit }]);
+    assignAutoTagColors(g);
+    expect((g.entries as TagEntry[])[0]!.color).toBe(explicit);
+  });
+
+  it('skips a color used by an explicit entry that appears AFTER the bare one', () => {
+    // High is bare, Low is explicit red below it. High must NOT get red.
+    const red = resolveColor('red')!;
+    const g = mkGroup([
+      { value: 'High', color: AUTO_TAG_COLOR_SENTINEL },
+      { value: 'Low', color: red },
+    ]);
+    assignAutoTagColors(g);
+    const entries = g.entries as TagEntry[];
+    expect(entries[1]!.color).toBe(red); // explicit untouched
+    expect(entries[0]!.color).not.toBe(red); // bare skipped red
+    expect(entries[0]!.color).toMatch(/^#/);
+  });
+
+  it('does not collide two bare values while names remain', () => {
+    const g = mkGroup([
+      { value: 'A', color: AUTO_TAG_COLOR_SENTINEL },
+      { value: 'B', color: AUTO_TAG_COLOR_SENTINEL },
+      { value: 'C', color: AUTO_TAG_COLOR_SENTINEL },
+    ]);
+    assignAutoTagColors(g);
+    const colors = (g.entries as TagEntry[]).map((e) => e.color);
+    expect(new Set(colors).size).toBe(3);
+  });
+
+  it('is deterministic — same input yields same colors', () => {
+    const build = () =>
+      mkGroup([
+        { value: 'A', color: AUTO_TAG_COLOR_SENTINEL },
+        { value: 'B', color: resolveColor('green')! },
+        { value: 'C', color: AUTO_TAG_COLOR_SENTINEL },
+      ]);
+    const g1 = build();
+    const g2 = build();
+    assignAutoTagColors(g1);
+    assignAutoTagColors(g2);
+    expect((g1.entries as TagEntry[]).map((e) => e.color)).toEqual(
+      (g2.entries as TagEntry[]).map((e) => e.color)
+    );
+  });
+
+  it('wraps the cycle when there are more bare values than free names', () => {
+    const n = autoTagColorCycle.length + 2;
+    const g = mkGroup(
+      Array.from({ length: n }, (_, i) => ({
+        value: `V${i}`,
+        color: AUTO_TAG_COLOR_SENTINEL,
+      }))
+    );
+    assignAutoTagColors(g);
+    const colors = (g.entries as TagEntry[]).map((e) => e.color);
+    // Every entry gets a real color; first cycle-length are distinct.
+    expect(colors.every((c) => c.startsWith('#'))).toBe(true);
+    expect(new Set(colors.slice(0, autoTagColorCycle.length)).size).toBe(
+      autoTagColorCycle.length
+    );
+  });
+
+  it('is a no-op when no bare values are present', () => {
+    const g = mkGroup([{ value: 'High', color: resolveColor('red')! }]);
+    const before = (g.entries as TagEntry[])[0]!.color;
+    assignAutoTagColors(g);
+    expect((g.entries as TagEntry[])[0]!.color).toBe(before);
+  });
+
+  it('resolves names against the supplied palette', () => {
+    const palette = { colors: { red: '#ff0000' } };
+    const g = mkGroup([{ value: 'High', color: AUTO_TAG_COLOR_SENTINEL }]);
+    assignAutoTagColors(g, palette);
+    expect((g.entries as TagEntry[])[0]!.color).toBe('#ff0000');
+  });
+
+  it('autoTagColorCycle excludes the neutral names', () => {
+    expect(autoTagColorCycle).not.toContain('gray');
+    expect(autoTagColorCycle).not.toContain('black');
+    expect(autoTagColorCycle).not.toContain('white');
+  });
+
+  it('finalizeAutoTagColors runs over every group', () => {
+    const groups: Writable<TagGroup>[] = [
+      mkGroup([{ value: 'High', color: AUTO_TAG_COLOR_SENTINEL }]),
+      mkGroup([{ value: 'Low', color: AUTO_TAG_COLOR_SENTINEL }]),
+    ];
+    finalizeAutoTagColors(groups);
+    for (const g of groups) {
+      expect((g.entries as TagEntry[])[0]!.color).toMatch(/^#/);
+    }
   });
 });

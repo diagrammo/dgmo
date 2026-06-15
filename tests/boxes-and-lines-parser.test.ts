@@ -281,6 +281,32 @@ describe('boxes-and-lines parser', () => {
       ).toBe(true);
     });
 
+    it('auto-assigns palette colors to bare inline tag values', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\ntag Team t Backend, Frontend\nAPI t: Backend'
+      );
+      expect(result.tagGroups[0].entries).toHaveLength(2);
+      const colors = result.tagGroups[0].entries.map((e) => e.color);
+      expect(colors.every((c) => c.startsWith('#') && c !== '')).toBe(true);
+      // Two distinct auto colors.
+      expect(new Set(colors).size).toBe(2);
+    });
+
+    it('bare inline value skips an explicit inline color in the same group', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\ntag Team t Backend, Frontend green\nAPI t: Backend'
+      );
+      const backend = result.tagGroups[0].entries.find(
+        (e) => e.value === 'Backend'
+      )!;
+      const frontend = result.tagGroups[0].entries.find(
+        (e) => e.value === 'Frontend'
+      )!;
+      expect(frontend.color).toBe('#a3be8c'); // explicit green (Nord)
+      expect(backend.color).not.toBe('#a3be8c');
+      expect(backend.color).toMatch(/^#/);
+    });
+
     it('uses first entry as default when no default keyword', () => {
       const result = parseBoxesAndLines(
         'boxes-and-lines\ntag Status s\n  Done green\n  Doing yellow\n  Todo red\nAPI | s: Doing'

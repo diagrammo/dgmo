@@ -33,6 +33,8 @@ import {
   stripDefaultModifier,
   validateTagGroupNames,
   validateTagValues,
+  finalizeAutoTagColors,
+  AUTO_TAG_COLOR_SENTINEL,
   type TagGroup,
 } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
@@ -711,17 +713,15 @@ export function parsePert(
               diagnostics,
               lineNumber
             );
-            if (!color) {
-              warn(
-                lineNumber,
-                `Expected 'Value color' in tag group '${currentTagGroup.name}'`
-              );
-              continue;
-            }
+            // Bare value (no explicit color) → keep it; finalized below.
             if (isDefault || currentTagGroup.entries.length === 0) {
               currentTagGroup.defaultValue = label;
             }
-            currentTagGroup.entries.push({ value: label, color, lineNumber });
+            currentTagGroup.entries.push({
+              value: label,
+              color: color ?? AUTO_TAG_COLOR_SENTINEL,
+              lineNumber,
+            });
           }
         }
         continue;
@@ -735,17 +735,15 @@ export function parsePert(
           diagnostics,
           lineNumber
         );
-        if (!color) {
-          warn(
-            lineNumber,
-            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
-          );
-          continue;
-        }
+        // Bare value (no explicit color) → keep it; finalized below.
         if (isDefault || currentTagGroup.entries.length === 0) {
           currentTagGroup.defaultValue = label;
         }
-        currentTagGroup.entries.push({ value: label, color, lineNumber });
+        currentTagGroup.entries.push({
+          value: label,
+          color: color ?? AUTO_TAG_COLOR_SENTINEL,
+          lineNumber,
+        });
         continue;
       }
       // Any other line at indent 0 closes the tag block (and content phase begins).
@@ -1271,6 +1269,9 @@ export function parsePert(
       options.sprintNumber = 1;
     }
   }
+
+  // Assign palette colors to bare (colorless) tag values.
+  finalizeAutoTagColors(tagGroups as Writable<TagGroup>[], parseOpts.palette);
 
   // ── Tag-group post-validation + default injection ───────
   if (tagGroups.length > 0) {

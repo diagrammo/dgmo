@@ -41,6 +41,8 @@ import {
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
+  finalizeAutoTagColors,
+  AUTO_TAG_COLOR_SENTINEL,
 } from '../utils/tag-groups';
 
 /** Known sequence-diagram options that take a value (space-separated). */
@@ -952,19 +954,17 @@ export function parseSequenceDgmo(
         result.diagnostics,
         lineNumber
       );
-      if (!color) {
-        pushError(
-          lineNumber,
-          `Expected 'Value color' in tag group '${currentTagGroup.name}'`
-        );
-        continue;
-      }
+      // Bare value (no explicit color) → keep it; finalized below.
       if (isDefault) {
         currentTagGroup.defaultValue = label;
       } else if (currentTagGroup.entries.length === 0) {
         currentTagGroup.defaultValue = label;
       }
-      currentTagGroup.entries.push({ value: label, color, lineNumber });
+      currentTagGroup.entries.push({
+        value: label,
+        color: color ?? AUTO_TAG_COLOR_SENTINEL,
+        lineNumber,
+      });
       continue;
     }
 
@@ -1727,6 +1727,9 @@ export function parseSequenceDgmo(
       );
     }
   }
+
+  // Assign palette colors to bare (colorless) tag values.
+  finalizeAutoTagColors(result.tagGroups as Writable<TagGroup>[], palette);
 
   // Validate tag group values on participants and messages
   if (result.tagGroups.length > 0) {

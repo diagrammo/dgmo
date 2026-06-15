@@ -16,6 +16,8 @@ import {
   emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
+  finalizeAutoTagColors,
+  AUTO_TAG_COLOR_SENTINEL,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -217,13 +219,7 @@ export function parseKanban(
       if (indent > 0) {
         const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
         const { label, color } = extractColor(cleanEntry, palette);
-        if (!color) {
-          warn(
-            lineNumber,
-            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
-          );
-          continue;
-        }
+        // Bare value (no explicit color) → keep it; finalized below.
         if (isDefault) {
           currentTagGroup.defaultValue = label;
         } else if (currentTagGroup.entries.length === 0) {
@@ -231,7 +227,7 @@ export function parseKanban(
         }
         currentTagGroup.entries.push({
           value: label,
-          color,
+          color: color ?? AUTO_TAG_COLOR_SENTINEL,
           lineNumber,
         });
         continue;
@@ -460,6 +456,12 @@ export function parseKanban(
   if (result.columns.length === 0 && !result.error) {
     return fail(1, 'No columns found. Use [Column Name] to define columns');
   }
+
+  // Assign palette colors to bare (colorless) tag values.
+  finalizeAutoTagColors(
+    result.tagGroups as Writable<KanbanTagGroup>[],
+    palette
+  );
 
   validateTagGroupNames(result.tagGroups, warn, (line, msg) => {
     const diag = makeDgmoError(line, msg);

@@ -1248,14 +1248,19 @@ describe('tag group declarations', () => {
     ).toBe(true);
   });
 
-  it('errors on entry without color', () => {
+  it('auto-assigns a palette color to a bare tag value (no error, not dropped)', () => {
     const content = ['tag Concern', '  Caching', '', 'A -req-> B'].join('\n');
     const result = parseSequenceDgmo(content);
+    expect(result.tagGroups[0]!.entries).toHaveLength(1);
+    const entry = result.tagGroups[0]!.entries[0]!;
+    expect(entry.value).toBe('Caching');
+    expect(entry.color).toMatch(/^#/);
+    expect(entry.color).not.toBe('');
     expect(
       result.diagnostics.some((d) =>
         d.message.includes("Expected 'Value color'")
       )
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('does not treat ## as tag group in sequence diagrams', () => {

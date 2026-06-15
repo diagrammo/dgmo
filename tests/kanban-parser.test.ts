@@ -190,15 +190,20 @@ describe('parseKanban', () => {
       expect(result.tagGroups[0].defaultValue).toBe('Low');
     });
 
-    it('warns on tag entry without color', () => {
+    it('auto-assigns a palette color to a bare tag value (no warning, not dropped)', () => {
       const result = parseKanban(
         'kanban\ntag Priority\n  High\n\n[To Do]\n  Task 1'
       );
+      expect(result.tagGroups[0].entries).toHaveLength(1);
+      const entry = result.tagGroups[0].entries[0];
+      expect(entry.value).toBe('High');
+      expect(entry.color).toMatch(/^#/);
+      expect(entry.color).not.toBe('');
       expect(
         result.diagnostics.some((d) =>
           d.message.includes("Expected 'Value color'")
         )
-      ).toBe(true);
+      ).toBe(false);
     });
   });
 

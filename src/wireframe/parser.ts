@@ -33,6 +33,8 @@ import {
   emitTagLegacyDiagnostic,
   validateTagGroupNames,
   stripDefaultModifier,
+  finalizeAutoTagColors,
+  AUTO_TAG_COLOR_SENTINEL,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -894,22 +896,16 @@ export function parseWireframe(content: string): ParsedWireframe {
       if (indent > 0 && currentTagGroup) {
         const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
         const { label, color } = extractColor(cleanEntry);
-        if (color) {
-          currentTagGroup.entries.push({
-            value: label,
-            color,
-            lineNumber,
-          });
-          if (isDefault) {
-            currentTagGroup.defaultValue = label;
-          } else if (currentTagGroup.entries.length === 1) {
-            currentTagGroup.defaultValue = label;
-          }
-        } else {
-          pushWarning(
-            lineNumber,
-            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
-          );
+        // Bare value (no explicit color) → keep it; finalized below.
+        currentTagGroup.entries.push({
+          value: label,
+          color: color ?? AUTO_TAG_COLOR_SENTINEL,
+          lineNumber,
+        });
+        if (isDefault) {
+          currentTagGroup.defaultValue = label;
+        } else if (currentTagGroup.entries.length === 1) {
+          currentTagGroup.defaultValue = label;
         }
         continue;
       }
@@ -1056,6 +1052,11 @@ export function parseWireframe(content: string): ParsedWireframe {
       }
     }
   }
+
+  // Assign palette colors to bare (colorless) tag values. Wireframe does not
+  // thread a PaletteColors object into parse, so names resolve to the Nord
+  // defaults — exactly as explicit `Value color` entries already do here.
+  finalizeAutoTagColors(tagGroups as Writable<TagGroup>[]);
 
   // Validate tag groups
   validateTagGroupNames(tagGroups, pushWarning, (line, msg) => {

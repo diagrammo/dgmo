@@ -17,6 +17,8 @@ import {
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
+  finalizeAutoTagColors,
+  AUTO_TAG_COLOR_SENTINEL,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -260,13 +262,8 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       if (indent > 0) {
         const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
         const { label, color } = extractColor(cleanEntry, palette);
-        if (!color) {
-          pushError(
-            lineNumber,
-            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
-          );
-          continue;
-        }
+        // Bare value (no explicit color) → keep it; the post-parse
+        // finalize pass assigns a deterministic palette color.
         if (isDefault) {
           currentTagGroup.defaultValue = label;
         } else if (currentTagGroup.entries.length === 0) {
@@ -274,7 +271,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         }
         currentTagGroup.entries.push({
           value: label,
-          color,
+          color: color ?? AUTO_TAG_COLOR_SENTINEL,
           lineNumber,
         });
         continue;
@@ -382,6 +379,9 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       attachNode(node, indent, indentStack, result);
     }
   }
+
+  // Assign palette colors to bare (colorless) tag values before validation.
+  finalizeAutoTagColors(result.tagGroups as Writable<TagGroup>[], palette);
 
   // Validate tag group values on nodes
   if (result.tagGroups.length > 0) {

@@ -26,6 +26,8 @@ import {
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
+  finalizeAutoTagColors,
+  AUTO_TAG_COLOR_SENTINEL,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -323,16 +325,10 @@ export function parseSitemap(
       if (indent > 0) {
         const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
         const { label, color } = extractColor(cleanEntry, palette);
-        if (!color) {
-          pushError(
-            lineNumber,
-            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
-          );
-          continue;
-        }
+        // Bare value (no explicit color) → keep it; finalized below.
         currentTagGroup.entries.push({
           value: label,
-          color,
+          color: color ?? AUTO_TAG_COLOR_SENTINEL,
           lineNumber,
         });
         if (isDefault) {
@@ -574,6 +570,9 @@ export function parseSitemap(
   }
 
   // Validate tag group values on all nodes
+  // Assign palette colors to bare (colorless) tag values.
+  finalizeAutoTagColors(result.tagGroups as Writable<TagGroup>[], palette);
+
   if (result.tagGroups.length > 0) {
     const allNodes: SitemapNode[] = [];
     const collectAll = (nodes: readonly SitemapNode[]) => {

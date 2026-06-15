@@ -299,9 +299,21 @@ describe('parseOrg', () => {
       expect(result.error).toMatch(/Tag groups must appear before org content/);
     });
 
-    it('error on tag entry without color', () => {
+    it('auto-assigns a palette color to a bare tag value (no error, not dropped)', () => {
       const result = parseOrg('tag Location\n  NY\n\nJane');
-      expect(result.error).toMatch(/Expected 'Value color' in tag group/);
+      expect(result.error).toBeNull();
+      expect(result.tagGroups[0].entries).toHaveLength(1);
+      const entry = result.tagGroups[0].entries[0];
+      expect(entry.value).toBe('NY');
+      // Auto color is a resolved hex, not empty and not the grey fallback.
+      expect(entry.color).toMatch(/^#/);
+      expect(entry.color).not.toBe('');
+      expect(entry.color).not.toBe('#999999');
+      expect(
+        result.diagnostics.some((d) =>
+          d.message.includes("Expected 'Value color'")
+        )
+      ).toBe(false);
     });
 
     it('first entry is default', () => {
@@ -315,6 +327,26 @@ describe('parseOrg', () => {
     it('single-entry tag group has that entry as default', () => {
       const result = parseOrg('tag Location\n  NY blue\n\nJane');
       expect(result.tagGroups[0].defaultValue).toBe('NY');
+    });
+
+    it('bare value skips a color used by an explicit entry BELOW it', () => {
+      // High is bare; Low explicitly red below it. High must not get red.
+      const result = parseOrg(
+        'tag Priority\n  High\n  Low red\n\nAlice priority: High'
+      );
+      expect(result.error).toBeNull();
+      const entries = result.tagGroups[0].entries;
+      const high = entries.find((e) => e.value === 'High')!;
+      const low = entries.find((e) => e.value === 'Low')!;
+      expect(low.color).toBe('#bf616a'); // explicit red (Nord)
+      expect(high.color).not.toBe('#bf616a');
+      expect(high.color).toMatch(/^#/);
+    });
+
+    it('explicit color still wins over auto-assignment', () => {
+      const result = parseOrg('tag Priority\n  High blue\n  Low\n\nAlice');
+      const high = result.tagGroups[0].entries.find((e) => e.value === 'High')!;
+      expect(high.color).toBe('#5e81ac'); // explicit blue (Nord)
     });
   });
 

@@ -86,7 +86,7 @@ Billing t: Product
 Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply these unless the prompt says otherwise:
 
 - **Title it.** Put a short title on the type-declaration line (`flowchart Checkout Flow`, `boxes-and-lines Service Map`) so the diagram is self-describing.
-- **Color by grouping, not at random.** When items fall into categories, declare a tag group and assign members so each category shares one color — far clearer than ad-hoc per-node colors. Use the tag-group syntax shown in the per-type section below (declare `tag Team as t`, indent the values with a trailing color, then assign `Node t: Team`). Only the 11 named palette colors exist.
+- **Color by grouping, not at random.** When items fall into categories, declare a tag group and assign members so each category shares one color — far clearer than ad-hoc per-node colors. Use the tag-group syntax shown in the per-type section below (declare `tag Team as t`, indent the values — a trailing color is optional, bare values auto-pick a palette color — then assign `Node t: Team`). Only the 11 named palette colors exist.
 - **Keep labels short.** A few words per node. Move detail into notes or metadata, never a full sentence inside a label.
 - **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
 - **Pick a fitting direction.** Top-to-bottom for hierarchies and processes; left-to-right for pipelines and flows (where the type supports a direction).
@@ -186,6 +186,7 @@ tag GroupName as <alias>
 - Alias: optional postfix `as <alias>` per §2A (universal alias syntax — `[A-Za-z][A-Za-z0-9_]{0,11}`)
 - Inline values also supported: `tag Priority as p Low green, High red`
 - Color follows the value as a bare trailing token (see §1.5). Capitalize the color word (`Red`, `Yellow`) to keep it as a literal value with no color.
+- **Color is optional** — a bare value (`High`, not `High red`) auto-assigns a deterministic palette color, skipping any color used by an explicit entry in the same group. An explicit `Value color` always wins. So `tag Priority as p High, Med, Low` is valid and renders three distinct colors.
 - First entry is the default value — reorder to change
 - The first declared group is active by default (colors nodes immediately); `active-tag <GroupName>` only matters with ≥2 groups to pick a non-first group, and `active-tag none` suppresses all coloring
 - Must appear before diagram content

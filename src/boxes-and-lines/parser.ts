@@ -19,6 +19,8 @@ import {
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
+  finalizeAutoTagColors,
+  AUTO_TAG_COLOR_SENTINEL,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
@@ -398,7 +400,7 @@ export function parseBoxesAndLines(
           const { label, color } = extractColor(cleanVal);
           newTagGroup.entries.push({
             value: label,
-            color: color ?? '',
+            color: color ?? AUTO_TAG_COLOR_SENTINEL,
             lineNumber: lineNum,
           });
           if (isDefault) newTagGroup.defaultValue = label;
@@ -418,7 +420,7 @@ export function parseBoxesAndLines(
       const { label, color } = extractColor(cleanEntry);
       currentTagGroup.entries.push({
         value: label,
-        color: color ?? '',
+        color: color ?? AUTO_TAG_COLOR_SENTINEL,
         lineNumber: lineNum,
       });
       if (isDefault) {
@@ -754,6 +756,11 @@ export function parseBoxesAndLines(
       result.diagnostics
     );
   }
+
+  // Assign palette colors to bare (colorless) tag values. Boxes-and-lines
+  // resolves explicit tag colors against the Nord defaults (no palette is
+  // passed to extractColor above), so auto colors match for consistency.
+  finalizeAutoTagColors(result.tagGroups as Writable<TagGroup>[]);
 
   // Post-parse: inject default tag metadata and validate tag values
   if (result.tagGroups.length > 0) {
