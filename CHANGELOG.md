@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-06-15
+
+This release **freezes the DGMO language and locks the public API** ahead of
+1.0 — the deprecated-but-working syntax forms are removed and the unstable
+`/internal` entry point is retired. It contains **breaking changes**; most are
+graceful (the diagram still renders best-effort while emitting a structured
+error), and `dgmo migrate` covers the data-row comma change.
+
+### Removed (breaking)
+
+- **`/internal` subpath entry point.** Long deprecated (its banner said
+  "removed in 0.17.x"); import unstable symbols from `@diagrammo/dgmo/advanced`
+  instead — it is symbol-identical and documented as a permanent no-semver
+  surface.
+- **Gantt legacy scheduling syntax** (`parallel`, positional/explicit-date
+  duration forms) → `E_GANTT_LEGACY_REMOVED`. Use the v2 arrow scheduling
+  syntax; `duration:` / `start:` are canonical and unchanged.
+- **Comma-separated data-row values** → `E_DATA_COMMA_REMOVED`. Data rows are
+  space-separated; thousands separators are dropped (use `1_000` underscore
+  grouping if needed). Run `dgmo migrate` to convert existing diagrams.
+- **Bare `description <text>`** (no colon) → `E_DESCRIPTION_BARE_REMOVED` across
+  infra/c4/sitemap/mindmap/journey-map. Use `description: <text>`.
+- **PERT `analysis` directive** → `E_PERT_ANALYSIS_REMOVED` (was already inert).
+- **Timeline positional duration** (`30d`) → `E_TIMELINE_BARE_DURATION_REMOVED`;
+  `duration:` is now the canonical form.
+- **C4 bare same-line `description`/`tech` tail** → `E_C4_BARE_TAIL_REMOVED`.
+  Previously the bare form was silently dropped (real data loss); it now errors
+  and the colon form is required.
+
+### Changed
+
+- **Auto-assigned tag colors.** A bare, uncolored tag value now receives a
+  deterministic categorical palette color via a per-group finalize pass;
+  explicit colors always win and are never reused.
+- **Public API surface locked.** `chartTypes`, `ChartTypeMeta`, and `MapData`
+  are promoted to the stable root (`@diagrammo/dgmo`). `/advanced` is documented
+  as the permanent no-semver firehose. API.md drift fixed (slate is the default
+  palette; previously-missing root exports and the `./pert` subpath documented).
+
+### Added
+
+- **AI authoring-guidance layer** — `AI-CORE` styling guidance plus per-type
+  authoring tips, delivered to the static surfaces and the MCP per-type slice.
+
+### Performance
+
+- **Map.** Memoize projected region geometry across recolor; bbox pre-filter in
+  `fillAt` cuts `layoutMap` by ~36%.
+
+### Fixed
+
+- **Map framing.** Tuck Alaska/Hawaii insets under the coast (not the canvas
+  floor) and enlarge them; tall-pane albers-usa framing sinks the insets and
+  nudges CONUS up; region labels are cleaned-or-dropped instead of trailing
+  spaghetti leaders.
+
+### Tests
+
+- Added parser unit tests for `arc`, `slope`, and `wordcloud`; fixed the
+  coverage glob that tried to parse `src/map/data/README.md` as JS.
+
 ## [0.28.0] - 2026-06-10
 
 ### Changed
