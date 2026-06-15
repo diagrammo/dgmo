@@ -1,8 +1,10 @@
 # @diagrammo/dgmo — Public API
 
-This is the frozen, stable surface. ~12 exports at the root. Everything else
-is reachable via `@diagrammo/dgmo/internal` (unstable — no semver) or via
-the three stable subpaths: `@diagrammo/dgmo/editor`, `/highlight`, `/auto`.
+This is the frozen, stable surface (root entry). Everything else is reachable
+via `@diagrammo/dgmo/advanced` (the permanent **no-semver** firehose — use at
+your own risk; it may change in any release) or via the stable subpaths:
+`@diagrammo/dgmo/editor`, `/highlight`, `/auto`. The legacy `/internal` alias
+was removed at 1.0 — use `/advanced`.
 
 ```bash
 npm install @diagrammo/dgmo
@@ -21,7 +23,7 @@ Rust 25`);
 document.getElementById('chart').innerHTML = svg;
 ```
 
-Three lines. Defaults to Nord palette, light theme. Renders an inline error
+Three lines. Defaults to Slate palette, light theme. Renders an inline error
 SVG on bad input so the user sees what's wrong without you writing
 fallback UI.
 
@@ -36,7 +38,7 @@ function render(
   text: string,
   options?: {
     theme?: Theme;           // 'light' | 'dark' | 'transparent'  (default 'light')
-    palette?: PaletteConfig; // see `palettes` namespace          (default palettes.nord)
+    palette?: PaletteConfig; // see `palettes` namespace          (default palettes.slate)
     onError?: 'svg' | 'silent' | 'throw'; // (default 'svg')
   }
 ): Promise<{ svg: string; diagnostics: DgmoError[] }>;
@@ -148,7 +150,7 @@ share URLs and the CLI `--palette` flag (`'tokyo-night'`, `'catppuccin'`,
 etc.). Use `Object.values(palettes)` to iterate.
 
 Custom palettes are not supported on the public surface — use
-`/internal`'s `registerPalette` if you genuinely need to add one and accept
+`/advanced`'s `registerPalette` if you genuinely need to add one and accept
 the no-semver contract.
 
 ### `themes`
@@ -237,7 +239,10 @@ Build  2026-02-15 ~ 2026-04-01
 
 Configuration via `<script data-config='{...}'>` or `window.dgmo.initialize(...)`.
 
-### `@diagrammo/dgmo/internal` (unstable — NOT public API)
+### `@diagrammo/dgmo/advanced` (unstable — NOT public API)
+
+> The legacy `@diagrammo/dgmo/internal` alias for this subpath is removed at 1.0 — import from `/advanced`.
+
 
 > **These exports are not part of the public API.** They will be renamed,
 > removed, or behave differently in any release — including patch versions.
@@ -332,7 +337,7 @@ if (diagnostics.length > 0) {
 three stable subpaths (`/editor`, `/highlight`, `/auto`). Breaking changes
 to these require a major version bump.
 
-`@diagrammo/dgmo/internal` does NOT follow semver. Treat it as
+`@diagrammo/dgmo/advanced` does NOT follow semver. Treat it as
 implementation detail.
 
 ## Language reference
