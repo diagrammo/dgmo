@@ -23,7 +23,10 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      include: ['src/**'],
+      // Only instrument TS source — `src/**` also swept non-code assets
+      // (e.g. src/map/data/README.md, *.json) which the v8 remapper then
+      // tried to parse as JS and crashed the coverage report.
+      include: ['src/**/*.ts'],
       exclude: [
         'src/**/*.d.ts',
         'src/cli.ts', // CLI exercised via E2E gallery, not unit tests
