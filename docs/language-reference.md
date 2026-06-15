@@ -1375,15 +1375,20 @@ API Integration duration: 10bd
   -> Launch Day offset: 10bd
 ```
 
-### 12.10 Parallel Block
+### 12.10 Parallel Scheduling
+
+Sibling tasks (and sibling groups) run in **parallel by default** — no
+keyword is needed. Use indented `->` arrows to express the sequencing you
+want; anything left un-chained starts together at the parent's start.
 
 ```
-parallel
-  [Backend]
-    Schema duration: 20bd
-  [Frontend]
-    Wireframes duration: 10bd
+[Backend]
+  Schema duration: 20bd
+[Frontend]
+  Wireframes duration: 10bd
 ```
+
+> The `parallel` keyword was removed at 1.0 (error `E_GANTT_LEGACY_REMOVED`).
 
 ---
 

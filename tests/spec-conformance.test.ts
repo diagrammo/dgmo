@@ -521,7 +521,7 @@ describe('1. Valid syntax', () => {
   describe('gantt (parseGantt)', () => {
     it('minimal gantt chart', () => {
       const r = parseGantt(
-        'gantt Product Launch\nstart 2026-03-15\n\n10bd Design\n5bd Build\n  -> Design',
+        'gantt Product Launch\nstart 2026-03-15\n\nDesign 10bd\nBuild 5bd\n  -> Design',
         palette
       );
       expect(hasNoErrors(r)).toBe(true);
@@ -788,7 +788,7 @@ describe('3. Boolean options', () => {
 describe('4. New features', () => {
   it('gantt era block form', () => {
     const r = parseGantt(
-      'gantt Test\nstart 2026-03-15\n\nera\n  2026-04-06 -> 2026-04-10 Conference\n  2026-06-01 -> 2026-06-05 Sprint Review\n\n5bd Task A',
+      'gantt Test\nstart 2026-03-15\n\nera\n  2026-04-06 -> 2026-04-10 Conference\n  2026-06-01 -> 2026-06-05 Sprint Review\n\nTask A 5bd',
       palette
     );
     expect(hasNoErrors(r)).toBe(true);
@@ -799,7 +799,7 @@ describe('4. New features', () => {
 
   it('gantt marker block form', () => {
     const r = parseGantt(
-      'gantt Test\nstart 2026-03-15\n\nmarker\n  2026-03-27 Board Review\n  2026-06-15 Release\n\n5bd Task A',
+      'gantt Test\nstart 2026-03-15\n\nmarker\n  2026-03-27 Board Review\n  2026-06-15 Release\n\nTask A 5bd',
       palette
     );
     expect(hasNoErrors(r)).toBe(true);
@@ -810,7 +810,7 @@ describe('4. New features', () => {
 
   it('gantt top-level workweek', () => {
     const r = parseGantt(
-      'gantt Test\nstart 2026-03-15\nworkweek sun-thu\n\n5bd Task A',
+      'gantt Test\nstart 2026-03-15\nworkweek sun-thu\n\nTask A 5bd',
       palette
     );
     expect(hasNoErrors(r)).toBe(true);

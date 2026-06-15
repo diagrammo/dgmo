@@ -203,12 +203,12 @@ Carol as al`,
     name: 'gantt',
     declAndRef: `gantt
 start 2024-01-15
-10d Source as s
-10d Target as t
+Source as s duration: 10d
+Target as t duration: 10d
   -> s`,
     freshAfter: `gantt
 start 2024-01-15
-10d Carol as s`,
+Carol as s duration: 10d`,
     run(src) {
       const r = parseGantt(src);
       return {

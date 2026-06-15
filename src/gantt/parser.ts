@@ -5,6 +5,7 @@
 import {
   formatDgmoError,
   ganttBarePercentRemovedMessage,
+  ganttLegacyRemovedMessage,
   makeDgmoError,
   METADATA_DIAGNOSTIC_CODES,
   pipeOperatorRemovedMessage,
@@ -69,7 +70,7 @@ const LEGACY_TIMELINE_DURATION_RE =
 /** Group container: `[GroupName]` with optional pipe metadata */
 const GROUP_RE = /^\[(.+?)\]\s*(.*)$/;
 
-/** Dependency: `-> TargetName` or `-label-> TargetName` with optional pipe metadata */
+/** Dependency: `-> TargetName` or `-label-> TargetName` (label captured) */
 const DEPENDENCY_RE = /^(?:-(.+?))?->\s*(.+)$/;
 
 /** Comment line */
@@ -125,64 +126,6 @@ const ERA_OFFSET_RE =
 /** Marker with offset: `marker +10w Label [color]` */
 const MARKER_OFFSET_RE =
   /^marker\s+\+(\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h|s))\s+(.+)$/i;
-
-// ── Syntax mode detection ──────────────────────────────────
-
-type SyntaxMode = 'new' | 'legacy';
-
-function detectSyntaxMode(lines: string[]): SyntaxMode {
-  let hasNewIndicators = false;
-  let hasLegacyIndicators = false;
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('//')) continue;
-    // Skip known header lines
-    if (
-      /^(?:gantt|start |tag |era |marker |holiday|workweek |sort |title |today-marker|critical-path|no-|solid-fill|sprint-|active-tag )/i.test(
-        line
-      )
-    )
-      continue;
-    if (line.startsWith('[')) continue; // groups are shared
-    if (/^->|^-\d|^--\d/.test(line)) continue; // arrows are ambiguous — skip
-
-    // New indicators: offset prefix, or line ending in positional duration token
-    if (OFFSET_PREFIX_RE.test(line)) hasNewIndicators = true;
-    if (LAG_ARROW_RE.test(line) || LEAD_ARROW_RE.test(line))
-      hasNewIndicators = true;
-
-    // Check for positional duration: line that doesn't use metadata keys,
-    // and whose tokens end with a bare duration token
-    if (
-      !hasNewIndicators &&
-      !/\b(?:duration|offset|start|progress)\s*:/.test(line) &&
-      !line.startsWith('-')
-    ) {
-      const tokens = line.split(/\s+/);
-      const lastToken = tokens[tokens.length - 1];
-      if (
-        lastToken &&
-        DURATION_TOKEN_RE.test(lastToken) &&
-        tokens.length >= 2
-      ) {
-        hasNewIndicators = true;
-      }
-    }
-
-    // Legacy indicators
-    if (line === 'parallel') hasLegacyIndicators = true;
-    if (/\bduration\s*:/.test(line) && !line.startsWith('->'))
-      hasLegacyIndicators = true;
-    if (LEGACY_DURATION_RE.test(line)) hasLegacyIndicators = true;
-    if (LEGACY_TIMELINE_DURATION_RE.test(line)) hasLegacyIndicators = true;
-    if (LEGACY_EXPLICIT_DATE_RE.test(line)) hasLegacyIndicators = true;
-  }
-
-  if (hasNewIndicators) return 'new';
-  if (hasLegacyIndicators) return 'legacy';
-  return 'new';
-}
 
 // Valid weekday names
 const WEEKDAY_MAP: Record<string, Weekday> = {
@@ -254,7 +197,7 @@ export function parseGantt(
     },
     diagnostics,
     error: null,
-    syntaxMode: 'legacy', // set after detection below
+    syntaxMode: 'new', // always new-mode at 1.0
   };
 
   const fail = (line: number, message: string): ParsedGantt => {
@@ -330,7 +273,9 @@ export function parseGantt(
   let lastTaskNode: Writable<GanttNode & { kind: 'task' }> | null = null;
   let taskIdCounter = 0;
   const seriesColors = palette ? getSeriesColors(palette) : [];
-  const syntaxMode = detectSyntaxMode(lines);
+  // 1.0: parser is always new-mode. Legacy scheduling forms are
+  // detected per-line and rejected with E_GANTT_LEGACY_REMOVED.
+  const syntaxMode = 'new' as const;
   result.syntaxMode = syntaxMode;
   // const definedTaskNames = new Map<string, string>(); // normalized name → scope key (Phase 6 diagnostics)
 
@@ -529,10 +474,10 @@ export function parseGantt(
     // ── Close blocks when indent decreases ────────────────
     // CRITICAL: close blocks BEFORE matching new elements
 
-    if (syntaxMode === 'new') {
-      // New mode: track pop depth for sequential vs parallel arrow semantics.
-      // Consecutive same-indent arrows = sequential chain.
-      // Returning from a deeper subtree = parallel branch from parent.
+    // Track pop depth for sequential vs parallel arrow semantics.
+    // Consecutive same-indent arrows = sequential chain.
+    // Returning from a deeper subtree = parallel branch from parent.
+    {
       let hadDeeperPop = false;
       let lastPoppedTaskRef: typeof lastTaskNode = null;
 
@@ -571,27 +516,23 @@ export function parseGantt(
         lastTaskNode = lastPoppedTaskRef;
       }
       // If nothing was popped, lastTaskNode stays the same
-    } else {
-      // Legacy mode: clear lastTaskNode on any pop
-      while (blockStack.length > 0) {
-        const top = blockStack[blockStack.length - 1]!;
-        if (indent <= top.indent) {
-          blockStack.pop();
-          lastTaskNode = null;
-        } else {
-          break;
-        }
-      }
     }
 
     // ── NEW-MODE: arrow / task / group / metadata parsing ──
 
     if (syntaxMode === 'new') {
-      // 1. Arrow lines: `->`, `-3w->`, `--2w->`
+      // 1. Arrow lines: `->`, `-3w->`, `--2w->`, `-label-> Target`
       const arrowResult = matchArrowLine(line);
       if (arrowResult) {
-        // Parse remainder as task content (name + optional duration + metadata)
-        const content = parseNewTaskContent(arrowResult.rest, lineNumber);
+        // Parse remainder as task content (name + optional duration +
+        // metadata). For pipe-bearing dep lines (`Target | lag: 3bd`),
+        // the metadata tail may contain a duration-shaped value that the
+        // positional scan would wrongly grab — restrict definition
+        // detection to the segment before the first `|`.
+        const defSegment = arrowResult.rest.includes('|')
+          ? arrowResult.rest.split('|')[0]!
+          : arrowResult.rest;
+        const content = parseNewTaskContent(defSegment, lineNumber);
 
         if (content.duration || content.explicitStart) {
           // Definition + dependency: create task AND edge
@@ -610,6 +551,9 @@ export function parseGantt(
           if (lastTaskNode) {
             (lastTaskNode.dependencies as GanttDependency[]).push({
               targetName: content.name,
+              ...(arrowResult.label !== undefined && {
+                label: arrowResult.label,
+              }),
               ...(arrowResult.lag !== undefined && { offset: arrowResult.lag }),
               lineNumber,
             });
@@ -627,12 +571,76 @@ export function parseGantt(
             taskRef: writableTask,
           });
         } else {
-          // Reference only: dependency edge from lastTaskNode to target
+          // Reference only: dependency edge from lastTaskNode to target.
+          // The target body may carry offset metadata in the §1.4
+          // (`Target offset: 2bd`) or legacy pipe (`Target | offset: 2bd`)
+          // form. Pipe metadata is already flagged via E_PIPE_OPERATOR_REMOVED
+          // wherever a `|` survives; here we still parse it for back-compat.
           if (lastTaskNode) {
-            const targetName = content.name.trim();
+            const depBody = arrowResult.rest;
+            let targetSegment: string;
+            let meta: Record<string, string>;
+            if (depBody.includes('|')) {
+              const depParts = depBody.split('|');
+              targetSegment = depParts[0]!.trim();
+              meta = parsePipeMetadata(
+                ['', ...depParts.slice(1)],
+                metaAliasMap,
+                () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
+              );
+            } else {
+              const depRegistry = withTagAliases(
+                GANTT_REGISTRY,
+                new Set(metaAliasMap.keys())
+              );
+              const split = splitNameAndMeta(
+                depBody.trim(),
+                depRegistry,
+                metaAliasMap
+              );
+              warnUnknownMetaKeys(
+                split.meta,
+                depRegistry,
+                (msg) => warn(lineNumber, msg),
+                split.name
+              );
+              targetSegment = split.name;
+              meta = split.meta;
+            }
+            const targetName = resolveAliasTarget(targetSegment);
+            let offset: Offset | undefined = arrowResult.lag;
+
+            if (meta['lag'] || meta['lead']) {
+              const key = meta['lag'] ? 'lag' : 'lead';
+              softError(
+                lineNumber,
+                `"${key}" is no longer supported — use "offset: ${meta[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`
+              );
+            }
+            if (meta['offset']) {
+              const raw = meta['offset'];
+              if (raw.trim().startsWith('+')) {
+                warn(
+                  lineNumber,
+                  `Invalid offset: "${raw}". Explicit "+" is not supported — use "${raw.trim().slice(1)}" instead.`
+                );
+              } else {
+                offset = parseOffset(raw) ?? undefined;
+                if (!offset) {
+                  warn(
+                    lineNumber,
+                    `Invalid offset: "${raw}". Expected format like "3bd", "-5d", or "0bd".`
+                  );
+                }
+              }
+            }
+
             (lastTaskNode.dependencies as GanttDependency[]).push({
               targetName,
-              ...(arrowResult.lag !== undefined && { offset: arrowResult.lag }),
+              ...(arrowResult.label !== undefined && {
+                label: arrowResult.label,
+              }),
+              ...(offset !== undefined && { offset }),
               lineNumber,
             });
           } else {
@@ -734,100 +742,6 @@ export function parseGantt(
       // Fall through to shared sections (holidays, tags, date-based eras/markers,
       // options). They will continue if matched. If nothing matches, we reach
       // the new-mode task/group section below (after shared options).
-    }
-
-    // ── LEGACY-MODE: Check if we're inside a task (for deps/comments) ──
-
-    if (syntaxMode === 'legacy' && lastTaskNode && indent > 0) {
-      // Dependency under a task
-      const depMatch = line.match(DEPENDENCY_RE);
-      if (depMatch) {
-        const label = depMatch[1]?.trim() || undefined;
-        // Capture group 2 guaranteed by successful regex match.
-        const depBody = depMatch[2]!;
-        // Accept both legacy `Target | offset: 2bd` and §1.4
-        // `Target offset: 2bd`. Legacy `|` still flags the cut;
-        // otherwise splitNameAndMeta cuts at the first reserved key
-        // in GANTT_REGISTRY (offset, color, description, progress).
-        let targetSegment: string;
-        let meta: Record<string, string>;
-        if (depBody.includes('|')) {
-          const depParts = depBody.split('|');
-          targetSegment = depParts[0]!.trim();
-          meta = parsePipeMetadata(
-            ['', ...depParts.slice(1)],
-            metaAliasMap,
-            () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
-          );
-        } else {
-          const depRegistry = withTagAliases(
-            GANTT_REGISTRY,
-            new Set(metaAliasMap.keys())
-          );
-          const split = splitNameAndMeta(
-            depBody.trim(),
-            depRegistry,
-            metaAliasMap
-          );
-          warnUnknownMetaKeys(
-            split.meta,
-            depRegistry,
-            (msg) => warn(lineNumber, msg),
-            split.name
-          );
-          targetSegment = split.name;
-          meta = split.meta;
-        }
-        const targetName = resolveAliasTarget(targetSegment);
-        let offset: Offset | undefined;
-
-        if (Object.keys(meta).length > 0) {
-          // Capture-group label: keep the structure of the original
-          // legacy `if (depParts.length > 1)` branch — same meta
-          // handling, just routed through the dual-form extractor.
-          if (meta['lag'] || meta['lead']) {
-            const key = meta['lag'] ? 'lag' : 'lead';
-            softError(
-              lineNumber,
-              `"${key}" is no longer supported — use "offset: ${meta[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`
-            );
-          }
-          if (meta['offset']) {
-            const raw = meta['offset'];
-            if (raw.trim().startsWith('+')) {
-              warn(
-                lineNumber,
-                `Invalid offset: "${raw}". Explicit "+" is not supported — use "${raw.trim().slice(1)}" instead.`
-              );
-            } else {
-              offset = parseOffset(raw) ?? undefined;
-              if (!offset) {
-                warn(
-                  lineNumber,
-                  `Invalid offset: "${raw}". Expected format like "3bd", "-5d", or "0bd".`
-                );
-              }
-            }
-          }
-        }
-
-        lastTaskNode.dependencies.push({
-          targetName,
-          ...(label !== undefined && { label }),
-          ...(offset !== undefined && { offset }),
-          lineNumber,
-        });
-        continue;
-      }
-
-      // Comment under a task
-      if (COMMENT_RE.test(line)) {
-        const commentText = line.replace(/^\/\/\s?/, '');
-        lastTaskNode.comment = lastTaskNode.comment
-          ? lastTaskNode.comment + '\n' + commentText
-          : commentText;
-        continue;
-      }
     }
 
     // ── Top-level comment ─────────────────────────────────
@@ -1189,6 +1103,143 @@ export function parseGantt(
     // ── NEW-MODE: offset prefix + group / positional task ──
 
     if (syntaxMode === 'new') {
+      // ── 1.0: removed LEGACY scheduling forms → hard error ──
+      // The four pre-1.0 shorthands would otherwise be silently mis-parsed
+      // in new mode (e.g. `8d Design` → a task literally named "8d
+      // Design", `parallel` → a task named "parallel"). Detect each,
+      // emit `E_GANTT_LEGACY_REMOVED`, then best-effort parse so the
+      // diagram still renders (matches the other 1.0 freeze removals).
+
+      // (a) `parallel` keyword → removed. Bare siblings are already
+      //     parallel in v2; keep the block so nesting still renders.
+      if (line === 'parallel') {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            ganttLegacyRemovedMessage(
+              'parallel',
+              'remove it — sibling tasks already run in parallel by default'
+            ),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.GANTT_LEGACY_REMOVED
+          )
+        );
+        const parallel: Writable<GanttParallelBlock> = {
+          kind: 'parallel',
+          lineNumber,
+          children: [],
+        };
+        currentContainer().push(parallel);
+        blockStack.push({ node: parallel, indent, containerType: 'parallel' });
+        lastTaskNode = null;
+        continue;
+      }
+
+      // (b) legacy timeline-duration: `2024-01-15 -> 30d Label`
+      const legacyTimeline = line.match(LEGACY_TIMELINE_DURATION_RE);
+      if (legacyTimeline) {
+        const startDate = legacyTimeline[1]!;
+        const amount = parseFloat(legacyTimeline[2]!);
+        const unit = legacyTimeline[3] as DurationUnit;
+        const uncertain = !!legacyTimeline[4];
+        const labelRaw = legacyTimeline[5]!;
+        const durStr = `${legacyTimeline[2]}${unit}${uncertain ? '?' : ''}`;
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            ganttLegacyRemovedMessage(
+              line,
+              `use \`${labelRaw.split('|')[0]!.trim()} start: ${startDate}, duration: ${durStr}\``
+            ),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.GANTT_LEGACY_REMOVED
+          )
+        );
+        const task = makeTask(
+          labelRaw,
+          { amount, unit },
+          uncertain,
+          lineNumber,
+          startDate
+        );
+        const taskNode: GanttNode = { kind: 'task', ...task };
+        currentContainer().push(taskNode);
+        lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
+        blockStack.push({
+          node: taskNode as unknown as Writable<GanttGroup>,
+          indent,
+          containerType: 'task',
+          taskRef: lastTaskNode,
+        });
+        continue;
+      }
+
+      // (c) duration-before-name: `8d Design` / `30bd Task`
+      const legacyDur = line.match(LEGACY_DURATION_RE);
+      if (legacyDur) {
+        const amount = parseFloat(legacyDur[1]!);
+        const unit = legacyDur[2] as DurationUnit;
+        const uncertain = !!legacyDur[3];
+        const labelRaw = legacyDur[4]!;
+        const durStr = `${legacyDur[1]}${unit}${uncertain ? '?' : ''}`;
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            ganttLegacyRemovedMessage(
+              line,
+              `use \`${labelRaw.split('|')[0]!.trim()} duration: ${durStr}\` or positional \`${labelRaw.split('|')[0]!.trim()} ${durStr}\``
+            ),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.GANTT_LEGACY_REMOVED
+          )
+        );
+        const task = makeTask(
+          labelRaw,
+          { amount, unit },
+          uncertain,
+          lineNumber
+        );
+        const taskNode: GanttNode = { kind: 'task', ...task };
+        currentContainer().push(taskNode);
+        lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
+        blockStack.push({
+          node: taskNode as unknown as Writable<GanttGroup>,
+          indent,
+          containerType: 'task',
+          taskRef: lastTaskNode,
+        });
+        continue;
+      }
+
+      // (d) explicit-date task: `2024-01-15 Design`
+      const legacyDate = line.match(LEGACY_EXPLICIT_DATE_RE);
+      if (legacyDate) {
+        const startDate = legacyDate[1]!;
+        const labelRaw = legacyDate[2]!;
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            ganttLegacyRemovedMessage(
+              line,
+              `use \`${labelRaw.split('|')[0]!.trim()} start: ${startDate}\``
+            ),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.GANTT_LEGACY_REMOVED
+          )
+        );
+        const task = makeTask(labelRaw, null, false, lineNumber, startDate);
+        const taskNode: GanttNode = { kind: 'task', ...task };
+        currentContainer().push(taskNode);
+        lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
+        blockStack.push({
+          node: taskNode as unknown as Writable<GanttGroup>,
+          indent,
+          containerType: 'task',
+          taskRef: lastTaskNode,
+        });
+        continue;
+      }
+
       // Check for offset prefix: `+4w [Group]` or `+4w Task 30bd`
       let restAfterOffset = line;
       let lineOffset: Offset | undefined;
@@ -1301,236 +1352,6 @@ export function parseGantt(
       );
       continue;
     }
-
-    // ── LEGACY-MODE: Parallel block ──────────────────────
-
-    if (line === 'parallel') {
-      const parallel: Writable<GanttParallelBlock> = {
-        kind: 'parallel',
-        lineNumber,
-        children: [],
-      };
-      currentContainer().push(parallel);
-      blockStack.push({ node: parallel, indent, containerType: 'parallel' });
-      lastTaskNode = null;
-      continue;
-    }
-
-    // ── LEGACY-MODE: Group container ─────────────────────
-
-    const groupMatch = line.match(GROUP_RE);
-    if (groupMatch) {
-      // Validate nesting: group under a task is invalid
-      // In-bounds by blockStack.length > 0 guard.
-      if (
-        blockStack.length > 0 &&
-        blockStack[blockStack.length - 1]!.containerType === 'task'
-      ) {
-        softError(
-          lineNumber,
-          `Cannot nest a group inside a task. Groups must be inside other groups or parallel blocks.`
-        );
-        continue;
-      }
-
-      // Capture group 2 guaranteed by successful regex match.
-      const afterBrackets = groupMatch[2]!.trim();
-      const segments = afterBrackets ? afterBrackets.split('|') : [];
-
-      // First segment could be empty (just `[Group]`) or have metadata
-      let metadata: Record<string, string> = {};
-      const color: string | null = null;
-
-      const pipeWarn = () => warn(lineNumber, MULTIPLE_PIPE_ERROR);
-      // In-bounds by segments.length > 0 guard.
-      if (segments.length > 0 && segments[0]!.trim()) {
-        // Check if first segment after brackets is pipe metadata
-        metadata = parsePipeMetadata(['', ...segments], metaAliasMap, pipeWarn);
-      } else if (segments.length > 1) {
-        metadata = parsePipeMetadata(
-          ['', ...segments.slice(1)],
-          metaAliasMap,
-          pipeWarn
-        );
-      }
-
-      // TD-18: peel optional `as <alias>` from the group label.
-      // Capture group 1 guaranteed by successful regex match.
-      const groupPeeled = peelAlias(groupMatch[1]!);
-      if (groupPeeled.alias)
-        nameAliasMap.set(groupPeeled.alias, groupPeeled.label);
-      const group: Writable<GanttGroup> = {
-        name: groupPeeled.label,
-        color,
-        metadata,
-        lineNumber,
-        children: [],
-      };
-      const groupNode: GanttNode = { kind: 'group', ...group };
-      currentContainer().push(groupNode);
-      blockStack.push({
-        node: groupNode as unknown as Writable<GanttGroup>,
-        indent,
-        containerType: 'group',
-      });
-      lastTaskNode = null;
-      continue;
-    }
-
-    // ── Legacy syntax: dual-accept with migration warning ───
-
-    const timelineDurMatch = line.match(LEGACY_TIMELINE_DURATION_RE);
-    if (timelineDurMatch) {
-      const startDate = timelineDurMatch[1]!;
-      const amount = parseFloat(timelineDurMatch[2]!);
-      const unit = timelineDurMatch[3] as DurationUnit;
-      const uncertain = !!timelineDurMatch[4];
-      const labelRaw = timelineDurMatch[5]!;
-      const durStr = `${timelineDurMatch[2]}${unit}${uncertain ? '?' : ''}`;
-      const trailingMeta = extractTrailingMeta(labelRaw);
-      const suggestion = trailingMeta
-        ? `${trailingMeta.name} start: ${startDate}, duration: ${durStr}, ${trailingMeta.meta}`
-        : `${labelRaw.split('|')[0]!.trim()} start: ${startDate}, duration: ${durStr}`;
-      warn(lineNumber, `Gantt task syntax changed — write: ${suggestion}`);
-
-      const task = makeTask(
-        labelRaw,
-        { amount, unit },
-        uncertain,
-        lineNumber,
-        startDate
-      );
-      const taskNode: GanttNode = { kind: 'task', ...task };
-      currentContainer().push(taskNode);
-      lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
-      blockStack.push({
-        node: taskNode as unknown as Writable<GanttGroup>,
-        indent,
-        containerType: 'task',
-      });
-      continue;
-    }
-
-    const durMatch = line.match(LEGACY_DURATION_RE);
-    if (durMatch) {
-      const amount = parseFloat(durMatch[1]!);
-      const unit = durMatch[2] as DurationUnit;
-      const uncertain = !!durMatch[3];
-      const labelRaw = durMatch[4]!;
-      const durStr = `${durMatch[1]}${unit}${uncertain ? '?' : ''}`;
-      const trailingMeta = extractTrailingMeta(labelRaw);
-      const suggestion = trailingMeta
-        ? `${trailingMeta.name} duration: ${durStr}, ${trailingMeta.meta}`
-        : `${labelRaw.split('|')[0]!.trim()} duration: ${durStr}`;
-      warn(lineNumber, `Gantt task syntax changed — write: ${suggestion}`);
-
-      const task = makeTask(labelRaw, { amount, unit }, uncertain, lineNumber);
-      const taskNode: GanttNode = { kind: 'task', ...task };
-      currentContainer().push(taskNode);
-      lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
-      blockStack.push({
-        node: taskNode as unknown as Writable<GanttGroup>,
-        indent,
-        containerType: 'task',
-      });
-      continue;
-    }
-
-    const explicitDateMatch = line.match(LEGACY_EXPLICIT_DATE_RE);
-    if (explicitDateMatch) {
-      const trailingMeta = extractTrailingMeta(explicitDateMatch[2]!);
-      const suggestion = trailingMeta
-        ? `${trailingMeta.name} start: ${explicitDateMatch[1]!}, ${trailingMeta.meta}`
-        : `${explicitDateMatch[2]!.split('|')[0]!.trim()} start: ${explicitDateMatch[1]!}`;
-      warn(lineNumber, `Gantt task syntax changed — write: ${suggestion}`);
-
-      const task = makeTask(
-        explicitDateMatch[2]!,
-        null,
-        false,
-        lineNumber,
-        explicitDateMatch[1]!
-      );
-      const taskNode: GanttNode = { kind: 'task', ...task };
-      currentContainer().push(taskNode);
-      lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
-      blockStack.push({
-        node: taskNode as unknown as Writable<GanttGroup>,
-        indent,
-        containerType: 'task',
-      });
-      continue;
-    }
-
-    // ── Dependency at root level (under a task context) ───
-
-    const depMatch = line.match(DEPENDENCY_RE);
-    if (depMatch) {
-      // Dependency without a task context is an error
-      if (!lastTaskNode) {
-        softError(
-          lineNumber,
-          `Dependency "-> ${depMatch[2]}" must be indented under a task.`
-        );
-        continue;
-      }
-      // This happens when the dep is at the same indent as the task
-      const label = depMatch[1]?.trim() || undefined;
-      // Capture group 2 guaranteed by successful regex match.
-      const depParts = depMatch[2]!.split('|');
-      // TD-18: resolve alias literal → canonical task label; depParts has at
-      // least one element from split.
-      const targetName = resolveAliasTarget(depParts[0]!.trim());
-      let offset: Offset | undefined;
-
-      if (depParts.length > 1) {
-        const meta = parsePipeMetadata(
-          ['', ...depParts.slice(1)],
-          metaAliasMap,
-          () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
-        );
-        if (meta['lag'] || meta['lead']) {
-          const key = meta['lag'] ? 'lag' : 'lead';
-          softError(
-            lineNumber,
-            `"${key}" is no longer supported — use "offset: ${meta[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`
-          );
-        }
-        if (meta['offset']) {
-          const raw = meta['offset'];
-          if (raw.trim().startsWith('+')) {
-            warn(
-              lineNumber,
-              `Invalid offset: "${raw}". Explicit "+" is not supported — use "${raw.trim().slice(1)}" instead.`
-            );
-          } else {
-            offset = parseOffset(raw) ?? undefined;
-            if (!offset) {
-              warn(
-                lineNumber,
-                `Invalid offset: "${raw}". Expected format like "3bd", "-5d", or "0bd".`
-              );
-            }
-          }
-        }
-      }
-
-      lastTaskNode.dependencies.push({
-        targetName,
-        ...(label !== undefined && { label }),
-        ...(offset !== undefined && { offset }),
-        lineNumber,
-      });
-      continue;
-    }
-
-    // ── Bare label = parse error ──────────────────────────
-
-    softError(
-      lineNumber,
-      `Expected task with duration/start (e.g., "Task Name duration: 5d"), group brackets (e.g., "[Group]"), or keyword. Got: "${line}"`
-    );
-    continue;
   }
 
   // ── Finalize ────────────────────────────────────────────
@@ -1586,6 +1407,7 @@ export function parseGantt(
   interface ArrowMatch {
     rest: string;
     lag?: Offset | undefined;
+    label?: string | undefined;
   }
 
   function matchArrowLine(trimmedLine: string): ArrowMatch | null {
@@ -1609,6 +1431,13 @@ export function parseGantt(
     const basicMatch = trimmedLine.match(BASIC_ARROW_RE);
     if (basicMatch) {
       return { rest: basicMatch[1]! };
+    }
+    // Labeled arrow: `-blocks-> Rest` / `-depends on-> Rest`.
+    // The label is any text between the leading `-` and `->` that is
+    // NOT a pure lag/lead duration (those are handled above).
+    const labeledMatch = trimmedLine.match(DEPENDENCY_RE);
+    if (labeledMatch?.[1]) {
+      return { rest: labeledMatch[2]!, label: labeledMatch[1].trim() };
     }
     return null;
   }
@@ -1944,38 +1773,6 @@ const KNOWN_BOOLEANS = GANTT_KNOWN_BOOLEANS;
 
 function isKnownOption(key: string): boolean {
   return KNOWN_OPTIONS.has(key);
-}
-
-/**
- * Extract trailing metadata from a legacy label for migration suggestions.
- * Handles both pipe (`Label | k: v`) and §1.4 (`Label k: v`) forms.
- */
-function extractTrailingMeta(
-  labelRaw: string
-): { name: string; meta: string } | null {
-  const pipeIdx = labelRaw.indexOf('|');
-  if (pipeIdx > 0) {
-    const rawMeta = labelRaw
-      .substring(pipeIdx + 1)
-      .trim()
-      .replace(/\|/g, ',');
-    return {
-      name: labelRaw.substring(0, pipeIdx).trim(),
-      meta: rawMeta,
-    };
-  }
-  const colonIdx = labelRaw.indexOf(':');
-  if (colonIdx > 0) {
-    const beforeColon = labelRaw.substring(0, colonIdx).trim();
-    const lastSpace = beforeColon.lastIndexOf(' ');
-    if (lastSpace > 0) {
-      return {
-        name: beforeColon.substring(0, lastSpace).trim(),
-        meta: labelRaw.substring(lastSpace + 1).trim(),
-      };
-    }
-  }
-  return null;
 }
 
 /** Check if any task in the tree uses the `s` (sprint) duration unit. */

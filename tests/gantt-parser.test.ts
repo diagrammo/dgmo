@@ -1170,26 +1170,31 @@ describe('gantt parser', () => {
 
   // ── Migration: legacy syntax dual-accept with warnings ───
 
-  describe('legacy syntax migration', () => {
-    it('old 30d Task emits warning with correct suggestion (AC 6)', () => {
+  // ── 1.0: removed legacy scheduling forms → hard error ───
+  // The four pre-1.0 shorthands (`parallel`, duration-before-name,
+  // explicit-date, legacy timeline-duration) are removed at 1.0. Each
+  // emits E_GANTT_LEGACY_REMOVED (error) but is still best-effort
+  // parsed so the diagram renders.
+  describe('legacy scheduling forms removed (E_GANTT_LEGACY_REMOVED)', () => {
+    const hasLegacyError = (r: ReturnType<typeof parseGantt>) =>
+      r.diagnostics.some(
+        (d) => d.severity === 'error' && d.code === 'E_GANTT_LEGACY_REMOVED'
+      );
+
+    it('duration-before-name `30bd Task` errors but renders', () => {
       const result = parseGantt('gantt\n30bd Task Name', palette);
+      expect(hasLegacyError(result)).toBe(true);
       expect(result.nodes).toHaveLength(1);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.label).toBe('Task Name');
         expect(task.duration).toEqual({ amount: 30, unit: 'bd' });
       }
-      expect(
-        result.diagnostics.some(
-          (d) =>
-            d.severity === 'warning' &&
-            d.message.includes('Task Name duration: 30bd')
-        )
-      ).toBe(true);
     });
 
-    it('old DATE Task emits warning with correct suggestion (AC 7)', () => {
+    it('explicit-date task `2024-01-15 Task` errors but renders', () => {
       const result = parseGantt('gantt\n2024-01-15 Task Name', palette);
+      expect(hasLegacyError(result)).toBe(true);
       expect(result.nodes).toHaveLength(1);
       const task = result.nodes[0];
       if (task.kind === 'task') {
@@ -1197,17 +1202,11 @@ describe('gantt parser', () => {
         expect(task.explicitStart).toBe('2024-01-15');
         expect(task.duration).toBeNull();
       }
-      expect(
-        result.diagnostics.some(
-          (d) =>
-            d.severity === 'warning' &&
-            d.message.includes('Task Name start: 2024-01-15')
-        )
-      ).toBe(true);
     });
 
-    it('old DATE -> Xd Task emits warning with correct suggestion (AC 8)', () => {
+    it('legacy timeline-duration `DATE -> Xd Task` errors but renders', () => {
       const result = parseGantt('gantt\n2024-01-15 -> 30d Task Name', palette);
+      expect(hasLegacyError(result)).toBe(true);
       expect(result.nodes).toHaveLength(1);
       const task = result.nodes[0];
       if (task.kind === 'task') {
@@ -1215,44 +1214,26 @@ describe('gantt parser', () => {
         expect(task.explicitStart).toBe('2024-01-15');
         expect(task.duration).toEqual({ amount: 30, unit: 'd' });
       }
-      expect(
-        result.diagnostics.some(
-          (d) =>
-            d.severity === 'warning' &&
-            d.message.includes('Task Name start: 2024-01-15, duration: 30d')
-        )
-      ).toBe(true);
     });
 
-    it('old syntax with metadata includes metadata in suggestion', () => {
-      const result = parseGantt('gantt\n30bd Task Name progress: 80', palette);
-      expect(result.nodes).toHaveLength(1);
-      const task = result.nodes[0];
-      if (task.kind === 'task') {
-        expect(task.label).toBe('Task Name');
-        expect(task.progress).toBe(80);
-      }
-      expect(
-        result.diagnostics.some(
-          (d) =>
-            d.severity === 'warning' &&
-            d.message.includes('Gantt task syntax changed')
-        )
-      ).toBe(true);
+    it('`parallel` keyword errors but block still renders children', () => {
+      const result = parseGantt(
+        'gantt\nstart 2024-01-15\nparallel\n  X 5d\n  Y 3d',
+        palette
+      );
+      expect(hasLegacyError(result)).toBe(true);
+      // Children still parse (sibling tasks).
+      expect(result.nodes.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('old uncertain syntax still parses correctly', () => {
+    it('uncertain duration-before-name `30d? Task` errors but renders', () => {
       const result = parseGantt('gantt\n30d? Task Name', palette);
+      expect(hasLegacyError(result)).toBe(true);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.uncertain).toBe(true);
         expect(task.duration).toEqual({ amount: 30, unit: 'd' });
       }
-      expect(
-        result.diagnostics.some((d) =>
-          d.message.includes('Gantt task syntax changed')
-        )
-      ).toBe(true);
     });
   });
 
@@ -1737,31 +1718,49 @@ describe('gantt parser', () => {
       });
     });
 
-    describe('syntax detection', () => {
-      it('detects legacy mode for duration: key syntax', () => {
-        const result = parseGantt('gantt\nTask A duration: 10d', palette);
-        expect(result.syntaxMode).toBe('legacy');
-      });
-
-      it('detects new mode for positional duration', () => {
+    describe('always new-mode (legacy detection removed at 1.0)', () => {
+      it('positional duration parses with no legacy error', () => {
         const result = parseGantt(
           'gantt\nstart 2024-01-15\n\nTask A 10d',
           palette
         );
         expect(result.syntaxMode).toBe('new');
+        expect(
+          result.diagnostics.some((d) => d.code === 'E_GANTT_LEGACY_REMOVED')
+        ).toBe(false);
       });
 
-      it('detects legacy mode for parallel keyword', () => {
+      // CRITICAL regression guard: `duration:` / `start:` are KEPT
+      // fallback metadata keys (§13.8). New mode parses them with NO
+      // error — they must never be flagged as legacy.
+      it('`duration:` fallback key parses cleanly (no error)', () => {
+        const result = parseGantt('gantt\nTask A duration: 10d', palette);
+        expect(result.syntaxMode).toBe('new');
+        expect(
+          result.diagnostics.filter((d) => d.severity === 'error')
+        ).toHaveLength(0);
+        const task = result.nodes[0];
+        if (task.kind === 'task') {
+          expect(task.label).toBe('Task A');
+          expect(task.duration).toEqual({ amount: 10, unit: 'd' });
+        }
+      });
+
+      it('`start:` fallback key parses cleanly (no error)', () => {
         const result = parseGantt(
-          'gantt\nparallel\n  Task A duration: 10d\n  Task B duration: 5d',
+          'gantt\nTask A start: 2024-01-15, duration: 5d',
           palette
         );
-        expect(result.syntaxMode).toBe('legacy');
-      });
-
-      it('detects legacy mode for duration-first syntax', () => {
-        const result = parseGantt('gantt\n10d Task A', palette);
-        expect(result.syntaxMode).toBe('legacy');
+        expect(result.syntaxMode).toBe('new');
+        expect(
+          result.diagnostics.filter((d) => d.severity === 'error')
+        ).toHaveLength(0);
+        const task = result.nodes[0];
+        if (task.kind === 'task') {
+          expect(task.label).toBe('Task A');
+          expect(task.explicitStart).toBe('2024-01-15');
+          expect(task.duration).toEqual({ amount: 5, unit: 'd' });
+        }
       });
     });
   });

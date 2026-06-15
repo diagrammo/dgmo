@@ -17,7 +17,9 @@ function fmt(d: Date): string {
 describe('gantt calculator', () => {
   describe('sequential tasks', () => {
     it('chains sequential tasks', () => {
-      const result = calc('gantt\nstart 2024-01-15\n10d Task A\n5d Task B');
+      const result = calc(
+        'gantt\nstart 2024-01-15\nTask A 10d\n  -> Task B 5d'
+      );
       expect(result.error).toBeNull();
       expect(result.tasks).toHaveLength(2);
 
@@ -46,12 +48,13 @@ describe('gantt calculator', () => {
 
     it('task after parallel starts at max end', () => {
       const result = calc(
-        'gantt\nstart 2024-01-15\nparallel\n  5d X\n  3d Y\n2d After'
+        'gantt\nstart 2024-01-15\nX 5d\n  -> After\nY 3d\n  -> After\nAfter 2d'
       );
       expect(result.error).toBeNull();
       expect(result.tasks).toHaveLength(3);
-      // After should start at max(X end, Y end) = X end = Jan 20
-      expect(fmt(result.tasks[2].startDate)).toBe('2024-01-20');
+      // After depends on both X and Y → starts at max(X end, Y end) = X end = Jan 20
+      const after = result.tasks.find((t) => t.task.label === 'After');
+      expect(fmt(after!.startDate)).toBe('2024-01-20');
     });
   });
 
@@ -145,15 +148,20 @@ parallel
     });
   });
 
-  describe('missing parallel warning', () => {
-    it('warns when 2+ top-level groups without parallel', () => {
+  describe('top-level groups run in parallel (v2 default)', () => {
+    it('2+ top-level groups start together, no sequential warning', () => {
       const input =
-        'gantt\nstart 2024-01-15\n[A]\n  5d Task 1\n[B]\n  5d Task 2';
+        'gantt\nstart 2024-01-15\n[A]\n  Task 1 5d\n[B]\n  Task 2 5d';
       const result = calc(input);
-      const warnings = result.diagnostics.filter(
-        (d) => d.severity === 'warning'
-      );
-      expect(warnings.some((w) => w.message.includes('sequential'))).toBe(true);
+      // v2: bare siblings (incl. top-level groups) are parallel — both
+      // tasks start at the chart start, and there is no legacy
+      // "wrap in parallel" warning anymore.
+      expect(result.tasks).toHaveLength(2);
+      expect(fmt(result.tasks[0].startDate)).toBe('2024-01-15');
+      expect(fmt(result.tasks[1].startDate)).toBe('2024-01-15');
+      expect(
+        result.diagnostics.some((d) => d.message.includes('sequential'))
+      ).toBe(false);
     });
   });
 
@@ -167,7 +175,7 @@ parallel
 
   describe('relative timeline', () => {
     it('works without start date', () => {
-      const result = calc('gantt\n10d Task A\n5d Task B');
+      const result = calc('gantt\nTask A 10d\n  -> Task B 5d');
       expect(result.error).toBeNull();
       expect(result.tasks).toHaveLength(2);
       // Should still have sequential ordering
@@ -224,7 +232,7 @@ holiday
 
       it('with deps, positive — starts after predecessor + offset', () => {
         const result = calc(
-          'gantt\nstart 2024-01-15\n10d First\n5d Second | offset: 3d'
+          'gantt\nstart 2024-01-15\nFirst 10d\n  -3d-> Second 5d'
         );
         expect(result.error).toBeNull();
         // First: Jan 15 -> Jan 25. Second starts at Jan 25 + 3d = Jan 28
@@ -233,7 +241,7 @@ holiday
 
       it('with deps, negative — overlaps predecessor', () => {
         const result = calc(
-          'gantt\nstart 2024-01-15\n10d First\n5d Second | offset: -2d'
+          'gantt\nstart 2024-01-15\nFirst 10d\n  --2d-> Second 5d'
         );
         expect(result.error).toBeNull();
         // First: Jan 15 -> Jan 25. Second starts at Jan 25 - 2d = Jan 23
@@ -451,13 +459,15 @@ critical-path
     });
 
     it('cascades to sequential successor', () => {
-      const result = calc('gantt\nstart 2024-01-15\n10d? A\n5d B');
+      const result = calc('gantt\nstart 2024-01-15\nA 10d?\n  -> B 5d');
       const b = result.tasks.find((t) => t.task.label === 'B');
       expect(b!.isUncertain).toBe(true);
     });
 
     it('cascades transitively', () => {
-      const result = calc('gantt\nstart 2024-01-15\n10d? A\n5d B\n3d C');
+      const result = calc(
+        'gantt\nstart 2024-01-15\nA 10d?\n  -> B 5d\n    -> C 3d'
+      );
       const c = result.tasks.find((t) => t.task.label === 'C');
       expect(c!.isUncertain).toBe(true);
     });
@@ -492,7 +502,7 @@ parallel
   describe('sprint bands', () => {
     it('generates sprint bands for tasks spanning 6 weeks with sprint-length 2w', () => {
       const input =
-        'gantt\nstart 2026-01-05\nsprint-length 2w\n2w Task A\n2w Task B\n2w Task C';
+        'gantt\nstart 2026-01-05\nsprint-length 2w\nTask A 2w\n  -> Task B 2w\n    -> Task C 2w';
       const result = calc(input);
       expect(result.sprints.length).toBeGreaterThanOrEqual(3);
       expect(result.sprints[0].number).toBe(1); // default sprint-number

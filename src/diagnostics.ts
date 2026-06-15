@@ -329,6 +329,17 @@ export const METADATA_DIAGNOSTIC_CODES = {
    * duration is still applied so the diagram renders.
    */
   TIMELINE_BARE_DURATION_REMOVED: 'E_TIMELINE_BARE_DURATION_REMOVED',
+  /**
+   * Error: a removed gantt LEGACY scheduling form. Covers the four
+   * pre-1.0 shorthands: the `parallel` keyword, duration-before-name
+   * (`8d Design`), explicit-date task (`2024-01-15 Design`), and
+   * legacy timeline-duration (`2024-01-15 -> 30d Label`). The newer
+   * v2 forms — positional `Task 30bd`, arrow graph `-> Task`, offset
+   * `+4w Task`, and the colon-keyed `duration:` / `start:` fallback
+   * keys (§13.8) — are the canonical replacements. The value is
+   * still applied best-effort so the diagram renders.
+   */
+  GANTT_LEGACY_REMOVED: 'E_GANTT_LEGACY_REMOVED',
 } as const;
 
 /**
@@ -404,6 +415,22 @@ export function c4BareTailRemovedMessage(tail: string): string {
  */
 export function timelineBareDurationRemovedMessage(token: string): string {
   return `Positional duration '${token}' removed — use 'duration: ${token}' (colon required, per §1.4 metadata)`;
+}
+
+/**
+ * Canonical message for `E_GANTT_LEGACY_REMOVED`. Emitted when a gantt
+ * task line uses one of the four removed pre-1.0 scheduling forms.
+ * `form` describes the offending construct (e.g. the matched text);
+ * `replacement`, when given, names the canonical v2 form to use.
+ */
+export function ganttLegacyRemovedMessage(
+  form: string,
+  replacement?: string
+): string {
+  const fix =
+    replacement ??
+    'use `Task duration: ...` / `Task start: DATE` or positional `Task 30bd`';
+  return `Legacy gantt syntax '${form}' removed at 1.0 — ${fix} (per §13.8)`;
 }
 
 /**
