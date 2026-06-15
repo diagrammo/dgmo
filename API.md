@@ -190,6 +190,17 @@ interface DgmoError {
 }
 ```
 
+### Additional stable root exports
+
+These are also exported from the root (stable, semver-tracked):
+
+- `resolvePaletteOrFallback(name?)` — resolve a palette by id, falling back to the default (slate). The shared resolve·fallback seam used by the wrappers.
+- `getMinDimensions(text)` — minimum render dimensions for a diagram (sizing hint).
+- `normalizeSvgForEmbed(svg)` / `getEmbedSvgViewBox(svg)` — prepare a rendered SVG for embedding (viewBox normalization).
+- `completeMapPlaces(...)` / `completeMapRegions(...)` — dependency-injected map autocompletion (caller supplies the `Gazetteer`).
+- `chartTypes` (+ `ChartTypeMeta`) — the chart-type registry (promoted to root at 1.0).
+- `MapData` (type) — the map DI-asset shape, for the browser-render path (promoted to root at 1.0).
+
 ## Subpaths
 
 ### `@diagrammo/dgmo/editor` (stable)
@@ -238,6 +249,11 @@ Build  2026-02-15 ~ 2026-04-01
 ```
 
 Configuration via `<script data-config='{...}'>` or `window.dgmo.initialize(...)`.
+
+### `@diagrammo/dgmo/pert` (stable, narrow)
+
+A tree-shaken entry exposing only the PERT Monte-Carlo core, for bundling into
+a Web Worker without pulling the full library. Most consumers don't need it.
 
 ### `@diagrammo/dgmo/advanced` (unstable — NOT public API)
 
