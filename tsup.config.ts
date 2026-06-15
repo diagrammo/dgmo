@@ -171,16 +171,6 @@ const BUILDS: Options[] = [
     esbuildPlugins: [fixJsdomXhrWorker],
   },
   {
-    entry: { internal: 'src/internal.ts' },
-    format: ['esm', 'cjs'],
-    dts: true,
-    sourcemap: true,
-    splitting: false,
-    noExternal: ['lz-string'],
-    external: ['jsdom'],
-    esbuildPlugins: [fixJsdomXhrWorker],
-  },
-  {
     entry: { pert: 'src/pert/index.ts' },
     format: ['esm', 'cjs'],
     dts: true,

@@ -149,8 +149,17 @@ declare const themes: {
     readonly transparent: "transparent";
 };
 
-/** Get palette by id. Returns Nord if id is unrecognized (FR10). */
+/** Get palette by id. Silently returns the default palette if id is unrecognized. */
 declare function getPalette(id: string): PaletteConfig;
+/**
+ * Resolve a palette by id, falling back to the default palette when the id is
+ * unregistered. If a `warn` callback is supplied, it is invoked once with a
+ * human-readable fallback message on a miss — the single place the "resolve,
+ * fall back, warn" policy lives, so each host can surface it its own way
+ * (console.warn, Obsidian Notice, MCP response). Silent when the id resolves or
+ * when no callback is passed.
+ */
+declare function resolvePaletteOrFallback(id: string, warn?: (message: string) => void): PaletteConfig;
 
 /**
  * All built-in palettes, keyed by camelCase id. Use directly with render():
@@ -212,6 +221,31 @@ declare function getEmbedSvgViewBox(svg: string): {
     height: number;
 } | null;
 
+/** A TopoJSON topology (world-coarse/world-detail keyed by ISO 3166-1 alpha-2;
+ *  us-states keyed by ISO 3166-2). Geometry feature `id` is the ISO code;
+ *  `properties.name` is the display string. Kept loose to avoid a topojson dep. */
+interface BoundaryTopology {
+    type: 'Topology';
+    objects: Record<string, {
+        type: string;
+        geometries: BoundaryGeometry[];
+    }>;
+    arcs: number[][][];
+    transform?: {
+        scale: [number, number];
+        translate: [number, number];
+    };
+    bbox?: number[];
+}
+interface BoundaryGeometry {
+    type: string;
+    /** ISO code: alpha-2 (countries) or 3166-2 `US-XX` (states). */
+    id: string;
+    properties: {
+        name: string;
+    };
+    arcs?: unknown;
+}
 /**
  * A gazetteer city entry: `[lat, lon, iso, pop, name, sub?]`.
  * - `lat`/`lon` — rounded to 3 decimals.
@@ -255,6 +289,30 @@ interface Gazetteer {
 interface AirportData {
     readonly airports: GazetteerEntry[];
     readonly airportIata: Record<string, number>;
+}
+/** Water-feature class (Natural Earth `featurecla`, rivers/reefs excluded). */
+type WaterKind = 'ocean' | 'sea' | 'gulf' | 'bay' | 'strait' | 'channel' | 'sound';
+/**
+ * A water-body label entry: `[lat, lon, name, tier, kind, alt?]`.
+ * - `lat`/`lon` — label anchor (Natural Earth inner point), rounded to 3 decimals.
+ * - `name` — full display name (no abbreviation exists for water bodies).
+ * - `tier` — Natural Earth `scalerank` (0 = most prominent → orientation priority).
+ * - `kind` — feature class (drives styling/priority bucketing).
+ * - `alt` — optional extra anchor points `[lat, lon][]`; the layout picks the
+ *   one nearest the viewport center (Decision 5 multi-anchor seam). Absent today.
+ */
+type WaterBodyEntry = [
+    lat: number,
+    lon: number,
+    name: string,
+    tier: number,
+    kind: WaterKind,
+    alt?: ReadonlyArray<readonly [number, number]>
+];
+interface WaterBodies {
+    /** Deterministically ordered (tier, then name). Generated from Natural Earth
+     *  marine polys by scripts/build-map-data.mjs into `water-bodies.json`. */
+    readonly entries: readonly WaterBodyEntry[];
 }
 /** A fill-able region (country or US state) — the display name + its ISO id +
  *  layer. Powers region-name autocomplete (completion-only; the renderer derives
@@ -332,6 +390,46 @@ interface MapRegionCompletion {
  */
 declare function completeMapRegions(query: string, regions: readonly RegionName[], opts?: MapCompletionOptions): MapRegionCompletion[];
 
+interface ChartTypeMeta {
+    readonly id: string;
+    readonly description: string;
+    readonly fallback?: true;
+}
+declare const chartTypes: readonly ChartTypeMeta[];
+
+/** The four static assets, injected into the pure resolver (DI). */
+interface MapData {
+    worldCoarse: BoundaryTopology;
+    worldDetail: BoundaryTopology;
+    usStates: BoundaryTopology;
+    /** Major lakes (Natural Earth 110m) drawn as water over land — e.g. the Great
+     *  Lakes. Optional so hand-built test fixtures need not supply it. */
+    lakes?: BoundaryTopology;
+    /** Major river centerlines (Natural Earth 110m) drawn as thin water lines over
+     *  land — e.g. the Amazon, Nile, Mississippi. Optional, like `lakes`. */
+    rivers?: BoundaryTopology;
+    /** Notable mountain-range polygons (Natural Earth 50m geography regions) drawn
+     *  as a subtle gradient relief cue over base land when the `relief` directive
+     *  is on — e.g. the Rockies, Andes, Himalayas. Optional, like `lakes`. */
+    mountainRanges?: BoundaryTopology;
+    /** North-America-clipped 10m country land, used as crisp neighbour context
+     *  under the albers-usa US view so Canada/Mexico match the 10m states instead
+     *  of the coarser world tiers. Optional, like `lakes`. */
+    naLand?: BoundaryTopology;
+    /** North-America-clipped 10m major lakes (Great Lakes etc.), used in place of
+     *  the coarse `lakes` under the albers-usa US view. Optional. */
+    naLakes?: BoundaryTopology;
+    /** Water-body orientation labels (Natural Earth marine polys) drawn when the
+     *  `context-labels` directive is on — oceans/seas/gulfs/bays/etc. Optional, so
+     *  hand-built test fixtures and older bundles need not supply it. */
+    waterBodies?: WaterBodies;
+    /** IATA-coded airports (`airports.json`) — lets `poi JFK` / `route JFK -> LAX`
+     *  resolve. Optional so hand-built fixtures and older DI bundles need not supply
+     *  it; the resolver guards `data.airports?.…` everywhere. */
+    airports?: AirportData;
+    gazetteer: Gazetteer;
+}
+
 interface RenderOptions {
     theme?: Theme;
     palette?: PaletteConfig;
@@ -397,4 +495,4 @@ interface DecodedDiagramUrl {
  */
 declare function decodeDiagramUrl(url: string): DecodedDiagramUrl | null;
 
-export { type CompactViewState, type DecodedDiagramUrl, type DgmoError, type DgmoSeverity, type EncodeDiagramUrlOptions, type Gazetteer, type GazetteerEntry, type MapCompletionOptions, type MapPlaceCompletion, type MapRegionCompletion, type PaletteColors, type PaletteConfig, type RegionName, type RegionNames, type RenderOptions, type RenderResult, type Theme, completeMapPlaces, completeMapRegions, decodeDiagramUrl, encodeDiagramUrl, formatDgmoError, getEmbedSvgViewBox, getMinDimensions, getPalette, normalizeSvgForEmbed, palettes, render, themes, parseDgmo as validate };
+export { type ChartTypeMeta, type CompactViewState, type DecodedDiagramUrl, type DgmoError, type DgmoSeverity, type EncodeDiagramUrlOptions, type Gazetteer, type GazetteerEntry, type MapCompletionOptions, type MapData, type MapPlaceCompletion, type MapRegionCompletion, type PaletteColors, type PaletteConfig, type RegionName, type RegionNames, type RenderOptions, type RenderResult, type Theme, chartTypes, completeMapPlaces, completeMapRegions, decodeDiagramUrl, encodeDiagramUrl, formatDgmoError, getEmbedSvgViewBox, getMinDimensions, getPalette, normalizeSvgForEmbed, palettes, render, resolvePaletteOrFallback, themes, parseDgmo as validate };

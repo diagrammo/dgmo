@@ -30,7 +30,7 @@ import {
   REFERENCE_GRAMMAR,
   extractDiagramSymbols,
 } from '../src/completion';
-import { ALL_CHART_TYPES } from '../src/internal';
+import { ALL_CHART_TYPES } from '../src/advanced';
 import { getAvailablePalettes } from '../src/palettes';
 
 import type { ConformanceFixture } from './fixtures/completion-conformance/_types';

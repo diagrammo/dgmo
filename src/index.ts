@@ -2,12 +2,12 @@
 // @diagrammo/dgmo — Public API
 // ============================================================
 //
-// This is the frozen public surface. ~12 exports. Everything else lives in
-// `@diagrammo/dgmo/internal` (unstable, no semver), `@diagrammo/dgmo/editor`,
+// This is the frozen public surface. Everything else lives in
+// `@diagrammo/dgmo/advanced` (unstable, no semver), `@diagrammo/dgmo/editor`,
 // `@diagrammo/dgmo/highlight`, or `@diagrammo/dgmo/auto`.
 //
-// If you need something not exported here, import from `/internal` and
-// accept the no-semver contract.
+// If you need something not exported here, import from `/advanced` and
+// accept the no-semver contract. (The legacy `/internal` alias was removed at 1.0.)
 
 import { render as renderInternal } from './render';
 import {
