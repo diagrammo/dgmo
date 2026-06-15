@@ -65,7 +65,13 @@ export interface ParsedChart {
 
 import { resolveColorWithDiagnostic, RECOGNIZED_COLOR_NAMES } from './colors';
 import type { PaletteColors } from './palettes';
-import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
+import {
+  makeDgmoError,
+  formatDgmoError,
+  suggest,
+  dataCommaRemovedMessage,
+  METADATA_DIAGNOSTIC_CODES,
+} from './diagnostics';
 import {
   extractColor,
   normalizeNumericToken,
@@ -386,6 +392,15 @@ export function parseChart(
     const dataValues = parseDataRowValues(trimmed, {
       multiValue,
       ...(multiValue && { expectedValues: seriesCount }),
+      onComma: (canonical) =>
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            dataCommaRemovedMessage(canonical),
+            'error',
+            METADATA_DIAGNOSTIC_CODES.DATA_COMMA_REMOVED
+          )
+        ),
     });
     if (dataValues) {
       const { label: rawLabel, color: pointColor } = extractColor(
@@ -512,11 +527,36 @@ export function parseChart(
  */
 export function parseDataRowValues(
   line: string,
-  options?: { multiValue?: boolean; expectedValues?: number }
+  options?: {
+    multiValue?: boolean;
+    expectedValues?: number;
+    /**
+     * Invoked at most once when commas are detected in the VALUE region of
+     * a data row — either as value separators (`Q1 400, 700`) or thousands
+     * grouping (`Revenue 1,000`). Receives the canonical space-separated,
+     * comma-free form of the offending value region. Callers use this to
+     * emit `E_DATA_COMMA_REMOVED`. Commas in the label/quoted portion never
+     * trigger this. The function still parses best-effort so the diagram
+     * renders.
+     */
+    onComma?: (canonical: string) => void;
+  }
 ): { label: string; values: number[] } | null {
   // First, normalize comma-grouped numbers: replace patterns like "1,087" with "1087"
   // We need to be careful: commas also separate multi-values.
   // Strategy: tokenize by commas, normalize grouped numbers, then re-parse.
+  //
+  // 1.0 freeze: data-row value commas (separator AND thousands grouping) are
+  // REMOVED. We still parse them best-effort so the diagram renders, but flag
+  // them via `options.onComma`. The flag fires only when a comma is actually
+  // consumed inside the value region — never for commas that end up in the
+  // label (quoted strings, comma-bearing labels).
+  let commaFlagged = false;
+  const flagComma = (canonical: string): void => {
+    if (commaFlagged) return;
+    commaFlagged = true;
+    options?.onComma?.(canonical);
+  };
 
   // Split by comma to get segments
   const segments = line.split(',');
@@ -545,6 +585,8 @@ export function parseDataRowValues(
           // Tentatively merge and validate
           // Build full token by looking at what's left in normalized
           // Simple approach: just merge
+          // A thousands-grouping comma was consumed (e.g. "1,000" → "1000").
+          flagComma(prevSeg + seg);
           normalized[normalized.length - 1] = prevSeg + seg;
           continue;
         }
@@ -601,6 +643,9 @@ export function parseDataRowValues(
               const normP = normalizeNumericToken(p.trim()) ?? p.trim();
               values.push(parseFloat(normP));
             }
+            // Commas separated the trailing values (and/or grouped thousands
+            // within them). Either way this is a removed data-row value comma.
+            flagComma(`${label} ${values.join(' ')}`);
             return { label, values };
           }
         }
@@ -618,6 +663,7 @@ export function parseDataRowValues(
   if (options?.multiValue) {
     const limit = options.expectedValues ?? Infinity;
     const values: number[] = [];
+    let sawComma = false;
     let idx = tokens.length - 1;
     while (idx >= 1 && values.length < limit) {
       // In-bounds by loop guard (idx >= 1 and idx <= tokens.length - 1).
@@ -625,12 +671,16 @@ export function parseDataRowValues(
       const normTok = normalizeNumericToken(tok) ?? tok;
       const num = parseFloat(normTok);
       if (isNaN(num) || !isFinite(Number(normTok))) break;
+      // A thousands comma glued to a value token (`1,000`) is a removed
+      // data-row value comma. Underscores stay valid.
+      if (tok.includes(',')) sawComma = true;
       values.unshift(num);
       idx--;
     }
     if (values.length === 0) return null;
     const label = tokens.slice(0, idx + 1).join(' ');
     if (!label) return null;
+    if (sawComma) flagComma(`${label} ${values.join(' ')}`);
     return { label, values };
   }
 
@@ -643,6 +693,9 @@ export function parseDataRowValues(
 
   const label = tokens.slice(0, -1).join(' ');
   if (!label) return null;
+
+  // A thousands comma glued to the value token (`Revenue 1,000`) is removed.
+  if (lastToken.includes(',')) flagComma(`${label} ${num}`);
 
   return { label, values: [num] };
 }

@@ -240,12 +240,16 @@ describe('1. Valid syntax', () => {
       expect(r.data[0].values).toEqual([3, 1, 1]);
     });
 
-    it('slope: thousands commas in values', () => {
+    it('slope: thousands commas in values error (1.0) but parse best-effort', () => {
       const r = parseVisualization(
         'slope\nperiod 2020 2025\nApple 1,000 2,500',
         palette
       );
-      expect(hasNoErrors(r)).toBe(true);
+      // 1.0 freeze: thousands commas removed → E_DATA_COMMA_REMOVED, but the
+      // value still parses so the diagram renders.
+      expect(r.diagnostics.some((d) => d.code === 'E_DATA_COMMA_REMOVED')).toBe(
+        true
+      );
       expect(r.data[0]).toMatchObject({ label: 'Apple', values: [1000, 2500] });
     });
 
@@ -351,12 +355,18 @@ describe('1. Valid syntax', () => {
     });
 
     it('quadrant diagram', () => {
+      // Axis labels keep their comma (low/high pair) — only DATA-point commas
+      // are removed at 1.0. Data points use the space-separated form.
       const r = parseVisualization(
-        'quadrant Assessment\nx-label Low Skill, High Skill\ny-label Low Loyalty, High Loyalty\n\ntop-right Promote\nbottom-left Avoid\n\nAlice 0.9, 0.95\nBob 0.3, 0.2',
+        'quadrant Assessment\nx-label Low Skill, High Skill\ny-label Low Loyalty, High Loyalty\n\ntop-right Promote\nbottom-left Avoid\n\nAlice 0.9 0.95\nBob 0.3 0.2',
         palette
       );
       expect(hasNoErrors(r)).toBe(true);
       expect(r.type).toBe('quadrant');
+      // Regression guard: comma axis labels did NOT trigger the data-comma error.
+      expect(r.diagnostics.some((d) => d.code === 'E_DATA_COMMA_REMOVED')).toBe(
+        false
+      );
     });
 
     it('timeline', () => {

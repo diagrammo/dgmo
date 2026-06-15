@@ -11,6 +11,9 @@ import { collectIndentedValues } from '../src/utils/parsing';
 
 const palette = getPalette('nord').light;
 
+const hasDataCommaError = (p: { diagnostics: { code?: string }[] }): boolean =>
+  p.diagnostics.some((d) => d.code === 'E_DATA_COMMA_REMOVED');
+
 // Helper: parse + build in one step
 function build(input: string) {
   const parsed = parseChart(input, palette);
@@ -1062,26 +1065,45 @@ describe('parseDataRowValues — space-delimited multi-values', () => {
     expect(parsed.data[1].extraValues).toEqual([35, 20, 20]);
   });
 
-  it('comma-separated multi-values still work', () => {
+  it('comma-separated multi-values error (1.0) but parse best-effort', () => {
+    // Note: `series X, Y` is a SERIES declaration (comma-separated names) and
+    // stays clean — only the DATA rows `Q1 10, 20` trigger the error.
     const input = 'bar-stacked\nseries X, Y\nQ1 10, 20\nQ2 30, 40';
     const parsed = parseChart(input, palette);
+    expect(hasDataCommaError(parsed)).toBe(true);
     expect(parsed.data).toHaveLength(2);
     expect(parsed.data[0].value).toBe(10);
     expect(parsed.data[0].extraValues).toEqual([20]);
   });
 
-  it('thousands commas in numbers are handled', () => {
+  it('thousands commas in numbers error (1.0) but parse best-effort', () => {
     const parsed = parseChart('bar\nRevenue 3,984,078', palette);
+    expect(hasDataCommaError(parsed)).toBe(true);
     expect(parsed.data).toHaveLength(1);
     expect(parsed.data[0].label).toBe('Revenue');
     expect(parsed.data[0].value).toBe(3984078);
   });
 
-  it('thousands commas with decimals are handled', () => {
+  it('thousands commas with decimals error (1.0) but parse best-effort', () => {
     const parsed = parseChart('bar\nRevenue 3,984,078.65', palette);
+    expect(hasDataCommaError(parsed)).toBe(true);
     expect(parsed.data).toHaveLength(1);
     expect(parsed.data[0].label).toBe('Revenue');
     expect(parsed.data[0].value).toBeCloseTo(3984078.65);
+  });
+
+  it('space-separated multi-values parse clean (canonical, no comma error)', () => {
+    const input = 'bar-stacked\nseries X, Y\nQ1 10 20\nQ2 30 40';
+    const parsed = parseChart(input, palette);
+    expect(hasDataCommaError(parsed)).toBe(false);
+    expect(parsed.data[0].value).toBe(10);
+    expect(parsed.data[0].extraValues).toEqual([20]);
+  });
+
+  it('plain integer (no thousands comma) parses clean (canonical)', () => {
+    const parsed = parseChart('bar\nRevenue 3984078', palette);
+    expect(hasDataCommaError(parsed)).toBe(false);
+    expect(parsed.data[0].value).toBe(3984078);
   });
 
   it('heatmap accepts space-delimited values', () => {
@@ -1141,55 +1163,67 @@ describe('scatter option has no tooltip/axisPointer', () => {
 // ── Numeric separator support ───────────────────────────────
 
 describe('numeric separators in chart data', () => {
-  it('bar chart with comma-grouped value', () => {
+  // 1.0 freeze: data-row value commas (thousands grouping + separator) are
+  // removed → E_DATA_COMMA_REMOVED. They still parse best-effort so the
+  // diagram renders. Underscore grouping (`1_000`) remains fully valid.
+  it('bar chart with comma-grouped value errors but parses best-effort', () => {
     const parsed = parseChart('bar\nRevenue 1,000,000', palette);
+    expect(hasDataCommaError(parsed)).toBe(true);
     expect(parsed.data[0].label).toBe('Revenue');
     expect(parsed.data[0].value).toBe(1000000);
   });
 
-  it('bar chart with underscore-separated value', () => {
+  it('bar chart with underscore-separated value (still valid)', () => {
     const parsed = parseChart('bar\nRevenue 1_000_000', palette);
+    expect(hasDataCommaError(parsed)).toBe(false);
     expect(parsed.data[0].label).toBe('Revenue');
     expect(parsed.data[0].value).toBe(1000000);
   });
 
-  it('bar chart with comma-grouped decimal', () => {
+  it('bar chart with comma-grouped decimal errors but parses best-effort', () => {
     const parsed = parseChart('bar\nRate 1,234.56', palette);
+    expect(hasDataCommaError(parsed)).toBe(true);
     expect(parsed.data[0].value).toBeCloseTo(1234.56);
   });
 
-  it('bar chart with underscore-separated decimal', () => {
+  it('bar chart with underscore-separated decimal (still valid)', () => {
     const parsed = parseChart('bar\nRate 1_234.56', palette);
+    expect(hasDataCommaError(parsed)).toBe(false);
     expect(parsed.data[0].value).toBeCloseTo(1234.56);
   });
 
-  it('bar chart with negative comma-grouped value', () => {
+  it('bar chart with negative comma-grouped value errors but parses best-effort', () => {
     const parsed = parseChart('bar\nLoss -1,000', palette);
+    expect(hasDataCommaError(parsed)).toBe(true);
     expect(parsed.data[0].value).toBe(-1000);
   });
 
-  it('bar chart with negative underscore-separated value', () => {
+  it('bar chart with negative underscore-separated value (still valid)', () => {
     const parsed = parseChart('bar\nLoss -1_000', palette);
+    expect(hasDataCommaError(parsed)).toBe(false);
     expect(parsed.data[0].value).toBe(-1000);
   });
 
-  it('multi-value row with comma-grouped numbers', () => {
+  it('multi-value row with comma-grouped numbers errors but parses best-effort', () => {
     const input = 'bar-stacked\nseries A, B, C\nQ1 1,000, 2,000, 3,000';
     const parsed = parseChart(input, palette);
+    expect(hasDataCommaError(parsed)).toBe(true);
     expect(parsed.data[0].value).toBe(1000);
     expect(parsed.data[0].extraValues).toEqual([2000, 3000]);
   });
 
-  it('multi-value row with underscore-separated numbers', () => {
-    const input = 'bar-stacked\nseries A, B, C\nQ1 1_000, 2_000, 3_000';
+  it('multi-value row with underscore-separated numbers (still valid)', () => {
+    const input = 'bar-stacked\nseries A, B, C\nQ1 1_000 2_000 3_000';
     const parsed = parseChart(input, palette);
+    expect(hasDataCommaError(parsed)).toBe(false);
     expect(parsed.data[0].value).toBe(1000);
     expect(parsed.data[0].extraValues).toEqual([2000, 3000]);
   });
 
-  it('scatter with mixed separators per axis', () => {
+  it('scatter with comma value errors but parses best-effort', () => {
     const input = 'scatter\nCity 1,000 2_000';
     const parsed = parseExtendedChart(input, palette);
+    expect(hasDataCommaError(parsed)).toBe(true);
     expect(parsed.scatterPoints![0]).toMatchObject({
       name: 'City',
       x: 1000,
@@ -1197,32 +1231,54 @@ describe('numeric separators in chart data', () => {
     });
   });
 
-  it('heatmap with formatted numbers', () => {
+  it('scatter with space + underscore values parses clean (canonical)', () => {
+    const input = 'scatter\nCity 1000 2_000';
+    const parsed = parseExtendedChart(input, palette);
+    expect(hasDataCommaError(parsed)).toBe(false);
+    expect(parsed.scatterPoints![0]).toMatchObject({
+      name: 'City',
+      x: 1000,
+      y: 2000,
+    });
+  });
+
+  it('heatmap with comma-formatted numbers errors but parses best-effort', () => {
     const input = 'heatmap\ncolumns A B C\nRow 1,000 2_000 3,000';
     const parsed = parseExtendedChart(input, palette);
+    expect(hasDataCommaError(parsed)).toBe(true);
     expect(parsed.heatmapRows![0].values).toEqual([1000, 2000, 3000]);
   });
 
-  it('invalid grouping is not treated as separator', () => {
-    // 1,00 has invalid grouping — comma acts as value delimiter
-    // Produces label "Revenue", value 1, extraValues [0] (the "00" part)
+  it('heatmap with space + underscore numbers parses clean (canonical)', () => {
+    const input = 'heatmap\ncolumns A B C\nRow 1000 2_000 3000';
+    const parsed = parseExtendedChart(input, palette);
+    expect(hasDataCommaError(parsed)).toBe(false);
+    expect(parsed.heatmapRows![0].values).toEqual([1000, 2000, 3000]);
+  });
+
+  it('invalid grouping is treated as separator and flagged', () => {
+    // 1,00 has invalid grouping — comma acts as value delimiter (still a
+    // removed data-row comma). Produces label "Revenue", value 1, extra [0].
     const parsed = parseChart('bar\nRevenue 1,00', palette);
+    expect(hasDataCommaError(parsed)).toBe(true);
     expect(parsed.data).toHaveLength(1);
     expect(parsed.data[0].label).toBe('Revenue');
     expect(parsed.data[0].value).toBe(1);
     expect(parsed.data[0].extraValues).toEqual([0]);
   });
 
-  it('comma-as-delimiter preserved', () => {
+  it('comma-as-delimiter errors but parses best-effort', () => {
     const input = 'bar-stacked\nseries A, B, C\nQ1 10, 20, 30';
     const parsed = parseChart(input, palette);
+    expect(hasDataCommaError(parsed)).toBe(true);
     expect(parsed.data[0].value).toBe(10);
     expect(parsed.data[0].extraValues).toEqual([20, 30]);
   });
 
-  it('sankey arrow link with comma-grouped value', () => {
+  it('sankey arrow link with comma-grouped value errors but parses best-effort', () => {
     const input = 'sankey\nA -> B 1,000';
     const parsed = parseExtendedChart(input, palette);
+    expect(hasDataCommaError(parsed)).toBe(true);
     expect(parsed.links![0]).toMatchObject({
       source: 'A',
       target: 'B',
@@ -1233,11 +1289,51 @@ describe('numeric separators in chart data', () => {
   it('sankey arrow link with underscore-separated value', () => {
     const input = 'sankey\nA -> B 1_000';
     const parsed = parseExtendedChart(input, palette);
+    expect(hasDataCommaError(parsed)).toBe(false);
     expect(parsed.links![0]).toMatchObject({
       source: 'A',
       target: 'B',
       value: 1000,
     });
+  });
+});
+
+// ── Regression guards: legitimate (non-data-row) commas stay CLEAN ──
+
+describe('data-comma removal does NOT touch other comma uses', () => {
+  it('series declaration commas (comma-separated names) stay clean', () => {
+    // `series Revenue, Cost` separates series NAMES — not data values.
+    const parsed = parseChart(
+      'bar\nseries Revenue, Cost\nJan 100 50\nFeb 200 80',
+      palette
+    );
+    expect(hasDataCommaError(parsed)).toBe(false);
+  });
+
+  it('x-label / y-label axis commas stay clean', () => {
+    const parsed = parseChart(
+      'bar Sales\nx-label Low, High\ny-label Min, Max\nJan 100',
+      palette
+    );
+    expect(hasDataCommaError(parsed)).toBe(false);
+  });
+
+  it('heatmap columns/rows declaration commas stay clean', () => {
+    // `columns Jan, Feb, Mar` is a label list, not a data row.
+    const parsed = parseExtendedChart(
+      'heatmap\ncolumns Jan, Feb, Mar\nTeam A 5 4 3',
+      palette
+    );
+    expect(hasDataCommaError(parsed)).toBe(false);
+    expect(parsed.columns).toEqual(['Jan', 'Feb', 'Mar']);
+  });
+
+  it('title with a comma stays clean', () => {
+    const parsed = parseChart(
+      'bar Revenue, Costs and Profit\nJan 100',
+      palette
+    );
+    expect(hasDataCommaError(parsed)).toBe(false);
   });
 });
 

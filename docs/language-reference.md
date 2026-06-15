@@ -1789,11 +1789,13 @@ marker
 
 Every section under §15 follows the same two rules.
 
-**Rule A — data rows are space-separated.** Commas between values are tolerated for back-compat but not idiomatic. Thousands-separator commas _inside a single number_ (`3,984,078.65`) are always supported.
+**Rule A — data rows are space-separated; commas are removed.** Values are separated by spaces only. A comma in a value position — whether a value separator (`Q1 400, 700`) or a thousands grouping (`Revenue 1,000`) — raises `E_DATA_COMMA_REMOVED`. Write whole numbers without thousands commas (`1000`, not `1,000`); an underscore digit-group separator is accepted if desired (`1_000`). The value still parses best-effort so the diagram renders, but the comma form is an error at 1.0.
 
 ```
-Q1 400 700 300 500     ✅  preferred
-Q1 400, 700, 300, 500  ⚠  tolerated; use spaces
+Q1 400 700 300 500     ✅  canonical
+Q1 400, 700, 300, 500  ❌  E_DATA_COMMA_REMOVED — use spaces
+Revenue 1000           ✅  canonical
+Revenue 1,000          ❌  E_DATA_COMMA_REMOVED — drop the thousands comma
 ```
 
 **Rule B — list-of-labelled-items directives (e.g. `series`, `columns`) prefer the indented one-per-line form.** Short one-line forms are tolerated for ≤3 items with no colour annotations or spaces.
@@ -2006,8 +2008,8 @@ Roberts 12 52
     Before COVID
     After COVID
   ```
-- Data rows: `Label value1 value2` — follows §15 Rule A (space-separated; commas between values tolerated for back-compat but not idiomatic)
-- Thousands commas within values supported (e.g., `1,000`)
+- Data rows: `Label value1 value2` — follows §15 Rule A (space-separated; a comma in a value raises `E_DATA_COMMA_REMOVED`)
+- Thousands commas are removed — write `1000`, not `1,000` (underscore grouping `1_000` is accepted)
 - Color annotations: `Label color value1 value2` (trailing color word before numeric values)
 - Minimum 2 periods required
 
@@ -2084,7 +2086,7 @@ Navigator 0.85 0.8
 
 - Axis labels: `x-label Low, High` — comma-separated (low/high pair, not a data row; comma is the delimiter here by design)
 - Position labels: `top-right Label` — space-separated
-- Data points: `Label x y` — follows §15 Rule A (space-separated; `Label x, y` tolerated for back-compat)
+- Data points: `Label x y` — follows §15 Rule A (space-separated; `Label x, y` raises `E_DATA_COMMA_REMOVED` — the comma between x and y is removed, but axis labels above keep their comma)
 
 ---
 
@@ -3108,7 +3110,7 @@ A colon binds a value, and it appears in exactly **four syntactic positions** �
 
 - Directives and options — space-separated (`start 2026-03-15`, `x-label Low, High`, `region`)
 - Tag declarations and chart type declarations
-- Series declarations and data rows for simple/data charts (incl. sankey/chord/arc links `Source -> Target value` and quadrant data; space-delimited, commas tolerated)
+- Series declarations and data rows for simple/data charts (incl. sankey/chord/arc links `Source -> Target value` and quadrant data; space-delimited — a comma in a data-row value raises `E_DATA_COMMA_REMOVED`)
 - Structural syntax (groups, sections, arrows, comments)
 - Wireframe flag lists; flowchart/state node labels (colons are literal label text — these charts have no metadata)
 

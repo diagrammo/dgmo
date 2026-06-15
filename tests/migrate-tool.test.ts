@@ -269,6 +269,92 @@ field Email | required
 });
 
 // ============================================================
+// migrateContent — data-row comma migration (1.0)
+// ============================================================
+
+describe('migrateContent — data-row commas', () => {
+  it('rewrites comma-separated values to spaces (simple chart)', () => {
+    const src = `bar-stacked Sales
+series X, Y, Z
+Q1 400, 700, 300
+Q2 100, 200, 50
+`;
+    const r = migrateContent(src);
+    expect(r.changed).toBe(true);
+    const lines = r.migrated.split('\n');
+    // Series declaration commas are NOT data-row values — left untouched.
+    expect(lines[1]).toBe('series X, Y, Z');
+    expect(lines[2]).toBe('Q1 400 700 300');
+    expect(lines[3]).toBe('Q2 100 200 50');
+  });
+
+  it('drops thousands commas in values', () => {
+    const src = `bar Revenue
+Q1 1,000,000
+Q2 3,984,078.65
+`;
+    const r = migrateContent(src);
+    const lines = r.migrated.split('\n');
+    expect(lines[1]).toBe('Q1 1000000');
+    expect(lines[2]).toBe('Q2 3984078.65');
+  });
+
+  it('rewrites quadrant data points but keeps axis-label commas', () => {
+    const src = `quadrant Assessment
+x-label Low, High
+y-label Low, High
+Alice 0.9, 0.95
+Bob 0.3, 0.2
+`;
+    const r = migrateContent(src);
+    const lines = r.migrated.split('\n');
+    expect(lines[1]).toBe('x-label Low, High'); // axis comma preserved
+    expect(lines[2]).toBe('y-label Low, High');
+    expect(lines[3]).toBe('Alice 0.9 0.95');
+    expect(lines[4]).toBe('Bob 0.3 0.2');
+  });
+
+  it('preserves trailing/label color words and arrow endpoints', () => {
+    const src = `sankey Flows
+A -> B 1,000
+Source red 2,500
+`;
+    const r = migrateContent(src);
+    const lines = r.migrated.split('\n');
+    expect(lines[1]).toBe('A -> B 1000');
+    expect(lines[2]).toBe('Source red 2500');
+  });
+
+  it('preserves indentation', () => {
+    const src = `sankey Flows
+Parent
+  Child 1,200
+`;
+    const r = migrateContent(src);
+    const lines = r.migrated.split('\n');
+    expect(lines[2]).toBe('  Child 1200');
+  });
+
+  it('is idempotent and leaves space-separated data unchanged', () => {
+    const src = `bar-stacked Sales
+series X, Y
+Q1 400 700
+`;
+    const first = migrateContent(src);
+    expect(first.changed).toBe(false);
+    expect(first.migrated).toBe(src);
+  });
+
+  it('does NOT touch comma uses in non-data-chart types', () => {
+    const src = `sequence
+Alice -> Bob: hello, world
+`;
+    const r = migrateContent(src);
+    expect(r.migrated).toContain('hello, world');
+  });
+});
+
+// ============================================================
 // migrateFile — file I/O semantics
 // ============================================================
 

@@ -220,7 +220,13 @@ import {
 } from './palettes/color-utils';
 import { parseChart } from './chart';
 import type { ParsedChart, ChartEra } from './chart';
-import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
+import {
+  makeDgmoError,
+  formatDgmoError,
+  suggest,
+  dataCommaRemovedMessage,
+  METADATA_DIAGNOSTIC_CODES,
+} from './diagnostics';
 import { resolveColorWithDiagnostic } from './colors';
 import {
   collectIndentedValues,
@@ -235,6 +241,25 @@ import { parseDataRowValues } from './chart';
 // ============================================================
 // Shared Constants
 // ============================================================
+
+/**
+ * Builds an `onComma` callback for `parseDataRowValues` that pushes an
+ * `E_DATA_COMMA_REMOVED` error (1.0 freeze: data-row value commas removed).
+ */
+function dataCommaSink(
+  diagnostics: DgmoError[],
+  lineNumber: number
+): (canonical: string) => void {
+  return (canonical: string) =>
+    diagnostics.push(
+      makeDgmoError(
+        lineNumber,
+        dataCommaRemovedMessage(canonical),
+        'error',
+        METADATA_DIAGNOSTIC_CODES.DATA_COMMA_REMOVED
+      )
+    );
+}
 
 const EMPHASIS_SELF = {
   focus: 'self' as const,
@@ -295,9 +320,13 @@ function parseScatterRow(
   line: string,
   palette: PaletteColors | undefined,
   currentCategory: string,
-  lineNumber: number
+  lineNumber: number,
+  diagnostics: DgmoError[]
 ): ParsedScatterPoint | null {
-  const dataRow = parseDataRowValues(line, { multiValue: true });
+  const dataRow = parseDataRowValues(line, {
+    multiValue: true,
+    onComma: dataCommaSink(diagnostics, lineNumber),
+  });
   if (!dataRow || dataRow.values.length < 2) return null;
   const { label: rawLabel, color: pointColor } = extractColor(
     dataRow.label,
@@ -538,6 +567,11 @@ function parseExtendedChartFull(
       const [, rawSource, arrow, rawTarget, rawVal, rawLinkColor] = arrowMatch;
       // Captures 1-4 are non-optional in the regex pattern.
       const val = normalizeNumericToken(rawVal!) ?? rawVal!;
+      // 1.0 freeze: a thousands-comma in the link value (`A -> B 1,000`) is a
+      // removed data-row value comma. Underscores (`1_000`) remain valid.
+      if (rawVal!.includes(',')) {
+        dataCommaSink(result.diagnostics, lineNumber)(val);
+      }
       // TD-18: peel/resolve aliases on source and target before color extraction.
       const sourceResolved = resolveSlot(rawSource!);
       const targetResolved = resolveSlot(rawTarget!);
@@ -602,7 +636,9 @@ function parseExtendedChartFull(
                 ''
               )
             : trimmed;
-          const dataRow = parseDataRowValues(strippedLine);
+          const dataRow = parseDataRowValues(strippedLine, {
+            onComma: dataCommaSink(result.diagnostics, lineNumber),
+          });
           if (dataRow?.values.length === 1) {
             const source = sankeyStack.at(-1)!.name;
             const linkColor = valColorMatch?.[2]
@@ -858,7 +894,8 @@ function parseExtendedChartFull(
         trimmed,
         palette,
         currentCategory,
-        lineNumber
+        lineNumber,
+        result.diagnostics
       );
       if (scatterData) {
         if (!result.scatterPoints) result.scatterPoints = [];
@@ -869,7 +906,10 @@ function parseExtendedChartFull(
 
     // Heatmap data row: "RowLabel val1, val2, val3, ..." or "RowLabel val1 val2 val3"
     if (result.type === 'heatmap') {
-      const dataRow = parseDataRowValues(trimmed, { multiValue: true });
+      const dataRow = parseDataRowValues(trimmed, {
+        multiValue: true,
+        onComma: dataCommaSink(result.diagnostics, lineNumber),
+      });
       if (dataRow && dataRow.values.length > 0) {
         if (!result.heatmapRows) result.heatmapRows = [];
         result.heatmapRows.push({
@@ -882,7 +922,9 @@ function parseExtendedChartFull(
     }
 
     // Funnel / generic data point: "Label value"
-    const dataRow = parseDataRowValues(trimmed);
+    const dataRow = parseDataRowValues(trimmed, {
+      onComma: dataCommaSink(result.diagnostics, lineNumber),
+    });
     if (dataRow?.values.length === 1) {
       const { label: rawLabel, color: pointColor } = extractColor(
         dataRow.label,

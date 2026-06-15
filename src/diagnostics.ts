@@ -340,6 +340,17 @@ export const METADATA_DIAGNOSTIC_CODES = {
    * still applied best-effort so the diagram renders.
    */
   GANTT_LEGACY_REMOVED: 'E_GANTT_LEGACY_REMOVED',
+  /**
+   * Error: a comma appears in a data-chart value position — either a
+   * value separator (`Q1 400, 700, 300`) or a thousands grouping
+   * (`Revenue 1,000`). At 1.0 data-row values are space-separated and
+   * thousands grouping is dropped; the canonical forms are
+   * `Q1 400 700 300` and `Revenue 1000`. The value is still parsed
+   * best-effort (the comma is stripped) so the diagram renders. Only
+   * data-row VALUE commas trigger this — metadata (`key: a, b`), axis
+   * labels (`x-label Low, High`), and quoted strings are untouched.
+   */
+  DATA_COMMA_REMOVED: 'E_DATA_COMMA_REMOVED',
 } as const;
 
 /**
@@ -431,6 +442,20 @@ export function ganttLegacyRemovedMessage(
     replacement ??
     'use `Task duration: ...` / `Task start: DATE` or positional `Task 30bd`';
   return `Legacy gantt syntax '${form}' removed at 1.0 — ${fix} (per §13.8)`;
+}
+
+/**
+ * Canonical message for `E_DATA_COMMA_REMOVED`. Emitted when a comma
+ * is used in a data-chart value position — as a value separator or a
+ * thousands grouping. `canonical`, when given, is the space-separated
+ * replacement form for the offending value region (e.g. `400 700 300`
+ * for `400, 700, 300`, or `1000` for `1,000`).
+ */
+export function dataCommaRemovedMessage(canonical?: string): string {
+  const fix = canonical
+    ? `use '${canonical}'`
+    : "use space-separated values (no commas), e.g. '400 700 300', and drop thousands commas ('1000', not '1,000')";
+  return `Commas removed from data-chart values at 1.0 — ${fix} (values are space-separated; thousands commas dropped)`;
 }
 
 /**

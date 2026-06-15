@@ -22,6 +22,7 @@ import { join, extname } from 'node:path';
 import { parseDgmoChartType } from '../dgmo-router';
 import { isLegacyMetadataLine } from './line-classifier';
 import { transformLine } from './line-transformer';
+import { DATA_COMMA_CHART_TYPES, migrateDataRowCommaLine } from './data-comma';
 
 export interface ContentMigration {
   /** Updated source — equal to the input when `changed: false`. */
@@ -46,8 +47,32 @@ export function migrateContent(source: string): ContentMigration {
   const changedLines: number[] = [];
   let changed = false;
 
+  const migrateDataCommas =
+    chartType !== null && DATA_COMMA_CHART_TYPES.has(chartType);
+
+  let firstContentSeen = false;
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!;
+    let line = lines[i]!;
+    const trimmed = line.trim();
+
+    // Data-row comma migration (1.0): rewrite value-separator + thousands
+    // commas to space-separated, byte-preserving everything else. Skip the
+    // chart-type declaration line and blank/comment lines.
+    if (
+      migrateDataCommas &&
+      firstContentSeen &&
+      trimmed &&
+      !trimmed.startsWith('//')
+    ) {
+      const dc = migrateDataRowCommaLine(line);
+      if (dc.changed) {
+        line = dc.line;
+        changed = true;
+        changedLines.push(i + 1);
+      }
+    }
+    if (trimmed && !trimmed.startsWith('//')) firstContentSeen = true;
+
     if (!isLegacyMetadataLine(line)) {
       out.push(line);
       continue;
@@ -55,7 +80,7 @@ export function migrateContent(source: string): ContentMigration {
     const result = transformLine(line, chartType);
     if (result.changed) {
       changed = true;
-      changedLines.push(i + 1);
+      if (!changedLines.includes(i + 1)) changedLines.push(i + 1);
     }
     out.push(result.line);
   }

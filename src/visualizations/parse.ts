@@ -11,6 +11,8 @@ import type { PaletteColors } from '../palettes';
 import { resolveColorWithDiagnostic } from '../colors';
 import {
   ALIAS_DIAGNOSTIC_CODES,
+  METADATA_DIAGNOSTIC_CODES,
+  dataCommaRemovedMessage,
   formatDgmoError,
   makeDgmoError,
   suggest,
@@ -111,6 +113,19 @@ function parseVisualizationFull(
 
   const warn = (line: number, message: string): void => {
     result.diagnostics.push(makeDgmoError(line, message, 'warning'));
+  };
+
+  // 1.0 freeze: data-row value commas (separator + thousands grouping) are
+  // removed. Emit an error but parse best-effort so the diagram still renders.
+  const flagDataComma = (line: number, canonical: string): void => {
+    result.diagnostics.push(
+      makeDgmoError(
+        line,
+        dataCommaRemovedMessage(canonical),
+        'error',
+        METADATA_DIAGNOSTIC_CODES.DATA_COMMA_REMOVED
+      )
+    );
   };
 
   if (!content?.trim()) {
@@ -367,12 +382,18 @@ function parseVisualizationFull(
               palette
             ) ?? null)
           : null;
+        const arcValue = linkMatch[4]
+          ? parseFloat(normalizeNumericToken(linkMatch[4]) ?? linkMatch[4])
+          : 1;
+        // 1.0 freeze: a thousands comma in the arc weight (`A -> B 1,000`) is a
+        // removed data-row value comma. Underscores (`1_000`) remain valid.
+        if (linkMatch[4]?.includes(',')) {
+          flagDataComma(lineNumber, `${source} -> ${target} ${arcValue}`);
+        }
         result.links.push({
           source,
           target,
-          value: linkMatch[4]
-            ? parseFloat(normalizeNumericToken(linkMatch[4]) ?? linkMatch[4])
-            : 1,
+          value: arcValue,
           color: linkColor,
           lineNumber,
         });
@@ -790,10 +811,10 @@ function parseVisualizationFull(
 
       // Data points: Label x, y  OR  Label x y
       const pointMatch = line.match(
-        /^(.+?)\s+(-?[0-9][0-9,_]*(?:\.[0-9]+)?)\s*[,\s]\s*(-?[0-9][0-9,_]*(?:\.[0-9]+)?)\s*$/
+        /^(.+?)\s+(-?[0-9][0-9,_]*(?:\.[0-9]+)?)\s*([,\s])\s*(-?[0-9][0-9,_]*(?:\.[0-9]+)?)\s*$/
       );
       if (pointMatch) {
-        // Capture groups 1-3 guaranteed by the regex match.
+        // Capture groups 1-4 guaranteed by the regex match.
         const label = pointMatch[1]!.trim();
         // Skip if it looks like a quadrant position keyword
         const lowerLabel = label.toLowerCase();
@@ -803,14 +824,26 @@ function parseVisualizationFull(
           lowerLabel !== 'bottom-left' &&
           lowerLabel !== 'bottom-right'
         ) {
+          const x = parseFloat(
+            normalizeNumericToken(pointMatch[2]!) ?? pointMatch[2]!
+          );
+          const y = parseFloat(
+            normalizeNumericToken(pointMatch[4]!) ?? pointMatch[4]!
+          );
+          // 1.0 freeze: a comma as the x/y separator (`Label x, y`) or a
+          // thousands comma inside either coordinate is a removed data-row
+          // value comma. Underscores (`1_000`) remain valid.
+          if (
+            pointMatch[3] === ',' ||
+            pointMatch[2]!.includes(',') ||
+            pointMatch[4]!.includes(',')
+          ) {
+            flagDataComma(lineNumber, `${label} ${x} ${y}`);
+          }
           result.quadrantPoints.push({
             label,
-            x: parseFloat(
-              normalizeNumericToken(pointMatch[2]!) ?? pointMatch[2]!
-            ),
-            y: parseFloat(
-              normalizeNumericToken(pointMatch[3]!) ?? pointMatch[3]!
-            ),
+            x,
+            y,
             lineNumber,
           });
         }
@@ -996,6 +1029,7 @@ function parseVisualizationFull(
         const P = result.periods.length;
         const tokens = line.split(/\s+/);
         const values: number[] = [];
+        let sawComma = false;
 
         // Scan from right, capped at P values
         let rightIdx = tokens.length - 1;
@@ -1005,6 +1039,10 @@ function parseVisualizationFull(
           const raw = normalizeNumericToken(tok) ?? tok;
           const num = parseFloat(raw);
           if (!isNaN(num) && /^-?\d/.test(raw)) {
+            // A comma in a consumed value token is a removed data-row value
+            // comma — either thousands grouping (`1,000`) or a separator with
+            // the comma glued to the token (`40,`). Underscores stay valid.
+            if (tok.includes(',')) sawComma = true;
             values.unshift(num);
             rightIdx--;
           } else {
@@ -1023,6 +1061,9 @@ function parseVisualizationFull(
         // Remaining left tokens = label
         const labelTokens = tokens.slice(0, rightIdx + 1);
         const joinedLabel = labelTokens.join(' ');
+        if (sawComma) {
+          flagDataComma(lineNumber, `${joinedLabel} ${values.join(' ')}`);
+        }
 
         if (!joinedLabel) {
           warn(
@@ -1195,8 +1236,14 @@ function parseVisualizationFull(
             ? parseFloat(normalizeNumericToken(rawWeight) ?? rawWeight)
             : NaN;
         if (lastSpace >= 0 && !isNaN(maybeWeight) && maybeWeight > 0) {
+          const wordText = line.substring(0, lastSpace).trim();
+          // 1.0 freeze: a thousands comma in the wordcloud weight
+          // (`BigWord 1,000`) is a removed data-row value comma.
+          if (rawWeight.includes(',')) {
+            flagDataComma(lineNumber, `${wordText} ${maybeWeight}`);
+          }
           result.words.push({
-            text: line.substring(0, lastSpace).trim(),
+            text: wordText,
             weight: maybeWeight,
             lineNumber,
           });
