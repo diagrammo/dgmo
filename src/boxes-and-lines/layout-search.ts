@@ -1060,19 +1060,47 @@ export function layoutBoxesAndLinesSearch(
         },
       ];
     });
-    const margin = 40;
-    let maxX = 0;
-    let maxY = 0;
+    // Fit the canvas around the pinned content with a uniform margin on every
+    // side. Crucially, content must never fall off the TOP/LEFT (the viewBox
+    // origin is 0,0): if a node was dragged past the margin we shift everything
+    // back on-canvas by `max(0, M - min)` — clamped so in-bounds diagrams keep
+    // their exact pinned coords (shift 0) and only off-canvas ones are nudged.
+    const M = 40;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    const acc = (x: number, y: number) => {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    };
     for (const n of nodes) {
-      maxX = Math.max(maxX, n.x + n.width / 2);
-      maxY = Math.max(maxY, n.y + n.height / 2);
+      acc(n.x - n.width / 2, n.y - n.height / 2);
+      acc(n.x + n.width / 2, n.y + n.height / 2);
     }
+    for (const e of edges) for (const p of e.points) acc(p.x, p.y);
+    // Only correct genuinely off-canvas content — a small tolerance ignores the
+    // sub-pixel jitter from rounding coords near the margin, so an already
+    // on-canvas diagram keeps its exact pinned positions (no creeping drift).
+    const TOL = 2;
+    const sx = minX < M - TOL ? M - minX : 0;
+    const sy = minY < M - TOL ? M - minY : 0;
+    const shifted = sx !== 0 || sy !== 0;
     return {
-      nodes,
-      edges,
+      nodes: shifted
+        ? nodes.map((n) => ({ ...n, x: n.x + sx, y: n.y + sy }))
+        : nodes,
+      edges: shifted
+        ? edges.map((e) => ({
+            ...e,
+            points: e.points.map((p) => ({ x: p.x + sx, y: p.y + sy })),
+          }))
+        : edges,
       groups: [],
-      width: maxX + margin,
-      height: maxY + margin,
+      width: maxX + sx + M,
+      height: maxY + sy + M,
     };
   }
 
