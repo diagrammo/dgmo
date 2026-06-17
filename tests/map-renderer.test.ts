@@ -253,8 +253,10 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     const group = svg.querySelector('.dgmo-map-relief');
     expect(group).toBeTruthy();
     // Clipped to the union of range paths.
-    expect(group!.getAttribute('clip-path')).toBe('url(#dgmo-relief-clip)');
-    const clip = svg.querySelector('defs clipPath#dgmo-relief-clip');
+    expect(group!.getAttribute('clip-path')).toMatch(
+      /^url\(#dgmo-relief-clip__m\d+\)$/
+    );
+    const clip = svg.querySelector('defs clipPath[id^="dgmo-relief-clip__m"]');
     expect(clip).toBeTruthy();
     expect(clip!.querySelectorAll('path').length).toBeGreaterThan(0);
     // Horizontal hachure lines (x spans, y constant).
@@ -286,7 +288,9 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
       render('map\nno-coastline').querySelector('.dgmo-map-water-lines')
     ).toBeNull();
     expect(
-      render('map\nno-coastline').querySelector('mask#dgmo-map-water-mask')
+      render('map\nno-coastline').querySelector(
+        'mask[id^="dgmo-map-water-mask__m"]'
+      )
     ).toBeNull();
   });
 
@@ -295,7 +299,9 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     const group = svg.querySelector('.dgmo-map-water-lines');
     expect(group).toBeTruthy();
     // Masked to the water side (NOT a clipPath — a mask can subtract land).
-    expect(group!.getAttribute('mask')).toBe('url(#dgmo-map-water-mask)');
+    expect(group!.getAttribute('mask')).toMatch(
+      /^url\(#dgmo-map-water-mask__m\d+\)$/
+    );
     // 2 lines × (colour + water overdraw) passes → multiple stroked paths.
     expect(group!.getAttribute('fill')).toBe('none'); // rings stroked, not filled
     const paths = group!.querySelectorAll('path');
@@ -305,7 +311,7 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
 
   it('water mask = white canvas − black land + userSpaceOnUse (AC2)', () => {
     const svg = render('map');
-    const mask = svg.querySelector('mask#dgmo-map-water-mask')!;
+    const mask = svg.querySelector('mask[id^="dgmo-map-water-mask__m"]')!;
     expect(mask).toBeTruthy();
     // userSpaceOnUse so the reveal reaches the canvas edges (round-2 #2).
     expect(mask.getAttribute('maskUnits')).toBe('userSpaceOnUse');
@@ -358,7 +364,9 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
   });
 
   it('water mask is a single white reveal rect with NO frame band — rings carry to every edge (AC2b)', () => {
-    const mask = render('map').querySelector('mask#dgmo-map-water-mask')!;
+    const mask = render('map').querySelector(
+      'mask[id^="dgmo-map-water-mask__m"]'
+    )!;
     const rects = [...mask.querySelectorAll('rect')];
     // Exactly one white full-canvas reveal rect; no black frame-band rects (the
     // mask's black land paths already hide any synthetic frame-cut edge).
@@ -399,7 +407,7 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
       undefined,
       DIMS
     );
-    const mask = el.querySelector('mask#dgmo-map-water-mask')!;
+    const mask = el.querySelector('mask[id^="dgmo-map-water-mask__m"]')!;
     const whitePaths = [...mask.querySelectorAll('path')].filter(
       (p) => p.getAttribute('fill') === 'white'
     );
@@ -409,7 +417,9 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(whitePaths.length).toBeGreaterThan(0); // lake interior re-revealed
     expect(blackPaths.length).toBeGreaterThan(0); // land hidden
     // Control: no lakes → no white PATHS (only the white reveal rect).
-    const noLake = render('map').querySelector('mask#dgmo-map-water-mask')!;
+    const noLake = render('map').querySelector(
+      'mask[id^="dgmo-map-water-mask__m"]'
+    )!;
     expect(
       [...noLake.querySelectorAll('path')].filter(
         (p) => p.getAttribute('fill') === 'white'
@@ -662,5 +672,32 @@ describe('renderer — region metric value line', () => {
     const caText = texts.find((t) => t.textContent?.includes('California'));
     expect(caText?.textContent).toBe('California');
     expect(caText?.querySelectorAll('tspan').length ?? 0).toBe(0);
+  });
+});
+
+describe('renderer — per-render id namespacing (multi-map page)', () => {
+  const idsOf = (svg: SVGSVGElement): string[] =>
+    Array.from(svg.querySelectorAll('[id]')).map((e) => e.id);
+
+  it('two maps in one document share no def ids (no `<use>`/mask ghost)', () => {
+    // The docs gallery inlines several maps on one page. SVG `url(#id)` resolves
+    // document-globally, so a shared coast/mask id made later maps reference the
+    // first map's defs and ghost it through. Ids must be disjoint across renders.
+    const a = idsOf(render('map\nCalifornia value: 5\nTexas value: 9'));
+    const b = idsOf(render('map\nFrance value: 5\nGermany value: 9'));
+    expect(a.length).toBeGreaterThan(0);
+    expect(b.length).toBeGreaterThan(0);
+    const overlap = a.filter((id) => b.includes(id));
+    expect(overlap).toEqual([]);
+  });
+
+  it('every `url(#…)` / `href="#…"` reference resolves within its own svg', () => {
+    const svg = render('map\nUnited States value: 5\nTexas ~> California');
+    const ids = new Set(idsOf(svg));
+    const refs = svg.outerHTML.match(/(?:url\(#|href="#)([^)"]+)/g) ?? [];
+    for (const raw of refs) {
+      const id = raw.replace(/^(?:url\(#|href="#)/, '');
+      expect(ids.has(id)).toBe(true);
+    }
   });
 });
