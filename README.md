@@ -12,6 +12,8 @@ Write plain-text `.dgmo` files, get clean, themeable diagrams and charts. One ma
 
 **[📖 Docs](https://diagrammo.app/start) · [🧩 Language Reference](https://diagrammo.app/reference) · [🖥️ Desktop App](https://diagrammo.app/app) · [🪄 Live Editor](https://online.diagrammo.app)**
 
+<a href="https://online.diagrammo.app"><img src="https://diagrammo.app/readme/sequence.gif" alt="Typing a DGMO sequence diagram and watching it render live" width="100%"></a>
+
 </div>
 
 ---
