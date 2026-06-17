@@ -1017,16 +1017,23 @@ export function layoutBoxesAndLinesSearch(
     Math.abs(p.y - rect.y) <= rect.h / 2;
 
   // ── Pinned-layout bypass (Canvas Editor spike, Decisions 3/7) ──
-  // When a `layout` block positions EVERY node (and the diagram is group-free —
-  // partial pinning and pinned-inside-groups are deferred), place nodes directly
-  // from the stored coordinates and skip the whole dagre search. Edges become
+  // When a `layout` block positions EVERY node, place nodes directly from the
+  // stored coordinates and skip the whole dagre search. Edges become
   // border-clipped straight connectors (no obstacle avoidance — honest-but-ugly).
+  // FLAT, EXPANDED groups are honored: each group's container rect is computed
+  // from its members' pinned positions (canvas group editing). Nested groups and
+  // collapsed groups still fall back to dagre (deferred).
   const pinned = parsed.nodePositions;
+  const groupLabelSet = new Set(parsed.groups.map((g) => g.label));
+  const groupsAreFlat = parsed.groups.every(
+    (g) => !g.parentGroup && !g.children.some((c) => groupLabelSet.has(c))
+  );
   const allPinned =
     pinned !== undefined &&
-    parsed.groups.length === 0 &&
     parsed.nodes.length > 0 &&
-    parsed.nodes.every((n) => pinned.has(n.label));
+    parsed.nodes.every((n) => pinned.has(n.label)) &&
+    groupsAreFlat &&
+    collapsedGroupLabels.size === 0;
   function placePinned(pins: ReadonlyMap<string, Pt>): BLLayoutResult {
     const rectOf = (label: string) => {
       const p = pins.get(label)!;
@@ -1065,6 +1072,41 @@ export function layoutBoxesAndLinesSearch(
     // origin is 0,0): if a node was dragged past the margin we shift everything
     // back on-canvas by `max(0, M - min)` — clamped so in-bounds diagrams keep
     // their exact pinned coords (shift 0) and only off-canvas ones are nudged.
+    // Flat-group container rects: bbox of the group's members + side/bottom
+    // padding, with a label zone reserved at the top (mirrors the renderer).
+    const GROUP_PAD = 16;
+    const nodeByLabel = new Map(nodes.map((n) => [n.label, n]));
+    const groups: BLLayoutResult['groups'][number][] = [];
+    for (const grp of parsed.groups) {
+      let gx0 = Infinity,
+        gy0 = Infinity,
+        gx1 = -Infinity,
+        gy1 = -Infinity;
+      for (const c of grp.children) {
+        const n = nodeByLabel.get(c);
+        if (!n) continue;
+        gx0 = Math.min(gx0, n.x - n.width / 2);
+        gx1 = Math.max(gx1, n.x + n.width / 2);
+        gy0 = Math.min(gy0, n.y - n.height / 2);
+        gy1 = Math.max(gy1, n.y + n.height / 2);
+      }
+      if (!Number.isFinite(gx0)) continue; // members not pinned / empty group
+      const x0 = gx0 - GROUP_PAD;
+      const x1 = gx1 + GROUP_PAD;
+      const y0 = gy0 - GROUP_LABEL_ZONE;
+      const y1 = gy1 + GROUP_PAD;
+      groups.push({
+        label: grp.label,
+        lineNumber: grp.lineNumber,
+        x: (x0 + x1) / 2,
+        y: (y0 + y1) / 2,
+        width: x1 - x0,
+        height: y1 - y0,
+        collapsed: false,
+        childCount: grp.children.length,
+      });
+    }
+
     const M = 40;
     let minX = Infinity,
       minY = Infinity,
@@ -1081,6 +1123,10 @@ export function layoutBoxesAndLinesSearch(
       acc(n.x + n.width / 2, n.y + n.height / 2);
     }
     for (const e of edges) for (const p of e.points) acc(p.x, p.y);
+    for (const gr of groups) {
+      acc(gr.x - gr.width / 2, gr.y - gr.height / 2);
+      acc(gr.x + gr.width / 2, gr.y + gr.height / 2);
+    }
     // Only correct genuinely off-canvas content — a small tolerance ignores the
     // sub-pixel jitter from rounding coords near the margin, so an already
     // on-canvas diagram keeps its exact pinned positions (no creeping drift).
@@ -1098,7 +1144,9 @@ export function layoutBoxesAndLinesSearch(
             points: e.points.map((p) => ({ x: p.x + sx, y: p.y + sy })),
           }))
         : edges,
-      groups: [],
+      groups: shifted
+        ? groups.map((gr) => ({ ...gr, x: gr.x + sx, y: gr.y + sy }))
+        : groups,
       width: maxX + sx + M,
       height: maxY + sy + M,
     };

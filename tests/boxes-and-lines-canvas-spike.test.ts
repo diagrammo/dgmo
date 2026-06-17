@@ -170,20 +170,48 @@ describe('boxes-and-lines `layout` block (canvas spike)', () => {
       expect(lay.edges.every((e) => e.straight)).toBe(false);
     });
 
-    it('does NOT bypass when groups are present (deferred)', async () => {
+    it('honors pinned positions with a flat group + emits the group rect', async () => {
       const src = [
         'boxes-and-lines',
-        'A -> B',
-        '[G]',
-        '  A',
-        '  B',
+        'web -> api',
+        '[Backend]',
+        '  api',
+        '  db',
+        '  api -> db',
         'layout',
-        '  A: 10, 10',
-        '  B: 200, 10',
+        '  web: 200, 400',
+        '  api: 600, 400',
+        '  db: 600, 550',
       ].join('\n');
       const lay = await layoutBoxesAndLines(parseBoxesAndLines(src));
-      // Group present → auto-layout path; A not pinned to (10,10).
-      expect(lay.nodes.find((n) => n.label === 'A')!.x).not.toBe(10);
+      // Coords > margin → no off-canvas shift → pins honored EXACTLY.
+      expect(lay.nodes.find((n) => n.label === 'api')!.x).toBe(600);
+      expect(lay.nodes.find((n) => n.label === 'db')!.y).toBe(550);
+      expect(lay.nodes.find((n) => n.label === 'web')!.x).toBe(200);
+      // The group container wraps its members (centered on their x).
+      const g = lay.groups.find((gr) => gr.label === 'Backend')!;
+      expect(g).toBeTruthy();
+      expect(g.x).toBe(600);
+      expect(g.width).toBeGreaterThan(0);
+      expect(g.height).toBeGreaterThan(0);
+      expect(g.childCount).toBe(2);
+    });
+
+    it('still falls back to auto-layout for NESTED groups (deferred)', async () => {
+      const src = [
+        'boxes-and-lines',
+        '[Outer]',
+        '  [Inner]',
+        '    A',
+        '  B',
+        'A -> B',
+        'layout',
+        '  A: 600, 400',
+        '  B: 600, 550',
+      ].join('\n');
+      const lay = await layoutBoxesAndLines(parseBoxesAndLines(src));
+      // Nested groups → not the pinned bypass; A is not at its pin.
+      expect(lay.nodes.find((n) => n.label === 'A')!.x).not.toBe(600);
     });
   });
 
