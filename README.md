@@ -29,6 +29,20 @@ Helm -On course-> Quartermaster
 
 That's a complete diagram. No coordinates, no XML, no drag-and-drop — just text you can diff, review, and version like any other source file.
 
+## Author it visually
+
+Want a richer editing experience than a text file? The **[Diagrammo desktop app](https://diagrammo.app/app)** (native macOS, offline, auto-updating) and the **[online editor](https://online.diagrammo.app)** (any browser, nothing to install) turn DGMO into a full authoring environment:
+
+- **Live preview** — the diagram redraws as you type
+- **Smart editing** — syntax highlighting, autocomplete, and optional vim keybindings
+- **7 themeable palettes**, each with light / dark / transparent variants
+- **One-click export** to PNG or SVG, plus instant shareable links
+- **Local-first** — your `.dgmo` files are plain text on disk, work fully offline, and never go stale the way an exported image does
+
+Because every diagram is just text, it lives in git, diffs cleanly in PRs, and drops straight into your docs, your [AI tools](https://diagrammo.app/ai), or any web page.
+
+→ Start at **[diagrammo.app](https://diagrammo.app)**
+
 ## Install
 
 ```bash
@@ -55,7 +69,7 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 | Flag | Values | Default |
 |------|--------|---------|
 | `--theme` | `light`, `dark`, `transparent` | `light` |
-| `--palette` | one of 10 palettes (see below) | `nord` |
+| `--palette` | one of 7 palettes (see below) | `slate` |
 | `-o` | output path (`.svg` → SVG, else PNG) | `<input>.png` |
 
 ## Library
@@ -71,7 +85,7 @@ Q1 12
 Q2 19
 Q3 15
 Q4 22
-`, { theme: 'light', palette: 'nord' });
+`, { theme: 'light', palette: 'slate' });
 ```
 
 `render()` auto-detects the chart type and dispatches to the right engine. Need the lower-level parsers, config builders, and per-type renderers? They live under the [`@diagrammo/dgmo/advanced`](https://diagrammo.app/dev) subpath — see the docs for the full surface and stability contract.
@@ -104,7 +118,9 @@ There's an MCP server ([`@diagrammo/dgmo-mcp`](https://www.npmjs.com/package/@di
 
 **Visualizations** — slope · wordcloud · arc · timeline · venn · quadrant · tech-radar · cycle · pyramid · ring · function · map
 
-**Diagrams** — sequence · flowchart · class · er · org · c4 · state · infra · kanban · sitemap · mindmap · gantt · pert · journey-map · boxes-and-lines · wireframe · raci
+**Diagrams** — sequence · flowchart · class · er · org · c4 · state · infra · kanban · sitemap · mindmap · gantt · pert · journey-map · boxes-and-lines · wireframe · raci · rasci · daci
+
+All **45 chart types** are categorized with live examples at **[diagrammo.app/reference](https://diagrammo.app/reference)**.
 
 Each type's full syntax, directives, and options live in the **[Language Reference](https://diagrammo.app/reference)** — the authoritative spec.
 
