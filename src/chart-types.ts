@@ -125,7 +125,7 @@ export const chartTypes: readonly ChartTypeMeta[] = [
   {
     id: 'map',
     description:
-      'Geographic concept map: highlight/score regions, drop points of interest, connect with routes or edges',
+      'Geographic map: a value or count per country, state, or region (choropleth); points of interest; routes. Use when categories are real-world places.',
   },
 
   // ── Tier 3 — Specialized analytical charts ────────────────
