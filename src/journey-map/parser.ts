@@ -184,7 +184,21 @@ export function parseJourneyMap(
             }
           }
         } else {
-          personaName = afterKeyword;
+          // Same-line form (pipes removed in 0.18.0): peel a trailing
+          // `color: <token>` off the rest-of-line persona name.
+          const colorMatch = afterKeyword.match(/^(.+?)\s+color:\s*(\S+)$/i);
+          if (colorMatch) {
+            personaName = colorMatch[1]!.trim();
+            personaColor =
+              resolveColorWithDiagnostic(
+                colorMatch[2]!,
+                lineNumber,
+                result.diagnostics,
+                palette
+              ) ?? undefined;
+          } else {
+            personaName = afterKeyword;
+          }
         }
 
         if (!personaName) {
