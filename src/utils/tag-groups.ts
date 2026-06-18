@@ -9,7 +9,11 @@ import {
   tagShorthandRemovedMessage,
   type DgmoError,
 } from '../diagnostics';
-import { RECOGNIZED_COLOR_NAMES, resolveColor } from '../colors';
+import {
+  CATEGORICAL_COLOR_ORDER,
+  RECOGNIZED_COLOR_NAMES,
+  resolveColor,
+} from '../colors';
 import type { PaletteColors } from '../palettes/types';
 import type { Writable } from './brand';
 
@@ -91,16 +95,12 @@ export const AUTO_TAG_COLOR_SENTINEL = '';
 
 /**
  * The categorical name cycle used to auto-assign colors to bare tag values,
- * in deterministic order. Drawn from `RECOGNIZED_COLOR_NAMES` but excludes
- * the non-categorical neutrals (`gray`/`black`/`white`) so auto-picked
- * colors are visually distinct legend swatches. If a group has more
- * colorless entries than free categorical names, the cycle wraps.
+ * in deterministic order. Aliased to the shared {@link CATEGORICAL_COLOR_ORDER}
+ * (RGB-seeded, max-contrast, neutrals excluded) so tag swatches and data-chart
+ * series colors share one canonical rotation. If a group has more colorless
+ * entries than free categorical names, the cycle wraps.
  */
-export const autoTagColorCycle: readonly string[] = Object.freeze(
-  RECOGNIZED_COLOR_NAMES.filter(
-    (n) => n !== 'gray' && n !== 'black' && n !== 'white'
-  )
-);
+export const autoTagColorCycle: readonly string[] = CATEGORICAL_COLOR_ORDER;
 
 /**
  * Finalize a tag group's auto-color assignment.

@@ -1,3 +1,4 @@
+import { CATEGORICAL_COLOR_ORDER } from '../colors';
 import type { PaletteColors } from './types';
 
 // ============================================================
@@ -318,10 +319,14 @@ export function shapeFill(
 // Series Colors
 // ============================================================
 
-/** Derive the 8-color series rotation from a palette's named colors. */
+/**
+ * Derive the 8-color series rotation from a palette's named colors, in the
+ * shared {@link CATEGORICAL_COLOR_ORDER} (RGB-seeded, max-contrast). Tag
+ * swatches and chart series colors thus share one canonical rotation.
+ */
 export function getSeriesColors(palette: PaletteColors): string[] {
   const c = palette.colors;
-  return [c.blue, c.green, c.yellow, c.orange, c.purple, c.red, c.teal, c.cyan];
+  return CATEGORICAL_COLOR_ORDER.map((name) => c[name]!);
 }
 
 /**

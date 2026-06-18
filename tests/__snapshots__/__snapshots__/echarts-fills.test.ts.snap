@@ -118,12 +118,12 @@ exports[`echarts shapeFill snapshots (TD-7 high-risk) > bar (nord light) — sta
 <text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="5.5" transform="translate(747.7833 709)" fill="#2e3440">Free Trial</text>
 <text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="5.5" transform="translate(909.47 709)" fill="#2e3440">Add-ons</text>
 <text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="5.5" transform="translate(1071.1567 709)" fill="#2e3440">Consulting</text>
-<path d="M207.9 700l109.6 0l0 -559.5l-109.6 0Z" fill="#c9d4e2" stroke="#5e81ac" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></path>
+<path d="M207.9 700l109.6 0l0 -559.5l-109.6 0Z" fill="#e1ccd2" stroke="#bf616a" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></path>
 <path d="M369.6 700l109.6 0l0 -415.1l-109.6 0Z" fill="#dae3da" stroke="#a3be8c" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart"></path>
-<path d="M531.3 700l109.6 0l0 -220.3l-109.6 0Z" fill="#ece6da" stroke="#ebcb8b" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></path>
-<path d="M693 700l109.6 0l0 -96.6l-109.6 0Z" fill="#e5d5d3" stroke="#d08770" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart"></path>
-<path d="M854.7 700l109.6 0l0 -137.8l-109.6 0Z" fill="#ded7e2" stroke="#b48ead" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart"></path>
-<path d="M1016.4 700l109.6 0l0 -291.4l-109.6 0Z" fill="#e1ccd2" stroke="#bf616a" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart"></path>
+<path d="M531.3 700l109.6 0l0 -220.3l-109.6 0Z" fill="#c9d4e2" stroke="#5e81ac" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></path>
+<path d="M693 700l109.6 0l0 -96.6l-109.6 0Z" fill="#ece6da" stroke="#ebcb8b" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart"></path>
+<path d="M854.7 700l109.6 0l0 -137.8l-109.6 0Z" fill="#d5e2e6" stroke="#8fbcbb" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart"></path>
+<path d="M1016.4 700l109.6 0l0 -291.4l-109.6 0Z" fill="#ded7e2" stroke="#b48ead" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart"></path>
 <text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(262.7233 134.46)" fill="#2e3440">245</text>
 <text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(424.41 278.856)" fill="#2e3440">182</text>
 <text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(586.0967 473.676)" fill="#2e3440">97</text>
@@ -138,7 +138,7 @@ pointer-events:none;
 }
 .zr2-cls-18:hover {
 cursor:pointer;
-fill:rgba(221,233,248,1);
+fill:rgba(247,224,231,1);
 }
 .zr2-cls-19:hover {
 cursor:pointer;
@@ -146,19 +146,19 @@ fill:rgba(239,249,239,1);
 }
 .zr2-cls-20:hover {
 cursor:pointer;
-fill:rgba(255,253,239,1);
+fill:rgba(221,233,248,1);
 }
 .zr2-cls-21:hover {
 cursor:pointer;
-fill:rgba(251,234,232,1);
+fill:rgba(255,253,239,1);
 }
 .zr2-cls-22:hover {
 cursor:pointer;
-fill:rgba(244,236,248,1);
+fill:rgba(234,248,253,1);
 }
 .zr2-cls-23:hover {
 cursor:pointer;
-fill:rgba(247,224,231,1);
+fill:rgba(244,236,248,1);
 }
 
 ]]>
@@ -278,32 +278,32 @@ fill:rgba(221,233,248,1);
 exports[`echarts shapeFill snapshots (TD-7 high-risk) > chord (nord light) — stable SVG output 1`] = `
 "<svg style="background: #eceff4; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
 <rect width="1200" height="800" x="0" y="0" fill="none"></rect>
-<path d="M807.8 520Q614.9 420.3 600.6 630" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#5e81ac" stroke-width="4.25" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></path>
-<path d="M0 0L6.6667 10L0 7.5L-6.6667 10L0 0Z" transform="matrix(-0.998,-0.068,0.068,-0.998,600.5731,606.0165)" fill="#5e81ac" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></path>
-<path d="M807.8 520Q604.5 414.3 401.1 515.5" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#5e81ac" stroke-width="3.6" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart"></path>
-<path d="M0 0L6.6667 10L0 7.5L-6.6667 10L0 0Z" transform="matrix(-0.445,-0.895,0.895,-0.445,401.0677,491.4676)" fill="#5e81ac" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart"></path>
-<path d="M807.8 520Q604.3 402.5 400.8 285" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#5e81ac" stroke-width="4.75" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></path>
-<path d="M0 0L6.7 10L0 7.5L-6.7 10L0 0Z" transform="matrix(0.5,-0.866,0.866,0.5,400.8146,261.0002)" fill="#5e81ac" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></path>
+<path d="M807.8 520Q614.9 420.3 600.6 630" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#bf616a" stroke-width="4.25" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></path>
+<path d="M0 0L6.6667 10L0 7.5L-6.6667 10L0 0Z" transform="matrix(-0.998,-0.068,0.068,-0.998,600.5731,606.0165)" fill="#bf616a" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></path>
+<path d="M807.8 520Q604.5 414.3 401.1 515.5" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#bf616a" stroke-width="3.6" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart"></path>
+<path d="M0 0L6.6667 10L0 7.5L-6.6667 10L0 0Z" transform="matrix(-0.445,-0.895,0.895,-0.445,401.0677,491.4676)" fill="#bf616a" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart"></path>
+<path d="M807.8 520Q604.3 402.5 400.8 285" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#bf616a" stroke-width="4.75" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></path>
+<path d="M0 0L6.7 10L0 7.5L-6.7 10L0 0Z" transform="matrix(0.5,-0.866,0.866,0.5,400.8146,261.0002)" fill="#bf616a" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></path>
 <path d="M600 640Q589.8 423.1 401.1 515.5" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#a3be8c" stroke-width="3.4" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart"></path>
 <path d="M0 0L6.6667 10L0 7.5L-6.6667 10L0 0Z" transform="matrix(-0.44,-0.898,0.898,-0.44,401.0864,491.5046)" fill="#a3be8c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart"></path>
 <path d="M600 640Q600 405 600 170" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#a3be8c" stroke-width="2.25" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart"></path>
 <path d="M0 0L6.7 10L0 7.5L-6.7 10L0 0Z" transform="translate(600 146.0005)" fill="#a3be8c" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart"></path>
-<path d="M392.2 520Q585.4 396.7 599.5 170" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#ebcb8b" stroke-width="2.9" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart"></path>
-<path d="M0 0L6.7 10L0 7.5L-6.7 10L0 0Z" transform="matrix(0.998,0.062,-0.062,0.998,599.4683,145.9857)" fill="#ebcb8b" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart"></path>
-<path d="M392.2 520Q595.7 402.5 799.2 285" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#ebcb8b" stroke-width="2.1" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart"></path>
-<path d="M0 0L6.7 10L0 7.5L-6.7 10L0 0Z" transform="matrix(0.5,0.866,-0.866,0.5,799.1854,261.0002)" fill="#ebcb8b" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart"></path>
-<path d="M600 160Q610.2 376.9 798.9 284.5" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#b48ead" stroke-width="3.25" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart"></path>
-<path d="M0 0L6.7 10L0 7.5L-6.7 10L0 0Z" transform="matrix(0.44,0.898,-0.898,0.44,798.9136,260.4954)" fill="#b48ead" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart"></path>
-<path d="M392.2 280Q595.7 397.5 799.2 515" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#d08770" stroke-width="4.4" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart"></path>
-<path d="M0 0L6.6667 10L0 7.5L-6.6667 10L0 0Z" transform="matrix(-0.5,0.866,-0.866,-0.5,799.1854,490.9998)" fill="#d08770" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart"></path>
-<path d="M807.8 280Q604.3 397.5 400.8 515" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#bf616a" stroke-width="1.5" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart"></path>
-<path d="M0 0L6.6667 10L0 7.5L-6.6667 10L0 0Z" transform="matrix(-0.5,-0.866,0.866,-0.5,400.8146,490.9998)" fill="#bf616a" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart"></path>
-<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(10,0,0,10,807.8461,496)" fill="#c9d4e2" stroke="#5e81ac" stroke-width="0.2" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></path>
+<path d="M392.2 520Q585.4 396.7 599.5 170" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#5e81ac" stroke-width="2.9" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart"></path>
+<path d="M0 0L6.7 10L0 7.5L-6.7 10L0 0Z" transform="matrix(0.998,0.062,-0.062,0.998,599.4683,145.9857)" fill="#5e81ac" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart"></path>
+<path d="M392.2 520Q595.7 402.5 799.2 285" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#5e81ac" stroke-width="2.1" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart"></path>
+<path d="M0 0L6.7 10L0 7.5L-6.7 10L0 0Z" transform="matrix(0.5,0.866,-0.866,0.5,799.1854,261.0002)" fill="#5e81ac" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart"></path>
+<path d="M600 160Q610.2 376.9 798.9 284.5" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#8fbcbb" stroke-width="3.25" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart"></path>
+<path d="M0 0L6.7 10L0 7.5L-6.7 10L0 0Z" transform="matrix(0.44,0.898,-0.898,0.44,798.9136,260.4954)" fill="#8fbcbb" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart"></path>
+<path d="M392.2 280Q595.7 397.5 799.2 515" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#ebcb8b" stroke-width="4.4" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart"></path>
+<path d="M0 0L6.6667 10L0 7.5L-6.6667 10L0 0Z" transform="matrix(-0.5,0.866,-0.866,-0.5,799.1854,490.9998)" fill="#ebcb8b" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart"></path>
+<path d="M807.8 280Q604.3 397.5 400.8 515" transform="translate(0 -24)" fill="none" pointer-events="visible" stroke="#b48ead" stroke-width="1.5" stroke-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart"></path>
+<path d="M0 0L6.6667 10L0 7.5L-6.6667 10L0 0Z" transform="matrix(-0.5,-0.866,0.866,-0.5,400.8146,490.9998)" fill="#b48ead" fill-opacity="0.6" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(10,0,0,10,807.8461,496)" fill="#e1ccd2" stroke="#bf616a" stroke-width="0.2" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></path>
 <path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(10,0,0,10,600,616)" fill="#dae3da" stroke="#a3be8c" stroke-width="0.2" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart"></path>
-<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(10,0,0,10,392.1539,496)" fill="#ece6da" stroke="#ebcb8b" stroke-width="0.2" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></path>
-<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(10,0,0,10,392.1539,256)" fill="#e5d5d3" stroke="#d08770" stroke-width="0.2" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart"></path>
-<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(10,0,0,10,600,136)" fill="#ded7e2" stroke="#b48ead" stroke-width="0.2" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart"></path>
-<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(10,0,0,10,807.8461,256)" fill="#e1ccd2" stroke="#bf616a" stroke-width="0.2" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(10,0,0,10,392.1539,496)" fill="#c9d4e2" stroke="#5e81ac" stroke-width="0.2" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(10,0,0,10,392.1539,256)" fill="#ece6da" stroke="#ebcb8b" stroke-width="0.2" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(10,0,0,10,600,136)" fill="#d5e2e6" stroke="#8fbcbb" stroke-width="0.2" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(10,0,0,10,807.8461,256)" fill="#ded7e2" stroke="#b48ead" stroke-width="0.2" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart"></path>
 <text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="matrix(0.866,0.5,-0.5,0.866,821.7025,504)" fill="#2e3440">Engineering</text>
 <text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:sans-serif;" transform="matrix(0,1,-1,0,600,632)" fill="#2e3440">Design</text>
 <text dominant-baseline="central" text-anchor="end" style="font-size:12px;font-family:sans-serif;" transform="matrix(0.866,-0.5,0.5,0.866,378.2975,504)" fill="#2e3440">Product</text>
@@ -319,7 +319,7 @@ stroke-width:5;
 }
 .zr9-cls-67:hover {
 cursor:pointer;
-fill:rgba(103,141,189,1);
+fill:rgba(210,106,116,1);
 }
 .zr9-cls-68:hover {
 cursor:pointer;
@@ -327,23 +327,23 @@ fill:rgba(179,209,154,1);
 }
 .zr9-cls-69:hover {
 cursor:pointer;
-fill:rgba(255,223,152,1);
+fill:rgba(103,141,189,1);
 }
 .zr9-cls-70:hover {
 cursor:pointer;
-fill:rgba(198,156,190,1);
+fill:rgba(157,206,205,1);
 }
 .zr9-cls-71:hover {
 cursor:pointer;
-fill:rgba(228,148,123,1);
+fill:rgba(255,223,152,1);
 }
 .zr9-cls-72:hover {
 cursor:pointer;
-fill:rgba(210,106,116,1);
+fill:rgba(198,156,190,1);
 }
 .zr9-cls-73:hover {
 cursor:pointer;
-fill:rgba(221,233,248,1);
+fill:rgba(247,224,231,1);
 }
 .zr9-cls-74:hover {
 cursor:pointer;
@@ -351,19 +351,19 @@ fill:rgba(239,249,239,1);
 }
 .zr9-cls-75:hover {
 cursor:pointer;
-fill:rgba(255,253,239,1);
+fill:rgba(221,233,248,1);
 }
 .zr9-cls-76:hover {
 cursor:pointer;
-fill:rgba(251,234,232,1);
+fill:rgba(255,253,239,1);
 }
 .zr9-cls-77:hover {
 cursor:pointer;
-fill:rgba(244,236,248,1);
+fill:rgba(234,248,253,1);
 }
 .zr9-cls-78:hover {
 cursor:pointer;
-fill:rgba(247,224,231,1);
+fill:rgba(244,236,248,1);
 }
 .zr9-cls-79:hover {
 pointer-events:none;
@@ -449,11 +449,11 @@ exports[`echarts shapeFill snapshots (TD-7 high-risk) > funnel (nord light) — 
 <polyline points="670.1 420 680.1 420" fill="none" pointer-events="visible" stroke="#2e3440" stroke-opacity="0.3"></polyline>
 <polyline points="645.8 564 655.8 564" fill="none" pointer-events="visible" stroke="#2e3440" stroke-opacity="0.3"></polyline>
 <polyline points="633.5 708 643.5 708" fill="none" pointer-events="visible" stroke="#2e3440" stroke-opacity="0.3"></polyline>
-<polygon points="240 60 960 60 777.8 204 422.2 204" fill="#c9d4e2" stroke="#5e81ac" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></polygon>
+<polygon points="240 60 960 60 777.8 204 422.2 204" fill="#e1ccd2" stroke="#bf616a" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></polygon>
 <polygon points="422.2 204 777.8 204 686.8 348 513.2 348" fill="#dae3da" stroke="#a3be8c" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart"></polygon>
-<polygon points="513.2 348 686.8 348 653.4 492 546.6 492" fill="#ece6da" stroke="#ebcb8b" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></polygon>
-<polygon points="546.6 492 653.4 492 638.2 636 561.8 636" fill="#e5d5d3" stroke="#d08770" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart"></polygon>
-<polygon points="561.8 636 638.2 636 628.8 780 571.2 780" fill="#ded7e2" stroke="#b48ead" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart"></polygon>
+<polygon points="513.2 348 686.8 348 653.4 492 546.6 492" fill="#c9d4e2" stroke="#5e81ac" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></polygon>
+<polygon points="546.6 492 653.4 492 638.2 636 561.8 636" fill="#ece6da" stroke="#ebcb8b" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart"></polygon>
+<polygon points="561.8 636 638.2 636 628.8 780 571.2 780" fill="#d5e2e6" stroke="#8fbcbb" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart"></polygon>
 <polygon points="240 60 960 60 777.8 204 422.2 204" fill="none" pointer-events="visible" stroke="#fff" stroke-width="0" stroke-linejoin="round" ecmeta_series_index="1" ecmeta_data_index="0" ecmeta_ssr_type="chart"></polygon>
 <polygon points="422.2 204 777.8 204 686.8 348 513.2 348" fill="none" pointer-events="visible" stroke="#fff" stroke-width="0" stroke-linejoin="round" ecmeta_series_index="1" ecmeta_data_index="1" ecmeta_ssr_type="chart"></polygon>
 <polygon points="513.2 348 686.8 348 653.4 492 546.6 492" fill="none" pointer-events="visible" stroke="#fff" stroke-width="0" stroke-linejoin="round" ecmeta_series_index="1" ecmeta_data_index="2" ecmeta_ssr_type="chart"></polygon>
@@ -480,7 +480,7 @@ pointer-events:none;
 }
 .zr4-cls-32:hover {
 cursor:pointer;
-fill:rgba(221,233,248,1);
+fill:rgba(247,224,231,1);
 }
 .zr4-cls-33:hover {
 cursor:pointer;
@@ -488,15 +488,15 @@ fill:rgba(239,249,239,1);
 }
 .zr4-cls-34:hover {
 cursor:pointer;
-fill:rgba(255,253,239,1);
+fill:rgba(221,233,248,1);
 }
 .zr4-cls-35:hover {
 cursor:pointer;
-fill:rgba(251,234,232,1);
+fill:rgba(255,253,239,1);
 }
 .zr4-cls-36:hover {
 cursor:pointer;
-fill:rgba(244,236,248,1);
+fill:rgba(234,248,253,1);
 }
 
 ]]>
@@ -720,20 +720,20 @@ fill:rgba(255,255,255,1);
 exports[`echarts shapeFill snapshots (TD-7 high-risk) > pie (nord light) — stable SVG output 1`] = `
 "<svg style="background: #eceff4; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
 <rect width="1200" height="800" x="0" y="0" fill="none"></rect>
-<polyline points="764.1 474.1 777.7 480.2 807.7 480.2" fill="none" pointer-events="visible" stroke="#c9d4e2"></polyline>
+<polyline points="764.1 474.1 777.7 480.2 807.7 480.2" fill="none" pointer-events="visible" stroke="#e1ccd2"></polyline>
 <polyline points="420.9 418.1 411 419.6 381 419.6" fill="none" pointer-events="visible" stroke="#dae3da"></polyline>
-<polyline points="464.2 281.8 457.8 272 427.8 272" fill="none" pointer-events="visible" stroke="#ece6da"></polyline>
-<polyline points="513.8 242 483.7 247.1 453.7 247.1" fill="none" pointer-events="visible" stroke="#e5d5d3"></polyline>
-<polyline points="555.2 225.7 503.7 233.1 473.7 233.1" fill="none" pointer-events="visible" stroke="#ded7e2"></polyline>
-<polyline points="578.6 221.3 531.5 219.1 501.5 219.1" fill="none" pointer-events="visible" stroke="#e1ccd2"></polyline>
-<polyline points="593.2 220.1 592.7 205.1 562.7 205.1" fill="none" pointer-events="visible" stroke="#d5e2e6"></polyline>
-<path d="M600 220A180 180 0 1 1 465 519L600 400Z" fill="#c9d4e2" stroke="#5e81ac" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></path>
+<polyline points="464.2 281.8 457.8 272 427.8 272" fill="none" pointer-events="visible" stroke="#c9d4e2"></polyline>
+<polyline points="513.8 242 483.7 247.1 453.7 247.1" fill="none" pointer-events="visible" stroke="#ece6da"></polyline>
+<polyline points="555.2 225.7 503.7 233.1 473.7 233.1" fill="none" pointer-events="visible" stroke="#d5e2e6"></polyline>
+<polyline points="578.6 221.3 531.5 219.1 501.5 219.1" fill="none" pointer-events="visible" stroke="#ded7e2"></polyline>
+<polyline points="593.2 220.1 592.7 205.1 562.7 205.1" fill="none" pointer-events="visible" stroke="#e5d5d3"></polyline>
+<path d="M600 220A180 180 0 1 1 465 519L600 400Z" fill="#e1ccd2" stroke="#bf616a" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></path>
 <path d="M465 519A180 180 0 0 1 443.9 310.3L600 400Z" fill="#dae3da" stroke="#a3be8c" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart"></path>
-<path d="M443.9 310.3A180 180 0 0 1 489.7 257.8L600 400Z" fill="#ece6da" stroke="#ebcb8b" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></path>
-<path d="M489.7 257.8A180 180 0 0 1 540.1 230.3L600 400Z" fill="#e5d5d3" stroke="#d08770" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart"></path>
-<path d="M540.1 230.3A180 180 0 0 1 570.7 222.4L600 400Z" fill="#ded7e2" stroke="#b48ead" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart"></path>
-<path d="M570.7 222.4A180 180 0 0 1 586.4 220.5L600 400Z" fill="#e1ccd2" stroke="#bf616a" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart"></path>
-<path d="M586.4 220.5A180 180 0 0 1 600 220L600 400Z" fill="#d5e2e6" stroke="#8fbcbb" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart"></path>
+<path d="M443.9 310.3A180 180 0 0 1 489.7 257.8L600 400Z" fill="#c9d4e2" stroke="#5e81ac" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></path>
+<path d="M489.7 257.8A180 180 0 0 1 540.1 230.3L600 400Z" fill="#ece6da" stroke="#ebcb8b" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart"></path>
+<path d="M540.1 230.3A180 180 0 0 1 570.7 222.4L600 400Z" fill="#d5e2e6" stroke="#8fbcbb" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart"></path>
+<path d="M570.7 222.4A180 180 0 0 1 586.4 220.5L600 400Z" fill="#ded7e2" stroke="#b48ead" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart"></path>
+<path d="M586.4 220.5A180 180 0 0 1 600 220L600 400Z" fill="#e5d5d3" stroke="#d08770" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart"></path>
 <text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" transform="translate(812.7236 480.2453)" fill="#2e3440">Chrome — 63.5 (63.5%)</text>
 <text dominant-baseline="central" text-anchor="end" style="font-size:12px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" transform="translate(375.9846 419.5705)" fill="#2e3440">Safari — 19.8 (19.8%)</text>
 <text dominant-baseline="central" text-anchor="end" style="font-size:12px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" transform="translate(422.7765 271.9658)" fill="#2e3440">Firefox — 6.2 (6.2%)</text>
@@ -749,7 +749,7 @@ cursor:pointer;
 }
 .zr0-cls-1:hover {
 cursor:pointer;
-fill:rgba(221,233,248,1);
+fill:rgba(247,224,231,1);
 }
 .zr0-cls-2:hover {
 cursor:pointer;
@@ -757,23 +757,23 @@ fill:rgba(239,249,239,1);
 }
 .zr0-cls-3:hover {
 cursor:pointer;
-fill:rgba(255,253,239,1);
+fill:rgba(221,233,248,1);
 }
 .zr0-cls-4:hover {
 cursor:pointer;
-fill:rgba(251,234,232,1);
+fill:rgba(255,253,239,1);
 }
 .zr0-cls-5:hover {
 cursor:pointer;
-fill:rgba(244,236,248,1);
+fill:rgba(234,248,253,1);
 }
 .zr0-cls-6:hover {
 cursor:pointer;
-fill:rgba(247,224,231,1);
+fill:rgba(244,236,248,1);
 }
 .zr0-cls-7:hover {
 cursor:pointer;
-fill:rgba(234,248,253,1);
+fill:rgba(251,234,232,1);
 }
 .zr0-cls-8:hover {
 pointer-events:none;
@@ -788,18 +788,18 @@ pointer-events:none;
 exports[`echarts shapeFill snapshots (TD-7 high-risk) > polar-area (nord light) — stable SVG output 1`] = `
 "<svg style="background: #eceff4; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
 <rect width="1200" height="800" x="0" y="0" fill="none"></rect>
-<polyline points="639 317.9 683.7 223.9 713.7 223.9" fill="none" pointer-events="visible" stroke="#c9d4e2"></polyline>
+<polyline points="639 317.9 683.7 223.9 713.7 223.9" fill="none" pointer-events="visible" stroke="#e1ccd2"></polyline>
 <polyline points="769 461.9 783.1 467.1 813.1 467.1" fill="none" pointer-events="visible" stroke="#dae3da"></polyline>
-<polyline points="592.4 468.2 578.4 593.8 548.4 593.8" fill="none" pointer-events="visible" stroke="#ece6da"></polyline>
-<polyline points="579.9 435.4 503.5 569.5 473.5 569.5" fill="none" pointer-events="visible" stroke="#e5d5d3"></polyline>
-<polyline points="473.9 430.9 410.6 446.4 380.6 446.4" fill="none" pointer-events="visible" stroke="#ded7e2"></polyline>
-<polyline points="543.4 308.5 497.3 234.2 467.3 234.2" fill="none" pointer-events="visible" stroke="#e1ccd2"></polyline>
-<path d="M600 309.1A90.9 90.9 0 0 1 670.4 342.6L618.6 384.8A24 24 0 0 0 600 376Z" fill="#c9d4e2" stroke="#5e81ac" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></path>
+<polyline points="592.4 468.2 578.4 593.8 548.4 593.8" fill="none" pointer-events="visible" stroke="#c9d4e2"></polyline>
+<polyline points="579.9 435.4 503.5 569.5 473.5 569.5" fill="none" pointer-events="visible" stroke="#ece6da"></polyline>
+<polyline points="473.9 430.9 410.6 446.4 380.6 446.4" fill="none" pointer-events="visible" stroke="#d5e2e6"></polyline>
+<polyline points="543.4 308.5 497.3 234.2 467.3 234.2" fill="none" pointer-events="visible" stroke="#ded7e2"></polyline>
+<path d="M600 309.1A90.9 90.9 0 0 1 670.4 342.6L618.6 384.8A24 24 0 0 0 600 376Z" fill="#e1ccd2" stroke="#bf616a" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart"></path>
 <path d="M739.5 286.3A180 180 0 0 1 633.1 576.9L604.4 423.6A24 24 0 0 0 618.6 384.8Z" fill="#dae3da" stroke="#a3be8c" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart"></path>
-<path d="M612.6 467.4A68.6 68.6 0 0 1 572.9 463L590.5 422A24 24 0 0 0 604.4 423.6Z" fill="#ece6da" stroke="#ebcb8b" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></path>
-<path d="M583.9 437.4A40.7 40.7 0 0 1 576.1 432.9L585.9 419.4A24 24 0 0 0 590.5 422Z" fill="#e5d5d3" stroke="#d08770" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart"></path>
-<path d="M523.7 505.1A129.9 129.9 0 0 1 483.8 342.1L578.5 389.3A24 24 0 0 0 585.9 419.4Z" fill="#ded7e2" stroke="#b48ead" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart"></path>
-<path d="M503.7 352.1A107.6 107.6 0 0 1 600 292.4L600 376A24 24 0 0 0 578.5 389.3Z" fill="#e1ccd2" stroke="#bf616a" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart"></path>
+<path d="M612.6 467.4A68.6 68.6 0 0 1 572.9 463L590.5 422A24 24 0 0 0 604.4 423.6Z" fill="#c9d4e2" stroke="#5e81ac" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart"></path>
+<path d="M583.9 437.4A40.7 40.7 0 0 1 576.1 432.9L585.9 419.4A24 24 0 0 0 590.5 422Z" fill="#ece6da" stroke="#ebcb8b" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart"></path>
+<path d="M523.7 505.1A129.9 129.9 0 0 1 483.8 342.1L578.5 389.3A24 24 0 0 0 585.9 419.4Z" fill="#d5e2e6" stroke="#8fbcbb" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart"></path>
+<path d="M503.7 352.1A107.6 107.6 0 0 1 600 292.4L600 376A24 24 0 0 0 578.5 389.3Z" fill="#ded7e2" stroke="#b48ead" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart"></path>
 <text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" transform="translate(718.6785 223.8668)" fill="#2e3440">Security — 12 (14.12%)</text>
 <text dominant-baseline="central" text-anchor="start" style="font-size:12px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" transform="translate(818.1027 467.07)" fill="#2e3440">Performance — 28 (32.94%)</text>
 <text dominant-baseline="central" text-anchor="end" style="font-size:12px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" transform="translate(543.4227 593.8025)" fill="#2e3440">Availability — 8 (9.41%)</text>
@@ -814,7 +814,7 @@ cursor:pointer;
 }
 .zr6-cls-42:hover {
 cursor:pointer;
-fill:rgba(221,233,248,1);
+fill:rgba(247,224,231,1);
 }
 .zr6-cls-43:hover {
 cursor:pointer;
@@ -822,19 +822,19 @@ fill:rgba(239,249,239,1);
 }
 .zr6-cls-44:hover {
 cursor:pointer;
-fill:rgba(255,253,239,1);
+fill:rgba(221,233,248,1);
 }
 .zr6-cls-45:hover {
 cursor:pointer;
-fill:rgba(251,234,232,1);
+fill:rgba(255,253,239,1);
 }
 .zr6-cls-46:hover {
 cursor:pointer;
-fill:rgba(244,236,248,1);
+fill:rgba(234,248,253,1);
 }
 .zr6-cls-47:hover {
 cursor:pointer;
-fill:rgba(247,224,231,1);
+fill:rgba(244,236,248,1);
 }
 .zr6-cls-48:hover {
 pointer-events:none;
