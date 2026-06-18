@@ -26,6 +26,7 @@ import {
   EYE_CLOSED_PATH,
 } from '../utils/legend-constants';
 import { renderIntegratedLegend } from '../utils/legend-integration';
+import { renderNodeCard, renderCollapseBar } from '../utils/card';
 import { measureText } from '../utils/text-measure';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import type { LegendConfig } from '../utils/legend-types';
@@ -38,23 +39,25 @@ const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 const TITLE_HEIGHT = 30;
-const LABEL_FONT_SIZE = 13;
-const META_FONT_SIZE = 11;
-const META_LINE_HEIGHT = 16;
-const HEADER_HEIGHT = 28;
-const SEPARATOR_GAP = 6;
-const EDGE_STROKE_WIDTH = 1.5;
-const NODE_STROKE_WIDTH = 1.5;
-const CARD_RADIUS = 6;
-const CONTAINER_RADIUS = 8;
-const CONTAINER_LABEL_FONT_SIZE = 13;
-const CONTAINER_META_FONT_SIZE = 11;
-const CONTAINER_META_LINE_HEIGHT = 16;
-const CONTAINER_HEADER_HEIGHT = 28;
-
-// Collapsed-node accent bar
-const COLLAPSE_BAR_HEIGHT = 6;
-const COLLAPSE_BAR_INSET = 0;
+// Shared card / group / collapse constants (Story 111.1). org matches every
+// convention default, so it imports the full set.
+import {
+  LABEL_FONT_SIZE,
+  META_FONT_SIZE,
+  META_LINE_HEIGHT,
+  HEADER_HEIGHT,
+  SEPARATOR_GAP,
+  EDGE_STROKE_WIDTH,
+  NODE_STROKE_WIDTH,
+  CARD_RADIUS,
+  CONTAINER_RADIUS,
+  CONTAINER_LABEL_FONT_SIZE,
+  CONTAINER_META_FONT_SIZE,
+  CONTAINER_META_LINE_HEIGHT,
+  CONTAINER_HEADER_HEIGHT,
+  COLLAPSE_BAR_HEIGHT,
+  COLLAPSE_BAR_INSET,
+} from '../utils/visual-conventions';
 
 // Ancestor breadcrumb trail (focus mode)
 const ANCESTOR_DOT_R = 4;
@@ -360,21 +363,16 @@ export function renderOrg(
     }
 
     if (!exportDims && c.hiddenCount && c.hiddenCount > 0) {
-      const clipId = `clip-${c.nodeId}`;
-      cG.append('clipPath')
-        .attr('id', clipId)
-        .append('rect')
-        .attr('width', c.width)
-        .attr('height', c.height)
-        .attr('rx', sContainerRadius);
-      cG.append('rect')
-        .attr('x', sCollapseBarInset)
-        .attr('y', c.height - sCollapseBarHeight)
-        .attr('width', c.width - sCollapseBarInset * 2)
-        .attr('height', sCollapseBarHeight)
-        .attr('fill', containerStroke(palette, colorOff ? undefined : c.color))
-        .attr('clip-path', `url(#${clipId})`)
-        .attr('class', 'org-collapse-bar');
+      renderCollapseBar(cG, {
+        width: c.width,
+        height: c.height,
+        barHeight: sCollapseBarHeight,
+        inset: sCollapseBarInset,
+        rx: sContainerRadius,
+        fill: containerStroke(palette, colorOff ? undefined : c.color),
+        clipId: `clip-${c.nodeId}`,
+        className: 'org-collapse-bar',
+      });
     }
 
     // Focus icon (hover-reveal, interactive only) — for non-root containers with children
@@ -489,103 +487,52 @@ export function renderOrg(
     );
     const stroke = nodeStroke(palette, colorOff ? undefined : node.color);
 
-    const rect = nodeG
-      .append('rect')
-      .attr('x', 0)
-      .attr('y', 0)
-      .attr('width', node.width)
-      .attr('height', node.height)
-      .attr('rx', sCardRadius)
-      .attr('fill', fill)
-      .attr('stroke', stroke)
-      .attr('stroke-width', sNodeStrokeWidth);
-
-    if (node.isContainer) {
-      rect.attr('stroke-dasharray', '6 3');
-    }
-
     const labelColor = contrastText(
       fill,
       palette.textOnFillLight,
       palette.textOnFillDark
     );
-    nodeG
-      .append('text')
-      .attr('x', node.width / 2)
-      .attr('y', sHeaderHeight / 2 + sLabelFontSize / 2 - 2)
-      .attr('text-anchor', 'middle')
-      .attr('fill', labelColor)
-      .attr('font-size', sLabelFontSize)
-      .attr('font-weight', 'bold')
-      .text(node.label);
 
     const metaEntries = Object.entries(node.metadata);
-    if (metaEntries.length > 0) {
-      nodeG
-        .append('line')
-        .attr('x1', 0)
-        .attr('y1', sHeaderHeight)
-        .attr('x2', node.width)
-        .attr('y2', sHeaderHeight)
-        .attr('stroke', solid ? labelColor : stroke)
-        .attr('stroke-opacity', 0.3)
-        .attr('stroke-width', 1);
-
-      const metaDisplayKeys = metaEntries.map(
-        ([k]) => displayNames.get(k) ?? k
-      );
-      const maxKeyWidth = Math.max(
-        ...metaDisplayKeys.map((k) => measureText(`${k}: `, sMetaFontSize))
-      );
-      const valueX = 10 + maxKeyWidth;
-
-      const metaStartY = sHeaderHeight + sSeparatorGap + sMetaFontSize;
-      for (let i = 0; i < metaEntries.length; i++) {
-        const [, value] = metaEntries[i]!;
-        const displayKey = metaDisplayKeys[i]!;
-        const rowY = metaStartY + i * sMetaLineHeight;
-
-        nodeG
-          .append('text')
-          .attr('x', 10)
-          .attr('y', rowY)
-          .attr('fill', labelColor)
-          .attr('font-size', sMetaFontSize)
-          .text(`${displayKey}: `);
-
-        nodeG
-          .append('text')
-          .attr('x', valueX)
-          .attr('y', rowY)
-          .attr('fill', labelColor)
-          .attr('font-size', sMetaFontSize)
-          .text(value);
-      }
-    }
+    renderNodeCard(nodeG, {
+      width: node.width,
+      height: node.height,
+      rx: sCardRadius,
+      fill,
+      stroke,
+      strokeWidth: sNodeStrokeWidth,
+      ...(node.isContainer && { dashed: true }),
+      label: node.label,
+      labelColor,
+      labelFontSize: sLabelFontSize,
+      headerHeight: sHeaderHeight,
+      ...(metaEntries.length > 0 && {
+        meta: {
+          rows: metaEntries.map(
+            ([k, value]) => [displayNames.get(k) ?? k, value] as const
+          ),
+          fontSize: sMetaFontSize,
+          lineHeight: sMetaLineHeight,
+          separatorGap: sSeparatorGap,
+          separatorColor: solid ? labelColor : stroke,
+          textColor: labelColor,
+        },
+      }),
+    });
 
     if (!exportDims && node.hiddenCount && node.hiddenCount > 0) {
-      const clipId = `clip-${node.id}`;
-      nodeG
-        .append('clipPath')
-        .attr('id', clipId)
-        .append('rect')
-        .attr('width', node.width)
-        .attr('height', node.height)
-        .attr('rx', sCardRadius);
-      nodeG
-        .append('rect')
-        .attr('x', sCollapseBarInset)
-        .attr('y', node.height - sCollapseBarHeight)
-        .attr('width', node.width - sCollapseBarInset * 2)
-        .attr('height', sCollapseBarHeight)
-        .attr(
-          'fill',
-          solid
-            ? labelColor
-            : nodeStroke(palette, colorOff ? undefined : node.color)
-        )
-        .attr('clip-path', `url(#${clipId})`)
-        .attr('class', 'org-collapse-bar');
+      renderCollapseBar(nodeG, {
+        width: node.width,
+        height: node.height,
+        barHeight: sCollapseBarHeight,
+        inset: sCollapseBarInset,
+        rx: sCardRadius,
+        fill: solid
+          ? labelColor
+          : nodeStroke(palette, colorOff ? undefined : node.color),
+        clipId: `clip-${node.id}`,
+        className: 'org-collapse-bar',
+      });
     }
 
     // Focus icon (hover-reveal, interactive only) — for non-root nodes with children

@@ -46,8 +46,10 @@ const MAX_SCALE = 3;
 const TABLE_FONT_SIZE = 13;
 const COLUMN_FONT_SIZE = 11;
 const EDGE_LABEL_FONT_SIZE = 11;
-const EDGE_STROKE_WIDTH = 1.5;
-const NODE_STROKE_WIDTH = 1.5;
+import {
+  EDGE_STROKE_WIDTH,
+  NODE_STROKE_WIDTH,
+} from '../utils/visual-conventions'; // shared (Story 111.1)
 const MEMBER_LINE_HEIGHT = 18;
 const COMPARTMENT_PADDING_Y = 8;
 const MEMBER_PADDING_X = 10;

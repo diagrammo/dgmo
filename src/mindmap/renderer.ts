@@ -35,9 +35,11 @@ const LABEL_LINE_HEIGHT = 18;
 const DESC_LINE_HEIGHT = 14;
 const NODE_RADIUS = 6;
 const ROOT_STROKE_WIDTH = 2.5;
-const NODE_STROKE_WIDTH = 1.5;
-const EDGE_STROKE_WIDTH = 1.5;
-const COLLAPSE_BAR_HEIGHT = 6;
+import {
+  NODE_STROKE_WIDTH,
+  EDGE_STROKE_WIDTH,
+  COLLAPSE_BAR_HEIGHT,
+} from '../utils/visual-conventions'; // shared (Story 111.1)
 
 function nodeFill(
   palette: PaletteColors,

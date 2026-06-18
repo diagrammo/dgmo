@@ -267,7 +267,7 @@ const TINT_PCT = 25;
  * kanban `CARD_RADIUS = 6`). Keeps RACI markers visually consistent
  * with nodes elsewhere in the diagram language.
  */
-const NODE_STROKE_WIDTH = 1.5;
+import { NODE_STROKE_WIDTH } from '../utils/visual-conventions'; // shared (Story 111.1)
 const NODE_RADIUS = 6;
 
 /**

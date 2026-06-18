@@ -56,9 +56,13 @@ const DIAGRAM_PADDING = 20;
 const NODE_FONT_SIZE = 11;
 const MIN_NODE_FONT_SIZE = 9;
 const EDGE_LABEL_FONT_SIZE = 11;
-const EDGE_STROKE_WIDTH = 1.5;
-const NODE_STROKE_WIDTH = 1.5;
+import {
+  EDGE_STROKE_WIDTH,
+  NODE_STROKE_WIDTH,
+} from '../utils/visual-conventions'; // shared (Story 111.1)
 const NODE_RX = 8;
+// Intentional deviation (conventions §3): boxes-and-lines uses a 4px collapse
+// bar (and 4px separator gap in layout.ts) — denser than the 6px default.
 const COLLAPSE_BAR_HEIGHT = 4;
 const ARROWHEAD_W = 5;
 const ARROWHEAD_H = 4;

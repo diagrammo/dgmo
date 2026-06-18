@@ -37,16 +37,18 @@ const DESC_FONT_SIZE = 11;
 const DESC_LINE_HEIGHT = 16;
 const EDGE_LABEL_FONT_SIZE = 11;
 const TECH_FONT_SIZE = 10;
-const EDGE_STROKE_WIDTH = 1.5;
-const NODE_STROKE_WIDTH = 1.5;
-const CARD_RADIUS = 6;
+import {
+  EDGE_STROKE_WIDTH,
+  NODE_STROKE_WIDTH,
+  CARD_RADIUS,
+  META_FONT_SIZE,
+  META_LINE_HEIGHT,
+} from '../utils/visual-conventions'; // shared (Story 111.1)
 const CARD_H_PAD = 20;
 const CARD_V_PAD = 14;
 const TYPE_LABEL_HEIGHT = 18;
 const DIVIDER_GAP = 6;
 const NAME_HEIGHT = 20;
-const META_FONT_SIZE = 11;
-const META_LINE_HEIGHT = 16;
 const BOUNDARY_LABEL_FONT_SIZE = 12;
 const BOUNDARY_STROKE_WIDTH = 1.5;
 const BOUNDARY_RADIUS = 8;

@@ -36,8 +36,10 @@ const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
 const NODE_FONT_SIZE = 13;
 const EDGE_LABEL_FONT_SIZE = 11;
-const EDGE_STROKE_WIDTH = 1.5;
-const NODE_STROKE_WIDTH = 1.5;
+import {
+  EDGE_STROKE_WIDTH,
+  NODE_STROKE_WIDTH,
+} from '../utils/visual-conventions'; // shared (Story 111.1)
 const ARROWHEAD_W = 10;
 const ARROWHEAD_H = 7;
 const IO_SKEW = 15;

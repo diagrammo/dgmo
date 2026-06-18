@@ -23,6 +23,7 @@ import {
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import { ScaleContext } from '../utils/scaling';
+import { renderNodeCard } from '../utils/card';
 
 // ============================================================
 // Constants
@@ -32,25 +33,27 @@ const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 const TITLE_HEIGHT = 30;
-const LABEL_FONT_SIZE = 13;
-const META_FONT_SIZE = 11;
-const META_LINE_HEIGHT = 16;
-const HEADER_HEIGHT = 28;
-const SEPARATOR_GAP = 6;
-const EDGE_STROKE_WIDTH = 1.5;
-const NODE_STROKE_WIDTH = 1.5;
-const CARD_RADIUS = 6;
-const CONTAINER_RADIUS = 8;
-const CONTAINER_LABEL_FONT_SIZE = 13;
-const CONTAINER_META_FONT_SIZE = 11;
-const CONTAINER_META_LINE_HEIGHT = 16;
-const CONTAINER_HEADER_HEIGHT = 28;
+// Shared card / group / collapse constants (Story 111.1). sitemap matches every
+// convention default, so it imports the full set.
+import {
+  LABEL_FONT_SIZE,
+  META_FONT_SIZE,
+  META_LINE_HEIGHT,
+  HEADER_HEIGHT,
+  SEPARATOR_GAP,
+  EDGE_STROKE_WIDTH,
+  NODE_STROKE_WIDTH,
+  CARD_RADIUS,
+  CONTAINER_RADIUS,
+  CONTAINER_LABEL_FONT_SIZE,
+  CONTAINER_META_FONT_SIZE,
+  CONTAINER_META_LINE_HEIGHT,
+  CONTAINER_HEADER_HEIGHT,
+  COLLAPSE_BAR_HEIGHT,
+} from '../utils/visual-conventions';
 const ARROWHEAD_W = 10;
 const ARROWHEAD_H = 7;
 const EDGE_LABEL_FONT_SIZE = 11;
-
-// Collapsed-node accent bar
-const COLLAPSE_BAR_HEIGHT = 6;
 
 const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram — local, not shared
 
@@ -492,32 +495,27 @@ export function renderSitemap(
     const fill = nodeFill(palette, isDark, node.color, solid);
     const stroke = nodeStroke(palette, node.color);
 
-    // Card background
-    nodeG
-      .append('rect')
-      .attr('x', 0)
-      .attr('y', 0)
-      .attr('width', node.width)
-      .attr('height', node.height)
-      .attr('rx', CARD_RADIUS)
-      .attr('fill', fill)
-      .attr('stroke', stroke)
-      .attr('stroke-width', sNodeStrokeWidth);
-
+    // Card background + label via the shared card door (Story 111.1). sitemap's
+    // metadata, description lines, and collapse bar diverge from the convention
+    // (different meta baseline; semi-transparent collapse bar + "+N" badge), so
+    // they stay inline below — see conventions §1/§3 deviations log.
     const labelColor = contrastText(
       fill,
       palette.textOnFillLight,
       palette.textOnFillDark
     );
-    nodeG
-      .append('text')
-      .attr('x', node.width / 2)
-      .attr('y', sHeaderHeight / 2 + sLabelFontSize / 2 - 2)
-      .attr('text-anchor', 'middle')
-      .attr('fill', labelColor)
-      .attr('font-size', sLabelFontSize)
-      .attr('font-weight', 'bold')
-      .text(node.label);
+    renderNodeCard(nodeG, {
+      width: node.width,
+      height: node.height,
+      rx: CARD_RADIUS,
+      fill,
+      stroke,
+      strokeWidth: sNodeStrokeWidth,
+      label: node.label,
+      labelColor,
+      labelFontSize: sLabelFontSize,
+      headerHeight: sHeaderHeight,
+    });
 
     const metaEntries = Object.entries(node.metadata);
     if (metaEntries.length > 0) {

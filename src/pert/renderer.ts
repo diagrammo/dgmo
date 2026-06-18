@@ -87,7 +87,16 @@ const NODE_CELL_FONT_SIZE = 11;
 // row holds the name and is taller than the corner cells so the name
 // reads as the primary label (mirroring textbook proportions).
 const NODE_RADIUS = 6;
-const NODE_STROKE_WIDTH = 1.5;
+// Shared card / group / collapse constants (Story 111.1). The explanatory
+// comments below stay with the renderer; the values now live in one module.
+import {
+  NODE_STROKE_WIDTH,
+  EDGE_STROKE_WIDTH,
+  CONTAINER_RADIUS,
+  CONTAINER_LABEL_FONT_SIZE,
+  CONTAINER_HEADER_HEIGHT,
+  COLLAPSE_BAR_HEIGHT,
+} from '../utils/visual-conventions';
 
 // Analysis-block chrome (Summary / Activity Risk / Completion / Field
 // labels). These sit BELOW the diagram and shouldn't compete with it
@@ -113,18 +122,14 @@ const NODE_BOTTOM_ROW_HEIGHT = 26;
 // stroke and a matching red arrowhead because the critical path is the
 // central concept of a PERT chart, and a binary `data-critical` attr
 // alone left it visually invisible to readers.
-const EDGE_STROKE_WIDTH = 1.5;
 const ARROWHEAD_W = 10;
 const ARROWHEAD_H = 7;
 // Group-rect treatment per §2: neutral surface fill on textMuted stroke,
 // solid border, rx=8, top-center 13pt 'bold' label inside a reserved
 // 28px header band — exactly matching org's container recipe.
-const CONTAINER_RADIUS = 8;
-const CONTAINER_LABEL_FONT_SIZE = 13;
-const CONTAINER_HEADER_HEIGHT = 28;
-// Collapse-bar height — see conventions doc §3 Pattern A/B (matches
-// org's `COLLAPSE_BAR_HEIGHT`). Universal "this is collapsed" signal.
-const COLLAPSE_BAR_HEIGHT = 6;
+// CONTAINER_RADIUS/LABEL_FONT_SIZE/HEADER_HEIGHT + COLLAPSE_BAR_HEIGHT now
+// imported from utils/visual-conventions (Story 111.1). Group-rect treatment
+// per §2; collapse-bar height matches org per §3 Pattern A/B.
 // Always-on fade applied to bottom-20% (by duration) activity nodes
 // so the eye is drawn to the longer, schedule-dominating work first.
 // Less aggressive than FADE_OPACITY because these cards still need to
