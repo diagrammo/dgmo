@@ -11,6 +11,8 @@
 // and NO_COLOR is unset; otherwise prints plain ASCII so pipes/CI stay
 // clean.
 
+import { getPalette } from './palettes';
+
 // ANSI Shadow letterform for "dgmo" (6 rows) + tagline.
 const ART = [
   '██████╗  ██████╗ ███╗   ███╗ ██████╗ ',
@@ -23,12 +25,24 @@ const ART = [
 
 const TAGLINE = 'diagrams as code';
 
-// Gradient stops sampled from slate (light): blue → teal → cyan.
-const STOPS: Array<[number, number, number]> = [
-  [0x3b, 0x6e, 0xa5], // corporate blue
-  [0x3a, 0x91, 0x88], // teal
-  [0x4f, 0x96, 0xc4], // steel cyan
-];
+// Gradient stops, pulled by name from the live slate palette (light) so the
+// wordmark tracks any palette edit instead of drifting from a hardcoded copy.
+// blue → teal → green → amber: a vivid sweep across the categorical hues.
+const GRADIENT_COLOR_NAMES = ['blue', 'teal', 'green', 'orange'] as const;
+
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [
+    parseInt(h.slice(0, 2), 16),
+    parseInt(h.slice(2, 4), 16),
+    parseInt(h.slice(4, 6), 16),
+  ];
+}
+
+const STOPS: Array<[number, number, number]> = (() => {
+  const colors = getPalette('slate').light.colors;
+  return GRADIENT_COLOR_NAMES.map((name) => hexToRgb(colors[name]));
+})();
 
 function lerp(a: number, b: number, t: number): number {
   return Math.round(a + (b - a) * t);
