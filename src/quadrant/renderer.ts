@@ -11,7 +11,7 @@ import { ScaleContext } from '../utils/scaling';
 import { initD3Chart, renderChartTitle } from '../utils/d3-helpers';
 import type { ParsedQuadrant, QuadrantLabel } from '../visualizations/types';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { mix, themeBaseBg } from '../palettes/color-utils';
 
 // Quadrant Chart Renderer
 // ============================================================
@@ -99,7 +99,7 @@ export function renderQuadrant(
     .append('g')
     .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
-  const bg = isDark ? palette.surface : palette.bg;
+  const bg = themeBaseBg(palette, isDark);
 
   // Full palette color for a quadrant (used for border and label tinting)
   const getQuadrantColor = (

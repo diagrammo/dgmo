@@ -4,7 +4,7 @@
 
 import * as d3Selection from 'd3-selection';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill, themeBaseBg } from '../palettes/color-utils';
 import {
   parseInlineMarkdown,
   truncateBareUrl,
@@ -2010,7 +2010,7 @@ export function renderSequenceDiagram(
     const fillColor = groupTagColor
       ? mix(
           groupTagColor,
-          isDark ? palette.surface : palette.bg,
+          themeBaseBg(palette, isDark),
           isDark ? 15 : 20
         )
       : isDark
@@ -2139,7 +2139,7 @@ export function renderSequenceDiagram(
       const pFill = effectiveTagColor
         ? mix(
             effectiveTagColor,
-            isDark ? palette.surface : palette.bg,
+            themeBaseBg(palette, isDark),
             isDark ? 30 : 40
           )
         : isDark
@@ -2507,7 +2507,7 @@ export function renderSequenceDiagram(
       .attr('y', y1)
       .attr('width', sActivationWidth)
       .attr('height', y2 - y1)
-      .attr('fill', isDark ? palette.surface : palette.bg);
+      .attr('fill', themeBaseBg(palette, isDark));
 
     // Canonical 25% tint via shapeFill() (or full intent when solid-fill is on).
     const actFill = shapeFill(palette, actBaseColor, isDark, { solid });

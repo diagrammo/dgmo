@@ -305,6 +305,16 @@ export function contrastText(
  * `opts.solid` (per `option solid-fill`): bypass the 25% tint and return
  * the raw intent. Opt-in only; default behavior unchanged.
  */
+/**
+ * The theme-aware base background a diagram's tinted shapes blend toward:
+ * `surface` in dark, page `bg` in light. Concentrates the
+ * `isDark ? palette.surface : palette.bg` pick repeated across ~20 renderers
+ * (Story 111.3).
+ */
+export function themeBaseBg(palette: PaletteColors, isDark: boolean): string {
+  return isDark ? palette.surface : palette.bg;
+}
+
 export function shapeFill(
   palette: PaletteColors,
   intent: string,
@@ -312,7 +322,7 @@ export function shapeFill(
   opts?: { solid?: boolean }
 ): string {
   if (opts?.solid) return intent;
-  return mix(intent, isDark ? palette.surface : palette.bg, 25);
+  return mix(intent, themeBaseBg(palette, isDark), 25);
 }
 
 // ============================================================
@@ -408,7 +418,7 @@ export function politicalTints(
   isDark: boolean
 ): string[] {
   if (count <= 0) return [];
-  const base = isDark ? palette.surface : palette.bg;
+  const base = themeBaseBg(palette, isDark);
   const c = palette.colors;
   // Land-first: greens/earth tones lead; water-like blue & cyan trail.
   const swatches = [
