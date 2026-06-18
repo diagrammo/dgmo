@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-06-18
+
+### Added
+
+- **CLI colorful ASCII banner** — `dgmo` prints a slate-palette-derived gradient logo.
+- **`autoTagColorCycle` export** (`/advanced`) — the canonical categorical color
+  order, so consumers can match the engine's auto color-pick.
+- **Boxes-and-lines `layout` coordinate block + pinned-layout bypass** — supports
+  the desktop canvas editor: explicit per-node coordinates are honored (and kept
+  on-canvas), including when a flat group is collapsed.
+- **Card convention module** (`utils/card.ts`, `utils/visual-conventions.ts`) —
+  shared card-rendering primitive (Story 111.1), adopted by the sitemap renderer.
+- **Journey-map persona `color:`** — same-line `persona Name color: <token>` form
+  (pipes were removed in 0.18.0).
+
+### Changed
+
+- Unified auto color-pick order to an RGB-seeded max-contrast cycle.
+- Sharpened `slope` and `map` chart-type descriptions for selection accuracy.
+
+### Fixed
+
+- **Multi-map pages** — SVG `<def>` ids are namespaced per render so multiple maps
+  on one page no longer ghost each other's gradients/masks.
+
 ## [0.30.0] - 2026-06-15
 
 This release **freezes the DGMO language and locks the public API** ahead of
