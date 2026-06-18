@@ -55,7 +55,7 @@ const CARD_HEADER_HEIGHT = 24;
 const CARD_META_LINE_HEIGHT = 14;
 const CARD_SEPARATOR_GAP = 4;
 const CARD_GAP = 8;
-const CARD_RADIUS = 6;
+import { CARD_RADIUS } from '../utils/visual-conventions'; // shared (Story 111.1)
 const CARD_PADDING_X = 10;
 const CARD_PADDING_Y = 6;
 const CARD_STROKE_WIDTH = 1.5;

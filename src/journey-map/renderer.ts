@@ -52,7 +52,7 @@ export interface JourneyMapInteractiveOptions {
 // Match kanban styling constants
 const DIAGRAM_PADDING = 20;
 const PADDING = DIAGRAM_PADDING;
-const CARD_RADIUS = 6;
+import { CARD_RADIUS } from '../utils/visual-conventions'; // shared (Story 111.1)
 const CARD_PADDING_X = 10;
 const CARD_PADDING_Y = 6;
 const CARD_HEADER_HEIGHT = 24;

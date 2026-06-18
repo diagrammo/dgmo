@@ -57,20 +57,24 @@ import { ScaleContext } from '../utils/scaling';
 // ============================================================
 
 const NODE_FONT_SIZE = 13;
+// Intentional deviation (conventions §1): infra uses denser meta rows
+// (10px font / 14px line height) than the 11/16 default.
 const META_FONT_SIZE = 10;
 const META_LINE_HEIGHT = 14;
 const EDGE_LABEL_FONT_SIZE = 11;
 const GROUP_LABEL_FONT_SIZE = 14;
 const NODE_BORDER_RADIUS = 8;
-const EDGE_STROKE_WIDTH = 1.5;
-const NODE_STROKE_WIDTH = 1.5;
+import {
+  EDGE_STROKE_WIDTH,
+  NODE_STROKE_WIDTH,
+  COLLAPSE_BAR_HEIGHT,
+  COLLAPSE_BAR_INSET,
+} from '../utils/visual-conventions'; // shared (Story 111.1)
 const OVERLOAD_STROKE_WIDTH = 3;
 const ROLE_DOT_RADIUS = 3;
 const NODE_HEADER_HEIGHT = 28;
 const NODE_SEPARATOR_GAP = 4;
 const NODE_PAD_BOTTOM = 10;
-const COLLAPSE_BAR_HEIGHT = 6;
-const COLLAPSE_BAR_INSET = 0;
 
 const LEGEND_FIXED_GAP = 16; // gap between fixed legend and scaled diagram — local, not shared
 const SPEED_BADGE_H_PAD = 5; // horizontal padding inside active speed badge
