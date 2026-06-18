@@ -83,6 +83,8 @@ interface ExportContext {
   viewState: import('./sharing').CompactViewState | undefined;
   options: RenderForExportOptions | undefined;
   exportMode: boolean;
+  /** Whether the theme is dark, resolved once in renderForExport (Story 111.2). */
+  isDark: boolean;
 }
 
 type DiagramExportHandler = (ctx: ExportContext) => Promise<string>;
@@ -145,6 +147,7 @@ export async function renderForExport(
     viewState,
     options,
     exportMode,
+    isDark: theme === 'dark',
   };
   // Generic dispatch: every structured diagram AND every D3 visualization now
   // resolves through the handler table. Only `sequence` — which has no chart
@@ -155,14 +158,24 @@ export async function renderForExport(
   return (handler ?? exportVisualization)(ctx);
 }
 
+/**
+ * The tag-group override threaded into every handler: an explicit viewState tag
+ * (app toggle / share link) wins, else the options.tagGroup fallback. Resolved
+ * from ctx so handlers stop repeating the viewState/options fallback
+ * shape (Story 111.2).
+ */
+function ctxTagOverride(ctx: ExportContext): string | undefined {
+  return ctx.viewState?.tag ?? ctx.options?.tagGroup;
+}
+
 async function exportOrg(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { content, theme, palette, viewState, exportMode } = ctx;
   const { parseOrg } = await import('./org/parser');
   const { layoutOrg } = await import('./org/layout');
   const { collapseOrgTree } = await import('./org/collapse');
   const { renderOrg } = await import('./org/renderer');
 
-  const isDark = theme === 'dark';
+  const isDark = ctx.isDark;
   const effectivePalette = await resolveExportPalette(theme, palette);
 
   const orgParsed = parseOrg(content, effectivePalette);
@@ -173,7 +186,7 @@ async function exportOrg(ctx: ExportContext): Promise<string> {
   const activeTagGroup = resolveActiveTagGroup(
     orgParsed.tagGroups,
     orgParsed.options['active-tag'],
-    viewState?.tag ?? options?.tagGroup
+    ctxTagOverride(ctx)
   );
   const hiddenAttributes = viewState?.ha ? new Set(viewState.ha) : undefined;
 
@@ -213,13 +226,13 @@ async function exportOrg(ctx: ExportContext): Promise<string> {
 }
 
 async function exportSitemap(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { content, theme, palette, viewState, exportMode } = ctx;
   const { parseSitemap } = await import('./sitemap/parser');
   const { layoutSitemap } = await import('./sitemap/layout');
   const { collapseSitemapTree } = await import('./sitemap/collapse');
   const { renderSitemap } = await import('./sitemap/renderer');
 
-  const isDark = theme === 'dark';
+  const isDark = ctx.isDark;
   const effectivePalette = await resolveExportPalette(theme, palette);
 
   const sitemapParsed = parseSitemap(content, effectivePalette);
@@ -230,7 +243,7 @@ async function exportSitemap(ctx: ExportContext): Promise<string> {
   const activeTagGroup = resolveActiveTagGroup(
     sitemapParsed.tagGroups,
     sitemapParsed.options['active-tag'],
-    viewState?.tag ?? options?.tagGroup
+    ctxTagOverride(ctx)
   );
   const hiddenAttributes = viewState?.ha ? new Set(viewState.ha) : undefined;
 
@@ -269,7 +282,7 @@ async function exportSitemap(ctx: ExportContext): Promise<string> {
 }
 
 async function exportKanban(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { content, theme, palette, viewState, exportMode } = ctx;
   const { parseKanban } = await import('./kanban/parser');
   const { renderKanban } = await import('./kanban/renderer');
 
@@ -289,11 +302,11 @@ async function exportKanban(ctx: ExportContext): Promise<string> {
   const kanbanCollapsedColumns = viewState?.cc
     ? new Set(viewState.cc)
     : undefined;
-  renderKanban(container, kanbanParsed, effectivePalette, theme === 'dark', {
+  renderKanban(container, kanbanParsed, effectivePalette, ctx.isDark, {
     activeTagGroup: resolveActiveTagGroup(
       kanbanParsed.tagGroups,
       kanbanParsed.options['active-tag'],
-      viewState?.tag ?? options?.tagGroup
+      ctxTagOverride(ctx)
     ),
     currentSwimlaneGroup: viewState?.swim ?? null,
     ...(kanbanCollapsedLanes !== undefined && {
@@ -330,7 +343,7 @@ async function exportClass(ctx: ExportContext): Promise<string> {
     classParsed,
     classLayout,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     undefined,
     { width: exportWidth, height: exportHeight },
     undefined,
@@ -340,7 +353,7 @@ async function exportClass(ctx: ExportContext): Promise<string> {
 }
 
 async function exportEr(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { content, theme, palette, viewState, exportMode } = ctx;
   const { parseERDiagram } = await import('./er/parser');
   const { layoutERDiagram } = await import('./er/layout');
   const { renderERDiagram } = await import('./er/renderer');
@@ -361,13 +374,13 @@ async function exportEr(ctx: ExportContext): Promise<string> {
     erParsed,
     erLayout,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     undefined,
     { width: exportWidth, height: exportHeight },
     resolveActiveTagGroup(
       erParsed.tagGroups,
       erParsed.options['active-tag'],
-      viewState?.tag ?? options?.tagGroup
+      ctxTagOverride(ctx)
     ),
     viewState?.sem,
     exportMode
@@ -376,7 +389,7 @@ async function exportEr(ctx: ExportContext): Promise<string> {
 }
 
 async function exportBoxesAndLines(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { content, theme, palette, viewState, exportMode } = ctx;
   const { parseBoxesAndLines } = await import('./boxes-and-lines/parser');
   const effectivePalette = await resolveExportPalette(theme, palette);
   const blParsed = parseBoxesAndLines(content, effectivePalette);
@@ -401,13 +414,13 @@ async function exportBoxesAndLines(ctx: ExportContext): Promise<string> {
   const exportHeight = blLayout.height + PADDING * 2 + titleOffset;
   const container = createExportContainer(exportWidth, exportHeight);
 
-  const blActiveTagGroup = viewState?.tag ?? options?.tagGroup;
+  const blActiveTagGroup = ctxTagOverride(ctx);
   renderBoxesAndLinesForExport(
     container,
     blParsed,
     blLayout,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     {
       exportDims: { width: exportWidth, height: exportHeight },
       ...(blActiveTagGroup !== undefined && {
@@ -423,13 +436,13 @@ async function exportBoxesAndLines(ctx: ExportContext): Promise<string> {
 }
 
 async function exportMindmap(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { content, theme, palette, viewState, exportMode } = ctx;
   const { parseMindmap } = await import('./mindmap/parser');
   const { layoutMindmap } = await import('./mindmap/layout');
   const { collapseMindmapTree } = await import('./mindmap/collapse');
   const { renderMindmap } = await import('./mindmap/renderer');
 
-  const isDark = theme === 'dark';
+  const isDark = ctx.isDark;
   const effectivePalette = await resolveExportPalette(theme, palette);
 
   const mmParsed = parseMindmap(content, effectivePalette);
@@ -439,7 +452,7 @@ async function exportMindmap(ctx: ExportContext): Promise<string> {
   const activeTagGroup = resolveActiveTagGroup(
     mmParsed.tagGroups,
     mmParsed.options['active-tag'],
-    viewState?.tag ?? options?.tagGroup
+    ctxTagOverride(ctx)
   );
   const hideDescriptions =
     mmParsed.options['no-descriptions'] === 'true' || viewState?.hd === true;
@@ -507,7 +520,7 @@ async function exportWireframe(ctx: ExportContext): Promise<string> {
     wireframeParsed,
     wireframeLayout,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     undefined,
     { width: exportWidth, height: exportHeight },
     theme
@@ -516,7 +529,7 @@ async function exportWireframe(ctx: ExportContext): Promise<string> {
 }
 
 async function exportC4(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { content, theme, palette, viewState, exportMode } = ctx;
   const { parseC4 } = await import('./c4/parser');
   const {
     layoutC4Context,
@@ -532,7 +545,7 @@ async function exportC4(ctx: ExportContext): Promise<string> {
 
   // Container/component-level rendering (viewState fallback for share links)
   const c4Level =
-    options?.c4Level ??
+    ctx.options?.c4Level ??
     (viewState?.c4l as
       | 'context'
       | 'containers'
@@ -540,8 +553,8 @@ async function exportC4(ctx: ExportContext): Promise<string> {
       | 'deployment'
       | undefined) ??
     'context';
-  const c4System = options?.c4System ?? viewState?.c4s;
-  const c4Container = options?.c4Container ?? viewState?.c4c;
+  const c4System = ctx.options?.c4System ?? viewState?.c4s;
+  const c4Container = ctx.options?.c4Container ?? viewState?.c4c;
 
   const c4Layout =
     c4Level === 'deployment'
@@ -572,13 +585,13 @@ async function exportC4(ctx: ExportContext): Promise<string> {
     c4Parsed,
     c4Layout,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     undefined,
     { width: exportWidth, height: exportHeight },
     resolveActiveTagGroup(
       c4Parsed.tagGroups,
       c4Parsed.options['active-tag'],
-      viewState?.tag ?? options?.tagGroup
+      ctxTagOverride(ctx)
     ),
     exportMode
   );
@@ -603,7 +616,7 @@ async function exportFlowchart(ctx: ExportContext): Promise<string> {
     fcParsed,
     layout,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     undefined,
     { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
   );
@@ -611,7 +624,7 @@ async function exportFlowchart(ctx: ExportContext): Promise<string> {
 }
 
 async function exportInfra(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette, viewState, options } = ctx;
+  const { content, theme, palette, viewState } = ctx;
   const { parseInfra } = await import('./infra/parser');
   const { computeInfra } = await import('./infra/compute');
   const { layoutInfra } = await import('./infra/layout');
@@ -627,7 +640,7 @@ async function exportInfra(ctx: ExportContext): Promise<string> {
   const activeTagGroup = resolveActiveTagGroup(
     infraParsed.tagGroups,
     infraParsed.options['active-tag'],
-    viewState?.tag ?? options?.tagGroup
+    ctxTagOverride(ctx)
   );
 
   const showInfraTitle =
@@ -648,7 +661,7 @@ async function exportInfra(ctx: ExportContext): Promise<string> {
     container,
     infraLayout,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     showInfraTitle ? infraParsed.title : null,
     showInfraTitle ? infraParsed.titleLineNumber : null,
     infraTagGroups,
@@ -713,7 +726,7 @@ async function exportPert(ctx: ExportContext): Promise<string> {
     pertResolved,
     pertLayout,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     {
       title: pertParsed.title,
       exportDims: { width: exportW, height: exportH },
@@ -727,7 +740,7 @@ async function exportPert(ctx: ExportContext): Promise<string> {
 }
 
 async function exportGantt(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { content, theme, palette, viewState, exportMode } = ctx;
   const { parseGantt } = await import('./gantt/parser');
   const { calculateSchedule } = await import('./gantt/calculator');
   const { renderGantt } = await import('./gantt/renderer');
@@ -750,7 +763,7 @@ async function exportGantt(ctx: ExportContext): Promise<string> {
     container,
     resolved,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     {
       ...(ganttCollapsedGroups !== undefined && {
         collapsedGroups: ganttCollapsedGroups,
@@ -764,7 +777,7 @@ async function exportGantt(ctx: ExportContext): Promise<string> {
       currentActiveGroup: resolveActiveTagGroup(
         resolved.tagGroups,
         resolved.options.activeTag ?? undefined,
-        viewState?.tag ?? options?.tagGroup
+        ctxTagOverride(ctx)
       ),
       exportMode,
     },
@@ -791,7 +804,7 @@ async function exportState(ctx: ExportContext): Promise<string> {
     stateParsed,
     layout,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     undefined,
     { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
   );
@@ -814,7 +827,7 @@ async function exportTechRadar(ctx: ExportContext): Promise<string> {
     container,
     radarParsed,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     { width: RADAR_EXPORT_W, height: RADAR_EXPORT_H },
     viewState,
     exportMode
@@ -837,13 +850,13 @@ async function exportJourneyMap(ctx: ExportContext): Promise<string> {
     return '';
 
   const jmLayout = layoutJourneyMap(jmParsed, effectivePalette, {
-    isDark: theme === 'dark',
+    isDark: ctx.isDark,
   });
   const container = createExportContainer(
     jmLayout.totalWidth,
     jmLayout.totalHeight
   );
-  renderJourneyMap(container, jmParsed, effectivePalette, theme === 'dark', {
+  renderJourneyMap(container, jmParsed, effectivePalette, ctx.isDark, {
     exportDims: { width: jmLayout.totalWidth, height: jmLayout.totalHeight },
     exportMode,
   });
@@ -864,7 +877,7 @@ async function exportCycle(ctx: ExportContext): Promise<string> {
     container,
     cycleParsed,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
     viewState,
     exportMode
@@ -913,7 +926,7 @@ async function exportMap(ctx: ExportContext): Promise<string> {
     mapResolved,
     mapData,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     dims
   );
   return finalizeSvgExport(container, theme, effectivePalette);
@@ -933,7 +946,7 @@ async function exportPyramid(ctx: ExportContext): Promise<string> {
     container,
     pyramidParsed,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
   );
   return finalizeSvgExport(container, theme, effectivePalette);
@@ -953,7 +966,7 @@ async function exportRing(ctx: ExportContext): Promise<string> {
     container,
     ringParsed,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
   );
   return finalizeSvgExport(container, theme, effectivePalette);
@@ -973,7 +986,7 @@ async function exportRaci(ctx: ExportContext): Promise<string> {
     container,
     raciParsed,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
   );
   return finalizeSvgExport(container, theme, effectivePalette);
@@ -1006,7 +1019,7 @@ async function exportSlope(ctx: ExportContext): Promise<string> {
     container,
     parsed,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     undefined,
     dims
   );
@@ -1023,7 +1036,7 @@ async function exportArc(ctx: ExportContext): Promise<string> {
     container,
     parsed,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     undefined,
     dims
   );
@@ -1031,7 +1044,7 @@ async function exportArc(ctx: ExportContext): Promise<string> {
 }
 
 async function exportTimeline(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette, viewState, options, exportMode } = ctx;
+  const { content, theme, palette, viewState, exportMode } = ctx;
   const parsed = parseTimeline(content, palette);
   if (parsed.error || parsed.timelineEvents.length === 0) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
@@ -1040,13 +1053,13 @@ async function exportTimeline(ctx: ExportContext): Promise<string> {
     container,
     parsed,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     undefined,
     dims,
     resolveActiveTagGroup(
       parsed.timelineTagGroups,
       parsed.timelineActiveTag,
-      viewState?.tag ?? options?.tagGroup
+      ctxTagOverride(ctx)
     ),
     viewState?.swim,
     undefined,
@@ -1066,7 +1079,7 @@ async function exportWordcloud(ctx: ExportContext): Promise<string> {
     container,
     parsed,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     dims
   );
   return finalizeSvgExport(container, theme, effectivePalette);
@@ -1082,7 +1095,7 @@ async function exportVenn(ctx: ExportContext): Promise<string> {
     container,
     parsed,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     undefined,
     dims
   );
@@ -1099,7 +1112,7 @@ async function exportQuadrant(ctx: ExportContext): Promise<string> {
     container,
     parsed,
     effectivePalette,
-    theme === 'dark',
+    ctx.isDark,
     undefined,
     dims
   );
@@ -1112,7 +1125,7 @@ async function exportQuadrant(ctx: ExportContext): Promise<string> {
  * D3 visualizations now have their own handler in DIAGRAM_EXPORT_HANDLERS.
  */
 async function exportVisualization(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette, viewState, options } = ctx;
+  const { content, theme, palette, viewState } = ctx;
   const parsed = parseVisualization(content, palette);
   // Allow sequence diagrams through even if parseVisualization errors —
   // sequence is parsed by its own dedicated parser (parseSequenceDgmo)
@@ -1127,7 +1140,7 @@ async function exportVisualization(ctx: ExportContext): Promise<string> {
   }
 
   const effectivePalette = await resolveExportPalette(theme, palette);
-  const isDark = theme === 'dark';
+  const isDark = ctx.isDark;
   const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
 
   const { parseSequenceDgmo } = await import('./sequence/parser');
@@ -1141,7 +1154,7 @@ async function exportVisualization(ctx: ExportContext): Promise<string> {
   const collapsedGroups = viewState?.cg
     ? new Set(viewState.cg.map(Number).filter((n) => Number.isFinite(n)))
     : undefined;
-  const seqActiveTagGroup = viewState?.tag ?? options?.tagGroup;
+  const seqActiveTagGroup = ctxTagOverride(ctx);
   renderSequenceDiagram(
     container,
     seqParsed,
