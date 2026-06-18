@@ -32,6 +32,23 @@ export function formatDgmoError(err: DgmoError): string {
   return err.line > 0 ? `Line ${err.line}: ${err.message}` : err.message;
 }
 
+/**
+ * The fatal-error accumulator every structured parser re-declared identically
+ * (Story 111.4): push a fresh error diagnostic, set `result.error`, and return
+ * the partial result so callers can `return fail(line, msg)`. Generic over any
+ * result carrying `diagnostics` + `error`.
+ */
+export function makeFail<
+  T extends { diagnostics: DgmoError[]; error?: string | null },
+>(result: T): (line: number, message: string) => T {
+  return (line: number, message: string): T => {
+    const diag = makeDgmoError(line, message);
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+    return result;
+  };
+}
+
 // ============================================================
 // "Did you mean?" Suggestions
 // ============================================================

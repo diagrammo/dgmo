@@ -8,6 +8,7 @@ import {
   descriptionBareRemovedMessage,
   formatDgmoError,
   makeDgmoError,
+  makeFail,
   METADATA_DIAGNOSTIC_CODES,
   pipeOperatorRemovedMessage,
   suggest,
@@ -296,12 +297,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       result.error = formatDgmoError(diag);
   };
 
-  const fail = (line: number, message: string): ParsedC4 => {
-    const diag = makeDgmoError(line, message);
-    result.diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-    return result;
-  };
+  const fail = makeFail(result);
 
   if (!content?.trim()) {
     return fail(0, 'No content provided');

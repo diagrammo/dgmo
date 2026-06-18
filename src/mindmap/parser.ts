@@ -3,6 +3,7 @@ import {
   descriptionBareRemovedMessage,
   formatDgmoError,
   makeDgmoError,
+  makeFail,
   METADATA_DIAGNOSTIC_CODES,
   pipeOperatorRemovedMessage,
   suggest,
@@ -60,12 +61,7 @@ export function parseMindmap(
     error: null,
   };
 
-  const fail = (line: number, message: string): ParsedMindmap => {
-    const diag = makeDgmoError(line, message);
-    result.diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-    return result;
-  };
+  const fail = makeFail(result);
 
   const pushError = (line: number, message: string): void => {
     const diag = makeDgmoError(line, message);

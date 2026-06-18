@@ -10,6 +10,7 @@ import {
   akaRemovedMessage,
   formatDgmoError,
   makeDgmoError,
+  makeFail,
   METADATA_DIAGNOSTIC_CODES,
   NAME_DIAGNOSTIC_CODES,
   nameMergedMessage,
@@ -528,12 +529,7 @@ export function parseSequenceDgmo(
     return nameAliasMap.get(trimmed) ?? trimmed;
   };
 
-  const fail = (line: number, message: string): ParsedSequenceDgmo => {
-    const diag = makeDgmoError(line, message);
-    result.diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-    return result;
-  };
+  const fail = makeFail(result);
 
   /** Push a recoverable error and continue parsing. */
   const pushError = (line: number, message: string): void => {

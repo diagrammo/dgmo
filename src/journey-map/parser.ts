@@ -5,6 +5,7 @@ import {
   formatDgmoError,
   journeyBareScoreRemovedMessage,
   makeDgmoError,
+  makeFail,
   METADATA_DIAGNOSTIC_CODES,
   pipeOperatorRemovedMessage,
   suggest,
@@ -75,12 +76,7 @@ export function parseJourneyMap(
     error: null,
   };
 
-  const fail = (line: number, message: string): ParsedJourneyMap => {
-    const diag = makeDgmoError(line, message);
-    result.diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-    return result;
-  };
+  const fail = makeFail(result);
 
   const warn = (line: number, message: string): void => {
     result.diagnostics.push(makeDgmoError(line, message, 'warning'));

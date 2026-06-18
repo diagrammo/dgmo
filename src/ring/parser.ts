@@ -4,8 +4,8 @@
 
 import {
   bareDescriptionRemovedMessage,
-  formatDgmoError,
   makeDgmoError,
+  makeFail,
   METADATA_DIAGNOSTIC_CODES,
   pipeOperatorRemovedMessage,
   suggest,
@@ -48,12 +48,7 @@ export function parseRing(content: string): ParsedRing {
   let headerParsed = false;
   let currentLayer: Writable<RingLayer> | null = null;
 
-  const fail = (line: number, message: string): ParsedRing => {
-    const diag = makeDgmoError(line, message);
-    result.diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-    return result;
-  };
+  const fail = makeFail(result);
 
   const warn = (
     line: number,
