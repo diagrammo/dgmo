@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { parseBoxesAndLines } from '../src/boxes-and-lines/parser';
 import { layoutBoxesAndLines } from '../src/boxes-and-lines/layout';
+import { collapseBoxesAndLines } from '../src/boxes-and-lines/collapse';
 
 // Canvas Editor spike (Phase B) — the `layout` coordinate block: parse, the
 // dagre bypass, partial-ignore, and the fixed feasibility corpus round-trip.
@@ -195,6 +196,42 @@ describe('boxes-and-lines `layout` block (canvas spike)', () => {
       expect(g.width).toBeGreaterThan(0);
       expect(g.height).toBeGreaterThan(0);
       expect(g.childCount).toBe(2);
+    });
+
+    it('keeps pins when a flat group is COLLAPSED (no reflow)', async () => {
+      const src = [
+        'boxes-and-lines',
+        'web -> api',
+        '[Backend]',
+        '  api',
+        '  db',
+        '  api -> db',
+        'layout',
+        '  web: 200, 400',
+        '  api: 600, 400',
+        '  db: 600, 560',
+      ].join('\n');
+      const parsed = parseBoxesAndLines(src);
+      const collapse = collapseBoxesAndLines(parsed, new Set(['Backend']));
+      const lay = await layoutBoxesAndLines(collapse.parsed, {
+        collapsedChildCounts: collapse.collapsedChildCounts,
+        originalGroups: collapse.originalGroups,
+      });
+      // web stays EXACTLY pinned — collapse no longer triggers a dagre reflow.
+      expect(lay.nodes.find((n) => n.label === 'web')!.x).toBe(200);
+      expect(lay.nodes.find((n) => n.label === 'web')!.y).toBe(400);
+      // The members are hidden (folded into the collapsed box).
+      expect(lay.nodes.some((n) => n.label === 'api')).toBe(false);
+      expect(lay.nodes.some((n) => n.label === 'db')).toBe(false);
+      // Backend renders as a collapsed box at its members' bbox-centre (600, 480).
+      const g = lay.groups.find((gr) => gr.label === 'Backend')!;
+      expect(g.collapsed).toBe(true);
+      expect(g.x).toBe(600);
+      expect(g.y).toBe(480);
+      expect(g.childCount).toBe(2);
+      // The web→api edge survives, redirected to the collapsed box.
+      expect(lay.edges.length).toBe(1);
+      expect(lay.edges[0]!.points.length).toBeGreaterThanOrEqual(2);
     });
 
     it('still falls back to auto-layout for NESTED groups (deferred)', async () => {

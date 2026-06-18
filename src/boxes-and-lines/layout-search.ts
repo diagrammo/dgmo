@@ -1021,22 +1021,84 @@ export function layoutBoxesAndLinesSearch(
   // stored coordinates and skip the whole dagre search. Edges become
   // border-clipped straight connectors (no obstacle avoidance — honest-but-ugly).
   // FLAT, EXPANDED groups are honored: each group's container rect is computed
-  // from its members' pinned positions (canvas group editing). Nested groups and
-  // collapsed groups still fall back to dagre (deferred).
+  // from its members' pinned positions (canvas group editing). A FLAT group can
+  // also be COLLAPSED while pinned — it renders as a plain box at its members'
+  // bbox-centre (so collapse no longer forces a full dagre reflow). Nested groups
+  // still fall back to dagre (deferred).
   const pinned = parsed.nodePositions;
   const groupLabelSet = new Set(parsed.groups.map((g) => g.label));
   const groupsAreFlat = parsed.groups.every(
     (g) => !g.parentGroup && !g.children.some((c) => groupLabelSet.has(c))
   );
+  // A collapsed group can stay pinned only when it's FLAT (top-level, no
+  // sub-groups) and every one of its members has a pinned coord — otherwise we
+  // can't place its box without a search, so fall back to dagre.
+  const allOriginalGroupLabels = new Set(
+    (collapseInfo?.originalGroups ?? parsed.groups).map((g) => g.label)
+  );
+  const collapsedAreFlatPinned =
+    collapsedGroupLabels.size === 0 ||
+    (pinned !== undefined &&
+      collapseInfo !== undefined &&
+      [...collapsedGroupLabels].every((label) => {
+        const og = collapseInfo.originalGroups.find((g) => g.label === label);
+        if (!og || og.parentGroup) return false;
+        return og.children.every(
+          (c) => pinned.has(c) && !allOriginalGroupLabels.has(c)
+        );
+      }));
   const allPinned =
     pinned !== undefined &&
-    parsed.nodes.length > 0 &&
+    (parsed.nodes.length > 0 || collapsedGroupLabels.size > 0) &&
     parsed.nodes.every((n) => pinned.has(n.label)) &&
     groupsAreFlat &&
-    collapsedGroupLabels.size === 0;
+    collapsedAreFlatPinned;
   function placePinned(pins: ReadonlyMap<string, Pt>): BLLayoutResult {
+    // Collapsed flat groups → a plain NODE-sized box at the bbox-centre of the
+    // group's (now-hidden) members' pinned coords. The collapse transform
+    // redirected their incident edges to `__group_<label>`, so register that id
+    // in the position/rect lookups too.
+    const collapsedPosByGid = new Map<string, Pt>();
+    const collapsedBoxes: Array<{
+      label: string;
+      lineNumber: number;
+      childCount: number;
+      x: number;
+      y: number;
+    }> = [];
+    if (collapseInfo)
+      for (const label of collapsedGroupLabels) {
+        const og = collapseInfo.originalGroups.find((g) => g.label === label);
+        if (!og) continue;
+        let cx0 = Infinity,
+          cy0 = Infinity,
+          cx1 = -Infinity,
+          cy1 = -Infinity;
+        for (const c of og.children) {
+          const p = pins.get(c);
+          if (!p) continue;
+          cx0 = Math.min(cx0, p.x);
+          cx1 = Math.max(cx1, p.x);
+          cy0 = Math.min(cy0, p.y);
+          cy1 = Math.max(cy1, p.y);
+        }
+        if (!Number.isFinite(cx0)) continue;
+        const cx = (cx0 + cx1) / 2;
+        const cy = (cy0 + cy1) / 2;
+        collapsedPosByGid.set(`__group_${label}`, { x: cx, y: cy });
+        collapsedBoxes.push({
+          label,
+          lineNumber: og.lineNumber,
+          childCount:
+            collapseInfo.collapsedChildCounts.get(label) ?? og.children.length,
+          x: cx,
+          y: cy,
+        });
+      }
+    const posOf = (label: string): Pt | undefined =>
+      pins.get(label) ?? collapsedPosByGid.get(label);
     const rectOf = (label: string) => {
-      const p = pins.get(label)!;
+      const p = posOf(label)!;
       const s = sizes.get(label) ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
       return { x: p.x, y: p.y, w: s.width, h: s.height };
     };
@@ -1045,8 +1107,8 @@ export function layoutBoxesAndLinesSearch(
       return { label: n.label, x: r.x, y: r.y, width: r.w, height: r.h };
     });
     const edges: BLLayoutEdge[] = parsed.edges.flatMap((e) => {
-      const sp = pins.get(e.source);
-      const tp = pins.get(e.target);
+      const sp = posOf(e.source);
+      const tp = posOf(e.target);
       if (!sp || !tp) return [];
       const srcRect = rectOf(e.source);
       const tgtRect = rectOf(e.target);
@@ -1104,6 +1166,19 @@ export function layoutBoxesAndLinesSearch(
         height: y1 - y0,
         collapsed: false,
         childCount: grp.children.length,
+      });
+    }
+    // Collapsed flat groups: a plain box at the members' centre.
+    for (const cb of collapsedBoxes) {
+      groups.push({
+        label: cb.label,
+        lineNumber: cb.lineNumber,
+        x: cb.x,
+        y: cb.y,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+        collapsed: true,
+        childCount: cb.childCount,
       });
     }
 
