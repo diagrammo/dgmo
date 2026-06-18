@@ -143,7 +143,7 @@ export const chartTypes: readonly ChartTypeMeta[] = [
   },
   {
     id: 'slope',
-    description: 'Change between two periods',
+    description: 'Change for multiple things between exactly two periods',
   },
   {
     id: 'sankey',

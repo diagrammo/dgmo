@@ -174,6 +174,9 @@ export type {
 } from './graph/types';
 
 export type { TagGroup, TagEntry } from './utils/tag-groups';
+// The canonical categorical auto-color rotation (RGB-seeded, max-contrast,
+// neutrals excluded) — so app/editor swatch cyclers share dgmo's exact order.
+export { autoTagColorCycle } from './utils/tag-groups';
 
 export { parseInlineMarkdown, truncateBareUrl } from './utils/inline-markdown';
 export type { InlineSpan } from './utils/inline-markdown';

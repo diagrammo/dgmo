@@ -219,6 +219,15 @@ function appendWaterLines(
   }
 }
 
+// Per-render namespace for SVG def ids (clipPaths, masks, filters, markers, the
+// `<use>`-shared coast path). SVG `url(#id)` / `href="#id"` resolve document-
+// globally to the FIRST matching id, so when several maps are inlined on one
+// page (the docs gallery, an MDX page) shared constant ids made every later map
+// reference the first map's defs — its coast `<use>` ghosted through. A
+// monotonic per-render suffix makes every render's ids unique. NOT reset between
+// renders, so re-renders (legend flips) and same-page siblings never collide.
+let mapInstanceCounter = 0;
+
 /** Render a resolved map into `container` (d3-selection appends an `<svg>`). */
 export function renderMap(
   container: HTMLDivElement,
@@ -283,6 +292,10 @@ export function renderMap(
   // arrowhead up to a giant wedge. The size grows gently with the line width —
   // enough to stay distinct from the stroke — but is firmly capped.
   const defs = svg.append('defs');
+  // Namespace every def id minted below so multiple maps on one page don't share
+  // `url(#…)` targets (see mapInstanceCounter).
+  const uid = mapInstanceCounter++;
+  const nid = (base: string): string => `${base}__m${uid}`;
   // Dampened: ~8px at the thinnest leg, easing toward a 15px cap as legs widen.
   const arrowSize = (w: number): number => Math.min(15, 7 + w * 0.95);
 
@@ -356,8 +369,8 @@ export function renderMap(
   // sub-pixel + low-contrast so the texture stays faint. Decorative — no data attrs.
   if (layout.relief.length && layout.reliefHatch) {
     const h = layout.reliefHatch;
-    const rangeClipId = 'dgmo-relief-clip';
-    const landClipId = 'dgmo-relief-land';
+    const rangeClipId = nid('dgmo-relief-clip');
+    const landClipId = nid('dgmo-relief-land');
     const rangeClip = defs.append('clipPath').attr('id', rangeClipId);
     for (const s of layout.relief) rangeClip.append('path').attr('d', s.d);
     const landClip = defs.append('clipPath').attr('id', landClipId);
@@ -402,7 +415,7 @@ export function renderMap(
   // §24B.2, ADR-1/3/6.
   if (layout.coastlineStyle) {
     const cs = layout.coastlineStyle;
-    const maskId = 'dgmo-map-water-mask';
+    const maskId = nid('dgmo-map-water-mask');
     const mask = defs
       .append('mask')
       .attr('id', maskId)
@@ -472,7 +485,7 @@ export function renderMap(
     appendWaterLines(
       gWater,
       defs,
-      'dgmo-map-coast',
+      nid('dgmo-map-coast'),
       // Pass the canvas frame so edges collinear with it (the antimeridian on a
       // world map, regional clipExtent cuts) don't get ringed as fake coast —
       // land runs cleanly to the render-area edge.
@@ -565,7 +578,7 @@ export function renderMap(
     (l) => l.poiId !== undefined && !l.hidden
   );
   if (poiLabels.length) {
-    const patchBlurId = 'dgmo-map-label-patch-blur';
+    const patchBlurId = nid('dgmo-map-label-patch-blur');
     // Soft falloff so the patch dissolves into the surrounding basemap instead of
     // ending on a hard edge. Tuned at the 11px label font. One shared filter for
     // every patch group.
@@ -690,7 +703,7 @@ export function renderMap(
       // Always-on patch for labels that are visible at rest (non-cluster members).
       buildPatch(
         poiLabels.filter((l) => l.clusterMember === undefined),
-        'dgmo-map-label-patch'
+        nid('dgmo-map-label-patch')
       );
       // Per-cluster patches, hidden until the fan expands.
       const byCluster = new Map<string, typeof poiLabels>();
@@ -705,11 +718,11 @@ export function renderMap(
       // data-cluster-deco attribute instead.
       let ci = 0;
       for (const [cid, labs] of byCluster)
-        buildPatch(labs, `dgmo-map-label-patch-c${ci++}`, cid);
+        buildPatch(labs, nid(`dgmo-map-label-patch-c${ci++}`), cid);
     } else {
       // Export / `no-cluster-pois`: fan is permanently open → one always-on patch
       // over every POI label.
-      buildPatch(poiLabels, 'dgmo-map-label-patch');
+      buildPatch(poiLabels, nid('dgmo-map-label-patch'));
     }
   }
 
@@ -734,7 +747,7 @@ export function renderMap(
       // Neighbour land (Canada beside Alaska) clipped to this box, behind the
       // state — so a land border reads as land rather than sprouting coast rings.
       if (box.contextLand) {
-        const clipId = `dgmo-map-inset-clip-${bi}`;
+        const clipId = nid(`dgmo-map-inset-clip-${bi}`);
         defs.append('clipPath').attr('id', clipId).append('path').attr('d', d);
         insetG
           .append('path')
@@ -751,7 +764,7 @@ export function renderMap(
     // same way. Inside the inset group so it composites over the box fills.
     if (layout.coastlineStyle) {
       const cs = layout.coastlineStyle;
-      const maskId = 'dgmo-map-inset-water-mask';
+      const maskId = nid('dgmo-map-inset-water-mask');
       const mask = defs
         .append('mask')
         .attr('id', maskId)
@@ -786,7 +799,7 @@ export function renderMap(
             .append('path')
             .attr('d', box.contextLand.d)
             .attr('fill', 'black')
-            .attr('clip-path', `url(#dgmo-map-inset-clip-${bi})`);
+            .attr('clip-path', `url(#${nid(`dgmo-map-inset-clip-${bi}`)})`);
       });
       for (const r of layout.insetRegions)
         if (r.id !== 'lake')
@@ -798,7 +811,7 @@ export function renderMap(
       // which side reads as water, but SVG strokes still extend stroke-width/2
       // past their path, so without this the seaward rings bleed over the box
       // border. Union of all inset quads = one clipPath shared by the group.
-      const clipId = 'dgmo-map-inset-water-clip';
+      const clipId = nid('dgmo-map-inset-water-clip');
       const clip = defs.append('clipPath').attr('id', clipId);
       for (const box of layout.insets) {
         const d =
@@ -820,7 +833,7 @@ export function renderMap(
       appendWaterLines(
         gInsetWater,
         defs,
-        'dgmo-map-inset-coast',
+        nid('dgmo-map-inset-coast'),
         coastlineOuterRings(layout.insetRegions, cs.minExtent),
         cs,
         layout.background
@@ -895,7 +908,7 @@ export function renderMap(
     // stroke is enough for the line widths legs use.
     wireSync(p, leg.lineNumber);
     if (leg.arrow) {
-      const id = `dgmo-map-arrow-${i}`;
+      const id = nid(`dgmo-map-arrow-${i}`);
       const s = arrowSize(leg.width);
       defs
         .append('marker')

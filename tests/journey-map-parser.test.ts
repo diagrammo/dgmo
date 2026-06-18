@@ -66,6 +66,22 @@ describe('journey-map parser', () => {
       expect(result.persona?.color).toBeTruthy();
     });
 
+    it('parses persona with same-line color (no pipe)', () => {
+      const result = parseJourneyMap(
+        'journey-map Test\n\npersona Calico Jack color: red\n\n[Phase]\n  Step score: 3'
+      );
+      expect(result.persona?.name).toBe('Calico Jack');
+      expect(result.persona?.color).toBeTruthy();
+    });
+
+    it('does not peel a non-trailing "color:" from the persona name', () => {
+      const result = parseJourneyMap(
+        'journey-map Test\n\npersona Color Consultant\n\n[Phase]\n  Step score: 3'
+      );
+      expect(result.persona?.name).toBe('Color Consultant');
+      expect(result.persona?.color).toBeUndefined();
+    });
+
     it('works without persona', () => {
       const result = parseJourneyMap('journey-map Test\n\n[Phase]\n  Step | 3');
       expect(result.persona).toBeUndefined();

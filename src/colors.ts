@@ -61,6 +61,28 @@ export const RECOGNIZED_COLOR_NAMES = Object.freeze([
 ] as const);
 
 /**
+ * The canonical order in which the categorical (non-neutral) color names are
+ * auto-assigned: tag/group swatches (`autoTagColorCycle`) and data-chart
+ * series colors (`getSeriesColors`) both derive their rotation from this list.
+ *
+ * Seeded with the RGB primaries (`red, green, blue`) for an unmistakable first
+ * three, then each subsequent hue is chosen to fill the widest remaining gap on
+ * the color wheel — maximizing contrast between adjacent swatches. Neutrals
+ * (`gray`/`black`/`white`) are intentionally excluded so auto-picked colors
+ * always read as distinct legend swatches.
+ */
+export const CATEGORICAL_COLOR_ORDER = Object.freeze([
+  'red',
+  'green',
+  'blue',
+  'yellow',
+  'teal',
+  'purple',
+  'orange',
+  'cyan',
+] as const);
+
+/**
  * Returns true iff `name` is one of the 11 recognized DGMO color names.
  */
 export function isRecognizedColorName(name: string): boolean {

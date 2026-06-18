@@ -25,6 +25,7 @@ import {
   migrateFile,
 } from './migrate';
 import { migrateEmbedded } from './migrate/embedded';
+import { renderBanner } from './cli-banner';
 
 // Derived from the palette registry so new palettes are auto-included.
 const PALETTES = getAvailablePalettes().map((p) => p.id);
@@ -464,6 +465,7 @@ For architecture diagrams, sequence diagrams, flowcharts, and charts, use the \`
 `;
 
 function printHelp(): void {
+  console.log(renderBanner());
   console.log(`Usage: dgmo <input> [options]
        cat input.dgmo | dgmo [options]
        dgmo cat <file>          Display file with syntax highlighting
@@ -648,10 +650,12 @@ function svgToPng(svg: string, background?: string): Buffer {
 }
 
 function noInput(): never {
+  console.error(renderBanner());
   const samplePath = resolve('sample.dgmo');
   if (existsSync(samplePath)) {
     console.error('Error: No input file specified');
     console.error(`Try: dgmo ${basename(samplePath)}`);
+    console.error('Run dgmo --help for all options.');
     process.exit(1);
   }
   writeFileSync(
@@ -923,6 +927,15 @@ async function main(): Promise<void> {
     const tokens = highlightDgmo(catContent);
     process.stdout.write(renderAnsi(tokens, useColor));
     return;
+  }
+
+  if (
+    opts.installClaudeCodeIntegration ||
+    opts.installClaudeSkill ||
+    opts.installCodexIntegration ||
+    opts.installClaudeDesktopIntegration
+  ) {
+    console.log(renderBanner());
   }
 
   if (opts.installClaudeCodeIntegration) {
