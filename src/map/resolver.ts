@@ -1079,11 +1079,18 @@ function mostCommonCountry(
 /** Asymmetric container clamp (R-poi-region overshoot guard). Container framing
  *  reveals the region(s) holding the POIs, but one POI at the edge of a tall/wide
  *  country drags the frame to that country's far edge. Cap how far the frame
- *  extends BEYOND the POI cluster on each side at CONTAINER_OVERSHOOT_DEG. Latitude
- *  always clamps; longitude clamps only when neither extent crosses the
- *  antimeridian seam (a wrapped extent carries east > 180), where naive min/max
- *  would be wrong. Never tightens past the cluster itself, so the dots stay
- *  framed, and never widens it — the container edge is still the outer bound. */
+ *  extends BEYOND the POI cluster on each side at CONTAINER_OVERSHOOT_DEG, while
+ *  letting a genuinely tighter container edge still bound the frame (so a small
+ *  country shows whole, but a cluster inside a giant one stays on the cluster).
+ *
+ *  Each longitude side clamps independently. A container edge is a usable outer
+ *  bound only when it sits within the normal [-180, 180] range AND on the correct
+ *  side of the cluster; an antimeridian-crossing container (Russia, Fiji, NZ, the
+ *  US via the Aleutians) reports a degenerate east (> 180, or numerically < its
+ *  own west), so that side falls back to cluster ± overshoot instead of skipping
+ *  the clamp entirely (which previously blew a western-Russia cluster out to a
+ *  world frame). Latitude never wraps, so it always clamps. Assumes the POI
+ *  cluster itself does not straddle the seam — true for any regional cluster. */
 function clampContainerToCluster(
   container: GeoExtent,
   points: Array<[number, number]>
@@ -1094,10 +1101,12 @@ function clampContainerToCluster(
   const [[pWest, pSouth], [pEast, pNorth]] = poi;
   south = Math.max(south, pSouth - CONTAINER_OVERSHOOT_DEG);
   north = Math.min(north, pNorth + CONTAINER_OVERSHOOT_DEG);
-  if (east <= 180 && pEast <= 180) {
-    west = Math.max(west, pWest - CONTAINER_OVERSHOOT_DEG);
-    east = Math.min(east, pEast + CONTAINER_OVERSHOOT_DEG);
-  }
+  const wOver = pWest - CONTAINER_OVERSHOOT_DEG;
+  const eOver = pEast + CONTAINER_OVERSHOOT_DEG;
+  // West edge usable iff in range and not east of the cluster's west.
+  west = west >= -180 && west <= pWest ? Math.max(west, wOver) : wOver;
+  // East edge usable iff in range and not west of the cluster's east.
+  east = east <= 180 && east >= pEast ? Math.min(east, eOver) : eOver;
   return [
     [west, south],
     [east, north],

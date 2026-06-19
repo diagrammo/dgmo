@@ -952,6 +952,43 @@ describe('resolver — impl-review fixes (#3/#6/#8/#13/#15)', () => {
   });
 });
 
+describe('resolver — POI-only cluster in an antimeridian-crossing container, real geometry (map-poi-only-antimeridian)', () => {
+  // A western-Russia drone-strike cluster (lon ~34–48°E). Russia's container
+  // bbox crosses the antimeridian (Chukotka reaches the seam), which used to
+  // bypass the longitude clamp entirely and blow the frame out to a world view
+  // (equirectangular). The per-side clamp now reins the wrapped east back to
+  // cluster ± overshoot, so the map stays a tight regional conic.
+  const RU_CLUSTER =
+    'map\npoi 55.63 37.79 as msk\npoi 53.24 34.36 as bryansk\npoi 51.53 46.03 as saratov\npoi 46.35 48.04 as astrakhan';
+
+  it('frames to the cluster (regional conic), not the whole globe', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(parseMap(RU_CLUSTER), data);
+    expect(r.projection).toBe('conic-equal-area'); // was equirectangular (world)
+    const lonSpan = r.extent[1][0] - r.extent[0][0];
+    const latSpan = r.extent[1][1] - r.extent[0][1];
+    expect(lonSpan).toBeLessThan(40); // NOT Russia's ~170° width
+    expect(Math.max(lonSpan, latSpan)).toBeLessThan(90); // < WORLD_SPAN
+    // centred over the cluster (~34–48°E), well east of Greenwich — proves the
+    // frame followed the dots, not Russia's antimeridian-spanning bbox.
+    const cx = (r.extent[0][0] + r.extent[1][0]) / 2;
+    expect(cx).toBeGreaterThan(25);
+    expect(cx).toBeLessThan(55);
+  });
+
+  it('an eastern-Russia cluster (Vladivostok) also stays regional, not world', async () => {
+    const data = await loadMapData();
+    const r = resolveMap(
+      parseMap('map\npoi 43.12 131.89 as vvo\npoi 48.48 135.07 as khv'),
+      data
+    );
+    expect(r.projection).not.toBe('equirectangular');
+    expect(r.extent[1][0] - r.extent[0][0]).toBeLessThan(40);
+    const cx = (r.extent[0][0] + r.extent[1][0]) / 2;
+    expect(cx).toBeGreaterThan(120); // framed in the Far East, not Greenwich-centred
+  });
+});
+
 describe('loadMapData — real committed assets (AC19)', () => {
   it('loads the four assets in MapData shape', async () => {
     const data = await loadMapData();
