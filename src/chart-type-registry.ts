@@ -87,6 +87,10 @@ export interface ChartTypeDescriptor {
   readonly category: RenderCategory;
   readonly parse: ParseFn;
   readonly measure?: (content: string) => ContentCounts;
+  readonly minDims?: (counts: ContentCounts) => {
+    width: number;
+    height: number;
+  };
 }
 
 // ============================================================
@@ -211,6 +215,92 @@ function measureInfra(content: string): ContentCounts {
 }
 
 // ============================================================
+// minDims() implementations — relocated verbatim from computeMinDimensions() in
+// utils/scaling.ts so the registry owns per-type minimum-dimension formulas
+// alongside measure(). Each maps ContentCounts → {width,height}. Types without a
+// minDims fall back to {300,200} (the old switch `default`) via the
+// REGISTRY_BY_ID lookup in dimensions.ts.
+// ============================================================
+
+function minDimsSequence(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max((c.participants ?? 2) * 80, 320),
+    height: Math.max((c.messages ?? 1) * 20 + 120, 200),
+  };
+}
+function minDimsRaci(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max((c.roles ?? 2) * 50 + 180, 300),
+    height: Math.max((c.tasks ?? 1) * 28 + 80, 200),
+  };
+}
+function minDimsMindmap(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max((c.nodes ?? 3) * 30, 300),
+    height: Math.max((c.depth ?? 2) * 60, 200),
+  };
+}
+function minDimsTechRadar(): { width: number; height: number } {
+  return { width: 360, height: 400 };
+}
+function minDimsHeatmap(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max((c.columns ?? 3) * 40, 300),
+    height: Math.max((c.rows ?? 3) * 30 + 60, 200),
+  };
+}
+function minDimsArc(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: 300,
+    height: Math.max((c.nodes ?? 3) * 20 + 120, 200),
+  };
+}
+function minDimsOrg(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max((c.nodes ?? 3) * 60, 300),
+    height: Math.max((c.depth ?? 2) * 80, 200),
+  };
+}
+function minDimsGantt(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: 400,
+    height: Math.max((c.tasks ?? 3) * 24 + 80, 200),
+  };
+}
+function minDimsKanban(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max((c.columns ?? 3) * 120, 360),
+    height: 300,
+  };
+}
+// er + class share this formula.
+function minDimsEntities(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max((c.nodes ?? 2) * 140, 300),
+    height: Math.max((c.nodes ?? 2) * 80, 200),
+  };
+}
+// flowchart + state share this formula.
+function minDimsGraph(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max((c.nodes ?? 3) * 60, 300),
+    height: Math.max((c.nodes ?? 3) * 50, 200),
+  };
+}
+function minDimsPert(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max((c.tasks ?? 3) * 80, 340),
+    height: Math.max((c.tasks ?? 3) * 40 + 80, 200),
+  };
+}
+function minDimsInfra(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max((c.nodes ?? 3) * 80, 300),
+    height: Math.max((c.nodes ?? 3) * 60, 200),
+  };
+}
+
+// ============================================================
 // THE REGISTRY — ordered to match the previous chartTypeParsers grouping
 // (structured diagrams, standard ECharts, extended ECharts, D3 visualizations,
 // map). Order only affects knownChartTypeIds; tier order for descriptions lives
@@ -224,32 +314,49 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
     category: 'diagram',
     parse: parseSequenceDgmo,
     measure: measureSequence,
+    minDims: minDimsSequence,
   },
   {
     id: 'flowchart',
     category: 'diagram',
     parse: parseFlowchart,
     measure: measureFlowchart,
+    minDims: minDimsGraph,
   },
   {
     id: 'class',
     category: 'diagram',
     parse: parseClassDiagram,
     measure: measureClass,
+    minDims: minDimsEntities,
   },
-  { id: 'er', category: 'diagram', parse: parseERDiagram, measure: measureER },
+  {
+    id: 'er',
+    category: 'diagram',
+    parse: parseERDiagram,
+    measure: measureER,
+    minDims: minDimsEntities,
+  },
   {
     id: 'state',
     category: 'diagram',
     parse: parseState,
     measure: measureStateGraph,
+    minDims: minDimsGraph,
   },
-  { id: 'org', category: 'diagram', parse: parseOrg, measure: measureOrg },
+  {
+    id: 'org',
+    category: 'diagram',
+    parse: parseOrg,
+    measure: measureOrg,
+    minDims: minDimsOrg,
+  },
   {
     id: 'kanban',
     category: 'diagram',
     parse: parseKanban,
     measure: measureKanban,
+    minDims: minDimsKanban,
   },
   { id: 'c4', category: 'diagram', parse: parseC4 },
   { id: 'sitemap', category: 'diagram', parse: parseSitemap },
@@ -258,24 +365,39 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
     category: 'diagram',
     parse: parseInfra,
     measure: measureInfra,
+    minDims: minDimsInfra,
   },
   {
     id: 'gantt',
     category: 'diagram',
     parse: parseGantt,
     measure: measureGantt,
+    minDims: minDimsGantt,
   },
-  { id: 'pert', category: 'diagram', parse: parsePert, measure: measurePert },
+  {
+    id: 'pert',
+    category: 'diagram',
+    parse: parsePert,
+    measure: measurePert,
+    minDims: minDimsPert,
+  },
   { id: 'boxes-and-lines', category: 'diagram', parse: parseBoxesAndLines },
   {
     id: 'mindmap',
     category: 'diagram',
     parse: parseMindmap,
     measure: measureMindmap,
+    minDims: minDimsMindmap,
   },
   { id: 'wireframe', category: 'diagram', parse: parseWireframe },
   { id: 'journey-map', category: 'diagram', parse: parseJourneyMap },
-  { id: 'raci', category: 'diagram', parse: parseRaci, measure: measureRaci },
+  {
+    id: 'raci',
+    category: 'diagram',
+    parse: parseRaci,
+    measure: measureRaci,
+    minDims: minDimsRaci,
+  },
   { id: 'rasci', category: 'diagram', parse: parseRaci, measure: measureRaci },
   { id: 'daci', category: 'diagram', parse: parseRaci, measure: measureRaci },
 
@@ -300,6 +422,7 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
     category: 'data-chart',
     parse: parseHeatmap,
     measure: measureHeatmap,
+    minDims: minDimsHeatmap,
   },
   { id: 'funnel', category: 'data-chart', parse: parseFunnel },
 
@@ -311,6 +434,7 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
     category: 'visualization',
     parse: parseArc,
     measure: measureArc,
+    minDims: minDimsArc,
   },
   { id: 'timeline', category: 'visualization', parse: parseTimeline },
   { id: 'venn', category: 'visualization', parse: parseVenn },
@@ -322,6 +446,7 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
     category: 'visualization',
     parse: parseTechRadar,
     measure: measureTechRadar,
+    minDims: minDimsTechRadar,
   },
   { id: 'cycle', category: 'visualization', parse: parseCycle },
   { id: 'pyramid', category: 'visualization', parse: parsePyramid },

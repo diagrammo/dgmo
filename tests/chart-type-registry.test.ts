@@ -103,6 +103,29 @@ const EXPECTED_MEASURE_IDS = [
   'tech-radar',
 ].sort();
 
+// The set of types whose min-dimension formula moved into the registry
+// (Story 111.5) — the old `computeMinDimensions` switch cases. A registered
+// type missing a `minDims` silently falls back to {300,200}; this guard trips
+// instead, the same way EXPECTED_MEASURE_IDS guards `measure`. (rasci/daci had
+// no switch case — they intentionally keep the {300,200} default.)
+const EXPECTED_MINDIMS_IDS = [
+  'arc',
+  'class',
+  'er',
+  'flowchart',
+  'gantt',
+  'heatmap',
+  'infra',
+  'kanban',
+  'mindmap',
+  'org',
+  'pert',
+  'raci',
+  'sequence',
+  'state',
+  'tech-radar',
+].sort();
+
 const EXPECTED_EXTENDED_IDS = [
   'chord',
   'function',
@@ -166,6 +189,13 @@ describe('measure dispatch derives from the registry', () => {
       .map((d) => d.id)
       .sort();
     expect(withMeasure).toEqual(EXPECTED_MEASURE_IDS);
+  });
+
+  it('exactly the expected types expose a minDims function', () => {
+    const withMinDims = CHART_TYPE_REGISTRY.filter((d) => d.minDims)
+      .map((d) => d.id)
+      .sort();
+    expect(withMinDims).toEqual(EXPECTED_MINDIMS_IDS);
   });
 
   it('REGISTRY_BY_ID resolves descriptors for lookup', () => {

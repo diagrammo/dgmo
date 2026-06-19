@@ -42,7 +42,9 @@ export class ScaleContext {
 }
 
 // ============================================================
-// Minimum dimensions formula table
+// ContentCounts — per-chart-type content tallies that feed the registry's
+// `minDims` formulas (chart-type-registry.ts). The formulas themselves moved
+// there (Story 111.5) so a chart type's sizing is defined in one descriptor.
 // ============================================================
 
 export interface ContentCounts {
@@ -56,84 +58,4 @@ export interface ContentCounts {
   tasks?: number;
   roles?: number;
   blips?: number;
-}
-
-const DEFAULT_MIN = { width: 300, height: 200 };
-
-export function computeMinDimensions(
-  chartType: string,
-  counts: ContentCounts
-): { width: number; height: number } {
-  switch (chartType) {
-    case 'sequence':
-      return {
-        width: Math.max((counts.participants ?? 2) * 80, 320),
-        height: Math.max((counts.messages ?? 1) * 20 + 120, 200),
-      };
-    case 'raci':
-      return {
-        width: Math.max((counts.roles ?? 2) * 50 + 180, 300),
-        height: Math.max((counts.tasks ?? 1) * 28 + 80, 200),
-      };
-    case 'mindmap':
-      return {
-        width: Math.max((counts.nodes ?? 3) * 30, 300),
-        height: Math.max((counts.depth ?? 2) * 60, 200),
-      };
-    case 'tech-radar':
-      return { width: 360, height: 400 };
-    case 'heatmap':
-      return {
-        width: Math.max((counts.columns ?? 3) * 40, 300),
-        height: Math.max((counts.rows ?? 3) * 30 + 60, 200),
-      };
-    case 'arc':
-      return {
-        width: 300,
-        height: Math.max((counts.nodes ?? 3) * 20 + 120, 200),
-      };
-    case 'org':
-      return {
-        width: Math.max((counts.nodes ?? 3) * 60, 300),
-        height: Math.max((counts.depth ?? 2) * 80, 200),
-      };
-    case 'gantt':
-      return {
-        width: 400,
-        height: Math.max((counts.tasks ?? 3) * 24 + 80, 200),
-      };
-    case 'kanban':
-      return {
-        width: Math.max((counts.columns ?? 3) * 120, 360),
-        height: 300,
-      };
-    case 'er':
-      return {
-        width: Math.max((counts.nodes ?? 2) * 140, 300),
-        height: Math.max((counts.nodes ?? 2) * 80, 200),
-      };
-    case 'class':
-      return {
-        width: Math.max((counts.nodes ?? 2) * 140, 300),
-        height: Math.max((counts.nodes ?? 2) * 80, 200),
-      };
-    case 'flowchart':
-    case 'state':
-      return {
-        width: Math.max((counts.nodes ?? 3) * 60, 300),
-        height: Math.max((counts.nodes ?? 3) * 50, 200),
-      };
-    case 'pert':
-      return {
-        width: Math.max((counts.tasks ?? 3) * 80, 340),
-        height: Math.max((counts.tasks ?? 3) * 40 + 80, 200),
-      };
-    case 'infra':
-      return {
-        width: Math.max((counts.nodes ?? 3) * 80, 300),
-        height: Math.max((counts.nodes ?? 3) * 60, 200),
-      };
-    default:
-      return { ...DEFAULT_MIN };
-  }
 }
