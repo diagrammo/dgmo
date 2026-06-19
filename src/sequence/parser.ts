@@ -550,6 +550,13 @@ export function parseSequenceDgmo(
   const lines = content.split('\n');
   let hasExplicitChart = false;
   let contentStarted = false;
+  // Whether the message body has begun (first message, section, block, or note).
+  // Unlike `contentStarted` — which any declaration trips to close the
+  // options/tag-group "headers first" window — `bodyStarted` stays false through
+  // the entire declaration preamble so bare and typed participant declarations
+  // can be freely interleaved. It gates bare-name declarations: once real body
+  // content appears, a bare word is treated as a stray line, not a participant.
+  let bodyStarted = false;
   let firstLineIndex = -1; // line index of the `sequence [Title]` first line (to skip in main loop)
 
   // Handle first non-empty, non-comment line for `sequence Title` syntax
@@ -993,6 +1000,7 @@ export function parseSequenceDgmo(
         );
       }
       contentStarted = true;
+      bodyStarted = true;
       const section: SequenceSection = {
         kind: 'section',
         // Capture group 1 guaranteed present after successful match.
@@ -1297,7 +1305,7 @@ export function parseSequenceDgmo(
       if (
         /^\S+$/.test(bareCore) &&
         !ARROW_PATTERN.test(bareCore) &&
-        (inGroup || !contentStarted || bareMeta)
+        (inGroup || !bodyStarted || bareMeta)
       ) {
         contentStarted = true;
         const id = bareCore;
@@ -1365,6 +1373,7 @@ export function parseSequenceDgmo(
     }
     if (labeledArrow) {
       contentStarted = true;
+      bodyStarted = true;
       const { from, to, label: rawLabel, async: isAsync } = labeledArrow;
       const fromKey = addParticipant(resolveAlias(from), lineNumber);
       const toKey = addParticipant(resolveAlias(to), lineNumber);
@@ -1441,6 +1450,7 @@ export function parseSequenceDgmo(
     const bareCall = bareCallSync || bareCallAsync;
     if (bareCall) {
       contentStarted = true;
+      bodyStarted = true;
       // Capture groups 1 and 2 guaranteed present after successful match.
       const from = bareCall[1]!;
       const to = bareCall[2]!;
@@ -1466,6 +1476,7 @@ export function parseSequenceDgmo(
     const ifMatch = trimmed.match(/^if\s+(.+)$/i);
     if (ifMatch) {
       contentStarted = true;
+      bodyStarted = true;
       const block: Writable<SequenceBlock> = {
         kind: 'block',
         type: 'if',
@@ -1484,6 +1495,7 @@ export function parseSequenceDgmo(
     const loopMatch = trimmed.match(/^loop\s+(.+)$/i);
     if (loopMatch) {
       contentStarted = true;
+      bodyStarted = true;
       const block: Writable<SequenceBlock> = {
         kind: 'block',
         type: 'loop',
@@ -1502,6 +1514,7 @@ export function parseSequenceDgmo(
     const parallelMatch = trimmed.match(/^parallel(?:\s+(.+))?$/i);
     if (parallelMatch) {
       contentStarted = true;
+      bodyStarted = true;
       const block: Writable<SequenceBlock> = {
         kind: 'block',
         type: 'parallel',
@@ -1625,6 +1638,7 @@ export function parseSequenceDgmo(
             lineNumber,
             endLineNumber: lineNumber,
           };
+          bodyStarted = true;
           currentContainer().push(note);
           continue;
         }
@@ -1650,6 +1664,7 @@ export function parseSequenceDgmo(
             lineNumber,
             endLineNumber: i + 1, // i has advanced past the body lines (1-based)
           };
+          bodyStarted = true;
           currentContainer().push(note);
           continue;
         }

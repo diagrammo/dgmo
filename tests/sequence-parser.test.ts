@@ -1784,6 +1784,44 @@ describe('multi-word participant names', () => {
     expect(result.participants).toHaveLength(4);
     expect(result.messages.length).toBeGreaterThan(5);
   });
+
+  it('interleaves typed and bare participant declarations in the preamble', () => {
+    // A typed declaration (`is an actor`) no longer closes the window for bare
+    // declarations — only the first message/section/block does (§2.2b).
+    const diagram = [
+      'sequence OAuth 2.0',
+      '',
+      'User is an actor',
+      'Browser',
+      'Client',
+      'AuthServer',
+      'ResourceServer',
+      '',
+      'User -clicks login-> Browser',
+      'Browser -redirect-> AuthServer',
+      'Client -exchange-> AuthServer',
+      'Client -request-> ResourceServer',
+    ].join('\n');
+    const result = parseSequenceDgmo(diagram);
+    expect(result.error).toBeNull();
+    const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+    expect(warnings).toHaveLength(0);
+    expect(result.participants.map((p) => p.id)).toEqual([
+      'User',
+      'Browser',
+      'Client',
+      'AuthServer',
+      'ResourceServer',
+    ]);
+  });
+
+  it('still flags a bare stray word once the message body has started', () => {
+    const result = parseSequenceDgmo(
+      ['sequence', 'A -hi-> B', 'Stray'].join('\n')
+    );
+    const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+    expect(warnings.some((w) => w.message.includes("'Stray'"))).toBe(true);
+  });
 });
 
 describe('participant-type removal (0.16.0)', () => {
