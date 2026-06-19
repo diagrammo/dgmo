@@ -331,7 +331,9 @@ function parseScatterRow(
   if (!dataRow || dataRow.values.length < 2) return null;
   const { label: rawLabel, color: pointColor } = extractColor(
     dataRow.label,
-    palette
+    palette,
+    diagnostics,
+    lineNumber
   );
   return {
     name: rawLabel,
@@ -578,11 +580,15 @@ function parseExtendedChartFull(
       const targetResolved = resolveSlot(rawTarget!);
       const { label: source, color: sourceColor } = extractColor(
         sourceResolved,
-        palette
+        palette,
+        result.diagnostics,
+        lineNumber
       );
       const { label: target, color: targetColor } = extractColor(
         targetResolved,
-        palette
+        palette,
+        result.diagnostics,
+        lineNumber
       );
       if (sourceColor || targetColor) {
         if (!result.nodeColors) result.nodeColors = {};
@@ -654,7 +660,9 @@ function parseExtendedChartFull(
             const targetResolved = resolveSlot(dataRow.label);
             const { label: target, color: targetColor } = extractColor(
               targetResolved,
-              palette
+              palette,
+              result.diagnostics,
+              lineNumber
             );
             if (targetColor) {
               if (!result.nodeColors) result.nodeColors = {};
@@ -696,7 +704,9 @@ function parseExtendedChartFull(
         const trimmedResolved = resolveSlot(trimmed);
         const { label: nodeName, color: nodeColor } = extractColor(
           trimmedResolved,
-          palette
+          palette,
+          result.diagnostics,
+          lineNumber
         );
         if (nodeColor) {
           if (!result.nodeColors) result.nodeColors = {};
@@ -874,7 +884,9 @@ function parseExtendedChartFull(
       if (colonIndex >= 0) {
         const { label: fnName, color: fnColor } = extractColor(
           trimmed.substring(0, colonIndex).trim(),
-          palette
+          palette,
+          result.diagnostics,
+          lineNumber
         );
         const fnValue = trimmed.substring(colonIndex + 1).trim();
         if (!result.functions) result.functions = [];
@@ -929,7 +941,9 @@ function parseExtendedChartFull(
     if (dataRow?.values.length === 1) {
       const { label: rawLabel, color: pointColor } = extractColor(
         dataRow.label,
-        palette
+        palette,
+        result.diagnostics,
+        lineNumber
       );
       result.data.push({
         label: rawLabel,

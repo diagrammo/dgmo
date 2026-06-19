@@ -215,7 +215,12 @@ function parseVisualizationFull(
     // Timeline tag group entries (indented under tag heading)
     if (currentTimelineTagGroup && indent > 0) {
       const { text: entryText, isDefault } = stripDefaultModifier(line);
-      const { label, color } = extractColor(entryText, palette);
+      const { label, color } = extractColor(
+        entryText,
+        palette,
+        result.diagnostics,
+        lineNumber
+      );
       if (color) {
         if (isDefault) {
           currentTimelineTagGroup.defaultValue = label;

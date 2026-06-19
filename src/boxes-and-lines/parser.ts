@@ -404,7 +404,12 @@ export function parseBoxesAndLines(
       if (tagBlockMatch.inlineValues) {
         for (const rawVal of tagBlockMatch.inlineValues) {
           const { text: cleanVal, isDefault } = stripDefaultModifier(rawVal);
-          const { label, color } = extractColor(cleanVal);
+          const { label, color } = extractColor(
+            cleanVal,
+            palette,
+            result.diagnostics,
+            lineNum
+          );
           newTagGroup.entries.push({
             value: label,
             color: color ?? AUTO_TAG_COLOR_SENTINEL,
@@ -424,7 +429,12 @@ export function parseBoxesAndLines(
     // Tag group entries (indented under tag heading)
     if (currentTagGroup && !contentStarted && indent > 0) {
       const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
-      const { label, color } = extractColor(cleanEntry);
+      const { label, color } = extractColor(
+        cleanEntry,
+        palette,
+        result.diagnostics,
+        lineNum
+      );
       currentTagGroup.entries.push({
         value: label,
         color: color ?? AUTO_TAG_COLOR_SENTINEL,

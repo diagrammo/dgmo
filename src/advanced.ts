@@ -705,6 +705,11 @@ export {
   seriesColors,
   RECOGNIZED_COLOR_NAMES,
   isRecognizedColorName,
+  INVALID_COLOR_CODE,
+  nearestNamedColor,
+  isInvalidColorToken,
+  invalidColorDiagnostic,
+  INVALID_CSS_COLOR_HEX,
 } from './colors';
 
 export {

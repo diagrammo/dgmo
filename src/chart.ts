@@ -405,7 +405,9 @@ export function parseChart(
     if (dataValues) {
       const { label: rawLabel, color: pointColor } = extractColor(
         dataValues.label,
-        palette
+        palette,
+        result.diagnostics,
+        lineNumber
       );
       const [first, ...rest] = dataValues.values;
       result.data.push({

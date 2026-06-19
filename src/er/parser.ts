@@ -377,7 +377,12 @@ export function parseERDiagram(
     // Tag group entries (indented under tag heading)
     if (currentTagGroup && !contentStarted && indent > 0) {
       const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
-      const { label, color } = extractColor(cleanEntry, palette);
+      const { label, color } = extractColor(
+        cleanEntry,
+        palette,
+        result.diagnostics,
+        lineNumber
+      );
       // Bare value (no explicit color) → keep it; finalized below.
       if (isDefault) {
         currentTagGroup.defaultValue = label;

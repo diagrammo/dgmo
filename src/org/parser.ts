@@ -257,7 +257,12 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       const indent = measureIndent(line);
       if (indent > 0) {
         const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
-        const { label, color } = extractColor(cleanEntry, palette);
+        const { label, color } = extractColor(
+          cleanEntry,
+          palette,
+          result.diagnostics,
+          lineNumber
+        );
         // Bare value (no explicit color) → keep it; the post-parse
         // finalize pass assigns a deterministic palette color.
         if (isDefault) {

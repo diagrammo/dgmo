@@ -398,7 +398,12 @@ export function parseGantt(
         if (eraEntryMatch) {
           // Capture groups 1-3 guaranteed by successful regex match.
           const eraLabelRaw = eraEntryMatch[3]!.trim();
-          const eraExtracted = extractColor(eraLabelRaw, palette);
+          const eraExtracted = extractColor(
+            eraLabelRaw,
+            palette,
+            diagnostics,
+            lineNumber
+          );
           result.eras.push({
             startDate: eraEntryMatch[1]!,
             endDate: eraEntryMatch[2]!,
@@ -425,7 +430,12 @@ export function parseGantt(
         if (markerEntryMatch) {
           // Capture groups 1-2 guaranteed by successful regex match.
           const markerLabelRaw = markerEntryMatch[2]!.trim();
-          const markerExtracted = extractColor(markerLabelRaw, palette);
+          const markerExtracted = extractColor(
+            markerLabelRaw,
+            palette,
+            diagnostics,
+            lineNumber
+          );
           result.markers.push({
             date: markerEntryMatch[1]!,
             label: markerExtracted.label,
@@ -453,7 +463,12 @@ export function parseGantt(
         // First entry is the default unless another is marked `default`
         if (COMMENT_RE.test(line)) continue;
         const { text: cleanEntry, isDefault } = stripDefaultModifier(line);
-        const extracted = extractColor(cleanEntry, palette);
+        const extracted = extractColor(
+          cleanEntry,
+          palette,
+          diagnostics,
+          lineNumber
+        );
         const color =
           extracted.color ||
           seriesColors[currentTagGroup.entries.length % seriesColors.length] ||
@@ -712,7 +727,12 @@ export function parseGantt(
         const startOff = parseOffsetPrefix('+' + eraOffsetMatch[1]!);
         const endOff = parseOffsetPrefix('+' + eraOffsetMatch[2]!);
         const eraLabelRaw = eraOffsetMatch[3]!.trim();
-        const eraExtracted = extractColor(eraLabelRaw, palette);
+        const eraExtracted = extractColor(
+          eraLabelRaw,
+          palette,
+          diagnostics,
+          lineNumber
+        );
         result.eras.push({
           startDate: '',
           endDate: '',
@@ -730,7 +750,12 @@ export function parseGantt(
       if (markerOffsetMatch) {
         const dateOff = parseOffsetPrefix('+' + markerOffsetMatch[1]!);
         const markerLabelRaw = markerOffsetMatch[2]!.trim();
-        const markerExtracted = extractColor(markerLabelRaw, palette);
+        const markerExtracted = extractColor(
+          markerLabelRaw,
+          palette,
+          diagnostics,
+          lineNumber
+        );
         result.markers.push({
           date: '',
           label: markerExtracted.label,
@@ -827,7 +852,12 @@ export function parseGantt(
     if (eraMatch) {
       // Capture groups 1-3 guaranteed by successful regex match.
       const eraLabelRaw = eraMatch[3]!.trim();
-      const eraExtracted = extractColor(eraLabelRaw, palette);
+      const eraExtracted = extractColor(
+        eraLabelRaw,
+        palette,
+        diagnostics,
+        lineNumber
+      );
       result.eras.push({
         startDate: eraMatch[1]!,
         endDate: eraMatch[2]!,
@@ -850,7 +880,12 @@ export function parseGantt(
     if (markerMatch) {
       // Capture groups 1-2 guaranteed by successful regex match.
       const markerLabelRaw = markerMatch[2]!.trim();
-      const markerExtracted = extractColor(markerLabelRaw, palette);
+      const markerExtracted = extractColor(
+        markerLabelRaw,
+        palette,
+        diagnostics,
+        lineNumber
+      );
       result.markers.push({
         date: markerMatch[1]!,
         label: markerExtracted.label,
