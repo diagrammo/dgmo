@@ -498,6 +498,10 @@ rarely benefit. Aliases should aid comprehension, not obscure it.
 
 <!-- TYPE:sequence -->
 
+<!-- TIPS start -->
+**Styling tips:** stay terse — participants are created by the messages that name them, so a plain flow needs only the arrow lines (no participant declarations). Skip `is a TYPE`: the glyph is inferred from the name (`User`→actor, `*DB`→database, `Redis`→cache, `Kafka`→queue); add a declaration, a `[Group]`, or `position: N` only when it genuinely aids reading order or grouping, never as boilerplate. Give each participant a short role name; group related exchanges under `== Section ==` dividers rather than a wall of arrows; label a return arrow only when its value matters (unlabeled returns are auto-pruned). Drop a `note` where something subtle happens. When participants fall into trust or role categories, color the participants (not the messages) by category with a tag group using the named palette colors, so the boundary reads at a glance.
+<!-- TIPS end -->
+
 ### 2.1 Participants
 
 ```
@@ -548,6 +552,21 @@ Names that previously inferred to a removed type — `AuthService`, `WebApp`, `C
 ```
 
 - Metadata goes outside brackets: `[Backend] t: Eng`
+- **Color participants by category with a tag group** (§1.3). Declare the group with named palette colors, then assign each participant `<alias>: <Value>` — the tag is on the participant, not the group line or a message:
+
+```
+tag Security as sec
+  public blue
+  trusted yellow
+
+[Client Side]
+  User sec: public
+  Browser sec: public
+
+[Provider]
+  AuthServer sec: trusted
+  API sec: trusted
+```
 
 ### 2.3 Messages (Arrows)
 
@@ -597,6 +616,7 @@ Content formatting:
 - `- ` prefix on indented lines = bullet points
 - Inline markdown: `**bold**`, `*italic*`, `` `code` ``
 - Links: `[text](url)` and bare URLs (auto-truncated in display)
+- The note ends where the indentation does — there is **no `end` terminator** (a bare `end` line is rejected).
 
 ### 2.6 Structural Blocks
 
@@ -617,6 +637,8 @@ parallel label
 
 - `parallel` requires a label
 - Blocks nest via indentation
+- **No `end`/terminator keyword** — a block closes by dedenting (like multi-line notes). `end`, `activate`/`deactivate`, and `autonumber` are not dgmo syntax (a bare `end` line is rejected); activation is controlled by the `activations` option (§2.7), not per-message keywords.
+- **Tags apply to participants, not messages** — there is no per-message tag/color. Color a participant by category with `<Participant> <tagAlias>: <Value>` after declaring a `tag <Name> as <alias>` group (§1.3). Message text is just the arrow label.
 
 ### 2.7 Sequence Options
 
@@ -724,7 +746,16 @@ SearchAPI
 [Group Name] key: value
 ```
 
-- Bracket syntax only. Group coloring via tags.
+- Bracket syntax only. Group coloring via tags. Declare a `tag <Name> as <alias>` group (§1.3), then assign a node `<alias>: <Value>` same-line:
+
+```
+tag Team as t
+  Backend blue
+  Data green
+[API]
+  APIServer t: Backend
+  BookDB t: Data
+```
 - Optional `as <alias>` postfix and same-line metadata.
 - **No nesting.** A group cannot contain another `[...]` group; only indented components.
 - Group properties (indented under the bracket line):
@@ -797,7 +828,15 @@ flowchart [Title]
 | Subroutine | `[[Label]]` | `[[Validate]]` |
 | Document   | `[Label~]`  | `[Report~]`    |
 
-- Node coloring: use tags (§1.3) — flowchart nodes have no color suffix
+- Node coloring: use tags (§1.3) — flowchart nodes have no color suffix. Declare a `tag <Name> as <alias>` group, then assign a node `<alias>: <Value>` (same-line after the node):
+
+```
+tag Status as s
+  Approved green
+  Rejected red
+[Review] -yes-> [Done] s: Approved
+[Review] -no-> [Reject] s: Rejected
+```
 
 ### 4.3 Arrows
 
@@ -861,6 +900,10 @@ collides with the indented-body grammar.
 
 <!-- TYPE:state -->
 
+<!-- TIPS start -->
+**Styling tips:** name states as nouns (`Idle`, `Loading`) and label transitions with the triggering event (`-submit->`); mark the initial and final states; color by state category with a tag group; keep transition labels to the event, not a sentence.
+<!-- TIPS end -->
+
 ### 5.1 Declaration
 
 ```
@@ -899,6 +942,17 @@ references, and the `no-notes` opt-out (see §4.7).
 
 - `direction-tb` (boolean; default is LR)
 - `no-color` (boolean; default off — when on, all states resolve to the muted neutral fill instead of their default intent color)
+
+**Color by state category** — declare a `tag <Name> as <alias>` group (§1.3), then assign each state `<alias>: <Value>` same-line (declare the assignments before the transitions):
+
+```
+tag Phase as p
+  Active blue
+  Done green
+Pending p: Active
+Shipped p: Done
+Pending -ship-> Shipped
+```
 - `solid-fill` (boolean; default off — render states with their full intent color instead of the canonical 25% tint; collapsed groups are also rendered at full saturation)
 - `no-notes` (boolean; default off — suppress all note boxes, see §4.7)
 
@@ -909,6 +963,10 @@ references, and the `no-notes` opt-out (see §4.7).
 ## 7. Org Charts
 
 <!-- TYPE:org -->
+
+<!-- TIPS start -->
+**Styling tips:** label each node with the name and role on separate lines, not a paragraph; let the layout build the hierarchy — don't hand-draw edges; color by department or team with a tag group; keep titles consistent (all roles, or all names).
+<!-- TIPS end -->
 
 ### 6.1 Declaration
 
@@ -928,6 +986,23 @@ CEO
 
 - Node coloring: per-node indented metadata `\n  color: blue` (deferred to a follow-up spec; tag groups inside org also work)
 - Same-line metadata: `Alice role: CEO, t: Exec`
+
+**Color by team / department** — declare a `tag <Name> as <alias>` group (§1.3) with palette colors, then assign each person the tag as metadata (`<alias>: <Value>`, indented under the node or same-line). There is **no `#team` or roster syntax** — a `#` line is not a grouping operator and renders as a stray node:
+
+```
+tag Team as t
+  Platform blue
+  Product green
+
+Dana Ruiz
+  title: VP Engineering
+  Sam Okafor
+    title: Dir. Platform
+    t: Platform
+  Priya Nair
+    title: Dir. Product Eng
+    t: Product
+```
 
 ### 6.3 Metadata (Indented, Colon REQUIRED)
 
@@ -959,6 +1034,10 @@ This is key-value metadata assignment, consistent with same-line metadata syntax
 
 <!-- TYPE:c4 -->
 
+<!-- TIPS start -->
+**Styling tips:** name each element by its responsibility, not its technology — put the tech in the `tech` field; color by system boundary with a tag group; keep one level of abstraction per diagram (context OR container, not both); keep relationship labels to the verb of the interaction.
+<!-- TIPS end -->
+
 ### 7.1 Declaration
 
 ```
@@ -974,6 +1053,19 @@ Name is a container is a database     // shape override
 
 Types: `person`, `system`, `container`, `component`
 Shape overrides: `database`, `cache`, `queue`, `cloud`, `external`
+
+**Color by team / boundary** — declare a `tag <Name> as <alias>` group (§1.3), then assign each element `<alias>: <Value>` same-line (alongside `tech:`):
+
+```
+tag Team as t
+  Frontend blue
+  Backend green
+Customer is a person t: Frontend
+Shop is a system t: Backend
+  containers
+    WebApp is a container tech: React, t: Frontend
+    API is a container tech: Node, t: Backend
+```
 
 ### 7.3 Element Metadata (Indented, Colon REQUIRED)
 
@@ -1041,6 +1133,10 @@ Database is a container description: PostgreSQL with read replicas
 
 <!-- TYPE:er -->
 
+<!-- TIPS start -->
+**Styling tips:** name entities in the singular (`Customer`, not `Customers`); mark keys (`pk`, `fk`) and show only the columns that carry the relationship story; let the crow's-feet express cardinality instead of restating it in text; group related entities by color.
+<!-- TIPS end -->
+
 ### 8.1 Declaration
 
 ```
@@ -1090,6 +1186,10 @@ Cardinality symbols: `1` (one), `*` (many), `?` (optional)
 ## 10. Class Diagrams
 
 <!-- TYPE:class -->
+
+<!-- TIPS start -->
+**Styling tips:** show only the members that serve the diagram's point, not every field; mark visibility (`+`/`-`); express connections with relationships (inheritance, composition) rather than restating them in notes; group related classes by color.
+<!-- TIPS end -->
 
 ### 9.1 Declaration
 
@@ -1169,6 +1269,10 @@ Optional label: `--|> Vessel : extends` (colon optional before label)
 
 <!-- TYPE:kanban -->
 
+<!-- TIPS start -->
+**Styling tips:** name columns for workflow stages (`Todo`, `Doing`, `Done`); keep card titles to a short task phrase; color cards by owner or priority with a tag group; let column length convey WIP instead of annotating counts.
+<!-- TIPS end -->
+
 ### 10.1 Declaration
 
 ```
@@ -1178,6 +1282,17 @@ kanban [Title]
 ### 10.2 Columns
 
 Columns represent workflow stages and must flow left-to-right from least-done to most-done (e.g., Backlog → In Progress → Done). Every column should be a stage that cards pass through. Don't create columns for non-workflow concepts like gates, criteria, or definitions of done — use a tag instead (e.g., `type: Gate`).
+
+**Color cards by owner / priority** — declare a `tag <Name> as <alias>` group (§1.3), then assign each card `<alias>: <Value>` in its same-line metadata:
+
+```
+tag Crew as c
+  Alice blue
+  Bob green
+[Todo]
+  Task one c: Alice
+  Task two c: Bob
+```
 
 ```
 [Column Name]
@@ -1279,6 +1394,10 @@ Blog
 
 <!-- TYPE:gantt -->
 
+<!-- TIPS start -->
+**Styling tips:** group tasks under labeled phases; mark milestones as zero-duration; color by workstream or status with a tag group; keep task names to a short verb phrase; draw dependencies only where they actually drive the schedule.
+<!-- TIPS end -->
+
 ### 12.1 Declaration
 
 ```
@@ -1294,6 +1413,17 @@ today-marker 2026-03-27
 critical-path
 no-dependencies
 sort tag:Team
+```
+
+**Color by workstream / status** — declare a `tag <Name> as <alias>` group (§1.3), then assign each task `<alias>: <Value>` in its same-line metadata:
+
+```
+tag Phase as p
+  Build blue
+  Test green
+[Tasks]
+  Design 5d p: Build
+  QA 3d p: Test
 ```
 
 ### 12.3 Holidays
@@ -1698,10 +1828,24 @@ Flagship -> Sloop
 
 <!-- TYPE:timeline -->
 
+<!-- TIPS start -->
+**Styling tips:** label each event with a date and a terse headline; keep entries in chronological order; color by era or category with a tag group; merge minor events rather than crowding the axis.
+<!-- TIPS end -->
+
 ### 14.1 Declaration
 
 ```
 timeline [Title]
+```
+
+**Color by era / category** — declare a `tag <Name> as <alias>` group (§1.3), then assign each event `<alias>: <Value>` same-line:
+
+```
+tag Era as t
+  Ancient blue
+  Modern green
+1500 Founding t: Ancient
+2000 Boom t: Modern
 ```
 
 ### 14.2 Events
@@ -1785,6 +1929,10 @@ marker
 ## 16. Data Charts
 
 <!-- TYPE:bar -->
+
+<!-- TIPS start -->
+**Styling tips:** pick the form from the question — `bar` to compare categories, `line` for a trend over time, `pie`/`doughnut` only for parts of one whole (≤6 slices); sort bars by value unless the category order is inherent (time, size); give one highlighted series a distinct color and keep the rest neutral; always label units.
+<!-- TIPS end -->
 
 ### Conventions shared across all data charts
 
@@ -1875,6 +2023,10 @@ era Day 1 -> Day 3 Rough Seas red
 ### 15.2 Scatter / Bubble Charts
 
 <!-- TYPE:scatter -->
+
+<!-- TIPS start -->
+**Styling tips:** label both axes with units; group points into categories with `[Category] color` brackets (points indented under each) so clusters read at a glance — scatter colors by bracketed category, not by a tag group; reach for a second category only when the comparison is the point; keep marker labels off unless a few outliers need calling out.
+<!-- TIPS end -->
 
 **Data rows** — follows §15 Rule A (space-separated):
 
@@ -1977,6 +2129,10 @@ Values follow §15 Rule A.
 ### 15.7 Funnel Charts
 
 <!-- TYPE:funnel -->
+
+<!-- TIPS start -->
+**Styling tips:** order stages largest→smallest, top to bottom; keep each stage name to a noun phrase; let the stages auto-color (each gets a distinct hue — no tag group needed); cap it at ~6 stages and merge minor drop-offs rather than crowding.
+<!-- TIPS end -->
 
 **Data rows** — follows §15 Rule A (space-separated):
 
@@ -2094,6 +2250,10 @@ Navigator 0.85 0.8
 ## 18. Mindmap Diagrams
 
 <!-- TYPE:mindmap -->
+
+<!-- TIPS start -->
+**Styling tips:** keep each node to 1–3 words; let depth carry the structure — don't echo a parent's word in its child; color the top-level branches distinctly with a tag group; favor breadth over long single chains.
+<!-- TIPS end -->
 
 A radial hierarchy of ideas branching out from a central root. Hierarchy is established by indentation, nodes accept descriptions and tag-driven coloring, and any subtree can be collapsed by default.
 

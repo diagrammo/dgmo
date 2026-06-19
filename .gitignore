@@ -9,3 +9,7 @@ src/editor/dgmo.grammar.terms.js
 
 # Dev-reload sentinel (touched by tsup --watch; watched by diagrammo-app Vite)
 .vite-reload
+
+# guidance-studio write-back transient backup
+docs/language-reference.md.bak
+docs/language-reference.md.tmp-*

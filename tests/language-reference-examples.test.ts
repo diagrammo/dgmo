@@ -274,6 +274,49 @@ describe('generated DGMO-AI-CORE blocks are complete + single-sourced (AC4/AC11/
   });
 });
 
+describe('per-type TIPS blocks are well-formed (authoring-guidance gate, AC12)', () => {
+  // Scan the RAW `<!-- TYPE:id -->` blocks (the 35 actual coverage units), NOT
+  // the alias-folding chartTypes loop above (which would re-scan parent blocks
+  // up to 8×). For every block that HAS a `<!-- TIPS start -->…<!-- TIPS end -->`
+  // pair, assert the body is non-empty (after trim) and fence-free. TIPS ship to
+  // every MCP client via the per-type slice, so a stray ```dgmo fence or an empty
+  // block is a real regression. Blocks without TIPS are skipped — coverage is
+  // intentionally partial (Decision 1 / F3). The one deterministic gate added by
+  // this spec; NOT a revival of the eval-lane/scorer.
+  const refMd = readRepoFile('docs/language-reference.md') ?? '';
+  const markers = [...refMd.matchAll(/<!--\s*TYPE:([a-z0-9-]+)\s*-->/g)];
+
+  for (let i = 0; i < markers.length; i++) {
+    const id = markers[i][1];
+    const start = (markers[i].index ?? 0) + markers[i][0].length;
+    const rest = refMd.slice(start);
+    const nextType = rest.search(/<!--\s*TYPE:[a-z0-9-]+\s*-->/);
+    const nextH2 = rest.search(/^## /m);
+    const ends = [nextType, nextH2].filter((n) => n !== -1);
+    const blockEnd = ends.length ? start + Math.min(...ends) : refMd.length;
+    const block = refMd.slice(start, blockEnd);
+
+    const starts = (block.match(/<!--\s*TIPS start\s*-->/g) ?? []).length;
+    const closes = (block.match(/<!--\s*TIPS end\s*-->/g) ?? []).length;
+    if (starts === 0 && closes === 0) continue; // no tips — fine, partial coverage
+
+    it(`${id} TIPS block is well-formed, non-empty, fence-free`, () => {
+      expect(starts, `${id}: expected exactly one TIPS start`).toBe(1);
+      expect(closes, `${id}: expected exactly one TIPS end`).toBe(1);
+      const inner = block.match(
+        /<!--\s*TIPS start\s*-->([\s\S]*?)<!--\s*TIPS end\s*-->/
+      );
+      expect(inner, `${id}: TIPS end must follow TIPS start`).toBeTruthy();
+      const body = (inner?.[1] ?? '').trim();
+      expect(body.length, `${id}: TIPS body is empty`).toBeGreaterThan(0);
+      expect(
+        /```/.test(body),
+        `${id}: TIPS must not contain a \`\`\` code fence`
+      ).toBe(false);
+    });
+  }
+});
+
 describe('no stale syntax in AI surfaces (denylist — locks in the de-stale sweep)', () => {
   for (const rel of DENYLIST_FILES) {
     const content = readRepoFile(rel);
