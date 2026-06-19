@@ -33,7 +33,7 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill, themeBaseBg } from '../palettes/color-utils';
 import { ScaleContext } from '../utils/scaling';
 import {
   measureText,
@@ -108,7 +108,7 @@ function analysisBlockChrome(
   palette: PaletteColors,
   isDark: boolean
 ): { fill: string; stroke: string } {
-  const surfaceBg = isDark ? palette.surface : palette.bg;
+  const surfaceBg = themeBaseBg(palette, isDark);
   return {
     fill: mix(palette.surface, palette.bg, 40),
     stroke: mix(palette.textMuted, surfaceBg, 35),

@@ -30,7 +30,7 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
-import { contrastText, mix } from '../palettes/color-utils';
+import { contrastText, mix, themeBaseBg } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type {
@@ -394,7 +394,7 @@ export function renderRaci(
   if (tasksAll.length === 0 && parsed.phases.length === 0) return;
 
   const solid = parsed.options['solid-fill'] === 'on';
-  const surfaceBg = isDark ? palette.surface : palette.bg;
+  const surfaceBg = themeBaseBg(palette, isDark);
 
   // --- ScaleContext: differential scaling ---
   const roleCount = Math.max(1, parsed.roles.length);
@@ -679,10 +679,10 @@ export function renderRaci(
     // each column has a subtle visual identity instead of every column
     // reading as the same neutral gray.
     const roleColor = parsed.roleColors[i] ?? autoAccent(i, palette);
-    const bodyFill = mix(roleColor, isDark ? palette.surface : palette.bg, 16);
+    const bodyFill = mix(roleColor, themeBaseBg(palette, isDark), 16);
     const headerFill = mix(
       roleColor,
-      isDark ? palette.surface : palette.bg,
+      themeBaseBg(palette, isDark),
       30
     );
     const colG = columnsG

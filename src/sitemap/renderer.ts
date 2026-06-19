@@ -6,7 +6,7 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill, themeBaseBg } from '../palettes/color-utils';
 import type { ParsedSitemap } from './types';
 import type { SitemapLayoutResult, SitemapLegendGroup } from './layout';
 import { renderInlineText } from '../utils/inline-markdown';
@@ -83,7 +83,7 @@ function containerFill(
   nodeColor?: string
 ): string {
   if (nodeColor) {
-    return mix(nodeColor, isDark ? palette.surface : palette.bg, 10);
+    return mix(nodeColor, themeBaseBg(palette, isDark), 10);
   }
   return mix(palette.surface, palette.bg, 40);
 }

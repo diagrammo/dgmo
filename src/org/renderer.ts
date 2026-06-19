@@ -10,7 +10,7 @@ import {
 } from '../utils/export-container';
 import { ScaleContext } from '../utils/scaling';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill, themeBaseBg } from '../palettes/color-utils';
 import { resolveTagColor } from '../utils/tag-groups';
 import type { ParsedOrg } from './parser';
 import type { OrgLayoutResult } from './layout';
@@ -93,7 +93,7 @@ function containerFill(
   nodeColor?: string
 ): string {
   if (nodeColor) {
-    return mix(nodeColor, isDark ? palette.surface : palette.bg, 10);
+    return mix(nodeColor, themeBaseBg(palette, isDark), 10);
   }
   return mix(palette.surface, palette.bg, 40);
 }

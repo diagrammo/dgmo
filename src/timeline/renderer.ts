@@ -24,7 +24,7 @@ import type {
 import { parseTimelineDate } from '../timeline/parser';
 import type { PaletteColors } from '../palettes';
 import { getSeriesColors } from '../palettes';
-import { mix, shapeFill } from '../palettes/color-utils';
+import { mix, shapeFill, themeBaseBg } from '../palettes/color-utils';
 import { resolveTagColor } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import {
@@ -808,7 +808,7 @@ function setupTimeline(
   const textColor = palette.text;
   const mutedColor = palette.border;
   const bgColor = palette.bg;
-  const bg = isDark ? palette.surface : palette.bg;
+  const bg = themeBaseBg(palette, isDark);
   const colors = getSeriesColors(palette);
 
   const groupColorMap = new Map<string, string>();

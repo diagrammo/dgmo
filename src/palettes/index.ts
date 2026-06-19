@@ -21,6 +21,7 @@ export {
   getSegmentColors,
   contrastText,
   shapeFill,
+  themeBaseBg,
 } from './color-utils';
 
 // Re-export palette definitions (alphabetical)

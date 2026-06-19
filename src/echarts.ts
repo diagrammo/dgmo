@@ -217,6 +217,7 @@ import {
   shapeFill,
   hexToHSL,
   hslToHex,
+  themeBaseBg,
 } from './palettes/color-utils';
 import { parseChart } from './chart';
 import type { ParsedChart, ChartEra } from './chart';
@@ -1064,13 +1065,13 @@ export function buildExtendedChartOption(
 
   // Sankey chart has different structure
   if (parsed.type === 'sankey') {
-    const bg = isDark ? palette.surface : palette.bg;
+    const bg = themeBaseBg(palette, isDark);
     return buildSankeyOption(parsed, textColor, colors, bg, titleConfig, sc);
   }
 
   // Chord diagram
   if (parsed.type === 'chord') {
-    const bg = isDark ? palette.surface : palette.bg;
+    const bg = themeBaseBg(palette, isDark);
     return buildChordOption(
       parsed,
       palette,
@@ -1119,7 +1120,7 @@ export function buildExtendedChartOption(
 
   // Funnel chart
   if (parsed.type === 'funnel') {
-    const bg = isDark ? palette.surface : palette.bg;
+    const bg = themeBaseBg(palette, isDark);
     return buildFunnelOption(
       parsed,
       palette,
@@ -2137,7 +2138,7 @@ function buildHeatmapOption(
   ctx?: ScaleContext
 ): EChartsOption {
   const sc = ctx ?? ScaleContext.identity();
-  const bg = isDark ? palette.surface : palette.bg;
+  const bg = themeBaseBg(palette, isDark);
   const heatmapRows = parsed.heatmapRows ?? [];
   const columns = parsed.columns ?? [];
   const rowLabels = heatmapRows.map((r) => r.label);
@@ -2566,7 +2567,7 @@ export function buildSimpleChartOption(
     colors,
     titleConfig,
   } = buildChartCommons(parsed, palette, isDark, sc);
-  const bg = isDark ? palette.surface : palette.bg;
+  const bg = themeBaseBg(palette, isDark);
 
   switch (parsed.type) {
     case 'bar':

@@ -7,7 +7,7 @@ import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import { fitDiagramToCanvas } from '../utils/fit-canvas';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill, themeBaseBg } from '../palettes/color-utils';
 import type { ParsedGraph } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseState } from './state-parser';
@@ -211,7 +211,7 @@ export function renderState(
     const gh = group.height + sGroupExtraPadding * 2 + sGroupLabelFontSize + 4;
 
     const fillColor = group.color
-      ? mix(group.color, isDark ? palette.surface : palette.bg, 10)
+      ? mix(group.color, themeBaseBg(palette, isDark), 10)
       : isDark
         ? palette.surface
         : mix(palette.border, palette.bg, 30);

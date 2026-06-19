@@ -30,6 +30,7 @@ import {
   relativeLuminance,
   shapeFill,
   valueRampColor,
+  themeBaseBg,
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { resolveTagColor } from '../utils/tag-groups';
@@ -751,7 +752,7 @@ export function renderBoxesAndLines(
 
     if (group.collapsed) {
       // Collapsed: solid rounded rect matching node style + 6px collapse bar
-      const fillColor = isDark ? palette.surface : palette.bg;
+      const fillColor = themeBaseBg(palette, isDark);
       const strokeColor = palette.border;
 
       groupG
