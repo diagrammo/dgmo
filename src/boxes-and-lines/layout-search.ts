@@ -121,6 +121,34 @@ function flatten(d: string): Pt[] {
   }
   return pts;
 }
+// Flattened edge polyline + its bbox. Building it requires an SVG-string
+// round-trip (d3 spline → regex parse), so it's memoized per layout: every
+// candidate is scored by countSplineCrossings + countEdgeOverlaps +
+// countEdgeNodePierces, which would otherwise each re-flatten all edges.
+type FlatPoly = { pts: Pt[]; x0: number; y0: number; x1: number; y1: number };
+const FLAT_CACHE = new WeakMap<object, FlatPoly[]>();
+function flatPolys(layout: BLLayoutResult): FlatPoly[] {
+  const key = layout.edges as unknown as object;
+  const hit = FLAT_CACHE.get(key);
+  if (hit) return hit;
+  const polys = layout.edges.map((e) => {
+    const pts =
+      e.points.length >= 2 ? flatten(splineGen(e.points as Pt[]) ?? '') : [];
+    let x0 = Infinity,
+      y0 = Infinity,
+      x1 = -Infinity,
+      y1 = -Infinity;
+    for (const p of pts) {
+      if (p.x < x0) x0 = p.x;
+      if (p.x > x1) x1 = p.x;
+      if (p.y < y0) y0 = p.y;
+      if (p.y > y1) y1 = p.y;
+    }
+    return { pts, x0, y0, x1, y1 };
+  });
+  FLAT_CACHE.set(key, polys);
+  return polys;
+}
 function segPoint(p1: Pt, p2: Pt, p3: Pt, p4: Pt): Pt | null {
   const den = (p2.x - p1.x) * (p4.y - p3.y) - (p2.y - p1.y) * (p4.x - p3.x);
   if (Math.abs(den) < 1e-9) return null;
@@ -136,28 +164,21 @@ function segPoint(p1: Pt, p2: Pt, p3: Pt, p4: Pt): Pt | null {
 // near a genuinely shared endpoint node; cluster near-duplicate hits.
 // Exported so the playground + benchmark score with the SAME counter the
 // engine optimizes against.
-export function countSplineCrossings(layout: BLLayoutResult): number {
+export function countSplineCrossings(
+  layout: BLLayoutResult,
+  /** Abort early once the running total exceeds this (the caller only needs to
+   *  know X has passed the best-so-far badness — the exact value no longer
+   *  matters). Returns a value > floor in that case; identical otherwise. */
+  floor = Infinity
+): number {
   const center = new Map<string, Pt>();
   for (const n of layout.nodes) center.set(n.label, { x: n.x, y: n.y });
   // collapsed group boxes are edge endpoints too (`__group_<label>`); without
   // them, edges meeting AT a collapsed box are miscounted as crossings.
   for (const g of layout.groups)
     if (g.collapsed) center.set('__group_' + g.label, { x: g.x, y: g.y });
-  const polys = layout.edges.map((e) => {
-    const pts =
-      e.points.length >= 2 ? flatten(splineGen(e.points as Pt[]) ?? '') : [];
-    let x0 = Infinity,
-      y0 = Infinity,
-      x1 = -Infinity,
-      y1 = -Infinity;
-    for (const p of pts) {
-      if (p.x < x0) x0 = p.x;
-      if (p.x > x1) x1 = p.x;
-      if (p.y < y0) y0 = p.y;
-      if (p.y > y1) y1 = p.y;
-    }
-    return { pts, s: e.source, t: e.target, x0, y0, x1, y1 };
-  });
+  const polys = flatPolys(layout);
+  const edges = layout.edges;
   const R = 34;
   let total = 0;
   for (let a = 0; a < polys.length; a++)
@@ -166,26 +187,43 @@ export function countSplineCrossings(layout: BLLayoutResult): number {
         B = polys[b]!;
       if (A.pts.length < 2 || B.pts.length < 2) continue;
       if (A.x1 < B.x0 || B.x1 < A.x0 || A.y1 < B.y0 || B.y1 < A.y0) continue; // bbox disjoint
-      const shared = [A.s, A.t]
-        .filter((n) => n === B.s || n === B.t)
-        .map((n) => center.get(n))
-        .filter(Boolean) as Pt[];
+      const ea = edges[a]!,
+        eb = edges[b]!;
+      // Shared-endpoint centres (≤2) — inlined to avoid allocating a filter/map
+      // array on every one of the O(E²) edge pairs.
+      let sh0: Pt | undefined, sh1: Pt | undefined;
+      if (ea.source === eb.source || ea.source === eb.target)
+        sh0 = center.get(ea.source);
+      if (ea.target === eb.source || ea.target === eb.target)
+        sh1 = center.get(ea.target);
       const hits: Pt[] = [];
-      for (let i = 1; i < A.pts.length; i++)
-        for (let j = 1; j < B.pts.length; j++) {
-          const p = segPoint(
-            A.pts[i - 1]!,
-            A.pts[i]!,
-            B.pts[j - 1]!,
-            B.pts[j]!
-          );
+      const ap = A.pts,
+        bp = B.pts;
+      for (let i = 1; i < ap.length; i++) {
+        const a0 = ap[i - 1]!,
+          a1 = ap[i]!;
+        const axMin = a0.x < a1.x ? a0.x : a1.x,
+          axMax = a0.x > a1.x ? a0.x : a1.x,
+          ayMin = a0.y < a1.y ? a0.y : a1.y,
+          ayMax = a0.y > a1.y ? a0.y : a1.y;
+        for (let j = 1; j < bp.length; j++) {
+          const b0 = bp[j - 1]!,
+            b1 = bp[j]!;
+          // per-segment bbox reject — disjoint segments can't cross
+          if (axMax < (b0.x < b1.x ? b0.x : b1.x)) continue;
+          if ((b0.x > b1.x ? b0.x : b1.x) < axMin) continue;
+          if (ayMax < (b0.y < b1.y ? b0.y : b1.y)) continue;
+          if ((b0.y > b1.y ? b0.y : b1.y) < ayMin) continue;
+          const p = segPoint(a0, a1, b0, b1);
           if (!p) continue;
-          if (shared.some((c) => Math.hypot(p.x - c.x, p.y - c.y) < R))
-            continue;
+          if (sh0 && Math.hypot(p.x - sh0.x, p.y - sh0.y) < R) continue;
+          if (sh1 && Math.hypot(p.x - sh1.x, p.y - sh1.y) < R) continue;
           if (!hits.some((h) => Math.hypot(h.x - p.x, h.y - p.y) < 6))
             hits.push(p);
         }
+      }
       total += hits.length;
+      if (total > floor) return total; // can't win — stop counting
     }
   return total;
 }
@@ -251,21 +289,8 @@ export function detectEdgeOverlaps(
         h: g.height,
       });
 
-  const polys = layout.edges.map((e) => {
-    const pts =
-      e.points.length >= 2 ? flatten(splineGen(e.points as Pt[]) ?? '') : [];
-    let x0 = Infinity,
-      y0 = Infinity,
-      x1 = -Infinity,
-      y1 = -Infinity;
-    for (const p of pts) {
-      if (p.x < x0) x0 = p.x;
-      if (p.x > x1) x1 = p.x;
-      if (p.y < y0) y0 = p.y;
-      if (p.y > y1) y1 = p.y;
-    }
-    return { pts, s: e.source, t: e.target, x0, y0, x1, y1 };
-  });
+  const polys = flatPolys(layout);
+  const edges = layout.edges;
 
   const runs: OverlapRun[] = [];
   for (let a = 0; a < polys.length; a++)
@@ -280,10 +305,14 @@ export function detectEdgeOverlaps(
         B.y1 + dist < A.y0
       )
         continue;
-      const shared = [A.s, A.t]
-        .filter((n) => n === B.s || n === B.t)
-        .map((n) => rect.get(n))
-        .filter(Boolean) as Rect[];
+      const ea = edges[a]!,
+        eb = edges[b]!;
+      // Shared-endpoint rects (≤2) — inlined to avoid a per-pair filter/map array.
+      let shr0: Rect | undefined, shr1: Rect | undefined;
+      if (ea.source === eb.source || ea.source === eb.target)
+        shr0 = rect.get(ea.source);
+      if (ea.target === eb.source || ea.target === eb.target)
+        shr1 = rect.get(ea.target);
       // Walk A; accumulate contiguous "covered" runs (close to B, off any shared
       // node). A run counts once if it reaches minLen.
       let run: Pt[] = [];
@@ -299,7 +328,9 @@ export function detectEdgeOverlaps(
         runLen = 0;
       };
       for (const p of A.pts) {
-        const nearShared = shared.some((r) => pointRectDist(p, r) < nodeClear);
+        const nearShared =
+          (shr0 !== undefined && pointRectDist(p, shr0) < nodeClear) ||
+          (shr1 !== undefined && pointRectDist(p, shr1) < nodeClear);
         const covered = !nearShared && distToPoly(p, B.pts) < dist;
         if (covered) {
           if (run.length)
@@ -358,9 +389,10 @@ export function detectEdgeNodePierces(
     Math.abs(p.x - r.x) < r.w / 2 - inset &&
     Math.abs(p.y - r.y) < r.h / 2 - inset;
   const out: NodePierce[] = [];
+  const polys = flatPolys(layout);
   layout.edges.forEach((e, idx) => {
     if (e.points.length < 2) return;
-    const poly = flatten(splineGen(e.points as Pt[]) ?? '');
+    const poly = polys[idx]!.pts;
     for (const r of rects) {
       if (
         r.key === e.source ||
@@ -1427,7 +1459,7 @@ export function layoutBoxesAndLinesSearch(
   // `floor` lets callers skip the expensive O/P passes once X alone already
   // exceeds the best badness found so far (it can't win, return Infinity).
   const badness = (lay: BLLayoutResult, floor: number): number => {
-    const x = countSplineCrossings(lay);
+    const x = countSplineCrossings(lay, floor);
     if (x > floor) return Infinity;
     return (
       x +
