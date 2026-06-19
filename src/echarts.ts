@@ -1961,7 +1961,13 @@ function buildScatterOption(
   const gridLeft = parsed.ylabel ? 12 : 3;
   const gridRight = 4;
   const gridBottom = hasCategories ? 15 : parsed.xlabel ? 10 : 3;
-  const gridTop = parsed.title && !parsed.noTitle ? 15 : 5;
+  // The categorized legend is hoisted to the TOP in both the app preview and
+  // the static export (the `bottom` legend config below is stripped by both
+  // render paths). So the top inset must reserve room for it — matching the
+  // shared makeChartGrid rule — otherwise the topmost point labels collide
+  // with the legend when there is no title to absorb the space.
+  const hasTitle = !!(parsed.title && !parsed.noTitle);
+  const gridTop = hasTitle ? (hasCategories ? 22 : 15) : hasCategories ? 12 : 5;
 
   // Compute custom label graphics for SSR when labels are enabled
   let graphic: Record<string, unknown>[] | undefined;

@@ -1160,6 +1160,38 @@ describe('scatter option has no tooltip/axisPointer', () => {
   });
 });
 
+// The categorized legend is hoisted to the TOP in both the app preview and the
+// static export, so grid.top must reserve room for it — otherwise the topmost
+// point labels collide with the legend, most visibly when there is no title to
+// absorb the space. Mirrors the shared makeChartGrid rule.
+describe('scatter grid.top reserves space for the hoisted top legend', () => {
+  function gridTop(input: string): string {
+    const parsed = parseExtendedChart(input, palette);
+    const opt = buildExtendedChartOption(parsed, palette, false) as {
+      grid: { top: string };
+    };
+    return opt.grid.top;
+  }
+
+  const categories = '[A] blue\n  Alice 12 300\n[B] red\n  Bob 40 100';
+
+  it('no title, with categories → 12% (room for the legend)', () => {
+    expect(gridTop(`scatter\n${categories}`)).toBe('12%');
+  });
+
+  it('title + categories → 22% (room for title and legend)', () => {
+    expect(gridTop(`scatter My Chart\n${categories}`)).toBe('22%');
+  });
+
+  it('no title, no categories → 5% (no legend to reserve for)', () => {
+    expect(gridTop('scatter\nAlice 12 300')).toBe('5%');
+  });
+
+  it('title, no categories → 15% (title only)', () => {
+    expect(gridTop('scatter My Chart\nAlice 12 300')).toBe('15%');
+  });
+});
+
 // ── Numeric separator support ───────────────────────────────
 
 describe('numeric separators in chart data', () => {
