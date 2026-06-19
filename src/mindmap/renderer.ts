@@ -149,9 +149,16 @@ export function renderMindmap(
   const availHeight =
     containerHeight - DIAGRAM_PADDING * 2 - legendReserve - titleReserve;
 
-  const ctx = isExport
+  // Fit to BOTH axes so a tall tree shrinks to fit a short canvas instead of
+  // overflowing vertically (export sizes its own canvas, so it stays identity).
+  let ctx = isExport
     ? ScaleContext.identity()
-    : ScaleContext.from(availWidth, layout.width);
+    : ScaleContext.fromBox(
+        availWidth,
+        layout.width,
+        availHeight,
+        layout.height
+      );
 
   let renderLayout = layout;
   if (ctx.factor < 1) {
@@ -161,25 +168,56 @@ export function renderMindmap(
         hiddenCounts.set(n.id, n.hiddenCount);
       }
     }
-    renderLayout = layoutMindmap(parsed, palette, {
-      interactive: !isExport,
-      ...(hiddenCounts.size > 0 && { hiddenCounts }),
-      activeTagGroup: activeTagGroup ?? null,
-      ...(hideDescriptions !== undefined && { hideDescriptions }),
-      ctx,
-    });
+    const relayout = (c: ScaleContext): MindmapLayoutResult =>
+      layoutMindmap(parsed, palette, {
+        interactive: !isExport,
+        ...(hiddenCounts.size > 0 && { hiddenCounts }),
+        activeTagGroup: activeTagGroup ?? null,
+        ...(hideDescriptions !== undefined && { hideDescriptions }),
+        ctx: c,
+      });
+    renderLayout = relayout(ctx);
+    // Scaling is non-linear, so one pass can still overflow. Re-measure the
+    // laid-out result and tighten until it fits both axes or hits the floor.
+    for (let i = 0; i < 3 && !ctx.isBelowFloor; i++) {
+      const refit = Math.min(
+        availWidth / renderLayout.width,
+        availHeight / renderLayout.height
+      );
+      if (refit >= 0.999) break; // already fits
+      ctx = ScaleContext.fromFactor(ctx.factor * refit);
+      renderLayout = relayout(ctx);
+    }
   }
 
-  const offsetX = Math.max(0, (availWidth - renderLayout.width) / 2);
+  // Re-layout keeps text readable but is floor-limited, so a dense tree can
+  // still exceed the canvas. Apply a final uniform scale as a hard guarantee
+  // that the diagram always fits within the canvas (no overflow), regardless
+  // of how small the canvas is. Export sizes its own canvas, so this is a no-op
+  // there (fitScale === 1).
+  const fitScale = isExport
+    ? 1
+    : Math.min(
+        1,
+        renderLayout.width > 0 ? availWidth / renderLayout.width : 1,
+        renderLayout.height > 0 ? availHeight / renderLayout.height : 1
+      );
+  const scaledWidth = renderLayout.width * fitScale;
+  const scaledHeight = renderLayout.height * fitScale;
+
+  const offsetX = Math.max(0, (availWidth - scaledWidth) / 2);
   const offsetY =
     DIAGRAM_PADDING +
     legendReserve +
     titleReserve +
-    Math.max(0, (availHeight - renderLayout.height) / 2);
+    Math.max(0, (availHeight - scaledHeight) / 2);
 
   const mainG = svg
     .append('g')
-    .attr('transform', `translate(${offsetX}, ${offsetY})`);
+    .attr(
+      'transform',
+      `translate(${offsetX}, ${offsetY})${fitScale < 1 ? ` scale(${fitScale})` : ''}`
+    );
 
   if (ctx.isBelowFloor) {
     svg.attr('width', '100%');

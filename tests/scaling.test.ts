@@ -147,6 +147,51 @@ describe('ScaleContext', () => {
       expect(ctx.factor).toBe(1);
     });
   });
+
+  describe('fromBox() — fit both axes', () => {
+    it('binds on the more constraining (smaller-ratio) axis', () => {
+      // Width fits (1200/800=1.5), height is tight (400/800=0.5) → 0.5 wins.
+      const ctx = ScaleContext.fromBox(1200, 800, 400, 800);
+      expect(ctx.factor).toBe(0.5);
+    });
+
+    it('binds on width when width is the tighter axis', () => {
+      const ctx = ScaleContext.fromBox(600, 800, 1000, 800);
+      expect(ctx.factor).toBe(0.75);
+    });
+
+    it('stays at 1.0 when content fits both axes', () => {
+      const ctx = ScaleContext.fromBox(1000, 800, 1000, 800);
+      expect(ctx.factor).toBe(1);
+    });
+
+    it('clamps to the readability floor', () => {
+      const ctx = ScaleContext.fromBox(1000, 800, 100, 800);
+      expect(ctx.factor).toBe(0.5);
+      expect(ctx.isBelowFloor).toBe(true);
+    });
+
+    it('treats a zero ideal dimension as non-binding', () => {
+      const ctx = ScaleContext.fromBox(600, 800, 400, 0);
+      expect(ctx.factor).toBe(0.75); // only width binds
+    });
+  });
+
+  describe('fromFactor() — explicit factor', () => {
+    it('uses the given factor when in range', () => {
+      expect(ScaleContext.fromFactor(0.7).factor).toBeCloseTo(0.7, 10);
+    });
+
+    it('clamps above 1.0', () => {
+      expect(ScaleContext.fromFactor(1.4).factor).toBe(1);
+    });
+
+    it('clamps to the floor and flags below-floor', () => {
+      const ctx = ScaleContext.fromFactor(0.2);
+      expect(ctx.factor).toBe(0.5);
+      expect(ctx.isBelowFloor).toBe(true);
+    });
+  });
 });
 
 describe('chart-type minDims (registry, Story 111.5)', () => {

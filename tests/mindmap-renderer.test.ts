@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { parseMindmap } from '../src/mindmap/parser';
 import { layoutMindmap } from '../src/mindmap/layout';
-import { renderMindmapForExport } from '../src/mindmap/renderer';
+import { renderMindmapForExport, renderMindmap } from '../src/mindmap/renderer';
 import { getPalette } from '../src/palettes';
 
 const palette = getPalette('bold').light;
@@ -69,6 +69,44 @@ describe('mindmap renderer', () => {
     const svg = renderMindmapForExport(content, 'dark', darkPalette);
     expect(svg).toBeTruthy();
     expect(svg).toContain('<svg');
+  });
+
+  // ── Fit-to-canvas (interactive) ─────────────────────────────
+
+  const renderInteractive = (content: string, w: number, h: number) => {
+    const parsed = parseMindmap(content, palette);
+    const layout = layoutMindmap(parsed, palette, { interactive: true });
+    const container = document.createElement('div');
+    container.getBoundingClientRect = () =>
+      ({
+        width: w,
+        height: h,
+        top: 0,
+        left: 0,
+        right: w,
+        bottom: h,
+      }) as DOMRect;
+    renderMindmap(container, parsed, layout, palette, false);
+    const g = container.querySelector('svg > g');
+    return g?.getAttribute('transform') ?? '';
+  };
+
+  const tallTree = `mindmap Tree\n${Array.from(
+    { length: 24 },
+    (_, i) => `  Node ${i + 1}`
+  ).join('\n')}`;
+
+  it('shrinks a tall tree to fit a short canvas (scale < 1)', () => {
+    const transform = renderInteractive(tallTree, 1300, 360);
+    const m = transform.match(/scale\(([\d.]+)\)/);
+    expect(m).toBeTruthy();
+    expect(parseFloat(m![1])).toBeLessThan(1);
+  });
+
+  it('does not scale up when the canvas is roomy', () => {
+    const transform = renderInteractive(tallTree, 2000, 2000);
+    // No scale() segment (or scale 1) → content rendered at natural size.
+    expect(transform).not.toMatch(/scale\((?!1\))/);
   });
 
   it('node (color) suffix is literal — no color resolved', () => {
