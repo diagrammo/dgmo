@@ -17,6 +17,7 @@ import {
   validateTagGroupNames,
   stripDefaultModifier,
   finalizeAutoTagColors,
+  cascadeTagMetadata,
   AUTO_TAG_COLOR_SENTINEL,
 } from '../utils/tag-groups';
 import {
@@ -206,7 +207,12 @@ export function parseMindmap(
       const indent = measureIndent(line);
       if (indent > 0) {
         const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
-        const { label, color } = extractColor(cleanEntry, palette);
+        const { label, color } = extractColor(
+          cleanEntry,
+          palette,
+          result.diagnostics,
+          lineNumber
+        );
         // Bare value (no explicit color) → keep it; finalized below.
         if (isDefault) {
           currentTagGroup.defaultValue = label;
@@ -303,6 +309,12 @@ export function parseMindmap(
     collectAll(result.roots);
     validateTagValues(allNodes, result.tagGroups, pushWarning, suggest);
     validateTagGroupNames(result.tagGroups, pushWarning);
+
+    // Cascade explicit tag values down the tree so sub-nodes inherit a tagged
+    // ancestor's value (overridable per-node). Runs after validation (so we
+    // don't double-warn on inherited values) and before the layout's
+    // global-default injection (so an inherited value wins over the default).
+    cascadeTagMetadata(result.roots, result.tagGroups);
   }
 
   // Check for empty mindmap

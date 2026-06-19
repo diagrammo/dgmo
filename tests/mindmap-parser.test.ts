@@ -377,4 +377,86 @@ tag Status as s
     expect(result.tagGroups).toHaveLength(1);
     expect(result.roots[0].children).toHaveLength(1);
   });
+
+  // ── Tag cascade (parent → child) ────────────────────────────
+
+  it('cascades a parent tag value down to untagged sub-nodes', () => {
+    const result = parseMindmap(
+      `mindmap Wine
+
+tag Style as s
+  Red red
+  White white
+
+Whites s: White
+  Chardonnay
+  Sauvignon Blanc`
+    );
+    const whites = result.roots[0].children[0];
+    expect(whites.metadata['style']).toBe('White');
+    expect(whites.children[0].metadata['style']).toBe('White');
+    expect(whites.children[1].metadata['style']).toBe('White');
+  });
+
+  it('lets a sub-node override the inherited parent tag value', () => {
+    const result = parseMindmap(
+      `mindmap Wine
+
+tag Style as s
+  White white
+  Sparkling yellow
+
+Whites s: White
+  Sauvignon Blanc
+    Loire s: Sparkling`
+    );
+    const whites = result.roots[0].children[0];
+    const sauv = whites.children[0];
+    expect(sauv.metadata['style']).toBe('White');
+    // Explicit child value wins, and re-roots the cascade for its own subtree.
+    expect(sauv.children[0].metadata['style']).toBe('Sparkling');
+  });
+
+  it('does not cascade across an untagged ancestor (no value to inherit)', () => {
+    const result = parseMindmap(
+      `mindmap Wine
+
+tag Style as s
+  Red red
+  White white
+
+Reds s: Red
+  Cabernet
+Fortified
+  Port`
+    );
+    const fortified = result.roots[0].children[1];
+    expect(fortified.label).toBe('Fortified');
+    // Untagged branch — no ancestor value, so the parser leaves it unset
+    // (the layout's global-default injection handles those later).
+    expect(fortified.metadata['style']).toBeUndefined();
+    expect(fortified.children[0].metadata['style']).toBeUndefined();
+  });
+
+  it('cascades independently per tag group', () => {
+    const result = parseMindmap(
+      `mindmap Root
+
+tag Priority as p
+  High red
+  Low green
+tag Team as t
+  Eng blue
+  Ops purple
+
+Branch p: High, t: Eng
+  Leaf t: Ops`
+    );
+    const branch = result.roots[0].children[0];
+    const leaf = branch.children[0];
+    // Metadata is keyed by the group name (lowercased), not the alias.
+    // Inherits Priority from parent, overrides Team locally.
+    expect(leaf.metadata['priority']).toBe('High');
+    expect(leaf.metadata['team']).toBe('Ops');
+  });
 });

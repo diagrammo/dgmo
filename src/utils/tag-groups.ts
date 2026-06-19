@@ -572,6 +572,44 @@ export function validateTagGroupNames(
   }
 }
 
+// ── Parent → Child Tag Cascade ────────────────────────────
+
+/**
+ * Cascade explicit tag values down a node tree: a child that has no value of
+ * its own for a given tag group inherits the value of its nearest ancestor
+ * that does. A child's own explicit value always wins and becomes the new
+ * inherited value for its subtree.
+ *
+ * Run this on the parsed tree BEFORE {@link injectDefaultTagMetadata} so that
+ * an inherited ancestor value takes precedence over the group's global
+ * default — only nodes with no tagged ancestor fall through to the default.
+ * Idempotent and mutates `metadata` in place.
+ *
+ * @param roots     Root nodes of the tree (each with mutable `metadata` + `children`)
+ * @param tagGroups Declared tag groups (only `.name` is used)
+ */
+export function cascadeTagMetadata<
+  T extends { metadata: Record<string, string>; children: readonly T[] },
+>(roots: readonly T[], tagGroups: ReadonlyArray<{ name: string }>): void {
+  const keys = tagGroups.map((g) => g.name.toLowerCase());
+  if (keys.length === 0) return;
+
+  const walk = (node: T, inherited: Record<string, string>): void => {
+    const childInherited = { ...inherited };
+    for (const key of keys) {
+      const own = node.metadata[key];
+      if (own) {
+        childInherited[key] = own; // own explicit value propagates downward
+      } else if (inherited[key]) {
+        node.metadata[key] = inherited[key]; // inherit from nearest ancestor
+      }
+    }
+    for (const child of node.children) walk(child, childInherited);
+  };
+
+  for (const root of roots) walk(root, {});
+}
+
 // ── Default Metadata Injection ────────────────────────────
 
 /**
