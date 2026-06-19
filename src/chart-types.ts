@@ -46,7 +46,7 @@ export const chartTypes: readonly ChartTypeMeta[] = [
   },
   {
     id: 'sequence',
-    description: 'Message / interaction flows',
+    description: 'Message request and response interaction flows',
     fallback: true,
   },
   {
@@ -125,7 +125,7 @@ export const chartTypes: readonly ChartTypeMeta[] = [
   {
     id: 'map',
     description:
-      'Geographic map: a value or count per country, state, or region (choropleth); points of interest; routes. Use when categories are real-world places.',
+      'Geographic concept map: highlight/score regions, drop points of interest, connect with routes or edges',
   },
 
   // ── Tier 3 — Specialized analytical charts ────────────────
@@ -143,7 +143,7 @@ export const chartTypes: readonly ChartTypeMeta[] = [
   },
   {
     id: 'slope',
-    description: 'Change for multiple things between exactly two periods',
+    description: 'Change between 2 time periods',
   },
   {
     id: 'sankey',
@@ -173,7 +173,7 @@ export const chartTypes: readonly ChartTypeMeta[] = [
   // ── Tier 4 — General-purpose data charts ──────────────────
   {
     id: 'bar',
-    description: 'Categorical comparisons',
+    description: 'Categorical comparisons for 3 - 5 figures',
     fallback: true,
   },
   {
