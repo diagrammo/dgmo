@@ -4,8 +4,8 @@
 
 import {
   bareDescriptionRemovedMessage,
-  formatDgmoError,
   makeDgmoError,
+  makeFail,
   METADATA_DIAGNOSTIC_CODES,
   pipeOperatorRemovedMessage,
 } from '../diagnostics';
@@ -61,12 +61,7 @@ export function parsePyramid(content: string): ParsedPyramid {
   let headerParsed = false;
   let currentLayer: Writable<PyramidLayer> | null = null;
 
-  const fail = (line: number, message: string): ParsedPyramid => {
-    const diag = makeDgmoError(line, message);
-    result.diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-    return result;
-  };
+  const fail = makeFail(result);
 
   const warn = (
     line: number,

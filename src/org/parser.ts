@@ -3,6 +3,7 @@ import type { DgmoError } from '../diagnostics';
 import {
   formatDgmoError,
   makeDgmoError,
+  makeFail,
   METADATA_DIAGNOSTIC_CODES,
   pipeOperatorRemovedMessage,
   suggest,
@@ -107,12 +108,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     error: null,
   };
 
-  const fail = (line: number, message: string): ParsedOrg => {
-    const diag = makeDgmoError(line, message);
-    result.diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-    return result;
-  };
+  const fail = makeFail(result);
 
   /** Push a recoverable error and continue parsing. */
   const pushError = (line: number, message: string): void => {

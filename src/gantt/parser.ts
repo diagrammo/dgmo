@@ -200,6 +200,8 @@ export function parseGantt(
     syntaxMode: 'new', // always new-mode at 1.0
   };
 
+  // Bespoke (not the shared makeFail, Story 111.4): gantt accumulates into a
+  // local `diagnostics` array, not `result.diagnostics`.
   const fail = (line: number, message: string): ParsedGantt => {
     const diag = makeDgmoError(line, message);
     diagnostics.push(diag);

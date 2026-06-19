@@ -3,8 +3,8 @@
 // ============================================================
 
 import {
-  formatDgmoError,
   makeDgmoError,
+  makeFail,
   METADATA_DIAGNOSTIC_CODES,
   pipeOperatorRemovedMessage,
 } from '../diagnostics';
@@ -64,12 +64,7 @@ export function parseCycle(content: string): ParsedCycle {
   let currentEdge: Writable<CycleEdge> | null = null;
   // nodeBaseIndent tracking removed — indent-based nesting not used in cycle
 
-  const fail = (line: number, message: string): ParsedCycle => {
-    const diag = makeDgmoError(line, message);
-    result.diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-    return result;
-  };
+  const fail = makeFail(result);
 
   const warn = (
     line: number,

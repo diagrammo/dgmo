@@ -2,6 +2,7 @@ import type { PaletteColors } from '../palettes';
 import {
   formatDgmoError,
   makeDgmoError,
+  makeFail,
   METADATA_DIAGNOSTIC_CODES,
   pipeOperatorRemovedMessage,
   suggest,
@@ -77,12 +78,7 @@ export function parseKanban(
     error: null,
   };
 
-  const fail = (line: number, message: string): ParsedKanban => {
-    const diag = makeDgmoError(line, message);
-    result.diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-    return result;
-  };
+  const fail = makeFail(result);
 
   const warn = (line: number, message: string): void => {
     result.diagnostics.push(makeDgmoError(line, message, 'warning'));

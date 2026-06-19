@@ -102,6 +102,8 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     diagnostics.push(makeDgmoError(line, message, 'error', code));
     result.error ??= formatDgmoError(diagnostics[diagnostics.length - 1]!);
   };
+  // Bespoke (not the shared makeFail, Story 111.4): map delegates to pushError,
+  // which is first-error-wins (`??=`) and carries an optional diagnostic code.
   const fail = (line: number, message: string): ParsedMap => {
     pushError(line, message);
     return result;
