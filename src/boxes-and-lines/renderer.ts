@@ -439,6 +439,11 @@ interface BLRenderOptions {
   /** When 'app', the description toggle is hosted by the app overlay strip
    *  (inline gear suppressed, controls row + anchor reserved). */
   controlsHost?: 'app' | 'inline';
+  /** Explicit value-ramp domain override. When provided, the choropleth ramp
+   *  uses these endpoints instead of computing min/max from `parsed.nodes`.
+   *  Focus mode passes the GLOBAL (pre-filter) domain so neighbor colours stay
+   *  stable when only a subset is rendered (Decision 20 / FM1). */
+  rampDomain?: { min: number; max: number };
 }
 
 export function renderBoxesAndLines(
@@ -460,6 +465,7 @@ export function renderBoxesAndLines(
     onToggleControlsExpand,
     exportMode = false,
     controlsHost,
+    rampDomain,
   } = options ?? {};
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -493,8 +499,10 @@ export function renderBoxesAndLines(
   // Anchor the low end at the lowest value (not 0) to maximise within-diagram
   // dynamic range; mirrors the map's region-metric ramp. Equal-value data
   // (rampMin === rampMax) falls back to t = 1 in fillForValue below.
-  const rampMin = hasRamp ? Math.min(...nodeValues) : 0;
-  const rampMax = Math.max(...nodeValues);
+  // A caller-supplied domain (focus mode) wins so colours don't shift when a
+  // subset is rendered; otherwise derive from the nodes on screen.
+  const rampMin = rampDomain?.min ?? (hasRamp ? Math.min(...nodeValues) : 0);
+  const rampMax = rampDomain?.max ?? Math.max(...nodeValues);
   // Default hue = palette.primary (NOT red like the map — boxes have no water to
   // stand out against, and red reads as alarm on a neutral metric). A trailing
   // color on `box-metric` overrides.
@@ -1446,6 +1454,48 @@ export function renderBoxesAndLines(
       width,
     });
     legendG.selectAll('[data-legend-group]').classed('bl-legend-group', true);
+  }
+
+  // ── Focus mode: one reusable hover-reveal icon (interactive only) ──
+  // A single hidden icon the app repositions over the hovered box/group and
+  // stamps `data-focus-id`/`data-focus-kind` on (Decision 22 / ADR-4) — NOT one
+  // per node (~4k elements on a large graph). Appended to the SVG root so the
+  // app positions it in root (screen-mapped) coordinates, counter-scaled to a
+  // constant size regardless of fit. Excluded from export like org's icon.
+  if (!exportDims && !exportMode) {
+    const iconSize = 14;
+    const focusG = svg
+      .append('g')
+      .attr('class', 'bl-focus-icon')
+      .attr('data-export-ignore', 'true')
+      .style('display', 'none')
+      .style('pointer-events', 'auto')
+      .style('cursor', 'pointer');
+    // Hit area
+    focusG
+      .append('rect')
+      .attr('x', -3)
+      .attr('y', -3)
+      .attr('width', iconSize + 6)
+      .attr('height', iconSize + 6)
+      .attr('fill', 'transparent');
+    // Scope/target icon: outer circle + inner dot (mirrors org-focus-icon)
+    const cx = iconSize / 2;
+    const cy = iconSize / 2;
+    focusG
+      .append('circle')
+      .attr('cx', cx)
+      .attr('cy', cy)
+      .attr('r', iconSize / 2 - 1)
+      .attr('fill', palette.bg)
+      .attr('stroke', palette.textMuted)
+      .attr('stroke-width', 1.5);
+    focusG
+      .append('circle')
+      .attr('cx', cx)
+      .attr('cy', cy)
+      .attr('r', 2)
+      .attr('fill', palette.textMuted);
   }
 }
 

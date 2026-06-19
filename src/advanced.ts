@@ -278,6 +278,8 @@ export {
 
 export { collapseBoxesAndLines } from './boxes-and-lines/collapse';
 export type { BLCollapseResult } from './boxes-and-lines/collapse';
+export { focusBoxesAndLines } from './boxes-and-lines/focus';
+export type { FocusTarget, FocusResult } from './boxes-and-lines/focus';
 
 export { parseSitemap, looksLikeSitemap } from './sitemap/parser';
 
@@ -705,6 +707,11 @@ export {
   seriesColors,
   RECOGNIZED_COLOR_NAMES,
   isRecognizedColorName,
+  INVALID_COLOR_CODE,
+  nearestNamedColor,
+  isInvalidColorToken,
+  invalidColorDiagnostic,
+  INVALID_CSS_COLOR_HEX,
 } from './colors';
 
 export {
