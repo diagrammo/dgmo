@@ -5,8 +5,10 @@ import {
   layoutMap,
   buildMapProjection,
   albersSkewFallback,
+  countryLabelPositions,
   MAX_COLUMN_ROWS,
 } from '../src/map/layout';
+import { MAX_COUNTRY_POSITIONS } from '../src/map/context-labels';
 import { loadMapData } from '../src/map/load-data';
 import { getPalette } from '../src/palettes';
 import { measureLegendText } from '../src/utils/legend-constants';
@@ -135,6 +137,137 @@ const lay = (src: string, w = 800, h = 600) =>
       isDark: false,
     }
   );
+
+describe('countryLabelPositions — dodge-position generation (map-context-neighbor-labels)', () => {
+  // Linear identity projection: lon→x, lat→y (both well within the viewport).
+  const idProject = (lon: number, lat: number): [number, number] => [lon, lat];
+  // INDEPENDENT even-odd ray-cast oracle — deliberately a separate implementation
+  // from src `pointInGeometry`, so the assertion isn't tautological (AC4, D8).
+  const inRing = (
+    ring: ReadonlyArray<readonly number[]>,
+    lon: number,
+    lat: number
+  ): boolean => {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i]![0]!;
+      const yi = ring[i]![1]!;
+      const xj = ring[j]![0]!;
+      const yj = ring[j]![1]!;
+      if (
+        yi > lat !== yj > lat &&
+        lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi
+      )
+        inside = !inside;
+    }
+    return inside;
+  };
+
+  it('AC4: every generated position is inside the OWN polygon, not the neighbour', () => {
+    // OWN is an L-shape with a notch in its top-right — the notch (lon>6 && lat>6)
+    // belongs to a neighbour, NOT own land. Generation must reject notch cells.
+    const ring = [
+      [0, 0],
+      [10, 0],
+      [10, 6],
+      [6, 6],
+      [6, 10],
+      [0, 10],
+      [0, 0],
+    ];
+    const own = { type: 'Polygon', coordinates: [ring] };
+    const gen = countryLabelPositions({
+      geometry: own,
+      bounds: [
+        [0, 0],
+        [10, 10],
+      ],
+      project: idProject,
+      width: 100,
+      height: 100,
+    });
+    expect(gen.length).toBeGreaterThan(0);
+    expect(gen.length).toBeLessThanOrEqual(MAX_COUNTRY_POSITIONS);
+    for (const p of gen) {
+      const [lon, lat] = p.lonLat;
+      // Independent oracle: strictly inside the OWN L-shape.
+      expect(inRing(ring, lon, lat)).toBe(true);
+      // The neighbour notch must never be chosen.
+      expect(lon > 6 && lat > 6).toBe(false);
+      // Screen coord is the honest projection of the lon/lat (no drift).
+      expect(p.screen).toEqual([lon, lat]);
+    }
+  });
+
+  it('AC4: curated lon/lat is forced to slot 0 (grid cells fill the rest, D13)', () => {
+    const own = {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [0, 0],
+          [10, 0],
+          [10, 10],
+          [0, 10],
+          [0, 0],
+        ],
+      ],
+    };
+    const gen = countryLabelPositions({
+      geometry: own,
+      bounds: [
+        [0, 0],
+        [10, 10],
+      ],
+      project: idProject,
+      width: 100,
+      height: 100,
+      curated: [2, 8],
+    });
+    expect(gen[0]!.lonLat).toEqual([2, 8]); // curated point leads
+    expect(gen.length).toBeLessThanOrEqual(MAX_COUNTRY_POSITIONS);
+  });
+
+  it('AC7: position count per country is bounded by MAX_COUNTRY_POSITIONS', () => {
+    const own = {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [0, 0],
+          [10, 0],
+          [10, 10],
+          [0, 10],
+          [0, 0],
+        ],
+      ],
+    };
+    const gen = countryLabelPositions({
+      geometry: own,
+      bounds: [
+        [0, 0],
+        [10, 10],
+      ],
+      project: idProject,
+      width: 100,
+      height: 100,
+    });
+    expect(gen.length).toBeLessThanOrEqual(MAX_COUNTRY_POSITIONS);
+  });
+
+  it('D11: degenerate geometry (no on-land cell) yields no positions', () => {
+    const empty = { type: 'Polygon', coordinates: [] };
+    const gen = countryLabelPositions({
+      geometry: empty,
+      bounds: [
+        [0, 0],
+        [10, 10],
+      ],
+      project: idProject,
+      width: 100,
+      height: 100,
+    });
+    expect(gen).toHaveLength(0);
+  });
+});
 
 describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => {
   it('us-states layer decoded + drawn (AC2)', () => {
@@ -1938,4 +2071,75 @@ describe('layout — edge/leg labels dodge POI dots', () => {
     const d2 = (nearX - c.cx) ** 2 + (nearY - c.cy) ** 2;
     expect(d2).toBeGreaterThan(c.r * c.r);
   });
+});
+
+describe('layout — context neighbour labels, real geometry (map-context-neighbor-labels AC8)', () => {
+  // The Jun-18 Ukraine→Russia strike map: a launch POI sits in/over Ukraine, so
+  // Ukraine's centroid position collides with the "Ukraine launch zone" data label.
+  // Multi-position dodging must still place a "Ukraine" context label on its own
+  // land. (Trigger case from the spec; real shipped geometry via loadMapData.)
+  const TRIGGER = [
+    'map Ukraine June 18 Strike',
+    'poi 50.91 34.80 as src label: Ukraine launch zone',
+    'poi 55.63 37.79 as msk red label: Moscow Oil Refinery',
+    'poi 53.24 34.36 as bryansk label: Bryansk',
+    'poi 51.74 36.19 as kursk label: Kursk',
+    'poi 50.60 36.59 as belgorod label: Belgorod',
+    'poi 51.66 39.20 as voronezh label: Voronezh',
+    'poi 51.53 46.03 as saratov label: Saratov',
+    'poi 46.35 48.04 as astrakhan label: Astrakhan',
+    'src ~> msk',
+    'src ~> bryansk',
+    'src ~> kursk',
+    'src ~> belgorod',
+    'src ~> voronezh',
+    'src ~> saratov',
+    'src ~> astrakhan',
+  ].join('\n');
+
+  for (const [w, h] of [
+    [900, 800],
+    [1200, 940],
+  ] as const) {
+    it(`labels Ukraine on its own land at ${w}x${h}`, async () => {
+      const data = await loadMapData();
+      const L = layoutMap(
+        resolveMap(parseMap(TRIGGER), data),
+        data,
+        { width: w, height: h },
+        { palette: P, isDark: false }
+      );
+      const uk = L.labels.find((l) => l.text === 'Ukraine');
+      expect(uk).toBeDefined();
+      // Placed on-canvas (a real interior position, not an off-frame ghost).
+      expect(uk!.x).toBeGreaterThanOrEqual(0);
+      expect(uk!.x).toBeLessThanOrEqual(w);
+      expect(uk!.y).toBeGreaterThanOrEqual(0);
+      expect(uk!.y).toBeLessThanOrEqual(h);
+      // Dodged: the Ukraine label box does not OVERLAP the "Ukraine launch zone"
+      // data label box (AABB non-overlap, not a sub-pixel-distance check). A failed
+      // dodge — the label left on the colliding centroid — would overlap and fail.
+      const src = L.labels.find((l) => l.text === 'Ukraine launch zone');
+      expect(src).toBeDefined();
+      const boxOf = (
+        l: { x: number; y: number; fontSize?: number; anchor?: string },
+        text: string
+      ) => {
+        const font = l.fontSize ?? 11;
+        const bw = measureLegendText(text, font) + 8;
+        const bh = font + 6;
+        const x0 =
+          l.anchor === 'end'
+            ? l.x - bw
+            : l.anchor === 'start'
+              ? l.x
+              : l.x - bw / 2;
+        return { x0, x1: x0 + bw, y0: l.y - bh / 2, y1: l.y + bh / 2 };
+      };
+      const a = boxOf(uk!, 'Ukraine');
+      const b = boxOf(src!, 'Ukraine launch zone');
+      const overlap = a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+      expect(overlap).toBe(false);
+    });
+  }
 });

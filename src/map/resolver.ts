@@ -68,12 +68,44 @@ const POI_ZOOM_FLOOR_DEG = 7;
 // single POI near the edge of a tall/wide country (e.g. Cartagena at the north
 // tip of Colombia) would otherwise drag the frame to that country's far edge —
 // all the way to the Amazon, ~15° below the southernmost dot. Clamp the container
-// union so it reveals at most this many degrees of container BEYOND the POI
-// cluster on each side: northern Colombia stays for orientation, the empty
-// interior is cropped. Sized so an edge cluster still reaches across a US
-// state-scale container (a Bay-Area cluster sits on the coast, ~8° from the
-// Nevada border, and must still show the whole of California). Tunable.
-const CONTAINER_OVERSHOOT_DEG = 8;
+// union so it reveals at most `containerOvershoot(cluster)` degrees of container
+// BEYOND the POI cluster on each side: northern Colombia stays for orientation,
+// the empty interior is cropped.
+//
+// For NON-US clusters the overshoot SHRINKS as the cluster grows (tuned
+// 2026-06-19). A tiny cluster has no context of its own, so it keeps the full MAX
+// (8°) — enough to reveal its whole modest container (e.g. a small European
+// country). A LARGE cluster already supplies its own context, so a fixed 8° just
+// padded a huge container with empty land (a Ukraine/Russia strike map framed
+// ~2.4× the cluster, a wide dead band above the dots). Linearly decaying the
+// overshoot to MIN (3°) tightens big clusters (~1.7× cluster) without cropping
+// small ones. The POI_ZOOM_FLOOR_DEG floor still guards the lower bound.
+//
+// US-ORIENTED maps are EXEMPT (keep the flat MAX): the national-vs-regional
+// projection gate (US_NATIONAL_LON_SPAN, albers-usa vs regional Mercator) is
+// calibrated against the 8°-overshoot frame span — a coast-to-Caribbean US cruise
+// route clears the national threshold only because the west overshoot reaches ~8°
+// past Denver. Shrinking it there would silently flip such maps off albers-usa.
+// US containers (a state, CONUS) aren't the huge-empty-container problem anyway.
+const CONTAINER_OVERSHOOT_MAX = 8;
+const CONTAINER_OVERSHOOT_MIN = 3;
+// Degrees of overshoot shed per degree of cluster span (larger span ⇒ less slack).
+const CONTAINER_OVERSHOOT_DECAY = 0.3;
+
+/** Per-cluster container overshoot (deg). US-oriented maps keep the flat MAX (the
+ *  albers-usa national gate is calibrated to it); other maps get full MAX for a
+ *  tight cluster, decaying to MIN for a large one. `span` = the cluster's larger
+ *  lon/lat extent. */
+function containerOvershoot(span: number, usOriented: boolean): number {
+  if (usOriented) return CONTAINER_OVERSHOOT_MAX;
+  return Math.max(
+    CONTAINER_OVERSHOOT_MIN,
+    Math.min(
+      CONTAINER_OVERSHOOT_MAX,
+      CONTAINER_OVERSHOOT_MAX - CONTAINER_OVERSHOOT_DECAY * span
+    )
+  );
+}
 // Above this longitudinal span a US POI-only extent is "national" — use the
 // albers-usa composite (CONUS conic + AK/HI insets) instead of regional Mercator.
 // CONUS spans ≈58° lon; 48° is "most of the country". Tunable.
@@ -907,7 +939,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     const containerUnion = unionExtent(containerBoxes, points);
     if (containerUnion)
       extent = pad(
-        clampContainerToCluster(containerUnion, points),
+        clampContainerToCluster(containerUnion, points, usOriented),
         PAD_FRACTION
       );
   }
@@ -1093,16 +1125,24 @@ function mostCommonCountry(
  *  cluster itself does not straddle the seam — true for any regional cluster. */
 function clampContainerToCluster(
   container: GeoExtent,
-  points: Array<[number, number]>
+  points: Array<[number, number]>,
+  usOriented: boolean
 ): GeoExtent {
   const poi = unionExtent([], points);
   if (!poi) return container;
   let [[west, south], [east, north]] = container;
   const [[pWest, pSouth], [pEast, pNorth]] = poi;
-  south = Math.max(south, pSouth - CONTAINER_OVERSHOOT_DEG);
-  north = Math.min(north, pNorth + CONTAINER_OVERSHOOT_DEG);
-  const wOver = pWest - CONTAINER_OVERSHOOT_DEG;
-  const eOver = pEast + CONTAINER_OVERSHOOT_DEG;
+  // Overshoot shrinks with cluster size for non-US maps (see containerOvershoot):
+  // a big cluster already orients itself, so it gets less surrounding slack than a
+  // tiny one. US-oriented maps keep the flat MAX (the albers-usa gate needs it).
+  const over = containerOvershoot(
+    Math.max(pEast - pWest, pNorth - pSouth),
+    usOriented
+  );
+  south = Math.max(south, pSouth - over);
+  north = Math.min(north, pNorth + over);
+  const wOver = pWest - over;
+  const eOver = pEast + over;
   // West edge usable iff in range and not east of the cluster's west.
   west = west >= -180 && west <= pWest ? Math.max(west, wOver) : wOver;
   // East edge usable iff in range and not west of the cluster's east.

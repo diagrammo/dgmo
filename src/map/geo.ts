@@ -171,8 +171,16 @@ function pointOnRingEdge(
 }
 
 /** Point-in-polygon for a Polygon/MultiPolygon geometry (outer ring minus holes).
- *  A point on the outer boundary counts as inside (deterministic border handling). */
-function pointInGeometry(geometry: unknown, lon: number, lat: number): boolean {
+ *  A point on the outer boundary counts as inside (deterministic border handling).
+ *  Exported so layout's context-label dodge-position generation can validate that
+ *  a candidate interior point sits on the country's OWN rendered geometry —
+ *  holes-aware, so enclaves and neighbours are both rejected (map-context-neighbor
+ *  -labels D8). */
+export function pointInGeometry(
+  geometry: unknown,
+  lon: number,
+  lat: number
+): boolean {
   const g = geometry as {
     type: string;
     coordinates: number[][][] | number[][][][];

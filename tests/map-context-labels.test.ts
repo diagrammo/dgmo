@@ -62,20 +62,22 @@ describe('tierBand (Decision 6)', () => {
 });
 
 describe('labelBudget (Decision 6, ADR-3 — biased low, floors)', () => {
+  // Budget knob (map-context-neighbor-labels): area divisor lowered 150→105 and
+  // band caps raised so the proximity rank has room to label the story's neighbours.
   it('scales with canvas area, capped per band', () => {
-    expect(labelBudget(800, 600, 'world')).toBe(4);
-    expect(labelBudget(800, 600, 'regional')).toBe(4);
+    expect(labelBudget(800, 600, 'world')).toBe(6); // sqrt(480k)/105 ≈ 6.6 → 6
+    expect(labelBudget(800, 600, 'regional')).toBe(6);
   });
-  it('floors to ~1 on a thumbnail and 0 on a tiny canvas (AC9)', () => {
-    expect(labelBudget(320, 200, 'world')).toBe(1);
+  it('floors to ~2 on a thumbnail and 0 on a tiny canvas (AC9)', () => {
+    expect(labelBudget(320, 200, 'world')).toBe(2);
     expect(labelBudget(100, 80, 'world')).toBe(0);
   });
   it('per-band caps bind on a large canvas (broadened headroom)', () => {
-    // sqrt(2000*2000)/150 ≈ 13 area-slots, so the per-band cap is what binds.
-    expect(labelBudget(2000, 2000, 'world')).toBe(7);
-    expect(labelBudget(2000, 2000, 'continental')).toBe(6);
-    expect(labelBudget(2000, 2000, 'regional')).toBe(5);
-    expect(labelBudget(2000, 2000, 'local')).toBe(4);
+    // sqrt(2000*2000)/105 ≈ 19 area-slots, so the per-band cap is what binds.
+    expect(labelBudget(2000, 2000, 'world')).toBe(10);
+    expect(labelBudget(2000, 2000, 'continental')).toBe(9);
+    expect(labelBudget(2000, 2000, 'regional')).toBe(7);
+    expect(labelBudget(2000, 2000, 'local')).toBe(6);
   });
 });
 
@@ -88,14 +90,38 @@ describe('placeContextLabels — water tiering (AC3, AC4)', () => {
     expect(out).not.toContain('Minor Sea'); // tier 2 excluded at world band
     expect(out.some((t) => /Bay|Channel|Sound/.test(t))).toBe(false);
   });
-  it('regional view admits smaller features by tier, budget-limited (AC4)', () => {
+  it('regional view admits smaller features by tier (broadened budget, AC4)', () => {
     const out = texts(baseArgs({ dLonSpan: 10, dLatSpan: 8 }));
-    // Budget 4, priority ocean→sea→bay→…: channel (tier 3) is squeezed out.
+    // Regional budget is now 6 (broadened): the 5-entry fixture all places,
+    // including the tier-3 channel that the old thin budget squeezed out.
     expect(out).toContain('Test Ocean');
     expect(out).toContain('Major Sea');
     expect(out).toContain('Some Bay');
-    expect(out).not.toContain('A Channel');
+    expect(out).toContain('A Channel'); // tier 3 now fits the broadened budget
     expect(out.length).toBeLessThanOrEqual(labelBudget(800, 600, 'regional'));
+  });
+  it('a budget smaller than the candidate set squeezes out lowest priority (AC4)', () => {
+    // 8 well-separated water bodies vs. regional budget 6 → the two lowest-priority
+    // (tier-3 channel + sound) are squeezed out; the ocean always survives.
+    const many: WaterBodies = {
+      entries: [
+        [0, 0, 'W Ocean', 0, 'ocean'],
+        [40, -120, 'W Sea A', 1, 'sea'],
+        [-40, 120, 'W Sea B', 1, 'sea'],
+        [50, 60, 'W Bay', 1, 'bay'],
+        [-50, -60, 'W Sea C', 2, 'sea'],
+        [60, 140, 'W Gulf', 2, 'gulf'],
+        [-60, -140, 'W Channel', 3, 'channel'],
+        [10, 170, 'W Sound', 3, 'sound'],
+      ],
+    };
+    const out = texts(
+      baseArgs({ dLonSpan: 10, dLatSpan: 8, waterBodies: many })
+    );
+    expect(out.length).toBeLessThanOrEqual(labelBudget(800, 600, 'regional'));
+    expect(out).toContain('W Ocean');
+    expect(out).not.toContain('W Channel');
+    expect(out).not.toContain('W Sound');
   });
 });
 
@@ -332,6 +358,25 @@ describe('placeContextLabels — countries (AC5, AC6)', () => {
     expect(s.color).toBe(P.textMuted); // full-strength muted (no fade)
     expect(b.color).not.toBe(s.color); // big name subdued toward bg
   });
+  it('fade blends TOWARD bg, not away: a mid country stays near the muted ink', () => {
+    // Regression for the inverted fade (map-context-neighbor-labels): a medium
+    // footprint has a small positive fade and must blend only slightly toward bg —
+    // close to textMuted, NEVER near-white (the old bug lightened small names to
+    // near the background, e.g. Belarus/Georgia at #e1e3e6/#f2f3f4).
+    const medium: CountryCandidate = {
+      name: 'Midland',
+      bbox: [100, 100, 230, 200], // footprint above MIN, well below MAX
+      anchor: [165, 150],
+    };
+    const m = placeContextLabels(
+      baseArgs({ waterBodies: { entries: [] }, countries: [medium] })
+    ).find((l) => l.text === 'Midland')!;
+    expect(m).toBeDefined();
+    const r = parseInt(m.color!.slice(1, 3), 16);
+    const mutedR = parseInt(P.textMuted.slice(1, 3), 16);
+    const bgR = parseInt(P.bg.slice(1, 3), 16);
+    expect(Math.abs(r - mutedR)).toBeLessThan(Math.abs(r - bgR));
+  });
   it('orientation-value ranking: major water < country < minor water', () => {
     // The orientation core (oceans + major seas, tier ≤ 1) leads; a big country
     // outranks MINOR water (tier ≥ 2) but never an ocean/major sea. Three well-
@@ -356,6 +401,131 @@ describe('placeContextLabels — countries (AC5, AC6)', () => {
     expect(minorIdx).toBeGreaterThanOrEqual(0);
     expect(oceanIdx).toBeLessThan(countryIdx); // major water leads the country
     expect(countryIdx).toBeLessThan(minorIdx); // country outranks minor water
+  });
+});
+
+describe('placeContextLabels — multi-position dodging (map-context-neighbor-labels)', () => {
+  // A country with two well-separated interior positions; its name fits the
+  // footprint at the ramped font. anchor === positions[0] (D12 invariant).
+  const dodger = (positions: [number, number][]): CountryCandidate => ({
+    name: 'Dodgeland',
+    bbox: [100, 100, 480, 260], // big enough to hold the name
+    anchor: positions[0]!,
+    positions,
+  });
+  // Block any rect whose centre sits left of x=300 (simulates a data cluster
+  // committed over the country's primary/centroid position).
+  const blockLeft = (rect: { x: number; w: number }): boolean =>
+    rect.x + rect.w / 2 < 300;
+
+  it('AC1: primary position collides → places at a later free position', () => {
+    const placed = placeContextLabels(
+      baseArgs({
+        waterBodies: { entries: [] },
+        countries: [
+          dodger([
+            [200, 150],
+            [400, 150],
+          ]),
+        ],
+        collides: blockLeft,
+      })
+    );
+    const d = placed.find((l) => l.text === 'Dodgeland');
+    expect(d).toBeDefined();
+    expect(d!.x).toBe(400); // dodged to the free second position
+    expect(d!.y).toBe(150);
+  });
+
+  it('AC2: primary position clear → places there (later positions unused)', () => {
+    const placed = placeContextLabels(
+      baseArgs({
+        waterBodies: { entries: [] },
+        countries: [
+          dodger([
+            [200, 150],
+            [400, 150],
+          ]),
+        ],
+        collides: () => false,
+      })
+    );
+    const d = placed.find((l) => l.text === 'Dodgeland');
+    expect(d).toBeDefined();
+    expect(d!.x).toBe(200); // best-first: the primary position wins
+  });
+
+  it('AC3: every position collides → dropped (no label)', () => {
+    const placed = placeContextLabels(
+      baseArgs({
+        waterBodies: { entries: [] },
+        countries: [
+          dodger([
+            [200, 150],
+            [400, 150],
+          ]),
+        ],
+        collides: () => true,
+      })
+    );
+    expect(placed.find((l) => l.text === 'Dodgeland')).toBeUndefined();
+  });
+
+  it('AC9: a single-anchor candidate (positions absent) is unchanged', () => {
+    const noPositions: CountryCandidate = {
+      name: 'Plainland',
+      bbox: [100, 100, 480, 260],
+      anchor: [200, 150],
+    };
+    const placed = placeContextLabels(
+      baseArgs({
+        waterBodies: { entries: [] },
+        countries: [noPositions],
+        collides: () => false,
+      })
+    );
+    const p = placed.find((l) => l.text === 'Plainland');
+    expect(p).toBeDefined();
+    expect(p!.x).toBe(200); // uses anchor (positions ?? [anchor])
+  });
+});
+
+describe('placeContextLabels — proximity ranking (map-context-neighbor-labels)', () => {
+  // 'Faraway' is big but on the right edge; 'Nearby' is small but at the content.
+  const far: CountryCandidate = {
+    name: 'Faraway',
+    bbox: [600, 100, 780, 260],
+    anchor: [690, 180],
+  };
+  const near: CountryCandidate = {
+    name: 'Nearby',
+    bbox: [100, 400, 180, 460],
+    anchor: [140, 430],
+  };
+
+  it('without contentPoints: bigger footprint ranks first (legacy area rank)', () => {
+    const placed = placeContextLabels(
+      baseArgs({ waterBodies: { entries: [] }, countries: [near, far] })
+    );
+    const fi = placed.findIndex((l) => l.text === 'Faraway');
+    const ni = placed.findIndex((l) => l.text === 'Nearby');
+    expect(fi).toBeGreaterThanOrEqual(0);
+    expect(ni).toBeGreaterThanOrEqual(0);
+    expect(fi).toBeLessThan(ni); // bigger area committed first
+  });
+
+  it('with a content point at the small country: proximity wins the rank', () => {
+    const placed = placeContextLabels(
+      baseArgs({
+        waterBodies: { entries: [] },
+        countries: [near, far],
+        contentPoints: [[140, 430]], // inside Nearby's footprint
+      })
+    );
+    const fi = placed.findIndex((l) => l.text === 'Faraway');
+    const ni = placed.findIndex((l) => l.text === 'Nearby');
+    expect(ni).toBeGreaterThanOrEqual(0);
+    expect(ni).toBeLessThan(fi); // closer to the story committed first
   });
 });
 

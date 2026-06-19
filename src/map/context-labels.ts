@@ -34,6 +34,13 @@ export interface CountryCandidate {
    *  bypasses the both-axes smear gate (its full-canvas bbox is an antimeridian
    *  artifact, not a real footprint, so the unreliable-centroid concern is moot). */
   readonly curatedAnchor?: boolean;
+  /** Ordered interior placement positions (screen coords), best-first: the commit
+   *  loop tries each in turn and places at the first that clears all collisions, so
+   *  a country can dodge a data cluster onto open ground on its own land
+   *  (map-context-neighbor-labels, D7/D12). INVARIANT: either ABSENT or NON-EMPTY,
+   *  and `anchor === positions[0]` always (an empty array is illegal — F7).
+   *  Absent ⇒ single-anchor behaviour (`positions ?? [anchor]`). */
+  readonly positions?: readonly (readonly [number, number])[];
 }
 
 export interface ContextLabelArgs {
@@ -48,6 +55,13 @@ export interface ContextLabelArgs {
   readonly project: (lon: number, lat: number) => [number, number] | null;
   /** Collision test against every committed data/region/POI/route obstacle. */
   readonly collides: (rect: LabelRect) => boolean;
+  /** Screen positions of the diagram's CONTENT (POI markers / data points). When
+   *  non-empty, country candidates rank by proximity to the NEAREST point (not a
+   *  centroid — a centroid is dragged off by outlying POIs and pulls in irrelevant
+   *  giants) so a thin budget labels the countries adjacent to the story (Belarus,
+   *  Poland) rather than far-corner giants (Kazakhstan). Empty/absent ⇒ the legacy
+   *  area-descending rank (map-context-neighbor-labels, proximity knob). */
+  readonly contentPoints?: readonly (readonly [number, number])[] | undefined;
   /** True when the screen point sits over LAND (a country/state fill) rather than
    *  open water. WATER labels are rejected when their footprint touches land — an
    *  ocean name belongs over the ocean (they're optional orientation aids, so drop
@@ -75,6 +89,15 @@ const COUNTRY_FONT_MAX = 22; // px ceiling for the largest footprint
 const COUNTRY_SIZE_FRAC_MIN = 0.06; // footprint linear-frac at base font
 const COUNTRY_SIZE_FRAC_MAX = 0.32; // footprint linear-frac at max font
 const COUNTRY_FADE_MAX = 45; // % blend toward bg at max font (subdue big names)
+
+// Multi-position country dodging (map-context-neighbor-labels). A country gets
+// several interior on-its-own-land positions so its label can dodge a colliding
+// data cluster into open space instead of being dropped. Layout generates the
+// positions (geo work stays in layout); the commit loop below walks them
+// best-first and places at the first that clears all collisions.
+export const MAX_COUNTRY_POSITIONS = 4; // ordered positions per country (cap; D7/D15)
+export const COUNTRY_POS_GRID = 5; // lon/lat sampling grid resolution N (N×N cells; D9)
+export const COUNTRY_POS_TOPN_MARGIN = 3; // generate positions for top budget+margin (D15)
 
 // Water-kind priority within a tier (oceans first, then seas, then the rest) so
 // a thin budget always spends on the highest-orientation-value names.
@@ -107,12 +130,18 @@ export function labelBudget(
   band: TierBand
 ): number {
   const bandCap: Record<TierBand, number> = {
-    world: 7,
-    continental: 6,
-    regional: 5,
-    local: 4,
+    world: 10,
+    continental: 9,
+    regional: 7,
+    local: 6,
   };
-  const area = Math.floor(Math.sqrt(Math.max(0, width * height)) / 150);
+  // Area divisor lowered 150→105 (map-context-neighbor-labels, budget knob): the
+  // old budget was so thin a regional view spent every slot on a couple of giant
+  // landmasses, leaving the countries that ring the story unlabeled. The lower
+  // divisor + raised band caps roughly +50% the slots so the proximity rank has
+  // room to surface the neighbourhood. Still floors to ~1 on a thumbnail / 0 on a
+  // tiny canvas (AC9).
+  const area = Math.floor(Math.sqrt(Math.max(0, width * height)) / 105);
   return Math.max(0, Math.min(area, bandCap[band]));
 }
 
@@ -217,6 +246,22 @@ function rectAround(
   return { x: cx - w / 2, y: cy - h / 2, w, h };
 }
 
+/** Squared distance from point (px,py) to an axis-aligned bbox [x0,y0,x1,y1]; 0
+ *  when the point is inside. Used to rank country candidates by how close their
+ *  footprint reaches to the diagram's content centre (proximity knob). */
+function rectDist2(
+  px: number,
+  py: number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number
+): number {
+  const dx = Math.max(x0 - px, 0, px - x1);
+  const dy = Math.max(y0 - py, 0, py - y1);
+  return dx * dx + dy * dy;
+}
+
 function rectFits(r: LabelRect, width: number, height: number): boolean {
   return r.x >= 0 && r.y >= 0 && r.x + r.w <= width && r.y + r.h <= height;
 }
@@ -244,6 +289,7 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     palette,
     project,
     collides,
+    contentPoints,
     overLand,
   } = args;
 
@@ -276,6 +322,9 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     color: string;
     fontSize: number;
     sort: number; // priority key (lower first)
+    // Ordered dodge positions (screen coords), best-first. Absent on water (single
+    // anchor); on a country, mirrors CountryCandidate.positions (anchor === [0]).
+    positions?: readonly (readonly [number, number])[];
   };
   const candidates: Candidate[] = [];
 
@@ -360,18 +409,39 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     });
   }
 
-  // -- Country candidates (unreferenced; biggest projected area first) --
-  // Rank by screen bbox area; keep only those whose name fits the footprint
-  // (width-fit, like region-labels) and whose anchor projects inside the view.
+  // -- Country candidates (unreferenced) --
+  // Rank PROXIMITY-FIRST when a content centre is known: the countries that ring
+  // the diagram's story should win the thin budget, not whichever giants happen to
+  // be biggest in frame (Kazakhstan/Sweden on a Ukraine map). The rank's anchor is
+  // the candidate's primary position (`positions[0]` === `anchor`). Without a
+  // content centre, fall back to the legacy biggest-area-first rank. Area is still
+  // computed (it drives the font/fade ramp and the smear gate below).
   const ranked = countries
     .map((c) => {
       const [x0, y0, x1, y1] = c.bbox;
       const w = x1 - x0;
       const h = y1 - y0;
-      return { c, w, h, area: w * h };
+      // Distance from the NEAREST content point to the country's FOOTPRINT (0 if a
+      // point is inside the bbox, else squared distance to the nearest edge). Edge
+      // distance — not centroid distance — so a large neighbour that REACHES toward
+      // the action (Poland) outranks a tiny country merely near a point (the
+      // Baltics), with no size-weighting constant; nearest-point — not a single
+      // centroid — so an outlying POI doesn't drag the rank toward distant giants.
+      let dist = Infinity;
+      if (contentPoints?.length) {
+        for (const p of contentPoints) {
+          const d = rectDist2(p[0], p[1], x0, y0, x1, y1);
+          if (d < dist) dist = d;
+        }
+      }
+      return { c, w, h, area: w * h, dist };
     })
     .filter((r) => Number.isFinite(r.area) && r.area > 0)
-    .sort((a, b) => b.area - a.area);
+    .sort((a, b) =>
+      contentPoints?.length
+        ? a.dist - b.dist || b.area - a.area // nearest the story first; area breaks ties
+        : b.area - a.area
+    );
   // Canvas linear extent — the denominator for the footprint size ramp below.
   const canvasLinear = Math.sqrt(Math.max(1, width * height));
   let ci = 0;
@@ -406,7 +476,14 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     );
     const fontSize = Math.round(FONT + t * (COUNTRY_FONT_MAX - FONT));
     const fade = Math.round(t * COUNTRY_FADE_MAX);
-    const color = fade > 0 ? mix(countryColor, palette.bg, fade) : countryColor;
+    // Blend `fade`% TOWARD the bg (subdue big names). `mix(a,b,pct)` weights `a` by
+    // `pct`, so the bg fraction must be `100 - fade` — i.e. a small country (fade≈0)
+    // stays fully muted/dark and only a big landmass fades to a soft backdrop. (The
+    // earlier `mix(countryColor, bg, fade)` was inverted: it lightened the SMALL
+    // names toward white instead, which read as illegible once proximity started
+    // surfacing small neighbours like Belarus/Georgia.)
+    const color =
+      fade > 0 ? mix(countryColor, palette.bg, 100 - fade) : countryColor;
     // Always the full country name — never an ISO abbreviation. If the name
     // doesn't fit the footprint, drop the label rather than abbreviate.
     const text = c.name;
@@ -424,6 +501,9 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
       letterSpacing: 0,
       color,
       fontSize,
+      // Multi-position dodging: carry the ordered interior positions through to the
+      // commit loop. Invariant anchor === positions[0], so `cx/cy` is positions[0].
+      ...(c.positions ? { positions: c.positions } : {}),
       // Band 1 (orientation-value ranking): above MINOR water (band 2, 2000+) but
       // below MAJOR water — oceans + major seas (band 0, ≤~16). So a big country
       // (US, Canada, Russia) outranks a minor sea/bay (Sargasso, Bahía de
@@ -445,17 +525,25 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
   const countryCount = candidates.reduce((n, c) => n + (c.italic ? 0 : 1), 0);
   const waterCap = budget - Math.min(2, countryCount);
   let waterPlaced = 0;
-  for (const cand of candidates) {
-    if (placed.length >= budget) break;
-    if (cand.italic && waterPlaced >= waterCap) continue;
+  // Test one trial position for a candidate against every gate (fit, water-on-land,
+  // committed-obstacle collision, context-overlap). Returns the placed rect when the
+  // position clears, else null. Country candidates carry several ordered positions
+  // (map-context-neighbor-labels); we walk them best-first and commit the first that
+  // clears, so a label dodges a colliding cluster instead of being dropped. Water
+  // candidates have a single position, so behaviour is unchanged for them.
+  const gateAt = (
+    cx: number,
+    cy: number,
+    cand: Candidate
+  ): LabelRect | null => {
     const rect = rectAround(
-      cand.cx,
-      cand.cy,
+      cx,
+      cy,
       cand.lines,
       cand.letterSpacing,
       cand.fontSize
     );
-    if (!rectFits(rect, width, height)) continue;
+    if (!rectFits(rect, width, height)) return null;
     // Water labels must sit over OPEN WATER and NEVER touch land — sample a grid
     // over every wrapped line (each line's own horizontal extent at five points);
     // drop the whole label if ANY sample hits land (Decision: optional orientation
@@ -463,12 +551,12 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     // exempt — they belong on their country.
     if (cand.italic && overLand) {
       const inset = 2;
-      const top = cand.cy - ((cand.lines.length - 1) / 2) * LINE_HEIGHT;
+      const top = cy - ((cand.lines.length - 1) / 2) * LINE_HEIGHT;
       const touchesLand = cand.lines.some((line, li) => {
         const lw = labelWidth(line, cand.letterSpacing);
-        const x0 = cand.cx - lw / 2 + inset;
-        const x1 = cand.cx + lw / 2 - inset;
-        const xs = [x0, (x0 + cand.cx) / 2, cand.cx, (cand.cx + x1) / 2, x1];
+        const x0 = cx - lw / 2 + inset;
+        const x1 = cx + lw / 2 - inset;
+        const xs = [x0, (x0 + cx) / 2, cx, (cx + x1) / 2, x1];
         const base = top + li * LINE_HEIGHT;
         // Sample the glyph body top→baseline (text rises above the baseline) so a
         // label whose ascenders clip a coastline is rejected, not just one whose
@@ -477,15 +565,34 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
           xs.some((x) => overLand(x, y))
         );
       });
-      if (touchesLand) continue;
+      if (touchesLand) return null;
     }
-    if (collides(rect)) continue;
-    if (placedRects.some((r) => overlapsPadded(rect, r, CONTEXT_PAD))) continue;
-    placedRects.push(rect);
+    if (collides(rect)) return null;
+    if (placedRects.some((r) => overlapsPadded(rect, r, CONTEXT_PAD)))
+      return null;
+    return rect;
+  };
+  for (const cand of candidates) {
+    if (placed.length >= budget) break;
+    if (cand.italic && waterPlaced >= waterCap) continue;
+    // Walk positions best-first; commit at the first that clears every gate. F8:
+    // `positions ?? [[cx,cy]]` keeps single-anchor (water + non-top-N country)
+    // behaviour identical. If none clears → drop (no halo, no overlap — D16).
+    const positions = cand.positions ?? [[cand.cx, cand.cy]];
+    let chosen: { x: number; y: number; rect: LabelRect } | null = null;
+    for (const [px, py] of positions) {
+      const rect = gateAt(px!, py!, cand);
+      if (rect) {
+        chosen = { x: px!, y: py!, rect };
+        break;
+      }
+    }
+    if (!chosen) continue;
+    placedRects.push(chosen.rect);
     if (cand.italic) waterPlaced++;
     placed.push({
-      x: cand.cx,
-      y: cand.cy,
+      x: chosen.x,
+      y: chosen.y,
       text: cand.text,
       anchor: 'middle',
       color: cand.color,

@@ -25,7 +25,7 @@ import {
   politicalTints,
   valueRampColor,
 } from '../palettes/color-utils';
-import { buildAdjacency, featureBboxPrimary } from './geo';
+import { buildAdjacency, featureBboxPrimary, pointInGeometry } from './geo';
 import { assignColors } from './colorize';
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes/types';
@@ -52,7 +52,14 @@ import type {
   ProjectionFamily,
   GeoExtent,
 } from './resolved-types';
-import { placeContextLabels } from './context-labels';
+import {
+  placeContextLabels,
+  tierBand,
+  labelBudget,
+  MAX_COUNTRY_POSITIONS,
+  COUNTRY_POS_GRID,
+  COUNTRY_POS_TOPN_MARGIN,
+} from './context-labels';
 import type { CountryCandidate } from './context-labels';
 
 // Minimal GeoJSON shapes (avoid a hard @types/geojson dep; cast at d3 calls).
@@ -706,6 +713,139 @@ function decodeLayer(topo: BoundaryTopology): Map<string, GeoFeature> {
   }
   decodeCache.set(topo, out);
   return out;
+}
+
+/** Generate ordered interior label positions for a country, screen-projected and
+ *  best-first, so its context label can DODGE a colliding data cluster onto open
+ *  ground on its own land (map-context-neighbor-labels, Opt F). PURE +
+ *  DETERMINISTIC — the geo work that the pure context-labels module must not do.
+ *
+ *  Algorithm (D8/D9): lay a `COUNTRY_POS_GRID²` lon/lat grid over the feature's
+ *  geographic bbox; keep cells that are (a) on the country's OWN rendered geometry
+ *  (`pointInGeometry` — holes-aware, so neighbours AND enclaves are rejected) and
+ *  (b) project to a finite point inside the viewport (its visible lobe). Order the
+ *  kept cells: the most-interior cell (most on-land 8-grid-neighbours, tie-broken
+ *  by proximity to the visible centroid) leads, then a greedy max-min spread of the
+ *  rest so fallbacks actually dodge. A `curated` lon/lat (WORLD_LABEL_ANCHORS) is
+ *  forced to slot 0 with grid cells filling the rest (D13).
+ *
+ *  Returns `{ lonLat, screen }[]` (≤ MAX_COUNTRY_POSITIONS), or `[]` when the
+ *  geometry yields no valid in-frame position (caller falls back to the single
+ *  centroid anchor, D11). The `lonLat` is exposed so tests can verify on-own-land
+ *  containment with an INDEPENDENT oracle (not a re-call of the acceptance test). */
+export function countryLabelPositions(args: {
+  geometry: unknown;
+  bounds: readonly [readonly [number, number], readonly [number, number]];
+  project: (lon: number, lat: number) => [number, number] | null;
+  width: number;
+  height: number;
+  curated?: readonly [number, number] | null;
+}): { lonLat: [number, number]; screen: [number, number] }[] {
+  const { geometry, bounds, project, width, height, curated } = args;
+  const w0 = bounds[0][0];
+  const s0 = bounds[0][1];
+  const e0 = bounds[1][0];
+  const n0 = bounds[1][1];
+  // Bail on non-finite, antimeridian-wrapping (e0 < w0 — NE crossers ship seam-split,
+  // but a feature whose own bbox still wraps falls back to the single anchor), or
+  // degenerate (zero-span) bboxes — the grid math needs a positive lon/lat span. `<=`
+  // makes the zero-span case explicit rather than relying on downstream emptiness
+  // (D9/D11).
+  if (![w0, s0, e0, n0].every(Number.isFinite) || e0 <= w0 || n0 <= s0) {
+    return mkCurated(curated, project);
+  }
+  const N = COUNTRY_POS_GRID;
+  // onLand[i][j]: cell centre is on the country's own geometry (for interiorness).
+  const onLand: boolean[][] = [];
+  type Cell = {
+    i: number;
+    j: number;
+    lon: number;
+    lat: number;
+    sx: number;
+    sy: number;
+  };
+  const kept: Cell[] = [];
+  for (let i = 0; i < N; i++) {
+    onLand[i] = [];
+    const lon = w0 + ((i + 0.5) / N) * (e0 - w0);
+    for (let j = 0; j < N; j++) {
+      const lat = s0 + ((j + 0.5) / N) * (n0 - s0);
+      const land = pointInGeometry(geometry, lon, lat);
+      onLand[i]![j] = land;
+      if (!land) continue;
+      const p = project(lon, lat);
+      if (!p || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) continue;
+      // Only the visible lobe: an off-frame cell can never host a fitting label.
+      if (p[0] < 0 || p[0] > width || p[1] < 0 || p[1] > height) continue;
+      kept.push({ i, j, lon, lat, sx: p[0], sy: p[1] });
+    }
+  }
+  if (!kept.length) return mkCurated(curated, project);
+  // Visible centroid (mean of kept screen points) — tie-breaks interiorness toward
+  // the country's in-frame mass.
+  const cx = kept.reduce((s, c) => s + c.sx, 0) / kept.length;
+  const cy = kept.reduce((s, c) => s + c.sy, 0) / kept.length;
+  const interiorness = (c: Cell): number => {
+    let n = 0;
+    for (let di = -1; di <= 1; di++)
+      for (let dj = -1; dj <= 1; dj++) {
+        if (di === 0 && dj === 0) continue;
+        const ni = c.i + di;
+        const nj = c.j + dj;
+        if (ni >= 0 && ni < N && nj >= 0 && nj < N && onLand[ni]![nj]) n++;
+      }
+    return n;
+  };
+  const dist2ToCentre = (c: Cell): number =>
+    (c.sx - cx) ** 2 + (c.sy - cy) ** 2;
+  // Most-interior cell leads (tie → nearest the visible centroid).
+  const pool = [...kept];
+  pool.sort((a, b) => {
+    const d = interiorness(b) - interiorness(a);
+    return d !== 0 ? d : dist2ToCentre(a) - dist2ToCentre(b);
+  });
+  // grid ordering: best cell, then greedy max-min spread of the rest.
+  const ordered: Cell[] = [pool.shift()!];
+  while (ordered.length < MAX_COUNTRY_POSITIONS && pool.length) {
+    let bestIdx = 0;
+    let bestMin = -1;
+    for (let k = 0; k < pool.length; k++) {
+      const c = pool[k]!;
+      let minD = Infinity;
+      for (const o of ordered) {
+        const d = (c.sx - o.sx) ** 2 + (c.sy - o.sy) ** 2;
+        if (d < minD) minD = d;
+      }
+      if (minD > bestMin) {
+        bestMin = minD;
+        bestIdx = k;
+      }
+    }
+    ordered.push(pool.splice(bestIdx, 1)[0]!);
+  }
+  const grid = ordered.map((c) => ({
+    lonLat: [c.lon, c.lat] as [number, number],
+    screen: [c.sx, c.sy] as [number, number],
+  }));
+  // Curated anchor (D13): forced to slot 0; grid cells fill the rest.
+  const curatedPos = curated
+    ? mkCurated(curated, project)
+    : ([] as { lonLat: [number, number]; screen: [number, number] }[]);
+  const out = [...curatedPos, ...grid].slice(0, MAX_COUNTRY_POSITIONS);
+  return out;
+}
+
+/** Project a single curated lon/lat into the position-list shape (or [] when it
+ *  doesn't project finitely). Helper for `countryLabelPositions`. */
+function mkCurated(
+  curated: readonly [number, number] | null | undefined,
+  project: (lon: number, lat: number) => [number, number] | null
+): { lonLat: [number, number]; screen: [number, number] }[] {
+  if (!curated) return [];
+  const p = project(curated[0], curated[1]);
+  if (!p || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) return [];
+  return [{ lonLat: [curated[0], curated[1]], screen: [p[0], p[1]] }];
 }
 
 // Our own US map (replaces d3 geoAlbersUsa, whose fixed composite clips
@@ -4238,6 +4378,19 @@ export function layoutMap(
     // work (bbox/anchor) stays here; area-rank + fit + collision live in the
     // pure module so the strict density invariants (AC7) are unit-testable.
     const countryCandidates: CountryCandidate[] = [];
+    // Pass 1: collect the raw country records (feature + screen bbox/anchor),
+    // carrying `f` so pass 2 can generate dodge positions from the SAME rendered
+    // geometry (D14 — no re-decode).
+    type RawCountry = {
+      f: GeoFeature;
+      iso: string;
+      name: string;
+      bbox: [number, number, number, number];
+      anchor: [number, number] | null;
+      curatedLngLat: readonly [number, number] | null;
+      area: number;
+    };
+    const rawCountries: RawCountry[] = [];
     for (const f of worldLayer.values()) {
       const iso = typeof f.id === 'string' ? f.id : String(f.id ?? '');
       if (!iso || regionById.has(iso)) continue;
@@ -4259,11 +4412,87 @@ export function layoutMap(
       const a = anchorLngLat
         ? project(anchorLngLat[0], anchorLngLat[1])
         : (path.centroid(f as never) as [number, number]);
-      countryCandidates.push({
+      rawCountries.push({
+        f,
+        iso,
         name: (f.properties as { name?: string } | undefined)?.name ?? iso,
         bbox: [x0, y0, x1, y1],
         anchor: a && Number.isFinite(a[0]) ? [a[0], a[1]] : null,
-        curatedAnchor: !!anchorLngLat,
+        curatedLngLat: anchorLngLat ?? null,
+        area: (x1 - x0) * (y1 - y0),
+      });
+    }
+    // Pass 2: generate multi-position dodge candidates EAGERLY for the top
+    // `budget + margin` area-ranked countries only — only that many can win a slot,
+    // so generating for all ~45 in-view countries is wasted PiP work (D15). The
+    // band/budget helpers live in the pure module; compute them here since layout
+    // doesn't otherwise hold them. Positions[0] becomes the anchor so the
+    // single-anchor `anchor === positions[0]` invariant (D12) holds.
+    const cBand = tierBand(Math.max(dLonSpan, dLatSpan));
+    const cBudget = labelBudget(width, height, cBand);
+    // Content points = the POI markers (the diagram's story). Drive BOTH the
+    // proximity rank in placeContextLabels AND which countries get dodge positions
+    // generated here, so the near-action winners are equipped to dodge
+    // (map-context-neighbor-labels, proximity knob). Empty ⇒ legacy area rank.
+    const contentPoints: [number, number][] = markers.map((m) => [m.cx, m.cy]);
+    // Generate dodge positions for the top `budget + margin` candidates ranked the
+    // SAME way placeContextLabels will pick winners — by proximity to the nearest
+    // content point when known, else by area. (Generating for all ~45 in-view
+    // countries is wasted PiP work; D15.) The +MARGIN slack covers the rank skew
+    // from the module's extra fit/viewport filtering, so the eventual winner still
+    // carries dodge positions.
+    const topN = cBudget + COUNTRY_POS_TOPN_MARGIN;
+    const rankOrder = rawCountries
+      .map((r, idx) => {
+        // Match placeContextLabels' rank: distance from the NEAREST content point to
+        // the country's footprint bbox (0 if inside, else nearest-edge), so the same
+        // near-the-action winners get dodge positions generated.
+        let dist = Infinity;
+        const [x0, y0, x1, y1] = r.bbox;
+        for (const [px, py] of contentPoints) {
+          const dx = Math.max(x0 - px, 0, px - x1);
+          const dy = Math.max(y0 - py, 0, py - y1);
+          const d = dx * dx + dy * dy;
+          if (d < dist) dist = d;
+        }
+        return { idx, area: r.area, dist };
+      })
+      .filter((r) => Number.isFinite(r.area) && r.area > 0)
+      .sort((a, b) =>
+        contentPoints.length
+          ? a.dist - b.dist || b.area - a.area
+          : b.area - a.area
+      )
+      .slice(0, topN);
+    const genIdx = new Set(rankOrder.map((r) => r.idx));
+    for (let i = 0; i < rawCountries.length; i++) {
+      const r = rawCountries[i]!;
+      let anchor = r.anchor;
+      let positions: readonly (readonly [number, number])[] | undefined;
+      if (genIdx.has(i) && anchor) {
+        const gb = geoBounds(r.f as never) as [
+          [number, number],
+          [number, number],
+        ];
+        const gen = countryLabelPositions({
+          geometry: r.f.geometry,
+          bounds: gb,
+          project,
+          width,
+          height,
+          curated: r.curatedLngLat,
+        });
+        if (gen.length) {
+          positions = gen.map((p) => p.screen);
+          anchor = positions[0] as [number, number]; // D12: anchor === positions[0]
+        }
+      }
+      countryCandidates.push({
+        name: r.name,
+        bbox: r.bbox,
+        anchor,
+        curatedAnchor: !!r.curatedLngLat,
+        ...(positions ? { positions } : {}),
       });
     }
     // Framed US states (POI-only region framing): when the frame is snapped to a
@@ -4310,6 +4539,7 @@ export function layoutMap(
       palette,
       project,
       collides,
+      contentPoints,
       // Water labels must stay over open water — `fillAt` returns the ocean
       // backdrop colour off-land and a region fill on-land (lakes/states count
       // as land here, which is the safe side for an ocean name).

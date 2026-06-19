@@ -811,6 +811,23 @@ describe('POI-only region framing — real geometry (#poi-region)', () => {
     expect(r.poiFrameContainers).toContain('FR');
   });
 
+  it('a LARGE non-US cluster in a huge container frames tight (overshoot decay)', async () => {
+    const data = await loadMapData();
+    // A Ukraine→Russia strike cluster (≈14° lon) sits inside Russia's enormous
+    // bbox. The per-cluster overshoot decays for big clusters, so the frame must
+    // hug the dots (≤~6° of empty container beyond the northernmost POI), not the
+    // old fixed-8° band (which left ~9° of dead space below the title).
+    const r = resolveMap(
+      parseMap(
+        'map\npoi 50.91 34.80 as src\npoi 55.63 37.79 as msk\npoi 46.35 48.04 as astr\npoi 51.53 46.03 as sar'
+      ),
+      data
+    );
+    const northMargin = r.extent[1][1] - 55.63; // frame north edge − northernmost POI
+    expect(northMargin).toBeGreaterThan(0); // still shows context above the dots
+    expect(northMargin).toBeLessThan(6); // but not the old ~9° empty band
+  });
+
   it('a Canadian neighbour POI on a US map frames by its point, not all of Canada (§24B.2)', async () => {
     const data = await loadMapData();
     // US cities coast-to-coast + a Toronto POI. Toronto reverse-geocodes to country
