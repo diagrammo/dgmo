@@ -10,7 +10,12 @@ import {
 } from '../utils/export-container';
 import { ScaleContext } from '../utils/scaling';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill, themeBaseBg } from '../palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  shapeFill,
+  themeBaseBg,
+} from '../palettes/color-utils';
 import { resolveTagColor } from '../utils/tag-groups';
 import type { ParsedOrg } from './parser';
 import type { OrgLayoutResult } from './layout';
@@ -397,6 +402,13 @@ export function renderOrg(
         .attr('height', iconSize + 6)
         .attr('fill', 'transparent');
 
+      // Use the container's contrast text color so it stays legible on darker
+      // fills, mirroring the node icon.
+      const iconColor = contrastText(
+        fill,
+        palette.textOnFillLight,
+        palette.textOnFillDark
+      );
       const cx = iconSize / 2;
       const cy = iconSize / 2;
       focusG
@@ -405,14 +417,14 @@ export function renderOrg(
         .attr('cy', cy)
         .attr('r', iconSize / 2 - 1)
         .attr('fill', 'none')
-        .attr('stroke', palette.textMuted)
+        .attr('stroke', iconColor)
         .attr('stroke-width', 1.5);
       focusG
         .append('circle')
         .attr('cx', cx)
         .attr('cy', cy)
         .attr('r', 2)
-        .attr('fill', palette.textMuted);
+        .attr('fill', iconColor);
     }
   }
 
@@ -558,7 +570,10 @@ export function renderOrg(
         .attr('height', iconSize + 6)
         .attr('fill', 'transparent');
 
-      // Scope/target icon: outer circle + inner dot
+      // Scope/target icon: outer circle + inner dot. Use the card's contrast
+      // text color so it stays legible on solid-fill dark cards, not just the
+      // light default surface.
+      const iconColor = labelColor;
       const cx = iconSize / 2;
       const cy = iconSize / 2;
       focusG
@@ -567,14 +582,14 @@ export function renderOrg(
         .attr('cy', cy)
         .attr('r', iconSize / 2 - 1)
         .attr('fill', 'none')
-        .attr('stroke', palette.textMuted)
+        .attr('stroke', iconColor)
         .attr('stroke-width', 1.5);
       focusG
         .append('circle')
         .attr('cx', cx)
         .attr('cy', cy)
         .attr('r', 2)
-        .attr('fill', palette.textMuted);
+        .attr('fill', iconColor);
     }
   }
 
