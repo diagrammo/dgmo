@@ -42,7 +42,7 @@ function corpus(): { name: string; src: string }[] {
   return out;
 }
 
-test('search engine — crossings + overlaps + pierces across corpus', () => {
+test('search engine — crossings + overlaps + pierces across corpus', async () => {
   const rows: {
     name: string;
     n: number;
@@ -53,7 +53,7 @@ test('search engine — crossings + overlaps + pierces across corpus', () => {
   }[] = [];
   for (const { name, src } of corpus()) {
     const parsed = parseBoxesAndLines(src);
-    const search = layoutBoxesAndLinesSearch(parsed);
+    const search = await layoutBoxesAndLinesSearch(parsed);
     rows.push({
       name,
       n: parsed.nodes.length,

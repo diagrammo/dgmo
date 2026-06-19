@@ -199,15 +199,21 @@ export async function layoutBoxesAndLines(
     /** Previous node positions (label → {x,y}) for layout stability —
      *  minimizes node drift on edit/collapse. */
     previousPositions?: ReadonlyMap<string, { x: number; y: number }>;
+    /** Progress hook (interactive path). When set, the search yields between
+     *  candidates so the UI can paint a "trying X of Y" indicator. */
+    onProgress?: (done: number, total: number, phase: string) => void;
   }
 ): Promise<BLLayoutResult> {
   const { layoutBoxesAndLinesSearch } = await import('./layout-search');
-  const searched = layoutBoxesAndLinesSearch(parsed, collapseInfo, {
+  const searched = await layoutBoxesAndLinesSearch(parsed, collapseInfo, {
     ...(layoutOptions?.hideDescriptions !== undefined && {
       hideDescriptions: layoutOptions.hideDescriptions,
     }),
     ...(layoutOptions?.previousPositions !== undefined && {
       previousPositions: layoutOptions.previousPositions,
+    }),
+    ...(layoutOptions?.onProgress !== undefined && {
+      onProgress: layoutOptions.onProgress,
     }),
   });
   // Engine-agnostic post-processing: fan parallel edges, then float notes

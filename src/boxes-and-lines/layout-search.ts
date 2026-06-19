@@ -892,7 +892,7 @@ function edgeLength(layout: BLLayoutResult): number {
   return total;
 }
 
-export function layoutBoxesAndLinesSearch(
+export async function layoutBoxesAndLinesSearch(
   parsed: ParsedBoxesAndLines,
   collapseInfo?: {
     collapsedChildCounts: Map<string, number>;
@@ -907,9 +907,21 @@ export function layoutBoxesAndLinesSearch(
     lambda?: number;
     /** How many top candidates to re-rank with the exact counter (default 6). */
     refineK?: number;
+    /** Progress hook for the interactive path. When provided, the search yields
+     *  to a macrotask after each candidate so the host UI can paint a progress
+     *  indicator. Omit it (CLI/export) and the search runs straight through with
+     *  no added latency. */
+    onProgress?: (done: number, total: number, phase: string) => void;
   }
-): BLLayoutResult {
+): Promise<BLLayoutResult> {
   const hideDescriptions = opts?.hideDescriptions ?? false;
+  const onProgress = opts?.onProgress;
+  // Yield to a macrotask (lets the browser repaint between heavy placements);
+  // no-op when there's no progress observer so non-interactive callers pay
+  // nothing.
+  const tick = onProgress
+    ? (): Promise<void> => new Promise<void>((r) => setTimeout(r))
+    : (): undefined => undefined;
 
   // collapsed group labels (shown as plain boxes) — mirrors the ELK path
   const collapsedGroupLabels = new Set<string>();
@@ -1474,6 +1486,18 @@ export function layoutBoxesAndLinesSearch(
   const objective = (lay: BLLayoutResult, viol: number) =>
     viol * 1e6 + edgeLength(lay) + lambda * meanDrift(lay, prev) * 10;
 
+  // Progress is reported over the two dominant phases: building the dagre
+  // candidate pool, then exact-scoring the top few. `refineK` is clamped below,
+  // so estimate the total here for a smooth bar.
+  const progressTotal =
+    configs.length + Math.min(opts?.refineK ?? 6, configs.length);
+  let progressDone = 0;
+  const step = async (phase: string): Promise<void> => {
+    if (!onProgress) return;
+    onProgress(++progressDone, progressTotal, phase);
+    await tick();
+  };
+
   // Build the candidate pool.
   const pool: BLLayoutResult[] = [];
   for (const cfg of configs) {
@@ -1482,6 +1506,7 @@ export function layoutBoxesAndLinesSearch(
     } catch {
       /* some rankers choke on odd graphs */
     }
+    await step('Optimizing layout');
   }
   if (!pool.length)
     return place({ ranker: 'network-simplex', nodesep: 50, ranksep: 60 });
@@ -1524,7 +1549,10 @@ export function layoutBoxesAndLinesSearch(
       best = lay;
     }
   };
-  for (const lay of pool.slice(0, refineK)) consider(lay);
+  for (const lay of pool.slice(0, refineK)) {
+    consider(lay);
+    await step('Refining layout');
+  }
 
   // Adaptive escalation: a still-high badness after the base seed budget means
   // the graph is genuinely hard — dense layouts (e.g. the marketplace) need many
