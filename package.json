@@ -1,6 +1,6 @@
 {
   "name": "@diagrammo/dgmo",
-  "version": "0.31.0",
+  "version": "0.32.0",
   "description": "DGMO diagram markup language — parser, renderer, and color system",
   "license": "MIT",
   "repository": {
@@ -157,6 +157,11 @@
     "jsdom": "^29.1.1",
     "lz-string": "^1.5.0",
     "topojson-client": "^3.1.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "undici": "^7.28.0"
+    }
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.3",

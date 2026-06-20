@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-06-20
+
+### Added
+
+- **Named-palette color enforcement** — diagram colors must now be one of the 11 named palette colors. Hex (`#e6194b`) and CSS color names (`crimson`) are rejected with a `Nearest: <name>` hint, so authoring tools fail fast instead of silently falling back. Wired through every chart parser.
+- **Boxes-and-lines focus mode** — a 1-hop neighborhood transform that isolates a node and its immediate connections; opt-in layout-search progress hook.
+- **Mindmap parent→child tag cascade** — a tag value on a branch flows to its sub-nodes.
+- **Per-type authoring TIPS** — every one of the 35 chart types now carries a styling-tips block in the language reference (consumed by the MCP per-type guidance slice).
+- **Richer map context labels** — country labels dodge collisions, respect proximity, and adapt to zoom.
+
+### Fixed
+
+- **Flowchart structural integrity** — a node carrying an unsupported trailing suffix (e.g. a tag-style `(Denied) s: Denied`) is salvaged with a warning instead of silently dropping the node *and* its edge; a leading-arrow continuation line (`(Start)` then `-> Next`) now attaches to the previous node instead of orphaning it.
+- **function** — a curve whose name begins with `x` (e.g. `x / 2: x / 2`) no longer collides with the `x <min> to <max>` range keyword and gets silently dropped.
+- **bar** — plain `bar` given multiple series now warns (use `bar-stacked` / `multi-line`) instead of silently rendering only the first series.
+- Timeline horizontal fit, mindmap canvas fit, scatter legend spacing, org focus-icon contrast, sequence participant interleave, map antimeridian POI-frame clamp.
+
+### Performance
+
+- Map region rings/bbox caching; boxes-and-lines layout ~27% faster via identical-output scoring fixes + pre-score sort.
+
+### Changed
+
+- Internal parser refactors: shared `makeFail()` diagnostic accumulator, chart-type registry min-dimension formulas, theme-base-bg helper (arch-review stories 111.2–111.5).
+- Documentation: timeline events documented date-first; flowchart node color is automatic-by-shape (no tags/metadata); RACI/sitemap/c4 example fixes; stale gallery fixtures repaired.
+
 ## [0.31.0] - 2026-06-18
 
 ### Added
