@@ -323,6 +323,12 @@ export interface MapLayoutRegion {
    *  area-weighted centroid stays on the body. Honours WORLD_LABEL_ANCHORS. */
   readonly labelX?: number;
   readonly labelY?: number;
+  /** Screen-space bounding box `[minX, minY, maxX, maxY]` of the drawn path,
+   *  computed once in `layoutMap` (reusing the `fillAt` hit-target parse) so the
+   *  renderer's per-POI-label region cull doesn't re-parse every path string per
+   *  label blob. Absent only if the layout was built before this field existed —
+   *  the renderer falls back to parsing `d`. */
+  bbox?: readonly [number, number, number, number];
 }
 
 /** A framed inset "cutout" (albers-usa AK/HI), in screen px. The frame is a
@@ -2452,6 +2458,14 @@ export function layoutMap(
         if (p[1] < minY) minY = p[1];
         if (p[1] > maxY) maxY = p[1];
       }
+    // Stash the bbox on the region so the renderer's per-POI-label cull reuses
+    // this parse instead of re-parsing `d` once per label blob (roadmap #2).
+    (r as { bbox?: readonly [number, number, number, number] }).bbox = [
+      minX,
+      minY,
+      maxX,
+      maxY,
+    ];
     return { fill: r.fill, rings, minX, minY, maxX, maxY };
   });
   const fillAt = (x: number, y: number): string => {

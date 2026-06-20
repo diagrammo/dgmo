@@ -681,17 +681,27 @@ export function renderMap(
       // label, so the patch is seamless and the only visible change is the
       // vanished line work.
       for (const r of layout.regions) {
-        let minX = Infinity,
-          minY = Infinity,
-          maxX = -Infinity,
+        // bbox is precomputed once in layoutMap (roadmap #2); fall back to
+        // parsing only for layouts predating that field.
+        let minX: number,
+          minY: number,
+          maxX: number,
+          maxY: number;
+        if (r.bbox) {
+          [minX, minY, maxX, maxY] = r.bbox;
+        } else {
+          minX = Infinity;
+          minY = Infinity;
+          maxX = -Infinity;
           maxY = -Infinity;
-        for (const ring of parsePathRings(r.d))
-          for (const [px, py] of ring) {
-            if (px < minX) minX = px;
-            if (px > maxX) maxX = px;
-            if (py < minY) minY = py;
-            if (py > maxY) maxY = py;
-          }
+          for (const ring of parsePathRings(r.d))
+            for (const [px, py] of ring) {
+              if (px < minX) minX = px;
+              if (px > maxX) maxX = px;
+              if (py < minY) minY = py;
+              if (py > maxY) maxY = py;
+            }
+        }
         const hit = blobRects.some(
           (b) => minX <= b.x1 && maxX >= b.x0 && minY <= b.y1 && maxY >= b.y0
         );

@@ -20,6 +20,34 @@ function read(p: string): string | null {
   return existsSync(p) ? readFileSync(p, 'utf8') : null;
 }
 
+// Synthetic POI-dense world map — many base regions × many POI labels exercises
+// the renderer's per-label region-bbox loop (roadmap #2). Cities span continents
+// so the basemap is the full world (~200 regions).
+const POI_WORLD = `map Global POIs
+poi-metric Load
+
+poi New York value: 90
+poi Los Angeles value: 70
+poi London value: 80
+poi Paris value: 60
+poi Tokyo value: 95
+poi Sydney value: 50
+poi Mumbai value: 85
+poi Singapore value: 75
+poi Berlin value: 55
+poi Madrid value: 45
+poi Cairo value: 40
+poi Toronto value: 65
+poi Chicago value: 50
+poi Moscow value: 70
+poi Beijing value: 88
+poi Sao Paulo value: 60
+poi Mexico City value: 58
+poi Lagos value: 42
+poi Dubai value: 77
+poi Bangkok value: 53
+`;
+
 // median of repeated timings (ms), with a warm-up pass to JIT + load map data.
 async function timeMs(
   fn: () => Promise<unknown> | unknown,
@@ -66,6 +94,11 @@ test('perf harness — render() end-to-end + hot sub-stages', async () => {
       {
         name: 'map/choropleth',
         src: read(`${FIXTURES}/map-choropleth.dgmo`),
+        iters: 7,
+      },
+      {
+        name: 'map/poi-world (20 POIs)',
+        src: POI_WORLD,
         iters: 7,
       },
       {
