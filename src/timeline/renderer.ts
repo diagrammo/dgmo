@@ -1451,7 +1451,7 @@ function renderTimelineHorizontalTimeSort(
   setup: TimelineSetup,
   hovers: TimelineHoverHelpers,
   onClickItem: ((lineNumber: number) => void) | undefined,
-  _exportDims: D3ExportDimensions | undefined,
+  exportDims: D3ExportDimensions | undefined,
   _swimlaneTagGroup: string | null | undefined,
   _activeTagGroup: string | null | undefined,
   _onTagStateChange:
@@ -1461,6 +1461,7 @@ function renderTimelineHorizontalTimeSort(
 ): void {
   const {
     width,
+    height,
     tooltip,
     solid,
     textColor,
@@ -1538,6 +1539,15 @@ function renderTimelineHorizontalTimeSort(
   const innerHeight = rowH * sorted.length;
   const usedHeight = margin.top + innerHeight + margin.bottom;
 
+  // On-screen (non-export) the content can be taller than the host pane. Rather
+  // than overflow it (forcing the user to scroll), scale the whole SVG down to
+  // fit the available height: the viewBox keeps the natural content geometry
+  // while the rendered height is clamped to the container, and
+  // preserveAspectRatio uniformly shrinks + centers it. Export keeps the full
+  // natural height so the image is never compressed.
+  const fitToContainer = !exportDims && height > 0 && usedHeight > height;
+  const svgHeight = fitToContainer ? height : usedHeight;
+
   const xScale = d3Scale
     .scaleLinear()
     .domain([minDate - datePadding, maxDate + datePadding])
@@ -1547,12 +1557,12 @@ function renderTimelineHorizontalTimeSort(
     .select(container)
     .append('svg')
     .attr('width', width)
-    .attr('height', usedHeight)
+    .attr('height', svgHeight)
     .attr('viewBox', `0 0 ${width} ${usedHeight}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('background', bgColor);
 
-  if (ctx.isBelowFloor) {
+  if (ctx.isBelowFloor && !fitToContainer) {
     svg.attr('width', '100%');
   }
 
