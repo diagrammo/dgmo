@@ -320,7 +320,12 @@ export function parseSitemap(
       const indent = measureIndent(line);
       if (indent > 0) {
         const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
-        const { label, color } = extractColor(cleanEntry, palette);
+        const { label, color } = extractColor(
+          cleanEntry,
+          palette,
+          result.diagnostics,
+          lineNumber
+        );
         // Bare value (no explicit color) → keep it; finalized below.
         currentTagGroup.entries.push({
           value: label,

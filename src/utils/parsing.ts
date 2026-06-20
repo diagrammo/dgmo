@@ -8,6 +8,7 @@ import {
   RECOGNIZED_COLOR_NAMES,
   resolveColor,
   resolveColorWithDiagnostic,
+  invalidColorDiagnostic,
 } from '../colors';
 import {
   emptyMetadataValueMessage,
@@ -122,7 +123,18 @@ export function extractColor(
   if (lastSpaceIdx < 0) return { label };
   const trailing = label.substring(lastSpaceIdx + 1);
   // Case-sensitive lowercase match against the closed 11-name palette.
-  if (!RECOGNIZED_COLOR_SET.has(trailing)) return { label };
+  if (!RECOGNIZED_COLOR_SET.has(trailing)) {
+    // Not a valid color. If it nonetheless LOOKS like an intended color (a hex
+    // literal or a CSS color name like `pink`), flag it — otherwise the
+    // trailing-token rule would silently swallow it into the label with no
+    // diagnostic, and the MCP color gate would have nothing to block on. A
+    // genuine label word (`Zinfandel`) is not color-like, so it stays as-is.
+    if (diagnostics && line !== undefined) {
+      const diag = invalidColorDiagnostic(trailing, line);
+      if (diag) diagnostics.push(diag);
+    }
+    return { label };
+  }
   let color: string | undefined;
   if (diagnostics && line !== undefined) {
     color = resolveColorWithDiagnostic(trailing, line, diagnostics, palette);

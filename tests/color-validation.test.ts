@@ -2,7 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { parseFlowchart } from '../src/graph/flowchart-parser';
 import { parseSequenceDgmo } from '../src/sequence/parser';
 import { parseKanban } from '../src/kanban/parser';
-import { resolveColor } from '../src/colors';
+import {
+  resolveColor,
+  resolveColorWithDiagnostic,
+  nearestNamedColor,
+  INVALID_COLOR_CODE,
+} from '../src/colors';
+import { parseExtendedChart } from '../src/echarts';
+import { parseDgmo } from '../src/dgmo-router';
+import type { DgmoError } from '../src/diagnostics';
 
 function colorDiags(diagnostics: { message: string; severity: string }[]) {
   return diagnostics.filter((d) => d.message.startsWith('Unknown color'));
@@ -136,5 +144,138 @@ describe('black/white resolve to hex', () => {
     const white = resolveColor('white');
     expect(black).toMatch(/^#[0-9a-f]{6}$/i);
     expect(white).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+});
+
+describe('hex / CSS colors are rejected with an error diagnostic', () => {
+  it('resolveColor returns null for hex, rgb(), hsl()', () => {
+    expect(resolveColor('#e6194b')).toBeNull();
+    expect(resolveColor('rgb(255,0,0)')).toBeNull();
+    expect(resolveColor('hsl(0,100%,50%)')).toBeNull();
+  });
+
+  it('resolveColorWithDiagnostic emits a hex-specific ERROR (not a typo warning)', () => {
+    const diagnostics: DgmoError[] = [];
+    const result = resolveColorWithDiagnostic('#e6194b', 1, diagnostics);
+    expect(result).toBeUndefined();
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].severity).toBe('error');
+    expect(diagnostics[0].message).toMatch(/hex or CSS color values/);
+    expect(diagnostics[0].message).toMatch(/named palette color/);
+  });
+
+  it('rgb()/hsl() literals also error', () => {
+    for (const literal of [
+      'rgb(255,0,0)',
+      'rgba(0,0,0,0.5)',
+      'hsl(0,100%,50%)',
+    ]) {
+      const diagnostics: DgmoError[] = [];
+      resolveColorWithDiagnostic(literal, 1, diagnostics);
+      expect(diagnostics[0]?.severity).toBe('error');
+    }
+  });
+
+  it('stamps the stable E_INVALID_COLOR code on hex AND unknown-name diagnostics', () => {
+    const hexD: DgmoError[] = [];
+    resolveColorWithDiagnostic('#e6194b', 1, hexD);
+    expect(hexD[0].code).toBe(INVALID_COLOR_CODE);
+    expect(hexD[0].severity).toBe('error');
+
+    const cssD: DgmoError[] = [];
+    resolveColorWithDiagnostic('crimson', 1, cssD);
+    expect(cssD[0].code).toBe(INVALID_COLOR_CODE);
+    // CSS color names stay a warning in the library (app/CLI degrade
+    // gracefully); the MCP gate blocks on the code regardless of severity.
+    expect(cssD[0].severity).toBe('warning');
+    expect(cssD[0].message).toMatch(/only these 11 named colors/);
+  });
+
+  it('hex diagnostic includes a nearest-named suggestion', () => {
+    const d: DgmoError[] = [];
+    resolveColorWithDiagnostic('#e6194b', 1, d);
+    expect(d[0].message).toMatch(/Nearest: red\./);
+  });
+
+  it('nearestNamedColor maps hex by RGB distance, null for non-hex', () => {
+    expect(nearestNamedColor('#e6194b')).toBe('red');
+    expect(nearestNamedColor('#4363d8')).toBe('blue');
+    expect(nearestNamedColor('#3cb44b')).toBe('green');
+    // CSS color names resolve via the blocklist map to their nearest valid name
+    expect(nearestNamedColor('crimson')).toBe('red');
+    expect(nearestNamedColor('navy')).toBe('blue');
+    // rgb()/hsl() functions and genuine non-colors have no hex to read → null
+    expect(nearestNamedColor('rgb(255,0,0)')).toBeNull();
+    expect(nearestNamedColor('Zinfandel')).toBeNull();
+  });
+
+  it('scatter [group] hex header errors and applies no color', () => {
+    const content = `scatter
+x-label GDP
+y-label Power
+
+[North America] #e6194b
+  United States 76300 12700`;
+    const parsed = parseExtendedChart(content);
+    const errors = parsed.diagnostics.filter((d) => d.severity === 'error');
+    expect(errors.length).toBeGreaterThanOrEqual(1);
+    expect(errors.some((d) => /hex or CSS color values/.test(d.message))).toBe(
+      true
+    );
+    // hex is never applied as the category color
+    expect(parsed.categoryColors?.['North America']).toBeUndefined();
+  });
+});
+
+describe('trailing-token slots flag intended-but-invalid colors (no silent swallow)', () => {
+  // Regression: a CSS color name in a tag declaration used to be silently
+  // folded into the label with zero diagnostics, so the MCP color gate had
+  // nothing to block. It must now emit E_INVALID_COLOR.
+  it('CSS color name (pink) in a mindmap tag declaration emits E_INVALID_COLOR', () => {
+    const src = `mindmap Wine
+
+tag Style as s
+  Red red
+  Rosé pink
+
+Reds s: Red
+  Cabernet
+Rosé s: Rosé
+  Provence`;
+    const { diagnostics } = parseDgmo(src);
+    const inv = diagnostics.filter((d) => d.code === INVALID_COLOR_CODE);
+    expect(inv).toHaveLength(1);
+    expect(inv[0].message).toMatch(/pink/);
+    expect(inv[0].message).toMatch(/Nearest: red/);
+  });
+
+  it('a genuine label word (Zinfandel) in a tag value is NOT flagged', () => {
+    const src = `mindmap Wine
+
+tag Style as s
+  White Zinfandel
+  Red red
+
+Whites s: White
+  Chardonnay`;
+    const { diagnostics } = parseDgmo(src);
+    expect(
+      diagnostics.filter((d) => d.code === INVALID_COLOR_CODE)
+    ).toHaveLength(0);
+  });
+
+  it('hex in a tag-entry trailing slot is flagged', () => {
+    const src = `mindmap Wine
+
+tag Style as s
+  Red #ff0000
+  White white
+
+Reds s: Red
+  Cabernet`;
+    const { diagnostics } = parseDgmo(src);
+    const inv = diagnostics.filter((d) => d.code === INVALID_COLOR_CODE);
+    expect(inv).toHaveLength(1);
+    expect(inv[0].message).toMatch(/#ff0000/);
   });
 });
