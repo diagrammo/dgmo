@@ -816,7 +816,7 @@ API Gateway
 <!-- TYPE:flowchart -->
 
 <!-- TIPS start -->
-**Styling tips:** label the edges out of a decision node (`-yes->`, `-no->`) so branches read unambiguously; color outcomes by category with a tag group (e.g. a `Status` group with `Approved green`, `Rejected red`) rather than coloring nodes individually; keep each node to a short action phrase.
+**Styling tips:** write every connection as `Source -> Target` (or a single-line chain like `(Start) -> [Collect info] -> <Eligible?>`); write each connection on its own line. Every decision `<Question?>` MUST have at least two outgoing branches — usually `-yes->`/`-no->`, but use specific labels when the choices are not binary (e.g. `-retirement->`, `-disability->`, `-survivor->`); a decision with only one branch is invalid. Begin at exactly one start terminal `(Start)` and make every path terminate at a terminal node (`(Approved)`, `(Denied)`, `(End)`). Every node MUST connect to the rest of the graph: if a node cannot be traced from the start forward to a terminal, it is invalid — remove it, never leave it floating. Flowcharts have NO tag groups, node metadata, or manual node colors — do NOT write `tag … as …`, a `s: value` suffix, or a trailing color word; node colors are assigned automatically by shape (start terminal green, end terminals red, processes blue, decisions yellow). Just pick the right shape and let color follow. Label every decision edge so branches read unambiguously; keep each node to a short action phrase and phrase every decision as a question.
 <!-- TIPS end -->
 
 ### 4.1 Declaration
@@ -1043,7 +1043,7 @@ This is key-value metadata assignment, consistent with same-line metadata syntax
 <!-- TYPE:c4 -->
 
 <!-- TIPS start -->
-**Styling tips:** name each element by its responsibility, not its technology — put the tech in the `tech` field; color by system boundary with a tag group; keep one level of abstraction per diagram (context OR container, not both); keep relationship labels to the verb of the interaction.
+**Styling tips:** name each element by its responsibility, not its technology — put the tech in the `tech` field; color by system boundary with a tag group; keep one level of abstraction per diagram (context OR container, not both); keep relationship labels to the verb of the interaction. Write relationships INDENTED under their source element (`  -uses-> Other`), never as a top-level `A -uses-> B` line. Static renders (CLI, MCP) show the context level — containers/components appear only in the interactive drill-down, so author context-level diagrams for static output.
 <!-- TIPS end -->
 
 ### 7.1 Declaration
@@ -1278,7 +1278,7 @@ Optional label: `--|> Vessel : extends` (colon optional before label)
 <!-- TYPE:kanban -->
 
 <!-- TIPS start -->
-**Styling tips:** name columns for workflow stages (`Todo`, `Doing`, `Done`); keep card titles to a short task phrase; color cards by owner or priority with a tag group; let column length convey WIP instead of annotating counts.
+**Styling tips:** name columns for workflow stages (`Todo`, `Doing`, `Done`); keep card titles to a short task phrase; color cards by owner or priority with a tag group; let column length convey WIP instead of annotating counts. If you use a tag group, tag EVERY card — an untagged card currently inherits the first tag value (mislabeling it), so omit the tag group entirely for an uncolored board.
 <!-- TIPS end -->
 
 ### 10.1 Declaration
@@ -1325,6 +1325,10 @@ tag Crew as c
 ## 12. Sitemap Diagrams
 
 <!-- TYPE:sitemap -->
+
+<!-- TIPS start -->
+**Styling tips:** Connect pages by indenting `-> Target` lines under a parent page (not a top-level `Home -> Products`, which becomes one box), and declare each target as its own page too — bare indentation alone draws no connectors. Default flow is left-to-right; use `direction-tb` for a vertical tree. Keep labels to short page names.
+<!-- TIPS end -->
 
 ### 11.1 Declaration
 
@@ -1535,6 +1539,10 @@ want; anything left un-chained starts together at the parent's start.
 
 <!-- TYPE:pert -->
 
+<!-- TIPS start -->
+**Styling tips:** Give each task a duration and wire dependencies with `-> next`. Provide a single (most-likely) estimate plus `default-confidence medium` to auto-expand to a 3-point estimate, or give optimistic/likely/pessimistic explicitly. The critical path and slack are computed for you.
+<!-- TIPS end -->
+
 PERT diagrams visualize project networks with three-point duration estimates, surfacing critical path, slack, and project μ/σ. Each activity renders as a node card (rectangle, or diamond for milestones); dependencies are arrows between them. Monte Carlo simulation runs automatically whenever any activity carries duration data.
 
 ```
@@ -1697,6 +1705,10 @@ See spec §13A for full date-anchoring semantics, S-curve axes, and diagnostic c
 
 <!-- TYPE:boxes-and-lines -->
 
+<!-- TIPS start -->
+**Styling tips:** Write each connection as `Source -> Target` on its own line; boxes are auto-created from the labels. Group related boxes with a `[Group]` bracket and indent its members. Keep every box label a short noun phrase.
+<!-- TIPS end -->
+
 ### 13.1 Declaration
 
 ```
@@ -1858,37 +1870,43 @@ tag Era as t
 
 ### 14.2 Events
 
-Events use **name-first syntax** with `start:`, `end:`, and `duration:` as reserved metadata keys.
+Events use **date-first syntax** — the date (or date range) leads, then the event name, with optional trailing same-line metadata (§1.4).
 
-**Point event** (`start:` only):
-
-```
-Blockades Charleston start: 1718-05, p: Blackbeard
-```
-
-**Range event** (`start:` + `end:`):
+**Point event** (single date):
 
 ```
-Sails under Hornigold start: 1716, end: 1717, p: Blackbeard
+1718-05 Blockades Charleston p: Blackbeard
 ```
 
-**Duration event** (`start:` + `duration:`):
+**Range event** (`->` between dates, spaces optional):
 
 ```
-Sprint 1 start: 2026-03-20, duration: 30d
+1716 -> 1717 Sails under Hornigold p: Blackbeard
 ```
 
-**Uncertain ending** (`?` suffix on `end:` or `duration:`):
+**Duration event** (date + name + `duration:` metadata):
 
 ```
-Rackham builds crew start: 1718, end: 1719?
+2026-03-20 Sprint 1 duration: 30d
 ```
 
-Event type is determined by key presence:
+**Datetime** (date with `HH:MM` time component):
 
-- `start:` only → point event
-- `start:` + `end:` → range event
-- `start:` + `duration:` → duration event
+```
+2026-03-20 14:30 Standup Meeting
+```
+
+**Uncertain ending** (`?` suffix on end date or duration value):
+
+```
+1718 -> 1719? Rackham builds crew
+```
+
+Event type is determined by positional structure:
+
+- single date → point event
+- `date -> date` → range event
+- single date + `duration:` → duration event
 
 Date formats: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `YYYY-MM-DD HH:MM`
 Duration units: `min`, `h`, `d`, `w`, `m`, `y`
@@ -1929,7 +1947,7 @@ marker
 
 ```
 [Royal Navy]
-  Woodes Rogers arrives start: 1718-07
+  1718-07 Woodes Rogers arrives
 ```
 
 ---
@@ -2065,6 +2083,10 @@ Point names render by default. Use `no-name` to hide them.
 
 <!-- TYPE:heatmap -->
 
+<!-- TIPS start -->
+**Styling tips:** Declare the column headers in a `columns` block, then one row per item with space-separated numeric values (`Dana 5 2 4 3 2`). The values drive the color scale, so keep them on a consistent range.
+<!-- TIPS end -->
+
 **Columns** — follows §15 Rule B (prefer the indented block for multiple columns):
 
 ```
@@ -2086,6 +2108,10 @@ RowLabel 5 4 3
 
 <!-- TYPE:function -->
 
+<!-- TIPS start -->
+**Styling tips:** Set the domain once with `x <min> to <max>`. Give each curve a short plain-text name and put the math after the colon (`Sine blue: sin(x)`); the text before the colon is a label, so prefer a word like `Sine` over repeating the expression.
+<!-- TIPS end -->
+
 ```
 function Trajectories
 x-label Distance
@@ -2105,6 +2131,10 @@ The colon between name and expression is **required** — both sides can contain
 ### 15.5 Sankey Charts
 
 <!-- TYPE:sankey -->
+
+<!-- TIPS start -->
+**Styling tips:** Write each flow as `Source -> Target value` (space-separated value, no comma). The value sets the band width; flow reads left-to-right, so order sources upstream of targets.
+<!-- TIPS end -->
 
 **Tree structure (indented, space-separated):**
 
@@ -2126,6 +2156,10 @@ Source -- Target 2000
 ### 15.6 Chord Charts
 
 <!-- TYPE:chord -->
+
+<!-- TIPS start -->
+**Styling tips:** Write each connection as `Source -> Target value` (or `--` for undirected). Every node becomes an arc on the circle and each value sets the ribbon thickness — good for dense many-to-many relationships.
+<!-- TIPS end -->
 
 ```
 Blackbeard -- Bonnet 150        // undirected
@@ -2158,6 +2192,10 @@ Purchases 200
 
 <!-- TYPE:slope -->
 
+<!-- TIPS start -->
+**Styling tips:** Declare exactly two periods with `period <A> <B>`, then one line per item as `Label <from> <to>`. Slope charts compare two points in time only — use a line/bar chart for more periods.
+<!-- TIPS end -->
+
 ```
 slope Fleet Strength
 
@@ -2182,6 +2220,10 @@ Roberts 12 52
 
 <!-- TYPE:wordcloud -->
 
+<!-- TIPS start -->
+**Styling tips:** One `term weight` per line (`TypeScript 95`); the weight drives font size, so spread weights across a wide range for visual contrast. Keep terms to single words or short phrases.
+<!-- TIPS end -->
+
 ```
 wordcloud Pirate Skills
 rotate none
@@ -2199,6 +2241,10 @@ navigation 88
 
 <!-- TYPE:arc -->
 
+<!-- TIPS start -->
+**Styling tips:** Write each link as `Source -> Target value`; nodes sit on a single axis and arcs are sized by value. Order nodes so the busiest connections form short arcs where possible.
+<!-- TIPS end -->
+
 ```
 arc Pirate Alliances
 
@@ -2215,6 +2261,10 @@ order group
 ### 16.4 Venn Diagrams
 
 <!-- TYPE:venn -->
+
+<!-- TIPS start -->
+**Styling tips:** Declare each set as `Name as <alias> <color>`, then intersections as `<alias> + <alias> <count>` (and a triple `a + b + c <count>`). Note: all circles render the same size — overlap labels, not circle area, convey the numbers.
+<!-- TIPS end -->
 
 ```
 venn Skill Overlap
@@ -2234,6 +2284,10 @@ sw + nav + lead Legendary Pirates
 ### 16.5 Quadrant Diagrams
 
 <!-- TYPE:quadrant -->
+
+<!-- TIPS start -->
+**Styling tips:** Plot points as `Label x y` (space-separated, no comma between x and y). Normalize raw metrics to a 0–1 range yourself — axes are not auto-scaled. Name the four regions with `top-left`/`top-right`/`bottom-left`/`bottom-right` + a color so each quadrant reads as a category.
+<!-- TIPS end -->
 
 ```
 quadrant Crew Assessment
@@ -2391,6 +2445,10 @@ Universal options (`palette`, `theme`) apply as elsewhere.
 
 <!-- TYPE:wireframe -->
 
+<!-- TIPS start -->
+**Styling tips:** There is no link element — render hyperlinks as bare text (`Forgot password?`), NOT `[brackets]` (which is a text INPUT). Use `#`/`##` for headings, `(Label) primary` for the main button, and the `password` flag to mask a field.
+<!-- TIPS end -->
+
 Wireframe diagrams use **visual-mnemonic syntax** where bracket characters communicate element type.
 
 ### Declaration
@@ -2525,6 +2583,10 @@ wireframe Login Page
 
 <!-- TYPE:tech-radar -->
 
+<!-- TIPS start -->
+**Styling tips:** Use exactly four quadrants and place each item in one with `quadrant: <name>`; every blip needs a `ring:`. When the source is a numeric score rather than adopt/trial/assess/hold, bucket the scores into rings yourself and note the raw value in the blip description.
+<!-- TIPS end -->
+
 ```
 tech-radar Title
 
@@ -2592,6 +2654,10 @@ Blips receive sequential global numbers. Order: quadrants clockwise (top-left �
 ## 21. Cycle Diagrams
 
 <!-- TYPE:cycle -->
+
+<!-- TIPS start -->
+**Styling tips:** List the stages in order — the renderer closes the loop back to the first automatically, so do not add a wrap-around edge. An indented line under a stage becomes its description.
+<!-- TIPS end -->
 
 Circular process flows where nodes sit on a ring and directed edges connect each to the next, wrapping from last back to first. Common use: OODA loops, PDCA, product lifecycles, continuous improvement.
 
@@ -2726,6 +2792,10 @@ Act red
 
 <!-- TYPE:journey-map -->
 
+<!-- TIPS start -->
+**Styling tips:** Write each stage as `Stage score: <1-5>` with an indented `description:` for the action; add `persona <name>` once at the top. The scores draw the emotion curve, so vary them to show highs and lows.
+<!-- TIPS end -->
+
 Persona-centric mood landscapes. Steps carry a 1–5 score and optional emotion label; the renderer draws an emotion curve over phase-grouped step cards. **Declaration is required** — the `journey-map` keyword must appear on the first line (no inference, to avoid colliding with kanban's `[Column]` + indented items shape).
 
 ### Declaration
@@ -2851,6 +2921,10 @@ Got resolution score: 5, emotion: Relieved
 
 <!-- TYPE:pyramid -->
 
+<!-- TIPS start -->
+**Styling tips:** Source order is apex-first (first line = top). For a funnel-shaped dataset, list the smallest stage first so the widest tier lands at the base. Bands are uniform height (not value-proportional) — put counts in an indented description.
+<!-- TIPS end -->
+
 Hierarchical pyramid visualization with stacked layers, descriptions, and optional per-layer color. Source order reads apex-first (top of file = top of pyramid).
 
 ### Declaration
@@ -2913,6 +2987,10 @@ When descriptions don't fit a layer's band the renderer wraps at the column edge
 ## 24. Ring Diagrams
 
 <!-- TYPE:ring -->
+
+<!-- TIPS start -->
+**Styling tips:** Source order is innermost→outermost (first line = center disc). Bands are uniform thickness, not value-proportional; put the value in an indented description line. For a true part-of-whole proportion use pie or funnel instead.
+<!-- TIPS end -->
 
 Concentric-ring visualization for nested or hierarchical categories. Source order reads core-out: top of file = innermost element (rendered as a filled disc), last line = outermost ring. Min 2 layers, max 15.
 
@@ -2983,6 +3061,10 @@ When ring band thickness would force the in-band label below the readable floor 
 
 <!-- TYPE:raci -->
 
+<!-- TIPS start -->
+**Styling tips:** Put each task at indent-0 and its role cells one level in (`Role: A`/`R`/`C`/`I`); declare the roles with a top-level `roles <A>, <B>, ...` line. Give every task exactly one A and one R to avoid lint warnings. A `[Phase]` header is optional — only use the indented `roles` block form when a `[Phase]` header follows.
+<!-- TIPS end -->
+
 A tasks × roles responsibility matrix with author-time linting. **One chart type — `raci` — covers all three variants.** Variant is inferred from the markers used; an optional `variant-*` directive locks it explicitly.
 
 | Variant | Marker alphabet | Constraint                                   |
@@ -3037,12 +3119,14 @@ roles
 raci Choose the next port
 roles Cap, Nav, QM, Bos
 
-  Pick destination
-    Cap: D
-    Nav: A
-    QM: C
-    Bos: I
+Pick destination
+  Cap: D
+  Nav: A
+  QM: C
+  Bos: I
 ```
+
+> Without a `[Phase]` header, put each task at **indent-0** and its role cells one level in (as above). Only nest tasks under a phase when a `[Phase]` header is present — otherwise the indented `roles` block greedily swallows the following lines.
 
 ### Directives
 

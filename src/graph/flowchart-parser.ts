@@ -101,6 +101,29 @@ function parseNodeRef(text: string): NodeRef | null {
 }
 
 /**
+ * Match a leading shape token plus any trailing text. Used to SALVAGE a node
+ * that `parseNodeRef` rejects because of trailing junk — most commonly an
+ * unsupported tag/metadata suffix the AI emits (`(Denied) s: Denied`).
+ * Flowcharts have no metadata/tag-group system (color a node inline instead:
+ * `(Denied red)`), so rather than silently drop the node AND its edge we keep
+ * the node, strip the suffix, and let the caller warn. The shape regexes are
+ * non-greedy so the FIRST balanced delimiter wins.
+ */
+function parseNodeRefLoose(
+  text: string
+): { ref: NodeRef; trailing: string } | null {
+  const t = text.trim();
+  // Order mirrors parseNodeRef: subroutine/document before process.
+  const shapeRe =
+    /^(\[\[.+?\]\]|\[.+?~\]|\[.+?\]|\(.+?\)|<.+?>|\/.+?\/)\s+(\S.*)$/;
+  const m = t.match(shapeRe);
+  if (!m) return null;
+  const ref = parseNodeRef(m[1]!);
+  if (!ref) return null;
+  return { ref, trailing: m[2]!.trim() };
+}
+
+/**
  * Split a line into segments around arrow tokens.
  * Arrows: `->`, `-label->`, and long-dash variants like `-->`, `--->`,
  * `--foo--->` (TD-9 longest-match: the arrow token is the maximal run of `-+>`).
@@ -270,6 +293,11 @@ export function parseFlowchart(
   const notes: GraphNote[] = [];
   let contentStarted = false;
   let firstLineParsed = false;
+  // The last node id seen on the PREVIOUS content line — the implicit source
+  // for a line that begins with a bare arrow (`(Start)` then `-> Next` on its
+  // own line). Without this, the same-indent pop empties the indent stack and
+  // the leading-arrow line is dropped, orphaning the prior node.
+  let prevLineLastNodeId: string | null = null;
 
   // Per-parse alias literal → canonical node id (TD-18). Per C8:
   // never persisted, fresh each parse.
@@ -285,6 +313,22 @@ export function parseFlowchart(
     if (!m) return { seg: trimmed };
     // Capture groups 1 and 2 guaranteed present by successful regex match.
     return { seg: m[1]!.trim(), alias: m[2]! };
+  }
+
+  // Lines we've already warned about an unsupported node suffix on, so a chain
+  // with several salvaged nodes doesn't emit duplicate warnings per line.
+  const suffixWarnedLines = new Set<number>();
+  function warnUnsupportedSuffix(lineNumber: number, trailing: string): void {
+    if (suffixWarnedLines.has(lineNumber)) return;
+    suffixWarnedLines.add(lineNumber);
+    result.diagnostics.push(
+      makeDgmoError(
+        lineNumber,
+        `Ignored unsupported text after a node shape: "${trailing}". Flowcharts have no tag groups or node metadata; node colors are assigned automatically by shape (e.g. terminals green/red, decisions yellow). Remove the suffix.`,
+        'warning',
+        'W_FLOWCHART_NODE_SUFFIX'
+      )
+    );
   }
 
   function getOrCreateNode(ref: NodeRef, lineNumber: number): GraphNode {
@@ -371,6 +415,13 @@ export function parseFlowchart(
     // Split line into segments around arrows
     const segments = splitArrows(trimmed);
 
+    // A line that begins with a bare arrow (first segment empty) is a
+    // continuation of the previous line's chain — its source is the last node
+    // on the previous content line when the indent stack offers nothing.
+    const startsWithArrow = segments.length >= 2 && segments[0]!.trim() === '';
+    const effectiveSource =
+      implicitSourceId ?? (startsWithArrow ? prevLineLastNodeId : null);
+
     if (segments.length === 1) {
       // Single node reference, no arrows. May carry an `as <alias>`
       // postfix per TD-18.
@@ -380,6 +431,15 @@ export function parseFlowchart(
       if (ref) {
         const node = getOrCreateNode(ref, lineNumber);
         if (peeled.alias) nameAliasMap.set(peeled.alias, node.id);
+        indentStack.push({ nodeId: node.id, indent });
+        return node.id;
+      }
+      // Salvage a shape with an unsupported trailing suffix (e.g. a tag/
+      // metadata assignment `(Denied) s: Denied`) — keep the node, warn.
+      const loose = parseNodeRefLoose(peeled.seg);
+      if (loose) {
+        warnUnsupportedSuffix(lineNumber, loose.trailing);
+        const node = getOrCreateNode(loose.ref, lineNumber);
         indentStack.push({ nodeId: node.id, indent });
         return node.id;
       }
@@ -431,18 +491,28 @@ export function parseFlowchart(
           }
         }
       }
+      if (!ref) {
+        // Salvage a shape with an unsupported trailing suffix (most often a
+        // tag/metadata assignment like `(Denied) s: Denied`) so the node AND
+        // its edge survive instead of being silently dropped.
+        const loose = parseNodeRefLoose(peeled.seg);
+        if (loose) {
+          warnUnsupportedSuffix(lineNumber, loose.trailing);
+          ref = loose.ref;
+        }
+      }
       if (!ref) continue;
 
       const node = getOrCreateNode(ref, lineNumber);
       if (peeled.alias) nameAliasMap.set(peeled.alias, node.id);
 
       if (pendingArrow !== null) {
-        const sourceId = lastNodeId ?? implicitSourceId;
+        const sourceId = lastNodeId ?? effectiveSource;
         if (sourceId) {
           addEdge(sourceId, node.id, lineNumber, pendingArrow.label);
         }
         pendingArrow = null;
-      } else if (lastNodeId === null && implicitSourceId === null) {
+      } else if (lastNodeId === null && effectiveSource === null) {
         // First node in chain, no arrow yet — just register
       }
 
@@ -571,7 +641,11 @@ export function parseFlowchart(
     }
 
     // Content line (nodes and edges)
-    processContentLine(trimmed, lineNumber, indent);
+    const lastId = processContentLine(trimmed, lineNumber, indent);
+    // Remember this line's tail so a following bare-arrow line can attach to
+    // it (leading-arrow continuation). Keep the prior value when a line
+    // produces no node so blank/unparseable lines don't break the chain.
+    if (lastId) prevLineLastNodeId = lastId;
   }
 
   // Validation: no nodes found

@@ -481,4 +481,44 @@ o -> [Ship]`);
     // which fails parseNodeRef, so no edge created.
     expect(b.edges).toHaveLength(0);
   });
+
+  describe('leading-arrow continuation', () => {
+    it('attaches a bare-arrow line to the previous line’s node', () => {
+      const result = parseFlowchart(`flowchart
+(Start)
+-> /Collect info/
+-> <Ready?>`);
+      // Start -> Collect, Collect -> Ready: nothing orphaned.
+      expect(result.edges).toHaveLength(2);
+      const labels = result.nodes.map((n) => n.label).sort();
+      expect(labels).toEqual(['Collect info', 'Ready?', 'Start']);
+      // No "not connected" warning for Start.
+      expect(
+        result.diagnostics.some((d) => /not connected/.test(d.message))
+      ).toBe(false);
+    });
+  });
+
+  describe('unsupported node suffix salvage (no tag groups)', () => {
+    it('keeps a node + edge when the target carries a tag-style suffix', () => {
+      const result = parseFlowchart(`flowchart
+(Start) -> <Ok?>
+<Ok?> -yes-> (Approved) s: Eligible
+<Ok?> -no-> (Denied) s: Denied`);
+      // Both terminals + their edges survive instead of being dropped.
+      expect(result.edges).toHaveLength(3);
+      expect(result.nodes.find((n) => n.label === 'Approved')).toBeDefined();
+      expect(result.nodes.find((n) => n.label === 'Denied')).toBeDefined();
+    });
+
+    it('warns once per line about the ignored suffix', () => {
+      const result = parseFlowchart(`flowchart
+(Start) -> (Denied) s: Denied`);
+      const warns = result.diagnostics.filter(
+        (d) => d.code === 'W_FLOWCHART_NODE_SUFFIX'
+      );
+      expect(warns).toHaveLength(1);
+      expect(warns[0].message).toMatch(/automatically by shape/);
+    });
+  });
 });

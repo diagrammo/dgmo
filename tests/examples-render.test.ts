@@ -6,6 +6,7 @@ import { parseExtendedChart } from '../src/echarts';
 import { parseVisualization } from '../src/d3';
 import { parseCycle } from '../src/cycle/parser';
 import { parseMindmap } from '../src/mindmap/parser';
+import { parseDgmo } from '../src/dgmo-router';
 import { getPalette } from '../src/palettes';
 
 const palette = getPalette('nord').light;
@@ -119,10 +120,20 @@ describe('examples + gallery render without parser errors (Task E5 / AC26)', () 
         case 'mindmap':
           error = parseMindmap(content, palette).error;
           break;
-        case 'unknown':
-          // Non-data charts (sequence, infra, c4, gantt, etc.) — skip.
-          // These have their own parsers and aren't in scope for this guard.
-          return;
+        case 'unknown': {
+          // Structured charts (sequence, infra, c4, gantt, org, raci, etc.)
+          // route through the dispatcher. Guard them too: any error-severity
+          // diagnostic means a stale/broken fixture (these previously slipped
+          // through unchecked — see the c4/boxes-and-lines fixture repairs).
+          const errs = parseDgmo(content).diagnostics.filter(
+            (d) => d.severity === 'error'
+          );
+          error =
+            errs.length > 0
+              ? errs.map((e) => `L${e.line}: ${e.message}`).join(' | ')
+              : null;
+          break;
+        }
       }
       expect(error, `${rel}: ${error}`).toBeNull();
     });

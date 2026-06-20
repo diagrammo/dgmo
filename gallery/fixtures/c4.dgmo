@@ -2,9 +2,11 @@ c4 Internet Banking System
 
 Customer is a person
   description: A customer of the bank
+  -Uses-> Banking
 
 Banking is a system
   description: Core internet banking system
+  -Sends emails via-> Email
   containers
     WebApp is a container tech: React
     API is a container tech: Node.js
@@ -12,6 +14,3 @@ Banking is a system
 
 Email is a system
   description: External email delivery service
-
-Customer -Uses-> Banking
-Banking -Sends emails via-> Email

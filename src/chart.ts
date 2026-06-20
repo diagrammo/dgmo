@@ -485,6 +485,21 @@ export function parseChart(
     );
   }
 
+  // Plain "bar" renders a single series per row — extra series are dropped
+  // silently by the renderer. Surface that instead of losing data quietly so
+  // the author switches to a multi-series type. (multi-line/line parse to
+  // type "line" and DO render every series, so they are unaffected.)
+  if (
+    !result.error &&
+    result.type === 'bar' &&
+    (result.seriesNames?.length ?? 0) > 1
+  ) {
+    warn(
+      result.seriesLineNumber ?? 1,
+      `Plain "bar" shows only the first series ("${result.seriesNames![0]}"); the other ${result.seriesNames!.length - 1} are dropped at render. Use "bar-stacked" for stacked bars or "multi-line" to plot every series.`
+    );
+  }
+
   if (!result.error && result.seriesNames) {
     const expectedCount = result.seriesNames.length;
     for (const dp of result.data) {

@@ -803,8 +803,15 @@ function parseExtendedChartFull(
             min: parseFloat(rangeMatch[1]!),
             max: parseFloat(rangeMatch[2]!),
           };
+          continue;
         }
-        continue;
+        // The `x` keyword owns ONLY the `x <min> to <max>` range form. A
+        // function curve can legitimately start with `x` (e.g. `x / 2: x / 2`);
+        // such a colon-bearing line must fall through to the function-curve
+        // handler below instead of being silently swallowed here.
+        if (!(result.type === 'function' && trimmed.includes(':'))) {
+          continue;
+        }
       }
     }
 

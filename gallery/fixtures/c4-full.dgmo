@@ -14,12 +14,16 @@ tag Team as t
 
 Customer is a person t: Frontend
   description: Browses and purchases books online
+  -Browses catalog-> Bookstore
 
 Admin is a person t: Backend
   description: Manages inventory and orders
+  -Manages inventory-> Bookstore
 
 Bookstore is a system t: Backend
   description: Core e-commerce platform for book sales
+  -Processes payments via-> PaymentGW tech: REST
+  ~Sends order confirmations~> EmailSvc tech: SMTP
   containers
     WebApp is a container tech: React, t: Frontend
       description: Single-page storefront application
@@ -45,8 +49,3 @@ PaymentGW is a system t: Platform
 
 EmailSvc is a system t: Platform
   description: SendGrid — transactional email delivery
-
-Customer -Browses catalog-> Bookstore
-Admin -Manages inventory-> Bookstore
-Bookstore -Processes payments via-> PaymentGW tech: REST
-Bookstore ~Sends order confirmations~> EmailSvc tech: SMTP

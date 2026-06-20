@@ -1,7 +1,7 @@
 boxes-and-lines E-Commerce Platform
 
-tag Team t Backend blue, Frontend green, Platform purple
-tag Priority p High red, Medium orange, Low gray
+tag Team as t Backend blue, Frontend green, Platform purple
+tag Priority as p High red, Medium orange, Low gray
 
 active-tag Team
 hide priority:Low
