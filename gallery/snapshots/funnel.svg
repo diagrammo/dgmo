@@ -10,11 +10,11 @@
 <polyline points="670.1 420 680.1 420" fill="none" pointer-events="visible" stroke="#2e3440" stroke-opacity="0.3" class="zr0-cls-1"></polyline>
 <polyline points="645.8 564 655.8 564" fill="none" pointer-events="visible" stroke="#2e3440" stroke-opacity="0.3" class="zr0-cls-1"></polyline>
 <polyline points="633.5 708 643.5 708" fill="none" pointer-events="visible" stroke="#2e3440" stroke-opacity="0.3" class="zr0-cls-1"></polyline>
-<polygon points="240 60 960 60 777.8 204 422.2 204" fill="#c9d4e2" stroke="#5e81ac" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-2"></polygon>
+<polygon points="240 60 960 60 777.8 204 422.2 204" fill="#e1ccd2" stroke="#bf616a" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-2"></polygon>
 <polygon points="422.2 204 777.8 204 686.8 348 513.2 348" fill="#dae3da" stroke="#a3be8c" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr0-cls-3"></polygon>
-<polygon points="513.2 348 686.8 348 653.4 492 546.6 492" fill="#ece6da" stroke="#ebcb8b" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr0-cls-4"></polygon>
-<polygon points="546.6 492 653.4 492 638.2 636 561.8 636" fill="#e5d5d3" stroke="#d08770" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr0-cls-5"></polygon>
-<polygon points="561.8 636 638.2 636 628.8 780 571.2 780" fill="#ded7e2" stroke="#b48ead" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr0-cls-6"></polygon>
+<polygon points="513.2 348 686.8 348 653.4 492 546.6 492" fill="#c9d4e2" stroke="#5e81ac" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr0-cls-4"></polygon>
+<polygon points="546.6 492 653.4 492 638.2 636 561.8 636" fill="#ece6da" stroke="#ebcb8b" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr0-cls-5"></polygon>
+<polygon points="561.8 636 638.2 636 628.8 780 571.2 780" fill="#d5e2e6" stroke="#8fbcbb" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr0-cls-6"></polygon>
 <polygon points="240 60 960 60 777.8 204 422.2 204" fill="none" pointer-events="visible" stroke="#fff" stroke-width="0" stroke-linejoin="round" ecmeta_series_index="1" ecmeta_data_index="0" ecmeta_ssr_type="chart" ecmeta_silent="true" class="zr0-cls-1"></polygon>
 <polygon points="422.2 204 777.8 204 686.8 348 513.2 348" fill="none" pointer-events="visible" stroke="#fff" stroke-width="0" stroke-linejoin="round" ecmeta_series_index="1" ecmeta_data_index="1" ecmeta_ssr_type="chart" ecmeta_silent="true" class="zr0-cls-1"></polygon>
 <polygon points="513.2 348 686.8 348 653.4 492 546.6 492" fill="none" pointer-events="visible" stroke="#fff" stroke-width="0" stroke-linejoin="round" ecmeta_series_index="1" ecmeta_data_index="2" ecmeta_ssr_type="chart" ecmeta_silent="true" class="zr0-cls-1"></polygon>
@@ -41,7 +41,7 @@ pointer-events:none;
 }
 .zr0-cls-2:hover {
 cursor:pointer;
-fill:rgba(221,233,248,1);
+fill:rgba(247,224,231,1);
 }
 .zr0-cls-3:hover {
 cursor:pointer;
@@ -49,15 +49,15 @@ fill:rgba(239,249,239,1);
 }
 .zr0-cls-4:hover {
 cursor:pointer;
-fill:rgba(255,253,239,1);
+fill:rgba(221,233,248,1);
 }
 .zr0-cls-5:hover {
 cursor:pointer;
-fill:rgba(251,234,232,1);
+fill:rgba(255,253,239,1);
 }
 .zr0-cls-6:hover {
 cursor:pointer;
-fill:rgba(244,236,248,1);
+fill:rgba(234,248,253,1);
 }
 
 ]]>
