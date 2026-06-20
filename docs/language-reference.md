@@ -1541,7 +1541,7 @@ want; anything left un-chained starts together at the parent's start.
 <!-- TYPE:pert -->
 
 <!-- TIPS start -->
-**Styling tips:** Let the graph tell the schedule story — name each task as a short action, wire the real dependencies, and let the computed critical path and slack carry the emphasis. Give a single most-likely estimate with `default-confidence medium`, or explicit optimistic/likely/pessimistic when you have them.
+**Styling tips:** Name each task as a short action and wire the real finish-to-start dependencies — branch and merge them so the critical path and per-task slack become meaningful. Give one most-likely estimate per task (the engine derives optimistic/pessimistic), or explicit O/M/P when you know them.
 <!-- TIPS end -->
 
 PERT diagrams visualize project networks with three-point duration estimates, surfacing critical path, slack, and project μ/σ. Each activity renders as a node card (rectangle, or diamond for milestones); dependencies are arrows between them. Monte Carlo simulation runs automatically whenever any activity carries duration data.
@@ -2159,7 +2159,7 @@ Source -- Target 2000
 <!-- TYPE:chord -->
 
 <!-- TIPS start -->
-**Styling tips:** Best when relationships are genuinely many-to-many — if they are mostly one-directional, a sankey reads clearer. Place related nodes adjacent so the heavy ribbons stay short.
+**Styling tips:** Chord shines for genuinely reciprocal, many-to-many relationships; if your flows are mostly one-directional or hub-and-spoke, a sankey reads clearer. List heavily-connected nodes consecutively — arcs follow first-appearance order, so this keeps the thickest ribbons short.
 <!-- TIPS end -->
 
 ```
@@ -2194,7 +2194,7 @@ Purchases 200
 <!-- TYPE:slope -->
 
 <!-- TIPS start -->
-**Styling tips:** Label both endpoints and let the steepest lines carry the story; highlight the biggest mover. Slope compares exactly two periods — use a line chart for more.
+**Styling tips:** Slope auto-labels both endpoints and colors each line — recolor only when one line is the story, then color just that mover and leave the rest to the default palette. It compares exactly two periods; use a line chart for more.
 <!-- TIPS end -->
 
 ```
@@ -2222,7 +2222,7 @@ Roberts 12 52
 <!-- TYPE:wordcloud -->
 
 <!-- TIPS start -->
-**Styling tips:** Spread the weights across a wide range so the size differences are obvious, cap the list (~30–40 terms), and drop filler words so the signal terms stand out.
+**Styling tips:** Make the largest and smallest terms differ enough in size to read at a glance — set an explicit `size <min> <max>` when raw weights are bunched together. Keep to the signal terms: cap the list (~30–40) and drop filler words.
 <!-- TIPS end -->
 
 ```
@@ -2243,7 +2243,7 @@ navigation 88
 <!-- TYPE:arc -->
 
 <!-- TIPS start -->
-**Styling tips:** Order the nodes along the axis so the busiest connections form short arcs — it reads as relationships over a single sequence; each connection’s value sizes its arc.
+**Styling tips:** Set `order appearance` and list links so the busiest pairs sit next to each other — heavy connections then read as short arcs hugging the axis instead of long sweeps (otherwise placement is automatic and row order is ignored).
 <!-- TIPS end -->
 
 ```
@@ -2264,7 +2264,7 @@ order group
 <!-- TYPE:venn -->
 
 <!-- TIPS start -->
-**Styling tips:** Keep to 2–3 sets and label the overlaps that matter. Circle area is NOT proportional, so put the meaningful counts on the intersections rather than relying on size.
+**Styling tips:** Use 2–3 sets and write the count of each meaningful overlap directly on its intersection; circle area is NOT proportional, so the numbers — not the sizes — carry the comparison.
 <!-- TIPS end -->
 
 ```
@@ -2990,7 +2990,7 @@ When descriptions don't fit a layer's band the renderer wraps at the column edge
 <!-- TYPE:ring -->
 
 <!-- TIPS start -->
-**Styling tips:** Use a few rings ordered core→outward by hierarchy; it is not a proportional chart (bands are uniform thickness — reach for pie/funnel for part-of-whole). Put each ring’s value in an indented description.
+**Styling tips:** Order rings core→outward by hierarchy, not by size — band thickness is uniform and carries no proportional meaning (use pie/funnel for part-of-whole). Keep any value you want read at a glance in the ring’s own label.
 <!-- TIPS end -->
 
 Concentric-ring visualization for nested or hierarchical categories. Source order reads core-out: top of file = innermost element (rendered as a filled disc), last line = outermost ring. Min 2 layers, max 15.
