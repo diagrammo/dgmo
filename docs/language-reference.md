@@ -3068,7 +3068,7 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 <!-- TYPE:map -->
 
 <!-- TIPS start -->
-**Styling tips:** the zero-config map already looks good — name places and stop. When POIs fall into categories, tag them so each category gets its own color; keep place labels to the place name; leave region colorize and coastlines on unless the user asks to hide them.
+**Styling tips:** the zero-config map already looks good — name places and stop. When POIs fall into categories, tag them so each category gets its own color; keep place labels to the place name; leave region colorize and coastlines on unless the user asks to hide them. **For routes/flows from a hub** (e.g. an airport's daily flights, a distribution center's shipments), write ONE edge per line and repeat the origin — `JFK ~daily~> LAX`, `JFK ~daily~> LHR`, … — never indented edges (those error). Use **arcs** (`~>`) for flights and long-haul links so the spokes separate; the connector label carries the relationship (`~daily~>`, `~2x daily~>`). Endpoints auto-create POIs, so don't add separate `poi` lines for places that already appear in an edge. Reach for a `route` block only when the trip is an **ordered voyage** that continues stop→stop (a cruise itinerary), not a set of independent routes from one origin.
 <!-- TIPS end -->
 
 Geographic concept maps: highlight/shade political subdivisions, drop points of interest (POIs), and connect them with routes or edges. For "share a concept" business maps, not cartography. Renders at a fixed, auto-fit position — no pan/zoom. Basemap and viewport are **inferred from the content you reference** — most maps need no directives. v1 boundaries: world countries + US states.
@@ -3167,10 +3167,12 @@ A -> B                  # one-off, directed
 A -ferry- B value: 12   # undirected line; value = line thickness
 A ~cable~ B             # undirected arc with a label
 A -> B -> C             # inline chain
-dcw                     # hub/star — indented edges share the source
-  -> office-east
-  -- office-west        # hub legs accept any connector token
+JFK ~daily~> LAX        # hub/star: ONE edge per line, repeat the origin
+JFK ~daily~> LHR        # (NOT indented — indented legs are only valid
+JFK ~2x daily~> SFO     #  inside a `route` block, which is an ordered voyage)
 ```
+
+Each native edge is ONE full line — `<origin> <connector> <destination>`. There is no indented-edge / shared-source hub form for native edges (it errors as "Malformed edge"); to fan out from a hub, repeat the origin on each line as above. Endpoints auto-create their POIs, so a connected map needs no separate `poi` lines.
 
 There is no geographic path-finding and no `surface:` — legs are plain straight or arced geometry (`style: arc` to bow one) and may cross land.
 
