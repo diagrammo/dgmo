@@ -135,7 +135,8 @@ function coastlineOuterRings(
 ): string[] {
   const paths: string[] = [];
   for (const r of regions) {
-    const rings = parsePathRings(r.d);
+    // Reuse the rings parsed once in layoutMap; fall back for older layouts.
+    const rings = (r.rings as Array<Array<[number, number]>>) ?? parsePathRings(r.d);
     for (let i = 0; i < rings.length; i++) {
       const ring = rings[i]!;
       if (ring.length < 3) continue;

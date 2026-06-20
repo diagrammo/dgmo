@@ -329,6 +329,11 @@ export interface MapLayoutRegion {
    *  label blob. Absent only if the layout was built before this field existed —
    *  the renderer falls back to parsing `d`. */
   bbox?: readonly [number, number, number, number];
+  /** Parsed screen-space rings of `d`, computed once in `layoutMap` (the same
+   *  `fillAt` hit-target parse as `bbox`) so the renderer's coastline buffering
+   *  doesn't re-parse every region path on every render. Absent only for layouts
+   *  predating this field — callers fall back to `parsePathRings(d)`. */
+  rings?: ReadonlyArray<ReadonlyArray<readonly [number, number]>>;
 }
 
 /** A framed inset "cutout" (albers-usa AK/HI), in screen px. The frame is a
@@ -2458,14 +2463,20 @@ export function layoutMap(
         if (p[1] < minY) minY = p[1];
         if (p[1] > maxY) maxY = p[1];
       }
-    // Stash the bbox on the region so the renderer's per-POI-label cull reuses
-    // this parse instead of re-parsing `d` once per label blob (roadmap #2).
-    (r as { bbox?: readonly [number, number, number, number] }).bbox = [
-      minX,
-      minY,
-      maxX,
-      maxY,
-    ];
+    // Stash the bbox + parsed rings on the region so the renderer's per-POI-label
+    // cull (bbox) and coastline buffering (rings) reuse this parse instead of
+    // re-parsing `d` (roadmap #2/#4).
+    (
+      r as {
+        bbox?: readonly [number, number, number, number];
+        rings?: ReadonlyArray<ReadonlyArray<readonly [number, number]>>;
+      }
+    ).bbox = [minX, minY, maxX, maxY];
+    (
+      r as {
+        rings?: ReadonlyArray<ReadonlyArray<readonly [number, number]>>;
+      }
+    ).rings = rings;
     return { fill: r.fill, rings, minX, minY, maxX, maxY };
   });
   const fillAt = (x: number, y: number): string => {
