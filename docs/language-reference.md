@@ -1328,7 +1328,7 @@ tag Crew as c
 <!-- TYPE:sitemap -->
 
 <!-- TIPS start -->
-**Styling tips:** Connect pages by indenting `-> Target` lines under a parent page (not a top-level `Home -> Products`, which becomes one box), and declare each target as its own page too — bare indentation alone draws no connectors. Default flow is left-to-right; use `direction-tb` for a vertical tree. Keep labels to short page names.
+**Styling tips:** Mirror the real navigation: group child pages under their section and keep the tree shallow (2–3 levels), ordering siblings by prominence. Connect pages with indented `-> Target` lines under each parent (a top-level `Home -> Products` renders as one box) and declare every target as its own page.
 <!-- TIPS end -->
 
 ### 11.1 Declaration
@@ -1541,7 +1541,7 @@ want; anything left un-chained starts together at the parent's start.
 <!-- TYPE:pert -->
 
 <!-- TIPS start -->
-**Styling tips:** Give each task a duration and wire dependencies with `-> next`. Provide a single (most-likely) estimate plus `default-confidence medium` to auto-expand to a 3-point estimate, or give optimistic/likely/pessimistic explicitly. The critical path and slack are computed for you.
+**Styling tips:** Let the graph tell the schedule story — name each task as a short action, wire the real dependencies, and let the computed critical path and slack carry the emphasis. Give a single most-likely estimate with `default-confidence medium`, or explicit optimistic/likely/pessimistic when you have them.
 <!-- TIPS end -->
 
 PERT diagrams visualize project networks with three-point duration estimates, surfacing critical path, slack, and project μ/σ. Each activity renders as a node card (rectangle, or diamond for milestones); dependencies are arrows between them. Monte Carlo simulation runs automatically whenever any activity carries duration data.
@@ -1707,7 +1707,7 @@ See spec §13A for full date-anchoring semantics, S-curve axes, and diagnostic c
 <!-- TYPE:boxes-and-lines -->
 
 <!-- TIPS start -->
-**Styling tips:** Write each connection as `Source -> Target` on its own line; boxes are auto-created from the labels. Group related boxes with a `[Group]` bracket and indent its members. Keep every box label a short noun phrase.
+**Styling tips:** Show one clear direction of flow; group related boxes with a `[Group]` bracket and label each edge with the relationship rather than a bare arrow. Keep every box a short noun phrase.
 <!-- TIPS end -->
 
 ### 13.1 Declaration
@@ -2085,7 +2085,7 @@ Point names render by default. Use `no-name` to hide them.
 <!-- TYPE:heatmap -->
 
 <!-- TIPS start -->
-**Styling tips:** Declare the column headers in a `columns` block, then one row per item with space-separated numeric values (`Dana 5 2 4 3 2`). The values drive the color scale, so keep them on a consistent range.
+**Styling tips:** Sort rows and columns by their totals (not alphabetically) so the strongest cells gather in one corner and the high-to-low pattern reads at a glance; keep every cell on the same numeric scale so the colors stay comparable.
 <!-- TIPS end -->
 
 **Columns** — follows §15 Rule B (prefer the indented block for multiple columns):
@@ -2110,7 +2110,7 @@ RowLabel 5 4 3
 <!-- TYPE:function -->
 
 <!-- TIPS start -->
-**Styling tips:** Set the domain once with `x <min> to <max>`. Give each curve a short plain-text name and put the math after the colon (`Sine blue: sin(x)`); the text before the colon is a label, so prefer a word like `Sine` over repeating the expression.
+**Styling tips:** Pick a domain (`x <min> to <max>`) that frames the interesting behavior and keep to a few curves for legibility. Give each curve a short readable name before the colon (`Sine: sin(x)`), not the expression repeated.
 <!-- TIPS end -->
 
 ```
@@ -2134,7 +2134,7 @@ The colon between name and expression is **required** — both sides can contain
 <!-- TYPE:sankey -->
 
 <!-- TIPS start -->
-**Styling tips:** Write each flow as `Source -> Target value` (space-separated value, no comma). The value sets the band width; flow reads left-to-right, so order sources upstream of targets.
+**Styling tips:** Feed flows in process order (left to right) and let each connection’s value set its band width — the layout already orders nodes to reduce crossings. Fold flows into one "Other" band only when many are individually negligible; never rename a single meaningful node.
 <!-- TIPS end -->
 
 **Tree structure (indented, space-separated):**
@@ -2159,7 +2159,7 @@ Source -- Target 2000
 <!-- TYPE:chord -->
 
 <!-- TIPS start -->
-**Styling tips:** Write each connection as `Source -> Target value` (or `--` for undirected). Every node becomes an arc on the circle and each value sets the ribbon thickness — good for dense many-to-many relationships.
+**Styling tips:** Best when relationships are genuinely many-to-many — if they are mostly one-directional, a sankey reads clearer. Place related nodes adjacent so the heavy ribbons stay short.
 <!-- TIPS end -->
 
 ```
@@ -2194,7 +2194,7 @@ Purchases 200
 <!-- TYPE:slope -->
 
 <!-- TIPS start -->
-**Styling tips:** Declare exactly two periods with `period <A> <B>`, then one line per item as `Label <from> <to>`. Slope charts compare two points in time only — use a line/bar chart for more periods.
+**Styling tips:** Label both endpoints and let the steepest lines carry the story; highlight the biggest mover. Slope compares exactly two periods — use a line chart for more.
 <!-- TIPS end -->
 
 ```
@@ -2222,7 +2222,7 @@ Roberts 12 52
 <!-- TYPE:wordcloud -->
 
 <!-- TIPS start -->
-**Styling tips:** One `term weight` per line (`TypeScript 95`); the weight drives font size, so spread weights across a wide range for visual contrast. Keep terms to single words or short phrases.
+**Styling tips:** Spread the weights across a wide range so the size differences are obvious, cap the list (~30–40 terms), and drop filler words so the signal terms stand out.
 <!-- TIPS end -->
 
 ```
@@ -2243,7 +2243,7 @@ navigation 88
 <!-- TYPE:arc -->
 
 <!-- TIPS start -->
-**Styling tips:** Write each link as `Source -> Target value`; nodes sit on a single axis and arcs are sized by value. Order nodes so the busiest connections form short arcs where possible.
+**Styling tips:** Order the nodes along the axis so the busiest connections form short arcs — it reads as relationships over a single sequence; each connection’s value sizes its arc.
 <!-- TIPS end -->
 
 ```
@@ -2264,7 +2264,7 @@ order group
 <!-- TYPE:venn -->
 
 <!-- TIPS start -->
-**Styling tips:** Declare each set as `Name as <alias> <color>`, then intersections as `<alias> + <alias> <count>` (and a triple `a + b + c <count>`). Note: all circles render the same size — overlap labels, not circle area, convey the numbers.
+**Styling tips:** Keep to 2–3 sets and label the overlaps that matter. Circle area is NOT proportional, so put the meaningful counts on the intersections rather than relying on size.
 <!-- TIPS end -->
 
 ```
@@ -2287,7 +2287,7 @@ sw + nav + lead Legendary Pirates
 <!-- TYPE:quadrant -->
 
 <!-- TIPS start -->
-**Styling tips:** Plot points as `Label x y` (space-separated, no comma between x and y). Normalize raw metrics to a 0–1 range yourself — axes are not auto-scaled. Name the four regions with `top-left`/`top-right`/`bottom-left`/`bottom-right` + a color so each quadrant reads as a category.
+**Styling tips:** Name the four quadrants as meaningful categories (not just positions) and call out the outliers; normalize values to 0–1 so the points spread across the whole space.
 <!-- TIPS end -->
 
 ```
@@ -2447,7 +2447,7 @@ Universal options (`palette`, `theme`) apply as elsewhere.
 <!-- TYPE:wireframe -->
 
 <!-- TIPS start -->
-**Styling tips:** There is no link element — render hyperlinks as bare text (`Forgot password?`), NOT `[brackets]` (which is a text INPUT). Use `#`/`##` for headings, `(Label) primary` for the main button, and the `password` flag to mask a field.
+**Styling tips:** Keep it low-fidelity — boxes, labels, and one primary action `(Sign in) primary` per screen, grouped by region. Links are bare text (`Forgot password?`); `[brackets]` is an input field.
 <!-- TIPS end -->
 
 Wireframe diagrams use **visual-mnemonic syntax** where bracket characters communicate element type.
@@ -2585,7 +2585,7 @@ wireframe Login Page
 <!-- TYPE:tech-radar -->
 
 <!-- TIPS start -->
-**Styling tips:** Use exactly four quadrants and place each item in one with `quadrant: <name>`; every blip needs a `ring:`. When the source is a numeric score rather than adopt/trial/assess/hold, bucket the scores into rings yourself and note the raw value in the blip description.
+**Styling tips:** Group blips into the four domain quadrants and let the rings carry adoption stage (Adopt→Hold); annotate movement with a `trend`. When the source is a numeric score, bucket it into a ring and keep the number in the description.
 <!-- TIPS end -->
 
 ```
@@ -2657,7 +2657,7 @@ Blips receive sequential global numbers. Order: quadrants clockwise (top-left �
 <!-- TYPE:cycle -->
 
 <!-- TIPS start -->
-**Styling tips:** List the stages in order — the renderer closes the loop back to the first automatically, so do not add a wrap-around edge. An indented line under a stage becomes its description.
+**Styling tips:** Aim for 3–6 stages so the loop stays legible; name each as a short step and let the closed ring imply repetition (no wrap-around edge needed). An indented line adds a description.
 <!-- TIPS end -->
 
 Circular process flows where nodes sit on a ring and directed edges connect each to the next, wrapping from last back to first. Common use: OODA loops, PDCA, product lifecycles, continuous improvement.
@@ -2794,7 +2794,7 @@ Act red
 <!-- TYPE:journey-map -->
 
 <!-- TIPS start -->
-**Styling tips:** Write each stage as `Stage score: <1-5>` with an indented `description:` for the action; add `persona <name>` once at the top. The scores draw the emotion curve, so vary them to show highs and lows.
+**Styling tips:** Label a single-word `emotion:` on each step so the highs and lows are named, not just shaped; give one concrete action per stage and name the persona. Mark the trough with `pain:` and the peak with `opportunity:` so the arc’s meaning lands.
 <!-- TIPS end -->
 
 Persona-centric mood landscapes. Steps carry a 1–5 score and optional emotion label; the renderer draws an emotion curve over phase-grouped step cards. **Declaration is required** — the `journey-map` keyword must appear on the first line (no inference, to avoid colliding with kanban's `[Column]` + indented items shape).
@@ -2923,7 +2923,7 @@ Got resolution score: 5, emotion: Relieved
 <!-- TYPE:pyramid -->
 
 <!-- TIPS start -->
-**Styling tips:** Source order is apex-first (first line = top). For a funnel-shaped dataset, list the smallest stage first so the widest tier lands at the base. Bands are uniform height (not value-proportional) — put counts in an indented description.
+**Styling tips:** Keep to a few tiers (3–5), widest at the base, and label each tier with its value — bands are uniform height, so the number carries the magnitude. For a funnel-shaped dataset, list the smallest stage first.
 <!-- TIPS end -->
 
 Hierarchical pyramid visualization with stacked layers, descriptions, and optional per-layer color. Source order reads apex-first (top of file = top of pyramid).
@@ -2990,7 +2990,7 @@ When descriptions don't fit a layer's band the renderer wraps at the column edge
 <!-- TYPE:ring -->
 
 <!-- TIPS start -->
-**Styling tips:** Source order is innermost→outermost (first line = center disc). Bands are uniform thickness, not value-proportional; put the value in an indented description line. For a true part-of-whole proportion use pie or funnel instead.
+**Styling tips:** Use a few rings ordered core→outward by hierarchy; it is not a proportional chart (bands are uniform thickness — reach for pie/funnel for part-of-whole). Put each ring’s value in an indented description.
 <!-- TIPS end -->
 
 Concentric-ring visualization for nested or hierarchical categories. Source order reads core-out: top of file = innermost element (rendered as a filled disc), last line = outermost ring. Min 2 layers, max 15.
@@ -3063,7 +3063,7 @@ When ring band thickness would force the in-band label below the readable floor 
 <!-- TYPE:raci -->
 
 <!-- TIPS start -->
-**Styling tips:** Put each task at indent-0 and its role cells one level in (`Role: A`/`R`/`C`/`I`); declare the roles with a top-level `roles <A>, <B>, ...` line. Give every task exactly one A and one R to avoid lint warnings. A `[Phase]` header is optional — only use the indented `roles` block form when a `[Phase]` header follows.
+**Styling tips:** Put each task at indent-0 with its `Role: A/R/C/I` cells indented one level under it — never nest tasks inside the `roles` block (it swallows them). Give every task exactly one Accountable (ideally one Responsible) and keep roles small (≤~6) so the matrix stays scannable.
 <!-- TIPS end -->
 
 A tasks × roles responsibility matrix with author-time linting. **One chart type — `raci` — covers all three variants.** Variant is inferred from the markers used; an optional `variant-*` directive locks it explicitly.
