@@ -14,6 +14,7 @@ LLMs default to Mermaid / PlantUML habits; DGMO differs. These rules prevent the
 
 - **No colons in declarations, directives, tags, or data rows.** `bar Revenue` (not `bar: Revenue`); `series Cloud blue, Legacy red` (not `series: ...`); `North 850` (not `North: 850`); `tag Team as t` (not `tag: Team`). A colon binds a value only in metadata (`key: value`), class/function type separators, and a few scoped spots — see §26.
 - **No Mermaid arrow-labels.** Put the label *between* the dashes: `A -Login-> B`, never `A -> B: Login`. Sequence: `->` sync, `~>` async; left-to-right only — no `<-` / `<~`.
+- **No indented edges on a map.** Every map connection is ONE full line — `JFK ~daily~> LAX`; for a hub repeat the origin per spoke (`JFK ~daily~> LHR`, …). A bare source with indented `-> dest` legs errors as `Malformed edge`; indented legs are valid ONLY inside a `route` block (an ordered stop→stop voyage). Edge endpoints auto-create their POIs — don't add separate `poi` lines for places already in an edge.
 - **No `|` metadata delimiter** (removed 0.18.0 → `E_PIPE_OPERATOR_REMOVED`). Use same-line `Name key: value, k2: v2` or indented `key: value`. (`|` survives only in wireframe `{A | B}` dropdowns, in-arrow label text, and quoted names.)
 - **No removed participant keywords.** Do not write `X is a service` / `external` / `frontend` / `networking` / `gateway` — these were removed and error. A bare name renders the default shape; for a typed glyph use `is a person` / `is a database` / `is a queue`.
 <!-- COLORS start -->
