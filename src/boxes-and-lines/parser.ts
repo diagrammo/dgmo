@@ -42,6 +42,11 @@ import type { PaletteColors } from '../palettes';
 
 const MAX_GROUP_DEPTH = 2;
 
+// §1.4/§1.10 legacy-pipe detection — module-scope so they aren't re-created per
+// line. `|` inside a directed (`->`) or undirected (`~>`) arrow label is valid.
+const ARROW_LABEL_PIPE_DIRECTED_RE = /-\S*\|\S*->/;
+const ARROW_LABEL_PIPE_UNDIRECTED_RE = /~\S*\|\S*~>/;
+
 /** Boxes-and-lines requires explicit first line — no heuristic detection. */
 export function looksLikeBoxesAndLines(_content: string): boolean {
   return false;
@@ -247,8 +252,8 @@ export function parseBoxesAndLines(
     // regions.
     if (
       trimmed.includes('|') &&
-      !/-\S*\|\S*->/.test(trimmed) &&
-      !/~\S*\|\S*~>/.test(trimmed)
+      !ARROW_LABEL_PIPE_DIRECTED_RE.test(trimmed) &&
+      !ARROW_LABEL_PIPE_UNDIRECTED_RE.test(trimmed)
     ) {
       result.diagnostics.push(
         makeDgmoError(

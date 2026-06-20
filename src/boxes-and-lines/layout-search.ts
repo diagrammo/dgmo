@@ -60,9 +60,13 @@ const splineGen = d3line<Pt>()
   .y((d) => d.y)
   .curve(curveBasis);
 
+// Path tokenizer for `flatten` — module-scope so it isn't recompiled per call.
+// String.match with a /g regex is stateless (ignores lastIndex), so a shared
+// instance is safe to reuse.
+const PATH_TOKEN_RE = /[MLQC]|-?\d*\.?\d+(?:e-?\d+)?/gi;
 // flatten an SVG path "d" (M/L/Q/C) into a polyline for crossing detection
 function flatten(d: string): Pt[] {
-  const toks = d.match(/[MLQC]|-?\d*\.?\d+(?:e-?\d+)?/gi) ?? [];
+  const toks = d.match(PATH_TOKEN_RE) ?? [];
   const pts: Pt[] = [];
   let i = 0,
     cx = 0,
@@ -1527,10 +1531,13 @@ export async function layoutBoxesAndLinesSearch(
   // Stage 1: rank the dagre pool with the cheap straight-segment counter — a
   // cheap proxy to pick which candidates are worth the expensive exact scoring.
   // Widen REFINE_K a little since the proxy only sees crossings, not O/P.
-  pool.sort(
-    (a, b) =>
-      objective(a, countCrossingsFast(a)) - objective(b, countCrossingsFast(b))
-  );
+  // Pre-score each candidate ONCE (countCrossingsFast is O(E²)) into a key map,
+  // then sort by the stored key — the comparator otherwise recomputes the score
+  // for both operands on every comparison (O(C log C) calls vs C). The score is a
+  // pure function of the layout, so the resulting order is identical.
+  const fastKey = new Map<BLLayoutResult, number>();
+  for (const lay of pool) fastKey.set(lay, objective(lay, countCrossingsFast(lay)));
+  pool.sort((a, b) => fastKey.get(a)! - fastKey.get(b)!);
   const refineK = Math.min(REFINE_K, pool.length);
 
   // Stage 2: exact-score the top-K dagre candidates on the FULL badness (X+O+P)
@@ -1577,11 +1584,10 @@ export async function layoutBoxesAndLinesSearch(
         /* ignore choking rankers */
       }
     }
-    extra.sort(
-      (a, b) =>
-        objective(a, countCrossingsFast(a)) -
-        objective(b, countCrossingsFast(b))
-    );
+    const extraKey = new Map<BLLayoutResult, number>();
+    for (const lay of extra)
+      extraKey.set(lay, objective(lay, countCrossingsFast(lay)));
+    extra.sort((a, b) => extraKey.get(a)! - extraKey.get(b)!);
     for (const lay of extra.slice(0, ESCALATE_REFINE)) consider(lay);
   }
 
