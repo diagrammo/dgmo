@@ -1066,7 +1066,87 @@ export function parseInfra(content: string): ParsedInfra {
 
   validateTagGroupNames(result.tagGroups, warn, setError);
 
+  checkReachability(result);
+
   return result;
+}
+
+/**
+ * Reachability lint: an infra diagram traces request traffic flowing inward
+ * from an `internet`/`edge` entry, so every node must have a directed path
+ * back to an entry. A node nothing routes to carries no traffic — it's dead
+ * and doesn't belong. Emits `warning`-severity diagnostics (never blocks
+ * rendering). Mirrors the compute model: an edge targeting a `[Group]`
+ * delivers to all of that group's children.
+ */
+function checkReachability(result: Writable<ParsedInfra>): void {
+  if (result.nodes.length === 0) return;
+
+  const entries = result.nodes.filter((n) => n.isEdge);
+
+  // No entry at all: the rule can't be satisfied. One diagnostic, not N.
+  if (entries.length === 0) {
+    const line = result.titleLineNumber ?? result.nodes[0]?.lineNumber ?? 1;
+    result.diagnostics.push(
+      makeDgmoError(
+        line,
+        `Infra diagram has no 'internet' or 'edge' entry point — an infra diagram traces request traffic from an entry inward, so without one nothing carries traffic. Add an 'internet' or 'edge' node and route from it.`,
+        'warning',
+        'W_INFRA_NO_ENTRY'
+      )
+    );
+    return;
+  }
+
+  // groupId -> child node ids (for expanding edges that target a [Group]).
+  const groupChildMap = new Map<string, string[]>();
+  for (const node of result.nodes) {
+    if (node.groupId) {
+      const list = groupChildMap.get(node.groupId) ?? [];
+      list.push(node.id);
+      // node.groupId is already a normalized id from parse time.
+      // eslint-disable-next-line name-normalize/required-at-insertion
+      groupChildMap.set(node.groupId, list);
+    }
+  }
+
+  // Outbound adjacency: an edge to a group reaches every child of that group.
+  const outbound = new Map<string, string[]>();
+  for (const edge of result.edges) {
+    const targets = groupChildMap.get(edge.targetId) ?? [edge.targetId];
+    const list = outbound.get(edge.sourceId) ?? [];
+    list.push(...targets);
+    outbound.set(edge.sourceId, list);
+  }
+
+  // BFS from every entry node.
+  const reachable = new Set<string>();
+  const queue: string[] = [];
+  for (const entry of entries) {
+    reachable.add(entry.id);
+    queue.push(entry.id);
+  }
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const next of outbound.get(current) ?? []) {
+      if (!reachable.has(next)) {
+        reachable.add(next);
+        queue.push(next);
+      }
+    }
+  }
+
+  for (const node of result.nodes) {
+    if (node.isEdge || reachable.has(node.id)) continue;
+    result.diagnostics.push(
+      makeDgmoError(
+        node.lineNumber,
+        `'${node.label}' is unreachable from an 'internet'/'edge' entry — no request traffic flows to it, so it's dead on an infra diagram. Connect it downstream of an entry, or remove it.`,
+        'warning',
+        'W_INFRA_UNREACHABLE'
+      )
+    );
+  }
 }
 
 // ============================================================

@@ -186,6 +186,9 @@ API
       const result = parseInfra(`
 infra
 
+internet
+  -> API
+
 API
   unknown-prop: 42
 `);
@@ -857,6 +860,8 @@ edge
     it('no unknown-property warning for description', () => {
       const result = parseInfra(`
 infra
+internet
+  -> MyService
 MyService
   description: Does things
 `);
@@ -924,6 +929,8 @@ API
     it('no unknown-property warning for per-node slo-availability', () => {
       const result = parseInfra(`
 infra
+internet
+  -> API
 API
   slo-availability: 99%
 `);
@@ -933,6 +940,8 @@ API
     it('no unknown-property warning for per-node slo-p90-latency-ms', () => {
       const result = parseInfra(`
 infra
+internet
+  -> API
 API
   slo-p90-latency-ms: 200
 `);
@@ -942,6 +951,8 @@ API
     it('no unknown-property warning for per-node slo-warning-margin', () => {
       const result = parseInfra(`
 infra
+internet
+  -> API
 API
   slo-warning-margin: 10%
 `);
@@ -954,6 +965,9 @@ infra
 slo-availability 99%
 slo-p90-latency-ms 200
 slo-warning-margin 5%
+
+internet
+  -> API
 
 API
   max-rps: 1000
@@ -1149,6 +1163,94 @@ gw
       // `gw` was never declared — treated as a literal node name.
       expect(b.nodes.find((n) => n.label === 'gw')).toBeDefined();
       expect(b.nodes.find((n) => n.label === 'GatewayService')).toBeUndefined();
+    });
+  });
+
+  describe('reachability lint', () => {
+    const reach = (diags: { code?: string }[]) =>
+      diags.filter(
+        (d) => d.code === 'W_INFRA_UNREACHABLE' || d.code === 'W_INFRA_NO_ENTRY'
+      );
+
+    it('no warnings when every node traces back to an entry', () => {
+      const result = parseInfra(`
+infra
+internet
+  -> gw
+gw
+  -> svc
+svc
+  -> db
+db
+`);
+      expect(reach(result.diagnostics)).toHaveLength(0);
+    });
+
+    it('warns on a node with no path from an entry', () => {
+      const result = parseInfra(`
+infra
+internet
+  -> gw
+gw
+  -> svc
+svc
+orphan
+`);
+      const w = reach(result.diagnostics);
+      expect(w).toHaveLength(1);
+      expect(w[0].code).toBe('W_INFRA_UNREACHABLE');
+      expect(w[0].message).toContain('orphan');
+      expect(w[0].severity).toBe('warning');
+    });
+
+    it('flags a node that only feeds others but receives nothing', () => {
+      // worker emits to sink but nothing routes to worker → both dead
+      const result = parseInfra(`
+infra
+internet
+  -> gw
+gw
+worker
+  -> sink
+sink
+`);
+      const labels = reach(result.diagnostics).map((d) => d.message);
+      expect(labels.some((m) => m.includes('worker'))).toBe(true);
+      expect(labels.some((m) => m.includes('sink'))).toBe(true);
+    });
+
+    it('an edge to a [Group] makes every child reachable', () => {
+      const result = parseInfra(`
+infra
+internet
+  -> [API]
+[API]
+  gw
+  svc
+`);
+      expect(reach(result.diagnostics)).toHaveLength(0);
+    });
+
+    it('emits a single no-entry warning when there is no internet/edge node', () => {
+      const result = parseInfra(`
+infra
+gw
+  -> svc
+svc
+`);
+      const w = reach(result.diagnostics);
+      expect(w).toHaveLength(1);
+      expect(w[0].code).toBe('W_INFRA_NO_ENTRY');
+    });
+
+    it('does not warn for the entry node itself', () => {
+      const result = parseInfra(`
+infra
+internet
+  -> gw
+gw
+`);
+      expect(reach(result.diagnostics)).toHaveLength(0);
     });
   });
 });
