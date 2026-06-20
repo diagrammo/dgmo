@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.1] - 2026-06-20
+
+### Changed
+
+- **Authoring TIPS quality pass** — rebalanced the per-type styling TIPS from syntax-restating toward communication/visual-quality guidance (the established house style), and refined them from a full no-tips-vs-tips A/B sweep across the renders. Notable fixes: slope no longer advises a recolor that collides with the auto-palette; pert drops a no-op `default-confidence` clause; arc/wordcloud name the real layout levers (`order appearance`, `size <min> <max>`); ring keeps values in the band label. Docs-only — no API or render-behavior change.
+
 ## [0.32.0] - 2026-06-20
 
 ### Added
