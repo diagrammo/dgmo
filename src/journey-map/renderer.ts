@@ -18,6 +18,7 @@ import type {
   JourneyMapStep,
 } from './types';
 import { renderInlineText } from '../utils/inline-markdown';
+import { wrapNoteBody, NOTE_BULLET_INDENT } from '../utils/note-box';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
 import { ScaleContext } from '../utils/scaling';
@@ -194,9 +195,10 @@ export function renderJourneyMap(
     const textAreaWidth = panelWidth - silhouetteZone - CARD_PADDING_X;
     const descLineH = 14;
 
-    // Wrap description text into lines
+    // Wrap description text into lines — bullet-aware (`- `/`* ` → hanging
+    // "•") + inline markdown, matching how note boxes render rich bodies.
     const descLines = parsed.persona.description
-      ? wrapText(parsed.persona.description, textAreaWidth, FONT_SIZE_META)
+      ? wrapNoteBody(parsed.persona.description, textAreaWidth, FONT_SIZE_META)
       : [];
     const descRowH =
       descLines.length > 0 ? descLines.length * descLineH + 8 : 0;
@@ -276,16 +278,30 @@ export function renderJourneyMap(
       .attr('fill', onPersonaText)
       .text(parsed.persona.name);
 
-    // Description — wrapped lines below divider, with inline markdown
+    // Description — wrapped lines below divider, with inline markdown.
+    // Bullet first-lines get a "•" glyph at the left edge with the body
+    // hanging-indented; continuation lines align under the body.
     for (let li = 0; li < descLines.length; li++) {
+      // In-bounds by loop guard.
+      const line = descLines[li]!;
+      const indent = line.kind === 'plain' ? 0 : NOTE_BULLET_INDENT;
+      const lineY = panelY + titleRowH + descLineH * (li + 1);
+      if (line.kind === 'bullet-first') {
+        personaG
+          .append('text')
+          .attr('x', textX)
+          .attr('y', lineY)
+          .attr('font-size', FONT_SIZE_META)
+          .attr('fill', onPersonaText)
+          .text('•');
+      }
       const lineEl = personaG
         .append('text')
-        .attr('x', textX)
-        .attr('y', panelY + titleRowH + descLineH * (li + 1))
+        .attr('x', textX + indent)
+        .attr('y', lineY)
         .attr('font-size', FONT_SIZE_META)
         .attr('fill', onPersonaText);
-      // In-bounds by loop guard.
-      renderInlineText(lineEl, descLines[li]!, palette, FONT_SIZE_META);
+      renderInlineText(lineEl, line.text, palette, FONT_SIZE_META);
     }
 
     if (onNavigateToLine) {
