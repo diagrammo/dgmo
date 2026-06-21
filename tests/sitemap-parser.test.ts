@@ -629,6 +629,51 @@ describe('parseSitemap', () => {
       expect(browseContainer.children[1].metadata).toEqual({ icon: 'nav' });
     });
   });
+
+  describe('flat-container rule', () => {
+    it('errors on a page nested under a page inside a container', () => {
+      const content = [
+        'sitemap',
+        '[Marketing]',
+        '  Docs',
+        '    Guides',
+        '    API Reference',
+        '  Blog',
+      ].join('\n');
+      const result = parseSitemap(content);
+      expect(result.error).toMatch(/cannot have indented sub-pages/);
+      const errs = result.diagnostics.filter((d) => d.severity === 'error');
+      expect(errs.map((d) => d.line)).toEqual([4, 5]);
+      expect(errs[0].message).toContain('[Marketing]');
+    });
+
+    it('allows a flat list of pages inside a container', () => {
+      const content = ['sitemap', '[Marketing]', '  Docs', '  Blog'].join('\n');
+      const result = parseSitemap(content);
+      expect(result.error).toBeNull();
+    });
+
+    it('allows top-level page nesting (not inside a container)', () => {
+      const content = ['sitemap', 'Home', '  Pricing', '    Enterprise'].join(
+        '\n'
+      );
+      const result = parseSitemap(content);
+      expect(result.error).toBeNull();
+    });
+
+    it('allows indented arrows under a page inside a container', () => {
+      const content = [
+        'sitemap',
+        '[Workspace]',
+        '  Dashboard',
+        '    -projects-> Projects',
+        '  Projects',
+      ].join('\n');
+      const result = parseSitemap(content);
+      expect(result.error).toBeNull();
+      expect(result.edges).toHaveLength(1);
+    });
+  });
 });
 
 describe('looksLikeSitemap', () => {

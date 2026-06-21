@@ -501,6 +501,16 @@ export function parseSitemap(
         }
       }
 
+      // §12: reject sub-pages nested under a page inside a container.
+      const enclosingContainer = nestedPageInsideContainer(indent, indentStack);
+      if (enclosingContainer) {
+        pushError(
+          lineNumber,
+          `Pages inside container '[${enclosingContainer}]' cannot have indented sub-pages. Containers hold a flat list of pages.`
+        );
+        continue;
+      }
+
       // Node label — possibly with pipe-delimited metadata
       const node = parseNodeLabel(
         trimmed,
@@ -700,6 +710,29 @@ function attachNode(
   }
 
   indentStack.push({ node, indent });
+}
+
+/**
+ * §12: containers hold a flat list of pages — a page inside a `[Container]`
+ * may not have indented sub-pages. Returns the enclosing container's label
+ * when attaching a page at `indent` would nest it under a page that itself
+ * lives inside a container; otherwise null. Non-destructive (mirrors
+ * `attachNode`'s pop logic without mutating the stack).
+ */
+function nestedPageInsideContainer(
+  indent: number,
+  indentStack: { node: Writable<SitemapNode>; indent: number }[]
+): string | null {
+  let idx = indentStack.length - 1;
+  while (idx >= 0 && indentStack[idx]!.indent >= indent) idx--;
+  if (idx < 0) return null;
+  // Immediate parent. A container parent → flat member, allowed.
+  if (indentStack[idx]!.node.isContainer) return null;
+  // Parent is a page; flag only when an ancestor is a container.
+  for (let k = idx - 1; k >= 0; k--) {
+    if (indentStack[k]!.node.isContainer) return indentStack[k]!.node.label;
+  }
+  return null;
 }
 
 function findParentNode(
