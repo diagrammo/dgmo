@@ -1707,7 +1707,7 @@ See spec §13A for full date-anchoring semantics, S-curve axes, and diagnostic c
 <!-- TYPE:boxes-and-lines -->
 
 <!-- TIPS start -->
-**Styling tips:** Show one clear direction of flow; group related boxes with a `[Group]` bracket and label each edge with the relationship rather than a bare arrow. Keep every box a short noun phrase.
+**Styling tips:** Show one clear direction of flow, label each edge with the relationship rather than a bare arrow, and keep every box a short noun phrase. **Color by category with a tag group:** declare a `tag <Facet> as <alias>` with a distinct color per value, then assign each box `<alias>: <Value>` so like things share a color and unlike things visibly differ — pick the facet that actually divides this system (tier: `Client`/`Edge`/`Compute`/`Data`, ownership, internal vs external, stateful vs stateless) rather than coloring at random. **Organize when it gets busy:** with more than ~4 boxes there is almost always a structure to surface — cluster the boxes that belong together into `[Group]` sections (a backend tier, a region, a subsystem) and draw edges to the group with `-> [Group]` where a whole cluster is the target. A flat row of many boxes is a missed opportunity; derive the grouping from how the parts relate. The `[Group]` brackets handle spatial clustering and the tag group handles color — use both, and they can cut across each other (e.g. group by subsystem, color by tier).
 <!-- TIPS end -->
 
 ### 13.1 Declaration
