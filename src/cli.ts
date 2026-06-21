@@ -26,6 +26,8 @@ import {
 } from './migrate';
 import { migrateEmbedded } from './migrate/embedded';
 import { renderBanner } from './cli-banner';
+import { searchMapLocations } from './map/completion';
+import { loadMapData } from './map/load-data';
 
 // Derived from the palette registry so new palettes are auto-included.
 const PALETTES = getAvailablePalettes().map((p) => p.id);
@@ -470,6 +472,7 @@ function printHelp(): void {
        cat input.dgmo | dgmo [options]
        dgmo cat <file>          Display file with syntax highlighting
        dgmo migrate <path>      Convert legacy "|" metadata to §1.4 grammar
+       dgmo map search <query>  Find the map place token (city or IATA code)
 
 Render a .dgmo file to PNG (default) or SVG.
 
@@ -859,11 +862,76 @@ async function runMigrateCommand(args: string[]): Promise<void> {
   }
 }
 
+// `dgmo map search <query>` — discover the exact place token the map resolver
+// expects (city name or bundled IATA airport code), so authors never guess
+// (e.g. "New York" → `New York City`; "kennedy" → `JFK`). Searches cities +
+// the bundled airport set; `--json` for machine output, `--limit N` to widen.
+async function runMapCommand(args: string[]): Promise<void> {
+  const sub = args[0];
+  const json = args.includes('--json');
+  const limFlag = args.indexOf('--limit');
+  const limit =
+    limFlag >= 0 ? Math.max(1, Number(args[limFlag + 1]) || 20) : 20;
+  // The query is the positional args (allow unquoted multi-word: `... New York`).
+  const query = args
+    .slice(1)
+    .filter(
+      (a, i, arr) =>
+        a !== '--json' && a !== '--limit' && arr[i - 1] !== '--limit'
+    )
+    .join(' ')
+    .trim();
+
+  if (sub !== 'search' || !query) {
+    console.log('Usage: dgmo map search <query> [--json] [--limit N]');
+    console.log(
+      '  Find the place token the map resolver expects (city or IATA airport code).'
+    );
+    console.log('  Examples:');
+    console.log(
+      '    dgmo map search "new york"     # → New York City (+ JFK/LGA/EWR airports)'
+    );
+    console.log('    dgmo map search kennedy        # → JFK by airport name');
+    console.log('    dgmo map search heathrow --json');
+    if (sub === 'search' && !query) process.exitCode = 1;
+    return;
+  }
+
+  const data = await loadMapData();
+  const results = searchMapLocations(query, data.gazetteer, {
+    limit,
+    ...(data.airports && { airports: data.airports }),
+  });
+
+  if (json) {
+    process.stdout.write(JSON.stringify({ query, results }, null, 2) + '\n');
+    return;
+  }
+  if (!results.length) {
+    console.log(
+      `No cities or airports match "${query}". Use coordinates: poi Name as <lat,lng>`
+    );
+    return;
+  }
+  console.log(
+    `Places matching "${query}" — use the token column in your DGMO:`
+  );
+  for (const r of results) {
+    const tag = r.kind === 'airport' ? '✈' : '•';
+    console.log(`  ${tag} ${r.token.padEnd(22)} ${r.detail}`);
+  }
+}
+
 async function main(): Promise<void> {
   // Subcommand dispatch — `dgmo migrate` is parsed independently from
   // the rendering flags so its surface doesn't pollute `parseArgs`.
   if (process.argv[2] === 'migrate') {
     await runMigrateCommand(process.argv.slice(3));
+    return;
+  }
+
+  if (process.argv[2] === 'map') {
+    await runMapCommand(process.argv.slice(3));
     return;
   }
 

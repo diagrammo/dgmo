@@ -569,11 +569,16 @@ export type {
   ProjectionFamily,
   GeoExtent,
 } from './map/resolved-types';
-export { completeMapPlaces, completeMapRegions } from './map/completion';
+export {
+  completeMapPlaces,
+  completeMapRegions,
+  searchMapLocations,
+} from './map/completion';
 export type {
   MapPlaceCompletion,
   MapRegionCompletion,
   MapCompletionOptions,
+  MapLocationMatch,
 } from './map/completion';
 export type {
   Gazetteer,

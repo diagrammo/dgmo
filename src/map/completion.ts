@@ -151,6 +151,122 @@ export function completeMapPlaces(
   return [...cityItems, ...airportItems].slice(0, limit);
 }
 
+/** A POI search hit — a city or airport the resolver can resolve, with the
+ *  exact `token` to paste into DGMO (a `poi`/route endpoint). Powers the CLI
+ *  `dgmo map search` command and the MCP `lookup_map_location` tool, so authors
+ *  (and AI agents) can DISCOVER valid place tokens instead of guessing — e.g.
+ *  learn that "New York" must be `New York City` and that `JFK` is bundled. */
+export interface MapLocationMatch {
+  /** Canonical display name (cities) or full airport name. */
+  readonly name: string;
+  /** Exact text to use in DGMO. Cities: the name, ISO-qualified when ambiguous
+   *  (`Portland US-OR`). Airports: the upper-case IATA code (`JFK`). */
+  readonly token: string;
+  readonly kind: 'city' | 'airport';
+  readonly iso: string;
+  readonly sub?: string;
+  /** City population (0 for airports). */
+  readonly pop: number;
+  /** Human detail, e.g. `US-OR · 652,503` or `Airport · John F Kennedy Intl`. */
+  readonly detail: string;
+}
+
+/**
+ * Substring-search cities + airports for a discovery surface (CLI / MCP), so an
+ * author can find the exact token the resolver expects. Unlike
+ * {@link completeMapPlaces} (prefix-only, editor type-ahead), this matches
+ * anywhere in a city name OR an airport code/name, so "york" finds
+ * `New York City` and "kennedy" finds `JFK`.
+ *
+ * Ranking: exact-name (or exact-IATA) → prefix → substring; within a tier,
+ * cities by population desc (deterministic index tie-break), cities before
+ * airports. Pure + deterministic. Empty query → `[]`.
+ */
+export function searchMapLocations(
+  query: string,
+  gazetteer: Gazetteer,
+  opts?: { readonly limit?: number; readonly airports?: AirportData }
+): MapLocationMatch[] {
+  const q = fold(query);
+  if (!q) return [];
+  const limit = opts?.limit ?? 20;
+
+  // rank: 0 exact, 1 prefix, 2 substring; -1 = no match.
+  const rankOf = (hay: string): number =>
+    hay === q ? 0 : hay.startsWith(q) ? 1 : hay.includes(q) ? 2 : -1;
+
+  // Cities — match on folded display name (via byName keys) + aliases.
+  const cityRank = new Map<number, number>(); // city index → best rank
+  const consider = (idx: number, rank: number): void => {
+    if (rank < 0) return;
+    const prev = cityRank.get(idx);
+    if (prev === undefined || rank < prev) cityRank.set(idx, rank);
+  };
+  for (const [key, list] of Object.entries(gazetteer.byName)) {
+    const r = rankOf(key);
+    if (r >= 0) for (const i of list) consider(i, r);
+  }
+  for (const [key, idx] of Object.entries(gazetteer.alt)) {
+    consider(idx, rankOf(key));
+  }
+
+  const cityItems: Array<MapLocationMatch & { _rank: number }> = [...cityRank]
+    .filter(([i]) => gazetteer.cities[i] !== undefined)
+    .map(([i, rank]) => {
+      const c = gazetteer.cities[i]!;
+      const [, , iso, pop, name, sub] = c;
+      const ambiguous = (gazetteer.byName[fold(name)]?.length ?? 0) > 1;
+      const qualifier = sub ?? iso;
+      return {
+        name,
+        token: ambiguous ? `${name} ${qualifier}` : name,
+        kind: 'city' as const,
+        iso,
+        ...(sub !== undefined && { sub }),
+        pop,
+        detail: `${qualifier} · ${groupThousands(pop)}`,
+        _rank: rank,
+      };
+    });
+
+  // Airports — match on folded IATA code OR folded airport name.
+  const airports = opts?.airports;
+  const airportItems: Array<MapLocationMatch & { _rank: number }> = [];
+  if (airports?.airportIata) {
+    for (const [code, idx] of Object.entries(airports.airportIata)) {
+      const a = airports.airports[idx];
+      if (!a) continue;
+      const codeRank = rankOf(code);
+      const nameRank = rankOf(fold(a[4]));
+      const rank = Math.min(
+        codeRank < 0 ? 99 : codeRank,
+        nameRank < 0 ? 99 : nameRank
+      );
+      if (rank > 2) continue;
+      airportItems.push({
+        name: a[4],
+        token: code.toUpperCase(),
+        kind: 'airport',
+        iso: a[2],
+        pop: 0,
+        detail: `Airport · ${a[4]}`,
+        _rank: rank,
+      });
+    }
+  }
+
+  return [...cityItems, ...airportItems]
+    .sort(
+      (x, y) =>
+        x._rank - y._rank || // best match tier first
+        (x.kind === y.kind ? 0 : x.kind === 'city' ? -1 : 1) || // city before airport
+        y.pop - x.pop || // populous city first
+        (x.token < y.token ? -1 : x.token > y.token ? 1 : 0)
+    )
+    .slice(0, limit)
+    .map(({ _rank, ...rest }) => rest);
+}
+
 export interface MapRegionCompletion {
   /** Display name = insert text (the resolver disambiguates cross-layer
    *  collisions like Georgia by map scope, §24B.8). */

@@ -226,11 +226,16 @@ export { normalizeSvgForEmbed, getEmbedSvgViewBox } from './utils/svg-embed';
 // ============================================================
 // Pure + dependency-injected: the caller supplies the `Gazetteer` asset. Safe
 // to export from the main index — no d3-geo/topojson runtime imports.
-export { completeMapPlaces, completeMapRegions } from './map/completion';
+export {
+  completeMapPlaces,
+  completeMapRegions,
+  searchMapLocations,
+} from './map/completion';
 export type {
   MapPlaceCompletion,
   MapRegionCompletion,
   MapCompletionOptions,
+  MapLocationMatch,
 } from './map/completion';
 export type {
   Gazetteer,

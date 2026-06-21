@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { completeMapPlaces, completeMapRegions } from '../src/map/completion';
+import {
+  completeMapPlaces,
+  completeMapRegions,
+  searchMapLocations,
+} from '../src/map/completion';
 import { loadMapData } from '../src/map/load-data';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -217,5 +221,74 @@ describe('completeMapRegions', () => {
     expect(ca.some((r) => r.iso === 'US-CA')).toBe(true);
     const de = completeMapRegions('germ', data.regions);
     expect(de.some((r) => r.iso === 'DE')).toBe(true);
+  });
+});
+
+describe('searchMapLocations (CLI/MCP discovery surface)', () => {
+  const airports: AirportData = {
+    airports: [
+      [40.64, -73.78, 'US', 0, 'John F Kennedy Intl'], // 0 jfk
+      [33.94, -118.41, 'US', 0, 'Los Angeles Intl'], // 1 lax
+    ],
+    airportIata: { jfk: 0, lax: 1 },
+  };
+
+  it('empty query → []', () => {
+    expect(searchMapLocations('', gz)).toEqual([]);
+    expect(searchMapLocations('   ', gz)).toEqual([]);
+  });
+
+  it('substring match (not just prefix) finds the canonical city token', () => {
+    // "york" is NOT a prefix of "new york city" — prefix completion misses it,
+    // substring search finds it and hands back the exact token to use.
+    const r = searchMapLocations('york', gz);
+    const nyc = r.find((m) => m.name === 'New York City');
+    expect(nyc).toBeDefined();
+    expect(nyc!.token).toBe('New York City');
+    expect(nyc!.kind).toBe('city');
+  });
+
+  it('airport matched by code OR by airport name', () => {
+    expect(
+      searchMapLocations('jfk', gz, { airports }).some(
+        (m) => m.token === 'JFK' && m.kind === 'airport'
+      )
+    ).toBe(true);
+    expect(
+      searchMapLocations('kennedy', gz, { airports }).some(
+        (m) => m.token === 'JFK'
+      )
+    ).toBe(true);
+  });
+
+  it('exact name outranks substring; cities before airports', () => {
+    const r = searchMapLocations('portland', gz);
+    // Both Portlands match exactly; ISO-qualified because ambiguous.
+    expect(r[0]!.token).toBe('Portland US-OR'); // higher pop first
+    expect(r.every((m) => m.kind === 'city')).toBe(true);
+  });
+
+  it('ambiguous city token is ISO-qualified, unambiguous is bare', () => {
+    expect(searchMapLocations('tokyo', gz)[0]!.token).toBe('Tokyo');
+  });
+
+  it('limit caps results; absent airports asset → city-only, no throw', () => {
+    expect(
+      searchMapLocations('a', gz, { limit: 2 }).length
+    ).toBeLessThanOrEqual(2);
+    expect(() => searchMapLocations('san', gz)).not.toThrow();
+  });
+
+  it('real gazetteer smoke — "new york" resolves to New York City', async () => {
+    const data = await loadMapData();
+    const r = searchMapLocations('new york', data.gazetteer, {
+      airports: data.airports!,
+    });
+    expect(r.some((m) => m.token === 'New York City')).toBe(true);
+    // bundled airport codes are discoverable
+    const heathrow = searchMapLocations('heathrow', data.gazetteer, {
+      airports: data.airports!,
+    });
+    expect(heathrow.some((m) => m.token === 'LHR')).toBe(true);
   });
 });
