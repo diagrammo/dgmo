@@ -22,6 +22,7 @@ import {
   type BLLayoutEdge,
 } from './layout';
 import { layeredCandidates } from './layout-layered';
+import { groupedTierCandidates } from './layout-grouped';
 
 type Pt = { x: number; y: number };
 
@@ -1528,6 +1529,21 @@ export async function layoutBoxesAndLinesSearch(
     /* ignore */
   }
 
+  // Tier-banded grouped candidates. The dagre path treats `[Group]` containers
+  // as compound clusters with no tier ORDER and no cycle-aware routing, so
+  // tiered architecture diagrams collide bands side-by-side and balloon on
+  // back-edges. This generator orders the groups into disjoint rank bands and
+  // routes against-tier edges around the periphery. Additive — kept only on a
+  // strict badness win. Skipped when any group is collapsed (the generator
+  // models fully-expanded groups only).
+  if (parsed.groups.length > 0 && collapsedGroupLabels.size === 0) {
+    try {
+      layered = layered.concat(groupedTierCandidates(parsed, sizes));
+    } catch {
+      /* ignore */
+    }
+  }
+
   // Stage 1: rank the dagre pool with the cheap straight-segment counter — a
   // cheap proxy to pick which candidates are worth the expensive exact scoring.
   // Widen REFINE_K a little since the proxy only sees crossings, not O/P.
@@ -1536,7 +1552,8 @@ export async function layoutBoxesAndLinesSearch(
   // for both operands on every comparison (O(C log C) calls vs C). The score is a
   // pure function of the layout, so the resulting order is identical.
   const fastKey = new Map<BLLayoutResult, number>();
-  for (const lay of pool) fastKey.set(lay, objective(lay, countCrossingsFast(lay)));
+  for (const lay of pool)
+    fastKey.set(lay, objective(lay, countCrossingsFast(lay)));
   pool.sort((a, b) => fastKey.get(a)! - fastKey.get(b)!);
   const refineK = Math.min(REFINE_K, pool.length);
 
