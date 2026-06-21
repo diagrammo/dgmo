@@ -14,7 +14,11 @@ import {
   JOURNEY_MAP_REGISTRY,
   withTagAliases,
 } from '../utils/reserved-key-registry';
-import { splitNameAndMeta, warnUnknownMetaKeys } from '../utils/parsing';
+import {
+  splitNameAndMeta,
+  warnUnknownMetaKeys,
+  peelTrailingColorName,
+} from '../utils/parsing';
 import {
   matchTagBlockHeading,
   emitTagLegacyDiagnostic,
@@ -180,8 +184,10 @@ export function parseJourneyMap(
             }
           }
         } else {
-          // Same-line form (pipes removed in 0.18.0): peel a trailing
-          // `color: <token>` off the rest-of-line persona name.
+          // Same-line form (pipes removed in 0.18.0). Two ways to set color:
+          //   1. explicit `persona <name> color: <token>` (long form)
+          //   2. universal §1.5 trailing-token color (`persona <name> green`);
+          //      capitalize the word (`Green`) to keep it as literal name text.
           const colorMatch = afterKeyword.match(/^(.+?)\s+color:\s*(\S+)$/i);
           if (colorMatch) {
             personaName = colorMatch[1]!.trim();
@@ -193,7 +199,19 @@ export function parseJourneyMap(
                 palette
               ) ?? undefined;
           } else {
-            personaName = afterKeyword;
+            const { label, colorName } = peelTrailingColorName(afterKeyword);
+            if (colorName) {
+              personaName = label;
+              personaColor =
+                resolveColorWithDiagnostic(
+                  colorName,
+                  lineNumber,
+                  result.diagnostics,
+                  palette
+                ) ?? undefined;
+            } else {
+              personaName = afterKeyword;
+            }
           }
         }
 

@@ -74,6 +74,22 @@ describe('journey-map parser', () => {
       expect(result.persona?.color).toBeTruthy();
     });
 
+    it('parses persona with §1.5 trailing-token color', () => {
+      const result = parseJourneyMap(
+        'journey-map Test\n\npersona Nadia green\n\n[Phase]\n  Step score: 3'
+      );
+      expect(result.persona?.name).toBe('Nadia');
+      expect(result.persona?.color).toBeTruthy();
+    });
+
+    it('keeps a capitalized trailing color word as literal name text', () => {
+      const result = parseJourneyMap(
+        'journey-map Test\n\npersona Nadia Green\n\n[Phase]\n  Step score: 3'
+      );
+      expect(result.persona?.name).toBe('Nadia Green');
+      expect(result.persona?.color).toBeUndefined();
+    });
+
     it('does not peel a non-trailing "color:" from the persona name', () => {
       const result = parseJourneyMap(
         'journey-map Test\n\npersona Color Consultant\n\n[Phase]\n  Step score: 3'
