@@ -1843,6 +1843,30 @@ Flagship -> Sloop
   legend shows a gradient capsule; boxes without a `value:` get a neutral fill.
 - `show-values` additionally prints each box's number as text.
 
+### 13.9 Tag groups (categorical color)
+
+Color boxes by a category. Declare a `tag <Facet> as <alias>` group (§1.3) with one color per value — **values are indented under the `tag` header**, one per line, color as a trailing word — then assign each box `<alias>: <Value>` in its metadata. Do **not** write the values as `<alias> <Value>` lines; that is not the grammar.
+
+```
+boxes-and-lines Service Map
+tag Tier as t
+  Client blue
+  Edge teal
+  Compute green
+  Data purple
+
+[Client]
+  Web App t: Client
+[Edge]
+  API Gateway t: Edge
+[Compute]
+  Auth Service t: Compute
+[Data]
+  Postgres t: Data
+```
+
+The tag group (color) composes with `[Group]` clustering (spatial) and can cut across it — group by subsystem, color by tier. The group must be declared before any content line (§1.3).
+
 ---
 
 ## 15. Timeline Diagrams
