@@ -88,11 +88,12 @@ const EDGE_CLAMP_MARGIN = 8; // px inset for edge-clamped ocean labels
 const EDGE_CLAMP_OVERSHOOT = 0.35; // max off-frame overshoot (× dim) to still clamp
 
 // Country labels scale with their projected footprint: a big landmass (Canada,
-// Mexico on a US view) reads as a large, FADED backdrop name; a small one stays
-// at the base font, fully muted. Size metric is the footprint's linear extent
-// (√bbox-area) as a fraction of the canvas's linear extent (√canvas-area), so
-// the ramp is resolution-independent. Below MIN ⇒ base font / no extra fade;
-// at/above MAX ⇒ max font / max fade; linear between.
+// Mexico on a US view) reads as a larger backdrop name; a small one stays at the
+// base font. Size metric is the footprint's linear extent (√bbox-area) as a
+// fraction of the canvas's linear extent (√canvas-area), so the ramp is
+// resolution-independent. Below MIN ⇒ base font; at/above MAX ⇒ max font; linear
+// between. Colour does NOT change with size — subordination is by muting (the
+// contrast-floored tone) + size only, never by fading toward bg (Phase 1).
 const COUNTRY_FONT_MAX = 22; // px ceiling for the largest footprint
 const COUNTRY_SIZE_FRAC_MIN = 0.06; // footprint linear-frac at base font
 const COUNTRY_SIZE_FRAC_MAX = 0.32; // footprint linear-frac at max font
