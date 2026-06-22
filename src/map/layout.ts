@@ -3483,6 +3483,22 @@ export function layoutMap(
       // NEVER drop: a thin ribbon (Chile) whose centroid sits on a sliver doesn't
       // stamp a cramped name there — it leaders into the open space beside it.
       const isSubject = regionById.has(r.id);
+      // Both horizontal extremes of `text` (centred at ax,ay, base font) land on
+      // the region's own fill — true in-shape containment. Gates a DATA label's
+      // in-place placement so a name that would spill off its own choropleth fill
+      // onto a neighbour (where its fill-picked colour is illegible) leaders out
+      // instead — which is what lets the data label drop its halo (it can no
+      // longer overflow, so `overflows` is false and no rescue stroke is drawn).
+      const extremesOnFill = (
+        ax: number,
+        ay: number,
+        text: string
+      ): boolean => {
+        const halfW = measureLegendText(text, FONT) / 2;
+        return (
+          fillAt(ax - halfW, ay) === r.fill && fillAt(ax + halfW, ay) === r.fill
+        );
+      };
       // ── Valueless SUBJECT: prominent in-shape, else leader (the Chile case) ──
       // A user-referenced region with no metric is the map's point and must read
       // PROMINENTLY. Find the largest font (up to a cap) whose full name sits
@@ -3609,13 +3625,23 @@ export function layoutMap(
           const nameRect = regionLabelRect(a.x, a.y, t);
           if (valStr && stackW(t, valStr) <= boxW && stackH(true) <= boxH) {
             const stackRect = regionLabelRect(a.x, a.y, t, valStr);
-            if (fitsRegions(stackRect) && fitsPois(nameRect)) {
+            if (
+              fitsRegions(stackRect) &&
+              fitsPois(nameRect) &&
+              extremesOnFill(a.x, a.y, t)
+            ) {
               chosen = { text: t, valueLine: valStr, ax: a.x, ay: a.y };
               break;
             }
           }
           if (labelW(t) <= boxW && labelH <= boxH) {
-            if (fitsRegions(nameRect) && fitsPois(nameRect)) {
+            // A data label must sit inside its own choropleth fill (so it can drop
+            // the halo); a context/container label keeps the looser bbox fit.
+            if (
+              fitsRegions(nameRect) &&
+              fitsPois(nameRect) &&
+              (valStr === undefined || extremesOnFill(a.x, a.y, t))
+            ) {
               chosen = { text: t, ax: a.x, ay: a.y };
               break;
             }
