@@ -51,6 +51,14 @@ export interface ContextLabelArgs {
   readonly height: number;
   readonly waterBodies?: WaterBodies | undefined;
   readonly countries: readonly CountryCandidate[];
+  /** Muted, contrast-floored land tone for country labels — computed in layout
+   *  against the neutral basemap and shared with the orientation backdrop so a
+   *  context country and an orientation region read identically. Absent ⇒ the
+   *  legacy `palette.textMuted`. */
+  readonly countryTone?: string | undefined;
+  /** Muted, contrast-floored tone for water labels (against the water fill).
+   *  Absent ⇒ the legacy `mix(blue, textMuted, 50)`. */
+  readonly waterTone?: string | undefined;
   readonly palette: PaletteColors;
   readonly project: (lon: number, lat: number) => [number, number] | null;
   /** Collision test against every committed data/region/POI/route obstacle. */
@@ -88,7 +96,6 @@ const EDGE_CLAMP_OVERSHOOT = 0.35; // max off-frame overshoot (× dim) to still 
 const COUNTRY_FONT_MAX = 22; // px ceiling for the largest footprint
 const COUNTRY_SIZE_FRAC_MIN = 0.06; // footprint linear-frac at base font
 const COUNTRY_SIZE_FRAC_MAX = 0.32; // footprint linear-frac at max font
-const COUNTRY_FADE_MAX = 45; // % blend toward bg at max font (subdue big names)
 
 // Multi-position country dodging (map-context-neighbor-labels). A country gets
 // several interior on-its-own-land positions so its label can dodge a colliding
@@ -287,6 +294,8 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     waterBodies,
     countries,
     palette,
+    countryTone,
+    waterTone,
     project,
     collides,
     contentPoints,
@@ -306,10 +315,14 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
   const budget = labelBudget(width, height, band);
   if (budget <= 0) return [];
 
-  // Subordinate cartographic colours (palette-derived, no hex; resvg-safe via
-  // pre-computed mix()). Water = muted blue-gray italic; country = muted gray.
-  const waterColor = mix(palette.colors.blue, palette.textMuted, 50);
-  const countryColor = palette.textMuted;
+  // Subordinate cartographic colours. Both are muted but CONTRAST-FLOORED in the
+  // caller (layout) against the substrate they sit on, and shared with the
+  // orientation backdrop so a context country and an orientation region match.
+  // Water stays the blue-gray italic convention; country = the muted land tone.
+  // Fallbacks keep the pre-floor behaviour for unit tests that omit the tones.
+  const waterColor =
+    waterTone ?? mix(palette.colors.blue, palette.textMuted, 50);
+  const countryColor = countryTone ?? palette.textMuted;
   const haloColor = palette.bg;
 
   type Candidate = {
@@ -475,15 +488,11 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
       )
     );
     const fontSize = Math.round(FONT + t * (COUNTRY_FONT_MAX - FONT));
-    const fade = Math.round(t * COUNTRY_FADE_MAX);
-    // Blend `fade`% TOWARD the bg (subdue big names). `mix(a,b,pct)` weights `a` by
-    // `pct`, so the bg fraction must be `100 - fade` — i.e. a small country (fade≈0)
-    // stays fully muted/dark and only a big landmass fades to a soft backdrop. (The
-    // earlier `mix(countryColor, bg, fade)` was inverted: it lightened the SMALL
-    // names toward white instead, which read as illegible once proximity started
-    // surfacing small neighbours like Belarus/Georgia.)
-    const color =
-      fade > 0 ? mix(countryColor, palette.bg, 100 - fade) : countryColor;
+    // No fade. Subordination is by MUTING (the floored tone) + smaller size, not
+    // by fading toward bg — fading a floored tone toward the background would
+    // re-break the contrast it was floored to guarantee (the old behaviour washed
+    // big names like Canada toward illegibility). Footprint still drives font size.
+    const color = countryColor;
     // Always the full country name — never an ISO abbreviation. If the name
     // doesn't fit the footprint, drop the label rather than abbreviate.
     const text = c.name;

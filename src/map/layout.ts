@@ -1484,6 +1484,28 @@ export function layoutMap(
         : FOREIGN_TINT_LIGHT
   );
 
+  // One muted, contrast-floored tone for every BACKDROP place name — orientation
+  // regions (Minnesota, Texas) AND unreferenced context countries (Canada) — plus
+  // one for water. Subordination is by MUTING (start from textMuted / a muted
+  // blue-gray), never by lowering contrast: blend toward palette.text until the
+  // tone clears the WCAG-AA floor against the substrate it sits on, so a backdrop
+  // name is always legible WITHOUT a halo. This replaces the old fade-toward-bg,
+  // which washed a grown name to ~background (Minnesota rendered at ~#dddfe0 over
+  // ~#e9ece9 land — contrast ≈ 1).
+  const contrastFloorTone = (tone: string, substrate: string): string => {
+    if (contrastRatio(tone, substrate) >= REGION_LABEL_HALO_RATIO) return tone;
+    for (let s = 10; s <= 100; s += 10) {
+      const t = mix(palette.text, tone, s);
+      if (contrastRatio(t, substrate) >= REGION_LABEL_HALO_RATIO) return t;
+    }
+    return palette.text;
+  };
+  const backdropLandTone = contrastFloorTone(palette.textMuted, neutralFill);
+  const backdropWaterTone = contrastFloorTone(
+    mix(palette.colors.blue, palette.textMuted, 50),
+    water
+  );
+
   // -- Colorize: content-inferred distinct political fills (§24B) --
   // Colorize is the DEFAULT dress for any map that is NOT colouring regions by
   // data. The things that turn it off: (1) a data dimension exists on a
@@ -3066,6 +3088,14 @@ export function layoutMap(
   // ocean. At the compact breakpoint (decision D2) the abbreviation is preferred
   // FIRST for US states.
   const showRegionLabels = resolved.directives.noRegionLabels !== true;
+  // Ids of regions that won a static on-map label in the region pass. The
+  // unreferenced-country / framed-state context pass below excludes these so a
+  // region named once is never named twice: the layout `regions` list carries
+  // auto-added poiFrameContainers (e.g. Canada framing northern POIs) that are
+  // NOT in `regionById` (which holds only user-referenced `resolved.regions`),
+  // so `regionById.has(iso)` alone misses them and the context pass would
+  // re-label the same country at a different anchor (the "double-Canada" bug).
+  const labeledRegionIds = new Set<string>();
   // Metric value shown UNDER each data region's name (`no-region-value` opts out).
   // The value line is rendered smaller + dimmer than the name; see the renderer.
   // Scoped to a `region-metric` choropleth: only when the SCORE ramp is the active
@@ -3149,7 +3179,8 @@ export function layoutMap(
     lineNumber: number,
     valueLine?: string,
     fontSize: number = FONT,
-    fade: number = 0
+    fade: number = 0,
+    colorOverride?: string
   ): void => {
     // Colour is contrast-picked against the region's own fill (see labelOnFill).
     // The halo, though, is gated by CONTAINMENT — not fill tone. A label that
@@ -3162,9 +3193,13 @@ export function layoutMap(
     // fills: if any extreme lands on a fill other than the region's own, the
     // label overflows and earns a halo.
     const { color: baseColor, haloColor } = labelOnFill(fill);
-    // Subdue a grown label toward the background — gentle on data (value stays
-    // readable), stronger on orientation backdrop. Zero fade ⇒ exact base color.
-    const color = fade > 0 ? mix(baseColor, palette.bg, fade) : baseColor;
+    // A backdrop label passes an explicit muted, contrast-floored tone
+    // (`backdropLandTone`) and no fade — subordination is by muting, not by
+    // fading toward bg (which destroyed contrast). Data labels pass no override
+    // and keep the contrast-picked-vs-fill colour. Zero fade ⇒ exact base color.
+    const color =
+      colorOverride ??
+      (fade > 0 ? mix(baseColor, palette.bg, fade) : baseColor);
     // Widest of name / value drives the overflow sample (the value line can be
     // the wider of the two, e.g. a short name over a long number). Scales with
     // the actual (possibly grown) font so the halo gate matches what's drawn.
@@ -3523,6 +3558,7 @@ export function layoutMap(
             calloutDot: { x: c[0], y: c[1], color: dark },
             lineNumber: r.lineNumber,
           });
+          labeledRegionIds.add(r.id);
         }
         continue;
       }
@@ -3598,8 +3634,10 @@ export function layoutMap(
         r.lineNumber,
         chosen.valueLine,
         font,
-        fade
+        fade,
+        isOrient ? backdropLandTone : undefined
       );
+      labeledRegionIds.add(r.id);
       // Guard so a POI label landing here later makes this label yield (below).
       regionLabelGuards.push({
         label: labels[labels.length - 1]!,
@@ -3620,6 +3658,7 @@ export function layoutMap(
         seed.lineNumber,
         valStr
       );
+      labeledRegionIds.add(seed.iso);
       regionLabelGuards.push({
         label: labels[labels.length - 1]!,
         rect: regionLabelRect(seed.x, seed.y, text, valStr),
@@ -4419,7 +4458,7 @@ export function layoutMap(
     const rawCountries: RawCountry[] = [];
     for (const f of worldLayer.values()) {
       const iso = typeof f.id === 'string' ? f.id : String(f.id ?? '');
-      if (!iso || regionById.has(iso)) continue;
+      if (!iso || regionById.has(iso) || labeledRegionIds.has(iso)) continue;
       // F3: skip a country whose SUBDIVISIONS are the referenced data (e.g. a
       // US-states choropleth on a world projection) — the states ARE the data,
       // so don't slap a redundant "United States" context label over them.
@@ -4536,7 +4575,7 @@ export function layoutMap(
     );
     if (usLayer && framedStateContainers) {
       for (const [iso, f] of usLayer) {
-        if (regionById.has(iso)) continue;
+        if (regionById.has(iso) || labeledRegionIds.has(iso)) continue;
         const viewF = cullFeatureToView(f);
         if (!viewF) continue; // not in frame
         const b = path.bounds(viewF as never) as [
@@ -4563,6 +4602,11 @@ export function layoutMap(
       waterBodies: data.waterBodies,
       countries: countryCandidates,
       palette,
+      // One muted, contrast-floored tone shared with the orientation backdrop
+      // (region pass) so a context country (Canada) and an orientation region
+      // (Minnesota) read identically — never below the WCAG-AA floor, no fade.
+      countryTone: backdropLandTone,
+      waterTone: backdropWaterTone,
       project,
       collides,
       contentPoints,

@@ -333,9 +333,10 @@ describe('placeContextLabels — countries (AC5, AC6)', () => {
     expect(placed.map((l) => l.text)).not.toContain('BR');
     expect(placed.map((l) => l.text)).toContain('Test Ocean'); // water full
   });
-  it('scales font up + subdues colour with footprint; small stays base', () => {
-    // A large footprint reads as a big, faded backdrop name; a small one keeps
-    // the base font at full muted strength (gradual, footprint-driven).
+  it('scales font up with footprint but colour is CONSTANT (no fade)', () => {
+    // A large footprint reads as a bigger backdrop name; a small one keeps the
+    // base font. Subordination is by muting + size only — NOT by fading toward
+    // bg, so the colour is identical across footprints (the floored muted tone).
     const big: CountryCandidate = {
       name: 'Bigland',
       bbox: [100, 100, 380, 260],
@@ -353,29 +354,38 @@ describe('placeContextLabels — countries (AC5, AC6)', () => {
     const s = placed.find((l) => l.text === 'Tiny')!;
     expect(b).toBeDefined();
     expect(s).toBeDefined();
-    expect(b.fontSize!).toBeGreaterThan(s.fontSize!);
+    expect(b.fontSize!).toBeGreaterThan(s.fontSize!); // footprint still ramps size
     expect(s.fontSize).toBe(11); // unscaled base font
-    expect(s.color).toBe(P.textMuted); // full-strength muted (no fade)
-    expect(b.color).not.toBe(s.color); // big name subdued toward bg
+    expect(s.color).toBe(P.textMuted); // fallback muted tone (no countryTone arg)
+    expect(b.color).toBe(s.color); // no fade: same tone regardless of footprint
   });
-  it('fade blends TOWARD bg, not away: a mid country stays near the muted ink', () => {
-    // Regression for the inverted fade (map-context-neighbor-labels): a medium
-    // footprint has a small positive fade and must blend only slightly toward bg —
-    // close to textMuted, NEVER near-white (the old bug lightened small names to
-    // near the background, e.g. Belarus/Georgia at #e1e3e6/#f2f3f4).
-    const medium: CountryCandidate = {
-      name: 'Midland',
-      bbox: [100, 100, 230, 200], // footprint above MIN, well below MAX
-      anchor: [165, 150],
+  it('uses the supplied contrast-floored countryTone for every country', () => {
+    // When the caller passes a floored land tone (shared with the orientation
+    // backdrop), every country label uses it verbatim — no fade, no per-size
+    // colour drift — so a context country and an orientation region match.
+    const floored = '#5b6672';
+    const big: CountryCandidate = {
+      name: 'Bigland',
+      bbox: [100, 100, 380, 260],
+      anchor: [240, 180],
     };
-    const m = placeContextLabels(
-      baseArgs({ waterBodies: { entries: [] }, countries: [medium] })
-    ).find((l) => l.text === 'Midland')!;
-    expect(m).toBeDefined();
-    const r = parseInt(m.color!.slice(1, 3), 16);
-    const mutedR = parseInt(P.textMuted.slice(1, 3), 16);
-    const bgR = parseInt(P.bg.slice(1, 3), 16);
-    expect(Math.abs(r - mutedR)).toBeLessThan(Math.abs(r - bgR));
+    const small: CountryCandidate = {
+      name: 'Tiny',
+      bbox: [420, 320, 464, 350],
+      anchor: [442, 335],
+    };
+    const placed = placeContextLabels(
+      baseArgs({
+        waterBodies: { entries: [] },
+        countries: [big, small],
+        countryTone: floored,
+      })
+    );
+    for (const t of ['Bigland', 'Tiny']) {
+      const l = placed.find((p) => p.text === t)!;
+      expect(l).toBeDefined();
+      expect(l.color).toBe(floored);
+    }
   });
   it('orientation-value ranking: major water < country < minor water', () => {
     // The orientation core (oceans + major seas, tier ≤ 1) leads; a big country
