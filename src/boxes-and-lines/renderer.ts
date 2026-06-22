@@ -1302,9 +1302,9 @@ export function renderBoxesAndLines(
       .attr('height', lh)
       .attr('rx', 3)
       .attr('fill', palette.bg)
-      .attr('stroke', palette.textMuted)
-      .attr('stroke-width', 0.5)
-      .attr('stroke-opacity', 0.4);
+      // No border; semi-transparent so the line stays faintly visible behind the
+      // label while the (full-opacity) text on top stays crisp.
+      .attr('opacity', 0.72);
 
     const text = labelG
       .append('text')
