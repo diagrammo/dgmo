@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-06-21
+
+### Added
+
+- **Multi-word quoted tag-group names** — `tag "Trust Zone" as tz` is now accepted. The display name is preserved for the legend label while a DOM-safe slug (`trust-zone`) is used wherever the name becomes a `data-tag-*` attribute, entity metadata key, or `active-tag` match target. Single-identifier names stay byte-identical. Threaded through every tag-group-consuming chart type.
+- **Boxes-and-lines tier-band grouped layouts** — grouped diagrams resolve into ordered disjoint rank bands with peripheral back-edge routing, fixing the back-edge "balloon" and cross-tier collisions. Additive layout candidate gated on strict badness; no gallery drift.
+- **Map place discoverability** — `searchMapLocations()` API and a `dgmo map search` CLI command resolve human place names (e.g. "New York") to paste-ready map tokens; map authoring tips steer flights toward IATA codes.
+- **Journey-map persona richness** — persona accepts a §1.5 trailing-token color and supports bullets + inline markdown in the description.
+
+### Fixed
+
+- **sitemap** — sub-pages nested inside a container now raise an error instead of silently mis-nesting.
+
+### Changed
+
+- Expanded per-type authoring TIPS: boxes-and-lines categorical tag-group examples, richer journey-map / kanban / sitemap styling guidance, sequence section guidance.
+
 ## [0.32.1] - 2026-06-20
 
 ### Changed

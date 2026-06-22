@@ -66,7 +66,7 @@
     "arounds",
     "Ashmore",
     "Avenir",
-    "Bahía",
+    "Bah\u00eda",
     "baja",
     "baretail",
     "barsky",
@@ -85,7 +85,7 @@
     "cand",
     "cands",
     "Cantarell",
-    "carrée",
+    "carr\u00e9e",
     "categorise",
     "Catmull",
     "catppuccin",
@@ -259,7 +259,7 @@
     "restroke",
     "resvg",
     "rollups",
-    "rosé",
+    "ros\u00e9",
     "rosepine",
     "ROYGBIV",
     "RRGGBB",
@@ -358,7 +358,8 @@
     "xtick",
     "ylabel",
     "ytick",
-    "ZWSP"
+    "ZWSP",
+    "heathrow"
   ],
   "ignorePaths": [
     "node_modules",
