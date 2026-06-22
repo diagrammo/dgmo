@@ -64,6 +64,7 @@ LLMs default to Mermaid / PlantUML habits; DGMO differs. These rules prevent the
 - **Show-everything is the default.** Every label / value / percent renders by default. Emit `no-name` / `no-value` / `no-percent` / `no-*` ONLY when the user explicitly asks to hide something — never defensively.
 - **`//` comments only** (never `#`). **Indentation closes blocks** — never `end`.
 - **Declare before reference.** An edge target must be declared on a prior line; put metadata and edges on/under one declaration to avoid `Duplicate node` warnings.
+- **No reference scaffolding in output.** Emit only DGMO source. This doc is organized with HTML-comment anchors (the `TYPE`, `TIPS`, and `AI-CORE` markers, each wrapped in comment delimiters); never copy any such `<!-- … -->` comment into a diagram. They mark sections of the docs, not DGMO syntax; the parser flags a stray HTML comment as an `Unexpected line` warning. (DGMO's only comment form is `//`.)
 
 Two traps in the *other* direction (DGMO wants a colon / a space where you might not expect):
 

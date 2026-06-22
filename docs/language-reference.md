@@ -60,6 +60,7 @@ LLMs default to Mermaid / PlantUML habits; DGMO differs. These rules prevent the
 - **Show-everything is the default.** Every label / value / percent renders by default. Emit `no-name` / `no-value` / `no-percent` / `no-*` ONLY when the user explicitly asks to hide something — never defensively.
 - **`//` comments only** (never `#`). **Indentation closes blocks** — never `end`.
 - **Declare before reference.** An edge target must be declared on a prior line; put metadata and edges on/under one declaration to avoid `Duplicate node` warnings.
+- **No reference scaffolding in output.** Emit only DGMO source. This doc is organized with HTML-comment anchors (the `TYPE`, `TIPS`, and `AI-CORE` markers, each wrapped in comment delimiters); never copy any such `<!-- … -->` comment into a diagram. They mark sections of the docs, not DGMO syntax; the parser flags a stray HTML comment as an `Unexpected line` warning. (DGMO's only comment form is `//`.)
 
 Two traps in the *other* direction (DGMO wants a colon / a space where you might not expect):
 
@@ -502,7 +503,7 @@ rarely benefit. Aliases should aid comprehension, not obscure it.
 <!-- TYPE:sequence -->
 
 <!-- TIPS start -->
-**Styling tips:** stay terse — participants are created by the messages that name them, so a plain flow needs only the arrow lines (no participant declarations). Skip `is a TYPE`: the glyph is inferred from the name (`User`→actor, `*DB`→database, `Redis`→cache, `Kafka`→queue); add a declaration, a `[Group]`, or `position: N` only when it genuinely aids reading order or grouping, never as boilerplate. Give each participant a short role name; group related exchanges under `== Section ==` dividers rather than a wall of arrows; label a return arrow only when its value matters (unlabeled returns are auto-pruned). Drop a `note` where something subtle happens. When participants fall into trust or role categories, color the participants (not the messages) by category with a tag group using the named palette colors, so the boundary reads at a glance.
+**Styling tips:** stay terse — participants are created by the messages that name them, so a plain flow needs only the arrow lines (no participant declarations). Skip `is a TYPE`: the glyph is inferred from the name (`User`→actor, `*DB`→database, `Redis`→cache, `Kafka`→queue); add a declaration, a `[Group]`, or `position: N` only when it genuinely aids reading order or grouping, never as boilerplate. Give each participant a short role name. Reach for `== Section ==` dividers only when the flow splits into **two or more** distinct phases (e.g. `== Authentication ==` then `== Checkout ==`) — a single divider over one run of arrows just repeats the diagram's subject and adds a redundant band, so a one-phase flow should have no dividers at all. Label a return arrow only when its value matters (unlabeled returns are auto-pruned). Drop a `note` where something subtle happens. When participants fall into trust or role categories, color the participants (not the messages) by category with a tag group using the named palette colors, so the boundary reads at a glance.
 <!-- TIPS end -->
 
 ### 2.1 Participants
