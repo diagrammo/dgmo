@@ -1492,18 +1492,30 @@ export function layoutMap(
   // name is always legible WITHOUT a halo. This replaces the old fade-toward-bg,
   // which washed a grown name to ~background (Minnesota rendered at ~#dddfe0 over
   // ~#e9ece9 land — contrast ≈ 1).
-  const contrastFloorTone = (tone: string, substrate: string): string => {
-    if (contrastRatio(tone, substrate) >= REGION_LABEL_HALO_RATIO) return tone;
+  // Floored against EVERY light substrate a backdrop name may touch — its own
+  // neutral land AND open water — so the no-halo label stays legible even where a
+  // big country name (Florida, Chile) spills off its coast onto the sea. (The
+  // placement gate below still keeps these names off the only substrate the tone
+  // can't clear: a saturated foreign DATA fill.)
+  const contrastFloorTone = (tone: string, ...substrates: string[]): string => {
+    const clears = (t: string): boolean =>
+      substrates.every((s) => contrastRatio(t, s) >= REGION_LABEL_HALO_RATIO);
+    if (clears(tone)) return tone;
     for (let s = 10; s <= 100; s += 10) {
       const t = mix(palette.text, tone, s);
-      if (contrastRatio(t, substrate) >= REGION_LABEL_HALO_RATIO) return t;
+      if (clears(t)) return t;
     }
     return palette.text;
   };
-  const backdropLandTone = contrastFloorTone(palette.textMuted, neutralFill);
+  const backdropLandTone = contrastFloorTone(
+    palette.textMuted,
+    neutralFill,
+    water
+  );
   const backdropWaterTone = contrastFloorTone(
     mix(palette.colors.blue, palette.textMuted, 50),
-    water
+    water,
+    neutralFill
   );
 
   // -- Colorize: content-inferred distinct political fills (§24B) --
@@ -3158,7 +3170,6 @@ export function layoutMap(
   const REGION_FONT_MAX_ORIENT = 22; // px ceiling, backdrop names
   const REGION_SIZE_FRAC_MIN = 0.06; // footprint linear-frac at base font
   const REGION_SIZE_FRAC_MAX = 0.32; // footprint linear-frac at max font
-  const REGION_FADE_ORIENT = 45; // % toward bg at max size, backdrop
   const canvasLinear = Math.sqrt(Math.max(1, width * height));
   const sizeT = (boxW: number, boxH: number): number => {
     const frac = Math.sqrt(Math.max(0, boxW * boxH)) / canvasLinear;
@@ -3179,7 +3190,6 @@ export function layoutMap(
     lineNumber: number,
     valueLine?: string,
     fontSize: number = FONT,
-    fade: number = 0,
     colorOverride?: string
   ): void => {
     // Colour is contrast-picked against the region's own fill (see labelOnFill).
@@ -3194,12 +3204,11 @@ export function layoutMap(
     // label overflows and earns a halo.
     const { color: baseColor, haloColor } = labelOnFill(fill);
     // A backdrop label passes an explicit muted, contrast-floored tone
-    // (`backdropLandTone`) and no fade — subordination is by muting, not by
-    // fading toward bg (which destroyed contrast). Data labels pass no override
-    // and keep the contrast-picked-vs-fill colour. Zero fade ⇒ exact base color.
-    const color =
-      colorOverride ??
-      (fade > 0 ? mix(baseColor, palette.bg, fade) : baseColor);
+    // (`backdropLandTone`); subordination is by muting, NOT by fading toward bg
+    // (which destroyed contrast — the old REGION_FADE_ORIENT washed Minnesota to
+    // ~background). Data labels pass no override and keep the contrast-picked-
+    // vs-fill colour.
+    const color = colorOverride ?? baseColor;
     // Widest of name / value drives the overflow sample (the value line can be
     // the wider of the two, e.g. a short name over a long number). Scales with
     // the actual (possibly grown) font so the halo gate matches what's drawn.
@@ -3218,7 +3227,11 @@ export function layoutMap(
       text,
       anchor: 'middle',
       color,
-      halo: overflows,
+      // A backdrop label (colorOverride) NEVER haloes: the placement gate above
+      // guarantees it sits on a floored-readable substrate (own fill, neutral
+      // land, foreign land, or water), so a halo is pure noise. Data labels keep
+      // the containment-gated halo until the role-tier pass (Phase 3).
+      halo: colorOverride ? false : overflows,
       haloColor,
       ...(fontSize !== FONT && { fontSize }),
       ...(valueLine !== undefined && { valueLine }),
@@ -3574,19 +3587,31 @@ export function layoutMap(
       // on neutral basemap land where a larger, gently-faded backdrop reads well.
       const isOrient = r.value === undefined && r.layer === 'base';
       let font = FONT;
-      let fade = 0;
       if (isOrient) {
         const growT = sizeT(boxW, boxH);
         const desiredFont = Math.round(
           FONT + growT * (REGION_FONT_MAX_ORIENT - FONT)
         );
         const hasVal = chosen.valueLine !== undefined;
-        for (let f = desiredFont; f > FONT; f--) {
-          // Fit the footprint box, clear neighbours/POIs, AND — the real guard —
-          // stay INSIDE the region's own fill at the bigger size. The bbox is far
-          // too loose for an irregular shape (Alaska blows up the US bbox), so
-          // sample the grown name's horizontal extremes against `fillAt`: if
-          // either leaves this region's fill, don't grow that far.
+        // A backdrop name carries NO halo, so it must sit cleanly at whatever size
+        // it takes. Try the desired (footprint-grown) size DOWN TO the base font;
+        // at each, the name must fit the box, clear neighbours/POIs/route arcs
+        // (`collides` adds the arc segments `fitsPois` misses), AND have both
+        // horizontal extremes on a floored-readable substrate — its own fill, or
+        // empty land/water (neutral/foreign/sea). The only thing it must NOT cross
+        // is a saturated foreign DATA fill, where the muted floored tone is
+        // illegible and there's no halo to rescue it. If nothing — not even the
+        // base font — sits clean, the label is DROPPED (the basemap shading +
+        // hover carry the region); a readable blank beats an unreadable name.
+        const extremesClean = (f: number): boolean => {
+          const halfW = measureLegendText(chosen.text, f) / 2;
+          return [chosen.ax - halfW, chosen.ax + halfW].every((sx) => {
+            const fAt = fillAt(sx, chosen.ay);
+            return fAt === r.fill || isEmptyFill(fAt);
+          });
+        };
+        let fit = -1;
+        for (let f = desiredFont; f >= FONT; f--) {
           if (
             stackW(chosen.text, chosen.valueLine, f) > boxW ||
             stackH(hasVal, f) > boxH
@@ -3606,17 +3631,24 @@ export function layoutMap(
             undefined,
             f
           );
-          if (!fitsRegions(gRect) || !fitsPois(gName)) continue;
-          const halfW = measureLegendText(chosen.text, f) / 2;
-          if (
-            fillAt(chosen.ax - halfW, chosen.ay) !== r.fill ||
-            fillAt(chosen.ax + halfW, chosen.ay) !== r.fill
-          )
+          if (!fitsRegions(gRect) || !fitsPois(gName) || collides(gName))
             continue;
-          font = f;
+          if (!extremesClean(f)) continue;
+          fit = f;
           break;
         }
-        fade = font > FONT ? Math.round(growT * REGION_FADE_ORIENT) : 0;
+        if (fit < 0) {
+          // A POI-frame CONTAINER is the map's subject (its headline name) — it
+          // must never drop, so it falls back to the base font even when no size
+          // sits perfectly clean (the floored tone keeps it legible). A mere
+          // backdrop NEIGHBOUR with no clean placement is dropped: the basemap
+          // shading + hover carry it, and a readable blank beats a name crammed
+          // onto an arc or a foreign data fill.
+          if (!frameContainers.has(r.id)) continue;
+          font = FONT;
+        } else {
+          font = fit;
+        }
       }
       const rRect = regionLabelRect(
         chosen.ax,
@@ -3634,7 +3666,6 @@ export function layoutMap(
         r.lineNumber,
         chosen.valueLine,
         font,
-        fade,
         isOrient ? backdropLandTone : undefined
       );
       labeledRegionIds.add(r.id);
