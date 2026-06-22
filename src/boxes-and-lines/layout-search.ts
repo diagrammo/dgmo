@@ -23,6 +23,7 @@ import {
 } from './layout';
 import { layeredCandidates } from './layout-layered';
 import { groupedTierCandidates } from './layout-grouped';
+import { measureEdgeLabel, EDGE_LABEL_FONT_SIZE } from './label-placement';
 
 type Pt = { x: number; y: number };
 
@@ -917,9 +918,14 @@ export async function layoutBoxesAndLinesSearch(
      *  indicator. Omit it (CLI/export) and the search runs straight through with
      *  no added latency. */
     onProgress?: (done: number, total: number, phase: string) => void;
+    /** Last-resort label legibility: reserve dagre label space for every labeled
+     *  edge so the layout opens a gap wide enough for the (wrapped) label. Only
+     *  set by layout.ts when steps 1–2 left a label overlapping a node box. */
+    reserveEdgeLabels?: boolean;
   }
 ): Promise<BLLayoutResult> {
   const hideDescriptions = opts?.hideDescriptions ?? false;
+  const reserveEdgeLabels = opts?.reserveEdgeLabels ?? false;
   const onProgress = opts?.onProgress;
   // Yield to a macrotask (lets the browser repaint between heavy placements);
   // no-op when there's no progress observer so non-interactive callers pay
@@ -1323,8 +1329,16 @@ export async function layoutBoxesAndLinesSearch(
     for (const e of ord(parsed.edges)) {
       const s = srcRep(e.source);
       const t = tgtRep(e.target);
-      if (s !== t && g.hasNode(s) && g.hasNode(t))
-        g.setEdge(s, t, {}, edgeKey(e));
+      if (s !== t && g.hasNode(s) && g.hasNode(t)) {
+        // Last-resort label legibility: reserve a virtual label node on the edge
+        // so dagre widens the rank gap to fit the (wrapped) label.
+        let edgeLabel: object = {};
+        if (reserveEdgeLabels && e.label) {
+          const m = measureEdgeLabel(e.label, EDGE_LABEL_FONT_SIZE);
+          edgeLabel = { width: m.width, height: m.height, labelpos: 'c' };
+        }
+        g.setEdge(s, t, edgeLabel, edgeKey(e));
+      }
     }
     dagre.layout(g);
 
