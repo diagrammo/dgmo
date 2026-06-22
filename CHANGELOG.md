@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-06-22
+
+### Added
+
+- **Legible boxes-and-lines edge labels, regardless of length or layout** — connector labels follow a priority ladder: (1) wrap long text onto up to 3 lines (hard-break + ellipsis bound the box), (2) if the box still overlaps a node, slide it along the line and then a small perpendicular offset into clear space while staying proximal, (3) as a last resort, re-run the layout reserving label space so a gap opens. Placement moved from the renderer into the layout (a new `label-placement` pass), and labels now paint in a dedicated layer above the nodes so a box can never clip them.
+
+### Changed
+
+- **Edge-label halo restyled** — borderless and semi-transparent, so the connector line stays faintly visible behind the label while the full-opacity text on top stays crisp.
+
 ## [0.33.0] - 2026-06-21
 
 ### Added
