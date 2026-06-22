@@ -5,6 +5,7 @@
 // POI radii + edge widths, and places labels with per-cluster collision
 // escalation. The SVG emission is renderer.ts (it only draws what we compute).
 // See spec section 24B.3-.7/.11 + the tech-spec Adversarial Review Resolutions AR1-AR9.
+import { tagAttrKey } from '../utils/tag-groups';
 import {
   geoPath,
   geoNaturalEarth1,
@@ -1582,7 +1583,7 @@ export function layoutMap(
       (g) => g.name.toLowerCase() === groupName.toLowerCase()
     );
     if (!group) return null;
-    const val = tags[group.name.toLowerCase()] ?? group.defaultValue;
+    const val = tags[tagAttrKey(group.name)] ?? group.defaultValue;
     if (!val) return null;
     const entry = group.entries.find(
       (e) => e.value.toLowerCase() === val.toLowerCase()
@@ -2656,7 +2657,7 @@ export function layoutMap(
     if (directHex)
       return { fill: directHex, stroke: mix(directHex, palette.text, 18) };
     for (const group of resolved.tagGroups) {
-      const val = p.tags[group.name.toLowerCase()];
+      const val = p.tags[tagAttrKey(group.name)];
       if (!val) continue;
       const entry = group.entries.find(
         (e) => e.value.toLowerCase() === val.toLowerCase()
@@ -2678,7 +2679,7 @@ export function layoutMap(
   // or null → caller falls back to the neutral connector mix.
   const lineColor = (tags: Readonly<Record<string, string>>): string | null => {
     for (const group of resolved.tagGroups) {
-      const val = tags[group.name.toLowerCase()];
+      const val = tags[tagAttrKey(group.name)];
       if (!val) continue;
       const entry = group.entries.find(
         (e) => e.value.toLowerCase() === val.toLowerCase()

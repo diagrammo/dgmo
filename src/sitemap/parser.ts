@@ -29,6 +29,7 @@ import {
   stripDefaultModifier,
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -273,12 +274,12 @@ export function parseSitemap(
       if (tagBlockMatch.alias) {
         metaAliasMap.set(
           normalizeName(tagBlockMatch.alias),
-          tagBlockMatch.name.toLowerCase()
+          tagAttrKey(tagBlockMatch.name)
         );
       }
       metaAliasMap.set(
         normalizeName(tagBlockMatch.name),
-        tagBlockMatch.name.toLowerCase()
+        tagAttrKey(tagBlockMatch.name)
       );
       result.tagGroups.push(newTagGroup);
       continue;

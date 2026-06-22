@@ -2,6 +2,7 @@
 // Infra Chart SVG Renderer
 // ============================================================
 
+import { tagAttrKey } from '../utils/tag-groups';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
@@ -1388,7 +1389,7 @@ function resolveActiveTagStroke(
     (t) => t.name.toLowerCase() === activeGroup.toLowerCase()
   );
   if (!tg) return null;
-  const tagKey = (tg.alias ?? tg.name).toLowerCase();
+  const tagKey = tagAttrKey(tg.alias ?? tg.name);
   const tagVal = node.tags[tagKey];
   if (!tagVal) return null;
   const tv = tg.values.find(
@@ -2073,7 +2074,7 @@ export function computeInfraLegendGroups(
     groups.push({
       name: tg.name,
       type: 'tag',
-      tagKey: (tg.alias ?? tg.name).toLowerCase(),
+      tagKey: tagAttrKey(tg.alias ?? tg.name),
       entries,
       width: LEGEND_CAPSULE_PAD * 2 + pillWidth + 4 + entriesWidth,
       minifiedWidth: pillWidth,
@@ -2146,7 +2147,7 @@ function renderLegend(
   // Add infra-specific classes and data attributes for app interactivity
   legendG.selectAll('[data-legend-group]').classed('infra-legend-group', true);
   for (const group of legendGroups) {
-    const groupKey = group.name.toLowerCase();
+    const groupKey = tagAttrKey(group.name);
     for (const entry of group.entries) {
       const entryEl = legendG.select(
         `[data-legend-group="${groupKey}"] [data-legend-entry="${entry.value.toLowerCase()}"]`

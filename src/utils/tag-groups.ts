@@ -39,6 +39,23 @@ export interface TagGroup {
   readonly lineNumber: number;
 }
 
+/**
+ * DOM-safe key for a tag group — used wherever the group name becomes a
+ * `data-tag-*` attribute suffix, an entity metadata key, or an `active-tag`
+ * match target. For a single-identifier name (the only form the parser used to
+ * accept) this is exactly `name.toLowerCase()`, so swapping it in for existing
+ * diagrams is byte-identical. A quoted multi-word name (`tag "Trust Zone" as tz`)
+ * slugs to a hyphenated identifier (`trust-zone`) so it never produces an
+ * invalid DOM attribute name; the original `name` is kept for the legend label.
+ */
+export function tagAttrKey(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 /** Result of matching a tag block heading */
 interface TagBlockMatch {
   name: string;
@@ -450,12 +467,12 @@ export function resolveTagColor(
   if (!activeGroupName) return undefined;
 
   const group = tagGroups.find(
-    (g) => g.name.toLowerCase() === activeGroupName.toLowerCase()
+    (g) => tagAttrKey(g.name) === tagAttrKey(activeGroupName)
   );
   if (!group) return undefined;
 
   const metaValue =
-    metadata[group.name.toLowerCase()] ??
+    metadata[tagAttrKey(group.name)] ??
     (isContainer ? undefined : group.defaultValue);
   if (!metaValue) return '#999999';
 
@@ -489,7 +506,7 @@ export function validateTagValues(
   if (tagGroups.length === 0) return;
 
   const groupMap = new Map<string, TagGroup>();
-  for (const g of tagGroups) groupMap.set(g.name.toLowerCase(), g);
+  for (const g of tagGroups) groupMap.set(tagAttrKey(g.name), g);
 
   for (const entity of entities) {
     for (const [key, value] of Object.entries(entity.metadata)) {
@@ -557,10 +574,14 @@ export function validateTagGroupNames(
         `'none' is a reserved keyword and cannot be used as a tag group name`
       );
     }
-    if (!VALID_TAG_IDENT_RE.test(group.name)) {
+    // A single-identifier name is valid as-is; a multi-word name is valid when
+    // quoted (`tag "Trust Zone" as tz`) — it slugs to a DOM-safe key while the
+    // original text stays the legend label. Reject only names whose slug is
+    // not a usable identifier (e.g. all-punctuation, or leading digit).
+    if (!VALID_TAG_IDENT_RE.test(tagAttrKey(group.name))) {
       report(
         group.lineNumber,
-        `Tag group name "${group.name}" contains invalid characters — use a single identifier (letters, digits, underscore, hyphen)`
+        `Tag group name "${group.name}" can't form a valid key — use letters, digits, underscore, or hyphen, and quote a multi-word name (e.g. tag "Trust Zone" as tz)`
       );
     }
     if (group.alias != null && !VALID_TAG_IDENT_RE.test(group.alias)) {
@@ -591,7 +612,7 @@ export function validateTagGroupNames(
 export function cascadeTagMetadata<
   T extends { metadata: Record<string, string>; children: readonly T[] },
 >(roots: readonly T[], tagGroups: ReadonlyArray<{ name: string }>): void {
-  const keys = tagGroups.map((g) => g.name.toLowerCase());
+  const keys = tagGroups.map((g) => tagAttrKey(g.name));
   if (keys.length === 0) return;
 
   const walk = (node: T, inherited: Record<string, string>): void => {
@@ -629,7 +650,7 @@ export function injectDefaultTagMetadata(
   for (const group of tagGroups) {
     if (group.defaultValue) {
       defaults.push({
-        key: group.name.toLowerCase(),
+        key: tagAttrKey(group.name),
         value: group.defaultValue,
       });
     }

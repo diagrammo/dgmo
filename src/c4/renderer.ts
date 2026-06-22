@@ -2,6 +2,7 @@
 // C4 Context Diagram SVG Renderer
 // ============================================================
 
+import { tagAttrKey } from '../utils/tag-groups';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
@@ -432,7 +433,7 @@ export function renderC4Context(
       .attr('data-node-id', node.id);
 
     if (activeTagGroup) {
-      const tagKey = activeTagGroup.toLowerCase();
+      const tagKey = tagAttrKey(activeTagGroup);
       const tagValue = node.metadata[tagKey];
       if (tagValue) {
         nodeG.attr(`data-tag-${tagKey}`, tagValue.toLowerCase());
@@ -1517,7 +1518,7 @@ export function renderC4Containers(
       .attr('data-node-id', node.id);
 
     if (activeTagGroup) {
-      const tagKey = activeTagGroup.toLowerCase();
+      const tagKey = tagAttrKey(activeTagGroup);
       const tagValue = node.metadata[tagKey];
       if (tagValue) {
         nodeG.attr(`data-tag-${tagKey}`, tagValue.toLowerCase());

@@ -2,6 +2,7 @@
 // Org Chart Tree Layout Engine (d3-hierarchy)
 // ============================================================
 
+import { tagAttrKey } from '../utils/tag-groups';
 import { hierarchy, tree } from 'd3-hierarchy';
 import type { ParsedOrg, OrgNode } from './parser';
 import type { Writable } from '../utils/brand';
@@ -303,7 +304,7 @@ function computeLegendGroups(
     if (group.entries.length === 0) continue;
 
     // Filter entries to only values actually used by nodes (if provided)
-    const usedValues = usedValuesByGroup?.get(group.name.toLowerCase());
+    const usedValues = usedValuesByGroup?.get(tagAttrKey(group.name));
     const visibleEntries = usedValues
       ? group.entries.filter((e) => usedValues.has(e.value.toLowerCase()))
       : group.entries;
@@ -1185,7 +1186,7 @@ export function layoutOrg(
   // Collect which tag group values are actually used by nodes
   const usedValuesByGroup = new Map<string, Set<string>>();
   for (const group of parsed.tagGroups) {
-    const key = group.name.toLowerCase();
+    const key = tagAttrKey(group.name);
     const used = new Set<string>();
     const walk = (node: OrgNode) => {
       if (!node.isContainer && node.metadata[key]) {

@@ -2,6 +2,7 @@
 // Mindmap SVG Renderer
 // ============================================================
 
+import { tagAttrKey } from '../utils/tag-groups';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import {
@@ -389,7 +390,7 @@ export function renderMindmap(
 
     // Expose active tag group value for legend-entry hover dimming
     if (activeTagGroup) {
-      const tagKey = activeTagGroup.toLowerCase();
+      const tagKey = tagAttrKey(activeTagGroup);
       const metaValue = node.metadata[tagKey];
       if (metaValue) {
         nodeG.attr(`data-tag-${tagKey}`, metaValue.toLowerCase());

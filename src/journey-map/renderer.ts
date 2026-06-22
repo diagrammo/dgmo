@@ -1,3 +1,4 @@
+import { tagAttrKey } from '../utils/tag-groups';
 import * as d3 from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import type { PaletteColors } from '../palettes';
@@ -362,7 +363,7 @@ export function renderJourneyMap(
               const isScore = groupName === 'Score';
               const attrName = isScore
                 ? 'data-score'
-                : `data-tag-${groupName.toLowerCase()}`;
+                : `data-tag-${tagAttrKey(groupName)}`;
 
               const matches = (el: Element) =>
                 el.getAttribute(attrName) === entryValue;
@@ -1110,7 +1111,7 @@ function resolveStepColor(
   );
   if (!group) return undefined;
 
-  const tagValue = step.tags[group.name.toLowerCase()];
+  const tagValue = step.tags[tagAttrKey(group.name)];
   if (!tagValue) return undefined;
 
   const entry = group.entries.find(

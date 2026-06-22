@@ -2,6 +2,7 @@
 // Timeline renderer — Story 109.2 (arch-review). Extracted from d3.ts.
 // ============================================================
 
+import { tagAttrKey } from '../utils/tag-groups';
 import * as d3Scale from 'd3-scale';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
@@ -820,7 +821,7 @@ function setupTimeline(
   let tagLanes: Lane[] | null = null;
 
   if (resolvedSwimlaneTG) {
-    const tagKey = resolvedSwimlaneTG.toLowerCase();
+    const tagKey = tagAttrKey(resolvedSwimlaneTG);
     const tagGroup = parsed.timelineTagGroups.find(
       (g) => g.name.toLowerCase() === tagKey
     );
@@ -1322,7 +1323,7 @@ function renderTimelineTagLegendOverlay(
               onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
             },
             onEntryHover: (groupName, entryValue) => {
-              const tagKey = groupName.toLowerCase();
+              const tagKey = tagAttrKey(groupName);
               if (entryValue) {
                 const tagVal = entryValue.toLowerCase();
                 fadeToTagValue(mainG, tagKey, tagVal);
@@ -1349,7 +1350,7 @@ function renderTimelineTagLegendOverlay(
               }
             },
             onGroupRendered: (groupName, groupEl, isActive) => {
-              const groupKey = groupName.toLowerCase();
+              const groupKey = tagAttrKey(groupName);
               groupEl.attr('data-tag-group', groupKey);
               if (isActive && !viewMode) {
                 const isSwimActive =

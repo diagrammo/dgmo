@@ -19,6 +19,7 @@ import {
   finalizeAutoTagColors,
   cascadeTagMetadata,
   AUTO_TAG_COLOR_SENTINEL,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -167,12 +168,12 @@ export function parseMindmap(
       if (tagBlockMatch.alias) {
         aliasMap.set(
           tagBlockMatch.alias.toLowerCase(),
-          tagBlockMatch.name.toLowerCase()
+          tagAttrKey(tagBlockMatch.name)
         );
       }
       aliasMap.set(
-        tagBlockMatch.name.toLowerCase(),
-        tagBlockMatch.name.toLowerCase()
+        tagAttrKey(tagBlockMatch.name),
+        tagAttrKey(tagBlockMatch.name)
       );
       result.tagGroups.push(currentTagGroup);
       continue;

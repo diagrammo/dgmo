@@ -2,9 +2,15 @@
 // Sequence Diagram SVG Renderer
 // ============================================================
 
+import { tagAttrKey } from '../utils/tag-groups';
 import * as d3Selection from 'd3-selection';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill, themeBaseBg } from '../palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  shapeFill,
+  themeBaseBg,
+} from '../palettes/color-utils';
 import {
   parseInlineMarkdown,
   truncateBareUrl,
@@ -1062,7 +1068,7 @@ export function renderSequenceDiagram(
   }
   const getTagColor = (value: string | undefined): string | undefined =>
     value ? tagValueToColor.get(value.toLowerCase()) : undefined;
-  const tagKey = activeTagGroup?.toLowerCase();
+  const tagKey = activeTagGroup ? tagAttrKey(activeTagGroup) : undefined;
 
   // Build hidden message set for collapse support
   const hiddenMsgIndices = new Set<number>();
@@ -2008,11 +2014,7 @@ export function renderSequenceDiagram(
     const groupTagValue = tagKey && group.metadata?.[tagKey];
     const groupTagColor = getTagColor(groupTagValue || undefined);
     const fillColor = groupTagColor
-      ? mix(
-          groupTagColor,
-          themeBaseBg(palette, isDark),
-          isDark ? 15 : 20
-        )
+      ? mix(groupTagColor, themeBaseBg(palette, isDark), isDark ? 15 : 20)
       : isDark
         ? palette.surface
         : palette.bg;
@@ -2137,11 +2139,7 @@ export function renderSequenceDiagram(
 
       // Overlay a taller rect to replace the standard participant box
       const pFill = effectiveTagColor
-        ? mix(
-            effectiveTagColor,
-            themeBaseBg(palette, isDark),
-            isDark ? 30 : 40
-          )
+        ? mix(effectiveTagColor, themeBaseBg(palette, isDark), isDark ? 30 : 40)
         : isDark
           ? mix(palette.overlay, palette.surface, 50)
           : mix(palette.bg, palette.surface, 50);

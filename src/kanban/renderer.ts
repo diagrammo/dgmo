@@ -2,6 +2,7 @@
 // Kanban Board SVG Renderer
 // ============================================================
 
+import { tagAttrKey } from '../utils/tag-groups';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
@@ -82,7 +83,7 @@ function resolveCardTagMeta(
   const meta: { label: string; value: string; color?: string }[] = [];
   for (const group of tagGroups) {
     if (hiddenMetaGroups?.includes(group.name.toLowerCase())) continue;
-    const tagValue = card.tags[group.name.toLowerCase()];
+    const tagValue = card.tags[tagAttrKey(group.name)];
     const value = tagValue ?? group.defaultValue;
     if (!value) continue;
     const entry = group.entries.find(
@@ -107,7 +108,7 @@ function resolveCardTagColor(
     (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase()
   );
   if (!group) return card.color;
-  const tagValue = card.tags[group.name.toLowerCase()];
+  const tagValue = card.tags[tagAttrKey(group.name)];
   const value = tagValue ?? group.defaultValue;
   if (!value) return undefined;
   const entry = group.entries.find(
@@ -639,7 +640,7 @@ export function renderKanban(
         .attr('data-line-number', card.lineNumber);
 
       if (activeTagGroup) {
-        const tagKey = activeTagGroup.toLowerCase();
+        const tagKey = tagAttrKey(activeTagGroup);
         const tagValue = card.tags[tagKey];
         const group = parsed.tagGroups.find(
           (tg) => tg.name.toLowerCase() === tagKey
@@ -806,7 +807,7 @@ function bucketCardsBySwimlane(
   columns: KanbanColumn[],
   swimlaneGroup: KanbanTagGroup
 ): SwimlaneBucket[] {
-  const tagKey = swimlaneGroup.name.toLowerCase();
+  const tagKey = tagAttrKey(swimlaneGroup.name);
   const buckets = new Map<string, SwimlaneBucket>();
 
   // Seed lanes from declaration order
@@ -1369,7 +1370,7 @@ function renderSwimlaneCard(
     .attr('data-line-number', card.lineNumber);
 
   if (activeTagGroup) {
-    const tagKey = activeTagGroup.toLowerCase();
+    const tagKey = tagAttrKey(activeTagGroup);
     const group = tagGroups.find((tg) => tg.name.toLowerCase() === tagKey);
     const value = card.tags[tagKey] ?? group?.defaultValue;
     if (value) {

@@ -31,6 +31,7 @@ import {
   stripDefaultModifier,
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import { tryCollectNote, resolveNotes, type DiagramNote } from '../utils/notes';
@@ -608,7 +609,7 @@ export function parseERDiagram(
     // Inject defaults for tables without explicit tags
     for (const group of result.tagGroups) {
       if (!group.defaultValue) continue;
-      const key = group.name.toLowerCase();
+      const key = tagAttrKey(group.name);
       for (const table of result.tables) {
         if (!table.metadata[key]) {
           const mutableMeta = tableMetadataMap.get(table.id);

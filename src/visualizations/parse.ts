@@ -36,6 +36,7 @@ import {
   stripDefaultModifier,
   validateTagGroupNames,
   validateTagValues,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
@@ -1364,7 +1365,7 @@ function parseVisualizationFull(
       );
       for (const group of result.timelineTagGroups) {
         if (!group.defaultValue) continue;
-        const key = group.name.toLowerCase();
+        const key = tagAttrKey(group.name);
         for (const event of result.timelineEvents) {
           if (!event.metadata[key]) {
             event.metadata[key] = group.defaultValue;

@@ -358,3 +358,32 @@ describe('Sequence legend rendering', () => {
     expect(entries.length).toBe(1); // just Caching
   });
 });
+
+describe('Quoted multi-word tag group name (display label + DOM-safe slug key)', () => {
+  const diagram = [
+    'sequence OAuth Login',
+    '',
+    'tag "Trust Zone" as tz',
+    '  client blue',
+    '  provider purple',
+    '',
+    'Browser tz: client',
+    'IdP tz: provider',
+    'Browser -authorize-> IdP',
+  ].join('\n');
+
+  it('parses, renders, and keys the data-tag attribute by the slug', () => {
+    const svg = renderToSvg(diagram);
+    expect(svg).not.toBeNull();
+    // Participant carries the slugged, DOM-safe attribute (never a space).
+    const browser = svg!.querySelector('g[data-participant-id="Browser"]');
+    expect(browser!.getAttribute('data-tag-trust-zone')).toBe('client');
+    // The spaced form would have thrown in setAttribute; assert it is absent.
+    expect(svg!.outerHTML).not.toContain('data-tag-trust zone');
+  });
+
+  it('shows the original spaced name as the legend label', () => {
+    const svg = renderToSvg(diagram);
+    expect(svg!.textContent).toContain('Trust Zone');
+  });
+});

@@ -14,6 +14,7 @@ import {
   finalizeAutoTagColors,
   autoTagColorCycle,
   AUTO_TAG_COLOR_SENTINEL,
+  tagAttrKey,
 } from '../src/utils/tag-groups';
 import type { TagGroup, TagEntry } from '../src/utils/tag-groups';
 import type { Writable } from '../src/utils/brand';
@@ -597,17 +598,52 @@ describe('validateTagGroupNames', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('reports an error when tag name contains a space', () => {
+  describe('tagAttrKey (DOM-safe key)', () => {
+    it('is byte-identical to toLowerCase for single-identifier names', () => {
+      expect(tagAttrKey('Team')).toBe('team');
+      expect(tagAttrKey('Trust_Zone')).toBe('trust_zone');
+      expect(tagAttrKey('Read-Path')).toBe('read-path');
+    });
+    it('slugs a multi-word (quoted) name to a hyphenated key', () => {
+      expect(tagAttrKey('Trust Zone')).toBe('trust-zone');
+      expect(tagAttrKey('  Data   Store ')).toBe('data-store');
+    });
+  });
+
+  it('a multi-word group name keys its metadata by the slug, label kept', () => {
+    const group: TagGroup = {
+      name: 'Trust Zone',
+      entries: [
+        { value: 'client', color: '#11f', lineNumber: 2 },
+        { value: 'provider', color: '#1f1', lineNumber: 3 },
+      ],
+      lineNumber: 1,
+    };
+    // Entity metadata is keyed by the slug (what every renderer now writes/reads).
+    const color = resolveTagColor(
+      { 'trust-zone': 'provider' },
+      [group],
+      'Trust Zone' // active-tag references the display name; matching slugs both sides
+    );
+    expect(color).toBe('#1f1');
+  });
+
+  it('accepts a multi-word name (quoted) — it slugs to a DOM-safe key', () => {
     const warn = vi.fn();
     const error = vi.fn();
-    validateTagGroupNames(
-      [{ name: 'Layer alias', lineNumber: 4 }],
-      warn,
-      error
-    );
+    validateTagGroupNames([{ name: 'Trust Zone', lineNumber: 4 }], warn, error);
+    expect(error).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('reports an error when a name cannot form a valid key', () => {
+    const warn = vi.fn();
+    const error = vi.fn();
+    // All-punctuation slugs to an empty key; a leading digit is also invalid.
+    validateTagGroupNames([{ name: '!!!', lineNumber: 4 }], warn, error);
     expect(error).toHaveBeenCalledOnce();
     expect(error.mock.calls[0][0]).toBe(4);
-    expect(error.mock.calls[0][1]).toContain('invalid characters');
+    expect(error.mock.calls[0][1]).toContain('valid key');
   });
 
   it('reports an error when alias contains a space', () => {
@@ -624,9 +660,9 @@ describe('validateTagGroupNames', () => {
 
   it('falls back to warn when pushError is not supplied', () => {
     const warn = vi.fn();
-    validateTagGroupNames([{ name: 'Layer alias', lineNumber: 2 }], warn);
+    validateTagGroupNames([{ name: '!!!', lineNumber: 2 }], warn);
     expect(warn).toHaveBeenCalledOnce();
-    expect(warn.mock.calls[0][1]).toContain('invalid characters');
+    expect(warn.mock.calls[0][1]).toContain('valid key');
   });
 
   it('accepts names with hyphens, underscores, and digits', () => {

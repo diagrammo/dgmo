@@ -5,6 +5,7 @@
 // Resolves effective tag values for participants and messages
 // using the priority chain: explicit > group > receiver-inherit > default > neutral
 
+import { tagAttrKey } from '../utils/tag-groups';
 import type {
   ParsedSequenceDgmo,
   SequenceParticipant,
@@ -116,7 +117,7 @@ export function resolveSequenceTags(
     return result;
   }
 
-  const groupKey = group.name.toLowerCase();
+  const groupKey = tagAttrKey(group.name);
 
   // Clone participant metadata (don't mutate parsed data)
   const participantMeta = new Map<string, Record<string, string>>();

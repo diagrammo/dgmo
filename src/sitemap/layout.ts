@@ -2,6 +2,7 @@
 // Sitemap Diagram Layout Engine (Dagre flat graph)
 // ============================================================
 
+import { tagAttrKey } from '../utils/tag-groups';
 import dagre from '@dagrejs/dagre';
 import type { Writable } from '../utils/brand';
 import type { ParsedSitemap, SitemapNode } from './types';
@@ -232,7 +233,7 @@ function computeLegendGroups(
   for (const group of tagGroups) {
     if (group.entries.length === 0) continue;
 
-    const usedValues = usedValuesByGroup?.get(group.name.toLowerCase());
+    const usedValues = usedValuesByGroup?.get(tagAttrKey(group.name));
     const visibleEntries = usedValues
       ? group.entries.filter((e) => usedValues.has(e.value.toLowerCase()))
       : group.entries;
@@ -866,7 +867,7 @@ export function layoutSitemap(
   // Collect used tag values
   const usedValuesByGroup = new Map<string, Set<string>>();
   for (const group of parsed.tagGroups) {
-    const key = group.name.toLowerCase();
+    const key = tagAttrKey(group.name);
     const used = new Set<string>();
     const walk = (node: SitemapNode) => {
       if (!node.isContainer && node.metadata[key]) {

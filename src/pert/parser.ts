@@ -36,6 +36,7 @@ import {
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
   type TagGroup,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import type { Duration, DurationUnit } from '../gantt/types';
@@ -695,12 +696,12 @@ export function parsePert(
         if (tagBlockMatch.alias) {
           metaAliasMap.set(
             tagBlockMatch.alias.toLowerCase(),
-            tagBlockMatch.name.toLowerCase()
+            tagAttrKey(tagBlockMatch.name)
           );
         }
         metaAliasMap.set(
           normalizeName(tagBlockMatch.name),
-          tagBlockMatch.name.toLowerCase()
+          tagAttrKey(tagBlockMatch.name)
         );
         tagGroups.push(currentTagGroup);
         // Inline values (e.g. `tag Priority as p Low green, High red`).

@@ -25,6 +25,7 @@ import {
   emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -814,13 +815,10 @@ export function parseGantt(
       if (tagMatch.alias) {
         metaAliasMap.set(
           normalizeName(tagMatch.alias),
-          tagMatch.name.toLowerCase()
+          tagAttrKey(tagMatch.name)
         );
       }
-      metaAliasMap.set(
-        normalizeName(tagMatch.name),
-        tagMatch.name.toLowerCase()
-      );
+      metaAliasMap.set(normalizeName(tagMatch.name), tagAttrKey(tagMatch.name));
       continue;
     }
 

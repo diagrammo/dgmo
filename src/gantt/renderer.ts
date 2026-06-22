@@ -2,6 +2,7 @@
 // Gantt Chart Renderer
 // ============================================================
 
+import { tagAttrKey } from '../utils/tag-groups';
 import * as d3Scale from 'd3-scale';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
@@ -660,7 +661,7 @@ export function renderGantt(
       (tg) => tg.name.toLowerCase() === currentSwimlaneGroup.toLowerCase()
     );
     if (tagGroup) {
-      const tagKey = tagGroup.name.toLowerCase();
+      const tagKey = tagAttrKey(tagGroup.name);
       for (const rt of resolved.tasks) {
         let value = rt.effectiveMetadata[tagKey];
         if (!value && tagGroup.defaultValue) value = tagGroup.defaultValue;
@@ -2091,7 +2092,7 @@ function renderTagLegend(
   const usedValues = new Map<string, Set<string>>();
   if (resolvedTasks) {
     for (const group of visibleGroups) {
-      const key = group.name.toLowerCase();
+      const key = tagAttrKey(group.name);
       const used = new Set<string>();
       for (const rt of resolvedTasks) {
         const val = rt.effectiveMetadata[key];
@@ -2104,7 +2105,7 @@ function renderTagLegend(
   // Filter entries to only those used in the current view
   const filteredEntries = new Map<string, readonly TagEntry[]>();
   for (const group of visibleGroups) {
-    const key = group.name.toLowerCase();
+    const key = tagAttrKey(group.name);
     const used = usedValues.get(key);
     if (used && used.size > 0) {
       filteredEntries.set(
@@ -2133,7 +2134,7 @@ function renderTagLegend(
     let groupW = pillW;
     if (isActive) {
       const entries =
-        filteredEntries.get(group.name.toLowerCase()) ?? group.entries;
+        filteredEntries.get(tagAttrKey(group.name)) ?? group.entries;
       let entriesW = 0;
       for (const entry of entries) {
         entriesW +=
@@ -2215,7 +2216,7 @@ function renderTagLegend(
       }),
       ...(onControlsToggle !== undefined && { onControlsToggle }),
       onEntryHover: (groupName, entryValue) => {
-        const tagKey = groupName.toLowerCase();
+        const tagKey = tagAttrKey(groupName);
         if (entryValue) {
           const ev = entryValue.toLowerCase();
           chartG
@@ -3388,7 +3389,7 @@ export function buildTagLaneRowList(
   );
   if (!tagGroup) return null;
 
-  const tagKey = tagGroup.name.toLowerCase();
+  const tagKey = tagAttrKey(tagGroup.name);
   const rows: Row[] = [];
 
   // Bucket tasks by tag value

@@ -20,6 +20,7 @@ import {
   stripDefaultModifier,
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -219,14 +220,14 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       if (tagBlockMatch.alias) {
         metaAliasMap.set(
           normalizeName(tagBlockMatch.alias),
-          tagBlockMatch.name.toLowerCase()
+          tagAttrKey(tagBlockMatch.name)
         );
       }
       // §1.4 dispatch: register canonical name so `<name>:` triggers
       // the metadata cut even without an explicit `as <alias>`.
       metaAliasMap.set(
         normalizeName(tagBlockMatch.name),
-        tagBlockMatch.name.toLowerCase()
+        tagAttrKey(tagBlockMatch.name)
       );
       result.tagGroups.push(currentTagGroup);
       continue;

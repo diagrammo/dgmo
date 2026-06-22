@@ -26,6 +26,7 @@ import {
   validateTagGroupNames,
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -264,12 +265,12 @@ export function parseJourneyMap(
         if (tagBlockMatch.alias) {
           aliasMap.set(
             tagBlockMatch.alias.toLowerCase(),
-            tagBlockMatch.name.toLowerCase()
+            tagAttrKey(tagBlockMatch.name)
           );
         }
         aliasMap.set(
-          tagBlockMatch.name.toLowerCase(),
-          tagBlockMatch.name.toLowerCase()
+          tagAttrKey(tagBlockMatch.name),
+          tagAttrKey(tagBlockMatch.name)
         );
         result.tagGroups.push(currentTagGroup);
         continue;
@@ -463,7 +464,7 @@ export function parseJourneyMap(
   // Build tag value sets
   for (const group of result.tagGroups) {
     const values = new Set(group.entries.map((e) => e.value.toLowerCase()));
-    tagValueSets.set(group.name.toLowerCase(), values);
+    tagValueSets.set(tagAttrKey(group.name), values);
   }
 
   // Validate tag values on all steps

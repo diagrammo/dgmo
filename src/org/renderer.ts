@@ -2,6 +2,7 @@
 // Org Chart SVG Renderer
 // ============================================================
 
+import { tagAttrKey } from '../utils/tag-groups';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import {
@@ -269,7 +270,7 @@ export function renderOrg(
   // Build display name map from tag groups (lowercase key → original casing)
   const displayNames = new Map<string, string>();
   for (const group of parsed.tagGroups) {
-    displayNames.set(group.name.toLowerCase(), group.name);
+    displayNames.set(tagAttrKey(group.name), group.name);
   }
 
   // Root node IDs — focus icon is suppressed on these (already the tree root)
@@ -288,7 +289,7 @@ export function renderOrg(
     // Use tagMetadata (unfiltered) so hover-highlight works even when the
     // active tag group is hidden from the visible card body via the eye toggle.
     if (activeTagGroup) {
-      const tagKey = activeTagGroup.toLowerCase();
+      const tagKey = tagAttrKey(activeTagGroup);
       const metaValue = c.tagMetadata[tagKey];
       if (metaValue) {
         cG.attr(`data-tag-${tagKey}`, metaValue.toLowerCase());
@@ -466,7 +467,7 @@ export function renderOrg(
     // Use tagMetadata (unfiltered) so hover-highlight works even when the
     // active tag group is hidden from the visible card body via the eye toggle.
     if (activeTagGroup) {
-      const tagKey = activeTagGroup.toLowerCase();
+      const tagKey = tagAttrKey(activeTagGroup);
       const metaValue = node.tagMetadata[tagKey];
       if (metaValue) {
         nodeG.attr(`data-tag-${tagKey}`, metaValue.toLowerCase());
@@ -781,7 +782,7 @@ export function renderOrg(
       const computedLayout = legendHandle.getLayout();
       if (computedLayout.activeCapsule?.addonX != null) {
         const capsule = computedLayout.activeCapsule;
-        const groupKey = capsule.groupName.toLowerCase();
+        const groupKey = tagAttrKey(capsule.groupName);
         const isHidden = hiddenAttributes?.has(groupKey) ?? false;
 
         // Find the rendered active group <g> and append eye icon

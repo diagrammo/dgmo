@@ -6,6 +6,7 @@
 // Handles: chart metadata, component blocks with indented properties
 // and connections, [Group] containers, tag groups, pipe metadata.
 
+import { tagAttrKey } from '../utils/tag-groups';
 import {
   descriptionBareRemovedMessage,
   formatDgmoError,
@@ -1054,7 +1055,7 @@ export function parseInfra(content: string): ParsedInfra {
   // Inject default tag values into nodes that don't have one
   for (const tg of result.tagGroups) {
     if (!tg.defaultValue) continue;
-    const key = (tg.alias ?? tg.name).toLowerCase();
+    const key = tagAttrKey(tg.alias ?? tg.name);
     for (const node of result.nodes) {
       if (node.isEdge) continue;
       if (!(key in node.tags)) {

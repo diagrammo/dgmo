@@ -24,6 +24,7 @@ import {
   validateTagGroupNames,
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import { inferParticipantType } from '../sequence/participant-inference';
 import {
@@ -416,12 +417,12 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       if (tagBlockMatch.alias) {
         metaAliasMap.set(
           normalizeName(tagBlockMatch.alias),
-          tagBlockMatch.name.toLowerCase()
+          tagAttrKey(tagBlockMatch.name)
         );
       }
       metaAliasMap.set(
         normalizeName(tagBlockMatch.name),
-        tagBlockMatch.name.toLowerCase()
+        tagAttrKey(tagBlockMatch.name)
       );
       result.tagGroups.push(currentTagGroup);
       continue;

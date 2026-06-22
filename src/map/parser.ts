@@ -25,6 +25,7 @@ import {
   validateTagGroupNames,
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import { parseInArrowLabel } from '../utils/arrows';
 import type {
@@ -157,7 +158,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
   // Declared tag-group names (lowercased) — the keys `partitionMeta` treats as
   // tag values (resolved from aliases). Recomputed as groups are declared.
   const tagGroupNames = (): ReadonlySet<string> =>
-    new Set(tagGroups.map((g) => g.name.toLowerCase()));
+    new Set(tagGroups.map((g) => tagAttrKey(g.name)));
 
   const closeBlocks = (): void => {
     open.tag = null;
@@ -378,7 +379,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       entries: [],
       lineNumber: line,
     };
-    if (m.alias) aliasMap.set(m.alias.toLowerCase(), m.name.toLowerCase());
+    if (m.alias) aliasMap.set(m.alias.toLowerCase(), tagAttrKey(m.name));
     tagGroups.push(group);
     open.tag = group;
     // Inline form: `tag Market as m HQ indigo, Region teal` (R4).

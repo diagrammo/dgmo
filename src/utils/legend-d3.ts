@@ -3,6 +3,7 @@
 // Thin adapter: layout engine → D3 DOM
 // ============================================================
 
+import { tagAttrKey } from './tag-groups';
 import {
   LEGEND_HEIGHT,
   LEGEND_PILL_FONT_SIZE,
@@ -164,7 +165,7 @@ function renderCapsule(
   const g = parent
     .append('g')
     .attr('transform', `translate(${capsule.x},${capsule.y})`)
-    .attr('data-legend-group', capsule.groupName.toLowerCase())
+    .attr('data-legend-group', tagAttrKey(capsule.groupName))
     .style('cursor', 'pointer');
 
   // Outer capsule background
@@ -211,7 +212,7 @@ function renderCapsule(
   // Continuous ramp (choropleth group): min | gradient | max, in place of dots.
   if (capsule.gradient) {
     const gr = capsule.gradient;
-    const gradId = `dgmo-legend-ramp-${capsule.groupName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+    const gradId = `dgmo-legend-ramp-${tagAttrKey(capsule.groupName).replace(/[^a-z0-9]+/g, '-')}`;
     const def = g.append('defs').append('linearGradient').attr('id', gradId);
     // Sample the SAME ramp the fills use (direct = 2 endpoints; diverging =
     // stops through the neutral midpoint), so the legend matches the basemap.
@@ -318,7 +319,7 @@ function renderPill(
   const g = parent
     .append('g')
     .attr('transform', `translate(${pill.x},${pill.y})`)
-    .attr('data-legend-group', pill.groupName.toLowerCase())
+    .attr('data-legend-group', tagAttrKey(pill.groupName))
     .style('cursor', 'pointer');
 
   g.append('rect')

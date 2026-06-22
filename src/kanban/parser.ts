@@ -19,6 +19,7 @@ import {
   validateTagGroupNames,
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -168,14 +169,14 @@ export function parseKanban(
         if (tagBlockMatch.alias) {
           metaAliasMap.set(
             normalizeName(tagBlockMatch.alias),
-            tagBlockMatch.name.toLowerCase()
+            tagAttrKey(tagBlockMatch.name)
           );
         }
         // §1.4 dispatch: register the canonical tag name so `priority: X`
         // also dispatches as metadata (not just the optional `p: X` alias).
         metaAliasMap.set(
           normalizeName(tagBlockMatch.name),
-          tagBlockMatch.name.toLowerCase()
+          tagAttrKey(tagBlockMatch.name)
         );
         result.tagGroups.push(currentTagGroup);
         continue;
@@ -419,7 +420,7 @@ export function parseKanban(
   // Build tag value sets for validation
   for (const group of result.tagGroups) {
     const values = new Set(group.entries.map((e) => e.value.toLowerCase()));
-    tagValueSets.set(group.name.toLowerCase(), values);
+    tagValueSets.set(tagAttrKey(group.name), values);
   }
 
   // Validate WIP limits

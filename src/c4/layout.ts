@@ -2,6 +2,7 @@
 // C4 Context Diagram Layout Engine (dagre)
 // ============================================================
 
+import { tagAttrKey } from '../utils/tag-groups';
 import dagre from '@dagrejs/dagre';
 import type {
   ParsedC4,
@@ -619,7 +620,7 @@ function resolveNodeColor(
     (g) => g.name.toLowerCase() === activeGroupName.toLowerCase()
   );
   if (!group) return undefined;
-  const key = group.name.toLowerCase();
+  const key = tagAttrKey(group.name);
   // Walk inheritance chain: element → ancestors (container → system)
   let metaValue: string | undefined = el.metadata[key];
   if (!metaValue && ancestors) {

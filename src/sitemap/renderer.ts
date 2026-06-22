@@ -2,11 +2,17 @@
 // Sitemap Diagram SVG Renderer
 // ============================================================
 
+import { tagAttrKey } from '../utils/tag-groups';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill, themeBaseBg } from '../palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  shapeFill,
+  themeBaseBg,
+} from '../palettes/color-utils';
 import type { ParsedSitemap } from './types';
 import type { SitemapLayoutResult, SitemapLegendGroup } from './layout';
 import { renderInlineText } from '../utils/inline-markdown';
@@ -284,10 +290,10 @@ export function renderSitemap(
   // tagColors: "groupkey:valueLower" → hex color
   const tagColors = new Map<string, string>();
   for (const group of parsed.tagGroups) {
-    displayNames.set(group.name.toLowerCase(), group.name);
+    displayNames.set(tagAttrKey(group.name), group.name);
     for (const entry of group.entries) {
       tagColors.set(
-        `${group.name.toLowerCase()}:${entry.value.toLowerCase()}`,
+        `${tagAttrKey(group.name)}:${entry.value.toLowerCase()}`,
         entry.color
       );
     }
@@ -317,7 +323,7 @@ export function renderSitemap(
 
     // Tag metadata for legend hover dimming
     if (activeTagGroup) {
-      const tagKey = activeTagGroup.toLowerCase();
+      const tagKey = tagAttrKey(activeTagGroup);
       const tagVal = c.tagMetadata[tagKey];
       if (tagVal) cG.attr(`data-tag-${tagKey}`, tagVal.toLowerCase());
     }
@@ -486,7 +492,7 @@ export function renderSitemap(
 
     // Tag metadata for legend hover dimming
     if (activeTagGroup) {
-      const tagKey = activeTagGroup.toLowerCase();
+      const tagKey = tagAttrKey(activeTagGroup);
       const tagVal = node.tagMetadata[tagKey];
       if (tagVal) nodeG.attr(`data-tag-${tagKey}`, tagVal.toLowerCase());
     }
@@ -721,7 +727,7 @@ function renderLegend(
     const computedLayout = legendHandle.getLayout();
     if (computedLayout.activeCapsule?.addonX != null) {
       const capsule = computedLayout.activeCapsule;
-      const groupKey = capsule.groupName.toLowerCase();
+      const groupKey = tagAttrKey(capsule.groupName);
       const isHidden = hiddenAttributes?.has(groupKey) ?? false;
 
       const activeGroupEl = parent.select(`[data-legend-group="${groupKey}"]`);

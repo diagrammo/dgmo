@@ -12,6 +12,7 @@
 // (not dominant-baseline) so resvg renders it correctly in PNG export.
 // ============================================================
 
+import { tagAttrKey } from './tag-groups';
 import type {
   LegendConfig,
   LegendState,
@@ -99,7 +100,7 @@ function emitCapsule(
     );
   }
 
-  return `<g transform="translate(${capsule.x},${capsule.y})" data-legend-group="${esc(capsule.groupName.toLowerCase())}" style="cursor:pointer">${inner.join('')}</g>`;
+  return `<g transform="translate(${capsule.x},${capsule.y})" data-legend-group="${esc(tagAttrKey(capsule.groupName))}" style="cursor:pointer">${inner.join('')}</g>`;
 }
 
 /** Collapsed group pill (no active group) → SVG string. */
@@ -109,7 +110,7 @@ function emitPill(
   groupBg: string
 ): string {
   return (
-    `<g transform="translate(${pill.x},${pill.y})" data-legend-group="${esc(pill.groupName.toLowerCase())}" style="cursor:pointer">` +
+    `<g transform="translate(${pill.x},${pill.y})" data-legend-group="${esc(tagAttrKey(pill.groupName))}" style="cursor:pointer">` +
     `<rect width="${pill.width}" height="${pill.height}" rx="${pill.height / 2}" fill="${esc(groupBg)}"/>` +
     `<text x="${pill.width / 2}" y="${pill.height / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2}" font-size="${LEGEND_PILL_FONT_SIZE}" font-weight="500" fill="${esc(palette.textMuted)}" text-anchor="middle" font-family="${esc(FONT_FAMILY)}">${esc(pill.groupName)}</text>` +
     `</g>`

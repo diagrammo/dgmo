@@ -2,6 +2,7 @@
 // ER Diagram SVG Renderer
 // ============================================================
 
+import { tagAttrKey } from '../utils/tag-groups';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
@@ -455,7 +456,7 @@ export function renderERDiagram(
 
     // Set data-tag-* attributes for legend hover
     if (activeTagGroup) {
-      const tagKey = activeTagGroup.toLowerCase();
+      const tagKey = tagAttrKey(activeTagGroup);
       const tagValue = node.metadata[tagKey];
       if (tagValue) {
         nodeG.attr(`data-tag-${tagKey}`, tagValue.toLowerCase());

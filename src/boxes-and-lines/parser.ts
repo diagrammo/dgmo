@@ -21,6 +21,7 @@ import {
   stripDefaultModifier,
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
+  tagAttrKey,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
@@ -399,12 +400,12 @@ export function parseBoxesAndLines(
       if (tagBlockMatch.alias) {
         metaAliasMap.set(
           normalizeName(tagBlockMatch.alias),
-          tagBlockMatch.name.toLowerCase()
+          tagAttrKey(tagBlockMatch.name)
         );
       }
       metaAliasMap.set(
         normalizeName(tagBlockMatch.name),
-        tagBlockMatch.name.toLowerCase()
+        tagAttrKey(tagBlockMatch.name)
       );
       if (tagBlockMatch.inlineValues) {
         for (const rawVal of tagBlockMatch.inlineValues) {
