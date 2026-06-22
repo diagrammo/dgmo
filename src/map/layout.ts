@@ -3170,6 +3170,11 @@ export function layoutMap(
   const REGION_FONT_MAX_ORIENT = 22; // px ceiling, backdrop names
   const REGION_SIZE_FRAC_MIN = 0.06; // footprint linear-frac at base font
   const REGION_SIZE_FRAC_MAX = 0.32; // footprint linear-frac at max font
+  // A valueless SUBJECT (referenced, no metric) grows up to this ceiling in-shape;
+  // if it can't host its name at least at the prominence FLOOR inside its own fill
+  // (a thin ribbon like Chile), it leaders into the open space instead.
+  const SUBJECT_FONT_MAX = 18; // px ceiling for a prominent in-shape subject name
+  const SUBJECT_MIN_PROMINENCE = 13; // px floor below which a subject leaders out
   const canvasLinear = Math.sqrt(Math.max(1, width * height));
   const sizeT = (boxW: number, boxH: number): number => {
     const frac = Math.sqrt(Math.max(0, boxW * boxH)) / canvasLinear;
@@ -3466,6 +3471,93 @@ export function layoutMap(
     };
     for (const { r, c, boxW, boxH, candidates } of entries) {
       const valStr = regionValueStr(r.value);
+      // vs other placed REGION labels (full stack) / vs POI obstacles (name only)
+      // — defined up here so the subject pre-pass below can reuse them.
+      const fitsRegions = (rect: LabelRect): boolean =>
+        !placedRegionRects.some((p) => rectsOverlap(rect, p));
+      const fitsPois = (rect: LabelRect): boolean =>
+        !poiObstacles.some((o) => rectsOverlap(rect, o));
+      // A SUBJECT is a user-referenced region (the thing the map is ABOUT —
+      // `regionById` holds only `resolved.regions`, so an auto-added
+      // poiFrameContainer is NOT a subject). A subject must read prominently and
+      // NEVER drop: a thin ribbon (Chile) whose centroid sits on a sliver doesn't
+      // stamp a cramped name there — it leaders into the open space beside it.
+      const isSubject = regionById.has(r.id);
+      // ── Valueless SUBJECT: prominent in-shape, else leader (the Chile case) ──
+      // A user-referenced region with no metric is the map's point and must read
+      // PROMINENTLY. Find the largest font (up to a cap) whose full name sits
+      // wholly inside the region's own fill at the centroid AND clears every
+      // obstacle (other labels, POI markers, route arcs). If that best size meets
+      // the prominence floor, place it there in full contrast. If the shape is too
+      // thin/small to host a prominent name even at the floor — a ribbon like Chile
+      // whose centroid is a sliver — fall through to a leader that carries the
+      // full name into the open space beside it. A subject NEVER drops.
+      if (isSubject && valStr === undefined && r.label !== undefined) {
+        const name = candidates[0]!; // subjects use the full name, never an abbrev
+        let best = -1;
+        for (let f = SUBJECT_FONT_MAX; f >= FONT; f--) {
+          if (measureLegendText(name, f) > boxW || f + 2 * LABEL_PADY > boxH)
+            continue;
+          const rect = regionLabelRect(c[0], c[1], name, undefined, f);
+          if (!fitsRegions(rect) || !fitsPois(rect) || collides(rect)) continue;
+          const halfW = measureLegendText(name, f) / 2;
+          if (
+            fillAt(c[0] - halfW, c[1]) !== r.fill ||
+            fillAt(c[0] + halfW, c[1]) !== r.fill
+          )
+            continue;
+          best = f;
+          break;
+        }
+        if (best >= SUBJECT_MIN_PROMINENCE) {
+          const rect = regionLabelRect(c[0], c[1], name, undefined, best);
+          placedRegionRects.push(rect);
+          pushRegionLabel(
+            c[0],
+            c[1],
+            name,
+            r.fill,
+            r.lineNumber,
+            undefined,
+            best
+          );
+          labeledRegionIds.add(r.id);
+          regionLabelGuards.push({ label: labels[labels.length - 1]!, rect });
+        } else {
+          const hop = tryShortHopCallout(
+            c[0],
+            c[1],
+            r.fill,
+            r.label,
+            undefined
+          );
+          if (hop) {
+            placedRegionRects.push(hop.rect);
+            placedLeaders.push(hop.leader);
+            const dark = mix(r.fill, palette.text, 60);
+            labels.push({
+              x: hop.x,
+              y: hop.y,
+              text: r.label,
+              anchor: 'middle',
+              color: palette.text,
+              halo: false,
+              haloColor: palette.bg,
+              leader: {
+                x1: hop.leader[0],
+                y1: hop.leader[1],
+                x2: hop.leader[2],
+                y2: hop.leader[3],
+              },
+              leaderColor: dark,
+              calloutDot: { x: c[0], y: c[1], color: dark },
+              lineNumber: r.lineNumber,
+            });
+            labeledRegionIds.add(r.id);
+          }
+        }
+        continue;
+      }
       // The first candidate that BOTH fits its own footprint AND clears every
       // already-placed region label AND every POI marker wins; none qualifies →
       // the label is hidden (a country has no abbrev, so it degrades full → hide;
@@ -3482,10 +3574,6 @@ export function layoutMap(
       //    hanging below a name that already clears the dot is fine. Testing the
       //    taller stack here made a region with a nearby POI (Texas under the big
       //    Dallas marker) silently drop its value even though the name fit.
-      const fitsRegions = (rect: LabelRect): boolean =>
-        !placedRegionRects.some((p) => rectsOverlap(rect, p));
-      const fitsPois = (rect: LabelRect): boolean =>
-        !poiObstacles.some((o) => rectsOverlap(rect, o));
       // Try the centroid first (existing placement — unchanged when it fits),
       // then a ring of offsets WITHIN the region's box so a label blocked at the
       // centroid (typically a POI marker sitting on it — Dallas on Texas) is
@@ -3535,22 +3623,23 @@ export function layoutMap(
         }
         if (chosen) break;
       }
-      if (chosen === undefined && valStr && r.label !== undefined) {
-        // A VALUED region whose name won't fit in place (even abbreviated). Rather
-        // than overflow onto neighbours (illegible) or fire a long leader to a
-        // margin column (spaghetti), nudge the FULL name+value chip a short hop
-        // into the open space right beside it — north over Canada, south over
-        // Mexico, out to sea — joined by a tiny non-crossing leader. If no
-        // direction has clean adjacent room within reach, the region simply gets
-        // no static label: the choropleth shading + legend carry it and hover
-        // reveals the name+value. A readable blank beats a crammed tangle.
+      if (chosen === undefined && r.label !== undefined && isSubject) {
+        // A SUBJECT whose name won't sit inside its own shape — a thin ribbon
+        // (Chile) or a small valued region crowded by a POI. Rather than overflow
+        // onto neighbours (illegible) or fire a long leader to a margin column
+        // (spaghetti), nudge the FULL name(+value) chip a short hop into the open
+        // space right beside it — out to sea, north over Canada, south over Mexico
+        // — joined by a tiny non-crossing leader. A subject is the map's point, so
+        // it gets this leader whether or not it carries a value. If no direction
+        // has clean adjacent room within reach, the region gets no static label
+        // (the shading/legend + hover carry it); a readable blank beats a tangle.
         const hop = tryShortHopCallout(c[0], c[1], r.fill, r.label, valStr);
         if (hop) {
           placedRegionRects.push(hop.rect);
           placedLeaders.push(hop.leader);
-          // Chip sits on base land / water of unpredictable tone → palette text
-          // + halo (matches the old column chips). The leader/dot are tinted from
-          // the region's own fill (darkened for contrast) to tie line to region.
+          // Chip sits on empty land / water (the callout only seats on isEmptyFill)
+          // → palette text, NO halo (full-contrast dark/light text reads cleanly on
+          // the light basemap; the leader + dot tie the line back to the region).
           const dark = mix(r.fill, palette.text, 60);
           labels.push({
             x: hop.x,
@@ -3558,7 +3647,7 @@ export function layoutMap(
             text: r.label,
             anchor: 'middle',
             color: palette.text,
-            halo: true,
+            halo: false,
             haloColor: palette.bg,
             valueLine: valStr,
             leader: {
