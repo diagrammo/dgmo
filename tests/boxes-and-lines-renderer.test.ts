@@ -39,7 +39,7 @@ function nodeCenterX(svg: SVGSVGElement, label: string): number {
 describe('boxes-and-lines renderer — edge labels', () => {
   it('centers an edge label between its two nodes (not clipped under the target)', async () => {
     const svg = await render('boxes-and-lines\nA -guards-> B');
-    const labels = [...svg.querySelectorAll('text')].filter(
+    const labels = [...svg.querySelectorAll('.bl-edge-labels text')].filter(
       (t) => t.textContent === 'guards'
     );
     expect(labels.length).toBe(1);
@@ -51,6 +51,60 @@ describe('boxes-and-lines renderer — edge labels', () => {
     expect(lx).toBeGreaterThan(Math.min(ax, bx));
     expect(lx).toBeLessThan(Math.max(ax, bx));
     expect(Math.abs(lx - (ax + bx) / 2)).toBeLessThan(Math.abs(bx - ax) / 4);
+  });
+
+  it('paints edge labels after nodes so boxes never clip them (z-order)', async () => {
+    const svg = await render('boxes-and-lines\nA -guards-> B');
+    const labelLayer = svg.querySelector('.bl-edge-labels')!;
+    const lastNode = [...svg.querySelectorAll('.bl-node')].pop()!;
+    expect(labelLayer).toBeTruthy();
+    // bl-edge-labels follows the nodes in document order ⇒ painted on top.
+    expect(
+      lastNode.compareDocumentPosition(labelLayer) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it('wraps a long edge label onto multiple tspans', async () => {
+    const svg = await render(
+      'boxes-and-lines\nA -reads the styling guidance document-> B'
+    );
+    const label = [...svg.querySelectorAll('.bl-edge-labels text')].find((t) =>
+      (t.textContent ?? '').includes('styling')
+    )!;
+    expect(label).toBeTruthy();
+    expect(label.querySelectorAll('tspan').length).toBeGreaterThan(1);
+  });
+
+  it('keeps a long label clear of the boxes in a tight LR chain', async () => {
+    // The screenshot case: short hops in LR with a long label that used to clip.
+    const svg = await render(
+      'boxes-and-lines\ndirection LR\nAI Assistant -get_language_reference-> Server'
+    );
+    const label = [...svg.querySelectorAll('.bl-edge-labels text')].find((t) =>
+      (t.textContent ?? '').includes('language')
+    )!;
+    expect(label).toBeTruthy();
+    // Label box (the halo rect, sibling of the text in the same label group)
+    // must not intersect any node box.
+    const lb = label.parentElement!.querySelector('rect') as SVGRectElement;
+    const lx = Number(lb.getAttribute('x'));
+    const ly = Number(lb.getAttribute('y'));
+    const lw = Number(lb.getAttribute('width'));
+    const lh = Number(lb.getAttribute('height'));
+    for (const n of svg.querySelectorAll('.bl-node')) {
+      const r = n.querySelector('rect') as SVGRectElement | null;
+      const t = (n as SVGGElement).getAttribute('transform') ?? '';
+      const m = /translate\(([-\d.]+)[ ,]+([-\d.]+)\)/.exec(t);
+      if (!r || !m) continue;
+      const nx = Number(m[1]) + Number(r.getAttribute('x'));
+      const ny = Number(m[2]) + Number(r.getAttribute('y'));
+      const nw = Number(r.getAttribute('width'));
+      const nh = Number(r.getAttribute('height'));
+      const overlap =
+        lx < nx + nw && lx + lw > nx && ly < ny + nh && ly + lh > ny;
+      expect(overlap).toBe(false);
+    }
   });
 });
 

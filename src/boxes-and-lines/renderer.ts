@@ -78,7 +78,6 @@ const GROUP_LABEL_ZONE = 32;
 const RAMP_FLOOR = 15;
 const VALUE_FONT_SIZE = 11;
 
-type D3G = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 type D3Svg = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
 
 // ── Edge path generators ───────────────────────────────────
@@ -349,78 +348,6 @@ function ensureArrowMarkers(
         `${ARROWHEAD_W * 2},0 0,${ARROWHEAD_H} ${ARROWHEAD_W * 2},${ARROWHEAD_H * 2}`
       )
       .attr('fill', color);
-  }
-}
-
-// ── Edge label placement ───────────────────────────────────
-
-/** Point at the half-way arc length along an edge polyline — the geometric
- *  centre of the connector, so a label sits in the gap BETWEEN the two nodes
- *  (ELK's own label anchor drifts toward the target and ends up clipped under
- *  it). Falls back gracefully for degenerate point lists. */
-function edgePolylineMidpoint(
-  points: ReadonlyArray<{ readonly x: number; readonly y: number }>
-): { x: number; y: number } {
-  if (points.length === 0) return { x: 0, y: 0 };
-  if (points.length === 1) return { x: points[0]!.x, y: points[0]!.y };
-  let total = 0;
-  const segLen: number[] = [];
-  for (let k = 1; k < points.length; k++) {
-    const len = Math.hypot(
-      points[k]!.x - points[k - 1]!.x,
-      points[k]!.y - points[k - 1]!.y
-    );
-    segLen.push(len);
-    total += len;
-  }
-  let half = total / 2;
-  for (let k = 1; k < points.length; k++) {
-    const len = segLen[k - 1]!;
-    if (half <= len || k === points.length - 1) {
-      const t = len === 0 ? 0 : Math.min(1, half / len);
-      return {
-        x: points[k - 1]!.x + (points[k]!.x - points[k - 1]!.x) * t,
-        y: points[k - 1]!.y + (points[k]!.y - points[k - 1]!.y) * t,
-      };
-    }
-    half -= len;
-  }
-  const last = points[points.length - 1]!;
-  return { x: last.x, y: last.y };
-}
-
-// ── Edge label overlap resolution ──────────────────────────
-
-function resolveEdgeLabelOverlaps(
-  labels: { x: number; y: number; width: number; height: number }[]
-): void {
-  const MAX_PASSES = 8;
-  const PAD = 4;
-  for (let pass = 0; pass < MAX_PASSES; pass++) {
-    let moved = false;
-    for (let i = 0; i < labels.length; i++) {
-      for (let j = i + 1; j < labels.length; j++) {
-        // In-bounds by loop guard.
-        const a = labels[i]!;
-        const b = labels[j]!;
-        const dx = Math.abs(a.x - b.x);
-        const dy = Math.abs(a.y - b.y);
-        const overlapX = (a.width + b.width) / 2 + PAD - dx;
-        const overlapY = (a.height + b.height) / 2 + PAD - dy;
-        if (overlapX > 0 && overlapY > 0) {
-          const shift = overlapY / 2 + 1;
-          if (a.y < b.y) {
-            a.y -= shift;
-            b.y += shift;
-          } else {
-            a.y += shift;
-            b.y -= shift;
-          }
-          moved = true;
-        }
-      }
-    }
-    if (!moved) break;
   }
 }
 
@@ -847,18 +774,8 @@ export function renderBoxesAndLines(
   }
 
   // ── Render edges ───────────────────────────────────────
-  // Collect label positions for overlap resolution
-  const labelPositions: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    idx: number;
-  }[] = [];
-
-  // Store edge group elements for label pass
-  const edgeGroups = new Map<number, D3G>();
-
+  // Edge labels are placed in layout (label-placement.ts) and drawn AFTER the
+  // node loop (see the bl-edge-labels layer) so boxes never clip them.
   for (let i = 0; i < layout.edges.length; i++) {
     // In-bounds by loop guard.
     const le = layout.edges[i]!;
@@ -885,7 +802,6 @@ export function renderBoxesAndLines(
           .append('g')
           .attr('class', 'bl-edge-group')
           .attr('data-line-number', String(le.lineNumber));
-        edgeGroups.set(i, edgeG as unknown as D3G);
 
         const markerId = `bl-arrow-${color.replace('#', '')}`;
         const cx = nodeLayout.x;
@@ -950,7 +866,6 @@ export function renderBoxesAndLines(
       .append('g')
       .attr('class', 'bl-edge-group')
       .attr('data-line-number', String(le.lineNumber));
-    edgeGroups.set(i, edgeG as unknown as D3G);
 
     const markerId = `bl-arrow-${color.replace('#', '')}`;
     const gen = le.straight
@@ -971,58 +886,6 @@ export function renderBoxesAndLines(
       const revId = `bl-arrow-rev-${color.replace('#', '')}`;
       path.attr('marker-start', `url(#${revId})`);
     }
-
-    // Edge label — centred on the connector's polyline midpoint (the gap
-    // between the two nodes), NOT ELK's target-biased anchor. For parallel
-    // edges, nudge above/below so each line's label clears the line.
-    if (le.label && le.points.length > 0) {
-      const lw = measureText(le.label, sEdgeLabelFontSize);
-      const labelH = sEdgeLabelFontSize + 6;
-      const mid = edgePolylineMidpoint(le.points);
-      let ly = mid.y;
-      if (le.parallelCount > 1 && le.yOffset !== 0) {
-        ly += (le.yOffset < 0 ? -labelH : labelH) * 0.5;
-      }
-      labelPositions.push({
-        x: mid.x,
-        y: ly,
-        width: lw + 8,
-        height: labelH,
-        idx: i,
-      });
-    }
-  }
-
-  // Resolve overlaps
-  resolveEdgeLabelOverlaps(labelPositions);
-
-  // Render edge labels into their edge groups
-  for (const lp of labelPositions) {
-    // In-bounds: lp.idx was set from a valid index into layout.edges above.
-    const le = layout.edges[lp.idx]!;
-    if (!le.label) continue;
-
-    const edgeG = edgeGroups.get(lp.idx);
-    const target = edgeG ?? diagramG;
-
-    target
-      .append('rect')
-      .attr('x', lp.x - lp.width / 2)
-      .attr('y', lp.y - lp.height / 2)
-      .attr('width', lp.width)
-      .attr('height', lp.height)
-      .attr('rx', 3)
-      .attr('fill', palette.bg)
-      .attr('opacity', 0.85);
-
-    target
-      .append('text')
-      .attr('x', lp.x)
-      .attr('y', lp.y + sEdgeLabelFontSize / 3)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', sEdgeLabelFontSize)
-      .attr('fill', palette.textMuted)
-      .text(le.label);
   }
 
   // ── Render nodes ───────────────────────────────────────
@@ -1394,6 +1257,71 @@ export function renderBoxesAndLines(
         );
       }
     }
+  }
+
+  // ── Render edge labels ─────────────────────────────────
+  // Drawn AFTER nodes (and groups) so the halo + text always paint on top and
+  // are never clipped by a box. Positions/wrapping come from label-placement
+  // (layout); this is a pure consumer. Labels stay in their own layer rather
+  // than inside each edge group, but carry data-line-number so line-hover/click
+  // still highlights the matching label.
+  const labelLayer = diagramG.append('g').attr('class', 'bl-edge-labels');
+  const labelLineHeight = sEdgeLabelFontSize * 1.3;
+  for (const le of layout.edges) {
+    if (!le.labelLines || le.labelLines.length === 0) continue;
+    if (le.labelX === undefined || le.labelY === undefined) continue;
+    const lx = le.labelX;
+    const ly = le.labelY;
+
+    // Honour the same tag-value hiding as the edges themselves.
+    if (hidden.size > 0) {
+      let isHidden = false;
+      for (const [groupKey, hiddenVals] of hidden) {
+        const val = le.metadata[groupKey];
+        if (val && hiddenVals.has(val.toLowerCase())) {
+          isHidden = true;
+          break;
+        }
+      }
+      if (isHidden) continue;
+    }
+
+    const lw = le.labelWidth ?? 0;
+    const lh = le.labelHeight ?? sEdgeLabelFontSize + 6;
+    const lines = le.labelLines;
+    const labelG = labelLayer
+      .append('g')
+      .attr('class', 'bl-edge-label')
+      .attr('data-line-number', String(le.lineNumber));
+
+    labelG
+      .append('rect')
+      .attr('x', lx - lw / 2)
+      .attr('y', ly - lh / 2)
+      .attr('width', lw)
+      .attr('height', lh)
+      .attr('rx', 3)
+      .attr('fill', palette.bg)
+      .attr('stroke', palette.textMuted)
+      .attr('stroke-width', 0.5)
+      .attr('stroke-opacity', 0.4);
+
+    const text = labelG
+      .append('text')
+      .attr('x', lx)
+      .attr('text-anchor', 'middle')
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', sEdgeLabelFontSize)
+      .attr('fill', palette.textMuted);
+    const firstY =
+      ly - ((lines.length - 1) / 2) * labelLineHeight + sEdgeLabelFontSize / 3;
+    lines.forEach((line, k) => {
+      text
+        .append('tspan')
+        .attr('x', lx)
+        .attr('y', firstY + k * labelLineHeight)
+        .text(line);
+    });
   }
 
   // ── Render legend ──────────────────────────────────────

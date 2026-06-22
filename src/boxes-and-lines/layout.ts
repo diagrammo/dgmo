@@ -9,6 +9,7 @@
 
 import type { ParsedBoxesAndLines, BLNode, BLGroup } from './types';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
+import { placeEdgeLabels } from './label-placement';
 import {
   resolveNotes,
   buildPlacedNotes,
@@ -58,8 +59,14 @@ export interface BLLayoutEdge {
   readonly bidirectional: boolean;
   readonly lineNumber: number;
   readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
+  /** Centre of the label box (set by label-placement). */
   readonly labelX?: number;
   readonly labelY?: number;
+  /** Wrapped label box dimensions + lines (set by label-placement; the renderer
+   *  draws the halo + tspans straight from these). */
+  readonly labelWidth?: number;
+  readonly labelHeight?: number;
+  readonly labelLines?: readonly string[];
   readonly yOffset: number;
   readonly parallelCount: number;
   readonly metadata: Readonly<Record<string, string>>;
@@ -205,7 +212,7 @@ export async function layoutBoxesAndLines(
   }
 ): Promise<BLLayoutResult> {
   const { layoutBoxesAndLinesSearch } = await import('./layout-search');
-  const searched = await layoutBoxesAndLinesSearch(parsed, collapseInfo, {
+  const searchOpts = {
     ...(layoutOptions?.hideDescriptions !== undefined && {
       hideDescriptions: layoutOptions.hideDescriptions,
     }),
@@ -215,14 +222,31 @@ export async function layoutBoxesAndLines(
     ...(layoutOptions?.onProgress !== undefined && {
       onProgress: layoutOptions.onProgress,
     }),
-  });
-  // Engine-agnostic post-processing: fan parallel edges, then float notes
-  // (and shift the canvas to fit them).
-  return attachNotes(
-    applyParallelEdgeOffsets(searched),
+  };
+  const searched = await layoutBoxesAndLinesSearch(
     parsed,
-    layoutOptions?.collapsedNotes
+    collapseInfo,
+    searchOpts
   );
+
+  // Edge-label legibility (priority ladder): wrap + reposition labels on the
+  // chosen layout. If any label still can't clear a node box, escalate ONCE to a
+  // label-aware relayout that reserves dagre label space so a gap opens — and
+  // keep it only if it actually resolves more labels.
+  let placed = placeEdgeLabels(applyParallelEdgeOffsets(searched));
+  if (placed.unresolved.length > 0) {
+    const relaid = await layoutBoxesAndLinesSearch(parsed, collapseInfo, {
+      ...searchOpts,
+      reserveEdgeLabels: true,
+    });
+    const relaidPlaced = placeEdgeLabels(applyParallelEdgeOffsets(relaid));
+    if (relaidPlaced.unresolved.length < placed.unresolved.length)
+      placed = relaidPlaced;
+  }
+
+  // Engine-agnostic post-processing: float notes (and shift the canvas to fit
+  // them) on the label-placed layout.
+  return attachNotes(placed.layout, parsed, layoutOptions?.collapsedNotes);
 }
 
 /**
@@ -312,6 +336,7 @@ function attachNotes(
         points: e.points.map((pt) => ({ x: pt.x + shiftX, y: pt.y + shiftY })),
         ...(e.labelX !== undefined && { labelX: e.labelX + shiftX }),
         ...(e.labelY !== undefined && { labelY: e.labelY + shiftY }),
+        // labelWidth/labelHeight/labelLines are shift-invariant — carried via spread.
       }))
     : layout.edges;
   const finalGroups = shifted
