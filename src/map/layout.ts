@@ -3675,7 +3675,7 @@ export function layoutMap(
             color: palette.text,
             halo: false,
             haloColor: palette.bg,
-            valueLine: valStr,
+            ...(valStr !== undefined && { valueLine: valStr }),
             leader: {
               x1: hop.leader[0],
               y1: hop.leader[1],
