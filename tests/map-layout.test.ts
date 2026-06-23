@@ -760,7 +760,7 @@ describe('layout — routes & edges (AC9, AC10, AC11, AC12, AC28)', () => {
     expect(r.legs).toHaveLength(2); // tokyo→osaka, osaka→tokyo (closing)
   });
   it('arc route → curved leg path (AC10)', () => {
-    const r = lay('map\nroute Tokyo style: arc\n  -> Osaka');
+    const r = lay('map\nroute Tokyo\n  ~> Osaka');
     expect(r.legs[0]!.d).toMatch(/Q/);
   });
   it('route leg carries an in-arrow label + value→thickness (AC11)', () => {
@@ -822,8 +822,8 @@ describe('layout — surface parsing removed (AC9)', () => {
     expect(r.legs[0]!.d).not.toMatch(/Q/);
     expect(r.diagnostics).toHaveLength(0);
   });
-  it('`style: arc` still bows a leg (explicit arc unaffected)', () => {
-    const r = lay('map\nroute Tokyo style: arc\n  -> Osaka');
+  it('a `~>` leg bows (per-leg arc glyph)', () => {
+    const r = lay('map\nroute Tokyo\n  ~> Osaka');
     expect(r.legs[0]!.d).toMatch(/Q/);
   });
 });

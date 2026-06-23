@@ -1,7 +1,7 @@
 map Caribbean Cruise
 
-route Miami style: arc
-  -weigh anchor-> Havana
-  -> Kingston
-  -> Santo Domingo
-  -> Miami
+route Miami
+  ~weigh anchor~> Havana
+  ~> Kingston
+  ~> Santo Domingo
+  ~> Miami

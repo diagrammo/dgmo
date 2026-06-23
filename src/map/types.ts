@@ -110,12 +110,13 @@ export interface MapPoi {
 }
 
 /** One leg of a route (§24B.6): an edge from the previous stop to `dest`. Reuses
- *  the edge arrow idiom — in-arrow text = leg label, `value:` = leg thickness,
- *  `->`/`~>` (or the header `style: arc`) = shape. A tag on the leg line colours
- *  the LINE (§24B.6); `label:`/`as` still name the DESTINATION stop. */
+ *  the indented edge arrow idiom (same as sitemap) — in-arrow text = leg label,
+ *  `value:` = leg thickness, the arrow glyph = shape (`-…->` straight, `~…~>`
+ *  arc). A tag on the leg line colours the LINE (§24B.6); `label:`/`as` still
+ *  name the DESTINATION stop. The arrow is required — a bare destination errors. */
 export interface MapRouteLeg {
   readonly label?: string; // in-arrow leg label
-  readonly style: 'straight' | 'arc';
+  readonly style: 'straight' | 'arc'; // from the leg's own arrow glyph
   readonly value?: string; // leg thickness (numeric string, like an edge)
   readonly dest: PoiPos;
   readonly destAlias?: string;
@@ -126,16 +127,16 @@ export interface MapRouteLeg {
   readonly lineNumber: number;
 }
 
-/** An ordered, auto-numbered route (§24B.6): `route <origin> [style: arc]` + a
- *  sequence of indented arrow legs, each continuing from the previous stop.
- *  Repeat the origin as a leg's destination to close a loop. */
+/** An ordered, auto-numbered route (§24B.6): `route <origin>` + a sequence of
+ *  indented arrow legs, each continuing from the previous stop. Leg shape is
+ *  per-leg (the arrow glyph) — there is no header-level shape option. Repeat the
+ *  origin as a leg's destination to close a loop. */
 export interface MapRoute {
   readonly origin: PoiPos;
   readonly originAlias?: string;
   readonly originLabel?: string;
   readonly originValue?: string; // header value → origin marker size
   readonly originTags: Readonly<Record<string, string>>;
-  readonly style: 'straight' | 'arc'; // header default leg shape
   readonly legs: readonly MapRouteLeg[];
   readonly lineNumber: number;
 }

@@ -3264,14 +3264,16 @@ poi Austin red                      # direct marker color (trailing token, §1.5
 
 ### Routes & connectors
 
-`route <origin> [style: arc]` — an ordered, auto-numbered voyage; the origin gets a distinct marker. Each indented line is a `[-label->] destination` leg that continues from the previous stop — a leg is an edge (in-arrow label, `value:` thickness, `->`/`~>` or header `style: arc` shape). A **tag on a leg colours the LINE** (categorical leg-type colouring — flights vs cruises vs trains); `label:`/`as` still name the destination stop. Repeat the origin as a leg's destination to close a loop (no second marker):
+`route <origin>` — an ordered, auto-numbered voyage; the origin gets a distinct marker, and the header takes **no shape option**. Each indented line is a `<arrow> destination` leg that continues from the previous stop, using the same indented arrow idiom as a sitemap — a leg is an edge (in-arrow label, `value:` thickness, and the **arrow glyph alone sets shape**: `-…->` straight, `~…~>` arc, mixable per leg). The **arrow is required and must be directional** — a bare destination errors, and so does an undirected `--`/`~~` glyph (a voyage always flows forward; use `->`/`~>`). A **tag on a leg colours the LINE** (categorical leg-type colouring — flights vs cruises vs trains); `label:`/`as` still name the destination stop. Repeat the origin as a leg's destination to close a loop (no second marker):
 
 ```
-route Miami style: arc
-  -weigh anchor-> Havana value: 40
-  -> Kingston
-  -> Miami              # destination == origin → closed loop
+route Miami
+  ~weigh anchor~> Havana value: 40   # arc leg (its own ~> glyph)
+  ~> Kingston
+  ~> Miami              # destination == origin → closed loop
 ```
+
+There is no header `style:` — bow a whole voyage by using `~>` on every leg.
 
 Native edges handle any other connection (no `link`/`leg` keyword). A token draws an arrowhead iff it ends in `>`, an arc iff it starts with `~`; drop the `>` for a plain line when an arrow would mislead. The label always sits between the delimiters:
 
@@ -3292,9 +3294,9 @@ JFK ~daily~> LHR        # (NOT indented — indented legs are only valid
 JFK ~2x daily~> SFO     #  inside a `route` block, which is an ordered voyage)
 ```
 
-Each native edge is ONE full line — `<origin> <connector> <destination>`. There is no indented-edge / shared-source hub form for native edges (it errors as "Malformed edge"); to fan out from a hub, repeat the origin on each line as above. Endpoints auto-create their POIs, so a connected map needs no separate `poi` lines.
+Each native edge is ONE full line — `<origin> <connector> <destination>`. A top-level indented `-> dest` with no parent errors as "Malformed edge"; to fan out, either repeat the origin on each line as above OR indent the spokes under a `poi` (a hub — `poi JFK` then indented `~> LAX`, `~> LHR`). An indented child under a `poi` that names a place **must carry an arrow** — a bare name there errors as a malformed hub edge. Endpoints auto-create their POIs, so a connected map needs no separate `poi` lines.
 
-There is no geographic path-finding and no `surface:` — legs are plain straight or arced geometry (`style: arc` to bow one) and may cross land.
+There is no geographic path-finding and no `surface:` — legs are plain straight or arced geometry (use a `~>` glyph to bow one) and may cross land.
 
 **Tagging the line.** A tag value on any connector or route leg colours the **line itself** (the universal tag model applied to edges) — the "trip-leg type" idiom. Edge-only tag groups show in the legend as a line-colour key; hovering a legend entry dims the lines that don't match. To categorise a **stop** instead, tag its own `poi` line. An edge-only tag group never tints regions or suppresses the colorize dress.
 

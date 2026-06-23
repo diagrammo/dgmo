@@ -3,5 +3,5 @@ map Smuggler's Run
 poi Havana value: 90
 poi Kingston value: 120
 
-route Havana style: arc
-  -run the blockade-> Kingston
+route Havana
+  ~run the blockade~> Kingston

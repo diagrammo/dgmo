@@ -186,8 +186,8 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     }
     // (1a) Indented child of an open route → a leg (an edge from the prev stop).
     if (open.route && indent > open.route.indent) {
-      const leg = parseLeg(trimmed, lineNumber, open.route.route.style);
-      (open.route.route.legs as MapRouteLeg[]).push(leg);
+      const leg = parseLeg(trimmed, lineNumber);
+      if (leg) (open.route.route.legs as MapRouteLeg[]).push(leg);
       continue;
     }
     // (1b) Indented child of an open POI → hub edge or extra metadata.
@@ -215,6 +215,18 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       const split = splitNameAndMeta(trimmed, registry(), aliasMap);
       if (Object.keys(split.meta).length && !split.name) {
         Object.assign(open.poi.poi.meta as Record<string, string>, split.meta);
+        continue;
+      }
+      // A named child line with no arrow is a hub edge missing its glyph (the
+      // POI-hub mirror of a malformed route leg). Error here rather than letting
+      // it fall through and be silently reinterpreted as a top-level region.
+      if (split.name) {
+        const src =
+          open.poi.poi.alias ?? poiName(open.poi.poi.pos) ?? 'the poi';
+        pushError(
+          lineNumber,
+          `Malformed hub edge: "${trimmed}" — an indented line under a poi is an edge from "${src}" and needs an arrow glyph (\`-> dest\`, \`~> dest\`, or labeled \`-label-> dest\`). For a standalone place, declare it at the top level. (§24B.5)`
+        );
         continue;
       }
       // not a recognized child → fall through after closing the POI
@@ -510,17 +522,20 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
     const originLabel = meta['label'];
     const originValue = meta['value'];
-    // Leg shape comes only from `style: arc` / arrow style (surface parsing
-    // removed — a leg no longer bows just because it crosses water).
-    const style: 'straight' | 'arc' =
-      meta['style'] === 'arc' ? 'arc' : 'straight';
+    // `style: arc` on the route header was removed (§24B.6): leg shape comes
+    // solely from each leg's own arrow glyph (`-…->` straight, `~…~>` arc).
+    if (meta['style'] !== undefined) {
+      pushError(
+        line,
+        'route header no longer takes `style:` — set leg shape with the arrow glyph instead (`~…~>` for an arc leg, `-…->` for a straight one). (§24B.6)'
+      );
+    }
     const route: Writable<MapRoute> = {
       origin: pos,
       ...(split.alias !== undefined && { originAlias: split.alias }),
       ...(originLabel !== undefined && { originLabel }),
       ...(originValue !== undefined && { originValue }),
       originTags: tags,
-      style,
       legs: [],
       lineNumber: line,
     };
@@ -528,25 +543,34 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     open.route = { route, indent };
   }
 
-  /** Parse one route body line into a leg: `[-label->] <destination> [keys]`.
-   *  The arrow (if any) gives the leg label + shape; `value:` is leg thickness;
-   *  a tag colours the LINE (§24B.6); `label:`/`as` name the destination stop.
-   *  Bare `<dest>` = plain leg. */
-  function parseLeg(
-    trimmed: string,
-    line: number,
-    headerStyle: 'straight' | 'arc'
-  ): MapRouteLeg {
-    let arrowStyle: 'straight' | 'arc' = 'straight';
-    let label: string | undefined;
-    let rest = trimmed;
+  /** Parse one route body line into a leg: `<arrow> <destination> [keys]`. The
+   *  arrow is REQUIRED and gives the leg label + shape (`-…->` straight, `~…~>`
+   *  arc); `value:` is leg thickness; a tag colours the LINE (§24B.6);
+   *  `label:`/`as` name the destination stop. A bare destination with no arrow,
+   *  or an undirected (`--`/`~~`) glyph, is a parse error — a voyage always flows
+   *  from the previous stop to the next (§24B.6). */
+  function parseLeg(trimmed: string, line: number): MapRouteLeg | null {
     const m = trimmed.match(LEG_ARROW_RE);
-    if (m) {
-      const arr = classifyArrow(m[1]!, line);
-      arrowStyle = arr.style;
-      label = arr.label;
-      rest = m[2]!;
+    if (!m) {
+      pushError(
+        line,
+        `Malformed route leg: "${trimmed}" — a leg needs an arrow glyph (\`-> dest\`, \`~> dest\`, or labeled \`-label-> dest\` / \`~label~> dest\`). (§24B.6)`
+      );
+      return null;
     }
+    const arr = classifyArrow(m[1]!, line);
+    // A route leg is always directional (prev stop → next), so the undirected
+    // `--`/`~~` glyphs are meaningless here (they stay valid on free-form edges).
+    if (!arr.directed) {
+      pushError(
+        line,
+        `A route leg is directional — "${trimmed}" uses an undirected glyph; use \`-> \` (straight) or \`~> \` (arc). (§24B.6)`
+      );
+      return null;
+    }
+    const arrowStyle: 'straight' | 'arc' = arr.style;
+    const label: string | undefined = arr.label;
+    const rest = m[2]!;
     const split = splitNameAndMeta(
       rest,
       registry(),
@@ -562,13 +586,11 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
     const value = meta['value'];
     const destLabel = meta['label'];
-    // Leg shape comes only from the arrow style or the route header `style: arc`
-    // (surface parsing removed — no implied bow).
-    const style: 'straight' | 'arc' =
-      arrowStyle === 'arc' || headerStyle === 'arc' ? 'arc' : 'straight';
+    // Leg shape comes solely from the leg's own arrow glyph (§24B.6) — the route
+    // header `style:` was removed.
     return {
       ...(label !== undefined && { label }),
-      style,
+      style: arrowStyle,
       ...(value !== undefined && { value }),
       dest: pos,
       ...(split.alias !== undefined && { destAlias: split.alias }),

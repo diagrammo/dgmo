@@ -365,22 +365,24 @@ describe('parseMap — POIs (AC7–AC11, AC22, AC23)', () => {
 describe('parseMap — routes (AC12)', () => {
   it('parses a route: origin header + arrow legs + loop close', () => {
     const r = parseMap(
-      'map\nroute Miami style: arc\n  -weigh anchor-> Nassau value: 40\n  -> Grand Turk\n  -> Miami'
+      'map\nroute Miami\n  ~weigh anchor~> Nassau value: 40\n  -> Grand Turk\n  ~> Miami'
     );
     expect(r.routes).toHaveLength(1);
     const rt = r.routes[0]!;
-    expect(rt.style).toBe('arc');
     expect(rt.origin).toEqual({ kind: 'name', name: 'Miami' });
     expect(rt.legs).toHaveLength(3);
-    // leg 1: in-arrow label + value (thickness), arced via header style
+    // leg 1: in-arrow label + value (thickness), arced via its own `~>` glyph
     expect(rt.legs[0]).toMatchObject({
       label: 'weigh anchor',
       value: '40',
       style: 'arc',
     });
     expect(rt.legs[0]!.dest).toEqual({ kind: 'name', name: 'Nassau' });
-    // leg 3 closes the loop back to the origin
+    // shape is per-leg: leg 2 is a straight `-> ` glyph
+    expect(rt.legs[1]!.style).toBe('straight');
+    // leg 3 closes the loop back to the origin (arc again)
     expect(rt.legs[2]!.dest).toEqual({ kind: 'name', name: 'Miami' });
+    expect(rt.legs[2]!.style).toBe('arc');
   });
   it('a leg tag colours the LINE; label: still names the destination stop', () => {
     const r = parseMap(
@@ -392,13 +394,43 @@ describe('parseMap — routes (AC12)', () => {
     expect(leg.label).toBe('raid'); // in-arrow text is the LEG label
   });
   it('route requires an origin on the header', () => {
-    const r = parseMap('map\nroute style: arc\n  -> Nassau');
+    const r = parseMap('map\nroute\n  -> Nassau');
+    expect(
+      r.diagnostics.some(
+        (d) => d.severity === 'error' && /route needs an origin/.test(d.message)
+      )
+    ).toBe(true);
+  });
+  it('`style:` on a route header is rejected (removed — use the arrow glyph)', () => {
+    const r = parseMap('map\nroute Miami style: arc\n  ~> Nassau');
     expect(
       r.diagnostics.some(
         (d) =>
-          d.severity === 'error' && /route needs an origin/.test(d.message)
+          d.severity === 'error' &&
+          /route header no longer takes `style:`/.test(d.message)
       )
     ).toBe(true);
+  });
+  it('a bare destination with no arrow glyph is a malformed leg', () => {
+    const r = parseMap('map\nroute Miami\n  Nassau');
+    expect(
+      r.diagnostics.some(
+        (d) => d.severity === 'error' && /Malformed route leg/.test(d.message)
+      )
+    ).toBe(true);
+    expect(r.routes[0]!.legs).toHaveLength(0);
+  });
+  it('an undirected glyph (`--`/`~~`) on a route leg is rejected (legs are directional)', () => {
+    for (const glyph of ['--', '~~']) {
+      const r = parseMap(`map\nroute Miami\n  ${glyph} Nassau`);
+      expect(
+        r.diagnostics.some(
+          (d) =>
+            d.severity === 'error' && /route leg is directional/.test(d.message)
+        )
+      ).toBe(true);
+      expect(r.routes[0]!.legs).toHaveLength(0);
+    }
   });
 });
 
@@ -493,6 +525,22 @@ describe('parseMap — edges (AC13–AC15, AC17)', () => {
       directed: false,
     });
   });
+  it('a named hub line with no arrow is a malformed hub edge (not silently a region)', () => {
+    const r = parseMap('map\npoi JFK\n  LAX');
+    expect(
+      r.diagnostics.some(
+        (d) => d.severity === 'error' && /Malformed hub edge/.test(d.message)
+      )
+    ).toBe(true);
+    expect(r.edges).toHaveLength(0);
+    // the bare name must NOT leak through as a top-level region
+    expect(r.regions ?? []).toHaveLength(0);
+  });
+  it('a poi metadata line (no name) under a poi still parses, not a hub error', () => {
+    const r = parseMap('map\npoi JFK\n  value: 9');
+    expect(r.diagnostics.filter((d) => d.severity === 'error')).toHaveLength(0);
+    expect(r.pois[0]!.meta.value).toBe('9');
+  });
 });
 
 describe('parseMap — adversarial-review fixes', () => {
@@ -563,10 +611,10 @@ describe('parseMap — surface removed (AC9)', () => {
       name: 'Osaka surface: water',
     });
   });
-  it('`style: arc` still bows a route leg (explicit arc unaffected)', () => {
-    const r = parseMap('map\nroute Tokyo style: arc\n  -> Osaka');
-    expect(r.routes[0]!.style).toBe('arc');
+  it('a `~>` leg bows; a `->` leg stays straight (shape is per-leg)', () => {
+    const r = parseMap('map\nroute Tokyo\n  ~> Osaka\n  -> Nagoya');
     expect(r.routes[0]!.legs[0]!.style).toBe('arc');
+    expect(r.routes[0]!.legs[1]!.style).toBe('straight');
   });
   it('an edge with `surface:` metadata renders straight unless ~>/style arc', () => {
     const r = parseMap('map\nA -> B surface: water');
