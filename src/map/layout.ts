@@ -442,6 +442,10 @@ export interface MapLayoutLeg {
    *  (§24B.6). Omitted when the leg carries no tag. */
   readonly tags?: Readonly<Record<string, string>>;
   readonly label?: string;
+  /** The leg's numeric weight (the `value:` metadata) when present and positive.
+   *  Drives {@link width}, but kept here verbatim so the renderer can surface it
+   *  on hover (a `<title>` tooltip) — the width alone is lossy. */
+  readonly value?: number;
   readonly labelX?: number;
   readonly labelY?: number;
   /** Text colour for the label — contrast-picked against the background fill the
@@ -3027,13 +3031,15 @@ export function layoutMap(
         leg.label !== undefined
           ? labelOnFill(fillAt(bow.labelX, bow.labelY))
           : undefined;
+      const routeVal = Number(leg.value);
       legs.push({
         d: legPath(a, b, bow.curved, bow.offset),
-        width: routeWidthFor(Number(leg.value)),
+        width: routeWidthFor(routeVal),
         color: lineColor(leg.tags) ?? mix(palette.text, palette.bg, 72),
         arrow: true,
         fromId: leg.fromId,
         toId: leg.toId,
+        ...(Number.isFinite(routeVal) && routeVal > 0 && { value: routeVal }),
         ...(Object.keys(leg.tags).length > 0 && { tags: leg.tags }),
         lineNumber: leg.lineNumber,
         ...(leg.label !== undefined && {
@@ -3087,6 +3093,7 @@ export function layoutMap(
         e.label !== undefined
           ? labelOnFill(fillAt(bow.labelX, bow.labelY))
           : undefined;
+      const edgeVal = Number(e.meta['value']);
       legs.push({
         d: legPath(a, b, bow.curved, bow.offset),
         width: widthFor(e),
@@ -3094,6 +3101,7 @@ export function layoutMap(
         arrow: e.directed,
         fromId: e.fromId,
         toId: e.toId,
+        ...(Number.isFinite(edgeVal) && edgeVal > 0 && { value: edgeVal }),
         ...(Object.keys(e.tags).length > 0 && { tags: e.tags }),
         lineNumber: e.lineNumber,
         ...(e.label !== undefined && {

@@ -973,6 +973,16 @@ export function renderMap(
     // A 0-width invisible leg path is hard to hit; pointer-events on the visible
     // stroke is enough for the line widths legs use.
     wireSync(p, leg.lineNumber);
+    // Surface the leg's weight on hover. A native <title> gives a tooltip on the
+    // visible stroke in every surface (app, exported SVG, Obsidian, web) with no
+    // viewer code; `data-value` is also emitted so an app overlay can style it
+    // later. The label (when any) prefixes the number for context ("fiber: 28").
+    if (leg.value !== undefined) {
+      p.attr('data-value', leg.value);
+      p.append('title').text(
+        leg.label !== undefined ? `${leg.label}: ${leg.value}` : `${leg.value}`
+      );
+    }
     if (arrowTri) {
       // Filled arrowhead at the true endpoint — a flat triangle whose base sits
       // where the trimmed stroke ends, so the line meets it cleanly with no

@@ -202,6 +202,25 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(path!.getAttribute('data-tag-leg')).toBe('cruise');
   });
 
+  it('a weighted edge carries its value as a <title> tooltip + data-value', () => {
+    const svg = render(
+      'map\npoi Tokyo\npoi Osaka\nTokyo ~fiber~> Osaka value: 28'
+    );
+    const path = svg.querySelector<SVGPathElement>(
+      '.dgmo-map-legs path[data-value]'
+    );
+    expect(path).toBeTruthy();
+    expect(path!.getAttribute('data-value')).toBe('28');
+    // native SVG <title> → hover tooltip in every surface, no viewer code
+    expect(path!.querySelector('title')?.textContent).toBe('fiber: 28');
+  });
+
+  it('an unweighted leg emits no value title', () => {
+    const svg = render('map\nroute Tokyo\n  -ferry-> Osaka');
+    expect(svg.querySelector('.dgmo-map-legs path[data-value]')).toBeNull();
+    expect(svg.querySelector('.dgmo-map-legs title')).toBeNull();
+  });
+
   it('POI labels carry data-line-number and fire onClickItem', () => {
     let clicked: number | null = null;
     // POI line is line 2 (`poi Tokyo`).
