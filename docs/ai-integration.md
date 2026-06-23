@@ -25,7 +25,10 @@ dgmo install --dry-run                # preview every change, write nothing
 
 For Claude Code this copies the `/dgmo` skill into `~/.claude/commands/` (full dgmo context — all chart types, CLI flags, workflow, and tips) and adds the MCP server to `~/.claude/settings.json`. Restart the assistant afterward.
 
-**Keeping it current:** the skill files and the MCP server (a separately-versioned package) are *not* refreshed by a plain `dgmo` upgrade. After upgrading the CLI, re-run `dgmo install` — it overwrites the skill files and upgrades the server to the latest. (Or set `DGMO_MCP_LATEST=1` in the environment to make `dgmo mcp` always fetch the newest server at launch, at the cost of a network round-trip on start.)
+**Keeping it current:**
+- **Homebrew** bundles the MCP server, so `brew upgrade dgmo` upgrades the CLI *and* the server together. Re-run `dgmo install` afterward only to refresh the **skill files** (those are copies in your home dir).
+- **npm global**: a plain `dgmo` upgrade doesn't touch the server or skill copies — re-run `dgmo install`, which overwrites the skills and upgrades the server to the latest.
+- Either way, `DGMO_MCP_LATEST=1` in the environment makes `dgmo mcp` always fetch the newest server at launch (network round-trip on start), so it's never stale.
 
 ---
 

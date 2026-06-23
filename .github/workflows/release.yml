@@ -75,10 +75,18 @@ jobs:
           for i in 1 2 3 4 5 6; do
             if curl -sIfL "$URL" >/dev/null; then
               SHA=$(curl -sL "$URL" | shasum -a 256 | cut -d' ' -f1)
+              # Pin the formula to the current latest dgmo-mcp so a dgmo release
+              # ships a tested CLI+server pair (`brew upgrade dgmo` upgrades both).
+              MCP_VERSION=$(npm view @diagrammo/dgmo-mcp version)
+              MCP_URL="https://registry.npmjs.org/@diagrammo/dgmo-mcp/-/dgmo-mcp-${MCP_VERSION}.tgz"
+              MCP_SHA=$(curl -sL "$MCP_URL" | shasum -a 256 | cut -d' ' -f1)
               echo "VERSION=$VERSION" >> "$GITHUB_ENV"
               echo "URL=$URL" >> "$GITHUB_ENV"
               echo "SHA=$SHA" >> "$GITHUB_ENV"
-              echo "✓ tarball available, sha=$SHA"
+              echo "MCP_VERSION=$MCP_VERSION" >> "$GITHUB_ENV"
+              echo "MCP_URL=$MCP_URL" >> "$GITHUB_ENV"
+              echo "MCP_SHA=$MCP_SHA" >> "$GITHUB_ENV"
+              echo "✓ tarball available, sha=$SHA, dgmo-mcp=$MCP_VERSION"
               exit 0
             fi
             echo "waiting for npm tarball ($i/6)..."
@@ -97,8 +105,12 @@ jobs:
       - name: Update formula and open PR
         run: |
           cd homebrew-dgmo
-          sed -i "s|url \".*\"|url \"$URL\"|" Formula/dgmo.rb
-          sed -i "s|sha256 \".*\"|sha256 \"$SHA\"|" Formula/dgmo.rb
+          # Anchor by indentation: the top-level dgmo url/sha256 are 2-space
+          # indented; the dgmo-mcp `resource` block's are 4-space indented.
+          sed -i "s|^  url \".*\"|  url \"$URL\"|" Formula/dgmo.rb
+          sed -i "s|^  sha256 \".*\"|  sha256 \"$SHA\"|" Formula/dgmo.rb
+          sed -i "s|^    url \".*\"|    url \"$MCP_URL\"|" Formula/dgmo.rb
+          sed -i "s|^    sha256 \".*\"|    sha256 \"$MCP_SHA\"|" Formula/dgmo.rb
           if git diff --quiet; then
             echo "::warning::Formula already at $VERSION — skipping PR"
             exit 0
@@ -108,7 +120,7 @@ jobs:
           BRANCH="bump-dgmo-${VERSION}"
           git checkout -b "$BRANCH"
           git add Formula/dgmo.rb
-          git commit -m "Bump dgmo to ${VERSION}"
+          git commit -m "Bump dgmo to ${VERSION} (dgmo-mcp ${MCP_VERSION})"
           git push origin "$BRANCH"
           gh pr create \
             --title "Bump dgmo to ${VERSION}" \

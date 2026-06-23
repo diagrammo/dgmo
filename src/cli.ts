@@ -487,10 +487,27 @@ function claudeDesktopConfigPath(): string {
 // has no cold-start. Not required for correctness — `dgmo mcp` falls back to
 // npx — so any failure is a note, not an error. Memoized: in auto mode we set
 // up several surfaces in one run and only need to check once.
+// True when this CLI is running from a Homebrew install (its files live under
+// a Cellar prefix). Homebrew owns the MCP server in that case.
+function isHomebrewManaged(): boolean {
+  return PKG_ROOT.includes('/Cellar/') || PKG_ROOT.includes('/homebrew/');
+}
+
 let mcpEnsured = false;
 function ensureDgmoMcp(opts: InstallOpts): void {
   if (mcpEnsured) return;
   mcpEnsured = true;
+  // Homebrew vendors and upgrades the MCP server alongside the CLI (the formula
+  // installs `dgmo-mcp` into the same prefix). Don't npm-install a second global
+  // copy that would shadow brew's — `brew upgrade dgmo` keeps it current.
+  if (isHomebrewManaged()) {
+    console.log(
+      commandExists('dgmo-mcp')
+        ? '✓ MCP server managed by Homebrew (upgrades with `brew upgrade dgmo`)'
+        : '  MCP server not found — it will be fetched on first use via npx.'
+    );
+    return;
+  }
   if (opts.dryRun) {
     console.log('  [dry-run] would install/upgrade @diagrammo/dgmo-mcp@latest');
     return;
