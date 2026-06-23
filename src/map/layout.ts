@@ -2972,6 +2972,30 @@ export function layoutMap(
     const by = b.cy - ((b.cy - py) / tb) * trimB;
     return `M${ax},${ay}Q${px},${py} ${bx},${by}`;
   };
+  // Where a leg's label sits: the MIDPOINT OF THE DRAWN PATH, nudged a few px to
+  // the bow side so the text rides just off the line. A straight leg's midpoint is
+  // the chord midpoint; an arc is a quadratic Q whose t=0.5 point is
+  // chord-mid + ½·normal·bow — so a long bowed arc (a trans-Atlantic route) must
+  // follow the CURVE, else the label floats in open space far below the line.
+  const legLabelPoint = (
+    a: { cx: number; cy: number; r: number },
+    b: { cx: number; cy: number; r: number },
+    curved: boolean,
+    offset: number
+  ): { x: number; y: number } => {
+    const mx = (a.cx + b.cx) / 2;
+    const my = (a.cy + b.cy) / 2;
+    if (!curved && offset === 0) return { x: mx, y: my - 4 };
+    const dx = b.cx - a.cx;
+    const dy = b.cy - a.cy;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    const bow = offset !== 0 ? offset : len * ARC_CURVE_FRAC;
+    // arc apex (½·bow) + a small lift further out so the text clears the stroke.
+    const off = bow * 0.5 + Math.sign(bow || 1) * 8;
+    return { x: mx + nx * off, y: my + ny * off };
+  };
 
   // Routes: each leg is an edge (fromId → toId) carrying its own label,
   // value→thickness, and arc shape. Loop-closing legs are explicit in `rt.legs`;
@@ -2992,13 +3016,12 @@ export function layoutMap(
       const a = poiScreen.get(leg.fromId);
       const b = poiScreen.get(leg.toId);
       if (!a || !b) continue;
-      const mx = (a.cx + b.cx) / 2;
-      const my = (a.cy + b.cy) / 2;
+      const lp = legLabelPoint(a, b, leg.style === 'arc', 0);
       const bow = {
         curved: leg.style === 'arc',
         offset: 0,
-        labelX: mx,
-        labelY: my - 4,
+        labelX: lp.x,
+        labelY: lp.y,
       };
       const routeLabelStyle =
         leg.label !== undefined
@@ -3052,13 +3075,13 @@ export function layoutMap(
       const b = poiScreen.get(e.toId);
       if (!a || !b) return;
       const fanOffset = n > 1 ? (i - (n - 1) / 2) * FAN_STEP : 0;
-      const mx = (a.cx + b.cx) / 2;
-      const my = (a.cy + b.cy) / 2;
+      const curved = e.style === 'arc' || n > 1;
+      const lp = legLabelPoint(a, b, curved, fanOffset);
       const bow = {
-        curved: e.style === 'arc' || n > 1,
+        curved,
         offset: fanOffset,
-        labelX: mx,
-        labelY: my - 4,
+        labelX: lp.x,
+        labelY: lp.y,
       };
       const edgeLabelStyle =
         e.label !== undefined
@@ -4576,17 +4599,39 @@ export function layoutMap(
       const nx = -dy / len;
       const ny = dx / len; // unit normal to the chord
       const perp = labelH + 2;
-      // Stay ON the line first (slide along the chord), then escalate to a
-      // perpendicular hop — growing — so a label on a SHORT leg between two close
-      // dots (where every on-chord slot straddles an endpoint) can still escape
-      // clear above or below the line.
+      // Walk the ACTUAL DRAWN PATH, not the chord: parse the leg's `d` (the
+      // trimmed `M…Q…` arc or `M…L…` line) and sample the curve at each t, so a
+      // label rides its own bowed line instead of floating at the chord midpoint
+      // out in open space (the trans-Atlantic arc case). The perpendicular hop
+      // uses the chord normal, which is close enough to nudge a label clear.
+      const pm =
+        /^M(-?[\d.]+),(-?[\d.]+)(?:L(-?[\d.]+),(-?[\d.]+)|Q(-?[\d.]+),(-?[\d.]+) (-?[\d.]+),(-?[\d.]+))$/.exec(
+          lg.d
+        );
+      const pointAt = (t: number): [number, number] => {
+        if (pm?.[5] !== undefined) {
+          const u = 1 - t;
+          return [
+            u * u * +pm[1]! + 2 * u * t * +pm[5]! + t * t * +pm[7]!,
+            u * u * +pm[2]! + 2 * u * t * +pm[6]! + t * t * +pm[8]!,
+          ];
+        }
+        if (pm?.[3] !== undefined)
+          return [
+            +pm[1]! + (+pm[3]! - +pm[1]!) * t,
+            +pm[2]! + (+pm[4]! - +pm[2]!) * t,
+          ];
+        return [a.cx + dx * t, a.cy + dy * t];
+      };
+      // Stay ON the line first (slide along it), then escalate to a perpendicular
+      // hop — growing — so a label on a SHORT leg between two close dots (where
+      // every on-line slot straddles an endpoint) can still escape above or below.
       const candidates: Array<[number, number]> = [];
       for (const off of [0, perp, -perp, 2 * perp, -2 * perp])
-        for (const t of T_LIST)
-          candidates.push([
-            a.cx + dx * t + nx * off,
-            a.cy + dy * t + ny * off - 4,
-          ]);
+        for (const t of T_LIST) {
+          const [bx, by] = pointAt(t);
+          candidates.push([bx + nx * off, by + ny * off - 4]);
+        }
       const clean = ([cx, cy]: [number, number]): boolean => {
         const rect = { x: cx - w / 2, y: cy - labelH / 2, w, h: labelH };
         if (
@@ -4601,10 +4646,8 @@ export function layoutMap(
         if (placedEdge.some((o) => rectsOverlap(o, rect))) return false;
         return true;
       };
-      const [cx, cy] = candidates.find(clean) ?? [
-        a.cx + dx * 0.5,
-        a.cy + dy * 0.5 - 4,
-      ];
+      const mid = pointAt(0.5);
+      const [cx, cy] = candidates.find(clean) ?? [mid[0], mid[1] - 4];
       const style = labelOnFill(fillAt(cx, cy));
       // MapLayoutLeg fields are readonly — replace the entry with an updated copy.
       legs[i] = {
