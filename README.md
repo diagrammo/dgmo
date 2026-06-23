@@ -110,7 +110,13 @@ Using a docs framework? First-class plugins wrap all of this:
 
 ## Use it from your AI tool
 
-There's an MCP server ([`@diagrammo/dgmo-mcp`](https://www.npmjs.com/package/@diagrammo/dgmo-mcp)) so Claude, Cursor, and other agents can author and render DGMO directly. Setup: **[diagrammo.app/ai](https://diagrammo.app/ai)**.
+Claude, Cursor, Codex, and other agents can author and render DGMO directly. One command sets up every assistant you have — no second package, no prompts:
+
+```bash
+dgmo install
+```
+
+It auto-detects Claude Code, Codex, Claude Desktop, Cursor, Windsurf, and Copilot and wires each one to the bundled MCP server. More: **[diagrammo.app/ai](https://diagrammo.app/ai)**.
 
 ## Chart types
 
