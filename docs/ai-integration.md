@@ -27,15 +27,15 @@ See `dgmo-mcp/README.md` for full configuration options.
 
 ---
 
-## Claude Code — Skill (slash command)
+## Claude Code — Skill + MCP server
 
-Installs a `/dgmo` slash command that gives Claude full dgmo context — all chart types, CLI flags, workflow, and tips.
+Installs the `/dgmo` slash command (full dgmo context — all chart types, CLI flags, workflow, and tips) and configures the dgmo MCP server.
 
 ```bash
-dgmo install claude-skill
+dgmo install claude-code
 ```
 
-This copies a skill file into `~/.claude/commands/`, making `/dgmo` available in every Claude Code session.
+This copies a skill file into `~/.claude/commands/` (making `/dgmo` available in every Claude Code session) and wires up the MCP server. The MCP step is skippable in the prompts if you only want the skill.
 
 ---
 

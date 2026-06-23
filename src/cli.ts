@@ -75,7 +75,7 @@ Commands:
   dgmo share <input>       Print a shareable diagrammo.app URL (copies to clipboard)
   dgmo types               List all supported chart types
   dgmo install [target]    Set up an AI assistant integration
-                           (claude-code, claude-skill, codex, claude-desktop)
+                           (claude-code, codex, claude-desktop)
   dgmo map-search <query>  Find the map place token (city or IATA code)
 
 Render options:
@@ -413,12 +413,11 @@ async function runShareCommand(args: string[]): Promise<void> {
 
 // `dgmo install [target]` — consolidates the former four `--install-*` flags
 // into one subcommand namespace. Valid targets:
-//   claude-code     skill + MCP server for Claude Code
-//   claude-skill    just the /dgmo skill for Claude Code
+//   claude-code     skill + MCP server for Claude Code (MCP step is skippable)
 //   codex           skill + MCP server for the Codex CLI
 //   claude-desktop  MCP server for the Claude Desktop app
 async function runInstallCommand(args: string[]): Promise<void> {
-  const targets = ['claude-code', 'claude-skill', 'codex', 'claude-desktop'];
+  const targets = ['claude-code', 'codex', 'claude-desktop'];
   let target = args.find((a) => !a.startsWith('-'));
 
   if (!target) {
@@ -427,17 +426,15 @@ async function runInstallCommand(args: string[]): Promise<void> {
     console.log(
       '  1) claude-code     — /dgmo skill + MCP server (recommended)'
     );
-    console.log('  2) claude-skill    — just the /dgmo skill');
-    console.log('  3) codex           — Codex CLI skill + MCP server');
-    console.log('  4) claude-desktop  — Claude Desktop MCP server');
+    console.log('  2) codex           — Codex CLI skill + MCP server');
+    console.log('  3) claude-desktop  — Claude Desktop MCP server');
     const ans = (await ask('\nChoice [1]: ')).trim();
     target = (
       {
         '': 'claude-code',
         '1': 'claude-code',
-        '2': 'claude-skill',
-        '3': 'codex',
-        '4': 'claude-desktop',
+        '2': 'codex',
+        '3': 'claude-desktop',
       } as Record<string, string>
     )[ans];
     if (!target) {
@@ -454,8 +451,6 @@ async function runInstallCommand(args: string[]): Promise<void> {
 
   if (target === 'claude-code') {
     await installClaudeCode();
-  } else if (target === 'claude-skill') {
-    await installClaudeSkill();
   } else if (target === 'codex') {
     await installCodex();
   } else {
@@ -567,37 +562,6 @@ async function installClaudeCode(): Promise<void> {
 
   console.log('\nRestart Claude Code to activate the MCP server.');
   console.log('Then type /dgmo in any session to start creating diagrams.');
-}
-
-async function installClaudeSkill(): Promise<void> {
-  const claudeDir = join(homedir(), '.claude');
-  if (!existsSync(claudeDir)) {
-    console.error('~/.claude directory not found.');
-    console.error('Install Claude Code first: https://claude.ai/code');
-    process.exit(1);
-  }
-  const commandsDir = join(claudeDir, 'commands');
-  const destPath = join(commandsDir, 'dgmo.md');
-  const alreadyExists = existsSync(destPath);
-  const prompt = alreadyExists
-    ? `~/.claude/commands/dgmo.md already exists. Overwrite? [y/N] `
-    : `Install dgmo Claude Code skill to ~/.claude/commands/dgmo.md? [Y/n] `;
-  const answer = await ask(prompt);
-  const yes = alreadyExists
-    ? answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes'
-    : answer === '' ||
-      answer.toLowerCase() === 'y' ||
-      answer.toLowerCase() === 'yes';
-  if (!yes) {
-    console.error('Aborted.');
-    process.exit(0);
-  }
-  if (!existsSync(commandsDir)) {
-    mkdirSync(commandsDir, { recursive: true });
-  }
-  writeFileSync(destPath, readClaudeSkill(), 'utf-8');
-  console.log(`Installed: ${destPath}`);
-  console.log('Use /dgmo in Claude Code to activate the skill.');
 }
 
 async function installCodex(): Promise<void> {
