@@ -63,7 +63,20 @@ For **examples** of real diagrams, call `mcp__dgmo__get_examples("<type>")` — 
 
 ## Your Workflow
 
-**Primary goal: get the user seeing a visualization as fast as possible.**
+**Primary goal: get the user seeing a visualization as fast as possible — in the desktop app if they have it, otherwise on the web.**
+
+### Where the diagram goes — decide this once per session
+
+Before showing the first diagram, call `mcp__dgmo__check_app_installed()` **once** and remember the answer for the rest of the session. It decides your default visual output:
+
+- **App installed → open the saved file live in the app.** Save the `.dgmo` source first (see "Always save the source"), then `mcp__dgmo__open_in_app({ dgmo, filePath: "<absolute path to the saved file>" })`. The app opens *that file*, so the user edits it in the app and changes autosave back to the same file — one source of truth, live re-render. Do NOT open an online URL and do NOT render a PNG.
+- **App not installed → open the online editor.** `mcp__dgmo__share_diagram(dgmo)` then `open <url>` in the shell. This lands the user on online.diagrammo.app with the chart and the code side-by-side, tweakable and shareable. Don't just print the URL — always `open` it.
+
+**Always save the source.** Whether or not the app is installed, write the diagram to `<name>.dgmo` in the current project/working directory so the user always has one editable artifact. Use a short kebab-case name from the diagram's title (e.g. `checkout-flow.dgmo`). This file IS the deliverable; the app or URL just displays it.
+
+**Never render an image unless the user explicitly asks** (see "Image output"). A PNG/SVG is not a default output — don't create files the user didn't request.
+
+Don't ask the user how they want to view the diagram — the check above decides it. They can ask for a PNG, the desktop app, or a share URL explicitly if they want something else.
 
 ### Creating a new diagram
 
@@ -71,14 +84,12 @@ For **examples** of real diagrams, call `mcp__dgmo__get_examples("<type>")` — 
 2. **Get syntax + examples** — call `mcp__dgmo__get_language_reference("<type>")` and `mcp__dgmo__get_examples("<type>")`.
 3. **Write the `.dgmo` content** — compose the markup.
 4. **Validate first** — call `mcp__dgmo__validate_diagram(dgmo)` to catch syntax errors before rendering. If errors come back, fix them and validate again.
-5. **Open on online.diagrammo.app** — the **default** visual output. Call `mcp__dgmo__share_diagram(dgmo)` to get a URL, then immediately run `open <url>` in the shell. This lands the user on the web editor where they see the chart AND the code side-by-side, can tweak the markup interactively, and can share the link as-is. Do NOT just print the URL — always `open` it.
+5. **Save the source** — write the validated markup to `<name>.dgmo` in the working directory.
+6. **Show it** — per "Where the diagram goes": app installed → `mcp__dgmo__open_in_app({ dgmo, filePath })`; not installed → `mcp__dgmo__share_diagram(dgmo)` + `open <url>`.
 
-   **Exception — image-output intent detected:** if the user's prompt explicitly asks for an image or saved file (phrases like "save as PNG", "export to SVG", "make an image", "render to a file", "give me a png", "I need an SVG"), skip the share URL and go straight to `mcp__dgmo__render_diagram` (see "Image output" below). The detection is intent-based, not keyword-strict — if in doubt, default to share URL and offer "Want me to save as PNG/SVG instead?"
+**Exception — image-output intent detected:** if the user's prompt explicitly asks for an image or saved file (phrases like "save as PNG", "export to SVG", "make an image", "render to a file", "give me a png", "I need an SVG"), still save the `.dgmo` source, then go to `mcp__dgmo__render_diagram` (see "Image output") instead of step 6. Detection is intent-based — if in doubt, use the step-6 default and offer "Want me to save as PNG/SVG instead?"
 
-   **Side-by-side variants** still use `mcp__dgmo__preview_diagram` (multi-diagram preview is its killer feature). See "Side-by-side variants" below.
-6. **Save the source file** (if working in a project) — write it to `<name>.dgmo` so the user has an editable copy.
-
-Do not ask the user how they want to view the diagram. Just open the share URL. They can ask for other formats if they want.
+**Side-by-side variants** use `mcp__dgmo__preview_diagram` (multi-diagram preview is its killer feature). See "Side-by-side variants" below.
 
 ### Editing an existing diagram
 
@@ -88,7 +99,7 @@ When the user asks to modify a `.dgmo` file or says "update this diagram":
 2. **Understand it** — identify the chart type, key elements, and structure.
 3. **Make the change** — edit the file using the Edit tool. Preserve the user's style and organization.
 4. **Validate** — call `mcp__dgmo__validate_diagram(dgmo)` on the updated content.
-5. **Preview** — call `mcp__dgmo__share_diagram(dgmo)` and `open <url>` so the user sees the result on online.diagrammo.app. (Image-output intent exception applies — if the user asked for a PNG/SVG file explicitly, render to file instead.)
+5. **Show it** — per "Where the diagram goes": app installed → `mcp__dgmo__open_in_app({ dgmo, filePath: "<the file you just edited>" })` so it re-renders live in the app; not installed → `mcp__dgmo__share_diagram(dgmo)` + `open <url>`. (Image-output exception applies — if the user asked for a PNG/SVG file explicitly, render to file instead.)
 
 Keep the diff minimal — don't rewrite the whole file when adding one element.
 
@@ -150,11 +161,12 @@ Trigger phrases: "save as PNG", "export to SVG", "make an image", "render to a f
 
 | What the user wants | How to do it |
 |---|---|
-| **Quick look in the desktop app** | `mcp__dgmo__open_in_app(dgmo)` — opens directly in Diagrammo (macOS) |
+| **Open in the desktop app (no saved file)** | `mcp__dgmo__open_in_app({ dgmo })` — deep-links an ephemeral copy into Diagrammo. Prefer the `filePath` form (open the saved file) whenever you've saved the source. |
+| **Force the online editor even though the app is installed** | `mcp__dgmo__share_diagram(dgmo)` + `open <url>` |
 | **Local HTML preview (not online.diagrammo.app)** | `mcp__dgmo__preview_diagram([{dgmo, title}])` — useful when the user specifically wants a local file or is offline |
 | **Copy markup to clipboard** | Run `echo '<dgmo markup>' \| pbcopy` |
 
-(The share URL — `mcp__dgmo__share_diagram` + `open` — is the DEFAULT visual output, not an alternative. See "Creating a new diagram → step 5" above.)
+(The default visual output is decided by `check_app_installed` — open the saved file in the app when installed, otherwise the online share URL. See "Where the diagram goes" above. The options here are for when the user explicitly asks for something else.)
 
 ### Embedding diagrams in docs
 
@@ -187,7 +199,7 @@ If the user wants the link in clipboard rather than opened (e.g., they want to p
 echo '<url>' | pbcopy
 ```
 
-Then tell the user it's been copied. Otherwise, the default is always `open <url>` — that's what step 5 of the main workflow does.
+Then tell the user it's been copied. Otherwise, the default visual output is the app-aware behavior from "Where the diagram goes" (open the saved file in the app when installed, else `open <url>`).
 
 ## CLI Reference
 
@@ -271,6 +283,7 @@ series A (red), B (blue), C (green)  ⚠  for ≥2 series, prefer the indented b
 
 ## Tips
 
+- Output target: call `mcp__dgmo__check_app_installed()` once per session. App installed → save the `.dgmo` and open that file live in the app (`open_in_app` with `filePath`); not installed → online share URL. Always save the source either way; never render a PNG unless asked.
 - Default palette: `slate` — use it unless the user requests otherwise.
 - Always validate before rendering — `validate_diagram` is much faster than a failed render.
 - Always call `get_examples` before generating an unfamiliar chart type — real examples beat guessing.

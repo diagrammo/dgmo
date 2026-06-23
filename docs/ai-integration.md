@@ -47,7 +47,9 @@ For Claude Code this copies the `/dgmo` skill into `~/.claude/commands/` (full d
 }
 ```
 
-**5 tools:** `render_diagram`, `share_diagram`, `open_in_app`, `list_chart_types`, `get_language_reference`. `dgmo mcp` execs the installed server, or fetches it on demand via `npx` if it isn't installed yet — so no separate `dgmo-mcp` step is required. (If you'd rather not install the CLI at all, `{ "command": "npx", "args": ["-y", "@diagrammo/dgmo-mcp"] }` still works.) See `dgmo-mcp/README.md` for full options.
+**Tools:** `check_app_installed`, `suggest_chart_type`, `get_language_reference`, `get_examples`, `validate_diagram`, `open_in_app`, `share_diagram`, `render_diagram`, `preview_diagram`, `generate_report`, `list_chart_types`. `dgmo mcp` execs the installed server, or fetches it on demand via `npx` if it isn't installed yet — so no separate `dgmo-mcp` step is required. (If you'd rather not install the CLI at all, `{ "command": "npx", "args": ["-y", "@diagrammo/dgmo-mcp"] }` still works.) See `dgmo-mcp/README.md` for full options.
+
+Output default is app-aware: `check_app_installed` decides it — when the Diagrammo desktop app is installed, the diagram source is saved and opened live in the app (`open_in_app` with the saved file path); otherwise an online share URL is opened. A PNG/SVG is rendered only when the user explicitly asks.
 
 ---
 

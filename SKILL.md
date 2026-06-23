@@ -429,14 +429,19 @@ era 1718-05-08 -> 1718-05-17 Blockade Active blue
 **Fetch more:** call `get_language_reference(type)` for a type's full syntax and `get_examples(type)` for starter templates. `suggest_chart_type` returns the chosen type's reference automatically.
 <!-- DGMO-AI-CORE:END -->
 
-## MCP Tools — preferred order
+## Output — where the diagram goes
 
-When the `dgmo` MCP server is configured, prefer tools in this order:
-1. `open_in_app` — opens the diagram in the Diagrammo desktop app (macOS). **Best UX** — chart + editor side-by-side, full editing.
-2. `share_diagram` — returns a `https://online.diagrammo.app/...` URL. Tell the user to open it; same chart + editor view in the browser. **Preferred fallback** when the desktop app is not available.
-3. `render_diagram` — renders to PNG or SVG and returns a file path. Use when the user wants an image artifact (export, embed, attach).
+**Always save the `.dgmo` source** to `<name>.dgmo` in the working directory — it's the editable deliverable; the app/URL just displays it. **Never render a PNG/SVG unless the user explicitly asks** for an image.
+
+Decide the visual output **once per session** with `check_app_installed`:
+
+1. **App installed →** save the source, then `open_in_app({ dgmo, filePath: "<abs path to the saved file>" })`. The app opens *that file*, so in-app edits autosave back to it — one source of truth, live re-render. **Best UX.** Don't open an online URL and don't render a PNG.
+2. **App not installed →** `share_diagram` returns a `https://online.diagrammo.app/...` URL; `open` it. Same chart + editor view in the browser. **Preferred fallback.**
+
+Other tools (use only when the user asks for them):
+3. `render_diagram` — PNG or SVG to a file path. Use when the user wants an image artifact (export, embed, attach).
 4. `generate_report` — renders multiple diagrams into an HTML report with table of contents.
-5. `preview_diagram` — local HTML preview in the browser. Last resort — only when none of the above fit.
+5. `preview_diagram` — local HTML preview in the browser; also the multi-diagram side-by-side tool.
 6. `list_chart_types` / `get_language_reference` — discovery; call `get_language_reference` before generating an unfamiliar chart type.
 
 ## When to use dgmo
