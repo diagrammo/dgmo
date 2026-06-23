@@ -34,430 +34,37 @@ const PALETTES = getAvailablePalettes().map((p) => p.id);
 
 const THEMES = ['light', 'dark', 'transparent'] as const;
 
-const CLAUDE_SKILL_CONTENT = `# dgmo — Diagrammo Diagram Assistant
+// The Claude Code skill (~/.claude/commands/dgmo.md) and the Codex skill
+// (SKILL.md — gen-ai-core covered, with a gate-enforced COMPLETE chart-type
+// index) are SHIPPED in this package via the "files" allowlist and are the
+// single source of truth. The installers below read those files rather than
+// carrying inline copies, so the chart-type list and syntax can never drift
+// from the maintained originals (the stale inline table was the root cause of
+// agents wrongly reporting that a chart type "does not exist").
+const PKG_ROOT = resolve(__dirname, '..');
 
-You are helping the user author, render, and share diagrams using the \`dgmo\` CLI and \`.dgmo\` file format.
-
-## What is dgmo?
-
-\`dgmo\` is a CLI tool and library that renders \`.dgmo\` diagram files to PNG, SVG, or shareable URLs. Diagrams are written in a plain-text DSL.
-
-## Setup Check — Run This First
-
-**Before doing anything else**, check whether the MCP tools are available in this session by attempting to call \`mcp__dgmo__list_chart_types\`. If that tool exists and succeeds, skip this section entirely.
-
-If the MCP tools are **not** available, run the setup flow below — do not ask the user, just do it:
-
-### Step 1 — Install the CLI (if missing)
-
-\`\`\`bash
-which dgmo || npm install -g @diagrammo/dgmo
-\`\`\`
-
-### Step 2 — Install the MCP server (if missing)
-
-\`\`\`bash
-which dgmo-mcp || npm install -g @diagrammo/dgmo-mcp
-\`\`\`
-
-### Step 3 — Configure the MCP server
-
-Ask the user:
-
-> "Where should I configure the MCP server?
-> 1) This project only — write \`.mcp.json\` here [default]
-> 2) Globally — add to \`~/.claude/settings.json\` (works in all projects)"
-
-**Option 1 (default):** Create or update \`.mcp.json\` in the current working directory:
-
-\`\`\`json
-{
-  "mcpServers": {
-    "dgmo": {
-      "command": "dgmo-mcp"
-    }
+function readPackagedFile(...parts: string[]): string {
+  const p = join(PKG_ROOT, ...parts);
+  try {
+    return readFileSync(p, 'utf-8');
+  } catch {
+    console.error(`Could not read packaged file: ${p}`);
+    console.error(
+      'Your @diagrammo/dgmo install may be incomplete — try reinstalling it.'
+    );
+    process.exit(1);
   }
 }
-\`\`\`
 
-If \`.mcp.json\` already exists and has other servers, merge the \`dgmo\` entry in — do not overwrite the file.
-
-**Option 2 (global):** Add the \`dgmo\` entry to the \`mcpServers\` object in \`~/.claude/settings.json\`. Read the file first and merge — do not overwrite other keys.
-
-### Step 4 — Prompt restart
-
-Tell the user:
-
-> "Done. **Restart Claude Code** to activate the MCP server — diagram preview and rendering will be available in the next session."
-
-Then proceed with the user's original request using CLI fallback (see "Other output options" below).
-
-> **Note for future users:** To set up in one step from the terminal before starting a Claude Code session, run \`dgmo --install-claude-code-integration\`. It handles everything: installs \`@diagrammo/dgmo-mcp\`, writes the skill, and configures the MCP server.
-
-## Getting Syntax Help
-
-**Always use the MCP tool first** if it's available in this session:
-
-\`\`\`
-mcp__dgmo__get_language_reference            // full reference
-mcp__dgmo__get_language_reference("sequence") // specific chart type
-\`\`\`
-
-This is the authoritative, always-up-to-date syntax reference. Use it before guessing syntax.
-
-## Your Workflow
-
-When the user asks you to create or edit a diagram:
-
-1. **Get syntax** — call \`mcp__dgmo__get_language_reference("<type>")\` if you're unsure of the syntax.
-2. **Write the \`.dgmo\` content** — compose the markup.
-3. **Save the source file** (if working in a project) — write it to \`<name>.dgmo\` so the user has an editable file.
-4. **Render and show** — pick the right output based on what the user wants (see below).
-
-### Output options — always offer these proactively after creating a diagram
-
-| What the user wants | How to do it |
-|---|---|
-| **Quick look in the desktop app** | \`mcp__dgmo__open_in_app(dgmo)\` — opens directly in Diagrammo (macOS) |
-| **Browser preview with theme toggle** | \`mcp__dgmo__preview_diagram([{dgmo, title}])\` — opens HTML in browser |
-| **View in macOS Preview (or default image viewer)** | \`mcp__dgmo__render_diagram(dgmo, format:"png")\` → get temp path → \`open <path>\` |
-| **View SVG in browser** | \`mcp__dgmo__render_diagram(dgmo, format:"svg")\` → write SVG to a temp \`.svg\` file → \`open <path>\` |
-| **Save as PNG** | \`mcp__dgmo__render_diagram(dgmo, format:"png")\` → returns temp path; offer to copy to their preferred location. Or CLI: \`dgmo file.dgmo -o out.png\` |
-| **Save as SVG** | \`mcp__dgmo__render_diagram(dgmo, format:"svg")\` returns SVG text — write it to the desired path. Or CLI: \`dgmo file.dgmo -o out.svg\` |
-| **Shareable URL** | \`mcp__dgmo__share_diagram(dgmo)\` or CLI: \`dgmo file.dgmo -o url --copy\` |
-
-**After creating a diagram, always present these options to the user** — don't just render silently and stop. A good response ends with something like: *"I've saved the file as \`diagram.dgmo\`. Want me to open it in the app, export it as a PNG, or generate a shareable link?"*
-
-## CLI Reference
-
-\`\`\`
-dgmo <input.dgmo> [options]
-cat input.dgmo | dgmo [options]
-\`\`\`
-
-Key options:
-- \`-o <file>\` — output file; format inferred from extension (\`.svg\` → SVG, else PNG)
-- \`-o url\` — output a shareable diagrammo.app URL
-- \`--theme <theme>\` — \`light\` (default), \`dark\`, \`transparent\`
-- \`--palette <name>\` — \`slate\` (default), \`atlas\`, \`blueprint\`, \`nord\`, \`tidewater\`, \`catppuccin\`, \`tokyo-night\`
-- \`--copy\` — copy the URL to clipboard (use with \`-o url\`)
-- \`--chart-types\` — list all supported chart types
-
-## Supported Chart Types
-
-| Type | Use case |
-|------|----------|
-| \`bar\` | Categorical comparisons |
-| \`line\` / \`multi-line\` / \`area\` | Trends over time |
-| \`pie\` / \`doughnut\` | Part-to-whole |
-| \`radar\` / \`polar-area\` | Multi-dimensional metrics |
-| \`bar-stacked\` | Multi-series categorical |
-| \`scatter\` | 2D data points or bubble chart |
-| \`sankey\` | Flow / allocation |
-| \`chord\` | Circular flow relationships |
-| \`function\` | Mathematical expressions |
-| \`heatmap\` | Matrix intensity |
-| \`funnel\` | Conversion pipeline |
-| \`slope\` | Change between two periods |
-| \`wordcloud\` | Term frequency |
-| \`arc\` | Network relationships |
-| \`timeline\` | Events, eras, date ranges |
-| \`venn\` | Set overlaps |
-| \`quadrant\` | 2x2 positioning matrix |
-| \`sequence\` | Message / interaction flows |
-| \`flowchart\` | Decision trees, process flows |
-| \`state\` | State machine / lifecycle |
-| \`class\` | UML class hierarchies |
-| \`er\` | Database schemas |
-| \`org\` | Hierarchical tree structures |
-| \`kanban\` | Task / workflow columns |
-| \`c4\` | System architecture (context → container → component → deployment) |
-| \`sitemap\` | Website / app navigation structure |
-| \`infra\` | Infrastructure traffic flow with rps computation |
-| \`gantt\` | Project scheduling with dependencies |
-| \`boxes-and-lines\` | General-purpose node-edge diagrams with groups and tags |
-
-## Key Syntax Patterns
-
-### Common to all diagrams
-
-\`\`\`
-sequence               // explicit type (optional — auto-detected)
-title: My Diagram
-palette: catppuccin    // override palette
-
-// This is a comment (only // syntax — not #)
-\`\`\`
-
-Inline colors on most elements: append the color name as the trailing token — e.g. \`North red 850\`, \`[Process] blue\`. To use a color word as a literal label, capitalize it (\`Red\` stays as the word Red).
-Named colors: \`red\`, \`orange\`, \`yellow\`, \`green\`, \`blue\`, \`purple\`, \`teal\`, \`cyan\`, \`gray\`, \`black\`, \`white\`.
-
-### sequence (most commonly used)
-
-\`\`\`
-chart: sequence
-title: Auth Flow
-
-// Participants auto-inferred, or declare explicitly:
-User is an actor
-DB is a database
-Cache is a cache
-
-User -Login-> API
-API -Find user-> DB
-DB -user record-> API
-
-if credentials valid
-  API -200 OK + token-> User
-else
-  API -401 Unauthorized-> User
-
-== Logout ==
-
-User -Logout-> API
-API -Delete session-> DB
-\`\`\`
-
-- Sync: \`A -label-> B\` · Async: \`A ~label~> B\` · Unlabeled: \`A -> B\`
-- Blocks: \`if\` / \`else\`, \`loop\`, \`parallel\` — closed by indentation (no \`end\` keyword)
-- Notes: \`note on API: text\` or \`note: text\`
-- Sections: \`== Title ==\`
-- Groups: \`[Group Name]\` with indented participants
-
-### flowchart
-
-\`\`\`
-(Start) -> <Valid Input?>
-  -yes-> [Process Data] -> (Done)
-  -no-> /Get Input/ -> <Valid Input?>
-\`\`\`
-
-Shapes: \`(oval)\` \`[rect]\` \`<diamond>\` \`/parallelogram/\` \`[[subroutine]]\` \`[document~]\`
-
-### bar / line / pie (data charts)
-
-\`\`\`
-// bar
-title: Revenue by Region
-series: Revenue
-North: 850
-South: 620
-
-// line (multi-series)
-series: Sales red, Costs blue
-Q1: 100, 50
-Q2: 120, 55
-
-// pie
-chart: pie
-labels: percent
-Company A: 40
-Company B: 35
-\`\`\`
-
-### er
-
-\`\`\`
-users
-  id: int [pk]
-  email: varchar [unique]
-  1-writes-* posts
-
-posts
-  id: int [pk]
-  author_id: int [fk]
-\`\`\`
-
-### org
-
-\`\`\`
-CEO
-  VP Engineering
-    [Platform Team]
-      Lead
-        Dev 1
-        Dev 2
-  VP Marketing
-\`\`\`
-
-### infra
-
-\`\`\`
-chart: infra
-edge
-  rps: 10000
-  -> CDN
-
-CDN
-  cache-hit: 80%
-  -> API
-
-API
-  instances: 3
-  max-rps: 500
-  latency-ms: 45
-\`\`\`
-
-## Anti-Patterns
-
-\`\`\`
-# comment          ❌  use // comment
-async A -> B: msg  ❌  use A ~msg~> B
-A <- B             ❌  left-pointing arrows removed — use B -> A
-parallel else      ❌  not supported — use separate parallel blocks
-== Foo #ff0000 == ❌  hex colors not supported — use named colors: == Foo red ==
-A -routes to /api-> B  ❌  -> inside a label is ambiguous — rephrase the label
-end                ❌  not needed — indentation closes blocks in sequence diagrams
-\`\`\`
-
-## Tips
-
-- Default theme: \`light\`, default palette: \`slate\` — ask the user their preference before a final export.
-- Stdin mode for quick renders: \`echo "..." | dgmo -o out.png\`
-- For C4, \`--c4-level\` drills from context → containers → components → deployment.
-- When auto-detection picks the wrong chart type, add an explicit \`chart:\` directive.
-- \`mcp__dgmo__preview_diagram\` accepts multiple diagrams at once — useful for showing variants side by side.
-`;
-
-const CODEX_SKILL_FRONTMATTER = `---
-name: dgmo-diagramming
-description: Use when the user asks for a diagram, chart, sequence diagram, flowchart, ER diagram, org chart, kanban, sitemap, infra/architecture diagram, or any visual based on the DGMO diagram markup language. Provides syntax, MCP tool guidance, and rendering/sharing workflows.
----
-
-`;
-
-const CODEX_SKILL_CONTENT = `# DGMO Diagram Language
-
-Use dgmo tools to create, render, and share diagrams. dgmo is a text-based diagram markup language that renders to SVG/PNG.
-
-## MCP Tools — preferred order
-
-When the \`dgmo\` MCP server is configured, prefer tools in this order:
-1. \`open_in_app\` — opens the diagram in the Diagrammo desktop app (macOS). **Best UX** — chart + editor side-by-side, full editing.
-2. \`share_diagram\` — returns a \`https://online.diagrammo.app/...\` URL. Tell the user to open it; same chart + editor view in the browser. **Preferred fallback** when the desktop app is not available.
-3. \`render_diagram\` — renders to PNG or SVG and returns a file path. Use when the user wants an image artifact (export, embed, attach).
-4. \`generate_report\` — renders multiple diagrams into an HTML report with table of contents.
-5. \`preview_diagram\` — local HTML preview in the browser. Last resort — only when none of the above fit.
-6. \`list_chart_types\` / \`get_language_reference\` — discovery; call \`get_language_reference\` before generating an unfamiliar chart type.
-
-## When to use dgmo
-
-- Architecture diagrams, sequence diagrams, flowcharts
-- Data charts (bar, line, pie, scatter, heatmap, etc.)
-- ER diagrams, class diagrams, org charts
-- Project roadmaps, kanban boards, timelines
-
-## Quick syntax reference
-
-### Sequence diagram
-\`\`\`
-sequence Auth Flow
-
-User -Login-> API
-API -Find user-> DB
-DB -user-> API
-  if valid
-    API -200 OK-> User
-  else
-    API -401-> User
-\`\`\`
-
-### Flowchart
-\`\`\`
-flowchart Process
-
-(Start) -> <Valid?>
-  -yes-> [Process] -> (Done)
-  -no-> /Get Input/ -> <Valid?>
-\`\`\`
-
-### Bar chart
-\`\`\`
-bar Revenue
-series USD
-
-North 850
-South 620
-East 1100
-\`\`\`
-
-### ER diagram
-\`\`\`
-er Schema
-
-users
-  id int pk
-  email varchar
-
-posts
-  id int pk
-  user_id int fk
-
-users 1-writes-* posts
-\`\`\`
-
-### Org chart
-\`\`\`
-org
-
-CEO
-  VP Engineering
-    Team Lead A
-    Team Lead B
-  VP Marketing
-\`\`\`
-
-### Infra chart
-\`\`\`
-infra
-
-edge
-  rps: 10000
-  -> CDN
-
-CDN
-  cache-hit: 80%
-  -> LB
-
-LB
-  -> API | split: 70%
-  -> Web | split: 30%
-
-API
-  instances: 3
-  max-rps: 500
-  latency-ms: 45
-\`\`\`
-
-## All 31 chart types
-
-bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, sitemap, infra
-
-## Common patterns
-
-- First line: chart type keyword (e.g. \`sequence\`, \`flowchart\`, \`bar\`), optionally followed by a title (\`bar Revenue\`)
-- \`// comment\` — only \`//\` comments (not \`#\`)
-- Trailing color name — inline colors on data series, tag values, kanban columns: \`Label red 100\`
-- \`series A red, B blue\` — multi-series with colors
-
-## Rendering via CLI
-
-\`\`\`bash
-dgmo file.dgmo -o output.svg       # SVG
-dgmo file.dgmo -o url              # shareable link
-dgmo file.dgmo --json              # structured JSON output
-\`\`\`
-
-## Mistakes to avoid
-
-- Don't use \`#\` for comments — use \`//\`
-- Don't use \`end\` to close sequence blocks — indentation closes them
-- Don't use hex colors in section headers — use named colors
-- Start the file with the chart type keyword when content is ambiguous
-- Sequence arrows: \`->\` (sync), \`~>\` (async) — always left-to-right
-
-Full reference: call \`get_language_reference\` MCP tool or visit diagrammo.app/docs
-`;
+// Claude Code skill source. Carries NO static chart-type table — it directs the
+// agent to query list_chart_types (MCP) / dgmo --chart-types (CLI) for the
+// authoritative, complete list.
+const readClaudeSkill = (): string =>
+  readPackagedFile('.claude', 'commands', 'dgmo.md');
+
+// Codex skill source. Already includes the dgmo-diagramming frontmatter and the
+// gen-ai-core 45-type index.
+const readCodexSkill = (): string => readPackagedFile('SKILL.md');
 
 const CODEX_AGENTS_NOTE_MARKER = '<!-- dgmo-integration -->';
 const CODEX_AGENTS_NOTE = `${CODEX_AGENTS_NOTE_MARKER}
@@ -1040,7 +647,7 @@ async function main(): Promise<void> {
     }
     if (installSkill) {
       if (!existsSync(commandsDir)) mkdirSync(commandsDir, { recursive: true });
-      writeFileSync(skillPath, CLAUDE_SKILL_CONTENT, 'utf-8');
+      writeFileSync(skillPath, readClaudeSkill(), 'utf-8');
       console.log('✓ Skill installed: ~/.claude/commands/dgmo.md');
     } else {
       console.log('  Skipped skill install.');
@@ -1163,7 +770,7 @@ async function main(): Promise<void> {
     if (!existsSync(commandsDir)) {
       mkdirSync(commandsDir, { recursive: true });
     }
-    writeFileSync(destPath, CLAUDE_SKILL_CONTENT, 'utf-8');
+    writeFileSync(destPath, readClaudeSkill(), 'utf-8');
     console.log(`Installed: ${destPath}`);
     console.log('Use /dgmo in Claude Code to activate the skill.');
     return;
@@ -1277,7 +884,7 @@ async function main(): Promise<void> {
     // Install the dgmo-diagramming skill at ~/.codex/skills/dgmo-diagramming/SKILL.md
     const skillDir = join(homedir(), '.codex', 'skills', 'dgmo-diagramming');
     const skillPath = join(skillDir, 'SKILL.md');
-    const skillBody = CODEX_SKILL_FRONTMATTER + CODEX_SKILL_CONTENT;
+    const skillBody = readCodexSkill();
     if (existsSync(skillPath)) {
       const existingSkill = readFileSync(skillPath, 'utf-8');
       if (existingSkill === skillBody) {

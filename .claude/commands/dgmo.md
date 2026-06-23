@@ -89,7 +89,7 @@ For **examples** of real diagrams, call `mcp__dgmo__get_examples("<type>")` — 
 
 ### Creating a new diagram
 
-1. **Pick the right chart type** — always call `mcp__dgmo__suggest_chart_type({ prompt: <user's request> })` first. It returns up to 3 ranked candidates with a confidence banner and matched trigger phrases. Use the top match unless you have a strong reason to override it. If the MCP tool is unavailable (Setup Check fallback path), run `dgmo --chart-types` in a terminal to list supported types and pick from that list.
+1. **Pick the right chart type** — always call `mcp__dgmo__suggest_chart_type({ prompt: <user's request> })` first. It returns up to 3 ranked candidates with a confidence banner and matched trigger phrases. Use the top match unless you have a strong reason to override it. If the MCP tool is unavailable (Setup Check fallback path), run `dgmo --chart-types` in a terminal and pick from that list — do not pick from memory or assume a requested type is unsupported (see "Supported Chart Types" below).
 2. **Get syntax + examples** — call `mcp__dgmo__get_language_reference("<type>")` and `mcp__dgmo__get_examples("<type>")`.
 3. **Write the `.dgmo` content** — compose the markup.
 4. **Validate first** — call `mcp__dgmo__validate_diagram(dgmo)` to catch syntax errors before rendering. If errors come back, fix them and validate again.
@@ -228,7 +228,14 @@ Key options:
 
 ## Supported Chart Types
 
-Call `mcp__dgmo__list_chart_types` to see every supported type with descriptions, or `dgmo --chart-types` in a terminal as a CLI fallback. When picking for a new diagram, use `mcp__dgmo__suggest_chart_type` — it scores the full list against the user's prompt (see "Creating a new diagram → step 1").
+**There are ~45 chart types. The authoritative, complete list comes ONLY from the live tool — never from memory and never from any prose list in this skill.** Any chart types named elsewhere in this document (in examples, tips, or the "diagram this" table) are illustrative, NOT the full set. dgmo supports many specialized types people don't expect — including `journey-map`, `mindmap`, `pert`, `raci`, `pyramid`, `wireframe`, `ring`, `tech-radar`, `cycle`, and more.
+
+**Hard rule:** before telling the user a chart type "doesn't exist," isn't supported, or that you'll use "the closest fit instead" — you MUST first query the live list:
+
+- MCP active: `mcp__dgmo__list_chart_types` (full list + descriptions), and `mcp__dgmo__suggest_chart_type({ prompt })` to pick.
+- MCP unavailable: run `dgmo --chart-types` in a terminal.
+
+If the user asks for a named visualization (e.g. "user journey", "mind map", "RACI matrix"), assume dgmo supports it and verify against the live list — do not substitute a different type unless the list confirms the requested one is genuinely absent.
 
 ## Key Syntax Patterns
 
