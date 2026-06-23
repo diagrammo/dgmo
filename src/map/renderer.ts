@@ -136,7 +136,8 @@ function coastlineOuterRings(
   const paths: string[] = [];
   for (const r of regions) {
     // Reuse the rings parsed once in layoutMap; fall back for older layouts.
-    const rings = (r.rings as Array<Array<[number, number]>>) ?? parsePathRings(r.d);
+    const rings =
+      (r.rings as Array<Array<[number, number]>>) ?? parsePathRings(r.d);
     for (let i = 0; i < rings.length; i++) {
       const ring = rings[i]!;
       if (ring.length < 3) continue;
@@ -684,10 +685,7 @@ export function renderMap(
       for (const r of layout.regions) {
         // bbox is precomputed once in layoutMap (roadmap #2); fall back to
         // parsing only for layouts predating that field.
-        let minX: number,
-          minY: number,
-          maxX: number,
-          maxY: number;
+        let minX: number, minY: number, maxX: number, maxY: number;
         if (r.bbox) {
           [minX, minY, maxX, maxY] = r.bbox;
         } else {
@@ -898,10 +896,67 @@ export function renderMap(
     .append('g')
     .attr('class', 'dgmo-map-legs')
     .attr('fill', 'none');
-  layout.legs.forEach((leg, i) => {
+  // Parse a single-segment leg path (`M…L…` or `M…Q…`) into its end point and the
+  // unit tangent arriving there. Returns null for anything unexpected (then the
+  // leg renders without the trimmed-arrow treatment).
+  const legEnd = (
+    d: string
+  ): { ex: number; ey: number; tx: number; ty: number } | null => {
+    const m =
+      /^M(-?[\d.]+),(-?[\d.]+)(?:L(-?[\d.]+),(-?[\d.]+)|Q(-?[\d.]+),(-?[\d.]+) (-?[\d.]+),(-?[\d.]+))$/.exec(
+        d
+      );
+    if (!m) return null;
+    const x0 = +m[1]!;
+    const y0 = +m[2]!;
+    let ex: number;
+    let ey: number;
+    let fromX: number;
+    let fromY: number;
+    if (m[3] !== undefined) {
+      ex = +m[3]!;
+      ey = +m[4]!;
+      fromX = x0;
+      fromY = y0;
+    } else {
+      ex = +m[7]!;
+      ey = +m[8]!;
+      fromX = +m[5]!; // quadratic control → tangent at the end
+      fromY = +m[6]!;
+    }
+    const dx = ex - fromX;
+    const dy = ey - fromY;
+    const len = Math.hypot(dx, dy);
+    if (!(len > 0)) return null;
+    return { ex, ey, tx: dx / len, ty: dy / len };
+  };
+  layout.legs.forEach((leg) => {
+    // A directed leg's stroke is TRIMMED back to the arrowhead base so a heavy
+    // weighted line doesn't run through (and bulge past) the narrowing arrowhead.
+    // The arrowhead itself is drawn as a filled triangle at the true endpoint,
+    // sized to always be a touch wider than the stroke so the stroke end is fully
+    // covered. Undirected (or unparseable) legs keep the full path.
+    const end = leg.arrow ? legEnd(leg.d) : null;
+    let drawD = leg.d;
+    let arrowTri: string | null = null;
+    if (end) {
+      const aLen = arrowSize(leg.width); // arrow depth along the line
+      const aHalf = Math.max(aLen * 0.5, leg.width * 0.6 + 1); // half base ≥ stroke
+      const bx = end.ex - end.tx * aLen; // base centre
+      const by = end.ey - end.ty * aLen;
+      const px = -end.ty; // perpendicular
+      const py = end.tx;
+      arrowTri = `M${bx + px * aHalf},${by + py * aHalf}L${end.ex},${end.ey}L${bx - px * aHalf},${by - py * aHalf}z`;
+      // Re-point the stroke's end at the arrow base (small along-tangent shift; for
+      // an arc leg the negligible end-curvature change is hidden by the arrowhead).
+      drawD = leg.d.replace(
+        /(-?[\d.]+),(-?[\d.]+)$/,
+        `${bx.toFixed(2)},${by.toFixed(2)}`
+      );
+    }
     const p = gLegs
       .append('path')
-      .attr('d', leg.d)
+      .attr('d', drawD)
       .attr('stroke', leg.color)
       .attr('stroke-width', leg.width)
       .attr('stroke-linecap', 'round')
@@ -918,23 +973,19 @@ export function renderMap(
     // A 0-width invisible leg path is hard to hit; pointer-events on the visible
     // stroke is enough for the line widths legs use.
     wireSync(p, leg.lineNumber);
-    if (leg.arrow) {
-      const id = nid(`dgmo-map-arrow-${i}`);
-      const s = arrowSize(leg.width);
-      defs
-        .append('marker')
-        .attr('id', id)
-        .attr('viewBox', '0 0 10 10')
-        .attr('refX', 10)
-        .attr('refY', 5)
-        .attr('markerUnits', 'userSpaceOnUse')
-        .attr('markerWidth', s)
-        .attr('markerHeight', s)
-        .attr('orient', 'auto-start-reverse')
+    if (arrowTri) {
+      // Filled arrowhead at the true endpoint — a flat triangle whose base sits
+      // where the trimmed stroke ends, so the line meets it cleanly with no
+      // show-through. Round join keeps the tip from looking spiky on thin legs.
+      gLegs
         .append('path')
-        .attr('d', 'M0,0L10,5L0,10z')
-        .attr('fill', leg.color);
-      p.attr('marker-end', `url(#${id})`);
+        .attr('d', arrowTri)
+        .attr('fill', leg.color)
+        .attr('stroke', leg.color)
+        .attr('stroke-width', 1)
+        .attr('stroke-linejoin', 'round')
+        .attr('data-from-id', leg.fromId)
+        .attr('data-to-id', leg.toId);
     }
     if (leg.label !== undefined && leg.labelX !== undefined) {
       // Text shade is contrast-picked in layout against the fill under the label
