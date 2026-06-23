@@ -369,7 +369,10 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
   function handleTag(trimmed: string, line: number): void {
     const m = matchTagBlockHeading(trimmed);
     if (!m) {
-      pushError(line, `Malformed tag declaration: "${trimmed}".`);
+      pushError(
+        line,
+        `Malformed tag declaration: "${trimmed}" — write 'tag <Group>' (optionally 'tag <Group> as <alias>'), e.g. 'tag Market as m', with indented 'Value color' entries below.`
+      );
       return;
     }
     emitTagLegacyDiagnostic(m, line, diagnostics);
@@ -500,7 +503,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     if (!pos || (pos.kind === 'name' && !pos.name)) {
       pushError(
         line,
-        'route requires an origin: `route <origin> [style: arc]`.'
+        'route needs an origin place — `route <origin>` then indented legs (`-> dest`); origin may be a city name, IATA code, or `<lat> <lon>`. (§24B)'
       );
       return;
     }
@@ -579,7 +582,10 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     const parts = trimmed.split(ARROW_SPLIT);
     // parts = [ep0, tok0, ep1, tok1, ep2, ...]
     if (parts.length < 3) {
-      pushError(line, `Malformed edge: "${trimmed}".`);
+      pushError(
+        line,
+        `Malformed edge: "${trimmed}" — an edge is 'A -> B' (or 'A -label-> B', '~>' for arc, '--' undirected), both endpoints non-empty. (§24B)`
+      );
       return;
     }
     const endpoints: string[] = [];
@@ -609,7 +615,10 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       const from = endpoints[k]!;
       const to = endpoints[k + 1]!;
       if (!from || !to) {
-        pushError(line, `Edge has an empty endpoint: "${trimmed}".`);
+        pushError(
+          line,
+          `Edge has an empty endpoint: "${trimmed}" — both sides of the arrow need a place, e.g. 'Paris -> Berlin'. (§24B)`
+        );
         continue;
       }
       const isLast = k === links.length - 1;

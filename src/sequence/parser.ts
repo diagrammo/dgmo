@@ -878,10 +878,13 @@ export function parseSequenceDgmo(
           .trim()
           .replace(/\([^)]*\)$/, '')
           .trim();
-        const metaPart = rawInside.substring(pipeIdx).trim();
+        const metaPart = rawInside
+          .substring(pipeIdx)
+          .replace(/^\|\s*/, '')
+          .trim();
         pushError(
           lineNumber,
-          `Pipe metadata must go outside brackets — use '[${cleanName}] ${metaPart}' instead of '[${rawInside.trim()}]'`
+          `Metadata goes after the bracket with no pipe — use '[${cleanName}] ${metaPart}' (e.g. '[Backend] t: Product'), not '[${rawInside.trim()}]'`
         );
         continue;
       }
@@ -1676,7 +1679,7 @@ export function parseSequenceDgmo(
     // Catch-all: nothing matched this line
     pushWarning(
       lineNumber,
-      `Unexpected line: '${trimmed}'. Expected a message (A -> B), participant, section (== Name ==), or block keyword (if/loop/parallel).`
+      `Unexpected line: '${trimmed}'. Expected a message ('A -> B' or 'A -label-> B'), participant ('Name' or 'Name is a actor'), note ('note right of A Text'), section ('== Name =='), or block ('if/loop/parallel <label>').`
     );
   }
 

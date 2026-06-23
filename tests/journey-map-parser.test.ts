@@ -440,7 +440,7 @@ describe('journey-map parser', () => {
         'journey-map Test\n\n[A]\n  Step A | 3\n\nLoose step | 3\n\n[B]\n  Step B | 4'
       );
       const warning = result.diagnostics.find((d) =>
-        d.message.includes('Steps outside phases')
+        d.message.includes('outside any phase')
       );
       expect(warning).toBeTruthy();
     });

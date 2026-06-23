@@ -342,7 +342,10 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       // Find the parent node: top of stack (the most recent node)
       const parent = findMetadataParent(indent, indentStack);
       if (!parent) {
-        pushError(lineNumber, 'Metadata has no parent node');
+        pushError(
+          lineNumber,
+          "Metadata 'key: value' must be indented under a node — no node precedes it."
+        );
       } else {
         parent.metadata = { ...parent.metadata, [key]: value };
       }
@@ -364,7 +367,10 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         );
         attachNode(node, indent, indentStack, result);
       } else {
-        pushError(lineNumber, 'Metadata has no parent node');
+        pushError(
+          lineNumber,
+          "Metadata 'key: value' must be indented under a node — no node precedes it."
+        );
       }
     } else {
       // It's a node label — possibly with single-line metadata

@@ -336,7 +336,7 @@ describe('parseKanban', () => {
         result.diagnostics.some(
           (d) =>
             d.severity === 'warning' &&
-            d.message.includes('"no-auto-color" has been removed')
+            d.message.includes('"no-auto-color" was removed')
         )
       ).toBe(true);
     });

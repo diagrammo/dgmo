@@ -516,7 +516,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           } else {
             pushError(
               lineNumber,
-              `"container ${refName}" must be inside a deployment node`
+              `"container ${refName}" must be indented under a deployment node (e.g. under 'Prod is a deployment-node')`
             );
           }
           continue;
@@ -585,7 +585,10 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           indent,
         });
       } else {
-        pushError(lineNumber, `"${sectionType}" must be inside an element`);
+        pushError(
+          lineNumber,
+          `"${sectionType}" must be indented under an element (e.g. under 'Web App is a container')`
+        );
       }
       continue;
     }
@@ -618,7 +621,10 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           indent,
         });
       } else {
-        pushError(lineNumber, `Group [${groupName}] must be inside an element`);
+        pushError(
+          lineNumber,
+          `Group [${groupName}] must be indented under an element (e.g. under 'Web App is a container')`
+        );
       }
       continue;
     }
@@ -1049,7 +1055,10 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       }
       desc.push(descResult.text);
     } else {
-      pushError(lineNumber, `Unexpected content: "${trimmed}"`);
+      pushError(
+        lineNumber,
+        `Unexpected content: "${trimmed}". Expected an element ('Web App is a container'), a relationship ('-Uses-> Database'), indented metadata ('tech: React'), or a group ('[Backend]'). (§8)`
+      );
     }
   }
 
@@ -1154,7 +1163,7 @@ function validateRelationshipTargets(
     for (const el of elements) {
       for (const rel of el.relationships) {
         if (!knownNames.has(normalizeName(rel.target))) {
-          let msg = `Relationship target "${rel.target}" not found`;
+          let msg = `Relationship target "${rel.target}" not found — declare it first (e.g. '${rel.target} is a container'), then reference it in the arrow`;
           const hint = suggest(normalizeName(rel.target), allNames);
           if (hint) msg += `. ${hint}`;
           pushWarning(rel.lineNumber, msg, 'warning');
@@ -1193,7 +1202,7 @@ function validateDeploymentRefs(
     for (const node of nodes) {
       for (const ref of node.containerRefs) {
         if (!knownNames.has(normalizeName(ref))) {
-          let msg = `Deployment reference "container ${ref}" not found`;
+          let msg = `Deployment reference "container ${ref}" not found — declare the container element first, then reference it under the deployment node`;
           const hint = suggest(normalizeName(ref), allNames);
           if (hint) msg += `. ${hint}`;
           pushWarning(node.lineNumber, msg, 'warning');

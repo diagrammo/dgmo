@@ -579,7 +579,7 @@ describe('parseOrg', () => {
 
     it('returns error for orphan metadata', () => {
       const result = parseOrg('org\n  role: CEO');
-      expect(result.error).toMatch(/Metadata has no parent node/);
+      expect(result.error).toMatch(/must be indented under a node/);
     });
   });
 

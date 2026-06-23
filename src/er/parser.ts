@@ -572,7 +572,11 @@ export function parseERDiagram(
 
     // Catch-all: nothing matched this line
     result.diagnostics.push(
-      makeDgmoError(lineNumber, `Unexpected line: '${trimmed}'.`, 'warning')
+      makeDgmoError(
+        lineNumber,
+        `Unexpected line: '${trimmed}'. A table is a bare name at indent 0 ('users'); columns are indented and SPACE-separated, no colon ('id int pk'); relationships are indented ('1--* orders'). (§9)`,
+        'warning'
+      )
     );
   }
 

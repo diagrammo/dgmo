@@ -396,7 +396,7 @@ describe('parseMap — routes (AC12)', () => {
     expect(
       r.diagnostics.some(
         (d) =>
-          d.severity === 'error' && /route requires an origin/.test(d.message)
+          d.severity === 'error' && /route needs an origin/.test(d.message)
       )
     ).toBe(true);
   });

@@ -420,7 +420,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       const hint = suggest(r.name, allNames);
       err(
         r.lineNumber,
-        `Unknown subdivision "${r.name}".${hint ? ' ' + hint : ''}`,
+        `Unknown region "${r.name}" — not a known country or US state.${hint ? ' ' + hint : ''} Search the exact token with \`dgmo map-search "${r.name}"\` (or the lookup_map_location tool), use an ISO code (e.g. FR, US-CA), or coordinates.`,
         'E_MAP_UNKNOWN_SUBDIVISION'
       );
       continue;
@@ -527,7 +527,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       const hint = suggest(name, cityNames);
       err(
         line,
-        `Unknown place "${name}" (not in the gazetteer; use coordinates).${hint ? ' ' + hint : ''}`,
+        `Unknown place "${name}" — not in the gazetteer.${hint ? ' ' + hint : ''} Search the exact token with \`dgmo map-search "${name}"\` (or the lookup_map_location tool), or use coordinates \`poi <lat> <lon>\`.`,
         'E_MAP_UNKNOWN_PLACE'
       );
       return { kind: 'miss' };

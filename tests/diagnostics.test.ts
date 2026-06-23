@@ -182,7 +182,7 @@ describe('org: multiple recoverable errors', () => {
     const result = parseOrg(content);
     const errors = result.diagnostics.filter((d) => d.severity === 'error');
     expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain('parent node');
+    expect(errors[0].message).toContain('must be indented under a node');
     // Alice still parsed
     expect(result.roots).toHaveLength(1);
   });
@@ -267,7 +267,7 @@ describe('parseDgmo()', () => {
     const { diagnostics } = parseDgmo('org\n    role: Engineer\nAlice');
     const errors = diagnostics.filter((d) => d.severity === 'error');
     expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain('parent node');
+    expect(errors[0].message).toContain('must be indented under a node');
   });
 
   it('returns warnings for missing data', () => {

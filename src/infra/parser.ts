@@ -560,7 +560,7 @@ export function parseInfra(content: string): ParsedInfra {
       }
       warn(
         lineNumber,
-        `Invalid tag value '${trimmed}' in tag group '${currentTagGroup.name}'.`
+        `Invalid tag value '${trimmed}' in tag group '${currentTagGroup.name}' — a value is a bare word with an optional trailing color (e.g. 'Production red'); no ':' or '|'.`
       );
       continue;
     }
@@ -654,7 +654,7 @@ export function parseInfra(content: string): ParsedInfra {
         const n = deprecatedFanout[1];
         setError(
           lineNumber,
-          `'x${n}' fanout syntax is no longer supported — use '| fanout: ${n}' instead`
+          `'x${n}' fanout syntax is no longer supported — use 'fanout: ${n}' instead`
         );
         continue;
       }
@@ -869,8 +869,12 @@ export function parseInfra(content: string): ParsedInfra {
           const valueLooksNumeric = /^[\d.]+%?$/.test(rawVal);
           if (hint || valueLooksNumeric) {
             // Likely a typo — warn
-            let msg = `Unknown property '${key}'.`;
+            let msg = `Unknown infra property '${key}'.`;
             if (hint) msg += ` ${hint}`;
+            else
+              msg +=
+                ` Properties are colon-keyed 'key: value' from the known schema` +
+                ` (e.g. latency-ms, max-rps, cache-hit, instances, concurrency).`;
             warn(lineNumber, msg);
           } else if (!currentNode.isEdge) {
             // Likely prose — collect as description
@@ -884,7 +888,7 @@ export function parseInfra(content: string): ParsedInfra {
         if (EDGE_ONLY_KEYS.has(key) && !currentNode.isEdge) {
           warn(
             lineNumber,
-            `Property '${key}' is only valid on the entry point (Edge/Internet).`
+            `Property '${key}' belongs on the entry point — declare it indented under an 'internet' or 'edge' node, not on '${currentNode.label}'.`
           );
         }
 
@@ -1014,8 +1018,8 @@ export function parseInfra(content: string): ParsedInfra {
     warn(
       lineNumber,
       currentGroup
-        ? `Unexpected line: '${trimmed}'. Expected an indented component name.`
-        : `Unexpected line: '${trimmed}'. Expected a component name, [Group Name], tag group, or option.`
+        ? `Unexpected line: '${trimmed}'. Inside a group, indent a component name under the '[Group]'.`
+        : `Unexpected line: '${trimmed}'. Expected a node ('Api Gateway'), a group ('[Backend]'), a tag group ('tag Tier as t'), or an option ('default-rps 100'); node properties go indented under a node as 'key: value'.`
     );
   }
 

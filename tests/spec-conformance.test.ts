@@ -735,7 +735,7 @@ describe('3. Boolean options', () => {
       r.diagnostics.some(
         (d) =>
           d.severity === 'warning' &&
-          d.message.includes('"no-auto-color" has been removed')
+          d.message.includes('"no-auto-color" was removed')
       )
     ).toBe(true);
   });
@@ -749,7 +749,7 @@ describe('3. Boolean options', () => {
       r.diagnostics.some(
         (d) =>
           d.severity === 'warning' &&
-          d.message.includes('"no-auto-color" has been removed')
+          d.message.includes('"no-auto-color" was removed')
       )
     ).toBe(true);
   });

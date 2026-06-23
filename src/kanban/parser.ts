@@ -58,7 +58,8 @@ const KNOWN_OPTIONS = new Set(['hide', 'active-tag']);
 /** Known kanban boolean options (bare keyword = on). */
 const KNOWN_BOOLEANS = new Set<string>(['solid-fill', 'no-title']);
 const REMOVED_BOOLEANS: Record<string, string> = {
-  'no-auto-color': '"no-auto-color" has been removed.',
+  'no-auto-color':
+    '"no-auto-color" was removed — colors are always auto-assigned from the palette; delete this line.',
 };
 
 // ============================================================
@@ -364,7 +365,10 @@ export function parseKanban(
     }
 
     if (!currentColumn) {
-      warn(lineNumber, 'Card line found before any column');
+      warn(
+        lineNumber,
+        'Card line found before any column. Declare a column first with \'[Column Name]\', then indent cards beneath it. (§11)'
+      );
       continue;
     }
 

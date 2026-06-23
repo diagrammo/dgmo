@@ -260,7 +260,7 @@ describe('parseSitemap', () => {
       const result = parseSitemap('-go-> About\nAbout');
       expect(
         result.diagnostics.some((d) =>
-          d.message.includes('Arrow has no source')
+          d.message.includes('must be indented under its source page')
         )
       ).toBe(true);
     });

@@ -352,7 +352,10 @@ export function parseCycle(content: string): ParsedCycle {
       }
 
       // Indented line with no context
-      warn(lineNum, `Unexpected indented line: "${trimmed}".`);
+      warn(
+        lineNum,
+        `Indented line "${trimmed}" has no step above it — add a step on a non-indented line first, then indent its details. (§21)`
+      );
       continue;
     }
   }

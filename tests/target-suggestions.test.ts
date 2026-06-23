@@ -68,7 +68,7 @@ describe('contextual unexpected-line hints', () => {
       d.message.includes('Unexpected line')
     );
     expect(diag).toBeDefined();
-    expect(diag!.message).toContain('Expected a message (A -> B)');
+    expect(diag!.message).toContain("Expected a message ('A -> B'");
   });
 
   it('infra: hints at top level', () => {
@@ -77,7 +77,7 @@ describe('contextual unexpected-line hints', () => {
       d.message.includes('Unexpected line')
     );
     expect(diag).toBeDefined();
-    expect(diag!.message).toContain('Expected a component name');
+    expect(diag!.message).toContain("Expected a node ('Api Gateway')");
   });
 
   it('kanban: hints inside column', () => {

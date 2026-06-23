@@ -706,7 +706,10 @@ export function parseRaci(
 
     // ── Catch-all: stray content line in body ────────────────────
     if (bodyStarted) {
-      errorAt(lineNumber, `Unexpected line: '${trimmed}'.`);
+      errorAt(
+        lineNumber,
+        `Unexpected line: '${trimmed}'. In the body expect a '[Phase]' header, an indented task name, or an assignment 'Role: A R C I' under a task. (§24A)`
+      );
     } else {
       // Pre-body unrecognized line — likely a typo'd directive. Tolerate
       // by emitting a warning rather than failing the whole parse.

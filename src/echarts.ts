@@ -964,7 +964,11 @@ function parseExtendedChartFull(
 
     // Catch-all: nothing matched this line
     result.diagnostics.push(
-      makeDgmoError(lineNumber, `Unexpected line: '${trimmed}'.`, 'warning')
+      makeDgmoError(
+        lineNumber,
+        `Unexpected line: '${trimmed}'. Expected a data row ('Label value', space-separated) or a known option.`,
+        'warning'
+      )
     );
   }
 

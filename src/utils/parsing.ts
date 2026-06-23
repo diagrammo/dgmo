@@ -564,9 +564,9 @@ export function peelRampColors(label: string): {
   return { label: second.rest, low: second.color, high: first.color };
 }
 
-/** Error message for multiple pipes on a single line. */
+/** Error message for stray pipe(s) where metadata used to go (0.18.0 removed `|`). */
 export const MULTIPLE_PIPE_ERROR =
-  'Use a single "|" to start metadata, then separate items with commas.';
+  "'|' is no longer metadata syntax — put metadata on the same line as 'key: value, key2: value2' (no pipes), per §1.4.";
 
 /**
  * Parse metadata from segments after the first (name) segment.

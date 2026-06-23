@@ -136,7 +136,7 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     const r = resolve('map\nCaliforna value: 1');
     expect(
       r.diagnostics.some(
-        (d) => d.severity === 'error' && /Unknown subdivision/.test(d.message)
+        (d) => d.severity === 'error' && /Unknown region/.test(d.message)
       )
     ).toBe(true);
   });

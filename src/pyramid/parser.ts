@@ -193,7 +193,10 @@ export function parsePyramid(content: string): ParsedPyramid {
 
     // ── Indented: description line under current layer ──
     if (!currentLayer) {
-      warn(lineNum, `Unexpected indented line: "${trimmed}".`);
+      warn(
+        lineNum,
+        `Indented description "${trimmed}" has no layer above it — add a layer name on a non-indented line first. (§23)`
+      );
       continue;
     }
     const descLine = trimmed.startsWith('- ')

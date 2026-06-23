@@ -452,7 +452,10 @@ function parseVisualizationFull(
             lineNumber,
           });
         } else {
-          warn(lineNumber, `Unrecognized era entry: "${line}"`);
+          warn(
+            lineNumber,
+            `Unrecognized era entry: "${line}" — use '<start> -> <end> Label [color]' (e.g. '1716 -> 1717 Reign').`
+          );
         }
         continue;
       }
@@ -486,7 +489,10 @@ function parseVisualizationFull(
             lineNumber,
           });
         } else {
-          warn(lineNumber, `Unrecognized marker entry: "${line}"`);
+          warn(
+            lineNumber,
+            `Unrecognized marker entry: "${line}" — use '<date> Label [color]' (e.g. '1776 Independence').`
+          );
         }
         continue;
       }
@@ -1411,7 +1417,7 @@ function parseVisualizationFull(
           result.diagnostics.push(
             makeDgmoError(
               ov.lineNumber,
-              `Intersection references unknown set or alias "${ref}"`
+              `Intersection references unknown set or alias "${ref}" — declare the set first on its own line ('Name [as <alias>] [color]', e.g. 'Navigation as nav blue'), then reference it by that name or alias. (§16.4)`
             )
           );
           if (!result.error)

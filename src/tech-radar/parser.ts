@@ -144,7 +144,10 @@ export function parseTechRadar(content: string): ParsedTechRadar {
     // --- Rings block ---
     if (indent === 0 && trimmed.toLowerCase() === 'rings') {
       if (result.rings.length > 0) {
-        warn(lineNumber, 'Duplicate "rings" block — using last one');
+        warn(
+          lineNumber,
+          'Duplicate "rings" block — only the last is kept; merge all ring names into one "rings" block.'
+        );
         result.rings = [];
       }
       inRingsBlock = true;
@@ -410,7 +413,7 @@ export function parseTechRadar(content: string): ParsedTechRadar {
       result.diagnostics.push(
         makeDgmoError(
           lineNumber,
-          `Blip "${trimmed}" has no ring assignment. Place it under a ring section header or use: ${trimmed} | ring: RingName`
+          `Blip "${trimmed}" has no ring. Put it under a ring section header, or add a colon-keyed ring — '${trimmed} ring: RingName' (per §20).`
         )
       );
       continue;
@@ -421,7 +424,7 @@ export function parseTechRadar(content: string): ParsedTechRadar {
       if (!trimmed.includes('|') && headerParsed && result.rings.length > 0) {
         warn(
           lineNumber,
-          `Unrecognized line "${trimmed}". Quadrant headers require pipe metadata: ${trimmed} | quadrant: top-left`
+          `Unrecognized line "${trimmed}". A quadrant header is 'Name quadrant: <top-left|top-right|bottom-left|bottom-right>' (per §20).`
         );
       }
     }

@@ -308,7 +308,7 @@ export function parseClassDiagram(
         result.diagnostics.push(
           makeDgmoError(
             lineNumber,
-            '"no-auto-color" has been removed.',
+            '"no-auto-color" was removed — colors are always auto-assigned from the palette; delete this line.',
             'warning'
           )
         );
@@ -458,7 +458,11 @@ export function parseClassDiagram(
 
     // Catch-all: nothing matched this line
     result.diagnostics.push(
-      makeDgmoError(lineNumber, `Unexpected line: '${trimmed}'.`, 'warning')
+      makeDgmoError(
+        lineNumber,
+        `Unexpected line: '${trimmed}'. Classes start uppercase at indent 0 ('Ship'); members are indented and colon-typed ('+ name: string', '+ sail(): void'); relationships are indented arrows ('--|> Vessel'). (§10)`,
+        'warning'
+      )
     );
   }
 

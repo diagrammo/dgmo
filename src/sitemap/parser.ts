@@ -363,7 +363,10 @@ export function parseSitemap(
       // at a shallower indent (same pattern as metadata attachment)
       const source = findParentNode(indent, indentStack);
       if (!source) {
-        pushError(lineNumber, 'Arrow has no source node');
+        pushError(
+          lineNumber,
+          "Arrow '-> target' must be indented under its source page — no page precedes it."
+        );
       } else {
         deferredArrows.push({
           sourceNode: source,
@@ -455,7 +458,10 @@ export function parseSitemap(
 
       const parent = findParentNode(indent, indentStack);
       if (!parent) {
-        pushError(lineNumber, 'Metadata has no parent node');
+        pushError(
+          lineNumber,
+          "Metadata 'key: value' must be indented under a page — no page precedes it."
+        );
       } else {
         parent.metadata = { ...parent.metadata, [key]: value };
       }
@@ -476,7 +482,10 @@ export function parseSitemap(
         const key = normalizeName(node.label);
         labelToNode.set(key, node);
       } else {
-        pushError(lineNumber, 'Metadata has no parent node');
+        pushError(
+          lineNumber,
+          "Metadata 'key: value' must be indented under a page — no page precedes it."
+        );
       }
     } else {
       // Check if this is a description line for a parent node

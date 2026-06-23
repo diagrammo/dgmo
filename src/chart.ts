@@ -174,7 +174,7 @@ export function parseChart(
       result.diagnostics.push(
         makeDgmoError(
           lineNumber,
-          `'${trimmed}' — ## syntax is no longer supported. Use [Group] containers instead`
+          `'${trimmed}' removed — use a bracket container '[${trimmed.replace(/^#+\s*/, '')}]' instead (## headers are no longer supported).`
         )
       );
       continue;

@@ -1519,8 +1519,8 @@ describe('pipe metadata on group headers', () => {
       'API -req-> DB',
     ].join('\n');
     const result = parseSequenceDgmo(content);
-    expect(result.error).toMatch(/Pipe metadata must go outside brackets/);
-    expect(result.error).toMatch(/\[Backend\] \| t: Engineering/);
+    expect(result.error).toMatch(/Metadata goes after the bracket with no pipe/);
+    expect(result.error).toMatch(/\[Backend\] t: Engineering/);
   });
 
   it('pipe inside brackets with legacy parens-color emits error', () => {
@@ -1531,8 +1531,8 @@ describe('pipe metadata on group headers', () => {
       'API -req-> DB',
     ].join('\n');
     const result = parseSequenceDgmo(content);
-    expect(result.error).toMatch(/Pipe metadata must go outside brackets/);
-    expect(result.error).toMatch(/\[Backend\] \| t: Product/);
+    expect(result.error).toMatch(/Metadata goes after the bracket with no pipe/);
+    expect(result.error).toMatch(/\[Backend\] t: Product/);
   });
 
   it('group without pipe has no metadata', () => {

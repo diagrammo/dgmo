@@ -389,7 +389,11 @@ export function parseState(
 
         if (key === 'no-color') {
           result.diagnostics.push(
-            makeDgmoError(lineNumber, '"no-color" has been removed.', 'warning')
+            makeDgmoError(
+              lineNumber,
+              '"no-color" was removed — state colors are assigned automatically; delete this line.',
+              'warning'
+            )
           );
           continue;
         }

@@ -378,7 +378,7 @@ export function parseJourneyMap(
       if (trimmed.includes('|') || !PHASE_RE.test(trimmed)) {
         warn(
           lineNumber,
-          'Steps outside phases will be ignored when phases are present'
+          `Step "${trimmed}" sits outside any phase and is ignored — indent it under a '[Phase]' header (per §22).`
         );
         continue;
       }
@@ -450,7 +450,10 @@ export function parseJourneyMap(
 
     // Unrecognized line
     if (indent > 0 && !currentPhase && hasPhases) {
-      warn(lineNumber, `Unexpected indented line outside of a phase`);
+      warn(
+        lineNumber,
+        `Indented line outside any phase — add a '[Phase]' header above it, or unindent it to a top-level step. (§22)`
+      );
     }
   }
 

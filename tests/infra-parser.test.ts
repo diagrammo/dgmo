@@ -84,7 +84,7 @@ CloudFront
   rps: 5000
 `);
       const warn = result.diagnostics.find((d) =>
-        d.message.includes('only valid on the entry point')
+        d.message.includes('belongs on the entry point')
       );
       expect(warn).toBeDefined();
     });
@@ -194,7 +194,7 @@ API
 `);
       expect(result.diagnostics).toHaveLength(1);
       expect(result.diagnostics[0].message).toContain(
-        "Unknown property 'unknown-prop'"
+        "Unknown infra property 'unknown-prop'"
       );
     });
 
@@ -689,7 +689,7 @@ edge
       expect(result.error).toContain(
         "'x5' fanout syntax is no longer supported"
       );
-      expect(result.error).toContain('| fanout: 5');
+      expect(result.error).toContain('fanout: 5');
     });
 
     it('emits error for deprecated xN fanout syntax on labeled connection', () => {
@@ -703,7 +703,7 @@ edge
       expect(result.error).toContain(
         "'x10' fanout syntax is no longer supported"
       );
-      expect(result.error).toContain('| fanout: 10');
+      expect(result.error).toContain('fanout: 10');
     });
   });
 

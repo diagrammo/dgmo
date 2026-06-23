@@ -524,12 +524,12 @@ export function validateTagValues(
         );
         if (!isPrefix) {
           const defined = group.entries.map((e) => e.value);
-          let msg = `Unknown value '${value}' for tag group '${group.name}'`;
+          let msg =
+            `Unknown value '${value}' for tag group '${group.name}' — ` +
+            `use one of: ${defined.join(', ')}`;
           const hint = suggestFn?.(value, defined);
           if (hint) {
             msg += `. ${hint}`;
-          } else {
-            msg += ` — defined values: ${defined.join(', ')}`;
           }
           pushWarning(entity.lineNumber, msg);
         }

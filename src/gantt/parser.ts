@@ -382,7 +382,10 @@ export function parseGantt(
         // Skip comments inside holidays
         if (COMMENT_RE.test(line)) continue;
 
-        warn(lineNumber, `Unrecognized holiday entry: "${line}"`);
+        warn(
+          lineNumber,
+          `Unrecognized holiday entry: "${line}". Use a date '2024-02-19 Presidents Day' or a range '2024-05-27 -> 2024-05-29 Memorial Weekend'. (§13.3)`
+        );
         continue;
       }
     }
@@ -413,7 +416,10 @@ export function parseGantt(
             lineNumber,
           });
         } else {
-          warn(lineNumber, `Unrecognized era entry: "${line}"`);
+          warn(
+            lineNumber,
+            `Unrecognized era entry: "${line}". Use 'YYYY-MM-DD -> YYYY-MM-DD Label [color]' (e.g. '2026-04-06 -> 2026-04-10 Conference purple'). (§13.5)`
+          );
         }
         continue;
       }
@@ -444,7 +450,10 @@ export function parseGantt(
             lineNumber,
           });
         } else {
-          warn(lineNumber, `Unrecognized marker entry: "${line}"`);
+          warn(
+            lineNumber,
+            `Unrecognized marker entry: "${line}". Use 'YYYY-MM-DD Label [color]' (e.g. '2026-03-27 Board Review' or '2026-06-15 Release green'). (§13.6)`
+          );
         }
         continue;
       }
@@ -664,7 +673,7 @@ export function parseGantt(
           } else {
             softError(
               lineNumber,
-              `Arrow reference "${content.name}" has no parent task context.`
+              `Arrow '-> ${content.name}' has no source task — indent it under the task it follows (e.g. 'Design 5bd' then indented '-> ${content.name} 3bd'). (§13)`
             );
           }
         }

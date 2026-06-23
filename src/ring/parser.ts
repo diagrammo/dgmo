@@ -205,7 +205,10 @@ export function parseRing(content: string): ParsedRing {
 
     // ── Indented: description line under current layer ──
     if (!currentLayer) {
-      warn(lineNum, `Unexpected indented line: "${trimmed}".`);
+      warn(
+        lineNum,
+        `Indented description "${trimmed}" has no layer above it — add a layer name on a non-indented line first. (§24)`
+      );
       continue;
     }
     const descLine = trimmed.startsWith('- ')
