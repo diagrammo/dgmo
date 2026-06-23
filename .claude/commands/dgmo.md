@@ -18,37 +18,15 @@ If the MCP tools are **not** available, run the setup flow below — do not ask 
 which dgmo || npm install -g @diagrammo/dgmo
 ```
 
-### Step 2 — Install the MCP server (if missing)
+### Step 2 — Run the one-step installer
 
 ```bash
-which dgmo-mcp || npm install -g @diagrammo/dgmo-mcp
+dgmo install claude-code
 ```
 
-### Step 3 — Configure the MCP server
+That single command writes this skill, configures the MCP server in `~/.claude/settings.json` (entry: `{ "command": "dgmo", "args": ["mcp"] }`), and ensures the server is available — no prompts, no separate `dgmo-mcp` package to install. (Use `--scope project` to write `.mcp.json` in the current directory instead of the global settings.)
 
-Ask the user:
-
-> "Where should I configure the MCP server?
-> 1) This project only — write `.mcp.json` here [default]
-> 2) Globally — add to `~/.claude/settings.json` (works in all projects)"
-
-**Option 1 (default):** Create or update `.mcp.json` in the current working directory:
-
-```json
-{
-  "mcpServers": {
-    "dgmo": {
-      "command": "dgmo-mcp"
-    }
-  }
-}
-```
-
-If `.mcp.json` already exists and has other servers, merge the `dgmo` entry in — do not overwrite the file.
-
-**Option 2 (global):** Add the `dgmo` entry to the `mcpServers` object in `~/.claude/settings.json`. Read the file first and merge — do not overwrite other keys.
-
-### Step 4 — Prompt restart
+### Step 3 — Prompt restart
 
 Tell the user:
 
@@ -56,7 +34,7 @@ Tell the user:
 
 Then proceed with the user's original request using CLI fallback (see "Other output options" below).
 
-> **Note for future users:** To set up in one step from the terminal before starting a Claude Code session, run `dgmo install claude-code`. It handles everything: installs `@diagrammo/dgmo-mcp`, writes the skill, and configures the MCP server.
+> **One-step from a fresh machine:** `dgmo install` with no target auto-detects and sets up every AI assistant you have (Claude Code, Codex, Claude Desktop, Cursor, Windsurf, Copilot) at once.
 
 ## Project Awareness
 

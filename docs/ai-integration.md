@@ -4,38 +4,50 @@ Use AI coding tools to generate `.dgmo` diagrams. This guide covers Claude Code,
 
 ---
 
-## MCP Server (recommended for Claude)
+## One-step setup (recommended)
 
-`@diagrammo/dgmo-mcp` provides an MCP server that gives Claude the ability to render, share, and look up DGMO diagrams directly — no file management needed.
+Install the `dgmo` CLI, then run one command:
 
-**5 tools:** `render_diagram`, `share_diagram`, `open_in_app`, `list_chart_types`, `get_language_reference`
+```bash
+brew install diagrammo/dgmo/dgmo   # or: npm install -g @diagrammo/dgmo
+dgmo install                       # auto-detects every AI assistant you have
+```
 
-Add to `~/.claude/settings.json` (global) or `.claude/settings.local.json` (project):
+`dgmo install` with **no target** scans for Claude Code, Codex, Claude Desktop, Cursor, Windsurf, and Copilot, then configures each one non-interactively — no prompts, no second package to install. The only binary you ever need is `dgmo`; it provides the MCP server through its own `dgmo mcp` subcommand.
+
+Target a single assistant, or pick a scope, when you want to:
+
+```bash
+dgmo install claude-code              # just one surface
+dgmo install codex --scope project    # write config into the current repo
+dgmo install --dry-run                # preview every change, write nothing
+```
+
+For Claude Code this copies the `/dgmo` skill into `~/.claude/commands/` (full dgmo context — all chart types, CLI flags, workflow, and tips) and adds the MCP server to `~/.claude/settings.json`. Restart the assistant afterward.
+
+**Keeping it current:**
+- **Homebrew** bundles the MCP server, so `brew upgrade dgmo` upgrades the CLI *and* the server together. Re-run `dgmo install` afterward only to refresh the **skill files** (those are copies in your home dir).
+- **npm global**: a plain `dgmo` upgrade doesn't touch the server or skill copies — re-run `dgmo install`, which overwrites the skills and upgrades the server to the latest.
+- Either way, `DGMO_MCP_LATEST=1` in the environment makes `dgmo mcp` always fetch the newest server at launch (network round-trip on start), so it's never stale.
+
+---
+
+## Manual MCP configuration
+
+`dgmo install` is the easy path. To wire the MCP server by hand, point any MCP client at the `dgmo` binary's `mcp` subcommand:
 
 ```json
 {
   "mcpServers": {
     "dgmo": {
-      "command": "npx",
-      "args": ["-y", "@diagrammo/dgmo-mcp"]
+      "command": "dgmo",
+      "args": ["mcp"]
     }
   }
 }
 ```
 
-See `dgmo-mcp/README.md` for full configuration options.
-
----
-
-## Claude Code — Skill + MCP server
-
-Installs the `/dgmo` slash command (full dgmo context — all chart types, CLI flags, workflow, and tips) and configures the dgmo MCP server.
-
-```bash
-dgmo install claude-code
-```
-
-This copies a skill file into `~/.claude/commands/` (making `/dgmo` available in every Claude Code session) and wires up the MCP server. The MCP step is skippable in the prompts if you only want the skill.
+**5 tools:** `render_diagram`, `share_diagram`, `open_in_app`, `list_chart_types`, `get_language_reference`. `dgmo mcp` execs the installed server, or fetches it on demand via `npx` if it isn't installed yet — so no separate `dgmo-mcp` step is required. (If you'd rather not install the CLI at all, `{ "command": "npx", "args": ["-y", "@diagrammo/dgmo-mcp"] }` still works.) See `dgmo-mcp/README.md` for full options.
 
 ---
 
@@ -477,7 +489,15 @@ DGMO ships context files for popular AI coding tools, included in the npm packag
 | `.cursorrules` | Cursor | Auto-loaded when present in project root |
 | `.windsurfrules` | Windsurf | Auto-loaded when present in project root (byte-identical to `.cursorrules`) |
 
-Copy the relevant file into your project root:
+The easiest way to set these up is `dgmo install` — it does the right thing per tool:
+
+```bash
+dgmo install cursor      # wires MCP (~/.cursor/mcp.json) + drops .cursorrules
+dgmo install windsurf    # wires MCP (~/.codeium/windsurf/mcp_config.json) + .windsurfrules
+dgmo install copilot     # writes ./.github/copilot-instructions.md (Copilot has no MCP)
+```
+
+Cursor and Windsurf speak MCP, so `dgmo install` gives them the full render/share tools (pointed at `dgmo mcp`), plus the inline rules file. Copilot is guidance-only. `dgmo install` with no target also writes Copilot's file automatically when the current repo has a `.github` directory. To set the context files up by hand instead:
 
 ```bash
 # From node_modules (if installed as a dependency)
