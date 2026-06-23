@@ -1164,6 +1164,119 @@ gw
       expect(b.nodes.find((n) => n.label === 'gw')).toBeDefined();
       expect(b.nodes.find((n) => n.label === 'GatewayService')).toBeUndefined();
     });
+
+    it('quoted display name + as-alias declares one node (not "Unexpected line")', () => {
+      const result = parseInfra(`
+infra
+"Web App" as web
+  latency-ms: 10
+internet
+  -> web
+`);
+      expect(
+        result.diagnostics.filter((d) => d.severity === 'error')
+      ).toHaveLength(0);
+      // Exactly one node carries the display label + its property — the quoted
+      // declaration is no longer rejected and re-created as a bare stub.
+      const web = result.nodes.filter((n) => n.label === 'Web App');
+      expect(web).toHaveLength(1);
+      expect(web[0].properties.map((p) => p.key)).toContain('latency-ms');
+      expect(result.nodes.find((n) => n.label === 'web')).toBeUndefined();
+    });
+
+    it('resolves a quoted-node alias whose slug differs from the alias', () => {
+      // "Post DB" slugs to `post db`; the edge references the alias `pdb`. The
+      // bare reference must merge into the declared node, not spawn a stub.
+      const result = parseInfra(`
+infra
+"Post DB" as pdb
+  uptime: 99.99%
+internet
+  -> pdb
+`);
+      const dbs = result.nodes.filter((n) => n.label === 'Post DB');
+      expect(dbs).toHaveLength(1);
+      expect(result.nodes.find((n) => n.label === 'pdb')).toBeUndefined();
+      expect(result.edges[0].targetId).toBe(dbs[0].id);
+    });
+
+    it('does not warn "names differ only in case" for an alias reference', () => {
+      const result = parseInfra(`
+infra
+"Web App" as web
+internet
+  -> web
+web
+  -> internet
+`);
+      expect(
+        result.diagnostics.filter(
+          (d) => d.code === 'E_NAME_MERGED' || /differ only/.test(d.message)
+        )
+      ).toHaveLength(0);
+    });
+  });
+
+  describe('chart-type keyword as a node name (reserved-word collision)', () => {
+    it('accepts a bare node line named like a chart type after line 1', () => {
+      // `timeline`, `gantt`, etc. are chart-type keywords; used as an alias /
+      // edge-block header they must parse as nodes, not a nested declaration.
+      const result = parseInfra(`
+infra
+"Timeline Service" as timeline
+internet
+  -> timeline
+timeline
+  -> internet
+`);
+      expect(
+        result.diagnostics.filter((d) => d.severity === 'error')
+      ).toHaveLength(0);
+      expect(result.error).toBeNull();
+    });
+
+    it('still errors when the FIRST line is the wrong chart type', () => {
+      const result = parseInfra('sequence\ntimeline');
+      expect(result.error).toContain("Expected chart type 'infra'");
+    });
+  });
+
+  describe('indented tag assignment', () => {
+    it('attaches an indented `t: Tier` line as a tag, not description', () => {
+      const result = parseInfra(`
+infra
+tag Tier as t
+  Edge blue
+  Data teal
+"Redis Cache" as redis
+  t: Data
+  latency-ms: 2
+internet
+  -> redis
+`);
+      const redis = result.nodes.find((n) => n.label === 'Redis Cache');
+      expect(redis).toBeDefined();
+      expect(redis!.tags).toEqual({ t: 'Data' });
+      // The tag line must not leak into the description.
+      expect(JSON.stringify(redis!.description ?? [])).not.toContain('t: Data');
+    });
+
+    it('indented and same-line tag forms produce identical tags', () => {
+      const indented = parseInfra(`
+infra
+tag Tier as t
+  Edge blue
+CDN as cdn
+  t: Edge
+`).nodes.find((n) => n.label === 'CDN');
+      const sameline = parseInfra(`
+infra
+tag Tier as t
+  Edge blue
+CDN as cdn t: Edge
+`).nodes.find((n) => n.label === 'CDN');
+      expect(indented!.tags).toEqual(sameline!.tags);
+    });
   });
 
   describe('reachability lint', () => {

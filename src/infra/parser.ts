@@ -78,16 +78,20 @@ const TAG_VALUE_RE = /^(\w[\w\s]+?)\s*$/;
 
 // Component line. Accepts either a quoted name ("name with | : reserved chars")
 // or a bare name (multi-word allowed; must start with letter/underscore so digit-
-// only or sigil-led lines fall through to other branches). Pipe metadata follows
-// after a `|` separator.
+// only or sigil-led lines fall through to other branches). Metadata follows
+// after a `|` separator (legacy) or as same-line `key: value` (§1.4).
 //
-// Captures:
-//   1: quoted-name content (without the surrounding quotes), or undefined
-//   2: bare-name (trimmed at the call site), or undefined
-//   3: metadata block — legacy `| ...` form OR new same-line
-//      `<word>: <value>...` form (§1.4), or undefined
+// Named captures: qname (quoted content), uname (bare name), alias (`as <x>`
+// postfix), meta (the metadata tail). qname/uname are mutually exclusive.
+//
+// A component declaration: a quoted display name OR a bare name, an OPTIONAL
+// `as <alias>` postfix (alias mirrors peelAlias: letter-led, ≤12 chars), then
+// optional same-line metadata. The `as` capture is what makes a quoted name +
+// alias parse — `"Web App" as web` — which the bare-name path got for free by
+// sweeping the alias into the lazy name group and peeling it later, but the
+// quoted path could not reach past the closing quote.
 const COMPONENT_RE =
-  /^(?:"([^"]+)"|([a-zA-Z_][\w -]*?))\s*((?:\|.*)|(?:[a-zA-Z_]\w*\s*:.*))?$/;
+  /^(?:"(?<qname>[^"]+)"|(?<uname>[a-zA-Z_][\w -]*?))(?:\s+as\s+(?<alias>[A-Za-z][A-Za-z0-9_]{0,11}))?\s*(?<meta>(?:\|.*)|(?:[a-zA-Z_]\w*\s*:.*))?$/;
 
 // Legacy pipe metadata: | key: value  or  | k1: v1, k2: v2  (comma-separated).
 // Kept for transitional back-compat extraction; new same-line metadata
@@ -302,6 +306,11 @@ export function parseInfra(content: string): ParsedInfra {
   let currentGroup: Writable<InfraGroup> | null = null;
   let currentTagGroup: Writable<InfraTagGroup> | null = null;
   let baseIndent = 0; // indent of the current component line
+  // The `infra [Title]` declaration is only legal on the first content line.
+  // parseFirstLine() must run ONCE, there — otherwise a later bare node line
+  // whose name is a chart-type keyword (e.g. an edge-block header `timeline`)
+  // is mis-read as a nested chart declaration and the parse aborts.
+  let firstLineConsumed = false;
 
   function finishCurrentNode() {
     if (!currentNode) return;
@@ -310,7 +319,12 @@ export function parseInfra(content: string): ParsedInfra {
     if (existing) {
       const incomingDisplay = displayName(currentNode.label);
       const existingDisplay = displayName(existing.label);
-      if (incomingDisplay !== existingDisplay) {
+      // A bare reference line that is a declared alias of `existing` (e.g. an
+      // edge-block header `web` for a node `"Web App" as web`) is an intentional
+      // pointer, not a near-duplicate name — don't flag it as a case/whitespace
+      // typo. Genuine collisions (no matching alias) still warn.
+      const isAliasRef = nameAliasMap.get(currentNode.label) === key;
+      if (incomingDisplay !== existingDisplay && !isAliasRef) {
         result.diagnostics.push(
           makeDgmoError(
             currentNode.lineNumber,
@@ -400,20 +414,25 @@ export function parseInfra(content: string): ParsedInfra {
         finishCurrentNode();
       }
 
-      // First line: `infra [Title]` or legacy `chart: infra`
-      const firstLineResult = parseFirstLine(trimmed);
-      if (firstLineResult) {
-        if (firstLineResult.chartType !== 'infra') {
-          setError(
-            lineNumber,
-            `Expected chart type 'infra', got '${firstLineResult.chartType}'`
-          );
+      // First line: `infra [Title]` or legacy `chart: infra` — only ever
+      // attempted on the first content line (see firstLineConsumed). A node or
+      // alias named like a chart type elsewhere is a normal node, not a redecl.
+      if (!firstLineConsumed) {
+        firstLineConsumed = true;
+        const firstLineResult = parseFirstLine(trimmed);
+        if (firstLineResult) {
+          if (firstLineResult.chartType !== 'infra') {
+            setError(
+              lineNumber,
+              `Expected chart type 'infra', got '${firstLineResult.chartType}'`
+            );
+          }
+          if (firstLineResult.title) {
+            result.title = firstLineResult.title;
+            result.titleLineNumber = lineNumber;
+          }
+          continue;
         }
-        if (firstLineResult.title) {
-          result.title = firstLineResult.title;
-          result.titleLineNumber = lineNumber;
-        }
-        continue;
       }
 
       // direction-tb — bare boolean to switch to top-to-bottom (default is LR)
@@ -496,18 +515,26 @@ export function parseInfra(content: string): ParsedInfra {
         finishCurrentNode();
         finishCurrentTagGroup();
 
-        const rawName = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const { qname, uname, alias: asAlias, meta } = compMatch.groups!;
+        const rawName = (qname ?? uname ?? '').trim();
         const peeled = peelInfraDecorations(rawName, lineNumber);
         const name = peeled.label;
-        const rest = compMatch[3] || '';
+        // Explicit `as` capture wins; fall back to an alias the peeler split out
+        // of a bare name (and the quoted-literal `"Foo as bar"` legacy case).
+        const alias = asAlias ?? peeled.alias;
+        const rest = meta ?? '';
         const { tags } = extractPipeMetadata(rest);
         warnUnknownMetaKeys(
           tags,
           withTagAliases(INFRA_REGISTRY, tagAliasSet),
           (msg) => warn(lineNumber, msg)
         );
-        const id = nodeId(name);
-        if (peeled.alias) nameAliasMap.set(peeled.alias, id);
+        // A bare reference line may be an alias for an already-declared node
+        // (its label-slug differs from the alias, e.g. "Web App" as web). Resolve
+        // through the alias map first so an edge-source/reference merges into
+        // that node instead of spawning a duplicate stub.
+        const id = nameAliasMap.get(name) ?? nodeId(name);
+        if (alias) nameAliasMap.set(alias, id);
         const isEdge = EDGE_NODE_NAMES.has(id.toLowerCase());
 
         currentNode = {
@@ -609,18 +636,24 @@ export function parseInfra(content: string): ParsedInfra {
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
         finishCurrentTagGroup();
-        const rawName = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const { qname, uname, alias: asAlias, meta } = compMatch.groups!;
+        const rawName = (qname ?? uname ?? '').trim();
         const peeled = peelInfraDecorations(rawName, lineNumber);
         const name = peeled.label;
-        const rest = compMatch[3] || '';
+        const alias = asAlias ?? peeled.alias;
+        const rest = meta ?? '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
         warnUnknownMetaKeys(
           nodeTags,
           withTagAliases(INFRA_REGISTRY, tagAliasSet),
           (msg) => warn(lineNumber, msg)
         );
-        const id = nodeId(name);
-        if (peeled.alias) nameAliasMap.set(peeled.alias, id);
+        // A bare reference line may be an alias for an already-declared node
+        // (its label-slug differs from the alias, e.g. "Web App" as web). Resolve
+        // through the alias map first so an edge-source/reference merges into
+        // that node instead of spawning a duplicate stub.
+        const id = nameAliasMap.get(name) ?? nodeId(name);
+        if (alias) nameAliasMap.set(alias, id);
         // Cascade group metadata into node tags; node-level metadata overrides
         const tags: Record<string, string> = currentGroup.metadata
           ? { ...currentGroup.metadata, ...nodeTags }
@@ -859,6 +892,18 @@ export function parseInfra(content: string): ParsedInfra {
           continue;
         }
 
+        // Indented tag assignment — `t: Edge` on its own line, the indented twin
+        // of same-line `Name t: Edge`. A tag alias is neither a behavior property
+        // nor 'description', so without this it falls through to the unknown-key
+        // path and is mis-collected as description text, silently dropping the
+        // node's tier. currentNode.tags is the same object held in
+        // nodeMutableTags, so a direct assign is enough.
+        if (currentNode && tagAliasSet.has(normalizeName(key))) {
+          const mut = nodeMutableTags.get(currentNode.id);
+          if (mut) mut[tagAttrKey(key)] = rawVal;
+          continue;
+        }
+
         // Unknown keys: decide between property typo warning vs description collection.
         // Heuristic: if the key looks like a plausible property (alphanumeric-hyphen, close
         // match to a known key, or the value looks numeric/percentage), warn as typo.
@@ -947,18 +992,24 @@ export function parseInfra(content: string): ParsedInfra {
 
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
-        const rawName = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const { qname, uname, alias: asAlias, meta } = compMatch.groups!;
+        const rawName = (qname ?? uname ?? '').trim();
         const peeled = peelInfraDecorations(rawName, lineNumber);
         const name = peeled.label;
-        const rest = compMatch[3] || '';
+        const alias = asAlias ?? peeled.alias;
+        const rest = meta ?? '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
         warnUnknownMetaKeys(
           nodeTags,
           withTagAliases(INFRA_REGISTRY, tagAliasSet),
           (msg) => warn(lineNumber, msg)
         );
-        const id = nodeId(name);
-        if (peeled.alias) nameAliasMap.set(peeled.alias, id);
+        // A bare reference line may be an alias for an already-declared node
+        // (its label-slug differs from the alias, e.g. "Web App" as web). Resolve
+        // through the alias map first so an edge-source/reference merges into
+        // that node instead of spawning a duplicate stub.
+        const id = nameAliasMap.get(name) ?? nodeId(name);
+        if (alias) nameAliasMap.set(alias, id);
         const tags: Record<string, string> = currentGroup.metadata
           ? { ...currentGroup.metadata, ...nodeTags }
           : nodeTags;
@@ -986,18 +1037,24 @@ export function parseInfra(content: string): ParsedInfra {
         finishCurrentTagGroup();
         currentGroup = null;
 
-        const rawName = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const { qname, uname, alias: asAlias, meta } = compMatch.groups!;
+        const rawName = (qname ?? uname ?? '').trim();
         const peeled = peelInfraDecorations(rawName, lineNumber);
         const name = peeled.label;
-        const rest = compMatch[3] || '';
+        const alias = asAlias ?? peeled.alias;
+        const rest = meta ?? '';
         const { tags } = extractPipeMetadata(rest);
         warnUnknownMetaKeys(
           tags,
           withTagAliases(INFRA_REGISTRY, tagAliasSet),
           (msg) => warn(lineNumber, msg)
         );
-        const id = nodeId(name);
-        if (peeled.alias) nameAliasMap.set(peeled.alias, id);
+        // A bare reference line may be an alias for an already-declared node
+        // (its label-slug differs from the alias, e.g. "Web App" as web). Resolve
+        // through the alias map first so an edge-source/reference merges into
+        // that node instead of spawning a duplicate stub.
+        const id = nameAliasMap.get(name) ?? nodeId(name);
+        if (alias) nameAliasMap.set(alias, id);
 
         currentNode = {
           id,
