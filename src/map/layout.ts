@@ -4747,7 +4747,32 @@ export function layoutMap(
           curated: r.curatedLngLat,
         });
         if (gen.length) {
-          positions = gen.map((p) => p.screen);
+          const raw = gen.map((p) => p.screen as [number, number]);
+          // A country that hugs the top frame edge (Canada on a US map) has its
+          // best on-land position up in the title/legend band. Rather than fall to
+          // a far-corner candidate, add a SLID-DOWN sibling at the same x just
+          // below the overlay — keeping the name horizontally where the country
+          // sits but in the open space between the overlay and the content.
+          // (Country labels may sit off their own land, so the slid point needn't
+          // be on Canada — it labels the band above the US border.) Tried before
+          // the original so it wins when the original is blocked.
+          const slid: [number, number][] = [];
+          for (const p of raw) {
+            const bandBottom = topReserved.reduce(
+              (m, t) =>
+                p[0] >= t.x && p[0] <= t.x + t.w ? Math.max(m, t.y + t.h) : m,
+              0
+            );
+            // Push the slid centre a full max-size chip half-height + gap below
+            // the band so even a footprint-grown name (a context country at the
+            // 22px ceiling, ~28px tall) clears the overlay rather than clipping its
+            // lower edge. 22 = the context-country font ceiling.
+            const SLID_CLEAR = 22;
+            if (bandBottom > 0 && p[1] < bandBottom + SLID_CLEAR)
+              slid.push([p[0], bandBottom + SLID_CLEAR]);
+            slid.push(p);
+          }
+          positions = slid;
           anchor = positions[0] as [number, number]; // D12: anchor === positions[0]
         }
       }
