@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-06-22
+
+### Added
+
+- **One-step AI setup — `dgmo install`** now sets up every AI assistant on your machine in a single command. With no target it auto-detects Claude Code, Codex, Claude Desktop, Cursor, Windsurf, and Copilot and configures each one non-interactively (no prompts). The CLI is the only binary you install: a new `dgmo mcp` subcommand provides the MCP server (so client configs point at `dgmo mcp` — there's no separate `dgmo-mcp` package to install). Cursor and Windsurf are wired as full MCP clients; flags `--scope user|project` and `--dry-run` are available.
+- **Stays current** — `dgmo install` upgrades the MCP server to the latest; via Homebrew the server is bundled and upgrades together with `brew upgrade dgmo`. `DGMO_MCP_LATEST=1` makes `dgmo mcp` always fetch the newest server at launch.
+
 ## [0.34.0] - 2026-06-22
 
 ### Added
