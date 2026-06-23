@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-06-23
+
+### Changed
+
+- **App-aware output for AI-generated diagrams** — the bundled `dgmo` skill now decides where a generated diagram goes based on whether the Diagrammo desktop app is installed (via the new `check_app_installed` MCP tool in `@diagrammo/dgmo-mcp` ≥0.4.0). With the app installed, the AI saves the `.dgmo` source and opens that file live in the app — in-app edits autosave back to it — instead of defaulting to an online share URL. Without the app, it falls back to the share URL. The `.dgmo` source is always saved, and a PNG/SVG is rendered only when explicitly requested.
+
 ## [0.35.0] - 2026-06-22
 
 ### Added
