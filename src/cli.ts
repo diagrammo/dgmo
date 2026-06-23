@@ -1,9 +1,8 @@
 /* eslint-disable no-console */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import { homedir, platform } from 'node:os';
-import { resolve, join, basename, extname } from 'node:path';
-import { createInterface } from 'node:readline';
+import { resolve, join, dirname, basename, extname } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import { render } from './render';
 import {
@@ -74,8 +73,10 @@ function printHelp(): void {
 Commands:
   dgmo share <input>       Print a shareable diagrammo.app URL (copies to clipboard)
   dgmo types               List all supported chart types
-  dgmo install [target]    Set up an AI assistant integration
-                           (claude-code, codex, claude-desktop)
+  dgmo install [target]    Set up AI assistants (auto-detects all if no target).
+                           Targets: claude-code, codex, claude-desktop,
+                           cursor, windsurf, copilot. --scope user|project
+  dgmo mcp                 Run the MCP server (invoked by AI client configs)
   dgmo map-search <query>  Find the map place token (city or IATA code)
 
 Render options:
@@ -227,20 +228,6 @@ function noInput(): never {
     'Edit sample.dgmo to make it your own, or run dgmo --help for all options.'
   );
   process.exit(0);
-}
-
-// Shared interactive prompt helper used by the `install` subcommands.
-function ask(prompt: string): Promise<string> {
-  return new Promise((resolve) => {
-    const rl = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    rl.question(prompt, (answer) => {
-      rl.close();
-      resolve(answer);
-    });
-  });
 }
 
 // Best-effort clipboard copy across platforms. Returns true on success.
@@ -411,410 +398,340 @@ async function runShareCommand(args: string[]): Promise<void> {
   }
 }
 
-// `dgmo install [target]` — consolidates the former four `--install-*` flags
-// into one subcommand namespace. Valid targets:
-//   claude-code     skill + MCP server for Claude Code (MCP step is skippable)
-//   codex           skill + MCP server for the Codex CLI
-//   claude-desktop  MCP server for the Claude Desktop app
-async function runInstallCommand(args: string[]): Promise<void> {
-  const targets = ['claude-code', 'codex', 'claude-desktop'];
-  let target = args.find((a) => !a.startsWith('-'));
+// Single source of truth for how every AI client launches the MCP server: the
+// `dgmo` binary the user already has, plus the `mcp` subcommand. No generated
+// config ever references a separate `dgmo-mcp` command — the user installs one
+// binary and that's it. (The server itself still lives in the
+// @diagrammo/dgmo-mcp package, which depends on this library; `dgmo mcp` locates
+// and execs it, so there's no dependency cycle and no extra deps bundled here.)
+const MCP_LAUNCH = { command: 'dgmo', args: ['mcp'] } as const;
 
-  if (!target) {
-    console.log(renderBanner());
-    console.log('Which AI assistant integration would you like to set up?');
-    console.log(
-      '  1) claude-code     — /dgmo skill + MCP server (recommended)'
-    );
-    console.log('  2) codex           — Codex CLI skill + MCP server');
-    console.log('  3) claude-desktop  — Claude Desktop MCP server');
-    const ans = (await ask('\nChoice [1]: ')).trim();
-    target = (
-      {
-        '': 'claude-code',
-        '1': 'claude-code',
-        '2': 'codex',
-        '3': 'claude-desktop',
-      } as Record<string, string>
-    )[ans];
-    if (!target) {
-      console.error(`Unrecognized choice "${ans}".`);
-      process.exit(1);
-    }
-  } else if (!targets.includes(target)) {
-    console.error(`Error: Unknown install target "${target}".`);
-    console.error(`Valid targets: ${targets.join(', ')}`);
-    process.exit(1);
-  } else {
-    console.log(renderBanner());
-  }
+const INSTALL_TARGETS = [
+  'claude-code',
+  'codex',
+  'claude-desktop',
+  'cursor',
+  'windsurf',
+  'copilot',
+] as const;
+type InstallTarget = (typeof INSTALL_TARGETS)[number];
 
-  if (target === 'claude-code') {
-    await installClaudeCode();
-  } else if (target === 'codex') {
-    await installCodex();
-  } else {
-    await installClaudeDesktop();
-  }
+interface InstallOpts {
+  scope: 'user' | 'project';
+  dryRun: boolean;
 }
 
-async function installClaudeCode(): Promise<void> {
-  const claudeDir = join(homedir(), '.claude');
-  if (!existsSync(claudeDir)) {
-    console.error('~/.claude directory not found.');
-    console.error('Install Claude Code first: https://claude.ai/code');
-    process.exit(1);
-  }
-
-  // --- Step 1: Install skill ---
-  const commandsDir = join(claudeDir, 'commands');
-  const skillPath = join(commandsDir, 'dgmo.md');
-  const skillExists = existsSync(skillPath);
-  let installSkill = true;
-  if (skillExists) {
-    const ans = await ask(
-      '~/.claude/commands/dgmo.md already exists. Overwrite? [y/N] '
-    );
-    installSkill = ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
-  }
-  if (installSkill) {
-    if (!existsSync(commandsDir)) mkdirSync(commandsDir, { recursive: true });
-    writeFileSync(skillPath, readClaudeSkill(), 'utf-8');
-    console.log('✓ Skill installed: ~/.claude/commands/dgmo.md');
-  } else {
-    console.log('  Skipped skill install.');
-  }
-
-  // --- Step 2: Check / install dgmo-mcp binary ---
-  let dgmoMcpInstalled = false;
-  try {
-    execSync('which dgmo-mcp', { stdio: 'pipe' });
-    dgmoMcpInstalled = true;
-  } catch {
-    /* not found */
-  }
-  if (!dgmoMcpInstalled) {
-    const ans = await ask(
-      '\ndgmo-mcp not found. Install @diagrammo/dgmo-mcp globally now? [Y/n] '
-    );
-    const yes =
-      ans === '' || ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
-    if (yes) {
-      console.log('Installing @diagrammo/dgmo-mcp...');
-      execSync('npm install -g @diagrammo/dgmo-mcp', { stdio: 'inherit' });
-      console.log('✓ @diagrammo/dgmo-mcp installed');
-    } else {
-      console.log(
-        '  Skipped. Install later with: npm install -g @diagrammo/dgmo-mcp'
-      );
-    }
-  } else {
-    console.log('✓ dgmo-mcp already installed');
-  }
-
-  // --- Step 3: Configure MCP server ---
-  console.log('\nWhere should the MCP server be configured?');
-  console.log('  1) This project only — write .mcp.json here [default]');
-  console.log(
-    '  2) Globally — add to ~/.claude/settings.json (works in all projects)'
-  );
-  const scopeAns = await ask('\nChoice [1]: ');
-  const useGlobal = scopeAns.trim() === '2';
-  const mcpEntry = { command: 'dgmo-mcp' };
-
-  if (useGlobal) {
-    const settingsPath = join(claudeDir, 'settings.json');
-    let settings: Record<string, unknown> = {};
-    if (existsSync(settingsPath)) {
-      try {
-        settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
-      } catch {
-        /* use empty */
-      }
-    }
-    const mcpServers =
-      (settings['mcpServers'] as Record<string, unknown> | undefined) ?? {};
-    mcpServers['dgmo'] = mcpEntry;
-    settings['mcpServers'] = mcpServers;
-    writeFileSync(
-      settingsPath,
-      JSON.stringify(settings, null, 2) + '\n',
-      'utf-8'
-    );
-    console.log('✓ MCP server added to ~/.claude/settings.json');
-  } else {
-    const mcpPath = join(process.cwd(), '.mcp.json');
-    let mcp: Record<string, unknown> = {};
-    if (existsSync(mcpPath)) {
-      try {
-        mcp = JSON.parse(readFileSync(mcpPath, 'utf-8'));
-      } catch {
-        /* use empty */
-      }
-    }
-    const mcpServers =
-      (mcp['mcpServers'] as Record<string, unknown> | undefined) ?? {};
-    mcpServers['dgmo'] = mcpEntry;
-    mcp['mcpServers'] = mcpServers;
-    writeFileSync(mcpPath, JSON.stringify(mcp, null, 2) + '\n', 'utf-8');
-    console.log(`✓ MCP server configured: ${join(process.cwd(), '.mcp.json')}`);
-  }
-
-  console.log('\nRestart Claude Code to activate the MCP server.');
-  console.log('Then type /dgmo in any session to start creating diagrams.');
-}
-
-async function installCodex(): Promise<void> {
-  // Validate Codex CLI is installed
-  try {
-    execSync('which codex', { stdio: 'pipe' });
-  } catch {
+// `dgmo mcp` — run the MCP server. This is what AI client configs invoke. It
+// execs the installed `dgmo-mcp` binary if present, otherwise fetches and runs
+// it on demand via npx so a config pointing at `dgmo mcp` works even before the
+// server package has been installed. stdio is inherited so the stdio MCP
+// transport is fully transparent.
+function runMcpCommand(args: string[]): never {
+  const onWin = process.platform === 'win32';
+  const run = (cmd: string, cmdArgs: string[]) =>
+    spawnSync(cmd, cmdArgs, { stdio: 'inherit', shell: onWin });
+  const res = commandExists('dgmo-mcp')
+    ? run('dgmo-mcp', args)
+    : run('npx', ['-y', '@diagrammo/dgmo-mcp', ...args]);
+  if (res.error) {
     console.error(
-      'codex not found. Install Codex CLI first: https://openai.com/codex'
+      'Could not launch the dgmo MCP server. Install it with: npm install -g @diagrammo/dgmo-mcp'
     );
     process.exit(1);
   }
-
-  // Check / install dgmo-mcp binary
-  let dgmoMcpInstalled = false;
-  try {
-    execSync('which dgmo-mcp', { stdio: 'pipe' });
-    dgmoMcpInstalled = true;
-  } catch {
-    /* not found */
-  }
-  if (!dgmoMcpInstalled) {
-    const ans = await ask(
-      '\ndgmo-mcp not found. Install @diagrammo/dgmo-mcp globally now? [Y/n] '
-    );
-    const yes =
-      ans === '' || ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
-    if (yes) {
-      console.log('Installing @diagrammo/dgmo-mcp...');
-      try {
-        execSync('npm install -g @diagrammo/dgmo-mcp', { stdio: 'inherit' });
-        console.log('✓ @diagrammo/dgmo-mcp installed');
-      } catch {
-        console.error('Error: Failed to install @diagrammo/dgmo-mcp.');
-        console.error('Try manually: npm install -g @diagrammo/dgmo-mcp');
-      }
-    } else {
-      console.log(
-        '  Skipped. Install later with: npm install -g @diagrammo/dgmo-mcp'
-      );
-    }
-  } else {
-    console.log('✓ dgmo-mcp already installed');
-  }
-
-  // Configure MCP server
-  console.log('\nWhere should the MCP server be configured?');
-  console.log(
-    '  1) This project only — write .codex/config.toml here [default]'
-  );
-  console.log(
-    '  2) Globally — add to ~/.codex/config.toml (works in all projects)'
-  );
-  const scopeAns = await ask('\nChoice [1]: ');
-  if (
-    scopeAns.trim() !== '' &&
-    scopeAns.trim() !== '1' &&
-    scopeAns.trim() !== '2'
-  ) {
-    console.log(
-      `  Unrecognized input "${scopeAns.trim()}", defaulting to option 1.`
-    );
-  }
-  const useGlobal = scopeAns.trim() === '2';
-  const tomlEntry = '[mcp_servers.dgmo]\ncommand = "dgmo-mcp"\n';
-
-  if (useGlobal) {
-    const configPath = join(homedir(), '.codex', 'config.toml');
-    mkdirSync(join(homedir(), '.codex'), { recursive: true });
-    const existing = existsSync(configPath)
-      ? readFileSync(configPath, 'utf-8')
-      : '';
-    if (existing.includes('[mcp_servers.dgmo]')) {
-      console.log('✓ MCP server already configured in ~/.codex/config.toml');
-    } else {
-      const separator = existing.length > 0 ? '\n' : '';
-      writeFileSync(configPath, existing + separator + tomlEntry, 'utf-8');
-      console.log('✓ MCP server added to ~/.codex/config.toml');
-    }
-  } else {
-    const codexDir = join(process.cwd(), '.codex');
-    const configPath = join(codexDir, 'config.toml');
-    mkdirSync(codexDir, { recursive: true });
-    const existing = existsSync(configPath)
-      ? readFileSync(configPath, 'utf-8')
-      : '';
-    if (existing.includes('[mcp_servers.dgmo]')) {
-      console.log(`✓ MCP server already configured in .codex/config.toml`);
-    } else {
-      const separator = existing.length > 0 ? '\n' : '';
-      writeFileSync(configPath, existing + separator + tomlEntry, 'utf-8');
-      console.log(`✓ MCP server configured: ${configPath}`);
-    }
-  }
-
-  // Install the dgmo-diagramming skill at ~/.codex/skills/dgmo-diagramming/SKILL.md
-  const skillDir = join(homedir(), '.codex', 'skills', 'dgmo-diagramming');
-  const skillPath = join(skillDir, 'SKILL.md');
-  const skillBody = readCodexSkill();
-  if (existsSync(skillPath)) {
-    const existingSkill = readFileSync(skillPath, 'utf-8');
-    if (existingSkill === skillBody) {
-      console.log('✓ dgmo-diagramming skill already up to date');
-    } else {
-      const ans = await ask(
-        '\n~/.codex/skills/dgmo-diagramming/SKILL.md exists. Overwrite? [Y/n] '
-      );
-      const yes =
-        ans === '' || ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
-      if (yes) {
-        writeFileSync(skillPath, skillBody, 'utf-8');
-        console.log(`✓ Skill updated: ${skillPath}`);
-      } else {
-        console.log('  Skipped skill update.');
-      }
-    }
-  } else {
-    mkdirSync(skillDir, { recursive: true });
-    writeFileSync(skillPath, skillBody, 'utf-8');
-    console.log(`✓ Skill installed: ${skillPath}`);
-  }
-
-  // Non-destructive AGENTS.md handling: append a marked note only if AGENTS.md
-  // already exists and doesn't already contain the marker. Never create it.
-  const agentsPath = join(process.cwd(), 'AGENTS.md');
-  if (existsSync(agentsPath)) {
-    const existingAgents = readFileSync(agentsPath, 'utf-8');
-    if (existingAgents.includes(CODEX_AGENTS_NOTE_MARKER)) {
-      console.log('✓ AGENTS.md already mentions dgmo');
-    } else {
-      const separator = existingAgents.endsWith('\n') ? '\n' : '\n\n';
-      writeFileSync(
-        agentsPath,
-        existingAgents + separator + CODEX_AGENTS_NOTE,
-        'utf-8'
-      );
-      console.log(`✓ Appended dgmo note to: ${agentsPath}`);
-    }
-  } else {
-    console.log('  No AGENTS.md found in cwd — skipped (the skill is enough).');
-  }
-
-  console.log('\nRestart Codex to activate the skill and MCP server.');
+  process.exit(res.status ?? 0);
 }
 
-async function installClaudeDesktop(): Promise<void> {
-  // Check / install dgmo-mcp binary
-  let dgmoMcpInstalled = false;
+// Cross-platform "is this command on PATH?" check.
+function commandExists(cmd: string): boolean {
   try {
-    execSync('which dgmo-mcp', { stdio: 'pipe' });
-    dgmoMcpInstalled = true;
+    const probe =
+      process.platform === 'win32' ? `where ${cmd}` : `command -v ${cmd}`;
+    execSync(probe, { stdio: 'pipe' });
+    return true;
   } catch {
-    /* not found */
+    return false;
   }
-  if (!dgmoMcpInstalled) {
-    const ans = await ask(
-      '\ndgmo-mcp not found. Install @diagrammo/dgmo-mcp globally now? [Y/n] '
-    );
-    const yes =
-      ans === '' || ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
-    if (yes) {
-      console.log('Installing @diagrammo/dgmo-mcp...');
-      try {
-        execSync('npm install -g @diagrammo/dgmo-mcp', { stdio: 'inherit' });
-        console.log('✓ @diagrammo/dgmo-mcp installed');
-      } catch {
-        console.error('Error: Failed to install @diagrammo/dgmo-mcp.');
-        console.error('Try manually: npm install -g @diagrammo/dgmo-mcp');
-      }
-    } else {
-      console.log(
-        '  Skipped. Install later with: npm install -g @diagrammo/dgmo-mcp'
-      );
-    }
-  } else {
-    console.log('✓ dgmo-mcp already installed');
-  }
+}
 
-  // Resolve the Claude Desktop config path for the current platform.
-  // macOS and Windows use the documented Claude Desktop paths; Linux
-  // doesn't have a first-party build yet, but community installs follow
-  // the XDG config convention.
+// Claude Desktop config path for the current platform. macOS/Windows use the
+// documented locations; Linux follows the XDG convention community builds use.
+function claudeDesktopConfigPath(): string {
   const os = platform();
-  let configPath: string;
   if (os === 'darwin') {
-    configPath = join(
+    return join(
       homedir(),
       'Library',
       'Application Support',
       'Claude',
       'claude_desktop_config.json'
     );
-  } else if (os === 'win32') {
+  }
+  if (os === 'win32') {
     const appData =
       process.env['APPDATA'] ?? join(homedir(), 'AppData', 'Roaming');
-    configPath = join(appData, 'Claude', 'claude_desktop_config.json');
-  } else {
-    configPath = join(
-      homedir(),
-      '.config',
-      'Claude',
-      'claude_desktop_config.json'
+    return join(appData, 'Claude', 'claude_desktop_config.json');
+  }
+  return join(homedir(), '.config', 'Claude', 'claude_desktop_config.json');
+}
+
+// Best-effort, NON-fatal pre-install of the MCP server so the first tool call
+// has no cold-start. Not required for correctness — `dgmo mcp` falls back to
+// npx — so any failure is a note, not an error. Memoized: in auto mode we set
+// up several surfaces in one run and only need to check once.
+let mcpEnsured = false;
+function ensureDgmoMcp(opts: InstallOpts): void {
+  if (mcpEnsured) return;
+  mcpEnsured = true;
+  if (commandExists('dgmo-mcp')) {
+    console.log('✓ MCP server present');
+    return;
+  }
+  if (opts.dryRun) {
+    console.log('  [dry-run] would install @diagrammo/dgmo-mcp');
+    return;
+  }
+  try {
+    console.log('Installing the MCP server (one-time)…');
+    execSync('npm install -g @diagrammo/dgmo-mcp', { stdio: 'inherit' });
+    console.log('✓ MCP server installed');
+  } catch {
+    console.log(
+      '  Could not pre-install — it will be fetched on first use via npx.'
     );
   }
+}
 
-  // Read existing config (or start fresh). Non-JSON contents are treated
-  // as corruption and we bail — the user needs to resolve it manually so
-  // we don't silently overwrite something they care about.
-  type ClaudeDesktopConfig = {
-    mcpServers?: Record<
-      string,
-      { command: string; args?: string[]; env?: Record<string, string> }
-    >;
-    [key: string]: unknown;
-  };
-  let config: ClaudeDesktopConfig = {};
-  if (existsSync(configPath)) {
-    const raw = readFileSync(configPath, 'utf-8');
+// Write helper that honors --dry-run and creates parent dirs.
+function writeOut(
+  opts: InstallOpts,
+  path: string,
+  content: string,
+  label: string
+): void {
+  if (opts.dryRun) {
+    console.log(`  [dry-run] would write ${label}`);
+    return;
+  }
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, content, 'utf-8');
+  console.log(`✓ ${label}`);
+}
+
+// Merge `{ mcpServers: { dgmo: dgmo mcp } }` into a JSON config (Claude Code /
+// Claude Desktop style), preserving any other entries.
+function upsertJsonMcp(opts: InstallOpts, path: string): void {
+  let cfg: Record<string, unknown> = {};
+  if (existsSync(path)) {
+    const raw = readFileSync(path, 'utf-8');
     if (raw.trim().length > 0) {
       try {
-        config = JSON.parse(raw) as ClaudeDesktopConfig;
+        cfg = JSON.parse(raw);
       } catch {
         console.error(
-          `Error: ${configPath} exists but is not valid JSON. Fix it manually and re-run, or remove the file to regenerate.`
+          `Error: ${path} is not valid JSON — fix it and re-run (skipping it for now).`
         );
-        process.exit(1);
-      }
-    }
-  }
-
-  const existingDgmo = config.mcpServers?.['dgmo'];
-  if (existingDgmo?.command === 'dgmo-mcp') {
-    console.log(`✓ dgmo MCP server already configured in ${configPath}`);
-  } else {
-    if (existingDgmo) {
-      const ans = await ask(
-        `\nA "dgmo" entry already exists in ${configPath}. Overwrite? [y/N] `
-      );
-      if (ans.toLowerCase() !== 'y' && ans.toLowerCase() !== 'yes') {
-        console.log('  Skipped.');
         return;
       }
     }
-    config.mcpServers = {
-      ...(config.mcpServers ?? {}),
-      dgmo: { command: 'dgmo-mcp' },
-    };
-    mkdirSync(join(configPath, '..'), { recursive: true });
-    writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
-    console.log(`✓ dgmo MCP server configured: ${configPath}`);
+  }
+  const servers =
+    (cfg['mcpServers'] as Record<string, unknown> | undefined) ?? {};
+  servers['dgmo'] = MCP_LAUNCH;
+  cfg['mcpServers'] = servers;
+  writeOut(opts, path, JSON.stringify(cfg, null, 2) + '\n', `MCP server → ${path}`);
+}
+
+// Which AI surfaces are present on this machine? Drives zero-prompt auto setup.
+function detectSurfaces(): InstallTarget[] {
+  const found: InstallTarget[] = [];
+  if (existsSync(join(homedir(), '.claude'))) found.push('claude-code');
+  if (existsSync(join(homedir(), '.codex')) || commandExists('codex'))
+    found.push('codex');
+  if (existsSync(dirname(claudeDesktopConfigPath())))
+    found.push('claude-desktop');
+  if (existsSync(join(homedir(), '.cursor'))) found.push('cursor');
+  if (
+    existsSync(join(homedir(), '.windsurf')) ||
+    existsSync(join(homedir(), '.codeium'))
+  )
+    found.push('windsurf');
+  // Copilot is project-scoped: only when the current repo has a .github dir.
+  if (existsSync(join(process.cwd(), '.github'))) found.push('copilot');
+  return found;
+}
+
+async function runOneInstall(
+  target: InstallTarget,
+  opts: InstallOpts
+): Promise<void> {
+  switch (target) {
+    case 'claude-code':
+      return installClaudeCode(opts);
+    case 'codex':
+      return installCodex(opts);
+    case 'claude-desktop':
+      return installClaudeDesktop(opts);
+    case 'cursor':
+    case 'windsurf':
+    case 'copilot':
+      return installEditorRules(target, opts);
+  }
+}
+
+function printInstallHelp(): void {
+  console.log(`Usage: dgmo install [target] [--scope user|project] [--dry-run]
+
+With no target, auto-detects every installed AI assistant and sets up each one
+(no prompts). The only binary you ever install is \`dgmo\` — it provides the MCP
+server via \`dgmo mcp\`.
+
+Targets:   ${INSTALL_TARGETS.join(', ')}
+--scope    user = configure globally for all projects (default)
+           project = write config into the current directory
+--dry-run  print what would change without writing anything`);
+}
+
+// `dgmo install [target] [--scope ...] [--dry-run]`. No target → auto-detect.
+async function runInstallCommand(args: string[]): Promise<void> {
+  if (args.includes('--help') || args.includes('-h')) {
+    printInstallHelp();
+    return;
+  }
+  const scopeIdx = args.indexOf('--scope');
+  const scope: 'user' | 'project' =
+    scopeIdx >= 0 && args[scopeIdx + 1] === 'project' ? 'project' : 'user';
+  const opts: InstallOpts = { scope, dryRun: args.includes('--dry-run') };
+
+  const positional = args.filter(
+    (a, i) => !a.startsWith('-') && args[i - 1] !== '--scope'
+  );
+  const target = positional[0] as InstallTarget | undefined;
+
+  console.log(renderBanner());
+
+  if (target) {
+    if (!INSTALL_TARGETS.includes(target)) {
+      console.error(`Error: Unknown install target "${target}".`);
+      console.error(`Valid targets: ${INSTALL_TARGETS.join(', ')}`);
+      process.exit(1);
+    }
+    await runOneInstall(target, opts);
+    console.log('\nRestart the assistant to activate the dgmo tools.');
+    return;
   }
 
-  console.log('\nRestart Claude Desktop to activate the MCP server.');
+  const detected = detectSurfaces();
+  if (detected.length === 0) {
+    console.log(
+      'No AI assistants detected (looked for Claude Code, Codex, Claude Desktop, Cursor, Windsurf, a .github dir).'
+    );
+    console.log('Install one and re-run `dgmo install`, or name a target:');
+    console.log(`  dgmo install <${INSTALL_TARGETS.join('|')}>`);
+    return;
+  }
+  console.log(`Detected: ${detected.join(', ')} — setting up each.\n`);
+  for (const t of detected) {
+    console.log(`── ${t} ──`);
+    await runOneInstall(t, opts);
+    console.log('');
+  }
+  console.log('Done. Restart your AI assistant(s) to activate the dgmo tools.');
+}
+
+async function installClaudeCode(opts: InstallOpts): Promise<void> {
+  const claudeDir = join(homedir(), '.claude');
+  // Skill — single-sourced and always refreshed to the maintained latest.
+  writeOut(
+    opts,
+    join(claudeDir, 'commands', 'dgmo.md'),
+    readClaudeSkill(),
+    'Skill → ~/.claude/commands/dgmo.md'
+  );
+  ensureDgmoMcp(opts);
+  if (opts.scope === 'user') {
+    upsertJsonMcp(opts, join(claudeDir, 'settings.json'));
+    console.log('  (scope: all projects)');
+  } else {
+    upsertJsonMcp(opts, join(process.cwd(), '.mcp.json'));
+    console.log('  (scope: this project)');
+  }
+  console.log('  Then type /dgmo in any Claude Code session.');
+}
+
+async function installCodex(opts: InstallOpts): Promise<void> {
+  ensureDgmoMcp(opts);
+
+  // MCP config (TOML). The block migrates in place if a legacy entry exists.
+  const tomlEntry = '[mcp_servers.dgmo]\ncommand = "dgmo"\nargs = ["mcp"]\n';
+  const configPath =
+    opts.scope === 'user'
+      ? join(homedir(), '.codex', 'config.toml')
+      : join(process.cwd(), '.codex', 'config.toml');
+  const existing = existsSync(configPath)
+    ? readFileSync(configPath, 'utf-8')
+    : '';
+  let next: string;
+  if (existing.includes('[mcp_servers.dgmo]')) {
+    next = existing.replace(/\[mcp_servers\.dgmo\][^[]*/, tomlEntry);
+  } else {
+    const sep = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
+    next = existing + sep + tomlEntry;
+  }
+  writeOut(opts, configPath, next, `MCP server → ${configPath}`);
+
+  // Skill — single-sourced, always refreshed.
+  writeOut(
+    opts,
+    join(homedir(), '.codex', 'skills', 'dgmo-diagramming', 'SKILL.md'),
+    readCodexSkill(),
+    'Skill → ~/.codex/skills/dgmo-diagramming/SKILL.md'
+  );
+
+  // Non-destructive AGENTS.md note: only append to an existing file, never create.
+  const agentsPath = join(process.cwd(), 'AGENTS.md');
+  if (!opts.dryRun && existsSync(agentsPath)) {
+    const existingAgents = readFileSync(agentsPath, 'utf-8');
+    if (!existingAgents.includes(CODEX_AGENTS_NOTE_MARKER)) {
+      const separator = existingAgents.endsWith('\n') ? '\n' : '\n\n';
+      writeFileSync(
+        agentsPath,
+        existingAgents + separator + CODEX_AGENTS_NOTE,
+        'utf-8'
+      );
+      console.log('✓ Appended dgmo note to AGENTS.md');
+    }
+  }
+}
+
+async function installClaudeDesktop(opts: InstallOpts): Promise<void> {
+  ensureDgmoMcp(opts);
+  // Claude Desktop config is always the per-user app config (scope is N/A).
+  upsertJsonMcp(opts, claudeDesktopConfigPath());
+}
+
+// Cursor / Windsurf / Copilot are non-MCP: they read a project-root context
+// file. We ship those files in the package and copy them into the cwd. This
+// closes the former manual-copy gap for those editors.
+function installEditorRules(
+  kind: 'cursor' | 'windsurf' | 'copilot',
+  opts: InstallOpts
+): void {
+  const map = {
+    cursor: { src: ['.cursorrules'], dest: ['.cursorrules'] },
+    windsurf: { src: ['.windsurfrules'], dest: ['.windsurfrules'] },
+    copilot: {
+      src: ['.github', 'copilot-instructions.md'],
+      dest: ['.github', 'copilot-instructions.md'],
+    },
+  } as const;
+  const { src, dest } = map[kind];
+  writeOut(
+    opts,
+    join(process.cwd(), ...dest),
+    readPackagedFile(...src),
+    `${kind} context → ${join(...dest)}`
+  );
 }
 
 async function main(): Promise<void> {
@@ -836,6 +753,9 @@ async function main(): Promise<void> {
   if (sub === 'install') {
     await runInstallCommand(process.argv.slice(3));
     return;
+  }
+  if (sub === 'mcp') {
+    runMcpCommand(process.argv.slice(3));
   }
 
   const opts = parseArgs(process.argv);
