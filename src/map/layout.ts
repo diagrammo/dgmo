@@ -3175,6 +3175,7 @@ export function layoutMap(
   // (a thin ribbon like Chile), it leaders into the open space instead.
   const SUBJECT_FONT_MAX = 18; // px ceiling for a prominent in-shape subject name
   const SUBJECT_MIN_PROMINENCE = 13; // px floor below which a subject leaders out
+  const SUBJECT_LEADER_FONT = 15; // px for a leadered subject chip (Chile in the sea)
   const canvasLinear = Math.sqrt(Math.max(1, width * height));
   const sizeT = (boxW: number, boxH: number): number => {
     const frac = Math.sqrt(Math.max(0, boxW * boxH)) / canvasLinear;
@@ -3369,15 +3370,18 @@ export function layoutMap(
       cy: number,
       fill: string,
       name: string,
-      value: string | undefined
+      value: string | undefined,
+      font: number = FONT,
+      gap: number = HOP_GAP,
+      maxLen: number = SHORT_HOP_MAX
     ): {
       x: number;
       y: number;
       rect: LabelRect;
       leader: [number, number, number, number];
     } | null => {
-      const chipW = stackW(name, value);
-      const chipH = stackH(value !== undefined);
+      const chipW = stackW(name, value, font);
+      const chipH = stackH(value !== undefined, font);
       const dirs: Array<[number, number]> = [
         [0, -1], // north (over Canada)
         [0, 1], // south (over Mexico / Gulf)
@@ -3397,7 +3401,7 @@ export function layoutMap(
         let ex = cx;
         let ey = cy;
         let steps = 0;
-        const maxSteps = Math.ceil(SHORT_HOP_MAX / STEP) + 1;
+        const maxSteps = Math.ceil(maxLen / STEP) + 1;
         while (steps < maxSteps && fillAt(ex, ey) === fill) {
           ex += dx * STEP;
           ey += dy * STEP;
@@ -3406,8 +3410,8 @@ export function layoutMap(
         if (fillAt(ex, ey) === fill) continue; // never left the region in reach
         // Chip centre sits a gap + half-extent beyond the border along the dir.
         const halfAlong = (Math.abs(dx) * chipW + Math.abs(dy) * chipH) / 2;
-        const ccx = ex + dx * (HOP_GAP + halfAlong);
-        const ccy = ey + dy * (HOP_GAP + halfAlong);
+        const ccx = ex + dx * (gap + halfAlong);
+        const ccy = ey + dy * (gap + halfAlong);
         const rect: LabelRect = {
           x: ccx - chipW / 2,
           y: ccy - chipH / 2,
@@ -3443,7 +3447,7 @@ export function layoutMap(
         const innerX = ccx - dx * (chipW / 2);
         const innerY = ccy - dy * (chipH / 2);
         const len = Math.hypot(innerX - cx, innerY - cy);
-        if (len > SHORT_HOP_MAX) continue;
+        if (len > maxLen) continue;
         if (
           placedLeaders.some((l) =>
             segmentsCross(cx, cy, innerX, innerY, l[0], l[1], l[2], l[3])
@@ -3540,12 +3544,19 @@ export function layoutMap(
           labeledRegionIds.add(r.id);
           regionLabelGuards.push({ label: labels[labels.length - 1]!, rect });
         } else {
+          // The shape can't host a prominent name (Chile's ribbon) → leader the
+          // name into the open space beside it at a PROMINENT size, pushed well
+          // clear of the coast (a larger gap + reach) so it reads as the subject,
+          // not a cramped afterthought.
           const hop = tryShortHopCallout(
             c[0],
             c[1],
             r.fill,
             r.label,
-            undefined
+            undefined,
+            SUBJECT_LEADER_FONT,
+            HOP_GAP + SUBJECT_LEADER_FONT,
+            SHORT_HOP_MAX * 2.2
           );
           if (hop) {
             placedRegionRects.push(hop.rect);
@@ -3559,6 +3570,7 @@ export function layoutMap(
               color: palette.text,
               halo: false,
               haloColor: palette.bg,
+              fontSize: SUBJECT_LEADER_FONT,
               leader: {
                 x1: hop.leader[0],
                 y1: hop.leader[1],
