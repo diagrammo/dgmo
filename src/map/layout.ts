@@ -3436,6 +3436,49 @@ export function layoutMap(
     const SHORT_HOP_MAX = Math.max(46, Math.min(width, height) * 0.11);
     const STEP = 4; // px probe granularity walking out of the region
     const HOP_GAP = 9; // px clearance between region edge and chip
+    // How OPEN is the space a chip projects into? Measured on the chip's OUTWARD
+    // hemisphere (the side facing away from its region): cast a fan of rays and
+    // return the distance to the nearest land or canvas edge. A chip wedged in a
+    // crowded inlet (the Gulf of Mexico, hemmed by Florida + the Caribbean)
+    // scores low; one sitting in open water (the empty Pacific off Mexico's west
+    // coast) saturates the cap. Callout scoring MAXIMISES this, using leader
+    // length only as a tie-break — so a region leaders toward the open sea, not
+    // into whichever coast happens to be the shortest hop away. We only probe the
+    // outward hemisphere because the inward side always hits the region's own
+    // fill immediately (the chip hugs its border), which would flatten every spot.
+    const CLEAR_STEP = 6; // px granularity of the openness probe
+    const CLEAR_MAX = SHORT_HOP_MAX * 3; // saturation — beyond this it's "open"
+    const CLEAR_TOL = CLEAR_STEP; // openness within a probe step counts as a tie
+    const clearanceAt = (
+      px: number,
+      py: number,
+      ox: number, // outward unit dir (away from the region)
+      oy: number
+    ): number => {
+      const baseAng = Math.atan2(oy, ox);
+      let minClear = CLEAR_MAX;
+      // 5 rays spanning the outward hemisphere (baseAng ± 90° in 45° steps).
+      for (let k = -2; k <= 2; k++) {
+        const a = baseAng + (k * Math.PI) / 4;
+        const rx = Math.cos(a);
+        const ry = Math.sin(a);
+        let d = CLEAR_STEP;
+        for (; d <= CLEAR_MAX; d += CLEAR_STEP) {
+          const qx = px + rx * d;
+          const qy = py + ry * d;
+          if (
+            qx < FIT_PAD ||
+            qy < topPad ||
+            qx > width - FIT_PAD ||
+            qy > height - FIT_PAD
+          )
+            break; // ran into the frame — that edge bounds the openness
+          if (fillAt(qx, qy) !== water) break; // hit land of any kind
+        }
+        if (d < minClear) minClear = d;
+      }
+      return minClear;
+    };
     // Try to seat `name`(+`value`) as a short-hop chip for a region centred at
     // (cx,cy) on fill `fill`. Returns the placement (chip rect + leader) or null.
     const tryShortHopCallout = (
@@ -3455,11 +3498,19 @@ export function layoutMap(
     } | null => {
       const chipW = stackW(name, value, font);
       const chipH = stackH(value !== undefined, font);
+      // Unit vectors — 4 cardinals + 4 diagonals. Diagonals matter: open water
+      // often sits off-axis (Mexico's empty sea is WSW), and a pure-cardinal
+      // scheme can only aim due-N/S/E/W. Magnitude 1 keeps each walk step = STEP px.
+      const D = Math.SQRT1_2; // 0.7071…
       const dirs: Array<[number, number]> = [
-        [0, -1], // north (over Canada)
-        [0, 1], // south (over Mexico / Gulf)
-        [1, 0], // east (Atlantic)
-        [-1, 0], // west (Pacific)
+        [0, -1], // north
+        [0, 1], // south
+        [1, 0], // east
+        [-1, 0], // west
+        [D, -D], // NE
+        [D, D], // SE
+        [-D, -D], // NW
+        [-D, D], // SW
       ];
       let best: {
         x: number;
@@ -3467,6 +3518,7 @@ export function layoutMap(
         rect: LabelRect;
         leader: [number, number, number, number];
         len: number;
+        clear: number;
       } | null = null;
       for (const [dx, dy] of dirs) {
         // Walk from the centroid outward until we leave the region's own fill —
@@ -3533,13 +3585,23 @@ export function layoutMap(
           )
         )
           continue;
-        if (best === null || len < best.len)
+        // Prefer the MOST OPEN spot; fall back to the shortest leader only when
+        // two candidates are about equally open (e.g. several open-water spots
+        // that all saturate the clearance cap). This is what redirects a label
+        // away from a cramped-but-close coast toward the empty sea.
+        const clear = clearanceAt(ccx, ccy, dx, dy);
+        const better =
+          best === null ||
+          clear > best.clear + CLEAR_TOL ||
+          (clear >= best.clear - CLEAR_TOL && len < best.len);
+        if (better)
           best = {
             x: ccx,
             y: ccy,
             rect,
             leader: [cx, cy, innerX, innerY],
             len,
+            clear,
           };
       }
       return best
