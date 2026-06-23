@@ -377,7 +377,7 @@ export const METADATA_DIAGNOSTIC_CODES = {
  * characters per §1.10, quoted name strings).
  */
 export function pipeOperatorRemovedMessage(): string {
-  return `'|' removed — 'Node | c: red' → 'Node c: red'. Run 'dgmo migrate'`;
+  return `'|' removed — 'Node | c: red' → 'Node c: red'`;
 }
 
 /**

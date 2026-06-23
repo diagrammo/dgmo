@@ -18,13 +18,6 @@ import { DEFAULT_FONT_NAME } from './fonts';
 import { encodeDiagramUrl } from './sharing';
 import { resolveOrgImports } from './org/resolver';
 import { normalizePertSourceForShare } from './pert/share-normalize';
-import {
-  collectDgmoFiles,
-  collectEmbeddedFiles,
-  formatLineDiff,
-  migrateFile,
-} from './migrate';
-import { migrateEmbedded } from './migrate/embedded';
 import { renderBanner } from './cli-banner';
 import { searchMapLocations } from './map/completion';
 import { loadMapData } from './map/load-data';
@@ -83,8 +76,7 @@ Commands:
   dgmo types               List all supported chart types
   dgmo install [target]    Set up an AI assistant integration
                            (claude-code, claude-skill, codex, claude-desktop)
-  dgmo migrate <path>      Convert legacy "|" metadata to §1.4 grammar
-  dgmo map search <query>  Find the map place token (city or IATA code)
+  dgmo map-search <query>  Find the map place token (city or IATA code)
 
 Render options:
   -o <file>            Output file (default: <input>.png in cwd)
@@ -267,189 +259,17 @@ function copyToClipboard(text: string): boolean {
   }
 }
 
-interface MigrateCommandOpts {
-  path: string | undefined;
-  apply: boolean;
-  diff: boolean;
-  noBackup: boolean;
-  embedded: boolean;
-  help: boolean;
-}
-
-function parseMigrateArgs(args: string[]): MigrateCommandOpts {
-  const opts: MigrateCommandOpts = {
-    path: undefined,
-    apply: false,
-    diff: false,
-    noBackup: false,
-    embedded: false,
-    help: false,
-  };
-  let i = 0;
-  while (i < args.length) {
-    const arg = args[i]!;
-    if (arg === '--help' || arg === '-h') {
-      opts.help = true;
-      i++;
-    } else if (arg === '--apply') {
-      opts.apply = true;
-      i++;
-    } else if (arg === '--diff') {
-      opts.diff = true;
-      i++;
-    } else if (arg === '--no-backup') {
-      opts.noBackup = true;
-      i++;
-    } else if (arg === '--embedded') {
-      opts.embedded = true;
-      i++;
-    } else if (!opts.path) {
-      opts.path = arg;
-      i++;
-    } else {
-      console.error(`Error: Unexpected argument "${arg}"`);
-      process.exit(1);
-    }
-  }
-  return opts;
-}
-
-function printMigrateHelp(): void {
-  console.log(`Usage: dgmo migrate <path> [options]
-
-Convert legacy "|" metadata syntax to the unified §1.4 same-line form
-("Foo k: v, k: v" — no pipe). Handles bare-positional promotions:
-  - gantt   "| 80%"        → "progress: 80"
-  - journey "| 4 Delighted" → "score: 4, emotion: Delighted"
-  - pyramid "| description" → "description: ..."
-  - ring    "| description" → "description: ..."
-
-Wireframe option braces "{A | B}", arrow-label "|" characters (§1.10),
-and quoted-string content are preserved.
-
-By default this previews changes without writing (dry run). Pass --apply to write.
-
-Options:
-  --apply          Write migrated files to disk (a "<file>.bak" is saved first)
-  --diff           Print per-file unified-style diffs
-  --no-backup      Skip writing .bak sidecars (only meaningful with --apply)
-  --embedded       Walk .md/.mdx files; migrate fenced \`\`\`dgmo blocks
-                   atomically per file (single parse-error block aborts file)
-  -h, --help       Show this help`);
-}
-
-async function runMigrateCommand(args: string[]): Promise<void> {
-  const opts = parseMigrateArgs(args);
-
-  if (opts.help) {
-    printMigrateHelp();
-    return;
-  }
-
-  if (!opts.path) {
-    console.error('Error: dgmo migrate requires a path argument');
-    console.error('Try: dgmo migrate --help');
-    process.exit(1);
-  }
-
-  // Dry run is the default; --apply opts into writing.
-  const dryRun = !opts.apply;
-
-  const resolvedPath = resolve(opts.path);
-  if (!existsSync(resolvedPath)) {
-    console.error(`Error: Path not found: ${resolvedPath}`);
-    process.exit(1);
-  }
-
-  if (opts.embedded) {
-    const files = collectEmbeddedFiles(resolvedPath);
-    if (files.length === 0) {
-      console.error('No .md / .mdx files found at the given path.');
-      process.exit(1);
-    }
-    let migrated = 0;
-    let skipped = 0;
-    let unchanged = 0;
-    for (const file of files) {
-      const result = migrateEmbedded(file, {
-        dryRun,
-        noBackup: opts.noBackup,
-      });
-      if (result.skipped) {
-        console.log(`SKIP  ${file}  — ${result.skipReason}`);
-        skipped++;
-        continue;
-      }
-      if (!result.changed) {
-        unchanged++;
-        continue;
-      }
-      migrated++;
-      const verb = result.written ? 'MIGRATE' : 'DRY-RUN';
-      console.log(
-        `${verb}  ${file}  — ${result.changedBlocks}/${result.blockCount} blocks changed`
-      );
-      if (opts.diff) {
-        console.log(formatLineDiff(file, result.original, result.migrated));
-      }
-    }
-    console.log('');
-    console.log(
-      `Done. ${migrated} file(s) ${dryRun ? 'would migrate' : 'migrated'}; ${unchanged} unchanged; ${skipped} skipped.`
-    );
-    if (dryRun && migrated > 0) {
-      console.log('Re-run with --apply to write changes.');
-    }
-    return;
-  }
-
-  const files = collectDgmoFiles(resolvedPath);
-  if (files.length === 0) {
-    console.error('No .dgmo files found at the given path.');
-    process.exit(1);
-  }
-  let migrated = 0;
-  let unchanged = 0;
-  for (const file of files) {
-    const result = migrateFile(file, {
-      dryRun,
-      noBackup: opts.noBackup,
-    });
-    if (!result.changed) {
-      unchanged++;
-      continue;
-    }
-    migrated++;
-    const verb = result.written ? 'MIGRATE' : 'DRY-RUN';
-    console.log(
-      `${verb}  ${file}  — ${result.changedLines.length} line(s) changed`
-    );
-    if (opts.diff) {
-      console.log(formatLineDiff(file, result.original, result.migrated));
-    }
-  }
-  console.log('');
-  console.log(
-    `Done. ${migrated} file(s) ${dryRun ? 'would migrate' : 'migrated'}; ${unchanged} unchanged.`
-  );
-  if (dryRun && migrated > 0) {
-    console.log('Re-run with --apply to write changes.');
-  }
-}
-
-// `dgmo map search <query>` — discover the exact place token the map resolver
+// `dgmo map-search <query>` — discover the exact place token the map resolver
 // expects (city name or bundled IATA airport code), so authors never guess
 // (e.g. "New York" → `New York City`; "kennedy" → `JFK`). Searches cities +
 // the bundled airport set; `--json` for machine output, `--limit N` to widen.
-async function runMapCommand(args: string[]): Promise<void> {
-  const sub = args[0];
+async function runMapSearchCommand(args: string[]): Promise<void> {
   const json = args.includes('--json');
   const limFlag = args.indexOf('--limit');
   const limit =
     limFlag >= 0 ? Math.max(1, Number(args[limFlag + 1]) || 20) : 20;
   // The query is the positional args (allow unquoted multi-word: `... New York`).
   const query = args
-    .slice(1)
     .filter(
       (a, i, arr) =>
         a !== '--json' && a !== '--limit' && arr[i - 1] !== '--limit'
@@ -457,18 +277,18 @@ async function runMapCommand(args: string[]): Promise<void> {
     .join(' ')
     .trim();
 
-  if (sub !== 'search' || !query) {
-    console.log('Usage: dgmo map search <query> [--json] [--limit N]');
+  if (!query) {
+    console.log('Usage: dgmo map-search <query> [--json] [--limit N]');
     console.log(
       '  Find the place token the map resolver expects (city or IATA airport code).'
     );
     console.log('  Examples:');
     console.log(
-      '    dgmo map search "new york"     # → New York City (+ JFK/LGA/EWR airports)'
+      '    dgmo map-search "new york"     # → New York City (+ JFK/LGA/EWR airports)'
     );
-    console.log('    dgmo map search kennedy        # → JFK by airport name');
-    console.log('    dgmo map search heathrow --json');
-    if (sub === 'search' && !query) process.exitCode = 1;
+    console.log('    dgmo map-search kennedy        # → JFK by airport name');
+    console.log('    dgmo map-search heathrow --json');
+    process.exitCode = 1;
     return;
   }
 
@@ -1037,12 +857,8 @@ async function main(): Promise<void> {
   // Subcommand dispatch — each is parsed independently from the rendering
   // flags so their surface doesn't pollute `parseArgs`.
   const sub = process.argv[2];
-  if (sub === 'migrate') {
-    await runMigrateCommand(process.argv.slice(3));
-    return;
-  }
-  if (sub === 'map') {
-    await runMapCommand(process.argv.slice(3));
+  if (sub === 'map-search') {
+    await runMapSearchCommand(process.argv.slice(3));
     return;
   }
   if (sub === 'share') {

@@ -6938,62 +6938,6 @@ declare const themes: {
   readonly transparent: 'transparent';
 };
 
-/**
- * Returns the byte offsets of every `|` on `line` that is OUTSIDE the
- * surviving non-metadata regions enumerated above. Empty array means
- * "no legacy metadata pipe on this line."
- */
-declare function findUnsafePipePositions(line: string): number[];
-/**
- * True iff `line` carries at least one legacy metadata `|` (outside
- * the surviving non-metadata regions). Pure, chart-type agnostic.
- */
-declare function isLegacyMetadataLine(line: string): boolean;
-
-interface TransformResult {
-  /** New line content (indent preserved); equal to input when `changed: false`. */
-  readonly line: string;
-  /** Whether the transformer mutated the line. */
-  readonly changed: boolean;
-}
-/**
- * Transform `line` from legacy `Foo | k: v, k: v` into the new §1.4
- * same-line form. `chartType` enables chart-type-specific bare-positional
- * promotions; pass `null` for the conservative generic transform.
- */
-declare function transformLine(
-  line: string,
-  chartType: string | null
-): TransformResult;
-
-interface ContentMigration {
-  /** Updated source — equal to the input when `changed: false`. */
-  readonly migrated: string;
-  /** True iff at least one line changed. */
-  readonly changed: boolean;
-  /** Detected chart type (from line 1), or `null` if unrecognized. */
-  readonly chartType: string | null;
-  /** 1-based line numbers that were rewritten. */
-  readonly changedLines: readonly number[];
-}
-/**
- * Whole-document migration. Pure transform: takes legacy source,
- * returns new-grammar source plus a change report. Idempotent —
- * running on already-migrated content produces zero changes.
- */
-declare function migrateContent(source: string): ContentMigration;
-/**
- * Minimal unified-style diff for printing changed lines.
- * Not a full unified-diff: only outputs the touched lines with
- * `- old` / `+ new` markers and a leading file header. Adequate
- * for the `--diff` flag on the migration CLI; no patch consumer.
- */
-declare function formatLineDiff(
-  path: string,
-  original: string,
-  migrated: string
-): string;
-
 export {
   ALL_CHART_TYPES,
   ARROW_DIAGNOSTIC_CODES,
@@ -7047,7 +6991,6 @@ export {
   type ComputedInfraEdge,
   type ComputedInfraModel,
   type ComputedInfraNode,
-  type ContentMigration,
   type ContextRelationship,
   type CreateMapGeoQueryOptions,
   type CycleEdge,
@@ -7295,7 +7238,6 @@ export {
   type TechRadarQuadrant,
   type TechRadarRing,
   type Theme,
-  type TransformResult,
   type VisualizationType,
   type WireframeElement,
   type WireframeElementType,
@@ -7354,12 +7296,10 @@ export {
   extractSymbols$3 as extractFlowchartSymbols,
   extractSymbols as extractInfraSymbols,
   extractPertSymbols,
-  findUnsafePipePositions,
   focusBoxesAndLines,
   focusOrgTree,
   formatDateLabel,
   formatDgmoError,
-  formatLineDiff,
   getAllChartTypes,
   getAvailablePalettes,
   getExtendedChartLegendGroups,
@@ -7380,7 +7320,6 @@ export {
   isArchiveColumn,
   isExtendedChartType,
   isInvalidColorToken,
-  isLegacyMetadataLine,
   isRecognizedColorName,
   isSequenceBlock,
   isSequenceNote,
@@ -7417,7 +7356,6 @@ export {
   mapExportDimensions,
   mapNeutralLandColor,
   measurePertAnalysisBlock,
-  migrateContent,
   mix,
   mulberry32,
   nearestNamedColor,
@@ -7545,7 +7483,6 @@ export {
   tidewaterPalette,
   tint,
   tokyoNightPalette,
-  transformLine,
   truncateBareUrl,
   parseDgmo as validate,
   validateComputed,
