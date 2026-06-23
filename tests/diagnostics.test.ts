@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { suggest } from '../src/diagnostics';
+import { suggest, dedupeDiagnostics } from '../src/diagnostics';
+import type { DgmoError } from '../src/diagnostics';
 import { parseDgmo } from '../src/dgmo-router';
 import { parseSequenceDgmo } from '../src/sequence/parser';
 import { parseOrg } from '../src/org/parser';
@@ -273,5 +274,64 @@ describe('parseDgmo()', () => {
     const { diagnostics } = parseDgmo('bar');
     const warnings = diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ============================================================
+// dedupeDiagnostics() + parseDgmo dedup boundary
+// ============================================================
+
+describe('dedupeDiagnostics', () => {
+  const mk = (
+    line: number,
+    message: string,
+    severity: DgmoError['severity'] = 'error',
+    code?: string,
+    column?: number
+  ): DgmoError => ({
+    line,
+    message,
+    severity,
+    ...(code && { code }),
+    ...(column && { column }),
+  });
+
+  it('drops exact duplicates, preserving first-seen order', () => {
+    const out = dedupeDiagnostics([
+      mk(2, 'pipe removed', 'error', 'E_PIPE'),
+      mk(2, 'pipe removed', 'error', 'E_PIPE'),
+      mk(2, 'pipe removed', 'error', 'E_PIPE'),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.code).toBe('E_PIPE');
+  });
+
+  it('keeps diagnostics that differ in line, column, severity, code, or message', () => {
+    const out = dedupeDiagnostics([
+      mk(2, 'pipe removed', 'error', 'E_PIPE'),
+      mk(3, 'pipe removed', 'error', 'E_PIPE'), // different line
+      mk(2, 'pipe removed', 'warning', 'E_PIPE'), // different severity
+      mk(2, 'different message', 'error', 'E_PIPE'), // different message
+      mk(2, 'pipe removed', 'error', 'E_PIPE', 5), // different column
+    ]);
+    expect(out).toHaveLength(5);
+  });
+
+  it('preserves order of distinct diagnostics', () => {
+    const out = dedupeDiagnostics([mk(5, 'b'), mk(1, 'a'), mk(5, 'b')]);
+    expect(out.map((d) => d.message)).toEqual(['b', 'a']);
+  });
+});
+
+describe('parseDgmo dedupes at the parse boundary', () => {
+  it('reports one diagnostic per offending line, not N copies', () => {
+    // Pre-fix this emitted 4 identical E_PIPE_OPERATOR_REMOVED diagnostics.
+    const { diagnostics } = parseDgmo(
+      'sequence\nUser | role: admin\nUser -hi-> API\n'
+    );
+    const pipeErrors = diagnostics.filter(
+      (d) => d.code === 'E_PIPE_OPERATOR_REMOVED' && d.line === 2
+    );
+    expect(pipeErrors).toHaveLength(1);
   });
 });

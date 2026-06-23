@@ -14,7 +14,7 @@ import { looksLikePert } from './pert/parser';
 // part of the derived chartTypeParsers, which come from the registry).
 import { parseVisualization } from './visualizations/parse';
 import { parseFirstLine } from './utils/parsing';
-import { makeDgmoError, suggest } from './diagnostics';
+import { makeDgmoError, suggest, dedupeDiagnostics } from './diagnostics';
 import type { DgmoError } from './diagnostics';
 import { chartTypes } from './chart-types';
 import {
@@ -183,6 +183,20 @@ const ALL_KNOWN_TYPES: ReadonlySet<string> = new Set(knownChartTypeIds);
  * Useful for the CLI and editor to surface all errors before attempting render.
  */
 export function parseDgmo(content: string): {
+  diagnostics: DgmoError[];
+  chartType: string | null;
+} {
+  // Dedupe at the parse boundary so one offending line never reports the same
+  // problem N times — keeps the fix-loop signal clean for the CLI, the editor,
+  // and the MCP `validate_diagram` tool.
+  const result = parseDgmoUndeduped(content);
+  return {
+    diagnostics: dedupeDiagnostics(result.diagnostics),
+    chartType: result.chartType,
+  };
+}
+
+function parseDgmoUndeduped(content: string): {
   diagnostics: DgmoError[];
   chartType: string | null;
 } {
