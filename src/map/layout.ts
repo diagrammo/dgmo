@@ -811,41 +811,50 @@ export function countryLabelPositions(args: {
   };
   const dist2ToCentre = (c: Cell): number =>
     (c.sx - cx) ** 2 + (c.sy - cy) ** 2;
-  // Most-interior cell leads (tie → nearest the visible centroid).
-  const pool = [...kept];
-  pool.sort((a, b) => {
-    const d = interiorness(b) - interiorness(a);
-    return d !== 0 ? d : dist2ToCentre(a) - dist2ToCentre(b);
-  });
-  // grid ordering: best cell, then greedy max-min spread of the rest.
-  const ordered: Cell[] = [pool.shift()!];
-  while (ordered.length < MAX_COUNTRY_POSITIONS && pool.length) {
-    let bestIdx = 0;
-    let bestMin = -1;
-    for (let k = 0; k < pool.length; k++) {
-      const c = pool[k]!;
-      let minD = Infinity;
-      for (const o of ordered) {
-        const d = (c.sx - o.sx) ** 2 + (c.sy - o.sy) ** 2;
-        if (d < minD) minD = d;
-      }
-      if (minD > bestMin) {
-        bestMin = minD;
-        bestIdx = k;
-      }
-    }
-    ordered.push(pool.splice(bestIdx, 1)[0]!);
-  }
-  const grid = ordered.map((c) => ({
-    lonLat: [c.lon, c.lat] as [number, number],
-    screen: [c.sx, c.sy] as [number, number],
-  }));
-  // Curated anchor (D13): forced to slot 0; grid cells fill the rest.
+  // Center on the visible region FIRST (what a human does): the label's home is
+  // the centroid of the country's in-frame land. The caller tries positions in
+  // order and commits the first that clears every obstacle, so a well-centred
+  // anchor that's clear wins outright, and only an awkward case (a POI or the
+  // legend sitting on the centroid) falls back to the on-land grid cells — which
+  // are interior-first, NOT scattered to far corners. The centroid leads ONLY
+  // when it actually sits on the country's own land (so the on-land invariant
+  // holds); a concave country whose centroid lands off its body falls straight
+  // to the grid.
+  const centreLon = kept.reduce((s, c) => s + c.lon, 0) / kept.length;
+  const centreLat = kept.reduce((s, c) => s + c.lat, 0) / kept.length;
+  const centreScreen = project(centreLon, centreLat);
+  const lead =
+    pointInGeometry(geometry, centreLon, centreLat) &&
+    centreScreen &&
+    Number.isFinite(centreScreen[0]) &&
+    Number.isFinite(centreScreen[1]) &&
+    centreScreen[0] >= 0 &&
+    centreScreen[0] <= width &&
+    centreScreen[1] >= 0 &&
+    centreScreen[1] <= height
+      ? [
+          {
+            lonLat: [centreLon, centreLat] as [number, number],
+            screen: [centreScreen[0], centreScreen[1]] as [number, number],
+          },
+        ]
+      : [];
+  // On-land grid cells, most-interior first (tie → nearest the visible centroid).
+  const grid = [...kept]
+    .sort(
+      (a, b) =>
+        interiorness(b) - interiorness(a) || dist2ToCentre(a) - dist2ToCentre(b)
+    )
+    .map((c) => ({
+      lonLat: [c.lon, c.lat] as [number, number],
+      screen: [c.sx, c.sy] as [number, number],
+    }));
+  // Curated anchor (D13): forced to slot 0 when present (a trusted mainland
+  // point, e.g. Russia → European Russia).
   const curatedPos = curated
     ? mkCurated(curated, project)
     : ([] as { lonLat: [number, number]; screen: [number, number] }[]);
-  const out = [...curatedPos, ...grid].slice(0, MAX_COUNTRY_POSITIONS);
-  return out;
+  return [...curatedPos, ...lead, ...grid].slice(0, MAX_COUNTRY_POSITIONS);
 }
 
 /** Project a single curated lon/lat into the position-list shape (or [] when it
@@ -4747,32 +4756,7 @@ export function layoutMap(
           curated: r.curatedLngLat,
         });
         if (gen.length) {
-          const raw = gen.map((p) => p.screen as [number, number]);
-          // A country that hugs the top frame edge (Canada on a US map) has its
-          // best on-land position up in the title/legend band. Rather than fall to
-          // a far-corner candidate, add a SLID-DOWN sibling at the same x just
-          // below the overlay — keeping the name horizontally where the country
-          // sits but in the open space between the overlay and the content.
-          // (Country labels may sit off their own land, so the slid point needn't
-          // be on Canada — it labels the band above the US border.) Tried before
-          // the original so it wins when the original is blocked.
-          const slid: [number, number][] = [];
-          for (const p of raw) {
-            const bandBottom = topReserved.reduce(
-              (m, t) =>
-                p[0] >= t.x && p[0] <= t.x + t.w ? Math.max(m, t.y + t.h) : m,
-              0
-            );
-            // Push the slid centre a full max-size chip half-height + gap below
-            // the band so even a footprint-grown name (a context country at the
-            // 22px ceiling, ~28px tall) clears the overlay rather than clipping its
-            // lower edge. 22 = the context-country font ceiling.
-            const SLID_CLEAR = 22;
-            if (bandBottom > 0 && p[1] < bandBottom + SLID_CLEAR)
-              slid.push([p[0], bandBottom + SLID_CLEAR]);
-            slid.push(p);
-          }
-          positions = slid;
+          positions = gen.map((p) => p.screen);
           anchor = positions[0] as [number, number]; // D12: anchor === positions[0]
         }
       }

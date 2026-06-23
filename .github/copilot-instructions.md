@@ -573,7 +573,7 @@ The canonical, ordered list lives in `src/chart-types.ts`.
 
 ```bash
 dgmo file.dgmo -o output.svg       # SVG
-dgmo file.dgmo -o url              # shareable link
+dgmo share file.dgmo               # shareable link (copied to clipboard)
 dgmo file.dgmo --json              # structured JSON output
 ```
 
