@@ -484,15 +484,15 @@ DGMO ships context files for popular AI coding tools, included in the npm packag
 | `.cursorrules` | Cursor | Auto-loaded when present in project root |
 | `.windsurfrules` | Windsurf | Auto-loaded when present in project root (byte-identical to `.cursorrules`) |
 
-The easiest way to drop these into a project is `dgmo install` — it writes the right file for each tool it detects:
+The easiest way to set these up is `dgmo install` — it does the right thing per tool:
 
 ```bash
-dgmo install cursor      # writes ./.cursorrules
-dgmo install windsurf    # writes ./.windsurfrules
-dgmo install copilot     # writes ./.github/copilot-instructions.md
+dgmo install cursor      # wires MCP (~/.cursor/mcp.json) + drops .cursorrules
+dgmo install windsurf    # wires MCP (~/.codeium/windsurf/mcp_config.json) + .windsurfrules
+dgmo install copilot     # writes ./.github/copilot-instructions.md (Copilot has no MCP)
 ```
 
-(`dgmo install` with no target also writes Copilot's file automatically when the current repo has a `.github` directory.) To copy by hand instead:
+Cursor and Windsurf speak MCP, so `dgmo install` gives them the full render/share tools (pointed at `dgmo mcp`), plus the inline rules file. Copilot is guidance-only. `dgmo install` with no target also writes Copilot's file automatically when the current repo has a `.github` directory. To set the context files up by hand instead:
 
 ```bash
 # From node_modules (if installed as a dependency)

@@ -573,9 +573,11 @@ async function runOneInstall(
     case 'claude-desktop':
       return installClaudeDesktop(opts);
     case 'cursor':
+      return installCursor(opts);
     case 'windsurf':
+      return installWindsurf(opts);
     case 'copilot':
-      return installEditorRules(target, opts);
+      return installCopilot(opts);
   }
 }
 
@@ -710,27 +712,47 @@ async function installClaudeDesktop(opts: InstallOpts): Promise<void> {
   upsertJsonMcp(opts, claudeDesktopConfigPath());
 }
 
-// Cursor / Windsurf / Copilot are non-MCP: they read a project-root context
-// file. We ship those files in the package and copy them into the cwd. This
-// closes the former manual-copy gap for those editors.
-function installEditorRules(
-  kind: 'cursor' | 'windsurf' | 'copilot',
-  opts: InstallOpts
-): void {
-  const map = {
-    cursor: { src: ['.cursorrules'], dest: ['.cursorrules'] },
-    windsurf: { src: ['.windsurfrules'], dest: ['.windsurfrules'] },
-    copilot: {
-      src: ['.github', 'copilot-instructions.md'],
-      dest: ['.github', 'copilot-instructions.md'],
-    },
-  } as const;
-  const { src, dest } = map[kind];
+// Cursor speaks MCP via ~/.cursor/mcp.json (user) or .cursor/mcp.json (project),
+// using the same { mcpServers } schema as Claude — so it gets the full tools,
+// not just syntax guidance. We also drop the shipped .cursorrules so the model
+// has inline context without a tool round-trip.
+function installCursor(opts: InstallOpts): void {
+  ensureDgmoMcp(opts);
+  const path =
+    opts.scope === 'project'
+      ? join(process.cwd(), '.cursor', 'mcp.json')
+      : join(homedir(), '.cursor', 'mcp.json');
+  upsertJsonMcp(opts, path);
   writeOut(
     opts,
-    join(process.cwd(), ...dest),
-    readPackagedFile(...src),
-    `${kind} context → ${join(...dest)}`
+    join(process.cwd(), '.cursorrules'),
+    readPackagedFile('.cursorrules'),
+    'Cursor rules → .cursorrules'
+  );
+}
+
+// Windsurf (Codeium) reads MCP from ~/.codeium/windsurf/mcp_config.json.
+function installWindsurf(opts: InstallOpts): void {
+  ensureDgmoMcp(opts);
+  upsertJsonMcp(
+    opts,
+    join(homedir(), '.codeium', 'windsurf', 'mcp_config.json')
+  );
+  writeOut(
+    opts,
+    join(process.cwd(), '.windsurfrules'),
+    readPackagedFile('.windsurfrules'),
+    'Windsurf rules → .windsurfrules'
+  );
+}
+
+// Copilot has no MCP path — ship the project-root instructions file it auto-loads.
+function installCopilot(opts: InstallOpts): void {
+  writeOut(
+    opts,
+    join(process.cwd(), '.github', 'copilot-instructions.md'),
+    readPackagedFile('.github', 'copilot-instructions.md'),
+    'Copilot context → .github/copilot-instructions.md'
   );
 }
 
