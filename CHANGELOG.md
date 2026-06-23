@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-06-23
+
+### Changed
+
+- **Simpler map route syntax** — route legs drop the `style:` header and use a glyph-only leg shape (e.g. `A ~> B`); silent-case handling is tightened so ambiguous routes no longer render unexpected connectors. Existing `style:`-header routes should migrate to the glyph form.
+- **AI surfaces ask when the chart type is ambiguous** — the AI-core authoring guidance now instructs assistants to ask the user which chart type they want rather than guessing when the prompt is unclear.
+
+### Added
+
+- **Map edge value-on-hover** — hovering a weighted map edge shows its value via a native tooltip.
+
+### Fixed
+
+- **Map callout leaders route toward open water** instead of taking the shortest hop into crowded land, reducing label collisions.
+- **Heavy map edge labels sit beside the stroke**, not on top of it, so thick connectors stay legible.
+- **Infra parser** now handles quoted-name aliases, chart-type-keyword node names, and indented tags.
+
 ## [0.36.0] - 2026-06-23
 
 ### Changed
