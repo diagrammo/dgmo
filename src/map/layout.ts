@@ -41,7 +41,7 @@ import { measureLegendText } from '../utils/legend-constants';
 import { compactNumber } from '../utils/number-format';
 import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
 import type { LegendMode } from '../utils/legend-types';
-import { mapLegendBand } from './legend-band';
+import { mapLegendBand, mapLegendBox } from './legend-band';
 import type { MapLayoutLegend } from './types';
 import type { DgmoError } from '../diagnostics';
 import type { BoundaryTopology } from './data/types';
@@ -1729,6 +1729,43 @@ export function layoutMap(
     hasSubtitle: Boolean(resolved.subtitle),
   });
   if (legendBand > topPad) topPad = legendBand;
+  // The title and legend are foreground overlays in the top band. Capture their
+  // actual centred boxes so EVERY on-map label (region, data, context) treats
+  // them as obstacles and dodges to clear space — otherwise a neighbour name
+  // creeps up under the title (Canada on a US map). These are centred boxes, NOT
+  // the full-width band, so a label can still sit in a clear top corner (a water
+  // name, or Canada beside the title) rather than being shoved off its own land.
+  const topReserved: LabelRect[] = [];
+  if (shownTitle) {
+    const lines = resolved.subtitle ? 2 : 1;
+    const tw =
+      Math.max(
+        measureLegendText(shownTitle, TITLE_FONT_SIZE),
+        resolved.subtitle
+          ? measureLegendText(resolved.subtitle, TITLE_FONT_SIZE)
+          : 0
+      ) +
+      2 * TITLE_FONT_SIZE; // breathing room around the centred banner
+    topReserved.push({
+      x: width / 2 - tw / 2,
+      y: TITLE_Y - TITLE_FONT_SIZE,
+      w: tw,
+      h: TITLE_FONT_SIZE * (lines + 0.5),
+    });
+  }
+  const legendBox = mapLegendBox(legend, {
+    width,
+    mode: opts.legendMode ?? 'preview',
+    hasTitle: Boolean(shownTitle),
+    hasSubtitle: Boolean(resolved.subtitle),
+  });
+  if (legendBox)
+    topReserved.push({
+      x: legendBox.x,
+      y: legendBox.y,
+      w: legendBox.width,
+      h: legendBox.height,
+    });
   // Reserve a side band for margin callouts (second pass only): the projection
   // fits into the canvas MINUS this band, so the data shrinks and slides away
   // from that edge, opening room for the callout chips + leaders.
@@ -3041,7 +3078,9 @@ export function layoutMap(
 
   // -- Labels: regions + POIs with escalation (AR5) --
   const labels: PlacedLabel[] = [];
-  const obstacles: LabelRect[] = [];
+  // Seed with the title + legend boxes so every label (region, POI, context)
+  // collides against them and never lands under the title/legend overlay.
+  const obstacles: LabelRect[] = [...topReserved];
   // Region/orientation labels are the frame; POI labels are the subject. The
   // region pass runs first (can't yet see where POI labels land), so each region
   // label registers a guard here; after POI placement any guard a POI label
@@ -3317,7 +3356,9 @@ export function layoutMap(
       })
       .filter((e): e is NonNullable<typeof e> => e !== null)
       .sort((a, b) => b.area - a.area || a.r.lineNumber - b.r.lineNumber);
-    const placedRegionRects: LabelRect[] = [];
+    // Seed with the title + legend boxes (via fitsRegions) so region/data labels
+    // dodge the overlay the same way context labels do (through `obstacles`).
+    const placedRegionRects: LabelRect[] = [...topReserved];
     // Leaders already drawn (region short-hop callouts). A new short-hop leader
     // that would cross any of these is rejected — crossing leaders read as
     // spaghetti, so the label is dropped instead (the shading + legend + hover

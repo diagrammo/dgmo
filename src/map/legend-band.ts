@@ -97,3 +97,31 @@ export function mapLegendBand(
     mapLegendTop(opts.hasTitle, opts.hasSubtitle) + height + LEGEND_BOTTOM_GAP
   );
 }
+
+/** The legend's actual centred bounding box (top-centre overlay), or null when no
+ *  legend is drawn. Used to feed the legend into the on-map label collision set so
+ *  a region / context name never lands under it. Mirrors `mapLegendBand` but keeps
+ *  the width + x rather than collapsing to a band height. */
+export function mapLegendBox(
+  legend: MapLayoutLegend | null,
+  opts: {
+    width: number;
+    mode: LegendMode;
+    hasTitle: boolean;
+    hasSubtitle: boolean;
+  }
+): { x: number; y: number; width: number; height: number } | null {
+  if (!legend) return null;
+  const groups = mapLegendGroups(legend);
+  if (groups.length === 0) return null;
+  const config = mapLegendConfig(groups, opts.mode);
+  const state: LegendState = { activeGroup: legend.activeGroup };
+  const { width, height } = computeLegendLayout(config, state, opts.width);
+  if (height <= 0 || width <= 0) return null;
+  return {
+    x: (opts.width - width) / 2,
+    y: mapLegendTop(opts.hasTitle, opts.hasSubtitle),
+    width,
+    height,
+  };
+}
