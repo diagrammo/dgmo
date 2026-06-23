@@ -430,9 +430,17 @@ function runMcpCommand(args: string[]): never {
   const onWin = process.platform === 'win32';
   const run = (cmd: string, cmdArgs: string[]) =>
     spawnSync(cmd, cmdArgs, { stdio: 'inherit', shell: onWin });
-  const res = commandExists('dgmo-mcp')
-    ? run('dgmo-mcp', args)
-    : run('npx', ['-y', '@diagrammo/dgmo-mcp', ...args]);
+  // npx path is pinned to @latest so the on-demand server is never stale.
+  const npx = () => run('npx', ['-y', '@diagrammo/dgmo-mcp@latest', ...args]);
+  // Default: prefer the installed binary — fast, works offline, and
+  // `dgmo install` keeps it on @latest. Set DGMO_MCP_LATEST=1 to always fetch
+  // the newest server via npx instead (needs network; adds cold-start).
+  const res =
+    process.env['DGMO_MCP_LATEST'] === '1'
+      ? npx()
+      : commandExists('dgmo-mcp')
+        ? run('dgmo-mcp', args)
+        : npx();
   if (res.error) {
     console.error(
       'Could not launch the dgmo MCP server. Install it with: npm install -g @diagrammo/dgmo-mcp'
@@ -483,21 +491,22 @@ let mcpEnsured = false;
 function ensureDgmoMcp(opts: InstallOpts): void {
   if (mcpEnsured) return;
   mcpEnsured = true;
-  if (commandExists('dgmo-mcp')) {
-    console.log('✓ MCP server present');
-    return;
-  }
   if (opts.dryRun) {
-    console.log('  [dry-run] would install @diagrammo/dgmo-mcp');
+    console.log('  [dry-run] would install/upgrade @diagrammo/dgmo-mcp@latest');
     return;
   }
+  // Always pull @latest, not just install-if-absent: the MCP tools live in a
+  // separately-versioned package, so re-running `dgmo install` (e.g. after a
+  // `dgmo` upgrade) is what refreshes the server. Non-fatal — `dgmo mcp` falls
+  // back to `npx …@latest`.
   try {
-    console.log('Installing the MCP server (one-time)…');
-    execSync('npm install -g @diagrammo/dgmo-mcp', { stdio: 'inherit' });
-    console.log('✓ MCP server installed');
+    const verb = commandExists('dgmo-mcp') ? 'Updating' : 'Installing';
+    console.log(`${verb} the MCP server (@diagrammo/dgmo-mcp@latest)…`);
+    execSync('npm install -g @diagrammo/dgmo-mcp@latest', { stdio: 'inherit' });
+    console.log('✓ MCP server up to date');
   } catch {
     console.log(
-      '  Could not pre-install — it will be fetched on first use via npx.'
+      '  Could not install now — it will be fetched on first use via npx.'
     );
   }
 }
@@ -620,6 +629,7 @@ async function runInstallCommand(args: string[]): Promise<void> {
     }
     await runOneInstall(target, opts);
     console.log('\nRestart the assistant to activate the dgmo tools.');
+    console.log('(Re-run `dgmo install` after upgrading dgmo to refresh.)');
     return;
   }
 
@@ -639,6 +649,7 @@ async function runInstallCommand(args: string[]): Promise<void> {
     console.log('');
   }
   console.log('Done. Restart your AI assistant(s) to activate the dgmo tools.');
+  console.log('(Re-run `dgmo install` after upgrading dgmo to refresh.)');
 }
 
 async function installClaudeCode(opts: InstallOpts): Promise<void> {
