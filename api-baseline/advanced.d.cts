@@ -183,6 +183,14 @@ interface TagGroup {
     readonly defaultValue?: string;
     readonly lineNumber: number;
 }
+/**
+ * The categorical name cycle used to auto-assign colors to bare tag values,
+ * in deterministic order. Aliased to the shared {@link CATEGORICAL_COLOR_ORDER}
+ * (RGB-seeded, max-contrast, neutrals excluded) so tag swatches and data-chart
+ * series colors share one canonical rotation. If a group has more colorless
+ * entries than free categorical names, the cycle wraps.
+ */
+declare const autoTagColorCycle: readonly string[];
 
 /** A POI / route-stop position: gazetteer name (+ optional ISO scope) or coords. */
 type PoiPos = {
@@ -748,6 +756,21 @@ declare class ScaleContext {
     readonly isBelowFloor: boolean;
     private constructor();
     static from(containerSize: number, idealSize: number, minScaleFactor?: number): ScaleContext;
+    /**
+     * Fit content into a bounding box, scaling by whichever dimension is more
+     * constraining (the smaller of the width- and height-fit ratios) so the
+     * diagram never overflows the canvas in either axis. Like {@link from}, the
+     * factor is clamped to `[minScaleFactor, 1]` (content is never enlarged, and
+     * never shrunk past the readability floor).
+     */
+    static fromBox(containerWidth: number, idealWidth: number, containerHeight: number, idealHeight: number, minScaleFactor?: number): ScaleContext;
+    /**
+     * Build a context from an explicit raw factor (clamped to
+     * `[minScaleFactor, 1]`). Used to refine a fit iteratively: layout scaling is
+     * non-linear (gaps shrink faster than floored text), so the first-pass factor
+     * can still overflow — re-measure the laid-out result and tighten.
+     */
+    static fromFactor(rawFactor: number, minScaleFactor?: number): ScaleContext;
     static identity(): ScaleContext;
     aesthetic(value: number): number;
     structural(value: number): number;
@@ -785,7 +808,7 @@ declare function getAllChartTypes(): string[];
 /**
  * Canonical descriptions for every supported chart type. Derived from
  * `chartTypes` so there is exactly one place to update when adding a new
- * type. Consumed by the CLI `--chart-types` flag, the editor autocomplete
+ * type. Consumed by the CLI `dgmo types` command, the editor autocomplete
  * popup, and the MCP `list_chart_types` tool.
  */
 declare const CHART_TYPE_DESCRIPTIONS: Record<string, string>;
@@ -878,24 +901,14 @@ declare function mix(a: string, b: string, pct: number): string;
  * are unambiguous in either branch; only solid-fill output shifts here.
  */
 declare function contrastText(bg: string, lightText: string, darkText: string): string;
-/**
- * Canonical tinted shape fill: 25% intent color + 75% surface.
- * Use for any "tinted intent shape" — graph nodes, kanban cards,
- * journey-map shapes, infra severity, ECharts pie/funnel/bar/etc.
- *
- * NOT for subtle-neutral shapes (use the existing 5-10% inline formula
- * for "recede when no intent" cases — infra normal-state, untagged
- * boxes, no-color sequence participants).
- *
- * Sankey is the only documented exception (75/45% custom desaturation).
- *
- * `opts.solid` (per `option solid-fill`): bypass the 25% tint and return
- * the raw intent. Opt-in only; default behavior unchanged.
- */
 declare function shapeFill(palette: PaletteColors, intent: string, isDark: boolean, opts?: {
     solid?: boolean;
 }): string;
-/** Derive the 8-color series rotation from a palette's named colors. */
+/**
+ * Derive the 8-color series rotation from a palette's named colors, in the
+ * shared {@link CATEGORICAL_COLOR_ORDER} (RGB-seeded, max-contrast). Tag
+ * swatches and chart series colors thus share one canonical rotation.
+ */
 declare function getSeriesColors(palette: PaletteColors): string[];
 
 declare const atlasPalette: PaletteConfig;
@@ -2715,6 +2728,15 @@ interface ParsedBoxesAndLines {
     readonly notes?: readonly DiagramNote[];
     readonly initialHiddenTagValues: ReadonlyMap<string, ReadonlySet<string>>;
     readonly direction: 'LR' | 'TB';
+    /** Optional per-node absolute positions, parsed from a trailing `layout`
+     *  block (`<node-id>: <x>, <y>`). Diagram-space coordinates. When present and
+     *  covering EVERY node, the layout engine bypasses auto-placement and pins
+     *  nodes here (see Decision 3 — two clean modes). A partial block is ignored
+     *  with a diagnostic (AC12). Experimental — Canvas Editor spike. */
+    readonly nodePositions?: ReadonlyMap<string, {
+        readonly x: number;
+        readonly y: number;
+    }>;
     /** `box-metric <label> [low] [high]` — names the value-ramp dimension and
      *  optionally sets its endpoint colours. One color = high hue over a neutral
      *  low; two = explicit `low high`. Mirror of map's `region-metric`. */
@@ -2750,14 +2772,24 @@ interface BLLayoutEdge {
         readonly x: number;
         readonly y: number;
     }>;
+    /** Centre of the label box (set by label-placement). */
     readonly labelX?: number;
     readonly labelY?: number;
+    /** Wrapped label box dimensions + lines (set by label-placement; the renderer
+     *  draws the halo + tspans straight from these). */
+    readonly labelWidth?: number;
+    readonly labelHeight?: number;
+    readonly labelLines?: readonly string[];
     readonly yOffset: number;
     readonly parallelCount: number;
     readonly metadata: Readonly<Record<string, string>>;
     /** Marker for renderer: draw with linear curve, not curveBasis (ELK gives
      * us orthogonal polylines and curveBasis would smooth corners into waves) */
     readonly deferred?: boolean;
+    /** Pinned-layout connector: a border-clipped straight 2-point segment (Canvas
+     *  Editor spike, Decision 7). Renderer draws it with a linear generator —
+     *  curveBasis collapses a 2-point polyline. */
+    readonly straight?: boolean;
 }
 interface BLLayoutGroup {
     readonly label: string;
@@ -2788,6 +2820,9 @@ declare function layoutBoxesAndLines(parsed: ParsedBoxesAndLines, collapseInfo?:
         x: number;
         y: number;
     }>;
+    /** Progress hook (interactive path). When set, the search yields between
+     *  candidates so the UI can paint a "trying X of Y" indicator. */
+    onProgress?: (done: number, total: number, phase: string) => void;
 }): Promise<BLLayoutResult>;
 
 interface BLRenderOptions {
@@ -2806,6 +2841,14 @@ interface BLRenderOptions {
     /** When 'app', the description toggle is hosted by the app overlay strip
      *  (inline gear suppressed, controls row + anchor reserved). */
     controlsHost?: 'app' | 'inline';
+    /** Explicit value-ramp domain override. When provided, the choropleth ramp
+     *  uses these endpoints instead of computing min/max from `parsed.nodes`.
+     *  Focus mode passes the GLOBAL (pre-filter) domain so neighbor colours stay
+     *  stable when only a subset is rendered (Decision 20 / FM1). */
+    rampDomain?: {
+        min: number;
+        max: number;
+    };
 }
 declare function renderBoxesAndLines(container: HTMLDivElement, parsed: ParsedBoxesAndLines, layout: BLLayoutResult, palette: PaletteColors, isDark: boolean, options?: BLRenderOptions): void;
 declare function renderBoxesAndLinesForExport(container: HTMLDivElement, parsed: ParsedBoxesAndLines, layout: BLLayoutResult, palette: PaletteColors, isDark: boolean, options?: {
@@ -2834,6 +2877,43 @@ interface BLCollapseResult {
  * - Collapsed groups removed from groups[] (layout handles as nodes)
  */
 declare function collapseBoxesAndLines(parsed: ParsedBoxesAndLines, collapsedGroups: Set<string>): BLCollapseResult;
+
+interface FocusTarget {
+    readonly kind: 'box' | 'group';
+    /** Canonical endpoint key the parser uses for edges: a node label for a box,
+     *  or `__group_<label>` for a group. */
+    readonly id: string;
+}
+interface FocusResult {
+    /** Filtered model to lay out + render (neighbour groups already collapsed via
+     *  `collapseBoxesAndLines`; `nodePositions` cleared so the subset auto-lays). */
+    readonly parsed: ParsedBoxesAndLines;
+    /** Canonical keys of the 1-hop neighbours kept in view (box labels +
+     *  `__group_<label>` for neighbour groups). */
+    readonly neighborIds: Set<string>;
+    /** Group LABELS of neighbours rendered collapsed. */
+    readonly collapsedNeighborGroupIds: Set<string>;
+    /** GLOBAL value-ramp domain computed from the ORIGINAL model before filtering
+     *  (Decision 20 / FM1); null when the diagram has no `value:` data. */
+    readonly rampDomain: {
+        min: number;
+        max: number;
+    } | null;
+    /** Collapse metadata for `layoutBoxesAndLines` so neighbour groups materialise
+     *  as collapsed boxes — mirrors the manual-collapse path's `collapseInfo`. */
+    readonly collapseInfo: {
+        collapsedChildCounts: Map<string, number>;
+        originalGroups: readonly BLGroup[];
+    };
+}
+/**
+ * Filter `parsed` to the focused element + its 1-hop neighbours.
+ *
+ * Pure, synchronous, no I/O. Tolerant of dangling/alias endpoints (skips them,
+ * never throws). For an edge-less target it returns the lone element (the app
+ * decides the "no connections" affordance, Decision 19).
+ */
+declare function focusBoxesAndLines(parsed: ParsedBoxesAndLines, target: FocusTarget): FocusResult;
 
 interface SitemapNode {
     readonly id: string;
@@ -4818,6 +4898,17 @@ interface MapLayoutRegion {
      *  area-weighted centroid stays on the body. Honours WORLD_LABEL_ANCHORS. */
     readonly labelX?: number;
     readonly labelY?: number;
+    /** Screen-space bounding box `[minX, minY, maxX, maxY]` of the drawn path,
+     *  computed once in `layoutMap` (reusing the `fillAt` hit-target parse) so the
+     *  renderer's per-POI-label region cull doesn't re-parse every path string per
+     *  label blob. Absent only if the layout was built before this field existed —
+     *  the renderer falls back to parsing `d`. */
+    bbox?: readonly [number, number, number, number];
+    /** Parsed screen-space rings of `d`, computed once in `layoutMap` (the same
+     *  `fillAt` hit-target parse as `bbox`) so the renderer's coastline buffering
+     *  doesn't re-parse every region path on every render. Absent only for layouts
+     *  predating this field — callers fall back to `parsePathRings(d)`. */
+    rings?: ReadonlyArray<ReadonlyArray<readonly [number, number]>>;
 }
 /** A framed inset "cutout" (albers-usa AK/HI), in screen px. The frame is a
  *  quad whose TOP edge is angled to ride just under the conus southern coast,
@@ -5345,6 +5436,40 @@ interface MapCompletionOptions {
  * Pure + deterministic. Empty/blank query → `[]` (the caller gates min length).
  */
 declare function completeMapPlaces(query: string, gazetteer: Gazetteer, opts?: MapCompletionOptions): MapPlaceCompletion[];
+/** A POI search hit — a city or airport the resolver can resolve, with the
+ *  exact `token` to paste into DGMO (a `poi`/route endpoint). Powers the CLI
+ *  `dgmo map search` command and the MCP `lookup_map_location` tool, so authors
+ *  (and AI agents) can DISCOVER valid place tokens instead of guessing — e.g.
+ *  learn that "New York" must be `New York City` and that `JFK` is bundled. */
+interface MapLocationMatch {
+    /** Canonical display name (cities) or full airport name. */
+    readonly name: string;
+    /** Exact text to use in DGMO. Cities: the name, ISO-qualified when ambiguous
+     *  (`Portland US-OR`). Airports: the upper-case IATA code (`JFK`). */
+    readonly token: string;
+    readonly kind: 'city' | 'airport';
+    readonly iso: string;
+    readonly sub?: string;
+    /** City population (0 for airports). */
+    readonly pop: number;
+    /** Human detail, e.g. `US-OR · 652,503` or `Airport · John F Kennedy Intl`. */
+    readonly detail: string;
+}
+/**
+ * Substring-search cities + airports for a discovery surface (CLI / MCP), so an
+ * author can find the exact token the resolver expects. Unlike
+ * {@link completeMapPlaces} (prefix-only, editor type-ahead), this matches
+ * anywhere in a city name OR an airport code/name, so "york" finds
+ * `New York City` and "kennedy" finds `JFK`.
+ *
+ * Ranking: exact-name (or exact-IATA) → prefix → substring; within a tier,
+ * cities by population desc (deterministic index tie-break), cities before
+ * airports. Pure + deterministic. Empty query → `[]`.
+ */
+declare function searchMapLocations(query: string, gazetteer: Gazetteer, opts?: {
+    readonly limit?: number;
+    readonly airports?: AirportData;
+}): MapLocationMatch[];
 interface MapRegionCompletion {
     /** Display name = insert text (the resolver disambiguates cross-layer
      *  collisions like Georgia by map scope, §24B.8). */
@@ -5764,6 +5889,48 @@ declare function resolveColor(color: string, palette?: {
 }): string | null;
 
 /**
+ * Stable diagnostic code for "this token is not one of the 11 named palette
+ * colors" — covers both hex/CSS literals (emitted as `error`) and unrecognized
+ * bare words like `crimson` (emitted as `warning`). Consumers that want to
+ * HARD-BLOCK invalid colors regardless of severity (e.g. the MCP render gate)
+ * filter on this code rather than re-deriving the rule.
+ */
+declare const INVALID_COLOR_CODE = "E_INVALID_COLOR";
+/**
+ * CSS / X11 color names that are NOT one of DGMO's 11 — mapped to their hex so
+ * a "nearest valid color" hint can be computed. This is the blocklist that lets
+ * the trailing-token rule tell an *intended-but-invalid* color (`pink`,
+ * `crimson`, `navy`) apart from an ordinary label word (`Zinfandel`, `Blanc`):
+ * a lowercase trailing token found here is flagged, anything else stays label
+ * text. Our 11 valid names are deliberately excluded. Extend freely — it only
+ * sharpens detection. (Case-sensitive lowercase, matching the §1.5 color rule.)
+ */
+declare const INVALID_CSS_COLOR_HEX: Readonly<Record<string, string>>;
+/**
+ * Best-effort nearest recognized color NAME for an unsupported hex value.
+ * Matches by HUE (with a low-saturation cutoff routing to black/white/gray),
+ * NOT raw RGB distance to the muted palette hexes — vivid LLM colors like a
+ * `#3cb44b` green would otherwise snap to `gray` against a desaturated sage.
+ * Returns null for non-hex input (CSS function/keyword colors, no RGB to read).
+ * Used ONLY to enrich a diagnostic — never to silently accept the value.
+ */
+declare function nearestNamedColor(input: string): string | null;
+/**
+ * True iff `token` is an INTENDED-but-invalid color: a hex/`rgb()`/`hsl()`
+ * literal, or a known CSS color name that isn't one of DGMO's 11. Lets the
+ * trailing-token rule flag `Rosé pink` / `Foo #e6194b` while leaving genuine
+ * label words (`Zinfandel`) untouched.
+ */
+declare function isInvalidColorToken(token: string): boolean;
+/**
+ * Build an `E_INVALID_COLOR` diagnostic for an intended-but-invalid trailing
+ * color token, or return null if `token` isn't color-like (so it stays label
+ * text). Severity is `warning` so the library degrades gracefully (the value
+ * just keeps the word); the MCP render gate blocks on the code regardless.
+ * Used by `extractColor` to close the trailing-token "silent swallow" gap.
+ */
+declare function invalidColorDiagnostic(token: string, line: number): DgmoError | null;
+/**
  * Resolves a color name and pushes a warning diagnostic on failure.
  * Returns the hex string for valid names, or `undefined` for unknown
  * input (after pushing a diagnostic). Use this from parsers that have
@@ -5865,4 +6032,4 @@ declare function migrateContent(source: string): ContentMigration;
  */
 declare function formatLineDiff(path: string, original: string, migrated: string): string;
 
-export { ALL_CHART_TYPES, ARROW_DIAGNOSTIC_CODES, type Activation, type AirportData, type AncestorInfo, type ArcLink, type ArcNodeGroup, type BLCollapseResult, type BLEdge, type BLGroup, type BLLayoutEdge, type BLLayoutGroup, type BLLayoutNode, type BLLayoutResult, type BLNode, type BlipTrend, type BoundaryTopology, type C4ArrowType, type C4DeploymentNode, type C4Element, type C4ElementType, type C4Group, type C4LayoutBoundary, type C4LayoutEdge, type C4LayoutNode, type C4LayoutResult, type C4LegendEntry, type C4LegendGroup, type C4Relationship, type C4Shape, type C4TagEntry, type C4TagGroup, CHART_TYPE_DESCRIPTIONS, type ChartDataPoint, type ChartEra, type ChartType$1 as ChartType, type ChartTypeMeta, type ClassLayoutEdge, type ClassLayoutNode, type ClassLayoutResult, type ClassMember, type ClassModifier, type ClassNode, type ClassRelationship, type CollapsedMindmapResult, type CollapsedOrgResult, type CollapsedSitemapResult, type CollapsedView, type CompactViewState, type ComputedInfraEdge, type ComputedInfraModel, type ComputedInfraNode, type ContentMigration, type ContextRelationship, type CreateMapGeoQueryOptions, type CycleEdge, type CycleLayoutEdge, type CycleLayoutNode, type CycleLayoutResult, type CycleNode, type CycleRenderOptions, type D3ExportDimensions, type DecodedDiagramUrl, type DgmoError, type DgmoSeverity, type DiagramSymbols, type Duration, type DurationUnit, ECHART_EXPORT_WIDTH, type ERCardinality, type ERColumn, type ERConstraint, type ERLayoutEdge, type ERLayoutNode, type ERLayoutResult, type ERRelationship, type ERTable, type ElseIfBranch, type EncodeDiagramUrlOptions, type EncodeDiagramUrlResult, type ExpandedActivity, type ExtendedChartType, type FocusOrgResult, type GanttDependency, type GanttEra, type GanttGroup, type GroupRow as GanttGroupRow, type GanttHolidays, type GanttInteractiveOptions, type LaneHeaderRow as GanttLaneHeaderRow, type GanttMarker, type GanttNode, type GanttOptions, type Row as GanttRow, type GanttTask, type TaskRow as GanttTaskRow, type Gazetteer, type GazetteerEntry, type GeoExtent, type GetOrCreateNameResult, type GraphDirection, type GraphEdge, type GraphGroup, type GraphNode, type GraphShape, INFRA_BEHAVIOR_KEYS, type ImportSource, type InfraAvailabilityPercentiles, type InfraBehaviorKey, type InfraCbState, type InfraComputeParams, type InfraDiagnostic, type InfraEdge, type InfraGroup, type InfraLatencyPercentiles, type InfraLayoutEdge, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutResult, type InfraLegendGroup, type InfraNode, type InfraPlaybackState, type InfraProperty, type InfraRole, type InfraTagGroup, type InlineSpan, type JourneyMapAnnotation, type JourneyMapInteractiveOptions, type JourneyMapLayout, type JourneyMapPersona, type JourneyMapPhase, type JourneyMapStep, type KanbanCard, type KanbanColumn, type KanbanTagEntry, type KanbanTagGroup, LEGEND_GEAR_PILL_W, LEGEND_HEIGHT, type LayoutEdge, type LayoutGroup, type LayoutNode, type LayoutOptions$1 as LayoutOptions, type LayoutResult$1 as LayoutResult, type LegendCallbacks, type LegendConfig, type LegendControl, type LegendGroupData, type LegendHandle, type LegendLayout, type LegendMode, type LegendPalette, type LegendPosition, type LegendState, type MapCompletionOptions, type MapData, type MapDirectives, type MapEdge, type MapExportDimensions, type MapGeoQuery, type MapLayout, type MapLayoutInset, type MapLayoutLeg, type MapLayoutLegend, type MapLayoutPoi, type MapLayoutRegion, type MapLayoutStretch, type MapPlaceCompletion, type MapPoi, type MapRegion, type MapRegionCompletion, type MapRoute, type MemberVisibility, type MindmapLayoutEdge, type MindmapLayoutNode, type MindmapLayoutResult, type MindmapNode, type MonteCarloResult, type NameEntry, type NearestCity, type NodeDetail, type OrgContainerBounds, type OrgLayoutEdge, type OrgLayoutNode, type OrgLayoutResult, type OrgNode, type PaletteColors, type PaletteConfig, type ParseInArrowLabelResult, type ParsedBoxesAndLines, type ParsedC4, type ParsedChart, type ParsedClassDiagram, type ParsedCycle, type ParsedERDiagram, type ParsedExtendedChart, type ParsedGantt, type ParsedGraph, type ParsedInfra, type ParsedJourneyMap, type ParsedKanban, type ParsedMap, type ParsedMindmap, type ParsedOrg, type ParsedPert, type ParsedPyramid, type ParsedRaci, type ParsedRing, type ParsedSequenceDgmo, type ParsedSitemap, type ParsedTechRadar, type ParsedVisualization, type ParsedWireframe, type ParticipantType, type PertActivity, type Anchor as PertAnchor, type PertDirection, type PertEdge, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type LayoutOverrides as PertLayoutOverrides, type LayoutResult as PertLayoutResult, type PertMilestone, type PertOptions, type PertRenderOptions, type PlacedLabel, type PoiPos, type ProjectedCity, type ProjectionFamily, type PyramidLayer, type QuadrantPosition, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, type RaciDragSource, type RaciInteractionHandlers, type RaciMarker, type RaciPhase, type RaciRoleAssignment, type RaciTask, type RaciVariant, type ReadFileFn, type RegionName, type RegionNames, type RegionToken, type RelationshipType, type RenderCategory, type RenderStep, type ResolveImportsResult, type ResolvedActivity, type ResolvedEdge, type ResolvedGroup$1 as ResolvedGroup, type ResolvedMap, type ResolvedPert, type ResolvedGroup as ResolvedPertGroup, type ResolvedPoi, type ResolvedRegion, type ResolvedRoute, type ResolvedSchedule, type ResolvedTask, type ResultCard, type ResultTokens, type RingLayer, ScaleContext, type ScatterLabelPoint, type SectionMessageGroup, type SequenceBlock, type SequenceElement, type SequenceGroup, type SequenceMessage, type SequenceNote, type SequenceParticipant, type SequenceRenderOptions, type SequenceSection, type SimulateOptions, type SitemapContainerBounds, type SitemapDirection, type SitemapEdge, type SitemapLayoutEdge, type SitemapLayoutNode, type SitemapLayoutResult, type SitemapLegendEntry, type SitemapLegendGroup, type SitemapNode, type StateCollapseResult, type TagEntry, type TagGroup, type TechRadarBlip, type TechRadarLayoutPoint, type TechRadarQuadrant, type TechRadarRing, type Theme, type TransformResult, type VisualizationType, type WireframeElement, type WireframeElementType, type WireframeFormFactor, type WireframeLayout, type WireframeLayoutNode, addDurationToDate, albersSkewFallback, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, blueprintPalette, buildExtendedChartOption, buildNoteMessageMap, buildRenderSequence, buildSimpleChartOption, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, chartTypeParsers, chartTypes, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, completeMapPlaces, completeMapRegions, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeScatterLabelGraphics, computeTimeTicks, contrastText, controlsGroupCapsuleWidth, createMapGeoQuery, decodeDiagramUrl, decodeViewState, displayName, encodeDiagramUrl, encodeViewState, extractSymbols$2 as extractClassSymbols, extractSymbols$1 as extractErSymbols, extractSymbols$3 as extractFlowchartSymbols, extractSymbols as extractInfraSymbols, extractPertSymbols, findUnsafePipePositions, focusOrgTree, formatDateLabel, formatDgmoError, formatLineDiff, getAllChartTypes, getAvailablePalettes, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getPalette, getRadarGeometry, getRenderCategory, getSeriesColors, getSimpleChartLegendGroups, groupMessagesBySection, hexToHSL, hexToHSLString, hslToHex, inferParticipantType, inferRoles, isArchiveColumn, isExtendedChartType, isLegacyMetadataLine, isRecognizedColorName, isSequenceBlock, isSequenceNote, isValidHex, knownChartTypeIds, layoutBoxesAndLines, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutWireframe, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, makeDgmoError, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, measurePertAnalysisBlock, migrateContent, mix, mulberry32, nord, nordPalette, normalizeName, normalizePertSourceForShare, orderArcNodes, palettes, parseAndLayoutInfra, parseBoxesAndLines, parseC4, parseChart, parseClassDiagram, parseCycle, parseDataRowValues, parseDgmo, parseDgmoChartType, parseERDiagram, parseExtendedChart, parseFirstLine, parseFlowchart, parseGantt, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseMap, parseMindmap, parseOrg, parsePert, parsePyramid, parseRaci, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseState, parseTechRadar, parseTimelineDate, parseVisualization, parseWireframe, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, registerPalette, relayoutPert, render, renderArcDiagram, renderBoxesAndLines, renderBoxesAndLinesForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderExtendedChartForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderMap, renderMapForExport, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSlopeChart, renderState, renderStateForExport, renderTechRadar, renderTechRadarForExport, renderTimeline, renderVenn, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolveOrgImports, resolveTaskName, rollUpContextRelationships, sampleBetaPert, seriesColors, shade, shapeFill, simulateCanonical, simulateFast, slatePalette, themes, tidewaterPalette, tint, tokyoNightPalette, transformLine, truncateBareUrl, parseDgmo as validate, validateComputed, validateInfra, validateLabelCharacters };
+export { ALL_CHART_TYPES, ARROW_DIAGNOSTIC_CODES, type Activation, type AirportData, type AncestorInfo, type ArcLink, type ArcNodeGroup, type BLCollapseResult, type BLEdge, type BLGroup, type BLLayoutEdge, type BLLayoutGroup, type BLLayoutNode, type BLLayoutResult, type BLNode, type BlipTrend, type BoundaryTopology, type C4ArrowType, type C4DeploymentNode, type C4Element, type C4ElementType, type C4Group, type C4LayoutBoundary, type C4LayoutEdge, type C4LayoutNode, type C4LayoutResult, type C4LegendEntry, type C4LegendGroup, type C4Relationship, type C4Shape, type C4TagEntry, type C4TagGroup, CHART_TYPE_DESCRIPTIONS, type ChartDataPoint, type ChartEra, type ChartType$1 as ChartType, type ChartTypeMeta, type ClassLayoutEdge, type ClassLayoutNode, type ClassLayoutResult, type ClassMember, type ClassModifier, type ClassNode, type ClassRelationship, type CollapsedMindmapResult, type CollapsedOrgResult, type CollapsedSitemapResult, type CollapsedView, type CompactViewState, type ComputedInfraEdge, type ComputedInfraModel, type ComputedInfraNode, type ContentMigration, type ContextRelationship, type CreateMapGeoQueryOptions, type CycleEdge, type CycleLayoutEdge, type CycleLayoutNode, type CycleLayoutResult, type CycleNode, type CycleRenderOptions, type D3ExportDimensions, type DecodedDiagramUrl, type DgmoError, type DgmoSeverity, type DiagramSymbols, type Duration, type DurationUnit, ECHART_EXPORT_WIDTH, type ERCardinality, type ERColumn, type ERConstraint, type ERLayoutEdge, type ERLayoutNode, type ERLayoutResult, type ERRelationship, type ERTable, type ElseIfBranch, type EncodeDiagramUrlOptions, type EncodeDiagramUrlResult, type ExpandedActivity, type ExtendedChartType, type FocusOrgResult, type FocusResult, type FocusTarget, type GanttDependency, type GanttEra, type GanttGroup, type GroupRow as GanttGroupRow, type GanttHolidays, type GanttInteractiveOptions, type LaneHeaderRow as GanttLaneHeaderRow, type GanttMarker, type GanttNode, type GanttOptions, type Row as GanttRow, type GanttTask, type TaskRow as GanttTaskRow, type Gazetteer, type GazetteerEntry, type GeoExtent, type GetOrCreateNameResult, type GraphDirection, type GraphEdge, type GraphGroup, type GraphNode, type GraphShape, INFRA_BEHAVIOR_KEYS, INVALID_COLOR_CODE, INVALID_CSS_COLOR_HEX, type ImportSource, type InfraAvailabilityPercentiles, type InfraBehaviorKey, type InfraCbState, type InfraComputeParams, type InfraDiagnostic, type InfraEdge, type InfraGroup, type InfraLatencyPercentiles, type InfraLayoutEdge, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutResult, type InfraLegendGroup, type InfraNode, type InfraPlaybackState, type InfraProperty, type InfraRole, type InfraTagGroup, type InlineSpan, type JourneyMapAnnotation, type JourneyMapInteractiveOptions, type JourneyMapLayout, type JourneyMapPersona, type JourneyMapPhase, type JourneyMapStep, type KanbanCard, type KanbanColumn, type KanbanTagEntry, type KanbanTagGroup, LEGEND_GEAR_PILL_W, LEGEND_HEIGHT, type LayoutEdge, type LayoutGroup, type LayoutNode, type LayoutOptions$1 as LayoutOptions, type LayoutResult$1 as LayoutResult, type LegendCallbacks, type LegendConfig, type LegendControl, type LegendGroupData, type LegendHandle, type LegendLayout, type LegendMode, type LegendPalette, type LegendPosition, type LegendState, type MapCompletionOptions, type MapData, type MapDirectives, type MapEdge, type MapExportDimensions, type MapGeoQuery, type MapLayout, type MapLayoutInset, type MapLayoutLeg, type MapLayoutLegend, type MapLayoutPoi, type MapLayoutRegion, type MapLayoutStretch, type MapLocationMatch, type MapPlaceCompletion, type MapPoi, type MapRegion, type MapRegionCompletion, type MapRoute, type MemberVisibility, type MindmapLayoutEdge, type MindmapLayoutNode, type MindmapLayoutResult, type MindmapNode, type MonteCarloResult, type NameEntry, type NearestCity, type NodeDetail, type OrgContainerBounds, type OrgLayoutEdge, type OrgLayoutNode, type OrgLayoutResult, type OrgNode, type PaletteColors, type PaletteConfig, type ParseInArrowLabelResult, type ParsedBoxesAndLines, type ParsedC4, type ParsedChart, type ParsedClassDiagram, type ParsedCycle, type ParsedERDiagram, type ParsedExtendedChart, type ParsedGantt, type ParsedGraph, type ParsedInfra, type ParsedJourneyMap, type ParsedKanban, type ParsedMap, type ParsedMindmap, type ParsedOrg, type ParsedPert, type ParsedPyramid, type ParsedRaci, type ParsedRing, type ParsedSequenceDgmo, type ParsedSitemap, type ParsedTechRadar, type ParsedVisualization, type ParsedWireframe, type ParticipantType, type PertActivity, type Anchor as PertAnchor, type PertDirection, type PertEdge, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type LayoutOverrides as PertLayoutOverrides, type LayoutResult as PertLayoutResult, type PertMilestone, type PertOptions, type PertRenderOptions, type PlacedLabel, type PoiPos, type ProjectedCity, type ProjectionFamily, type PyramidLayer, type QuadrantPosition, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, type RaciDragSource, type RaciInteractionHandlers, type RaciMarker, type RaciPhase, type RaciRoleAssignment, type RaciTask, type RaciVariant, type ReadFileFn, type RegionName, type RegionNames, type RegionToken, type RelationshipType, type RenderCategory, type RenderStep, type ResolveImportsResult, type ResolvedActivity, type ResolvedEdge, type ResolvedGroup$1 as ResolvedGroup, type ResolvedMap, type ResolvedPert, type ResolvedGroup as ResolvedPertGroup, type ResolvedPoi, type ResolvedRegion, type ResolvedRoute, type ResolvedSchedule, type ResolvedTask, type ResultCard, type ResultTokens, type RingLayer, ScaleContext, type ScatterLabelPoint, type SectionMessageGroup, type SequenceBlock, type SequenceElement, type SequenceGroup, type SequenceMessage, type SequenceNote, type SequenceParticipant, type SequenceRenderOptions, type SequenceSection, type SimulateOptions, type SitemapContainerBounds, type SitemapDirection, type SitemapEdge, type SitemapLayoutEdge, type SitemapLayoutNode, type SitemapLayoutResult, type SitemapLegendEntry, type SitemapLegendGroup, type SitemapNode, type StateCollapseResult, type TagEntry, type TagGroup, type TechRadarBlip, type TechRadarLayoutPoint, type TechRadarQuadrant, type TechRadarRing, type Theme, type TransformResult, type VisualizationType, type WireframeElement, type WireframeElementType, type WireframeFormFactor, type WireframeLayout, type WireframeLayoutNode, addDurationToDate, albersSkewFallback, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, autoTagColorCycle, blueprintPalette, buildExtendedChartOption, buildNoteMessageMap, buildRenderSequence, buildSimpleChartOption, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, chartTypeParsers, chartTypes, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, completeMapPlaces, completeMapRegions, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeScatterLabelGraphics, computeTimeTicks, contrastText, controlsGroupCapsuleWidth, createMapGeoQuery, decodeDiagramUrl, decodeViewState, displayName, encodeDiagramUrl, encodeViewState, extractSymbols$2 as extractClassSymbols, extractSymbols$1 as extractErSymbols, extractSymbols$3 as extractFlowchartSymbols, extractSymbols as extractInfraSymbols, extractPertSymbols, findUnsafePipePositions, focusBoxesAndLines, focusOrgTree, formatDateLabel, formatDgmoError, formatLineDiff, getAllChartTypes, getAvailablePalettes, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getPalette, getRadarGeometry, getRenderCategory, getSeriesColors, getSimpleChartLegendGroups, groupMessagesBySection, hexToHSL, hexToHSLString, hslToHex, inferParticipantType, inferRoles, invalidColorDiagnostic, isArchiveColumn, isExtendedChartType, isInvalidColorToken, isLegacyMetadataLine, isRecognizedColorName, isSequenceBlock, isSequenceNote, isValidHex, knownChartTypeIds, layoutBoxesAndLines, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutWireframe, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, makeDgmoError, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, measurePertAnalysisBlock, migrateContent, mix, mulberry32, nearestNamedColor, nord, nordPalette, normalizeName, normalizePertSourceForShare, orderArcNodes, palettes, parseAndLayoutInfra, parseBoxesAndLines, parseC4, parseChart, parseClassDiagram, parseCycle, parseDataRowValues, parseDgmo, parseDgmoChartType, parseERDiagram, parseExtendedChart, parseFirstLine, parseFlowchart, parseGantt, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseMap, parseMindmap, parseOrg, parsePert, parsePyramid, parseRaci, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseState, parseTechRadar, parseTimelineDate, parseVisualization, parseWireframe, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, registerPalette, relayoutPert, render, renderArcDiagram, renderBoxesAndLines, renderBoxesAndLinesForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderExtendedChartForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderMap, renderMapForExport, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSlopeChart, renderState, renderStateForExport, renderTechRadar, renderTechRadarForExport, renderTimeline, renderVenn, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolveOrgImports, resolveTaskName, rollUpContextRelationships, sampleBetaPert, searchMapLocations, seriesColors, shade, shapeFill, simulateCanonical, simulateFast, slatePalette, themes, tidewaterPalette, tint, tokyoNightPalette, transformLine, truncateBareUrl, parseDgmo as validate, validateComputed, validateInfra, validateLabelCharacters };

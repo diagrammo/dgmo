@@ -145,7 +145,7 @@ export function getAllChartTypes(): string[] {
 /**
  * Canonical descriptions for every supported chart type. Derived from
  * `chartTypes` so there is exactly one place to update when adding a new
- * type. Consumed by the CLI `--chart-types` flag, the editor autocomplete
+ * type. Consumed by the CLI `dgmo types` command, the editor autocomplete
  * popup, and the MCP `list_chart_types` tool.
  */
 export const CHART_TYPE_DESCRIPTIONS: Record<string, string> =

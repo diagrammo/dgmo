@@ -369,6 +369,40 @@ interface MapCompletionOptions {
  * Pure + deterministic. Empty/blank query → `[]` (the caller gates min length).
  */
 declare function completeMapPlaces(query: string, gazetteer: Gazetteer, opts?: MapCompletionOptions): MapPlaceCompletion[];
+/** A POI search hit — a city or airport the resolver can resolve, with the
+ *  exact `token` to paste into DGMO (a `poi`/route endpoint). Powers the CLI
+ *  `dgmo map search` command and the MCP `lookup_map_location` tool, so authors
+ *  (and AI agents) can DISCOVER valid place tokens instead of guessing — e.g.
+ *  learn that "New York" must be `New York City` and that `JFK` is bundled. */
+interface MapLocationMatch {
+    /** Canonical display name (cities) or full airport name. */
+    readonly name: string;
+    /** Exact text to use in DGMO. Cities: the name, ISO-qualified when ambiguous
+     *  (`Portland US-OR`). Airports: the upper-case IATA code (`JFK`). */
+    readonly token: string;
+    readonly kind: 'city' | 'airport';
+    readonly iso: string;
+    readonly sub?: string;
+    /** City population (0 for airports). */
+    readonly pop: number;
+    /** Human detail, e.g. `US-OR · 652,503` or `Airport · John F Kennedy Intl`. */
+    readonly detail: string;
+}
+/**
+ * Substring-search cities + airports for a discovery surface (CLI / MCP), so an
+ * author can find the exact token the resolver expects. Unlike
+ * {@link completeMapPlaces} (prefix-only, editor type-ahead), this matches
+ * anywhere in a city name OR an airport code/name, so "york" finds
+ * `New York City` and "kennedy" finds `JFK`.
+ *
+ * Ranking: exact-name (or exact-IATA) → prefix → substring; within a tier,
+ * cities by population desc (deterministic index tie-break), cities before
+ * airports. Pure + deterministic. Empty query → `[]`.
+ */
+declare function searchMapLocations(query: string, gazetteer: Gazetteer, opts?: {
+    readonly limit?: number;
+    readonly airports?: AirportData;
+}): MapLocationMatch[];
 interface MapRegionCompletion {
     /** Display name = insert text (the resolver disambiguates cross-layer
      *  collisions like Georgia by map scope, §24B.8). */
@@ -495,4 +529,4 @@ interface DecodedDiagramUrl {
  */
 declare function decodeDiagramUrl(url: string): DecodedDiagramUrl | null;
 
-export { type ChartTypeMeta, type CompactViewState, type DecodedDiagramUrl, type DgmoError, type DgmoSeverity, type EncodeDiagramUrlOptions, type Gazetteer, type GazetteerEntry, type MapCompletionOptions, type MapData, type MapPlaceCompletion, type MapRegionCompletion, type PaletteColors, type PaletteConfig, type RegionName, type RegionNames, type RenderOptions, type RenderResult, type Theme, chartTypes, completeMapPlaces, completeMapRegions, decodeDiagramUrl, encodeDiagramUrl, formatDgmoError, getEmbedSvgViewBox, getMinDimensions, getPalette, normalizeSvgForEmbed, palettes, render, resolvePaletteOrFallback, themes, parseDgmo as validate };
+export { type ChartTypeMeta, type CompactViewState, type DecodedDiagramUrl, type DgmoError, type DgmoSeverity, type EncodeDiagramUrlOptions, type Gazetteer, type GazetteerEntry, type MapCompletionOptions, type MapData, type MapLocationMatch, type MapPlaceCompletion, type MapRegionCompletion, type PaletteColors, type PaletteConfig, type RegionName, type RegionNames, type RenderOptions, type RenderResult, type Theme, chartTypes, completeMapPlaces, completeMapRegions, decodeDiagramUrl, encodeDiagramUrl, formatDgmoError, getEmbedSvgViewBox, getMinDimensions, getPalette, normalizeSvgForEmbed, palettes, render, resolvePaletteOrFallback, searchMapLocations, themes, parseDgmo as validate };

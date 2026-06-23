@@ -7,9 +7,8 @@
 // sampled from the default `slate` palette (corporate blue → teal →
 // steel cyan) so the wordmark matches the brand.
 //
-// Honors the same guards as `dgmo cat`: color only when stdout is a TTY
-// and NO_COLOR is unset; otherwise prints plain ASCII so pipes/CI stay
-// clean.
+// Color only when stdout is a TTY and NO_COLOR is unset; otherwise prints
+// plain ASCII so pipes/CI stay clean.
 
 import { getPalette } from './palettes';
 
