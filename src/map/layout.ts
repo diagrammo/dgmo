@@ -4661,6 +4661,20 @@ export function layoutMap(
       const nx = -dy / len;
       const ny = dx / len; // unit normal to the chord
       const perp = labelH + 2;
+      // A label rides ON its line by default (off=0 first) — a hairline under
+      // the text reads fine and looks intentional. But a HEAVY weighted leg
+      // (value→width up to W_MAX) draws a thick dark stroke, and text centred on
+      // it is unreadable (dark-on-dark, no contrast). For those, lead with a
+      // perpendicular hop that clears the stroke's half-width + the label's own
+      // half-height + a gap, so the text sits just BESIDE the line on open
+      // ground (both sides tried; the first clean one — typically the open-water
+      // side — wins). Thin legs keep the ride-on default untouched.
+      const stroke = lg.width ?? W_MIN;
+      const clearW = stroke / 2 + labelH / 2 + 3;
+      const offList =
+        stroke >= 4
+          ? [clearW, -clearW, clearW + perp, -(clearW + perp), 0]
+          : [0, perp, -perp, 2 * perp, -2 * perp];
       // Walk the ACTUAL DRAWN PATH, not the chord: parse the leg's `d` (the
       // trimmed `M…Q…` arc or `M…L…` line) and sample the curve at each t, so a
       // label rides its own bowed line instead of floating at the chord midpoint
@@ -4689,7 +4703,7 @@ export function layoutMap(
       // hop — growing — so a label on a SHORT leg between two close dots (where
       // every on-line slot straddles an endpoint) can still escape above or below.
       const candidates: Array<[number, number]> = [];
-      for (const off of [0, perp, -perp, 2 * perp, -2 * perp])
+      for (const off of offList)
         for (const t of T_LIST) {
           const [bx, by] = pointAt(t);
           candidates.push([bx + nx * off, by + ny * off - 4]);
