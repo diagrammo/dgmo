@@ -152,6 +152,8 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `function` | mathematical expressions (colon required: `f(x): x^2`) |
 
 **Need more than the index gives you?** Fetch the per-type section: MCP `get_language_reference(type)` / `get_examples(type)`, or read that type's section below. The `suggest_chart_type` tool returns the chosen type's section automatically.
+
+**When the type isn't obvious, ask — don't guess.** Call `suggest_chart_type` first. If it returns an `⚠️ ASK THE USER` directive (the request is ambiguous between candidates, or nothing matched), present those candidate options to the user and wait for their pick before generating — never silently choose. A confident result (high/medium) you can proceed with.
 <!-- AI-CORE:TYPE-INDEX end -->
 
 <!-- The grouped data-chart / matrix ids share one documented section. This map is the single source of truth for which TYPE block each id resolves to (read by gen-ai-core.mjs and the MCP slicer). -->

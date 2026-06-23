@@ -167,6 +167,8 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 
 **Need more than the index gives you?** Fetch the per-type section: MCP `get_language_reference(type)` / `get_examples(type)`, or read that type's section below. The `suggest_chart_type` tool returns the chosen type's section automatically.
 
+**When the type isn't obvious, ask — don't guess.** Call `suggest_chart_type` first. If it returns an `⚠️ ASK THE USER` directive (the request is ambiguous between candidates, or nothing matched), present those candidate options to the user and wait for their pick before generating — never silently choose. A confident result (high/medium) you can proceed with.
+
 ### Common examples (curated, parse-clean)
 
 _The most common types, inline so you can generate them without a fetch. For the other 37, get the per-type section (see below)._
