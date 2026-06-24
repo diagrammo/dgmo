@@ -32,6 +32,8 @@ const PADDING = 12;
 const HEADER_H = 18;
 const TITLE_BAND = 36;
 const MUTED_FILL = '#cbd5e1';
+/** Percent of a leaf's own color kept when muting it toward the background. */
+const LEAF_MUTE_PCT = 50;
 
 /** Standard placement every dgmo legend uses: centered, under the title. */
 const LEGEND_POSITION: LegendPosition = {
@@ -227,7 +229,15 @@ export function renderTreemap(
     const h = Math.max(0, cell.y1 - cell.y0);
     if (w <= 0 || h <= 0) continue;
 
-    const fill = colorOf(cell);
+    // Emphasis: the containing box (header band) is pure color; the internal
+    // leaf cells are muted (mixed toward the background). Both are opaque so the
+    // pure container behind a leaf doesn't bleed through.
+    const baseColor = colorOf(cell);
+    const fill = cell.isOther
+      ? MUTED_FILL
+      : cell.isContainer
+        ? baseColor
+        : mix(baseColor, palette.bg, LEAF_MUTE_PCT);
     // The synthetic Other bucket is a terminal aggregate — it is NOT in the
     // navigable parsed tree, so it must not advertise a drill affordance.
     const drillable = cell.isContainer || cell.isCollapsed;
@@ -257,7 +267,7 @@ export function renderTreemap(
       .attr('height', h)
       .attr('rx', 2)
       .attr('fill', fill)
-      .attr('fill-opacity', cell.isContainer ? 0.35 : 0.95)
+      .attr('fill-opacity', 1)
       .attr('stroke', palette.bg)
       .attr('stroke-width', 1);
 
@@ -293,7 +303,7 @@ export function renderTreemap(
         .attr('y', 13)
         .attr('font-size', 11)
         .attr('font-weight', 700)
-        .attr('fill', palette.text)
+        .attr('fill', ink)
         .text(clipLabel(cell.label, Math.max(0, labelMax), 11));
 
       if (showVal) {
@@ -303,7 +313,8 @@ export function renderTreemap(
           .attr('y', 13)
           .attr('text-anchor', 'end')
           .attr('font-size', 10.5)
-          .attr('fill', palette.textMuted)
+          .attr('fill', ink)
+          .attr('opacity', 0.75)
           .text(valStr);
       }
     }
@@ -566,7 +577,22 @@ function buildHeatScale(
     .domain(domain)
     .range(stops)
     .clamp(true);
-  return { scale: (v: number) => linear(v), min, max, stops, signed };
+  // d3 interpolates to `rgb(...)` strings; normalize to hex so downstream
+  // helpers (mix/contrastText) that expect hex work on heat fills too.
+  return { scale: (v: number) => toHex(linear(v)), min, max, stops, signed };
+}
+
+/** Normalize a CSS color (`rgb(...)` or hex) to a `#rrggbb` hex string. */
+function toHex(c: string): string {
+  if (c.startsWith('#')) return c;
+  const m = c.match(/rgba?\(([^)]+)\)/);
+  if (!m) return c;
+  const parts = m[1]!.split(',').map((s) => Math.round(parseFloat(s)));
+  const h = (n: number): string =>
+    Math.max(0, Math.min(255, n || 0))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${h(parts[0] ?? 0)}${h(parts[1] ?? 0)}${h(parts[2] ?? 0)}`;
 }
 
 function resolveColorMode(
