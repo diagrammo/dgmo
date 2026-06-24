@@ -348,48 +348,64 @@ export function renderTreemap(
         .attr('opacity', nameOpacity)
         .text(clipLabel(cell.label, maxW, fs));
 
-      const valStr = opts.noValues ? '' : compactNumber(cell.value);
-      const pctStr = opts.noPercent ? '' : formatPct(cell.pctOfRoot);
-      const addLine = (text: string, size: number, opacity: number): void => {
+      const valParts = [
+        opts.noValues ? '' : compactNumber(cell.value),
+        opts.noPercent ? '' : formatPct(cell.pctOfRoot),
+      ].filter(Boolean);
+      const combined = valParts.join(' · ');
+      const nameBaseY = y;
+      const addLineAt = (
+        text: string,
+        yy: number,
+        size: number,
+        opacity: number
+      ): void => {
         g.append('text')
           .attr('class', 'dgmo-treemap-value')
           .attr('x', PAD)
-          .attr('y', y)
+          .attr('y', yy)
           .attr('font-size', size)
           .attr('fill', ink)
           .attr('opacity', opacity)
           .text(text);
       };
 
-      // `value · %` notation, matching the header bars — on one line when it
-      // fits, stacked (value, then %) when too narrow. The bottom line clears
-      // PAD from the cell's bottom edge.
-      if (valStr && pctStr) {
-        const combined = `${valStr} · ${pctStr}`;
-        if (measureText(combined, vfs) <= maxW) {
+      if (combined) {
+        const fitsW = measureText(combined, vfs) <= maxW;
+        const roomBelow = h - PAD > y + vfs + 6;
+        if (fitsW && roomBelow) {
+          // Preferred: value · % on its own line under the name.
+          addLineAt(combined, y + vfs + 6, vfs, valOpacity);
+        } else if (fitsW) {
+          // Short cell: no room below → trail the value after the name,
+          // smaller, on the same line (if it fits the width).
+          const ivfs = clamp(Math.round(fs * 0.5), 11, Math.max(11, vfs));
+          const rendered = clipLabel(cell.label, maxW, fs);
+          const nW = measureText(rendered, fs);
+          const gap = Math.max(8, Math.round(fs * 0.18));
+          if (PAD + nW + gap + measureText(combined, ivfs) <= w - PAD) {
+            g.append('text')
+              .attr('class', 'dgmo-treemap-value')
+              .attr('x', PAD + nW + gap)
+              .attr('y', nameBaseY)
+              .attr('font-size', ivfs)
+              .attr('fill', ink)
+              .attr('opacity', valOpacity)
+              .text(combined);
+          }
+        } else if (valParts.length === 2) {
+          // Tall-narrow cell: combined too wide → stack value then % below.
           if (h - PAD > y + vfs + 6) {
             y += vfs + 6;
-            addLine(combined, vfs, valOpacity);
+            addLineAt(valParts[0]!, y, vfs, valOpacity);
           }
-        } else {
-          if (h - PAD > y + vfs + 6) {
-            y += vfs + 6;
-            addLine(valStr, vfs, valOpacity);
+          const pfs = Math.max(10, Math.round(vfs * 0.9));
+          if (h - PAD > y + pfs + 4) {
+            y += pfs + 4;
+            addLineAt(valParts[1]!, y, pfs, valOpacity);
           }
-          if (h - PAD > y + vfs + 4) {
-            y += vfs + 4;
-            addLine(pctStr, Math.max(10, Math.round(vfs * 0.9)), valOpacity);
-          }
-        }
-      } else if (valStr) {
-        if (h - PAD > y + vfs + 6) {
-          y += vfs + 6;
-          addLine(valStr, vfs, valOpacity);
-        }
-      } else if (pctStr) {
-        if (h - PAD > y + vfs + 6) {
-          y += vfs + 6;
-          addLine(pctStr, vfs, valOpacity);
+        } else if (h - PAD > y + vfs + 6) {
+          addLineAt(combined, y + vfs + 6, vfs, valOpacity);
         }
       }
     }
