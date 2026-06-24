@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { parseMap } from '../src/map/parser';
 import { resolveMap } from '../src/map/resolver';
 import { layoutMap, buildMapProjection } from '../src/map/layout';
@@ -292,5 +292,43 @@ describe('map dimensions — legend band reserve', () => {
     expect(lay.legend).toBeNull();
     expect(lay.stretch).not.toBeNull();
     expect(lay.stretch!.oy).toBe(0);
+  });
+});
+
+// The synthetic rect fixture above collapses world extents to a pathological
+// aspect (it clamps), so the deliberate GLOBAL_HEIGHT_BOOST is only observable on
+// real geometry. These load the bundled gazetteer/topology once.
+describe('map dimensions — global vertical boost', () => {
+  const GLOBAL_HEIGHT_BOOST = 1.12; // keep in sync with dimensions.ts
+  let real: MapData;
+  const resolveReal = (src: string) => resolveMap(parseMap(src), real);
+
+  beforeAll(async () => {
+    const { loadMapData } = await import('../src/map/load-data');
+    real = await loadMapData();
+  });
+
+  it('a whole-world choropleth emits a canvas ~12% taller than its true aspect', () => {
+    const r = resolveReal(
+      'map\nBrazil value: 5\nJapan value: 9\nUnited States value: 7'
+    );
+    expect(buildMapProjection(r, real).fitIsGlobal).toBe(true); // precondition
+    const intrinsic = mapContentAspect(r, real);
+    const unboosted = Math.round(1200 / intrinsic);
+    const boosted = Math.round(1200 / (intrinsic / GLOBAL_HEIGHT_BOOST));
+    const d = mapExportDimensions(r, real, 1200);
+    // Boost stretches the world to fill — it must NOT letterbox.
+    expect(d.preferContain).toBe(false);
+    expect(d.height).toBe(boosted);
+    expect(d.height).toBeGreaterThan(unboosted);
+  });
+
+  it('a US (non-global) map keeps its true aspect — no boost', () => {
+    const r = resolveReal('map\nCalifornia value: 5\nTexas value: 9');
+    expect(buildMapProjection(r, real).fitIsGlobal).toBe(false); // precondition
+    const intrinsic = mapContentAspect(r, real);
+    const d = mapExportDimensions(r, real, 1200);
+    expect(d.height).toBe(Math.round(1200 / intrinsic));
+    expect(d.preferContain).toBe(false);
   });
 });

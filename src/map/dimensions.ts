@@ -32,6 +32,13 @@ const TITLE_GAP = 16;
 //                       width:100% in a narrow note column stays sane.
 const ASPECT_MAX = 3.0;
 const ASPECT_MIN = 0.9;
+// Deliberate vertical boost for GLOBAL (whole-world) extents only. An honest
+// whole-world projection is ~2.4:1, which reads as a flat letterbox band. We emit
+// a canvas this fraction taller and let the global stretch-fill (layout.ts) fill
+// the extra height — the projected land stretches ~12% taller while POI radii and
+// label fonts (applied in the renderer, not here) stay un-squashed. US, regional,
+// and non-global extents are untouched (they keep their true projected aspect).
+const GLOBAL_HEIGHT_BOOST = 1.12;
 // Minimum px of actual map area (below the chrome band) — keeps a short canvas
 // (very wide extent) from being crowded out by the title/caption.
 const MIN_MAP_BAND = 200;
@@ -96,11 +103,21 @@ export function mapExportDimensions(
     Number.isFinite(aspectOverride) &&
     aspectOverride > 0;
   const raw = useOverride ? aspectOverride : mapContentAspect(resolved, data);
+  // Whole-world extents get the vertical boost (a taller canvas the global
+  // stretch-fill then fills). `fitIsGlobal` is the SAME classification the layout
+  // uses to decide stretch-fill vs contain, so the two always agree. The override
+  // path (app WYSIWYG) and non-global extents pass through at their true aspect.
+  const isGlobal =
+    !useOverride && buildMapProjection(resolved, data).fitIsGlobal;
+  // The target the renderer should hit BEFORE the pathological clamp: the boosted
+  // aspect for global views, the raw aspect otherwise. preferContain compares the
+  // clamp against THIS (not raw) so the deliberate boost never trips the letterbox.
+  const target = isGlobal ? raw / GLOBAL_HEIGHT_BOOST : raw;
   // The override is the user's on-screen aspect — honour it as-is (no clamp);
   // only the intrinsic path guards against pathological extents.
   const clamped = useOverride
     ? raw
-    : Math.max(ASPECT_MIN, Math.min(ASPECT_MAX, raw));
+    : Math.max(ASPECT_MIN, Math.min(ASPECT_MAX, target));
   const width = baseWidth;
   let height = Math.round(width / clamped);
 
@@ -128,6 +145,6 @@ export function mapExportDimensions(
   // contain-fit (letterbox) rather than stretch-distort. The WYSIWYG override is
   // exempt: it stretch-fills (mirroring the preview pane) unless the MIN_MAP_BAND
   // floor had to grow the canvas off-aspect.
-  const preferContain = useOverride ? floored : clamped !== raw || floored;
+  const preferContain = useOverride ? floored : clamped !== target || floored;
   return { width, height, preferContain };
 }
