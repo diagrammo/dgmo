@@ -193,6 +193,8 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // ── Boxes-and-lines ──────────────────────────────────────
   { token: 'box-metric', category: 'directive' },
   { token: 'show-values', category: 'directive' },
+  // ── Swimlane ─────────────────────────────────────────────
+  { token: 'lane', category: 'directive' },
   // ── ER ───────────────────────────────────────────────────
   { token: 'notation', category: 'directive' },
   // ── Class ────────────────────────────────────────────────

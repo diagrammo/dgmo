@@ -1,0 +1,15 @@
+swimlane Retry Loop
+direction LR
+
+lane Ops gray
+
+Ops
+  Start
+  Process
+  <Check>
+  Done
+
+Start -> Process -> <Check>
+<Check>
+  -fail-> Process
+  -ok-> Done

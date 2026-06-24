@@ -101,7 +101,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 <!-- AI-CORE:STYLING end -->
 
 <!-- AI-CORE:TYPE-INDEX start -->
-### Chart-type index (45) — pick the type, then fetch its section
+### Chart-type index (46) — pick the type, then fetch its section
 
 | id | when to use |
 | -- | ----------- |
@@ -119,6 +119,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `kanban` | task-board columns |
 | `gantt` | project scheduling with task dependencies and milestones |
 | `pert` | project network with three-point estimates and critical path |
+| `swimlane` | cross-functional process flow with lanes, phases and gateways (BPMN-style) |
 | `timeline` | events, eras, and date ranges |
 | `journey-map` | UX flow with emotion scores, phases, annotations |
 | `cycle` | cyclical process (PDCA, OODA, DevOps loops) |
@@ -1707,6 +1708,70 @@ In backward mode with Monte Carlo active, the project-stats caption reframes its
 Forward/backward pass, slack, M-world critical path, and project μ/σ are always computed. Critical-path activities and edges paint with a red border (`palette.colors.red`) in analytical mode. When Monte Carlo runs (any non-milestone activity has a duration), criticality is banded by the criticality index: red ≥ 0.80, orange ≥ 0.50, yellow ≥ 0.25, green ≥ 0.10, blue ≥ 0.02. The project-stats caption reports expected duration, σ, and P50/P80/P95 dates. Activities downstream of a TBD activity render `?` for ES/EF/LS/LF/slack and dashed borders.
 
 See spec §13A for full date-anchoring semantics, S-curve axes, and diagnostic codes.
+
+---
+
+## 13B. Swimlane Diagrams
+
+<!-- TYPE:swimlane -->
+
+<!-- TIPS start -->
+**Styling tips:** Give each lane a color and let nodes inherit it — reach for a `tag` group only when you need a *second* dimension (e.g. risk) that deliberately breaks lane color. Echo the gateway/terminal delimiters (`<Review>`, `(Paid) success`) even though bare names also resolve — it keeps the source self-documenting. Put every edge label *inside* the arrow (`-invalid->`), never as a trailing word.
+<!-- TIPS end -->
+
+Swimlane diagrams model a cross-functional process: actors/systems are **lanes**, the process flows along the flow axis (`direction LR` default, `TB` transposes), and optional `[Phase]` columns group steps into stages. Nodes are tasks (bare), exclusive gateways (`<X>`), parallel gateways (`<+ X>`), terminals (`(X)`), and subprocesses (`[[X]]`). Edges go last as a flow block; a back-edge to an earlier node draws a routed loop.
+
+```
+swimlane Weekly Publishing
+direction LR
+
+lane Writer gray
+lane Editor blue
+lane Social green
+
+Writer
+  Draft Post
+  Revise
+Editor
+  <Review>
+  Schedule
+  Publish
+Social
+  Promote
+
+Draft Post -> <Review>
+<Review>
+  -changes-> Revise -> <Review>
+  -ok-> Schedule -> Publish -> Promote
+```
+
+### Structure
+
+- `lane <Name> [color]` declares a row (occupant-neutral; person, system, or org) in order. The trailing color (§1.5) tints the band and is the default node fill.
+- A bare line matching a declared lane opens that lane's context; indented lines beneath it are nodes.
+- `[Phase]` opens a phase column (3-deep: phase ▸ lane ▸ node). With no `[Phase]`, the diagram is 2-deep (lane ▸ node). A node's phase membership can only push it right, never left of its column.
+- Node names are globally unique; the flow block references a node by name.
+
+### Node tokens
+
+| Token | Meaning |
+| ----- | ------- |
+| `Submit Claim` | task |
+| `<Validate>` | exclusive (XOR) gateway |
+| `<+ Fork>` | parallel (AND) gateway |
+| `(Start)` | terminal (neutral) |
+| `(!Rejected)` | error terminal (`!` prefix → red) |
+| `(Paid) success` | success terminal (trailing word → green); also `terminate` |
+| `[[Inspect Property]]` | subprocess (collapsible) |
+
+### Flow & color
+
+- Edges use **in-arrow labels** (`A -invalid-> B`), chain (`A -> B -> C`), and fan out when an indented `-label-> Target` group sits under a bare source header.
+- Color cascade (first match wins): active **tag** value → **event/symbol** type (`(!x)`→red, `(x) success`→green, gateways neutral) → **lane** shade.
+
+### Fast-follow (rejected, not silently dropped)
+
+`note:` / `data:` annotations, `timer:`/`message:`/`signal:` events, message flow `~>`, and inclusive (`<o …>`) / event-based (`<* …>`) gateways each emit an `E_SWIMLANE_UNSUPPORTED` diagnostic in v1.
 
 ---
 

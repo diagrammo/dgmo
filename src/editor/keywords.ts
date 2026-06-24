@@ -21,6 +21,7 @@ export const CHART_TYPES = new Set([
   'gantt',
   'pert',
   'boxes-and-lines',
+  'swimlane',
   'wireframe',
   'tech-radar',
   'mindmap',

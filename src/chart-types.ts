@@ -66,6 +66,11 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     description:
       'Project network with three-point estimates, critical path, and uncertainty (Beta-PERT, Monte Carlo)',
   },
+  {
+    id: 'swimlane',
+    description:
+      'Cross-functional process flow with lanes, phases and gateways (BPMN-style)',
+  },
 
   // ── Tier 2 — Specialized structural diagrams ──────────────
   {

@@ -67,6 +67,7 @@ export const ALL_CHART_TYPES = new Set([
   'gantt',
   'pert',
   'boxes-and-lines',
+  'swimlane',
   'mindmap',
   'wireframe',
   'tech-radar',

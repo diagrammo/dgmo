@@ -1,0 +1,48 @@
+swimlane Insurance Claim
+direction LR
+
+lane Customer gray
+lane Claims Agent blue
+lane Adjuster purple
+lane Payments green
+
+tag Risk as r
+  low green
+  high red
+
+[Submit]
+  Customer
+    Submit Claim
+[Triage]
+  Customer
+    (!Rejected)
+  Claims Agent
+    <Validate>
+    <+ Fork>
+[Assess]
+  Customer
+    (!Denied)
+  Claims Agent
+    Fraud Check r: high
+  Adjuster
+    Assign Adjuster
+    [[Inspect Property]]
+    <Approve>
+[Settle]
+  Payments
+    Issue Payment
+    (Paid) success
+
+Submit Claim -> <Validate>
+<Validate>
+  -invalid-> (!Rejected)
+  -valid-> <+ Fork>
+<+ Fork>
+  -> Fraud Check -> <Approve>
+  -> Assign Adjuster -> [[Inspect Property]]
+[[Inspect Property]]
+  -retry-> Assign Adjuster
+  -> <Approve>
+<Approve>
+  -reject-> (!Denied)
+  -approve-> Issue Payment -> (Paid)

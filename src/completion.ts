@@ -462,6 +462,14 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   [
+    'swimlane',
+    withGlobals({
+      direction: { description: 'Layout direction', values: ['LR', 'TB'] },
+      lane: { description: 'Declare a lane (row) with an optional color' },
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
+  [
     'mindmap',
     withGlobals({
       'active-tag': { description: 'Active tag group name' },
@@ -715,6 +723,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['mindmap', ['tag']],
   ['treemap', ['tag']],
   ['boxes-and-lines', ['tag']],
+  ['swimlane', ['lane', 'tag']],
   ['er', ['tag']],
   ['cycle', ['direction-counterclockwise', 'circle-nodes']],
   ['journey-map', ['persona', 'tag']],

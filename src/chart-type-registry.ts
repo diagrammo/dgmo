@@ -59,6 +59,7 @@ import { parseGantt } from './gantt/parser';
 import { parsePert } from './pert/parser';
 import { parseMap } from './map/parser';
 import { parseBoxesAndLines } from './boxes-and-lines/parser';
+import { parseSwimlane } from './swimlane/parser';
 import { parseMindmap } from './mindmap/parser';
 import { parseWireframe } from './wireframe/parser';
 import { parseTechRadar } from './tech-radar/parser';
@@ -215,6 +216,11 @@ function measureInfra(content: string): ContentCounts {
   return { nodes: parsed.nodes.length };
 }
 
+function measureSwimlane(content: string): ContentCounts {
+  const parsed = parseSwimlane(content);
+  return { lanes: parsed.lanes.length, nodes: parsed.nodes.length };
+}
+
 // ============================================================
 // minDims() implementations — relocated verbatim from computeMinDimensions() in
 // utils/scaling.ts so the registry owns per-type minimum-dimension formulas
@@ -300,6 +306,14 @@ function minDimsInfra(c: ContentCounts): { width: number; height: number } {
     height: Math.max((c.nodes ?? 3) * 60, 200),
   };
 }
+// Lane diagrams run wide (flow along the long axis); keep a generous width and a
+// height that grows with lane count — don't fall back to the {300,200} default.
+function minDimsSwimlane(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max((c.nodes ?? 4) * 90, 480),
+    height: Math.max((c.lanes ?? 3) * 100 + 60, 240),
+  };
+}
 
 // ============================================================
 // THE REGISTRY — ordered to match the previous chartTypeParsers grouping
@@ -383,6 +397,13 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
     minDims: minDimsPert,
   },
   { id: 'boxes-and-lines', category: 'diagram', parse: parseBoxesAndLines },
+  {
+    id: 'swimlane',
+    category: 'diagram',
+    parse: parseSwimlane,
+    measure: measureSwimlane,
+    minDims: minDimsSwimlane,
+  },
   {
     id: 'mindmap',
     category: 'diagram',

@@ -73,7 +73,10 @@ function rng(s: number) {
   };
 }
 
-function median(vals: number[]): number {
+// Exported (median / acyclicOrient / longestPath) — also consumed by the
+// swimlane layout (src/swimlane/layout.ts), which reuses the same pure
+// rank+order primitives. No behavior change for boxes-and-lines.
+export function median(vals: number[]): number {
   if (vals.length === 0) return -1;
   vals.sort((x, y) => x - y);
   const m = Math.floor(vals.length / 2);
@@ -88,7 +91,7 @@ function median(vals: number[]): number {
 
 // Break cycles by DFS (mark edges that close a cycle) and return each edge in a
 // strict from→to (lower-rank → higher-rank) orientation plus the reversed set.
-function acyclicOrient(
+export function acyclicOrient(
   ids: readonly string[],
   edges: readonly { from: string; to: string; idx: number }[]
 ): { dag: { from: string; to: string; idx: number; rev: boolean }[] } {
@@ -138,7 +141,7 @@ function acyclicOrient(
 
 // Longest-path ranking over an acyclic edge set. Returns null if a cycle slips
 // through (caller bails). Ranks start at 0.
-function longestPath(
+export function longestPath(
   ids: readonly string[],
   dag: readonly { from: string; to: string }[]
 ): Map<string, number> | null {

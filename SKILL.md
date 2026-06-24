@@ -65,7 +65,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 - **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
 - **Pick a fitting direction.** Top-to-bottom for hierarchies and processes; left-to-right for pipelines and flows (where the type supports a direction).
 
-### Chart-type index (45) — pick the type, then fetch its section
+### Chart-type index (46) — pick the type, then fetch its section
 
 | id | when to use |
 | -- | ----------- |
@@ -83,6 +83,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `kanban` | task-board columns |
 | `gantt` | project scheduling with task dependencies and milestones |
 | `pert` | project network with three-point estimates and critical path |
+| `swimlane` | cross-functional process flow with lanes, phases and gateways (BPMN-style) |
 | `timeline` | events, eras, and date ranges |
 | `journey-map` | UX flow with emotion scores, phases, annotations |
 | `cycle` | cyclical process (PDCA, OODA, DevOps loops) |

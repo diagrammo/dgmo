@@ -161,6 +161,15 @@ B
 API -> Database
 API -> Cache`,
 
+  swimlane: `swimlane Review
+lane Author blue
+lane Editor green
+Author
+  Draft
+Editor
+  <Check>
+Draft -> <Check>`,
+
   mindmap: `mindmap Ideas
   Feature A
   Feature B`,

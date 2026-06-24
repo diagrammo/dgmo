@@ -103,6 +103,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   class: exportClass,
   er: exportEr,
   'boxes-and-lines': exportBoxesAndLines,
+  swimlane: exportSwimlane,
   mindmap: exportMindmap,
   wireframe: exportWireframe,
   c4: exportC4,
@@ -431,6 +432,42 @@ async function exportBoxesAndLines(ctx: ExportContext): Promise<string> {
         hiddenTagValues: blHiddenTagValues,
       }),
       exportMode,
+    }
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportSwimlane(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseSwimlane } = await import('./swimlane/parser');
+  const { layoutSwimlane } = await import('./swimlane/layout');
+  const { renderSwimlaneForExport } = await import('./swimlane/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const swimParsed = parseSwimlane(content, effectivePalette);
+  if (swimParsed.error || swimParsed.nodes.length === 0) return '';
+
+  const swimLayout = layoutSwimlane(swimParsed);
+  const PADDING = 20;
+  const titleOffset = swimParsed.title ? 40 : 0;
+  const exportWidth = swimLayout.width + PADDING * 2;
+  const exportHeight = swimLayout.height + PADDING * 2 + titleOffset;
+  const container = createExportContainer(exportWidth, exportHeight);
+
+  renderSwimlaneForExport(
+    container,
+    swimParsed,
+    swimLayout,
+    effectivePalette,
+    ctx.isDark,
+    {
+      exportDims: { width: exportWidth, height: exportHeight },
+      activeTagGroup: resolveActiveTagGroup(
+        swimParsed.tagGroups,
+        swimParsed.options['active-tag'],
+        ctxTagOverride(ctx)
+      ),
+      exportMode: ctx.exportMode,
     }
   );
   return finalizeSvgExport(container, theme, effectivePalette);

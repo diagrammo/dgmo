@@ -93,4 +93,5 @@ export interface ContentCounts {
   tasks?: number;
   roles?: number;
   blips?: number;
+  lanes?: number;
 }
