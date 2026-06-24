@@ -188,7 +188,9 @@ export function renderTreemap(
     if (w <= 0 || h <= 0) continue;
 
     const fill = colorOf(cell);
-    const drillable = cell.isContainer || cell.isCollapsed || cell.isOther;
+    // The synthetic Other bucket is a terminal aggregate — it is NOT in the
+    // navigable parsed tree, so it must not advertise a drill affordance.
+    const drillable = cell.isContainer || cell.isCollapsed;
 
     const g = root
       .append('g')

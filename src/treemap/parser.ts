@@ -63,6 +63,15 @@ export const TREEMAP_DIAGNOSTIC_CODES = {
 /** A bare numeric token: optional sign, digits with `_`/`,`/`.` separators. */
 const VALUE_TOKEN_RE = /^(.+?)\s+(-?\d[\d_,.]*)$/;
 
+/** True when `s` is wrapped in a matching pair of single or double quotes. */
+function isFullyQuoted(s: string): boolean {
+  return (
+    s.length >= 2 &&
+    ((s.startsWith('"') && s.endsWith('"')) ||
+      (s.startsWith("'") && s.endsWith("'")))
+  );
+}
+
 export function parseTreemap(
   content: string,
   palette?: PaletteColors
@@ -402,31 +411,32 @@ function parseNodeLine(
     delete metadata['heat'];
   }
 
-  // Value resolution: a quoted name preserves trailing digits (no value peel);
-  // otherwise peel a bare trailing number as the leaf size.
+  // Value resolution: a fully-quoted name preserves trailing digits (no value
+  // peel); otherwise peel a bare trailing number as the leaf size. A quoted
+  // label may itself carry a value (`"Region 5" 100`) — peel the value first,
+  // then strip the quotes from the remaining label.
   const rawName = split.name;
   let label: string;
   let value: number | undefined;
 
-  const isQuoted =
-    rawName.length >= 2 &&
-    ((rawName.startsWith('"') && rawName.endsWith('"')) ||
-      (rawName.startsWith("'") && rawName.endsWith("'")));
-
-  if (isQuoted) {
+  if (isFullyQuoted(rawName)) {
     label = stripQuotes(rawName);
   } else {
     const vm = rawName.match(VALUE_TOKEN_RE);
     if (vm) {
-      label = vm[1]!.trim();
+      const labelPart = vm[1]!.trim();
       const token = vm[2]!;
       if (token.includes(',')) {
-        pushWarning(lineNumber, dataCommaRemovedMessage(label));
+        pushWarning(lineNumber, dataCommaRemovedMessage(labelPart));
       }
       const cleaned = token.replace(/[_,]/g, '');
       const parsed = parseFloat(cleaned);
-      if (Number.isFinite(parsed)) value = parsed;
-      else label = rawName;
+      if (Number.isFinite(parsed)) {
+        value = parsed;
+        label = isFullyQuoted(labelPart) ? stripQuotes(labelPart) : labelPart;
+      } else {
+        label = rawName;
+      }
     } else {
       label = rawName;
     }

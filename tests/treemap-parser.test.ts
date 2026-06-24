@@ -90,6 +90,13 @@ describe('parseTreemap — value disambiguation (AC2b)', () => {
     expect(codes(r)).toContain('W_TREEMAP_LEAF_NO_VALUE');
   });
 
+  it('a quoted label can still carry a trailing value (quotes stripped)', () => {
+    const r = parseTreemap('treemap T\nA\n  "Region 5" 100');
+    const node = findNode(r.roots, 'Region 5')!;
+    expect(node).toBeDefined();
+    expect(node.value).toBe(100);
+  });
+
   it('a value-less leaf warns and renders zero area', () => {
     const r = parseTreemap('treemap T\nA\n  Lonely');
     expect(findNode(r.roots, 'Lonely')!.value).toBe(0);
