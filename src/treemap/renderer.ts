@@ -324,33 +324,36 @@ export function renderTreemap(
     // shape fills its space; the bigger the label, the more it's muted — a soft
     // watermark on large cells, crisp on small ones. Fit-to-width so the name
     // never has to truncate just because it scaled up.
-    if (!cell.isContainer && w >= 32 && h >= 22) {
-      let fs = clamp(Math.round(Math.min(w / 3.2, h / 3)), 12, 80);
-      const nameW = measureText(cell.label, fs);
-      if (nameW > w - 16)
-        fs = Math.max(12, Math.floor((fs * (w - 16)) / nameW));
-      const tg = clamp((fs - 12) / (80 - 12), 0, 1);
+    const PAD = 14;
+    if (!cell.isContainer && w >= 2 * PAD + 8 && h >= 2 * PAD + 8) {
+      const maxW = w - 2 * PAD;
+      let fs = clamp(Math.round(Math.min(w / 3.6, h / 3.4)), 12, 72);
+      // Safety factor: text-measure under-estimates bold glyph widths, so shrink
+      // a touch more to guarantee the PAD gap from the right edge.
+      const nameW = measureText(cell.label, fs) * 1.06;
+      if (nameW > maxW) fs = Math.max(12, Math.floor((fs * maxW) / nameW));
+      const tg = clamp((fs - 12) / (72 - 12), 0, 1);
       const nameOpacity = 0.95 - tg * 0.5; // 0.95 small → 0.45 large
-      const vfs = clamp(Math.round(fs * 0.42), 11, 30);
+      const vfs = clamp(Math.round(fs * 0.42), 11, 28);
       const valOpacity = Math.max(0.45, nameOpacity - 0.1);
 
-      let y = fs + 6;
+      let y = PAD + Math.round(fs * 0.78); // top PAD above the cap height
       g.append('text')
         .attr('class', 'dgmo-treemap-label')
-        .attr('x', 8)
+        .attr('x', PAD)
         .attr('y', y)
         .attr('font-size', fs)
         .attr('font-weight', 600)
         .attr('fill', ink)
         .attr('opacity', nameOpacity)
-        .text(clipLabel(cell.label, w - 14, fs));
+        .text(clipLabel(cell.label, maxW, fs));
 
       const valStr = opts.noValues ? '' : compactNumber(cell.value);
       const pctStr = opts.noPercent ? '' : formatPct(cell.pctOfRoot);
       const addLine = (text: string, size: number, opacity: number): void => {
         g.append('text')
           .attr('class', 'dgmo-treemap-value')
-          .attr('x', 8)
+          .attr('x', PAD)
           .attr('y', y)
           .attr('font-size', size)
           .attr('fill', ink)
@@ -359,31 +362,32 @@ export function renderTreemap(
       };
 
       // `value · %` notation, matching the header bars — on one line when it
-      // fits, stacked (value, then %) when the cell is too narrow.
+      // fits, stacked (value, then %) when too narrow. The bottom line clears
+      // PAD from the cell's bottom edge.
       if (valStr && pctStr) {
         const combined = `${valStr} · ${pctStr}`;
-        if (measureText(combined, vfs) <= w - 14) {
-          if (h > y + vfs + 6) {
+        if (measureText(combined, vfs) <= maxW) {
+          if (h - PAD > y + vfs + 6) {
             y += vfs + 6;
             addLine(combined, vfs, valOpacity);
           }
         } else {
-          if (h > y + vfs + 6) {
+          if (h - PAD > y + vfs + 6) {
             y += vfs + 6;
             addLine(valStr, vfs, valOpacity);
           }
-          if (h > y + vfs + 4) {
+          if (h - PAD > y + vfs + 4) {
             y += vfs + 4;
             addLine(pctStr, Math.max(10, Math.round(vfs * 0.9)), valOpacity);
           }
         }
       } else if (valStr) {
-        if (h > y + vfs + 6) {
+        if (h - PAD > y + vfs + 6) {
           y += vfs + 6;
           addLine(valStr, vfs, valOpacity);
         }
       } else if (pctStr) {
-        if (h > y + vfs + 6) {
+        if (h - PAD > y + vfs + 6) {
           y += vfs + 6;
           addLine(pctStr, vfs, valOpacity);
         }
