@@ -1,0 +1,18 @@
+treemap Q3 Budget
+
+tag Team as t
+  Eng blue
+  Sales green
+  Ops orange
+
+Engineering t: Eng
+  Platform 320
+  Mobile 180
+  Data 140
+Go-to-Market t: Sales
+  Ads 90
+  Field Sales 130
+  Events 40
+Operations t: Ops
+  Cloud 110
+  Support 70
