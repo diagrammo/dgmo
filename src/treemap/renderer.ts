@@ -131,6 +131,14 @@ export function renderTreemap(
     .attr('class', 'dgmo-treemap')
     .style('font-family', FONT_FAMILY);
 
+  // Drill icon: faint by default, a touch clearer when its cell is hovered.
+  svg
+    .append('style')
+    .text(
+      '.dgmo-treemap-focus{opacity:.3;transition:opacity .12s}' +
+        '.dgmo-treemap-cell:hover .dgmo-treemap-focus{opacity:.7}'
+    );
+
   svg
     .append('rect')
     .attr('width', width)
@@ -539,33 +547,34 @@ function drawFocusIcon(
   w: number,
   ink: string
 ): void {
-  const iconSize = 20;
+  // Small, subtle scope/target ring that sits inside the ~18px header band.
+  // Opacity is driven by the SVG <style> (faint by default, clearer on cell
+  // hover). A generous transparent rect keeps it easy to click.
+  const r = 4.5;
+  const cx = w - r - 5;
+  const cy = 9;
   const fi = g
     .append('g')
     .attr('class', 'dgmo-treemap-focus')
-    .attr('transform', `translate(${w - iconSize + 1},5)`)
     .attr('data-export-ignore', 'true');
-  // Transparent hit rect.
   fi.append('rect')
-    .attr('x', -3)
-    .attr('y', -3)
-    .attr('width', iconSize)
-    .attr('height', iconSize)
+    .attr('x', cx - 9)
+    .attr('y', cy - 9)
+    .attr('width', 18)
+    .attr('height', 18)
     .attr('fill', 'transparent');
   fi.append('circle')
-    .attr('cx', 7)
-    .attr('cy', 7)
-    .attr('r', iconSize / 2 - 1)
+    .attr('cx', cx)
+    .attr('cy', cy)
+    .attr('r', r)
     .attr('fill', 'none')
     .attr('stroke', ink)
-    .attr('stroke-width', 1.5)
-    .attr('opacity', 0.55);
+    .attr('stroke-width', 1.25);
   fi.append('circle')
-    .attr('cx', 7)
-    .attr('cy', 7)
-    .attr('r', 2)
-    .attr('fill', ink)
-    .attr('opacity', 0.55);
+    .attr('cx', cx)
+    .attr('cy', cy)
+    .attr('r', 1.4)
+    .attr('fill', ink);
 }
 
 function clamp(x: number, lo: number, hi: number): number {
