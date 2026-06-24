@@ -274,8 +274,19 @@ export function renderTreemap(
       palette.textOnFillDark
     );
 
-    // Header bar label on real containers.
+    // Header bar: group name (left) + its aggregate value/% (right) so a
+    // container's share is readable without drilling. The value is suppressed on
+    // narrow headers and by no-values / no-percent.
     if (cell.isContainer && headerH > 0 && w > 34 && h > headerH) {
+      const valParts: string[] = [];
+      if (!opts.noValues) valParts.push(compactNumber(cell.value));
+      if (!opts.noPercent) valParts.push(formatPct(cell.pctOfRoot));
+      const valStr = valParts.join(' · ');
+      const ICON_RESERVE = 16; // keep clear of the focus icon at far right
+      const showVal = valStr.length > 0 && w > 110;
+      const valW = showVal ? measureText(valStr, 10.5) : 0;
+      const labelMax = w - 8 - ICON_RESERVE - (showVal ? valW + 10 : 0);
+
       g.append('text')
         .attr('class', 'dgmo-treemap-header')
         .attr('x', 5)
@@ -283,7 +294,18 @@ export function renderTreemap(
         .attr('font-size', 11)
         .attr('font-weight', 700)
         .attr('fill', palette.text)
-        .text(clipLabel(cell.label, w - 8, 11));
+        .text(clipLabel(cell.label, Math.max(0, labelMax), 11));
+
+      if (showVal) {
+        g.append('text')
+          .attr('class', 'dgmo-treemap-header-value')
+          .attr('x', w - ICON_RESERVE - 4)
+          .attr('y', 13)
+          .attr('text-anchor', 'end')
+          .attr('font-size', 10.5)
+          .attr('fill', palette.textMuted)
+          .text(valStr);
+      }
     }
 
     // Leaf / collapsed-block labels — proportional.
