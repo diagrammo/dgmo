@@ -26,8 +26,6 @@ export interface TreemapNode {
   readonly metadata: Record<string, string>;
   readonly children: TreemapNode[];
   readonly lineNumber: number;
-  /** True for the synthetic `Other` rollup bucket created by `other-below`. */
-  readonly isOther?: boolean;
 }
 
 export interface TreemapOptions {
@@ -37,8 +35,6 @@ export interface TreemapOptions {
   readonly heatColors: string[];
   /** `depth N` — render budget (interactive only); undefined = unlimited. */
   maxDepth?: number;
-  /** `other-below N` — roll children below N% of their parent into `Other`. */
-  otherBelow?: number;
   noValues: boolean;
   noPercent: boolean;
   noHeaders: boolean;

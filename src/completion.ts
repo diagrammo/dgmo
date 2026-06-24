@@ -533,10 +533,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Render N levels; deeper subtrees collapse to a drillable block',
       },
-      'other-below': {
-        description:
-          'Roll children below N% of their parent into an Other bucket',
-      },
       'no-values': { description: 'Hide value labels' },
       'no-percent': { description: 'Hide percentage labels' },
       'no-headers': { description: 'Hide parent header bars' },
@@ -1872,7 +1868,7 @@ function extractTreemapSymbols(docText: string): DiagramSymbols {
 
     // Directives and tag blocks are not node entities.
     if (
-      /^(depth|other-below|heat|no-[a-z]+)\s/i.test(trimmed) ||
+      /^(depth|heat|no-[a-z]+)\s/i.test(trimmed) ||
       /^no-[a-z]+$/i.test(trimmed)
     )
       continue;

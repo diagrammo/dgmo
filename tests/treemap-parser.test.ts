@@ -155,20 +155,21 @@ describe('parseTreemap — heat (AC4/5)', () => {
 });
 
 describe('parseTreemap — directives & defaults (AC9)', () => {
-  it('parses depth, other-below and no-* opt-outs', () => {
+  it('parses depth and no-* opt-outs', () => {
     const r = parseTreemap(
-      'treemap T\ndepth 2\nother-below 3\nno-percent\nno-legend\n\nA\n  X 1'
+      'treemap T\ndepth 2\nno-percent\nno-legend\n\nA\n  X 1'
     );
     expect(r.options.maxDepth).toBe(2);
-    expect(r.options.otherBelow).toBe(3);
     expect(r.options.noPercent).toBe(true);
     expect(r.options.noLegend).toBe(true);
     expect(r.options.noValues).toBe(false);
   });
 
-  it('other-below accepts a trailing percent sign', () => {
-    const r = parseTreemap('treemap T\nother-below 3%\n\nA\n  X 1');
-    expect(r.options.otherBelow).toBe(3);
+  it('warns and ignores the removed "other-below" directive', () => {
+    const r = parseTreemap('treemap T\nother-below 3\n\nA\n  X 1');
+    // No junk node was created from the directive line.
+    expect(r.roots.map((n) => n.label)).toEqual(['A']);
+    expect(r.diagnostics.some((d) => /other-below/.test(d.message))).toBe(true);
   });
 
   it('defaults to branch color mode with no tags or heat', () => {
@@ -177,7 +178,7 @@ describe('parseTreemap — directives & defaults (AC9)', () => {
   });
 });
 
-describe('layoutTreemap — geometry, other-below & depth (AC2c/8)', () => {
+describe('layoutTreemap — geometry & depth (AC2c)', () => {
   it('produces proportional areas that sum to the rectangle', () => {
     const r = parseTreemap('treemap T\nA\n  X 300\n  Y 100');
     const { cells, total } = layoutTreemap(r.roots, {
@@ -194,7 +195,7 @@ describe('layoutTreemap — geometry, other-below & depth (AC2c/8)', () => {
     expect(areaX / areaY).toBeGreaterThan(2.3);
   });
 
-  it('rolls small children into a hatched Other bucket (AC8)', () => {
+  it('renders every small child as its own cell (no rollup)', () => {
     const r = parseTreemap(
       'treemap T\nGames\n  Puzzle 4200\n  Strategy 3100\n  Trivia 90\n  Word 60'
     );
@@ -202,23 +203,11 @@ describe('layoutTreemap — geometry, other-below & depth (AC2c/8)', () => {
       width: 600,
       height: 400,
       headerH: 18,
-      otherBelow: 3,
     });
-    const other = cells.find((c) => c.isOther);
-    expect(other).toBeDefined();
-    // Other value = sum of the two rolled children (90 + 60).
-    expect(other!.value).toBe(150);
-  });
-
-  it('only rolls when ≥2 children qualify', () => {
-    const r = parseTreemap('treemap T\nG\n  Big 1000\n  Tiny 5');
-    const { cells } = layoutTreemap(r.roots, {
-      width: 600,
-      height: 400,
-      headerH: 18,
-      otherBelow: 3,
-    });
-    expect(cells.some((c) => c.isOther)).toBe(false);
+    const labels = cells.map((c) => c.label);
+    expect(labels).toContain('Trivia');
+    expect(labels).toContain('Word');
+    expect(labels).not.toContain('Other');
   });
 
   it('depth cap collapses deeper branches into solid blocks (AC7)', () => {

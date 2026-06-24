@@ -7,7 +7,7 @@
 //   - node SIZE is the bare trailing number on a leaf (§1.5 funnel/sankey idiom);
 //     parents auto-sum, so a trailing number on a branch is ignored with a warn.
 //   - `heat:` per-node metric + `heat <Label> [low] [high]` ramp directive.
-//   - `depth N`, `other-below N`, `no-values|no-percent|no-headers|no-legend`.
+//   - `depth N`, `no-values|no-percent|no-headers|no-legend`.
 
 import type { PaletteColors } from '../palettes';
 import {
@@ -317,15 +317,14 @@ function handleDirective(
     return true;
   }
 
-  const otherMatch = trimmed.match(/^other-below\s+(-?\d+(?:\.\d+)?)%?\s*$/i);
-  if (otherMatch) {
-    const n = parseFloat(otherMatch[1]!);
-    if (n > 0 && n < 100) options.otherBelow = n;
-    else
-      pushWarning(
-        lineNumber,
-        '"other-below" must be a percent in (0, 100) — ignored'
-      );
+  // `other-below` (small-leaf rollup into an "Other" bucket) was removed.
+  // Still recognise the line so it doesn't fall through to node parsing (which
+  // would render a junk "other-below" cell), but ignore it with a hint.
+  if (/^other-below\b/i.test(trimmed)) {
+    pushWarning(
+      lineNumber,
+      '"other-below" is no longer supported — remove this line'
+    );
     return true;
   }
 

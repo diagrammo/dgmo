@@ -18,20 +18,19 @@ import type { TreemapNode } from './types';
 
 /** Internal datum fed to d3-hierarchy (carries the original node ref). */
 interface LayoutDatum {
-  /** Original parsed node; undefined for the synthetic root + Other buckets. */
+  /** Original parsed node; undefined for the synthetic root. */
   ref?: TreemapNode;
   label: string;
   /** Leaf size (only meaningful on leaves). */
   value?: number;
   heat?: number;
   children?: LayoutDatum[];
-  isOther: boolean;
   /** Source line for click-to-source wiring (when available). */
   lineNumber?: number;
 }
 
 export interface TreemapCell {
-  /** Original parsed node, or null for the synthetic Other bucket. */
+  /** Original parsed node, or null for the synthetic root. */
   readonly node: TreemapNode | null;
   readonly label: string;
   readonly x0: number;
@@ -48,7 +47,6 @@ export interface TreemapCell {
   readonly isCollapsed: boolean;
   /** Index of the top-level ancestor (drives branch-mode hue). */
   readonly topIndex: number;
-  readonly isOther: boolean;
   readonly pctOfRoot: number;
   readonly pctOfParent: number;
   /** Own heat, else the mean of descendant leaf heats; undefined if none. */
@@ -72,8 +70,6 @@ export interface TreemapLayoutOptions {
   readonly paddingOuter?: number;
   /** Render budget; nodes at this depth collapse to solid blocks. */
   readonly maxDepth?: number;
-  /** Roll children below this percent of their parent into an `Other` bucket. */
-  readonly otherBelow?: number;
 }
 
 /** Summed value of a parsed node (leaf value or sum of descendants). */
@@ -84,57 +80,25 @@ export function sumValue(node: TreemapNode): number {
   return s;
 }
 
-/** Convert a parsed node into a layout datum, applying `other-below` rollup. */
-function toDatum(node: TreemapNode, otherBelow?: number): LayoutDatum {
+/** Convert a parsed node into a layout datum. */
+function toDatum(node: TreemapNode): LayoutDatum {
   if (node.children.length === 0) {
     return {
       ref: node,
       label: node.label,
       value: node.value ?? 0,
       ...(node.heat !== undefined && { heat: node.heat }),
-      isOther: false,
       lineNumber: node.lineNumber,
     };
-  }
-
-  let kids = node.children.map((c) => toDatum(c, otherBelow));
-
-  if (otherBelow !== undefined) {
-    const total = kids.reduce((a, k) => a + datumSum(k), 0);
-    if (total > 0) {
-      const small: LayoutDatum[] = [];
-      const keep: LayoutDatum[] = [];
-      for (const k of kids) {
-        const pct = (datumSum(k) / total) * 100;
-        (pct < otherBelow ? small : keep).push(k);
-      }
-      // Only roll when ≥2 children qualify (a lone small child stays visible).
-      if (small.length >= 2) {
-        keep.push({
-          label: 'Other',
-          isOther: true,
-          children: small,
-        });
-        kids = keep;
-      }
-    }
   }
 
   return {
     ref: node,
     label: node.label,
     ...(node.heat !== undefined && { heat: node.heat }),
-    isOther: false,
     lineNumber: node.lineNumber,
-    children: kids,
+    children: node.children.map((c) => toDatum(c)),
   };
-}
-
-function datumSum(d: LayoutDatum): number {
-  if (!d.children || d.children.length === 0) return d.value ?? 0;
-  let s = 0;
-  for (const c of d.children) s += datumSum(c);
-  return s;
 }
 
 /** Mean heat across the leaves under a datum (own heat if it is a leaf). */
@@ -157,8 +121,7 @@ export function layoutTreemap(
   const maxDepth = opts.maxDepth ?? Infinity;
   const rootDatum: LayoutDatum = {
     label: '__root',
-    isOther: false,
-    children: roots.map((r) => toDatum(r, opts.otherBelow)),
+    children: roots.map((r) => toDatum(r)),
   };
 
   const h = hierarchy<LayoutDatum>(rootDatum)
@@ -211,7 +174,6 @@ export function layoutTreemap(
       isContainer,
       isCollapsed,
       topIndex: (d as { _topIndex?: number })._topIndex ?? 0,
-      isOther: d.data.isOther,
       pctOfRoot: total > 0 ? (d.value ?? 0) / total : 0,
       pctOfParent:
         d.parent && (d.parent.value ?? 0) > 0

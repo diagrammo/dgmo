@@ -46,6 +46,10 @@ export interface TreemapRenderOptions {
   colorMode?: TreemapColorMode;
   /** Render budget (interactive only). Export omits it → full tree. */
   maxDepth?: number;
+  /** Shift the branch-hue index so a drilled-into view keeps the color it had
+   *  when expanded (the re-rooted node would otherwise become index 0 = the
+   *  first hue). Set to the drilled branch's original top-level index. */
+  colorOffset?: number;
   /** Click handler for drillable cells (app interactivity). */
   onClickItem?: (lineNumber: number) => void;
   /** Color-mode switch fired when a legend pill is clicked (app interactivity).
@@ -95,7 +99,7 @@ export function renderTreemap(
 
   const heat = buildHeatScale(parsed, palette);
   const legend = !opts.noLegend
-    ? buildLegend(mode, parsed, heat, seriesColorsTop)
+    ? buildLegend(mode, parsed, heat, seriesColorsTop, options.colorOffset ?? 0)
     : null;
 
   // Reserve a band below the title for the standardized legend, exactly like
@@ -118,7 +122,6 @@ export function renderTreemap(
     height: areaH,
     headerH,
     ...(options.maxDepth !== undefined && { maxDepth: options.maxDepth }),
-    ...(opts.otherBelow !== undefined && { otherBelow: opts.otherBelow }),
   });
 
   // ── SVG root ───────────────────────────────────────────────
@@ -147,26 +150,6 @@ export function renderTreemap(
     .attr('height', height)
     .attr('fill', palette.bg);
 
-  // Hatch pattern for the aggregated Other bucket.
-  const hatchId = 'dgmo-treemap-hatch';
-  const hatch = svg
-    .append('defs')
-    .append('pattern')
-    .attr('id', hatchId)
-    .attr('width', 7)
-    .attr('height', 7)
-    .attr('patternUnits', 'userSpaceOnUse')
-    .attr('patternTransform', 'rotate(45)');
-  hatch
-    .append('line')
-    .attr('x1', 0)
-    .attr('y1', 0)
-    .attr('x2', 0)
-    .attr('y2', 7)
-    .attr('stroke', palette.text)
-    .attr('stroke-width', 1.5)
-    .attr('opacity', 0.22);
-
   if (showTitle) {
     const title = svg
       .append('text')
@@ -190,12 +173,14 @@ export function renderTreemap(
     .attr('transform', `translate(${areaX},${areaY})`);
 
   const seriesColors = seriesColorsTop;
+  const colorOffset = options.colorOffset ?? 0;
   const activeGroup =
     parsed.tagGroups.length > 0 ? parsed.tagGroups[0]!.name : null;
 
   // Branch hue is keyed off the top-level branch's SOURCE order (not d3's
   // value-sorted order) so the cell colors match the legend, which lists roots
-  // in source order.
+  // in source order. `colorOffset` shifts the index so a drilled-into branch
+  // keeps the hue it had at the top level.
   const rootIndexByLabel = new Map(parsed.roots.map((r, i) => [r.label, i]));
 
   const colorOf = (cell: TreemapCell): string => {
@@ -205,7 +190,7 @@ export function renderTreemap(
         : MUTED_FILL;
     }
     if (mode === 'tag') {
-      if (cell.isOther || !cell.node) return MUTED_FILL;
+      if (!cell.node) return MUTED_FILL;
       return (
         resolveTagColor(cell.node.metadata, parsed.tagGroups, activeGroup) ??
         MUTED_FILL
@@ -214,9 +199,8 @@ export function renderTreemap(
     // branch: top-level hue, lightened slightly with depth. `mix` takes a
     // PERCENTAGE of the first color to keep (0–100), so deeper cells retain less
     // hue. Floor at 55% so leaves stay clearly saturated, not washed out.
-    if (cell.isOther) return MUTED_FILL;
     const topLabel = cell.path[0] ?? cell.label;
-    const idx = rootIndexByLabel.get(topLabel) ?? cell.topIndex;
+    const idx = (rootIndexByLabel.get(topLabel) ?? cell.topIndex) + colorOffset;
     const hue = seriesColors[idx % seriesColors.length]!;
     if (cell.depth <= 1) return hue;
     const keepPct = Math.max(55, 100 - (cell.depth - 1) * 18);
@@ -233,13 +217,9 @@ export function renderTreemap(
     // leaf cells are muted (mixed toward the background). Both are opaque so the
     // pure container behind a leaf doesn't bleed through.
     const baseColor = colorOf(cell);
-    const fill = cell.isOther
-      ? MUTED_FILL
-      : cell.isContainer
-        ? baseColor
-        : mix(baseColor, palette.bg, LEAF_MUTE_PCT);
-    // The synthetic Other bucket is a terminal aggregate — it is NOT in the
-    // navigable parsed tree, so it must not advertise a drill affordance.
+    const fill = cell.isContainer
+      ? baseColor
+      : mix(baseColor, palette.bg, LEAF_MUTE_PCT);
     const drillable = cell.isContainer || cell.isCollapsed;
 
     const g = root
@@ -293,7 +273,9 @@ export function renderTreemap(
       if (!opts.noValues) valParts.push(compactNumber(cell.value));
       if (!opts.noPercent) valParts.push(formatPct(cell.pctOfRoot));
       const valStr = valParts.join(' · ');
-      const ICON_RESERVE = 16;
+      // Only reserve space for the focus icon when one is actually drawn (a
+      // non-drillable container's header value sits flush right).
+      const ICON_RESERVE = drillable ? 16 : 4;
       const showVal = valStr.length > 0 && w > 110;
       const valW = showVal ? measureText(valStr, 10.5) : 0;
       const labelMax = w - 8 - ICON_RESERVE - (showVal ? valW + 10 : 0);
@@ -324,15 +306,20 @@ export function renderTreemap(
     // shape fills its space; the bigger the label, the more it's muted — a soft
     // watermark on large cells, crisp on small ones. Fit-to-width so the name
     // never has to truncate just because it scaled up.
-    const PAD = 14;
+    // Pad scales down on small cells so a tight label (e.g. a rolled-up
+    // "Trivia" leaf) still fits instead of truncating; big cells keep the roomy
+    // 14px gutter. MIN_FS lets the name shrink well below the comfortable 12px
+    // floor on cramped cells — readability yields to showing the whole word.
+    const PAD = Math.max(4, Math.min(14, Math.floor(Math.min(w, h) / 5)));
+    const MIN_FS = 7;
     if (!cell.isContainer && w >= 2 * PAD + 8 && h >= 2 * PAD + 8) {
       const maxW = w - 2 * PAD;
-      let fs = clamp(Math.round(Math.min(w / 3.6, h / 3.4)), 12, 72);
+      let fs = clamp(Math.round(Math.min(w / 3.6, h / 3.4)), MIN_FS, 72);
       // Safety factor: text-measure under-estimates bold glyph widths, so shrink
       // a touch more to guarantee the PAD gap from the right edge.
       const nameW = measureText(cell.label, fs) * 1.06;
-      if (nameW > maxW) fs = Math.max(12, Math.floor((fs * maxW) / nameW));
-      const tg = clamp((fs - 12) / (72 - 12), 0, 1);
+      if (nameW > maxW) fs = Math.max(MIN_FS, Math.floor((fs * maxW) / nameW));
+      const tg = clamp((fs - MIN_FS) / (72 - MIN_FS), 0, 1);
       const nameOpacity = 0.95 - tg * 0.5; // 0.95 small → 0.45 large
       const vfs = clamp(Math.round(fs * 0.42), 11, 28);
       const valOpacity = Math.max(0.45, nameOpacity - 0.1);
@@ -413,16 +400,6 @@ export function renderTreemap(
       }
     }
 
-    // Hatch overlay on the Other bucket.
-    if (cell.isOther) {
-      g.append('rect')
-        .attr('width', w)
-        .attr('height', h)
-        .attr('rx', 2)
-        .attr('fill', `url(#${hatchId})`)
-        .attr('pointer-events', 'none');
-    }
-
     // Scope/target focus icon on drillable cells (interactive-only).
     if (drillable && w > 30 && h > 22) {
       drawFocusIcon(g, w, ink, 9);
@@ -486,7 +463,8 @@ function buildLegend(
   activeMode: TreemapColorMode,
   parsed: ParsedTreemap,
   heat: HeatScale | null,
-  seriesColors: string[]
+  seriesColors: string[],
+  colorOffset: number
 ): TreemapLegend {
   const groups: LegendGroupData[] = [];
   const modeByName = new Map<string, TreemapColorMode>();
@@ -536,7 +514,7 @@ function buildLegend(
     name: 'Branch',
     entries: parsed.roots.map((r, i) => ({
       value: r.label,
-      color: seriesColors[i % seriesColors.length]!,
+      color: seriesColors[(i + colorOffset) % seriesColors.length]!,
     })),
   });
   modeByName.set('Branch', 'branch');
