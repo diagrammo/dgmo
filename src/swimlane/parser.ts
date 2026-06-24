@@ -155,14 +155,16 @@ function parseNodeToken(raw: string): NodeTokenResult {
 }
 
 /**
- * Arrow token: a plain `->`, or a labeled `-label->` whose leading `-` sits at
- * a token boundary (start-of-line or after whitespace) and whose label carries
- * no spaces. The boundary requirement keeps a hyphen *inside* a node name
- * (`Read-Write -> Done`) from being mistaken for the start of a label — only the
- * whitespace-flanked operator splits the chain. The labeled alternative is tried
- * first so `-changes->` wins over the bare `->` inside it.
+ * Arrow token: a plain `->`, or a labeled `-label->` whose leading `-` sits at a
+ * token boundary (start-of-line or after whitespace). The boundary requirement
+ * keeps a hyphen *inside* a node name (`Read-Write -> Done`) from being mistaken
+ * for the start of a label — only a boundary-flanked `-…->` splits as a labeled
+ * arrow, so a bare ` -> ` (no label chars before the `->`) falls through to the
+ * plain alternative. The label itself may contain spaces (`-no ack->`); it just
+ * can't contain `>`. The labeled alternative is tried first so `-changes->` wins
+ * over the bare `->` nested inside it.
  */
-const ARROW_RE = /(?:^|\s)-([^\s>-][^\s>]*)->|->/g;
+const ARROW_RE = /(?:^|\s)-([^>]+?)->|->/g;
 
 interface ChainPart {
   text: string;

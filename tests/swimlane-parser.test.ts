@@ -170,6 +170,17 @@ Ops
     expect(p.nodes.find((n) => n.id === 'Done')!.lane).toBe('Ops');
   });
 
+  it('reads a multi-word in-arrow label (spaces allowed inside the label)', () => {
+    const p = parseSwimlane(`swimlane T
+lane L gray
+L
+  <G>
+  Stop
+<G> -no ack-> Stop`);
+    const e = p.edges.find((x) => x.source === 'G' && x.target === 'Stop')!;
+    expect(e.label).toBe('no ack');
+  });
+
   it('makes a node with a trailing color token referenceable in the flow', () => {
     const p = parseSwimlane(`swimlane T
 lane L gray
