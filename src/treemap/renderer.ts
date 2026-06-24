@@ -381,8 +381,11 @@ export function renderTreemap(
           // smaller, on the same line (if it fits the width).
           const ivfs = clamp(Math.round(fs * 0.5), 11, Math.max(11, vfs));
           const rendered = clipLabel(cell.label, maxW, fs);
-          const nW = measureText(rendered, fs);
-          const gap = Math.max(8, Math.round(fs * 0.18));
+          // Safety factor: text-measure under-estimates bold glyph width, so pad
+          // it to the worst case (and add a real gap) or the value collides with
+          // the name's end (e.g. "Hardtack70").
+          const nW = measureText(rendered, fs) * 1.12;
+          const gap = Math.max(12, Math.round(fs * 0.25));
           if (PAD + nW + gap + measureText(combined, ivfs) <= w - PAD) {
             g.append('text')
               .attr('class', 'dgmo-treemap-value')
