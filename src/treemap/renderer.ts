@@ -26,7 +26,7 @@ import {
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedTreemap, TreemapColorMode, TreemapNode } from './types';
-import { headerBandHeight, layoutTreemap, type TreemapCell } from './layout';
+import { layoutTreemap, type TreemapCell } from './layout';
 
 const PADDING = 12;
 const HEADER_H = 18;
@@ -286,70 +286,71 @@ export function renderTreemap(
       palette.textOnFillDark
     );
 
-    // Header bar: group name (left) + its aggregate value/% (right). The font
-    // scales with the section's size (bigger section → bigger header), and the
-    // bigger the font the more it's muted (a watermark-ish feel).
-    const bandH = headerBandHeight(w, h, headerH);
-    if (cell.isContainer && headerH > 0 && w > 34 && h > bandH) {
-      const hfs = clamp(Math.round(bandH * 0.5), 10, 24);
-      const baseY = Math.round(bandH * 0.68);
-      // Larger font → lower opacity (more muted).
-      const t = (hfs - 10) / 14;
-      const labelOpacity = 0.95 - t * 0.45;
-      const valFs = clamp(Math.round(bandH * 0.34), 9, 13);
-
+    // Header bar: group name (left) + its aggregate value/% (right) so a
+    // container's share is readable without drilling.
+    if (cell.isContainer && headerH > 0 && w > 34 && h > headerH) {
       const valParts: string[] = [];
       if (!opts.noValues) valParts.push(compactNumber(cell.value));
       if (!opts.noPercent) valParts.push(formatPct(cell.pctOfRoot));
       const valStr = valParts.join(' · ');
-      const iconReserve = bandH; // keep clear of the focus icon at far right
+      const ICON_RESERVE = 16;
       const showVal = valStr.length > 0 && w > 110;
-      const valW = showVal ? measureText(valStr, valFs) : 0;
-      const labelMax = w - 8 - iconReserve - (showVal ? valW + 10 : 0);
+      const valW = showVal ? measureText(valStr, 10.5) : 0;
+      const labelMax = w - 8 - ICON_RESERVE - (showVal ? valW + 10 : 0);
 
       g.append('text')
         .attr('class', 'dgmo-treemap-header')
         .attr('x', 6)
-        .attr('y', baseY)
-        .attr('font-size', hfs)
+        .attr('y', 13)
+        .attr('font-size', 11)
         .attr('font-weight', 700)
         .attr('fill', ink)
-        .attr('opacity', labelOpacity)
-        .text(clipLabel(cell.label, Math.max(0, labelMax), hfs));
+        .text(clipLabel(cell.label, Math.max(0, labelMax), 11));
 
       if (showVal) {
         g.append('text')
           .attr('class', 'dgmo-treemap-header-value')
-          .attr('x', w - iconReserve - 2)
-          .attr('y', baseY)
+          .attr('x', w - ICON_RESERVE - 4)
+          .attr('y', 13)
           .attr('text-anchor', 'end')
-          .attr('font-size', valFs)
+          .attr('font-size', 10.5)
           .attr('fill', ink)
-          .attr('opacity', 0.7)
+          .attr('opacity', 0.75)
           .text(valStr);
       }
     }
 
-    // Leaf / collapsed-block labels — proportional.
+    // Leaf / collapsed-block labels. The name scales with the cell so a big
+    // shape fills its space; the bigger the label, the more it's muted — a soft
+    // watermark on large cells, crisp on small ones. Fit-to-width so the name
+    // never has to truncate just because it scaled up.
     if (!cell.isContainer && w >= 32 && h >= 22) {
-      const fs = clamp(Math.floor(Math.min(w / 5.5, h / 2.8)), 11, 26);
-      let y = fs + 4;
+      let fs = clamp(Math.round(Math.min(w / 3.2, h / 3)), 12, 80);
+      const nameW = measureText(cell.label, fs);
+      if (nameW > w - 16)
+        fs = Math.max(12, Math.floor((fs * (w - 16)) / nameW));
+      const tg = clamp((fs - 12) / (80 - 12), 0, 1);
+      const nameOpacity = 0.95 - tg * 0.5; // 0.95 small → 0.45 large
+      const vfs = clamp(Math.round(fs * 0.42), 11, 30);
+      const valOpacity = Math.max(0.45, nameOpacity - 0.1);
+
+      let y = fs + 6;
       g.append('text')
         .attr('class', 'dgmo-treemap-label')
-        .attr('x', 6)
+        .attr('x', 8)
         .attr('y', y)
         .attr('font-size', fs)
         .attr('font-weight', 600)
         .attr('fill', ink)
-        .text(clipLabel(cell.label, w - 12, fs));
+        .attr('opacity', nameOpacity)
+        .text(clipLabel(cell.label, w - 14, fs));
 
-      const vfs = Math.max(10, Math.round(fs * 0.72));
       const valStr = opts.noValues ? '' : compactNumber(cell.value);
       const pctStr = opts.noPercent ? '' : formatPct(cell.pctOfRoot);
       const addLine = (text: string, size: number, opacity: number): void => {
         g.append('text')
           .attr('class', 'dgmo-treemap-value')
-          .attr('x', 6)
+          .attr('x', 8)
           .attr('y', y)
           .attr('font-size', size)
           .attr('fill', ink)
@@ -361,30 +362,30 @@ export function renderTreemap(
       // fits, stacked (value, then %) when the cell is too narrow.
       if (valStr && pctStr) {
         const combined = `${valStr} · ${pctStr}`;
-        if (measureText(combined, vfs) <= w - 12) {
+        if (measureText(combined, vfs) <= w - 14) {
           if (h > y + vfs + 6) {
             y += vfs + 6;
-            addLine(combined, vfs, 0.92);
+            addLine(combined, vfs, valOpacity);
           }
         } else {
           if (h > y + vfs + 6) {
             y += vfs + 6;
-            addLine(valStr, vfs, 0.92);
+            addLine(valStr, vfs, valOpacity);
           }
-          if (h > y + 15) {
-            y += 15;
-            addLine(pctStr, Math.max(9, vfs - 1), 0.7);
+          if (h > y + vfs + 4) {
+            y += vfs + 4;
+            addLine(pctStr, Math.max(10, Math.round(vfs * 0.9)), valOpacity);
           }
         }
       } else if (valStr) {
         if (h > y + vfs + 6) {
           y += vfs + 6;
-          addLine(valStr, vfs, 0.92);
+          addLine(valStr, vfs, valOpacity);
         }
       } else if (pctStr) {
         if (h > y + vfs + 6) {
           y += vfs + 6;
-          addLine(pctStr, vfs, 0.7);
+          addLine(pctStr, vfs, valOpacity);
         }
       }
     }
@@ -399,10 +400,9 @@ export function renderTreemap(
         .attr('pointer-events', 'none');
     }
 
-    // Scope/target focus icon on drillable cells (interactive-only). Centered in
-    // the (variable) header band for containers, near the top for solid blocks.
+    // Scope/target focus icon on drillable cells (interactive-only).
     if (drillable && w > 30 && h > 22) {
-      drawFocusIcon(g, w, ink, cell.isContainer ? bandH / 2 : 9);
+      drawFocusIcon(g, w, ink, 9);
     }
   }
 
