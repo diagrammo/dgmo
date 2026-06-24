@@ -213,6 +213,8 @@ export const ATTRIBUTE_KEYS = new Set([
   'value',
   'label',
   'style',
+  // Treemap color-by-value metric key
+  'heat',
   // Infra node behavior + edge colon-keys (§4) come from the single-source
   // directives registry — the parser accepts them only as `key: value` node
   // properties, so they render as `propertyName`. The dual-use top-level SLO

@@ -93,6 +93,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `quadrant` | 2×2 positioning matrix |
 | `pyramid` | stacked hierarchy of layers (Maslow, DIKW) |
 | `ring` | concentric rings of nested categories |
+| `treemap` | nested rectangles sized by value (budgets, disk usage, portfolios) |
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
 | `bar` | categorical comparisons |

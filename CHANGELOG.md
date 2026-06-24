@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-06-24
+
+### Added
+
+- **Treemap chart type** — nested rectangles sized by value for hierarchies (budgets, disk usage, portfolios). Color by category (`tag`), by a value heatmap (`heat:` + a data-aware diverging/sequential ramp), or by branch; the desktop app adds a live tag/heat/branch switcher, drill-to-zoom that keeps the containing box for context, and a legend gradient-scrub hover. `depth N` and `no-*` opt-outs supported.
+
+### Changed
+
+- **Treemap drops `other-below`** — the small-leaf rollup into an "Other" bucket was removed; small children now render as their own cells (with a lower label-font floor so tight labels still fit). The directive is recognized but ignored with a warning so older sources don't break.
+
 ## [0.37.0] - 2026-06-23
 
 ### Changed

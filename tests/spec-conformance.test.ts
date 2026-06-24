@@ -21,6 +21,7 @@ import {
   parseSitemap,
   parseGantt,
   parseBoxesAndLines,
+  parseTreemap,
 } from '../src/advanced';
 import { getPalette } from '../src/palettes';
 
@@ -525,6 +526,29 @@ describe('1. Valid syntax', () => {
           (e) => e.source === '__group_Backend' && e.target === 'Monitor'
         )
       ).toBe(true);
+    });
+  });
+
+  describe('treemap (parseTreemap)', () => {
+    it('minimal treemap with auto-summed branch', () => {
+      const r = parseTreemap(
+        'treemap Q3 Budget\n\nEngineering\n  Platform 320\n  Mobile 180\nOperations\n  Cloud 110',
+        palette
+      );
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.roots).toHaveLength(2);
+      expect(r.roots[0].children).toHaveLength(2);
+    });
+
+    it('treemap with tags, heat and directives', () => {
+      const r = parseTreemap(
+        'treemap Portfolio\nheat Day change %\ndepth 2\n\ntag Sector as s\n  Tech blue\n\nTech s: Tech\n  AAPL 180 heat: -2.4\n  NVDA 220 heat: 4.1',
+        palette
+      );
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.hasHeat).toBe(true);
+      expect(r.options.maxDepth).toBe(2);
+      expect(r.tagGroups).toHaveLength(1);
     });
   });
 

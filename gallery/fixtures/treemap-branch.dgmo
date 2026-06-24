@@ -1,0 +1,15 @@
+treemap Cloud Spend ($)
+
+Compute
+  EC2 1240000
+  Lambda 180000
+  GPU 640000
+Storage
+  S3 420000
+  EBS 210000
+Network
+  Egress 380000
+  CDN 95000
+Data
+  Warehouse 540000
+  Streaming 160000

@@ -933,6 +933,17 @@ export async function layoutBoxesAndLinesSearch(
   const tick = onProgress
     ? (): Promise<void> => new Promise<void>((r) => setTimeout(r))
     : (): undefined => undefined;
+  // Yielding is only worth its cost once a search is genuinely slow. A typical
+  // diagram finishes its whole candidate pool in tens of ms; yielding (a
+  // setTimeout, clamped to ~4ms/turn in browsers) after every one of ~90
+  // candidates would turn a 30ms layout into ~1s — all to flash a throbber that
+  // never shows (the app only reveals it after 150ms). So we suppress yields
+  // until the search has burned through a budget, then throttle them: fast
+  // diagrams run flat-out, only truly heavy ones cede the main thread to paint.
+  const YIELD_AFTER_MS = 150;
+  const YIELD_EVERY_MS = 30;
+  const searchStart = performance.now();
+  let lastYield = searchStart;
 
   // collapsed group labels (shown as plain boxes) — mirrors the ELK path
   const collapsedGroupLabels = new Set<string>();
@@ -1514,7 +1525,14 @@ export async function layoutBoxesAndLinesSearch(
   const step = async (phase: string): Promise<void> => {
     if (!onProgress) return;
     onProgress(++progressDone, progressTotal, phase);
-    await tick();
+    const now = performance.now();
+    if (
+      now - searchStart > YIELD_AFTER_MS &&
+      now - lastYield > YIELD_EVERY_MS
+    ) {
+      lastYield = now;
+      await tick();
+    }
   };
 
   // Build the candidate pool.

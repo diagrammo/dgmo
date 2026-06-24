@@ -522,6 +522,24 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     withGlobals({}),
   ],
   [
+    'treemap',
+    // Hierarchy sized by a bare trailing number; color modes + opt-outs.
+    withGlobals({
+      heat: {
+        description:
+          'Name the color-by-value ramp (`heat <Label> [low] [high]`); pairs with the per-node `heat:` key',
+      },
+      depth: {
+        description:
+          'Render N levels; deeper subtrees collapse to a drillable block',
+      },
+      'no-values': { description: 'Hide value labels' },
+      'no-percent': { description: 'Hide percentage labels' },
+      'no-headers': { description: 'Hide parent header bars' },
+      'no-legend': { description: 'Hide the legend' },
+    }),
+  ],
+  [
     'map',
     // Geographic map directives (§24B.2/.7). Cosmetics are ON by default — the
     // only switches are bare `no-*` opt-outs, surfaced proactively so a
@@ -695,6 +713,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['infra', ['tag']],
   ['pert', ['tag']],
   ['mindmap', ['tag']],
+  ['treemap', ['tag']],
   ['boxes-and-lines', ['tag']],
   ['er', ['tag']],
   ['cycle', ['direction-counterclockwise', 'circle-nodes']],
@@ -1829,6 +1848,50 @@ function extractMindmapSymbols(docText: string): DiagramSymbols {
 }
 
 // ============================================================
+// Treemap extractor
+// ============================================================
+
+function extractTreemapSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+  let inTagBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    // Directives and tag blocks are not node entities.
+    if (
+      /^(depth|heat|no-[a-z]+)\s/i.test(trimmed) ||
+      /^no-[a-z]+$/i.test(trimmed)
+    )
+      continue;
+    if (/^tag\s+/i.test(trimmed)) {
+      inTagBlock = true;
+      continue;
+    }
+    const indent = line.search(/\S/);
+    if (inTagBlock) {
+      if (indent > 0) continue;
+      inTagBlock = false;
+    }
+
+    // Node name: strip same-line metadata + the bare trailing value number.
+    let label = trimmed.split(/\s+\w+:/)[0]!.trim();
+    label = label.replace(/\s+-?\d[\d_,.]*$/, '').trim();
+    if (label && !entities.includes(label)) entities.push(label);
+  }
+
+  return { kind: 'treemap', entities };
+}
+
+// ============================================================
 // Pyramid extractor
 // ============================================================
 
@@ -2311,6 +2374,7 @@ registerExtractor('daci', extractRaciSymbols);
 registerExtractor('org', extractOrgSymbols);
 registerExtractor('kanban', extractKanbanSymbols);
 registerExtractor('mindmap', extractMindmapSymbols);
+registerExtractor('treemap', extractTreemapSymbols);
 registerExtractor('pyramid', extractPyramidSymbols);
 registerExtractor('ring', extractRingSymbols);
 registerExtractor('arc', extractArcSymbols);

@@ -507,6 +507,17 @@ export { parseRing } from './ring/parser';
 export { renderRing, renderRingForExport } from './ring/renderer';
 export type { ParsedRing, RingLayer } from './ring/types';
 
+export { parseTreemap } from './treemap/parser';
+export { renderTreemap, renderTreemapForExport } from './treemap/renderer';
+export { layoutTreemap } from './treemap/layout';
+export type { TreemapCell, TreemapLayoutResult } from './treemap/layout';
+export type {
+  ParsedTreemap,
+  TreemapNode,
+  TreemapColorMode,
+  TreemapOptions,
+} from './treemap/types';
+
 // Map (§24B) — the interactive render surface for app/editor consumers. The
 // Node fs `loadMapData` is exported for completeness, but the browser supplies
 // `MapData` by DI (resolveMap/renderMap take it as an argument).

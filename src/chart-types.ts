@@ -123,6 +123,11 @@ export const chartTypes: readonly ChartTypeMeta[] = [
       'Concentric rings showing nested or hierarchical categories (read core-out)',
   },
   {
+    id: 'treemap',
+    description:
+      'Nested rectangles sized by value — show a hierarchy’s proportions (budgets, disk usage, portfolios) with color by category, value heatmap, or branch',
+  },
+  {
     id: 'map',
     description:
       'Geographic concept map: highlight/score regions, drop points of interest, connect with routes or edges',
