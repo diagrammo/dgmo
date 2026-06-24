@@ -46,6 +46,10 @@ export interface TreemapRenderOptions {
   maxDepth?: number;
   /** Click handler for drillable cells (app interactivity). */
   onClickItem?: (lineNumber: number) => void;
+  /** Color-mode switch fired when a legend pill is clicked (app interactivity).
+   *  The mode switcher is baked into the legend (clickable group pills), so the
+   *  app no longer renders a separate overlay control. */
+  onSelectMode?: (mode: TreemapColorMode) => void;
   exportMode?: boolean;
 }
 
@@ -88,13 +92,9 @@ export function renderTreemap(
   const titleH = showTitle ? TITLE_BAND : 0;
 
   const heat = buildHeatScale(parsed, palette);
-  const legend =
-    !opts.noLegend &&
-    ((mode === 'tag' && parsed.tagGroups.length > 0) ||
-      (mode === 'heat' && heat !== null) ||
-      mode === 'branch')
-      ? buildLegendGroups(mode, parsed, heat, seriesColorsTop)
-      : null;
+  const legend = !opts.noLegend
+    ? buildLegend(mode, parsed, heat, seriesColorsTop)
+    : null;
 
   // Reserve a band below the title for the standardized legend, exactly like
   // mindmap/org/map (top-center, below-title). The treemap fills the rest.
@@ -341,6 +341,19 @@ export function renderTreemap(
       mode: exportMode ? 'export' : 'preview',
       position: LEGEND_POSITION,
       activeGroup: legend.activeGroup,
+      // The color-mode switcher is the legend itself: each applicable mode is a
+      // group pill; the active one is the open capsule, the rest are clickable
+      // pills that switch mode. Export shows only the active group.
+      showInactivePills: !exportMode,
+      showEmptyGroups: !exportMode,
+      ...(options.onSelectMode !== undefined && {
+        callbacks: {
+          onGroupToggle: (name: string) => {
+            const m = legend.modeByName.get(name);
+            if (m) options.onSelectMode!(m);
+          },
+        },
+      }),
     });
   }
 }
@@ -349,73 +362,80 @@ export function renderTreemap(
 // Legend group assembly — reuse the standard tag-group / gradient framework.
 // ============================================================
 
-function buildLegendGroups(
-  mode: TreemapColorMode,
+interface TreemapLegend {
+  groups: LegendGroupData[];
+  activeGroup: string | null;
+  /** Legend group name → the color mode it selects (for the click callback). */
+  modeByName: Map<string, TreemapColorMode>;
+}
+
+/**
+ * Build one legend group per APPLICABLE color mode (tag if tags exist, heat if
+ * heat data exists, branch always). The active mode's group renders as the open
+ * capsule; the others render as clickable pills that switch mode — i.e. the
+ * mode switcher IS the legend (the active-group pattern used elsewhere).
+ */
+function buildLegend(
+  activeMode: TreemapColorMode,
   parsed: ParsedTreemap,
   heat: HeatScale | null,
   seriesColors: string[]
-): { groups: LegendGroupData[]; activeGroup: string | null } {
-  if (mode === 'heat' && heat) {
-    // Continuous ramp → a single gradient group (same shape the map uses).
-    return {
-      groups: [
-        {
-          name: parsed.options.heatLabel ?? 'Value',
-          entries: [],
-          gradient: {
-            min: heat.min,
-            max: heat.max,
-            low: heat.stops[0]!,
-            high: heat.stops[heat.stops.length - 1]!,
-          },
-        },
-      ],
-      activeGroup: parsed.options.heatLabel ?? 'Value',
-    };
-  }
+): TreemapLegend {
+  const groups: LegendGroupData[] = [];
+  const modeByName = new Map<string, TreemapColorMode>();
+  let activeGroup: string | null = null;
 
-  if (mode === 'tag' && parsed.tagGroups.length > 0) {
-    // Categorical tag groups, filtered to the values actually used.
-    const used = new Map<string, Set<string>>();
+  // ── Tag ──────────────────────────────────────────────────
+  if (parsed.tagGroups.length > 0) {
+    const tg = parsed.tagGroups[0]!;
+    const used = new Set<string>();
     const collect = (nodes: readonly TreemapNode[]): void => {
       for (const n of nodes) {
-        for (const g of parsed.tagGroups) {
-          const key = tagAttrKey(g.name);
-          const v = n.metadata[key];
-          if (v)
-            (used.get(key) ?? used.set(key, new Set()).get(key)!).add(
-              v.toLowerCase()
-            );
-        }
+        const v = n.metadata[tagAttrKey(tg.name)];
+        if (v) used.add(v.toLowerCase());
         collect(n.children);
       }
     };
     collect(parsed.roots);
-    const groups: LegendGroupData[] = parsed.tagGroups.map((g) => {
-      const u = used.get(tagAttrKey(g.name));
-      return {
-        name: g.name,
-        entries: g.entries
-          .filter((e) => u?.has(e.value.toLowerCase()))
-          .map((e) => ({ value: e.value, color: e.color })),
-      };
+    groups.push({
+      name: tg.name,
+      entries: tg.entries
+        .filter((e) => used.has(e.value.toLowerCase()))
+        .map((e) => ({ value: e.value, color: e.color })),
     });
-    return { groups, activeGroup: parsed.tagGroups[0]!.name };
+    modeByName.set(tg.name, 'tag');
+    if (activeMode === 'tag') activeGroup = tg.name;
   }
 
-  // Branch mode: one categorical entry per top-level branch (structural key).
-  return {
-    groups: [
-      {
-        name: 'Branch',
-        entries: parsed.roots.map((r, i) => ({
-          value: r.label,
-          color: seriesColors[i % seriesColors.length]!,
-        })),
+  // ── Heat ─────────────────────────────────────────────────
+  if (heat) {
+    const name = parsed.options.heatLabel ?? 'Value';
+    groups.push({
+      name,
+      entries: [],
+      gradient: {
+        min: heat.min,
+        max: heat.max,
+        low: heat.stops[0]!,
+        high: heat.stops[heat.stops.length - 1]!,
       },
-    ],
-    activeGroup: 'Branch',
-  };
+    });
+    modeByName.set(name, 'heat');
+    if (activeMode === 'heat') activeGroup = name;
+  }
+
+  // ── Branch (always) ──────────────────────────────────────
+  groups.push({
+    name: 'Branch',
+    entries: parsed.roots.map((r, i) => ({
+      value: r.label,
+      color: seriesColors[i % seriesColors.length]!,
+    })),
+  });
+  modeByName.set('Branch', 'branch');
+  if (activeMode === 'branch' || activeGroup === null) activeGroup = 'Branch';
+
+  return { groups, activeGroup, modeByName };
 }
 
 // ============================================================
