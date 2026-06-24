@@ -318,7 +318,7 @@ function handleDirective(
   }
 
   // `other-below` (small-leaf rollup into an "Other" bucket) was removed.
-  // Still recognise the line so it doesn't fall through to node parsing (which
+  // Still recognize the line so it doesn't fall through to node parsing (which
   // would render a junk "other-below" cell), but ignore it with a hint.
   if (/^other-below\b/i.test(trimmed)) {
     pushWarning(
