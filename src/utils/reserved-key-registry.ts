@@ -209,6 +209,11 @@ export const RING_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'description',
 ]);
 
+// Treemap: only `heat` (the color-by-value metric) is a reserved attribute key.
+// Node SIZE is the bare trailing number (not a `value:` key — §1.5 idiom), and
+// tag application uses declared tag aliases (added dynamically via withTagAliases).
+export const TREEMAP_REGISTRY: ReservedKeyRegistry = staticRegistry(['heat']);
+
 /**
  * RACI/RASCI/DACI: only `color` and `description` are reserved as
  * attribute keys. Role names declared via `roles` block are

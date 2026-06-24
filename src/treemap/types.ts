@@ -1,0 +1,61 @@
+import type { DgmoError } from '../diagnostics';
+import type { TagGroup } from '../utils/tag-groups';
+
+// ============================================================
+// Treemap — Parsed Types
+// ============================================================
+//
+// A treemap is a hierarchy (indentation) where each leaf carries a size
+// (the bare trailing number) and parents auto-sum their descendants. See the
+// treemap § of docs/dgmo-language-spec.md for the canonical grammar.
+
+/** Runtime color mode for a treemap. Default resolved from source; the app's
+ *  legend/settings switcher overrides it live without editing source. */
+export type TreemapColorMode = 'tag' | 'heat' | 'branch';
+
+export interface TreemapNode {
+  readonly id: string;
+  readonly label: string;
+  /**
+   * Leaf size = the bare trailing number. `undefined` for branches (the layout
+   * auto-sums descendants) and for value-less leaves (treated as 0 + a warning).
+   */
+  value?: number;
+  /** Optional per-node heat metric (`heat:`), drives the color-by-value ramp. */
+  heat?: number;
+  readonly metadata: Record<string, string>;
+  readonly children: TreemapNode[];
+  readonly lineNumber: number;
+  /** True for the synthetic `Other` rollup bucket created by `other-below`. */
+  readonly isOther?: boolean;
+}
+
+export interface TreemapOptions {
+  /** Label for the heat ramp (`heat <Label> …`). */
+  heatLabel?: string;
+  /** Explicit ramp colors peeled from the `heat` directive (0–2, named only). */
+  readonly heatColors: string[];
+  /** `depth N` — render budget (interactive only); undefined = unlimited. */
+  maxDepth?: number;
+  /** `other-below N` — roll children below N% of their parent into `Other`. */
+  otherBelow?: number;
+  noValues: boolean;
+  noPercent: boolean;
+  noHeaders: boolean;
+  noLegend: boolean;
+}
+
+export interface ParsedTreemap {
+  readonly type: 'treemap';
+  readonly title: string | null;
+  readonly titleLineNumber: number | null;
+  readonly roots: TreemapNode[];
+  readonly tagGroups: TagGroup[];
+  /** True when any `heat:` value or a `heat` directive was declared. */
+  readonly hasHeat: boolean;
+  /** Source-declared default color mode (tag > heat > branch). */
+  readonly defaultColorMode: TreemapColorMode;
+  readonly options: TreemapOptions;
+  readonly diagnostics: DgmoError[];
+  readonly error: string | null;
+}

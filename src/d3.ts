@@ -117,6 +117,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   map: exportMap,
   pyramid: exportPyramid,
   ring: exportRing,
+  treemap: exportTreemap,
   raci: exportRaci,
   rasci: exportRaci,
   daci: exportRaci,
@@ -962,12 +963,33 @@ async function exportRing(ctx: ExportContext): Promise<string> {
   if (ringParsed.error || ringParsed.layers.length === 0) return '';
 
   const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
-  renderRingForExport(
+  renderRingForExport(container, ringParsed, effectivePalette, ctx.isDark, {
+    width: EXPORT_WIDTH,
+    height: EXPORT_HEIGHT,
+  });
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportTreemap(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseTreemap } = await import('./treemap/parser');
+  const { renderTreemapForExport } = await import('./treemap/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const treemapParsed = parseTreemap(content, effectivePalette);
+  if (treemapParsed.error || treemapParsed.roots.length === 0) return '';
+
+  // Headless export: full tree (no depth window), source-declared color mode.
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  renderTreemapForExport(
     container,
-    ringParsed,
+    treemapParsed,
     effectivePalette,
     ctx.isDark,
-    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+    {
+      width: EXPORT_WIDTH,
+      height: EXPORT_HEIGHT,
+    }
   );
   return finalizeSvgExport(container, theme, effectivePalette);
 }
@@ -982,13 +1004,10 @@ async function exportRaci(ctx: ExportContext): Promise<string> {
   if (raciParsed.error) return '';
 
   const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
-  renderRaciForExport(
-    container,
-    raciParsed,
-    effectivePalette,
-    ctx.isDark,
-    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
-  );
+  renderRaciForExport(container, raciParsed, effectivePalette, ctx.isDark, {
+    width: EXPORT_WIDTH,
+    height: EXPORT_HEIGHT,
+  });
   return finalizeSvgExport(container, theme, effectivePalette);
 }
 
@@ -1091,14 +1110,7 @@ async function exportVenn(ctx: ExportContext): Promise<string> {
   if (parsed.error || parsed.vennSets.length < 2) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
   const { container, dims } = beginVizExport();
-  renderVenn(
-    container,
-    parsed,
-    effectivePalette,
-    ctx.isDark,
-    undefined,
-    dims
-  );
+  renderVenn(container, parsed, effectivePalette, ctx.isDark, undefined, dims);
   return finalizeSvgExport(container, theme, effectivePalette);
 }
 

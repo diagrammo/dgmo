@@ -129,6 +129,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `quadrant` | 2×2 positioning matrix |
 | `pyramid` | stacked hierarchy of layers (Maslow, DIKW) |
 | `ring` | concentric rings of nested categories |
+| `treemap` | nested rectangles sized by value (budgets, disk usage, portfolios) |
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
 | `bar` | categorical comparisons |
@@ -3086,6 +3087,100 @@ Unknown color names emit an error-severity diagnostic with a "Did you mean…?" 
 ### Label Degradation
 
 When ring band thickness would force the in-band label below the readable floor (12 px), in-band labels are skipped entirely and the side list shows the layer names instead.
+
+---
+
+## 24C. Treemaps
+
+<!-- TYPE:treemap -->
+
+<!-- TIPS start -->
+**Styling tips:** Put the unit in the title (`Cloud Spend ($)`) — there is no currency/format directive. Reach for `depth N` once a tree goes past ~3 levels (deeper subtrees collapse to a drillable block) and `other-below N` to fold a long tail of tiny categories into one **Other** box. Pick the color mode to match intent: tags for categories, `heat` for a gain/loss heatmap, branch for zero-config structure.
+<!-- TIPS end -->
+
+Nested rectangles sized by value — the canonical way to show a hierarchy's proportions at a glance (budgets, disk usage, portfolios, taxonomies). Indentation is the hierarchy; a bare trailing number on a leaf is its size; parents auto-sum their children. Built on a squarified layout so cells keep good aspect ratios.
+
+### Declaration
+
+```
+treemap [Title with units, e.g. "Cloud Spend ($)"]
+
+Branch
+  Leaf 320
+  Leaf 180
+```
+
+### Example
+
+```
+treemap Q3 Budget
+
+tag Team as t
+  Eng blue
+  Sales green
+  Ops orange
+
+Engineering t: Eng
+  Platform 320
+  Mobile 180
+  Data 140
+Go-to-Market t: Sales
+  Ads 90
+  Field Sales 130
+Operations t: Ops
+  Cloud 110
+  Support 70
+```
+
+### Value & hierarchy
+
+- **Indentation** sets the hierarchy (same model as mindmap / org).
+- A **bare trailing number** on a leaf is its size (`Platform 320`) — the funnel/sankey idiom (§1.5). No thousands commas (`1_000` is fine).
+- **Parents auto-sum** their descendants; a trailing number on a branch line is ignored with a warning (auto-sum always wins).
+- To keep a label that genuinely ends in a digit, **quote it** (`"Region 5"`); unquoted `Region 5` parses as label `Region`, value `5`.
+
+### Color modes
+
+Three modes, with the source-declared default selected as **tag → heat → branch** (the desktop app adds a runtime switcher that previews the others without editing source):
+
+| Mode       | When it's the default       | Coloring                                                      |
+| ---------- | --------------------------- | ------------------------------------------------------------ |
+| **tag**    | a `tag` group is declared   | categorical color per tag value (legend hover-dims)          |
+| **heat**   | any `heat:` value / `heat` directive | value ramp over a second per-node `heat:` metric    |
+| **branch** | neither tags nor heat        | each top-level branch a distinct hue, tinted with depth      |
+
+### Tags
+
+Declare a `tag` group before content and apply it inline (`Engineering t: Eng`); children inherit the tag unless they override it. See §1.3.
+
+### Heat metric & ramp
+
+Add a per-node `heat:` number (a second metric, distinct from size; negatives/floats ok) and name the ramp with a `heat <Label> [low] [high]` directive. Colors are optional and **data-aware**: data that crosses zero defaults to a diverging `red·neutral·green` ramp with the midpoint pinned at 0; one-sign data defaults to a sequential `neutral·accent` ramp. One explicit color = `neutral→hue`; two = `low → high` (with a neutral midpoint). **Named palette colors only — no hex.** `heat:` is used instead of `score:` (which journey-map reserves for 1–5 emotion, §22).
+
+### Node Metadata
+
+| Key     | Type            | Default | Description                                  |
+| ------- | --------------- | ------- | -------------------------------------------- |
+| `heat`  | number          | —       | Color-by-value metric (signed / float ok)    |
+| `<tag>` | declared value  | —       | Tag value via the group's alias or name      |
+
+### Directives
+
+| Directive       | Effect                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------- |
+| `heat <Label>`  | Name (and optionally color) the value ramp; pairs with the `heat:` key.                 |
+| `depth N`       | Render N levels; deeper subtrees collapse to a drillable solid block (a render budget).  |
+| `other-below N` | Roll children under N% of their parent into a single hatched **Other** bucket (opt-in).  |
+| `no-values`     | Hide value labels.                                                                       |
+| `no-percent`    | Hide percentage labels.                                                                  |
+| `no-headers`    | Hide parent header bars.                                                                 |
+| `no-legend`     | Hide the legend.                                                                         |
+
+Numbers auto-compact (1.2M, 940k). Units live in the title — there is no format/currency directive.
+
+### Interactivity vs export
+
+In the desktop app a treemap is interactive: click a parent to drill in (with a breadcrumb), hover for a tooltip (path / value / % / heat), and flip the color mode. Static SVG / PNG export is the clean, full tree with none of that chrome — the same interactive-vs-export split the map chart uses.
 
 ---
 

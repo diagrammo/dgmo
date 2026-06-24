@@ -215,6 +215,15 @@ Inner | core description
 Middle | middle description
 Outer | outermost description`,
 
+  treemap: `treemap Test Treemap
+
+Engineering
+  Platform 320
+  Mobile 180
+Operations
+  Cloud 110
+  Support 70`,
+
   raci: `raci Test RACI
 roles Cap, QM, Bos
 

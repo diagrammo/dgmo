@@ -27,6 +27,7 @@ export const CHART_TYPES = new Set([
   'journey-map',
   'pyramid',
   'ring',
+  'treemap',
   'raci',
   'rasci',
   'daci',
@@ -91,6 +92,8 @@ export const METADATA_KEYS = new Set([
   'value',
   'label',
   'style',
+  // Treemap color-by-value metric key
+  'heat',
 ]);
 
 /** Tag declaration keyword. */

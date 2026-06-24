@@ -66,6 +66,7 @@ import { parseCycle } from './cycle/parser';
 import { parseJourneyMap } from './journey-map/parser';
 import { parsePyramid } from './pyramid/parser';
 import { parseRing } from './ring/parser';
+import { parseTreemap } from './treemap/parser';
 import { parseRaci, allTasks } from './raci/parser';
 import type { DgmoError } from './diagnostics';
 
@@ -451,6 +452,9 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
   { id: 'cycle', category: 'visualization', parse: parseCycle },
   { id: 'pyramid', category: 'visualization', parse: parsePyramid },
   { id: 'ring', category: 'visualization', parse: parseRing },
+  // Treemap: squarified hierarchy. No measure/minDims — a treemap fills whatever
+  // rectangle it's given and has no intrinsic aspect/size (F11).
+  { id: 'treemap', category: 'visualization', parse: parseTreemap },
 
   // ── Geographic map (own parser → resolver → layout → renderer) ──
   { id: 'map', category: 'visualization', parse: parseMap },
