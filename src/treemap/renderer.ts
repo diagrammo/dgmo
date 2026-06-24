@@ -14,6 +14,10 @@ import { resolveColor } from '../colors';
 import { contrastText, getSeriesColors, mix } from '../palettes/color-utils';
 import { resolveTagColor, tagAttrKey } from '../utils/tag-groups';
 import { measureText } from '../utils/text-measure';
+import { renderIntegratedLegend } from '../utils/legend-integration';
+import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
+import type { LegendGroupData, LegendPosition } from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -26,8 +30,14 @@ import { layoutTreemap, type TreemapCell } from './layout';
 
 const PADDING = 12;
 const HEADER_H = 18;
-const LEGEND_H = 30;
+const TITLE_BAND = 36;
 const MUTED_FILL = '#cbd5e1';
+
+/** Standard placement every dgmo legend uses: centered, under the title. */
+const LEGEND_POSITION: LegendPosition = {
+  placement: 'top-center',
+  titleRelation: 'below-title',
+};
 
 export interface TreemapRenderOptions {
   /** Color mode override (app's runtime switcher). Defaults to source. */
@@ -72,22 +82,34 @@ export function renderTreemap(
 
   const mode = resolveColorMode(parsed, options.colorMode);
   const opts = parsed.options;
+  const exportMode = options.exportMode ?? false;
+  const seriesColorsTop = getSeriesColors(palette);
   const showTitle = !!parsed.title;
-  const titleH = showTitle ? 36 : 0;
+  const titleH = showTitle ? TITLE_BAND : 0;
 
   const heat = buildHeatScale(parsed, palette);
-  const legendShown =
+  const legend =
     !opts.noLegend &&
     ((mode === 'tag' && parsed.tagGroups.length > 0) ||
       (mode === 'heat' && heat !== null) ||
-      mode === 'branch');
-  const legendH = legendShown ? LEGEND_H : 0;
+      mode === 'branch')
+      ? buildLegendGroups(mode, parsed, heat, seriesColorsTop)
+      : null;
+
+  // Reserve a band below the title for the standardized legend, exactly like
+  // mindmap/org/map (top-center, below-title). The treemap fills the rest.
+  const legendReserve = legend
+    ? getMaxLegendReservedHeight(
+        { groups: legend.groups, position: LEGEND_POSITION, mode: 'preview' },
+        width
+      ) + LEGEND_GROUP_GAP
+    : 0;
 
   const headerH = opts.noHeaders ? 0 : HEADER_H;
   const areaX = PADDING;
-  const areaY = titleH + PADDING;
+  const areaY = titleH + legendReserve + PADDING;
   const areaW = Math.max(1, width - PADDING * 2);
-  const areaH = Math.max(1, height - titleH - legendH - PADDING * 2);
+  const areaH = Math.max(1, height - areaY - PADDING);
 
   const layout = layoutTreemap(parsed.roots, {
     width: areaW,
@@ -157,7 +179,7 @@ export function renderTreemap(
     .attr('class', 'dgmo-treemap-cells')
     .attr('transform', `translate(${areaX},${areaY})`);
 
-  const seriesColors = getSeriesColors(palette);
+  const seriesColors = seriesColorsTop;
   const activeGroup =
     parsed.tagGroups.length > 0 ? parsed.tagGroups[0]!.name : null;
 
@@ -300,19 +322,100 @@ export function renderTreemap(
     }
   }
 
-  if (legendShown) {
-    drawLegend(
-      svg,
-      mode,
-      parsed,
-      palette,
-      heat,
-      seriesColors,
+  if (legend) {
+    const legendG = svg
+      .append('g')
+      .attr('class', 'dgmo-treemap-legend')
+      .attr('transform', `translate(0, ${titleH})`);
+    renderIntegratedLegend(legendG, {
+      groups: legend.groups,
+      palette: {
+        bg: palette.bg,
+        surface: palette.surface,
+        text: palette.text,
+        textMuted: palette.textMuted,
+        primary: palette.primary,
+      },
+      isDark,
       width,
-      height - legendH,
-      legendH
-    );
+      mode: exportMode ? 'export' : 'preview',
+      position: LEGEND_POSITION,
+      activeGroup: legend.activeGroup,
+    });
   }
+}
+
+// ============================================================
+// Legend group assembly — reuse the standard tag-group / gradient framework.
+// ============================================================
+
+function buildLegendGroups(
+  mode: TreemapColorMode,
+  parsed: ParsedTreemap,
+  heat: HeatScale | null,
+  seriesColors: string[]
+): { groups: LegendGroupData[]; activeGroup: string | null } {
+  if (mode === 'heat' && heat) {
+    // Continuous ramp → a single gradient group (same shape the map uses).
+    return {
+      groups: [
+        {
+          name: parsed.options.heatLabel ?? 'Value',
+          entries: [],
+          gradient: {
+            min: heat.min,
+            max: heat.max,
+            low: heat.stops[0]!,
+            high: heat.stops[heat.stops.length - 1]!,
+          },
+        },
+      ],
+      activeGroup: parsed.options.heatLabel ?? 'Value',
+    };
+  }
+
+  if (mode === 'tag' && parsed.tagGroups.length > 0) {
+    // Categorical tag groups, filtered to the values actually used.
+    const used = new Map<string, Set<string>>();
+    const collect = (nodes: readonly TreemapNode[]): void => {
+      for (const n of nodes) {
+        for (const g of parsed.tagGroups) {
+          const key = tagAttrKey(g.name);
+          const v = n.metadata[key];
+          if (v)
+            (used.get(key) ?? used.set(key, new Set()).get(key)!).add(
+              v.toLowerCase()
+            );
+        }
+        collect(n.children);
+      }
+    };
+    collect(parsed.roots);
+    const groups: LegendGroupData[] = parsed.tagGroups.map((g) => {
+      const u = used.get(tagAttrKey(g.name));
+      return {
+        name: g.name,
+        entries: g.entries
+          .filter((e) => u?.has(e.value.toLowerCase()))
+          .map((e) => ({ value: e.value, color: e.color })),
+      };
+    });
+    return { groups, activeGroup: parsed.tagGroups[0]!.name };
+  }
+
+  // Branch mode: one categorical entry per top-level branch (structural key).
+  return {
+    groups: [
+      {
+        name: 'Branch',
+        entries: parsed.roots.map((r, i) => ({
+          value: r.label,
+          color: seriesColors[i % seriesColors.length]!,
+        })),
+      },
+    ],
+    activeGroup: 'Branch',
+  };
 }
 
 // ============================================================
@@ -398,126 +501,6 @@ function resolveColorMode(
 }
 
 // ============================================================
-// Legend
-// ============================================================
-
-function drawLegend(
-  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
-  mode: TreemapColorMode,
-  parsed: ParsedTreemap,
-  palette: PaletteColors,
-  heat: HeatScale | null,
-  seriesColors: string[],
-  width: number,
-  y: number,
-  legendH: number,
-  isDark = false
-): void {
-  const g = svg
-    .append('g')
-    .attr('class', 'dgmo-treemap-legend')
-    .attr('transform', `translate(0,${y})`);
-  const cy = legendH / 2;
-
-  if (mode === 'heat' && heat) {
-    // Gradient color bar.
-    const gradId = 'dgmo-treemap-grad';
-    const lg = svg
-      .select('defs')
-      .append('linearGradient')
-      .attr('id', gradId)
-      .attr('x1', '0%')
-      .attr('x2', '100%');
-    heat.stops.forEach((c, i) => {
-      lg.append('stop')
-        .attr('offset', `${(i / (heat.stops.length - 1)) * 100}%`)
-        .attr('stop-color', c);
-    });
-    const label = parsed.options.heatLabel ?? 'Value';
-    const barW = Math.min(160, width * 0.3);
-    const barX = width / 2 - barW / 2;
-    g.append('text')
-      .attr('x', barX - 8)
-      .attr('y', cy)
-      .attr('dy', '0.35em')
-      .attr('text-anchor', 'end')
-      .attr('font-size', 11)
-      .attr('fill', palette.textMuted)
-      .text(label);
-    g.append('rect')
-      .attr('x', barX)
-      .attr('y', cy - 6)
-      .attr('width', barW)
-      .attr('height', 11)
-      .attr('rx', 3)
-      .attr('stroke', palette.border)
-      .attr('fill', `url(#${gradId})`);
-    g.append('text')
-      .attr('x', barX - 2)
-      .attr('y', cy + 18)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', 10)
-      .attr('fill', palette.textMuted)
-      .text(fmtSigned(heat.min));
-    g.append('text')
-      .attr('x', barX + barW + 2)
-      .attr('y', cy + 18)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', 10)
-      .attr('fill', palette.textMuted)
-      .text(fmtSigned(heat.max));
-    return;
-  }
-
-  // Categorical chips.
-  type Chip = { label: string; color: string };
-  let chips: Chip[];
-  if (mode === 'tag' && parsed.tagGroups.length > 0) {
-    chips = parsed.tagGroups[0]!.entries.map((e) => ({
-      label: e.value,
-      color: e.color,
-    }));
-  } else {
-    // branch: one chip per top-level root.
-    chips = parsed.roots.map((r, i) => ({
-      label: r.label,
-      color: seriesColors[i % seriesColors.length]!,
-    }));
-  }
-  void isDark;
-
-  // Lay out chips centered on a single row, truncating to fit.
-  const chipPad = 16;
-  const dotR = 5;
-  const fs = 11;
-  const measured = chips.map((c) => ({
-    ...c,
-    w: dotR * 2 + 6 + measureText(c.label, fs),
-  }));
-  const totalW = measured.reduce((a, c) => a + c.w + chipPad, 0) - chipPad;
-  let x = Math.max(PADDING, width / 2 - totalW / 2);
-  for (const c of measured) {
-    if (x + c.w > width - PADDING) break;
-    const chip = g.append('g').attr('transform', `translate(${x},${cy})`);
-    chip
-      .append('circle')
-      .attr('cx', dotR)
-      .attr('cy', 0)
-      .attr('r', dotR)
-      .attr('fill', c.color);
-    chip
-      .append('text')
-      .attr('x', dotR * 2 + 6)
-      .attr('y', 0)
-      .attr('dy', '0.35em')
-      .attr('font-size', fs)
-      .attr('fill', palette.textMuted)
-      .text(c.label);
-    x += c.w + chipPad;
-  }
-}
-
-// ============================================================
 // Helpers
 // ============================================================
 
@@ -591,8 +574,4 @@ function formatPct(frac: number): string {
   if (pct >= 10) return `${Math.round(pct)}%`;
   if (pct >= 1) return `${pct.toFixed(0)}%`;
   return `${pct.toFixed(1)}%`;
-}
-
-function fmtSigned(v: number): string {
-  return (v > 0 ? '+' : '') + strip(v);
 }
