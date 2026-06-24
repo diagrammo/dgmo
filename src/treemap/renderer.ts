@@ -322,27 +322,48 @@ export function renderTreemap(
         .text(clipLabel(cell.label, w - 12, fs));
 
       const vfs = Math.max(10, Math.round(fs * 0.72));
-      if (!opts.noValues && h > y + vfs + 6) {
-        y += vfs + 6;
+      const valStr = opts.noValues ? '' : compactNumber(cell.value);
+      const pctStr = opts.noPercent ? '' : formatPct(cell.pctOfRoot);
+      const addLine = (text: string, size: number, opacity: number): void => {
         g.append('text')
           .attr('class', 'dgmo-treemap-value')
           .attr('x', 6)
           .attr('y', y)
-          .attr('font-size', vfs)
+          .attr('font-size', size)
           .attr('fill', ink)
-          .attr('opacity', 0.92)
-          .text(compactNumber(cell.value));
-      }
-      if (!opts.noPercent && h > y + 15) {
-        y += 15;
-        g.append('text')
-          .attr('class', 'dgmo-treemap-pct')
-          .attr('x', 6)
-          .attr('y', y)
-          .attr('font-size', Math.max(9, vfs - 1))
-          .attr('fill', ink)
-          .attr('opacity', 0.7)
-          .text(`${formatPct(cell.pctOfRoot)} of root`);
+          .attr('opacity', opacity)
+          .text(text);
+      };
+
+      // `value · %` notation, matching the header bars — on one line when it
+      // fits, stacked (value, then %) when the cell is too narrow.
+      if (valStr && pctStr) {
+        const combined = `${valStr} · ${pctStr}`;
+        if (measureText(combined, vfs) <= w - 12) {
+          if (h > y + vfs + 6) {
+            y += vfs + 6;
+            addLine(combined, vfs, 0.92);
+          }
+        } else {
+          if (h > y + vfs + 6) {
+            y += vfs + 6;
+            addLine(valStr, vfs, 0.92);
+          }
+          if (h > y + 15) {
+            y += 15;
+            addLine(pctStr, Math.max(9, vfs - 1), 0.7);
+          }
+        }
+      } else if (valStr) {
+        if (h > y + vfs + 6) {
+          y += vfs + 6;
+          addLine(valStr, vfs, 0.92);
+        }
+      } else if (pctStr) {
+        if (h > y + vfs + 6) {
+          y += vfs + 6;
+          addLine(pctStr, vfs, 0.7);
+        }
       }
     }
 
