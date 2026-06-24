@@ -26,7 +26,7 @@ import {
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedTreemap, TreemapColorMode, TreemapNode } from './types';
-import { layoutTreemap, type TreemapCell } from './layout';
+import { headerBandHeight, layoutTreemap, type TreemapCell } from './layout';
 
 const PADDING = 12;
 const HEADER_H = 18;
@@ -286,37 +286,46 @@ export function renderTreemap(
       palette.textOnFillDark
     );
 
-    // Header bar: group name (left) + its aggregate value/% (right) so a
-    // container's share is readable without drilling. The value is suppressed on
-    // narrow headers and by no-values / no-percent.
-    if (cell.isContainer && headerH > 0 && w > 34 && h > headerH) {
+    // Header bar: group name (left) + its aggregate value/% (right). The font
+    // scales with the section's size (bigger section → bigger header), and the
+    // bigger the font the more it's muted (a watermark-ish feel).
+    const bandH = headerBandHeight(w, h, headerH);
+    if (cell.isContainer && headerH > 0 && w > 34 && h > bandH) {
+      const hfs = clamp(Math.round(bandH * 0.5), 10, 24);
+      const baseY = Math.round(bandH * 0.68);
+      // Larger font → lower opacity (more muted).
+      const t = (hfs - 10) / 14;
+      const labelOpacity = 0.95 - t * 0.45;
+      const valFs = clamp(Math.round(bandH * 0.34), 9, 13);
+
       const valParts: string[] = [];
       if (!opts.noValues) valParts.push(compactNumber(cell.value));
       if (!opts.noPercent) valParts.push(formatPct(cell.pctOfRoot));
       const valStr = valParts.join(' · ');
-      const ICON_RESERVE = 16; // keep clear of the focus icon at far right
+      const iconReserve = bandH; // keep clear of the focus icon at far right
       const showVal = valStr.length > 0 && w > 110;
-      const valW = showVal ? measureText(valStr, 10.5) : 0;
-      const labelMax = w - 8 - ICON_RESERVE - (showVal ? valW + 10 : 0);
+      const valW = showVal ? measureText(valStr, valFs) : 0;
+      const labelMax = w - 8 - iconReserve - (showVal ? valW + 10 : 0);
 
       g.append('text')
         .attr('class', 'dgmo-treemap-header')
-        .attr('x', 5)
-        .attr('y', 13)
-        .attr('font-size', 11)
+        .attr('x', 6)
+        .attr('y', baseY)
+        .attr('font-size', hfs)
         .attr('font-weight', 700)
         .attr('fill', ink)
-        .text(clipLabel(cell.label, Math.max(0, labelMax), 11));
+        .attr('opacity', labelOpacity)
+        .text(clipLabel(cell.label, Math.max(0, labelMax), hfs));
 
       if (showVal) {
         g.append('text')
           .attr('class', 'dgmo-treemap-header-value')
-          .attr('x', w - ICON_RESERVE - 4)
-          .attr('y', 13)
+          .attr('x', w - iconReserve - 2)
+          .attr('y', baseY)
           .attr('text-anchor', 'end')
-          .attr('font-size', 10.5)
+          .attr('font-size', valFs)
           .attr('fill', ink)
-          .attr('opacity', 0.75)
+          .attr('opacity', 0.7)
           .text(valStr);
       }
     }
@@ -390,9 +399,10 @@ export function renderTreemap(
         .attr('pointer-events', 'none');
     }
 
-    // Scope/target focus icon on drillable cells (interactive-only).
+    // Scope/target focus icon on drillable cells (interactive-only). Centered in
+    // the (variable) header band for containers, near the top for solid blocks.
     if (drillable && w > 30 && h > 22) {
-      drawFocusIcon(g, w, ink);
+      drawFocusIcon(g, w, ink, cell.isContainer ? bandH / 2 : 9);
     }
   }
 
@@ -616,14 +626,14 @@ function resolveColorMode(
 function drawFocusIcon(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   w: number,
-  ink: string
+  ink: string,
+  cy: number
 ): void {
-  // Small, subtle scope/target ring that sits inside the ~18px header band.
-  // Opacity is driven by the SVG <style> (faint by default, clearer on cell
-  // hover). A generous transparent rect keeps it easy to click.
+  // Small, subtle scope/target ring centered vertically at `cy` (the header
+  // band's middle). Opacity is driven by the SVG <style> (faint by default,
+  // clearer on cell hover). A generous transparent rect keeps it easy to click.
   const r = 4.5;
   const cx = w - r - 5;
-  const cy = 9;
   const fi = g
     .append('g')
     .attr('class', 'dgmo-treemap-focus')

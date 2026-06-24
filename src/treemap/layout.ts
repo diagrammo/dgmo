@@ -76,6 +76,17 @@ export interface TreemapLayoutOptions {
   readonly otherBelow?: number;
 }
 
+/**
+ * Header band height for a container, scaled with its size so big sections get
+ * a more prominent header (and room for a larger header font). `base` is the
+ * minimum/floor; the band tops out at ~2.4× base.
+ */
+export function headerBandHeight(w: number, h: number, base: number): number {
+  if (base <= 0) return base;
+  const scaled = Math.round(Math.min(w, h) * 0.1);
+  return Math.max(base, Math.min(scaled, Math.round(base * 2.4)));
+}
+
 /** Summed value of a parsed node (leaf value or sum of descendants). */
 export function sumValue(node: TreemapNode): number {
   if (node.children.length === 0) return node.value ?? 0;
@@ -165,11 +176,21 @@ export function layoutTreemap(
     .sum((d) => (d.children?.length ? 0 : (d.value ?? 0)))
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
 
+  const outer = opts.paddingOuter ?? 3;
   const hroot = treemap<LayoutDatum>()
     .tile(treemapSquarify)
     .size([opts.width, opts.height])
-    .paddingOuter(opts.paddingOuter ?? 3)
-    .paddingTop(opts.headerH > 0 ? opts.headerH : (opts.paddingInner ?? 2))
+    .paddingOuter(outer)
+    // Header band scales with the section's size (bigger section → taller band)
+    // so its header font can grow. The synthetic root (depth 0) has no header,
+    // so it just uses the outer padding.
+    .paddingTop((d) =>
+      opts.headerH > 0 && d.depth > 0
+        ? headerBandHeight(d.x1 - d.x0, d.y1 - d.y0, opts.headerH)
+        : opts.headerH > 0
+          ? outer
+          : (opts.paddingInner ?? 2)
+    )
     .paddingInner(opts.paddingInner ?? 2)
     .round(true)(h);
 
