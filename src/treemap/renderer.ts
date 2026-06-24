@@ -269,7 +269,9 @@ export function renderTreemap(
       .attr('fill', fill)
       .attr('fill-opacity', 1)
       .attr('stroke', palette.bg)
-      .attr('stroke-width', 1);
+      // No stroke on internal leaf shapes — the paddingInner gap already
+      // separates them; only the containing box keeps a frame.
+      .attr('stroke-width', cell.isContainer ? 1 : 0);
 
     if (drillable && options.onClickItem && cell.lineNumber !== undefined) {
       const ln = cell.lineNumber;
