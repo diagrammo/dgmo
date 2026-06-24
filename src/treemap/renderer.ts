@@ -183,6 +183,11 @@ export function renderTreemap(
   const activeGroup =
     parsed.tagGroups.length > 0 ? parsed.tagGroups[0]!.name : null;
 
+  // Branch hue is keyed off the top-level branch's SOURCE order (not d3's
+  // value-sorted order) so the cell colors match the legend, which lists roots
+  // in source order.
+  const rootIndexByLabel = new Map(parsed.roots.map((r, i) => [r.label, i]));
+
   const colorOf = (cell: TreemapCell): string => {
     if (mode === 'heat') {
       return cell.heat !== undefined && heat
@@ -196,11 +201,16 @@ export function renderTreemap(
         MUTED_FILL
       );
     }
-    // branch: top-level hue, lightened with depth.
+    // branch: top-level hue, lightened slightly with depth. `mix` takes a
+    // PERCENTAGE of the first color to keep (0–100), so deeper cells retain less
+    // hue. Floor at 55% so leaves stay clearly saturated, not washed out.
     if (cell.isOther) return MUTED_FILL;
-    const hue = seriesColors[cell.topIndex % seriesColors.length]!;
-    const t = Math.min(0.5, (cell.depth - 1) * 0.2);
-    return t <= 0 ? hue : mix(hue, palette.bg, t);
+    const topLabel = cell.path[0] ?? cell.label;
+    const idx = rootIndexByLabel.get(topLabel) ?? cell.topIndex;
+    const hue = seriesColors[idx % seriesColors.length]!;
+    if (cell.depth <= 1) return hue;
+    const keepPct = Math.max(55, 100 - (cell.depth - 1) * 18);
+    return mix(hue, palette.bg, keepPct);
   };
 
   // ── Cells ──────────────────────────────────────────────────
