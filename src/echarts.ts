@@ -283,6 +283,9 @@ const CHART_BASE: Pick<
   tooltip: { show: false },
 };
 const CHART_BORDER_WIDTH = 2;
+// Scatter bubbles render semi-transparent so overlapping points stay visible.
+// Emphasis bumps back to full opacity on hover (see emphasisConfig).
+const SCATTER_FILL_OPACITY = 0.65;
 
 // ============================================================
 // Parser
@@ -1930,6 +1933,7 @@ function buildScatterOption(
           }),
           borderColor: catColor,
           borderWidth: CHART_BORDER_WIDTH,
+          opacity: SCATTER_FILL_OPACITY,
         },
         label: labelConfig,
         emphasis: emphasisConfig,
@@ -1961,6 +1965,7 @@ function buildScatterOption(
       {
         type: 'scatter' as const,
         data,
+        itemStyle: { opacity: SCATTER_FILL_OPACITY },
         label: labelConfig,
         emphasis: emphasisConfig,
         blur: blurConfig,
