@@ -302,11 +302,18 @@ tag Medium as m
     const container = mount(900, 500);
     renderEventLine(container, parsed, nordLight, false);
     const card = container.querySelector('g[data-era-collapsed="true"]')!;
-    const bulletFills = [...card.querySelectorAll('text')]
+    const texts = [...card.querySelectorAll('text')];
+    const bulletFills = texts
       .filter((t) => t.textContent === '•')
       .map((t) => t.getAttribute('fill'));
     expect(bulletFills.length).toBe(3);
     // three members, three different tags → three distinct bullet colors
     expect(new Set(bulletFills).size).toBe(3);
+    // the member TEXT (not just the marker) is tag-colored too
+    const memberFills = texts
+      .filter((t) => /^\d{4}\s/.test(t.textContent ?? ''))
+      .map((t) => t.getAttribute('fill'));
+    expect(memberFills.length).toBe(3);
+    expect(new Set(memberFills)).toEqual(new Set(bulletFills));
   });
 });

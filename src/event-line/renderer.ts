@@ -198,7 +198,9 @@ export function renderEventLine(
       parsed.tagGroups as TagGroup[],
       activeGroup
     );
-    return tc && tc !== NEUTRAL_TAG ? (resolveColor(tc, palette) ?? tc) : accent;
+    return tc && tc !== NEUTRAL_TAG
+      ? (resolveColor(tc, palette) ?? tc)
+      : accent;
   };
   let evIdx = 0;
   const placed: Placed[] = slots.map((slot): Placed => {
@@ -241,7 +243,9 @@ export function renderEventLine(
     }
     // Collapsed era → an event-like summary card: era name + bulleted members.
     const era = slot.era;
-    const solid = era.color ? (resolveColor(era.color, palette) ?? accent) : accent;
+    const solid = era.color
+      ? (resolveColor(era.color, palette) ?? accent)
+      : accent;
     const cardFill = shapeFill(palette, solid, isDark, { solid: false });
     const titleColor = contrastText(
       cardFill,
@@ -391,8 +395,10 @@ export function renderEventLine(
   const contentAbove = Math.max(ext('above'), dateAbove ? DATE_OFFSET + 10 : 0);
   const contentBelow = Math.max(ext('below'), dateBelow ? DATE_OFFSET + 10 : 0);
   // The era `]` bracket band lives beyond the content on the side opposite the cards.
-  const aboveExt = contentAbove + (hasEras && eraSide === 'above' ? ERA_BLOCK : 0);
-  const belowExt = contentBelow + (hasEras && eraSide === 'below' ? ERA_BLOCK : 0);
+  const aboveExt =
+    contentAbove + (hasEras && eraSide === 'above' ? ERA_BLOCK : 0);
+  const belowExt =
+    contentBelow + (hasEras && eraSide === 'below' ? ERA_BLOCK : 0);
   const TOP_PAD = 14;
   const BOT_PAD = 14;
   const spineY = topUsed + TOP_PAD + aboveExt;
@@ -846,28 +852,35 @@ function renderBody(
 ): void {
   let y = startBaseline;
   let bulletIdx = 0;
+  // The whole bulleted entry (marker + text) takes its member's tag color so a
+  // collapsed era reads like a mini tag-colored list; continuation lines keep
+  // it, plain lines (e.g. "+N more") fall back to the body color.
+  let lineColor = bodyColor;
   for (const line of lines) {
     const isBullet =
       line.kind === 'bullet-first' || line.kind === 'bullet-cont';
     const bodyX = CARD_PAD + (isBullet ? 12 : 0);
     if (line.kind === 'bullet-first') {
+      lineColor = bulletColors[bulletIdx++] ?? bodyColor;
       cardG
         .append('text')
         .attr('x', CARD_PAD)
         .attr('y', y)
         .attr('text-anchor', 'start')
-        .attr('fill', bulletColors[bulletIdx++] ?? bodyColor)
+        .attr('fill', lineColor)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', DESC_FONT)
         .attr('font-weight', 700)
         .text('•');
+    } else if (!isBullet) {
+      lineColor = bodyColor;
     }
     const t = cardG
       .append('text')
       .attr('x', bodyX)
       .attr('y', y)
       .attr('text-anchor', 'start')
-      .attr('fill', bodyColor)
+      .attr('fill', isBullet ? lineColor : bodyColor)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', DESC_FONT);
     renderInlineText(t, line.text, palette);
