@@ -1,0 +1,21 @@
+swimlane Weekly Publishing
+direction LR
+
+lane Writer gray
+lane Editor blue
+lane Social green
+
+Writer
+  Draft Post
+  Revise
+Editor
+  <Review>
+  Schedule
+  Publish
+Social
+  Promote
+
+Draft Post -> <Review>
+<Review>
+  -changes-> Revise -> <Review>
+  -ok-> Schedule -> Publish -> Promote

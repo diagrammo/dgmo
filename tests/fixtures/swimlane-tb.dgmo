@@ -1,0 +1,17 @@
+swimlane Onboarding
+direction TB
+
+lane Candidate blue
+lane Recruiter green
+
+Candidate
+  Apply
+  Accept
+Recruiter
+  <Screen>
+  Offer
+
+Apply -> <Screen>
+<Screen>
+  -pass-> Offer -> Accept
+  -fail-> Apply

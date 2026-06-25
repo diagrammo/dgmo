@@ -233,6 +233,7 @@ const INVENTORY = {
     'interface',
     'inverted',
     'labels',
+    'lane',
     'locale',
     'marker',
     'max',

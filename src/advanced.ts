@@ -281,6 +281,21 @@ export type { BLCollapseResult } from './boxes-and-lines/collapse';
 export { focusBoxesAndLines } from './boxes-and-lines/focus';
 export type { FocusTarget, FocusResult } from './boxes-and-lines/focus';
 
+export { parseSwimlane } from './swimlane/parser';
+export type {
+  ParsedSwimlane,
+  SwimNode,
+  SwimEdge,
+  SwimLane,
+  SwimPhase,
+  SwimShape,
+  SwimEvent,
+  SwimlaneLayoutResult,
+  LayoutBand as SwimlaneLayoutBand,
+} from './swimlane/types';
+export { layoutSwimlane } from './swimlane/layout';
+export { renderSwimlaneForExport } from './swimlane/renderer';
+
 export { parseSitemap, looksLikeSitemap } from './sitemap/parser';
 
 export type {

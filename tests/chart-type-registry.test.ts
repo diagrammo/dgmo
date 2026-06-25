@@ -32,7 +32,7 @@ const EXPECTED_CATEGORY: Record<
   string,
   'data-chart' | 'visualization' | 'diagram'
 > = {
-  // diagram (19)
+  // diagram (20)
   sequence: 'diagram',
   flowchart: 'diagram',
   class: 'diagram',
@@ -46,6 +46,7 @@ const EXPECTED_CATEGORY: Record<
   gantt: 'diagram',
   pert: 'diagram',
   'boxes-and-lines': 'diagram',
+  swimlane: 'diagram',
   mindmap: 'diagram',
   wireframe: 'diagram',
   'journey-map': 'diagram',
@@ -103,6 +104,7 @@ const EXPECTED_MEASURE_IDS = [
   'rasci',
   'sequence',
   'state',
+  'swimlane',
   'tech-radar',
 ].sort();
 
@@ -127,6 +129,7 @@ const EXPECTED_MINDIMS_IDS = [
   'raci',
   'sequence',
   'state',
+  'swimlane',
   'tech-radar',
 ].sort();
 
