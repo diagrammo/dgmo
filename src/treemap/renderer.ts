@@ -314,6 +314,20 @@ export function renderTreemap(
     const MIN_FS = 7;
     if (!cell.isContainer && w >= 2 * PAD + 8 && h >= 2 * PAD + 8) {
       const maxW = w - 2 * PAD;
+
+      // Vertical fallback: when the name can't fit horizontally even at the
+      // floor font, the cell is clearly taller than wide, and rotating buys
+      // real length (height beats the horizontal budget), run the name down the
+      // cell instead of truncating it. Value/% are dropped in this mode — a
+      // narrow tile has no room for a second column, and showing the whole name
+      // is the point. Skips the horizontal block entirely when it fires.
+      const horizMinW = measureText(cell.label, MIN_FS) * 1.06;
+      if (horizMinW > maxW && h > w * 1.25 && h - 2 * PAD > maxW) {
+        drawVerticalLabel(g, cell.label, w, h, PAD, ink);
+        if (drillable && w > 30 && h > 22) drawFocusIcon(g, w, ink, 9);
+        continue;
+      }
+
       let fs = clamp(Math.round(Math.min(w / 3.6, h / 3.4)), MIN_FS, 72);
       // Safety factor: text-measure under-estimates bold glyph widths, so shrink
       // a touch more to guarantee the PAD gap from the right edge.
@@ -359,10 +373,11 @@ export function renderTreemap(
 
       if (combined) {
         const fitsW = measureText(combined, vfs) <= maxW;
-        const roomBelow = h - PAD > y + vfs + 6;
+        const valY = y + lineDrop(fs, vfs);
+        const roomBelow = valY + descent(vfs) <= h - PAD;
         if (fitsW && roomBelow) {
           // Preferred: value · % on its own line under the name.
-          addLineAt(combined, y + vfs + 6, vfs, valOpacity);
+          addLineAt(combined, valY, vfs, valOpacity);
         } else if (fitsW) {
           // Short cell: no room below → trail the value after the name,
           // smaller, on the same line (if it fits the width).
@@ -385,17 +400,22 @@ export function renderTreemap(
           }
         } else if (valParts.length === 2) {
           // Tall-narrow cell: combined too wide → stack value then % below.
-          if (h - PAD > y + vfs + 6) {
-            y += vfs + 6;
+          const d1 = lineDrop(fs, vfs);
+          if (y + d1 + descent(vfs) <= h - PAD) {
+            y += d1;
             addLineAt(valParts[0]!, y, vfs, valOpacity);
           }
           const pfs = Math.max(10, Math.round(vfs * 0.9));
-          if (h - PAD > y + pfs + 4) {
-            y += pfs + 4;
+          const d2 = lineDrop(vfs, pfs);
+          if (y + d2 + descent(pfs) <= h - PAD) {
+            y += d2;
             addLineAt(valParts[1]!, y, pfs, valOpacity);
           }
-        } else if (h - PAD > y + vfs + 6) {
-          addLineAt(combined, y + vfs + 6, vfs, valOpacity);
+        } else {
+          const onlyY = y + lineDrop(fs, vfs);
+          if (onlyY + descent(vfs) <= h - PAD) {
+            addLineAt(combined, onlyY, vfs, valOpacity);
+          }
         }
       }
     }
@@ -657,6 +677,63 @@ function drawFocusIcon(
     .attr('cy', cy)
     .attr('r', 1.4)
     .attr('fill', ink);
+}
+
+/**
+ * Run a leaf's name vertically (reads bottom-to-top) down a tall-narrow cell.
+ * Font is bound by the cell WIDTH (the rotated cap height) and the name length
+ * by the cell HEIGHT; the name still clips if even rotated it can't fit. No
+ * value/% — the caller only reaches here when the cell is too narrow for them.
+ */
+function drawVerticalLabel(
+  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  label: string,
+  w: number,
+  h: number,
+  pad: number,
+  ink: string
+): void {
+  const MIN_FS = 6;
+  const availLen = h - 2 * pad; // length budget, along the cell height
+  const availThick = w - 2 * pad; // thickness budget, across the cell width
+  // Thickness-bound first: cap the glyph height to the cell width (modest cap so
+  // vertical names stay subtle), then shrink to fit the name into the length.
+  let fs = clamp(Math.round(Math.min(availThick / 0.8, 14)), MIN_FS, 22);
+  const nameW = measureText(label, fs) * 1.06;
+  if (nameW > availLen) fs = Math.max(MIN_FS, Math.floor((fs * availLen) / nameW));
+  const text = clipLabel(label, availLen, fs);
+  if (!text) return;
+
+  g.append('text')
+    .attr('class', 'dgmo-treemap-label')
+    // Center on the cell, rotate -90 so the string runs upward; the small y
+    // offset recenters the glyph's cap height across the cell width (resvg has
+    // no reliable dominant-baseline, so it's done by hand like the H labels).
+    .attr('transform', `translate(${w / 2},${h / 2}) rotate(-90)`)
+    .attr('y', Math.round(fs * 0.28))
+    .attr('text-anchor', 'middle')
+    .attr('font-size', fs)
+    .attr('font-weight', 600)
+    .attr('fill', ink)
+    .attr('opacity', 0.95)
+    .text(text);
+}
+
+/** Depth a glyph's descender (p, q, g, y, j) drops below the baseline. Inter's
+ *  deepest descenders sit at ~0.24em; round up so a big `g`/`y` tail never grazes
+ *  the line beneath it. */
+function descent(fs: number): number {
+  return Math.ceil(fs * 0.26);
+}
+
+/**
+ * Baseline-to-baseline drop from a line at `prevFs` to the next at `nextFs`:
+ * clear the previous line's descender, leave a small gap, then drop by the next
+ * line's cap height. Without the descender term, a large name's `p`/`g`/`y`
+ * tails collide with the value line beneath it.
+ */
+function lineDrop(prevFs: number, nextFs: number, gap = 4): number {
+  return descent(prevFs) + gap + Math.round(nextFs * 0.72);
 }
 
 function clamp(x: number, lo: number, hi: number): number {
