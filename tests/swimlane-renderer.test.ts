@@ -32,7 +32,7 @@ describe('swimlane renderer — structure appears (AC11)', () => {
   it('draws lane bands, phase labels, nodes and edges', () => {
     const svg = render('swimlane-insurance.dgmo');
     expect(
-      svg.querySelectorAll('.dgmo-swimlane-lanes rect').length
+      svg.querySelectorAll('.dgmo-swimlane-lanes path').length
     ).toBeGreaterThan(0);
     expect(svg.querySelectorAll('.dgmo-swimlane-phases text').length).toBe(4);
     expect(

@@ -9,7 +9,6 @@
 // shade. resvg has no `color-mix()` — all blends go through `mix()`.
 
 import * as d3Selection from 'd3-selection';
-import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import {
@@ -34,17 +33,89 @@ const EDGE_LABEL_FONT = 11;
 const NODE_RX = 8;
 const NODE_STROKE = 1.5;
 const EDGE_STROKE = 1.6;
+const EDGE_CORNER_R = 11; // fillet radius for orthogonal edge corners
 const ARROW_W = 9;
 const ARROW_H = 6.4;
+const LANE_RADIUS = 10;
+const LANE_INSET = 2; // visual gutter between adjacent lane cards
+
+/** Rect path with independent corner radii (clamped to half-extent). */
+/** Orthogonal polyline with rounded (filleted) corners for softer routes. */
+function roundedPolyline(
+  pts: readonly { readonly x: number; readonly y: number }[],
+  radius: number
+): string {
+  if (pts.length < 3) {
+    return pts.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join(' ');
+  }
+  let d = `M${pts[0]!.x} ${pts[0]!.y}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1]!;
+    const p1 = pts[i]!;
+    const p2 = pts[i + 1]!;
+    const l1 = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+    const l2 = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    if (l1 < 0.01 || l2 < 0.01) {
+      d += ` L${p1.x} ${p1.y}`;
+      continue;
+    }
+    const r = Math.min(radius, l1 / 2, l2 / 2);
+    const ax = p1.x - ((p1.x - p0.x) / l1) * r;
+    const ay = p1.y - ((p1.y - p0.y) / l1) * r;
+    const bx = p1.x + ((p2.x - p1.x) / l2) * r;
+    const by = p1.y + ((p2.y - p1.y) / l2) * r;
+    d += ` L${ax} ${ay} Q${p1.x} ${p1.y} ${bx} ${by}`;
+  }
+  const last = pts[pts.length - 1]!;
+  d += ` L${last.x} ${last.y}`;
+  return d;
+}
+
+/** Shortest distance from a point to a line segment. */
+function distToSeg(
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
+): number {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const l2 = dx * dx + dy * dy;
+  let t = l2 > 0 ? ((px - x1) * dx + (py - y1) * dy) / l2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
+function roundedRectPath(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: { tl?: number; tr?: number; br?: number; bl?: number } = {}
+): string {
+  const m = Math.min(w, h) / 2;
+  const tl = Math.min(r.tl ?? 0, m);
+  const tr = Math.min(r.tr ?? 0, m);
+  const br = Math.min(r.br ?? 0, m);
+  const bl = Math.min(r.bl ?? 0, m);
+  return [
+    `M${x + tl},${y}`,
+    `H${x + w - tr}`,
+    tr ? `A${tr},${tr} 0 0 1 ${x + w},${y + tr}` : '',
+    `V${y + h - br}`,
+    br ? `A${br},${br} 0 0 1 ${x + w - br},${y + h}` : '',
+    `H${x + bl}`,
+    bl ? `A${bl},${bl} 0 0 1 ${x},${y + h - bl}` : '',
+    `V${y + tl}`,
+    tl ? `A${tl},${tl} 0 0 1 ${x + tl},${y}` : '',
+    'Z',
+  ].join(' ');
+}
 
 type D3Svg = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
 type D3G = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
-
-const linePath = d3Shape
-  .line<{ x: number; y: number }>()
-  .x((d) => d.x)
-  .y((d) => d.y)
-  .curve(d3Shape.curveLinear);
 
 export interface SwimlaneRenderOptions {
   exportDims?: { width: number; height: number };
@@ -67,6 +138,10 @@ export function renderSwimlaneForExport(
   isDark: boolean,
   opts: SwimlaneRenderOptions = {}
 ): void {
+  // Clear any prior render so re-renders in a live container (app preview)
+  // don't stack SVGs. Export uses a throwaway container, so this is a no-op there.
+  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
+
   const titleOffset = parsed.title ? 40 : 0;
   const width = opts.exportDims?.width ?? layout.width;
   const height = (opts.exportDims?.height ?? layout.height) + 0;
@@ -126,36 +201,71 @@ export function renderSwimlaneForExport(
     laneColorById.set(lane.id, hex);
   });
 
-  // ── Lane band backgrounds + headers ─────────────────────────
+  const isLR = parsed.direction === 'LR';
+
+  // Halo colour for label legibility: match the lane background the text sits
+  // over (not a flat light fill) so the halo blends in and just fades out the
+  // edges/outlines crossing behind the text. Falls back to the base bg.
+  const laneFill = (hex: string): string => mix(hex, baseBg, 9);
+  const haloAt = (cross: number): string => {
+    for (const band of layout.lanes) {
+      const lo = isLR ? band.y : band.x;
+      const hi = lo + (isLR ? band.height : band.width);
+      if (cross >= lo && cross <= hi)
+        return laneFill(laneColorById.get(band.id) ?? palette.border);
+    }
+    return baseBg;
+  };
+
+  // ── Lane band backgrounds + headers (rounded cards) ─────────
   const laneG = root.append('g').attr('class', 'dgmo-swimlane-lanes');
   for (const band of layout.lanes) {
     const hex = laneColorById.get(band.id) ?? palette.border;
+    // Inset on the cross axis (vertical in LR, horizontal in TB) so adjacent
+    // rounded lane cards read as separate rows/columns instead of one block.
+    const bx = isLR ? band.x : band.x + LANE_INSET;
+    const by = isLR ? band.y + LANE_INSET : band.y;
+    const bw = isLR ? band.width : band.width - LANE_INSET * 2;
+    const bh = isLR ? band.height - LANE_INSET * 2 : band.height;
     laneG
-      .append('rect')
-      .attr('x', band.x)
-      .attr('y', band.y)
-      .attr('width', band.width)
-      .attr('height', band.height)
+      .append('path')
+      .attr(
+        'd',
+        roundedRectPath(bx, by, bw, bh, {
+          tl: LANE_RADIUS,
+          tr: LANE_RADIUS,
+          br: LANE_RADIUS,
+          bl: LANE_RADIUS,
+        })
+      )
       .attr('fill', mix(hex, baseBg, 9))
       .attr('stroke', mix(palette.border, baseBg, 60))
       .attr('stroke-width', 1)
       .attr('data-line-number', String(band.lineNumber));
-    // Header gutter (left in LR / top in TB) — slightly stronger tint.
-    const isLR = parsed.direction === 'LR';
-    const gx = band.x;
-    const gy = band.y;
+    // Header gutter (left in LR / top in TB) — slightly stronger tint, with
+    // only its leading-edge corners rounded to hug the card.
+    const gw = isLR ? band.headerSize : bw;
+    const gh = isLR ? bh : band.headerSize;
     laneG
-      .append('rect')
-      .attr('x', gx)
-      .attr('y', gy)
-      .attr('width', isLR ? band.headerSize : band.width)
-      .attr('height', isLR ? band.height : band.headerSize)
+      .append('path')
+      .attr(
+        'd',
+        roundedRectPath(
+          bx,
+          by,
+          gw,
+          gh,
+          isLR
+            ? { tl: LANE_RADIUS, bl: LANE_RADIUS }
+            : { tl: LANE_RADIUS, tr: LANE_RADIUS }
+        )
+      )
       .attr('fill', mix(hex, baseBg, 16))
       .attr('opacity', 0.6);
     laneG
       .append('text')
-      .attr('x', isLR ? gx + 12 : gx + band.width / 2)
-      .attr('y', isLR ? gy + band.height / 2 : gy + band.headerSize / 2)
+      .attr('x', isLR ? bx + 12 : bx + bw / 2)
+      .attr('y', isLR ? by + bh / 2 : by + band.headerSize / 2)
       .attr('text-anchor', isLR ? 'start' : 'middle')
       .attr('dominant-baseline', 'middle')
       .attr('font-size', LANE_LABEL_FONT)
@@ -164,31 +274,25 @@ export function renderSwimlaneForExport(
       .text(band.label);
   }
 
-  // ── Phase dividers + headers ────────────────────────────────
+  // ── Phase bands (zebra striping + centered headers) ─────────
+  // Phases are shown as faint alternating column washes instead of divider
+  // lines: under cross-phase compaction a column can host two phases, so a hard
+  // divider would land mid-column. Each band already has a clean, gap-free,
+  // non-overlapping column range, so a subtle wash on every other band reads as
+  // distinct vertical sections without any line stepping on the headers.
   const phaseG = root.append('g').attr('class', 'dgmo-swimlane-phases');
-  const isLR = parsed.direction === 'LR';
   layout.phases.forEach((band, idx) => {
-    // Divider line at the leading edge (skip for the first phase).
-    if (idx > 0) {
-      if (isLR) {
-        phaseG
-          .append('line')
-          .attr('x1', band.x)
-          .attr('y1', 0)
-          .attr('x2', band.x)
-          .attr('y2', layout.height)
-          .attr('stroke', mix(palette.border, baseBg, 70))
-          .attr('stroke-dasharray', '3 4');
-      } else {
-        phaseG
-          .append('line')
-          .attr('x1', 0)
-          .attr('y1', band.y)
-          .attr('x2', layout.width)
-          .attr('y2', band.y)
-          .attr('stroke', mix(palette.border, baseBg, 70))
-          .attr('stroke-dasharray', '3 4');
-      }
+    if (idx % 2 === 1) {
+      phaseG
+        .append('rect')
+        .attr('x', band.x)
+        .attr('y', band.y)
+        .attr('width', band.width)
+        .attr('height', band.height)
+        .attr('rx', LANE_RADIUS)
+        .attr('fill', palette.text)
+        .attr('opacity', 0.05)
+        .attr('pointer-events', 'none');
     }
     phaseG
       .append('text')
@@ -201,7 +305,7 @@ export function renderSwimlaneForExport(
       .attr('letter-spacing', '0.06em')
       .attr('fill', palette.textMuted)
       .attr('data-line-number', String(band.lineNumber))
-      .text(band.label.toUpperCase());
+      .text(band.label);
   });
 
   // ── Node fill cascade ───────────────────────────────────────
@@ -252,7 +356,7 @@ export function renderSwimlaneForExport(
       stroke = ev.success;
       marker = `sw-arrow-${ev.success.replace('#', '')}`;
     }
-    const d = linePath([...e.points]) ?? '';
+    const d = roundedPolyline(e.points, EDGE_CORNER_R);
     edgeG
       .append('path')
       .attr('d', d)
@@ -263,30 +367,90 @@ export function renderSwimlaneForExport(
       .attr('marker-end', `url(#${marker})`)
       .attr('data-line-number', String(e.lineNumber));
     if (e.label) {
-      // Anchor the label on the path's LONGEST segment — the central run of an
-      // orthogonal route, clear of both endpoints and of sibling branches that
-      // share a source/target port (geometric-midpoint labels collide there).
-      let best = 0;
-      let bestLen = -1;
+      // Place the label at the path's ARC-LENGTH midpoint. Two branches out of
+      // one gateway share their first segment (the exit port), so a
+      // longest-segment or first-segment anchor stacks both labels there; the
+      // arc midpoint sits past the divergence, separating sibling labels.
+      const segLen: number[] = [];
+      let total = 0;
       for (let k = 0; k < e.points.length - 1; k++) {
         const p0 = e.points[k]!;
         const p1 = e.points[k + 1]!;
         const len = Math.abs(p1.x - p0.x) + Math.abs(p1.y - p0.y);
-        if (len > bestLen) {
-          bestLen = len;
+        segLen.push(len);
+        total += len;
+      }
+      let remain = total / 2;
+      let best = 0;
+      for (let k = 0; k < segLen.length; k++) {
+        if (remain <= segLen[k]! || k === segLen.length - 1) {
           best = k;
+          break;
         }
+        remain -= segLen[k]!;
       }
       const a = e.points[best]!;
       const b = e.points[best + 1] ?? a;
-      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const t = segLen[best]! > 0 ? remain / segLen[best]! : 0.5;
+      const mid = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+      // Offset the label PERPENDICULAR to its segment, choosing the side with
+      // more clearance from OTHER edges. A gateway's two branches share their
+      // exit, so one branch's riser often runs right beside the other branch's
+      // straight-line label — picking the clearer side moves the label off it.
+      const horizontal = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y);
+      const LABEL_GAP = 7;
+      const clearance = (px: number, py: number): number => {
+        let m = Infinity;
+        for (const oe of layout.edges) {
+          if (oe === e) continue;
+          for (let k = 0; k < oe.points.length - 1; k++) {
+            const d = distToSeg(
+              px,
+              py,
+              oe.points[k]!.x,
+              oe.points[k]!.y,
+              oe.points[k + 1]!.x,
+              oe.points[k + 1]!.y
+            );
+            if (d < m) m = d;
+          }
+        }
+        return m;
+      };
+      const CROWD = 10; // px: only flip off the default side when it's crowded
+      let tx: number;
+      let ty: number;
+      let anchor: string;
+      let baseline: string;
+      if (horizontal) {
+        const up = clearance(mid.x, mid.y - LABEL_GAP);
+        const down = clearance(mid.x, mid.y + LABEL_GAP);
+        const below = up < CROWD && down > up;
+        tx = mid.x;
+        ty = mid.y + (below ? LABEL_GAP : -LABEL_GAP);
+        anchor = 'middle';
+        baseline = below ? 'hanging' : 'auto';
+      } else {
+        const right = clearance(mid.x + LABEL_GAP, mid.y);
+        const left = clearance(mid.x - LABEL_GAP, mid.y);
+        const toLeft = right < CROWD && left > right;
+        tx = mid.x + (toLeft ? -LABEL_GAP : LABEL_GAP);
+        ty = mid.y;
+        anchor = toLeft ? 'end' : 'start';
+        baseline = 'middle';
+      }
       edgeG
         .append('text')
-        .attr('x', mid.x)
-        .attr('y', mid.y - 5)
-        .attr('text-anchor', 'middle')
+        .attr('x', tx)
+        .attr('y', ty)
+        .attr('text-anchor', anchor)
+        .attr('dominant-baseline', baseline)
         .attr('font-size', EDGE_LABEL_FONT)
         .attr('fill', stroke === palette.textMuted ? palette.textMuted : stroke)
+        .attr('stroke', haloAt(ty))
+        .attr('stroke-width', 3.5)
+        .attr('stroke-linejoin', 'round')
+        .attr('paint-order', 'stroke')
         .text(e.label);
     }
   }
@@ -332,9 +496,24 @@ export function renderSwimlaneForExport(
           .attr('text-anchor', 'middle')
           .attr('font-size', NODE_FONT_SIZE - 1)
           .attr('fill', palette.textMuted)
+          .attr('stroke', haloAt(cy + r + 12))
+          .attr('stroke-width', 3.5)
+          .attr('stroke-linejoin', 'round')
+          .attr('paint-order', 'stroke')
           .text(n.label);
       } else {
-        drawCenteredLabel(g, n.label, cx, cy, palette.text, NODE_FONT_SIZE - 1);
+        // Halo with the lane background so the diamond outline fades behind a
+        // label that overflows the narrow gateway.
+        drawCenteredLabel(
+          g,
+          n.label,
+          cx,
+          cy,
+          palette.text,
+          NODE_FONT_SIZE - 1,
+          true,
+          haloAt(cy)
+        );
       }
     } else if (n.shape === 'terminal') {
       const r = n.width / 2;
@@ -355,12 +534,30 @@ export function renderSwimlaneForExport(
           .attr('stroke', stroke)
           .attr('stroke-width', 1);
       }
+      // Terminal label goes below the circle by default, but if an edge
+      // connects on the BOTTOM of the circle (it approaches from the lane
+      // below) the label would sit on that line — flip it above instead.
+      let connectsBelow = false;
+      for (const le of layout.edges) {
+        const pt =
+          le.target === n.id
+            ? le.points[le.points.length - 1]
+            : le.source === n.id
+              ? le.points[0]
+              : undefined;
+        if (pt && pt.y > cy + r * 0.5) connectsBelow = true;
+      }
+      const labelY = connectsBelow ? cy - r - 6 : cy + r + 12;
       g.append('text')
         .attr('x', cx)
-        .attr('y', cy + r + 12)
+        .attr('y', labelY)
         .attr('text-anchor', 'middle')
         .attr('font-size', NODE_FONT_SIZE - 1)
         .attr('fill', palette.text)
+        .attr('stroke', haloAt(labelY))
+        .attr('stroke-width', 3.5)
+        .attr('stroke-linejoin', 'round')
+        .attr('paint-order', 'stroke')
         .text(n.label);
     } else {
       // task / subprocess rectangle.
@@ -395,18 +592,39 @@ export function renderSwimlaneForExport(
 }
 
 /** Draw a one/two-line centered label inside a node. */
+/** Greedy word-wrap to a target line length; never splits a single word. */
+function wrapWords(words: string[], target: number): string[] {
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    if (cur === '') cur = w;
+    else if (cur.length + 1 + w.length <= target) cur += ' ' + w;
+    else {
+      lines.push(cur);
+      cur = w;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
 function drawCenteredLabel(
   g: D3G,
   label: string,
   cx: number,
   cy: number,
   fill: string,
-  fontSize: number
+  fontSize: number,
+  tight = false,
+  halo?: string
 ): void {
   const words = label.split(/\s+/);
-  // Single line if short; else split roughly in half.
   let lines: string[];
-  if (label.length <= 14 || words.length === 1) {
+  if (tight) {
+    // Gateways are narrow diamonds — any multi-word label is broken onto
+    // balanced short lines so it stays inside the shape.
+    lines = words.length === 1 ? [label] : wrapWords(words, 7);
+  } else if (label.length <= 14 || words.length === 1) {
     lines = [label];
   } else {
     const mid = Math.ceil(words.length / 2);
@@ -415,13 +633,20 @@ function drawCenteredLabel(
   const lineH = fontSize * 1.2;
   const startY = cy - ((lines.length - 1) * lineH) / 2;
   lines.forEach((ln, i) => {
-    g.append('text')
+    const txt = g
+      .append('text')
       .attr('x', cx)
       .attr('y', startY + i * lineH)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
       .attr('font-size', fontSize)
-      .attr('fill', fill)
-      .text(ln);
+      .attr('fill', fill);
+    if (halo)
+      txt
+        .attr('stroke', halo)
+        .attr('stroke-width', 3.5)
+        .attr('stroke-linejoin', 'round')
+        .attr('paint-order', 'stroke');
+    txt.text(ln);
   });
 }

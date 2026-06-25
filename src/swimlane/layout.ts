@@ -14,7 +14,7 @@
 // columns • edge routing (forward gutter / same-rank connector / back-channel
 // loop) • bbox. TB is a pure axis-swap projection on top of the same core.
 
-import { acyclicOrient, longestPath } from '../boxes-and-lines/layout-grouped';
+import { acyclicOrient } from '../boxes-and-lines/layout-grouped';
 import type {
   ParsedSwimlane,
   SwimDirection,
@@ -51,6 +51,70 @@ function nodeSize(shape: SwimShape): { w: number; h: number } {
   return { w: NODE_W, h: NODE_H };
 }
 
+/**
+ * Lane-aware compact rank on a DAG (Kahn topo-order + relaxation).
+ *
+ * Compaction: a same-lane edge advances the flow column (+1); a cross-lane
+ * handoff keeps the column (+0) so a successor in another lane lands in the
+ * SAME column as its predecessor — the flow steps straight down (a vertical
+ * connector) instead of marching diagonally to the right.
+ *
+ * Strict same-lane separation: two nodes in the SAME lane connected by a path
+ * must NOT share a column — otherwise a loop-back node (A→B→A) collapses onto
+ * its ancestor and the edges cross through boxes. We enforce this by tracking,
+ * per node, the max rank of every same-lane ancestor and pushing a colliding
+ * node one column forward. PARALLEL same-lane branches (no path between them,
+ * e.g. fork siblings) are left free to share a column — that stacking is
+ * intentional.
+ */
+function compactRanks(
+  ids: string[],
+  edges: { from: string; to: string }[],
+  laneOf: (id: string) => string
+): Map<string, number> {
+  const adj = new Map<string, string[]>();
+  const indeg = new Map<string, number>();
+  for (const id of ids) {
+    adj.set(id, []);
+    indeg.set(id, 0);
+  }
+  for (const e of edges) {
+    adj.get(e.from)?.push(e.to);
+    indeg.set(e.to, (indeg.get(e.to) ?? 0) + 1);
+  }
+  const rank = new Map<string, number>(ids.map((id) => [id, 0]));
+  // Per-node max ancestor rank keyed by lane, accumulated as preds are visited.
+  const laneMaxIn = new Map<string, Map<string, number>>();
+  for (const id of ids) laneMaxIn.set(id, new Map());
+  const queue = ids.filter((id) => (indeg.get(id) ?? 0) === 0);
+  for (let qi = 0; qi < queue.length; qi++) {
+    const u = queue[qi]!;
+    const lu = laneOf(u);
+    const accIn = laneMaxIn.get(u)!;
+    // Strict separation: if a same-lane ancestor already occupies this column or
+    // beyond, step u forward past it.
+    const sameLaneAnc = accIn.get(lu);
+    if (sameLaneAnc !== undefined && (rank.get(u) ?? 0) <= sameLaneAnc) {
+      rank.set(u, sameLaneAnc + 1);
+    }
+    const ru = rank.get(u)!;
+    // u's own lane contribution flows to its descendants.
+    const accOut = new Map(accIn);
+    accOut.set(lu, Math.max(accOut.get(lu) ?? -1, ru));
+    for (const w of adj.get(u) ?? []) {
+      const cand = ru + (laneOf(w) === lu ? 1 : 0);
+      if (cand > (rank.get(w) ?? 0)) rank.set(w, cand);
+      const wIn = laneMaxIn.get(w)!;
+      for (const [lane, r] of accOut)
+        if (r > (wIn.get(lane) ?? -1)) wIn.set(lane, r);
+      const d = (indeg.get(w) ?? 0) - 1;
+      indeg.set(w, d);
+      if (d === 0) queue.push(w);
+    }
+  }
+  return rank;
+}
+
 export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
   const dir: SwimDirection = parsed.direction;
   const isLR = dir === 'LR';
@@ -74,32 +138,28 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
       (e) => e.from !== e.to && nodeById.has(e.from) && nodeById.has(e.to)
     );
   const { dag } = acyclicOrient(ids, realEdges);
-  const baseRank =
-    longestPath(
-      ids,
-      dag.map((d) => ({ from: d.from, to: d.to }))
-    ) ?? new Map(ids.map((id) => [id, 0]));
+  const laneOf = (id: string): string => nodeById.get(id)!.lane;
+  // Compact ranking: same-lane edges advance the flow column (+1); cross-lane
+  // handoffs keep the column (0) and render as a same-rank vertical connector
+  // (see edge routing below), stacking lane changes beneath their predecessor —
+  // except two same-lane nodes joined by a path are kept on separate columns.
+  const baseRank = compactRanks(
+    ids,
+    dag.map((d) => ({ from: d.from, to: d.to })),
+    laneOf
+  );
 
-  // ── Phase floor reconciliation (monotonic across phases) ────
+  // ── Phase reconciliation (compact ACROSS phases) ────────────
+  // Phases do NOT push nodes forward into disjoint column bands: the compact
+  // flow rank drives every column directly, so a cross-lane handoff at a phase
+  // boundary stacks into the previous phase's column (e.g. Validate sits under
+  // Submit Claim) instead of starting a fresh column. `baseRank` already
+  // guarantees no two same-lane connected nodes share a column, so this can't
+  // reintroduce collisions. Phases survive only as header bands (drawn from the
+  // columns their members actually land in — consecutive bands may overlap by
+  // the shared handoff column, so the header labels/dividers are approximate).
   const finalRank = new Map<string, number>();
-  if (parsed.phases.length === 0) {
-    for (const id of ids) finalRank.set(id, baseRank.get(id) ?? 0);
-  } else {
-    let runningFloor = 0;
-    for (const phase of parsed.phases) {
-      const members = parsed.nodes.filter((n) => n.phase === phase.id);
-      let maxFr = runningFloor - 1;
-      for (const n of members) {
-        const fr = Math.max(baseRank.get(n.id) ?? 0, runningFloor);
-        finalRank.set(n.id, fr);
-        if (fr > maxFr) maxFr = fr;
-      }
-      runningFloor = maxFr + 1;
-    }
-    // Nodes with no phase keep their base rank.
-    for (const id of ids)
-      if (!finalRank.has(id)) finalRank.set(id, baseRank.get(id) ?? 0);
-  }
+  for (const id of ids) finalRank.set(id, baseRank.get(id) ?? 0);
 
   // Contiguous rank indices.
   const usedRanks = Array.from(
@@ -221,13 +281,49 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     };
   });
 
+  // ── Forward-edge channel staggering ─────────────────────────
+  // Edges from the same source column into the same target otherwise bend at
+  // the identical midpoint, so their vertical channels coincide and render as
+  // ONE overlapping line (e.g. a 3-way parallel join). Fan each onto its own
+  // channel near the bend so every incoming edge stays visible.
+  const CHANNEL_GAP = 16;
+  const bendOffset: number[] = new Array(parsed.edges.length).fill(0);
+  {
+    const groups = new Map<string, number[]>();
+    parsed.edges.forEach((e, i) => {
+      const s = nodeById.get(e.source);
+      const t = nodeById.get(e.target);
+      if (!s || !t || s.id === t.id) return;
+      const sR = finalRank.get(s.id) ?? 0;
+      const tR = finalRank.get(t.id) ?? 0;
+      if (tR <= sR) return;
+      if (
+        Math.abs((nodeCross.get(s.id) ?? 0) - (nodeCross.get(t.id) ?? 0)) < 0.5
+      )
+        return;
+      const key = `${e.target}\x00${sR}`;
+      (groups.get(key) ?? groups.set(key, []).get(key)!).push(i);
+    });
+    for (const idxs of groups.values()) {
+      if (idxs.length < 2) continue;
+      idxs.sort(
+        (a, b) =>
+          (nodeCross.get(parsed.edges[a]!.source) ?? 0) -
+          (nodeCross.get(parsed.edges[b]!.source) ?? 0)
+      );
+      idxs.forEach((idx, k) => {
+        bendOffset[idx] = (k - (idxs.length - 1) / 2) * CHANNEL_GAP;
+      });
+    }
+  }
+
   // ── Edge routing ────────────────────────────────────────────
   let backIdx = 0;
   const layoutEdges: SwimLayoutEdge[] = [];
-  for (const e of parsed.edges) {
+  parsed.edges.forEach((e, ei) => {
     const s = nodeById.get(e.source);
     const t = nodeById.get(e.target);
-    if (!s || !t || s.id === t.id) continue;
+    if (!s || !t || s.id === t.id) return;
     const sFlow = nodeFlow.get(s.id)!;
     const sCross = nodeCross.get(s.id)!;
     const tFlow = nodeFlow.get(t.id)!;
@@ -248,7 +344,7 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
       if (Math.abs(sCross - tCross) < 0.5) {
         pts = [project(a, sCross), project(b, tCross)];
       } else {
-        const mid = (a + b) / 2;
+        const mid = (a + b) / 2 + bendOffset[ei]!;
         pts = [
           project(a, sCross),
           project(mid, sCross),
@@ -294,7 +390,7 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
       back,
       lineNumber: e.lineNumber,
     });
-  }
+  });
 
   // ── Lane bands (full flow extent, label gutter at flow start) ──
   const projectBand = (
@@ -324,30 +420,57 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     };
   });
 
-  // ── Phase bands (full cross extent, label gutter at cross start) ──
-  const phaseBands: LayoutBand[] = parsed.phases.map((phase) => {
-    const members = parsed.nodes.filter((n) => n.phase === phase.id);
-    let lo = Infinity;
-    let hi = -Infinity;
-    for (const n of members) {
-      lo = Math.min(lo, nodeFlow.get(n.id)! - flowLenOf(n.id) / 2);
-      hi = Math.max(hi, nodeFlow.get(n.id)! + flowLenOf(n.id) / 2);
+  // ── Phase bands (clean, non-overlapping column ranges) ──────
+  // Under cross-phase compaction a single column can hold nodes from two
+  // phases, so member min/max flow extents overlap and the header dividers go
+  // ragged. Instead, PARTITION the columns: assign each column to the earliest
+  // phase that owns a node there, then make that assignment monotonic so the
+  // bands stay contiguous and in declaration order. Each band spans from the
+  // midpoint before its first column to the midpoint after its last — tidy,
+  // gap-free, non-overlapping, ready for zebra striping + centered labels.
+  const phaseOrder = new Map(parsed.phases.map((ph, i) => [ph.id, i]));
+  const colMinPhase: (number | undefined)[] = Array.from(
+    { length: R },
+    () => undefined
+  );
+  for (const n of parsed.nodes) {
+    if (n.phase === undefined) continue;
+    const po = phaseOrder.get(n.phase);
+    if (po === undefined) continue;
+    const ri = riOf(n.id);
+    const cur = colMinPhase[ri];
+    if (cur === undefined || po < cur) colMinPhase[ri] = po;
+  }
+  const colPhase: number[] = Array.from({ length: R }, () => 0);
+  let carry = 0;
+  for (let ri = 0; ri < R; ri++) {
+    const v = colMinPhase[ri];
+    if (v !== undefined && v > carry) carry = v;
+    colPhase[ri] = carry;
+  }
+  const colMid = (i: number, j: number): number =>
+    (flowCenter[i]! + flowCenter[j]!) / 2;
+  const phaseBands: LayoutBand[] = [];
+  if (parsed.phases.length > 0 && R > 0) {
+    let start = 0;
+    for (let ri = 1; ri <= R; ri++) {
+      if (ri === R || colPhase[ri] !== colPhase[start]) {
+        const a = start;
+        const b = ri - 1;
+        const phase = parsed.phases[colPhase[start]!]!;
+        const leftEdge = a === 0 ? 0 : colMid(a - 1, a);
+        const rightEdge = b === R - 1 ? totalFlow : colMid(b, b + 1);
+        phaseBands.push({
+          id: phase.id,
+          label: phase.label,
+          ...projectBand(leftEdge, rightEdge - leftEdge, 0, totalCross),
+          headerSize: PHASE_HEADER,
+          lineNumber: phase.lineNumber,
+        });
+        start = ri;
+      }
     }
-    if (!Number.isFinite(lo)) {
-      lo = contentFlowStart;
-      hi = contentFlowStart;
-    }
-    const flowStart = lo - COL_GAP / 2;
-    const flowExtent = hi - lo + COL_GAP;
-    const box = projectBand(flowStart, flowExtent, 0, totalCross);
-    return {
-      id: phase.id,
-      label: phase.label,
-      ...box,
-      headerSize: PHASE_HEADER,
-      lineNumber: phase.lineNumber,
-    };
-  });
+  }
 
   return {
     nodes: layoutNodes,
