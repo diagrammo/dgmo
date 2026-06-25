@@ -117,6 +117,14 @@ export const ER_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'domain',
 ]);
 
+// event-line carries the date as a §15-style line-prefix (not a key) and the
+// description as a pyramid/ring-style bare indented body (not a key), so the
+// only static reserved key is `color`; tag aliases are added per-parse via
+// withTagAliases. See spec §28 / decision #16.
+export const EVENT_LINE_REGISTRY: ReservedKeyRegistry = staticRegistry([
+  'color',
+]);
+
 export const KANBAN_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',
