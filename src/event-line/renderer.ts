@@ -45,7 +45,7 @@ import {
 } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
-import type { EventLineEvent, ParsedEventLine } from './types';
+import type { EventLineEra, EventLineEvent, ParsedEventLine } from './types';
 
 // ── Geometry constants ───────────────────────────────────────
 const CARD_W = 210;
@@ -69,11 +69,28 @@ const CARD_INSET = 18;
 const FAN_GAP = 6;
 // Date labels sit on the side OPPOSITE their card, pushed this far off the spine.
 const DATE_OFFSET = 28;
+// Era `]` bracket band: depth reserved on the side opposite the cards.
+const ERA_BLOCK = 30;
+const ERA_BRACKET_CAP = 8;
+const ERA_LABEL_FONT = 11.5;
+// A collapsed era folds its members into one card; cap the bulleted member list.
+const ERA_MEMBER_MAX = 6;
+const ERA_COLLAPSED_HALF = 30; // half-width of a collapsed era's spine bracket
 
 type Side = 'above' | 'below';
 
 interface Placed {
-  event: EventLineEvent;
+  /** `event` = a visible event card; `era` = a collapsed era's summary card. */
+  kind: 'event' | 'era';
+  event: EventLineEvent | null;
+  era: EventLineEra | null;
+  members: readonly EventLineEvent[];
+  label: string;
+  date: string | null;
+  dateValue: number | null;
+  lineNumber: number;
+  /** Name of the enclosing era (for bracket runs), or null. */
+  eraName: string | null;
   color: string;
   cardFill: string;
   titleColor: string;
@@ -119,63 +136,165 @@ export function renderEventLine(
   const legendH = hasLegend ? LEGEND_BAND : 0;
   const topUsed = titleH + legendH;
 
-  // ── Per-event color + wrapped body + card height ──
+  // ── Eras (§28.6a) ──────────────────────────────────────────
+  // The era sits OPPOSITE the cards (one-sided → opposite the chosen side;
+  // alternating → below by default). A collapsed era folds into one event-like
+  // summary card on the cards' side, with a `]` bracket left on the spine.
+  const eraByName = new Map(parsed.eras.map((e) => [e.name, e]));
+  const collapsedSet = new Set(
+    parsed.eras.filter((e) => e.collapsed).map((e) => e.name)
+  );
+  const hasEras = parsed.events.some((e) => e.era && eraByName.has(e.era));
+  const anyCollapsed = parsed.events.some(
+    (e) => e.era && collapsedSet.has(e.era)
+  );
+  const sideOpt = parsed.options.side;
+  const alternate = sideOpt === 'alternate';
+  const eraSide: Side = alternate
+    ? 'below'
+    : sideOpt === 'above'
+      ? 'below'
+      : 'above';
+  const summarySide: Side = eraSide === 'above' ? 'below' : 'above';
+
+  // Slots in source order: a visible event, or one summary per collapsed era.
+  type Slot =
+    | { kind: 'event'; event: EventLineEvent }
+    | { kind: 'era'; era: EventLineEra; members: EventLineEvent[] };
+  const slots: Slot[] = [];
+  const emitted = new Set<string>();
+  for (const event of parsed.events) {
+    const name = event.era;
+    if (name && collapsedSet.has(name)) {
+      if (!emitted.has(name)) {
+        emitted.add(name);
+        slots.push({
+          kind: 'era',
+          era: eraByName.get(name)!,
+          members: parsed.events.filter((e) => e.era === name),
+        });
+      }
+    } else {
+      slots.push({ kind: 'event', event });
+    }
+  }
+
+  // ── Per-slot color + wrapped body + card height ──
   const charsPerLine = Math.max(
     8,
     Math.floor((CARD_W - CARD_PAD * 2) / (DESC_FONT * CHAR_WIDTH_RATIO))
   );
-  const placed: Placed[] = parsed.events.map((event, i) => {
-    let solid = accent;
-    if (activeGroup) {
-      const tc = resolveTagColor(
-        event.metadata,
-        parsed.tagGroups as TagGroup[],
-        activeGroup
+  const cardHeight = (lines: WrappedDescLine[]): number =>
+    HEADER_HEIGHT +
+    (lines.length > 0 ? SEPARATOR_GAP + lines.length * DESC_LINE_H : 0) +
+    (lines.length > 0 ? CARD_PAD : 6);
+  let evIdx = 0;
+  const placed: Placed[] = slots.map((slot): Placed => {
+    if (slot.kind === 'event') {
+      const event = slot.event;
+      let solid = accent;
+      if (activeGroup) {
+        const tc = resolveTagColor(
+          event.metadata,
+          parsed.tagGroups as TagGroup[],
+          activeGroup
+        );
+        if (tc && tc !== NEUTRAL_TAG) solid = resolveColor(tc, palette) ?? tc;
+      }
+      const cardFill = shapeFill(palette, solid, isDark, { solid: false });
+      const titleColor = contrastText(
+        cardFill,
+        palette.textOnFillLight,
+        palette.textOnFillDark
       );
-      if (tc && tc !== NEUTRAL_TAG) solid = resolveColor(tc, palette) ?? tc;
+      const lines = wrapDescription(event.description, charsPerLine);
+      const side: Side = alternate
+        ? evIdx++ % 2 === 0
+          ? 'above'
+          : 'below'
+        : (sideOpt as Side);
+      return {
+        kind: 'event',
+        event,
+        era: null,
+        members: [],
+        label: event.label,
+        date: event.date,
+        dateValue: event.dateValue,
+        lineNumber: event.lineNumber,
+        eraName: event.era,
+        color: solid,
+        cardFill,
+        titleColor,
+        lines,
+        cardH: cardHeight(lines),
+        x: 0,
+        side,
+        lane: 0,
+        left: 0,
+      };
     }
+    // Collapsed era → an event-like summary card: era name + bulleted members.
+    const era = slot.era;
+    const solid = era.color ? (resolveColor(era.color, palette) ?? accent) : accent;
     const cardFill = shapeFill(palette, solid, isDark, { solid: false });
     const titleColor = contrastText(
       cardFill,
       palette.textOnFillLight,
       palette.textOnFillDark
     );
-    const lines = wrapDescription(event.description, charsPerLine);
-    const bodyH =
-      lines.length > 0 ? SEPARATOR_GAP + lines.length * DESC_LINE_H : 0;
-    const cardH = HEADER_HEIGHT + bodyH + (lines.length > 0 ? CARD_PAD : 6);
+    const overflow = slot.members.length > ERA_MEMBER_MAX;
+    const shown = overflow
+      ? slot.members.slice(0, ERA_MEMBER_MAX - 1)
+      : slot.members;
+    const memberStrs = shown.map(
+      (m) => `• ${m.date ? `${m.date}  ` : ''}${m.label}`
+    );
+    const lines = wrapDescription(memberStrs, charsPerLine);
+    if (overflow) {
+      lines.push({
+        text: `+${slot.members.length - (ERA_MEMBER_MAX - 1)} more`,
+        kind: 'plain',
+      });
+    }
     return {
-      event,
+      kind: 'era',
+      event: null,
+      era,
+      members: slot.members,
+      label: era.name,
+      date: null,
+      dateValue: null,
+      lineNumber: era.lineNumber,
+      eraName: era.name,
       color: solid,
       cardFill,
       titleColor,
       lines,
-      cardH,
+      cardH: cardHeight(lines),
       x: 0,
-      side: (parsed.options.side === 'alternate'
-        ? i % 2 === 0
-          ? 'above'
-          : 'below'
-        : parsed.options.side) as Side,
+      side: summarySide,
       lane: 0,
       left: 0,
     };
   });
 
   // ── X positions ──
+  // Collapse re-flows the spine, which breaks a linear date scale → fall back to
+  // even spacing when any era is collapsed (broken-axis is a fast-follow).
   const scaled =
-    parsed.options.scale && placed.every((p) => p.event.dateValue !== null);
+    parsed.options.scale &&
+    !anyCollapsed &&
+    placed.every((p) => p.dateValue !== null);
   const innerW = width - H_MARGIN * 2;
   if (scaled) {
-    const vals = placed.map((p) => p.event.dateValue!);
+    const vals = placed.map((p) => p.dateValue!);
     const lo = Math.min(...vals);
     const hi = Math.max(...vals);
     placed.forEach((p) => {
       p.x =
         H_MARGIN +
-        (hi > lo
-          ? ((p.event.dateValue! - lo) / (hi - lo)) * innerW
-          : innerW / 2);
+        (hi > lo ? ((p.dateValue! - lo) / (hi - lo)) * innerW : innerW / 2);
     });
     // Nudge near-coincident dots apart so they read as distinct (and give their
     // labels room). Events with the SAME date keep a shared position; only
@@ -184,13 +303,13 @@ export function renderEventLine(
     let prevX = -Infinity;
     let prevVal: number | null = null;
     for (const p of [...placed].sort((a, b) => a.x - b.x)) {
-      if (p.event.dateValue === prevVal) {
+      if (p.dateValue === prevVal) {
         p.x = prevX;
         continue;
       }
       if (p.x < prevX + MIN_DOT_GAP) p.x = prevX + MIN_DOT_GAP;
       prevX = p.x;
-      prevVal = p.event.dateValue;
+      prevVal = p.dateValue;
     }
   } else {
     const n = placed.length;
@@ -260,13 +379,20 @@ export function renderEventLine(
     );
   // Date labels sit on the side opposite their card; reserve room for that band
   // so a one-sided line (e.g. `side above`) doesn't push dates into the legend.
-  const dateAbove = placed.some((p) => p.side === 'below' && p.event.date);
-  const dateBelow = placed.some((p) => p.side === 'above' && p.event.date);
-  const aboveExt = Math.max(ext('above'), dateAbove ? DATE_OFFSET + 10 : 0);
-  const belowExt = Math.max(ext('below'), dateBelow ? DATE_OFFSET + 10 : 0);
+  const dateAbove = placed.some((p) => p.side === 'below' && p.date);
+  const dateBelow = placed.some((p) => p.side === 'above' && p.date);
+  const contentAbove = Math.max(ext('above'), dateAbove ? DATE_OFFSET + 10 : 0);
+  const contentBelow = Math.max(ext('below'), dateBelow ? DATE_OFFSET + 10 : 0);
+  // The era `]` bracket band lives beyond the content on the side opposite the cards.
+  const aboveExt = contentAbove + (hasEras && eraSide === 'above' ? ERA_BLOCK : 0);
+  const belowExt = contentBelow + (hasEras && eraSide === 'below' ? ERA_BLOCK : 0);
   const TOP_PAD = 14;
   const BOT_PAD = 14;
   const spineY = topUsed + TOP_PAD + aboveExt;
+  const eraBaseY =
+    eraSide === 'above'
+      ? spineY - (contentAbove + 14)
+      : spineY + (contentBelow + 14);
   const totalH = Math.max(heightHint, spineY + belowExt + BOT_PAD);
 
   // ── SVG root ──
@@ -365,9 +491,13 @@ export function renderEventLine(
     const cardG = svg
       .append('g')
       .attr('transform', `translate(${left}, ${top})`)
-      .attr('data-line-number', p.event.lineNumber);
+      .attr('data-line-number', p.lineNumber);
+    if (p.kind === 'era') {
+      // App hook: a collapsed-era summary card toggles back open on click.
+      cardG.attr('data-era', p.era!.name).attr('data-era-collapsed', 'true');
+    }
     if (onClickItem) {
-      const ln = p.event.lineNumber;
+      const ln = p.lineNumber;
       cardG.style('cursor', 'pointer').on('click', () => onClickItem(ln));
     }
 
@@ -386,7 +516,7 @@ export function renderEventLine(
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', LABEL_FONT_SIZE)
         .attr('font-weight', 700)
-        .text(p.event.label);
+        .text(p.label);
       cardG
         .append('line')
         .attr('x1', CARD_PAD)
@@ -411,7 +541,7 @@ export function renderEventLine(
         fill: p.cardFill,
         stroke: p.color,
         strokeWidth: NODE_STROKE_WIDTH,
-        label: p.event.label,
+        label: p.label,
         labelColor: p.titleColor,
         labelFontSize: LABEL_FONT_SIZE,
         headerHeight: HEADER_HEIGHT,
@@ -447,12 +577,12 @@ export function renderEventLine(
   }
   const labelMap = new Map<string, DateLabel>();
   for (const p of placed) {
-    if (!p.event.date) continue;
-    const key = `${Math.round(p.x)}|${p.event.date}`;
+    if (p.kind !== 'event' || !p.date) continue;
+    const key = `${Math.round(p.x)}|${p.date}`;
     if (!labelMap.has(key)) {
       labelMap.set(key, {
         x: p.x,
-        date: p.event.date,
+        date: p.date,
         color: p.color,
         side: p.side === 'above' ? 'below' : 'above',
         lx: p.x,
@@ -527,7 +657,7 @@ export function renderEventLine(
       .text(L.date);
   }
 
-  // ── Dots on top ──
+  // ── Dots on top (events + collapsed-era summaries both read as points) ──
   for (const p of placed) {
     svg
       .append('circle')
@@ -538,7 +668,90 @@ export function renderEventLine(
       .attr('fill', p.color)
       .attr('stroke', palette.bg)
       .attr('stroke-width', 2)
-      .attr('data-line-number', p.event.lineNumber);
+      .attr('data-line-number', p.lineNumber);
+  }
+
+  // ── Era `]` brackets ─────────────────────────────────────────
+  // A horizontal bracket on the side OPPOSITE the cards marks each era's run.
+  // Expanded: spans the run. Collapsed: a short bracket centered on the summary,
+  // so the era stays on the timeline even when folded. No chevrons — the bracket
+  // (and the summary card) are the affordance; the app wires click-to-toggle.
+  if (hasEras) {
+    interface EraRun {
+      era: EventLineEra;
+      collapsed: boolean;
+      firstX: number;
+      lastX: number;
+    }
+    const runs: EraRun[] = [];
+    let prevName: string | null = null;
+    for (const p of placed) {
+      const name = p.eraName;
+      if (name && eraByName.has(name)) {
+        if (prevName === name && runs.length > 0) {
+          const r = runs[runs.length - 1]!;
+          r.firstX = Math.min(r.firstX, p.x);
+          r.lastX = Math.max(r.lastX, p.x);
+        } else {
+          runs.push({
+            era: eraByName.get(name)!,
+            collapsed: p.kind === 'era',
+            firstX: p.x,
+            lastX: p.x,
+          });
+        }
+        prevName = name;
+      } else {
+        prevName = null;
+      }
+    }
+    const clampX = (v: number): number =>
+      Math.max(4, Math.min(contentW - 4, v));
+    const cap = eraSide === 'above' ? 1 : -1; // bracket caps point toward the spine
+    for (const r of runs) {
+      const neutral = !r.era.color;
+      const col = neutral
+        ? palette.text
+        : (resolveColor(r.era.color!, palette) ?? palette.text);
+      const op = neutral ? 0.5 : 0.85;
+      const x0 = clampX(
+        r.collapsed ? r.firstX - ERA_COLLAPSED_HALF : r.firstX - 14
+      );
+      const x1 = clampX(
+        r.collapsed ? r.firstX + ERA_COLLAPSED_HALF : r.lastX + 14
+      );
+      const y = eraBaseY;
+      const eg = svg
+        .append('g')
+        .attr('data-era', r.era.name)
+        .attr('data-era-collapsed', String(r.collapsed))
+        .attr('data-line-number', r.era.lineNumber);
+      eg.append('path')
+        .attr(
+          'd',
+          `M${x0},${y + ERA_BRACKET_CAP * cap} L${x0},${y} L${x1},${y} L${x1},${y + ERA_BRACKET_CAP * cap}`
+        )
+        .attr('fill', 'none')
+        .attr('stroke', col)
+        .attr('stroke-width', 1.5)
+        .attr('stroke-linecap', 'round')
+        .attr('stroke-linejoin', 'round')
+        .attr('stroke-opacity', op);
+      eg.append('text')
+        .attr('x', (r.firstX + r.lastX) / 2)
+        .attr('y', eraSide === 'above' ? y - 6 : y + ERA_LABEL_FONT + 4)
+        .attr('text-anchor', 'middle')
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', ERA_LABEL_FONT)
+        .attr('font-weight', 700)
+        .attr('fill', col)
+        .attr('fill-opacity', neutral ? 0.85 : 1)
+        .text(r.era.name);
+      if (onClickItem) {
+        const ln = r.era.lineNumber;
+        eg.style('cursor', 'pointer').on('click', () => onClickItem(ln));
+      }
+    }
   }
 }
 

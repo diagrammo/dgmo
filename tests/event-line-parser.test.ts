@@ -193,4 +193,90 @@ tag Genre as g
     expect(errors(p)).toHaveLength(0);
     expect(p.tagGroups[0]!.entries[0]!.color).not.toBe('');
   });
+
+  describe('eras (`[Name]` run delimiters, §28.6a)', () => {
+    it('opens an era that runs to the next `[Name]` or EOF', () => {
+      const p = parseEventLine(`event-line A History of the Web
+no-scale
+
+[The Early Web]
+1991 WorldWideWeb
+  one
+1993 Mosaic
+  two
+
+[The App Era]
+2005 Ajax
+  three`);
+      expect(errors(p)).toHaveLength(0);
+      expect(p.eras.map((e) => e.name)).toEqual([
+        'The Early Web',
+        'The App Era',
+      ]);
+      expect(p.events.map((e) => e.era)).toEqual([
+        'The Early Web',
+        'The Early Web',
+        'The App Era',
+      ]);
+      // events stay at indent 0 → bare-body description preserved
+      expect(p.events[0]!.description).toEqual(['one']);
+    });
+
+    it('parses `collapsed: true` and an optional era color', () => {
+      const p = parseEventLine(`event-line X
+no-scale
+
+[Phase One] collapsed: true blue
+2020 A
+  one
+
+[Phase Two]
+2021 B
+  two`);
+      expect(errors(p)).toHaveLength(0);
+      expect(p.eras[0]!.name).toBe('Phase One');
+      expect(p.eras[0]!.collapsed).toBe(true);
+      expect(p.eras[0]!.color).toBe('blue');
+      expect(p.eras[1]!.collapsed).toBe(false);
+      expect(p.eras[1]!.color).toBeNull();
+    });
+
+    it('preserves era name casing verbatim (no forced caps)', () => {
+      const p = parseEventLine(`event-line X
+no-scale
+
+[the eARLY web]
+2020 A
+  one`);
+      expect(p.eras[0]!.name).toBe('the eARLY web');
+    });
+
+    it('events before any era have a null era', () => {
+      const p = parseEventLine(`event-line X
+no-scale
+
+2019 Pre
+  zero
+
+[Phase One]
+2020 A
+  one`);
+      expect(p.events[0]!.era).toBeNull();
+      expect(p.events[1]!.era).toBe('Phase One');
+    });
+
+    it('treats an era declaration as content (tags after it error)', () => {
+      const p = parseEventLine(`event-line X
+
+[Phase One]
+2020 A
+  one
+
+tag Genre as g
+  Pop blue`);
+      expect(
+        p.diagnostics.some((d) => d.code === 'E_TAG_DECLARED_AFTER_CONTENT')
+      ).toBe(true);
+    });
+  });
 });

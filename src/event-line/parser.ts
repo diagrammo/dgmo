@@ -45,6 +45,7 @@ import {
 } from '../utils/reserved-key-registry';
 import { extractDatePrefix, parseTimelineDate } from '../timeline/parser';
 import type {
+  EventLineEra,
   EventLineEvent,
   EventLineOptions,
   ParsedEventLine,
@@ -60,7 +61,11 @@ export const EVENT_LINE_DIAGNOSTIC_CODES = {
 const NON_ISO_DATE_RE = /^\d{1,4}[/.]\d/;
 /** `side above` / `side below` / `side alternate` — card placement. */
 const SIDE_RE = /^side\s+(above|below|alternate)\b/i;
-/** Reserved seam: `section <Name>` grouping band. */
+/** Era run delimiter `[Name]` (§28.6a) with optional trailing `collapsed`/color. */
+const ERA_RE = /^\[([^\]]+)\]\s*(.*)$/;
+/** `collapsed: true|false` inside an era's trailing metadata. */
+const ERA_COLLAPSED_RE = /\bcollapsed:\s*(true|false)\b/i;
+/** Legacy `section <Name>` — superseded by `[Name]`; emits a guiding warning. */
 const SECTION_SEAM_RE = /^section\b/i;
 /** `direction <X>` — only LR (horizontal) is supported; TB/BT are fast-follow. */
 const DIRECTION_RE = /^direction\s+(\w+)/i;
@@ -81,6 +86,7 @@ export function parseEventLine(
     title: null,
     titleLineNumber: null,
     events: [],
+    eras: [],
     tagGroups: [],
     options,
     diagnostics: [],
@@ -106,6 +112,7 @@ export function parseEventLine(
 
   let currentTagGroup: Writable<TagGroup> | null = null;
   let currentEvent: Writable<EventLineEvent> | null = null;
+  let currentEra: string | null = null;
   const aliasMap = new Map<string, string>();
 
   for (let i = 0; i < lines.length; i++) {
@@ -240,10 +247,46 @@ export function parseEventLine(
     }
     if (tryParseSharedOption(trimmed, sharedOptions)) continue;
 
+    // ── Era run delimiter: `[Name]` opens a section that runs to the next
+    //    `[Name]` or EOF (§28.6a). NOT an indentation container — events stay at
+    //    indent 0, so flat bare-body descriptions are preserved. Optional trailing
+    //    `collapsed: true` and/or a color name tint/fold the era.
+    const eraMatch = trimmed.match(ERA_RE);
+    if (eraMatch) {
+      contentStarted = true;
+      currentEvent = null;
+      const name = eraMatch[1]!.trim();
+      let rest = (eraMatch[2] ?? '').trim();
+      let collapsed = false;
+      const cm = rest.match(ERA_COLLAPSED_RE);
+      if (cm) {
+        collapsed = cm[1]!.toLowerCase() === 'true';
+        rest = (rest.slice(0, cm.index) + rest.slice(cm.index! + cm[0].length)).trim();
+      }
+      let color: string | null = null;
+      if (rest) {
+        // A lone trailing color token tints the era (named colors only; a hex
+        // value is flagged by extractColor and left uncolored). Prefix a
+        // placeholder so extractColor's trailing-token rule sees it.
+        const token = rest.split(/\s+/).pop()!;
+        const ex = extractColor(
+          `x ${token}`,
+          palette,
+          result.diagnostics,
+          lineNumber
+        );
+        if (ex.color !== undefined) color = token;
+      }
+      const era: EventLineEra = { name, color, collapsed, lineNumber };
+      result.eras.push(era);
+      currentEra = name;
+      continue;
+    }
+
     if (SECTION_SEAM_RE.test(trimmed)) {
       pushWarning(
         lineNumber,
-        'Grouping bands (`section`) are not supported in v1.',
+        'Group events with `[Name]` era brackets (§28.6a), not `section`.',
         EVENT_LINE_DIAGNOSTIC_CODES.UNSUPPORTED
       );
       continue;
@@ -254,6 +297,7 @@ export function parseEventLine(
     const event = parseEventHeader(
       trimmed,
       lineNumber,
+      currentEra,
       aliasMap,
       result.diagnostics,
       pushWarning
@@ -285,6 +329,7 @@ export function parseEventLine(
 function parseEventHeader(
   trimmed: string,
   lineNumber: number,
+  era: string | null,
   aliasMap: Map<string, string>,
   diagnostics: DgmoError[],
   pushWarning: (line: number, message: string, code?: string) => void
@@ -344,5 +389,6 @@ function parseEventHeader(
     dateValue,
     metadata,
     description: [],
+    era,
   };
 }
