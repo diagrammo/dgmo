@@ -71,6 +71,11 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     description:
       'Cross-functional process flow with lanes, phases and gateways (BPMN-style)',
   },
+  {
+    id: 'version-control',
+    description:
+      'Git / version-control branch-and-merge graph: commits, branches, merges, rebase, HEAD and remote-tracking (gitGraph-style)',
+  },
 
   // ── Tier 2 — Specialized structural diagrams ──────────────
   {

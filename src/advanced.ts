@@ -526,6 +526,20 @@ export type {
   EventLineOptions,
 } from './event-line/types';
 
+export { parseVersionControl } from './version-control/parser';
+export {
+  renderVersionControl,
+  renderVersionControlForExport,
+} from './version-control/renderer';
+export type {
+  ParsedVersionControl,
+  VCNode,
+  VCBranch,
+  VCRef,
+  VCNote,
+  VCOptions,
+} from './version-control/types';
+
 export { parseRing } from './ring/parser';
 export { renderRing, renderRingForExport } from './ring/renderer';
 export type { ParsedRing, RingLayer } from './ring/types';

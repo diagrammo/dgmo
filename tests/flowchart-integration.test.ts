@@ -54,8 +54,8 @@ describe('flowchart routing', () => {
     expect(getAllChartTypes()).toContain('flowchart');
   });
 
-  it('chart type count is 48', () => {
-    expect(getAllChartTypes().length).toBe(48);
+  it('chart type count is 49', () => {
+    expect(getAllChartTypes().length).toBe(49);
   });
 });
 

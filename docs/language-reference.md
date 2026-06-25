@@ -120,6 +120,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `gantt` | project scheduling with task dependencies and milestones |
 | `pert` | project network with three-point estimates and critical path |
 | `swimlane` | cross-functional process flow with lanes, phases and gateways (BPMN-style) |
+| `version-control` | git / version-control branch-and-merge graph: commits, branches, merges, rebase, HEAD and remote-tracking (gitGraph-style) |
 | `timeline` | events, eras, and date ranges |
 | `event-line` | annotated narrative timeline — events on a line with descriptions, optionally not to scale (NOT the date-scaled `timeline`) |
 | `journey-map` | UX flow with emotion scores, phases, annotations |
@@ -2401,6 +2402,63 @@ tag Genre as g
 
 - `no-scale` — space events evenly instead of by date (dates become captions).
 - `no-alternate` — stack all cards on one side instead of alternating.
+
+### 16.4B Version-Control Diagrams
+
+<!-- TYPE:version-control -->
+
+<!-- TIPS start -->
+**Styling tips:** the git / version-control branch-and-merge graph (GitFlow, trunk-based, release trains). The grammar is keyword-less — a bare top-level line is a branch, a bare indented line is a commit; only `merge` / `cherry-pick` are required verbs. Keep to ~3–6 branches and ~5–30 commits; name branches meaningfully (`feature/login`); tag releases. Use it for branching strategy, not real timestamps (use `timeline`/`gantt` for dates).
+<!-- TIPS end -->
+
+**When to use vs `timeline`:** `version-control` shows commit/branch **topology** (who branched from whom, what merged where), not wall-clock time. It is the git-graph picture; `timeline` is a date axis.
+
+#### Declaration
+
+```
+version-control [Title]
+```
+
+#### Branches and commits (no keywords)
+
+A bare top-level line is a **branch**; its indented lines are **commits** (the text is the message). Re-naming a branch resumes it — that replaces `checkout`. `from` sets a branch point; a trailing color token sets the lane color.
+
+```
+version-control Feature Branch Workflow
+
+main
+  Initial commit
+  Add README
+
+develop from main
+  Set up CI
+  Add test suite
+
+feature/login from develop
+  Login form
+
+develop
+  merge feature/login
+
+main
+  merge develop tag: v1.0.0
+  Hotfix typo type: highlight
+```
+
+- **Branch** — `name [from parent] [order: N] [color]` at indent 0. No `branch` keyword.
+- **Commit** — a bare indented line; same-line metadata `id:` (show a SHA), `tag:` (ref pill), `type: normal|highlight|reverse`. No `commit` keyword (optional, for an empty commit).
+- **Merge / cherry-pick** — `merge <branch> [tag:] [squash|ff|no-ff]`, `cherry-pick <commit>` (indented).
+
+#### Beyond parity
+
+- **HEAD / remote-tracking / ahead-behind** — `ref origin/main at <commit>` drops a pointer; `origin/…` is ghosted and ahead/behind is auto-labeled. HEAD auto-sits on the active tip.
+- **Operations** — `rebase <branch> onto <target>`, `reset <branch> to <commit>` (top-level); `revert <commit>` (indented). Abandoned commits render faded.
+- **`note <text>`** — a numbered step annotation on the current commit.
+
+#### Directives
+
+- `direction LR|TB|BT` — `LR` default (newest right); `TB`/`BT` is the git-log column view.
+- `no-labels` (hide messages), `no-lanes` (hide branch lanes), `no-head`.
 
 ### 16.5 Venn Diagrams
 

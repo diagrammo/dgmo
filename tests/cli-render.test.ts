@@ -77,6 +77,15 @@ C -> A 2`,
 2021-06 Launch
   Shipped to users.`,
 
+  'version-control': `version-control Feature Workflow
+main
+  Initial commit
+  Add README
+develop from main
+  Set up CI
+main
+  merge develop tag: v1.0.0`,
+
   venn: `venn
 Apples
 Oranges

@@ -104,6 +104,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   er: exportEr,
   'boxes-and-lines': exportBoxesAndLines,
   swimlane: exportSwimlane,
+  'version-control': exportVersionControl,
   mindmap: exportMindmap,
   wireframe: exportWireframe,
   c4: exportC4,
@@ -189,6 +190,23 @@ async function exportEventLine(ctx: ExportContext): Promise<string> {
     { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
     ctxTagOverride(ctx)
   );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportVersionControl(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseVersionControl } = await import('./version-control/parser');
+  const { renderVersionControlForExport } = await import('./version-control/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const parsed = parseVersionControl(content, effectivePalette);
+  if (parsed.error || parsed.nodes.length === 0) return '';
+
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  renderVersionControlForExport(container, parsed, effectivePalette, ctx.isDark, {
+    width: EXPORT_WIDTH,
+    height: EXPORT_HEIGHT,
+  });
   return finalizeSvgExport(container, theme, effectivePalette);
 }
 
