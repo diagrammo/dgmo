@@ -158,6 +158,7 @@ export function renderBlock(
     palette,
     tagGroups: parsed.tagGroups,
     activeGroup,
+    activeKey: activeGroup ? tagAttrKey(activeGroup) : null,
     neutral,
     onToggle: options.onToggle,
   });
@@ -193,6 +194,8 @@ interface DrawCtx {
   palette: PaletteColors;
   tagGroups: ParsedBlock['tagGroups'];
   activeGroup: string | null;
+  /** `tagAttrKey(activeGroup)` — the `data-tag-<key>` suffix for legend hover. */
+  activeKey: string | null;
   neutral: string;
   onToggle: ((id: string, lineNumber: number) => void) | undefined;
 }
@@ -218,7 +221,12 @@ function clipLabel(s: string, maxWidth: number, fs: number): string {
 
 let clipCounter = 0;
 
-function drawItems(g: GSel, items: BlockLayoutItem[], ctx: DrawCtx): void {
+function drawItems(
+  g: GSel,
+  items: BlockLayoutItem[],
+  ctx: DrawCtx,
+  path: string[] = []
+): void {
   const { palette } = ctx;
   for (const it of items) {
     if (it.type === 'empty') {
@@ -236,13 +244,33 @@ function drawItems(g: GSel, items: BlockLayoutItem[], ctx: DrawCtx): void {
       continue;
     }
 
-    const color = colorOf(it.node, ctx);
+    const node = it.node!;
+    const itemPath = [...path, node.id];
+    const color = colorOf(node, ctx);
     const stroke = color ?? ctx.neutral;
+
+    // Every block is its own `.dgmo-block-cell` group (a FLAT sibling — children
+    // are not nested in their container's group, so opacity dimming for the
+    // editor↔diagram sync and hover spotlight never compounds). `data-block-path`
+    // = the ancestor-id chain (subtree highlight), `data-tag-<key>` = the tag
+    // value (legend hover), `data-line-number` = the source line (cursor sync).
+    const cell = g
+      .append('g')
+      .attr('class', 'dgmo-block-cell')
+      .attr('data-block-id', node.id)
+      .attr('data-block-path', itemPath.join(' / '));
+    if (it.lineNumber !== undefined)
+      cell.attr('data-line-number', it.lineNumber);
+    if (ctx.activeKey) {
+      const v = node.metadata[ctx.activeKey];
+      if (v) cell.attr(`data-tag-${ctx.activeKey}`, v);
+    }
 
     if (it.type === 'collapsed') {
       const fill = color ? mix(color, palette.bg, 12) : palette.surface;
       const cid = `dgmo-block-clip-${clipCounter++}`;
-      g.append('clipPath')
+      cell
+        .append('clipPath')
         .attr('id', cid)
         .append('rect')
         .attr('x', it.x)
@@ -250,7 +278,8 @@ function drawItems(g: GSel, items: BlockLayoutItem[], ctx: DrawCtx): void {
         .attr('width', it.w)
         .attr('height', it.h)
         .attr('rx', 10);
-      g.append('rect')
+      cell
+        .append('rect')
         .attr('x', it.x)
         .attr('y', it.y)
         .attr('width', it.w)
@@ -259,7 +288,8 @@ function drawItems(g: GSel, items: BlockLayoutItem[], ctx: DrawCtx): void {
         .attr('fill', fill)
         .attr('stroke', stroke)
         .attr('stroke-width', 1.5);
-      g.append('text')
+      cell
+        .append('text')
         .attr('x', it.x + 12)
         .attr('y', it.y + it.h / 2 + 4)
         .attr('font-size', 12.5)
@@ -267,7 +297,8 @@ function drawItems(g: GSel, items: BlockLayoutItem[], ctx: DrawCtx): void {
         .attr('fill', palette.text)
         .text(clipLabel(it.label ?? '', it.w - 24, 12.5));
       // Collapse-bar (org / sitemap / mindmap precedent).
-      g.append('rect')
+      cell
+        .append('rect')
         .attr('x', it.x)
         .attr('y', it.y + it.h - BLOCK_BAR_H)
         .attr('width', it.w)
@@ -275,13 +306,14 @@ function drawItems(g: GSel, items: BlockLayoutItem[], ctx: DrawCtx): void {
         .attr('fill', color ?? ctx.neutral)
         .attr('fill-opacity', 0.5)
         .attr('clip-path', `url(#${cid})`);
-      bindToggle(g, it, ctx, it.h);
+      bindToggle(cell, it, ctx, it.h);
       continue;
     }
 
     if (it.type === 'container') {
       const fill = color ? mix(color, palette.bg, 7) : palette.surface;
-      g.append('rect')
+      cell
+        .append('rect')
         .attr('x', it.x)
         .attr('y', it.y)
         .attr('width', it.w)
@@ -290,7 +322,7 @@ function drawItems(g: GSel, items: BlockLayoutItem[], ctx: DrawCtx): void {
         .attr('fill', fill)
         .attr('stroke', stroke)
         .attr('stroke-width', 1.5);
-      const header = g
+      cell
         .append('text')
         .attr('x', it.x + 12)
         .attr('y', it.y + 19)
@@ -298,18 +330,16 @@ function drawItems(g: GSel, items: BlockLayoutItem[], ctx: DrawCtx): void {
         .attr('font-weight', 700)
         .attr('fill', palette.text)
         .text(clipLabel(it.label ?? '', it.w - 24, 12.5));
-      if (it.lineNumber !== undefined)
-        header.attr('data-line-number', it.lineNumber);
-      bindToggle(g, it, ctx, BLOCK_HEADER_H);
-      if (it.inner) drawItems(g, it.inner, ctx);
+      bindToggle(cell, it, ctx, BLOCK_HEADER_H);
+      // Children are flat siblings in `g` (drawn after → painted on top of the
+      // container background), each carrying this container's id in their path.
+      if (it.inner) drawItems(g, it.inner, ctx, itemPath);
       continue;
     }
 
     // leaf
     const fill = color ? mix(color, palette.bg, 14) : palette.bg;
-    const cell = g.append('g').attr('class', 'dgmo-block-cell');
-    if (it.lineNumber !== undefined)
-      cell.attr('data-line-number', it.lineNumber);
+    cell.attr('data-leaf', 'true');
     cell
       .append('rect')
       .attr('x', it.x)
@@ -333,7 +363,7 @@ function drawItems(g: GSel, items: BlockLayoutItem[], ctx: DrawCtx): void {
 }
 
 function bindToggle(
-  g: GSel,
+  cell: GSel,
   it: BlockLayoutItem,
   ctx: DrawCtx,
   hitH: number
@@ -341,7 +371,8 @@ function bindToggle(
   if (!ctx.onToggle || !it.node || it.lineNumber === undefined) return;
   const id = it.node.id;
   const ln = it.lineNumber;
-  g.append('rect')
+  cell
+    .append('rect')
     .attr('x', it.x)
     .attr('y', it.y)
     .attr('width', it.w)
