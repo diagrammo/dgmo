@@ -732,7 +732,10 @@ export function renderEventLine(
       const half = Math.min(46, 16 + (p.members.length - 1) * 9);
       const x0 = Math.max(4, p.x - half);
       const x1 = Math.min(contentW - 4, p.x + half);
-      const cap = p.side === 'above' ? 1 : -1; // caps point AWAY from the card
+      // Bracket sits on the side AWAY from the card; its two cap tips touch the
+      // spine and the connecting bar sits just off it (never crossing the line).
+      const dir = p.side === 'above' ? 1 : -1;
+      const barY = spineY + ERA_BRACKET_CAP * dir;
       const eg = svg
         .append('g')
         .attr('data-era', p.era!.name)
@@ -741,7 +744,7 @@ export function renderEventLine(
       eg.append('path')
         .attr(
           'd',
-          `M${x0},${spineY + ERA_BRACKET_CAP * cap} L${x0},${spineY} L${x1},${spineY} L${x1},${spineY + ERA_BRACKET_CAP * cap}`
+          `M${x0},${spineY} L${x0},${barY} L${x1},${barY} L${x1},${spineY}`
         )
         .attr('fill', 'none')
         .attr('stroke', col)
