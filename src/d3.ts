@@ -126,6 +126,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   slope: exportSlope,
   arc: exportArc,
   timeline: exportTimeline,
+  'event-line': exportEventLine,
   wordcloud: exportWordcloud,
   venn: exportVenn,
   quadrant: exportQuadrant,
@@ -167,6 +168,27 @@ export async function renderForExport(
  */
 function ctxTagOverride(ctx: ExportContext): string | undefined {
   return ctx.viewState?.tag ?? ctx.options?.tagGroup;
+}
+
+async function exportEventLine(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseEventLine } = await import('./event-line/parser');
+  const { renderEventLineForExport } = await import('./event-line/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const parsed = parseEventLine(content, effectivePalette);
+  if (parsed.error || parsed.events.length === 0) return '';
+
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  renderEventLineForExport(
+    container,
+    parsed,
+    effectivePalette,
+    ctx.isDark,
+    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
+    ctxTagOverride(ctx)
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
 }
 
 async function exportOrg(ctx: ExportContext): Promise<string> {

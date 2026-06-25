@@ -47,6 +47,7 @@ import {
 import { parseSlope } from './slope/parser';
 import { parseArc } from './arc/parser';
 import { parseTimeline } from './timeline/viz-parser';
+import { parseEventLine } from './event-line/parser';
 import { parseWordcloud } from './wordcloud/parser';
 import { parseVenn } from './venn/parser';
 import { parseQuadrant } from './quadrant/parser';
@@ -256,6 +257,15 @@ function minDimsArc(c: ContentCounts): { width: number; height: number } {
     height: Math.max((c.nodes ?? 3) * 20 + 120, 200),
   };
 }
+function measureEventLine(content: string): ContentCounts {
+  return { items: parseEventLine(content).events.length };
+}
+function minDimsEventLine(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max(640, 120 + (c.items ?? 3) * 100),
+    height: 420,
+  };
+}
 function minDimsOrg(c: ContentCounts): { width: number; height: number } {
   return {
     width: Math.max((c.nodes ?? 3) * 60, 300),
@@ -438,6 +448,13 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
     minDims: minDimsArc,
   },
   { id: 'timeline', category: 'visualization', parse: parseTimeline },
+  {
+    id: 'event-line',
+    category: 'visualization',
+    parse: parseEventLine,
+    measure: measureEventLine,
+    minDims: minDimsEventLine,
+  },
   { id: 'venn', category: 'visualization', parse: parseVenn },
   { id: 'quadrant', category: 'visualization', parse: parseQuadrant },
 

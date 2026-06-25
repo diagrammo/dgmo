@@ -503,6 +503,14 @@ export { parsePyramid } from './pyramid/parser';
 export { renderPyramid, renderPyramidForExport } from './pyramid/renderer';
 export type { ParsedPyramid, PyramidLayer } from './pyramid/types';
 
+export { parseEventLine } from './event-line/parser';
+export { renderEventLine, renderEventLineForExport } from './event-line/renderer';
+export type {
+  ParsedEventLine,
+  EventLineEvent,
+  EventLineOptions,
+} from './event-line/types';
+
 export { parseRing } from './ring/parser';
 export { renderRing, renderRingForExport } from './ring/renderer';
 export type { ParsedRing, RingLayer } from './ring/types';

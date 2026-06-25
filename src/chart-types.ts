@@ -73,6 +73,11 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     description: 'Events, eras, and date ranges',
   },
   {
+    id: 'event-line',
+    description:
+      'Annotated narrative timeline — events on a horizontal line with descriptions (not the date-scaled timeline)',
+  },
+  {
     id: 'org',
     description: 'Reporting hierarchy',
   },

@@ -53,6 +53,7 @@ export const CHART_TYPES = new Set([
   'wordcloud',
   'arc',
   'timeline',
+  'event-line',
   'venn',
   'quadrant',
   'map',
