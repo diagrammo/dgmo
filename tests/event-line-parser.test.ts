@@ -278,5 +278,71 @@ tag Genre as g
         p.diagnostics.some((d) => d.code === 'E_TAG_DECLARED_AFTER_CONTENT')
       ).toBe(true);
     });
+
+    it('warns when an event reaches forward past a later era start', () => {
+      const p = parseEventLine(`event-line X
+
+[Vasanth]
+2025-04-01 Opening Day Outage
+2025-05-09 Fire Kevin C
+
+[Curtis]
+2025-04-15 Sean Curtis CTO
+2025-09-01 The incident`);
+      const w = p.diagnostics.filter(
+        (d) => d.code === 'E_EVENT_LINE_ERA_DATE_ORDER'
+      );
+      expect(w.length).toBeGreaterThan(0);
+      // The straggler poking into the later era is flagged on its own line.
+      const fwd = w.find((d) => d.message.includes('Fire Kevin C'));
+      expect(fwd).toBeDefined();
+      expect(fwd!.severity).toBe('warning');
+      expect(fwd!.message).toContain('Curtis');
+      expect(fwd!.message).toContain('2025-04-15');
+    });
+
+    it('warns when an event is dated before an earlier era ends', () => {
+      const p = parseEventLine(`event-line X
+
+[A]
+2020 First
+2024 Late
+
+[B]
+2022 Early`);
+      const w = p.diagnostics.filter(
+        (d) => d.code === 'E_EVENT_LINE_ERA_DATE_ORDER'
+      );
+      expect(w.some((d) => d.message.includes('Early'))).toBe(true);
+    });
+
+    it('does not warn when eras are chronologically ordered', () => {
+      const p = parseEventLine(`event-line X
+
+[A]
+2020 a1
+2021 a2
+
+[B]
+2022 b1
+2023 b2`);
+      expect(
+        p.diagnostics.filter((d) => d.code === 'E_EVENT_LINE_ERA_DATE_ORDER')
+      ).toHaveLength(0);
+    });
+
+    it('skips the era-order check when the date scale is off', () => {
+      const p = parseEventLine(`event-line X
+no-scale
+
+[A]
+2024 late
+
+[B]
+2020 early`);
+      expect(
+        p.diagnostics.filter((d) => d.code === 'E_EVENT_LINE_ERA_DATE_ORDER')
+      ).toHaveLength(0);
+    });
   });
 });

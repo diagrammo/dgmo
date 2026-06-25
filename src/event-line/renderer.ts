@@ -74,6 +74,10 @@ const DATE_OFFSET = 28;
 // Era `]` bracket band: depth reserved on the side opposite the cards.
 const ERA_BLOCK = 30;
 const ERA_BRACKET_CAP = 8;
+// Padding each era bracket extends past its first/last member dot, and the gap
+// kept on each side of a seam when two adjacent brackets are clamped apart.
+const ERA_BRACKET_PAD = 14;
+const ERA_SEAM_GAP = 3;
 // Collapsed era: the `⊓` bar floats this far off the spine (on the card's side);
 // its legs drop from the bar to rest their feet ON the timeline.
 const ERA_LEG = 13;
@@ -822,15 +826,32 @@ export function renderEventLine(
     const clampX = (v: number): number =>
       Math.max(4, Math.min(contentW - 4, v));
     const cap = eraSide === 'above' ? 1 : -1; // bracket caps point toward the spine
-    for (const r of runs) {
-      if (r.collapsed) continue; // collapsed eras are marked on the spine instead
+    // Each expanded era's bracket pads its run by ±ERA_BRACKET_PAD. When two
+    // adjacent eras' boundary events sit close on the date scale those pads
+    // collide, so split the seam at the midpoint between the runs (kept outside
+    // each run's own dots) — neighbouring brackets then never overlap.
+    const drawn = runs
+      .filter((r) => !r.collapsed) // collapsed eras are marked on the spine instead
+      .map((r) => ({
+        run: r,
+        x0: clampX(r.firstX - ERA_BRACKET_PAD),
+        x1: clampX(r.lastX + ERA_BRACKET_PAD),
+      }))
+      .sort((a, b) => a.run.firstX - b.run.firstX);
+    for (let i = 1; i < drawn.length; i++) {
+      const prev = drawn[i - 1]!;
+      const cur = drawn[i]!;
+      if (prev.x1 <= cur.x0) continue;
+      const mid = (prev.run.lastX + cur.run.firstX) / 2;
+      prev.x1 = Math.max(prev.run.lastX, Math.min(prev.x1, mid - ERA_SEAM_GAP));
+      cur.x0 = Math.min(cur.run.firstX, Math.max(cur.x0, mid + ERA_SEAM_GAP));
+    }
+    for (const { run: r, x0, x1 } of drawn) {
       const neutral = !r.era.color;
       const col = neutral
         ? palette.text
         : (resolveColor(r.era.color!, palette) ?? palette.text);
       const op = neutral ? 0.5 : 0.85;
-      const x0 = clampX(r.firstX - 14);
-      const x1 = clampX(r.lastX + 14);
       const y = eraBaseY;
       const eg = svg
         .append('g')

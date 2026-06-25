@@ -55,6 +55,7 @@ export const EVENT_LINE_DIAGNOSTIC_CODES = {
   NO_EVENTS: 'E_EVENT_LINE_NO_EVENTS',
   BAD_DATE: 'E_EVENT_LINE_BAD_DATE',
   UNSUPPORTED: 'E_EVENT_LINE_UNSUPPORTED',
+  ERA_DATE_ORDER: 'E_EVENT_LINE_ERA_DATE_ORDER',
 } as const;
 
 /** A non-ISO date attempt: leading digits with a slash or dot separator. */
@@ -261,7 +262,9 @@ export function parseEventLine(
       const cm = rest.match(ERA_COLLAPSED_RE);
       if (cm) {
         collapsed = cm[1]!.toLowerCase() === 'true';
-        rest = (rest.slice(0, cm.index) + rest.slice(cm.index! + cm[0].length)).trim();
+        rest = (
+          rest.slice(0, cm.index) + rest.slice(cm.index! + cm[0].length)
+        ).trim();
       }
       let color: string | null = null;
       if (rest) {
@@ -323,7 +326,89 @@ export function parseEventLine(
     );
   }
 
+  // Eras render as date-spanning brackets, so an event dated outside its era's
+  // chronological position makes adjacent era brackets overlap (§28.6a). Only
+  // meaningful when the date scale drives x-position.
+  if (options.scale) {
+    validateEraDateOrder(result.events, result.eras, pushWarning);
+  }
+
   return result;
+}
+
+/**
+ * Warn when a dated event sits in an era whose chronological run it breaks —
+ * i.e. it is dated after a later era begins, or before an earlier era ends.
+ * Eras are left-to-right date bands; a straggler makes their brackets overlap.
+ */
+function validateEraDateOrder(
+  events: readonly EventLineEvent[],
+  eras: readonly EventLineEra[],
+  pushWarning: (line: number, message: string, code?: string) => void
+): void {
+  if (eras.length < 2) return;
+  const order = new Map(eras.map((e, i) => [e.name, i]));
+  const dated = events.filter(
+    (e) => e.dateValue !== null && e.era !== null && order.has(e.era)
+  );
+  if (dated.length === 0) return;
+
+  // Earliest and latest dated event per era index.
+  const perEra = new Map<
+    number,
+    { min: EventLineEvent; max: EventLineEvent }
+  >();
+  for (const ev of dated) {
+    const idx = order.get(ev.era!)!;
+    const cur = perEra.get(idx);
+    if (!cur) {
+      perEra.set(idx, { min: ev, max: ev });
+    } else {
+      if (ev.dateValue! < cur.min.dateValue!) cur.min = ev;
+      if (ev.dateValue! > cur.max.dateValue!) cur.max = ev;
+    }
+  }
+
+  const n = eras.length;
+  // prefixMax[k] = the latest-dated event across eras with index < k.
+  // suffixMin[k] = the earliest-dated event across eras with index > k.
+  const prefixMax: (EventLineEvent | null)[] = new Array(n).fill(null);
+  const suffixMin: (EventLineEvent | null)[] = new Array(n).fill(null);
+  for (let k = 1; k < n; k++) {
+    const prev = perEra.get(k - 1)?.max ?? null;
+    const carried = prefixMax[k - 1] ?? null;
+    prefixMax[k] =
+      prev && (!carried || prev.dateValue! > carried.dateValue!)
+        ? prev
+        : carried;
+  }
+  for (let k = n - 2; k >= 0; k--) {
+    const next = perEra.get(k + 1)?.min ?? null;
+    const carried = suffixMin[k + 1] ?? null;
+    suffixMin[k] =
+      next && (!carried || next.dateValue! < carried.dateValue!)
+        ? next
+        : carried;
+  }
+
+  for (const ev of dated) {
+    const k = order.get(ev.era!)!;
+    const ahead = suffixMin[k];
+    const behind = prefixMax[k];
+    if (ahead && ev.dateValue! > ahead.dateValue!) {
+      pushWarning(
+        ev.lineNumber,
+        `"${ev.label}" (${ev.date}) is in era "${ev.era}" but dated after era "${ahead.era}" begins (${ahead.date}). event-line eras run left-to-right by date — fix the date or move it to the right era, or their brackets will overlap.`,
+        EVENT_LINE_DIAGNOSTIC_CODES.ERA_DATE_ORDER
+      );
+    } else if (behind && ev.dateValue! < behind.dateValue!) {
+      pushWarning(
+        ev.lineNumber,
+        `"${ev.label}" (${ev.date}) is in era "${ev.era}" but dated before era "${behind.era}" ends (${behind.date}). event-line eras run left-to-right by date — fix the date or move it to the right era, or their brackets will overlap.`,
+        EVENT_LINE_DIAGNOSTIC_CODES.ERA_DATE_ORDER
+      );
+    }
+  }
 }
 
 function parseEventHeader(
