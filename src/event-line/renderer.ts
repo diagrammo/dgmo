@@ -174,6 +174,21 @@ export function renderEventLine(
           ? ((p.event.dateValue! - lo) / (hi - lo)) * innerW
           : innerW / 2);
     });
+    // Nudge near-coincident dots apart so they read as distinct (and give their
+    // labels room). Events with the SAME date keep a shared position; only
+    // distinct times are separated.
+    const MIN_DOT_GAP = 16;
+    let prevX = -Infinity;
+    let prevVal: number | null = null;
+    for (const p of [...placed].sort((a, b) => a.x - b.x)) {
+      if (p.event.dateValue === prevVal) {
+        p.x = prevX;
+        continue;
+      }
+      if (p.x < prevX + MIN_DOT_GAP) p.x = prevX + MIN_DOT_GAP;
+      prevX = p.x;
+      prevVal = p.event.dateValue;
+    }
   } else {
     const n = placed.length;
     const spacing = n > 1 ? Math.max(MIN_SPACING, innerW / (n - 1)) : 0;
@@ -409,40 +424,36 @@ export function renderEventLine(
     }
   }
   const halfW = (d: string): number =>
-    (d.length * DESC_FONT * CHAR_WIDTH_RATIO) / 2 + 7;
-  const LABEL_GAP = 5;
+    (d.length * DESC_FONT * CHAR_WIDTH_RATIO) / 2 + 9;
+  const LABEL_GAP = 8;
   const EDGE = 8;
 
-  // Spread same-side clusters horizontally (per side, independently).
+  // De-collide same-side labels so they NEVER overlap. Forward pass pushes each
+  // label right of its left neighbour (guarantees separation); backward pass
+  // pulls the run back inside the right edge without re-colliding; a final
+  // forward fixup respects the left edge. lx starts at the dot's x.
   for (const labelSide of ['above', 'below'] as Side[]) {
     const arr = [...labelMap.values()]
       .filter((l) => l.side === labelSide)
       .sort((a, b) => a.x - b.x);
-    const clusters: DateLabel[][] = [];
-    for (const L of arr) {
-      const last = clusters[clusters.length - 1];
-      const prev = last?.[last.length - 1];
-      if (prev && L.x - prev.x < halfW(L.date) + halfW(prev.date) + LABEL_GAP) {
-        last!.push(L);
-      } else {
-        clusters.push([L]);
-      }
+    const hw = arr.map((l) => halfW(l.date));
+    for (let i = 1; i < arr.length; i++) {
+      const minLx = arr[i - 1]!.lx + hw[i - 1]! + hw[i]! + LABEL_GAP;
+      if (arr[i]!.lx < minLx) arr[i]!.lx = minLx;
     }
-    for (const cl of clusters) {
-      if (cl.length === 1) continue;
-      let total = 0;
-      for (const L of cl) total += halfW(L.date) * 2;
-      total += (cl.length - 1) * LABEL_GAP;
-      const center = (cl[0]!.x + cl[cl.length - 1]!.x) / 2;
-      let cursor = Math.max(
-        EDGE,
-        Math.min(center - total / 2, contentW - EDGE - total)
-      );
-      for (const L of cl) {
-        const hw = halfW(L.date);
-        L.lx = cursor + hw;
-        cursor += hw * 2 + LABEL_GAP;
-      }
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const cap =
+        i === arr.length - 1
+          ? contentW - EDGE - hw[i]!
+          : arr[i + 1]!.lx - hw[i + 1]! - hw[i]! - LABEL_GAP;
+      if (arr[i]!.lx > cap) arr[i]!.lx = cap;
+    }
+    for (let i = 0; i < arr.length; i++) {
+      const floor =
+        i === 0
+          ? EDGE + hw[i]!
+          : arr[i - 1]!.lx + hw[i - 1]! + hw[i]! + LABEL_GAP;
+      if (arr[i]!.lx < floor) arr[i]!.lx = floor;
     }
   }
 
@@ -475,7 +486,8 @@ export function renderEventLine(
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', 10.5)
-      .attr('fill', palette.textMuted)
+      .attr('font-weight', 600)
+      .attr('fill', L.color)
       .text(L.date);
   }
 
