@@ -133,6 +133,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `pyramid` | stacked hierarchy of layers (Maslow, DIKW) |
 | `ring` | concentric rings of nested categories |
 | `treemap` | nested rectangles sized by value (budgets, disk usage, portfolios) |
+| `block` | author-controlled grid of nested, collapsible blocks (system / architecture layouts) |
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
 | `bar` | categorical comparisons |
@@ -3351,6 +3352,95 @@ Numbers auto-compact (1.2M, 940k). Units live in the title — there is no forma
 ### Interactivity vs export
 
 In the desktop app a treemap is interactive: click a parent to drill in (with a breadcrumb), hover for a tooltip (path / value / % / heat), and flip the color mode. Static SVG / PNG export is the clean, full tree with none of that chrome — the same interactive-vs-export split the map chart uses.
+
+---
+
+## 24D. Block Diagrams
+
+<!-- TYPE:block -->
+
+<!-- TIPS start -->
+**Styling tips:** Reach for `block` when the **arrangement is the message** (system/hardware/architecture layouts) — not when you just want boxes auto-connected (that's `boxes-and-lines`/`flowchart`). Group with **containers** (indent a sub-grid) and **tag the container** so the colour cascades to its children. Don't write `columns` unless you need to override the inferred width; a lone block on a row already fills it. Mark a busy subsystem `collapsed` to keep the overview readable.
+<!-- TIPS end -->
+
+An author-controlled **grid** of rectangular blocks — for diagrams where the 2-D arrangement itself is the meaning (system block diagrams, hardware/signal chains, layered stacks, deployment topologies). Unlike the auto-layout diagrams, you place the blocks; the renderer still derives every pixel (column widths, row heights, gaps). One source line = one row; `[Label]` is a block; `_` is an empty cell.
+
+### Declaration
+
+```
+block [Title]
+
+[Web] [Mobile] [CLI]
+[API Gateway]
+[Auth] [Orders] [Billing]
+```
+
+### Example
+
+```
+block Web Service Architecture
+
+tag Layer as l
+  Edge blue
+  Service green
+  Data orange
+
+[Clients] l: Edge
+  [Browser] [Mobile] [CLI]
+
+[Backend] l: Service
+  [Auth] [Orders]
+  [Inventory] [Billing]
+
+[Data] l: Data collapsed
+  [Postgres] [Redis]
+```
+
+### Grid & columns
+
+- One **source line = one row**; blocks fill it left-to-right.
+- **Columns are inferred** from the widest row — you rarely write `columns`. A lone block on a row **fills the width**; a short row whose block count evenly divides the column count **spreads to fill** (two blocks in a 4-column grid → two half-width blocks).
+- `columns N` overrides the inferred width (e.g. to leave trailing empty cells).
+- `_` is a deliberate **empty cell**; repeat `_ _` for a wider gap.
+
+### Tags (outside the bracket, cascade)
+
+Metadata goes **after** the `]`, never inside — the boxes-and-lines group idiom (so a colon inside a label, `[API: v2]`, stays label text). Tag a **group** and the colour **cascades** to its children; tag an **individual box** to **override** the cascade.
+
+```
+[Services] s: Healthy        ← group: cascades to children
+  [Auth] [Orders] s: Degraded ← Auth inherits Healthy; Orders overrides
+```
+
+Declare the `tag` group before content; named palette colours only. See §1.3.
+
+### Containers & collapse
+
+- A block becomes a **container** by indenting a sub-grid under it. Sibling containers **stack vertically** (each needs its own body); the horizontal grid is for the leaf blocks inside a container.
+- Add the bare `collapsed` flag to start a container **folded** — it renders as a header band with the standard collapse-bar (the org / sitemap / mindmap signal). Collapse / expand is interactive in the desktop app; static export renders the authored state.
+
+### Span
+
+For an **uneven** span (a block covering some but not all columns), use the same outside-metadata idiom: `[Ingress] span: 2`. A span larger than the column count clamps to it.
+
+### Node Metadata
+
+| Key       | Type           | Default | Description                                   |
+| --------- | -------------- | ------- | --------------------------------------------- |
+| `span`    | integer ≥ 1    | 1       | Column span (clamps to the column count)      |
+| `collapsed` | flag         | —       | Start this container folded (collapse-bar)    |
+| `<tag>`   | declared value | —       | Tag value via the group's alias or name       |
+
+### Directives
+
+| Directive    | Effect                                                             |
+| ------------ | ----------------------------------------------------------------- |
+| `columns N`  | Override the inferred column count for a grid.                     |
+| `no-legend`  | Hide the tag legend.                                               |
+
+### Interactivity vs export
+
+In the desktop app a block diagram is interactive: click a container header to collapse / expand it (the rest of the grid re-flows). Static SVG / PNG export renders the authored state — the same interactive-vs-export split the map and treemap charts use.
 
 ---
 

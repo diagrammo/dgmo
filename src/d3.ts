@@ -120,6 +120,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   pyramid: exportPyramid,
   ring: exportRing,
   treemap: exportTreemap,
+  block: exportBlock,
   raci: exportRaci,
   rasci: exportRaci,
   daci: exportRaci,
@@ -1068,6 +1069,23 @@ async function exportTreemap(ctx: ExportContext): Promise<string> {
       height: EXPORT_HEIGHT,
     }
   );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportBlock(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseBlock } = await import('./block/parser');
+  const { renderBlockForExport } = await import('./block/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const blockParsed = parseBlock(content, effectivePalette);
+  if (blockParsed.error || blockParsed.top.rows.length === 0) return '';
+
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  renderBlockForExport(container, blockParsed, effectivePalette, ctx.isDark, {
+    width: EXPORT_WIDTH,
+    height: EXPORT_HEIGHT,
+  });
   return finalizeSvgExport(container, theme, effectivePalette);
 }
 

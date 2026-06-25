@@ -555,6 +555,18 @@ export type {
   TreemapOptions,
 } from './treemap/types';
 
+export { parseBlock } from './block/parser';
+export { renderBlock, renderBlockForExport } from './block/renderer';
+export { layoutBlock } from './block/layout';
+export type { BlockLayoutItem, BlockLayoutResult } from './block/layout';
+export type {
+  ParsedBlock,
+  BlockNode,
+  BlockCell,
+  BlockGrid,
+  BlockOptions,
+} from './block/types';
+
 // Map (§24B) — the interactive render surface for app/editor consumers. The
 // Node fs `loadMapData` is exported for completeness, but the browser supplies
 // `MapData` by DI (resolveMap/renderMap take it as an argument).

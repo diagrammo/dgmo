@@ -581,6 +581,17 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   [
+    'block',
+    // Author-controlled grid; columns are inferred from placement, so the only
+    // directives are an explicit `columns` override and `no-legend`.
+    withGlobals({
+      columns: {
+        description: 'Grid width (columns); inferred from the widest row if omitted',
+      },
+      'no-legend': { description: 'Hide the tag legend' },
+    }),
+  ],
+  [
     'map',
     // Geographic map directives (§24B.2/.7). Cosmetics are ON by default — the
     // only switches are bare `no-*` opt-outs, surfaced proactively so a
@@ -755,6 +766,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['pert', ['tag']],
   ['mindmap', ['tag']],
   ['treemap', ['tag']],
+  ['block', ['tag']],
   ['boxes-and-lines', ['tag']],
   ['swimlane', ['lane', 'tag']],
   [
@@ -1937,6 +1949,42 @@ function extractTreemapSymbols(docText: string): DiagramSymbols {
   return { kind: 'treemap', entities };
 }
 
+/** Block-diagram symbols: every `[Label]` on a grid row (skips tag blocks and
+ *  the `columns` / `no-*` directives). */
+function extractBlockSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+  let inTagBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+    if (/^(columns|no-[a-z]+)\b/i.test(trimmed)) continue;
+    if (/^tag\s+/i.test(trimmed)) {
+      inTagBlock = true;
+      continue;
+    }
+    const indent = line.search(/\S/);
+    if (inTagBlock) {
+      if (indent > 0) continue;
+      inTagBlock = false;
+    }
+    const re = /\[([^\]]*)\]/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(trimmed)) !== null) {
+      const label = m[1]!.trim();
+      if (label && !entities.includes(label)) entities.push(label);
+    }
+  }
+
+  return { kind: 'block', entities };
+}
+
 // ============================================================
 // Pyramid extractor
 // ============================================================
@@ -2421,6 +2469,7 @@ registerExtractor('org', extractOrgSymbols);
 registerExtractor('kanban', extractKanbanSymbols);
 registerExtractor('mindmap', extractMindmapSymbols);
 registerExtractor('treemap', extractTreemapSymbols);
+registerExtractor('block', extractBlockSymbols);
 registerExtractor('pyramid', extractPyramidSymbols);
 registerExtractor('ring', extractRingSymbols);
 registerExtractor('arc', extractArcSymbols);
