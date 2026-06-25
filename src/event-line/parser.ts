@@ -62,6 +62,8 @@ const NON_ISO_DATE_RE = /^\d{1,4}[/.]\d/;
 const SIDE_RE = /^side\s+(above|below|alternate)\b/i;
 /** Reserved seam: `section <Name>` grouping band. */
 const SECTION_SEAM_RE = /^section\b/i;
+/** `direction <X>` — only LR (horizontal) is supported; TB/BT are fast-follow. */
+const DIRECTION_RE = /^direction\s+(\w+)/i;
 
 export function parseEventLine(
   content: string,
@@ -72,6 +74,7 @@ export function parseEventLine(
     side: 'alternate',
     noTitle: false,
     noBox: false,
+    noLegend: false,
   };
   const result: Writable<ParsedEventLine> = {
     type: 'event-line',
@@ -217,6 +220,22 @@ export function parseEventLine(
     }
     if (trimmed.toLowerCase() === 'no-box') {
       options.noBox = true;
+      continue;
+    }
+    if (trimmed.toLowerCase() === 'no-legend') {
+      options.noLegend = true;
+      continue;
+    }
+    const dirMatch = trimmed.match(DIRECTION_RE);
+    if (dirMatch) {
+      const dir = dirMatch[1]!.toUpperCase();
+      if (dir !== 'LR') {
+        pushWarning(
+          lineNumber,
+          `event-line is horizontal-only in v1; \`direction ${dir}\` (vertical orientation) is a fast-follow.`,
+          EVENT_LINE_DIAGNOSTIC_CODES.UNSUPPORTED
+        );
+      }
       continue;
     }
     if (tryParseSharedOption(trimmed, sharedOptions)) continue;

@@ -282,6 +282,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-box': {
         description: 'Card-less label/rule/description style (slides)',
       },
+      'no-legend': { description: 'Hide the tag legend' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],

@@ -27,6 +27,8 @@ export interface EventLineOptions {
   readonly noTitle: boolean;
   /** True when `no-box` — render a card-less label/rule/description (slides). */
   readonly noBox: boolean;
+  /** True when `no-legend` — hide the tag legend. */
+  readonly noLegend: boolean;
 }
 
 export interface ParsedEventLine {

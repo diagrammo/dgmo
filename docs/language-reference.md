@@ -2404,6 +2404,7 @@ tag Genre as g
 - `no-scale` — space events evenly instead of by date (dates become captions).
 - `side above` / `side below` — place all cards on one side instead of alternating (`side alternate` is the default).
 - `no-box` — card-less style for slides: a tag-colored label, a rule, and the description below (no box / fill / border).
+- `no-legend` — hide the tag legend.
 
 ### 16.4B Version-Control Diagrams
 

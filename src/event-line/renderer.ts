@@ -111,7 +111,10 @@ export function renderEventLine(
   );
 
   const showTitle = !!parsed.title && !parsed.options.noTitle;
-  const hasLegend = parsed.tagGroups.length > 0 && activeGroup !== null;
+  const hasLegend =
+    parsed.tagGroups.length > 0 &&
+    activeGroup !== null &&
+    !parsed.options.noLegend;
   const titleH = showTitle ? TITLE_AREA : 0;
   const legendH = hasLegend ? LEGEND_BAND : 0;
   const topUsed = titleH + legendH;

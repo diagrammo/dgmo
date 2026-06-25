@@ -87,6 +87,36 @@ side above
     expect(p.options.side).toBe('above');
   });
 
+  it('honours no-legend', () => {
+    const p = parseEventLine(`event-line X
+no-legend
+
+2020 A  one`);
+    expect(p.options.noLegend).toBe(true);
+  });
+
+  it('accepts `direction LR` but flags `direction TB` as fast-follow', () => {
+    const lr = parseEventLine(`event-line X
+direction LR
+
+2020 A
+  one`);
+    expect(
+      lr.diagnostics.some((d) => d.code === 'E_EVENT_LINE_UNSUPPORTED')
+    ).toBe(false);
+    const tb = parseEventLine(`event-line X
+direction TB
+
+2020 A
+  one`);
+    expect(
+      tb.diagnostics.some((d) => d.code === 'E_EVENT_LINE_UNSUPPORTED')
+    ).toBe(true);
+    // not parsed as a junk event
+    expect(tb.events).toHaveLength(1);
+    expect(tb.events[0]!.label).toBe('A');
+  });
+
   it('keeps coincident dates and parses both events', () => {
     const p = parseEventLine(`event-line Apollo 11
 
