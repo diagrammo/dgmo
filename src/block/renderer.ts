@@ -96,9 +96,12 @@ export function renderBlock(
   const areaW = Math.max(1, width - PADDING * 2);
   const areaH = Math.max(1, height - areaY - PADDING);
 
-  // Collapsed set = authored flags + any app runtime toggles.
-  const collapsed = new Set<string>(options.collapsed ?? []);
-  collectCollapsed(parsed, collapsed);
+  // The app owns the live collapsed set (seeded once from authored flags via
+  // `authoredCollapsedIds`), so when it passes one it is AUTHORITATIVE — that's
+  // what lets a user expand an authored-`collapsed` container. Headless export
+  // (no set passed) derives the folds straight from the source.
+  const collapsed: ReadonlySet<string> =
+    options.collapsed ?? authoredCollapsedIds(parsed);
 
   const layout = layoutBlock(parsed.top, { collapsed });
   const scale = Math.min(1, areaW / layout.width, areaH / layout.height);
@@ -295,7 +298,8 @@ function drawItems(g: GSel, items: BlockLayoutItem[], ctx: DrawCtx): void {
         .attr('font-weight', 700)
         .attr('fill', palette.text)
         .text(clipLabel(it.label ?? '', it.w - 24, 12.5));
-      if (it.lineNumber !== undefined) header.attr('data-line-number', it.lineNumber);
+      if (it.lineNumber !== undefined)
+        header.attr('data-line-number', it.lineNumber);
       bindToggle(g, it, ctx, BLOCK_HEADER_H);
       if (it.inner) drawItems(g, it.inner, ctx);
       continue;
@@ -303,10 +307,9 @@ function drawItems(g: GSel, items: BlockLayoutItem[], ctx: DrawCtx): void {
 
     // leaf
     const fill = color ? mix(color, palette.bg, 14) : palette.bg;
-    const cell = g
-      .append('g')
-      .attr('class', 'dgmo-block-cell');
-    if (it.lineNumber !== undefined) cell.attr('data-line-number', it.lineNumber);
+    const cell = g.append('g').attr('class', 'dgmo-block-cell');
+    if (it.lineNumber !== undefined)
+      cell.attr('data-line-number', it.lineNumber);
     cell
       .append('rect')
       .attr('x', it.x)
@@ -352,6 +355,15 @@ function bindToggle(
 // ============================================================
 // Collapsed set + legend
 // ============================================================
+
+/** The ids of containers authored with the `collapsed` flag — the app seeds its
+ *  live collapsed set from this so authored folds are the initial state yet stay
+ *  user-toggleable. */
+export function authoredCollapsedIds(parsed: ParsedBlock): Set<string> {
+  const into = new Set<string>();
+  collectCollapsed(parsed, into);
+  return into;
+}
 
 function collectCollapsed(parsed: ParsedBlock, into: Set<string>): void {
   const walk = (grid: ParsedBlock['top']): void => {

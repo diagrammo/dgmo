@@ -519,7 +519,10 @@ export { renderPyramid, renderPyramidForExport } from './pyramid/renderer';
 export type { ParsedPyramid, PyramidLayer } from './pyramid/types';
 
 export { parseEventLine } from './event-line/parser';
-export { renderEventLine, renderEventLineForExport } from './event-line/renderer';
+export {
+  renderEventLine,
+  renderEventLineForExport,
+} from './event-line/renderer';
 export type {
   ParsedEventLine,
   EventLineEvent,
@@ -556,7 +559,11 @@ export type {
 } from './treemap/types';
 
 export { parseBlock } from './block/parser';
-export { renderBlock, renderBlockForExport } from './block/renderer';
+export {
+  renderBlock,
+  renderBlockForExport,
+  authoredCollapsedIds,
+} from './block/renderer';
 export { layoutBlock } from './block/layout';
 export type { BlockLayoutItem, BlockLayoutResult } from './block/layout';
 export type {
