@@ -246,10 +246,20 @@ export function renderEventLine(
       };
     }
     // Collapsed era → an event-like summary card: era name + bulleted members.
+    // Color: an explicit `[Name] color` wins; otherwise the era is BLACK unless
+    // every member shares one tag, in which case it adopts that tag color.
     const era = slot.era;
+    const memberColors = slot.members.map(eventColor);
+    const uniformTag =
+      activeGroup != null &&
+      memberColors.length > 0 &&
+      memberColors.every((c) => c === memberColors[0]) &&
+      memberColors[0] !== accent;
     const solid = era.color
-      ? (resolveColor(era.color, palette) ?? accent)
-      : accent;
+      ? (resolveColor(era.color, palette) ?? palette.text)
+      : uniformTag
+        ? memberColors[0]!
+        : palette.text;
     const cardFill = shapeFill(palette, solid, isDark, { solid: false });
     const titleColor = contrastText(
       cardFill,
@@ -722,7 +732,7 @@ export function renderEventLine(
       const half = Math.min(46, 16 + (p.members.length - 1) * 9);
       const x0 = Math.max(4, p.x - half);
       const x1 = Math.min(contentW - 4, p.x + half);
-      const cap = p.side === 'above' ? -1 : 1; // caps point toward the card
+      const cap = p.side === 'above' ? 1 : -1; // caps point AWAY from the card
       const eg = svg
         .append('g')
         .attr('data-era', p.era!.name)

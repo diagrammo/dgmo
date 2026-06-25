@@ -320,5 +320,37 @@ tag Medium as m
       .map((t) => t.getAttribute('fill'));
     expect(memberFills.length).toBe(3);
     expect(new Set(memberFills)).toEqual(new Set(bulletFills));
+    // mixed tags → the era itself (its spine bracket) is neutral/black, NOT a tag color
+    const bracket = container.querySelector(
+      'g[data-era-collapsed="true"] path[stroke-width="3"]'
+    )!;
+    expect(bulletFills).not.toContain(bracket.getAttribute('stroke'));
+  });
+
+  it('colors a uniform-tag collapsed era by that shared tag', () => {
+    const src = `event-line U
+no-scale
+
+tag T as t
+  A blue
+  B green
+
+[Era] collapsed: true
+2001 X  t: A
+  d
+2002 Y  t: A
+  d`;
+    const parsed = parseEventLine(src, nordLight);
+    const container = mount();
+    renderEventLine(container, parsed, nordLight, false);
+    const card = container.querySelector('g[data-era-collapsed="true"]')!;
+    const bulletFill = [...card.querySelectorAll('text')]
+      .find((t) => t.textContent === '•')!
+      .getAttribute('fill');
+    const bracket = container.querySelector(
+      'g[data-era-collapsed="true"] path[stroke-width="3"]'
+    )!;
+    // all members share tag A → the era takes that tag color
+    expect(bracket.getAttribute('stroke')).toBe(bulletFill);
   });
 });
