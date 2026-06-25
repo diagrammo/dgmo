@@ -52,8 +52,8 @@ const CARD_W = 210;
 const H_MARGIN = 58;
 const TITLE_AREA = 48;
 const LEGEND_BAND = 34;
-const LEADER_ABOVE = 26;
-const LEADER_BELOW = 40;
+const LEADER_ABOVE = 46;
+const LEADER_BELOW = 46;
 const DESC_FONT = 11.5;
 const DESC_LINE_H = 16;
 const CARD_PAD = 9;
@@ -62,6 +62,13 @@ const DOT_R = 5.5;
 const MIN_SPACING = 96;
 const LANE_GAP = 16;
 const NEUTRAL_TAG = '#999999';
+// Horizontal placement: a card may slide sideways as long as its dot stays at
+// least CARD_INSET from either edge (so a vertical leader still lands cleanly
+// on it). Cards fan side-by-side until they can't, then stack into lanes.
+const CARD_INSET = 18;
+const FAN_GAP = 6;
+// Date labels sit on the side OPPOSITE their card, pushed this far off the spine.
+const DATE_OFFSET = 28;
 
 type Side = 'above' | 'below';
 
@@ -75,6 +82,7 @@ interface Placed {
   x: number;
   side: Side;
   lane: number;
+  left: number;
 }
 
 export function renderEventLine(
@@ -147,6 +155,7 @@ export function renderEventLine(
           : 'below'
         : 'below') as Side,
       lane: 0,
+      left: 0,
     };
   });
 
@@ -177,24 +186,41 @@ export function renderEventLine(
     Math.max(...placed.map((p) => p.x)) + H_MARGIN
   );
 
-  // Card-left, clamped on-canvas.
-  const cardLeft = (p: Placed): number =>
-    Math.max(6, Math.min(contentW - CARD_W - 6, p.x - CARD_W / 2));
-
-  // ── Lane packing per side (avoid horizontal overlap) ──
+  // ── Horizontal placement: fan side-by-side, stack only when too tight ──
+  // Each card keeps its dot within [left+INSET, left+CARD_W-INSET] so a vertical
+  // leader lands on it. When the next event's dot is within a card-width, bias
+  // this card LEFT (dot near its right edge) to leave room for the neighbour, so
+  // close events sit side-by-side instead of stacking + crossing each other.
+  const clampLeft = (left: number): number =>
+    Math.max(6, Math.min(contentW - CARD_W - 6, left));
   for (const side of ['above', 'below'] as Side[]) {
-    const arr = placed
-      .filter((p) => p.side === side)
-      .sort((a, b) => cardLeft(a) - cardLeft(b));
-    const laneEnds: number[] = [];
-    for (const p of arr) {
-      const left = cardLeft(p);
-      let lane = 0;
-      for (; lane < laneEnds.length; lane++) {
-        if (left > laneEnds[lane]! + 8) break;
+    const arr = placed.filter((p) => p.side === side).sort((a, b) => a.x - b.x);
+    const laneRight: number[] = [];
+    for (let i = 0; i < arr.length; i++) {
+      const p = arr[i]!;
+      const next = arr[i + 1];
+      const crowdedRight = !!next && next.x - p.x < CARD_W + FAN_GAP;
+      const preferred = crowdedRight
+        ? p.x - CARD_W + CARD_INSET
+        : p.x - CARD_W / 2;
+      const maxLeft = p.x - CARD_INSET;
+      const minLeft = p.x - CARD_W + CARD_INSET;
+      // Default: open a fresh lane at the preferred position.
+      let lane = laneRight.length;
+      let left = Math.max(preferred, minLeft);
+      // Prefer the innermost existing lane the card fits in side-by-side.
+      for (let l = 0; l < laneRight.length; l++) {
+        const want = Math.max(preferred, laneRight[l]! + FAN_GAP, minLeft);
+        if (want <= maxLeft) {
+          lane = l;
+          left = want;
+          break;
+        }
       }
+      left = clampLeft(left);
       p.lane = lane;
-      laneEnds[lane] = left + CARD_W;
+      p.left = left;
+      laneRight[lane] = left + CARD_W;
     }
   }
   const rowGap = (side: Side): number =>
@@ -214,8 +240,12 @@ export function renderEventLine(
             p.cardH
         )
     );
-  const aboveExt = ext('above');
-  const belowExt = ext('below');
+  // Date labels sit on the side opposite their card; reserve room for that band
+  // so a one-sided line (e.g. no-alternate) doesn't push dates into the legend.
+  const dateAbove = placed.some((p) => p.side === 'below' && p.event.date);
+  const dateBelow = placed.some((p) => p.side === 'above' && p.event.date);
+  const aboveExt = Math.max(ext('above'), dateAbove ? DATE_OFFSET + 10 : 0);
+  const belowExt = Math.max(ext('below'), dateBelow ? DATE_OFFSET + 10 : 0);
   const TOP_PAD = 14;
   const BOT_PAD = 14;
   const spineY = topUsed + TOP_PAD + aboveExt;
@@ -300,18 +330,15 @@ export function renderEventLine(
         ? spineY - LEADER_ABOVE - p.lane * rowGapA
         : spineY + LEADER_BELOW + p.lane * rowGapB;
     const top = p.side === 'above' ? near - p.cardH : near;
-    const left = cardLeft(p);
+    const left = p.left;
 
-    // Diagonal leader: from the dot to the point on the card's near edge
-    // closest to the dot (inset from the corners). When the card sits over its
-    // dot this is ~vertical; when clustered dots fan out to spread cards, the
-    // leaders angle so each dot visibly connects to its own card.
-    const anchorX = Math.max(left + 16, Math.min(left + CARD_W - 16, p.x));
+    // Vertical leader straight up/down from the dot. The card was placed so the
+    // dot stays within its width, so the leader always lands on the card.
     svg
       .append('line')
       .attr('x1', p.x)
       .attr('y1', spineY)
-      .attr('x2', anchorX)
+      .attr('x2', p.x)
       .attr('y2', near)
       .attr('stroke', p.color)
       .attr('stroke-width', 1.5)
@@ -356,72 +383,86 @@ export function renderEventLine(
   }
 
   // ── Date captions ──
-  // One label per (x, date), placed in a single row just below the spine. When
-  // labels would collide, the cluster is spread horizontally (centered on the
-  // cluster, clamped to canvas) and each is tied to its dot with a thin leader,
-  // rather than stacked vertically where the dot↔date pairing is lost.
-  const labelMap = new Map<
-    string,
-    { x: number; date: string; color: string }
-  >();
+  // Each date sits on the side OPPOSITE its card (pushed DATE_OFFSET off the
+  // spine) so it never crowds its own card's leader. One label per (x, date);
+  // when same-side labels collide, the cluster spreads horizontally (centered,
+  // clamped to canvas) with a thin leader from each dot to its label.
+  interface DateLabel {
+    x: number;
+    date: string;
+    color: string;
+    side: Side;
+    lx: number;
+  }
+  const labelMap = new Map<string, DateLabel>();
   for (const p of placed) {
     if (!p.event.date) continue;
     const key = `${Math.round(p.x)}|${p.event.date}`;
     if (!labelMap.has(key)) {
-      labelMap.set(key, { x: p.x, date: p.event.date, color: p.color });
+      labelMap.set(key, {
+        x: p.x,
+        date: p.event.date,
+        color: p.color,
+        side: p.side === 'above' ? 'below' : 'above',
+        lx: p.x,
+      });
     }
   }
-  const dateLabels = [...labelMap.values()].sort((a, b) => a.x - b.x);
   const halfW = (d: string): number =>
     (d.length * DESC_FONT * CHAR_WIDTH_RATIO) / 2 + 7;
   const LABEL_GAP = 5;
-  const labelY = spineY + 19;
-
-  // Group into clusters of mutually-overlapping labels.
-  const clusters: { x: number; date: string; color: string; lx: number }[][] =
-    [];
-  for (const L of dateLabels) {
-    const last = clusters[clusters.length - 1];
-    const prev = last?.[last.length - 1];
-    if (prev && L.x - prev.x < halfW(L.date) + halfW(prev.date) + LABEL_GAP) {
-      last!.push({ ...L, lx: L.x });
-    } else {
-      clusters.push([{ ...L, lx: L.x }]);
-    }
-  }
-  // Lay out each cluster centered on its span, clamped to the canvas.
   const EDGE = 8;
-  for (const cl of clusters) {
-    if (cl.length === 1) continue; // lx already = x
-    let total = 0;
-    for (const L of cl) total += halfW(L.date) * 2;
-    total += (cl.length - 1) * LABEL_GAP;
-    const center = (cl[0]!.x + cl[cl.length - 1]!.x) / 2;
-    let cursor = center - total / 2;
-    cursor = Math.max(EDGE, Math.min(cursor, contentW - EDGE - total));
-    for (const L of cl) {
-      const hw = halfW(L.date);
-      L.lx = cursor + hw;
-      cursor += hw * 2 + LABEL_GAP;
+
+  // Spread same-side clusters horizontally (per side, independently).
+  for (const labelSide of ['above', 'below'] as Side[]) {
+    const arr = [...labelMap.values()]
+      .filter((l) => l.side === labelSide)
+      .sort((a, b) => a.x - b.x);
+    const clusters: DateLabel[][] = [];
+    for (const L of arr) {
+      const last = clusters[clusters.length - 1];
+      const prev = last?.[last.length - 1];
+      if (prev && L.x - prev.x < halfW(L.date) + halfW(prev.date) + LABEL_GAP) {
+        last!.push(L);
+      } else {
+        clusters.push([L]);
+      }
+    }
+    for (const cl of clusters) {
+      if (cl.length === 1) continue;
+      let total = 0;
+      for (const L of cl) total += halfW(L.date) * 2;
+      total += (cl.length - 1) * LABEL_GAP;
+      const center = (cl[0]!.x + cl[cl.length - 1]!.x) / 2;
+      let cursor = Math.max(
+        EDGE,
+        Math.min(center - total / 2, contentW - EDGE - total)
+      );
+      for (const L of cl) {
+        const hw = halfW(L.date);
+        L.lx = cursor + hw;
+        cursor += hw * 2 + LABEL_GAP;
+      }
     }
   }
 
-  for (const L of clusters.flat()) {
+  for (const L of labelMap.values()) {
     const hw = halfW(L.date);
-    // Leader from the dot to the (possibly shifted) label.
+    const cy = L.side === 'above' ? spineY - DATE_OFFSET : spineY + DATE_OFFSET;
+    const nearY = L.side === 'above' ? cy + 7 : cy - 7;
     svg
       .append('line')
       .attr('x1', L.x)
-      .attr('y1', spineY + 1)
+      .attr('y1', L.side === 'above' ? spineY - 1 : spineY + 1)
       .attr('x2', L.lx)
-      .attr('y2', labelY - 9)
+      .attr('y2', nearY)
       .attr('stroke', L.color)
       .attr('stroke-width', 1)
       .attr('stroke-opacity', 0.5);
     svg
       .append('rect')
       .attr('x', L.lx - hw)
-      .attr('y', labelY - 9)
+      .attr('y', cy - 7)
       .attr('width', hw * 2)
       .attr('height', 14)
       .attr('rx', 3)
@@ -430,7 +471,7 @@ export function renderEventLine(
     svg
       .append('text')
       .attr('x', L.lx)
-      .attr('y', labelY)
+      .attr('y', cy + 3.5)
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', 10.5)
