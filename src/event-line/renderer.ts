@@ -26,7 +26,9 @@ import {
 import {
   contrastText,
   getSeriesColors,
+  mix,
   shapeFill,
+  themeBaseBg,
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { renderNodeCard } from '../utils/card';
@@ -264,7 +266,9 @@ export function renderEventLine(
       : uniformTag
         ? memberColors[0]!
         : palette.text;
-    const cardFill = shapeFill(palette, solid, isDark, { solid: false });
+    // A collapsed era is a folded summary — render it much lighter than an event
+    // card (a faint ~10% tint) so it recedes rather than competing for attention.
+    const cardFill = mix(solid, themeBaseBg(palette, isDark), 10);
     const titleColor = contrastText(
       cardFill,
       palette.textOnFillLight,
@@ -760,7 +764,7 @@ export function renderEventLine(
         )
         .attr('fill', 'none')
         .attr('stroke', col)
-        .attr('stroke-width', 3)
+        .attr('stroke-width', 1.5)
         .attr('stroke-linecap', 'round')
         .attr('stroke-linejoin', 'round');
       if (onClickItem) {

@@ -178,10 +178,10 @@ no-scale
     expect(svg.textContent).toContain('1995 JavaScript');
     expect(svg.textContent).toContain('1996 CSS');
     // The collapsed era has NO dot — only the 3 visible events do; it terminates
-    // on the spine as a span bracket (stroke-width 3) instead.
+    // on the spine as a ⊓ bracket (leader-weight stroke) instead.
     expect(svg.querySelectorAll('.dgmo-event-dot').length).toBe(3);
     const spineBracket = svg.querySelector(
-      'g[data-era-collapsed="true"] path[stroke-width="3"]'
+      'g[data-era-collapsed="true"] path[stroke-width="1.5"]'
     );
     expect(spineBracket).not.toBeNull();
   });
@@ -322,7 +322,7 @@ tag Medium as m
     expect(new Set(memberFills)).toEqual(new Set(bulletFills));
     // mixed tags → the era itself (its spine bracket) is neutral/black, NOT a tag color
     const bracket = container.querySelector(
-      'g[data-era-collapsed="true"] path[stroke-width="3"]'
+      'g[data-era-collapsed="true"] path[stroke-width="1.5"]'
     )!;
     expect(bulletFills).not.toContain(bracket.getAttribute('stroke'));
   });
@@ -348,7 +348,7 @@ tag T as t
       .find((t) => t.textContent === '•')!
       .getAttribute('fill');
     const bracket = container.querySelector(
-      'g[data-era-collapsed="true"] path[stroke-width="3"]'
+      'g[data-era-collapsed="true"] path[stroke-width="1.5"]'
     )!;
     // all members share tag A → the era takes that tag color
     expect(bracket.getAttribute('stroke')).toBe(bulletFill);
