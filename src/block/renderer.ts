@@ -322,14 +322,26 @@ function drawItems(
         .attr('fill', fill)
         .attr('stroke', stroke)
         .attr('stroke-width', 1.5);
+      // An expanded container's header scales (subtly) with the box size and
+      // fades as it grows — a soft section watermark on big regions, crisp on
+      // small ones (the treemap leaf-label treatment, applied to headers).
+      const sizeMetric = Math.min(it.w, it.h * 2.5);
+      const headerFs = Math.max(
+        13,
+        Math.min(20, Math.round(13 + (sizeMetric - 220) / 70))
+      );
+      const grow = (headerFs - 13) / (20 - 13); // 0 (small) → 1 (large)
+      const headerOpacity = 0.92 - grow * 0.3; // 0.92 → 0.62
+      const headerY = it.y + Math.round(headerFs * 0.7) + 7;
       cell
         .append('text')
         .attr('x', it.x + 12)
-        .attr('y', it.y + 19)
-        .attr('font-size', 12.5)
+        .attr('y', headerY)
+        .attr('font-size', headerFs)
         .attr('font-weight', 700)
         .attr('fill', palette.text)
-        .text(clipLabel(it.label ?? '', it.w - 24, 12.5));
+        .attr('opacity', headerOpacity)
+        .text(clipLabel(it.label ?? '', it.w - 24, headerFs));
       bindToggle(cell, it, ctx, BLOCK_HEADER_H);
       // Children are flat siblings in `g` (drawn after → painted on top of the
       // container background), each carrying this container's id in their path.
