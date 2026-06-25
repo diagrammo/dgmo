@@ -272,6 +272,14 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
+  [
+    'event-line',
+    withGlobals({
+      'no-scale': { description: 'Space events evenly instead of by date' },
+      'no-alternate': { description: 'Stack all cards on one side' },
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
   ['venn', withGlobals()],
   [
     'quadrant',

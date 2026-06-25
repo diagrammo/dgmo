@@ -84,6 +84,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `gantt` | project scheduling with task dependencies and milestones |
 | `pert` | project network with three-point estimates and critical path |
 | `timeline` | events, eras, and date ranges |
+| `event-line` | annotated narrative timeline — events on a line with descriptions, optionally not to scale (NOT the date-scaled `timeline`) |
 | `journey-map` | UX flow with emotion scores, phases, annotations |
 | `cycle` | cyclical process (PDCA, OODA, DevOps loops) |
 | `raci` | tasks × roles responsibility matrix (`R A C I`) |

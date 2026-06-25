@@ -120,6 +120,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `gantt` | project scheduling with task dependencies and milestones |
 | `pert` | project network with three-point estimates and critical path |
 | `timeline` | events, eras, and date ranges |
+| `event-line` | annotated narrative timeline — events on a line with descriptions, optionally not to scale (NOT the date-scaled `timeline`) |
 | `journey-map` | UX flow with emotion scores, phases, annotations |
 | `cycle` | cyclical process (PDCA, OODA, DevOps loops) |
 | `raci` | tasks × roles responsibility matrix (`R A C I`) |
@@ -2291,7 +2292,52 @@ order group
 - Link: `Source -> Target weight` — space before optional weight
 - Options: `order appearance|name|group|degree`
 
-### 16.4 Venn Diagrams
+### 16.4 Event Line Diagrams
+
+<!-- TYPE:event-line -->
+
+<!-- TIPS start -->
+**Styling tips:** an event line is the annotated *narrative* timeline (Super Bowl halftime shows, "a history of X") — reach for it over `timeline` when each event carries a real description, and over `timeline` when the spacing should NOT be to scale. Keep to ~5–25 events; lead each with a terse title and write a sentence or two of body; color by category with a tag group.
+<!-- TIPS end -->
+
+**When to use vs `timeline`:** `timeline` is a to-scale date axis with eras, markers, and range bars (roadmaps, project history). `event-line` is point events with rich prose cards that auto-alternate above/below a spine — and is to-scale by default but drops to even spacing with `no-scale`.
+
+#### Declaration
+
+```
+event-line [Title]
+```
+
+#### Events
+
+A bare line is an event, in source order. An optional **ISO date** leads the line (timeline-style line-prefix), then the title, then optional trailing tag metadata. The indented body beneath is the description.
+
+```
+event-line Super Bowl Halftime Shows
+
+tag Genre as g
+  Pop blue
+  R&B teal
+
+2012-02-05 XLVI  g: Pop
+  **Madonna** with LMFAO, Nicki Minaj, M.I.A.
+  - Greek-temple set, gladiators
+  - Marching-band finale
+
+2013-02-03 XLVII  g: R&B
+  Beyoncé reunites Destiny's Child.
+```
+
+- **Date** — optional, ISO only (`YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `+HH:MM`), shown verbatim as the dot caption. No `date:` key; no `M/D/YYYY`.
+- **Tag** — trailing same-line metadata (`g: Pop`), like timeline; colors the dot, leader, and card.
+- **Description** — bare indented body lines (like `pyramid`/`ring`); `- ` makes a bullet; inline markdown (`**bold**`, `*italic*`, `` `code` ``) supported.
+
+#### Directives
+
+- `no-scale` — space events evenly instead of by date (dates become captions).
+- `no-alternate` — stack all cards on one side instead of alternating.
+
+### 16.5 Venn Diagrams
 
 <!-- TYPE:venn -->
 

@@ -71,6 +71,12 @@ C -> A 2`,
 2020-06 Phase 1 Complete
 2021-01 Launch`,
 
+  'event-line': `event-line Milestones
+2020-01 Kickoff
+  Project begins.
+2021-06 Launch
+  Shipped to users.`,
+
   venn: `venn
 Apples
 Oranges
