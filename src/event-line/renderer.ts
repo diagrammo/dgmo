@@ -164,7 +164,6 @@ export function renderEventLine(
     : sideOpt === 'above'
       ? 'below'
       : 'above';
-  const summarySide: Side = eraSide === 'above' ? 'below' : 'above';
 
   // Slots in source order: a visible event, or one summary per collapsed era.
   type Slot =
@@ -211,6 +210,13 @@ export function renderEventLine(
   };
   let evIdx = 0;
   const placed: Placed[] = slots.map((slot): Placed => {
+    // Events AND collapsed eras share the alternation in source order, so a
+    // collapsed era takes its natural above/below slot like any other entry.
+    const side: Side = alternate
+      ? evIdx++ % 2 === 0
+        ? 'above'
+        : 'below'
+      : (sideOpt as Side);
     if (slot.kind === 'event') {
       const event = slot.event;
       const solid = eventColor(event);
@@ -221,11 +227,6 @@ export function renderEventLine(
         palette.textOnFillDark
       );
       const lines = wrapDescription(event.description, charsPerLine);
-      const side: Side = alternate
-        ? evIdx++ % 2 === 0
-          ? 'above'
-          : 'below'
-        : (sideOpt as Side);
       return {
         kind: 'event',
         event,
@@ -301,7 +302,7 @@ export function renderEventLine(
       bulletColors,
       cardH: cardHeight(lines),
       x: 0,
-      side: summarySide,
+      side,
       lane: 0,
       left: 0,
     };
@@ -732,15 +733,18 @@ export function renderEventLine(
   // ── Dots (events) + span brackets (collapsed eras) on the spine ──
   for (const p of placed) {
     if (p.kind === 'era') {
-      // A collapsed era terminates on the spine as a horizontal `]` spanning a
-      // width representative of the events it folds (wider = more members), its
-      // caps turned toward the summary card. No dot, no separate bottom bracket
-      // — the card title names it, this bracket marks its footprint. Matches the
-      // card's color (era color, or the neutral accent) so the leader reads through.
+      // A collapsed era terminates on the spine as a `⊓` spanning a width
+      // representative of the events it folds (wider = more members). No dot, no
+      // separate bottom bracket — the card title names it, this marks its
+      // footprint. Matches the card's color so the leader reads straight through.
       const col = p.color;
       const half = Math.min(46, 16 + (p.members.length - 1) * 9);
-      const x0 = Math.max(4, p.x - half);
-      const x1 = Math.min(contentW - 4, p.x + half);
+      // Clamp the legs to the drawn spine extent so the feet always land ON the
+      // line (never poking off the left/right end of the timeline).
+      const spineLeft = x0 - 20;
+      const spineRight = x1 + 20;
+      const bx0 = Math.max(spineLeft, p.x - half);
+      const bx1 = Math.min(spineRight, p.x + half);
       // A `⊓`: the bar floats off the spine on the card's side (where the leader
       // lands), and a leg drops from each end down to rest its foot ON the spine.
       const barY = eraBarY(p);
@@ -752,7 +756,7 @@ export function renderEventLine(
       eg.append('path')
         .attr(
           'd',
-          `M${x0},${spineY} L${x0},${barY} L${x1},${barY} L${x1},${spineY}`
+          `M${bx0},${spineY} L${bx0},${barY} L${bx1},${barY} L${bx1},${spineY}`
         )
         .attr('fill', 'none')
         .attr('stroke', col)
