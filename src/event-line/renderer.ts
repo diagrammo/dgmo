@@ -302,11 +302,16 @@ export function renderEventLine(
     const top = p.side === 'above' ? near - p.cardH : near;
     const left = cardLeft(p);
 
+    // Diagonal leader: from the dot to the point on the card's near edge
+    // closest to the dot (inset from the corners). When the card sits over its
+    // dot this is ~vertical; when clustered dots fan out to spread cards, the
+    // leaders angle so each dot visibly connects to its own card.
+    const anchorX = Math.max(left + 16, Math.min(left + CARD_W - 16, p.x));
     svg
       .append('line')
       .attr('x1', p.x)
       .attr('y1', spineY)
-      .attr('x2', p.x)
+      .attr('x2', anchorX)
       .attr('y2', near)
       .attr('stroke', p.color)
       .attr('stroke-width', 1.5)
@@ -350,43 +355,87 @@ export function renderEventLine(
     }
   }
 
-  // ── Date captions: dedupe per unique x, declutter into sub-rows ──
-  const seen = new Map<number, string>();
+  // ── Date captions ──
+  // One label per (x, date), placed in a single row just below the spine. When
+  // labels would collide, the cluster is spread horizontally (centered on the
+  // cluster, clamped to canvas) and each is tied to its dot with a thin leader,
+  // rather than stacked vertically where the dot↔date pairing is lost.
+  const labelMap = new Map<
+    string,
+    { x: number; date: string; color: string }
+  >();
   for (const p of placed) {
     if (!p.event.date) continue;
-    const key = Math.round(p.x);
-    if (!seen.has(key)) seen.set(key, p.event.date);
-  }
-  const labels = [...seen.entries()]
-    .map(([x, d]) => ({ x, d }))
-    .sort((a, b) => a.x - b.x);
-  const rowRight: number[] = [];
-  for (const L of labels) {
-    const hw = L.d.length * (DESC_FONT * CHAR_WIDTH_RATIO) * 0.5 + 6;
-    let r = 0;
-    for (; r < rowRight.length; r++) {
-      if (L.x - hw > rowRight[r]! + 4) break;
+    const key = `${Math.round(p.x)}|${p.event.date}`;
+    if (!labelMap.has(key)) {
+      labelMap.set(key, { x: p.x, date: p.event.date, color: p.color });
     }
-    rowRight[r] = L.x + hw;
-    const y = spineY + 15 + r * 12;
+  }
+  const dateLabels = [...labelMap.values()].sort((a, b) => a.x - b.x);
+  const halfW = (d: string): number =>
+    (d.length * DESC_FONT * CHAR_WIDTH_RATIO) / 2 + 7;
+  const LABEL_GAP = 5;
+  const labelY = spineY + 19;
+
+  // Group into clusters of mutually-overlapping labels.
+  const clusters: { x: number; date: string; color: string; lx: number }[][] =
+    [];
+  for (const L of dateLabels) {
+    const last = clusters[clusters.length - 1];
+    const prev = last?.[last.length - 1];
+    if (prev && L.x - prev.x < halfW(L.date) + halfW(prev.date) + LABEL_GAP) {
+      last!.push({ ...L, lx: L.x });
+    } else {
+      clusters.push([{ ...L, lx: L.x }]);
+    }
+  }
+  // Lay out each cluster centered on its span, clamped to the canvas.
+  const EDGE = 8;
+  for (const cl of clusters) {
+    if (cl.length === 1) continue; // lx already = x
+    let total = 0;
+    for (const L of cl) total += halfW(L.date) * 2;
+    total += (cl.length - 1) * LABEL_GAP;
+    const center = (cl[0]!.x + cl[cl.length - 1]!.x) / 2;
+    let cursor = center - total / 2;
+    cursor = Math.max(EDGE, Math.min(cursor, contentW - EDGE - total));
+    for (const L of cl) {
+      const hw = halfW(L.date);
+      L.lx = cursor + hw;
+      cursor += hw * 2 + LABEL_GAP;
+    }
+  }
+
+  for (const L of clusters.flat()) {
+    const hw = halfW(L.date);
+    // Leader from the dot to the (possibly shifted) label.
+    svg
+      .append('line')
+      .attr('x1', L.x)
+      .attr('y1', spineY + 1)
+      .attr('x2', L.lx)
+      .attr('y2', labelY - 9)
+      .attr('stroke', L.color)
+      .attr('stroke-width', 1)
+      .attr('stroke-opacity', 0.5);
     svg
       .append('rect')
-      .attr('x', L.x - hw)
-      .attr('y', y - 9)
+      .attr('x', L.lx - hw)
+      .attr('y', labelY - 9)
       .attr('width', hw * 2)
-      .attr('height', 13)
+      .attr('height', 14)
       .attr('rx', 3)
       .attr('fill', palette.bg)
       .attr('opacity', 0.92);
     svg
       .append('text')
-      .attr('x', L.x)
-      .attr('y', y)
+      .attr('x', L.lx)
+      .attr('y', labelY)
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', 10.5)
       .attr('fill', palette.textMuted)
-      .text(L.d);
+      .text(L.date);
   }
 
   // ── Dots on top ──
