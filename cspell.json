@@ -376,7 +376,15 @@
     "xtick",
     "ylabel",
     "ytick",
-    "ZWSP"
+    "ZWSP",
+    "dlink",
+    "mfill",
+    "recenters",
+    "strat",
+    "Strs",
+    "toggleable",
+    "unreferenceable",
+    "XLVI"
   ],
   "ignorePaths": [
     "node_modules",

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-06-25
+
+### Added
+
+- **Event-line chart type** — an annotated narrative timeline: a horizontal spine of point events, each a dot with a date caption and a leader to an org-style card, auto-alternating above/below. Distinct from `timeline` (to-scale axis with eras/markers/ranges); event-line is point events with rich prose, optionally not to scale. Supports **eras** (`[Name]` run delimiters) that bracket a contiguous run of events; an era can **collapse** to a single summary card (bulleted member list, tag-colored) with an on-spine `⊓` bracket marking its span, and expand again live in the app. `no-scale`, `side above|below`, `no-box`, `no-legend` directives.
+- **Version-control chart type** — a VCS-agnostic commit DAG drawn as parallel branch lanes (the git/Mercurial/SVN branch-and-merge picture) in a "metro map" visual. Keyword-less grammar (a bare top-level line is a branch, a bare indented line is a commit); only `merge` and `cherry-pick` are required verbs. At parity with Mermaid `gitGraph` and beyond (HEAD / remote-tracking / ahead-behind, `rebase`/`reset`/`revert`/squash, step notes).
+- **Block chart type** — an author-controlled grid of rectangular blocks with nested, collapsible containers, for diagrams where the 2-D arrangement *is* the meaning (system/hardware/architecture layouts). Containment over edges; columns inferred from placement; `_` for empty cells.
+- **Swimlane chart type** — cross-functional / BPMN-style swimlanes: lanes, `[Phase]` columns, and in-arrow labels.
+
+### Changed
+
+- **Treemap** — vertical labels for tall-narrow cells with descender-safe value spacing.
+
 ## [0.38.0] - 2026-06-24
 
 ### Added
