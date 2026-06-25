@@ -277,6 +277,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     withGlobals({
       'no-scale': { description: 'Space events evenly instead of by date' },
       'no-alternate': { description: 'Stack all cards on one side' },
+      'no-box': {
+        description: 'Card-less label/rule/description style (slides)',
+      },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
@@ -480,13 +483,19 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'version-control',
     withGlobals({
-      direction: { description: 'Layout direction', values: ['LR', 'TB', 'BT'] },
+      direction: {
+        description: 'Layout direction',
+        values: ['LR', 'TB', 'BT'],
+      },
       merge: { description: 'Merge a branch into the active branch' },
       'cherry-pick': { description: 'Copy a commit onto the active branch' },
       rebase: { description: 'Replay a branch onto another (rebase X onto Y)' },
       reset: { description: 'Move a branch pointer back (reset X to commit)' },
       revert: { description: 'Add an inverse commit undoing a commit' },
-      ref: { description: 'Pointer at a commit (ref origin/main at commit) — remotes / HEAD' },
+      ref: {
+        description:
+          'Pointer at a commit (ref origin/main at commit) — remotes / HEAD',
+      },
       note: { description: 'Numbered step annotation on the current commit' },
       'no-labels': { description: 'Hide commit messages' },
       'no-lanes': { description: 'Hide branch lanes' },
@@ -748,7 +757,10 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['treemap', ['tag']],
   ['boxes-and-lines', ['tag']],
   ['swimlane', ['lane', 'tag']],
-  ['version-control', ['merge', 'cherry-pick', 'rebase', 'reset', 'revert', 'ref', 'note']],
+  [
+    'version-control',
+    ['merge', 'cherry-pick', 'rebase', 'reset', 'revert', 'ref', 'note'],
+  ],
   ['er', ['tag']],
   ['cycle', ['direction-counterclockwise', 'circle-nodes']],
   ['journey-map', ['persona', 'tag']],

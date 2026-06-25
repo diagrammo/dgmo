@@ -368,32 +368,65 @@ export function renderEventLine(
       cardG.style('cursor', 'pointer').on('click', () => onClickItem(ln));
     }
 
-    // Org-card chrome: rect + bold centered title (reuses utils/card.ts).
-    renderNodeCard(cardG, {
-      width: CARD_W,
-      height: p.cardH,
-      rx: CARD_RADIUS,
-      fill: p.cardFill,
-      stroke: p.color,
-      strokeWidth: NODE_STROKE_WIDTH,
-      label: p.event.label,
-      labelColor: p.titleColor,
-      labelFontSize: LABEL_FONT_SIZE,
-      headerHeight: HEADER_HEIGHT,
-    });
-
-    if (p.lines.length > 0) {
-      // Divider (org convention: 1px, 30% opacity at headerHeight).
+    if (parsed.options.noBox) {
+      // Slide-friendly, card-less style: a tag-colored label, a rule, and the
+      // description below — no box / fill / border. The title (the anchor) sits
+      // nearest the spine, so for above-side blocks the order flips to
+      // description → rule → title.
+      const titleNearTop = p.side === 'below';
+      const headBandTop = titleNearTop ? 0 : p.cardH - HEADER_HEIGHT;
+      cardG
+        .append('text')
+        .attr('x', CARD_PAD)
+        .attr('y', headBandTop + HEADER_HEIGHT / 2 + LABEL_FONT_SIZE / 2 - 2)
+        .attr('fill', p.color)
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', LABEL_FONT_SIZE)
+        .attr('font-weight', 700)
+        .text(p.event.label);
       cardG
         .append('line')
-        .attr('x1', 0)
-        .attr('y1', HEADER_HEIGHT)
-        .attr('x2', CARD_W)
-        .attr('y2', HEADER_HEIGHT)
-        .attr('stroke', p.titleColor)
-        .attr('stroke-opacity', 0.3)
-        .attr('stroke-width', 1);
-      renderBody(cardG, p.lines, p.titleColor, palette);
+        .attr('x1', CARD_PAD)
+        .attr('y1', titleNearTop ? HEADER_HEIGHT : headBandTop)
+        .attr('x2', CARD_W - CARD_PAD)
+        .attr('y2', titleNearTop ? HEADER_HEIGHT : headBandTop)
+        .attr('stroke', p.color)
+        .attr('stroke-width', 1.5)
+        .attr('stroke-opacity', 0.7);
+      if (p.lines.length > 0) {
+        const startBaseline = titleNearTop
+          ? CARD_BODY_TOP + DESC_FONT
+          : CARD_PAD + DESC_FONT;
+        renderBody(cardG, p.lines, palette.text, palette, startBaseline);
+      }
+    } else {
+      // Org-card chrome: rect + bold centered title (reuses utils/card.ts).
+      renderNodeCard(cardG, {
+        width: CARD_W,
+        height: p.cardH,
+        rx: CARD_RADIUS,
+        fill: p.cardFill,
+        stroke: p.color,
+        strokeWidth: NODE_STROKE_WIDTH,
+        label: p.event.label,
+        labelColor: p.titleColor,
+        labelFontSize: LABEL_FONT_SIZE,
+        headerHeight: HEADER_HEIGHT,
+      });
+
+      if (p.lines.length > 0) {
+        // Divider (org convention: 1px, 30% opacity at headerHeight).
+        cardG
+          .append('line')
+          .attr('x1', 0)
+          .attr('y1', HEADER_HEIGHT)
+          .attr('x2', CARD_W)
+          .attr('y2', HEADER_HEIGHT)
+          .attr('stroke', p.titleColor)
+          .attr('stroke-opacity', 0.3)
+          .attr('stroke-width', 1);
+        renderBody(cardG, p.lines, p.titleColor, palette);
+      }
     }
   }
 
@@ -546,9 +579,10 @@ function renderBody(
   cardG: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   lines: WrappedDescLine[],
   bodyColor: string,
-  palette: PaletteColors
+  palette: PaletteColors,
+  startBaseline = CARD_BODY_TOP + DESC_FONT
 ): void {
-  let y = CARD_BODY_TOP + DESC_FONT;
+  let y = startBaseline;
   for (const line of lines) {
     const isBullet =
       line.kind === 'bullet-first' || line.kind === 'bullet-cont';

@@ -44,7 +44,11 @@ import {
   withTagAliases,
 } from '../utils/reserved-key-registry';
 import { extractDatePrefix, parseTimelineDate } from '../timeline/parser';
-import type { EventLineEvent, EventLineOptions, ParsedEventLine } from './types';
+import type {
+  EventLineEvent,
+  EventLineOptions,
+  ParsedEventLine,
+} from './types';
 
 export const EVENT_LINE_DIAGNOSTIC_CODES = {
   NO_EVENTS: 'E_EVENT_LINE_NO_EVENTS',
@@ -67,6 +71,7 @@ export function parseEventLine(
     scale: true,
     alternate: true,
     noTitle: false,
+    noBox: false,
   };
   const result: Writable<ParsedEventLine> = {
     type: 'event-line',
@@ -154,7 +159,10 @@ export function parseEventLine(
           tagAttrKey(tagBlockMatch.name)
         );
       }
-      aliasMap.set(tagAttrKey(tagBlockMatch.name), tagAttrKey(tagBlockMatch.name));
+      aliasMap.set(
+        tagAttrKey(tagBlockMatch.name),
+        tagAttrKey(tagBlockMatch.name)
+      );
       result.tagGroups.push(currentTagGroup);
       continue;
     }
@@ -204,6 +212,10 @@ export function parseEventLine(
     }
     if (trimmed.toLowerCase() === 'no-alternate') {
       options.alternate = false;
+      continue;
+    }
+    if (trimmed.toLowerCase() === 'no-box') {
+      options.noBox = true;
       continue;
     }
     if (tryParseSharedOption(trimmed, sharedOptions)) continue;
@@ -291,7 +303,10 @@ function parseEventHeader(
     );
   }
 
-  const registry = withTagAliases(EVENT_LINE_REGISTRY, new Set(aliasMap.keys()));
+  const registry = withTagAliases(
+    EVENT_LINE_REGISTRY,
+    new Set(aliasMap.keys())
+  );
   const split = splitNameAndMeta(
     remainder,
     registry,

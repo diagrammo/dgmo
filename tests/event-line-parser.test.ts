@@ -65,15 +65,17 @@ no-scale
     expect(p.events[0]!.label).toBe('WorldWideWeb');
   });
 
-  it('honours no-scale and no-alternate directives', () => {
+  it('honours no-scale, no-alternate, and no-box directives', () => {
     const p = parseEventLine(`event-line X
 no-scale
 no-alternate
+no-box
 
 2020 A
   one`);
     expect(p.options.scale).toBe(false);
     expect(p.options.alternate).toBe(false);
+    expect(p.options.noBox).toBe(true);
   });
 
   it('keeps coincident dates and parses both events', () => {
@@ -93,9 +95,9 @@ no-alternate
 
 7/16/1969 Liftoff
   Departs.`);
-    expect(
-      p.diagnostics.some((d) => d.code === 'E_EVENT_LINE_BAD_DATE')
-    ).toBe(true);
+    expect(p.diagnostics.some((d) => d.code === 'E_EVENT_LINE_BAD_DATE')).toBe(
+      true
+    );
   });
 
   it('rejects a date range as a reserved seam', () => {
@@ -124,9 +126,9 @@ side above
 
   it('errors when there are no events', () => {
     const p = parseEventLine('event-line Empty');
-    expect(
-      p.diagnostics.some((d) => d.code === 'E_EVENT_LINE_NO_EVENTS')
-    ).toBe(true);
+    expect(p.diagnostics.some((d) => d.code === 'E_EVENT_LINE_NO_EVENTS')).toBe(
+      true
+    );
   });
 
   it('errors on a tag block declared after content', () => {

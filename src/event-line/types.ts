@@ -25,6 +25,8 @@ export interface EventLineOptions {
   readonly alternate: boolean;
   /** True when `no-title`. */
   readonly noTitle: boolean;
+  /** True when `no-box` — render a card-less label/rule/description (slides). */
+  readonly noBox: boolean;
 }
 
 export interface ParsedEventLine {
