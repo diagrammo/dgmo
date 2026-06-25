@@ -95,6 +95,8 @@ interface Placed {
   cardFill: string;
   titleColor: string;
   lines: WrappedDescLine[];
+  /** For a collapsed era: per-member tag color, in member order (one per bullet). */
+  bulletColors: readonly string[];
   cardH: number;
   x: number;
   side: Side;
@@ -188,19 +190,21 @@ export function renderEventLine(
     HEADER_HEIGHT +
     (lines.length > 0 ? SEPARATOR_GAP + lines.length * DESC_LINE_H : 0) +
     (lines.length > 0 ? CARD_PAD : 6);
+  // An event's solid color = its active-tag color (or the neutral accent).
+  const eventColor = (ev: EventLineEvent): string => {
+    if (!activeGroup) return accent;
+    const tc = resolveTagColor(
+      ev.metadata,
+      parsed.tagGroups as TagGroup[],
+      activeGroup
+    );
+    return tc && tc !== NEUTRAL_TAG ? (resolveColor(tc, palette) ?? tc) : accent;
+  };
   let evIdx = 0;
   const placed: Placed[] = slots.map((slot): Placed => {
     if (slot.kind === 'event') {
       const event = slot.event;
-      let solid = accent;
-      if (activeGroup) {
-        const tc = resolveTagColor(
-          event.metadata,
-          parsed.tagGroups as TagGroup[],
-          activeGroup
-        );
-        if (tc && tc !== NEUTRAL_TAG) solid = resolveColor(tc, palette) ?? tc;
-      }
+      const solid = eventColor(event);
       const cardFill = shapeFill(palette, solid, isDark, { solid: false });
       const titleColor = contrastText(
         cardFill,
@@ -227,6 +231,7 @@ export function renderEventLine(
         cardFill,
         titleColor,
         lines,
+        bulletColors: [],
         cardH: cardHeight(lines),
         x: 0,
         side,
@@ -250,6 +255,7 @@ export function renderEventLine(
     const memberStrs = shown.map(
       (m) => `• ${m.date ? `${m.date}  ` : ''}${m.label}`
     );
+    const bulletColors = shown.map(eventColor);
     const lines = wrapDescription(memberStrs, charsPerLine);
     if (overflow) {
       lines.push({
@@ -271,6 +277,7 @@ export function renderEventLine(
       cardFill,
       titleColor,
       lines,
+      bulletColors,
       cardH: cardHeight(lines),
       x: 0,
       side: summarySide,
@@ -318,18 +325,12 @@ export function renderEventLine(
       p.x = H_MARGIN + i * spacing;
     });
   }
-  const contentW = Math.max(
-    width,
-    Math.max(...placed.map((p) => p.x)) + H_MARGIN
-  );
-
-  // ── Horizontal placement: fan side-by-side, stack only when too tight ──
+  // ── Horizontal placement: fan side-by-side, stack into lanes when too tight ──
   // Each card keeps its dot within [left+INSET, left+CARD_W-INSET] so a vertical
-  // leader lands on it. When the next event's dot is within a card-width, bias
-  // this card LEFT (dot near its right edge) to leave room for the neighbour, so
-  // close events sit side-by-side instead of stacking + crossing each other.
-  const clampLeft = (left: number): number =>
-    Math.max(6, Math.min(contentW - CARD_W - 6, left));
+  // leader lands on it. A card joins the innermost lane where it clears the
+  // previous card in that lane by FAN_GAP; otherwise it opens a new lane. Cards
+  // are NEVER pulled back over a neighbour (no right-edge clamp) — boxes must
+  // never overlap, so the canvas grows instead (contentW below).
   for (const side of ['above', 'below'] as Side[]) {
     const arr = placed.filter((p) => p.side === side).sort((a, b) => a.x - b.x);
     const laneRight: number[] = [];
@@ -354,12 +355,18 @@ export function renderEventLine(
           break;
         }
       }
-      left = clampLeft(left);
       p.lane = lane;
-      p.left = left;
-      laneRight[lane] = left + CARD_W;
+      p.left = Math.max(6, left); // clamp the LEFT edge only — never the right
+      laneRight[lane] = p.left + CARD_W;
     }
   }
+  // Grow the canvas to fit the widest card edge so nothing clips or overlaps;
+  // the preview scales this to fit, so a wider box budget costs no real estate.
+  const contentW = Math.max(
+    width,
+    Math.max(...placed.map((p) => p.x)) + H_MARGIN,
+    Math.max(...placed.map((p) => p.left + CARD_W)) + 6
+  );
   const rowGap = (side: Side): number =>
     Math.max(0, ...placed.filter((p) => p.side === side).map((p) => p.cardH)) +
     LANE_GAP;
@@ -468,16 +475,33 @@ export function renderEventLine(
     .attr('stroke-linecap', 'round');
 
   // ── Leaders + cards ──
-  for (const p of placed) {
+  // Box geometry up front so leaders can test box crossings and so leaders draw
+  // BEHIND every card (a card always covers the leaders beneath it).
+  const geo = placed.map((p) => {
     const near =
       p.side === 'above'
         ? spineY - LEADER_ABOVE - p.lane * rowGapA
         : spineY + LEADER_BELOW + p.lane * rowGapB;
     const top = p.side === 'above' ? near - p.cardH : near;
-    const left = p.left;
+    return { p, near, top };
+  });
+  // A leader runs vertically at its dot's x from the spine to its card. If that
+  // segment passes through ANOTHER card's box, fade it so the text stays clear.
+  const leaderCrossesBox = (owner: Placed, near: number): boolean => {
+    const lo = Math.min(spineY, near);
+    const hi = Math.max(spineY, near);
+    return geo.some(
+      (g) =>
+        g.p !== owner &&
+        owner.x > g.p.left &&
+        owner.x < g.p.left + CARD_W &&
+        hi > g.top &&
+        lo < g.top + g.p.cardH
+    );
+  };
 
-    // Vertical leader straight up/down from the dot. The card was placed so the
-    // dot stays within its width, so the leader always lands on the card.
+  // Leaders first (behind all cards).
+  for (const { p, near } of geo) {
     svg
       .append('line')
       .attr('x1', p.x)
@@ -486,7 +510,12 @@ export function renderEventLine(
       .attr('y2', near)
       .attr('stroke', p.color)
       .attr('stroke-width', 1.5)
-      .attr('stroke-opacity', 0.65);
+      .attr('stroke-opacity', leaderCrossesBox(p, near) ? 0.18 : 0.65);
+  }
+
+  // Cards on top.
+  for (const { p, top } of geo) {
+    const left = p.left;
 
     const cardG = svg
       .append('g')
@@ -530,7 +559,14 @@ export function renderEventLine(
         const startBaseline = titleNearTop
           ? CARD_BODY_TOP + DESC_FONT
           : CARD_PAD + DESC_FONT;
-        renderBody(cardG, p.lines, palette.text, palette, startBaseline);
+        renderBody(
+          cardG,
+          p.lines,
+          palette.text,
+          palette,
+          startBaseline,
+          p.bulletColors
+        );
       }
     } else {
       // Org-card chrome: rect + bold centered title (reuses utils/card.ts).
@@ -558,7 +594,14 @@ export function renderEventLine(
           .attr('stroke', p.titleColor)
           .attr('stroke-opacity', 0.3)
           .attr('stroke-width', 1);
-        renderBody(cardG, p.lines, p.titleColor, palette);
+        renderBody(
+          cardG,
+          p.lines,
+          p.titleColor,
+          palette,
+          undefined,
+          p.bulletColors
+        );
       }
     }
   }
@@ -796,9 +839,13 @@ function renderBody(
   lines: WrappedDescLine[],
   bodyColor: string,
   palette: PaletteColors,
-  startBaseline = CARD_BODY_TOP + DESC_FONT
+  startBaseline = CARD_BODY_TOP + DESC_FONT,
+  // Per-bullet color (collapsed-era member list — each bullet takes its event's
+  // tag color). Consumed in bullet-first order; falls back to bodyColor.
+  bulletColors: readonly string[] = []
 ): void {
   let y = startBaseline;
+  let bulletIdx = 0;
   for (const line of lines) {
     const isBullet =
       line.kind === 'bullet-first' || line.kind === 'bullet-cont';
@@ -809,9 +856,10 @@ function renderBody(
         .attr('x', CARD_PAD)
         .attr('y', y)
         .attr('text-anchor', 'start')
-        .attr('fill', bodyColor)
+        .attr('fill', bulletColors[bulletIdx++] ?? bodyColor)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', DESC_FONT)
+        .attr('font-weight', 700)
         .text('•');
     }
     const t = cardG
