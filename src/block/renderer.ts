@@ -290,8 +290,9 @@ function drawItems(
         .attr('stroke-width', 1.5);
       cell
         .append('text')
-        .attr('x', it.x + 12)
+        .attr('x', it.x + it.w / 2)
         .attr('y', it.y + it.h / 2 + 4)
+        .attr('text-anchor', 'middle')
         .attr('font-size', 12.5)
         .attr('font-weight', 700)
         .attr('fill', palette.text)
@@ -335,8 +336,9 @@ function drawItems(
       const headerY = it.y + Math.round(headerFs * 0.7) + 7;
       cell
         .append('text')
-        .attr('x', it.x + 12)
+        .attr('x', it.x + it.w / 2)
         .attr('y', headerY)
+        .attr('text-anchor', 'middle')
         .attr('font-size', headerFs)
         .attr('font-weight', 700)
         .attr('fill', palette.text)
