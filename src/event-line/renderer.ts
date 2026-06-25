@@ -23,12 +23,19 @@ import {
   NODE_STROKE_WIDTH,
   SEPARATOR_GAP,
 } from '../utils/visual-conventions';
-import { contrastText, getSeriesColors, shapeFill } from '../palettes/color-utils';
+import {
+  contrastText,
+  getSeriesColors,
+  shapeFill,
+} from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { renderNodeCard } from '../utils/card';
 import { renderInlineText } from '../utils/inline-markdown';
 import { CHAR_WIDTH_RATIO } from '../utils/text-measure';
-import { wrapDescriptionLines, type WrappedDescLine } from '../utils/wrapped-desc';
+import {
+  wrapDescriptionLines,
+  type WrappedDescLine,
+} from '../utils/wrapped-desc';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type { LegendGroupData } from '../utils/legend-types';
 import {
@@ -123,7 +130,8 @@ export function renderEventLine(
       palette.textOnFillDark
     );
     const lines = wrapDescription(event.description, charsPerLine);
-    const bodyH = lines.length > 0 ? SEPARATOR_GAP + lines.length * DESC_LINE_H : 0;
+    const bodyH =
+      lines.length > 0 ? SEPARATOR_GAP + lines.length * DESC_LINE_H : 0;
     const cardH = HEADER_HEIGHT + bodyH + (lines.length > 0 ? CARD_PAD : 6);
     return {
       event,
@@ -133,7 +141,11 @@ export function renderEventLine(
       lines,
       cardH,
       x: 0,
-      side: (parsed.options.alternate ? (i % 2 === 0 ? 'above' : 'below') : 'below') as Side,
+      side: (parsed.options.alternate
+        ? i % 2 === 0
+          ? 'above'
+          : 'below'
+        : 'below') as Side,
       lane: 0,
     };
   });
@@ -147,7 +159,11 @@ export function renderEventLine(
     const lo = Math.min(...vals);
     const hi = Math.max(...vals);
     placed.forEach((p) => {
-      p.x = H_MARGIN + (hi > lo ? ((p.event.dateValue! - lo) / (hi - lo)) * innerW : innerW / 2);
+      p.x =
+        H_MARGIN +
+        (hi > lo
+          ? ((p.event.dateValue! - lo) / (hi - lo)) * innerW
+          : innerW / 2);
     });
   } else {
     const n = placed.length;
@@ -156,7 +172,10 @@ export function renderEventLine(
       p.x = H_MARGIN + i * spacing;
     });
   }
-  const contentW = Math.max(width, Math.max(...placed.map((p) => p.x)) + H_MARGIN);
+  const contentW = Math.max(
+    width,
+    Math.max(...placed.map((p) => p.x)) + H_MARGIN
+  );
 
   // Card-left, clamped on-canvas.
   const cardLeft = (p: Placed): number =>
@@ -329,15 +348,6 @@ export function renderEventLine(
         .attr('stroke-width', 1);
       renderBody(cardG, p.lines, p.titleColor, palette);
     }
-
-    // Tag-colored top rule — the card's color key (clipped to the top edge).
-    cardG
-      .append('rect')
-      .attr('x', 0)
-      .attr('y', 0)
-      .attr('width', CARD_W)
-      .attr('height', 3)
-      .attr('fill', p.color);
   }
 
   // ── Date captions: dedupe per unique x, declutter into sub-rows ──
@@ -402,7 +412,15 @@ export function renderEventLineForExport(
   exportDims?: D3ExportDimensions,
   tagOverride?: string
 ): void {
-  renderEventLine(container, parsed, palette, isDark, undefined, exportDims, tagOverride);
+  renderEventLine(
+    container,
+    parsed,
+    palette,
+    isDark,
+    undefined,
+    exportDims,
+    tagOverride
+  );
 }
 
 // ── helpers ──
@@ -430,7 +448,8 @@ function renderBody(
 ): void {
   let y = CARD_BODY_TOP + DESC_FONT;
   for (const line of lines) {
-    const isBullet = line.kind === 'bullet-first' || line.kind === 'bullet-cont';
+    const isBullet =
+      line.kind === 'bullet-first' || line.kind === 'bullet-cont';
     const bodyX = CARD_PAD + (isBullet ? 12 : 0);
     if (line.kind === 'bullet-first') {
       cardG
