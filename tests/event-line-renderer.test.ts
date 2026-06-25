@@ -127,4 +127,80 @@ side below
     expect(container.querySelector('svg')).not.toBeNull();
     expect(container.querySelector('.dgmo-legend')).toBeNull();
   });
+
+  const ERAS = `event-line A History of the Web
+no-scale
+
+[The Early Web]
+1991 WorldWideWeb
+  one
+1993 Mosaic
+  two
+
+[The Standards Era] collapsed: true
+1995 JavaScript
+  three
+1996 CSS
+  four
+
+[The App Era]
+2005 Ajax
+  five`;
+
+  it('draws an era bracket group per era, with as-authored labels', () => {
+    const parsed = parseEventLine(ERAS, nordLight);
+    const container = mount();
+    renderEventLine(container, parsed, nordLight, false);
+    const svg = container.querySelector('svg')!;
+    const eraGroups = svg.querySelectorAll('g[data-era]');
+    // 3 brackets + 1 collapsed summary card all carry data-era
+    const names = new Set(
+      [...eraGroups].map((g) => g.getAttribute('data-era'))
+    );
+    expect(names).toEqual(
+      new Set(['The Early Web', 'The Standards Era', 'The App Era'])
+    );
+    // label text is verbatim (not upper-cased)
+    expect(svg.textContent).toContain('The Early Web');
+    expect(svg.textContent).not.toContain('THE EARLY WEB');
+  });
+
+  it('collapses an era into one event-like card with a bulleted member list', () => {
+    const parsed = parseEventLine(ERAS, nordLight);
+    const container = mount();
+    renderEventLine(container, parsed, nordLight, false);
+    const svg = container.querySelector('svg')!;
+    // The collapsed era is a summary card (data-era-collapsed=true) ...
+    const card = svg.querySelector('g[data-era-collapsed="true"]');
+    expect(card).not.toBeNull();
+    // ... listing its member events as bullets, and the two collapsed events
+    // no longer render their own cards (only Early Web + App Era events do).
+    expect(svg.textContent).toContain('1995 JavaScript');
+    expect(svg.textContent).toContain('1996 CSS');
+    // 3 visible events + 1 era summary = 4 dots
+    expect(svg.querySelectorAll('.dgmo-event-dot').length).toBe(4);
+  });
+
+  it('places era brackets opposite the cards under `side below`', () => {
+    const parsed = parseEventLine(
+      `event-line X
+side below
+
+[Phase One]
+2020 A
+  one
+2021 B
+  two`,
+      nordLight
+    );
+    const container = mount();
+    renderEventLine(container, parsed, nordLight, false);
+    const svg = container.querySelector('svg')!;
+    const spineY = Number(svg.querySelector('line')!.getAttribute('y1'));
+    const eraText = [...svg.querySelectorAll('g[data-era] text')].find(
+      (t) => t.textContent === 'Phase One'
+    )!;
+    // cards are below → the era label sits ABOVE the spine
+    expect(Number(eraText.getAttribute('y'))).toBeLessThan(spineY);
+  });
 });
