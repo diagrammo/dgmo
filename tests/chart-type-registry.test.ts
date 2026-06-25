@@ -47,6 +47,7 @@ const EXPECTED_CATEGORY: Record<
   pert: 'diagram',
   'boxes-and-lines': 'diagram',
   swimlane: 'diagram',
+  'version-control': 'diagram',
   mindmap: 'diagram',
   wireframe: 'diagram',
   'journey-map': 'diagram',
@@ -106,6 +107,7 @@ const EXPECTED_MEASURE_IDS = [
   'state',
   'swimlane',
   'tech-radar',
+  'version-control',
 ].sort();
 
 // The set of types whose min-dimension formula moved into the registry
@@ -131,6 +133,7 @@ const EXPECTED_MINDIMS_IDS = [
   'state',
   'swimlane',
   'tech-radar',
+  'version-control',
 ].sort();
 
 const EXPECTED_EXTENDED_IDS = [

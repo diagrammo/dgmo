@@ -48,6 +48,7 @@ import { parseSlope } from './slope/parser';
 import { parseArc } from './arc/parser';
 import { parseTimeline } from './timeline/viz-parser';
 import { parseEventLine } from './event-line/parser';
+import { parseVersionControl } from './version-control/parser';
 import { parseWordcloud } from './wordcloud/parser';
 import { parseVenn } from './venn/parser';
 import { parseQuadrant } from './quadrant/parser';
@@ -272,6 +273,15 @@ function minDimsEventLine(c: ContentCounts): { width: number; height: number } {
     height: 420,
   };
 }
+function measureVersionControl(content: string): ContentCounts {
+  return { nodes: parseVersionControl(content).nodes.length };
+}
+function minDimsVersionControl(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max(480, 160 + (c.nodes ?? 3) * 86),
+    height: 360,
+  };
+}
 function minDimsOrg(c: ContentCounts): { width: number; height: number } {
   return {
     width: Math.max((c.nodes ?? 3) * 60, 300),
@@ -413,6 +423,13 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
     parse: parseSwimlane,
     measure: measureSwimlane,
     minDims: minDimsSwimlane,
+  },
+  {
+    id: 'version-control',
+    category: 'diagram',
+    parse: parseVersionControl,
+    measure: measureVersionControl,
+    minDims: minDimsVersionControl,
   },
   {
     id: 'mindmap',

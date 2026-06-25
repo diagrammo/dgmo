@@ -22,6 +22,7 @@ export const CHART_TYPES = new Set([
   'pert',
   'boxes-and-lines',
   'swimlane',
+  'version-control',
   'wireframe',
   'tech-radar',
   'mindmap',

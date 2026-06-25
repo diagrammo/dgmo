@@ -69,6 +69,7 @@ export const ALL_CHART_TYPES = new Set([
   'pert',
   'boxes-and-lines',
   'swimlane',
+  'version-control',
   'mindmap',
   'wireframe',
   'tech-radar',
