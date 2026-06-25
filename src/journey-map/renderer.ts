@@ -1441,10 +1441,14 @@ function renderScoreFace(
 
   // Mouth — arc curvature based on score
   // score 5: big smile, score 3: straight, score 1: deep frown
-  const mouthY = cy + r * 0.25;
-  const mouthW = r * 0.45;
+  const mouthW = r * 0.46;
   // Curve amount: positive = smile, negative = frown
-  const curve = ((score - 3) / 2) * r * 0.35;
+  const curve = ((score - 3) / 2) * r * 0.42;
+  // Pin the mouth's visual apex (its mid-point) to a fixed Y and let the
+  // curvature swing symmetrically about it. Anchoring the corners instead made
+  // the frown's arch ride up into the eyes and read as a cramped grimace.
+  const apexY = cy + r * 0.32;
+  const mouthY = apexY - curve / 2;
 
   g.append('path')
     .attr(
