@@ -72,6 +72,9 @@ const DATE_OFFSET = 28;
 // Era `]` bracket band: depth reserved on the side opposite the cards.
 const ERA_BLOCK = 30;
 const ERA_BRACKET_CAP = 8;
+// Collapsed era: the `⊓` bar floats this far off the spine (on the card's side);
+// its legs drop from the bar to rest their feet ON the timeline.
+const ERA_LEG = 13;
 const ERA_LABEL_FONT = 11.5;
 // A collapsed era folds its members into one card; cap the bulleted member list.
 const ERA_MEMBER_MAX = 6;
@@ -520,12 +523,18 @@ export function renderEventLine(
     );
   };
 
+  // A collapsed era's `⊓` bar floats on the card's side; the era card's leader
+  // stops AT the bar rather than running to the spine.
+  const eraBarY = (p: Placed): number =>
+    spineY + ERA_LEG * (p.side === 'above' ? -1 : 1);
+
   // Leaders first (behind all cards).
   for (const { p, near } of geo) {
+    const spineEnd = p.kind === 'era' ? eraBarY(p) : spineY;
     svg
       .append('line')
       .attr('x1', p.x)
-      .attr('y1', spineY)
+      .attr('y1', spineEnd)
       .attr('x2', p.x)
       .attr('y2', near)
       .attr('stroke', p.color)
@@ -732,10 +741,9 @@ export function renderEventLine(
       const half = Math.min(46, 16 + (p.members.length - 1) * 9);
       const x0 = Math.max(4, p.x - half);
       const x1 = Math.min(contentW - 4, p.x + half);
-      // Bracket sits on the side AWAY from the card; its two cap tips touch the
-      // spine and the connecting bar sits just off it (never crossing the line).
-      const dir = p.side === 'above' ? 1 : -1;
-      const barY = spineY + ERA_BRACKET_CAP * dir;
+      // A `⊓`: the bar floats off the spine on the card's side (where the leader
+      // lands), and a leg drops from each end down to rest its foot ON the spine.
+      const barY = eraBarY(p);
       const eg = svg
         .append('g')
         .attr('data-era', p.era!.name)
