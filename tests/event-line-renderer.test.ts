@@ -203,4 +203,110 @@ side below
     // cards are below → the era label sits ABOVE the spine
     expect(Number(eraText.getAttribute('y'))).toBeLessThan(spineY);
   });
+
+  // ── Layout: boxes never overlap, leaders fade across boxes ──
+  const CARD_W = 210; // mirror of the renderer constant
+
+  interface Box {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  }
+  function cardBoxes(svg: SVGSVGElement): Box[] {
+    const boxes: Box[] = [];
+    svg.querySelectorAll<SVGGElement>('g[data-line-number]').forEach((g) => {
+      const rect = g.querySelector('rect');
+      if (!rect) return; // era-bracket groups have no rect — skip
+      const m = (g.getAttribute('transform') ?? '').match(
+        /translate\(([-\d.]+),\s*([-\d.]+)\)/
+      );
+      if (!m) return;
+      boxes.push({
+        x: Number(m[1]),
+        y: Number(m[2]),
+        w: CARD_W,
+        h: Number(rect.getAttribute('height') ?? 0),
+      });
+    });
+    return boxes;
+  }
+  const overlaps = (a: Box, b: Box): boolean =>
+    a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+  it('never lets two cards overlap, even when crowded', () => {
+    // Many tight events on one side → would collide under the old right-clamp.
+    const src = `event-line Crowded
+no-scale
+side above
+
+2001 Alpha
+  a short description here
+2001 Bravo
+  a short description here
+2001 Charlie
+  a short description here
+2001 Delta
+  a short description here
+2001 Echo
+  a short description here`;
+    const parsed = parseEventLine(src, nordLight);
+    const container = mount(700, 500);
+    renderEventLine(container, parsed, nordLight, false);
+    const boxes = cardBoxes(container.querySelector('svg')!);
+    expect(boxes.length).toBe(5);
+    for (let i = 0; i < boxes.length; i++)
+      for (let j = i + 1; j < boxes.length; j++)
+        expect(overlaps(boxes[i]!, boxes[j]!)).toBe(false);
+  });
+
+  it('fades a leader that must cross another card box', () => {
+    // Coincident dates on one side stack into lanes; outer leaders cross the
+    // inner boxes and must render faded, the innermost one stays solid.
+    const src = `event-line Coincident
+side above
+
+2001-01-01 Alpha
+  desc
+2001-01-01 Bravo
+  desc
+2001-01-01 Charlie
+  desc`;
+    const parsed = parseEventLine(src, nordLight);
+    const container = mount(900, 500);
+    renderEventLine(container, parsed, nordLight, false);
+    const opacities = [
+      ...container.querySelectorAll<SVGLineElement>('line'),
+    ].map((l) => l.getAttribute('stroke-opacity'));
+    expect(opacities).toContain('0.18'); // ≥1 faded leader
+    expect(opacities).toContain('0.65'); // ≥1 solid leader
+  });
+
+  it('colors each collapsed-era member bullet by its tag', () => {
+    const src = `event-line Tagged Era
+no-scale
+
+tag Medium as m
+  Film blue
+  Series purple
+  Special green
+
+[Phase One] collapsed: true
+2008 Iron Man  m: Film
+  one
+2011 WandaVision  m: Series
+  two
+2012 One-Shot  m: Special
+  three`;
+    const parsed = parseEventLine(src, nordLight);
+    const container = mount(900, 500);
+    renderEventLine(container, parsed, nordLight, false);
+    const card = container.querySelector('g[data-era-collapsed="true"]')!;
+    const bulletFills = [...card.querySelectorAll('text')]
+      .filter((t) => t.textContent === '•')
+      .map((t) => t.getAttribute('fill'));
+    expect(bulletFills.length).toBe(3);
+    // three members, three different tags → three distinct bullet colors
+    expect(new Set(bulletFills).size).toBe(3);
+  });
 });
