@@ -20,6 +20,7 @@ import { palettes, getPalette } from './palettes';
 import type { PaletteConfig } from './palettes/types';
 import type { Theme } from './themes';
 import { formatDgmoError, type DgmoError } from './diagnostics';
+import { renderErrorCard } from './error-card';
 
 export type { CompactViewState } from './sharing';
 
@@ -93,39 +94,15 @@ export async function render(
     return result;
   }
 
-  // 'svg' (default): render an inline error SVG so the user sees the problem
+  // 'svg' (default): render an inline error card so the author sees what
+  // broke, on which line, and the offending source — see error-card.ts.
+  // We show the card whenever there are error-severity diagnostics, even if a
+  // parser produced a partial SVG: a misleading half-diagram is worse than a
+  // clear "here's what's wrong" for an embedded host (remark/astro/obsidian).
   return {
-    svg: result.svg || renderErrorSvg(errors, palette, options?.theme),
+    svg: renderErrorCard(errors, text, palette, options?.theme),
     diagnostics: result.diagnostics,
   };
-}
-
-function renderErrorSvg(
-  errors: DgmoError[],
-  palette: PaletteConfig,
-  theme?: Theme
-): string {
-  const colors = palette[theme === 'dark' ? 'dark' : 'light'];
-  const bg = theme === 'transparent' ? 'transparent' : colors.bg;
-  const fg = colors.destructive ?? colors.text;
-  const muted = colors.textMuted ?? colors.text;
-  const lines = errors.slice(0, 5).map((e) => formatDgmoError(e));
-  const height = 60 + lines.length * 20;
-  const body = lines
-    .map(
-      (line, i) =>
-        `<text x="20" y="${60 + i * 20}" fill="${fg}" font-family="ui-monospace, monospace" font-size="12">${escapeXml(line)}</text>`
-    )
-    .join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="${height}" viewBox="0 0 640 ${height}"><rect width="100%" height="100%" fill="${bg}"/><text x="20" y="34" fill="${muted}" font-family="system-ui, sans-serif" font-size="13" font-weight="600">DGMO parse error</text>${body}</svg>`;
-}
-
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 // ============================================================
