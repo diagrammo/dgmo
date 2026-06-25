@@ -143,6 +143,11 @@ export const chartTypes: readonly ChartTypeMeta[] = [
       'Nested rectangles sized by value — show a hierarchy’s proportions (budgets, disk usage, portfolios) with color by category, value heatmap, or branch',
   },
   {
+    id: 'block',
+    description:
+      'Block diagram: an author-controlled grid of rectangular blocks with nested, collapsible containers — system/hardware/architecture layouts where the 2-D arrangement is the meaning',
+  },
+  {
     id: 'map',
     description:
       'Geographic concept map: highlight/score regions, drop points of interest, connect with routes or edges',

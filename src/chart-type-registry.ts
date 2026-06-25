@@ -70,6 +70,7 @@ import { parseJourneyMap } from './journey-map/parser';
 import { parsePyramid } from './pyramid/parser';
 import { parseRing } from './ring/parser';
 import { parseTreemap } from './treemap/parser';
+import { parseBlock } from './block/parser';
 import { parseRaci, allTasks } from './raci/parser';
 import type { DgmoError } from './diagnostics';
 
@@ -510,6 +511,9 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
   // Treemap: squarified hierarchy. No measure/minDims — a treemap fills whatever
   // rectangle it's given and has no intrinsic aspect/size (F11).
   { id: 'treemap', category: 'visualization', parse: parseTreemap },
+  // Block diagram: deterministic grid (no measure/minDims — it sizes to content
+  // and is scaled to fit whatever rectangle it's given).
+  { id: 'block', category: 'visualization', parse: parseBlock },
 
   // ── Geographic map (own parser → resolver → layout → renderer) ──
   { id: 'map', category: 'visualization', parse: parseMap },

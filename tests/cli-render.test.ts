@@ -248,6 +248,18 @@ Operations
   Cloud 110
   Support 70`,
 
+  block: `block Test Block
+
+tag Layer as l
+  Edge blue
+  Service green
+
+[Clients] l: Edge
+  [Web] [Mobile]
+
+[Backend] l: Service
+  [Auth] [Orders]`,
+
   raci: `raci Test RACI
 roles Cap, QM, Bos
 

@@ -67,6 +67,7 @@ const EXPECTED_CATEGORY: Record<
   pyramid: 'visualization',
   ring: 'visualization',
   treemap: 'visualization',
+  block: 'visualization',
   map: 'visualization',
   // data-chart (15)
   bar: 'data-chart',

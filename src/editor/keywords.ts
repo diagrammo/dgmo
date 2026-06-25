@@ -30,6 +30,7 @@ export const CHART_TYPES = new Set([
   'pyramid',
   'ring',
   'treemap',
+  'block',
   'raci',
   'rasci',
   'daci',
