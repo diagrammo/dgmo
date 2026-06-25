@@ -58,7 +58,9 @@ describe('event-line renderer', () => {
     const svg = container.querySelector('svg');
     expect(svg).not.toBeNull();
     // one circle (dot) per event
-    expect(svg!.querySelectorAll('.dgmo-event-dot').length).toBe(parsed.events.length);
+    expect(svg!.querySelectorAll('.dgmo-event-dot').length).toBe(
+      parsed.events.length
+    );
     // title
     expect(svg!.querySelector('.chart-title')?.textContent).toBe(
       'Super Bowl Halftime Shows'
@@ -84,14 +86,16 @@ describe('event-line renderer', () => {
     });
     const svg = container.querySelector('svg');
     expect(svg).not.toBeNull();
-    expect(svg!.querySelectorAll('.dgmo-event-dot').length).toBe(parsed.events.length);
+    expect(svg!.querySelectorAll('.dgmo-event-dot').length).toBe(
+      parsed.events.length
+    );
   });
 
-  it('renders no-scale + no-alternate without throwing', () => {
+  it('renders no-scale + side below without throwing', () => {
     const parsed = parseEventLine(
       `event-line X
 no-scale
-no-alternate
+side below
 
 1991 A
   one

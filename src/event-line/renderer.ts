@@ -149,11 +149,11 @@ export function renderEventLine(
       lines,
       cardH,
       x: 0,
-      side: (parsed.options.alternate
+      side: (parsed.options.side === 'alternate'
         ? i % 2 === 0
           ? 'above'
           : 'below'
-        : 'below') as Side,
+        : parsed.options.side) as Side,
       lane: 0,
       left: 0,
     };
@@ -256,7 +256,7 @@ export function renderEventLine(
         )
     );
   // Date labels sit on the side opposite their card; reserve room for that band
-  // so a one-sided line (e.g. no-alternate) doesn't push dates into the legend.
+  // so a one-sided line (e.g. `side above`) doesn't push dates into the legend.
   const dateAbove = placed.some((p) => p.side === 'below' && p.event.date);
   const dateBelow = placed.some((p) => p.side === 'above' && p.event.date);
   const aboveExt = Math.max(ext('above'), dateAbove ? DATE_OFFSET + 10 : 0);

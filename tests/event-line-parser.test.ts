@@ -37,7 +37,7 @@ tag Genre as g
     ]);
     expect(b!.metadata['genre']).toBe('R&B');
     expect(p.options.scale).toBe(true);
-    expect(p.options.alternate).toBe(true);
+    expect(p.options.side).toBe('alternate');
   });
 
   it('treats a spaced title with no date prefix as the whole title', () => {
@@ -65,17 +65,26 @@ no-scale
     expect(p.events[0]!.label).toBe('WorldWideWeb');
   });
 
-  it('honours no-scale, no-alternate, and no-box directives', () => {
+  it('honours no-scale, side, and no-box directives', () => {
     const p = parseEventLine(`event-line X
 no-scale
-no-alternate
+side below
 no-box
 
 2020 A
   one`);
     expect(p.options.scale).toBe(false);
-    expect(p.options.alternate).toBe(false);
+    expect(p.options.side).toBe('below');
     expect(p.options.noBox).toBe(true);
+  });
+
+  it('accepts side above', () => {
+    const p = parseEventLine(`event-line X
+side above
+
+2020 A
+  one`);
+    expect(p.options.side).toBe('above');
   });
 
   it('keeps coincident dates and parses both events', () => {
@@ -110,18 +119,17 @@ no-box
     ).toBe(true);
   });
 
-  it('flags `section` and `side` as unsupported v1 seams', () => {
+  it('flags `section` as an unsupported v1 seam', () => {
     const p = parseEventLine(`event-line X
 
 section Decade
-side above
 
 2020 A
   one`);
     const seams = p.diagnostics.filter(
       (d) => d.code === 'E_EVENT_LINE_UNSUPPORTED'
     );
-    expect(seams.length).toBeGreaterThanOrEqual(2);
+    expect(seams.length).toBeGreaterThanOrEqual(1);
   });
 
   it('errors when there are no events', () => {

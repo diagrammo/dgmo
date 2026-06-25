@@ -21,8 +21,8 @@ export interface EventLineEvent {
 export interface EventLineOptions {
   /** False when `no-scale` — events are spaced evenly instead of by date. */
   readonly scale: boolean;
-  /** False when `no-alternate` — cards stack on one side. */
-  readonly alternate: boolean;
+  /** Card placement: `alternate` (default) or all on one `above`/`below` side. */
+  readonly side: 'alternate' | 'above' | 'below';
   /** True when `no-title`. */
   readonly noTitle: boolean;
   /** True when `no-box` — render a card-less label/rule/description (slides). */

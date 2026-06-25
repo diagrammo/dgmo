@@ -6,7 +6,7 @@
 //   - event + date  = timeline §15 line-prefix (`2012-02-05 XLVI`), date optional
 //   - tag           = trailing same-line metadata (`… XLVI  g: Pop`)
 //   - description    = pyramid/ring bare indented body (`- ` bullets + markdown)
-//   - directives     = `no-scale` / `no-alternate` (the `no-*` convention)
+//   - directives     = `no-scale` / `no-box` / `side above|below`
 //
 // Structure mirrors treemap's header/tag-block/content phases and pyramid's
 // bare-body description collection.
@@ -58,8 +58,8 @@ export const EVENT_LINE_DIAGNOSTIC_CODES = {
 
 /** A non-ISO date attempt: leading digits with a slash or dot separator. */
 const NON_ISO_DATE_RE = /^\d{1,4}[/.]\d/;
-/** Reserved seam: `side above` / `side below`. */
-const SIDE_SEAM_RE = /^side\s+(above|below)\b/i;
+/** `side above` / `side below` / `side alternate` — card placement. */
+const SIDE_RE = /^side\s+(above|below|alternate)\b/i;
 /** Reserved seam: `section <Name>` grouping band. */
 const SECTION_SEAM_RE = /^section\b/i;
 
@@ -69,7 +69,7 @@ export function parseEventLine(
 ): ParsedEventLine {
   const options: Writable<EventLineOptions> = {
     scale: true,
-    alternate: true,
+    side: 'alternate',
     noTitle: false,
     noBox: false,
   };
@@ -210,8 +210,9 @@ export function parseEventLine(
       options.scale = false;
       continue;
     }
-    if (trimmed.toLowerCase() === 'no-alternate') {
-      options.alternate = false;
+    const sideMatch = trimmed.match(SIDE_RE);
+    if (sideMatch) {
+      options.side = sideMatch[1]!.toLowerCase() as EventLineOptions['side'];
       continue;
     }
     if (trimmed.toLowerCase() === 'no-box') {
@@ -224,14 +225,6 @@ export function parseEventLine(
       pushWarning(
         lineNumber,
         'Grouping bands (`section`) are not supported in v1.',
-        EVENT_LINE_DIAGNOSTIC_CODES.UNSUPPORTED
-      );
-      continue;
-    }
-    if (SIDE_SEAM_RE.test(trimmed)) {
-      pushWarning(
-        lineNumber,
-        'Per-diagram side selection (`side above|below`) is not supported in v1.',
         EVENT_LINE_DIAGNOSTIC_CODES.UNSUPPORTED
       );
       continue;

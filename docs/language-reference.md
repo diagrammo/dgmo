@@ -2402,7 +2402,7 @@ tag Genre as g
 #### Directives
 
 - `no-scale` — space events evenly instead of by date (dates become captions).
-- `no-alternate` — stack all cards on one side instead of alternating.
+- `side above` / `side below` — place all cards on one side instead of alternating (`side alternate` is the default).
 - `no-box` — card-less style for slides: a tag-colored label, a rule, and the description below (no box / fill / border).
 
 ### 16.4B Version-Control Diagrams

@@ -276,7 +276,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'event-line',
     withGlobals({
       'no-scale': { description: 'Space events evenly instead of by date' },
-      'no-alternate': { description: 'Stack all cards on one side' },
+      side: {
+        description: 'Card placement: side above | below (default alternate)',
+      },
       'no-box': {
         description: 'Card-less label/rule/description style (slides)',
       },
@@ -586,7 +588,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // directives are an explicit `columns` override and `no-legend`.
     withGlobals({
       columns: {
-        description: 'Grid width (columns); inferred from the widest row if omitted',
+        description:
+          'Grid width (columns); inferred from the widest row if omitted',
       },
       'no-legend': { description: 'Hide the tag legend' },
     }),
