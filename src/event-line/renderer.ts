@@ -75,7 +75,6 @@ const ERA_BRACKET_CAP = 8;
 const ERA_LABEL_FONT = 11.5;
 // A collapsed era folds its members into one card; cap the bulleted member list.
 const ERA_MEMBER_MAX = 6;
-const ERA_COLLAPSED_HALF = 30; // half-width of a collapsed era's spine bracket
 
 type Side = 'above' | 'below';
 
@@ -147,6 +146,11 @@ export function renderEventLine(
     parsed.eras.filter((e) => e.collapsed).map((e) => e.name)
   );
   const hasEras = parsed.events.some((e) => e.era && eraByName.has(e.era));
+  // Only EXPANDED eras draw the bottom `]` bracket band (and reserve room for
+  // it). A collapsed era is marked by a span bracket on the spine instead.
+  const hasExpandedEra = parsed.events.some(
+    (e) => e.era && eraByName.has(e.era) && !collapsedSet.has(e.era)
+  );
   const anyCollapsed = parsed.events.some(
     (e) => e.era && collapsedSet.has(e.era)
   );
@@ -396,9 +400,9 @@ export function renderEventLine(
   const contentBelow = Math.max(ext('below'), dateBelow ? DATE_OFFSET + 10 : 0);
   // The era `]` bracket band lives beyond the content on the side opposite the cards.
   const aboveExt =
-    contentAbove + (hasEras && eraSide === 'above' ? ERA_BLOCK : 0);
+    contentAbove + (hasExpandedEra && eraSide === 'above' ? ERA_BLOCK : 0);
   const belowExt =
-    contentBelow + (hasEras && eraSide === 'below' ? ERA_BLOCK : 0);
+    contentBelow + (hasExpandedEra && eraSide === 'below' ? ERA_BLOCK : 0);
   const TOP_PAD = 14;
   const BOT_PAD = 14;
   const spineY = topUsed + TOP_PAD + aboveExt;
@@ -706,8 +710,40 @@ export function renderEventLine(
       .text(L.date);
   }
 
-  // ── Dots on top (events + collapsed-era summaries both read as points) ──
+  // ── Dots (events) + span brackets (collapsed eras) on the spine ──
   for (const p of placed) {
+    if (p.kind === 'era') {
+      // A collapsed era terminates on the spine as a horizontal `]` spanning a
+      // width representative of the events it folds (wider = more members), its
+      // caps turned toward the summary card. No dot, no separate bottom bracket
+      // — the card title names it, this bracket marks its footprint. Matches the
+      // card's color (era color, or the neutral accent) so the leader reads through.
+      const col = p.color;
+      const half = Math.min(46, 16 + (p.members.length - 1) * 9);
+      const x0 = Math.max(4, p.x - half);
+      const x1 = Math.min(contentW - 4, p.x + half);
+      const cap = p.side === 'above' ? -1 : 1; // caps point toward the card
+      const eg = svg
+        .append('g')
+        .attr('data-era', p.era!.name)
+        .attr('data-era-collapsed', 'true')
+        .attr('data-line-number', p.lineNumber);
+      eg.append('path')
+        .attr(
+          'd',
+          `M${x0},${spineY + ERA_BRACKET_CAP * cap} L${x0},${spineY} L${x1},${spineY} L${x1},${spineY + ERA_BRACKET_CAP * cap}`
+        )
+        .attr('fill', 'none')
+        .attr('stroke', col)
+        .attr('stroke-width', 3)
+        .attr('stroke-linecap', 'round')
+        .attr('stroke-linejoin', 'round');
+      if (onClickItem) {
+        const ln = p.lineNumber;
+        eg.style('cursor', 'pointer').on('click', () => onClickItem(ln));
+      }
+      continue;
+    }
     svg
       .append('circle')
       .attr('class', 'dgmo-event-dot')
@@ -758,17 +794,14 @@ export function renderEventLine(
       Math.max(4, Math.min(contentW - 4, v));
     const cap = eraSide === 'above' ? 1 : -1; // bracket caps point toward the spine
     for (const r of runs) {
+      if (r.collapsed) continue; // collapsed eras are marked on the spine instead
       const neutral = !r.era.color;
       const col = neutral
         ? palette.text
         : (resolveColor(r.era.color!, palette) ?? palette.text);
       const op = neutral ? 0.5 : 0.85;
-      const x0 = clampX(
-        r.collapsed ? r.firstX - ERA_COLLAPSED_HALF : r.firstX - 14
-      );
-      const x1 = clampX(
-        r.collapsed ? r.firstX + ERA_COLLAPSED_HALF : r.lastX + 14
-      );
+      const x0 = clampX(r.firstX - 14);
+      const x1 = clampX(r.lastX + 14);
       const y = eraBaseY;
       const eg = svg
         .append('g')

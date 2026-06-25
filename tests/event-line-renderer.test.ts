@@ -177,8 +177,13 @@ no-scale
     // no longer render their own cards (only Early Web + App Era events do).
     expect(svg.textContent).toContain('1995 JavaScript');
     expect(svg.textContent).toContain('1996 CSS');
-    // 3 visible events + 1 era summary = 4 dots
-    expect(svg.querySelectorAll('.dgmo-event-dot').length).toBe(4);
+    // The collapsed era has NO dot — only the 3 visible events do; it terminates
+    // on the spine as a span bracket (stroke-width 3) instead.
+    expect(svg.querySelectorAll('.dgmo-event-dot').length).toBe(3);
+    const spineBracket = svg.querySelector(
+      'g[data-era-collapsed="true"] path[stroke-width="3"]'
+    );
+    expect(spineBracket).not.toBeNull();
   });
 
   it('places era brackets opposite the cards under `side below`', () => {
