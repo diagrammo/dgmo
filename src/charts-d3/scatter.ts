@@ -101,6 +101,7 @@ export function renderScatter(
       .attr('stroke-opacity', 0.25);
     svg
       .append('text')
+      .attr('class', 'dgmo-tick')
       .attr('x', m.left - 10)
       .attr('y', yy + 4)
       .attr('text-anchor', 'end')
@@ -121,6 +122,7 @@ export function renderScatter(
       .attr('stroke-opacity', 0.25);
     svg
       .append('text')
+      .attr('class', 'dgmo-tick')
       .attr('x', xx)
       .attr('y', m.top + plotH + 18)
       .attr('text-anchor', 'middle')

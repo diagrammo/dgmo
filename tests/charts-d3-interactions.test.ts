@@ -51,11 +51,15 @@ describe('axis-projection interactions (no tooltips)', () => {
     const overlay = svg.querySelector('.dgmo-overlay')!;
     // two dotted leader lines (to x-axis and y-axis)
     expect(overlay.querySelectorAll('.dgmo-axline').length).toBe(2);
-    // two on-axis value pills (rect + text each)
-    expect(overlay.querySelectorAll('rect').length).toBe(2);
+    // two on-axis value labels — plain emphasized text, NOT pills (no rects)
     expect(overlay.querySelectorAll('text').length).toBe(2);
+    expect(overlay.querySelectorAll('rect').length).toBe(0);
     // the hovered point's value appears on an axis
     expect(overlay.textContent).toContain(pt.getAttribute('data-axval-y'));
+    // the chart's own axis ticks fade so the active value reads as the tick
+    const ticks = [...svg.querySelectorAll('.dgmo-tick')];
+    expect(ticks.length).toBeGreaterThan(0);
+    expect(ticks.every((t) => t.classList.contains('dgmo-faded'))).toBe(true);
     // other figures dimmed, hovered not
     expect(pt.classList.contains('dgmo-dim')).toBe(false);
     const others = [...svg.querySelectorAll('.dgmo-datum')].filter(
@@ -81,8 +85,9 @@ describe('axis-projection interactions (no tooltips)', () => {
     const overlay = svg.querySelector('.dgmo-overlay')!;
     // vertical (to x-axis) + horizontal (to y-axis) leaders
     expect(overlay.querySelectorAll('.dgmo-axline').length).toBe(2);
-    // x-label pill + y-value pill
-    expect(overlay.querySelectorAll('rect').length).toBe(2);
+    // x-label + y-value on-axis labels (text, not pills)
+    expect(overlay.querySelectorAll('text').length).toBe(2);
+    expect(overlay.querySelectorAll('rect').length).toBe(0);
   });
 
   it('mouseleave clears the overlay and dimming', async () => {

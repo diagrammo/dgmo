@@ -37,8 +37,9 @@ function ensureStyle(svg: SVGSVGElement, muted: string): void {
   const style = doc.createElementNS(NS, 'style');
   style.id = STYLE_ID;
   style.textContent = `
-    .dgmo-series,.dgmo-datum{transition:opacity .12s ease}
+    .dgmo-series,.dgmo-datum,.dgmo-tick{transition:opacity .12s ease}
     .dgmo-series.dgmo-dim,.dgmo-datum.dgmo-dim{opacity:.18}
+    .dgmo-tick.dgmo-faded{opacity:.22}
     .dgmo-datum{cursor:pointer}
     .dgmo-axline{stroke:${muted};stroke-width:1;stroke-dasharray:4 4;pointer-events:none}
   `;
@@ -80,7 +81,6 @@ export function attachDataChartInteractions(
   opts: DataChartInteractionOpts = {}
 ): () => void {
   const muted = opts.mutedColor ?? '#94a3b8';
-  const surface = opts.surface ?? '#ffffff';
   const text = opts.text ?? '#1f2933';
   ensureStyle(svg, muted);
   const doc = svg.ownerDocument;
@@ -106,6 +106,10 @@ export function attachDataChartInteractions(
   const circles = Array.from(
     svg.querySelectorAll<SVGCircleElement>('.dgmo-pt')
   );
+  const ticks = Array.from(svg.querySelectorAll<SVGTextElement>('.dgmo-tick'));
+  const fadeTicks = () => ticks.forEach((t) => t.classList.add('dgmo-faded'));
+  const unfadeTicks = () =>
+    ticks.forEach((t) => t.classList.remove('dgmo-faded'));
 
   // ── transient overlay (leader lines + on-axis value pills) ────────────
   let overlay: SVGGElement | null = null;
@@ -121,6 +125,7 @@ export function attachDataChartInteractions(
   const clearOverlay = () => {
     if (overlay)
       while (overlay.firstChild) overlay.removeChild(overlay.firstChild);
+    unfadeTicks();
   };
 
   const dottedLine = (x1: number, y1: number, x2: number, y2: number) => {
@@ -133,48 +138,33 @@ export function attachDataChartInteractions(
     getOverlay().appendChild(l);
   };
 
-  // Value pill drawn ON an axis. side 'x' → below x-axis (centered);
-  // side 'y' → left of y-axis (right-aligned).
-  const axisPill = (cx: number, cy: number, label: string, side: 'x' | 'y') => {
-    const g = getOverlay();
-    const fs = 12;
-    const padX = 6;
-    const padY = 3;
+  // The active value drawn ON an axis — styled as an emphasized tick (chart
+  // text color, a little bigger + bold), NOT a tooltip chip. Sits where the
+  // axis tick label would; the other ticks fade so this one reads as active.
+  // side 'x' → below x-axis (centered, at the x-tick row); side 'y' → left of
+  // the y-axis (right-aligned, at the y-tick column).
+  const axisValue = (
+    cx: number,
+    cy: number,
+    label: string,
+    side: 'x' | 'y'
+  ) => {
     const t = doc.createElementNS(NS, 'text');
-    t.setAttribute('font-size', String(fs));
+    t.setAttribute('font-size', '15');
+    t.setAttribute('font-weight', '700');
     t.setAttribute('font-family', 'Inter, system-ui, sans-serif');
-    t.setAttribute('fill', surface);
+    t.setAttribute('fill', text);
     t.textContent = label;
-    const measured =
-      typeof t.getComputedTextLength === 'function'
-        ? t.getComputedTextLength()
-        : 0;
-    const w = (measured > 0 ? measured : label.length * fs * 0.6) + padX * 2;
-    const h = fs + padY * 2;
-    let rx: number;
-    let ry: number;
     if (side === 'x') {
-      rx = cx - w / 2;
-      ry = cy + 8;
       t.setAttribute('text-anchor', 'middle');
       t.setAttribute('x', String(cx));
-      t.setAttribute('y', String(ry + h / 2 + fs / 2 - 2));
+      t.setAttribute('y', String(cy + 19));
     } else {
-      rx = cx - w - 8;
-      ry = cy - h / 2;
       t.setAttribute('text-anchor', 'end');
-      t.setAttribute('x', String(rx + w - padX));
-      t.setAttribute('y', String(cy + fs / 2 - 2));
+      t.setAttribute('x', String(cx - 10));
+      t.setAttribute('y', String(cy + 5));
     }
-    const r = doc.createElementNS(NS, 'rect');
-    r.setAttribute('x', String(rx));
-    r.setAttribute('y', String(ry));
-    r.setAttribute('width', String(w));
-    r.setAttribute('height', String(h));
-    r.setAttribute('rx', '3');
-    r.setAttribute('fill', text);
-    g.appendChild(r);
-    g.appendChild(t);
+    getOverlay().appendChild(t);
   };
 
   const dimDatumsExcept = (el: Element | null) => {
@@ -240,7 +230,7 @@ export function attachDataChartInteractions(
       clearOverlay();
       // vertical leader at the category x + x-axis value pill
       dottedLine(slot.cx, plot.top, slot.cx, plot.bottom);
-      axisPill(
+      axisValue(
         slot.cx,
         plot.bottom,
         nearest.getAttribute('data-x-label') ?? '',
@@ -249,7 +239,8 @@ export function attachDataChartInteractions(
       // horizontal leader from nearest point to the y-axis + y-axis value pill
       const ny = parseFloat(nearest.getAttribute('cy') ?? '0');
       dottedLine(plot.left, ny, slot.cx, ny);
-      axisPill(plot.left, ny, nearest.getAttribute('data-value') ?? '', 'y');
+      axisValue(plot.left, ny, nearest.getAttribute('data-value') ?? '', 'y');
+      fadeTicks();
       // emphasize nearest point + its series, dim the others
       restorePt();
       const base = parseFloat(nearest.getAttribute('r') ?? '3.5');
@@ -288,12 +279,13 @@ export function attachDataChartInteractions(
       clearOverlay();
       if (axX !== null) {
         dottedLine(cx, cy, cx, plot.bottom);
-        axisPill(cx, plot.bottom, axX, 'x');
+        axisValue(cx, plot.bottom, axX, 'x');
       }
       if (axY !== null) {
         dottedLine(plot.left, cy, cx, cy);
-        axisPill(plot.left, cy, axY, 'y');
+        axisValue(plot.left, cy, axY, 'y');
       }
+      fadeTicks();
       dimDatumsExcept(el);
     } else {
       dimByKey(el);

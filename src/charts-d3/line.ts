@@ -137,6 +137,7 @@ export function renderLine(
       .attr('stroke-opacity', t === 0 ? 0.6 : 0.25);
     svg
       .append('text')
+      .attr('class', 'dgmo-tick')
       .attr('x', m.left - 10)
       .attr('y', yy + 4)
       .attr('text-anchor', 'end')
@@ -150,6 +151,7 @@ export function renderLine(
   for (const d of data) {
     svg
       .append('text')
+      .attr('class', 'dgmo-tick')
       .attr('x', x(d.label) ?? 0)
       .attr('y', m.top + plotH + 18)
       .attr('text-anchor', 'middle')
