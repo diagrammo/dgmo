@@ -1,4 +1,3 @@
-import { EChartsOption } from 'echarts';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
 import { GeoProjection } from 'd3-geo';
@@ -184,6 +183,16 @@ interface TagGroup {
     readonly lineNumber: number;
 }
 /**
+ * DOM-safe key for a tag group — used wherever the group name becomes a
+ * `data-tag-*` attribute suffix, an entity metadata key, or an `active-tag`
+ * match target. For a single-identifier name (the only form the parser used to
+ * accept) this is exactly `name.toLowerCase()`, so swapping it in for existing
+ * diagrams is byte-identical. A quoted multi-word name (`tag "Trust Zone" as tz`)
+ * slugs to a hyphenated identifier (`trust-zone`) so it never produces an
+ * invalid DOM attribute name; the original `name` is kept for the legend label.
+ */
+declare function tagAttrKey(name: string): string;
+/**
  * The categorical name cycle used to auto-assign colors to bare tag values,
  * in deterministic order. Aliased to the shared {@link CATEGORICAL_COLOR_ORDER}
  * (RGB-seeded, max-contrast, neutrals excluded) so tag swatches and data-chart
@@ -299,9 +308,10 @@ interface MapPoi {
     readonly lineNumber: number;
 }
 /** One leg of a route (§24B.6): an edge from the previous stop to `dest`. Reuses
- *  the edge arrow idiom — in-arrow text = leg label, `width:` = leg thickness,
- *  `->`/`~>` (or the header `style: arc`) = shape. A tag on the leg line colours
- *  the LINE (§24B.6); `label:`/`as` still name the DESTINATION stop. */
+ *  the indented edge arrow idiom (same as sitemap) — in-arrow text = leg label,
+ *  `width:` = leg thickness, the arrow glyph = shape (`-…->` straight, `~…~>`
+ *  arc). A tag on the leg line colours the LINE (§24B.6); `label:`/`as` still
+ *  name the DESTINATION stop. The arrow is required — a bare destination errors. */
 interface MapRouteLeg {
     readonly label?: string;
     readonly style: 'straight' | 'arc';
@@ -314,16 +324,16 @@ interface MapRouteLeg {
     readonly tags: Readonly<Record<string, string>>;
     readonly lineNumber: number;
 }
-/** An ordered, auto-numbered route (§24B.6): `route <origin> [style: arc]` + a
- *  sequence of indented arrow legs, each continuing from the previous stop.
- *  Repeat the origin as a leg's destination to close a loop. */
+/** An ordered, auto-numbered route (§24B.6): `route <origin>` + a sequence of
+ *  indented arrow legs, each continuing from the previous stop. Leg shape is
+ *  per-leg (the arrow glyph) — there is no header-level shape option. Repeat the
+ *  origin as a leg's destination to close a loop. */
 interface MapRoute {
     readonly origin: PoiPos;
     readonly originAlias?: string;
     readonly originLabel?: string;
     readonly originValue?: string;
     readonly originTags: Readonly<Record<string, string>>;
-    readonly style: 'straight' | 'arc';
     readonly legs: readonly MapRouteLeg[];
     readonly lineNumber: number;
 }
@@ -970,9 +980,16 @@ interface ParsedChart {
     xlabelLineNumber?: number;
     ylabel?: string;
     ylabelLineNumber?: number;
+    /** Right (secondary) y-axis label — set by a `y-right-label` option or a
+     *  grouped-series axis header (§15.1 dual-axis line charts). */
+    yrlabel?: string;
+    yrlabelLineNumber?: number;
     seriesNames?: string[];
     seriesNameLineNumbers?: number[];
     seriesNameColors?: (string | undefined)[];
+    /** Per-series axis assignment, parallel to seriesNames. Present only when the
+     *  series block uses the grouped (dual-axis) form; absent ⇒ all left. */
+    seriesAxes?: ('left' | 'right')[];
     orientation?: 'horizontal' | 'vertical';
     color?: string;
     label?: string;
@@ -1373,12 +1390,6 @@ type ParsedExtendedChart = ParsedSankey | ParsedChord | ParsedFunctionChart | Pa
  */
 declare function parseExtendedChart(content: string, palette?: PaletteColors): ParsedExtendedChart;
 /**
- * Converts a ParsedExtendedChart into an EChartsOption.
- * Handles extended chart types: scatter, sankey, chord, function, heatmap, funnel.
- * @param parsed - Result of parseExtendedChart()
- */
-declare function buildExtendedChartOption(parsed: ParsedExtendedChart, palette: PaletteColors, isDark: boolean, ctx?: ScaleContext): EChartsOption;
-/**
  * Extracts legend group data from standard chart types (multi-line, bar-stacked).
  * Returns empty array if chart has no multi-series legend.
  */
@@ -1388,36 +1399,6 @@ declare function getSimpleChartLegendGroups(parsed: ParsedChart, colors: string[
  * Supports scatter (categories), chord (nodes), and function (series).
  */
 declare function getExtendedChartLegendGroups(parsed: ParsedExtendedChart, colors: string[]): LegendGroupData[];
-interface ScatterLabelPoint {
-    name: string;
-    px: number;
-    py: number;
-    color: string;
-    size?: number;
-}
-/**
- * Greedy label placement for scatter charts.
- * Returns ECharts `graphic` elements (text + background rects + optional connector lines).
- * Pure function — no ECharts instance dependency.
- *
- * @param bg - chart background color, used for label background rects that mask connector lines
- */
-declare function computeScatterLabelGraphics(points: ScatterLabelPoint[], chartBounds: {
-    top: number;
-    bottom: number;
-}, fontSize: number, symbolSize: number, bg?: string): Record<string, unknown>[];
-/**
- * Converts a ParsedChart into an EChartsOption.
- * Handles standard chart types: bar, line, area, pie, doughnut, radar, polar-area, bar-stacked, multi-line.
- * @param parsed - Result of parseChart()
- */
-declare function buildSimpleChartOption(parsed: ParsedChart, palette: PaletteColors, isDark: boolean, chartWidth?: number, ctx?: ScaleContext): EChartsOption;
-declare const ECHART_EXPORT_WIDTH = 1200;
-/**
- * Renders an extended chart (scatter, sankey, chord, function, heatmap, funnel) to SVG using server-side rendering.
- * Mirrors the `renderForExport` API — returns an SVG string or empty string on failure.
- */
-declare function renderExtendedChartForExport(content: string, theme: 'light' | 'dark' | 'transparent', palette?: PaletteColors): Promise<string>;
 
 type TimelineSort = 'time' | 'group' | 'tag';
 interface TimelineEvent {
@@ -2914,6 +2895,142 @@ interface FocusResult {
  * decides the "no connections" affordance, Decision 19).
  */
 declare function focusBoxesAndLines(parsed: ParsedBoxesAndLines, target: FocusTarget): FocusResult;
+
+/**
+ * v1 node vocabulary (closed). Inclusive (`<o>`) and event-based (`<*>`)
+ * gateways are fast-follow — they parse to an `E_SWIMLANE_UNSUPPORTED`
+ * diagnostic, never to a shape here.
+ */
+type SwimShape = 'task' | 'exclusive' | 'parallel' | 'terminal' | 'subprocess';
+/**
+ * v1 terminal/event typing (closed). Timer/message/signal are fast-follow and
+ * emit `E_SWIMLANE_UNSUPPORTED`.
+ */
+type SwimEvent = 'none' | 'error' | 'success' | 'terminate';
+type SwimDirection = 'LR' | 'TB';
+/** A declared lane (row in LR / column in TB), occupant-neutral. */
+interface SwimLane {
+    readonly id: string;
+    readonly label: string;
+    /** Resolved hex color (from the trailing §1.5 color token), if any. */
+    readonly color?: string;
+    readonly lineNumber: number;
+}
+/** A declared phase column (`[Phase]`). */
+interface SwimPhase {
+    readonly id: string;
+    readonly label: string;
+    readonly lineNumber: number;
+}
+interface SwimNode {
+    /** Canonical (display) name — globally unique. */
+    readonly id: string;
+    readonly label: string;
+    readonly shape: SwimShape;
+    /** Lane id this node belongs to. */
+    readonly lane: string;
+    /** Phase id, if declared under a `[Phase]`. */
+    readonly phase?: string;
+    /** Terminal/event type (only meaningful for `terminal` shapes). */
+    readonly event: SwimEvent;
+    /** Explicit trailing color token, if any (raw recognized name). */
+    readonly color?: string;
+    /** Same-line `key: value` metadata (tag-group values). */
+    readonly tags: Readonly<Record<string, string>>;
+    readonly lineNumber: number;
+}
+interface SwimEdge {
+    readonly source: string;
+    readonly target: string;
+    /** In-arrow label (`-invalid->`), if any. */
+    readonly label?: string;
+    readonly lineNumber: number;
+}
+interface ParsedSwimlane {
+    readonly title?: string;
+    readonly titleLineNumber?: number;
+    readonly direction: SwimDirection;
+    /** Lanes in declaration order. */
+    readonly lanes: readonly SwimLane[];
+    /** Phases in declaration order (empty for a 2-deep, phase-less diagram). */
+    readonly phases: readonly SwimPhase[];
+    readonly nodes: readonly SwimNode[];
+    readonly edges: readonly SwimEdge[];
+    readonly tagGroups: readonly TagGroup[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error?: string | null;
+}
+/**
+ * A laid-out band (lane or phase). Top-left origin (mirrors `LayoutGroup`),
+ * NOT center origin.
+ */
+interface LayoutBand {
+    readonly id: string;
+    readonly label: string;
+    /** Resolved hex color (lanes only); phases are neutral. */
+    readonly color?: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    /**
+     * Thickness of the label gutter (left for lanes, top for phases, in LR;
+     * transposed in TB). The renderer reserves this for the band label.
+     */
+    readonly headerSize: number;
+    readonly lineNumber: number;
+}
+interface SwimLayoutNode {
+    readonly id: string;
+    readonly label: string;
+    readonly shape: SwimShape;
+    readonly event: SwimEvent;
+    readonly lane: string;
+    readonly phase?: string;
+    readonly color?: string;
+    readonly tags: Readonly<Record<string, string>>;
+    /** Center coordinates. */
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly lineNumber: number;
+}
+interface SwimLayoutEdge {
+    readonly source: string;
+    readonly target: string;
+    readonly label?: string;
+    readonly points: ReadonlyArray<{
+        readonly x: number;
+        readonly y: number;
+    }>;
+    /** True for a routed loop / back-edge (drawn dashed). */
+    readonly back: boolean;
+    readonly lineNumber: number;
+}
+interface SwimlaneLayoutResult {
+    readonly nodes: readonly SwimLayoutNode[];
+    readonly edges: readonly SwimLayoutEdge[];
+    readonly lanes: readonly LayoutBand[];
+    readonly phases: readonly LayoutBand[];
+    readonly width: number;
+    readonly height: number;
+}
+
+declare function parseSwimlane(content: string, palette?: PaletteColors): ParsedSwimlane;
+
+declare function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult;
+
+interface SwimlaneRenderOptions {
+    exportDims?: {
+        width: number;
+        height: number;
+    };
+    activeTagGroup?: string | null;
+    exportMode?: boolean;
+}
+declare function renderSwimlaneForExport(container: HTMLElement, parsed: ParsedSwimlane, layout: SwimlaneLayoutResult, palette: PaletteColors, isDark: boolean, opts?: SwimlaneRenderOptions): void;
 
 interface SitemapNode {
     readonly id: string;
@@ -4823,6 +4940,186 @@ declare function renderPyramid(container: HTMLDivElement, parsed: ParsedPyramid,
  */
 declare function renderPyramidForExport(container: HTMLDivElement, parsed: ParsedPyramid, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
 
+interface EventLineEvent {
+    readonly label: string;
+    readonly lineNumber: number;
+    /** ISO date as written (verbatim caption), or null when the event has no date. */
+    readonly date: string | null;
+    /** Numeric date value (timeline scale) for to-scale positioning, or null. */
+    readonly dateValue: number | null;
+    /** Tag/metadata — keys are `tagAttrKey(group)` (e.g. `{ genre: 'Pop' }`). */
+    readonly metadata: Readonly<Record<string, string>>;
+    /** Bare-body description lines (markdown-light; `- ` normalized to `• `). */
+    readonly description: readonly string[];
+    /** Name of the enclosing era (`[Name]` run delimiter, §28.6a), or null. */
+    readonly era: string | null;
+}
+/**
+ * An **era** — a `[Name]` run delimiter (§28.6a) that brackets a contiguous run
+ * of events into a labeled section of the spine. Not an indentation container:
+ * events stay at indent 0 and belong to the most-recently opened era. Drawn as a
+ * horizontal `]` bracket on the side opposite the cards; `collapsed` folds the
+ * run into one event-like summary card (bulleted member list) while the bracket
+ * stays on the spine.
+ */
+interface EventLineEra {
+    readonly name: string;
+    /** Resolved color token (palette name) tinting the bracket/label, or null. */
+    readonly color: string | null;
+    /** Authored default collapse state (the export/CLI state; the app toggles live). */
+    readonly collapsed: boolean;
+    readonly lineNumber: number;
+}
+interface EventLineOptions {
+    /** False when `no-scale` — events are spaced evenly instead of by date. */
+    readonly scale: boolean;
+    /** Card placement: `alternate` (default) or all on one `above`/`below` side. */
+    readonly side: 'alternate' | 'above' | 'below';
+    /** True when `no-title`. */
+    readonly noTitle: boolean;
+    /** True when `no-box` — render a card-less label + date on a soft tag-tinted
+     *  shelf (with a colored leader-landing edge) + description (slides). */
+    readonly noBox: boolean;
+    /** True when `no-legend` — hide the tag legend. */
+    readonly noLegend: boolean;
+}
+interface ParsedEventLine {
+    readonly type: 'event-line';
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly events: readonly EventLineEvent[];
+    readonly eras: readonly EventLineEra[];
+    readonly tagGroups: readonly TagGroup[];
+    readonly options: EventLineOptions;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
+}
+
+declare function parseEventLine(content: string, palette?: PaletteColors): ParsedEventLine;
+
+declare function renderEventLine(container: HTMLDivElement, parsed: ParsedEventLine, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions, tagOverride?: string): void;
+/** A focus target: a single event (by its `data-evt` id, = source line), an era
+ *  (by name), or a tag value (a legend category). `null` clears the focus. */
+type EventLineFocus = {
+    readonly kind: 'event';
+    readonly id: string;
+} | {
+    readonly kind: 'era';
+    readonly name: string;
+} | {
+    readonly kind: 'tag';
+    readonly group: string;
+    readonly value: string;
+};
+/**
+ * Clear the preview-only legend-muted tag set persisted on a container (the
+ * collapsed-to-dot categories from §28.5). View state is per-document, so a host
+ * resets it when the source changes (switching files / edits) — the same
+ * contract the app uses for live era collapse toggles. No-op if nothing is set.
+ */
+declare function clearEventLineMuted(container: HTMLElement): void;
+/**
+ * Pin a persistent focus on a rendered event-line — e.g. driven by the editor
+ * cursor — dimming everything except the target, exactly like hover. Hovering
+ * temporarily overrides the pin; leaving the diagram reverts to it. Pass `null`
+ * to clear. No-op when the container holds no event-line SVG.
+ */
+declare function focusEventLine(container: HTMLElement, spec: EventLineFocus | null): void;
+declare function renderEventLineForExport(container: HTMLDivElement, parsed: ParsedEventLine, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, tagOverride?: string): void;
+
+type VCNodeKind = 'commit' | 'merge' | 'cherry';
+type VCCommitType = 'normal' | 'highlight' | 'reverse';
+type VCDirection = 'LR' | 'TB' | 'BT';
+/** A node on the commit DAG (commit / merge / cherry-pick). */
+interface VCNode {
+    readonly key: number;
+    readonly branch: string;
+    /** Lane index (the branch's row/column). */
+    lane: number;
+    /** Topological position along the time axis. */
+    readonly seq: number;
+    readonly kind: VCNodeKind;
+    /** Commit message (the bare line text), or null for an empty/dotless commit. */
+    readonly message: string | null;
+    readonly type: VCCommitType;
+    /** Short SHA — shown only when authored via `id:` (else null). */
+    readonly id: string | null;
+    /** Release/ref tag rendered as a pill badge. */
+    readonly tag: string | null;
+    readonly lineNumber: number;
+    /** Previous node on the same branch (straight lane segment). */
+    prev: number | null;
+    /** Branch-point parent (rounded elbow into the first commit of a new branch). */
+    parent: number | null;
+    /** Merge source tip. */
+    mergeFrom: number | null;
+    /** Cherry-pick source. */
+    cherryFrom: number | null;
+    /** Reverted commit (dashed link, reverse styling). */
+    revertFrom: number | null;
+    /** Squash source tip (dashed link; source commits ghosted). */
+    squashFrom: number | null;
+    /** Rebase: the solid copy this (faded) original was replayed to. */
+    movedTo: number | null;
+    /** Faded/dashed abandoned commit (rebase original / reset orphan / squash source). */
+    ghost: boolean;
+}
+interface VCAheadBehind {
+    readonly ahead: number;
+    readonly behind: number;
+}
+interface VCBranch {
+    readonly name: string;
+    readonly lane: number;
+    /** Named color token (§1.5), or null → auto by lane order. */
+    readonly colorToken: string | null;
+    /** Explicit `order:` override, or null → declaration order. */
+    readonly order: number | null;
+    /** Key of the branch's current tip node, or null if empty. */
+    tip: number | null;
+    /** Ahead/behind vs an `origin/<name>` ref, or null. */
+    ab: VCAheadBehind | null;
+}
+interface VCRef {
+    readonly name: string;
+    /** Node the pointer sits on, or null if unresolved. */
+    readonly atKey: number | null;
+    /** Remote-tracking (origin/…) → ghosted pill. */
+    readonly remote: boolean;
+    /** HEAD pointer. */
+    readonly head: boolean;
+    readonly lineNumber: number;
+}
+interface VCNote {
+    readonly num: number;
+    readonly anchorKey: number | null;
+    readonly text: string;
+    readonly lineNumber: number;
+}
+interface VCOptions {
+    readonly direction: VCDirection;
+    readonly noLabels: boolean;
+    readonly noLanes: boolean;
+    readonly noHead: boolean;
+}
+interface ParsedVersionControl {
+    readonly type: 'version-control';
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly nodes: readonly VCNode[];
+    readonly branches: readonly VCBranch[];
+    readonly refs: readonly VCRef[];
+    readonly notes: readonly VCNote[];
+    readonly options: VCOptions;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
+}
+
+declare function parseVersionControl(content: string, palette?: PaletteColors): ParsedVersionControl;
+
+declare function renderVersionControl(container: HTMLDivElement, parsed: ParsedVersionControl, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
+declare function renderVersionControlForExport(container: HTMLDivElement, parsed: ParsedVersionControl, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
+
 interface RingLayer {
     readonly label: string;
     readonly lineNumber: number;
@@ -4860,6 +5157,195 @@ declare function renderRing(container: HTMLDivElement, parsed: ParsedRing, palet
  * Render for CLI/export (no click handlers).
  */
 declare function renderRingForExport(container: HTMLDivElement, parsed: ParsedRing, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
+
+/** Runtime color mode for a treemap. Default resolved from source; the app's
+ *  legend/settings switcher overrides it live without editing source. */
+type TreemapColorMode = 'tag' | 'heat' | 'branch';
+interface TreemapNode {
+    readonly id: string;
+    readonly label: string;
+    /**
+     * Leaf size = the bare trailing number. `undefined` for branches (the layout
+     * auto-sums descendants) and for value-less leaves (treated as 0 + a warning).
+     */
+    value?: number;
+    /** Optional per-node heat metric (`heat:`), drives the color-by-value ramp. */
+    heat?: number;
+    readonly metadata: Record<string, string>;
+    readonly children: TreemapNode[];
+    readonly lineNumber: number;
+}
+interface TreemapOptions {
+    /** Label for the heat ramp (`heat <Label> …`). */
+    heatLabel?: string;
+    /** Explicit ramp colors peeled from the `heat` directive (0–2, named only). */
+    readonly heatColors: string[];
+    /** `depth N` — render budget (interactive only); undefined = unlimited. */
+    maxDepth?: number;
+    noValues: boolean;
+    noPercent: boolean;
+    noHeaders: boolean;
+    noLegend: boolean;
+}
+interface ParsedTreemap {
+    readonly type: 'treemap';
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly roots: TreemapNode[];
+    readonly tagGroups: TagGroup[];
+    /** True when any `heat:` value or a `heat` directive was declared. */
+    readonly hasHeat: boolean;
+    /** Source-declared default color mode (tag > heat > branch). */
+    readonly defaultColorMode: TreemapColorMode;
+    readonly options: TreemapOptions;
+    readonly diagnostics: DgmoError[];
+    readonly error: string | null;
+}
+
+declare function parseTreemap(content: string, palette?: PaletteColors): ParsedTreemap;
+
+interface TreemapRenderOptions {
+    /** Color mode override (app's runtime switcher). Defaults to source. */
+    colorMode?: TreemapColorMode;
+    /** Render budget (interactive only). Export omits it → full tree. */
+    maxDepth?: number;
+    /** Shift the branch-hue index so a drilled-into view keeps the color it had
+     *  when expanded (the re-rooted node would otherwise become index 0 = the
+     *  first hue). Set to the drilled branch's original top-level index. */
+    colorOffset?: number;
+    /** Click handler for drillable cells (app interactivity). */
+    onClickItem?: (lineNumber: number) => void;
+    /** Color-mode switch fired when a legend pill is clicked (app interactivity).
+     *  The mode switcher is baked into the legend (clickable group pills), so the
+     *  app no longer renders a separate overlay control. */
+    onSelectMode?: (mode: TreemapColorMode) => void;
+    exportMode?: boolean;
+}
+/** Render for CLI/export (full tree, no drill chrome). */
+declare function renderTreemapForExport(container: HTMLDivElement, parsed: ParsedTreemap, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, options?: TreemapRenderOptions): void;
+declare function renderTreemap(container: HTMLDivElement, parsed: ParsedTreemap, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, options?: TreemapRenderOptions): void;
+
+interface TreemapCell {
+    /** Original parsed node, or null for the synthetic root. */
+    readonly node: TreemapNode | null;
+    readonly label: string;
+    readonly x0: number;
+    readonly y0: number;
+    readonly x1: number;
+    readonly y1: number;
+    /** 1-based depth within the laid-out (post-drill) tree. */
+    readonly depth: number;
+    /** Summed value (d3 rollup). */
+    readonly value: number;
+    /** Has children AND is drawn as a container (depth below the cap). */
+    readonly isContainer: boolean;
+    /** Has children but sits AT the depth cap — a solid drillable block. */
+    readonly isCollapsed: boolean;
+    /** Index of the top-level ancestor (drives branch-mode hue). */
+    readonly topIndex: number;
+    readonly pctOfRoot: number;
+    readonly pctOfParent: number;
+    /** Own heat, else the mean of descendant leaf heats; undefined if none. */
+    readonly heat?: number;
+    /** Path of labels from the laid-out root (for tooltips / data-node-path). */
+    readonly path: readonly string[];
+    readonly lineNumber?: number;
+}
+interface TreemapLayoutResult {
+    readonly cells: readonly TreemapCell[];
+    readonly total: number;
+}
+interface TreemapLayoutOptions {
+    readonly width: number;
+    readonly height: number;
+    /** Top gutter reserved for parent header bars (0 when headers off). */
+    readonly headerH: number;
+    readonly paddingInner?: number;
+    readonly paddingOuter?: number;
+    /** Render budget; nodes at this depth collapse to solid blocks. */
+    readonly maxDepth?: number;
+}
+declare function layoutTreemap(roots: readonly TreemapNode[], opts: TreemapLayoutOptions): TreemapLayoutResult;
+
+/** A single block. Becomes a container when `grid` is present. */
+interface BlockNode {
+    readonly id: string;
+    readonly label: string;
+    /** Column span (≥ 1). Resolved/clamped during the layout-inference pass. */
+    span: number;
+    /** Authored `collapsed` flag — container starts folded (collapse-bar). */
+    collapsed: boolean;
+    readonly metadata: Record<string, string>;
+    readonly lineNumber: number;
+    /** Present iff this block is a container (has an indented sub-grid). */
+    grid?: BlockGrid;
+}
+/** A deliberate empty cell (`_`), reserving grid space with no block. */
+interface EmptyCell {
+    readonly empty: true;
+    span: number;
+}
+type BlockCell = BlockNode | EmptyCell;
+interface BlockGrid {
+    /** Explicit `columns N`, or null until the inference pass resolves it from
+     *  the widest row. After parse this is always a positive integer. */
+    cols: number | null;
+    readonly rows: BlockCell[][];
+}
+interface BlockOptions {
+    /** `no-legend` — hide the tag legend. */
+    noLegend: boolean;
+}
+interface ParsedBlock {
+    readonly type: 'block';
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    /** The top-level grid (rows of cells; containers nest their own grids). */
+    readonly top: BlockGrid;
+    readonly tagGroups: TagGroup[];
+    readonly options: BlockOptions;
+    readonly diagnostics: DgmoError[];
+    readonly error: string | null;
+}
+
+declare function parseBlock(content: string, palette?: PaletteColors): ParsedBlock;
+
+interface BlockRenderOptions {
+    /** Block ids to render folded (app runtime collapse on top of authored). */
+    collapsed?: ReadonlySet<string>;
+    /** Click handler for a container header (app collapse/expand). */
+    onToggle?: (id: string, lineNumber: number) => void;
+    exportMode?: boolean;
+}
+declare function renderBlockForExport(container: HTMLDivElement, parsed: ParsedBlock, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, options?: BlockRenderOptions): void;
+declare function renderBlock(container: HTMLDivElement, parsed: ParsedBlock, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, options?: BlockRenderOptions): void;
+/** The ids of containers authored with the `collapsed` flag — the app seeds its
+ *  live collapsed set from this so authored folds are the initial state yet stay
+ *  user-toggleable. */
+declare function authoredCollapsedIds(parsed: ParsedBlock): Set<string>;
+
+interface BlockLayoutItem {
+    type: 'leaf' | 'container' | 'collapsed' | 'empty';
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    label?: string;
+    node?: BlockNode;
+    lineNumber?: number;
+    /** Container children (a nested layout). */
+    inner?: BlockLayoutItem[];
+}
+interface BlockLayoutResult {
+    width: number;
+    height: number;
+    items: BlockLayoutItem[];
+}
+interface BlockLayoutOptions {
+    /** Block ids rendered folded (authored `collapsed` + app runtime toggles). */
+    collapsed?: ReadonlySet<string>;
+}
+declare function layoutBlock(grid: BlockGrid, opts?: BlockLayoutOptions): BlockLayoutResult;
 
 /** True when the first non-blank/non-comment line declares `map`. */
 declare function looksLikeMap(content: string): boolean;
@@ -5014,6 +5500,10 @@ interface MapLayoutLeg {
      *  (§24B.6). Omitted when the leg carries no tag. */
     readonly tags?: Readonly<Record<string, string>>;
     readonly label?: string;
+    /** The leg's numeric weight (the `width:` metadata) when present and positive.
+     *  Drives {@link width}, but kept here verbatim so the renderer can surface it
+     *  on hover (a `<title>` tooltip) — the width alone is lossy. */
+    readonly value?: number;
     readonly labelX?: number;
     readonly labelY?: number;
     /** Text colour for the label — contrast-picked against the background fill the
@@ -5983,4 +6473,4 @@ declare const themes: {
     readonly transparent: "transparent";
 };
 
-export { ALL_CHART_TYPES, ARROW_DIAGNOSTIC_CODES, type Activation, type AirportData, type AncestorInfo, type ArcLink, type ArcNodeGroup, type BLCollapseResult, type BLEdge, type BLGroup, type BLLayoutEdge, type BLLayoutGroup, type BLLayoutNode, type BLLayoutResult, type BLNode, type BlipTrend, type BoundaryTopology, type C4ArrowType, type C4DeploymentNode, type C4Element, type C4ElementType, type C4Group, type C4LayoutBoundary, type C4LayoutEdge, type C4LayoutNode, type C4LayoutResult, type C4LegendEntry, type C4LegendGroup, type C4Relationship, type C4Shape, type C4TagEntry, type C4TagGroup, CHART_TYPE_DESCRIPTIONS, type ChartDataPoint, type ChartEra, type ChartType$1 as ChartType, type ChartTypeMeta, type ClassLayoutEdge, type ClassLayoutNode, type ClassLayoutResult, type ClassMember, type ClassModifier, type ClassNode, type ClassRelationship, type CollapsedMindmapResult, type CollapsedOrgResult, type CollapsedSitemapResult, type CollapsedView, type CompactViewState, type ComputedInfraEdge, type ComputedInfraModel, type ComputedInfraNode, type ContextRelationship, type CreateMapGeoQueryOptions, type CycleEdge, type CycleLayoutEdge, type CycleLayoutNode, type CycleLayoutResult, type CycleNode, type CycleRenderOptions, type D3ExportDimensions, type DecodedDiagramUrl, type DgmoError, type DgmoSeverity, type DiagramSymbols, type Duration, type DurationUnit, ECHART_EXPORT_WIDTH, type ERCardinality, type ERColumn, type ERConstraint, type ERLayoutEdge, type ERLayoutNode, type ERLayoutResult, type ERRelationship, type ERTable, type ElseIfBranch, type EncodeDiagramUrlOptions, type EncodeDiagramUrlResult, type ExpandedActivity, type ExtendedChartType, type FocusOrgResult, type FocusResult, type FocusTarget, type GanttDependency, type GanttEra, type GanttGroup, type GroupRow as GanttGroupRow, type GanttHolidays, type GanttInteractiveOptions, type LaneHeaderRow as GanttLaneHeaderRow, type GanttMarker, type GanttNode, type GanttOptions, type Row as GanttRow, type GanttTask, type TaskRow as GanttTaskRow, type Gazetteer, type GazetteerEntry, type GeoExtent, type GetOrCreateNameResult, type GraphDirection, type GraphEdge, type GraphGroup, type GraphNode, type GraphShape, INFRA_BEHAVIOR_KEYS, INVALID_COLOR_CODE, INVALID_CSS_COLOR_HEX, type ImportSource, type InfraAvailabilityPercentiles, type InfraBehaviorKey, type InfraCbState, type InfraComputeParams, type InfraDiagnostic, type InfraEdge, type InfraGroup, type InfraLatencyPercentiles, type InfraLayoutEdge, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutResult, type InfraLegendGroup, type InfraNode, type InfraPlaybackState, type InfraProperty, type InfraRole, type InfraTagGroup, type InlineSpan, type JourneyMapAnnotation, type JourneyMapInteractiveOptions, type JourneyMapLayout, type JourneyMapPersona, type JourneyMapPhase, type JourneyMapStep, type KanbanCard, type KanbanColumn, type KanbanTagEntry, type KanbanTagGroup, LEGEND_GEAR_PILL_W, LEGEND_HEIGHT, type LayoutEdge, type LayoutGroup, type LayoutNode, type LayoutOptions$1 as LayoutOptions, type LayoutResult$1 as LayoutResult, type LegendCallbacks, type LegendConfig, type LegendControl, type LegendGroupData, type LegendHandle, type LegendLayout, type LegendMode, type LegendPalette, type LegendPosition, type LegendState, type MapCompletionOptions, type MapData, type MapDirectives, type MapEdge, type MapExportDimensions, type MapGeoQuery, type MapLayout, type MapLayoutInset, type MapLayoutLeg, type MapLayoutLegend, type MapLayoutPoi, type MapLayoutRegion, type MapLayoutStretch, type MapLocationMatch, type MapPlaceCompletion, type MapPoi, type MapRegion, type MapRegionCompletion, type MapRoute, type MemberVisibility, type MindmapLayoutEdge, type MindmapLayoutNode, type MindmapLayoutResult, type MindmapNode, type MonteCarloResult, type NameEntry, type NearestCity, type NodeDetail, type OrgContainerBounds, type OrgLayoutEdge, type OrgLayoutNode, type OrgLayoutResult, type OrgNode, type PaletteColors, type PaletteConfig, type ParseInArrowLabelResult, type ParsedBoxesAndLines, type ParsedC4, type ParsedChart, type ParsedClassDiagram, type ParsedCycle, type ParsedERDiagram, type ParsedExtendedChart, type ParsedGantt, type ParsedGraph, type ParsedInfra, type ParsedJourneyMap, type ParsedKanban, type ParsedMap, type ParsedMindmap, type ParsedOrg, type ParsedPert, type ParsedPyramid, type ParsedRaci, type ParsedRing, type ParsedSequenceDgmo, type ParsedSitemap, type ParsedTechRadar, type ParsedVisualization, type ParsedWireframe, type ParticipantType, type PertActivity, type Anchor as PertAnchor, type PertDirection, type PertEdge, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type LayoutOverrides as PertLayoutOverrides, type LayoutResult as PertLayoutResult, type PertMilestone, type PertOptions, type PertRenderOptions, type PlacedLabel, type PoiPos, type ProjectedCity, type ProjectionFamily, type PyramidLayer, type QuadrantPosition, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, type RaciDragSource, type RaciInteractionHandlers, type RaciMarker, type RaciPhase, type RaciRoleAssignment, type RaciTask, type RaciVariant, type ReadFileFn, type RegionName, type RegionNames, type RegionToken, type RelationshipType, type RenderCategory, type RenderStep, type ResolveImportsResult, type ResolvedActivity, type ResolvedEdge, type ResolvedGroup$1 as ResolvedGroup, type ResolvedMap, type ResolvedPert, type ResolvedGroup as ResolvedPertGroup, type ResolvedPoi, type ResolvedRegion, type ResolvedRoute, type ResolvedSchedule, type ResolvedTask, type ResultCard, type ResultTokens, type RingLayer, ScaleContext, type ScatterLabelPoint, type SectionMessageGroup, type SequenceBlock, type SequenceElement, type SequenceGroup, type SequenceMessage, type SequenceNote, type SequenceParticipant, type SequenceRenderOptions, type SequenceSection, type SimulateOptions, type SitemapContainerBounds, type SitemapDirection, type SitemapEdge, type SitemapLayoutEdge, type SitemapLayoutNode, type SitemapLayoutResult, type SitemapLegendEntry, type SitemapLegendGroup, type SitemapNode, type StateCollapseResult, type TagEntry, type TagGroup, type TechRadarBlip, type TechRadarLayoutPoint, type TechRadarQuadrant, type TechRadarRing, type Theme, type VisualizationType, type WireframeElement, type WireframeElementType, type WireframeFormFactor, type WireframeLayout, type WireframeLayoutNode, addDurationToDate, albersSkewFallback, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, autoTagColorCycle, blueprintPalette, buildExtendedChartOption, buildNoteMessageMap, buildRenderSequence, buildSimpleChartOption, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, chartTypeParsers, chartTypes, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, completeMapPlaces, completeMapRegions, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeScatterLabelGraphics, computeTimeTicks, contrastText, controlsGroupCapsuleWidth, createMapGeoQuery, decodeDiagramUrl, decodeViewState, displayName, encodeDiagramUrl, encodeViewState, extractSymbols$2 as extractClassSymbols, extractSymbols$1 as extractErSymbols, extractSymbols$3 as extractFlowchartSymbols, extractSymbols as extractInfraSymbols, extractPertSymbols, focusBoxesAndLines, focusOrgTree, formatDateLabel, formatDgmoError, getAllChartTypes, getAvailablePalettes, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getPalette, getRadarGeometry, getRenderCategory, getSeriesColors, getSimpleChartLegendGroups, groupMessagesBySection, hexToHSL, hexToHSLString, hslToHex, inferParticipantType, inferRoles, invalidColorDiagnostic, isArchiveColumn, isExtendedChartType, isInvalidColorToken, isRecognizedColorName, isSequenceBlock, isSequenceNote, isValidHex, knownChartTypeIds, layoutBoxesAndLines, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutWireframe, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, makeDgmoError, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, measurePertAnalysisBlock, mix, mulberry32, nearestNamedColor, nord, nordPalette, normalizeName, normalizePertSourceForShare, orderArcNodes, palettes, parseAndLayoutInfra, parseBoxesAndLines, parseC4, parseChart, parseClassDiagram, parseCycle, parseDataRowValues, parseDgmo, parseDgmoChartType, parseERDiagram, parseExtendedChart, parseFirstLine, parseFlowchart, parseGantt, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseMap, parseMindmap, parseOrg, parsePert, parsePyramid, parseRaci, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseState, parseTechRadar, parseTimelineDate, parseVisualization, parseWireframe, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, registerPalette, relayoutPert, render, renderArcDiagram, renderBoxesAndLines, renderBoxesAndLinesForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderExtendedChartForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderMap, renderMapForExport, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSlopeChart, renderState, renderStateForExport, renderTechRadar, renderTechRadarForExport, renderTimeline, renderVenn, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolveOrgImports, resolveTaskName, rollUpContextRelationships, sampleBetaPert, searchMapLocations, seriesColors, shade, shapeFill, simulateCanonical, simulateFast, slatePalette, themes, tidewaterPalette, tint, tokyoNightPalette, truncateBareUrl, parseDgmo as validate, validateComputed, validateInfra, validateLabelCharacters };
+export { ALL_CHART_TYPES, ARROW_DIAGNOSTIC_CODES, type Activation, type AirportData, type AncestorInfo, type ArcLink, type ArcNodeGroup, type BLCollapseResult, type BLEdge, type BLGroup, type BLLayoutEdge, type BLLayoutGroup, type BLLayoutNode, type BLLayoutResult, type BLNode, type BlipTrend, type BlockCell, type BlockGrid, type BlockLayoutItem, type BlockLayoutResult, type BlockNode, type BlockOptions, type BoundaryTopology, type C4ArrowType, type C4DeploymentNode, type C4Element, type C4ElementType, type C4Group, type C4LayoutBoundary, type C4LayoutEdge, type C4LayoutNode, type C4LayoutResult, type C4LegendEntry, type C4LegendGroup, type C4Relationship, type C4Shape, type C4TagEntry, type C4TagGroup, CHART_TYPE_DESCRIPTIONS, type ChartDataPoint, type ChartEra, type ChartType$1 as ChartType, type ChartTypeMeta, type ClassLayoutEdge, type ClassLayoutNode, type ClassLayoutResult, type ClassMember, type ClassModifier, type ClassNode, type ClassRelationship, type CollapsedMindmapResult, type CollapsedOrgResult, type CollapsedSitemapResult, type CollapsedView, type CompactViewState, type ComputedInfraEdge, type ComputedInfraModel, type ComputedInfraNode, type ContextRelationship, type CreateMapGeoQueryOptions, type CycleEdge, type CycleLayoutEdge, type CycleLayoutNode, type CycleLayoutResult, type CycleNode, type CycleRenderOptions, type D3ExportDimensions, type DecodedDiagramUrl, type DgmoError, type DgmoSeverity, type DiagramSymbols, type Duration, type DurationUnit, type ERCardinality, type ERColumn, type ERConstraint, type ERLayoutEdge, type ERLayoutNode, type ERLayoutResult, type ERRelationship, type ERTable, type ElseIfBranch, type EncodeDiagramUrlOptions, type EncodeDiagramUrlResult, type EventLineEra, type EventLineEvent, type EventLineFocus, type EventLineOptions, type ExpandedActivity, type ExtendedChartType, type FocusOrgResult, type FocusResult, type FocusTarget, type GanttDependency, type GanttEra, type GanttGroup, type GroupRow as GanttGroupRow, type GanttHolidays, type GanttInteractiveOptions, type LaneHeaderRow as GanttLaneHeaderRow, type GanttMarker, type GanttNode, type GanttOptions, type Row as GanttRow, type GanttTask, type TaskRow as GanttTaskRow, type Gazetteer, type GazetteerEntry, type GeoExtent, type GetOrCreateNameResult, type GraphDirection, type GraphEdge, type GraphGroup, type GraphNode, type GraphShape, INFRA_BEHAVIOR_KEYS, INVALID_COLOR_CODE, INVALID_CSS_COLOR_HEX, type ImportSource, type InfraAvailabilityPercentiles, type InfraBehaviorKey, type InfraCbState, type InfraComputeParams, type InfraDiagnostic, type InfraEdge, type InfraGroup, type InfraLatencyPercentiles, type InfraLayoutEdge, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutResult, type InfraLegendGroup, type InfraNode, type InfraPlaybackState, type InfraProperty, type InfraRole, type InfraTagGroup, type InlineSpan, type JourneyMapAnnotation, type JourneyMapInteractiveOptions, type JourneyMapLayout, type JourneyMapPersona, type JourneyMapPhase, type JourneyMapStep, type KanbanCard, type KanbanColumn, type KanbanTagEntry, type KanbanTagGroup, LEGEND_GEAR_PILL_W, LEGEND_HEIGHT, type LayoutEdge, type LayoutGroup, type LayoutNode, type LayoutOptions$1 as LayoutOptions, type LayoutResult$1 as LayoutResult, type LegendCallbacks, type LegendConfig, type LegendControl, type LegendGroupData, type LegendHandle, type LegendLayout, type LegendMode, type LegendPalette, type LegendPosition, type LegendState, type MapCompletionOptions, type MapData, type MapDirectives, type MapEdge, type MapExportDimensions, type MapGeoQuery, type MapLayout, type MapLayoutInset, type MapLayoutLeg, type MapLayoutLegend, type MapLayoutPoi, type MapLayoutRegion, type MapLayoutStretch, type MapLocationMatch, type MapPlaceCompletion, type MapPoi, type MapRegion, type MapRegionCompletion, type MapRoute, type MemberVisibility, type MindmapLayoutEdge, type MindmapLayoutNode, type MindmapLayoutResult, type MindmapNode, type MonteCarloResult, type NameEntry, type NearestCity, type NodeDetail, type OrgContainerBounds, type OrgLayoutEdge, type OrgLayoutNode, type OrgLayoutResult, type OrgNode, type PaletteColors, type PaletteConfig, type ParseInArrowLabelResult, type ParsedBlock, type ParsedBoxesAndLines, type ParsedC4, type ParsedChart, type ParsedClassDiagram, type ParsedCycle, type ParsedERDiagram, type ParsedEventLine, type ParsedExtendedChart, type ParsedGantt, type ParsedGraph, type ParsedInfra, type ParsedJourneyMap, type ParsedKanban, type ParsedMap, type ParsedMindmap, type ParsedOrg, type ParsedPert, type ParsedPyramid, type ParsedRaci, type ParsedRing, type ParsedSequenceDgmo, type ParsedSitemap, type ParsedSwimlane, type ParsedTechRadar, type ParsedTreemap, type ParsedVersionControl, type ParsedVisualization, type ParsedWireframe, type ParticipantType, type PertActivity, type Anchor as PertAnchor, type PertDirection, type PertEdge, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type LayoutOverrides as PertLayoutOverrides, type LayoutResult as PertLayoutResult, type PertMilestone, type PertOptions, type PertRenderOptions, type PlacedLabel, type PoiPos, type ProjectedCity, type ProjectionFamily, type PyramidLayer, type QuadrantPosition, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, type RaciDragSource, type RaciInteractionHandlers, type RaciMarker, type RaciPhase, type RaciRoleAssignment, type RaciTask, type RaciVariant, type ReadFileFn, type RegionName, type RegionNames, type RegionToken, type RelationshipType, type RenderCategory, type RenderStep, type ResolveImportsResult, type ResolvedActivity, type ResolvedEdge, type ResolvedGroup$1 as ResolvedGroup, type ResolvedMap, type ResolvedPert, type ResolvedGroup as ResolvedPertGroup, type ResolvedPoi, type ResolvedRegion, type ResolvedRoute, type ResolvedSchedule, type ResolvedTask, type ResultCard, type ResultTokens, type RingLayer, ScaleContext, type SectionMessageGroup, type SequenceBlock, type SequenceElement, type SequenceGroup, type SequenceMessage, type SequenceNote, type SequenceParticipant, type SequenceRenderOptions, type SequenceSection, type SimulateOptions, type SitemapContainerBounds, type SitemapDirection, type SitemapEdge, type SitemapLayoutEdge, type SitemapLayoutNode, type SitemapLayoutResult, type SitemapLegendEntry, type SitemapLegendGroup, type SitemapNode, type StateCollapseResult, type SwimEdge, type SwimEvent, type SwimLane, type SwimNode, type SwimPhase, type SwimShape, type LayoutBand as SwimlaneLayoutBand, type SwimlaneLayoutResult, type TagEntry, type TagGroup, type TechRadarBlip, type TechRadarLayoutPoint, type TechRadarQuadrant, type TechRadarRing, type Theme, type TreemapCell, type TreemapColorMode, type TreemapLayoutResult, type TreemapNode, type TreemapOptions, type VCBranch, type VCNode, type VCNote, type VCOptions, type VCRef, type VisualizationType, type WireframeElement, type WireframeElementType, type WireframeFormFactor, type WireframeLayout, type WireframeLayoutNode, addDurationToDate, albersSkewFallback, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, authoredCollapsedIds, autoTagColorCycle, blueprintPalette, buildNoteMessageMap, buildRenderSequence, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, chartTypeParsers, chartTypes, clearEventLineMuted, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, completeMapPlaces, completeMapRegions, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeTimeTicks, contrastText, controlsGroupCapsuleWidth, createMapGeoQuery, decodeDiagramUrl, decodeViewState, displayName, encodeDiagramUrl, encodeViewState, extractSymbols$2 as extractClassSymbols, extractSymbols$1 as extractErSymbols, extractSymbols$3 as extractFlowchartSymbols, extractSymbols as extractInfraSymbols, extractPertSymbols, focusBoxesAndLines, focusEventLine, focusOrgTree, formatDateLabel, formatDgmoError, getAllChartTypes, getAvailablePalettes, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getPalette, getRadarGeometry, getRenderCategory, getSeriesColors, getSimpleChartLegendGroups, groupMessagesBySection, hexToHSL, hexToHSLString, hslToHex, inferParticipantType, inferRoles, invalidColorDiagnostic, isArchiveColumn, isExtendedChartType, isInvalidColorToken, isRecognizedColorName, isSequenceBlock, isSequenceNote, isValidHex, knownChartTypeIds, layoutBlock, layoutBoxesAndLines, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutSwimlane, layoutTreemap, layoutWireframe, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, makeDgmoError, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, measurePertAnalysisBlock, mix, mulberry32, nearestNamedColor, nord, nordPalette, normalizeName, normalizePertSourceForShare, orderArcNodes, palettes, parseAndLayoutInfra, parseBlock, parseBoxesAndLines, parseC4, parseChart, parseClassDiagram, parseCycle, parseDataRowValues, parseDgmo, parseDgmoChartType, parseERDiagram, parseEventLine, parseExtendedChart, parseFirstLine, parseFlowchart, parseGantt, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseMap, parseMindmap, parseOrg, parsePert, parsePyramid, parseRaci, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseState, parseSwimlane, parseTechRadar, parseTimelineDate, parseTreemap, parseVersionControl, parseVisualization, parseWireframe, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, registerPalette, relayoutPert, render, renderArcDiagram, renderBlock, renderBlockForExport, renderBoxesAndLines, renderBoxesAndLinesForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderEventLine, renderEventLineForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderMap, renderMapForExport, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSlopeChart, renderState, renderStateForExport, renderSwimlaneForExport, renderTechRadar, renderTechRadarForExport, renderTimeline, renderTreemap, renderTreemapForExport, renderVenn, renderVersionControl, renderVersionControlForExport, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolveOrgImports, resolveTaskName, rollUpContextRelationships, sampleBetaPert, searchMapLocations, seriesColors, shade, shapeFill, simulateCanonical, simulateFast, slatePalette, tagAttrKey, themes, tidewaterPalette, tint, tokyoNightPalette, truncateBareUrl, parseDgmo as validate, validateComputed, validateInfra, validateLabelCharacters };

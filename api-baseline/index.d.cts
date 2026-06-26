@@ -464,6 +464,45 @@ interface MapData {
     gazetteer: Gazetteer;
 }
 
+interface MountD3Opts {
+    theme?: 'light' | 'dark' | 'transparent';
+    palette?: string;
+    /** Forwarded to the interaction adapter: source-line navigation on click. */
+    onNavigate?: (line: number) => void;
+    mutedColor?: string;
+    surface?: string;
+    text?: string;
+}
+interface MountedD3Chart {
+    /** Re-render with new content and/or theme/palette; re-attaches interactions. */
+    update: (content: string, opts?: Partial<MountD3Opts>) => Promise<void>;
+    /** Emphasize the chart element on the given source line (editor cursor sync);
+     *  pass null to clear. */
+    highlight: (line: number | null) => void;
+    /** Tear down listeners + overlays and clear the container. */
+    destroy: () => void;
+}
+declare function mountD3DataChart(container: HTMLElement, content: string, opts?: MountD3Opts): MountedD3Chart;
+
+interface DataChartInteractionOpts {
+    onNavigate?: (line: number) => void;
+    mutedColor?: string;
+    surface?: string;
+    text?: string;
+}
+interface DataChartController {
+    /** Remove all listeners + overlays. */
+    destroy: () => void;
+    /** Emphasize the chart element(s) on the given source line (editor cursor
+     *  sync); pass null to clear. No-op while the pointer is actively hovering. */
+    highlight: (line: number | null) => void;
+}
+declare function attachDataChartInteractions(svg: SVGSVGElement, opts?: DataChartInteractionOpts): DataChartController;
+
+/** All data-chart types the hand-built renderers currently cover. */
+declare const D3_DATA_CHART_TYPES: Set<string>;
+declare function supportsD3DataChart(type: string): boolean;
+
 interface RenderOptions {
     theme?: Theme;
     palette?: PaletteConfig;
@@ -529,4 +568,4 @@ interface DecodedDiagramUrl {
  */
 declare function decodeDiagramUrl(url: string): DecodedDiagramUrl | null;
 
-export { type ChartTypeMeta, type CompactViewState, type DecodedDiagramUrl, type DgmoError, type DgmoSeverity, type EncodeDiagramUrlOptions, type Gazetteer, type GazetteerEntry, type MapCompletionOptions, type MapData, type MapLocationMatch, type MapPlaceCompletion, type MapRegionCompletion, type PaletteColors, type PaletteConfig, type RegionName, type RegionNames, type RenderOptions, type RenderResult, type Theme, chartTypes, completeMapPlaces, completeMapRegions, decodeDiagramUrl, encodeDiagramUrl, formatDgmoError, getEmbedSvgViewBox, getMinDimensions, getPalette, normalizeSvgForEmbed, palettes, render, resolvePaletteOrFallback, searchMapLocations, themes, parseDgmo as validate };
+export { type ChartTypeMeta, type CompactViewState, D3_DATA_CHART_TYPES, type DataChartInteractionOpts, type DecodedDiagramUrl, type DgmoError, type DgmoSeverity, type EncodeDiagramUrlOptions, type Gazetteer, type GazetteerEntry, type MapCompletionOptions, type MapData, type MapLocationMatch, type MapPlaceCompletion, type MapRegionCompletion, type MountD3Opts, type MountedD3Chart, type PaletteColors, type PaletteConfig, type RegionName, type RegionNames, type RenderOptions, type RenderResult, type Theme, attachDataChartInteractions, chartTypes, completeMapPlaces, completeMapRegions, decodeDiagramUrl, encodeDiagramUrl, formatDgmoError, getEmbedSvgViewBox, getMinDimensions, getPalette, mountD3DataChart, normalizeSvgForEmbed, palettes, render, resolvePaletteOrFallback, searchMapLocations, supportsD3DataChart, themes, parseDgmo as validate };

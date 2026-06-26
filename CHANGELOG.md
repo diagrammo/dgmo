@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-06-26
+
+### Added
+
+- **D3 data-chart engine** — all data chart types (bar/line/pie/doughnut/area, sankey, chord, scatter, heatmap, funnel, radar, polar-area, function) now render through hand-built D3 renderers, replacing the previous ECharts engine. Full 15/15 coverage.
+- **Dual y-axis line charts** — a grouped `series` block assigns series to a left or right axis, so two different scales share one line chart (§15.1.1).
+- **Chart interaction model** — axis-projection hover (a crosshair that triggers across the whole plot, not just empty space), cursor→chart highlight, and on-axis values that read as emphasized ticks instead of tooltips; plus per-series tinted value labels and series-focus emphasis.
+
+### Changed
+
+- **Value→colour/size/width ramps are channel-named (decision #20) — BREAKING.** The ramp directive and its per-element key now share the *visual-channel* word. boxes-and-lines: `box-metric`/`value:` → **`heat`/`heat:`**. map: `region-metric` → **`region-heat`** (`heat:`), `poi-metric` → **`poi-size`** (`size:`), `flow-metric` → **`flow-width`** (`width:`); `no-region-value` → **`no-region-heat-value`**. Each map element accepts exactly one channel key — a wrong-channel key (e.g. `size:` on a region) is now a hard error. treemap (`heat`/`heat:`) is unchanged — it was the reference pattern. No migration: the old tokens are unrecognized.
+- **Event-line** — legend mute-to-dots, collapsed-era centering + hover fix, date-in-card layout, focus interactions, and tag defaults.
+
+### Removed
+
+- **ECharts removed — D3 is the only data-chart engine — BREAKING.** The `--engine` CLI flag and the `engine` option are gone; charts that rendered via ECharts now use the D3 renderers above.
+
 ## [0.41.0] - 2026-06-25
 
 ### Changed
