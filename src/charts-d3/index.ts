@@ -15,6 +15,9 @@ import {
   type ParsedFunnel,
   type ParsedHeatmap,
   type ParsedScatter,
+  type ParsedSankey,
+  type ParsedChord,
+  type ParsedFunctionChart,
 } from '../echarts';
 import type { PaletteColors } from '../palettes';
 import { getSeriesColors } from '../palettes/color-utils';
@@ -36,6 +39,9 @@ import { renderPolarArea } from './polar';
 import { renderFunnel } from './funnel';
 import { renderHeatmap } from './heatmap';
 import { renderScatter } from './scatter';
+import { renderSankey } from './sankey';
+import { renderChord } from './chord';
+import { renderFunction } from './function';
 
 /** Types parsed by parseChart → ParsedChart. */
 const STANDARD = new Set([
@@ -50,7 +56,14 @@ const STANDARD = new Set([
   'polar-area',
 ]);
 /** Types parsed by parseExtendedChart → ParsedExtendedChart. */
-const EXTENDED = new Set(['funnel', 'heatmap', 'scatter']);
+const EXTENDED = new Set([
+  'funnel',
+  'heatmap',
+  'scatter',
+  'sankey',
+  'chord',
+  'function',
+]);
 
 /** All data-chart types the hand-built renderers currently cover. */
 export const D3_DATA_CHART_TYPES = new Set<string>([...STANDARD, ...EXTENDED]);
@@ -158,6 +171,19 @@ function renderInto(
       renderScatter(s, ext as ParsedScatter, width, height, seriesColors, palette, isDark, textColor, mutedColor, top);
       return true;
     }
+    case 'sankey':
+      renderSankey(s, ext as ParsedSankey, width, height, seriesColors, bgColor, textColor, hasTitle ? 52 : 24);
+      return true;
+    case 'chord':
+      renderChord(s, ext as ParsedChord, width, height, seriesColors, palette, isDark, textColor, hasTitle ? 52 : 24);
+      return true;
+    case 'function': {
+      const groups = getExtendedChartLegendGroups(ext, seriesColors);
+      const top = injectLegendGroups(s, groups, palette, isDark, hasTitle, width);
+      renderFunction(s, ext as ParsedFunctionChart, width, height, seriesColors, textColor, mutedColor, top);
+      return true;
+    }
+    default:
+      return false;
   }
-  return false;
 }
