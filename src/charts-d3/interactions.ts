@@ -190,77 +190,73 @@ export function attachDataChartInteractions(
     if (activePt) activePt.el.setAttribute('r', String(activePt.r));
     activePt = null;
   };
-  let onPlotMove: ((e: MouseEvent) => void) | null = null;
-  let onPlotLeave: (() => void) | null = null;
-
-  if (crosshairOn && plot) {
+  let slots: { cx: number; pts: SVGCircleElement[] }[] = [];
+  if (crosshairOn) {
     const byX = new Map<number, SVGCircleElement[]>();
     for (const el of circles) {
       const xi = parseInt(el.getAttribute('data-x-index') ?? '0', 10);
       (byX.get(xi) ?? byX.set(xi, []).get(xi)!).push(el);
     }
-    const slots = [...byX.values()]
+    slots = [...byX.values()]
       .map((pts) => ({
         cx: parseFloat(pts[0]!.getAttribute('cx') ?? '0'),
         pts,
       }))
       .sort((a, b) => a.cx - b.cx);
-
-    onPlotMove = (e: MouseEvent) => {
-      const { x, y } = toUserSpace(svg, e);
-      let slot = slots[0]!;
-      let best = Infinity;
-      for (const s of slots) {
-        const d = Math.abs(s.cx - x);
-        if (d < best) {
-          best = d;
-          slot = s;
-        }
-      }
-      let nearest = slot.pts[0]!;
-      let bestY = Infinity;
-      for (const p of slot.pts) {
-        const cy = parseFloat(p.getAttribute('cy') ?? '0');
-        const d = Math.abs(cy - y);
-        if (d < bestY) {
-          bestY = d;
-          nearest = p;
-        }
-      }
-      clearOverlay();
-      // vertical leader at the category x + x-axis value pill
-      dottedLine(slot.cx, plot.top, slot.cx, plot.bottom);
-      axisValue(
-        slot.cx,
-        plot.bottom,
-        nearest.getAttribute('data-x-label') ?? '',
-        'x'
-      );
-      // horizontal leader from nearest point to the y-axis + y-axis value pill
-      const ny = parseFloat(nearest.getAttribute('cy') ?? '0');
-      dottedLine(plot.left, ny, slot.cx, ny);
-      axisValue(plot.left, ny, nearest.getAttribute('data-value') ?? '', 'y');
-      fadeTicks();
-      // emphasize nearest point + its series, dim the others
-      restorePt();
-      const base = parseFloat(nearest.getAttribute('r') ?? '3.5');
-      activePt = { el: nearest, r: base };
-      nearest.setAttribute('r', String(base + 3));
-      const ns = nearest.getAttribute('data-series-name');
-      for (const g of seriesGroups)
-        g.classList.toggle(
-          'dgmo-dim',
-          seriesGroups.length > 1 && g.getAttribute('data-series-name') !== ns
-        );
-    };
-    onPlotLeave = () => {
-      clearOverlay();
-      restorePt();
-      for (const g of seriesGroups) g.classList.remove('dgmo-dim');
-    };
-    plotRect!.addEventListener('mousemove', onPlotMove);
-    plotRect!.addEventListener('mouseleave', onPlotLeave);
   }
+
+  const drawCrosshair = (x: number, y: number): void => {
+    if (!plot || slots.length === 0) return;
+    let slot = slots[0]!;
+    let best = Infinity;
+    for (const s of slots) {
+      const d = Math.abs(s.cx - x);
+      if (d < best) {
+        best = d;
+        slot = s;
+      }
+    }
+    let nearest = slot.pts[0]!;
+    let bestY = Infinity;
+    for (const p of slot.pts) {
+      const cy = parseFloat(p.getAttribute('cy') ?? '0');
+      const d = Math.abs(cy - y);
+      if (d < bestY) {
+        bestY = d;
+        nearest = p;
+      }
+    }
+    clearOverlay();
+    // vertical leader at the category x + x-axis value
+    dottedLine(slot.cx, plot.top, slot.cx, plot.bottom);
+    axisValue(
+      slot.cx,
+      plot.bottom,
+      nearest.getAttribute('data-x-label') ?? '',
+      'x'
+    );
+    // horizontal leader from nearest point to the y-axis + y-axis value
+    const ny = parseFloat(nearest.getAttribute('cy') ?? '0');
+    dottedLine(plot.left, ny, slot.cx, ny);
+    axisValue(plot.left, ny, nearest.getAttribute('data-value') ?? '', 'y');
+    fadeTicks();
+    // emphasize nearest point + its series, dim the others
+    restorePt();
+    const base = parseFloat(nearest.getAttribute('r') ?? '3.5');
+    activePt = { el: nearest, r: base };
+    nearest.setAttribute('r', String(base + 3));
+    const ns = nearest.getAttribute('data-series-name');
+    for (const g of seriesGroups)
+      g.classList.toggle(
+        'dgmo-dim',
+        seriesGroups.length > 1 && g.getAttribute('data-series-name') !== ns
+      );
+  };
+  const clearCrosshair = (): void => {
+    clearOverlay();
+    restorePt();
+    for (const g of seriesGroups) g.classList.remove('dgmo-dim');
+  };
 
   // ── element hover (projection for points w/ axis values, else emphasis) ─
   let curDatum: Element | null = null;
@@ -293,6 +289,7 @@ export function attachDataChartInteractions(
     curDatum = el;
   };
 
+  let crosshairActive = false;
   const onSvgMove = (e: MouseEvent) => {
     const el = (e.target as Element).closest?.(
       '.dgmo-datum'
@@ -302,26 +299,47 @@ export function attachDataChartInteractions(
         clearDatum();
         enterDatum(el);
       }
-    } else if (curDatum) {
-      clearDatum();
+      return;
+    }
+    if (curDatum) clearDatum();
+    // Crosshair fires anywhere inside the plot region — over the area fill, the
+    // line, or the dots, not just empty space (the whole point of the change).
+    if (crosshairOn && plot) {
+      const ctm = svg.getScreenCTM?.();
+      const { x, y } = toUserSpace(svg, e);
+      const inside =
+        !ctm ||
+        (x >= plot.left - 2 &&
+          x <= plot.right + 2 &&
+          y >= plot.top - 2 &&
+          y <= plot.bottom + 2);
+      if (inside) {
+        drawCrosshair(x, y);
+        crosshairActive = true;
+      } else if (crosshairActive) {
+        clearCrosshair();
+        crosshairActive = false;
+      }
     }
   };
   const onLeave = () => {
     clearDatum();
-    onPlotLeave?.();
+    if (crosshairActive) {
+      clearCrosshair();
+      crosshairActive = false;
+    }
   };
   const onClick = (e: MouseEvent) => {
     const line = walkUpForLine(e.target as Element, svg);
     if (line !== null && opts.onNavigate) opts.onNavigate(line);
   };
 
-  if (datums.length > 0) svg.addEventListener('mousemove', onSvgMove);
+  if (datums.length > 0 || crosshairOn)
+    svg.addEventListener('mousemove', onSvgMove);
   svg.addEventListener('mouseleave', onLeave);
   svg.addEventListener('click', onClick);
 
   return () => {
-    if (onPlotMove) plotRect!.removeEventListener('mousemove', onPlotMove);
-    if (onPlotLeave) plotRect!.removeEventListener('mouseleave', onPlotLeave);
     svg.removeEventListener('mousemove', onSvgMove);
     svg.removeEventListener('mouseleave', onLeave);
     svg.removeEventListener('click', onClick);

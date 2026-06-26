@@ -20,6 +20,14 @@ Jan 12 18
 Feb 15 22
 Mar 14 25`;
 
+const AREA = `area Cumulative Signups
+x-label Week
+y-label Signups
+
+W1 50
+W2 120
+W3 210`;
+
 let host: HTMLDivElement;
 let svg: SVGSVGElement;
 let detach: () => void;
@@ -88,6 +96,23 @@ describe('axis-projection interactions (no tooltips)', () => {
     // x-label + y-value on-axis labels (text, not pills)
     expect(overlay.querySelectorAll('text').length).toBe(2);
     expect(overlay.querySelectorAll('rect').length).toBe(0);
+  });
+
+  it('area: crosshair fires when hovering the fill or a dot (not just empty space)', async () => {
+    await mount(AREA);
+    const fill = svg.querySelector<SVGPathElement>('.dgmo-series-area')!;
+    expect(fill).toBeTruthy();
+    fill.dispatchEvent(
+      new MouseEvent('mousemove', { bubbles: true, clientX: 9, clientY: 9 })
+    );
+    expect(svg.querySelector('.dgmo-overlay .dgmo-axline')).toBeTruthy();
+
+    // and directly over a data dot
+    const dot = svg.querySelector<SVGCircleElement>('.dgmo-pt')!;
+    dot.dispatchEvent(
+      new MouseEvent('mousemove', { bubbles: true, clientX: 9, clientY: 9 })
+    );
+    expect(svg.querySelectorAll('.dgmo-overlay .dgmo-axline').length).toBe(2);
   });
 
   it('mouseleave clears the overlay and dimming', async () => {
