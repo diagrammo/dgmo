@@ -145,6 +145,16 @@ export async function renderForExport(
   const exportMode = options?.exportMode ?? false;
   const { parseDgmoChartType } = await import('./dgmo-router');
   const detectedType = parseDgmoChartType(content);
+  // Data-chart types (bar/line/pie/scatter/sankey/…) render via the hand-built
+  // D3 engine — route them here so renderForExport is a complete export entry
+  // for every chart type (the app's export path calls this directly).
+  if (detectedType !== null) {
+    const { supportsD3DataChart, renderDataChartD3 } =
+      await import('./charts-d3');
+    if (supportsD3DataChart(detectedType)) {
+      return renderDataChartD3(content, theme, palette);
+    }
+  }
   const ctx: ExportContext = {
     content,
     theme,
@@ -197,17 +207,24 @@ async function exportEventLine(ctx: ExportContext): Promise<string> {
 async function exportVersionControl(ctx: ExportContext): Promise<string> {
   const { content, theme, palette } = ctx;
   const { parseVersionControl } = await import('./version-control/parser');
-  const { renderVersionControlForExport } = await import('./version-control/renderer');
+  const { renderVersionControlForExport } =
+    await import('./version-control/renderer');
 
   const effectivePalette = await resolveExportPalette(theme, palette);
   const parsed = parseVersionControl(content, effectivePalette);
   if (parsed.error || parsed.nodes.length === 0) return '';
 
   const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
-  renderVersionControlForExport(container, parsed, effectivePalette, ctx.isDark, {
-    width: EXPORT_WIDTH,
-    height: EXPORT_HEIGHT,
-  });
+  renderVersionControlForExport(
+    container,
+    parsed,
+    effectivePalette,
+    ctx.isDark,
+    {
+      width: EXPORT_WIDTH,
+      height: EXPORT_HEIGHT,
+    }
+  );
   return finalizeSvgExport(container, theme, effectivePalette);
 }
 

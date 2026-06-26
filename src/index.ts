@@ -44,12 +44,6 @@ export interface RenderOptions {
    * non-interactively (server-side render, share-link decode).
    */
   viewState?: CompactViewState;
-  /**
-   * SPIKE: data-chart rendering engine. 'd3' routes data-chart types through
-   * the hand-built D3 renderers (no ECharts); unsupported types fall back to
-   * ECharts. Omit for the default ECharts path.
-   */
-  engine?: 'd3' | 'echarts';
 }
 
 export interface RenderResult {
@@ -82,7 +76,6 @@ export async function render(
     ...(options?.theme !== undefined && { theme: options.theme }),
     palette: palette.id,
     ...(options?.viewState !== undefined && { viewState: options.viewState }),
-    ...(options?.engine !== undefined && { engine: options.engine }),
   });
 
   const errors = result.diagnostics.filter((d) => d.severity === 'error');

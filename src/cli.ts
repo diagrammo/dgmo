@@ -105,7 +105,6 @@ function parseArgs(argv: string[]): {
   help: boolean;
   version: boolean;
   json: boolean;
-  engine: 'd3' | 'echarts' | undefined;
 } {
   const result = {
     input: undefined as string | undefined,
@@ -115,7 +114,6 @@ function parseArgs(argv: string[]): {
     help: false,
     version: false,
     json: false,
-    engine: undefined as 'd3' | 'echarts' | undefined,
   };
 
   const args = argv.slice(2); // skip node + script
@@ -155,14 +153,6 @@ function parseArgs(argv: string[]): {
       i++;
     } else if (arg === '--json') {
       result.json = true;
-      i++;
-    } else if (arg === '--engine') {
-      const val = args[++i];
-      if (val !== 'd3' && val !== 'echarts') {
-        console.error(`Error: Invalid engine "${val}". Valid: d3, echarts`);
-        process.exit(1);
-      }
-      result.engine = val;
       i++;
     } else if (!result.input) {
       result.input = arg;
@@ -575,7 +565,12 @@ function upsertJsonMcp(opts: InstallOpts, path: string): void {
     (cfg['mcpServers'] as Record<string, unknown> | undefined) ?? {};
   servers['dgmo'] = MCP_LAUNCH;
   cfg['mcpServers'] = servers;
-  writeOut(opts, path, JSON.stringify(cfg, null, 2) + '\n', `MCP server → ${path}`);
+  writeOut(
+    opts,
+    path,
+    JSON.stringify(cfg, null, 2) + '\n',
+    `MCP server → ${path}`
+  );
 }
 
 // Which AI surfaces are present on this machine? Drives zero-prompt auto setup.
@@ -939,7 +934,6 @@ async function main(): Promise<void> {
   const { svg } = await render(content, {
     theme: opts.theme,
     palette: opts.palette,
-    ...(opts.engine !== undefined && { engine: opts.engine }),
   });
 
   if (!svg) {
