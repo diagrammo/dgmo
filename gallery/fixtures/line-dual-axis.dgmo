@@ -1,0 +1,15 @@
+line Oil Price vs Strategic Reserve
+x-label Year
+
+series
+  y-label $ / barrel
+    Oil Price blue
+  y-right-label Million barrels
+    SPR Size green
+
+2019 57 645
+2020 39 638
+2021 68 621
+2022 95 372
+2023 78 351
+2024 80 363

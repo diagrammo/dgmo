@@ -40,9 +40,16 @@ export interface ParsedChart {
   xlabelLineNumber?: number;
   ylabel?: string;
   ylabelLineNumber?: number;
+  /** Right (secondary) y-axis label — set by a `y-right-label` option or a
+   *  grouped-series axis header (§15.1 dual-axis line charts). */
+  yrlabel?: string;
+  yrlabelLineNumber?: number;
   seriesNames?: string[];
   seriesNameLineNumbers?: number[];
   seriesNameColors?: (string | undefined)[];
+  /** Per-series axis assignment, parallel to seriesNames. Present only when the
+   *  series block uses the grouped (dual-axis) form; absent ⇒ all left. */
+  seriesAxes?: ('left' | 'right')[];
   orientation?: 'horizontal' | 'vertical';
   color?: string;
   label?: string;
@@ -105,6 +112,7 @@ const KNOWN_OPTIONS = new Set([
   'series',
   'x-label',
   'y-label',
+  'y-right-label',
   'label',
   'no-name',
   'no-value',
@@ -118,6 +126,31 @@ const KNOWN_BOOLEANS = new Set([
   'solid-fill',
   'no-title',
 ]);
+
+/**
+ * Apply the grouped-series (dual-axis) results from parseSeriesNames onto the
+ * ParsedChart. The axis headers double as the left/right y-axis labels, and
+ * `seriesAxes` is only recorded when a right-axis series actually exists — so a
+ * flat series block (or a grouped block with only `y-label` headers) leaves the
+ * chart shape identical to single-axis charts.
+ */
+function applySeriesAxes(
+  result: ParsedChart,
+  parsed: ReturnType<typeof parseSeriesNames>,
+  lineNumber: number
+): void {
+  if (parsed.leftLabel !== undefined) {
+    result.ylabel = parsed.leftLabel;
+    result.ylabelLineNumber = lineNumber;
+  }
+  if (parsed.rightLabel !== undefined) {
+    result.yrlabel = parsed.rightLabel;
+    result.yrlabelLineNumber = lineNumber;
+  }
+  if (parsed.axes?.includes('right')) {
+    result.seriesAxes = parsed.axes;
+  }
+}
 
 /**
  * Parses the simple chart text format into a structured object.
@@ -310,6 +343,12 @@ export function parseChart(
         continue;
       }
 
+      if (firstToken === 'y-right-label') {
+        result.yrlabel = value;
+        result.yrlabelLineNumber = lineNumber;
+        continue;
+      }
+
       if (firstToken === 'label') {
         result.label = value;
         continue;
@@ -343,6 +382,7 @@ export function parseChart(
         }
         if (parsed.nameColors.some(Boolean))
           result.seriesNameColors = parsed.nameColors;
+        applySeriesAxes(result, parsed, lineNumber);
         continue;
       }
     }
@@ -380,6 +420,7 @@ export function parseChart(
       }
       if (parsed.nameColors.some(Boolean))
         result.seriesNameColors = parsed.nameColors;
+      applySeriesAxes(result, parsed, lineNumber);
       continue;
     }
 
@@ -518,6 +559,30 @@ export function parseChart(
       const actualCount = 1 + (dp.extraValues?.length ?? 0);
       return actualCount === expectedCount;
     });
+  }
+
+  // Dual-axis (§15.1) is only honored by line / multi-line charts. Drop the
+  // axis assignment elsewhere so other renderers see plain single-axis data.
+  if (!result.error && result.seriesAxes && result.type !== 'line') {
+    warn(
+      result.seriesLineNumber ?? 1,
+      `Dual y-axes (y-right-label) are only supported on line / multi-line charts; ignoring the secondary axis for "${result.type}".`
+    );
+    delete result.seriesAxes;
+    delete result.yrlabel;
+  }
+
+  // A right-axis label with nothing assigned to it renders nothing — flag it so
+  // the author wraps the intended series in a `y-right-label` group.
+  if (
+    !result.error &&
+    result.yrlabel &&
+    !result.seriesAxes?.includes('right')
+  ) {
+    warn(
+      result.yrlabelLineNumber ?? 1,
+      `y-right-label is set but no series is assigned to the right axis. Group the series under a "y-right-label" header (see §15.1).`
+    );
   }
 
   return result;

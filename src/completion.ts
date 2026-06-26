@@ -145,7 +145,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     withGlobals({
       series: { description: 'Series name(s)' },
       'x-label': { description: 'X-axis label' },
-      'y-label': { description: 'Y-axis label' },
+      'y-label': { description: 'Y-axis label (left axis)' },
+      'y-right-label': {
+        description: 'Right y-axis label (dual-axis; group series beneath it)',
+      },
       'no-value': { description: 'Hide value labels at each point' },
     }),
   ],
@@ -179,7 +182,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     withGlobals({
       series: { description: 'Series name(s)' },
       'x-label': { description: 'X-axis label' },
-      'y-label': { description: 'Y-axis label' },
+      'y-label': { description: 'Y-axis label (left axis)' },
+      'y-right-label': {
+        description: 'Right y-axis label (dual-axis; group series beneath it)',
+      },
       'no-value': { description: 'Hide value labels at each point' },
     }),
   ],
