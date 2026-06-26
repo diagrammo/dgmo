@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-06-25
+
+### Added
+
+- **Event-line + block gallery examples** — representative `.dgmo` fixtures now ship in the package, so `get_examples('event-line')` / `get_examples('block')` and few-shot tooling return real starters for these types.
+
+### Changed
+
+- **Event-line** — collapsed eras render better: the summary card anchors at the date-span midpoint with a bracket stretched across the full member range, an axis-break glyph marks the folded span on the spine, the member list no longer truncates, and event-line widths adapt to content.
+
 ## [0.39.0] - 2026-06-25
 
 ### Added
