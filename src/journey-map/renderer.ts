@@ -450,6 +450,7 @@ export function renderJourneyMap(
       y,
       score,
       palette,
+      isDark,
       SCORE_LABEL_R
     );
 
@@ -517,7 +518,14 @@ export function renderJourneyMap(
 
     for (const pt of layout.curvePoints) {
       const step = allSteps[pt.stepIndex];
-      const faceG = renderScoreFace(curveG, pt.x, pt.y, pt.score, palette);
+      const faceG = renderScoreFace(
+        curveG,
+        pt.x,
+        pt.y,
+        pt.score,
+        palette,
+        isDark
+      );
       addEmotionLabel(faceG, pt, palette);
       if (step) {
         faceG.attr('data-line-number', step.lineNumber);
@@ -549,7 +557,14 @@ export function renderJourneyMap(
         ? parsed.phases.flatMap((p) => p.steps)
         : parsed.steps;
     const step = allSteps[pt.stepIndex];
-    const faceG = renderScoreFace(curveG, pt.x, pt.y, pt.score, palette);
+    const faceG = renderScoreFace(
+      curveG,
+      pt.x,
+      pt.y,
+      pt.score,
+      palette,
+      isDark
+    );
     addEmotionLabel(faceG, pt, palette);
     if (step) {
       faceG.attr('data-line-number', step.lineNumber);
@@ -723,6 +738,7 @@ export function renderJourneyMap(
               faceCy,
               step.score,
               palette,
+              isDark,
               COLLAPSED_FACE_R
             );
             faceG.attr('data-line-number', step.lineNumber);
@@ -1400,6 +1416,7 @@ function renderScoreFace(
   cy: number,
   score: number,
   palette: PaletteColors,
+  isDark: boolean,
   radius?: number
 ): d3.Selection<SVGGElement, unknown, null, undefined> {
   const r = radius ?? FACE_RADIUS;
@@ -1410,10 +1427,10 @@ function renderScoreFace(
     .attr('data-cx', cx)
     .attr('data-cy', cy);
 
-  // Face: a solid colored ring over a faded (pale) fill, with the eyes and
-  // mouth drawn in the full score color. A near-bg fill keeps the badge legible
-  // over the curve line and gradient area without the heavy solid disc.
-  const faceFill = mix(color, palette.bg, 90);
+  // Face: a solid colored ring over the canonical tinted fill (the same
+  // shapeFill() tint used for unsolid shapes elsewhere), with the eyes and
+  // mouth drawn in the full score color.
+  const faceFill = shapeFill(palette, color, isDark);
 
   // Thin bg halo so the colored ring reads crisply where it crosses the line.
   g.append('circle')
