@@ -143,27 +143,54 @@ export function renderLine(
       .text(d.label);
   }
 
+  // Transparent hit-target over the plot area — the interaction adapter reads
+  // its bounds for crosshair extent and snapping (see charts-d3/interactions.ts).
+  svg
+    .append('rect')
+    .attr('class', 'dgmo-plot-rect')
+    .attr('x', m.left)
+    .attr('y', m.top)
+    .attr('width', plotW)
+    .attr('height', plotH)
+    .attr('fill', 'transparent');
+
   for (let s = 0; s < seriesCount; s++) {
     const color = colors[s % colors.length]!;
-    const pts = data.map((d) => ({ label: d.label, v: seriesValue(d, s) }));
+    const name = seriesNames[s] ?? `Series ${s + 1}`;
+    const pts = data.map((d, i) => ({
+      label: d.label,
+      v: seriesValue(d, s),
+      xIndex: i,
+      lineNumber: d.lineNumber,
+    }));
+    // Semantic series group — joins the app's generic data-attribute
+    // interactivity path (hover-dim, click-to-line) like every other diagram.
+    const g = svg
+      .append('g')
+      .attr('class', 'dgmo-series')
+      .attr('data-series-index', s)
+      .attr('data-series-name', name)
+      .attr('data-color', color);
+    const seriesLine = chart.seriesNameLineNumbers?.[s];
+    if (seriesLine !== undefined) g.attr('data-line-number', seriesLine);
 
     if (isArea) {
-      const areaGen = d3area<{ label: string; v: number }>()
+      const areaGen = d3area<(typeof pts)[number]>()
         .x((p) => x(p.label) ?? 0)
         .y0(y(Math.max(lo, 0)))
         .y1((p) => y(p.v));
-      svg
-        .append('path')
+      g.append('path')
+        .attr('class', 'dgmo-series-area')
         .attr('d', areaGen(pts) ?? '')
         .attr('fill', shapeFill(palette, color, isDark))
         .attr('stroke', 'none');
     }
 
-    const lineGen = d3line<{ label: string; v: number }>()
+    const lineGen = d3line<(typeof pts)[number]>()
       .x((p) => x(p.label) ?? 0)
       .y((p) => y(p.v));
-    svg
-      .append('path')
+    g.append('path')
+      .attr('class', 'dgmo-series-line')
       .attr('d', lineGen(pts) ?? '')
       .attr('fill', 'none')
       .attr('stroke', color)
@@ -173,8 +200,15 @@ export function renderLine(
 
     const labelColor = mix(color, textColor, 60);
     for (const p of pts) {
-      svg
-        .append('circle')
+      g.append('circle')
+        .attr('class', 'dgmo-pt')
+        .attr('data-series-index', s)
+        .attr('data-series-name', name)
+        .attr('data-color', color)
+        .attr('data-x-index', p.xIndex)
+        .attr('data-x-label', p.label)
+        .attr('data-value', p.v)
+        .attr('data-line-number', p.lineNumber)
         .attr('cx', x(p.label) ?? 0)
         .attr('cy', y(p.v))
         .attr('r', 3.5)
