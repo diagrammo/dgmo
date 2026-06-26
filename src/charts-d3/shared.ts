@@ -142,6 +142,27 @@ export function drawYAxisTitle(
     .text(label);
 }
 
+/**
+ * Tag a rendered datum element with the shared interaction convention so the
+ * framework-agnostic adapter (interactions.ts) and the app's generic
+ * data-line-number path can drive it: click-to-source, hover-emphasis/dim,
+ * and tooltip content — all from these attributes, no per-type wiring.
+ */
+export function tagDatum<E extends Element>(
+  sel: d3Selection.Selection<E, unknown, null, undefined>,
+  o: { line?: number; key?: string; name?: string; value?: string | number; color?: string }
+): d3Selection.Selection<E, unknown, null, undefined> {
+  const cls = (sel.attr('class') ?? '').split(/\s+/).filter(Boolean);
+  if (!cls.includes('dgmo-datum')) cls.push('dgmo-datum');
+  sel.attr('class', cls.join(' '));
+  if (o.line != null) sel.attr('data-line-number', o.line);
+  if (o.key != null) sel.attr('data-emph-key', o.key);
+  if (o.name != null) sel.attr('data-name', o.name);
+  if (o.value != null) sel.attr('data-value', String(o.value));
+  if (o.color != null) sel.attr('data-color', o.color);
+  return sel;
+}
+
 /** Draw a value label (data point / bar) in the given color. */
 export function drawValueLabel(
   svg: Svg,

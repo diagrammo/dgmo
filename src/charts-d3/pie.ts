@@ -9,7 +9,7 @@ import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { getSegmentColors, shapeFill } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
-import { type Svg, fmtNum } from './shared';
+import { type Svg, fmtNum, tagDatum } from './shared';
 
 const LABEL_FONT = 14;
 
@@ -52,11 +52,20 @@ export function renderPie(
   arcs.forEach((a, i) => {
     const stroke = strokeFor(i, data[i]!.color);
     const fill = solid ? stroke : shapeFill(palette, stroke, isDark);
-    g.append('path')
+    const pct = Math.round((data[i]!.value / total) * 100);
+    const slice = g
+      .append('path')
       .attr('d', arcGen(a) ?? '')
       .attr('fill', fill)
       .attr('stroke', stroke)
       .attr('stroke-width', 1.5);
+    tagDatum(slice, {
+      line: data[i]!.lineNumber,
+      key: data[i]!.label,
+      name: data[i]!.label,
+      value: `${fmtNum(data[i]!.value)} (${pct}%)`,
+      color: stroke,
+    });
 
     // External leader-line label.
     const mid = (a.startAngle + a.endAngle) / 2 - Math.PI / 2;
@@ -71,7 +80,6 @@ export function renderPie(
       .attr('fill', 'none')
       .attr('stroke', stroke)
       .attr('stroke-width', 1);
-    const pct = Math.round((data[i]!.value / total) * 100);
     g.append('text')
       .attr('x', x2 + (rightSide ? 4 : -4))
       .attr('y', y1 + 4)

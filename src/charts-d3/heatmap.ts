@@ -10,7 +10,7 @@ import { FONT_FAMILY } from '../fonts';
 import { shapeFill, mix, hexToHSL, hslToHex } from '../palettes/color-utils';
 import { measureText } from '../utils/text-measure';
 import type { Svg } from './shared';
-import { fmtNum } from './shared';
+import { fmtNum, tagDatum } from './shared';
 
 export function renderHeatmap(
   svg: Svg,
@@ -108,7 +108,8 @@ export function renderHeatmap(
       const t =
         maxValue === minValue ? 0.5 : (v - minValue) / (maxValue - minValue);
       const cell = gradientAt(t);
-      svg
+      const colLabel = cols[ci] ?? `Col ${ci + 1}`;
+      const r = svg
         .append('rect')
         .attr('x', left + ci * cw)
         .attr('y', top + ri * ch)
@@ -117,6 +118,13 @@ export function renderHeatmap(
         .attr('fill', cell)
         .attr('stroke', bgColor)
         .attr('stroke-width', 2);
+      tagDatum(r, {
+        line: row.lineNumber,
+        key: row.label,
+        name: `${row.label} · ${colLabel}`,
+        value: fmtNum(v),
+        color: cell,
+      });
       if (!chart.noValue) {
         svg
           .append('text')

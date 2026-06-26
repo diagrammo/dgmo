@@ -14,6 +14,7 @@ import {
   fmtNum,
   drawXAxisTitle,
   drawYAxisTitle,
+  tagDatum,
 } from './shared';
 
 const SAMPLES = 200;
@@ -60,6 +61,8 @@ export function renderFunction(
 
   const curves = fns.map((fn, i) => ({
     color: fn.color ?? colors[i % colors.length]!,
+    name: fn.name,
+    line: fn.lineNumber,
     pts: xs.map((x) => [x, evaluateExpression(fn.expression, x)] as [number, number]),
   }));
 
@@ -104,8 +107,9 @@ export function renderFunction(
     .x((p) => x(p[0]))
     .y((p) => y(p[1]));
   for (const c of curves) {
-    svg.append('path').attr('d', gen(c.pts) ?? '').attr('fill', 'none')
+    const path = svg.append('path').attr('d', gen(c.pts) ?? '').attr('fill', 'none')
       .attr('stroke', c.color).attr('stroke-width', 2.5).attr('stroke-linejoin', 'round');
+    tagDatum(path, { line: c.line, key: c.name, name: c.name, color: c.color });
   }
 
   drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, m.top + plotH + 46, textColor);

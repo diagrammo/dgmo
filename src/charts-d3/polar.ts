@@ -8,7 +8,7 @@ import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { getSegmentColors, shapeFill } from '../palettes/color-utils';
-import { type Svg, fmtNum } from './shared';
+import { type Svg, fmtNum, tagDatum } from './shared';
 
 export function renderPolarArea(
   svg: Svg,
@@ -47,18 +47,26 @@ export function renderPolarArea(
       .outerRadius(r)
       .startAngle(a0)
       .endAngle(a1);
-    g.append('path')
+    const pct = Math.round((d.value / total) * 100);
+    const sector = g
+      .append('path')
       .attr('d', arcGen({}) ?? '')
       .attr('fill', solid ? stroke : shapeFill(palette, stroke, isDark))
       .attr('stroke', stroke)
       .attr('stroke-width', 2);
+    tagDatum(sector, {
+      line: d.lineNumber,
+      key: d.label,
+      name: d.label,
+      value: `${fmtNum(d.value)} (${pct}%)`,
+      color: stroke,
+    });
 
     // external label at sector mid-angle (d3 angle 0 = top, clockwise)
     const mid = a0 + seg / 2 - Math.PI / 2;
     const rightSide = Math.cos(mid) >= 0;
     const lx = Math.cos(mid) * (outerR + 14);
     const ly = Math.sin(mid) * (outerR + 14);
-    const pct = Math.round((d.value / total) * 100);
     g.append('text')
       .attr('x', lx + (rightSide ? 4 : -4))
       .attr('y', ly + 4)

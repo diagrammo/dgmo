@@ -7,7 +7,7 @@ import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { shapeFill } from '../palettes/color-utils';
-import { type Svg, fmtNum } from './shared';
+import { type Svg, fmtNum, tagDatum } from './shared';
 
 const RINGS = 5;
 
@@ -92,12 +92,19 @@ export function renderRadar(
 
   data.forEach((d, i) => {
     const [x, y] = pt(i, (d.value / maxValue) * radius);
-    svg
+    const vtx = svg
       .append('circle')
       .attr('cx', x)
       .attr('cy', y)
       .attr('r', 4)
       .attr('fill', radarColor);
+    tagDatum(vtx, {
+      line: d.lineNumber,
+      key: d.label,
+      name: d.label,
+      value: fmtNum(d.value),
+      color: radarColor,
+    });
     if (!chart.noValue) {
       svg
         .append('text')

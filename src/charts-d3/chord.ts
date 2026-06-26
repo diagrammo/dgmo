@@ -10,7 +10,7 @@ import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { shapeFill } from '../palettes/color-utils';
 import { measureText } from '../utils/text-measure';
-import type { Svg } from './shared';
+import { type Svg, tagDatum } from './shared';
 
 export function renderChord(
   svg: Svg,
@@ -73,13 +73,20 @@ export function renderChord(
     const ctrlY = my + (cy - my) * curve * 2;
     const w = Math.max(1, Math.min(link.value / 20, 10));
     const stroke = colorOf(si);
-    svg
+    const edge = svg
       .append('path')
       .attr('d', `M${x0},${y0} Q${ctrlX},${ctrlY} ${x1},${y1}`)
       .attr('fill', 'none')
       .attr('stroke', stroke)
       .attr('stroke-width', w)
       .attr('stroke-opacity', 0.6);
+    tagDatum(edge, {
+      line: link.lineNumber,
+      key: `edge:${link.source} ${link.target}`,
+      name: `${link.source} → ${link.target}`,
+      value: String(link.value),
+      color: stroke,
+    });
     if (link.directed) {
       // arrowhead at target, oriented along tangent (from control point)
       const ang = Math.atan2(y1 - ctrlY, x1 - ctrlX);
@@ -103,7 +110,7 @@ export function renderChord(
   names.forEach((nm, i) => {
     const [px, py] = pos(i);
     const stroke = colorOf(i);
-    svg
+    const dot = svg
       .append('circle')
       .attr('cx', px)
       .attr('cy', py)
@@ -111,6 +118,7 @@ export function renderChord(
       .attr('fill', solid ? stroke : shapeFill(palette, stroke, isDark))
       .attr('stroke', stroke)
       .attr('stroke-width', 2);
+    tagDatum(dot, { key: `node:${nm}`, name: nm, color: stroke });
     const c = Math.cos(angle(i));
     const lx = px + c * 16;
     const ly = py + Math.sin(angle(i)) * 16;

@@ -17,6 +17,7 @@ import {
   fmtNum,
   drawXAxisTitle,
   drawYAxisTitle,
+  tagDatum,
 } from './shared';
 
 const FILL_OPACITY = 0.65;
@@ -116,7 +117,7 @@ export function renderScatter(
         ? catColor(p.category, catIndex.get(p.category) ?? 0)
         : colors[i % colors.length]!);
     const r = (hasSize ? p.size ?? DEFAULT_SIZE : DEFAULT_SIZE) / 2;
-    svg
+    const dot = svg
       .append('circle')
       .attr('cx', x(p.x))
       .attr('cy', y(p.y))
@@ -125,6 +126,13 @@ export function renderScatter(
       .attr('fill-opacity', FILL_OPACITY)
       .attr('stroke', stroke)
       .attr('stroke-width', 2);
+    tagDatum(dot, {
+      line: p.lineNumber,
+      key: p.category ?? p.name,
+      name: p.category ? `${p.name} · ${p.category}` : p.name,
+      value: `(${fmtNum(p.x)}, ${fmtNum(p.y)})`,
+      color: stroke,
+    });
     if (!chart.noName) {
       svg
         .append('text')

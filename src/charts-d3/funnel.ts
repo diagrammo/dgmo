@@ -8,7 +8,7 @@ import type { ParsedFunnel } from '../echarts';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { shapeFill } from '../palettes/color-utils';
-import { type Svg, fmtNum } from './shared';
+import { type Svg, fmtNum, tagDatum } from './shared';
 
 export function renderFunnel(
   svg: Svg,
@@ -44,7 +44,7 @@ export function renderFunnel(
     const botW = i < n - 1 ? scaleW(sorted[i + 1]!.value) : minW;
     const y0 = top + i * bandH;
     const y1 = y0 + bandH;
-    svg
+    const seg = svg
       .append('polygon')
       .attr(
         'points',
@@ -53,6 +53,7 @@ export function renderFunnel(
       .attr('fill', fill)
       .attr('stroke', stroke)
       .attr('stroke-width', 2);
+    tagDatum(seg, { line: d.lineNumber, key: d.label, name: d.label, value: fmtNum(d.value), color: stroke });
 
     const yMid = (y0 + y1) / 2;
     if (!chart.noName) {

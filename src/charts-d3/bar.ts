@@ -20,6 +20,7 @@ import {
   drawXAxisTitle,
   drawYAxisTitle,
   drawValueLabel,
+  tagDatum,
 } from './shared';
 
 function seriesValues(
@@ -182,17 +183,25 @@ export function renderBar(
     vals.forEach((v, s) => {
       const stroke = colorFor(s, ci, seriesCount === 1 ? d.color : undefined);
       const fill = fillOf(stroke);
+      const sName = seriesNames[s] ?? '';
+      const tag = {
+        line: d.lineNumber,
+        key: multiSeries ? sName : d.label,
+        name: multiSeries ? `${d.label} · ${sName}` : d.label,
+        value: v,
+        color: stroke,
+      };
       if (stacked) {
         if (horiz) {
           const x0 = val(acc);
           const x1 = val(acc + v);
-          rect(svg, Math.min(x0, x1), base, Math.abs(x1 - x0), cat.bandwidth(), fill, stroke);
+          rect(svg, Math.min(x0, x1), base, Math.abs(x1 - x0), cat.bandwidth(), fill, stroke, tag);
           if (Math.abs(x1 - x0) > 26)
             drawValueLabel(svg, fmtNum(v), (x0 + x1) / 2, base + cat.bandwidth() / 2 + 4, textColor);
         } else {
           const y0 = val(acc);
           const y1 = val(acc + v);
-          rect(svg, base, Math.min(y0, y1), cat.bandwidth(), Math.abs(y1 - y0), fill, stroke);
+          rect(svg, base, Math.min(y0, y1), cat.bandwidth(), Math.abs(y1 - y0), fill, stroke, tag);
           if (Math.abs(y1 - y0) > 18)
             drawValueLabel(svg, fmtNum(v), base + cat.bandwidth() / 2, (y0 + y1) / 2 + 4, textColor);
         }
@@ -202,11 +211,11 @@ export function renderBar(
         const bw = inner!.bandwidth();
         if (horiz) {
           const x1 = val(v);
-          rect(svg, Math.min(zero, x1), base + off, Math.abs(x1 - zero), bw, fill, stroke);
+          rect(svg, Math.min(zero, x1), base + off, Math.abs(x1 - zero), bw, fill, stroke, tag);
           drawValueLabel(svg, fmtNum(v), x1 + 6, base + off + bw / 2 + 4, textColor, 'start');
         } else {
           const y1 = val(v);
-          rect(svg, base + off, Math.min(zero, y1), bw, Math.abs(zero - y1), fill, stroke);
+          rect(svg, base + off, Math.min(zero, y1), bw, Math.abs(zero - y1), fill, stroke, tag);
           drawValueLabel(svg, fmtNum(v), base + off + bw / 2, y1 - 6, textColor);
         }
       }
@@ -224,9 +233,10 @@ function rect(
   w: number,
   h: number,
   fill: string,
-  stroke: string
+  stroke: string,
+  tag: { line: number; key: string; name: string; value: number; color: string }
 ): void {
-  svg
+  const r = svg
     .append('rect')
     .attr('x', x)
     .attr('y', y)
@@ -235,4 +245,5 @@ function rect(
     .attr('fill', fill)
     .attr('stroke', stroke)
     .attr('stroke-width', 1.5);
+  tagDatum(r, tag);
 }
