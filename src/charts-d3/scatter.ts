@@ -76,6 +76,18 @@ export function renderScatter(
     .domain([Math.floor(yMin - yPad), Math.ceil(yMax + yPad)])
     .range([m.top + plotH, m.top]);
 
+  // Hit/bounds target so the interaction adapter knows axis positions for the
+  // dotted leader-line + on-axis value projection.
+  svg
+    .append('rect')
+    .attr('class', 'dgmo-plot-rect')
+    .attr('x', m.left)
+    .attr('y', m.top)
+    .attr('width', plotW)
+    .attr('height', plotH)
+    .attr('fill', 'transparent')
+    .attr('pointer-events', 'none');
+
   // gridlines + ticks
   for (const t of y.ticks(6)) {
     const yy = y(t);
@@ -137,11 +149,13 @@ export function renderScatter(
       .attr('stroke-width', 2);
     tagDatum(dot, {
       line: p.lineNumber,
-      key: p.category ?? p.name,
+      key: p.name,
       name: p.category ? `${p.name} · ${p.category}` : p.name,
       value: `(${fmtNum(p.x)}, ${fmtNum(p.y)})`,
       color: stroke,
     });
+    // Per-axis values for the adapter's on-axis projection (no tooltip).
+    dot.attr('data-axval-x', fmtNum(p.x)).attr('data-axval-y', fmtNum(p.y));
     if (!chart.noName) {
       svg
         .append('text')
