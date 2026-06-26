@@ -129,6 +129,28 @@ side below
     expect(container.querySelector('.dgmo-legend')).toBeNull();
   });
 
+  it('no-box draws a soft header shelf + colored landing edge per event', () => {
+    const parsed = parseEventLine(
+      `event-line S
+no-box
+
+tag T as t
+  A green
+
+2020-01-01 Alpha  t: A
+  body`,
+      nordLight
+    );
+    const container = mount();
+    renderEventLine(container, parsed, nordLight, false);
+    const card = [...container.querySelectorAll('.dgmo-event-card')].find((g) =>
+      g.textContent?.includes('Alpha')
+    )!;
+    // The shelf (tinted rect) + its colored landing edge — a no-box card used to
+    // carry no rects at all, so the connector is what introduces them.
+    expect(card.querySelectorAll('rect').length).toBeGreaterThanOrEqual(2);
+  });
+
   const ERAS = `event-line A History of the Web
 no-scale
 
@@ -561,6 +583,88 @@ tag T as t
       expect(brackets[i]!.x0).toBeGreaterThanOrEqual(brackets[i - 1]!.x1);
     }
   });
+
+  // Geometry of a collapsed-era summary card + its leader.
+  const eraGeo = (
+    c: HTMLElement,
+    era: string
+  ): { left: number; center: number; leaderX: number; vertical: boolean } => {
+    const card = c.querySelector(`.dgmo-event-card[data-era="${era}"]`)!;
+    const left = Number(
+      /translate\(([\d.-]+)/.exec(card.getAttribute('transform')!)![1]
+    );
+    const cardW = Number(card.querySelector('rect')!.getAttribute('width'));
+    const evt = card.getAttribute('data-evt')!;
+    const leader = c.querySelector(`.dgmo-event-leader[data-evt="${evt}"]`)!;
+    const x1 = Number(leader.getAttribute('x1'));
+    const x2 = Number(leader.getAttribute('x2'));
+    return {
+      left,
+      center: left + cardW / 2,
+      leaderX: x1,
+      vertical: x1 === x2,
+    };
+  };
+
+  it('centers each collapsed-era card squarely on its capsule (straight leader)', () => {
+    const src = `event-line Tenure
+
+[Gadtke] collapsed: true
+  2020-01-05 Start at MLB
+  2021-02-01 Fire Wes Matlock
+
+[Vasanth] collapsed: true
+  2021-06-15 The Outage
+  2025-04-01 Opening Day`;
+    const parsed = parseEventLine(src, nordLight);
+    const c = mount(1400, 600);
+    renderEventLine(c, parsed, nordLight, false);
+
+    for (const era of ['Gadtke', 'Vasanth']) {
+      const g = eraGeo(c, era);
+      // The leader is vertical and lands on the card's horizontal center — i.e.
+      // the card sits squarely over its capsule, no sideways jog.
+      expect(g.vertical).toBe(true);
+      expect(Math.abs(g.leaderX - g.center)).toBeLessThan(1);
+    }
+    // And the later era's card is clearly right of the earlier one (cascade).
+    expect(eraGeo(c, 'Vasanth').center).toBeGreaterThan(
+      eraGeo(c, 'Gadtke').center
+    );
+  });
+
+  it('floats same-side collapsed-era capsules apart so centered cards never overlap', () => {
+    // `side above` forces both folded eras onto the same side, where their wide
+    // cards would collide if the capsules stayed COLLAPSE_W apart.
+    const src = `event-line Same Side
+side above
+
+[Alpha] collapsed: true
+  2020-01-01 a1
+  2020-06-01 a2
+
+[Beta] collapsed: true
+  2021-01-01 b1
+  2021-06-01 b2`;
+    const parsed = parseEventLine(src, nordLight);
+    const c = mount(1400, 600);
+    renderEventLine(c, parsed, nordLight, false);
+
+    const a = eraGeo(c, 'Alpha');
+    const b = eraGeo(c, 'Beta');
+    // Both still centered on their own capsules (straight leaders)...
+    expect(a.vertical && b.vertical).toBe(true);
+    expect(Math.abs(a.leaderX - a.center)).toBeLessThan(1);
+    expect(Math.abs(b.leaderX - b.center)).toBeLessThan(1);
+    // ...and the cards clear each other horizontally (no overlap).
+    const cardW = Number(
+      c
+        .querySelector('.dgmo-event-card[data-era="Alpha"]')!
+        .querySelector('rect')!
+        .getAttribute('width')
+    );
+    expect(b.left).toBeGreaterThanOrEqual(a.left + cardW);
+  });
 });
 
 describe('event-line hover interactivity', () => {
@@ -635,6 +739,153 @@ tag Kind as k
     expect(standard.classList.contains('dgmo-evt-dim')).toBe(false);
   });
 
+  // A legend click re-renders, so re-query the fresh SVG + nodes each time.
+  const COLLAPSED_ERA = `event-line Web
+tag Kind as k
+  Browser blue
+  Standard green
+
+[Origins] collapsed: true
+  1991-01-01 WorldWideWeb  k: Browser
+  1993-04-01 Mosaic  k: Standard`;
+
+  function clickLegend(container: HTMLElement, value: string): void {
+    container
+      .querySelector(`[data-legend-entry="${value}"]`)!
+      .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  }
+
+  it('clicking a legend entry collapses that value to dots, keeping the dot', () => {
+    const container = renderPreview();
+    clickLegend(container, 'browser');
+    const svg = container.querySelector('svg')!;
+
+    // Browser cards + leaders collapse; Standard ones are untouched.
+    const browserCard = svg.querySelector(
+      '.dgmo-event-card[data-tag-kind="browser"]'
+    )!;
+    const browserLeader = svg.querySelector(
+      '.dgmo-event-leader[data-tag-kind="browser"]'
+    )!;
+    const browserDot = svg.querySelector(
+      '.dgmo-event-dot[data-tag-kind="browser"]'
+    )!;
+    expect(browserCard.classList.contains('dgmo-evt-collapsed')).toBe(true);
+    expect(browserLeader.classList.contains('dgmo-evt-collapsed')).toBe(true);
+    // The dot stays on the spine — never collapsed.
+    expect(browserDot.classList.contains('dgmo-evt-collapsed')).toBe(false);
+    expect(
+      svg
+        .querySelector('.dgmo-event-card[data-tag-kind="standard"]')!
+        .classList.contains('dgmo-evt-collapsed')
+    ).toBe(false);
+
+    // The legend entry shows the muted state: struck label + hollow swatch.
+    const entry = svg.querySelector('[data-legend-entry="browser"]')!;
+    expect(entry.classList.contains('dgmo-evt-off')).toBe(true);
+    const swatch = entry.querySelector('circle')!;
+    expect(swatch.getAttribute('fill')).toBe('none');
+    expect(swatch.getAttribute('stroke')).toBeTruthy();
+
+    // Hovering a collapsed event's dot re-reveals its card (HL composes with
+    // the persistent collapse class).
+    browserDot.dispatchEvent(
+      new window.MouseEvent('mouseover', { bubbles: true })
+    );
+    expect(browserCard.classList.contains('dgmo-evt-collapsed')).toBe(true);
+    expect(browserCard.classList.contains('dgmo-evt-hl')).toBe(true);
+
+    // Clicking again restores the full card and the legend swatch.
+    clickLegend(container, 'browser');
+    const svg2 = container.querySelector('svg')!;
+    expect(
+      svg2
+        .querySelector('.dgmo-event-card[data-tag-kind="browser"]')!
+        .classList.contains('dgmo-evt-collapsed')
+    ).toBe(false);
+    const entry2 = svg2.querySelector('[data-legend-entry="browser"]')!;
+    expect(entry2.classList.contains('dgmo-evt-off')).toBe(false);
+    expect(entry2.querySelector('circle')!.getAttribute('fill')).not.toBe(
+      'none'
+    );
+  });
+
+  it('backs each legend entry with a transparent hit rect spanning swatch + label', () => {
+    // jsdom has no layout, so stub getBBox to a real box for this render.
+    const proto = window.SVGElement.prototype as unknown as {
+      getBBox?: () => { x: number; y: number; width: number; height: number };
+    };
+    const had = Object.prototype.hasOwnProperty.call(proto, 'getBBox');
+    const prev = proto.getBBox;
+    proto.getBBox = () => ({ x: 10, y: 4, width: 60, height: 12 });
+    try {
+      const container = renderPreview();
+      const entry = container.querySelector('[data-legend-entry="browser"]')!;
+      const hit = entry.querySelector('rect[data-legend-hit]')!;
+      expect(hit).not.toBeNull();
+      // The rect is the first child (behind the marks) and is generously padded.
+      expect(entry.firstElementChild).toBe(hit);
+      expect(hit.getAttribute('fill')).toBe('transparent');
+      expect(Number(hit.getAttribute('width'))).toBeGreaterThan(60);
+      expect(Number(hit.getAttribute('height'))).toBeGreaterThan(12);
+      // Clicking the rect (not the dot/text) still toggles the category.
+      hit.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+      expect(
+        container
+          .querySelector('.dgmo-event-card[data-tag-kind="browser"]')!
+          .classList.contains('dgmo-evt-collapsed')
+      ).toBe(true);
+    } finally {
+      if (had) proto.getBBox = prev;
+      else delete proto.getBBox;
+    }
+  });
+
+  it('drops a muted member from a collapsed era summary bullet list', () => {
+    const container = renderPreview(COLLAPSED_ERA);
+    const eraCard = () =>
+      container.querySelector('.dgmo-event-card[data-era="Origins"]')!;
+    // Both members listed while nothing is muted.
+    expect(eraCard().textContent).toContain('WorldWideWeb');
+    expect(eraCard().textContent).toContain('Mosaic');
+
+    // Muting the Standard category drops Mosaic from the summary, keeps WWW.
+    clickLegend(container, 'standard');
+    expect(eraCard().textContent).toContain('WorldWideWeb');
+    expect(eraCard().textContent).not.toContain('Mosaic');
+  });
+
+  it('retains the muted category across an era collapse/expand re-render', () => {
+    const parsed = parseEventLine(COLLAPSED_ERA, nordLight);
+    const container = mount(1000, 600);
+    renderEventLine(container, parsed, nordLight, false);
+
+    // Mute Standard while the era is collapsed (drops it from the bullets).
+    clickLegend(container, 'standard');
+
+    // Expand the era — the app does this by re-rendering with a flipped
+    // `collapsed`. The muted set lives on the container, so it must survive.
+    const expanded = {
+      ...parsed,
+      eras: parsed.eras.map((e) => ({ ...e, collapsed: false })),
+    };
+    renderEventLine(container, expanded, nordLight, false);
+    const svg = container.querySelector('svg')!;
+
+    // Mosaic is now an expanded event card and stays collapsed-to-dot; the
+    // legend entry is still struck.
+    expect(
+      svg
+        .querySelector('.dgmo-event-card[data-tag-kind="standard"]')!
+        .classList.contains('dgmo-evt-collapsed')
+    ).toBe(true);
+    expect(
+      svg
+        .querySelector('[data-legend-entry="standard"]')!
+        .classList.contains('dgmo-evt-off')
+    ).toBe(true);
+  });
+
   it('hovering one event glows it and dims every other event', () => {
     const svg = renderPreview().querySelector('svg')!;
     const card = svg.querySelector('.dgmo-event-card[data-evt]')!;
@@ -670,6 +921,32 @@ tag Kind as k
     )!;
     expect(member.classList.contains('dgmo-evt-dim')).toBe(false);
     expect(outsider.classList.contains('dgmo-evt-dim')).toBe(true);
+  });
+
+  it('hovering a collapsed-era card keeps its ⊓ bracket + squiggle lit', () => {
+    const src = `event-line Mix
+
+[Origins] collapsed: true
+  1991-01-01 WWW
+  1993-01-01 Mosaic
+
+2005-01-01 Outside`;
+    const svg = renderPreview(src).querySelector('svg')!;
+    const card = svg.querySelector(
+      '.dgmo-event-card[data-era="Origins"][data-era-collapsed="true"]'
+    )!;
+    const bracket = svg.querySelector(
+      '.dgmo-event-era[data-era="Origins"][data-era-collapsed="true"]'
+    )!;
+    const outside = svg.querySelector('.dgmo-event-dot[data-evt]')!; // the lone expanded event
+
+    card.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
+    // The era's bracket + axis-break group stays lit (emphasized), never dimmed,
+    // alongside its summary card; the unrelated event fades.
+    expect(bracket.classList.contains('dgmo-evt-dim')).toBe(false);
+    expect(bracket.classList.contains('dgmo-evt-era-hl')).toBe(true);
+    expect(card.classList.contains('dgmo-evt-dim')).toBe(false);
+    expect(outside.classList.contains('dgmo-evt-dim')).toBe(true);
   });
 
   it('focuses untagged events when the default (first) legend value is hovered', () => {

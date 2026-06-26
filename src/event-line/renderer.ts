@@ -78,6 +78,15 @@ const FAN_GAP = 6;
 // instead of sitting on the axis. This much header height is reserved for it.
 const DATE_SUBTITLE_H = 15;
 const DATE_SUBTITLE_FONT = 10;
+// `no-box` only: a soft tag-tinted "shelf" sits behind the title + date so the
+// header reads as a unit, and a full-strength colored bar on its spine-side edge
+// is the leader's landing pad — keeping the dot→block link solid in dense charts.
+const SHELF_TINT = 13; // % of the tag color mixed over the theme base
+// Thickness of the colored landing lip. The shelf's corner radius is matched to
+// it (SHELF_EDGE below) so the lip exactly fills the rounded corners and reads
+// as part of the rounded rect — a thinner lip therefore also means slightly
+// tighter shelf corners, which keeps the carry-through clean.
+const SHELF_EDGE = 4;
 // Faint year/period ruler on the spine (replaces the old per-event date band):
 // short tick marks + sparse labels restore global orientation now that the exact
 // dates live in the cards. Only drawn when the axis is to-scale.
@@ -111,15 +120,30 @@ const ERA_LABEL_FONT = 11.5;
 const HL = 'dgmo-evt-hl';
 const DIM = 'dgmo-evt-dim';
 const ERA_HL = 'dgmo-evt-era-hl';
+// Clicking a legend entry collapses that tag value's cards (and their leaders)
+// to bare dots — the dot stays on the spine in its tag color and still reveals
+// its card on hover; the legend entry renders struck-through with a hollow
+// swatch so the muted state is self-documenting and reversible. Preview-only
+// (never in `exportMode`), so static SVG/PNG always carries the full set.
+const COLLAPSED = 'dgmo-evt-collapsed';
+const OFF = 'dgmo-evt-off';
+const HIDDEN_ATTR = 'data-evt-hidden';
 const HOVER_CSS =
   `.dgmo-event-dot{transition:transform .12s ease;transform-box:fill-box;transform-origin:center}` +
   `.dgmo-event-leader,.dgmo-event-card,.dgmo-event-era{transition:opacity .12s ease,filter .12s ease}` +
   `.dgmo-event-dot,.dgmo-event-card,.dgmo-event-era{cursor:default}` +
+  `[data-legend-entry]{cursor:pointer}` +
   `.${DIM}{opacity:.2}` +
   `.dgmo-event-dot.${HL}{transform:scale(1.55)}` +
   `.dgmo-event-leader.${HL}{stroke-opacity:1;stroke-width:2.5}` +
   `.dgmo-event-card.${HL}{filter:drop-shadow(0 2px 5px rgba(0,0,0,.22))}` +
-  `.dgmo-event-era.${ERA_HL}{filter:drop-shadow(0 1px 2px rgba(0,0,0,.28))}`;
+  `.dgmo-event-era.${ERA_HL}{filter:drop-shadow(0 1px 2px rgba(0,0,0,.28))}` +
+  // Collapsed-to-dot: hide the card + its leader, keep the dot. A hover that
+  // glows the event (HL on all its pieces) transiently re-reveals the card —
+  // the extra class out-specifies both the collapse rule and DIM.
+  `.dgmo-event-card.${COLLAPSED},.dgmo-event-leader.${COLLAPSED}{opacity:0;pointer-events:none}` +
+  `.dgmo-event-card.${COLLAPSED}.${HL},.dgmo-event-leader.${COLLAPSED}.${HL}{opacity:1;pointer-events:auto}` +
+  `[data-legend-entry].${OFF} text{text-decoration:line-through;opacity:.5}`;
 
 type Side = 'above' | 'below';
 
@@ -168,6 +192,10 @@ export function renderEventLine(
   if (width <= 0 || heightHint <= 0) return;
 
   const exportMode = !!exportDims;
+  // Preview-only legend-muted tag values (persisted on the container so they
+  // survive every re-render — era collapse/expand, resize, palette change). The
+  // export path always builds the full set; muting is interactive chrome only.
+  const hiddenSet = exportMode ? new Set<string>() : readHidden(container);
   const seriesColors = getSeriesColors(palette);
   const accent = seriesColors[0]!;
   const activeGroup = resolveActiveTagGroup(
@@ -330,11 +358,18 @@ export function renderEventLine(
     const repDateValue =
       spanLo !== null && spanHi !== null ? (spanLo + spanHi) / 2 : null;
     // Show every folded member — a collapsed era summarizes the whole run, so
-    // the card grows to fit rather than truncating with a "+N more" line.
-    const memberStrs = slot.members.map(
+    // the card grows to fit rather than truncating with a "+N more" line. A
+    // member whose tag value is legend-muted (§28.5) drops out of the bullet
+    // list too — so de-selecting a category quiets it whether its events are
+    // expanded (collapsed-to-dot) or folded inside a collapsed era. The card
+    // height auto-shrinks to the surviving bullets.
+    const visibleMembers = slot.members.filter(
+      (m) => !eventTagHidden(m.metadata, hiddenSet)
+    );
+    const memberStrs = visibleMembers.map(
       (m) => `• ${m.date ? `${m.date}  ` : ''}${m.label}`
     );
-    const bulletColors = slot.members.map(eventColor);
+    const bulletColors = visibleMembers.map(eventColor);
     const lines = wrapDescription(memberStrs, charsPerLine);
     return {
       kind: 'era',
@@ -418,11 +453,32 @@ export function renderEventLine(
     if (scaled) {
       const pxPerUnit =
         totalRunTime > 0 ? (innerW * stretch) / totalRunTime : 0;
+      // Each collapsed-era card centers on its capsule. When two folded eras land
+      // on the SAME side their wide cards would overlap (capsules are only
+      // COLLAPSE_W apart), forcing the card off its bracket. Float the capsule
+      // right instead — enough that its centered card clears the previous
+      // same-side era card — so the card stays squarely over its `⊓` (a straight
+      // vertical leader) and the spine spacing absorbs the slack. Opposite-side
+      // eras stay tight (their cards don't collide).
+      const eraCardRight: Record<Side, number> = {
+        above: -Infinity,
+        below: -Infinity,
+      };
       let cursor = H_MARGIN;
       for (const seg of segments) {
         if (seg.kind === 'capsule') {
-          seg.p.x = cursor + COLLAPSE_W / 2;
+          let x = cursor + COLLAPSE_W / 2;
+          const minX = Math.max(
+            CARD_W / 2 + 6, // keep the centered card on-canvas (left ≥ 6)
+            eraCardRight[seg.p.side] + FAN_GAP + CARD_W / 2 // clear prior same-side card
+          );
+          if (x < minX) {
+            cursor += minX - x;
+            x = minX;
+          }
+          seg.p.x = x;
           seg.p.spanHalf = COLLAPSE_W / 2;
+          eraCardRight[seg.p.side] = x + CARD_W / 2;
           cursor += COLLAPSE_W + SEG_GAP;
         } else {
           for (const e of seg.events) {
@@ -474,7 +530,12 @@ export function renderEventLine(
       for (let i = 0; i < arr.length; i++) {
         const p = arr[i]!;
         const next = arr[i + 1];
-        const crowdedRight = !!next && next.x - p.x < CARD_W + FAN_GAP;
+        // A collapsed-era summary card centers on its own capsule (the `⊓`
+        // mark), so consecutive eras cascade exactly with their capsule spacing
+        // and each card sits over the spot it folds — spatial order = time
+        // order. Only expanded events fan-pull left when crowded by a neighbour.
+        const crowdedRight =
+          p.kind !== 'era' && !!next && next.x - p.x < CARD_W + FAN_GAP;
         const preferred = crowdedRight
           ? p.x - CARD_W + CARD_INSET
           : p.x - CARD_W / 2;
@@ -667,6 +728,12 @@ export function renderEventLine(
       mode: exportMode ? 'export' : 'preview',
       activeGroup,
     });
+    // Mute-toggling a category (§28.5) means clicking its legend entry, but the
+    // painted swatch + label are a tiny target. Back each entry with a
+    // transparent hit rect spanning its whole bounding box (+ padding) so the
+    // entire swatch-and-label region is clickable. Preview only — exports carry
+    // no interaction, so their snapshots are untouched.
+    if (!exportMode) addLegendEntryHitAreas(legendG);
   }
 
   // ── Spine ──
@@ -729,6 +796,7 @@ export function renderEventLine(
   }
 
   // Cards on top.
+  let shelfClipSeq = 0;
   for (const { p, top } of geo) {
     const left = p.left;
 
@@ -754,15 +822,46 @@ export function renderEventLine(
     const dateH = dateStr ? DATE_SUBTITLE_H : 0;
 
     if (parsed.options.noBox) {
-      // Slide-friendly, card-less style: a tag-colored label, a rule, and the
-      // description below — no box / fill / border. The title (the anchor) sits
-      // nearest the spine, so for above-side blocks the order flips to
-      // description → rule → date → title.
+      // Card-less style: a tag-colored label + muted date sitting on a soft
+      // tag-tinted "shelf", with the leader docking into the shelf's colored
+      // spine-side edge so the dot→block link stays solid in dense charts. The
+      // title (the anchor) sits nearest the spine; for above-side blocks the
+      // header order flips to description → date → title.
       const titleNearTop = p.side === 'below';
       const headBandTop = titleNearTop ? 0 : p.cardH - HEADER_HEIGHT;
-      // The rule sits just past the date band, on the far-from-spine edge of the
-      // header (below the date for top-anchored titles, above it otherwise).
-      const ruleY = titleNearTop ? HEADER_HEIGHT + dateH : headBandTop - dateH;
+      // The shelf wraps the whole header band (title + date). Its spine-side edge
+      // (top for below-side blocks, bottom otherwise) is where the leader lands.
+      const shelfTop = titleNearTop ? 0 : p.cardH - HEADER_HEIGHT - dateH;
+      const shelfH = HEADER_HEIGHT + dateH;
+      // Clip both the tint and the colored edge to ONE rounded-rect mask so the
+      // edge carries through the shelf's curved corners (the collapse-bar idiom,
+      // utils/card.ts) instead of reading as a straight bar bolted on top.
+      const clipId = `dgmo-evt-shelf-${shelfClipSeq++}`;
+      cardG
+        .append('clipPath')
+        .attr('id', clipId)
+        .append('rect')
+        .attr('x', 0)
+        .attr('y', shelfTop)
+        .attr('width', CARD_W)
+        .attr('height', shelfH)
+        .attr('rx', SHELF_EDGE);
+      cardG
+        .append('rect')
+        .attr('x', 0)
+        .attr('y', shelfTop)
+        .attr('width', CARD_W)
+        .attr('height', shelfH)
+        .attr('clip-path', `url(#${clipId})`)
+        .attr('fill', mix(p.color, themeBaseBg(palette, isDark), SHELF_TINT));
+      cardG
+        .append('rect')
+        .attr('x', 0)
+        .attr('y', titleNearTop ? shelfTop : shelfTop + shelfH - SHELF_EDGE)
+        .attr('width', CARD_W)
+        .attr('height', SHELF_EDGE)
+        .attr('clip-path', `url(#${clipId})`)
+        .attr('fill', p.color);
       cardG
         .append('text')
         .attr('x', CARD_PAD)
@@ -788,15 +887,6 @@ export function renderEventLine(
           .attr('font-weight', 600)
           .text(dateStr);
       }
-      cardG
-        .append('line')
-        .attr('x1', CARD_PAD)
-        .attr('y1', ruleY)
-        .attr('x2', CARD_W - CARD_PAD)
-        .attr('y2', ruleY)
-        .attr('stroke', p.color)
-        .attr('stroke-width', 1.5)
-        .attr('stroke-opacity', 0.7);
       if (p.lines.length > 0) {
         const startBaseline = titleNearTop
           ? CARD_BODY_TOP + dateH + DESC_FONT
@@ -1100,11 +1190,32 @@ export function renderEventLine(
     }
   }
 
-  // ── Hover wiring (preview only) ──
-  // One delegated handler on the SVG root, so it re-binds with every render and
-  // never leaks per-node listeners. Priority: legend entry → category focus,
-  // else era bracket → era + members, else any event piece → whole-event glow.
-  if (!exportMode) wireEventLineHover(svg.node());
+  // ── Hover + legend-toggle wiring (preview only) ──
+  // Delegated handlers on the SVG root, so they re-bind with every render and
+  // never leak per-node listeners. Hover priority: legend entry → category
+  // focus, else era bracket → era + members, else any event piece → whole-event
+  // glow. A legend CLICK mutes that category and re-renders.
+  if (!exportMode) {
+    const root = svg.node();
+    wireEventLineHover(root);
+    if (root) {
+      wireLegendToggle(container, root, () =>
+        renderEventLine(
+          container,
+          parsed,
+          palette,
+          isDark,
+          onClickItem,
+          exportDims,
+          tagOverride
+        )
+      );
+      // Re-apply the persisted muted state to the freshly built SVG (live event
+      // cards collapse-to-dot + legend entries struck/hollow). Era bullets are
+      // already excluded at build time above.
+      applyEvtHidden(container, root);
+    }
+  }
 }
 
 /** Share the same hover hooks across every piece of one event: a common
@@ -1188,6 +1299,16 @@ function readPin(root: Element): EventLineFocus | null {
 }
 
 /**
+ * Clear the preview-only legend-muted tag set persisted on a container (the
+ * collapsed-to-dot categories from §28.5). View state is per-document, so a host
+ * resets it when the source changes (switching files / edits) — the same
+ * contract the app uses for live era collapse toggles. No-op if nothing is set.
+ */
+export function clearEventLineMuted(container: HTMLElement): void {
+  container.removeAttribute(HIDDEN_ATTR);
+}
+
+/**
  * Pin a persistent focus on a rendered event-line — e.g. driven by the editor
  * cursor — dimming everything except the target, exactly like hover. Hovering
  * temporarily overrides the pin; leaving the diagram reverts to it. Pass `null`
@@ -1202,6 +1323,160 @@ export function focusEventLine(
   if (spec) root.setAttribute(PIN_ATTR, JSON.stringify(spec));
   else root.removeAttribute(PIN_ATTR);
   applyEvtFocus(root, spec);
+}
+
+// ── Legend-toggled card hiding (preview only) ───────────────
+// A muted category is recorded on the CONTAINER (not the throwaway SVG) as a
+// `"group:value"` list, so it survives every re-render — era collapse/expand,
+// resize, palette change. The hidden set is independent of focus state
+// (HL/DIM): collapse and focus compose because they live in different classes.
+function readHidden(el: Element): Set<string> {
+  const raw = el.getAttribute(HIDDEN_ATTR);
+  if (!raw) return new Set();
+  try {
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+// Prepend a transparent hit rect to each legend entry so the full swatch+label
+// region toggles its category, not just the tiny dot/glyphs. Sized from the
+// entry's own bbox (+ padding) and inserted first so it sits behind the visible
+// marks; a delegated click on it still resolves to the entry via `closest()`.
+function addLegendEntryHitAreas(
+  legendG: d3Selection.Selection<SVGGElement, unknown, null, undefined>
+): void {
+  const PAD_X = 6;
+  const PAD_Y = 7;
+  legendG
+    .selectAll<SVGGElement, unknown>('[data-legend-entry]')
+    .each(function () {
+      let bb: { x: number; y: number; width: number; height: number };
+      try {
+        bb = this.getBBox();
+      } catch {
+        return; // no layout (e.g. jsdom) — the entry itself stays clickable
+      }
+      if (!bb.width || !bb.height) return;
+      d3Selection
+        .select(this)
+        .insert('rect', ':first-child')
+        .attr('x', bb.x - PAD_X)
+        .attr('y', bb.y - PAD_Y)
+        .attr('width', bb.width + PAD_X * 2)
+        .attr('height', bb.height + PAD_Y * 2)
+        .attr('fill', 'transparent')
+        .attr('data-legend-hit', '');
+    });
+}
+
+// True when an event carries any legend-muted `group:value`. The keying matches
+// `applyHoverHooks` (metadata key + value, both lowercased) so it lines up with
+// the `data-tag-<group>` attributes and the legend's `data-legend-entry`.
+function eventTagHidden(
+  metadata: Record<string, string>,
+  hidden: ReadonlySet<string>
+): boolean {
+  if (hidden.size === 0) return false;
+  for (const [k, v] of Object.entries(metadata)) {
+    if (hidden.has(`${k.toLowerCase()}:${String(v).toLowerCase()}`))
+      return true;
+  }
+  return false;
+}
+
+// Reconcile the rendered SVG to the container's hidden set: collapse matching
+// cards/leaders (never the dot) and mark the matching legend entries muted
+// (struck label + hollow swatch). The collapsed-era BULLETS are handled at build
+// time (excluded from the summary card); this covers the live event cards and
+// the legend chrome. Idempotent — safe to call on every render.
+function applyEvtHidden(container: Element, root: Element): void {
+  const hidden = readHidden(container);
+  const isHidden = (el: Element): boolean => {
+    for (const key of hidden) {
+      const sep = key.indexOf(':');
+      if (sep < 0) continue;
+      const group = key.slice(0, sep);
+      const value = key.slice(sep + 1);
+      if (el.getAttribute(`data-tag-${group}`) === value) return true;
+    }
+    return false;
+  };
+  root
+    .querySelectorAll('.dgmo-event-card,.dgmo-event-leader')
+    .forEach((el) => el.classList.toggle(COLLAPSED, isHidden(el)));
+  root.querySelectorAll('[data-legend-entry]').forEach((entry) => {
+    const group = entry
+      .closest('[data-legend-group]')
+      ?.getAttribute('data-legend-group');
+    const value = entry.getAttribute('data-legend-entry');
+    setLegendEntryOff(entry, !!group && hidden.has(`${group}:${value}`));
+  });
+}
+
+// Hollow the legend swatch (fill → none, stroke = its own color) for the muted
+// state, restoring the stashed fill when un-muted.
+function setLegendEntryOff(entry: Element, off: boolean): void {
+  entry.classList.toggle(OFF, off);
+  const c = entry.querySelector('circle');
+  if (!c) return;
+  if (off) {
+    if (!c.hasAttribute('data-fill0'))
+      c.setAttribute('data-fill0', c.getAttribute('fill') ?? '');
+    c.setAttribute('fill', 'none');
+    c.setAttribute('stroke', c.getAttribute('data-fill0') || 'currentColor');
+    c.setAttribute('stroke-width', '1.5');
+  } else {
+    const fill0 = c.getAttribute('data-fill0');
+    if (fill0 !== null) c.setAttribute('fill', fill0);
+    c.removeAttribute('stroke');
+    c.removeAttribute('stroke-width');
+  }
+}
+
+function toggleHidden(container: Element, group: string, value: string): void {
+  const hidden = readHidden(container);
+  const key = `${group}:${value}`;
+  if (hidden.has(key)) hidden.delete(key);
+  else hidden.add(key);
+  container.setAttribute(HIDDEN_ATTR, JSON.stringify([...hidden]));
+}
+
+// A click on a legend entry mutes/un-mutes that tag value, then re-renders so
+// both effects flow from one build: live event cards collapse-to-dot AND any
+// member folded inside a collapsed era drops out of its summary bullets. The
+// hidden set lives on the container, so the rebuild (and any later era toggle /
+// resize) reads it back and stays in sync. Renderer-owned, so it behaves the
+// same in the app, web editor, and Obsidian.
+function wireLegendToggle(
+  container: HTMLElement,
+  root: SVGSVGElement,
+  rerender: () => void
+): void {
+  root.addEventListener('click', (e) => {
+    const t = e.target as Element | null;
+    if (!t || typeof t.closest !== 'function') return;
+    const entry = t.closest('[data-legend-entry]');
+    if (!entry) return;
+    const value = entry.getAttribute('data-legend-entry');
+    const group = entry
+      .closest('[data-legend-group]')
+      ?.getAttribute('data-legend-group');
+    if (!group || !value) return;
+    toggleHidden(container, group, value);
+    // Preserve the editor-cursor focus pin across the rebuild — the host
+    // re-applies it only on its own renders, not on this renderer-owned one.
+    const pin = readPin(root);
+    rerender();
+    if (pin) focusEventLine(container, pin);
+    // This rebuild replaced the SVG, so any post-render normalization the host
+    // applied to the previous root (e.g. fit-to-canvas sizing) is gone. Signal
+    // the host to re-apply it. Hosts that render the renderer's intrinsic size
+    // verbatim can ignore the event.
+    if (typeof CustomEvent !== 'undefined')
+      container.dispatchEvent(new CustomEvent('dgmo-event-line-rerender'));
+  });
 }
 
 // One delegated handler: hover focuses transiently; on mouseout (or over bare
@@ -1234,10 +1509,17 @@ function wireEventLineHover(root: SVGSVGElement | null): void {
     }
     const evt = t.closest('[data-evt]');
     if (evt) {
-      applyEvtFocus(root, {
-        kind: 'event',
-        id: evt.getAttribute('data-evt') ?? '',
-      });
+      // A collapsed-era summary card carries `data-era` as well as `data-evt`;
+      // focus it as an ERA so its `⊓` bracket + axis-break squiggle (a
+      // `.dgmo-event-era` group, no `data-evt`) stay lit with the card instead
+      // of fading. Plain events focus by their `data-evt` id.
+      const eraName = evt.getAttribute('data-era');
+      applyEvtFocus(
+        root,
+        eraName
+          ? { kind: 'era', name: eraName }
+          : { kind: 'event', id: evt.getAttribute('data-evt') ?? '' }
+      );
       return;
     }
     // Bare canvas / title / legend chrome → revert to the pinned focus.

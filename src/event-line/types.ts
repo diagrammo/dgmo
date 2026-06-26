@@ -44,7 +44,8 @@ export interface EventLineOptions {
   readonly side: 'alternate' | 'above' | 'below';
   /** True when `no-title`. */
   readonly noTitle: boolean;
-  /** True when `no-box` — render a card-less label/rule/description (slides). */
+  /** True when `no-box` — render a card-less label + date on a soft tag-tinted
+   *  shelf (with a colored leader-landing edge) + description (slides). */
   readonly noBox: boolean;
   /** True when `no-legend` — hide the tag legend. */
   readonly noLegend: boolean;

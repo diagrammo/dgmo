@@ -523,6 +523,7 @@ export {
   renderEventLine,
   renderEventLineForExport,
   focusEventLine,
+  clearEventLineMuted,
 } from './event-line/renderer';
 export type { EventLineFocus } from './event-line/renderer';
 export type {
