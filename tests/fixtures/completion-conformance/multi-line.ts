@@ -5,7 +5,7 @@ export const fixture: ConformanceFixture = {
   chartType: 'multi-line',
   specSection: '16',
   firstLineKeyword: 'multi-line',
-  directives: ['series', 'x-label', 'y-label', 'no-value'],
+  directives: ['series', 'x-label', 'y-label', 'y-right-label', 'no-value'],
   pipeKeys: {},
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

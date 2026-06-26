@@ -459,6 +459,11 @@ export function parseSeriesNames(
   nameColors: (string | undefined)[];
   nameLineNumbers: number[];
   newIndex: number;
+  /** Per-name axis assignment — present only for the grouped (dual-axis) form. */
+  axes?: ('left' | 'right')[];
+  /** Left/right axis labels carried by the grouped form's headers. */
+  leftLabel?: string;
+  rightLabel?: string;
 } {
   let rawNames: string[];
   let series: string;
@@ -479,6 +484,58 @@ export function parseSeriesNames(
     nameLineNumbers = collected.lineNumbers;
     series = rawNames.join(', ');
   }
+
+  // Grouped (dual-axis) form: the indented block contains `y-label` /
+  // `y-right-label` header lines that partition the series across two y-axes
+  // (§15.1). Detected by the presence of any header line. Order is preserved:
+  // series accumulate under the most recent header (default left).
+  const isHeader = (s: string): 'left' | 'right' | null => {
+    const tok = s.split(/\s+/, 1)[0];
+    if (tok === 'y-label') return 'left';
+    if (tok === 'y-right-label') return 'right';
+    return null;
+  };
+  if (rawNames.some((r) => isHeader(r) !== null)) {
+    const names: string[] = [];
+    const nameColors: (string | undefined)[] = [];
+    const axes: ('left' | 'right')[] = [];
+    const memberLineNumbers: number[] = [];
+    let leftLabel: string | undefined;
+    let rightLabel: string | undefined;
+    let currentAxis: 'left' | 'right' = 'left';
+    for (let i = 0; i < rawNames.length; i++) {
+      const raw = rawNames[i]!;
+      const side = isHeader(raw);
+      if (side !== null) {
+        const label = raw.slice(raw.indexOf(' ') + 1).trim();
+        currentAxis = side;
+        if (side === 'left') leftLabel = label || leftLabel;
+        else rightLabel = label || rightLabel;
+        continue;
+      }
+      const extracted = extractColor(
+        raw,
+        palette,
+        diagnostics,
+        nameLineNumbers[i]!
+      );
+      names.push(extracted.label);
+      nameColors.push(extracted.color);
+      axes.push(currentAxis);
+      memberLineNumbers.push(nameLineNumbers[i]!);
+    }
+    return {
+      series: names.join(', '),
+      names,
+      nameColors,
+      nameLineNumbers: memberLineNumbers,
+      newIndex,
+      axes,
+      ...(leftLabel !== undefined && { leftLabel }),
+      ...(rightLabel !== undefined && { rightLabel }),
+    };
+  }
+
   const names: string[] = [];
   const nameColors: (string | undefined)[] = [];
   for (let i = 0; i < rawNames.length; i++) {

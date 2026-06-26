@@ -69,6 +69,7 @@ export const METADATA_KEYS = new Set([
   'orientation',
   'x-label',
   'y-label',
+  'y-right-label',
   'size-label',
   'x',
   'columns',

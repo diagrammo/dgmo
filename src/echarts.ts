@@ -2732,6 +2732,8 @@ function makeChartGrid(options: {
   hasTitle: boolean;
   hasLegend?: boolean | undefined;
   isHorizontal?: boolean | undefined;
+  /** Reserve room for a secondary (right) y-axis name — dual-axis line. */
+  hasRightLabel?: boolean | undefined;
 }): Record<string, unknown> {
   const left = options.yLabel ? '12%' : '3%';
   // The custom legend renderer in renderExtendedChartForExport always hoists
@@ -2747,7 +2749,7 @@ function makeChartGrid(options: {
           : '5%';
   return {
     left,
-    right: '4%',
+    right: options.hasRightLabel ? '12%' : '4%',
     bottom: options.xLabel ? '10%' : '3%',
     top,
     containLabel: true,
@@ -3032,10 +3034,24 @@ function buildMultiLineOption(
   const interval = buildIntervalStep(labels);
   const markArea = buildMarkArea(eras, labels, textColor, palette.colors.blue);
 
+  // Dual-axis (§15.1): per-series axis assignment. Absent ⇒ all on the left.
+  const axes: ('left' | 'right')[] =
+    parsed.seriesAxes ?? seriesNames.map(() => 'left');
+  const dual = axes.includes('right');
+  const seriesColors = seriesNames.map(
+    (_, idx) => parsed.seriesNameColors?.[idx] ?? colors[idx % colors.length]!
+  );
+  // An axis owned by exactly one series adopts that series' color (axis line +
+  // labels + name) so the reader can pair each line with its scale at a glance.
+  const soleAxisColor = (side: 'left' | 'right'): string | undefined => {
+    const owners = axes
+      .map((a, i) => (a === side ? i : -1))
+      .filter((i) => i >= 0);
+    return owners.length === 1 ? seriesColors[owners[0]!] : undefined;
+  };
+
   const series = seriesNames.map((name, idx) => {
-    // colors is a non-empty palette array; modulo index is always in-bounds.
-    const color =
-      parsed.seriesNameColors?.[idx] ?? colors[idx % colors.length]!;
+    const color = seriesColors[idx]!;
     const data = parsed.data.map((dp) =>
       idx === 0 ? dp.value : (dp.extraValues?.[idx - 1] ?? 0)
     );
@@ -3047,6 +3063,7 @@ function buildMultiLineOption(
       symbolSize: 8,
       lineStyle: { color, width: 3 },
       itemStyle: { color },
+      ...(dual && { yAxisIndex: axes[idx] === 'right' ? 1 : 0 }),
       label: {
         show: !parsed.noValue,
         position: 'top' as const,
@@ -3062,6 +3079,35 @@ function buildMultiLineOption(
     };
   });
 
+  const makeValueAxis = (label: string | undefined) =>
+    makeGridAxis(
+      'value',
+      textColor,
+      axisLineColor,
+      splitLineColor,
+      gridOpacity,
+      label,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      sc
+    );
+
+  let yAxisConfig: Record<string, unknown> | Record<string, unknown>[];
+  if (dual) {
+    const leftAxis = makeValueAxis(yLabel);
+    tintAxis(leftAxis, soleAxisColor('left'));
+    const rightAxis = makeValueAxis(parsed.yrlabel);
+    tintAxis(rightAxis, soleAxisColor('right'));
+    // Only the left axis draws gridlines — a second grid from the right axis
+    // would not align and reads as visual noise (standard dual-axis hygiene).
+    rightAxis['splitLine'] = { show: false };
+    yAxisConfig = [leftAxis, rightAxis];
+  } else {
+    yAxisConfig = makeValueAxis(yLabel);
+  }
+
   return {
     ...CHART_BASE,
     ...(titleConfig !== undefined && { title: titleConfig }),
@@ -3075,6 +3121,7 @@ function buildMultiLineOption(
       yLabel,
       hasTitle: !!parsed.title && !parsed.noTitle,
       hasLegend: true,
+      hasRightLabel: dual && !!parsed.yrlabel,
     }),
     xAxis: makeGridAxis(
       'category',
@@ -3089,21 +3136,25 @@ function buildMultiLineOption(
       interval,
       sc
     ),
-    yAxis: makeGridAxis(
-      'value',
-      textColor,
-      axisLineColor,
-      splitLineColor,
-      gridOpacity,
-      yLabel,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      sc
-    ),
+    yAxis: yAxisConfig,
     series,
   };
+}
+
+/**
+ * Recolor a value-axis config (axis line, tick labels, and axis name) to a
+ * single color — used by dual-axis line charts so a single-series axis visually
+ * matches its line. No-op when color is undefined (axis stays neutral).
+ */
+function tintAxis(axis: Record<string, unknown>, color?: string): void {
+  if (!color) return;
+  axis['axisLine'] = { lineStyle: { color } };
+  const axisLabel = axis['axisLabel'] as Record<string, unknown> | undefined;
+  if (axisLabel) axisLabel['color'] = color;
+  const nameTextStyle = axis['nameTextStyle'] as
+    | Record<string, unknown>
+    | undefined;
+  if (nameTextStyle) nameTextStyle['color'] = color;
 }
 
 // ── Area ─────────────────────────────────────────────────────

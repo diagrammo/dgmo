@@ -6,7 +6,7 @@ export const fixture: ConformanceFixture = {
   chartType: 'line',
   specSection: '16',
   firstLineKeyword: 'line',
-  directives: ['series', 'x-label', 'y-label', 'no-value'],
+  directives: ['series', 'x-label', 'y-label', 'y-right-label', 'no-value'],
   pipeKeys: {},
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

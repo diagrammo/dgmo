@@ -2147,6 +2147,23 @@ Each chart honors the subset of flags that has a renderable atom on it:
 era Day 1 -> Day 3 Rough Seas red
 ```
 
+**Dual y-axes (line / multi-line):** to compare two metrics with unrelated units on one chart, group the `series` block under `y-label` (left) and `y-right-label` (right) headers — series indented under each header bind to that axis, which auto-scales independently:
+
+```
+line Oil Price vs Strategic Reserve
+series
+  y-label $ / barrel
+    Oil Price blue
+  y-right-label Million barrels
+    SPR Size green
+
+2020 40 640
+2021 68 620
+2022 95 372
+```
+
+The right axis may hold more than one series; data rows stay positional across both groups (one value per series, document order). A flat `series` block is single-axis as before. Combo bar+line on dual axes is not yet supported — every series renders as a line.
+
 ### 15.2 Scatter / Bubble Charts
 
 <!-- TYPE:scatter -->
