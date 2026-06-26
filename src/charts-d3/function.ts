@@ -12,6 +12,7 @@ import {
   type Margins,
   TICK_FONT,
   fmtNum,
+  computeLeftMargin,
   drawXAxisTitle,
   drawYAxisTitle,
   tagDatum,
@@ -63,7 +64,9 @@ export function renderFunction(
     color: fn.color ?? colors[i % colors.length]!,
     name: fn.name,
     line: fn.lineNumber,
-    pts: xs.map((x) => [x, evaluateExpression(fn.expression, x)] as [number, number]),
+    pts: xs.map(
+      (x) => [x, evaluateExpression(fn.expression, x)] as [number, number]
+    ),
   }));
 
   let yLo = Infinity;
@@ -80,26 +83,62 @@ export function renderFunction(
   }
   if (yLo === yHi) yHi = yLo + 1;
 
-  const m: Margins = { top: topInset + 8, right: 32, bottom: 64, left: 72 };
+  const m: Margins = {
+    top: topInset + 8,
+    right: 32,
+    bottom: 64,
+    left: computeLeftMargin(chart.ylabel, [fmtNum(yHi), fmtNum(yLo)]),
+  };
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
-  const x = scaleLinear().domain([xr.min, xr.max]).range([m.left, m.left + plotW]);
-  const y = scaleLinear().domain([yLo, yHi]).nice().range([m.top + plotH, m.top]);
+  const x = scaleLinear()
+    .domain([xr.min, xr.max])
+    .range([m.left, m.left + plotW]);
+  const y = scaleLinear()
+    .domain([yLo, yHi])
+    .nice()
+    .range([m.top + plotH, m.top]);
 
   // gridlines + ticks
   for (const t of y.ticks(8)) {
     const yy = y(t);
-    svg.append('line').attr('x1', m.left).attr('x2', m.left + plotW).attr('y1', yy).attr('y2', yy)
-      .attr('stroke', mutedColor).attr('stroke-opacity', t === 0 ? 0.6 : 0.2);
-    svg.append('text').attr('x', m.left - 10).attr('y', yy + 4).attr('text-anchor', 'end')
-      .attr('fill', textColor).attr('font-size', TICK_FONT).attr('font-family', FONT_FAMILY).text(fmtNum(t));
+    svg
+      .append('line')
+      .attr('x1', m.left)
+      .attr('x2', m.left + plotW)
+      .attr('y1', yy)
+      .attr('y2', yy)
+      .attr('stroke', mutedColor)
+      .attr('stroke-opacity', t === 0 ? 0.6 : 0.2);
+    svg
+      .append('text')
+      .attr('x', m.left - 10)
+      .attr('y', yy + 4)
+      .attr('text-anchor', 'end')
+      .attr('fill', textColor)
+      .attr('font-size', TICK_FONT)
+      .attr('font-family', FONT_FAMILY)
+      .text(fmtNum(t));
   }
   for (const t of x.ticks(10)) {
     const xx = x(t);
-    svg.append('line').attr('x1', xx).attr('x2', xx).attr('y1', m.top).attr('y2', m.top + plotH)
-      .attr('stroke', mutedColor).attr('stroke-opacity', t === 0 ? 0.6 : 0.2);
-    svg.append('text').attr('x', xx).attr('y', m.top + plotH + 18).attr('text-anchor', 'middle')
-      .attr('fill', textColor).attr('font-size', TICK_FONT).attr('font-family', FONT_FAMILY).text(fmtNum(t));
+    svg
+      .append('line')
+      .attr('x1', xx)
+      .attr('x2', xx)
+      .attr('y1', m.top)
+      .attr('y2', m.top + plotH)
+      .attr('stroke', mutedColor)
+      .attr('stroke-opacity', t === 0 ? 0.6 : 0.2);
+    svg
+      .append('text')
+      .attr('x', xx)
+      .attr('y', m.top + plotH + 18)
+      .attr('text-anchor', 'middle')
+      .attr('fill', textColor)
+      .attr('font-size', TICK_FONT)
+      .attr('font-family', FONT_FAMILY)
+      .text(fmtNum(t));
   }
 
   const gen = d3line<[number, number]>()
@@ -107,11 +146,22 @@ export function renderFunction(
     .x((p) => x(p[0]))
     .y((p) => y(p[1]));
   for (const c of curves) {
-    const path = svg.append('path').attr('d', gen(c.pts) ?? '').attr('fill', 'none')
-      .attr('stroke', c.color).attr('stroke-width', 2.5).attr('stroke-linejoin', 'round');
+    const path = svg
+      .append('path')
+      .attr('d', gen(c.pts) ?? '')
+      .attr('fill', 'none')
+      .attr('stroke', c.color)
+      .attr('stroke-width', 2.5)
+      .attr('stroke-linejoin', 'round');
     tagDatum(path, { line: c.line, key: c.name, name: c.name, color: c.color });
   }
 
-  drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, m.top + plotH + 46, textColor);
+  drawXAxisTitle(
+    svg,
+    chart.xlabel,
+    m.left + plotW / 2,
+    m.top + plotH + 46,
+    textColor
+  );
   drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
 }

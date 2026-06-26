@@ -17,6 +17,7 @@ import {
   TICK_FONT,
   fmtNum,
   reserveHeader,
+  computeLeftMargin,
   drawXAxisTitle,
   drawYAxisTitle,
   drawValueLabel,
@@ -45,10 +46,9 @@ export function renderBar(
   hasTitle: boolean
 ): void {
   const data = chart.data;
-  const seriesNames =
-    chart.seriesNames && chart.seriesNames.length
-      ? chart.seriesNames
-      : [chart.series ?? ''];
+  const seriesNames = chart.seriesNames?.length
+    ? chart.seriesNames
+    : [chart.series ?? ''];
   const stacked = chart.type === 'bar-stacked';
   // ECharts parity: plain `bar` renders only the first series (extra series are
   // dropped, matching the parser's E_* warning); only bar-stacked stacks them.
@@ -71,17 +71,35 @@ export function renderBar(
       ? colors[seriesIdx % colors.length]!
       : colors[catIdx % colors.length]!;
   };
-  const fillOf = (c: string) =>
-    solid ? c : shapeFill(palette, c, isDark);
+  const fillOf = (c: string) => (solid ? c : shapeFill(palette, c, isDark));
 
-  const top = reserveHeader(svg, chart, colors, palette, isDark, hasTitle, width);
-  const m: Margins = { top: top + 8, right: 32, bottom: 64, left: 72 };
+  const top = reserveHeader(
+    svg,
+    chart,
+    colors,
+    palette,
+    isDark,
+    hasTitle,
+    width
+  );
 
   const perCat = data.map((d) => seriesValues(d, seriesCount));
   const maxVal = stacked
-    ? d3max(perCat, (vals) => vals.reduce((a, b) => a + b, 0)) ?? 0
-    : d3max(perCat, (vals) => d3max(vals) ?? 0) ?? 0;
+    ? (d3max(perCat, (vals) => vals.reduce((a, b) => a + b, 0)) ?? 0)
+    : (d3max(perCat, (vals) => d3max(vals) ?? 0) ?? 0);
   const niceMax = maxVal === 0 ? 1 : maxVal;
+
+  // Left margin must fit the rotated y-title + the left-edge labels: category
+  // names for horizontal bars, value ticks for vertical.
+  const leftLabels = horizontal
+    ? data.map((d) => d.label)
+    : [fmtNum(niceMax), fmtNum(niceMax / 2)];
+  const m: Margins = {
+    top: top + 8,
+    right: 32,
+    bottom: 64,
+    left: computeLeftMargin(chart.ylabel, leftLabels),
+  };
 
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
@@ -195,15 +213,45 @@ export function renderBar(
         if (horiz) {
           const x0 = val(acc);
           const x1 = val(acc + v);
-          rect(svg, Math.min(x0, x1), base, Math.abs(x1 - x0), cat.bandwidth(), fill, stroke, tag);
+          rect(
+            svg,
+            Math.min(x0, x1),
+            base,
+            Math.abs(x1 - x0),
+            cat.bandwidth(),
+            fill,
+            stroke,
+            tag
+          );
           if (Math.abs(x1 - x0) > 26)
-            drawValueLabel(svg, fmtNum(v), (x0 + x1) / 2, base + cat.bandwidth() / 2 + 4, textColor);
+            drawValueLabel(
+              svg,
+              fmtNum(v),
+              (x0 + x1) / 2,
+              base + cat.bandwidth() / 2 + 4,
+              textColor
+            );
         } else {
           const y0 = val(acc);
           const y1 = val(acc + v);
-          rect(svg, base, Math.min(y0, y1), cat.bandwidth(), Math.abs(y1 - y0), fill, stroke, tag);
+          rect(
+            svg,
+            base,
+            Math.min(y0, y1),
+            cat.bandwidth(),
+            Math.abs(y1 - y0),
+            fill,
+            stroke,
+            tag
+          );
           if (Math.abs(y1 - y0) > 18)
-            drawValueLabel(svg, fmtNum(v), base + cat.bandwidth() / 2, (y0 + y1) / 2 + 4, textColor);
+            drawValueLabel(
+              svg,
+              fmtNum(v),
+              base + cat.bandwidth() / 2,
+              (y0 + y1) / 2 + 4,
+              textColor
+            );
         }
         acc += v;
       } else {
@@ -211,18 +259,55 @@ export function renderBar(
         const bw = inner!.bandwidth();
         if (horiz) {
           const x1 = val(v);
-          rect(svg, Math.min(zero, x1), base + off, Math.abs(x1 - zero), bw, fill, stroke, tag);
-          drawValueLabel(svg, fmtNum(v), x1 + 6, base + off + bw / 2 + 4, textColor, 'start');
+          rect(
+            svg,
+            Math.min(zero, x1),
+            base + off,
+            Math.abs(x1 - zero),
+            bw,
+            fill,
+            stroke,
+            tag
+          );
+          drawValueLabel(
+            svg,
+            fmtNum(v),
+            x1 + 6,
+            base + off + bw / 2 + 4,
+            textColor,
+            'start'
+          );
         } else {
           const y1 = val(v);
-          rect(svg, base + off, Math.min(zero, y1), bw, Math.abs(zero - y1), fill, stroke, tag);
-          drawValueLabel(svg, fmtNum(v), base + off + bw / 2, y1 - 6, textColor);
+          rect(
+            svg,
+            base + off,
+            Math.min(zero, y1),
+            bw,
+            Math.abs(zero - y1),
+            fill,
+            stroke,
+            tag
+          );
+          drawValueLabel(
+            svg,
+            fmtNum(v),
+            base + off + bw / 2,
+            y1 - 6,
+            textColor
+          );
         }
       }
     });
   });
 
-  drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, m.top + plotH + 46, textColor);
+  drawXAxisTitle(
+    svg,
+    chart.xlabel,
+    m.left + plotW / 2,
+    m.top + plotH + 46,
+    textColor
+  );
   drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
 }
 

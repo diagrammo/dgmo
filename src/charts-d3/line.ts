@@ -15,6 +15,7 @@ import {
   TICK_FONT,
   fmtNum,
   reserveHeader,
+  computeLeftMargin,
   drawXAxisTitle,
   drawYAxisTitle,
   drawValueLabel,
@@ -24,7 +25,7 @@ function seriesValue(
   pt: { value: number; extraValues?: number[] },
   s: number
 ): number {
-  return s === 0 ? pt.value : pt.extraValues?.[s - 1] ?? 0;
+  return s === 0 ? pt.value : (pt.extraValues?.[s - 1] ?? 0);
 }
 
 export function renderLine(
@@ -42,21 +43,24 @@ export function renderLine(
 ): void {
   const data = chart.data;
   const isArea = chart.type === 'area';
-  const seriesNames =
-    chart.seriesNames && chart.seriesNames.length
-      ? chart.seriesNames
-      : [chart.series ?? ''];
+  const seriesNames = chart.seriesNames?.length
+    ? chart.seriesNames
+    : [chart.series ?? ''];
   const seriesCount = Math.max(
     1,
     seriesNames.length,
     1 + Math.max(0, ...data.map((d) => d.extraValues?.length ?? 0))
   );
 
-  const top = reserveHeader(svg, chart, colors, palette, isDark, hasTitle, width);
-  const m: Margins = { top: top + 8, right: 32, bottom: 64, left: 72 };
-
-  const plotW = width - m.left - m.right;
-  const plotH = height - m.top - m.bottom;
+  const top = reserveHeader(
+    svg,
+    chart,
+    colors,
+    palette,
+    isDark,
+    hasTitle,
+    width
+  );
 
   let lo = Infinity;
   let hi = -Infinity;
@@ -75,14 +79,26 @@ export function renderLine(
   if (lo > 0) lo = 0;
   if (lo === hi) hi = lo + 1;
 
+  const m: Margins = {
+    top: top + 8,
+    right: 32,
+    bottom: 64,
+    left: computeLeftMargin(chart.ylabel, [fmtNum(hi), fmtNum(lo)]),
+  };
+  const plotW = width - m.left - m.right;
+  const plotH = height - m.top - m.bottom;
+
   const x = scalePoint<string>()
     .domain(data.map((d) => d.label))
     .range([m.left, m.left + plotW])
     .padding(0.5);
-  const y = scaleLinear().domain([lo, hi]).nice().range([m.top + plotH, m.top]);
+  const y = scaleLinear()
+    .domain([lo, hi])
+    .nice()
+    .range([m.top + plotH, m.top]);
 
   // era bands (markArea parity)
-  if (chart.eras && chart.eras.length) {
+  if (chart.eras?.length) {
     chart.eras.forEach((era, i) => {
       const xs = x(era.start);
       const xe = x(era.end);
@@ -215,10 +231,22 @@ export function renderLine(
         .attr('fill', bgColor)
         .attr('stroke', color)
         .attr('stroke-width', 2);
-      drawValueLabel(svg, fmtNum(p.v), x(p.label) ?? 0, y(p.v) - 10, labelColor);
+      drawValueLabel(
+        svg,
+        fmtNum(p.v),
+        x(p.label) ?? 0,
+        y(p.v) - 10,
+        labelColor
+      );
     }
   }
 
-  drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, m.top + plotH + 46, textColor);
+  drawXAxisTitle(
+    svg,
+    chart.xlabel,
+    m.left + plotW / 2,
+    m.top + plotH + 46,
+    textColor
+  );
   drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
 }

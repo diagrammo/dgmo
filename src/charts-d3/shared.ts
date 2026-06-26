@@ -10,6 +10,7 @@
 
 import type * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
+import { measureText } from '../utils/text-measure';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { getSimpleChartLegendGroups } from '../echarts';
@@ -101,6 +102,23 @@ export function injectLegendGroups(
   return legendY + legendH + 14;
 }
 
+/**
+ * Compute a left margin that fits both the rotated y-axis title (when present)
+ * and the widest left-edge label (value ticks for vertical charts, category
+ * names for horizontal bars). Fixes axis-title / tick-label collisions.
+ */
+export function computeLeftMargin(
+  yLabel: string | undefined,
+  leftLabels: string[]
+): number {
+  const pad = 16;
+  const titleBand = yLabel ? 22 : 0;
+  const labelW = leftLabels.length
+    ? Math.max(...leftLabels.map((t) => measureText(t, TICK_FONT)))
+    : 0;
+  return Math.max(56, pad + titleBand + labelW + 14);
+}
+
 /** Draw a centered axis title below the x-axis. */
 export function drawXAxisTitle(
   svg: Svg,
@@ -150,7 +168,13 @@ export function drawYAxisTitle(
  */
 export function tagDatum<E extends Element>(
   sel: d3Selection.Selection<E, unknown, null, undefined>,
-  o: { line?: number; key?: string; name?: string; value?: string | number; color?: string }
+  o: {
+    line?: number;
+    key?: string;
+    name?: string;
+    value?: string | number;
+    color?: string;
+  }
 ): d3Selection.Selection<E, unknown, null, undefined> {
   const cls = (sel.attr('class') ?? '').split(/\s+/).filter(Boolean);
   if (!cls.includes('dgmo-datum')) cls.push('dgmo-datum');

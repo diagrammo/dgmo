@@ -15,6 +15,7 @@ import {
   type Margins,
   TICK_FONT,
   fmtNum,
+  computeLeftMargin,
   drawXAxisTitle,
   drawYAxisTitle,
   tagDatum,
@@ -47,10 +48,6 @@ export function renderScatter(
     chart.categoryColors?.[cat] ?? colors[i % colors.length]!;
   const catIndex = new Map(categories.map((c, i) => [c, i]));
 
-  const m: Margins = { top: topInset + 8, right: 32, bottom: 64, left: 72 };
-  const plotW = width - m.left - m.right;
-  const plotH = height - m.top - m.bottom;
-
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
   const xMin = Math.min(...xs);
@@ -59,6 +56,18 @@ export function renderScatter(
   const yMax = Math.max(...ys);
   const xPad = (xMax - xMin) * 0.1 || 1;
   const yPad = (yMax - yMin) * 0.1 || 1;
+
+  const m: Margins = {
+    top: topInset + 8,
+    right: 32,
+    bottom: 64,
+    left: computeLeftMargin(chart.ylabel, [
+      fmtNum(Math.ceil(yMax + yPad)),
+      fmtNum(Math.floor(yMin - yPad)),
+    ]),
+  };
+  const plotW = width - m.left - m.right;
+  const plotH = height - m.top - m.bottom;
 
   const x = scaleLinear()
     .domain([Math.floor(xMin - xPad), Math.ceil(xMax + xPad)])
@@ -116,7 +125,7 @@ export function renderScatter(
       (p.category
         ? catColor(p.category, catIndex.get(p.category) ?? 0)
         : colors[i % colors.length]!);
-    const r = (hasSize ? p.size ?? DEFAULT_SIZE : DEFAULT_SIZE) / 2;
+    const r = (hasSize ? (p.size ?? DEFAULT_SIZE) : DEFAULT_SIZE) / 2;
     const dot = svg
       .append('circle')
       .attr('cx', x(p.x))
@@ -146,6 +155,12 @@ export function renderScatter(
     }
   });
 
-  drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, m.top + plotH + 46, textColor);
+  drawXAxisTitle(
+    svg,
+    chart.xlabel,
+    m.left + plotW / 2,
+    m.top + plotH + 46,
+    textColor
+  );
   drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
 }
