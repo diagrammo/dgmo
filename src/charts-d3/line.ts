@@ -1,9 +1,10 @@
 // ============================================================
-// Hand-built line / multi-line / area renderer — SPIKE.
-// Series-tinted value labels, 0-baseline, era bands (markArea parity).
+// Hand-built line / multi-line / area renderer.
+// Series-tinted value labels, 0-baseline, era bands (markArea parity),
+// dual y-axis (§15.1: y-label / y-right-label grouped series).
 // ============================================================
 
-import { scalePoint, scaleLinear } from 'd3-scale';
+import { scalePoint, scaleLinear, type ScaleLinear } from 'd3-scale';
 import { line as d3line, area as d3area } from 'd3-shape';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
@@ -51,6 +52,20 @@ export function renderLine(
     seriesNames.length,
     1 + Math.max(0, ...data.map((d) => d.extraValues?.length ?? 0))
   );
+  const seriesColor = (s: number): string =>
+    chart.seriesNameColors?.[s] ?? colors[s % colors.length]!;
+
+  // Dual-axis (§15.1): per-series left/right assignment; absent ⇒ all left.
+  const axisOf = (s: number): 'left' | 'right' =>
+    chart.seriesAxes?.[s] ?? 'left';
+  const dual = (chart.seriesAxes ?? []).includes('right');
+  // An axis owned by exactly one series adopts that series' color.
+  const soleAxisColor = (side: 'left' | 'right'): string | undefined => {
+    const owners: number[] = [];
+    for (let s = 0; s < seriesCount; s++)
+      if (axisOf(s) === side) owners.push(s);
+    return owners.length === 1 ? seriesColor(owners[0]!) : undefined;
+  };
 
   const top = reserveHeader(
     svg,
@@ -62,28 +77,32 @@ export function renderLine(
     width
   );
 
-  let lo = Infinity;
-  let hi = -Infinity;
-  for (const d of data) {
-    for (let s = 0; s < seriesCount; s++) {
-      const v = seriesValue(d, s);
-      lo = Math.min(lo, v);
-      hi = Math.max(hi, v);
-    }
-  }
-  if (!isFinite(lo)) {
-    lo = 0;
-    hi = 1;
-  }
-  // 0-baseline for all-positive data (ECharts parity).
-  if (lo > 0) lo = 0;
-  if (lo === hi) hi = lo + 1;
+  // Per-axis value extent (0-baseline for all-positive data, ECharts parity).
+  const extentFor = (side: 'left' | 'right'): [number, number] => {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const d of data)
+      for (let s = 0; s < seriesCount; s++)
+        if (axisOf(s) === side) {
+          const v = seriesValue(d, s);
+          lo = Math.min(lo, v);
+          hi = Math.max(hi, v);
+        }
+    if (!isFinite(lo)) return [0, 1];
+    if (lo > 0) lo = 0;
+    if (lo === hi) hi = lo + 1;
+    return [lo, hi];
+  };
+  const [loL, hiL] = extentFor('left');
+  const [loR, hiR] = dual ? extentFor('right') : [0, 1];
 
   const m: Margins = {
     top: top + 8,
-    right: 32,
+    right: dual
+      ? computeLeftMargin(chart.yrlabel, [fmtNum(hiR), fmtNum(loR)])
+      : 32,
     bottom: 64,
-    left: computeLeftMargin(chart.ylabel, [fmtNum(hi), fmtNum(lo)]),
+    left: computeLeftMargin(chart.ylabel, [fmtNum(hiL), fmtNum(loL)]),
   };
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
@@ -92,12 +111,22 @@ export function renderLine(
     .domain(data.map((d) => d.label))
     .range([m.left, m.left + plotW])
     .padding(0.5);
-  const y = scaleLinear()
-    .domain([lo, hi])
+  const yL = scaleLinear()
+    .domain([loL, hiL])
     .nice()
     .range([m.top + plotH, m.top]);
+  const yR: ScaleLinear<number, number> | null = dual
+    ? scaleLinear()
+        .domain([loR, hiR])
+        .nice()
+        .range([m.top + plotH, m.top])
+    : null;
+  const yFor = (s: number): ScaleLinear<number, number> =>
+    dual && axisOf(s) === 'right' && yR ? yR : yL;
+  const leftTint = dual ? soleAxisColor('left') : undefined;
+  const rightTint = soleAxisColor('right');
 
-  // era bands (markArea parity)
+  // era bands (markArea parity) — positioned on the left axis
   if (chart.eras?.length) {
     chart.eras.forEach((era, i) => {
       const xs = x(era.start);
@@ -124,9 +153,9 @@ export function renderLine(
     });
   }
 
-  // y gridlines + ticks
-  for (const t of y.ticks(6)) {
-    const yy = y(t);
+  // left y gridlines + ticks (only the left axis draws gridlines)
+  for (const t of yL.ticks(6)) {
+    const yy = yL(t);
     svg
       .append('line')
       .attr('x1', m.left)
@@ -141,10 +170,26 @@ export function renderLine(
       .attr('x', m.left - 10)
       .attr('y', yy + 4)
       .attr('text-anchor', 'end')
-      .attr('fill', textColor)
+      .attr('fill', leftTint ?? textColor)
       .attr('font-size', TICK_FONT)
       .attr('font-family', FONT_FAMILY)
       .text(fmtNum(t));
+  }
+
+  // right y ticks (no gridlines)
+  if (dual && yR) {
+    for (const t of yR.ticks(6)) {
+      svg
+        .append('text')
+        .attr('class', 'dgmo-tick')
+        .attr('x', m.left + plotW + 10)
+        .attr('y', yR(t) + 4)
+        .attr('text-anchor', 'start')
+        .attr('fill', rightTint ?? textColor)
+        .attr('font-size', TICK_FONT)
+        .attr('font-family', FONT_FAMILY)
+        .text(fmtNum(t));
+    }
   }
 
   // x category labels
@@ -173,7 +218,8 @@ export function renderLine(
     .attr('fill', 'transparent');
 
   for (let s = 0; s < seriesCount; s++) {
-    const color = colors[s % colors.length]!;
+    const color = seriesColor(s);
+    const yy = yFor(s);
     const name = seriesNames[s] ?? `Series ${s + 1}`;
     const pts = data.map((d, i) => ({
       label: d.label,
@@ -181,8 +227,6 @@ export function renderLine(
       xIndex: i,
       lineNumber: d.lineNumber,
     }));
-    // Semantic series group — joins the app's generic data-attribute
-    // interactivity path (hover-dim, click-to-line) like every other diagram.
     const g = svg
       .append('g')
       .attr('class', 'dgmo-series')
@@ -195,8 +239,8 @@ export function renderLine(
     if (isArea) {
       const areaGen = d3area<(typeof pts)[number]>()
         .x((p) => x(p.label) ?? 0)
-        .y0(y(Math.max(lo, 0)))
-        .y1((p) => y(p.v));
+        .y0(yy(Math.max(yy.domain()[0]!, 0)))
+        .y1((p) => yy(p.v));
       g.append('path')
         .attr('class', 'dgmo-series-area')
         .attr('d', areaGen(pts) ?? '')
@@ -206,7 +250,7 @@ export function renderLine(
 
     const lineGen = d3line<(typeof pts)[number]>()
       .x((p) => x(p.label) ?? 0)
-      .y((p) => y(p.v));
+      .y((p) => yy(p.v));
     g.append('path')
       .attr('class', 'dgmo-series-line')
       .attr('d', lineGen(pts) ?? '')
@@ -228,18 +272,20 @@ export function renderLine(
         .attr('data-value', p.v)
         .attr('data-line-number', p.lineNumber)
         .attr('cx', x(p.label) ?? 0)
-        .attr('cy', y(p.v))
+        .attr('cy', yy(p.v))
         .attr('r', 3.5)
         .attr('fill', bgColor)
         .attr('stroke', color)
         .attr('stroke-width', 2);
-      drawValueLabel(
-        svg,
-        fmtNum(p.v),
-        x(p.label) ?? 0,
-        y(p.v) - 10,
-        labelColor
-      );
+      if (!chart.noValue) {
+        drawValueLabel(
+          svg,
+          fmtNum(p.v),
+          x(p.label) ?? 0,
+          yy(p.v) - 10,
+          labelColor
+        );
+      }
     }
   }
 
@@ -250,5 +296,20 @@ export function renderLine(
     m.top + plotH + 46,
     textColor
   );
-  drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
+  drawYAxisTitle(
+    svg,
+    chart.ylabel,
+    m.top + plotH / 2,
+    20,
+    leftTint ?? textColor
+  );
+  if (dual) {
+    drawYAxisTitle(
+      svg,
+      chart.yrlabel,
+      m.top + plotH / 2,
+      width - 18,
+      rightTint ?? textColor
+    );
+  }
 }

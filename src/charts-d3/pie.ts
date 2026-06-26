@@ -75,19 +75,29 @@ export function renderPie(
     const x1 = Math.cos(mid) * (radius + 16);
     const y1 = Math.sin(mid) * (radius + 16);
     const x2 = x1 + (rightSide ? 28 : -28);
-    g.append('polyline')
-      .attr('points', `${x0},${y0} ${x1},${y1} ${x2},${y1}`)
-      .attr('fill', 'none')
-      .attr('stroke', stroke)
-      .attr('stroke-width', 1);
-    g.append('text')
-      .attr('x', x2 + (rightSide ? 4 : -4))
-      .attr('y', y1 + 4)
-      .attr('text-anchor', rightSide ? 'start' : 'end')
-      .attr('fill', textColor)
-      .attr('font-size', LABEL_FONT)
-      .attr('font-family', FONT_FAMILY)
-      .text(`${data[i]!.label} — ${fmtNum(data[i]!.value)} (${pct}%)`);
+    const nm = chart.noName ? '' : data[i]!.label;
+    const tail = [
+      chart.noValue ? '' : fmtNum(data[i]!.value),
+      chart.noPercent ? '' : `(${pct}%)`,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const label = [nm, tail].filter(Boolean).join(' — ');
+    if (label) {
+      g.append('polyline')
+        .attr('points', `${x0},${y0} ${x1},${y1} ${x2},${y1}`)
+        .attr('fill', 'none')
+        .attr('stroke', stroke)
+        .attr('stroke-width', 1);
+      g.append('text')
+        .attr('x', x2 + (rightSide ? 4 : -4))
+        .attr('y', y1 + 4)
+        .attr('text-anchor', rightSide ? 'start' : 'end')
+        .attr('fill', textColor)
+        .attr('font-size', LABEL_FONT)
+        .attr('font-family', FONT_FAMILY)
+        .text(label);
+    }
   });
 
   if (isDoughnut) {

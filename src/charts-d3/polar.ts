@@ -67,13 +67,23 @@ export function renderPolarArea(
     const rightSide = Math.cos(mid) >= 0;
     const lx = Math.cos(mid) * (outerR + 14);
     const ly = Math.sin(mid) * (outerR + 14);
-    g.append('text')
-      .attr('x', lx + (rightSide ? 4 : -4))
-      .attr('y', ly + 4)
-      .attr('text-anchor', rightSide ? 'start' : 'end')
-      .attr('fill', textColor)
-      .attr('font-size', 13)
-      .attr('font-family', FONT_FAMILY)
-      .text(`${d.label} — ${fmtNum(d.value)} (${pct}%)`);
+    const nm = chart.noName ? '' : d.label;
+    const tail = [
+      chart.noValue ? '' : fmtNum(d.value),
+      chart.noPercent ? '' : `(${pct}%)`,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const label = [nm, tail].filter(Boolean).join(' — ');
+    if (label) {
+      g.append('text')
+        .attr('x', lx + (rightSide ? 4 : -4))
+        .attr('y', ly + 4)
+        .attr('text-anchor', rightSide ? 'start' : 'end')
+        .attr('fill', textColor)
+        .attr('font-size', 13)
+        .attr('font-family', FONT_FAMILY)
+        .text(label);
+    }
   });
 }
