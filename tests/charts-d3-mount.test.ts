@@ -3,6 +3,7 @@
 // update → destroy) works headlessly, with no ECharts and no framework.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mountD3DataChart } from '../src/charts-d3/mount';
+import { renderDataChartD3 } from '../src/charts-d3/index';
 
 const LINE = `line Monthly Active Users
 series
@@ -29,7 +30,10 @@ afterEach(() => {
 
 describe('mountD3DataChart', () => {
   it('renders an interactive SVG with semantic markup', async () => {
-    const ctrl = mountD3DataChart(host, LINE, { theme: 'light', palette: 'slate' });
+    const ctrl = mountD3DataChart(host, LINE, {
+      theme: 'light',
+      palette: 'slate',
+    });
     await ctrl.update(LINE);
     expect(host.querySelector('svg')).toBeTruthy();
     expect(host.querySelector('.dgmo-series')).toBeTruthy();
@@ -44,7 +48,9 @@ describe('mountD3DataChart', () => {
       onNavigate: (n) => (navigated = n),
     });
     await ctrl.update(LINE);
-    const pt = host.querySelector<SVGCircleElement>('.dgmo-pt[data-line-number]');
+    const pt = host.querySelector<SVGCircleElement>(
+      '.dgmo-pt[data-line-number]'
+    );
     expect(pt).toBeTruthy();
     const expected = parseInt(pt!.getAttribute('data-line-number')!, 10);
     pt!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -58,9 +64,26 @@ describe('mountD3DataChart', () => {
     expect(host.querySelector('.dgmo-series')).toBeTruthy();
     // switch to a different chart family
     await ctrl.update(PIE);
-    expect(host.querySelector('.dgmo-datum[data-name="TypeScript"]')).toBeTruthy();
+    expect(
+      host.querySelector('.dgmo-datum[data-name="TypeScript"]')
+    ).toBeTruthy();
     expect(host.querySelector('.dgmo-series')).toBeFalsy();
     ctrl.destroy();
+  });
+
+  it('renders at the requested dimensions (responsive to pane size)', async () => {
+    const svg = await renderDataChartD3(LINE, 'light', undefined, {
+      width: 640,
+      height: 360,
+    });
+    expect(svg).toContain('width="640"');
+    expect(svg).toContain('height="360"');
+    const big = await renderDataChartD3(LINE, 'light', undefined, {
+      width: 1000,
+      height: 500,
+    });
+    expect(big).toContain('width="1000"');
+    expect(big).toContain('height="500"');
   });
 
   it('destroy() clears the container and detaches', async () => {

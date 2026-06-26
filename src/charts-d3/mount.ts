@@ -17,10 +17,8 @@
 
 import { render } from '../render';
 import { getPalette } from '../palettes';
-import {
-  attachDataChartInteractions,
-  type DataChartInteractionOpts,
-} from './interactions';
+import { renderDataChartD3 } from './index';
+import { attachDataChartInteractions } from './interactions';
 
 export interface MountD3Opts {
   theme?: 'light' | 'dark' | 'transparent';
@@ -39,22 +37,16 @@ export interface MountedD3Chart {
   destroy: () => void;
 }
 
-function interactionOpts(o: MountD3Opts): DataChartInteractionOpts {
-  const theme = o.theme ?? 'light';
-  const pal = getPalette(o.palette ?? 'slate')[theme === 'dark' ? 'dark' : 'light'];
-  return {
-    ...(o.onNavigate && { onNavigate: o.onNavigate }),
-    mutedColor: o.mutedColor ?? pal.border,
-    surface: o.surface ?? pal.surface,
-    text: o.text ?? pal.text,
-  };
-}
-
 /**
  * Render + mount an interactive D3 data chart into `container`. Returns a
  * controller; call `destroy()` on unmount. No-op interactions if the rendered
  * type carries no interactive markup.
  */
+function paletteOf(o: MountD3Opts) {
+  const theme = o.theme ?? 'light';
+  return getPalette(o.palette ?? 'slate')[theme === 'dark' ? 'dark' : 'light'];
+}
+
 export function mountD3DataChart(
   container: HTMLElement,
   content: string,
@@ -62,34 +54,83 @@ export function mountD3DataChart(
 ): MountedD3Chart {
   let detach: (() => void) | null = null;
   let current: MountD3Opts = { ...opts };
+  let text = content;
   let token = 0;
+  let lastW = 0;
+  let lastH = 0;
+  let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const paint = async (text: string, o: MountD3Opts): Promise<void> => {
+  const paint = async (): Promise<void> => {
     const mine = ++token;
-    const { svg } = await render(text, {
-      engine: 'd3',
-      ...(o.theme && { theme: o.theme }),
-      ...(o.palette && { palette: o.palette }),
-    });
-    if (mine !== token) return; // a newer update() superseded this render
+    // Render at the container's actual size so the chart fills the pane and
+    // re-lays-out (not CSS-scales) — matching ECharts' resize behavior. When
+    // unmeasured (no layout yet / headless), renderDataChartD3 falls back to
+    // its default export dimensions and the ResizeObserver repaints once sized.
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    lastW = width;
+    lastH = height;
+    const dims = width > 0 && height > 0 ? { width, height } : undefined;
+
+    let svg = await renderDataChartD3(
+      text,
+      current.theme ?? 'light',
+      paletteOf(current),
+      dims
+    );
+    // Fallback (parse error / unsupported type) → error card via render().
+    if (!svg) {
+      const r = await render(text, {
+        engine: 'd3',
+        ...(current.theme && { theme: current.theme }),
+        ...(current.palette && { palette: current.palette }),
+      });
+      svg = r.svg;
+    }
+    if (mine !== token) return; // a newer paint superseded this one
+
     if (detach) {
       detach();
       detach = null;
     }
     container.innerHTML = svg;
     const el = container.querySelector('svg');
-    if (el) detach = attachDataChartInteractions(el, interactionOpts(o));
+    if (el) {
+      const pal = paletteOf(current);
+      detach = attachDataChartInteractions(el, {
+        ...(current.onNavigate && { onNavigate: current.onNavigate }),
+        mutedColor: current.mutedColor ?? pal.border,
+        surface: current.surface ?? pal.surface,
+        text: current.text ?? pal.text,
+      });
+    }
   };
 
-  void paint(content, current);
+  // Re-render (debounced) when the pane size changes.
+  const ro =
+    typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => {
+          const w = container.clientWidth;
+          const h = container.clientHeight;
+          if (w === lastW && h === lastH) return;
+          if (resizeTimer) clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => void paint(), 120);
+        })
+      : null;
+  ro?.observe(container);
+
+  void paint();
 
   return {
-    update: async (text: string, patch?: Partial<MountD3Opts>) => {
+    update: async (nextContent: string, patch?: Partial<MountD3Opts>) => {
+      text = nextContent;
       current = { ...current, ...patch };
-      await paint(text, current);
+      await paint();
     },
     destroy: () => {
       token++;
+      if (resizeTimer) clearTimeout(resizeTimer);
+      ro?.disconnect();
       if (detach) detach();
       detach = null;
       container.innerHTML = '';

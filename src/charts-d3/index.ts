@@ -75,15 +75,20 @@ export function supportsD3DataChart(type: string): boolean {
 export async function renderDataChartD3(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
-  palette?: PaletteColors
+  palette?: PaletteColors,
+  dims?: { width?: number; height?: number }
 ): Promise<string> {
   const effectivePalette = await resolveExportPalette(theme, palette);
   const isDark = theme === 'dark';
 
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const w =
+    dims?.width && dims.width > 0 ? Math.round(dims.width) : EXPORT_WIDTH;
+  const h =
+    dims?.height && dims.height > 0 ? Math.round(dims.height) : EXPORT_HEIGHT;
+  const container = createExportContainer(w, h);
   const init = initD3Chart(container, effectivePalette, {
-    width: EXPORT_WIDTH,
-    height: EXPORT_HEIGHT,
+    width: w,
+    height: h,
   });
   if (!init) {
     document.body.removeChild(container);
@@ -131,21 +136,72 @@ function renderInto(
     switch (std.type) {
       case 'bar':
       case 'bar-stacked':
-        renderBar(s, std, width, height, colors, palette, isDark, textColor, mutedColor, hasTitle);
+        renderBar(
+          s,
+          std,
+          width,
+          height,
+          colors,
+          palette,
+          isDark,
+          textColor,
+          mutedColor,
+          hasTitle
+        );
         return true;
       case 'line':
       case 'area':
-        renderLine(s, std, width, height, colors, palette, isDark, textColor, mutedColor, bgColor, hasTitle);
+        renderLine(
+          s,
+          std,
+          width,
+          height,
+          colors,
+          palette,
+          isDark,
+          textColor,
+          mutedColor,
+          bgColor,
+          hasTitle
+        );
         return true;
       case 'pie':
       case 'doughnut':
-        renderPie(s, std, width, height, palette, isDark, textColor, hasTitle ? 52 : 24);
+        renderPie(
+          s,
+          std,
+          width,
+          height,
+          palette,
+          isDark,
+          textColor,
+          hasTitle ? 52 : 24
+        );
         return true;
       case 'radar':
-        renderRadar(s, std, width, height, palette, isDark, textColor, mutedColor, hasTitle ? 52 : 24);
+        renderRadar(
+          s,
+          std,
+          width,
+          height,
+          palette,
+          isDark,
+          textColor,
+          mutedColor,
+          hasTitle ? 52 : 24
+        );
         return true;
       case 'polar-area':
-        renderPolarArea(s, std, width, height, palette, isDark, textColor, hasTitle ? 52 : 24);
+        renderPolarArea(
+          s,
+          std,
+          width,
+          height,
+          palette,
+          isDark,
+          textColor,
+          hasTitle ? 52 : 24
+        );
         return true;
     }
   }
@@ -160,27 +216,100 @@ function renderInto(
 
   switch (ext.type) {
     case 'funnel':
-      renderFunnel(s, ext as ParsedFunnel, width, height, seriesColors, palette, isDark, textColor, hasTitle ? 52 : 24);
+      renderFunnel(
+        s,
+        ext as ParsedFunnel,
+        width,
+        height,
+        seriesColors,
+        palette,
+        isDark,
+        textColor,
+        hasTitle ? 52 : 24
+      );
       return true;
     case 'heatmap':
-      renderHeatmap(s, ext as ParsedHeatmap, width, height, palette, isDark, textColor, bgColor, hasTitle ? 52 : 24);
+      renderHeatmap(
+        s,
+        ext as ParsedHeatmap,
+        width,
+        height,
+        palette,
+        isDark,
+        textColor,
+        bgColor,
+        hasTitle ? 52 : 24
+      );
       return true;
     case 'scatter': {
       const groups = getExtendedChartLegendGroups(ext, seriesColors);
-      const top = injectLegendGroups(s, groups, palette, isDark, hasTitle, width);
-      renderScatter(s, ext as ParsedScatter, width, height, seriesColors, palette, isDark, textColor, mutedColor, top);
+      const top = injectLegendGroups(
+        s,
+        groups,
+        palette,
+        isDark,
+        hasTitle,
+        width
+      );
+      renderScatter(
+        s,
+        ext as ParsedScatter,
+        width,
+        height,
+        seriesColors,
+        palette,
+        isDark,
+        textColor,
+        mutedColor,
+        top
+      );
       return true;
     }
     case 'sankey':
-      renderSankey(s, ext as ParsedSankey, width, height, seriesColors, bgColor, textColor, hasTitle ? 52 : 24);
+      renderSankey(
+        s,
+        ext as ParsedSankey,
+        width,
+        height,
+        seriesColors,
+        bgColor,
+        textColor,
+        hasTitle ? 52 : 24
+      );
       return true;
     case 'chord':
-      renderChord(s, ext as ParsedChord, width, height, seriesColors, palette, isDark, textColor, hasTitle ? 52 : 24);
+      renderChord(
+        s,
+        ext as ParsedChord,
+        width,
+        height,
+        seriesColors,
+        palette,
+        isDark,
+        textColor,
+        hasTitle ? 52 : 24
+      );
       return true;
     case 'function': {
       const groups = getExtendedChartLegendGroups(ext, seriesColors);
-      const top = injectLegendGroups(s, groups, palette, isDark, hasTitle, width);
-      renderFunction(s, ext as ParsedFunctionChart, width, height, seriesColors, textColor, mutedColor, top);
+      const top = injectLegendGroups(
+        s,
+        groups,
+        palette,
+        isDark,
+        hasTitle,
+        width
+      );
+      renderFunction(
+        s,
+        ext as ParsedFunctionChart,
+        width,
+        height,
+        seriesColors,
+        textColor,
+        mutedColor,
+        top
+      );
       return true;
     }
     default:
