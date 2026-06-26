@@ -474,9 +474,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       direction: { description: 'Layout direction', values: ['LR', 'TB'] },
       'active-tag': { description: 'Active tag group name' },
       hide: { description: 'Hide tag:value pairs' },
-      'box-metric': {
+      heat: {
         description:
-          'Metric label for the value ramp, with an optional trailing [low] [high] color pair',
+          'Label for the value→colour ramp, with an optional trailing [low] [high] color pair (pairs with the `heat:` key)',
       },
       'show-values': { description: 'Print box values as text' },
     }),
@@ -606,18 +606,20 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // Geographic map directives (§24B.2/.7). Cosmetics are ON by default — the
     // only switches are bare `no-*` opt-outs, surfaced proactively so a
     // zero-config map still hints at what can be turned off. `poi`/`route` are
-    // content keywords, not directives; metadata keys (value/label/style) live
-    // in the reserved-key registry.
+    // content keywords, not directives; metadata keys (heat/size/width/label/style)
+    // live in the reserved-key registry.
     withGlobals({
-      'region-metric': {
+      'region-heat': {
         description:
-          'Label for the region value ramp, with an optional trailing [low] [high] color pair',
+          'Label for the region value→colour ramp, with an optional trailing [low] [high] color pair (pairs with the `heat:` key)',
       },
-      'poi-metric': {
-        description: 'Label for the POI value (marker size) channel',
+      'poi-size': {
+        description:
+          'Label for the POI value→marker-size channel (pairs with the `size:` key)',
       },
-      'flow-metric': {
-        description: 'Label for the edge/leg value (thickness) channel',
+      'flow-width': {
+        description:
+          'Label for the edge/leg value→line-thickness channel (pairs with the `width:` key)',
       },
       locale: {
         description:
@@ -641,9 +643,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-region-labels': {
         description: 'Turn off subdivision name labels (on by default)',
       },
-      'no-region-value': {
+      'no-region-heat-value': {
         description:
-          'Turn off the metric value shown under each region (on by default)',
+          'Turn off the heat value shown under each region (on by default)',
       },
       'no-poi-labels': { description: 'Turn off POI labels (on by default)' },
       'no-colorize': {
@@ -1026,7 +1028,7 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
     {
       node: {
         description: { description: 'Node description text' },
-        value: { description: 'Numeric value for the metric ramp' },
+        heat: { description: 'Numeric value for the heat (colour) ramp' },
       },
       edge: {},
     },

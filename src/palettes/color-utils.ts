@@ -161,7 +161,7 @@ export function mix(a: string, b: string, pct: number): string {
 // ============================================================
 //
 // Single source of truth for value-ramp fills across chart types (map
-// `region-metric`, boxes-and-lines `box-metric`, and any future ramp). Callers
+// `region-heat`, boxes-and-lines `heat`, and any future ramp). Callers
 // resolve the two endpoint NAMES to palette hex, then ask for the fill at a
 // normalized position `t∈[0,1]`. The helper owns ONLY the low→high blend; each
 // caller keeps its own RAMP_FLOOR / base remap of `t`.

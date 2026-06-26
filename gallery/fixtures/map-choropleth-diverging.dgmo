@@ -1,9 +1,9 @@
 map Cursed Waters by Territory
-region-metric Peril green red
+region-heat Peril green red
 
-California value: 92
-Texas value: 70
-Florida value: 55
-Louisiana value: 40
-Georgia value: 22
-Maine value: 8
+California heat: 92
+Texas heat: 70
+Florida heat: 55
+Louisiana heat: 40
+Georgia heat: 22
+Maine heat: 8

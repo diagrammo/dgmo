@@ -135,9 +135,12 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'dependencies', noHighlight: true, gantt: ['option', 'boolean'] },
 
   // ── Map ──────────────────────────────────────────────────
-  { token: 'region-metric', category: 'directive', map: true },
-  { token: 'poi-metric', category: 'directive', map: true },
-  { token: 'flow-metric', category: 'directive', map: true },
+  // Per-element value→channel ramps (decision #20): the directive names the
+  // visual channel — `region-heat` (colour), `poi-size` (marker area),
+  // `flow-width` (stroke). The per-element key mirrors it (`heat:`/`size:`/`width:`).
+  { token: 'region-heat', category: 'directive', map: true },
+  { token: 'poi-size', category: 'directive', map: true },
+  { token: 'flow-width', category: 'directive', map: true },
   { token: 'locale', category: 'directive', map: true },
   { token: 'caption', category: 'directive', map: true },
   { token: 'no-legend', category: 'directive', map: true },
@@ -145,7 +148,7 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'no-relief', category: 'directive', map: true },
   { token: 'no-context-labels', category: 'directive', map: true },
   { token: 'no-region-labels', category: 'directive', map: true },
-  { token: 'no-region-value', category: 'directive', map: true },
+  { token: 'no-region-heat-value', category: 'directive', map: true },
   { token: 'no-poi-labels', category: 'directive', map: true },
   { token: 'no-colorize', category: 'directive', map: true },
   { token: 'no-cities', category: 'directive', map: true },
@@ -191,7 +194,12 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'hide', category: 'directive' },
   { token: 'direction', category: 'directive' },
   // ── Boxes-and-lines ──────────────────────────────────────
-  { token: 'box-metric', category: 'directive' },
+  // `heat <Label> [low] [high]` is the value→colour ramp directive, but `heat`
+  // is NOT registered as a directive keyword: it is dual-use with the `heat:`
+  // metadata key (decision #20), and a token in DIRECTIVE_KEYWORDS would block the
+  // ATTRIBUTE_KEYS colon-gate from reclassifying `heat:` as a propertyName. So
+  // `heat` lives only in the reserved-key registry + ATTRIBUTE_KEYS and highlights
+  // as a property in both positions — exactly the treemap `heat` precedent.
   { token: 'show-values', category: 'directive' },
   // ── Swimlane ─────────────────────────────────────────────
   { token: 'lane', category: 'directive' },

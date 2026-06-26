@@ -24,28 +24,28 @@ function read(p: string): string | null {
 // the renderer's per-label region-bbox loop (roadmap #2). Cities span continents
 // so the basemap is the full world (~200 regions).
 const POI_WORLD = `map Global POIs
-poi-metric Load
+poi-size Load
 
-poi New York value: 90
-poi Los Angeles value: 70
-poi London value: 80
-poi Paris value: 60
-poi Tokyo value: 95
-poi Sydney value: 50
-poi Mumbai value: 85
-poi Singapore value: 75
-poi Berlin value: 55
-poi Madrid value: 45
-poi Cairo value: 40
-poi Toronto value: 65
-poi Chicago value: 50
-poi Moscow value: 70
-poi Beijing value: 88
-poi Sao Paulo value: 60
-poi Mexico City value: 58
-poi Lagos value: 42
-poi Dubai value: 77
-poi Bangkok value: 53
+poi New York size: 90
+poi Los Angeles size: 70
+poi London size: 80
+poi Paris size: 60
+poi Tokyo size: 95
+poi Sydney size: 50
+poi Mumbai size: 85
+poi Singapore size: 75
+poi Berlin size: 55
+poi Madrid size: 45
+poi Cairo size: 40
+poi Toronto size: 65
+poi Chicago size: 50
+poi Moscow size: 70
+poi Beijing size: 88
+poi Sao Paulo size: 60
+poi Mexico City size: 58
+poi Lagos size: 42
+poi Dubai size: 77
+poi Bangkok size: 53
 `;
 
 // median of repeated timings (ms), with a warm-up pass to JIT + load map data.
@@ -81,9 +81,10 @@ test('perf harness — render() end-to-end + hot sub-stages', async () => {
       },
       {
         name: 'b&l/gallery (14 edges)',
-        src: read(`${FIXTURES}/boxes-and-lines.dgmo`)
-          ?.replace('tag Team t ', 'tag Team as t ')
-          .replace('tag Priority p ', 'tag Priority as p ') ?? null,
+        src:
+          read(`${FIXTURES}/boxes-and-lines.dgmo`)
+            ?.replace('tag Team t ', 'tag Team as t ')
+            .replace('tag Priority p ', 'tag Priority as p ') ?? null,
         iters: 9,
       },
       {
@@ -123,10 +124,7 @@ test('perf harness — render() end-to-end + hot sub-stages', async () => {
   let recolor: { median: number; min: number } | null = null;
   if (worldSrc) {
     await render(worldSrc); // prime
-    recolor = await timeMs(
-      () => render(worldSrc, { theme: 'dark' }),
-      7
-    );
+    recolor = await timeMs(() => render(worldSrc, { theme: 'dark' }), 7);
   }
 
   // ── b&l layout-only sub-stage (parse + search; no SVG render) ───────────
@@ -137,9 +135,10 @@ test('perf harness — render() end-to-end + hot sub-stages', async () => {
     },
     {
       name: 'b&l-layout/gallery',
-      src: read(`${FIXTURES}/boxes-and-lines.dgmo`)
-        ?.replace('tag Team t ', 'tag Team as t ')
-        .replace('tag Priority p ', 'tag Priority as p ') ?? null,
+      src:
+        read(`${FIXTURES}/boxes-and-lines.dgmo`)
+          ?.replace('tag Team t ', 'tag Team as t ')
+          .replace('tag Priority p ', 'tag Priority as p ') ?? null,
     },
   ];
   const blRows: { name: string; median: number; min: number }[] = [];

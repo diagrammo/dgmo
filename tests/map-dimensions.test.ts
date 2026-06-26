@@ -76,14 +76,14 @@ const ASPECT_MAX = 3.0;
 
 describe('map dimensions — buildMapProjection', () => {
   it('returns a FRESH projection each call (not a shared mutated instance)', () => {
-    const r = resolve('map\nCalifornia value: 1');
+    const r = resolve('map\nCalifornia heat: 1');
     const a = buildMapProjection(r, DATA);
     const b = buildMapProjection(r, DATA);
     expect(a.projection).not.toBe(b.projection);
   });
 
   it('exposes decoded layers + classification', () => {
-    const r = resolve('map\nCalifornia value: 1\nOregon value: 2');
+    const r = resolve('map\nCalifornia heat: 1\nOregon heat: 2');
     const built = buildMapProjection(r, DATA);
     expect(built.worldLayer.size).toBeGreaterThan(0);
     expect(built.usLayer).not.toBeNull();
@@ -93,7 +93,7 @@ describe('map dimensions — buildMapProjection', () => {
 
 describe('map dimensions — mapContentAspect', () => {
   it('is finite and positive for a normal map', () => {
-    const a = mapContentAspect(resolve('map\nCalifornia value: 1'), DATA);
+    const a = mapContentAspect(resolve('map\nCalifornia heat: 1'), DATA);
     expect(Number.isFinite(a)).toBe(true);
     expect(a).toBeGreaterThan(0);
   });
@@ -105,7 +105,7 @@ describe('map dimensions — mapContentAspect', () => {
   });
 
   it('(AC10) is invariant to the square reference-box size', () => {
-    const r = resolve('map\nUnited States value: 1\nJapan value: 2');
+    const r = resolve('map\nUnited States heat: 1\nJapan heat: 2');
     const a500 = mapContentAspect(r, DATA, 500);
     const a2000 = mapContentAspect(r, DATA, 2000);
     expect(a500).toBeCloseTo(a2000, 4);
@@ -116,7 +116,7 @@ describe('map dimensions — mapContentAspect', () => {
   // fixture distorts world-spanning extents under the mercator rotation, so these
   // tests assert only the robust structural contracts (finite, invariant, clamped).
   it('is deterministic for identical input', () => {
-    const r = resolve('map\nCalifornia value: 1');
+    const r = resolve('map\nCalifornia heat: 1');
     expect(mapContentAspect(r, DATA)).toBe(mapContentAspect(r, DATA));
   });
 });
@@ -124,7 +124,7 @@ describe('map dimensions — mapContentAspect', () => {
 describe('map dimensions — mapExportDimensions', () => {
   it('width equals baseWidth; height is a positive finite integer', () => {
     const d = mapExportDimensions(
-      resolve('map\nCalifornia value: 1'),
+      resolve('map\nCalifornia heat: 1'),
       DATA,
       1200
     );
@@ -141,7 +141,7 @@ describe('map dimensions — mapExportDimensions', () => {
   });
 
   it('respects baseWidth as a resolution knob', () => {
-    const r = resolve('map\nCalifornia value: 1');
+    const r = resolve('map\nCalifornia heat: 1');
     const a = mapExportDimensions(r, DATA, 1200);
     const b = mapExportDimensions(r, DATA, 600);
     expect(a.width).toBe(1200);
@@ -156,7 +156,7 @@ describe('map dimensions — mapExportDimensions', () => {
     // aspect → clamp fires → preferContain true; canvas aspect lands within the
     // clamp band [ASPECT_MIN, ASPECT_MAX].
     const d = mapExportDimensions(
-      resolve('map\nUnited States value: 1\nJapan value: 2'),
+      resolve('map\nUnited States heat: 1\nJapan heat: 2'),
       DATA,
       1200
     );
@@ -170,7 +170,7 @@ describe('map dimensions — mapExportDimensions', () => {
     // projection override with no us-states subdivision → usLayer null → fit falls
     // to the extent outline through the conic. Must still produce a finite canvas.
     const d = mapExportDimensions(
-      resolve('map\nprojection albers-usa\nUnited States value: 1'),
+      resolve('map\nprojection albers-usa\nUnited States heat: 1'),
       DATA,
       1200
     );
@@ -181,7 +181,7 @@ describe('map dimensions — mapExportDimensions', () => {
   it('does NOT set preferContain for an in-range aspect', () => {
     // A single US state via albers → conus-ish aspect, comfortably in range.
     const d = mapExportDimensions(
-      resolve('map\nCalifornia value: 1\nOregon value: 2'),
+      resolve('map\nCalifornia heat: 1\nOregon heat: 2'),
       DATA,
       1200
     );
@@ -193,7 +193,7 @@ describe('map dimensions — mapExportDimensions', () => {
 
   describe('WYSIWYG aspect override', () => {
     it('adopts the override aspect verbatim and stretch-fills', () => {
-      const r = resolve('map\nUnited States value: 1\nJapan value: 2');
+      const r = resolve('map\nUnited States heat: 1\nJapan heat: 2');
       // Without an override this extent clamps + contain-fits; the override must
       // bypass both — height tracks the supplied aspect, preferContain false.
       const d = mapExportDimensions(r, DATA, 1200, 2.2);
@@ -203,7 +203,7 @@ describe('map dimensions — mapExportDimensions', () => {
     });
 
     it('honours an aspect outside the intrinsic clamp band', () => {
-      const r = resolve('map\nCalifornia value: 1');
+      const r = resolve('map\nCalifornia heat: 1');
       // 3.4 is past ASPECT_MAX (3.0) — the intrinsic path would clamp, the
       // override must not (it is the user's real on-screen shape).
       const d = mapExportDimensions(r, DATA, 1200, 3.4);
@@ -212,7 +212,7 @@ describe('map dimensions — mapExportDimensions', () => {
     });
 
     it('ignores a non-finite / non-positive override (falls back to intrinsic)', () => {
-      const r = resolve('map\nCalifornia value: 1');
+      const r = resolve('map\nCalifornia heat: 1');
       const intrinsic = mapExportDimensions(r, DATA, 1200);
       for (const bad of [0, -2, Number.NaN, Number.POSITIVE_INFINITY]) {
         const d = mapExportDimensions(r, DATA, 1200, bad);
@@ -224,7 +224,7 @@ describe('map dimensions — mapExportDimensions', () => {
 });
 
 describe('map dimensions — renderer honors preferContain (Task 4)', () => {
-  const globalSrc = 'map\nUnited States value: 1\nJapan value: 2';
+  const globalSrc = 'map\nUnited States heat: 1\nJapan heat: 2';
 
   it('global extent WITHOUT preferContain → stretch-fill (layout.stretch set)', () => {
     const r = resolve(globalSrc);
@@ -263,7 +263,7 @@ describe('map dimensions — legend band reserve', () => {
   // top-center foreground overlay; without a reserve it covers land (Europe), so
   // the fit must push the stretch-filled world down (stretch.oy > 0).
   const legendSrc =
-    'map World\nregion-metric Employees\nGermany value: 1800\nUnited States value: 4200';
+    'map World\nregion-heat Employees\nGermany heat: 1800\nUnited States heat: 4200';
 
   it('a value-ramp legend reserves a top band (global stretch oy > 0)', () => {
     const r = resolve(legendSrc);
@@ -310,7 +310,7 @@ describe('map dimensions — global vertical boost', () => {
 
   it('a whole-world choropleth emits a canvas ~12% taller than its true aspect', () => {
     const r = resolveReal(
-      'map\nBrazil value: 5\nJapan value: 9\nUnited States value: 7'
+      'map\nBrazil heat: 5\nJapan heat: 9\nUnited States heat: 7'
     );
     expect(buildMapProjection(r, real).fitIsGlobal).toBe(true); // precondition
     const intrinsic = mapContentAspect(r, real);
@@ -324,7 +324,7 @@ describe('map dimensions — global vertical boost', () => {
   });
 
   it('a US (non-global) map keeps its true aspect — no boost', () => {
-    const r = resolveReal('map\nCalifornia value: 5\nTexas value: 9');
+    const r = resolveReal('map\nCalifornia heat: 5\nTexas heat: 9');
     expect(buildMapProjection(r, real).fitIsGlobal).toBe(false); // precondition
     const intrinsic = mapContentAspect(r, real);
     const d = mapExportDimensions(r, real, 1200);

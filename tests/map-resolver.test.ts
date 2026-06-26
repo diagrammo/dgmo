@@ -124,7 +124,7 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     expect(r.regions[0]).toMatchObject({ iso: 'US', layer: 'country' });
   });
   it('region → us-state + basemap (AC2)', () => {
-    const r = resolve('map\nCalifornia value: 92');
+    const r = resolve('map\nCalifornia heat: 92');
     expect(r.regions[0]).toMatchObject({
       iso: 'US-CA',
       layer: 'us-state',
@@ -133,7 +133,7 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     expect(r.basemaps.subdivisions).toContain('us-states');
   });
   it('region miss → did-you-mean (AC3)', () => {
-    const r = resolve('map\nCaliforna value: 1');
+    const r = resolve('map\nCaliforna heat: 1');
     expect(
       r.diagnostics.some(
         (d) => d.severity === 'error' && /Unknown region/.test(d.message)
@@ -141,7 +141,7 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     ).toBe(true);
   });
   it('duplicate region last-wins (AC16)', () => {
-    const r = resolve('map\nCalifornia value: 1\nCalifornia value: 9');
+    const r = resolve('map\nCalifornia heat: 1\nCalifornia heat: 9');
     expect(r.regions).toHaveLength(1);
     expect(r.regions[0]!.value).toBe(9);
     expect(r.diagnostics.some((d) => /[Dd]uplicate/.test(d.message))).toBe(
@@ -149,7 +149,7 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     );
   });
   it('unsupported subdivision errors (AC22)', () => {
-    const r = resolve('map\nBavaria value: 1');
+    const r = resolve('map\nBavaria heat: 1');
     expect(
       r.diagnostics.some(
         (d) => d.severity === 'error' && /Bavaria/.test(d.message)
@@ -157,7 +157,7 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     ).toBe(true);
   });
   it('country-vs-state collision: US-scoped → state (silent), else country (AC20)', () => {
-    const usScoped = resolve('map\nCalifornia value: 1\nGeorgia value: 2');
+    const usScoped = resolve('map\nCalifornia heat: 1\nGeorgia heat: 2');
     expect(usScoped.regions.find((x) => x.name === 'Georgia')!.iso).toBe(
       'US-GA'
     );
@@ -168,11 +168,11 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
         /both a country and a US state/.test(d.message)
       )
     ).toBe(false);
-    const worldScoped = resolve('map\nGeorgia value: 2');
+    const worldScoped = resolve('map\nGeorgia heat: 2');
     expect(worldScoped.regions[0]!.iso).toBe('GE');
   });
   it('`locale US` silences country-vs-state ambiguity', () => {
-    const r = resolve('map\nlocale US\nGeorgia value: 2');
+    const r = resolve('map\nlocale US\nGeorgia heat: 2');
     expect(r.regions[0]).toMatchObject({ iso: 'US-GA', layer: 'us-state' });
     expect(
       r.diagnostics.some((d) => /both a country and a US state/.test(d.message))
@@ -180,8 +180,8 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
   });
   it('region scope qualifier forces state and silences ambiguity (§24B.8)', () => {
     for (const src of [
-      'map\nGeorgia US value: 2',
-      'map\nGeorgia US-GA value: 2',
+      'map\nGeorgia US heat: 2',
+      'map\nGeorgia US-GA heat: 2',
     ]) {
       const r = resolve(src);
       expect(r.regions[0]).toMatchObject({ iso: 'US-GA', layer: 'us-state' });
@@ -193,14 +193,14 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     }
   });
   it('region country-code scope forces country even in US context', () => {
-    const r = resolve('map\nCalifornia value: 1\nGeorgia GE value: 2');
+    const r = resolve('map\nCalifornia heat: 1\nGeorgia GE heat: 2');
     expect(r.regions.find((x) => x.iso === 'GE')).toBeTruthy();
     expect(
       r.diagnostics.some((d) => /both a country and a US state/.test(d.message))
     ).toBe(false);
   });
   it('ambiguity warning teaches the non-redundant scope syntax', () => {
-    const r = resolve('map\nGeorgia value: 2');
+    const r = resolve('map\nGeorgia heat: 2');
     const w = r.diagnostics.find((d) =>
       /both a country and a US state/.test(d.message)
     );
@@ -211,7 +211,7 @@ describe('resolver — regions (AC1-3, AC16, AC22)', () => {
     expect(w!.message).not.toContain('Georgia US-GA');
   });
   it('region subdivision-scope mismatch errors', () => {
-    const r = resolve('map\nGeorgia US-CA value: 2');
+    const r = resolve('map\nGeorgia US-CA heat: 2');
     expect(
       r.diagnostics.some(
         (d) => d.severity === 'error' && /scope US-CA/.test(d.message)
@@ -400,7 +400,7 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     // region map now auto-zooms to conic-equal-area — covered by the real-data
     // sub-national-zoom suite below (the hand-built rect topo's geoBounds returns
     // a whole-sphere bbox, so it can't exercise the area-fraction gate faithfully).
-    const r = resolve('map\nlocale US\nCalifornia value: 1\nOregon value: 2');
+    const r = resolve('map\nlocale US\nCalifornia heat: 1\nOregon heat: 2');
     expect(r.projection).toBe('albers-usa');
     expect(r.basemaps.subdivisions).toContain('us-states');
   });
@@ -413,7 +413,7 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     // US-oriented) is a DATA map — but world maps now use equirectangular too,
     // for one consistent rectangular look across data + reference maps.
     const r = resolve(
-      'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3'
+      'map\nregion-heat Sales\nUnited States heat: 5\nChina heat: 3'
     );
     expect(r.projection).toBe('equirectangular');
   });
@@ -442,10 +442,10 @@ describe('resolver — basemap / extent / projection (AC13-15, AC24)', () => {
     const cases: Array<[string, string]> = [
       ['map\npoi Tokyo\npoi 40 -74 as ny', 'equirectangular'], // dataless world
       [
-        'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3',
+        'map\nregion-heat Sales\nUnited States heat: 5\nChina heat: 3',
         'equirectangular',
       ], // data world
-      ['map\nlocale US\nCalifornia value: 1\nOregon value: 2', 'albers-usa'], // US national (locale-forced)
+      ['map\nlocale US\nCalifornia heat: 1\nOregon heat: 2', 'albers-usa'], // US national (locale-forced)
       ['map\npoi 51.50 -0.12 as a\npoi 51.51 -0.13 as b', 'conic-equal-area'], // tight cluster (non-US)
     ];
     for (const [src, expected] of cases) {
@@ -527,7 +527,7 @@ describe('resolver — POI-only fit-to-cluster zoom floor (#poi-fit)', () => {
     // The zoom floor now ALSO extends to sub-national US region maps
     // (map-us-subnational-zoom), but a `locale US`-forced national frame keeps
     // albers-usa regardless — the floor only mutates the (irrelevant) extent.
-    const r = resolve('map\nlocale US\nCalifornia value: 1\nOregon value: 2');
+    const r = resolve('map\nlocale US\nCalifornia heat: 1\nOregon heat: 2');
     expect(r.projection).toBe('albers-usa');
   });
 
@@ -610,7 +610,7 @@ describe('resolver — sub-national US auto-zoom, real geometry (map-us-subnatio
   // bboxes (its geoBounds returns a whole-sphere box), so the area-fraction gate
   // is exercised here against the SHIPPED geometry.
   const NE8 =
-    'New York value: 196\nMassachusetts value: 70\nConnecticut value: 36\nVermont value: 6\nNew Hampshire value: 14\nMaine value: 13\nPennsylvania value: 128\nNew Jersey value: 93';
+    'New York heat: 196\nMassachusetts heat: 70\nConnecticut heat: 36\nVermont heat: 6\nNew Hampshire heat: 14\nMaine heat: 13\nPennsylvania heat: 128\nNew Jersey heat: 93';
 
   it('AC1: compact Northeast choropleth → mercator (North-up) + us-states mesh', async () => {
     // Sub-national US zoom uses Mercator (straight vertical meridians = North-up);
@@ -628,7 +628,7 @@ describe('resolver — sub-national US auto-zoom, real geometry (map-us-subnatio
     const data = await loadMapData();
     const r = resolveMap(
       parseMap(
-        'map\nCalifornia value: 1\nMaine value: 2\nFlorida value: 3\nWashington value: 4\nTexas value: 5'
+        'map\nCalifornia heat: 1\nMaine heat: 2\nFlorida heat: 3\nWashington heat: 4\nTexas heat: 5'
       ),
       data
     );
@@ -638,7 +638,7 @@ describe('resolver — sub-national US auto-zoom, real geometry (map-us-subnatio
   it('AC2: WA+FL near-national diagonal stays albers-usa (area guard)', async () => {
     const data = await loadMapData();
     const r = resolveMap(
-      parseMap('map\nWashington value: 1\nFlorida value: 2'),
+      parseMap('map\nWashington heat: 1\nFlorida heat: 2'),
       data
     );
     expect(r.projection).toBe('albers-usa');
@@ -646,14 +646,14 @@ describe('resolver — sub-national US auto-zoom, real geometry (map-us-subnatio
 
   it('AC3: a Hawaii-only choropleth stays albers-usa (ISO guard, not bbox)', async () => {
     const data = await loadMapData();
-    const r = resolveMap(parseMap('map\nHawaii value: 5'), data);
+    const r = resolveMap(parseMap('map\nHawaii heat: 5'), data);
     expect(r.projection).toBe('albers-usa');
   });
 
   it('AC3: Alaska in the data forces albers-usa even alongside a compact state', async () => {
     const data = await loadMapData();
     const r = resolveMap(
-      parseMap('map\nAlaska value: 5\nCalifornia value: 3'),
+      parseMap('map\nAlaska heat: 5\nCalifornia heat: 3'),
       data
     );
     expect(r.projection).toBe('albers-usa');
@@ -662,7 +662,7 @@ describe('resolver — sub-national US auto-zoom, real geometry (map-us-subnatio
   it('AC4: `locale US` forces the national frame on compact data', async () => {
     const data = await loadMapData();
     const r = resolveMap(
-      parseMap('map\nlocale US\nNew York value: 1\nMassachusetts value: 2'),
+      parseMap('map\nlocale US\nNew York heat: 1\nMassachusetts heat: 2'),
       data
     );
     expect(r.projection).toBe('albers-usa');
@@ -676,7 +676,7 @@ describe('resolver — sub-national US auto-zoom, real geometry (map-us-subnatio
 
   it('R6: a single tiny state floors to ~7° and stays mercator', async () => {
     const data = await loadMapData();
-    const r = resolveMap(parseMap('map\nRhode Island value: 5'), data);
+    const r = resolveMap(parseMap('map\nRhode Island heat: 5'), data);
     expect(r.projection).toBe('mercator');
     const longer = Math.max(
       r.extent[1][0] - r.extent[0][0],
@@ -689,7 +689,7 @@ describe('resolver — sub-national US auto-zoom, real geometry (map-us-subnatio
     const data = await loadMapData();
     const r = resolveMap(
       parseMap(
-        'map\nNew York value: 1\nMassachusetts value: 2\npoi 42.36 -71.06 as bos'
+        'map\nNew York heat: 1\nMassachusetts heat: 2\npoi 42.36 -71.06 as bos'
       ),
       data
     );
@@ -713,7 +713,7 @@ describe('resolver — sub-national US auto-zoom, real geometry (map-us-subnatio
     // bbox), so the zoom floor must be gated on `usOriented` or a tiny European
     // country would get the 7° US floor. A small-country choropleth stays tight.
     const data = await loadMapData();
-    const r = resolveMap(parseMap('map\nNetherlands value: 5'), data);
+    const r = resolveMap(parseMap('map\nNetherlands heat: 5'), data);
     const longer = Math.max(
       r.extent[1][0] - r.extent[0][0],
       r.extent[1][1] - r.extent[0][1]
@@ -748,7 +748,7 @@ describe('featureBboxPrimary — drop far-detached territories from framing (R5)
     const data = await loadMapData();
     const r = resolveMap(
       parseMap(
-        'map\nregion-metric V\nFrance value: 1\nGermany value: 2\nSpain value: 3'
+        'map\nregion-heat V\nFrance heat: 1\nGermany heat: 2\nSpain heat: 3'
       ),
       data
     );
@@ -861,8 +861,8 @@ describe('resolver — robustness (AC17, AC18, AC21)', () => {
     expect(r.diagnostics.some((d) => /at:/.test(d.message))).toBe(true);
   });
   it('resolveMap is sync, pure, never throws, deterministic (AC18)', () => {
-    const a = resolve('map\npoi Tokyo\nCalifornia value: 5');
-    const b = resolve('map\npoi Tokyo\nCalifornia value: 5');
+    const a = resolve('map\npoi Tokyo\nCalifornia heat: 5');
+    const b = resolve('map\npoi Tokyo\nCalifornia heat: 5');
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     expect(() => resolve('map\nA -> \npoi 999 999')).not.toThrow();
   });
@@ -886,29 +886,29 @@ describe('resolver — impl-review fixes (#3/#6/#8/#13/#15)', () => {
     expect(r.basemaps.subdivisions).toContain('us-states');
   });
   it('US region + a non-US POI does NOT pick albers-usa (#13)', () => {
-    const r = resolve('map\nCalifornia value: 1\npoi Tokyo');
+    const r = resolve('map\nCalifornia heat: 1\npoi Tokyo');
     expect(r.projection).not.toBe('albers-usa');
   });
   it('far-flung coordinate POI also blocks albers-usa (#13)', () => {
-    const r = resolve('map\nCalifornia value: 1\npoi 35.68 139.69 as t');
+    const r = resolve('map\nCalifornia heat: 1\npoi 35.68 139.69 as t');
     expect(r.projection).not.toBe('albers-usa');
   });
 
   // ── North-American-neighbour relaxation (map-us-orientation-north-america) ──
   it('AC1: US states + a Canadian city POI → albers-usa + us-states', () => {
-    const r = resolve('map\nCalifornia value: 1\npoi Toronto');
+    const r = resolve('map\nCalifornia heat: 1\npoi Toronto');
     expect(r.projection).toBe('albers-usa');
     expect(r.basemaps.subdivisions).toContain('us-states');
   });
   it('AC3: US states + a Mexican city POI → albers-usa', () => {
-    const r = resolve('map\nCalifornia value: 1\npoi Monterrey');
+    const r = resolve('map\nCalifornia heat: 1\npoi Monterrey');
     expect(r.projection).toBe('albers-usa');
   });
   it('AC3: US state fill + a Mexico country fill → albers-usa', () => {
     // `locale US` pins the national frame (the rect-topo mock can't produce a
     // faithful MX bbox for the area gate); the point here is that a Mexico country
     // fill keeps the map US-oriented rather than flipping it to a world projection.
-    const r = resolve('map\nlocale US\nCalifornia value: 1\nMexico value: 2');
+    const r = resolve('map\nlocale US\nCalifornia heat: 1\nMexico heat: 2');
     expect(r.projection).toBe('albers-usa');
   });
   it('AC4: US POIs + a non-NA POI (Tokyo) → NOT albers-usa, and NO state mesh (global map)', () => {
@@ -923,33 +923,33 @@ describe('resolver — impl-review fixes (#3/#6/#8/#13/#15)', () => {
   it('AC4b: US state DATA + a non-NA POI → states still draw (states are the subject)', () => {
     // Contrast with AC4: here the US state is referenced as data, so the mesh
     // stays even on a global projection.
-    const r = resolve('map\nCalifornia value: 5\npoi Tokyo');
+    const r = resolve('map\nCalifornia heat: 5\npoi Tokyo');
     expect(r.projection).not.toBe('albers-usa');
     expect(r.basemaps.subdivisions).toContain('us-states');
   });
   it('AC5: US state fill + a non-NA country fill (Japan) → NOT albers-usa', () => {
-    const r = resolve('map\nCalifornia value: 1\nJP value: 2');
+    const r = resolve('map\nCalifornia heat: 1\nJP heat: 2');
     expect(r.projection).not.toBe('albers-usa');
   });
   it('AC6: US state fill + a bare coord POI inside Canada (Vancouver) → albers-usa', () => {
-    const r = resolve('map\nCalifornia value: 1\npoi 49 -123 as van');
+    const r = resolve('map\nCalifornia heat: 1\npoi 49 -123 as van');
     expect(r.projection).toBe('albers-usa');
   });
   it('AC6: US state fill + a bare coord POI outside NA (Tokyo) → NOT albers-usa', () => {
-    const r = resolve('map\nCalifornia value: 1\npoi 35 139 as tk');
+    const r = resolve('map\nCalifornia heat: 1\npoi 35 139 as tk');
     expect(r.projection).not.toBe('albers-usa');
   });
   it('AC10: a `United States` country fill alone is NOT US-oriented (no state mesh)', () => {
-    const r = resolve('map\nUnited States value: 1');
+    const r = resolve('map\nUnited States heat: 1');
     expect(r.projection).not.toBe('albers-usa');
     expect(r.basemaps.subdivisions).toHaveLength(0);
   });
   it('region matched by ISO code (#6)', () => {
-    const r = resolve('map\nJP value: 5');
+    const r = resolve('map\nJP heat: 5');
     expect(r.regions[0]).toMatchObject({ iso: 'JP', layer: 'country' });
   });
   it('region matched via long-form → NE-abbrev alias (#6)', () => {
-    const r = resolve('map\nDemocratic Republic of the Congo value: 7');
+    const r = resolve('map\nDemocratic Republic of the Congo heat: 7');
     expect(r.regions[0]).toMatchObject({ iso: 'CD', layer: 'country' });
   });
   it('ambiguous-name warning uses the W_ code (#15)', () => {
@@ -1018,7 +1018,7 @@ describe('loadMapData — real committed assets (AC19)', () => {
   it('common US aliases resolve against the real NE name "United States of America" (#6)', async () => {
     const data = await loadMapData();
     for (const name of ['United States', 'USA', 'America']) {
-      const r = resolveMap(parseMap(`map\n${name} value: 5`), data);
+      const r = resolveMap(parseMap(`map\n${name} heat: 5`), data);
       expect(r.regions[0]?.iso, name).toBe('US');
     }
   });

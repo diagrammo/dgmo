@@ -40,11 +40,11 @@ beforeAll(() => {
 
 const D3_INPUTS: Record<string, string> = {
   map: `map US Sales
-region-metric Sales
+region-heat Sales
 
-California value: 92
-Texas value: 78
-Florida value: 51`,
+California heat: 92
+Texas heat: 78
+Florida heat: 51`,
 
   sequence: `sequence
 A -hello-> B

@@ -690,16 +690,16 @@ describe('boxes-and-lines parser', () => {
     });
   });
 
-  describe('value metric + box-metric directive', () => {
+  describe('heat metric + heat directive', () => {
     it('lifts `value: X` into a numeric node.value, not metadata (AC1)', () => {
-      const r = parseBoxesAndLines('boxes-and-lines\nAPI value: 4200');
+      const r = parseBoxesAndLines('boxes-and-lines\nAPI heat: 4200');
       const node = r.nodes.find((n) => n.label === 'API')!;
       expect(node.value).toBe(4200);
       expect(node.metadata['value']).toBeUndefined();
     });
 
     it('parses value with no space and never as a tag value (AC2, AC24)', () => {
-      const r = parseBoxesAndLines('boxes-and-lines\nAPI value:4200');
+      const r = parseBoxesAndLines('boxes-and-lines\nAPI heat:4200');
       const node = r.nodes.find((n) => n.label === 'API')!;
       expect(node.value).toBe(4200);
       expect(node.metadata['value']).toBeUndefined();
@@ -721,41 +721,39 @@ describe('boxes-and-lines parser', () => {
     });
 
     it('errors on a non-numeric value and leaves node.value undefined (AC3)', () => {
-      const r = parseBoxesAndLines('boxes-and-lines\nAPI value: high');
+      const r = parseBoxesAndLines('boxes-and-lines\nAPI heat: high');
       const node = r.nodes.find((n) => n.label === 'API')!;
       expect(node.value).toBeUndefined();
       expect(
         r.diagnostics.some(
           (d) =>
             d.severity === 'error' &&
-            d.message === 'value must be a number (got "high")'
+            d.message === 'heat must be a number (got "high")'
         )
       ).toBe(true);
     });
 
     it('keeps a value: 0 box (0 is a real value, AC22)', () => {
-      const r = parseBoxesAndLines('boxes-and-lines\nDB value: 0');
+      const r = parseBoxesAndLines('boxes-and-lines\nDB heat: 0');
       const node = r.nodes.find((n) => n.label === 'DB')!;
       expect(node.value).toBe(0);
     });
 
     it('parses negative values (AC12)', () => {
-      const r = parseBoxesAndLines('boxes-and-lines\nA value: -5');
+      const r = parseBoxesAndLines('boxes-and-lines\nA heat: -5');
       expect(r.nodes.find((n) => n.label === 'A')!.value).toBe(-5);
     });
 
-    it('parses `box-metric Label color` into typed fields (AC4)', () => {
+    it('parses `heat Label color` into typed fields (AC4)', () => {
       const r = parseBoxesAndLines(
-        'boxes-and-lines\nbox-metric Headcount red\nAPI value: 12'
+        'boxes-and-lines\nheat Headcount red\nAPI heat: 12'
       );
       expect(r.boxMetric).toBe('Headcount');
       expect(r.boxMetricColor).toBe('red');
     });
 
-    it('parses `box-metric` with no trailing color', () => {
-      const r = parseBoxesAndLines(
-        'boxes-and-lines\nbox-metric Cost\nAPI value: 12'
-      );
+    it('parses `heat` with no trailing color', () => {
+      const r = parseBoxesAndLines('boxes-and-lines\nheat Cost\nAPI heat: 12');
       expect(r.boxMetric).toBe('Cost');
       expect(r.boxMetricColor).toBeUndefined();
       expect(r.boxMetricLowColor).toBeUndefined();
@@ -763,7 +761,7 @@ describe('boxes-and-lines parser', () => {
 
     it('parses two trailing colors into low (first) + high (second) — AC1', () => {
       const r = parseBoxesAndLines(
-        'boxes-and-lines\nbox-metric Revenue blue green\nAPI value: 12'
+        'boxes-and-lines\nheat Revenue blue green\nAPI heat: 12'
       );
       expect(r.boxMetric).toBe('Revenue');
       expect(r.boxMetricLowColor).toBe('blue');
@@ -772,7 +770,7 @@ describe('boxes-and-lines parser', () => {
 
     it('respects color order — no sorting (AC4)', () => {
       const r = parseBoxesAndLines(
-        'boxes-and-lines\nbox-metric Risk red green\nAPI value: 1'
+        'boxes-and-lines\nheat Risk red green\nAPI heat: 1'
       );
       expect(r.boxMetricLowColor).toBe('red');
       expect(r.boxMetricColor).toBe('green');
@@ -780,7 +778,7 @@ describe('boxes-and-lines parser', () => {
 
     it('does not empty a color-word label (AC5)', () => {
       const r = parseBoxesAndLines(
-        'boxes-and-lines\nbox-metric Red blue\nAPI value: 1'
+        'boxes-and-lines\nheat Red blue\nAPI heat: 1'
       );
       expect(r.boxMetric).toBe('Red');
       expect(r.boxMetricColor).toBe('blue');
@@ -788,16 +786,16 @@ describe('boxes-and-lines parser', () => {
     });
 
     it('parses `show-values` flag (off by default)', () => {
-      expect(parseBoxesAndLines('boxes-and-lines\nA value: 1').showValues).toBe(
+      expect(parseBoxesAndLines('boxes-and-lines\nA heat: 1').showValues).toBe(
         undefined
       );
-      const r = parseBoxesAndLines('boxes-and-lines\nshow-values\nA value: 1');
+      const r = parseBoxesAndLines('boxes-and-lines\nshow-values\nA heat: 1');
       expect(r.showValues).toBe(true);
     });
 
     it('accepts `active-tag <metric>` with no warning (AC7)', () => {
       const r = parseBoxesAndLines(
-        'boxes-and-lines\nbox-metric Headcount\nactive-tag Headcount\nAPI value: 12'
+        'boxes-and-lines\nheat Headcount\nactive-tag Headcount\nAPI heat: 12'
       );
       expect(r.options['active-tag']).toBe('Headcount');
       expect(r.diagnostics.filter((d) => d.severity === 'error')).toHaveLength(
@@ -805,9 +803,9 @@ describe('boxes-and-lines parser', () => {
       );
     });
 
-    it('ignores box-metric declared after content (pre-content only, AC20)', () => {
+    it('ignores heat directive declared after content (pre-content only, AC20)', () => {
       const r = parseBoxesAndLines(
-        'boxes-and-lines\nAPI value: 12\nbox-metric Headcount'
+        'boxes-and-lines\nAPI heat: 12\nheat Headcount'
       );
       expect(r.boxMetric).toBeUndefined();
     });

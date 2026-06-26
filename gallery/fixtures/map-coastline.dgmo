@@ -1,7 +1,7 @@
 map Smuggler's Run
 
-poi Havana value: 90
-poi Kingston value: 120
+poi Havana size: 90
+poi Kingston size: 120
 
 route Havana
   ~run the blockade~> Kingston

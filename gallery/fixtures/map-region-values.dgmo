@@ -1,13 +1,13 @@
 map US Population by State
-region-metric Population
+region-heat Population
 
-California value: 39500000
-Texas value: 30500000
-Florida value: 22600000
-New York value: 19600000
-Illinois value: 12500000
-Ohio value: 11800000
-Georgia value: 10900000
-Washington value: 7800000
-Arizona value: 7400000
-Colorado value: 5800000
+California heat: 39500000
+Texas heat: 30500000
+Florida heat: 22600000
+New York heat: 19600000
+Illinois heat: 12500000
+Ohio heat: 11800000
+Georgia heat: 10900000
+Washington heat: 7800000
+Arizona heat: 7400000
+Colorado heat: 5800000

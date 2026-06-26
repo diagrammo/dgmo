@@ -3,7 +3,7 @@ import { parseMap, looksLikeMap } from '../src/map/parser';
 
 describe('parseMap — declaration & title (AC1)', () => {
   it('accepts `map` and extracts a title', () => {
-    const r = parseMap('map Sales Territory\nCalifornia value: 90');
+    const r = parseMap('map Sales Territory\nCalifornia heat: 90');
     expect(r.error).toBeNull();
     expect(r.title).toBe('Sales Territory');
     expect(r.titleLineNumber).toBe(1);
@@ -28,7 +28,7 @@ describe('parseMap — declaration & title (AC1)', () => {
 describe('parseMap — directives (AC2, AC20)', () => {
   it('captures the surviving intent directives', () => {
     const r = parseMap(
-      'map\nregion-metric Sales ($M)\nlocale US\nno-legend\ncaption src ACME'
+      'map\nregion-heat Sales ($M)\nlocale US\nno-legend\ncaption src ACME'
     );
     expect(r.error).toBeNull();
     expect(r.directives.regionMetric).toBe('Sales ($M)');
@@ -40,8 +40,8 @@ describe('parseMap — directives (AC2, AC20)', () => {
     expect(parseMap('map\nlocale US').directives.locale).toBe('US');
     expect(parseMap('map\nlocale US-GA').directives.locale).toBe('US-GA');
   });
-  it('region-metric trailing color names the ramp hue (§24B.3)', () => {
-    const r = parseMap('map\nregion-metric Sales blue');
+  it('region-heat trailing color names the ramp hue (§24B.3)', () => {
+    const r = parseMap('map\nregion-heat Sales blue');
     expect(r.directives.regionMetric).toBe('Sales');
     expect(r.directives.regionMetricColor).toBe('blue');
   });
@@ -57,7 +57,7 @@ describe('parseMap — directives (AC2, AC20)', () => {
     expect(r.directives.noColorize).toBe(true);
   });
   it('parses `no-cluster-pois` as a boolean flag', () => {
-    const r = parseMap('map\nno-cluster-pois\nCalifornia value: 5');
+    const r = parseMap('map\nno-cluster-pois\nCalifornia heat: 5');
     expect(r.error).toBeNull();
     expect(r.directives.noClusterPois).toBe(true);
     expect(r.regions.some((reg) => /no-cluster-pois/i.test(reg.name))).toBe(
@@ -65,7 +65,7 @@ describe('parseMap — directives (AC2, AC20)', () => {
     );
   });
   it('parses `no-cities` as a boolean flag', () => {
-    const r = parseMap('map\nno-cities\nCalifornia value: 5');
+    const r = parseMap('map\nno-cities\nCalifornia heat: 5');
     expect(r.error).toBeNull();
     expect(r.directives.noCities).toBe(true);
     expect(r.regions.some((reg) => /no-cities/i.test(reg.name))).toBe(false);
@@ -78,7 +78,7 @@ describe('parseMap — directives (AC2, AC20)', () => {
     );
   });
   it('`no-title` parses as a directive, not a phantom region', () => {
-    const r = parseMap('map Title Here\nno-title\nCalifornia value: 5');
+    const r = parseMap('map Title Here\nno-title\nCalifornia heat: 5');
     expect(r.directives.noTitle).toBe(true);
     expect(r.regions.some((reg) => /no-title/i.test(reg.name))).toBe(false);
   });
@@ -133,7 +133,7 @@ describe('parseMap — directives (AC2, AC20)', () => {
     expect(r.regions[0]!.name).toBe('muted');
   });
   it('a region whose name starts with a former flag word is a region', () => {
-    const r = parseMap('map\nNatural Bridge value: 5');
+    const r = parseMap('map\nNatural Bridge heat: 5');
     expect(r.regions).toHaveLength(1);
     expect(r.regions[0]!.name).toBe('Natural Bridge');
   });
@@ -165,14 +165,14 @@ describe('parseMap — tag groups (AC3)', () => {
 
 describe('parseMap — region fills (AC4, AC5, AC6)', () => {
   it('parses a value', () => {
-    const r = parseMap('map\nCalifornia value: 92');
+    const r = parseMap('map\nCalifornia heat: 92');
     expect(r.regions[0]).toMatchObject({ name: 'California', value: 92 });
   });
   it('errors on non-numeric value', () => {
-    const r = parseMap('map\nCalifornia value: high');
+    const r = parseMap('map\nCalifornia heat: high');
     expect(
       r.diagnostics.some(
-        (d) => d.severity === 'error' && /value/.test(d.message)
+        (d) => d.severity === 'error' && /heat/.test(d.message)
       )
     ).toBe(true);
   });
@@ -185,7 +185,7 @@ describe('parseMap — region fills (AC4, AC5, AC6)', () => {
   });
   it('accepts value + tag together with NO warning (bivariate handled) (AC6)', () => {
     const r = parseMap(
-      'map\ntag Market as m\n  HQ blue\nTexas value: 50, m: HQ'
+      'map\ntag Market as m\n  HQ blue\nTexas heat: 50, m: HQ'
     );
     const reg = r.regions[0]!;
     expect(reg.value).toBe(50);
@@ -194,18 +194,16 @@ describe('parseMap — region fills (AC4, AC5, AC6)', () => {
     // Both are now selectable colouring dimensions (legend flips between them),
     // so coexistence is no longer warned.
     expect(
-      r.diagnostics.some(
-        (d) => /value/.test(d.message) && /tag/.test(d.message)
-      )
+      r.diagnostics.some((d) => /heat/.test(d.message) && /tag/.test(d.message))
     ).toBe(false);
   });
   it('peels a trailing ISO scope off region names (§24B.8)', () => {
-    const r = parseMap('map\nGeorgia US-GA value: 5\nGeorgia US value: 6');
+    const r = parseMap('map\nGeorgia US-GA heat: 5\nGeorgia US heat: 6');
     expect(r.regions[0]).toMatchObject({ name: 'Georgia', scope: 'US-GA' });
     expect(r.regions[1]).toMatchObject({ name: 'Georgia', scope: 'US' });
   });
   it('does not peel a non-scope trailing token', () => {
-    const r = parseMap('map\nNew York value: 5');
+    const r = parseMap('map\nNew York heat: 5');
     expect(r.regions[0]!.name).toBe('New York');
     expect(r.regions[0]!.scope).toBeUndefined();
   });
@@ -217,7 +215,7 @@ describe('parseMap — direct trailing colors (§1.5)', () => {
     expect(r.regions[0]).toMatchObject({ name: 'California', color: 'blue' });
   });
   it('region trailing color coexists with value (color before metadata)', () => {
-    const r = parseMap('map\nCalifornia blue value: 92');
+    const r = parseMap('map\nCalifornia blue heat: 92');
     expect(r.regions[0]).toMatchObject({
       name: 'California',
       color: 'blue',
@@ -247,47 +245,43 @@ describe('parseMap — direct trailing colors (§1.5)', () => {
   });
 });
 
-describe('parseMap — region-metric ramp hue (§24B.3)', () => {
-  it('peels a trailing color off region-metric into regionMetricColor', () => {
-    const r = parseMap(
-      'map\nregion-metric Sales ($M) blue\nCalifornia value: 5'
-    );
+describe('parseMap — region-heat ramp hue (§24B.3)', () => {
+  it('peels a trailing color off region-heat into regionMetricColor', () => {
+    const r = parseMap('map\nregion-heat Sales ($M) blue\nCalifornia heat: 5');
     expect(r.directives.regionMetric).toBe('Sales ($M)');
     expect(r.directives.regionMetricColor).toBe('blue');
   });
   it('no trailing color leaves the hue unset (defaults to red downstream)', () => {
-    const r = parseMap('map\nregion-metric Sales\nCalifornia value: 5');
+    const r = parseMap('map\nregion-heat Sales\nCalifornia heat: 5');
     expect(r.directives.regionMetric).toBe('Sales');
     expect(r.directives.regionMetricColor).toBeUndefined();
     expect(r.directives.regionMetricLowColor).toBeUndefined();
   });
   it('two trailing colors set low (first) and high (second) — AC1', () => {
-    const r = parseMap(
-      'map\nregion-metric Sales green red\nCalifornia value: 5'
-    );
+    const r = parseMap('map\nregion-heat Sales green red\nCalifornia heat: 5');
     expect(r.directives.regionMetric).toBe('Sales');
     expect(r.directives.regionMetricLowColor).toBe('green');
     expect(r.directives.regionMetricColor).toBe('red');
   });
   it('order is respected — no sorting/intent correction (AC4)', () => {
-    const r = parseMap('map\nregion-metric Risk red green');
+    const r = parseMap('map\nregion-heat Risk red green');
     expect(r.directives.regionMetricLowColor).toBe('red');
     expect(r.directives.regionMetricColor).toBe('green');
   });
   it('single color stays high-only with two colors absent (AC2)', () => {
-    const r = parseMap('map\nregion-metric Coverage blue');
+    const r = parseMap('map\nregion-heat Coverage blue');
     expect(r.directives.regionMetric).toBe('Coverage');
     expect(r.directives.regionMetricColor).toBe('blue');
     expect(r.directives.regionMetricLowColor).toBeUndefined();
   });
   it('label that is itself a color word is not emptied (AC5)', () => {
-    const r = parseMap('map\nregion-metric Red blue');
+    const r = parseMap('map\nregion-heat Red blue');
     expect(r.directives.regionMetric).toBe('Red');
     expect(r.directives.regionMetricColor).toBe('blue');
     expect(r.directives.regionMetricLowColor).toBeUndefined();
   });
   it('a non-color trailing token stops the peel', () => {
-    const r = parseMap('map\nregion-metric Sales 2024');
+    const r = parseMap('map\nregion-heat Sales 2024');
     expect(r.directives.regionMetric).toBe('Sales 2024');
     expect(r.directives.regionMetricColor).toBeUndefined();
     expect(r.directives.regionMetricLowColor).toBeUndefined();
@@ -341,10 +335,10 @@ describe('parseMap — POIs (AC7–AC11, AC22, AC23)', () => {
   });
   it('POI tag (group-keyed) + value→size (AC10)', () => {
     const r = parseMap(
-      'map\ntag Market as m\n  Office blue\npoi Tokyo value: 38, m: Office'
+      'map\ntag Market as m\n  Office blue\npoi Tokyo size: 38, m: Office'
     );
     expect(r.pois[0]!.tags).toEqual({ market: 'Office' });
-    expect(r.pois[0]!.meta.value).toBe('38');
+    expect(r.pois[0]!.meta.size).toBe('38');
   });
   it('rejects `at:` (AC11)', () => {
     const r = parseMap('map\npoi Denver at: 39,-104');
@@ -365,7 +359,7 @@ describe('parseMap — POIs (AC7–AC11, AC22, AC23)', () => {
 describe('parseMap — routes (AC12)', () => {
   it('parses a route: origin header + arrow legs + loop close', () => {
     const r = parseMap(
-      'map\nroute Miami\n  ~weigh anchor~> Nassau value: 40\n  -> Grand Turk\n  ~> Miami'
+      'map\nroute Miami\n  ~weigh anchor~> Nassau width: 40\n  -> Grand Turk\n  ~> Miami'
     );
     expect(r.routes).toHaveLength(1);
     const rt = r.routes[0]!;
@@ -444,9 +438,9 @@ describe('parseMap — edges (AC13–AC15, AC17)', () => {
       style: 'straight',
     });
 
-    const r2 = parseMap('map\nA -ships-> B value: 22');
+    const r2 = parseMap('map\nA -ships-> B width: 22');
     expect(r2.edges[0]).toMatchObject({ from: 'A', to: 'B', label: 'ships' });
-    expect(r2.edges[0]!.meta.value).toBe('22');
+    expect(r2.edges[0]!.meta.width).toBe('22');
 
     const r3 = parseMap('map\nA -> B -> C');
     expect(r3.edges.map((e) => [e.from, e.to])).toEqual([
@@ -468,7 +462,7 @@ describe('parseMap — edges (AC13–AC15, AC17)', () => {
     expect(r2.error).toBeNull();
   });
   it('labeled undirected `-label-` (no arrowhead, keeps label)', () => {
-    const r = parseMap('map\nA -ferry- B value: 12');
+    const r = parseMap('map\nA -ferry- B width: 12');
     expect(r.edges[0]).toMatchObject({
       from: 'A',
       to: 'B',
@@ -476,7 +470,7 @@ describe('parseMap — edges (AC13–AC15, AC17)', () => {
       directed: false,
       style: 'straight',
     });
-    expect(r.edges[0]!.meta.value).toBe('12');
+    expect(r.edges[0]!.meta.width).toBe('12');
     expect(r.error).toBeNull();
   });
   it('undirected arc `~~` and labeled `~label~`', () => {
@@ -537,16 +531,61 @@ describe('parseMap — edges (AC13–AC15, AC17)', () => {
     expect(r.regions ?? []).toHaveLength(0);
   });
   it('a poi metadata line (no name) under a poi still parses, not a hub error', () => {
-    const r = parseMap('map\npoi JFK\n  value: 9');
+    const r = parseMap('map\npoi JFK\n  size: 9');
     expect(r.diagnostics.filter((d) => d.severity === 'error')).toHaveLength(0);
-    expect(r.pois[0]!.meta.value).toBe('9');
+    expect(r.pois[0]!.meta.size).toBe('9');
+  });
+});
+
+describe('parseMap — per-element channel keys (decision #20)', () => {
+  it('a region takes heat: (→ choropleth value)', () => {
+    const r = parseMap('map\nCalifornia heat: 92');
+    expect(r.regions[0]!.value).toBe(92);
+    expect(r.error).toBeNull();
+  });
+  it('size: or width: on a region is rejected (regions take heat:)', () => {
+    const rs = parseMap('map\nCalifornia size: 5');
+    expect(
+      rs.diagnostics.some((d) => /regions take `heat:`/.test(d.message))
+    ).toBe(true);
+    const rw = parseMap('map\nCalifornia width: 5');
+    expect(
+      rw.diagnostics.some((d) => /regions take `heat:`/.test(d.message))
+    ).toBe(true);
+  });
+  it('heat: or width: on a POI is rejected (points take size:)', () => {
+    const rh = parseMap('map\npoi Tokyo heat: 5');
+    expect(
+      rh.diagnostics.some((d) => /points take `size:`/.test(d.message))
+    ).toBe(true);
+    expect(rh.pois[0]!.meta.heat).toBeUndefined(); // foreign key dropped
+    const rw = parseMap('map\npoi Tokyo width: 5');
+    expect(
+      rw.diagnostics.some((d) => /points take `size:`/.test(d.message))
+    ).toBe(true);
+  });
+  it('heat: or size: on a free edge is rejected (edges take width:)', () => {
+    const rh = parseMap('map\nA -> B heat: 5');
+    expect(
+      rh.diagnostics.some((d) => /edges take `width:`/.test(d.message))
+    ).toBe(true);
+    const rs = parseMap('map\nA -> B size: 5');
+    expect(
+      rs.diagnostics.some((d) => /edges take `width:`/.test(d.message))
+    ).toBe(true);
+  });
+  it('a route leg takes width:, a foreign size: is rejected', () => {
+    const r = parseMap('map\nroute Miami\n  ~> Nassau size: 5');
+    expect(
+      r.diagnostics.some((d) => /edges take `width:`/.test(d.message))
+    ).toBe(true);
   });
 });
 
 describe('parseMap — adversarial-review fixes', () => {
-  it('#2 POI value: is retained in meta (→ marker size)', () => {
-    const r = parseMap('map\npoi Tokyo value: 5');
-    expect(r.pois[0]!.meta.value).toBe('5');
+  it('#2 POI size: is retained in meta (→ marker size)', () => {
+    const r = parseMap('map\npoi Tokyo size: 5');
+    expect(r.pois[0]!.meta.size).toBe('5');
   });
   it('#3 a tag alias colliding with a reserved word still resolves as a tag', () => {
     const r = parseMap(
@@ -574,9 +613,9 @@ describe('parseMap — adversarial-review fixes', () => {
     expect(r.diagnostics.some((d) => /active-tag/.test(d.message))).toBe(true);
   });
   it('#7 chain value attaches only to the final leg', () => {
-    const r = parseMap('map\nA -> B -> C value: 9');
-    expect(r.edges[0]!.meta.value).toBeUndefined();
-    expect(r.edges[1]!.meta.value).toBe('9');
+    const r = parseMap('map\nA -> B -> C width: 9');
+    expect(r.edges[0]!.meta.width).toBeUndefined();
+    expect(r.edges[1]!.meta.width).toBe('9');
   });
   it('#8 a +-prefixed coord-like POI is a malformed-coord error, not a silent name', () => {
     const r = parseMap('map\npoi +39 -104');
@@ -637,7 +676,7 @@ describe('parseMap — classification & robustness (AC16, AC18, AC19, AC21)', ()
     expect(r.pois).toHaveLength(0);
   });
   it('inline comment stripped; bare unknown name does NOT warn (AC21)', () => {
-    const r = parseMap('map\nCalifornia value: 92 // top market\nAtlantis');
+    const r = parseMap('map\nCalifornia heat: 92 // top market\nAtlantis');
     expect(r.regions.find((x) => x.name === 'California')!.value).toBe(92);
     expect(r.regions.some((x) => x.name === 'Atlantis')).toBe(true);
     expect(

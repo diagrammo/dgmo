@@ -495,9 +495,9 @@ describe('COMPLETION_REGISTRY', () => {
     const mapSpec = COMPLETION_REGISTRY.get('map')!;
     // Surviving intent directives + the 7 `no-*` cosmetic opt-outs.
     for (const k of [
-      'region-metric',
-      'poi-metric',
-      'flow-metric',
+      'region-heat',
+      'poi-size',
+      'flow-width',
       'locale',
       'active-tag',
       'caption',

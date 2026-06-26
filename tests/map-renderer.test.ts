@@ -105,24 +105,24 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
   });
 
   it('no-legend suppresses the legend group (AC17)', () => {
-    const svg = render('map\nno-legend\nCalifornia value: 5');
+    const svg = render('map\nno-legend\nCalifornia heat: 5');
     expect(svg.querySelector('.dgmo-map-legend')).toBeNull();
   });
 
   it('renders the title banner from the first-line text', () => {
-    const svg = render('map Western States\nCalifornia value: 5');
+    const svg = render('map Western States\nCalifornia heat: 5');
     const title = svg.querySelector('.dgmo-map-title');
     expect(title?.textContent).toBe('Western States');
   });
 
   it('no-title suppresses the title banner', () => {
-    const svg = render('map Western States\nno-title\nCalifornia value: 5');
+    const svg = render('map Western States\nno-title\nCalifornia heat: 5');
     expect(svg.querySelector('.dgmo-map-title')).toBeNull();
   });
 
   it('region paths carry data-line-number and fire onClickItem (AC21)', () => {
     let clicked: number | null = null;
-    const svg = render('map\nCalifornia value: 5', (n) => (clicked = n));
+    const svg = render('map\nCalifornia heat: 5', (n) => (clicked = n));
     const target = svg.querySelector<SVGPathElement>(
       '.dgmo-map-regions path[data-line-number]'
     );
@@ -145,7 +145,7 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(base).toContain('JP');
     // Authored data region carries it too (matches the reverse-geocoded state iso).
     const withData = [
-      ...render('map\nCalifornia value: 5').querySelectorAll<SVGPathElement>(
+      ...render('map\nCalifornia heat: 5').querySelectorAll<SVGPathElement>(
         '.dgmo-map-regions [data-iso]'
       ),
     ].map((p) => p.getAttribute('data-iso'));
@@ -157,9 +157,9 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
 
   it('route legs + leg labels carry data-line-number and fire onClickItem', () => {
     let clicked: number | null = null;
-    // Leg line is line 3 (`  -ferry-> Osaka value: 40`).
+    // Leg line is line 3 (`  -ferry-> Osaka width: 40`).
     const svg = render(
-      'map\nroute Tokyo\n  -ferry-> Osaka value: 40',
+      'map\nroute Tokyo\n  -ferry-> Osaka width: 40',
       (n) => (clicked = n)
     );
     const path = svg.querySelector<SVGPathElement>(
@@ -204,7 +204,7 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
 
   it('a weighted edge carries its value as a <title> tooltip + data-value', () => {
     const svg = render(
-      'map\npoi Tokyo\npoi Osaka\nTokyo ~fiber~> Osaka value: 28'
+      'map\npoi Tokyo\npoi Osaka\nTokyo ~fiber~> Osaka width: 28'
     );
     const path = svg.querySelector<SVGPathElement>(
       '.dgmo-map-legs path[data-value]'
@@ -292,10 +292,10 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     // renderer lays the hachure atop the data fills. The group must be present,
     // and `no-relief` is the only switch that removes it.
     expect(
-      render('map\nUnited States value: 5').querySelector('.dgmo-map-relief')
+      render('map\nUnited States heat: 5').querySelector('.dgmo-map-relief')
     ).toBeTruthy();
     expect(
-      render('map\nUnited States value: 5\nno-relief').querySelector(
+      render('map\nUnited States heat: 5\nno-relief').querySelector(
         '.dgmo-map-relief'
       )
     ).toBeNull();
@@ -453,7 +453,7 @@ describe('renderer — SVG output (AC1, AC16, AC17, AC21, AC22, AC24)', () => {
     expect(tag.querySelector('.dgmo-map-legend')).toBeTruthy();
     // The score ramp now lives in the top legend as a gradient group (not the
     // old bottom-right keys block).
-    const ramp = render('map\nregion-metric Sales\nCalifornia value: 50');
+    const ramp = render('map\nregion-heat Sales\nCalifornia heat: 50');
     expect(ramp.querySelector('.dgmo-map-legend')).toBeTruthy();
     expect(
       ramp.querySelector('linearGradient[id^="dgmo-legend-ramp"]')
@@ -668,7 +668,7 @@ describe('renderer — colorize border + override (AC8, AC12)', () => {
 describe('renderer — region metric value line', () => {
   it('draws the compact value as a second tspan under the region name', () => {
     const svg = render(
-      'map\nregion-metric Population\nCalifornia value: 39500000'
+      'map\nregion-heat Population\nCalifornia heat: 39500000'
     );
     const labels = svg.querySelector('.dgmo-map-labels')!;
     const texts = Array.from(labels.querySelectorAll('text'));
@@ -683,8 +683,8 @@ describe('renderer — region metric value line', () => {
       Number(caText!.getAttribute('font-size'))
     );
   });
-  it('omits the value tspan under no-region-value', () => {
-    const svg = render('map\nno-region-value\nCalifornia value: 39500000');
+  it('omits the value tspan under no-region-heat-value', () => {
+    const svg = render('map\nno-region-heat-value\nCalifornia heat: 39500000');
     const texts = Array.from(
       svg.querySelector('.dgmo-map-labels')!.querySelectorAll('text')
     );
@@ -702,8 +702,8 @@ describe('renderer — per-render id namespacing (multi-map page)', () => {
     // The docs gallery inlines several maps on one page. SVG `url(#id)` resolves
     // document-globally, so a shared coast/mask id made later maps reference the
     // first map's defs and ghost it through. Ids must be disjoint across renders.
-    const a = idsOf(render('map\nCalifornia value: 5\nTexas value: 9'));
-    const b = idsOf(render('map\nFrance value: 5\nGermany value: 9'));
+    const a = idsOf(render('map\nCalifornia heat: 5\nTexas heat: 9'));
+    const b = idsOf(render('map\nFrance heat: 5\nGermany heat: 9'));
     expect(a.length).toBeGreaterThan(0);
     expect(b.length).toBeGreaterThan(0);
     const overlap = a.filter((id) => b.includes(id));
@@ -711,7 +711,7 @@ describe('renderer — per-render id namespacing (multi-map page)', () => {
   });
 
   it('every `url(#…)` / `href="#…"` reference resolves within its own svg', () => {
-    const svg = render('map\nUnited States value: 5\nTexas ~> California');
+    const svg = render('map\nUnited States heat: 5\nTexas ~> California');
     const ids = new Set(idsOf(svg));
     const refs = svg.outerHTML.match(/(?:url\(#|href="#)([^)"]+)/g) ?? [];
     for (const raw of refs) {

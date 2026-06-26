@@ -1,6 +1,6 @@
 map World Reference
 
-// A dataless reference map (regions named, no value: or tags) — so the
+// A dataless reference map (regions named, no heat: or tags) — so the
 // zero-config basemap shows its full dress: coastline water-lines, mountain
 // relief, and orientation labels, on a natural-earth projection.
 United States

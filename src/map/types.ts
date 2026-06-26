@@ -17,18 +17,18 @@ export type PoiPos =
  *  Absent (undefined) = feature ON — so render gates test `!== true`, never
  *  `=== true`. There are NO positive opt-in cosmetic flags (§24B.2). */
 export interface MapDirectives {
-  /** Legend label for the region value ramp (`region-metric <label>`). */
+  /** Legend label for the region value ramp (`region-heat <label>`). */
   regionMetric?: string;
   /** Recognized color NAME for the choropleth ramp HIGH endpoint, peeled off the
-   *  `region-metric` trailing token (§24B.3). Defaults to red when absent. */
+   *  `region-heat` trailing token (§24B.3). Defaults to red when absent. */
   regionMetricColor?: string;
   /** Recognized color NAME for the choropleth ramp LOW endpoint (the second,
-   *  left-of-two trailing colors on `region-metric`, §24B.3). Absent ⇒ the low
+   *  left-of-two trailing colors on `region-heat`, §24B.3). Absent ⇒ the low
    *  end is the implied floored neutral (today's single-colour behaviour). */
   regionMetricLowColor?: string;
-  /** Legend label for the POI value (marker size) channel (`poi-metric`). */
+  /** Legend label for the POI value (marker size) channel (`poi-size`). */
   poiMetric?: string;
-  /** Legend label for the edge/leg value (thickness) channel (`flow-metric`). */
+  /** Legend label for the edge/leg value (thickness) channel (`flow-width`). */
   flowMetric?: string;
   /** Default ISO scope for bare-name resolution (§24B.8): a 3166-1 country
    *  (`locale US`) or 3166-2 subdivision (`locale US-GA`). The country part
@@ -53,8 +53,8 @@ export interface MapDirectives {
   noContextLabels?: boolean;
   /** `no-region-labels` — suppress region labels (default-on, full→abbrev→hide). */
   noRegionLabels?: boolean;
-  /** `no-region-value` — suppress the metric VALUE shown under each data region's
-   *  name on a `region-metric` choropleth (default-on). The region NAME still
+  /** `no-region-heat-value` — suppress the metric VALUE shown under each data region's
+   *  name on a `region-heat` choropleth (default-on). The region NAME still
    *  renders (governed by `no-region-labels`); only the numeric value line goes. */
   noRegionValue?: boolean;
   /** `no-poi-labels` — suppress POI labels (default-on, collision-managed auto). */
@@ -111,7 +111,7 @@ export interface MapPoi {
 
 /** One leg of a route (§24B.6): an edge from the previous stop to `dest`. Reuses
  *  the indented edge arrow idiom (same as sitemap) — in-arrow text = leg label,
- *  `value:` = leg thickness, the arrow glyph = shape (`-…->` straight, `~…~>`
+ *  `width:` = leg thickness, the arrow glyph = shape (`-…->` straight, `~…~>`
  *  arc). A tag on the leg line colours the LINE (§24B.6); `label:`/`as` still
  *  name the DESTINATION stop. The arrow is required — a bare destination errors. */
 export interface MapRouteLeg {

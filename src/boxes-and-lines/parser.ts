@@ -319,11 +319,11 @@ export function parseBoxesAndLines(
         continue;
       }
 
-      // box-metric / show-values directives — pre-content only (like
+      // heat / show-values directives — pre-content only (like
       // active-tag). Explicit regex branches: a bare flag and a
       // `key value` form won't both match the active-tag OPTION codepath.
       if (!contentStarted) {
-        const metricMatch = trimmed.match(/^box-metric\s+(.+)$/i);
+        const metricMatch = trimmed.match(/^heat\s+(.+)$/i);
         if (metricMatch) {
           // Regex capture group present after successful match.
           const { label, low, high } = peelRampColors(metricMatch[1]!.trim());
@@ -940,21 +940,21 @@ function parseNodeLine(
     delete metadata['description'];
   }
 
-  // Lift `value: X` out of metadata into a typed numeric field (mirror of the
-  // map parser). Validate finite-numeric; delete from metadata so it never
-  // becomes a `data-tag-value` attribute.
+  // Lift `heat: X` out of metadata into a typed numeric field (mirror of the
+  // map parser's region `heat:`). Validate finite-numeric; delete from metadata
+  // so it never becomes a `data-tag-value` attribute.
   let value: number | undefined;
-  if (metadata['value'] !== undefined) {
-    const raw = metadata['value'];
+  if (metadata['heat'] !== undefined) {
+    const raw = metadata['heat'];
     const num = Number(raw);
     if (Number.isFinite(num)) {
       value = num;
     } else {
       diagnostics.push(
-        makeDgmoError(lineNum, `value must be a number (got "${raw}")`, 'error')
+        makeDgmoError(lineNum, `heat must be a number (got "${raw}")`, 'error')
       );
     }
-    delete metadata['value'];
+    delete metadata['heat'];
   }
 
   // TD-18 alias is now peeled by splitNameAndMeta — re-register if set.

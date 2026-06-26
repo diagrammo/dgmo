@@ -1,9 +1,9 @@
 map US Sales by State
-region-metric Sales ($M)
+region-heat Sales ($M)
 
-California value: 92
-Texas value: 78
-New York value: 64
-Florida value: 51
-Washington value: 40
-Colorado value: 30
+California heat: 92
+Texas heat: 78
+New York heat: 64
+Florida heat: 51
+Washington heat: 40
+Colorado heat: 30

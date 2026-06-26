@@ -1,8 +1,8 @@
 map Regional Focus
-region-metric Sales ($M) blue
+region-heat Sales ($M) blue
 
-California value: 92
-Oregon value: 40
+California heat: 92
+Oregon heat: 40
 Texas red
 
 poi Portland US-OR green

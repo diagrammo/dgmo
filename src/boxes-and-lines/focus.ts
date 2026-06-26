@@ -41,7 +41,7 @@ export interface FocusResult {
   /** Group LABELS of neighbours rendered collapsed. */
   readonly collapsedNeighborGroupIds: Set<string>;
   /** GLOBAL value-ramp domain computed from the ORIGINAL model before filtering
-   *  (Decision 20 / FM1); null when the diagram has no `value:` data. */
+   *  (Decision 20 / FM1); null when the diagram has no `heat:` data. */
   readonly rampDomain: { min: number; max: number } | null;
   /** Collapse metadata for `layoutBoxesAndLines` so neighbour groups materialise
    *  as collapsed boxes — mirrors the manual-collapse path's `collapseInfo`. */

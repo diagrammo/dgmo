@@ -111,7 +111,7 @@ describe('boxes-and-lines renderer — edge labels', () => {
 describe('boxes-and-lines renderer — value ramp', () => {
   it('emits data-value (incl "0") and never data-tag-value (AC14, AC22, AC24)', async () => {
     const svg = await render(
-      'boxes-and-lines\nbox-metric Load\nAPI value: 50\nDB value: 0\nAPI -> DB'
+      'boxes-and-lines\nheat Load\nAPI heat: 50\nDB heat: 0\nAPI -> DB'
     );
     const api = nodeFor(svg, 'API');
     const db = nodeFor(svg, 'DB');
@@ -123,7 +123,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('renders the gradient ramp, active, when value present (AC13, AC25)', async () => {
     const svg = await render(
-      'boxes-and-lines\nbox-metric Load\nA value: 10\nB value: 90\nA -> B'
+      'boxes-and-lines\nheat Load\nA heat: 10\nB heat: 90\nA -> B'
     );
     const ramp = svg.querySelector('.dgmo-legend-gradient-ramp');
     expect(ramp).toBeTruthy();
@@ -133,7 +133,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('anchors the ramp at data-min when values are negative (AC12)', async () => {
     const svg = await render(
-      'boxes-and-lines\nA value: -20\nB value: 40\nA -> B'
+      'boxes-and-lines\nA heat: -20\nB heat: 40\nA -> B'
     );
     const ramp = svg.querySelector('.dgmo-legend-gradient-ramp')!;
     expect(ramp.getAttribute('data-ramp-min')).toBe('-20');
@@ -142,7 +142,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('anchors all-non-negative data at the data minimum, not 0 (AC12)', async () => {
     const svg = await render(
-      'boxes-and-lines\nA value: 40\nB value: 100\nA -> B'
+      'boxes-and-lines\nA heat: 40\nB heat: 100\nA -> B'
     );
     const ramp = svg.querySelector('.dgmo-legend-gradient-ramp')!;
     // 2026-06-08: low end = lowest value (40), not the old 0-anchor.
@@ -151,7 +151,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
   });
 
   it('survives a degenerate single-value ramp with no NaN (AC11)', async () => {
-    const svg = await render('boxes-and-lines\nA value: 7\nB\nA -> B');
+    const svg = await render('boxes-and-lines\nA heat: 7\nB\nA -> B');
     expect(svg).toBeTruthy();
     const ramp = svg.querySelector('.dgmo-legend-gradient-ramp')!;
     // Single value → min === max === the lone value; fillForValue falls back to
@@ -163,19 +163,17 @@ describe('boxes-and-lines renderer — value ramp', () => {
   });
 
   it('value-tints boxes and strokes them with the ramp hue (default = primary)', async () => {
-    const svg = await render(
-      'boxes-and-lines\nA value: 10\nB value: 90\nA -> B'
-    );
+    const svg = await render('boxes-and-lines\nA heat: 10\nB heat: 90\nA -> B');
     const b = nodeFor(svg, 'B').querySelector('rect')!;
-    // No box-metric color → hue defaults to palette.primary.
+    // No heat color → hue defaults to palette.primary.
     expect(b.getAttribute('stroke')).toBe(P.primary);
     // High value tints near full hue (distinct from the page bg).
     expect(b.getAttribute('fill')).not.toBe(P.bg);
   });
 
-  it('honors a box-metric trailing color as the ramp hue (AC4)', async () => {
+  it('honors a heat trailing color as the ramp hue (AC4)', async () => {
     const svg = await render(
-      'boxes-and-lines\nbox-metric Heat red\nA value: 10\nB value: 90\nA -> B'
+      'boxes-and-lines\nheat Heat red\nA heat: 10\nB heat: 90\nA -> B'
     );
     const b = nodeFor(svg, 'B').querySelector('rect')!;
     expect(b.getAttribute('stroke')).toBe(P.colors.red);
@@ -183,7 +181,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('single-colour ramp uses a muted 25% fill + solid ramp-hue outline', async () => {
     const svg = await render(
-      'boxes-and-lines\nbox-metric Heat blue\nA value: 0\nB value: 100\nA -> B'
+      'boxes-and-lines\nheat Heat blue\nA heat: 0\nB heat: 100\nA -> B'
     );
     const b = nodeFor(svg, 'B').querySelector('rect')!;
     // Max value → ramp colour is the full hue, but the fill is its muted 25%
@@ -195,7 +193,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('single-colour ramp honours solid-fill (full hue at max)', async () => {
     const svg = await render(
-      'boxes-and-lines\nsolid-fill\nbox-metric Heat blue\nA value: 0\nB value: 100\nA -> B'
+      'boxes-and-lines\nsolid-fill\nheat Heat blue\nA heat: 0\nB heat: 100\nA -> B'
     );
     const b = nodeFor(svg, 'B').querySelector('rect')!;
     expect(b.getAttribute('fill')).toBe(P.colors.blue);
@@ -203,7 +201,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('two-colour ramp: standard convention — outline = ramp colour, fill = 25% tint (AC1, AC10)', async () => {
     const svg = await render(
-      'boxes-and-lines\nbox-metric Heat blue green\nA value: 0\nB value: 100\nA -> B'
+      'boxes-and-lines\nheat Heat blue green\nA heat: 0\nB heat: 100\nA -> B'
     );
     const a = nodeFor(svg, 'A').querySelector('rect')!;
     const b = nodeFor(svg, 'B').querySelector('rect')!;
@@ -223,7 +221,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('two-colour ramp honours solid-fill (full ramp colour) (AC1)', async () => {
     const svg = await render(
-      'boxes-and-lines\nsolid-fill\nbox-metric Heat blue green\nA value: 0\nB value: 100\nA -> B'
+      'boxes-and-lines\nsolid-fill\nheat Heat blue green\nA heat: 0\nB heat: 100\nA -> B'
     );
     const b = nodeFor(svg, 'B').querySelector('rect')!;
     const bRamp = valueRampColor(P.colors.blue, P.colors.green, 1, {
@@ -236,7 +234,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('diverging green→red mid outline is a straight palette fade (no synthetic hue)', async () => {
     const svg = await render(
-      'boxes-and-lines\nbox-metric Heat green red\nA value: 0\nMid value: 50\nB value: 100\nA -> B'
+      'boxes-and-lines\nheat Heat green red\nA heat: 0\nMid heat: 50\nB heat: 100\nA -> B'
     );
     // The saturated intent is carried on the outline (fill is its 25% tint).
     const midStroke = nodeFor(svg, 'Mid')
@@ -252,7 +250,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('legend gradient stops reproduce the fills', async () => {
     const svg = await render(
-      'boxes-and-lines\nbox-metric Heat green red\nA value: 0\nB value: 100\nA -> B'
+      'boxes-and-lines\nheat Heat green red\nA heat: 0\nB heat: 100\nA -> B'
     );
     const stops = [...svg.querySelectorAll('stop')] as SVGStopElement[];
     expect(stops.length).toBe(2); // direct fade → two endpoints
@@ -265,7 +263,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
   });
 
   it('gives a no-value box the neutral fill while value is active (AC10)', async () => {
-    const svg = await render('boxes-and-lines\nA value: 10\nB\nA -> B');
+    const svg = await render('boxes-and-lines\nA heat: 10\nB\nA -> B');
     const b = nodeFor(svg, 'B').querySelector('rect')!;
     const neutral = mix(P.bg, P.text, 95);
     expect(b.getAttribute('fill')).toBe(neutral);
@@ -284,7 +282,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('active-tag <tag-group> switches off the value ramp (AC8)', async () => {
     const svg = await render(
-      'boxes-and-lines\ntag Team t Backend blue, Frontend green\nbox-metric Load\nA value: 10, t: Backend\nB value: 90, t: Frontend\nA -> B',
+      'boxes-and-lines\ntag Team t Backend blue, Frontend green\nheat Load\nA heat: 10, t: Backend\nB heat: 90, t: Frontend\nA -> B',
       { activeTagGroup: 'Team' }
     );
     // Tag group active → boxes tinted by tag, gradient capsule not active.
@@ -295,20 +293,20 @@ describe('boxes-and-lines renderer — value ramp', () => {
   });
 
   it('prints value text only when show-values is set (AC16)', async () => {
-    const off = await render('boxes-and-lines\nA value: 42\nB\nA -> B');
+    const off = await render('boxes-and-lines\nA heat: 42\nB\nA -> B');
     expect(off.querySelector('.bl-node-value')).toBeNull();
     const on = await render(
-      'boxes-and-lines\nshow-values\nA value: 42\nB\nA -> B'
+      'boxes-and-lines\nshow-values\nA heat: 42\nB\nA -> B'
     );
     const valText = on.querySelector('.bl-node-value');
     expect(valText).toBeTruthy();
-    // No box-metric → bare number.
+    // No heat → bare number.
     expect(valText!.textContent).toBe('42');
   });
 
   it('prefixes the value with the metric label ("Crew: 120") on plain nodes (AC16)', async () => {
     const svg = await render(
-      'boxes-and-lines\nbox-metric Crew\nshow-values\nFlagship value: 120\nSloop value: 12\nFlagship -> Sloop'
+      'boxes-and-lines\nheat Crew\nshow-values\nFlagship heat: 120\nSloop heat: 12\nFlagship -> Sloop'
     );
     const flagship = nodeFor(svg, 'Flagship');
     const valText = flagship.querySelector('.bl-node-value')!;
@@ -319,7 +317,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('keeps the description legible on a dark solid fill (contrast-aware, not fixed grey)', async () => {
     const svg = await render(
-      'boxes-and-lines\nsolid-fill\nbox-metric Heat red blue\nA value: 0\n  Forgotten coin in the bilge\n  -> B\nB value: 100\n  Full chest'
+      'boxes-and-lines\nsolid-fill\nheat Heat red blue\nA heat: 0\n  Forgotten coin in the bilge\n  -> B\nB heat: 100\n  Full chest'
     );
     const a = nodeFor(svg, 'A');
     const fill = a.querySelector('rect')!.getAttribute('fill')!;
@@ -336,7 +334,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('keeps the subtle muted description colour on default (light/tinted) fills', async () => {
     const svg = await render(
-      'boxes-and-lines\nbox-metric Heat red blue\nA value: 0\n  Forgotten coin in the bilge\n  -> B\nB value: 100\n  Full chest'
+      'boxes-and-lines\nheat Heat red blue\nA heat: 0\n  Forgotten coin in the bilge\n  -> B\nB heat: 100\n  Full chest'
     );
     const a = nodeFor(svg, 'A');
     const descEl = [...a.querySelectorAll('text')].find((t) =>
@@ -347,7 +345,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('described node: title, ONE divider, then description + value as one body (org-card style, no 3rd section)', async () => {
     const svg = await render(
-      'boxes-and-lines\nbox-metric Readiness red green\nshow-values\nFlagship value: 96\n  Fully crewed and battle-ready\n  -> Sloop\nSloop value: 22\n  Barely afloat'
+      'boxes-and-lines\nheat Readiness red green\nshow-values\nFlagship heat: 96\n  Fully crewed and battle-ready\n  -> Sloop\nSloop heat: 22\n  Barely afloat'
     );
     const flagship = nodeFor(svg, 'Flagship');
     const valText = flagship.querySelector('.bl-node-value')!;
@@ -367,7 +365,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('described value-card divider stays visible in solid-fill (uses contrast colour, not the equal stroke)', async () => {
     const svg = await render(
-      'boxes-and-lines\nsolid-fill\nbox-metric Readiness red green\nshow-values\nFlagship value: 96\n  Fully crewed\n  -> Sloop\nSloop value: 22\n  Barely afloat'
+      'boxes-and-lines\nsolid-fill\nheat Readiness red green\nshow-values\nFlagship heat: 96\n  Fully crewed\n  -> Sloop\nSloop heat: 22\n  Barely afloat'
     );
     const flagship = nodeFor(svg, 'Flagship');
     const rectFill = flagship.querySelector('rect')!.getAttribute('fill');

@@ -7,8 +7,8 @@ export interface BLNode {
   readonly lineNumber: number;
   readonly metadata: Readonly<Record<string, string>>;
   readonly description?: readonly string[];
-  /** Numeric measure lifted from `value: X` metadata (mirror of map's
-   *  `region.value`). Drives the value ramp / choropleth tinting. */
+  /** Numeric measure lifted from `heat: X` metadata (mirror of map's
+   *  `region.value`). Drives the heat ramp / choropleth tinting. */
   readonly value?: number;
 }
 
@@ -51,9 +51,9 @@ export interface ParsedBoxesAndLines {
     string,
     { readonly x: number; readonly y: number }
   >;
-  /** `box-metric <label> [low] [high]` — names the value-ramp dimension and
+  /** `heat <label> [low] [high]` — names the value-ramp dimension and
    *  optionally sets its endpoint colours. One color = high hue over a neutral
-   *  low; two = explicit `low high`. Mirror of map's `region-metric`. */
+   *  low; two = explicit `low high`. Mirror of map's `region-heat`. */
   readonly boxMetric?: string;
   /** Recognized color NAME for the ramp HIGH endpoint. */
   readonly boxMetricColor?: string;

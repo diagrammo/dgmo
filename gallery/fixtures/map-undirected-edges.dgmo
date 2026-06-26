@@ -1,12 +1,12 @@
 map Sister Ports of the Spanish Main
-flow-metric Shared cargo runs
+flow-width Shared cargo runs
 
 poi Tortuga
 poi Port Royal
 poi Nassau
 poi Havana
 
-Tortuga -ferry- Port Royal value: 18
+Tortuga -ferry- Port Royal width: 18
 Port Royal ~cable~ Nassau
 Nassau -- Havana
-Havana -ships-> Tortuga value: 30
+Havana -ships-> Tortuga width: 30

@@ -811,7 +811,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
         leg.destAlias,
         leg.destLabel,
         {}, // a leg tag colours the LINE (§24B.6), not the destination stop
-        undefined, // a leg's `value:` is leg thickness, not the dest's size
+        undefined, // a leg's `width:` is leg thickness, not the dest's size
         leg.lineNumber
       );
       if (!destId) continue; // ungeocodable destination → skip this leg
@@ -852,7 +852,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const subdivisions: Array<'us-states'> = [];
   // Draw the US state mesh in two cases:
   //   1. `usSubdivisionReferenced` — a US state is named as a data region
-  //      (e.g. `California value: 92`), so the states ARE the subject; detail
+  //      (e.g. `California heat: 92`), so the states ARE the subject; detail
   //      them even on a global projection alongside non-NA content.
   //   2. `usOriented` — US content with everything else inside North America,
   //      i.e. the conventional US states map (including a POI-only named-city

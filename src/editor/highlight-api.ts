@@ -209,11 +209,16 @@ export const ATTRIBUTE_KEYS = new Set([
   'tech',
   'span',
   'split',
-  // Map (§24B) reserved keys
+  // Map (§24B) + boxes-and-lines per-element numeric channel keys (decision #20):
+  // `heat:` (region/box colour ramp), `size:` (POI marker), `width:` (edge stroke).
+  // `width` is already listed above (shared with cycle); `size`/`heat` added here.
+  // `value` is retained (legacy/no-op colon key) so any stray `value:` still reads
+  // as a property rather than an error highlight.
+  'size',
   'value',
   'label',
   'style',
-  // Treemap color-by-value metric key
+  // Treemap + boxes-and-lines + map colour-by-value channel key
   'heat',
   // Infra node behavior + edge colon-keys (§4) come from the single-source
   // directives registry — the parser accepts them only as `key: value` node

@@ -219,7 +219,7 @@ function nodeColors(
   value: {
     active: boolean;
     hue: string;
-    /** Two explicit endpoint colours (`box-metric Risk green red`). When set, the
+    /** Two explicit endpoint colours (`heat Risk green red`). When set, the
      *  value's position on the ramp is carried by HUE, so the box follows the
      *  STANDARD box convention (solid colour outline + 25% faded fill) rather than
      *  the map's saturated choropleth fill. A single-colour ramp encodes value by
@@ -424,7 +424,7 @@ export function renderBoxesAndLines(
     .map((n) => n.value!);
   const hasRamp = nodeValues.length > 0;
   // Anchor the low end at the lowest value (not 0) to maximise within-diagram
-  // dynamic range; mirrors the map's region-metric ramp. Equal-value data
+  // dynamic range; mirrors the map's region-heat ramp. Equal-value data
   // (rampMin === rampMax) falls back to t = 1 in fillForValue below.
   // A caller-supplied domain (focus mode) wins so colours don't shift when a
   // subset is rendered; otherwise derive from the nodes on screen.
@@ -432,10 +432,10 @@ export function renderBoxesAndLines(
   const rampMax = rampDomain?.max ?? Math.max(...nodeValues);
   // Default hue = palette.primary (NOT red like the map — boxes have no water to
   // stand out against, and red reads as alarm on a neutral metric). A trailing
-  // color on `box-metric` overrides.
+  // color on `heat` overrides.
   const rampHue =
     resolveColor(parsed.boxMetricColor ?? '', palette) ?? palette.primary;
-  // Explicit LOW endpoint (`box-metric Risk green red`); absent ⇒ single-colour
+  // Explicit LOW endpoint (`heat Risk green red`); absent ⇒ single-colour
   // (neutral low). Only recognized names peel, so resolveColor always succeeds.
   const rampLow = parsed.boxMetricLowColor
     ? (resolveColor(parsed.boxMetricLowColor, palette) ?? undefined)
@@ -940,7 +940,7 @@ export function renderBoxesAndLines(
     }
 
     // Numeric value drives the gradient scrub; guard on !== undefined so a
-    // legitimate `value: 0` still emits data-value="0" (0 is falsy).
+    // legitimate `heat: 0` still emits data-value="0" (0 is falsy).
     if (node.value !== undefined) {
       nodeG.attr('data-value', node.value);
     }

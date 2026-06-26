@@ -55,6 +55,20 @@ const HUB_RE = new RegExp(`^(${ARROW_TOKENS})\\s+(.+)$`);
 const LEG_ARROW_RE = new RegExp(`^(${ARROW_TOKENS})\\s+(.+)$`);
 const AT_RE = /(^|[\s,])at\s*:/i; // the removed `at:` coord form (§24B.9)
 
+// Per-element numeric channel keys (decision #20): region `heat:`, point `size:`,
+// edge `width:`. For a given element's own channel, the other two are foreign and
+// get rejected (§24B.10). Module-scope (referenced by a hoisted handler).
+const CHANNEL_FOREIGN = {
+  heat: ['size', 'width'],
+  size: ['heat', 'width'],
+  width: ['heat', 'size'],
+} as const;
+const CHANNEL_HINT = {
+  heat: 'regions take `heat:`',
+  size: 'points take `size:`',
+  width: 'edges take `width:`',
+} as const;
+
 // The 14 map-specific directives (§24B.2): 6 irreducible-intent + 8 `no-*`
 // cosmetic opt-outs (every cosmetic on by default; its `no-*` flag is the only
 // switch). Plus `no-title` — the universal banner-suppression flag (§1), wired
@@ -297,6 +311,28 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
 
   // ──────────────────────────── handlers ────────────────────────────
 
+  // Per-element numeric channel keys (decision #20). Each map element kind
+  // accepts exactly ONE channel key — region `heat:`, point `size:`, edge `width:`.
+  // The other two land in `meta` (all three are reserved) but are meaningless on
+  // this element, so reject + drop them (§24B.10) rather than silently ignore.
+  // CHANNEL_FOREIGN / CHANNEL_HINT live at module scope (this handler block sits
+  // after `return result` and `const`s would be unreachable / in the TDZ here).
+  function rejectForeignChannels(
+    meta: Record<string, string>,
+    own: 'heat' | 'size' | 'width',
+    line: number
+  ): void {
+    for (const k of CHANNEL_FOREIGN[own]) {
+      if (meta[k] !== undefined) {
+        pushError(
+          line,
+          `\`${k}:\` is not a valid channel here — ${CHANNEL_HINT[own]} (§24B).`
+        );
+        delete meta[k];
+      }
+    }
+  }
+
   function handleDirective(key: string, value: string, line: number): void {
     const d = result.directives as MapDirectives;
     const dup = (have: unknown): void => {
@@ -304,11 +340,11 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
         pushWarning(line, `Duplicate directive "${key}" — last value wins.`);
     };
     switch (key) {
-      case 'region-metric': {
+      case 'region-heat': {
         dup(d.regionMetric);
         // Up to two trailing colors name the choropleth ramp endpoints
         // (§24B.3): one ⇒ high hue over a neutral low; two ⇒ `low high`. The
-        // label keeps the rest. `region-metric Sales ($M) green red` →
+        // label keeps the rest. `region-heat Sales ($M) green red` →
         // green→red ramp.
         const {
           label: rmLabel,
@@ -320,11 +356,11 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
         if (rmLow) d.regionMetricLowColor = rmLow;
         break;
       }
-      case 'poi-metric':
+      case 'poi-size':
         dup(d.poiMetric);
         d.poiMetric = value;
         break;
-      case 'flow-metric':
+      case 'flow-width':
         dup(d.flowMetric);
         d.flowMetric = value;
         break;
@@ -360,7 +396,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       case 'no-region-labels':
         d.noRegionLabels = true;
         break;
-      case 'no-region-value':
+      case 'no-region-heat-value':
         d.noRegionValue = true;
         break;
       case 'no-poi-labels':
@@ -436,18 +472,19 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       line
     );
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
+    rejectForeignChannels(meta as Record<string, string>, 'heat', line);
     let valueNum: number | undefined;
-    const value = meta['value'];
+    const value = meta['heat'];
     if (value !== undefined) {
-      delete (meta as Record<string, string>)['value']; // lifted out of meta
+      delete (meta as Record<string, string>)['heat']; // lifted out of meta
       valueNum = Number(value);
       if (!Number.isFinite(valueNum)) {
-        pushError(line, `value must be a number (got "${value}").`);
+        pushError(line, `heat must be a number (got "${value}").`);
         valueNum = undefined;
       }
     }
-    // A region may carry BOTH a `value:` and a tag value — they are two
-    // selectable colouring dimensions (the legend flips between the value ramp
+    // A region may carry BOTH a `heat:` and a tag value — they are two
+    // selectable colouring dimensions (the legend flips between the heat ramp
     // and the tag group), so this is no longer warned (bivariate is handled).
     // Peel a trailing ISO scope token (§24B.8) — same qualifier POIs accept,
     // so `Georgia US-GA` / `Georgia US` can force the country-vs-state pick.
@@ -489,7 +526,8 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     const pos = parsePos(split.name, line);
     if (!pos) return; // error already pushed
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
-    const label = meta['label']; // label lifted out of meta; `value` (→ marker size) stays in meta
+    rejectForeignChannels(meta as Record<string, string>, 'size', line);
+    const label = meta['label']; // label lifted out of meta; `size:` (→ marker size) stays in meta
     if (label !== undefined) delete (meta as Record<string, string>)['label'];
     const poi: Writable<MapPoi> = { pos, tags, meta, lineNumber: line };
     if (split.alias) poi.alias = split.alias;
@@ -520,8 +558,10 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       return;
     }
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
+    // The route header is a STOP (a point), so its marker uses the `size:` channel.
+    rejectForeignChannels(meta as Record<string, string>, 'size', line);
     const originLabel = meta['label'];
-    const originValue = meta['value'];
+    const originValue = meta['size'];
     // `style: arc` on the route header was removed (§24B.6): leg shape comes
     // solely from each leg's own arrow glyph (`-…->` straight, `~…~>` arc).
     if (meta['style'] !== undefined) {
@@ -545,7 +585,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
 
   /** Parse one route body line into a leg: `<arrow> <destination> [keys]`. The
    *  arrow is REQUIRED and gives the leg label + shape (`-…->` straight, `~…~>`
-   *  arc); `value:` is leg thickness; a tag colours the LINE (§24B.6);
+   *  arc); `width:` is leg thickness; a tag colours the LINE (§24B.6);
    *  `label:`/`as` name the destination stop. A bare destination with no arrow,
    *  or an undirected (`--`/`~~`) glyph, is a parse error — a voyage always flows
    *  from the previous stop to the next (§24B.6). */
@@ -584,7 +624,9 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       name: split.name,
     };
     const { tags, meta } = partitionMeta(split.meta, tagGroupNames());
-    const value = meta['value'];
+    // A leg is an edge → its thickness rides on the `width:` channel.
+    rejectForeignChannels(meta as Record<string, string>, 'width', line);
+    const value = meta['width'];
     const destLabel = meta['label'];
     // Leg shape comes solely from the leg's own arrow glyph (§24B.6) — the route
     // header `style:` was removed.
@@ -633,6 +675,8 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       lastSplit.meta,
       tagGroupNames()
     );
+    // Edge thickness rides on the `width:` channel (§24B.6).
+    rejectForeignChannels(lastMeta as Record<string, string>, 'width', line);
     for (let k = 0; k < links.length; k++) {
       const from = endpoints[k]!;
       const to = endpoints[k + 1]!;

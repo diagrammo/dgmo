@@ -271,7 +271,7 @@ describe('countryLabelPositions — dodge-position generation (map-context-neigh
 
 describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => {
   it('us-states layer decoded + drawn (AC2)', () => {
-    const r = lay('map\nCalifornia value: 50');
+    const r = lay('map\nCalifornia heat: 50');
     expect(r.regions.some((x) => x.layer === 'us-state')).toBe(true);
   });
   it('empty map → base regions only, no pois (AC23)', () => {
@@ -281,7 +281,7 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     expect(r.legend).toBeNull();
   });
   it('US-only → albers-usa, finite paths (AC19)', () => {
-    const r = lay('map\nCalifornia value: 1\nOregon value: 2');
+    const r = lay('map\nCalifornia heat: 1\nOregon heat: 2');
     const ca = r.regions.find((x) => x.id === 'US-CA')!;
     expect(ca.d.length).toBeGreaterThan(0);
     expect(ca.d).not.toMatch(/NaN/);
@@ -291,7 +291,7 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     // visually; the hand-built rect fixture can't reproduce real albers bounds,
     // so this only asserts the structural contract of whatever frames render.
     const r = lay(
-      'map\nCalifornia value: 1\nAlaska value: 2\nHawaii value: 3',
+      'map\nCalifornia heat: 1\nAlaska heat: 2\nHawaii heat: 3',
       1200,
       800
     );
@@ -312,12 +312,12 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
   it('AK/HI insets are inferred — absent when neither is referenced', () => {
     // A US-oriented map that names no AK/HI content frames the contiguous states
     // alone, with no empty inset boxes (§24B.2 — replaces the old `no-insets`).
-    const r = lay('map\nCalifornia value: 1\nTexas value: 2', 1200, 800);
+    const r = lay('map\nCalifornia heat: 1\nTexas heat: 2', 1200, 800);
     expect(r.insets).toHaveLength(0);
     expect(r.insetRegions).toHaveLength(0);
   });
   it('only the referenced AK/HI inset renders (Hawaii alone)', () => {
-    const r = lay('map\nCalifornia value: 1\nHawaii value: 2', 1200, 800);
+    const r = lay('map\nCalifornia heat: 1\nHawaii heat: 2', 1200, 800);
     expect(r.insetRegions.map((x) => x.id)).toEqual(['US-HI']);
   });
   it('tight US POI cluster fit-zooms to a regional mercator frame (home state renders, distant states culled)', () => {
@@ -370,7 +370,7 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     ]);
     const data = { ...DATA, worldCoarse: seamWorld, worldDetail: seamWorld };
     const r = layoutMap(
-      resolveMap(parseMap('map\nUnited States value: 5\nJapan value: 3'), data),
+      resolveMap(parseMap('map\nUnited States heat: 5\nJapan heat: 3'), data),
       data,
       { width: 800, height: 600 },
       { palette: P, isDark: false }
@@ -383,7 +383,7 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
   it('world basemap renders from the detail (50m) tier at all scales', () => {
     // The render tier is pinned to detail — recognizability > generalization
     // (110m coarse drops the Italian boot to a stump at world scale).
-    const resolved = resolveMap(parseMap('map\nJapan value: 5'), DATA);
+    const resolved = resolveMap(parseMap('map\nJapan heat: 5'), DATA);
     expect(resolved.basemaps.world).toBe('detail');
     // Country fill is still found — the JP id lives in worldDetail.
     expect(
@@ -408,7 +408,7 @@ describe('layout — basemap & projection (AC2, AC19, AC20, AC23, AC27)', () => 
     // A US + Japan spread is world-extent: pre-change this snapped to the coarse
     // (110m) tier and the Italian boot collapsed. Now it stays on detail.
     const resolved = resolveMap(
-      parseMap('map\nUnited States value: 5\nJapan value: 3'),
+      parseMap('map\nUnited States heat: 5\nJapan heat: 3'),
       DATA
     );
     expect(resolved.basemaps.world).toBe('detail');
@@ -421,7 +421,7 @@ describe('layout — albers-usa neighbour frame (map-us-orientation-north-americ
     // It keeps albers-usa (NA rule) and the fit frame expands to include the point
     // so it lands inside the canvas rather than bleeding off the top edge.
     const src =
-      'map\nCalifornia value: 1\nOregon value: 2\npoi 43.65 -79.38 as toronto';
+      'map\nCalifornia heat: 1\nOregon heat: 2\npoi 43.65 -79.38 as toronto';
     expect(resolveMap(parseMap(src), DATA).projection).toBe('albers-usa');
     const r = lay(src);
     const t = r.pois.find((p) => p.id === 'toronto')!;
@@ -440,9 +440,9 @@ describe('layout — albers-usa neighbour frame (map-us-orientation-north-americ
     // auto-zooms to conic — map-us-subnational-zoom — where an interior POI would
     // legitimately shift the data-fit extent). National framing fits the CONUS
     // states, so an interior POI must not move it.
-    const base = lay('map\nlocale US\nCalifornia value: 1\nOregon value: 2');
+    const base = lay('map\nlocale US\nCalifornia heat: 1\nOregon heat: 2');
     const withPoi = lay(
-      'map\nlocale US\nCalifornia value: 1\nOregon value: 2\npoi 40 -100 as mid'
+      'map\nlocale US\nCalifornia heat: 1\nOregon heat: 2\npoi 40 -100 as mid'
     );
     const caBase = base.regions.find((x) => x.id === 'US-CA')!;
     const caPoi = withPoi.regions.find((x) => x.id === 'US-CA')!;
@@ -459,13 +459,13 @@ describe('layout — albers-usa neighbour frame (map-us-orientation-north-americ
     // fit expansion is an albers-only path).
     const withMx = buildMapProjection(
       resolveMap(
-        parseMap('map\nlocale US\nCalifornia value: 1\nMexico value: 2'),
+        parseMap('map\nlocale US\nCalifornia heat: 1\nMexico heat: 2'),
         DATA
       ),
       DATA
     );
     const usOnly = buildMapProjection(
-      resolveMap(parseMap('map\nlocale US\nCalifornia value: 1'), DATA),
+      resolveMap(parseMap('map\nlocale US\nCalifornia heat: 1'), DATA),
       DATA
     );
     const hasMx = (b: typeof withMx): boolean =>
@@ -489,7 +489,7 @@ describe('layout — albers-usa neighbour frame (map-us-orientation-north-americ
 describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
   it('choropleth ramp: min at floor, max at full hue (AC3)', () => {
     const r = lay(
-      'map\nregion-metric Sales\nCalifornia value: 0\nOregon value: 100'
+      'map\nregion-heat Sales\nCalifornia heat: 0\nOregon heat: 100'
     );
     expect(r.legend?.ramp).toMatchObject({ metric: 'Sales', min: 0, max: 100 });
     const ca = r.regions.find((x) => x.id === 'US-CA')!;
@@ -500,12 +500,12 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
   it('ramp anchors at data-min for all data, signed or not (AC6)', () => {
     // All values ≥ 0 → low end anchors at the data minimum, not 0 (2026-06-08).
     const nonNeg = lay(
-      'map\nregion-metric Sales\nCalifornia value: 40\nOregon value: 100'
+      'map\nregion-heat Sales\nCalifornia heat: 40\nOregon heat: 100'
     );
     expect(nonNeg.legend?.ramp).toMatchObject({ min: 40, max: 100 });
     // Mixed-sign data → fit data-min→data-max (unchanged).
     const mixed = lay(
-      'map\nregion-metric Net\nCalifornia value: -20\nOregon value: 80'
+      'map\nregion-heat Net\nCalifornia heat: -20\nOregon heat: 80'
     );
     expect(mixed.legend?.ramp).toMatchObject({ min: -20, max: 80 });
   });
@@ -519,7 +519,7 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
     expect(r.legend?.activeGroup).toBe('Market');
   });
   it('active colouring dimension decides fill — value vs tag (AC5, bivariate)', () => {
-    const src = 'map\ntag M as m\n  HQ blue\nCalifornia value: 50, m: HQ';
+    const src = 'map\ntag M as m\n  HQ blue\nCalifornia heat: 50, m: HQ';
     // Default: values present → colour by the value ramp (sole value → full hue).
     expect(lay(src).regions.find((x) => x.id === 'US-CA')!.fill).toBe(
       P.colors.red
@@ -530,7 +530,7 @@ describe('layout — region fills (AC3, AC4, AC5, AC25, AC26)', () => {
     ).not.toBe(P.colors.red);
     // `active-tag Value` flips back to the ramp by its default group name (the
     // old `active-tag score` token was dropped — selecting the ramp uses its
-    // legend name, "Value", or the region-metric label).
+    // legend name, "Value", or the region-heat label).
     expect(
       lay(`${src}\nactive-tag Value`).regions.find((x) => x.id === 'US-CA')!
         .fill
@@ -562,14 +562,14 @@ describe('layout — direct trailing colors & ramp hue (§1.5, §24B.3)', () => 
     expect(ca.fill).toBe(mix(P.colors.blue, P.bg, TAG_TINT_LIGHT));
   });
   it('region trailing color overrides the value ramp on the same region', () => {
-    const r = lay('map\nregion-metric Sales\nCalifornia blue value: 100');
+    const r = lay('map\nregion-heat Sales\nCalifornia blue heat: 100');
     const ca = r.regions.find((x) => x.id === 'US-CA')!;
     // Painted blue (direct), not the red ramp full-hue it would otherwise get.
     expect(ca.fill).toBe(mix(P.colors.blue, P.bg, TAG_TINT_LIGHT));
   });
-  it('region-metric trailing color sets the choropleth ramp hue', () => {
+  it('region-heat trailing color sets the choropleth ramp hue', () => {
     const r = lay(
-      'map\nregion-metric Sales blue\nCalifornia value: 0\nOregon value: 100'
+      'map\nregion-heat Sales blue\nCalifornia heat: 0\nOregon heat: 100'
     );
     const or = r.regions.find((x) => x.id === 'US-OR')!;
     expect(or.fill).toBe(P.colors.blue); // t=1 → full hue, now blue not red
@@ -618,7 +618,7 @@ describe('layout — POIs (AC6, AC7, AC8, AC18)', () => {
   });
   it('size scaling: larger value → larger radius, no size legend key (AC7)', () => {
     const r = lay(
-      'map\npoi-metric Pop\npoi 40 -74 as a value: 10\npoi 41 -73 as b value: 100'
+      'map\npoi-size Pop\npoi 40 -74 as a size: 10\npoi 41 -73 as b size: 100'
     );
     const a = r.pois.find((p) => p.id === 'a')!;
     const b = r.pois.find((p) => p.id === 'b')!;
@@ -764,12 +764,12 @@ describe('layout — routes & edges (AC9, AC10, AC11, AC12, AC28)', () => {
     expect(r.legs[0]!.d).toMatch(/Q/);
   });
   it('route leg carries an in-arrow label + value→thickness (AC11)', () => {
-    const r = lay('map\nroute Tokyo\n  -ferry-> Osaka value: 40');
+    const r = lay('map\nroute Tokyo\n  -ferry-> Osaka width: 40');
     expect(r.legs[0]!.label).toBe('ferry');
     expect(r.legs[0]!.width).toBeGreaterThan(1.25); // value lifts it above W_MIN
   });
   it('edge weight + arrow + label (AC11)', () => {
-    const r = lay('map\npoi Tokyo\npoi Osaka\nTokyo -ships-> Osaka value: 22');
+    const r = lay('map\npoi Tokyo\npoi Osaka\nTokyo -ships-> Osaka width: 22');
     const leg = r.legs[0]!;
     expect(leg.arrow).toBe(true);
     expect(leg.label).toBe('ships');
@@ -832,10 +832,10 @@ describe('layout — labels & legend (AC13, AC14, AC15, AC16, AC17)', () => {
   it('region labels on by default; no-region-labels suppresses (AC13)', () => {
     const isCA = (t: string): boolean => t === 'California' || t === 'CA';
     expect(
-      lay('map\nCalifornia value: 50').labels.some((l) => isCA(l.text))
+      lay('map\nCalifornia heat: 50').labels.some((l) => isCA(l.text))
     ).toBe(true);
     expect(
-      lay('map\nno-region-labels\nCalifornia value: 50').labels.some((l) =>
+      lay('map\nno-region-labels\nCalifornia heat: 50').labels.some((l) =>
         isCA(l.text)
       )
     ).toBe(false);
@@ -874,7 +874,7 @@ describe('layout — labels & legend (AC13, AC14, AC15, AC16, AC17)', () => {
     expect(lay('map\npoi Tokyo').labels.every((l) => !l.halo)).toBe(true);
   });
   it('no-legend suppresses the legend model (AC17)', () => {
-    expect(lay('map\nno-legend\nCalifornia value: 5').legend).toBeNull();
+    expect(lay('map\nno-legend\nCalifornia heat: 5').legend).toBeNull();
   });
 });
 
@@ -1152,7 +1152,7 @@ describe('layout — relief (AC2, AC3, AC5, AC8, AC9)', () => {
     // A global choropleth is a data map; relief still renders (the renderer lays
     // the hachure atop the data fills and the hatch tone flips to stay visible).
     const r = lay(
-      'map\nregion-metric Sales\nUnited States value: 5\nChina value: 3'
+      'map\nregion-heat Sales\nUnited States heat: 5\nChina heat: 3'
     );
     expect(r.relief.length).toBeGreaterThan(0);
     expect(r.reliefHatch).not.toBeNull();
@@ -1269,7 +1269,7 @@ describe('layout — purity & determinism (AC22)', () => {
         }
       )
     ).not.toThrow();
-    const src = 'map\npoi Tokyo\nCalifornia value: 5';
+    const src = 'map\npoi Tokyo\nCalifornia heat: 5';
     expect(JSON.stringify(lay(src))).toBe(JSON.stringify(lay(src)));
   });
 });
@@ -1284,8 +1284,8 @@ describe('context labels — orientation backdrop (§24B, AC2/AC8)', () => {
   });
 
   it('off-by-default output is byte-identical with the directive absent (AC2)', () => {
-    const a = JSON.stringify(lay('map\nCalifornia value: 5'));
-    const b = JSON.stringify(lay('map\nCalifornia value: 5'));
+    const a = JSON.stringify(lay('map\nCalifornia heat: 5'));
+    const b = JSON.stringify(lay('map\nCalifornia heat: 5'));
     expect(a).toBe(b);
   });
 
@@ -1323,7 +1323,7 @@ describe('context labels — orientation backdrop (§24B, AC2/AC8)', () => {
         .labels.filter((l) => l.lineNumber > 0)
         .map((l) => `${l.text}@${Math.round(l.x)},${Math.round(l.y)}`)
         .sort();
-    const base = 'map\nCalifornia value: 1\nOregon value: 2';
+    const base = 'map\nCalifornia heat: 1\nOregon heat: 2';
     expect(() => lay(base)).not.toThrow();
     expect(dataLabels(base)).toEqual(dataLabels(`${base}\nno-context-labels`));
   });
@@ -1335,7 +1335,7 @@ describe('context labels — composition with data layers (AC16)', () => {
       (l) => l.italic
     ).length;
     const stacked = lay(
-      'map\nUnited States value: 5\npoi Tokyo\npoi New York City'
+      'map\nUnited States heat: 5\npoi Tokyo\npoi New York City'
     );
     const stackedCtx = stacked.labels.filter((l) => l.italic).length;
     // Combined layer stays within the same budget — no extra headroom.
@@ -1365,7 +1365,7 @@ describe('context labels — review fixes (F1, F3)', () => {
   ) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
   it('context (water) labels never overlap region/POI labels (F1)', () => {
-    const r = lay('map\nUnited States value: 5\npoi Tokyo');
+    const r = lay('map\nUnited States heat: 5\npoi Tokyo');
     const ctx = r.labels.filter((l) => l.italic).map(rectOf);
     const other = r.labels.filter((l) => !l.italic).map(rectOf);
     for (const c of ctx)
@@ -1375,7 +1375,7 @@ describe('context labels — review fixes (F1, F3)', () => {
   it('a US-state map on a world projection emits no "United States" context label (F3)', () => {
     // Mixed content (JP POI) keeps it off albers-usa; the US states are the data
     // so the country itself must not be context-labeled.
-    const r = lay('map\nCalifornia value: 5\nMaine value: 8\npoi Tokyo');
+    const r = lay('map\nCalifornia heat: 5\nMaine heat: 8\npoi Tokyo');
     expect(r.labels.some((l) => l.text === 'United States')).toBe(false);
   });
 });
@@ -1387,7 +1387,7 @@ describe('layout — region label yields to a POI on its centroid (#poi-overlap)
     const r = layoutMap(
       resolveMap(
         parseMap(
-          'map\npoi 39.74 -104.99 as core value: 400, label: Core POP\n  -> Seattle\n  -> Atlanta\npoi Seattle value: 120\npoi Atlanta value: 180'
+          'map\npoi 39.74 -104.99 as core size: 400, label: Core POP\n  -> Seattle\n  -> Atlanta\npoi Seattle size: 120\npoi Atlanta size: 180'
         ),
         data
       ),
@@ -1413,7 +1413,7 @@ describe('layout — antimeridian-crossing landmass renders (#russia-cull)', () 
     const r = layoutMap(
       resolveMap(
         parseMap(
-          'map\nGermany value: 1\nPoland value: 2\nRomania value: 3\nSweden value: 4'
+          'map\nGermany heat: 1\nPoland heat: 2\nRomania heat: 3\nSweden heat: 4'
         ),
         data
       ),
@@ -1488,7 +1488,7 @@ describe('layout — colorize (content-inferred political fills, §24B)', () => 
   });
 
   it('value data suppresses colorize (AC4)', () => {
-    const r = lay('map\nCalifornia value: 50');
+    const r = lay('map\nCalifornia heat: 50');
     expect(isPolitical(fillOf(r, 'US-CA')!)).toBe(false);
     expect(politicalRegions(r).some((x) => isPolitical(x.fill))).toBe(false);
   });
@@ -1514,9 +1514,9 @@ describe('layout — colorize (content-inferred political fills, §24B)', () => 
     // Flag placed AFTER the data line so removing it does not shift any region's
     // lineNumber — isolating the flag's (nil) effect on the data dress.
     const withFlag = JSON.stringify(
-      lay('map\nCalifornia value: 92\nno-colorize')
+      lay('map\nCalifornia heat: 92\nno-colorize')
     );
-    const without = JSON.stringify(lay('map\nCalifornia value: 92'));
+    const without = JSON.stringify(lay('map\nCalifornia heat: 92'));
     expect(withFlag).toBe(without);
   });
 
@@ -1572,7 +1572,7 @@ describe('layout — subtle city dots (basemap orientation, no-cities)', () => {
     // `locale US` pins the national frame so the spread-out fixture cities land in
     // view (a bare compact CA map auto-zooms to conic — map-us-subnational-zoom —
     // and the fixture has no city inside California to scatter).
-    const r = lay('map\nlocale US\nCalifornia value: 50');
+    const r = lay('map\nlocale US\nCalifornia heat: 50');
     expect(r.cityDots.length).toBeGreaterThan(0);
     // Every dot is on-canvas (the sole cull) with a positive radius.
     for (const d of r.cityDots) {
@@ -1585,7 +1585,7 @@ describe('layout — subtle city dots (basemap orientation, no-cities)', () => {
   });
 
   it('no-cities suppresses the layer entirely', () => {
-    const r = lay('map\nno-cities\nCalifornia value: 50');
+    const r = lay('map\nno-cities\nCalifornia heat: 50');
     expect(r.cityDots).toHaveLength(0);
   });
 
@@ -1611,7 +1611,7 @@ describe('layout — subtle city dots (basemap orientation, no-cities)', () => {
     const r = layoutMap(
       resolveMap(
         parseMap(
-          'map US Sales\nCalifornia value: 92\nTexas value: 78\nAlaska value: 100\nHawaii value: 100'
+          'map US Sales\nCalifornia heat: 92\nTexas heat: 78\nAlaska heat: 100\nHawaii heat: 100'
         ),
         data
       ),
@@ -1623,21 +1623,21 @@ describe('layout — subtle city dots (basemap orientation, no-cities)', () => {
   });
 });
 
-describe('layout — region metric value labels (no-region-value)', () => {
+describe('layout — region metric value labels (no-region-heat-value)', () => {
   it('shows the metric value as a dimmer second line under a big region by default', () => {
-    const r = lay('map\nregion-metric Population\nCalifornia value: 39500000');
+    const r = lay('map\nregion-heat Population\nCalifornia heat: 39500000');
     const ca = r.labels.find((l) => l.text === 'California');
     expect(ca).toBeDefined();
     expect(ca!.valueLine).toBe('39.5M');
   });
   it('formats the value with the shared compact formatter', () => {
     expect(
-      lay('map\nCalifornia value: 1100').labels.find(
+      lay('map\nCalifornia heat: 1100').labels.find(
         (l) => l.text === 'California'
       )?.valueLine
     ).toBe('1.1K');
     expect(
-      lay('map\nCalifornia value: 2300000').labels.find(
+      lay('map\nCalifornia heat: 2300000').labels.find(
         (l) => l.text === 'California'
       )?.valueLine
     ).toBe('2.3M');
@@ -1651,7 +1651,7 @@ describe('layout — region metric value labels (no-region-value)', () => {
     const r = layoutMap(
       resolveMap(
         parseMap(
-          'map US Demand\nregion-metric Demand\nCalifornia value: 90\nRhode Island value: 11'
+          'map US Demand\nregion-heat Demand\nCalifornia heat: 90\nRhode Island heat: 11'
         ),
         data
       ),
@@ -1665,15 +1665,15 @@ describe('layout — region metric value labels (no-region-value)', () => {
     expect(ri!.leader).toBeDefined();
     expect(ri!.calloutDot).toBeDefined();
   });
-  it('no-region-value suppresses the value line but keeps the name', () => {
-    const r = lay('map\nno-region-value\nCalifornia value: 39500000');
+  it('no-region-heat-value suppresses the value line but keeps the name', () => {
+    const r = lay('map\nno-region-heat-value\nCalifornia heat: 39500000');
     const ca = r.labels.find((l) => l.text === 'California');
     expect(ca).toBeDefined();
     expect(ca!.valueLine).toBeUndefined();
   });
   it('a tag-coloured (non-score) map shows no value line', () => {
     const r = lay(
-      'map\ntag Tier\n  gold\n  silver\nactive-tag Tier\nCalifornia value: 50, Tier: gold'
+      'map\ntag Tier\n  gold\n  silver\nactive-tag Tier\nCalifornia heat: 50, Tier: gold'
     );
     const ca = r.labels.find((l) => l.text === 'California');
     if (ca) expect(ca.valueLine).toBeUndefined();
@@ -1690,7 +1690,7 @@ describe('layout — region value survives a nearby POI (combo map)', () => {
     const r = layoutMap(
       resolveMap(
         parseMap(
-          'map Distribution Network\nregion-metric Demand\nCalifornia value: 90\nTexas value: 72\npoi Dallas as south value: 320'
+          'map Distribution Network\nregion-heat Demand\nCalifornia heat: 90\nTexas heat: 72\npoi Dallas as south size: 320'
         ),
         data
       ),
@@ -1711,7 +1711,7 @@ describe('layout — POI-blocked valued region re-seats on its own land (not a f
     const r = layoutMap(
       resolveMap(
         parseMap(
-          'map Distribution\nregion-metric Demand\nCalifornia value: 90\nTexas value: 72\nIllinois value: 55\nGeorgia value: 48\npoi Dallas as south value: 320\npoi Chicago as central value: 280\npoi Atlanta as east value: 210'
+          'map Distribution\nregion-heat Demand\nCalifornia heat: 90\nTexas heat: 72\nIllinois heat: 55\nGeorgia heat: 48\npoi Dallas as south size: 320\npoi Chicago as central size: 280\npoi Atlanta as east size: 210'
         ),
         data
       ),
@@ -1745,7 +1745,7 @@ describe('layout — zoom-out reserve places tiny-region callouts in a margin co
     const r = layoutMap(
       resolveMap(
         parseMap(
-          'map US\nregion-metric Pop\nCalifornia value: 39000000\nNew York value: 19600000\nMassachusetts value: 7000000\nRhode Island value: 1100000\nConnecticut value: 3600000\nVermont value: 650000\nNew Hampshire value: 1400000\nDelaware value: 1000000\nNew Jersey value: 9300000'
+          'map US\nregion-heat Pop\nCalifornia heat: 39000000\nNew York heat: 19600000\nMassachusetts heat: 7000000\nRhode Island heat: 1100000\nConnecticut heat: 3600000\nVermont heat: 650000\nNew Hampshire heat: 1400000\nDelaware heat: 1000000\nNew Jersey heat: 9300000'
         ),
         data
       ),
@@ -1772,13 +1772,13 @@ describe('layout — zoom-out reserve places tiny-region callouts in a margin co
 describe('layout — sub-national US auto-zoom render proof (map-us-subnational-zoom)', () => {
   // Real geometry (the rect-topo mock can't fit a region to a real bbox).
   const NE8 =
-    'New York value: 196\nMassachusetts value: 70\nConnecticut value: 36\nVermont value: 6\nNew Hampshire value: 14\nMaine value: 13\nPennsylvania value: 128\nNew Jersey value: 93';
+    'New York heat: 196\nMassachusetts heat: 70\nConnecticut heat: 36\nVermont heat: 6\nNew Hampshire heat: 14\nMaine heat: 13\nPennsylvania heat: 128\nNew Jersey heat: 93';
 
   it('AC1: a Northeast choropleth lays out under mercator with non-empty data-state paths', async () => {
     const { loadMapData } = await import('../src/map/load-data');
     const data = await loadMapData();
     const res = resolveMap(
-      parseMap(`map Northeast\nregion-metric Pop\n${NE8}`),
+      parseMap(`map Northeast\nregion-heat Pop\n${NE8}`),
       data
     );
     expect(res.projection).toBe('mercator');
@@ -1802,7 +1802,7 @@ describe('layout — sub-national US auto-zoom render proof (map-us-subnational-
     const { loadMapData } = await import('../src/map/load-data');
     const data = await loadMapData();
     const r = layoutMap(
-      resolveMap(parseMap(`map Northeast\nregion-metric Pop\n${NE8}`), data),
+      resolveMap(parseMap(`map Northeast\nregion-heat Pop\n${NE8}`), data),
       data,
       { width: 1000, height: 700 },
       { palette: P, isDark: false }
@@ -1818,7 +1818,7 @@ describe('layout — sub-national US auto-zoom render proof (map-us-subnational-
     const { loadMapData } = await import('../src/map/load-data');
     const data = await loadMapData();
     const r = layoutMap(
-      resolveMap(parseMap(`map Northeast\nregion-metric Pop\n${NE8}`), data),
+      resolveMap(parseMap(`map Northeast\nregion-heat Pop\n${NE8}`), data),
       data,
       { width: 1000, height: 700 },
       { palette: P, isDark: false }
@@ -1838,7 +1838,7 @@ describe('layout — sub-national US auto-zoom render proof (map-us-subnational-
       // include the smallest states (RI) so the cramped path is exercised
       resolveMap(
         parseMap(
-          `map Northeast\nregion-metric Pop\n${NE8}\nRhode Island value: 11`
+          `map Northeast\nregion-heat Pop\n${NE8}\nRhode Island heat: 11`
         ),
         data
       ),
@@ -1876,7 +1876,7 @@ describe('layout — world choropleth: countries on land, no cross-map leaders',
     const r = layoutMap(
       resolveMap(
         parseMap(
-          'map Global Headcount\nregion-metric Employees\nUnited States value: 4200\nGermany value: 1800\nIndia value: 3100\nUnited Kingdom value: 1200\nFrance value: 720\nNetherlands value: 300\nJapan value: 950\nBrazil value: 640'
+          'map Global Headcount\nregion-heat Employees\nUnited States heat: 4200\nGermany heat: 1800\nIndia heat: 3100\nUnited Kingdom heat: 1200\nFrance heat: 720\nNetherlands heat: 300\nJapan heat: 950\nBrazil heat: 640'
         ),
         data
       ),
@@ -1945,7 +1945,7 @@ describe('layout — albers-usa skew fallback (water-where-Alaska-is lie)', () =
     const data = await loadMapData();
     // Same skewed pane, but now AK is in the data → the inset composite is correct.
     const r = resolveMap(
-      parseMap('map\nAlaska value: 5\nCalifornia value: 3\nMaine value: 2'),
+      parseMap('map\nAlaska heat: 5\nCalifornia heat: 3\nMaine heat: 2'),
       data
     );
     expect(r.projection).toBe('albers-usa');
@@ -1955,7 +1955,7 @@ describe('layout — albers-usa skew fallback (water-where-Alaska-is lie)', () =
   it('is a no-op for non-albers projections', async () => {
     const data = await loadMapData();
     const world = resolveMap(
-      parseMap('map\nFrance value: 1\nJapan value: 2\nBrazil value: 3'),
+      parseMap('map\nFrance heat: 1\nJapan heat: 2\nBrazil heat: 3'),
       data
     );
     expect(world.projection).not.toBe('albers-usa');
@@ -1994,7 +1994,7 @@ describe('layout — region callout leaders hug the cluster (no cross-ocean line
   // off the coast, NOT at the canvas edge, so leaders stay short rather than firing
   // clear across the Atlantic to an edge column.
   const COVERAGE =
-    'map National Coverage\nregion-metric Stores\n' +
+    'map National Coverage\nregion-heat Stores\n' +
     [
       ['California', 480],
       ['Texas', 410],
@@ -2008,7 +2008,7 @@ describe('layout — region callout leaders hug the cluster (no cross-ocean line
       ['Oregon', 70],
       ['Nevada', 60],
     ]
-      .map(([n, v]) => `${n} value: ${v}`)
+      .map(([n, v]) => `${n} heat: ${v}`)
       .join('\n');
 
   it('callout leaders stay short (hug the coast, not the frame edge)', async () => {

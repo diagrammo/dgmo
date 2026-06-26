@@ -1,12 +1,12 @@
 map Region Scope Disambiguation
-region-metric Sales ($M)
+region-heat Sales ($M)
 
-California value: 92
-Texas value: 78
+California heat: 92
+Texas heat: 78
 // "Georgia" clashes with the country GE — pin the state. Both lines are
 // equivalent; use whichever reads best:
-//   terse ISO code:  US-GA value: 64
-//   name + scope:    Georgia US value: 64
-US-GA value: 64
-Florida value: 51
-Washington value: 40
+//   terse ISO code:  US-GA heat: 64
+//   name + scope:    Georgia US heat: 64
+US-GA heat: 64
+Florida heat: 51
+Washington heat: 40

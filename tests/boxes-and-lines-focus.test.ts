@@ -64,13 +64,7 @@ describe('focusBoxesAndLines', () => {
 
   it('AC4 / FM1 / Dec20: ramp domain is GLOBAL (pre-filter)', () => {
     const parsed = parseBoxesAndLines(
-      src(
-        'box-metric Cost',
-        'A value: 10',
-        'B value: 50',
-        'C value: 100',
-        'A -> B'
-      )
+      src('heat Cost', 'A heat: 10', 'B heat: 50', 'C heat: 100', 'A -> B')
     );
     const r = focusBoxesAndLines(parsed, { kind: 'box', id: 'A' });
     // C is hidden, but the domain still spans the whole diagram.

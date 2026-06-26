@@ -1,6 +1,6 @@
 map Privateer's Atlas
 
-// Regions named, no value: or tags → colorize is the inferred dress: every
+// Regions named, no heat: or tags → colorize is the inferred dress: every
 // state/country gets a distinct pastel and no two neighbours share a hue
 // (4-colour political look). The named states aren't special — the whole drawn
 // mesh colours, so it reads as one chart. `no-colorize` would force green-land.

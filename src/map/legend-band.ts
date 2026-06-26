@@ -29,7 +29,7 @@ const LEGEND_BOTTOM_GAP = 10;
  *  one. Empty when the legend has neither a ramp nor any populated tag group. */
 export function mapLegendGroups(legend: MapLayoutLegend): LegendGroupData[] {
   const ramp = legend.ramp;
-  // Reserved name "Value" when no region-metric label is set — must match
+  // Reserved name "Value" when no region-heat label is set — must match
   // VALUE_NAME in layout.ts so the resolved activeGroup selects it.
   const scoreGroup: LegendGroupData | null = ramp
     ? {

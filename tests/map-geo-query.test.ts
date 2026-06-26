@@ -24,7 +24,7 @@ beforeAll(async () => {
 function usQuery(): MapGeoQuery {
   return createMapGeoQuery({
     content:
-      'map\nprojection albers-usa\nFlorida value: 50\nCalifornia value: 80',
+      'map\nprojection albers-usa\nFlorida heat: 50\nCalifornia heat: 80',
     width: W,
     height: H,
     data,

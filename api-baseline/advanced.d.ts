@@ -222,18 +222,18 @@ type PoiPos =
  *  Absent (undefined) = feature ON — so render gates test `!== true`, never
  *  `=== true`. There are NO positive opt-in cosmetic flags (§24B.2). */
 interface MapDirectives {
-  /** Legend label for the region value ramp (`region-metric <label>`). */
+  /** Legend label for the region value ramp (`region-heat <label>`). */
   regionMetric?: string;
   /** Recognized color NAME for the choropleth ramp HIGH endpoint, peeled off the
-   *  `region-metric` trailing token (§24B.3). Defaults to red when absent. */
+   *  `region-heat` trailing token (§24B.3). Defaults to red when absent. */
   regionMetricColor?: string;
   /** Recognized color NAME for the choropleth ramp LOW endpoint (the second,
-   *  left-of-two trailing colors on `region-metric`, §24B.3). Absent ⇒ the low
+   *  left-of-two trailing colors on `region-heat`, §24B.3). Absent ⇒ the low
    *  end is the implied floored neutral (today's single-colour behaviour). */
   regionMetricLowColor?: string;
-  /** Legend label for the POI value (marker size) channel (`poi-metric`). */
+  /** Legend label for the POI value (marker size) channel (`poi-size`). */
   poiMetric?: string;
-  /** Legend label for the edge/leg value (thickness) channel (`flow-metric`). */
+  /** Legend label for the edge/leg value (thickness) channel (`flow-width`). */
   flowMetric?: string;
   /** Default ISO scope for bare-name resolution (§24B.8): a 3166-1 country
    *  (`locale US`) or 3166-2 subdivision (`locale US-GA`). The country part
@@ -258,8 +258,8 @@ interface MapDirectives {
   noContextLabels?: boolean;
   /** `no-region-labels` — suppress region labels (default-on, full→abbrev→hide). */
   noRegionLabels?: boolean;
-  /** `no-region-value` — suppress the metric VALUE shown under each data region's
-   *  name on a `region-metric` choropleth (default-on). The region NAME still
+  /** `no-region-heat-value` — suppress the metric VALUE shown under each data region's
+   *  name on a `region-heat` choropleth (default-on). The region NAME still
    *  renders (governed by `no-region-labels`); only the numeric value line goes. */
   noRegionValue?: boolean;
   /** `no-poi-labels` — suppress POI labels (default-on, collision-managed auto). */
@@ -312,7 +312,7 @@ interface MapPoi {
   readonly lineNumber: number;
 }
 /** One leg of a route (§24B.6): an edge from the previous stop to `dest`. Reuses
- *  the edge arrow idiom — in-arrow text = leg label, `value:` = leg thickness,
+ *  the edge arrow idiom — in-arrow text = leg label, `width:` = leg thickness,
  *  `->`/`~>` (or the header `style: arc`) = shape. A tag on the leg line colours
  *  the LINE (§24B.6); `label:`/`as` still name the DESTINATION stop. */
 interface MapRouteLeg {
@@ -3118,8 +3118,8 @@ interface BLNode {
   readonly lineNumber: number;
   readonly metadata: Readonly<Record<string, string>>;
   readonly description?: readonly string[];
-  /** Numeric measure lifted from `value: X` metadata (mirror of map's
-   *  `region.value`). Drives the value ramp / choropleth tinting. */
+  /** Numeric measure lifted from `heat: X` metadata (mirror of map's
+   *  `region.value`). Drives the heat ramp / choropleth tinting. */
   readonly value?: number;
 }
 interface BLEdge {
@@ -3162,9 +3162,9 @@ interface ParsedBoxesAndLines {
       readonly y: number;
     }
   >;
-  /** `box-metric <label> [low] [high]` — names the value-ramp dimension and
+  /** `heat <label> [low] [high]` — names the value-ramp dimension and
    *  optionally sets its endpoint colours. One color = high hue over a neutral
-   *  low; two = explicit `low high`. Mirror of map's `region-metric`. */
+   *  low; two = explicit `low high`. Mirror of map's `region-heat`. */
   readonly boxMetric?: string;
   /** Recognized color NAME for the ramp HIGH endpoint. */
   readonly boxMetricColor?: string;
@@ -3346,7 +3346,7 @@ interface FocusResult {
   /** Group LABELS of neighbours rendered collapsed. */
   readonly collapsedNeighborGroupIds: Set<string>;
   /** GLOBAL value-ramp domain computed from the ORIGINAL model before filtering
-   *  (Decision 20 / FM1); null when the diagram has no `value:` data. */
+   *  (Decision 20 / FM1); null when the diagram has no `heat:` data. */
   readonly rampDomain: {
     min: number;
     max: number;
@@ -5849,7 +5849,7 @@ interface PlacedLabel {
   readonly clusterMember?: string;
   /** A choropleth region's metric VALUE (already compact-formatted, e.g. `39.5M`),
    *  drawn as a smaller, dimmer second line UNDER `text` (the region name). Set
-   *  only on region labels of a `region-metric` map when `no-region-value` is off.
+   *  only on region labels of a `region-heat` map when `no-region-heat-value` is off.
    *  The renderer stacks it as a sub-line; absent ⇒ single name line. */
   readonly valueLine?: string;
   /** A region too small to carry its name+value stack in place gets a leader-lined

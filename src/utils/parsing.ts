@@ -597,7 +597,7 @@ export function peelTrailingColorName(label: string): {
  * meaning); two peeled ⇒ first(left) = `low`, second(right) = `high`.
  * Order-respecting — NO sorting, NO "did-you-mean" intent detection.
  *
- * Shared by any value-ramp chart type (map `region-metric`, b&l `box-metric`,
+ * Shared by any value-ramp chart type (map `region-heat`, b&l `heat`,
  * and future ramps). `peelTrailingColorName` (single-token) stays untouched for
  * the non-ramp callers (d3, sitemap, cycle, …).
  */

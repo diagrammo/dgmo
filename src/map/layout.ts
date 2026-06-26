@@ -442,7 +442,7 @@ export interface MapLayoutLeg {
    *  (§24B.6). Omitted when the leg carries no tag. */
   readonly tags?: Readonly<Record<string, string>>;
   readonly label?: string;
-  /** The leg's numeric weight (the `value:` metadata) when present and positive.
+  /** The leg's numeric weight (the `width:` metadata) when present and positive.
    *  Drives {@link width}, but kept here verbatim so the renderer can surface it
    *  on hover (a `<title>` tooltip) — the width alone is lossy. */
   readonly value?: number;
@@ -504,7 +504,7 @@ export interface PlacedLabel {
   readonly clusterMember?: string;
   /** A choropleth region's metric VALUE (already compact-formatted, e.g. `39.5M`),
    *  drawn as a smaller, dimmer second line UNDER `text` (the region name). Set
-   *  only on region labels of a `region-metric` map when `no-region-value` is off.
+   *  only on region labels of a `region-heat` map when `no-region-heat-value` is off.
    *  The renderer stacks it as a sub-line; absent ⇒ single name line. */
   readonly valueLine?: string;
   /** A region too small to carry its name+value stack in place gets a leader-lined
@@ -1402,8 +1402,8 @@ export function layoutMap(
     .map((r) => r.value!);
   // Ramp auto-fits (the `scale` directive is gone) to data-min→data-max — the
   // low end anchors at the lowest value, not 0. This maximises within-map
-  // dynamic range and matches the size/thickness metric ramps (poi-metric,
-  // flow-metric), which already floor at their data minimum. Cross-map low-end
+  // dynamic range and matches the size/thickness metric ramps (poi-size,
+  // flow-width), which already floor at their data minimum. Cross-map low-end
   // comparability (the old 0-anchor, "decision C") is intentionally dropped: a
   // shared baseline only helped side-by-side maps and flattened single-map
   // contrast. Equal-value data (rampMin === rampMax) falls back to t = 1 below.
@@ -1411,11 +1411,11 @@ export function layoutMap(
   const rampMax = Math.max(...values);
   // Value ramp defaults to red so valued regions stand out against the blue
   // water (palette.primary is a blue in most palettes and would blend in). A
-  // trailing color on `region-metric` (§24B.3) overrides the hue idiomatically.
+  // trailing color on `region-heat` (§24B.3) overrides the hue idiomatically.
   const rampHue =
     resolveColor(resolved.directives.regionMetricColor ?? '', palette) ??
     palette.colors.red;
-  // Explicit LOW endpoint (`region-metric Sales green red`). Only the 11
+  // Explicit LOW endpoint (`region-heat Sales green red`). Only the 11
   // recognized names peel, so resolveColor always succeeds when a name is
   // present; absent ⇒ single-colour behaviour (neutral low). §24B.3.
   const rampLow = resolved.directives.regionMetricLowColor
@@ -1426,7 +1426,7 @@ export function layoutMap(
 
   // Colouring dimension (AR4, bivariate): the value ramp and each tag group are
   // mutually-exclusive selectable groups. `VALUE_NAME` is the ramp's group name
-  // (the region-metric label, or "Value"). Exactly one dimension is active and
+  // (the region-heat label, or "Value"). Exactly one dimension is active and
   // drives every region's fill. The value ramp is the default-active dimension
   // whenever any region has a value (the old `active-tag score` token is gone —
   // there is nothing to force; selecting a tag group is what `active-tag` does).
@@ -1534,7 +1534,7 @@ export function layoutMap(
   // -- Colorize: content-inferred distinct political fills (§24B) --
   // Colorize is the DEFAULT dress for any map that is NOT colouring regions by
   // data. The things that turn it off: (1) a data dimension exists on a
-  // region (any `value:` or tag group) — data owns the saturation, so the basemap
+  // region (any `heat:` or tag group) — data owns the saturation, so the basemap
   // recedes to the gray choropleth/categorical dress; (2) any region carries a
   // direct trailing color (`Japan red`) — that's explicit authoring intent, so
   // auto-political-tinting would only fight the hand-picked colours; or (3) the
@@ -1543,7 +1543,7 @@ export function layoutMap(
   // pastels (markers/routes draw on top). Data EXISTENCE (not which dimension is
   // *active*) is the discriminator, so a tag map viewed with `active-tag none`
   // still keeps its neutral data dress; and the live-preview `California` →
-  // `California value: 92` edit transitions colorized → choropleth cleanly.
+  // `California heat: 92` edit transitions colorized → choropleth cleanly.
   const hasDirectColor = resolved.regions.some((r) => r.color !== undefined);
   const colorizeActive =
     resolved.directives.noColorize !== true &&
@@ -2709,14 +2709,14 @@ export function layoutMap(
     }
   }
 
-  // -- POIs: project, value→size-scale, co-located spiderfy --
+  // -- POIs: project, size→radius-scale, co-located spiderfy (the `size:` channel) --
   const sizeVals = resolved.pois
-    .map((p) => Number(p.meta['value']))
+    .map((p) => Number(p.meta['size']))
     .filter((n) => Number.isFinite(n) && n > 0);
   const sizeMin = sizeVals.length ? Math.min(...sizeVals) : 0;
   const sizeMax = sizeVals.length ? Math.max(...sizeVals) : 0;
   const radiusFor = (p: ResolvedPoi): number => {
-    const v = Number(p.meta['value']);
+    const v = Number(p.meta['size']);
     if (!Number.isFinite(v) || v <= 0 || sizeMax <= 0) return R_DEFAULT;
     // sqrt so AREA encodes the value
     const t =
@@ -3055,13 +3055,14 @@ export function layoutMap(
   }
 
   // Edges: group by unordered endpoint pair for deterministic fan-out (AR9).
+  // Edge thickness rides on the `width:` channel (§24B.6).
   const weightVals = resolved.edges
-    .map((e) => Number(e.meta['value']))
+    .map((e) => Number(e.meta['width']))
     .filter((n) => Number.isFinite(n) && n > 0);
   const wMin = weightVals.length ? Math.min(...weightVals) : 0;
   const wMax = weightVals.length ? Math.max(...weightVals) : 0;
   const widthFor = (e: ResolvedEdge): number => {
-    const v = Number(e.meta['value']);
+    const v = Number(e.meta['width']);
     if (!Number.isFinite(v) || v <= 0 || wMax <= 0) return W_MIN;
     const t = wMax > wMin ? (v - wMin) / (wMax - wMin) : 1;
     return W_MIN + t * (W_MAX - W_MIN);
@@ -3093,7 +3094,7 @@ export function layoutMap(
         e.label !== undefined
           ? labelOnFill(fillAt(bow.labelX, bow.labelY))
           : undefined;
-      const edgeVal = Number(e.meta['value']);
+      const edgeVal = Number(e.meta['width']);
       legs.push({
         d: legPath(a, b, bow.curved, bow.offset),
         width: widthFor(e),
@@ -3187,9 +3188,9 @@ export function layoutMap(
   // so `regionById.has(iso)` alone misses them and the context pass would
   // re-label the same country at a different anchor (the "double-Canada" bug).
   const labeledRegionIds = new Set<string>();
-  // Metric value shown UNDER each data region's name (`no-region-value` opts out).
+  // Metric value shown UNDER each data region's name (`no-region-heat-value` opts out).
   // The value line is rendered smaller + dimmer than the name; see the renderer.
-  // Scoped to a `region-metric` choropleth: only when the SCORE ramp is the active
+  // Scoped to a `region-heat` choropleth: only when the SCORE ramp is the active
   // colouring dimension (not a tag-coloured / categorical map) is the numeric
   // value the data on display, so that's the only case it's surfaced.
   const showRegionValues =
@@ -3408,7 +3409,7 @@ export function layoutMap(
     // un-valued base/foreign land (Canada, Mexico, neighbour states with no
     // metric). A chip must NEVER cover another VALUED region's choropleth fill —
     // that's the data, and a label box on top of it is worse than no label. On a
-    // region-metric map valued regions take `fillForValue` (never water / neutral
+    // region-heat map valued regions take `fillForValue` (never water / neutral
     // / foreign), so testing the fill at a point cleanly separates data from
     // empty. (Colorize mode — which recolours base land — is mutually exclusive
     // with the score ramp that gates callouts, so this stays sound.)
