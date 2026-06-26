@@ -81,7 +81,6 @@ export function mountD3DataChart(
     // Fallback (parse error / unsupported type) → error card via render().
     if (!svg) {
       const r = await render(text, {
-        engine: 'd3',
         ...(current.theme && { theme: current.theme }),
         ...(current.palette && { palette: current.palette }),
       });

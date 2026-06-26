@@ -7,12 +7,12 @@
  */
 import { describe, it, expect } from 'vitest';
 import { getPalette, getSeriesColors } from '../src/palettes';
-import { parseExtendedChart } from '../src/echarts';
+import { parseExtendedChart } from '../src/data-chart-parser';
 import { parseChart } from '../src/chart';
 import {
   getExtendedChartLegendGroups,
   getSimpleChartLegendGroups,
-} from '../src/echarts';
+} from '../src/data-chart-parser';
 
 const palette = getPalette('nord').light;
 const colors = getSeriesColors(palette);

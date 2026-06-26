@@ -4,7 +4,7 @@
 // values right with leader lines (ECharts parity).
 // ============================================================
 
-import type { ParsedFunnel } from '../echarts';
+import type { ParsedFunnel } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { shapeFill } from '../palettes/color-utils';
@@ -53,7 +53,13 @@ export function renderFunnel(
       .attr('fill', fill)
       .attr('stroke', stroke)
       .attr('stroke-width', 2);
-    tagDatum(seg, { line: d.lineNumber, key: d.label, name: d.label, value: fmtNum(d.value), color: stroke });
+    tagDatum(seg, {
+      line: d.lineNumber,
+      key: d.label,
+      name: d.label,
+      value: fmtNum(d.value),
+      color: stroke,
+    });
 
     const yMid = (y0 + y1) / 2;
     if (!chart.noName) {

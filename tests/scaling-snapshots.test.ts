@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { JSDOM } from 'jsdom';
 import { renderForExport } from '../src/d3';
-import { renderExtendedChartForExport } from '../src/echarts';
+import { renderDataChartD3 as renderExtendedChartForExport } from '../src/charts-d3';
 import { nordPalette } from '../src/palettes/nord';
 
 beforeAll(() => {

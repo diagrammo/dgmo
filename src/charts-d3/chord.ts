@@ -5,7 +5,7 @@
 // true chord ribbons.
 // ============================================================
 
-import type { ParsedChord } from '../echarts';
+import type { ParsedChord } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { shapeFill } from '../palettes/color-utils';
@@ -27,9 +27,7 @@ export function renderChord(
   if (links.length === 0) return;
   const solid = chart.solidFill === true;
 
-  const names = Array.from(
-    new Set(links.flatMap((l) => [l.source, l.target]))
-  );
+  const names = Array.from(new Set(links.flatMap((l) => [l.source, l.target])));
   const n = names.length;
   const idx = new Map(names.map((nm, i) => [nm, i]));
   const colorOf = (i: number) => colors[i % colors.length]!;
@@ -49,7 +47,11 @@ export function renderChord(
   // opposing-pair detection (offset curvature so A→B and B→A don't overlap)
   const pairKeys = new Set<string>();
   for (const l of links) {
-    if (links.some((r) => r.source === l.target && r.target === l.source && r !== l))
+    if (
+      links.some(
+        (r) => r.source === l.target && r.target === l.source && r !== l
+      )
+    )
       pairKeys.add(`${l.source}\0${l.target}`);
   }
 
@@ -126,7 +128,10 @@ export function renderChord(
       .append('text')
       .attr('x', lx)
       .attr('y', ly + 4)
-      .attr('text-anchor', Math.abs(c) < 0.3 ? 'middle' : c > 0 ? 'start' : 'end')
+      .attr(
+        'text-anchor',
+        Math.abs(c) < 0.3 ? 'middle' : c > 0 ? 'start' : 'end'
+      )
       .attr('fill', textColor)
       .attr('font-size', 14)
       .attr('font-family', FONT_FAMILY)

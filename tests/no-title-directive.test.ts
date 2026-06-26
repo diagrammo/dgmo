@@ -12,7 +12,7 @@ import { parseChart } from '../src/chart';
 import { parseSequenceDgmo } from '../src/sequence/parser';
 import { parseMindmap } from '../src/mindmap/parser';
 import { parseRaci } from '../src/raci/parser';
-import { parseExtendedChart } from '../src/echarts';
+import { parseExtendedChart } from '../src/data-chart-parser';
 import { parseVisualization } from '../src/d3';
 import { parsePert } from '../src/pert/parser';
 import { parseGantt } from '../src/gantt/parser';

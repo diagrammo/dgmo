@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { renderForExport } from '../src/d3';
-import { renderExtendedChartForExport } from '../src/echarts';
+import { renderDataChartD3 as renderExtendedChartForExport } from '../src/charts-d3';
 import {
   getAllChartTypes,
   getRenderCategory,

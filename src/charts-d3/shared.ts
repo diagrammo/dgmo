@@ -13,7 +13,7 @@ import { FONT_FAMILY } from '../fonts';
 import { measureText } from '../utils/text-measure';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
-import { getSimpleChartLegendGroups } from '../echarts';
+import { getSimpleChartLegendGroups } from '../data-chart-parser';
 import { renderLegendSvg } from '../utils/legend-svg';
 import type { LegendGroupData } from '../utils/legend-types';
 

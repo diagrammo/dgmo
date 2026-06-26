@@ -1,5 +1,5 @@
 import { renderForExport } from './d3';
-import { renderExtendedChartForExport } from './echarts';
+import { renderDataChartD3 } from './charts-d3';
 import { getRenderCategory, parseDgmo } from './dgmo-router';
 import type { DgmoError } from './diagnostics';
 import { getPalette } from './palettes/registry';
@@ -127,10 +127,6 @@ export async function render(
     /** Bundled map data for `map` charts in the browser, where the Node fs
      *  `loadMapData()` seam can't run. CLI/SSR omit this and fall back to fs. */
     mapData?: import('./map/resolved-types').MapData;
-    /** SPIKE: select the data-chart engine. 'd3' routes the Tier-1 chart types
-     *  (bar/line/pie families) through the hand-built renderers instead of
-     *  ECharts; unsupported types fall back to ECharts automatically. */
-    engine?: 'd3' | 'echarts';
   }
 ): Promise<{ svg: string; diagnostics: DgmoError[] }> {
   const theme = options?.theme ?? 'light';
@@ -159,29 +155,14 @@ export async function render(
       : undefined);
 
   if (category === 'data-chart') {
-    // SPIKE: hand-built D3 path for the Tier-1 chart types. Unsupported types
-    // (scatter/sankey/chord/heatmap/funnel/radar/polar-area) fall through to
-    // ECharts even when engine === 'd3'.
-    if (options?.engine === 'd3' && chartType) {
-      const { supportsD3DataChart, renderDataChartD3 } = await import(
-        './charts-d3'
-      );
-      if (supportsD3DataChart(chartType)) {
-        await acquireDom();
-        try {
-          const svg = await renderDataChartD3(content, theme, paletteColors);
-          if (svg) return { svg, diagnostics };
-        } finally {
-          releaseDom();
-        }
-      }
+    // All data-chart types render through the hand-built D3 engine (no ECharts).
+    await acquireDom();
+    try {
+      const svg = await renderDataChartD3(content, theme, paletteColors);
+      return { svg, diagnostics };
+    } finally {
+      releaseDom();
     }
-    const svg = await renderExtendedChartForExport(
-      content,
-      theme,
-      paletteColors
-    );
-    return { svg, diagnostics };
   }
 
   // Visualization/diagram and unknown/null types all go through the unified renderer

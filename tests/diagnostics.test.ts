@@ -5,7 +5,7 @@ import { parseDgmo } from '../src/dgmo-router';
 import { parseSequenceDgmo } from '../src/sequence/parser';
 import { parseOrg } from '../src/org/parser';
 import { parseChart } from '../src/chart';
-import { parseExtendedChart } from '../src/echarts';
+import { parseExtendedChart } from '../src/data-chart-parser';
 import { parseVisualization } from '../src/d3';
 
 // ============================================================

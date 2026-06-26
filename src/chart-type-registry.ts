@@ -43,7 +43,7 @@ import {
   parseHeatmap,
   parseFunnel,
   EXTENDED_CHART_DOORS,
-} from './echarts';
+} from './data-chart-parser';
 import { parseSlope } from './slope/parser';
 import { parseArc } from './arc/parser';
 import { parseTimeline } from './timeline/viz-parser';
@@ -277,7 +277,10 @@ function minDimsEventLine(c: ContentCounts): { width: number; height: number } {
 function measureVersionControl(content: string): ContentCounts {
   return { nodes: parseVersionControl(content).nodes.length };
 }
-function minDimsVersionControl(c: ContentCounts): { width: number; height: number } {
+function minDimsVersionControl(c: ContentCounts): {
+  width: number;
+  height: number;
+} {
   return {
     width: Math.max(480, 160 + (c.nodes ?? 3) * 86),
     height: 360,

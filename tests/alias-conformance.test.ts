@@ -12,7 +12,7 @@ import { parseSitemap } from '../src/sitemap/parser';
 import { parseBoxesAndLines } from '../src/boxes-and-lines/parser';
 import { parseKanban } from '../src/kanban/parser';
 import { parseVisualization } from '../src/d3';
-import { parseExtendedChart } from '../src/echarts';
+import { parseExtendedChart } from '../src/data-chart-parser';
 import { getPalette } from '../src/palettes';
 
 // ============================================================

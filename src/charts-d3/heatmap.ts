@@ -4,7 +4,7 @@
 // per-cell label tint matching the cell color (ECharts parity).
 // ============================================================
 
-import type { ParsedHeatmap } from '../echarts';
+import type { ParsedHeatmap } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { shapeFill, mix, hexToHSL, hslToHex } from '../palettes/color-utils';
@@ -88,7 +88,9 @@ export function renderHeatmap(
         'start'
       );
     } else {
-      t.attr('x', x).attr('y', top - 8).attr('text-anchor', 'middle');
+      t.attr('x', x)
+        .attr('y', top - 8)
+        .attr('text-anchor', 'middle');
     }
   });
 

@@ -8,7 +8,7 @@ import {
   nearestNamedColor,
   INVALID_COLOR_CODE,
 } from '../src/colors';
-import { parseExtendedChart } from '../src/echarts';
+import { parseExtendedChart } from '../src/data-chart-parser';
 import { parseDgmo } from '../src/dgmo-router';
 import type { DgmoError } from '../src/diagnostics';
 

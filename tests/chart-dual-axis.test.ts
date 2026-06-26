@@ -1,17 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { parseChart } from '../src/chart';
-import { buildSimpleChartOption } from '../src/echarts';
+import { renderDataChartD3 } from '../src/charts-d3';
 import { getPalette } from '../src/palettes';
 
 const palette = getPalette('nord').light;
 
 function build(input: string) {
-  const parsed = parseChart(input, palette);
-  return { parsed, opt: buildSimpleChartOption(parsed, palette, false) };
+  return { parsed: parseChart(input, palette) };
 }
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const seriesOf = (opt: any): any[] => opt.series ?? [];
 
 const DUAL = `line Oil Price vs Reserve
 series
@@ -45,7 +41,6 @@ describe('dual-axis line — parser', () => {
   it('still peels per-series trailing colors in grouped form', () => {
     const { parsed } = build(DUAL);
     expect(parsed.seriesNameColors).toBeDefined();
-    // 3 colors, all set (blue/green/orange)
     expect(parsed.seriesNameColors?.filter(Boolean).length).toBe(3);
   });
 
@@ -108,59 +103,22 @@ describe('dual-axis line — diagnostics', () => {
   });
 });
 
-describe('dual-axis line — renderer', () => {
-  it('emits two value axes with right-axis gridlines suppressed', () => {
-    const { opt } = build(DUAL);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const yAxis = (opt as any).yAxis;
-    expect(Array.isArray(yAxis)).toBe(true);
-    expect(yAxis).toHaveLength(2);
-    expect(yAxis[0].name).toBe('$ / barrel');
-    expect(yAxis[1].name).toBe('Million barrels');
-    expect(yAxis[1].splitLine).toEqual({ show: false });
+describe('dual-axis line — D3 renderer', () => {
+  it('renders both axis titles in the SVG', async () => {
+    const svg = await renderDataChartD3(DUAL, 'light', palette);
+    expect(svg).toContain('$ / barrel');
+    expect(svg).toContain('Million barrels');
+    // three series groups
+    expect((svg.match(/class="dgmo-series"/g) ?? []).length).toBe(3);
   });
 
-  it('routes right-axis series to yAxisIndex 1, left to 0', () => {
-    const { opt } = build(DUAL);
-    const s = seriesOf(opt);
-    expect(s[0].yAxisIndex).toBe(0); // Oil left
-    expect(s[1].yAxisIndex).toBe(1); // SPR right
-    expect(s[2].yAxisIndex).toBe(1); // China right
-  });
-
-  it('tints a sole-series axis to that series color', () => {
-    const { opt } = build(
-      `line\nseries\n  y-label Price\n    Oil blue\n  y-right-label Reserve\n    SPR green\n\n2020 40 640`
+  it('a flat single-axis chart has no right-axis label', async () => {
+    const svg = await renderDataChartD3(
+      `line\nseries\n  A blue\n  B green\nx-label X\ny-label Y\n\nJan 10 20\nFeb 30 40`,
+      'light',
+      palette
     );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const yAxis = (opt as any).yAxis;
-    // Left axis owned solely by Oil → blue; right solely by SPR → green.
-    expect(yAxis[0].axisLine.lineStyle.color).toBe(palette.colors.blue);
-    expect(yAxis[1].axisLine.lineStyle.color).toBe(palette.colors.green);
-  });
-
-  it('tints each series value labels to a shade of the series color', () => {
-    const { opt } = build(DUAL);
-    const s = seriesOf(opt);
-    expect(s[0].label.color).not.toBe(palette.text);
-    expect(s[1].label.color).not.toBe(palette.text);
-    expect(s[0].label.color).not.toBe(s[1].label.color);
-    expect(s[0].label.color).toMatch(/^#[0-9a-f]{6}$/i);
-  });
-
-  it('links line↔dots↔numbers via focus:series emphasis and blurs others', () => {
-    const { opt } = build(DUAL);
-    const s = seriesOf(opt);
-    expect(s[0].emphasis.focus).toBe('series');
-    expect(s[0].blur.lineStyle.opacity).toBeLessThan(1);
-    expect(s[0].blur.label.opacity).toBeLessThan(1);
-  });
-
-  it('keeps a single value axis (object, not array) for flat charts', () => {
-    const { opt } = build(`line\nseries\n  A blue\n  B green\n\nJan 10 20`);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const yAxis = (opt as any).yAxis;
-    expect(Array.isArray(yAxis)).toBe(false);
-    expect(seriesOf(opt)[0].yAxisIndex).toBeUndefined();
+    expect(svg).toContain('Y');
+    expect(svg).not.toContain('Million barrels');
   });
 });

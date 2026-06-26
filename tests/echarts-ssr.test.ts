@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderExtendedChartForExport } from '../src/echarts';
+import { renderDataChartD3 as renderExtendedChartForExport } from '../src/charts-d3';
 
 // Minimal valid inputs for each ECharts chart type
 const SCATTER_INPUT = `scatter Test Scatter

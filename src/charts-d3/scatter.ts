@@ -6,7 +6,7 @@
 // ============================================================
 
 import { scaleLinear } from 'd3-scale';
-import type { ParsedScatter } from '../echarts';
+import type { ParsedScatter } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { shapeFill } from '../palettes/color-utils';

@@ -18,7 +18,7 @@ import {
   type ParsedSankey,
   type ParsedChord,
   type ParsedFunctionChart,
-} from '../echarts';
+} from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
 import { getSeriesColors } from '../palettes/color-utils';
 import {

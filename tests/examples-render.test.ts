@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { parseChart } from '../src/chart';
-import { parseExtendedChart } from '../src/echarts';
+import { parseExtendedChart } from '../src/data-chart-parser';
 import { parseVisualization } from '../src/d3';
 import { parseCycle } from '../src/cycle/parser';
 import { parseMindmap } from '../src/mindmap/parser';

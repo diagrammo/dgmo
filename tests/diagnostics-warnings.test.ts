@@ -4,7 +4,7 @@ import { parseFlowchart } from '../src/graph/flowchart-parser';
 import { parseClassDiagram } from '../src/class/parser';
 import { parseERDiagram } from '../src/er/parser';
 import { parseVisualization } from '../src/d3';
-import { parseExtendedChart } from '../src/echarts';
+import { parseExtendedChart } from '../src/data-chart-parser';
 import { parseChart } from '../src/chart';
 import { parseBoxesAndLines } from '../src/boxes-and-lines/parser';
 import { parseCycle } from '../src/cycle/parser';

@@ -73,8 +73,11 @@ export type { RenderCategory } from './dgmo-router';
 export { parseChart, parseDataRowValues } from './chart';
 export type { ParsedChart, ChartType, ChartDataPoint, ChartEra } from './chart';
 
-export { parseExtendedChart } from './echarts';
-export type { ParsedExtendedChart, ExtendedChartType } from './echarts';
+export { parseExtendedChart } from './data-chart-parser';
+export type {
+  ParsedExtendedChart,
+  ExtendedChartType,
+} from './data-chart-parser';
 
 export {
   parseVisualization,
@@ -704,19 +707,13 @@ export {
 } from './graph/flowchart-renderer';
 
 // ============================================================
-// Config Builders (produce framework-specific config objects)
+// Data-chart legend-group helpers (consumed by the D3 renderers)
 // ============================================================
 
 export {
-  buildExtendedChartOption,
-  buildSimpleChartOption,
-  renderExtendedChartForExport,
   getExtendedChartLegendGroups,
   getSimpleChartLegendGroups,
-  computeScatterLabelGraphics,
-  ECHART_EXPORT_WIDTH,
-} from './echarts';
-export type { ScatterLabelPoint } from './echarts';
+} from './data-chart-parser';
 export { ScaleContext } from './utils/scaling';
 export { renderLegendSvg, renderLegendSvgFromConfig } from './utils/legend-svg';
 export type { LegendGroupData } from './utils/legend-types';
