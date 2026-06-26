@@ -132,20 +132,20 @@ side below
 no-scale
 
 [The Early Web]
-1991 WorldWideWeb
-  one
-1993 Mosaic
-  two
+  1991 WorldWideWeb
+    one
+  1993 Mosaic
+    two
 
 [The Standards Era] collapsed: true
-1995 JavaScript
-  three
-1996 CSS
-  four
+  1995 JavaScript
+    three
+  1996 CSS
+    four
 
 [The App Era]
-2005 Ajax
-  five`;
+  2005 Ajax
+    five`;
 
   it('draws an era bracket group per era, with as-authored labels', () => {
     const parsed = parseEventLine(ERAS, nordLight);
@@ -192,10 +192,10 @@ no-scale
 side below
 
 [Phase One]
-2020 A
-  one
-2021 B
-  two`,
+  2020 A
+    one
+  2021 B
+    two`,
       nordLight
     );
     const container = mount();
@@ -297,12 +297,12 @@ tag Medium as m
   Special green
 
 [Phase One] collapsed: true
-2008 Iron Man  m: Film
-  one
-2011 WandaVision  m: Series
-  two
-2012 One-Shot  m: Special
-  three`;
+  2008 Iron Man  m: Film
+    one
+  2011 WandaVision  m: Series
+    two
+  2012 One-Shot  m: Special
+    three`;
     const parsed = parseEventLine(src, nordLight);
     const container = mount(900, 500);
     renderEventLine(container, parsed, nordLight, false);
@@ -336,10 +336,10 @@ tag T as t
   B green
 
 [Era] collapsed: true
-2001 X  t: A
-  d
-2002 Y  t: A
-  d`;
+  2001 X  t: A
+    d
+  2002 Y  t: A
+    d`;
     const parsed = parseEventLine(src, nordLight);
     const container = mount();
     renderEventLine(container, parsed, nordLight, false);
@@ -359,24 +359,24 @@ tag T as t
   const CLUSTERED = `event-line Crunch
 
 [A]
-2020-01-01 e1
-  - one
-2020-02-01 e2
-  - one
-  - two
-  - three
-2020-03-01 e3
-2020-04-01 e4
-  - one
-2020-05-01 e5
+  2020-01-01 e1
+    - one
+  2020-02-01 e2
+    - one
+    - two
+    - three
+  2020-03-01 e3
+  2020-04-01 e4
+    - one
+  2020-05-01 e5
 
 [B]
-2020-06-01 e6
-2020-07-01 e7
-  - one
-  - two
-2020-08-01 e8
-2020-09-01 e9`;
+  2020-06-01 e6
+  2020-07-01 e7
+    - one
+    - two
+  2020-08-01 e8
+  2020-09-01 e9`;
 
   function viewBox(c: HTMLDivElement): { w: number; h: number } {
     const [, , w, h] = c
@@ -412,8 +412,8 @@ tag T as t
 2025-02-01 d
 
 [Late] collapsed: true
-2026-01-01 a1
-2026-02-01 a2`;
+  2026-01-01 a1
+  2026-02-01 a2`;
     const parsed = parseEventLine(src, nordLight);
     const c = mount(1200, 500);
     renderEventLine(c, parsed, nordLight, false);
@@ -428,7 +428,7 @@ tag T as t
   it('shows every member of a collapsed era (no "+N more" truncation)', () => {
     const members = Array.from(
       { length: 9 },
-      (_, i) => `20${20 + i}-01-01 Event ${i + 1}`
+      (_, i) => `  20${20 + i}-01-01 Event ${i + 1}`
     ).join('\n');
     const src = `event-line Big\n\n[All] collapsed: true\n${members}`;
     const parsed = parseEventLine(src, nordLight);
@@ -454,10 +454,10 @@ tag T as t
       return Math.max(...xs) - Math.min(...xs);
     };
     const wide = bracketWidth(
-      `event-line W\n\n2000-01-01 anchor\n\n[Long] collapsed: true\n2005-01-01 a\n2019-01-01 b`
+      `event-line W\n\n2000-01-01 anchor\n\n[Long] collapsed: true\n  2005-01-01 a\n  2019-01-01 b`
     );
     const narrow = bracketWidth(
-      `event-line N\n\n2000-01-01 anchor\n\n[Short] collapsed: true\n2005-01-01 a\n2005-06-01 b`
+      `event-line N\n\n2000-01-01 anchor\n\n[Short] collapsed: true\n  2005-01-01 a\n  2005-06-01 b`
     );
     // A 14-year span and a 5-month span produce the SAME compact capsule width.
     expect(wide).toBeCloseTo(narrow, 1);
@@ -468,7 +468,7 @@ tag T as t
     // spread WIDER than when that era is expanded and consumes its date range.
     const expandedSpan = (otherCollapsed: boolean): number => {
       const tag = otherCollapsed ? '[Past] collapsed: true' : '[Past]';
-      const src = `event-line S\n\n${tag}\n2000-01-01 p1\n2015-01-01 p2\n\n[Now]\n2017-01-01 a\n2018-06-01 b\n2020-01-01 c`;
+      const src = `event-line S\n\n${tag}\n  2000-01-01 p1\n  2015-01-01 p2\n\n[Now]\n  2017-01-01 a\n  2018-06-01 b\n  2020-01-01 c`;
       const c = mount(1400, 500);
       renderEventLine(c, parseEventLine(src, nordLight), nordLight, false);
       // x-span of the three "Now" dots (the last three by x).
@@ -492,8 +492,8 @@ tag T as t
 2020-01-01 d
 
 [Later] collapsed: true
-2021-01-01 z1
-2040-01-01 z2`;
+  2021-01-01 z1
+  2040-01-01 z2`;
     const parsed = parseEventLine(src, nordLight);
     const c = mount(1600, 500);
     renderEventLine(c, parsed, nordLight, false);
@@ -512,8 +512,8 @@ tag T as t
 2020-06-01 b
 
 [Gap] collapsed: true
-2025-01-01 c
-2025-06-01 d`;
+  2025-01-01 c
+  2025-06-01 d`;
     const parsed = parseEventLine(src, nordLight);
     const c = mount(1200, 500);
     renderEventLine(c, parsed, nordLight, false);
@@ -535,12 +535,12 @@ tag T as t
     const src = `event-line Tight
 
 [First]
-2025-01-01 a1
-2025-04-01 a2
+  2025-01-01 a1
+  2025-04-01 a2
 
 [Second]
-2025-04-15 b1
-2025-09-01 b2`;
+  2025-04-15 b1
+  2025-09-01 b2`;
     const parsed = parseEventLine(src, nordLight);
     const c = mount(1200, 500);
     renderEventLine(c, parsed, nordLight, false);

@@ -2399,6 +2399,23 @@ tag Genre as g
 - **Tag** — trailing same-line metadata (`g: Pop`), like timeline; colors the dot, leader, and card.
 - **Description** — bare indented body lines (like `pyramid`/`ring`); `- ` makes a bullet; inline markdown (`**bold**`, `*italic*`, `` `code` ``) supported.
 
+#### Eras
+
+Group a run of events into a labeled section with a `[Name]` bracket, then **indent the events beneath it** (the org / version-control nesting idiom). An event belongs to the era it is indented under; its description sits one level deeper still. An event at indent 0 sits **outside** any era.
+
+```
+[The Early Web]
+  1991 WorldWideWeb  t: Protocol
+    Tim Berners-Lee publishes the first site.
+  1993 Mosaic  t: Browser
+
+[The App Era] collapsed: true
+  2005 Ajax  t: Platform
+```
+
+- **Trailing metadata** after `]` — optional `collapsed: true` and/or a named color (`[The 1960s] collapsed: true blue`).
+- **`collapsed: true`** folds the era into a single summary card (its name + a bulleted list of member events) while a bracket stays on the spine; in the app a reader toggles it live.
+
 #### Directives
 
 - `no-scale` — space events evenly instead of by date (dates become captions).

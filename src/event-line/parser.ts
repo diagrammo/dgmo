@@ -114,6 +114,11 @@ export function parseEventLine(
   let currentTagGroup: Writable<TagGroup> | null = null;
   let currentEvent: Writable<EventLineEvent> | null = null;
   let currentEra: string | null = null;
+  // Indent of the open era's `[Name]` bracket; events must be indented deeper
+  // to belong to it. -1 ⇒ no era open (an indent-0 event is then era-less).
+  let eraIndent = -1;
+  // Indent of the current event; a line indented deeper is its description.
+  let currentEventIndent = 0;
   const aliasMap = new Map<string, string>();
 
   for (let i = 0; i < lines.length; i++) {
@@ -198,15 +203,17 @@ export function parseEventLine(
       continue;
     }
 
-    // ── Indented line in content phase = description body ──
-    if (indent > 0) {
-      if (!currentEvent) {
-        pushWarning(
-          lineNumber,
-          `Indented description "${trimmed}" has no event above it — add an event line first. (§28)`
-        );
-        continue;
-      }
+    // ── Content phase: indentation classifies each line. ──
+    //
+    // Eras are top-level `[Name]` section headers whose member events are
+    // INDENTED beneath them (the org §7 / version-control §29 idiom); an event
+    // at indent 0 sits OUTSIDE any era. A line indented deeper than its event
+    // is that event's description body (§28.4).
+
+    // Description body — any line indented deeper than its event. Checked
+    // before the era bracket so a bracketed prose line (`  [aside]`) under an
+    // event stays a description rather than opening a spurious era.
+    if (currentEvent && indent > currentEventIndent) {
       const descLine = trimmed.startsWith('- ')
         ? `• ${trimmed.substring(2)}`
         : trimmed;
@@ -214,47 +221,14 @@ export function parseEventLine(
       continue;
     }
 
-    // ── Indent-0 line: directive, reserved seam, or event ──
-    currentTagGroup = null;
-
-    if (trimmed.toLowerCase() === 'no-scale') {
-      options.scale = false;
-      continue;
-    }
-    const sideMatch = trimmed.match(SIDE_RE);
-    if (sideMatch) {
-      options.side = sideMatch[1]!.toLowerCase() as EventLineOptions['side'];
-      continue;
-    }
-    if (trimmed.toLowerCase() === 'no-box') {
-      options.noBox = true;
-      continue;
-    }
-    if (trimmed.toLowerCase() === 'no-legend') {
-      options.noLegend = true;
-      continue;
-    }
-    const dirMatch = trimmed.match(DIRECTION_RE);
-    if (dirMatch) {
-      const dir = dirMatch[1]!.toUpperCase();
-      if (dir !== 'LR') {
-        pushWarning(
-          lineNumber,
-          `event-line is horizontal-only in v1; \`direction ${dir}\` (vertical orientation) is a fast-follow.`,
-          EVENT_LINE_DIAGNOSTIC_CODES.UNSUPPORTED
-        );
-      }
-      continue;
-    }
-    if (tryParseSharedOption(trimmed, sharedOptions)) continue;
-
-    // ── Era run delimiter: `[Name]` opens a section that runs to the next
-    //    `[Name]` or EOF (§28.6a). NOT an indentation container — events stay at
-    //    indent 0, so flat bare-body descriptions are preserved. Optional trailing
-    //    `collapsed: true` and/or a color name tint/fold the era.
+    // ── Era run delimiter: `[Name]` (§28.6a) — a section header whose member
+    //    events are indented beneath it. Dedenting to (or past) the bracket's
+    //    own indent leaves the era. Optional trailing `collapsed: true` and/or
+    //    a color name tint/fold the era.
     const eraMatch = trimmed.match(ERA_RE);
     if (eraMatch) {
       contentStarted = true;
+      currentTagGroup = null;
       currentEvent = null;
       const name = eraMatch[1]!.trim();
       let rest = (eraMatch[2] ?? '').trim();
@@ -283,19 +257,59 @@ export function parseEventLine(
       const era: EventLineEra = { name, color, collapsed, lineNumber };
       result.eras.push(era);
       currentEra = name;
+      eraIndent = indent;
       continue;
     }
 
-    if (SECTION_SEAM_RE.test(trimmed)) {
-      pushWarning(
-        lineNumber,
-        'Group events with `[Name]` era brackets (§28.6a), not `section`.',
-        EVENT_LINE_DIAGNOSTIC_CODES.UNSUPPORTED
-      );
-      continue;
+    // ── Top-level (indent 0) directives and reserved seams. ──
+    if (indent === 0) {
+      currentTagGroup = null;
+      if (trimmed.toLowerCase() === 'no-scale') {
+        options.scale = false;
+        continue;
+      }
+      const sideMatch = trimmed.match(SIDE_RE);
+      if (sideMatch) {
+        options.side = sideMatch[1]!.toLowerCase() as EventLineOptions['side'];
+        continue;
+      }
+      if (trimmed.toLowerCase() === 'no-box') {
+        options.noBox = true;
+        continue;
+      }
+      if (trimmed.toLowerCase() === 'no-legend') {
+        options.noLegend = true;
+        continue;
+      }
+      const dirMatch = trimmed.match(DIRECTION_RE);
+      if (dirMatch) {
+        const dir = dirMatch[1]!.toUpperCase();
+        if (dir !== 'LR') {
+          pushWarning(
+            lineNumber,
+            `event-line is horizontal-only in v1; \`direction ${dir}\` (vertical orientation) is a fast-follow.`,
+            EVENT_LINE_DIAGNOSTIC_CODES.UNSUPPORTED
+          );
+        }
+        continue;
+      }
+      if (tryParseSharedOption(trimmed, sharedOptions)) continue;
+      if (SECTION_SEAM_RE.test(trimmed)) {
+        pushWarning(
+          lineNumber,
+          'Group events with `[Name]` era brackets (§28.6a), not `section`.',
+          EVENT_LINE_DIAGNOSTIC_CODES.UNSUPPORTED
+        );
+        continue;
+      }
     }
 
     // ── Event line ──
+    // An event belongs to the open era only when indented beneath that era's
+    // bracket; an indent-0 event sits outside any era and closes the run
+    // (events outside eras are fully supported — they simply have `era: null`).
+    const inEra = currentEra !== null && indent > eraIndent;
+    if (!inEra) currentEra = null;
     contentStarted = true;
     const event = parseEventHeader(
       trimmed,
@@ -307,6 +321,7 @@ export function parseEventLine(
     );
     result.events.push(event);
     currentEvent = event;
+    currentEventIndent = indent;
   }
 
   options.noTitle = sharedOptions['no-title'] === 'on';

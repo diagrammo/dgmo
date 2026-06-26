@@ -194,20 +194,20 @@ tag Genre as g
     expect(p.tagGroups[0]!.entries[0]!.color).not.toBe('');
   });
 
-  describe('eras (`[Name]` run delimiters, §28.6a)', () => {
-    it('opens an era that runs to the next `[Name]` or EOF', () => {
+  describe('eras (`[Name]` indentation containers, §28.6a)', () => {
+    it('nests indented events under each era; their bare body is the description', () => {
       const p = parseEventLine(`event-line A History of the Web
 no-scale
 
 [The Early Web]
-1991 WorldWideWeb
-  one
-1993 Mosaic
-  two
+  1991 WorldWideWeb
+    one
+  1993 Mosaic
+    two
 
 [The App Era]
-2005 Ajax
-  three`);
+  2005 Ajax
+    three`);
       expect(errors(p)).toHaveLength(0);
       expect(p.eras.map((e) => e.name)).toEqual([
         'The Early Web',
@@ -218,8 +218,40 @@ no-scale
         'The Early Web',
         'The App Era',
       ]);
-      // events stay at indent 0 → bare-body description preserved
+      // event body is indented one level deeper than its (indented) event
       expect(p.events[0]!.description).toEqual(['one']);
+      expect(p.events[0]!.label).toBe('WorldWideWeb');
+    });
+
+    it('accepts events outside any era (indent 0) alongside grouped ones', () => {
+      const p = parseEventLine(`event-line X
+no-scale
+
+2018 Prologue
+  before the eras
+
+[Phase One]
+  2020 A
+    one`);
+      expect(errors(p)).toHaveLength(0);
+      expect(p.events[0]!.era).toBeNull();
+      expect(p.events[0]!.description).toEqual(['before the eras']);
+      expect(p.events[1]!.era).toBe('Phase One');
+    });
+
+    it('a dedent back to indent 0 ends the era (event becomes era-less)', () => {
+      const p = parseEventLine(`event-line X
+no-scale
+
+[Phase One]
+  2020 A
+    one
+2021 Epilogue
+  after the era`);
+      expect(errors(p)).toHaveLength(0);
+      expect(p.events.map((e) => e.era)).toEqual(['Phase One', null]);
+      expect(p.events[1]!.label).toBe('Epilogue');
+      expect(p.events[1]!.description).toEqual(['after the era']);
     });
 
     it('parses `collapsed: true` and an optional era color', () => {
@@ -227,12 +259,12 @@ no-scale
 no-scale
 
 [Phase One] collapsed: true blue
-2020 A
-  one
+  2020 A
+    one
 
 [Phase Two]
-2021 B
-  two`);
+  2021 B
+    two`);
       expect(errors(p)).toHaveLength(0);
       expect(p.eras[0]!.name).toBe('Phase One');
       expect(p.eras[0]!.collapsed).toBe(true);
@@ -246,31 +278,17 @@ no-scale
 no-scale
 
 [the eARLY web]
-2020 A
-  one`);
+  2020 A
+    one`);
       expect(p.eras[0]!.name).toBe('the eARLY web');
-    });
-
-    it('events before any era have a null era', () => {
-      const p = parseEventLine(`event-line X
-no-scale
-
-2019 Pre
-  zero
-
-[Phase One]
-2020 A
-  one`);
-      expect(p.events[0]!.era).toBeNull();
-      expect(p.events[1]!.era).toBe('Phase One');
     });
 
     it('treats an era declaration as content (tags after it error)', () => {
       const p = parseEventLine(`event-line X
 
 [Phase One]
-2020 A
-  one
+  2020 A
+    one
 
 tag Genre as g
   Pop blue`);
@@ -283,12 +301,12 @@ tag Genre as g
       const p = parseEventLine(`event-line X
 
 [Vasanth]
-2025-04-01 Opening Day Outage
-2025-05-09 Fire Kevin C
+  2025-04-01 Opening Day Outage
+  2025-05-09 Fire Kevin C
 
 [Curtis]
-2025-04-15 Sean Curtis CTO
-2025-09-01 The incident`);
+  2025-04-15 Sean Curtis CTO
+  2025-09-01 The incident`);
       const w = p.diagnostics.filter(
         (d) => d.code === 'E_EVENT_LINE_ERA_DATE_ORDER'
       );
@@ -305,11 +323,11 @@ tag Genre as g
       const p = parseEventLine(`event-line X
 
 [A]
-2020 First
-2024 Late
+  2020 First
+  2024 Late
 
 [B]
-2022 Early`);
+  2022 Early`);
       const w = p.diagnostics.filter(
         (d) => d.code === 'E_EVENT_LINE_ERA_DATE_ORDER'
       );
@@ -320,12 +338,12 @@ tag Genre as g
       const p = parseEventLine(`event-line X
 
 [A]
-2020 a1
-2021 a2
+  2020 a1
+  2021 a2
 
 [B]
-2022 b1
-2023 b2`);
+  2022 b1
+  2023 b2`);
       expect(
         p.diagnostics.filter((d) => d.code === 'E_EVENT_LINE_ERA_DATE_ORDER')
       ).toHaveLength(0);
@@ -336,10 +354,10 @@ tag Genre as g
 no-scale
 
 [A]
-2024 late
+  2024 late
 
 [B]
-2020 early`);
+  2020 early`);
       expect(
         p.diagnostics.filter((d) => d.code === 'E_EVENT_LINE_ERA_DATE_ORDER')
       ).toHaveLength(0);
