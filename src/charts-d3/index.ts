@@ -1,15 +1,23 @@
 // ============================================================
 // Hand-built (D3) data-chart renderer — SPIKE entry point.
 //
-// Drop-in alternative to the ECharts path for the Tier-1 data-chart types.
-// render() routes here when `engine: 'd3'` is requested; everything else still
-// flows through echarts.ts. The goal of the spike is to prove that the
-// bar/line/pie families can be rendered with the existing D3 + export-container
-// machinery — no ECharts — at acceptable fidelity and code cost.
+// Drop-in alternative to the ECharts path. render() routes here when
+// `engine: 'd3'` is requested; everything else still flows through echarts.ts.
+// Tier 1: bar/bar-stacked/line/area/pie/doughnut (parseChart).
+// Tier 2: radar/polar-area (parseChart) + funnel/heatmap/scatter
+// (parseExtendedChart).
 // ============================================================
 
-import { parseChart, type ChartType } from '../chart';
+import { parseChart } from '../chart';
+import {
+  parseExtendedChart,
+  getExtendedChartLegendGroups,
+  type ParsedFunnel,
+  type ParsedHeatmap,
+  type ParsedScatter,
+} from '../echarts';
 import type { PaletteColors } from '../palettes';
+import { getSeriesColors } from '../palettes/color-utils';
 import {
   initD3Chart,
   renderChartTitle,
@@ -19,38 +27,45 @@ import {
   EXPORT_WIDTH,
   EXPORT_HEIGHT,
 } from '../utils/d3-helpers';
+import { injectLegendGroups, type Svg } from './shared';
 import { renderBar } from './bar';
 import { renderLine } from './line';
 import { renderPie } from './pie';
+import { renderRadar } from './radar';
+import { renderPolarArea } from './polar';
+import { renderFunnel } from './funnel';
+import { renderHeatmap } from './heatmap';
+import { renderScatter } from './scatter';
 
-/** Data-chart types the hand-built renderers currently cover (Tier 1). */
-export const D3_DATA_CHART_TYPES = new Set<ChartType>([
+/** Types parsed by parseChart → ParsedChart. */
+const STANDARD = new Set([
   'bar',
   'bar-stacked',
   'line',
+  'multi-line',
   'area',
   'pie',
   'doughnut',
+  'radar',
+  'polar-area',
 ]);
+/** Types parsed by parseExtendedChart → ParsedExtendedChart. */
+const EXTENDED = new Set(['funnel', 'heatmap', 'scatter']);
+
+/** All data-chart types the hand-built renderers currently cover. */
+export const D3_DATA_CHART_TYPES = new Set<string>([...STANDARD, ...EXTENDED]);
 
 export function supportsD3DataChart(type: string): boolean {
-  return D3_DATA_CHART_TYPES.has(type as ChartType);
+  return D3_DATA_CHART_TYPES.has(type);
 }
 
-/**
- * Render a Tier-1 data chart to an SVG string with the hand-built renderers.
- * Requires DOM globals (jsdom) to be installed by the caller, same as every
- * other D3 export path. Returns '' on parse error / empty data.
- */
 export async function renderDataChartD3(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
   palette?: PaletteColors
 ): Promise<string> {
   const effectivePalette = await resolveExportPalette(theme, palette);
-  const chart = parseChart(content, effectivePalette);
-  if (chart.error || chart.data.length === 0) return '';
-  if (!D3_DATA_CHART_TYPES.has(chart.type)) return '';
+  const isDark = theme === 'dark';
 
   const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
   const init = initD3Chart(container, effectivePalette, {
@@ -62,59 +77,87 @@ export async function renderDataChartD3(
     return '';
   }
   const { svg, width, height, textColor, mutedColor, bgColor, colors } = init;
-  const isDark = theme === 'dark';
-  const hasTitle = !chart.noTitle && !!chart.title;
 
-  if (hasTitle) {
-    renderChartTitle(svg, chart.title, chart.titleLineNumber, width, textColor);
+  const ok = renderInto(
+    svg,
+    content,
+    effectivePalette,
+    isDark,
+    width,
+    height,
+    textColor,
+    mutedColor,
+    bgColor,
+    colors
+  );
+  if (!ok) {
+    document.body.removeChild(container);
+    return '';
   }
-
-  switch (chart.type) {
-    case 'bar':
-    case 'bar-stacked':
-      renderBar(
-        svg,
-        chart,
-        width,
-        height,
-        colors,
-        effectivePalette,
-        isDark,
-        textColor,
-        mutedColor,
-        hasTitle
-      );
-      break;
-    case 'line':
-    case 'area':
-      renderLine(
-        svg,
-        chart,
-        width,
-        height,
-        colors,
-        effectivePalette,
-        isDark,
-        textColor,
-        mutedColor,
-        bgColor,
-        hasTitle
-      );
-      break;
-    case 'pie':
-    case 'doughnut':
-      renderPie(
-        svg,
-        chart,
-        width,
-        height,
-        effectivePalette,
-        isDark,
-        textColor,
-        hasTitle ? 52 : 24
-      );
-      break;
-  }
-
   return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+function renderInto(
+  s: Svg,
+  content: string,
+  palette: PaletteColors,
+  isDark: boolean,
+  width: number,
+  height: number,
+  textColor: string,
+  mutedColor: string,
+  bgColor: string,
+  colors: string[]
+): boolean {
+  // Standard (parseChart) path.
+  const std = parseChart(content, palette);
+  if (!std.error && std.data.length > 0 && STANDARD.has(std.type)) {
+    const hasTitle = !std.noTitle && !!std.title;
+    if (hasTitle)
+      renderChartTitle(s, std.title, std.titleLineNumber, width, textColor);
+    switch (std.type) {
+      case 'bar':
+      case 'bar-stacked':
+        renderBar(s, std, width, height, colors, palette, isDark, textColor, mutedColor, hasTitle);
+        return true;
+      case 'line':
+      case 'area':
+        renderLine(s, std, width, height, colors, palette, isDark, textColor, mutedColor, bgColor, hasTitle);
+        return true;
+      case 'pie':
+      case 'doughnut':
+        renderPie(s, std, width, height, palette, isDark, textColor, hasTitle ? 52 : 24);
+        return true;
+      case 'radar':
+        renderRadar(s, std, width, height, palette, isDark, textColor, mutedColor, hasTitle ? 52 : 24);
+        return true;
+      case 'polar-area':
+        renderPolarArea(s, std, width, height, palette, isDark, textColor, hasTitle ? 52 : 24);
+        return true;
+    }
+  }
+
+  // Extended (parseExtendedChart) path.
+  const ext = parseExtendedChart(content, palette);
+  if (ext.error || !EXTENDED.has(ext.type)) return false;
+  const seriesColors = getSeriesColors(palette);
+  const hasTitle = !ext.noTitle && !!ext.title;
+  if (hasTitle)
+    renderChartTitle(s, ext.title, ext.titleLineNumber, width, textColor);
+
+  switch (ext.type) {
+    case 'funnel':
+      renderFunnel(s, ext as ParsedFunnel, width, height, seriesColors, palette, isDark, textColor, hasTitle ? 52 : 24);
+      return true;
+    case 'heatmap':
+      renderHeatmap(s, ext as ParsedHeatmap, width, height, palette, isDark, textColor, bgColor, hasTitle ? 52 : 24);
+      return true;
+    case 'scatter': {
+      const groups = getExtendedChartLegendGroups(ext, seriesColors);
+      const top = injectLegendGroups(s, groups, palette, isDark, hasTitle, width);
+      renderScatter(s, ext as ParsedScatter, width, height, seriesColors, palette, isDark, textColor, mutedColor, top);
+      return true;
+    }
+  }
+  return false;
 }

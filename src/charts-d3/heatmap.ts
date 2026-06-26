@@ -1,0 +1,134 @@
+// ============================================================
+// Hand-built heatmap renderer — SPIKE (Tier 2).
+// Matrix of cells, 4-color gradient fill (primary→cyan→yellow→orange),
+// per-cell label tint matching the cell color (ECharts parity).
+// ============================================================
+
+import type { ParsedHeatmap } from '../echarts';
+import type { PaletteColors } from '../palettes';
+import { FONT_FAMILY } from '../fonts';
+import { shapeFill, mix, hexToHSL, hslToHex } from '../palettes/color-utils';
+import { measureText } from '../utils/text-measure';
+import type { Svg } from './shared';
+import { fmtNum } from './shared';
+
+export function renderHeatmap(
+  svg: Svg,
+  chart: ParsedHeatmap,
+  width: number,
+  height: number,
+  palette: PaletteColors,
+  isDark: boolean,
+  textColor: string,
+  bgColor: string,
+  topInset: number
+): void {
+  const rows = chart.heatmapRows ?? [];
+  if (rows.length === 0) return;
+  const ncols = Math.max(
+    chart.columns?.length ?? 0,
+    ...rows.map((r) => r.values.length)
+  );
+  const nrows = rows.length;
+  const cols = chart.columns ?? [];
+
+  let minValue = Infinity;
+  let maxValue = -Infinity;
+  for (const r of rows)
+    for (const v of r.values) {
+      minValue = Math.min(minValue, v);
+      maxValue = Math.max(maxValue, v);
+    }
+
+  const gradientStops = [
+    shapeFill(palette, palette.primary, isDark),
+    shapeFill(palette, palette.colors.cyan, isDark),
+    shapeFill(palette, palette.colors.yellow, isDark),
+    shapeFill(palette, palette.colors.orange, isDark),
+  ];
+  const gradientAt = (t: number): string => {
+    const tt = Math.max(0, Math.min(1, t));
+    const seg = 1 / (gradientStops.length - 1);
+    const idx = Math.min(gradientStops.length - 2, Math.floor(tt / seg));
+    const localT = (tt - idx * seg) / seg;
+    return mix(gradientStops[idx + 1]!, gradientStops[idx]!, localT * 100);
+  };
+  const labelTint = (cellColor: string): string => {
+    const { h, s } = hexToHSL(cellColor);
+    const targetS = Math.min(75, Math.max(s + 25, 50));
+    const targetL = isDark ? 72 : 30;
+    return hslToHex(h, targetS, targetL);
+  };
+
+  const rowLabelW =
+    Math.max(0, ...rows.map((r) => measureText(r.label, 13))) + 16;
+  const left = 20 + rowLabelW;
+  const top = topInset + 28; // room for column labels
+  const right = 24;
+  const bottom = 24;
+  const plotW = width - left - right;
+  const plotH = height - top - bottom;
+  const cw = plotW / ncols;
+  const ch = plotH / nrows;
+  const cellFont = Math.max(11, Math.min(18, Math.min(cw, ch) * 0.28));
+
+  // column labels (rotate if wide)
+  const rotate = cols.some((c) => measureText(c, 12) > cw * 0.85);
+  cols.forEach((c, ci) => {
+    const x = left + ci * cw + cw / 2;
+    const t = svg
+      .append('text')
+      .attr('fill', textColor)
+      .attr('font-size', 12)
+      .attr('font-family', FONT_FAMILY)
+      .text(c);
+    if (rotate) {
+      t.attr('transform', `translate(${x},${top - 8}) rotate(-40)`).attr(
+        'text-anchor',
+        'start'
+      );
+    } else {
+      t.attr('x', x).attr('y', top - 8).attr('text-anchor', 'middle');
+    }
+  });
+
+  rows.forEach((row, ri) => {
+    // row label
+    svg
+      .append('text')
+      .attr('x', left - 10)
+      .attr('y', top + ri * ch + ch / 2 + 4)
+      .attr('text-anchor', 'end')
+      .attr('fill', textColor)
+      .attr('font-size', 13)
+      .attr('font-family', FONT_FAMILY)
+      .text(row.label);
+
+    row.values.forEach((v, ci) => {
+      const t =
+        maxValue === minValue ? 0.5 : (v - minValue) / (maxValue - minValue);
+      const cell = gradientAt(t);
+      svg
+        .append('rect')
+        .attr('x', left + ci * cw)
+        .attr('y', top + ri * ch)
+        .attr('width', cw)
+        .attr('height', ch)
+        .attr('fill', cell)
+        .attr('stroke', bgColor)
+        .attr('stroke-width', 2);
+      if (!chart.noValue) {
+        svg
+          .append('text')
+          .attr('x', left + ci * cw + cw / 2)
+          .attr('y', top + ri * ch + ch / 2 + cellFont / 3)
+          .attr('text-anchor', 'middle')
+          .attr('fill', labelTint(cell))
+          .attr('font-size', cellFont)
+          .attr('font-weight', 600)
+          .attr('font-family', FONT_FAMILY)
+          .text(fmtNum(v));
+      }
+    });
+  });
+}

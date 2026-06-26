@@ -14,6 +14,7 @@ import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { getSimpleChartLegendGroups } from '../echarts';
 import { renderLegendSvg } from '../utils/legend-svg';
+import type { LegendGroupData } from '../utils/legend-types';
 
 export type Svg = d3Selection.Selection<
   SVGSVGElement,
@@ -56,8 +57,30 @@ export function reserveHeader(
   hasTitle: boolean,
   width: number
 ): number {
+  return injectLegendGroups(
+    svg,
+    getSimpleChartLegendGroups(chart, colors),
+    palette,
+    isDark,
+    hasTitle,
+    width
+  );
+}
+
+/**
+ * Inject a top-center capsule legend from pre-built groups (mirrors the
+ * ECharts path's `<g transform="translate(0,legendY)">` placement) and return
+ * the y where plot content may begin. Empty groups → just clear the title.
+ */
+export function injectLegendGroups(
+  svg: Svg,
+  groups: LegendGroupData[],
+  palette: PaletteColors,
+  isDark: boolean,
+  hasTitle: boolean,
+  width: number
+): number {
   const titleH = hasTitle ? 40 : 0;
-  const groups = getSimpleChartLegendGroups(chart, colors);
   if (groups.length === 0) return hasTitle ? titleH + 12 : 24;
 
   const legendY = 8 + titleH;
