@@ -44,6 +44,12 @@ export interface RenderOptions {
    * non-interactively (server-side render, share-link decode).
    */
   viewState?: CompactViewState;
+  /**
+   * SPIKE: data-chart rendering engine. 'd3' routes data-chart types through
+   * the hand-built D3 renderers (no ECharts); unsupported types fall back to
+   * ECharts. Omit for the default ECharts path.
+   */
+  engine?: 'd3' | 'echarts';
 }
 
 export interface RenderResult {
@@ -76,6 +82,7 @@ export async function render(
     ...(options?.theme !== undefined && { theme: options.theme }),
     palette: palette.id,
     ...(options?.viewState !== undefined && { viewState: options.viewState }),
+    ...(options?.engine !== undefined && { engine: options.engine }),
   });
 
   const errors = result.diagnostics.filter((d) => d.severity === 'error');
@@ -233,6 +240,18 @@ export type { ChartTypeMeta } from './chart-types';
 // obsidian/app browser-render path that injects bundled map JSON)
 // ============================================================
 export type { MapData } from './map/resolved-types';
+
+// ============================================================
+// SPIKE: hand-built D3 data-chart engine — interactive mount + adapter
+// (browser-runtime; lets hosts replace the ECharts live-preview path)
+// ============================================================
+export { mountD3DataChart } from './charts-d3/mount';
+export type { MountedD3Chart, MountD3Opts } from './charts-d3/mount';
+export {
+  attachDataChartInteractions,
+  type DataChartInteractionOpts,
+} from './charts-d3/interactions';
+export { supportsD3DataChart, D3_DATA_CHART_TYPES } from './charts-d3';
 
 // ============================================================
 // Public types
