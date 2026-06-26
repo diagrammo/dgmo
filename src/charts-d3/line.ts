@@ -1,21 +1,23 @@
 // ============================================================
 // Hand-built line / multi-line / area renderer — SPIKE.
-// Includes era bands (markArea parity) when the chart declares eras.
+// Series-tinted value labels, 0-baseline, era bands (markArea parity).
 // ============================================================
 
 import { scalePoint, scaleLinear } from 'd3-scale';
 import { line as d3line, area as d3area } from 'd3-shape';
 import type { ParsedChart } from '../chart';
+import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
-import { mix } from '../palettes/color-utils';
+import { mix, shapeFill } from '../palettes/color-utils';
 import {
   type Svg,
   type Margins,
   TICK_FONT,
   fmtNum,
-  drawLegend,
+  reserveHeader,
   drawXAxisTitle,
   drawYAxisTitle,
+  drawValueLabel,
 } from './shared';
 
 function seriesValue(
@@ -31,9 +33,12 @@ export function renderLine(
   width: number,
   height: number,
   colors: string[],
+  palette: PaletteColors,
+  isDark: boolean,
   textColor: string,
   mutedColor: string,
-  bgColor: string
+  bgColor: string,
+  hasTitle: boolean
 ): void {
   const data = chart.data;
   const isArea = chart.type === 'area';
@@ -47,18 +52,12 @@ export function renderLine(
     1 + Math.max(0, ...data.map((d) => d.extraValues?.length ?? 0))
   );
 
-  const legendItems = seriesNames.map((name, i) => ({
-    name,
-    color: colors[i % colors.length]!,
-  }));
-  const m: Margins = { top: 64, right: 32, bottom: 64, left: 72 };
-  const legendH = drawLegend(svg, legendItems, width, height - 16, textColor);
-  m.bottom += legendH;
+  const top = reserveHeader(svg, chart, colors, palette, isDark, hasTitle, width);
+  const m: Margins = { top: top + 8, right: 32, bottom: 64, left: 72 };
 
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
 
-  // value extent across all series; include 0 baseline for area
   let lo = Infinity;
   let hi = -Infinity;
   for (const d of data) {
@@ -72,17 +71,15 @@ export function renderLine(
     lo = 0;
     hi = 1;
   }
-  if (isArea) lo = Math.min(lo, 0);
+  // 0-baseline for all-positive data (ECharts parity).
+  if (lo > 0) lo = 0;
   if (lo === hi) hi = lo + 1;
 
   const x = scalePoint<string>()
     .domain(data.map((d) => d.label))
     .range([m.left, m.left + plotW])
     .padding(0.5);
-  const y = scaleLinear()
-    .domain([lo, hi])
-    .nice()
-    .range([m.top + plotH, m.top]);
+  const y = scaleLinear().domain([lo, hi]).nice().range([m.top + plotH, m.top]);
 
   // era bands (markArea parity)
   if (chart.eras && chart.eras.length) {
@@ -97,8 +94,7 @@ export function renderLine(
         .attr('y', m.top)
         .attr('width', Math.abs(xe - xs))
         .attr('height', plotH)
-        .attr('fill', mix(fill, bgColor, 0.85))
-        .attr('stroke', 'none');
+        .attr('fill', mix(fill, bgColor, 12));
       svg
         .append('text')
         .attr('x', (xs + xe) / 2)
@@ -147,7 +143,6 @@ export function renderLine(
       .text(d.label);
   }
 
-  // one path (+ optional area fill) per series
   for (let s = 0; s < seriesCount; s++) {
     const color = colors[s % colors.length]!;
     const pts = data.map((d) => ({ label: d.label, v: seriesValue(d, s) }));
@@ -160,7 +155,7 @@ export function renderLine(
       svg
         .append('path')
         .attr('d', areaGen(pts) ?? '')
-        .attr('fill', mix(color, bgColor, 0.7))
+        .attr('fill', shapeFill(palette, color, isDark))
         .attr('stroke', 'none');
     }
 
@@ -176,22 +171,20 @@ export function renderLine(
       .attr('stroke-linejoin', 'round')
       .attr('stroke-linecap', 'round');
 
+    const labelColor = mix(color, textColor, 60);
     for (const p of pts) {
       svg
         .append('circle')
         .attr('cx', x(p.label) ?? 0)
         .attr('cy', y(p.v))
-        .attr('r', 3)
-        .attr('fill', color);
+        .attr('r', 3.5)
+        .attr('fill', bgColor)
+        .attr('stroke', color)
+        .attr('stroke-width', 2);
+      drawValueLabel(svg, fmtNum(p.v), x(p.label) ?? 0, y(p.v) - 10, labelColor);
     }
   }
 
-  drawXAxisTitle(
-    svg,
-    chart.xlabel,
-    m.left + plotW / 2,
-    m.top + plotH + 46,
-    textColor
-  );
-  drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 18, textColor);
+  drawXAxisTitle(svg, chart.xlabel, m.left + plotW / 2, m.top + plotH + 46, textColor);
+  drawYAxisTitle(svg, chart.ylabel, m.top + plotH / 2, 20, textColor);
 }

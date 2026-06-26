@@ -62,15 +62,28 @@ export async function renderDataChartD3(
     return '';
   }
   const { svg, width, height, textColor, mutedColor, bgColor, colors } = init;
+  const isDark = theme === 'dark';
+  const hasTitle = !chart.noTitle && !!chart.title;
 
-  if (!chart.noTitle) {
+  if (hasTitle) {
     renderChartTitle(svg, chart.title, chart.titleLineNumber, width, textColor);
   }
 
   switch (chart.type) {
     case 'bar':
     case 'bar-stacked':
-      renderBar(svg, chart, width, height, colors, textColor, mutedColor);
+      renderBar(
+        svg,
+        chart,
+        width,
+        height,
+        colors,
+        effectivePalette,
+        isDark,
+        textColor,
+        mutedColor,
+        hasTitle
+      );
       break;
     case 'line':
     case 'area':
@@ -80,14 +93,26 @@ export async function renderDataChartD3(
         width,
         height,
         colors,
+        effectivePalette,
+        isDark,
         textColor,
         mutedColor,
-        bgColor
+        bgColor,
+        hasTitle
       );
       break;
     case 'pie':
     case 'doughnut':
-      renderPie(svg, chart, width, height, effectivePalette, textColor);
+      renderPie(
+        svg,
+        chart,
+        width,
+        height,
+        effectivePalette,
+        isDark,
+        textColor,
+        hasTitle ? 52 : 24
+      );
       break;
   }
 

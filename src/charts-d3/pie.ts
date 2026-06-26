@@ -1,14 +1,17 @@
 // ============================================================
 // Hand-built pie / doughnut renderer — SPIKE.
+// ECharts-style: 25% tint fill + full-strength border, external leader-line
+// labels ("Name — value (pct%)"), doughnut center total.
 // ============================================================
 
 import { pie as d3pie, arc as d3arc } from 'd3-shape';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
-import { getSegmentColors } from '../palettes/color-utils';
+import { getSegmentColors, shapeFill } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
-import { type Svg, LEGEND_FONT, fmtNum } from './shared';
-import { measureText } from '../utils/text-measure';
+import { type Svg, fmtNum } from './shared';
+
+const LABEL_FONT = 14;
 
 export function renderPie(
   svg: Svg,
@@ -16,24 +19,24 @@ export function renderPie(
   width: number,
   height: number,
   palette: PaletteColors,
-  textColor: string
+  isDark: boolean,
+  textColor: string,
+  topInset: number
 ): void {
   const data = chart.data.filter((d) => d.value > 0);
   if (data.length === 0) return;
   const isDoughnut = chart.type === 'doughnut';
+  const solid = chart.solidFill === true;
   const total = data.reduce((a, d) => a + d.value, 0);
 
-  // Reserve right-side column for the legend.
-  const legendNames = data.map((d) => d.label);
-  const legendW =
-    Math.max(0, ...legendNames.map((n) => measureText(n, LEGEND_FONT))) + 28;
-  const plotW = width - legendW - 48;
-  const cx = 24 + plotW / 2;
-  const cy = height / 2 + 16;
-  const radius = Math.min(plotW, height - 80) / 2 - 10;
+  const cx = width / 2;
+  const top = topInset + 12;
+  const cy = top + (height - top) / 2;
+  // Leave horizontal room for the external labels + leader lines.
+  const radius = Math.min(width / 2 - 220, (height - top) / 2 - 40);
 
   const segColors = getSegmentColors(palette, data.length);
-  const colorFor = (i: number, override?: string): string =>
+  const strokeFor = (i: number, override?: string) =>
     override ?? segColors[i % segColors.length]!;
 
   const arcs = d3pie<{ value: number }>()
@@ -41,69 +44,52 @@ export function renderPie(
     .value((d) => d.value)(data.map((d) => ({ value: d.value })));
 
   const arcGen = d3arc<(typeof arcs)[number]>()
-    .innerRadius(isDoughnut ? radius * 0.58 : 0)
+    .innerRadius(isDoughnut ? radius * 0.6 : 0)
     .outerRadius(radius);
-  const labelArc = d3arc<(typeof arcs)[number]>()
-    .innerRadius(radius * 0.6)
-    .outerRadius(radius * 0.6);
 
   const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
 
   arcs.forEach((a, i) => {
-    const color = colorFor(i, data[i]!.color);
+    const stroke = strokeFor(i, data[i]!.color);
+    const fill = solid ? stroke : shapeFill(palette, stroke, isDark);
     g.append('path')
       .attr('d', arcGen(a) ?? '')
-      .attr('fill', color)
-      .attr('stroke', palette.bg)
-      .attr('stroke-width', 2);
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', 1.5);
 
-    const frac = (a.endAngle - a.startAngle) / (2 * Math.PI);
-    if (frac > 0.05 && !chart.noPercent) {
-      const [lx, ly] = labelArc.centroid(a);
-      g.append('text')
-        .attr('x', lx)
-        .attr('y', ly + 4)
-        .attr('text-anchor', 'middle')
-        .attr('fill', palette.bg)
-        .attr('font-size', 12)
-        .attr('font-weight', 600)
-        .attr('font-family', FONT_FAMILY)
-        .text(`${Math.round(frac * 100)}%`);
-    }
+    // External leader-line label.
+    const mid = (a.startAngle + a.endAngle) / 2 - Math.PI / 2;
+    const rightSide = Math.cos(mid) >= 0;
+    const x0 = Math.cos(mid) * radius;
+    const y0 = Math.sin(mid) * radius;
+    const x1 = Math.cos(mid) * (radius + 16);
+    const y1 = Math.sin(mid) * (radius + 16);
+    const x2 = x1 + (rightSide ? 28 : -28);
+    g.append('polyline')
+      .attr('points', `${x0},${y0} ${x1},${y1} ${x2},${y1}`)
+      .attr('fill', 'none')
+      .attr('stroke', stroke)
+      .attr('stroke-width', 1);
+    const pct = Math.round((data[i]!.value / total) * 100);
+    g.append('text')
+      .attr('x', x2 + (rightSide ? 4 : -4))
+      .attr('y', y1 + 4)
+      .attr('text-anchor', rightSide ? 'start' : 'end')
+      .attr('fill', textColor)
+      .attr('font-size', LABEL_FONT)
+      .attr('font-family', FONT_FAMILY)
+      .text(`${data[i]!.label} — ${fmtNum(data[i]!.value)} (${pct}%)`);
   });
 
-  // Center total for doughnut.
   if (isDoughnut) {
     g.append('text')
       .attr('text-anchor', 'middle')
-      .attr('y', 6)
+      .attr('y', 8)
       .attr('fill', textColor)
-      .attr('font-size', 22)
+      .attr('font-size', 26)
       .attr('font-weight', 700)
       .attr('font-family', FONT_FAMILY)
       .text(fmtNum(total));
   }
-
-  // Right-side legend with name + value.
-  const legendX = width - legendW + 4;
-  const rowH = 24;
-  const startY = (height - data.length * rowH) / 2 + rowH / 2;
-  data.forEach((d, i) => {
-    const yy = startY + i * rowH;
-    svg
-      .append('circle')
-      .attr('cx', legendX)
-      .attr('cy', yy - 4)
-      .attr('r', 6)
-      .attr('fill', colorFor(i, d.color));
-    const label = chart.noValue ? d.label : `${d.label}  ${fmtNum(d.value)}`;
-    svg
-      .append('text')
-      .attr('x', legendX + 14)
-      .attr('y', yy)
-      .attr('fill', textColor)
-      .attr('font-size', LEGEND_FONT)
-      .attr('font-family', FONT_FAMILY)
-      .text(label);
-  });
 }
