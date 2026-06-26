@@ -78,12 +78,16 @@ const ERA_BRACKET_CAP = 8;
 // kept on each side of a seam when two adjacent brackets are clamped apart.
 const ERA_BRACKET_PAD = 14;
 const ERA_SEAM_GAP = 3;
+// Collapsed-era axis-break glyph (`≈` rotated 90°): two short parallel wavy
+// strokes that cross the spine, with the spine blanked between them so the
+// timeline visibly breaks where the folded span is.
+const BREAK_HALF_H = 6; // squiggle extends this far above AND below the spine
+const BREAK_AMP = 2.2; // horizontal wave amplitude
+const BREAK_GAP = 5; // spacing between the two waves (= the spine gap width)
 // Collapsed era: the `⊓` bar floats this far off the spine (on the card's side);
 // its legs drop from the bar to rest their feet ON the timeline.
 const ERA_LEG = 13;
 const ERA_LABEL_FONT = 11.5;
-// A collapsed era folds its members into one card; cap the bulleted member list.
-const ERA_MEMBER_MAX = 6;
 
 type Side = 'above' | 'below';
 
@@ -110,6 +114,9 @@ interface Placed {
   side: Side;
   lane: number;
   left: number;
+  /** Collapsed era only: half the date-span width in px, so its bracket stretches
+   *  across the folded run (`x` is the span MIDPOINT). 0 for events. */
+  spanHalf: number;
 }
 
 export function renderEventLine(
@@ -159,9 +166,6 @@ export function renderEventLine(
   // it). A collapsed era is marked by a span bracket on the spine instead.
   const hasExpandedEra = parsed.events.some(
     (e) => e.era && eraByName.has(e.era) && !collapsedSet.has(e.era)
-  );
-  const anyCollapsed = parsed.events.some(
-    (e) => e.era && collapsedSet.has(e.era)
   );
   const sideOpt = parsed.options.side;
   const alternate = sideOpt === 'alternate';
@@ -253,6 +257,7 @@ export function renderEventLine(
         side,
         lane: 0,
         left: 0,
+        spanHalf: 0,
       };
     }
     // Collapsed era → an event-like summary card: era name + bulleted members.
@@ -278,21 +283,26 @@ export function renderEventLine(
       palette.textOnFillLight,
       palette.textOnFillDark
     );
-    const overflow = slot.members.length > ERA_MEMBER_MAX;
-    const shown = overflow
-      ? slot.members.slice(0, ERA_MEMBER_MAX - 1)
-      : slot.members;
-    const memberStrs = shown.map(
+    // A collapsed era folds a date RANGE into one card. Anchor it at the span
+    // MIDPOINT so its card sits over the middle of the run, and its bracket (drawn
+    // later) stretches across the whole [first … last] member range — the folded
+    // span keeps its true timeline footprint instead of collapsing to a point.
+    let spanLo: number | null = null;
+    let spanHi: number | null = null;
+    for (const m of slot.members) {
+      if (m.dateValue === null) continue;
+      if (spanLo === null || m.dateValue < spanLo) spanLo = m.dateValue;
+      if (spanHi === null || m.dateValue > spanHi) spanHi = m.dateValue;
+    }
+    const repDateValue =
+      spanLo !== null && spanHi !== null ? (spanLo + spanHi) / 2 : null;
+    // Show every folded member — a collapsed era summarizes the whole run, so
+    // the card grows to fit rather than truncating with a "+N more" line.
+    const memberStrs = slot.members.map(
       (m) => `• ${m.date ? `${m.date}  ` : ''}${m.label}`
     );
-    const bulletColors = shown.map(eventColor);
+    const bulletColors = slot.members.map(eventColor);
     const lines = wrapDescription(memberStrs, charsPerLine);
-    if (overflow) {
-      lines.push({
-        text: `+${slot.members.length - (ERA_MEMBER_MAX - 1)} more`,
-        kind: 'plain',
-      });
-    }
     return {
       kind: 'era',
       event: null,
@@ -300,7 +310,7 @@ export function renderEventLine(
       members: slot.members,
       label: era.name,
       date: null,
-      dateValue: null,
+      dateValue: repDateValue,
       lineNumber: era.lineNumber,
       eraName: era.name,
       color: solid,
@@ -313,126 +323,265 @@ export function renderEventLine(
       side,
       lane: 0,
       left: 0,
+      spanHalf: 0,
     };
   });
 
   // ── X positions ──
-  // Collapse re-flows the spine, which breaks a linear date scale → fall back to
-  // even spacing when any era is collapsed (broken-axis is a fast-follow).
+  // Draw to scale whenever every slot has a date — a collapsed era is anchored at
+  // its earliest member (above), so it scales like any other point. Even spacing
+  // is reserved for explicit `no-scale` or a slot that genuinely lacks a date.
   const scaled =
-    parsed.options.scale &&
-    !anyCollapsed &&
-    placed.every((p) => p.dateValue !== null);
+    parsed.options.scale && placed.every((p) => p.dateValue !== null);
   const innerW = width - H_MARGIN * 2;
-  if (scaled) {
-    const vals = placed.map((p) => p.dateValue!);
-    const lo = Math.min(...vals);
-    const hi = Math.max(...vals);
-    placed.forEach((p) => {
-      p.x =
-        H_MARGIN +
-        (hi > lo ? ((p.dateValue! - lo) / (hi - lo)) * innerW : innerW / 2);
+  const MIN_DOT_GAP = 16; // legibility floor between coincident-ish dots
+  const STRETCH_CAP = 8; // widen the date axis at most this many ×
+
+  // BROKEN AXIS: a collapsed era is COMPRESSED to a fixed-width capsule (its
+  // squiggle says "lots of timeline folded here"), so the expanded events take
+  // over the freed width and draw to scale among themselves. The timeline is a
+  // chronological sequence of SEGMENTS — a capsule for each collapsed era, and a
+  // to-scale "run" for each maximal stretch of expanded events between them. Dead
+  // time (gaps with no expanded events) costs only a fixed `SEG_GAP`, never width.
+  const COLLAPSE_W = 64; // fixed px width of a collapsed-era capsule
+  const SEG_GAP = 16; // gap between adjacent axis segments
+  type Seg =
+    | { kind: 'capsule'; p: Placed }
+    | { kind: 'run'; events: Placed[]; lo: number; hi: number };
+  const segments: Seg[] = [];
+  let run: Placed[] = [];
+  const flushRun = (): void => {
+    if (!run.length) return;
+    const ds = run.map((e) => e.dateValue!);
+    segments.push({
+      kind: 'run',
+      events: run,
+      lo: Math.min(...ds),
+      hi: Math.max(...ds),
     });
-    // Nudge near-coincident dots apart so they read as distinct (and give their
-    // labels room). Events with the SAME date keep a shared position; only
-    // distinct times are separated.
-    const MIN_DOT_GAP = 16;
-    let prevX = -Infinity;
-    let prevVal: number | null = null;
-    for (const p of [...placed].sort((a, b) => a.x - b.x)) {
-      if (p.dateValue === prevVal) {
-        p.x = prevX;
-        continue;
-      }
-      if (p.x < prevX + MIN_DOT_GAP) p.x = prevX + MIN_DOT_GAP;
-      prevX = p.x;
-      prevVal = p.dateValue;
+    run = [];
+  };
+  for (const p of placed) {
+    if (p.kind === 'era') {
+      flushRun();
+      segments.push({ kind: 'capsule', p });
+    } else {
+      run.push(p);
     }
-  } else {
-    const n = placed.length;
-    const spacing = n > 1 ? Math.max(MIN_SPACING, innerW / (n - 1)) : 0;
-    placed.forEach((p, i) => {
-      p.x = H_MARGIN + i * spacing;
-    });
   }
-  // ── Horizontal placement: fan side-by-side, stack into lanes when too tight ──
-  // Each card keeps its dot within [left+INSET, left+CARD_W-INSET] so a vertical
-  // leader lands on it. A card joins the innermost lane where it clears the
-  // previous card in that lane by FAN_GAP; otherwise it opens a new lane. Cards
-  // are NEVER pulled back over a neighbour (no right-edge clamp) — boxes must
-  // never overlap, so the canvas grows instead (contentW below).
-  for (const side of ['above', 'below'] as Side[]) {
-    const arr = placed.filter((p) => p.side === side).sort((a, b) => a.x - b.x);
-    const laneRight: number[] = [];
-    for (let i = 0; i < arr.length; i++) {
-      const p = arr[i]!;
-      const next = arr[i + 1];
-      const crowdedRight = !!next && next.x - p.x < CARD_W + FAN_GAP;
-      const preferred = crowdedRight
-        ? p.x - CARD_W + CARD_INSET
-        : p.x - CARD_W / 2;
-      const maxLeft = p.x - CARD_INSET;
-      const minLeft = p.x - CARD_W + CARD_INSET;
-      // Default: open a fresh lane at the preferred position.
-      let lane = laneRight.length;
-      let left = Math.max(preferred, minLeft);
-      // Prefer the innermost existing lane the card fits in side-by-side.
-      for (let l = 0; l < laneRight.length; l++) {
-        const want = Math.max(preferred, laneRight[l]! + FAN_GAP, minLeft);
-        if (want <= maxLeft) {
-          lane = l;
-          left = want;
-          break;
+  flushRun();
+  // Total to-scale time = the sum of every expanded run's own date span.
+  const totalRunTime = segments.reduce(
+    (s, seg) => s + (seg.kind === 'run' ? seg.hi - seg.lo : 0),
+    0
+  );
+
+  // Position every entry by walking the segments left-to-right. Expanded runs
+  // collectively scale across `innerW × stretch`; capsules + inter-segment gaps add
+  // a fixed amount on top. `stretch` (≥1) widens the expanded scale to fill a wide
+  // panel without distorting proportions; a small MIN_DOT_GAP floor only de-overlaps
+  // coincident-ish dots. Re-runnable for any stretch so the search below probes freely.
+  const place = (stretch: number): void => {
+    if (scaled) {
+      const pxPerUnit =
+        totalRunTime > 0 ? (innerW * stretch) / totalRunTime : 0;
+      let cursor = H_MARGIN;
+      for (const seg of segments) {
+        if (seg.kind === 'capsule') {
+          seg.p.x = cursor + COLLAPSE_W / 2;
+          seg.p.spanHalf = COLLAPSE_W / 2;
+          cursor += COLLAPSE_W + SEG_GAP;
+        } else {
+          for (const e of seg.events) {
+            e.x = cursor + (e.dateValue! - seg.lo) * pxPerUnit;
+            e.spanHalf = 0;
+          }
+          cursor += (seg.hi - seg.lo) * pxPerUnit + SEG_GAP;
         }
       }
-      p.lane = lane;
-      p.left = Math.max(6, left); // clamp the LEFT edge only — never the right
-      laneRight[lane] = p.left + CARD_W;
+      // Within a run, distinct dates that map closer than MIN_DOT_GAP get nudged
+      // apart for legibility; identical dates keep a shared x.
+      let prevX = -Infinity;
+      let prevVal: number | null = null;
+      for (const p of [...placed].sort((a, b) => a.x - b.x)) {
+        if (p.kind === 'era') {
+          prevX = p.x + p.spanHalf;
+          prevVal = null;
+          continue;
+        }
+        if (p.dateValue === prevVal) {
+          p.x = prevX;
+          continue;
+        }
+        if (p.x < prevX + MIN_DOT_GAP) p.x = prevX + MIN_DOT_GAP;
+        prevX = p.x;
+        prevVal = p.dateValue;
+      }
+    } else {
+      placed.forEach((p) => {
+        p.spanHalf = 0;
+      });
+      const n = placed.length;
+      const spacing = n > 1 ? Math.max(MIN_SPACING, innerW / (n - 1)) : 0;
+      placed.forEach((p, i) => {
+        p.x = H_MARGIN + i * spacing;
+      });
+    }
+    // ── Fan side-by-side, stack into lanes when too tight ──
+    // Each card keeps its dot within [left+INSET, left+CARD_W-INSET] so a vertical
+    // leader lands on it. A card joins the innermost lane where it clears the
+    // previous card in that lane by FAN_GAP; otherwise it opens a new lane. Cards
+    // are NEVER pulled back over a neighbour (no right-edge clamp) — boxes must
+    // never overlap, so the canvas grows instead (contentW below).
+    for (const side of ['above', 'below'] as Side[]) {
+      const arr = placed
+        .filter((p) => p.side === side)
+        .sort((a, b) => a.x - b.x);
+      const laneRight: number[] = [];
+      for (let i = 0; i < arr.length; i++) {
+        const p = arr[i]!;
+        const next = arr[i + 1];
+        const crowdedRight = !!next && next.x - p.x < CARD_W + FAN_GAP;
+        const preferred = crowdedRight
+          ? p.x - CARD_W + CARD_INSET
+          : p.x - CARD_W / 2;
+        const maxLeft = p.x - CARD_INSET;
+        const minLeft = p.x - CARD_W + CARD_INSET;
+        let lane = laneRight.length;
+        let left = Math.max(preferred, minLeft);
+        for (let l = 0; l < laneRight.length; l++) {
+          const want = Math.max(preferred, laneRight[l]! + FAN_GAP, minLeft);
+          if (want <= maxLeft) {
+            lane = l;
+            left = want;
+            break;
+          }
+        }
+        p.lane = lane;
+        p.left = Math.max(6, left); // clamp the LEFT edge only — never the right
+        laneRight[lane] = p.left + CARD_W;
+      }
+    }
+  };
+
+  interface Layout {
+    contentW: number;
+    contentH: number; // unclamped content height — used to target the aspect
+    totalH: number;
+    spineY: number;
+    eraBaseY: number;
+    laneNear: (p: Placed) => number;
+  }
+
+  // Derive all size-dependent geometry from the current placement.
+  const derive = (): Layout => {
+    // Grow the canvas to fit the widest card edge so nothing clips or overlaps.
+    const contentW = Math.max(
+      width,
+      Math.max(...placed.map((p) => p.x + p.spanHalf)) + H_MARGIN,
+      Math.max(...placed.map((p) => p.left + CARD_W)) + 6
+    );
+    // Lanes are packed with VARIABLE heights: each lane is only as tall as its own
+    // tallest card, so a single 3-bullet card no longer pushes every lane on that
+    // side down by its height. `laneOffset[side][lane]` is the distance from the
+    // spine-side leader to that lane's near edge = Σ(prior lane heights + gap).
+    const laneOffset: Record<Side, number[]> = { above: [], below: [] };
+    for (const side of ['above', 'below'] as Side[]) {
+      const laneH: number[] = [];
+      for (const p of placed) {
+        if (p.side !== side) continue;
+        laneH[p.lane] = Math.max(laneH[p.lane] ?? 0, p.cardH);
+      }
+      const off: number[] = [];
+      let acc = 0;
+      for (let l = 0; l < laneH.length; l++) {
+        off[l] = acc;
+        acc += (laneH[l] ?? 0) + LANE_GAP;
+      }
+      laneOffset[side] = off;
+    }
+    const laneNear = (p: Placed): number =>
+      (p.side === 'above' ? LEADER_ABOVE : LEADER_BELOW) +
+      (laneOffset[p.side][p.lane] ?? 0);
+    const ext = (side: Side): number =>
+      Math.max(
+        0,
+        ...placed
+          .filter((p) => p.side === side)
+          .map((p) => laneNear(p) + p.cardH)
+      );
+    // Date labels sit on the side opposite their card; reserve room for that band
+    // so a one-sided line (e.g. `side above`) doesn't push dates into the legend.
+    const dateAbove = placed.some((p) => p.side === 'below' && p.date);
+    const dateBelow = placed.some((p) => p.side === 'above' && p.date);
+    const contentAbove = Math.max(
+      ext('above'),
+      dateAbove ? DATE_OFFSET + 10 : 0
+    );
+    const contentBelow = Math.max(
+      ext('below'),
+      dateBelow ? DATE_OFFSET + 10 : 0
+    );
+    // The era `]` bracket band lives beyond the content opposite the cards.
+    const aboveExt =
+      contentAbove + (hasExpandedEra && eraSide === 'above' ? ERA_BLOCK : 0);
+    const belowExt =
+      contentBelow + (hasExpandedEra && eraSide === 'below' ? ERA_BLOCK : 0);
+    const TOP_PAD = 14;
+    const BOT_PAD = 14;
+    const spineY = topUsed + TOP_PAD + aboveExt;
+    const eraBaseY =
+      eraSide === 'above'
+        ? spineY - (contentAbove + 14)
+        : spineY + (contentBelow + 14);
+    const contentH = spineY + belowExt + BOT_PAD;
+    const totalH = Math.max(heightHint, contentH);
+    return { contentW, contentH, totalH, spineY, eraBaseY, laneNear };
+  };
+
+  // Choose the axis stretch. The preview/export both fit the whole diagram
+  // (`meet`), so when the natural layout is TALLER than the available panel the
+  // fit is height-limited and wastes horizontal space. Widen the date axis — which
+  // also shortens the layout (fewer lanes) — until the content aspect reaches the
+  // panel aspect, where the fit-scale peaks. Past that, extra width only shrinks
+  // it, so stop there. `DGMO_EVT_STRETCH` forces a fixed multiplier.
+  const envStretch = Number(
+    (globalThis as { process?: { env?: Record<string, string> } }).process
+      ?.env?.['DGMO_EVT_STRETCH']
+  );
+  let layout: Layout;
+  if (Number.isFinite(envStretch) && envStretch > 0) {
+    place(envStretch);
+    layout = derive();
+  } else {
+    place(1);
+    layout = derive();
+    const panelAspect = width / heightHint;
+    const aspectOf = (l: Layout): number => l.contentW / l.contentH;
+    if (
+      scaled &&
+      layout.contentH > heightHint &&
+      aspectOf(layout) < panelAspect
+    ) {
+      place(STRETCH_CAP);
+      const capped = derive();
+      if (aspectOf(capped) <= panelAspect) {
+        layout = capped; // even the max stretch can't reach the panel aspect
+      } else {
+        let loF = 1;
+        let hiF = STRETCH_CAP;
+        for (let it = 0; it < 8; it++) {
+          const mid = (loF + hiF) / 2;
+          place(mid);
+          if (aspectOf(derive()) >= panelAspect) hiF = mid;
+          else loF = mid;
+        }
+        place(hiF);
+        layout = derive();
+      }
     }
   }
-  // Grow the canvas to fit the widest card edge so nothing clips or overlaps;
-  // the preview scales this to fit, so a wider box budget costs no real estate.
-  const contentW = Math.max(
-    width,
-    Math.max(...placed.map((p) => p.x)) + H_MARGIN,
-    Math.max(...placed.map((p) => p.left + CARD_W)) + 6
-  );
-  const rowGap = (side: Side): number =>
-    Math.max(0, ...placed.filter((p) => p.side === side).map((p) => p.cardH)) +
-    LANE_GAP;
-  const rowGapA = rowGap('above');
-  const rowGapB = rowGap('below');
-  const ext = (side: Side): number =>
-    Math.max(
-      0,
-      ...placed
-        .filter((p) => p.side === side)
-        .map(
-          (p) =>
-            (side === 'above' ? LEADER_ABOVE : LEADER_BELOW) +
-            p.lane * (side === 'above' ? rowGapA : rowGapB) +
-            p.cardH
-        )
-    );
-  // Date labels sit on the side opposite their card; reserve room for that band
-  // so a one-sided line (e.g. `side above`) doesn't push dates into the legend.
-  const dateAbove = placed.some((p) => p.side === 'below' && p.date);
-  const dateBelow = placed.some((p) => p.side === 'above' && p.date);
-  const contentAbove = Math.max(ext('above'), dateAbove ? DATE_OFFSET + 10 : 0);
-  const contentBelow = Math.max(ext('below'), dateBelow ? DATE_OFFSET + 10 : 0);
-  // The era `]` bracket band lives beyond the content on the side opposite the cards.
-  const aboveExt =
-    contentAbove + (hasExpandedEra && eraSide === 'above' ? ERA_BLOCK : 0);
-  const belowExt =
-    contentBelow + (hasExpandedEra && eraSide === 'below' ? ERA_BLOCK : 0);
-  const TOP_PAD = 14;
-  const BOT_PAD = 14;
-  const spineY = topUsed + TOP_PAD + aboveExt;
-  const eraBaseY =
-    eraSide === 'above'
-      ? spineY - (contentAbove + 14)
-      : spineY + (contentBelow + 14);
-  const totalH = Math.max(heightHint, spineY + belowExt + BOT_PAD);
+  const { contentW, totalH, spineY, eraBaseY, laneNear } = layout;
 
   // ── SVG root ──
   const svg = d3Selection
@@ -493,9 +642,9 @@ export function renderEventLine(
   }
 
   // ── Spine ──
-  const xs = placed.map((p) => p.x);
-  const x0 = Math.min(...xs);
-  const x1 = Math.max(...xs);
+  // Extend to cover collapsed-era brackets, which reach p.x ± spanHalf.
+  const x0 = Math.min(...placed.map((p) => p.x - p.spanHalf));
+  const x1 = Math.max(...placed.map((p) => p.x + p.spanHalf));
   svg
     .append('line')
     .attr('x1', x0 - 20)
@@ -511,9 +660,7 @@ export function renderEventLine(
   // BEHIND every card (a card always covers the leaders beneath it).
   const geo = placed.map((p) => {
     const near =
-      p.side === 'above'
-        ? spineY - LEADER_ABOVE - p.lane * rowGapA
-        : spineY + LEADER_BELOW + p.lane * rowGapB;
+      p.side === 'above' ? spineY - laneNear(p) : spineY + laneNear(p);
     const top = p.side === 'above' ? near - p.cardH : near;
     return { p, near, top };
   });
@@ -741,12 +888,13 @@ export function renderEventLine(
   // ── Dots (events) + span brackets (collapsed eras) on the spine ──
   for (const p of placed) {
     if (p.kind === 'era') {
-      // A collapsed era terminates on the spine as a `⊓` spanning a width
-      // representative of the events it folds (wider = more members). No dot, no
-      // separate bottom bracket — the card title names it, this marks its
-      // footprint. Matches the card's color so the leader reads straight through.
+      // A collapsed era terminates on the spine as a `⊓` stretched across its
+      // folded date range (`p.spanHalf`), so it keeps its true timeline footprint;
+      // a minimum width keeps a single-date era visible. No dot, no separate bottom
+      // bracket — the card title names it. Matches the card's color so the leader
+      // reads straight through.
       const col = p.color;
-      const half = Math.min(46, 16 + (p.members.length - 1) * 9);
+      const half = Math.max(16, p.spanHalf);
       // Clamp the legs to the drawn spine extent so the feet always land ON the
       // line (never poking off the left/right end of the timeline).
       const spineLeft = x0 - 20;
@@ -771,6 +919,28 @@ export function renderEventLine(
         .attr('stroke-width', 1.5)
         .attr('stroke-linecap', 'round')
         .attr('stroke-linejoin', 'round');
+      // Axis-break glyph bisecting the bracket: the folded span is not to scale.
+      // Blank the spine between the two waves first so the timeline reads as
+      // genuinely broken, then draw the squiggles over the gap.
+      const breakCx = (bx0 + bx1) / 2;
+      eg.append('line')
+        .attr('x1', breakCx - BREAK_GAP / 2)
+        .attr('y1', spineY)
+        .attr('x2', breakCx + BREAK_GAP / 2)
+        .attr('y2', spineY)
+        .attr('stroke', palette.bg)
+        .attr('stroke-width', 4)
+        .attr('stroke-linecap', 'butt');
+      for (const d of axisBreakPaths(breakCx, spineY)) {
+        eg.append('path')
+          .attr('d', d)
+          .attr('fill', 'none')
+          .attr('stroke', col)
+          .attr('stroke-width', 1.25)
+          .attr('stroke-linecap', 'round')
+          .attr('stroke-linejoin', 'round')
+          .attr('stroke-opacity', 0.85);
+      }
       if (onClickItem) {
         const ln = p.lineNumber;
         eg.style('cursor', 'pointer').on('click', () => onClickItem(ln));
@@ -907,6 +1077,26 @@ export function renderEventLineForExport(
 }
 
 // ── helpers ──
+
+// A vertical "≈ rotated 90°" axis-break glyph: two parallel wavy strokes that
+// cross the timeline at a collapsed era to signal the span there is folded and
+// NOT drawn to scale. Returns the two path `d` strings, centered on (cx, cy).
+function axisBreakPaths(cx: number, cy: number): [string, string] {
+  const HUMPS = 2;
+  const STEPS = 14;
+  const wave = (x0: number): string => {
+    let d = '';
+    for (let i = 0; i <= STEPS; i++) {
+      const t = i / STEPS;
+      const y = cy - BREAK_HALF_H + t * 2 * BREAK_HALF_H;
+      const x = x0 + BREAK_AMP * Math.sin(t * Math.PI * HUMPS);
+      d += `${i === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`;
+      if (i < STEPS) d += ' ';
+    }
+    return d;
+  };
+  return [wave(cx - BREAK_GAP / 2), wave(cx + BREAK_GAP / 2)];
+}
 
 function wrapDescription(
   lines: readonly string[],
