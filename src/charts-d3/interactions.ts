@@ -28,6 +28,14 @@ export interface DataChartInteractionOpts {
   text?: string;
 }
 
+export interface DataChartController {
+  /** Remove all listeners + overlays. */
+  destroy: () => void;
+  /** Emphasize the chart element(s) on the given source line (editor cursor
+   *  sync); pass null to clear. No-op while the pointer is actively hovering. */
+  highlight: (line: number | null) => void;
+}
+
 const NS = 'http://www.w3.org/2000/svg';
 const STYLE_ID = 'dgmo-chart-interactions-style';
 
@@ -79,7 +87,7 @@ interface Plot {
 export function attachDataChartInteractions(
   svg: SVGSVGElement,
   opts: DataChartInteractionOpts = {}
-): () => void {
+): DataChartController {
   const muted = opts.mutedColor ?? '#94a3b8';
   const text = opts.text ?? '#1f2933';
   ensureStyle(svg, muted);
@@ -334,17 +342,52 @@ export function attachDataChartInteractions(
     if (line !== null && opts.onNavigate) opts.onNavigate(line);
   };
 
+  // ── cursor-driven highlight (editor cursor → chart element) ───────────
+  let pinned: { el: SVGCircleElement; r: number }[] = [];
+  const clearHighlight = () => {
+    for (const p of pinned) p.el.setAttribute('r', String(p.r));
+    pinned = [];
+    for (const d of datums) d.classList.remove('dgmo-dim');
+    for (const g of seriesGroups) g.classList.remove('dgmo-dim');
+  };
+  const highlightLine = (line: number | null) => {
+    if (curDatum || crosshairActive) return; // hover wins
+    clearHighlight();
+    if (line == null) return;
+    const ls = String(line);
+    const md = datums.filter((d) => d.getAttribute('data-line-number') === ls);
+    const ms = seriesGroups.filter(
+      (g) => g.getAttribute('data-line-number') === ls
+    );
+    const mp = circles.filter((c) => c.getAttribute('data-line-number') === ls);
+    if (!md.length && !ms.length && !mp.length) return;
+    if (md.length)
+      for (const d of datums) d.classList.toggle('dgmo-dim', !md.includes(d));
+    if (ms.length)
+      for (const g of seriesGroups)
+        g.classList.toggle('dgmo-dim', !ms.includes(g));
+    for (const c of mp) {
+      const r = parseFloat(c.getAttribute('r') ?? '3.5');
+      pinned.push({ el: c, r });
+      c.setAttribute('r', String(r + 3));
+    }
+  };
+
   if (datums.length > 0 || crosshairOn)
     svg.addEventListener('mousemove', onSvgMove);
   svg.addEventListener('mouseleave', onLeave);
   svg.addEventListener('click', onClick);
 
-  return () => {
-    svg.removeEventListener('mousemove', onSvgMove);
-    svg.removeEventListener('mouseleave', onLeave);
-    svg.removeEventListener('click', onClick);
-    if (overlay) overlay.remove();
-    restorePt();
-    clearDim();
+  return {
+    destroy: () => {
+      svg.removeEventListener('mousemove', onSvgMove);
+      svg.removeEventListener('mouseleave', onLeave);
+      svg.removeEventListener('click', onClick);
+      if (overlay) overlay.remove();
+      restorePt();
+      clearHighlight();
+      clearDim();
+    },
+    highlight: highlightLine,
   };
 }

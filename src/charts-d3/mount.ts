@@ -18,7 +18,10 @@
 import { render } from '../render';
 import { getPalette } from '../palettes';
 import { renderDataChartD3 } from './index';
-import { attachDataChartInteractions } from './interactions';
+import {
+  attachDataChartInteractions,
+  type DataChartController,
+} from './interactions';
 
 export interface MountD3Opts {
   theme?: 'light' | 'dark' | 'transparent';
@@ -33,6 +36,9 @@ export interface MountD3Opts {
 export interface MountedD3Chart {
   /** Re-render with new content and/or theme/palette; re-attaches interactions. */
   update: (content: string, opts?: Partial<MountD3Opts>) => Promise<void>;
+  /** Emphasize the chart element on the given source line (editor cursor sync);
+   *  pass null to clear. */
+  highlight: (line: number | null) => void;
   /** Tear down listeners + overlays and clear the container. */
   destroy: () => void;
 }
@@ -52,10 +58,11 @@ export function mountD3DataChart(
   content: string,
   opts: MountD3Opts = {}
 ): MountedD3Chart {
-  let detach: (() => void) | null = null;
+  let interaction: DataChartController | null = null;
   let current: MountD3Opts = { ...opts };
   let text = content;
   let token = 0;
+  let pinnedLine: number | null = null;
   let lastW = 0;
   let lastH = 0;
   let resizeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -88,20 +95,22 @@ export function mountD3DataChart(
     }
     if (mine !== token) return; // a newer paint superseded this one
 
-    if (detach) {
-      detach();
-      detach = null;
+    if (interaction) {
+      interaction.destroy();
+      interaction = null;
     }
     container.innerHTML = svg;
     const el = container.querySelector('svg');
     if (el) {
       const pal = paletteOf(current);
-      detach = attachDataChartInteractions(el, {
+      interaction = attachDataChartInteractions(el, {
         ...(current.onNavigate && { onNavigate: current.onNavigate }),
         mutedColor: current.mutedColor ?? pal.border,
         surface: current.surface ?? pal.surface,
         text: current.text ?? pal.text,
       });
+      // re-apply the editor cursor highlight after a re-render
+      if (pinnedLine != null) interaction.highlight(pinnedLine);
     }
   };
 
@@ -126,12 +135,16 @@ export function mountD3DataChart(
       current = { ...current, ...patch };
       await paint();
     },
+    highlight: (line: number | null) => {
+      pinnedLine = line;
+      interaction?.highlight(line);
+    },
     destroy: () => {
       token++;
       if (resizeTimer) clearTimeout(resizeTimer);
       ro?.disconnect();
-      if (detach) detach();
-      detach = null;
+      if (interaction) interaction.destroy();
+      interaction = null;
       container.innerHTML = '';
     },
   };

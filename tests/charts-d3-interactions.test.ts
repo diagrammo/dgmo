@@ -30,7 +30,7 @@ W3 210`;
 
 let host: HTMLDivElement;
 let svg: SVGSVGElement;
-let detach: () => void;
+let detach: { destroy: () => void; highlight: (l: number | null) => void };
 
 async function mount(src: string) {
   host = document.createElement('div');
@@ -44,7 +44,7 @@ async function mount(src: string) {
 }
 
 afterEach(() => {
-  detach?.();
+  detach?.destroy();
   host?.remove();
 });
 
@@ -113,6 +113,26 @@ describe('axis-projection interactions (no tooltips)', () => {
       new MouseEvent('mousemove', { bubbles: true, clientX: 9, clientY: 9 })
     );
     expect(svg.querySelectorAll('.dgmo-overlay .dgmo-axline').length).toBe(2);
+  });
+
+  it('highlight(line) emphasizes the matching figure and dims others; null clears', async () => {
+    await mount(SCATTER);
+    const pt = svg.querySelector<SVGCircleElement>(
+      '.dgmo-datum[data-line-number]'
+    )!;
+    const line = parseInt(pt.getAttribute('data-line-number')!, 10);
+    detach.highlight(line);
+    expect(pt.classList.contains('dgmo-dim')).toBe(false);
+    const others = [...svg.querySelectorAll('.dgmo-datum')].filter(
+      (d) => d !== pt
+    );
+    expect(others.every((d) => d.classList.contains('dgmo-dim'))).toBe(true);
+    detach.highlight(null);
+    expect(
+      [...svg.querySelectorAll('.dgmo-datum')].some((d) =>
+        d.classList.contains('dgmo-dim')
+      )
+    ).toBe(false);
   });
 
   it('mouseleave clears the overlay and dimming', async () => {
