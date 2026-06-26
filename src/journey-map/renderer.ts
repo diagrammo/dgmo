@@ -71,6 +71,10 @@ const FONT_SIZE_META = 10;
 const GRID_LINE_OPACITY = 0.15;
 const CURVE_STROKE_WIDTH = 2.5;
 const FACE_RADIUS = 14;
+// Faces grow on hover/active; the thought bubble + connector must clear the
+// enlarged outer edge (radius + ring halo), not the base radius.
+const FACE_HOVER_SCALE = 1.5;
+const FACE_HOVER_R = (FACE_RADIUS + 1) * FACE_HOVER_SCALE;
 const DIM_HOVER = 0.25;
 const TITLE_LINE_HEIGHT = 16;
 
@@ -872,7 +876,7 @@ export function renderJourneyMap(
           const fcy = parseFloat(el.attr('data-cy') ?? '0');
           el.attr(
             'transform',
-            `translate(${fcx},${fcy}) scale(1.5) translate(${-fcx},${-fcy})`
+            `translate(${fcx},${fcy}) scale(${FACE_HOVER_SCALE}) translate(${-fcx},${-fcy})`
           );
         } else {
           el.attr('transform', null);
@@ -933,7 +937,7 @@ export function renderJourneyMap(
         PADDING,
         Math.min(fcx - bw / 2, layout.totalWidth - PADDING - bw)
       );
-      const by = Math.max(PADDING, fcy - FACE_RADIUS - THOUGHT_GAP - bh);
+      const by = Math.max(PADDING, fcy - FACE_HOVER_R - THOUGHT_GAP - bh);
 
       const scoreColor = scoreToColor(score, palette);
       const tintedBg = mix(scoreColor, palette.surface, 20);
@@ -955,7 +959,7 @@ export function renderJourneyMap(
         .attr('x1', fcx)
         .attr('y1', by + bh)
         .attr('x2', fcx)
-        .attr('y2', fcy - FACE_RADIUS - 1)
+        .attr('y2', fcy - FACE_HOVER_R - 1)
         .attr('stroke', scoreColor)
         .attr('stroke-width', CARD_STROKE_WIDTH);
 
