@@ -3050,8 +3050,29 @@ function buildMultiLineOption(
     return owners.length === 1 ? seriesColors[owners[0]!] : undefined;
   };
 
+  // Hovering any part of a series (line, dot, or value label) emphasizes the
+  // WHOLE series and dims the others — so the reader can isolate one trend and
+  // see exactly which dots + numbers belong to it. `focus: 'series'` drives the
+  // line↔label↔dot linkage in both directions; blur fades the other series'
+  // lines, dots, AND numbers.
+  const lineEmphasis = {
+    focus: 'series' as const,
+    blurScope: 'global' as const,
+    itemStyle: { opacity: 1 },
+    lineStyle: { width: 4 },
+    label: { fontWeight: 'bold' as const },
+  };
+  const lineBlur = {
+    itemStyle: { opacity: 0.12 },
+    lineStyle: { opacity: 0.12 },
+    label: { opacity: 0.12 },
+  };
+
   const series = seriesNames.map((name, idx) => {
     const color = seriesColors[idx]!;
+    // Tint the value numbers toward the text color: a readable SHADE of the
+    // series hue so each number reads as "belonging to" its line at a glance.
+    const labelColor = mix(color, textColor, 60);
     const data = parsed.data.map((dp) =>
       idx === 0 ? dp.value : (dp.extraValues?.[idx - 1] ?? 0)
     );
@@ -3068,13 +3089,13 @@ function buildMultiLineOption(
         show: !parsed.noValue,
         position: 'top' as const,
         formatter: '{c}',
-        color: textColor,
+        color: labelColor,
         fontSize: s.text(11),
         fontFamily: FONT_FAMILY,
       },
       labelLayout: { hideOverlap: true },
-      emphasis: EMPHASIS_LINE,
-      blur: BLUR_DIM,
+      emphasis: lineEmphasis,
+      blur: lineBlur,
       ...(idx === 0 && markArea && { markArea }),
     };
   });

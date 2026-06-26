@@ -139,6 +139,23 @@ describe('dual-axis line — renderer', () => {
     expect(yAxis[1].axisLine.lineStyle.color).toBe(palette.colors.green);
   });
 
+  it('tints each series value labels to a shade of the series color', () => {
+    const { opt } = build(DUAL);
+    const s = seriesOf(opt);
+    expect(s[0].label.color).not.toBe(palette.text);
+    expect(s[1].label.color).not.toBe(palette.text);
+    expect(s[0].label.color).not.toBe(s[1].label.color);
+    expect(s[0].label.color).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+
+  it('links line↔dots↔numbers via focus:series emphasis and blurs others', () => {
+    const { opt } = build(DUAL);
+    const s = seriesOf(opt);
+    expect(s[0].emphasis.focus).toBe('series');
+    expect(s[0].blur.lineStyle.opacity).toBeLessThan(1);
+    expect(s[0].blur.label.opacity).toBeLessThan(1);
+  });
+
   it('keeps a single value axis (object, not array) for flat charts', () => {
     const { opt } = build(`line\nseries\n  A blue\n  B green\n\nJan 10 20`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
