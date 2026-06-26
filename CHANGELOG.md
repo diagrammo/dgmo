@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-06-25
+
+### Changed
+
+- **Event-line eras are now indentation containers** — member events indent beneath the `[Name]` bracket (the same nesting idiom as org / version-control), replacing the 0.39.0 flat run-delimiter form. An indent-0 event sits outside any era; a dedent to indent 0 ends the open era. Old flat sources still parse (their events read as era-less — valid, not an error). Reverses decision #19.2 (#21).
+
 ## [0.40.0] - 2026-06-25
 
 ### Added
