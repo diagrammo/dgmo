@@ -1410,21 +1410,28 @@ function renderScoreFace(
     .attr('data-cx', cx)
     .attr('data-cy', cy);
 
-  // Face circle
+  // Face: a solid colored ring over a faded (pale) fill, with the eyes and
+  // mouth drawn in the full score color. A near-bg fill keeps the badge legible
+  // over the curve line and gradient area without the heavy solid disc.
+  const faceFill = mix(color, palette.bg, 84);
+
+  // Thin bg halo so the colored ring reads crisply where it crosses the line.
+  g.append('circle')
+    .attr('cx', cx)
+    .attr('cy', cy)
+    .attr('r', r + 1)
+    .attr('fill', palette.bg);
+
   g.append('circle')
     .attr('cx', cx)
     .attr('cy', cy)
     .attr('r', r)
-    .attr('fill', color)
-    .attr('stroke', palette.bg)
-    .attr('stroke-width', 1.5);
+    .attr('fill', faceFill)
+    .attr('stroke', color)
+    .attr('stroke-width', 2);
 
-  // Eyes
-  const eyeColor = contrastText(
-    color,
-    palette.textOnFillLight,
-    palette.textOnFillDark
-  );
+  // Eyes & mouth share the solid score color.
+  const eyeColor = color;
   const eyeY = cy - r * 0.15;
   const eyeSpacing = r * 0.32;
   const eyeR = r * 0.12;
