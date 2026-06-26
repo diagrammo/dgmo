@@ -40,6 +40,20 @@ tag Genre as g
     expect(p.options.side).toBe('alternate');
   });
 
+  it('defaults untagged events to the first tag value (§28.5)', () => {
+    const p = parseEventLine(`event-line Defaults
+tag Type as t
+  Scope green
+  Changes blue
+
+2020-01-01 Alpha t: Changes
+2021-01-01 Beta`);
+    const [a, b] = p.events;
+    // Explicit value is preserved; an untagged event inherits the first value.
+    expect(a!.metadata['type']).toBe('Changes');
+    expect(b!.metadata['type']).toBe('Scope');
+  });
+
   it('treats a spaced title with no date prefix as the whole title', () => {
     const p = parseEventLine(`event-line Apollo 11
 

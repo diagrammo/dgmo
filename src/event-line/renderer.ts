@@ -3,13 +3,16 @@
 // ============================================================
 //
 // Horizontal spine of point events. Each event: a dot at its date position
-// (or even index under no-scale), a leader line, and an org-style card
+// (or even index under no-scale), a vertical leader line, and an org-style card
 // (utils/card.ts `renderNodeCard` chrome + a hand-drawn divider and a
-// pyramid/ring prose body). Cards auto-alternate above/below and pack into
-// stacked lanes on collision; date labels dedupe + declutter rather than
-// moving the dots. The tag legend uses the shared `renderIntegratedLegend`.
+// pyramid/ring prose body). The event's date rides INSIDE its card as a muted
+// subtitle, so it travels with the event instead of sitting on the axis; a faint
+// year/period tick ruler on the spine restores global orientation. Cards
+// auto-alternate above/below and pack into stacked lanes on collision. The tag
+// legend uses the shared `renderIntegratedLegend`.
 
 import * as d3Selection from 'd3-selection';
+import * as d3Scale from 'd3-scale';
 import { FONT_FAMILY } from '../fonts';
 import {
   TITLE_FONT_SIZE,
@@ -39,6 +42,7 @@ import {
   type WrappedDescLine,
 } from '../utils/wrapped-desc';
 import { renderIntegratedLegend } from '../utils/legend-integration';
+import { computeTimeTicks } from '../utils/time-ticks';
 import type { LegendGroupData } from '../utils/legend-types';
 import {
   resolveActiveTagGroup,
@@ -69,8 +73,17 @@ const NEUTRAL_TAG = '#999999';
 // on it). Cards fan side-by-side until they can't, then stack into lanes.
 const CARD_INSET = 18;
 const FAN_GAP = 6;
-// Date labels sit on the side OPPOSITE their card, pushed this far off the spine.
-const DATE_OFFSET = 28;
+// The event's date rides INSIDE the card as a muted subtitle directly adjacent to
+// the title (on the side away from the spine), so a date travels with its event
+// instead of sitting on the axis. This much header height is reserved for it.
+const DATE_SUBTITLE_H = 15;
+const DATE_SUBTITLE_FONT = 10;
+// Faint year/period ruler on the spine (replaces the old per-event date band):
+// short tick marks + sparse labels restore global orientation now that the exact
+// dates live in the cards. Only drawn when the axis is to-scale.
+const TICK_LABEL_FONT = 9.5;
+const TICK_BAND = 20; // depth reserved below the spine for tick labels
+const TICK_MIN_GAP = 38; // drop ticks closer than this (px) so labels never overlap
 // Era `]` bracket band: depth reserved on the side opposite the cards.
 const ERA_BLOCK = 30;
 const ERA_BRACKET_CAP = 8;
@@ -88,6 +101,25 @@ const BREAK_GAP = 5; // spacing between the two waves (= the spine gap width)
 // its legs drop from the bar to rest their feet ON the timeline.
 const ERA_LEG = 13;
 const ERA_LABEL_FONT = 11.5;
+
+// ── Hover interactivity (preview only — inert in the resvg export path) ───────
+// All effects are renderer-owned so they work identically in the app, the web
+// editor, and Obsidian, and re-bind on every re-render (no orphaned listeners).
+// CSS supplies the smooth self-effects + the dim/highlight state classes; a
+// single delegated handler on the SVG root correlates the pieces of one event,
+// an era's members, and legend-entry → category focus.
+const HL = 'dgmo-evt-hl';
+const DIM = 'dgmo-evt-dim';
+const ERA_HL = 'dgmo-evt-era-hl';
+const HOVER_CSS =
+  `.dgmo-event-dot{transition:transform .12s ease;transform-box:fill-box;transform-origin:center}` +
+  `.dgmo-event-leader,.dgmo-event-card,.dgmo-event-era{transition:opacity .12s ease,filter .12s ease}` +
+  `.dgmo-event-dot,.dgmo-event-card,.dgmo-event-era{cursor:default}` +
+  `.${DIM}{opacity:.2}` +
+  `.dgmo-event-dot.${HL}{transform:scale(1.55)}` +
+  `.dgmo-event-leader.${HL}{stroke-opacity:1;stroke-width:2.5}` +
+  `.dgmo-event-card.${HL}{filter:drop-shadow(0 2px 5px rgba(0,0,0,.22))}` +
+  `.dgmo-event-era.${ERA_HL}{filter:drop-shadow(0 1px 2px rgba(0,0,0,.28))}`;
 
 type Side = 'above' | 'below';
 
@@ -202,8 +234,9 @@ export function renderEventLine(
     8,
     Math.floor((CARD_W - CARD_PAD * 2) / (DESC_FONT * CHAR_WIDTH_RATIO))
   );
-  const cardHeight = (lines: WrappedDescLine[]): number =>
+  const cardHeight = (lines: WrappedDescLine[], hasDate: boolean): number =>
     HEADER_HEIGHT +
+    (hasDate ? DATE_SUBTITLE_H : 0) +
     (lines.length > 0 ? SEPARATOR_GAP + lines.length * DESC_LINE_H : 0) +
     (lines.length > 0 ? CARD_PAD : 6);
   // An event's solid color = its active-tag color (or the neutral accent).
@@ -252,7 +285,7 @@ export function renderEventLine(
         titleColor,
         lines,
         bulletColors: [],
-        cardH: cardHeight(lines),
+        cardH: cardHeight(lines, !!event.date),
         x: 0,
         side,
         lane: 0,
@@ -318,7 +351,7 @@ export function renderEventLine(
       titleColor,
       lines,
       bulletColors,
-      cardH: cardHeight(lines),
+      cardH: cardHeight(lines, false),
       x: 0,
       side,
       lane: 0,
@@ -510,18 +543,11 @@ export function renderEventLine(
           .filter((p) => p.side === side)
           .map((p) => laneNear(p) + p.cardH)
       );
-    // Date labels sit on the side opposite their card; reserve room for that band
-    // so a one-sided line (e.g. `side above`) doesn't push dates into the legend.
-    const dateAbove = placed.some((p) => p.side === 'below' && p.date);
-    const dateBelow = placed.some((p) => p.side === 'above' && p.date);
-    const contentAbove = Math.max(
-      ext('above'),
-      dateAbove ? DATE_OFFSET + 10 : 0
-    );
-    const contentBelow = Math.max(
-      ext('below'),
-      dateBelow ? DATE_OFFSET + 10 : 0
-    );
+    // Dates now ride inside the cards; the only spine furniture is the faint
+    // year/period ruler, whose labels hang just below the spine — reserve a thin
+    // band there so a one-sided `side above` doesn't clip them off the canvas.
+    const contentAbove = ext('above');
+    const contentBelow = Math.max(ext('below'), scaled ? TICK_BAND : 0);
     // The era `]` bracket band lives beyond the content opposite the cards.
     const aboveExt =
       contentAbove + (hasExpandedEra && eraSide === 'above' ? ERA_BLOCK : 0);
@@ -593,6 +619,8 @@ export function renderEventLine(
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
     .style('font-family', FONT_FAMILY);
+
+  if (!exportMode) svg.append('style').text(HOVER_CSS);
 
   svg
     .append('rect')
@@ -687,8 +715,9 @@ export function renderEventLine(
   // Leaders first (behind all cards).
   for (const { p, near } of geo) {
     const spineEnd = p.kind === 'era' ? eraBarY(p) : spineY;
-    svg
+    const leader = svg
       .append('line')
+      .attr('class', 'dgmo-event-leader')
       .attr('x1', p.x)
       .attr('y1', spineEnd)
       .attr('x2', p.x)
@@ -696,6 +725,7 @@ export function renderEventLine(
       .attr('stroke', p.color)
       .attr('stroke-width', 1.5)
       .attr('stroke-opacity', leaderCrossesBox(p, near) ? 0.18 : 0.65);
+    applyHoverHooks(leader, p);
   }
 
   // Cards on top.
@@ -704,8 +734,10 @@ export function renderEventLine(
 
     const cardG = svg
       .append('g')
+      .attr('class', 'dgmo-event-card')
       .attr('transform', `translate(${left}, ${top})`)
       .attr('data-line-number', p.lineNumber);
+    applyHoverHooks(cardG, p);
     if (p.kind === 'era') {
       // App hook: a collapsed-era summary card toggles back open on click.
       cardG.attr('data-era', p.era!.name).attr('data-era-collapsed', 'true');
@@ -715,13 +747,22 @@ export function renderEventLine(
       cardG.style('cursor', 'pointer').on('click', () => onClickItem(ln));
     }
 
+    // The date rides as a muted subtitle adjacent to the title, on the side AWAY
+    // from the spine (so it reads title → date going outward). Collapsed-era cards
+    // carry no date (their members list their own dates).
+    const dateStr = p.kind === 'event' ? p.date : null;
+    const dateH = dateStr ? DATE_SUBTITLE_H : 0;
+
     if (parsed.options.noBox) {
       // Slide-friendly, card-less style: a tag-colored label, a rule, and the
       // description below — no box / fill / border. The title (the anchor) sits
       // nearest the spine, so for above-side blocks the order flips to
-      // description → rule → title.
+      // description → rule → date → title.
       const titleNearTop = p.side === 'below';
       const headBandTop = titleNearTop ? 0 : p.cardH - HEADER_HEIGHT;
+      // The rule sits just past the date band, on the far-from-spine edge of the
+      // header (below the date for top-anchored titles, above it otherwise).
+      const ruleY = titleNearTop ? HEADER_HEIGHT + dateH : headBandTop - dateH;
       cardG
         .append('text')
         .attr('x', CARD_PAD)
@@ -731,18 +772,34 @@ export function renderEventLine(
         .attr('font-size', LABEL_FONT_SIZE)
         .attr('font-weight', 700)
         .text(p.label);
+      if (dateStr) {
+        cardG
+          .append('text')
+          .attr('x', CARD_PAD)
+          .attr(
+            'y',
+            (titleNearTop ? HEADER_HEIGHT : headBandTop - dateH) +
+              DATE_SUBTITLE_FONT +
+              2
+          )
+          .attr('fill', mix(palette.text, palette.bg, 55))
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', DATE_SUBTITLE_FONT)
+          .attr('font-weight', 600)
+          .text(dateStr);
+      }
       cardG
         .append('line')
         .attr('x1', CARD_PAD)
-        .attr('y1', titleNearTop ? HEADER_HEIGHT : headBandTop)
+        .attr('y1', ruleY)
         .attr('x2', CARD_W - CARD_PAD)
-        .attr('y2', titleNearTop ? HEADER_HEIGHT : headBandTop)
+        .attr('y2', ruleY)
         .attr('stroke', p.color)
         .attr('stroke-width', 1.5)
         .attr('stroke-opacity', 0.7);
       if (p.lines.length > 0) {
         const startBaseline = titleNearTop
-          ? CARD_BODY_TOP + DESC_FONT
+          ? CARD_BODY_TOP + dateH + DESC_FONT
           : CARD_PAD + DESC_FONT;
         renderBody(
           cardG,
@@ -768,14 +825,27 @@ export function renderEventLine(
         headerHeight: HEADER_HEIGHT,
       });
 
+      if (dateStr) {
+        cardG
+          .append('text')
+          .attr('x', CARD_W / 2)
+          .attr('y', HEADER_HEIGHT + DATE_SUBTITLE_FONT + 1)
+          .attr('text-anchor', 'middle')
+          .attr('fill', mix(p.titleColor, p.cardFill, 60))
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', DATE_SUBTITLE_FONT)
+          .attr('font-weight', 600)
+          .text(dateStr);
+      }
+
       if (p.lines.length > 0) {
-        // Divider (org convention: 1px, 30% opacity at headerHeight).
+        // Divider (org convention: 1px, 30% opacity) below the title + date band.
         cardG
           .append('line')
           .attr('x1', 0)
-          .attr('y1', HEADER_HEIGHT)
+          .attr('y1', HEADER_HEIGHT + dateH)
           .attr('x2', CARD_W)
-          .attr('y2', HEADER_HEIGHT)
+          .attr('y2', HEADER_HEIGHT + dateH)
           .attr('stroke', p.titleColor)
           .attr('stroke-opacity', 0.3)
           .attr('stroke-width', 1);
@@ -784,105 +854,76 @@ export function renderEventLine(
           p.lines,
           p.titleColor,
           palette,
-          undefined,
+          CARD_BODY_TOP + dateH + DESC_FONT,
           p.bulletColors
         );
       }
     }
   }
 
-  // ── Date captions ──
-  // Each date sits on the side OPPOSITE its card (pushed DATE_OFFSET off the
-  // spine) so it never crowds its own card's leader. One label per (x, date);
-  // when same-side labels collide, the cluster spreads horizontally (centered,
-  // clamped to canvas) with a thin leader from each dot to its label.
-  interface DateLabel {
-    x: number;
-    date: string;
-    color: string;
-    side: Side;
-    lx: number;
-  }
-  const labelMap = new Map<string, DateLabel>();
-  for (const p of placed) {
-    if (p.kind !== 'event' || !p.date) continue;
-    const key = `${Math.round(p.x)}|${p.date}`;
-    if (!labelMap.has(key)) {
-      labelMap.set(key, {
-        x: p.x,
-        date: p.date,
-        color: p.color,
-        side: p.side === 'above' ? 'below' : 'above',
-        lx: p.x,
-      });
+  // ── Year/period ruler ──
+  // Dates now ride inside the cards, so the spine carries only a faint tick ruler
+  // for global orientation. Ticks are computed PER to-scale run (a collapsed-era
+  // capsule breaks the axis, so a year line is never interpolated across one),
+  // then de-cluttered so labels never overlap. Skipped entirely under no-scale.
+  if (scaled) {
+    type Tick = { pos: number; label: string };
+    const allTicks: Tick[] = [];
+    for (const seg of segments) {
+      if (seg.kind !== 'run' || seg.events.length < 2) continue;
+      const evs = [...seg.events].sort((a, b) => a.dateValue! - b.dateValue!);
+      const v0 = evs[0]!.dateValue!;
+      const v1 = evs[evs.length - 1]!.dateValue!;
+      const px0 = evs[0]!.x;
+      const px1 = evs[evs.length - 1]!.x;
+      // Derive the run's date→x map straight from its dots (robust to the
+      // MIN_DOT_GAP nudging that the original linear scale doesn't capture).
+      if (v1 <= v0 || px1 <= px0) continue;
+      const scale = d3Scale.scaleLinear().domain([v0, v1]).range([px0, px1]);
+      for (const t of computeTimeTicks(v0, v1, scale)) {
+        if (t.pos >= px0 - 0.5 && t.pos <= px1 + 0.5) allTicks.push(t);
+      }
     }
-  }
-  const halfW = (d: string): number =>
-    (d.length * DESC_FONT * CHAR_WIDTH_RATIO) / 2 + 9;
-  const LABEL_GAP = 8;
-  const EDGE = 8;
-
-  // De-collide same-side labels so they NEVER overlap. Forward pass pushes each
-  // label right of its left neighbour (guarantees separation); backward pass
-  // pulls the run back inside the right edge without re-colliding; a final
-  // forward fixup respects the left edge. lx starts at the dot's x.
-  for (const labelSide of ['above', 'below'] as Side[]) {
-    const arr = [...labelMap.values()]
-      .filter((l) => l.side === labelSide)
-      .sort((a, b) => a.x - b.x);
-    const hw = arr.map((l) => halfW(l.date));
-    for (let i = 1; i < arr.length; i++) {
-      const minLx = arr[i - 1]!.lx + hw[i - 1]! + hw[i]! + LABEL_GAP;
-      if (arr[i]!.lx < minLx) arr[i]!.lx = minLx;
+    allTicks.sort((a, b) => a.pos - b.pos);
+    const kept: Tick[] = [];
+    let lastPos = -Infinity;
+    for (const t of allTicks) {
+      if (t.pos - lastPos < TICK_MIN_GAP) continue;
+      kept.push(t);
+      lastPos = t.pos;
     }
-    for (let i = arr.length - 1; i >= 0; i--) {
-      const cap =
-        i === arr.length - 1
-          ? contentW - EDGE - hw[i]!
-          : arr[i + 1]!.lx - hw[i + 1]! - hw[i]! - LABEL_GAP;
-      if (arr[i]!.lx > cap) arr[i]!.lx = cap;
+    const tickColor = mix(palette.text, palette.bg, 45);
+    const labelY = spineY + TICK_BAND - 6;
+    for (const t of kept) {
+      svg
+        .append('line')
+        .attr('x1', t.pos)
+        .attr('y1', spineY - 4)
+        .attr('x2', t.pos)
+        .attr('y2', spineY + 4)
+        .attr('stroke', palette.text)
+        .attr('stroke-width', 1)
+        .attr('stroke-opacity', 0.3);
+      const hw = (t.label.length * TICK_LABEL_FONT * CHAR_WIDTH_RATIO) / 2 + 3;
+      svg
+        .append('rect')
+        .attr('x', t.pos - hw)
+        .attr('y', labelY - TICK_LABEL_FONT)
+        .attr('width', hw * 2)
+        .attr('height', TICK_LABEL_FONT + 4)
+        .attr('fill', palette.bg)
+        .attr('opacity', 0.9);
+      svg
+        .append('text')
+        .attr('x', t.pos)
+        .attr('y', labelY)
+        .attr('text-anchor', 'middle')
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', TICK_LABEL_FONT)
+        .attr('font-weight', 600)
+        .attr('fill', tickColor)
+        .text(t.label);
     }
-    for (let i = 0; i < arr.length; i++) {
-      const floor =
-        i === 0
-          ? EDGE + hw[i]!
-          : arr[i - 1]!.lx + hw[i - 1]! + hw[i]! + LABEL_GAP;
-      if (arr[i]!.lx < floor) arr[i]!.lx = floor;
-    }
-  }
-
-  for (const L of labelMap.values()) {
-    const hw = halfW(L.date);
-    const cy = L.side === 'above' ? spineY - DATE_OFFSET : spineY + DATE_OFFSET;
-    const nearY = L.side === 'above' ? cy + 7 : cy - 7;
-    svg
-      .append('line')
-      .attr('x1', L.x)
-      .attr('y1', L.side === 'above' ? spineY - 1 : spineY + 1)
-      .attr('x2', L.lx)
-      .attr('y2', nearY)
-      .attr('stroke', L.color)
-      .attr('stroke-width', 1)
-      .attr('stroke-opacity', 0.5);
-    svg
-      .append('rect')
-      .attr('x', L.lx - hw)
-      .attr('y', cy - 7)
-      .attr('width', hw * 2)
-      .attr('height', 14)
-      .attr('rx', 3)
-      .attr('fill', palette.bg)
-      .attr('opacity', 0.92);
-    svg
-      .append('text')
-      .attr('x', L.lx)
-      .attr('y', cy + 3.5)
-      .attr('text-anchor', 'middle')
-      .attr('font-family', FONT_FAMILY)
-      .attr('font-size', 10.5)
-      .attr('font-weight', 600)
-      .attr('fill', L.color)
-      .text(L.date);
   }
 
   // ── Dots (events) + span brackets (collapsed eras) on the spine ──
@@ -906,6 +947,7 @@ export function renderEventLine(
       const barY = eraBarY(p);
       const eg = svg
         .append('g')
+        .attr('class', 'dgmo-event-era')
         .attr('data-era', p.era!.name)
         .attr('data-era-collapsed', 'true')
         .attr('data-line-number', p.lineNumber);
@@ -947,7 +989,7 @@ export function renderEventLine(
       }
       continue;
     }
-    svg
+    const dot = svg
       .append('circle')
       .attr('class', 'dgmo-event-dot')
       .attr('cx', p.x)
@@ -957,6 +999,7 @@ export function renderEventLine(
       .attr('stroke', palette.bg)
       .attr('stroke-width', 2)
       .attr('data-line-number', p.lineNumber);
+    applyHoverHooks(dot, p);
   }
 
   // ── Era `]` brackets ─────────────────────────────────────────
@@ -1025,6 +1068,7 @@ export function renderEventLine(
       const y = eraBaseY;
       const eg = svg
         .append('g')
+        .attr('class', 'dgmo-event-era')
         .attr('data-era', r.era.name)
         .attr('data-era-collapsed', String(r.collapsed))
         .attr('data-line-number', r.era.lineNumber);
@@ -1055,6 +1099,154 @@ export function renderEventLine(
       }
     }
   }
+
+  // ── Hover wiring (preview only) ──
+  // One delegated handler on the SVG root, so it re-binds with every render and
+  // never leaks per-node listeners. Priority: legend entry → category focus,
+  // else era bracket → era + members, else any event piece → whole-event glow.
+  if (!exportMode) wireEventLineHover(svg.node());
+}
+
+/** Share the same hover hooks across every piece of one event: a common
+ *  `data-evt` id (hover any → light all), the enclosing era for era focus, and
+ *  `data-tag-<group>` values mirroring the legend's `data-legend-entry`. */
+function applyHoverHooks<E extends d3Selection.BaseType>(
+  sel: d3Selection.Selection<E, unknown, null, undefined>,
+  p: Placed
+): void {
+  sel.attr('data-evt', p.lineNumber);
+  if (p.eraName) sel.attr('data-evt-era', p.eraName);
+  if (p.event) {
+    for (const [k, v] of Object.entries(p.event.metadata)) {
+      sel.attr(`data-tag-${k.toLowerCase()}`, String(v).toLowerCase());
+    }
+  }
+}
+
+// Everything that can dim. The spine, the year ruler, the title, and the legend
+// carry none of these classes, so they always stay lit — focusing anything
+// fades the rest, never the timeline itself.
+const DIMMABLE_SEL =
+  '.dgmo-event-dot,.dgmo-event-leader,.dgmo-event-card,.dgmo-event-era';
+const PIN_ATTR = 'data-evt-pin';
+
+/** A focus target: a single event (by its `data-evt` id, = source line), an era
+ *  (by name), or a tag value (a legend category). `null` clears the focus. */
+export type EventLineFocus =
+  | { readonly kind: 'event'; readonly id: string }
+  | { readonly kind: 'era'; readonly name: string }
+  | { readonly kind: 'tag'; readonly group: string; readonly value: string };
+
+function clearEvtFocus(root: Element): void {
+  root
+    .querySelectorAll(`.${HL},.${DIM},.${ERA_HL}`)
+    .forEach((el) => el.classList.remove(HL, DIM, ERA_HL));
+}
+
+// Dim every dimmable element that isn't part of the subject; glow/emphasize the
+// subject. A spec that matches nothing is a no-op (never an all-dim void).
+function applyEvtFocus(root: Element, spec: EventLineFocus | null): void {
+  clearEvtFocus(root);
+  if (!spec) return;
+  const els = [...root.querySelectorAll(DIMMABLE_SEL)];
+  if (spec.kind === 'event') {
+    const keep = (el: Element): boolean =>
+      el.getAttribute('data-evt') === spec.id;
+    if (!els.some(keep)) return;
+    els.forEach((el) => el.classList.add(keep(el) ? HL : DIM));
+    return;
+  }
+  if (spec.kind === 'era') {
+    const keep = (el: Element): boolean =>
+      el.getAttribute('data-evt-era') === spec.name ||
+      (el.classList.contains('dgmo-event-era') &&
+        el.getAttribute('data-era') === spec.name);
+    if (!els.some(keep)) return;
+    els.forEach((el) => {
+      if (!keep(el)) el.classList.add(DIM);
+      else if (el.classList.contains('dgmo-event-era'))
+        el.classList.add(ERA_HL);
+    });
+    return;
+  }
+  const attr = `data-tag-${spec.group}`;
+  const keep = (el: Element): boolean => el.getAttribute(attr) === spec.value;
+  if (!els.some(keep)) return;
+  els.forEach((el) => {
+    if (!keep(el)) el.classList.add(DIM);
+  });
+}
+
+function readPin(root: Element): EventLineFocus | null {
+  const raw = root.getAttribute(PIN_ATTR);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as EventLineFocus;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pin a persistent focus on a rendered event-line — e.g. driven by the editor
+ * cursor — dimming everything except the target, exactly like hover. Hovering
+ * temporarily overrides the pin; leaving the diagram reverts to it. Pass `null`
+ * to clear. No-op when the container holds no event-line SVG.
+ */
+export function focusEventLine(
+  container: HTMLElement,
+  spec: EventLineFocus | null
+): void {
+  const root = container.querySelector('svg');
+  if (!root) return;
+  if (spec) root.setAttribute(PIN_ATTR, JSON.stringify(spec));
+  else root.removeAttribute(PIN_ATTR);
+  applyEvtFocus(root, spec);
+}
+
+// One delegated handler: hover focuses transiently; on mouseout (or over bare
+// canvas) it reverts to the pinned cursor focus rather than clearing outright.
+function wireEventLineHover(root: SVGSVGElement | null): void {
+  if (!root) return;
+  root.addEventListener('mouseover', (e) => {
+    const t = e.target as Element | null;
+    if (!t || typeof t.closest !== 'function') return;
+
+    const entry = t.closest('[data-legend-entry]');
+    if (entry) {
+      const value = entry.getAttribute('data-legend-entry');
+      const group = entry
+        .closest('[data-legend-group]')
+        ?.getAttribute('data-legend-group');
+      applyEvtFocus(
+        root,
+        group && value ? { kind: 'tag', group, value } : readPin(root)
+      );
+      return;
+    }
+    const era = t.closest('.dgmo-event-era');
+    if (era) {
+      applyEvtFocus(root, {
+        kind: 'era',
+        name: era.getAttribute('data-era') ?? '',
+      });
+      return;
+    }
+    const evt = t.closest('[data-evt]');
+    if (evt) {
+      applyEvtFocus(root, {
+        kind: 'event',
+        id: evt.getAttribute('data-evt') ?? '',
+      });
+      return;
+    }
+    // Bare canvas / title / legend chrome → revert to the pinned focus.
+    applyEvtFocus(root, readPin(root));
+  });
+  root.addEventListener('mouseout', (e) => {
+    const to = (e as MouseEvent).relatedTarget as Node | null;
+    if (!to || !root.contains(to)) applyEvtFocus(root, readPin(root));
+  });
 }
 
 export function renderEventLineForExport(

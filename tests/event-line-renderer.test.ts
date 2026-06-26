@@ -4,6 +4,7 @@ import { parseEventLine } from '../src/event-line/parser';
 import {
   renderEventLine,
   renderEventLineForExport,
+  focusEventLine,
 } from '../src/event-line/renderer';
 import { getPalette } from '../src/palettes';
 import { getRenderCategory } from '../src/dgmo-router';
@@ -559,5 +560,207 @@ tag T as t
     for (let i = 1; i < brackets.length; i++) {
       expect(brackets[i]!.x0).toBeGreaterThanOrEqual(brackets[i - 1]!.x1);
     }
+  });
+});
+
+describe('event-line hover interactivity', () => {
+  const ERAS_SCALED = `event-line Web
+tag Kind as k
+  Browser blue
+  Standard green
+
+[Origins]
+  1991-01-01 WorldWideWeb  k: Browser
+    first
+  1993-04-01 Mosaic  k: Browser
+
+[Standards]
+  1995-12-01 JavaScript  k: Standard
+  1996-12-01 CSS  k: Standard`;
+
+  function renderPreview(src = ERAS_SCALED): HTMLDivElement {
+    const parsed = parseEventLine(src, nordLight);
+    const container = mount(1000, 600);
+    renderEventLine(container, parsed, nordLight, false);
+    return container;
+  }
+
+  it('injects a hover <style> and tags every event piece in the preview path', () => {
+    const svg = renderPreview().querySelector('svg')!;
+    // The style block carries the hover state classes.
+    const style = svg.querySelector('style');
+    expect(style?.textContent).toContain('dgmo-evt-hl');
+    expect(style?.textContent).toContain('dgmo-evt-dim');
+    // Each event's dot + leader + card share one data-evt id.
+    const ww = svg.querySelectorAll('[data-evt]');
+    expect(ww.length).toBeGreaterThan(0);
+    const dot = svg.querySelector('.dgmo-event-dot[data-evt]')!;
+    const id = dot.getAttribute('data-evt');
+    const trio = svg.querySelectorAll(`[data-evt="${id}"]`);
+    // dot + leader + card (3) for a visible event
+    expect(trio.length).toBe(3);
+    // Tag values mirror the legend's data-legend-entry casing.
+    expect(svg.querySelector('[data-tag-kind="browser"]')).not.toBeNull();
+  });
+
+  it('omits the hover <style> in the export path', () => {
+    const parsed = parseEventLine(ERAS_SCALED, nordLight);
+    const container = mount();
+    renderEventLineForExport(container, parsed, nordLight, false, {
+      width: 900,
+      height: 500,
+    });
+    const svg = container.querySelector('svg')!;
+    expect(svg.querySelector('style')).toBeNull();
+    // ...but the data hooks still ride along (harmless in export).
+    expect(svg.querySelector('.dgmo-event-card[data-evt]')).not.toBeNull();
+  });
+
+  it('hovering a legend entry dims every event that lacks that tag value', () => {
+    const svg = renderPreview().querySelector('svg')!;
+    const entry = svg.querySelector('[data-legend-entry="browser"]')!;
+    expect(entry).not.toBeNull();
+    entry.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
+    // Standard events dim; Browser events stay lit.
+    const standard = svg.querySelector(
+      '.dgmo-event-card[data-tag-kind="standard"]'
+    )!;
+    const browser = svg.querySelector(
+      '.dgmo-event-card[data-tag-kind="browser"]'
+    )!;
+    expect(standard.classList.contains('dgmo-evt-dim')).toBe(true);
+    expect(browser.classList.contains('dgmo-evt-dim')).toBe(false);
+    // Leaving the diagram clears the dim.
+    svg.dispatchEvent(new window.MouseEvent('mouseout', { bubbles: true }));
+    expect(standard.classList.contains('dgmo-evt-dim')).toBe(false);
+  });
+
+  it('hovering one event glows it and dims every other event', () => {
+    const svg = renderPreview().querySelector('svg')!;
+    const card = svg.querySelector('.dgmo-event-card[data-evt]')!;
+    const id = card.getAttribute('data-evt');
+    card.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
+    // The hovered event's pieces glow and are never dimmed.
+    svg.querySelectorAll(`[data-evt="${id}"]`).forEach((el) => {
+      expect(el.classList.contains('dgmo-evt-hl')).toBe(true);
+      expect(el.classList.contains('dgmo-evt-dim')).toBe(false);
+    });
+    // Every other event dims; the spine line never carries a dim class.
+    const other = [...svg.querySelectorAll('.dgmo-event-dot[data-evt]')].find(
+      (el) => el.getAttribute('data-evt') !== id
+    )!;
+    expect(other.classList.contains('dgmo-evt-hl')).toBe(false);
+    expect(other.classList.contains('dgmo-evt-dim')).toBe(true);
+  });
+
+  it('hovering an era bracket keeps its members lit and dims the rest', () => {
+    const svg = renderPreview().querySelector('svg')!;
+    const bracket = svg.querySelector('.dgmo-event-era[data-era="Origins"]')!;
+    expect(bracket).not.toBeNull();
+    bracket.dispatchEvent(
+      new window.MouseEvent('mouseover', { bubbles: true })
+    );
+    expect(bracket.classList.contains('dgmo-evt-era-hl')).toBe(true);
+    // Origins members stay lit; a Standards member dims.
+    const member = svg.querySelector(
+      '.dgmo-event-card[data-evt-era="Origins"]'
+    )!;
+    const outsider = svg.querySelector(
+      '.dgmo-event-card[data-evt-era="Standards"]'
+    )!;
+    expect(member.classList.contains('dgmo-evt-dim')).toBe(false);
+    expect(outsider.classList.contains('dgmo-evt-dim')).toBe(true);
+  });
+
+  it('focuses untagged events when the default (first) legend value is hovered', () => {
+    const src = `event-line Default Focus
+tag Type as t
+  Scope green
+  Changes blue
+
+[Era]
+  2020-01-01 Alpha  t: Changes
+  2021-01-01 Beta`;
+    const svg = renderPreview(src).querySelector('svg')!;
+    const beta = [...svg.querySelectorAll('.dgmo-event-card')].find((g) =>
+      g.textContent?.includes('Beta')
+    )!;
+    // The untagged event carries the default value, so the legend can focus it.
+    expect(beta.getAttribute('data-tag-type')).toBe('scope');
+    const scope = svg.querySelector('[data-legend-entry="scope"]')!;
+    scope.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
+    expect(beta.classList.contains('dgmo-evt-dim')).toBe(false);
+    const alpha = [...svg.querySelectorAll('.dgmo-event-card')].find((g) =>
+      g.textContent?.includes('Alpha')
+    )!;
+    expect(alpha.classList.contains('dgmo-evt-dim')).toBe(true);
+  });
+
+  it('focusEventLine pins a focus that hover overrides then reverts to', () => {
+    const container = renderPreview();
+    const svg = container.querySelector('svg')!;
+    const cards = [...svg.querySelectorAll('.dgmo-event-card[data-evt]')];
+    const a = cards[0]!;
+    const b = cards[1]!;
+    const idA = a.getAttribute('data-evt')!;
+    // Pin event A (e.g. cursor on A's line): A glows, B dims.
+    focusEventLine(container, { kind: 'event', id: idA });
+    expect(a.classList.contains('dgmo-evt-hl')).toBe(true);
+    expect(b.classList.contains('dgmo-evt-dim')).toBe(true);
+    // Hovering B overrides: B glows, A dims.
+    b.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
+    expect(b.classList.contains('dgmo-evt-hl')).toBe(true);
+    expect(a.classList.contains('dgmo-evt-dim')).toBe(true);
+    // Leaving the diagram reverts to the pinned A (not a full clear).
+    svg.dispatchEvent(new window.MouseEvent('mouseout', { bubbles: true }));
+    expect(a.classList.contains('dgmo-evt-hl')).toBe(true);
+    expect(b.classList.contains('dgmo-evt-dim')).toBe(true);
+    // Clearing the pin removes all focus state.
+    focusEventLine(container, null);
+    expect(svg.querySelectorAll('.dgmo-evt-hl,.dgmo-evt-dim').length).toBe(0);
+  });
+
+  it('focusEventLine pins an era and a tag category', () => {
+    const container = renderPreview();
+    const svg = container.querySelector('svg')!;
+    focusEventLine(container, { kind: 'era', name: 'Origins' });
+    expect(
+      svg
+        .querySelector('.dgmo-event-card[data-evt-era="Standards"]')!
+        .classList.contains('dgmo-evt-dim')
+    ).toBe(true);
+    expect(
+      svg
+        .querySelector('.dgmo-event-card[data-evt-era="Origins"]')!
+        .classList.contains('dgmo-evt-dim')
+    ).toBe(false);
+    focusEventLine(container, {
+      kind: 'tag',
+      group: 'kind',
+      value: 'standard',
+    });
+    expect(
+      svg
+        .querySelector('.dgmo-event-card[data-tag-kind="browser"]')!
+        .classList.contains('dgmo-evt-dim')
+    ).toBe(true);
+  });
+
+  it('treats a legend value with zero events as a no-op (no all-dim void)', () => {
+    const src = `event-line Unused
+tag Kind as k
+  Browser blue
+  Standard green
+  Mobile orange
+
+[Era]
+  2020-01-01 A  k: Browser
+  2021-01-01 B  k: Standard`;
+    const svg = renderPreview(src).querySelector('svg')!;
+    const mobile = svg.querySelector('[data-legend-entry="mobile"]')!;
+    expect(mobile).not.toBeNull();
+    mobile.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
+    // Nothing is tagged Mobile → nothing dims (rather than dimming everything).
+    expect(svg.querySelectorAll('.dgmo-evt-dim').length).toBe(0);
   });
 });

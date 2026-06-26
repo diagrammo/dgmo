@@ -28,6 +28,7 @@ import {
   validateTagGroupNames,
   stripDefaultModifier,
   finalizeAutoTagColors,
+  injectDefaultTagMetadata,
   AUTO_TAG_COLOR_SENTINEL,
   tagAttrKey,
 } from '../utils/tag-groups';
@@ -331,6 +332,11 @@ export function parseEventLine(
   if (result.tagGroups.length > 0) {
     validateTagValues(result.events, result.tagGroups, pushWarning, suggest);
     validateTagGroupNames(result.tagGroups, pushWarning);
+    // A tag group's first value is its implicit default (§28.5): an event with
+    // no explicit value belongs to it. Materialize that into metadata — like
+    // org/boxes-and-lines/pert — so color AND legend focus treat the default as
+    // a real category (e.g. hovering "Scope" lights every untagged event).
+    injectDefaultTagMetadata(result.events, result.tagGroups);
   }
 
   if (result.events.length === 0 && !result.error) {
