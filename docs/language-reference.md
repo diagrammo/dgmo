@@ -1874,7 +1874,7 @@ Indented shorthand also supports groups (place arrow directly after group header
 ### 13.6 Directives
 
 - `direction TB` — top-to-bottom layout (default: `LR`)
-- `box-metric <Label> [low] [high]` — name a numeric value dimension (see §13.8); one trailing color sets the high hue over a neutral low, two set explicit `low high` ramp endpoints
+- `heat <Label> [low] [high]` — name a numeric colour ramp (see §13.8); one trailing color sets the high hue over a neutral low, two set explicit `low high` ramp endpoints (pairs with the `heat:` key)
 - `show-values` — print each box's numeric value as text (off by default)
 
 ### 13.7 Options
@@ -1887,36 +1887,36 @@ Indented shorthand also supports groups (place arrow directly after group header
 ### 13.8 Value metric (numeric ramp)
 
 Boxes can carry a numeric measure that drives a continuous color ramp — a
-choropleth-style "value dimension" alongside the categorical tag groups.
+choropleth-style "heat dimension" alongside the categorical tag groups.
 
 ```
 boxes-and-lines Fleet Crews
-box-metric Crew blue
+heat Crew blue
 show-values
 
-Flagship value: 120
-Frigate value: 40
-Sloop value: 12
+Flagship heat: 120
+Frigate heat: 40
+Sloop heat: 12
 Flagship -> Frigate
 Flagship -> Sloop
 ```
 
-- `value: <number>` on any box records its measure (a reserved metadata key —
+- `heat: <number>` on any box records its measure (a reserved metadata key —
   lifted out, never rendered as a tag). Non-numeric values are an error.
-- `box-metric <Label> [low] [high]` names the dimension and optionally sets the
+- `heat <Label> [low] [high]` names the dimension and optionally sets the
   ramp endpoint colors: no color → primary hue / neutral low; one color → that
-  high hue / neutral low; two → explicit `low high` (e.g. `box-metric Risk green
+  high hue / neutral low; two → explicit `low high` (e.g. `heat Risk green
   red`). Order is literal — polarity (good vs bad) is your choice. A wide-hue-gap
   pair routes through a neutral midpoint (so green→red mid values stay clean);
   analogous pairs blend directly.
 - The ramp anchors at `0` for all-non-negative data, else at the data minimum.
-- The value ramp is the resting-active dimension whenever any box has a
-  `value:` (so value shading works in static export with no interaction).
+- The heat ramp is the resting-active dimension whenever any box has a
+  `heat:` (so heat shading works in static export with no interaction).
   `active-tag <tag-group>` switches to a tag group; `active-tag none` suppresses
-  tinting; `active-tag <metric>` forces the value ramp. On a name collision
-  between a tag group and the metric label, the tag group wins.
-- When the value ramp is active, every box tints along the min→max ramp and the
-  legend shows a gradient capsule; boxes without a `value:` get a neutral fill.
+  tinting; `active-tag <heat-label>` forces the heat ramp. On a name collision
+  between a tag group and the heat label, the tag group wins.
+- When the heat ramp is active, every box tints along the min→max ramp and the
+  legend shows a gradient capsule; boxes without a `heat:` get a neutral fill.
 - `show-values` additionally prints each box's number as text.
 
 ### 13.9 Tag groups (categorical color)
@@ -3597,22 +3597,22 @@ map [Title]
 
 Requires the explicit first line `map` — no content inference.
 
-### Region fill — value (choropleth)
+### Region fill — heat (choropleth)
 
-A subdivision name on its own line with a `value:` fills with a single-hue tint ramp (auto min→max, ~15% floor). `value:` is the single numeric channel — region shade, POI marker size, or edge/leg thickness depending on the element:
+A subdivision name on its own line with a `heat:` fills with a single-hue tint ramp (auto min→max, ~15% floor). Each map element kind carries its own numeric channel key: regions take `heat:` (choropleth shade), POIs `size:` (marker radius), edges `width:` (line thickness):
 
 ```
 map US Sales
-region-metric Sales ($M)
+region-heat Sales ($M)
 
-California value: 92
-Texas value: 78
-Florida value: 51
+California heat: 92
+Texas heat: 78
+Florida heat: 51
 ```
 
-- `region-metric <label> [low] [high]` labels the ramp in the legend; one trailing color sets the high hue over a neutral low (`region-metric Sales ($M) blue` → blue ramp, default red), two set explicit `low high` endpoints (`region-metric Peril green red` → green→red, routed through a neutral midpoint). Order is literal — polarity is your choice.
+- `region-heat <label> [low] [high]` labels the ramp in the legend; one trailing color sets the high hue over a neutral low (`region-heat Sales ($M) blue` → blue ramp, default red), two set explicit `low high` endpoints (`region-heat Peril green red` → green→red, routed through a neutral midpoint). Order is literal — polarity is your choice.
 - The ramp **auto-fits**: all-non-negative data anchors the low end at **0** (shared baseline); mixed-sign data fits data-min→data-max. There is no `scale` directive.
-- A subdivision with no `value:`/tag renders as the neutral base.
+- A subdivision with no `heat:`/tag renders as the neutral base.
 
 ### Region fill — categorical (tags)
 
@@ -3631,9 +3631,9 @@ Germany m: Region
 Japan m: Region
 ```
 
-`value:` + a tag on the same region (bivariate): both are kept as **two selectable colouring dimensions**. The top legend shows the value ramp and each tag group as mutually-exclusive, collapsible groups; the active one fills the map. Default is the value ramp (whenever any `value:` exists). `active-tag <GroupName>` colours by that tag; `active-tag <ValueLabel>` (the `region-metric` label, or `Value`) re-selects the ramp. In the app, clicking a legend group flips the active dimension (live preview only — no source edit); hovering a tag entry highlights the regions with that value, and scrubbing across the value gradient highlights the regions whose value is near the cursor (non-matching regions dim). No warning.
+`heat:` + a tag on the same region (bivariate): both are kept as **two selectable colouring dimensions**. The top legend shows the heat ramp and each tag group as mutually-exclusive, collapsible groups; the active one fills the map. Default is the heat ramp (whenever any `heat:` exists). `active-tag <GroupName>` colours by that tag; `active-tag <HeatLabel>` (the `region-heat` label, or `Heat`) re-selects the ramp. In the app, clicking a legend group flips the active dimension (live preview only — no source edit); hovering a tag entry highlights the regions with that value, and scrubbing across the heat gradient highlights the regions whose value is near the cursor (non-matching regions dim). No warning.
 
-A **trailing color** on a region line (§1.5) is the lightweight highlight: `Texas red` (or `Texas red value: 90`, color before metadata) paints a flat fill with no tag group, ignoring the active dimension and adding no legend entry. It wins over the ramp and any tag on that region.
+A **trailing color** on a region line (§1.5) is the lightweight highlight: `Texas red` (or `Texas red heat: 90`, color before metadata) paints a flat fill with no tag group, ignoring the active dimension and adding no legend entry. It wins over the ramp and any tag on that region.
 
 ### Points of interest (`poi`)
 
@@ -3645,22 +3645,22 @@ poi <name | <lat> <lon>> [as <alias>] [<key>: <value>, …]
 poi Austin                          # label defaults to "Austin"
 poi Austin label: West HQ           # anchored at Austin; shows "West HQ"
 poi 39.74 -104.99 as dcw            # positional coords (lat lon), signed
-poi Dallas value: 320               # value: scales the marker radius (a data channel)
+poi Dallas size: 320                # size: scales the marker radius (a data channel)
 poi Chicago m: Office               # categorical color via a tag alias
 poi Austin red                      # direct marker color (trailing token, §1.5)
 ```
 
 - **Coordinates are positional** — two leading signed numbers (lat then lon); cities never start with a number.
-- `value:` scales marker area (use `poi-metric <label>` for the legend key). A trailing color (`poi Austin red`) sets the marker fill directly — winning over a tag color and the default orange. POI properties: `label`, `value`, `style`, applied tag alias, `as`. No `icon` in v1.
+- `size:` scales marker area (use `poi-size <label>` for the legend key). A trailing color (`poi Austin red`) sets the marker fill directly — winning over a tag color and the default orange. POI properties: `label`, `size`, `style`, applied tag alias, `as`. No `icon` in v1.
 - Coord-positioned or relabeled POIs take `as <alias>` for route/edge references; named POIs are referenced by name.
 
 ### Routes & connectors
 
-`route <origin>` — an ordered, auto-numbered voyage; the origin gets a distinct marker, and the header takes **no shape option**. Each indented line is a `<arrow> destination` leg that continues from the previous stop, using the same indented arrow idiom as a sitemap — a leg is an edge (in-arrow label, `value:` thickness, and the **arrow glyph alone sets shape**: `-…->` straight, `~…~>` arc, mixable per leg). The **arrow is required and must be directional** — a bare destination errors, and so does an undirected `--`/`~~` glyph (a voyage always flows forward; use `->`/`~>`). A **tag on a leg colours the LINE** (categorical leg-type colouring — flights vs cruises vs trains); `label:`/`as` still name the destination stop. Repeat the origin as a leg's destination to close a loop (no second marker):
+`route <origin>` — an ordered, auto-numbered voyage; the origin gets a distinct marker, and the header takes **no shape option**. Each indented line is a `<arrow> destination` leg that continues from the previous stop, using the same indented arrow idiom as a sitemap — a leg is an edge (in-arrow label, `width:` thickness, and the **arrow glyph alone sets shape**: `-…->` straight, `~…~>` arc, mixable per leg). The **arrow is required and must be directional** — a bare destination errors, and so does an undirected `--`/`~~` glyph (a voyage always flows forward; use `->`/`~>`). A **tag on a leg colours the LINE** (categorical leg-type colouring — flights vs cruises vs trains); `label:`/`as` still name the destination stop. Repeat the origin as a leg's destination to close a loop (no second marker):
 
 ```
 route Miami
-  ~weigh anchor~> Havana value: 40   # arc leg (its own ~> glyph)
+  ~weigh anchor~> Havana width: 40   # arc leg (its own ~> glyph)
   ~> Kingston
   ~> Miami              # destination == origin → closed loop
 ```
@@ -3678,7 +3678,7 @@ Native edges handle any other connection (no `link`/`leg` keyword). A token draw
 
 ```
 A -> B                  # one-off, directed
-A -ferry- B value: 12   # undirected line; value = line thickness
+A -ferry- B width: 12   # undirected line; width = line thickness
 A ~cable~ B             # undirected arc with a label
 A -> B -> C             # inline chain
 JFK ~daily~> LAX        # hub/star: ONE edge per line, repeat the origin
@@ -3709,10 +3709,10 @@ cove -> hav l: March    # the LINE turns green
 ### Labels, legend & chrome
 
 - Title is the declaration line; `caption` (data-source attribution, travels with the exported PNG) is the only chrome directive. There is no `subtitle`.
-- Legend auto-composes below the title: the value ramp + `region-metric` and each tag group are **selectable colouring groups** (collapse/activate to flip the fill); POI size (`poi-metric`) and edge thickness (`flow-metric`) are self-evident from scale and carry no legend key in v1. `no-legend` suppresses all of it.
+- Legend auto-composes below the title: the heat ramp + `region-heat` and each tag group are **selectable colouring groups** (collapse/activate to flip the fill); POI size (`poi-size`) and edge thickness (`flow-width`) are self-evident from scale and carry no legend key in v1. `no-legend` suppresses all of it.
 - **Region and POI labels are on by default.** Region labels auto-fit **full → abbrev → hide** (a US-state 2-letter abbreviation is tried when the full name doesn't fit; other regions degrade full → hide); POI labels are collision-managed. Labels render **on the map** (export-safe), escalating inline → leader line → numbered pin in dense clusters; markers never move. A wide map in a narrow column (< ~480px) prefers abbreviations and drops reference relief, as if zoomed out.
 - **Cosmetic features are on by default**; the only switches are bare `no-*` opt-outs (no positive opt-in flag): `no-coastline`, `no-relief`, `no-context-labels`, `no-region-labels`, `no-poi-labels`, `no-legend`, `no-colorize`. A plain look = the four basemap flags together (`no-colorize` is **not** one of the four — it toggles region *fill style*, not a basemap backdrop layer).
-- **Colorize (distinct political fills) is the default for any map without region data.** Unless a region carries data (a `value:` or a tag), every region drawn at the resolved extent is filled a **distinct light pastel** such that no two bordering regions share a hue — the conventional "colour the countries/states so neighbours separate" look, with zero config. It applies to named-region maps, POI/route-only maps, and even a bare `map` (the whole world colours as the backdrop). The fills are **non-semantic** (no legend entry) and **extent-independent** (a region's colour is the same at any width and in an inset). A direct trailing colour (`Texas red`) paints on top as a highlight and does not suppress colorize; adding any `value:`/tag flips the map to the data dress (colorize auto-suppressed, no error). `no-colorize` forces the plain green-land + blue-water dress — useful when many POIs/routes should pop against a calm map.
+- **Colorize (distinct political fills) is the default for any map without region data.** Unless a region carries data (a `heat:` or a tag), every region drawn at the resolved extent is filled a **distinct light pastel** such that no two bordering regions share a hue — the conventional "colour the countries/states so neighbours separate" look, with zero config. It applies to named-region maps, POI/route-only maps, and even a bare `map` (the whole world colours as the backdrop). The fills are **non-semantic** (no legend entry) and **extent-independent** (a region's colour is the same at any width and in an inset). A direct trailing colour (`Texas red`) paints on top as a highlight and does not suppress colorize; adding any `heat:`/tag flips the map to the data dress (colorize auto-suppressed, no error). `no-colorize` forces the plain green-land + blue-water dress — useful when many POIs/routes should pop against a calm map.
 
 ### Name resolution
 
@@ -3721,8 +3721,8 @@ cove -> hav l: March    # the LINE turns green
 - A bare ambiguous, undeclared name → most-populous in scope (info note).
 - **Disambiguate once:** trailing ISO code at first declaration — `San Jose CR` (country) or `Portland US-OR` (subdivision). Thereafter reference the bare name. Two same-named cities → `as <alias>` each.
 - **Region fills disambiguate the country-vs-state collision** (`Georgia` = country `GE` or US state `US-GA`) by ISO code or name + scope — pick whichever reads best:
-  - **Bare ISO code** (terse): `US-GA value: 5` → the state, `GE value: 5` → the country. Codes resolve directly and never warn.
-  - **Name + scope** (readable): `Georgia US value: 5` → the state, `Georgia GE value: 5` → the country.
+  - **Bare ISO code** (terse): `US-GA heat: 5` → the state, `GE heat: 5` → the country. Codes resolve directly and never warn.
+  - **Name + scope** (readable): `Georgia US heat: 5` → the state, `Georgia GE heat: 5` → the country.
   - The redundant `Georgia US-GA` still works but isn't needed (a mismatched code like `Georgia US-CA` is rejected). A bare ambiguous `Georgia` follows the inferred US-scope signal and warns with both fixes named.
 - **IATA airport codes** resolve to airport coordinates — `poi JFK`, `route JFK -> LAX` — with no new syntax (large international hubs + all US scheduled-commercial airports). Case-insensitive (`jfk`/`JFK`). Airports are the **lowest-precedence** identifier: a token that is both a city and a code resolves to the **city** (`Ufa` → the city, not UFA airport), with a hint naming the airport. Resolution is by **code only** (never by airport name); the POI label is the typed code. An unknown three-letter code errors with an `as <CODE>` coordinates hint.
 - **A city name must match the gazetteer's canonical form** — `New York City`, not `New York`; `Washington, D.C.`, not `Washington`. An unrecognized name is dropped (with a did-you-mean note) and the map reframes around the places that *did* resolve, so the result can look complete but be missing a point. Use the exact name or coordinates.
@@ -3731,7 +3731,7 @@ cove -> hav l: March    # the LINE turns green
 
 ### Directives & reserved keys
 
-The directive set is **13, all colon-free**: six naming intent the renderer can't infer — `region-metric`, `poi-metric`, `flow-metric`, `locale`, `active-tag`, `caption` — and seven `no-*` cosmetic opt-outs — `no-legend`, `no-coastline`, `no-relief`, `no-context-labels`, `no-region-labels`, `no-poi-labels`, `no-colorize`. There is **no** `projection`, `scale`, `subtitle`, `surface`, `region`, or label-enum directive, and cosmetics have no positive opt-in form. Reserved metadata keys (need colons): `value`, `label`, `style` (`value` = the one numeric channel: region shade / POI size / edge thickness); `surface:` is no longer recognized. A bare US state postal code resolves to that state (`poi Portland OR` → Oregon; `CA` = California). Coordinates are positional (no `at:` key). Projection is inferred from extent + whether the map carries data (US → albers-usa; world data → Equal Earth; world reference → natural-earth; regional → mercator) and cannot be overridden.
+The directive set is **13, all colon-free**: six naming intent the renderer can't infer — `region-heat`, `poi-size`, `flow-width`, `locale`, `active-tag`, `caption` — and seven `no-*` cosmetic opt-outs — `no-legend`, `no-coastline`, `no-relief`, `no-context-labels`, `no-region-labels`, `no-poi-labels`, `no-colorize`. There is **no** `projection`, `scale`, `subtitle`, `surface`, `region`, or label-enum directive, and cosmetics have no positive opt-in form. Reserved metadata keys (need colons) are the per-element numeric channels plus `label`, `style`: `heat:` (region choropleth shade), `size:` (POI marker radius), `width:` (edge/leg thickness) — a channel key on the wrong element kind errors; `surface:` is no longer recognized. A bare US state postal code resolves to that state (`poi Portland OR` → Oregon; `CA` = California). Coordinates are positional (no `at:` key). Projection is inferred from extent + whether the map carries data (US → albers-usa; world data → Equal Earth; world reference → natural-earth; regional → mercator) and cannot be overridden.
 
 ---
 
