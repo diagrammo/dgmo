@@ -101,8 +101,7 @@ export function scoreToColor(score: number, palette: PaletteColors): string {
 const CURVE_TOP_RESERVE = 20;
 
 // Map an emotion score (1-5) to a y coordinate within the curve area. Shared
-// by the curve points, the grid lines, and the left-edge score-label faces so
-// all three stay on the same scale (else the labels bunch at the bottom).
+// by the curve points and the grid lines so both stay on the same scale.
 export function scoreToCurveY(score: number, curveAreaBottom: number): number {
   return (
     curveAreaBottom -
@@ -148,7 +147,66 @@ export function layoutJourneyMap(
     (s) => s.score !== undefined && s.emotionLabel !== undefined
   );
 
-  const curveAreaTop = PADDING + titleHeight + personaHeight;
+  // Reserve top headroom so an expanded thought bubble — which always pops
+  // ABOVE its face — clears the title + persona band, even when it hangs above
+  // the highest (score-5) face. Mirrors the renderer's bubble metrics.
+  const baseTop = PADDING + titleHeight + personaHeight;
+  let topHeadroom = 0;
+  if (hasThoughts) {
+    const THOUGHT_MAX_W = 200;
+    const THOUGHT_FONT = 11;
+    const THOUGHT_LINE_H = 14;
+    const THOUGHT_PAD_Y = 6;
+    const THOUGHT_GAP = 10;
+    const FACE_HOVER_R = (14 + 1) * 1.5; // (FACE_RADIUS + 1) * FACE_HOVER_SCALE
+    const PERSONA_DESC_FONT = 10; // FONT_SIZE_META in the renderer
+    const PERSONA_SILHOUETTE = 60;
+    const BUBBLE_MARGIN = 16;
+
+    // Tallest thought bubble + the highest face that carries a thought.
+    let maxBubbleH = 0;
+    let topThoughtScore = 1;
+    for (const s of allStepsForThoughts) {
+      const thoughts = s.annotations.filter((a) => a.type === 'thought');
+      if (thoughts.length === 0) continue;
+      const text = thoughts.map((t) => t.text).join(' • ');
+      const lineCount = wrapTextToWidth(
+        text,
+        THOUGHT_FONT,
+        THOUGHT_MAX_W
+      ).length;
+      maxBubbleH = Math.max(
+        maxBubbleH,
+        lineCount * THOUGHT_LINE_H + THOUGHT_PAD_Y * 2
+      );
+      if (s.score !== undefined) {
+        topThoughtScore = Math.max(topThoughtScore, s.score);
+      }
+    }
+
+    // Actual persona card height — the PERSONA_HEIGHT reservation underestimates
+    // a multi-line description, so measure it for an honest band bottom.
+    let personaActualH = personaHeight;
+    if (hasPersona && parsed.persona?.description) {
+      const textAreaWidth =
+        PERSONA_PANEL_WIDTH - PERSONA_SILHOUETTE - CARD_PADDING_X;
+      const descLineCount = wrapTextToWidth(
+        parsed.persona.description,
+        PERSONA_DESC_FONT,
+        textAreaWidth
+      ).length;
+      personaActualH = CARD_HEADER_HEIGHT + descLineCount * 14 + 8;
+    }
+    const topBandBottom = PADDING + Math.max(titleHeight, personaActualH);
+
+    // Where the highest thought-bearing face would sit with zero headroom, and
+    // where its bubble's top edge would land. Shift down by any shortfall.
+    const faceY0 = scoreToCurveY(topThoughtScore, baseTop + CURVE_AREA_HEIGHT);
+    const bubbleTop0 = faceY0 - FACE_HOVER_R - THOUGHT_GAP - maxBubbleH;
+    topHeadroom = Math.max(0, topBandBottom + BUBBLE_MARGIN - bubbleTop0);
+  }
+
+  const curveAreaTop = baseTop + topHeadroom;
   const curveAreaBottom = curveAreaTop + CURVE_AREA_HEIGHT;
   const cardAreaTop =
     curveAreaBottom + PADDING + (hasEmotions ? EMOTION_CAPTION_BAND : 0);

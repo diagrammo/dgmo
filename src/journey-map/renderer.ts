@@ -71,6 +71,11 @@ const FONT_SIZE_META = 10;
 const GRID_LINE_OPACITY = 0.15;
 const CURVE_STROKE_WIDTH = 2.5;
 const FACE_RADIUS = 14;
+// Distance from curveAreaBottom down to the filled band's bottom edge/border.
+// The score-1 face sits ~10px above curveAreaBottom; its emotion caption hangs
+// FACE_RADIUS + 5 + label-height (~29px) below the face center, so the band
+// must drop far enough that the caption clears the bottom border.
+const CURVE_AREA_BOTTOM_GAP = 28;
 // Faces grow on hover/active; the thought bubble + connector must clear the
 // enlarged outer edge (radius + ring halo), not the base radius.
 const FACE_HOVER_SCALE = 1.5;
@@ -356,10 +361,8 @@ export function renderJourneyMap(
               if (!entryValue) {
                 // Hover out — restore all
                 svg.selectAll('.journey-step').style('opacity', null);
-                svg
-                  .selectAll('.journey-face')
-                  .style('opacity', null)
-                  .attr('transform', null);
+                svg.selectAll('.journey-face').style('opacity', null);
+                svg.selectAll('.journey-face-icon').attr('transform', null);
                 svg.selectAll('.journey-thought').style('opacity', null);
                 return;
               }
@@ -388,15 +391,16 @@ export function renderJourneyMap(
                   const hit = matches(this);
                   const sel = d3.select(this);
                   sel.style('opacity', hit ? '1' : String(DIM_HOVER));
+                  const icon = sel.select('.journey-face-icon');
                   if (hit) {
                     const fcx = parseFloat(sel.attr('data-cx') ?? '0');
                     const fcy = parseFloat(sel.attr('data-cy') ?? '0');
-                    sel.attr(
+                    icon.attr(
                       'transform',
                       `translate(${fcx},${fcy}) scale(1.3) translate(${-fcx},${-fcy})`
                     );
                   } else {
-                    sel.attr('transform', null);
+                    icon.attr('transform', null);
                   }
                 });
 
@@ -441,27 +445,6 @@ export function renderJourneyMap(
       .attr('stroke', palette.textMuted)
       .attr('stroke-opacity', GRID_LINE_OPACITY)
       .attr('stroke-dasharray', '4,4');
-
-    // Score label — emotion face icon
-    const SCORE_LABEL_R = 8;
-    const labelG = curveG
-      .append('g')
-      .attr('class', 'journey-score-label')
-      .attr('data-score', String(score));
-    renderScoreFace(
-      labelG,
-      PADDING - SCORE_LABEL_R - 2,
-      y,
-      score,
-      palette,
-      isDark,
-      SCORE_LABEL_R
-    );
-
-    // Score label interactivity is wired up in the click-to-lock section below
-    if (!exportDims) {
-      labelG.style('cursor', 'pointer');
-    }
   }
 
   // Emotion curve (area fill + line)
@@ -486,10 +469,15 @@ export function renderJourneyMap(
       },
     ];
 
+    // Bottom of the filled band. Sits clear of the lowest face's emotion
+    // caption (score-1 face + FACE_RADIUS + EMOTION_LABEL gap) so the caption
+    // doesn't collide with the bottom border.
+    const areaBottomY = layout.curveAreaBottom + CURVE_AREA_BOTTOM_GAP;
+
     const areaGen = d3Shape
       .area<CurvePoint>()
       .x((d) => d.x)
-      .y0(layout.curveAreaBottom + FACE_RADIUS)
+      .y0(areaBottomY)
       .y1((d) => d.y)
       .curve(d3Shape.curveMonotoneX);
 
@@ -498,6 +486,23 @@ export function renderJourneyMap(
       .attr('d', areaGen(extendedPoints) ?? '')
       .attr('fill', 'url(#journey-curve-gradient)')
       .attr('stroke', 'none');
+
+    // Frame the filled area on three sides (left, bottom, right) — the curve
+    // line itself forms the top edge. Polishes the plot into a contained box.
+    const leftX = PADDING;
+    const rightX = layout.totalWidth - PADDING;
+    curveG
+      .append('path')
+      .attr(
+        'd',
+        `M${leftX},${first.y} L${leftX},${areaBottomY} ` +
+          `L${rightX},${areaBottomY} L${rightX},${last.y}`
+      )
+      .attr('fill', 'none')
+      .attr('stroke', palette.primary)
+      .attr('stroke-width', CURVE_STROKE_WIDTH)
+      .attr('stroke-linecap', 'round')
+      .attr('stroke-linejoin', 'round');
 
     // Curve line on top
     const lineGen = d3Shape
@@ -812,52 +817,6 @@ export function renderJourneyMap(
   if (!exportDims) {
     const DIM_OPACITY = 0.35;
     let lockedLine: number | null = null;
-    let lockedScore: number | null = null;
-
-    // Helper: dim everything except elements matching a score value
-    const applyScoreDimming = (activeScore: number) => {
-      const scoreStr = String(activeScore);
-      svg.selectAll<SVGGElement, unknown>('.journey-step').each(function () {
-        const hit = this.getAttribute('data-score') === scoreStr;
-        d3.select(this).style('opacity', hit ? '1' : String(DIM_HOVER));
-      });
-      svg.selectAll<SVGGElement, unknown>('.journey-face').each(function () {
-        const hit = this.getAttribute('data-score') === scoreStr;
-        const sel = d3.select(this);
-        sel.style('opacity', hit ? '1' : String(DIM_HOVER));
-        if (hit) {
-          const fcx = parseFloat(sel.attr('data-cx') ?? '0');
-          const fcy = parseFloat(sel.attr('data-cy') ?? '0');
-          sel.attr(
-            'transform',
-            `translate(${fcx},${fcy}) scale(1.3) translate(${-fcx},${-fcy})`
-          );
-        } else {
-          sel.attr('transform', null);
-        }
-      });
-      svg
-        .selectAll<SVGGElement, unknown>('.journey-thought')
-        .style('opacity', String(DIM_HOVER));
-      // Highlight the active y-axis score label, dim the rest
-      svg
-        .selectAll<SVGGElement, unknown>('.journey-score-label')
-        .each(function () {
-          const sel = d3.select(this);
-          const s = sel.attr('data-score');
-          sel.style('opacity', s === scoreStr ? '1' : String(DIM_HOVER));
-        });
-    };
-
-    const clearScoreDimming = () => {
-      svg.selectAll('.journey-step').style('opacity', null);
-      svg
-        .selectAll('.journey-face')
-        .style('opacity', null)
-        .attr('transform', null);
-      svg.selectAll('.journey-thought').style('opacity', null);
-      svg.selectAll('.journey-score-label').style('opacity', null);
-    };
 
     // Helper: dim everything except elements matching a line number
     const applyDimming = (activeLine: number) => {
@@ -871,15 +830,16 @@ export function renderJourneyMap(
         const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
         const isActive = ln === activeLine;
         el.style('opacity', isActive ? '1' : String(DIM_OPACITY));
+        const icon = el.select('.journey-face-icon');
         if (isActive) {
           const fcx = parseFloat(el.attr('data-cx') ?? '0');
           const fcy = parseFloat(el.attr('data-cy') ?? '0');
-          el.attr(
+          icon.attr(
             'transform',
             `translate(${fcx},${fcy}) scale(${FACE_HOVER_SCALE}) translate(${-fcx},${-fcy})`
           );
         } else {
-          el.attr('transform', null);
+          icon.attr('transform', null);
         }
       });
       // Dim phases slightly (but not as much)
@@ -896,10 +856,8 @@ export function renderJourneyMap(
 
     const clearDimming = () => {
       svg.selectAll('.journey-step').style('opacity', null);
-      svg
-        .selectAll('.journey-face')
-        .style('opacity', null)
-        .attr('transform', null);
+      svg.selectAll('.journey-face').style('opacity', null);
+      svg.selectAll('.journey-face-icon').attr('transform', null);
       svg.selectAll('.journey-phase').style('opacity', null);
       overlayG.selectAll('.journey-thought-hover').remove();
     };
@@ -932,7 +890,9 @@ export function renderJourneyMap(
       const bw = textW + THOUGHT_PAD_X * 2;
       const bh = lines.length * THOUGHT_LINE_H + THOUGHT_PAD_Y * 2;
 
-      // Position above the face, overlaying the curve area (clamp to stay in view)
+      // Position above the face, overlaying the curve area (clamp to stay in
+      // view). The layout reserves top headroom so the bubble clears the title
+      // and persona band even above the highest face — no flip needed.
       const bx = Math.max(
         PADDING,
         Math.min(fcx - bw / 2, layout.totalWidth - PADDING - bw)
@@ -983,13 +943,10 @@ export function renderJourneyMap(
       if (
         !target.closest('.journey-face') &&
         !target.closest('.journey-step') &&
-        !target.closest('.journey-phase') &&
-        !target.closest('.journey-score-label')
+        !target.closest('.journey-phase')
       ) {
         lockedLine = null;
-        lockedScore = null;
         clearDimming();
-        clearScoreDimming();
       }
     });
 
@@ -1009,7 +966,7 @@ export function renderJourneyMap(
     svg.selectAll<SVGGElement, unknown>('.journey-face').each(function () {
       const el = d3.select<SVGGElement, unknown>(this);
       el.on('mouseenter', () => {
-        if (lockedLine !== null || lockedScore !== null) return;
+        if (lockedLine !== null) return;
         const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
         if (ln) {
           applyDimming(ln);
@@ -1017,16 +974,11 @@ export function renderJourneyMap(
         }
       })
         .on('mouseleave', () => {
-          if (lockedLine !== null || lockedScore !== null) return;
+          if (lockedLine !== null) return;
           clearDimming();
         })
         .on('click', (event: MouseEvent) => {
           event.stopPropagation();
-          if (lockedScore !== null) {
-            lockedScore = null;
-            clearScoreDimming();
-            return;
-          }
           const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
           if (lockedLine === ln) {
             lockedLine = null;
@@ -1044,7 +996,7 @@ export function renderJourneyMap(
     svg.selectAll('.journey-step').each(function () {
       const el = d3.select(this);
       el.on('mouseenter', () => {
-        if (lockedLine !== null || lockedScore !== null) return;
+        if (lockedLine !== null) return;
         const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
         if (ln) {
           applyDimming(ln);
@@ -1052,16 +1004,11 @@ export function renderJourneyMap(
         }
       })
         .on('mouseleave', () => {
-          if (lockedLine !== null || lockedScore !== null) return;
+          if (lockedLine !== null) return;
           clearDimming();
         })
         .on('click', (event: MouseEvent) => {
           event.stopPropagation();
-          if (lockedScore !== null) {
-            lockedScore = null;
-            clearScoreDimming();
-            return;
-          }
           const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
           if (lockedLine === ln) {
             lockedLine = null;
@@ -1074,36 +1021,6 @@ export function renderJourneyMap(
           }
         });
     });
-
-    // Hover + click on y-axis score labels
-    svg
-      .selectAll<SVGGElement, unknown>('.journey-score-label')
-      .each(function () {
-        const el = d3.select<SVGGElement, unknown>(this);
-        const score = parseInt(el.attr('data-score') ?? '0', 10);
-        el.on('mouseenter', () => {
-          if (lockedLine !== null || lockedScore !== null) return;
-          applyScoreDimming(score);
-        })
-          .on('mouseleave', () => {
-            if (lockedLine !== null || lockedScore !== null) return;
-            clearScoreDimming();
-          })
-          .on('click', (event: MouseEvent) => {
-            event.stopPropagation();
-            if (lockedLine !== null) {
-              lockedLine = null;
-              clearDimming();
-            }
-            if (lockedScore === score) {
-              lockedScore = null;
-              clearScoreDimming();
-            } else {
-              lockedScore = score;
-              applyScoreDimming(score);
-            }
-          });
-      });
   }
 }
 
@@ -1431,19 +1348,26 @@ function renderScoreFace(
     .attr('data-cx', cx)
     .attr('data-cy', cy);
 
+  // Inner group holding only the face visuals. Hover/focus scaling is applied
+  // to THIS group, not the outer `g`, so the emotion caption (appended into the
+  // outer group later) never grows or shifts down into the bottom border.
+  const iconG = g.append('g').attr('class', 'journey-face-icon');
+
   // Face: a solid colored ring over the canonical tinted fill (the same
   // shapeFill() tint used for unsolid shapes elsewhere), with the eyes and
   // mouth drawn in the full score color.
   const faceFill = shapeFill(palette, color, isDark);
 
   // Thin bg halo so the colored ring reads crisply where it crosses the line.
-  g.append('circle')
+  iconG
+    .append('circle')
     .attr('cx', cx)
     .attr('cy', cy)
     .attr('r', r + 1)
     .attr('fill', palette.bg);
 
-  g.append('circle')
+  iconG
+    .append('circle')
     .attr('cx', cx)
     .attr('cy', cy)
     .attr('r', r)
@@ -1456,12 +1380,14 @@ function renderScoreFace(
   const eyeY = cy - r * 0.15;
   const eyeSpacing = r * 0.32;
   const eyeR = r * 0.12;
-  g.append('circle')
+  iconG
+    .append('circle')
     .attr('cx', cx - eyeSpacing)
     .attr('cy', eyeY)
     .attr('r', eyeR)
     .attr('fill', eyeColor);
-  g.append('circle')
+  iconG
+    .append('circle')
     .attr('cx', cx + eyeSpacing)
     .attr('cy', eyeY)
     .attr('r', eyeR)
@@ -1478,7 +1404,8 @@ function renderScoreFace(
   const apexY = cy + r * 0.32;
   const mouthY = apexY - curve / 2;
 
-  g.append('path')
+  iconG
+    .append('path')
     .attr(
       'd',
       `M ${cx - mouthW} ${mouthY} Q ${cx} ${mouthY + curve} ${cx + mouthW} ${mouthY}`

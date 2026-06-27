@@ -219,11 +219,10 @@ Hit error score: 1`;
       const steps = container.querySelectorAll('.journey-step');
       expect(steps).toHaveLength(1);
       // Face icon renders on the curve (has a mouth path) but no area fill path
-      // 5 score-label faces + 1 curve-point face = 6
       const faces = container.querySelectorAll(
         '.journey-curve-area .journey-face'
       );
-      expect(faces).toHaveLength(6);
+      expect(faces).toHaveLength(1);
       // No area fill or line stroke paths (only the face mouth path)
       const areaPaths = container.querySelectorAll(
         '.journey-curve-area > path'
@@ -244,6 +243,71 @@ Hit error score: 1`;
       // First phase has no step children
       const emptyPhaseSteps = phases[0].querySelectorAll('.journey-step');
       expect(emptyPhaseSteps).toHaveLength(0);
+    });
+  });
+
+  // ── Interactive: focus scaling + thought-bubble placement ──
+
+  describe('interactive', () => {
+    it('focus scales only the face icon, never the emotion caption', () => {
+      const input = `journey-map Focus
+
+[Phase]
+  Calm score: 5, emotion: Happy
+  Crash score: 1, emotion: Terrified`;
+      const { container } = renderToContainer(input);
+      const face = container.querySelector(
+        '.journey-curve-area .journey-face[data-score="1"]'
+      )!;
+      face.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+      // The inner icon group carries the scale transform...
+      const icon = face.querySelector('.journey-face-icon')!;
+      expect(icon.getAttribute('transform')).toContain('scale');
+      // ...while the caption stays at its base size/position (no transform).
+      const label = face.querySelector('.journey-emotion-label')!;
+      expect(label.getAttribute('transform')).toBeNull();
+    });
+
+    it('keeps the expanded thought bubble above the face and clear of the persona card', () => {
+      const input = `journey-map Bubble
+
+persona Sam color: blue
+  Greenhorn cabin boy, first time at sea
+  Sworn to the crew but quietly terrified
+
+[Phase]
+  Dip score: 1, emotion: Sad
+  Climb score: 4, emotion: Hopeful
+  Peak score: 5, emotion: Proud
+    thought: Three doubloons hidden where only he can find them`;
+      const { container } = renderToContainer(input);
+
+      const face = container.querySelector('.journey-face[data-thought]')!;
+      face.dispatchEvent(
+        new window.MouseEvent('mouseenter', { bubbles: true })
+      );
+
+      const bubble = container.querySelector('.journey-thought-hover rect')!;
+      const persona = container.querySelector('.journey-persona rect')!;
+      const num = (el: Element, a: string) => parseFloat(el.getAttribute(a)!);
+
+      const bx = num(bubble, 'x');
+      const by = num(bubble, 'y');
+      const bw = num(bubble, 'width');
+      const bh = num(bubble, 'height');
+      const px = num(persona, 'x');
+      const py = num(persona, 'y');
+      const pw = num(persona, 'width');
+      const ph = num(persona, 'height');
+
+      // Bubble sits above the face and clears the persona card (the layout
+      // reserves top headroom to make room).
+      const fcy = num(face, 'data-cy');
+      expect(by).toBeLessThan(fcy);
+      const overlaps =
+        bx < px + pw && bx + bw > px && by < py + ph && by + bh > py;
+      expect(overlaps).toBe(false);
     });
   });
 
