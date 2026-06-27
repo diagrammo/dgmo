@@ -2938,11 +2938,33 @@ export function layoutMap(
   // Gap between a leg's endpoint and the POI rim, so the line/arrow touches the
   // circle edge rather than burying its tip at the centre dot.
   const RIM_GAP = 1.5;
+  // Signed bow amount along the chord normal (nx,ny). A fanned edge keeps its
+  // explicit offset (sign separates parallels). A lone arc bows by the default
+  // fraction; when an `away` point is given (a route's centroid), the sign is
+  // flipped so the control point lands on the FAR side of that point — i.e. the
+  // arc bulges OUTWARD relative to the polygon the route traces, never inward
+  // across its interior.
+  const bowMagnitude = (
+    mx: number,
+    my: number,
+    nx: number,
+    ny: number,
+    offset: number,
+    len: number,
+    away?: { x: number; y: number }
+  ): number => {
+    if (offset !== 0) return offset;
+    const base = len * ARC_CURVE_FRAC;
+    if (!away) return base;
+    const dot = nx * (mx - away.x) + ny * (my - away.y);
+    return dot < 0 ? -base : base;
+  };
   const legPath = (
     a: { cx: number; cy: number; r: number },
     b: { cx: number; cy: number; r: number },
     curved: boolean,
-    offset: number
+    offset: number,
+    away?: { x: number; y: number }
   ): string => {
     const mx = (a.cx + b.cx) / 2;
     const my = (a.cy + b.cy) / 2;
@@ -2964,7 +2986,7 @@ export function layoutMap(
     }
     const nx = -dy / len;
     const ny = dx / len;
-    const bow = offset !== 0 ? offset : len * ARC_CURVE_FRAC;
+    const bow = bowMagnitude(mx, my, nx, ny, offset, len, away);
     const px = mx + nx * bow;
     const py = my + ny * bow;
     // Tangent at each end of the quadratic Q is toward/from the control point.
@@ -2985,7 +3007,8 @@ export function layoutMap(
     a: { cx: number; cy: number; r: number },
     b: { cx: number; cy: number; r: number },
     curved: boolean,
-    offset: number
+    offset: number,
+    away?: { x: number; y: number }
   ): { x: number; y: number } => {
     const mx = (a.cx + b.cx) / 2;
     const my = (a.cy + b.cy) / 2;
@@ -2995,7 +3018,7 @@ export function layoutMap(
     const len = Math.hypot(dx, dy) || 1;
     const nx = -dy / len;
     const ny = dx / len;
-    const bow = offset !== 0 ? offset : len * ARC_CURVE_FRAC;
+    const bow = bowMagnitude(mx, my, nx, ny, offset, len, away);
     // arc apex (½·bow) + a small lift further out so the text clears the stroke.
     const off = bow * 0.5 + Math.sign(bow || 1) * 8;
     return { x: mx + nx * off, y: my + ny * off };
@@ -3016,14 +3039,30 @@ export function layoutMap(
     return W_MIN + t * (W_MAX - W_MIN);
   };
   for (const rt of resolved.routes) {
+    // Centroid of the route's stops — the "inside" of the polygon it traces.
+    // Arc legs bow AWAY from this so a multi-stop loop reads as a rounded ring
+    // (arcs bulging outward) instead of crossing chords through the middle. A
+    // route needs ≥3 distinct stops to enclose anything; below that there's no
+    // interior and the default (consistent left-normal) bow is kept.
+    const stopPts = rt.stopIds
+      .map((id) => poiScreen.get(id))
+      .filter((p): p is NonNullable<typeof p> => !!p);
+    const center =
+      stopPts.length >= 3
+        ? {
+            x: stopPts.reduce((s, p) => s + p.cx, 0) / stopPts.length,
+            y: stopPts.reduce((s, p) => s + p.cy, 0) / stopPts.length,
+          }
+        : undefined;
     for (const leg of rt.legs) {
       const a = poiScreen.get(leg.fromId);
       const b = poiScreen.get(leg.toId);
       if (!a || !b) continue;
-      const lp = legLabelPoint(a, b, leg.style === 'arc', 0);
+      const lp = legLabelPoint(a, b, leg.style === 'arc', 0, center);
       const bow = {
         curved: leg.style === 'arc',
         offset: 0,
+        center,
         labelX: lp.x,
         labelY: lp.y,
       };
@@ -3033,7 +3072,7 @@ export function layoutMap(
           : undefined;
       const routeVal = Number(leg.value);
       legs.push({
-        d: legPath(a, b, bow.curved, bow.offset),
+        d: legPath(a, b, bow.curved, bow.offset, bow.center),
         width: routeWidthFor(routeVal),
         color: lineColor(leg.tags) ?? mix(palette.text, palette.bg, 72),
         arrow: true,
