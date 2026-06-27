@@ -9,8 +9,7 @@ export type ChartType =
   | 'doughnut'
   | 'area'
   | 'polar-area'
-  | 'radar'
-  | 'bar-stacked';
+  | 'radar';
 
 export interface ChartDataPoint {
   label: string;
@@ -50,6 +49,10 @@ export interface ParsedChart {
   /** Per-series axis assignment, parallel to seriesNames. Present only when the
    *  series block uses the grouped (dual-axis) form; absent ⇒ all left. */
   seriesAxes?: ('left' | 'right')[];
+  /** Bar multi-series layout, set by a `stack` or `group` block header
+   *  (consolidation #24). Absent ⇒ single-series bar. Drives stacked vs
+   *  clustered rendering in `charts-d3/bar.ts`. */
+  barLayout?: 'stack' | 'group';
   orientation?: 'horizontal' | 'vertical';
   color?: string;
   label?: string;
@@ -98,7 +101,6 @@ const VALID_TYPES = new Set<ChartType>([
   'area',
   'polar-area',
   'radar',
-  'bar-stacked',
 ]);
 
 const TYPE_ALIASES: Record<string, ChartType> = {
@@ -110,6 +112,8 @@ const KNOWN_OPTIONS = new Set([
   'chart',
   'title',
   'series',
+  'stack',
+  'group',
   'x-label',
   'y-label',
   'y-right-label',
@@ -126,6 +130,38 @@ const KNOWN_BOOLEANS = new Set([
   'solid-fill',
   'no-title',
 ]);
+
+/**
+ * Gate a `series`/`stack`/`group` block header against the chart type.
+ * Returns true when the header must be REJECTED (skip collection):
+ *  - `series` on a `bar` chart is a hard error → use `stack`/`group` (#24).
+ * Emits a warning (but proceeds) for `stack`/`group` on a non-bar chart.
+ */
+function rejectSeriesHeader(
+  result: ParsedChart,
+  keyword: string,
+  lineNumber: number
+): boolean {
+  if (result.type === 'bar' && keyword === 'series') {
+    const diag = makeDgmoError(
+      lineNumber,
+      "On bar charts, declare multiple series with a 'stack' or 'group' block header, not 'series'."
+    );
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+    return true;
+  }
+  if ((keyword === 'stack' || keyword === 'group') && result.type !== 'bar') {
+    result.diagnostics.push(
+      makeDgmoError(
+        lineNumber,
+        `'${keyword}' is a bar layout header; ${result.type} charts use a 'series' block.`,
+        'warning'
+      )
+    );
+  }
+  return false;
+}
 
 /**
  * Apply the grouped-series (dual-axis) results from parseSeriesNames onto the
@@ -365,15 +401,21 @@ export function parseChart(
         continue;
       }
 
-      if (firstToken === 'series') {
+      if (
+        firstToken === 'series' ||
+        firstToken === 'stack' ||
+        firstToken === 'group'
+      ) {
+        const rejected = rejectSeriesHeader(result, firstToken, lineNumber);
         const parsed = parseSeriesNames(
           value,
           lines,
           i,
           palette,
-          result.diagnostics
+          rejected ? undefined : result.diagnostics
         );
-        i = parsed.newIndex;
+        i = parsed.newIndex; // consume the indented block even when rejected
+        if (rejected) continue;
         result.series = parsed.series;
         result.seriesLineNumber = lineNumber;
         if (parsed.names.length > 1) {
@@ -383,6 +425,8 @@ export function parseChart(
         if (parsed.nameColors.some(Boolean))
           result.seriesNameColors = parsed.nameColors;
         applySeriesAxes(result, parsed, lineNumber);
+        if (firstToken === 'stack' || firstToken === 'group')
+          result.barLayout = firstToken;
         continue;
       }
     }
@@ -408,10 +452,17 @@ export function parseChart(
       continue;
     }
 
-    // Bare "series" keyword with no value — collect indented names
-    if (firstToken === 'series' && spaceIdx === -1) {
+    // Bare "series" / "stack" / "group" header — collect indented names.
+    if (
+      (firstToken === 'series' ||
+        firstToken === 'stack' ||
+        firstToken === 'group') &&
+      spaceIdx === -1
+    ) {
+      const rejected = rejectSeriesHeader(result, firstToken, lineNumber);
       const parsed = parseSeriesNames('', lines, i, palette);
-      i = parsed.newIndex;
+      i = parsed.newIndex; // consume the indented block even when rejected
+      if (rejected) continue;
       result.series = parsed.series;
       result.seriesLineNumber = lineNumber;
       if (parsed.names.length > 1) {
@@ -421,6 +472,8 @@ export function parseChart(
       if (parsed.nameColors.some(Boolean))
         result.seriesNameColors = parsed.nameColors;
       applySeriesAxes(result, parsed, lineNumber);
+      if (firstToken === 'stack' || firstToken === 'group')
+        result.barLayout = firstToken;
       continue;
     }
 
@@ -507,40 +560,12 @@ export function parseChart(
   }
 
   // Validation
-  const setChartError = (line: number, message: string) => {
-    const diag = makeDgmoError(line, message);
-    result.diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-  };
-
   const warn = (line: number, message: string): void => {
     result.diagnostics.push(makeDgmoError(line, message, 'warning'));
   };
 
   if (!result.error && result.data.length === 0) {
     warn(1, 'No data points found. Add data in format: Label 123');
-  }
-
-  if (!result.error && result.type === 'bar-stacked' && !result.seriesNames) {
-    setChartError(
-      1,
-      'Chart type "bar-stacked" requires multiple series names. Use: series Name1, Name2, Name3'
-    );
-  }
-
-  // Plain "bar" renders a single series per row — extra series are dropped
-  // silently by the renderer. Surface that instead of losing data quietly so
-  // the author switches to a multi-series type. (multi-line/line parse to
-  // type "line" and DO render every series, so they are unaffected.)
-  if (
-    !result.error &&
-    result.type === 'bar' &&
-    (result.seriesNames?.length ?? 0) > 1
-  ) {
-    warn(
-      result.seriesLineNumber ?? 1,
-      `Plain "bar" shows only the first series ("${result.seriesNames![0]}"); the other ${result.seriesNames!.length - 1} are dropped at render. Use "bar-stacked" for stacked bars or "multi-line" to plot every series.`
-    );
   }
 
   if (!result.error && result.seriesNames) {

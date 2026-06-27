@@ -83,8 +83,10 @@ describe('dual-axis line — parser', () => {
 
 describe('dual-axis line — diagnostics', () => {
   it('drops the secondary axis and warns on a non-line chart type', () => {
+    // radar accepts a series block (bar does not — it uses stack/group); the
+    // dual-axis grouping is only honored on line, so it is dropped here.
     const { parsed } = build(
-      `bar\nseries\n  y-label L\n    A blue\n  y-right-label R\n    B green\n\nJan 10 20`
+      `radar\nseries\n  y-label L\n    A blue\n  y-right-label R\n    B green\n\nJan 10 20`
     );
     expect(parsed.seriesAxes).toBeUndefined();
     expect(parsed.yrlabel).toBeUndefined();

@@ -469,7 +469,6 @@ flowchart Process
 ### Bar chart
 ```dgmo
 bar Revenue
-series USD
 
 North 850
 South 620

@@ -391,8 +391,13 @@ A 10
 B 20
 C 30`,
 
-  'bar-stacked': `bar-stacked
-series X, Y
+  'bar-stack': `bar
+stack X, Y
+A 10, 20
+B 30, 40`,
+
+  'bar-group': `bar
+group X, Y
 A 10, 20
 B 30, 40`,
 };

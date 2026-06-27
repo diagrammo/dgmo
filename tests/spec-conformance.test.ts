@@ -118,13 +118,33 @@ describe('1. Valid syntax', () => {
       expect(r.type).toBe('radar');
     });
 
-    it('bar-stacked chart', () => {
+    it('bar with stack layout', () => {
       const r = parseChart(
-        'bar-stacked Loot\nseries Gold, Silver\nJan 100 50\nFeb 120 60',
+        'bar Loot\nstack Gold, Silver\nJan 100 50\nFeb 120 60',
         palette
       );
       expect(hasNoErrors(r)).toBe(true);
-      expect(r.type).toBe('bar-stacked');
+      expect(r.type).toBe('bar');
+      expect(r.barLayout).toBe('stack');
+    });
+
+    it('bar with group layout', () => {
+      const r = parseChart(
+        'bar Loot\ngroup Gold, Silver\nJan 100 50\nFeb 120 60',
+        palette
+      );
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.type).toBe('bar');
+      expect(r.barLayout).toBe('group');
+    });
+
+    it('rejects a series block on bar (use stack/group)', () => {
+      const r = parseChart(
+        'bar Loot\nseries Gold, Silver\nJan 100 50',
+        palette
+      );
+      expect(r.error).toBeTruthy();
+      expect(r.error).toMatch(/'stack' or 'group'/i);
     });
   });
 
@@ -851,10 +871,10 @@ describe('4. New features', () => {
     expect(r.holidays.workweek).toEqual(['sun', 'mon', 'tue', 'wed', 'thu']);
   });
 
-  it('comma-optional data rows (space-delimited values) with multi-line series', () => {
+  it('comma-optional data rows (space-delimited values) with a stacked series block', () => {
     // Series names must be comma-separated or multi-line; data values can be space-separated
     const r = parseChart(
-      'bar-stacked Multi\nseries\n  Gold\n  Silver\nJan 100 50\nFeb 120 60',
+      'bar Multi\nstack\n  Gold\n  Silver\nJan 100 50\nFeb 120 60',
       palette
     );
     expect(hasNoErrors(r)).toBe(true);

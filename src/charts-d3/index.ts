@@ -46,7 +46,6 @@ import { renderFunction } from './function';
 /** Types parsed by parseChart → ParsedChart. */
 const STANDARD = new Set([
   'bar',
-  'bar-stacked',
   'line',
   'multi-line',
   'area',
@@ -135,7 +134,6 @@ function renderInto(
       renderChartTitle(s, std.title, std.titleLineNumber, width, textColor);
     switch (std.type) {
       case 'bar':
-      case 'bar-stacked':
         renderBar(
           s,
           std,

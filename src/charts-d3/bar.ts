@@ -1,8 +1,9 @@
 // ============================================================
-// Hand-built bar / bar-stacked renderer — SPIKE.
-// Handles: bar (single + grouped), bar-stacked, horizontal orientation.
-// Matches the ECharts house style: 25% tint fill + full-strength border,
-// per-category colors for single series, value labels, 0-baseline.
+// Hand-built bar renderer.
+// Handles: single-series bar, multi-series `stack` (stacked) and `group`
+// (clustered side-by-side) layouts (chart.barLayout), horizontal orientation.
+// Matches the house style: 25% tint fill + full-strength border, per-category
+// colors for single series, value labels, 0-baseline.
 // ============================================================
 
 import { scaleBand, scaleLinear } from 'd3-scale';
@@ -49,16 +50,19 @@ export function renderBar(
   const seriesNames = chart.seriesNames?.length
     ? chart.seriesNames
     : [chart.series ?? ''];
-  const stacked = chart.type === 'bar-stacked';
-  // ECharts parity: plain `bar` renders only the first series (extra series are
-  // dropped, matching the parser's E_* warning); only bar-stacked stacks them.
-  const seriesCount = stacked
-    ? Math.max(
-        1,
-        seriesNames.length,
-        1 + Math.max(0, ...data.map((d) => d.extraValues?.length ?? 0))
-      )
-    : 1;
+  const stacked = chart.barLayout === 'stack';
+  const grouped = chart.barLayout === 'group';
+  // A `stack` or `group` block header makes it multi-series; plain `bar` (no
+  // layout header) is single-series. `stack` sums into one bar; `group` draws
+  // the series side by side via the `inner` band below.
+  const seriesCount =
+    stacked || grouped
+      ? Math.max(
+          1,
+          seriesNames.length,
+          1 + Math.max(0, ...data.map((d) => d.extraValues?.length ?? 0))
+        )
+      : 1;
   const horizontal = chart.orientation === 'horizontal';
   const multiSeries = seriesCount > 1;
   const solid = chart.solidFill === true;

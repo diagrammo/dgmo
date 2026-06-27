@@ -1,8 +1,8 @@
-bar-stacked Support Tickets by Priority
+bar Support Tickets by Priority
 x-label Month
 y-label Tickets
 
-series
+stack
   Critical red
   High orange
   Medium yellow
