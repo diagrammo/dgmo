@@ -145,6 +145,9 @@ export interface ParsedArc extends ParsedVizBase {
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
+  /** `layout arc|chord` override (#26). `chord` re-renders the same edges as a
+   *  circular chord; absent ⇒ the `arc` linear preset. */
+  layout?: 'arc' | 'chord';
 }
 
 export interface ParsedTimeline extends ParsedVizBase {
@@ -226,6 +229,7 @@ export interface ParsedVizFull extends ParsedVizBase {
   links: ArcLink[];
   arcOrder: ArcOrder;
   arcNodeGroups: ArcNodeGroup[];
+  layout?: 'arc' | 'chord';
   timelineEvents: TimelineEvent[];
   timelineGroups: TimelineGroup[];
   timelineEras: TimelineEra[];

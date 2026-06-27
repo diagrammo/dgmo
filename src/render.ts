@@ -1,4 +1,4 @@
-import { renderForExport } from './d3';
+import { renderForExport, resolveArcChordOverride } from './d3';
 import { renderDataChartD3 } from './charts-d3';
 import { getRenderCategory, parseDgmo } from './dgmo-router';
 import type { DgmoError } from './diagnostics';
@@ -137,7 +137,16 @@ export async function render(
 
   const parsed = parseDgmo(content);
   let diagnostics = parsed.diagnostics;
-  const chartType = parsed.chartType;
+  // Arc↔chord `layout` override (#26): re-emit canonical content for the other
+  // engine so each renders its own grammar. Applied here (before the category
+  // branch) so it covers BOTH the data-chart shortcut and the unified path.
+  const acOverride = resolveArcChordOverride(
+    content,
+    parsed.chartType,
+    paletteColors
+  );
+  const renderContent = acOverride?.content ?? content;
+  const chartType = acOverride?.type ?? parsed.chartType;
   const category = chartType ? getRenderCategory(chartType) : null;
 
   // Build viewState from legendState (backwards compat) or use provided viewState
@@ -158,7 +167,7 @@ export async function render(
     // All data-chart types render through the hand-built D3 engine (no ECharts).
     await acquireDom();
     try {
-      const svg = await renderDataChartD3(content, theme, paletteColors);
+      const svg = await renderDataChartD3(renderContent, theme, paletteColors);
       return { svg, diagnostics };
     } finally {
       releaseDom();
@@ -169,15 +178,21 @@ export async function render(
   await acquireDom();
   let svg: string;
   try {
-    svg = await renderForExport(content, theme, paletteColors, viewState, {
-      ...(options?.c4Level !== undefined && { c4Level: options.c4Level }),
-      ...(options?.c4System !== undefined && { c4System: options.c4System }),
-      ...(options?.c4Container !== undefined && {
-        c4Container: options.c4Container,
-      }),
-      ...(options?.tagGroup !== undefined && { tagGroup: options.tagGroup }),
-      ...(options?.mapData !== undefined && { mapData: options.mapData }),
-    });
+    svg = await renderForExport(
+      renderContent,
+      theme,
+      paletteColors,
+      viewState,
+      {
+        ...(options?.c4Level !== undefined && { c4Level: options.c4Level }),
+        ...(options?.c4System !== undefined && { c4System: options.c4System }),
+        ...(options?.c4Container !== undefined && {
+          c4Container: options.c4Container,
+        }),
+        ...(options?.tagGroup !== undefined && { tagGroup: options.tagGroup }),
+        ...(options?.mapData !== undefined && { mapData: options.mapData }),
+      }
+    );
   } finally {
     releaseDom();
   }

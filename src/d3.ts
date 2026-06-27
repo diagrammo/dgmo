@@ -25,6 +25,7 @@ import { renderSlopeChart } from './slope/renderer';
 import { parseSlope } from './slope/parser';
 import { renderArcDiagram } from './arc/renderer';
 import { parseArc } from './arc/parser';
+import { parseChord } from './data-chart-parser';
 import { renderTimeline } from './timeline/renderer';
 import { parseTimeline } from './timeline/viz-parser';
 import { renderWordCloudAsync } from './wordcloud/renderer';
@@ -135,6 +136,41 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   quadrant: exportQuadrant,
 };
 
+/**
+ * Arc↔chord `layout` override (#26): the two presets share pairwise edge data.
+ * When a `layout` directive selects the other preset, parse with the source
+ * engine (which understands its own grammar), normalize to a flat edge list, and
+ * re-emit canonical content for the target engine. Arc groups/order and chord
+ * edge direction/colors are dropped — best-effort for a pure layout switch.
+ * Returns the rewritten `{content, type}`, or null when no override applies.
+ */
+export function resolveArcChordOverride(
+  content: string,
+  detectedType: string | null,
+  palette?: PaletteColors
+): { content: string; type: string } | null {
+  const emit = (
+    kw: 'arc' | 'chord',
+    title: string | null | undefined,
+    links: ReadonlyArray<{ source: string; target: string; value: number }>
+  ): string =>
+    [
+      `${kw} ${title ?? ''}`.trimEnd(),
+      ...links.map((l) => `${l.source} -> ${l.target} ${l.value}`),
+    ].join('\n');
+
+  if (detectedType === 'arc') {
+    const p = parseArc(content, palette);
+    if (!p.error && p.layout === 'chord' && p.links.length)
+      return { content: emit('chord', p.title, p.links), type: 'chord' };
+  } else if (detectedType === 'chord') {
+    const p = parseChord(content, palette);
+    if (!p.error && p.layout === 'arc' && p.links?.length)
+      return { content: emit('arc', p.title, p.links), type: 'arc' };
+  }
+  return null;
+}
+
 export async function renderForExport(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
@@ -144,7 +180,12 @@ export async function renderForExport(
 ): Promise<string> {
   const exportMode = options?.exportMode ?? false;
   const { parseDgmoChartType } = await import('./dgmo-router');
-  const detectedType = parseDgmoChartType(content);
+  const detectedTypeRaw = parseDgmoChartType(content);
+  // Arc↔chord `layout` override (#26): re-emit canonical content for the other
+  // engine so each renders its own grammar.
+  const override = resolveArcChordOverride(content, detectedTypeRaw, palette);
+  const renderContent = override?.content ?? content;
+  const detectedType = override?.type ?? detectedTypeRaw;
   // Data-chart types (bar/line/pie/scatter/sankey/…) render via the hand-built
   // D3 engine — route them here so renderForExport is a complete export entry
   // for every chart type (the app's export path calls this directly).
@@ -152,11 +193,11 @@ export async function renderForExport(
     const { supportsD3DataChart, renderDataChartD3 } =
       await import('./charts-d3');
     if (supportsD3DataChart(detectedType)) {
-      return renderDataChartD3(content, theme, palette);
+      return renderDataChartD3(renderContent, theme, palette);
     }
   }
   const ctx: ExportContext = {
-    content,
+    content: renderContent,
     theme,
     palette,
     viewState,

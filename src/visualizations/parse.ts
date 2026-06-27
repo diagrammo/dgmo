@@ -894,6 +894,14 @@ function parseVisualizationFull(
         continue;
       }
 
+      // `layout arc|chord` (#26): render the same pairwise edges as the other
+      // preset. `chord` → circular chord; default `arc` → linear.
+      if (firstToken === 'layout') {
+        const v = restValue.toLowerCase();
+        if (v === 'arc' || v === 'chord') result.layout = v;
+        continue;
+      }
+
       if (firstToken === 'rotate') {
         const v = restValue.toLowerCase();
         if (v === 'none' || v === 'mixed' || v === 'angled') {

@@ -106,6 +106,9 @@ export interface ParsedSankey extends ParsedExtendedBase {
 export interface ParsedChord extends ParsedExtendedBase {
   type: 'chord';
   links?: ParsedSankeyLink[];
+  /** `layout arc|chord` override (#26). `arc` re-renders the same edges as a
+   *  linear arc; absent ⇒ the `chord` circular preset. */
+  layout?: 'arc' | 'chord';
 }
 
 export interface ParsedFunctionChart extends ParsedExtendedBase {
@@ -149,6 +152,7 @@ export type ParsedExtendedChart =
 export interface ParsedExtendedChartFull extends ParsedExtendedBase {
   type: ExtendedChartType;
   links?: ParsedSankeyLink[];
+  layout?: 'arc' | 'chord';
   functions?: ParsedFunction[];
   scatterPoints?: ParsedScatterPoint[];
   heatmapRows?: ParsedHeatmapRow[];
@@ -222,6 +226,7 @@ const KNOWN_EXTENDED_OPTIONS = new Set([
   'x-label',
   'y-label',
   'size-label',
+  'layout',
   'no-name',
   'no-value',
   'no-percent',
@@ -613,7 +618,12 @@ function parseExtendedChartFull(
         /^(solid-fill|no-name|no-value|no-percent|shade|no-title)$/i.test(
           trimmed
         );
-      if (!hasNumericSuffix && !isBareKeywordOption) {
+      // `layout arc|chord` (#26) is a directive, not a node — let it fall through
+      // to the valued-option handler below instead of becoming a phantom node.
+      const isLayoutDirective =
+        spaceIdx >= 0 &&
+        trimmed.substring(0, spaceIdx).toLowerCase() === 'layout';
+      if (!hasNumericSuffix && !isBareKeywordOption && !isLayoutDirective) {
         while (sankeyStack.length && sankeyStack.at(-1)!.indent >= indent) {
           sankeyStack.pop();
         }
@@ -693,6 +703,14 @@ function parseExtendedChartFull(
       }
       if (firstToken === 'size-label') {
         result.sizelabel = value;
+        continue;
+      }
+
+      // `layout arc|chord` (#26): render the same pairwise edges as the other
+      // preset. `arc` → linear arc; default `chord` → circular.
+      if (firstToken === 'layout') {
+        const v = value.toLowerCase();
+        if (v === 'arc' || v === 'chord') result.layout = v;
         continue;
       }
 
