@@ -101,7 +101,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 <!-- AI-CORE:STYLING end -->
 
 <!-- AI-CORE:TYPE-INDEX start -->
-### Chart-type index (46) — pick the type, then fetch its section
+### Chart-type index (42) — pick the type, then fetch its section
 
 | id | when to use |
 | -- | ----------- |
@@ -125,9 +125,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `event-line` | annotated narrative timeline — events on a line with descriptions, optionally not to scale (NOT the date-scaled `timeline`) |
 | `journey-map` | UX flow with emotion scores, phases, annotations |
 | `cycle` | cyclical process (PDCA, OODA, DevOps loops) |
-| `raci` | tasks × roles responsibility matrix (`R A C I`) |
-| `rasci` | RACI variant adding Support (`R A S C I`) |
-| `daci` | decision matrix (Driver, Approver, Contributor, Informed) |
+| `raci` | tasks × roles responsibility matrix; variant (RACI / RASCI / DACI) is inferred from the markers used |
 | `tech-radar` | technology adoption quadrants (adopt / trial / assess / hold) |
 | `quadrant` | 2×2 positioning matrix |
 | `pyramid` | stacked hierarchy of layers (Maslow, DIKW) |
@@ -137,11 +135,8 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
 | `bar` | categorical comparisons (multi-series via `stack` / `group`) |
-| `line` | trends over time |
-| `multi-line` | multiple-series trends over time |
-| `area` | filled line chart |
-| `pie` | part-to-whole proportions |
-| `doughnut` | ring-style pie chart |
+| `line` | trends over time (multiple series via a `series` block; filled via `fill`; dual y-axes via `y-label` / `y-right-label`) |
+| `pie` | part-to-whole proportions (ring/doughnut via `hole`) |
 | `radar` | multi-dimensional metrics |
 | `polar-area` | radial bar chart |
 | `scatter` | 2D points or bubble chart |
@@ -161,7 +156,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 <!-- AI-CORE:TYPE-INDEX end -->
 
 <!-- The grouped data-chart / matrix ids share one documented section. This map is the single source of truth for which TYPE block each id resolves to (read by gen-ai-core.mjs and the MCP slicer). -->
-<!-- TYPE-ALIASES: line=bar multi-line=bar area=bar pie=bar doughnut=bar radar=bar polar-area=bar bubble=scatter rasci=raci daci=raci -->
+<!-- TYPE-ALIASES: line=bar pie=bar radar=bar polar-area=bar bubble=scatter -->
 
 ---
 
@@ -2057,7 +2052,7 @@ marker
 <!-- TYPE:bar -->
 
 <!-- TIPS start -->
-**Styling tips:** pick the form from the question — `bar` to compare categories, `line` for a trend over time, `pie`/`doughnut` only for parts of one whole (≤6 slices); sort bars by value unless the category order is inherent (time, size); give one highlighted series a distinct color and keep the rest neutral; always label units.
+**Styling tips:** pick the form from the question — `bar` to compare categories, `line` for a trend over time, `pie` only for parts of one whole (≤6 slices); sort bars by value unless the category order is inherent (time, size); give one highlighted series a distinct color and keep the rest neutral; always label units.
 <!-- TIPS end -->
 
 ### Conventions shared across all data charts
@@ -2086,7 +2081,7 @@ series Cloud blue, Legacy red ⚠  tolerated; prefer the block
 
 Parsers accept either form. The rules above are authoring guidance.
 
-### 15.1 Simple Charts (bar, line, pie, doughnut, area, polar-area, radar)
+### 15.1 Simple Charts (bar, line, pie, polar-area, radar)
 
 **Declaration:** `bar [Title]`, `line [Title]`, etc.
 
@@ -2102,7 +2097,7 @@ Parsers accept either form. The rules above are authoring guidance.
     Legacy Suite red
   ```
 
-- **line / area** — use a `series` block (every series is plotted):
+- **line** — use a `series` block (every series is plotted):
 
   ```
   series
@@ -2128,15 +2123,16 @@ title My Chart
 x-label X Label
 y-label Y Label
 orientation-horizontal   // bar: horizontal bars
-fill                     // line: fill under the line (= the `area` keyword)
+fill                     // line: fill the area under the line
 hole                     // pie: doughnut ring (optional ratio, e.g. `hole 0.5`)
-no-center-total          // pie/doughnut: hide the center total
+no-center-total          // pie: hide the center total (shown by default when `hole` is set)
 ```
 
 - `orientation-horizontal` (bar; default is vertical bars)
-- `fill` (line; renders the filled area form)
-- `hole` (pie; renders the doughnut ring — optional `hole <0–0.9>`. The value
-  total shows in the center by default; suppress with `no-center-total`)
+- `fill` (line; fills the area under the line)
+- `hole` (pie; renders the doughnut ring — bare `hole`, or `hole <0–0.9>` for a
+  custom inner-radius ratio. The value total shows in the center by default;
+  suppress with `no-center-total`)
 - Legend is always shown (no option needed)
 
 **Value-display flags — show-everything default.** Every renderable part is on by default. Suppress with `no-*`:
@@ -2147,22 +2143,22 @@ no-center-total          // pie/doughnut: hide the center total
 
 Each chart honors the subset of flags that has a renderable atom on it:
 
-- pie / doughnut / polar-area: all three
+- pie / polar-area: all three
 - funnel: `no-name`, `no-value`
-- bar / line / multi-line / area / radar: `no-value`
+- bar / line / radar: `no-value`
 - scatter: `no-name`
 - heatmap: `no-value`
 - sankey, chord, arc, slope, quadrant, venn: name-suppression deferred — names render by default and cannot yet be hidden
 
-`no-percent` on a non-pie-family chart is silently ignored (the chart has no percent atom). Cartesian charts (bar, line, area) now render values on each bar / point by default.
+`no-percent` on a non-pie-family chart is silently ignored (the chart has no percent atom). Cartesian charts (bar, line) render values on each bar / point by default.
 
-**Eras (line/area only):**
+**Eras (line only):**
 
 ```
 era Day 1 -> Day 3 Rough Seas red
 ```
 
-**Dual y-axes (line / multi-line):** to compare two metrics with unrelated units on one chart, group the `series` block under `y-label` (left) and `y-right-label` (right) headers — series indented under each header bind to that axis, which auto-scales independently:
+**Dual y-axes (line):** to compare two metrics with unrelated units on one chart, group the `series` block under `y-label` (left) and `y-right-label` (right) headers — series indented under each header bind to that axis, which auto-scales independently:
 
 ```
 line Oil Price vs Strategic Reserve
@@ -2178,6 +2174,8 @@ series
 ```
 
 The right axis may hold more than one series; data rows stay positional across both groups (one value per series, document order). A flat `series` block is single-axis as before. Combo bar+line on dual axes is not yet supported — every series renders as a line.
+
+> **Migrated in 1.0:** the former standalone `area`, `multi-line`, and `doughnut` chart types were removed. Use `line` + `fill` (area), `line` + a `series` block (multi-line), and `pie` + `hole` (doughnut). `bar-stacked` became `bar` + a `stack` header.
 
 ### 15.2 Scatter / Bubble Charts
 
@@ -3502,13 +3500,13 @@ In the desktop app a block diagram is interactive: click a container header to c
 **Styling tips:** Put each task at indent-0 with its `Role: A/R/C/I` cells indented one level under it — never nest tasks inside the `roles` block (it swallows them). Give every task exactly one Accountable (ideally one Responsible) and keep roles small (≤~6) so the matrix stays scannable.
 <!-- TIPS end -->
 
-A tasks × roles responsibility matrix with author-time linting. **One chart type — `raci` — covers all three variants.** Variant is inferred from the markers used; an optional `variant-*` directive locks it explicitly.
+A tasks × roles responsibility matrix with author-time linting. **One chart type — `raci` — covers all three variants.** The variant is **inferred from the markers used**: any `D` marker → DACI, any `S` marker → RASCI, otherwise RACI. There is no directive to lock a variant; just use the markers you want. Using both `D` and `S` in one chart is an error (`E_RACI_MIXED_VARIANTS`).
 
-| Variant | Marker alphabet | Constraint                                   |
-| ------- | --------------- | -------------------------------------------- |
-| RACI    | `R A C I`       | Exactly one Accountable per task             |
-| RASCI   | `R A S C I`     | Exactly one Accountable per task             |
-| DACI    | `D A C I`       | Exactly one Driver and one Approver per task |
+| Variant | Marker alphabet | Inferred when | Constraint                                   |
+| ------- | --------------- | ------------- | -------------------------------------------- |
+| RACI    | `R A C I`       | no `D` or `S` | Exactly one Accountable per task             |
+| RASCI   | `R A S C I`     | any `S`       | Exactly one Accountable per task             |
+| DACI    | `D A C I`       | any `D`       | Exactly one Driver and one Approver per task |
 
 ### Declaration
 
@@ -3567,11 +3565,10 @@ Pick destination
 
 ### Directives
 
-| Directive                                         | Effect                                                                                                                                                                                                                      |
-| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `variant-raci` / `variant-rasci` / `variant-daci` | Lock the chart to a specific variant. Markers outside the alphabet error. At most one per chart.                                                                                                                            |
-| `roles`                                           | Declare column order. Inline (`roles Cap, QM, Bos`) is name-only; the indented block form supports per-role color via the trailing-token form (`Cap red`). When present, unknown roles in tasks emit `W_RACI_UNKNOWN_ROLE`. |
-| `palette`, `theme`, `active-tag`                  | Universal options.                                                                                                                                                                                                          |
+| Directive                        | Effect                                                                                                                                                                                                                      |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `roles`                          | Declare column order. Inline (`roles Cap, QM, Bos`) is name-only; the indented block form supports per-role color via the trailing-token form (`Cap red`). When present, unknown roles in tasks emit `W_RACI_UNKNOWN_ROLE`. |
+| `palette`, `theme`, `active-tag` | Universal options.                                                                                                                                                                                                          |
 
 ### Phase metadata
 
