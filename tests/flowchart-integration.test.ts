@@ -54,8 +54,10 @@ describe('flowchart routing', () => {
     expect(getAllChartTypes()).toContain('flowchart');
   });
 
-  it('chart type count is 50', () => {
-    expect(getAllChartTypes().length).toBe(50);
+  it('surfaced chart type count is 44', () => {
+    // Consolidation #23-27 de-surfaced doughnut, area, multi-line, rasci, daci
+    // (retained as aliases) and hard-removed bar-stacked: 50 → 44.
+    expect(getAllChartTypes().length).toBe(44);
   });
 });
 

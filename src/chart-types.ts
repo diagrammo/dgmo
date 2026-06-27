@@ -104,14 +104,6 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     description: 'Tasks × roles responsibility matrix with constraint linting',
   },
   {
-    id: 'rasci',
-    description: 'RACI variant adding Support (R A S C I)',
-  },
-  {
-    id: 'daci',
-    description: 'Decision matrix with Driver, Approver, Contributor, Informed',
-  },
-  {
     id: 'tech-radar',
     description: 'Technology adoption quadrants (adopt/trial/assess/hold)',
   },
@@ -207,20 +199,8 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     fallback: true,
   },
   {
-    id: 'multi-line',
-    description: 'Multiple series trends over time',
-  },
-  {
-    id: 'area',
-    description: 'Filled line chart',
-  },
-  {
     id: 'pie',
     description: 'Part-to-whole proportions',
-  },
-  {
-    id: 'doughnut',
-    description: 'Ring-style pie chart',
   },
   {
     id: 'radar',
@@ -229,10 +209,6 @@ export const chartTypes: readonly ChartTypeMeta[] = [
   {
     id: 'polar-area',
     description: 'Radial bar chart',
-  },
-  {
-    id: 'bar-stacked',
-    description: 'Multi-series categorical',
   },
   {
     id: 'scatter',
@@ -251,3 +227,25 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     fallback: true,
   },
 ] as const;
+
+// ============================================================
+// Retired type NAMES — kept as silent parse aliases.
+// ============================================================
+//
+// These keywords still parse and render IDENTICALLY to before, but no longer
+// appear in the surfaced `chartTypes` list, `list_chart_types`, completion, or
+// chart-type selection (consolidation decisions #23/#25/#27). Each keeps its own
+// registry descriptor in `chart-type-registry.ts` (so render behavior is
+// unchanged); this map only records the canonical parent for docs + selection
+// lineage. The canonical authoring form is the parent + a flag
+// (`pie` + `hole`, `line` + `fill`/`series`); the alias keyword keeps working.
+//
+// NOTE: `bar-stacked` is deliberately NOT an alias — it was hard-removed
+// (decision #24). See `REMOVED_TYPES` in `dgmo-router.ts` for its migration error.
+export const CHART_TYPE_ALIASES: Readonly<Record<string, string>> = {
+  doughnut: 'pie',
+  area: 'line',
+  'multi-line': 'line',
+  rasci: 'raci',
+  daci: 'raci',
+};

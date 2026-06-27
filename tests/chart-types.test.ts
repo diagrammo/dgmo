@@ -5,7 +5,7 @@
 // This file guards the data model the render library actually owns.
 
 import { describe, it, expect } from 'vitest';
-import { chartTypes } from '../src/chart-types';
+import { chartTypes, CHART_TYPE_ALIASES } from '../src/chart-types';
 import { knownChartTypeIds, getAllChartTypes } from '../src/dgmo-router';
 
 describe('chartTypes data integrity', () => {
@@ -37,10 +37,16 @@ describe('chartTypes data integrity', () => {
 });
 
 describe('parser registry cross-check', () => {
-  it('chartTypes ids and knownChartTypeIds cover the same set', () => {
-    expect(new Set(chartTypes.map((c) => c.id))).toEqual(
-      new Set(knownChartTypeIds)
-    );
+  it('chartTypes ids plus aliases cover the same set as knownChartTypeIds', () => {
+    // knownChartTypeIds is derived from the dispatch registry, which includes the
+    // retained aliases (doughnut, area, multi-line, rasci, daci) that are no
+    // longer in the surfaced `chartTypes` list.
+    expect(
+      new Set([
+        ...chartTypes.map((c) => c.id),
+        ...Object.keys(CHART_TYPE_ALIASES),
+      ])
+    ).toEqual(new Set(knownChartTypeIds));
   });
 
   it('getAllChartTypes() returns chartTypes in tier order', () => {

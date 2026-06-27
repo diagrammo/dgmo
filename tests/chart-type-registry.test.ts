@@ -7,7 +7,7 @@
 // (empty SVG) or sizing (degraded dimensions) time.
 
 import { describe, it, expect } from 'vitest';
-import { chartTypes } from '../src/chart-types';
+import { chartTypes, CHART_TYPE_ALIASES } from '../src/chart-types';
 import {
   knownChartTypeIds,
   getRenderCategory,
@@ -77,7 +77,6 @@ const EXPECTED_CATEGORY: Record<
   area: 'data-chart',
   'polar-area': 'data-chart',
   radar: 'data-chart',
-  'bar-stacked': 'data-chart',
   'multi-line': 'data-chart',
   scatter: 'data-chart',
   sankey: 'data-chart',
@@ -147,9 +146,15 @@ const EXPECTED_EXTENDED_IDS = [
 ].sort();
 
 describe('chart-type registry — single source of truth', () => {
-  it('covers exactly the chartTypes id set (and the derived parser map)', () => {
+  it('covers exactly the surfaced chartTypes plus retained aliases (and the derived parser map)', () => {
     const registryIds = new Set(CHART_TYPE_REGISTRY.map((d) => d.id));
-    expect(registryIds).toEqual(new Set(chartTypes.map((c) => c.id)));
+    // The registry dispatches surfaced types AND retained aliases (doughnut,
+    // area, multi-line, rasci, daci) — the latter parse/render but aren't listed.
+    const surfacedPlusAliases = new Set([
+      ...chartTypes.map((c) => c.id),
+      ...Object.keys(CHART_TYPE_ALIASES),
+    ]);
+    expect(registryIds).toEqual(surfacedPlusAliases);
     expect(registryIds).toEqual(new Set(knownChartTypeIds));
   });
 

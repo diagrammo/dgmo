@@ -175,6 +175,26 @@ export const knownChartTypeIds: readonly string[] = chartTypeParsers.map(
 
 const PARSER_BY_ID: Map<string, ParseFn> = new Map(chartTypeParsers);
 
+/**
+ * Hard-removed type names that are still RECOGNIZED on the first line (so we can
+ * give a precise migration error instead of a confusing "no chart type / unknown"
+ * message), but no longer parse or render. Consolidation decision #24.
+ */
+const REMOVED_TYPES: Readonly<Record<string, string>> = {
+  'bar-stacked':
+    "The 'bar-stacked' chart type was removed. Use 'bar' with a 'stack' block header (or 'group' for clustered bars). See the bar guide.",
+};
+
+/** 1-based line number of the first non-empty, non-comment line (the type decl). */
+function firstContentLineNumber(content: string): number {
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i]!.trim();
+    if (t && !t.startsWith('//')) return i + 1;
+  }
+  return 1;
+}
+
 /** All known chart type names for colon-pattern detection. */
 const ALL_KNOWN_TYPES: ReadonlySet<string> = new Set(knownChartTypeIds);
 
@@ -201,6 +221,19 @@ function parseDgmoUndeduped(content: string): {
   chartType: string | null;
 } {
   const chartType = parseDgmoChartType(content);
+
+  // Hard-removed types (e.g. bar-stacked) — emit a precise migration error.
+  if (chartType && REMOVED_TYPES[chartType]) {
+    return {
+      diagnostics: [
+        makeDgmoError(
+          firstContentLineNumber(content),
+          REMOVED_TYPES[chartType]!
+        ),
+      ],
+      chartType,
+    };
+  }
 
   if (!chartType) {
     // Check for common mistake: colon in chart type declaration (e.g. "bar: Sales")
