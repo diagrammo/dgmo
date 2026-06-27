@@ -451,22 +451,13 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
     measure: measureRaci,
     minDims: minDimsRaci,
   },
-  { id: 'rasci', category: 'diagram', parse: parseRaci, measure: measureRaci },
-  { id: 'daci', category: 'diagram', parse: parseRaci, measure: measureRaci },
 
   // ── Standard ECharts charts (parseChart) ──────────────────
   { id: 'bar', category: 'data-chart', parse: parseChart },
   { id: 'line', category: 'data-chart', parse: parseChart },
-  { id: 'multi-line', category: 'data-chart', parse: parseChart },
-  { id: 'area', category: 'data-chart', parse: parseChart },
   { id: 'pie', category: 'data-chart', parse: parseChart },
-  { id: 'doughnut', category: 'data-chart', parse: parseChart },
   { id: 'radar', category: 'data-chart', parse: parseChart },
   { id: 'polar-area', category: 'data-chart', parse: parseChart },
-  // NOTE: `doughnut`, `area`, `multi-line` are retained ALIASES (parse via
-  // parseChart, render as before) but are no longer in the surfaced `chartTypes`
-  // list — see CHART_TYPE_ALIASES. `bar-stacked` was hard-removed (decision #24):
-  // no descriptor here; `REMOVED_TYPES` in dgmo-router.ts emits its migration error.
 
   // ── Extended ECharts charts — own per-type parser door (Story 109.2a) ──
   { id: 'scatter', category: 'data-chart', parse: parseScatter },

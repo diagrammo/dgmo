@@ -20,7 +20,8 @@ Jan 12 18
 Feb 15 22
 Mar 14 25`;
 
-const AREA = `area Cumulative Signups
+const AREA = `line Cumulative Signups
+fill
 x-label Week
 y-label Signups
 

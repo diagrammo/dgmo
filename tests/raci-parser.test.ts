@@ -145,15 +145,19 @@ describe('parseRaci — constraint linting', () => {
     expect(codes(r)).toContain(RACI_ERROR_CODES.DACI_MULTI_DRIVER);
   });
 
-  it('DACI (locked): two A markers fires E_DACI_MULTI_ACCOUNTABLE', () => {
-    // No D marker, so inference would land on RACI; lock to DACI
-    // explicitly so the DACI-specific rule fires.
-    const r = parseRaci(`raci\nvariant-daci\n\nDecision\n  PM: A\n  Cap: A`);
+  it('DACI (inferred): two A markers fires E_DACI_MULTI_ACCOUNTABLE', () => {
+    // A D marker makes the chart DACI by inference; two A's then break the
+    // DACI single-accountable rule.
+    const r = parseRaci(`raci\n\nDecision\n  Lead: D\n  PM: A\n  Cap: A`);
     expect(codes(r)).toContain(RACI_ERROR_CODES.DACI_MULTI_ACCOUNTABLE);
   });
 
-  it('DACI (locked): missing-D and missing-A both fire as warnings', () => {
-    const r = parseRaci(`raci\nvariant-daci\n\nDecision\n  PM: C`);
+  it('DACI (inferred): a decision missing D and A both fire as warnings', () => {
+    // The first decision's D marker makes the whole chart DACI; the second
+    // decision lacks both a Driver and an Approver.
+    const r = parseRaci(
+      `raci\n\nPick Vendor\n  Lead: D\n  PM: A\nSign Off\n  Cap: C`
+    );
     expect(codes(r)).toContain(RACI_WARNING_CODES.DACI_MISSING_DRIVER);
     expect(codes(r)).toContain(RACI_WARNING_CODES.DACI_MISSING_ACCOUNTABLE);
   });
@@ -163,24 +167,14 @@ describe('parseRaci — constraint linting', () => {
     expect(codes(r)).toContain(RACI_ERROR_CODES.INVALID_MARKER);
   });
 
-  it('S is invalid when variant-raci is locked', () => {
-    const r = parseRaci(`raci\nvariant-raci\n\nTask\n  Cap: S`);
-    expect(codes(r)).toContain(RACI_ERROR_CODES.INVALID_MARKER);
-  });
-
   it('S is valid when inference resolves variant to RASCI', () => {
     const r = parseRaci(`raci\n\nTask\n  Cap: A\n  Crew: R\n  Bosun: S`);
     expect(codes(r)).not.toContain(RACI_ERROR_CODES.INVALID_MARKER);
   });
 
-  it('mixed D and S without a variant lock fires E_RACI_MIXED_VARIANTS', () => {
+  it('mixed D and S markers fires E_RACI_MIXED_VARIANTS', () => {
     const r = parseRaci(`raci\n\nTask\n  Cap: D\n  Crew: S`);
     expect(codes(r)).toContain(RACI_ERROR_CODES.MIXED_VARIANTS);
-  });
-
-  it('two variant-* directives in one chart fire E_RACI_DUPLICATE_VARIANT', () => {
-    const r = parseRaci(`raci\nvariant-raci\nvariant-daci\n\nTask\n  Cap: A`);
-    expect(codes(r)).toContain(RACI_ERROR_CODES.DUPLICATE_VARIANT);
   });
 
   it('emits E_RACI_UNEXPECTED_LINE for free-text after first role assignment', () => {
@@ -314,17 +308,6 @@ describe('parseRaci — forgiving identity', () => {
 // ============================================================
 
 describe('parseRaci — variant resolution', () => {
-  it('variant-rasci lock forces RASCI even with no S markers', () => {
-    const r = parseRaci(`raci
-variant-rasci
-
-Task
-  Cap: A
-  Crew: R`);
-    expect(r.variant).toBe('rasci');
-    expect(codes(r)).not.toContain(RACI_ERROR_CODES.INVALID_MARKER);
-  });
-
   it('inference defaults to RACI when no D or S marker is present', () => {
     expect(parseRaci(`raci\n\nTask\n  Cap: A`).variant).toBe('raci');
   });
@@ -339,28 +322,14 @@ Task
     expect(parseRaci(`raci\n\nTask\n  Cap: D\n  QM: A`).variant).toBe('daci');
   });
 
-  it('rasci as chart-type id locks the RASCI variant', () => {
-    const r = parseRaci(`rasci\n\nTask\n  Cap: A\n  Crew: R`);
-    expect(r.error).toBeNull();
-    expect(r.variant).toBe('rasci');
-    expect(codes(r)).not.toContain(RACI_ERROR_CODES.INVALID_MARKER);
+  it('rejects the removed rasci chart-type keyword on the first line', () => {
+    expect(
+      parseRaci(`rasci\n\nTask\n  Cap: A\n  Crew: R`).error
+    ).not.toBeNull();
   });
 
-  it('daci as chart-type id locks the DACI variant', () => {
-    const r = parseRaci(`daci\n\nDecide\n  PM: D\n  Cap: A`);
-    expect(r.error).toBeNull();
-    expect(r.variant).toBe('daci');
-  });
-
-  it('matching variant directive after rasci chart type is silent', () => {
-    const r = parseRaci(`rasci\nvariant-rasci\n\nTask\n  Cap: A`);
-    expect(r.variant).toBe('rasci');
-    expect(codes(r)).not.toContain(RACI_ERROR_CODES.DUPLICATE_VARIANT);
-  });
-
-  it('conflicting variant directive after rasci chart type errors', () => {
-    const r = parseRaci(`rasci\nvariant-daci\n\nTask\n  Cap: A`);
-    expect(codes(r)).toContain(RACI_ERROR_CODES.DUPLICATE_VARIANT);
+  it('rejects the removed daci chart-type keyword on the first line', () => {
+    expect(parseRaci(`daci\n\nDecide\n  PM: D\n  Cap: A`).error).not.toBeNull();
   });
 
   it('rejects unrelated chart-type ids on the first line', () => {

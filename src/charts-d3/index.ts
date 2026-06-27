@@ -3,7 +3,7 @@
 //
 // Drop-in alternative to the ECharts path. render() routes here when
 // `engine: 'd3'` is requested; everything else still flows through echarts.ts.
-// Tier 1: bar/bar-stacked/line/area/pie/doughnut (parseChart).
+// Tier 1: bar/line/pie (parseChart).
 // Tier 2: radar/polar-area (parseChart) + funnel/heatmap/scatter
 // (parseExtendedChart).
 // ============================================================
@@ -44,16 +44,7 @@ import { renderChord } from './chord';
 import { renderFunction } from './function';
 
 /** Types parsed by parseChart → ParsedChart. */
-const STANDARD = new Set([
-  'bar',
-  'line',
-  'multi-line',
-  'area',
-  'pie',
-  'doughnut',
-  'radar',
-  'polar-area',
-]);
+const STANDARD = new Set(['bar', 'line', 'pie', 'radar', 'polar-area']);
 /** Types parsed by parseExtendedChart → ParsedExtendedChart. */
 const EXTENDED = new Set([
   'funnel',
@@ -148,7 +139,6 @@ function renderInto(
         );
         return true;
       case 'line':
-      case 'area':
         renderLine(
           s,
           std,
@@ -164,7 +154,6 @@ function renderInto(
         );
         return true;
       case 'pie':
-      case 'doughnut':
         renderPie(
           s,
           std,

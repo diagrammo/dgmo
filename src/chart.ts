@@ -2,14 +2,7 @@
 // Types
 // ============================================================
 
-export type ChartType =
-  | 'bar'
-  | 'line'
-  | 'pie'
-  | 'doughnut'
-  | 'area'
-  | 'polar-area'
-  | 'radar';
+export type ChartType = 'bar' | 'line' | 'pie' | 'polar-area' | 'radar';
 
 export interface ChartDataPoint {
   label: string;
@@ -53,15 +46,13 @@ export interface ParsedChart {
    *  (consolidation #24). Absent ⇒ single-series bar. Drives stacked vs
    *  clustered rendering in `charts-d3/bar.ts`. */
   barLayout?: 'stack' | 'group';
-  /** Pie doughnut-hole inner-radius ratio (0–0.9), set by a `hole` directive
-   *  (bare ⇒ default). Absent on `pie` ⇒ solid pie; `doughnut` alias implies a
-   *  default hole. (#23) */
+  /** Pie hole inner-radius ratio (0–0.9), set by a `hole` directive
+   *  (bare ⇒ default). Absent ⇒ solid pie. (#23) */
   hole?: number;
-  /** Suppress the doughnut center total (bare `no-center-total`). The total
+  /** Suppress the pie center total (bare `no-center-total`). The total
    *  shows by default whenever a hole is present. (#23) */
   noCenterTotal?: boolean;
-  /** Render a line chart filled, i.e. as an area (bare `fill`). The `area` alias
-   *  implies this. (#25) */
+  /** Render a line chart filled, i.e. as an area (bare `fill`). (#25) */
   fill?: boolean;
   orientation?: 'horizontal' | 'vertical';
   color?: string;
@@ -107,15 +98,9 @@ const VALID_TYPES = new Set<ChartType>([
   'bar',
   'line',
   'pie',
-  'doughnut',
-  'area',
   'polar-area',
   'radar',
 ]);
-
-const TYPE_ALIASES: Record<string, ChartType> = {
-  'multi-line': 'line',
-};
 
 /** Known option keywords for the simple chart parser. */
 const KNOWN_OPTIONS = new Set([
@@ -274,7 +259,7 @@ export function parseChart(
       const firstLine = parseFirstLine(trimmed);
       if (firstLine) {
         const raw = firstLine.chartType.toLowerCase();
-        const chartType = (TYPE_ALIASES[raw] ?? raw) as ChartType;
+        const chartType = raw as ChartType;
         if (VALID_TYPES.has(chartType)) {
           result.type = chartType;
           if (firstLine.title) {
@@ -369,7 +354,7 @@ export function parseChart(
 
       if (firstToken === 'chart') {
         const raw = value.toLowerCase();
-        const chartType = (TYPE_ALIASES[raw] ?? raw) as ChartType;
+        const chartType = raw as ChartType;
         if (VALID_TYPES.has(chartType)) {
           result.type = chartType;
         } else {
@@ -595,8 +580,8 @@ export function parseChart(
     });
   }
 
-  // Eras are only valid for line, multi-line (aliased to 'line'), and area chart types
-  if (result.type !== 'line' && result.type !== 'area') {
+  // Eras are only valid for line charts (incl. filled/area and multi-series).
+  if (result.type !== 'line') {
     result.eras = [];
   }
 

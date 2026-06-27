@@ -262,9 +262,6 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'color', category: 'directive' },
   { token: 'no-notes', category: 'directive' },
   // ── RACI ─────────────────────────────────────────────────
-  { token: 'variant-raci', category: 'directive' },
-  { token: 'variant-rasci', category: 'directive' },
-  { token: 'variant-daci', category: 'directive' },
   { token: 'roles', category: 'directive' },
   // ── Cycle ────────────────────────────────────────────────
   { token: 'direction-counterclockwise', category: 'directive' },

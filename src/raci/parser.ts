@@ -55,41 +55,13 @@ import type {
   RaciPhase,
   RaciRoleAssignment,
   RaciTask,
-  RaciVariant,
 } from './types';
 import type { Writable } from '../utils/brand';
-
-/**
- * Chart-type ids accepted on the first line. All three route here via the
- * router; writing `rasci` or `daci` as line 1 is equivalent to `raci` plus a
- * `variant-rasci` / `variant-daci` lock directive.
- */
-const RACI_CHART_TYPE_IDS: ReadonlySet<string> = new Set([
-  'raci',
-  'rasci',
-  'daci',
-]);
-
-/** First-line chart-type ids that imply a variant lock. */
-const CHART_TYPE_VARIANT_LOCK: Record<string, RaciVariant> = {
-  rasci: 'rasci',
-  daci: 'daci',
-};
-
-/** Variant lock directives — hyphenated bare keywords, one per variant. */
-const VARIANT_LOCK_DIRECTIVES: Record<string, RaciVariant> = {
-  'variant-raci': 'raci',
-  'variant-rasci': 'rasci',
-  'variant-daci': 'daci',
-};
 
 /** Header options that take a value (`key value`). */
 const KNOWN_OPTIONS = new Set(['roles', 'palette', 'theme', 'active-tag']);
 /** Header options that are bare booleans (presence = on). */
-const KNOWN_BOOLEANS = new Set<string>([
-  'no-title',
-  ...Object.keys(VARIANT_LOCK_DIRECTIVES),
-]);
+const KNOWN_BOOLEANS = new Set<string>(['no-title']);
 const REMOVED_BOOLEANS: Record<string, string> = {
   'no-rule-enforcement':
     '"no-rule-enforcement" has been removed — RACI validation is always active.',
@@ -201,38 +173,16 @@ export function parseRaci(
 
   let i = 0;
 
-  // Variant resolution happens after parse:
-  //   1. If a `variant-*` lock directive was present → use it.
-  //   2. Else infer from markers used (D → daci, S → rasci, else raci).
-  //   3. If both D and S without a lock → E_RACI_MIXED_VARIANTS.
-  // Writing `rasci` or `daci` as the first-line chart type also sets the
-  // lock, equivalent to a `variant-rasci` / `variant-daci` directive on
-  // line 1.
-  let lockedVariant: RaciVariant | null = null;
-  let lockedVariantLine = 0;
-
+  // Variant is resolved after parse purely from the markers used
+  // (D → daci, S → rasci, else raci). Both D and S → E_RACI_MIXED_VARIANTS.
   // First non-empty / non-comment line: chart type + optional title.
   for (; i < lines.length; i++) {
     // In-bounds by loop guard (i < lines.length).
     const trimmed = lines[i]!.trim();
     if (!trimmed || trimmed.startsWith('//')) continue;
     const firstLine = parseFirstLine(trimmed);
-    if (!firstLine) {
-      return fail(
-        i + 1,
-        'Expected chart type "raci", "rasci", or "daci" on the first line.'
-      );
-    }
-    if (!RACI_CHART_TYPE_IDS.has(firstLine.chartType)) {
-      let msg = `Expected chart type "raci", "rasci", or "daci", got "${firstLine.chartType}"`;
-      const hint = suggest(firstLine.chartType, ['raci', 'rasci', 'daci']);
-      if (hint) msg += `. ${hint}`;
-      return fail(i + 1, msg);
-    }
-    const impliedVariant = CHART_TYPE_VARIANT_LOCK[firstLine.chartType];
-    if (impliedVariant) {
-      lockedVariant = impliedVariant;
-      lockedVariantLine = i + 1;
+    if (firstLine?.chartType !== 'raci') {
+      return fail(i + 1, 'Expected chart type "raci" on the first line.');
     }
     if (firstLine.title) {
       result.title = firstLine.title;
@@ -451,26 +401,6 @@ export function parseRaci(
         continue;
       }
       if (KNOWN_BOOLEANS.has(lower)) {
-        if (lower in VARIANT_LOCK_DIRECTIVES) {
-          // In-bounds: guarded by `lower in VARIANT_LOCK_DIRECTIVES`.
-          const v = VARIANT_LOCK_DIRECTIVES[lower]!;
-          if (lockedVariant !== null) {
-            // Redundant restatement of the same lock is fine; conflicting
-            // locks (e.g. `rasci` chart type + `variant-daci`) error out.
-            if (lockedVariant !== v) {
-              errorAt(
-                lineNumber,
-                `Conflicting variant directive '${lower}' — chart already locked to '${lockedVariant}' on line ${lockedVariantLine}.`,
-                RACI_ERROR_CODES.DUPLICATE_VARIANT
-              );
-            }
-          } else {
-            lockedVariant = v;
-            lockedVariantLine = lineNumber;
-          }
-          options[lower] = 'on';
-          continue;
-        }
         options[lower] = 'on';
         continue;
       }
@@ -721,11 +651,10 @@ export function parseRaci(
 
   // ── Variant resolution ───────────────────────────────────────
   //
-  // 1. Explicit lock from a `variant-*` directive wins.
-  // 2. Otherwise infer from the markers actually used.
-  // 3. Mixed `D` + `S` without a lock is unresolvable → MIXED_VARIANTS.
-  //    Falls back to RASCI for downstream rule application so cells
-  //    still render, but the chart-level error makes the conflict loud.
+  // Inferred purely from the markers actually used. Mixed `D` + `S` is
+  // unresolvable → MIXED_VARIANTS. Falls back to RASCI for downstream rule
+  // application so cells still render, but the chart-level error makes the
+  // conflict loud.
 
   const usedMarkers: RaciMarker[] = [];
   for (const task of allTasks(result)) {
@@ -734,21 +663,17 @@ export function parseRaci(
     }
   }
 
-  if (lockedVariant !== null) {
-    result.variant = lockedVariant;
+  const inferred = inferVariant(usedMarkers);
+  if (inferred === null) {
+    const titleLine = result.titleLineNumber ?? 1;
+    errorAt(
+      titleLine,
+      `Chart uses both 'D' and 'S' markers but neither RASCI nor DACI covers both. Use only RACI/RASCI markers (R, A, S, C, I) or only DACI markers (D, A, C, I).`,
+      RACI_ERROR_CODES.MIXED_VARIANTS
+    );
+    result.variant = 'rasci';
   } else {
-    const inferred = inferVariant(usedMarkers);
-    if (inferred === null) {
-      const titleLine = result.titleLineNumber ?? 1;
-      errorAt(
-        titleLine,
-        `Chart uses both 'D' and 'S' markers but neither RASCI nor DACI covers both. Add a 'variant-rasci' or 'variant-daci' directive to lock the variant explicitly.`,
-        RACI_ERROR_CODES.MIXED_VARIANTS
-      );
-      result.variant = 'rasci';
-    } else {
-      result.variant = inferred;
-    }
+    result.variant = inferred;
   }
 
   // ── Marker validation against the resolved variant ───────────

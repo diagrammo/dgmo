@@ -21,19 +21,15 @@ export const fixture: ConformanceFixture = {
   structuralKeywords: ['roles'],
   specSection: '24A',
   firstLineKeyword: 'raci',
-  // `rasci` and `daci` are also valid first-line keywords — writing either as
-  // line 1 implicitly locks the variant (equivalent to `raci` + `variant-*`).
+  // There is now ONE `raci` chart type; the variant (RACI/RASCI/DACI) is
+  // inferred from the markers used (S → RASCI, D → DACI) — there are no
+  // `variant-*` directives, and `rasci`/`daci` are no longer first-line
+  // keywords.
   notFirstLineKeywords: [],
 
   // Directives the spec documents (palette/theme are universal — included
   // automatically by the harness for every chart type).
-  directives: [
-    'variant-raci',
-    'variant-rasci',
-    'variant-daci',
-    'roles',
-    'active-tag',
-  ],
+  directives: ['roles', 'active-tag'],
 
   // Pipe metadata, scoped by what the line is attached to. RACI uses pipe
   // metadata in two contexts:

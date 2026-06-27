@@ -34,12 +34,8 @@ export const ALL_CHART_TYPES = new Set([
   'bar',
   'line',
   'pie',
-  'doughnut',
-  'area',
   'polar-area',
   'radar',
-  'bar-stacked',
-  'multi-line',
   'scatter',
   'sankey',
   'chord',
@@ -80,8 +76,6 @@ export const ALL_CHART_TYPES = new Set([
   'treemap',
   'block',
   'raci',
-  'rasci',
-  'daci',
   'map',
 ]);
 

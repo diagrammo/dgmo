@@ -965,7 +965,7 @@ function parseExtendedChartFull(
 // ============================================================
 
 /**
- * Extracts legend group data from standard chart types (multi-line, bar-stacked).
+ * Extracts legend group data from standard chart types (multi-series line/bar).
  * Returns empty array if chart has no multi-series legend.
  */
 export function getSimpleChartLegendGroups(

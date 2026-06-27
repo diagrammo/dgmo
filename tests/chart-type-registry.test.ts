@@ -7,7 +7,7 @@
 // (empty SVG) or sizing (degraded dimensions) time.
 
 import { describe, it, expect } from 'vitest';
-import { chartTypes, CHART_TYPE_ALIASES } from '../src/chart-types';
+import { chartTypes } from '../src/chart-types';
 import {
   knownChartTypeIds,
   getRenderCategory,
@@ -52,8 +52,6 @@ const EXPECTED_CATEGORY: Record<
   wireframe: 'diagram',
   'journey-map': 'diagram',
   raci: 'diagram',
-  rasci: 'diagram',
-  daci: 'diagram',
   // visualization (12)
   slope: 'visualization',
   wordcloud: 'visualization',
@@ -73,11 +71,8 @@ const EXPECTED_CATEGORY: Record<
   bar: 'data-chart',
   line: 'data-chart',
   pie: 'data-chart',
-  doughnut: 'data-chart',
-  area: 'data-chart',
   'polar-area': 'data-chart',
   radar: 'data-chart',
-  'multi-line': 'data-chart',
   scatter: 'data-chart',
   sankey: 'data-chart',
   chord: 'data-chart',
@@ -90,7 +85,6 @@ const EXPECTED_CATEGORY: Record<
 const EXPECTED_MEASURE_IDS = [
   'arc',
   'class',
-  'daci',
   'er',
   'event-line',
   'flowchart',
@@ -102,7 +96,6 @@ const EXPECTED_MEASURE_IDS = [
   'org',
   'pert',
   'raci',
-  'rasci',
   'sequence',
   'state',
   'swimlane',
@@ -146,15 +139,13 @@ const EXPECTED_EXTENDED_IDS = [
 ].sort();
 
 describe('chart-type registry — single source of truth', () => {
-  it('covers exactly the surfaced chartTypes plus retained aliases (and the derived parser map)', () => {
+  it('covers exactly the surfaced chartTypes (and the derived parser map)', () => {
     const registryIds = new Set(CHART_TYPE_REGISTRY.map((d) => d.id));
-    // The registry dispatches surfaced types AND retained aliases (doughnut,
-    // area, multi-line, rasci, daci) — the latter parse/render but aren't listed.
-    const surfacedPlusAliases = new Set([
-      ...chartTypes.map((c) => c.id),
-      ...Object.keys(CHART_TYPE_ALIASES),
-    ]);
-    expect(registryIds).toEqual(surfacedPlusAliases);
+    // No retained aliases anymore (pre-1.0 cleanup removed doughnut, area,
+    // multi-line, bar-stacked, rasci, daci): the registry ids equal the
+    // surfaced `chartTypes` ids exactly, with no extra alias dispatch entries.
+    const surfaced = new Set(chartTypes.map((c) => c.id));
+    expect(registryIds).toEqual(surfaced);
     expect(registryIds).toEqual(new Set(knownChartTypeIds));
   });
 

@@ -8,15 +8,15 @@
     { "prompt": "kanban board for the current sprint", "accept": ["kanban"] },
     { "prompt": "gantt chart for the Q3 product launch", "accept": ["gantt"] },
     { "prompt": "flow chart for the checkout process with a payment decision", "accept": ["flowchart"] },
-    { "prompt": "bar chart of revenue by region", "accept": ["bar", "bar-stacked"] },
-    { "prompt": "line chart of monthly signups over the past year", "accept": ["line", "multi-line"] },
-    { "prompt": "pie chart of market share by vendor", "accept": ["pie", "doughnut"] },
+    { "prompt": "bar chart of revenue by region", "accept": ["bar"] },
+    { "prompt": "line chart of monthly signups over the past year", "accept": ["line"] },
+    { "prompt": "pie chart of market share by vendor", "accept": ["pie"] },
     { "prompt": "C4 container diagram of our microservices", "accept": ["c4", "boxes-and-lines"] },
     { "prompt": "infrastructure diagram: CDN, load balancer, three API nodes, a database", "accept": ["infra"] },
     { "prompt": "UML class diagram for the domain model", "accept": ["class"] },
     { "prompt": "mind map of feature ideas for v2", "accept": ["mindmap"] },
     { "prompt": "customer journey map for the free-trial onboarding", "accept": ["journey-map"] },
-    { "prompt": "RACI matrix for the data-migration project", "accept": ["raci", "rasci", "daci"] },
+    { "prompt": "RACI matrix for the data-migration project", "accept": ["raci"] },
     { "prompt": "state machine for an order lifecycle", "accept": ["state"] },
     { "prompt": "tech radar for our frontend tooling choices", "accept": ["tech-radar"] },
     { "prompt": "venn diagram of overlapping responsibilities across two teams", "accept": ["venn"] },
@@ -35,7 +35,7 @@
     { "prompt": "PERT chart of project task dependencies and critical path", "accept": ["pert"] },
     { "prompt": "arc diagram of co-authorship between researchers", "accept": ["arc"] },
     { "prompt": "word cloud of the most common survey responses", "accept": ["wordcloud"] },
-    { "prompt": "ring chart of budget allocation across departments", "accept": ["ring", "doughnut", "pie"] },
+    { "prompt": "ring chart of budget allocation across departments", "accept": ["ring", "pie"] },
     { "prompt": "chord diagram of trade flows between five countries", "accept": ["chord"] }
   ]
 }

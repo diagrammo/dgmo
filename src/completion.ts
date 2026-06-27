@@ -24,7 +24,7 @@ import {
 import { RECOGNIZED_COLOR_NAMES } from './colors';
 // Closed enum sets owned by their respective parsers — imported (never
 // hand-copied) so completion can't drift from the grammar (one-oracle rule).
-import { VARIANTS } from './raci/variants';
+import { ALL_MARKERS } from './raci/variants';
 import {
   STATE_KEYWORDS as WIREFRAME_STATE_KEYWORDS,
   GROUP_ONLY_METADATA as WIREFRAME_GROUP_ONLY_METADATA,
@@ -173,36 +173,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-name': { description: 'Hide name from segment labels' },
       'no-value': { description: 'Hide value from segment labels' },
       'no-percent': { description: 'Hide percent from segment labels' },
-    }),
-  ],
-  [
-    'doughnut',
-    withGlobals({
-      'no-center-total': { description: 'Hide the center total' },
-      'no-name': { description: 'Hide name from segment labels' },
-      'no-value': { description: 'Hide value from segment labels' },
-      'no-percent': { description: 'Hide percent from segment labels' },
-    }),
-  ],
-  [
-    'area',
-    withGlobals({
-      series: { description: 'Series name(s)' },
-      'x-label': { description: 'X-axis label' },
-      'y-label': { description: 'Y-axis label' },
-      'no-value': { description: 'Hide value labels at each point' },
-    }),
-  ],
-  [
-    'multi-line',
-    withGlobals({
-      series: { description: 'Series name(s)' },
-      'x-label': { description: 'X-axis label' },
-      'y-label': { description: 'Y-axis label (left axis)' },
-      'y-right-label': {
-        description: 'Right y-axis label (dual-axis; group series beneath it)',
-      },
-      'no-value': { description: 'Hide value labels at each point' },
     }),
   ],
   [
@@ -361,23 +331,11 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
-  // RACI / RASCI / DACI — one chart type (`raci`), variant inferred from
-  // markers or locked via `variant-*` bare directive. `rasci`/`daci` are
-  // not first-line keywords so they get no separate registry entry.
+  // RACI / RASCI / DACI — one chart type (`raci`); the variant (RACI, RASCI,
+  // or DACI) is inferred from the markers used (D → DACI, S → RASCI).
   [
     'raci',
     withGlobals({
-      'variant-raci': {
-        description: 'Lock chart to RACI variant (R / A / C / I markers)',
-      },
-      'variant-rasci': {
-        description:
-          'Lock chart to RASCI variant (adds Support — R / A / S / C / I)',
-      },
-      'variant-daci': {
-        description:
-          'Lock chart to DACI variant (Driver / Approver / Contributor / Informed)',
-      },
       roles: {
         description:
           'Declare role column order (inline `roles A, B, C` or indented block with per-role pipe metadata)',
@@ -670,17 +628,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
 ]);
 
-// `rasci` and `daci` accept the same directives as `raci` (they're variants of
-// the same chart type, just locked at the chart-type-id level). Mirror the
-// registry entry so completion works identically on all three.
-{
-  const raciSpec = COMPLETION_REGISTRY.get('raci');
-  if (raciSpec) {
-    COMPLETION_REGISTRY.set('rasci', raciSpec);
-    COMPLETION_REGISTRY.set('daci', raciSpec);
-  }
-}
-
 // ── Cross-chart-type bare-keyword option: `solid-fill` ──────────
 // Adds the directive to every chart type whose renderer actually responds to
 // it (i.e. uses `shapeFill()` and is not opted out). Chart types where the
@@ -707,7 +654,6 @@ const SOLID_FILL_CAPABLE = new Set([
   'wireframe',
   'bar',
   'pie',
-  'doughnut',
   'polar-area',
   'radar',
   'scatter',
@@ -726,20 +672,16 @@ for (const [type, spec] of COMPLETION_REGISTRY) {
 // Chart types array (for chart type completion popup)
 // ============================================================
 
-/** All chart types with descriptions, for chart type autocomplete. Excludes the
- *  `multi-line` alias and the removed `bar-stacked` (recognized only so the
- *  parser can emit its migration error — never offered as a completion). */
+/** All chart types with descriptions, for chart type autocomplete. */
 const CHART_TYPE_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
   chartTypes.map((c) => [c.id, c.description])
 );
 
 export const CHART_TYPES: ReadonlyArray<{ name: string; description: string }> =
-  [...ALL_CHART_TYPES]
-    .filter((t) => t !== 'multi-line' && t !== 'bar-stacked')
-    .map((name) => ({
-      name,
-      description: CHART_TYPE_DESCRIPTIONS[name] ?? name,
-    }));
+  [...ALL_CHART_TYPES].map((name) => ({
+    name,
+    description: CHART_TYPE_DESCRIPTIONS[name] ?? name,
+  }));
 
 // ============================================================
 // Entity types for `is a` declarations
@@ -907,17 +849,14 @@ for (const type of ALL_CHART_TYPES) {
 // ============================================================
 
 /**
- * Per-RACI-variant marker alphabets (slot-7 enum in the role-assignment value
- * position). Consumed by editor completion; sourced from `raci/variants.ts`'s
- * `VARIANTS` so the marker set can never drift from the parser. Mirrored for
- * the `rasci`/`daci` first-line keyword variants.
+ * RACI marker alphabet (slot-7 enum in the role-assignment value position).
+ * Consumed by editor completion. The chart type is always `raci`; the variant
+ * (RACI / RASCI / DACI) is inferred from the markers used, so completion offers
+ * the full union (R / A / S / C / I / D) sourced from `raci/variants.ts`'s
+ * `ALL_MARKERS` — the marker set can never drift from the parser.
  */
 export const RACI_MARKER_ALPHABETS: ReadonlyMap<string, readonly string[]> =
-  new Map([
-    ['raci', VARIANTS.raci.alphabet],
-    ['rasci', VARIANTS.rasci.alphabet],
-    ['daci', VARIANTS.daci.alphabet],
-  ]);
+  new Map([['raci', [...ALL_MARKERS]]]);
 
 /**
  * Closed set of wireframe element state flags (slot-7 trailing enum, e.g.
@@ -2482,8 +2421,6 @@ registerExtractor('tech-radar', extractTechRadarSymbols);
 registerExtractor('cycle', extractCycleSymbols);
 registerExtractor('journey-map', extractJourneyMapSymbols);
 registerExtractor('raci', extractRaciSymbols);
-registerExtractor('rasci', extractRaciSymbols);
-registerExtractor('daci', extractRaciSymbols);
 registerExtractor('org', extractOrgSymbols);
 registerExtractor('kanban', extractKanbanSymbols);
 registerExtractor('mindmap', extractMindmapSymbols);
@@ -2500,9 +2437,6 @@ registerExtractor('slope', extractSlopeSymbols);
 registerExtractor('bar', extractDataChartSymbols);
 registerExtractor('line', extractDataChartSymbols);
 registerExtractor('pie', extractDataChartSymbols);
-registerExtractor('doughnut', extractDataChartSymbols);
-registerExtractor('area', extractDataChartSymbols);
-registerExtractor('multi-line', extractDataChartSymbols);
 registerExtractor('polar-area', extractDataChartSymbols);
 registerExtractor('radar', extractDataChartSymbols);
 registerExtractor('scatter', extractDataChartSymbols);
@@ -2625,11 +2559,7 @@ function extractRaciSymbols(docText: string): DiagramSymbols {
       pastFirstLine = true;
       // split(/\s+/) on non-empty `trimmed` always yields at least one element.
       const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
-      if (
-        firstToken === 'raci' ||
-        firstToken === 'rasci' ||
-        firstToken === 'daci'
-      ) {
+      if (firstToken === 'raci') {
         chartType = firstToken;
       }
       continue;

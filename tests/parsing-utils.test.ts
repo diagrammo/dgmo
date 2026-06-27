@@ -206,20 +206,6 @@ describe('parseFirstLine', () => {
     expect(parseFirstLine('chart: gantt')).toBeNull();
     expect(parseFirstLine('chart: bar')).toBeNull();
   });
-
-  it('extracts multi-line chart type', () => {
-    expect(parseFirstLine('multi-line')).toEqual({
-      chartType: 'multi-line',
-      title: undefined,
-    });
-  });
-
-  it('extracts bar-stacked with title', () => {
-    expect(parseFirstLine('bar-stacked Revenue by Quarter')).toEqual({
-      chartType: 'bar-stacked',
-      title: 'Revenue by Quarter',
-    });
-  });
 });
 
 describe('prescanOptions', () => {

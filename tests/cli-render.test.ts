@@ -361,12 +361,13 @@ A 10
 B 20
 C 30`,
 
-  'multi-line': `multi-line
+  'multi-line': `line
 series X, Y
-A 10, 20
-B 30, 40`,
+A 10 20
+B 30 40`,
 
-  area: `area
+  area: `line
+fill
 A 10
 B 20
 C 30`,
@@ -376,7 +377,8 @@ A 10
 B 20
 C 30`,
 
-  doughnut: `doughnut
+  doughnut: `pie
+hole
 A 10
 B 20
 C 30`,

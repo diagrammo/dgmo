@@ -2,7 +2,6 @@ import type { HighlightFixture } from './_types';
 
 // Spec §24A. Exercises:
 //   - chart-type keyword on line 1
-//   - bare directive keyword (variant-rasci)
 //   - structural-block keyword (roles)
 //   - pipe-metadata key (color)
 //   - bracket section header ([Departure])
@@ -12,7 +11,6 @@ export const fixture: HighlightFixture = {
   chartType: 'raci',
   specSection: '24A',
   source: `raci Voyage Operations
-variant-rasci
 roles
   Cap | color: red
   Bos | color: blue
@@ -25,9 +23,6 @@ roles
   assertions: [
     // First-line chart-type keyword
     { text: 'raci', role: 'chartType' },
-
-    // Bare directive (locks variant)
-    { text: 'variant-rasci', role: 'keyword' },
 
     // Structural block keyword
     { text: 'roles', role: 'keyword' },

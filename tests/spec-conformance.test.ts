@@ -85,19 +85,24 @@ describe('1. Valid syntax', () => {
       expect(r.type).toBe('pie');
     });
 
-    it('doughnut chart', () => {
+    it('doughnut chart (pie + hole)', () => {
       const r = parseChart(
-        'doughnut Crew Roles\nCaptain 1\nSailor 10\nCook 2',
+        'pie Crew Roles\nhole\nCaptain 1\nSailor 10\nCook 2',
         palette
       );
       expect(hasNoErrors(r)).toBe(true);
-      expect(r.type).toBe('doughnut');
+      expect(r.type).toBe('pie');
+      expect(r.hole).toBeTruthy();
     });
 
-    it('area chart', () => {
-      const r = parseChart('area Revenue\nQ1 100\nQ2 150\nQ3 200', palette);
+    it('area chart (line + fill)', () => {
+      const r = parseChart(
+        'line Revenue\nfill\nQ1 100\nQ2 150\nQ3 200',
+        palette
+      );
       expect(hasNoErrors(r)).toBe(true);
-      expect(r.type).toBe('area');
+      expect(r.type).toBe('line');
+      expect(r.fill).toBe(true);
     });
 
     it('polar-area chart', () => {

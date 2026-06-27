@@ -123,8 +123,6 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   treemap: exportTreemap,
   block: exportBlock,
   raci: exportRaci,
-  rasci: exportRaci,
-  daci: exportRaci,
   // D3 visualizations — own handler per type (Story 109.2). Only `sequence`
   // still falls through to exportVisualization (no chart-type of its own).
   slope: exportSlope,

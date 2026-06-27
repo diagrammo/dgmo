@@ -51,17 +51,7 @@ function pickParser(
   const first = firstNonCommentLine(content);
   if (first.startsWith('cycle')) return 'cycle';
   if (first.startsWith('mindmap')) return 'mindmap';
-  for (const t of [
-    'bar',
-    'line',
-    'multi-line',
-    'pie',
-    'doughnut',
-    'area',
-    'polar-area',
-    'radar',
-    'bar-stacked',
-  ]) {
+  for (const t of ['bar', 'line', 'pie', 'polar-area', 'radar']) {
     if (first.startsWith(t)) return 'simple';
   }
   for (const t of [

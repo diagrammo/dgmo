@@ -227,25 +227,3 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     fallback: true,
   },
 ] as const;
-
-// ============================================================
-// Retired type NAMES — kept as silent parse aliases.
-// ============================================================
-//
-// These keywords still parse and render IDENTICALLY to before, but no longer
-// appear in the surfaced `chartTypes` list, `list_chart_types`, completion, or
-// chart-type selection (consolidation decisions #23/#25/#27). Each keeps its own
-// registry descriptor in `chart-type-registry.ts` (so render behavior is
-// unchanged); this map only records the canonical parent for docs + selection
-// lineage. The canonical authoring form is the parent + a flag
-// (`pie` + `hole`, `line` + `fill`/`series`); the alias keyword keeps working.
-//
-// NOTE: `bar-stacked` is deliberately NOT an alias — it was hard-removed
-// (decision #24). See `REMOVED_TYPES` in `dgmo-router.ts` for its migration error.
-export const CHART_TYPE_ALIASES: Readonly<Record<string, string>> = {
-  doughnut: 'pie',
-  area: 'line',
-  'multi-line': 'line',
-  rasci: 'raci',
-  daci: 'raci',
-};

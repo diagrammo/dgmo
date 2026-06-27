@@ -397,7 +397,6 @@ describe('COMPLETION_REGISTRY', () => {
       'wireframe',
       'bar',
       'pie',
-      'doughnut',
       'polar-area',
       'radar',
       'scatter',
@@ -425,7 +424,6 @@ describe('COMPLETION_REGISTRY', () => {
       'venn',
       'quadrant',
       'line',
-      'area',
       'function',
       'sankey',
       'wordcloud',
@@ -1015,16 +1013,21 @@ describe('REFERENCE_GRAMMAR descriptor', () => {
 });
 
 describe('marker + flag enums (Task 5)', () => {
-  it('exposes per-variant RACI marker alphabets from the parser source', () => {
-    expect(RACI_MARKER_ALPHABETS.get('raci')).toEqual(['R', 'A', 'C', 'I']);
-    expect(RACI_MARKER_ALPHABETS.get('rasci')).toEqual([
+  it('exposes the unified RACI marker alphabet (union of all variants) from the parser source', () => {
+    // There is one `raci` chart type; the variant is inferred from the markers
+    // used. RACI_MARKER_ALPHABETS therefore has a single `raci` key mapping to
+    // the full union of all variant markers (R / A / S / C / I / D).
+    expect(RACI_MARKER_ALPHABETS.get('raci')).toEqual([
       'R',
       'A',
       'S',
       'C',
       'I',
+      'D',
     ]);
-    expect(RACI_MARKER_ALPHABETS.get('daci')).toEqual(['D', 'A', 'C', 'I']);
+    // No per-variant keys remain.
+    expect(RACI_MARKER_ALPHABETS.has('rasci')).toBe(false);
+    expect(RACI_MARKER_ALPHABETS.has('daci')).toBe(false);
   });
 
   it('exposes the 16 wireframe flags', () => {
@@ -1042,11 +1045,13 @@ describe('round-trip integrity (AC11) — newly-completed tokens parse clean', (
       .map((d) => d.code ?? d.message);
 
   it('RACI/RASCI/DACI marker assignments produce no error', () => {
+    // One `raci` chart type — the variant is inferred from the markers used:
+    // RACI (no S/D), RASCI (S present), DACI (D present).
     expect(errorsOf('raci\nDeploy\n  Dev: R A\n  Ops: C I\n')).toEqual([]);
     expect(
-      errorsOf('rasci\nShip\n  Dev: R\n  PM: A\n  QA: S\n  Sec: C\n  Exec: I\n')
+      errorsOf('raci\nShip\n  Dev: R\n  PM: A\n  QA: S\n  Sec: C\n  Exec: I\n')
     ).toEqual([]);
-    expect(errorsOf('daci\nDecide\n  Lead: D\n  Mgr: A\n  Eng: C\n')).toEqual(
+    expect(errorsOf('raci\nDecide\n  Lead: D\n  Mgr: A\n  Eng: C\n')).toEqual(
       []
     );
   });

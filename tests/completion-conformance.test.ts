@@ -44,10 +44,7 @@ import { fixture as mindmapFixture } from './fixtures/completion-conformance/min
 // Data charts (spec §16)
 import { fixture as barFixture } from './fixtures/completion-conformance/bar';
 import { fixture as lineFixture } from './fixtures/completion-conformance/line';
-import { fixture as multiLineFixture } from './fixtures/completion-conformance/multi-line';
-import { fixture as areaFixture } from './fixtures/completion-conformance/area';
 import { fixture as pieFixture } from './fixtures/completion-conformance/pie';
-import { fixture as doughnutFixture } from './fixtures/completion-conformance/doughnut';
 import { fixture as polarAreaFixture } from './fixtures/completion-conformance/polar-area';
 import { fixture as radarFixture } from './fixtures/completion-conformance/radar';
 import { fixture as scatterFixture } from './fixtures/completion-conformance/scatter';
@@ -90,10 +87,7 @@ const fixtures: ConformanceFixture[] = [
   // Data charts
   barFixture,
   lineFixture,
-  multiLineFixture,
-  areaFixture,
   pieFixture,
-  doughnutFixture,
   polarAreaFixture,
   radarFixture,
   scatterFixture,
