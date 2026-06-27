@@ -53,6 +53,16 @@ export interface ParsedChart {
    *  (consolidation #24). Absent ⇒ single-series bar. Drives stacked vs
    *  clustered rendering in `charts-d3/bar.ts`. */
   barLayout?: 'stack' | 'group';
+  /** Pie doughnut-hole inner-radius ratio (0–0.9), set by a `hole` directive
+   *  (bare ⇒ default). Absent on `pie` ⇒ solid pie; `doughnut` alias implies a
+   *  default hole. (#23) */
+  hole?: number;
+  /** Suppress the doughnut center total (bare `no-center-total`). The total
+   *  shows by default whenever a hole is present. (#23) */
+  noCenterTotal?: boolean;
+  /** Render a line chart filled, i.e. as an area (bare `fill`). The `area` alias
+   *  implies this. (#25) */
+  fill?: boolean;
   orientation?: 'horizontal' | 'vertical';
   color?: string;
   label?: string;
@@ -114,6 +124,7 @@ const KNOWN_OPTIONS = new Set([
   'series',
   'stack',
   'group',
+  'hole',
   'x-label',
   'y-label',
   'y-right-label',
@@ -124,11 +135,16 @@ const KNOWN_OPTIONS = new Set([
   'color',
 ]);
 
+/** Default doughnut-hole inner-radius ratio when `hole` is given with no value. */
+const DEFAULT_HOLE = 0.6;
+
 /** Known boolean options for the simple chart parser. */
 const KNOWN_BOOLEANS = new Set([
   'orientation-horizontal',
   'solid-fill',
   'no-title',
+  'fill',
+  'hole',
 ]);
 
 /**
@@ -339,6 +355,10 @@ export function parseChart(
         result.solidFill = true;
       } else if (firstToken === 'no-title') {
         result.noTitle = true;
+      } else if (firstToken === 'fill') {
+        result.fill = true;
+      } else if (firstToken === 'hole') {
+        result.hole = DEFAULT_HOLE;
       }
       continue;
     }
@@ -387,6 +407,23 @@ export function parseChart(
 
       if (firstToken === 'label') {
         result.label = value;
+        continue;
+      }
+
+      if (firstToken === 'hole') {
+        const ratio = parseFloat(value);
+        if (Number.isFinite(ratio) && ratio >= 0 && ratio < 1) {
+          result.hole = ratio;
+        } else {
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              'hole must be a ratio between 0 and 0.9 (e.g. "hole 0.6"). Using the default.',
+              'warning'
+            )
+          );
+          result.hole = DEFAULT_HOLE;
+        }
         continue;
       }
 
@@ -442,6 +479,10 @@ export function parseChart(
     }
     if (firstToken === 'no-percent') {
       result.noPercent = true;
+      continue;
+    }
+    if (firstToken === 'no-center-total') {
+      result.noCenterTotal = true;
       continue;
     }
 

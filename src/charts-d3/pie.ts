@@ -25,7 +25,10 @@ export function renderPie(
 ): void {
   const data = chart.data.filter((d) => d.value > 0);
   if (data.length === 0) return;
-  const isDoughnut = chart.type === 'doughnut';
+  // A hole turns the pie into a ring. `pie` + a `hole` directive, or the
+  // `doughnut` alias (implies a default hole). (#23)
+  const holeRatio = chart.hole ?? (chart.type === 'doughnut' ? 0.6 : undefined);
+  const hasHole = holeRatio !== undefined;
   const solid = chart.solidFill === true;
   const total = data.reduce((a, d) => a + d.value, 0);
 
@@ -44,7 +47,7 @@ export function renderPie(
     .value((d) => d.value)(data.map((d) => ({ value: d.value })));
 
   const arcGen = d3arc<(typeof arcs)[number]>()
-    .innerRadius(isDoughnut ? radius * 0.6 : 0)
+    .innerRadius(hasHole ? radius * holeRatio! : 0)
     .outerRadius(radius);
 
   const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
@@ -100,7 +103,9 @@ export function renderPie(
     }
   });
 
-  if (isDoughnut) {
+  // Center total — shown by default whenever there is a hole, unless suppressed
+  // with `no-center-total`. (#23)
+  if (hasHole && !chart.noCenterTotal) {
     g.append('text')
       .attr('text-anchor', 'middle')
       .attr('y', 8)

@@ -43,7 +43,8 @@ export function renderLine(
   hasTitle: boolean
 ): void {
   const data = chart.data;
-  const isArea = chart.type === 'area';
+  // `area` alias, or `line` + a `fill` directive → filled (area) rendering. (#25)
+  const isArea = chart.type === 'area' || chart.fill === true;
   const seriesNames = chart.seriesNames?.length
     ? chart.seriesNames
     : [chart.series ?? ''];

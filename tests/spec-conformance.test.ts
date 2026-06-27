@@ -146,6 +146,27 @@ describe('1. Valid syntax', () => {
       expect(r.error).toBeTruthy();
       expect(r.error).toMatch(/'stack' or 'group'/i);
     });
+
+    it('pie with hole directive (ring) + ratio', () => {
+      const bare = parseChart('pie Spend\nhole\nA 10\nB 20', palette);
+      expect(hasNoErrors(bare)).toBe(true);
+      expect(bare.hole).toBe(0.6);
+      const ratio = parseChart('pie Spend\nhole 0.4\nA 10\nB 20', palette);
+      expect(ratio.hole).toBe(0.4);
+    });
+
+    it('pie no-center-total flag', () => {
+      const r = parseChart('pie Spend\nhole\nno-center-total\nA 10', palette);
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.noCenterTotal).toBe(true);
+    });
+
+    it('line with fill directive (area)', () => {
+      const r = parseChart('line Users\nfill\nWk1 12\nWk2 14', palette);
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.type).toBe('line');
+      expect(r.fill).toBe(true);
+    });
   });
 
   describe('extended charts (parseExtendedChart)', () => {
