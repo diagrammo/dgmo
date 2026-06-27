@@ -5,7 +5,14 @@ export const fixture: ConformanceFixture = {
   chartType: 'pie',
   specSection: '16',
   firstLineKeyword: 'pie',
-  directives: ['no-name', 'no-value', 'no-percent', 'solid-fill'],
+  directives: [
+    'hole',
+    'no-center-total',
+    'no-name',
+    'no-value',
+    'no-percent',
+    'solid-fill',
+  ],
   pipeKeys: {},
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

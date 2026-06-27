@@ -136,8 +136,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `block` | author-controlled grid of nested, collapsible blocks (system / architecture layouts) |
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
-| `bar` | categorical comparisons |
-| `bar-stacked` | multi-series categorical |
+| `bar` | categorical comparisons (multi-series via `stack` / `group`) |
 | `line` | trends over time |
 | `multi-line` | multiple-series trends over time |
 | `area` | filled line chart |
@@ -162,7 +161,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 <!-- AI-CORE:TYPE-INDEX end -->
 
 <!-- The grouped data-chart / matrix ids share one documented section. This map is the single source of truth for which TYPE block each id resolves to (read by gen-ai-core.mjs and the MCP slicer). -->
-<!-- TYPE-ALIASES: line=bar multi-line=bar area=bar pie=bar doughnut=bar radar=bar polar-area=bar bar-stacked=bar bubble=scatter rasci=raci daci=raci -->
+<!-- TYPE-ALIASES: line=bar multi-line=bar area=bar pie=bar doughnut=bar radar=bar polar-area=bar bubble=scatter rasci=raci daci=raci -->
 
 ---
 
@@ -2087,19 +2086,31 @@ series Cloud blue, Legacy red ⚠  tolerated; prefer the block
 
 Parsers accept either form. The rules above are authoring guidance.
 
-### 15.1 Simple Charts (bar, line, pie, doughnut, area, polar-area, radar, bar-stacked)
+### 15.1 Simple Charts (bar, line, pie, doughnut, area, polar-area, radar)
 
 **Declaration:** `bar [Title]`, `line [Title]`, etc.
 
-**Series** — follows Rule B (prefer the indented block):
+**Multi-series:**
 
-```
-series
-  Cloud Platform blue
-  Legacy Suite red
-```
+- **bar** — declare multiple series with a layout block header: `stack` (stacked
+  bars, one bar per category) or `group` (clustered, side-by-side). `series` is
+  **not** accepted on bar — the header names the layout.
 
-Short one-line form is tolerated: `series Revenue` or `series A B`.
+  ```
+  stack            // or: group
+    Cloud Platform blue
+    Legacy Suite red
+  ```
+
+- **line / area** — use a `series` block (every series is plotted):
+
+  ```
+  series
+    Cloud Platform blue
+    Legacy Suite red
+  ```
+
+  Short one-line form is tolerated: `series Revenue` or `series A B`.
 
 **Data rows** — follows Rule A:
 
@@ -2116,12 +2127,16 @@ Q1 400 700 300 500
 title My Chart
 x-label X Label
 y-label Y Label
-orientation-horizontal
-stacked
+orientation-horizontal   // bar: horizontal bars
+fill                     // line: fill under the line (= the `area` keyword)
+hole                     // pie: doughnut ring (optional ratio, e.g. `hole 0.5`)
+no-center-total          // pie/doughnut: hide the center total
 ```
 
-- `orientation-horizontal` (boolean; default is vertical bars)
-- `stacked` (boolean; default is off)
+- `orientation-horizontal` (bar; default is vertical bars)
+- `fill` (line; renders the filled area form)
+- `hole` (pie; renders the doughnut ring — optional `hole <0–0.9>`. The value
+  total shows in the center by default; suppress with `no-center-total`)
 - Legend is always shown (no option needed)
 
 **Value-display flags — show-everything default.** Every renderable part is on by default. Suppress with `no-*`:
@@ -2134,7 +2149,7 @@ Each chart honors the subset of flags that has a renderable atom on it:
 
 - pie / doughnut / polar-area: all three
 - funnel: `no-name`, `no-value`
-- bar / bar-stacked / line / multi-line / area / radar: `no-value`
+- bar / line / multi-line / area / radar: `no-value`
 - scatter: `no-name`
 - heatmap: `no-value`
 - sankey, chord, arc, slope, quadrant, venn: name-suppression deferred — names render by default and cannot yet be hidden

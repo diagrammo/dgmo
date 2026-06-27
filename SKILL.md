@@ -100,8 +100,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `block` | author-controlled grid of nested, collapsible blocks (system / architecture layouts) |
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
-| `bar` | categorical comparisons |
-| `bar-stacked` | multi-series categorical |
+| `bar` | categorical comparisons (multi-series via `stack` / `group`) |
 | `line` | trends over time |
 | `multi-line` | multiple-series trends over time |
 | `area` | filled line chart |
@@ -542,7 +541,7 @@ API
 
 ## All chart types
 
-**Data charts:** bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel
+**Data charts:** bar, line, multi-line, area, pie, doughnut, radar, polar-area, scatter, sankey, chord, function, heatmap, funnel
 
 **Visualizations:** slope, wordcloud, arc, timeline, venn, quadrant, tech-radar, cycle, pyramid, ring
 

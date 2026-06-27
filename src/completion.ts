@@ -132,7 +132,14 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'bar',
     withGlobals({
-      series: { description: 'Series name(s)' },
+      stack: {
+        description:
+          'Multi-series block header → stacked bars (one bar/category)',
+      },
+      group: {
+        description:
+          'Multi-series block header → clustered (side-by-side) bars',
+      },
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
       'orientation-horizontal': { description: 'Switch to horizontal bars' },
@@ -144,6 +151,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'line',
     withGlobals({
       series: { description: 'Series name(s)' },
+      fill: { description: 'Fill under the line (area chart)' },
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label (left axis)' },
       'y-right-label': {
@@ -155,6 +163,13 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'pie',
     withGlobals({
+      hole: {
+        description:
+          'Doughnut ring (optional ratio 0–0.9); shows the total in center',
+      },
+      'no-center-total': {
+        description: 'Hide the center total on a doughnut/hole pie',
+      },
       'no-name': { description: 'Hide name from segment labels' },
       'no-value': { description: 'Hide value from segment labels' },
       'no-percent': { description: 'Hide percent from segment labels' },
@@ -163,6 +178,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'doughnut',
     withGlobals({
+      'no-center-total': { description: 'Hide the center total' },
       'no-name': { description: 'Hide name from segment labels' },
       'no-value': { description: 'Hide value from segment labels' },
       'no-percent': { description: 'Hide percent from segment labels' },
@@ -201,16 +217,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'radar',
     withGlobals({
       'no-value': { description: 'Hide value labels at each vertex' },
-    }),
-  ],
-  [
-    'bar-stacked',
-    withGlobals({
-      series: { description: 'Series name(s) (required)' },
-      'x-label': { description: 'X-axis label' },
-      'y-label': { description: 'Y-axis label' },
-      'orientation-horizontal': { description: 'Switch to horizontal bars' },
-      'no-value': { description: 'Hide per-segment values inside each stack' },
     }),
   ],
 
@@ -700,7 +706,6 @@ const SOLID_FILL_CAPABLE = new Set([
   'boxes-and-lines',
   'wireframe',
   'bar',
-  'bar-stacked',
   'pie',
   'doughnut',
   'polar-area',
@@ -721,14 +726,16 @@ for (const [type, spec] of COMPLETION_REGISTRY) {
 // Chart types array (for chart type completion popup)
 // ============================================================
 
-/** All chart types with descriptions, for chart type autocomplete. Excludes `multi-line` alias. */
+/** All chart types with descriptions, for chart type autocomplete. Excludes the
+ *  `multi-line` alias and the removed `bar-stacked` (recognized only so the
+ *  parser can emit its migration error — never offered as a completion). */
 const CHART_TYPE_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
   chartTypes.map((c) => [c.id, c.description])
 );
 
 export const CHART_TYPES: ReadonlyArray<{ name: string; description: string }> =
   [...ALL_CHART_TYPES]
-    .filter((t) => t !== 'multi-line')
+    .filter((t) => t !== 'multi-line' && t !== 'bar-stacked')
     .map((name) => ({
       name,
       description: CHART_TYPE_DESCRIPTIONS[name] ?? name,
@@ -2498,7 +2505,6 @@ registerExtractor('area', extractDataChartSymbols);
 registerExtractor('multi-line', extractDataChartSymbols);
 registerExtractor('polar-area', extractDataChartSymbols);
 registerExtractor('radar', extractDataChartSymbols);
-registerExtractor('bar-stacked', extractDataChartSymbols);
 registerExtractor('scatter', extractDataChartSymbols);
 registerExtractor('heatmap', extractDataChartSymbols);
 registerExtractor('funnel', extractDataChartSymbols);

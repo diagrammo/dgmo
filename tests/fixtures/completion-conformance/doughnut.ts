@@ -5,7 +5,13 @@ export const fixture: ConformanceFixture = {
   chartType: 'doughnut',
   specSection: '16',
   firstLineKeyword: 'doughnut',
-  directives: ['no-name', 'no-value', 'no-percent', 'solid-fill'],
+  directives: [
+    'no-center-total',
+    'no-name',
+    'no-value',
+    'no-percent',
+    'solid-fill',
+  ],
   pipeKeys: {},
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

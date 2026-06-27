@@ -362,10 +362,12 @@ describe('COMPLETION_REGISTRY', () => {
     }
   });
 
-  it('CHART_TYPES covers all ALL_CHART_TYPES except multi-line', () => {
+  it('CHART_TYPES covers all ALL_CHART_TYPES except multi-line and bar-stacked', () => {
     const chartTypeNames = new Set(CHART_TYPES.map((t) => t.name));
     for (const ct of ALL_CHART_TYPES) {
-      if (ct === 'multi-line') continue;
+      // multi-line is a line alias; bar-stacked is recognized only for its
+      // migration error (#24) — neither is offered as a completion.
+      if (ct === 'multi-line' || ct === 'bar-stacked') continue;
       expect(chartTypeNames.has(ct), `CHART_TYPES missing ${ct}`).toBe(true);
     }
   });
@@ -394,7 +396,6 @@ describe('COMPLETION_REGISTRY', () => {
       'boxes-and-lines',
       'wireframe',
       'bar',
-      'bar-stacked',
       'pie',
       'doughnut',
       'polar-area',

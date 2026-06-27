@@ -150,8 +150,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `block` | author-controlled grid of nested, collapsible blocks (system / architecture layouts) |
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
-| `bar` | categorical comparisons |
-| `bar-stacked` | multi-series categorical |
+| `bar` | categorical comparisons (multi-series via `stack` / `group`) |
 | `line` | trends over time |
 | `multi-line` | multiple-series trends over time |
 | `area` | filled line chart |

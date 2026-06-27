@@ -43,7 +43,6 @@ export const CHART_TYPES = new Set([
   'area',
   'polar-area',
   'radar',
-  'bar-stacked',
   'multi-line',
   'scatter',
   'sankey',
@@ -66,6 +65,12 @@ export const CHART_TYPES = new Set([
 export const METADATA_KEYS = new Set([
   'title',
   'series',
+  // Bar layout headers + pie/line directives (consolidation #23–#26)
+  'stack',
+  'group',
+  'hole',
+  'fill',
+  'layout',
   'orientation',
   'x-label',
   'y-label',

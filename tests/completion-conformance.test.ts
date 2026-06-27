@@ -50,7 +50,6 @@ import { fixture as pieFixture } from './fixtures/completion-conformance/pie';
 import { fixture as doughnutFixture } from './fixtures/completion-conformance/doughnut';
 import { fixture as polarAreaFixture } from './fixtures/completion-conformance/polar-area';
 import { fixture as radarFixture } from './fixtures/completion-conformance/radar';
-import { fixture as barStackedFixture } from './fixtures/completion-conformance/bar-stacked';
 import { fixture as scatterFixture } from './fixtures/completion-conformance/scatter';
 import { fixture as heatmapFixture } from './fixtures/completion-conformance/heatmap';
 import { fixture as funnelFixture } from './fixtures/completion-conformance/funnel';
@@ -97,7 +96,6 @@ const fixtures: ConformanceFixture[] = [
   doughnutFixture,
   polarAreaFixture,
   radarFixture,
-  barStackedFixture,
   scatterFixture,
   heatmapFixture,
   funnelFixture,
