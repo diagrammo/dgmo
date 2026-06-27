@@ -208,6 +208,89 @@ tag Genre as g
     expect(p.tagGroups[0]!.entries[0]!.color).not.toBe('');
   });
 
+  describe('out-of-order event dates', () => {
+    it('warns on a dated event listed before an earlier-dated one', () => {
+      const p = parseEventLine(`event-line X
+
+2020 A
+2024 B
+2022 C`);
+      const w = p.diagnostics.filter(
+        (d) => d.code === 'E_EVENT_LINE_DATE_ORDER'
+      );
+      expect(w).toHaveLength(1);
+      expect(w[0]!.severity).toBe('warning');
+      expect(w[0]!.message).toContain('C');
+      expect(w[0]!.message).toContain('2022');
+      expect(w[0]!.message).toContain('B');
+    });
+
+    it('does not warn when events are listed chronologically', () => {
+      const p = parseEventLine(`event-line X
+
+2020 A
+2022 B
+2024 C`);
+      expect(
+        p.diagnostics.filter((d) => d.code === 'E_EVENT_LINE_DATE_ORDER')
+      ).toHaveLength(0);
+    });
+
+    it('treats coincident dates as in order', () => {
+      const p = parseEventLine(`event-line X
+
+1969-07-16 Liftoff
+1969-07-16 Translunar Injection`);
+      expect(
+        p.diagnostics.filter((d) => d.code === 'E_EVENT_LINE_DATE_ORDER')
+      ).toHaveLength(0);
+    });
+
+    it('skips undated events when checking order', () => {
+      const p = parseEventLine(`event-line X
+
+2020 A
+Undated note
+2022 B`);
+      expect(
+        p.diagnostics.filter((d) => d.code === 'E_EVENT_LINE_DATE_ORDER')
+      ).toHaveLength(0);
+    });
+
+    it('warns even when the date scale is off', () => {
+      const p = parseEventLine(`event-line X
+no-scale
+
+2024 late
+2020 early`);
+      const w = p.diagnostics.filter(
+        (d) => d.code === 'E_EVENT_LINE_DATE_ORDER'
+      );
+      expect(w).toHaveLength(1);
+      expect(w[0]!.message).toContain('early');
+    });
+
+    it('does not double-flag an era-spanning inversion', () => {
+      // The straggler is reported once, by the richer ERA_DATE_ORDER check.
+      const p = parseEventLine(`event-line X
+
+[A]
+  2020 First
+  2024 Late
+
+[B]
+  2022 Early`);
+      const order = p.diagnostics.filter(
+        (d) => d.code === 'E_EVENT_LINE_DATE_ORDER'
+      );
+      const eraOrder = p.diagnostics.filter(
+        (d) => d.code === 'E_EVENT_LINE_ERA_DATE_ORDER'
+      );
+      expect(eraOrder.some((d) => d.message.includes('Early'))).toBe(true);
+      expect(order).toHaveLength(0);
+    });
+  });
+
   describe('eras (`[Name]` indentation containers, §28.6a)', () => {
     it('nests indented events under each era; their bare body is the description', () => {
       const p = parseEventLine(`event-line A History of the Web

@@ -56,6 +56,7 @@ export const EVENT_LINE_DIAGNOSTIC_CODES = {
   BAD_DATE: 'E_EVENT_LINE_BAD_DATE',
   UNSUPPORTED: 'E_EVENT_LINE_UNSUPPORTED',
   ERA_DATE_ORDER: 'E_EVENT_LINE_ERA_DATE_ORDER',
+  DATE_ORDER: 'E_EVENT_LINE_DATE_ORDER',
 } as const;
 
 /** A non-ISO date attempt: leading digits with a slash or dot separator. */
@@ -348,11 +349,50 @@ export function parseEventLine(
   // Eras render as date-spanning brackets, so an event dated outside its era's
   // chronological position makes adjacent era brackets overlap (§28.6a). Only
   // meaningful when the date scale drives x-position.
+  const eraFlaggedLines = new Set<number>();
   if (options.scale) {
-    validateEraDateOrder(result.events, result.eras, pushWarning);
+    validateEraDateOrder(result.events, result.eras, (line, message, code) => {
+      eraFlaggedLines.add(line);
+      pushWarning(line, message, code);
+    });
   }
 
+  // Any dated event listed before an earlier-dated one is out of chronological
+  // order — a likely authoring slip (and, to-scale, it plots to the left of an
+  // event listed above it). Era-spanning inversions already get the richer
+  // ERA_DATE_ORDER message, so skip lines that check already flagged.
+  validateEventDateOrder(result.events, eraFlaggedLines, pushWarning);
+
   return result;
+}
+
+/**
+ * Warn when dated events are listed out of chronological order — a later-listed
+ * event dated before the dated event just above it. event-line reads
+ * left-to-right by date, so a descending pair is almost always an authoring
+ * slip. Undated events are skipped; coincident dates are in order.
+ */
+function validateEventDateOrder(
+  events: readonly EventLineEvent[],
+  skipLines: ReadonlySet<number>,
+  pushWarning: (line: number, message: string, code?: string) => void
+): void {
+  let prev: EventLineEvent | null = null;
+  for (const ev of events) {
+    if (ev.dateValue === null) continue;
+    if (
+      prev &&
+      ev.dateValue < prev.dateValue! &&
+      !skipLines.has(ev.lineNumber)
+    ) {
+      pushWarning(
+        ev.lineNumber,
+        `"${ev.label}" (${ev.date}) is out of order — it is dated before "${prev.label}" (${prev.date}) listed above it. event-line reads left-to-right by date; list events chronologically.`,
+        EVENT_LINE_DIAGNOSTIC_CODES.DATE_ORDER
+      );
+    }
+    prev = ev;
+  }
 }
 
 /**
