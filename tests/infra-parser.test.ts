@@ -311,7 +311,7 @@ infra
       const result = parseInfra(`
 infra
 
-tag Team t
+tag Team as t
   Backend blue
   Platform teal
   Commerce orange
@@ -343,7 +343,7 @@ tag Environment
       const result = parseInfra(`
 infra
 
-tag Team t
+tag Team as t
   Backend blue
 
 CloudFront | t: Backend
@@ -359,7 +359,7 @@ CloudFront | t: Backend
       const result = parseInfra(`
 infra Production Traffic Flow
 
-tag Team t
+tag Team as t
   Backend blue
   Platform teal
   Commerce orange

@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseInfra } from '../src/infra/parser';
-import { parseVisualization } from '../src/d3';
-import { parseSequenceDgmo } from '../src/sequence/parser';
 import { extractAlias } from '../src/utils/extract-alias';
-import { getPalette } from '../src/palettes';
 import type { DgmoError } from '../src/diagnostics';
 
 // ============================================================
@@ -15,47 +11,8 @@ import type { DgmoError } from '../src/diagnostics';
 // emission per line).
 //
 // Priority bands (highest first):
-//   1. Legacy-syntax codes (TAG_SHORTHAND_REMOVED, VENN_ALIAS_KEYWORD_REMOVED, AKA_REMOVED)
-//   2. Alias-format codes (ALIAS_RESERVED_KEYWORD outranks ALIAS_INVALID_FORMAT)
-//   3. Alias-semantic codes (BEFORE_DECL, COLLISION, REBINDING, …)
-
-const palette = getPalette('nord').light;
-
-describe('diagnostic precedence — legacy-syntax outranks alias semantics', () => {
-  it('venn `Name(color) alias x` fires E_VENN_ALIAS_KEYWORD_REMOVED, not alias collisions', () => {
-    const r = parseVisualization(
-      `venn
-Frontend blue alias fe
-Backend green alias fe`,
-      palette
-    );
-    const codes = r.diagnostics.map((d) => d.code);
-    // Both lines fire the legacy diagnostic.
-    expect(
-      codes.filter((c) => c === 'E_VENN_ALIAS_KEYWORD_REMOVED')
-    ).toHaveLength(2);
-    // No alias-collision is emitted because the legacy form is rejected first.
-    expect(codes).not.toContain('E_ALIAS_COLLISION');
-  });
-
-  it('infra `tag Name x` fires E_TAG_SHORTHAND_REMOVED on the bare-shorthand form', () => {
-    const r = parseInfra(`infra
-tag Team t
-[Backend]
-  API`);
-    const codes = r.diagnostics.map((d) => d.code);
-    expect(codes).toContain('E_TAG_SHORTHAND_REMOVED');
-  });
-
-  it('sequence `Alice is an actor aka X` fires E_AKA_REMOVED, not alias-format', () => {
-    const r = parseSequenceDgmo(`sequence
-Alice is an actor aka Authenticator`);
-    const codes = r.diagnostics.map((d) => d.code);
-    expect(codes).toContain('E_AKA_REMOVED');
-    // No alias-format diagnostic — `aka` rejection is a strict pre-check.
-    expect(codes).not.toContain('E_ALIAS_INVALID_FORMAT');
-  });
-});
+//   1. Alias-format codes (ALIAS_RESERVED_KEYWORD outranks ALIAS_INVALID_FORMAT)
+//   2. Alias-semantic codes (BEFORE_DECL, COLLISION, REBINDING, …)
 
 describe('diagnostic precedence — reserved outranks invalid-format', () => {
   it('`Alice as as` fires RESERVED_KEYWORD (not INVALID_FORMAT, even though both could apply)', () => {

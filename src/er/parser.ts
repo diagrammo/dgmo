@@ -3,10 +3,8 @@ import type { PaletteColors } from '../palettes';
 import {
   formatDgmoError,
   makeDgmoError,
-  METADATA_DIAGNOSTIC_CODES,
   NAME_DIAGNOSTIC_CODES,
   nameMergedMessage,
-  pipeOperatorRemovedMessage,
   suggest,
 } from '../diagnostics';
 import { ER_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
@@ -25,7 +23,6 @@ import {
 } from '../utils/parsing';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
@@ -351,7 +348,6 @@ export function parseERDiagram(
     if (!contentStarted && indent === 0) {
       const tagBlockMatch = matchTagBlockHeading(trimmed);
       if (tagBlockMatch) {
-        emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
         currentTagGroup = {
           name: tagBlockMatch.name,
           ...(tagBlockMatch.alias !== undefined && {
@@ -521,19 +517,6 @@ export function parseERDiagram(
         result.diagnostics.push(makeDgmoError(lineNumber, msg, 'warning')),
       split.name
     );
-
-    // Legacy `|` pipe-metadata detection — fires before splitNameAndMeta
-    // sees it (since pipes don't trigger a cut). Emit the hard error.
-    if (trimmed.includes('|')) {
-      result.diagnostics.push(
-        makeDgmoError(
-          lineNumber,
-          pipeOperatorRemovedMessage(),
-          'error',
-          METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-        )
-      );
-    }
 
     // Re-run the legacy name regex on the cleaned name region (color is
     // already peeled by splitNameAndMeta, so the regex's color slot

@@ -18,19 +18,12 @@
 //
 // See `docs/dgmo-language-spec.md` § "RACI Matrix".
 
-import {
-  makeDgmoError,
-  makeFail,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
-  suggest,
-} from '../diagnostics';
+import { makeDgmoError, makeFail, suggest } from '../diagnostics';
 import { resolveColorWithDiagnostic } from '../colors';
 import { RACI_REGISTRY } from '../utils/reserved-key-registry';
 import {
   measureIndent,
   parseFirstLine,
-  parsePipeMetadata,
   splitNameAndMeta,
   OPTION_NOCOLON_RE,
   tryParseSharedOption,
@@ -351,17 +344,6 @@ export function parseRaci(
           // Strip a possible trailing comma (user habit tolerance,
           // matches `collectIndentedValues`).
           const stripped = nextTrim.replace(/,\s*$/, '');
-          // Legacy `|` detection (was: `Cap | color: blue`).
-          if (stripped.includes('|')) {
-            result.diagnostics.push(
-              makeDgmoError(
-                j + 1,
-                pipeOperatorRemovedMessage(),
-                'error',
-                METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-              )
-            );
-          }
           // §1.4 unified metadata grammar — same-line cut.
           const split = splitNameAndMeta(
             stripped,
@@ -445,10 +427,9 @@ export function parseRaci(
           errorAt(lineNumber, 'Phase label is empty.');
           continue;
         }
-        // Parse tail: optional trailing-token color, optional `|` (legacy
-        // pipe → emit error), optional same-line metadata.
+        // Parse tail: optional trailing-token color.
         let phaseColor: string | undefined;
-        let tail = (phaseMatch[2] ?? '').trim();
+        const tail = (phaseMatch[2] ?? '').trim();
         const colorMatch = tail.match(PHASE_PALETTE_COLOR_RE);
         if (colorMatch) {
           phaseColor = resolveColorWithDiagnostic(
@@ -457,29 +438,6 @@ export function parseRaci(
             result.diagnostics,
             palette
           );
-          tail = tail.substring(colorMatch[0]!.length).trim();
-        }
-        if (tail.startsWith('|')) {
-          result.diagnostics.push(
-            makeDgmoError(
-              lineNumber,
-              pipeOperatorRemovedMessage(),
-              'error',
-              METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-            )
-          );
-          tail = tail.replace(/^\|\s*/, '');
-        }
-        if (tail.length > 0) {
-          const meta = parsePipeMetadata(['', tail]);
-          if (meta['color'] && !phaseColor) {
-            phaseColor = resolveColorWithDiagnostic(
-              meta['color'],
-              lineNumber,
-              result.diagnostics,
-              palette
-            );
-          }
         }
         currentPhase = {
           id: normalizeName(display),

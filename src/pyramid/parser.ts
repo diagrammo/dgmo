@@ -2,13 +2,7 @@
 // Pyramid Diagram — Parser
 // ============================================================
 
-import {
-  bareDescriptionRemovedMessage,
-  makeDgmoError,
-  makeFail,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
-} from '../diagnostics';
+import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import {
   measureIndent,
@@ -114,40 +108,6 @@ export function parsePyramid(content: string): ParsedPyramid {
     // ── Top-level: layer declaration ──
     if (indent === 0) {
       flushLayer();
-
-      // Legacy `|` pipe-metadata detection (§1.4 unified grammar).
-      // Pyramid had two legacy shapes after `|`:
-      //   (a) `Layer | color: blue` — structured metadata
-      //   (b) `Layer | Some text` — bare-description shorthand
-      // Both emit pipe-removed; (b) additionally emits the
-      // bare-description-removed diagnostic with the conversion hint.
-      const pipeIdx = trimmed.indexOf('|');
-      if (pipeIdx >= 0) {
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNum,
-            pipeOperatorRemovedMessage(),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-          )
-        );
-        const after = trimmed.substring(pipeIdx + 1).trim();
-        // Bare-description shape: no `<key>:` prefix. Emit the
-        // pyramid-specific hint pointing at `description: <text>`.
-        if (after && !/^[A-Za-z][A-Za-z0-9_-]*\s*:/.test(after)) {
-          result.diagnostics.push(
-            makeDgmoError(
-              lineNum,
-              bareDescriptionRemovedMessage({
-                chartType: 'pyramid',
-                text: after,
-              }),
-              'error',
-              METADATA_DIAGNOSTIC_CODES.PYRAMID_BARE_DESCRIPTION_REMOVED
-            )
-          );
-        }
-      }
 
       // §1.4 unified metadata grammar — same-line cut.
       const split = splitNameAndMeta(

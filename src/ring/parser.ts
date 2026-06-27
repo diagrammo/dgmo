@@ -2,14 +2,7 @@
 // Ring Diagram — Parser
 // ============================================================
 
-import {
-  bareDescriptionRemovedMessage,
-  makeDgmoError,
-  makeFail,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
-  suggest,
-} from '../diagnostics';
+import { makeDgmoError, makeFail, suggest } from '../diagnostics';
 import { resolveColor, RECOGNIZED_COLOR_NAMES } from '../colors';
 import {
   measureIndent,
@@ -106,31 +99,6 @@ export function parseRing(content: string): ParsedRing {
     // ── Top-level: layer declaration ──
     if (indent === 0) {
       flushLayer();
-
-      // Legacy `|` detection — same shape as pyramid (bare-description
-      // shorthand OR structured pipe metadata).
-      const pipeIdx = trimmed.indexOf('|');
-      if (pipeIdx >= 0) {
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNum,
-            pipeOperatorRemovedMessage(),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-          )
-        );
-        const after = trimmed.substring(pipeIdx + 1).trim();
-        if (after && !/^[A-Za-z][A-Za-z0-9_-]*\s*:/.test(after)) {
-          result.diagnostics.push(
-            makeDgmoError(
-              lineNum,
-              bareDescriptionRemovedMessage({ chartType: 'ring', text: after }),
-              'error',
-              METADATA_DIAGNOSTIC_CODES.RING_BARE_DESCRIPTION_REMOVED
-            )
-          );
-        }
-      }
 
       // §1.4 unified metadata grammar — same-line cut.
       const split = splitNameAndMeta(

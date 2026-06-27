@@ -62,8 +62,8 @@ describe('arc parser', () => {
     expect(errs).toEqual([]);
   });
 
-  it('rejects comma-formatted link weights at 1.0 (E_DATA_COMMA_REMOVED)', () => {
+  it('parses comma-formatted link weights best-effort (no error)', () => {
     const ds = diagnostics('arc T\nA -> B 1,500');
-    expect(ds.some((d) => d.code === 'E_DATA_COMMA_REMOVED')).toBe(true);
+    expect(ds.some((d) => d.severity === 'error')).toBe(false);
   });
 });

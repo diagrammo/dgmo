@@ -351,30 +351,6 @@ Node C`);
     );
     expect(diag).toBeDefined();
   });
-
-  it('emits E_PIPE_OPERATOR_REMOVED on legacy node pipe metadata', () => {
-    const result = parseCycle(`cycle Legacy
-
-A | color: red
-B`);
-    const diag = result.diagnostics.find(
-      (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
-    );
-    expect(diag).toBeDefined();
-    expect(diag!.severity).toBe('error');
-  });
-
-  it('emits E_PIPE_OPERATOR_REMOVED on legacy edge pipe metadata', () => {
-    const result = parseCycle(`cycle Legacy Edge
-
-A
-  -Go-> | color: red
-B`);
-    const diag = result.diagnostics.find(
-      (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
-    );
-    expect(diag).toBeDefined();
-  });
 });
 
 describe('cycle parser — comments and blanks', () => {

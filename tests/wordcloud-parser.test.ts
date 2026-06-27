@@ -40,8 +40,8 @@ describe('wordcloud parser', () => {
     expect(errs).toEqual([]);
   });
 
-  it('rejects comma-formatted weights at 1.0 (E_DATA_COMMA_REMOVED)', () => {
+  it('parses comma-formatted weights best-effort (no error)', () => {
     const ds = diagnostics('wordcloud T\nKubernetes 1,200');
-    expect(ds.some((d) => d.code === 'E_DATA_COMMA_REMOVED')).toBe(true);
+    expect(ds.some((d) => d.severity === 'error')).toBe(false);
   });
 });

@@ -4,8 +4,6 @@ import {
   formatDgmoError,
   makeDgmoError,
   makeFail,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
   suggest,
 } from '../diagnostics';
 import { ORG_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
@@ -14,7 +12,6 @@ import type { Writable } from '../utils/brand';
 import {
   isTagBlockHeading,
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
@@ -204,7 +201,6 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     // Must be checked BEFORE OPTION_RE to prevent `tag: Rank` being swallowed as option `tag=Rank`
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch) {
-      emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
       if (contentStarted) {
         pushError(lineNumber, 'Tag groups must appear before org content');
         continue;
@@ -434,18 +430,6 @@ function parseNodeLabel(
   diagnostics?: DgmoError[],
   nameAliasMap?: Map<string, string>
 ): Writable<OrgNode> {
-  // Legacy `|` detection per §1.4.
-  if (trimmed.includes('|') && diagnostics) {
-    diagnostics.push(
-      makeDgmoError(
-        lineNumber,
-        pipeOperatorRemovedMessage(),
-        'error',
-        METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-      )
-    );
-  }
-
   // §1.4 unified metadata grammar — same-line cut.
   const registry = withTagAliases(ORG_REGISTRY, new Set(metaAliasMap.keys()));
   const id = `node-${counter}`;

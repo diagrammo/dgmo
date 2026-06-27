@@ -127,21 +127,6 @@ Outer`);
     ]);
   });
 
-  it('emits E_PIPE_OPERATOR_REMOVED + E_RING_BARE_DESCRIPTION_REMOVED on legacy bare-description', () => {
-    const result = parseRing(`ring T
-
-Inner | a description
-Outer`);
-    const pipe = result.diagnostics.find(
-      (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
-    );
-    const bare = result.diagnostics.find(
-      (d) => d.code === 'E_RING_BARE_DESCRIPTION_REMOVED'
-    );
-    expect(pipe).toBeDefined();
-    expect(bare).toBeDefined();
-  });
-
   it('converts "- bullet" to "• bullet" in indented body', () => {
     const result = parseRing(`ring T
 

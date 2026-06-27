@@ -2,19 +2,13 @@
 // Boxes and Lines Diagram — Parser
 // ============================================================
 
-import {
-  makeDgmoError,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
-  suggest,
-} from '../diagnostics';
+import { makeDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import { parseInArrowLabel } from '../utils/arrows';
 import { normalizeName } from '../utils/name-normalize';
 import type { ParsedBoxesAndLines, BLNode, BLEdge, BLGroup } from './types';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   injectDefaultTagMetadata,
   validateTagValues,
   validateTagGroupNames,
@@ -43,11 +37,6 @@ import type { PaletteColors } from '../palettes';
 
 const MAX_GROUP_DEPTH = 2;
 
-// §1.4/§1.10 legacy-pipe detection — module-scope so they aren't re-created per
-// line. `|` inside a directed (`->`) or undirected (`~>`) arrow label is valid.
-const ARROW_LABEL_PIPE_DIRECTED_RE = /-\S*\|\S*->/;
-const ARROW_LABEL_PIPE_UNDIRECTED_RE = /~\S*\|\S*~>/;
-
 /** Boxes-and-lines requires explicit first line — no heuristic detection. */
 export function looksLikeBoxesAndLines(_content: string): boolean {
   return false;
@@ -74,8 +63,7 @@ function parseTailMeta(
   rawTail: string,
   metaAliasMap: Map<string, string>
 ): { metadata: Record<string, string>; description?: string[] } {
-  let segment = rawTail.trim();
-  if (segment.startsWith('|')) segment = segment.substring(1).trim();
+  const segment = rawTail.trim();
   if (!segment) return { metadata: {} };
 
   const metadata: Record<string, string> = {};
@@ -248,24 +236,6 @@ export function parseBoxesAndLines(
     // Skip blanks and comments
     if (!trimmed || trimmed.startsWith('//')) continue;
 
-    // §1.4 legacy `|` detection — emit once per line. In-arrow `|`
-    // per §1.10 stays valid; emit only for `|` outside arrow-label
-    // regions.
-    if (
-      trimmed.includes('|') &&
-      !ARROW_LABEL_PIPE_DIRECTED_RE.test(trimmed) &&
-      !ARROW_LABEL_PIPE_UNDIRECTED_RE.test(trimmed)
-    ) {
-      result.diagnostics.push(
-        makeDgmoError(
-          lineNum,
-          pipeOperatorRemovedMessage(),
-          'error',
-          METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-        )
-      );
-    }
-
     // First line: `boxes-and-lines [Title]`
     const firstLineResult = parseFirstLine(trimmed);
     if (firstLineResult && !contentStarted && i < 5) {
@@ -377,7 +347,6 @@ export function parseBoxesAndLines(
     // Tag group heading — must be checked BEFORE group/node/edge matching
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch && indent === 0) {
-      emitTagLegacyDiagnostic(tagBlockMatch, lineNum, result.diagnostics);
       if (contentStarted) {
         result.diagnostics.push(
           makeDgmoError(
@@ -610,7 +579,7 @@ export function parseBoxesAndLines(
       continue;
     }
 
-    // Group header: [Group Name] or [Group Name] | metadata
+    // Group header: [Group Name] or [Group Name] key: value
     const groupMatch = trimmed.match(/^\[(.+?)\](.*)$/);
     if (groupMatch && !trimmed.includes('->') && !trimmed.includes('<->')) {
       contentStarted = true;
@@ -887,24 +856,12 @@ function parseNodeLine(
   diagnostics: DgmoError[],
   nameAliasMap?: Map<string, string>
 ): MutBLNode | null {
-  // Strip any unsafe `|` so the name region stays clean — the
-  // legacy diagnostic is emitted by the per-line top-of-loop check.
-  // Anything left of a `|` is part of the label; anything to the
-  // right is comma-separated metadata.
-  let working = trimmed;
-  const pipeIdx = working.indexOf('|');
-  let legacyMetaTail = '';
-  if (pipeIdx >= 0) {
-    legacyMetaTail = working.substring(pipeIdx + 1).trim();
-    working = working.substring(0, pipeIdx).trim();
-  }
-
   const registry = withTagAliases(
     BOXES_AND_LINES_REGISTRY,
     new Set(metaAliasMap.keys())
   );
   const split = splitNameAndMeta(
-    working,
+    trimmed,
     registry,
     metaAliasMap,
     undefined,
@@ -928,12 +885,6 @@ function parseNodeLine(
     label = `${label} ${split.color}`;
   }
 
-  // Fold any legacy `| k: v` tail (back-compat).
-  if (legacyMetaTail) {
-    const tailParsed = parseTailMeta(legacyMetaTail, metaAliasMap);
-    Object.assign(metadata, tailParsed.metadata);
-    if (tailParsed.description) description = tailParsed.description;
-  }
   // Promote a `description` key out of metadata for the new path.
   if (metadata['description'] !== undefined) {
     description = [metadata['description']];
@@ -974,11 +925,9 @@ function parseNodeLine(
 }
 
 /**
- * Split the right-hand side of an edge (`Target | meta` legacy, or
- * `Target k: v` new) into a clean target name + parsed metadata.
- * For new syntax, the metadata cut is at the first reserved key
- * (via splitNameAndMeta + BOXES_AND_LINES_REGISTRY). For legacy,
- * the literal `|` still wins.
+ * Split the right-hand side of an edge (`Target k: v`) into a clean
+ * target name + parsed metadata. The metadata cut is at the first
+ * reserved key (via splitNameAndMeta + BOXES_AND_LINES_REGISTRY).
  *
  * `[Group]` bracket targets are preserved verbatim — the bracket
  * literal is the target name, not a structural sigil to peel.
@@ -987,15 +936,6 @@ function splitTargetAndMeta(
   rest: string,
   metaAliasMap: Map<string, string>
 ): { target: string; metadata: Record<string, string> } {
-  const pipeIdx = rest.indexOf('|');
-  if (pipeIdx >= 0) {
-    const tail = rest.slice(pipeIdx + 1).trim();
-    const target = rest.slice(0, pipeIdx).trim();
-    return {
-      target,
-      metadata: parseTailMeta(tail, metaAliasMap).metadata,
-    };
-  }
   // §1.4 same-line: cut at the first reserved-key colon. If the
   // target is wrapped in `[brackets]` (group endpoint), keep the
   // bracketed form intact.
@@ -1034,11 +974,11 @@ function resolveEndpoint(
 /**
  * Parse an edge line. Supports:
  * - `Source -> Target`
- * - `Source -> Target | key: value`
+ * - `Source -> Target key: value`
  * - `Source -label-> Target`
  * - `Source <-> Target`
  * - `Source <-label-> Target`
- * - `Source -label-> Target | key: value`
+ * - `Source -label-> Target key: value`
  *
  * `[Group Name]` in source or target position is resolved to `__group_Group Name`.
  */

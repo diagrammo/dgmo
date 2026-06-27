@@ -72,22 +72,22 @@ describe('wireframe parser', () => {
       );
     });
 
-    it('parses | horizontal on groups', () => {
+    it('parses horizontal on groups', () => {
       const result = parseWireframe(
-        'wireframe Test\n[Cards] | horizontal\n  Card 1\n  Card 2'
+        'wireframe Test\n[Cards] horizontal\n  Card 1\n  Card 2'
       );
       expect(result.roots[0].orientation).toBe('horizontal');
       expect(result.roots[0].isContainer).toBe(true);
     });
 
     it('empty group with group-only metadata is container (EC1)', () => {
-      const result = parseWireframe('wireframe Test\n[Sidebar] | horizontal');
+      const result = parseWireframe('wireframe Test\n[Sidebar] horizontal');
       expect(result.roots[0].type).toBe('group');
       expect(result.roots[0].isContainer).toBe(true);
     });
 
     it('empty group with scrollable is container (EC1)', () => {
-      const result = parseWireframe('wireframe Test\n[Messages] | scrollable');
+      const result = parseWireframe('wireframe Test\n[Messages] scrollable');
       expect(result.roots[0].type).toBe('group');
       expect(result.roots[0].isContainer).toBe(true);
       expect(result.roots[0].states).toContain('scrollable');
@@ -102,13 +102,13 @@ describe('wireframe parser', () => {
     });
 
     it('parses button with states', () => {
-      const result = parseWireframe('wireframe Test\n(Delete) | destructive');
+      const result = parseWireframe('wireframe Test\n(Delete) destructive');
       expect(result.roots[0].type).toBe('button');
       expect(result.roots[0].states).toContain('destructive');
     });
 
     it('parses ghost button', () => {
-      const result = parseWireframe('wireframe Test\n(Cancel) | ghost');
+      const result = parseWireframe('wireframe Test\n(Cancel) ghost');
       expect(result.roots[0].states).toContain('ghost');
     });
   });
@@ -149,7 +149,7 @@ describe('wireframe parser', () => {
 
     it('bare text with semantic state becomes alert (F22)', () => {
       const result = parseWireframe(
-        'wireframe Test\nPayment failed | destructive'
+        'wireframe Test\nPayment failed destructive'
       );
       expect(result.roots[0].type).toBe('alert');
       expect(result.roots[0].states).toContain('destructive');
@@ -200,7 +200,7 @@ describe('wireframe parser', () => {
     });
 
     it('parses dropdown with metadata', () => {
-      const result = parseWireframe('wireframe Test\n{A | B | C} | disabled');
+      const result = parseWireframe('wireframe Test\n{A | B | C} disabled');
       expect(result.roots[0].type).toBe('dropdown');
       expect(result.roots[0].states).toContain('disabled');
     });
@@ -238,7 +238,7 @@ describe('wireframe parser', () => {
     });
 
     it('parses checkbox with toggle metadata', () => {
-      const result = parseWireframe('wireframe Test\n<x> Dark mode | toggle');
+      const result = parseWireframe('wireframe Test\n<x> Dark mode toggle');
       expect(result.roots[0].type).toBe('checkbox');
       expect(result.roots[0].states).toContain('toggle');
     });
@@ -332,7 +332,7 @@ describe('wireframe parser', () => {
 
     it('parses modal as separate element', () => {
       const result = parseWireframe(
-        'wireframe Test\nmodal Confirm Delete\n  Are you sure?\n  (Delete) | destructive'
+        'wireframe Test\nmodal Confirm Delete\n  Are you sure?\n  (Delete) destructive'
       );
       expect(result.modals).toHaveLength(1);
       expect(result.modals[0].type).toBe('modal');
@@ -387,9 +387,9 @@ describe('wireframe parser', () => {
   });
 
   describe('multi-element lines', () => {
-    it('orphaned pipe attaches to preceding element (EC5)', () => {
+    it('trailing-keyword state attaches to element (EC5)', () => {
       const result = parseWireframe(
-        'wireframe Test\n[Form]\n  (Submit)  | primary'
+        'wireframe Test\n[Form]\n  (Submit) primary'
       );
       const form = result.roots[0];
       expect(form.children).toHaveLength(1);
@@ -418,13 +418,13 @@ describe('wireframe parser', () => {
 
   describe('field variants', () => {
     it('parses password variant', () => {
-      const result = parseWireframe('wireframe Test\n[****] | password');
+      const result = parseWireframe('wireframe Test\n[****] password');
       expect(result.roots[0].type).toBe('textInput');
       expect(result.roots[0].fieldVariant).toBe('password');
     });
 
     it('parses textarea variant', () => {
-      const result = parseWireframe('wireframe Test\n[Description] | textarea');
+      const result = parseWireframe('wireframe Test\n[Description] textarea');
       expect(result.roots[0].type).toBe('textInput');
       expect(result.roots[0].fieldVariant).toBe('textarea');
     });
@@ -432,7 +432,7 @@ describe('wireframe parser', () => {
 
   describe('text input with disabled state', () => {
     it('parses disabled input', () => {
-      const result = parseWireframe('wireframe Test\n[Email] | disabled');
+      const result = parseWireframe('wireframe Test\n[Email] disabled');
       expect(result.roots[0].type).toBe('textInput');
       expect(result.roots[0].states).toContain('disabled');
     });
@@ -440,7 +440,7 @@ describe('wireframe parser', () => {
 
   describe('collapsed group', () => {
     it('parses collapsed group', () => {
-      const result = parseWireframe('wireframe Test\n[Advanced] | collapsed');
+      const result = parseWireframe('wireframe Test\n[Advanced] collapsed');
       expect(result.roots[0].isContainer).toBe(true);
       expect(result.roots[0].states).toContain('collapsed');
     });
@@ -449,7 +449,7 @@ describe('wireframe parser', () => {
   describe('tag groups', () => {
     it('parses tag group with entries', () => {
       const result = parseWireframe(
-        'wireframe Test\ntag Status s\n  Active green\n  Inactive gray\n[Form]\n  (Submit)'
+        'wireframe Test\ntag Status as s\n  Active green\n  Inactive gray\n[Form]\n  (Submit)'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Status');
@@ -462,14 +462,14 @@ describe('wireframe parser', () => {
       const src = `wireframe E-Commerce Product Page
 
 [Header]
-  [Logo + Nav] | horizontal
+  [Logo + Nav] horizontal
     Acme Store
     nav
-      Products | active
+      Products active
       Categories
       Deals
       About
-  [User] | horizontal
+  [User] horizontal
     [Search products...]
     Cart (3)
     Sign In
@@ -492,10 +492,10 @@ describe('wireframe parser', () => {
   # Wireless Noise-Canceling Headphones
   $299.99  ~~$349.99~~
 
-  [Product Info] | horizontal
+  [Product Info] horizontal
     [Images]
       image
-      [Thumbnails] | horizontal
+      [Thumbnails] horizontal
         image  image  image
 
     [Details]
@@ -505,38 +505,38 @@ describe('wireframe parser', () => {
       ## Quantity
       (-)  1  (+)
 
-      (Add to Cart) | success
+      (Add to Cart) success
       (Buy Now)
-      (Add to Wishlist) | ghost
+      (Add to Wishlist) ghost
 
       ---
       Free shipping on orders over $50
-      In stock - ships within 2 days | success
+      In stock - ships within 2 days success
 
   ---
 
   tabs
-    Description | active
+    Description active
     Specifications
     Reviews (47)
 
   Long product description text goes here.
 
   ## You Might Also Like
-  [Recommendations] | horizontal
+  [Recommendations] horizontal
     [Product Card]
       image
       Similar Product 1
       $199.99
-      (Add to Cart) | ghost
+      (Add to Cart) ghost
     [Product Card]
       image
       Similar Product 2
       $149.99
-      (Add to Cart) | ghost
+      (Add to Cart) ghost
 
 [Footer]
-  [Links] | horizontal
+  [Links] horizontal
     About Us
     Contact
     Privacy Policy
@@ -545,14 +545,9 @@ describe('wireframe parser', () => {
 
       const result = parseWireframe(src);
       expect(result.title).toBe('E-Commerce Product Page');
-      // Legacy `| flag` syntax in this reference example now emits
-      // E_PIPE_OPERATOR_REMOVED per §1.4; back-compat extraction keeps
-      // the parse otherwise correct. (Reference example will be updated
-      // when the wireframe trailing-keyword-list parser refactor lands.)
-      const onlyPipeErrors = result.diagnostics
-        .filter((d) => d.severity === 'error')
-        .every((d) => d.code === 'E_PIPE_OPERATOR_REMOVED');
-      expect(onlyPipeErrors).toBe(true);
+      // Canonical trailing-keyword flag syntax — no parse errors.
+      const errors = result.diagnostics.filter((d) => d.severity === 'error');
+      expect(errors).toHaveLength(0);
       // Should have 4 top-level groups: Header, Sidebar, Main, Footer
       expect(result.roots).toHaveLength(4);
       expect(result.roots[0].label).toBe('Header');
@@ -565,7 +560,6 @@ describe('wireframe parser', () => {
   describe('error recovery', () => {
     it('suggests braces for parens with pipes (AC25)', () => {
       const result = parseWireframe('wireframe Test\n(Admin | Editor)');
-      // E_PIPE_OPERATOR_REMOVED also fires for the bare `|` outside braces.
       const braceHint = result.diagnostics.find((d) =>
         d.message.includes('{Admin | Editor}')
       );

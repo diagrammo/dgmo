@@ -156,11 +156,16 @@ describe('parseSitemap', () => {
 
   // === Node descriptions ===
   describe('node descriptions', () => {
-    it('description keyword line under a node collects as description', () => {
+    it('bare description keyword (no colon) is treated as a child node', () => {
+      // The legacy bare `description text` form is removed at 1.0; it no
+      // longer attaches as a description and falls through to a child node.
       const result = parseSitemap(
         'sitemap\nHome\n  description Main landing page'
       );
-      expect(result.roots[0].description).toEqual(['Main landing page']);
+      expect(result.roots[0].description).toBeUndefined();
+      expect(result.roots[0].children[0].label).toBe(
+        'description Main landing page'
+      );
     });
 
     it('description: with colon is treated as metadata (not dedicated field)', () => {
@@ -181,25 +186,21 @@ describe('parseSitemap', () => {
       expect(result.roots[0].metadata['description']).toBeUndefined();
     });
 
-    it('multi-line: multiple description lines accumulate', () => {
+    it('multi-line: indented description: lines accumulate in metadata', () => {
       const result = parseSitemap(
-        'sitemap\nHome\n  description First line\n  description Second line'
+        'sitemap\nHome\n  description: First line\n  description: Second line'
       );
-      expect(result.roots[0].description).toEqual([
-        'First line',
-        'Second line',
-      ]);
+      // Indented colon form is stored in the metadata record (last wins).
+      expect(result.roots[0].metadata['description']).toBe('Second line');
     });
 
-    it('description on container nodes', () => {
+    it('description on container nodes via same-line metadata', () => {
       const result = parseSitemap(
-        'sitemap\n[Navigation]\n  description Nav group\n  Home'
+        'sitemap\n[Navigation] description: Nav group\n  Home'
       );
-      // Container is parsed; description is on the container
       const container = result.roots[0];
       expect(container.isContainer).toBe(true);
-      // Description collected on the container node
-      expect(container.description).toEqual(['Nav group']);
+      expect(container.metadata['description']).toBe('Nav group');
     });
 
     it('bare description with no text is silently skipped', () => {
@@ -364,7 +365,7 @@ describe('parseSitemap', () => {
 
     it('tag group with alias', () => {
       const content = [
-        'tag Authorization auth',
+        'tag Authorization as auth',
         '  Public green',
         '',
         'Home',

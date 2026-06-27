@@ -116,21 +116,6 @@ Bottom`);
     ]);
   });
 
-  it('emits E_PIPE_OPERATOR_REMOVED and E_PYRAMID_BARE_DESCRIPTION_REMOVED on legacy bare-description', () => {
-    const result = parsePyramid(`pyramid T
-
-Top | description from pipe
-Bottom`);
-    const pipe = result.diagnostics.find(
-      (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
-    );
-    const bare = result.diagnostics.find(
-      (d) => d.code === 'E_PYRAMID_BARE_DESCRIPTION_REMOVED'
-    );
-    expect(pipe).toBeDefined();
-    expect(bare).toBeDefined();
-  });
-
   it('converts "- bullet" to "• bullet" in indented body', () => {
     const result = parsePyramid(`pyramid T
 

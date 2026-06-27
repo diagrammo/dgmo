@@ -158,7 +158,7 @@ Banking is a system`;
     const noDesc = `c4
 Banking is a system`;
     const withDesc = `c4
-Banking is a system | description: Handles all banking operations for customers`;
+Banking is a system description: Handles all banking operations for customers`;
 
     const parsedNoDesc = parseC4(noDesc, palette.light);
     const parsedWithDesc = parseC4(withDesc, palette.light);
@@ -455,25 +455,25 @@ Banking is a system
 
 const containerInput = `c4 Container View
 
-tag Technology tech
+tag Technology as tech
   React blue
   Node.js green
   PostgreSQL purple
   Redis red
 
 Customer is a person
-Banking is a system | description: Internet banking system
+Banking is a system description: Internet banking system
   -Serves-> Customer
   containers
-    WebApp is a container | tech: React, description: SPA frontend
-      -Calls-> API | tech: JSON/HTTPS
-      -Serves UI to-> Customer | tech: HTTPS
-    API is a container | tech: Node.js, description: REST API backend
-      -Reads/writes-> Database | tech: SQL
-      ~Sessions~> Cache | tech: TCP
-    Database is a container is a database | tech: PostgreSQL, description: User data
-    Cache is a container is a cache | tech: Redis, description: Session store
-Email is a system | description: Email delivery service
+    WebApp is a container tech: React, description: SPA frontend
+      -Calls-> API tech: JSON/HTTPS
+      -Serves UI to-> Customer tech: HTTPS
+    API is a container tech: Node.js, description: REST API backend
+      -Reads/writes-> Database tech: SQL
+      ~Sessions~> Cache tech: TCP
+    Database is a container is a database tech: PostgreSQL, description: User data
+    Cache is a container is a cache tech: Redis, description: Session store
+Email is a system description: Email delivery service
   ~Sends emails to~> Customer`;
 
 describe('layoutC4Containers', () => {
@@ -558,7 +558,7 @@ describe('layoutC4Containers', () => {
 
   it('returns empty result for system with no containers', () => {
     const input = `c4
-Simple is a system | description: No containers`;
+Simple is a system description: No containers`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Containers(parsed, 'Simple');
 
@@ -777,7 +777,7 @@ describe('computeC4NodeDimensions with technology', () => {
     const input = `c4
 Banking is a system
   containers
-  API is a container | tech: Node.js, description: REST API`;
+  API is a container tech: Node.js, description: REST API`;
 
     const parsed = parseC4(input, palette.light);
     const container = parsed.elements[0].children[0];
@@ -806,7 +806,7 @@ describe('is a shape override in container layout', () => {
     const input = `c4
 Platform is a system
   containers
-  MessageBus is a container is a queue | description: Event backbone`;
+  MessageBus is a container is a queue description: Event backbone`;
 
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Containers(parsed, 'Platform');
@@ -826,8 +826,8 @@ describe('reverse relationship discovery', () => {
     const input = `c4
 Banking is a system
   containers
-  API is a container | description: Backend
-Monitoring is a system | description: Watches services
+  API is a container description: Backend
+Monitoring is a system description: Watches services
   -Health checks-> API`;
 
     const parsed = parseC4(input, palette.light);
@@ -850,10 +850,10 @@ describe('containers in groups', () => {
 Analytics is a system
   containers
     [Frontend]
-      Dashboard is a container | description: SPA
-      Admin is a container | description: Admin panel
+      Dashboard is a container description: SPA
+      Admin is a container description: Admin panel
     [Backend]
-      API is a container | description: REST API`;
+      API is a container description: REST API`;
 
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Containers(parsed, 'Analytics');
@@ -868,25 +868,25 @@ Analytics is a system
 
 const componentInput = `c4 Component View
 
-tag Technology tech
+tag Technology as tech
   Spring green
   React blue
   PostgreSQL purple
 
 Customer is a person
-Ride Platform is a system | description: Ride-sharing platform
+Ride Platform is a system description: Ride-sharing platform
   containers
-    Ride Service is a container | tech: Spring, description: Core ride logic
+    Ride Service is a container tech: Spring, description: Core ride logic
       components
-        Ride Controller is a component | tech: Spring, description: REST endpoints
+        Ride Controller is a component tech: Spring, description: REST endpoints
           -Delegates to-> Ride Manager
-          -Sends ride status-> Customer | tech: WebSocket
-        Ride Manager is a component | description: Business logic
+          -Sends ride status-> Customer tech: WebSocket
+        Ride Manager is a component description: Business logic
           -Reads/writes rides-> Ride Repository
-        Ride Repository is a component is a database | tech: PostgreSQL, description: Ride data access
-    API Gateway is a container | tech: Spring, description: Edge proxy
-      -Routes requests-> Ride Controller | tech: HTTPS
-Payments is a system | description: Payment processing
+        Ride Repository is a component is a database tech: PostgreSQL, description: Ride data access
+    API Gateway is a container tech: Spring, description: Edge proxy
+      -Routes requests-> Ride Controller tech: HTTPS
+Payments is a system description: Payment processing
   -Charges rider-> Ride Manager`;
 
 describe('layoutC4Components', () => {
@@ -1010,7 +1010,7 @@ describe('layoutC4Components', () => {
     const input = `c4
 Platform is a system
   containers
-    Simple is a container | description: No components`;
+    Simple is a container description: No components`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Components(parsed, 'Platform', 'Simple');
     expect(layout.nodes.length).toBe(0);
@@ -1177,14 +1177,14 @@ describe('renderC4ComponentsForExport', () => {
 // ============================================================
 
 const groupedContainerInput = `c4 Grouped Containers
-Analytics is a system | description: Analytics platform
+Analytics is a system description: Analytics platform
   containers
     [Frontend]
-      Dashboard is a container | description: SPA
-      Admin is a container | description: Admin panel
+      Dashboard is a container description: SPA
+      Admin is a container description: Admin panel
     [Backend]
-      API is a container | description: REST API
-      Worker is a container | description: Background jobs
+      API is a container description: REST API
+      Worker is a container description: Background jobs
         -Calls-> API
 User is a person
   -Uses-> Dashboard`;
@@ -1278,15 +1278,15 @@ describe('group boundaries in container layout', () => {
 });
 
 const groupedComponentInput = `c4
-Platform is a system | description: Platform
+Platform is a system description: Platform
   containers
-    Service is a container | description: Main service
+    Service is a container description: Main service
       components
         [Controllers]
-          UserCtrl is a component | description: User endpoints
-          OrderCtrl is a component | description: Order endpoints
+          UserCtrl is a component description: User endpoints
+          OrderCtrl is a component description: Order endpoints
         [Repositories]
-          UserRepo is a component is a database | description: User data
+          UserRepo is a component is a database description: User data
 `;
 
 describe('group boundaries in component layout', () => {

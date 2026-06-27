@@ -175,14 +175,6 @@ describe('parseOrg', () => {
       expect(alice.color).toBeUndefined();
       expect(alice.metadata).toEqual({ role: 'Senior' });
     });
-
-    it('legacy `|` operator emits E_PIPE_OPERATOR_REMOVED', () => {
-      const result = parseOrg('Alice Park | Senior Engineer');
-      const diag = result.diagnostics.find(
-        (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
-      );
-      expect(diag).toBeDefined();
-    });
   });
 
   // === Containers ===

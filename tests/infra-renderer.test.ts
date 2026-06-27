@@ -184,7 +184,7 @@ CDN
 
   it('renders tag legend as collapsed pill', () => {
     const svg = renderToSvg(`infra
-tag Team t
+tag Team as t
   Backend blue
 
 edge

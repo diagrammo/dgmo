@@ -20,7 +20,6 @@ import {
 } from '../utils/reserved-key-registry';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
   finalizeAutoTagColors,
@@ -423,7 +422,6 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       );
       return;
     }
-    emitTagLegacyDiagnostic(m, line, diagnostics);
     const group: Writable<TagGroup> = {
       name: m.name,
       ...(m.alias !== undefined && { alias: m.alias }),

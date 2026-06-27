@@ -1,18 +1,14 @@
 import type { PaletteColors } from '../palettes';
 import {
-  descriptionBareRemovedMessage,
   formatDgmoError,
   makeDgmoError,
   makeFail,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
   suggest,
 } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
@@ -152,7 +148,6 @@ export function parseMindmap(
     // Tag group heading
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch) {
-      emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
       if (contentStarted) {
         pushError(lineNumber, 'Tag groups must appear before mindmap content');
         continue;
@@ -239,17 +234,7 @@ export function parseMindmap(
     // Check for indented `description: text` metadata
     if (indent > 0) {
       const descResult = tryStripDescriptionKeyword(trimmed);
-      if (descResult.isKeyword) {
-        if (descResult.needsColon) {
-          result.diagnostics.push(
-            makeDgmoError(
-              lineNumber,
-              descriptionBareRemovedMessage(descResult.text),
-              'error',
-              METADATA_DIAGNOSTIC_CODES.DESCRIPTION_BARE_REMOVED
-            )
-          );
-        }
+      if (descResult.isKeyword && !descResult.needsColon) {
         // Find parent node from indent stack
         const parent = findMetadataParent(indent, indentStack);
         if (parent) {
@@ -347,18 +332,6 @@ function parseNodeLine(
   aliasMap: Map<string, string>,
   diagnostics: ReturnType<typeof makeDgmoError>[]
 ): Writable<MindmapNode> {
-  // Legacy `|` detection — mindmap had standard pipe-metadata form.
-  if (trimmed.includes('|')) {
-    diagnostics.push(
-      makeDgmoError(
-        lineNumber,
-        pipeOperatorRemovedMessage(),
-        'error',
-        METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-      )
-    );
-  }
-
   // §1.4 unified metadata grammar — build registry with active tag aliases.
   const registry = withTagAliases(MINDMAP_REGISTRY, new Set(aliasMap.keys()));
   const split = splitNameAndMeta(

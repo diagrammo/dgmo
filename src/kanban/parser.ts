@@ -3,8 +3,6 @@ import {
   formatDgmoError,
   makeDgmoError,
   makeFail,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
   suggest,
 } from '../diagnostics';
 import { resolveColorWithDiagnostic } from '../colors';
@@ -14,7 +12,6 @@ import {
 } from '../utils/reserved-key-registry';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
   finalizeAutoTagColors,
@@ -50,8 +47,6 @@ const COLUMN_RE = /^\[(.+?)\]\s*(.*)$/;
 const PALETTE_COLOR_WORD_RE =
   /^(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\b/;
 const AS_ALIAS_TOKEN_RE = /^as\s+([A-Za-z][A-Za-z0-9_]{0,11})\b/;
-// Legacy delimiter
-const LEGACY_COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
 
 /** Known kanban options (key-value). */
 const KNOWN_OPTIONS = new Set(['hide', 'active-tag']);
@@ -158,7 +153,6 @@ export function parseKanban(
     if (!contentStarted) {
       const tagBlockMatch = matchTagBlockHeading(trimmed);
       if (tagBlockMatch) {
-        emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
         currentTagGroup = {
           name: tagBlockMatch.name,
           ...(tagBlockMatch.alias !== undefined && {
@@ -243,19 +237,6 @@ export function parseKanban(
 
     const indent = measureIndent(line);
 
-    // Reject legacy == Column == syntax
-    if (LEGACY_COLUMN_RE.test(trimmed)) {
-      const legacyMatch = trimmed.match(LEGACY_COLUMN_RE)!;
-      const name = legacyMatch[1]!.replace(/\s*\(.*\)\s*$/, '').trim();
-      result.diagnostics.push(
-        makeDgmoError(
-          lineNumber,
-          `'== ${name} ==' is no longer supported. Use '[${name}]' instead`
-        )
-      );
-      continue;
-    }
-
     // [Column] header at indent 0
     const columnMatch = indent === 0 ? trimmed.match(COLUMN_RE) : null;
     if (columnMatch) {
@@ -297,19 +278,6 @@ export function parseKanban(
       if (aliasMatch) {
         colAlias = aliasMatch[1];
         tail = tail.substring(aliasMatch[0]!.length).trim();
-      }
-
-      // Legacy `|` detection in the tail (§1.4 rejection).
-      if (tail.startsWith('|')) {
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            pipeOperatorRemovedMessage(),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-          )
-        );
-        tail = tail.replace(/^\|\s*/, '');
       }
 
       // §1.4 unified metadata grammar — same-line cut on the tail (which
@@ -367,7 +335,7 @@ export function parseKanban(
     if (!currentColumn) {
       warn(
         lineNumber,
-        'Card line found before any column. Declare a column first with \'[Column Name]\', then indent cards beneath it. (§11)'
+        "Card line found before any column. Declare a column first with '[Column Name]', then indent cards beneath it. (§11)"
       );
       continue;
     }
@@ -490,18 +458,6 @@ function parseCardLine(
   _palette?: PaletteColors,
   diagnostics?: import('../diagnostics').DgmoError[]
 ): KanbanCard {
-  // Legacy `|` detection.
-  if (trimmed.includes('|') && diagnostics) {
-    diagnostics.push(
-      makeDgmoError(
-        lineNumber,
-        pipeOperatorRemovedMessage(),
-        'error',
-        METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-      )
-    );
-  }
-
   // §1.4 unified metadata grammar — same-line cut.
   const registry = withTagAliases(
     KANBAN_REGISTRY,

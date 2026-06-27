@@ -620,40 +620,6 @@ export function peelRampColors(label: string): {
   return { label: second.rest, low: second.color, high: first.color };
 }
 
-/** Error message for stray pipe(s) where metadata used to go (0.18.0 removed `|`). */
-export const MULTIPLE_PIPE_ERROR =
-  "'|' is no longer metadata syntax — put metadata on the same line as 'key: value, key2: value2' (no pipes), per §1.4.";
-
-/**
- * Parse metadata from segments after the first (name) segment.
- * A single `|` separates the label from metadata; items after the pipe are comma-delimited.
- * Multiple pipes produce an error.
- */
-export function parsePipeMetadata(
-  segments: string[],
-  aliasMap: Map<string, string> = new Map(),
-  errorMultiplePipes?: () => void
-): Record<string, string> {
-  if (segments.length > 2) {
-    if (errorMultiplePipes) errorMultiplePipes();
-    return {};
-  }
-  const metadata: Record<string, string> = {};
-  const raw = segments.slice(1).join(',');
-  for (const part of raw.split(',')) {
-    const trimmedPart = part.trim();
-    if (!trimmedPart) continue;
-    const colonIdx = trimmedPart.indexOf(':');
-    if (colonIdx > 0) {
-      const rawKey = trimmedPart.substring(0, colonIdx).trim().toLowerCase();
-      const key = aliasMap.get(rawKey) ?? rawKey;
-      const value = trimmedPart.substring(colonIdx + 1).trim();
-      metadata[key] = value;
-    }
-  }
-  return metadata;
-}
-
 // ============================================================
 // Unified Metadata Grammar (§1.4) — splitNameAndMeta
 // ============================================================

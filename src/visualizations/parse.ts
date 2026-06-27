@@ -9,15 +9,7 @@
 
 import type { PaletteColors } from '../palettes';
 import { resolveColorWithDiagnostic } from '../colors';
-import {
-  ALIAS_DIAGNOSTIC_CODES,
-  METADATA_DIAGNOSTIC_CODES,
-  dataCommaRemovedMessage,
-  formatDgmoError,
-  makeDgmoError,
-  suggest,
-  vennAliasKeywordRemovedMessage,
-} from '../diagnostics';
+import { formatDgmoError, makeDgmoError, suggest } from '../diagnostics';
 import {
   collectIndentedValues,
   extractColor,
@@ -114,19 +106,6 @@ function parseVisualizationFull(
 
   const warn = (line: number, message: string): void => {
     result.diagnostics.push(makeDgmoError(line, message, 'warning'));
-  };
-
-  // 1.0 freeze: data-row value commas (separator + thousands grouping) are
-  // removed. Emit an error but parse best-effort so the diagram still renders.
-  const flagDataComma = (line: number, canonical: string): void => {
-    result.diagnostics.push(
-      makeDgmoError(
-        line,
-        dataCommaRemovedMessage(canonical),
-        'error',
-        METADATA_DIAGNOSTIC_CODES.DATA_COMMA_REMOVED
-      )
-    );
   };
 
   if (!content?.trim()) {
@@ -391,11 +370,6 @@ function parseVisualizationFull(
         const arcValue = linkMatch[4]
           ? parseFloat(normalizeNumericToken(linkMatch[4]) ?? linkMatch[4])
           : 1;
-        // 1.0 freeze: a thousands comma in the arc weight (`A -> B 1,000`) is a
-        // removed data-row value comma. Underscores (`1_000`) remain valid.
-        if (linkMatch[4]?.includes(',')) {
-          flagDataComma(lineNumber, `${source} -> ${target} ${arcValue}`);
-        }
         result.links.push({
           source,
           target,
@@ -693,9 +667,9 @@ function parseVisualizationFull(
 
       // Set declaration (§1.5 universal trailing-token, §2A.2 modifier order):
       //   `Name` / `Name color` / `Name as <alias>` / `Name as <alias> color`
-      // Color is the line-trailing token, peeled first; alias follows the name.
-      // Legacy `Name alias <token>` emits E_VENN_ALIAS_KEYWORD_REMOVED.
-      // Only attempt set parsing if the line wasn't a bare-keyword option (handled above).
+      // Color is the line-trailing token, peeled first; alias follows the name
+      // via the `as` keyword. Only attempt set parsing if the line wasn't a
+      // bare-keyword option (handled above).
       if (!/^(solid-fill|no-name|no-value|no-percent|no-title)$/i.test(line)) {
         // Peel a trailing color word from the whole line first so the
         // remaining text is `Name [alias <alias>]` / `Name [as <alias>]`.
@@ -710,27 +684,6 @@ function parseVisualizationFull(
               result.diagnostics,
               palette
             ) ?? null;
-        }
-
-        // Detect legacy `alias` keyword first — graceful degradation parses
-        // the rest of the line so the set still appears.
-        const legacyAliasMatch = lineWithoutColor.match(
-          /^(.+?)\s+alias\s+(\S+)\s*$/i
-        );
-        if (legacyAliasMatch) {
-          // Capture groups 1-2 guaranteed by the regex match.
-          const name = legacyAliasMatch[1]!.trim();
-          const aliasToken = legacyAliasMatch[2]!.trim();
-          result.diagnostics.push(
-            makeDgmoError(
-              lineNumber,
-              vennAliasKeywordRemovedMessage({ name, alias: aliasToken }),
-              'error',
-              ALIAS_DIAGNOSTIC_CODES.VENN_ALIAS_KEYWORD_REMOVED
-            )
-          );
-          result.vennSets.push({ name, alias: aliasToken, color, lineNumber });
-          continue;
         }
 
         const setDeclMatch = lineWithoutColor.match(
@@ -842,16 +795,6 @@ function parseVisualizationFull(
           const y = parseFloat(
             normalizeNumericToken(pointMatch[4]!) ?? pointMatch[4]!
           );
-          // 1.0 freeze: a comma as the x/y separator (`Label x, y`) or a
-          // thousands comma inside either coordinate is a removed data-row
-          // value comma. Underscores (`1_000`) remain valid.
-          if (
-            pointMatch[3] === ',' ||
-            pointMatch[2]!.includes(',') ||
-            pointMatch[4]!.includes(',')
-          ) {
-            flagDataComma(lineNumber, `${label} ${x} ${y}`);
-          }
           result.quadrantPoints.push({
             label,
             x,
@@ -1049,7 +992,6 @@ function parseVisualizationFull(
         const P = result.periods.length;
         const tokens = line.split(/\s+/);
         const values: number[] = [];
-        let sawComma = false;
 
         // Scan from right, capped at P values
         let rightIdx = tokens.length - 1;
@@ -1059,10 +1001,6 @@ function parseVisualizationFull(
           const raw = normalizeNumericToken(tok) ?? tok;
           const num = parseFloat(raw);
           if (!isNaN(num) && /^-?\d/.test(raw)) {
-            // A comma in a consumed value token is a removed data-row value
-            // comma — either thousands grouping (`1,000`) or a separator with
-            // the comma glued to the token (`40,`). Underscores stay valid.
-            if (tok.includes(',')) sawComma = true;
             values.unshift(num);
             rightIdx--;
           } else {
@@ -1081,9 +1019,6 @@ function parseVisualizationFull(
         // Remaining left tokens = label
         const labelTokens = tokens.slice(0, rightIdx + 1);
         const joinedLabel = labelTokens.join(' ');
-        if (sawComma) {
-          flagDataComma(lineNumber, `${joinedLabel} ${values.join(' ')}`);
-        }
 
         if (!joinedLabel) {
           warn(
@@ -1257,11 +1192,6 @@ function parseVisualizationFull(
             : NaN;
         if (lastSpace >= 0 && !isNaN(maybeWeight) && maybeWeight > 0) {
           const wordText = line.substring(0, lastSpace).trim();
-          // 1.0 freeze: a thousands comma in the wordcloud weight
-          // (`BigWord 1,000`) is a removed data-row value comma.
-          if (rawWeight.includes(',')) {
-            flagDataComma(lineNumber, `${wordText} ${maybeWeight}`);
-          }
           result.words.push({
             text: wordText,
             weight: maybeWeight,

@@ -3,9 +3,9 @@ import { renderDataChartD3 as renderExtendedChartForExport } from '../src/charts
 
 // Minimal valid inputs for each ECharts chart type
 const SCATTER_INPUT = `scatter Test Scatter
-A 1, 2
-B 3, 4
-C 5, 6`;
+A 1 2
+B 3 4
+C 5 6`;
 
 const SANKEY_INPUT = `sankey Test Sankey
 A -> B 10
@@ -24,8 +24,8 @@ g(x) sin(x)`;
 
 const HEATMAP_INPUT = `heatmap Test Heatmap
 columns Mon, Tue, Wed
-Morning 10, 20, 30
-Afternoon 40, 50, 60`;
+Morning 10 20 30
+Afternoon 40 50 60`;
 
 const FUNNEL_INPUT = `funnel Test Funnel
 Visitors 1000
@@ -122,19 +122,19 @@ describe('renderExtendedChartForExport', () => {
 const SCATTER_LABELS_INPUT = `scatter Test Labels
 x-label X
 y-label Y
-A 1, 2
-B 3, 4
-C 5, 6`;
+A 1 2
+B 3 4
+C 5 6`;
 
 const SCATTER_DENSE_INPUT = `scatter Dense Cluster
-P1 5, 5
-P2 5.1, 5
-P3 5.2, 5
-P4 4.9, 5
-P5 5, 5.1
-P6 5.1, 5.1
-P7 4.9, 4.9
-P8 5.2, 4.9`;
+P1 5 5
+P2 5.1 5
+P3 5.2 5
+P4 4.9 5
+P5 5 5.1
+P6 5.1 5.1
+P7 4.9 4.9
+P8 5.2 4.9`;
 
 describe('scatter label SSR integration', () => {
   it('renders scatter with labels: on — SVG contains point names as text', async () => {

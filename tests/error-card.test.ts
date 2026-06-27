@@ -94,7 +94,7 @@ describe('renderErrorCard', () => {
 
 describe('render() error fallback', () => {
   it('returns the error card by default (onError: svg)', async () => {
-    const { svg, diagnostics } = await render('sequence F\nBob | Carol x', {
+    const { svg, diagnostics } = await render('notarealchart\nX 1', {
       palette: palettes.slate,
       theme: themes.light,
     });
@@ -104,12 +104,12 @@ describe('render() error fallback', () => {
 
   it('still throws when onError is throw', async () => {
     await expect(
-      render('sequence F\nBob | Carol x', { onError: 'throw' })
+      render('notarealchart\nX 1', { onError: 'throw' })
     ).rejects.toThrow(/DGMO parse error/);
   });
 
   it('returns no error card when onError is silent', async () => {
-    const { svg } = await render('sequence F\nBob | Carol x', {
+    const { svg } = await render('notarealchart\nX 1', {
       onError: 'silent',
     });
     expect(svg).not.toContain("Couldn't render this diagram");

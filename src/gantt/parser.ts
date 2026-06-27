@@ -2,14 +2,7 @@
 // Gantt Chart Parser
 // ============================================================
 
-import {
-  formatDgmoError,
-  ganttBarePercentRemovedMessage,
-  ganttLegacyRemovedMessage,
-  makeDgmoError,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
-} from '../diagnostics';
+import { formatDgmoError, makeDgmoError } from '../diagnostics';
 import {
   GANTT_REGISTRY,
   withTagAliases,
@@ -22,18 +15,11 @@ import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
   tagAttrKey,
 } from '../utils/tag-groups';
-import {
-  measureIndent,
-  extractColor,
-  parsePipeMetadata,
-  MULTIPLE_PIPE_ERROR,
-  parseFirstLine,
-} from '../utils/parsing';
+import { measureIndent, extractColor, parseFirstLine } from '../utils/parsing';
 import {
   parseOffset,
   parseOffsetPrefix,
@@ -56,17 +42,6 @@ import type {
 } from './types';
 
 // ── Regexes ─────────────────────────────────────────────────
-
-/** Legacy duration task: `30d Label` (deprecated \u2014 use `Label duration: 30d`) */
-const LEGACY_DURATION_RE =
-  /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)(\?)?\s+(.+)$/;
-
-/** Legacy explicit date task: `2024-01-15 Label` (deprecated \u2014 use `Label start: 2024-01-15`) */
-const LEGACY_EXPLICIT_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s+(.+)$/;
-
-/** Legacy timeline duration: `2024-01-15 -> 30d Label` (deprecated \u2014 use `Label start: \u2026, duration: \u2026`) */
-const LEGACY_TIMELINE_DURATION_RE =
-  /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s*(?:->|\u2013>)\s*(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)(\?)?\s+(.+)$/;
 
 /** Group container: `[GroupName]` with optional pipe metadata */
 const GROUP_RE = /^\[(.+?)\]\s*(.*)$/;
@@ -276,8 +251,7 @@ export function parseGantt(
   let lastTaskNode: Writable<GanttNode & { kind: 'task' }> | null = null;
   let taskIdCounter = 0;
   const seriesColors = palette ? getSeriesColors(palette) : [];
-  // 1.0: parser is always new-mode. Legacy scheduling forms are
-  // detected per-line and rejected with E_GANTT_LEGACY_REMOVED.
+  // 1.0: parser is always new-mode; legacy scheduling forms were removed.
   const syntaxMode = 'new' as const;
   result.syntaxMode = syntaxMode;
   // const definedTaskNames = new Map<string, string>(); // normalized name → scope key (Phase 6 diagnostics)
@@ -552,14 +526,8 @@ export function parseGantt(
       const arrowResult = matchArrowLine(line);
       if (arrowResult) {
         // Parse remainder as task content (name + optional duration +
-        // metadata). For pipe-bearing dep lines (`Target | lag: 3bd`),
-        // the metadata tail may contain a duration-shaped value that the
-        // positional scan would wrongly grab — restrict definition
-        // detection to the segment before the first `|`.
-        const defSegment = arrowResult.rest.includes('|')
-          ? arrowResult.rest.split('|')[0]!
-          : arrowResult.rest;
-        const content = parseNewTaskContent(defSegment, lineNumber);
+        // metadata).
+        const content = parseNewTaskContent(arrowResult.rest, lineNumber);
 
         if (content.duration || content.explicitStart) {
           // Definition + dependency: create task AND edge
@@ -600,22 +568,12 @@ export function parseGantt(
         } else {
           // Reference only: dependency edge from lastTaskNode to target.
           // The target body may carry offset metadata in the §1.4
-          // (`Target offset: 2bd`) or legacy pipe (`Target | offset: 2bd`)
-          // form. Pipe metadata is already flagged via E_PIPE_OPERATOR_REMOVED
-          // wherever a `|` survives; here we still parse it for back-compat.
+          // (`Target offset: 2bd`) form.
           if (lastTaskNode) {
             const depBody = arrowResult.rest;
             let targetSegment: string;
             let meta: Record<string, string>;
-            if (depBody.includes('|')) {
-              const depParts = depBody.split('|');
-              targetSegment = depParts[0]!.trim();
-              meta = parsePipeMetadata(
-                ['', ...depParts.slice(1)],
-                metaAliasMap,
-                () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
-              );
-            } else {
+            {
               const depRegistry = withTagAliases(
                 GANTT_REGISTRY,
                 new Set(metaAliasMap.keys())
@@ -812,7 +770,6 @@ export function parseGantt(
     // Tag block heading
     const tagMatch = matchTagBlockHeading(line);
     if (tagMatch) {
-      emitTagLegacyDiagnostic(tagMatch, lineNumber, result.diagnostics);
       inTagBlock = true;
       tagBlockIndent = indent;
       currentTagGroup = {
@@ -1147,143 +1104,6 @@ export function parseGantt(
     // ── NEW-MODE: offset prefix + group / positional task ──
 
     if (syntaxMode === 'new') {
-      // ── 1.0: removed LEGACY scheduling forms → hard error ──
-      // The four pre-1.0 shorthands would otherwise be silently mis-parsed
-      // in new mode (e.g. `8d Design` → a task literally named "8d
-      // Design", `parallel` → a task named "parallel"). Detect each,
-      // emit `E_GANTT_LEGACY_REMOVED`, then best-effort parse so the
-      // diagram still renders (matches the other 1.0 freeze removals).
-
-      // (a) `parallel` keyword → removed. Bare siblings are already
-      //     parallel in v2; keep the block so nesting still renders.
-      if (line === 'parallel') {
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            ganttLegacyRemovedMessage(
-              'parallel',
-              'remove it — sibling tasks already run in parallel by default'
-            ),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.GANTT_LEGACY_REMOVED
-          )
-        );
-        const parallel: Writable<GanttParallelBlock> = {
-          kind: 'parallel',
-          lineNumber,
-          children: [],
-        };
-        currentContainer().push(parallel);
-        blockStack.push({ node: parallel, indent, containerType: 'parallel' });
-        lastTaskNode = null;
-        continue;
-      }
-
-      // (b) legacy timeline-duration: `2024-01-15 -> 30d Label`
-      const legacyTimeline = line.match(LEGACY_TIMELINE_DURATION_RE);
-      if (legacyTimeline) {
-        const startDate = legacyTimeline[1]!;
-        const amount = parseFloat(legacyTimeline[2]!);
-        const unit = legacyTimeline[3] as DurationUnit;
-        const uncertain = !!legacyTimeline[4];
-        const labelRaw = legacyTimeline[5]!;
-        const durStr = `${legacyTimeline[2]}${unit}${uncertain ? '?' : ''}`;
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            ganttLegacyRemovedMessage(
-              line,
-              `use \`${labelRaw.split('|')[0]!.trim()} start: ${startDate}, duration: ${durStr}\``
-            ),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.GANTT_LEGACY_REMOVED
-          )
-        );
-        const task = makeTask(
-          labelRaw,
-          { amount, unit },
-          uncertain,
-          lineNumber,
-          startDate
-        );
-        const taskNode: GanttNode = { kind: 'task', ...task };
-        currentContainer().push(taskNode);
-        lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
-        blockStack.push({
-          node: taskNode as unknown as Writable<GanttGroup>,
-          indent,
-          containerType: 'task',
-          taskRef: lastTaskNode,
-        });
-        continue;
-      }
-
-      // (c) duration-before-name: `8d Design` / `30bd Task`
-      const legacyDur = line.match(LEGACY_DURATION_RE);
-      if (legacyDur) {
-        const amount = parseFloat(legacyDur[1]!);
-        const unit = legacyDur[2] as DurationUnit;
-        const uncertain = !!legacyDur[3];
-        const labelRaw = legacyDur[4]!;
-        const durStr = `${legacyDur[1]}${unit}${uncertain ? '?' : ''}`;
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            ganttLegacyRemovedMessage(
-              line,
-              `use \`${labelRaw.split('|')[0]!.trim()} duration: ${durStr}\` or positional \`${labelRaw.split('|')[0]!.trim()} ${durStr}\``
-            ),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.GANTT_LEGACY_REMOVED
-          )
-        );
-        const task = makeTask(
-          labelRaw,
-          { amount, unit },
-          uncertain,
-          lineNumber
-        );
-        const taskNode: GanttNode = { kind: 'task', ...task };
-        currentContainer().push(taskNode);
-        lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
-        blockStack.push({
-          node: taskNode as unknown as Writable<GanttGroup>,
-          indent,
-          containerType: 'task',
-          taskRef: lastTaskNode,
-        });
-        continue;
-      }
-
-      // (d) explicit-date task: `2024-01-15 Design`
-      const legacyDate = line.match(LEGACY_EXPLICIT_DATE_RE);
-      if (legacyDate) {
-        const startDate = legacyDate[1]!;
-        const labelRaw = legacyDate[2]!;
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            ganttLegacyRemovedMessage(
-              line,
-              `use \`${labelRaw.split('|')[0]!.trim()} start: ${startDate}\``
-            ),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.GANTT_LEGACY_REMOVED
-          )
-        );
-        const task = makeTask(labelRaw, null, false, lineNumber, startDate);
-        const taskNode: GanttNode = { kind: 'task', ...task };
-        currentContainer().push(taskNode);
-        lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
-        blockStack.push({
-          node: taskNode as unknown as Writable<GanttGroup>,
-          indent,
-          containerType: 'task',
-          taskRef: lastTaskNode,
-        });
-        continue;
-      }
-
       // Check for offset prefix: `+4w [Group]` or `+4w Task 30bd`
       let restAfterOffset = line;
       let lineOffset: Offset | undefined;
@@ -1307,21 +1127,30 @@ export function parseGantt(
           continue;
         }
         const afterBrackets = gm[2]!.trim();
-        const segments = afterBrackets ? afterBrackets.split('|') : [];
         let metadata: Record<string, string> = {};
-        const pipeWarn = () => warn(lineNumber, MULTIPLE_PIPE_ERROR);
-        if (segments.length > 0 && segments[0]!.trim()) {
-          metadata = parsePipeMetadata(
-            ['', ...segments],
-            metaAliasMap,
-            pipeWarn
+        if (afterBrackets) {
+          const groupRegistry = withTagAliases(
+            GANTT_REGISTRY,
+            new Set(metaAliasMap.keys())
           );
-        } else if (segments.length > 1) {
-          metadata = parsePipeMetadata(
-            ['', ...segments.slice(1)],
+          // `afterBrackets` is the same-line metadata tail; run it through
+          // splitNameAndMeta with a placeholder name so only the meta region
+          // is parsed (§1.4 same-line `key: value`).
+          const split = splitNameAndMeta(
+            `_ ${afterBrackets}`,
+            groupRegistry,
             metaAliasMap,
-            pipeWarn
+            undefined,
+            result.diagnostics,
+            lineNumber
           );
+          warnUnknownMetaKeys(
+            split.meta,
+            groupRegistry,
+            (msg) => warn(lineNumber, msg),
+            split.name
+          );
+          metadata = split.meta;
         }
         const groupPeeled = peelAlias(gm[1]!);
         if (groupPeeled.alias)
@@ -1605,22 +1434,8 @@ export function parseGantt(
     explicitStart?: string,
     preExtractedMeta?: Record<string, string>
   ): GanttTask {
-    // Legacy `|` detection per §1.4.
-    if (labelRaw.includes('|')) {
-      result.diagnostics.push(
-        makeDgmoError(
-          ln,
-          pipeOperatorRemovedMessage(),
-          'error',
-          METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-        )
-      );
-    }
-
-    const segments = labelRaw.split('|');
-    // TD-18: peel optional `as <alias>` from the label (pre-pipe).
-    // split('|') always yields at least one element.
-    const peeled = peelAlias(segments[0]!);
+    // TD-18: peel optional `as <alias>` from the label.
+    const peeled = peelAlias(labelRaw);
     let label = peeled.label;
     if (peeled.alias) nameAliasMap.set(peeled.alias, label);
 
@@ -1632,17 +1447,11 @@ export function parseGantt(
       );
     }
 
-    // Parse pipe metadata (legacy back-compat).
-    const metadata: Record<string, string> =
-      segments.length > 1
-        ? parsePipeMetadata(segments, metaAliasMap, () =>
-            warn(ln, MULTIPLE_PIPE_ERROR)
-          )
-        : {};
+    const metadata: Record<string, string> = {};
 
-    // §1.4 unified metadata grammar — also pick up new same-line form
-    // (no pipe) by running splitNameAndMeta on the label segment.
-    if (segments.length === 1) {
+    // §1.4 unified metadata grammar — pick up the same-line form
+    // (`Name key: value`) by running splitNameAndMeta on the label.
+    {
       const registry = withTagAliases(
         GANTT_REGISTRY,
         new Set(metaAliasMap.keys())
@@ -1676,22 +1485,6 @@ export function parseGantt(
     if (metadata['progress']) {
       progress = parseFloat(metadata['progress']);
       delete metadata['progress'];
-    }
-    // Legacy bare-percent (`| 80%`) → emit hard error + extract for back-compat.
-    for (const part of segments.slice(1).join(',').split(',')) {
-      const seg = part.trim();
-      const progressMatch = seg.match(/^(\d+)%$/);
-      if (progressMatch) {
-        result.diagnostics.push(
-          makeDgmoError(
-            ln,
-            ganttBarePercentRemovedMessage(seg),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.GANTT_BARE_PERCENT_REMOVED
-          )
-        );
-        progress = parseInt(progressMatch[1]!, 10);
-      }
     }
 
     // Reject lag/lead — use offset instead

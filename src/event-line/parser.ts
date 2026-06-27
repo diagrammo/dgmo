@@ -23,7 +23,6 @@ import type { Writable } from '../utils/brand';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
@@ -153,7 +152,6 @@ export function parseEventLine(
     // ── Tag group heading: `tag Genre as g` (before content) ──
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch) {
-      emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
       if (contentStarted) {
         pushError(
           lineNumber,

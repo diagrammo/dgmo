@@ -30,7 +30,7 @@ describe('gantt calculator', () => {
     });
 
     it('handles milestone at end', () => {
-      const result = calc('gantt\nstart 2024-01-15\n10d Work\n0d Done');
+      const result = calc('gantt\nstart 2024-01-15\nWork 10d\nDone 0d');
       expect(result.tasks).toHaveLength(2);
       expect(result.tasks[1].isMilestone).toBe(true);
       expect(fmt(result.tasks[1].startDate)).toBe(fmt(result.tasks[1].endDate));
@@ -39,7 +39,7 @@ describe('gantt calculator', () => {
 
   describe('parallel blocks', () => {
     it('parallel children start at same time', () => {
-      const result = calc('gantt\nstart 2024-01-15\nparallel\n  5d X\n  3d Y');
+      const result = calc('gantt\nstart 2024-01-15\nX 5d\nY 3d');
       expect(result.error).toBeNull();
       expect(result.tasks).toHaveLength(2);
       expect(fmt(result.tasks[0].startDate)).toBe('2024-01-15');
@@ -62,13 +62,12 @@ describe('gantt calculator', () => {
     it('-> dependency delays target start', () => {
       const input = `gantt
 start 2024-01-15
-parallel
-  [Backend]
-    10d API
-      -> Frontend.Integration
-  [Frontend]
-    5d Setup
-    5d Integration`;
+[Backend]
+  API 10d
+    -> Frontend.Integration
+[Frontend]
+  Setup 5d
+  Integration 5d`;
       const result = calc(input);
       expect(result.error).toBeNull();
 
@@ -90,11 +89,10 @@ parallel
     it('detects circular dependency and breaks it gracefully', () => {
       const input = `gantt
 start 2024-01-15
-parallel
-  10d A
-    -> B
-  10d B
-    -> A`;
+A 10d
+  -> B
+B 10d
+  -> A`;
       const result = calc(input);
       expect(result.error).toBeNull();
       expect(
@@ -109,7 +107,7 @@ parallel
 
   describe('business days', () => {
     it('10bd starting Monday Jan 15 ends Fri Jan 26', () => {
-      const result = calc('gantt\nstart 2024-01-15\n10bd Task');
+      const result = calc('gantt\nstart 2024-01-15\nTask 10bd');
       expect(result.error).toBeNull();
       // Jan 15 = Monday
       // 10bd = skip 2 weekends (4 days)
@@ -122,7 +120,9 @@ parallel
 
   describe('explicit date anchors', () => {
     it('uses explicit date as start', () => {
-      const result = calc('gantt\nstart 2024-01-15\n2024-02-15 Milestone');
+      const result = calc(
+        'gantt\nstart 2024-01-15\nMilestone start: 2024-02-15'
+      );
       expect(result.error).toBeNull();
       expect(fmt(result.tasks[0].startDate)).toBe('2024-02-15');
     });
@@ -131,7 +131,7 @@ parallel
   describe('groups', () => {
     it('builds resolved groups with date ranges', () => {
       const result = calc(
-        'gantt\nstart 2024-01-15\n[Backend]\n  10d Task A\n  5d Task B'
+        'gantt\nstart 2024-01-15\n[Backend]\n  Task A 10d\n  Task B 5d'
       );
       expect(result.groups).toHaveLength(1);
       expect(result.groups[0].name).toBe('Backend');
@@ -140,7 +140,7 @@ parallel
 
     it('computes aggregate progress', () => {
       const result = calc(
-        'gantt\nstart 2024-01-15\n[Backend]\n  10d Task A | 100%\n  10d Task B | 50%'
+        'gantt\nstart 2024-01-15\n[Backend]\n  Task A duration: 10d, progress: 100\n  Task B duration: 10d, progress: 50'
       );
       expect(result.groups[0].progress).not.toBeNull();
       // Duration-weighted: (100 * dur + 50 * dur) / (dur + dur) = 75
@@ -193,7 +193,7 @@ parallel
 start 2024-01-15
 holiday
   2024-01-16 Holiday
-5bd Task`;
+Task 5bd`;
       const result = calc(input);
       expect(result.error).toBeNull();
       // Jan 15 (Mon) start, holiday on Jan 16 (Tue)
@@ -205,7 +205,9 @@ holiday
   describe('offset', () => {
     describe('task-level offset', () => {
       it('no deps, positive — starts after project start', () => {
-        const result = calc('gantt\nstart 2024-01-15\n10bd Task | offset: 5bd');
+        const result = calc(
+          'gantt\nstart 2024-01-15\nTask duration: 10bd, offset: 5bd'
+        );
         expect(result.error).toBeNull();
         // Jan 15 (Mon) + 5bd = Jan 22 (Mon)
         expect(fmt(result.tasks[0].startDate)).toBe('2024-01-22');
@@ -213,7 +215,7 @@ holiday
 
       it('no deps, negative — clamped to project start', () => {
         const result = calc(
-          'gantt\nstart 2024-01-15\n10bd Task | offset: -3bd'
+          'gantt\nstart 2024-01-15\nTask duration: 10bd, offset: -3bd'
         );
         expect(result.error).toBeNull();
         expect(fmt(result.tasks[0].startDate)).toBe('2024-01-15');
@@ -225,7 +227,9 @@ holiday
       });
 
       it('no deps, zero — starts at project start', () => {
-        const result = calc('gantt\nstart 2024-01-15\n10bd Task | offset: 0bd');
+        const result = calc(
+          'gantt\nstart 2024-01-15\nTask duration: 10bd, offset: 0bd'
+        );
         expect(result.error).toBeNull();
         expect(fmt(result.tasks[0].startDate)).toBe('2024-01-15');
       });
@@ -253,10 +257,9 @@ holiday
       it('positive offset delays target', () => {
         const input = `gantt
 start 2024-01-15
-parallel
-  10d Source
-    -> Target | offset: 3d
-  10d Target`;
+Source 10d
+  -> Target offset: 3d
+Target 10d`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const target = result.tasks.find((t) => t.task.label === 'Target');
@@ -271,10 +274,9 @@ parallel
       it('negative offset creates overlap', () => {
         const input = `gantt
 start 2024-01-15
-parallel
-  10d Source
-    -> Target | offset: -3d
-  10d Target`;
+Source 10d
+  -> Target offset: -3d
+Target 10d`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const target = result.tasks.find((t) => t.task.label === 'Target');
@@ -288,10 +290,9 @@ parallel
       it('zero offset has no effect', () => {
         const input = `gantt
 start 2024-01-15
-parallel
-  10d Source
-    -> Target | offset: 0d
-  10d Target`;
+Source 10d
+  -> Target offset: 0d
+Target 10d`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const target = result.tasks.find((t) => t.task.label === 'Target');
@@ -304,10 +305,9 @@ parallel
       it('dep offset + task offset are additive', () => {
         const input = `gantt
 start 2024-01-15
-parallel
-  10d Source
-    -> Target | offset: 5d
-  10d Target | offset: 3d`;
+Source 10d
+  -> Target offset: 5d
+Target duration: 10d, offset: 3d`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const target = result.tasks.find((t) => t.task.label === 'Target');
@@ -323,10 +323,9 @@ parallel
       it('negative dep offset clamped to project start', () => {
         const input = `gantt
 start 2024-01-15
-parallel
-  2d Source
-    -> Target | offset: -10d
-  10d Target`;
+Source 2d
+  -> Target offset: -10d
+Target 10d`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const target = result.tasks.find((t) => t.task.label === 'Target');
@@ -339,9 +338,8 @@ parallel
       it('offset task in parallel shifts correctly', () => {
         const input = `gantt
 start 2024-01-15
-parallel
-  5d Normal
-  5d Offset | offset: 3d`;
+Normal 5d
+Offset duration: 5d, offset: 3d`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const normal = result.tasks.find((t) => t.task.label === 'Normal');
@@ -358,7 +356,7 @@ parallel
 start 2024-01-15
 holiday
   2024-01-16 Holiday
-10bd Task | offset: 2bd`;
+Task duration: 10bd, offset: 2bd`;
         const result = calc(input);
         expect(result.error).toBeNull();
         // Jan 15 (Mon) + 2bd skipping holiday on Jan 16 (Tue):
@@ -372,10 +370,9 @@ holiday
 start 2024-01-15
 holiday
   2024-01-24 Holiday
-parallel
-  10d Source
-    -> Target | offset: -2bd
-  10d Target`;
+Source 10d
+  -> Target offset: -2bd
+Target 10d`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const target = result.tasks.find((t) => t.task.label === 'Target');
@@ -387,7 +384,7 @@ parallel
     describe('explicit date with offset', () => {
       it('offset shifts explicit date forward', () => {
         const result = calc(
-          'gantt\nstart 2024-01-15\n2024-03-01 Review | offset: 5d'
+          'gantt\nstart 2024-01-15\nReview start: 2024-03-01, offset: 5d'
         );
         expect(result.error).toBeNull();
         expect(fmt(result.tasks[0].startDate)).toBe('2024-03-06');
@@ -399,9 +396,8 @@ parallel
         const input = `gantt
 start 2024-01-15
 critical-path
-parallel
-  10d Short
-  5d Long | offset: 10d`;
+Short 10d
+Long duration: 5d, offset: 10d`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const long = result.tasks.find((t) => t.task.label === 'Long');
@@ -414,12 +410,11 @@ parallel
       it('max rule applies across predecessors with offsets', () => {
         const input = `gantt
 start 2024-01-15
-parallel
-  10d Fast
-    -> Result | offset: -3d
-  20d Slow
-    -> Result | offset: 5d
-  10d Result`;
+Fast 10d
+  -> Result offset: -3d
+Slow 20d
+  -> Result offset: 5d
+Result 10d`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const resultTask = result.tasks.find((t) => t.task.label === 'Result');
@@ -438,8 +433,8 @@ parallel
       const result = calc(`gantt
 start 2024-01-15
 critical-path
-10d Long Task
-5d Short Follow-up`);
+Long Task 10d
+Short Follow-up 5d`);
       expect(result.error).toBeNull();
       // In a simple sequential chain, all tasks are on the critical path
       const critical = result.tasks.filter((t) => t.isCriticalPath);
@@ -449,12 +444,12 @@ critical-path
 
   describe('cascading uncertainty', () => {
     it('direct uncertain task is uncertain', () => {
-      const result = calc('gantt\nstart 2024-01-15\n10d? Task');
+      const result = calc('gantt\nstart 2024-01-15\nTask 10d?');
       expect(result.tasks[0].isUncertain).toBe(true);
     });
 
     it('certain task with no deps is not uncertain', () => {
-      const result = calc('gantt\nstart 2024-01-15\n10d Task');
+      const result = calc('gantt\nstart 2024-01-15\nTask 10d');
       expect(result.tasks[0].isUncertain).toBe(false);
     });
 
@@ -475,9 +470,8 @@ critical-path
     it('does not cascade across parallel branches', () => {
       const result = calc(`gantt
 start 2024-01-15
-parallel
-  10d? Uncertain Branch
-  10d Certain Branch`);
+Uncertain Branch 10d?
+Certain Branch 10d`);
       const certain = result.tasks.find(
         (t) => t.task.label === 'Certain Branch'
       );
@@ -487,12 +481,11 @@ parallel
     it('cascades if any predecessor is uncertain', () => {
       const input = `gantt
 start 2024-01-15
-parallel
-  10d? Risky
-    -> Result
-  10d Safe
-    -> Result
-  5d Result`;
+Risky 10d?
+  -> Result
+Safe 10d
+  -> Result
+Result 5d`;
       const result = calc(input);
       const res = result.tasks.find((t) => t.task.label === 'Result');
       expect(res!.isUncertain).toBe(true);
@@ -510,7 +503,7 @@ parallel
 
     it('numbers sprints starting from sprint-number', () => {
       const input =
-        'gantt\nstart 2026-01-05\nsprint-length 2w\nsprint-number 5\n2w Task A\n2w Task B';
+        'gantt\nstart 2026-01-05\nsprint-length 2w\nsprint-number 5\nTask A 2w\nTask B 2w';
       const result = calc(input);
       expect(result.sprints[0].number).toBe(5);
       expect(result.sprints[1].number).toBe(6);
@@ -521,7 +514,7 @@ parallel
       // Days from Jan 5 to Mar 1 = 55 days, 55/14 = 3.93 → sprint 4 starts at day 42 (Feb 16), sprint 5 at day 56 (Mar 2)
       // So Mar 1 falls in sprint 4 (anchor sprint 1 + 3 elapsed)
       const input =
-        'gantt\nstart 2026-03-01\nsprint-length 2w\nsprint-number 1\nsprint-start 2026-01-05\n4w Task A';
+        'gantt\nstart 2026-03-01\nsprint-length 2w\nsprint-number 1\nsprint-start 2026-01-05\nTask A 4w';
       const result = calc(input);
       expect(result.sprints.length).toBeGreaterThan(0);
       // First visible sprint should contain Mar 1
@@ -536,7 +529,7 @@ parallel
     it('uses start-inclusive, end-exclusive boundary', () => {
       // Sprint boundary at day 14 from start — task starting on that boundary belongs to next sprint
       const input =
-        'gantt\nstart 2026-01-05\nsprint-length 2w\n14d Task A\n7d Task B';
+        'gantt\nstart 2026-01-05\nsprint-length 2w\nTask A 14d\nTask B 7d';
       const result = calc(input);
       // Task A: Jan 5 → Jan 19 (14 days)
       // Sprint 1: Jan 5 to Jan 19, Sprint 2: Jan 19 to Feb 2
@@ -549,7 +542,7 @@ parallel
     it('generates partial band when chart start falls mid-sprint', () => {
       // Sprint starts Jan 5, chart starts Jan 10 with 2w sprints
       const input =
-        'gantt\nstart 2026-01-10\nsprint-length 2w\nsprint-start 2026-01-05\n4w Task A';
+        'gantt\nstart 2026-01-10\nsprint-length 2w\nsprint-start 2026-01-05\nTask A 4w';
       const result = calc(input);
       expect(result.sprints.length).toBeGreaterThan(0);
       // First sprint should start before chart start (partial band)
@@ -559,7 +552,7 @@ parallel
     });
 
     it('auto-enables sprint mode when s unit used without options', () => {
-      const input = 'gantt\nstart 2026-01-05\n2s Task A\n1s Task B';
+      const input = 'gantt\nstart 2026-01-05\nTask A 2s\nTask B 1s';
       const result = calc(input);
       // Default sprint-length 2w: 2s = 28 days, 1s = 14 days = 42 days total
       expect(result.sprints.length).toBeGreaterThan(0);
@@ -567,7 +560,7 @@ parallel
     });
 
     it('resolves 0.5s with sprint-length 2w to 7 days', () => {
-      const input = 'gantt\nstart 2026-01-05\nsprint-length 2w\n0.5s Task A';
+      const input = 'gantt\nstart 2026-01-05\nsprint-length 2w\nTask A 0.5s';
       const result = calc(input);
       expect(fmt(result.tasks[0].startDate)).toBe('2026-01-05');
       expect(fmt(result.tasks[0].endDate)).toBe('2026-01-12'); // Jan 5 + 7 days
@@ -577,7 +570,7 @@ parallel
       // Sprint 10 starts 2027-01-01, chart starts 2026-01-05 with 2w sprints
       // That's ~361 days before anchor, so sprints will have lower numbers
       const input =
-        'gantt\nstart 2026-01-05\nsprint-length 2w\nsprint-number 10\nsprint-start 2027-01-01\n4w Task A';
+        'gantt\nstart 2026-01-05\nsprint-length 2w\nsprint-number 10\nsprint-start 2027-01-01\nTask A 4w';
       const result = calc(input);
       expect(result.sprints.length).toBeGreaterThan(0);
       // Sprint numbers can go below sprintNumber when chart is before anchor
@@ -587,7 +580,7 @@ parallel
 
     it('generates sprint bands even without s unit when sprint options present', () => {
       const input =
-        'gantt\nstart 2026-01-05\nsprint-length 2w\nsprint-number 3\n4w Task A';
+        'gantt\nstart 2026-01-05\nsprint-length 2w\nsprint-number 3\nTask A 4w';
       const result = calc(input);
       expect(result.sprints.length).toBeGreaterThan(0);
       expect(result.sprints[0].number).toBe(3);

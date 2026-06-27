@@ -94,7 +94,6 @@ describe('matchTagBlockHeading', () => {
       alias: undefined,
       colorHint: undefined,
       inlineValues: undefined,
-      legacyForm: undefined,
     });
   });
 
@@ -105,19 +104,14 @@ describe('matchTagBlockHeading', () => {
       alias: 'r',
       colorHint: undefined,
       inlineValues: undefined,
-      legacyForm: undefined,
     });
   });
 
-  it('parses legacy bare-shorthand and flags it (Tag Rank r)', () => {
+  it('does not infer a trailing bare token as an alias (Tag Rank r)', () => {
+    // `as` is the only alias form; a bare trailing token is part of the name.
     const result = matchTagBlockHeading('Tag Rank r');
-    expect(result).toEqual({
-      name: 'Rank',
-      alias: 'r',
-      colorHint: undefined,
-      inlineValues: undefined,
-      legacyForm: 'bare-shorthand',
-    });
+    expect(result?.name).toBe('Rank r');
+    expect(result?.alias).toBeUndefined();
   });
 
   it('returns null for tag: syntax (deprecated)', () => {
@@ -161,7 +155,6 @@ describe('parseTagDeclaration', () => {
       alias: undefined,
       colorHint: undefined,
       inlineValues: undefined,
-      legacyForm: undefined,
     });
   });
 
@@ -169,43 +162,26 @@ describe('parseTagDeclaration', () => {
     const r = parseTagDeclaration('tag Priority as p');
     expect(r?.name).toBe('Priority');
     expect(r?.alias).toBe('p');
-    expect(r?.legacyForm).toBeUndefined();
   });
 
-  it('flags legacy `tag Name alias` form', () => {
-    const r = parseTagDeclaration('tag Priority alias p');
-    expect(r?.name).toBe('Priority');
-    expect(r?.alias).toBe('p');
-    expect(r?.legacyForm).toBe('alias-keyword');
-  });
-
-  it('flags legacy bare-shorthand (1-4 lowercase)', () => {
+  it('does not infer a trailing bare token as an alias', () => {
+    // `tag Priority p` — `p` is part of the name, not an alias.
     const r = parseTagDeclaration('tag Priority p');
-    expect(r?.name).toBe('Priority');
-    expect(r?.alias).toBe('p');
-    expect(r?.legacyForm).toBe('bare-shorthand');
+    expect(r?.name).toBe('Priority p');
+    expect(r?.alias).toBeUndefined();
   });
 
-  it('flags legacy multi-char shorthand', () => {
+  it('does not infer a multi-char trailing token as an alias', () => {
     const r = parseTagDeclaration('tag Engineering eng');
-    expect(r?.name).toBe('Engineering');
-    expect(r?.alias).toBe('eng');
-    expect(r?.legacyForm).toBe('bare-shorthand');
+    expect(r?.name).toBe('Engineering eng');
+    expect(r?.alias).toBeUndefined();
   });
 
-  it('widened universal-alias regex accepts 5+ chars and uppercase as legacy bare-shorthand', () => {
-    // Post-TD-18: widened to [A-Za-z][A-Za-z0-9_]{0,11}. Tokens like
-    // `level` and `High` now pass the alias regex; the bare form is
-    // still flagged as legacy so the parser can emit a diagnostic.
-    const a = parseTagDeclaration('tag Priority level');
-    expect(a?.name).toBe('Priority');
-    expect(a?.alias).toBe('level');
-    expect(a?.legacyForm).toBe('bare-shorthand');
-
-    const b = parseTagDeclaration('tag Priority High');
-    expect(b?.name).toBe('Priority');
-    expect(b?.alias).toBe('High');
-    expect(b?.legacyForm).toBe('bare-shorthand');
+  it('does not treat `alias` as a keyword separator', () => {
+    // The legacy `alias` keyword is gone — only `as` declares an alias.
+    const r = parseTagDeclaration('tag Priority alias p');
+    expect(r?.name).toBe('Priority alias p');
+    expect(r?.alias).toBeUndefined();
   });
 
   it('parses quoted tag name', () => {
@@ -218,14 +194,6 @@ describe('parseTagDeclaration', () => {
     const r = parseTagDeclaration('tag "A Team" as at');
     expect(r?.name).toBe('A Team');
     expect(r?.alias).toBe('at');
-    expect(r?.legacyForm).toBeUndefined();
-  });
-
-  it('parses quoted tag name with legacy bare alias', () => {
-    const r = parseTagDeclaration('tag "A Team" at');
-    expect(r?.name).toBe('A Team');
-    expect(r?.alias).toBe('at');
-    expect(r?.legacyForm).toBe('bare-shorthand');
   });
 
   it('parses single-line values (canonical `as` form)', () => {
@@ -233,7 +201,6 @@ describe('parseTagDeclaration', () => {
     expect(r?.name).toBe('Priority');
     expect(r?.alias).toBe('p');
     expect(r?.inlineValues).toEqual(['High red', 'Low blue']);
-    expect(r?.legacyForm).toBeUndefined();
   });
 
   it('parses single-line values with multi-word name (canonical)', () => {
@@ -241,14 +208,13 @@ describe('parseTagDeclaration', () => {
     expect(r?.name).toBe('Risk Level');
     expect(r?.alias).toBe('lo');
     expect(r?.inlineValues).toEqual(['High red', 'Low blue']);
-    expect(r?.legacyForm).toBeUndefined();
   });
 
-  it('parses single-line values with legacy multi-word bare shorthand', () => {
-    const r = parseTagDeclaration('tag Risk Level lo High red, Low blue');
-    expect(r?.name).toBe('Risk Level');
-    expect(r?.alias).toBe('lo');
-    expect(r?.legacyForm).toBe('bare-shorthand');
+  it('parses inline values with no alias', () => {
+    const r = parseTagDeclaration('tag Priority High red, Low blue');
+    expect(r?.name).toBe('Priority');
+    expect(r?.alias).toBeUndefined();
+    expect(r?.inlineValues).toEqual(['High red', 'Low blue']);
   });
 
   it('parses tag with color hint on name', () => {
@@ -263,7 +229,7 @@ describe('parseTagDeclaration', () => {
     );
     expect(r?.name).toBe('Phase');
     expect(r?.alias).toBeUndefined();
-    // 'Planning blue' starts inline values due to `(`
+    // 'Planning blue' starts the inline-value span (first comma-delimited value)
     expect(r?.inlineValues).toEqual([
       'Planning blue',
       'Execution green',
@@ -292,14 +258,12 @@ describe('matchTagBlockHeading (via parseTagDeclaration)', () => {
     const r = matchTagBlockHeading('tag Priority as p');
     expect(r?.name).toBe('Priority');
     expect(r?.alias).toBe('p');
-    expect(r?.legacyForm).toBeUndefined();
   });
 
-  it('matches legacy bare shorthand and flags it', () => {
+  it('does not infer a trailing bare token as an alias', () => {
     const r = matchTagBlockHeading('tag Priority p');
-    expect(r?.name).toBe('Priority');
-    expect(r?.alias).toBe('p');
-    expect(r?.legacyForm).toBe('bare-shorthand');
+    expect(r?.name).toBe('Priority p');
+    expect(r?.alias).toBeUndefined();
   });
 
   it('rejects old colon syntax', () => {

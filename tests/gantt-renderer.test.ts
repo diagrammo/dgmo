@@ -72,12 +72,12 @@ title Tag Swimlane Test
 start 2024-01-15
 critical-path
 
-tag Team t
+tag Team as t
   Engineering blue
   Design purple
   QA orange
 
-tag Phase p
+tag Phase as p
   Design green
   Build orange
   Test red
@@ -86,26 +86,25 @@ era 2024-01 -> 2024-06 Phase 1
 marker 2024-03-01 Kickoff
 
 [Backend]
-  30bd Database Layer | t: Engineering, p: Build, 80%
-  10bd Auth Module | t: Engineering, p: Build, 100%
+  Database Layer duration: 30bd, t: Engineering, p: Build, progress: 80
+  Auth Module duration: 10bd, t: Engineering, p: Build, progress: 100
     -> API Integration
-  parallel
-    5bd Load Testing | t: QA, p: Test
-    5bd Security Audit | t: Design, p: Test
+  Load Testing duration: 5bd, t: QA, p: Test
+  Security Audit duration: 5bd, t: Design, p: Test
 
 [Frontend]
-  15bd Component Library | t: Design, p: Design
-  10bd API Integration | t: Engineering, p: Build
-  5bd Polish | t: Design, p: Build, 30%
+  Component Library duration: 15bd, t: Design, p: Design
+  API Integration duration: 10bd, t: Engineering, p: Build
+  Polish duration: 5bd, t: Design, p: Build, progress: 30
 
 [QA]
-  10bd E2E Testing
-  0d Release Candidate`;
+  E2E Testing 10bd
+  Release Candidate 0d`;
 
 describe('gantt renderer', () => {
   it('renders SVG element', () => {
     const container = renderFromInput(
-      'gantt\nstart 2024-01-15\n10d Task A\n5d Task B'
+      'gantt\nstart 2024-01-15\nTask A 10d\nTask B 5d'
     );
     const svg = container.querySelector('svg');
     expect(svg).not.toBeNull();
@@ -113,7 +112,7 @@ describe('gantt renderer', () => {
 
   it('renders task bars with data-line-number', () => {
     const container = renderFromInput(
-      'gantt\nstart 2024-01-15\n10d Task A\n5d Task B'
+      'gantt\nstart 2024-01-15\nTask A 10d\nTask B 5d'
     );
     const tasks = container.querySelectorAll('.gantt-task');
     expect(tasks.length).toBeGreaterThanOrEqual(2);
@@ -125,7 +124,7 @@ describe('gantt renderer', () => {
 
   it('renders milestone diamonds', () => {
     const container = renderFromInput(
-      'gantt\nstart 2024-01-15\n10d Work\n0d Done'
+      'gantt\nstart 2024-01-15\nWork 10d\nDone 0d'
     );
     const milestones = container.querySelectorAll('.gantt-milestone');
     expect(milestones.length).toBeGreaterThanOrEqual(1);
@@ -133,7 +132,7 @@ describe('gantt renderer', () => {
 
   it('renders group labels', () => {
     const container = renderFromInput(
-      'gantt\nstart 2024-01-15\n[Backend]\n  10d Task'
+      'gantt\nstart 2024-01-15\n[Backend]\n  Task 10d'
     );
     const labels = container.querySelectorAll('.gantt-group-label');
     expect(labels.length).toBeGreaterThanOrEqual(1);
@@ -142,7 +141,7 @@ describe('gantt renderer', () => {
 
   it('renders title when present', () => {
     const container = renderFromInput(
-      'gantt\ntitle My Plan\nstart 2024-01-15\n10d Task'
+      'gantt\ntitle My Plan\nstart 2024-01-15\nTask 10d'
     );
     const texts = Array.from(container.querySelectorAll('text'));
     expect(texts.some((t) => t.textContent === 'My Plan')).toBe(true);
@@ -150,14 +149,14 @@ describe('gantt renderer', () => {
 
   it('renders today marker when enabled', () => {
     const container = renderFromInput(
-      'gantt\nstart 2024-01-15\ntoday-marker 2024-01-20\n10d Task'
+      'gantt\nstart 2024-01-15\ntoday-marker 2024-01-20\nTask 10d'
     );
     const todayLine = container.querySelector('.gantt-today');
     expect(todayLine).not.toBeNull();
   });
 
   it('renders scale ticks', () => {
-    const container = renderFromInput('gantt\nstart 2024-01-15\n30d Long Task');
+    const container = renderFromInput('gantt\nstart 2024-01-15\nLong Task 30d');
     const ticks = container.querySelectorAll('.gantt-scale-tick');
     expect(ticks.length).toBeGreaterThan(0);
   });
@@ -172,7 +171,7 @@ describe('gantt renderer', () => {
 
   it('sets data-tag attributes on task elements', () => {
     const input =
-      'gantt\ntag Team t\n  Engineering blue\nstart 2024-01-15\n10d Task | t: Engineering';
+      'gantt\ntag Team as t\n  Engineering blue\nstart 2024-01-15\nTask duration: 10d, t: Engineering';
     const container = renderFromInput(input);
     const task = container.querySelector('.gantt-task');
     expect(task).not.toBeNull();
@@ -182,14 +181,14 @@ describe('gantt renderer', () => {
   // ── Phase 2 tests ────────────────────────────────────────
 
   it('renders weekend bands', () => {
-    const container = renderFromInput('gantt\nstart 2024-01-15\n14d Two Weeks');
+    const container = renderFromInput('gantt\nstart 2024-01-15\nTwo Weeks 14d');
     const weekendBands = container.querySelectorAll('.gantt-weekend-band');
     expect(weekendBands.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders holiday bands for named holidays', () => {
     const input =
-      'gantt\nstart 2024-01-15\nholiday\n  2024-01-20 Special Day\n14d Task';
+      'gantt\nstart 2024-01-15\nholiday\n  2024-01-20 Special Day\nTask 14d';
     const container = renderFromInput(input);
     const holidayBands = container.querySelectorAll('.gantt-holiday-band');
     expect(holidayBands.length).toBeGreaterThanOrEqual(1);
@@ -197,7 +196,7 @@ describe('gantt renderer', () => {
 
   it('renders progress fill on bar', () => {
     const container = renderFromInput(
-      'gantt\nstart 2024-01-15\n10d Task | 60%'
+      'gantt\nstart 2024-01-15\nTask duration: 10d, progress: 60'
     );
     const progressFill = container.querySelector('.gantt-progress');
     expect(progressFill).not.toBeNull();
@@ -205,7 +204,7 @@ describe('gantt renderer', () => {
 
   it('renders critical path styling when enabled', () => {
     const input =
-      'gantt\nstart 2024-01-15\ncritical-path\n10d Task A\n5d Task B';
+      'gantt\nstart 2024-01-15\ncritical-path\nTask A 10d\nTask B 5d';
     const container = renderFromInput(input);
     const tasks = container.querySelectorAll('.gantt-task');
     expect(tasks.length).toBeGreaterThanOrEqual(2);
@@ -213,7 +212,7 @@ describe('gantt renderer', () => {
 
   it('renders uncertain gradient', () => {
     const container = renderFromInput(
-      'gantt\nstart 2024-01-15\n30d? Uncertain Task'
+      'gantt\nstart 2024-01-15\nUncertain Task 30d?'
     );
     const svg = container.querySelector('svg');
     expect(svg).not.toBeNull();
@@ -224,10 +223,9 @@ describe('gantt renderer', () => {
   it('renders dependency arrows when enabled', () => {
     const input = `gantt
 start 2024-01-15
-parallel
-  10d Task A
-    -> Task B
-  10d Task B`;
+Task A 10d
+  -> Task B
+Task B 10d`;
     const container = renderFromInput(input);
     const arrows = container.querySelectorAll('.gantt-dep-arrow');
     expect(arrows.length).toBeGreaterThanOrEqual(1);
@@ -236,10 +234,9 @@ parallel
   it('renders labeled dependency arrow with text element', () => {
     const input = `gantt
 start 2024-01-15
-parallel
-  10d Task A
-    -blocks-> Task B
-  10d Task B`;
+Task A 10d
+  -blocks-> Task B
+Task B 10d`;
     const container = renderFromInput(input);
     const labels = container.querySelectorAll('.gantt-dep-label');
     expect(labels.length).toBeGreaterThanOrEqual(1);
@@ -250,7 +247,7 @@ parallel
 
   it('renders era backgrounds', () => {
     const input =
-      'gantt\nstart 2024-01-15\nera 2024-01 -> 2024-06 Phase 1\n30d Task';
+      'gantt\nstart 2024-01-15\nera 2024-01 -> 2024-06 Phase 1\nTask 30d';
     const container = renderFromInput(input);
     const eras = container.querySelectorAll('.gantt-era');
     expect(eras.length).toBeGreaterThanOrEqual(1);
@@ -258,7 +255,7 @@ parallel
 
   it('renders marker lines', () => {
     const input =
-      'gantt\nstart 2024-01-15\nmarker 2024-02-01 Kickoff\n30d Task';
+      'gantt\nstart 2024-01-15\nmarker 2024-02-01 Kickoff\nTask 30d';
     const container = renderFromInput(input);
     const markers = container.querySelectorAll('.gantt-marker');
     expect(markers.length).toBeGreaterThanOrEqual(1);
@@ -266,7 +263,7 @@ parallel
 
   it('supports collapse/expand via collapsedGroups', () => {
     const input =
-      'gantt\nstart 2024-01-15\n[Backend]\n  10d Task A\n  5d Task B';
+      'gantt\nstart 2024-01-15\n[Backend]\n  Task A 10d\n  Task B 5d';
     const container = renderFromInput(input, {
       collapsedGroups: new Set(['Backend']),
     });
@@ -279,7 +276,7 @@ parallel
   });
 
   it('renders task-id data attribute for hover', () => {
-    const container = renderFromInput('gantt\nstart 2024-01-15\n10d Task A');
+    const container = renderFromInput('gantt\nstart 2024-01-15\nTask A 10d');
     const task = container.querySelector('.gantt-task');
     expect(task?.getAttribute('data-task-id')).toBeTruthy();
   });
@@ -291,7 +288,7 @@ parallel
 start 2024-01-01
 marker 2024-03-01 Mid one
 marker 2024-05-01 Mid two
-200d Long Task`;
+Long Task 200d`;
     const container = renderFromInput(input);
     const labels = Array.from(
       container.querySelectorAll('.gantt-marker-label')
@@ -309,7 +306,7 @@ marker 2024-05-01 Mid two
 start 2024-01-01
 marker 2024-01-20 Final tune-up time trial
 marker 2024-01-30 Race Day Celebration
-60d Long Task`;
+Long Task 60d`;
     const container = renderFromInput(input);
     const labels = Array.from(
       container.querySelectorAll('.gantt-marker-label')
@@ -327,7 +324,7 @@ marker 2024-01-30 Race Day Celebration
     const input = `gantt
 start 2024-01-01
 era 2024-06-15 -> 2024-06-21 Taper and Race Week
-200d Long Task`;
+Long Task 200d`;
     const container = renderFromInput(input);
     const eraLabel = container.querySelector('.gantt-era-label');
     expect(eraLabel).not.toBeNull();
@@ -338,7 +335,7 @@ era 2024-06-15 -> 2024-06-21 Taper and Race Week
     const input = `gantt
 start 2024-01-01
 era 2024-01-01 -> 2024-06-30 Phase One
-200d Long Task`;
+Long Task 200d`;
     const container = renderFromInput(input);
     const eraLabel = container.querySelector('.gantt-era-label');
     expect(eraLabel?.textContent).toBe('Phase One');
@@ -349,7 +346,7 @@ era 2024-01-01 -> 2024-06-30 Phase One
 start 2024-01-01
 marker 2024-01-20 Final tune-up time trial
 marker 2024-01-30 Race Day Celebration
-60d Long Task`;
+Long Task 60d`;
     const container = renderFromInput(input);
     const markerGroups = Array.from(
       container.querySelectorAll<SVGGElement>('.gantt-marker-group')
@@ -432,7 +429,7 @@ start 2024-01-15
 tag Status
   Active green
   Deferred gray
-10d Task A | Status: Active`;
+Task A duration: 10d, Status: Active`;
     const resolved = resolveFromInput(input);
     const rows = buildTagLaneRowList(resolved, 'Status')!;
     const deferredHeader = rows.find(
@@ -451,8 +448,8 @@ start 2024-01-15
 tag Team
   Engineering blue
   Design purple
-10d Task A
-5d Task B`;
+Task A 10d
+Task B 5d`;
     const resolved = resolveFromInput(input);
     const rows = buildTagLaneRowList(resolved, 'Team')!;
     const laneHeaders = rows.filter((r) => r.type === 'lane-header');
@@ -472,8 +469,8 @@ start 2024-01-15
 tag Team
   A blue
   B red
-10d Task 1 | Team: A
-5d Task 2 | Team: B`;
+Task 1 duration: 10d, Team: A
+Task 2 duration: 5d, Team: B`;
     const resolved = resolveFromInput(input);
     const rows = buildTagLaneRowList(resolved, 'Team')!;
     expect(rows).not.toBeNull();
@@ -486,9 +483,9 @@ tag Team
 start 2024-01-15
 tag Team
   Eng blue
-10d Task A | Team: Eng, 80%
-10d Task B | Team: Eng, 40%
-10d Task C | Team: Eng`;
+Task A duration: 10d, Team: Eng, progress: 80
+Task B duration: 10d, Team: Eng, progress: 40
+Task C duration: 10d, Team: Eng`;
     const resolved = resolveFromInput(input);
     const rows = buildTagLaneRowList(resolved, 'Team')!;
     const header = rows.find(
@@ -594,7 +591,7 @@ describe('tag swimlane rendering', () => {
   });
 
   it('no tag groups → identical output, no icons', () => {
-    const input = 'gantt\nstart 2024-01-15\n10d Task A\n5d Task B';
+    const input = 'gantt\nstart 2024-01-15\nTask A 10d\nTask B 5d';
     const container = renderFromInput(input);
     const icons = container.querySelectorAll('.gantt-swimlane-icon');
     expect(icons.length).toBe(0);
@@ -742,10 +739,9 @@ start 2024-01-15
 tag Lane
   Alpha blue
   Beta red
-parallel
-  10d Task A | Lane: Alpha
-    -> Task B
-  10d Task B | Lane: Beta`;
+Task A duration: 10d, Lane: Alpha
+  -> Task B
+Task B duration: 10d, Lane: Beta`;
     const container = renderFromInput(input, {
       currentSwimlaneGroup: 'Lane',
       collapsedLanes: new Set(['Beta']),
@@ -765,7 +761,7 @@ parallel
 
 describe('hover date indicators', () => {
   it('shows dashed lines and date labels on task bar hover', () => {
-    const container = renderFromInput('gantt\nstart 2024-01-15\n10d Task A');
+    const container = renderFromInput('gantt\nstart 2024-01-15\nTask A 10d');
     const task = container.querySelector('.gantt-task');
     expect(task).toBeTruthy();
 
@@ -790,7 +786,7 @@ describe('hover date indicators', () => {
 
   it('shows single indicator line on milestone hover', () => {
     const container = renderFromInput(
-      'gantt\nstart 2024-01-15\n0d Milestone A'
+      'gantt\nstart 2024-01-15\nMilestone A 0d'
     );
     const milestone = container.querySelector('.gantt-milestone');
     expect(milestone).toBeTruthy();
@@ -803,7 +799,7 @@ describe('hover date indicators', () => {
 
   it('shows indicators on group bar hover', () => {
     const container = renderFromInput(
-      'gantt\nstart 2024-01-15\n\n[Backend]\n  5d Task A\n  5d Task B'
+      'gantt\nstart 2024-01-15\n\n[Backend]\n  Task A 5d\n  Task B 5d'
     );
     const groupBar = container.querySelector('.gantt-group-bar');
     expect(groupBar).toBeTruthy();
@@ -817,17 +813,17 @@ describe('hover date indicators', () => {
 describe('left panel visual enhancements', () => {
   const groupedInput = `gantt
 start 2024-01-15
-tag Team t
+tag Team as t
   Engineering blue
   Design purple
 
 [Backend]
-  10d Database Layer | t: Engineering
-  5d Auth Module | t: Engineering
+  Database Layer duration: 10d, t: Engineering
+  Auth Module duration: 5d, t: Engineering
 
 [Frontend]
-  10d Component Library | t: Design
-  0d Release Milestone`;
+  Component Library duration: 10d, t: Design
+  Release Milestone 0d`;
 
   it('renders group band background and accent rects', () => {
     const container = renderFromInput(groupedInput);
@@ -905,8 +901,8 @@ tag Team t
     const flatInput = `gantt
 start 2024-01-15
 
-5d Task A
-5d Task B`;
+Task A 5d
+Task B 5d`;
     const container = renderFromInput(flatInput);
     expect(container.querySelectorAll('.gantt-group-band-bg').length).toBe(0);
     const label = container.querySelector('.gantt-task-label');
@@ -925,7 +921,7 @@ start 2024-01-15
 [Level0]
   [Level1]
     [Level2]
-      5d Deep Task`;
+      Deep Task 5d`;
     const container = renderFromInput(deepInput);
     const taskLabel = container.querySelector('.gantt-task-label');
     expect(taskLabel).toBeTruthy();
@@ -940,7 +936,7 @@ start 2024-01-15
 describe('gantt controls group', () => {
   it('renders controls group gear pill when critical path is present', () => {
     const input =
-      'gantt\nstart 2024-01-15\ncritical-path\n10d Task A\n5d Task B';
+      'gantt\nstart 2024-01-15\ncritical-path\nTask A 10d\nTask B 5d';
     const container = renderFromInput(input);
     const controls = container.querySelector('[data-legend-controls]');
     expect(controls).not.toBeNull();
@@ -948,7 +944,7 @@ describe('gantt controls group', () => {
 
   it('does not render controls group when no critical path or dependencies', () => {
     const input =
-      'gantt\nstart 2024-01-15\nno-critical-path\nno-dependencies\n10d Task A\n5d Task B';
+      'gantt\nstart 2024-01-15\nno-critical-path\nno-dependencies\nTask A 10d\nTask B 5d';
     const container = renderFromInput(input);
     const controls = container.querySelector('[data-legend-controls]');
     expect(controls).toBeNull();
@@ -970,7 +966,7 @@ describe('gantt controls group', () => {
 
   it('suppresses the inline gear when controlsHost is "app"', () => {
     const input =
-      'gantt\nstart 2024-01-15\ncritical-path\n10d Task A\n5d Task B';
+      'gantt\nstart 2024-01-15\ncritical-path\nTask A 10d\nTask B 5d';
     const inline = renderFromInput(input);
     expect(inline.querySelector('[data-legend-controls]')).not.toBeNull();
 
@@ -981,7 +977,7 @@ describe('gantt controls group', () => {
 
   it('applies seeded critical-path highlight on first draw under app host', () => {
     const input =
-      'gantt\nstart 2024-01-15\ncritical-path\n10d Task A\n5d Task B';
+      'gantt\nstart 2024-01-15\ncritical-path\nTask A 10d\nTask B 5d';
     const container = renderFromInput(input, {
       controlsHost: 'app',
       criticalPathActive: true,

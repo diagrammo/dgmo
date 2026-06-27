@@ -322,16 +322,3 @@ describe('dedupeDiagnostics', () => {
     expect(out.map((d) => d.message)).toEqual(['b', 'a']);
   });
 });
-
-describe('parseDgmo dedupes at the parse boundary', () => {
-  it('reports one diagnostic per offending line, not N copies', () => {
-    // Pre-fix this emitted 4 identical E_PIPE_OPERATOR_REMOVED diagnostics.
-    const { diagnostics } = parseDgmo(
-      'sequence\nUser | role: admin\nUser -hi-> API\n'
-    );
-    const pipeErrors = diagnostics.filter(
-      (d) => d.code === 'E_PIPE_OPERATOR_REMOVED' && d.line === 2
-    );
-    expect(pipeErrors).toHaveLength(1);
-  });
-});

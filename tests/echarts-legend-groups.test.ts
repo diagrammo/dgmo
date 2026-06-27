@@ -22,11 +22,11 @@ describe('getExtendedChartLegendGroups', () => {
     const content = `scatter Test
 
 [SaaS] blue
-  A: 1, 2
-  B: 3, 4
+  A 1 2
+  B 3 4
 
 [Fintech] green
-  C: 5, 6`;
+  C 5 6`;
     const parsed = parseExtendedChart(content, palette);
     const groups = getExtendedChartLegendGroups(parsed, colors);
     expect(groups).toHaveLength(1);

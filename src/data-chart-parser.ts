@@ -168,13 +168,7 @@ export interface ParsedExtendedChartFull extends ParsedExtendedBase {
 
 import type { PaletteColors } from './palettes';
 import type { ParsedChart } from './chart';
-import {
-  makeDgmoError,
-  formatDgmoError,
-  suggest,
-  dataCommaRemovedMessage,
-  METADATA_DIAGNOSTIC_CODES,
-} from './diagnostics';
+import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 import { resolveColorWithDiagnostic } from './colors';
 import {
   collectIndentedValues,
@@ -189,25 +183,6 @@ import { parseDataRowValues } from './chart';
 // ============================================================
 // Shared Constants
 // ============================================================
-
-/**
- * Builds an `onComma` callback for `parseDataRowValues` that pushes an
- * `E_DATA_COMMA_REMOVED` error (1.0 freeze: data-row value commas removed).
- */
-function dataCommaSink(
-  diagnostics: DgmoError[],
-  lineNumber: number
-): (canonical: string) => void {
-  return (canonical: string) =>
-    diagnostics.push(
-      makeDgmoError(
-        lineNumber,
-        dataCommaRemovedMessage(canonical),
-        'error',
-        METADATA_DIAGNOSTIC_CODES.DATA_COMMA_REMOVED
-      )
-    );
-}
 
 const VALID_EXTENDED_TYPES = new Set<ExtendedChartType>([
   'sankey',
@@ -246,10 +221,7 @@ function parseScatterRow(
   lineNumber: number,
   diagnostics: DgmoError[]
 ): ParsedScatterPoint | null {
-  const dataRow = parseDataRowValues(line, {
-    multiValue: true,
-    onComma: dataCommaSink(diagnostics, lineNumber),
-  });
+  const dataRow = parseDataRowValues(line, { multiValue: true });
   if (!dataRow || dataRow.values.length < 2) return null;
   const { label: rawLabel, color: pointColor } = extractColor(
     dataRow.label,
@@ -486,17 +458,12 @@ function parseExtendedChartFull(
     // Link color (if present) must be a recognized lowercase palette word.
     // Source/target labels still accept trailing-token color via extractColor.
     const arrowMatch = trimmed.match(
-      /^(.+?)\s*(->|--)\s*(.+?)\s+(-?[\d,_]+(?:\.[\d]+)?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
+      /^(.+?)\s*(->|--)\s*(.+?)\s+(-?[\d_]+(?:\.[\d]+)?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
     );
     if (arrowMatch) {
       const [, rawSource, arrow, rawTarget, rawVal, rawLinkColor] = arrowMatch;
       // Captures 1-4 are non-optional in the regex pattern.
       const val = normalizeNumericToken(rawVal!) ?? rawVal!;
-      // 1.0 freeze: a thousands-comma in the link value (`A -> B 1,000`) is a
-      // removed data-row value comma. Underscores (`1_000`) remain valid.
-      if (rawVal!.includes(',')) {
-        dataCommaSink(result.diagnostics, lineNumber)(val);
-      }
       // TD-18: peel/resolve aliases on source and target before color extraction.
       const sourceResolved = resolveSlot(rawSource!);
       const targetResolved = resolveSlot(rawTarget!);
@@ -557,7 +524,7 @@ function parseExtendedChartFull(
           // first, then run parseDataRowValues on the remainder. Trailing
           // tokens that aren't recognized colors stay in the data row.
           const valColorMatch = trimmed.match(
-            /(-?[\d,_]+(?:\.[\d]+)?)\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\s*$/
+            /(-?[\d_]+(?:\.[\d]+)?)\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\s*$/
           );
           const strippedLine = valColorMatch
             ? trimmed.replace(
@@ -565,9 +532,7 @@ function parseExtendedChartFull(
                 ''
               )
             : trimmed;
-          const dataRow = parseDataRowValues(strippedLine, {
-            onComma: dataCommaSink(result.diagnostics, lineNumber),
-          });
+          const dataRow = parseDataRowValues(strippedLine);
           if (dataRow?.values.length === 1) {
             const source = sankeyStack.at(-1)!.name;
             const linkColor = valColorMatch?.[2]
@@ -861,10 +826,7 @@ function parseExtendedChartFull(
 
     // Heatmap data row: "RowLabel val1, val2, val3, ..." or "RowLabel val1 val2 val3"
     if (result.type === 'heatmap') {
-      const dataRow = parseDataRowValues(trimmed, {
-        multiValue: true,
-        onComma: dataCommaSink(result.diagnostics, lineNumber),
-      });
+      const dataRow = parseDataRowValues(trimmed, { multiValue: true });
       if (dataRow && dataRow.values.length > 0) {
         if (!result.heatmapRows) result.heatmapRows = [];
         result.heatmapRows.push({
@@ -877,9 +839,7 @@ function parseExtendedChartFull(
     }
 
     // Funnel / generic data point: "Label value"
-    const dataRow = parseDataRowValues(trimmed, {
-      onComma: dataCommaSink(result.diagnostics, lineNumber),
-    });
+    const dataRow = parseDataRowValues(trimmed);
     if (dataRow?.values.length === 1) {
       const { label: rawLabel, color: pointColor } = extractColor(
         dataRow.label,

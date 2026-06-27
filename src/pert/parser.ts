@@ -10,12 +10,7 @@
 // See `_bmad-output/implementation-artifacts/tech-spec-pert.md`
 // for the design rationale; AC1.* for the contract this parser meets.
 
-import {
-  makeDgmoError,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
-  suggest,
-} from '../diagnostics';
+import { makeDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import { parseDuration } from '../utils/duration';
 import {
@@ -27,7 +22,6 @@ import {
 import { PERT_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
 import { normalizeName } from '../utils/name-normalize';
 import {
-  emitTagLegacyDiagnostic,
   injectDefaultTagMetadata,
   matchTagBlockHeading,
   stripDefaultModifier,
@@ -69,7 +63,6 @@ const DIRECTIVE_KEYS = new Set([
   'default-confidence',
   'direction',
   'node-detail',
-  'analysis',
   'no-analysis',
   'trials',
   'seed',
@@ -308,24 +301,8 @@ function tokenizeActivityLine(
   alias?: string;
   pipeMetadata?: string;
 } {
-  // Legacy `|` pipe-metadata detection per §1.4.
   let body = line;
   let pipeMetadata: string | undefined;
-  const pipeIdx = body.indexOf('|');
-  if (pipeIdx >= 0) {
-    if (diagnostics && lineNumber !== undefined) {
-      diagnostics.push(
-        makeDgmoError(
-          lineNumber,
-          pipeOperatorRemovedMessage(),
-          'error',
-          METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-        )
-      );
-    }
-    pipeMetadata = body.slice(pipeIdx + 1).trim();
-    body = body.slice(0, pipeIdx).trim();
-  }
 
   // §1.4 unified metadata grammar — same-line cut on the body.
   // PERT activity lines: `Name 5 10 15 confidence: low` → split out
@@ -684,7 +661,6 @@ export function parsePert(
     if (!contentStarted) {
       const tagBlockMatch = matchTagBlockHeading(trimmed);
       if (tagBlockMatch) {
-        emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, diagnostics);
         currentTagGroup = {
           name: tagBlockMatch.name,
           ...(tagBlockMatch.alias !== undefined && {
@@ -764,20 +740,8 @@ export function parsePert(
       contentStarted = true;
       currentTagGroup = null;
       const name = groupMatch[1]!.trim();
-      let tail = (groupMatch[2] ?? '').trim();
-      // Legacy pipe-metadata detection in the tail.
-      if (tail.startsWith('|')) {
-        diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            pipeOperatorRemovedMessage(),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-          )
-        );
-        tail = tail.replace(/^\|\s*/, '');
-      }
-      // Parse the tail as §1.4 metadata. tail is now `k: v, k: v` shape.
+      const tail = (groupMatch[2] ?? '').trim();
+      // Parse the tail as §1.4 metadata. tail is `k: v, k: v` shape.
       const meta = tail ? parsePipeMetadata(tail, metaAliasMap) : {};
       const id = `[${normalizeName(name)}]`;
       const tags: Record<string, string> = {};
@@ -867,7 +831,7 @@ export function parsePert(
         }
         if (tok.alias !== undefined) extras.push(`'as ${tok.alias}'`);
         if (tok.pipeMetadata !== undefined) {
-          extras.push(`'| ${tok.pipeMetadata}'`);
+          extras.push(`'${tok.pipeMetadata}'`);
         }
         const durHint =
           tok.durationTokens.length > 0
@@ -1455,17 +1419,6 @@ function applyDirective(
       // Carlo ran. Mirrors `no-title`. An explicit `viewState.an` (app
       // toggle / share link) overrides it at render time.
       options.noAnalysis = true;
-      return;
-    }
-    case 'analysis': {
-      // Removed at 1.0: historically `analysis monte-carlo` opted into
-      // simulation, now auto-derived from O/M/P data. Hard error directing
-      // to the bare `no-analysis` flag (which hides the analysis layer).
-      error(
-        lineNumber,
-        '`analysis` was removed — Monte Carlo auto-enables when activities have O/M/P estimates. Use `no-analysis` to hide the analysis layer (tornado + S-curve).',
-        METADATA_DIAGNOSTIC_CODES.PERT_ANALYSIS_REMOVED
-      );
       return;
     }
     case 'trials': {

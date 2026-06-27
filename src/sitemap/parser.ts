@@ -5,12 +5,9 @@
 import type { PaletteColors } from '../palettes';
 import type { DgmoError } from '../diagnostics';
 import {
-  descriptionBareRemovedMessage,
   formatDgmoError,
   makeDgmoError,
   makeFail,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
   suggest,
 } from '../diagnostics';
 import {
@@ -23,7 +20,6 @@ import type { Writable } from '../utils/brand';
 import {
   isTagBlockHeading,
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
@@ -34,7 +30,6 @@ import {
 import {
   measureIndent,
   extractColor,
-  parsePipeMetadata,
   splitNameAndMeta,
   parseFirstLine,
   OPTION_NOCOLON_RE,
@@ -257,7 +252,6 @@ export function parseSitemap(
     // Tag group heading
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch) {
-      emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
       if (contentStarted) {
         pushError(lineNumber, 'Tag groups must appear before sitemap content');
         continue;
@@ -406,29 +400,13 @@ export function parseSitemap(
       // Capture groups 1 and 2 present by regex shape.
       const label = asMatch ? asMatch[1]!.trim() : rawLabel;
 
-      // Parse the tail after `]`: optional `|` (legacy, emit error),
-      // optional same-line metadata per §1.4.
-      let tail = (containerMatch[2] ?? '').trim();
+      // Parse the tail after `]`: optional same-line metadata per §1.4.
+      const tail = (containerMatch[2] ?? '').trim();
       const containerMetadata: Record<string, string> = {};
-      if (tail.startsWith('|')) {
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            pipeOperatorRemovedMessage(),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-          )
-        );
-        tail = tail.replace(/^\|\s*/, '');
+      if (tail.length > 0) {
         Object.assign(
           containerMetadata,
-          parsePipeMetadata(['', tail], metaAliasMap)
-        );
-      } else if (tail.length > 0) {
-        // §1.4 same-line metadata after `[Container]`.
-        Object.assign(
-          containerMetadata,
-          parsePipeMetadata(['', tail], metaAliasMap)
+          parseSitemapMetaTail(tail, metaAliasMap)
         );
       }
 
@@ -490,17 +468,11 @@ export function parseSitemap(
     } else {
       // Check if this is a description line for a parent node
       const descResult = tryStripDescriptionKeyword(trimmed);
-      if (descResult.isKeyword && indentStack.length > 0) {
-        if (descResult.needsColon) {
-          result.diagnostics.push(
-            makeDgmoError(
-              lineNumber,
-              descriptionBareRemovedMessage(descResult.text),
-              'error',
-              METADATA_DIAGNOSTIC_CODES.DESCRIPTION_BARE_REMOVED
-            )
-          );
-        }
+      if (
+        descResult.isKeyword &&
+        !descResult.needsColon &&
+        indentStack.length > 0
+      ) {
         const parent = findParentNode(indent, indentStack);
         if (parent) {
           parent.description = [
@@ -634,11 +606,6 @@ function parseNodeLabel(
   _diagnostics?: DgmoError[],
   nameAliasMap?: Map<string, string>
 ): Writable<SitemapNode> {
-  // Legacy `|` detection.
-  if (trimmed.includes('|') && warnFn) {
-    warnFn(lineNumber, pipeOperatorRemovedMessage());
-  }
-
   // §1.4 unified metadata grammar — same-line cut.
   const registry = withTagAliases(
     SITEMAP_REGISTRY,
@@ -686,6 +653,32 @@ function parseNodeLabel(
     isContainer: false,
     lineNumber,
   };
+}
+
+/**
+ * Parse a pure-metadata tail (`key: value, k2: v2`) following a
+ * `[Container]` heading via the §1.4 grammar. Leads with the
+ * always-reserved `color:` sentinel so the entire tail lands in the
+ * metadata region regardless of whether the first key is reserved.
+ */
+function parseSitemapMetaTail(
+  tail: string,
+  metaAliasMap: Map<string, string>
+): Record<string, string> {
+  const trimmed = tail.trim();
+  if (!trimmed?.includes(':')) return {};
+  const registry = withTagAliases(
+    SITEMAP_REGISTRY,
+    new Set(metaAliasMap.keys())
+  );
+  const split = splitNameAndMeta(
+    `color: __smph, ${trimmed}`,
+    registry,
+    metaAliasMap
+  );
+  const meta = split.meta;
+  if (meta['color'] === '__smph') delete meta['color'];
+  return meta;
 }
 
 function attachNode(

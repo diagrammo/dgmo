@@ -76,13 +76,7 @@ export interface ParsedChart {
 
 import { resolveColorWithDiagnostic, RECOGNIZED_COLOR_NAMES } from './colors';
 import type { PaletteColors } from './palettes';
-import {
-  makeDgmoError,
-  formatDgmoError,
-  suggest,
-  dataCommaRemovedMessage,
-  METADATA_DIAGNOSTIC_CODES,
-} from './diagnostics';
+import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 import {
   extractColor,
   normalizeNumericToken,
@@ -504,23 +498,12 @@ export function parseChart(
     }
 
     // Data row: parse from the right — rightmost numeric token(s) = value(s), everything left = label
-    // Supports comma-separated multi-values: "Jan 100, 200, 300"
     // Supports space-separated multi-values when series are defined: "Jan 100 200 300"
-    // Supports comma-grouped numbers: "Revenue 1,200, 1,500" → [1200, 1500]
     const seriesCount = result.seriesNames?.length ?? 0;
     const multiValue = seriesCount >= 2;
     const dataValues = parseDataRowValues(trimmed, {
       multiValue,
       ...(multiValue && { expectedValues: seriesCount }),
-      onComma: (canonical) =>
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            dataCommaRemovedMessage(canonical),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.DATA_COMMA_REMOVED
-          )
-        ),
     });
     if (dataValues) {
       const { label: rawLabel, color: pointColor } = extractColor(
@@ -645,16 +628,13 @@ export function parseChart(
 
 /**
  * Parse a data row line: everything before the last numeric token(s) is the label,
- * numeric tokens at the end are the values. Supports comma-separated multi-values,
- * space-separated multi-values, and comma-grouped numbers (e.g., "1,087").
+ * numeric tokens at the end are the values. Values are space-separated.
  *
  * Examples:
  *   "Jan 120"             → { label: "Jan", values: [120] }
  *   "North America 250"   → { label: "North America", values: [250] }
- *   "Q1 10, 20, 30"       → { label: "Q1", values: [10, 20, 30] }
  *   "Q1 10 20 30"         → { label: "Q1", values: [10, 20, 30] }
- *   "Revenue 1,200"       → { label: "Revenue", values: [1200] }
- *   "Revenue 3,984,078.65"→ { label: "Revenue", values: [3984078.65] }
+ *   "Revenue 1_000"       → { label: "Revenue", values: [1000] }
  *
  * Returns null if the line has no numeric value at the end.
  */
@@ -663,140 +643,18 @@ export function parseDataRowValues(
   options?: {
     multiValue?: boolean;
     expectedValues?: number;
-    /**
-     * Invoked at most once when commas are detected in the VALUE region of
-     * a data row — either as value separators (`Q1 400, 700`) or thousands
-     * grouping (`Revenue 1,000`). Receives the canonical space-separated,
-     * comma-free form of the offending value region. Callers use this to
-     * emit `E_DATA_COMMA_REMOVED`. Commas in the label/quoted portion never
-     * trigger this. The function still parses best-effort so the diagram
-     * renders.
-     */
-    onComma?: (canonical: string) => void;
   }
 ): { label: string; values: number[] } | null {
-  // First, normalize comma-grouped numbers: replace patterns like "1,087" with "1087"
-  // We need to be careful: commas also separate multi-values.
-  // Strategy: tokenize by commas, normalize grouped numbers, then re-parse.
-  //
-  // 1.0 freeze: data-row value commas (separator AND thousands grouping) are
-  // REMOVED. We still parse them best-effort so the diagram renders, but flag
-  // them via `options.onComma`. The flag fires only when a comma is actually
-  // consumed inside the value region — never for commas that end up in the
-  // label (quoted strings, comma-bearing labels).
-  let commaFlagged = false;
-  const flagComma = (canonical: string): void => {
-    if (commaFlagged) return;
-    commaFlagged = true;
-    options?.onComma?.(canonical);
-  };
-
-  // Split by comma to get segments
-  const segments = line.split(',');
-
-  // Normalize each segment: if a segment (trimmed) matches grouped number pattern,
-  // merge it with the previous segment
-  const normalized: string[] = [];
-  for (let i = 0; i < segments.length; i++) {
-    // In-bounds by loop guard.
-    const seg = segments[i]!.trim();
-    // Check if this segment is a continuation of a grouped number.
-    // A continuation starts with exactly 3 digits (possibly followed by a decimal like ".65")
-    // and follows a segment ending in digits.
-    // Grouped numbers have NO space around the comma (e.g., "1,087"), so skip if
-    // the raw segment has leading whitespace (e.g., ", 350" is a value separator).
-    // In-bounds by loop guard.
-    if (i > 0 && /^\d{3}(\.\d+)?$/.test(seg) && !/^\s/.test(segments[i]!)) {
-      // i > 0 means iteration 0 already pushed once; normalized.length >= 1.
-      const prevSeg = normalized[normalized.length - 1]!.trimEnd();
-      // Check if previous segment ends with a number (1-3 digits at the end of the last token)
-      if (/\d{1,3}$/.test(prevSeg)) {
-        // Check if the combined token would be a valid grouped number
-        // Extract the trailing number from prev
-        const prevMatch = prevSeg.match(/(\d{1,3})$/);
-        if (prevMatch) {
-          // Tentatively merge and validate
-          // Build full token by looking at what's left in normalized
-          // Simple approach: just merge
-          // A thousands-grouping comma was consumed (e.g. "1,000" → "1000").
-          flagComma(prevSeg + seg);
-          normalized[normalized.length - 1] = prevSeg + seg;
-          continue;
-        }
-      }
-    }
-    // In-bounds by loop guard.
-    normalized.push(segments[i]!);
-  }
-
-  const rebuilt = normalized.join(',');
-
-  // Now check for comma-separated values at the end
-  // Strategy: find where the label ends and values begin
-  // Values are comma-separated numeric tokens at the end of the line
-
-  // Try splitting by comma first — if the line has commas, the last comma-separated tokens
-  // that are all numeric form the values
-  const commaParts = rebuilt.split(',');
-  if (commaParts.length > 1) {
-    // Find how many trailing comma-separated parts are numeric
-    let numericCount = 0;
-    for (let j = commaParts.length - 1; j >= 0; j--) {
-      // In-bounds by loop guard.
-      const part =
-        normalizeNumericToken(commaParts[j]!.trim()) ?? commaParts[j]!.trim();
-      if (part && !isNaN(parseFloat(part)) && isFinite(Number(part))) {
-        numericCount++;
-      } else {
-        break;
-      }
-    }
-    if (numericCount > 0) {
-      // Pure numeric trailing comma-parts are extra values.
-      // Everything before them (joined by comma) contains "label firstValue".
-      const splitAt = commaParts.length - numericCount;
-      const extraValueParts = commaParts.slice(splitAt);
-      const firstPart = commaParts.slice(0, splitAt).join(',').trim();
-
-      // Split firstPart from the right: last space-separated token must be numeric
-      const lastSpaceIdx = firstPart.lastIndexOf(' ');
-      if (lastSpaceIdx >= 0) {
-        const rawFirstVal = firstPart.substring(lastSpaceIdx + 1).trim();
-        const possibleFirstVal =
-          normalizeNumericToken(rawFirstVal) ?? rawFirstVal;
-        if (
-          possibleFirstVal &&
-          !isNaN(parseFloat(possibleFirstVal)) &&
-          isFinite(Number(possibleFirstVal))
-        ) {
-          const label = firstPart.substring(0, lastSpaceIdx).trim();
-          if (label) {
-            const values = [parseFloat(possibleFirstVal)];
-            for (const p of extraValueParts) {
-              const normP = normalizeNumericToken(p.trim()) ?? p.trim();
-              values.push(parseFloat(normP));
-            }
-            // Commas separated the trailing values (and/or grouped thousands
-            // within them). Either way this is a removed data-row value comma.
-            flagComma(`${label} ${values.join(' ')}`);
-            return { label, values };
-          }
-        }
-      }
-    }
-  }
-
-  // No commas or comma parsing didn't work — split by spaces from right.
+  // Values are space-separated.
   // When multiValue is enabled, walk backward collecting consecutive numeric tokens.
   // Otherwise (default), take only the last token — preserving labels that contain
   // numbers (e.g., "Region 5 300" → label "Region 5", value 300).
-  const tokens = rebuilt.split(/\s+/);
+  const tokens = line.split(/\s+/);
   if (tokens.length < 2) return null;
 
   if (options?.multiValue) {
     const limit = options.expectedValues ?? Infinity;
     const values: number[] = [];
-    let sawComma = false;
     let idx = tokens.length - 1;
     while (idx >= 1 && values.length < limit) {
       // In-bounds by loop guard (idx >= 1 and idx <= tokens.length - 1).
@@ -804,16 +662,12 @@ export function parseDataRowValues(
       const normTok = normalizeNumericToken(tok) ?? tok;
       const num = parseFloat(normTok);
       if (isNaN(num) || !isFinite(Number(normTok))) break;
-      // A thousands comma glued to a value token (`1,000`) is a removed
-      // data-row value comma. Underscores stay valid.
-      if (tok.includes(',')) sawComma = true;
       values.unshift(num);
       idx--;
     }
     if (values.length === 0) return null;
     const label = tokens.slice(0, idx + 1).join(' ');
     if (!label) return null;
-    if (sawComma) flagComma(`${label} ${values.join(' ')}`);
     return { label, values };
   }
 
@@ -826,9 +680,6 @@ export function parseDataRowValues(
 
   const label = tokens.slice(0, -1).join(' ');
   if (!label) return null;
-
-  // A thousands comma glued to the value token (`Revenue 1,000`) is removed.
-  if (lastToken.includes(',')) flagComma(`${label} ${num}`);
 
   return { label, values: [num] };
 }

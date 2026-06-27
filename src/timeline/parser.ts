@@ -1,9 +1,5 @@
 import type { DgmoError } from '../diagnostics';
-import {
-  makeDgmoError,
-  METADATA_DIAGNOSTIC_CODES,
-  timelineBareDurationRemovedMessage,
-} from '../diagnostics';
+import { makeDgmoError } from '../diagnostics';
 import { splitNameAndMeta, warnUnknownMetaKeys } from '../utils/parsing';
 import {
   TIMELINE_REGISTRY,
@@ -324,7 +320,7 @@ export function parseTimelineEventLine(
     diagnostics.push(makeDgmoError(lineNumber, msg, 'warning'))
   );
 
-  let name = split.name;
+  const name = split.name;
   let endDate = prefix.endDate;
   let uncertain = prefix.uncertain;
   const metadata: Record<string, string> = { ...split.meta };
@@ -353,35 +349,6 @@ export function parseTimelineEventLine(
       );
     }
     delete metadata['duration'];
-  }
-
-  // Right-to-left scan for positional duration (only if no explicit duration key and no end date)
-  if (!duration && !endDate) {
-    const tokens = name.split(/\s+/).filter(Boolean);
-    for (let j = tokens.length - 1; j >= 0; j--) {
-      const m = tokens[j]!.match(TIMELINE_DURATION_RE);
-      if (m) {
-        // Guard: require at least one non-duration word before the duration token
-        if (j < 1) break;
-        // Removed at 1.0: `duration:` is canonical; the positional form is a
-        // hard error directing to it. Value is still applied so it renders.
-        diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            timelineBareDurationRemovedMessage(tokens[j]!),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.TIMELINE_BARE_DURATION_REMOVED
-          )
-        );
-        duration = {
-          amount: parseFloat(m[1]!),
-          unit: m[2]! as TimelineDurationUnit,
-        };
-        if (m[3]) uncertain = true;
-        name = tokens.slice(0, j).join(' ');
-        break;
-      }
-    }
   }
 
   // Warn if both end date and duration present

@@ -52,8 +52,8 @@ describe('slope parser', () => {
     expect(errs).toEqual([]);
   });
 
-  it('rejects comma-separated values at 1.0 (E_DATA_COMMA_REMOVED)', () => {
+  it('parses comma-separated values best-effort (no error)', () => {
     const ds = diagnostics('slope T\nperiod A B C\nRust orange 18, 12, 5');
-    expect(ds.some((d) => d.code === 'E_DATA_COMMA_REMOVED')).toBe(true);
+    expect(ds.some((d) => d.severity === 'error')).toBe(false);
   });
 });

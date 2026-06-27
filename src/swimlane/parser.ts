@@ -30,7 +30,6 @@ import {
 import { measureIndent, extractColor, parseFirstLine } from '../utils/parsing';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   stripDefaultModifier,
   finalizeAutoTagColors,
   AUTO_TAG_COLOR_SENTINEL,
@@ -281,7 +280,6 @@ export function parseSwimlane(
     // Tag group heading.
     const tagMatch = matchTagBlockHeading(trimmed);
     if (tagMatch && indent === 0) {
-      emitTagLegacyDiagnostic(tagMatch, lineNum, diagnostics);
       const newGroup: Writable<TagGroup> = {
         name: tagMatch.name,
         ...(tagMatch.alias !== undefined && { alias: tagMatch.alias }),

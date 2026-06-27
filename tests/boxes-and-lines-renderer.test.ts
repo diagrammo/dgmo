@@ -271,7 +271,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('leaves a tag-only diagram untouched — no gradient, first tag active (AC6)', async () => {
     const svg = await render(
-      'boxes-and-lines\ntag Team t Backend blue, Frontend green\nA t: Backend\nB t: Frontend\nA -> B'
+      'boxes-and-lines\ntag Team as t Backend blue, Frontend green\nA t: Backend\nB t: Frontend\nA -> B'
     );
     expect(svg.querySelector('.dgmo-legend-gradient-ramp')).toBeNull();
     // Tag tint applied — fill is the tag shape-fill, not the value-neutral fill.
@@ -282,7 +282,7 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('active-tag <tag-group> switches off the value ramp (AC8)', async () => {
     const svg = await render(
-      'boxes-and-lines\ntag Team t Backend blue, Frontend green\nheat Load\nA heat: 10, t: Backend\nB heat: 90, t: Frontend\nA -> B',
+      'boxes-and-lines\ntag Team as t Backend blue, Frontend green\nheat Load\nA heat: 10, t: Backend\nB heat: 90, t: Frontend\nA -> B',
       { activeTagGroup: 'Team' }
     );
     // Tag group active → boxes tinted by tag, gradient capsule not active.

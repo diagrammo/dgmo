@@ -11,20 +11,16 @@
 
 import type { PaletteColors } from '../palettes';
 import {
-  dataCommaRemovedMessage,
   formatDgmoError,
   makeDgmoError,
   makeFail,
-  pipeOperatorRemovedMessage,
   suggest,
-  METADATA_DIAGNOSTIC_CODES,
 } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
@@ -60,8 +56,8 @@ export const TREEMAP_DIAGNOSTIC_CODES = {
   BRANCH_VALUE_IGNORED: 'W_TREEMAP_BRANCH_VALUE_IGNORED',
 } as const;
 
-/** A bare numeric token: optional sign, digits with `_`/`,`/`.` separators. */
-const VALUE_TOKEN_RE = /^(.+?)\s+(-?\d[\d_,.]*)$/;
+/** A bare numeric token: optional sign, digits with `_`/`.` separators. */
+const VALUE_TOKEN_RE = /^(.+?)\s+(-?\d[\d_.]*)$/;
 
 /** True when `s` is wrapped in a matching pair of single or double quotes. */
 function isFullyQuoted(s: string): boolean {
@@ -150,7 +146,6 @@ export function parseTreemap(
     // Tag group heading: `tag Team as t`
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch) {
-      emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
       if (contentStarted) {
         pushError(
           lineNumber,
@@ -226,8 +221,7 @@ export function parseTreemap(
       lineNumber,
       ++nodeCounter,
       aliasMap,
-      result.diagnostics,
-      pushWarning
+      result.diagnostics
     );
     if (node.heat !== undefined) result.hasHeat = true;
     attachNode(node, indent, indentStack, result);
@@ -369,21 +363,8 @@ function parseNodeLine(
   lineNumber: number,
   counter: number,
   aliasMap: Map<string, string>,
-  diagnostics: DgmoError[],
-  pushWarning: (line: number, message: string, code?: string) => void
+  diagnostics: DgmoError[]
 ): Writable<TreemapNode> {
-  // Legacy pipe-metadata is removed language-wide.
-  if (trimmed.includes('|')) {
-    diagnostics.push(
-      makeDgmoError(
-        lineNumber,
-        pipeOperatorRemovedMessage(),
-        'error',
-        METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-      )
-    );
-  }
-
   const registry = withTagAliases(TREEMAP_REGISTRY, new Set(aliasMap.keys()));
   const split = splitNameAndMeta(
     trimmed,
@@ -425,10 +406,7 @@ function parseNodeLine(
     if (vm) {
       const labelPart = vm[1]!.trim();
       const token = vm[2]!;
-      if (token.includes(',')) {
-        pushWarning(lineNumber, dataCommaRemovedMessage(labelPart));
-      }
-      const cleaned = token.replace(/[_,]/g, '');
+      const cleaned = token.replace(/_/g, '');
       const parsed = parseFloat(cleaned);
       if (Number.isFinite(parsed)) {
         value = parsed;

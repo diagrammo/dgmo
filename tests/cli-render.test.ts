@@ -322,9 +322,9 @@ const D3_TYPES = [
 
 const ECHART_INPUTS: Record<string, string> = {
   scatter: `scatter
-A 1, 2
-B 3, 4
-C 5, 6`,
+A 1 2
+B 3 4
+C 5 6`,
 
   sankey: `sankey
 A -> B 10
@@ -342,8 +342,8 @@ f(x): x^2`,
 
   heatmap: `heatmap
 columns Mon, Tue, Wed
-Morning 10, 20, 30
-Afternoon 40, 50, 60`,
+Morning 10 20 30
+Afternoon 40 50 60`,
 
   funnel: `funnel
 Visitors 1000
@@ -395,13 +395,13 @@ C 30`,
 
   'bar-stack': `bar
 stack X, Y
-A 10, 20
-B 30, 40`,
+A 10 20
+B 30 40`,
 
   'bar-group': `bar
 group X, Y
-A 10, 20
-B 30, 40`,
+A 10 20
+B 30 40`,
 };
 
 // ============================================================

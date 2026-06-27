@@ -4,13 +4,9 @@
 
 import type { PaletteColors } from '../palettes';
 import {
-  c4BareTailRemovedMessage,
-  descriptionBareRemovedMessage,
   formatDgmoError,
   makeDgmoError,
   makeFail,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
   suggest,
 } from '../diagnostics';
 import { parseInArrowLabel } from '../utils/arrows';
@@ -19,7 +15,6 @@ import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
   finalizeAutoTagColors,
@@ -30,9 +25,7 @@ import { inferParticipantType } from '../sequence/participant-inference';
 import {
   measureIndent,
   extractColor,
-  parsePipeMetadata,
   splitNameAndMeta,
-  MULTIPLE_PIPE_ERROR,
   parseFirstLine,
   OPTION_NOCOLON_RE,
   warnUnknownMetaKeys,
@@ -175,23 +168,28 @@ function inferC4Shape(name: string, tech?: string): C4Shape {
  */
 function parseC4MetaTail(
   tail: string,
-  metaAliasMap: Map<string, string>,
-  reportMultiPipes?: () => void,
-  reportBareTail?: (tail: string) => void
+  metaAliasMap: Map<string, string>
 ): Record<string, string> {
   const trimmed = tail.trim();
   if (!trimmed) return {};
-  if (trimmed.startsWith('|')) {
-    const segments = trimmed.split('|').map((s) => s.trim());
-    return parsePipeMetadata(segments, metaAliasMap, reportMultiPipes);
-  }
   if (!trimmed.includes(':')) {
-    // Non-empty tail with no `key:` — previously dropped silently (data
-    // loss). At 1.0 this is a hard error directing to `key: value` form.
-    reportBareTail?.(trimmed);
+    // Non-empty tail with no `key:` — dropped silently (data loss
+    // accepted pre-1.0; the legacy bare-tail diagnostic was removed).
     return {};
   }
-  return parsePipeMetadata(['', trimmed], metaAliasMap);
+  const registry = withTagAliases(C4_REGISTRY, new Set(metaAliasMap.keys()));
+  // Force the whole tail into the metadata region by leading with the
+  // always-reserved `color:` key (sentinel), then drop that pair. This
+  // parses every `key: value` pair regardless of whether the first key
+  // is reserved (matching the prior same-line metadata behavior).
+  const split = splitNameAndMeta(
+    `color: __c4ph, ${trimmed}`,
+    registry,
+    metaAliasMap
+  );
+  const meta = split.meta;
+  if (meta['color'] === '__c4ph') delete meta['color'];
+  return meta;
 }
 
 /**
@@ -203,16 +201,8 @@ function parseC4MetaTail(
  */
 function parseC4NameAndMeta(
   text: string,
-  metaAliasMap: Map<string, string>,
-  reportMultiPipes?: () => void
+  metaAliasMap: Map<string, string>
 ): { name: string; metadata: Record<string, string> } {
-  if (text.includes('|')) {
-    const segments = text.split('|').map((s) => s.trim());
-    return {
-      name: segments[0] ?? '',
-      metadata: parsePipeMetadata(segments, metaAliasMap, reportMultiPipes),
-    };
-  }
   const registry = withTagAliases(C4_REGISTRY, new Set(metaAliasMap.keys()));
   const split = splitNameAndMeta(text, registry, metaAliasMap);
   return { name: split.name, metadata: split.meta };
@@ -357,25 +347,6 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     // Skip comments
     if (trimmed.startsWith('//')) continue;
 
-    // §1.4 legacy `|` detection — emit once per line. Pipe in c4 had
-    // multiple use sites (element metadata, in-arrow labels, etc.). The
-    // in-arrow `|` per §1.10 stays valid; emit only for `|` outside
-    // arrow-label regions.
-    if (
-      trimmed.includes('|') &&
-      !/-\S*\|\S*->/.test(trimmed) &&
-      !/~\S*\|\S*~>/.test(trimmed)
-    ) {
-      result.diagnostics.push(
-        makeDgmoError(
-          lineNumber,
-          pipeOperatorRemovedMessage(),
-          'error',
-          METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-        )
-      );
-    }
-
     // --- Header phase ---
 
     // First line: `c4` or `c4 My Title`
@@ -401,7 +372,6 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     // Must be checked BEFORE OPTION_RE to prevent `tag: Rank` being swallowed as option
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch) {
-      emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
       if (contentStarted) {
         pushError(lineNumber, 'Tag groups must appear before content');
         continue;
@@ -526,8 +496,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         // Accepts both `Name | k: v` (legacy) and `Name k: v` (§1.4).
         const { name: nodeName, metadata } = parseC4NameAndMeta(
           trimmed,
-          metaAliasMap,
-          () => pushError(lineNumber, MULTIPLE_PIPE_ERROR)
+          metaAliasMap
         );
         warnUnknownMetaKeys(
           metadata,
@@ -836,20 +805,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         namePart = namePart.substring(0, nameIsAMatch.index!).trim();
       }
 
-      const metadata = parseC4MetaTail(
-        metaTail,
-        metaAliasMap,
-        () => pushError(lineNumber, MULTIPLE_PIPE_ERROR),
-        (bareTail) =>
-          result.diagnostics.push(
-            makeDgmoError(
-              lineNumber,
-              c4BareTailRemovedMessage(bareTail),
-              'error',
-              METADATA_DIAGNOSTIC_CODES.C4_BARE_TAIL_REMOVED
-            )
-          )
-      );
+      const metadata = parseC4MetaTail(metaTail, metaAliasMap);
 
       const shape =
         explicitShape ??
@@ -901,10 +857,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       const elementType = elementMatch[1]!.toLowerCase() as C4ElementType;
       const nameAndRest = elementMatch[2]!;
 
-      // Accept both legacy `Name | k: v` and §1.4 `Name k: v`.
-      const parsed = parseC4NameAndMeta(nameAndRest, metaAliasMap, () =>
-        pushError(lineNumber, MULTIPLE_PIPE_ERROR)
-      );
+      const parsed = parseC4NameAndMeta(nameAndRest, metaAliasMap);
       warnUnknownMetaKeys(
         parsed.metadata,
         withTagAliases(C4_REGISTRY, new Set(metaAliasMap.keys())),
@@ -1036,17 +989,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     // description; a bare prose line is no longer auto-promoted.
     const parent = findParentElement(indent, stack);
     const descResult = tryStripDescriptionKeyword(trimmed);
-    if (parent && descResult.isKeyword) {
-      if (descResult.needsColon) {
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            descriptionBareRemovedMessage(descResult.text),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.DESCRIPTION_BARE_REMOVED
-          )
-        );
-      }
+    if (parent && descResult.isKeyword && !descResult.needsColon) {
       let desc = elementDescription.get(parent.element);
       if (!desc) {
         desc = [];

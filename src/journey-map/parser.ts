@@ -1,13 +1,9 @@
 import type { PaletteColors } from '../palettes';
 import { resolveColorWithDiagnostic } from '../colors';
 import {
-  descriptionBareRemovedMessage,
   formatDgmoError,
-  journeyBareScoreRemovedMessage,
   makeDgmoError,
   makeFail,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
   suggest,
 } from '../diagnostics';
 import {
@@ -21,7 +17,6 @@ import {
 } from '../utils/parsing';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
   finalizeAutoTagColors,
@@ -50,7 +45,6 @@ import type { Writable } from '../utils/brand';
 // ============================================================
 
 const PHASE_RE = /^\[(.+?)\]$/;
-const SCORE_RE = /^(\d+(?:\.\d+)?)(?:\s+([A-Za-z]\w*))?$/;
 const ANNOTATION_RE = /^(pain|opportunity|thought)\s*:\s*(.+)$/i;
 
 /** Known journey-map options (key-value). */
@@ -151,68 +145,36 @@ export function parseJourneyMap(
       if (personaMatch) {
         // Capture group 1 present by regex shape.
         const afterKeyword = personaMatch[1]!.trim();
-        const pipeIdx = afterKeyword.indexOf('|');
         let personaName: string;
         let personaColor: string | undefined;
 
-        if (pipeIdx >= 0) {
-          result.diagnostics.push(
-            makeDgmoError(
+        // Same-line form (pipes removed in 0.18.0). Two ways to set color:
+        //   1. explicit `persona <name> color: <token>` (long form)
+        //   2. universal §1.5 trailing-token color (`persona <name> green`);
+        //      capitalize the word (`Green`) to keep it as literal name text.
+        const colorMatch = afterKeyword.match(/^(.+?)\s+color:\s*(\S+)$/i);
+        if (colorMatch) {
+          personaName = colorMatch[1]!.trim();
+          personaColor =
+            resolveColorWithDiagnostic(
+              colorMatch[2]!,
               lineNumber,
-              pipeOperatorRemovedMessage(),
-              'error',
-              METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-            )
-          );
-          personaName = afterKeyword.substring(0, pipeIdx).trim();
-          const metaStr = afterKeyword.substring(pipeIdx + 1).trim();
-          // Parse comma-separated key: value pairs
-          for (const part of metaStr.split(',')) {
-            const colonIdx = part.indexOf(':');
-            if (colonIdx > 0) {
-              const key = part.substring(0, colonIdx).trim().toLowerCase();
-              const value = part.substring(colonIdx + 1).trim();
-              if (key === 'color') {
-                // Resolve the color name directly (no synthetic parens wrap).
-                personaColor =
-                  resolveColorWithDiagnostic(
-                    value,
-                    lineNumber,
-                    result.diagnostics,
-                    palette
-                  ) ?? undefined;
-              }
-            }
-          }
+              result.diagnostics,
+              palette
+            ) ?? undefined;
         } else {
-          // Same-line form (pipes removed in 0.18.0). Two ways to set color:
-          //   1. explicit `persona <name> color: <token>` (long form)
-          //   2. universal §1.5 trailing-token color (`persona <name> green`);
-          //      capitalize the word (`Green`) to keep it as literal name text.
-          const colorMatch = afterKeyword.match(/^(.+?)\s+color:\s*(\S+)$/i);
-          if (colorMatch) {
-            personaName = colorMatch[1]!.trim();
+          const { label, colorName } = peelTrailingColorName(afterKeyword);
+          if (colorName) {
+            personaName = label;
             personaColor =
               resolveColorWithDiagnostic(
-                colorMatch[2]!,
+                colorName,
                 lineNumber,
                 result.diagnostics,
                 palette
               ) ?? undefined;
           } else {
-            const { label, colorName } = peelTrailingColorName(afterKeyword);
-            if (colorName) {
-              personaName = label;
-              personaColor =
-                resolveColorWithDiagnostic(
-                  colorName,
-                  lineNumber,
-                  result.diagnostics,
-                  palette
-                ) ?? undefined;
-            } else {
-              personaName = afterKeyword;
-            }
+            personaName = afterKeyword;
           }
         }
 
@@ -253,7 +215,6 @@ export function parseJourneyMap(
     if (!contentStarted) {
       const tagBlockMatch = matchTagBlockHeading(trimmed);
       if (tagBlockMatch) {
-        emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
         currentTagGroup = {
           name: tagBlockMatch.name,
           ...(tagBlockMatch.alias !== undefined && {
@@ -401,16 +362,6 @@ export function parseJourneyMap(
       // Check for description keyword
       const descResult = tryStripDescriptionKeyword(trimmed);
       if (descResult.isKeyword) {
-        if (descResult.needsColon) {
-          result.diagnostics.push(
-            makeDgmoError(
-              lineNumber,
-              descriptionBareRemovedMessage(descResult.text),
-              'error',
-              METADATA_DIAGNOSTIC_CODES.DESCRIPTION_BARE_REMOVED
-            )
-          );
-        }
         currentStep.description = descResult.text;
         currentStep.endLineNumber = lineNumber;
         continue;
@@ -535,194 +486,63 @@ function parseStepLine(
   warn: (line: number, message: string) => void,
   diagnostics?: import('../diagnostics').DgmoError[]
 ): Writable<JourneyMapStep> {
-  let title: string;
   let score: number | undefined;
   let emotionLabel: string | undefined;
   const tags: Record<string, string> = {};
 
-  // Legacy `|` detection — bare-score shorthand emits the journey-specific
-  // diagnostic with a hint at the keyed replacement.
-  const pipeIdx = trimmed.indexOf('|');
-  if (pipeIdx >= 0 && diagnostics) {
-    diagnostics.push(
-      makeDgmoError(
+  // §1.4 unified metadata grammar — same-line form; use splitNameAndMeta to
+  // extract `score:`, `emotion:`, and any other reserved/tag-alias keys.
+  const registry = withTagAliases(
+    JOURNEY_MAP_REGISTRY,
+    new Set(aliasMap.keys())
+  );
+  const split = splitNameAndMeta(
+    trimmed,
+    registry,
+    aliasMap,
+    undefined,
+    diagnostics,
+    lineNumber
+  );
+  warnUnknownMetaKeys(
+    split.meta,
+    registry,
+    (msg) => warn(lineNumber, msg),
+    split.name
+  );
+  const title = split.name;
+  const splitMeta = { ...split.meta };
+  // Extract reserved score / emotion into the dedicated fields.
+  if ('score' in splitMeta) {
+    const scoreVal = splitMeta['score'];
+    delete splitMeta['score'];
+    const parsed = parseInt(scoreVal, 10);
+    if (
+      !isNaN(parsed) &&
+      scoreVal === String(parsed) &&
+      parsed >= 1 &&
+      parsed <= 5
+    ) {
+      score = parsed;
+    } else if (!isNaN(parsed) && (parsed < 1 || parsed > 5)) {
+      warn(lineNumber, `Score out of range: ${parsed} (must be 1-5)`);
+    } else {
+      warn(lineNumber, `Score must be an integer 1-5, got ${scoreVal}`);
+    }
+  }
+  if ('emotion' in splitMeta) {
+    const emotionVal = splitMeta['emotion'];
+    delete splitMeta['emotion'];
+    if (emotionVal.includes(' ')) {
+      warn(
         lineNumber,
-        pipeOperatorRemovedMessage(),
-        'error',
-        METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-      )
-    );
-    // Check for bare-score shape after the `|`.
-    const afterPipe = trimmed.substring(pipeIdx + 1).trim();
-    const firstSeg = afterPipe.split(',')[0]?.trim() ?? '';
-    const bareScoreMatch = firstSeg.match(SCORE_RE);
-    if (bareScoreMatch) {
-      diagnostics.push(
-        makeDgmoError(
-          lineNumber,
-          journeyBareScoreRemovedMessage({
-            score: bareScoreMatch[1]!,
-            ...(bareScoreMatch[2] !== undefined && {
-              emotion: bareScoreMatch[2],
-            }),
-          }),
-          'error',
-          METADATA_DIAGNOSTIC_CODES.JOURNEY_BARE_SCORE_REMOVED
-        )
+        `Emotion label must be a single word — got "${emotionVal}"`
       );
+    } else {
+      emotionLabel = emotionVal;
     }
   }
-
-  if (pipeIdx >= 0) {
-    title = trimmed.substring(0, pipeIdx).trim();
-    const pipeContent = trimmed.substring(pipeIdx + 1).trim();
-
-    if (pipeContent) {
-      // Split on first comma to isolate potential score segment
-      const commaIdx = pipeContent.indexOf(',');
-      const firstSegment =
-        commaIdx >= 0
-          ? pipeContent.substring(0, commaIdx).trim()
-          : pipeContent.trim();
-      const restSegments =
-        commaIdx >= 0 ? pipeContent.substring(commaIdx + 1).trim() : '';
-
-      const scoreMatch = firstSegment.match(SCORE_RE);
-
-      if (scoreMatch) {
-        // Capture group 1 present by regex shape; group 2 is optional.
-        const rawScore = scoreMatch[1]!;
-        const label = scoreMatch[2];
-
-        if (rawScore.includes('.')) {
-          // Float — reject
-          warn(lineNumber, `Score must be an integer 1-5, got ${rawScore}`);
-        } else {
-          const intScore = parseInt(rawScore, 10);
-          if (intScore < 1 || intScore > 5) {
-            warn(lineNumber, `Score out of range: ${intScore} (must be 1-5)`);
-          } else {
-            score = intScore;
-            emotionLabel = label;
-          }
-        }
-
-        // Parse remaining metadata
-        if (restSegments) {
-          const metaParts = restSegments.split(',');
-          for (const part of metaParts) {
-            const colonIdx = part.indexOf(':');
-            if (colonIdx > 0) {
-              const rawKey = part.substring(0, colonIdx).trim().toLowerCase();
-              const key = aliasMap.get(rawKey) ?? rawKey;
-              const value = part.substring(colonIdx + 1).trim();
-              tags[key] = value;
-            }
-          }
-        }
-      } else {
-        // First segment didn't match score regex
-        // Check if it's a multi-word emotion label attempt (number followed by multiple words)
-        const multiWordCheck = firstSegment.match(/^(\d+)\s+(.+)$/);
-        // Capture groups 1 and 2 present by regex shape.
-        if (multiWordCheck && multiWordCheck[2]!.includes(' ')) {
-          // Preserve the score but warn about the multi-word label
-          const mwScore = parseInt(multiWordCheck[1]!, 10);
-          if (mwScore >= 1 && mwScore <= 5) {
-            score = mwScore;
-          }
-          warn(
-            lineNumber,
-            `Emotion label must be a single word — got "${multiWordCheck[2]}"`
-          );
-        }
-
-        // Treat entire pipe content as standard metadata
-        const allParts = pipeContent.split(',');
-        for (const part of allParts) {
-          const colonIdx = part.indexOf(':');
-          if (colonIdx > 0) {
-            const rawKey = part.substring(0, colonIdx).trim().toLowerCase();
-            const key = aliasMap.get(rawKey) ?? rawKey;
-            const value = part.substring(colonIdx + 1).trim();
-            tags[key] = value;
-          }
-        }
-
-        // Check for explicit score: key
-        if ('score' in tags) {
-          const scoreVal = tags['score'];
-          delete tags['score'];
-          const parsed = parseInt(scoreVal, 10);
-          if (isNaN(parsed) || scoreVal !== String(parsed)) {
-            warn(
-              lineNumber,
-              `Invalid score value: "${scoreVal}" (must be an integer 1-5)`
-            );
-          } else if (parsed < 1 || parsed > 5) {
-            warn(lineNumber, `Score out of range: ${parsed} (must be 1-5)`);
-          } else {
-            score = parsed;
-          }
-        }
-      }
-    }
-  } else {
-    // §1.4 unified metadata grammar — new same-line form. No pipe; use
-    // splitNameAndMeta to extract `score:`, `emotion:`, and any other
-    // reserved/tag-alias keys.
-    const registry = withTagAliases(
-      JOURNEY_MAP_REGISTRY,
-      new Set(aliasMap.keys())
-    );
-    const split = splitNameAndMeta(
-      trimmed,
-      registry,
-      aliasMap,
-      undefined,
-      diagnostics,
-      lineNumber
-    );
-    warnUnknownMetaKeys(
-      split.meta,
-      registry,
-      (msg) => warn(lineNumber, msg),
-      split.name
-    );
-    title = split.name;
-    const splitMeta = { ...split.meta };
-    // Extract reserved score / emotion into the dedicated fields.
-    if ('score' in splitMeta) {
-      const scoreVal = splitMeta['score'];
-      delete splitMeta['score'];
-      const parsed = parseInt(scoreVal, 10);
-      if (
-        !isNaN(parsed) &&
-        scoreVal === String(parsed) &&
-        parsed >= 1 &&
-        parsed <= 5
-      ) {
-        score = parsed;
-      } else if (!isNaN(parsed) && (parsed < 1 || parsed > 5)) {
-        warn(lineNumber, `Score out of range: ${parsed} (must be 1-5)`);
-      } else {
-        warn(lineNumber, `Score must be an integer 1-5, got ${scoreVal}`);
-      }
-    }
-    if ('emotion' in splitMeta) {
-      const emotionVal = splitMeta['emotion'];
-      delete splitMeta['emotion'];
-      if (emotionVal.includes(' ')) {
-        warn(
-          lineNumber,
-          `Emotion label must be a single word — got "${emotionVal}"`
-        );
-      } else {
-        emotionLabel = emotionVal;
-      }
-    }
-    Object.assign(tags, splitMeta);
-  }
+  Object.assign(tags, splitMeta);
 
   return {
     id: `step-${counter}`,

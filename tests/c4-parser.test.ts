@@ -104,7 +104,7 @@ describe('parseC4', () => {
     });
 
     it('parses database as container with database shape', () => {
-      const result = parseC4('c4\nPostgreSQL is a database | tech: PostgreSQL');
+      const result = parseC4('c4\nPostgreSQL is a database tech: PostgreSQL');
       expect(result.elements[0].type).toBe('container');
       expect(result.elements[0].shape).toBe('database');
       expect(result.elements[0].name).toBe('PostgreSQL');
@@ -146,7 +146,7 @@ describe('parseC4', () => {
 
     it('strips "is a" shape from element name', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    Cache is a container is a cache | tech: Redis'
+        'c4\nBanking is a system\n  containers\n    Cache is a container is a cache tech: Redis'
       );
       const el = result.elements[0].children[0];
       expect(el.name).toBe('Cache');
@@ -159,21 +159,21 @@ describe('parseC4', () => {
   describe('shape inference', () => {
     it('infers database from PostgreSQL tech', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    Data is a container | tech: PostgreSQL'
+        'c4\nBanking is a system\n  containers\n    Data is a container tech: PostgreSQL'
       );
       expect(result.elements[0].children[0].shape).toBe('database');
     });
 
     it('infers cache from Redis tech', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    Sessions is a container | tech: Redis'
+        'c4\nBanking is a system\n  containers\n    Sessions is a container tech: Redis'
       );
       expect(result.elements[0].children[0].shape).toBe('cache');
     });
 
     it('infers queue from Kafka tech', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    Events is a container | tech: Kafka'
+        'c4\nBanking is a system\n  containers\n    Events is a container tech: Kafka'
       );
       expect(result.elements[0].children[0].shape).toBe('queue');
     });
@@ -195,9 +195,9 @@ describe('parseC4', () => {
 
   // === Metadata ===
   describe('metadata', () => {
-    it('parses pipe syntax', () => {
+    it('parses same-line metadata', () => {
       const result = parseC4(
-        'c4\nBanking is a system | tech: Node.js, team: Platform'
+        'c4\nBanking is a system tech: Node.js, team: Platform'
       );
       expect(result.elements[0].metadata).toEqual({
         tech: 'Node.js',
@@ -213,9 +213,9 @@ describe('parseC4', () => {
       expect(result.elements[0].metadata.tech).toBe('Java');
     });
 
-    it('parses mixed pipe and indented metadata', () => {
+    it('parses mixed same-line and indented metadata', () => {
       const result = parseC4(
-        'c4\nBanking is a system | tech: Java\n  description: Core banking'
+        'c4\nBanking is a system tech: Java\n  description: Core banking'
       );
       const el = result.elements[0];
       expect(el.metadata.tech).toBe('Java');
@@ -224,7 +224,7 @@ describe('parseC4', () => {
 
     it('resolves tag group aliases in metadata', () => {
       const result = parseC4(
-        'c4\ntag Technology tech\n  React blue\n\nBanking is a system | tech: Node.js'
+        'c4\ntag Technology as tech\n  React blue\n\nBanking is a system tech: Node.js'
       );
       expect(result.elements[0].metadata.technology).toBe('Node.js');
     });
@@ -255,40 +255,25 @@ describe('parseC4', () => {
       ]);
     });
 
-    it('pipe metadata: Element | description: text extracts to dedicated field', () => {
+    it('same-line metadata: description extracts to dedicated field', () => {
       const result = parseC4(
-        'c4\nBanking is a system | description: Core banking, tech: Java'
+        'c4\nBanking is a system description: Core banking, tech: Java'
       );
       expect(result.elements[0].description).toEqual(['Core banking']);
       expect(result.elements[0].metadata['description']).toBeUndefined();
       expect(result.elements[0].metadata.tech).toBe('Java');
     });
 
-    it('bare "description" keyword (no colon) still collects but errors (DD-1)', () => {
+    it('description: text (colon form) collects cleanly', () => {
       const result = parseC4(
-        ['c4', 'Banking is a system', '  description Handles all banking'].join(
-          '\n'
-        )
+        [
+          'c4',
+          'Banking is a system',
+          '  description: Handles all banking',
+        ].join('\n')
       );
-      // Text is still applied (graceful), but the bare form is rejected at 1.0.
       expect(result.elements[0].description).toEqual(['Handles all banking']);
-      expect(
-        result.diagnostics.some(
-          (d) =>
-            d.code === 'E_DESCRIPTION_BARE_REMOVED' && d.severity === 'error'
-        )
-      ).toBe(true);
-    });
-
-    it('bare same-line tail after `is a type` errors instead of dropping silently (1.0 freeze)', () => {
-      const result = parseC4('c4\nCaptain is a person Commands the fleet');
-      // Previously the tail "Commands the fleet" was silently dropped (data
-      // loss). Now it's a hard error directing to `description: ...`.
-      expect(
-        result.diagnostics.some(
-          (d) => d.code === 'E_C4_BARE_TAIL_REMOVED' && d.severity === 'error'
-        )
-      ).toBe(true);
+      expect(result.diagnostics).toEqual([]);
     });
 
     it('keywordless prose under an element is NOT promoted to a description (DD-2)', () => {
@@ -377,7 +362,7 @@ describe('parseC4', () => {
 
     it('parses technology annotation via pipe metadata', () => {
       const result = parseC4(
-        'c4\nA is a system\nB is a system\n  -Calls-> A | tech: JSON/HTTPS'
+        'c4\nA is a system\nB is a system\n  -Calls-> A tech: JSON/HTTPS'
       );
       const rel = result.elements[1].relationships[0];
       expect(rel.technology).toBe('JSON/HTTPS');
@@ -497,10 +482,10 @@ describe('parseC4', () => {
           '  containers',
           '    API is a container',
           'deployment',
-          '  AWS us-east-1 | team: Platform',
+          '  AWS us-east-1 tech: Platform',
         ].join('\n')
       );
-      expect(result.deployment[0].metadata.team).toBe('Platform');
+      expect(result.deployment[0].metadata.tech).toBe('Platform');
     });
   });
 
@@ -528,7 +513,7 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'c4',
-          'tag Technology tech',
+          'tag Technology as tech',
           '  React blue',
           '  Node.js green',
           '',
@@ -545,7 +530,7 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'c4',
-          'tag Team t',
+          'tag Team as t',
           '  Platform blue',
           '  Payments orange',
           '',
@@ -557,7 +542,9 @@ describe('parseC4', () => {
 
     it('rejects tag groups after content', () => {
       const result = parseC4(
-        ['c4', 'Alice is a person', 'tag Team t', '  Platform blue'].join('\n')
+        ['c4', 'Alice is a person', 'tag Team as t', '  Platform blue'].join(
+          '\n'
+        )
       );
       expect(
         result.diagnostics.some((d) => d.message.includes('must appear before'))
@@ -568,10 +555,10 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'c4',
-          'tag Team t',
+          'tag Team as t',
           '  Platform blue',
           '',
-          'Banking is a system | t: Platform',
+          'Banking is a system t: Platform',
         ].join('\n')
       );
       // 't' should be resolved to 'team'
@@ -585,7 +572,7 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'c4',
-          'tag Technology tech',
+          'tag Technology as tech',
           '  React blue',
           '  Node.js green',
           '',
@@ -602,7 +589,7 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'c4',
-          'tag Team t',
+          'tag Team as t',
           '  Platform blue',
           '  Payments orange',
           '',
@@ -644,10 +631,10 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'c4',
-          'tag Team t',
+          'tag Team as t',
           '  Platform blue',
           '',
-          'Banking is a system | t: Platform',
+          'Banking is a system t: Platform',
         ].join('\n')
       );
       expect(result.elements[0].metadata.team).toBe('Platform');
@@ -772,17 +759,17 @@ describe('parseC4', () => {
       const input = [
         'c4 Internet Banking System',
         '',
-        'tag Technology tech',
+        'tag Technology as tech',
         '  React blue',
         '  Node.js green',
         '  PostgreSQL purple',
         '  Redis red',
         '',
-        'tag Team t',
+        'tag Team as t',
         '  Platform blue',
         '  Payments orange',
         '',
-        'tag Scope sc',
+        'tag Scope as sc',
         '  Internal blue',
         '  External gray',
         '',
@@ -795,54 +782,54 @@ describe('parseC4', () => {
         '',
         '  containers',
         '    [Frontend]',
-        '      Web App is a container | tech: React, t: Platform',
+        '      Web App is a container tech: React, t: Platform',
         '        description: Delivers the SPA',
-        '        -Makes calls to-> API | tech: JSON/HTTPS',
+        '        -Makes calls to-> API tech: JSON/HTTPS',
         '',
-        '      Mobile App is a container | tech: React Native, t: Platform',
+        '      Mobile App is a container tech: React Native, t: Platform',
         '        description: iOS and Android client',
-        '        -Makes calls to-> API | tech: JSON/HTTPS',
+        '        -Makes calls to-> API tech: JSON/HTTPS',
         '',
         '    [Backend]',
-        '      API is a container | tech: Node.js, t: Platform',
+        '      API is a container tech: Node.js, t: Platform',
         '        description: JSON/HTTPS API',
-        '        -Reads/writes-> Database | tech: SQL/TCP',
-        '        -Reads/writes-> Cache | tech: TCP',
-        '        ~Sends notifications~> Email System | tech: SMTP',
-        '        -Gets account info-> Mainframe | tech: XML/HTTPS',
+        '        -Reads/writes-> Database tech: SQL/TCP',
+        '        -Reads/writes-> Cache tech: TCP',
+        '        ~Sends notifications~> Email System tech: SMTP',
+        '        -Gets account info-> Mainframe tech: XML/HTTPS',
         '',
         '        components',
-        '          Auth Controller is a component | tech: Express',
+        '          Auth Controller is a component tech: Express',
         '            description: Handles authentication',
         '            import: auth-classes.dgmo',
         '            -Reads users-> User Repository',
         '',
-        '          Accounts Controller is a component | tech: Express',
+        '          Accounts Controller is a component tech: Express',
         '            description: Provides account information',
         '            -Reads accounts-> Accounts Repository',
         '',
-        '      Worker is a container | tech: Node.js, t: Payments',
+        '      Worker is a container tech: Node.js, t: Payments',
         '        description: Async job processor',
-        '        ~Consumes events~> Event Bus | tech: AMQP',
+        '        ~Consumes events~> Event Bus tech: AMQP',
         '',
-        '    Database is a container | tech: PostgreSQL, t: Payments',
+        '    Database is a container tech: PostgreSQL, t: Payments',
         '      description: Account data store',
         '',
-        '    Cache is a container is a cache | tech: Redis, t: Platform',
+        '    Cache is a container is a cache tech: Redis, t: Platform',
         '      description: Session and rate-limit cache',
         '',
-        '    Event Bus is a container | tech: RabbitMQ, t: Platform',
+        '    Event Bus is a container tech: RabbitMQ, t: Platform',
         '      description: Async event backbone',
         '',
-        'Email System is a system | sc: External',
+        'Email System is a system sc: External',
         '  description: Sendgrid email service',
         '  -Sends emails to-> Customer',
         '',
-        'Mainframe is a system | sc: External',
+        'Mainframe is a system sc: External',
         '  description: Core banking system',
         '',
         'deployment',
-        '  AWS us-east-1 | t: Platform',
+        '  AWS us-east-1 t: Platform',
         '    ECS Cluster',
         '      container Web App',
         '      container API',
@@ -853,7 +840,7 @@ describe('parseC4', () => {
         '      container Cache',
         '    Amazon MQ',
         '      container Event Bus',
-        '  Cloudflare | sc: External',
+        '  Cloudflare sc: External',
         '    CDN',
         '      container Mobile App',
       ].join('\n');
@@ -1008,7 +995,7 @@ WebApp is a system
     it('TD-5: technology metadata via pipe on target works', () => {
       const result = parseC4(`c4
 WebApp is a system
-  -Makes calls-> API | tech: JSON/HTTPS`);
+  -Makes calls-> API tech: JSON/HTTPS`);
       expect(result.error).toBeNull();
       const rels = result.elements[0].relationships;
       expect(rels).toHaveLength(1);
@@ -1107,7 +1094,7 @@ API is a system
     });
 
     it('PostgreSQL is a database with pipe metadata', () => {
-      const result = parseC4('c4\nPostgreSQL is a database | tech: PostgreSQL');
+      const result = parseC4('c4\nPostgreSQL is a database tech: PostgreSQL');
       expect(result.error).toBeNull();
       expect(result.elements).toHaveLength(1);
       expect(result.elements[0].name).toBe('PostgreSQL');
@@ -1181,8 +1168,8 @@ API is a system
           'c4',
           'Banking is a system',
           '  containers',
-          '    API is a container | tech: Node.js',
-          '    Cache is a container is a cache | tech: Redis',
+          '    API is a container tech: Node.js',
+          '    Cache is a container is a cache tech: Redis',
         ].join('\n')
       );
       expect(result.error).toBeNull();

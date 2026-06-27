@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   measureIndent,
   extractColor,
-  parsePipeMetadata,
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
   parseFirstLine,
@@ -88,41 +87,6 @@ describe('extractColor — trailing-token rule', () => {
   it('treats old parens form as literal label text', () => {
     // Hard break: `Done(green)` no longer parses as colored — parens stay literal.
     expect(extractColor('Done(green)')).toEqual({ label: 'Done(green)' });
-  });
-});
-
-describe('parsePipeMetadata', () => {
-  it('parses key:value pairs from single pipe segment', () => {
-    const m = parsePipeMetadata(['Name', 'role: Dev, loc: NY']);
-    expect(m).toEqual({ role: 'Dev', loc: 'NY' });
-  });
-  it('applies aliasMap', () => {
-    const aliases = new Map([['r', 'role']]);
-    const m = parsePipeMetadata(['X', 'r: Dev'], aliases);
-    expect(m).toEqual({ role: 'Dev' });
-  });
-  it('handles comma-separated within a segment', () => {
-    const m = parsePipeMetadata(['X', 'a: 1, b: 2']);
-    expect(m).toEqual({ a: '1', b: '2' });
-  });
-  it('errors when more than one pipe segment is present', () => {
-    let errored = false;
-    const m = parsePipeMetadata(
-      ['Name', 'role: Dev', 'loc: NY'],
-      new Map(),
-      () => {
-        errored = true;
-      }
-    );
-    expect(errored).toBe(true);
-    expect(m).toEqual({});
-  });
-  it('does not error for single pipe segment', () => {
-    let errored = false;
-    parsePipeMetadata(['Name', 'role: Dev, loc: NY'], new Map(), () => {
-      errored = true;
-    });
-    expect(errored).toBe(false);
   });
 });
 

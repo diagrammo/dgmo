@@ -50,19 +50,19 @@ describe('journey-map renderer', () => {
 persona Tech-Savvy Shopper
   28yo developer
 
-tag Channel ch
+tag Channel as ch
   Web blue
   Mobile purple
 
 [Research]
-  Compare specs | 4, ch: Web
-  Watch reviews | 5 Engaged, ch: Mobile
+  Compare specs score: 4, ch: Web
+  Watch reviews score: 5, emotion: Engaged, ch: Mobile
 
 [Purchase]
-  Add to cart | 3, ch: Web
-  Forced account creation | 1 Frustrated, ch: Web
+  Add to cart score: 3, ch: Web
+  Forced account creation score: 1, emotion: Frustrated, ch: Web
     pain: Wants guest checkout
-  Complete payment | 3, ch: Web`;
+  Complete payment score: 3, ch: Web`;
 
   describe('SVG structure', () => {
     it('renders SVG element', () => {
@@ -196,9 +196,9 @@ tag Channel ch
   describe('flat mode', () => {
     it('renders steps without phase wrappers', () => {
       const input = `journey-map Quick
-Opened app | 4
-Searched | 3
-Hit error | 1`;
+Opened app score: 4
+Searched score: 3
+Hit error score: 1`;
       const { container } = renderToContainer(input);
       const phases = container.querySelectorAll('.journey-phase');
       expect(phases).toHaveLength(0);
@@ -214,7 +214,7 @@ Hit error | 1`;
       const input = `journey-map Test
 
 [Phase]
-  Only step | 4`;
+  Only step score: 4`;
       const { container } = renderToContainer(input);
       const steps = container.querySelectorAll('.journey-step');
       expect(steps).toHaveLength(1);
@@ -237,7 +237,7 @@ Hit error | 1`;
 [Empty]
 
 [Full]
-  Step | 3`;
+  Step score: 3`;
       const { container } = renderToContainer(input);
       const phases = container.querySelectorAll('.journey-phase');
       expect(phases).toHaveLength(2);

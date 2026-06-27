@@ -8,13 +8,10 @@
 
 import { tagAttrKey } from '../utils/tag-groups';
 import {
-  descriptionBareRemovedMessage,
   formatDgmoError,
   makeDgmoError,
-  METADATA_DIAGNOSTIC_CODES,
   NAME_DIAGNOSTIC_CODES,
   nameMergedMessage,
-  pipeOperatorRemovedMessage,
   suggest,
 } from '../diagnostics';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
@@ -30,7 +27,6 @@ import { isRecognizedColorName } from '../colors';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
 } from '../utils/tag-groups';
@@ -391,22 +387,6 @@ export function parseInfra(content: string): ParsedInfra {
     // Skip markdown section headers
     if (/^#{2,}\s+/.test(trimmed)) continue;
 
-    // §1.4 legacy `|` detection — fires once per line. The `|` in
-    // arrow labels (per §1.10) is allowed inside `-...->` regions;
-    // a simple heuristic: skip if the only `|` is inside a `-|->`-shaped
-    // sequence. Otherwise emit the error and continue (legacy data
-    // still extracts via extractPipeMetadata for transition).
-    if (trimmed.includes('|') && !/-\S*\|\S*->/.test(trimmed)) {
-      result.diagnostics.push(
-        makeDgmoError(
-          lineNumber,
-          pipeOperatorRemovedMessage(),
-          'error',
-          METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-        )
-      );
-    }
-
     // ---- Top-level metadata (no indent) ----
     if (indent === 0) {
       // Close any open blocks
@@ -464,7 +444,6 @@ export function parseInfra(content: string): ParsedInfra {
       // Tag group: `tag Name as <alias>` (via shared matchTagBlockHeading)
       const tagMatch = matchTagBlockHeading(trimmed);
       if (tagMatch) {
-        emitTagLegacyDiagnostic(tagMatch, lineNumber, result.diagnostics);
         finishCurrentNode();
         finishCurrentTagGroup();
         if (tagMatch.alias) tagAliasSet.add(normalizeName(tagMatch.alias));
@@ -961,20 +940,10 @@ export function parseInfra(content: string): ParsedInfra {
       // Indented line inside a component: only the `description` keyword
       // attaches as a description; a bare prose line is no longer auto-promoted.
       const descResult = tryStripDescriptionKeyword(trimmed);
-      if (descResult.isKeyword) {
+      if (descResult.isKeyword && !descResult.needsColon) {
         if (currentNode.isEdge) {
           // description on edge nodes is silently ignored
           continue;
-        }
-        if (descResult.needsColon) {
-          result.diagnostics.push(
-            makeDgmoError(
-              lineNumber,
-              descriptionBareRemovedMessage(descResult.text),
-              'error',
-              METADATA_DIAGNOSTIC_CODES.DESCRIPTION_BARE_REMOVED
-            )
-          );
         }
         pushDescription(currentNode, descResult.text);
         continue;

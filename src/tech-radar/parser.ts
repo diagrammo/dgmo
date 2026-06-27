@@ -1,15 +1,8 @@
-import {
-  makeDgmoError,
-  makeFail,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
-  suggest,
-} from '../diagnostics';
+import { makeDgmoError, makeFail, suggest } from '../diagnostics';
 import { TECH_RADAR_REGISTRY } from '../utils/reserved-key-registry';
 import {
   measureIndent,
   parseFirstLine,
-  parsePipeMetadata,
   splitNameAndMeta,
   OPTION_NOCOLON_RE,
   warnUnknownMetaKeys,
@@ -197,42 +190,23 @@ export function parseTechRadar(content: string): ParsedTechRadar {
 
     // --- Quadrant section header: `Name quadrant: position` (§1.4) ---
     if (indent === 0 && /\bquadrant\s*:/.test(trimmed)) {
-      // Legacy `|` detection.
-      if (trimmed.includes('|')) {
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            pipeOperatorRemovedMessage(),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-          )
-        );
-      }
-      // Support both: legacy `Name | quadrant: pos` AND new `Name quadrant: pos`.
-      let segments: string[];
-      let meta: Record<string, string>;
-      if (trimmed.includes('|')) {
-        segments = trimmed.split('|');
-        meta = parsePipeMetadata(segments);
-      } else {
-        const split = splitNameAndMeta(
-          trimmed,
-          TECH_RADAR_REGISTRY,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          { peelAlias: false }
-        );
-        warnUnknownMetaKeys(
-          split.meta,
-          TECH_RADAR_REGISTRY,
-          (msg) => warn(lineNumber, msg),
-          split.name
-        );
-        segments = [split.name];
-        meta = split.meta;
-      }
+      const split = splitNameAndMeta(
+        trimmed,
+        TECH_RADAR_REGISTRY,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { peelAlias: false }
+      );
+      warnUnknownMetaKeys(
+        split.meta,
+        TECH_RADAR_REGISTRY,
+        (msg) => warn(lineNumber, msg),
+        split.name
+      );
+      const segments: string[] = [split.name];
+      const meta: Record<string, string> = split.meta;
       const quadrantPos = meta['quadrant'];
 
       if (quadrantPos) {
@@ -294,45 +268,24 @@ export function parseTechRadar(content: string): ParsedTechRadar {
       }
 
       // --- Blip with same-line metadata (§1.4) ---
-      if (
-        trimmed.includes('|') ||
-        /\b(?:ring|trend|color|description)\s*:/.test(trimmed)
-      ) {
-        // Legacy `|` detection.
-        if (trimmed.includes('|')) {
-          result.diagnostics.push(
-            makeDgmoError(
-              lineNumber,
-              pipeOperatorRemovedMessage(),
-              'error',
-              METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-            )
-          );
-        }
-        let segments: string[];
-        let meta: Record<string, string>;
-        if (trimmed.includes('|')) {
-          segments = trimmed.split('|');
-          meta = parsePipeMetadata(segments);
-        } else {
-          const split = splitNameAndMeta(
-            trimmed,
-            TECH_RADAR_REGISTRY,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            { peelAlias: false }
-          );
-          warnUnknownMetaKeys(
-            split.meta,
-            TECH_RADAR_REGISTRY,
-            (msg) => warn(lineNumber, msg),
-            split.name
-          );
-          segments = [split.name];
-          meta = split.meta;
-        }
+      if (/\b(?:ring|trend|color|description)\s*:/.test(trimmed)) {
+        const split = splitNameAndMeta(
+          trimmed,
+          TECH_RADAR_REGISTRY,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          { peelAlias: false }
+        );
+        warnUnknownMetaKeys(
+          split.meta,
+          TECH_RADAR_REGISTRY,
+          (msg) => warn(lineNumber, msg),
+          split.name
+        );
+        const segments: string[] = [split.name];
+        const meta: Record<string, string> = split.meta;
 
         // Determine ring: explicit `ring:` metadata overrides section ring
         const explicitRing = meta['ring'];

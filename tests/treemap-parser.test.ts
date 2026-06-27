@@ -66,12 +66,6 @@ describe('parseTreemap — value resolution & auto-sum (AC2)', () => {
     const r = parseTreemap('treemap T\nA\n  X 1_000');
     expect(findNode(r.roots, 'X')!.value).toBe(1000);
   });
-
-  it('warns on a thousands comma but parses best-effort (AC2)', () => {
-    const r = parseTreemap('treemap T\nA\n  X 1,000');
-    expect(findNode(r.roots, 'X')!.value).toBe(1000);
-    expect(r.diagnostics.some((d) => d.severity === 'warning')).toBe(true);
-  });
 });
 
 describe('parseTreemap — value disambiguation (AC2b)', () => {

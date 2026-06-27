@@ -285,7 +285,7 @@ describe('non-fatal validation warnings', () => {
   });
 
   it('warns about series count mismatch and filters data', () => {
-    const result = parseChart('line\nseries A, B\nX 1\nY 10, 20');
+    const result = parseChart('line\nseries A, B\nX 1\nY 10 20');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -347,12 +347,12 @@ describe('timeline tag groups', () => {
   it('parses tag: blocks with entries', () => {
     const result = parseVisualization(`timeline
 
-tag Team t
+tag Team as t
   Frontend blue
   Backend green
 
 [Q1]
-  2026-01 Auth redesign | t: Backend`);
+  2026-01 Auth redesign t: Backend`);
     expect(result.timelineTagGroups).toHaveLength(1);
     expect(result.timelineTagGroups[0].name).toBe('Team');
     expect(result.timelineTagGroups[0].alias).toBe('t');
@@ -362,7 +362,7 @@ tag Team t
   it('parses metadata on point events', () => {
     const result = parseVisualization(`timeline
 
-tag Team t
+tag Team as t
   Frontend blue
 
 [Q1]
@@ -374,7 +374,7 @@ tag Team t
   it('parses metadata on range events', () => {
     const result = parseVisualization(`timeline
 
-tag Team t
+tag Team as t
   Backend green
 
 [Q1]
@@ -390,7 +390,7 @@ tag Team
   Platform teal
 
 [Q1]
-  2026-01 Gateway setup 3m Team: Platform`);
+  2026-01 Gateway setup duration: 3m, Team: Platform`);
     expect(result.timelineEvents[0].label).toBe('Gateway setup');
     expect(result.timelineEvents[0].metadata).toEqual({ team: 'Platform' });
   });

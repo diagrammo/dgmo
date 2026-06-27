@@ -1180,7 +1180,7 @@ describe('looksLikeSequence with new arrows', () => {
 describe('tag group declarations', () => {
   it('parses a single tag group with entries', () => {
     const content = [
-      'tag Concern c',
+      'tag Concern as c',
       '  Caching blue',
       '  Auth green',
       '',
@@ -1198,10 +1198,10 @@ describe('tag group declarations', () => {
 
   it('parses multiple tag groups', () => {
     const content = [
-      'tag Concern c',
+      'tag Concern as c',
       '  Caching blue',
       '  Auth green',
-      'tag Team t',
+      'tag Team as t',
       '  Platform purple',
       '  Product orange',
       '',
@@ -1228,10 +1228,10 @@ describe('tag group declarations', () => {
 
   it('registers aliases in aliasMap', () => {
     const content = [
-      'tag Concern c',
+      'tag Concern as c',
       '  Caching blue',
       '',
-      'A -req-> B | c: Caching',
+      'A -req-> B c: Caching',
     ].join('\n');
     const result = parseSequenceDgmo(content);
     // The alias "c" should resolve to "concern" in the metadata
@@ -1277,7 +1277,7 @@ describe('tag group declarations', () => {
 describe('pipe metadata on participants', () => {
   it('parses metadata on "is a" declaration', () => {
     const content = [
-      'API is an actor | role: Gateway, team: Platform',
+      'API is an actor role: Gateway, team: Platform',
       'DB is a database',
       'API -query-> DB',
     ].join('\n');
@@ -1290,7 +1290,7 @@ describe('pipe metadata on participants', () => {
   });
 
   it('parses metadata on legacy parens-colored participant (color stripped with error)', () => {
-    const content = ['API(blue) | role: Gateway', 'API -req-> DB'].join('\n');
+    const content = ['API(blue) role: Gateway', 'API -req-> DB'].join('\n');
     const result = parseSequenceDgmo(content);
     const api = result.participants.find((p) => p.id === 'API');
     expect(api?.metadata).toEqual({ role: 'Gateway' });
@@ -1301,7 +1301,7 @@ describe('pipe metadata on participants', () => {
   it('parses metadata on bare participant in group', () => {
     const content = [
       '[Backend]',
-      '  API | role: Gateway',
+      '  API role: Gateway',
       '',
       'API -req-> DB',
     ].join('\n');
@@ -1313,11 +1313,11 @@ describe('pipe metadata on participants', () => {
 
   it('parses metadata on bare top-level participant', () => {
     const content = [
-      'tag Location l',
+      'tag Location as l',
       '  Park red',
       '  Cloud blue',
       '',
-      'Tapin2 | l:Park',
+      'Tapin2 l:Park',
       '',
       'User -push-> Tapin2',
     ].join('\n');
@@ -1328,14 +1328,14 @@ describe('pipe metadata on participants', () => {
 
   it('parses metadata on bare top-level participant after groups', () => {
     const content = [
-      'tag Location l',
+      'tag Location as l',
       '  Park red',
       '  Cloud blue',
       '',
       '[Backend]',
       '  API',
       '',
-      'Tapin2 | l:Park',
+      'Tapin2 l:Park',
       '',
       'User -push-> Tapin2',
     ].join('\n');
@@ -1366,30 +1366,6 @@ describe('pipe metadata on participants', () => {
     expect(db?.metadata).toEqual({ role: 'Storage' });
   });
 
-  it('rejects bare-keyword `position N` (colon required)', () => {
-    const content = ['DB position -1', 'API -req-> DB'].join('\n');
-    const result = parseSequenceDgmo(content);
-    const err = result.diagnostics.find(
-      (d) => d.code === 'E_SEQUENCE_BARE_POSITION_REMOVED'
-    );
-    expect(err).toBeDefined();
-    // Participant still registers (so message refs resolve) but with no
-    // order override.
-    const db = result.participants.find((p) => p.id === 'DB');
-    expect(db).toBeDefined();
-    expect(db?.position).toBeUndefined();
-  });
-
-  it('rejects bare `position N` in an `is a` declaration', () => {
-    const result = parseSequenceDgmo('DB is a database position -1');
-    const err = result.diagnostics.find(
-      (d) => d.code === 'E_SEQUENCE_BARE_POSITION_REMOVED'
-    );
-    expect(err).toBeDefined();
-    const db = result.participants.find((p) => p.id === 'DB');
-    expect(db?.position).toBeUndefined();
-  });
-
   it('accepts colon-keyed position on an `is a` declaration', () => {
     const result = parseSequenceDgmo('DB is a database position: -1');
     const db = result.participants.find((p) => p.id === 'DB');
@@ -1399,10 +1375,10 @@ describe('pipe metadata on participants', () => {
 
   it('resolves in participant metadata', () => {
     const content = [
-      'tag Concern c',
+      'tag Concern as c',
       '  Caching blue',
       '',
-      'API is an actor | c: Caching',
+      'API is an actor c: Caching',
       'API -req-> DB',
     ].join('\n');
     const result = parseSequenceDgmo(content);
@@ -1415,62 +1391,66 @@ describe('pipe metadata on participants', () => {
 // Pipe metadata on messages
 // ============================================================
 describe('pipe metadata on messages', () => {
+  const TAG_PREFIX = [
+    'tag Concern as c',
+    '  Caching blue',
+    '  Async green',
+    '',
+  ];
+
   it('parses metadata on labeled arrow', () => {
-    const content = 'A -request-> B | c: Caching';
+    const content = [...TAG_PREFIX, 'A -request-> B c: Caching'].join('\n');
     const result = parseSequenceDgmo(content);
     expect(result.error).toBeNull();
-    expect(result.messages[0].metadata).toEqual({ c: 'Caching' });
+    expect(result.messages[0].metadata).toEqual({ concern: 'Caching' });
     expect(result.messages[0].label).toBe('request');
     expect(result.messages[0].from).toBe('A');
     expect(result.messages[0].to).toBe('B');
   });
 
   it('parses metadata on async arrow', () => {
-    const content = 'A ~fire~> B | c: Async';
+    const content = [...TAG_PREFIX, 'A ~fire~> B c: Async'].join('\n');
     const result = parseSequenceDgmo(content);
     expect(result.messages[0].async).toBe(true);
-    expect(result.messages[0].metadata).toEqual({ c: 'Async' });
+    expect(result.messages[0].metadata).toEqual({ concern: 'Async' });
   });
 
   it('parses metadata on bare arrow', () => {
-    const content = 'A -> B | c: Caching';
+    const content = [...TAG_PREFIX, 'A -> B c: Caching'].join('\n');
     const result = parseSequenceDgmo(content);
-    expect(result.messages[0].metadata).toEqual({ c: 'Caching' });
+    expect(result.messages[0].metadata).toEqual({ concern: 'Caching' });
     expect(result.messages[0].label).toBe('');
   });
 
   it('parses metadata on bare async arrow', () => {
-    const content = 'A ~> B | c: Async';
+    const content = [...TAG_PREFIX, 'A ~> B c: Async'].join('\n');
     const result = parseSequenceDgmo(content);
     expect(result.messages[0].async).toBe(true);
-    expect(result.messages[0].metadata).toEqual({ c: 'Async' });
+    expect(result.messages[0].metadata).toEqual({ concern: 'Async' });
   });
 
   it('parses multiple metadata keys', () => {
-    const content = 'A -req-> B | c: Caching, t: Platform';
+    const content = [
+      'tag Concern as c',
+      '  Caching blue',
+      'tag Team as t',
+      '  Platform purple',
+      '',
+      'A -req-> B c: Caching, t: Platform',
+    ].join('\n');
     const result = parseSequenceDgmo(content);
     expect(result.messages[0].metadata).toEqual({
-      c: 'Caching',
-      t: 'Platform',
+      concern: 'Caching',
+      team: 'Platform',
     });
-  });
-
-  it('emits E_PIPE_OPERATOR_REMOVED on legacy pipe metadata', () => {
-    const content = 'A -req-> B | c: Caching, t: Platform';
-    const result = parseSequenceDgmo(content);
-    const diag = result.diagnostics.find(
-      (d) => d.code === 'E_PIPE_OPERATOR_REMOVED'
-    );
-    expect(diag).toBeDefined();
-    expect(diag!.severity).toBe('error');
   });
 
   it('resolves in message metadata', () => {
     const content = [
-      'tag Concern c',
+      'tag Concern as c',
       '  Caching blue',
       '',
-      'A -req-> B | c: Caching',
+      'A -req-> B c: Caching',
     ].join('\n');
     const result = parseSequenceDgmo(content);
     expect(result.messages[0].metadata).toEqual({ concern: 'Caching' });
@@ -1489,26 +1469,35 @@ describe('pipe metadata on messages', () => {
 describe('pipe metadata on group headers', () => {
   it('parses metadata outside brackets on group heading', () => {
     const content = [
-      '[Backend] | t: Engineering',
+      'tag Team as t',
+      '  Engineering blue',
+      '',
+      '[Backend] t: Engineering',
       '  API',
       '',
       'API -req-> DB',
     ].join('\n');
     const result = parseSequenceDgmo(content);
     expect(result.groups[0].name).toBe('Backend');
-    expect(result.groups[0].metadata).toEqual({ t: 'Engineering' });
+    expect(result.groups[0].metadata).toEqual({ team: 'Engineering' });
   });
 
   it('parses multiple metadata keys outside brackets', () => {
     const content = [
-      '[Backend] | t: Product, color: blue',
+      'tag Team as t',
+      '  Product blue',
+      '',
+      '[Backend] t: Product, color: blue',
       '  API',
       '',
       'API -req-> DB',
     ].join('\n');
     const result = parseSequenceDgmo(content);
     expect(result.groups[0].name).toBe('Backend');
-    expect(result.groups[0].metadata).toEqual({ t: 'Product', color: 'blue' });
+    expect(result.groups[0].metadata).toEqual({
+      team: 'Product',
+      color: 'blue',
+    });
   });
 
   it('pipe inside brackets emits error with migration hint', () => {
@@ -1519,7 +1508,9 @@ describe('pipe metadata on group headers', () => {
       'API -req-> DB',
     ].join('\n');
     const result = parseSequenceDgmo(content);
-    expect(result.error).toMatch(/Metadata goes after the bracket with no pipe/);
+    expect(result.error).toMatch(
+      /Metadata goes after the bracket with no pipe/
+    );
     expect(result.error).toMatch(/\[Backend\] t: Engineering/);
   });
 
@@ -1531,7 +1522,9 @@ describe('pipe metadata on group headers', () => {
       'API -req-> DB',
     ].join('\n');
     const result = parseSequenceDgmo(content);
-    expect(result.error).toMatch(/Metadata goes after the bracket with no pipe/);
+    expect(result.error).toMatch(
+      /Metadata goes after the bracket with no pipe/
+    );
     expect(result.error).toMatch(/\[Backend\] t: Product/);
   });
 
@@ -1552,9 +1545,12 @@ describe('pipe metadata on group headers', () => {
     expect(warnings.some((w) => w.message.includes('(blue)'))).toBe(true);
   });
 
-  it('[Backend] | t: Product, color: blue parses both metadata keys', () => {
+  it('[Backend] t: Product, color: blue parses both metadata keys', () => {
     const content = [
-      '[Backend] | t: Product, color: blue',
+      'tag Team as t',
+      '  Product blue',
+      '',
+      '[Backend] t: Product, color: blue',
       '  API',
       '',
       'API -req-> DB',
@@ -1562,7 +1558,10 @@ describe('pipe metadata on group headers', () => {
     const result = parseSequenceDgmo(content);
     expect(result.error).toBeNull();
     expect(result.groups[0].name).toBe('Backend');
-    expect(result.groups[0].metadata).toEqual({ t: 'Product', color: 'blue' });
+    expect(result.groups[0].metadata).toEqual({
+      team: 'Product',
+      color: 'blue',
+    });
   });
 });
 
@@ -1580,13 +1579,13 @@ describe('collapse keyword on group headers', () => {
     expect(result.groups[0].collapsed).toBe(true);
   });
 
-  it('[Backend] collapse with pipe metadata', () => {
+  it('[Backend] collapse with same-line metadata', () => {
     const result = parseSequenceDgmo(
-      '[Backend] collapse | t: Eng\n  API\n  DB\nAPI -query-> DB'
+      'tag Team as t\n  Eng blue\n\n[Backend] collapse t: Eng\n  API\n  DB\nAPI -query-> DB'
     );
     expect(result.error).toBeNull();
     expect(result.groups[0].collapsed).toBe(true);
-    expect(result.groups[0].metadata).toEqual({ t: 'Eng' });
+    expect(result.groups[0].metadata).toEqual({ team: 'Eng' });
   });
 
   it('[Backend] without collapse has no collapsed field', () => {
@@ -1595,13 +1594,13 @@ describe('collapse keyword on group headers', () => {
     expect(result.groups[0].collapsed).toBeUndefined();
   });
 
-  it('[Backend] | t: Eng without collapse has no collapsed field', () => {
+  it('[Backend] t: Eng without collapse has no collapsed field', () => {
     const result = parseSequenceDgmo(
-      '[Backend] | t: Eng\n  API\n  DB\nAPI -query-> DB'
+      'tag Team as t\n  Eng blue\n\n[Backend] t: Eng\n  API\n  DB\nAPI -query-> DB'
     );
     expect(result.error).toBeNull();
     expect(result.groups[0].collapsed).toBeUndefined();
-    expect(result.groups[0].metadata).toEqual({ t: 'Eng' });
+    expect(result.groups[0].metadata).toEqual({ team: 'Eng' });
   });
 
   it('COLLAPSE is case-insensitive', () => {
@@ -1633,7 +1632,7 @@ describe('tag validation on sequence diagrams', () => {
       '  Caching blue',
       '  Auth green',
       '',
-      'A -req-> B | concern: Typo',
+      'A -req-> B concern: Typo',
     ].join('\n');
     const result = parseSequenceDgmo(content);
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
@@ -1647,7 +1646,7 @@ describe('tag validation on sequence diagrams', () => {
       'tag Concern',
       '  Caching blue',
       '',
-      'A -req-> B | concern: Caching',
+      'A -req-> B concern: Caching',
     ].join('\n');
     const result = parseSequenceDgmo(content);
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
@@ -1659,7 +1658,7 @@ describe('tag validation on sequence diagrams', () => {
       'tag Concern',
       '  Caching blue',
       '',
-      'A -req-> B | concern: Cachng',
+      'A -req-> B concern: Cachng',
     ].join('\n');
     const result = parseSequenceDgmo(content);
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
@@ -1824,54 +1823,27 @@ describe('multi-word participant names', () => {
   });
 });
 
-describe('participant-type removal (0.16.0)', () => {
+describe('participant type fallthrough', () => {
   it.each([
     ['service'],
     ['frontend'],
     ['networking'],
     ['gateway'],
     ['external'],
-  ])('emits E_PARTICIPANT_TYPE_REMOVED for "is a %s"', (removedType) => {
-    const result = parseSequenceDgmo(`sequence\nAuth is a ${removedType}`);
-    const errors = result.diagnostics.filter(
-      (d) => d.code === 'E_PARTICIPANT_TYPE_REMOVED'
-    );
-    expect(errors).toHaveLength(1);
-    expect(errors[0].severity).toBe('error');
-    expect(errors[0].line).toBe(2);
-    expect(errors[0].message).toContain(
-      `'${removedType}' is no longer supported`
-    );
-    expect(errors[0].message).toContain('renders as the default rectangle');
-  });
-
-  it('collects all removed-type diagnostics in one pass (Decision #8)', () => {
-    const result = parseSequenceDgmo(`sequence
-Auth is a service
-Web is a frontend
-LB is a networking`);
-    const errors = result.diagnostics.filter(
-      (d) => d.code === 'E_PARTICIPANT_TYPE_REMOVED'
-    );
-    expect(errors).toHaveLength(3);
-    expect(errors.map((e) => e.line)).toEqual([2, 3, 4]);
-  });
-
-  it.each([['Service'], ['SERVICE'], ['serVice']])(
-    'case-insensitive: "is a %s" still fires E_PARTICIPANT_TYPE_REMOVED (Decision #10)',
-    (variant) => {
-      const result = parseSequenceDgmo(`sequence\nAuth is a ${variant}`);
-      const errors = result.diagnostics.filter(
-        (d) => d.code === 'E_PARTICIPANT_TYPE_REMOVED'
+  ])(
+    '"is a %s" (formerly a removed keyword) now falls through to default',
+    (typeWord) => {
+      const result = parseSequenceDgmo(
+        `sequence\nAuth is a ${typeWord}\nAuth -hi-> User`
       );
-      expect(errors).toHaveLength(1);
+      expect(
+        result.diagnostics.filter((d) => d.severity === 'error')
+      ).toHaveLength(0);
+      const auth = result.participants.find((p) => p.id === 'Auth');
+      expect(auth).toBeDefined();
+      expect(auth?.type).toBe('default');
     }
   );
-
-  it('does not register a participant for a removed-type declaration (AC7)', () => {
-    const result = parseSequenceDgmo(`sequence\nAuth is a service`);
-    expect(result.participants).toHaveLength(0);
-  });
 
   it('unknown type still silently falls through to default (AC5)', () => {
     const result = parseSequenceDgmo(`sequence
@@ -1894,23 +1866,14 @@ service -hi-> User`);
   });
 });
 
-describe('aka removal (Phase D)', () => {
-  it('emits E_AKA_REMOVED when aka appears in a participant declaration', () => {
+describe('aka keyword removed', () => {
+  it('no longer emits E_AKA_REMOVED — `aka` is now part of the name', () => {
     const result = parseSequenceDgmo(`sequence
 Alice is an actor aka Authenticator
 Alice -hi-> Bob`);
-    const akaErrors = result.diagnostics.filter(
-      (d) => d.code === 'E_AKA_REMOVED'
-    );
-    expect(akaErrors).toHaveLength(1);
-    expect(akaErrors[0].severity).toBe('error');
-    expect(akaErrors[0].message).toMatch(/aka.*no longer supported/);
-  });
-
-  it('does not register a participant when its declaration uses aka', () => {
-    const result = parseSequenceDgmo(`sequence
-Alice is an actor aka Authenticator`);
-    expect(result.participants).toHaveLength(0);
+    expect(
+      result.diagnostics.filter((d) => d.code === 'E_AKA_REMOVED')
+    ).toHaveLength(0);
   });
 
   it('treats aka inside a quoted name as literal (not a keyword)', () => {

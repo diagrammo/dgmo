@@ -7,16 +7,11 @@ import type { Brand, Writable } from '../utils/brand';
 import type { DgmoError } from '../diagnostics';
 import type { PaletteColors } from '../palettes/types';
 import {
-  akaRemovedMessage,
   formatDgmoError,
   makeDgmoError,
   makeFail,
-  METADATA_DIAGNOSTIC_CODES,
   NAME_DIAGNOSTIC_CODES,
   nameMergedMessage,
-  participantTypeRemovedMessage,
-  pipeOperatorRemovedMessage,
-  sequenceBarePositionRemovedMessage,
   suggest,
 } from '../diagnostics';
 import { normalizeName, displayName } from '../utils/name-normalize';
@@ -24,9 +19,7 @@ import { parseArrow, parseInArrowLabel } from '../utils/arrows';
 import {
   measureIndent,
   extractColor,
-  parsePipeMetadata,
   splitNameAndMeta,
-  MULTIPLE_PIPE_ERROR,
   parseFirstLine,
   OPTION_NOCOLON_RE,
   warnUnknownMetaKeys,
@@ -38,7 +31,6 @@ import {
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
@@ -47,27 +39,6 @@ import {
 } from '../utils/tag-groups';
 
 /** Known sequence-diagram options that take a value (space-separated). */
-/**
- * Detect whether a participant-declaration remainder contains a
- * hard-removed legacy modifier. Returns the diagnostic to emit when
- * one is found.
- *
- * Centralized so future postfix modifiers (e.g. `as` per TD-18)
- * don't accidentally re-route through the rejection branch.
- */
-function isHardRemovedToken(
-  remainder: string
-): { removed: true; code: string; message: string } | { removed: false } {
-  if (/\baka\b/i.test(remainder)) {
-    return {
-      removed: true,
-      code: NAME_DIAGNOSTIC_CODES.AKA_REMOVED,
-      message: akaRemovedMessage(),
-    };
-  }
-  return { removed: false };
-}
-
 const KNOWN_SEQ_OPTIONS = new Set(['active-tag']);
 
 /** Known sequence-diagram boolean options (bare keyword or `no-` prefix). */
@@ -82,9 +53,7 @@ const NO_PREFIX_ONLY_BOOLEANS = new Set(['activations']);
  * The 0.16.0 trim retained only the types whose shapes carry semantic
  * weight at a glance: stick figure (actor), cylinder (database),
  * dashed cylinder (cache), horizontal pipe (queue), plus the default
- * rectangle. The legacy `service`/`frontend`/`networking`/`gateway`/
- * `external` keywords are rejected at parse time via
- * `E_PARTICIPANT_TYPE_REMOVED`.
+ * rectangle. Any other type word falls back to `default`.
  */
 export type ParticipantType =
   | 'default'
@@ -98,20 +67,6 @@ const VALID_PARTICIPANT_TYPES: ReadonlySet<string> = new Set([
   'actor',
   'queue',
   'cache',
-]);
-
-/**
- * Participant-type keywords that were removed in 0.16.0. Used to
- * gate `is a X` declarations with a hard parse error rather than
- * silent fall-through to default — aligns with the pre-1.0
- * break-and-bump policy (see `E_AKA_REMOVED` precedent).
- */
-const REMOVED_PARTICIPANT_TYPES: ReadonlySet<string> = new Set([
-  'service',
-  'frontend',
-  'networking',
-  'gateway',
-  'external',
 ]);
 
 /**
@@ -252,12 +207,6 @@ export interface ParsedSequenceDgmo {
 // note lines like "note right of A: this is an actor" are not falsely matched.
 // Remainder after type carries the optional `as <alias>` modifier.
 const IS_A_PATTERN = /^([^:]+?)\s+is\s+an?\s+(\w+)(?:\s+(.+))?$/i;
-
-// Legacy bare-keyword "Name position N" detector — e.g. "DB position -1".
-// Position is now colon-keyed metadata (`position: N`, §2.2); a surviving
-// bare `position N` raises E_SEQUENCE_BARE_POSITION_REMOVED. Group 1 is the
-// participant name (so it can still register), group 2 the offending number.
-const BARE_POSITION_PATTERN = /^([^:]+?)\s+position\s+(-?\d+)$/i;
 
 // Colored participant declaration — e.g. "Tapin2(green)", "API(blue)"
 // Scoped to recognized 11-name palette colors only (§1.5) so legitimate
@@ -683,34 +632,13 @@ export function parseSequenceDgmo(
   const aliasMap = new Map<string, string>();
 
   /**
-   * Split metadata from a line: "core | k: v" (legacy) OR
-   * "core k: v" (§1.4 new) → { core, meta }.
-   * Legacy `|` emits E_PIPE_OPERATOR_REMOVED; new form dispatched
-   * via splitNameAndMeta + SEQUENCE_REGISTRY.
+   * Split same-line metadata from a line: "core k: v" (§1.4)
+   * → { core, meta }. Dispatched via splitNameAndMeta + SEQUENCE_REGISTRY.
    */
   const splitPipe = (
     text: string,
     ln?: number
   ): { core: string; meta?: Record<string, string>; alias?: string } => {
-    const idx = text.indexOf('|');
-    if (idx >= 0) {
-      if (ln !== undefined) {
-        result.diagnostics.push(
-          makeDgmoError(
-            ln,
-            pipeOperatorRemovedMessage(),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED
-          )
-        );
-      }
-      const core = text.substring(0, idx).trimEnd();
-      const segments = text.substring(idx).split('|');
-      const warnFn =
-        ln != null ? () => pushError(ln, MULTIPLE_PIPE_ERROR) : undefined;
-      const meta = parsePipeMetadata(segments, aliasMap, warnFn);
-      return Object.keys(meta).length > 0 ? { core, meta } : { core };
-    }
     // §1.4 unified metadata grammar — same-line cut, no pipe.
     const registry = withTagAliases(
       SEQUENCE_REGISTRY,
@@ -825,22 +753,14 @@ export function parseSequenceDgmo(
           SEQUENCE_REGISTRY,
           new Set(aliasMap.keys())
         );
-        if (afterBracket.startsWith('|')) {
-          const segments = afterBracket.split('|');
-          const meta = parsePipeMetadata(segments, aliasMap, () =>
-            pushError(lineNumber, MULTIPLE_PIPE_ERROR)
-          );
-          if (Object.keys(meta).length > 0) groupMeta = meta;
-        } else {
-          const split = splitNameAndMeta(afterBracket, groupRegistry, aliasMap);
-          warnUnknownMetaKeys(
-            split.meta,
-            groupRegistry,
-            (msg) => pushWarning(lineNumber, msg),
-            split.name
-          );
-          if (Object.keys(split.meta).length > 0) groupMeta = split.meta;
-        }
+        const split = splitNameAndMeta(afterBracket, groupRegistry, aliasMap);
+        warnUnknownMetaKeys(
+          split.meta,
+          groupRegistry,
+          (msg) => pushWarning(lineNumber, msg),
+          split.name
+        );
+        if (Object.keys(split.meta).length > 0) groupMeta = split.meta;
         if (groupMeta?.['collapsed']?.toLowerCase() === 'true') {
           isCollapsed = true;
           delete groupMeta['collapsed'];
@@ -922,7 +842,6 @@ export function parseSequenceDgmo(
     // Tag block heading: "tag Name as <alias>"
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch) {
-      emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
       if (contentStarted) {
         pushError(lineNumber, 'Tag groups must appear before sequence content');
         continue;
@@ -1132,41 +1051,13 @@ export function parseSequenceDgmo(
       // Capture groups 1 and 2 guaranteed present after successful match.
       const id = isAMatch[1]!;
       const typeStr = isAMatch[2]!.toLowerCase();
-      let remainder = isAMatch[3]?.trim() || '';
-
-      // Reject the 5 removed-type keywords with a hard parse error
-      // (per Decision #2 / break-and-bump policy). Skip participant
-      // registration for the bad line — downstream message references
-      // will surface a "participant not declared" diagnostic, which
-      // is the intended behavior.
-      if (REMOVED_PARTICIPANT_TYPES.has(typeStr)) {
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            participantTypeRemovedMessage(typeStr),
-            'error',
-            NAME_DIAGNOSTIC_CODES.PARTICIPANT_TYPE_REMOVED
-          )
-        );
-        continue;
-      }
+      const remainder = isAMatch[3]?.trim() || '';
 
       const participantType: ParticipantType = VALID_PARTICIPANT_TYPES.has(
         typeStr
       )
         ? (typeStr as ParticipantType)
         : 'default';
-
-      // Reject removed-keyword modifiers via the guarded helper so a
-      // developer adding new postfix modifiers (e.g. `as`) doesn't
-      // accidentally re-invoke the rejection branch — see A2.
-      const removed = isHardRemovedToken(remainder);
-      if (removed.removed) {
-        result.diagnostics.push(
-          makeDgmoError(lineNumber, removed.message, 'error', removed.code)
-        );
-        continue;
-      }
 
       // TD-18: extract trailing `as <alias>` and register it. Order on the
       // line is `Name is a TYPE as <alias> [position: N]`. When same-line
@@ -1180,26 +1071,12 @@ export function parseSequenceDgmo(
         /^(.*?)\s*\bas\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
       );
       if (asInRemainder) {
-        // Capture groups 1 and 2 guaranteed present after successful match.
+        // Capture group 2 guaranteed present after successful match.
         nameAliasMap.set(asInRemainder[2]!, id);
-        remainder = asInRemainder[1]!.trim();
       }
 
-      // Position is colon-keyed metadata (§2.2) — pull it from the parsed
-      // meta. A bare `position N` surviving in the remainder is the retired
-      // form: flag it and drop the token (participant still registers).
+      // Position is colon-keyed metadata (§2.2) — pull it from the parsed meta.
       const position = takePosition(isAMeta, lineNumber);
-      const baretail = remainder.match(/^position\s+(-?\d+)$/i);
-      if (baretail) {
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            sequenceBarePositionRemovedMessage(baretail[1]!),
-            'error',
-            METADATA_DIAGNOSTIC_CODES.SEQUENCE_BARE_POSITION_REMOVED
-          )
-        );
-      }
 
       // Avoid duplicate participant declarations
       const key = addParticipant(id, lineNumber, {
@@ -1218,45 +1095,6 @@ export function parseSequenceDgmo(
         } else {
           activeGroup.participantIds.push(key);
           // participantGroupMap is keyed by normalized participant key
-
-          participantGroupMap.set(key, activeGroup.name);
-        }
-      }
-      continue;
-    }
-
-    // Reject the retired standalone bare-keyword "Name position N"
-    // (no "is a" type). Position is now colon-keyed `position: N` (§2.2),
-    // which flows through the bare-participant path below. The participant
-    // still registers (without an order override) so message refs resolve.
-    const { core: posCore, meta: posMeta } = splitPipe(trimmed, lineNumber);
-    const posOnlyMatch = posCore.match(BARE_POSITION_PATTERN);
-    if (posOnlyMatch) {
-      contentStarted = true;
-      // Capture groups 1 and 2 guaranteed present after successful match.
-      const id = posOnlyMatch[1]!;
-      result.diagnostics.push(
-        makeDgmoError(
-          lineNumber,
-          sequenceBarePositionRemovedMessage(posOnlyMatch[2]!),
-          'error',
-          METADATA_DIAGNOSTIC_CODES.SEQUENCE_BARE_POSITION_REMOVED
-        )
-      );
-
-      const key = addParticipant(id, lineNumber, {
-        ...(posMeta !== undefined && { metadata: posMeta }),
-      });
-      // Track group membership
-      if (activeGroup && !activeGroup.participantIds.includes(key)) {
-        const existingGroup = participantGroupMap.get(key);
-        if (existingGroup) {
-          pushError(
-            lineNumber,
-            `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`
-          );
-        } else {
-          activeGroup.participantIds.push(key);
 
           participantGroupMap.set(key, activeGroup.name);
         }

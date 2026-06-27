@@ -205,9 +205,9 @@ describe('gantt parser', () => {
       }
     });
 
-    it('parses group with pipe metadata', () => {
+    it('parses group with same-line metadata', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering blue\n[Backend] | t: Engineering\n  Task duration: 10d';
+        'gantt\ntag Team as t\n  Engineering blue\n[Backend] t: Engineering\n  Task duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const group = result.nodes[0];
@@ -228,40 +228,6 @@ describe('gantt parser', () => {
           expect(inner.name).toBe('API');
           expect(inner.children).toHaveLength(1);
         }
-      }
-    });
-  });
-
-  describe('parallel blocks', () => {
-    it('parses parallel block', () => {
-      const input =
-        'gantt\nparallel\n  Task A duration: 5d\n  Task B duration: 3d';
-      const result = parseGantt(input, palette);
-      expect(result.error).toBeNull();
-      expect(result.nodes).toHaveLength(1);
-      const par = result.nodes[0];
-      expect(par.kind).toBe('parallel');
-      if (par.kind === 'parallel') {
-        expect(par.children).toHaveLength(2);
-      }
-    });
-
-    it('parses parallel with groups inside', () => {
-      const input = [
-        'gantt',
-        'parallel',
-        '  [Backend]',
-        '    Task A duration: 10d',
-        '  [Frontend]',
-        '    Task B duration: 5d',
-      ].join('\n');
-      const result = parseGantt(input, palette);
-      expect(result.error).toBeNull();
-      const par = result.nodes[0];
-      if (par.kind === 'parallel') {
-        expect(par.children).toHaveLength(2);
-        expect(par.children[0].kind).toBe('group');
-        expect(par.children[1].kind).toBe('group');
       }
     });
   });
@@ -291,7 +257,7 @@ describe('gantt parser', () => {
 
     it('parses -> with positive offset', () => {
       const input =
-        'gantt\nTask A duration: 10d\n  -> Task B | offset: 3bd\nTask B duration: 10d';
+        'gantt\nTask A duration: 10d\n  -> Task B offset: 3bd\nTask B duration: 10d';
       const result = parseGantt(input, palette);
       const taskA = result.nodes[0];
       if (taskA.kind === 'task') {
@@ -304,7 +270,7 @@ describe('gantt parser', () => {
 
     it('parses -> with negative offset', () => {
       const input =
-        'gantt\nTask A duration: 10d\n  -> Task B | offset: -5d\nTask B duration: 10d';
+        'gantt\nTask A duration: 10d\n  -> Task B offset: -5d\nTask B duration: 10d';
       const result = parseGantt(input, palette);
       const taskA = result.nodes[0];
       if (taskA.kind === 'task') {
@@ -317,7 +283,7 @@ describe('gantt parser', () => {
 
     it('parses -> with zero offset', () => {
       const input =
-        'gantt\nTask A duration: 10d\n  -> Task B | offset: 0bd\nTask B duration: 10d';
+        'gantt\nTask A duration: 10d\n  -> Task B offset: 0bd\nTask B duration: 10d';
       const result = parseGantt(input, palette);
       const taskA = result.nodes[0];
       if (taskA.kind === 'task') {
@@ -330,7 +296,7 @@ describe('gantt parser', () => {
 
     it('warns on invalid dep offset', () => {
       const input =
-        'gantt\nTask A duration: 10d\n  -> Task B | offset: abc\nTask B duration: 10d';
+        'gantt\nTask A duration: 10d\n  -> Task B offset: abc\nTask B duration: 10d';
       const result = parseGantt(input, palette);
       expect(
         result.diagnostics.some((d) => d.message.includes('Invalid offset'))
@@ -339,39 +305,11 @@ describe('gantt parser', () => {
 
     it('warns on explicit + prefix in dep offset', () => {
       const input =
-        'gantt\nTask A duration: 10d\n  -> Task B | offset: +5bd\nTask B duration: 10d';
+        'gantt\nTask A duration: 10d\n  -> Task B offset: +5bd\nTask B duration: 10d';
       const result = parseGantt(input, palette);
       expect(
         result.diagnostics.some((d) =>
           d.message.includes('Explicit "+" is not supported')
-        )
-      ).toBe(true);
-    });
-
-    it('rejects lag keyword with soft error', () => {
-      const input =
-        'gantt\nTask A duration: 10d\n  -> Task B | lag: 3bd\nTask B duration: 10d';
-      const result = parseGantt(input, palette);
-      expect(result.error).toBeNull();
-      expect(
-        result.diagnostics.some(
-          (d) =>
-            d.severity === 'error' &&
-            d.message.includes('"lag" is no longer supported')
-        )
-      ).toBe(true);
-    });
-
-    it('rejects lead keyword with soft error', () => {
-      const input =
-        'gantt\nTask A duration: 10d\n  -> Task B | lead: 3bd\nTask B duration: 10d';
-      const result = parseGantt(input, palette);
-      expect(result.error).toBeNull();
-      expect(
-        result.diagnostics.some(
-          (d) =>
-            d.severity === 'error' &&
-            d.message.includes('"lead" is no longer supported')
         )
       ).toBe(true);
     });
@@ -417,9 +355,9 @@ describe('gantt parser', () => {
       }
     });
 
-    it('parses labeled arrow with pipe metadata -depends on-> API | offset: 2d', () => {
+    it('parses labeled arrow with metadata -depends on-> API offset: 2d', () => {
       const input =
-        'gantt\nTask A duration: 10d\n  -depends on-> API | offset: 2d\nAPI duration: 10d';
+        'gantt\nTask A duration: 10d\n  -depends on-> API offset: 2d\nAPI duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const taskA = result.nodes[0];
@@ -434,9 +372,9 @@ describe('gantt parser', () => {
       }
     });
 
-    it('parses labeled arrow with offset -blocks-> Design | offset: 1w', () => {
+    it('parses labeled arrow with offset -blocks-> Design offset: 1w', () => {
       const input =
-        'gantt\nTask A duration: 10d\n  -blocks-> Design | offset: 1w\nDesign duration: 10d';
+        'gantt\nTask A duration: 10d\n  -blocks-> Design offset: 1w\nDesign duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const taskA = result.nodes[0];
@@ -536,7 +474,7 @@ describe('gantt parser', () => {
   describe('tag groups', () => {
     it('parses tag block with entries', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering blue\n  Design purple\nTask duration: 10d, t: Engineering';
+        'gantt\ntag Team as t\n  Engineering blue\n  Design purple\nTask duration: 10d, t: Engineering';
       const result = parseGantt(input, palette);
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Team');
@@ -546,14 +484,14 @@ describe('gantt parser', () => {
 
     it('first entry is default', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering blue\n  Design purple\nTask duration: 10d';
+        'gantt\ntag Team as t\n  Engineering blue\n  Design purple\nTask duration: 10d';
       const result = parseGantt(input, palette);
       expect(result.tagGroups[0].defaultValue).toBe('Engineering');
     });
 
     it('tag inheritance from parent group', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering blue\n[Backend] | t: Engineering\n  Task duration: 10d';
+        'gantt\ntag Team as t\n  Engineering blue\n[Backend] t: Engineering\n  Task duration: 10d';
       const result = parseGantt(input, palette);
       const group = result.nodes[0];
       if (group.kind === 'group') {
@@ -566,7 +504,7 @@ describe('gantt parser', () => {
 
     it('child overrides inherited tag', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering blue\n  QA orange\n[Backend] | t: Engineering\n  Task duration: 10d, t: QA';
+        'gantt\ntag Team as t\n  Engineering blue\n  QA orange\n[Backend] t: Engineering\n  Task duration: 10d, t: QA';
       const result = parseGantt(input, palette);
       const group = result.nodes[0];
       if (group.kind === 'group') {
@@ -1168,75 +1106,6 @@ describe('gantt parser', () => {
     });
   });
 
-  // ── Migration: legacy syntax dual-accept with warnings ───
-
-  // ── 1.0: removed legacy scheduling forms → hard error ───
-  // The four pre-1.0 shorthands (`parallel`, duration-before-name,
-  // explicit-date, legacy timeline-duration) are removed at 1.0. Each
-  // emits E_GANTT_LEGACY_REMOVED (error) but is still best-effort
-  // parsed so the diagram renders.
-  describe('legacy scheduling forms removed (E_GANTT_LEGACY_REMOVED)', () => {
-    const hasLegacyError = (r: ReturnType<typeof parseGantt>) =>
-      r.diagnostics.some(
-        (d) => d.severity === 'error' && d.code === 'E_GANTT_LEGACY_REMOVED'
-      );
-
-    it('duration-before-name `30bd Task` errors but renders', () => {
-      const result = parseGantt('gantt\n30bd Task Name', palette);
-      expect(hasLegacyError(result)).toBe(true);
-      expect(result.nodes).toHaveLength(1);
-      const task = result.nodes[0];
-      if (task.kind === 'task') {
-        expect(task.label).toBe('Task Name');
-        expect(task.duration).toEqual({ amount: 30, unit: 'bd' });
-      }
-    });
-
-    it('explicit-date task `2024-01-15 Task` errors but renders', () => {
-      const result = parseGantt('gantt\n2024-01-15 Task Name', palette);
-      expect(hasLegacyError(result)).toBe(true);
-      expect(result.nodes).toHaveLength(1);
-      const task = result.nodes[0];
-      if (task.kind === 'task') {
-        expect(task.label).toBe('Task Name');
-        expect(task.explicitStart).toBe('2024-01-15');
-        expect(task.duration).toBeNull();
-      }
-    });
-
-    it('legacy timeline-duration `DATE -> Xd Task` errors but renders', () => {
-      const result = parseGantt('gantt\n2024-01-15 -> 30d Task Name', palette);
-      expect(hasLegacyError(result)).toBe(true);
-      expect(result.nodes).toHaveLength(1);
-      const task = result.nodes[0];
-      if (task.kind === 'task') {
-        expect(task.label).toBe('Task Name');
-        expect(task.explicitStart).toBe('2024-01-15');
-        expect(task.duration).toEqual({ amount: 30, unit: 'd' });
-      }
-    });
-
-    it('`parallel` keyword errors but block still renders children', () => {
-      const result = parseGantt(
-        'gantt\nstart 2024-01-15\nparallel\n  X 5d\n  Y 3d',
-        palette
-      );
-      expect(hasLegacyError(result)).toBe(true);
-      // Children still parse (sibling tasks).
-      expect(result.nodes.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it('uncertain duration-before-name `30d? Task` errors but renders', () => {
-      const result = parseGantt('gantt\n30d? Task Name', palette);
-      expect(hasLegacyError(result)).toBe(true);
-      const task = result.nodes[0];
-      if (task.kind === 'task') {
-        expect(task.uncertain).toBe(true);
-        expect(task.duration).toEqual({ amount: 30, unit: 'd' });
-      }
-    });
-  });
-
   // ── New syntax edge cases ────────────────────────────────
 
   describe('new syntax edge cases', () => {
@@ -1332,9 +1201,9 @@ describe('gantt parser', () => {
     it('task with tag metadata via comma-separated keys', () => {
       const input = [
         'gantt',
-        'tag Team t',
+        'tag Team as t',
         '  Engineering blue',
-        'tag Phase p',
+        'tag Phase as p',
         '  Foundation green',
         'Task Name duration: 30bd, t: Engineering, p: Foundation',
       ].join('\n');
@@ -1399,7 +1268,7 @@ describe('gantt parser', () => {
 
     it('trailing color name is preserved in metadata', () => {
       const result = parseGantt(
-        'gantt\ntag Team t\n  Engineering blue\nBuild Dashboard blue duration: 5d, t: Engineering',
+        'gantt\ntag Team as t\n  Engineering blue\nBuild Dashboard blue duration: 5d, t: Engineering',
         palette
       );
       const task = result.nodes[0];

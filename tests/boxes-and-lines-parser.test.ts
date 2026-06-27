@@ -62,18 +62,19 @@ describe('boxes-and-lines parser', () => {
     });
   });
 
-  describe('pipe metadata', () => {
-    it('parses key:value pairs', () => {
+  describe('same-line metadata', () => {
+    it('parses tag-alias key:value pairs', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\nAPI | team: Backend, env: Prod'
+        'boxes-and-lines\ntag Team as team Backend, Frontend\ntag Env as env Prod, Dev\nAPI team: Backend, env: Prod'
       );
-      expect(result.nodes[0].metadata.team).toBe('Backend');
-      expect(result.nodes[0].metadata.env).toBe('Prod');
+      const api = result.nodes.find((n) => n.label === 'API')!;
+      expect(api.metadata.team).toBe('Backend');
+      expect(api.metadata.env).toBe('Prod');
     });
 
     it('extracts description field as string[]', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\nAPI | description: Main API gateway'
+        'boxes-and-lines\nAPI description: Main API gateway'
       );
       expect(result.nodes[0].description).toEqual(['Main API gateway']);
       // description should NOT be in metadata
@@ -113,11 +114,10 @@ describe('boxes-and-lines parser', () => {
       expect(result.edges[0].bidirectional).toBe(true);
     });
 
-    it('parses edge with pipe metadata', () => {
-      const result = parseBoxesAndLines(
-        'boxes-and-lines\nA -> B | frequency: High'
-      );
-      expect(result.edges[0].metadata.frequency).toBe('High');
+    it('parses edge with same-line metadata', () => {
+      const result = parseBoxesAndLines('boxes-and-lines\nA -> B heat: 5');
+      expect(result.edges[0].target).toBe('B');
+      expect(result.edges[0].metadata.heat).toBe('5');
     });
   });
 
@@ -139,11 +139,12 @@ describe('boxes-and-lines parser', () => {
       expect(result.edges[0].label).toBe('reads');
     });
 
-    it('handles indented edge with pipe metadata', () => {
+    it('handles indented edge with same-line metadata', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\nAPI\n  -reads-> ProductionDB | frequency: High'
+        'boxes-and-lines\nAPI\n  -reads-> ProductionDB heat: 5'
       );
-      expect(result.edges[0].metadata.frequency).toBe('High');
+      expect(result.edges[0].target).toBe('ProductionDB');
+      expect(result.edges[0].metadata.heat).toBe('5');
     });
 
     it('warns when no preceding node', () => {
@@ -172,16 +173,16 @@ describe('boxes-and-lines parser', () => {
       expect(result.groups[0].children).toContain('DB');
     });
 
-    it('parses group with pipe metadata', () => {
+    it('parses group with same-line metadata', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\n[AWS] | region: us-east-1\n  API'
+        'boxes-and-lines\n[AWS] region: us-east-1\n  API'
       );
       expect(result.groups[0].metadata.region).toBe('us-east-1');
     });
 
     it('cascades group metadata to children', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\n[AWS] | team: Infra\n  API'
+        'boxes-and-lines\n[AWS] team: Infra\n  API'
       );
       expect(result.nodes.find((n) => n.label === 'API')?.metadata.team).toBe(
         'Infra'
@@ -190,7 +191,7 @@ describe('boxes-and-lines parser', () => {
 
     it('node metadata overrides group metadata', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\n[AWS] | team: Infra\n  API | team: Backend'
+        'boxes-and-lines\ntag Team as team Infra, Backend\n[AWS] team: Infra\n  API team: Backend'
       );
       expect(result.nodes.find((n) => n.label === 'API')?.metadata.team).toBe(
         'Backend'
@@ -255,7 +256,7 @@ describe('boxes-and-lines parser', () => {
   describe('tag declarations', () => {
     it('parses inline tag declaration', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Team t Backend blue, Frontend green\nAPI | t: Backend'
+        'boxes-and-lines\ntag Team as t Backend blue, Frontend green\nAPI t: Backend'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Team');
@@ -265,7 +266,7 @@ describe('boxes-and-lines parser', () => {
 
     it('resolves in metadata', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Team t Backend blue, Frontend green\nAPI | t: Backend'
+        'boxes-and-lines\ntag Team as t Backend blue, Frontend green\nAPI t: Backend'
       );
       expect(result.nodes.find((n) => n.label === 'API')?.metadata.team).toBe(
         'Backend'
@@ -274,7 +275,7 @@ describe('boxes-and-lines parser', () => {
 
     it('validates tag values', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Team t Backend blue, Frontend green\nAPI | t: Unknown'
+        'boxes-and-lines\ntag Team as t Backend blue, Frontend green\nAPI t: Unknown'
       );
       expect(
         result.diagnostics.some((d) => d.message.includes('Unknown'))
@@ -283,7 +284,7 @@ describe('boxes-and-lines parser', () => {
 
     it('auto-assigns palette colors to bare inline tag values', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Team t Backend, Frontend\nAPI t: Backend'
+        'boxes-and-lines\ntag Team as t Backend, Frontend\nAPI t: Backend'
       );
       expect(result.tagGroups[0].entries).toHaveLength(2);
       const colors = result.tagGroups[0].entries.map((e) => e.color);
@@ -294,7 +295,7 @@ describe('boxes-and-lines parser', () => {
 
     it('bare inline value skips an explicit inline color in the same group', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Team t Backend, Frontend green\nAPI t: Backend'
+        'boxes-and-lines\ntag Team as t Backend, Frontend green\nAPI t: Backend'
       );
       const backend = result.tagGroups[0].entries.find(
         (e) => e.value === 'Backend'
@@ -309,14 +310,14 @@ describe('boxes-and-lines parser', () => {
 
     it('uses first entry as default when no default keyword', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Status s\n  Done green\n  Doing yellow\n  Todo red\nAPI | s: Doing'
+        'boxes-and-lines\ntag Status as s\n  Done green\n  Doing yellow\n  Todo red\nAPI s: Doing'
       );
       expect(result.tagGroups[0].defaultValue).toBe('Done');
     });
 
     it('uses entry marked default instead of first entry', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Status s\n  Done green\n  Doing yellow\n  Todo red\n  NA gray default\nAPI | s: Doing'
+        'boxes-and-lines\ntag Status as s\n  Done green\n  Doing yellow\n  Todo red\n  NA gray default\nAPI s: Doing'
       );
       expect(result.tagGroups[0].defaultValue).toBe('NA');
       expect(result.tagGroups[0].entries).toHaveLength(4);
@@ -326,14 +327,14 @@ describe('boxes-and-lines parser', () => {
 
     it('supports default keyword in inline tag declaration', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Status s Done green, NA gray default\nAPI'
+        'boxes-and-lines\ntag Status as s Done green, NA gray default\nAPI'
       );
       expect(result.tagGroups[0].defaultValue).toBe('NA');
     });
 
     it('injects default tag value into untagged nodes', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Status s\n  Done green\n  NA gray default\nAPI\nDB | s: Done'
+        'boxes-and-lines\ntag Status as s\n  Done green\n  NA gray default\nAPI\nDB s: Done'
       );
       // API has no s: metadata — should get the default (NA)
       const api = result.nodes.find((n) => n.label === 'API');
@@ -345,7 +346,7 @@ describe('boxes-and-lines parser', () => {
 
     it('rejects tags after content', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\nAPI\ntag Team t Backend blue'
+        'boxes-and-lines\nAPI\ntag Team as t Backend blue'
       );
       expect(
         result.diagnostics.some((d) =>
@@ -550,9 +551,9 @@ describe('boxes-and-lines parser', () => {
       expect(result.edges).toHaveLength(1);
     });
 
-    it('merges pipe description with indented lines', () => {
+    it('merges same-line description with indented lines', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\nStage 1 | description: Summary\n  More detail'
+        'boxes-and-lines\nStage 1 description: Summary\n  More detail'
       );
       expect(result.nodes[0].description).toEqual(['Summary', 'More detail']);
     });
@@ -635,9 +636,9 @@ describe('boxes-and-lines parser', () => {
       expect(b?.description).toEqual(['Desc B']);
     });
 
-    it('pipe-only description (no indented lines) still works', () => {
+    it('same-line description (no indented lines) still works', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\nAPI | description: Main gateway'
+        'boxes-and-lines\nAPI description: Main gateway'
       );
       expect(result.nodes[0].description).toEqual(['Main gateway']);
     });

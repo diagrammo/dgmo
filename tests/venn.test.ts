@@ -88,24 +88,6 @@ fe + be + de Full Stack`,
     ).toHaveLength(3);
   });
 
-  it('rejects legacy `alias` keyword with E_VENN_ALIAS_KEYWORD_REMOVED', () => {
-    const result = parseVisualization(
-      `venn
-Frontend alias fe blue
-Backend alias be green
-fe + be Web Systems`,
-      nordLight
-    );
-    const codes = result.diagnostics.map((d) => d.code);
-    expect(codes).toContain('E_VENN_ALIAS_KEYWORD_REMOVED');
-    // Two declarations → two diagnostics.
-    expect(
-      codes.filter((c) => c === 'E_VENN_ALIAS_KEYWORD_REMOVED')
-    ).toHaveLength(2);
-    // Graceful degradation — sets still parsed.
-    expect(result.vennSets).toHaveLength(2);
-  });
-
   it('parses intersections with no label', () => {
     const result = parseVisualization(
       `venn

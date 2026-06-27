@@ -21,7 +21,6 @@ import type { Writable } from '../utils/brand';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
-  emitTagLegacyDiagnostic,
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
@@ -110,7 +109,6 @@ export function parseBlock(
       // Tag group heading: `tag Team as t`.
       const tagBlockMatch = matchTagBlockHeading(trimmed);
       if (tagBlockMatch) {
-        emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
         currentTagGroup = {
           name: tagBlockMatch.name,
           ...(tagBlockMatch.alias !== undefined && {
@@ -125,7 +123,10 @@ export function parseBlock(
             tagAttrKey(tagBlockMatch.name)
           );
         }
-        aliasMap.set(tagAttrKey(tagBlockMatch.name), tagAttrKey(tagBlockMatch.name));
+        aliasMap.set(
+          tagAttrKey(tagBlockMatch.name),
+          tagAttrKey(tagBlockMatch.name)
+        );
         result.tagGroups.push(currentTagGroup);
         continue;
       }
@@ -256,9 +257,7 @@ export function parseBlock(
       grid.cols ??
       Math.max(
         1,
-        ...grid.rows.map((r) =>
-          r.reduce((s, c) => s + (c.span || 1), 0)
-        )
+        ...grid.rows.map((r) => r.reduce((s, c) => s + (c.span || 1), 0))
       );
     grid.cols = cols;
     for (const row of grid.rows) {

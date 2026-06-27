@@ -7,7 +7,7 @@ describe('journey-map parser', () => {
   describe('chart type validation', () => {
     it('parses journey-map chart type', () => {
       const result = parseJourneyMap(
-        'journey-map My Journey\n\n[Phase]\n  Step | 3'
+        'journey-map My Journey\n\n[Phase]\n  Step score: 3'
       );
       expect(result.type).toBe('journey-map');
       expect(result.title).toBe('My Journey');
@@ -26,7 +26,7 @@ describe('journey-map parser', () => {
     });
 
     it('parses without title', () => {
-      const result = parseJourneyMap('journey-map\n\n[Phase]\n  Step | 3');
+      const result = parseJourneyMap('journey-map\n\n[Phase]\n  Step score: 3');
       expect(result.type).toBe('journey-map');
       expect(result.title).toBeUndefined();
       expect(result.error).toBeNull();
@@ -38,14 +38,14 @@ describe('journey-map parser', () => {
   describe('persona parsing', () => {
     it('parses persona name', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\npersona Tech Shopper\n\n[Phase]\n  Step | 3'
+        'journey-map Test\n\npersona Tech Shopper\n\n[Phase]\n  Step score: 3'
       );
       expect(result.persona?.name).toBe('Tech Shopper');
     });
 
     it('parses persona name + description', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\npersona Tech Shopper\n  28yo developer\n\n[Phase]\n  Step | 3'
+        'journey-map Test\n\npersona Tech Shopper\n  28yo developer\n\n[Phase]\n  Step score: 3'
       );
       expect(result.persona?.name).toBe('Tech Shopper');
       expect(result.persona?.description).toBe('28yo developer');
@@ -53,20 +53,12 @@ describe('journey-map parser', () => {
 
     it('errors on bare persona keyword', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\npersona\n\n[Phase]\n  Step | 3'
+        'journey-map Test\n\npersona\n\n[Phase]\n  Step score: 3'
       );
       expect(result.error).toContain('persona requires a name');
     });
 
-    it('parses persona with pipe color', () => {
-      const result = parseJourneyMap(
-        'journey-map Test\n\npersona Junior Dev | color: green\n\n[Phase]\n  Step | 3'
-      );
-      expect(result.persona?.name).toBe('Junior Dev');
-      expect(result.persona?.color).toBeTruthy();
-    });
-
-    it('parses persona with same-line color (no pipe)', () => {
+    it('parses persona with same-line color (long form)', () => {
       const result = parseJourneyMap(
         'journey-map Test\n\npersona Calico Jack color: red\n\n[Phase]\n  Step score: 3'
       );
@@ -99,7 +91,9 @@ describe('journey-map parser', () => {
     });
 
     it('works without persona', () => {
-      const result = parseJourneyMap('journey-map Test\n\n[Phase]\n  Step | 3');
+      const result = parseJourneyMap(
+        'journey-map Test\n\n[Phase]\n  Step score: 3'
+      );
       expect(result.persona).toBeUndefined();
     });
   });
@@ -109,7 +103,7 @@ describe('journey-map parser', () => {
   describe('tag blocks', () => {
     it('parses tag group with entries', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web blue\n  Mobile purple\n\n[Phase]\n  Step | 3, ch: Web'
+        'journey-map Test\n\ntag Channel as ch\n  Web blue\n  Mobile purple\n\n[Phase]\n  Step score: 3, ch: Web'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Channel');
@@ -119,7 +113,7 @@ describe('journey-map parser', () => {
 
     it('resolves tag alias in step metadata', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web blue\n  Mobile purple\n\n[Phase]\n  Step | 3, ch: Web'
+        'journey-map Test\n\ntag Channel as ch\n  Web blue\n  Mobile purple\n\n[Phase]\n  Step score: 3, ch: Web'
       );
       const step = result.phases[0].steps[0];
       expect(step.tags).toHaveProperty('channel', 'Web');
@@ -131,7 +125,7 @@ describe('journey-map parser', () => {
   describe('phase parsing', () => {
     it('parses single phase', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[Research]\n  Step | 4'
+        'journey-map Test\n\n[Research]\n  Step score: 4'
       );
       expect(result.phases).toHaveLength(1);
       expect(result.phases[0].name).toBe('Research');
@@ -139,7 +133,7 @@ describe('journey-map parser', () => {
 
     it('parses multiple phases', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[Research]\n  Step A | 4\n\n[Purchase]\n  Step B | 2'
+        'journey-map Test\n\n[Research]\n  Step A score: 4\n\n[Purchase]\n  Step B score: 2'
       );
       expect(result.phases).toHaveLength(2);
       expect(result.phases[0].name).toBe('Research');
@@ -148,7 +142,7 @@ describe('journey-map parser', () => {
 
     it('handles empty phase', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[Empty]\n\n[Full]\n  Step | 3'
+        'journey-map Test\n\n[Empty]\n\n[Full]\n  Step score: 3'
       );
       expect(result.phases).toHaveLength(2);
       expect(result.phases[0].steps).toHaveLength(0);
@@ -161,7 +155,7 @@ describe('journey-map parser', () => {
   describe('step parsing', () => {
     it('parses step with score', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[Phase]\n  Walk in | 4'
+        'journey-map Test\n\n[Phase]\n  Walk in score: 4'
       );
       const step = result.phases[0].steps[0];
       expect(step.title).toBe('Walk in');
@@ -169,7 +163,7 @@ describe('journey-map parser', () => {
       expect(step.emotionLabel).toBeUndefined();
     });
 
-    it('parses step without score (no pipe)', () => {
+    it('parses step without score', () => {
       const result = parseJourneyMap(
         'journey-map Test\n\n[Phase]\n  Check stock'
       );
@@ -180,7 +174,7 @@ describe('journey-map parser', () => {
 
     it('parses step with score and emotion label', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[Phase]\n  Hit error | 1 Frustrated'
+        'journey-map Test\n\n[Phase]\n  Hit error score: 1, emotion: Frustrated'
       );
       const step = result.phases[0].steps[0];
       expect(step.score).toBe(1);
@@ -189,7 +183,7 @@ describe('journey-map parser', () => {
 
     it('parses step with score, label, and metadata', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Hit error | 1 Frustrated, ch: Web'
+        'journey-map Test\n\ntag Channel as ch\n  Web blue\n\n[Phase]\n  Hit error score: 1, emotion: Frustrated, ch: Web'
       );
       const step = result.phases[0].steps[0];
       expect(step.score).toBe(1);
@@ -199,7 +193,7 @@ describe('journey-map parser', () => {
 
     it('parses annotations on steps', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[Phase]\n  Step | 2\n    pain: Too slow\n    opportunity: Speed up\n    thought: Hmm'
+        'journey-map Test\n\n[Phase]\n  Step score: 2\n    pain: Too slow\n    opportunity: Speed up\n    thought: Hmm'
       );
       const step = result.phases[0].steps[0];
       expect(step.annotations).toHaveLength(3);
@@ -213,7 +207,7 @@ describe('journey-map parser', () => {
 
     it('parses description on steps', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[Phase]\n  Step | 3\n    description: More detail here'
+        'journey-map Test\n\n[Phase]\n  Step score: 3\n    description: More detail here'
       );
       const step = result.phases[0].steps[0];
       expect(step.description).toBe('More detail here');
@@ -221,7 +215,7 @@ describe('journey-map parser', () => {
 
     it('handles step name containing number', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[Phase]\n  Step 3 things | 4'
+        'journey-map Test\n\n[Phase]\n  Step 3 things score: 4'
       );
       const step = result.phases[0].steps[0];
       expect(step.title).toBe('Step 3 things');
@@ -232,31 +226,33 @@ describe('journey-map parser', () => {
   // ── Score parsing edge cases ──────────────────────────────
 
   describe('score parsing edge cases', () => {
-    it('| 4 — bare score, no metadata', () => {
-      const result = parseJourneyMap('journey-map Test\n\n[Phase]\n  Step | 4');
+    it('score: 4 — bare score, no metadata', () => {
+      const result = parseJourneyMap(
+        'journey-map Test\n\n[Phase]\n  Step score: 4'
+      );
       expect(result.phases[0].steps[0].score).toBe(4);
     });
 
-    it('| 4, ch: Web — score + metadata', () => {
+    it('score: 4, ch: Web — score + metadata', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Step | 4, ch: Web'
+        'journey-map Test\n\ntag Channel as ch\n  Web blue\n\n[Phase]\n  Step score: 4, ch: Web'
       );
       const step = result.phases[0].steps[0];
       expect(step.score).toBe(4);
       expect(step.tags).toHaveProperty('channel', 'Web');
     });
 
-    it('| 4 Delighted — score + emotion label', () => {
+    it('score: 4, emotion: Delighted — score + emotion label', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[Phase]\n  Step | 4 Delighted'
+        'journey-map Test\n\n[Phase]\n  Step score: 4, emotion: Delighted'
       );
       expect(result.phases[0].steps[0].score).toBe(4);
       expect(result.phases[0].steps[0].emotionLabel).toBe('Delighted');
     });
 
-    it('| 4 Delighted, ch: Web — score + label + metadata', () => {
+    it('score + emotion + metadata', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Step | 4 Delighted, ch: Web'
+        'journey-map Test\n\ntag Channel as ch\n  Web blue\n\n[Phase]\n  Step score: 4, emotion: Delighted, ch: Web'
       );
       const step = result.phases[0].steps[0];
       expect(step.score).toBe(4);
@@ -264,9 +260,9 @@ describe('journey-map parser', () => {
       expect(step.tags).toHaveProperty('channel', 'Web');
     });
 
-    it('| 4 Very Happy — multi-word label warns but preserves score', () => {
+    it('emotion: Very Happy — multi-word label warns but preserves score', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[Phase]\n  Step | 4 Very Happy'
+        'journey-map Test\n\n[Phase]\n  Step score: 4, emotion: Very Happy'
       );
       const step = result.phases[0].steps[0];
       expect(step.score).toBe(4); // score is preserved
@@ -277,18 +273,9 @@ describe('journey-map parser', () => {
       expect(diag).toBeTruthy();
     });
 
-    it('| score: 4, ch: Web — explicit score key', () => {
+    it('ch: Web — no score produces diagnostic hint', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Step | score: 4, ch: Web'
-      );
-      const step = result.phases[0].steps[0];
-      expect(step.score).toBe(4);
-      expect(step.tags).toHaveProperty('channel', 'Web');
-    });
-
-    it('| ch: Web — no score produces diagnostic hint', () => {
-      const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Step | ch: Web'
+        'journey-map Test\n\ntag Channel as ch\n  Web blue\n\n[Phase]\n  Step ch: Web'
       );
       const step = result.phases[0].steps[0];
       expect(step.score).toBeUndefined();
@@ -298,25 +285,29 @@ describe('journey-map parser', () => {
       expect(hint).toBeTruthy();
     });
 
-    it('| 0 — out of range', () => {
-      const result = parseJourneyMap('journey-map Test\n\n[Phase]\n  Step | 0');
-      const diag = result.diagnostics.find((d) =>
-        d.message.includes('out of range')
-      );
-      expect(diag).toBeTruthy();
-    });
-
-    it('| 6 — out of range', () => {
-      const result = parseJourneyMap('journey-map Test\n\n[Phase]\n  Step | 6');
-      const diag = result.diagnostics.find((d) =>
-        d.message.includes('out of range')
-      );
-      expect(diag).toBeTruthy();
-    });
-
-    it('| 4.5 — float rejected', () => {
+    it('score: 0 — out of range', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[Phase]\n  Step | 4.5'
+        'journey-map Test\n\n[Phase]\n  Step score: 0'
+      );
+      const diag = result.diagnostics.find((d) =>
+        d.message.includes('out of range')
+      );
+      expect(diag).toBeTruthy();
+    });
+
+    it('score: 6 — out of range', () => {
+      const result = parseJourneyMap(
+        'journey-map Test\n\n[Phase]\n  Step score: 6'
+      );
+      const diag = result.diagnostics.find((d) =>
+        d.message.includes('out of range')
+      );
+      expect(diag).toBeTruthy();
+    });
+
+    it('score: 4.5 — float rejected', () => {
+      const result = parseJourneyMap(
+        'journey-map Test\n\n[Phase]\n  Step score: 4.5'
       );
       const diag = result.diagnostics.find((d) =>
         d.message.includes('integer 1-5')
@@ -324,40 +315,22 @@ describe('journey-map parser', () => {
       expect(diag).toBeTruthy();
     });
 
-    it('| -1 — negative rejected', () => {
+    it('score: -1 — negative rejected (out of range)', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[Phase]\n  Step | -1'
+        'journey-map Test\n\n[Phase]\n  Step score: -1'
       );
-      // -1 won't match SCORE_RE (no leading minus), falls through to metadata
       const step = result.phases[0].steps[0];
       expect(step.score).toBeUndefined();
     });
 
-    it('| (empty pipe) — no score, no metadata', () => {
-      const result = parseJourneyMap('journey-map Test\n\n[Phase]\n  Step |');
-      const step = result.phases[0].steps[0];
-      expect(step.score).toBeUndefined();
-    });
-
-    it('| score: banana — invalid explicit score', () => {
+    it('score: banana — invalid explicit score', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[Phase]\n  Step | score: banana'
+        'journey-map Test\n\n[Phase]\n  Step score: banana'
       );
       const diag = result.diagnostics.find((d) =>
-        d.message.includes('Invalid score')
+        d.message.includes('integer 1-5')
       );
       expect(diag).toBeTruthy();
-    });
-
-    it('bare and explicit score produce same result', () => {
-      const r1 = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Step | 4, ch: Web'
-      );
-      const r2 = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Step | score: 4, ch: Web'
-      );
-      expect(r1.phases[0].steps[0].score).toBe(r2.phases[0].steps[0].score);
-      expect(r1.phases[0].steps[0].tags).toEqual(r2.phases[0].steps[0].tags);
     });
   });
 
@@ -366,7 +339,7 @@ describe('journey-map parser', () => {
   describe('flat mode', () => {
     it('parses steps without phases', () => {
       const result = parseJourneyMap(
-        'journey-map Quick Feedback\n\nOpened app | 4\nSearched | 3\nHit error | 1'
+        'journey-map Quick Feedback\n\nOpened app score: 4\nSearched score: 3\nHit error score: 1'
       );
       expect(result.phases).toHaveLength(0);
       expect(result.steps).toHaveLength(3);
@@ -376,7 +349,7 @@ describe('journey-map parser', () => {
 
     it('flat mode with annotations', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\nHit error | 1 Frustrated\n  pain: No help message'
+        'journey-map Test\n\nHit error score: 1, emotion: Frustrated\n  pain: No help message'
       );
       expect(result.steps).toHaveLength(1);
       expect(result.steps[0].annotations).toHaveLength(1);
@@ -389,7 +362,7 @@ describe('journey-map parser', () => {
   describe('options', () => {
     it('warns on removed no-legend option', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\nno-legend\n\n[Phase]\n  Step | 3'
+        'journey-map Test\n\nno-legend\n\n[Phase]\n  Step score: 3'
       );
       expect(
         result.diagnostics.some(
@@ -402,7 +375,7 @@ describe('journey-map parser', () => {
 
     it('parses active-tag option', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web blue\n\nactive-tag Channel\n\n[Phase]\n  Step | 3'
+        'journey-map Test\n\ntag Channel as ch\n  Web blue\n\nactive-tag Channel\n\n[Phase]\n  Step score: 3'
       );
       expect(result.options['active-tag']).toBe('Channel');
     });
@@ -413,7 +386,7 @@ describe('journey-map parser', () => {
   describe('tag validation', () => {
     it('warns on unknown tag value', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web blue\n  Mobile purple\n\n[Phase]\n  Step | 3, ch: Desktop'
+        'journey-map Test\n\ntag Channel as ch\n  Web blue\n  Mobile purple\n\n[Phase]\n  Step score: 3, ch: Desktop'
       );
       const warning = result.diagnostics.find((d) =>
         d.message.includes('Unknown tag value')
@@ -423,7 +396,7 @@ describe('journey-map parser', () => {
 
     it('no warning for valid tag value', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web blue\n  Mobile purple\n\n[Phase]\n  Step | 3, ch: Web'
+        'journey-map Test\n\ntag Channel as ch\n  Web blue\n  Mobile purple\n\n[Phase]\n  Step score: 3, ch: Web'
       );
       const warning = result.diagnostics.find((d) =>
         d.message.includes('Unknown tag value')
@@ -437,7 +410,7 @@ describe('journey-map parser', () => {
   describe('mixed mode', () => {
     it('warns on stray lines between phases', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\n[A]\n  Step A | 3\n\nLoose step | 3\n\n[B]\n  Step B | 4'
+        'journey-map Test\n\n[A]\n  Step A score: 3\n\nLoose step score: 3\n\n[B]\n  Step B score: 4'
       );
       const warning = result.diagnostics.find((d) =>
         d.message.includes('outside any phase')
@@ -455,28 +428,28 @@ describe('journey-map parser', () => {
 persona Tech-Savvy Shopper
   28yo developer, price-sensitive, does extensive research
 
-tag Channel ch
+tag Channel as ch
   Web blue
   Mobile purple
   Email teal
   In-Person green
 
 [Research]
-  Compare specs | 4, ch: Web
+  Compare specs score: 4, ch: Web
     description: Checked 12 laptops across 4 review sites
-  Watch reviews | 5 Engaged, ch: Mobile
-  Ask friends | 4, ch: In-Person
+  Watch reviews score: 5, emotion: Engaged, ch: Mobile
+  Ask friends score: 4, ch: In-Person
 
 [Purchase]
-  Add to cart | 3, ch: Web
-  Forced account creation | 1 Frustrated, ch: Web
+  Add to cart score: 3, ch: Web
+  Forced account creation score: 1, emotion: Frustrated, ch: Web
     pain: Wants guest checkout
     pain: Password requirements too strict
-  Complete payment | 3, ch: Web
+  Complete payment score: 3, ch: Web
 
 [Delivery]
-  Track package | 4, ch: Mobile
-  Unboxing | 5 Delighted, ch: In-Person
+  Track package score: 4, ch: Mobile
+  Unboxing score: 5, emotion: Delighted, ch: In-Person
     opportunity: Include setup guide
     thought: Excited to try it out`;
 

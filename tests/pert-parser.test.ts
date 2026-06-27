@@ -19,18 +19,6 @@ function findError(parsed: ReturnType<typeof parsePert>, substring: string) {
   );
 }
 
-function findWarning(
-  parsed: ReturnType<typeof parsePert>,
-  opts: { code?: string; substring?: string }
-) {
-  return parsed.diagnostics.find(
-    (d) =>
-      d.severity === 'warning' &&
-      (opts.code === undefined || d.code === opts.code) &&
-      (opts.substring === undefined || d.message.includes(opts.substring))
-  );
-}
-
 describe('pert parser — fixtures', () => {
   it('parses basic.dgmo without errors', () => {
     const parsed = parsePert(loadFixture('basic.dgmo'));
@@ -215,8 +203,8 @@ describe('pert parser — inline forward-decl rejected', () => {
     expect(diag!.message).toContain("'as bb'");
   });
 
-  it('rejects pipe metadata on an arrow line', () => {
-    const parsed = parsePert(`pert\nA 1 2 3\n  -> B | confidence: low\n`);
+  it('rejects inline metadata on an arrow line', () => {
+    const parsed = parsePert(`pert\nA 1 2 3\n  -> B confidence: low\n`);
     const diag = findError(parsed, 'Inline forward-declaration not allowed');
     expect(diag).toBeDefined();
     expect(diag!.message).toContain('confidence: low');
@@ -347,31 +335,6 @@ A 1 2 4
 A 1 2 4
 `);
     expect(parsed.options.noAnalysis).toBeUndefined();
-  });
-});
-
-describe('pert parser — `analysis` removed at 1.0', () => {
-  it('emits E_PERT_ANALYSIS_REMOVED (error) and still parses (Monte Carlo auto-enables)', () => {
-    const parsed = parsePert(`pert
-analysis monte-carlo
-A 1 2 4
-`);
-    expect(parsed.options.noAnalysis).toBeUndefined();
-    const err = parsed.diagnostics.find(
-      (d) => d.code === 'E_PERT_ANALYSIS_REMOVED'
-    );
-    expect(err).toBeDefined();
-    expect(err!.severity).toBe('error');
-    expect(err!.message).toContain('no-analysis');
-  });
-
-  it('emits no analysis-deprecation warning when the directive is absent', () => {
-    const parsed = parsePert(`pert
-A 1 2 4
-`);
-    expect(
-      findWarning(parsed, { code: 'pert.deprecated.analysis-directive' })
-    ).toBeUndefined();
   });
 });
 

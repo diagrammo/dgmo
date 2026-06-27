@@ -107,7 +107,7 @@ describe('timeline parser — date-first syntax', () => {
 
   describe('duration events', () => {
     it('parses duration after name', () => {
-      const evts = events('timeline\n2026-03-20 Sprint 1 30d');
+      const evts = events('timeline\n2026-03-20 Sprint 1 duration: 30d');
       expect(evts).toHaveLength(1);
       expect(evts[0].date).toBe('2026-03-20');
       expect(evts[0].label).toBe('Sprint 1');
@@ -115,61 +115,46 @@ describe('timeline parser — date-first syntax', () => {
     });
 
     it('parses weeks duration', () => {
-      const evts = events('timeline\n2026-03-20 Sprint 1 2w');
+      const evts = events('timeline\n2026-03-20 Sprint 1 duration: 2w');
       expect(evts).toHaveLength(1);
       expect(evts[0].endDate).not.toBeNull();
     });
 
     it('parses months duration', () => {
-      const evts = events('timeline\n2024-01 Phase 1 3m');
+      const evts = events('timeline\n2024-01 Phase 1 duration: 3m');
       expect(evts).toHaveLength(1);
       expect(evts[0].endDate).not.toBeNull();
     });
 
     it('parses year duration', () => {
-      const evts = events('timeline\n2024 Long project 2y');
+      const evts = events('timeline\n2024 Long project duration: 2y');
       expect(evts).toHaveLength(1);
       expect(evts[0].endDate).not.toBeNull();
     });
 
     it('parses hour duration', () => {
-      const evts = events('timeline\n2024-01-15 10:00 Session 2h');
+      const evts = events('timeline\n2024-01-15 10:00 Session duration: 2h');
       expect(evts).toHaveLength(1);
       expect(evts[0].endDate).not.toBeNull();
     });
 
     it('parses minute duration', () => {
-      const evts = events('timeline\n2024-01-15 10:00 Break 30min');
+      const evts = events('timeline\n2024-01-15 10:00 Break duration: 30min');
       expect(evts).toHaveLength(1);
       expect(evts[0].endDate).not.toBeNull();
     });
 
     it('parses decimal duration', () => {
-      const evts = events('timeline\n2024-01 Phase 1 1.5m');
+      const evts = events('timeline\n2024-01 Phase 1 duration: 1.5m');
       expect(evts).toHaveLength(1);
       expect(evts[0].endDate).not.toBeNull();
     });
 
-    it('duration: metadata key is canonical (no positional-duration error)', () => {
+    it('duration: metadata key is canonical', () => {
       const src = 'timeline\n2026-03-20 Phase Review duration: 30d';
       const evts = events(src);
       expect(evts).toHaveLength(1);
       expect(evts[0].endDate).not.toBeNull();
-      expect(
-        diagnostics(src).some(
-          (d) => d.code === 'E_TIMELINE_BARE_DURATION_REMOVED'
-        )
-      ).toBe(false);
-    });
-
-    it('positional duration still applies but errors (1.0: duration: is canonical)', () => {
-      const src = 'timeline\n2026-03-20 Sprint 1 30d';
-      expect(events(src)[0].endDate).not.toBeNull();
-      const err = diagnostics(src).find(
-        (d) => d.code === 'E_TIMELINE_BARE_DURATION_REMOVED'
-      );
-      expect(err).toBeDefined();
-      expect(err!.severity).toBe('error');
     });
   });
 
@@ -182,7 +167,7 @@ describe('timeline parser — date-first syntax', () => {
     });
 
     it('uncertain duration', () => {
-      const evts = events('timeline\n2026-03-20 Sprint 1 30d?');
+      const evts = events('timeline\n2026-03-20 Sprint 1 duration: 30d?');
       expect(evts).toHaveLength(1);
       expect(evts[0].uncertain).toBe(true);
       expect(evts[0].endDate).not.toBeNull();
@@ -208,7 +193,7 @@ describe('timeline parser — date-first syntax', () => {
 
     it('parses metadata with duration', () => {
       const evts = events(
-        'timeline\ntag Team as t\n  Engineering blue\n2026-03-20 Sprint 1 30d t: Engineering'
+        'timeline\ntag Team as t\n  Engineering blue\n2026-03-20 Sprint 1 duration: 30d, t: Engineering'
       );
       expect(evts).toHaveLength(1);
       expect(evts[0].label).toBe('Sprint 1');
@@ -295,8 +280,8 @@ tag Team as t
       expect(evts[0].endDate).toBeNull();
     });
 
-    it('allows positional duration after name word', () => {
-      const evts = events('timeline\n1918 42d Street Parade 30d');
+    it('keeps a leading duration-like word in the name with explicit duration', () => {
+      const evts = events('timeline\n1918 42d Street Parade duration: 30d');
       expect(evts).toHaveLength(1);
       expect(evts[0].date).toBe('1918');
       expect(evts[0].label).toBe('42d Street Parade');

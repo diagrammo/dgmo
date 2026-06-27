@@ -2,12 +2,7 @@
 // Cycle Diagram — Parser
 // ============================================================
 
-import {
-  makeDgmoError,
-  makeFail,
-  METADATA_DIAGNOSTIC_CODES,
-  pipeOperatorRemovedMessage,
-} from '../diagnostics';
+import { makeDgmoError, makeFail } from '../diagnostics';
 import {
   measureIndent,
   parseFirstLine,
@@ -155,17 +150,6 @@ export function parseCycle(content: string): ParsedCycle {
         continue;
       }
 
-      // Legacy pipe-metadata detection — no surviving `|` use on
-      // cycle node lines (no wireframe braces, no arrow-label `|`,
-      // no quoted-name `|` typical of this chart type).
-      if (trimmed.includes('|')) {
-        warn(lineNum, pipeOperatorRemovedMessage(), 'error');
-        const lastDiag = result.diagnostics[result.diagnostics.length - 1];
-        if (lastDiag) {
-          lastDiag.code = METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED;
-        }
-      }
-
       // §1.4 unified metadata grammar — same-line cut.
       const split = splitNameAndMeta(
         trimmed,
@@ -249,18 +233,6 @@ export function parseCycle(content: string): ParsedCycle {
         const rest = (
           bareMatch ? (bareMatch[1] ?? '') : (labeledMatch![2] ?? '')
         ).trim();
-
-        // Legacy pipe-metadata detection on edge tail. The in-arrow
-        // label region (captured by edgeLabel) may itself contain a
-        // `|` per §1.10 character contract — that survives. Only the
-        // edge tail (after `->`) is checked here.
-        if (rest.includes('|')) {
-          warn(lineNum, pipeOperatorRemovedMessage(), 'error');
-          const lastDiag = result.diagnostics[result.diagnostics.length - 1];
-          if (lastDiag) {
-            lastDiag.code = METADATA_DIAGNOSTIC_CODES.PIPE_OPERATOR_REMOVED;
-          }
-        }
 
         // §1.4 unified metadata grammar — same-line cut on the edge
         // tail. The "name" returned here is the explicit target (if

@@ -287,16 +287,12 @@ describe('1. Valid syntax', () => {
       expect(r.data[0].values).toEqual([3, 1, 1]);
     });
 
-    it('slope: thousands commas in values error (1.0) but parse best-effort', () => {
+    it('slope: underscore grouping in values (canonical)', () => {
       const r = parseVisualization(
-        'slope\nperiod 2020 2025\nApple 1,000 2,500',
+        'slope\nperiod 2020 2025\nApple 1_000 2_500',
         palette
       );
-      // 1.0 freeze: thousands commas removed → E_DATA_COMMA_REMOVED, but the
-      // value still parses so the diagram renders.
-      expect(r.diagnostics.some((d) => d.code === 'E_DATA_COMMA_REMOVED')).toBe(
-        true
-      );
+      expect(hasNoErrors(r)).toBe(true);
       expect(r.data[0]).toMatchObject({ label: 'Apple', values: [1000, 2500] });
     });
 

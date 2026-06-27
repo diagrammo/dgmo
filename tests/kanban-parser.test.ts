@@ -258,18 +258,6 @@ describe('parseKanban', () => {
     });
   });
 
-  // === Legacy syntax warnings ===
-  describe('legacy syntax', () => {
-    it('warns on == Column == syntax', () => {
-      const result = parseKanban('kanban\n[Valid]\n  Task 1\n== Legacy ==');
-      const warnings = result.diagnostics.filter((d) =>
-        d.message.includes('no longer supported')
-      );
-      expect(warnings).toHaveLength(1);
-      expect(warnings[0].message).toContain('[Legacy]');
-    });
-  });
-
   // === Warnings ===
   describe('warnings', () => {
     it('warns when WIP limit exceeded', () => {
