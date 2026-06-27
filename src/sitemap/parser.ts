@@ -44,8 +44,7 @@ import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 // Regexes
 // ============================================================
 
-// Captures: [1]=name, [2]=trailing content (parsed below; legacy `| meta`
-// also captured here and emits E_PIPE_OPERATOR_REMOVED).
+// Captures: [1]=name, [2]=trailing content (same-line `key: value` metadata).
 const CONTAINER_RE = /^\[([^\]]+)\]\s*(.*)$/;
 /** Metadata on content nodes: `key: value` (colon-separated, used in content phase) */
 const METADATA_RE = /^([^:]+):\s*(.+)$/;

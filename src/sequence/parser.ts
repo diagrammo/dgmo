@@ -219,8 +219,6 @@ const COLORED_PARTICIPANT_PATTERN =
 const GROUP_HEADING_PATTERN = /^\[([^\]|]+?)(?:\(([^)]+)\))?\]\s*(.*)$/;
 // Fallback: allows anything inside brackets (used to detect pipe-inside-brackets error)
 const GROUP_HEADING_FALLBACK = /^\[([^\]]+)\]\s*(.*)$/;
-// Legacy ## syntax — detect and emit migration error
-const LEGACY_GROUP_PATTERN = /^##\s+(.+?)(?:\(([^)]+)\))?\s*$/;
 
 // Section divider pattern — "== Label ==", "== Label(color) ==", or "== Label" (trailing == optional)
 const SECTION_PATTERN = /^==\s+(.+?)(?:\s*==)?\s*$/;
@@ -733,19 +731,8 @@ export function parseSequenceDgmo(
       let groupMeta: Record<string, string> | undefined;
 
       // Parse metadata and collapse state AFTER the closing bracket
-      let afterBracket = groupMatch[3]?.trim() || '';
+      const afterBracket = groupMatch[3]?.trim() || '';
       let isCollapsed = false;
-
-      // Deprecated: bare `collapse` keyword (use `collapsed: true` instead)
-      const collapseMatch = afterBracket.match(/^collapse\b/i);
-      if (collapseMatch) {
-        isCollapsed = true;
-        afterBracket = afterBracket.slice(collapseMatch[0].length).trim();
-        pushWarning(
-          lineNumber,
-          `Use "collapsed: true" — bare "collapse" keyword is deprecated.`
-        );
-      }
 
       // §1.4 same-line metadata on group header
       if (afterBracket) {
@@ -808,20 +795,6 @@ export function parseSequenceDgmo(
         );
         continue;
       }
-    }
-
-    // Reject legacy ## group syntax with migration hint
-    if (trimmed.match(LEGACY_GROUP_PATTERN)) {
-      const legacyMatch = trimmed.match(LEGACY_GROUP_PATTERN)!;
-      // Capture group 1 guaranteed present after successful match.
-      const name = legacyMatch[1]!.trim();
-      const color = legacyMatch[2]?.trim();
-      const suggestion = color ? `[${name}(${color})]` : `[${name}]`;
-      pushError(
-        lineNumber,
-        `'## ${name}' group syntax is no longer supported. Use '${suggestion}' instead`
-      );
-      continue;
     }
 
     // Close active group on non-indented, non-group lines

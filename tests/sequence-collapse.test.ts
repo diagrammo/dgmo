@@ -513,19 +513,7 @@ describe('Collapse rendering', () => {
   });
 });
 
-describe('collapse keyword deprecation', () => {
-  it('bare "collapse" keyword emits deprecation warning', () => {
-    const parsed = parseSequenceDgmo(
-      '[Backend] collapse\n  API\n  DB\nUser -> API'
-    );
-    expect(parsed.groups[0].collapsed).toBe(true);
-    expect(
-      parsed.diagnostics.some((d) =>
-        d.message.includes('bare "collapse" keyword is deprecated')
-      )
-    ).toBe(true);
-  });
-
+describe('collapse keyword', () => {
   it('"collapsed: true" metadata does not emit warning', () => {
     const parsed = parseSequenceDgmo(
       '[Backend] collapsed: true\n  API\n  DB\nUser -> API'

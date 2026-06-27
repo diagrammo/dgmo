@@ -99,7 +99,6 @@ const SAMELINE_META_RE = /(?:^|[\s,])(\w+)\s*:\s*([^,]+?)(?=\s*,|\s*$)/g;
 
 // Property: key: value (colon-separated)
 const PROPERTY_RE = /^([\w-]+):\s*(.+)$/;
-const LEGACY_SPACE_PROPERTY_RE = /^([\w-]+)\s+(.+)$/;
 
 // Percentage value: 80% or 99.99%
 const PERCENT_RE = /^([\d.]+)%$/;
@@ -597,21 +596,6 @@ export function parseInfra(content: string): ParsedInfra {
         // that happens to match PROPERTY_RE (e.g., "MyService: v2")
       }
 
-      // Legacy space-separated group property (pre-0.19.0)
-      if (!propMatch) {
-        const legacyMatch = trimmed.match(LEGACY_SPACE_PROPERTY_RE);
-        if (legacyMatch) {
-          const legacyKey = legacyMatch[1]!.toLowerCase();
-          if (legacyKey === 'instances' || legacyKey === 'collapsed') {
-            setError(
-              lineNumber,
-              `Use "${legacyKey}: ${legacyMatch[2]!.trim()}" — infra properties require a colon.`
-            );
-            continue;
-          }
-        }
-      }
-
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
         finishCurrentTagGroup();
@@ -919,22 +903,6 @@ export function parseInfra(content: string): ParsedInfra {
         const value = parsePropertyValue(rawVal);
         currentNode.properties.push({ key, value, lineNumber });
         continue;
-      }
-
-      // Legacy space-separated property form (pre-0.19.0): `key value` without colon
-      const legacyMatch = trimmed.match(LEGACY_SPACE_PROPERTY_RE);
-      if (legacyMatch) {
-        const legacyKey = legacyMatch[1]!.toLowerCase();
-        if (
-          INFRA_BEHAVIOR_KEYS.has(legacyKey) ||
-          EDGE_ONLY_KEYS.has(legacyKey)
-        ) {
-          setError(
-            lineNumber,
-            `Use "${legacyKey}: ${legacyMatch[2]!.trim()}" — infra properties require a colon.`
-          );
-          continue;
-        }
       }
 
       // Indented line inside a component: only the `description` keyword

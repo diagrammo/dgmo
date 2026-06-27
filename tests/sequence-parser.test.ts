@@ -622,11 +622,6 @@ describe('Story 47.3 — parser validation', () => {
       expect(result.error).toMatch(/Line 1.*Use \/\/ for comments/);
     });
 
-    it('## group heading produces migration error', () => {
-      const result = parseSequenceDgmo('## Backend\n  API\nAPI -query-> DB');
-      expect(result.error).toMatch(/no longer supported.*\[Backend\]/);
-    });
-
     it('[Group] heading does not error', () => {
       const result = parseSequenceDgmo('[Backend]\n  API\nAPI -query-> DB');
       expect(result.error).toBeNull();
@@ -1569,9 +1564,9 @@ describe('pipe metadata on group headers', () => {
 // Collapse keyword on group headers
 // ============================================================
 describe('collapse keyword on group headers', () => {
-  it('[Backend] collapse sets collapsed: true', () => {
+  it('[Backend] collapsed: true sets collapsed', () => {
     const result = parseSequenceDgmo(
-      '[Backend] collapse\n  API\n  DB\nAPI -query-> DB'
+      '[Backend] collapsed: true\n  API\n  DB\nAPI -query-> DB'
     );
     expect(result.error).toBeNull();
     expect(result.groups).toHaveLength(1);
@@ -1579,9 +1574,9 @@ describe('collapse keyword on group headers', () => {
     expect(result.groups[0].collapsed).toBe(true);
   });
 
-  it('[Backend] collapse with same-line metadata', () => {
+  it('[Backend] collapsed with same-line metadata', () => {
     const result = parseSequenceDgmo(
-      'tag Team as t\n  Eng blue\n\n[Backend] collapse t: Eng\n  API\n  DB\nAPI -query-> DB'
+      'tag Team as t\n  Eng blue\n\n[Backend] collapsed: true, t: Eng\n  API\n  DB\nAPI -query-> DB'
     );
     expect(result.error).toBeNull();
     expect(result.groups[0].collapsed).toBe(true);
@@ -1603,17 +1598,9 @@ describe('collapse keyword on group headers', () => {
     expect(result.groups[0].metadata).toEqual({ team: 'Eng' });
   });
 
-  it('COLLAPSE is case-insensitive', () => {
+  it('[Backend] collapsed with indented participants', () => {
     const result = parseSequenceDgmo(
-      '[Backend] COLLAPSE\n  API\n  DB\nAPI -query-> DB'
-    );
-    expect(result.error).toBeNull();
-    expect(result.groups[0].collapsed).toBe(true);
-  });
-
-  it('[Backend] collapse with indented participants', () => {
-    const result = parseSequenceDgmo(
-      '[Backend] collapse\n  API\n  DB\nUser -request-> API'
+      '[Backend] collapsed: true\n  API\n  DB\nUser -request-> API'
     );
     expect(result.error).toBeNull();
     expect(result.groups[0].collapsed).toBe(true);
