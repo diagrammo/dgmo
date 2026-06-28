@@ -92,6 +92,7 @@ export function renderTreemap(
 
   const mode = resolveColorMode(parsed, options.colorMode);
   const opts = parsed.options;
+  const solid = opts.solidFill;
   const exportMode = options.exportMode ?? false;
   const seriesColorsTop = getSeriesColors(palette);
   const showTitle = !!parsed.title;
@@ -219,7 +220,9 @@ export function renderTreemap(
     const baseColor = colorOf(cell);
     const fill = cell.isContainer
       ? baseColor
-      : mix(baseColor, palette.bg, LEAF_MUTE_PCT);
+      : solid
+        ? baseColor
+        : mix(baseColor, palette.bg, LEAF_MUTE_PCT);
     const drillable = cell.isContainer || cell.isCollapsed;
 
     const g = root
@@ -700,7 +703,8 @@ function drawVerticalLabel(
   // vertical names stay subtle), then shrink to fit the name into the length.
   let fs = clamp(Math.round(Math.min(availThick / 0.8, 14)), MIN_FS, 22);
   const nameW = measureText(label, fs) * 1.06;
-  if (nameW > availLen) fs = Math.max(MIN_FS, Math.floor((fs * availLen) / nameW));
+  if (nameW > availLen)
+    fs = Math.max(MIN_FS, Math.floor((fs * availLen) / nameW));
   const text = clipLabel(label, availLen, fs);
   if (!text) return;
 

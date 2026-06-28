@@ -202,6 +202,7 @@ export function renderSwimlaneForExport(
   });
 
   const isLR = parsed.direction === 'LR';
+  const solid = parsed.options['solid-fill'] === 'on';
 
   // Halo colour for label legibility: match the lane background the text sits
   // over (not a flat light fill) so the halo blends in and just fades out the
@@ -317,15 +318,21 @@ export function renderSwimlaneForExport(
       if (n.tags[key]) {
         const c = resolveTagColor(n.tags, [...parsed.tagGroups], activeTag);
         if (c && c !== '#999999')
-          return { fill: mix(c, baseBg, 22), stroke: c };
+          return { fill: solid ? c : mix(c, baseBg, 22), stroke: c };
       }
     }
     // 2. event / symbol type.
     if (n.shape === 'terminal') {
       if (n.event === 'error')
-        return { fill: mix(ev.error, baseBg, 22), stroke: ev.error };
+        return {
+          fill: solid ? ev.error : mix(ev.error, baseBg, 22),
+          stroke: ev.error,
+        };
       if (n.event === 'success')
-        return { fill: mix(ev.success, baseBg, 22), stroke: ev.success };
+        return {
+          fill: solid ? ev.success : mix(ev.success, baseBg, 22),
+          stroke: ev.success,
+        };
       if (n.event === 'terminate')
         return { fill: mix(palette.text, baseBg, 30), stroke: palette.text };
       return { fill: palette.bg, stroke: palette.textMuted };
@@ -339,7 +346,10 @@ export function renderSwimlaneForExport(
     }
     // 3. lane shade.
     const hex = laneColorById.get(n.lane) ?? palette.border;
-    return { fill: mix(hex, baseBg, 20), stroke: mix(hex, palette.text, 40) };
+    return {
+      fill: solid ? hex : mix(hex, baseBg, 20),
+      stroke: mix(hex, palette.text, 40),
+    };
   };
 
   // ── Edges ───────────────────────────────────────────────────

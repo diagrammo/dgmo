@@ -160,6 +160,7 @@ export function renderBlock(
     activeGroup,
     activeKey: activeGroup ? tagAttrKey(activeGroup) : null,
     neutral,
+    solidFill: opts.solidFill,
     onToggle: options.onToggle,
   });
 
@@ -197,6 +198,8 @@ interface DrawCtx {
   /** `tagAttrKey(activeGroup)` — the `data-tag-<key>` suffix for legend hover. */
   activeKey: string | null;
   neutral: string;
+  /** `solid-fill` — render node fills at full saturation instead of a tint. */
+  solidFill: boolean;
   onToggle: ((id: string, lineNumber: number) => void) | undefined;
 }
 
@@ -227,7 +230,7 @@ function drawItems(
   ctx: DrawCtx,
   path: string[] = []
 ): void {
-  const { palette } = ctx;
+  const { palette, solidFill: solid } = ctx;
   for (const it of items) {
     if (it.type === 'empty') {
       g.append('rect')
@@ -267,7 +270,11 @@ function drawItems(
     }
 
     if (it.type === 'collapsed') {
-      const fill = color ? mix(color, palette.bg, 12) : palette.surface;
+      const fill = color
+        ? solid
+          ? color
+          : mix(color, palette.bg, 12)
+        : palette.surface;
       const cid = `dgmo-block-clip-${clipCounter++}`;
       cell
         .append('clipPath')
@@ -312,7 +319,11 @@ function drawItems(
     }
 
     if (it.type === 'container') {
-      const fill = color ? mix(color, palette.bg, 7) : palette.surface;
+      const fill = color
+        ? solid
+          ? color
+          : mix(color, palette.bg, 7)
+        : palette.surface;
       cell
         .append('rect')
         .attr('x', it.x)
@@ -352,7 +363,11 @@ function drawItems(
     }
 
     // leaf
-    const fill = color ? mix(color, palette.bg, 14) : palette.bg;
+    const fill = color
+      ? solid
+        ? color
+        : mix(color, palette.bg, 14)
+      : palette.bg;
     cell.attr('data-leaf', 'true');
     cell
       .append('rect')

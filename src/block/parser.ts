@@ -44,7 +44,7 @@ export function parseBlock(
   content: string,
   palette?: PaletteColors
 ): ParsedBlock {
-  const options: BlockOptions = { noLegend: false };
+  const options: BlockOptions = { noLegend: false, solidFill: false };
   const result: Writable<ParsedBlock> = {
     type: 'block',
     title: null,
@@ -165,6 +165,10 @@ export function parseBlock(
         }
         if (/^no-legend\s*$/i.test(trimmed)) {
           options.noLegend = true;
+          continue;
+        }
+        if (/^solid-fill\s*$/i.test(trimmed)) {
+          options.solidFill = true;
           continue;
         }
       }

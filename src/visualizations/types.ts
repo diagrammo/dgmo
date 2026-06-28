@@ -123,6 +123,12 @@ export interface ParsedVizBase {
   titleLineNumber: number | null;
   /** When true, the renderer suppresses the chart title. */
   noTitle?: boolean;
+  /**
+   * `solid-fill` directive — render filled marks at full intent saturation
+   * instead of the canonical muted tint. Honored by the renderers that have
+   * a fillable surface (e.g. venn set circles); a no-op for line/point types.
+   */
+  solidFill?: boolean;
   diagnostics: DgmoError[];
   error: string | null;
 }

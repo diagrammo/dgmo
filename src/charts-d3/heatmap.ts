@@ -40,11 +40,12 @@ export function renderHeatmap(
       maxValue = Math.max(maxValue, v);
     }
 
+  const solid = chart.solidFill === true;
   const gradientStops = [
-    shapeFill(palette, palette.primary, isDark),
-    shapeFill(palette, palette.colors.cyan, isDark),
-    shapeFill(palette, palette.colors.yellow, isDark),
-    shapeFill(palette, palette.colors.orange, isDark),
+    shapeFill(palette, palette.primary, isDark, { solid }),
+    shapeFill(palette, palette.colors.cyan, isDark, { solid }),
+    shapeFill(palette, palette.colors.yellow, isDark, { solid }),
+    shapeFill(palette, palette.colors.orange, isDark, { solid }),
   ];
   const gradientAt = (t: number): string => {
     const tt = Math.max(0, Math.min(1, t));

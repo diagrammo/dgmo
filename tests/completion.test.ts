@@ -401,6 +401,13 @@ describe('COMPLETION_REGISTRY', () => {
       'radar',
       'scatter',
       'chord',
+      'pert',
+      'block',
+      'swimlane',
+      'treemap',
+      'heatmap',
+      'venn',
+      'timeline',
     ];
     for (const type of expected) {
       it(`exposes solid-fill for ${type}`, () => {
@@ -419,9 +426,7 @@ describe('COMPLETION_REGISTRY', () => {
     const skipped = [
       'gantt',
       'infra',
-      'heatmap',
       'tech-radar',
-      'venn',
       'quadrant',
       'line',
       'function',
@@ -429,7 +434,6 @@ describe('COMPLETION_REGISTRY', () => {
       'wordcloud',
       'slope',
       'arc',
-      'timeline',
     ];
     for (const type of skipped) {
       it(`does not expose solid-fill for ${type}`, () => {

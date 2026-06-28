@@ -78,6 +78,7 @@ export function parseTreemap(
     noPercent: false,
     noHeaders: false,
     noLegend: false,
+    solidFill: false,
   };
   const result: Writable<ParsedTreemap> = {
     type: 'treemap',
@@ -342,6 +343,11 @@ function handleDirective(
     else if (key === 'percent') options.noPercent = true;
     else if (key === 'headers') options.noHeaders = true;
     else if (key === 'legend') options.noLegend = true;
+    return true;
+  }
+
+  if (/^solid-fill\s*$/i.test(trimmed)) {
+    options.solidFill = true;
     return true;
   }
 

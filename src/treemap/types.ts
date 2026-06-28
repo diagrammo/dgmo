@@ -39,6 +39,7 @@ export interface TreemapOptions {
   noPercent: boolean;
   noHeaders: boolean;
   noLegend: boolean;
+  solidFill: boolean;
 }
 
 export interface ParsedTreemap {

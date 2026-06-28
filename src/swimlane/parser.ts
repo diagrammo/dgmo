@@ -335,6 +335,12 @@ export function parseSwimlane(
     }
     if (indent === 0) currentTagGroup = null;
 
+    // `solid-fill` bare directive (full-saturation node fills).
+    if (indent === 0 && /^solid-fill\s*$/i.test(trimmed)) {
+      options['solid-fill'] = 'on';
+      continue;
+    }
+
     // `direction LR|TB`.
     if (indent === 0 && /^direction\s+/i.test(trimmed)) {
       const val = trimmed
@@ -543,6 +549,8 @@ export function parseSwimlane(
       inTagBlock = /^tag\s+/i.test(trimmed);
       continue;
     }
+    // Bare diagram-level directives consumed in pass 1.
+    if (indent === 0 && /^solid-fill\s*$/i.test(trimmed)) continue;
     // Indented tag entries (already consumed in pass 1).
     if (matchTagBlockHeading(trimmed) && indent === 0) {
       inTagBlock = true;

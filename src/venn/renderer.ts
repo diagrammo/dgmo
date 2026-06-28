@@ -133,6 +133,7 @@ export function renderVenn(
   exportDims?: D3ExportDimensions
 ): void {
   const { vennSets, vennOverlaps } = parsed;
+  const solid = parsed.solidFill === true;
   const title = parsed.noTitle ? null : parsed.title;
   if (vennSets.length < 2 || vennSets.length > 3) return;
 
@@ -359,7 +360,7 @@ export function renderVenn(
       .attr('r', c.r)
       // setColors was built from vennSets via map, so i is in-bounds.
       .attr('fill', setColors[i]!)
-      .attr('fill-opacity', 0.35)
+      .attr('fill-opacity', solid ? 0.6 : 0.35)
       .attr('stroke', setColors[i]!)
       .attr('stroke-width', ctx.structural(2))
       .style('pointer-events', 'none') as d3Selection.Selection<

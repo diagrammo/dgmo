@@ -22,6 +22,7 @@ export const fixture: ConformanceFixture = {
     'sprint-number',
     'sprint-start',
     'active-tag',
+    'solid-fill',
   ],
   pipeKeys: {
     node: ['description', 'confidence', 'collapsed'],

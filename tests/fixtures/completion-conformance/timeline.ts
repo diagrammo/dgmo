@@ -7,7 +7,7 @@ export const fixture: ConformanceFixture = {
   structuralKeywords: ['era', 'marker', 'tag'],
   specSection: '15',
   firstLineKeyword: 'timeline',
-  directives: ['active-tag'],
+  directives: ['active-tag', 'solid-fill'],
   pipeKeys: {
     node: ['description'],
   },

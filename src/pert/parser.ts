@@ -70,6 +70,7 @@ const DIRECTIVE_KEYS = new Set([
   'start-date',
   'end-date',
   'no-title',
+  'solid-fill',
   'sprint-length',
   'sprint-number',
   'sprint-start',
@@ -1334,6 +1335,11 @@ function applyDirective(
     case 'no-title': {
       // Bare boolean directive — suppresses the diagram banner title.
       options.noTitle = true;
+      return;
+    }
+    case 'solid-fill': {
+      // Bare boolean directive — render card fills at full saturation.
+      options.solidFill = true;
       return;
     }
     case 'active-tag': {
