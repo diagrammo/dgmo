@@ -426,6 +426,46 @@ tag Medium as m
     expect(bulletFills).not.toContain(bracket.getAttribute('stroke'));
   });
 
+  it('lights matching member bullets inside a collapsed era on tag focus', () => {
+    const src = `event-line Tagged Era
+no-scale
+
+tag Medium as m
+  Film blue
+  Series purple
+
+[Phase One] collapsed: true
+  2008 Iron Man  m: Film
+    one
+  2011 WandaVision  m: Series
+    two
+  2012 Thor  m: Film
+    three`;
+    const parsed = parseEventLine(src, nordLight);
+    const container = mount(900, 500);
+    renderEventLine(container, parsed, nordLight, false);
+    focusEventLine(container, { kind: 'tag', group: 'medium', value: 'film' });
+    const bullets = [...container.querySelectorAll('.dgmo-evt-bullet')];
+    const film = bullets.filter(
+      (b) => b.getAttribute('data-tag-medium') === 'film'
+    );
+    const series = bullets.filter(
+      (b) => b.getAttribute('data-tag-medium') === 'series'
+    );
+    expect(film.length).toBeGreaterThan(0);
+    expect(series.length).toBeGreaterThan(0);
+    // Film members stay lit; Series members dim.
+    expect(film.every((b) => !b.classList.contains('dgmo-evt-dim'))).toBe(true);
+    expect(series.every((b) => b.classList.contains('dgmo-evt-dim'))).toBe(
+      true
+    );
+    // The folded era card itself stays lit because it holds a match.
+    const card = container.querySelector(
+      'g.dgmo-event-card[data-era-collapsed="true"]'
+    )!;
+    expect(card.classList.contains('dgmo-evt-dim')).toBe(false);
+  });
+
   it('colors a uniform-tag collapsed era by that shared tag', () => {
     const src = `event-line U
 no-scale

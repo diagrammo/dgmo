@@ -163,6 +163,9 @@ interface Placed {
   lines: WrappedDescLine[];
   /** For a collapsed era: per-member tag color, in member order (one per bullet). */
   bulletColors: readonly string[];
+  /** For a collapsed era: per-member tag metadata, in member/bullet order — lets a
+   *  legend hover highlight matching member bullets inside the folded card. */
+  bulletMeta: readonly Readonly<Record<string, string>>[];
   cardH: number;
   x: number;
   side: Side;
@@ -313,6 +316,7 @@ export function renderEventLine(
         titleColor,
         lines,
         bulletColors: [],
+        bulletMeta: [],
         cardH: cardHeight(lines, !!event.date),
         x: 0,
         side,
@@ -371,6 +375,7 @@ export function renderEventLine(
         `• ${m.date ? `${m.future ? 'TBD' : formatDateLabel(m.date)}  ` : ''}${m.label}`
     );
     const bulletColors = visibleMembers.map(eventColor);
+    const bulletMeta = visibleMembers.map((m) => m.metadata);
     const lines = wrapDescription(memberStrs, charsPerLine);
     return {
       kind: 'era',
@@ -389,6 +394,7 @@ export function renderEventLine(
       titleColor,
       lines,
       bulletColors,
+      bulletMeta,
       cardH: cardHeight(lines, false),
       x: 0,
       side,
@@ -1004,7 +1010,8 @@ export function renderEventLine(
           palette.text,
           palette,
           startBaseline,
-          p.bulletColors
+          p.bulletColors,
+          p.bulletMeta
         );
       }
     } else {
@@ -1052,7 +1059,8 @@ export function renderEventLine(
           p.titleColor,
           palette,
           CARD_BODY_TOP + dateH + DESC_FONT,
-          p.bulletColors
+          p.bulletColors,
+          p.bulletMeta
         );
       }
     }
@@ -1343,11 +1351,30 @@ function applyEvtFocus(root: Element, spec: EventLineFocus | null): void {
     return;
   }
   const attr = `data-tag-${spec.group}`;
-  const keep = (el: Element): boolean => el.getAttribute(attr) === spec.value;
-  if (!els.some(keep)) return;
+  const matches = (el: Element): boolean =>
+    el.getAttribute(attr) === spec.value;
+  // Member bullets folded inside a collapsed era carry the same `data-tag-*` as
+  // their source events, so a legend hover can surface them too.
+  const bullets = [...root.querySelectorAll('.dgmo-evt-bullet')];
+  // An era that holds ≥1 matching member bullet stays lit (its card, spine glyph,
+  // and leader), with the non-matching member bullets dimmed inside it.
+  const litEras = new Set<string>();
+  for (const b of bullets) {
+    if (!matches(b)) continue;
+    const card = b.closest('.dgmo-event-card');
+    const era =
+      card?.getAttribute('data-era') ?? card?.getAttribute('data-evt-era');
+    if (era) litEras.add(era);
+  }
+  if (!els.some(matches) && litEras.size === 0) return;
+  const inLitEra = (el: Element): boolean => {
+    const era = el.getAttribute('data-era') ?? el.getAttribute('data-evt-era');
+    return !!era && litEras.has(era);
+  };
   els.forEach((el) => {
-    if (!keep(el)) el.classList.add(DIM);
+    if (!matches(el) && !inLitEra(el)) el.classList.add(DIM);
   });
+  for (const b of bullets) if (!matches(b)) b.classList.add(DIM);
 }
 
 function readPin(root: Element): EventLineFocus | null {
@@ -1657,7 +1684,11 @@ function renderBody(
   startBaseline = CARD_BODY_TOP + DESC_FONT,
   // Per-bullet color (collapsed-era member list — each bullet takes its event's
   // tag color). Consumed in bullet-first order; falls back to bodyColor.
-  bulletColors: readonly string[] = []
+  bulletColors: readonly string[] = [],
+  // Per-bullet tag metadata, same order as bulletColors. Stamped on each bullet
+  // line as `data-tag-<group>` (+ the `dgmo-evt-bullet` class) so a legend hover
+  // can highlight matching members inside a folded era.
+  bulletMeta: readonly Readonly<Record<string, string>>[] = []
 ): void {
   let y = startBaseline;
   let bulletIdx = 0;
@@ -1665,13 +1696,24 @@ function renderBody(
   // collapsed era reads like a mini tag-colored list; continuation lines keep
   // it, plain lines (e.g. "+N more") fall back to the body color.
   let lineColor = bodyColor;
+  let lineMeta: Readonly<Record<string, string>> | null = null;
+  const tagBullet = (
+    el: d3Selection.Selection<SVGTextElement, unknown, null, undefined>
+  ): void => {
+    if (!lineMeta) return;
+    el.attr('class', 'dgmo-evt-bullet');
+    for (const [k, v] of Object.entries(lineMeta))
+      el.attr(`data-tag-${k.toLowerCase()}`, String(v).toLowerCase());
+  };
   for (const line of lines) {
     const isBullet =
       line.kind === 'bullet-first' || line.kind === 'bullet-cont';
     const bodyX = CARD_PAD + (isBullet ? 12 : 0);
     if (line.kind === 'bullet-first') {
-      lineColor = bulletColors[bulletIdx++] ?? bodyColor;
-      cardG
+      lineColor = bulletColors[bulletIdx] ?? bodyColor;
+      lineMeta = bulletMeta[bulletIdx] ?? null;
+      bulletIdx++;
+      const marker = cardG
         .append('text')
         .attr('x', CARD_PAD)
         .attr('y', y)
@@ -1681,8 +1723,10 @@ function renderBody(
         .attr('font-size', DESC_FONT)
         .attr('font-weight', 700)
         .text('•');
+      tagBullet(marker);
     } else if (!isBullet) {
       lineColor = bodyColor;
+      lineMeta = null;
     }
     const t = cardG
       .append('text')
@@ -1692,6 +1736,7 @@ function renderBody(
       .attr('fill', isBullet ? lineColor : bodyColor)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', DESC_FONT);
+    if (isBullet) tagBullet(t);
     renderInlineText(t, line.text, palette);
     y += DESC_LINE_H;
   }
