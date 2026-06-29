@@ -252,10 +252,14 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
   for (const e of realEdges)
     if ((finalRank.get(e.to) ?? 0) < (finalRank.get(e.from) ?? 0)) backCount++;
   const needsBack = backCount > 0;
+  // Reserve only down to the DEEPEST back-edge channel — routing uses
+  // backIdx 0..backCount-1, so the deepest channel is BACK_STEP*(backCount-1)
+  // beyond BACK_CHANNEL. The old formula added an extra channel step plus a
+  // second MARGIN, leaving dead whitespace below the loop-back.
   const backReserve = needsBack
-    ? BACK_CHANNEL + BACK_STEP * backCount + MARGIN
+    ? BACK_CHANNEL + BACK_STEP * (backCount - 1)
     : 0;
-  const totalCross = laneCrossEnd + MARGIN + backReserve;
+  const totalCross = laneCrossEnd + backReserve + MARGIN;
 
   const project = (flow: number, cross: number): Pt =>
     isLR ? { x: flow, y: cross } : { x: cross, y: flow };
