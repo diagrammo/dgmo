@@ -61,11 +61,6 @@ export interface ParsedBlock {
   readonly error: string | null;
 }
 
-/** Type guard — narrow a cell to the deliberate-empty case. */
-export function isEmptyCell(cell: BlockCell): cell is EmptyCell {
-  return (cell as EmptyCell).empty === true;
-}
-
 /** Type guard — narrow a cell to a real block. */
 export function isBlockNode(cell: BlockCell): cell is BlockNode {
   return (cell as EmptyCell).empty !== true;

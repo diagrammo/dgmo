@@ -25,10 +25,7 @@ import { RECOGNIZED_COLOR_NAMES } from './colors';
 // Closed enum sets owned by their respective parsers — imported (never
 // hand-copied) so completion can't drift from the grammar (one-oracle rule).
 import { ALL_MARKERS } from './raci/variants';
-import {
-  STATE_KEYWORDS as WIREFRAME_STATE_KEYWORDS,
-  GROUP_ONLY_METADATA as WIREFRAME_GROUP_ONLY_METADATA,
-} from './wireframe/parser';
+import { STATE_KEYWORDS as WIREFRAME_STATE_KEYWORDS } from './wireframe/parser';
 
 const RECOGNIZED_COLOR_SET: ReadonlySet<string> = new Set(
   RECOGNIZED_COLOR_NAMES
@@ -871,16 +868,6 @@ export const RACI_MARKER_ALPHABETS: ReadonlyMap<string, readonly string[]> =
  * `STATE_KEYWORDS` — exported there and consumed here, never re-typed.
  */
 export const WIREFRAME_FLAGS: readonly string[] = [...WIREFRAME_STATE_KEYWORDS];
-
-/**
- * The subset of `WIREFRAME_FLAGS` that only make sense on group elements
- * (`horizontal`/`scrollable`/`collapsed`). Editor completion drops these for
- * non-group elements (buttons, dropdowns). Sourced from the parser's
- * `GROUP_ONLY_METADATA`, never hand-copied.
- */
-export const WIREFRAME_GROUP_ONLY_FLAGS: readonly string[] = [
-  ...WIREFRAME_GROUP_ONLY_METADATA,
-];
 
 // ============================================================
 // Pipe metadata for inline `| key value` on data lines
