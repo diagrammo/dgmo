@@ -437,9 +437,11 @@ function resolveFutureEvents(events: Writable<EventLineEvent>[]): void {
         e.futureSpan = [left, hi];
       });
     } else {
-      // Trailing: park past the last dated event — the open horizon.
+      // Trailing: park past the last dated event — the open horizon — evenly
+      // spaced by `pad`, so a row of TBDs reads as a uniform march into the
+      // future (the first sits `pad` past the last real date, each next `pad` on).
       group.forEach((e, k) => {
-        e.dateValue = hiAll + pad + k * (pad * 0.4);
+        e.dateValue = hiAll + pad * (k + 1);
         e.futureSpan = null;
       });
     }

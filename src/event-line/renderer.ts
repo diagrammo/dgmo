@@ -105,7 +105,7 @@ const ERA_SEAM_GAP = 3;
 // strokes that cross the spine, with the spine blanked between them so the
 // timeline visibly breaks where the folded span is.
 const BREAK_HALF_H = 6; // squiggle extends this far above AND below the spine
-const BREAK_AMP = 2.2; // horizontal wave amplitude
+const BREAK_AMP = 2.6; // horizontal wave amplitude
 const BREAK_GAP = 5; // spacing between the two waves (= the spine gap width)
 // Collapsed era: the `⊓` bar floats this far off the spine (on the card's side);
 // its legs drop from the bar to rest their feet ON the timeline.
@@ -790,42 +790,9 @@ export function renderEventLine(
       .attr('stroke-dasharray', '2 6');
   }
 
-  // ── TBD whiskers ──
-  // A bracketed TBD plots at an INFERRED point inside a known gap; a faint
-  // capped bar spanning its dated neighbors says "somewhere in here, exact date
-  // unknown." Drawn once per gap (deduped) and beneath the dots, which land on
-  // top. End caps are short verticals; the bar sits on the spine.
-  const whiskerSeen = new Set<string>();
-  for (const p of placed) {
-    if (!p.future || !p.futureSpan) continue;
-    const lefts = placed.filter((q) => !q.future && q.x < p.x);
-    const rights = placed.filter((q) => !q.future && q.x > p.x);
-    const lx = lefts.length ? Math.max(...lefts.map((q) => q.x)) : p.x;
-    const rx = rights.length ? Math.min(...rights.map((q) => q.x)) : p.x;
-    const key = `${Math.round(lx)}-${Math.round(rx)}`;
-    if (whiskerSeen.has(key) || rx - lx < 2) continue;
-    whiskerSeen.add(key);
-    const w = svg.append('g').attr('class', 'dgmo-event-whisker');
-    w.append('line')
-      .attr('x1', lx)
-      .attr('y1', spineY)
-      .attr('x2', rx)
-      .attr('y2', spineY)
-      .attr('stroke', p.color)
-      .attr('stroke-width', 2)
-      .attr('stroke-opacity', 0.4)
-      .attr('stroke-dasharray', '2 3');
-    for (const cx of [lx, rx]) {
-      w.append('line')
-        .attr('x1', cx)
-        .attr('y1', spineY - 4)
-        .attr('x2', cx)
-        .attr('y2', spineY + 4)
-        .attr('stroke', p.color)
-        .attr('stroke-width', 2)
-        .attr('stroke-opacity', 0.4);
-    }
-  }
+  // A bracketed TBD plots at an INFERRED point inside a known gap. The hollow
+  // dot + "TBD" caption carry the uncertain read on their own — no dashed
+  // "somewhere in here" whisker is drawn across the spine.
 
   // ── Leaders + cards ──
   // Box geometry up front so leaders can test box crossings and so leaders draw
@@ -868,9 +835,12 @@ export function renderEventLine(
       .attr('y2', near)
       .attr('stroke', p.color)
       .attr('stroke-width', 1.5)
-      .attr('stroke-opacity', leaderCrossesBox(p, near) ? 0.18 : 0.65);
-    // A future (TBD) event's leader is dashed — it hasn't landed on a real date.
-    if (p.future) leader.attr('stroke-dasharray', '3 3');
+      .attr(
+        'stroke-opacity',
+        leaderCrossesBox(p, near) ? 0.18 : p.future ? 0.4 : 0.65
+      );
+    // A future (TBD) event's leader stays SOLID but faded to 40% — the tentative
+    // read comes from the fade, matching the faded card bar and dot (no dashes).
     applyHoverHooks(leader, p);
   }
 
@@ -939,29 +909,18 @@ export function renderEventLine(
         .attr('clip-path', `url(#${clipId})`)
         .attr('fill', mix(p.color, themeBaseBg(palette, isDark), SHELF_TINT));
       const edgeY = titleNearTop ? shelfTop : shelfTop + shelfH - SHELF_EDGE;
-      if (p.future) {
-        // Tentative slide: the colored leader-landing edge goes DASHED, matching
-        // the dashed leader + hollow dot so the TBD reads the same in no-box.
-        cardG
-          .append('line')
-          .attr('x1', SHELF_EDGE)
-          .attr('y1', edgeY + SHELF_EDGE / 2)
-          .attr('x2', CARD_W - SHELF_EDGE)
-          .attr('y2', edgeY + SHELF_EDGE / 2)
-          .attr('stroke', p.color)
-          .attr('stroke-width', SHELF_EDGE)
-          .attr('stroke-linecap', 'round')
-          .attr('stroke-dasharray', '1 4');
-      } else {
-        cardG
-          .append('rect')
-          .attr('x', 0)
-          .attr('y', edgeY)
-          .attr('width', CARD_W)
-          .attr('height', SHELF_EDGE)
-          .attr('clip-path', `url(#${clipId})`)
-          .attr('fill', p.color);
-      }
+      // The colored leader-landing edge. A future (TBD) card draws the SAME solid
+      // edge faded to 40% — the tentative read comes from the fade, matching the
+      // faded leader + dot (no dashes).
+      cardG
+        .append('rect')
+        .attr('x', 0)
+        .attr('y', edgeY)
+        .attr('width', CARD_W)
+        .attr('height', SHELF_EDGE)
+        .attr('clip-path', `url(#${clipId})`)
+        .attr('fill', p.color)
+        .attr('fill-opacity', p.future ? 0.4 : 1);
       cardG
         .append('text')
         .attr('x', CARD_PAD)
@@ -1161,17 +1120,16 @@ export function renderEventLine(
         .attr('x2', breakCx + BREAK_GAP / 2)
         .attr('y2', spineY)
         .attr('stroke', palette.bg)
-        .attr('stroke-width', 4)
+        .attr('stroke-width', 5)
         .attr('stroke-linecap', 'butt');
       for (const d of axisBreakPaths(breakCx, spineY)) {
         eg.append('path')
           .attr('d', d)
           .attr('fill', 'none')
-          .attr('stroke', col)
-          .attr('stroke-width', 1.25)
+          .attr('stroke', palette.text)
+          .attr('stroke-width', 2)
           .attr('stroke-linecap', 'round')
-          .attr('stroke-linejoin', 'round')
-          .attr('stroke-opacity', 0.85);
+          .attr('stroke-linejoin', 'round');
       }
       if (onClickItem) {
         const ln = p.lineNumber;
@@ -1179,8 +1137,9 @@ export function renderEventLine(
       }
       continue;
     }
-    // Future (TBD) events read as HOLLOW dots — the color rings an empty center,
-    // signalling "not yet happened" against the solid dots of real events.
+    // A real event is a SOLID colored dot; a TBD is a colored RING with a
+    // background fill (hollow) — opaque, never transparent. The tentative read
+    // also carries through its faded leader + card bar and "TBD" caption.
     const dot = svg
       .append('circle')
       .attr('class', 'dgmo-event-dot')
@@ -1659,7 +1618,7 @@ export function renderEventLineForExport(
 // NOT drawn to scale. Returns the two path `d` strings, centered on (cx, cy).
 function axisBreakPaths(cx: number, cy: number): [string, string] {
   const HUMPS = 2;
-  const STEPS = 14;
+  const STEPS = 48;
   const wave = (x0: number): string => {
     let d = '';
     for (let i = 0; i <= STEPS; i++) {

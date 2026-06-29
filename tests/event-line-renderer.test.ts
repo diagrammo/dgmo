@@ -540,16 +540,15 @@ tag T as t
     const parsed = parseEventLine(src, nordLight);
     const c = mount(1200, 500);
     renderEventLine(c, parsed, nordLight, false);
-    // bracket (stroke-width 1.5) + two break squiggles (stroke-width 1.25).
+    // bracket (stroke-width 1.5) + two break squiggles (stroke-width 2).
     expect(
       c.querySelectorAll(
         'g[data-era-collapsed="true"] path[stroke-width="1.5"]'
       ).length
     ).toBe(1);
     expect(
-      c.querySelectorAll(
-        'g[data-era-collapsed="true"] path[stroke-width="1.25"]'
-      ).length
+      c.querySelectorAll('g[data-era-collapsed="true"] path[stroke-width="2"]')
+        .length
     ).toBe(2);
   });
 
