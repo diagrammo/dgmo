@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-06-29
+
+### Added
+
+- **Rich date handling for timelines + event-lines** — BCE/CE years, sub-minute (seconds) precision, and formatted date subtitles, so historical and high-resolution timelines render to scale and read correctly.
+- **Event-line `TBD` / future events** — a `TBD` date marks a not-yet-scheduled event; its position is inferred from source-order dated neighbors (interpolated into the gap with a "somewhere in here" whisker, or parked past the last dated event as an open-horizon dashed tail). Consecutive TBDs sharing a gap fan evenly.
+- **Event-line** — the whole collapsed-era area is now clickable to expand; out-of-order event dates emit a warning.
+- **Pie / line directives** — `hole` + center-total for pie; line fill.
+- **Bar** — stack/group block headers; series on a bare bar is now rejected with clustered render wired in.
+- **Arc / chord** unified behind a single layout directive (both keywords stay).
+- **Solid-fill directive** honored across all fillable chart types.
+- **Map** — route arcs bow outward from the route polygon.
+- **CLI** — the installer now copies the sibling Claude Code slash commands (`/dgmo-diagram-this`, `/dgmo-document-project`, `/dgmo-codebase-report`), and ships a Codex skill variant of the codebase-report command.
+
+### Changed
+
+- **Chart-type consolidation (50 → 44)** — legacy chart-type aliases were de-surfaced and `bar-stacked` hard-removed as a distinct type; `area`, `doughnut`, `bar-stacked`, `multi-line`, `rasci`, and `daci` are no longer separate types (use the directive forms on their parent types). `language-reference.md` is now canonical-only (#23–28).
+- **Event-line** — removed the spine date-tick ruler; crisper axis-break squiggle and cleaner TBD cues.
+
+### Fixed
+
+- **version-control** — prevent bottom clipping of diagonal commit labels.
+- Consistent collapse bar across box chart types.
+- **journey-map** — emotion-area framing + thought-bubble headroom.
+
+### Removed
+
+- Deprecated-syntax back-compat layer and legacy chart-type aliases (pre-1.0 cleanup, #28).
+
 ## [0.42.0] - 2026-06-26
 
 ### Added
