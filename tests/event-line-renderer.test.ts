@@ -209,6 +209,35 @@ no-scale
     expect(spineBracket).not.toBeNull();
   });
 
+  it('makes the whole collapsed-era card + spine bracket clickable (hit-rects)', () => {
+    const parsed = parseEventLine(ERAS, nordLight);
+    const container = mount();
+    const clicks: number[] = [];
+    renderEventLine(container, parsed, nordLight, false, (ln) =>
+      clicks.push(ln)
+    );
+    const svg = container.querySelector('svg')!;
+    // The collapsed-era summary card carries a transparent full-bounds hit-rect
+    // so empty space around the bullet list still expands it.
+    const card = svg.querySelector(
+      'g[data-era-collapsed="true"].dgmo-event-card'
+    )
+      ? svg.querySelector('g.dgmo-event-card[data-era-collapsed="true"]')
+      : [...svg.querySelectorAll('g.dgmo-event-card')].find(
+          (g) => g.getAttribute('data-era-collapsed') === 'true'
+        )!;
+    expect(
+      card!.querySelector('rect[pointer-events="all"][fill="transparent"]')
+    ).not.toBeNull();
+    // The spine ⊓/squiggle group carries one too.
+    const spine = [...svg.querySelectorAll('g.dgmo-event-era')].find(
+      (g) => g.getAttribute('data-era-collapsed') === 'true'
+    )!;
+    expect(
+      spine.querySelector('rect[pointer-events="all"][fill="transparent"]')
+    ).not.toBeNull();
+  });
+
   it('places era brackets opposite the cards under `side below`', () => {
     const parsed = parseEventLine(
       `event-line X

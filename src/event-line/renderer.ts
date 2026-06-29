@@ -853,6 +853,18 @@ export function renderEventLine(
     if (onClickItem) {
       const ln = p.lineNumber;
       cardG.style('cursor', 'pointer').on('click', () => onClickItem(ln));
+      // A transparent hit-rect over the whole card bounds so the ENTIRE card is
+      // clickable — in no-box mode only the shelf + text glyphs are painted, so
+      // without this the empty space around a collapsed era's bullet list would
+      // not register clicks. Added first → sits beneath the visible content.
+      cardG
+        .append('rect')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('width', CARD_W)
+        .attr('height', p.cardH)
+        .attr('fill', 'transparent')
+        .attr('pointer-events', 'all');
     }
 
     // The date rides as a muted subtitle adjacent to the title, on the side AWAY
@@ -1030,6 +1042,20 @@ export function renderEventLine(
         .attr('data-era', p.era!.name)
         .attr('data-era-collapsed', 'true')
         .attr('data-line-number', p.lineNumber);
+      if (onClickItem) {
+        // Transparent hit-rect spanning the whole ⊓ + squiggle so the entire
+        // bracket area is clickable, not just the thin strokes. Added first →
+        // beneath the visible glyph.
+        const hy0 = Math.min(barY, spineY) - 4;
+        const hy1 = Math.max(barY, spineY) + 8;
+        eg.append('rect')
+          .attr('x', bx0)
+          .attr('y', hy0)
+          .attr('width', bx1 - bx0)
+          .attr('height', hy1 - hy0)
+          .attr('fill', 'transparent')
+          .attr('pointer-events', 'all');
+      }
       eg.append('path')
         .attr(
           'd',
