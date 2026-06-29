@@ -476,7 +476,26 @@ export function renderArcDiagram(
       .range([0, innerWidth])
       .padding(0.5);
 
-    const baseY = innerHeight / 2;
+    // Live preview centers the baseline in the host container; export sizes the
+    // canvas to the arc band so the SVG carries no dead whitespace (arcs bow up
+    // by ~distance*0.2 above the baseline, labels/bands sit just below it).
+    let baseY = innerHeight / 2;
+    if (exportDims) {
+      let maxDist = 0;
+      for (const l of links) {
+        const a = xScale(l.source);
+        const b = xScale(l.target);
+        if (a != null && b != null)
+          maxDist = Math.max(maxDist, Math.abs(b - a));
+      }
+      const above = maxDist * 0.2 + sNodeRadius;
+      const below = Math.max(sBandHalfH, sNodeLabelYOffset + sNodeLabelFont);
+      baseY = above;
+      const tightHeight = margin.top + above + below + margin.bottom;
+      svg
+        .attr('height', tightHeight)
+        .attr('viewBox', `0 0 ${width} ${tightHeight}`);
+    }
 
     // Group bands (shaded regions bounding grouped nodes)
     if (arcNodeGroups.length > 0) {
