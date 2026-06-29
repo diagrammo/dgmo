@@ -262,6 +262,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Card-less label/rule/description style (slides)',
       },
       'no-legend': { description: 'Hide the tag legend' },
+      TBD: {
+        description:
+          'Date prefix for a not-yet-scheduled future event (e.g. "TBD Console Port")',
+      },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],

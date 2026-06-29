@@ -2434,6 +2434,7 @@ tag Genre as g
 ```
 
 - **Date** — optional, ISO only (`YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `+HH:MM` / `+HH:MM:SS`, plus `YYYY BCE`/`BC`/`CE`/`AD`), formatted for reading as the card subtitle (`2008-09-02` → `Sep 2, 2008`). No `date:` key; no `M/D/YYYY`.
+- **`TBD` (future events)** — write the literal `TBD` (case-insensitive) in the date slot for a **not-yet-scheduled** event: `TBD Console Port  t: Engine`. Its caption reads `TBD` and it draws a **hollow dot + faded leader** (a faded shelf edge in `no-box`) so it reads as pending. To scale, its position is **inferred from its source-order dated neighbors**: a `TBD` followed by a dated event is interpolated into that gap; a **trailing** `TBD` (nothing dated after it) parks past the last real date and the spine **trails off dashed** — the open horizon. `TBD`s never trip the bad-date / out-of-order warnings.
 - **Tag** — trailing same-line metadata (`g: Pop`), like timeline; colors the dot, leader, and card.
 - **Description** — bare indented body lines (like `pyramid`/`ring`); `- ` makes a bullet; inline markdown (`**bold**`, `*italic*`, `` `code` ``) supported.
 
