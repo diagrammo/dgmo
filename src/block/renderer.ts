@@ -36,6 +36,8 @@ import {
 
 const PADDING = 12;
 const TITLE_BAND = 36;
+// Floor for export width so a narrow block still has room for its title/legend.
+const MIN_EXPORT_WIDTH = 220;
 
 const LEGEND_POSITION: LegendPosition = {
   placement: 'top-center',
@@ -75,26 +77,9 @@ export function renderBlock(
   if (parsed.error || parsed.top.rows.length === 0) return;
 
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
-  const width = exportDims?.width ?? container.clientWidth;
-  const height = exportDims?.height ?? container.clientHeight;
-  if (width <= 0 || height <= 0) return;
-
   const opts = parsed.options;
   const showTitle = !!parsed.title;
   const titleH = showTitle ? TITLE_BAND : 0;
-
-  const legend = !opts.noLegend ? buildBlockLegend(parsed) : null;
-  const legendReserve = legend
-    ? getMaxLegendReservedHeight(
-        { groups: legend.groups, position: LEGEND_POSITION, mode: 'preview' },
-        width
-      ) + LEGEND_GROUP_GAP
-    : 0;
-
-  const areaX = PADDING;
-  const areaY = titleH + legendReserve + PADDING;
-  const areaW = Math.max(1, width - PADDING * 2);
-  const areaH = Math.max(1, height - areaY - PADDING);
 
   // The app owns the live collapsed set (seeded once from authored flags via
   // `authoredCollapsedIds`), so when it passes one it is AUTHORITATIVE — that's
@@ -102,8 +87,40 @@ export function renderBlock(
   // (no set passed) derives the folds straight from the source.
   const collapsed: ReadonlySet<string> =
     options.collapsed ?? authoredCollapsedIds(parsed);
-
   const layout = layoutBlock(parsed.top, { collapsed });
+
+  const legend = !opts.noLegend ? buildBlockLegend(parsed) : null;
+
+  // Canvas size. Live preview fills the host container and scales the block to
+  // fit. Export sizes the canvas to the block's intrinsic dimensions (+ title,
+  // legend, padding) so the SVG carries no dead whitespace.
+  let width: number;
+  let height: number;
+  if (options.exportMode) {
+    width = Math.max(layout.width, MIN_EXPORT_WIDTH) + PADDING * 2;
+  } else {
+    width = exportDims?.width ?? container.clientWidth;
+  }
+
+  const legendReserve = legend
+    ? getMaxLegendReservedHeight(
+        { groups: legend.groups, position: LEGEND_POSITION, mode: 'preview' },
+        width
+      ) + LEGEND_GROUP_GAP
+    : 0;
+
+  const areaY = titleH + legendReserve + PADDING;
+  if (options.exportMode) {
+    height = areaY + layout.height + PADDING;
+  } else {
+    height = exportDims?.height ?? container.clientHeight;
+  }
+  if (width <= 0 || height <= 0) return;
+
+  const areaX = PADDING;
+  const areaW = Math.max(1, width - PADDING * 2);
+  const areaH = Math.max(1, height - areaY - PADDING);
+
   const scale = Math.min(1, areaW / layout.width, areaH / layout.height);
   const offsetX = areaX + (areaW - layout.width * scale) / 2;
   // Top-align under the title/legend (a block reads top-down); only center
