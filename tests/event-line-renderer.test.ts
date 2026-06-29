@@ -238,6 +238,53 @@ no-scale
     ).not.toBeNull();
   });
 
+  it('spreads a crowded event past a tall collapsed-era card into open space', () => {
+    // Era E (collapsed, tall) then a near event that would stack behind it, plus
+    // a far event giving horizontal slack. `side above` forces a same-side
+    // collision so the spread pass must kick in.
+    const parsed = parseEventLine(
+      `event-line T
+no-box
+side above
+
+[E] collapsed: true
+  2020-01-01 a
+    detail one
+  2020-02-01 b
+    detail two
+
+2020-03-01 Near
+  body
+
+2022-06-01 Far
+  body`,
+      nordLight
+    );
+    const container = mount(1200, 600);
+    renderEventLine(container, parsed, nordLight, false);
+    const svg = container.querySelector('svg')!;
+    // The collapsed-era summary card's right edge.
+    const eraCard = [...svg.querySelectorAll('g.dgmo-event-card')].find(
+      (g) => g.getAttribute('data-era-collapsed') === 'true'
+    )!;
+    const m = /translate\(([-\d.]+),/.exec(
+      eraCard.getAttribute('transform') ?? ''
+    )!;
+    const eraLeft = Number(m[1]);
+    const CARD_W = 210;
+    const eraCenter = eraLeft + CARD_W / 2;
+    const eraRight = eraLeft + CARD_W;
+    // The first event dot to the right of the era center must clear the era
+    // card's right edge — i.e. it was nudged into the open space, not left to
+    // stack behind the tall card.
+    const dotXs = [...svg.querySelectorAll('circle.dgmo-event-dot')]
+      .map((c) => Number(c.getAttribute('cx')))
+      .filter((x) => x > eraCenter + 1)
+      .sort((a, b) => a - b);
+    expect(dotXs.length).toBeGreaterThan(0);
+    expect(dotXs[0]!).toBeGreaterThanOrEqual(eraRight - 1);
+  });
+
   it('places era brackets opposite the cards under `side below`', () => {
     const parsed = parseEventLine(
       `event-line X
