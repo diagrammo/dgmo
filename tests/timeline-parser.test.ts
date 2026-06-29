@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { parseVisualization } from '../src/d3';
 import { getPalette } from '../src/palettes';
+import { parseTimelineDate, addDurationToDate } from '../src/timeline/parser';
+import { formatDateLabel } from '../src/timeline/renderer';
 
 const palette = getPalette('nord').light;
 
@@ -295,6 +297,103 @@ tag Team as t
       expect(evts).toHaveLength(1);
       expect(evts[0].date).toBe('1718');
       expect(evts[0].label).toBe('3rd Crusade');
+    });
+  });
+
+  describe('BCE / pre-year-1 dates (§15)', () => {
+    it('parses `753 BCE` to a signed-year date', () => {
+      const evts = events('timeline\n753 BCE Rome founded');
+      expect(evts).toHaveLength(1);
+      expect(evts[0].date).toBe('-753');
+      expect(evts[0].label).toBe('Rome founded');
+    });
+
+    it('accepts the `BC` short marker', () => {
+      const evts = events('timeline\n44 BC Caesar assassinated');
+      expect(evts[0].date).toBe('-44');
+      expect(evts[0].label).toBe('Caesar assassinated');
+    });
+
+    it('treats CE / AD as positive no-ops', () => {
+      expect(events('timeline\n14 CE Augustus dies')[0].date).toBe('14');
+      expect(events('timeline\n800 AD Charlemagne crowned')[0].date).toBe(
+        '800'
+      );
+    });
+
+    it('parses a BCE→CE range', () => {
+      const evts = events('timeline\n27 BCE -> 14 CE Reign of Augustus');
+      expect(evts[0].date).toBe('-27');
+      expect(evts[0].endDate).toBe('14');
+      expect(evts[0].label).toBe('Reign of Augustus');
+    });
+
+    it('parses BCE with month granularity', () => {
+      const evts = events('timeline\n44-03 BCE Ides of March');
+      expect(evts[0].date).toBe('-44-03');
+    });
+
+    it('does not treat a stray short number as a year', () => {
+      const evts = events('timeline\n2020 5 alarm fire');
+      expect(evts[0].date).toBe('2020');
+      expect(evts[0].label).toBe('5 alarm fire');
+    });
+
+    it('does not false-match a word starting with BC/CE', () => {
+      const evts = events('timeline\n2020 BCElectronics launch');
+      expect(evts[0].date).toBe('2020');
+      expect(evts[0].label).toBe('BCElectronics launch');
+    });
+  });
+
+  describe('seconds (HH:MM:SS) (§15)', () => {
+    it('parses a timestamp with seconds', () => {
+      const evts = events('timeline\n2024-01-15 14:30:45 Launch');
+      expect(evts[0].date).toBe('2024-01-15 14:30:45');
+      expect(evts[0].label).toBe('Launch');
+    });
+
+    it('warns on out-of-range seconds', () => {
+      const w = warnings('timeline\n2024-01-15 14:30:75 Bad');
+      expect(w.some((d) => /Invalid time/.test(d.message))).toBe(true);
+    });
+
+    it('supports a seconds duration unit', () => {
+      const evts = events('timeline\n2024-01-15 10:00:00 Boot duration: 45s');
+      expect(evts[0].endDate).toBe('2024-01-15 10:00:45');
+    });
+  });
+
+  describe('date primitives', () => {
+    it('orders BCE dates left of CE on the numeric scale', () => {
+      const jan753 = parseTimelineDate('-753');
+      const dec753 = parseTimelineDate('-753-12');
+      const jan752 = parseTimelineDate('-752');
+      const ce14 = parseTimelineDate('14');
+      expect(jan753).toBeLessThan(dec753);
+      expect(dec753).toBeLessThan(jan752);
+      expect(jan752).toBeLessThan(ce14);
+    });
+
+    it('parseTimelineDate folds seconds into the fraction', () => {
+      expect(parseTimelineDate('2024-01-01 00:00:30')).toBeGreaterThan(
+        parseTimelineDate('2024-01-01 00:00:00')
+      );
+    });
+
+    it('formatDateLabel renders BCE and seconds', () => {
+      expect(formatDateLabel('-753')).toBe('753 BCE');
+      expect(formatDateLabel('-0044-03')).toBe('Mar 44 BCE');
+      expect(formatDateLabel('2024-06-15 14:30:45')).toBe(
+        'Jun 15, 2024 14:30:45'
+      );
+    });
+
+    it('addDurationToDate handles seconds and BCE arithmetic', () => {
+      expect(addDurationToDate('2024-01-15 10:00:00', 90, 's')).toBe(
+        '2024-01-15 10:01:30'
+      );
+      expect(addDurationToDate('-753', 50, 'y')).toBe('-703');
     });
   });
 

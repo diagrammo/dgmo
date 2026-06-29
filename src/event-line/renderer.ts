@@ -43,6 +43,7 @@ import {
 } from '../utils/wrapped-desc';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { computeTimeTicks } from '../utils/time-ticks';
+import { formatDateLabel } from '../timeline/renderer';
 import type { LegendGroupData } from '../utils/legend-types';
 import {
   resolveActiveTagGroup,
@@ -367,7 +368,7 @@ export function renderEventLine(
       (m) => !eventTagHidden(m.metadata, hiddenSet)
     );
     const memberStrs = visibleMembers.map(
-      (m) => `• ${m.date ? `${m.date}  ` : ''}${m.label}`
+      (m) => `• ${m.date ? `${formatDateLabel(m.date)}  ` : ''}${m.label}`
     );
     const bulletColors = visibleMembers.map(eventColor);
     const lines = wrapDescription(memberStrs, charsPerLine);
@@ -622,7 +623,10 @@ export function renderEventLine(
         ? spineY - (contentAbove + 14)
         : spineY + (contentBelow + 14);
     const contentH = spineY + belowExt + BOT_PAD;
-    const totalH = Math.max(heightHint, contentH);
+    // Live preview fills the panel (heightHint floor) so the diagram doesn't
+    // float in a short panel; export crops tight to content so the rasterized
+    // PNG/SVG has no dead whitespace below the cards (mirrors raci's renderer).
+    const totalH = exportMode ? contentH : Math.max(heightHint, contentH);
     return { contentW, contentH, totalH, spineY, eraBaseY, laneNear };
   };
 
@@ -818,7 +822,8 @@ export function renderEventLine(
     // The date rides as a muted subtitle adjacent to the title, on the side AWAY
     // from the spine (so it reads title → date going outward). Collapsed-era cards
     // carry no date (their members list their own dates).
-    const dateStr = p.kind === 'event' ? p.date : null;
+    const dateStr =
+      p.kind === 'event' && p.date ? formatDateLabel(p.date) : null;
     const dateH = dateStr ? DATE_SUBTITLE_H : 0;
 
     if (parsed.options.noBox) {

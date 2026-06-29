@@ -341,14 +341,26 @@ function renderMarkers(
 // ============================================================
 
 /**
- * Converts a DSL date string (YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DD HH:MM) to a human-readable label.
- *   '1718'              → '1718'
- *   '1718-05'           → 'May 1718'
- *   '1718-05-22'        → 'May 22, 1718'
- *   '2024-06-15 14:30'  → 'Jun 15, 2024 14:30'
+ * Converts a DSL date string to a human-readable label.
+ *   '1718'                 → '1718'
+ *   '1718-05'              → 'May 1718'
+ *   '1718-05-22'           → 'May 22, 1718'
+ *   '2024-06-15 14:30'     → 'Jun 15, 2024 14:30'
+ *   '2024-06-15 14:30:45'  → 'Jun 15, 2024 14:30:45'
+ *   '-753'                 → '753 BCE'  (BCE years stored signed)
+ *   '-0044-03'             → 'Mar 44 BCE'
  */
 export function formatDateLabel(dateStr: string): string {
-  // Split off optional time component
+  // A leading '-' marks a BCE year (internal signed form); strip it, format the
+  // positive date, then re-attach the era marker.
+  let bce = false;
+  if (dateStr.startsWith('-')) {
+    bce = true;
+    dateStr = dateStr.slice(1);
+  }
+  const era = bce ? ' BCE' : '';
+
+  // Split off optional time component (HH:MM or HH:MM:SS — passed through as-is).
   const spaceIdx = dateStr.indexOf(' ');
   let datePart = dateStr;
   let timeSuffix = '';
@@ -359,15 +371,15 @@ export function formatDateLabel(dateStr: string): string {
   }
 
   const parts = datePart.split('-');
-  // split returns at least one element.
-  const year = parts[0]!;
-  if (parts.length === 1) return year + timeSuffix;
+  // split returns at least one element; strip any zero-padding on the year.
+  const year = String(parseInt(parts[0]!, 10));
+  if (parts.length === 1) return `${year}${timeSuffix}${era}`;
   // In-bounds by length check above.
   const month = MONTH_ABBR[parseInt(parts[1]!, 10) - 1];
-  if (parts.length === 2) return `${month} ${year}${timeSuffix}`;
+  if (parts.length === 2) return `${month} ${year}${timeSuffix}${era}`;
   // In-bounds by length check above.
   const day = parseInt(parts[2]!, 10);
-  return `${month} ${day}, ${year}${timeSuffix}`;
+  return `${month} ${day}, ${year}${timeSuffix}${era}`;
 }
 
 /**
