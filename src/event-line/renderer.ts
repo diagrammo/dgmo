@@ -157,6 +157,11 @@ interface Placed {
   label: string;
   date: string | null;
   dateValue: number | null;
+  /** True for a `TBD` future event — drawn with a hollow dot + dashed leader. */
+  future: boolean;
+  /** Bracketed-TBD gap `[lo, hi]` (dateValue units) for the "somewhere in here"
+   *  whisker; null for a trailing TBD (dashed spine tail) or any real event. */
+  futureSpan: readonly [number, number] | null;
   lineNumber: number;
   /** Name of the enclosing era (for bracket runs), or null. */
   eraName: string | null;
@@ -307,6 +312,8 @@ export function renderEventLine(
         label: event.label,
         date: event.date,
         dateValue: event.dateValue,
+        future: event.future,
+        futureSpan: event.futureSpan,
         lineNumber: event.lineNumber,
         eraName: event.era,
         color: solid,
@@ -368,7 +375,8 @@ export function renderEventLine(
       (m) => !eventTagHidden(m.metadata, hiddenSet)
     );
     const memberStrs = visibleMembers.map(
-      (m) => `• ${m.date ? `${formatDateLabel(m.date)}  ` : ''}${m.label}`
+      (m) =>
+        `• ${m.date ? `${m.future ? 'TBD' : formatDateLabel(m.date)}  ` : ''}${m.label}`
     );
     const bulletColors = visibleMembers.map(eventColor);
     const lines = wrapDescription(memberStrs, charsPerLine);
@@ -380,6 +388,8 @@ export function renderEventLine(
       label: era.name,
       date: null,
       dateValue: repDateValue,
+      future: false,
+      futureSpan: null,
       lineNumber: era.lineNumber,
       eraName: era.name,
       color: solid,
@@ -744,15 +754,78 @@ export function renderEventLine(
   // Extend to cover collapsed-era brackets, which reach p.x ± spanHalf.
   const x0 = Math.min(...placed.map((p) => p.x - p.spanHalf));
   const x1 = Math.max(...placed.map((p) => p.x + p.spanHalf));
+  const spineLeft = x0 - 20;
+  const spineRight = x1 + 20;
+  // A trailing TBD (open horizon) turns the spine DASHED past the last real
+  // event — the timeline literally trails off into the unscheduled future.
+  const hasTrailingFuture =
+    scaled && placed.some((p) => p.future && !p.futureSpan);
+  const realRightX = placed.length
+    ? Math.max(
+        spineLeft,
+        ...placed.filter((p) => !p.future).map((p) => p.x + p.spanHalf)
+      )
+    : spineRight;
+  const solidRight = hasTrailingFuture ? realRightX : spineRight;
   svg
     .append('line')
-    .attr('x1', x0 - 20)
+    .attr('x1', spineLeft)
     .attr('y1', spineY)
-    .attr('x2', x1 + 20)
+    .attr('x2', solidRight)
     .attr('y2', spineY)
     .attr('stroke', palette.text)
     .attr('stroke-width', 2.5)
     .attr('stroke-linecap', 'round');
+  if (hasTrailingFuture) {
+    svg
+      .append('line')
+      .attr('x1', solidRight)
+      .attr('y1', spineY)
+      .attr('x2', spineRight)
+      .attr('y2', spineY)
+      .attr('stroke', palette.text)
+      .attr('stroke-width', 2.5)
+      .attr('stroke-linecap', 'round')
+      .attr('stroke-opacity', 0.45)
+      .attr('stroke-dasharray', '2 6');
+  }
+
+  // ── TBD whiskers ──
+  // A bracketed TBD plots at an INFERRED point inside a known gap; a faint
+  // capped bar spanning its dated neighbors says "somewhere in here, exact date
+  // unknown." Drawn once per gap (deduped) and beneath the dots, which land on
+  // top. End caps are short verticals; the bar sits on the spine.
+  const whiskerSeen = new Set<string>();
+  for (const p of placed) {
+    if (!p.future || !p.futureSpan) continue;
+    const lefts = placed.filter((q) => !q.future && q.x < p.x);
+    const rights = placed.filter((q) => !q.future && q.x > p.x);
+    const lx = lefts.length ? Math.max(...lefts.map((q) => q.x)) : p.x;
+    const rx = rights.length ? Math.min(...rights.map((q) => q.x)) : p.x;
+    const key = `${Math.round(lx)}-${Math.round(rx)}`;
+    if (whiskerSeen.has(key) || rx - lx < 2) continue;
+    whiskerSeen.add(key);
+    const w = svg.append('g').attr('class', 'dgmo-event-whisker');
+    w.append('line')
+      .attr('x1', lx)
+      .attr('y1', spineY)
+      .attr('x2', rx)
+      .attr('y2', spineY)
+      .attr('stroke', p.color)
+      .attr('stroke-width', 2)
+      .attr('stroke-opacity', 0.4)
+      .attr('stroke-dasharray', '2 3');
+    for (const cx of [lx, rx]) {
+      w.append('line')
+        .attr('x1', cx)
+        .attr('y1', spineY - 4)
+        .attr('x2', cx)
+        .attr('y2', spineY + 4)
+        .attr('stroke', p.color)
+        .attr('stroke-width', 2)
+        .attr('stroke-opacity', 0.4);
+    }
+  }
 
   // ── Leaders + cards ──
   // Box geometry up front so leaders can test box crossings and so leaders draw
@@ -796,6 +869,8 @@ export function renderEventLine(
       .attr('stroke', p.color)
       .attr('stroke-width', 1.5)
       .attr('stroke-opacity', leaderCrossesBox(p, near) ? 0.18 : 0.65);
+    // A future (TBD) event's leader is dashed — it hasn't landed on a real date.
+    if (p.future) leader.attr('stroke-dasharray', '3 3');
     applyHoverHooks(leader, p);
   }
 
@@ -823,7 +898,11 @@ export function renderEventLine(
     // from the spine (so it reads title → date going outward). Collapsed-era cards
     // carry no date (their members list their own dates).
     const dateStr =
-      p.kind === 'event' && p.date ? formatDateLabel(p.date) : null;
+      p.kind === 'event' && p.date
+        ? p.future
+          ? 'TBD'
+          : formatDateLabel(p.date)
+        : null;
     const dateH = dateStr ? DATE_SUBTITLE_H : 0;
 
     if (parsed.options.noBox) {
@@ -859,14 +938,30 @@ export function renderEventLine(
         .attr('height', shelfH)
         .attr('clip-path', `url(#${clipId})`)
         .attr('fill', mix(p.color, themeBaseBg(palette, isDark), SHELF_TINT));
-      cardG
-        .append('rect')
-        .attr('x', 0)
-        .attr('y', titleNearTop ? shelfTop : shelfTop + shelfH - SHELF_EDGE)
-        .attr('width', CARD_W)
-        .attr('height', SHELF_EDGE)
-        .attr('clip-path', `url(#${clipId})`)
-        .attr('fill', p.color);
+      const edgeY = titleNearTop ? shelfTop : shelfTop + shelfH - SHELF_EDGE;
+      if (p.future) {
+        // Tentative slide: the colored leader-landing edge goes DASHED, matching
+        // the dashed leader + hollow dot so the TBD reads the same in no-box.
+        cardG
+          .append('line')
+          .attr('x1', SHELF_EDGE)
+          .attr('y1', edgeY + SHELF_EDGE / 2)
+          .attr('x2', CARD_W - SHELF_EDGE)
+          .attr('y2', edgeY + SHELF_EDGE / 2)
+          .attr('stroke', p.color)
+          .attr('stroke-width', SHELF_EDGE)
+          .attr('stroke-linecap', 'round')
+          .attr('stroke-dasharray', '1 4');
+      } else {
+        cardG
+          .append('rect')
+          .attr('x', 0)
+          .attr('y', edgeY)
+          .attr('width', CARD_W)
+          .attr('height', SHELF_EDGE)
+          .attr('clip-path', `url(#${clipId})`)
+          .attr('fill', p.color);
+      }
       cardG
         .append('text')
         .attr('x', CARD_PAD)
@@ -1084,14 +1179,16 @@ export function renderEventLine(
       }
       continue;
     }
+    // Future (TBD) events read as HOLLOW dots — the color rings an empty center,
+    // signalling "not yet happened" against the solid dots of real events.
     const dot = svg
       .append('circle')
       .attr('class', 'dgmo-event-dot')
       .attr('cx', p.x)
       .attr('cy', spineY)
       .attr('r', DOT_R)
-      .attr('fill', p.color)
-      .attr('stroke', palette.bg)
+      .attr('fill', p.future ? palette.bg : p.color)
+      .attr('stroke', p.future ? p.color : palette.bg)
       .attr('stroke-width', 2)
       .attr('data-line-number', p.lineNumber);
     applyHoverHooks(dot, p);

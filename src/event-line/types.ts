@@ -12,6 +12,15 @@ export interface EventLineEvent {
   readonly date: string | null;
   /** Numeric date value (timeline scale) for to-scale positioning, or null. */
   readonly dateValue: number | null;
+  /** True when the date was written as `TBD` — a not-yet-scheduled FUTURE event.
+   *  Its `date` caption is `'TBD'`; `dateValue` is inferred from source-order
+   *  dated neighbors so the to-scale axis still positions it (see `futureSpan`). */
+  readonly future: boolean;
+  /** For a `future` event, the dateValue gap it is tentatively placed WITHIN
+   *  (`[lo, hi]`) — drawn as a "somewhere in here" whisker/bracket. `null` for a
+   *  trailing TBD (no dated event after it): the open horizon, drawn as a dashed
+   *  spine tail instead. Always null for non-future events. */
+  readonly futureSpan: readonly [number, number] | null;
   /** Tag/metadata — keys are `tagAttrKey(group)` (e.g. `{ genre: 'Pop' }`). */
   readonly metadata: Readonly<Record<string, string>>;
   /** Bare-body description lines (markdown-light; `- ` normalized to `• `). */

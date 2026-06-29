@@ -61,6 +61,8 @@ export const EVENT_LINE_DIAGNOSTIC_CODES = {
 
 /** A non-ISO date attempt: leading digits with a slash or dot separator. */
 const NON_ISO_DATE_RE = /^\d{1,4}[/.]\d/;
+/** `TBD` date line-prefix (case-insensitive) — a future, unscheduled event. */
+const TBD_RE = /^TBD\b/i;
 /** `side above` / `side below` / `side alternate` — card placement. */
 const SIDE_RE = /^side\s+(above|below|alternate)\b/i;
 /** Era run delimiter `[Name]` (§28.6a) with optional trailing `collapsed`/color. */
@@ -326,6 +328,8 @@ export function parseEventLine(
 
   options.noTitle = sharedOptions['no-title'] === 'on';
 
+  resolveFutureEvents(result.events as Writable<EventLineEvent>[]);
+
   // Finalize tag colors + validate (flat topology → no cascade).
   finalizeAutoTagColors(result.tagGroups as Writable<TagGroup>[], palette);
   if (result.tagGroups.length > 0) {
@@ -367,6 +371,83 @@ export function parseEventLine(
 }
 
 /**
+ * Infer a position for every FUTURE (`TBD`) event from its source-order DATED
+ * neighbors, so the to-scale axis can place it even though it has no authored
+ * date. A TBD between two dated events is INTERPOLATED into that gap (a tentative
+ * "somewhere in here" point, with `futureSpan` carrying the gap for the whisker
+ * cue); a TBD after the last dated event is parked just past it (the open
+ * horizon, `futureSpan = null` → dashed spine tail); a TBD before the first
+ * dated event lands in a lead-in pad. Multiple TBDs sharing one gap fan evenly
+ * across it in source order. With no dated events at all, TBDs keep `dateValue`
+ * null and ride along under even spacing.
+ */
+function resolveFutureEvents(events: Writable<EventLineEvent>[]): void {
+  const realVals = events
+    .filter((e) => !e.future && e.dateValue !== null)
+    .map((e) => e.dateValue!);
+  if (realVals.length === 0) return;
+
+  const hiAll = Math.max(...realVals);
+  const loAll = Math.min(...realVals);
+  const pad = hiAll > loAll ? (hiAll - loAll) * 0.15 : 1;
+
+  // Nearest dated value before / after each event, in source order.
+  const prevReal: (number | null)[] = [];
+  let carry: number | null = null;
+  for (const e of events) {
+    prevReal.push(carry);
+    if (!e.future && e.dateValue !== null) carry = e.dateValue;
+  }
+  const nextReal: (number | null)[] = new Array(events.length).fill(null);
+  carry = null;
+  for (let i = events.length - 1; i >= 0; i--) {
+    nextReal[i] = carry;
+    const e = events[i]!;
+    if (!e.future && e.dateValue !== null) carry = e.dateValue;
+  }
+
+  // Group consecutive futures sharing the same (prev, next) bounds; fan evenly.
+  let i = 0;
+  while (i < events.length) {
+    if (!events[i]!.future) {
+      i++;
+      continue;
+    }
+    const lo = prevReal[i]!;
+    const hi = nextReal[i]!;
+    let j = i;
+    while (
+      j < events.length &&
+      events[j]!.future &&
+      prevReal[j] === lo &&
+      nextReal[j] === hi
+    )
+      j++;
+    const group = events.slice(i, j);
+    const g = group.length;
+    if (lo !== null && hi !== null) {
+      group.forEach((e, k) => {
+        e.dateValue = lo + ((hi - lo) * (k + 1)) / (g + 1);
+        e.futureSpan = [lo, hi];
+      });
+    } else if (lo === null && hi !== null) {
+      const left = hi - pad;
+      group.forEach((e, k) => {
+        e.dateValue = left + ((hi - left) * (k + 1)) / (g + 1);
+        e.futureSpan = [left, hi];
+      });
+    } else {
+      // Trailing: park past the last dated event — the open horizon.
+      group.forEach((e, k) => {
+        e.dateValue = hiAll + pad + k * (pad * 0.4);
+        e.futureSpan = null;
+      });
+    }
+    i = j;
+  }
+}
+
+/**
  * Warn when dated events are listed out of chronological order — a later-listed
  * event dated before the dated event just above it. event-line reads
  * left-to-right by date, so a descending pair is almost always an authoring
@@ -379,7 +460,9 @@ function validateEventDateOrder(
 ): void {
   let prev: EventLineEvent | null = null;
   for (const ev of events) {
-    if (ev.dateValue === null) continue;
+    // Future (TBD) events carry an inferred dateValue, not an authored one —
+    // never flag them (or use them as the reference) for chronological order.
+    if (ev.future || ev.dateValue === null) continue;
     if (
       prev &&
       ev.dateValue < prev.dateValue! &&
@@ -408,7 +491,8 @@ function validateEraDateOrder(
   if (eras.length < 2) return;
   const order = new Map(eras.map((e, i) => [e.name, i]));
   const dated = events.filter(
-    (e) => e.dateValue !== null && e.era !== null && order.has(e.era)
+    (e) =>
+      !e.future && e.dateValue !== null && e.era !== null && order.has(e.era)
   );
   if (dated.length === 0) return;
 
@@ -481,9 +565,19 @@ function parseEventHeader(
   // Peel an optional ISO date line-prefix (timeline §15 idiom).
   let date: string | null = null;
   let dateValue: number | null = null;
+  let future = false;
   let remainder = trimmed;
 
-  const prefix = extractDatePrefix(trimmed);
+  // `TBD` line-prefix = a FUTURE, not-yet-scheduled event. Captioned verbatim;
+  // its numeric position is resolved after parsing (just past the latest event).
+  const tbdMatch = trimmed.match(TBD_RE);
+  if (tbdMatch) {
+    date = 'TBD';
+    future = true;
+    remainder = trimmed.slice(tbdMatch[0].length).trimStart();
+  }
+
+  const prefix = future ? null : extractDatePrefix(trimmed);
   if (prefix) {
     date = prefix.startDate;
     dateValue = parseTimelineDate(prefix.startDate);
@@ -495,7 +589,7 @@ function parseEventHeader(
         EVENT_LINE_DIAGNOSTIC_CODES.UNSUPPORTED
       );
     }
-  } else if (NON_ISO_DATE_RE.test(trimmed)) {
+  } else if (!future && NON_ISO_DATE_RE.test(trimmed)) {
     const firstToken = trimmed.split(/\s+/)[0]!;
     pushWarning(
       lineNumber,
@@ -531,6 +625,8 @@ function parseEventHeader(
     lineNumber,
     date,
     dateValue,
+    future,
+    futureSpan: null,
     metadata,
     description: [],
     era,
