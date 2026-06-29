@@ -400,17 +400,9 @@ export function renderSitemap(
         .attr('y', c.height - sCollapseBarHeight)
         .attr('width', c.width)
         .attr('height', sCollapseBarHeight)
-        .attr('fill', c.color ?? palette.primary)
-        .attr('opacity', 0.5)
-        .attr('clip-path', `url(#${clipId})`);
-
-      cG.append('text')
-        .attr('x', c.width / 2)
-        .attr('y', c.height - sCollapseBarHeight - 6)
-        .attr('text-anchor', 'middle')
-        .attr('fill', palette.textMuted)
-        .attr('font-size', sMetaFontSize)
-        .text(`+${c.hiddenCount}`);
+        .attr('fill', stroke)
+        .attr('clip-path', `url(#${clipId})`)
+        .attr('class', 'sitemap-collapse-bar');
     }
   }
 

@@ -311,8 +311,9 @@ function drawItems(
         .attr('y', it.y + it.h - BLOCK_BAR_H)
         .attr('width', it.w)
         .attr('height', BLOCK_BAR_H)
-        .attr('fill', color ?? ctx.neutral)
-        .attr('fill-opacity', 0.5)
+        // §3 convention: solid bar = card stroke; in solid-fill mode the stroke
+        // equals the fill, so fall back to the label color to keep the bar visible.
+        .attr('fill', solid && color ? palette.text : stroke)
         .attr('clip-path', `url(#${cid})`);
       bindToggle(cell, it, ctx, it.h);
       continue;
