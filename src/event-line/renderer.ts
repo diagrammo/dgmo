@@ -6,13 +6,12 @@
 // (or even index under no-scale), a vertical leader line, and an org-style card
 // (utils/card.ts `renderNodeCard` chrome + a hand-drawn divider and a
 // pyramid/ring prose body). The event's date rides INSIDE its card as a muted
-// subtitle, so it travels with the event instead of sitting on the axis; a faint
-// year/period tick ruler on the spine restores global orientation. Cards
-// auto-alternate above/below and pack into stacked lanes on collision. The tag
-// legend uses the shared `renderIntegratedLegend`.
+// subtitle, so it travels with the event instead of sitting on the axis. The
+// spine carries no date tick ruler. Cards auto-alternate above/below and pack
+// into stacked lanes on collision. The tag legend uses the shared
+// `renderIntegratedLegend`.
 
 import * as d3Selection from 'd3-selection';
-import * as d3Scale from 'd3-scale';
 import { FONT_FAMILY } from '../fonts';
 import {
   TITLE_FONT_SIZE,
@@ -42,7 +41,6 @@ import {
   type WrappedDescLine,
 } from '../utils/wrapped-desc';
 import { renderIntegratedLegend } from '../utils/legend-integration';
-import { computeTimeTicks } from '../utils/time-ticks';
 import { formatDateLabel } from '../timeline/renderer';
 import type { LegendGroupData } from '../utils/legend-types';
 import {
@@ -88,12 +86,6 @@ const SHELF_TINT = 13; // % of the tag color mixed over the theme base
 // as part of the rounded rect — a thinner lip therefore also means slightly
 // tighter shelf corners, which keeps the carry-through clean.
 const SHELF_EDGE = 4;
-// Faint year/period ruler on the spine (replaces the old per-event date band):
-// short tick marks + sparse labels restore global orientation now that the exact
-// dates live in the cards. Only drawn when the axis is to-scale.
-const TICK_LABEL_FONT = 9.5;
-const TICK_BAND = 20; // depth reserved below the spine for tick labels
-const TICK_MIN_GAP = 38; // drop ticks closer than this (px) so labels never overlap
 // Era `]` bracket band: depth reserved on the side opposite the cards.
 const ERA_BLOCK = 30;
 const ERA_BRACKET_CAP = 8;
@@ -615,11 +607,10 @@ export function renderEventLine(
           .filter((p) => p.side === side)
           .map((p) => laneNear(p) + p.cardH)
       );
-    // Dates now ride inside the cards; the only spine furniture is the faint
-    // year/period ruler, whose labels hang just below the spine — reserve a thin
-    // band there so a one-sided `side above` doesn't clip them off the canvas.
+    // Dates ride inside the cards; the spine carries no tick ruler, so no extra
+    // band is reserved below it.
     const contentAbove = ext('above');
-    const contentBelow = Math.max(ext('below'), scaled ? TICK_BAND : 0);
+    const contentBelow = ext('below');
     // The era `]` bracket band lives beyond the content opposite the cards.
     const aboveExt =
       contentAbove + (hasExpandedEra && eraSide === 'above' ? ERA_BLOCK : 0);
@@ -1010,70 +1001,9 @@ export function renderEventLine(
     }
   }
 
-  // ── Year/period ruler ──
-  // Dates now ride inside the cards, so the spine carries only a faint tick ruler
-  // for global orientation. Ticks are computed PER to-scale run (a collapsed-era
-  // capsule breaks the axis, so a year line is never interpolated across one),
-  // then de-cluttered so labels never overlap. Skipped entirely under no-scale.
-  if (scaled) {
-    type Tick = { pos: number; label: string };
-    const allTicks: Tick[] = [];
-    for (const seg of segments) {
-      if (seg.kind !== 'run' || seg.events.length < 2) continue;
-      const evs = [...seg.events].sort((a, b) => a.dateValue! - b.dateValue!);
-      const v0 = evs[0]!.dateValue!;
-      const v1 = evs[evs.length - 1]!.dateValue!;
-      const px0 = evs[0]!.x;
-      const px1 = evs[evs.length - 1]!.x;
-      // Derive the run's date→x map straight from its dots (robust to the
-      // MIN_DOT_GAP nudging that the original linear scale doesn't capture).
-      if (v1 <= v0 || px1 <= px0) continue;
-      const scale = d3Scale.scaleLinear().domain([v0, v1]).range([px0, px1]);
-      for (const t of computeTimeTicks(v0, v1, scale)) {
-        if (t.pos >= px0 - 0.5 && t.pos <= px1 + 0.5) allTicks.push(t);
-      }
-    }
-    allTicks.sort((a, b) => a.pos - b.pos);
-    const kept: Tick[] = [];
-    let lastPos = -Infinity;
-    for (const t of allTicks) {
-      if (t.pos - lastPos < TICK_MIN_GAP) continue;
-      kept.push(t);
-      lastPos = t.pos;
-    }
-    const tickColor = mix(palette.text, palette.bg, 45);
-    const labelY = spineY + TICK_BAND - 6;
-    for (const t of kept) {
-      svg
-        .append('line')
-        .attr('x1', t.pos)
-        .attr('y1', spineY - 4)
-        .attr('x2', t.pos)
-        .attr('y2', spineY + 4)
-        .attr('stroke', palette.text)
-        .attr('stroke-width', 1)
-        .attr('stroke-opacity', 0.3);
-      const hw = (t.label.length * TICK_LABEL_FONT * CHAR_WIDTH_RATIO) / 2 + 3;
-      svg
-        .append('rect')
-        .attr('x', t.pos - hw)
-        .attr('y', labelY - TICK_LABEL_FONT)
-        .attr('width', hw * 2)
-        .attr('height', TICK_LABEL_FONT + 4)
-        .attr('fill', palette.bg)
-        .attr('opacity', 0.9);
-      svg
-        .append('text')
-        .attr('x', t.pos)
-        .attr('y', labelY)
-        .attr('text-anchor', 'middle')
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', TICK_LABEL_FONT)
-        .attr('font-weight', 600)
-        .attr('fill', tickColor)
-        .text(t.label);
-    }
-  }
+  // No date ruler: dates ride inside the cards, and the spine carries no
+  // year/period tick markers (removed by request — the timeline shows order,
+  // not a measured date axis).
 
   // ── Dots (events) + span brackets (collapsed eras) on the spine ──
   for (const p of placed) {
