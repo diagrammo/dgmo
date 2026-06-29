@@ -18,7 +18,7 @@ export const BLOCK_PAD = 10;
 export const BLOCK_LEAF_H = 46;
 export const BLOCK_HEADER_H = 28;
 export const BLOCK_COLLAPSED_H = 46;
-export const BLOCK_BAR_H = 7;
+export const BLOCK_BAR_H = 6; // collapse accent bar — COLLAPSE_BAR_HEIGHT convention
 const MIN_COL = 104;
 const MAX_COL = 250;
 const LABEL_FS = 13;
@@ -66,7 +66,10 @@ function maxSpanSum(g: BlockGrid): number {
 }
 
 function leafW(node: BlockNode): number {
-  return Math.max(MIN_COL, Math.min(MAX_COL, measureText(node.label, LABEL_FS) + 2 * BLOCK_PAD + 14));
+  return Math.max(
+    MIN_COL,
+    Math.min(MAX_COL, measureText(node.label, LABEL_FS) + 2 * BLOCK_PAD + 14)
+  );
 }
 
 function gridColW(g: BlockGrid): number {

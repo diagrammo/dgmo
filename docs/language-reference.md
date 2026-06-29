@@ -1985,10 +1985,18 @@ Events use **date-first syntax** — the date (or date range) leads, then the ev
 2026-03-20 Sprint 1 duration: 30d
 ```
 
-**Datetime** (date with `HH:MM` time component):
+**Datetime** (date with `HH:MM` or `HH:MM:SS` time component):
 
 ```
 2026-03-20 14:30 Standup Meeting
+2024-01-15 10:00:45 Max-Q
+```
+
+**BCE / ancient dates** (suffix `BCE`/`BC`; `CE`/`AD` are positive no-ops):
+
+```
+753 BCE Rome founded
+27 BCE -> 14 CE Reign of Augustus
 ```
 
 **Uncertain ending** (`?` suffix on end date or duration value):
@@ -2003,8 +2011,8 @@ Event type is determined by positional structure:
 - `date -> date` → range event
 - single date + `duration:` → duration event
 
-Date formats: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `YYYY-MM-DD HH:MM`
-Duration units: `min`, `h`, `d`, `w`, `m`, `y`
+Date formats: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD HH:MM:SS`, plus `YYYY BCE`/`BC`/`CE`/`AD`
+Duration units: `s`, `min`, `h`, `d`, `w`, `m`, `y`
 
 ### 14.3 Eras
 
@@ -2425,7 +2433,7 @@ tag Genre as g
   Beyoncé reunites Destiny's Child.
 ```
 
-- **Date** — optional, ISO only (`YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `+HH:MM`), shown verbatim as the dot caption. No `date:` key; no `M/D/YYYY`.
+- **Date** — optional, ISO only (`YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `+HH:MM` / `+HH:MM:SS`, plus `YYYY BCE`/`BC`/`CE`/`AD`), formatted for reading as the card subtitle (`2008-09-02` → `Sep 2, 2008`). No `date:` key; no `M/D/YYYY`.
 - **Tag** — trailing same-line metadata (`g: Pop`), like timeline; colors the dot, leader, and card.
 - **Description** — bare indented body lines (like `pyramid`/`ring`); `- ` makes a bullet; inline markdown (`**bold**`, `*italic*`, `` `code` ``) supported.
 

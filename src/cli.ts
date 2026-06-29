@@ -1,5 +1,11 @@
 /* eslint-disable no-console */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { execSync, spawnSync } from 'node:child_process';
 import { homedir, platform } from 'node:os';
 import { resolve, join, dirname, basename, extname } from 'node:path';
@@ -57,6 +63,26 @@ const readClaudeSkill = (): string =>
 // Codex skill source. Already includes the dgmo-diagramming frontmatter and the
 // gen-ai-core 45-type index.
 const readCodexSkill = (): string => readPackagedFile('SKILL.md');
+
+// Sibling Claude Code slash-command files shipped alongside dgmo.md
+// (dgmo-diagram-this, dgmo-document-project, dgmo-codebase-report, ...). dgmo.md
+// is single-sourced via readClaudeSkill(); these are copied verbatim. Returns
+// the *.md basenames in .claude/commands, dgmo.md excluded.
+const listPackagedCommands = (): string[] => {
+  try {
+    return readdirSync(join(PKG_ROOT, '.claude', 'commands'))
+      .filter((f) => f.endsWith('.md') && f !== 'dgmo.md')
+      .sort();
+  } catch {
+    return [];
+  }
+};
+
+// The /dgmo-codebase-report command, re-skinned as a Codex skill: same body,
+// single-sourced from the Claude command file, with Codex frontmatter prepended
+// so it never drifts from the maintained original.
+const readCodexCodebaseReportSkill = (): string =>
+  `---\nname: dgmo-codebase-report\ndescription: Use when the user wants an architecture or onboarding report for a codebase — a single Markdown document explaining how the system works, with embedded DGMO diagrams (module/dependency map, C4, sequence, ER, infra). Produces committable Markdown with \`\`\`dgmo fences, not images.\n---\n\n${readPackagedFile('.claude', 'commands', 'dgmo-codebase-report.md')}`;
 
 const CODEX_AGENTS_NOTE_MARKER = '<!-- dgmo-integration -->';
 const CODEX_AGENTS_NOTE = `${CODEX_AGENTS_NOTE_MARKER}
@@ -683,6 +709,17 @@ async function installClaudeCode(opts: InstallOpts): Promise<void> {
     readClaudeSkill(),
     'Skill → ~/.claude/commands/dgmo.md'
   );
+  // Sibling slash commands (/dgmo-codebase-report, /dgmo-diagram-this,
+  // /dgmo-document-project). They ship in the package but were previously never
+  // installed — copy them so the commands actually land for the user.
+  for (const name of listPackagedCommands()) {
+    writeOut(
+      opts,
+      join(claudeDir, 'commands', name),
+      readPackagedFile('.claude', 'commands', name),
+      `Command → ~/.claude/commands/${name}`
+    );
+  }
   ensureDgmoMcp(opts);
   if (opts.scope === 'user') {
     upsertJsonMcp(opts, join(claudeDir, 'settings.json'));
@@ -721,6 +758,14 @@ async function installCodex(opts: InstallOpts): Promise<void> {
     join(homedir(), '.codex', 'skills', 'dgmo-diagramming', 'SKILL.md'),
     readCodexSkill(),
     'Skill → ~/.codex/skills/dgmo-diagramming/SKILL.md'
+  );
+
+  // Codebase-report skill (single-sourced from the Claude command file).
+  writeOut(
+    opts,
+    join(homedir(), '.codex', 'skills', 'dgmo-codebase-report', 'SKILL.md'),
+    readCodexCodebaseReportSkill(),
+    'Skill → ~/.codex/skills/dgmo-codebase-report/SKILL.md'
   );
 
   // Non-destructive AGENTS.md note: only append to an existing file, never create.

@@ -81,4 +81,15 @@ describe('scaling baselines — ideal size (pre-renderer-change regression guard
     const svg = await renderForExport(fix('arc.dgmo'), 'light', palette);
     expect(svg).toMatchSnapshot();
   });
+
+  // Export crops tight to content — the root height must equal the content
+  // height, not the 800px export-height floor (which left dead whitespace
+  // below the cards before the fix).
+  it('event-line baseline crops to content height', async () => {
+    const svg = await renderForExport(fix('event-line.dgmo'), 'light', palette);
+    const h = Number(svg.match(/height="([0-9.]+)"/)?.[1] ?? 0);
+    expect(h).toBeGreaterThan(0);
+    expect(h).toBeLessThan(800);
+    expect(svg).toMatchSnapshot();
+  });
 });

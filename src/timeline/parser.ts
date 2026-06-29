@@ -9,23 +9,21 @@ import {
 import type { TimelineEvent } from './types';
 
 // ── Duration units supported by timeline (subset of gantt) ───
-type TimelineDurationUnit = 'd' | 'w' | 'm' | 'y' | 'h' | 'min';
+type TimelineDurationUnit = 'd' | 'w' | 'm' | 'y' | 'h' | 'min' | 's';
 
-const TIMELINE_DURATION_RE = /^(\d+(?:\.\d{1,2})?)(min|[dwmyh])(\?)?$/;
+const TIMELINE_DURATION_RE = /^(\d+(?:\.\d{1,2})?)(min|[dwmyhs])(\?)?$/;
 
 // ── Date prefix regex ────────────────────────────────────────
-// Matches: YYYY, YYYY-MM, YYYY-MM-DD, YYYY-MM-DD HH:MM
+// Matches: YYYY, YYYY-MM, YYYY-MM-DD, YYYY-MM-DD HH:MM(:SS)
 // Optionally followed by -> endDate (with optional ?)
-// Captures:
-//   1: start date
-//   2: optional time (HH:MM) for start — used for validation
-//   3: arrow presence (-> or –>)
-//   4: end date (if range)
-//   5: optional time (HH:MM) for end — used for validation
-//   6: uncertain ? on end date
 const DATE_RE = /^(\d{4}(?:-\d{2}(?:-\d{2})?)?)/;
-const TIME_RE = /^\s+(\d{1,2}:\d{2})/;
+const TIME_RE = /^\s+(\d{1,2}:\d{2}(?::\d{2})?)/;
 const ARROW_RE = /^\s*(?:->|–>)\s*/;
+// Era-marked date (BCE/BC/CE/AD). Allows 1–4 digit years so ancient dates like
+// `753 BCE` / `44 BC` parse; the marker is what disambiguates a short year from
+// a stray number. BCE/BC are stored as a signed-year string (`-753`); CE/AD are
+// no-ops (positive years). Astronomical-naive: `N BCE` ↔ internal year `-N`.
+const ERA_DATE_RE = /^(\d{1,4}(?:-\d{2}(?:-\d{2})?)?)\s+(BCE|BC|CE|AD)\b/i;
 
 interface DatePrefix {
   startDate: string;
@@ -38,11 +36,18 @@ interface DatePrefix {
   invalidEndTime: string | undefined;
 }
 
-function parseTime(timeStr: string): { valid: boolean; h: number; m: number } {
-  const [hStr, mStr] = timeStr.split(':');
+function parseTime(timeStr: string): {
+  valid: boolean;
+  h: number;
+  m: number;
+  s: number;
+} {
+  const [hStr, mStr, sStr] = timeStr.split(':');
   const h = parseInt(hStr!, 10);
   const m = parseInt(mStr!, 10);
-  return { valid: h >= 0 && h <= 23 && m >= 0 && m <= 59, h, m };
+  const s = sStr !== undefined ? parseInt(sStr, 10) : 0;
+  const valid = h >= 0 && h <= 23 && m >= 0 && m <= 59 && s >= 0 && s <= 59;
+  return { valid, h, m, s };
 }
 
 function parseDateWithOptionalTime(input: string): {
@@ -51,6 +56,21 @@ function parseDateWithOptionalTime(input: string): {
   timeValid: boolean;
   invalidTime: string | undefined;
 } | null {
+  // Era-marked dates (`753 BCE`, `44 BC`, `14 CE`) come first — they allow short
+  // years and never carry a time component.
+  const eraMatch = input.match(ERA_DATE_RE);
+  if (eraMatch) {
+    const marker = eraMatch[2]!.toUpperCase();
+    const bce = marker === 'BCE' || marker === 'BC';
+    const date = (bce ? '-' : '') + eraMatch[1]!;
+    return {
+      date,
+      rest: input.slice(eraMatch[0].length),
+      timeValid: true,
+      invalidTime: undefined,
+    };
+  }
+
   const dateMatch = input.match(DATE_RE);
   if (!dateMatch) return null;
 
@@ -63,15 +83,10 @@ function parseDateWithOptionalTime(input: string): {
   if (timeMatch) {
     const timeStr = timeMatch[1]!;
     const { valid } = parseTime(timeStr);
-    if (valid) {
-      date = `${date} ${timeStr}`;
-      rest = rest.slice(timeMatch[0].length);
-    } else {
-      timeValid = false;
-      invalidTime = timeStr;
-      date = `${date} ${timeStr}`;
-      rest = rest.slice(timeMatch[0].length);
-    }
+    timeValid = valid;
+    if (!valid) invalidTime = timeStr;
+    date = `${date} ${timeStr}`;
+    rest = rest.slice(timeMatch[0].length);
   }
 
   return { date, rest, timeValid, invalidTime };
@@ -139,6 +154,67 @@ export function extractDatePrefix(line: string): DatePrefix | null {
   };
 }
 
+// ── Shared date-string decomposition ─────────────────────────
+// Internal date strings are `[-]YYYY[-MM[-DD]][ HH:MM[:SS]]`. A leading `-`
+// marks a BCE year (stored signed). Years may be 1–4 digits (ancient/BCE).
+
+interface DateParts {
+  sign: 1 | -1;
+  year: number; // absolute (unsigned) year value
+  month: number; // 1-based, defaults to 1
+  day: number; // defaults to 1
+  hour: number;
+  minute: number;
+  second: number;
+  /** Number of date components present (1=year, 2=year-month, 3=full). */
+  granularity: 1 | 2 | 3;
+  hasTime: boolean;
+}
+
+function splitDateParts(input: string): DateParts {
+  let s = input;
+  let sign: 1 | -1 = 1;
+  if (s.startsWith('-')) {
+    sign = -1;
+    s = s.slice(1);
+  }
+
+  const spaceIdx = s.indexOf(' ');
+  let datePart = s;
+  let hour = 0;
+  let minute = 0;
+  let second = 0;
+  let hasTime = false;
+
+  if (spaceIdx !== -1) {
+    datePart = s.slice(0, spaceIdx);
+    const tp = s.slice(spaceIdx + 1).split(':');
+    if (tp.length >= 2) {
+      hasTime = true;
+      hour = parseInt(tp[0]!, 10) || 0;
+      minute = parseInt(tp[1]!, 10) || 0;
+      second = tp.length >= 3 ? parseInt(tp[2]!, 10) || 0 : 0;
+    }
+  }
+
+  const parts = datePart.split('-').map((p) => parseInt(p, 10));
+  const granularity = (parts.length >= 3 ? 3 : parts.length === 2 ? 2 : 1) as
+    | 1
+    | 2
+    | 3;
+  return {
+    sign,
+    year: parts[0]!,
+    month: parts.length >= 2 ? parts[1]! : 1,
+    day: parts.length >= 3 ? parts[2]! : 1,
+    hour,
+    minute,
+    second,
+    granularity,
+    hasTime,
+  };
+}
+
 // ── Duration date arithmetic ─────────────────────────────────
 
 export function addDurationToDate(
@@ -146,27 +222,13 @@ export function addDurationToDate(
   amount: number,
   unit: TimelineDurationUnit
 ): string {
-  const spaceIdx = startDate.indexOf(' ');
-  let datePart = startDate;
-  let hour = 0;
-  let minute = 0;
+  const p = splitDateParts(startDate);
+  const signedYear = p.sign * p.year;
 
-  if (spaceIdx !== -1) {
-    datePart = startDate.slice(0, spaceIdx);
-    const timePart = startDate.slice(spaceIdx + 1);
-    const tp = timePart.split(':');
-    if (tp.length === 2) {
-      hour = parseInt(tp[0]!, 10);
-      minute = parseInt(tp[1]!, 10);
-    }
-  }
-
-  const parts = datePart.split('-').map((p) => parseInt(p, 10));
-  const year = parts[0]!;
-  const month = parts.length >= 2 ? parts[1]! : 1;
-  const day = parts.length >= 3 ? parts[2]! : 1;
-
-  const date = new Date(year, month - 1, day, hour, minute);
+  // Build via a safe placeholder year then force the literal year, dodging the
+  // JS `new Date(0..99, …)` → 1900s coercion that bites ancient/BCE years.
+  const date = new Date(2000, p.month - 1, p.day, p.hour, p.minute, p.second);
+  date.setFullYear(signedYear);
 
   switch (unit) {
     case 'd':
@@ -199,48 +261,54 @@ export function addDurationToDate(
     case 'min':
       date.setTime(date.getTime() + amount * 60000);
       break;
+    case 's':
+      date.setTime(date.getTime() + amount * 1000);
+      break;
   }
 
-  const endYear = date.getFullYear();
+  const outYear = date.getFullYear();
+  const neg = outYear < 0 ? '-' : '';
+  const endYear = Math.abs(outYear);
   const endMonth = String(date.getMonth() + 1).padStart(2, '0');
   const endDay = String(date.getDate()).padStart(2, '0');
   const endHour = String(date.getHours()).padStart(2, '0');
   const endMinute = String(date.getMinutes()).padStart(2, '0');
-  const hasTime = unit === 'h' || unit === 'min' || spaceIdx !== -1;
+  const endSecond = String(date.getSeconds()).padStart(2, '0');
+  const hasTime = unit === 'h' || unit === 'min' || unit === 's' || p.hasTime;
+  const showSeconds = unit === 's' || p.second !== 0 || date.getSeconds() !== 0;
 
-  if (parts.length === 1) {
-    return String(endYear);
-  } else if (parts.length === 2) {
-    return `${endYear}-${endMonth}`;
-  } else if (hasTime && (date.getHours() !== 0 || date.getMinutes() !== 0)) {
-    return `${endYear}-${endMonth}-${endDay} ${endHour}:${endMinute}`;
+  if (p.granularity === 1) {
+    return `${neg}${endYear}`;
+  } else if (p.granularity === 2) {
+    return `${neg}${endYear}-${endMonth}`;
+  } else if (
+    hasTime &&
+    (date.getHours() !== 0 ||
+      date.getMinutes() !== 0 ||
+      date.getSeconds() !== 0)
+  ) {
+    const time = showSeconds
+      ? `${endHour}:${endMinute}:${endSecond}`
+      : `${endHour}:${endMinute}`;
+    return `${neg}${endYear}-${endMonth}-${endDay} ${time}`;
   } else {
-    return `${endYear}-${endMonth}-${endDay}`;
+    return `${neg}${endYear}-${endMonth}-${endDay}`;
   }
 }
 
 export function parseTimelineDate(s: string): number {
-  const spaceIdx = s.indexOf(' ');
-  let datePart = s;
-  let hour = 0;
-  let minute = 0;
-
-  if (spaceIdx !== -1) {
-    datePart = s.slice(0, spaceIdx);
-    const timePart = s.slice(spaceIdx + 1);
-    const timeParts = timePart.split(':');
-    if (timeParts.length === 2) {
-      hour = parseInt(timeParts[0]!, 10);
-      minute = parseInt(timeParts[1]!, 10);
-    }
-  }
-
-  const parts = datePart.split('-').map((p) => parseInt(p, 10));
-  const year = parts[0]!;
-  const month = parts.length >= 2 ? parts[1]! : 1;
-  const day = parts.length >= 3 ? parts[2]! : 1;
+  const p = splitDateParts(s);
+  // BCE years count down toward 0, but months/days within a year still advance
+  // forward — so anchor on the signed year and ADD positive sub-year offsets.
+  // (753 BCE Jan = -753.0 < 753 BCE Dec = -752.08 < 752 BCE Jan = -752.0.)
+  const yearBase = p.sign * p.year;
   return (
-    year + (month - 1) / 12 + (day - 1) / 365 + hour / 8760 + minute / 525600
+    yearBase +
+    (p.month - 1) / 12 +
+    (p.day - 1) / 365 +
+    p.hour / 8760 +
+    p.minute / 525600 +
+    p.second / 31536000
   );
 }
 
@@ -343,7 +411,7 @@ export function parseTimelineEventLine(
       diagnostics.push(
         makeDgmoError(
           lineNumber,
-          `Invalid duration '${durStr}'. Expected format like "30d", "2w", "1.5m", "1y".`,
+          `Invalid duration '${durStr}'. Expected format like "30d", "2w", "1.5m", "1y", "2h", "30min", "45s".`,
           'warning'
         )
       );

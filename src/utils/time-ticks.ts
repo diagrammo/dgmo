@@ -22,7 +22,7 @@ export const MONTH_ABBR = [
 function fractionalYearToDate(frac: number): Date {
   const year = Math.floor(frac);
   const remainder = frac - year;
-  // Inverse of: (month-1)/12 + (day-1)/365 + hour/8760 + minute/525600
+  // Inverse of: (month-1)/12 + (day-1)/365 + hour/8760 + minute/525600 + second/31536000
   const monthFrac = remainder * 12;
   const month = Math.floor(monthFrac); // 0-based
   const monthRemainder = remainder - month / 12;
@@ -31,8 +31,10 @@ function fractionalYearToDate(frac: number): Date {
   const dayRemainder = dayFrac - Math.floor(dayFrac);
   const hourFrac = dayRemainder * 24;
   const hour = Math.floor(hourFrac);
-  const minute = Math.round((hourFrac - hour) * 60);
-  return new Date(year, month, day, hour, minute);
+  const minuteFrac = (hourFrac - hour) * 60;
+  const minute = Math.floor(minuteFrac);
+  const second = Math.round((minuteFrac - minute) * 60);
+  return new Date(year, month, day, hour, minute, second);
 }
 
 /** Convert a Date to a fractional year number. */
@@ -42,8 +44,14 @@ function dateToFractionalYear(d: Date): number {
     d.getMonth() / 12 +
     (d.getDate() - 1) / 365 +
     d.getHours() / 8760 +
-    d.getMinutes() / 525600
+    d.getMinutes() / 525600 +
+    d.getSeconds() / 31536000
   );
+}
+
+/** Year axis label: negative years render as `N BCE`. */
+function formatYearTick(y: number): string {
+  return y < 0 ? `${-y} BCE` : String(y);
 }
 
 /**
@@ -74,10 +82,15 @@ export function computeTimeTicks(
   const firstYear = Math.ceil(domainMin);
   const lastYear = Math.floor(domainMax);
   if (lastYear >= firstYear + 1) {
-    // Decimate ticks for long spans so labels don't overlap
+    // Decimate ticks for long spans so labels don't overlap. The ladder runs
+    // up to century/bicentury steps so millennium-scale spans (and BCE labels,
+    // which are ~2× wider) stay legible.
     const yearSpan = lastYear - firstYear;
     let step = 1;
-    if (yearSpan > 80) step = 20;
+    if (yearSpan > 800) step = 200;
+    else if (yearSpan > 400) step = 100;
+    else if (yearSpan > 160) step = 50;
+    else if (yearSpan > 80) step = 20;
     else if (yearSpan > 40) step = 10;
     else if (yearSpan > 20) step = 5;
     else if (yearSpan > 10) step = 2;
@@ -85,7 +98,7 @@ export function computeTimeTicks(
     // Align to step boundary so ticks land on round years (1700, 1710, …)
     const alignedFirst = Math.ceil(firstYear / step) * step;
     for (let y = alignedFirst; y <= lastYear; y += step) {
-      ticks.push({ pos: scale(y), label: String(y) });
+      ticks.push({ pos: scale(y), label: formatYearTick(y) });
     }
   } else if (span > 0.25) {
     // Month ticks for spans > ~3 months
@@ -103,6 +116,33 @@ export function computeTimeTicks(
           });
         }
       }
+    }
+  } else if (span <= 0.0000114) {
+    // Second ticks for spans ≤ ~6 minutes
+    // Adaptive step: >3min → 30s, >1min → 15s, >30s → 10s, else 5s
+    let stepSec = 5;
+    const spanSec = span * 31536000;
+    if (spanSec > 180) stepSec = 30;
+    else if (spanSec > 60) stepSec = 15;
+    else if (spanSec > 30) stepSec = 10;
+
+    const startDate = fractionalYearToDate(domainMin);
+    // Round down to nearest step boundary
+    startDate.setSeconds(
+      Math.floor(startDate.getSeconds() / stepSec) * stepSec,
+      0
+    );
+
+    while (true) {
+      const val = dateToFractionalYear(startDate);
+      if (val > domainMax) break;
+      if (val >= domainMin) {
+        const hh = String(startDate.getHours()).padStart(2, '0');
+        const mm = String(startDate.getMinutes()).padStart(2, '0');
+        const ss = String(startDate.getSeconds()).padStart(2, '0');
+        ticks.push({ pos: scale(val), label: `${hh}:${mm}:${ss}` });
+      }
+      startDate.setSeconds(startDate.getSeconds() + stepSec);
     }
   } else if (span <= 0.000685) {
     // Minute ticks for spans ≤ ~6 hours

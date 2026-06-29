@@ -460,4 +460,130 @@ no-scale
       ).toHaveLength(0);
     });
   });
+
+  describe('TBD / future events', () => {
+    it('reads a TBD prefix as a future event with a "TBD" caption', () => {
+      const p = parseEventLine(`event-line Roadmap
+2024-01-01 Shipped
+TBD Someday Feature
+  Not yet scheduled.`);
+      expect(errors(p)).toHaveLength(0);
+      const f = p.events[1]!;
+      expect(f.future).toBe(true);
+      expect(f.date).toBe('TBD');
+      expect(f.label).toBe('Someday Feature');
+      expect(f.description).toEqual(['Not yet scheduled.']);
+    });
+
+    it('does not emit a BAD_DATE warning for TBD', () => {
+      const p = parseEventLine(`event-line X
+2024 A
+TBD B`);
+      expect(
+        p.diagnostics.filter((d) => d.code === 'E_EVENT_LINE_BAD_DATE')
+      ).toHaveLength(0);
+    });
+
+    it('resolves a future event past the latest real date so scale survives', () => {
+      const p = parseEventLine(`event-line X
+2020 A
+2024 B
+TBD C`);
+      const [a, , c] = p.events;
+      expect(c!.dateValue).not.toBeNull();
+      // Future event plots to the RIGHT of every real-dated event.
+      expect(c!.dateValue!).toBeGreaterThan(a!.dateValue!);
+      expect(c!.dateValue!).toBeGreaterThan(2024);
+    });
+
+    it('keeps coincident TBD events distinct (so dots fan apart)', () => {
+      const p = parseEventLine(`event-line X
+2020 A
+TBD B
+TBD C`);
+      const b = p.events[1]!;
+      const c = p.events[2]!;
+      expect(b.dateValue).not.toBe(c.dateValue);
+    });
+
+    it('leaves a lone TBD event undated when there is nothing to anchor against', () => {
+      const p = parseEventLine(`event-line X
+TBD A
+TBD B`);
+      expect(p.events[0]!.future).toBe(true);
+      expect(p.events[0]!.dateValue).toBeNull();
+    });
+
+    it('interpolates a TBD between two dated neighbors (hard date after)', () => {
+      const p = parseEventLine(`event-line X
+2020 A
+TBD B
+2030 C`);
+      const b = p.events[1]!;
+      expect(b.future).toBe(true);
+      // Sits strictly inside the (2020, 2030) gap, not parked past the end.
+      expect(b.dateValue!).toBeGreaterThan(2020);
+      expect(b.dateValue!).toBeLessThan(2030);
+      // Carries the gap span for the whisker cue.
+      expect(b.futureSpan).toEqual([2020, 2030]);
+    });
+
+    it('parks a trailing TBD past the last date with no span (open horizon)', () => {
+      const p = parseEventLine(`event-line X
+2020 A
+2030 C
+TBD B`);
+      const b = p.events[2]!;
+      expect(b.dateValue!).toBeGreaterThan(2030);
+      expect(b.futureSpan).toBeNull();
+    });
+
+    it('fans multiple TBDs evenly across a shared gap', () => {
+      const p = parseEventLine(`event-line X
+2020 A
+TBD B
+TBD C
+2030 D`);
+      const b = p.events[1]!;
+      const c = p.events[2]!;
+      expect(b.dateValue!).toBeGreaterThan(2020);
+      expect(b.dateValue!).toBeLessThan(c.dateValue!);
+      expect(c.dateValue!).toBeLessThan(2030);
+    });
+
+    it('does not flag an interpolated TBD as out-of-order', () => {
+      const p = parseEventLine(`event-line X
+2020 A
+TBD B
+2030 C`);
+      expect(
+        p.diagnostics.filter((d) => d.code === 'E_EVENT_LINE_DATE_ORDER')
+      ).toHaveLength(0);
+    });
+
+    it('places a leading TBD before the first dated event', () => {
+      const p = parseEventLine(`event-line X
+TBD A
+2030 B`);
+      const a = p.events[0]!;
+      expect(a.future).toBe(true);
+      expect(a.dateValue!).toBeLessThan(2030);
+      expect(a.futureSpan![1]).toBe(2030);
+    });
+
+    it('matches TBD case-insensitively', () => {
+      const p = parseEventLine(`event-line X
+2020 A
+tbd B`);
+      expect(p.events[1]!.future).toBe(true);
+      expect(p.events[1]!.label).toBe('B');
+    });
+
+    it('treats a word merely starting with "tbd" as a normal title', () => {
+      const p = parseEventLine(`event-line X
+Tbderror happens`);
+      expect(p.events[0]!.future).toBe(false);
+      expect(p.events[0]!.label).toBe('Tbderror happens');
+    });
+  });
 });
