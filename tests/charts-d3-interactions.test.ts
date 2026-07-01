@@ -150,3 +150,55 @@ describe('axis-projection interactions (no tooltips)', () => {
     ).toBe(false);
   });
 });
+
+const RADAR_MULTI = `radar Fleet
+series
+  Black Pearl blue
+  Flying Dutchman purple
+
+Firepower 85 95
+Speed 90 55
+Armor 60 90`;
+
+describe('legend hover → series emphasis', () => {
+  const seriesGroup = (name: string) =>
+    svg.querySelector<SVGGElement>(`.dgmo-series[data-series-name="${name}"]`)!;
+  const legendEntry = (name: string) =>
+    svg.querySelector<SVGGElement>(
+      `.chart-legend [data-series-name="${name}"]`
+    )!;
+
+  it('radar: hovering a legend entry dims the other series, not the hovered one', async () => {
+    await mount(RADAR_MULTI);
+    legendEntry('Black Pearl').dispatchEvent(
+      new MouseEvent('mouseenter', { bubbles: true })
+    );
+    expect(seriesGroup('Black Pearl').classList.contains('dgmo-dim')).toBe(
+      false
+    );
+    expect(seriesGroup('Flying Dutchman').classList.contains('dgmo-dim')).toBe(
+      true
+    );
+  });
+
+  it('radar: mouseleave restores every series', async () => {
+    await mount(RADAR_MULTI);
+    const entry = legendEntry('Black Pearl');
+    entry.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    entry.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(
+      [...svg.querySelectorAll('.dgmo-series')].some((g) =>
+        g.classList.contains('dgmo-dim')
+      )
+    ).toBe(false);
+  });
+
+  it('line: legend hover dims non-hovered series groups too', async () => {
+    await mount(LINE);
+    legendEntry('iOS').dispatchEvent(
+      new MouseEvent('mouseenter', { bubbles: true })
+    );
+    expect(seriesGroup('iOS').classList.contains('dgmo-dim')).toBe(false);
+    expect(seriesGroup('Android').classList.contains('dgmo-dim')).toBe(true);
+  });
+});

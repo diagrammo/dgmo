@@ -9,6 +9,7 @@
 // ============================================================
 
 import { parseChart } from '../chart';
+import { getSimpleChartLegendGroups } from '../data-chart-parser';
 import {
   parseExtendedChart,
   getExtendedChartLegendGroups,
@@ -165,19 +166,33 @@ function renderInto(
           hasTitle ? 52 : 24
         );
         return true;
-      case 'radar':
+      case 'radar': {
+        // Multi-series radar (§15.1) gets the shared series legend; single-series
+        // yields no groups, so injectLegendGroups returns the same top inset as
+        // before (52 with title, 24 without) — no regression.
+        const groups = getSimpleChartLegendGroups(std, colors);
+        const top = injectLegendGroups(
+          s,
+          groups,
+          palette,
+          isDark,
+          hasTitle,
+          width
+        );
         renderRadar(
           s,
           std,
           width,
           height,
+          colors,
           palette,
           isDark,
           textColor,
           mutedColor,
-          hasTitle ? 52 : 24
+          top
         );
         return true;
+      }
       case 'polar-area':
         renderPolarArea(
           s,

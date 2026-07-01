@@ -2115,6 +2115,16 @@ Parsers accept either form. The rules above are authoring guidance.
 
   Short one-line form is tolerated: `series Revenue` or `series A B`.
 
+- **radar** — use a `series` block to plot one polygon per series over the shared
+  axes, each in its series color, with the standard series legend (same block
+  form as line; dual-axis grouping is line-only):
+
+  ```
+  series
+    Black Pearl blue
+    Flying Dutchman purple
+  ```
+
 **Data rows** — follows Rule A:
 
 ```

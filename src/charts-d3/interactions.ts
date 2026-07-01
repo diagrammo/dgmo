@@ -378,11 +378,51 @@ export function attachDataChartInteractions(
   svg.addEventListener('mouseleave', onLeave);
   svg.addEventListener('click', onClick);
 
+  // ── legend hover → emphasize the hovered series, dim the rest ──────────
+  // The injected series legend (utils/legend-svg.ts) tags each entry with
+  // data-series-name matching the series groups' data-series-name. Hovering an
+  // entry dims every OTHER series (group + its datums); leaving restores. Only
+  // series-tagged elements are touched, so charts without series groups are
+  // untouched. Dimming the g.dgmo-series fades its polygon, points, and labels.
+  const legendEntries = Array.from(
+    svg.querySelectorAll<SVGGElement>('.chart-legend [data-legend-entry]')
+  );
+  const emphasizeSeries = (name: string | null) => {
+    for (const g of seriesGroups) {
+      const sn = g.getAttribute('data-series-name');
+      if (sn != null)
+        g.classList.toggle('dgmo-dim', name != null && sn !== name);
+    }
+    for (const d of datums) {
+      const sn = d.getAttribute('data-series-name');
+      if (sn != null)
+        d.classList.toggle('dgmo-dim', name != null && sn !== name);
+    }
+  };
+  const legendListeners: Array<[SVGGElement, string, EventListener]> = [];
+  if (legendEntries.length > 0 && seriesGroups.length > 1) {
+    for (const entry of legendEntries) {
+      const name = entry.getAttribute('data-series-name');
+      if (name == null) continue;
+      const onEnter: EventListener = () => {
+        if (curDatum || crosshairActive) return; // chart hover wins
+        emphasizeSeries(name);
+      };
+      const onExit: EventListener = () => emphasizeSeries(null);
+      entry.addEventListener('mouseenter', onEnter);
+      entry.addEventListener('mouseleave', onExit);
+      legendListeners.push([entry, 'mouseenter', onEnter]);
+      legendListeners.push([entry, 'mouseleave', onExit]);
+    }
+  }
+
   return {
     destroy: () => {
       svg.removeEventListener('mousemove', onSvgMove);
       svg.removeEventListener('mouseleave', onLeave);
       svg.removeEventListener('click', onClick);
+      for (const [el, ev, fn] of legendListeners)
+        el.removeEventListener(ev, fn);
       if (overlay) overlay.remove();
       restorePt();
       clearHighlight();
