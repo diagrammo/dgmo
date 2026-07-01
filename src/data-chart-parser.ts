@@ -385,6 +385,23 @@ function parseExtendedChartFull(
     if (!firstLineParsed) {
       firstLineParsed = true;
       const firstLine = parseFirstLine(trimmed);
+      // The extended-chart parser owns its own type vocabulary. `chord` is no
+      // longer a top-level chart-type keyword (decision #29), so parseFirstLine
+      // won't return it — but the arc `layout chord` override re-emits canonical
+      // `chord …` content that must still parse here. Recognize an extended type
+      // directly from the first token when parseFirstLine declines.
+      if (!firstLine) {
+        const rawType = trimmed.split(/\s+/)[0]!.toLowerCase();
+        if (VALID_EXTENDED_TYPES.has(rawType as ExtendedChartType)) {
+          result.type = rawType as ExtendedChartType;
+          const rest = trimmed.slice(rawType.length).trim();
+          if (rest) {
+            result.title = rest;
+            result.titleLineNumber = lineNumber;
+          }
+          continue;
+        }
+      }
       if (firstLine) {
         const chartType =
           firstLine.chartType.toLowerCase() as ExtendedChartType;

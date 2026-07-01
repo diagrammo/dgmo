@@ -41,7 +41,6 @@ export const CHART_TYPES = new Set([
   'radar',
   'scatter',
   'sankey',
-  'chord',
   'function',
   'heatmap',
   'funnel',

@@ -125,7 +125,7 @@ export function getRenderCategory(chartType: string): RenderCategory | null {
 
 /**
  * Returns true if the chart type is an extended chart type
- * handled by parseExtendedChart (scatter, sankey, chord, function, heatmap, funnel).
+ * handled by parseExtendedChart (scatter, sankey, function, heatmap, funnel).
  * Returns false for standard chart types and all other types.
  */
 export function isExtendedChartType(chartType: string): boolean {

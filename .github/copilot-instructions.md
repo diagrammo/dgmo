@@ -60,7 +60,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 - **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
 - **Pick a fitting direction.** Top-to-bottom for hierarchies and processes; left-to-right for pipelines and flows (where the type supports a direction).
 
-### Chart-type index (46) — pick the type, then fetch its section
+### Chart-type index (42) — pick the type, then fetch its section
 
 | id | when to use |
 | -- | ----------- |
@@ -84,9 +84,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `event-line` | annotated narrative timeline — events on a line with descriptions, optionally not to scale (NOT the date-scaled `timeline`) |
 | `journey-map` | UX flow with emotion scores, phases, annotations |
 | `cycle` | cyclical process (PDCA, OODA, DevOps loops) |
-| `raci` | tasks × roles responsibility matrix (`R A C I`) |
-| `rasci` | RACI variant adding Support (`R A S C I`) |
-| `daci` | decision matrix (Driver, Approver, Contributor, Informed) |
+| `raci` | tasks × roles responsibility matrix; variant (RACI / RASCI / DACI) is inferred from the markers used |
 | `tech-radar` | technology adoption quadrants (adopt / trial / assess / hold) |
 | `quadrant` | 2×2 positioning matrix |
 | `pyramid` | stacked hierarchy of layers (Maslow, DIKW) |
@@ -96,19 +94,15 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
 | `bar` | categorical comparisons (multi-series via `stack` / `group`) |
-| `line` | trends over time |
-| `multi-line` | multiple-series trends over time |
-| `area` | filled line chart |
-| `pie` | part-to-whole proportions |
-| `doughnut` | ring-style pie chart |
+| `line` | trends over time (multiple series via a `series` block; filled via `fill`; dual y-axes via `y-label` / `y-right-label`) |
+| `pie` | part-to-whole proportions (ring/doughnut via `hole`) |
 | `radar` | multi-dimensional metrics |
 | `polar-area` | radial bar chart |
 | `scatter` | 2D points or bubble chart |
 | `heatmap` | matrix intensity |
 | `funnel` | conversion pipeline |
 | `sankey` | flow / allocation |
-| `chord` | circular flow relationships |
-| `arc` | network relationships on a line |
+| `arc` | network relationships (linear, or circular via `layout chord`) |
 | `slope` | change between two periods |
 | `venn` | set overlaps |
 | `wordcloud` | term-frequency |
@@ -561,7 +555,7 @@ Diagrams: sequence, flowchart, state, class, er, org, kanban, c4, sitemap, infra
 
 Visualizations: pyramid, ring, cycle, quadrant, venn, slope, wordcloud, arc, timeline, tech-radar
 
-Data charts: bar, line, multi-line, area, pie, doughnut, radar, polar-area, scatter, sankey, chord, function, heatmap
+Data charts: bar, line, multi-line, area, pie, doughnut, radar, polar-area, scatter, sankey, function, heatmap
 
 The canonical, ordered list lives in `src/chart-types.ts`.
 

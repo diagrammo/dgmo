@@ -36,7 +36,6 @@ const CHART_TYPES_WITH_EXTRACTORS = [
   'scatter',
   'heatmap',
   'funnel',
-  'chord',
 ];
 
 describe('extractor robustness', () => {
@@ -111,7 +110,6 @@ function buildFixture(chartType: string): string {
     scatter: 'scatter\nPoint A 1,2\nPoint B 3,4\n',
     heatmap: 'heatmap\ncolumns Mon, Tue\nRow1 5 8\n',
     funnel: 'funnel\nTop 1000\nMiddle 500\nBottom 100\n',
-    chord: 'chord\nA -> B 10\nB -> C 20\n',
   };
   return fixtures[chartType] ?? `${chartType}\nEntity1\nEntity2\n`;
 }

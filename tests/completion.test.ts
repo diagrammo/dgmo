@@ -400,7 +400,6 @@ describe('COMPLETION_REGISTRY', () => {
       'polar-area',
       'radar',
       'scatter',
-      'chord',
       'pert',
       'block',
       'swimlane',
@@ -947,10 +946,10 @@ describe('extractDataChartSymbols — function curves (F1 registration)', () => 
   });
 });
 
-describe('extractDataChartSymbols — chord edge endpoints', () => {
+describe('extractDataChartSymbols — sankey edge endpoints', () => {
   it('recovers BOTH endpoints of A -> B value instead of one junk entity', () => {
-    const result = extractDiagramSymbols('chord\nA -> B 10\nB -> C 5\n');
-    expect(result!.kind).toBe('chord');
+    const result = extractDiagramSymbols('sankey\nA -> B 10\nB -> C 5\n');
+    expect(result!.kind).toBe('sankey');
     expect(result!.entities).toEqual(['A', 'B', 'C']);
     // The old classifier produced "A -> B" — assert that junk is gone.
     expect(result!.entities).not.toContain('A -> B');
@@ -991,8 +990,8 @@ describe('extractVennSymbols — names + aliases for + references', () => {
 });
 
 describe('REFERENCE_GRAMMAR descriptor', () => {
-  it('marks chord and venn as reference-grammar types', () => {
-    expect(REFERENCE_GRAMMAR.get('chord')?.hasReferenceGrammar).toBe(true);
+  it('marks sankey and venn as reference-grammar types', () => {
+    expect(REFERENCE_GRAMMAR.get('sankey')?.hasReferenceGrammar).toBe(true);
     expect(REFERENCE_GRAMMAR.get('venn')?.hasReferenceGrammar).toBe(true);
     expect(REFERENCE_GRAMMAR.get('venn')?.referenceOperators).toEqual(['+']);
   });

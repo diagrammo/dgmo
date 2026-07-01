@@ -167,12 +167,8 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     description: 'Flow / allocation visualization',
   },
   {
-    id: 'chord',
-    description: 'Circular flow relationships',
-  },
-  {
     id: 'arc',
-    description: 'Network relationships',
+    description: 'Network relationships (linear or circular via `layout`)',
   },
   {
     id: 'wordcloud',

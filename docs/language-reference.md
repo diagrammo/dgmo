@@ -143,8 +143,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `heatmap` | matrix intensity |
 | `funnel` | conversion pipeline |
 | `sankey` | flow / allocation |
-| `chord` | circular flow relationships |
-| `arc` | network relationships on a line |
+| `arc` | network relationships (linear, or circular via `layout chord`) |
 | `slope` | change between two periods |
 | `venn` | set overlaps |
 | `wordcloud` | term-frequency |
@@ -2166,7 +2165,7 @@ Each chart honors the subset of flags that has a renderable atom on it:
 - bar / line / radar: `no-value`
 - scatter: `no-name`
 - heatmap: `no-value`
-- sankey, chord, arc, slope, quadrant, venn: name-suppression deferred — names render by default and cannot yet be hidden
+- sankey, arc, slope, quadrant, venn: name-suppression deferred — names render by default and cannot yet be hidden
 
 `no-percent` on a non-pie-family chart is silently ignored (the chart has no percent atom). Cartesian charts (bar, line) render values on each bar / point by default.
 
@@ -2302,22 +2301,7 @@ Source -- Target 2000
 
 `->` = directed, `--` = undirected. Values follow §15 Rule A.
 
-### 15.6 Chord Charts
-
-<!-- TYPE:chord -->
-
-<!-- TIPS start -->
-**Styling tips:** Chord shines for genuinely reciprocal, many-to-many relationships; if your flows are mostly one-directional or hub-and-spoke, a sankey reads clearer. List heavily-connected nodes consecutively — arcs follow first-appearance order, so this keeps the thickest ribbons short.
-<!-- TIPS end -->
-
-```
-Blackbeard -- Bonnet 150        // undirected
-Roberts -> Rackham 20           // directed
-```
-
-Values follow §15 Rule A.
-
-### 15.7 Funnel Charts
+### 15.6 Funnel Charts
 
 <!-- TYPE:funnel -->
 
@@ -2391,7 +2375,7 @@ navigation 88
 <!-- TYPE:arc -->
 
 <!-- TIPS start -->
-**Styling tips:** Set `order appearance` and list links so the busiest pairs sit next to each other — heavy connections then read as short arcs hugging the axis instead of long sweeps (otherwise placement is automatic and row order is ignored).
+**Styling tips:** Set `order appearance` and list links so the busiest pairs sit next to each other — heavy connections then read as short arcs hugging the axis instead of long sweeps (otherwise placement is automatic and row order is ignored). Add `layout chord` for the circular ("chord") layout when relationships are genuinely reciprocal and many-to-many; leave it off (linear default) for hub-and-spoke or mostly one-directional flows.
 <!-- TIPS end -->
 
 ```
@@ -2406,6 +2390,7 @@ order group
 
 - Link: `Source -> Target weight` — space before optional weight
 - Options: `order appearance|name|group|degree`
+- `layout arc|chord` — `arc` (default) draws nodes on a line with connecting arcs; `chord` arranges the same edges around a circle. Circular layout is reachable **only** through arc + `layout chord` (there is no standalone `chord` chart type).
 
 ### 16.4 Event Line Diagrams
 
@@ -3822,7 +3807,7 @@ A colon binds a value, and it appears in exactly **four syntactic positions** �
 
 - Directives and options — space-separated (`start 2026-03-15`, `x-label Low, High`, `region`)
 - Tag declarations and chart type declarations
-- Series declarations and data rows for simple/data charts (incl. sankey/chord/arc links `Source -> Target value` and quadrant data; space-delimited — a comma in a data-row value raises `E_DATA_COMMA_REMOVED`)
+- Series declarations and data rows for simple/data charts (incl. sankey/arc links `Source -> Target value` and quadrant data; space-delimited — a comma in a data-row value raises `E_DATA_COMMA_REMOVED`)
 - Structural syntax (groups, sections, arrows, comments)
 - Wireframe flag lists; flowchart/state node labels (colons are literal label text — these charts have no metadata)
 

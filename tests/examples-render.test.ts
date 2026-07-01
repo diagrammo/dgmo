@@ -58,7 +58,6 @@ function pickParser(
     'scatter',
     'bubble',
     'sankey',
-    'chord',
     'function',
     'heatmap',
     'funnel',

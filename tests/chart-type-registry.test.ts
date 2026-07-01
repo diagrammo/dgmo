@@ -67,7 +67,7 @@ const EXPECTED_CATEGORY: Record<
   treemap: 'visualization',
   block: 'visualization',
   map: 'visualization',
-  // data-chart (15)
+  // data-chart (14)
   bar: 'data-chart',
   line: 'data-chart',
   pie: 'data-chart',
@@ -75,7 +75,6 @@ const EXPECTED_CATEGORY: Record<
   radar: 'data-chart',
   scatter: 'data-chart',
   sankey: 'data-chart',
-  chord: 'data-chart',
   function: 'data-chart',
   heatmap: 'data-chart',
   funnel: 'data-chart',
@@ -130,7 +129,6 @@ const EXPECTED_MINDIMS_IDS = [
 ].sort();
 
 const EXPECTED_EXTENDED_IDS = [
-  'chord',
   'function',
   'funnel',
   'heatmap',

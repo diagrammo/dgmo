@@ -37,7 +37,6 @@ import { parseERDiagram } from './er/parser';
 import { parseChart } from './chart';
 import {
   parseSankey,
-  parseChord,
   parseFunctionChart,
   parseScatter,
   parseHeatmap,
@@ -462,7 +461,6 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
   // ── Extended ECharts charts — own per-type parser door (Story 109.2a) ──
   { id: 'scatter', category: 'data-chart', parse: parseScatter },
   { id: 'sankey', category: 'data-chart', parse: parseSankey },
-  { id: 'chord', category: 'data-chart', parse: parseChord },
   { id: 'function', category: 'data-chart', parse: parseFunctionChart },
   {
     id: 'heatmap',

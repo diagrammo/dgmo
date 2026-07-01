@@ -25,7 +25,6 @@ import { renderSlopeChart } from './slope/renderer';
 import { parseSlope } from './slope/parser';
 import { renderArcDiagram } from './arc/renderer';
 import { parseArc } from './arc/parser';
-import { parseChord } from './data-chart-parser';
 import { renderTimeline } from './timeline/renderer';
 import { parseTimeline } from './timeline/viz-parser';
 import { renderWordCloudAsync } from './wordcloud/renderer';
@@ -135,36 +134,29 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
 };
 
 /**
- * Arc↔chord `layout` override (#26): the two presets share pairwise edge data.
- * When a `layout` directive selects the other preset, parse with the source
- * engine (which understands its own grammar), normalize to a flat edge list, and
- * re-emit canonical content for the target engine. Arc groups/order and chord
- * edge direction/colors are dropped — best-effort for a pure layout switch.
- * Returns the rewritten `{content, type}`, or null when no override applies.
+ * Arc circular-layout override (#26, narrowed by #29): `arc` renders linear by
+ * default; `layout chord` selects the circular ("chord") preset over the same
+ * pairwise edge data. `chord` is no longer a chart-type keyword (#29) — the
+ * circular layout is reachable ONLY through `arc` + `layout chord`. We parse
+ * with the arc engine, normalize to a flat edge list, and re-emit canonical
+ * content for the internal circular renderer (arc groups/order are dropped —
+ * best-effort for a pure layout switch). Returns the rewritten `{content, type}`,
+ * or null when no override applies.
  */
 export function resolveArcChordOverride(
   content: string,
   detectedType: string | null,
   palette?: PaletteColors
 ): { content: string; type: string } | null {
-  const emit = (
-    kw: 'arc' | 'chord',
-    title: string | null | undefined,
-    links: ReadonlyArray<{ source: string; target: string; value: number }>
-  ): string =>
-    [
-      `${kw} ${title ?? ''}`.trimEnd(),
-      ...links.map((l) => `${l.source} -> ${l.target} ${l.value}`),
-    ].join('\n');
-
   if (detectedType === 'arc') {
     const p = parseArc(content, palette);
-    if (!p.error && p.layout === 'chord' && p.links.length)
-      return { content: emit('chord', p.title, p.links), type: 'chord' };
-  } else if (detectedType === 'chord') {
-    const p = parseChord(content, palette);
-    if (!p.error && p.layout === 'arc' && p.links?.length)
-      return { content: emit('arc', p.title, p.links), type: 'arc' };
+    if (!p.error && p.layout === 'chord' && p.links.length) {
+      const emitted = [
+        `chord ${p.title ?? ''}`.trimEnd(),
+        ...p.links.map((l) => `${l.source} -> ${l.target} ${l.value}`),
+      ].join('\n');
+      return { content: emitted, type: 'chord' };
+    }
   }
   return null;
 }

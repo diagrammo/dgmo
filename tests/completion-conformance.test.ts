@@ -52,7 +52,6 @@ import { fixture as heatmapFixture } from './fixtures/completion-conformance/hea
 import { fixture as funnelFixture } from './fixtures/completion-conformance/funnel';
 import { fixture as functionFixture } from './fixtures/completion-conformance/function';
 import { fixture as sankeyFixture } from './fixtures/completion-conformance/sankey';
-import { fixture as chordFixture } from './fixtures/completion-conformance/chord';
 // Visualizations (spec §17 + §15 timeline + §20 tech-radar)
 import { fixture as slopeFixture } from './fixtures/completion-conformance/slope';
 import { fixture as wordcloudFixture } from './fixtures/completion-conformance/wordcloud';
@@ -95,7 +94,6 @@ const fixtures: ConformanceFixture[] = [
   funnelFixture,
   functionFixture,
   sankeyFixture,
-  chordFixture,
   // Visualizations
   slopeFixture,
   wordcloudFixture,
@@ -274,7 +272,6 @@ const REFERENCE_FIXTURES: Record<string, string> = {
   pert: 'pert\nDesign 1 2 3\nBuild 2 3 4\n',
   arc: 'arc\nA -> B\n',
   sankey: 'sankey\nA -> B 10\n',
-  chord: 'chord\nA -> B 10\n',
   'boxes-and-lines': 'boxes-and-lines\nA -> B\n',
   venn: 'venn\nSwordsmanship as sw\nNavigation as nav\nsw + nav Overlap\n',
 };

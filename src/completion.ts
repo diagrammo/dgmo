@@ -205,7 +205,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   ['sankey', withGlobals()],
-  ['chord', withGlobals()],
   [
     'funnel',
     withGlobals({
@@ -658,7 +657,6 @@ const SOLID_FILL_CAPABLE = new Set([
   'polar-area',
   'radar',
   'scatter',
-  'chord',
   'pert',
   'block',
   'swimlane',
@@ -833,7 +831,6 @@ export const REFERENCE_GRAMMAR = new Map<string, ReferenceGrammar>([
   ['pert', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
   ['arc', { hasReferenceGrammar: true, referenceOperators: ['->'] }],
   ['sankey', { hasReferenceGrammar: true, referenceOperators: ['->', '--'] }],
-  ['chord', { hasReferenceGrammar: true, referenceOperators: ['->', '--'] }],
   [
     'boxes-and-lines',
     { hasReferenceGrammar: true, referenceOperators: ['->', '<->'] },
@@ -2440,7 +2437,6 @@ registerExtractor('radar', extractDataChartSymbols);
 registerExtractor('scatter', extractDataChartSymbols);
 registerExtractor('heatmap', extractDataChartSymbols);
 registerExtractor('funnel', extractDataChartSymbols);
-registerExtractor('chord', extractDataChartSymbols);
 // `function` (`Name: expr`) and `wordcloud` (`Word weight`) had NO extractor
 // registered — extractDiagramSymbols returned null for them. The generalized
 // shared extractor now handles the colon-label form, so register both.

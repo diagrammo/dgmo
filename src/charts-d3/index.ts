@@ -63,6 +63,16 @@ export function supportsD3DataChart(type: string): boolean {
   return D3_DATA_CHART_TYPES.has(type);
 }
 
+/** First non-empty, non-comment line's leading token, lowercased. */
+function firstNonCommentToken(content: string): string {
+  for (const raw of content.split('\n')) {
+    const l = raw.trim();
+    if (!l || l.startsWith('//')) continue;
+    return l.split(/\s+/)[0]!.toLowerCase();
+  }
+  return '';
+}
+
 export async function renderDataChartD3(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
@@ -118,9 +128,16 @@ function renderInto(
   bgColor: string,
   colors: string[]
 ): boolean {
+  // Route by the declared first-token type. Extended types (incl. the `chord`
+  // circular preset re-emitted by the arc `layout chord` override, #29) MUST go
+  // to parseExtendedChart — `chord` is no longer a top-level keyword, so the
+  // simple parseChart would silently treat `chord …` as a fallback bar chart.
+  const firstTok = firstNonCommentToken(content);
+  const forceExtended = EXTENDED.has(firstTok);
+
   // Standard (parseChart) path.
-  const std = parseChart(content, palette);
-  if (!std.error && std.data.length > 0 && STANDARD.has(std.type)) {
+  const std = forceExtended ? null : parseChart(content, palette);
+  if (std && !std.error && std.data.length > 0 && STANDARD.has(std.type)) {
     const hasTitle = !std.noTitle && !!std.title;
     if (hasTitle)
       renderChartTitle(s, std.title, std.titleLineNumber, width, textColor);

@@ -147,7 +147,16 @@ export async function render(
   );
   const renderContent = acOverride?.content ?? content;
   const chartType = acOverride?.type ?? parsed.chartType;
-  const category = chartType ? getRenderCategory(chartType) : null;
+  // The arc `layout chord` override (#26/#29) re-emits canonical `chord …`
+  // content for the internal circular renderer. `chord` is no longer a registry
+  // type, so getRenderCategory returns null for it — force the data-chart branch
+  // when the override applied, otherwise the re-emitted content is re-detected as
+  // a sequence diagram (arrow-shaped edges) and renders wrong.
+  const category = acOverride
+    ? 'data-chart'
+    : chartType
+      ? getRenderCategory(chartType)
+      : null;
 
   // Build viewState from legendState (backwards compat) or use provided viewState
   const viewState: CompactViewState | undefined =
