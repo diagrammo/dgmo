@@ -20,10 +20,6 @@
 //   builder below parameterizes the verb (`op`), branch, and section so it
 //   reproduces any of the three exactly; the representative `{}` form uses
 //   the `merge` wording.
-// - `E_VERSION_CONTROL_CYCLE` and `E_VERSION_CONTROL_UNSUPPORTED` are
-//   declared here but have NO emit site in the current parser (reserved
-//   codes). Their wording here is representative, not copied from a live
-//   call site.
 
 import type { DiagnosticSpec } from '../diagnostics';
 
@@ -64,24 +60,6 @@ export const VERSION_CONTROL_DX = {
     },
     hint: 'Give the target commit an `id:` and reference that id, or make the message unique.',
     example: 'version-control A\n\nmain\n  Fix\n  Fix\n  cherry-pick Fix',
-  },
-  CYCLE: {
-    code: 'E_VERSION_CONTROL_CYCLE',
-    severity: 'error',
-    chartType: 'version-control',
-    title: 'Commit cycle',
-    message: 'version-control has a commit cycle.',
-    hint: 'A commit cannot be its own ancestor — check merge/rebase targets.',
-    // Reserved: declared but no parser emit site — no triggering example.
-  },
-  UNSUPPORTED: {
-    code: 'E_VERSION_CONTROL_UNSUPPORTED',
-    severity: 'error',
-    chartType: 'version-control',
-    title: 'Unsupported operation',
-    message: 'version-control encountered an unsupported operation.',
-    hint: 'Use a supported verb (merge, cherry-pick, rebase, reset, revert, ref, note).',
-    // Reserved: declared but no parser emit site — no triggering example.
   },
 } satisfies Record<string, DiagnosticSpec>;
 

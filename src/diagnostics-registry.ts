@@ -18,12 +18,7 @@
 // being cataloged.
 
 import type { DiagnosticSpec } from './diagnostics';
-import {
-  nameMergedMessage,
-  aliasReservedKeywordMessage,
-  aliasInvalidFormatMessage,
-  emptyMetadataValueMessage,
-} from './diagnostics';
+import { nameMergedMessage, emptyMetadataValueMessage } from './diagnostics';
 import { SWIMLANE_DIAGNOSTICS } from './swimlane/diagnostics';
 import { RACI_DIAGNOSTICS } from './raci/diagnostics';
 import { TREEMAP_DIAGNOSTICS } from './treemap/diagnostics';
@@ -57,107 +52,6 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     hint: 'Use one consistent spelling, or add `# allow-merge` on the line if the merge is intentional.',
     example: 'infra\ninternet\n  -> gw\ngw\n  -> svc\nGW\n  -> svc\n',
   },
-  {
-    code: 'E_NAME_RESERVED_CHAR',
-    severity: 'error',
-    chartType: null,
-    title: 'Reserved character in name',
-    message:
-      'Name contains a reserved character (|, :, edge sigils, or shape brackets) — wrap it in "..." to use it literally.',
-    hint: 'Quote the name: "A | B".',
-    // Reserved: declared in NAME_DIAGNOSTIC_CODES but no parser currently emits
-    // it, so there's no triggering example.
-  },
-
-  // ── Universal alias syntax (TD-18) ──
-  {
-    code: 'E_ALIAS_BEFORE_DECL',
-    severity: 'error',
-    chartType: null,
-    title: 'Alias used before declaration',
-    message:
-      'Alias token used before its declaration — declare the alias (`Name as x`) before referencing it.',
-    hint: 'Move the `as` declaration above its first use.',
-  },
-  {
-    code: 'E_ALIAS_COLLISION',
-    severity: 'error',
-    chartType: null,
-    title: 'Alias collision',
-    message:
-      'The same alias is bound to two different names — each alias must map to exactly one canonical name.',
-    hint: 'Rename one of the aliases.',
-  },
-  {
-    code: 'E_ALIAS_SHADOWS_NAME',
-    severity: 'error',
-    chartType: null,
-    title: 'Alias shadows a name',
-    message:
-      'Alias literal matches an existing canonical name — pick an alias that is not already a name.',
-    hint: 'Choose a distinct alias token.',
-  },
-  {
-    code: 'E_ALIAS_REBINDING',
-    severity: 'error',
-    chartType: null,
-    title: 'Alias rebinding',
-    message:
-      'The same canonical name was re-declared with a different alias — bind one alias per name.',
-    hint: 'Keep a single `Name as x` declaration per name.',
-  },
-  {
-    code: 'E_ALIAS_OF_ALIAS',
-    severity: 'error',
-    chartType: null,
-    title: 'Alias of an alias',
-    message:
-      'Cannot alias an alias — `pm as p` where `pm` is itself an alias. Alias the canonical name instead.',
-    hint: 'Reference the canonical name in the `as` declaration.',
-  },
-  {
-    code: 'E_ALIAS_RESERVED_KEYWORD',
-    severity: 'error',
-    chartType: null,
-    title: 'Alias is a reserved keyword',
-    message: (p) => aliasReservedKeywordMessage(String(p.token ?? 'as')),
-    hint: 'Pick an alias that is not a reserved keyword.',
-  },
-  {
-    code: 'E_ALIAS_INVALID_FORMAT',
-    severity: 'error',
-    chartType: null,
-    title: 'Invalid alias format',
-    message: (p) => aliasInvalidFormatMessage(String(p.token ?? '1x')),
-    hint: 'Aliases must start with a letter and be ≤ 12 letters/digits/underscores.',
-  },
-  {
-    code: 'E_ALIAS_AFTER_CANONICAL',
-    severity: 'error',
-    chartType: null,
-    title: 'Alias declared after canonical use',
-    message:
-      'Canonical name was used plainly before its alias was declared — declare the alias at first mention.',
-    hint: 'Add the `as` alias on the name’s first occurrence.',
-  },
-  {
-    code: 'W_ALIAS_CASE_NEAR_MATCH',
-    severity: 'warning',
-    chartType: null,
-    title: 'Alias case near-match',
-    message:
-      'Reference token differs from a declared alias only in case — did you mean the declared alias?',
-    hint: 'Match the alias casing exactly.',
-  },
-  {
-    code: 'W_ALIAS_UNDERUSED',
-    severity: 'warning',
-    chartType: null,
-    title: 'Alias underused',
-    message:
-      'Alias declared but referenced at most once — the alias adds no brevity here.',
-    hint: 'Drop the alias or reference it more than once.',
-  },
 
   // ── Unified metadata grammar (0.18.0) ──
   {
@@ -168,6 +62,7 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     message:
       'A `tag` declaration appears after the first content line — declare all tags before any content.',
     hint: 'Move `tag` declarations to the top of the diagram.',
+    example: 'block\n[A]\ntag warn red',
   },
   {
     code: 'W_EMPTY_METADATA_VALUE',
@@ -176,15 +71,7 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     title: 'Empty metadata value',
     message: (p) => emptyMetadataValueMessage(String(p.key ?? 'color')),
     hint: 'Provide a value or remove the key.',
-  },
-  {
-    code: 'W_ATTRIBUTE_AT_PARENT_INDENT',
-    severity: 'warning',
-    chartType: null,
-    title: 'Attribute at parent indent',
-    message:
-      'An indented attribute sits at the parent’s indent level, so it attaches to the parent — indent further to attach it to the preceding child.',
-    hint: 'Add one more indent level to attach the attribute to the child.',
+    example: 'mindmap\nRoot color:\n  Child',
   },
 ];
 

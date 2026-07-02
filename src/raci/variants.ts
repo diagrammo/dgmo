@@ -19,7 +19,6 @@ export const RACI_ERROR_CODES = {
   INVALID_MARKER: 'E_RACI_INVALID_MARKER',
   UNEXPECTED_LINE: 'E_RACI_UNEXPECTED_LINE',
   MIXED_VARIANTS: 'E_RACI_MIXED_VARIANTS',
-  DUPLICATE_VARIANT: 'E_RACI_DUPLICATE_VARIANT',
 } as const;
 
 /** Union of every variant's marker alphabet — used for tolerant tokenization. */

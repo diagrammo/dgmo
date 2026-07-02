@@ -59,34 +59,4 @@ export const ARROW_DIAGNOSTICS: DiagnosticSpec[] = [
     // (Escaped, not a raw NUL byte, to keep the source file text-safe.)
     example: 'sequence\nA -has\u0000nul-> B',
   },
-
-  // --- RESERVED: declared in ARROW_DIAGNOSTIC_CODES but NOT emitted ---
-  // Placeholders for future arrow-tokenizer tightening (TD-9/TD-16). No
-  // example — nothing emits these today.
-  {
-    code: ARROW_DIAGNOSTIC_CODES.TRAILING_ARROW_TEXT, // 'E_TRAILING_ARROW_TEXT'
-    severity: 'error',
-    chartType: null,
-    title: 'Trailing arrow text',
-    // Canonical wording paraphrased from the ARROW_DIAGNOSTIC_CODES JSDoc:
-    // "extra `->`/`~>` after the primary arrow".
-    message:
-      'Extra arrow token (-> or ~>) found after the primary arrow. ' +
-      'An edge may declare only one arrow.',
-    hint: 'Remove the extra arrow token; write one edge per line.',
-    // reserved — not currently emitted
-  },
-  {
-    code: ARROW_DIAGNOSTIC_CODES.MIXED_ARROW_DELIMITERS, // 'E_MIXED_ARROW_DELIMITERS'
-    severity: 'error',
-    chartType: null,
-    title: 'Mixed arrow delimiters',
-    // Canonical wording paraphrased from the ARROW_DIAGNOSTIC_CODES JSDoc:
-    // "opening delim type doesn't match arrow".
-    message:
-      'Arrow delimiters do not match: the opening delimiter type differs ' +
-      'from the closing arrow. Use `-label->` (sync) or `~label~>` (async) consistently.',
-    hint: 'Keep both delimiters the same style: dashes for sync, tildes for async.',
-    // reserved — not currently emitted
-  },
 ];

@@ -41,15 +41,6 @@ interface ParsedArrow {
  *   - `ARROW_SUBSTRING_IN_LABEL` (TD-13)
  *   - `CONTROL_CHAR_IN_LABEL` (TD-14)
  *
- * **Reserved codes** — declared but NOT currently emitted. These are
- * placeholders for future tightening of the arrow-tokenization rules
- * described in TD-9. Today's chart parsers catch these cases through
- * their own regex machinery with different diagnostics. A follow-up
- * spec that introduces a dedicated tokenizer can start emitting them
- * without changing the public code shape:
- *   - `TRAILING_ARROW_TEXT` — extra `->`/`~>` after the primary arrow
- *   - `MIXED_ARROW_DELIMITERS` — opening delim type doesn't match arrow
- *
  * See `docs/dgmo-language-spec-decisions.md` → TD-16 for the rationale.
  */
 export const ARROW_DIAGNOSTIC_CODES = {
@@ -57,10 +48,6 @@ export const ARROW_DIAGNOSTIC_CODES = {
   ARROW_SUBSTRING_IN_LABEL: 'E_ARROW_SUBSTRING_IN_LABEL',
   /** Active: label contains a forbidden control character (TD-14). */
   CONTROL_CHAR_IN_LABEL: 'E_CONTROL_CHAR_IN_LABEL',
-  /** Reserved: not currently emitted by any parser. See JSDoc above. */
-  TRAILING_ARROW_TEXT: 'E_TRAILING_ARROW_TEXT',
-  /** Reserved: not currently emitted by any parser. See JSDoc above. */
-  MIXED_ARROW_DELIMITERS: 'E_MIXED_ARROW_DELIMITERS',
 } as const;
 
 // ============================================================

@@ -94,19 +94,6 @@ export const RACI_DX = {
     hint: 'Pick one convention: R/A/S/C/I (RACI/RASCI) or D/A/C/I (DACI). Do not mix D and S in one chart.',
     example: `raci\n\nTask\n  Cap: D\n  Crew: S`,
   },
-  DUPLICATE_VARIANT: {
-    code: 'E_RACI_DUPLICATE_VARIANT',
-    severity: 'error',
-    chartType: 'raci',
-    title: 'Duplicate variant declaration',
-    // NOTE: declared in RACI_ERROR_CODES but currently has NO emit site
-    // (variant is inferred from markers, not declared). Wording below is
-    // authored, not copied from a live call site.
-    message:
-      'The chart variant is declared more than once. Declare the RACI variant at most once.',
-    hint: 'Remove the redundant variant declaration — the variant is inferred from the markers used.',
-    // Reserved: no emit site (see NOTE above) — no triggering example.
-  },
 
   // ── Warnings ────────────────────────────────────────────────
 
