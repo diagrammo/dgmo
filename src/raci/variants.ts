@@ -6,8 +6,9 @@
 // and which structural rules apply. Adding CAIRO/PARIS later means
 // adding another entry here — parser and renderer key off this map.
 
-import { makeDgmoError } from '../diagnostics';
+import { emit } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
+import { RACI_DX } from './diagnostics';
 import type { RaciMarker, RaciTask, RaciVariant } from './types';
 
 /** Codes for variant-defining structural errors (always fire). */
@@ -124,11 +125,12 @@ function findFirstAssignmentLineWithMarker(
 const multiAccountableRule: ConstraintRule = (task) => {
   if (countMarker(task, 'A') > 1) {
     return [
-      makeDgmoError(
+      emit(
+        RACI_DX.MULTI_ACCOUNTABLE,
         findFirstAssignmentLineWithMarker(task, 'A', true),
-        `Task '${task.displayName}' has more than one Accountable — RACI requires exactly one.`,
-        'error',
-        RACI_ERROR_CODES.MULTI_ACCOUNTABLE
+        {
+          task: task.displayName,
+        }
       ),
     ];
   }
@@ -138,11 +140,12 @@ const multiAccountableRule: ConstraintRule = (task) => {
 const daciMultiDriverRule: ConstraintRule = (task) => {
   if (countMarker(task, 'D') > 1) {
     return [
-      makeDgmoError(
+      emit(
+        RACI_DX.DACI_MULTI_DRIVER,
         findFirstAssignmentLineWithMarker(task, 'D', true),
-        `Task '${task.displayName}' has more than one Driver — DACI requires exactly one.`,
-        'error',
-        RACI_ERROR_CODES.DACI_MULTI_DRIVER
+        {
+          task: task.displayName,
+        }
       ),
     ];
   }
@@ -152,11 +155,12 @@ const daciMultiDriverRule: ConstraintRule = (task) => {
 const daciMultiAccountableRule: ConstraintRule = (task) => {
   if (countMarker(task, 'A') > 1) {
     return [
-      makeDgmoError(
+      emit(
+        RACI_DX.DACI_MULTI_ACCOUNTABLE,
         findFirstAssignmentLineWithMarker(task, 'A', true),
-        `Task '${task.displayName}' has more than one Approver — DACI requires exactly one.`,
-        'error',
-        RACI_ERROR_CODES.DACI_MULTI_ACCOUNTABLE
+        {
+          task: task.displayName,
+        }
       ),
     ];
   }
@@ -171,12 +175,7 @@ const daciMultiAccountableRule: ConstraintRule = (task) => {
 const emptyTaskRule: ConstraintRule = (task) => {
   if (totalMarkerCount(task) === 0) {
     return [
-      makeDgmoError(
-        task.lineNumber,
-        `Task '${task.displayName}' has no role assignments.`,
-        'warning',
-        RACI_WARNING_CODES.EMPTY_TASK
-      ),
+      emit(RACI_DX.EMPTY_TASK, task.lineNumber, { task: task.displayName }),
     ];
   }
   return [];
@@ -186,12 +185,9 @@ const missingAccountableRule: ConstraintRule = (task) => {
   if (totalMarkerCount(task) === 0) return []; // emptyTaskRule covers it
   if (countMarker(task, 'A') === 0) {
     return [
-      makeDgmoError(
-        task.lineNumber,
-        `Task '${task.displayName}' has no Accountable assigned.`,
-        'warning',
-        RACI_WARNING_CODES.MISSING_ACCOUNTABLE
-      ),
+      emit(RACI_DX.MISSING_ACCOUNTABLE, task.lineNumber, {
+        task: task.displayName,
+      }),
     ];
   }
   return [];
@@ -201,12 +197,9 @@ const missingResponsibleRule: ConstraintRule = (task) => {
   if (totalMarkerCount(task) === 0) return []; // emptyTaskRule covers it
   if (countMarker(task, 'R') === 0) {
     return [
-      makeDgmoError(
-        task.lineNumber,
-        `Task '${task.displayName}' has no Responsible assigned.`,
-        'warning',
-        RACI_WARNING_CODES.MISSING_RESPONSIBLE
-      ),
+      emit(RACI_DX.MISSING_RESPONSIBLE, task.lineNumber, {
+        task: task.displayName,
+      }),
     ];
   }
   return [];
@@ -216,12 +209,9 @@ const daciMissingDriverRule: ConstraintRule = (task) => {
   if (totalMarkerCount(task) === 0) return []; // emptyTaskRule covers it
   if (countMarker(task, 'D') === 0) {
     return [
-      makeDgmoError(
-        task.lineNumber,
-        `Task '${task.displayName}' has no Driver assigned.`,
-        'warning',
-        RACI_WARNING_CODES.DACI_MISSING_DRIVER
-      ),
+      emit(RACI_DX.DACI_MISSING_DRIVER, task.lineNumber, {
+        task: task.displayName,
+      }),
     ];
   }
   return [];
@@ -231,12 +221,9 @@ const daciMissingAccountableRule: ConstraintRule = (task) => {
   if (totalMarkerCount(task) === 0) return []; // emptyTaskRule covers it
   if (countMarker(task, 'A') === 0) {
     return [
-      makeDgmoError(
-        task.lineNumber,
-        `Task '${task.displayName}' has no Approver assigned.`,
-        'warning',
-        RACI_WARNING_CODES.DACI_MISSING_ACCOUNTABLE
-      ),
+      emit(RACI_DX.DACI_MISSING_ACCOUNTABLE, task.lineNumber, {
+        task: task.displayName,
+      }),
     ];
   }
   return [];
@@ -266,12 +253,11 @@ const conflictingMarkersRule: ConstraintRule = (task) => {
     }
     if (hasActive && hasPassive) {
       out.push(
-        makeDgmoError(
-          a.lineNumber,
-          `Role '${a.displayName}' on task '${task.displayName}' has conflicting markers (${a.markers.join(' ')}). A role can be either active (R/A/D) or passive (C/I), not both.`,
-          'warning',
-          RACI_WARNING_CODES.CONFLICTING_MARKERS
-        )
+        emit(RACI_DX.CONFLICTING_MARKERS, a.lineNumber, {
+          role: a.displayName,
+          task: task.displayName,
+          markers: a.markers.join(' '),
+        })
       );
     }
   }
@@ -287,12 +273,11 @@ const tooManyResponsibleRule: ConstraintRule = (task) => {
   const n = countMarker(task, 'R');
   if (n > TOO_MANY_RESPONSIBLE_THRESHOLD) {
     return [
-      makeDgmoError(
-        task.lineNumber,
-        `Task '${task.displayName}' has ${n} Responsibles — more than ${TOO_MANY_RESPONSIBLE_THRESHOLD} dilutes ownership. Consider splitting the task or marking some as Consulted.`,
-        'warning',
-        RACI_WARNING_CODES.TOO_MANY_RESPONSIBLE
-      ),
+      emit(RACI_DX.TOO_MANY_RESPONSIBLE, task.lineNumber, {
+        task: task.displayName,
+        count: n,
+        threshold: TOO_MANY_RESPONSIBLE_THRESHOLD,
+      }),
     ];
   }
   return [];

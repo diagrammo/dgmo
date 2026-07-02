@@ -22,11 +22,8 @@
 // declared lane) from a node declaration (anything else) from a flow
 // source-group header (bare, indent-0, not a lane).
 
-import {
-  makeDgmoError,
-  type DgmoError,
-  type DgmoSeverity,
-} from '../diagnostics';
+import { emit, type DgmoError } from '../diagnostics';
+import { SWIMLANE_DX } from './diagnostics';
 import { measureIndent, extractColor, parseFirstLine } from '../utils/parsing';
 import {
   matchTagBlockHeading,
@@ -48,15 +45,6 @@ import type {
   SwimPhase,
   SwimShape,
 } from './types';
-
-/** Stable diagnostic codes — free-form `code` strings, no registration (F16). */
-export const SWIMLANE_DIAGNOSTIC_CODES = {
-  DUPLICATE_NODE: 'E_SWIMLANE_DUPLICATE_NODE',
-  UNKNOWN_NODE: 'E_SWIMLANE_UNKNOWN_NODE',
-  UNKNOWN_LANE: 'E_SWIMLANE_UNKNOWN_LANE',
-  NO_LANES: 'E_SWIMLANE_NO_LANES',
-  UNSUPPORTED: 'E_SWIMLANE_UNSUPPORTED',
-} as const;
 
 /** Collapse internal whitespace + lowercase for a lookup key. */
 function normKey(label: string): string {
@@ -239,15 +227,6 @@ export function parseSwimlane(
   const options: Record<string, string> = {};
   let direction: SwimDirection = 'LR';
 
-  const push = (
-    line: number,
-    message: string,
-    code: string,
-    severity: DgmoSeverity = 'error'
-  ): void => {
-    diagnostics.push(makeDgmoError(line, message, severity, code));
-  };
-
   const rawLines = content.split('\n');
 
   // ── First line: chart type + title ──────────────────────────
@@ -398,15 +377,15 @@ export function parseSwimlane(
   ): void => {
     const parsed = parseNodeToken(token);
     if (parsed.unsupported) {
-      push(lineNum, parsed.unsupported, SWIMLANE_DIAGNOSTIC_CODES.UNSUPPORTED);
+      diagnostics.push(
+        emit(SWIMLANE_DX.UNSUPPORTED, lineNum, { reason: parsed.unsupported })
+      );
       return;
     }
     if (!parsed.label) return;
     if (!currentLane) {
-      push(
-        lineNum,
-        `Node '${parsed.label}' is not inside a lane — declare a lane first`,
-        SWIMLANE_DIAGNOSTIC_CODES.UNKNOWN_LANE
+      diagnostics.push(
+        emit(SWIMLANE_DX.UNKNOWN_LANE, lineNum, { node: parsed.label })
       );
       return;
     }
@@ -422,10 +401,8 @@ export function parseSwimlane(
     );
     const key = normKey(cleanLabel);
     if (nodeByKey.has(key)) {
-      push(
-        lineNum,
-        `Duplicate node name '${cleanLabel}'`,
-        SWIMLANE_DIAGNOSTIC_CODES.DUPLICATE_NODE
+      diagnostics.push(
+        emit(SWIMLANE_DX.DUPLICATE_NODE, lineNum, { name: cleanLabel })
       );
       return;
     }
@@ -433,26 +410,26 @@ export function parseSwimlane(
     const tags: Record<string, string> = {};
     for (const [k, v] of Object.entries(meta)) {
       if (k === 'note') {
-        push(
-          lineNum,
-          'notes are deferred past v1',
-          SWIMLANE_DIAGNOSTIC_CODES.UNSUPPORTED
+        diagnostics.push(
+          emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
+            reason: 'notes are deferred past v1',
+          })
         );
         continue;
       }
       if (k === 'data') {
-        push(
-          lineNum,
-          'data objects are deferred past v1',
-          SWIMLANE_DIAGNOSTIC_CODES.UNSUPPORTED
+        diagnostics.push(
+          emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
+            reason: 'data objects are deferred past v1',
+          })
         );
         continue;
       }
       if (k === 'timer' || k === 'message' || k === 'signal') {
-        push(
-          lineNum,
-          `${k} events are fast-follow`,
-          SWIMLANE_DIAGNOSTIC_CODES.UNSUPPORTED
+        diagnostics.push(
+          emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
+            reason: `${k} events are fast-follow`,
+          })
         );
         continue;
       }
@@ -477,17 +454,17 @@ export function parseSwimlane(
   const resolveRef = (token: string, lineNum: number): string | null => {
     const parsed = parseNodeToken(token);
     if (parsed.unsupported) {
-      push(lineNum, parsed.unsupported, SWIMLANE_DIAGNOSTIC_CODES.UNSUPPORTED);
+      diagnostics.push(
+        emit(SWIMLANE_DX.UNSUPPORTED, lineNum, { reason: parsed.unsupported })
+      );
       return null;
     }
     const { label } = extractColor(parsed.label, palette);
     const key = normKey(label);
     const node = nodeByKey.get(key);
     if (!node) {
-      push(
-        lineNum,
-        `Edge references unknown node '${parsed.label}'`,
-        SWIMLANE_DIAGNOSTIC_CODES.UNKNOWN_NODE
+      diagnostics.push(
+        emit(SWIMLANE_DX.UNKNOWN_NODE, lineNum, { node: parsed.label })
       );
       return null;
     }
@@ -496,10 +473,10 @@ export function parseSwimlane(
 
   const addChain = (line: string, lineNum: number): void => {
     if (line.includes('~>')) {
-      push(
-        lineNum,
-        'message flow (~>) is fast-follow',
-        SWIMLANE_DIAGNOSTIC_CODES.UNSUPPORTED
+      diagnostics.push(
+        emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
+          reason: 'message flow (~>) is fast-follow',
+        })
       );
       return;
     }
@@ -568,11 +545,7 @@ export function parseSwimlane(
     ) {
       const label = trimmed.slice(1, -1).trim();
       if (lanes.length === 0) {
-        push(
-          lineNum,
-          `Phase '${label}' declared but no lanes exist`,
-          SWIMLANE_DIAGNOSTIC_CODES.NO_LANES
-        );
+        diagnostics.push(emit(SWIMLANE_DX.NO_LANES, lineNum, { phase: label }));
       }
       const key = normKey(label);
       let phase = phaseByKey.get(key);

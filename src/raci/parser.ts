@@ -18,7 +18,8 @@
 //
 // See `docs/dgmo-language-spec.md` § "RACI Matrix".
 
-import { makeDgmoError, makeFail, suggest } from '../diagnostics';
+import { emit, makeDgmoError, makeFail, suggest } from '../diagnostics';
+import { RACI_DX } from './diagnostics';
 import { resolveColorWithDiagnostic } from '../colors';
 import { RACI_REGISTRY } from '../utils/reserved-key-registry';
 import {
@@ -35,13 +36,7 @@ import {
 } from '../utils/name-normalize';
 import { NAME_DIAGNOSTIC_CODES, nameMergedMessage } from '../diagnostics';
 import type { PaletteColors } from '../palettes';
-import {
-  VARIANTS,
-  RACI_ERROR_CODES,
-  RACI_WARNING_CODES,
-  ALL_MARKERS,
-  inferVariant,
-} from './variants';
+import { VARIANTS, ALL_MARKERS, inferVariant } from './variants';
 import type {
   ParsedRaci,
   RaciMarker,
@@ -533,10 +528,8 @@ export function parseRaci(
           if (ALL_MARKERS.has(tok as RaciMarker)) {
             markers.push(tok as RaciMarker);
           } else {
-            errorAt(
-              lineNumber,
-              `Marker '${tok}' is not a recognized RACI marker (R A S C I D).`,
-              RACI_ERROR_CODES.INVALID_MARKER
+            result.diagnostics.push(
+              emit(RACI_DX.INVALID_MARKER, lineNumber, { marker: tok })
             );
           }
         }
@@ -556,8 +549,12 @@ export function parseRaci(
               (n) => n !== entry.displayName
             );
             const hint = suggest(rawRole, candidates);
-            const msg = `Role '${rawRole}' is not declared in the 'roles:' directive.${hint ? ' ' + hint : ''}`;
-            warn(lineNumber, msg, RACI_WARNING_CODES.UNKNOWN_ROLE);
+            result.diagnostics.push(
+              emit(RACI_DX.UNKNOWN_ROLE, lineNumber, {
+                role: rawRole,
+                hint: hint ?? '',
+              })
+            );
           }
         }
 
@@ -584,10 +581,8 @@ export function parseRaci(
       }
 
       // Free-text line AFTER a role assignment is unexpected.
-      errorAt(
-        lineNumber,
-        `Unexpected line after role assignments under task '${task.displayName}'. Lines under a task must be either a description (before the first 'Role: markers' line) or another role assignment.`,
-        RACI_ERROR_CODES.UNEXPECTED_LINE
+      result.diagnostics.push(
+        emit(RACI_DX.UNEXPECTED_LINE, lineNumber, { task: task.displayName })
       );
       continue;
     }
@@ -624,11 +619,7 @@ export function parseRaci(
   const inferred = inferVariant(usedMarkers);
   if (inferred === null) {
     const titleLine = result.titleLineNumber ?? 1;
-    errorAt(
-      titleLine,
-      `Chart uses both 'D' and 'S' markers but neither RASCI nor DACI covers both. Use only RACI/RASCI markers (R, A, S, C, I) or only DACI markers (D, A, C, I).`,
-      RACI_ERROR_CODES.MIXED_VARIANTS
-    );
+    result.diagnostics.push(emit(RACI_DX.MIXED_VARIANTS, titleLine));
     result.variant = 'rasci';
   } else {
     result.variant = inferred;
@@ -648,10 +639,12 @@ export function parseRaci(
         if (resolvedAlphabet.includes(m)) {
           kept.push(m);
         } else {
-          errorAt(
-            a.lineNumber,
-            `Marker '${m}' is not in the ${result.variant.toUpperCase()} alphabet (${resolvedAlphabet.join(' ')}).`,
-            RACI_ERROR_CODES.INVALID_MARKER
+          result.diagnostics.push(
+            emit(RACI_DX.INVALID_MARKER, a.lineNumber, {
+              marker: m,
+              variant: result.variant.toUpperCase(),
+              alphabet: resolvedAlphabet.join(' '),
+            })
           );
         }
       }
@@ -686,12 +679,9 @@ export function parseRaci(
     const declared = roleStore.get(roleId);
     const displayName = result.roleDisplayNames[i] ?? roleId;
     result.diagnostics.push(
-      makeDgmoError(
-        declared?.declaredLine ?? 1,
-        `Role '${displayName}' is declared but never assigned to any task.`,
-        'warning',
-        RACI_WARNING_CODES.ORPHAN_ROLE
-      )
+      emit(RACI_DX.ORPHAN_ROLE, declared?.declaredLine ?? 1, {
+        role: displayName,
+      })
     );
   }
 

@@ -8,12 +8,14 @@
 
 import { tagAttrKey } from '../utils/tag-groups';
 import {
+  emit,
   formatDgmoError,
   makeDgmoError,
   NAME_DIAGNOSTIC_CODES,
   nameMergedMessage,
   suggest,
 } from '../diagnostics';
+import { GRAPH_DX } from '../graph/diagnostics';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 import { parseInArrowLabel } from '../utils/arrows';
 import {
@@ -1086,14 +1088,7 @@ function checkReachability(result: Writable<ParsedInfra>): void {
   // No entry at all: the rule can't be satisfied. One diagnostic, not N.
   if (entries.length === 0) {
     const line = result.titleLineNumber ?? result.nodes[0]?.lineNumber ?? 1;
-    result.diagnostics.push(
-      makeDgmoError(
-        line,
-        `Infra diagram has no 'internet' or 'edge' entry point — an infra diagram traces request traffic from an entry inward, so without one nothing carries traffic. Add an 'internet' or 'edge' node and route from it.`,
-        'warning',
-        'W_INFRA_NO_ENTRY'
-      )
-    );
+    result.diagnostics.push(emit(GRAPH_DX.INFRA_NO_ENTRY, line));
     return;
   }
 
@@ -1138,12 +1133,7 @@ function checkReachability(result: Writable<ParsedInfra>): void {
   for (const node of result.nodes) {
     if (node.isEdge || reachable.has(node.id)) continue;
     result.diagnostics.push(
-      makeDgmoError(
-        node.lineNumber,
-        `'${node.label}' is unreachable from an 'internet'/'edge' entry — no request traffic flows to it, so it's dead on an infra diagram. Connect it downstream of an entry, or remove it.`,
-        'warning',
-        'W_INFRA_UNREACHABLE'
-      )
+      emit(GRAPH_DX.INFRA_UNREACHABLE, node.lineNumber, { label: node.label })
     );
   }
 }

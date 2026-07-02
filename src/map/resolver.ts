@@ -3,8 +3,9 @@
 // Resolves region names → ISO geometry, POI/endpoint names → coords, infers the
 // basemap/scope/extent/projection, and emits resolved-identity diagnostics. See
 // §24B.2/.8/.10 and the tech-spec adversarial resolutions R1–R19.
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import { emit, formatDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
+import { MAP_DX } from './diagnostics';
 import type { Writable } from '../utils/brand';
 import type { ParsedMap, PoiPos } from './types';
 import type {
@@ -272,12 +273,6 @@ function isWholeSphere(bb: GeoExtent): boolean {
 
 export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   const diagnostics: DgmoError[] = [...parsed.diagnostics]; // seed with parse diags (R14)
-  const err = (line: number, message: string, code?: string): void => {
-    diagnostics.push(makeDgmoError(line, message, 'error', code));
-  };
-  const warn = (line: number, message: string, code?: string): void => {
-    diagnostics.push(makeDgmoError(line, message, 'warning', code));
-  };
   // Folded tokens already flagged as "city shadows an airport code" — emit the
   // W_MAP_AIRPORT_SHADOWED_BY_CITY hint at most once per code (ADR-2, F9).
   const shadowedAirports = new Set<string>();
@@ -378,10 +373,12 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       const wantsState = scope === 'US' || scope.startsWith('US-');
       if (wantsState && inState) {
         if (scope.startsWith('US-') && inState.id !== scope) {
-          err(
-            r.lineNumber,
-            `No subdivision "${r.name}" in scope ${scope} (it is ${inState.id}).`,
-            'E_MAP_SCOPE_MISS'
+          diagnostics.push(
+            emit(MAP_DX.SCOPE_MISS, r.lineNumber, {
+              name: r.name,
+              scope,
+              iso: inState.id,
+            })
           );
           continue;
         }
@@ -389,10 +386,8 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       } else if (!wantsState && inCountry) {
         chosen = { ...inCountry, layer: 'country' };
       } else {
-        err(
-          r.lineNumber,
-          `No region "${r.name}" found in scope ${scope}.`,
-          'E_MAP_SCOPE_MISS'
+        diagnostics.push(
+          emit(MAP_DX.SCOPE_MISS, r.lineNumber, { name: r.name, scope })
         );
         continue;
       }
@@ -405,10 +400,14 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
         chosen = { ...inCountry, layer: 'country' };
         // Teach the disambiguation syntax so the author can pin it explicitly.
         // Suggest the non-redundant forms: a bare ISO code, or name + scope.
-        warn(
-          r.lineNumber,
-          `"${r.name}" is both a country and a US state — resolved as ${chosen.layer} (${chosen.id}). Pin it with an ISO code (${inState.id} / ${inCountry.id}) or name + scope ("${r.name} US" / "${r.name} ${inCountry.id}").`,
-          'W_MAP_REGION_AMBIGUOUS'
+        diagnostics.push(
+          emit(MAP_DX.REGION_AMBIGUOUS, r.lineNumber, {
+            name: r.name,
+            layer: chosen.layer,
+            chosenId: chosen.id,
+            stateId: inState.id,
+            countryId: inCountry.id,
+          })
         );
       }
     } else if (inState) {
@@ -418,10 +417,8 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     }
     if (!chosen) {
       const hint = suggest(r.name, allNames);
-      err(
-        r.lineNumber,
-        `Unknown region "${r.name}" — not a known country or US state.${hint ? ' ' + hint : ''} Search the exact token with \`dgmo map-search "${r.name}"\` (or the lookup_map_location tool), use an ISO code (e.g. FR, US-CA), or coordinates.`,
-        'E_MAP_UNKNOWN_SUBDIVISION'
+      diagnostics.push(
+        emit(MAP_DX.UNKNOWN_SUBDIVISION, r.lineNumber, { name: r.name, hint })
       );
       continue;
     }
@@ -443,10 +440,8 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     };
     const prev = seenRegion.get(chosen.id);
     if (prev !== undefined) {
-      warn(
-        r.lineNumber,
-        `Duplicate region "${chosen.name}" — last definition wins.`,
-        'W_MAP_DUPLICATE_REGION'
+      diagnostics.push(
+        emit(MAP_DX.DUPLICATE_REGION, r.lineNumber, { name: chosen.name })
       );
       regions[prev] = resolved;
     } else {
@@ -472,11 +467,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       if (poi.implicit && !existing.implicit) return;
       // Only a declared-over-declared collision is a user-facing duplicate.
       if (!poi.implicit && !existing.implicit) {
-        warn(
-          line,
-          `Duplicate POI "${id}" — last definition wins.`,
-          'W_MAP_DUPLICATE_POI'
-        );
+        diagnostics.push(emit(MAP_DX.DUPLICATE_POI, line, { id }));
       }
       const idx = pois.indexOf(existing);
       if (idx >= 0) pois[idx] = poi;
@@ -516,20 +507,12 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       // hint (with the `as XXX` coords escape hatch) instead of the generic miss.
       if (/^[A-Za-z]{3}$/.test(name)) {
         const code = name.toUpperCase();
-        err(
-          line,
-          `Unknown airport code "${code}" — not in the bundled airport set (large hubs + US commercial). Use coordinates with \`as ${code}\` if you need it.`,
-          'E_MAP_UNKNOWN_AIRPORT_CODE'
-        );
+        diagnostics.push(emit(MAP_DX.UNKNOWN_AIRPORT_CODE, line, { code }));
         return { kind: 'miss' };
       }
       const cityNames = data.gazetteer.cities.map((c) => c[4]);
       const hint = suggest(name, cityNames);
-      err(
-        line,
-        `Unknown place "${name}" — not in the gazetteer.${hint ? ' ' + hint : ''} Search the exact token with \`dgmo map-search "${name}"\` (or the lookup_map_location tool), or use coordinates \`poi <lat> <lon>\`.`,
-        'E_MAP_UNKNOWN_PLACE'
-      );
+      diagnostics.push(emit(MAP_DX.UNKNOWN_PLACE, line, { name, hint }));
       return { kind: 'miss' };
     }
     let cands = idxs.map((i) => data.gazetteer.cities[i]!);
@@ -546,7 +529,9 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       );
       if (filtered.length) cands = filtered;
       else if (scope) {
-        err(line, `No "${name}" found in scope ${scope}.`, 'E_MAP_SCOPE_MISS');
+        diagnostics.push(
+          emit(MAP_DX.SCOPE_MISS, line, { name, scope, place: true })
+        );
         return { kind: 'miss' };
       }
     }
@@ -556,12 +541,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       }
       // most-populous; tie-break lowest index (R11 — byName is NOT pop-ordered).
       cands = [...cands].sort((a, b) => b[3] - a[3]);
-      if (!scope)
-        warn(
-          line,
-          `"${name}" is ambiguous — resolved to the most-populous match. Set a default with \`locale <ISO>\` (e.g. \`locale US\` / \`locale US-GA\`) to steer it.`,
-          'W_MAP_AMBIGUOUS_NAME'
-        );
+      if (!scope) diagnostics.push(emit(MAP_DX.AMBIGUOUS_NAME, line, { name }));
     }
     const c = cands[0]!;
     // Shadow hint (ADR-2/F9): the token resolved to a city but is ALSO a bundled
@@ -574,10 +554,8 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     ) {
       shadowedAirports.add(f);
       const code = name.toUpperCase();
-      warn(
-        line,
-        `"${name}" resolved to the city; "${code}" is also an airport code. Use coordinates with \`as ${code}\` for the airport.`,
-        'W_MAP_AIRPORT_SHADOWED_BY_CITY'
+      diagnostics.push(
+        emit(MAP_DX.AIRPORT_SHADOWED_BY_CITY, line, { name, code })
       );
     }
     return { kind: 'ok', lat: c[0], lon: c[1], iso: c[2] };

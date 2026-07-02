@@ -10,8 +10,9 @@
 // See `_bmad-output/implementation-artifacts/tech-spec-pert.md`
 // for the design rationale; AC1.* for the contract this parser meets.
 
-import { makeDgmoError, suggest } from '../diagnostics';
+import { emit, makeDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
+import { PERT_DX } from './diagnostics';
 import { parseDuration } from '../utils/duration';
 import {
   extractColor,
@@ -903,7 +904,7 @@ export function parsePert(
             value,
             lineNumber,
             options,
-            error,
+            diagnostics,
             firstAnchorLine,
             firstAnchorKey
           );
@@ -935,10 +936,11 @@ export function parsePert(
         const value = trimmed.slice(firstSpace + 1).trim();
         const hint = NEAR_DIRECTIVE_HINTS.find((h) => h.stem === head);
         if (hint?.matches.test(value)) {
-          error(
-            lineNumber,
-            `Unknown directive '${head}'. Did you mean '${hint.canonical}'?`,
-            'E_PERT_NEAR_DIRECTIVE'
+          diagnostics.push(
+            emit(PERT_DX.NEAR_DIRECTIVE, lineNumber, {
+              head,
+              canonical: hint.canonical,
+            })
           );
           continue;
         }
@@ -1021,17 +1023,9 @@ export function parsePert(
   // still renders with whatever rounding the date display imposes.
   if (options.anchor !== null) {
     if (options.timeUnit === 'bd') {
-      warn(
-        0,
-        '`bd` (business days) is treated as calendar days when `start-date`/`end-date` is set. For business-day scheduling with weekend/holiday awareness, use Gantt.',
-        'W_PERT_BD_WITH_ANCHOR'
-      );
+      diagnostics.push(emit(PERT_DX.BD_WITH_ANCHOR, 0));
     } else if (options.timeUnit === 'min' || options.timeUnit === 'h') {
-      warn(
-        0,
-        "Date display rounds to whole days; sub-day `time-unit` ('h'/'min') will lose precision when `start-date`/`end-date` is set. For honest output use `time-unit d`.",
-        'W_PERT_SUBDAY_WITH_ANCHOR'
-      );
+      diagnostics.push(emit(PERT_DX.SUBDAY_WITH_ANCHOR, 0));
     }
   }
 
@@ -1492,7 +1486,7 @@ function applyAnchorDirective(
   value: string,
   lineNumber: number,
   options: PertOptions,
-  error: (line: number, msg: string, code?: string) => void,
+  diagnostics: DgmoError[],
   firstAnchorLine: number | null,
   firstAnchorKey: 'start-date' | 'end-date' | null
 ): void {
@@ -1501,14 +1495,11 @@ function applyAnchorDirective(
   // AND drop the prior anchor so the parsed result has no ambiguous
   // partial state. The user must fix the source.
   if (options.anchor !== null) {
-    const priorRef =
-      firstAnchorKey && firstAnchorLine
-        ? ` Conflicts with \`${firstAnchorKey}\` declared on line ${firstAnchorLine}.`
-        : '';
-    error(
-      lineNumber,
-      `Specify \`start-date\` or \`end-date\`, not both. Use one anchor — both directives are discarded; re-author one to recover.${priorRef}`,
-      'E_PERT_BOTH_ANCHORS'
+    diagnostics.push(
+      emit(PERT_DX.BOTH_ANCHORS, lineNumber, {
+        firstAnchorKey,
+        firstAnchorLine,
+      })
     );
     options.anchor = null;
     return;
@@ -1516,10 +1507,8 @@ function applyAnchorDirective(
 
   const trimmed = value.trim();
   if (trimmed.length === 0) {
-    error(
-      lineNumber,
-      `\`${key}\` requires a full date (YYYY-MM-DD), got '${value}'.`,
-      'E_PERT_INVALID_DATE'
+    diagnostics.push(
+      emit(PERT_DX.INVALID_DATE, lineNumber, { empty: true, key, value })
     );
     return;
   }
@@ -1527,11 +1516,7 @@ function applyAnchorDirective(
   // `now` token — only valid for start-date.
   if (trimmed.toLowerCase() === 'now') {
     if (key === 'end-date') {
-      error(
-        lineNumber,
-        '`end-date` requires an explicit YYYY-MM-DD; `now` is only valid for `start-date`.',
-        'E_PERT_END_DATE_NOW'
-      );
+      diagnostics.push(emit(PERT_DX.END_DATE_NOW, lineNumber));
       return;
     }
     // Resolve `now` from the parse-time today snapshot stored on
@@ -1542,11 +1527,7 @@ function applyAnchorDirective(
 
   const parsed = parseLocalISODate(trimmed);
   if (!parsed) {
-    error(
-      lineNumber,
-      `Invalid date '${trimmed}' for ${key}. Expected YYYY-MM-DD.`,
-      'E_PERT_INVALID_DATE'
-    );
+    diagnostics.push(emit(PERT_DX.INVALID_DATE, lineNumber, { trimmed, key }));
     return;
   }
 

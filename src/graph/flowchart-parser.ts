@@ -1,12 +1,14 @@
 import type { DgmoError } from '../diagnostics';
 import type { PaletteColors } from '../palettes';
 import {
+  emit,
   makeDgmoError,
   formatDgmoError,
   suggest,
   NAME_DIAGNOSTIC_CODES,
   nameMergedMessage,
 } from '../diagnostics';
+import { GRAPH_DX } from './diagnostics';
 import { parseInArrowLabel } from '../utils/arrows';
 import {
   measureIndent,
@@ -322,12 +324,7 @@ export function parseFlowchart(
     if (suffixWarnedLines.has(lineNumber)) return;
     suffixWarnedLines.add(lineNumber);
     result.diagnostics.push(
-      makeDgmoError(
-        lineNumber,
-        `Ignored unsupported text after a node shape: "${trailing}". Flowcharts have no tag groups or node metadata; node colors are assigned automatically by shape (e.g. terminals green/red, decisions yellow). Remove the suffix.`,
-        'warning',
-        'W_FLOWCHART_NODE_SUFFIX'
-      )
+      emit(GRAPH_DX.FLOWCHART_NODE_SUFFIX, lineNumber, { trailing })
     );
   }
 

@@ -11,12 +11,14 @@
 
 import type { PaletteColors } from '../palettes';
 import {
+  emit,
   formatDgmoError,
   makeDgmoError,
   makeFail,
   suggest,
 } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
+import { TREEMAP_DX } from './diagnostics';
 import type { Writable } from '../utils/brand';
 import type { TagGroup } from '../utils/tag-groups';
 import {
@@ -48,13 +50,6 @@ import type {
   TreemapOptions,
   TreemapColorMode,
 } from './types';
-
-// Diagnostic codes specific to the treemap value model.
-export const TREEMAP_DIAGNOSTIC_CODES = {
-  NEGATIVE_VALUE: 'E_TREEMAP_NEGATIVE_VALUE',
-  LEAF_NO_VALUE: 'W_TREEMAP_LEAF_NO_VALUE',
-  BRANCH_VALUE_IGNORED: 'W_TREEMAP_BRANCH_VALUE_IGNORED',
-} as const;
 
 /** A bare numeric token: optional sign, digits with `_`/`.` separators. */
 const VALUE_TOKEN_RE = /^(.+?)\s+(-?\d[\d_.]*)$/;
@@ -247,25 +242,26 @@ export function parseTreemap(
     const isBranch = node.children.length > 0;
     if (isBranch) {
       if (node.value !== undefined) {
-        pushWarning(
-          node.lineNumber,
-          `"${node.label}" is a branch — its trailing number is ignored; the area is the auto-sum of its children`,
-          TREEMAP_DIAGNOSTIC_CODES.BRANCH_VALUE_IGNORED
+        result.diagnostics.push(
+          emit(TREEMAP_DX.BRANCH_VALUE_IGNORED, node.lineNumber, {
+            label: node.label,
+          })
         );
         delete node.value;
       }
     } else if (node.value === undefined) {
-      pushWarning(
-        node.lineNumber,
-        `Leaf "${node.label}" has no value — it renders with zero area`,
-        TREEMAP_DIAGNOSTIC_CODES.LEAF_NO_VALUE
+      result.diagnostics.push(
+        emit(TREEMAP_DX.LEAF_NO_VALUE, node.lineNumber, {
+          label: node.label,
+        })
       );
       node.value = 0;
     } else if (node.value < 0) {
-      pushError(
-        node.lineNumber,
-        `Leaf "${node.label}" has a negative value (${node.value}) — treemap sizes must be ≥ 0`,
-        TREEMAP_DIAGNOSTIC_CODES.NEGATIVE_VALUE
+      result.diagnostics.push(
+        emit(TREEMAP_DX.NEGATIVE_VALUE, node.lineNumber, {
+          label: node.label,
+          value: node.value,
+        })
       );
     }
   }

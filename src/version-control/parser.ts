@@ -12,19 +12,11 @@
 // docs/version-control-syntax-mockups.html parse().
 
 import type { PaletteColors } from '../palettes';
-import {
-  formatDgmoError,
-  makeDgmoError,
-  makeFail,
-  suggest,
-} from '../diagnostics';
+import { emit, formatDgmoError, makeFail, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
+import { VERSION_CONTROL_DX } from './diagnostics';
 import type { Writable } from '../utils/brand';
-import {
-  measureIndent,
-  parseFirstLine,
-  extractColor,
-} from '../utils/parsing';
+import { measureIndent, parseFirstLine, extractColor } from '../utils/parsing';
 import type {
   ParsedVersionControl,
   VCBranch,
@@ -34,14 +26,6 @@ import type {
   VCOptions,
   VCRef,
 } from './types';
-
-export const VERSION_CONTROL_DIAGNOSTIC_CODES = {
-  NO_COMMITS: 'E_VERSION_CONTROL_NO_COMMITS',
-  UNKNOWN_BRANCH: 'E_VERSION_CONTROL_UNKNOWN_BRANCH',
-  AMBIGUOUS_REF: 'E_VERSION_CONTROL_AMBIGUOUS_REF',
-  CYCLE: 'E_VERSION_CONTROL_CYCLE',
-  UNSUPPORTED: 'E_VERSION_CONTROL_UNSUPPORTED',
-} as const;
 
 interface WorkBranch {
   name: string;
@@ -79,14 +63,6 @@ export function parseVersionControl(
   };
 
   const fail = makeFail(result);
-  const pushWarning = (line: number, message: string, code?: string): void => {
-    result.diagnostics.push(makeDgmoError(line, message, 'warning', code));
-  };
-  const pushError = (line: number, message: string, code?: string): void => {
-    const diag = makeDgmoError(line, message, 'error', code);
-    result.diagnostics.push(diag);
-    if (!result.error) result.error = formatDgmoError(diag);
-  };
 
   if (!content?.trim()) return fail(0, 'No content provided');
 
@@ -132,10 +108,11 @@ export function parseVersionControl(
     const m = matchesRef(ref);
     if (m.length === 0) return null;
     if (m.length > 1 && !/^[0-9a-f]{4,}$/.test(ref)) {
-      pushWarning(
-        lineNumber,
-        `Commit reference "${ref}" matches ${m.length} commits — use an explicit id:. (§29.10)`,
-        VERSION_CONTROL_DIAGNOSTIC_CODES.AMBIGUOUS_REF
+      result.diagnostics.push(
+        emit(VERSION_CONTROL_DX.AMBIGUOUS_REF, lineNumber, {
+          ref,
+          count: m.length,
+        })
       );
     }
     return m[m.length - 1]!;
@@ -189,10 +166,12 @@ export function parseVersionControl(
     const fbr = branches.get(fb);
     const tbr = branches.get(tb);
     if (!fbr || !tbr) {
-      pushWarning(
-        lineNumber,
-        `rebase references unknown branch "${!fbr ? fb : tb}". (§29.8)`,
-        VERSION_CONTROL_DIAGNOSTIC_CODES.UNKNOWN_BRANCH
+      result.diagnostics.push(
+        emit(VERSION_CONTROL_DX.UNKNOWN_BRANCH, lineNumber, {
+          op: 'rebase',
+          branch: !fbr ? fb : tb,
+          section: '§29.8',
+        })
       );
       return;
     }
@@ -249,7 +228,9 @@ export function parseVersionControl(
         continue;
       }
       let msg = 'Expected "version-control [Title]" as the first line.';
-      const hint = suggest(firstLine?.chartType ?? trimmed, ['version-control']);
+      const hint = suggest(firstLine?.chartType ?? trimmed, [
+        'version-control',
+      ]);
       if (hint) msg += ` ${hint}`;
       return fail(lineNumber, msg);
     }
@@ -260,9 +241,18 @@ export function parseVersionControl(
       options.direction = dir[1]!.toUpperCase() as VCDirection;
       continue;
     }
-    if (trimmed === 'no-labels') { options.noLabels = true; continue; }
-    if (trimmed === 'no-lanes') { options.noLanes = true; continue; }
-    if (trimmed === 'no-head') { options.noHead = true; continue; }
+    if (trimmed === 'no-labels') {
+      options.noLabels = true;
+      continue;
+    }
+    if (trimmed === 'no-lanes') {
+      options.noLanes = true;
+      continue;
+    }
+    if (trimmed === 'no-head') {
+      options.noHead = true;
+      continue;
+    }
 
     if (indent === 0) {
       // ── Top-level operation verbs ──
@@ -287,10 +277,12 @@ export function parseVersionControl(
         const br = branches.get(m[1]!.trim());
         const tgt = findByRef(m[2]!.trim(), lineNumber);
         if (!br) {
-          pushWarning(
-            lineNumber,
-            `reset references unknown branch "${m[1]!.trim()}". (§29.8)`,
-            VERSION_CONTROL_DIAGNOSTIC_CODES.UNKNOWN_BRANCH
+          result.diagnostics.push(
+            emit(VERSION_CONTROL_DX.UNKNOWN_BRANCH, lineNumber, {
+              op: 'reset',
+              branch: m[1]!.trim(),
+              section: '§29.8',
+            })
           );
         } else if (tgt) {
           for (const n of nodes) {
@@ -306,7 +298,12 @@ export function parseVersionControl(
       // extractColor strips + validates the trailing token (§1.5 diagnostics) and
       // resolves to hex; we keep the NAME so the renderer resolves per-palette.
       const lastWord = trimmed.split(/\s+/).pop() ?? '';
-      const colored = extractColor(trimmed, palette, result.diagnostics as DgmoError[], lineNumber);
+      const colored = extractColor(
+        trimmed,
+        palette,
+        result.diagnostics as DgmoError[],
+        lineNumber
+      );
       let rest = colored.label;
       const colorToken = colored.color !== undefined ? lastWord : null;
       let ord: number | null = null;
@@ -340,26 +337,39 @@ export function parseVersionControl(
       let src = msg.trim();
       let strat: string | null = null;
       const sm = /^(.*?)\s+(squash|ff|no-ff)$/.exec(src);
-      if (sm) { src = sm[1]!.trim(); strat = sm[2]!; }
+      if (sm) {
+        src = sm[1]!.trim();
+        strat = sm[2]!;
+      }
       const sb = branches.get(src);
       if (!sb) {
-        pushWarning(
-          lineNumber,
-          `merge references unknown branch "${src}". (§29.4)`,
-          VERSION_CONTROL_DIAGNOSTIC_CODES.UNKNOWN_BRANCH
+        result.diagnostics.push(
+          emit(VERSION_CONTROL_DX.UNKNOWN_BRANCH, lineNumber, {
+            op: 'merge',
+            branch: src,
+            section: '§29.4',
+          })
         );
       }
       if (strat === 'squash') {
         if (sb) for (const n of nodes) if (n.branch === src) n.ghost = true;
         const node = addNode({
-          kind: 'commit', message: `Squash ${src}`, type: 'normal',
-          tag: tag ?? null, id: id ?? null, lineNumber,
+          kind: 'commit',
+          message: `Squash ${src}`,
+          type: 'normal',
+          tag: tag ?? null,
+          id: id ?? null,
+          lineNumber,
         });
         node.squashFrom = sb ? sb.tip : null;
       } else {
         const node = addNode({
-          kind: 'merge', message: src, type: (type as VCNode['type']) ?? 'normal',
-          tag: tag ?? null, id: id ?? null, lineNumber,
+          kind: 'merge',
+          message: src,
+          type: (type as VCNode['type']) ?? 'normal',
+          tag: tag ?? null,
+          id: id ?? null,
+          lineNumber,
         });
         node.mergeFrom = sb ? sb.tip : null;
       }
@@ -368,7 +378,14 @@ export function parseVersionControl(
     if (/^cherry-pick\b/.test(trimmed)) {
       const ref = trimmed.slice(11).trim();
       const s = findByRef(ref, lineNumber);
-      const node = addNode({ kind: 'cherry', message: ref, type: 'normal', tag: null, id: null, lineNumber });
+      const node = addNode({
+        kind: 'cherry',
+        message: ref,
+        type: 'normal',
+        tag: null,
+        id: null,
+        lineNumber,
+      });
       node.cherryFrom = s ? s.key : null;
       continue;
     }
@@ -376,8 +393,12 @@ export function parseVersionControl(
       const ref = trimmed.slice(6).trim();
       const s = findByRef(ref, lineNumber);
       const node = addNode({
-        kind: 'commit', message: s ? `Revert ${s.message}` : 'Revert',
-        type: 'reverse', tag: null, id: null, lineNumber,
+        kind: 'commit',
+        message: s ? `Revert ${s.message}` : 'Revert',
+        type: 'reverse',
+        tag: null,
+        id: null,
+        lineNumber,
       });
       node.revertFrom = s ? s.key : null;
       continue;
@@ -396,8 +417,12 @@ export function parseVersionControl(
     const body = trimmed.replace(/^commit\b\s*/, '');
     const { msg, tag, id, type } = peelMeta(body);
     addNode({
-      kind: 'commit', message: msg || null, type: (type as VCNode['type']) ?? 'normal',
-      tag: tag ?? null, id: id ?? null, lineNumber,
+      kind: 'commit',
+      message: msg || null,
+      type: (type as VCNode['type']) ?? 'normal',
+      tag: tag ?? null,
+      id: id ?? null,
+      lineNumber,
     });
   }
 
@@ -405,7 +430,13 @@ export function parseVersionControl(
   if (!options.noHead && active) {
     const tip = branches.get(active)!.tip;
     if (tip != null && !refs.some((r) => r.head)) {
-      refs.push({ name: 'HEAD', atKey: tip, remote: false, head: true, lineNumber: 0 });
+      refs.push({
+        name: 'HEAD',
+        atKey: tip,
+        remote: false,
+        head: true,
+        lineNumber: 0,
+      });
     }
   }
 
@@ -430,15 +461,20 @@ export function parseVersionControl(
     const b = branches.get(bn)!;
     if (b.tip == null) continue;
     const rr = refs.find(
-      (r) => r.remote && (r.name === `origin/${bn}` || r.name.endsWith(`/${bn}`))
+      (r) =>
+        r.remote && (r.name === `origin/${bn}` || r.name.endsWith(`/${bn}`))
     );
-    if (rr && rr.atKey != null) {
+    if (rr?.atKey != null) {
       const A = ancestors(b.tip);
       const B = ancestors(rr.atKey);
       let ahead = 0;
       let behind = 0;
-      A.forEach((k) => { if (!B.has(k)) ahead++; });
-      B.forEach((k) => { if (!A.has(k)) behind++; });
+      A.forEach((k) => {
+        if (!B.has(k)) ahead++;
+      });
+      B.forEach((k) => {
+        if (!A.has(k)) behind++;
+      });
       b.ab = { ahead, behind };
     }
   }
@@ -469,11 +505,12 @@ export function parseVersionControl(
   });
 
   if (nodes.length === 0 && !result.error) {
-    pushError(
-      result.titleLineNumber ?? 1,
-      'version-control has no commits.',
-      VERSION_CONTROL_DIAGNOSTIC_CODES.NO_COMMITS
+    const diag = emit(
+      VERSION_CONTROL_DX.NO_COMMITS,
+      result.titleLineNumber ?? 1
     );
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
   }
 
   return result;
@@ -486,7 +523,12 @@ function peelMeta(s: string): {
   type: string | null;
   id: string | null;
 } {
-  const out = { msg: s, tag: null as string | null, type: null as string | null, id: null as string | null };
+  const out = {
+    msg: s,
+    tag: null as string | null,
+    type: null as string | null,
+    id: null as string | null,
+  };
   const idx = s.search(/\b(tag|type|id)\s*:/);
   if (idx >= 0) {
     out.msg = s.slice(0, idx).trim();

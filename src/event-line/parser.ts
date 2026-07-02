@@ -13,12 +13,14 @@
 
 import type { PaletteColors } from '../palettes';
 import {
+  emit,
   formatDgmoError,
   makeDgmoError,
   makeFail,
   suggest,
 } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
+import { EVENT_LINE_DX } from './diagnostics';
 import type { Writable } from '../utils/brand';
 import type { TagGroup } from '../utils/tag-groups';
 import {
@@ -50,14 +52,6 @@ import type {
   EventLineOptions,
   ParsedEventLine,
 } from './types';
-
-export const EVENT_LINE_DIAGNOSTIC_CODES = {
-  NO_EVENTS: 'E_EVENT_LINE_NO_EVENTS',
-  BAD_DATE: 'E_EVENT_LINE_BAD_DATE',
-  UNSUPPORTED: 'E_EVENT_LINE_UNSUPPORTED',
-  ERA_DATE_ORDER: 'E_EVENT_LINE_ERA_DATE_ORDER',
-  DATE_ORDER: 'E_EVENT_LINE_DATE_ORDER',
-} as const;
 
 /** A non-ISO date attempt: leading digits with a slash or dot separator. */
 const NON_ISO_DATE_RE = /^\d{1,4}[/.]\d/;
@@ -287,20 +281,21 @@ export function parseEventLine(
       if (dirMatch) {
         const dir = dirMatch[1]!.toUpperCase();
         if (dir !== 'LR') {
-          pushWarning(
-            lineNumber,
-            `event-line is horizontal-only in v1; \`direction ${dir}\` (vertical orientation) is a fast-follow.`,
-            EVENT_LINE_DIAGNOSTIC_CODES.UNSUPPORTED
+          result.diagnostics.push(
+            emit(EVENT_LINE_DX.UNSUPPORTED, lineNumber, {
+              reason: `event-line is horizontal-only in v1; \`direction ${dir}\` (vertical orientation) is a fast-follow.`,
+            })
           );
         }
         continue;
       }
       if (tryParseSharedOption(trimmed, sharedOptions)) continue;
       if (SECTION_SEAM_RE.test(trimmed)) {
-        pushWarning(
-          lineNumber,
-          'Group events with `[Name]` era brackets (§28.6a), not `section`.',
-          EVENT_LINE_DIAGNOSTIC_CODES.UNSUPPORTED
+        result.diagnostics.push(
+          emit(EVENT_LINE_DX.UNSUPPORTED, lineNumber, {
+            reason:
+              'Group events with `[Name]` era brackets (§28.6a), not `section`.',
+          })
         );
         continue;
       }
@@ -343,11 +338,9 @@ export function parseEventLine(
   }
 
   if (result.events.length === 0 && !result.error) {
-    pushError(
-      result.titleLineNumber ?? 1,
-      'event-line has no events.',
-      EVENT_LINE_DIAGNOSTIC_CODES.NO_EVENTS
-    );
+    const diag = emit(EVENT_LINE_DX.NO_EVENTS, result.titleLineNumber ?? 1);
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
   }
 
   // Eras render as date-spanning brackets, so an event dated outside its era's
@@ -355,9 +348,9 @@ export function parseEventLine(
   // meaningful when the date scale drives x-position.
   const eraFlaggedLines = new Set<number>();
   if (options.scale) {
-    validateEraDateOrder(result.events, result.eras, (line, message, code) => {
-      eraFlaggedLines.add(line);
-      pushWarning(line, message, code);
+    validateEraDateOrder(result.events, result.eras, (err) => {
+      eraFlaggedLines.add(err.line);
+      result.diagnostics.push(err);
     });
   }
 
@@ -365,7 +358,7 @@ export function parseEventLine(
   // order — a likely authoring slip (and, to-scale, it plots to the left of an
   // event listed above it). Era-spanning inversions already get the richer
   // ERA_DATE_ORDER message, so skip lines that check already flagged.
-  validateEventDateOrder(result.events, eraFlaggedLines, pushWarning);
+  validateEventDateOrder(result.events, eraFlaggedLines, result.diagnostics);
 
   return result;
 }
@@ -458,7 +451,7 @@ function resolveFutureEvents(events: Writable<EventLineEvent>[]): void {
 function validateEventDateOrder(
   events: readonly EventLineEvent[],
   skipLines: ReadonlySet<number>,
-  pushWarning: (line: number, message: string, code?: string) => void
+  diagnostics: DgmoError[]
 ): void {
   let prev: EventLineEvent | null = null;
   for (const ev of events) {
@@ -470,10 +463,13 @@ function validateEventDateOrder(
       ev.dateValue < prev.dateValue! &&
       !skipLines.has(ev.lineNumber)
     ) {
-      pushWarning(
-        ev.lineNumber,
-        `"${ev.label}" (${ev.date}) is out of order — it is dated before "${prev.label}" (${prev.date}) listed above it. event-line reads left-to-right by date; list events chronologically.`,
-        EVENT_LINE_DIAGNOSTIC_CODES.DATE_ORDER
+      diagnostics.push(
+        emit(EVENT_LINE_DX.DATE_ORDER, ev.lineNumber, {
+          label: ev.label,
+          date: ev.date,
+          prevLabel: prev.label,
+          prevDate: prev.date,
+        })
       );
     }
     prev = ev;
@@ -488,7 +484,7 @@ function validateEventDateOrder(
 function validateEraDateOrder(
   events: readonly EventLineEvent[],
   eras: readonly EventLineEra[],
-  pushWarning: (line: number, message: string, code?: string) => void
+  emitWarn: (err: DgmoError) => void
 ): void {
   if (eras.length < 2) return;
   const order = new Map(eras.map((e, i) => [e.name, i]));
@@ -541,16 +537,28 @@ function validateEraDateOrder(
     const ahead = suffixMin[k];
     const behind = prefixMax[k];
     if (ahead && ev.dateValue! > ahead.dateValue!) {
-      pushWarning(
-        ev.lineNumber,
-        `"${ev.label}" (${ev.date}) is in era "${ev.era}" but dated after era "${ahead.era}" begins (${ahead.date}). event-line eras run left-to-right by date — fix the date or move it to the right era, or their brackets will overlap.`,
-        EVENT_LINE_DIAGNOSTIC_CODES.ERA_DATE_ORDER
+      emitWarn(
+        emit(EVENT_LINE_DX.ERA_DATE_ORDER, ev.lineNumber, {
+          label: ev.label,
+          date: ev.date,
+          era: ev.era,
+          rel: 'after',
+          otherEra: ahead.era,
+          edge: 'begins',
+          otherDate: ahead.date,
+        })
       );
     } else if (behind && ev.dateValue! < behind.dateValue!) {
-      pushWarning(
-        ev.lineNumber,
-        `"${ev.label}" (${ev.date}) is in era "${ev.era}" but dated before era "${behind.era}" ends (${behind.date}). event-line eras run left-to-right by date — fix the date or move it to the right era, or their brackets will overlap.`,
-        EVENT_LINE_DIAGNOSTIC_CODES.ERA_DATE_ORDER
+      emitWarn(
+        emit(EVENT_LINE_DX.ERA_DATE_ORDER, ev.lineNumber, {
+          label: ev.label,
+          date: ev.date,
+          era: ev.era,
+          rel: 'before',
+          otherEra: behind.era,
+          edge: 'ends',
+          otherDate: behind.date,
+        })
       );
     }
   }
@@ -585,18 +593,17 @@ function parseEventHeader(
     dateValue = parseTimelineDate(prefix.startDate);
     remainder = prefix.remainder || '';
     if (prefix.endDate) {
-      pushWarning(
-        lineNumber,
-        'event-line events are points; a date range (`->`) is not supported — using the start date.',
-        EVENT_LINE_DIAGNOSTIC_CODES.UNSUPPORTED
+      diagnostics.push(
+        emit(EVENT_LINE_DX.UNSUPPORTED, lineNumber, {
+          reason:
+            'event-line events are points; a date range (`->`) is not supported — using the start date.',
+        })
       );
     }
   } else if (!future && NON_ISO_DATE_RE.test(trimmed)) {
     const firstToken = trimmed.split(/\s+/)[0]!;
-    pushWarning(
-      lineNumber,
-      `Use ISO dates (YYYY, YYYY-MM, or YYYY-MM-DD). Got '${firstToken}'.`,
-      EVENT_LINE_DIAGNOSTIC_CODES.BAD_DATE
+    diagnostics.push(
+      emit(EVENT_LINE_DX.BAD_DATE, lineNumber, { token: firstToken })
     );
   }
 
