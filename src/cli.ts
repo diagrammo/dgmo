@@ -18,6 +18,7 @@ import {
 } from './dgmo-router';
 import { parseDgmoChartType } from './dgmo-router';
 import { formatDgmoError } from './diagnostics';
+import { listDiagnosticCodes } from './diagnostics-registry';
 import { getPalette, getAvailablePalettes } from './palettes';
 import { DEFAULT_FONT_NAME } from './fonts';
 import { encodeDiagramUrl } from './sharing';
@@ -99,6 +100,7 @@ function printHelp(): void {
 Commands:
   dgmo share <input>       Print a shareable diagrammo.app URL (copies to clipboard)
   dgmo types               List all supported chart types
+  dgmo diagnostics         List every error/warning code (add --json for full catalog)
   dgmo install [target]    Set up AI assistants (auto-detects all if no target).
                            Targets: claude-code, codex, claude-desktop,
                            cursor, windsurf, copilot. --scope user|project
@@ -346,6 +348,36 @@ function runTypesCommand(args: string[]): void {
     for (const id of types) {
       const desc = CHART_TYPE_DESCRIPTIONS[id];
       console.log(desc ? `${id} — ${desc}` : id);
+    }
+  }
+}
+
+// `dgmo diagnostics [--json]` — enumerate the diagnostic catalog: every
+// error/warning code dgmo can emit, its severity, owning chart type,
+// canonical message, fix hint, and a triggering example. Plain mode
+// prints one line per code; `--json` emits the full catalog (consumed by
+// the console error-review surface, MCP, and the language-spec docs).
+function runDiagnosticsCommand(args: string[]): void {
+  const json = args.includes('--json');
+  const specs = listDiagnosticCodes();
+  if (json) {
+    const catalog = specs.map((s) => ({
+      code: s.code,
+      severity: s.severity,
+      chartType: s.chartType,
+      title: s.title,
+      message: typeof s.message === 'function' ? s.message({}) : s.message,
+      hint: s.hint,
+      example: s.example,
+    }));
+    process.stdout.write(
+      JSON.stringify({ diagnostics: catalog }, null, 2) + '\n'
+    );
+  } else {
+    for (const s of specs) {
+      const badge = s.severity === 'error' ? 'ERR ' : 'WARN';
+      const chart = s.chartType ?? 'global';
+      console.log(`${badge} ${s.code}  [${chart}]  ${s.title}`);
     }
   }
 }
@@ -848,6 +880,10 @@ async function main(): Promise<void> {
   }
   if (sub === 'types') {
     runTypesCommand(process.argv.slice(3));
+    return;
+  }
+  if (sub === 'diagnostics') {
+    runDiagnosticsCommand(process.argv.slice(3));
     return;
   }
   if (sub === 'install') {

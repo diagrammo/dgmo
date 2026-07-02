@@ -24,6 +24,22 @@ describe('renderErrorCard', () => {
     expect(svg).toContain('<circle'); // frown mark
   });
 
+  it('adds a Diagrammo edit link preloaded with the broken source', () => {
+    const svg = renderErrorCard(
+      [err({ line: 2, message: 'bad thing' })],
+      'flowchart Test\nA bad thing here',
+      palettes.slate,
+      'light'
+    );
+    // Clickable link into the online editor…
+    expect(svg).toContain('<a href="https://online.diagrammo.app');
+    // …carrying the source as a share payload…
+    expect(svg).toContain('dgmo=');
+    // …with a human-readable CTA and the Diagrammo mark (scaled icon group).
+    expect(svg).toContain('online.diagrammo.app ↗');
+    expect(svg).toContain('<g transform="translate(');
+  });
+
   it('quotes the offending source line and its line number', () => {
     const source = 'sequence Flow\nAlice goes left\nBob | Carol bad pipe';
     const svg = renderErrorCard(

@@ -252,3 +252,10 @@ export { supportsD3DataChart, D3_DATA_CHART_TYPES } from './charts-d3';
 
 export type { PaletteConfig, PaletteColors } from './palettes/types';
 export type { DgmoError, DgmoSeverity } from './diagnostics';
+export { emit } from './diagnostics';
+export type {
+  DiagnosticSpec,
+  DiagnosticParams,
+  EmitOptions,
+} from './diagnostics';
+export { listDiagnosticCodes, getDiagnosticSpec } from './diagnostics-registry';

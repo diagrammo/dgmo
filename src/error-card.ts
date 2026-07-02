@@ -14,6 +14,7 @@
 
 import { truncateText, measureText } from './utils/text-measure';
 import { FONT_FAMILY } from './fonts';
+import { encodeDiagramUrl } from './sharing';
 import type { PaletteConfig } from './palettes/types';
 import type { Theme } from './themes';
 import type { DgmoError } from './diagnostics';
@@ -141,6 +142,34 @@ export function renderErrorCard(
     y += 22;
   }
 
+  // ── Footer: open-in-editor call to action ──────────────────
+  // A live fix path: the Diagrammo mark + a link that opens the online editor
+  // preloaded with THIS (broken) source, so the author can fix it and copy it
+  // back into their code fence. The <a> is clickable when the SVG is embedded
+  // inline (remark/astro/docusaurus/fumadocs, Obsidian, the web editor) and
+  // still renders as visible text in a rasterized PNG export (resvg keeps the
+  // anchor's children). Falls back to the bare editor URL when the source is
+  // too large to compress into a share link.
+  y += 2;
+  parts.push(
+    `<line x1="${PAD}" y1="${y}" x2="${W - PAD}" y2="${y}" stroke="${border}" stroke-width="1"/>`
+  );
+  y += 24;
+  const encoded = encodeDiagramUrl(source);
+  const editUrl =
+    'url' in encoded && encoded.url
+      ? encoded.url
+      : 'https://online.diagrammo.app';
+  const iconSize = 18;
+  const linkColor = c.colors.blue ?? c.text;
+  parts.push(
+    `<a href="${escapeXml(editUrl)}" target="_blank" rel="noopener noreferrer">` +
+      diagrammoIcon(PAD, y - 14, iconSize) +
+      `<text x="${PAD + iconSize + 8}" y="${y}" fill="${linkColor}" font-family="${FONT_FAMILY}" font-size="12.5" font-weight="600" text-decoration="underline">Edit &amp; fix this diagram at online.diagrammo.app ↗</text>` +
+      `</a>`
+  );
+  y += 8;
+
   const height = Math.round(y + PAD - 14);
   const pageBg = isTransparent
     ? ''
@@ -189,6 +218,26 @@ function frownMark(cx: number, cy: number, color: string): string {
     `<circle cx="${cx + 4.5}" cy="${cy - 3}" r="1.6" fill="${color}"/>`,
     `<path d="M ${cx - 5} ${cy + 6} Q ${cx} ${cy + 1} ${cx + 5} ${cy + 6}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"/>`,
   ].join('');
+}
+
+// The Diagrammo mark (the app favicon): rounded square, gold arch, a 3-bar
+// chart and 3 lines. Scaled from its native 100×100 box to `size` px at (x,y).
+// Brand colors are literal hex (the mark is fixed, not palette-tinted) and
+// pre-resolved so resvg renders it in PNG exports too.
+function diagrammoIcon(x: number, y: number, size: number): string {
+  const s = size / 100;
+  return (
+    `<g transform="translate(${x} ${y}) scale(${s})">` +
+    `<rect width="100" height="100" rx="18" fill="#1f2933"/>` +
+    `<path d="M41 71 L41 63.51 A28 28 0 1 1 59 63.51 L59 71" fill="none" stroke="#c9a227" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<rect x="36" y="43" width="7" height="9" rx="1.9" fill="#c0504d"/>` +
+    `<rect x="45" y="37" width="7" height="15" rx="1.9" fill="#5b9357"/>` +
+    `<rect x="54" y="30" width="7" height="22" rx="1.9" fill="#3b6ea5"/>` +
+    `<rect x="36" y="75" width="28" height="4.6" rx="2.3" fill="#7d5ba6"/>` +
+    `<rect x="36" y="82" width="28" height="4.6" rx="2.3" fill="#7d5ba6"/>` +
+    `<rect x="36" y="89" width="28" height="4.6" rx="2.3" fill="#7d5ba6"/>` +
+    `</g>`
+  );
 }
 
 function escapeXml(s: string): string {
