@@ -987,7 +987,7 @@ export function renderMap(
       // Filled arrowhead at the true endpoint — a flat triangle whose base sits
       // where the trimmed stroke ends, so the line meets it cleanly with no
       // show-through. Round join keeps the tip from looking spiky on thin legs.
-      gLegs
+      const a = gLegs
         .append('path')
         .attr('d', arrowTri)
         .attr('fill', leg.color)
@@ -996,6 +996,14 @@ export function renderMap(
         .attr('stroke-linejoin', 'round')
         .attr('data-from-id', leg.fromId)
         .attr('data-to-id', leg.toId);
+      // Mirror the leg's tag attrs onto the arrowhead so a legend hover dims/keeps
+      // the arrow in lockstep with its line (§24B.6) — else the arrow stays dimmed
+      // while its matching line stays bright.
+      if (leg.tags) {
+        for (const [group, value] of Object.entries(leg.tags)) {
+          a.attr(`data-tag-${group.toLowerCase()}`, value.toLowerCase());
+        }
+      }
     }
     if (leg.label !== undefined && leg.labelX !== undefined) {
       // Text shade is contrast-picked in layout against the fill under the label
