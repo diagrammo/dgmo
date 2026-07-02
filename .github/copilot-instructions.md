@@ -6,7 +6,7 @@ When the user asks for a diagram, visualization, or chart, generate a `.dgmo` fi
 <!-- DGMO-AI-CORE:START -->
 ## DGMO AI Core
 
-_Generated from `language-reference.md` — the anti-patterns and 45-type index below are identical across every DGMO AI surface._
+_Generated from `language-reference.md` — the anti-patterns and 43-type index below are identical across every DGMO AI surface._
 
 ### Disambiguation — where DGMO diverges from LLM priors
 
@@ -60,7 +60,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 - **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
 - **Pick a fitting direction.** Top-to-bottom for hierarchies and processes; left-to-right for pipelines and flows (where the type supports a direction).
 
-### Chart-type index (42) — pick the type, then fetch its section
+### Chart-type index (43) — pick the type, then fetch its section
 
 | id | when to use |
 | -- | ----------- |
@@ -114,7 +114,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 
 ### Common examples (curated, parse-clean)
 
-_The most common types, inline so you can generate them without a fetch. For the other 37, get the per-type section (see below)._
+_The most common types, inline so you can generate them without a fetch. For the other 35, get the per-type section (see below)._
 
 #### journey-map
 
@@ -551,11 +551,11 @@ Nodes: implicit from edges or explicit with same-line metadata (`Name key: value
 
 ## All chart types
 
-Diagrams: sequence, flowchart, state, class, er, org, kanban, c4, sitemap, infra, gantt, boxes-and-lines, mindmap, wireframe, journey-map, raci, rasci, daci, pert
+Diagrams: sequence, flowchart, state, class, er, org, kanban, c4, sitemap, infra, gantt, pert, boxes-and-lines, block, swimlane, version-control, mindmap, wireframe, journey-map, raci
 
-Visualizations: pyramid, ring, cycle, quadrant, venn, slope, wordcloud, arc, timeline, tech-radar
+Visualizations: slope, wordcloud, arc, timeline, event-line, venn, quadrant, tech-radar, cycle, pyramid, ring, map
 
-Data charts: bar, line, multi-line, area, pie, doughnut, radar, polar-area, scatter, sankey, function, heatmap
+Data charts: bar, line, pie, radar, polar-area, scatter, sankey, function, heatmap, funnel, treemap
 
 The canonical, ordered list lives in `src/chart-types.ts`.
 

@@ -101,7 +101,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 <!-- AI-CORE:STYLING end -->
 
 <!-- AI-CORE:TYPE-INDEX start -->
-### Chart-type index (42) — pick the type, then fetch its section
+### Chart-type index (43) — pick the type, then fetch its section
 
 | id | when to use |
 | -- | ----------- |

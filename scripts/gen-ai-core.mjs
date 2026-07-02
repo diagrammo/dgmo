@@ -100,7 +100,7 @@ const commonExamples = common.map((id) => {
 const examplesBlock = [
   '### Common examples (curated, parse-clean)',
   '',
-  '_The most common types, inline so you can generate them without a fetch. For the other 37, get the per-type section (see below)._',
+  `_The most common types, inline so you can generate them without a fetch. For the other ${chartTypes.length - COMMON_N}, get the per-type section (see below)._`,
   '',
   ...commonExamples.map((e) => `#### ${e.id}\n\n\`\`\`dgmo\n${e.source}\n\`\`\``),
 ].join('\n');
@@ -111,7 +111,7 @@ function buildCore(pointer) {
     START,
     '## DGMO AI Core',
     '',
-    '_Generated from `language-reference.md` — the anti-patterns and 45-type index below are identical across every DGMO AI surface._',
+    `_Generated from \`language-reference.md\` — the anti-patterns and ${chartTypes.length}-type index below are identical across every DGMO AI surface._`,
     '',
     antipatterns,
     '',
