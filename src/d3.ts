@@ -921,9 +921,15 @@ async function exportGantt(ctx: ExportContext): Promise<string> {
   const EXPORT_H = 800;
   const container = createExportContainer(EXPORT_W, EXPORT_H);
 
-  const ganttCollapsedGroups = viewState?.cg
-    ? new Set(viewState.cg)
-    : undefined;
+  // Union source-declared collapsed groups (`[Group] collapsed: true`) with any
+  // interactive `viewState.cg`, so a plain export honors the source marker.
+  const sourceCollapsedGroups = resolved.groups
+    .filter((g) => g.collapsed)
+    .map((g) => g.name);
+  const ganttCollapsedGroups =
+    viewState?.cg || sourceCollapsedGroups.length > 0
+      ? new Set([...sourceCollapsedGroups, ...(viewState?.cg ?? [])])
+      : undefined;
   const ganttSwimlaneGroup = viewState?.swim ?? undefined;
   const ganttCollapsedLanes = viewState?.cl ? new Set(viewState.cl) : undefined;
   renderGantt(

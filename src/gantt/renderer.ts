@@ -257,7 +257,13 @@ export function renderGantt(
   // ── Destructure options ─────────────────────────────────
 
   const onClickItem = options?.onClickItem;
-  const collapsedGroups = options?.collapsedGroups;
+  // Fall back to the groups declared collapsed in source (`[Group] collapsed:
+  // true`) when no interactive set is supplied — so a bare render honors the
+  // source marker. Interactive callers (the app) pass their own set, seeded
+  // from source and expandable.
+  const collapsedGroups =
+    options?.collapsedGroups ??
+    new Set(resolved.groups.filter((g) => g.collapsed).map((g) => g.name));
   const onToggleGroup = options?.onToggleGroup;
   const viewMode = options?.viewMode ?? false;
   const currentSwimlaneGroup = options?.currentSwimlaneGroup ?? null;

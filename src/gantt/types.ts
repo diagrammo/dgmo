@@ -59,6 +59,7 @@ export interface GanttGroup {
   readonly color: string | null;
   readonly metadata: Readonly<Record<string, string>>;
   readonly offset?: Offset; // group-level offset: floor for all bare tasks inside
+  readonly collapsed?: boolean; // `[Group] collapsed: true` view-state marker
   readonly lineNumber: number;
   readonly children: readonly GanttNode[];
 }
@@ -180,6 +181,7 @@ export interface ResolvedGroup {
   progress: number | null; // aggregate progress (weighted average)
   lineNumber: number;
   depth: number;
+  collapsed?: boolean; // seeded from the `[Group] collapsed: true` source marker
 }
 
 export interface ResolvedSprint {

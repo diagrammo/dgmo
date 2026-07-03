@@ -147,6 +147,7 @@ export const GANTT_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'offset',
   'progress',
   'start',
+  'collapsed', // `[Group] collapsed: true` view-state marker
 ]);
 
 export const PERT_REGISTRY: ReservedKeyRegistry = staticRegistry([

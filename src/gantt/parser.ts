@@ -1152,6 +1152,14 @@ export function parseGantt(
           );
           metadata = split.meta;
         }
+        // `[Group] collapsed: true` view-state marker (§ mirrors sequence): a
+        // reserved same-line key that seeds the group collapsed. Extracted into
+        // a typed field so it drives render/export; dropped from metadata.
+        let collapsed = false;
+        if (metadata['collapsed']?.toLowerCase() === 'true') {
+          collapsed = true;
+          delete metadata['collapsed'];
+        }
         const groupPeeled = peelAlias(gm[1]!);
         if (groupPeeled.alias)
           nameAliasMap.set(groupPeeled.alias, groupPeeled.label);
@@ -1160,6 +1168,7 @@ export function parseGantt(
           color: null,
           metadata,
           ...(lineOffset && { offset: lineOffset }),
+          ...(collapsed && { collapsed: true }),
           lineNumber,
           children: [],
         };
