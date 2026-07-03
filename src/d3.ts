@@ -966,21 +966,46 @@ async function exportGantt(ctx: ExportContext): Promise<string> {
 }
 
 async function exportState(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette } = ctx;
+  const { content, theme, palette, viewState } = ctx;
   const { parseState } = await import('./graph/state-parser');
   const { layoutGraph } = await import('./graph/layout');
   const { renderState } = await import('./graph/state-renderer');
+  const { collapseStateGroups } = await import('./graph/state-collapse');
 
   const effectivePalette = await resolveExportPalette(theme, palette);
   const stateParsed = parseState(content, effectivePalette);
   if (stateParsed.error || stateParsed.nodes.length === 0) return '';
 
-  const layout = layoutGraph(stateParsed);
+  // Union source-declared collapsed groups (`[Group] collapsed: true`) with any
+  // interactive viewState.cg, so a plain export honors the source marker.
+  const sourceCollapsed = (stateParsed.groups ?? [])
+    .filter((g) => g.collapsed)
+    .map((g) => g.id);
+  const collapsedGroups = new Set([
+    ...sourceCollapsed,
+    ...(viewState?.cg ?? []),
+  ]);
+  const {
+    parsed: effectiveParsed,
+    collapsedChildCounts,
+    originalGroups,
+  } = collapsedGroups.size > 0
+    ? collapseStateGroups(stateParsed, collapsedGroups)
+    : {
+        parsed: stateParsed,
+        collapsedChildCounts: new Map<string, number>(),
+        originalGroups: stateParsed.groups ?? [],
+      };
+
+  const layout = layoutGraph(effectiveParsed, {
+    collapsedChildCounts,
+    originalGroups,
+  });
   const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
 
   renderState(
     container,
-    stateParsed,
+    effectiveParsed,
     layout,
     effectivePalette,
     ctx.isDark,
