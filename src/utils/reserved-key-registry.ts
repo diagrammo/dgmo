@@ -132,6 +132,7 @@ export const KANBAN_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'wip',
   'assignee',
   'due',
+  'collapsed', // `[Column] collapsed: true` view-state marker
 ]);
 
 export const SITEMAP_REGISTRY: ReservedKeyRegistry = staticRegistry([

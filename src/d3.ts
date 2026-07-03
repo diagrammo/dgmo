@@ -418,9 +418,15 @@ async function exportKanban(ctx: ExportContext): Promise<string> {
   const kanbanCollapsedLanes = viewState?.cl
     ? new Set(viewState.cl)
     : undefined;
-  const kanbanCollapsedColumns = viewState?.cc
-    ? new Set(viewState.cc)
-    : undefined;
+  // Union source-declared collapsed columns (`[Column] collapsed: true`) with
+  // any interactive `viewState.cc`, so a plain export honors the source marker.
+  const sourceCollapsedColumns = kanbanParsed.columns
+    .filter((c) => c.collapsed)
+    .map((c) => c.id);
+  const kanbanCollapsedColumns =
+    viewState?.cc || sourceCollapsedColumns.length > 0
+      ? new Set([...sourceCollapsedColumns, ...(viewState?.cc ?? [])])
+      : undefined;
   renderKanban(container, kanbanParsed, effectivePalette, ctx.isDark, {
     activeTagGroup: resolveActiveTagGroup(
       kanbanParsed.tagGroups,

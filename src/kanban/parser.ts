@@ -311,6 +311,15 @@ export function parseKanban(
         if (!isNaN(wipVal)) wipLimit = wipVal;
       }
 
+      // `[Column] collapsed: true` view-state marker (mirrors gantt/sequence):
+      // a reserved same-line key seeding the column collapsed, extracted into a
+      // typed field and dropped from metadata.
+      let colCollapsed = false;
+      if (columnMetadata['collapsed']?.toLowerCase() === 'true') {
+        colCollapsed = true;
+        delete columnMetadata['collapsed'];
+      }
+
       const colId = `col-${columnCounter}`;
       if (colAlias) nameAliasMap.set(colAlias, colId);
       currentColumn = {
@@ -318,6 +327,7 @@ export function parseKanban(
         name: colName,
         ...(wipLimit !== undefined && { wipLimit }),
         ...(colColor !== undefined && { color: colColor }),
+        ...(colCollapsed && { collapsed: true }),
         cards: [],
         lineNumber,
         metadata: columnMetadata,
