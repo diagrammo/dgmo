@@ -132,6 +132,9 @@ export function renderTreemapRadial(
     .attr('class', 'dgmo-treemap dgmo-treemap-radial')
     .style('font-family', FONT_FAMILY);
 
+  // Curved arc labels reference per-arc paths kept in <defs> (via <textPath>).
+  const defs = svg.append('defs');
+
   svg
     .append('rect')
     .attr('width', width)
@@ -166,6 +169,7 @@ export function renderTreemapRadial(
     .padRadius(radius);
 
   // ── Arcs ───────────────────────────────────────────────────
+  let labelSeq = 0;
   if (!layout.isEmpty) {
     for (const cell of layout.cells) {
       const fill = resolveCellColor(cell, colorCtx);
@@ -193,7 +197,15 @@ export function renderTreemapRadial(
         .attr('stroke', palette.bg)
         .attr('stroke-width', 1);
 
-      drawArcLabel(g, cell, opts, palette, fill);
+      drawArcLabel(
+        g,
+        defs,
+        `dgmo-arc-lbl-${labelSeq++}`,
+        cell,
+        opts,
+        palette,
+        fill
+      );
     }
   }
 
@@ -304,11 +316,13 @@ function drawCenterDisc(
 }
 
 // ============================================================
-// Arc labels — hybrid orientation + small-arc dropout
+// Arc labels — curved along the ring (<textPath>) + small-arc dropout
 // ============================================================
 
 function drawArcLabel(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  defs: d3Selection.Selection<SVGDefsElement, unknown, null, undefined>,
+  pathId: string,
   cell: RadialCell,
   opts: ParsedTreemap['options'],
   palette: PaletteColors,
@@ -327,110 +341,68 @@ function drawArcLabel(
     palette.textOnFillDark
   );
 
-  const midAngle = (cell.startAngle + cell.endAngle) / 2;
   const rMid = (cell.innerR + cell.outerR) / 2;
+  const fs = clampFs(13, ringThickness);
 
   const valParts = [
     opts.noValues ? '' : compactNumber(cell.value),
     opts.noPercent ? '' : formatPct(cell.pctOfRoot),
   ].filter(Boolean);
   const valStr = valParts.join(' · ');
+  const full = valStr ? `${cell.label} ${valStr}` : cell.label;
 
-  // Hybrid orientation: tangential on the innermost ring (depth 1), radial on
-  // outer rings — radial arcs have more radial than tangential room out there.
-  if (cell.depth <= 1) {
-    drawTangentialLabel(g, cell, midAngle, rMid, sweep, valStr, ink);
-  } else {
-    drawRadialLabel(g, cell, midAngle, valStr, ink);
-  }
+  // Arc length available at the label's radius (small margin off the dividers).
+  const availLen = sweep * rMid * 0.94;
+  const text = clip(full, availLen, fs);
+  if (!text) return;
+
+  drawCurvedLabel(g, defs, pathId, cell, rMid, fs, text, ink);
 }
 
-/** Tangential label: text follows the ring; anchored at the arc mid-angle. */
-function drawTangentialLabel(
+/** Curved label: text flows along the ring on a per-arc <textPath>. On the
+ *  bottom half the path is reversed so the text is never upside-down. */
+function drawCurvedLabel(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  defs: d3Selection.Selection<SVGDefsElement, unknown, null, undefined>,
+  pathId: string,
   cell: RadialCell,
-  midAngle: number,
   rMid: number,
-  sweep: number,
-  valStr: string,
+  fs: number,
+  text: string,
   ink: string
 ): void {
-  // Available tangential length ≈ arc length at the mid radius.
-  const availLen = sweep * rMid * 0.9;
-  const fs = clampFs(13, cell.outerR - cell.innerR);
-  const label = clip(cell.label, availLen, fs);
-  if (!label) return;
+  const mid = (cell.startAngle + cell.endAngle) / 2;
+  const bottom = mid > Math.PI / 2 && mid < (3 * Math.PI) / 2;
 
-  // Position at the arc midpoint. SVG: 0 rad = 12 o'clock, clockwise.
-  const px = Math.sin(midAngle) * rMid;
-  const py = -Math.cos(midAngle) * rMid;
-  // Rotate so the baseline runs along the ring; flip on the bottom half so text
-  // is never upside-down.
-  let rot = (midAngle * 180) / Math.PI;
-  const bottom = midAngle > Math.PI / 2 && midAngle < (3 * Math.PI) / 2;
-  if (bottom) rot += 180;
+  // Baseline sits ON the path; nudge the path radius so the text's optical
+  // centre lands on rMid (glyphs grow outward on top, inward on the reversed
+  // bottom path — opposite radial offsets keep both visually centred).
+  const rPath = bottom ? rMid + fs * 0.32 : rMid - fs * 0.32;
 
-  const t = g
-    .append('g')
-    .attr('transform', `translate(${px},${py}) rotate(${rot})`);
-  t.append('text')
+  // SVG polar: 0 rad = 12 o'clock, clockwise. Reverse endpoints + sweep-flag on
+  // the bottom half to flip the baseline upright.
+  const [a0, a1] = bottom
+    ? [cell.endAngle, cell.startAngle]
+    : [cell.startAngle, cell.endAngle];
+  const p0x = Math.sin(a0) * rPath;
+  const p0y = -Math.cos(a0) * rPath;
+  const p1x = Math.sin(a1) * rPath;
+  const p1y = -Math.cos(a1) * rPath;
+  const sweepFlag = bottom ? 0 : 1;
+  const d = `M ${p0x.toFixed(2)} ${p0y.toFixed(2)} A ${rPath.toFixed(2)} ${rPath.toFixed(2)} 0 0 ${sweepFlag} ${p1x.toFixed(2)} ${p1y.toFixed(2)}`;
+
+  defs.append('path').attr('id', pathId).attr('d', d);
+
+  g.append('text')
     .attr('class', 'dgmo-treemap-label')
-    .attr('text-anchor', 'middle')
-    .attr('y', valStr ? -1 : 4)
     .attr('font-size', fs)
     .attr('font-weight', 600)
     .attr('fill', ink)
-    .text(label);
-  if (valStr) {
-    const vfs = Math.max(9, Math.round(fs * 0.75));
-    if (measureText(valStr, vfs) <= availLen) {
-      t.append('text')
-        .attr('class', 'dgmo-treemap-value')
-        .attr('text-anchor', 'middle')
-        .attr('y', fs)
-        .attr('font-size', vfs)
-        .attr('fill', ink)
-        .attr('opacity', 0.85)
-        .text(valStr);
-    }
-  }
-}
-
-/** Radial label: text runs outward along the radius; flipped for readability
- *  on the left half (like pie.ts's side-flip). */
-function drawRadialLabel(
-  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  cell: RadialCell,
-  midAngle: number,
-  valStr: string,
-  ink: string
-): void {
-  const availLen = (cell.outerR - cell.innerR) * 0.9;
-  const fs = clampFs(12, cell.outerR - cell.innerR);
-  const full = valStr ? `${cell.label} ${valStr}` : cell.label;
-  const label = clip(full, availLen, fs);
-  if (!label) return;
-
-  const rMid = (cell.innerR + cell.outerR) / 2;
-  const px = Math.sin(midAngle) * rMid;
-  const py = -Math.cos(midAngle) * rMid;
-
-  // math angle (0 = east) → rotate text to lie along the radius.
-  const mathAngle = midAngle - Math.PI / 2;
-  const rightSide = Math.cos(mathAngle) >= 0;
-  let rot = (mathAngle * 180) / Math.PI;
-  if (!rightSide) rot += 180;
-
-  g.append('g')
-    .attr('transform', `translate(${px},${py}) rotate(${rot})`)
-    .append('text')
-    .attr('class', 'dgmo-treemap-label')
+    .append('textPath')
+    .attr('href', `#${pathId}`)
+    .attr('startOffset', '50%')
     .attr('text-anchor', 'middle')
-    .attr('y', 3)
-    .attr('font-size', fs)
-    .attr('font-weight', 500)
-    .attr('fill', ink)
-    .text(label);
+    .text(text);
 }
 
 // ============================================================
