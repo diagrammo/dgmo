@@ -411,6 +411,12 @@ export function parseERDiagram(
           continue;
         }
       }
+      // ER-local bare flag: suppress the semantic PK/FK role colors (on by
+      // default). View-state opt-out, mirrors `no-analysis` (§1 view-state).
+      if (trimmed.toLowerCase() === 'no-semantic-colors') {
+        options['no-semantic-colors'] = 'on';
+        continue;
+      }
       if (tryParseSharedOption(trimmed, options)) {
         continue;
       }

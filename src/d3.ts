@@ -507,7 +507,10 @@ async function exportEr(ctx: ExportContext): Promise<string> {
       erParsed.options['active-tag'],
       ctxTagOverride(ctx)
     ),
-    viewState?.sem,
+    // Semantic colors are on by default; the source `no-semantic-colors` flag
+    // suppresses them. An interactive `viewState.sem` overrides source.
+    viewState?.sem ??
+      (erParsed.options['no-semantic-colors'] === 'on' ? false : undefined),
     exportMode
   );
   return finalizeSvgExport(container, theme, effectivePalette);
