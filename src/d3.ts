@@ -653,7 +653,10 @@ async function exportMindmap(ctx: ExportContext): Promise<string> {
   const exportHeight = mmLayout.height + PADDING * 2 + titleOffset;
   const container = createExportContainer(exportWidth, exportHeight);
 
-  const colorByDepth = viewState?.cbd === true;
+  // Colour-by-depth from the source `color-by-depth` flag, with an interactive
+  // `viewState.cbd` override.
+  const colorByDepth =
+    viewState?.cbd ?? mmParsed.options['color-by-depth'] === 'on';
 
   renderMindmap(
     container,
