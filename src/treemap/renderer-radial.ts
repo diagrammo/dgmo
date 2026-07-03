@@ -48,6 +48,9 @@ const LEGEND_POSITION: LegendPosition = {
 /** Small-arc dropout threshold (ADR-5/AC7): drop inline labels below 6°. */
 const MIN_LABEL_SWEEP = (6 * Math.PI) / 180; // ≈ 0.105 rad
 
+/** Floor for shrink-to-fit label text — below this it's ellipsized instead. */
+const MIN_LABEL_FS = 8;
+
 export interface TreemapRadialRenderOptions {
   /** Color mode override (app's runtime switcher). Defaults to source. */
   colorMode?: TreemapColorMode;
@@ -342,7 +345,7 @@ function drawArcLabel(
   );
 
   const rMid = (cell.innerR + cell.outerR) / 2;
-  const fs = clampFs(13, ringThickness);
+  const maxFs = clampFs(13, ringThickness);
 
   const valParts = [
     opts.noValues ? '' : compactNumber(cell.value),
@@ -353,6 +356,15 @@ function drawArcLabel(
 
   // Arc length available at the label's radius (small margin off the dividers).
   const availLen = sweep * rMid * 0.94;
+
+  // Shrink-to-fit: keep the full label by dropping the font size (proportional
+  // to the overflow), floored at MIN_LABEL_FS. Only ellipsize if it still won't
+  // fit at the floor. `measureText` width scales ~linearly with font size.
+  let fs = maxFs;
+  const wAtMax = measureText(full, maxFs);
+  if (wAtMax > availLen) {
+    fs = Math.max(MIN_LABEL_FS, Math.floor((maxFs * availLen) / wAtMax));
+  }
   const text = clip(full, availLen, fs);
   if (!text) return;
 
