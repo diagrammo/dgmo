@@ -575,7 +575,19 @@ async function exportMindmap(ctx: ExportContext): Promise<string> {
   const mmParsed = parseMindmap(content, effectivePalette);
   if (mmParsed.error) return '';
 
-  const collapsedNodes = viewState?.cg ? new Set(viewState.cg) : undefined;
+  // Collapse set = runtime view-state (`cg`) ∪ source-authored `collapsed: true`
+  // markers (node.collapsed). Honoring the source markers is what lets any
+  // consumer (CLI, remark-dgmo, Obsidian, embeds) reproduce the app's collapsed
+  // view from the `.dgmo` text alone. `cg` is additive here (the mindmap share
+  // path emits no `cg` today); true cg-vs-source precedence is a later concern.
+  const collapsedNodes = new Set<string>(viewState?.cg ?? []);
+  const collectCollapsed = (nodes: typeof mmParsed.roots): void => {
+    for (const n of nodes) {
+      if (n.collapsed) collapsedNodes.add(n.id);
+      if (n.children.length) collectCollapsed(n.children);
+    }
+  };
+  collectCollapsed(mmParsed.roots);
   const activeTagGroup = resolveActiveTagGroup(
     mmParsed.tagGroups,
     mmParsed.options['active-tag'],
