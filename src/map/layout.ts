@@ -4834,6 +4834,10 @@ export function layoutMap(
     for (const f of worldLayer.values()) {
       const iso = typeof f.id === 'string' ? f.id : String(f.id ?? '');
       if (!iso || regionById.has(iso) || labeledRegionIds.has(iso)) continue;
+      // In a US view the us-states layer paints AND labels the country, so the
+      // redundant "United States" nation label is dropped (mirrors the basemap
+      // drop of the US polygon at draw time).
+      if (usContext && iso === 'US') continue;
       // F3: skip a country whose SUBDIVISIONS are the referenced data (e.g. a
       // US-states choropleth on a world projection) — the states ARE the data,
       // so don't slap a redundant "United States" context label over them.
@@ -4870,39 +4874,21 @@ export function layoutMap(
     // single-anchor `anchor === positions[0]` invariant (D12) holds.
     const cBand = tierBand(Math.max(dLonSpan, dLatSpan));
     const cBudget = labelBudget(width, height, cBand);
-    // Content points = the POI markers (the diagram's story). Drive BOTH the
-    // proximity rank in placeContextLabels AND which countries get dodge positions
-    // generated here, so the near-action winners are equipped to dodge
-    // (map-context-neighbor-labels, proximity knob). Empty ⇒ legacy area rank.
-    const contentPoints: [number, number][] = markers.map((m) => [m.cx, m.cy]);
-    // Generate dodge positions for the top `budget + margin` candidates ranked the
-    // SAME way placeContextLabels will pick winners — by proximity to the nearest
-    // content point when known, else by area. (Generating for all ~45 in-view
-    // countries is wasted PiP work; D15.) The +MARGIN slack covers the rank skew
-    // from the module's extra fit/viewport filtering, so the eventual winner still
-    // carries dodge positions.
+    // A nation touching the viewport is labeled UNCONDITIONALLY (Option A symmetric
+    // orientation — Canada AND Mexico together) EXCEPT on a world view, where every
+    // country would flood the frame; there nations fall back to the budgeted,
+    // area-ranked path. Passed through as `bordering` on each nation candidate.
+    const nationsUnconditional = cBand !== 'world';
+    // Generate dodge positions for the top `budget + margin` countries by AREA (the
+    // same deterministic order placeContextLabels commits in — no proximity knob).
+    // Generating for all ~45 in-view countries on a world map is wasted PiP work
+    // (D15); the +MARGIN slack covers the module's extra fit/viewport filtering so
+    // the eventual winner still carries dodge positions.
     const topN = cBudget + COUNTRY_POS_TOPN_MARGIN;
     const rankOrder = rawCountries
-      .map((r, idx) => {
-        // Match placeContextLabels' rank: distance from the NEAREST content point to
-        // the country's footprint bbox (0 if inside, else nearest-edge), so the same
-        // near-the-action winners get dodge positions generated.
-        let dist = Infinity;
-        const [x0, y0, x1, y1] = r.bbox;
-        for (const [px, py] of contentPoints) {
-          const dx = Math.max(x0 - px, 0, px - x1);
-          const dy = Math.max(y0 - py, 0, py - y1);
-          const d = dx * dx + dy * dy;
-          if (d < dist) dist = d;
-        }
-        return { idx, area: r.area, dist };
-      })
+      .map((r, idx) => ({ idx, area: r.area }))
       .filter((r) => Number.isFinite(r.area) && r.area > 0)
-      .sort((a, b) =>
-        contentPoints.length
-          ? a.dist - b.dist || b.area - a.area
-          : b.area - a.area
-      )
+      .sort((a, b) => b.area - a.area)
       .slice(0, topN);
     const genIdx = new Set(rankOrder.map((r) => r.idx));
     for (let i = 0; i < rawCountries.length; i++) {
@@ -4932,6 +4918,7 @@ export function layoutMap(
         bbox: r.bbox,
         anchor,
         curatedAnchor: !!r.curatedLngLat,
+        bordering: nationsUnconditional,
         ...(positions ? { positions } : {}),
       });
     }
@@ -4984,7 +4971,6 @@ export function layoutMap(
       waterTone: backdropWaterTone,
       project,
       collides,
-      contentPoints,
       // Water labels must stay over open water — `fillAt` returns the ocean
       // backdrop colour off-land and a region fill on-land (lakes/states count
       // as land here, which is the safe side for an ocean name).

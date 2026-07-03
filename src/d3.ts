@@ -259,6 +259,25 @@ async function exportVersionControl(ctx: ExportContext): Promise<string> {
   return finalizeSvgExport(container, theme, effectivePalette);
 }
 
+/**
+ * Merge the source `hide` directive (comma-separated attribute keys) with any
+ * interactive `viewState.ha`, lowercasing both so they match the parser's
+ * lowercased metadata keys. Returns `undefined` when nothing is hidden.
+ */
+function unionHiddenAttributes(
+  hideOption: string | undefined,
+  ha: readonly string[] | undefined
+): Set<string> | undefined {
+  const sourceHidden = hideOption
+    ? hideOption
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
+  const union = new Set([...sourceHidden, ...(ha ?? [])]);
+  return union.size > 0 ? union : undefined;
+}
+
 async function exportOrg(ctx: ExportContext): Promise<string> {
   const { content, theme, palette, viewState, exportMode } = ctx;
   const { parseOrg } = await import('./org/parser');
@@ -279,7 +298,13 @@ async function exportOrg(ctx: ExportContext): Promise<string> {
     orgParsed.options['active-tag'],
     ctxTagOverride(ctx)
   );
-  const hiddenAttributes = viewState?.ha ? new Set(viewState.ha) : undefined;
+  // Hidden attributes come from the source `hide` directive UNIONed with any
+  // interactive `viewState.ha` (share link / app). Source alone must hide on a
+  // plain render — parity with the app, which seeds the same directive.
+  const hiddenAttributes = unionHiddenAttributes(
+    orgParsed.options['hide'],
+    viewState?.ha
+  );
 
   const { parsed: effectiveParsed, hiddenCounts } =
     collapsedNodes && collapsedNodes.size > 0
@@ -336,7 +361,10 @@ async function exportSitemap(ctx: ExportContext): Promise<string> {
     sitemapParsed.options['active-tag'],
     ctxTagOverride(ctx)
   );
-  const hiddenAttributes = viewState?.ha ? new Set(viewState.ha) : undefined;
+  const hiddenAttributes = unionHiddenAttributes(
+    sitemapParsed.options['hide'],
+    viewState?.ha
+  );
 
   const { parsed: effectiveParsed, hiddenCounts } =
     collapsedNodes && collapsedNodes.size > 0
