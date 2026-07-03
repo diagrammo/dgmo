@@ -556,8 +556,14 @@ export type { ParsedRing, RingLayer } from './ring/types';
 
 export { parseTreemap } from './treemap/parser';
 export { renderTreemap, renderTreemapForExport } from './treemap/renderer';
+export {
+  renderTreemapRadial,
+  renderTreemapRadialForExport,
+} from './treemap/renderer-radial';
 export { layoutTreemap } from './treemap/layout';
+export { layoutTreemapRadial } from './treemap/layout-radial';
 export type { TreemapCell, TreemapLayoutResult } from './treemap/layout';
+export type { RadialCell, RadialLayoutResult } from './treemap/layout-radial';
 export type {
   ParsedTreemap,
   TreemapNode,

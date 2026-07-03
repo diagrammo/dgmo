@@ -551,6 +551,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-percent': { description: 'Hide percentage labels' },
       'no-headers': { description: 'Hide parent header bars' },
       'no-legend': { description: 'Hide the legend' },
+      radial: {
+        description:
+          'Render as a sunburst / hierarchical pie (concentric rings)',
+      },
     }),
   ],
   [
@@ -1880,7 +1884,7 @@ function extractTreemapSymbols(docText: string): DiagramSymbols {
     // Directives and tag blocks are not node entities.
     if (
       /^(depth|heat|no-[a-z]+)\s/i.test(trimmed) ||
-      /^no-[a-z]+$/i.test(trimmed)
+      /^(no-[a-z]+|radial)$/i.test(trimmed)
     )
       continue;
     if (/^tag\s+/i.test(trimmed)) {

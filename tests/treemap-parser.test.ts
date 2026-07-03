@@ -1,6 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { JSDOM } from 'jsdom';
 import { parseTreemap } from '../src/treemap/parser';
 import { layoutTreemap, sumValue } from '../src/treemap/layout';
+import { layoutTreemapRadial } from '../src/treemap/layout-radial';
+import type { RadialCell } from '../src/treemap/layout-radial';
+import { renderTreemapRadial } from '../src/treemap/renderer-radial';
+import { depthTint } from '../src/treemap/treemap-shared';
+import { getPalette } from '../src/palettes';
 import type { TreemapNode } from '../src/treemap/types';
 
 function codes(r: ReturnType<typeof parseTreemap>): string[] {
@@ -219,5 +225,166 @@ describe('layoutTreemap — geometry & depth (AC2c)', () => {
     // Collapsed node keeps its full summed value; descendants are not drawn.
     expect(src.value).toBe(30);
     expect(cells.some((c) => c.label === 'a')).toBe(false);
+  });
+});
+
+// ============================================================
+// Radial (sunburst) mode
+// ============================================================
+
+describe('parseTreemap — radial directive (AC1)', () => {
+  it('parses the bare `radial` flag into options', () => {
+    const r = parseTreemap('treemap T\nradial\n\nA\n  X 1\n  Y 2');
+    expect(r.error).toBeNull();
+    expect(r.options.radial).toBe(true);
+    // Other directives still parse unchanged alongside it.
+    expect(r.roots.map((n) => n.label)).toEqual(['A']);
+  });
+
+  it('defaults radial to false when the flag is absent', () => {
+    const r = parseTreemap('treemap T\nA\n  X 1');
+    expect(r.options.radial).toBe(false);
+  });
+
+  it('does not create a phantom "radial" node', () => {
+    const r = parseTreemap('treemap T\nradial\n\nA\n  X 1');
+    expect(findNode(r.roots, 'radial')).toBeUndefined();
+  });
+});
+
+describe('layoutTreemapRadial — geometry (AC2/AC3)', () => {
+  const find = (cells: readonly RadialCell[], label: string): RadialCell =>
+    cells.find((c) => c.label === label)!;
+
+  it('arc sweep equals value / root proportion × 2π', () => {
+    const r = parseTreemap('treemap T\nA\n  X 300\n  Y 100');
+    const { cells, total } = layoutTreemapRadial(r.roots, { radius: 200 });
+    expect(total).toBe(400);
+    const x = find(cells, 'X');
+    const sweepX = x.endAngle - x.startAngle;
+    // X = 300/400 of the whole → 3/4 of 2π.
+    expect(sweepX).toBeCloseTo((300 / 400) * 2 * Math.PI, 6);
+  });
+
+  it('nests each child arc within its parent wedge', () => {
+    const r = parseTreemap('treemap T\nA\n  X 300\n  Y 100');
+    const { cells } = layoutTreemapRadial(r.roots, { radius: 200 });
+    const a = find(cells, 'A');
+    const x = find(cells, 'X');
+    const y = find(cells, 'Y');
+    expect(x.startAngle).toBeGreaterThanOrEqual(a.startAngle - 1e-9);
+    expect(x.endAngle).toBeLessThanOrEqual(a.endAngle + 1e-9);
+    expect(y.startAngle).toBeGreaterThanOrEqual(a.startAngle - 1e-9);
+    expect(y.endAngle).toBeLessThanOrEqual(a.endAngle + 1e-9);
+    // Child rings sit further out than their parent.
+    expect(x.innerR).toBeGreaterThanOrEqual(a.outerR - 1e-9);
+  });
+
+  it('preserves SOURCE order — does NOT value-sort (F2 regression guard)', () => {
+    // Smaller value FIRST in source; a value-sort would put Big at angle 0.
+    const r = parseTreemap('treemap T\nSmall 100\nBig 300');
+    const { cells } = layoutTreemapRadial(r.roots, { radius: 200 });
+    const small = find(cells, 'Small');
+    const big = find(cells, 'Big');
+    // Source order: Small starts at 12 o'clock (0), Big follows.
+    expect(small.startAngle).toBeCloseTo(0, 6);
+    expect(small.startAngle).toBeLessThan(big.startAngle);
+  });
+
+  it('multi-root: all top-level nodes land on ring 1 (F1/AC3)', () => {
+    const r = parseTreemap('treemap Total\nA 100\nB 200\nC 300');
+    const { cells, total } = layoutTreemapRadial(r.roots, { radius: 200 });
+    expect(total).toBe(600);
+    const ring1 = cells.filter((c) => c.depth === 1).map((c) => c.label);
+    expect(ring1).toEqual(['A', 'B', 'C']);
+    // No cell IS the synthetic root — the disc is drawn separately.
+    expect(cells.some((c) => c.label === '__root')).toBe(false);
+  });
+
+  it('all-zero grand total → empty-state, no NaN arcs (F5/AC9)', () => {
+    const r = parseTreemap('treemap T\nA\n  X 0\n  Y 0');
+    const res = layoutTreemapRadial(r.roots, { radius: 200 });
+    expect(res.isEmpty).toBe(true);
+    expect(res.total).toBe(0);
+    expect(res.cells).toHaveLength(0);
+    expect(Number.isNaN(res.discRadius)).toBe(false);
+  });
+
+  it('flat (single-level) radial produces a labeled donut, no crash (AC13)', () => {
+    const r = parseTreemap('treemap T\nradial\n\nA 1\nB 2\nC 3');
+    const { cells } = layoutTreemapRadial(r.roots, { radius: 200 });
+    expect(cells).toHaveLength(3);
+    expect(cells.every((c) => c.depth === 1)).toBe(true);
+    // Inner radius > 0 → a donut (the center disc hole).
+    expect(cells.every((c) => c.innerR > 0)).toBe(true);
+  });
+});
+
+describe('treemap diagnostics — mode-neutral wording (AC11)', () => {
+  it('negative-leaf / valueless-leaf / branch-value codes still fire with reworded messages', () => {
+    const neg = parseTreemap('treemap T\nradial\n\nA\n  Bad -5');
+    expect(codes(neg)).toContain('E_TREEMAP_NEGATIVE_VALUE');
+
+    const lonely = parseTreemap('treemap T\nradial\n\nA\n  Lonely');
+    const leafMsg = lonely.diagnostics.find(
+      (d) => d.code === 'W_TREEMAP_LEAF_NO_VALUE'
+    )!;
+    expect(leafMsg.message).toContain('zero size');
+    expect(leafMsg.message).not.toContain('area');
+
+    const branch = parseTreemap('treemap T\nradial\n\nOps 999\n  Cloud 110');
+    const branchMsg = branch.diagnostics.find(
+      (d) => d.code === 'W_TREEMAP_BRANCH_VALUE_IGNORED'
+    )!;
+    expect(branchMsg.message).toContain('the size is the auto-sum');
+    expect(branchMsg.message).not.toContain('area');
+  });
+});
+
+describe('depthTint — lightness floor (AC8)', () => {
+  const bg = '#ffffff';
+  const hue = getPalette('nord').light.primary;
+
+  it('floors the tint so deep rings stay distinct (keepPct clamps at 55)', () => {
+    // keepPct = max(55, 100-(depth-1)*18): depth 4 → 46 clamped to 55, and every
+    // deeper level stays at 55 → identical fills (never washes toward the bg).
+    expect(depthTint(hue, 4, bg)).toBe(depthTint(hue, 20, bg));
+    // Shallow depths are still distinct (ramp is live above the floor).
+    expect(depthTint(hue, 1, bg)).not.toBe(depthTint(hue, 4, bg));
+  });
+});
+
+describe('renderTreemapRadial — small-arc label dropout (AC7)', () => {
+  beforeAll(() => {
+    const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+    const win = dom.window;
+    for (const [k, value] of Object.entries({
+      document: win.document,
+      window: win,
+      navigator: win.navigator,
+      HTMLElement: win.HTMLElement,
+      SVGElement: win.SVGElement,
+    })) {
+      Object.defineProperty(globalThis, k, { value, configurable: true });
+    }
+  });
+
+  const nordLight = getPalette('nord').light;
+  const mount = (w = 600, h = 600): HTMLDivElement => {
+    const c = document.createElement('div');
+    Object.defineProperty(c, 'clientWidth', { value: w });
+    Object.defineProperty(c, 'clientHeight', { value: h });
+    return c;
+  };
+
+  it('drops the inline label of an arc whose sweep is < 6°', () => {
+    // Tiny = 5/1005 ≈ 0.5% → ~1.8° sweep (< 6°); Big ≈ 99.5% → labeled.
+    // no-legend so textContent reflects arc labels (+ disc), not the legend list.
+    const r = parseTreemap('treemap T\nradial\nno-legend\n\nBig 1000\nTiny 5');
+    const c = mount();
+    renderTreemapRadial(c, r, nordLight, false);
+    const text = c.textContent ?? '';
+    expect(text).toContain('Big');
+    expect(text).not.toContain('Tiny');
   });
 });

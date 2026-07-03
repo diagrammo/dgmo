@@ -1099,7 +1099,6 @@ async function exportRing(ctx: ExportContext): Promise<string> {
 async function exportTreemap(ctx: ExportContext): Promise<string> {
   const { content, theme, palette } = ctx;
   const { parseTreemap } = await import('./treemap/parser');
-  const { renderTreemapForExport } = await import('./treemap/renderer');
 
   const effectivePalette = await resolveExportPalette(theme, palette);
   const treemapParsed = parseTreemap(content, effectivePalette);
@@ -1107,16 +1106,29 @@ async function exportTreemap(ctx: ExportContext): Promise<string> {
 
   // Headless export: full tree (no depth window), source-declared color mode.
   const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
-  renderTreemapForExport(
-    container,
-    treemapParsed,
-    effectivePalette,
-    ctx.isDark,
-    {
-      width: EXPORT_WIDTH,
-      height: EXPORT_HEIGHT,
-    }
-  );
+  const dims = { width: EXPORT_WIDTH, height: EXPORT_HEIGHT };
+
+  if (treemapParsed.options.radial) {
+    // Sunburst mode: parallel lazy imports of the radial layout + renderer.
+    const { renderTreemapRadialForExport } =
+      await import('./treemap/renderer-radial');
+    renderTreemapRadialForExport(
+      container,
+      treemapParsed,
+      effectivePalette,
+      ctx.isDark,
+      dims
+    );
+  } else {
+    const { renderTreemapForExport } = await import('./treemap/renderer');
+    renderTreemapForExport(
+      container,
+      treemapParsed,
+      effectivePalette,
+      ctx.isDark,
+      dims
+    );
+  }
   return finalizeSvgExport(container, theme, effectivePalette);
 }
 

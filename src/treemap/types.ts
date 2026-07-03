@@ -40,6 +40,8 @@ export interface TreemapOptions {
   noHeaders: boolean;
   noLegend: boolean;
   solidFill: boolean;
+  /** `radial` — render as a sunburst (concentric rings) instead of rectangles. */
+  radial: boolean;
 }
 
 export interface ParsedTreemap {

@@ -3318,7 +3318,7 @@ When ring band thickness would force the in-band label below the readable floor 
 <!-- TYPE:treemap -->
 
 <!-- TIPS start -->
-**Styling tips:** Put the unit in the title (`Cloud Spend ($)`) — there is no currency/format directive. Reach for `depth N` once a tree goes past ~3 levels (deeper subtrees collapse to a drillable block) and `other-below N` to fold a long tail of tiny categories into one **Other** box. Pick the color mode to match intent: tags for categories, `heat` for a gain/loss heatmap, branch for zero-config structure.
+**Styling tips:** Put the unit in the title (`Cloud Spend ($)`) — there is no currency/format directive. Reach for `depth N` once a tree goes past ~3 levels (deeper subtrees collapse to a drillable block) and `other-below N` to fold a long tail of tiny categories into one **Other** box. Pick the color mode to match intent: tags for categories, `heat` for a gain/loss heatmap, branch for zero-config structure. Add `radial` to render a **sunburst / hierarchical pie** — best for shallow trees where you want "share of a circle"; keep the rectangular default for deep trees or precise magnitude comparison.
 <!-- TIPS end -->
 
 Nested rectangles sized by value — the canonical way to show a hierarchy's proportions at a glance (budgets, disk usage, portfolios, taxonomies). Indentation is the hierarchy; a bare trailing number on a leaf is its size; parents auto-sum their children. Built on a squarified layout so cells keep good aspect ratios.
@@ -3396,10 +3396,27 @@ Add a per-node `heat:` number (a second metric, distinct from size; negatives/fl
 | `other-below N` | Roll children under N% of their parent into a single hatched **Other** bucket (opt-in).  |
 | `no-values`     | Hide value labels.                                                                       |
 | `no-percent`    | Hide percentage labels.                                                                  |
-| `no-headers`    | Hide parent header bars.                                                                 |
-| `no-legend`     | Hide the legend.                                                                         |
+| `no-headers`    | Hide parent header bars (a no-op in `radial` mode).                                       |
+| `no-legend`     | Hide the legend.                                                                          |
+| `radial`        | Render as a **sunburst / hierarchical pie** (concentric rings) instead of rectangles.    |
 
 Numbers auto-compact (1.2M, 940k). Units live in the title — there is no format/currency directive.
+
+### Radial mode (sunburst / hierarchical pie)
+
+Add a bare `radial` flag and the same hierarchy renders as a sunburst: the center disc is the whole (chart title + grand total), the first ring is the top-level groups, and each outer ring breaks a group into its parts. Tags, `heat`, and `no-values`/`no-percent`/`no-legend` all carry over; `no-headers` is a no-op. An arc's angle is its share of the whole; radius is depth only, so slices stay in **source order** and very thin arcs drop their inline label. Best for shallow trees (≈3 levels); for deep trees or precise magnitude, prefer the rectangular treemap.
+
+```dgmo
+treemap Plunder Spend ($k)
+radial
+
+Sailing & Rigging
+  Rigging 320
+  Helm 180
+Cannon Battery
+  Powder 90
+  Shot 130
+```
 
 ### Interactivity vs export
 

@@ -8,16 +8,14 @@
 // `data-export-ignore` so `finalizeSvgExport` strips it on export.
 
 import * as d3Selection from 'd3-selection';
-import { scaleLinear } from 'd3-scale';
 import { FONT_FAMILY } from '../fonts';
-import { resolveColor } from '../colors';
 import { contrastText, getSeriesColors, mix } from '../palettes/color-utils';
-import { resolveTagColor, tagAttrKey } from '../utils/tag-groups';
+import { tagAttrKey } from '../utils/tag-groups';
 import { measureText } from '../utils/text-measure';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
-import type { LegendGroupData, LegendPosition } from '../utils/legend-types';
+import type { LegendPosition } from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -25,13 +23,21 @@ import {
 } from '../utils/title-constants';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
-import type { ParsedTreemap, TreemapColorMode, TreemapNode } from './types';
-import { layoutTreemap, type TreemapCell } from './layout';
+import type { ParsedTreemap, TreemapColorMode } from './types';
+import { layoutTreemap } from './layout';
+import {
+  buildHeatScale,
+  buildLegend,
+  compactNumber,
+  formatPct,
+  resolveCellColor,
+  resolveColorMode,
+  type CellColorContext,
+} from './treemap-shared';
 
 const PADDING = 12;
 const HEADER_H = 18;
 const TITLE_BAND = 36;
-const MUTED_FILL = '#cbd5e1';
 /** Percent of a leaf's own color kept when muting it toward the background. */
 const LEAF_MUTE_PCT = 50;
 
@@ -184,28 +190,15 @@ export function renderTreemap(
   // keeps the hue it had at the top level.
   const rootIndexByLabel = new Map(parsed.roots.map((r, i) => [r.label, i]));
 
-  const colorOf = (cell: TreemapCell): string => {
-    if (mode === 'heat') {
-      return cell.heat !== undefined && heat
-        ? heat.scale(cell.heat)
-        : MUTED_FILL;
-    }
-    if (mode === 'tag') {
-      if (!cell.node) return MUTED_FILL;
-      return (
-        resolveTagColor(cell.node.metadata, parsed.tagGroups, activeGroup) ??
-        MUTED_FILL
-      );
-    }
-    // branch: top-level hue, lightened slightly with depth. `mix` takes a
-    // PERCENTAGE of the first color to keep (0–100), so deeper cells retain less
-    // hue. Floor at 55% so leaves stay clearly saturated, not washed out.
-    const topLabel = cell.path[0] ?? cell.label;
-    const idx = (rootIndexByLabel.get(topLabel) ?? cell.topIndex) + colorOffset;
-    const hue = seriesColors[idx % seriesColors.length]!;
-    if (cell.depth <= 1) return hue;
-    const keepPct = Math.max(55, 100 - (cell.depth - 1) * 18);
-    return mix(hue, palette.bg, keepPct);
+  const colorCtx: CellColorContext = {
+    mode,
+    heat,
+    tagGroups: parsed.tagGroups,
+    activeGroup,
+    rootIndexByLabel,
+    seriesColors,
+    colorOffset,
+    bg: palette.bg,
   };
 
   // ── Cells ──────────────────────────────────────────────────
@@ -217,7 +210,7 @@ export function renderTreemap(
     // Emphasis: the containing box (header band) is pure color; the internal
     // leaf cells are muted (mixed toward the background). Both are opaque so the
     // pure container behind a leaf doesn't bleed through.
-    const baseColor = colorOf(cell);
+    const baseColor = resolveCellColor(cell, colorCtx);
     const fill = cell.isContainer
       ? baseColor
       : solid
@@ -466,184 +459,6 @@ export function renderTreemap(
 }
 
 // ============================================================
-// Legend group assembly — reuse the standard tag-group / gradient framework.
-// ============================================================
-
-interface TreemapLegend {
-  groups: LegendGroupData[];
-  activeGroup: string | null;
-  /** Legend group name → the color mode it selects (for the click callback). */
-  modeByName: Map<string, TreemapColorMode>;
-}
-
-/**
- * Build one legend group per APPLICABLE color mode (tag if tags exist, heat if
- * heat data exists, branch always). The active mode's group renders as the open
- * capsule; the others render as clickable pills that switch mode — i.e. the
- * mode switcher IS the legend (the active-group pattern used elsewhere).
- */
-function buildLegend(
-  activeMode: TreemapColorMode,
-  parsed: ParsedTreemap,
-  heat: HeatScale | null,
-  seriesColors: string[],
-  colorOffset: number
-): TreemapLegend {
-  const groups: LegendGroupData[] = [];
-  const modeByName = new Map<string, TreemapColorMode>();
-  let activeGroup: string | null = null;
-
-  // ── Tag ──────────────────────────────────────────────────
-  if (parsed.tagGroups.length > 0) {
-    const tg = parsed.tagGroups[0]!;
-    const used = new Set<string>();
-    const collect = (nodes: readonly TreemapNode[]): void => {
-      for (const n of nodes) {
-        const v = n.metadata[tagAttrKey(tg.name)];
-        if (v) used.add(v.toLowerCase());
-        collect(n.children);
-      }
-    };
-    collect(parsed.roots);
-    groups.push({
-      name: tg.name,
-      entries: tg.entries
-        .filter((e) => used.has(e.value.toLowerCase()))
-        .map((e) => ({ value: e.value, color: e.color })),
-    });
-    modeByName.set(tg.name, 'tag');
-    if (activeMode === 'tag') activeGroup = tg.name;
-  }
-
-  // ── Heat ─────────────────────────────────────────────────
-  if (heat) {
-    const name = parsed.options.heatLabel ?? 'Value';
-    groups.push({
-      name,
-      entries: [],
-      gradient: {
-        min: heat.min,
-        max: heat.max,
-        low: heat.stops[0]!,
-        high: heat.stops[heat.stops.length - 1]!,
-      },
-    });
-    modeByName.set(name, 'heat');
-    if (activeMode === 'heat') activeGroup = name;
-  }
-
-  // ── Branch (always) ──────────────────────────────────────
-  groups.push({
-    name: 'Branch',
-    entries: parsed.roots.map((r, i) => ({
-      value: r.label,
-      color: seriesColors[(i + colorOffset) % seriesColors.length]!,
-    })),
-  });
-  modeByName.set('Branch', 'branch');
-  if (activeMode === 'branch' || activeGroup === null) activeGroup = 'Branch';
-
-  return { groups, activeGroup, modeByName };
-}
-
-// ============================================================
-// Color scale (F1 — built here, not in the parser)
-// ============================================================
-
-interface HeatScale {
-  scale: (v: number) => string;
-  min: number;
-  max: number;
-  stops: string[];
-  signed: boolean;
-}
-
-function buildHeatScale(
-  parsed: ParsedTreemap,
-  palette: PaletteColors
-): HeatScale | null {
-  if (!parsed.hasHeat) return null;
-  const values: number[] = [];
-  const collect = (nodes: readonly TreemapNode[]): void => {
-    for (const n of nodes) {
-      if (typeof n.heat === 'number') values.push(n.heat);
-      collect(n.children);
-    }
-  };
-  collect(parsed.roots);
-  if (values.length === 0) return null;
-
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const signed = min < 0 && max > 0;
-
-  const neutral = palette.surface;
-  const explicit = parsed.options.heatColors
-    .map((c) => resolveColor(c, palette) ?? c)
-    .filter((c): c is string => !!c);
-
-  let stops: string[];
-  let domain: number[];
-
-  if (explicit.length >= 2) {
-    // Two endpoints → low · neutral · high (wide-hue auto-midpoint).
-    stops = [explicit[0]!, neutral, explicit[1]!];
-    const mid = signed ? 0 : (min + max) / 2;
-    domain = [min, mid, max];
-  } else if (explicit.length === 1) {
-    stops = [neutral, explicit[0]!];
-    domain = [min, max];
-  } else if (signed) {
-    // Data-aware default: diverging, midpoint pinned at 0.
-    stops = [palette.colors.red, neutral, palette.colors.green];
-    domain = [min, 0, max];
-  } else {
-    // Data-aware default: sequential neutral → accent.
-    stops = [neutral, palette.primary];
-    domain = [min, max];
-  }
-
-  // Guard against a degenerate (single-value) domain.
-  if (domain[0] === domain[domain.length - 1]) {
-    const last = stops[stops.length - 1]!;
-    return { scale: () => last, min, max, stops, signed };
-  }
-
-  const linear = scaleLinear<string, string>()
-    .domain(domain)
-    .range(stops)
-    .clamp(true);
-  // d3 interpolates to `rgb(...)` strings; normalize to hex so downstream
-  // helpers (mix/contrastText) that expect hex work on heat fills too.
-  return { scale: (v: number) => toHex(linear(v)), min, max, stops, signed };
-}
-
-/** Normalize a CSS color (`rgb(...)` or hex) to a `#rrggbb` hex string. */
-function toHex(c: string): string {
-  if (c.startsWith('#')) return c;
-  const m = c.match(/rgba?\(([^)]+)\)/);
-  if (!m) return c;
-  const parts = m[1]!.split(',').map((s) => Math.round(parseFloat(s)));
-  const h = (n: number): string =>
-    Math.max(0, Math.min(255, n || 0))
-      .toString(16)
-      .padStart(2, '0');
-  return `#${h(parts[0] ?? 0)}${h(parts[1] ?? 0)}${h(parts[2] ?? 0)}`;
-}
-
-function resolveColorMode(
-  parsed: ParsedTreemap,
-  override?: TreemapColorMode
-): TreemapColorMode {
-  let mode = override ?? parsed.defaultColorMode;
-  if (mode === 'tag' && parsed.tagGroups.length === 0) {
-    mode = parsed.hasHeat ? 'heat' : 'branch';
-  }
-  if (mode === 'heat' && !parsed.hasHeat) mode = 'branch';
-  return mode;
-}
-
-// ============================================================
 // Helpers
 // ============================================================
 
@@ -754,26 +569,4 @@ function clipLabel(s: string, maxWidth: number, fs: number): string {
     else hi = mid - 1;
   }
   return lo <= 0 ? '' : s.slice(0, lo) + '…';
-}
-
-/** Auto-compact like the map (1.2M, 940k); plain for small numbers. */
-export function compactNumber(v: number): string {
-  const abs = Math.abs(v);
-  if (abs >= 1e9) return strip(v / 1e9) + 'B';
-  if (abs >= 1e6) return strip(v / 1e6) + 'M';
-  if (abs >= 1e3) return strip(v / 1e3) + 'k';
-  return strip(Math.round(v * 100) / 100);
-}
-
-function strip(n: number): string {
-  return parseFloat(
-    n.toFixed(n < 10 && !Number.isInteger(n) ? 1 : 0)
-  ).toString();
-}
-
-function formatPct(frac: number): string {
-  const pct = frac * 100;
-  if (pct >= 10) return `${Math.round(pct)}%`;
-  if (pct >= 1) return `${pct.toFixed(0)}%`;
-  return `${pct.toFixed(1)}%`;
 }

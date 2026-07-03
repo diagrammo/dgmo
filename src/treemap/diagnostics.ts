@@ -30,7 +30,7 @@ export const TREEMAP_DX = {
       `Leaf "${(p.label as string) ?? 'X'}" has a negative value (${
         (p.value as number | string) ?? -5
       }) — treemap sizes must be ≥ 0`,
-    hint: 'Treemap cell areas encode magnitude — use a value of 0 or greater.',
+    hint: 'Segment magnitude must be zero or greater — use a value of 0 or more.',
     example: 'treemap T\nA\n  Bad -5',
   },
   LEAF_NO_VALUE: {
@@ -41,8 +41,8 @@ export const TREEMAP_DX = {
     message: (p) =>
       `Leaf "${
         (p.label as string) ?? 'Lonely'
-      }" has no value — it renders with zero area`,
-    hint: 'Add a trailing number (e.g. `Lonely 40`) so the leaf gets an area.',
+      }" has no value — it renders with zero size`,
+    hint: 'Add a trailing number (e.g. `Lonely 40`) so the leaf gets a size.',
     example: 'treemap T\nA\n  Lonely',
   },
   BRANCH_VALUE_IGNORED: {
@@ -53,8 +53,8 @@ export const TREEMAP_DX = {
     message: (p) =>
       `"${
         (p.label as string) ?? 'Operations'
-      }" is a branch — its trailing number is ignored; the area is the auto-sum of its children`,
-    hint: "Remove the trailing number from a branch — a parent's area is the sum of its children.",
+      }" is a branch — its trailing number is ignored; the size is the auto-sum of its children`,
+    hint: "Remove the trailing number from a branch — a parent's size is the sum of its children.",
     example: 'treemap T\nOperations 999\n  Cloud 110\n  Support 70',
   },
 } satisfies Record<string, DiagnosticSpec>;

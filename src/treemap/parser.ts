@@ -74,6 +74,7 @@ export function parseTreemap(
     noHeaders: false,
     noLegend: false,
     solidFill: false,
+    radial: false,
   };
   const result: Writable<ParsedTreemap> = {
     type: 'treemap',
@@ -344,6 +345,13 @@ function handleDirective(
 
   if (/^solid-fill\s*$/i.test(trimmed)) {
     options.solidFill = true;
+    return true;
+  }
+
+  // `radial` — sunburst mode. A bare flag on its own (NOT an opt-out, so it is
+  // deliberately kept out of the `no-(...)` group above).
+  if (/^radial\s*$/i.test(trimmed)) {
+    options.radial = true;
     return true;
   }
 
