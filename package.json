@@ -79,6 +79,16 @@
         "default": "./dist/auto.cjs"
       }
     },
+    "./element": {
+      "import": {
+        "types": "./dist/element.d.ts",
+        "default": "./dist/element.mjs"
+      },
+      "require": {
+        "types": "./dist/element.d.cts",
+        "default": "./dist/element.cjs"
+      }
+    },
     "./fonts/*": "./fonts/*"
   },
   "files": [
