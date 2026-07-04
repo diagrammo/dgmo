@@ -167,6 +167,9 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'title', category: 'directive', gantt: ['option'] },
   // `sort`: gantt option (also general, hand-listed).
   { token: 'sort', category: 'directive', gantt: ['option'] },
+  // `lane-by <group>`: swimlane axis (view-state). NB not `swimlane` — that's a
+  // chart type. Kanban reads it via its own KNOWN_OPTIONS; gantt via the switch.
+  { token: 'lane-by', category: 'directive', gantt: ['option'] },
   // `no-title`: gantt boolean + map directive (also general, hand-listed).
   { token: 'no-title', category: 'directive', gantt: ['boolean'], map: true },
 

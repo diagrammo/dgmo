@@ -943,7 +943,13 @@ async function exportGantt(ctx: ExportContext): Promise<string> {
     viewState?.cg || sourceCollapsedGroups.length > 0
       ? new Set([...sourceCollapsedGroups, ...(viewState?.cg ?? [])])
       : undefined;
-  const ganttSwimlaneGroup = viewState?.swim ?? undefined;
+  // Swimlane axis from source (`lane-by <group>` / `sort tag:<group>` →
+  // defaultSwimlaneGroup when sort is 'tag'), with a viewState.swim override.
+  const sourceSwimlane =
+    resolved.options.sort === 'tag'
+      ? (resolved.options.defaultSwimlaneGroup ?? undefined)
+      : undefined;
+  const ganttSwimlaneGroup = viewState?.swim ?? sourceSwimlane;
   const ganttCollapsedLanes = viewState?.cl ? new Set(viewState.cl) : undefined;
   renderGantt(
     container,
