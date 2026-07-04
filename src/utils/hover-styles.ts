@@ -504,6 +504,17 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     emphasis: 'dim',
     selfEmphasis: false,
   },
+  // line: each series is a `g.dgmo-series` wrapping its line + data dots. The
+  // dots are hittable, so a structural rule dims other series when a point is
+  // hovered — no fat hit-path needed. (The plot-area hit overlay sits BEHIND
+  // the series, so dot hover still lands; verified in the browser e2e.)
+  line: {
+    markSelector: 'g.dgmo-series',
+    strategy: 'structural',
+    groupSelector: 'g.dgmo-series',
+    emphasis: 'dim',
+    selfEmphasis: false,
+  },
 
   // ── SELF-emphasis only (single-series / non-relational solid marks) ──
   pyramid: { markSelector: '.pyramid-layer', strategy: 'self' },
