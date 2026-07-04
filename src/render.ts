@@ -1,5 +1,6 @@
 import { renderForExport, resolveArcChordOverride } from './d3';
 import { renderDataChartD3 } from './charts-d3';
+import { injectHoverStyles } from './utils/hover-styles';
 import { getRenderCategory, parseDgmo } from './dgmo-router';
 import type { DgmoError } from './diagnostics';
 import { getPalette } from './palettes/registry';
@@ -127,10 +128,16 @@ export async function render(
     /** Bundled map data for `map` charts in the browser, where the Node fs
      *  `loadMapData()` seam can't run. CLI/SSR omit this and fall back to fs. */
     mapData?: import('./map/resolved-types').MapData;
+    /** Bake pure-CSS hover into the exported SVG (no JS). Default ON — embeds
+     *  (Obsidian, doc-site wrappers) get hover feedback for free. The desktop
+     *  app renders its live preview through direct renderer calls (not this
+     *  entry), so it keeps its JS emphasis; pass `false` to opt out. */
+    bakeHover?: boolean;
   }
 ): Promise<{ svg: string; diagnostics: DgmoError[] }> {
   const theme = options?.theme ?? 'light';
   const paletteName = options?.palette ?? 'slate';
+  const bakeHover = options?.bakeHover ?? true;
 
   const paletteColors =
     getPalette(paletteName)[theme === 'dark' ? 'dark' : 'light'];
@@ -176,7 +183,11 @@ export async function render(
     // All data-chart types render through the hand-built D3 engine (no ECharts).
     await acquireDom();
     try {
-      const svg = await renderDataChartD3(renderContent, theme, paletteColors);
+      const raw = await renderDataChartD3(renderContent, theme, paletteColors);
+      // Bake pure-CSS hover while jsdom is still installed (the injector scans
+      // the SVG DOM for group values). No-op unless `chartType` has a registry
+      // row and `bakeHover` is on.
+      const svg = injectHoverStyles(raw, chartType, { bakeHover });
       return { svg, diagnostics };
     } finally {
       releaseDom();
@@ -202,6 +213,9 @@ export async function render(
         ...(options?.mapData !== undefined && { mapData: options.mapData }),
       }
     );
+    // Bake pure-CSS hover while jsdom is still installed (no-op unless the
+    // detected `chartType` has a registry row and `bakeHover` is on).
+    svg = injectHoverStyles(svg, chartType, { bakeHover });
   } finally {
     releaseDom();
   }
