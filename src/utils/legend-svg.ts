@@ -92,8 +92,16 @@ function emitCapsule(
   // Wrapped entries — dots + labels positioned by the layout engine.
   for (const entry of capsule.entries) {
     const label = entry.displayValue ?? entry.value;
+    // Transparent hit-rect spanning the whole entry so hover/click land on the
+    // full pill area, not only the dot/text glyphs (legend-hover emphasis in
+    // charts-d3/interactions.ts needs a filled mouseenter target).
+    const hit =
+      entry.width != null
+        ? `<rect x="${entry.x}" y="${entry.y}" width="${entry.width}" height="${LEGEND_HEIGHT}" fill="transparent"/>`
+        : '';
     inner.push(
       `<g data-legend-entry="${esc(entry.value.toLowerCase())}" data-series-name="${esc(entry.value)}" style="cursor:pointer">` +
+        hit +
         `<circle cx="${entry.dotCx}" cy="${entry.dotCy}" r="${LEGEND_DOT_R}" fill="${esc(entry.color)}"/>` +
         `<text x="${entry.textX}" y="${entry.dotCy + LEGEND_ENTRY_FONT_SIZE / 2 - 1}" font-size="${LEGEND_ENTRY_FONT_SIZE}" fill="${esc(palette.textMuted)}" font-family="${esc(FONT_FAMILY)}">${esc(label)}</text>` +
         `</g>`

@@ -578,6 +578,7 @@ function buildCapsuleLayout(
       color: entry.color,
       x: rowX,
       y: ey,
+      width: ew,
       dotCx,
       dotCy,
       textX,

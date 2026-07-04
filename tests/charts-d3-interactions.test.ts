@@ -151,6 +151,18 @@ describe('axis-projection interactions (no tooltips)', () => {
   });
 });
 
+const DUAL_AXIS = `line Oil Price vs Strategic Reserve
+x-label Year
+series
+  y-label $ / barrel
+    Oil Price blue
+  y-right-label Million barrels
+    SPR Size green
+
+2019 57 645
+2020 39 638
+2021 68 621`;
+
 const RADAR_MULTI = `radar Fleet
 series
   Black Pearl blue
@@ -200,5 +212,51 @@ describe('legend hover → series emphasis', () => {
     );
     expect(seriesGroup('iOS').classList.contains('dgmo-dim')).toBe(false);
     expect(seriesGroup('Android').classList.contains('dgmo-dim')).toBe(true);
+  });
+
+  it('legend entries carry a transparent hit-rect so the whole pill is hoverable', async () => {
+    await mount(LINE);
+    for (const name of ['iOS', 'Android']) {
+      const hit = legendEntry(name).querySelector<SVGRectElement>('rect');
+      expect(hit).toBeTruthy();
+      expect(hit!.getAttribute('fill')).toBe('transparent');
+      expect(parseFloat(hit!.getAttribute('width') ?? '0')).toBeGreaterThan(0);
+    }
+  });
+
+  it('dual-axis line: hovering a legend entry emphasizes its axis series', async () => {
+    await mount(DUAL_AXIS);
+    legendEntry('Oil Price').dispatchEvent(
+      new MouseEvent('mouseenter', { bubbles: true })
+    );
+    expect(seriesGroup('Oil Price').classList.contains('dgmo-dim')).toBe(false);
+    expect(seriesGroup('SPR Size').classList.contains('dgmo-dim')).toBe(true);
+  });
+
+  it('dual-axis line: hovering a y-axis strip dims the other axis series', async () => {
+    await mount(DUAL_AXIS);
+    // Oil Price sits on the left axis, SPR Size on the right.
+    expect(seriesGroup('Oil Price').getAttribute('data-axis')).toBe('left');
+    expect(seriesGroup('SPR Size').getAttribute('data-axis')).toBe('right');
+    const strip = (axis: string) =>
+      svg.querySelector<SVGRectElement>(`[data-axis-legend="${axis}"]`)!;
+    strip('left').dispatchEvent(
+      new MouseEvent('mouseenter', { bubbles: true })
+    );
+    expect(seriesGroup('Oil Price').classList.contains('dgmo-dim')).toBe(false);
+    expect(seriesGroup('SPR Size').classList.contains('dgmo-dim')).toBe(true);
+    strip('left').dispatchEvent(
+      new MouseEvent('mouseleave', { bubbles: true })
+    );
+    strip('right').dispatchEvent(
+      new MouseEvent('mouseenter', { bubbles: true })
+    );
+    expect(seriesGroup('SPR Size').classList.contains('dgmo-dim')).toBe(false);
+    expect(seriesGroup('Oil Price').classList.contains('dgmo-dim')).toBe(true);
+  });
+
+  it('single-axis line: no axis-legend strips (nothing to disambiguate)', async () => {
+    await mount(LINE);
+    expect(svg.querySelectorAll('[data-axis-legend]').length).toBe(0);
   });
 });
