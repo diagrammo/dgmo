@@ -214,6 +214,44 @@ describe('injectHoverStyles (AC1g / AC13 gate + self-derive)', () => {
   });
 });
 
+describe('injectHoverStyles — tag-active group discovery (F9)', () => {
+  const tagSvg =
+    '<svg xmlns="http://www.w3.org/2000/svg">' +
+    '<g data-legend-active="crew"></g>' +
+    '<rect class="dgmo-treemap-cell" data-tag-crew="Deck"/>' +
+    '<rect class="dgmo-treemap-cell" data-tag-crew="Galley"/>' +
+    '<rect class="dgmo-treemap-cell" data-tag-crew="Deck"/>' +
+    '</svg>';
+
+  it('resolves data-tag-<slug> from data-legend-active and keys off it', () => {
+    const out = injectHoverStyles(tagSvg, 'treemap', { bakeHover: true });
+    expect(out).toContain('<style>');
+    expect(out).toMatch(
+      /svg:has\(\.dgmo-treemap-cell\[data-tag-crew="Deck"\]:hover\)/
+    );
+    // distinct values only (Deck once despite two cells)
+    expect((out.match(/data-tag-crew="Deck"/g) ?? []).length).toBeGreaterThan(
+      0
+    );
+    expect(out).toContain('data-tag-crew="Galley"');
+  });
+
+  it('legend pairing uses lowercased entry but the raw group-attr casing', () => {
+    const out = injectHoverStyles(tagSvg, 'treemap', { bakeHover: true });
+    expect(out).toContain('[data-legend-entry="deck"]:hover');
+    expect(out).toContain('.dgmo-treemap-cell[data-tag-crew="Deck"]');
+  });
+
+  it('falls back to self-emphasis only when no tag group is active', () => {
+    const noActive =
+      '<svg xmlns="http://www.w3.org/2000/svg">' +
+      '<rect class="dgmo-treemap-cell"/></svg>';
+    const out = injectHoverStyles(noActive, 'treemap', { bakeHover: true });
+    expect(out).toContain('.dgmo-treemap-cell:hover'); // self floor
+    expect(out).not.toContain('svg:has'); // no cross rules
+  });
+});
+
 describe('HOVER_SPECS registry', () => {
   it('covers the MVP CROSS-FREE statistical charts', () => {
     for (const t of ['pie', 'bar', 'funnel', 'heatmap', 'polar-area']) {

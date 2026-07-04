@@ -40,6 +40,9 @@ export interface HoverSpec {
   groupSelector?: string;
   /** `enumerated`: the per-mark group key attr, e.g. `data-emph-key`. */
   groupAttr?: string;
+  /** `enumerated`: resolve `groupAttr` at scan time from the active tag group
+   *  (`data-legend-active` → `data-tag-<slug>`) instead of a fixed name. */
+  groupAttrMode?: 'tag-active';
   /** `lift` (default) or `dim`. */
   emphasis?: HoverEmphasis;
   /** Dim opacity for non-matched marks (dim mode only). Default 0.4. */
@@ -69,6 +72,8 @@ export interface HoverDerived {
   values?: string[];
   /** Distinct endpoint node ids (connection). */
   ids?: string[];
+  /** The group attr resolved at scan time (tag-active charts). */
+  groupAttr?: string;
 }
 
 /**
@@ -351,6 +356,30 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     fromAttr: 'data-source',
     toAttr: 'data-target',
   },
+
+  // ── CROSS-FREE tag-group charts — active group discovered at scan time ──
+  // The mark carries `data-tag-<slug>` for the ONE active tag group; the
+  // injector reads the slug from `data-legend-active` (F9). `data-tag-*` values
+  // and `data-legend-entry` are both lowercased, so legend pairing casing lines
+  // up. (map is excluded — it carries two tag kinds on different marks.)
+  treemap: {
+    markSelector: '.dgmo-treemap-cell',
+    strategy: 'enumerated',
+    groupAttrMode: 'tag-active',
+    legend: true,
+  },
+  block: {
+    markSelector: '.dgmo-block-cell',
+    strategy: 'enumerated',
+    groupAttrMode: 'tag-active',
+    legend: true,
+  },
+  'event-line': {
+    markSelector: '.dgmo-event-dot',
+    strategy: 'enumerated',
+    groupAttrMode: 'tag-active',
+    legend: true,
+  },
 };
 
 // ============================================================
@@ -377,15 +406,28 @@ function deriveFromSvg(svg: string, spec: HoverSpec): HoverDerived {
   const root = holder.querySelector('svg');
   if (!root) return {};
 
-  if (spec.strategy === 'enumerated' && spec.groupAttr) {
+  if (spec.strategy === 'enumerated') {
+    // Resolve the group attr. Fixed name (`groupAttr`), or — for tag-group
+    // charts — the single ACTIVE tag group, discovered from the legend's
+    // `data-legend-active="<slug>"` marker → `data-tag-<slug>` (F9: exactly one
+    // group drives the rules, never the intersection of all tag groups). No
+    // active tag → self-emphasis only.
+    let groupAttr = spec.groupAttr;
+    if (spec.groupAttrMode === 'tag-active') {
+      const slug = root
+        .querySelector('[data-legend-active]')
+        ?.getAttribute('data-legend-active');
+      if (!slug) return {};
+      groupAttr = `data-tag-${slug}`;
+    }
+    if (!groupAttr) return {};
+    const attr = groupAttr;
     const seen = new Set<string>();
-    root
-      .querySelectorAll(`${spec.markSelector}[${spec.groupAttr}]`)
-      .forEach((el) => {
-        const v = el.getAttribute(spec.groupAttr!);
-        if (v != null) seen.add(v);
-      });
-    return { values: [...seen] };
+    root.querySelectorAll(`${spec.markSelector}[${attr}]`).forEach((el) => {
+      const v = el.getAttribute(attr);
+      if (v != null) seen.add(v);
+    });
+    return { values: [...seen], groupAttr: attr };
   }
   if (spec.strategy === 'connection' && spec.hoverSelector && spec.hoverAttr) {
     const seen = new Set<string>();
@@ -417,7 +459,12 @@ export function injectHoverStyles(
   if (!spec) return svg;
 
   const derived = deriveFromSvg(svg, spec);
-  const css = buildHoverCss(spec, derived, opts.emphasis);
+  // A tag-active chart resolves its group attr at scan time; fold it into the
+  // spec so the pure formatter keys off the real attr name.
+  const eff = derived.groupAttr
+    ? { ...spec, groupAttr: derived.groupAttr }
+    : spec;
+  const css = buildHoverCss(eff, derived, opts.emphasis);
   if (!css) return svg;
 
   const open = svg.match(/<svg\b[^>]*>/);
