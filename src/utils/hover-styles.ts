@@ -552,6 +552,15 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
   // function: each curve is a `.dgmo-datum` path — self-emphasis floor only
   // (thin line, no group).
   function: { markSelector: '.dgmo-datum', strategy: 'self' },
+  // map: POIs carry data-tag-<group> for the active legend group (resolved from
+  // data-legend-active). Hover a POI → lift same-group POIs. `lift` (never dim)
+  // sidesteps the decorative-layer / inactive-pill inline-opacity trap (F6).
+  // Region-tag (choropleth) maps have no POIs → self-emphasis only.
+  map: {
+    markSelector: '[data-poi]',
+    strategy: 'enumerated',
+    groupAttrMode: 'tag-active',
+  },
 };
 
 // ============================================================
