@@ -102,34 +102,54 @@ export function renderErrorCard(
     });
     y += 24;
 
-    // Offending source line, monospace, with a caret under the column.
-    const raw = hasLine ? srcLines[e.line - 1] : undefined;
-    if (raw !== undefined && raw.trim().length > 0) {
-      const gutter = `${e.line}`;
-      const gutterW = gutter.length * CODE_FS * MONO_CH + 16;
+    // Offending source line with two lines of context above and below.
+    // The bad line gets a red highlight band; a caret marks the column.
+    if (hasLine) {
+      const CTX = 2;
+      const first = Math.max(1, e.line - CTX);
+      const last = Math.min(srcLines.length, e.line + CTX);
+      const rowH = 18;
+      const hasCaret = e.column !== undefined && e.column > 0;
+      // Gutter sized to the widest line number in the window.
+      const gutterW = `${last}`.length * CODE_FS * MONO_CH + 16;
       const codeX = PAD + gutterW;
       const codeMaxW = CONTENT_W - gutterW - 12;
-      const codeText = truncateText(
-        raw.replace(/\t/g, '  '),
-        CODE_FS,
-        codeMaxW
-      );
-      const hasCaret = e.column !== undefined && e.column > 0;
-      const blockH = hasCaret ? 40 : 26;
-      parts.push(
-        `<rect x="${PAD}" y="${y - 14}" width="${CONTENT_W}" height="${blockH}" rx="5" fill="${codeBg}" stroke="${border}" stroke-width="1"/>`,
-        `<line x1="${codeX - 8}" y1="${y - 14}" x2="${codeX - 8}" y2="${y - 14 + blockH}" stroke="${border}" stroke-width="1"/>`,
-        `<text x="${PAD + 8}" y="${y + 3}" fill="${muted}" font-family="${MONO_FAMILY}" font-size="${CODE_FS}">${escapeXml(gutter)}</text>`,
-        `<text x="${codeX}" y="${y + 3}" fill="${text}" font-family="${MONO_FAMILY}" font-size="${CODE_FS}" xml:space="preserve">${escapeXml(codeText)}</text>`
-      );
-      if (hasCaret) {
-        const caretX = codeX + (e.column! - 1) * CODE_FS * MONO_CH;
-        parts.push(
-          `<text x="${caretX}" y="${y + 17}" fill="${danger}" font-family="${MONO_FAMILY}" font-size="${CODE_FS}" font-weight="700">^</text>`
+      const topY = y - 14;
+      const rowCount = last - first + 1;
+      const blockH = rowCount * rowH + (hasCaret ? 14 : 0) + 10;
+
+      const rowParts: string[] = [];
+      let ry = y + 3; // baseline of the topmost row
+      for (let n = first; n <= last; n++) {
+        const raw = (srcLines[n - 1] ?? '').replace(/\t/g, '  ');
+        const codeText = truncateText(raw, CODE_FS, codeMaxW);
+        const isBad = n === e.line;
+        if (isBad) {
+          // Red band behind the offending row (opacity keeps code readable).
+          rowParts.push(
+            `<rect x="${PAD + 1}" y="${ry - 13}" width="${CONTENT_W - 2}" height="${rowH}" fill="${danger}" fill-opacity="0.16"/>`
+          );
+        }
+        rowParts.push(
+          `<text x="${PAD + 8}" y="${ry + 1}" fill="${isBad ? danger : muted}" font-family="${MONO_FAMILY}" font-size="${CODE_FS}" font-weight="${isBad ? 700 : 400}">${escapeXml(`${n}`)}</text>`,
+          `<text x="${codeX}" y="${ry + 1}" fill="${text}" font-family="${MONO_FAMILY}" font-size="${CODE_FS}" xml:space="preserve">${escapeXml(codeText)}</text>`
         );
-        y += 14;
+        if (isBad && hasCaret) {
+          const caretX = codeX + (e.column! - 1) * CODE_FS * MONO_CH;
+          rowParts.push(
+            `<text x="${caretX}" y="${ry + 15}" fill="${danger}" font-family="${MONO_FAMILY}" font-size="${CODE_FS}" font-weight="700">^</text>`
+          );
+          ry += 14; // reserve the caret's row before the next context line
+        }
+        ry += rowH;
       }
-      y += 24;
+
+      parts.push(
+        `<rect x="${PAD}" y="${topY}" width="${CONTENT_W}" height="${blockH}" rx="5" fill="${codeBg}" stroke="${border}" stroke-width="1"/>`,
+        `<line x1="${codeX - 8}" y1="${topY}" x2="${codeX - 8}" y2="${topY + blockH}" stroke="${border}" stroke-width="1"/>`,
+        rowParts.join('')
+      );
+      y = topY + blockH + 10;
     }
 
     y += 14;

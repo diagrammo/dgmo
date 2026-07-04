@@ -433,7 +433,8 @@ async function exportKanban(ctx: ExportContext): Promise<string> {
       kanbanParsed.options['active-tag'],
       ctxTagOverride(ctx)
     ),
-    currentSwimlaneGroup: viewState?.swim ?? null,
+    currentSwimlaneGroup:
+      viewState?.swim ?? kanbanParsed.options['lane-by'] ?? null,
     ...(kanbanCollapsedLanes !== undefined && {
       collapsedLanes: kanbanCollapsedLanes,
     }),

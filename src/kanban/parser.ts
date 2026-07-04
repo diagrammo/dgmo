@@ -49,7 +49,10 @@ const PALETTE_COLOR_WORD_RE =
 const AS_ALIAS_TOKEN_RE = /^as\s+([A-Za-z][A-Za-z0-9_]{0,11})\b/;
 
 /** Known kanban options (key-value). */
-const KNOWN_OPTIONS = new Set(['hide', 'active-tag']);
+// `lane-by <group>` sets the swimlane axis. NB: the keyword is `lane-by`, not
+// `swimlane`, because `swimlane` is itself a chart type — `swimlane Team` would
+// parse as a swimlane-chart declaration titled "Team".
+const KNOWN_OPTIONS = new Set(['hide', 'active-tag', 'lane-by']);
 /** Known kanban boolean options (bare keyword = on). */
 const KNOWN_BOOLEANS = new Set<string>(['solid-fill', 'no-title']);
 const REMOVED_BOOLEANS: Record<string, string> = {
