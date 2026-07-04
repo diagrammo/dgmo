@@ -25,8 +25,9 @@
 // there is no opacity double-up. `render({ bakeHover: false })` opts out.
 // ============================================================
 
-/** How a chart's cross-highlight rules are shaped. */
-export type HoverStrategy = 'enumerated' | 'structural' | 'connection';
+/** How a chart's cross-highlight rules are shaped. `self` = self-emphasis only
+ *  (no cross-highlight — single-series / non-relational charts). */
+export type HoverStrategy = 'enumerated' | 'structural' | 'connection' | 'self';
 
 /** Lift the matched group, or dim everything else. Default `lift` (ADR-5). */
 export type HoverEmphasis = 'lift' | 'dim';
@@ -473,6 +474,11 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     fromAttr: 'data-from',
     toAttr: 'data-to',
   },
+
+  // ── SELF-emphasis only (single-series / non-relational solid marks) ──
+  pyramid: { markSelector: '.pyramid-layer', strategy: 'self' },
+  ring: { markSelector: '.ring-layer', strategy: 'self' },
+  slope: { markSelector: '.slope-series', strategy: 'self' },
 };
 
 // ============================================================
