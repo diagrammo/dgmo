@@ -331,7 +331,10 @@ export function renderC4Context(
     const edgeG = contentG
       .append('g')
       .attr('class', 'c4-edge-group')
-      .attr('data-line-number', String(edge.lineNumber));
+      .attr('data-line-number', String(edge.lineNumber))
+      // Endpoint node ids for baked-CSS connection-highlight (hover-styles.ts).
+      .attr('data-source', edge.source)
+      .attr('data-target', edge.target);
 
     if (onClickItem) {
       edgeG.style('cursor', 'pointer').on('click', () => {
@@ -789,7 +792,10 @@ function renderEdges(
     const edgeG = contentG
       .append('g')
       .attr('class', 'c4-edge-group')
-      .attr('data-line-number', String(edge.lineNumber));
+      .attr('data-line-number', String(edge.lineNumber))
+      // Endpoint node ids for baked-CSS connection-highlight (hover-styles.ts).
+      .attr('data-source', edge.source)
+      .attr('data-target', edge.target);
 
     if (onClickItem) {
       edgeG.style('cursor', 'pointer').on('click', () => {

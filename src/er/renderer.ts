@@ -356,7 +356,10 @@ export function renderERDiagram(
     const edgeG = contentG
       .append('g')
       .attr('class', 'er-edge-group')
-      .attr('data-line-number', String(edge.lineNumber));
+      .attr('data-line-number', String(edge.lineNumber))
+      // Endpoint node ids for baked-CSS connection-highlight (hover-styles.ts).
+      .attr('data-source', edge.source)
+      .attr('data-target', edge.target);
 
     const edgeColor = palette.textMuted;
 

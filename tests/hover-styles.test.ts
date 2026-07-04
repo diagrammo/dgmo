@@ -322,6 +322,17 @@ describe('render() integration — Task 3 diagram/connection rows', () => {
     }
   });
 
+  it('class: connection highlight on baked data-source/data-target', async () => {
+    const { svg } = await render(
+      'class Domain\nclass Ship\nclass Cannon\nShip -> Cannon'
+    );
+    if (svg.includes('cd-edge-group')) {
+      expect(svg).toMatch(
+        /svg:has\(\.cd-class\[data-node-id="[^"]+"\]:hover\) \.cd-edge-group:not\(\[data-source=/
+      );
+    }
+  });
+
   it('raci: enumerated cross-highlight keyed on data-role-id', async () => {
     const src =
       'raci Launch\ntasks\n  Ship it\nroles\n  Cap\nassign\n  Ship it: Cap=A';

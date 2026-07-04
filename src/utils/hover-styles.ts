@@ -419,6 +419,33 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     fromAttr: 'data-from',
     toAttr: 'data-to',
   },
+  c4: {
+    markSelector: '.c4-card',
+    strategy: 'connection',
+    hoverSelector: '.c4-card',
+    hoverAttr: 'data-node-id',
+    edgeSelector: '.c4-edge-group',
+    fromAttr: 'data-source',
+    toAttr: 'data-target',
+  },
+  class: {
+    markSelector: '.cd-class',
+    strategy: 'connection',
+    hoverSelector: '.cd-class',
+    hoverAttr: 'data-node-id',
+    edgeSelector: '.cd-edge-group',
+    fromAttr: 'data-source',
+    toAttr: 'data-target',
+  },
+  er: {
+    markSelector: '.er-table',
+    strategy: 'connection',
+    hoverSelector: '.er-table',
+    hoverAttr: 'data-node-id',
+    edgeSelector: '.er-edge-group',
+    fromAttr: 'data-source',
+    toAttr: 'data-target',
+  },
 };
 
 // ============================================================
