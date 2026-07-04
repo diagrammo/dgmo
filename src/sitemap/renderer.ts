@@ -413,7 +413,10 @@ export function renderSitemap(
     const edgeG = contentG
       .append('g')
       .attr('class', 'sitemap-edge-group')
-      .attr('data-line-number', String(edge.lineNumber));
+      .attr('data-line-number', String(edge.lineNumber))
+      // Endpoint node ids for baked-CSS connection-highlight (hover-styles.ts).
+      .attr('data-from', edge.sourceId)
+      .attr('data-to', edge.targetId);
 
     const edgeColor = palette.textMuted;
     const markerId = 'sm-arrow';
@@ -466,7 +469,8 @@ export function renderSitemap(
       .append('g')
       .attr('transform', `translate(${node.x - node.width / 2}, ${node.y})`)
       .attr('class', 'sitemap-node')
-      .attr('data-line-number', String(node.lineNumber)) as GSelection;
+      .attr('data-line-number', String(node.lineNumber))
+      .attr('data-node-id', node.id) as GSelection;
 
     if (node.hasChildren) {
       nodeG

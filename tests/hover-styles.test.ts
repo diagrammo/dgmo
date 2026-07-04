@@ -333,6 +333,26 @@ describe('render() integration — Task 3 diagram/connection rows', () => {
     }
   });
 
+  it('org: connection highlight via baked node-id + edge from/to', async () => {
+    const { svg } = await render('org Crew\nCaptain\n  First Mate\n  Bosun');
+    if (svg.includes('org-edge')) {
+      expect(svg).toMatch(
+        /svg:has\(\.org-node\[data-node-id="[^"]+"\]:hover\) \.org-edge:not\(\[data-from=/
+      );
+    }
+  });
+
+  it('cycle: connection highlight keyed on node index', async () => {
+    const { svg } = await render(
+      'cycle Flow\nPlan -> Build\nBuild -> Ship\nShip -> Plan'
+    );
+    if (svg.includes('cycle-edge')) {
+      expect(svg).toMatch(
+        /svg:has\(\.cycle-node\[data-node-index="\d+"\]:hover\) \.cycle-edge:not\(\[data-from=/
+      );
+    }
+  });
+
   it('raci: enumerated cross-highlight keyed on data-role-id', async () => {
     const src =
       'raci Launch\ntasks\n  Ship it\nroles\n  Cap\nassign\n  Ship it: Cap=A';

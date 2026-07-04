@@ -446,6 +446,33 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     fromAttr: 'data-source',
     toAttr: 'data-target',
   },
+  org: {
+    markSelector: '.org-node',
+    strategy: 'connection',
+    hoverSelector: '.org-node',
+    hoverAttr: 'data-node-id',
+    edgeSelector: '.org-edge',
+    fromAttr: 'data-from',
+    toAttr: 'data-to',
+  },
+  sitemap: {
+    markSelector: '.sitemap-node',
+    strategy: 'connection',
+    hoverSelector: '.sitemap-node',
+    hoverAttr: 'data-node-id',
+    edgeSelector: '.sitemap-edge-group',
+    fromAttr: 'data-from',
+    toAttr: 'data-to',
+  },
+  cycle: {
+    markSelector: '.cycle-node',
+    strategy: 'connection',
+    hoverSelector: '.cycle-node',
+    hoverAttr: 'data-node-index',
+    edgeSelector: '.cycle-edge',
+    fromAttr: 'data-from',
+    toAttr: 'data-to',
+  },
 };
 
 // ============================================================

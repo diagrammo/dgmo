@@ -241,6 +241,10 @@ export function renderCycle(
     if (edge.lineNumber) {
       edgeG.attr('data-line-number', edge.lineNumber);
     }
+    // Endpoint node indices for baked-CSS connection-highlight.
+    edgeG
+      .attr('data-from', String(edge.sourceIndex))
+      .attr('data-to', String(edge.targetIndex));
 
     const pathEl = edgeG
       .append('path')
@@ -309,6 +313,9 @@ export function renderCycle(
       .append('g')
       .attr('class', 'cycle-node')
       .attr('data-line-number', node.lineNumber)
+      // Node index for baked-CSS connection-highlight (cycle nodes have no
+      // string id; edges key on the same index).
+      .attr('data-node-index', String(i))
       .style('cursor', onClickItem ? 'pointer' : 'default');
 
     if (onClickItem) {

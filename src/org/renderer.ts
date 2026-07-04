@@ -447,7 +447,10 @@ export function renderOrg(
       .attr('fill', 'none')
       .attr('stroke', palette.textMuted)
       .attr('stroke-width', sEdgeStrokeWidth)
-      .attr('class', 'org-edge');
+      .attr('class', 'org-edge')
+      // Endpoint node ids for baked-CSS connection-highlight (hover-styles.ts).
+      .attr('data-from', edge.sourceId)
+      .attr('data-to', edge.targetId);
   }
 
   // Collect container node IDs so we can skip them in card rendering
@@ -461,7 +464,8 @@ export function renderOrg(
       .append('g')
       .attr('transform', `translate(${node.x - node.width / 2}, ${node.y})`)
       .attr('class', 'org-node')
-      .attr('data-line-number', String(node.lineNumber)) as GSelection;
+      .attr('data-line-number', String(node.lineNumber))
+      .attr('data-node-id', node.id) as GSelection;
 
     // Expose active tag group value for legend-entry hover dimming
     // Use tagMetadata (unfiltered) so hover-highlight works even when the
