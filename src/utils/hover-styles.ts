@@ -298,6 +298,59 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     groupAttr: 'data-emph-key',
     legend: true,
   },
+
+  // ── CROSS-FREE diagram charts — FIXED-attr keys, DOM-verified (Task 3) ──
+  // Purely additive: the baked CSS lights up embeds; the app keeps its own live
+  // JS emphasis (it renders via direct calls, never render()), so no double-up
+  // and no renderer edits. Tag-group charts (treemap/event-line/block/map —
+  // keyed on a per-diagram `data-tag-<slug>`) are deferred: they need
+  // active-tag-slug discovery in the injector.
+  gantt: {
+    markSelector: '.gantt-task',
+    strategy: 'enumerated',
+    groupAttr: 'data-group',
+  },
+  timeline: {
+    markSelector: '.tl-event',
+    strategy: 'enumerated',
+    groupAttr: 'data-group',
+  },
+  // raci cells AND column headers both carry `data-role-id`; keying on the bare
+  // attr makes hovering either lift the whole role (cross-column highlight).
+  raci: {
+    markSelector: '[data-role-id]',
+    strategy: 'enumerated',
+    groupAttr: 'data-role-id',
+  },
+
+  // ── CROSS-FREE connection charts (node hover → dim non-incident edges) ──
+  sequence: {
+    markSelector: '.participant',
+    strategy: 'connection',
+    hoverSelector: '.participant',
+    hoverAttr: 'data-participant-id',
+    edgeSelector: '.message-arrow',
+    fromAttr: 'data-from',
+    toAttr: 'data-to',
+  },
+  arc: {
+    markSelector: '.arc-node',
+    strategy: 'connection',
+    hoverSelector: '.arc-node',
+    hoverAttr: 'data-node',
+    edgeSelector: '.arc-link',
+    fromAttr: 'data-source',
+    toAttr: 'data-target',
+  },
+  pert: {
+    markSelector: '.pert-node',
+    strategy: 'connection',
+    hoverSelector: '.pert-node',
+    hoverAttr: 'data-activity-id',
+    edgeSelector: '.pert-edge',
+    fromAttr: 'data-source',
+    toAttr: 'data-target',
+  },
 };
 
 // ============================================================
