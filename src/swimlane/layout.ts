@@ -70,7 +70,8 @@ function nodeSize(shape: SwimShape): { w: number; h: number } {
 function compactRanks(
   ids: string[],
   edges: { from: string; to: string }[],
-  laneOf: (id: string) => string
+  laneOf: (id: string) => string,
+  floors?: Map<string, number>
 ): Map<string, number> {
   const adj = new Map<string, string[]>();
   const indeg = new Map<string, number>();
@@ -91,6 +92,9 @@ function compactRanks(
     const u = queue[qi]!;
     const lu = laneOf(u);
     const accIn = laneMaxIn.get(u)!;
+    // Corridor floors (back-edge blocker shifting) apply before separation.
+    const fl = floors?.get(u);
+    if (fl !== undefined && (rank.get(u) ?? 0) < fl) rank.set(u, fl);
     // Strict separation: if a same-lane ancestor already occupies this column or
     // beyond, step u forward past it.
     const sameLaneAnc = accIn.get(lu);
@@ -158,8 +162,44 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
   // reintroduce collisions. Phases survive only as header bands (drawn from the
   // columns their members actually land in — consecutive bands may overlap by
   // the shared handoff column, so the header labels/dividers are approximate).
-  const finalRank = new Map<string, number>();
+  let finalRank = new Map<string, number>();
   for (const id of ids) finalRank.set(id, baseRank.get(id) ?? 0);
+
+  // ── Back-edge corridor reservation (blocker shifting) ───────
+  // A back-edge's vertical legs (node → loop channel below the lanes) must
+  // drop through every lane beneath the node. Rather than snaking the edge
+  // around boxes, shift the BOXES: any node in a lower lane sharing a leg's
+  // column gets its rank floored past the conflict, and the DAG is re-ranked
+  // so same-lane successors march right with it. Floors only ever grow, so
+  // the loop terminates; anything still blocked after the cap (e.g. a fork
+  // sibling stacked in the node's own cell) falls back to the routing jog.
+  {
+    const laneIdx = new Map(parsed.lanes.map((l, i) => [l.id, i]));
+    const dagEdges = dag.map((d) => ({ from: d.from, to: d.to }));
+    const floors = new Map<string, number>();
+    for (let pass = 0; pass < ids.length; pass++) {
+      let changed = false;
+      for (const e of realEdges) {
+        if ((finalRank.get(e.to) ?? 0) >= (finalRank.get(e.from) ?? 0))
+          continue; // forward or same-rank — no loop channel legs
+        for (const leg of [e.from, e.to]) {
+          const legRank = finalRank.get(leg)!;
+          const legLane = laneIdx.get(laneOf(leg))!;
+          for (const id of ids) {
+            if (id === e.from || id === e.to) continue;
+            if (finalRank.get(id) !== legRank) continue;
+            if ((laneIdx.get(laneOf(id)) ?? 0) <= legLane) continue;
+            if ((floors.get(id) ?? 0) <= legRank) {
+              floors.set(id, legRank + 1);
+              changed = true;
+            }
+          }
+        }
+      }
+      if (!changed) break;
+      finalRank = compactRanks(ids, dagEdges, laneOf, floors);
+    }
+  }
 
   // Contiguous rank indices.
   const usedRanks = Array.from(

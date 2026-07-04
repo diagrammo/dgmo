@@ -55,9 +55,23 @@ describe('swimlane layout — back-edge routing (AC7)', () => {
 });
 
 describe('swimlane layout — back-edge box avoidance', () => {
-  // Revise (Writer) and Schedule (Editor) share a column; the Revise→Review
-  // back-edge used to drop straight through the Schedule box. The blocked leg
-  // must jog into the node-free column gap instead.
+  // Revise (Writer) and Schedule (Editor) used to share a column, so the
+  // Revise→Review back-edge dropped straight through the Schedule box.
+  // Corridor reservation shifts the blocking box (and its same-lane
+  // successors) one column right, keeping the drop straight.
+  it('shifts lower-lane blockers out of a back-edge corridor', () => {
+    const layout = layoutOf('swimlane-publishing.dgmo');
+    const xById = new Map(layout.nodes.map((n) => [n.id, n.x]));
+    expect(xById.get('Schedule')!).toBeGreaterThan(xById.get('Revise')!);
+    expect(xById.get('Publish')!).toBeGreaterThan(xById.get('Schedule')!);
+    // The back-edge itself stays a plain 4-point loop — no jog needed.
+    const back = layout.edges.find(
+      (e) => e.source === 'Revise' && e.target === 'Review'
+    )!;
+    expect(back.back).toBe(true);
+    expect(back.points.length).toBe(4);
+  });
+
   it('never routes a back-edge segment through a node box', () => {
     for (const fixture of [
       'swimlane-publishing.dgmo',
