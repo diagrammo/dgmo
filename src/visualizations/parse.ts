@@ -569,6 +569,15 @@ function parseVisualizationFull(
         result.timelineSwimlanes = true;
         continue;
       }
+      // `lane-by <group>`: the canonical swimlane-axis directive (view-state).
+      // Equivalent to `sort tag:<group>`. `swimlane` is a chart type, hence the
+      // `lane-by` keyword.
+      const laneByMatch = line.match(/^lane-by\s+(.+)$/i);
+      if (laneByMatch) {
+        result.timelineSort = 'tag';
+        result.timelineDefaultSwimlaneTG = laneByMatch[1]!.trim();
+        continue;
+      }
       const activeTagMatch = line.match(/^active-tag\s+(.+)$/i);
       if (activeTagMatch) {
         result.timelineActiveTag = activeTagMatch[1]!.trim();
@@ -602,7 +611,9 @@ function parseVisualizationFull(
 
       // Bare name with no date prefix (not a keyword)
       if (
-        !/^(era|marker|tag|sort|active-tag|swimlanes|no-scale)\b/i.test(line) &&
+        !/^(era|marker|tag|sort|active-tag|swimlanes|no-scale|lane-by)\b/i.test(
+          line
+        ) &&
         !line.startsWith('[')
       ) {
         warn(lineNumber, `Expected a date at the start — e.g., '1718 ${line}'`);

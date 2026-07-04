@@ -1325,7 +1325,9 @@ async function exportTimeline(ctx: ExportContext): Promise<string> {
       parsed.timelineActiveTag,
       ctxTagOverride(ctx)
     ),
-    viewState?.swim,
+    // Swimlane axis from source (`lane-by <group>` / `sort tag:<group>` →
+    // timelineDefaultSwimlaneTG), with a viewState.swim override.
+    viewState?.swim ?? parsed.timelineDefaultSwimlaneTG,
     undefined,
     undefined,
     exportMode
