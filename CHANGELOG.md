@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-07-04
+
+### Added
+- **`<dgmo-diagram>` web component** — render diagrams client-side in any HTML page (Hugo, Jekyll, MkDocs, plain HTML) via a `<script>` tag + custom element. New `./element` entry plus a self-registering `dist/element.js` bundle; map diagrams lazy-fetch their geo data so the base bundle stays lean.
+- **Baked pure-CSS hover** — exported SVGs carry hover emphasis with zero JavaScript (`bakeHover` in `render()`), across the connection, tag-group, and cross-free chart families.
+- **Portable view-state directives (BL-111)** — source-native markers reproduce a configured view anywhere the `.dgmo` travels: `collapsed: true` (mindmap / sequence / state / kanban / gantt / infra), `lane-by <group>` (timeline / gantt / kanban), `color-by-depth` (mindmap), `no-semantic-colors` (er), and honored `hide` (org / sitemap).
+- **Treemap radial (sunburst) mode** — a bare `radial` flag renders the hierarchy as a multi-ring sunburst.
+- **Multi-series radar** with legend-hover emphasis.
+- Dual-axis line charts: hovering a y-axis label emphasizes its series.
+- Enumerable diagnostic registry plus a `dgmo diagnostics` CLI command.
+
+### Changed
+- **BREAKING**: removed the `chord` chart-type keyword. Use `arc` with `layout chord` for circular / chord layouts.
+
+### Fixed
+- Swimlane: blocking boxes shifted out of back-edge corridors.
+- Map: arrowheads tagged so legend hover keeps matching arrows lit.
+- Arc / block: exported SVG sized to content instead of a fixed canvas.
+
 ## [0.43.0] - 2026-06-29
 
 ### Added

@@ -126,6 +126,11 @@ interface PertOptions {
     /** When true, the renderer suppresses the diagram banner title. */
     noTitle?: boolean;
     /**
+     * `solid-fill` directive — render node/group card fills at full intent
+     * saturation instead of the canonical 25% tint (via `shapeFill`).
+     */
+    solidFill?: boolean;
+    /**
      * `no-analysis` directive — suppresses the analysis layer (tornado +
      * S-curve). The layer renders by default whenever Monte Carlo ran;
      * this bare flag turns it off (mirrors `no-title`). An explicit

@@ -1,4 +1,20 @@
 /**
+ * Shared browser-embed helpers for the `@diagrammo/dgmo` client-side
+ * drop-ins (`./auto` script-tag renderer and `./element` custom element).
+ *
+ * These are the SVG sanitizer, theme resolver, source panel (with Copy +
+ * "Open in editor"), error banner, aria-label derivation, style injection,
+ * and share-URL builder — factored out of `auto/index.ts` so the two entries
+ * share one implementation rather than diverging copies. The `auto` entry's
+ * public `window.dgmo` surface is unaffected; it imports from here.
+ */
+declare const VERSION: string;
+type ThemePreference = 'auto' | 'light' | 'dark' | 'transparent';
+declare function resolveTheme(
+  theme: ThemePreference | undefined
+): 'light' | 'dark' | 'transparent';
+
+/**
  * `@diagrammo/dgmo/auto` — IIFE-distributed auto-renderer for static HTML.
  *
  * Drop a `<script src="…/auto.js">` on any page; on `DOMContentLoaded`
@@ -23,15 +39,12 @@ interface AutoConfig {
 interface RunOptions {
   nodes?: Element[] | NodeListOf<Element>;
 }
-declare const VERSION: string;
+
 declare function findScriptTag(): HTMLScriptElement | null;
 declare function parseConfig(
   raw: string | null | undefined
 ): Partial<AutoConfig>;
 declare function selectTargets(root?: ParentNode): Element[];
-declare function resolveTheme(
-  theme: AutoConfig['theme']
-): 'light' | 'dark' | 'transparent';
 declare function initialize(opts?: AutoConfig): void;
 declare function run(opts?: RunOptions): Promise<void>;
 declare const api: Readonly<{

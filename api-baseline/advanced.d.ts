@@ -30,15 +30,6 @@ declare function formatDgmoError(err: DgmoError): string;
  *   - `ARROW_SUBSTRING_IN_LABEL` (TD-13)
  *   - `CONTROL_CHAR_IN_LABEL` (TD-14)
  *
- * **Reserved codes** — declared but NOT currently emitted. These are
- * placeholders for future tightening of the arrow-tokenization rules
- * described in TD-9. Today's chart parsers catch these cases through
- * their own regex machinery with different diagnostics. A follow-up
- * spec that introduces a dedicated tokenizer can start emitting them
- * without changing the public code shape:
- *   - `TRAILING_ARROW_TEXT` — extra `->`/`~>` after the primary arrow
- *   - `MIXED_ARROW_DELIMITERS` — opening delim type doesn't match arrow
- *
  * See `docs/dgmo-language-spec-decisions.md` → TD-16 for the rationale.
  */
 declare const ARROW_DIAGNOSTIC_CODES: {
@@ -46,10 +37,6 @@ declare const ARROW_DIAGNOSTIC_CODES: {
   readonly ARROW_SUBSTRING_IN_LABEL: 'E_ARROW_SUBSTRING_IN_LABEL';
   /** Active: label contains a forbidden control character (TD-14). */
   readonly CONTROL_CHAR_IN_LABEL: 'E_CONTROL_CHAR_IN_LABEL';
-  /** Reserved: not currently emitted by any parser. See JSDoc above. */
-  readonly TRAILING_ARROW_TEXT: 'E_TRAILING_ARROW_TEXT';
-  /** Reserved: not currently emitted by any parser. See JSDoc above. */
-  readonly MIXED_ARROW_DELIMITERS: 'E_MIXED_ARROW_DELIMITERS';
 };
 /**
  * Validate an in-arrow label against the TD-13 and TD-14 character-set
@@ -785,6 +772,11 @@ declare function render(
     /** Bundled map data for `map` charts in the browser, where the Node fs
      *  `loadMapData()` seam can't run. CLI/SSR omit this and fall back to fs. */
     mapData?: MapData;
+    /** Bake pure-CSS hover into the exported SVG (no JS). Default ON — embeds
+     *  (Obsidian, doc-site wrappers) get hover feedback for free. The desktop
+     *  app renders its live preview through direct renderer calls (not this
+     *  entry), so it keeps its JS emphasis; pass `false` to opt out. */
+    bakeHover?: boolean;
   }
 ): Promise<{
   svg: string;
@@ -852,7 +844,7 @@ declare function parseDgmoChartType(content: string): string | null;
 declare function getRenderCategory(chartType: string): RenderCategory | null;
 /**
  * Returns true if the chart type is an extended chart type
- * handled by parseExtendedChart (scatter, sankey, chord, function, heatmap, funnel).
+ * handled by parseExtendedChart (scatter, sankey, function, heatmap, funnel).
  * Returns false for standard chart types and all other types.
  */
 declare function isExtendedChartType(chartType: string): boolean;
@@ -1010,15 +1002,7 @@ declare const palettes: {
   readonly tokyoNight: PaletteConfig;
 };
 
-type ChartType$1 =
-  | 'bar'
-  | 'line'
-  | 'pie'
-  | 'doughnut'
-  | 'area'
-  | 'polar-area'
-  | 'radar'
-  | 'bar-stacked';
+type ChartType$1 = 'bar' | 'line' | 'pie' | 'polar-area' | 'radar';
 interface ChartDataPoint {
   label: string;
   value: number;
@@ -1054,6 +1038,18 @@ interface ParsedChart {
   /** Per-series axis assignment, parallel to seriesNames. Present only when the
    *  series block uses the grouped (dual-axis) form; absent ⇒ all left. */
   seriesAxes?: ('left' | 'right')[];
+  /** Bar multi-series layout, set by a `stack` or `group` block header
+   *  (consolidation #24). Absent ⇒ single-series bar. Drives stacked vs
+   *  clustered rendering in `charts-d3/bar.ts`. */
+  barLayout?: 'stack' | 'group';
+  /** Pie hole inner-radius ratio (0–0.9), set by a `hole` directive
+   *  (bare ⇒ default). Absent ⇒ solid pie. (#23) */
+  hole?: number;
+  /** Suppress the pie center total (bare `no-center-total`). The total
+   *  shows by default whenever a hole is present. (#23) */
+  noCenterTotal?: boolean;
+  /** Render a line chart filled, i.e. as an area (bare `fill`). (#25) */
+  fill?: boolean;
   orientation?: 'horizontal' | 'vertical';
   color?: string;
   label?: string;
@@ -1089,16 +1085,13 @@ declare function parseChart(
 ): ParsedChart;
 /**
  * Parse a data row line: everything before the last numeric token(s) is the label,
- * numeric tokens at the end are the values. Supports comma-separated multi-values,
- * space-separated multi-values, and comma-grouped numbers (e.g., "1,087").
+ * numeric tokens at the end are the values. Values are space-separated.
  *
  * Examples:
  *   "Jan 120"             → { label: "Jan", values: [120] }
  *   "North America 250"   → { label: "North America", values: [250] }
- *   "Q1 10, 20, 30"       → { label: "Q1", values: [10, 20, 30] }
  *   "Q1 10 20 30"         → { label: "Q1", values: [10, 20, 30] }
- *   "Revenue 1,200"       → { label: "Revenue", values: [1200] }
- *   "Revenue 3,984,078.65"→ { label: "Revenue", values: [3984078.65] }
+ *   "Revenue 1_000"       → { label: "Revenue", values: [1000] }
  *
  * Returns null if the line has no numeric value at the end.
  */
@@ -1107,16 +1100,6 @@ declare function parseDataRowValues(
   options?: {
     multiValue?: boolean;
     expectedValues?: number;
-    /**
-     * Invoked at most once when commas are detected in the VALUE region of
-     * a data row — either as value separators (`Q1 400, 700`) or thousands
-     * grouping (`Revenue 1,000`). Receives the canonical space-separated,
-     * comma-free form of the offending value region. Callers use this to
-     * emit `E_DATA_COMMA_REMOVED`. Commas in the label/quoted portion never
-     * trigger this. The function still parses best-effort so the diagram
-     * renders.
-     */
-    onComma?: (canonical: string) => void;
   }
 ): {
   label: string;
@@ -1248,6 +1231,10 @@ interface LegendEntryLayout {
   textX: number;
   textY: number;
   displayValue?: string;
+  /** Full entry advance width (dot + gap + text + trail). Consumers draw a
+   *  transparent hit-rect of this width so the whole pill is hoverable, not
+   *  just the dot/text glyphs (legend-hover emphasis needs a filled target). */
+  width?: number;
 }
 interface LegendCapsuleLayout {
   groupName: string;
@@ -1435,6 +1422,9 @@ interface ParsedSankey extends ParsedExtendedBase {
 interface ParsedChord extends ParsedExtendedBase {
   type: 'chord';
   links?: ParsedSankeyLink[];
+  /** `layout arc|chord` override (#26). `arc` re-renders the same edges as a
+   *  linear arc; absent ⇒ the `chord` circular preset. */
+  layout?: 'arc' | 'chord';
 }
 interface ParsedFunctionChart extends ParsedExtendedBase {
   type: 'function';
@@ -1479,7 +1469,7 @@ declare function parseExtendedChart(
   palette?: PaletteColors
 ): ParsedExtendedChart;
 /**
- * Extracts legend group data from standard chart types (multi-line, bar-stacked).
+ * Extracts legend group data from standard chart types (multi-series line/bar).
  * Returns empty array if chart has no multi-series legend.
  */
 declare function getSimpleChartLegendGroups(
@@ -1613,6 +1603,12 @@ interface ParsedVizBase {
   titleLineNumber: number | null;
   /** When true, the renderer suppresses the chart title. */
   noTitle?: boolean;
+  /**
+   * `solid-fill` directive — render filled marks at full intent saturation
+   * instead of the canonical muted tint. Honored by the renderers that have
+   * a fillable surface (e.g. venn set circles); a no-op for line/point types.
+   */
+  solidFill?: boolean;
   diagnostics: DgmoError[];
   error: string | null;
 }
@@ -1633,6 +1629,9 @@ interface ParsedArc extends ParsedVizBase {
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
+  /** `layout arc|chord` override (#26). `chord` re-renders the same edges as a
+   *  circular chord; absent ⇒ the `arc` linear preset. */
+  layout?: 'arc' | 'chord';
 }
 interface ParsedTimeline extends ParsedVizBase {
   type: 'timeline';
@@ -1702,7 +1701,7 @@ declare function parseVisualization(
   palette?: PaletteColors
 ): ParsedVisualization;
 
-type TimelineDurationUnit = 'd' | 'w' | 'm' | 'y' | 'h' | 'min';
+type TimelineDurationUnit = 'd' | 'w' | 'm' | 'y' | 'h' | 'min' | 's';
 declare function addDurationToDate(
   startDate: string,
   amount: number,
@@ -1740,11 +1739,14 @@ declare function renderArcDiagram(
 ): void;
 
 /**
- * Converts a DSL date string (YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DD HH:MM) to a human-readable label.
- *   '1718'              → '1718'
- *   '1718-05'           → 'May 1718'
- *   '1718-05-22'        → 'May 22, 1718'
- *   '2024-06-15 14:30'  → 'Jun 15, 2024 14:30'
+ * Converts a DSL date string to a human-readable label.
+ *   '1718'                 → '1718'
+ *   '1718-05'              → 'May 1718'
+ *   '1718-05-22'           → 'May 22, 1718'
+ *   '2024-06-15 14:30'     → 'Jun 15, 2024 14:30'
+ *   '2024-06-15 14:30:45'  → 'Jun 15, 2024 14:30:45'
+ *   '-753'                 → '753 BCE'  (BCE years stored signed)
+ *   '-0044-03'             → 'Mar 44 BCE'
  */
 declare function formatDateLabel(dateStr: string): string;
 declare function renderTimeline(
@@ -1847,9 +1849,7 @@ declare function computeTimeTicks(
  * The 0.16.0 trim retained only the types whose shapes carry semantic
  * weight at a glance: stick figure (actor), cylinder (database),
  * dashed cylinder (cache), horizontal pipe (queue), plus the default
- * rectangle. The legacy `service`/`frontend`/`networking`/`gateway`/
- * `external` keywords are rejected at parse time via
- * `E_PARTICIPANT_TYPE_REMOVED`.
+ * rectangle. Any other type word falls back to `default`.
  */
 type ParticipantType = 'default' | 'database' | 'actor' | 'queue' | 'cache';
 /**
@@ -2030,6 +2030,7 @@ interface GraphGroup {
   readonly color?: string;
   readonly nodeIds: readonly string[];
   readonly lineNumber: number;
+  readonly collapsed?: boolean;
 }
 
 type GraphNote = DiagramNote;
@@ -2745,6 +2746,7 @@ interface KanbanColumn {
   readonly name: string;
   readonly wipLimit?: number;
   readonly color?: string;
+  readonly collapsed?: boolean;
   readonly metadata?: Readonly<Record<string, string>>;
   readonly cards: readonly KanbanCard[];
   readonly lineNumber: number;
@@ -4011,6 +4013,7 @@ interface GanttGroup {
   readonly color: string | null;
   readonly metadata: Readonly<Record<string, string>>;
   readonly offset?: Offset;
+  readonly collapsed?: boolean;
   readonly lineNumber: number;
   readonly children: readonly GanttNode[];
 }
@@ -4113,6 +4116,7 @@ interface ResolvedGroup$1 {
   progress: number | null;
   lineNumber: number;
   depth: number;
+  collapsed?: boolean;
 }
 interface ResolvedSprint {
   number: number;
@@ -4318,6 +4322,11 @@ interface PertOptions {
   anchor: Anchor;
   /** When true, the renderer suppresses the diagram banner title. */
   noTitle?: boolean;
+  /**
+   * `solid-fill` directive — render node/group card fills at full intent
+   * saturation instead of the canonical 25% tint (via `shapeFill`).
+   */
+  solidFill?: boolean;
   /**
    * `no-analysis` directive — suppresses the analysis layer (tornado +
    * S-curve). The layer renders by default whenever Monte Carlo ran;
@@ -5696,6 +5705,16 @@ interface EventLineEvent {
   readonly date: string | null;
   /** Numeric date value (timeline scale) for to-scale positioning, or null. */
   readonly dateValue: number | null;
+  /** True when the date was written as `TBD` — a not-yet-scheduled FUTURE event.
+   *  Its `date` caption is `'TBD'`; `dateValue` is inferred from source-order
+   *  dated neighbors so the to-scale axis still positions it (see `futureSpan`). */
+  readonly future: boolean;
+  /** For a `future` event, the dateValue gap it is interpolated WITHIN
+   *  (`[lo, hi]`) — present when a dated event follows it. `null` for a trailing
+   *  TBD (no dated event after it): the open horizon, drawn as a dashed spine
+   *  tail. Distinguishes bracketed vs trailing placement; always null for
+   *  non-future events. */
+  readonly futureSpan: readonly [number, number] | null;
   /** Tag/metadata — keys are `tagAttrKey(group)` (e.g. `{ genre: 'Pop' }`). */
   readonly metadata: Readonly<Record<string, string>>;
   /** Bare-body description lines (markdown-light; `- ` normalized to `• `). */
@@ -5988,6 +6007,9 @@ interface TreemapOptions {
   noPercent: boolean;
   noHeaders: boolean;
   noLegend: boolean;
+  solidFill: boolean;
+  /** `radial` — render as a sunburst (concentric rings) instead of rectangles. */
+  radial: boolean;
 }
 interface ParsedTreemap {
   readonly type: 'treemap';
@@ -6044,6 +6066,33 @@ declare function renderTreemap(
   options?: TreemapRenderOptions
 ): void;
 
+interface TreemapRadialRenderOptions {
+  /** Color mode override (app's runtime switcher). Defaults to source. */
+  colorMode?: TreemapColorMode;
+  /** Interactive render budget. Export omits it → full tree. */
+  maxDepth?: number;
+  /** Shift the branch-hue index (drilled-into view keeps its expanded hue). */
+  colorOffset?: number;
+  exportMode?: boolean;
+}
+/** Render for CLI/export (full tree, no interactive chrome). */
+declare function renderTreemapRadialForExport(
+  container: HTMLDivElement,
+  parsed: ParsedTreemap,
+  palette: PaletteColors,
+  isDark: boolean,
+  exportDims?: D3ExportDimensions,
+  options?: TreemapRadialRenderOptions
+): void;
+declare function renderTreemapRadial(
+  container: HTMLDivElement,
+  parsed: ParsedTreemap,
+  palette: PaletteColors,
+  isDark: boolean,
+  exportDims?: D3ExportDimensions,
+  options?: TreemapRadialRenderOptions
+): void;
+
 interface TreemapCell {
   /** Original parsed node, or null for the synthetic root. */
   readonly node: TreemapNode | null;
@@ -6089,6 +6138,60 @@ declare function layoutTreemap(
   opts: TreemapLayoutOptions
 ): TreemapLayoutResult;
 
+/** A positioned sunburst arc. Reuses every geometry-NEUTRAL field of
+ *  `TreemapCell`, swapping the 4 rect coords for polar `{start/endAngle,
+ *  inner/outerR}`. */
+interface RadialCell {
+  /** Original parsed node, or null for the synthetic root. */
+  readonly node: TreemapNode | null;
+  readonly label: string;
+  /** Radians, clockwise, 0 = 12 o'clock (d3.arc convention). */
+  readonly startAngle: number;
+  readonly endAngle: number;
+  readonly innerR: number;
+  readonly outerR: number;
+  /** 1-based depth (ring index; depth 1 = first ring outward from the disc). */
+  readonly depth: number;
+  readonly value: number;
+  /** Has children (drawn as an inner ring with its own outer rings). */
+  readonly isContainer: boolean;
+  /** Always false for static export (full tree); kept for TreemapCell parity. */
+  readonly isCollapsed: boolean;
+  /** Index of the top-level ancestor (drives branch-mode hue). */
+  readonly topIndex: number;
+  readonly pctOfRoot: number;
+  readonly pctOfParent: number;
+  /** Own heat, else the mean of descendant leaf heats; undefined if none. */
+  readonly heat?: number;
+  /** Path of labels from the laid-out root (for tooltips / data-node-path). */
+  readonly path: readonly string[];
+  readonly lineNumber?: number;
+}
+interface RadialLayoutResult {
+  readonly cells: readonly RadialCell[];
+  /** Grand total (sum of all leaf values). */
+  readonly total: number;
+  /** Radius of the center disc (title + total holder). */
+  readonly discRadius: number;
+  /** Deepest ring depth actually present (0 when empty). */
+  readonly maxDepthReached: number;
+  /** True when `roots` exist but the grand total is 0 (all-zero leaves) —
+   *  the renderer draws an empty-state marker in the disc, no arcs. */
+  readonly isEmpty: boolean;
+}
+interface RadialLayoutOptions {
+  /** Outer radius available for the whole sunburst (disc + rings). */
+  readonly radius: number;
+  /** Center disc radius; defaults to a sensible fraction of `radius`. */
+  readonly discRadius?: number;
+  /** Interactive render budget; static export leaves it Infinity (full tree). */
+  readonly maxDepth?: number;
+}
+declare function layoutTreemapRadial(
+  roots: readonly TreemapNode[],
+  opts: RadialLayoutOptions
+): RadialLayoutResult;
+
 /** A single block. Becomes a container when `grid` is present. */
 interface BlockNode {
   readonly id: string;
@@ -6117,6 +6220,8 @@ interface BlockGrid {
 interface BlockOptions {
   /** `no-legend` — hide the tag legend. */
   noLegend: boolean;
+  /** `solid-fill` — fill nodes at full intent saturation instead of a tint. */
+  solidFill: boolean;
 }
 interface ParsedBlock {
   readonly type: 'block';
@@ -7083,7 +7188,6 @@ declare const RACI_ERROR_CODES: {
   readonly INVALID_MARKER: 'E_RACI_INVALID_MARKER';
   readonly UNEXPECTED_LINE: 'E_RACI_UNEXPECTED_LINE';
   readonly MIXED_VARIANTS: 'E_RACI_MIXED_VARIANTS';
-  readonly DUPLICATE_VARIANT: 'E_RACI_DUPLICATE_VARIANT';
 };
 /** Codes for warnings (suppressible chart-wide by the `no-rule-enforcement` directive). */
 declare const RACI_WARNING_CODES: {
@@ -7760,6 +7864,8 @@ export {
   type RaciRoleAssignment,
   type RaciTask,
   type RaciVariant,
+  type RadialCell,
+  type RadialLayoutResult,
   type ReadFileFn,
   type RegionName,
   type RegionNames,
@@ -7933,6 +8039,7 @@ export {
   layoutSitemap,
   layoutSwimlane,
   layoutTreemap,
+  layoutTreemapRadial,
   layoutWireframe,
   loadMapData,
   looksLikeClassDiagram,
@@ -8066,6 +8173,8 @@ export {
   renderTimeline,
   renderTreemap,
   renderTreemapForExport,
+  renderTreemapRadial,
+  renderTreemapRadialForExport,
   renderVenn,
   renderVersionControl,
   renderVersionControlForExport,

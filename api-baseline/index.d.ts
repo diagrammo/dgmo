@@ -41,6 +41,55 @@ interface DgmoError {
    */
   code?: string;
 }
+/** Runtime params passed to `emit()` and forwarded to a message builder. */
+type DiagnosticParams = Record<string, unknown>;
+/**
+ * Parameter type for a `DiagnosticSpec.message` builder body. Typed loosely
+ * (`any`) on purpose: builders are hand-authored interpolation bags keyed by
+ * ad-hoc names, and dgmo's tsconfig enables `noPropertyAccessFromIndexSignature`
+ * (which forbids `p.name` dot-access on a `Record<string, unknown>`). Using
+ * `any` here keeps builder bodies readable (`p.name`) instead of forcing
+ * `p['name']` bracket access at every interpolation site.
+ */
+type DiagnosticMessageParams = any;
+interface DiagnosticSpec {
+  /** Stable diagnostic code, e.g. `'E_MAP_UNKNOWN_PLACE'`. */
+  code: string;
+  /** Severity — must agree with the `E_`/`W_`/`I_` code prefix. */
+  severity: DgmoSeverity;
+  /** Owning chart type (`'map'`, `'swimlane'`, …) or `null` for universal/global codes. */
+  chartType: string | null;
+  /** Short human label for the catalog UI. */
+  title: string;
+  /**
+   * Canonical message wording. A plain string for static messages, or a
+   * builder `(params) => string` when the message interpolates runtime
+   * values. The builder must tolerate being called with `{}` so the
+   * catalog can show a representative message without live params.
+   */
+  message: string | ((params: DiagnosticMessageParams) => string);
+  /** Optional fix guidance shown alongside the message. */
+  hint?: string;
+  /** Minimal `.dgmo` source that triggers this diagnostic (for docs/console). */
+  example?: string;
+}
+/** Optional extras when emitting (currently just an explicit column). */
+interface EmitOptions {
+  column?: number;
+}
+/**
+ * Emit a diagnostic from its `DiagnosticSpec`. The code, severity, and
+ * canonical wording all come from the spec — call sites supply only the
+ * line and the interpolation params, so the code/severity can never drift
+ * out of sync with the declared spec. Replaces the per-parser
+ * `push`/`err`/`fail` wrappers that each re-declared this shape.
+ */
+declare function emit(
+  spec: DiagnosticSpec,
+  line: number,
+  params?: DiagnosticParams,
+  opts?: EmitOptions
+): DgmoError;
 declare function formatDgmoError(err: DgmoError): string;
 
 /**
@@ -535,6 +584,17 @@ declare function attachDataChartInteractions(
 declare const D3_DATA_CHART_TYPES: Set<string>;
 declare function supportsD3DataChart(type: string): boolean;
 
+/**
+ * The full diagnostic catalog, sorted by code. Every coded diagnostic
+ * dgmo can emit — its severity, owning chart type, canonical message,
+ * fix hint, and a triggering example. This is the enumerable source of
+ * truth for the CLI `diagnostics` subcommand, the console error-review
+ * surface, MCP, and the language-spec catalog.
+ */
+declare function listDiagnosticCodes(): DiagnosticSpec[];
+/** Look up a single spec by its code, or `undefined` if not cataloged. */
+declare function getDiagnosticSpec(code: string): DiagnosticSpec | undefined;
+
 interface RenderOptions {
   theme?: Theme;
   palette?: PaletteConfig;
@@ -614,6 +674,9 @@ export {
   type DecodedDiagramUrl,
   type DgmoError,
   type DgmoSeverity,
+  type DiagnosticParams,
+  type DiagnosticSpec,
+  type EmitOptions,
   type EncodeDiagramUrlOptions,
   type Gazetteer,
   type GazetteerEntry,
@@ -636,11 +699,14 @@ export {
   completeMapPlaces,
   completeMapRegions,
   decodeDiagramUrl,
+  emit,
   encodeDiagramUrl,
   formatDgmoError,
+  getDiagnosticSpec,
   getEmbedSvgViewBox,
   getMinDimensions,
   getPalette,
+  listDiagnosticCodes,
   mountD3DataChart,
   normalizeSvgForEmbed,
   palettes,
