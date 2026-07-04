@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.44.1] - 2026-07-04
+
+### Fixed
+- **event-line / block**: removed the opaque full-canvas background rect. Both types now rely on the SVG's CSS `background` (and resvg's background option for PNG) like every other chart type, so transparent-theme and Obsidian embeds blend with the host instead of showing a dark box.
+
 ## [0.44.0] - 2026-07-04
 
 ### Added
