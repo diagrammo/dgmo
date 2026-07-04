@@ -515,6 +515,11 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     emphasis: 'dim',
     selfEmphasis: false,
   },
+  swimlane: {
+    markSelector: '[data-lane]',
+    strategy: 'enumerated',
+    groupAttr: 'data-lane',
+  },
 
   // ── SELF-emphasis only (single-series / non-relational solid marks) ──
   pyramid: { markSelector: '.pyramid-layer', strategy: 'self' },

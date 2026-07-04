@@ -483,7 +483,11 @@ export function renderSwimlaneForExport(
   const nodesG = root.append('g').attr('class', 'dgmo-swimlane-nodes');
   for (const n of layout.nodes) {
     const { fill, stroke } = nodeFill(n);
-    const g = nodesG.append('g').attr('data-line-number', String(n.lineNumber));
+    const g = nodesG
+      .append('g')
+      .attr('data-line-number', String(n.lineNumber))
+      // Lane key for baked-CSS cross-highlight (hover a node → dim other lanes).
+      .attr('data-lane', n.lane);
     const cx = n.x;
     const cy = n.y;
     if (n.shape === 'exclusive' || n.shape === 'parallel') {
