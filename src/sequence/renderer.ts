@@ -879,22 +879,17 @@ export function renderSequenceDiagram(
   const { title, options: parsedOptions } = parsed;
   const solid = parsedOptions['solid-fill'] === 'on';
 
-  // Compute effective collapsed groups: union of syntax-declared and runtime-toggled
-  const effectiveCollapsedGroups = new Set<number>();
-  for (const group of parsed.groups) {
-    if (group.collapsed) effectiveCollapsedGroups.add(group.lineNumber);
-  }
-  if (options?.collapsedGroups) {
-    for (const ln of options.collapsedGroups) {
-      // Toggle: if already in the set (from syntax), remove it (user expanded);
-      // if not in the set, add it (user collapsed)
-      if (effectiveCollapsedGroups.has(ln)) {
-        effectiveCollapsedGroups.delete(ln);
-      } else {
-        effectiveCollapsedGroups.add(ln);
-      }
-    }
-  }
+  // Effective collapsed groups. `options.collapsedGroups` is the AUTHORITATIVE
+  // desired set when supplied — the app seeds it from the source `collapsed:
+  // true` markers and mutates it on toggle (write-through keeps source in sync),
+  // so it must NOT be XOR'd against the syntax-declared set (doing so cancelled
+  // a seeded set back to expanded). With no set supplied (bare render / CLI),
+  // default to the syntax-declared collapsed groups. Mirrors gantt/kanban/state.
+  const effectiveCollapsedGroups = options?.collapsedGroups
+    ? new Set(options.collapsedGroups)
+    : new Set(
+        parsed.groups.filter((g) => g.collapsed).map((g) => g.lineNumber)
+      );
 
   // Apply collapse projection before participant ordering
   const collapsed: CollapsedView | null =
