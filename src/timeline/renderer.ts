@@ -1832,7 +1832,7 @@ function renderTimelineHorizontalGrouped(
   setup: TimelineSetup,
   hovers: TimelineHoverHelpers,
   onClickItem: ((lineNumber: number) => void) | undefined,
-  _exportDims: D3ExportDimensions | undefined,
+  exportDims: D3ExportDimensions | undefined,
   _swimlaneTagGroup: string | null | undefined,
   _activeTagGroup: string | null | undefined,
   _onTagStateChange:
@@ -1939,12 +1939,24 @@ function renderTimelineHorizontalGrouped(
     ? -(topScaleH + markerReserve + ERA_ROW_H / 2)
     : 0;
   const innerWidth = width - margin.left - margin.right;
-  const innerHeight = height - margin.top - margin.bottom;
   const totalGaps = (lanes.length - 1) * sGroupGap;
-  const rowH = Math.min(
-    ctx.structural(28),
-    (innerHeight - totalGaps) / totalRows
-  );
+  // Fixed comfortable row height — never compress below the 22px bar height.
+  // The old `min(28, avail/totalRows)` shrank rows to fit the container, which
+  // crammed lanes into vertical overlap on short panes (the app's fixed-height
+  // embedded surface). Instead the SVG scales to fit via viewBox +
+  // preserveAspectRatio below, uniformly shrinking bars AND gaps together so
+  // they never collide — mirroring the time-sort path.
+  const rowH = ctx.structural(28);
+  const innerHeight = rowH * totalRows + totalGaps;
+  const usedHeight = margin.top + innerHeight + margin.bottom;
+
+  // On-screen (non-export) the content can be taller than the host pane. Rather
+  // than overflow it, scale the whole SVG down to fit: the viewBox keeps the
+  // natural content geometry while the rendered height is clamped to the
+  // container, and preserveAspectRatio uniformly shrinks + centers it. Export
+  // keeps the full natural height so the image is never compressed.
+  const fitToContainer = !exportDims && height > 0 && usedHeight > height;
+  const svgHeight = fitToContainer ? height : usedHeight;
 
   const xScale = d3Scale
     .scaleLinear()
@@ -1955,12 +1967,12 @@ function renderTimelineHorizontalGrouped(
     .select(container)
     .append('svg')
     .attr('width', width)
-    .attr('height', height)
-    .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('height', svgHeight)
+    .attr('viewBox', `0 0 ${width} ${usedHeight}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('background', bgColor);
 
-  if (ctx.isBelowFloor) {
+  if (ctx.isBelowFloor && !fitToContainer) {
     svg.attr('width', '100%');
   }
 
