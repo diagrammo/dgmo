@@ -177,14 +177,21 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     colFlowLen[ri] = Math.max(colFlowLen[ri]!, flowLenOf(id));
   }
   const flowCenter: number[] = [];
+  const colLen: number[] = [];
   {
     let acc = contentFlowStart;
     for (let ri = 0; ri < R; ri++) {
       const len = Math.max(colFlowLen[ri]!, NODE_W);
+      colLen[ri] = len;
       flowCenter[ri] = acc + len / 2;
       acc += len + COL_GAP;
     }
   }
+  // Midpoint of the node-free gap between columns gi and gi+1 — columns only
+  // ever hold nodes within colLen/2 of their center, so this corridor is
+  // guaranteed clear of boxes.
+  const gapMid = (gi: number): number =>
+    flowCenter[gi]! + colLen[gi]! / 2 + COL_GAP / 2;
   const totalFlow =
     (R > 0
       ? flowCenter[R - 1]! + Math.max(colFlowLen[R - 1]!, NODE_W) / 2
@@ -321,6 +328,47 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     }
   }
 
+  // ── Back-edge leg clearance ─────────────────────────────────
+  // A back-edge's vertical legs (source→channel drop, channel→target rise) run
+  // at the node's column center — straight through any node stacked below it in
+  // another lane (compact ranking deliberately shares columns across lanes).
+  // When a leg is blocked, jog it sideways into the node-free gap between
+  // columns: exit the node, descend into the clear corridor above the first
+  // blocker, shift to the gap, then continue to the channel. Crossing other
+  // EDGES there is fine — cutting through a BOX is not.
+  const BLOCK_CLEAR = 4;
+  interface BackLeg {
+    flow: number; // flow coordinate the leg uses at the channel
+    jogCross?: number; // clear corridor to shift sideways in (set when jogged)
+  }
+  const routeBackLeg = (
+    selfId: string,
+    flow: number,
+    fromCross: number,
+    toCross: number,
+    ri: number,
+    towardFlow: number
+  ): BackLeg => {
+    let firstBlockTop = Infinity;
+    for (const id of ids) {
+      if (id === selfId) continue;
+      const fh = flowLenOf(id) / 2 + BLOCK_CLEAR;
+      if (Math.abs(nodeFlow.get(id)! - flow) >= fh) continue;
+      const ch = crossLenOf(id) / 2;
+      const c = nodeCross.get(id)!;
+      if (c + ch <= fromCross || c - ch >= toCross) continue;
+      firstBlockTop = Math.min(firstBlockTop, c - ch);
+    }
+    if (firstBlockTop === Infinity) return { flow };
+    // Jog toward the other endpoint when a gap exists on that side; else away.
+    const leftGap = ri - 1;
+    const rightGap = ri < R - 1 ? ri : -1;
+    let gi = towardFlow < flow ? leftGap : rightGap;
+    if (gi < 0) gi = towardFlow < flow ? rightGap : leftGap;
+    if (gi < 0) return { flow }; // single column — nowhere to jog
+    return { flow: gapMid(gi), jogCross: (fromCross + firstBlockTop) / 2 };
+  };
+
   // ── Edge routing ────────────────────────────────────────────
   let backIdx = 0;
   const layoutEdges: SwimLayoutEdge[] = [];
@@ -379,10 +427,32 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
       backIdx++;
       const sBottom = sCross + sCrossHalf;
       const tBottom = tCross + tCrossHalf;
+      const sLeg = routeBackLeg(
+        s.id,
+        sFlow,
+        sBottom,
+        channelC,
+        riOf(s.id),
+        tFlow
+      );
+      const tLeg = routeBackLeg(
+        t.id,
+        tFlow,
+        tBottom,
+        channelC,
+        riOf(t.id),
+        sFlow
+      );
       pts = [
         project(sFlow, sBottom),
-        project(sFlow, channelC),
-        project(tFlow, channelC),
+        ...(sLeg.jogCross !== undefined
+          ? [project(sFlow, sLeg.jogCross), project(sLeg.flow, sLeg.jogCross)]
+          : []),
+        project(sLeg.flow, channelC),
+        project(tLeg.flow, channelC),
+        ...(tLeg.jogCross !== undefined
+          ? [project(tLeg.flow, tLeg.jogCross), project(tFlow, tLeg.jogCross)]
+          : []),
         project(tFlow, tBottom),
       ];
     }
