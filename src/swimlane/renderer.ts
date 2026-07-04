@@ -409,7 +409,7 @@ export function renderSwimlaneForExport(
       // straight-line label — picking the clearer side moves the label off it.
       const horizontal = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y);
       const LABEL_GAP = 7;
-      const clearance = (px: number, py: number): number => {
+      const pointClearance = (px: number, py: number): number => {
         let m = Infinity;
         for (const oe of layout.edges) {
           if (oe === e) continue;
@@ -427,22 +427,36 @@ export function renderSwimlaneForExport(
         }
         return m;
       };
+      // Sample the whole text run, not just the anchor: a label extends ~half
+      // its width past a centered anchor (or its full width past a start/end
+      // anchor), and an edge crossing that tail strikes the text even when the
+      // anchor itself looks clear.
+      const estW = e.label.length * EDGE_LABEL_FONT * 0.6;
+      const clearance = (px: number, py: number, spanDir: number): number => {
+        const xs =
+          spanDir === 0
+            ? [px - estW / 2, px, px + estW / 2]
+            : [px, px + (spanDir * estW) / 2, px + spanDir * estW];
+        return Math.min(...xs.map((x) => pointClearance(x, py)));
+      };
       const CROWD = 10; // px: only flip off the default side when it's crowded
       let tx: number;
       let ty: number;
       let anchor: string;
       let baseline: string;
       if (horizontal) {
-        const up = clearance(mid.x, mid.y - LABEL_GAP);
-        const down = clearance(mid.x, mid.y + LABEL_GAP);
+        // Centered anchor: text spans ±estW/2 (spanDir 0).
+        const up = clearance(mid.x, mid.y - LABEL_GAP, 0);
+        const down = clearance(mid.x, mid.y + LABEL_GAP, 0);
         const below = up < CROWD && down > up;
         tx = mid.x;
         ty = mid.y + (below ? LABEL_GAP : -LABEL_GAP);
         anchor = 'middle';
         baseline = below ? 'hanging' : 'auto';
       } else {
-        const right = clearance(mid.x + LABEL_GAP, mid.y);
-        const left = clearance(mid.x - LABEL_GAP, mid.y);
+        // Start/end anchor: text spans one full width away from the riser.
+        const right = clearance(mid.x + LABEL_GAP, mid.y, 1);
+        const left = clearance(mid.x - LABEL_GAP, mid.y, -1);
         const toLeft = right < CROWD && left > right;
         tx = mid.x + (toLeft ? -LABEL_GAP : LABEL_GAP);
         ty = mid.y;

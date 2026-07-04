@@ -1272,7 +1272,10 @@ function renderEdgePaths(
     const edgeG = svg
       .append('g')
       .attr('class', 'infra-edge')
-      .attr('data-line-number', edge.lineNumber);
+      .attr('data-line-number', edge.lineNumber)
+      // Endpoint node ids for baked-CSS connection-highlight (hover-styles.ts).
+      .attr('data-from', edge.sourceId)
+      .attr('data-to', edge.targetId);
 
     const edgePath = edgeG
       .append('path')

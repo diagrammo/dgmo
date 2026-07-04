@@ -801,7 +801,10 @@ export function renderBoxesAndLines(
         const edgeG = diagramG
           .append('g')
           .attr('class', 'bl-edge-group')
-          .attr('data-line-number', String(le.lineNumber));
+          .attr('data-line-number', String(le.lineNumber))
+          // Endpoint node labels for baked-CSS connection-highlight.
+          .attr('data-from', le.source)
+          .attr('data-to', le.target);
 
         const markerId = `bl-arrow-${color.replace('#', '')}`;
         const cx = nodeLayout.x;
@@ -865,7 +868,10 @@ export function renderBoxesAndLines(
     const edgeG = diagramG
       .append('g')
       .attr('class', 'bl-edge-group')
-      .attr('data-line-number', String(le.lineNumber));
+      .attr('data-line-number', String(le.lineNumber))
+      // Endpoint node labels for baked-CSS connection-highlight.
+      .attr('data-from', le.source)
+      .attr('data-to', le.target);
 
     const markerId = `bl-arrow-${color.replace('#', '')}`;
     const gen = le.straight

@@ -70,7 +70,8 @@ function nodeSize(shape: SwimShape): { w: number; h: number } {
 function compactRanks(
   ids: string[],
   edges: { from: string; to: string }[],
-  laneOf: (id: string) => string
+  laneOf: (id: string) => string,
+  floors?: Map<string, number>
 ): Map<string, number> {
   const adj = new Map<string, string[]>();
   const indeg = new Map<string, number>();
@@ -91,6 +92,9 @@ function compactRanks(
     const u = queue[qi]!;
     const lu = laneOf(u);
     const accIn = laneMaxIn.get(u)!;
+    // Corridor floors (back-edge blocker shifting) apply before separation.
+    const fl = floors?.get(u);
+    if (fl !== undefined && (rank.get(u) ?? 0) < fl) rank.set(u, fl);
     // Strict separation: if a same-lane ancestor already occupies this column or
     // beyond, step u forward past it.
     const sameLaneAnc = accIn.get(lu);
@@ -158,8 +162,44 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
   // reintroduce collisions. Phases survive only as header bands (drawn from the
   // columns their members actually land in — consecutive bands may overlap by
   // the shared handoff column, so the header labels/dividers are approximate).
-  const finalRank = new Map<string, number>();
+  let finalRank = new Map<string, number>();
   for (const id of ids) finalRank.set(id, baseRank.get(id) ?? 0);
+
+  // ── Back-edge corridor reservation (blocker shifting) ───────
+  // A back-edge's vertical legs (node → loop channel below the lanes) must
+  // drop through every lane beneath the node. Rather than snaking the edge
+  // around boxes, shift the BOXES: any node in a lower lane sharing a leg's
+  // column gets its rank floored past the conflict, and the DAG is re-ranked
+  // so same-lane successors march right with it. Floors only ever grow, so
+  // the loop terminates; anything still blocked after the cap (e.g. a fork
+  // sibling stacked in the node's own cell) falls back to the routing jog.
+  {
+    const laneIdx = new Map(parsed.lanes.map((l, i) => [l.id, i]));
+    const dagEdges = dag.map((d) => ({ from: d.from, to: d.to }));
+    const floors = new Map<string, number>();
+    for (let pass = 0; pass < ids.length; pass++) {
+      let changed = false;
+      for (const e of realEdges) {
+        if ((finalRank.get(e.to) ?? 0) >= (finalRank.get(e.from) ?? 0))
+          continue; // forward or same-rank — no loop channel legs
+        for (const leg of [e.from, e.to]) {
+          const legRank = finalRank.get(leg)!;
+          const legLane = laneIdx.get(laneOf(leg))!;
+          for (const id of ids) {
+            if (id === e.from || id === e.to) continue;
+            if (finalRank.get(id) !== legRank) continue;
+            if ((laneIdx.get(laneOf(id)) ?? 0) <= legLane) continue;
+            if ((floors.get(id) ?? 0) <= legRank) {
+              floors.set(id, legRank + 1);
+              changed = true;
+            }
+          }
+        }
+      }
+      if (!changed) break;
+      finalRank = compactRanks(ids, dagEdges, laneOf, floors);
+    }
+  }
 
   // Contiguous rank indices.
   const usedRanks = Array.from(
@@ -177,14 +217,21 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     colFlowLen[ri] = Math.max(colFlowLen[ri]!, flowLenOf(id));
   }
   const flowCenter: number[] = [];
+  const colLen: number[] = [];
   {
     let acc = contentFlowStart;
     for (let ri = 0; ri < R; ri++) {
       const len = Math.max(colFlowLen[ri]!, NODE_W);
+      colLen[ri] = len;
       flowCenter[ri] = acc + len / 2;
       acc += len + COL_GAP;
     }
   }
+  // Midpoint of the node-free gap between columns gi and gi+1 — columns only
+  // ever hold nodes within colLen/2 of their center, so this corridor is
+  // guaranteed clear of boxes.
+  const gapMid = (gi: number): number =>
+    flowCenter[gi]! + colLen[gi]! / 2 + COL_GAP / 2;
   const totalFlow =
     (R > 0
       ? flowCenter[R - 1]! + Math.max(colFlowLen[R - 1]!, NODE_W) / 2
@@ -321,6 +368,47 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
     }
   }
 
+  // ── Back-edge leg clearance ─────────────────────────────────
+  // A back-edge's vertical legs (source→channel drop, channel→target rise) run
+  // at the node's column center — straight through any node stacked below it in
+  // another lane (compact ranking deliberately shares columns across lanes).
+  // When a leg is blocked, jog it sideways into the node-free gap between
+  // columns: exit the node, descend into the clear corridor above the first
+  // blocker, shift to the gap, then continue to the channel. Crossing other
+  // EDGES there is fine — cutting through a BOX is not.
+  const BLOCK_CLEAR = 4;
+  interface BackLeg {
+    flow: number; // flow coordinate the leg uses at the channel
+    jogCross?: number; // clear corridor to shift sideways in (set when jogged)
+  }
+  const routeBackLeg = (
+    selfId: string,
+    flow: number,
+    fromCross: number,
+    toCross: number,
+    ri: number,
+    towardFlow: number
+  ): BackLeg => {
+    let firstBlockTop = Infinity;
+    for (const id of ids) {
+      if (id === selfId) continue;
+      const fh = flowLenOf(id) / 2 + BLOCK_CLEAR;
+      if (Math.abs(nodeFlow.get(id)! - flow) >= fh) continue;
+      const ch = crossLenOf(id) / 2;
+      const c = nodeCross.get(id)!;
+      if (c + ch <= fromCross || c - ch >= toCross) continue;
+      firstBlockTop = Math.min(firstBlockTop, c - ch);
+    }
+    if (firstBlockTop === Infinity) return { flow };
+    // Jog toward the other endpoint when a gap exists on that side; else away.
+    const leftGap = ri - 1;
+    const rightGap = ri < R - 1 ? ri : -1;
+    let gi = towardFlow < flow ? leftGap : rightGap;
+    if (gi < 0) gi = towardFlow < flow ? rightGap : leftGap;
+    if (gi < 0) return { flow }; // single column — nowhere to jog
+    return { flow: gapMid(gi), jogCross: (fromCross + firstBlockTop) / 2 };
+  };
+
   // ── Edge routing ────────────────────────────────────────────
   let backIdx = 0;
   const layoutEdges: SwimLayoutEdge[] = [];
@@ -379,10 +467,32 @@ export function layoutSwimlane(parsed: ParsedSwimlane): SwimlaneLayoutResult {
       backIdx++;
       const sBottom = sCross + sCrossHalf;
       const tBottom = tCross + tCrossHalf;
+      const sLeg = routeBackLeg(
+        s.id,
+        sFlow,
+        sBottom,
+        channelC,
+        riOf(s.id),
+        tFlow
+      );
+      const tLeg = routeBackLeg(
+        t.id,
+        tFlow,
+        tBottom,
+        channelC,
+        riOf(t.id),
+        sFlow
+      );
       pts = [
         project(sFlow, sBottom),
-        project(sFlow, channelC),
-        project(tFlow, channelC),
+        ...(sLeg.jogCross !== undefined
+          ? [project(sFlow, sLeg.jogCross), project(sLeg.flow, sLeg.jogCross)]
+          : []),
+        project(sLeg.flow, channelC),
+        project(tLeg.flow, channelC),
+        ...(tLeg.jogCross !== undefined
+          ? [project(tLeg.flow, tLeg.jogCross), project(tFlow, tLeg.jogCross)]
+          : []),
         project(tFlow, tBottom),
       ];
     }

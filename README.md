@@ -103,10 +103,21 @@ Hardtack: 21
 Limes: 21</pre>
 ```
 
+Prefer an explicit element? Use `<dgmo-diagram>` from the same package:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo/dist/element.js"></script>
+
+<dgmo-diagram palette="slate">pie Crew Rations
+Grog: 58
+Hardtack: 21
+Limes: 21</dgmo-diagram>
+```
+
 Theme detection, copy button, and "open in editor" come for free. Full config, framework recipes (Astro, Docusaurus, Hugo, MkDocs), self-hosting, and CSP guidance: **[diagrammo.app/embed](https://diagrammo.app/embed)**.
 
 Using a docs framework? First-class plugins wrap all of this:
-[`remark-dgmo`](https://www.npmjs.com/package/remark-dgmo) · [`astro-dgmo`](https://www.npmjs.com/package/astro-dgmo) · [`docusaurus-plugin-dgmo`](https://www.npmjs.com/package/docusaurus-plugin-dgmo) · [`fumadocs-dgmo`](https://www.npmjs.com/package/fumadocs-dgmo)
+[`remark-dgmo`](https://www.npmjs.com/package/remark-dgmo) · [`astro-dgmo`](https://www.npmjs.com/package/astro-dgmo) · [`docusaurus-plugin-dgmo`](https://www.npmjs.com/package/docusaurus-plugin-dgmo) · [`fumadocs-dgmo`](https://www.npmjs.com/package/fumadocs-dgmo) · [`nextra-dgmo`](https://www.npmjs.com/package/nextra-dgmo) · [`vitepress-dgmo`](https://www.npmjs.com/package/vitepress-dgmo)
 
 ## Use it from your AI tool
 

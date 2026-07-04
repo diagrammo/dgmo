@@ -236,6 +236,48 @@ const BUILDS: Options[] = [
     },
     esbuildPlugins: [fixJsdomXhrWorker],
   },
+  // Element bundle — IIFE at dist/element.js for `<script src="…/element.js">`.
+  // Self-registers `<dgmo-diagram>` on load. Same private-globalName rationale
+  // as the auto IIFE: the module defines the element via side effect, so we
+  // don't want the bundle assigning a public global. dts disabled (tsup forbids
+  // iife + declaration emission — the ESM build below emits the .d.ts).
+  {
+    entry: { element: 'src/element/index.ts' },
+    format: ['iife'],
+    globalName: '__dgmoElement',
+    dts: false,
+    sourcemap: true,
+    splitting: false,
+    minify: true,
+    noExternal: ['lz-string'],
+    external: ['jsdom'],
+    outExtension: () => ({ js: '.js' }),
+    define: {
+      __DGMO_VERSION__: JSON.stringify(pkg.version),
+      'process.env.NODE_ENV': JSON.stringify('production'),
+    },
+    esbuildPlugins: [fixJsdomXhrWorker],
+  },
+  // Element bundle — ESM (.mjs) + CJS (.cjs) + .d.ts/.d.cts for direct npm
+  // consumers. Extensions chosen so they don't collide with the IIFE's
+  // dist/element.js.
+  {
+    entry: { element: 'src/element/index.ts' },
+    format: ['esm', 'cjs'],
+    dts: true,
+    sourcemap: true,
+    splitting: false,
+    noExternal: ['lz-string'],
+    external: ['jsdom'],
+    outExtension: ({ format }) => ({
+      js: format === 'cjs' ? '.cjs' : '.mjs',
+    }),
+    define: {
+      __DGMO_VERSION__: JSON.stringify(pkg.version),
+      'process.env.NODE_ENV': JSON.stringify('production'),
+    },
+    esbuildPlugins: [fixJsdomXhrWorker],
+  },
 ];
 
 // Wrap every build's onSuccess so the dev-reload sentinel is touched once each
