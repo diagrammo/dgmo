@@ -475,6 +475,24 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     toAttr: 'data-to',
   },
 
+  // ── CROSS-ADD — one attr baked in the renderer, then keyed here ──
+  scatter: {
+    markSelector: '.dgmo-datum',
+    strategy: 'enumerated',
+    groupAttr: 'data-category',
+    legend: true,
+  },
+  quadrant: {
+    markSelector: '.point-group',
+    strategy: 'enumerated',
+    groupAttr: 'data-quadrant',
+  },
+  'version-control': {
+    markSelector: '[data-branch]',
+    strategy: 'enumerated',
+    groupAttr: 'data-branch',
+  },
+
   // ── SELF-emphasis only (single-series / non-relational solid marks) ──
   pyramid: { markSelector: '.pyramid-layer', strategy: 'self' },
   ring: { markSelector: '.ring-layer', strategy: 'self' },

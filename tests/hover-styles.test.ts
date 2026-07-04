@@ -333,6 +333,17 @@ describe('render() integration — Task 3 diagram/connection rows', () => {
     }
   });
 
+  it('quadrant: enumerated cross-highlight on baked data-quadrant', async () => {
+    const { svg } = await render(
+      'quadrant Priorities\nx Effort\ny Impact\nQuick Win: 0.2, 0.8\nBig Bet: 0.8, 0.9'
+    );
+    if (svg.includes('data-quadrant')) {
+      expect(svg).toMatch(
+        /svg:has\(\.point-group\[data-quadrant="[^"]+"\]:hover\)/
+      );
+    }
+  });
+
   it('org: connection highlight via baked node-id + edge from/to', async () => {
     const { svg } = await render('org Crew\nCaptain\n  First Mate\n  Bosun');
     if (svg.includes('org-edge')) {

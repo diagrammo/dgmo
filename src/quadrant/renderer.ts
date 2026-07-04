@@ -514,7 +514,10 @@ export function renderQuadrant(
     const pointG = pointsG
       .append('g')
       .attr('class', 'point-group')
-      .attr('data-line-number', String(point.lineNumber));
+      .attr('data-line-number', String(point.lineNumber))
+      // Computed quadrant for baked-CSS cross-highlight (hover a point → dim
+      // points in other quadrants).
+      .attr('data-quadrant', quadrant);
 
     // Connector line (drawn first so it renders behind circle and label)
     if (placed.connectorLine) {

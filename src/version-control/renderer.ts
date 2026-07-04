@@ -486,6 +486,9 @@ function drawGraph(
       el: d3Selection.Selection<E, unknown, null, undefined>
     ): void => {
       el.attr('data-line-number', n.lineNumber);
+      // Branch key for baked-CSS cross-highlight (hover a commit → dim other
+      // branches).
+      el.attr('data-branch', n.branch);
       if (onClickItem)
         el.style('cursor', 'pointer').on('click', () =>
           onClickItem(n.lineNumber)

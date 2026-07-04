@@ -158,6 +158,9 @@ export function renderScatter(
     });
     // Per-axis values for the adapter's on-axis projection (no tooltip).
     dot.attr('data-axval-x', fmtNum(p.x)).attr('data-axval-y', fmtNum(p.y));
+    // Category key for baked-CSS cross-highlight (hover a point → dim other
+    // categories). Only when the point actually declares a category.
+    if (p.category) dot.attr('data-category', p.category);
     if (!chart.noName) {
       svg
         .append('text')
