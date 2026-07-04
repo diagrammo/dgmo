@@ -492,6 +492,18 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     strategy: 'enumerated',
     groupAttr: 'data-branch',
   },
+  // kanban: cards nest under a `.kanban-column` wrapper, so a structural rule
+  // gives column-focus with NO renderer edit — hovering any card puts its
+  // column into `:hover` and the others dim. `dim` (not lift) reads as
+  // "focus this column"; the marks' opacity is a presentation attr, which a
+  // `<style>` rule outranks (no RED-2 conflict).
+  kanban: {
+    markSelector: '.kanban-column',
+    strategy: 'structural',
+    groupSelector: '.kanban-column',
+    emphasis: 'dim',
+    selfEmphasis: false,
+  },
 
   // ── SELF-emphasis only (single-series / non-relational solid marks) ──
   pyramid: { markSelector: '.pyramid-layer', strategy: 'self' },
