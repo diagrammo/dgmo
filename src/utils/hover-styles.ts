@@ -380,6 +380,45 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     groupAttrMode: 'tag-active',
     legend: true,
   },
+
+  // ── Connection graph-family — edge endpoint attrs baked in the renderers ──
+  // Hover a node → dim edges not incident to it. Node id ↔ edge from/to.
+  flowchart: {
+    markSelector: '.fc-node',
+    strategy: 'connection',
+    hoverSelector: '.fc-node',
+    hoverAttr: 'data-node-id',
+    edgeSelector: '.fc-edge-group',
+    fromAttr: 'data-source',
+    toAttr: 'data-target',
+  },
+  state: {
+    markSelector: '.st-node',
+    strategy: 'connection',
+    hoverSelector: '.st-node',
+    hoverAttr: 'data-node-id',
+    edgeSelector: '.st-edge-group',
+    fromAttr: 'data-source',
+    toAttr: 'data-target',
+  },
+  'boxes-and-lines': {
+    markSelector: '.bl-node',
+    strategy: 'connection',
+    hoverSelector: '.bl-node',
+    hoverAttr: 'data-node-id',
+    edgeSelector: '.bl-edge-group',
+    fromAttr: 'data-from',
+    toAttr: 'data-to',
+  },
+  infra: {
+    markSelector: '.infra-node',
+    strategy: 'connection',
+    hoverSelector: '.infra-node',
+    hoverAttr: 'data-infra-node',
+    edgeSelector: '.infra-edge',
+    fromAttr: 'data-from',
+    toAttr: 'data-to',
+  },
 };
 
 // ============================================================

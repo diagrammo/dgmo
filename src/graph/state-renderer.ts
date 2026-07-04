@@ -7,7 +7,12 @@ import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import { fitDiagramToCanvas } from '../utils/fit-canvas';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill, themeBaseBg } from '../palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  shapeFill,
+  themeBaseBg,
+} from '../palettes/color-utils';
 import type { ParsedGraph } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseState } from './state-parser';
@@ -330,7 +335,10 @@ export function renderState(
     const edgeG = contentG
       .append('g')
       .attr('class', 'st-edge-group')
-      .attr('data-line-number', String(edge.lineNumber));
+      .attr('data-line-number', String(edge.lineNumber))
+      // Endpoint node ids for baked-CSS connection-highlight (hover-styles.ts).
+      .attr('data-source', edge.source)
+      .attr('data-target', edge.target);
 
     const edgeColor = palette.textMuted;
     const markerId = 'st-arrow';

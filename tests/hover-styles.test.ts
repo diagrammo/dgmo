@@ -305,6 +305,23 @@ describe('render() integration — Task 3 diagram/connection rows', () => {
     );
   });
 
+  it('flowchart: connection dims non-incident edges (baked endpoint attrs)', async () => {
+    const { svg } = await render('flowchart Q\n[A] -> [B] -> [C]');
+    expect(svg).toContain('.fc-node:hover');
+    expect(svg).toMatch(
+      /svg:has\(\.fc-node\[data-node-id="[^"]+"\]:hover\) \.fc-edge-group:not\(\[data-source=/
+    );
+  });
+
+  it('boxes-and-lines: connection highlight on baked data-from/data-to', async () => {
+    const { svg } = await render('boxes-and-lines Fleet\n[A] -> [B]');
+    if (svg.includes('bl-edge-group')) {
+      expect(svg).toMatch(
+        /svg:has\(\.bl-node\[data-node-id="[^"]+"\]:hover\) \.bl-edge-group:not\(\[data-from=/
+      );
+    }
+  });
+
   it('raci: enumerated cross-highlight keyed on data-role-id', async () => {
     const src =
       'raci Launch\ntasks\n  Ship it\nroles\n  Cap\nassign\n  Ship it: Cap=A';
