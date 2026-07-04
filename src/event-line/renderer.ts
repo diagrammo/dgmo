@@ -115,8 +115,8 @@ const DIM = 'dgmo-evt-dim';
 const ERA_HL = 'dgmo-evt-era-hl';
 // Clicking a legend entry collapses that tag value's cards (and their leaders)
 // to bare dots — the dot stays on the spine in its tag color and still reveals
-// its card on hover; the legend entry renders struck-through with a hollow
-// swatch so the muted state is self-documenting and reversible. Preview-only
+// its card on hover; the legend entry dims with a hollow swatch so the muted
+// state is self-documenting and reversible. Preview-only
 // (never in `exportMode`), so static SVG/PNG always carries the full set.
 const COLLAPSED = 'dgmo-evt-collapsed';
 const OFF = 'dgmo-evt-off';
@@ -136,7 +136,7 @@ const HOVER_CSS =
   // the extra class out-specifies both the collapse rule and DIM.
   `.dgmo-event-card.${COLLAPSED},.dgmo-event-leader.${COLLAPSED}{opacity:0;pointer-events:none}` +
   `.dgmo-event-card.${COLLAPSED}.${HL},.dgmo-event-leader.${COLLAPSED}.${HL}{opacity:1;pointer-events:auto}` +
-  `[data-legend-entry].${OFF} text{text-decoration:line-through;opacity:.5}`;
+  `[data-legend-entry].${OFF} text{opacity:.5}`;
 
 type Side = 'above' | 'below';
 
