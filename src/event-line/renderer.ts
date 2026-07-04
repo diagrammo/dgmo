@@ -739,11 +739,10 @@ export function renderEventLine(
 
   if (!exportMode) svg.append('style').text(HOVER_CSS);
 
-  svg
-    .append('rect')
-    .attr('width', contentW)
-    .attr('height', totalH)
-    .attr('fill', palette.bg);
+  // No opaque full-canvas background rect: the SVG's CSS `background` style
+  // (and resvg's background option on PNG export) supplies the fill, so
+  // transparent-theme / Obsidian embeds blend with the host instead of
+  // showing a dark box — matching every other chart type.
 
   if (showTitle) {
     const t = svg

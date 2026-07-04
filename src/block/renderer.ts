@@ -139,11 +139,10 @@ export function renderBlock(
     .attr('class', 'dgmo-block')
     .style('font-family', FONT_FAMILY);
 
-  svg
-    .append('rect')
-    .attr('width', width)
-    .attr('height', height)
-    .attr('fill', palette.bg);
+  // No opaque full-canvas background rect: the SVG's CSS `background` style
+  // (and resvg's background option on PNG export) supplies the fill, so
+  // transparent-theme / Obsidian embeds blend with the host instead of
+  // showing a dark box — matching every other chart type.
 
   if (showTitle) {
     const title = svg
