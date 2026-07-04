@@ -233,6 +233,7 @@ export function renderLine(
       .attr('class', 'dgmo-series')
       .attr('data-series-index', s)
       .attr('data-series-name', name)
+      .attr('data-axis', axisOf(s))
       .attr('data-color', color);
     const seriesLine = chart.seriesNameLineNumbers?.[s];
     if (seriesLine !== undefined) g.attr('data-line-number', seriesLine);
@@ -312,5 +313,32 @@ export function renderLine(
       width - 18,
       rightTint ?? textColor
     );
+
+    // Axis-legend hover targets (§ interactions.ts): a transparent strip over
+    // each axis's title + ticks. Appended last so each strip is the topmost
+    // (single, flicker-free) mouseenter target while the tinted title/ticks
+    // still show through. Only for dual-axis — a sole axis owns every series,
+    // so hovering it could not distinguish anything. Sits entirely outside the
+    // plot's x-range, so it never shadows point/crosshair hover.
+    svg
+      .append('rect')
+      .attr('class', 'dgmo-axis-legend')
+      .attr('data-axis-legend', 'left')
+      .attr('x', 0)
+      .attr('y', m.top)
+      .attr('width', m.left)
+      .attr('height', plotH)
+      .attr('fill', 'transparent')
+      .attr('style', 'cursor:pointer');
+    svg
+      .append('rect')
+      .attr('class', 'dgmo-axis-legend')
+      .attr('data-axis-legend', 'right')
+      .attr('x', m.left + plotW)
+      .attr('y', m.top)
+      .attr('width', m.right)
+      .attr('height', plotH)
+      .attr('fill', 'transparent')
+      .attr('style', 'cursor:pointer');
   }
 }

@@ -259,6 +259,25 @@ async function exportVersionControl(ctx: ExportContext): Promise<string> {
   return finalizeSvgExport(container, theme, effectivePalette);
 }
 
+/**
+ * Merge the source `hide` directive (comma-separated attribute keys) with any
+ * interactive `viewState.ha`, lowercasing both so they match the parser's
+ * lowercased metadata keys. Returns `undefined` when nothing is hidden.
+ */
+function unionHiddenAttributes(
+  hideOption: string | undefined,
+  ha: readonly string[] | undefined
+): Set<string> | undefined {
+  const sourceHidden = hideOption
+    ? hideOption
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
+  const union = new Set([...sourceHidden, ...(ha ?? [])]);
+  return union.size > 0 ? union : undefined;
+}
+
 async function exportOrg(ctx: ExportContext): Promise<string> {
   const { content, theme, palette, viewState, exportMode } = ctx;
   const { parseOrg } = await import('./org/parser');
@@ -279,7 +298,13 @@ async function exportOrg(ctx: ExportContext): Promise<string> {
     orgParsed.options['active-tag'],
     ctxTagOverride(ctx)
   );
-  const hiddenAttributes = viewState?.ha ? new Set(viewState.ha) : undefined;
+  // Hidden attributes come from the source `hide` directive UNIONed with any
+  // interactive `viewState.ha` (share link / app). Source alone must hide on a
+  // plain render — parity with the app, which seeds the same directive.
+  const hiddenAttributes = unionHiddenAttributes(
+    orgParsed.options['hide'],
+    viewState?.ha
+  );
 
   const { parsed: effectiveParsed, hiddenCounts } =
     collapsedNodes && collapsedNodes.size > 0
@@ -336,7 +361,10 @@ async function exportSitemap(ctx: ExportContext): Promise<string> {
     sitemapParsed.options['active-tag'],
     ctxTagOverride(ctx)
   );
-  const hiddenAttributes = viewState?.ha ? new Set(viewState.ha) : undefined;
+  const hiddenAttributes = unionHiddenAttributes(
+    sitemapParsed.options['hide'],
+    viewState?.ha
+  );
 
   const { parsed: effectiveParsed, hiddenCounts } =
     collapsedNodes && collapsedNodes.size > 0
@@ -390,16 +418,23 @@ async function exportKanban(ctx: ExportContext): Promise<string> {
   const kanbanCollapsedLanes = viewState?.cl
     ? new Set(viewState.cl)
     : undefined;
-  const kanbanCollapsedColumns = viewState?.cc
-    ? new Set(viewState.cc)
-    : undefined;
+  // Union source-declared collapsed columns (`[Column] collapsed: true`) with
+  // any interactive `viewState.cc`, so a plain export honors the source marker.
+  const sourceCollapsedColumns = kanbanParsed.columns
+    .filter((c) => c.collapsed)
+    .map((c) => c.id);
+  const kanbanCollapsedColumns =
+    viewState?.cc || sourceCollapsedColumns.length > 0
+      ? new Set([...sourceCollapsedColumns, ...(viewState?.cc ?? [])])
+      : undefined;
   renderKanban(container, kanbanParsed, effectivePalette, ctx.isDark, {
     activeTagGroup: resolveActiveTagGroup(
       kanbanParsed.tagGroups,
       kanbanParsed.options['active-tag'],
       ctxTagOverride(ctx)
     ),
-    currentSwimlaneGroup: viewState?.swim ?? null,
+    currentSwimlaneGroup:
+      viewState?.swim ?? kanbanParsed.options['lane-by'] ?? null,
     ...(kanbanCollapsedLanes !== undefined && {
       collapsedLanes: kanbanCollapsedLanes,
     }),
@@ -473,7 +508,10 @@ async function exportEr(ctx: ExportContext): Promise<string> {
       erParsed.options['active-tag'],
       ctxTagOverride(ctx)
     ),
-    viewState?.sem,
+    // Semantic colors are on by default; the source `no-semantic-colors` flag
+    // suppresses them. An interactive `viewState.sem` overrides source.
+    viewState?.sem ??
+      (erParsed.options['no-semantic-colors'] === 'on' ? false : undefined),
     exportMode
   );
   return finalizeSvgExport(container, theme, effectivePalette);
@@ -575,7 +613,19 @@ async function exportMindmap(ctx: ExportContext): Promise<string> {
   const mmParsed = parseMindmap(content, effectivePalette);
   if (mmParsed.error) return '';
 
-  const collapsedNodes = viewState?.cg ? new Set(viewState.cg) : undefined;
+  // Collapse set = runtime view-state (`cg`) ∪ source-authored `collapsed: true`
+  // markers (node.collapsed). Honoring the source markers is what lets any
+  // consumer (CLI, remark-dgmo, Obsidian, embeds) reproduce the app's collapsed
+  // view from the `.dgmo` text alone. `cg` is additive here (the mindmap share
+  // path emits no `cg` today); true cg-vs-source precedence is a later concern.
+  const collapsedNodes = new Set<string>(viewState?.cg ?? []);
+  const collectCollapsed = (nodes: typeof mmParsed.roots): void => {
+    for (const n of nodes) {
+      if (n.collapsed) collapsedNodes.add(n.id);
+      if (n.children.length) collectCollapsed(n.children);
+    }
+  };
+  collectCollapsed(mmParsed.roots);
   const activeTagGroup = resolveActiveTagGroup(
     mmParsed.tagGroups,
     mmParsed.options['active-tag'],
@@ -604,7 +654,10 @@ async function exportMindmap(ctx: ExportContext): Promise<string> {
   const exportHeight = mmLayout.height + PADDING * 2 + titleOffset;
   const container = createExportContainer(exportWidth, exportHeight);
 
-  const colorByDepth = viewState?.cbd === true;
+  // Colour-by-depth from the source `color-by-depth` flag, with an interactive
+  // `viewState.cbd` override.
+  const colorByDepth =
+    viewState?.cbd ?? mmParsed.options['color-by-depth'] === 'on';
 
   renderMindmap(
     container,
@@ -881,10 +934,22 @@ async function exportGantt(ctx: ExportContext): Promise<string> {
   const EXPORT_H = 800;
   const container = createExportContainer(EXPORT_W, EXPORT_H);
 
-  const ganttCollapsedGroups = viewState?.cg
-    ? new Set(viewState.cg)
-    : undefined;
-  const ganttSwimlaneGroup = viewState?.swim ?? undefined;
+  // Union source-declared collapsed groups (`[Group] collapsed: true`) with any
+  // interactive `viewState.cg`, so a plain export honors the source marker.
+  const sourceCollapsedGroups = resolved.groups
+    .filter((g) => g.collapsed)
+    .map((g) => g.name);
+  const ganttCollapsedGroups =
+    viewState?.cg || sourceCollapsedGroups.length > 0
+      ? new Set([...sourceCollapsedGroups, ...(viewState?.cg ?? [])])
+      : undefined;
+  // Swimlane axis from source (`lane-by <group>` / `sort tag:<group>` →
+  // defaultSwimlaneGroup when sort is 'tag'), with a viewState.swim override.
+  const sourceSwimlane =
+    resolved.options.sort === 'tag'
+      ? (resolved.options.defaultSwimlaneGroup ?? undefined)
+      : undefined;
+  const ganttSwimlaneGroup = viewState?.swim ?? sourceSwimlane;
   const ganttCollapsedLanes = viewState?.cl ? new Set(viewState.cl) : undefined;
   renderGantt(
     container,
@@ -914,21 +979,46 @@ async function exportGantt(ctx: ExportContext): Promise<string> {
 }
 
 async function exportState(ctx: ExportContext): Promise<string> {
-  const { content, theme, palette } = ctx;
+  const { content, theme, palette, viewState } = ctx;
   const { parseState } = await import('./graph/state-parser');
   const { layoutGraph } = await import('./graph/layout');
   const { renderState } = await import('./graph/state-renderer');
+  const { collapseStateGroups } = await import('./graph/state-collapse');
 
   const effectivePalette = await resolveExportPalette(theme, palette);
   const stateParsed = parseState(content, effectivePalette);
   if (stateParsed.error || stateParsed.nodes.length === 0) return '';
 
-  const layout = layoutGraph(stateParsed);
+  // Union source-declared collapsed groups (`[Group] collapsed: true`) with any
+  // interactive viewState.cg, so a plain export honors the source marker.
+  const sourceCollapsed = (stateParsed.groups ?? [])
+    .filter((g) => g.collapsed)
+    .map((g) => g.id);
+  const collapsedGroups = new Set([
+    ...sourceCollapsed,
+    ...(viewState?.cg ?? []),
+  ]);
+  const {
+    parsed: effectiveParsed,
+    collapsedChildCounts,
+    originalGroups,
+  } = collapsedGroups.size > 0
+    ? collapseStateGroups(stateParsed, collapsedGroups)
+    : {
+        parsed: stateParsed,
+        collapsedChildCounts: new Map<string, number>(),
+        originalGroups: stateParsed.groups ?? [],
+      };
+
+  const layout = layoutGraph(effectiveParsed, {
+    collapsedChildCounts,
+    originalGroups,
+  });
   const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
 
   renderState(
     container,
-    stateParsed,
+    effectiveParsed,
     layout,
     effectivePalette,
     ctx.isDark,
@@ -1235,7 +1325,9 @@ async function exportTimeline(ctx: ExportContext): Promise<string> {
       parsed.timelineActiveTag,
       ctxTagOverride(ctx)
     ),
-    viewState?.swim,
+    // Swimlane axis from source (`lane-by <group>` / `sort tag:<group>` →
+    // timelineDefaultSwimlaneTG), with a viewState.swim override.
+    viewState?.swim ?? parsed.timelineDefaultSwimlaneTG,
     undefined,
     undefined,
     exportMode

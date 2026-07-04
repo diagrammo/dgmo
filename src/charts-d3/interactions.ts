@@ -405,7 +405,14 @@ export function attachDataChartInteractions(
       const name = entry.getAttribute('data-series-name');
       if (name == null) continue;
       const onEnter: EventListener = () => {
-        if (curDatum || crosshairActive) return; // chart hover wins
+        // The pointer is on the legend (outside the plot interior), so any
+        // lingering crosshair/datum hover must yield — clear it first, else a
+        // stale flag from the plot→legend move would suppress the emphasis.
+        clearDatum();
+        if (crosshairActive) {
+          clearCrosshair();
+          crosshairActive = false;
+        }
         emphasizeSeries(name);
       };
       const onExit: EventListener = () => emphasizeSeries(null);
@@ -413,6 +420,43 @@ export function attachDataChartInteractions(
       entry.addEventListener('mouseleave', onExit);
       legendListeners.push([entry, 'mouseenter', onEnter]);
       legendListeners.push([entry, 'mouseleave', onExit]);
+    }
+  }
+
+  // ── axis-legend hover → emphasize the series on that axis ──────────────
+  // Dual-axis charts (line.ts) tag each axis strip (title + ticks) with
+  // data-axis-legend="left"|"right" and each series group with data-axis.
+  // Hovering an axis dims every series NOT on it, so the colour-tinted axis
+  // reads as a legend for its line(s). Same dim mechanism as series legends.
+  const emphasizeAxis = (axis: string | null) => {
+    for (const g of seriesGroups) {
+      const a = g.getAttribute('data-axis');
+      if (a != null) g.classList.toggle('dgmo-dim', axis != null && a !== axis);
+    }
+  };
+  const axisLegends = Array.from(
+    svg.querySelectorAll<SVGElement>('[data-axis-legend]')
+  );
+  if (axisLegends.length > 0 && seriesGroups.length > 1) {
+    for (const el of axisLegends) {
+      const axis = el.getAttribute('data-axis-legend');
+      if (axis == null) continue;
+      const onEnter: EventListener = () => {
+        // Axis strip is outside the plot interior — clear any lingering plot
+        // hover (stale crosshair/datum from the move that landed here would
+        // otherwise suppress the emphasis) before dimming the other axis.
+        clearDatum();
+        if (crosshairActive) {
+          clearCrosshair();
+          crosshairActive = false;
+        }
+        emphasizeAxis(axis);
+      };
+      const onExit: EventListener = () => emphasizeAxis(null);
+      el.addEventListener('mouseenter', onEnter);
+      el.addEventListener('mouseleave', onExit);
+      legendListeners.push([el as SVGGElement, 'mouseenter', onEnter]);
+      legendListeners.push([el as SVGGElement, 'mouseleave', onExit]);
     }
   }
 

@@ -193,6 +193,12 @@ export function parseMindmap(
         );
         continue;
       }
+      // Bare flag: colour nodes by depth instead of by tag (off by default).
+      // View-state directive written by the app's Color-by-depth toggle.
+      if (lower === 'color-by-depth') {
+        options['color-by-depth'] = 'on';
+        continue;
+      }
       if (tryParseSharedOption(trimmed, options)) {
         continue;
       }

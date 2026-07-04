@@ -1043,6 +1043,13 @@ export function parseGantt(
             );
           }
           break;
+        // `lane-by <group>`: the canonical swimlane-axis directive (view-state).
+        // Equivalent to `sort: tag:<group>` — enables tag swimlanes on the named
+        // group. `sort tag` remains a back-compat spelling.
+        case 'lane-by':
+          result.options.sort = 'tag';
+          result.options.defaultSwimlaneGroup = value.trim() || null;
+          break;
         case 'active-tag':
           result.options.activeTag = value;
           break;
@@ -1152,6 +1159,14 @@ export function parseGantt(
           );
           metadata = split.meta;
         }
+        // `[Group] collapsed: true` view-state marker (§ mirrors sequence): a
+        // reserved same-line key that seeds the group collapsed. Extracted into
+        // a typed field so it drives render/export; dropped from metadata.
+        let collapsed = false;
+        if (metadata['collapsed']?.toLowerCase() === 'true') {
+          collapsed = true;
+          delete metadata['collapsed'];
+        }
         const groupPeeled = peelAlias(gm[1]!);
         if (groupPeeled.alias)
           nameAliasMap.set(groupPeeled.alias, groupPeeled.label);
@@ -1160,6 +1175,7 @@ export function parseGantt(
           color: null,
           metadata,
           ...(lineOffset && { offset: lineOffset }),
+          ...(collapsed && { collapsed: true }),
           lineNumber,
           children: [],
         };

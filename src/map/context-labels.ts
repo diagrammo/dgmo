@@ -34,6 +34,12 @@ export interface CountryCandidate {
    *  bypasses the both-axes smear gate (its full-canvas bbox is an antimeridian
    *  artifact, not a real footprint, so the unreliable-centroid concern is moot). */
   readonly curatedAnchor?: boolean;
+  /** True for a sovereign NATION touching the viewport (Canada, Mexico) — as
+   *  opposed to a state/subdivision. Nations are labeled UNCONDITIONALLY and
+   *  OUTSIDE the budget so orientation is symmetric (a US view shows Canada AND
+   *  Mexico together, never one-arbitrarily). States/subdivisions leave this
+   *  absent and compete for the rationed budget. */
+  readonly bordering?: boolean;
   /** Ordered interior placement positions (screen coords), best-first: the commit
    *  loop tries each in turn and places at the first that clears all collisions, so
    *  a country can dodge a data cluster onto open ground on its own land
@@ -63,13 +69,6 @@ export interface ContextLabelArgs {
   readonly project: (lon: number, lat: number) => [number, number] | null;
   /** Collision test against every committed data/region/POI/route obstacle. */
   readonly collides: (rect: LabelRect) => boolean;
-  /** Screen positions of the diagram's CONTENT (POI markers / data points). When
-   *  non-empty, country candidates rank by proximity to the NEAREST point (not a
-   *  centroid — a centroid is dragged off by outlying POIs and pulls in irrelevant
-   *  giants) so a thin budget labels the countries adjacent to the story (Belarus,
-   *  Poland) rather than far-corner giants (Kazakhstan). Empty/absent ⇒ the legacy
-   *  area-descending rank (map-context-neighbor-labels, proximity knob). */
-  readonly contentPoints?: readonly (readonly [number, number])[] | undefined;
   /** True when the screen point sits over LAND (a country/state fill) rather than
    *  open water. WATER labels are rejected when their footprint touches land — an
    *  ocean name belongs over the ocean (they're optional orientation aids, so drop
@@ -254,22 +253,6 @@ function rectAround(
   return { x: cx - w / 2, y: cy - h / 2, w, h };
 }
 
-/** Squared distance from point (px,py) to an axis-aligned bbox [x0,y0,x1,y1]; 0
- *  when the point is inside. Used to rank country candidates by how close their
- *  footprint reaches to the diagram's content centre (proximity knob). */
-function rectDist2(
-  px: number,
-  py: number,
-  x0: number,
-  y0: number,
-  x1: number,
-  y1: number
-): number {
-  const dx = Math.max(x0 - px, 0, px - x1);
-  const dy = Math.max(y0 - py, 0, py - y1);
-  return dx * dx + dy * dy;
-}
-
 function rectFits(r: LabelRect, width: number, height: number): boolean {
   return r.x >= 0 && r.y >= 0 && r.x + r.w <= width && r.y + r.h <= height;
 }
@@ -299,7 +282,6 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     waterTone,
     project,
     collides,
-    contentPoints,
     overLand,
   } = args;
 
@@ -336,6 +318,9 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
     color: string;
     fontSize: number;
     sort: number; // priority key (lower first)
+    // A sovereign nation (Canada/Mexico): committed unconditionally, outside the
+    // budget (Option A symmetric orientation). Absent on water + states.
+    bordering?: boolean;
     // Ordered dodge positions (screen coords), best-first. Absent on water (single
     // anchor); on a country, mirrors CountryCandidate.positions (anchor === [0]).
     positions?: readonly (readonly [number, number])[];
@@ -424,38 +409,21 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
   }
 
   // -- Country candidates (unreferenced) --
-  // Rank PROXIMITY-FIRST when a content centre is known: the countries that ring
-  // the diagram's story should win the thin budget, not whichever giants happen to
-  // be biggest in frame (Kazakhstan/Sweden on a Ukraine map). The rank's anchor is
-  // the candidate's primary position (`positions[0]` === `anchor`). Without a
-  // content centre, fall back to the legacy biggest-area-first rank. Area is still
-  // computed (it drives the font/fade ramp and the smear gate below).
+  // Rank by biggest-area-first — a deterministic, position-independent order (no
+  // proximity-to-POI weighting, which read as arbitrary: near-identical neighbours
+  // like Wyoming vs Texas won or lost a slot on a hair of distance). Nations are
+  // pulled out of the budget entirely at commit; among the budgeted states, the
+  // largest in-frame footprints win the rationed slots. Area also drives the
+  // font/fade ramp and the smear gate below.
   const ranked = countries
     .map((c) => {
       const [x0, y0, x1, y1] = c.bbox;
       const w = x1 - x0;
       const h = y1 - y0;
-      // Distance from the NEAREST content point to the country's FOOTPRINT (0 if a
-      // point is inside the bbox, else squared distance to the nearest edge). Edge
-      // distance — not centroid distance — so a large neighbour that REACHES toward
-      // the action (Poland) outranks a tiny country merely near a point (the
-      // Baltics), with no size-weighting constant; nearest-point — not a single
-      // centroid — so an outlying POI doesn't drag the rank toward distant giants.
-      let dist = Infinity;
-      if (contentPoints?.length) {
-        for (const p of contentPoints) {
-          const d = rectDist2(p[0], p[1], x0, y0, x1, y1);
-          if (d < dist) dist = d;
-        }
-      }
-      return { c, w, h, area: w * h, dist };
+      return { c, w, h, area: w * h };
     })
     .filter((r) => Number.isFinite(r.area) && r.area > 0)
-    .sort((a, b) =>
-      contentPoints?.length
-        ? a.dist - b.dist || b.area - a.area // nearest the story first; area breaks ties
-        : b.area - a.area
-    );
+    .sort((a, b) => b.area - a.area);
   // Canvas linear extent — the denominator for the footprint size ramp below.
   const canvasLinear = Math.sqrt(Math.max(1, width * height));
   let ci = 0;
@@ -511,6 +479,7 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
       letterSpacing: 0,
       color,
       fontSize,
+      ...(c.bordering ? { bordering: true } : {}),
       // Multi-position dodging: carry the ordered interior positions through to the
       // commit loop. Invariant anchor === positions[0], so `cx/cy` is positions[0].
       ...(c.positions ? { positions: c.positions } : {}),
@@ -527,14 +496,18 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
   candidates.sort((a, b) => a.sort - b.sort);
   const placed: PlacedLabel[] = [];
   const placedRects: LabelRect[] = [];
-  // Guarantee country/state room: water can otherwise monopolise a small budget
-  // (a coastal view borders many oceans/seas), so reserve up to 2 slots for
-  // countries whenever any country candidate exists. No effect on pure-water
-  // views (`countryCount` 0 ⇒ cap = budget). Major water still leads by sort, so
-  // this only trims the LAST water bodies that would have crowded out a country.
-  const countryCount = candidates.reduce((n, c) => n + (c.italic ? 0 : 1), 0);
-  const waterCap = budget - Math.min(2, countryCount);
+  // Guarantee state room: water can otherwise monopolise a small budget (a coastal
+  // view borders many oceans/seas), so reserve up to 2 slots for STATES whenever
+  // any state candidate exists. Nations don't draw from the budget (committed in
+  // pass 1 below), so they're excluded from this count. No effect on pure-water
+  // views (`stateCount` 0 ⇒ cap = budget).
+  const stateCount = candidates.reduce(
+    (n, c) => n + (!c.italic && !c.bordering ? 1 : 0),
+    0
+  );
+  const waterCap = budget - Math.min(2, stateCount);
   let waterPlaced = 0;
+  let budgetUsed = 0;
   // Test one trial position for a candidate against every gate (fit, water-on-land,
   // committed-obstacle collision, context-overlap). Returns the placed rect when the
   // position clears, else null. Country candidates carry several ordered positions
@@ -582,41 +555,55 @@ export function placeContextLabels(args: ContextLabelArgs): PlacedLabel[] {
       return null;
     return rect;
   };
-  for (const cand of candidates) {
-    if (placed.length >= budget) break;
-    if (cand.italic && waterPlaced >= waterCap) continue;
-    // Walk positions best-first; commit at the first that clears every gate. F8:
-    // `positions ?? [[cx,cy]]` keeps single-anchor (water + non-top-N country)
-    // behaviour identical. If none clears → drop (no halo, no overlap — D16).
+  // Walk a candidate's ordered positions best-first; commit at the first that
+  // clears every gate. F8: `positions ?? [[cx,cy]]` keeps single-anchor (water +
+  // non-top-N country) behaviour identical. If none clears → drop (no halo, no
+  // overlap — D16). Returns true when the label was placed.
+  const tryPlace = (cand: Candidate): boolean => {
     const positions = cand.positions ?? [[cand.cx, cand.cy]];
-    let chosen: { x: number; y: number; rect: LabelRect } | null = null;
     for (const [px, py] of positions) {
       const rect = gateAt(px!, py!, cand);
-      if (rect) {
-        chosen = { x: px!, y: py!, rect };
-        break;
-      }
+      if (!rect) continue;
+      placedRects.push(rect);
+      placed.push({
+        x: px!,
+        y: py!,
+        text: cand.text,
+        anchor: 'middle',
+        color: cand.color,
+        // No halo: the bg-coloured outline reads as a ghost box behind the text
+        // over the tinted water/land. Context labels are muted enough to sit
+        // cleanly on the basemap without one.
+        halo: false,
+        haloColor,
+        fontSize: cand.fontSize,
+        italic: cand.italic,
+        letterSpacing: cand.letterSpacing,
+        ...(cand.lines.length > 1 ? { lines: cand.lines } : {}),
+        lineNumber: 0,
+      });
+      return true;
     }
-    if (!chosen) continue;
-    placedRects.push(chosen.rect);
-    if (cand.italic) waterPlaced++;
-    placed.push({
-      x: chosen.x,
-      y: chosen.y,
-      text: cand.text,
-      anchor: 'middle',
-      color: cand.color,
-      // No halo: the bg-coloured outline reads as a ghost box behind the text
-      // over the tinted water/land. Context labels are muted enough to sit
-      // cleanly on the basemap without one.
-      halo: false,
-      haloColor,
-      fontSize: cand.fontSize,
-      italic: cand.italic,
-      letterSpacing: cand.letterSpacing,
-      ...(cand.lines.length > 1 ? { lines: cand.lines } : {}),
-      lineNumber: 0,
-    });
+    return false;
+  };
+
+  // Pass 1 — sovereign NATIONS touching the viewport, labeled UNCONDITIONALLY and
+  // OUTSIDE the budget (Option A: symmetric orientation — a US view shows Canada
+  // AND Mexico together, never one arbitrarily). Still gated on fit/collision, so a
+  // nation label never lands on data or off-canvas; it just isn't rationed. Placed
+  // FIRST so nations claim their ground before states/water fill the leftover.
+  for (const cand of candidates) if (cand.bordering) tryPlace(cand);
+
+  // Pass 2 — water + states, rationed by the budget (the nations placed above do
+  // not count against it).
+  for (const cand of candidates) {
+    if (cand.bordering) continue;
+    if (budgetUsed >= budget) break;
+    if (cand.italic && waterPlaced >= waterCap) continue;
+    if (tryPlace(cand)) {
+      budgetUsed++;
+      if (cand.italic) waterPlaced++;
+    }
   }
   return placed;
 }

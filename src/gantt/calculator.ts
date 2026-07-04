@@ -827,6 +827,7 @@ function buildResolvedGroups(
           progress: null,
           lineNumber: node.lineNumber,
           depth,
+          ...(node.collapsed && { collapsed: true }),
         });
         continue;
       }
@@ -864,6 +865,7 @@ function buildResolvedGroups(
             : null,
         lineNumber: node.lineNumber,
         depth,
+        ...(node.collapsed && { collapsed: true }),
       });
 
       buildResolvedGroups(node.children, taskMap, groups, depth + 1);

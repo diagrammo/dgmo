@@ -280,7 +280,12 @@ export function renderKanban(
   const activeTagGroup = options?.activeTagGroup ?? null;
   const onSwimlaneChange = options?.onSwimlaneChange;
   const collapsedLanes = options?.collapsedLanes;
-  const collapsedColumns = options?.collapsedColumns;
+  // Fall back to the columns declared collapsed in source (`[Column] collapsed:
+  // true`) when no interactive set is supplied — so a bare render honors the
+  // marker. Interactive callers pass their own set, seeded from source.
+  const collapsedColumns =
+    options?.collapsedColumns ??
+    new Set(parsed.columns.filter((c) => c.collapsed).map((c) => c.id));
   const compactMeta = options?.compactMeta ?? false;
   const solid = parsed.options['solid-fill'] === 'on';
   const requestedSwimlane = options?.currentSwimlaneGroup ?? null;

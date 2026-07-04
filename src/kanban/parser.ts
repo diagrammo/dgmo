@@ -49,7 +49,10 @@ const PALETTE_COLOR_WORD_RE =
 const AS_ALIAS_TOKEN_RE = /^as\s+([A-Za-z][A-Za-z0-9_]{0,11})\b/;
 
 /** Known kanban options (key-value). */
-const KNOWN_OPTIONS = new Set(['hide', 'active-tag']);
+// `lane-by <group>` sets the swimlane axis. NB: the keyword is `lane-by`, not
+// `swimlane`, because `swimlane` is itself a chart type — `swimlane Team` would
+// parse as a swimlane-chart declaration titled "Team".
+const KNOWN_OPTIONS = new Set(['hide', 'active-tag', 'lane-by']);
 /** Known kanban boolean options (bare keyword = on). */
 const KNOWN_BOOLEANS = new Set<string>(['solid-fill', 'no-title']);
 const REMOVED_BOOLEANS: Record<string, string> = {
@@ -311,6 +314,15 @@ export function parseKanban(
         if (!isNaN(wipVal)) wipLimit = wipVal;
       }
 
+      // `[Column] collapsed: true` view-state marker (mirrors gantt/sequence):
+      // a reserved same-line key seeding the column collapsed, extracted into a
+      // typed field and dropped from metadata.
+      let colCollapsed = false;
+      if (columnMetadata['collapsed']?.toLowerCase() === 'true') {
+        colCollapsed = true;
+        delete columnMetadata['collapsed'];
+      }
+
       const colId = `col-${columnCounter}`;
       if (colAlias) nameAliasMap.set(colAlias, colId);
       currentColumn = {
@@ -318,6 +330,7 @@ export function parseKanban(
         name: colName,
         ...(wipLimit !== undefined && { wipLimit }),
         ...(colColor !== undefined && { color: colColor }),
+        ...(colCollapsed && { collapsed: true }),
         cards: [],
         lineNumber,
         metadata: columnMetadata,

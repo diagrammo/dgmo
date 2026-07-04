@@ -28,10 +28,11 @@ import { tryCollectNote, resolveNotes } from './notes';
 const PSEUDOSTATE_ID = 'pseudostate:[*]';
 const PSEUDOSTATE_LABEL = '[*]';
 
-// `[Group]` or `[Group] color` (universal §1.5 trailing-token).
-// Color (group 2) must be a recognized lowercase palette word.
+// `[Group]`, `[Group] color`, and an optional trailing `collapsed: <val>`
+// view-state marker (§1 "Collapsing groups"). Color (group 2) must be a
+// recognized lowercase palette word; group 3 is the raw collapsed value.
 const GROUP_BRACKET_RE =
-  /^\[([^\]]+)\](?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/;
+  /^\[([^\]]+)\](?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?(?:,?\s+collapsed:\s*(\S+))?\s*$/;
 
 // ============================================================
 // Arrow splitter
@@ -343,12 +344,14 @@ export function parseState(
           )
         : undefined;
 
+      const groupCollapsed = groupMatch[3]?.toLowerCase() === 'true';
       currentGroup = {
         id: `group:${groupLabel.toLowerCase()}`,
         label: groupLabel,
         nodeIds: [],
         lineNumber,
         ...(groupColor && { color: groupColor }),
+        ...(groupCollapsed && { collapsed: true }),
       };
       groupIndent = indent;
       groups.push(currentGroup);

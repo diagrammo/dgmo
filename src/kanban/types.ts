@@ -21,6 +21,7 @@ export interface KanbanColumn {
   readonly name: string;
   readonly wipLimit?: number;
   readonly color?: string;
+  readonly collapsed?: boolean; // `[Column] collapsed: true` view-state marker
   readonly metadata?: Readonly<Record<string, string>>;
   readonly cards: readonly KanbanCard[];
   readonly lineNumber: number;

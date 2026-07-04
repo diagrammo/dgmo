@@ -154,6 +154,10 @@ export interface LegendEntryLayout {
   textX: number;
   textY: number;
   displayValue?: string;
+  /** Full entry advance width (dot + gap + text + trail). Consumers draw a
+   *  transparent hit-rect of this width so the whole pill is hoverable, not
+   *  just the dot/text glyphs (legend-hover emphasis needs a filled target). */
+  width?: number;
 }
 
 export interface LegendCapsuleLayout {

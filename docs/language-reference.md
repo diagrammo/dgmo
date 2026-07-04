@@ -1194,6 +1194,7 @@ Cardinality symbols: `1` (one), `*` (many), `?` (optional)
 ### 8.5 Options
 
 - `notation chen` / `notation crow`
+- `no-semantic-colors` — bare flag; suppress the semantic PK/FK role colors (on by default). Portable view-state written by the app's Semantic-colors toggle.
 
 ---
 
@@ -1325,6 +1326,7 @@ tag Crew as c
 
 - `no-auto-color` (boolean; auto-coloring is on by default)
 - `hide`
+- `lane-by GroupName` — slice the board into swimlanes by a tag group. Portable view-state written by the app's swimlane picker.
 
 ---
 
@@ -1430,7 +1432,8 @@ today-marker
 today-marker 2026-03-27
 critical-path
 no-dependencies
-sort tag:Team
+lane-by Team            # swimlane axis (canonical); equivalent to `sort tag:Team`
+sort tag:Team          # back-compat spelling of lane-by
 ```
 
 **Color by workstream / status** — declare a `tag <Name> as <alias>` group (§1.3), then assign each task `<alias>: <Value>` in its same-line metadata:
@@ -2051,6 +2054,17 @@ marker
 [Royal Navy]
   1718-07 Woodes Rogers arrives
 ```
+
+### 14.6 Options (Space-Separated, NO Colon)
+
+```
+sort time              # opt out of swimlanes — flat, time-sorted layout
+lane-by GroupName      # swimlane axis (canonical); equivalent to `sort tag:GroupName`
+sort tag:GroupName     # back-compat spelling of lane-by
+swimlanes              # back-compat spelling of lane-by
+```
+
+`lane-by GroupName` is portable view-state written by the app's swimlane picker; `swimlanes` and `sort tag:GroupName` are back-compat spellings.
 
 ---
 
@@ -2679,7 +2693,7 @@ Polish UX p: Medium
 
 ### Collapse
 
-Any node with children may be collapsed. Set `collapsed: true` in same-line metadata to make a subtree start collapsed; collapsed nodes render with an accent drill-bar so they remain discoverable. Collapse state is runtime-only — the source is always fully expanded, and live toggling in the app does not mutate the file.
+Any node with children may be collapsed. Set `collapsed: true` in same-line metadata to make a subtree start collapsed; collapsed nodes render with an accent drill-bar so they remain discoverable. Collapse is **portable view-state** — because `collapsed: true` lives in the source, every renderer (app, `dgmo` CLI, remark-dgmo, Obsidian, code-fence embeds) reproduces the collapsed view from the `.dgmo` alone; in the app, collapsing/expanding a node writes/removes the marker in the source (source stays the single source of truth), and a runtime `viewState.cg` from a share-link is applied in addition to source markers.
 
 ```
 Nice-to-haves p: Low, collapsed: true
@@ -2692,6 +2706,7 @@ Nice-to-haves p: Low, collapsed: true
 | Option                 | Effect                             |
 | ---------------------- | ---------------------------------- |
 | `active-tag GroupName` | Sets the default active tag group. |
+| `color-by-depth`       | Bare flag; colour nodes by depth instead of by tag (off by default). |
 
 Universal options (`palette`, `theme`) apply as elsewhere.
 

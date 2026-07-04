@@ -500,8 +500,8 @@ describe('placeContextLabels — multi-position dodging (map-context-neighbor-la
   });
 });
 
-describe('placeContextLabels — proximity ranking (map-context-neighbor-labels)', () => {
-  // 'Faraway' is big but on the right edge; 'Nearby' is small but at the content.
+describe('placeContextLabels — deterministic area rank (no proximity knob)', () => {
+  // 'Faraway' is big but on the right edge; 'Nearby' is small but near the corner.
   const far: CountryCandidate = {
     name: 'Faraway',
     bbox: [600, 100, 780, 260],
@@ -513,7 +513,7 @@ describe('placeContextLabels — proximity ranking (map-context-neighbor-labels)
     anchor: [140, 430],
   };
 
-  it('without contentPoints: bigger footprint ranks first (legacy area rank)', () => {
+  it('bigger footprint ranks first, independent of any content position', () => {
     const placed = placeContextLabels(
       baseArgs({ waterBodies: { entries: [] }, countries: [near, far] })
     );
@@ -521,21 +521,47 @@ describe('placeContextLabels — proximity ranking (map-context-neighbor-labels)
     const ni = placed.findIndex((l) => l.text === 'Nearby');
     expect(fi).toBeGreaterThanOrEqual(0);
     expect(ni).toBeGreaterThanOrEqual(0);
-    expect(fi).toBeLessThan(ni); // bigger area committed first
+    expect(fi).toBeLessThan(ni); // bigger area committed first — no proximity bias
   });
+});
 
-  it('with a content point at the small country: proximity wins the rank', () => {
+describe('placeContextLabels — bordering nations bypass the budget (Option A)', () => {
+  it('labels every bordering nation even past the budget; states are rationed', () => {
+    // Two bordering nations + many states, on a canvas whose budget is tiny.
+    const nations: CountryCandidate[] = [
+      {
+        name: 'Canada',
+        bbox: [0, 0, 300, 60],
+        anchor: [150, 30],
+        bordering: true,
+      },
+      {
+        name: 'Mexico',
+        bbox: [0, 340, 300, 400],
+        anchor: [150, 370],
+        bordering: true,
+      },
+    ];
+    const states: CountryCandidate[] = Array.from({ length: 6 }, (_, i) => ({
+      name: `State${i}`,
+      bbox: [40 + i * 60, 160, 90 + i * 60, 200],
+      anchor: [65 + i * 60, 180],
+    }));
     const placed = placeContextLabels(
       baseArgs({
+        width: 400,
+        height: 400,
         waterBodies: { entries: [] },
-        countries: [near, far],
-        contentPoints: [[140, 430]], // inside Nearby's footprint
+        countries: [...nations, ...states],
       })
     );
-    const fi = placed.findIndex((l) => l.text === 'Faraway');
-    const ni = placed.findIndex((l) => l.text === 'Nearby');
-    expect(ni).toBeGreaterThanOrEqual(0);
-    expect(ni).toBeLessThan(fi); // closer to the story committed first
+    const names = placed.map((l) => l.text);
+    // BOTH nations present — symmetric, never one-without-the-other.
+    expect(names).toContain('Canada');
+    expect(names).toContain('Mexico');
+    // States are still budget-limited: not all six fit.
+    const stateCount = names.filter((n) => n.startsWith('State')).length;
+    expect(stateCount).toBeLessThan(6);
   });
 });
 

@@ -33,6 +33,7 @@ export interface GraphGroup {
   readonly color?: string;
   readonly nodeIds: readonly string[];
   readonly lineNumber: number;
+  readonly collapsed?: boolean; // `[Group] collapsed: true` view-state marker
 }
 
 /**
