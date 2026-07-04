@@ -521,10 +521,37 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     groupAttr: 'data-lane',
   },
 
+  // tech-radar: blips are `<g>` carrying data-quadrant/data-ring/data-trend;
+  // only blips have data-trend (the sector wedges don't), so `[data-trend]`
+  // isolates them. Hover a blip → lift same-quadrant blips.
+  'tech-radar': {
+    markSelector: '[data-trend]',
+    strategy: 'enumerated',
+    groupAttr: 'data-quadrant',
+  },
+  // journey-map: faces carry data-score (the emotion). Hover a face → lift all
+  // same-score touchpoints across the journey.
+  'journey-map': {
+    markSelector: '.journey-face',
+    strategy: 'enumerated',
+    groupAttr: 'data-score',
+  },
+  // mindmap: nodes carry a single data-tag-<group> when tagged (no
+  // legend-active marker → the single-tag fallback in deriveFromSvg resolves
+  // it). Untagged → self-emphasis only.
+  mindmap: {
+    markSelector: '.mindmap-node',
+    strategy: 'enumerated',
+    groupAttrMode: 'tag-active',
+  },
+
   // ── SELF-emphasis only (single-series / non-relational solid marks) ──
   pyramid: { markSelector: '.pyramid-layer', strategy: 'self' },
   ring: { markSelector: '.ring-layer', strategy: 'self' },
   slope: { markSelector: '.slope-series', strategy: 'self' },
+  // function: each curve is a `.dgmo-datum` path — self-emphasis floor only
+  // (thin line, no group).
+  function: { markSelector: '.dgmo-datum', strategy: 'self' },
 };
 
 // ============================================================
@@ -562,8 +589,21 @@ function deriveFromSvg(svg: string, spec: HoverSpec): HoverDerived {
       const slug = root
         .querySelector('[data-legend-active]')
         ?.getAttribute('data-legend-active');
-      if (!slug) return {};
-      groupAttr = `data-tag-${slug}`;
+      if (slug) {
+        groupAttr = `data-tag-${slug}`;
+      } else {
+        // Fallback for charts with no legend-active marker (e.g. mindmap): if
+        // the marks carry exactly ONE distinct `data-tag-*` group, use it.
+        // Ambiguous (multiple) or none → self-emphasis only (F9).
+        const names = new Set<string>();
+        root.querySelectorAll(spec.markSelector).forEach((el) => {
+          for (const a of Array.from(el.attributes)) {
+            if (a.name.startsWith('data-tag-')) names.add(a.name);
+          }
+        });
+        if (names.size !== 1) return {};
+        groupAttr = [...names][0];
+      }
     }
     if (!groupAttr) return {};
     const attr = groupAttr;

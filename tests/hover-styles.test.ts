@@ -184,7 +184,7 @@ describe('injectHoverStyles (AC1g / AC13 gate + self-derive)', () => {
   });
 
   it('no-op for a chart type with no registry row', () => {
-    expect(injectHoverStyles(pieSvg, 'mindmap', { bakeHover: true })).toBe(
+    expect(injectHoverStyles(pieSvg, 'wireframe', { bakeHover: true })).toBe(
       pieSvg
     );
   });
@@ -281,9 +281,10 @@ describe('render() integration — baked hover gate (AC3/AC6)', () => {
     expect(svg).not.toContain('.dgmo-datum:hover');
   });
 
-  it('leaves a chart with no registry row untouched (bar has a row; mindmap does not)', async () => {
-    const { svg } = await render('mindmap\nRoot\n  Child A\n  Child B');
-    expect(svg).not.toContain('.dgmo-datum:hover');
+  it('leaves a chart with no registry row untouched (radar has no row)', async () => {
+    const { svg } = await render('radar Skills\nSpeed 4\nPower 3\nRange 5');
+    expect(svg).not.toContain('svg:has');
+    expect(svg).not.toContain(':hover{filter');
   });
 });
 
