@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-07-05
+
 ### Changed
 - **`/auto` and `<dgmo-diagram>` adopt the standard embed block (BL-114)** — both browser drop-ins now emit the canonical chrome from `@diagrammo/dgmo/block` instead of their bespoke source panel: `figure.dgmo` wrapper, hover-reveal wordless icon toolbar (`</>` view source · copy · open-in-editor) in a reserved footer row, source hidden behind a native `<details class="dgmo-source-wrap">`, and one shared frame around chart + code while the source is open. Copy still copies the raw DGMO source and the editor link keeps its UTM-tagged share URL. Errors now render as the standard `.dgmo--error` card (message + offending source, `role="alert"`) on both surfaces, replacing the old `.dgmo-error-banner`. The old chrome classes (`.dgmo-source-panel`, `.dgmo-source-toggle`, `.dgmo-source-body`, `.dgmo-source-actions`, `.dgmo-btn*`, `.dgmo-chevron`, `.dgmo-error-banner*`) are gone from both surfaces and from `dist/auto.css`, which now bundles `BLOCK_CSS` plus a `.dgmo-theme-dark`-scoped copy of its dark-mode rules.
 
