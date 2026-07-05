@@ -45,8 +45,8 @@ import {
   resolveTheme,
   sanitizeSvgInPlace,
   deriveAriaLabel,
-  buildSourcePanel,
-  buildErrorBanner,
+  buildRenderedBlock,
+  buildErrorBlock,
   buildShareUrl,
   sharedWarn,
   type ThemePreference,
@@ -275,7 +275,9 @@ export class DgmoDiagram extends HTMLElement {
     line?: number;
     column?: number;
   }): void {
-    this.mount(buildErrorBanner(opts), 'dgmo dgmo--error');
+    // The standard error card carries `.dgmo.dgmo--error` on its own root,
+    // so the container itself stays class-free.
+    this.mount(buildErrorBlock({ ...opts, source: this.source ?? '' }), '');
   }
 
   private async rerender(): Promise<void> {
@@ -289,9 +291,8 @@ export class DgmoDiagram extends HTMLElement {
 
     // Loading state (visible only while an async render/fetch is in flight).
     const loading = document.createElement('div');
-    loading.className = 'dgmo-error-banner-loc';
     loading.textContent = 'Rendering diagram…';
-    this.mount(loading, 'dgmo dgmo--loading');
+    this.mount(loading, 'dgmo--loading');
 
     const themePref = this.themePreference();
     const resolvedTheme =
@@ -382,22 +383,29 @@ export class DgmoDiagram extends HTMLElement {
           ? 'dgmo-theme-transparent'
           : 'dgmo-theme-light';
 
-    const frag = document.createDocumentFragment();
-    frag.appendChild(svgEl);
+    // Showcase chrome: standard embed block (BL-114) with the hover-reveal
+    // toolbar (view-source toggle + Copy + Open-in-editor).
+    const showcase = this.isShowcase();
+    const shareUrl = showcase
+      ? buildShareUrl(src, {
+          palette,
+          theme: resolvedTheme === 'dark' ? 'dark' : 'light',
+          editorBase: this.editorBase(),
+          campaign: VERSION,
+          utmSource: 'element-embed',
+        })
+      : null;
 
-    // Showcase chrome: collapsible source panel + Copy + Open-in-editor.
-    if (this.isShowcase()) {
-      const shareUrl = buildShareUrl(src, {
-        palette,
-        theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-        editorBase: this.editorBase(),
-        campaign: VERSION,
-        utmSource: 'element-embed',
-      });
-      frag.appendChild(buildSourcePanel(src, shareUrl, true));
-    }
+    const wrapper = buildRenderedBlock({
+      source: src,
+      svgEl,
+      themeClass,
+      showSource: showcase,
+      showEditorLink: showcase,
+      shareUrl,
+    });
 
-    this.mount(frag, `dgmo-rendered ${themeClass} dgmo--rendered`);
+    this.mount(wrapper, 'dgmo--rendered');
   }
 }
 

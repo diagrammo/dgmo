@@ -60,10 +60,16 @@ describe('<dgmo-diagram> custom element', () => {
     const svg = el.querySelector('svg')!;
     expect(svg).toBeTruthy();
     expect(svg.getAttribute('role')).toBe('img');
-    // Container carries the rendered theme hook classes.
+    // Container carries the rendered marker; the standard block wrapper
+    // (figure.dgmo) carries the legacy + theme hook classes.
     const container = el.firstElementChild as HTMLElement;
-    expect(container.className).toContain('dgmo-rendered');
     expect(container.className).toContain('dgmo--rendered');
+    const wrapper = el.querySelector('figure.dgmo') as HTMLElement;
+    expect(wrapper).toBeTruthy();
+    expect(wrapper.className).toContain('dgmo-rendered');
+    expect(wrapper.className).toMatch(/dgmo-theme-(light|dark|transparent)/);
+    // Diagram mounts in the single-render slot.
+    expect(wrapper.querySelector('.dgmo-svg > svg')).toBe(svg);
   });
 
   it('de-indents source read from a nested <script type="text/dgmo">', async () => {
@@ -79,24 +85,39 @@ describe('<dgmo-diagram> custom element', () => {
     expect(el.querySelector('svg')).toBeTruthy();
   });
 
-  it('shows an inline error block for empty source', async () => {
+  it('shows the standard error card for empty source', async () => {
     const el = makeElement('   ');
     document.body.appendChild(el);
 
     await waitFor(() => el.querySelector('.dgmo--error') !== null);
-    const errorContainer = el.querySelector('.dgmo--error')!;
-    expect(errorContainer.className).toContain('dgmo--error');
-    expect(errorContainer.querySelector('.dgmo-error-banner')).toBeTruthy();
-    expect(errorContainer.textContent).toContain('No DGMO source');
+    const card = el.querySelector('.dgmo--error')!;
+    expect(card.getAttribute('role')).toBe('alert');
+    expect(card.textContent).toContain('dgmo render error');
+    expect(card.textContent).toContain('No DGMO source');
   });
 
-  it('renders a showcase source panel when mode="showcase"', async () => {
+  it('renders the standard source disclosure when mode="showcase"', async () => {
     const el = makeElement('flowchart\n[A] -> [B]', { mode: 'showcase' });
     document.body.appendChild(el);
 
     await waitFor(() => el.querySelector('svg') !== null);
-    expect(el.querySelector('.dgmo-source-panel')).toBeTruthy();
-    expect(el.querySelector('.dgmo-source-toggle')).toBeTruthy();
+    expect(el.querySelector('figure.dgmo.dgmo--showcase')).toBeTruthy();
+    const details = el.querySelector(
+      'details.dgmo-source-wrap'
+    ) as HTMLDetailsElement;
+    expect(details).toBeTruthy();
+    expect(details.open).toBe(false);
+    expect(details.querySelector('summary.dgmo-toolbar')).toBeTruthy();
+    // Copy payload + UTM-tagged editor link.
+    const copy = details.querySelector('button.dgmo-copy')!;
+    expect(copy.getAttribute('data-dgmo-source')).toContain('flowchart');
+    const open = details.querySelector('a.dgmo-open') as HTMLAnchorElement;
+    expect(open).toBeTruthy();
+    expect(open.href).toContain('utm_source=element-embed');
+    // Highlighted source panel uses the canonical pre/span vocabulary.
+    expect(
+      details.querySelector('.dgmo-source-inner .dgmo-pre .dgmo-code')
+    ).toBeTruthy();
   });
 
   it('does NOT render a source panel by default (mode omitted)', async () => {
@@ -104,7 +125,9 @@ describe('<dgmo-diagram> custom element', () => {
     document.body.appendChild(el);
 
     await waitFor(() => el.querySelector('svg') !== null);
-    expect(el.querySelector('.dgmo-source-panel')).toBeNull();
+    expect(el.querySelector('figure.dgmo.dgmo--diagram')).toBeTruthy();
+    expect(el.querySelector('.dgmo-source-wrap')).toBeNull();
+    expect(el.querySelector('.dgmo-toolbar')).toBeNull();
   });
 
   it('triggers NO fetch for a non-map diagram', async () => {

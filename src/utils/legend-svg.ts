@@ -180,7 +180,7 @@ export function renderLegendSvg(
 
   const classAttr = className ? ` class="${esc(className)}"` : '';
   const activeAttr = activeGroup
-    ? ` data-legend-active="${esc(activeGroup.toLowerCase())}"`
+    ? ` data-legend-active="${esc(tagAttrKey(activeGroup))}"`
     : '';
   const svg = `<g${classAttr}${activeAttr}>${parts.join('')}</g>`;
 

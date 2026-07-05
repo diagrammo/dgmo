@@ -217,7 +217,7 @@ describeIfBuilt('auto bundle — tier-2 selector + replace', () => {
         '<pre class="dgmo" data-show-source="true">pie\nA: 1</pre>' +
         '<pre class="dgmo" data-show-source="false">pie\nA: 1</pre>',
     });
-    const panels = win.document.querySelectorAll('.dgmo-source-panel');
+    const panels = win.document.querySelectorAll('.dgmo-source-wrap');
     expect(panels.length).toBe(1);
   });
 
@@ -226,8 +226,8 @@ describeIfBuilt('auto bundle — tier-2 selector + replace', () => {
       body: '<pre class="dgmo">pie\nA: 1</pre>',
       scriptAttrs: `data-config='{"showEditorLink":false}'`,
     });
-    expect(win.document.querySelector('.dgmo-btn-editor')).toBeNull();
-    expect(win.document.querySelector('.dgmo-btn-copy')).toBeTruthy();
+    expect(win.document.querySelector('a.dgmo-open')).toBeNull();
+    expect(win.document.querySelector('button.dgmo-copy')).toBeTruthy();
   });
 
   it('UTM params present on the editor link', async () => {
@@ -235,7 +235,7 @@ describeIfBuilt('auto bundle — tier-2 selector + replace', () => {
       body: '<pre class="dgmo">pie\nA: 1</pre>',
     });
     const link = win.document.querySelector(
-      '.dgmo-btn-editor'
+      'a.dgmo-open'
     ) as HTMLAnchorElement | null;
     expect(link).toBeTruthy();
     if (link) {
@@ -335,7 +335,7 @@ describeIfBuilt('auto bundle — tier-2 per-defense allowlist', () => {
     expect(calls).toMatch(/rejected showEditorLink/i);
   });
 
-  it('rejects oversize source (>256 KB) with error banner', async () => {
+  it('rejects oversize source (>256 KB) with the standard error card', async () => {
     // Build a 257KB source string. The text isn't valid DGMO but we never
     // reach the parser because the size cap fires first.
     const big = 'pie\n' + 'a: 1\n'.repeat(60_000);
@@ -343,7 +343,10 @@ describeIfBuilt('auto bundle — tier-2 per-defense allowlist', () => {
       body: `<pre class="dgmo">${big}</pre>`,
     });
     expect(win.document.querySelector('.dgmo-rendered')).toBeNull();
-    expect(win.document.querySelector('.dgmo-error-banner')).toBeTruthy();
+    const card = win.document.querySelector('.dgmo--error');
+    expect(card).toBeTruthy();
+    expect(card?.getAttribute('role')).toBe('alert');
+    expect(card?.textContent).toContain('too large');
   });
 });
 
@@ -378,28 +381,43 @@ describeIfBuilt('auto bundle — tier-3 a11y basics', () => {
     expect(label).not.toMatch(/[‪-‮⁦-⁩]/);
   });
 
-  it('source toggle button reflects aria-expanded', async () => {
+  it('source lives behind a native <details> disclosure with icon toolbar', async () => {
     const { win } = await bootInJsdom({
       body: '<pre class="dgmo">pie\nA: 1</pre>',
     });
-    const toggle = win.document.querySelector('.dgmo-source-toggle');
-    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
-    (toggle as HTMLButtonElement)?.click();
-    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    const details = win.document.querySelector(
+      'details.dgmo-source-wrap'
+    ) as HTMLDetailsElement | null;
+    expect(details).toBeTruthy();
+    expect(details?.open).toBe(false);
+    // The toolbar IS the <summary>, labeled and wordless (icon buttons only).
+    const toolbar = details?.querySelector('summary.dgmo-toolbar');
+    expect(toolbar?.getAttribute('aria-label')).toBe('View DGMO source');
+    expect(toolbar?.querySelector('.dgmo-toggle')).toBeTruthy();
+    expect(toolbar?.textContent).not.toContain('source');
+    // Copy button carries the source payload for the delegated handler.
+    const copy = toolbar?.querySelector('button.dgmo-copy') as HTMLElement;
+    expect(copy?.getAttribute('data-dgmo-source')).toContain('pie');
+    // Highlighted source panel uses the canonical pre/span vocabulary.
+    expect(
+      details?.querySelector('.dgmo-source-inner .dgmo-pre .dgmo-code')
+    ).toBeTruthy();
   });
 });
 
 describeIfBuilt('auto bundle — error UX', () => {
-  it('parse error: prepends banner, leaves source visible', async () => {
+  it('parse error: replaces the source with the standard error card', async () => {
     const { win, warn } = await bootInJsdom({
       body: '<pre class="dgmo">!!!definitely-not-a-chart-type</pre>',
     });
-    // Either banner inserted (parse-error path) or render succeeded somehow.
-    const banner = win.document.querySelector('.dgmo-error-banner');
-    if (banner) {
-      // Source pre still in DOM (not replaced).
-      const pre = win.document.querySelector('pre.dgmo');
-      expect(pre).toBeTruthy();
+    // Either the error card replaced the source, or render succeeded somehow.
+    const card = win.document.querySelector('.dgmo--error');
+    if (card) {
+      expect(card.getAttribute('role')).toBe('alert');
+      // The card carries the offending source so nothing is lost.
+      expect(card.textContent).toContain('definitely-not-a-chart-type');
+      // Marked processed so a re-run doesn't loop on the card itself.
+      expect(card.getAttribute('data-dgmo-processed')).toBe('true');
       const calls = warn.mock.calls.flat().join(' ');
       expect(calls.length).toBeGreaterThan(0);
     } else {

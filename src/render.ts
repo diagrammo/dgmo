@@ -24,11 +24,29 @@ const DOM_GLOBALS = [
   'HTMLElement',
   'SVGElement',
 ] as const;
-let domRefCount = 0;
-let domInstallPromise: Promise<void> | null = null;
-let domInstalledByUs = false;
+// The ref-count state lives on `globalThis` under a well-known symbol rather
+// than in module state: dist/index and dist/block are each self-contained
+// bundles, so a host importing both gets two copies of this module. With
+// per-copy state, each copy keeps its own ref-count over the SAME
+// `globalThis.document` — one copy's release tears down globals mid-render of
+// the other. `Symbol.for` puts every copy on one shared count.
+interface DomGlobalsState {
+  refCount: number;
+  installPromise: Promise<void> | null;
+  installedByUs: boolean;
+}
+const DOM_STATE_KEY = Symbol.for('diagrammo.dgmo.dom-globals');
 
-async function installDom(): Promise<void> {
+function domState(): DomGlobalsState {
+  const g = globalThis as { [DOM_STATE_KEY]?: DomGlobalsState };
+  return (g[DOM_STATE_KEY] ??= {
+    refCount: 0,
+    installPromise: null,
+    installedByUs: false,
+  });
+}
+
+async function installDom(state: DomGlobalsState): Promise<void> {
   const { JSDOM } = await loadJsdom();
   // Concrete URL → non-opaque origin, so host code that touches
   // window.localStorage during a same-process render doesn't throw.
@@ -49,7 +67,7 @@ async function installDom(): Promise<void> {
       configurable: true,
     });
   }
-  domInstalledByUs = true;
+  state.installedByUs = true;
 }
 
 /**
@@ -58,22 +76,24 @@ async function installDom(): Promise<void> {
  * we did not install). Pair every successful call with `releaseDom()`.
  */
 async function acquireDom(): Promise<void> {
-  if (typeof document !== 'undefined' && !domInstalledByUs) return;
-  domRefCount++;
-  if (!domInstallPromise) domInstallPromise = installDom();
-  await domInstallPromise;
+  const state = domState();
+  if (typeof document !== 'undefined' && !state.installedByUs) return;
+  state.refCount++;
+  if (!state.installPromise) state.installPromise = installDom(state);
+  await state.installPromise;
 }
 
 /** Tear down the jsdom globals once no render is in flight. */
 function releaseDom(): void {
-  if (!domInstalledByUs) return;
-  if (--domRefCount > 0) return;
+  const state = domState();
+  if (!state.installedByUs) return;
+  if (--state.refCount > 0) return;
   for (const key of DOM_GLOBALS) {
     delete (globalThis as Record<string, unknown>)[key];
   }
-  domInstalledByUs = false;
-  domInstallPromise = null;
-  domRefCount = 0;
+  state.installedByUs = false;
+  state.installPromise = null;
+  state.refCount = 0;
 }
 
 /**

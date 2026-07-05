@@ -376,3 +376,44 @@ describe('render() integration — Task 3 diagram/connection rows', () => {
     }
   });
 });
+
+describe('deriveFromSvg — tag-active slug robustness', () => {
+  const cellMarks =
+    '<rect class="dgmo-treemap-cell" data-tag-residents-millions="high"/>' +
+    '<rect class="dgmo-treemap-cell" data-tag-residents-millions="low"/>';
+
+  it('slugs a legacy raw legend-active value (spaces/parens) instead of throwing', () => {
+    // Pre-0.46 legend writers stamped the raw lowercased group name; building
+    // `[data-tag-residents (millions)]` from it threw `Invalid selector`.
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">' +
+      '<g data-legend-active="residents (millions)"></g>' +
+      cellMarks +
+      '</svg>';
+    const out = injectHoverStyles(svg, 'treemap', { bakeHover: true });
+    expect(out).toContain('[data-tag-residents-millions=');
+    expect(out).toContain('"high"');
+    expect(out).toContain('"low"');
+  });
+
+  it('leaves an already-slugged legend-active value untouched', () => {
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">' +
+      '<g data-legend-active="residents-millions"></g>' +
+      cellMarks +
+      '</svg>';
+    const out = injectHoverStyles(svg, 'treemap', { bakeHover: true });
+    expect(out).toContain('[data-tag-residents-millions=');
+  });
+
+  it('unicode / punctuation-heavy group names produce a valid selector', () => {
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">' +
+      '<g data-legend-active="crew % (naïve)"></g>' +
+      '<rect class="dgmo-treemap-cell" data-tag-crew-na-ve="aye"/>' +
+      '</svg>';
+    expect(() =>
+      injectHoverStyles(svg, 'treemap', { bakeHover: true })
+    ).not.toThrow();
+  });
+});

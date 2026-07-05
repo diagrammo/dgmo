@@ -2109,7 +2109,7 @@ function renderLegend(
     .attr('transform', `translate(0, ${legendY})`);
 
   if (activeGroup) {
-    legendG.attr('data-legend-active', activeGroup.toLowerCase());
+    legendG.attr('data-legend-active', tagAttrKey(activeGroup));
   }
 
   // Build all groups including Playback as a regular group for consistent rendering

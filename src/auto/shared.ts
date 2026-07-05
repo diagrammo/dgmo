@@ -2,15 +2,16 @@
  * Shared browser-embed helpers for the `@diagrammo/dgmo` client-side
  * drop-ins (`./auto` script-tag renderer and `./element` custom element).
  *
- * These are the SVG sanitizer, theme resolver, source panel (with Copy +
- * "Open in editor"), error banner, aria-label derivation, style injection,
- * and share-URL builder — factored out of `auto/index.ts` so the two entries
- * share one implementation rather than diverging copies. The `auto` entry's
- * public `window.dgmo` surface is unaffected; it imports from here.
+ * These are the SVG sanitizer, theme resolver, the standard-block DOM
+ * assembler (canonical chrome from `src/embed` — BL-114), the error card,
+ * aria-label derivation, style injection, and share-URL builder — factored
+ * out of `auto/index.ts` so the two entries share one implementation rather
+ * than diverging copies. The `auto` entry's public `window.dgmo` surface is
+ * unaffected; it imports from here.
  */
 
 import { encodeDiagramUrl } from '../sharing';
-import { highlightDgmo, type HighlightToken } from '../editor/highlight-api';
+import { buildDgmoBlockHtml, errorBlockHtml } from '../embed';
 import { CSS } from './styles';
 import { safeHref } from '../utils/safe-href';
 
@@ -22,10 +23,10 @@ export const VERSION: string =
   (typeof __DGMO_VERSION__ === 'string' && __DGMO_VERSION__) || 'dev';
 
 /** Default hosted editor used by "Open in editor" share links. */
-export const EDITOR_BASE_URL = 'https://online.diagrammo.app';
+export { EDITOR_BASE_URL } from '../embed';
 
 const ARIA_LABEL_MAX = 200;
-const COPIED_INTERACTION_MS = 1200;
+const COPIED_INTERACTION_MS = 1500;
 const LOG_PREFIX = '[dgmo]';
 
 // Bidi override + control char strip for aria-label sanitization. The regex
@@ -148,156 +149,149 @@ export function deriveAriaLabel(source: string): string {
 }
 
 // ============================================================
-// Source panel construction
+// Standard block assembly (canonical chrome from src/embed — BL-114)
 // ============================================================
 
-function buildHighlightedSource(source: string): DocumentFragment {
-  const frag = document.createDocumentFragment();
-  let tokens: HighlightToken[];
-  try {
-    tokens = highlightDgmo(source);
-  } catch {
-    frag.appendChild(document.createTextNode(source));
-    return frag;
-  }
-  for (const tok of tokens) {
-    if (!tok.text) continue;
-    const span = document.createElement('span');
-    span.className = `dgmo-tok-${tok.role}`;
-    span.textContent = tok.text;
-    frag.appendChild(span);
-  }
-  return frag;
+export interface RenderedBlockOptions {
+  /** Trimmed DGMO source (copy payload + highlighted panel content). */
+  source: string;
+  /** Already-rendered AND sanitized SVG element to mount as the diagram. */
+  svgEl: Element;
+  /** `dgmo-theme-light` / `dgmo-theme-dark` / `dgmo-theme-transparent`. */
+  themeClass: string;
+  /** Emit the source disclosure + toolbar (showcase) or diagram-only. */
+  showSource: boolean;
+  /** Emit the open-in-editor toolbar link at all. */
+  showEditorLink: boolean;
+  /**
+   * Pre-built share URL (with the surface's UTM params) for the
+   * open-in-editor link. `null` (encode failed / too large) drops the link.
+   */
+  shareUrl: string | null;
 }
 
-// ----- icon SVGs (static author-controlled markup) -----
-const COPY_ICON_SVG =
-  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3a1.5 1.5 0 0 0-1.5-1.5H3A1.5 1.5 0 0 0 1.5 3v6A1.5 1.5 0 0 0 3 10.5h2.5"/></svg>';
-const CHECK_ICON_SVG =
-  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 8.5 6.5 12 13 4.5"/></svg>';
-const EXTERNAL_ICON_SVG =
-  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2h5v5"/><path d="M14 2L7 9"/><path d="M13 9v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4"/></svg>';
-
-function setIcon(el: Element, svg: string): void {
-  // Static icon strings authored above — no user content.
-  el.innerHTML = svg;
-}
-
-export function buildSourcePanel(
-  source: string,
-  shareUrl: string | null,
-  showEditorLink: boolean
-): HTMLDivElement {
-  const panel = document.createElement('div');
-  panel.className = 'dgmo-source-panel';
-
-  const toggle = document.createElement('button');
-  toggle.type = 'button';
-  toggle.className = 'dgmo-source-toggle';
-  toggle.setAttribute('aria-expanded', 'false');
-  const chevron = document.createElement('span');
-  chevron.className = 'dgmo-chevron';
-  chevron.setAttribute('aria-hidden', 'true');
-  chevron.textContent = '▸';
-  toggle.appendChild(chevron);
-  const label = document.createElement('span');
-  label.textContent = 'DGMO source';
-  toggle.appendChild(label);
-
-  const body = document.createElement('div');
-  body.className = 'dgmo-source-body';
-  const pre = document.createElement('pre');
-  pre.className = 'dgmo-source-pre';
-  pre.appendChild(buildHighlightedSource(source));
-  body.appendChild(pre);
-
-  const actions = document.createElement('div');
-  actions.className = 'dgmo-source-actions';
-
-  const copyBtn = document.createElement('button');
-  copyBtn.type = 'button';
-  copyBtn.className = 'dgmo-btn dgmo-btn-copy';
-  copyBtn.setAttribute('aria-label', 'Copy DGMO source');
-  copyBtn.title = 'Copy source';
-  setIcon(copyBtn, COPY_ICON_SVG);
-  copyBtn.addEventListener('click', () => {
-    void copySource(source, copyBtn);
+/**
+ * Assemble the standard DGMO embed block (`figure.dgmo` + hover-reveal icon
+ * toolbar + native `<details>` source panel) around an already-sanitized SVG
+ * node, and bind the toolbar's copy/open click handling.
+ *
+ * The markup comes from the canonical `buildDgmoBlockHtml` in `src/embed`;
+ * this wrapper only (1) mounts the live SVG node into the `.dgmo-svg` slot,
+ * (2) swaps the open-in-editor href for the surface's UTM-tagged share URL,
+ * and (3) attaches the click handler that `<details>` can't provide (copy).
+ */
+export function buildRenderedBlock(opts: RenderedBlockOptions): HTMLElement {
+  const html = buildDgmoBlockHtml(opts.source, '<div class="dgmo-svg"></div>', {
+    mode: opts.showSource ? 'showcase' : 'diagram',
+    showOpenInEditor: opts.showSource && opts.showEditorLink,
+    // Keep the legacy `.dgmo-rendered` + theme hooks so the anti-flash CSS,
+    // idempotency filters, and theme-scoped token colors keep working.
+    legacyClassNames: ['dgmo-rendered', opts.themeClass],
   });
-  actions.appendChild(copyBtn);
+  const holder = document.createElement('div');
+  // buildDgmoBlockHtml output is author-controlled markup with all
+  // user-supplied strings escaped; the SVG slot is empty at this point.
+  holder.innerHTML = html;
+  const wrapper = holder.firstElementChild as HTMLElement;
 
-  if (showEditorLink) {
-    const editorBtn = document.createElement('a');
-    editorBtn.className = 'dgmo-btn dgmo-btn-editor';
-    editorBtn.target = '_blank';
-    editorBtn.rel = 'noopener noreferrer';
-    editorBtn.setAttribute('aria-label', 'Open in editor');
-    setIcon(editorBtn, EXTERNAL_ICON_SVG);
-    if (shareUrl) {
-      editorBtn.href = shareUrl;
-      editorBtn.title = 'Open in editor';
+  // Mount the sanitized SVG node directly (no serialize/re-parse round trip).
+  wrapper.querySelector('.dgmo-svg')?.appendChild(opts.svgEl);
+
+  // The canonical builder encodes a bare share URL; the browser surfaces
+  // carry UTM attribution, so swap in the pre-built URL (or drop the link
+  // when encoding failed — copy remains as the fallback affordance).
+  const open = wrapper.querySelector<HTMLAnchorElement>('a.dgmo-open');
+  if (open) {
+    if (opts.shareUrl) open.href = opts.shareUrl;
+    else open.remove();
+  }
+
+  bindBlockToolbar(wrapper);
+  return wrapper;
+}
+
+/**
+ * Click handling for the standard block toolbar (mirrors remark-dgmo's
+ * `bindDgmo` reference implementation, but bound per-wrapper because these
+ * surfaces build their DOM imperatively).
+ *
+ * The toolbar is the `<summary>` of the source `<details>`: clicks on the
+ * `</>` toggle keep the native default (toggling), while clicks on
+ * `.dgmo-toolbar-btn` (copy / open) must preventDefault so they don't ALSO
+ * toggle — which cancels an anchor's navigation, hence the manual
+ * `window.open`.
+ */
+function bindBlockToolbar(wrapper: HTMLElement): void {
+  wrapper.addEventListener('click', (e) => {
+    void handleToolbarClick(e);
+  });
+}
+
+async function handleToolbarClick(e: Event): Promise<void> {
+  const target = e.target as Element | null;
+  if (!target || typeof target.closest !== 'function') return;
+  const btn = target.closest('.dgmo-toolbar-btn') as HTMLElement | null;
+  if (!btn) return;
+
+  const insideSummary = !!btn.closest('summary');
+  if (insideSummary) e.preventDefault();
+
+  if (btn.matches('button.dgmo-copy')) {
+    const copied = await copyText(btn.dataset['dgmoSource'] ?? '');
+    if (copied) {
+      btn.classList.add('dgmo-copy--success');
+      setTimeout(
+        () => btn.classList.remove('dgmo-copy--success'),
+        COPIED_INTERACTION_MS
+      );
     } else {
-      editorBtn.setAttribute('aria-disabled', 'true');
-      editorBtn.title =
-        'Diagram too large for share link; copy source and paste into editor';
-      editorBtn.addEventListener('click', (e) => e.preventDefault());
+      sharedWarn('clipboard write failed');
     }
-    actions.appendChild(editorBtn);
+    return;
   }
 
-  body.appendChild(actions);
-  panel.appendChild(toggle);
-  panel.appendChild(body);
-
-  toggle.addEventListener('click', () => {
-    const open = body.classList.toggle('dgmo-open');
-    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-  });
-
-  return panel;
+  if (insideSummary && btn.matches('a.dgmo-open')) {
+    const anchor = btn as HTMLAnchorElement;
+    if (anchor.href) {
+      window.open(
+        anchor.href,
+        anchor.target || '_blank',
+        'noopener,noreferrer'
+      );
+    }
+  }
 }
 
-async function copySource(
-  source: string,
-  btn: HTMLButtonElement
-): Promise<void> {
-  let copied = false;
+async function copyText(text: string): Promise<boolean> {
   try {
     if (navigator?.clipboard?.writeText) {
-      await navigator.clipboard.writeText(source);
-      copied = true;
+      await navigator.clipboard.writeText(text);
+      return true;
     }
   } catch {
     // fallthrough to execCommand
   }
-  if (!copied && typeof document !== 'undefined') {
+  if (typeof document !== 'undefined') {
     try {
       const ta = document.createElement('textarea');
-      ta.value = source;
+      ta.value = text;
       ta.setAttribute('readonly', '');
       ta.style.position = 'absolute';
       ta.style.left = '-9999px';
       document.body.appendChild(ta);
       ta.select();
-      copied = document.execCommand('copy');
+      const copied = document.execCommand('copy');
       document.body.removeChild(ta);
+      return copied;
     } catch {
-      copied = false;
+      return false;
     }
   }
-  if (copied) {
-    setIcon(btn, CHECK_ICON_SVG);
-    btn.classList.add('dgmo-btn-copied');
-    setTimeout(() => {
-      setIcon(btn, COPY_ICON_SVG);
-      btn.classList.remove('dgmo-btn-copied');
-    }, COPIED_INTERACTION_MS);
-  } else {
-    sharedWarn('clipboard write failed');
-  }
+  return false;
 }
 
 // ============================================================
-// Error banner
+// Error card (canonical errorBlockHtml from src/embed)
 // ============================================================
 
 export interface BannerOptions {
@@ -307,26 +301,32 @@ export interface BannerOptions {
   column?: number;
 }
 
-export function buildErrorBanner(opts: BannerOptions): HTMLDivElement {
-  const banner = document.createElement('div');
-  banner.className = 'dgmo-error-banner';
-  banner.setAttribute('role', 'alert');
-
-  const title = document.createElement('div');
-  title.className = 'dgmo-error-banner-title';
-  title.textContent = `${opts.severity ?? 'error'}: ${opts.message}`;
-  banner.appendChild(title);
-
+/**
+ * Build the standard `.dgmo--error` card as a live DOM element. Message +
+ * location are folded into one line; the offending source is shown inside
+ * the card (canonical shape — same as remark-dgmo and the other adopters).
+ */
+export function buildErrorBlock(
+  opts: BannerOptions & { source: string }
+): HTMLElement {
+  let message =
+    opts.severity && opts.severity !== 'error'
+      ? `${opts.severity}: ${opts.message}`
+      : opts.message;
   if (opts.line !== undefined && opts.line > 0) {
-    const loc = document.createElement('div');
-    loc.className = 'dgmo-error-banner-loc';
-    loc.textContent =
+    message +=
       opts.column !== undefined
-        ? `at ${opts.line}:${opts.column}`
-        : `at line ${opts.line}`;
-    banner.appendChild(loc);
+        ? ` (at ${opts.line}:${opts.column})`
+        : ` (at line ${opts.line})`;
   }
-  return banner;
+  const holder = document.createElement('div');
+  // errorBlockHtml escapes both message and source.
+  holder.innerHTML = errorBlockHtml(new Error(message), opts.source);
+  const card = holder.firstElementChild as HTMLElement;
+  // Mark processed so the auto surface's selectors never re-scan the card
+  // (its root carries the `.dgmo` class the scanner matches on).
+  card.setAttribute('data-dgmo-processed', 'true');
+  return card;
 }
 
 // ============================================================
