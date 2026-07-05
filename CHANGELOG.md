@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-07-05
+
+### Added
+- **Standard embed block (`@diagrammo/dgmo/block`)** — the one canonical "diagram + source chrome" every embed surface now shares (remark-dgmo and its five host wrappers first; `/auto`, `<dgmo-diagram>`, MCP reports, site, and Obsidian to follow). The diagram is the star: a slim wordless icon toolbar (`</>` view source · copy · open-in-editor) sits below the chart and only fades in while the pointer is over the diagram itself; source stays hidden behind a native `<details>` (zero-JS toggle); opening it draws one shared frame around chart + code so the source reads as part of the figure. Ships `renderDgmoBlock()`, `buildDgmoBlockHtml()`, `errorBlockHtml()`, `BLOCK_CSS`, and `dist/block.css` (also exported as `./block.css`).
+- **`LIGHT_ROLE_STYLES`** in `@diagrammo/dgmo/highlight` — light-background companion to `NORD_ROLE_STYLES` for static source display, with a parity test tying both maps to the block stylesheet's `.dgmo-tok-*` rules.
+
 ## [0.44.1] - 2026-07-04
 
 ### Fixed
