@@ -663,7 +663,7 @@ export function renderSitemap(
       .attr('class', 'sitemap-legend-fixed')
       .attr('transform', `translate(0, ${sDiagramPadding + fixedTitleH})`);
     if (activeTagGroup) {
-      legendParent.attr('data-legend-active', activeTagGroup.toLowerCase());
+      legendParent.attr('data-legend-active', tagAttrKey(activeTagGroup));
     }
     renderLegend(
       legendParent,

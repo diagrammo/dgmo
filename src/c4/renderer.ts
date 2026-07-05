@@ -622,7 +622,7 @@ export function renderC4Context(
           .attr('transform', `translate(0, ${DIAGRAM_PADDING + titleHeight})`)
       : contentG.append('g').attr('class', 'c4-legend');
     if (activeTagGroup) {
-      legendParent.attr('data-legend-active', activeTagGroup.toLowerCase());
+      legendParent.attr('data-legend-active', tagAttrKey(activeTagGroup));
     }
     renderLegend(
       legendParent as GSelection,
@@ -1804,7 +1804,7 @@ export function renderC4Containers(
           .attr('transform', `translate(0, ${DIAGRAM_PADDING + titleHeight})`)
       : contentG.append('g').attr('class', 'c4-legend');
     if (activeTagGroup) {
-      legendParent.attr('data-legend-active', activeTagGroup.toLowerCase());
+      legendParent.attr('data-legend-active', tagAttrKey(activeTagGroup));
     }
     renderLegend(
       legendParent as GSelection,

@@ -1299,7 +1299,7 @@ function renderTimelineTagLegendOverlay(
       if (currentActiveGroup) {
         legendContainer.attr(
           'data-legend-active',
-          currentActiveGroup.toLowerCase()
+          tagAttrKey(currentActiveGroup)
         );
       }
 

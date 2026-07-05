@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **`/auto` and `<dgmo-diagram>` adopt the standard embed block (BL-114)** — both browser drop-ins now emit the canonical chrome from `@diagrammo/dgmo/block` instead of their bespoke source panel: `figure.dgmo` wrapper, hover-reveal wordless icon toolbar (`</>` view source · copy · open-in-editor) in a reserved footer row, source hidden behind a native `<details class="dgmo-source-wrap">`, and one shared frame around chart + code while the source is open. Copy still copies the raw DGMO source and the editor link keeps its UTM-tagged share URL. Errors now render as the standard `.dgmo--error` card (message + offending source, `role="alert"`) on both surfaces, replacing the old `.dgmo-error-banner`. The old chrome classes (`.dgmo-source-panel`, `.dgmo-source-toggle`, `.dgmo-source-body`, `.dgmo-source-actions`, `.dgmo-btn*`, `.dgmo-chevron`, `.dgmo-error-banner*`) are gone from both surfaces and from `dist/auto.css`, which now bundles `BLOCK_CSS` plus a `.dgmo-theme-dark`-scoped copy of its dark-mode rules.
 
+### Fixed
+- **Baked hover no longer fails on tag-group names with spaces or parentheses** (e.g. `Residents (millions)`). Legend markers now carry the same slug the marks use, and the hover injector re-slugs defensively, so `render()` no longer throws `Invalid selector` on such diagrams when a DOM is present.
+- **Concurrent renders across two bundle copies no longer race on DOM globals.** Hosts that load both `@diagrammo/dgmo` and `@diagrammo/dgmo/block` (two self-contained bundles) could see one copy tear down `globalThis.document` mid-render of the other (`document is not defined`). The jsdom-globals ref-count is now shared across copies via a `Symbol.for` slot.
+
 ## [0.45.0] - 2026-07-05
 
 ### Added

@@ -25,6 +25,8 @@
 // there is no opacity double-up. `render({ bakeHover: false })` opts out.
 // ============================================================
 
+import { tagAttrKey } from './tag-groups';
+
 /** How a chart's cross-highlight rules are shaped. `self` = self-emphasis only
  *  (no cross-highlight — single-series / non-relational charts). */
 export type HoverStrategy = 'enumerated' | 'structural' | 'connection' | 'self';
@@ -599,7 +601,10 @@ function deriveFromSvg(svg: string, spec: HoverSpec): HoverDerived {
         .querySelector('[data-legend-active]')
         ?.getAttribute('data-legend-active');
       if (slug) {
-        groupAttr = `data-tag-${slug}`;
+        // Defensive re-slug: legacy SVGs (pre-0.46) carried the raw lowercased
+        // group name here, which is not a valid attribute name when the group
+        // name contains spaces/parens — querySelectorAll would throw.
+        groupAttr = `data-tag-${tagAttrKey(slug)}`;
       } else {
         // Fallback for charts with no legend-active marker (e.g. mindmap): if
         // the marks carry exactly ONE distinct `data-tag-*` group, use it.

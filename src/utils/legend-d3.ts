@@ -74,10 +74,7 @@ export function renderLegendD3(
 
     // Set active attribute on container
     if (currentState.activeGroup) {
-      legendG.attr(
-        'data-legend-active',
-        currentState.activeGroup.toLowerCase()
-      );
+      legendG.attr('data-legend-active', tagAttrKey(currentState.activeGroup));
     } else {
       legendG.attr('data-legend-active', null);
     }
