@@ -501,6 +501,40 @@ export const NORD_ROLE_STYLES: Record<string, Record<string, string>> = {
 };
 
 // ============================================================
+// LIGHT_ROLE_STYLES — slate-light companion to NORD_ROLE_STYLES
+// ============================================================
+
+/**
+ * Light-background counterpart of NORD_ROLE_STYLES for static contexts
+ * (marketing site, light-mode source panels). Same role keys — a parity test
+ * (tests/block.test.ts) guards the two maps and the `.dgmo-tok-*` rules in
+ * block/css.ts against drift. Colors are darker AA-targeting tones tuned for
+ * a light code panel (bg ~#f3f5f8). Moved here from the site repo's
+ * hand-maintained mirror (BL-114).
+ */
+export const LIGHT_ROLE_STYLES: Record<string, Record<string, string>> = {
+  keyword: { color: '#3b6ea5', fontWeight: 'bold' }, // slate blue
+  controlKeyword: { color: '#7d5ba6', fontWeight: 'bold' }, // purple
+  definitionKeyword: { color: '#2f5a86', fontWeight: 'bold' }, // deep blue
+  modifier: { color: '#7d5ba6' },
+  chartType: { color: '#b8691f', fontWeight: 'bold' }, // amber
+  operator: { color: '#c0504d', fontWeight: 'bold' }, // red
+  number: { color: '#7d5ba6' },
+  comment: { color: '#677483', fontStyle: 'italic' }, // muted gray
+  heading: { color: '#b8691f', fontWeight: 'bold' },
+  bracket: { color: '#5b6672' },
+  separator: { color: '#2d7268' }, // deep teal
+  deprecatedSyntax: { color: '#c0504d', textDecoration: 'line-through' },
+  url: { color: '#3b6ea5', textDecoration: 'underline' },
+  colorAnnotation: { color: '#b8691f', fontStyle: 'italic' },
+  punctuation: { color: '#677483' },
+  propertyName: { color: '#2d7268' },
+  string: { color: '#3f7a3b' }, // forest green
+  noteContent: { color: '#677483', fontStyle: 'italic' },
+  default: {},
+};
+
+// ============================================================
 // ROLE_TO_ANSI — ANSI escape codes for CLI output
 // ============================================================
 
