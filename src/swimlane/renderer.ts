@@ -153,6 +153,7 @@ export function renderSwimlaneForExport(
     .attr('width', width)
     .attr('height', height)
     .attr('viewBox', `0 0 ${width} ${height}`)
+    .attr('preserveAspectRatio', 'xMidYMin meet')
     .style('font-family', FONT_FAMILY) as unknown as D3Svg;
 
   const defs = svg.append('defs');
