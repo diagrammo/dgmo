@@ -20,6 +20,23 @@ MODE="${1:-check}"
 BASELINE_DIR="api-baseline"
 DIST_DIR="dist"
 
+# The public surface is the named subpath entries only. ESM code-splitting
+# (tsup `splitting: true` on index/block/advanced) also emits internal shared
+# dts chunks with content-hashed names (e.g. themes-1-CuKpeH.d.ts). Those are
+# implementation detail, not public API, and their hash shifts whenever an
+# unrelated type in the chunk moves — baselining them would make this tripwire
+# fire on every such edit. Restrict the snapshot to the known entries.
+ENTRIES="index block advanced editor highlight pert auto element"
+
+# Print the list of entry dts files (both .d.ts and .d.cts) that exist in $1.
+entry_dts_files() {
+  local dir="$1" e
+  for e in $ENTRIES; do
+    [ -f "$dir/$e.d.ts" ] && echo "$e.d.ts"
+    [ -f "$dir/$e.d.cts" ] && echo "$e.d.cts"
+  done
+}
+
 if [ ! -d "$DIST_DIR" ]; then
   echo "error: $DIST_DIR/ not found. Run 'pnpm build' first." >&2
   exit 2
@@ -32,8 +49,10 @@ case "$MODE" in
     fi
     # Wipe and recapture to handle removed files cleanly
     rm -f "$BASELINE_DIR"/*.d.ts "$BASELINE_DIR"/*.d.cts
-    cp "$DIST_DIR"/*.d.ts "$DIST_DIR"/*.d.cts "$BASELINE_DIR/"
-    echo "api-baseline: re-baselined from $DIST_DIR/"
+    entry_dts_files "$DIST_DIR" | while read -r f; do
+      cp "$DIST_DIR/$f" "$BASELINE_DIR/$f"
+    done
+    echo "api-baseline: re-baselined from $DIST_DIR/ (entry surfaces only)"
     ls "$BASELINE_DIR" | wc -l | xargs printf "  %s files captured\n"
     ;;
 
@@ -42,9 +61,19 @@ case "$MODE" in
       echo "error: $BASELINE_DIR/ not found. Run 'pnpm check:api:update' to initialize." >&2
       exit 2
     fi
-    # diff -q lists only the file names that differ; -ru shows content.
-    # We capture both for a useful failure message.
-    DIFF_OUTPUT=$(diff -q "$BASELINE_DIR" "$DIST_DIR" 2>/dev/null | grep -E '\.d\.(ts|cts)$' || true)
+    # Compare only the entry dts surfaces (see ENTRIES rationale above).
+    # A missing entry file on either side is itself a reportable change.
+    DIFF_OUTPUT=""
+    for f in $(entry_dts_files "$DIST_DIR" && entry_dts_files "$BASELINE_DIR" | sort -u); do
+      if [ ! -f "$DIST_DIR/$f" ]; then
+        DIFF_OUTPUT="${DIFF_OUTPUT}Only in $BASELINE_DIR: $f"$'\n'
+      elif [ ! -f "$BASELINE_DIR/$f" ]; then
+        DIFF_OUTPUT="${DIFF_OUTPUT}Only in $DIST_DIR: $f"$'\n'
+      elif ! diff -q "$BASELINE_DIR/$f" "$DIST_DIR/$f" >/dev/null 2>&1; then
+        DIFF_OUTPUT="${DIFF_OUTPUT}Files $BASELINE_DIR/$f and $DIST_DIR/$f differ"$'\n'
+      fi
+    done
+    DIFF_OUTPUT=$(printf '%s' "$DIFF_OUTPUT" | sort -u | sed '/^$/d')
     if [ -z "$DIFF_OUTPUT" ]; then
       echo "api-baseline: $DIST_DIR/ matches baseline (no public type changes)"
       exit 0

@@ -157,17 +157,53 @@ function withReload(existing: Options['onSuccess']): () => Promise<void> {
   };
 }
 
+/** Chain several onSuccess hooks into one (they run sequentially). */
+function chain(...hooks: Array<() => Promise<void>>): () => Promise<void> {
+  return async () => {
+    for (const h of hooks) await h();
+  };
+}
+
 const BUILDS: Options[] = [
+  // Core + embed + advanced share one render pipeline (~2.5 MB of d3/echarts).
+  // Emitting them as independent self-contained bundles duplicated that
+  // pipeline in every host that imports more than one subpath — Obsidian pulls
+  // index + advanced + block (~7.5 MB of dupes), remark-dgmo pulls index +
+  // block. ESM code-splitting extracts the shared code into a chunk all three
+  // entries import, so a downstream bundler (esbuild/Rollup/Vite) keeps a
+  // single copy. ESM only — esbuild can't split CJS; the CJS build below stays
+  // self-contained (require-consumers don't tree-shake/bundle, so the dup is
+  // inert for them). Extensions stay `.js`/`.cjs`, so no collision with the
+  // auto/element IIFE `dist/{auto,element}.js` (those must stay self-contained
+  // for `<script src>` and keep their own configs).
   {
-    entry: ['src/index.ts'],
-    format: ['esm', 'cjs'],
+    entry: {
+      index: 'src/index.ts',
+      block: 'src/embed/index.ts',
+      advanced: 'src/advanced.ts',
+    },
+    format: ['esm'],
+    dts: true,
+    sourcemap: true,
+    splitting: true,
+    noExternal: ['lz-string'],
+    external: ['jsdom'],
+    esbuildPlugins: [fixJsdomXhrWorker],
+    onSuccess: chain(copyMapData, emitBlockCss),
+  },
+  {
+    entry: {
+      index: 'src/index.ts',
+      block: 'src/embed/index.ts',
+      advanced: 'src/advanced.ts',
+    },
+    format: ['cjs'],
     dts: true,
     sourcemap: true,
     splitting: false,
     noExternal: ['lz-string'],
     external: ['jsdom'],
     esbuildPlugins: [fixJsdomXhrWorker],
-    onSuccess: copyMapData,
   },
   {
     entry: { editor: 'src/editor/index.ts' },
@@ -193,35 +229,11 @@ const BUILDS: Options[] = [
     // Inline Lezer so consumers have zero peer deps
   },
   {
-    entry: { advanced: 'src/advanced.ts' },
-    format: ['esm', 'cjs'],
-    dts: true,
-    sourcemap: true,
-    splitting: false,
-    noExternal: ['lz-string'],
-    external: ['jsdom'],
-    esbuildPlugins: [fixJsdomXhrWorker],
-  },
-  {
     entry: { pert: 'src/pert/index.ts' },
     format: ['esm', 'cjs'],
     dts: true,
     sourcemap: true,
     splitting: false,
-  },
-  // Standard embed block (BL-114) — canonical diagram+source chrome shared by
-  // remark-dgmo, /auto, <dgmo-diagram>, dgmo-mcp reports, site, Obsidian.
-  // Imports render(), so same jsdom/lz-string handling as the main entry.
-  {
-    entry: { block: 'src/embed/index.ts' },
-    format: ['esm', 'cjs'],
-    dts: true,
-    sourcemap: true,
-    splitting: false,
-    noExternal: ['lz-string'],
-    external: ['jsdom'],
-    esbuildPlugins: [fixJsdomXhrWorker],
-    onSuccess: emitBlockCss,
   },
   {
     entry: ['src/cli.ts'],
