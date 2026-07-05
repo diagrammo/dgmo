@@ -23,12 +23,4 @@ declare const dgmoLanguageSupport: LanguageSupport;
  */
 declare const dgmoExtension: LanguageSupport;
 
-export {
-  CHART_TYPES,
-  METADATA_KEYS,
-  dgmoExtension,
-  dgmoHighlighting,
-  dgmoLanguage,
-  dgmoLanguageSupport,
-  dgmoParser,
-};
+export { CHART_TYPES, METADATA_KEYS, dgmoExtension, dgmoHighlighting, dgmoLanguage, dgmoLanguageSupport, dgmoParser };

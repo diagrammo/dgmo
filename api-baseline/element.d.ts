@@ -35,29 +35,25 @@
  */
 
 declare class DgmoDiagram extends HTMLElement {
-  static get observedAttributes(): readonly string[];
-  /** DGMO source, captured from the original children ONCE before the first
-   *  render replaces them. */
-  private source;
-  /** Monotonic render token — a late-resolving render/fetch whose token is
-   *  stale (superseded by a newer attribute-driven render) is discarded. */
-  private renderToken;
-  private container;
-  connectedCallback(): void;
-  attributeChangedCallback(
-    _name: string,
-    oldValue: string | null,
-    newValue: string | null
-  ): void;
-  private readSource;
-  private themePreference;
-  private palette;
-  private editorBase;
-  private mapDataBase;
-  private isShowcase;
-  private mount;
-  private showError;
-  private rerender;
+    static get observedAttributes(): readonly string[];
+    /** DGMO source, captured from the original children ONCE before the first
+     *  render replaces them. */
+    private source;
+    /** Monotonic render token — a late-resolving render/fetch whose token is
+     *  stale (superseded by a newer attribute-driven render) is discarded. */
+    private renderToken;
+    private container;
+    connectedCallback(): void;
+    attributeChangedCallback(_name: string, oldValue: string | null, newValue: string | null): void;
+    private readSource;
+    private themePreference;
+    private palette;
+    private editorBase;
+    private mapDataBase;
+    private isShowcase;
+    private mount;
+    private showError;
+    private rerender;
 }
 /** Idempotently define `<dgmo-diagram>`. Safe to call multiple times and in
  *  SSR/no-DOM contexts (no-ops when `customElements` is unavailable). */

@@ -1,41 +1,9 @@
-import {
-  ab as DiagnosticSpec,
-  a as PaletteConfig,
-  J as Theme,
-  C as CompactViewState,
-  D as DgmoError,
-} from './themes-1-CuKpeH.js';
-export {
-  f as ChartTypeMeta,
-  h as DgmoSeverity,
-  ac as DiagnosticParams,
-  ad as EmitOptions,
-  j as Gazetteer,
-  k as GazetteerEntry,
-  l as MapCompletionOptions,
-  M as MapData,
-  o as MapLocationMatch,
-  p as MapPlaceCompletion,
-  s as MapRegionCompletion,
-  P as PaletteColors,
-  w as RegionName,
-  x as RegionNames,
-  N as chartTypes,
-  O as completeMapPlaces,
-  Q as completeMapRegions,
-  ae as emit,
-  X as formatDgmoError,
-  _ as getPalette,
-  a4 as palettes,
-  af as resolvePaletteOrFallback,
-  a8 as searchMapLocations,
-  aa as themes,
-  a5 as validate,
-} from './themes-1-CuKpeH.js';
+import { ab as DiagnosticSpec, a as PaletteConfig, J as Theme, C as CompactViewState, D as DgmoError } from './themes-1-CuKpeH.js';
+export { f as ChartTypeMeta, h as DgmoSeverity, ac as DiagnosticParams, ad as EmitOptions, j as Gazetteer, k as GazetteerEntry, l as MapCompletionOptions, M as MapData, o as MapLocationMatch, p as MapPlaceCompletion, s as MapRegionCompletion, P as PaletteColors, w as RegionName, x as RegionNames, N as chartTypes, O as completeMapPlaces, Q as completeMapRegions, ae as emit, X as formatDgmoError, _ as getPalette, a4 as palettes, af as resolvePaletteOrFallback, a8 as searchMapLocations, aa as themes, a5 as validate } from './themes-1-CuKpeH.js';
 
 declare function getMinDimensions(content: string): {
-  width: number;
-  height: number;
+    width: number;
+    height: number;
 };
 
 /**
@@ -68,53 +36,46 @@ declare function normalizeSvgForEmbed(input: string): string;
  * the tight viewBox.
  */
 declare function getEmbedSvgViewBox(svg: string): {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
 } | null;
 
 interface MountD3Opts {
-  theme?: 'light' | 'dark' | 'transparent';
-  palette?: string;
-  /** Forwarded to the interaction adapter: source-line navigation on click. */
-  onNavigate?: (line: number) => void;
-  mutedColor?: string;
-  surface?: string;
-  text?: string;
+    theme?: 'light' | 'dark' | 'transparent';
+    palette?: string;
+    /** Forwarded to the interaction adapter: source-line navigation on click. */
+    onNavigate?: (line: number) => void;
+    mutedColor?: string;
+    surface?: string;
+    text?: string;
 }
 interface MountedD3Chart {
-  /** Re-render with new content and/or theme/palette; re-attaches interactions. */
-  update: (content: string, opts?: Partial<MountD3Opts>) => Promise<void>;
-  /** Emphasize the chart element on the given source line (editor cursor sync);
-   *  pass null to clear. */
-  highlight: (line: number | null) => void;
-  /** Tear down listeners + overlays and clear the container. */
-  destroy: () => void;
+    /** Re-render with new content and/or theme/palette; re-attaches interactions. */
+    update: (content: string, opts?: Partial<MountD3Opts>) => Promise<void>;
+    /** Emphasize the chart element on the given source line (editor cursor sync);
+     *  pass null to clear. */
+    highlight: (line: number | null) => void;
+    /** Tear down listeners + overlays and clear the container. */
+    destroy: () => void;
 }
-declare function mountD3DataChart(
-  container: HTMLElement,
-  content: string,
-  opts?: MountD3Opts
-): MountedD3Chart;
+declare function mountD3DataChart(container: HTMLElement, content: string, opts?: MountD3Opts): MountedD3Chart;
 
 interface DataChartInteractionOpts {
-  onNavigate?: (line: number) => void;
-  mutedColor?: string;
-  surface?: string;
-  text?: string;
+    onNavigate?: (line: number) => void;
+    mutedColor?: string;
+    surface?: string;
+    text?: string;
 }
 interface DataChartController {
-  /** Remove all listeners + overlays. */
-  destroy: () => void;
-  /** Emphasize the chart element(s) on the given source line (editor cursor
-   *  sync); pass null to clear. No-op while the pointer is actively hovering. */
-  highlight: (line: number | null) => void;
+    /** Remove all listeners + overlays. */
+    destroy: () => void;
+    /** Emphasize the chart element(s) on the given source line (editor cursor
+     *  sync); pass null to clear. No-op while the pointer is actively hovering. */
+    highlight: (line: number | null) => void;
 }
-declare function attachDataChartInteractions(
-  svg: SVGSVGElement,
-  opts?: DataChartInteractionOpts
-): DataChartController;
+declare function attachDataChartInteractions(svg: SVGSVGElement, opts?: DataChartInteractionOpts): DataChartController;
 
 /** All data-chart types the hand-built renderers currently cover. */
 declare const D3_DATA_CHART_TYPES: Set<string>;
@@ -132,25 +93,25 @@ declare function listDiagnosticCodes(): DiagnosticSpec[];
 declare function getDiagnosticSpec(code: string): DiagnosticSpec | undefined;
 
 interface RenderOptions {
-  theme?: Theme;
-  palette?: PaletteConfig;
-  /**
-   * How to handle parse errors:
-   *   'svg'    — render an inline error SVG (default)
-   *   'silent' — return empty svg + diagnostics; caller handles UI
-   *   'throw'  — throw an Error with the diagnostics
-   */
-  onError?: 'svg' | 'silent' | 'throw';
-  /**
-   * Pre-applied interactive view state — collapsed sections/columns,
-   * active swimlane tag-group, etc. Used to render a specific view
-   * non-interactively (server-side render, share-link decode).
-   */
-  viewState?: CompactViewState;
+    theme?: Theme;
+    palette?: PaletteConfig;
+    /**
+     * How to handle parse errors:
+     *   'svg'    — render an inline error SVG (default)
+     *   'silent' — return empty svg + diagnostics; caller handles UI
+     *   'throw'  — throw an Error with the diagnostics
+     */
+    onError?: 'svg' | 'silent' | 'throw';
+    /**
+     * Pre-applied interactive view state — collapsed sections/columns,
+     * active swimlane tag-group, etc. Used to render a specific view
+     * non-interactively (server-side render, share-link decode).
+     */
+    viewState?: CompactViewState;
 }
 interface RenderResult {
-  svg: string;
-  diagnostics: DgmoError[];
+    svg: string;
+    diagnostics: DgmoError[];
 }
 /**
  * Render DGMO source to an SVG string.
@@ -166,35 +127,29 @@ interface RenderResult {
  * document.getElementById('chart').innerHTML = svg;
  * ```
  */
-declare function render(
-  text: string,
-  options?: RenderOptions
-): Promise<RenderResult>;
+declare function render(text: string, options?: RenderOptions): Promise<RenderResult>;
 
 interface EncodeDiagramUrlOptions {
-  baseUrl?: string;
-  palette?: PaletteConfig;
-  theme?: Theme;
-  filename?: string;
-  /**
-   * Initial view state to embed in the URL — re-applied when the link is
-   * decoded so recipients open the diagram in the same configuration.
-   */
-  viewState?: CompactViewState;
+    baseUrl?: string;
+    palette?: PaletteConfig;
+    theme?: Theme;
+    filename?: string;
+    /**
+     * Initial view state to embed in the URL — re-applied when the link is
+     * decoded so recipients open the diagram in the same configuration.
+     */
+    viewState?: CompactViewState;
 }
 /**
  * Encode DGMO text into a shareable URL. Returns null if the compressed
  * payload exceeds the 8 KB URL limit.
  */
-declare function encodeDiagramUrl(
-  text: string,
-  options?: EncodeDiagramUrlOptions
-): string | null;
+declare function encodeDiagramUrl(text: string, options?: EncodeDiagramUrlOptions): string | null;
 interface DecodedDiagramUrl {
-  text: string;
-  palette?: PaletteConfig;
-  theme?: Theme;
-  filename?: string;
+    text: string;
+    palette?: PaletteConfig;
+    theme?: Theme;
+    filename?: string;
 }
 /**
  * Decode a share URL back into DGMO text plus optional palette/theme/filename.
@@ -202,29 +157,4 @@ interface DecodedDiagramUrl {
  */
 declare function decodeDiagramUrl(url: string): DecodedDiagramUrl | null;
 
-export {
-  CompactViewState,
-  D3_DATA_CHART_TYPES,
-  type DataChartInteractionOpts,
-  type DecodedDiagramUrl,
-  DgmoError,
-  DiagnosticSpec,
-  type EncodeDiagramUrlOptions,
-  type MountD3Opts,
-  type MountedD3Chart,
-  PaletteConfig,
-  type RenderOptions,
-  type RenderResult,
-  Theme,
-  attachDataChartInteractions,
-  decodeDiagramUrl,
-  encodeDiagramUrl,
-  getDiagnosticSpec,
-  getEmbedSvgViewBox,
-  getMinDimensions,
-  listDiagnosticCodes,
-  mountD3DataChart,
-  normalizeSvgForEmbed,
-  render,
-  supportsD3DataChart,
-};
+export { CompactViewState, D3_DATA_CHART_TYPES, type DataChartInteractionOpts, type DecodedDiagramUrl, DgmoError, DiagnosticSpec, type EncodeDiagramUrlOptions, type MountD3Opts, type MountedD3Chart, PaletteConfig, type RenderOptions, type RenderResult, Theme, attachDataChartInteractions, decodeDiagramUrl, encodeDiagramUrl, getDiagnosticSpec, getEmbedSvgViewBox, getMinDimensions, listDiagnosticCodes, mountD3DataChart, normalizeSvgForEmbed, render, supportsD3DataChart };

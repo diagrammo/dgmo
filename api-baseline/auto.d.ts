@@ -12,9 +12,7 @@
 declare const VERSION: string;
 
 type ThemePreference = 'auto' | 'light' | 'dark' | 'transparent';
-declare function resolveTheme(
-  theme: ThemePreference | undefined
-): 'light' | 'dark' | 'transparent';
+declare function resolveTheme(theme: ThemePreference | undefined): 'light' | 'dark' | 'transparent';
 
 /**
  * `@diagrammo/dgmo/auto` — IIFE-distributed auto-renderer for static HTML.
@@ -33,37 +31,24 @@ declare function resolveTheme(
  */
 
 interface AutoConfig {
-  theme?: 'auto' | 'light' | 'dark' | 'transparent';
-  palette?: string;
-  showSource?: boolean;
-  showEditorLink?: boolean;
+    theme?: 'auto' | 'light' | 'dark' | 'transparent';
+    palette?: string;
+    showSource?: boolean;
+    showEditorLink?: boolean;
 }
 interface RunOptions {
-  nodes?: Element[] | NodeListOf<Element>;
+    nodes?: Element[] | NodeListOf<Element>;
 }
 
 declare function findScriptTag(): HTMLScriptElement | null;
-declare function parseConfig(
-  raw: string | null | undefined
-): Partial<AutoConfig>;
+declare function parseConfig(raw: string | null | undefined): Partial<AutoConfig>;
 declare function selectTargets(root?: ParentNode): Element[];
 declare function initialize(opts?: AutoConfig): void;
 declare function run(opts?: RunOptions): Promise<void>;
 declare const api: Readonly<{
-  initialize: typeof initialize;
-  run: typeof run;
-  version: string;
+    initialize: typeof initialize;
+    run: typeof run;
+    version: string;
 }>;
 
-export {
-  type AutoConfig,
-  type RunOptions,
-  VERSION,
-  api as default,
-  findScriptTag,
-  initialize,
-  parseConfig,
-  resolveTheme,
-  run,
-  selectTargets,
-};
+export { type AutoConfig, type RunOptions, VERSION, api as default, findScriptTag, initialize, parseConfig, resolveTheme, run, selectTargets };

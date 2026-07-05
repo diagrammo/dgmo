@@ -45,7 +45,7 @@ declare const BLOCK_CSS: string;
  */
 
 /** Default hosted editor used by "Open in editor" links. */
-declare const EDITOR_BASE_URL = 'https://online.diagrammo.app';
+declare const EDITOR_BASE_URL = "https://online.diagrammo.app";
 type BlockMode = 'diagram' | 'showcase';
 /**
  * Color-mode strategy for the emitted SVG(s).
@@ -54,41 +54,41 @@ type BlockMode = 'diagram' | 'showcase';
  */
 type BlockColorMode = 'auto' | 'light' | 'dark' | 'transparent';
 interface DgmoBlockOptions {
-  /** `diagram` (default): SVG only. `showcase`: SVG + source chrome. */
-  mode?: BlockMode;
-  /** Palette name. Default `slate`; unknown names warn + fall back. */
-  palette?: string;
-  /** Default `auto` (dual light/dark render). */
-  colorMode?: BlockColorMode;
-  /** Default: true in showcase mode, false in diagram mode. */
-  showSource?: boolean;
-  /** Default: true in showcase mode, false in diagram mode. */
-  showCopy?: boolean;
-  /** Default: true in showcase mode, false in diagram mode. */
-  showOpenInEditor?: boolean;
-  /** Base URL for the open-in-editor link. Default: online.diagrammo.app. */
-  editorBaseUrl?: string;
-  /** Outer wrapper element. Default `figure`. */
-  wrapper?: 'figure' | 'div';
-  /** Base class for the wrapper (styling hook). Default `dgmo`. */
-  className?: string;
-  /** Extra classes appended to every emitted wrapper (compat shims). */
-  legacyClassNames?: string[];
-  /**
-   * Accessible name for the block (`aria-label` on the wrapper). NOT rendered
-   * visually — the chart's visible title belongs in the DGMO source itself.
-   */
-  title?: string;
-  /** Receives palette-fallback warnings. Default: console.warn. */
-  onWarn?: (message: string) => void;
+    /** `diagram` (default): SVG only. `showcase`: SVG + source chrome. */
+    mode?: BlockMode;
+    /** Palette name. Default `slate`; unknown names warn + fall back. */
+    palette?: string;
+    /** Default `auto` (dual light/dark render). */
+    colorMode?: BlockColorMode;
+    /** Default: true in showcase mode, false in diagram mode. */
+    showSource?: boolean;
+    /** Default: true in showcase mode, false in diagram mode. */
+    showCopy?: boolean;
+    /** Default: true in showcase mode, false in diagram mode. */
+    showOpenInEditor?: boolean;
+    /** Base URL for the open-in-editor link. Default: online.diagrammo.app. */
+    editorBaseUrl?: string;
+    /** Outer wrapper element. Default `figure`. */
+    wrapper?: 'figure' | 'div';
+    /** Base class for the wrapper (styling hook). Default `dgmo`. */
+    className?: string;
+    /** Extra classes appended to every emitted wrapper (compat shims). */
+    legacyClassNames?: string[];
+    /**
+     * Accessible name for the block (`aria-label` on the wrapper). NOT rendered
+     * visually — the chart's visible title belongs in the DGMO source itself.
+     */
+    title?: string;
+    /** Receives palette-fallback warnings. Default: console.warn. */
+    onWarn?: (message: string) => void;
 }
 interface DgmoBlockResult {
-  html: string;
-  diagnostics: Array<{
-    message: string;
-    line?: number;
-    severity?: string;
-  }>;
+    html: string;
+    diagnostics: Array<{
+        message: string;
+        line?: number;
+        severity?: string;
+    }>;
 }
 /**
  * Render one ```dgmo source block to the standard embed HTML. Async because
@@ -97,40 +97,19 @@ interface DgmoBlockResult {
  * Render errors are NOT caught here — callers decide between throwing,
  * `errorBlockHtml()`, or their own fallback.
  */
-declare function renderDgmoBlock(
-  source: string,
-  options?: DgmoBlockOptions
-): Promise<DgmoBlockResult>;
+declare function renderDgmoBlock(source: string, options?: DgmoBlockOptions): Promise<DgmoBlockResult>;
 /**
  * Assemble the standard block around already-rendered SVG markup. Exposed for
  * surfaces that render through their own pipeline (e.g. dgmo-mcp's
  * renderPipeline) but must emit the canonical chrome. `svgsHtml` must be the
  * `.dgmo-light`+`.dgmo-dark` (or `.dgmo-svg`) wrapper divs.
  */
-declare function buildDgmoBlockHtml(
-  source: string,
-  svgsHtml: string,
-  options?: DgmoBlockOptions
-): string;
+declare function buildDgmoBlockHtml(source: string, svgsHtml: string, options?: DgmoBlockOptions): string;
 /**
  * Standard error card for a block that failed to parse/render. Same shape on
  * every surface: `.dgmo--error` with `role="alert"`, message + offending
  * source.
  */
-declare function errorBlockHtml(
-  err: unknown,
-  source: string,
-  options?: Pick<DgmoBlockOptions, 'className' | 'legacyClassNames'>
-): string;
+declare function errorBlockHtml(err: unknown, source: string, options?: Pick<DgmoBlockOptions, 'className' | 'legacyClassNames'>): string;
 
-export {
-  BLOCK_CSS,
-  type BlockColorMode,
-  type BlockMode,
-  type DgmoBlockOptions,
-  type DgmoBlockResult,
-  EDITOR_BASE_URL,
-  buildDgmoBlockHtml,
-  errorBlockHtml,
-  renderDgmoBlock,
-};
+export { BLOCK_CSS, type BlockColorMode, type BlockMode, type DgmoBlockOptions, type DgmoBlockResult, EDITOR_BASE_URL, buildDgmoBlockHtml, errorBlockHtml, renderDgmoBlock };
