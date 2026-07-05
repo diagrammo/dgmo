@@ -4,7 +4,7 @@ import {
   buildDgmoBlockHtml,
   errorBlockHtml,
   BLOCK_CSS,
-} from '../src/block';
+} from '../src/embed';
 import {
   LIGHT_ROLE_STYLES,
   NORD_ROLE_STYLES,

@@ -58,18 +58,18 @@ async function emitAutoCss(): Promise<void> {
 
 /**
  * After the block entry builds, emit `dist/block.css` from the BLOCK_CSS
- * literal in src/block/css.ts — same regex-extract mechanism (and rationale)
+ * literal in src/embed/css.ts — same regex-extract mechanism (and rationale)
  * as emitAutoCss above.
  */
 async function emitBlockCss(): Promise<void> {
-  const cssPath = resolve('./src/block/css.ts');
+  const cssPath = resolve('./src/embed/css.ts');
   const cssSource = await readFile(cssPath, 'utf8');
   const m = cssSource.match(
     /export const BLOCK_CSS:\s*string\s*=\s*`([\s\S]*?)`;\s*$/m
   );
   if (!m) {
     throw new Error(
-      'tsup.config: failed to extract BLOCK_CSS literal from src/block/css.ts'
+      'tsup.config: failed to extract BLOCK_CSS literal from src/embed/css.ts'
     );
   }
   const css = m[1].replace(/^\n/, '');
@@ -201,7 +201,7 @@ const BUILDS: Options[] = [
   // remark-dgmo, /auto, <dgmo-diagram>, dgmo-mcp reports, site, Obsidian.
   // Imports render(), so same jsdom/lz-string handling as the main entry.
   {
-    entry: { block: 'src/block/index.ts' },
+    entry: { block: 'src/embed/index.ts' },
     format: ['esm', 'cjs'],
     dts: true,
     sourcemap: true,
