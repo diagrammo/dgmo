@@ -3,9 +3,9 @@
  *
  * Drop a `<script src="…/auto.js">` on any page; on `DOMContentLoaded`
  * this module scans for `.dgmo, .language-dgmo`, runs `render()`, and
- * replaces each match with `<div class="dgmo-rendered">` containing the
- * SVG plus an optional collapsible source panel with Copy and
- * "Open in editor" actions.
+ * replaces each match with the standard DGMO embed block (BL-114,
+ * `figure.dgmo.dgmo-rendered`) — the diagram plus a hover-reveal icon
+ * toolbar with view-source, Copy, and "Open in editor" actions.
  *
  * Public API: frozen `window.dgmo` and alias `window.diagrammo` with
  * `{ initialize, run, version }`. Configuration is read from the
@@ -24,8 +24,8 @@ import {
   resolveTheme,
   ensureStyles,
   deriveAriaLabel,
-  buildSourcePanel,
-  buildErrorBanner,
+  buildRenderedBlock,
+  buildErrorBlock,
   buildShareUrl,
 } from './shared';
 
@@ -59,7 +59,7 @@ let activeConfig: Required<AutoConfig> = { ...DEFAULTS };
 
 // Track wrappers so we can re-render on theme changes / re-runs.
 interface TrackedWrapper {
-  wrapper: HTMLDivElement;
+  wrapper: HTMLElement;
   source: string;
   perElementShowSource: boolean | null;
 }
@@ -220,7 +220,28 @@ function determineReplaceTarget(matched: Element): Element {
 }
 
 interface ProcessOutcome {
-  wrapper?: HTMLDivElement;
+  wrapper?: HTMLElement;
+}
+
+/**
+ * Swap a failing source element for the standard `.dgmo--error` card (which
+ * carries the message AND the offending source — unified error shape across
+ * every embed surface). The card is marked `data-dgmo-processed` so a
+ * follow-up run() doesn't loop on it; users wanting to retry after editing
+ * should insert a fresh source element.
+ */
+function replaceWithErrorCard(
+  el: Element,
+  source: string,
+  opts: {
+    message: string;
+    severity?: string;
+    line?: number;
+    column?: number;
+  }
+): void {
+  const card = buildErrorBlock({ ...opts, source });
+  determineReplaceTarget(el).replaceWith(card);
 }
 
 async function processElement(el: Element): Promise<ProcessOutcome> {
@@ -237,15 +258,10 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
   const source = el.textContent || '';
   const sourceBytes = new TextEncoder().encode(source).byteLength;
   if (sourceBytes > SOURCE_BYTE_CAP) {
-    el.style.visibility = '';
-    // Keep `data-dgmo-processed` set so a follow-up run() doesn't loop on
-    // the same broken source. Users wanting to retry after editing should
-    // clear the attribute manually or replace the element. // un-hide so user can see the source
-    const banner = buildErrorBanner({
+    replaceWithErrorCard(el, source, {
       message: `DGMO source too large to render — ${SOURCE_BYTE_CAP / 1024} KB max`,
       severity: 'error',
     });
-    el.parentElement?.insertBefore(banner, el);
     warn('source exceeds 256 KB cap');
     return {};
   }
@@ -281,59 +297,40 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
       palette: cfg.palette,
     });
   } catch (err) {
-    el.style.visibility = '';
-    // Keep `data-dgmo-processed` set so a follow-up run() doesn't loop on
-    // the same broken source. Users wanting to retry after editing should
-    // clear the attribute manually or replace the element.
     const message =
       err instanceof Error ? err.message : 'Render failed unexpectedly';
-    const banner = buildErrorBanner({ message, severity: 'error' });
-    el.parentElement?.insertBefore(banner, el);
+    replaceWithErrorCard(el, source, { message, severity: 'error' });
     warn('render() rejected:', err);
     return {};
   }
 
   if (result.diagnostics && result.diagnostics.length > 0) {
-    el.style.visibility = '';
-    // Keep `data-dgmo-processed` set so a follow-up run() doesn't loop on
-    // the same broken source. Users wanting to retry after editing should
-    // clear the attribute manually or replace the element.
     const d = result.diagnostics[0]!; // In-bounds by length > 0 check above.
     // d may have shape { severity, message, line, column } from diagnostics.ts
-    const banner = buildErrorBanner({
+    replaceWithErrorCard(el, source, {
       message: d.message,
       severity: d.severity,
       line: d.line,
       ...(d.column !== undefined && { column: d.column }),
     });
-    el.parentElement?.insertBefore(banner, el);
     warn('diagnostic:', d.message, d.line, d.column);
     return {};
   }
 
   if (!result.svg) {
-    el.style.visibility = '';
-    // Keep `data-dgmo-processed` set so a follow-up run() doesn't loop on
-    // the same broken source. Users wanting to retry after editing should
-    // clear the attribute manually or replace the element.
-    const banner = buildErrorBanner({
+    replaceWithErrorCard(el, source, {
       message: 'Empty SVG returned from renderer',
       severity: 'error',
     });
-    el.parentElement?.insertBefore(banner, el);
     return {};
   }
 
-  // Build wrapper.
-  const wrapper = document.createElement('div');
   const themeClass =
     resolvedTheme === 'dark'
       ? 'dgmo-theme-dark'
       : resolvedTheme === 'transparent'
         ? 'dgmo-theme-transparent'
         : 'dgmo-theme-light';
-  wrapper.className = `dgmo-rendered ${themeClass}`;
-  wrapper.dataset['dgmoProcessed'] = 'true';
 
   // Insert SVG via a detached holder + post-insertion sanitization. The
   // spec said "never assign user-supplied content to innerHTML"; we treat
@@ -349,15 +346,10 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
   svgHolder.innerHTML = result.svg;
   const svgEl = svgHolder.querySelector('svg');
   if (!svgEl) {
-    el.style.visibility = '';
-    // Keep `data-dgmo-processed` set so a follow-up run() doesn't loop on
-    // the same broken source. Users wanting to retry after editing should
-    // clear the attribute manually or replace the element.
-    const banner = buildErrorBanner({
+    replaceWithErrorCard(el, source, {
       message: 'Empty SVG returned from renderer',
       severity: 'error',
     });
-    el.parentElement?.insertBefore(banner, el);
     return {};
   }
   sanitizeSvgInPlace(svgEl);
@@ -366,23 +358,29 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
   // control/bidi-strip filter rather than relying on renderer output).
   svgEl.setAttribute('role', 'img');
   svgEl.setAttribute('aria-label', ariaLabel);
-  wrapper.appendChild(svgEl);
 
-  if (showSource) {
-    // Build share URL for the "Open in editor" action.
-    let shareUrl: string | null = null;
-    if (cfg.showEditorLink) {
-      shareUrl = buildShareUrl(source, {
-        palette: cfg.palette,
-        theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-        editorBase: EDITOR_BASE_URL,
-        campaign: VERSION,
-        utmSource: 'auto-embed',
-      });
-    }
-    const panel = buildSourcePanel(source, shareUrl, cfg.showEditorLink);
-    wrapper.appendChild(panel);
+  // Build share URL for the "Open in editor" toolbar action.
+  let shareUrl: string | null = null;
+  if (showSource && cfg.showEditorLink) {
+    shareUrl = buildShareUrl(source, {
+      palette: cfg.palette,
+      theme: resolvedTheme === 'dark' ? 'dark' : 'light',
+      editorBase: EDITOR_BASE_URL,
+      campaign: VERSION,
+      utmSource: 'auto-embed',
+    });
   }
+
+  // Standard embed block (BL-114): canonical chrome from src/embed.
+  const wrapper = buildRenderedBlock({
+    source,
+    svgEl,
+    themeClass,
+    showSource,
+    showEditorLink: cfg.showEditorLink,
+    shareUrl,
+  });
+  wrapper.dataset['dgmoProcessed'] = 'true';
 
   // Track wrapper so re-runs / theme changes can update it. Only persist
   // the explicit 'true'/'false' values; treat any other value as null so

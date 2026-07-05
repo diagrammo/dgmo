@@ -34,34 +34,38 @@ async function copyMapData(): Promise<void> {
 /**
  * After the auto IIFE builds, also emit `dist/auto.css` so strict-CSP
  * embedders can opt out of inline `<style>` injection by linking the CSS
- * file. The CSS literal lives in `src/auto/styles.ts` — we eval-import
- * the freshly-built ESM artifact so there's a single source of truth.
+ * file. Mirrors the runtime assembly in `src/auto/styles.ts` (BL-114):
+ * auto-surface base rules + the canonical BLOCK_CSS + a copy of the block's
+ * dark rules rescoped from `[data-theme="dark"]` to `.dgmo-theme-dark`.
+ * Update BOTH places if the assembly changes.
  */
 async function emitAutoCss(): Promise<void> {
   // Use a regex-extract approach so we don't have to dynamic-import the
   // freshly-built ESM (which would also resolve d3/echarts side-effect
-  // chains). The CSS literal is the only template string in styles.ts.
-  const stylesPath = resolve('./src/auto/styles.ts');
-  const stylesSource = await readFile(stylesPath, 'utf8');
-  const m = stylesSource.match(
-    /export const CSS:\s*string\s*=\s*`([\s\S]*?)`;\s*$/m
+  // chains). Both source files hold their CSS as a single template literal.
+  const stylesSource = await readFile(resolve('./src/auto/styles.ts'), 'utf8');
+  const baseMatch = stylesSource.match(
+    /const AUTO_BASE_CSS:\s*string\s*=\s*`([\s\S]*?)`;/
   );
-  if (!m) {
+  if (!baseMatch) {
     throw new Error(
-      'tsup.config: failed to extract CSS literal from src/auto/styles.ts'
+      'tsup.config: failed to extract AUTO_BASE_CSS literal from src/auto/styles.ts'
     );
   }
+  const blockCss = await extractBlockCss();
+  const darkScoped = (
+    blockCss.match(/\[data-theme="dark"\][^{]*\{[^}]*\}/g) ?? []
+  )
+    .map((rule) => rule.replace(/\[data-theme="dark"\]/g, '.dgmo-theme-dark'))
+    .join('\n');
   // Strip leading newline to match how the CSS is consumed inline.
-  const css = m[1].replace(/^\n/, '');
+  const base = baseMatch[1].replace(/^\n/, '');
+  const css = base + '\n' + blockCss + '\n' + darkScoped + '\n';
   await writeFile(resolve('./dist/auto.css'), css, 'utf8');
 }
 
-/**
- * After the block entry builds, emit `dist/block.css` from the BLOCK_CSS
- * literal in src/embed/css.ts — same regex-extract mechanism (and rationale)
- * as emitAutoCss above.
- */
-async function emitBlockCss(): Promise<void> {
+/** Extract the BLOCK_CSS literal from src/embed/css.ts (regex mechanism). */
+async function extractBlockCss(): Promise<string> {
   const cssPath = resolve('./src/embed/css.ts');
   const cssSource = await readFile(cssPath, 'utf8');
   const m = cssSource.match(
@@ -72,8 +76,16 @@ async function emitBlockCss(): Promise<void> {
       'tsup.config: failed to extract BLOCK_CSS literal from src/embed/css.ts'
     );
   }
-  const css = m[1].replace(/^\n/, '');
-  await writeFile(resolve('./dist/block.css'), css, 'utf8');
+  return m[1].replace(/^\n/, '');
+}
+
+/**
+ * After the block entry builds, emit `dist/block.css` from the BLOCK_CSS
+ * literal in src/embed/css.ts — same regex-extract mechanism (and rationale)
+ * as emitAutoCss above.
+ */
+async function emitBlockCss(): Promise<void> {
+  await writeFile(resolve('./dist/block.css'), await extractBlockCss(), 'utf8');
 }
 
 /** Patch out jsdom's sync-XHR worker require.resolve (not needed by CLI). */
