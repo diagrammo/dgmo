@@ -89,7 +89,18 @@
         "default": "./dist/element.cjs"
       }
     },
-    "./fonts/*": "./fonts/*"
+    "./fonts/*": "./fonts/*",
+    "./block": {
+      "import": {
+        "types": "./dist/block.d.ts",
+        "default": "./dist/block.js"
+      },
+      "require": {
+        "types": "./dist/block.d.cts",
+        "default": "./dist/block.cjs"
+      }
+    },
+    "./block.css": "./dist/block.css"
   },
   "files": [
     "dist/*.js",

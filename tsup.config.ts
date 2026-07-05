@@ -56,6 +56,26 @@ async function emitAutoCss(): Promise<void> {
   await writeFile(resolve('./dist/auto.css'), css, 'utf8');
 }
 
+/**
+ * After the block entry builds, emit `dist/block.css` from the BLOCK_CSS
+ * literal in src/block/css.ts — same regex-extract mechanism (and rationale)
+ * as emitAutoCss above.
+ */
+async function emitBlockCss(): Promise<void> {
+  const cssPath = resolve('./src/block/css.ts');
+  const cssSource = await readFile(cssPath, 'utf8');
+  const m = cssSource.match(
+    /export const BLOCK_CSS:\s*string\s*=\s*`([\s\S]*?)`;\s*$/m
+  );
+  if (!m) {
+    throw new Error(
+      'tsup.config: failed to extract BLOCK_CSS literal from src/block/css.ts'
+    );
+  }
+  const css = m[1].replace(/^\n/, '');
+  await writeFile(resolve('./dist/block.css'), css, 'utf8');
+}
+
 /** Patch out jsdom's sync-XHR worker require.resolve (not needed by CLI). */
 const fixJsdomXhrWorker: Plugin = {
   name: 'fix-jsdom-xhr-worker',
@@ -176,6 +196,20 @@ const BUILDS: Options[] = [
     dts: true,
     sourcemap: true,
     splitting: false,
+  },
+  // Standard embed block (BL-114) — canonical diagram+source chrome shared by
+  // remark-dgmo, /auto, <dgmo-diagram>, dgmo-mcp reports, site, Obsidian.
+  // Imports render(), so same jsdom/lz-string handling as the main entry.
+  {
+    entry: { block: 'src/block/index.ts' },
+    format: ['esm', 'cjs'],
+    dts: true,
+    sourcemap: true,
+    splitting: false,
+    noExternal: ['lz-string'],
+    external: ['jsdom'],
+    esbuildPlugins: [fixJsdomXhrWorker],
+    onSuccess: emitBlockCss,
   },
   {
     entry: ['src/cli.ts'],
