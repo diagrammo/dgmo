@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-07-05
+
+### Changed
+- **Smaller bundles for hosts that import multiple entry points.** `index`, `block`, and `advanced` now share one code-split render pipeline (ESM) instead of each shipping a self-contained ~2.5 MB copy. A downstream bundler (esbuild / Rollup / Vite) that pulls more than one of these keeps a single copy of the pipeline — the Obsidian plugin's bundle drops from ~8.5 MB to ~4.0 MB (it imports all three). No API change; the CJS builds stay self-contained (esbuild can't code-split CJS, and `require` consumers don't bundle).
+
 ## [0.46.0] - 2026-07-05
 
 ### Changed

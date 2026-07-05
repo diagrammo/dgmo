@@ -1,27 +1,76 @@
+import {
+  D as DgmoError,
+  C as CompactViewState,
+  M as MapData,
+  P as PaletteColors,
+  a as PaletteConfig,
+  T as TagGroup,
+  b as TagEntry,
+  c as ParsedMap,
+  R as ResolvedMap,
+  d as MapLayoutLegend,
+  G as GeoExtent,
+} from './themes-1-CuKpeH.js';
+export {
+  A as AirportData,
+  B as BoundaryTopology,
+  e as CHART_TYPE_DESCRIPTIONS,
+  f as ChartTypeMeta,
+  g as DecodedDiagramUrl,
+  h as DgmoSeverity,
+  E as EncodeDiagramUrlOptions,
+  i as EncodeDiagramUrlResult,
+  j as Gazetteer,
+  k as GazetteerEntry,
+  l as MapCompletionOptions,
+  m as MapDirectives,
+  n as MapEdge,
+  o as MapLocationMatch,
+  p as MapPlaceCompletion,
+  q as MapPoi,
+  r as MapRegion,
+  s as MapRegionCompletion,
+  t as MapRoute,
+  u as PoiPos,
+  v as ProjectionFamily,
+  w as RegionName,
+  x as RegionNames,
+  y as RenderCategory,
+  z as ResolvedEdge,
+  F as ResolvedPoi,
+  H as ResolvedRegion,
+  I as ResolvedRoute,
+  J as Theme,
+  K as autoTagColorCycle,
+  L as chartTypeParsers,
+  N as chartTypes,
+  O as completeMapPlaces,
+  Q as completeMapRegions,
+  S as decodeDiagramUrl,
+  U as decodeViewState,
+  V as encodeDiagramUrl,
+  W as encodeViewState,
+  X as formatDgmoError,
+  Y as getAllChartTypes,
+  Z as getAvailablePalettes,
+  _ as getPalette,
+  $ as getRenderCategory,
+  a0 as isExtendedChartType,
+  a1 as isValidHex,
+  a2 as knownChartTypeIds,
+  a3 as makeDgmoError,
+  a4 as palettes,
+  a5 as parseDgmo,
+  a6 as parseDgmoChartType,
+  a7 as registerPalette,
+  a8 as searchMapLocations,
+  a9 as tagAttrKey,
+  aa as themes,
+  a5 as validate,
+} from './themes-1-CuKpeH.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
 import { GeoProjection } from 'd3-geo';
-
-type DgmoSeverity = 'error' | 'warning';
-interface DgmoError {
-  line: number;
-  column?: number;
-  message: string;
-  severity: DgmoSeverity;
-  /**
-   * Optional stable diagnostic code (e.g. 'E_ARROW_SUBSTRING_IN_LABEL').
-   * Additive; pre-existing diagnostics omit this field and existing
-   * substring-on-`.message` assertions keep working unchanged.
-   */
-  code?: string;
-}
-declare function makeDgmoError(
-  line: number,
-  message: string,
-  severity?: DgmoSeverity,
-  code?: string
-): DgmoError;
-declare function formatDgmoError(err: DgmoError): string;
 
 /**
  * Stable diagnostic codes for in-arrow label parsing errors.
@@ -76,81 +125,6 @@ declare function parseInArrowLabel(
 ): ParseInArrowLabelResult;
 
 /**
- * Color definitions for a single mode (light or dark).
- * 10 semantic UI colors + 9 named accent colors = 19 total.
- *
- * `readonly` on every field (and the nested `colors` map) by design —
- * palettes flow from the registry into every renderer; nothing in the
- * pipeline should ever mutate a palette in place.
- */
-interface PaletteColors {
-  /** Main background (#eceff4 light / #2e3440 dark for Nord) */
-  readonly bg: string;
-  /** Cards, panels (#e5e9f0 / #3b4252) */
-  readonly surface: string;
-  /** Popovers, dropdowns (#e5e9f0 / #434c5e) */
-  readonly overlay: string;
-  /** Borders, dividers, muted (#d8dee9 / #4c566a) */
-  readonly border: string;
-  /** Primary text (#2e3440 / #eceff4) */
-  readonly text: string;
-  /** Secondary/diminished text (#4c566a / #d8dee9) */
-  readonly textMuted: string;
-  /**
-   * Light-mode arg for `contrastText()` when text is rendered on a
-   * tinted shape fill (e.g. `shapeFill()` output). Must guarantee
-   * ≥ 4.5:1 WCAG AA against any `shapeFill()` the palette can produce.
-   * Distinct from `colors.white` because palette-aesthetic anchors don't
-   * always meet contrast requirements (TD-5).
-   */
-  readonly textOnFillLight: string;
-  /** Dark-mode counterpart to `textOnFillLight`. */
-  readonly textOnFillDark: string;
-  /** Primary accent — buttons, links */
-  readonly primary: string;
-  /** Secondary accent */
-  readonly secondary: string;
-  /** Tertiary accent */
-  readonly accent: string;
-  /** Error/danger */
-  readonly destructive: string;
-  /**
-   * Used for: inline annotations (red), pie charts, cScale,
-   * series rotation, journey actors, Gantt tasks.
-   */
-  readonly colors: {
-    readonly red: string;
-    readonly orange: string;
-    readonly yellow: string;
-    readonly green: string;
-    readonly blue: string;
-    readonly purple: string;
-    readonly teal: string;
-    readonly cyan: string;
-    readonly gray: string;
-    readonly black: string;
-    readonly white: string;
-  };
-}
-/**
- * Complete palette definition. One object per color scheme.
- * This is what palette authors create — the single artifact for NFR1.
- *
- * Palettes are immutable from the consumer's perspective; the registry
- * hands out the same frozen-shape object on every `getPalette(id)`.
- */
-interface PaletteConfig {
-  /** Registry key: 'nord', 'slate', 'catppuccin' */
-  readonly id: string;
-  /** Display name: 'Nord', 'Slate', 'Catppuccin' */
-  readonly name: string;
-  /** Light mode color definitions */
-  readonly light: PaletteColors;
-  /** Dark mode color definitions */
-  readonly dark: PaletteColors;
-}
-
-/**
  * Tag a primitive type `T` with a phantom brand `B`. The brand
  * exists only in the type system — `Brand<string, 'X'>` is a `string`
  * at runtime, but TypeScript treats it as nominally distinct from
@@ -159,579 +133,6 @@ interface PaletteConfig {
 type Brand<T, B extends string> = T & {
   readonly __brand: B;
 };
-
-/** A single entry inside a tag group: `Value color` */
-interface TagEntry {
-  readonly value: string;
-  readonly color: string;
-  readonly lineNumber: number;
-}
-/**
- * A tag group block: heading + entries.
- *
- * Parser internals build via `Writable<TagGroup>` from `utils/brand.ts`;
- * once returned to a chart-type parser, consumers see the readonly view.
- */
-interface TagGroup {
-  readonly name: string;
-  readonly alias?: string;
-  readonly entries: readonly TagEntry[];
-  /** Default value for nodes without explicit metadata. First entry unless another is marked `default`. */
-  readonly defaultValue?: string;
-  readonly lineNumber: number;
-}
-/**
- * DOM-safe key for a tag group — used wherever the group name becomes a
- * `data-tag-*` attribute suffix, an entity metadata key, or an `active-tag`
- * match target. For a single-identifier name (the only form the parser used to
- * accept) this is exactly `name.toLowerCase()`, so swapping it in for existing
- * diagrams is byte-identical. A quoted multi-word name (`tag "Trust Zone" as tz`)
- * slugs to a hyphenated identifier (`trust-zone`) so it never produces an
- * invalid DOM attribute name; the original `name` is kept for the legend label.
- */
-declare function tagAttrKey(name: string): string;
-/**
- * The categorical name cycle used to auto-assign colors to bare tag values,
- * in deterministic order. Aliased to the shared {@link CATEGORICAL_COLOR_ORDER}
- * (RGB-seeded, max-contrast, neutrals excluded) so tag swatches and data-chart
- * series colors share one canonical rotation. If a group has more colorless
- * entries than free categorical names, the cycle wraps.
- */
-declare const autoTagColorCycle: readonly string[];
-
-/** A POI / route-stop position: gazetteer name (+ optional ISO scope) or coords. */
-type PoiPos =
-  | {
-      readonly kind: 'coords';
-      readonly lat: number;
-      readonly lon: number;
-    }
-  | {
-      readonly kind: 'name';
-      readonly name: string;
-      readonly scope?: string;
-    };
-/** One-shot directives (§24B.2/.7). Values are raw strings unless typed.
- *
- *  COSMETIC DEFAULTS ARE ON. Every basemap feature renders by default; the only
- *  control is a bare `no-*` opt-out flag that sets the matching `noXxx` boolean.
- *  Absent (undefined) = feature ON — so render gates test `!== true`, never
- *  `=== true`. There are NO positive opt-in cosmetic flags (§24B.2). */
-interface MapDirectives {
-  /** Legend label for the region value ramp (`region-heat <label>`). */
-  regionMetric?: string;
-  /** Recognized color NAME for the choropleth ramp HIGH endpoint, peeled off the
-   *  `region-heat` trailing token (§24B.3). Defaults to red when absent. */
-  regionMetricColor?: string;
-  /** Recognized color NAME for the choropleth ramp LOW endpoint (the second,
-   *  left-of-two trailing colors on `region-heat`, §24B.3). Absent ⇒ the low
-   *  end is the implied floored neutral (today's single-colour behaviour). */
-  regionMetricLowColor?: string;
-  /** Legend label for the POI value (marker size) channel (`poi-size`). */
-  poiMetric?: string;
-  /** Legend label for the edge/leg value (thickness) channel (`flow-width`). */
-  flowMetric?: string;
-  /** Default ISO scope for bare-name resolution (§24B.8): a 3166-1 country
-   *  (`locale US`) or 3166-2 subdivision (`locale US-GA`). The country part
-   *  biases ambiguous bare cities to that nation; the subdivision part further
-   *  prefers that state. Inferred from content; explicit only to steer a guess. */
-  locale?: string;
-  activeTag?: string;
-  caption?: string;
-  /** `no-title` — suppress the title banner (the subtitle/caption, if any, still
-   *  render). Mirrors the `no-title` directive across the other chart types. */
-  noTitle?: boolean;
-  /** `no-legend` — suppress the legend (default-on). */
-  noLegend?: boolean;
-  /** `no-coastline` — suppress the faint nautical-chart water-lines along
-   *  coasts/shorelines (default-on; geometry derived from drawn region paths). */
-  noCoastline?: boolean;
-  /** `no-relief` — suppress mountain-range relief hachures. Relief is default-on
-   *  but auto-gated to dataless reference maps at continent/world zoom (§24B.2). */
-  noRelief?: boolean;
-  /** `no-context-labels` — suppress the orientation backdrop (water-body names +
-   *  unreferenced notable country names), distinct from `region-labels`. */
-  noContextLabels?: boolean;
-  /** `no-region-labels` — suppress region labels (default-on, full→abbrev→hide). */
-  noRegionLabels?: boolean;
-  /** `no-region-heat-value` — suppress the metric VALUE shown under each data region's
-   *  name on a `region-heat` choropleth (default-on). The region NAME still
-   *  renders (governed by `no-region-labels`); only the numeric value line goes. */
-  noRegionValue?: boolean;
-  /** `no-poi-labels` — suppress POI labels (default-on, collision-managed auto). */
-  noPoiLabels?: boolean;
-  /** `no-colorize` — force the plain green-land reference dress even when regions
-   *  are referenced (regions are auto-coloured by default; §24B colorize). A
-   *  no-op under data — the basemap is already gray there. */
-  noColorize?: boolean;
-  /** `no-cities` — suppress the subtle gazetteer city dots scattered across the
-   *  basemap for geographic orientation (default-on; population-ranked, spacing-
-   *  thinned so density adapts to zoom). Explicit POIs always draw regardless. */
-  noCities?: boolean;
-  /** `no-cluster-pois` — never collapse coincident POI markers into a count badge
-   *  (clustering/spiderfy is default-on in the interactive preview). With this set
-   *  the markers always render fanned out with their legs — the same as a static
-   *  export — so a dense map reads the same on screen as on paper. No-op for
-   *  export (already always expanded). */
-  noClusterPois?: boolean;
-}
-/** A region-fill: a subdivision name with an optional score and/or tag values
- *  (§24B.3/.4 — BOTH may be present; bivariate seam). */
-interface MapRegion {
-  readonly name: string;
-  /** Optional trailing ISO scope qualifier (§24B.8) — a 3166-1 country code
-   *  (`Georgia US` → US context) or 3166-2 subdivision (`Georgia US-GA`).
-   *  Forces the country-vs-state interpretation and silences the ambiguity warning. */
-  readonly scope?: string;
-  /** Numeric value → choropleth shade (§24B.3). Lifted out of `meta`. */
-  readonly value?: number;
-  /** §1.5 trailing-token color NAME → flat categorical override fill (§24B.4);
-   *  painted regardless of the active colouring dimension, no legend entry. */
-  readonly color?: string;
-  /** Tag values keyed by lowercased tag GROUP name (alias is resolved away). */
-  readonly tags: Readonly<Record<string, string>>;
-  /** Any remaining reserved keys captured verbatim (`label`/`style`/…). */
-  readonly meta: Readonly<Record<string, string>>;
-  readonly lineNumber: number;
-}
-/** A point of interest (§24B.5). `meta` holds the numeric `value` (→ marker
- *  size) and `style` verbatim; `label` is lifted out. */
-interface MapPoi {
-  readonly pos: PoiPos;
-  readonly alias?: string;
-  readonly label?: string;
-  /** §1.5 trailing-token color NAME → flat marker fill (§24B.5); wins over a
-   *  tag color and the default orange. */
-  readonly color?: string;
-  readonly tags: Readonly<Record<string, string>>;
-  readonly meta: Readonly<Record<string, string>>;
-  readonly lineNumber: number;
-}
-/** One leg of a route (§24B.6): an edge from the previous stop to `dest`. Reuses
- *  the indented edge arrow idiom (same as sitemap) — in-arrow text = leg label,
- *  `width:` = leg thickness, the arrow glyph = shape (`-…->` straight, `~…~>`
- *  arc). A tag on the leg line colours the LINE (§24B.6); `label:`/`as` still
- *  name the DESTINATION stop. The arrow is required — a bare destination errors. */
-interface MapRouteLeg {
-  readonly label?: string;
-  readonly style: 'straight' | 'arc';
-  readonly value?: string;
-  readonly dest: PoiPos;
-  readonly destAlias?: string;
-  readonly destLabel?: string;
-  /** Tag(s) on the leg line → colour the LINE itself. To categorise a STOP,
-   *  tag its own `poi` line. */
-  readonly tags: Readonly<Record<string, string>>;
-  readonly lineNumber: number;
-}
-/** An ordered, auto-numbered route (§24B.6): `route <origin>` + a sequence of
- *  indented arrow legs, each continuing from the previous stop. Leg shape is
- *  per-leg (the arrow glyph) — there is no header-level shape option. Repeat the
- *  origin as a leg's destination to close a loop. */
-interface MapRoute {
-  readonly origin: PoiPos;
-  readonly originAlias?: string;
-  readonly originLabel?: string;
-  readonly originValue?: string;
-  readonly originTags: Readonly<Record<string, string>>;
-  readonly legs: readonly MapRouteLeg[];
-  readonly lineNumber: number;
-}
-/** A connector (§24B.6). Endpoints are RAW identifier strings (name or alias);
- *  binding to POIs/regions is the resolver's job. Token = arrowhead iff it ends
- *  in `>`, arc iff it starts with `~`: `->` straight, `~>` arc, `--`/`-label-`
- *  undirected straight, `~~`/`~label~` undirected arc. */
-interface MapEdge {
-  readonly from: string;
-  readonly to: string;
-  readonly label?: string;
-  readonly directed: boolean;
-  readonly style: 'straight' | 'arc';
-  readonly meta: Readonly<Record<string, string>>;
-  /** Tag(s) on the edge line → colour the LINE itself (§24B.6). */
-  readonly tags: Readonly<Record<string, string>>;
-  readonly lineNumber: number;
-}
-interface ParsedMap {
-  readonly title: string | null;
-  readonly titleLineNumber: number | null;
-  readonly directives: MapDirectives;
-  readonly tagGroups: readonly TagGroup[];
-  readonly regions: readonly MapRegion[];
-  readonly pois: readonly MapPoi[];
-  readonly routes: readonly MapRoute[];
-  readonly edges: readonly MapEdge[];
-  readonly options: Readonly<Record<string, string>>;
-  readonly diagnostics: readonly DgmoError[];
-  readonly error: string | null;
-}
-/** Legend descriptor for a rendered map (a layout-stage output, re-exported from
- *  `layout.ts`). It lives here so the `legend-band` helper can consume it without
- *  importing `layout` — `layout` already value-imports `mapLegendBand`, so the
- *  reverse type import would form a layout↔legend-band cycle. */
-interface MapLayoutLegend {
-  readonly tagGroups: ReadonlyArray<{
-    name: string;
-    entries: ReadonlyArray<{
-      value: string;
-      color: string;
-    }>;
-  }>;
-  readonly activeGroup: string | null;
-  readonly ramp?: {
-    metric?: string;
-    min: number;
-    max: number;
-    /** Resolved hex of the LOW (t=0) endpoint — the explicit low colour, or the
-     *  floored neutral the single-colour fills blend up from. */
-    low: string;
-    /** Resolved hex of the HIGH (t=1) endpoint (the named ramp hue). */
-    high: string;
-  };
-}
-
-/** A TopoJSON topology (world-coarse/world-detail keyed by ISO 3166-1 alpha-2;
- *  us-states keyed by ISO 3166-2). Geometry feature `id` is the ISO code;
- *  `properties.name` is the display string. Kept loose to avoid a topojson dep. */
-interface BoundaryTopology {
-  type: 'Topology';
-  objects: Record<
-    string,
-    {
-      type: string;
-      geometries: BoundaryGeometry[];
-    }
-  >;
-  arcs: number[][][];
-  transform?: {
-    scale: [number, number];
-    translate: [number, number];
-  };
-  bbox?: number[];
-}
-interface BoundaryGeometry {
-  type: string;
-  /** ISO code: alpha-2 (countries) or 3166-2 `US-XX` (states). */
-  id: string;
-  properties: {
-    name: string;
-  };
-  arcs?: unknown;
-}
-/**
- * A gazetteer city entry: `[lat, lon, iso, pop, name, sub?]`.
- * - `lat`/`lon` — rounded to 3 decimals.
- * - `iso` — ISO 3166-1 alpha-2 country code.
- * - `pop` — population.
- * - `name` — canonical display name (case/accents preserved).
- * - `sub` — ISO 3166-2 subdivision (US cities only in v1, e.g. `US-OR`); absent otherwise.
- */
-type GazetteerEntry = [
-  lat: number,
-  lon: number,
-  iso: string,
-  pop: number,
-  name: string,
-  sub?: string,
-];
-interface Gazetteer {
-  /** Every city, stored once. `byName`/`alt` reference cities by array index
-   *  (normalized — no tuple duplication; geonameid is a build-time-only linker). */
-  cities: GazetteerEntry[];
-  /** Folded (NFD, diacritic-stripped, lowercased) name → indices into `cities`.
-   *  Always an array; length > 1 for same-named cities (Portland US-OR / US-ME). */
-  byName: Record<string, number[]>;
-  /** Folded alias → index into `cities`. Never collides with a `byName` key. */
-  alt: Record<string, number>;
-}
-/**
- * IATA-coded airport index (a SEPARATE optional asset — `airports.json`; ADR-1).
- * Lets memorized airport codes resolve to coordinates through the resolver's
- * existing fold→lookup path (`poi JFK`, `route JFK -> LAX`) — no parser change.
- *
- * - `airports` — `GazetteerEntry` tuples `[lat, lon, iso, 0, name]`. `pop` is
- *   always 0 (OurAirports has no enplanement column); `name` is the full airport
- *   name, used for COMPLETION DISPLAY only — airports resolve by IATA code, never
- *   by name. Coords are rounded to 2 decimals (~1km; sub-pixel at map scale).
- * - `airportIata` — folded 3-letter IATA code → index into `airports`. Consulted
- *   LAST in resolution (after city `byName` + `alt`), so a real city always wins
- *   a shared token (ADR-2). Airports never enter `cities[]`, so the city-scatter
- *   and reverse-geocode layers never see them.
- */
-interface AirportData {
-  readonly airports: GazetteerEntry[];
-  readonly airportIata: Record<string, number>;
-}
-/** Water-feature class (Natural Earth `featurecla`, rivers/reefs excluded). */
-type WaterKind =
-  | 'ocean'
-  | 'sea'
-  | 'gulf'
-  | 'bay'
-  | 'strait'
-  | 'channel'
-  | 'sound';
-/**
- * A water-body label entry: `[lat, lon, name, tier, kind, alt?]`.
- * - `lat`/`lon` — label anchor (Natural Earth inner point), rounded to 3 decimals.
- * - `name` — full display name (no abbreviation exists for water bodies).
- * - `tier` — Natural Earth `scalerank` (0 = most prominent → orientation priority).
- * - `kind` — feature class (drives styling/priority bucketing).
- * - `alt` — optional extra anchor points `[lat, lon][]`; the layout picks the
- *   one nearest the viewport center (Decision 5 multi-anchor seam). Absent today.
- */
-type WaterBodyEntry = [
-  lat: number,
-  lon: number,
-  name: string,
-  tier: number,
-  kind: WaterKind,
-  alt?: ReadonlyArray<readonly [number, number]>,
-];
-interface WaterBodies {
-  /** Deterministically ordered (tier, then name). Generated from Natural Earth
-   *  marine polys by scripts/build-map-data.mjs into `water-bodies.json`. */
-  readonly entries: readonly WaterBodyEntry[];
-}
-/** A fill-able region (country or US state) — the display name + its ISO id +
- *  layer. Powers region-name autocomplete (completion-only; the renderer derives
- *  names from the topology directly). Extracted from the topologies by
- *  scripts/build-map-data.mjs into `region-names.json`. */
-interface RegionName {
-  /** Display name (original casing), e.g. `California` / `Germany`. */
-  readonly name: string;
-  /** ISO 3166-1 alpha-2 (country) or 3166-2 `US-XX` (state). */
-  readonly iso: string;
-  readonly layer: 'country' | 'us-state';
-}
-interface RegionNames {
-  /** Deterministically ordered (layer, then name). */
-  readonly regions: readonly RegionName[];
-}
-
-/** The four static assets, injected into the pure resolver (DI). */
-interface MapData {
-  worldCoarse: BoundaryTopology;
-  worldDetail: BoundaryTopology;
-  usStates: BoundaryTopology;
-  /** Major lakes (Natural Earth 110m) drawn as water over land — e.g. the Great
-   *  Lakes. Optional so hand-built test fixtures need not supply it. */
-  lakes?: BoundaryTopology;
-  /** Major river centerlines (Natural Earth 110m) drawn as thin water lines over
-   *  land — e.g. the Amazon, Nile, Mississippi. Optional, like `lakes`. */
-  rivers?: BoundaryTopology;
-  /** Notable mountain-range polygons (Natural Earth 50m geography regions) drawn
-   *  as a subtle gradient relief cue over base land when the `relief` directive
-   *  is on — e.g. the Rockies, Andes, Himalayas. Optional, like `lakes`. */
-  mountainRanges?: BoundaryTopology;
-  /** North-America-clipped 10m country land, used as crisp neighbour context
-   *  under the albers-usa US view so Canada/Mexico match the 10m states instead
-   *  of the coarser world tiers. Optional, like `lakes`. */
-  naLand?: BoundaryTopology;
-  /** North-America-clipped 10m major lakes (Great Lakes etc.), used in place of
-   *  the coarse `lakes` under the albers-usa US view. Optional. */
-  naLakes?: BoundaryTopology;
-  /** Water-body orientation labels (Natural Earth marine polys) drawn when the
-   *  `context-labels` directive is on — oceans/seas/gulfs/bays/etc. Optional, so
-   *  hand-built test fixtures and older bundles need not supply it. */
-  waterBodies?: WaterBodies;
-  /** IATA-coded airports (`airports.json`) — lets `poi JFK` / `route JFK -> LAX`
-   *  resolve. Optional so hand-built fixtures and older DI bundles need not supply
-   *  it; the resolver guards `data.airports?.…` everywhere. */
-  airports?: AirportData;
-  gazetteer: Gazetteer;
-}
-type ProjectionFamily =
-  | 'equal-earth'
-  | 'natural-earth'
-  | 'equirectangular'
-  | 'albers-usa'
-  | 'conic-equal-area'
-  | 'mercator';
-/** Which geometry layers the renderer draws. */
-interface Basemaps {
-  /** World country tier: coarse (world-scale) | detail (regional/zoom). */
-  world: 'coarse' | 'detail';
-  /** Loaded subdivision layers (v1: only 'us-states'). */
-  subdivisions: Array<'us-states'>;
-}
-interface ResolvedRegion {
-  /** ISO code: alpha-2 (country) or 3166-2 `US-XX` (state) — the geometry id. */
-  readonly iso: string;
-  readonly name: string;
-  readonly layer: 'country' | 'us-state';
-  readonly value?: number;
-  /** §1.5 trailing-token color NAME → flat override fill (§24B.4). */
-  readonly color?: string;
-  readonly tags: Readonly<Record<string, string>>;
-  readonly meta: Readonly<Record<string, string>>;
-  readonly lineNumber: number;
-}
-interface ResolvedPoi {
-  /** Folded registry id (alias|name folded, or `@lat,lon` for coord POIs). */
-  readonly id: string;
-  /** Display name (original casing): the city/place name, alias, or endpoint
-   *  string. The on-map label falls back to this when `label` is absent (the
-   *  folded `id` is for binding, not display). */
-  readonly name?: string;
-  readonly lat: number;
-  readonly lon: number;
-  readonly label?: string;
-  /** §1.5 trailing-token color NAME → flat marker fill (§24B.5). */
-  readonly color?: string;
-  readonly tags: Readonly<Record<string, string>>;
-  readonly meta: Readonly<Record<string, string>>;
-  readonly lineNumber: number;
-  /** True when created from an undeclared edge/route endpoint (§24B.10). */
-  readonly implicit?: boolean;
-}
-interface ResolvedEdge {
-  readonly fromId: string;
-  readonly toId: string;
-  readonly label?: string;
-  readonly directed: boolean;
-  readonly style: 'straight' | 'arc';
-  readonly meta: Readonly<Record<string, string>>;
-  /** Tag(s) on the edge line → colour the LINE (§24B.6). */
-  readonly tags: Readonly<Record<string, string>>;
-  readonly lineNumber: number;
-}
-interface ResolvedRouteLeg {
-  readonly fromId: string;
-  readonly toId: string;
-  readonly label?: string;
-  readonly style: 'straight' | 'arc';
-  readonly value?: string;
-  /** Tag(s) on the leg line → colour the LINE (§24B.6). */
-  readonly tags: Readonly<Record<string, string>>;
-  readonly lineNumber: number;
-}
-interface ResolvedRoute {
-  /** Ordered UNIQUE stop ids (for numbering + the origin marker). A loop-closing
-   *  leg whose destination is an earlier stop adds a leg but no duplicate stop. */
-  readonly stopIds: readonly string[];
-  readonly legs: readonly ResolvedRouteLeg[];
-  readonly lineNumber: number;
-}
-/** Geographic bounding box `[[west, south], [east, north]]` in degrees.
- *
- *  WRAP CONVENTION (#12): for an antimeridian-crossing extent the resolver keeps
- *  `west` in [−180, 180] and returns `east` UNWRAPPED in (180, 540] (i.e.
- *  `east = west + span`, span ≤ 360). So `east > 180` signals a dateline-crossing
- *  extent; the renderer (step 4) must mod `east` back into [−180, 180] (or shift
- *  the projection's center) rather than assume `east ≤ 180`. `south`/`north` are
- *  always plain degrees in [−90, 90]. */
-type GeoExtent = [[number, number], [number, number]];
-interface ResolvedMap {
-  readonly title: string | null;
-  /** DEAD — the `subtitle` directive was removed (2026-06-02 defaults-on review).
-   *  Never populated; the renderer's subtitle branch is now unreachable. Left for
-   *  a later cleanup pass. */
-  readonly subtitle?: string;
-  readonly caption?: string;
-  readonly tagGroups: readonly TagGroup[];
-  readonly directives: MapDirectives;
-  readonly basemaps: Basemaps;
-  readonly regions: readonly ResolvedRegion[];
-  readonly pois: readonly ResolvedPoi[];
-  readonly edges: readonly ResolvedEdge[];
-  readonly routes: readonly ResolvedRoute[];
-  readonly extent: GeoExtent;
-  readonly projection: ProjectionFamily;
-  /** POI-only region framing: the region(s) that CONTAIN the POIs — us-state ids
-   *  (`US-CA`) or country isos (`FR`). The frame is snapped to the union of their
-   *  bboxes, and the layout labels them prominently (vs. muted neighbours). Empty
-   *  for non-POI-only maps or when POIs fall outside every polygon. Optional so
-   *  older/foreign ResolvedMap literals need not supply it. */
-  readonly poiFrameContainers?: readonly string[];
-  readonly diagnostics: readonly DgmoError[];
-  readonly error: string | null;
-}
-
-/**
- * Compact view state schema (ADR-6).
- * All fields optional. Only non-default values are encoded.
- * `tag: null` means "user chose none"; absent `tag` means "use DSL default" (ADR-5).
- */
-interface CompactViewState {
-  tag?: string | null;
-  cs?: number[];
-  cg?: string[];
-  swim?: string | null;
-  cl?: string[];
-  cc?: string[];
-  rm?: string;
-  htv?: Record<string, string[]>;
-  ha?: string[];
-  sem?: boolean;
-  cm?: boolean;
-  c4l?: string;
-  c4s?: string;
-  c4c?: string;
-  rps?: number;
-  spd?: number;
-  io?: Record<string, number>;
-  hd?: boolean;
-  cbd?: boolean;
-  rq?: string;
-  an?: boolean;
-  fl?: boolean;
-}
-interface DecodedDiagramUrl {
-  dsl: string;
-  viewState: CompactViewState;
-  palette?: string;
-  theme?: 'light' | 'dark';
-  filename?: string;
-}
-interface EncodeDiagramUrlOptions {
-  baseUrl?: string;
-  viewState?: CompactViewState;
-  palette?: string;
-  theme?: 'light' | 'dark';
-  filename?: string;
-}
-type EncodeDiagramUrlResult =
-  | {
-      url: string;
-      error?: undefined;
-    }
-  | {
-      url?: undefined;
-      error: 'too-large';
-      compressedSize: number;
-      limit: number;
-    };
-/**
- * Encode a CompactViewState to a compressed string for URL embedding.
- * Returns empty string if state has no keys (ADR-4).
- */
-declare function encodeViewState(state: CompactViewState): string;
-/**
- * Decode a compressed view state string back to CompactViewState.
- * Returns empty object on failure (no crash).
- */
-declare function decodeViewState(encoded: string): CompactViewState;
-/**
- * Compress a DGMO DSL string into a shareable URL.
- * Returns `{ url }` on success, or `{ error: 'too-large', compressedSize, limit }` if the
- * compressed payload exceeds the 8 KB limit.
- */
-declare function encodeDiagramUrl(
-  dsl: string,
-  options?: EncodeDiagramUrlOptions
-): EncodeDiagramUrlResult;
-/**
- * Decode a DGMO DSL string and view state from a URL query string or hash.
- * Accepts any of:
- *   - `?dgmo=<payload>&vs=<state>`
- *   - `#dgmo=<payload>&vs=<state>` (backwards compat)
- *   - `dgmo=<payload>`
- *   - `<bare payload>`
- *
- * Returns `{ dsl, viewState }`. The DSL is empty string on invalid input.
- */
-declare function decodeDiagramUrl(hash: string): DecodedDiagramUrl;
 
 /**
  * Render DGMO source to an SVG string.
@@ -783,13 +184,6 @@ declare function render(
   diagnostics: DgmoError[];
 }>;
 
-interface ChartTypeMeta {
-  readonly id: string;
-  readonly description: string;
-  readonly fallback?: true;
-}
-declare const chartTypes: readonly ChartTypeMeta[];
-
 declare class ScaleContext {
   readonly factor: number;
   readonly isBelowFloor: boolean;
@@ -825,77 +219,6 @@ declare class ScaleContext {
   structural(value: number): number;
   text(fontSize: number, floor?: number): number;
 }
-
-/** User-visible rendering category for dispatch and routing. */
-type RenderCategory = 'data-chart' | 'visualization' | 'diagram';
-
-/**
- * Extracts the chart type from raw file content.
- * First tries the first non-empty, non-comment line as a bare chart type name
- * (e.g., `gantt Product Launch`).
- * Falls back to inference when no explicit chart type is found.
- */
-declare function parseDgmoChartType(content: string): string | null;
-
-/**
- * Returns the render category for a given chart type, or `null` if unknown.
- * Use this instead of the internal framework map for dispatch in consumers.
- */
-declare function getRenderCategory(chartType: string): RenderCategory | null;
-/**
- * Returns true if the chart type is an extended chart type
- * handled by parseExtendedChart (scatter, sankey, function, heatmap, funnel).
- * Returns false for standard chart types and all other types.
- */
-declare function isExtendedChartType(chartType: string): boolean;
-/**
- * Returns all supported chart type identifiers in canonical (tier) order,
- * derived from `chartTypes`. Consumers that need alphabetical order should
- * call `.sort()` explicitly.
- */
-declare function getAllChartTypes(): string[];
-/**
- * Canonical descriptions for every supported chart type. Derived from
- * `chartTypes` so there is exactly one place to update when adding a new
- * type. Consumed by the CLI `dgmo types` command, the editor autocomplete
- * popup, and the MCP `list_chart_types` tool.
- */
-declare const CHART_TYPE_DESCRIPTIONS: Record<string, string>;
-type ParseResult = {
-  diagnostics: readonly DgmoError[];
-};
-type ParseFn = (content: string) => ParseResult;
-/**
- * Maps every chart-type id to the parser that handles it, DERIVED from
- * `CHART_TYPE_REGISTRY` (src/chart-type-registry.ts). Adding a new chart type
- * means adding ONE descriptor there plus its `chartTypes` metadata entry; the
- * `chart-type-registry.test.ts` cross-check asserts the registry, `chartTypes`,
- * the render-category sites, and the export handlers all stay in sync.
- */
-declare const chartTypeParsers: ReadonlyArray<readonly [string, ParseFn]>;
-/** Ids in the same order as `chartTypeParsers`; used for cross-checks. */
-declare const knownChartTypeIds: readonly string[];
-/**
- * Parse DGMO content and return diagnostics without rendering.
- * Useful for the CLI and editor to surface all errors before attempting render.
- */
-declare function parseDgmo(content: string): {
-  diagnostics: DgmoError[];
-  chartType: string | null;
-};
-
-/** Validate that a hex string is well-formed (#RGB or #RRGGBB). */
-declare function isValidHex(value: string): boolean;
-/**
- * Register a palette. Called at module initialization.
- * Validates that all 19 color fields per mode are present and valid hex.
- * Throws on malformed palettes to catch errors at startup, not at render time.
- */
-declare function registerPalette(palette: PaletteConfig): void;
-/** Get palette by id. Silently returns the default palette if id is unrecognized. */
-declare function getPalette(id: string): PaletteConfig;
-/** List all registered palettes alphabetically (for the selector UI). */
-declare function getAvailablePalettes(): PaletteConfig[];
 
 /** Convert hex (#RRGGBB or #RGB) to { h, s, l } with h in degrees, s/l as percentages. */
 declare function hexToHSL(hex: string): {
@@ -982,25 +305,6 @@ declare const slatePalette: PaletteConfig;
 declare const tidewaterPalette: PaletteConfig;
 
 declare const tokyoNightPalette: PaletteConfig;
-
-/**
- * All built-in palettes, keyed by camelCase id. Use directly with render():
- *
- *   await render(text, { palette: palettes.catppuccin });
- *
- * For preference/settings storage, the `.id` field of each entry is the
- * canonical string (e.g. `'tokyo-night'`, `'nord'`) — that's the wire format
- * used by share URLs and the CLI `--palette` flag.
- */
-declare const palettes: {
-  readonly atlas: PaletteConfig;
-  readonly blueprint: PaletteConfig;
-  readonly slate: PaletteConfig;
-  readonly tidewater: PaletteConfig;
-  readonly nord: PaletteConfig;
-  readonly catppuccin: PaletteConfig;
-  readonly tokyoNight: PaletteConfig;
-};
 
 type ChartType$1 = 'bar' | 'line' | 'pie' | 'polar-area' | 'radar';
 interface ChartDataPoint {
@@ -6874,112 +6178,6 @@ interface CreateMapGeoQueryOptions {
  *  `CreateMapGeoQueryOptions` to keep the projection in sync. */
 declare function createMapGeoQuery(opts: CreateMapGeoQueryOptions): MapGeoQuery;
 
-interface MapPlaceCompletion {
-  /** Canonical display name (original casing), e.g. `Portland`. */
-  readonly name: string;
-  /** Text to insert. ISO-qualified (`Portland US-OR`) iff the name is
-   *  ambiguous in the gazetteer; bare otherwise (disambiguate-once, §24B.8). */
-  readonly insert: string;
-  /** Menu label (`Portland — US-OR` when ambiguous, else `Portland`). */
-  readonly label: string;
-  /** Secondary detail, e.g. `US-OR · 652,503`. */
-  readonly detail: string;
-  readonly iso: string;
-  readonly sub?: string;
-  readonly pop: number;
-  /** `'airport'` for IATA-code entries (icon/grouping affordance); absent or
-   *  `'city'` for gazetteer cities. Cities rank above airports for a shared
-   *  prefix so ~1500 codes never bury city names (ADR-5). */
-  readonly kind?: 'city' | 'airport';
-}
-interface MapCompletionOptions {
-  /** Max results (default 12). */
-  readonly limit?: number;
-  /** IATA-coded airports (`airports.json`). When supplied, airport codes
-   *  matching the prefix are offered as a second (post-city) group. Optional —
-   *  absent (old DI bundles / no asset) just yields city-only completions. */
-  readonly airports?: AirportData;
-  /** Resolver-inferred map scope (country `US` or subdivision `US-CA`). Biases
-   *  airport ranking so in-region airports sort above out-of-region same-prefix
-   *  ones (ADR-6). Pure rank, never a filter — cross-region airports still
-   *  appear. App passes the document's inferred scope in (Slice 2). */
-  readonly scopeISO?: string;
-}
-/**
- * Prefix-match city names + alternate-name aliases against the gazetteer,
- * rank by population (desc; stable tie-break by gazetteer index), and emit
- * ISO-qualified insert text only for ambiguous (same-named) places.
- *
- * Pure + deterministic. Empty/blank query → `[]` (the caller gates min length).
- */
-declare function completeMapPlaces(
-  query: string,
-  gazetteer: Gazetteer,
-  opts?: MapCompletionOptions
-): MapPlaceCompletion[];
-/** A POI search hit — a city or airport the resolver can resolve, with the
- *  exact `token` to paste into DGMO (a `poi`/route endpoint). Powers the CLI
- *  `dgmo map search` command and the MCP `lookup_map_location` tool, so authors
- *  (and AI agents) can DISCOVER valid place tokens instead of guessing — e.g.
- *  learn that "New York" must be `New York City` and that `JFK` is bundled. */
-interface MapLocationMatch {
-  /** Canonical display name (cities) or full airport name. */
-  readonly name: string;
-  /** Exact text to use in DGMO. Cities: the name, ISO-qualified when ambiguous
-   *  (`Portland US-OR`). Airports: the upper-case IATA code (`JFK`). */
-  readonly token: string;
-  readonly kind: 'city' | 'airport';
-  readonly iso: string;
-  readonly sub?: string;
-  /** City population (0 for airports). */
-  readonly pop: number;
-  /** Human detail, e.g. `US-OR · 652,503` or `Airport · John F Kennedy Intl`. */
-  readonly detail: string;
-}
-/**
- * Substring-search cities + airports for a discovery surface (CLI / MCP), so an
- * author can find the exact token the resolver expects. Unlike
- * {@link completeMapPlaces} (prefix-only, editor type-ahead), this matches
- * anywhere in a city name OR an airport code/name, so "york" finds
- * `New York City` and "kennedy" finds `JFK`.
- *
- * Ranking: exact-name (or exact-IATA) → prefix → substring; within a tier,
- * cities by population desc (deterministic index tie-break), cities before
- * airports. Pure + deterministic. Empty query → `[]`.
- */
-declare function searchMapLocations(
-  query: string,
-  gazetteer: Gazetteer,
-  opts?: {
-    readonly limit?: number;
-    readonly airports?: AirportData;
-  }
-): MapLocationMatch[];
-interface MapRegionCompletion {
-  /** Display name = insert text (the resolver disambiguates cross-layer
-   *  collisions like Georgia by map scope, §24B.8). */
-  readonly name: string;
-  /** ISO 3166-1/3166-2 id. */
-  readonly iso: string;
-  readonly layer: 'country' | 'us-state';
-  /** Secondary detail, e.g. `US state · US-CA` or `Country · DE`. */
-  readonly detail: string;
-}
-/**
- * Prefix-match fill-able region names (countries + US states) for region-fill
- * lines. Matches the folded display name OR the ISO code; deterministic
- * (alphabetical by name, then layer). Pure. Empty query → `[]`.
- *
- * `regions` is injected (the `region-names.json` asset, shipped in dist/map-data
- * alongside the gazetteer). Cross-layer same-name (Georgia: country GE + state
- * US-GA) yields both entries, distinguished by `detail`.
- */
-declare function completeMapRegions(
-  query: string,
-  regions: readonly RegionName[],
-  opts?: MapCompletionOptions
-): MapRegionCompletion[];
-
 /** Marker alphabet member for any variant. */
 type RaciMarker = 'R' | 'A' | 'S' | 'C' | 'I' | 'D';
 /** Variant identifier — selects alphabet + constraint rule set. */
@@ -7579,33 +6777,10 @@ declare function parseFirstLine(line: string): {
   title: string | undefined;
 } | null;
 
-/**
- * Theme — render mode flag. Selects which palette variant the renderer uses
- * for background and text:
- *  - 'light'       → palette.light colors
- *  - 'dark'        → palette.dark colors
- *  - 'transparent' → no background fill (for embedding in colored containers)
- */
-type Theme = 'light' | 'dark' | 'transparent';
-/**
- * `themes` namespace — use with render() options for a typed handle:
- *
- *   await render(text, { theme: themes.dark });
- *
- * Passing the raw string `'dark'` also works (the underlying type is the
- * string-literal union); the namespace is the conventional path.
- */
-declare const themes: {
-  readonly light: 'light';
-  readonly dark: 'dark';
-  readonly transparent: 'transparent';
-};
-
 export {
   ALL_CHART_TYPES,
   ARROW_DIAGNOSTIC_CODES,
   type Activation,
-  type AirportData,
   type AncestorInfo,
   type ArcLink,
   type ArcNodeGroup,
@@ -7624,7 +6799,6 @@ export {
   type BlockLayoutResult,
   type BlockNode,
   type BlockOptions,
-  type BoundaryTopology,
   type C4ArrowType,
   type C4DeploymentNode,
   type C4Element,
@@ -7640,11 +6814,9 @@ export {
   type C4Shape,
   type C4TagEntry,
   type C4TagGroup,
-  CHART_TYPE_DESCRIPTIONS,
   type ChartDataPoint,
   type ChartEra,
   type ChartType$1 as ChartType,
-  type ChartTypeMeta,
   type ClassLayoutEdge,
   type ClassLayoutNode,
   type ClassLayoutResult,
@@ -7656,7 +6828,7 @@ export {
   type CollapsedOrgResult,
   type CollapsedSitemapResult,
   type CollapsedView,
-  type CompactViewState,
+  CompactViewState,
   type ComputedInfraEdge,
   type ComputedInfraModel,
   type ComputedInfraNode,
@@ -7669,9 +6841,7 @@ export {
   type CycleNode,
   type CycleRenderOptions,
   type D3ExportDimensions,
-  type DecodedDiagramUrl,
-  type DgmoError,
-  type DgmoSeverity,
+  DgmoError,
   type DiagramSymbols,
   type Duration,
   type DurationUnit,
@@ -7684,8 +6854,6 @@ export {
   type ERRelationship,
   type ERTable,
   type ElseIfBranch,
-  type EncodeDiagramUrlOptions,
-  type EncodeDiagramUrlResult,
   type EventLineEra,
   type EventLineEvent,
   type EventLineFocus,
@@ -7708,9 +6876,7 @@ export {
   type Row as GanttRow,
   type GanttTask,
   type TaskRow as GanttTaskRow,
-  type Gazetteer,
-  type GazetteerEntry,
-  type GeoExtent,
+  GeoExtent,
   type GetOrCreateNameResult,
   type GraphDirection,
   type GraphEdge,
@@ -7767,25 +6933,16 @@ export {
   type LegendPalette,
   type LegendPosition,
   type LegendState,
-  type MapCompletionOptions,
-  type MapData,
-  type MapDirectives,
-  type MapEdge,
+  MapData,
   type MapExportDimensions,
   type MapGeoQuery,
   type MapLayout,
   type MapLayoutInset,
   type MapLayoutLeg,
-  type MapLayoutLegend,
+  MapLayoutLegend,
   type MapLayoutPoi,
   type MapLayoutRegion,
   type MapLayoutStretch,
-  type MapLocationMatch,
-  type MapPlaceCompletion,
-  type MapPoi,
-  type MapRegion,
-  type MapRegionCompletion,
-  type MapRoute,
   type MemberVisibility,
   type MindmapLayoutEdge,
   type MindmapLayoutNode,
@@ -7800,8 +6957,8 @@ export {
   type OrgLayoutNode,
   type OrgLayoutResult,
   type OrgNode,
-  type PaletteColors,
-  type PaletteConfig,
+  PaletteColors,
+  PaletteConfig,
   type ParseInArrowLabelResult,
   type ParsedBlock,
   type ParsedBoxesAndLines,
@@ -7817,7 +6974,7 @@ export {
   type ParsedInfra,
   type ParsedJourneyMap,
   type ParsedKanban,
-  type ParsedMap,
+  ParsedMap,
   type ParsedMindmap,
   type ParsedOrg,
   type ParsedPert,
@@ -7847,9 +7004,7 @@ export {
   type PertOptions,
   type PertRenderOptions,
   type PlacedLabel,
-  type PoiPos,
   type ProjectedCity,
-  type ProjectionFamily,
   type PyramidLayer,
   type QuadrantPosition,
   RACI_ERROR_CODES,
@@ -7867,22 +7022,15 @@ export {
   type RadialCell,
   type RadialLayoutResult,
   type ReadFileFn,
-  type RegionName,
-  type RegionNames,
   type RegionToken,
   type RelationshipType,
-  type RenderCategory,
   type RenderStep,
   type ResolveImportsResult,
   type ResolvedActivity,
-  type ResolvedEdge,
   type ResolvedGroup$1 as ResolvedGroup,
-  type ResolvedMap,
+  ResolvedMap,
   type ResolvedPert,
   type ResolvedGroup as ResolvedPertGroup,
-  type ResolvedPoi,
-  type ResolvedRegion,
-  type ResolvedRoute,
   type ResolvedSchedule,
   type ResolvedTask,
   type ResultCard,
@@ -7917,13 +7065,12 @@ export {
   type SwimShape,
   type LayoutBand as SwimlaneLayoutBand,
   type SwimlaneLayoutResult,
-  type TagEntry,
-  type TagGroup,
+  TagEntry,
+  TagGroup,
   type TechRadarBlip,
   type TechRadarLayoutPoint,
   type TechRadarQuadrant,
   type TechRadarRing,
-  type Theme,
   type TreemapCell,
   type TreemapColorMode,
   type TreemapLayoutResult,
@@ -7948,7 +7095,6 @@ export {
   applyPositionOverrides,
   atlasPalette,
   authoredCollapsedIds,
-  autoTagColorCycle,
   blueprintPalette,
   buildNoteMessageMap,
   buildRenderSequence,
@@ -7956,8 +7102,6 @@ export {
   buildTagLaneRowList,
   calculateSchedule,
   catppuccinPalette,
-  chartTypeParsers,
-  chartTypes,
   clearEventLineMuted,
   collapseBoxesAndLines,
   collapseMindmapTree,
@@ -7967,8 +7111,6 @@ export {
   collectDiagramRoles,
   collectTasks,
   colorNames,
-  completeMapPlaces,
-  completeMapRegions,
   computeActivations,
   computeCardArchive,
   computeCardMove,
@@ -7981,11 +7123,7 @@ export {
   contrastText,
   controlsGroupCapsuleWidth,
   createMapGeoQuery,
-  decodeDiagramUrl,
-  decodeViewState,
   displayName,
-  encodeDiagramUrl,
-  encodeViewState,
   extractSymbols$2 as extractClassSymbols,
   extractSymbols$1 as extractErSymbols,
   extractSymbols$3 as extractFlowchartSymbols,
@@ -7995,15 +7133,10 @@ export {
   focusEventLine,
   focusOrgTree,
   formatDateLabel,
-  formatDgmoError,
-  getAllChartTypes,
-  getAvailablePalettes,
   getExtendedChartLegendGroups,
   getLegendReservedHeight,
   getOrCreateName,
-  getPalette,
   getRadarGeometry,
-  getRenderCategory,
   getSeriesColors,
   getSimpleChartLegendGroups,
   groupMessagesBySection,
@@ -8014,13 +7147,10 @@ export {
   inferRoles,
   invalidColorDiagnostic,
   isArchiveColumn,
-  isExtendedChartType,
   isInvalidColorToken,
   isRecognizedColorName,
   isSequenceBlock,
   isSequenceNote,
-  isValidHex,
-  knownChartTypeIds,
   layoutBlock,
   layoutBoxesAndLines,
   layoutC4Components,
@@ -8050,7 +7180,6 @@ export {
   looksLikeSequence,
   looksLikeSitemap,
   looksLikeState,
-  makeDgmoError,
   mapBackgroundColor,
   mapContentAspect,
   mapExportDimensions,
@@ -8064,7 +7193,6 @@ export {
   normalizeName,
   normalizePertSourceForShare,
   orderArcNodes,
-  palettes,
   parseAndLayoutInfra,
   parseBlock,
   parseBoxesAndLines,
@@ -8073,8 +7201,6 @@ export {
   parseClassDiagram,
   parseCycle,
   parseDataRowValues,
-  parseDgmo,
-  parseDgmoChartType,
   parseERDiagram,
   parseEventLine,
   parseExtendedChart,
@@ -8108,7 +7234,6 @@ export {
   cellCycle as raciCellCycle,
   cellRemove as raciCellRemove,
   cellReplace as raciCellReplace,
-  registerPalette,
   relayoutPert,
   render,
   renderArcDiagram,
@@ -8187,20 +7312,16 @@ export {
   resolveTaskName,
   rollUpContextRelationships,
   sampleBetaPert,
-  searchMapLocations,
   seriesColors,
   shade,
   shapeFill,
   simulateCanonical,
   simulateFast,
   slatePalette,
-  tagAttrKey,
-  themes,
   tidewaterPalette,
   tint,
   tokyoNightPalette,
   truncateBareUrl,
-  parseDgmo as validate,
   validateComputed,
   validateInfra,
   validateLabelCharacters,
