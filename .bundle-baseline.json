@@ -1,14 +1,8 @@
 {
-  "baselineA": {
-    "esm": { "raw": 1841931, "gzip": 365451 },
-    "cjs": { "raw": 1844190, "gzip": 365868 }
-  },
-  "baselineB": {
-    "esm": { "raw": 1841931, "gzip": 365451 },
-    "cjs": { "raw": 1844190, "gzip": 365868 }
-  },
-  "budget": 35840,
-  "measuredAt": "2026-05-18",
-  "ref": "elk-migration",
-  "notes": "Rebaselined after replacing dagre with elkjs for boxes-and-lines layout. ESM gzip went from 337KB to 365KB (+28KB) — elkjs is externalized in the published bundle so most consumers pay the worker bundle (~453KB gzipped) in their own build. dist/auto.{js,mjs} grew more substantially (+440KB gzipped) since auto.js inlines all deps for script-tag use. Future chart-type additions still budgeted at 35KB gzip each above this new baseline."
+  "totalGzip": 1988045,
+  "totalRaw": 6846244,
+  "fileCount": 224,
+  "budget": 61440,
+  "measuredAt": "2026-07-06",
+  "notes": "Sum of gzip(level 9) over all dist/**/*.{js,cjs} except map-data/. Regenerate with `pnpm check:size:update` after an intended size change."
 }

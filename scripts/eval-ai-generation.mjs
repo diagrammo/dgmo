@@ -27,7 +27,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { suggestChartTypes, chartTypes } from '@diagrammo/dgmo/advanced';
+import { chartTypes } from '@diagrammo/dgmo/advanced';
+// The selection suggester moved dgmo→dgmo-mcp; import it from the sibling repo
+// so this eval keeps scoring against the live vocabulary (triggers.json).
+import { suggestChartTypes } from '../../dgmo-mcp/dist/suggest/scoring.js';
 import { validateDgmoSource } from './lib/fence-validate.mjs';
 import { extractTypeBlock } from './lib/ref-anchors.mjs';
 

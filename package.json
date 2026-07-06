@@ -90,6 +90,8 @@
     "test:watch": "vitest",
     "test:auto": "pnpm build && vitest run tests/auto.test.ts tests/safe-href.test.ts",
     "sri": "node scripts/sri.mjs",
+    "eval:tools": "pnpm build && pnpm -C ../dgmo-mcp build:fast && node scripts/eval-tools.mjs",
+    "eval:ai": "pnpm build && pnpm -C ../dgmo-mcp build:fast && node scripts/eval-ai-generation.mjs",
     "build:map-data": "node scripts/build-map-data.mjs",
     "gallery": "pnpm build && node scripts/generate-gallery.mjs",
     "gallery:snapshot": "pnpm build && node scripts/gallery-snapshot.mjs",
@@ -108,7 +110,8 @@
     "check:deps": "depcheck --ignores='@diagrammo/dgmo,@codemirror/language,@lezer/*,husky,lint-staged,tsup,axe-core,type-coverage'",
     "check:security": "pnpm audit --prod",
     "check:publish": "publint",
-    "check:size": "pnpm build && du -sh dist/ && echo '---' && ls -lh dist/*.js dist/*.cjs",
+    "check:size": "pnpm build && node scripts/check-bundle-size.cjs",
+    "check:size:update": "pnpm build && node scripts/check-bundle-size.cjs --update",
     "check:types": "attw --pack . --ignore-rules no-resolution false-export-default cjs-resolves-to-esm",
     "postinstall": "node -e \"console.log('\\n💡 Claude Code user? Run: dgmo install claude-code\\n')\"",
     "prepare": "husky"

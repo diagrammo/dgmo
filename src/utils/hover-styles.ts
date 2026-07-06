@@ -276,34 +276,50 @@ export function buildHoverCss(
  * for this tier).
  */
 export const HOVER_SPECS: Record<string, HoverSpec> = {
+  // Data-chart family (`.dgmo-datum`): `dim` at 0.18 to MIRROR the app's live
+  // hover (charts-d3/interactions.ts `.dgmo-dim{opacity:.18}` — hover a mark →
+  // every other emph-key drops out). `lift` (saturate/brightness) read as
+  // "nothing happened" on muted fills. Safe to dim: these export renderers set
+  // NO inline `style="opacity"` on datums (only presentation `*-opacity` attrs,
+  // which a `<style>` rule outranks), so no RED-2 inline-defeat.
   pie: {
     markSelector: '.dgmo-datum',
     strategy: 'enumerated',
     groupAttr: 'data-emph-key',
+    emphasis: 'dim',
+    dimOpacity: 0.18,
     legend: true,
   },
   bar: {
     markSelector: '.dgmo-datum',
     strategy: 'enumerated',
     groupAttr: 'data-emph-key',
+    emphasis: 'dim',
+    dimOpacity: 0.18,
     legend: true,
   },
   funnel: {
     markSelector: '.dgmo-datum',
     strategy: 'enumerated',
     groupAttr: 'data-emph-key',
+    emphasis: 'dim',
+    dimOpacity: 0.18,
     legend: true,
   },
   heatmap: {
     markSelector: '.dgmo-datum',
     strategy: 'enumerated',
     groupAttr: 'data-emph-key',
+    emphasis: 'dim',
+    dimOpacity: 0.18,
     legend: true,
   },
   'polar-area': {
     markSelector: '.dgmo-datum',
     strategy: 'enumerated',
     groupAttr: 'data-emph-key',
+    emphasis: 'dim',
+    dimOpacity: 0.18,
     legend: true,
   },
 
@@ -482,6 +498,8 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     markSelector: '.dgmo-datum',
     strategy: 'enumerated',
     groupAttr: 'data-category',
+    emphasis: 'dim',
+    dimOpacity: 0.18,
     legend: true,
   },
   quadrant: {

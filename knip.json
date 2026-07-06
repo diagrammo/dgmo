@@ -9,9 +9,7 @@
     "scripts/migrate-as-aliases.mjs",
     "scripts/migrate-as-aliases.test.mjs",
     "scripts/build-airports-snapshot.mjs",
-    "scripts/eval-ai-generation.mjs",
     "scripts/gen-ai-core.mjs",
-    "scripts/eval-tools.mjs",
     "api-baseline/**",
     "tools/**"
   ],

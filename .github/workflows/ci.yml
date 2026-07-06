@@ -43,6 +43,13 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Deterministic bundle-size regression guard (gzip, not timing — the 1.0
+      # perf gate). dist/ is already built by the step above. If an intended
+      # change grows the bundle, run `pnpm check:size:update` and commit the new
+      # .bundle-baseline.json.
+      - name: Bundle-size guard
+        run: node scripts/check-bundle-size.cjs
+
       # Epic 105 Story 105.NEW / Epic 106 Story 106.2 — public type
       # surface diff. dgmo's published .d.ts files are consumed by 7
       # downstream packages; strictness changes can leak as breaking
