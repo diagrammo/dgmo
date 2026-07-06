@@ -3024,6 +3024,129 @@ export function layoutMap(
     return { x: mx + nx * off, y: my + ny * off };
   };
 
+  // -- Arc avoidance --
+  // A lone arc's default left-normal bow can run straight through an unrelated
+  // POI or ride on top of another leg (a DEN dot sitting on the LGA→LAX chord).
+  // Before emitting each arc, try a small candidate set of bows — default side,
+  // flipped side, and wider versions of each — and keep the first with the
+  // lowest penalty. Penalty = passing within clearance of a non-endpoint POI,
+  // hugging an already-placed leg, or leaving the canvas. Greedy in emit order
+  // (routes then edges, source order), so later legs dodge earlier ones; every
+  // leg (straight or fanned too) registers as an obstacle. The default bow is
+  // candidate 0 and wins ties, so an uncontested map renders exactly as before.
+  const LEG_SAMPLES = 25;
+  const POI_CLEARANCE = 10; // px beyond a POI's radius an arc must keep
+  const LEG_CLEARANCE = 7; // px between two legs before they read as one line
+  const SHARED_END_RADIUS = 36; // px around a shared endpoint where converging is inevitable
+  const placedLegSamples: Array<{
+    fromId: string;
+    toId: string;
+    pts: Array<{ x: number; y: number }>;
+  }> = [];
+  const sampleLeg = (
+    a: { cx: number; cy: number },
+    b: { cx: number; cy: number },
+    curved: boolean,
+    bow: number
+  ): Array<{ x: number; y: number }> => {
+    const pts: Array<{ x: number; y: number }> = [];
+    const dx = b.cx - a.cx;
+    const dy = b.cy - a.cy;
+    const len = Math.hypot(dx, dy) || 1;
+    const px = (a.cx + b.cx) / 2 + (-dy / len) * bow;
+    const py = (a.cy + b.cy) / 2 + (dx / len) * bow;
+    for (let i = 0; i < LEG_SAMPLES; i++) {
+      const t = i / (LEG_SAMPLES - 1);
+      if (!curved && bow === 0) {
+        pts.push({ x: a.cx + dx * t, y: a.cy + dy * t });
+      } else {
+        const u = 1 - t;
+        pts.push({
+          x: u * u * a.cx + 2 * u * t * px + t * t * b.cx,
+          y: u * u * a.cy + 2 * u * t * py + t * t * b.cy,
+        });
+      }
+    }
+    return pts;
+  };
+  const legPenalty = (
+    pts: Array<{ x: number; y: number }>,
+    fromId: string,
+    toId: string
+  ): number => {
+    let pen = 0;
+    for (const [id, p] of poiScreen) {
+      if (id === fromId || id === toId) continue;
+      let dmin = Infinity;
+      for (const s of pts) {
+        const d = Math.hypot(s.x - p.cx, s.y - p.cy);
+        if (d < dmin) dmin = d;
+      }
+      const clear = p.r + POI_CLEARANCE;
+      if (dmin < clear) pen += (clear - dmin) * 12;
+    }
+    for (const other of placedLegSamples) {
+      const shared = [fromId, toId]
+        .filter((id) => id === other.fromId || id === other.toId)
+        .map((id) => poiScreen.get(id))
+        .filter((p): p is NonNullable<typeof p> => !!p);
+      for (const s of pts) {
+        if (
+          shared.some(
+            (sp) => Math.hypot(s.x - sp.cx, s.y - sp.cy) < SHARED_END_RADIUS
+          )
+        ) {
+          continue;
+        }
+        let dmin = Infinity;
+        for (const o of other.pts) {
+          const d = Math.hypot(s.x - o.x, s.y - o.y);
+          if (d < dmin) dmin = d;
+        }
+        if (dmin < LEG_CLEARANCE) pen += 6;
+      }
+    }
+    for (const s of pts) {
+      if (s.x < 0 || s.x > width || s.y < 0 || s.y > height) pen += 20;
+    }
+    return pen;
+  };
+  const chooseArcBow = (
+    a: { cx: number; cy: number },
+    b: { cx: number; cy: number },
+    fromId: string,
+    toId: string,
+    away?: { x: number; y: number }
+  ): number => {
+    const mx = (a.cx + b.cx) / 2;
+    const my = (a.cy + b.cy) / 2;
+    const dx = b.cx - a.cx;
+    const dy = b.cy - a.cy;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    const def = bowMagnitude(mx, my, nx, ny, 0, len, away);
+    const candidates = [
+      def,
+      -def,
+      def * 1.6,
+      -def * 1.6,
+      def * 2.2,
+      -def * 2.2,
+    ];
+    let best = def;
+    let bestPen = Infinity;
+    for (const c of candidates) {
+      const pen = legPenalty(sampleLeg(a, b, true, c), fromId, toId);
+      if (pen < bestPen - 1e-6) {
+        best = c;
+        bestPen = pen;
+      }
+      if (bestPen === 0) break;
+    }
+    return best;
+  };
+
   // Routes: each leg is an edge (fromId → toId) carrying its own label,
   // value→thickness, and arc shape. Loop-closing legs are explicit in `rt.legs`;
   // the origin is never double-marked because `stopIds` is unique.
@@ -3058,14 +3181,25 @@ export function layoutMap(
       const a = poiScreen.get(leg.fromId);
       const b = poiScreen.get(leg.toId);
       if (!a || !b) continue;
-      const lp = legLabelPoint(a, b, leg.style === 'arc', 0, center);
+      const curvedLeg = leg.style === 'arc';
+      // Avoidance-chosen bow rides the explicit-offset channel (bowMagnitude
+      // returns a non-zero offset verbatim), so path + label stay in sync.
+      const chosenBow = curvedLeg
+        ? chooseArcBow(a, b, leg.fromId, leg.toId, center)
+        : 0;
+      const lp = legLabelPoint(a, b, curvedLeg, chosenBow, center);
       const bow = {
-        curved: leg.style === 'arc',
-        offset: 0,
+        curved: curvedLeg,
+        offset: chosenBow,
         center,
         labelX: lp.x,
         labelY: lp.y,
       };
+      placedLegSamples.push({
+        fromId: leg.fromId,
+        toId: leg.toId,
+        pts: sampleLeg(a, b, curvedLeg, chosenBow),
+      });
       const routeLabelStyle =
         leg.label !== undefined
           ? labelOnFill(fillAt(bow.labelX, bow.labelY))
@@ -3122,13 +3256,22 @@ export function layoutMap(
       if (!a || !b) return;
       const fanOffset = n > 1 ? (i - (n - 1) / 2) * FAN_STEP : 0;
       const curved = e.style === 'arc' || n > 1;
-      const lp = legLabelPoint(a, b, curved, fanOffset);
+      // Lone arcs get avoidance; fanned parallels keep their fixed offsets
+      // (the fan itself is the separation) and straight edges stay straight.
+      const edgeBow =
+        curved && n === 1 ? chooseArcBow(a, b, e.fromId, e.toId) : fanOffset;
+      const lp = legLabelPoint(a, b, curved, edgeBow);
       const bow = {
         curved,
-        offset: fanOffset,
+        offset: edgeBow,
         labelX: lp.x,
         labelY: lp.y,
       };
+      placedLegSamples.push({
+        fromId: e.fromId,
+        toId: e.toId,
+        pts: sampleLeg(a, b, curved, edgeBow),
+      });
       const edgeLabelStyle =
         e.label !== undefined
           ? labelOnFill(fillAt(bow.labelX, bow.labelY))

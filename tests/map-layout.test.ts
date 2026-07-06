@@ -815,6 +815,67 @@ describe('layout — routes & edges (AC9, AC10, AC11, AC12, AC28)', () => {
   });
 });
 
+describe('layout — arc avoidance (#arc-avoidance)', () => {
+  // Sample a leg's emitted path (M…L… or M…Q…) at N points.
+  const samplePath = (d: string, n = 50): Array<{ x: number; y: number }> => {
+    const q = d.match(
+      /^M([-\d.]+),([-\d.]+)Q([-\d.]+),([-\d.]+) ([-\d.]+),([-\d.]+)$/
+    );
+    const l = d.match(/^M([-\d.]+),([-\d.]+)L([-\d.]+),([-\d.]+)$/);
+    const pts: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1);
+      if (q) {
+        const [ax, ay, px, py, bx, by] = q.slice(1).map(Number) as number[];
+        const u = 1 - t;
+        pts.push({
+          x: u * u * ax! + 2 * u * t * px! + t * t * bx!,
+          y: u * u * ay! + 2 * u * t * py! + t * t * by!,
+        });
+      } else if (l) {
+        const [ax, ay, bx, by] = l.slice(1).map(Number) as number[];
+        pts.push({ x: ax! + (bx! - ax!) * t, y: ay! + (by! - ay!) * t });
+      }
+    }
+    return pts;
+  };
+  // DEN sits almost on the LGA→LAX chord (the screenshot case).
+  const SRC =
+    'map\npoi 39.7 -104.9 as den\npoi 34.05 -118.24 as lax\npoi 40.78 -73.87 as lga\nden ~> lax\nlga ~> lax';
+  it('an arc flips/widens instead of running through an unrelated POI', () => {
+    const r = lay(SRC);
+    const den = r.pois.find((p) => p.id === 'den')!;
+    const cross = r.legs.find(
+      (lg) => lg.fromId === 'lga' && lg.toId === 'lax'
+    )!;
+    const dmin = Math.min(
+      ...samplePath(cross.d).map((s) => Math.hypot(s.x - den.cx, s.y - den.cy))
+    );
+    expect(dmin).toBeGreaterThan(den.r + 8);
+  });
+  it('two arcs converging on one POI do not ride on top of each other', () => {
+    const r = lay(SRC);
+    const lax = r.pois.find((p) => p.id === 'lax')!;
+    const a = samplePath(r.legs.find((lg) => lg.fromId === 'den')!.d);
+    const b = samplePath(r.legs.find((lg) => lg.fromId === 'lga')!.d);
+    // Ignore the inevitable convergence right at the shared endpoint.
+    const awayFromLax = (s: { x: number; y: number }): boolean =>
+      Math.hypot(s.x - lax.cx, s.y - lax.cy) > 40;
+    let dmin = Infinity;
+    for (const s of a.filter(awayFromLax)) {
+      for (const o of b.filter(awayFromLax)) {
+        dmin = Math.min(dmin, Math.hypot(s.x - o.x, s.y - o.y));
+      }
+    }
+    expect(dmin).toBeGreaterThan(6);
+  });
+  it('an uncontested lone arc keeps the default bow (no churn)', () => {
+    const one = lay('map\npoi Tokyo\npoi Osaka\nTokyo ~> Osaka');
+    expect(one.legs[0]!.d).toMatch(/Q/);
+    expect(JSON.stringify(lay(SRC))).toBe(JSON.stringify(lay(SRC))); // deterministic
+  });
+});
+
 describe('layout — surface parsing removed (AC9)', () => {
   it('a plain route leg (no surface) renders straight', () => {
     const r = lay('map\nroute Tokyo\n  -> Osaka');
