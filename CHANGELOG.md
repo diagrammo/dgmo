@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.1] - 2026-07-06
+
+### Changed
+- **Embedded charts now dim on hover to match the app.** The baked-CSS hover for the data-chart family (bar, pie, funnel, heatmap, polar-area, scatter) used a faint `saturate`/`brightness` lift on the hovered group — imperceptible on muted fills, so an embedded chart (doc site, Obsidian, browser-opened `.svg`) read as having no hover feedback at all. Hovering a mark now fades every other category to `opacity: 0.18`, mirroring the desktop app's live hover exactly. The `:hover` self-emphasis floor is retained. Safe with no JavaScript: these renderers set no inline opacity on marks, so the baked `<style>` rule wins.
+
 ### Fixed
 - **C4: bare text after `Name is a <type>` is again a hard error** instead of being silently dropped. After decision #28 (0.43.0) deleted the `E_*_REMOVED` diagnostic family, a non-`key: value` tail such as `User is a person Handles all requests` silently lost the trailing text (data loss). The tail now raises a parse error naming the fix (`description: …`), and — like other C4 parse errors — the diagram does not render until it is corrected. Use `User is a person, description: Handles all requests`.
 
