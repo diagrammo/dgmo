@@ -10,7 +10,7 @@
 import type { ParsedFunnel } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
-import { shapeFill } from '../palettes/color-utils';
+import { contrastText, shapeFill } from '../palettes/color-utils';
 import { type Svg, fmtNum, tagDatum } from './shared';
 
 export function renderFunnel(
@@ -82,15 +82,23 @@ export function renderFunnel(
     if (!chart.noValue) {
       const valueLabel = fmtNum(d.value);
       // ~0.57em average glyph width at 13px Inter
-      valueInside = valueLabel.length * 13 * 0.57 <= halfEdge * 2 - 12;
+      // Fill the band with the value: size to ~55% of the band height,
+      // shrunk to fit the band's mid-height width (~0.6em/glyph at 700).
+      const fitByWidth = (halfEdge * 2 - 16) / (valueLabel.length * 0.6);
+      const valueSize = Math.min(bandH * 0.55, fitByWidth);
+      valueInside = valueSize >= 13;
       if (valueInside) {
+        const valueFill = solid
+          ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
+          : stroke;
         svg
           .append('text')
           .attr('x', cx)
-          .attr('y', yMid + 4)
+          .attr('y', yMid + valueSize * 0.35)
           .attr('text-anchor', 'middle')
-          .attr('fill', textColor)
-          .attr('font-size', 13)
+          .attr('fill', valueFill)
+          .attr('font-size', valueSize)
+          .attr('font-weight', 700)
           .attr('font-family', FONT_FAMILY)
           .text(valueLabel);
       }

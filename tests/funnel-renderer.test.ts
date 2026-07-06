@@ -48,4 +48,26 @@ describe('funnel renderer labels', () => {
     // data-value="1,000" hover metadata remains; the rendered text must not
     expect(svg).not.toContain('>1,000<');
   });
+
+  it('in-band value uses the segment color, scaled up', async () => {
+    const { svg } = await render(SRC);
+    const value = svg.match(
+      /<text[^>]*fill="([^"]+)"[^>]*font-size="([^"]+)"[^>]*font-weight="700"[^>]*>1,000<\/text>/
+    );
+    expect(value).not.toBeNull();
+    const seg = svg.match(/<polygon[^>]*stroke="([^"]+)"/);
+    expect(value![1]).toBe(seg![1]);
+    expect(parseFloat(value![2])).toBeGreaterThan(13);
+  });
+
+  it('solid-fill switches the in-band value to contrast text', async () => {
+    const { svg } = await render(`funnel T\nsolid-fill\nA 1000\nB 500`);
+    const value = svg.match(
+      /<text[^>]*fill="([^"]+)"[^>]*font-weight="700"[^>]*>1,000<\/text>/
+    );
+    expect(value).not.toBeNull();
+    const seg = svg.match(/<polygon[^>]*stroke="([^"]+)"/);
+    // on a solid band the value must NOT be the band color — it sits on it
+    expect(value![1]).not.toBe(seg![1]);
+  });
 });
