@@ -632,6 +632,6 @@ export function renderMindmapForExport(
       undefined,
       hideDescriptions
     );
-    return extractExportSvg(container, theme);
+    return extractExportSvg(container, theme, palette);
   });
 }

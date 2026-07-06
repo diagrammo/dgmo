@@ -861,6 +861,6 @@ export function renderOrgForExport(
       width: exportWidth,
       height: exportHeight,
     });
-    return extractExportSvg(container, theme);
+    return extractExportSvg(container, theme, palette);
   });
 }

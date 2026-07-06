@@ -788,6 +788,6 @@ export function renderClassDiagramForExport(
       true, // legendActive for export
       true // exportMode
     );
-    return extractExportSvg(container, theme);
+    return extractExportSvg(container, theme, palette);
   });
 }

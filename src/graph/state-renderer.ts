@@ -641,6 +641,8 @@ export function renderStateForExport(
 
     if (theme === 'transparent') {
       svgEl.style.background = 'none';
+    } else if (!svgEl.style.background) {
+      svgEl.style.background = palette.bg;
     }
 
     svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');

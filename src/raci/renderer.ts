@@ -537,8 +537,10 @@ export function renderRaci(
     .attr('height', svgHeight)
     .attr('viewBox', `0 0 ${width} ${svgHeight}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
-    .attr('font-family', FONT_FAMILY)
-    .style('background', 'transparent');
+    .attr('font-family', FONT_FAMILY);
+  // Root background is applied at export time by finalizeSvgExport
+  // (opaque palette.bg for light/dark, none for transparent) so RACI matches
+  // every other chart type instead of always rendering transparent.
 
   if (ctx.isBelowFloor) {
     svg.attr('width', '100%');
@@ -680,11 +682,7 @@ export function renderRaci(
     // reading as the same neutral gray.
     const roleColor = parsed.roleColors[i] ?? autoAccent(i, palette);
     const bodyFill = mix(roleColor, themeBaseBg(palette, isDark), 16);
-    const headerFill = mix(
-      roleColor,
-      themeBaseBg(palette, isDark),
-      30
-    );
+    const headerFill = mix(roleColor, themeBaseBg(palette, isDark), 30);
     const colG = columnsG
       .append('g')
       .attr('class', 'raci-column')

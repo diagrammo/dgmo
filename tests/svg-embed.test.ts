@@ -54,7 +54,7 @@ describe('normalizeSvgForEmbed', () => {
     expect(y + h).toBeLessThanOrEqual(500 + 2);
   });
 
-  it('strips fixed width/height and inline background', () => {
+  it('strips fixed width/height but preserves the opaque root background', () => {
     const input =
       '<svg width="1200" height="800" viewBox="0 0 1200 800" style="background:#fff;">' +
       '<circle cx="50" cy="50" r="10"></circle>' +
@@ -62,7 +62,9 @@ describe('normalizeSvgForEmbed', () => {
     const out = normalizeSvgForEmbed(input);
     expect(out).not.toMatch(/<svg[^>]*\swidth="/);
     expect(out).not.toMatch(/<svg[^>]*\sheight="/);
-    expect(out).not.toMatch(/background:/);
+    // Background is intentionally kept: every chart carries its own opaque
+    // palette.bg so embeds render consistently instead of inheriting the host.
+    expect(out).toMatch(/background:\s*#fff/);
     expect(out).toMatch(/viewBox="/);
   });
 
