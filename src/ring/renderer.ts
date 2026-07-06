@@ -16,7 +16,7 @@ import {
 } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { renderInlineText } from '../utils/inline-markdown';
-import { CHAR_WIDTH_RATIO } from '../utils/text-measure';
+import { CHAR_WIDTH_RATIO, measureText } from '../utils/text-measure';
 import {
   wrapDescriptionLines,
   type WrappedDescLine,
@@ -257,15 +257,13 @@ export function renderRing(
   // can still dim it alongside its layer.
   if (inBandLabelsVisible) {
     const labelsG = svg.append('g').attr('class', 'ring-labels');
+    const labelDefs = labelsG.append('defs');
+    let ringLabelSeq = 0;
     for (let i = 0; i < N; i++) {
       // In-bounds by loop guard.
       const layer = parsed.layers[i]!;
       const fill = layerFills[i]!;
       const isInnermost = i === 0;
-      const labelY = isInnermost ? cy : cy - (i + 0.5) * thickness;
-      // Font is sized purely by band thickness; horizontal overflow into
-      // adjacent bands is allowed so long labels still appear.
-      const fittedFont = labelFont;
       const textColor = contrastText(
         fill,
         palette.textOnFillLight,
@@ -275,19 +273,39 @@ export function renderRing(
         .append('g')
         .attr('class', 'ring-label-group')
         .attr('data-line-number', layer.lineNumber);
-      const label = labelG
-        .append('text')
-        .attr('class', 'ring-label')
-        .attr('x', cx)
-        .attr('y', labelY)
-        .attr('dy', '0.35em')
-        .attr('text-anchor', 'middle')
-        .attr('fill', textColor)
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', fittedFont)
-        .attr('font-weight', 600)
-        .style('pointer-events', 'none');
-      renderInlineText(label, layer.label, palette, fittedFont);
+
+      if (isInnermost) {
+        // Center disc: no curvature — straight horizontal text like before.
+        const label = labelG
+          .append('text')
+          .attr('class', 'ring-label')
+          .attr('x', cx)
+          .attr('y', cy)
+          .attr('dy', '0.35em')
+          .attr('text-anchor', 'middle')
+          .attr('fill', textColor)
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', labelFont)
+          .attr('font-weight', 600)
+          .style('pointer-events', 'none');
+        renderInlineText(label, layer.label, palette, labelFont);
+        continue;
+      }
+
+      // Outer bands: curve the label along the ring, centered at 12 o'clock,
+      // mirroring the sunburst arc labels.
+      drawRingCurvedLabel(
+        labelG,
+        labelDefs,
+        `dgmo-ring-lbl-${ringLabelSeq++}`,
+        layer.label,
+        cx,
+        cy,
+        (i + 0.5) * thickness,
+        labelFont,
+        textColor,
+        palette
+      );
     }
   }
 
@@ -311,6 +329,88 @@ export function renderRing(
       ...(onClickItem !== undefined && { onClickItem }),
     });
   }
+}
+
+/** Largest arc (radians) a curved label may occupy before it self-overlaps
+ *  near the bottom of the ring — text longer than this is shrunk to fit. */
+const MAX_LABEL_ARC = 1.6 * Math.PI;
+
+/**
+ * Draw a ring-band label curved along the band, centered at 12 o'clock.
+ * The text flows left→right across the top on a per-band <textPath>, so it
+ * reads upright (unlike sunburst there's no bottom-half flip — the arc never
+ * crosses below the horizontal center). Long labels shrink the font to stay
+ * within MAX_LABEL_ARC rather than wrapping around and colliding with
+ * themselves.
+ */
+function drawRingCurvedLabel(
+  labelG: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  defs: d3Selection.Selection<SVGDefsElement, unknown, null, undefined>,
+  pathId: string,
+  text: string,
+  cx: number,
+  cy: number,
+  rMid: number,
+  labelFont: number,
+  textColor: string,
+  palette: PaletteColors
+): void {
+  // Pad the arc past the measured width — bold-600 glyphs render a touch wider
+  // than measureText estimates, and a textPath clips anything longer than its
+  // path. The pad must live *inside* the shrink budget so the reserve survives
+  // when the arc clamps to MAX_LABEL_ARC.
+  const PAD = 1.18;
+  // Baseline sits on the path; glyphs grow outward, so pull the path in by a
+  // fraction of the font size to keep the optical center on rMid. The angle
+  // must be sized from this radius (not rMid) or the arc comes up short on the
+  // inner rings where fs*0.32 is a real fraction of the radius.
+  let fs = labelFont;
+  let rPath = rMid - fs * 0.32;
+  const maxLen = MAX_LABEL_ARC * rPath;
+  const wPadded = measureText(text, labelFont) * PAD;
+  if (wPadded > maxLen) {
+    fs = Math.max(LABEL_FONT_MIN, Math.floor((labelFont * maxLen) / wPadded));
+    rPath = rMid - fs * 0.32;
+  }
+
+  // Half-angle the text subtends at the path radius, clamped so the two ends
+  // never meet at the bottom.
+  const arcLen = measureText(text, fs) * PAD;
+  const halfAngle = Math.min(arcLen / (2 * rPath), MAX_LABEL_ARC / 2);
+  const largeArc = halfAngle * 2 > Math.PI ? 1 : 0;
+  // Polar: 0 rad = 12 o'clock, +sin → clockwise (screen-right at the top).
+  const p0x = cx - Math.sin(halfAngle) * rPath;
+  const p0y = cy - Math.cos(halfAngle) * rPath;
+  const p1x = cx + Math.sin(halfAngle) * rPath;
+  const p1y = cy - Math.cos(halfAngle) * rPath;
+  const d = `M ${p0x.toFixed(2)} ${p0y.toFixed(2)} A ${rPath.toFixed(2)} ${rPath.toFixed(2)} 0 ${largeArc} 1 ${p1x.toFixed(2)} ${p1y.toFixed(2)}`;
+
+  defs.append('path').attr('id', pathId).attr('d', d);
+
+  const label = labelG
+    .append('text')
+    .attr('class', 'ring-label')
+    .attr('fill', textColor)
+    .attr('font-family', FONT_FAMILY)
+    .attr('font-size', fs)
+    .attr('font-weight', 600)
+    .style('pointer-events', 'none');
+  const textPath = label
+    .append('textPath')
+    .attr('href', `#${pathId}`)
+    .attr('startOffset', '50%')
+    .attr('text-anchor', 'middle');
+  renderInlineText(
+    textPath as unknown as d3Selection.Selection<
+      SVGTextElement,
+      unknown,
+      null,
+      undefined
+    >,
+    text,
+    palette,
+    fs
+  );
 }
 
 /**
