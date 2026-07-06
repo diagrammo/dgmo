@@ -30,12 +30,13 @@ Entry point: `src/cli.ts` → built to `dist/cli.cjs`.
 src/
 ├── index.ts                    # Public API exports
 ├── cli.ts                      # CLI entry point
-├── chart.ts                    # ECharts chart parser
+├── chart.ts                    # Shared chart data types (bar, line, pie, polar-area, radar)
 ├── dgmo-router.ts              # Framework dispatcher (all chart types)
 ├── fonts.ts                    # FONT_FAMILY, DEFAULT_FONT_NAME ('Inter')
 ├── colors.ts                   # Color name → hex resolver
 ├── d3.ts                       # D3 renderers (slope, arc, timeline, wordcloud, venn, quadrant)
-├── echarts.ts                  # ECharts parser and renderer
+├── data-chart-parser.ts        # Parser for the data-chart family
+├── charts-d3/                  # D3 data-chart renderers (bar, line, pie, scatter, sankey, heatmap, funnel, radar, …)
 ├── render.ts                   # Unified render() entry
 ├── sharing.ts                  # Share-link URL encode/decode
 ├── completion.ts               # Symbol extraction for editor autocomplete
@@ -80,7 +81,7 @@ src/
 - **Sequence** → `sequence/parser.ts` + `sequence/renderer.ts`
 - **Flowchart / state / generic graph** → `graph/` subparsers + renderers
 - **D3 chart types** (slope, arc, timeline, wordcloud, venn, quadrant) → `d3.ts`
-- **ECharts chart types** (sankey, chord, scatter, heatmap, etc.) → `echarts.ts`
+- **Data chart types** (bar, line, pie, scatter, sankey, heatmap, funnel, radar, etc.) → `data-chart-parser.ts` + `charts-d3/` (all D3; the former ECharts renderers were replaced by D3 — `echarts.ts` no longer exists, and `chord` was removed in 0.44.0)
 - **Structured diagrams** (c4, class, er, kanban, org, infra, gantt, sitemap, boxes-and-lines, cycle, journey-map, mindmap, pert, pyramid, raci, ring, tech-radar, wireframe) → own subfolders with parser + layout + renderer
 
 ### Sequence Parser
