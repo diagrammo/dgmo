@@ -2331,7 +2331,7 @@ Signups 800
 Purchases 200
 ```
 
-Each stage renders its name to the left of the band (in the band's color) and its value plus a muted stage-over-stage conversion % to the right — no leader lines. The first stage has no % (nothing to convert from). `no-percent` hides the conversion %; `no-name` / `no-value` hide the other parts.
+Each stage renders its name to the left of the band (in the band's color), its value centered inside the band (falling back beside it when the band is too narrow), and a muted stage-over-stage conversion % to the right — no leader lines. The first stage has no % (nothing to convert from). `no-percent` hides the conversion %; `no-name` / `no-value` hide the other parts.
 
 ---
 

@@ -1,8 +1,9 @@
 // ============================================================
 // Hand-built funnel renderer — SPIKE (Tier 2).
-// Descending-sorted trapezoid bands with vertical gaps, width ∝ value
-// (minSize 14%). Names sit flush left of each band in the band's color;
-// value + muted conversion % sit flush right — no leader lines.
+// Descending-sorted contiguous trapezoid bands, width ∝ value (minSize
+// 14%). Names sit flush left of each band in the band's color; the value
+// is centered inside the band (falling back beside the band when too
+// narrow); a muted conversion % sits flush right — no leader lines.
 // `no-name` / `no-value` / `no-percent` suppress each part.
 // ============================================================
 
@@ -33,8 +34,7 @@ export function renderFunnel(
   const top = topInset + 8;
   const bottom = height - 30;
   const H = bottom - top;
-  const gap = 10;
-  const bandH = (H - gap * (n - 1)) / n;
+  const bandH = H / n;
   const maxValue = sorted[0]!.value || 1;
   const minW = plotW * 0.14;
   const scaleW = (v: number) => Math.max(minW, (v / maxValue) * plotW);
@@ -44,7 +44,7 @@ export function renderFunnel(
     const fill = solid ? stroke : shapeFill(palette, stroke, isDark);
     const topW = scaleW(d.value);
     const botW = i < n - 1 ? scaleW(sorted[i + 1]!.value) : topW * 0.7;
-    const y0 = top + i * (bandH + gap);
+    const y0 = top + i * bandH;
     const y1 = y0 + bandH;
     const seg = svg
       .append('polygon')
@@ -77,9 +77,26 @@ export function renderFunnel(
         .text(d.label);
     }
 
-    const showValue = !chart.noValue;
     const showPct = !chart.noPercent && i > 0;
-    if (showValue || showPct) {
+    let valueInside = false;
+    if (!chart.noValue) {
+      const valueLabel = fmtNum(d.value);
+      // ~0.57em average glyph width at 13px Inter
+      valueInside = valueLabel.length * 13 * 0.57 <= halfEdge * 2 - 12;
+      if (valueInside) {
+        svg
+          .append('text')
+          .attr('x', cx)
+          .attr('y', yMid + 4)
+          .attr('text-anchor', 'middle')
+          .attr('fill', textColor)
+          .attr('font-size', 13)
+          .attr('font-family', FONT_FAMILY)
+          .text(valueLabel);
+      }
+    }
+    const showValueRight = !chart.noValue && !valueInside;
+    if (showValueRight || showPct) {
       const text = svg
         .append('text')
         .attr('x', cx + halfEdge + 10)
@@ -87,7 +104,7 @@ export function renderFunnel(
         .attr('text-anchor', 'start')
         .attr('font-size', 13)
         .attr('font-family', FONT_FAMILY);
-      if (showValue) {
+      if (showValueRight) {
         text.append('tspan').attr('fill', stroke).text(fmtNum(d.value));
       }
       if (showPct) {
@@ -97,7 +114,7 @@ export function renderFunnel(
           .append('tspan')
           .attr('fill', textColor)
           .attr('fill-opacity', 0.55)
-          .text(showValue ? ` · ${pctLabel}` : pctLabel);
+          .text(showValueRight ? ` · ${pctLabel}` : pctLabel);
       }
     }
   });
