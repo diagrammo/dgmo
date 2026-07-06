@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-07-05
+
+### Changed
+- **BREAKING: the package is now ESM-only.** The CommonJS build (`dist/*.cjs`) and the `require` export conditions are gone; every entry resolves to its ESM output. All first-party consumers (the remark plugin and its host wrappers, the app, Obsidian, the site, and `@diagrammo/dgmo-mcp` as of its ESM release) already import the ESM build, so nothing in the ecosystem changes. External code still using `require('@diagrammo/dgmo')` must switch to `import`. The CLI (`dgmo`) is unaffected — it ships as its own self-contained binary. Dropping the duplicate CJS bundles removes ~12 MB from the unpacked package.
+- **Raw `src/` is no longer published.** The tarball shipped the full TypeScript source (~5 MB) that nothing referenced at runtime (the `exports` map points only at `dist/`; map data is served from `dist/map-data/`). Removed from the published `files`.
+
 ## [0.47.0] - 2026-07-05
 
 ### Changed

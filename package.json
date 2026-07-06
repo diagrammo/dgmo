@@ -1,6 +1,6 @@
 {
   "name": "@diagrammo/dgmo",
-  "version": "0.47.0",
+  "version": "0.48.0",
   "description": "DGMO diagram markup language — parser, renderer, and color system",
   "license": "MIT",
   "repository": {
@@ -15,103 +15,52 @@
   "bin": {
     "dgmo": "dist/cli.cjs"
   },
-  "main": "./dist/index.cjs",
+  "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
-      }
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./editor": {
-      "import": {
-        "types": "./dist/editor.d.ts",
-        "default": "./dist/editor.js"
-      },
-      "require": {
-        "types": "./dist/editor.d.cts",
-        "default": "./dist/editor.cjs"
-      }
+      "types": "./dist/editor.d.ts",
+      "default": "./dist/editor.js"
     },
     "./highlight": {
-      "import": {
-        "types": "./dist/highlight.d.ts",
-        "default": "./dist/highlight.js"
-      },
-      "require": {
-        "types": "./dist/highlight.d.cts",
-        "default": "./dist/highlight.cjs"
-      }
+      "types": "./dist/highlight.d.ts",
+      "default": "./dist/highlight.js"
     },
     "./advanced": {
-      "import": {
-        "types": "./dist/advanced.d.ts",
-        "default": "./dist/advanced.js"
-      },
-      "require": {
-        "types": "./dist/advanced.d.cts",
-        "default": "./dist/advanced.cjs"
-      }
+      "types": "./dist/advanced.d.ts",
+      "default": "./dist/advanced.js"
     },
     "./pert": {
-      "import": {
-        "types": "./dist/pert.d.ts",
-        "default": "./dist/pert.js"
-      },
-      "require": {
-        "types": "./dist/pert.d.cts",
-        "default": "./dist/pert.cjs"
-      }
+      "types": "./dist/pert.d.ts",
+      "default": "./dist/pert.js"
     },
     "./auto": {
-      "import": {
-        "types": "./dist/auto.d.ts",
-        "default": "./dist/auto.mjs"
-      },
-      "require": {
-        "types": "./dist/auto.d.cts",
-        "default": "./dist/auto.cjs"
-      }
+      "types": "./dist/auto.d.ts",
+      "default": "./dist/auto.mjs"
     },
     "./element": {
-      "import": {
-        "types": "./dist/element.d.ts",
-        "default": "./dist/element.mjs"
-      },
-      "require": {
-        "types": "./dist/element.d.cts",
-        "default": "./dist/element.cjs"
-      }
+      "types": "./dist/element.d.ts",
+      "default": "./dist/element.mjs"
     },
     "./fonts/*": "./fonts/*",
     "./block": {
-      "import": {
-        "types": "./dist/block.d.ts",
-        "default": "./dist/block.js"
-      },
-      "require": {
-        "types": "./dist/block.d.cts",
-        "default": "./dist/block.cjs"
-      }
+      "types": "./dist/block.d.ts",
+      "default": "./dist/block.js"
     },
     "./block.css": "./dist/block.css"
   },
   "files": [
     "dist/*.js",
-    "dist/*.cjs",
     "dist/*.mjs",
     "dist/*.d.ts",
-    "dist/*.d.cts",
     "dist/*.css",
     "dist/map-data/*.json",
     "fonts",
-    "src",
     "docs/*.md",
     "gallery/fixtures",
     ".claude/commands",
