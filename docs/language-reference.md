@@ -2170,18 +2170,18 @@ no-center-total          // pie: hide the center total (shown by default when `h
 
 - `no-name` — hide name (segment / point / cell / node / set)
 - `no-value` — hide numeric value
-- `no-percent` — hide share-of-total percentage (pie-family only)
+- `no-percent` — hide the percentage (share-of-total on pie-family; stage-over-stage conversion on funnel)
 
 Each chart honors the subset of flags that has a renderable atom on it:
 
 - pie / polar-area: all three
-- funnel: `no-name`, `no-value`
+- funnel: all three (`no-percent` hides the conversion %)
 - bar / line / radar: `no-value`
 - scatter: `no-name`
 - heatmap: `no-value`
 - sankey, arc, slope, quadrant, venn: name-suppression deferred — names render by default and cannot yet be hidden
 
-`no-percent` on a non-pie-family chart is silently ignored (the chart has no percent atom). Cartesian charts (bar, line) render values on each bar / point by default.
+`no-percent` on a chart with no percent atom is silently ignored. Cartesian charts (bar, line) render values on each bar / point by default.
 
 **Eras (line only):**
 
@@ -2330,6 +2330,8 @@ Visits 1200
 Signups 800
 Purchases 200
 ```
+
+Each stage renders its name to the left of the band (in the band's color) and its value plus a muted stage-over-stage conversion % to the right — no leader lines. The first stage has no % (nothing to convert from). `no-percent` hides the conversion %; `no-name` / `no-value` hide the other parts.
 
 ---
 

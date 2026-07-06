@@ -1,9 +1,9 @@
 // ============================================================
 // Hand-built funnel renderer — SPIKE (Tier 2).
 // Descending-sorted trapezoid bands with vertical gaps, width ∝ value
-// (minSize 14%). Combined "Name · value" label inside each band when it
-// fits, otherwise beside it — no leader lines. Muted conversion % sits
-// in the gap between stages.
+// (minSize 14%). Names sit flush left of each band in the band's color;
+// value + muted conversion % sit flush right — no leader lines.
+// `no-name` / `no-value` / `no-percent` suppress each part.
 // ============================================================
 
 import type { ParsedFunnel } from '../data-chart-parser';
@@ -11,9 +11,6 @@ import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
 import { shapeFill } from '../palettes/color-utils';
 import { type Svg, fmtNum, tagDatum } from './shared';
-
-const LABEL_FONT_SIZE = 13;
-const AVG_CHAR_W = LABEL_FONT_SIZE * 0.57;
 
 export function renderFunnel(
   svg: Svg,
@@ -36,8 +33,7 @@ export function renderFunnel(
   const top = topInset + 8;
   const bottom = height - 30;
   const H = bottom - top;
-  const showPct = n > 1;
-  const gap = showPct ? 18 : 6;
+  const gap = 10;
   const bandH = (H - gap * (n - 1)) / n;
   const maxValue = sorted[0]!.value || 1;
   const minW = plotW * 0.14;
@@ -68,42 +64,41 @@ export function renderFunnel(
     });
 
     const yMid = (y0 + y1) / 2;
-    const parts: string[] = [];
-    if (!chart.noName) parts.push(d.label);
-    if (!chart.noValue) parts.push(fmtNum(d.value));
-    if (parts.length > 0) {
-      const label = parts.join(' · ');
-      const wMid = (topW + botW) / 2;
-      const fitsInside = label.length * AVG_CHAR_W <= wMid - 20;
-      const text = svg
-        .append('text')
-        .attr('y', yMid + 4)
-        .attr('fill', textColor)
-        .attr('font-size', LABEL_FONT_SIZE)
-        .attr('font-family', FONT_FAMILY)
-        .text(label);
-      if (fitsInside) {
-        text.attr('x', cx).attr('text-anchor', 'middle');
-      } else {
-        text
-          .attr('x', cx - Math.max(topW, botW) / 2 - 10)
-          .attr('text-anchor', 'end');
-      }
-    }
-
-    if (showPct && i > 0) {
-      const pct = (d.value / sorted[i - 1]!.value) * 100;
-      const pctLabel = pct < 1 ? '<1%' : `${Math.round(pct)}%`;
+    const halfEdge = (topW + botW) / 4; // half of the band's width at yMid
+    if (!chart.noName) {
       svg
         .append('text')
-        .attr('x', cx)
-        .attr('y', y0 - gap / 2 + 3.5)
-        .attr('text-anchor', 'middle')
-        .attr('fill', textColor)
-        .attr('fill-opacity', 0.55)
-        .attr('font-size', 10.5)
+        .attr('x', cx - halfEdge - 10)
+        .attr('y', yMid + 4)
+        .attr('text-anchor', 'end')
+        .attr('fill', stroke)
+        .attr('font-size', 13)
         .attr('font-family', FONT_FAMILY)
-        .text(pctLabel);
+        .text(d.label);
+    }
+
+    const showValue = !chart.noValue;
+    const showPct = !chart.noPercent && i > 0;
+    if (showValue || showPct) {
+      const text = svg
+        .append('text')
+        .attr('x', cx + halfEdge + 10)
+        .attr('y', yMid + 4)
+        .attr('text-anchor', 'start')
+        .attr('font-size', 13)
+        .attr('font-family', FONT_FAMILY);
+      if (showValue) {
+        text.append('tspan').attr('fill', stroke).text(fmtNum(d.value));
+      }
+      if (showPct) {
+        const pct = (d.value / sorted[i - 1]!.value) * 100;
+        const pctLabel = pct < 1 ? '<1%' : `${Math.round(pct)}%`;
+        text
+          .append('tspan')
+          .attr('fill', textColor)
+          .attr('fill-opacity', 0.55)
+          .text(showValue ? ` · ${pctLabel}` : pctLabel);
+      }
     }
   });
 }
