@@ -20,8 +20,10 @@ declare function getMinDimensions(content: string): {
  * - Strip fixed `width="N"` / `height="N"` so CSS (e.g. `width:100%;
  *   height:auto`, or an aspect-ratio derived from the tight viewBox) controls
  *   sizing.
- * - Remove any inline `background:` from the root style so the page
- *   background shows through.
+ * - The root inline `background:` (the theme's opaque `palette.bg`) is
+ *   PRESERVED: every chart type now carries its own opaque background so
+ *   diagrams render consistently across hosts and color modes rather than
+ *   inheriting an arbitrary host page background.
  *
  * This is intentionally a string transform, not a DOM `getBBox()` step: dgmo
  * can dual-render light/dark SVGs where one is hidden by color-mode CSS, and
