@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.2] - 2026-07-06
+
+### Fixed
+- **Embed source panel no longer reflows the diagram when opened.** The standard block's one-shared-frame (border + padding) was applied only while the source was open, so toggling code on added a 1px border and padding that shrank the `width:100%` SVG and shifted the icon toolbar inward. The frame box is now reserved at all times with a transparent border; opening the panel only paints the border color in. Diagram dimensions and toolbar position are identical open vs closed — a more finished expand/collapse. Affects every embed surface (marketing gallery, docs wrappers, Obsidian, `/auto`).
+
 ## [0.48.1] - 2026-07-06
 
 ### Changed
