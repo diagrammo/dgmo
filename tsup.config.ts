@@ -171,11 +171,10 @@ const BUILDS: Options[] = [
   // index + advanced + block (~7.5 MB of dupes), remark-dgmo pulls index +
   // block. ESM code-splitting extracts the shared code into a chunk all three
   // entries import, so a downstream bundler (esbuild/Rollup/Vite) keeps a
-  // single copy. ESM only — esbuild can't split CJS; the CJS build below stays
-  // self-contained (require-consumers don't tree-shake/bundle, so the dup is
-  // inert for them). Extensions stay `.js`/`.cjs`, so no collision with the
-  // auto/element IIFE `dist/{auto,element}.js` (those must stay self-contained
-  // for `<script src>` and keep their own configs).
+  // single copy. The package is ESM-only (v0.48.0 dropped the CJS build — see
+  // the git history / CHANGELOG); the CLI (`cli.cjs`) and the auto/element
+  // IIFE `<script src>` bundles are the only non-ESM outputs and keep their
+  // own configs.
   {
     entry: {
       index: 'src/index.ts',
@@ -192,22 +191,8 @@ const BUILDS: Options[] = [
     onSuccess: chain(copyMapData, emitBlockCss),
   },
   {
-    entry: {
-      index: 'src/index.ts',
-      block: 'src/embed/index.ts',
-      advanced: 'src/advanced.ts',
-    },
-    format: ['cjs'],
-    dts: true,
-    sourcemap: true,
-    splitting: false,
-    noExternal: ['lz-string'],
-    external: ['jsdom'],
-    esbuildPlugins: [fixJsdomXhrWorker],
-  },
-  {
     entry: { editor: 'src/editor/index.ts' },
-    format: ['esm', 'cjs'],
+    format: ['esm'],
     dts: true,
     sourcemap: true,
     splitting: false,
@@ -222,7 +207,7 @@ const BUILDS: Options[] = [
   },
   {
     entry: { highlight: 'src/editor/highlight-api.ts' },
-    format: ['esm', 'cjs'],
+    format: ['esm'],
     dts: true,
     sourcemap: true,
     splitting: false,
@@ -230,7 +215,7 @@ const BUILDS: Options[] = [
   },
   {
     entry: { pert: 'src/pert/index.ts' },
-    format: ['esm', 'cjs'],
+    format: ['esm'],
     dts: true,
     sourcemap: true,
     splitting: false,
@@ -274,20 +259,17 @@ const BUILDS: Options[] = [
     esbuildPlugins: [fixJsdomXhrWorker],
     onSuccess: emitAutoCss,
   },
-  // Auto bundle — ESM (.mjs) + CJS (.cjs) for direct npm consumers, plus
-  // .d.ts/.d.cts. Filename extensions chosen so they don't collide with
-  // the IIFE's dist/auto.js.
+  // Auto bundle — ESM (.mjs) for direct npm consumers, plus .d.ts. The `.mjs`
+  // extension keeps it from colliding with the IIFE's dist/auto.js.
   {
     entry: { auto: 'src/auto/index.ts' },
-    format: ['esm', 'cjs'],
+    format: ['esm'],
     dts: true,
     sourcemap: true,
     splitting: false,
     noExternal: ['lz-string'],
     external: ['jsdom'],
-    outExtension: ({ format }) => ({
-      js: format === 'cjs' ? '.cjs' : '.mjs',
-    }),
+    outExtension: () => ({ js: '.mjs' }),
     define: {
       __DGMO_VERSION__: JSON.stringify(pkg.version),
       'process.env.NODE_ENV': JSON.stringify('production'),
@@ -316,20 +298,17 @@ const BUILDS: Options[] = [
     },
     esbuildPlugins: [fixJsdomXhrWorker],
   },
-  // Element bundle — ESM (.mjs) + CJS (.cjs) + .d.ts/.d.cts for direct npm
-  // consumers. Extensions chosen so they don't collide with the IIFE's
-  // dist/element.js.
+  // Element bundle — ESM (.mjs) + .d.ts for direct npm consumers. The `.mjs`
+  // extension keeps it from colliding with the IIFE's dist/element.js.
   {
     entry: { element: 'src/element/index.ts' },
-    format: ['esm', 'cjs'],
+    format: ['esm'],
     dts: true,
     sourcemap: true,
     splitting: false,
     noExternal: ['lz-string'],
     external: ['jsdom'],
-    outExtension: ({ format }) => ({
-      js: format === 'cjs' ? '.cjs' : '.mjs',
-    }),
+    outExtension: () => ({ js: '.mjs' }),
     define: {
       __DGMO_VERSION__: JSON.stringify(pkg.version),
       'process.env.NODE_ENV': JSON.stringify('production'),
