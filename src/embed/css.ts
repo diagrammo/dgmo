@@ -130,14 +130,20 @@ export const BLOCK_CSS: string = `
   opacity: 1;
 }
 
-/* === Open state: frame the whole block ===
+/* === Frame the whole block ===
  * When the source panel is open, diagram + toolbar + code get one shared
- * border so the code visibly belongs to the chart above it, not to the
- * surrounding prose. Closed blocks stay frameless. */
-.dgmo:has(> .dgmo-source-wrap[open]) {
-  border: 1px solid rgba(127, 127, 127, 0.3);
+ * border so the code visibly belongs to the chart above it. The frame box
+ * (border + padding) is RESERVED at all times — with the border transparent
+ * while closed — so opening the panel only paints the border in. It never
+ * reflows the diagram or shifts the toolbar: the SVG box and toolbar position
+ * are identical open vs closed. */
+.dgmo:has(> .dgmo-source-wrap) {
+  border: 1px solid transparent;
   border-radius: 0.6em;
   padding: 0.75em 0.75em 0.5em;
+}
+.dgmo:has(> .dgmo-source-wrap[open]) {
+  border-color: rgba(127, 127, 127, 0.3);
 }
 
 /* === Source panel (hidden until toggled) === */
