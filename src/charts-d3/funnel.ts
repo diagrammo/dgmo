@@ -68,11 +68,12 @@ export function renderFunnel(
     if (!chart.noName) {
       svg
         .append('text')
-        .attr('x', cx - halfEdge - 10)
-        .attr('y', yMid + 4)
+        .attr('x', cx - halfEdge - 12)
+        .attr('y', yMid + 6)
         .attr('text-anchor', 'end')
         .attr('fill', stroke)
-        .attr('font-size', 13)
+        .attr('font-size', 17)
+        .attr('font-weight', 600)
         .attr('font-family', FONT_FAMILY)
         .text(d.label);
     }
@@ -107,10 +108,11 @@ export function renderFunnel(
     if (showValueRight || showPct) {
       const text = svg
         .append('text')
-        .attr('x', cx + halfEdge + 10)
-        .attr('y', yMid + 4)
+        .attr('x', cx + halfEdge + 12)
+        .attr('y', yMid + 6)
         .attr('text-anchor', 'start')
-        .attr('font-size', 13)
+        .attr('font-size', 17)
+        .attr('font-weight', 600)
         .attr('font-family', FONT_FAMILY);
       if (showValueRight) {
         text.append('tspan').attr('fill', stroke).text(fmtNum(d.value));
@@ -120,8 +122,8 @@ export function renderFunnel(
         const pctLabel = pct < 1 ? '<1%' : `${Math.round(pct)}%`;
         text
           .append('tspan')
-          .attr('fill', textColor)
-          .attr('fill-opacity', 0.55)
+          .attr('fill', stroke)
+          .attr('fill-opacity', 0.75)
           .text(showValueRight ? ` · ${pctLabel}` : pctLabel);
       }
     }
