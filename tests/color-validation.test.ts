@@ -7,6 +7,8 @@ import {
   resolveColorWithDiagnostic,
   nearestNamedColor,
   INVALID_COLOR_CODE,
+  RECOGNIZED_COLOR_NAMES,
+  colorNames,
 } from '../src/colors';
 import { parseExtendedChart } from '../src/data-chart-parser';
 import { parseDgmo } from '../src/dgmo-router';
@@ -15,6 +17,40 @@ import type { DgmoError } from '../src/diagnostics';
 function colorDiags(diagnostics: { message: string; severity: string }[]) {
   return diagnostics.filter((d) => d.message.startsWith('Unknown color'));
 }
+
+// ============================================================
+// Frozen palette contract (decision #17): the 11 color names are a public
+// grammar surface. Adding a 12th (or renaming one) would silently change the
+// meaning of any user diagram that uses the new word as a label, so it MUST be
+// a deliberate major-version bump. This assertion makes such a change fail CI
+// loudly rather than slip in. If you are intentionally changing the palette
+// names, update this literal in the same commit that bumps the major version.
+// ============================================================
+describe('frozen palette contract (11 color names)', () => {
+  const FROZEN_COLOR_NAMES = [
+    'red',
+    'orange',
+    'yellow',
+    'green',
+    'blue',
+    'purple',
+    'teal',
+    'cyan',
+    'gray',
+    'black',
+    'white',
+  ];
+
+  it('RECOGNIZED_COLOR_NAMES equals the frozen literal list', () => {
+    expect([...RECOGNIZED_COLOR_NAMES]).toEqual(FROZEN_COLOR_NAMES);
+  });
+
+  it('the colorNames resolver map covers exactly the frozen names', () => {
+    expect(Object.keys(colorNames).sort()).toEqual(
+      [...FROZEN_COLOR_NAMES].sort()
+    );
+  });
+});
 
 describe('color name validation — flowchart (TD-11 fall-through)', () => {
   // Per TD-11 "greedy-for-color, fall-through-to-label": if `(X)` is not one

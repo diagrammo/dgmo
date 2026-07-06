@@ -1081,6 +1081,42 @@ API is a system
     });
   });
 
+  describe('removed bare same-line description/tech tail (1.0 freeze)', () => {
+    it('bare text after `is a <type>` is a hard error, not a silent drop', () => {
+      const result = parseC4('c4\nUser is a person Handles all requests');
+      const diag = result.diagnostics.find(
+        (d) =>
+          d.severity === 'error' &&
+          d.message.includes("text after 'is a person'") &&
+          d.message.includes("'Handles all requests'") &&
+          d.message.includes('description: Handles all requests')
+      );
+      expect(diag).toBeDefined();
+      // Sets result.error so the renderer bails (hard error, no render).
+      expect(result.error).toBeTruthy();
+    });
+
+    it('the canonical `description:` form keeps the text (no error)', () => {
+      const result = parseC4(
+        'c4\nUser is a person, description: Handles all requests'
+      );
+      expect(result.diagnostics.some((d) => d.severity === 'error')).toBe(
+        false
+      );
+      expect(result.elements[0].description).toEqual(['Handles all requests']);
+    });
+
+    it('a bare `tech`-style tail also hard-errors', () => {
+      const result = parseC4('c4\nAPI is a container React and Node');
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'error' && d.message.includes("'React and Node'")
+        )
+      ).toBe(true);
+    });
+  });
+
   // ============================================================
   // "Name is a type" declaration syntax
   // ============================================================

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **C4: bare text after `Name is a <type>` is again a hard error** instead of being silently dropped. After decision #28 (0.43.0) deleted the `E_*_REMOVED` diagnostic family, a non-`key: value` tail such as `User is a person Handles all requests` silently lost the trailing text (data loss). The tail now raises a parse error naming the fix (`description: …`), and — like other C4 parse errors — the diagram does not render until it is corrected. Use `User is a person, description: Handles all requests`.
+
+### Added
+- **Frozen-palette CI guard.** A test now pins the 11 recognized color names (`RECOGNIZED_COLOR_NAMES` + the `colorNames` resolver map) to their exact literal list, so adding/renaming a palette color (a breaking grammar change) fails CI rather than slipping in silently. Documents the decision-#17 invariant that was previously only asserted by prose.
+
 ## [0.48.0] - 2026-07-05
 
 ### Changed

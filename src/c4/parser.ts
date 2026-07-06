@@ -173,8 +173,9 @@ function parseC4MetaTail(
   const trimmed = tail.trim();
   if (!trimmed) return {};
   if (!trimmed.includes(':')) {
-    // Non-empty tail with no `key:` — dropped silently (data loss
-    // accepted pre-1.0; the legacy bare-tail diagnostic was removed).
+    // Non-empty tail with no `key:` — the removed bare-description/tech form.
+    // The caller hard-errors on this (1.0 freeze) before rendering; this stays
+    // a safe fallback that returns no metadata.
     return {};
   }
   const registry = withTagAliases(C4_REGISTRY, new Set(metaAliasMap.keys()));
@@ -803,6 +804,19 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           );
         }
         namePart = namePart.substring(0, nameIsAMatch.index!).trim();
+      }
+
+      // 1.0 freeze: a non-empty tail after `is a <type>` with no `key:` is the
+      // removed bare same-line description/tech form. After the #28 diagnostic-
+      // family deletion it was dropped *silently* (data loss). Restore a hard
+      // error — `result.error` makes the whole C4 diagram fail to render
+      // (renderer bails on `parsed.error`), matching the prefix-form removal.
+      const bareTail = metaTail.trim();
+      if (bareTail && !bareTail.includes(':')) {
+        pushError(
+          lineNumber,
+          `text after 'is a ${rawType}' must be 'key: value' metadata — '${bareTail}' is not recognized (did you mean 'description: ${bareTail}'?)`
+        );
       }
 
       const metadata = parseC4MetaTail(metaTail, metaAliasMap);
