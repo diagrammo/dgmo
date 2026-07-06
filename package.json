@@ -109,7 +109,7 @@
     "check:security": "pnpm audit --prod",
     "check:publish": "publint",
     "check:size": "pnpm build && du -sh dist/ && echo '---' && ls -lh dist/*.js dist/*.cjs",
-    "check:types": "attw --pack . --ignore-rules no-resolution false-export-default",
+    "check:types": "attw --pack . --ignore-rules no-resolution false-export-default cjs-resolves-to-esm",
     "postinstall": "node -e \"console.log('\\n💡 Claude Code user? Run: dgmo install claude-code\\n')\"",
     "prepare": "husky"
   },
