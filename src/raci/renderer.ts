@@ -538,6 +538,14 @@ export function renderRaci(
     .attr('viewBox', `0 0 ${width} ${svgHeight}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('font-family', FONT_FAMILY);
+
+  // The preview canvas is padded past the content to fill the pane
+  // (svgHeight > totalHeight). Stamp the tight height so capture-based
+  // exporters (the app's fast path clones this live SVG) can crop the
+  // dead band.
+  if (!exportDims && svgHeight > totalHeight) {
+    svg.attr('data-content-height', Math.ceil(totalHeight));
+  }
   // Root background is applied at export time by finalizeSvgExport
   // (opaque palette.bg for light/dark, none for transparent) so RACI matches
   // every other chart type instead of always rendering transparent.

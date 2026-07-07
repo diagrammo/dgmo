@@ -37,6 +37,29 @@ function render(source: string): HTMLDivElement {
   return container;
 }
 
+describe('renderRaci — content-height stamping', () => {
+  const SHORT = `raci\n\nTask\n  Cap: A\n  Crew: R`;
+
+  it('stamps data-content-height in preview when the canvas is pane-padded', () => {
+    const parsed = parseRaci(SHORT, palette);
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 1200 });
+    Object.defineProperty(container, 'clientHeight', { value: 2000 });
+    renderRaci(container, parsed, palette, false);
+    const svg = container.querySelector('svg')!;
+    expect(Number(svg.getAttribute('height'))).toBe(2000);
+    const contentH = Number(svg.getAttribute('data-content-height'));
+    expect(contentH).toBeGreaterThan(0);
+    expect(contentH).toBeLessThan(2000);
+  });
+
+  it('does not stamp it on the export path (canvas already tight)', () => {
+    const c = render(SHORT);
+    const svg = c.querySelector('svg')!;
+    expect(svg.getAttribute('data-content-height')).toBeNull();
+  });
+});
+
 describe('renderRaci — basic structure', () => {
   it('produces an <svg> root for a minimal RACI', () => {
     const c = render(`raci\n\nTask\n  Cap: A\n  Crew: R`);

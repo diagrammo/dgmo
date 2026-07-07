@@ -782,6 +782,31 @@ side above
   });
 });
 
+describe('event-line content-height stamping', () => {
+  it('stamps data-content-height in preview when the canvas is pane-padded', () => {
+    const parsed = parseEventLine(TAGGED, nordLight);
+    // Tall pane: content is far shorter, so the canvas pads to fill it.
+    const container = mount(900, 2000);
+    renderEventLine(container, parsed, nordLight, false);
+    const svg = container.querySelector('svg')!;
+    expect(Number(svg.getAttribute('height'))).toBe(2000);
+    const contentH = Number(svg.getAttribute('data-content-height'));
+    expect(contentH).toBeGreaterThan(0);
+    expect(contentH).toBeLessThan(2000);
+  });
+
+  it('does not stamp it on the export path (canvas already tight)', () => {
+    const parsed = parseEventLine(TAGGED, nordLight);
+    const container = mount();
+    renderEventLineForExport(container, parsed, nordLight, false, {
+      width: 800,
+      height: 500,
+    });
+    const svg = container.querySelector('svg')!;
+    expect(svg.getAttribute('data-content-height')).toBeNull();
+  });
+});
+
 describe('event-line hover interactivity', () => {
   const ERAS_SCALED = `event-line Web
 tag Kind as k

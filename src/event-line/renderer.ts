@@ -724,7 +724,7 @@ export function renderEventLine(
       }
     }
   }
-  const { contentW, totalH, spineY, eraBaseY, laneNear } = layout;
+  const { contentW, contentH, totalH, spineY, eraBaseY, laneNear } = layout;
 
   // ── SVG root ──
   const svg = d3Selection
@@ -736,6 +736,13 @@ export function renderEventLine(
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
     .style('font-family', FONT_FAMILY);
+
+  // The preview canvas is padded past the content to fill the panel
+  // (totalH > contentH). Stamp the tight height so capture-based exporters
+  // (the app's fast path clones this live SVG) can crop the dead band.
+  if (!exportMode && totalH > contentH) {
+    svg.attr('data-content-height', Math.ceil(contentH));
+  }
 
   if (!exportMode) svg.append('style').text(HOVER_CSS);
 
