@@ -72,7 +72,7 @@ export function renderFunnel(
         .attr('y', yMid + 6)
         .attr('text-anchor', 'end')
         .attr('fill', stroke)
-        .attr('font-size', 17)
+        .attr('font-size', 21)
         .attr('font-weight', 600)
         .attr('font-family', FONT_FAMILY)
         .text(d.label);
@@ -111,7 +111,7 @@ export function renderFunnel(
         .attr('x', cx + halfEdge + 12)
         .attr('y', yMid + 6)
         .attr('text-anchor', 'start')
-        .attr('font-size', 17)
+        .attr('font-size', 21)
         .attr('font-weight', 600)
         .attr('font-family', FONT_FAMILY);
       if (showValueRight) {
@@ -123,7 +123,6 @@ export function renderFunnel(
         text
           .append('tspan')
           .attr('fill', stroke)
-          .attr('fill-opacity', 0.75)
           .text(showValueRight ? ` · ${pctLabel}` : pctLabel);
       }
     }
