@@ -49,6 +49,8 @@ function ensureStyle(svg: SVGSVGElement, muted: string): void {
     .dgmo-series.dgmo-dim,.dgmo-datum.dgmo-dim,.dgmo-ptlabel.dgmo-dim{opacity:.18}
     .dgmo-tick.dgmo-faded{opacity:.22}
     .dgmo-datum{cursor:pointer}
+    .dgmo-axis-label{cursor:pointer}
+    .dgmo-axis-label.dgmo-axis-active{font-weight:700}
     .dgmo-axline{stroke:${muted};stroke-width:1;stroke-dasharray:4 4;pointer-events:none}
   `;
   svg.insertBefore(style, svg.firstChild);
@@ -240,6 +242,33 @@ export function attachDataChartInteractions(
     for (const d of datums) d.classList.remove('dgmo-dim');
     for (const g of seriesGroups) g.classList.remove('dgmo-dim');
     for (const l of ptLabels) l.classList.remove('dgmo-dim');
+    reapplyAxisPin();
+  };
+
+  // ── axis-label click → pin emphasis to that row/column ─────────────────
+  // Renderers tag clickable axis labels with data-filter-attr (the datum
+  // attribute to match, e.g. data-emph-key / data-col-key) + data-filter-value
+  // (heatmap row/column labels). Clicking pins a dim of every non-matching
+  // datum; clicking the same label again — or empty space — unpins. Hover
+  // still wins while active; the pin reasserts when the hover clears.
+  let axisPin: { attr: string; value: string; el: Element } | null = null;
+  const axisLabels = Array.from(
+    svg.querySelectorAll<SVGElement>('[data-filter-attr]')
+  );
+  function reapplyAxisPin(): void {
+    if (!axisPin) return;
+    for (const d of datums)
+      d.classList.toggle(
+        'dgmo-dim',
+        d.getAttribute(axisPin.attr) !== axisPin.value
+      );
+  }
+  const setAxisPin = (next: typeof axisPin) => {
+    if (axisPin) axisPin.el.classList.remove('dgmo-axis-active');
+    axisPin = next;
+    if (axisPin) axisPin.el.classList.add('dgmo-axis-active');
+    if (!axisPin) for (const d of datums) d.classList.remove('dgmo-dim');
+    reapplyAxisPin();
   };
 
   // ── crosshair (line / area) ───────────────────────────────────────────
@@ -412,8 +441,24 @@ export function attachDataChartInteractions(
     }
   };
   const onClick = (e: MouseEvent) => {
+    const label = (e.target as Element).closest?.(
+      '[data-filter-attr]'
+    ) as SVGElement | null;
+    if (label && axisLabels.includes(label)) {
+      const attr = label.getAttribute('data-filter-attr');
+      const value = label.getAttribute('data-filter-value');
+      if (attr && value != null) {
+        const same = axisPin?.attr === attr && axisPin.value === value;
+        setAxisPin(same ? null : { attr, value, el: label });
+        return;
+      }
+    }
     const line = walkUpForLine(e.target as Element, svg);
-    if (line !== null && opts.onNavigate) opts.onNavigate(line);
+    if (line !== null && opts.onNavigate) {
+      opts.onNavigate(line);
+      return;
+    }
+    if (axisPin) setAxisPin(null); // background click unpins
   };
 
   // ── cursor-driven highlight (editor cursor → chart element) ───────────
@@ -423,6 +468,7 @@ export function attachDataChartInteractions(
     pinned = [];
     for (const d of datums) d.classList.remove('dgmo-dim');
     for (const g of seriesGroups) g.classList.remove('dgmo-dim');
+    reapplyAxisPin();
   };
   const highlightLine = (line: number | null) => {
     if (curDatum || crosshairActive) return; // hover wins
@@ -543,6 +589,7 @@ export function attachDataChartInteractions(
         el.removeEventListener(ev, fn);
       if (overlay) overlay.remove();
       restorePt();
+      setAxisPin(null);
       clearHighlight();
       clearDim();
     },

@@ -352,3 +352,90 @@ describe('legend hover → series emphasis', () => {
     expect(svg.querySelectorAll('[data-axis-legend]').length).toBe(0);
   });
 });
+
+const HEATMAP = `heatmap Activity
+columns Jan, Feb, Mar
+
+Caribbean 5 4 5
+Atlantic  2 3 2
+Pacific   3 1 4`;
+
+describe('heatmap axis-label click → row/column pin', () => {
+  const label = (value: string) =>
+    svg.querySelector<SVGElement>(
+      `.dgmo-axis-label[data-filter-value="${value}"]`
+    )!;
+  const cells = () =>
+    Array.from(svg.querySelectorAll<SVGElement>('rect.dgmo-datum'));
+  const click = (el: Element) =>
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+  it('row + column labels carry filter attrs', async () => {
+    await mount(HEATMAP);
+    expect(label('Caribbean').getAttribute('data-filter-attr')).toBe(
+      'data-emph-key'
+    );
+    expect(label('Feb').getAttribute('data-filter-attr')).toBe('data-col-key');
+  });
+
+  it('clicking a row label dims every cell outside that row', async () => {
+    await mount(HEATMAP);
+    click(label('Atlantic'));
+    for (const c of cells()) {
+      expect(c.classList.contains('dgmo-dim')).toBe(
+        c.getAttribute('data-emph-key') !== 'Atlantic'
+      );
+    }
+    expect(label('Atlantic').classList.contains('dgmo-axis-active')).toBe(true);
+  });
+
+  it('clicking a column label dims every cell outside that column', async () => {
+    await mount(HEATMAP);
+    click(label('Feb'));
+    for (const c of cells()) {
+      expect(c.classList.contains('dgmo-dim')).toBe(
+        c.getAttribute('data-col-key') !== 'Feb'
+      );
+    }
+  });
+
+  it('clicking the same label again unpins; another label switches the pin', async () => {
+    await mount(HEATMAP);
+    click(label('Feb'));
+    click(label('Feb'));
+    expect(cells().some((c) => c.classList.contains('dgmo-dim'))).toBe(false);
+    expect(label('Feb').classList.contains('dgmo-axis-active')).toBe(false);
+
+    click(label('Feb'));
+    click(label('Pacific'));
+    expect(label('Feb').classList.contains('dgmo-axis-active')).toBe(false);
+    expect(label('Pacific').classList.contains('dgmo-axis-active')).toBe(true);
+    for (const c of cells()) {
+      expect(c.classList.contains('dgmo-dim')).toBe(
+        c.getAttribute('data-emph-key') !== 'Pacific'
+      );
+    }
+  });
+
+  it('pin survives a cell hover + mouseleave', async () => {
+    await mount(HEATMAP);
+    click(label('Caribbean'));
+    const other = cells().find(
+      (c) => c.getAttribute('data-emph-key') === 'Atlantic'
+    )!;
+    other.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    svg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    for (const c of cells()) {
+      expect(c.classList.contains('dgmo-dim')).toBe(
+        c.getAttribute('data-emph-key') !== 'Caribbean'
+      );
+    }
+  });
+
+  it('background click unpins', async () => {
+    await mount(HEATMAP);
+    click(label('Jan'));
+    click(svg);
+    expect(cells().some((c) => c.classList.contains('dgmo-dim'))).toBe(false);
+  });
+});

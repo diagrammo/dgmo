@@ -83,12 +83,15 @@ export function renderHeatmap(
     Math.min(ch * 0.55, (cw * 0.7 * REF) / maxValueW)
   );
 
-  // column labels (rotate if wide)
+  // column labels (rotate if wide) — clickable: pins emphasis to the column
   const rotate = cols.some((c) => measureText(c, 12) > cw * 0.85);
   cols.forEach((c, ci) => {
     const x = left + ci * cw + cw / 2;
     const t = svg
       .append('text')
+      .attr('class', 'dgmo-axis-label')
+      .attr('data-filter-attr', 'data-col-key')
+      .attr('data-filter-value', c)
       .attr('fill', textColor)
       .attr('font-size', 12)
       .attr('font-family', FONT_FAMILY)
@@ -106,9 +109,12 @@ export function renderHeatmap(
   });
 
   rows.forEach((row, ri) => {
-    // row label
+    // row label — clickable: pins emphasis to the row
     svg
       .append('text')
+      .attr('class', 'dgmo-axis-label')
+      .attr('data-filter-attr', 'data-emph-key')
+      .attr('data-filter-value', row.label)
       .attr('x', left - 10)
       .attr('y', top + ri * ch + ch / 2 + 4)
       .attr('text-anchor', 'end')
@@ -130,7 +136,8 @@ export function renderHeatmap(
         .attr('height', ch)
         .attr('fill', cell)
         .attr('stroke', bgColor)
-        .attr('stroke-width', 2);
+        .attr('stroke-width', 2)
+        .attr('data-col-key', colLabel);
       tagDatum(r, {
         line: row.lineNumber,
         key: row.label,
@@ -139,7 +146,7 @@ export function renderHeatmap(
         color: cell,
       });
       if (!chart.noValue) {
-        svg
+        const label = svg
           .append('text')
           .attr('x', left + ci * cw + cw / 2)
           .attr('y', top + ri * ch + ch / 2 + cellFont / 3)
@@ -149,6 +156,14 @@ export function renderHeatmap(
           .attr('font-weight', 600)
           .attr('font-family', FONT_FAMILY)
           .text(fmtNum(v));
+        tagDatum(label, {
+          line: row.lineNumber,
+          key: row.label,
+          name: `${row.label} · ${colLabel}`,
+          value: fmtNum(v),
+          color: cell,
+        });
+        label.attr('data-col-key', colLabel);
       }
     });
   });
