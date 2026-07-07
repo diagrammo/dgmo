@@ -524,10 +524,11 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     emphasis: 'dim',
     selfEmphasis: false,
   },
-  // line: each series is a `g.dgmo-series` wrapping its line + data dots. The
-  // dots are hittable, so a structural rule dims other series when a point is
-  // hovered — no fat hit-path needed. (The plot-area hit overlay sits BEHIND
-  // the series, so dot hover still lands; verified in the browser e2e.)
+  // line: each series is a `g.dgmo-series` wrapping its line + data dots + an
+  // invisible fat hit corridor (`.dgmo-series-hit`, renderer-baked) — without
+  // the corridor only the 2.5px stroke and 4px dots were hittable, so the
+  // baked hover read as dead in embeds. Hovering anywhere along a line puts
+  // its group into `:hover` and the other series dim.
   line: {
     markSelector: 'g.dgmo-series',
     strategy: 'structural',

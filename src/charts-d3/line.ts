@@ -262,6 +262,19 @@ export function renderLine(
       .attr('stroke-linejoin', 'round')
       .attr('stroke-linecap', 'round');
 
+    // Invisible fat hit corridor along the line. Without it the series is
+    // only hittable on the 2.5px stroke and the tiny dots, so the baked
+    // CSS :hover emphasis in embeds (no JS) effectively never fires.
+    // Transparent stroke still hit-tests under pointer-events:visiblePainted.
+    g.append('path')
+      .attr('class', 'dgmo-series-hit')
+      .attr('d', lineGen(pts) ?? '')
+      .attr('fill', 'none')
+      .attr('stroke', 'transparent')
+      .attr('stroke-width', 16)
+      .attr('stroke-linejoin', 'round')
+      .attr('stroke-linecap', 'round');
+
     const labelColor = mix(color, textColor, 60);
     for (const p of pts) {
       g.append('circle')

@@ -42,6 +42,31 @@ describe('mountD3DataChart', () => {
     ctrl.destroy();
   });
 
+  it('bakes an invisible fat hit corridor into each line series', async () => {
+    const ctrl = mountD3DataChart(host, LINE, {
+      theme: 'light',
+      palette: 'slate',
+    });
+    await ctrl.update(LINE);
+    const series = host.querySelectorAll('g.dgmo-series');
+    expect(series.length).toBe(2);
+    for (const g of series) {
+      const hit = g.querySelector<SVGPathElement>('.dgmo-series-hit');
+      // Without the corridor, the baked CSS :hover emphasis in embeds only
+      // fires on the 2.5px stroke / 4px dots and reads as dead.
+      expect(hit).toBeTruthy();
+      expect(hit!.getAttribute('stroke')).toBe('transparent');
+      expect(parseFloat(hit!.getAttribute('stroke-width')!)).toBeGreaterThan(
+        10
+      );
+      expect(hit!.getAttribute('fill')).toBe('none');
+      expect(hit!.getAttribute('d')).toBe(
+        g.querySelector('.dgmo-series-line')!.getAttribute('d')
+      );
+    }
+    ctrl.destroy();
+  });
+
   it('wires click-to-source-line via the adapter', async () => {
     let navigated: number | null = null;
     const ctrl = mountD3DataChart(host, LINE, {
