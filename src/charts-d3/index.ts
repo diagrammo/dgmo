@@ -243,7 +243,6 @@ function renderInto(
         seriesColors,
         palette,
         isDark,
-        textColor,
         hasTitle ? 52 : 24
       );
       return true;

@@ -26,7 +26,6 @@ export function renderFunnel(
   colors: string[],
   palette: PaletteColors,
   isDark: boolean,
-  textColor: string,
   topInset: number
 ): void {
   const sorted = [...chart.data].sort((a, b) => b.value - a.value);
