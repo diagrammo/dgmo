@@ -71,7 +71,17 @@ export function renderHeatmap(
   const plotH = height - top - bottom;
   const cw = plotW / ncols;
   const ch = plotH / nrows;
-  const cellFont = Math.max(11, Math.min(18, Math.min(cw, ch) * 0.28));
+  // Scale value labels to fill the cell: bounded by cell height and by the
+  // widest value fitting the cell width (measured at a reference size).
+  const REF = 100;
+  const maxValueW = Math.max(
+    1,
+    ...rows.flatMap((r) => r.values.map((v) => measureText(fmtNum(v), REF)))
+  );
+  const cellFont = Math.max(
+    11,
+    Math.min(ch * 0.55, (cw * 0.7 * REF) / maxValueW)
+  );
 
   // column labels (rotate if wide)
   const rotate = cols.some((c) => measureText(c, 12) > cw * 0.85);
