@@ -204,4 +204,141 @@ describe('computeQuadrantPointLabels', () => {
       }
     }
   });
+
+  it('respects per-point radius (bubble charts) — label clears a big bubble', () => {
+    const big: QuadrantLabelPoint[] = [
+      { label: 'Big', cx: 400, cy: 300, r: 60 },
+    ];
+    const result = computeQuadrantPointLabels(
+      big,
+      chartBounds,
+      [],
+      pointRadius,
+      fontSize
+    );
+    // Placed above, past the 60px radius — not at the default 6px gap
+    expect(300 - result[0].y).toBeGreaterThan(60);
+  });
+
+  it('labels of neighboring points avoid a big bubble body', () => {
+    const points: QuadrantLabelPoint[] = [
+      { label: 'Big', cx: 400, cy: 300, r: 70 },
+      // Small point sitting just above the big bubble's rim: its natural
+      // above-label is fine, but a naive below/at-point label would land
+      // inside the big circle.
+      { label: 'Small', cx: 400, cy: 220, r: 5 },
+    ];
+    const result = computeQuadrantPointLabels(
+      points,
+      chartBounds,
+      [],
+      pointRadius,
+      fontSize
+    );
+    const h = fontSize + 4;
+    for (const r of result) {
+      const w = r.label.length * fontSize * 0.6 + 8;
+      let x: number;
+      if (r.anchor === 'middle') x = r.x - w / 2;
+      else if (r.anchor === 'end') x = r.x - w;
+      else x = r.x;
+      const rect: LabelRect = { x, y: r.y - h / 2, w, h };
+      // No label rect center-region intrudes into the big bubble
+      const nearestX = Math.max(rect.x, Math.min(400, rect.x + rect.w));
+      const nearestY = Math.max(rect.y, Math.min(300, rect.y + rect.h));
+      const d2 = (nearestX - 400) ** 2 + (nearestY - 300) ** 2;
+      expect(
+        d2,
+        `label "${r.label}" sits inside the big bubble`
+      ).toBeGreaterThanOrEqual(70 ** 2);
+    }
+  });
+});
+
+import { placeScatterHoverValue } from '../src/charts-d3/scatter';
+import { rectCircleOverlap } from '../src/label-layout';
+
+describe('placeScatterHoverValue', () => {
+  const bounds = { left: 0, top: 0, right: 800, bottom: 600 };
+
+  it('prefers just below the bubble when clear, number line nearest', () => {
+    const res = placeScatterHoverValue(
+      400,
+      300,
+      20,
+      'Crew',
+      '40',
+      [],
+      [],
+      bounds
+    );
+    expect(res.anchor).toBe('middle');
+    expect(res.y).toBeGreaterThan(320);
+    // label line stacked beyond the number
+    expect(res.labelY).toBeGreaterThan(res.y);
+  });
+
+  it('number stays nearest the bubble when the block flips above', () => {
+    // Block below is walled off by a wide label
+    const wall = { x: 0, y: 322, w: 800, h: 200 };
+    const res = placeScatterHoverValue(
+      400,
+      300,
+      20,
+      'Crew',
+      '40',
+      [wall],
+      [],
+      bounds
+    );
+    expect(res.y).toBeLessThan(300); // above the bubble
+    expect(res.labelY).toBeLessThan(res.y); // label farther up
+  });
+
+  it('dodges a name label sitting below the point', () => {
+    // Static name label occupying the below slot
+    const label = { x: 360, y: 328, w: 80, h: 15 };
+    const res = placeScatterHoverValue(
+      400,
+      300,
+      20,
+      'Crew',
+      '40',
+      [label],
+      [],
+      bounds
+    );
+    expect(rectsOverlap(res.rect, label)).toBe(false);
+  });
+
+  it('dodges a neighboring bubble', () => {
+    // Big bubble directly below
+    const big = { cx: 400, cy: 380, r: 55 };
+    const res = placeScatterHoverValue(
+      400,
+      300,
+      20,
+      'Crew',
+      '40',
+      [],
+      [big],
+      bounds
+    );
+    expect(rectCircleOverlap(res.rect, big)).toBe(false);
+  });
+
+  it('stays inside plot bounds near the bottom edge', () => {
+    const res = placeScatterHoverValue(
+      400,
+      585,
+      10,
+      'Crew',
+      '40',
+      [],
+      [],
+      bounds
+    );
+    expect(res.rect.y + res.rect.h).toBeLessThanOrEqual(600);
+    expect(res.rect.y).toBeGreaterThan(400); // sanity: placed near the point, not fallback garbage
+  });
 });

@@ -77,6 +77,95 @@ describe('axis-projection interactions (no tooltips)', () => {
     expect(others.every((d) => d.classList.contains('dgmo-dim'))).toBe(true);
   });
 
+  it('bubble: hovering a sized point also prints the size value at the point', async () => {
+    await mount(`scatter Crew Manifest
+x-label Height
+y-label Weight
+size-label Crew
+
+Blackbeard 90 8500 40
+Bonny 60 4000 12`);
+    const pt = svg.querySelector<SVGCircleElement>('.dgmo-datum[data-size]')!;
+    pt.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+
+    const overlay = svg.querySelector('.dgmo-overlay')!;
+    // two on-axis values + the two-line size block (number + label)
+    expect(overlay.querySelectorAll('text').length).toBe(4);
+    const [num, lbl] = [...overlay.querySelectorAll('.dgmo-pointval')];
+    expect(num!.textContent).toBe(pt.getAttribute('data-size'));
+    expect(lbl!.textContent).toBe('Crew');
+    // both lines share the vertical axis
+    expect(lbl!.getAttribute('x')).toBe(num!.getAttribute('x'));
+    // clears the bubble: either beside it (start/end anchor) or vertically
+    // past its radius
+    const cy = parseFloat(pt.getAttribute('cy')!);
+    const r = parseFloat(pt.getAttribute('r')!);
+    const anchor = num!.getAttribute('text-anchor');
+    const vy = parseFloat(num!.getAttribute('y')!);
+    expect(anchor !== 'middle' || Math.abs(vy - cy) > r).toBe(true);
+    // label sits farther from the bubble than the number
+    const ly = parseFloat(lbl!.getAttribute('y')!);
+    expect(Math.abs(ly - cy)).toBeGreaterThan(Math.abs(vy - cy));
+  });
+
+  it('bubble: size value falls back to "size" label and is absent without a size column', async () => {
+    await mount(`scatter No Label
+
+Alice 165 60 20
+Bob 178 80`);
+    const sized = svg.querySelector<SVGCircleElement>(
+      '.dgmo-datum[data-size]'
+    )!;
+    sized.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    const [num, lbl] = [
+      ...svg.querySelectorAll('.dgmo-overlay .dgmo-pointval'),
+    ];
+    expect(num!.textContent).toBe('20');
+    expect(lbl!.textContent).toBe('size');
+
+    const unsized = [
+      ...svg.querySelectorAll<SVGCircleElement>('.dgmo-datum'),
+    ].find((d) => !d.hasAttribute('data-size'))!;
+    unsized.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    expect(svg.querySelector('.dgmo-overlay .dgmo-pointval')).toBeNull();
+  });
+
+  it('bubble: hover value position is baked and used by the adapter', async () => {
+    await mount(`scatter Baked
+size-label Crew
+
+Blackbeard 90 8500 40`);
+    const pt = svg.querySelector<SVGCircleElement>('.dgmo-datum[data-size]')!;
+    expect(pt.getAttribute('data-sizeval-x')).not.toBeNull();
+    expect(pt.getAttribute('data-sizeval-y')).not.toBeNull();
+    pt.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    const val = svg.querySelector('.dgmo-overlay .dgmo-pointval')!;
+    expect(val.getAttribute('x')).toBe(pt.getAttribute('data-sizeval-x'));
+    expect(val.getAttribute('y')).toBe(pt.getAttribute('data-sizeval-y'));
+  });
+
+  it('scatter: hovering a point fades every other point label, not its own', async () => {
+    await mount(SCATTER);
+    const pt = svg.querySelector<SVGCircleElement>('.dgmo-datum')!;
+    pt.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+
+    const line = pt.getAttribute('data-line-number');
+    const labels = [...svg.querySelectorAll<SVGElement>('.dgmo-ptlabel')];
+    expect(labels.length).toBe(3);
+    const own = labels.filter(
+      (l) => l.getAttribute('data-line-number') === line
+    );
+    const others = labels.filter(
+      (l) => l.getAttribute('data-line-number') !== line
+    );
+    expect(own.every((l) => !l.classList.contains('dgmo-dim'))).toBe(true);
+    expect(others.every((l) => l.classList.contains('dgmo-dim'))).toBe(true);
+
+    // leaving clears the fade
+    svg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(labels.every((l) => !l.classList.contains('dgmo-dim'))).toBe(true);
+  });
+
   it('no tooltip element is ever created', async () => {
     await mount(SCATTER);
     const pt = svg.querySelector<SVGCircleElement>('.dgmo-datum')!;

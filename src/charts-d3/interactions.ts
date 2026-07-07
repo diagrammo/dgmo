@@ -45,8 +45,8 @@ function ensureStyle(svg: SVGSVGElement, muted: string): void {
   const style = doc.createElementNS(NS, 'style');
   style.id = STYLE_ID;
   style.textContent = `
-    .dgmo-series,.dgmo-datum,.dgmo-tick{transition:opacity .12s ease}
-    .dgmo-series.dgmo-dim,.dgmo-datum.dgmo-dim{opacity:.18}
+    .dgmo-series,.dgmo-datum,.dgmo-tick,.dgmo-ptlabel{transition:opacity .12s ease}
+    .dgmo-series.dgmo-dim,.dgmo-datum.dgmo-dim,.dgmo-ptlabel.dgmo-dim{opacity:.18}
     .dgmo-tick.dgmo-faded{opacity:.22}
     .dgmo-datum{cursor:pointer}
     .dgmo-axline{stroke:${muted};stroke-width:1;stroke-dasharray:4 4;pointer-events:none}
@@ -175,8 +175,56 @@ export function attachDataChartInteractions(
     getOverlay().appendChild(t);
   };
 
+  // A value with no axis to project onto (scatter bubble size) — a two-line
+  // block near the hovered point: the big number nearest the bubble (slightly
+  // faded so its size doesn't shout), the small label stacked beyond it, both
+  // on the same vertical axis. Positions are baked by the renderer
+  // (data-sizeval-*) so the block clears static name labels.
+  const pointValue = (
+    cx: number,
+    numY: number,
+    lblY: number,
+    label: string,
+    value: string,
+    anchor: 'middle' | 'start' | 'end' = 'middle'
+  ) => {
+    const mk = (
+      content: string,
+      y: number,
+      font: number,
+      weight: number,
+      opacity: number
+    ) => {
+      const t = doc.createElementNS(NS, 'text');
+      t.setAttribute('class', 'dgmo-pointval');
+      t.setAttribute('font-size', String(font));
+      t.setAttribute('font-weight', String(weight));
+      t.setAttribute('font-family', 'Inter, system-ui, sans-serif');
+      t.setAttribute('fill', text);
+      t.setAttribute('fill-opacity', String(opacity));
+      t.setAttribute('text-anchor', anchor);
+      t.setAttribute('x', String(cx));
+      t.setAttribute('y', String(y));
+      t.textContent = content;
+      getOverlay().appendChild(t);
+    };
+    mk(value, numY, 20, 700, 0.75);
+    mk(label, lblY, 11, 500, 0.85);
+  };
+
+  // Static point-name labels + their leader lines (scatter). Fade with the
+  // datums so only the hovered point's name stays prominent.
+  const ptLabels = Array.from(
+    svg.querySelectorAll<SVGElement>('.dgmo-ptlabel')
+  );
   const dimDatumsExcept = (el: Element | null) => {
     for (const d of datums) d.classList.toggle('dgmo-dim', d !== el);
+    const line = el?.getAttribute('data-line-number');
+    for (const l of ptLabels)
+      l.classList.toggle(
+        'dgmo-dim',
+        line == null || l.getAttribute('data-line-number') !== line
+      );
   };
   const dimByKey = (el: SVGElement) => {
     const key = el.getAttribute('data-emph-key');
@@ -189,6 +237,7 @@ export function attachDataChartInteractions(
   const clearDim = () => {
     for (const d of datums) d.classList.remove('dgmo-dim');
     for (const g of seriesGroups) g.classList.remove('dgmo-dim');
+    for (const l of ptLabels) l.classList.remove('dgmo-dim');
   };
 
   // ── crosshair (line / area) ───────────────────────────────────────────
@@ -288,6 +337,27 @@ export function attachDataChartInteractions(
       if (axY !== null) {
         dottedLine(plot.left, cy, cx, cy);
         axisValue(plot.left, cy, axY, 'y');
+      }
+      const sz = el.getAttribute('data-size');
+      if (sz !== null) {
+        const label = el.getAttribute('data-size-label') ?? 'size';
+        const vx = el.getAttribute('data-sizeval-x');
+        const vy = el.getAttribute('data-sizeval-y');
+        const vly = el.getAttribute('data-sizeval-ly');
+        const va = el.getAttribute('data-sizeval-anchor');
+        if (vx !== null && vy !== null && vly !== null) {
+          pointValue(
+            parseFloat(vx),
+            parseFloat(vy),
+            parseFloat(vly),
+            label,
+            sz,
+            va === 'start' || va === 'end' ? va : 'middle'
+          );
+        } else {
+          const r = parseFloat(el.getAttribute('r') ?? '0');
+          pointValue(cx, cy + r + 22, cy + r + 37, label, sz);
+        }
       }
       fadeTicks();
       dimDatumsExcept(el);

@@ -126,6 +126,7 @@ export interface QuadrantLabelPoint {
   label: string;
   cx: number; // pixel x
   cy: number; // pixel y
+  r?: number; // per-point radius override (bubble charts); falls back to pointRadius
 }
 
 interface PlacedQuadrantLabel {
@@ -152,13 +153,12 @@ export function computeQuadrantPointLabels(
 ): PlacedQuadrantLabel[] {
   const labelHeight = fontSize + 4;
   const stepSize = labelHeight + 2;
-  const minGap = pointRadius + 4;
 
-  // Build collision circles for all points
+  // Build collision circles for all points (per-point radius when given)
   const pointCircles: PointCircle[] = points.map((p) => ({
     cx: p.cx,
     cy: p.cy,
-    r: pointRadius,
+    r: p.r ?? pointRadius,
   }));
 
   const placedLabels: LabelRect[] = [];
@@ -166,6 +166,7 @@ export function computeQuadrantPointLabels(
 
   for (let i = 0; i < points.length; i++) {
     const pt = points[i]!; // In-bounds by loop guard.
+    const minGap = (pt.r ?? pointRadius) + 4;
     const labelWidth = measureText(pt.label, fontSize) + 8;
 
     // Try 4 directions: above, below, left, right
@@ -339,8 +340,9 @@ export function computeQuadrantPointLabels(
       const dx = best.textX - pt.cx;
       const dy = best.textY - pt.cy;
       const angle = Math.atan2(dy, dx);
-      const x1 = pt.cx + Math.cos(angle) * pointRadius;
-      const y1 = pt.cy + Math.sin(angle) * pointRadius;
+      const ptR = pt.r ?? pointRadius;
+      const x1 = pt.cx + Math.cos(angle) * ptR;
+      const y1 = pt.cy + Math.sin(angle) * ptR;
 
       // Label edge: closest point on label rect to the point
       const x2 = Math.max(
