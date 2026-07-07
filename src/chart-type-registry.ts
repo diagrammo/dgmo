@@ -60,6 +60,7 @@ import { parseGantt } from './gantt/parser';
 import { parsePert } from './pert/parser';
 import { parseMap } from './map/parser';
 import { parseBoxesAndLines } from './boxes-and-lines/parser';
+import { parseSketch } from './sketch/parser';
 import { parseSwimlane } from './swimlane/parser';
 import { parseMindmap } from './mindmap/parser';
 import { parseWireframe } from './wireframe/parser';
@@ -420,6 +421,7 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
     minDims: minDimsPert,
   },
   { id: 'boxes-and-lines', category: 'diagram', parse: parseBoxesAndLines },
+  { id: 'sketch', category: 'diagram', parse: parseSketch },
   {
     id: 'swimlane',
     category: 'diagram',

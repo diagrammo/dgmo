@@ -429,6 +429,15 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     fromAttr: 'data-from',
     toAttr: 'data-to',
   },
+  sketch: {
+    markSelector: '.sk-node',
+    strategy: 'connection',
+    hoverSelector: '.sk-node',
+    hoverAttr: 'data-node-id',
+    edgeSelector: '.sk-edge-group',
+    fromAttr: 'data-from',
+    toAttr: 'data-to',
+  },
   infra: {
     markSelector: '.infra-node',
     strategy: 'connection',

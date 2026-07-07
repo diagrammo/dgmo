@@ -42,7 +42,7 @@
 
 ## 0. AI Core
 
-The universal core: the cross-cutting anti-patterns (highest value per token) and the one-line index of all 45 chart types. The blocks below are machine-extracted (HTML-comment anchors) and embedded verbatim into every AI surface — IDE rule files, the Claude skill, the CLAUDE.md snippet — by `scripts/gen-ai-core.mjs`. Edit them here; never hand-edit a generated surface.
+The universal core: the cross-cutting anti-patterns (highest value per token) and the one-line index of all 46 chart types. The blocks below are machine-extracted (HTML-comment anchors) and embedded verbatim into every AI surface — IDE rule files, the Claude skill, the CLAUDE.md snippet — by `scripts/gen-ai-core.mjs`. Edit them here; never hand-edit a generated surface.
 
 <!-- AI-CORE:ANTIPATTERNS start -->
 ### Disambiguation — where DGMO diverges from LLM priors
@@ -132,6 +132,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `ring` | concentric rings of nested categories |
 | `treemap` | nested rectangles sized by value (budgets, disk usage, portfolios) |
 | `block` | author-controlled grid of nested, collapsible blocks (system / architecture layouts) |
+| `sketch` | GUI-first free-placement canvas: uniform shapes on a snap grid, arrows, tags (markup is app-generated) |
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
 | `bar` | categorical comparisons (multi-series via `stack` / `group`) |
@@ -3527,6 +3528,83 @@ For an **uneven** span (a block covering some but not all columns), use the same
 ### Interactivity vs export
 
 In the desktop app a block diagram is interactive: click a container header to collapse / expand it (the rest of the grid re-flows). Static SVG / PNG export renders the authored state — the same interactive-vs-export split the map and treemap charts use.
+
+---
+
+## 24E. Sketch Diagrams
+
+<!-- TYPE:sketch -->
+
+<!-- TIPS start -->
+**Styling tips:** Sketch is a **GUI-authored format** — the desktop/web canvas editor generates this markup, and hand-writing it is the exception. If you generate it anyway: keep it SMALL (sketches read best under ~15 shapes), use integer `at:` coordinates on the half-slot lattice with shapes at least 2 half-slots apart on one axis — or simply **omit `at:` everywhere** and let flow placement arrange rows (the safest generator path). Alias any shape an edge references (`as con`). Never write `size:`, colors, fonts, or a `shape:` outside the closed 7-kind set. In sketch, `~` dashed means **secondary emphasis, NOT async** — don't carry infra's async reading over. Categorize with a tag group (named palette colors only) instead of reaching for more shape kinds — kind-of-thing is meaning, and meaning lives in tags. Malformed coordinates never break a render (overlaps auto-resolve with a warning), but tidy input diffs better.
+<!-- TIPS end -->
+
+A **GUI-first constrained canvas**: uniformly-sized shapes placed freely on a snap grid, arrows between them, meaning through tags. The renderer owns all styling — authors own placement, connection, naming, and tags. Every shape has ONE universal footprint (no resizing); text always fits (shrink → smart-wrap → `…`). Pick `sketch` when the spatial arrangement is yours to decide; pick `boxes-and-lines` when topology should auto-lay-out.
+
+### Declaration
+
+```
+sketch [Title]
+```
+
+### Example
+
+```
+sketch Plunder Pipeline
+
+tag Crew
+  Deck
+  Hold
+
+Spyglass Feed shape: cloud, at: 0 0, crew: Deck
+  -sightings-> con
+Captain's Console as con at: 2 0, crew: Deck
+  -orders-> bq
+Divvy Service as dvy at: 4 0, crew: Hold
+
+[Below Decks] at: 2 2, crew: Hold
+  Booty Queue as bq shape: queue, at: 0 0
+    ~haul~> dvy
+  Ship Ledger as ledger shape: database, at: 2 0
+
+[Armory] as armory at: 0 2, collapsed
+  Powder Store at: 0 0
+```
+
+### Shapes
+
+One top-level line = one shape — a **bare name** plus same-line `key: value` metadata. `shape:` morphs from the default rectangle: `database`, `queue`, `cloud`, `person`, `document`, `note` (rectangle is never written; unknown values warn and fall back). `note` renders as a sticky-style card with smaller left-aligned multiline text. Duplicate labels are legal **when aliased** (`Cache as c1` / `Cache as c2`); unaliased duplicates merge (standard dgmo semantics).
+
+### Coordinates — `at: C R`
+
+Integer **half-slot steps** (a slot = one footprint + the mandatory gap), origin-normalized; box children are relative to the box origin. `at:` is **optional** — un-positioned shapes flow-place in rows below existing content. Hand-authored overlap auto-resolves with a warning; nothing renders broken.
+
+### Lines
+
+Indented under the source shape, targeting an alias (or an unambiguous bare label). Six forms: `-label->` one head · `<-label->` both heads · `-label-` no heads, plus `~` dashed twins. Unlabeled headless lines are `--` / `~~`. No left-pointing arrows — write `B -> A`, never `A <- B`. A tag on the edge tail (`crew: Hold`) colors the line. Both ends must attach.
+
+### Boxes
+
+`[Brackets]` = a **box** (labeled group frame) — the only bracket meaning in sketch. Label mandatory; one level only (no nested boxes); taggable (frame tints, cascades to children, individual overrides); bare `collapsed` folds it to a card with the collapse-bar and edges re-target the card. Interactive fold/unfold in the app; static export renders the authored state.
+
+### Node Metadata
+
+| Key       | Type           | Default   | Description                                     |
+| --------- | -------------- | --------- | ----------------------------------------------- |
+| `shape`   | closed set     | rectangle | `database` / `queue` / `cloud` / `person` / `document` / `note` |
+| `at`      | `C R` integers | flow-placed | Half-slot position (origin-normalized)        |
+| `collapsed` | flag         | —         | Box only — start folded (collapse-bar)          |
+| `<tag>`   | declared value | untagged (neutral gray) | Tag value (cascades from box; edge tails color the line) |
+
+### Directives
+
+| Directive    | Effect                  |
+| ------------ | ----------------------- |
+| `no-legend`  | Hide the tag legend.    |
+
+### Interactivity vs export
+
+In the desktop and web app a sketch opens in the **canvas editor** (the code pane hides behind a toggle); boxes fold/unfold interactively. Static SVG / PNG export renders the authored state — the same interactive-vs-export split the map, treemap, and block charts use.
 
 ---
 

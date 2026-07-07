@@ -31,6 +31,7 @@ export const CHART_TYPES = new Set([
   'ring',
   'treemap',
   'block',
+  'sketch',
   'raci',
   'cycle',
   // Data chart types

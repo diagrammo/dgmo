@@ -218,6 +218,9 @@ export const ATTRIBUTE_KEYS = new Set([
   'value',
   'label',
   'style',
+  // Sketch (§31): shape morph + half-slot coordinate keys
+  'shape',
+  'at',
   // Treemap + boxes-and-lines + map colour-by-value channel key
   'heat',
   // Infra node behavior + edge colon-keys (§4) come from the single-source

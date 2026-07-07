@@ -120,3 +120,76 @@ export function wrapTextToWidth(
   if (current) lines.push(current);
   return lines.length > 0 ? lines : [''];
 }
+
+// ── Sketch text-fit chain (spec §31.2: shrink → smart-wrap → ellipsis) ──
+
+/**
+ * Split a word at smart boundaries — dashes (kept on the left piece) and
+ * camelCase transitions — so over-long tokens wrap inside a fixed footprint
+ * before falling back to a hard character break.
+ */
+export function splitWordSmart(word: string): string[] {
+  const pieces: string[] = [];
+  // Dash boundaries first: "well-known" → "well-", "known".
+  for (const dashPiece of word.split(/(?<=-)/)) {
+    // camelCase boundaries: "PlankScheduler" → "Plank", "Scheduler".
+    const camel = dashPiece.split(/(?<=[a-z0-9])(?=[A-Z])/);
+    pieces.push(...camel);
+  }
+  return pieces.filter((p) => p.length > 0);
+}
+
+export interface FitTextOptions {
+  readonly maxWidth: number;
+  readonly maxLines: number;
+  /** preferred font size; the chain may shrink ONE step below it */
+  readonly fontSize: number;
+}
+
+export interface FitTextResult {
+  readonly lines: readonly string[];
+  readonly fontSize: number;
+}
+
+/**
+ * Fit text into a fixed box: try the base font size on one line, shrink one
+ * step, then smart-wrap (space / dash / camelCase) at the shrunk size, and
+ * finally ellipsize the last line. The box NEVER grows.
+ */
+export function fitTextToBox(
+  text: string,
+  { maxWidth, maxLines, fontSize }: FitTextOptions
+): FitTextResult {
+  const trimmed = text.trim();
+  if (measureText(trimmed, fontSize) <= maxWidth) {
+    return { lines: [trimmed], fontSize };
+  }
+  const shrunk = fontSize - 1;
+  if (measureText(trimmed, shrunk) <= maxWidth) {
+    return { lines: [trimmed], fontSize: shrunk };
+  }
+
+  // Smart-wrap at the shrunk size: greedy fill over smart-split tokens.
+  const tokens = trimmed.split(/\s+/).flatMap(splitWordSmart);
+  const lines: string[] = [];
+  let current = '';
+  for (const token of tokens) {
+    const joiner = current === '' || current.endsWith('-') ? '' : ' ';
+    const candidate = current + joiner + token;
+    if (current !== '' && measureText(candidate, shrunk) > maxWidth) {
+      lines.push(current);
+      current = token;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current !== '') lines.push(current);
+
+  if (lines.length <= maxLines) {
+    return { lines, fontSize: shrunk };
+  }
+  const kept = lines.slice(0, maxLines);
+  const rest = lines.slice(maxLines - 1).join(' ');
+  kept[maxLines - 1] = truncateText(rest, shrunk, maxWidth) || '…';
+  return { lines: kept, fontSize: shrunk };
+}

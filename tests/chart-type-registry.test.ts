@@ -46,6 +46,7 @@ const EXPECTED_CATEGORY: Record<
   gantt: 'diagram',
   pert: 'diagram',
   'boxes-and-lines': 'diagram',
+  sketch: 'diagram',
   swimlane: 'diagram',
   'version-control': 'diagram',
   mindmap: 'diagram',
