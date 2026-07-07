@@ -245,23 +245,23 @@ export function attachDataChartInteractions(
     reapplyAxisPin();
   };
 
-  // ── axis-label click → pin emphasis to that row/column ─────────────────
-  // Renderers tag clickable axis labels with data-filter-attr (the datum
-  // attribute to match, e.g. data-emph-key / data-col-key) + data-filter-value
-  // (heatmap row/column labels). Clicking pins a dim of every non-matching
-  // datum; clicking the same label again — or empty space — unpins. Hover
-  // still wins while active; the pin reasserts when the hover clears.
+  // ── axis-label hover/click → emphasize that row/column ─────────────────
+  // Renderers tag axis labels with data-filter-attr (the datum attribute to
+  // match, e.g. data-emph-key / data-col-key) + data-filter-value (heatmap
+  // row/column labels). Hovering a label dims every non-matching datum
+  // transiently; clicking pins the same dim. Clicking the same label again —
+  // or empty space — unpins. Datum hover still wins while active; the pin
+  // reasserts when the hover clears.
   let axisPin: { attr: string; value: string; el: Element } | null = null;
   const axisLabels = Array.from(
     svg.querySelectorAll<SVGElement>('[data-filter-attr]')
   );
-  function reapplyAxisPin(): void {
-    if (!axisPin) return;
+  const applyAxisFilter = (attr: string, value: string) => {
     for (const d of datums)
-      d.classList.toggle(
-        'dgmo-dim',
-        d.getAttribute(axisPin.attr) !== axisPin.value
-      );
+      d.classList.toggle('dgmo-dim', d.getAttribute(attr) !== value);
+  };
+  function reapplyAxisPin(): void {
+    if (axisPin) applyAxisFilter(axisPin.attr, axisPin.value);
   }
   const setAxisPin = (next: typeof axisPin) => {
     if (axisPin) axisPin.el.classList.remove('dgmo-axis-active');
@@ -270,6 +270,21 @@ export function attachDataChartInteractions(
     if (!axisPin) for (const d of datums) d.classList.remove('dgmo-dim');
     reapplyAxisPin();
   };
+  const axisLabelListeners: Array<[SVGElement, string, EventListener]> = [];
+  for (const el of axisLabels) {
+    const attr = el.getAttribute('data-filter-attr');
+    const value = el.getAttribute('data-filter-value');
+    if (!attr || value == null) continue;
+    const onEnter: EventListener = () => applyAxisFilter(attr, value);
+    const onExit: EventListener = () => {
+      for (const d of datums) d.classList.remove('dgmo-dim');
+      reapplyAxisPin();
+    };
+    el.addEventListener('mouseenter', onEnter);
+    el.addEventListener('mouseleave', onExit);
+    axisLabelListeners.push([el, 'mouseenter', onEnter]);
+    axisLabelListeners.push([el, 'mouseleave', onExit]);
+  }
 
   // ── crosshair (line / area) ───────────────────────────────────────────
   const crosshairOn = !!plot && circles.length > 0;
@@ -586,6 +601,8 @@ export function attachDataChartInteractions(
       svg.removeEventListener('mouseleave', onLeave);
       svg.removeEventListener('click', onClick);
       for (const [el, ev, fn] of legendListeners)
+        el.removeEventListener(ev, fn);
+      for (const [el, ev, fn] of axisLabelListeners)
         el.removeEventListener(ev, fn);
       if (overlay) overlay.remove();
       restorePt();

@@ -373,7 +373,7 @@ describe('heatmap axis-label click → row/column pin', () => {
   it('row + column labels carry filter attrs', async () => {
     await mount(HEATMAP);
     expect(label('Caribbean').getAttribute('data-filter-attr')).toBe(
-      'data-emph-key'
+      'data-row-key'
     );
     expect(label('Feb').getAttribute('data-filter-attr')).toBe('data-col-key');
   });
@@ -383,7 +383,7 @@ describe('heatmap axis-label click → row/column pin', () => {
     click(label('Atlantic'));
     for (const c of cells()) {
       expect(c.classList.contains('dgmo-dim')).toBe(
-        c.getAttribute('data-emph-key') !== 'Atlantic'
+        c.getAttribute('data-row-key') !== 'Atlantic'
       );
     }
     expect(label('Atlantic').classList.contains('dgmo-axis-active')).toBe(true);
@@ -412,7 +412,7 @@ describe('heatmap axis-label click → row/column pin', () => {
     expect(label('Pacific').classList.contains('dgmo-axis-active')).toBe(true);
     for (const c of cells()) {
       expect(c.classList.contains('dgmo-dim')).toBe(
-        c.getAttribute('data-emph-key') !== 'Pacific'
+        c.getAttribute('data-row-key') !== 'Pacific'
       );
     }
   });
@@ -421,13 +421,13 @@ describe('heatmap axis-label click → row/column pin', () => {
     await mount(HEATMAP);
     click(label('Caribbean'));
     const other = cells().find(
-      (c) => c.getAttribute('data-emph-key') === 'Atlantic'
+      (c) => c.getAttribute('data-row-key') === 'Atlantic'
     )!;
     other.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
     svg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
     for (const c of cells()) {
       expect(c.classList.contains('dgmo-dim')).toBe(
-        c.getAttribute('data-emph-key') !== 'Caribbean'
+        c.getAttribute('data-row-key') !== 'Caribbean'
       );
     }
   });
@@ -437,5 +437,68 @@ describe('heatmap axis-label click → row/column pin', () => {
     click(label('Jan'));
     click(svg);
     expect(cells().some((c) => c.classList.contains('dgmo-dim'))).toBe(false);
+  });
+});
+
+describe('heatmap axis-label hover + single-cell emphasis', () => {
+  const label = (value: string) =>
+    svg.querySelector<SVGElement>(
+      `.dgmo-axis-label[data-filter-value="${value}"]`
+    )!;
+  const cells = () =>
+    Array.from(svg.querySelectorAll<SVGElement>('rect.dgmo-datum'));
+  const fire = (el: Element, type: string) =>
+    el.dispatchEvent(new MouseEvent(type, { bubbles: true }));
+
+  it('hovering a row label dims every cell outside that row; leaving restores', async () => {
+    await mount(HEATMAP);
+    fire(label('Atlantic'), 'mouseenter');
+    for (const c of cells()) {
+      expect(c.classList.contains('dgmo-dim')).toBe(
+        c.getAttribute('data-row-key') !== 'Atlantic'
+      );
+    }
+    fire(label('Atlantic'), 'mouseleave');
+    expect(cells().some((c) => c.classList.contains('dgmo-dim'))).toBe(false);
+  });
+
+  it('hovering a column label dims every cell outside that column', async () => {
+    await mount(HEATMAP);
+    fire(label('Mar'), 'mouseenter');
+    for (const c of cells()) {
+      expect(c.classList.contains('dgmo-dim')).toBe(
+        c.getAttribute('data-col-key') !== 'Mar'
+      );
+    }
+  });
+
+  it('label hover yields to the pin on leave', async () => {
+    await mount(HEATMAP);
+    fire(label('Jan'), 'click');
+    fire(label('Pacific'), 'mouseenter');
+    fire(label('Pacific'), 'mouseleave');
+    for (const c of cells()) {
+      expect(c.classList.contains('dgmo-dim')).toBe(
+        c.getAttribute('data-col-key') !== 'Jan'
+      );
+    }
+  });
+
+  it('hovering a cell emphasizes only that cell (its value label included)', async () => {
+    await mount(HEATMAP);
+    const target = cells().find(
+      (c) =>
+        c.getAttribute('data-row-key') === 'Atlantic' &&
+        c.getAttribute('data-col-key') === 'Feb'
+    )!;
+    fire(target, 'mousemove');
+    const key = target.getAttribute('data-emph-key')!;
+    for (const d of Array.from(
+      svg.querySelectorAll<SVGElement>('.dgmo-datum')
+    )) {
+      expect(d.classList.contains('dgmo-dim')).toBe(
+        d.getAttribute('data-emph-key') !== key
+      );
+    }
   });
 });

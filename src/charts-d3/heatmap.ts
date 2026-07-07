@@ -109,11 +109,11 @@ export function renderHeatmap(
   });
 
   rows.forEach((row, ri) => {
-    // row label — clickable: pins emphasis to the row
+    // row label — hover/click emphasizes the row
     svg
       .append('text')
       .attr('class', 'dgmo-axis-label')
-      .attr('data-filter-attr', 'data-emph-key')
+      .attr('data-filter-attr', 'data-row-key')
       .attr('data-filter-value', row.label)
       .attr('x', left - 10)
       .attr('y', top + ri * ch + ch / 2 + 4)
@@ -128,6 +128,10 @@ export function renderHeatmap(
         maxValue === minValue ? 0.5 : (v - minValue) / (maxValue - minValue);
       const cell = gradientAt(t);
       const colLabel = cols[ci] ?? `Col ${ci + 1}`;
+      // Per-cell emph key: hovering a cell emphasizes ONLY that cell (rect +
+      // its value label). Row/column emphasis comes from the axis labels via
+      // data-row-key / data-col-key.
+      const cellKey = `${row.label} · ${colLabel}`;
       const r = svg
         .append('rect')
         .attr('x', left + ci * cw)
@@ -137,11 +141,12 @@ export function renderHeatmap(
         .attr('fill', cell)
         .attr('stroke', bgColor)
         .attr('stroke-width', 2)
+        .attr('data-row-key', row.label)
         .attr('data-col-key', colLabel);
       tagDatum(r, {
         line: row.lineNumber,
-        key: row.label,
-        name: `${row.label} · ${colLabel}`,
+        key: cellKey,
+        name: cellKey,
         value: fmtNum(v),
         color: cell,
       });
@@ -158,12 +163,12 @@ export function renderHeatmap(
           .text(fmtNum(v));
         tagDatum(label, {
           line: row.lineNumber,
-          key: row.label,
-          name: `${row.label} · ${colLabel}`,
+          key: cellKey,
+          name: cellKey,
           value: fmtNum(v),
           color: cell,
         });
-        label.attr('data-col-key', colLabel);
+        label.attr('data-row-key', row.label).attr('data-col-key', colLabel);
       }
     });
   });
