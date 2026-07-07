@@ -186,8 +186,10 @@ export function attachDataChartInteractions(
     lblY: number,
     label: string,
     value: string,
-    anchor: 'middle' | 'start' | 'end' = 'middle'
+    anchor: 'middle' | 'start' | 'end' = 'middle',
+    color?: string
   ) => {
+    const fill = color ?? text;
     const mk = (
       content: string,
       y: number,
@@ -200,7 +202,7 @@ export function attachDataChartInteractions(
       t.setAttribute('font-size', String(font));
       t.setAttribute('font-weight', String(weight));
       t.setAttribute('font-family', 'Inter, system-ui, sans-serif');
-      t.setAttribute('fill', text);
+      t.setAttribute('fill', fill);
       t.setAttribute('fill-opacity', String(opacity));
       t.setAttribute('text-anchor', anchor);
       t.setAttribute('x', String(cx));
@@ -345,6 +347,7 @@ export function attachDataChartInteractions(
         const vy = el.getAttribute('data-sizeval-y');
         const vly = el.getAttribute('data-sizeval-ly');
         const va = el.getAttribute('data-sizeval-anchor');
+        const color = el.getAttribute('data-color') ?? undefined;
         if (vx !== null && vy !== null && vly !== null) {
           pointValue(
             parseFloat(vx),
@@ -352,11 +355,12 @@ export function attachDataChartInteractions(
             parseFloat(vly),
             label,
             sz,
-            va === 'start' || va === 'end' ? va : 'middle'
+            va === 'start' || va === 'end' ? va : 'middle',
+            color
           );
         } else {
           const r = parseFloat(el.getAttribute('r') ?? '0');
-          pointValue(cx, cy + r + 22, cy + r + 37, label, sz);
+          pointValue(cx, cy + r + 22, cy + r + 37, label, sz, 'middle', color);
         }
       }
       fadeTicks();

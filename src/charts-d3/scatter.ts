@@ -273,9 +273,17 @@ export function renderScatter(
         LABEL_FONT
       );
 
-  // Static name-label rects + bubble circles — obstacles for the hover
-  // size-value placement (reconstructed the same way the placer sized them).
-  const labelRects: LabelRect[] = (placedLabels ?? []).map((pl, i) => {
+  const plotBounds = {
+    left: m.left,
+    top: m.top,
+    right: m.left + plotW,
+    bottom: m.top + plotH,
+  };
+  // A point's own name label stays unfaded during hover, so the size block
+  // must clear it (everything else dims and may be overlapped).
+  const ownLabelRect = (i: number): LabelRect[] => {
+    const pl = placedLabels?.[i];
+    if (!pl) return [];
     const w = measureText(points[i]!.name, LABEL_FONT) + 8;
     const h = LABEL_FONT + 4;
     const lx =
@@ -284,18 +292,7 @@ export function renderScatter(
         : pl.anchor === 'end'
           ? pl.x - w
           : pl.x;
-    return { x: lx, y: pl.y - h / 2, w, h };
-  });
-  const circleObstacles: PointCircle[] = points.map((p, i) => ({
-    cx: x(p.x),
-    cy: y(p.y),
-    r: radii[i]!,
-  }));
-  const plotBounds = {
-    left: m.left,
-    top: m.top,
-    right: m.left + plotW,
-    bottom: m.top + plotH,
+    return [{ x: lx, y: pl.y - h / 2, w, h }];
   };
 
   // points
@@ -331,14 +328,17 @@ export function renderScatter(
     // hovered point instead, labeled by `size-label` when declared.
     if (p.size !== undefined) {
       const sizeLabel = chart.sizelabel ?? 'size';
+      // Tight to the bubble on purpose — everything else fades during hover,
+      // so the block may sit over dimmed marks. Only the point's own name
+      // label (unfaded) and plot bounds constrain it.
       const pos = placeScatterHoverValue(
         x(p.x),
         y(p.y),
         r,
         sizeLabel,
         fmtNum(p.size),
-        labelRects,
-        circleObstacles,
+        ownLabelRect(i),
+        [],
         plotBounds
       );
       dot

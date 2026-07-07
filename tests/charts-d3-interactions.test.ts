@@ -94,6 +94,9 @@ Bonny 60 4000 12`);
     const [num, lbl] = [...overlay.querySelectorAll('.dgmo-pointval')];
     expect(num!.textContent).toBe(pt.getAttribute('data-size'));
     expect(lbl!.textContent).toBe('Crew');
+    // block tinted with the bubble's color
+    expect(num!.getAttribute('fill')).toBe(pt.getAttribute('data-color'));
+    expect(lbl!.getAttribute('fill')).toBe(pt.getAttribute('data-color'));
     // both lines share the vertical axis
     expect(lbl!.getAttribute('x')).toBe(num!.getAttribute('x'));
     // clears the bubble: either beside it (start/end anchor) or vertically
