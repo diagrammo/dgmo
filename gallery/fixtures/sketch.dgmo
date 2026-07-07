@@ -1,0 +1,22 @@
+sketch Plunder Pipeline
+
+tag Crew
+  Deck
+  Hold
+
+Spyglass Feed shape: cloud, at: 0 0, crew: Deck
+  -sightings-> con
+Captain's Console as con at: 2 0, crew: Deck
+  -orders-> bq
+  -supplies-> armory
+Divvy Service as dvy at: 4 0, crew: Hold
+  -entries-> ledger
+
+[Below Decks] at: 2 2, crew: Hold
+  Booty Queue as bq shape: queue, at: 0 0
+    ~haul~> dvy
+  Ship Ledger as ledger shape: database, at: 2 0
+
+[Armory] as armory at: 0 2, collapsed
+  Powder Store at: 0 0
+  Cutlass Rack at: 0 1

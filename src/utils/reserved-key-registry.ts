@@ -169,6 +169,15 @@ export const BOXES_AND_LINES_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'heat',
 ]);
 
+// Sketch (spec §31): `shape` morphs the closed 7-kind lexicon, `at` is the
+// half-slot coordinate, `collapsed` is normally a bare flag on box lines but
+// the colon form is tolerated here so it never warns as unknown.
+export const SKETCH_REGISTRY: ReservedKeyRegistry = staticRegistry([
+  'shape',
+  'at',
+  'collapsed',
+]);
+
 export const TIMELINE_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',
