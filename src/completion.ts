@@ -208,8 +208,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'funnel',
     withGlobals({
-      'no-name': { description: 'Hide left-side name labels' },
-      'no-value': { description: 'Hide right-side value labels' },
+      'no-name': { description: 'Hide left-side stage names' },
+      'no-value': { description: 'Hide in-band values' },
+      'no-percent': { description: 'Hide right-side conversion percentages' },
     }),
   ],
   [
