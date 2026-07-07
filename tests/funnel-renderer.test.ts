@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { renderDataChartD3 } from '../src/charts-d3';
 import { render } from '../src/render';
 
 const SRC = [
@@ -69,5 +70,26 @@ describe('funnel renderer labels', () => {
     const seg = svg.match(/<polygon[^>]*stroke="([^"]+)"/);
     // on a solid band the value must NOT be the band color — it sits on it
     expect(value![1]).not.toBe(seg![1]);
+  });
+
+  it('narrow panes keep all side text inside the canvas', async () => {
+    const width = 480;
+    const svg = await renderDataChartD3(SRC, 'light', undefined, {
+      width,
+      height: 420,
+    });
+    const texts = [
+      ...svg.matchAll(
+        /<text([^>]*text-anchor="(end|start)"[^>]*)>(?:<tspan[^>]*>)?([^<]+)/g
+      ),
+    ];
+    expect(texts.length).toBeGreaterThan(0);
+    for (const [, attrs, anchor, content] of texts) {
+      const x = parseFloat(attrs!.match(/ x="([^"]+)"/)![1]!);
+      const size = parseFloat(attrs!.match(/font-size="([^"]+)"/)![1]!);
+      const estimated = content!.length * size * 0.65; // generous glyph width
+      if (anchor === 'end') expect(x - estimated).toBeGreaterThanOrEqual(-2);
+      else expect(x + estimated).toBeLessThanOrEqual(width + 2);
+    }
   });
 });
