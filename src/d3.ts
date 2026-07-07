@@ -103,6 +103,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   class: exportClass,
   er: exportEr,
   'boxes-and-lines': exportBoxesAndLines,
+  sketch: exportSketch,
   swimlane: exportSwimlane,
   'version-control': exportVersionControl,
   mindmap: exportMindmap,
@@ -513,6 +514,45 @@ async function exportEr(ctx: ExportContext): Promise<string> {
     viewState?.sem ??
       (erParsed.options['no-semantic-colors'] === 'on' ? false : undefined),
     exportMode
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportSketch(ctx: ExportContext): Promise<string> {
+  const { content, theme, viewState, exportMode } = ctx;
+  const { parseSketch } = await import('./sketch/parser');
+  const effectivePalette = await resolveExportPalette(theme, ctx.palette);
+  const parsed = parseSketch(content, effectivePalette);
+  if (
+    parsed.error ||
+    (parsed.nodes.length === 0 && parsed.boxes.length === 0)
+  ) {
+    return '';
+  }
+  const { layoutSketch } = await import('./sketch/layout');
+  const { renderSketchForExport } = await import('./sketch/renderer');
+  // Authored `collapsed` flags are the default; an explicit viewState set
+  // (share links, app fold state) wins when supplied — the #30 convention.
+  const collapsedBoxes = viewState?.cg ? new Set(viewState.cg) : undefined;
+  const skLayout = layoutSketch(parsed, {
+    ...(collapsedBoxes !== undefined && { collapsedBoxes }),
+  });
+  const PADDING = 20;
+  const titleOffset = parsed.title ? 40 : 0;
+  const exportWidth = skLayout.width + PADDING * 2;
+  const exportHeight = skLayout.height + PADDING * 2 + titleOffset;
+  const container = createExportContainer(exportWidth, exportHeight);
+  const skTagOverride = ctxTagOverride(ctx);
+  renderSketchForExport(
+    container,
+    parsed,
+    skLayout,
+    effectivePalette,
+    ctx.isDark,
+    {
+      ...(skTagOverride !== undefined && { activeTagGroup: skTagOverride }),
+      ...(exportMode !== undefined && { exportMode }),
+    }
   );
   return finalizeSvgExport(container, theme, effectivePalette);
 }

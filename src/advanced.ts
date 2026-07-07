@@ -280,6 +280,42 @@ export {
 } from './boxes-and-lines/renderer';
 
 export { collapseBoxesAndLines } from './boxes-and-lines/collapse';
+
+// ── Sketch (BL-115, spec §31) — the app canvas editor consumes the parser,
+// layout, renderer, AND the slot-geometry constants through this entrypoint
+// (one drawing code path, decision 21; constants never redefined, Task 5).
+export { parseSketch } from './sketch/parser';
+export type {
+  ParsedSketch,
+  SketchNode,
+  SketchEdge,
+  SketchBox,
+  SketchAt,
+  SketchShapeKind,
+  SketchEdgeHeads,
+  SketchOptions,
+} from './sketch/types';
+export { SKETCH_SHAPE_KINDS, isSketchShapeKind } from './sketch/types';
+export { layoutSketch } from './sketch/layout';
+export type {
+  SketchLayout,
+  SketchLayoutNode,
+  SketchLayoutBox,
+  SketchLayoutOptions,
+} from './sketch/layout';
+export { renderSketch, renderSketchForExport } from './sketch/renderer';
+export type { SketchRenderOptions } from './sketch/renderer';
+export { collapseSketch } from './sketch/collapse';
+export type { SketchCollapseResult } from './sketch/collapse';
+export {
+  SKETCH_GEOMETRY,
+  SKETCH_FOOT_W,
+  SKETCH_FOOT_H,
+  SKETCH_HALF_SLOT_X,
+  SKETCH_HALF_SLOT_Y,
+  SKETCH_SEP,
+  sketchSlotToPx,
+} from './sketch/geometry';
 export type { BLCollapseResult } from './boxes-and-lines/collapse';
 export { focusBoxesAndLines } from './boxes-and-lines/focus';
 export type { FocusTarget, FocusResult } from './boxes-and-lines/focus';

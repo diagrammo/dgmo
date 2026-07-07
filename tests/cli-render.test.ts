@@ -248,6 +248,16 @@ Operations
   Cloud 110
   Support 70`,
 
+  sketch: `sketch Test Sketch
+
+tag Crew
+  Deck
+
+Spyglass Feed shape: cloud, at: 0 0, crew: Deck
+  -sightings-> con
+Captain Console as con at: 2 0
+`,
+
   block: `block Test Block
 
 tag Layer as l

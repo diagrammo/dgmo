@@ -61,7 +61,7 @@ To teach Claude about DGMO in a specific project without the global skill, paste
 <!-- DGMO-AI-CORE:START -->
 ## DGMO AI Core
 
-_Generated from `language-reference.md` — the anti-patterns and 43-type index below are identical across every DGMO AI surface._
+_Generated from `language-reference.md` — the anti-patterns and 44-type index below are identical across every DGMO AI surface._
 
 ### Disambiguation — where DGMO diverges from LLM priors
 
@@ -146,6 +146,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `ring` | concentric rings of nested categories |
 | `treemap` | nested rectangles sized by value (budgets, disk usage, portfolios) |
 | `block` | author-controlled grid of nested, collapsible blocks (system / architecture layouts) |
+| `sketch` | GUI-first free-placement canvas: uniform shapes on a snap grid, arrows, tags (markup is app-generated) |
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
 | `bar` | categorical comparisons (multi-series via `stack` / `group`) |
@@ -169,7 +170,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 
 ### Common examples (curated, parse-clean)
 
-_The most common types, inline so you can generate them without a fetch. For the other 35, get the per-type section (see below)._
+_The most common types, inline so you can generate them without a fetch. For the other 36, get the per-type section (see below)._
 
 #### journey-map
 

@@ -262,6 +262,7 @@ export function parseSketch(
           lineNumber,
           nameMergedMessage({
             incomingDisplay: label,
+            incomingLine: lineNumber,
             existingDisplay: first.label,
             existingLine: first.lineNumber,
           }),

@@ -571,6 +571,14 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   [
+    'sketch',
+    // GUI-first canvas: shapes carry their own metadata (shape:/at:); the only
+    // directives are legend/fill toggles.
+    withGlobals({
+      'no-legend': { description: 'Hide the tag legend' },
+    }),
+  ],
+  [
     'map',
     // Geographic map directives (§24B.2/.7). Cosmetics are ON by default — the
     // only switches are bare `no-*` opt-outs, surfaced proactively so a
@@ -640,6 +648,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
 // out; quadrant/scatter-dot/wordcloud/line/arc/slope have no tinted shape
 // fill) intentionally don't list it — keeps the completion popup honest.
 const SOLID_FILL_CAPABLE = new Set([
+  'sketch',
   'flowchart',
   'state',
   'sequence',
@@ -739,6 +748,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['mindmap', ['tag']],
   ['treemap', ['tag']],
   ['block', ['tag']],
+  ['sketch', ['tag']],
   ['boxes-and-lines', ['tag']],
   ['swimlane', ['lane', 'tag']],
   [
@@ -840,6 +850,15 @@ export const REFERENCE_GRAMMAR = new Map<string, ReferenceGrammar>([
     'boxes-and-lines',
     { hasReferenceGrammar: true, referenceOperators: ['->', '<->'] },
   ],
+  // Sketch edges reference aliases / unambiguous labels (spec §31.4);
+  // includes the net-new headless forms.
+  [
+    'sketch',
+    {
+      hasReferenceGrammar: true,
+      referenceOperators: ['->', '<->', '~>', '<~>', '--', '~~'],
+    },
+  ],
   // Venn references prior sets via the `+` intersection operator (not an arrow).
   ['venn', { hasReferenceGrammar: true, referenceOperators: ['+'] }],
 ]);
@@ -906,6 +925,24 @@ export interface PipeKeySpec {
 export type PipeContextMap = Record<string, Record<string, PipeKeySpec>>;
 
 export const PIPE_METADATA = new Map<string, PipeContextMap>([
+  [
+    'sketch',
+    {
+      node: {
+        shape: {
+          description:
+            'Morph from the default rectangle: database, queue, cloud, person, document, note',
+        },
+        at: {
+          description:
+            'Half-slot position `at: C R` (integers; omit to flow-place)',
+        },
+        collapsed: {
+          description: 'Bare flag on a [Box] line — start folded',
+        },
+      },
+    },
+  ],
   [
     'infra',
     {
@@ -1943,6 +1980,62 @@ function extractBlockSymbols(docText: string): DiagramSymbols {
   return { kind: 'block', entities };
 }
 
+/** Sketch symbols: shape labels, aliases, and box labels — everything an
+ *  edge line can reference (spec §31.4). */
+function extractSketchSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  const push = (value: string): void => {
+    const v = value.trim();
+    if (v && !entities.includes(v)) entities.push(v);
+  };
+  let pastFirstLine = false;
+  let inTagBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+    if (/^(no-[a-z-]+|solid-fill)\s*$/i.test(trimmed)) continue;
+    if (/^tag\s+/i.test(trimmed)) {
+      inTagBlock = true;
+      continue;
+    }
+    const indent = line.search(/\S/);
+    if (inTagBlock) {
+      if (indent > 0) continue;
+      inTagBlock = false;
+    }
+    if (/^[<\-~]/.test(trimmed)) continue; // edge line
+    const boxMatch = trimmed.match(
+      /^\[([^\]]+)\]\s*(?:as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?/
+    );
+    if (boxMatch) {
+      push(boxMatch[1]!);
+      if (boxMatch[2]) push(boxMatch[2]);
+      continue;
+    }
+    // Shape line: cut metadata at the first reserved key, peel `as alias`.
+    let name = trimmed;
+    const metaCut = name.search(/\s(?:shape|at|collapsed)\s*:/i);
+    if (metaCut >= 0) name = name.slice(0, metaCut);
+    const aliasMatch = name.match(
+      /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
+    );
+    if (aliasMatch) {
+      push(aliasMatch[1]!.replace(/^"|"$/g, ''));
+      push(aliasMatch[2]!);
+    } else {
+      push(name.replace(/^"|"$/g, ''));
+    }
+  }
+
+  return { kind: 'sketch', entities };
+}
+
 // ============================================================
 // Pyramid extractor
 // ============================================================
@@ -2426,6 +2519,7 @@ registerExtractor('kanban', extractKanbanSymbols);
 registerExtractor('mindmap', extractMindmapSymbols);
 registerExtractor('treemap', extractTreemapSymbols);
 registerExtractor('block', extractBlockSymbols);
+registerExtractor('sketch', extractSketchSymbols);
 registerExtractor('pyramid', extractPyramidSymbols);
 registerExtractor('ring', extractRingSymbols);
 registerExtractor('arc', extractArcSymbols);

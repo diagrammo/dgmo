@@ -75,6 +75,7 @@ import { fixture as ganttFixture } from './fixtures/completion-conformance/gantt
 import { fixture as boxesAndLinesFixture } from './fixtures/completion-conformance/boxes-and-lines';
 import { fixture as pertFixture } from './fixtures/completion-conformance/pert';
 import { fixture as wireframeFixture } from './fixtures/completion-conformance/wireframe';
+import { fixture as sketchFixture } from './fixtures/completion-conformance/sketch';
 
 const fixtures: ConformanceFixture[] = [
   raciFixture,
@@ -115,6 +116,7 @@ const fixtures: ConformanceFixture[] = [
   infraFixture,
   ganttFixture,
   boxesAndLinesFixture,
+  sketchFixture,
   pertFixture,
   wireframeFixture,
 ];
@@ -273,6 +275,7 @@ const REFERENCE_FIXTURES: Record<string, string> = {
   arc: 'arc\nA -> B\n',
   sankey: 'sankey\nA -> B 10\n',
   'boxes-and-lines': 'boxes-and-lines\nA -> B\n',
+  sketch: 'sketch\nA at: 0 0\n  -> b\nB as b at: 2 0\n',
   venn: 'venn\nSwordsmanship as sw\nNavigation as nav\nsw + nav Overlap\n',
 };
 
