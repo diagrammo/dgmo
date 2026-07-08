@@ -35,25 +35,49 @@ export function renderPie(
   const top = topInset + 12;
   const availH = height - top;
   const cy = top + availH / 2;
+
+  // Precompute the external label strings up front so the radius can reserve
+  // horizontal room for the ACTUAL longest one. The elbow gutter alone (~1.2r)
+  // doesn't account for the rendered TEXT width, so a long label like
+  // "Cooks & Surgeons — 5 (5%)" overruns the canvas edge.
+  const labels = data.map((d) => {
+    const pct = Math.round((d.value / total) * 100);
+    const nm = chart.noName ? '' : d.label;
+    const tail = [
+      chart.noValue ? '' : fmtNum(d.value),
+      chart.noPercent ? '' : `(${pct}%)`,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    return [nm, tail].filter(Boolean).join(' — ');
+  });
+  const maxLabelLen = labels.reduce((m, s) => Math.max(m, s.length), 0);
+
   // Radius scales with the available box rather than reserving a FIXED pixel
-  // gutter for labels — a fixed gutter (e.g. width/2 - 220) collapses the pie to
-  // nothing on a narrow canvas while the leader lines + text keep their pixel
-  // size, so everything piles up in the middle. Here the horizontal room for the
-  // external labels is proportional (~1.2r each side, hence /2.2), so the whole
-  // figure — pie, leaders, text — shrinks together and stays composed.
-  const radius = Math.max(
-    8,
-    Math.min(availH / 2 - availH * 0.06, width / 2 / 2.2)
-  );
+  // gutter — a fixed gutter (e.g. width/2 - 220) collapses the pie to nothing on
+  // a narrow canvas while the labels keep their pixel size and pile up. The
+  // horizontal extent of the whole figure is, as a multiple of the radius:
+  //   1 (arc) + 0.245 (elbow out+run) + 0.023 (text pad) + text width.
+  // Text width per side ≈ maxLabelLen · font · 0.55, and font = 0.078·r, so it
+  // is itself ∝ r — the extent is linear in r and solves directly. Reserving it
+  // both sides keeps even the longest label inside the canvas.
+  const MARGIN = 6;
+  const halfW = width / 2 - MARGIN;
+  const rH = availH / 2 - availH * 0.06;
+  const labelExtent = 1.268 + 0.0428 * maxLabelLen;
+  const rLabeled = Math.min(rH, halfW / labelExtent);
+  // Below this the leader-line labels can't separate legibly around the arc (or
+  // there are none) — drop them and let the pie fill the box instead.
+  const showLabels = maxLabelLen > 0 && rLabeled >= 45;
+  const rPlain = Math.min(rH, halfW * 0.94);
+  const radius = Math.max(8, showLabels ? rLabeled : rPlain);
+
   // Everything label-related scales off the radius (180 = the export-size
   // reference radius that the previous fixed constants were tuned for).
   const labelScale = radius / 180;
   const font = Math.max(7, LABEL_FONT * labelScale);
   const elbowOut = radius * 0.09; // radial stub off the arc
   const elbowRun = radius * 0.155; // horizontal run to the text
-  // Below this the leader-line labels can't separate legibly around the arc —
-  // show a clean pie instead of an illegible tangle.
-  const showLabels = radius >= 45;
 
   const segColors = getSegmentColors(palette, data.length);
   const strokeFor = (i: number, override?: string) =>
@@ -96,14 +120,7 @@ export function renderPie(
     const x1 = Math.cos(mid) * (radius + elbowOut);
     const y1 = Math.sin(mid) * (radius + elbowOut);
     const x2 = x1 + (rightSide ? elbowRun : -elbowRun);
-    const nm = chart.noName ? '' : data[i]!.label;
-    const tail = [
-      chart.noValue ? '' : fmtNum(data[i]!.value),
-      chart.noPercent ? '' : `(${pct}%)`,
-    ]
-      .filter(Boolean)
-      .join(' ');
-    const label = [nm, tail].filter(Boolean).join(' — ');
+    const label = labels[i]!;
     if (label) {
       // Tag the leader-line + label with the same emph-key as the wedge so
       // hover (baked-CSS :has() and the app's JS dim) emphasizes all three

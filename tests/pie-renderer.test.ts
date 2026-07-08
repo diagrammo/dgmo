@@ -24,7 +24,46 @@ const radiusOf = (svg: string): number => {
 const labelCount = (svg: string): number =>
   (svg.match(/<text[^>]*class="dgmo-datum"/g) ?? []).length;
 
+// The pie group is translated to (cx, 0)=width/2; label <text> x is in that
+// local space, so absolute x = width/2 + localX. Estimate the text's far edge
+// from its anchor + a generous per-char width and return the max/min absolute x.
+const labelXExtent = (
+  svg: string,
+  width: number
+): { minX: number; maxX: number } => {
+  const cx = width / 2;
+  // Char width tracks the rendered font (font = 14·r/180); 0.62·font is a small
+  // upper bound on Inter's average advance — generous without being 2× reality.
+  const font = 14 * (radiusOf(svg) / 180);
+  const charW = font * 0.62;
+  let minX = cx;
+  let maxX = cx;
+  const re =
+    /<text[^>]*\bx="([-\d.]+)"[^>]*text-anchor="(start|end|middle)"[^>]*class="dgmo-datum"[^>]*>([^<]*)</g;
+  for (let m; (m = re.exec(svg)); ) {
+    const x = cx + parseFloat(m[1]!);
+    const anchor = m[2]!;
+    const w = m[3]!.length * charW;
+    const left = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
+    const right = anchor === 'start' ? x + w : anchor === 'end' ? x : x + w / 2;
+    minX = Math.min(minX, left);
+    maxX = Math.max(maxX, right);
+  }
+  return { minX, maxX };
+};
+
 describe('renderPie — proportional scaling', () => {
+  it('keeps the longest label inside the canvas at a medium width', async () => {
+    const width = 560;
+    const svg = await renderDataChartD3(PIE, 'light', undefined, {
+      width,
+      height: 450,
+    });
+    const { minX, maxX } = labelXExtent(svg, width);
+    expect(minX).toBeGreaterThanOrEqual(0);
+    expect(maxX).toBeLessThanOrEqual(width);
+  });
+
   it('keeps a real pie (non-collapsed radius) on a narrow canvas', async () => {
     const svg = await renderDataChartD3(PIE, 'light', undefined, {
       width: 440,
