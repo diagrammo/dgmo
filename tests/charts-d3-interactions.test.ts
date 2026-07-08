@@ -264,6 +264,18 @@ Firepower 85 95
 Speed 90 55
 Armor 60 90`;
 
+const SCATTER_CAT = `scatter Crews
+x-label Ruthlessness
+y-label Plunder
+
+[Crew A] red
+  Alice 60 40
+  Bob 70 55
+
+[Crew B] blue
+  Zed 80 30
+  Yan 50 65`;
+
 describe('legend hover → series emphasis', () => {
   const seriesGroup = (name: string) =>
     svg.querySelector<SVGGElement>(`.dgmo-series[data-series-name="${name}"]`)!;
@@ -304,6 +316,23 @@ describe('legend hover → series emphasis', () => {
     );
     expect(seriesGroup('iOS').classList.contains('dgmo-dim')).toBe(false);
     expect(seriesGroup('Android').classList.contains('dgmo-dim')).toBe(true);
+  });
+
+  it('scatter: legend hover dims bubbles of other categories', async () => {
+    await mount(SCATTER_CAT);
+    const bubble = (name: string) =>
+      svg.querySelector<SVGCircleElement>(
+        `.dgmo-datum[data-emph-key="${name}"]`
+      )!;
+    legendEntry('Crew A').dispatchEvent(
+      new MouseEvent('mouseenter', { bubbles: true })
+    );
+    expect(bubble('Alice').classList.contains('dgmo-dim')).toBe(false);
+    expect(bubble('Zed').classList.contains('dgmo-dim')).toBe(true);
+    legendEntry('Crew A').dispatchEvent(
+      new MouseEvent('mouseleave', { bubbles: true })
+    );
+    expect(bubble('Zed').classList.contains('dgmo-dim')).toBe(false);
   });
 
   it('legend entries carry a transparent hit-rect so the whole pill is hoverable', async () => {

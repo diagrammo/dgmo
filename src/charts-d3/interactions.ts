@@ -535,7 +535,16 @@ export function attachDataChartInteractions(
     }
   };
   const legendListeners: Array<[SVGGElement, string, EventListener]> = [];
-  if (legendEntries.length > 0 && seriesGroups.length > 1) {
+  // Series charts have >1 `.dgmo-series` group; category charts (scatter) have
+  // none but tag individual datums with `data-series-name` instead. Either is
+  // enough to emphasize a legend-hovered group.
+  const datumsHaveSeries = datums.some(
+    (d) => d.getAttribute('data-series-name') != null
+  );
+  if (
+    legendEntries.length > 0 &&
+    (seriesGroups.length > 1 || datumsHaveSeries)
+  ) {
     for (const entry of legendEntries) {
       const name = entry.getAttribute('data-series-name');
       if (name == null) continue;

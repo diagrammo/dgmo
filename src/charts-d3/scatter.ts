@@ -5,7 +5,7 @@
 // greedy collision graphic.)
 // ============================================================
 
-import { scaleLinear } from 'd3-scale';
+import { scaleLinear, scaleSqrt } from 'd3-scale';
 import {
   computeQuadrantPointLabels,
   rectsOverlap,
@@ -185,12 +185,30 @@ export function renderScatter(
   const plotW = width - m.left - m.right;
   const plotH = height - m.top - m.bottom;
 
+  // Bubble radii: area-proportional (scaleSqrt, true-zero domain) mapped into a
+  // plot-relative pixel budget so the biggest bubble can always fit. Raw size/2
+  // pixels blew out the pane (a size of 510 → r=255px, larger than the plot).
+  // Plain scatter (no size declared) keeps the fixed DEFAULT_SIZE dot.
+  const sizes = points.map((p) =>
+    hasSize ? (p.size ?? DEFAULT_SIZE) : DEFAULT_SIZE
+  );
+  const rBudget = Math.max(12, Math.min(plotW, plotH) * 0.14);
+  const rScale = scaleSqrt()
+    .domain([0, Math.max(...sizes) || 1])
+    .range([0, rBudget]);
+  const radii = points.map((_, i) =>
+    hasSize ? Math.max(5, rScale(sizes[i]!)) : DEFAULT_SIZE / 2
+  );
+  // Inset the data range by the largest bubble radius so no bubble edge clips
+  // the pane, whichever point sits at an axis extreme.
+  const rInset = Math.max(...radii) + 4;
+
   const x = scaleLinear()
     .domain([Math.floor(xMin - xPad), Math.ceil(xMax + xPad)])
-    .range([m.left, m.left + plotW]);
+    .range([m.left + rInset, m.left + plotW - rInset]);
   const y = scaleLinear()
     .domain([Math.floor(yMin - yPad), Math.ceil(yMax + yPad)])
-    .range([m.top + plotH, m.top]);
+    .range([m.top + plotH - rInset, m.top + rInset]);
 
   // Hit/bounds target so the interaction adapter knows axis positions for the
   // dotted leader-line + on-axis value projection.
@@ -250,9 +268,6 @@ export function renderScatter(
 
   // Greedy collision-avoiding label placement (above/below/left/right + leader
   // line when pushed) — replaces the spike's naive above-point labels.
-  const radii = points.map(
-    (p) => (hasSize ? (p.size ?? DEFAULT_SIZE) : DEFAULT_SIZE) / 2
-  );
   const placedLabels = chart.noName
     ? null
     : computeQuadrantPointLabels(
@@ -349,9 +364,14 @@ export function renderScatter(
         .attr('data-sizeval-ly', pos.labelY)
         .attr('data-sizeval-anchor', pos.anchor);
     }
-    // Category key for baked-CSS cross-highlight (hover a point → dim other
-    // categories). Only when the point actually declares a category.
-    if (p.category) dot.attr('data-category', p.category);
+    // Category key for cross-highlight (hover a point → dim other categories).
+    // `data-category` drives the baked-CSS path; `data-series-name` (mirrors the
+    // legend entry) lets the live JS adapter treat categories as series so
+    // legend-hover dims the other groups. Only when a category is declared.
+    if (p.category) {
+      dot.attr('data-category', p.category);
+      dot.attr('data-series-name', p.category);
+    }
     if (placedLabels) {
       // Same length as points by construction.
       const placed = placedLabels[i]!;
