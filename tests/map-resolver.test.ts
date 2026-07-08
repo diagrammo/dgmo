@@ -302,6 +302,50 @@ describe('resolver — edges & routes (AC10-12, AC23)', () => {
   });
 });
 
+describe('resolver — POI referenced by label (route/edge reuse)', () => {
+  it('a route leg binds to a coord POI by its label', () => {
+    const r = resolve(
+      'map\npoi 50 30 label: Kyiv Hub\npoi 55 37 label: Moscow Refinery\nroute Kyiv Hub\n  ~> Moscow Refinery'
+    );
+    expect(r.diagnostics.filter((d) => d.severity === 'error')).toHaveLength(0);
+    expect(r.routes[0]!.legs).toHaveLength(1);
+    const kyiv = r.pois.find((p) => p.label === 'Kyiv Hub')!;
+    const moscow = r.pois.find((p) => p.label === 'Moscow Refinery')!;
+    const [leg] = r.routes[0]!.legs;
+    expect(leg!.fromId).toBe(kyiv.id);
+    expect(leg!.toId).toBe(moscow.id);
+    expect(r.pois).toHaveLength(2); // no duplicate implicit POI spawned
+  });
+  it('an edge binds to a coord POI by its label', () => {
+    const r = resolve(
+      'map\npoi 50 30 label: A Site\npoi 55 37 label: B Site\nA Site -> B Site'
+    );
+    expect(r.diagnostics.filter((d) => d.severity === 'error')).toHaveLength(0);
+    const a = r.pois.find((p) => p.label === 'A Site')!;
+    const b = r.pois.find((p) => p.label === 'B Site')!;
+    expect(r.edges[0]).toMatchObject({ fromId: a.id, toId: b.id });
+    expect(r.pois).toHaveLength(2);
+  });
+  it('a label shared by two POIs errors as ambiguous (asks for an alias)', () => {
+    const r = resolve(
+      'map\npoi 50 30 label: Depot\npoi 55 37 label: Depot\nroute 10 10\n  ~> Depot'
+    );
+    const errs = r.diagnostics.filter(
+      (d) => d.code === 'E_MAP_AMBIGUOUS_LABEL'
+    );
+    expect(errs).toHaveLength(1);
+    expect(r.routes[0]!.legs).toHaveLength(0); // ambiguous leg dropped
+  });
+  it('id/name/alias still win over a colliding label (precedence)', () => {
+    // `Tokyo` is a gazetteer name AND another POI carries the label "Tokyo".
+    // A reference to `Tokyo` must bind the NAME POI, not the labeled coord POI.
+    const r = resolve(
+      'map\npoi Tokyo\npoi 50 30 label: Tokyo\nroute Tokyo\n  ~> Osaka'
+    );
+    expect(r.routes[0]!.stopIds[0]).toBe('tokyo');
+  });
+});
+
 describe('resolver — airport IATA codes (map-airport-iata-codes)', () => {
   it('poi JFK resolves to the airport; POI label = typed token (AC1)', () => {
     const r = resolve('map\npoi JFK');

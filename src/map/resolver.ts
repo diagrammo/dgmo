@@ -669,11 +669,37 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     if (fn && fn !== p.id && !declaredByName.has(fn))
       declaredByName.set(fn, p.id);
   }
+  // A route/edge may also reference a POI by its display `label:` — humans reuse
+  // what they SEE on the map, not an alias they have to invent. Map folded label
+  // → id, but only when unique: a label shared by ≥2 POIs is ambiguous, and a
+  // reference to it errors (asking for an `as <alias>`) rather than silently
+  // binding to an arbitrary one. Label lookup sits BELOW id/name/alias and ABOVE
+  // the gazetteer (declared content wins over an implicit geocode).
+  const declaredByLabel = new Map<string, string>();
+  const ambiguousLabel = new Set<string>();
+  for (const p of pois) {
+    const fl = p.label ? fold(p.label) : undefined;
+    if (!fl) continue;
+    if (declaredByLabel.has(fl)) ambiguousLabel.add(fl);
+    else declaredByLabel.set(fl, p.id);
+  }
+  // Resolve a reference against declared POI labels. Returns the id, or 'ambiguous'
+  // when ≥2 POIs share the label (caller errors), or undefined for no match.
+  const resolveByLabel = (f: string): string | 'ambiguous' | undefined => {
+    if (ambiguousLabel.has(f)) return 'ambiguous';
+    return declaredByLabel.get(f);
+  };
   const resolveEndpoint = (ref: string, line: number): string | null => {
     const f = fold(ref);
     if (registry.has(f)) return f;
     const aliased = declaredByName.get(f);
     if (aliased) return aliased;
+    const byLabel = resolveByLabel(f);
+    if (byLabel === 'ambiguous') {
+      diagnostics.push(emit(MAP_DX.AMBIGUOUS_LABEL, line, { name: ref }));
+      return null;
+    }
+    if (byLabel) return byLabel;
     const got = lookupName(ref, undefined, line, inferredCountry, true);
     if (got.kind !== 'ok') return null;
     noteCountry(got.iso);
@@ -749,6 +775,12 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     if (registry.has(f)) return f;
     const aliased = declaredByName.get(f);
     if (aliased) return aliased;
+    const byLabel = resolveByLabel(f);
+    if (byLabel === 'ambiguous') {
+      diagnostics.push(emit(MAP_DX.AMBIGUOUS_LABEL, line, { name: pos.name }));
+      return null;
+    }
+    if (byLabel) return byLabel;
     const got = lookupName(pos.name, pos.scope, line, inferredScope, true);
     if (got.kind !== 'ok') return null;
     noteCountry(got.iso);
