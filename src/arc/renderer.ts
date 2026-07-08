@@ -140,8 +140,6 @@ const ARC_GROUP_LABEL_FONT = 12;
 const ARC_BAND_HALF_W = 60;
 const ARC_BAND_HALF_H = 40;
 const ARC_BAND_RADIUS = 4;
-const ARC_BAND_LABEL_X_OFFSET = 6;
-const ARC_BAND_LABEL_Y_OFFSET = 14;
 const ARC_BAND_LABEL_BOTTOM_OFFSET = 4;
 const ARC_NODE_LABEL_X_OFFSET = 14;
 const ARC_NODE_LABEL_Y_OFFSET = 20;
@@ -192,8 +190,6 @@ export function renderArcDiagram(
   const sBandHalfW = ctx.aesthetic(ARC_BAND_HALF_W);
   const sBandHalfH = ctx.aesthetic(ARC_BAND_HALF_H);
   const sBandRadius = ctx.structural(ARC_BAND_RADIUS);
-  const sBandLabelXOffset = ctx.structural(ARC_BAND_LABEL_X_OFFSET);
-  const sBandLabelYOffset = ctx.structural(ARC_BAND_LABEL_Y_OFFSET);
   const sBandLabelBottomOffset = ctx.structural(ARC_BAND_LABEL_BOTTOM_OFFSET);
   const sNodeLabelXOffset = ctx.structural(ARC_NODE_LABEL_X_OFFSET);
   const sNodeLabelYOffset = ctx.structural(ARC_NODE_LABEL_Y_OFFSET);
@@ -330,6 +326,23 @@ export function renderArcDiagram(
     });
   }
 
+  // First group containing each node (a node sits in at most one band), and a
+  // node → group-color lookup so arcs can inherit their group's color. Shared
+  // by both orientations.
+  const groupOfNode = new Map<string, string>();
+  const groupColorByName = new Map<string, string>();
+  for (const grp of arcNodeGroups) {
+    if (grp.color) groupColorByName.set(grp.name, grp.color);
+    for (const n of grp.nodes)
+      if (nodes.includes(n) && !groupOfNode.has(n))
+        groupOfNode.set(n, grp.name);
+  }
+  // A link takes its source node's group color (falls back to target's).
+  const groupColorOfLink = (l: ArcLink): string | undefined => {
+    const g = groupOfNode.get(l.source) ?? groupOfNode.get(l.target);
+    return g ? groupColorByName.get(g) : undefined;
+  };
+
   if (isVertical) {
     // Vertical layout: nodes along Y axis, arcs curve to the right
     const yScale = d3Scale
@@ -340,27 +353,40 @@ export function renderArcDiagram(
 
     const baseX = innerWidth / 2;
 
-    // Group bands (shaded regions bounding grouped nodes)
+    // Group bands (shaded regions bounding grouped nodes). Node labels sit to
+    // the left of the spine; the group name becomes a rotated lane-label in a
+    // dedicated column at the far-left edge so it never crowds the top node.
     if (arcNodeGroups.length > 0) {
       const bandPad = (yScale.step?.() ?? 20) * 0.4;
+      const vWidestLabelPx =
+        Math.max(...nodes.map((n) => n.length)) * sNodeLabelFont * 0.6;
+      // Name column = text height + a full font of padding on each side, so the
+      // rotated lane-label breathes off both the band edge and the node labels.
+      const vNameColW = sGroupLabelFont * 3;
+      // Band left encloses the node labels, then the rotated-name column.
+      const innerLeft =
+        baseX - Math.max(sBandHalfW, sNodeLabelXOffset + vWidestLabelPx + 4);
+      const bandLeft = innerLeft - vNameColW;
+      const bandRight = baseX + sBandHalfW;
       for (const group of arcNodeGroups) {
         const groupNodes = group.nodes.filter((n) => nodes.includes(n));
         if (groupNodes.length === 0) continue;
         const positions = groupNodes.map((n) => yScale(n)!);
         const minY = Math.min(...positions) - bandPad;
         const maxY = Math.max(...positions) + bandPad;
+        const midYBand = (minY + maxY) / 2;
 
         g.append('rect')
           .attr('class', 'arc-group-band')
           .attr('data-group', group.name)
           .attr('data-line-number', String(group.lineNumber))
-          .attr('x', baseX - sBandHalfW)
+          .attr('x', bandLeft)
           .attr('y', minY)
-          .attr('width', sBandHalfW * 2)
+          .attr('width', bandRight - bandLeft)
           .attr('height', maxY - minY)
           .attr('rx', sBandRadius)
-          .attr('fill', textColor)
-          .attr('fill-opacity', 0.06)
+          .attr('fill', group.color ?? textColor)
+          .attr('fill-opacity', group.color ? 0.15 : 0.06)
           .style('cursor', 'pointer')
           .on('mouseenter', () => handleGroupEnter(group.name))
           .on('mouseleave', handleMouseLeave)
@@ -368,16 +394,19 @@ export function renderArcDiagram(
             if (onClickItem) onClickItem(group.lineNumber);
           });
 
+        const nameX = bandLeft + vNameColW / 2;
         g.append('text')
           .attr('class', 'arc-group-label')
           .attr('data-group', group.name)
           .attr('data-line-number', String(group.lineNumber))
-          .attr('x', baseX - sBandHalfW + sBandLabelXOffset)
-          .attr('y', minY + sBandLabelYOffset)
+          .attr('x', nameX)
+          .attr('y', midYBand)
+          .attr('text-anchor', 'middle')
+          .attr('transform', `rotate(-90 ${nameX} ${midYBand})`)
           .attr('fill', textColor)
           .attr('font-size', `${sGroupLabelFont}px`)
           .attr('font-weight', '600')
-          .attr('fill-opacity', 0.5)
+          .attr('fill-opacity', 0.6)
           .style('cursor', onClickItem ? 'pointer' : 'default')
           .text(group.name)
           .on('mouseenter', () => handleGroupEnter(group.name))
@@ -405,8 +434,10 @@ export function renderArcDiagram(
       const midY = (y1 + y2) / 2;
       const distance = Math.abs(y2 - y1);
       const controlX = baseX + distance * 0.4;
+      // Explicit link color wins; else the group's color; else palette cycle.
       // colors is non-empty; modulo guarantees in-bounds.
-      const color = link.color ?? colors[idx % colors.length]!;
+      const color =
+        link.color ?? groupColorOfLink(link) ?? colors[idx % colors.length]!;
 
       g.append('path')
         .attr('class', 'arc-link')
@@ -476,6 +507,77 @@ export function renderArcDiagram(
       .range([0, innerWidth])
       .padding(0.5);
 
+    // Rotate node labels 45° when horizontal names would collide. Approximate
+    // each label's rendered width (~0.6em/char for Inter) and compare to the
+    // per-node slot (scalePoint step). A rotated label reads down-left from its
+    // dot; its vertical footprint is width*sin45 ≈ width*0.71.
+    const arcStep = xScale.step();
+    const widestLabelChars = Math.max(...nodes.map((n) => n.length));
+    const labelWidthPx = widestLabelChars * sNodeLabelFont * 0.6;
+    const rotateLabels = labelWidthPx > arcStep * 0.9;
+    const labelPivotGap = sNodeRadius + 4;
+    const rotatedLabelDrop = labelWidthPx * 0.71;
+
+    const hasGroups = arcNodeGroups.length > 0;
+
+    // X positions. Ungrouped → even scalePoint. Grouped → manual layout that
+    // fills the width and injects an inter-group gap wide enough that a rotated
+    // (down-left) label of one group can never reach into the previous group.
+    // The gap is sized in px from the label overhang, so groups spread apart
+    // exactly as much as the diagonal labels demand.
+    const xPos = new Map<string, number>();
+    let bandStepPx = arcStep;
+    if (hasGroups) {
+      let boundaryCount = 0;
+      let prevG: string | null = null;
+      for (const n of nodes) {
+        const gn = groupOfNode.get(n) ?? ` solo:${n}`;
+        if (prevG !== null && gn !== prevG) boundaryCount++;
+        prevG = gn;
+      }
+      const withinAdj = nodes.length - 1 - boundaryCount;
+      // Gap ≥ widest possible label overhang + both bands' side padding, so a
+      // next-group label can never reach the previous band (no seam overlap).
+      const groupGapPx = rotateLabels
+        ? rotatedLabelDrop + sNodeRadius * 2 + 12
+        : arcStep * 0.9;
+      const leftInset = rotateLabels
+        ? rotatedLabelDrop + sNodeRadius
+        : arcStep * 0.5;
+      const rightInset = rotateLabels ? sNodeRadius + 2 : arcStep * 0.5;
+      const avail = innerWidth - leftInset - rightInset;
+      let stepPx =
+        withinAdj > 0
+          ? (avail - boundaryCount * groupGapPx) / withinAdj
+          : avail;
+      if (!isFinite(stepPx) || stepPx < sNodeRadius * 2)
+        stepPx = Math.max(sNodeRadius * 2, arcStep * 0.5);
+      bandStepPx = stepPx;
+      let cx = leftInset;
+      prevG = null;
+      for (const n of nodes) {
+        const gn = groupOfNode.get(n) ?? ` solo:${n}`;
+        if (prevG !== null) cx += gn !== prevG ? groupGapPx : stepPx;
+        xPos.set(n, cx);
+        prevG = gn;
+      }
+    } else {
+      for (const n of nodes) xPos.set(n, xScale(n)!);
+    }
+    const posX = (n: string) => xPos.get(n)!;
+
+    // Depth below the baseline occupied by node labels, then the group name.
+    // When labels rotate they drop past the flat band, so the band (and the
+    // export canvas) must grow to keep both labels and group name inside.
+    const nodeLabelDepth = rotateLabels
+      ? labelPivotGap + rotatedLabelDrop
+      : sNodeLabelYOffset + sNodeLabelFont;
+    const groupNameGap = sGroupLabelFont + sBandLabelBottomOffset;
+    const belowExtent =
+      hasGroups && rotateLabels
+        ? nodeLabelDepth + groupNameGap + sGroupLabelFont * 0.25
+        : Math.max(sBandHalfH, nodeLabelDepth);
+
     // Live preview centers the baseline in the host container; export sizes the
     // canvas to the arc band so the SVG carries no dead whitespace (arcs bow up
     // by ~distance*0.2 above the baseline, labels/bands sit just below it).
@@ -483,13 +585,13 @@ export function renderArcDiagram(
     if (exportDims) {
       let maxDist = 0;
       for (const l of links) {
-        const a = xScale(l.source);
-        const b = xScale(l.target);
+        const a = posX(l.source);
+        const b = posX(l.target);
         if (a != null && b != null)
           maxDist = Math.max(maxDist, Math.abs(b - a));
       }
       const above = maxDist * 0.2 + sNodeRadius;
-      const below = Math.max(sBandHalfH, sNodeLabelYOffset + sNodeLabelFont);
+      const below = belowExtent;
       baseY = above;
       const tightHeight = margin.top + above + below + margin.bottom;
       svg
@@ -497,27 +599,47 @@ export function renderArcDiagram(
         .attr('viewBox', `0 0 ${width} ${tightHeight}`);
     }
 
-    // Group bands (shaded regions bounding grouped nodes)
-    if (arcNodeGroups.length > 0) {
-      const bandPad = (xScale.step?.() ?? 20) * 0.4;
+    // Group bands (shaded regions bounding grouped nodes). Filled with the
+    // group's own color when defined; the box grows down to enclose the node
+    // labels (rotated labels drop below the flat band) with the group name
+    // seated just under them, still inside the box.
+    if (hasGroups) {
+      const bandTopY = baseY - sBandHalfH;
+      const bandBottomY = baseY + belowExtent;
       for (const group of arcNodeGroups) {
         const groupNodes = group.nodes.filter((n) => nodes.includes(n));
         if (groupNodes.length === 0) continue;
-        const positions = groupNodes.map((n) => xScale(n)!);
-        const minX = Math.min(...positions) - bandPad;
-        const maxX = Math.max(...positions) + bandPad;
+        const positions = groupNodes.map((n) => posX(n));
+        const minP = Math.min(...positions);
+        const maxP = Math.max(...positions);
+        const sidePad = rotateLabels ? sNodeRadius + 4 : bandStepPx * 0.4;
+        // Left edge hugs this group's own leftmost label (its rotated overhang),
+        // not the global widest — keeps each band snug against its labels.
+        const leftNode = groupNodes.reduce((a, b) =>
+          posX(a) < posX(b) ? a : b
+        );
+        const ownOverhang = leftNode.length * sNodeLabelFont * 0.6 * 0.71;
+        const bandLeft = rotateLabels
+          ? minP - ownOverhang - sidePad
+          : minP - sidePad;
+        const bandRight = maxP + sidePad;
+        const bandFill = group.color ?? textColor;
+        const bandFillOpacity = group.color ? 0.15 : 0.06;
+        const nameY = rotateLabels
+          ? baseY + nodeLabelDepth + sGroupLabelFont
+          : bandBottomY - sBandLabelBottomOffset;
 
         g.append('rect')
           .attr('class', 'arc-group-band')
           .attr('data-group', group.name)
           .attr('data-line-number', String(group.lineNumber))
-          .attr('x', minX)
-          .attr('y', baseY - sBandHalfH)
-          .attr('width', maxX - minX)
-          .attr('height', sBandHalfH * 2)
+          .attr('x', bandLeft)
+          .attr('y', bandTopY)
+          .attr('width', bandRight - bandLeft)
+          .attr('height', bandBottomY - bandTopY)
           .attr('rx', sBandRadius)
-          .attr('fill', textColor)
-          .attr('fill-opacity', 0.06)
+          .attr('fill', bandFill)
+          .attr('fill-opacity', bandFillOpacity)
           .style('cursor', 'pointer')
           .on('mouseenter', () => handleGroupEnter(group.name))
           .on('mouseleave', handleMouseLeave)
@@ -529,13 +651,13 @@ export function renderArcDiagram(
           .attr('class', 'arc-group-label')
           .attr('data-group', group.name)
           .attr('data-line-number', String(group.lineNumber))
-          .attr('x', (minX + maxX) / 2)
-          .attr('y', baseY + sBandHalfH - sBandLabelBottomOffset)
+          .attr('x', (minP + maxP) / 2)
+          .attr('y', nameY)
           .attr('text-anchor', 'middle')
           .attr('fill', textColor)
           .attr('font-size', `${sGroupLabelFont}px`)
           .attr('font-weight', '600')
-          .attr('fill-opacity', 0.5)
+          .attr('fill-opacity', 0.6)
           .style('cursor', onClickItem ? 'pointer' : 'default')
           .text(group.name)
           .on('mouseenter', () => handleGroupEnter(group.name))
@@ -558,13 +680,15 @@ export function renderArcDiagram(
 
     // Arcs
     links.forEach((link, idx) => {
-      const x1 = xScale(link.source)!;
-      const x2 = xScale(link.target)!;
+      const x1 = posX(link.source)!;
+      const x2 = posX(link.target)!;
       const midX = (x1 + x2) / 2;
       const distance = Math.abs(x2 - x1);
       const controlY = baseY - distance * 0.4;
+      // Explicit link color wins; else the group's color; else palette cycle.
       // colors is non-empty; modulo guarantees in-bounds.
-      const color = link.color ?? colors[idx % colors.length]!;
+      const color =
+        link.color ?? groupColorOfLink(link) ?? colors[idx % colors.length]!;
 
       g.append('path')
         .attr('class', 'arc-link')
@@ -584,7 +708,7 @@ export function renderArcDiagram(
 
     // Node circles and labels
     for (const node of nodes) {
-      const x = xScale(node)!;
+      const x = posX(node)!;
       const nodeColor = nodeColorMap.get(node) ?? textColor;
       // Find the first link involving this node (for line number and click target)
       const nodeLink = links.find(
@@ -616,14 +740,22 @@ export function renderArcDiagram(
         .attr('stroke', bgColor)
         .attr('stroke-width', sNodeStrokeWidth);
 
-      nodeG
+      const labelY = rotateLabels
+        ? baseY + labelPivotGap
+        : baseY + sNodeLabelYOffset;
+      const nodeLabel = nodeG
         .append('text')
         .attr('x', x)
-        .attr('y', baseY + sNodeLabelYOffset)
-        .attr('text-anchor', 'middle')
+        .attr('y', labelY)
+        .attr('text-anchor', rotateLabels ? 'end' : 'middle')
         .attr('fill', textColor)
         .attr('font-size', `${sNodeLabelFont}px`)
         .text(node);
+      if (rotateLabels) {
+        // -45° pivots at the dot; anchor 'end' hangs text down-left, last char
+        // under the dot (see rotatedLabelDrop above).
+        nodeLabel.attr('transform', `rotate(-45 ${x} ${labelY})`);
+      }
     }
   }
 }

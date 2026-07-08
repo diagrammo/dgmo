@@ -911,6 +911,15 @@ function parseVisualizationFull(
         result.noTitle = true;
         continue;
       }
+      // Arc orientation (standard boolean form; default horizontal).
+      if (bareToken === 'orientation-vertical') {
+        if (result.type === 'arc') result.orientation = 'vertical';
+        continue;
+      }
+      if (bareToken === 'orientation-horizontal') {
+        if (result.type === 'arc') result.orientation = 'horizontal';
+        continue;
+      }
       // Silent-ignore unrecognized no-* flags (typos, future flags).
       if (bareToken.startsWith('no-')) {
         continue;
