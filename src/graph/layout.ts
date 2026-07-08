@@ -217,9 +217,31 @@ export function layoutGraph(
   for (const edge of graph.edges) {
     const key = `${edge.source}->${edge.target}`;
     edgeDataMap.set(key, edge);
-    g.setEdge(edge.source, edge.target, {
-      label: edge.label ?? '',
-    });
+  }
+
+  // Seed dagre so a node's children read left-to-right in source-definition
+  // order (the first-defined branch sits leftmost). dagre's ordering pass is
+  // initialized from edge-insertion order, and empirically the first sibling
+  // edge inserted lands RIGHTMOST — so we insert each source node's outgoing
+  // edges in REVERSE source order while preserving the order sources first
+  // appear (keeps multi-root and cross-parent order intact). Crossing
+  // minimization still runs on top; this only biases ties toward source order.
+  const outgoingBySource = new Map<string, GraphEdge[]>();
+  for (const edge of graph.edges) {
+    let group = outgoingBySource.get(edge.source);
+    if (!group) {
+      group = [];
+      outgoingBySource.set(edge.source, group);
+    }
+    group.push(edge);
+  }
+  for (const group of outgoingBySource.values()) {
+    for (let i = group.length - 1; i >= 0; i--) {
+      const edge = group[i]!;
+      g.setEdge(edge.source, edge.target, {
+        label: edge.label ?? '',
+      });
+    }
   }
 
   // Run layout
