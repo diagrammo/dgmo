@@ -86,19 +86,37 @@ export function renderPie(
       .join(' ');
     const label = [nm, tail].filter(Boolean).join(' — ');
     if (label) {
-      g.append('polyline')
-        .attr('points', `${x0},${y0} ${x1},${y1} ${x2},${y1}`)
-        .attr('fill', 'none')
-        .attr('stroke', stroke)
-        .attr('stroke-width', 1);
-      g.append('text')
-        .attr('x', x2 + (rightSide ? 4 : -4))
-        .attr('y', y1 + 4)
-        .attr('text-anchor', rightSide ? 'start' : 'end')
-        .attr('fill', textColor)
-        .attr('font-size', LABEL_FONT)
-        .attr('font-family', FONT_FAMILY)
-        .text(label);
+      // Tag the leader-line + label with the same emph-key as the wedge so
+      // hover (baked-CSS :has() and the app's JS dim) emphasizes all three
+      // together; colour the label text to match its segment.
+      const tag = {
+        line: data[i]!.lineNumber,
+        key: data[i]!.label,
+        name: data[i]!.label,
+        value: `${fmtNum(data[i]!.value)} (${pct}%)`,
+        color: stroke,
+      };
+      tagDatum(
+        g
+          .append('polyline')
+          .attr('points', `${x0},${y0} ${x1},${y1} ${x2},${y1}`)
+          .attr('fill', 'none')
+          .attr('stroke', stroke)
+          .attr('stroke-width', 1),
+        tag
+      );
+      tagDatum(
+        g
+          .append('text')
+          .attr('x', x2 + (rightSide ? 4 : -4))
+          .attr('y', y1 + 4)
+          .attr('text-anchor', rightSide ? 'start' : 'end')
+          .attr('fill', stroke)
+          .attr('font-size', LABEL_FONT)
+          .attr('font-family', FONT_FAMILY)
+          .text(label),
+        tag
+      );
     }
   });
 
