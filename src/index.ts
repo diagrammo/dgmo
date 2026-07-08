@@ -30,7 +30,11 @@ export type { CompactViewState } from './sharing';
 
 export interface RenderOptions {
   theme?: Theme;
-  palette?: PaletteConfig;
+  /**
+   * A `PaletteConfig` (e.g. `palettes.catppuccin`) or a palette id string
+   * (e.g. `'catppuccin'`). Unknown ids fall back to the default palette.
+   */
+  palette?: PaletteConfig | string;
   /**
    * How to handle parse errors:
    *   'svg'    — render an inline error SVG (default)
@@ -69,7 +73,14 @@ export async function render(
   text: string,
   options?: RenderOptions
 ): Promise<RenderResult> {
-  const palette = options?.palette ?? palettes.slate;
+  // Accept either a PaletteConfig object or a palette-id string. The embed
+  // block and other callers pass the id by name; normalizing here means the
+  // resolved config flows to BOTH renderInternal and the error card (which
+  // indexes palette.light/.dark — a bare string id crashed it).
+  const palette =
+    typeof options?.palette === 'string'
+      ? getPalette(options.palette)
+      : (options?.palette ?? palettes.slate);
   const onError = options?.onError ?? 'svg';
 
   const result = await renderInternal(text, {

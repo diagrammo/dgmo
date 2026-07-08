@@ -27,6 +27,7 @@ import { encodeDiagramUrl } from '../sharing';
 import { resolvePaletteOrFallback } from '../palettes';
 import { highlightDgmo } from '../editor/highlight-api';
 import { normalizeSvgForEmbed } from '../utils/svg-embed';
+import { renderErrorCard } from '../error-card';
 import { escapeHtml, escapeAttr } from './escape';
 
 export { BLOCK_CSS } from './css';
@@ -118,28 +119,39 @@ export async function renderDgmoBlock(
 ): Promise<DgmoBlockResult> {
   const opts = resolveBlockOptions(options);
   const trimmed = source.trim();
-  // Resolve-with-fallback so unknown names warn here (render() itself falls
-  // back silently); render() takes the palette by NAME, so pass the id.
-  const paletteId = resolvePaletteOrFallback(opts.palette, opts.onWarn).id;
+  // Resolve-with-fallback so unknown names warn here. The full config (not just
+  // the id) is needed for the error card below, which indexes palette.light/.dark.
+  const palette = resolvePaletteOrFallback(opts.palette, opts.onWarn);
   const diagnostics: DgmoBlockResult['diagnostics'] = [];
+
+  // Render one theme. `render` here is the low-level renderer, which returns an
+  // empty/partial SVG (not the friendly error card) when the source has
+  // error-severity diagnostics. So substitute the shared error card — the same
+  // fall-through image every host shows — whenever the parse errored. Without
+  // this the block emits an empty `.dgmo-light`/`.dgmo-dark` div: a blank box.
+  const renderTheme = async (
+    theme: 'light' | 'dark' | 'transparent'
+  ): Promise<string> => {
+    const r = await render(trimmed, { palette: palette.id, theme });
+    diagnostics.push(...r.diagnostics);
+    const errors = r.diagnostics.filter((d) => d.severity === 'error');
+    return errors.length
+      ? renderErrorCard(errors, trimmed, palette, theme)
+      : r.svg;
+  };
 
   let svgsHtml: string;
   if (opts.colorMode === 'auto') {
     const [light, dark] = await Promise.all([
-      render(trimmed, { palette: paletteId, theme: 'light' }),
-      render(trimmed, { palette: paletteId, theme: 'dark' }),
+      renderTheme('light'),
+      renderTheme('dark'),
     ]);
-    diagnostics.push(...light.diagnostics, ...dark.diagnostics);
     svgsHtml =
-      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-light'))}">${normalizeSvgForEmbed(light.svg)}</div>` +
-      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-dark'))}">${normalizeSvgForEmbed(dark.svg)}</div>`;
+      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-light'))}">${normalizeSvgForEmbed(light)}</div>` +
+      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-dark'))}">${normalizeSvgForEmbed(dark)}</div>`;
   } else {
-    const result = await render(trimmed, {
-      palette: paletteId,
-      theme: opts.colorMode,
-    });
-    diagnostics.push(...result.diagnostics);
-    svgsHtml = `<div class="${escapeAttr(innerClasses(opts, 'dgmo-svg'))}">${normalizeSvgForEmbed(result.svg)}</div>`;
+    const svg = await renderTheme(opts.colorMode);
+    svgsHtml = `<div class="${escapeAttr(innerClasses(opts, 'dgmo-svg'))}">${normalizeSvgForEmbed(svg)}</div>`;
   }
 
   return { html: assembleBlock(trimmed, svgsHtml, opts), diagnostics };

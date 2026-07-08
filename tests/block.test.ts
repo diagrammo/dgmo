@@ -131,6 +131,37 @@ describe('buildDgmoBlockHtml — markup-only assembly', () => {
   });
 });
 
+describe('renderDgmoBlock — invalid source bakes the error card', () => {
+  const BAD = `piechart Quarterly Revenue
+  Q1 40
+  Q2 30`;
+
+  it('substitutes the friendly error card instead of an empty div', async () => {
+    const { html, diagnostics } = await renderDgmoBlock(BAD);
+    // Regression: the low-level renderer returns an empty SVG on error, which
+    // used to leave `.dgmo-light`/`.dgmo-dark` empty (a blank box). The block
+    // must fall through to the shared error card.
+    expect(html).not.toContain('<div class="dgmo-light"></div>');
+    expect(html).toContain("Couldn't render this diagram");
+    expect(html).toContain('Unsupported chart type');
+    expect(diagnostics.some((d) => d.severity === 'error')).toBe(true);
+  });
+
+  it('renders the error card for a single (non-auto) color mode too', async () => {
+    const { html } = await renderDgmoBlock(BAD, { colorMode: 'light' });
+    expect(html).toContain('class="dgmo-svg"');
+    expect(html).not.toContain('<div class="dgmo-svg"></div>');
+    expect(html).toContain("Couldn't render this diagram");
+  });
+
+  it('does not crash when a palette id string is passed', async () => {
+    // render() must accept a palette-id string (not just a PaletteConfig);
+    // the error path indexes palette.light/.dark and used to throw on a string.
+    const { html } = await renderDgmoBlock(BAD, { palette: 'nord' });
+    expect(html).toContain("Couldn't render this diagram");
+  });
+});
+
 describe('errorBlockHtml — standard error card', () => {
   it('escapes message and source, carries role=alert', () => {
     const html = errorBlockHtml(new Error('boom <b>'), 'pie <bad>');
