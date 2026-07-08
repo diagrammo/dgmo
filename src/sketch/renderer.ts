@@ -133,16 +133,23 @@ function drawShapeBody(
       return;
     }
     case 'cloud': {
-      // Mockup-v11 cloud, normalized to a 132×97 design box (arc bulges
-      // included) and stretched to the footprint — never escapes it.
-      const sx = w / 132;
-      const sy = h / 97;
+      // Mockup-v11 cloud. Its top puffs are elliptical arcs that bulge above
+      // their endpoints, so the raw design box (132×80 once the bulge is
+      // counted) is inset into the footprint — the whole silhouette stays
+      // within [0,w]×[0,h], matching every other shape's bounds exactly.
+      const pad = 3;
+      const iw = w - 2 * pad;
+      const ih = h - 2 * pad;
+      const sx = iw / 132;
+      const sy = ih / 80;
       apply(
         g
+          .append('g')
+          .attr('transform', `translate(${pad}, ${pad})`)
           .append('path')
           .attr(
             'd',
-            `M${20 * sx} ${97 * sy} a${26 * sx} ${26 * sy} 0 0 1 ${-6 * sx} ${-51 * sy} a${34 * sx} ${34 * sy} 0 0 1 ${62 * sx} ${-22 * sy} a${28 * sx} ${28 * sy} 0 0 1 ${42 * sx} ${22 * sy} a${26 * sx} ${24 * sy} 0 0 1 ${8 * sx} ${51 * sy} Z`
+            `M${20 * sx} ${80 * sy} a${26 * sx} ${26 * sy} 0 0 1 ${-6 * sx} ${-42 * sy} a${34 * sx} ${28 * sy} 0 0 1 ${62 * sx} ${-18 * sy} a${28 * sx} ${23 * sy} 0 0 1 ${42 * sx} ${18 * sy} a${26 * sx} ${20 * sy} 0 0 1 ${8 * sx} ${42 * sy} Z`
           )
       );
       return;

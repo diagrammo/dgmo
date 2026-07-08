@@ -10,12 +10,14 @@
 // editor (via the `advanced` entrypoint) — the app must never redefine them.
 // Values were tuned in the BL-115 Task-1 placement-feel spike.
 
+/** The golden ratio, φ. Every shape's footprint is φ:1 (width:height). */
+export const SKETCH_PHI = (1 + Math.sqrt(5)) / 2;
+
 export const SKETCH_GEOMETRY = {
   /** px per grid cell (the dot-grid pitch) */
   cellPx: 26,
-  /** universal footprint, in grid cells — locked by spec §31.2 */
+  /** universal footprint width, in grid cells */
   footprintCellsW: 8,
-  footprintCellsH: 4,
   /** mandatory gap between footprints, in cells */
   gapCellsX: 4,
   gapCellsY: 4,
@@ -31,21 +33,21 @@ export const SKETCH_GEOMETRY = {
 export const SKETCH_FOOT_W =
   SKETCH_GEOMETRY.footprintCellsW * SKETCH_GEOMETRY.cellPx;
 
-/** Footprint height, px (104 at the default cell). */
-export const SKETCH_FOOT_H =
-  SKETCH_GEOMETRY.footprintCellsH * SKETCH_GEOMETRY.cellPx;
+/**
+ * Footprint height, px — the ONE universal size (spec §31.2). Golden-ratio
+ * derived from the width (φ:1), so 208 → 129. Every shape kind draws to
+ * exactly SKETCH_FOOT_W × SKETCH_FOOT_H; no shape is bigger, smaller, or a
+ * different aspect than any other.
+ */
+export const SKETCH_FOOT_H = Math.round(SKETCH_FOOT_W / SKETCH_PHI);
 
 /** Horizontal half-slot pitch, px: (footprint + gap) / 2. */
 export const SKETCH_HALF_SLOT_X =
-  ((SKETCH_GEOMETRY.footprintCellsW + SKETCH_GEOMETRY.gapCellsX) *
-    SKETCH_GEOMETRY.cellPx) /
-  2;
+  (SKETCH_FOOT_W + SKETCH_GEOMETRY.gapCellsX * SKETCH_GEOMETRY.cellPx) / 2;
 
-/** Vertical half-slot pitch, px. */
+/** Vertical half-slot pitch, px: (footprint + gap) / 2. */
 export const SKETCH_HALF_SLOT_Y =
-  ((SKETCH_GEOMETRY.footprintCellsH + SKETCH_GEOMETRY.gapCellsY) *
-    SKETCH_GEOMETRY.cellPx) /
-  2;
+  (SKETCH_FOOT_H + SKETCH_GEOMETRY.gapCellsY * SKETCH_GEOMETRY.cellPx) / 2;
 
 /**
  * Minimum origin separation in half-slots: two shapes collide when BOTH
