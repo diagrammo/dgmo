@@ -25,30 +25,32 @@ import {
   resolveTagColor,
   tagAttrKey,
 } from '../utils/tag-groups';
-import { fitTextToBox, wrapTextToWidth } from '../utils/text-measure';
 import {
-  CARD_RADIUS,
-  CONTAINER_RADIUS,
-  EDGE_STROKE_WIDTH,
-  LABEL_FONT_SIZE,
-  NODE_STROKE_WIDTH,
-} from '../utils/visual-conventions';
+  fitTextToBox,
+  measureText,
+  wrapTextToWidth,
+} from '../utils/text-measure';
+import { CARD_RADIUS, CONTAINER_RADIUS } from '../utils/visual-conventions';
 import type { ParsedSketch, SketchShapeKind } from './types';
 import type { SketchLayout, SketchLayoutBox, SketchLayoutNode } from './layout';
 
 // ── Local constants ─────────────────────────────────────────
 
 const DIAGRAM_PADDING = 20;
-const TITLE_Y = 30;
-const ARROWHEAD_W = 10;
-const ARROWHEAD_H = 7;
+const TITLE_Y = 32;
+const TITLE_FONT_SIZE = 18;
+// Sketch overrides the shared visual weights for a bolder, less-washed look.
+const NODE_STROKE_WIDTH = 2;
+const EDGE_STROKE_WIDTH = 2;
+const ARROWHEAD_W = 12;
+const ARROWHEAD_H = 8;
 const DASH = '6 3';
 const BAND_LABEL_FONT_SIZE = 19;
 const BAND_LABEL_OPACITY = 0.55;
 const NOTE_FONT_SIZE = 11;
 const COLLAPSE_BAR_HEIGHT = 4;
-const LABEL_MAX_LINES = 2;
-const EDGE_LABEL_FONT_SIZE = 11;
+const LABEL_MAX_LINES = 3;
+const EDGE_LABEL_FONT_SIZE = 12;
 const CURVE_HANDLE_MIN = 24;
 const CURVE_HANDLE_MAX = 90;
 
@@ -133,23 +135,29 @@ function drawShapeBody(
       return;
     }
     case 'cloud': {
-      // Mockup-v11 cloud. Its top puffs are elliptical arcs that bulge above
-      // their endpoints, so the raw design box (132×80 once the bulge is
-      // counted) is inset into the footprint — the whole silhouette stays
-      // within [0,w]×[0,h], matching every other shape's bounds exactly.
-      const pad = 3;
-      const iw = w - 2 * pad;
-      const ih = h - 2 * pad;
-      const sx = iw / 132;
-      const sy = ih / 80;
+      // Mockup-v11 cloud. Its puffs are elliptical arcs that bulge PAST their
+      // endpoints, so the endpoint coords understate the silhouette. The true
+      // path bbox (measured via getBBox) is 143.709×72.248 at design origin
+      // (5.882, 7.752). Map that bbox exactly onto [0,w]×[0,h] so the cloud
+      // fills the footprint like every other shape. Scaling is applied inline
+      // to each coord (not via a group transform) to keep the stroke uniform
+      // under the non-square scale.
+      const RAW_X = 5.882;
+      const RAW_Y = 7.752;
+      const sx = w / 143.709;
+      const sy = h / 72.248;
+      const mx = (20 - RAW_X) * sx;
+      const my = (80 - RAW_Y) * sy;
       apply(
         g
-          .append('g')
-          .attr('transform', `translate(${pad}, ${pad})`)
           .append('path')
           .attr(
             'd',
-            `M${20 * sx} ${80 * sy} a${26 * sx} ${26 * sy} 0 0 1 ${-6 * sx} ${-42 * sy} a${34 * sx} ${28 * sy} 0 0 1 ${62 * sx} ${-18 * sy} a${28 * sx} ${23 * sy} 0 0 1 ${42 * sx} ${18 * sy} a${26 * sx} ${20 * sy} 0 0 1 ${8 * sx} ${42 * sy} Z`
+            `M${mx} ${my}` +
+              ` a${26 * sx} ${26 * sy} 0 0 1 ${-6 * sx} ${-42 * sy}` +
+              ` a${34 * sx} ${28 * sy} 0 0 1 ${62 * sx} ${-18 * sy}` +
+              ` a${28 * sx} ${23 * sy} 0 0 1 ${42 * sx} ${18 * sy}` +
+              ` a${26 * sx} ${20 * sy} 0 0 1 ${8 * sx} ${42 * sy} Z`
           )
       );
       return;
@@ -205,7 +213,67 @@ function drawShapeBody(
   }
 }
 
-/** Centered, fitted label — the text-fit chain from spec §31.2. */
+const LABEL_MIN_FONT = 13;
+const LABEL_MAX_FONT = 22;
+
+/** Split on whitespace, then on dashes and camelCase boundaries. */
+function smartTokens(text: string): string[] {
+  return text
+    .trim()
+    .split(/\s+/)
+    .flatMap((w) => w.split(/(?<=[a-z0-9])(?=[A-Z])|(?<=-)/));
+}
+
+/** Greedy wrap of smart tokens at a given font size. */
+function wrapSmart(
+  label: string,
+  fontSize: number,
+  maxWidth: number
+): string[] {
+  const lines: string[] = [];
+  let cur = '';
+  for (const tok of smartTokens(label)) {
+    const joiner = cur === '' || cur.endsWith('-') ? '' : ' ';
+    const cand = cur + joiner + tok;
+    if (cur !== '' && measureText(cand, fontSize) > maxWidth) {
+      lines.push(cur);
+      cur = tok;
+    } else {
+      cur = cand;
+    }
+  }
+  if (cur !== '') lines.push(cur);
+  return lines;
+}
+
+/**
+ * Fit the label to the biggest font in [MIN, MAX] that lands within the box
+ * on ≤ maxLines lines (smart-wrapped). Short labels grow toward MAX; long ones
+ * shrink to MIN then ellipsize.
+ */
+function fitLabel(
+  label: string,
+  maxWidth: number,
+  maxLines: number
+): { lines: string[]; fontSize: number } {
+  for (let fs = LABEL_MAX_FONT; fs >= LABEL_MIN_FONT; fs--) {
+    const lines = wrapSmart(label, fs, maxWidth);
+    if (
+      lines.length <= maxLines &&
+      lines.every((l) => measureText(l, fs) <= maxWidth)
+    ) {
+      return { lines, fontSize: fs };
+    }
+  }
+  const fb = fitTextToBox(label, {
+    maxWidth,
+    maxLines,
+    fontSize: LABEL_MIN_FONT,
+  });
+  return { lines: [...fb.lines], fontSize: fb.fontSize };
+}
+
+/** Centered, fitted label — grows to fit, and fades as it gets bigger. */
 function drawFittedLabel(
   g: Sel,
   label: string,
@@ -214,11 +282,9 @@ function drawFittedLabel(
   maxWidth: number,
   color: string
 ): void {
-  const fit = fitTextToBox(label, {
-    maxWidth,
-    maxLines: LABEL_MAX_LINES,
-    fontSize: LABEL_FONT_SIZE,
-  });
+  const fit = fitLabel(label, maxWidth, LABEL_MAX_LINES);
+  // Bigger type reads heavier, so fade it for balance (min font = full ink).
+  const opacity = Math.max(0.62, 1 - (fit.fontSize - LABEL_MIN_FONT) * 0.035);
   const lineHeight = fit.fontSize + 3;
   const startY = cy - ((fit.lines.length - 1) * lineHeight) / 2;
   fit.lines.forEach((line, i) => {
@@ -230,6 +296,7 @@ function drawFittedLabel(
       .attr('font-size', fit.fontSize)
       .attr('font-weight', 700)
       .attr('fill', color)
+      .attr('opacity', opacity)
       .text(line);
   });
 }
@@ -276,7 +343,11 @@ export function renderSketch(
     return {
       fill,
       stroke: tagColor,
-      text: contrastText(fill, palette.textOnFillLight, palette.textOnFillDark),
+      // Label text takes the shape's own (tag) color — but for solid fills the
+      // tag color would vanish into the fill, so keep a contrast color there.
+      text: parsed.options.solidFill
+        ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
+        : tagColor,
     };
   };
 
@@ -323,7 +394,21 @@ export function renderSketch(
     }
     return palette.textMuted;
   };
-  const edgeColors = new Set(layout.edges.map((e) => edgeColorFor(e.metadata)));
+  // Flow color: an untagged line inherits its SOURCE shape's tag color, so
+  // lines read as connected flows instead of anonymous gray wires.
+  const nodeMetaById = new Map(
+    layout.nodes.map((n) => [n.id, n.metadata] as const)
+  );
+  const flowColor = (edge: {
+    sourceId: string;
+    metadata: Record<string, string>;
+  }): string => {
+    const own = edgeColorFor(edge.metadata);
+    if (own !== palette.textMuted) return own;
+    const sm = nodeMetaById.get(edge.sourceId);
+    return sm ? edgeColorFor(sm) : own;
+  };
+  const edgeColors = new Set(layout.edges.map((e) => flowColor(e)));
   for (const color of edgeColors) {
     const hex = color.replace('#', '');
     defs
@@ -364,7 +449,7 @@ export function renderSketch(
       .attr('x', width / 2)
       .attr('y', TITLE_Y)
       .attr('text-anchor', 'middle')
-      .attr('font-size', 15)
+      .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', 700)
       .attr('fill', palette.text)
       .text(parsed.title!);
@@ -415,12 +500,14 @@ export function renderSketch(
     y: number;
     text: string;
     color: string;
+    from: string;
+    to: string;
   }> = [];
   for (const edge of layout.edges) {
     const source = rectById.get(edge.sourceId);
     const target = rectById.get(edge.targetId);
     if (!source || !target) continue;
-    const color = edgeColorFor(edge.metadata);
+    const color = flowColor(edge);
     const hex = color.replace('#', '');
     const { d, mid } = edgePath(source, target);
     const g = edgeLayer
@@ -443,7 +530,14 @@ export function renderSketch(
       path.attr('marker-start', `url(#sk-arrow-rev-${hex})`);
     }
     if (edge.label) {
-      labelLayerData.push({ x: mid.x, y: mid.y, text: edge.label, color });
+      labelLayerData.push({
+        x: mid.x,
+        y: mid.y,
+        text: edge.label,
+        color,
+        from: edge.sourceId,
+        to: edge.targetId,
+      });
     }
   }
 
@@ -456,7 +550,11 @@ export function renderSketch(
   // ── Edge labels (above nodes, with a bg halo) ───────────────
   const labelLayer = root.append('g').attr('class', 'sk-edge-labels');
   for (const l of labelLayerData) {
-    const g = labelLayer.append('g').attr('class', 'sk-edge-label');
+    const g = labelLayer
+      .append('g')
+      .attr('class', 'sk-edge-label')
+      .attr('data-from', l.from)
+      .attr('data-to', l.to);
     const textWidth = l.text.length * EDGE_LABEL_FONT_SIZE * 0.56;
     g.append('rect')
       .attr('x', l.x - textWidth / 2 - 3)

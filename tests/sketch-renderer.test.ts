@@ -88,16 +88,23 @@ describe('sketch renderer — colors', () => {
     expect(rect.getAttribute('stroke')).toBe(P.textMuted);
   });
 
-  it('tagged edges take the tag color full-stroke; untagged use textMuted', () => {
+  it('edges: own tag color > source-shape flow color > gray', () => {
+    // A is Deck; edge x is Hold (own tag wins), edge y is untagged (inherits
+    // A's Deck flow color), edge z leaves an untagged shape (stays gray).
     const src =
-      'sketch\n\ntag Crew\n  Deck\n  Hold\n\nA at: 0 0, crew: Deck\n  -x-> b crew: Hold\n  -y-> b\nB as b at: 2 0';
+      'sketch\n\ntag Crew\n  Deck\n  Hold\n\nA at: 0 0, crew: Deck\n  -x-> b crew: Hold\n  -y-> b\nB as b at: 2 0\nLone at: 0 2\n  -z-> b';
     const svg = render(src);
-    const strokes = [...svg.querySelectorAll('.sk-edge-group path')].map((p) =>
-      p.getAttribute('stroke')
+    const entries = parseSketch(src, P).tagGroups[0]!.entries;
+    const deckColor = entries[0]!.color;
+    const holdColor = entries[1]!.color;
+    const strokes = new Set(
+      [...svg.querySelectorAll('.sk-edge-group path')].map((p) =>
+        p.getAttribute('stroke')
+      )
     );
-    expect(strokes).toContain(P.textMuted);
-    const holdColor = parseSketch(src, P).tagGroups[0]!.entries[1]!.color;
-    expect(strokes).toContain(holdColor);
+    expect(strokes).toContain(holdColor); // edge's own tag
+    expect(strokes).toContain(deckColor); // untagged edge inherits tagged source
+    expect(strokes).toContain(P.textMuted); // untagged edge from untagged source
   });
 });
 
@@ -146,8 +153,9 @@ describe('sketch renderer — text fit (AC 9)', () => {
     const node = svg.querySelector('.sk-node rect')!;
     const w = Number(node.getAttribute('width'));
     expect(w).toBe(208); // footprint never grows
+    // Grows-to-fit but never exceeds the max, and wraps to stay in the box.
     for (const t of texts) {
-      expect(Number(t.getAttribute('font-size'))).toBeLessThanOrEqual(13);
+      expect(Number(t.getAttribute('font-size'))).toBeLessThanOrEqual(22);
     }
   });
 });
