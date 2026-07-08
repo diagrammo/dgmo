@@ -33,9 +33,27 @@ export function renderPie(
 
   const cx = width / 2;
   const top = topInset + 12;
-  const cy = top + (height - top) / 2;
-  // Leave horizontal room for the external labels + leader lines.
-  const radius = Math.min(width / 2 - 220, (height - top) / 2 - 40);
+  const availH = height - top;
+  const cy = top + availH / 2;
+  // Radius scales with the available box rather than reserving a FIXED pixel
+  // gutter for labels — a fixed gutter (e.g. width/2 - 220) collapses the pie to
+  // nothing on a narrow canvas while the leader lines + text keep their pixel
+  // size, so everything piles up in the middle. Here the horizontal room for the
+  // external labels is proportional (~1.2r each side, hence /2.2), so the whole
+  // figure — pie, leaders, text — shrinks together and stays composed.
+  const radius = Math.max(
+    8,
+    Math.min(availH / 2 - availH * 0.06, width / 2 / 2.2)
+  );
+  // Everything label-related scales off the radius (180 = the export-size
+  // reference radius that the previous fixed constants were tuned for).
+  const labelScale = radius / 180;
+  const font = Math.max(7, LABEL_FONT * labelScale);
+  const elbowOut = radius * 0.09; // radial stub off the arc
+  const elbowRun = radius * 0.155; // horizontal run to the text
+  // Below this the leader-line labels can't separate legibly around the arc —
+  // show a clean pie instead of an illegible tangle.
+  const showLabels = radius >= 45;
 
   const segColors = getSegmentColors(palette, data.length);
   const strokeFor = (i: number, override?: string) =>
@@ -70,13 +88,14 @@ export function renderPie(
     });
 
     // External leader-line label.
+    if (!showLabels) return;
     const mid = (a.startAngle + a.endAngle) / 2 - Math.PI / 2;
     const rightSide = Math.cos(mid) >= 0;
     const x0 = Math.cos(mid) * radius;
     const y0 = Math.sin(mid) * radius;
-    const x1 = Math.cos(mid) * (radius + 16);
-    const y1 = Math.sin(mid) * (radius + 16);
-    const x2 = x1 + (rightSide ? 28 : -28);
+    const x1 = Math.cos(mid) * (radius + elbowOut);
+    const y1 = Math.sin(mid) * (radius + elbowOut);
+    const x2 = x1 + (rightSide ? elbowRun : -elbowRun);
     const nm = chart.noName ? '' : data[i]!.label;
     const tail = [
       chart.noValue ? '' : fmtNum(data[i]!.value),
@@ -108,11 +127,11 @@ export function renderPie(
       tagDatum(
         g
           .append('text')
-          .attr('x', x2 + (rightSide ? 4 : -4))
-          .attr('y', y1 + 4)
+          .attr('x', x2 + (rightSide ? font * 0.3 : -font * 0.3))
+          .attr('y', y1 + font * 0.3)
           .attr('text-anchor', rightSide ? 'start' : 'end')
           .attr('fill', stroke)
-          .attr('font-size', LABEL_FONT)
+          .attr('font-size', font)
           .attr('font-family', FONT_FAMILY)
           .text(label),
         tag
@@ -125,9 +144,9 @@ export function renderPie(
   if (hasHole && !chart.noCenterTotal) {
     g.append('text')
       .attr('text-anchor', 'middle')
-      .attr('y', 8)
+      .attr('y', Math.max(4, 8 * labelScale))
       .attr('fill', textColor)
-      .attr('font-size', 26)
+      .attr('font-size', Math.max(11, 26 * labelScale))
       .attr('font-weight', 700)
       .attr('font-family', FONT_FAMILY)
       .text(fmtNum(total));
