@@ -689,4 +689,23 @@ API
     // Just verify no 6 4 pattern on the main edge path strokes
     expect(svg).not.toMatch(/stroke-dasharray="6 4"/);
   });
+
+  it('draws edges that target a [Group] container (regression: orphaned group)', () => {
+    // `-> [Services]` targets a group id, not a node. The renderer resolves
+    // targets by id; without a group pseudo-node the edge (path + label) was
+    // silently dropped, leaving the group and its children visually orphaned.
+    const svg = renderToSvg(`infra
+edge
+  rps: 100
+  -api-> [Services]
+
+[Services]
+  API
+    -> Database
+
+Database`);
+    // The edge into the group must be drawn with its label.
+    expect(svg).toMatch(/data-from="edge" data-to="\[services\]"/);
+    expect(svg).toMatch(/>api</);
+  });
 });
