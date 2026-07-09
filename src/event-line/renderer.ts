@@ -292,7 +292,9 @@ export function renderEventLine(
     if (slot.kind === 'event') {
       const event = slot.event;
       const solid = eventColor(event);
-      const cardFill = shapeFill(palette, solid, isDark, { solid: false });
+      const cardFill = shapeFill(palette, solid, isDark, {
+        solid: parsed.options.solidFill,
+      });
       const titleColor = contrastText(
         cardFill,
         palette.textOnFillLight,
@@ -967,7 +969,12 @@ export function renderEventLine(
         .attr('width', CARD_W)
         .attr('height', shelfH)
         .attr('clip-path', `url(#${clipId})`)
-        .attr('fill', mix(p.color, themeBaseBg(palette, isDark), SHELF_TINT));
+        .attr(
+          'fill',
+          parsed.options.solidFill
+            ? p.color
+            : mix(p.color, themeBaseBg(palette, isDark), SHELF_TINT)
+        );
       const edgeY = titleNearTop ? shelfTop : shelfTop + shelfH - SHELF_EDGE;
       // The colored leader-landing edge. A future (TBD) card draws the SAME solid
       // edge faded to 40% — the tentative read comes from the fade, matching the
@@ -981,11 +988,16 @@ export function renderEventLine(
         .attr('clip-path', `url(#${clipId})`)
         .attr('fill', p.color)
         .attr('fill-opacity', p.future ? 0.4 : 1);
+      // On a solid shelf the title/date must contrast against the fill; the
+      // default (tinted) shelf keeps the tag color for the title.
+      const shelfText = parsed.options.solidFill
+        ? contrastText(p.color, palette.textOnFillLight, palette.textOnFillDark)
+        : p.color;
       cardG
         .append('text')
         .attr('x', CARD_PAD)
         .attr('y', headBandTop + HEADER_HEIGHT / 2 + LABEL_FONT_SIZE / 2 - 2)
-        .attr('fill', p.color)
+        .attr('fill', shelfText)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', LABEL_FONT_SIZE)
         .attr('font-weight', 700)
@@ -1000,7 +1012,12 @@ export function renderEventLine(
               DATE_SUBTITLE_FONT +
               2
           )
-          .attr('fill', mix(palette.text, palette.bg, 55))
+          .attr(
+            'fill',
+            parsed.options.solidFill
+              ? mix(shelfText, p.color, 25)
+              : mix(palette.text, palette.bg, 55)
+          )
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', DATE_SUBTITLE_FONT)
           .attr('font-weight', 600)

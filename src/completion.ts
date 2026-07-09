@@ -652,9 +652,11 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
 // ── Cross-chart-type bare-keyword option: `solid-fill` ──────────
 // Adds the directive to every chart type whose renderer actually responds to
 // it (renders shapes at full intent saturation when set). Chart types where
-// the keyword is a no-op (gantt/infra/tech-radar/event-line deliberately opt
-// out; quadrant/scatter-dot/wordcloud/line/arc/slope have no tinted shape
-// fill) intentionally don't list it — keeps the completion popup honest.
+// the keyword is a no-op (gantt/infra/tech-radar deliberately opt out;
+// quadrant/scatter-dot/wordcloud/arc/slope have no tinted shape fill)
+// intentionally don't list it — keeps the completion popup honest.
+// `line` honors it only for area (`fill`) charts; `event-line` saturates the
+// card / no-box shelf fill.
 const SOLID_FILL_CAPABLE = new Set([
   'sketch',
   'flowchart',
@@ -687,6 +689,8 @@ const SOLID_FILL_CAPABLE = new Set([
   'heatmap',
   'venn',
   'timeline',
+  'line',
+  'event-line',
 ]);
 for (const [type, spec] of COMPLETION_REGISTRY) {
   if (SOLID_FILL_CAPABLE.has(type)) {

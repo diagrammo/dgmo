@@ -78,6 +78,7 @@ export function parseEventLine(
     noTitle: false,
     noBox: false,
     noLegend: false,
+    solidFill: false,
   };
   const result: Writable<ParsedEventLine> = {
     type: 'event-line',
@@ -275,6 +276,10 @@ export function parseEventLine(
       }
       if (trimmed.toLowerCase() === 'no-legend') {
         options.noLegend = true;
+        continue;
+      }
+      if (trimmed.toLowerCase() === 'solid-fill') {
+        options.solidFill = true;
         continue;
       }
       const dirMatch = trimmed.match(DIRECTION_RE);

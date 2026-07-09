@@ -46,6 +46,20 @@ Row1 5 8`,
 Swordsmanship as sw
 Navigation as nav
 sw + nav Overlap`,
+  // Area line: solid-fill makes the area under the line opaque (not 25% tint).
+  line: `line Treasure Hauled
+fill
+Jan 10
+Feb 40
+Mar 25`,
+  // Event-line: solid-fill saturates the card fill (and the no-box shelf).
+  'event-line': `event-line Voyage
+tag Landfall as l
+
+Set Sail l 1701-03
+  Left port at dawn
+Made Landfall l 1701-09
+  Sighted the coast`,
 };
 
 function withSolidFill(src: string): string {

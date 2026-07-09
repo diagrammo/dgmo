@@ -407,6 +407,8 @@ describe('COMPLETION_REGISTRY', () => {
       'heatmap',
       'venn',
       'timeline',
+      'line',
+      'event-line',
     ];
     for (const type of expected) {
       it(`exposes solid-fill for ${type}`, () => {
@@ -427,7 +429,6 @@ describe('COMPLETION_REGISTRY', () => {
       'infra',
       'tech-radar',
       'quadrant',
-      'line',
       'function',
       'sankey',
       'wordcloud',
