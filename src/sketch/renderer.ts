@@ -601,7 +601,9 @@ function drawNode(
     if (badge) {
       // Badge stays in the top-left corner in both modes (a full-height header
       // would otherwise sink it to the vertical center).
-      drawTypeBadge(g, node.shape, colors.stroke, 10, (CARD_HEADER_H - 16) / 2);
+      // colors.text (not stroke): in solid-fill the stroke IS the fill, so a
+      // stroke-colored badge would vanish; colors.text stays contrast-aware.
+      drawTypeBadge(g, node.shape, colors.text, 10, (CARD_HEADER_H - 16) / 2);
     }
   }
 
