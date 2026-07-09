@@ -162,14 +162,17 @@ const CARD_HEADER_H = 34;
 const CARD_LABEL_MAX = 15;
 const CARD_LABEL_MIN = 11;
 const CARD_META_FONT = 12;
+/** Header font ceiling when the name fills a card with no rows. */
+const CARD_TITLE_MAX = 30;
 
-/** Largest header font in [MIN,MAX] that fits the label on one line, else the
- *  min font with a middle-ellipsized label. */
+/** Largest header font in [MIN, maxFont] that fits the label on one line, else
+ *  the min font with a middle-ellipsized label. */
 function fitOneLine(
   label: string,
-  maxWidth: number
+  maxWidth: number,
+  maxFont: number = CARD_LABEL_MAX
 ): { text: string; fontSize: number } {
-  for (let fs = CARD_LABEL_MAX; fs >= CARD_LABEL_MIN; fs--) {
+  for (let fs = maxFont; fs >= CARD_LABEL_MIN; fs--) {
     if (measureText(label, fs) <= maxWidth)
       return { text: label, fontSize: fs };
   }
@@ -561,7 +564,15 @@ function drawNode(
     const badge = node.shape !== 'rectangle';
     const labelInset = badge ? 22 : 0;
     const headerH = rows.length ? CARD_HEADER_H : node.h;
-    const fit = fitOneLine(node.label, node.w - 24 - labelInset);
+    // No rows (descriptions off, or an untagged shape — but not a collapsed
+    // card): the name grows to fill the card. renderNodeCard centers it in the
+    // full-height header band.
+    const fillTitle = rows.length === 0 && !node.isCollapsedBox;
+    const fit = fitOneLine(
+      node.label,
+      node.w - 24 - labelInset,
+      fillTitle ? CARD_TITLE_MAX : CARD_LABEL_MAX
+    );
     renderNodeCard(g, {
       width: node.w,
       height: node.h,
@@ -588,7 +599,9 @@ function drawNode(
         : {}),
     });
     if (badge) {
-      drawTypeBadge(g, node.shape, colors.stroke, 10, (headerH - 16) / 2);
+      // Badge stays in the top-left corner in both modes (a full-height header
+      // would otherwise sink it to the vertical center).
+      drawTypeBadge(g, node.shape, colors.stroke, 10, (CARD_HEADER_H - 16) / 2);
     }
   }
 
