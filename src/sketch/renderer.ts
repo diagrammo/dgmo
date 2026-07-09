@@ -658,7 +658,10 @@ function edgePath(
   }
   return {
     d: `M ${p0.x} ${p0.y} C ${h0.x} ${h0.y}, ${h1.x} ${h1.y}, ${p1.x} ${p1.y}`,
-    mid: { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 - 8 },
+    // Centered ON the line (no vertical offset): the opaque label halo masks
+    // the segment behind it cleanly, so the label reads as sitting on the line
+    // rather than floating awkwardly just above it.
+    mid: { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 },
   };
 }
 
