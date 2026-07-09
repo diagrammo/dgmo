@@ -18,6 +18,7 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { renderCollapseBar, renderNodeCard } from '../utils/card';
+import { drawMarkdownBlock } from './markdown-card';
 import type { LegendGroupData } from '../utils/legend-types';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import { renderIntegratedLegend } from '../utils/legend-integration';
@@ -555,6 +556,58 @@ function drawNode(
     const rows = node.isCollapsedBox ? [] : metaRows(node.metadata, tagGroups);
     const badge = node.shape !== 'rectangle';
     const labelInset = badge ? 22 : 0;
+
+    // Free-text markdown description: header band + rule, then the rendered
+    // markdown block fills the body (in place of the tag rows). Wrapped, with a
+    // small subset (bold/bullets/indent/links); clamps to the fixed card body.
+    if (node.description && !node.isCollapsedBox) {
+      const fitH = fitOneLine(
+        node.label,
+        node.w - 24 - labelInset,
+        CARD_LABEL_MAX
+      );
+      renderNodeCard(g, {
+        width: node.w,
+        height: node.h,
+        rx: CARD_RADIUS,
+        fill: colors.fill,
+        stroke: colors.stroke,
+        strokeWidth: NODE_STROKE_WIDTH,
+        label: fitH.text,
+        labelColor: colors.text,
+        labelFontSize: fitH.fontSize,
+        headerHeight: CARD_HEADER_H,
+      });
+      g.append('line')
+        .attr('x1', 0)
+        .attr('y1', CARD_HEADER_H)
+        .attr('x2', node.w)
+        .attr('y2', CARD_HEADER_H)
+        .attr('stroke', colors.stroke)
+        .attr('stroke-opacity', 0.3)
+        .attr('stroke-width', 1);
+      const inset = 12;
+      const bodyGap = 8;
+      const lh = CARD_META_FONT + 4;
+      const avail = node.h - CARD_HEADER_H - bodyGap - 8;
+      const body = g
+        .append('g')
+        .attr('class', 'sk-desc')
+        .attr('transform', `translate(${inset} ${CARD_HEADER_H + bodyGap})`);
+      drawMarkdownBlock(body, node.description, {
+        width: node.w - inset * 2,
+        fontSize: CARD_META_FONT,
+        lineHeight: lh,
+        color: palette.text,
+        linkColor: palette.primary,
+        maxLines: Math.max(1, Math.floor(avail / lh)),
+      });
+      if (badge) {
+        drawTypeBadge(g, node.shape, colors.text, 10, (CARD_HEADER_H - 16) / 2);
+      }
+      return;
+    }
+
     const headerH = rows.length ? CARD_HEADER_H : node.h;
     // No rows (descriptions off, or an untagged shape — but not a collapsed
     // card): the name grows to fill the card. renderNodeCard centers it in the

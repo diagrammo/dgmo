@@ -562,6 +562,28 @@ export function parseSketch(
     // ── Content ─────────────────────────────────────────────
     contentStarted = true;
 
+    // Description line — an indented `>` block under a shape. Markdown text;
+    // preserve the content after `> ` verbatim (incl. its own leading spaces
+    // for nested bullets). Multiple lines newline-join.
+    if (trimmed.startsWith('>')) {
+      const descLine = trimmed.slice(1).replace(/^ /, '');
+      if (indent > 0 && currentShape && indent > currentShape.indent) {
+        const node = nodeById.get(currentShape.id) as WritableNode | undefined;
+        if (node) {
+          node.description =
+            node.description === undefined
+              ? descLine
+              : `${node.description}\n${descLine}`;
+        }
+      } else {
+        warn(
+          lineNumber,
+          `Description "${trimmed}" has no shape — indent it under the shape it describes`
+        );
+      }
+      continue;
+    }
+
     // Edge line — attaches to the innermost open context.
     if (EDGE_START_RE.test(trimmed)) {
       if (indent > 0 && currentShape && indent > currentShape.indent) {
