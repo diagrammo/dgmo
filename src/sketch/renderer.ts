@@ -556,6 +556,10 @@ function drawNode(
     const rows = node.isCollapsedBox ? [] : metaRows(node.metadata, tagGroups);
     const badge = node.shape !== 'rectangle';
     const labelInset = badge ? 22 : 0;
+    // Solid-fill: the stroke IS the fill, so a stroke-colored rule/text would
+    // vanish — use the (contrast-aware) label color instead, like the org card.
+    const solid = colors.stroke === colors.fill;
+    const ruleColor = solid ? colors.text : colors.stroke;
 
     // Free-text markdown description: header band + rule, then the rendered
     // markdown block fills the body (in place of the tag rows). Wrapped, with a
@@ -583,7 +587,7 @@ function drawNode(
         .attr('y1', CARD_HEADER_H)
         .attr('x2', node.w)
         .attr('y2', CARD_HEADER_H)
-        .attr('stroke', colors.stroke)
+        .attr('stroke', ruleColor)
         .attr('stroke-opacity', 0.3)
         .attr('stroke-width', 1);
       const inset = 12;
@@ -636,8 +640,8 @@ function drawNode(
               fontSize: CARD_META_FONT,
               lineHeight: CARD_META_FONT + 5,
               separatorGap: 8,
-              separatorColor: colors.stroke,
-              textColor: palette.text,
+              separatorColor: ruleColor,
+              textColor: solid ? colors.text : palette.text,
               keyX: 12,
             },
           }
