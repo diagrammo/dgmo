@@ -167,6 +167,17 @@ export function renderFamilyForExport(
     .attr('data-fit-scale', scale.toFixed(3))
     .style('font-family', FONT_FAMILY) as unknown as D3Svg;
 
+  // Baked hover-reveal for the per-card focus icon — hidden until its card is
+  // hovered (works in every host without host-side CSS; the icon is
+  // `data-export-ignore` so static export strips it regardless).
+  svg
+    .append('style')
+    .text(
+      '.family-focus-icon{opacity:0;transition:opacity .15s ease;pointer-events:none}' +
+        '.family-card:hover .family-focus-icon{opacity:.6;pointer-events:all}' +
+        '.family-focus-icon:hover{opacity:1}'
+    );
+
   // ── Title (native size, pinned top) ──
   if (parsed.title) {
     svg
@@ -319,7 +330,6 @@ export function renderFamilyForExport(
       .attr('class', 'family-focus-icon')
       .attr('data-focus-person', node.id)
       .attr('data-export-ignore', 'true')
-      .attr('opacity', 0.4)
       .style('cursor', 'pointer');
     focusG
       .append('rect')
