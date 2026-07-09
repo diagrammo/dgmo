@@ -22,7 +22,7 @@ tag Crew
   Deck
   Hold
 
-Spyglass Feed shape: cloud, at: 0 0, crew: Deck
+Spyglass Feed shape: database, at: 0 0, crew: Deck
   -sightings-> con
 Captain's Console as con at: 2 0, crew: Deck
   -orders-> bq
@@ -47,12 +47,12 @@ describe('sketch renderer — structure', () => {
     expect(svg.querySelector('.sk-legend-group')).not.toBeNull();
   });
 
-  it('draws every shape kind with a distinct body', () => {
+  it('marks each shape kind with a header type badge', () => {
     const svg = render(
-      'sketch\nR at: 0 0\nD shape: database, at: 2 0\nQ shape: queue, at: 4 0\nC shape: cloud, at: 0 2\nP shape: person, at: 2 2\nDoc shape: document, at: 4 2\nN shape: note, at: 0 4'
+      'sketch\nR at: 0 0\nD shape: database, at: 2 0\nQ shape: queue, at: 4 0\nP shape: person, at: 2 2\nDoc shape: document, at: 4 2\nN shape: note, at: 0 4'
     );
-    expect(svg.querySelectorAll('.sk-node').length).toBe(7);
-    // database + queue draw ellipse caps; person draws the icon circle
+    expect(svg.querySelectorAll('.sk-node').length).toBe(6);
+    // database + queue badges draw an ellipse cap; person badge draws a circle.
     expect(svg.querySelectorAll('.sk-node ellipse').length).toBe(2);
     expect(svg.querySelectorAll('.sk-node circle').length).toBe(1);
   });
@@ -144,19 +144,16 @@ describe('sketch renderer — edges', () => {
 });
 
 describe('sketch renderer — text fit (AC 9)', () => {
-  it('a 40-char name never escapes the footprint', () => {
+  it('a 40-char name is ellipsized to fit the card header', () => {
     const name = 'Extraordinarily Long Shape Name For Test';
     expect(name.length).toBe(40);
     const svg = render(`sketch\n${name} at: 0 0`);
     const texts = [...svg.querySelectorAll('.sk-node text')];
-    expect(texts.length).toBeGreaterThan(1); // wrapped
+    expect(texts.length).toBe(1); // single header line (no wrap)
+    expect(texts[0]!.textContent!.endsWith('…')).toBe(true); // truncated to fit
     const node = svg.querySelector('.sk-node rect')!;
-    const w = Number(node.getAttribute('width'));
-    expect(w).toBe(208); // footprint never grows
-    // Grows-to-fit but never exceeds the max, and wraps to stay in the box.
-    for (const t of texts) {
-      expect(Number(t.getAttribute('font-size'))).toBeLessThanOrEqual(22);
-    }
+    expect(Number(node.getAttribute('width'))).toBe(208); // footprint never grows
+    expect(Number(texts[0]!.getAttribute('font-size'))).toBeLessThanOrEqual(15);
   });
 });
 

@@ -38,7 +38,7 @@ export const SKETCH_DIAGNOSTICS: DiagnosticSpec[] = [
     chartType: 'sketch',
     title: 'Unknown shape',
     message: (p) =>
-      `Unknown shape "${String(p.shape ?? '?')}" — rendered as a rectangle (valid: database, queue, cloud, person, document, note)`,
+      `Unknown shape "${String(p.shape ?? '?')}" — rendered as a rectangle (valid: database, queue, person, document, note)`,
     hint: 'Use one of the closed shape kinds, or drop shape: for a rectangle.',
     example: 'sketch\nStore shape: database',
   },
