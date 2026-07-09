@@ -630,10 +630,11 @@ function drawNode(
     }
 
     const headerH = rows.length ? CARD_HEADER_H : node.h;
-    // No rows (descriptions off, or an untagged shape — but not a collapsed
-    // card): the name grows to fill the card. renderNodeCard centers it in the
-    // full-height header band.
-    const fillTitle = rows.length === 0 && !node.isCollapsedBox;
+    // No rows (descriptions off, an untagged shape, OR a collapsed group card):
+    // the name grows to fill the card, centered in the full-height header band.
+    // A collapsed group is styled exactly like a plain node — same big centered
+    // name — and differs only by the collapse bar drawn at its bottom.
+    const fillTitle = rows.length === 0;
     const fit = fitOneLine(
       node.label,
       node.w - 24 - labelInset,
