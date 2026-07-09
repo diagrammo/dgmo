@@ -115,7 +115,11 @@ export function parseSketch(
   content: string,
   palette?: PaletteColors
 ): ParsedSketch {
-  const options = { noLegend: false, solidFill: false };
+  const options = {
+    noLegend: false,
+    solidFill: false,
+    noDescriptions: false,
+  };
   const result: Writable<ParsedSketch> = {
     type: 'sketch',
     title: null,
@@ -548,6 +552,10 @@ export function parseSketch(
     }
     if (indent === 0 && /^solid-fill\s*$/i.test(trimmed)) {
       options.solidFill = true;
+      continue;
+    }
+    if (indent === 0 && /^no-descriptions\s*$/i.test(trimmed)) {
+      options.noDescriptions = true;
       continue;
     }
 

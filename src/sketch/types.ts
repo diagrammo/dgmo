@@ -72,6 +72,9 @@ export interface SketchBox {
 export interface SketchOptions {
   readonly noLegend: boolean;
   readonly solidFill: boolean;
+  /** `no-descriptions` directive (mindmap `hd` standard): hide the card
+   *  metadata rows so each card is just its name. */
+  readonly noDescriptions: boolean;
 }
 
 export interface ParsedSketch {

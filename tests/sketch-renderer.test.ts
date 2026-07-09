@@ -193,4 +193,27 @@ describe('sketch renderer — options', () => {
     const rect = svg.querySelector('.sk-node rect')!;
     expect(rect.getAttribute('fill')).toBe(tagColor);
   });
+
+  it('no-descriptions hides card metadata rows (name fills the card)', () => {
+    const rows = (svg: SVGSVGElement) =>
+      [...svg.querySelectorAll('.sk-node text')].map((t) => t.textContent);
+    const withRows = render(
+      'sketch\ntag Crew\n  Deck\n\nA at: 0 0, crew: Deck'
+    );
+    expect(rows(withRows).some((t) => t?.includes('Crew'))).toBe(true);
+    const hidden = render(
+      'sketch\nno-descriptions\ntag Crew\n  Deck\n\nA at: 0 0, crew: Deck'
+    );
+    expect(rows(hidden).some((t) => t?.includes('Crew'))).toBe(false);
+    expect(hidden.textContent).toContain('A'); // name still there
+  });
+
+  it('the hideDescriptions render option hides rows (view-state hd path)', () => {
+    const src = 'sketch\ntag Crew\n  Deck\n\nA at: 0 0, crew: Deck';
+    const svg = render(src, { hideDescriptions: true });
+    const rowTexts = [...svg.querySelectorAll('.sk-node text')].map(
+      (t) => t.textContent
+    );
+    expect(rowTexts.some((t) => t?.includes('Crew'))).toBe(false);
+  });
 });

@@ -55,6 +55,9 @@ export interface SketchRenderOptions {
   activeTagGroup?: string | null;
   exportMode?: boolean;
   onClickItem?: (lineNumber: number) => void;
+  /** View-state `hd` (hide descriptions): drop the metadata rows so each card
+   *  is just its header/name — the standard mindmap toggle, shelf-driven. */
+  hideDescriptions?: boolean;
 }
 
 type Sel = d3.Selection<SVGGElement, unknown, null, undefined>;
@@ -190,7 +193,14 @@ export function renderSketch(
   isDark: boolean,
   options: SketchRenderOptions = {}
 ): void {
-  const { activeTagGroup, exportMode = false } = options;
+  const {
+    activeTagGroup,
+    exportMode = false,
+    hideDescriptions = false,
+  } = options;
+  // Hide the metadata rows when the source directive OR the shelf/view-state
+  // toggle asks — the name then takes the whole card.
+  const hideDesc = hideDescriptions || parsed.options.noDescriptions;
 
   const neutralFill = mix(palette.surface, palette.bg, 40);
   const tagGroups = [...parsed.tagGroups];
@@ -429,7 +439,7 @@ export function renderSketch(
       colorsFor(node.metadata),
       palette,
       isDark,
-      tagGroups
+      hideDesc ? [] : tagGroups
     );
   }
 
@@ -649,6 +659,7 @@ export function renderSketchForExport(
     exportDims?: { width: number; height: number };
     activeTagGroup?: string | null;
     exportMode?: boolean;
+    hideDescriptions?: boolean;
   } = {}
 ): void {
   renderSketch(container, parsed, layout, palette, isDark, {
