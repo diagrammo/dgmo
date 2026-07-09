@@ -61,7 +61,7 @@ To teach Claude about DGMO in a specific project without the global skill, paste
 <!-- DGMO-AI-CORE:START -->
 ## DGMO AI Core
 
-_Generated from `language-reference.md` — the anti-patterns and 44-type index below are identical across every DGMO AI surface._
+_Generated from `language-reference.md` — the anti-patterns and 45-type index below are identical across every DGMO AI surface._
 
 ### Disambiguation — where DGMO diverges from LLM priors
 
@@ -171,7 +171,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 
 ### Common examples (curated, parse-clean)
 
-_The most common types, inline so you can generate them without a fetch. For the other 36, get the per-type section (see below)._
+_The most common types, inline so you can generate them without a fetch. For the other 37, get the per-type section (see below)._
 
 #### journey-map
 
@@ -282,6 +282,8 @@ ports
 
 ```dgmo
 class Ship Class Hierarchy
+
+solid-fill 
 
 interface Vessel
   + sail(): void
