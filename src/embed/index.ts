@@ -7,11 +7,13 @@
  *
  * Chrome contract (user-approved 2026-07-05): the diagram is the star. A slim
  * icon toolbar sits in a reserved row below the SVG, invisible until the
- * block is hovered/focused or the source is open. Three wordless icon
- * buttons — `</>` toggles the hidden source panel, copy, open-in-editor. No
- * disclosure triangle, no text labels. The toolbar IS the <summary> of a
- * native <details>, so show/hide works with zero JavaScript; copy needs a
- * small delegated click handler (remark-dgmo's `bindDgmo` is the reference).
+ * block is hovered/focused or the source is open. Four wordless icon
+ * buttons — `</>` toggles the hidden source panel, expand (full-screen),
+ * copy, open-in-editor. No disclosure triangle, no text labels. The toolbar
+ * IS the <summary> of a native <details>, so show/hide works with zero
+ * JavaScript; copy and expand need a small delegated click handler
+ * (remark-dgmo's `bindDgmo` is the reference — expand's lightbox helper is
+ * mirrored across every client surface, same as copy).
  *
  * Markup vocabulary: `figure.dgmo` (`--diagram`/`--showcase`/`--error`),
  * `.dgmo-light`/`.dgmo-dark` (dual color-mode) or `.dgmo-svg` (single),
@@ -55,6 +57,12 @@ export interface DgmoBlockOptions {
   showSource?: boolean;
   /** Default: true in showcase mode, false in diagram mode. */
   showCopy?: boolean;
+  /**
+   * Show the expand (full-screen) toolbar button. Default: true in showcase
+   * mode, false in diagram mode. Needs the client lightbox handler to do
+   * anything (mirrored across surfaces); markup-only surfaces can omit it.
+   */
+  showExpand?: boolean;
   /** Default: true in showcase mode, false in diagram mode. */
   showOpenInEditor?: boolean;
   /** Base URL for the open-in-editor link. Default: online.diagrammo.app. */
@@ -95,6 +103,7 @@ function resolveBlockOptions(opts: DgmoBlockOptions): ResolvedBlockOptions {
     colorMode: opts.colorMode ?? 'auto',
     showSource: opts.showSource ?? showcase,
     showCopy: opts.showCopy ?? showcase,
+    showExpand: opts.showExpand ?? showcase,
     showOpenInEditor: opts.showOpenInEditor ?? showcase,
     editorBaseUrl: opts.editorBaseUrl ?? EDITOR_BASE_URL,
     wrapper: opts.wrapper ?? 'figure',
@@ -238,6 +247,8 @@ function assembleBlock(
 const CODE_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 4.5 4 3.5-4 3.5"/><path d="m6 4.5-4 3.5 4 3.5"/></svg>`;
 const COPY_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3a1.5 1.5 0 0 0-1.5-1.5H3A1.5 1.5 0 0 0 1.5 3v6A1.5 1.5 0 0 0 3 10.5h2.5"/></svg>`;
 const EXTERNAL_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 2.5h4v4"/><path d="M13.5 2.5 7 9"/><path d="M12.5 9.5v3a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h3"/></svg>`;
+// Maximize / "arrows out to corners" — the full-screen expand affordance.
+const EXPAND_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 2.5h4v4"/><path d="M6.5 13.5h-4v-4"/><path d="M13.5 2.5 9 7"/><path d="M2.5 13.5 7 9"/></svg>`;
 
 /**
  * The hidden source panel plus its toolbar. The <summary> is the toolbar row;
@@ -251,6 +262,10 @@ function sourceDisclosure(source: string, opts: ResolvedBlockOptions): string {
   if (!opts.showSource) return '';
 
   const toggle = `<span class="dgmo-toggle" title="View DGMO source">${CODE_ICON}</span>`;
+
+  const expandButton = opts.showExpand
+    ? `<button type="button" class="dgmo-toolbar-btn dgmo-expand" aria-label="View full screen" title="Expand">${EXPAND_ICON}</button>`
+    : '';
 
   const copyButton = opts.showCopy
     ? `<button type="button" class="dgmo-toolbar-btn dgmo-copy" aria-label="Copy DGMO source" title="Copy source" data-dgmo-source="${escapeAttr(source)}">${COPY_ICON}</button>`
@@ -269,7 +284,7 @@ function sourceDisclosure(source: string, opts: ResolvedBlockOptions): string {
 
   return (
     `<details class="dgmo-source-wrap">` +
-    `<summary class="dgmo-toolbar" aria-label="View DGMO source">${toggle}${copyButton}${openButton}</summary>` +
+    `<summary class="dgmo-toolbar" aria-label="View DGMO source">${toggle}${expandButton}${copyButton}${openButton}</summary>` +
     `<div class="dgmo-source-inner">${sourceHtml}</div>` +
     `</details>`
   );

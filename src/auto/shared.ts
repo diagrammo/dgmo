@@ -236,6 +236,11 @@ async function handleToolbarClick(e: Event): Promise<void> {
   const insideSummary = !!btn.closest('summary');
   if (insideSummary) e.preventDefault();
 
+  if (btn.matches('button.dgmo-expand')) {
+    openDgmoLightbox(btn);
+    return;
+  }
+
   if (btn.matches('button.dgmo-copy')) {
     const copied = await copyText(btn.dataset['dgmoSource'] ?? '');
     if (copied) {
@@ -288,6 +293,134 @@ async function copyText(text: string): Promise<boolean> {
     }
   }
   return false;
+}
+
+// ============================================================
+// Full-screen lightbox (expand toolbar button)
+// ============================================================
+//
+// CANONICAL COPY. The same helper is mirrored, near-verbatim, into every
+// client surface that binds the standard toolbar — remark-dgmo's `client.ts`,
+// the Obsidian plugin's `render.ts`, and dgmo-mcp's inlined `TOOLBAR_SCRIPT` —
+// exactly as the copy/open handling is. Keep them in sync. The CSS
+// (`.dgmo-lightbox*`) is single-sourced in `embed/css.ts` (BLOCK_CSS).
+
+const LIGHTBOX_XLINK_NS = 'http://www.w3.org/1999/xlink';
+const LIGHTBOX_REF_ATTRS = [
+  'clip-path',
+  'mask',
+  'filter',
+  'fill',
+  'stroke',
+  'marker-start',
+  'marker-mid',
+  'marker-end',
+];
+let lightboxIdSeq = 0;
+
+const LIGHTBOX_CLOSE_ICON =
+  '<svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 4 8 8"/><path d="m12 4-8 8"/></svg>';
+
+/**
+ * A cloned SVG keeps the same element ids as the still-mounted inline copy.
+ * Two identical id sets in one document make `url(#id)` / `href="#id"`
+ * references ambiguous (WebKit resolves to the first match), corrupting
+ * gradients/clips/masks. Namespace this copy's ids + references so it is
+ * self-contained. (Vanilla port of the app's DgmoLightbox.namespaceSvgIds.)
+ */
+function namespaceLightboxSvgIds(root: SVGElement, prefix: string): void {
+  const map = new Map<string, string>();
+  root.querySelectorAll('[id]').forEach((el) => {
+    const oldId = el.getAttribute('id');
+    if (!oldId) return;
+    const newId = prefix + oldId;
+    map.set(oldId, newId);
+    el.setAttribute('id', newId);
+  });
+  if (map.size === 0) return;
+  const remap = (value: string): string =>
+    value.replace(/url\(#([^)]+)\)/g, (m, id: string) => {
+      const next = map.get(id);
+      return next ? `url(#${next})` : m;
+    });
+  root.querySelectorAll('*').forEach((el) => {
+    for (const attr of LIGHTBOX_REF_ATTRS) {
+      const v = el.getAttribute(attr);
+      if (v && v.includes('url(#')) el.setAttribute(attr, remap(v));
+    }
+    const style = el.getAttribute('style');
+    if (style && style.includes('url(#'))
+      el.setAttribute('style', remap(style));
+    const href = el.getAttribute('href');
+    if (href && href.startsWith('#') && map.has(href.slice(1)))
+      el.setAttribute('href', '#' + map.get(href.slice(1)));
+    const xhref = el.getAttributeNS(LIGHTBOX_XLINK_NS, 'href');
+    if (xhref && xhref.startsWith('#') && map.has(xhref.slice(1)))
+      el.setAttributeNS(
+        LIGHTBOX_XLINK_NS,
+        'href',
+        '#' + map.get(xhref.slice(1))
+      );
+  });
+}
+
+/**
+ * Open the diagram belonging to `fromButton`'s block in a full-viewport
+ * `<dialog>` lightbox. Clones the currently-visible color-mode SVG (dual
+ * render hides one via `display:none`), id-namespaces the clone so it can't
+ * clash with the inline original, then `showModal()`s. Escape (native),
+ * backdrop-click, and the close button all dismiss and remove it.
+ */
+export function openDgmoLightbox(fromButton: Element): void {
+  if (typeof document === 'undefined') return;
+  const block = fromButton.closest('.dgmo');
+  if (!block) return;
+
+  const wrappers = block.querySelectorAll('.dgmo-light, .dgmo-dark, .dgmo-svg');
+  let svg: SVGSVGElement | null = null;
+  for (const w of Array.from(wrappers)) {
+    if (window.getComputedStyle(w).display === 'none') continue;
+    const found = w.querySelector('svg');
+    if (found) {
+      svg = found as SVGSVGElement;
+      break;
+    }
+  }
+  if (!svg) svg = block.querySelector('svg');
+  if (!svg) return;
+
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  namespaceLightboxSvgIds(clone, `dgmo-lb-${++lightboxIdSeq}-`);
+
+  const dialog = document.createElement('dialog');
+  dialog.className = 'dgmo-lightbox';
+  dialog.setAttribute('aria-label', 'Diagram, full screen');
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'dgmo-lightbox-close';
+  closeBtn.setAttribute('aria-label', 'Close full screen');
+  closeBtn.innerHTML = LIGHTBOX_CLOSE_ICON;
+
+  const host = document.createElement('div');
+  host.className = 'dgmo-lightbox-svg';
+  host.appendChild(clone);
+
+  dialog.appendChild(closeBtn);
+  dialog.appendChild(host);
+  document.body.appendChild(dialog);
+
+  const close = (): void => {
+    if (dialog.open) dialog.close();
+  };
+  closeBtn.addEventListener('click', close);
+  // A click that lands on the dialog element itself (the transparent area
+  // around the centered card) is a backdrop dismiss.
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog) close();
+  });
+  dialog.addEventListener('close', () => dialog.remove());
+  dialog.showModal();
 }
 
 // ============================================================

@@ -130,6 +130,69 @@ export const BLOCK_CSS: string = `
   opacity: 1;
 }
 
+/* === Full-screen lightbox ===
+ * The expand button clones the visible diagram into a native <dialog> that
+ * the client shows with showModal(): top-layer, so it escapes any transformed
+ * or overflow-clipped ancestor (docs sidebars) and fills the whole viewport.
+ * Escape / backdrop-click / the close button dismiss it. The <dialog> itself
+ * fills the viewport with a transparent background (so a click landing on it
+ * — outside the centered card — reads as a backdrop dismiss); the dim comes
+ * from ::backdrop. */
+.dgmo-lightbox {
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+}
+.dgmo-lightbox[open] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dgmo-lightbox::backdrop {
+  background: rgba(0, 0, 0, 0.72);
+}
+.dgmo-lightbox-svg {
+  width: 95vw;
+  max-width: 95vw;
+  max-height: 95vh;
+  overflow: auto;
+  border-radius: 0.5em;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+}
+.dgmo-lightbox-svg > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+}
+.dgmo-lightbox-close {
+  position: fixed;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4em;
+  height: 2.4em;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.dgmo-lightbox-close:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
 /* === Frame the whole block ===
  * When the source panel is open, diagram + toolbar + code get one shared
  * border so the code visibly belongs to the chart above it. The frame box
