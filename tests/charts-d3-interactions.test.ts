@@ -169,6 +169,29 @@ Blackbeard 90 8500 40`);
     expect(labels.every((l) => !l.classList.contains('dgmo-dim'))).toBe(true);
   });
 
+  it('scatter: hovering a point label highlights that point, dims the others', async () => {
+    await mount(SCATTER);
+    const label = svg.querySelector<SVGElement>('.dgmo-ptlabel')!;
+    const line = label.getAttribute('data-line-number');
+    label.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+
+    const datums = [...svg.querySelectorAll<SVGElement>('.dgmo-datum')];
+    const own = datums.filter(
+      (d) => d.getAttribute('data-line-number') === line
+    );
+    const others = datums.filter(
+      (d) => d.getAttribute('data-line-number') !== line
+    );
+    expect(own.length).toBeGreaterThan(0);
+    expect(own.every((d) => !d.classList.contains('dgmo-dim'))).toBe(true);
+    expect(others.every((d) => d.classList.contains('dgmo-dim'))).toBe(true);
+    // projection leaders fire as if the bubble itself were hovered
+    expect(
+      svg.querySelector('.dgmo-overlay')!.querySelectorAll('.dgmo-axline')
+        .length
+    ).toBeGreaterThan(0);
+  });
+
   it('no tooltip element is ever created', async () => {
     await mount(SCATTER);
     const pt = svg.querySelector<SVGCircleElement>('.dgmo-datum')!;

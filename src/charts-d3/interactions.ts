@@ -417,9 +417,18 @@ export function attachDataChartInteractions(
 
   let crosshairActive = false;
   const onSvgMove = (e: MouseEvent) => {
-    const el = (e.target as Element).closest?.(
-      '.dgmo-datum'
-    ) as SVGElement | null;
+    const t = e.target as Element;
+    let el = t.closest?.('.dgmo-datum') as SVGElement | null;
+    // Hovering a point's name label or its leader line (scatter) highlights the
+    // point itself: labels/leaders carry the same data-line-number as their
+    // datum but are `.dgmo-ptlabel`, not `.dgmo-datum`, so resolve back.
+    if (!el) {
+      const lbl = t.closest?.('.dgmo-ptlabel') as Element | null;
+      const ln = lbl?.getAttribute('data-line-number');
+      if (ln != null)
+        el =
+          datums.find((d) => d.getAttribute('data-line-number') === ln) ?? null;
+    }
     if (el) {
       if (el !== curDatum) {
         clearDatum();

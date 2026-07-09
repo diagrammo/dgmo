@@ -398,7 +398,7 @@ export function renderScatter(
         .attr('y', placed.y)
         .attr('text-anchor', placed.anchor)
         .attr('dominant-baseline', 'central')
-        .attr('fill', textColor)
+        .attr('fill', stroke)
         .attr('font-size', LABEL_FONT)
         .attr('font-family', FONT_FAMILY)
         .text(p.name);
