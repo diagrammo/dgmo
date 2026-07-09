@@ -437,38 +437,6 @@ export function layoutFamily(
     }
   }
 
-  // Straighten lone-child drops. A union with exactly one child ideally drops a
-  // straight vertical from its marriage-bar midpoint. When one spouse is a pure
-  // married-in (belongs to no other union) sitting at the outer edge of its row,
-  // slide it further outward so the bar midpoint lands over the child — turning
-  // an L-shaped bus into a clean vertical. Guarded to move ONLY toward the row
-  // end the spouse already occupies, so it can never collide with a neighbor.
-  for (const u of unions) {
-    if (u.parents.length !== 2) continue;
-    const kids = (unionChildren.get(u.id) ?? []).filter((k) => centerX.has(k));
-    if (kids.length !== 1) continue;
-    const childC = centerX.get(kids[0]!)!;
-    const [pa, pb] = u.parents as [string, string];
-    if (!centerX.has(pa) || !centerX.has(pb)) continue;
-    const rowArr = rowPersons.get(rowOfPerson.get(pa)!) ?? [];
-    for (const [mover, fixed] of [
-      [pa, pb],
-      [pb, pa],
-    ] as const) {
-      if ((parentUnions.get(mover)?.length ?? 0) !== 1) continue;
-      const idx = rowArr.indexOf(mover);
-      const atLeft = idx === 0;
-      const atRight = idx === rowArr.length - 1;
-      if (!atLeft && !atRight) continue;
-      const target = 2 * childC - centerX.get(fixed)!;
-      const cur = centerX.get(mover)!;
-      if ((atRight && target > cur) || (atLeft && target < cur)) {
-        centerX.set(mover, target);
-        break;
-      }
-    }
-  }
-
   // Global shift so the leftmost card sits at MARGIN.
   let minLeft = Infinity;
   for (const id of persons.keys())
