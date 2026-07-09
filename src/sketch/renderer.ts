@@ -286,20 +286,13 @@ export function renderSketch(
     }
     return palette.textMuted;
   };
-  // Flow color: an untagged line inherits its SOURCE shape's tag color, so
-  // lines read as connected flows instead of anonymous gray wires.
-  const nodeMetaById = new Map(
-    layout.nodes.map((n) => [n.id, n.metadata] as const)
-  );
+  // Lines are neutral by default: a line is colored only when it carries its
+  // OWN tag (via the active group). Newly created lines are untagged, so they
+  // read as plain connectors rather than inheriting a shape's meaning.
   const flowColor = (edge: {
     sourceId: string;
     metadata: Record<string, string>;
-  }): string => {
-    const own = edgeColorFor(edge.metadata);
-    if (own !== palette.textMuted) return own;
-    const sm = nodeMetaById.get(edge.sourceId);
-    return sm ? edgeColorFor(sm) : own;
-  };
+  }): string => edgeColorFor(edge.metadata);
   const edgeColors = new Set(layout.edges.map((e) => flowColor(e)));
   for (const color of edgeColors) {
     const hex = color.replace('#', '');

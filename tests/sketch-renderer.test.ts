@@ -88,9 +88,9 @@ describe('sketch renderer — colors', () => {
     expect(rect.getAttribute('stroke')).toBe(P.textMuted);
   });
 
-  it('edges: own tag color > source-shape flow color > gray', () => {
-    // A is Deck; edge x is Hold (own tag wins), edge y is untagged (inherits
-    // A's Deck flow color), edge z leaves an untagged shape (stays gray).
+  it('edges: colored only by their OWN tag; untagged lines stay neutral', () => {
+    // A is Deck; edge x is Hold (own tag → colored), edge y is untagged so it
+    // stays neutral (no source inheritance), edge z is untagged too.
     const src =
       'sketch\n\ntag Crew\n  Deck\n  Hold\n\nA at: 0 0, crew: Deck\n  -x-> b crew: Hold\n  -y-> b\nB as b at: 2 0\nLone at: 0 2\n  -z-> b';
     const svg = render(src);
@@ -103,8 +103,8 @@ describe('sketch renderer — colors', () => {
       )
     );
     expect(strokes).toContain(holdColor); // edge's own tag
-    expect(strokes).toContain(deckColor); // untagged edge inherits tagged source
-    expect(strokes).toContain(P.textMuted); // untagged edge from untagged source
+    expect(strokes).toContain(P.textMuted); // untagged lines are neutral
+    expect(strokes).not.toContain(deckColor); // no source-shape flow inheritance
   });
 });
 
