@@ -481,12 +481,15 @@ export function layoutFamily(
     if (u.parents.length !== 2) continue;
     const [a, b] = u.parents;
     if (!centerX.has(a!) || !centerX.has(b!)) continue;
-    // Vertical midpoint across BOTH spouse cards (heights can differ with
-    // different meta-row counts, though both are top-aligned on the row).
-    const ay =
-      ((topY.get(a!)! + bottomY.get(a!)!) / 2 +
-        (topY.get(b!)! + bottomY.get(b!)!) / 2) /
-      2;
+    // Connect at the SHORTER card's vertical center. Both cards are top-aligned
+    // on the row, so this lands inside both — and since a detail-less spouse is
+    // title-only, that center is the name row, giving a consistent bar-to-name
+    // connection regardless of how tall the other spouse's meta stack is.
+    // (Averaging the two mids instead sinks the bar below a short card when its
+    // partner is tall — e.g. Philip beside a fully-detailed Elizabeth II.)
+    const rowTop = Math.min(topY.get(a!)!, topY.get(b!)!);
+    const shortBottom = Math.min(bottomY.get(a!)!, bottomY.get(b!)!);
+    const ay = (rowTop + shortBottom) / 2;
     const ax = centerX.get(a!)!;
     const bx = centerX.get(b!)!;
     const x1 = Math.min(ax, bx);
