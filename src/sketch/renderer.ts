@@ -461,8 +461,7 @@ export function renderSketch(
       .attr('width', textWidth + 6)
       .attr('height', EDGE_LABEL_FONT_SIZE + 6)
       .attr('rx', 3)
-      .attr('fill', palette.bg)
-      .attr('opacity', 0.72);
+      .attr('fill', palette.bg);
     g.append('text')
       .attr('x', l.x)
       .attr('y', l.y)
