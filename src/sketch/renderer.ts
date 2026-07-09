@@ -6,11 +6,12 @@
 // directly with a scene-graph-derived model; embeds/CLI reach it via render()
 // with parsed text (spec decision 21 — parity by construction).
 //
-// Node recipe: 25% tint fill (shapeFill), 1.5 stroke, rx 6, 13pt bold label
-// that ALWAYS fits (shrink → smart-wrap → ellipsis; the footprint never
-// grows). Untagged = neutral gray (decision 26a). Boxes reserve a top band
-// for a big/thick/faded label. Edges leave ports at 90° on cubic curves,
-// 10×7 arrowheads, '6 3' dash for the ~ family. No manual colors anywhere.
+// Node recipe: an org-style card (renderNodeCard) — 25% tint fill (shapeFill),
+// 2px tag stroke, a header with the name (one line, shrink → ellipsis) + a type
+// badge, a rule, and one metadata row per tag (Group: value). Untagged = neutral
+// gray (decision 26a), name centered. `note` is the one non-card shape. Boxes
+// reserve a top band for a big/thick/faded label. Edges leave ports at 90° on
+// cubic curves, 12×8 arrowheads, '6 3' dash for the ~ family. No manual colors.
 
 import * as d3 from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
