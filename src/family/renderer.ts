@@ -254,7 +254,7 @@ export function renderFamilyForExport(
     if (bar.year) {
       barG
         .append('text')
-        .attr('x', bar.midX)
+        .attr('x', bar.labelX)
         .attr('y', bar.y - BAR_DOT_R - 3)
         .attr('text-anchor', 'middle')
         .attr('font-size', META_FONT_SIZE)
@@ -412,7 +412,12 @@ export function renderFamilyForExport(
           palette
         ) ??
         palette.textMuted;
-      const dot = aG.append('g').attr('data-ancestor', a.label);
+      // Clickable to focus UP onto this parent (the app handles data-focus-person).
+      const dot = aG
+        .append('g')
+        .attr('data-ancestor', a.label)
+        .attr('data-focus-person', a.id)
+        .style('cursor', 'pointer');
       dot
         .append('circle')
         .attr('cx', a.x)

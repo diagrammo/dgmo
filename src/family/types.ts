@@ -104,7 +104,11 @@ export interface FamilyMarriageBar {
   readonly y: number;
   /** Midpoint (child bus drops from here). */
   readonly midX: number;
-  /** Marriage year (`metadata.m`), if any — drawn at the midpoint. */
+  /** Center of the visible gap between the cards — where the `m.` label sits
+   * (offset from midX when the two cards differ in width, so the label never
+   * tucks under the wider card). */
+  readonly labelX: number;
+  /** Marriage year (`metadata.m`), if any — drawn at the label position. */
   readonly year?: string;
   readonly lineNumber: number;
 }
@@ -121,6 +125,7 @@ export interface FamilyChildEdge {
 
 /** A collapsed ancestor shown as a small labeled dot above the focused card. */
 export interface FamilyAncestorDot {
+  readonly id: string;
   readonly label: string;
   readonly sex: FamilySex;
   readonly color?: string;

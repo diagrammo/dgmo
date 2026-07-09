@@ -249,7 +249,11 @@ export function layoutFamily(
   const persons = focused ? focused.persons : parsed.persons;
   const unions = focused ? focused.unions : parsed.unions;
   const focusParents = focused ? focused.parents : [];
-  const ANCESTOR_BAND = focusParents.length > 0 ? 48 : 0;
+  const ANCESTOR_STAGGER = 20; // vertical step between successive parent dots
+  const ANCESTOR_BAND =
+    focusParents.length > 0
+      ? 34 + Math.max(0, focusParents.length - 1) * ANCESTOR_STAGGER
+      : 0;
 
   const quotient = buildCoupleQuotient(persons, unions);
   const classRow = quotient.cycle
@@ -433,6 +437,38 @@ export function layoutFamily(
     }
   }
 
+  // Straighten lone-child drops. A union with exactly one child ideally drops a
+  // straight vertical from its marriage-bar midpoint. When one spouse is a pure
+  // married-in (belongs to no other union) sitting at the outer edge of its row,
+  // slide it further outward so the bar midpoint lands over the child — turning
+  // an L-shaped bus into a clean vertical. Guarded to move ONLY toward the row
+  // end the spouse already occupies, so it can never collide with a neighbor.
+  for (const u of unions) {
+    if (u.parents.length !== 2) continue;
+    const kids = (unionChildren.get(u.id) ?? []).filter((k) => centerX.has(k));
+    if (kids.length !== 1) continue;
+    const childC = centerX.get(kids[0]!)!;
+    const [pa, pb] = u.parents as [string, string];
+    if (!centerX.has(pa) || !centerX.has(pb)) continue;
+    const rowArr = rowPersons.get(rowOfPerson.get(pa)!) ?? [];
+    for (const [mover, fixed] of [
+      [pa, pb],
+      [pb, pa],
+    ] as const) {
+      if ((parentUnions.get(mover)?.length ?? 0) !== 1) continue;
+      const idx = rowArr.indexOf(mover);
+      const atLeft = idx === 0;
+      const atRight = idx === rowArr.length - 1;
+      if (!atLeft && !atRight) continue;
+      const target = 2 * childC - centerX.get(fixed)!;
+      const cur = centerX.get(mover)!;
+      if ((atRight && target > cur) || (atLeft && target < cur)) {
+        centerX.set(mover, target);
+        break;
+      }
+    }
+  }
+
   // Global shift so the leftmost card sits at MARGIN.
   let minLeft = Infinity;
   for (const id of persons.keys())
@@ -487,12 +523,25 @@ export function layoutFamily(
     const bx = centerX.get(b!)!;
     const x1 = Math.min(ax, bx);
     const x2 = Math.max(ax, bx);
+    // Knot/dot/child-bus sit at the center of the two card CENTERS (keeps the
+    // bus trunk symmetric over the children block, which is centered there too).
+    // The `m.` LABEL instead sits at the center of the VISIBLE GAP (inner card
+    // edges) — otherwise, when the two cards differ in width, the center-of-
+    // centers skews toward the wider card and the label tucks under it.
+    const leftId = ax <= bx ? a! : b!;
+    const rightId = ax <= bx ? b! : a!;
+    const gapCenter =
+      (centerX.get(leftId)! +
+        sizes.get(leftId)!.width / 2 +
+        (centerX.get(rightId)! - sizes.get(rightId)!.width / 2)) /
+      2;
     bars.push({
       unionId: u.id,
       x1,
       x2,
       y: ay,
       midX: (x1 + x2) / 2,
+      labelX: gapCenter,
       ...(u.metadata['m'] !== undefined && { year: u.metadata['m'] }),
       lineNumber: u.lineNumber,
     });
@@ -545,6 +594,7 @@ export function layoutFamily(
 
   // Ancestor dots: the focused person's parents, spaced above their card.
   const ancestors: {
+    id: string;
     label: string;
     sex: FamilyPerson['sex'];
     color?: string;
@@ -556,16 +606,18 @@ export function layoutFamily(
     const fx = centerX.get(focusId)!;
     const fTop = topY.get(focusId)!;
     focusAnchor = { x: fx, y: fTop };
-    const DOT_GAP = 26;
-    const n = focusParents.length;
-    const dy = MARGIN + ANCESTOR_BAND / 2;
+    // Org ancestor-trail parity: every parent dot sits ON the trail line
+    // (all share the focused card's center x), stacked vertically only, so
+    // the single vertical trail threads through each dot. Labels sit to the
+    // right; the vertical stagger keeps them from colliding.
     focusParents.forEach((p, i) => {
       ancestors.push({
+        id: p.id,
         label: p.label,
         sex: p.sex,
         ...(p.color !== undefined && { color: p.color }),
-        x: fx + (i - (n - 1) / 2) * DOT_GAP,
-        y: dy,
+        x: fx,
+        y: MARGIN + 10 + i * ANCESTOR_STAGGER,
       });
     });
   }
