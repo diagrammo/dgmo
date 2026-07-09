@@ -191,7 +191,7 @@ export function parseSketch(
       } else {
         warn(
           lineNumber,
-          `Unknown shape "${shapeRaw}" — rendered as a rectangle (valid: database, queue, cloud, person, document, note)`,
+          `Unknown shape "${shapeRaw}" — rendered as a rectangle (valid: database, queue, person, document, note)`,
           SKETCH_DIAGNOSTIC_CODES.UNKNOWN_SHAPE
         );
       }

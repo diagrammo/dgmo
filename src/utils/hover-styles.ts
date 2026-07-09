@@ -105,6 +105,12 @@ const TRANSITION_DECL = 'transition:filter .12s ease, opacity .12s ease';
  * tokenizer ends it at the first `</style` regardless of CSS quoting. A chart
  * label like `a</style><script>…` would otherwise break out of the style block.
  * Neutralizing `<` makes a `</style` token impossible (F16 / security).
+ *
+ * `&` is hex-escaped (`\26 `) for the same class of reason: an XML SVG parser
+ * (resvg, used for PNG export) treats `<style>` content as markup, not raw text,
+ * so a raw `&` in a label-derived selector (e.g. `Cooks & Surgeons`) is a
+ * malformed entity reference and aborts the parse. `\26 ` keeps the CSS matching
+ * the raw attribute value while emitting no `&` into the SVG.
  */
 export function escCssString(value: string): string {
   let out = '';
@@ -113,6 +119,7 @@ export function escCssString(value: string): string {
     if (ch === '"') out += '\\"';
     else if (ch === '\\') out += '\\\\';
     else if (ch === '<') out += '\\3c ';
+    else if (ch === '&') out += '\\26 ';
     else if (code < 0x20 || code === 0x7f)
       out += '\\' + code.toString(16) + ' ';
     else out += ch;

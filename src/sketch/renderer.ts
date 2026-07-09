@@ -16,7 +16,7 @@ import * as d3 from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
-import { renderCollapseBar } from '../utils/card';
+import { renderCollapseBar, renderNodeCard } from '../utils/card';
 import type { LegendGroupData } from '../utils/legend-types';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import { renderIntegratedLegend } from '../utils/legend-integration';
@@ -25,30 +25,27 @@ import {
   resolveTagColor,
   tagAttrKey,
 } from '../utils/tag-groups';
-import { fitTextToBox, wrapTextToWidth } from '../utils/text-measure';
-import {
-  CARD_RADIUS,
-  CONTAINER_RADIUS,
-  EDGE_STROKE_WIDTH,
-  LABEL_FONT_SIZE,
-  NODE_STROKE_WIDTH,
-} from '../utils/visual-conventions';
+import { measureText, wrapTextToWidth } from '../utils/text-measure';
+import { CARD_RADIUS, CONTAINER_RADIUS } from '../utils/visual-conventions';
 import type { ParsedSketch, SketchShapeKind } from './types';
 import type { SketchLayout, SketchLayoutBox, SketchLayoutNode } from './layout';
 
 // ── Local constants ─────────────────────────────────────────
 
 const DIAGRAM_PADDING = 20;
-const TITLE_Y = 30;
-const ARROWHEAD_W = 10;
-const ARROWHEAD_H = 7;
+const TITLE_Y = 32;
+const TITLE_FONT_SIZE = 18;
+// Sketch overrides the shared visual weights for a bolder, less-washed look.
+const NODE_STROKE_WIDTH = 2;
+const EDGE_STROKE_WIDTH = 2;
+const ARROWHEAD_W = 12;
+const ARROWHEAD_H = 8;
 const DASH = '6 3';
 const BAND_LABEL_FONT_SIZE = 19;
 const BAND_LABEL_OPACITY = 0.55;
 const NOTE_FONT_SIZE = 11;
 const COLLAPSE_BAR_HEIGHT = 4;
-const LABEL_MAX_LINES = 2;
-const EDGE_LABEL_FONT_SIZE = 11;
+const EDGE_LABEL_FONT_SIZE = 12;
 const CURVE_HANDLE_MIN = 24;
 const CURVE_HANDLE_MAX = 90;
 
@@ -74,164 +71,112 @@ interface NodeColors {
   text: string;
 }
 
-// ── Shape bodies (drawn at origin, w×h) ─────────────────────
+// ── Sticky-note body (the one non-card shape) ───────────────
 
-function drawShapeBody(
+function drawNoteBody(g: Sel, w: number, h: number, colors: NodeColors): void {
+  const f = 14;
+  g.append('path')
+    .attr(
+      'd',
+      `M0 2 a2 2 0 0 1 2 -2 h${w - f - 2} l${f} ${f} v${h - f - 2} a2 2 0 0 1 -2 2 h-${w - 4} a2 2 0 0 1 -2 -2 Z`
+    )
+    .attr('fill', colors.fill)
+    .attr('stroke', colors.stroke)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
+  g.append('path')
+    .attr('d', `M${w - f} 0 v${f} h${f}`)
+    .attr('fill', 'none')
+    .attr('stroke', colors.stroke)
+    .attr('stroke-width', 1.2);
+}
+
+// ── Type badge (org-card header) ────────────────────────────
+// A small monochrome glyph in the card header marks a non-default shape kind
+// (database / queue / document / person). The card outline itself is a uniform
+// rounded rect — type is a hint, not a silhouette. Drawn in a 16×16 box at
+// (bx, by). `rectangle` and `note` get no badge.
+
+function drawTypeBadge(
   g: Sel,
   kind: SketchShapeKind,
-  w: number,
-  h: number,
-  colors: NodeColors
+  color: string,
+  bx: number,
+  by: number
 ): void {
-  const apply = <E extends SVGElement>(
-    sel: d3.Selection<E, unknown, null, undefined>
-  ): d3.Selection<E, unknown, null, undefined> =>
-    sel
-      .attr('fill', colors.fill)
-      .attr('stroke', colors.stroke)
-      .attr('stroke-width', NODE_STROKE_WIDTH);
-
+  const b = g
+    .append('g')
+    .attr('transform', `translate(${bx},${by})`)
+    .attr('fill', 'none')
+    .attr('stroke', color)
+    .attr('stroke-width', 1.3)
+    .attr('stroke-linejoin', 'round')
+    .attr('stroke-linecap', 'round');
   switch (kind) {
-    case 'database': {
-      const ry = h * 0.14;
-      apply(
-        g
-          .append('path')
-          .attr(
-            'd',
-            `M0 ${ry} v${h - 2 * ry} a${w / 2} ${ry} 0 0 0 ${w} 0 v-${h - 2 * ry}`
-          )
-      );
-      apply(
-        g
-          .append('ellipse')
-          .attr('cx', w / 2)
-          .attr('cy', ry)
-          .attr('rx', w / 2)
-          .attr('ry', ry)
-      );
+    case 'database':
+      b.append('ellipse')
+        .attr('cx', 8)
+        .attr('cy', 3)
+        .attr('rx', 6)
+        .attr('ry', 2.4);
+      b.append('path').attr('d', 'M2 3 v10 a6 2.4 0 0 0 12 0 v-10');
       return;
-    }
-    case 'queue': {
-      const rx = w * 0.08;
-      apply(
-        g
-          .append('path')
-          .attr(
-            'd',
-            `M${rx} 0 h${w - 2 * rx} a${rx} ${h / 2} 0 0 1 0 ${h} h-${w - 2 * rx} Z`
-          )
-      );
-      apply(
-        g
-          .append('ellipse')
-          .attr('cx', rx)
-          .attr('cy', h / 2)
-          .attr('rx', rx)
-          .attr('ry', h / 2)
-      );
+    case 'queue':
+      b.append('path').attr('d', 'M3 1 h8 a3 6.5 0 0 1 0 13 h-8 Z');
+      b.append('ellipse')
+        .attr('cx', 3)
+        .attr('cy', 7.5)
+        .attr('rx', 3)
+        .attr('ry', 6.5);
       return;
-    }
-    case 'cloud': {
-      // Mockup-v11 cloud. Its top puffs are elliptical arcs that bulge above
-      // their endpoints, so the raw design box (132×80 once the bulge is
-      // counted) is inset into the footprint — the whole silhouette stays
-      // within [0,w]×[0,h], matching every other shape's bounds exactly.
-      const pad = 3;
-      const iw = w - 2 * pad;
-      const ih = h - 2 * pad;
-      const sx = iw / 132;
-      const sy = ih / 80;
-      apply(
-        g
-          .append('g')
-          .attr('transform', `translate(${pad}, ${pad})`)
-          .append('path')
-          .attr(
-            'd',
-            `M${20 * sx} ${80 * sy} a${26 * sx} ${26 * sy} 0 0 1 ${-6 * sx} ${-42 * sy} a${34 * sx} ${28 * sy} 0 0 1 ${62 * sx} ${-18 * sy} a${28 * sx} ${23 * sy} 0 0 1 ${42 * sx} ${18 * sy} a${26 * sx} ${20 * sy} 0 0 1 ${8 * sx} ${42 * sy} Z`
-          )
-      );
-      return;
-    }
     case 'document':
-      apply(
-        g
-          .append('path')
-          .attr(
-            'd',
-            `M0 4 a4 4 0 0 1 4 -4 h${w - 8} a4 4 0 0 1 4 4 v${h - 14} q-${w * 0.25} ${h * 0.16} -${w * 0.5} 0 q-${w * 0.25} -${h * 0.16} -${w * 0.5} 0 Z`
-          )
-      );
+      b.append('path').attr('d', 'M2 1 h9 v11 q-4.5 2 -9 0 q0 0 0 0 Z');
       return;
-    case 'note': {
-      const f = 14;
-      apply(
-        g
-          .append('path')
-          .attr(
-            'd',
-            `M0 2 a2 2 0 0 1 2 -2 h${w - f - 2} l${f} ${f} v${h - f - 2} a2 2 0 0 1 -2 2 h-${w - 4} a2 2 0 0 1 -2 -2 Z`
-          )
-      );
-      g.append('path')
-        .attr('d', `M${w - f} 0 v${f} h${f}`)
-        .attr('fill', 'none')
-        .attr('stroke', colors.stroke)
-        .attr('stroke-width', 1.2);
-      return;
-    }
     case 'person':
-    case 'rectangle':
-    default: {
-      apply(
-        g
-          .append('rect')
-          .attr('width', w)
-          .attr('height', h)
-          .attr('rx', CARD_RADIUS)
-      );
-      if (kind === 'person') {
-        const cx = 26;
-        const cy = h / 2 - 8;
-        const icon = g.append('g').attr('fill', colors.stroke);
-        icon.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 7);
-        icon
-          .append('path')
-          .attr('d', `M${cx - 12} ${cy + 22} a12 12 0 0 1 24 0 Z`);
-      }
+      b.append('circle').attr('cx', 8).attr('cy', 5).attr('r', 3);
+      b.append('path').attr('d', 'M2 15 a6 5 0 0 1 12 0');
       return;
-    }
+    default:
+      return;
   }
 }
 
-/** Centered, fitted label — the text-fit chain from spec §31.2. */
-function drawFittedLabel(
-  g: Sel,
+/** Ordered metadata rows for a card: each declared tag group the node carries,
+ *  in declaration order, as [group display name, value]. */
+function metaRows(
+  metadata: Record<string, string>,
+  tagGroups: readonly { name: string }[]
+): Array<readonly [string, string]> {
+  const rows: Array<readonly [string, string]> = [];
+  for (const grp of tagGroups) {
+    const v = metadata[tagAttrKey(grp.name)];
+    if (v !== undefined) rows.push([grp.name, v]);
+  }
+  return rows;
+}
+
+const CARD_HEADER_H = 34;
+const CARD_LABEL_MAX = 15;
+const CARD_LABEL_MIN = 11;
+const CARD_META_FONT = 12;
+
+/** Largest header font in [MIN,MAX] that fits the label on one line, else the
+ *  min font with a middle-ellipsized label. */
+function fitOneLine(
   label: string,
-  cx: number,
-  cy: number,
-  maxWidth: number,
-  color: string
-): void {
-  const fit = fitTextToBox(label, {
-    maxWidth,
-    maxLines: LABEL_MAX_LINES,
-    fontSize: LABEL_FONT_SIZE,
-  });
-  const lineHeight = fit.fontSize + 3;
-  const startY = cy - ((fit.lines.length - 1) * lineHeight) / 2;
-  fit.lines.forEach((line, i) => {
-    g.append('text')
-      .attr('x', cx)
-      .attr('y', startY + i * lineHeight)
-      .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'central')
-      .attr('font-size', fit.fontSize)
-      .attr('font-weight', 700)
-      .attr('fill', color)
-      .text(line);
-  });
+  maxWidth: number
+): { text: string; fontSize: number } {
+  for (let fs = CARD_LABEL_MAX; fs >= CARD_LABEL_MIN; fs--) {
+    if (measureText(label, fs) <= maxWidth)
+      return { text: label, fontSize: fs };
+  }
+  let text = label;
+  while (
+    text.length > 1 &&
+    measureText(`${text}…`, CARD_LABEL_MIN) > maxWidth
+  ) {
+    text = text.slice(0, -1);
+  }
+  return { text: `${text}…`, fontSize: CARD_LABEL_MIN };
 }
 
 // ── Main renderer ───────────────────────────────────────────
@@ -276,7 +221,11 @@ export function renderSketch(
     return {
       fill,
       stroke: tagColor,
-      text: contrastText(fill, palette.textOnFillLight, palette.textOnFillDark),
+      // Label text takes the shape's own (tag) color — but for solid fills the
+      // tag color would vanish into the fill, so keep a contrast color there.
+      text: parsed.options.solidFill
+        ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
+        : tagColor,
     };
   };
 
@@ -323,7 +272,21 @@ export function renderSketch(
     }
     return palette.textMuted;
   };
-  const edgeColors = new Set(layout.edges.map((e) => edgeColorFor(e.metadata)));
+  // Flow color: an untagged line inherits its SOURCE shape's tag color, so
+  // lines read as connected flows instead of anonymous gray wires.
+  const nodeMetaById = new Map(
+    layout.nodes.map((n) => [n.id, n.metadata] as const)
+  );
+  const flowColor = (edge: {
+    sourceId: string;
+    metadata: Record<string, string>;
+  }): string => {
+    const own = edgeColorFor(edge.metadata);
+    if (own !== palette.textMuted) return own;
+    const sm = nodeMetaById.get(edge.sourceId);
+    return sm ? edgeColorFor(sm) : own;
+  };
+  const edgeColors = new Set(layout.edges.map((e) => flowColor(e)));
   for (const color of edgeColors) {
     const hex = color.replace('#', '');
     defs
@@ -364,7 +327,7 @@ export function renderSketch(
       .attr('x', width / 2)
       .attr('y', TITLE_Y)
       .attr('text-anchor', 'middle')
-      .attr('font-size', 15)
+      .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', 700)
       .attr('fill', palette.text)
       .text(parsed.title!);
@@ -415,12 +378,14 @@ export function renderSketch(
     y: number;
     text: string;
     color: string;
+    from: string;
+    to: string;
   }> = [];
   for (const edge of layout.edges) {
     const source = rectById.get(edge.sourceId);
     const target = rectById.get(edge.targetId);
     if (!source || !target) continue;
-    const color = edgeColorFor(edge.metadata);
+    const color = flowColor(edge);
     const hex = color.replace('#', '');
     const { d, mid } = edgePath(source, target);
     const g = edgeLayer
@@ -443,20 +408,38 @@ export function renderSketch(
       path.attr('marker-start', `url(#sk-arrow-rev-${hex})`);
     }
     if (edge.label) {
-      labelLayerData.push({ x: mid.x, y: mid.y, text: edge.label, color });
+      labelLayerData.push({
+        x: mid.x,
+        y: mid.y,
+        text: edge.label,
+        color,
+        from: edge.sourceId,
+        to: edge.targetId,
+      });
     }
   }
 
   // ── Nodes ───────────────────────────────────────────────────
   const nodeLayer = root.append('g').attr('class', 'sk-nodes');
   for (const node of layout.nodes) {
-    drawNode(nodeLayer, node, colorsFor(node.metadata), palette, isDark);
+    drawNode(
+      nodeLayer,
+      node,
+      colorsFor(node.metadata),
+      palette,
+      isDark,
+      tagGroups
+    );
   }
 
   // ── Edge labels (above nodes, with a bg halo) ───────────────
   const labelLayer = root.append('g').attr('class', 'sk-edge-labels');
   for (const l of labelLayerData) {
-    const g = labelLayer.append('g').attr('class', 'sk-edge-label');
+    const g = labelLayer
+      .append('g')
+      .attr('class', 'sk-edge-label')
+      .attr('data-from', l.from)
+      .attr('data-to', l.to);
     const textWidth = l.text.length * EDGE_LABEL_FONT_SIZE * 0.56;
     g.append('rect')
       .attr('x', l.x - textWidth / 2 - 3)
@@ -530,7 +513,8 @@ function drawNode(
   node: SketchLayoutNode,
   colors: NodeColors,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  tagGroups: readonly { name: string }[]
 ): void {
   void isDark;
   const g = layer
@@ -546,10 +530,9 @@ function drawNode(
     g.attr('data-group-toggle', node.label);
   }
 
-  drawShapeBody(g, node.shape, node.w, node.h, colors);
-
   if (node.shape === 'note') {
-    // Sticky-style: smaller, regular weight, left-aligned, multiline.
+    // Sticky-style: folded-corner body, smaller left-aligned multiline text.
+    drawNoteBody(g, node.w, node.h, colors);
     const lines = wrapTextToWidth(node.label, NOTE_FONT_SIZE, node.w - 34);
     const lineHeight = NOTE_FONT_SIZE + 4;
     lines.slice(0, 5).forEach((line, i) => {
@@ -560,25 +543,42 @@ function drawNode(
         .attr('fill', colors.text)
         .text(line);
     });
-  } else if (node.shape === 'person') {
-    const offset = 40;
-    drawFittedLabel(
-      g,
-      node.label,
-      offset + (node.w - offset) / 2,
-      node.h / 2,
-      node.w - offset - 16,
-      colors.text
-    );
   } else {
-    drawFittedLabel(
-      g,
-      node.label,
-      node.w / 2,
-      node.h / 2,
-      node.w - 20,
-      colors.text
-    );
+    // Org-style card: header (badge + name) → rule → metadata rows. A card with
+    // no tags centers its name vertically (header band = full height).
+    const rows = node.isCollapsedBox ? [] : metaRows(node.metadata, tagGroups);
+    const badge = node.shape !== 'rectangle';
+    const labelInset = badge ? 22 : 0;
+    const headerH = rows.length ? CARD_HEADER_H : node.h;
+    const fit = fitOneLine(node.label, node.w - 24 - labelInset);
+    renderNodeCard(g, {
+      width: node.w,
+      height: node.h,
+      rx: CARD_RADIUS,
+      fill: colors.fill,
+      stroke: colors.stroke,
+      strokeWidth: NODE_STROKE_WIDTH,
+      label: fit.text,
+      labelColor: colors.text,
+      labelFontSize: fit.fontSize,
+      headerHeight: headerH,
+      ...(rows.length
+        ? {
+            meta: {
+              rows,
+              fontSize: CARD_META_FONT,
+              lineHeight: CARD_META_FONT + 5,
+              separatorGap: 8,
+              separatorColor: colors.stroke,
+              textColor: palette.text,
+              keyX: 12,
+            },
+          }
+        : {}),
+    });
+    if (badge) {
+      drawTypeBadge(g, node.shape, colors.stroke, 10, (headerH - 16) / 2);
+    }
   }
 
   if (node.isCollapsedBox) {

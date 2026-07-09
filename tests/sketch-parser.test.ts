@@ -37,11 +37,11 @@ describe('sketch parser — declaration', () => {
 
 describe('sketch parser — shapes', () => {
   it('parses multi-word bare names with metadata', () => {
-    const p = parseSketch('sketch\nSpyglass Feed shape: cloud, at: 0 0');
+    const p = parseSketch('sketch\nSpyglass Feed shape: database, at: 0 0');
     expect(p.nodes).toHaveLength(1);
     const n = p.nodes[0]!;
     expect(n.label).toBe('Spyglass Feed');
-    expect(n.shape).toBe('cloud');
+    expect(n.shape).toBe('database');
     expect(n.at).toEqual({ c: 0, r: 0 });
   });
 
@@ -50,8 +50,8 @@ describe('sketch parser — shapes', () => {
     expect(p.nodes[0]!.shape).toBe('rectangle');
   });
 
-  it('accepts all seven shape kinds', () => {
-    const kinds = ['database', 'queue', 'cloud', 'person', 'document', 'note'];
+  it('accepts all shape kinds', () => {
+    const kinds = ['database', 'queue', 'person', 'document', 'note'];
     const src = `sketch\n${kinds.map((k, i) => `S${i} shape: ${k}`).join('\n')}`;
     const p = parseSketch(src);
     expect(p.nodes.map((n) => n.shape)).toEqual(kinds);
@@ -279,7 +279,7 @@ tag Crew
   Deck
   Hold
 
-Spyglass Feed shape: cloud, at: 0 0, crew: Deck
+Spyglass Feed shape: database, at: 0 0, crew: Deck
   -sightings-> con
 Captain's Console as con at: 2 0, crew: Deck
   -orders-> bq

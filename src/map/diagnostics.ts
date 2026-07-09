@@ -95,6 +95,19 @@ export const MAP_DX = {
     hint: 'Multiple places share this name — add a scope or `locale <ISO>` to steer it.',
     example: 'map\npoi Portland',
   },
+  AMBIGUOUS_LABEL: {
+    // Runtime severity: 'error' (matches E_ prefix). A route/edge referenced a
+    // POI by its `label:`, but two or more declared POIs share that label, so the
+    // reference can't bind to one. Disambiguate with a unique `as <alias>`.
+    code: 'E_MAP_AMBIGUOUS_LABEL',
+    severity: 'error',
+    chartType: 'map',
+    title: 'Ambiguous POI label',
+    message: (p) =>
+      `Reference "${p.name ?? ''}" matches the label of two or more POIs — give each a distinct \`as <alias>\` and reference the alias instead.`,
+    hint: 'Multiple POIs share this label — reference a unique `as <alias>` rather than the label.',
+    example: 'map\npoi 1 2 label: Depot\npoi 3 4 label: Depot',
+  },
   DUPLICATE_POI: {
     // Runtime severity: 'warning' (matches W_ prefix). Only a declared-over-
     // declared collision warns; an implicit endpoint never triggers it.

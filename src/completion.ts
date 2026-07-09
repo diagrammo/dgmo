@@ -325,6 +325,14 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   [
+    'family',
+    // Spec §32: sex-as-color + tag legend; active-tag. solid-fill via
+    // SOLID_FILL_CAPABLE.
+    withGlobals({
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
+  [
     'kanban',
     // Spec §11 §10.4: hide, active-tag.
     withGlobals({
@@ -654,6 +662,7 @@ const SOLID_FILL_CAPABLE = new Set([
   'sequence',
   'c4',
   'org',
+  'family',
   'kanban',
   'journey-map',
   'mindmap',
@@ -741,6 +750,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['c4', ['containers', 'components', 'deployment', 'tag']],
   ['timeline', ['era', 'marker', 'tag']],
   ['org', ['tag']],
+  ['family', ['tag']],
   ['kanban', ['tag']],
   ['sitemap', ['tag']],
   ['infra', ['tag']],
@@ -861,6 +871,8 @@ export const REFERENCE_GRAMMAR = new Map<string, ReferenceGrammar>([
   ],
   // Venn references prior sets via the `+` intersection operator (not an arrow).
   ['venn', { hasReferenceGrammar: true, referenceOperators: ['+'] }],
+  // Family unions reference a prior/again-named person via the `+` couple operator.
+  ['family', { hasReferenceGrammar: true, referenceOperators: ['+'] }],
 ]);
 
 // Every other registered chart type has no reference position.
@@ -931,7 +943,7 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
       node: {
         shape: {
           description:
-            'Morph from the default rectangle: database, queue, cloud, person, document, note',
+            'Morph from the default rectangle: database, queue, person, document, note',
         },
         at: {
           description:
@@ -1121,6 +1133,25 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
         location: { description: 'Office location' },
         email: { description: 'Email address' },
         phone: { description: 'Phone number' },
+      },
+    },
+  ],
+  [
+    // Family §32: person metadata + the union-level marriage year.
+    'family',
+    {
+      node: {
+        sex: { description: 'Sex: m or f (drives node color)' },
+        b: { description: 'Birth year' },
+        d: { description: 'Death year' },
+        bp: { description: 'Birth place' },
+        dp: { description: 'Death place' },
+        occupation: { description: 'Occupation' },
+        military: { description: 'Military service' },
+        education: { description: 'Education' },
+        religion: { description: 'Religion' },
+        burial: { description: 'Burial place' },
+        m: { description: 'Marriage year (on a union line)' },
       },
     },
   ],
@@ -1803,6 +1834,54 @@ function extractOrgSymbols(docText: string): DiagramSymbols {
   }
 
   return { kind: 'org', entities };
+}
+
+// ============================================================
+// Family extractor — person names for reference completion
+// ============================================================
+
+function extractFamilySymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+  let inTagBlock = false;
+
+  const add = (raw: string): void => {
+    let s = raw.trim();
+    // Strip trailing `key:` metadata, a bare `adopted` token, and quotes.
+    const mIdx = s.search(/\s[A-Za-z][\w-]*\s*:/);
+    if (mIdx >= 0) s = s.slice(0, mIdx);
+    s = s.replace(/\s+adopted\s*$/i, '');
+    s = s
+      .trim()
+      .replace(/^["']|["']$/g, '')
+      .trim();
+    if (s && !entities.includes(s)) entities.push(s);
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+    if (/^tag\s+/i.test(trimmed)) {
+      inTagBlock = true;
+      continue;
+    }
+    const indent = line.search(/\S/);
+    if (inTagBlock) {
+      if (indent > 0) continue;
+      inTagBlock = false;
+    }
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+    // Union line → both sides; person/child line → the single name.
+    for (const side of trimmed.split(/\s+\+\s+/)) add(side);
+  }
+
+  return { kind: 'family', entities };
 }
 
 // ============================================================
@@ -2515,6 +2594,7 @@ registerExtractor('cycle', extractCycleSymbols);
 registerExtractor('journey-map', extractJourneyMapSymbols);
 registerExtractor('raci', extractRaciSymbols);
 registerExtractor('org', extractOrgSymbols);
+registerExtractor('family', extractFamilySymbols);
 registerExtractor('kanban', extractKanbanSymbols);
 registerExtractor('mindmap', extractMindmapSymbols);
 registerExtractor('treemap', extractTreemapSymbols);

@@ -169,6 +169,29 @@ Blackbeard 90 8500 40`);
     expect(labels.every((l) => !l.classList.contains('dgmo-dim'))).toBe(true);
   });
 
+  it('scatter: hovering a point label highlights that point, dims the others', async () => {
+    await mount(SCATTER);
+    const label = svg.querySelector<SVGElement>('.dgmo-ptlabel')!;
+    const line = label.getAttribute('data-line-number');
+    label.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+
+    const datums = [...svg.querySelectorAll<SVGElement>('.dgmo-datum')];
+    const own = datums.filter(
+      (d) => d.getAttribute('data-line-number') === line
+    );
+    const others = datums.filter(
+      (d) => d.getAttribute('data-line-number') !== line
+    );
+    expect(own.length).toBeGreaterThan(0);
+    expect(own.every((d) => !d.classList.contains('dgmo-dim'))).toBe(true);
+    expect(others.every((d) => d.classList.contains('dgmo-dim'))).toBe(true);
+    // projection leaders fire as if the bubble itself were hovered
+    expect(
+      svg.querySelector('.dgmo-overlay')!.querySelectorAll('.dgmo-axline')
+        .length
+    ).toBeGreaterThan(0);
+  });
+
   it('no tooltip element is ever created', async () => {
     await mount(SCATTER);
     const pt = svg.querySelector<SVGCircleElement>('.dgmo-datum')!;
@@ -264,6 +287,18 @@ Firepower 85 95
 Speed 90 55
 Armor 60 90`;
 
+const SCATTER_CAT = `scatter Crews
+x-label Ruthlessness
+y-label Plunder
+
+[Crew A] red
+  Alice 60 40
+  Bob 70 55
+
+[Crew B] blue
+  Zed 80 30
+  Yan 50 65`;
+
 describe('legend hover → series emphasis', () => {
   const seriesGroup = (name: string) =>
     svg.querySelector<SVGGElement>(`.dgmo-series[data-series-name="${name}"]`)!;
@@ -304,6 +339,23 @@ describe('legend hover → series emphasis', () => {
     );
     expect(seriesGroup('iOS').classList.contains('dgmo-dim')).toBe(false);
     expect(seriesGroup('Android').classList.contains('dgmo-dim')).toBe(true);
+  });
+
+  it('scatter: legend hover dims bubbles of other categories', async () => {
+    await mount(SCATTER_CAT);
+    const bubble = (name: string) =>
+      svg.querySelector<SVGCircleElement>(
+        `.dgmo-datum[data-emph-key="${name}"]`
+      )!;
+    legendEntry('Crew A').dispatchEvent(
+      new MouseEvent('mouseenter', { bubbles: true })
+    );
+    expect(bubble('Alice').classList.contains('dgmo-dim')).toBe(false);
+    expect(bubble('Zed').classList.contains('dgmo-dim')).toBe(true);
+    legendEntry('Crew A').dispatchEvent(
+      new MouseEvent('mouseleave', { bubbles: true })
+    );
+    expect(bubble('Zed').classList.contains('dgmo-dim')).toBe(false);
   });
 
   it('legend entries carry a transparent hit-rect so the whole pill is hoverable', async () => {

@@ -55,6 +55,16 @@ describe('arc parser', () => {
     expect(names).toContain('Core');
   });
 
+  it('defaults to horizontal orientation', () => {
+    const r = parseArcViz('arc T\nA -> B 5');
+    expect(r.orientation).toBe('horizontal');
+  });
+
+  it('flips to vertical with the orientation-vertical directive', () => {
+    const r = parseArcViz('arc T\norientation-vertical\nA -> B 5');
+    expect(r.orientation).toBe('vertical');
+  });
+
   it('parses clean (no diagnostics) for a canonical link', () => {
     const errs = diagnostics('arc T\nA -> B 5').filter(
       (d) => d.severity === 'error'

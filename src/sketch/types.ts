@@ -15,7 +15,6 @@ export const SKETCH_SHAPE_KINDS = [
   'rectangle',
   'database',
   'queue',
-  'cloud',
   'person',
   'document',
   'note',

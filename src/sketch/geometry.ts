@@ -34,12 +34,14 @@ export const SKETCH_FOOT_W =
   SKETCH_GEOMETRY.footprintCellsW * SKETCH_GEOMETRY.cellPx;
 
 /**
- * Footprint height, px — the ONE universal size (spec §31.2). Golden-ratio
- * derived from the width (φ:1), so 208 → 129. Every shape kind draws to
- * exactly SKETCH_FOOT_W × SKETCH_FOOT_H; no shape is bigger, smaller, or a
- * different aspect than any other.
+ * Footprint height, px — the ONE universal size (spec §31.2). Shapes now render
+ * as org-style cards (header + rule + metadata rows), so the card is taller than
+ * the φ:1 landscape box the lexicon started with — a fixed height that hosts a
+ * title bar plus ~4 metadata rows. Still uniform: every shape draws to exactly
+ * SKETCH_FOOT_W × SKETCH_FOOT_H, which keeps the half-slot lattice (and the
+ * app's alignment/spacing guides that read these constants) exact.
  */
-export const SKETCH_FOOT_H = Math.round(SKETCH_FOOT_W / SKETCH_PHI);
+export const SKETCH_FOOT_H = 150;
 
 /** Horizontal half-slot pitch, px: (footprint + gap) / 2. */
 export const SKETCH_HALF_SLOT_X =

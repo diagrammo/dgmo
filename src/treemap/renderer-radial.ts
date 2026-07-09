@@ -16,7 +16,14 @@
 import * as d3Selection from 'd3-selection';
 import { arc as d3arc } from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
-import { contrastText, getSeriesColors } from '../palettes/color-utils';
+import {
+  contrastText,
+  contrastRatio,
+  relativeLuminance,
+  hexToHSL,
+  hslToHex,
+  getSeriesColors,
+} from '../palettes/color-utils';
 import { tagAttrKey } from '../utils/tag-groups';
 import { measureText } from '../utils/text-measure';
 import { renderIntegratedLegend } from '../utils/legend-integration';
@@ -50,6 +57,9 @@ const MIN_LABEL_SWEEP = (6 * Math.PI) / 180; // ≈ 0.105 rad
 
 /** Floor for shrink-to-fit label text — below this it's ellipsized instead. */
 const MIN_LABEL_FS = 8;
+
+/** Preferred name-line size; shrinks to fit the ring thickness / arc length. */
+const LABEL_BASE_FS = 16;
 
 export interface TreemapRadialRenderOptions {
   /** Color mode override (app's runtime switcher). Defaults to source. */
@@ -288,9 +298,12 @@ function drawCenterDisc(
   }
 
   const title = parsed.title ?? '';
-  const totalStr = compactNumber(total);
+  // The grand total shows in full with thousand-separators (e.g. "1,040") — the
+  // disc has room and compacting it ("1k") is imprecise and reads as a unit
+  // (doubly so under a "$k"-style title). Shrink-to-fit keeps big totals inside.
+  const totalStr = groupedNumber(total);
   const titleFs = clampFs(15, discRadius);
-  const totalFs = clampFs(22, discRadius);
+  const totalFs = fitFs(totalStr, clampFs(22, discRadius), maxW);
 
   if (title) {
     const t = disc
@@ -315,7 +328,17 @@ function drawCenterDisc(
     .attr('fill', ink)
     .attr('font-size', totalFs)
     .attr('font-weight', 700)
-    .text(clip(totalStr, maxW, totalFs));
+    .text(totalStr);
+}
+
+/** Full integer-ish number with thousand separators ("1040" → "1,040"),
+ *  deterministic (no locale). Keeps up to 2 decimals if present. */
+function groupedNumber(v: number): string {
+  const rounded = Math.round(v * 100) / 100;
+  const neg = rounded < 0 ? '-' : '';
+  const [int, frac] = String(Math.abs(rounded)).split('.');
+  const grouped = int!.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return frac ? `${neg}${grouped}.${frac}` : `${neg}${grouped}`;
 }
 
 // ============================================================
@@ -338,58 +361,112 @@ function drawArcLabel(
   const ringThickness = cell.outerR - cell.innerR;
   if (ringThickness < 10) return;
 
-  const ink = contrastText(
-    fill,
-    palette.textOnFillLight,
-    palette.textOnFillDark
-  );
+  const ink = tonalInk(fill, palette.textOnFillLight, palette.textOnFillDark);
 
   const rMid = (cell.innerR + cell.outerR) / 2;
-  const maxFs = clampFs(13, ringThickness);
+  const maxFs = clampFs(LABEL_BASE_FS, ringThickness);
 
+  const name = cell.label;
   const valParts = [
     opts.noValues ? '' : compactNumber(cell.value),
     opts.noPercent ? '' : formatPct(cell.pctOfRoot),
   ].filter(Boolean);
   const valStr = valParts.join(' · ');
-  const full = valStr ? `${cell.label} ${valStr}` : cell.label;
 
-  // Arc length available at the label's radius (small margin off the dividers).
-  const availLen = sweep * rMid * 0.94;
+  // Two-line layout: the name and the value · % ride parallel concentric arcs
+  // that straddle the ring centre-line. Two shorter curved lines read as
+  // sitting "on the ring" far more clearly than one long string, and keep the
+  // value legible. Falls back to one line when the ring is too thin to stack.
+  const valFsBase = Math.max(MIN_LABEL_FS, Math.round(maxFs * 0.82));
+  const lineGap = Math.round((maxFs + valFsBase) * 0.6); // baseline separation
+  const blockExtent = lineGap + 0.35 * maxFs + 0.35 * valFsBase + 4;
 
-  // Shrink-to-fit: keep the full label by dropping the font size (proportional
-  // to the overflow), floored at MIN_LABEL_FS. Only ellipsize if it still won't
-  // fit at the floor. `measureText` width scales ~linearly with font size.
-  let fs = maxFs;
-  const wAtMax = measureText(full, maxFs);
-  if (wAtMax > availLen) {
-    fs = Math.max(MIN_LABEL_FS, Math.floor((maxFs * availLen) / wAtMax));
+  if (valStr && ringThickness >= blockExtent) {
+    // Name is the upper line as read: outer on the top half, inner on the
+    // (reversed) bottom half, so it always sits above the value.
+    const nameOuter = !isBottomHalf(cell);
+    const rName = rMid + (nameOuter ? 1 : -1) * (lineGap / 2);
+    const rVal = rMid + (nameOuter ? -1 : 1) * (lineGap / 2);
+
+    const nameAvail = sweep * rName * 0.94;
+    const nameFs = fitFs(name, maxFs, nameAvail);
+    const nameText = clip(name, nameAvail, nameFs);
+    if (nameText) {
+      drawCurvedLine(
+        g,
+        defs,
+        `${pathId}-n`,
+        cell,
+        rName,
+        nameFs,
+        600,
+        nameText,
+        ink
+      );
+      const valAvail = sweep * rVal * 0.94;
+      const valFs = fitFs(valStr, valFsBase, valAvail);
+      const valText = clip(valStr, valAvail, valFs);
+      if (valText) {
+        drawCurvedLine(
+          g,
+          defs,
+          `${pathId}-v`,
+          cell,
+          rVal,
+          valFs,
+          500,
+          valText,
+          ink
+        );
+      }
+      return;
+    }
   }
+
+  // Single-line fallback: thin rings, or a name with no value string.
+  const full = valStr ? `${name} ${valStr}` : name;
+  const availLen = sweep * rMid * 0.94;
+  const fs = fitFs(full, maxFs, availLen);
   const text = clip(full, availLen, fs);
   if (!text) return;
-
-  drawCurvedLabel(g, defs, pathId, cell, rMid, fs, text, ink);
+  drawCurvedLine(g, defs, pathId, cell, rMid, fs, 600, text, ink);
 }
 
-/** Curved label: text flows along the ring on a per-arc <textPath>. On the
- *  bottom half the path is reversed so the text is never upside-down. */
-function drawCurvedLabel(
+/** Is the cell's mid-angle on the lower half (where the baseline path must be
+ *  reversed so the text reads upright)? */
+function isBottomHalf(cell: RadialCell): boolean {
+  const mid = (cell.startAngle + cell.endAngle) / 2;
+  return mid > Math.PI / 2 && mid < (3 * Math.PI) / 2;
+}
+
+/** Shrink-to-fit: drop the font size proportionally to the overflow so `text`
+ *  fits `availLen`, floored at MIN_LABEL_FS. Width scales ~linearly with fs. */
+function fitFs(text: string, maxFs: number, availLen: number): number {
+  const w = measureText(text, maxFs);
+  if (w <= availLen) return maxFs;
+  return Math.max(MIN_LABEL_FS, Math.floor((maxFs * availLen) / w));
+}
+
+/** One curved line of text flowing along the ring on a per-arc <textPath>,
+ *  optically centred on `centerR`. On the bottom half the path is reversed so
+ *  the text is never upside-down. */
+function drawCurvedLine(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   defs: d3Selection.Selection<SVGDefsElement, unknown, null, undefined>,
   pathId: string,
   cell: RadialCell,
-  rMid: number,
+  centerR: number,
   fs: number,
+  weight: number,
   text: string,
   ink: string
 ): void {
-  const mid = (cell.startAngle + cell.endAngle) / 2;
-  const bottom = mid > Math.PI / 2 && mid < (3 * Math.PI) / 2;
+  const bottom = isBottomHalf(cell);
 
   // Baseline sits ON the path; nudge the path radius so the text's optical
-  // centre lands on rMid (glyphs grow outward on top, inward on the reversed
+  // centre lands on centerR (glyphs grow outward on top, inward on the reversed
   // bottom path — opposite radial offsets keep both visually centred).
-  const rPath = bottom ? rMid + fs * 0.32 : rMid - fs * 0.32;
+  const rPath = bottom ? centerR + fs * 0.32 : centerR - fs * 0.32;
 
   // SVG polar: 0 rad = 12 o'clock, clockwise. Reverse endpoints + sweep-flag on
   // the bottom half to flip the baseline upright.
@@ -401,14 +478,17 @@ function drawCurvedLabel(
   const p1x = Math.sin(a1) * rPath;
   const p1y = -Math.cos(a1) * rPath;
   const sweepFlag = bottom ? 0 : 1;
-  const d = `M ${p0x.toFixed(2)} ${p0y.toFixed(2)} A ${rPath.toFixed(2)} ${rPath.toFixed(2)} 0 0 ${sweepFlag} ${p1x.toFixed(2)} ${p1y.toFixed(2)}`;
+  // Large-arc flag: segments wider than 180° need the major arc, else SVG draws
+  // the minor arc on the OPPOSITE side and the text lands outside its segment.
+  const largeArc = cell.endAngle - cell.startAngle > Math.PI ? 1 : 0;
+  const d = `M ${p0x.toFixed(2)} ${p0y.toFixed(2)} A ${rPath.toFixed(2)} ${rPath.toFixed(2)} 0 ${largeArc} ${sweepFlag} ${p1x.toFixed(2)} ${p1y.toFixed(2)}`;
 
   defs.append('path').attr('id', pathId).attr('d', d);
 
   g.append('text')
     .attr('class', 'dgmo-treemap-label')
     .attr('font-size', fs)
-    .attr('font-weight', 600)
+    .attr('font-weight', weight)
     .attr('fill', ink)
     .append('textPath')
     .attr('href', `#${pathId}`)
@@ -420,6 +500,48 @@ function drawCurvedLabel(
 // ============================================================
 // Small helpers
 // ============================================================
+
+/**
+ * Label ink toned from the segment's own fill — a monochromatic look instead of
+ * flat black/white. The labels are large (bold ≥14px), so the WCAG-AA "large
+ * text" 3:1 threshold applies. We build both a deep saturated shade and a bright
+ * saturated tint of the fill hue, step each toward its extreme only as far as
+ * contrast needs, and keep whichever clears 3:1 (preferring the direction away
+ * from the fill's own lightness — light ink on dark fills, dark on light). A
+ * near-grey fill where neither stays colourful enough falls back to the
+ * palette's plain on-fill ink.
+ */
+const INK_MIN_CONTRAST = 3;
+
+function tonedCandidate(
+  h: number,
+  s: number,
+  fill: string,
+  dark: boolean
+): { ink: string; ok: boolean } {
+  const sat = dark
+    ? Math.min(85, Math.max(s, 55))
+    : Math.min(72, Math.max(42, s));
+  let l = dark ? 34 : 80;
+  let ink = hslToHex(h, sat, l);
+  for (let i = 0; i < 30 && contrastRatio(ink, fill) < INK_MIN_CONTRAST; i++) {
+    l += dark ? -3 : 3;
+    if (l <= 3 || l >= 97) break;
+    ink = hslToHex(h, sat, l);
+  }
+  return { ink, ok: contrastRatio(ink, fill) >= INK_MIN_CONTRAST };
+}
+
+function tonalInk(fill: string, onLight: string, onDark: string): string {
+  const { h, s } = hexToHSL(fill);
+  const dark = tonedCandidate(h, s, fill, true);
+  const light = tonedCandidate(h, s, fill, false);
+  const preferLight = relativeLuminance(fill) <= 0.45; // dark fill → light ink
+  if (dark.ok && light.ok) return preferLight ? light.ink : dark.ink;
+  if (dark.ok) return dark.ink;
+  if (light.ok) return light.ink;
+  return contrastText(fill, onLight, onDark);
+}
 
 function clampFs(base: number, thickness: number): number {
   return Math.max(8, Math.min(base, Math.round(thickness * 0.9)));
