@@ -71,7 +71,7 @@ function parseInline(text: string): Segment[] {
     if (m[1] !== undefined) {
       segments.push({ text: m[1], bold: true });
     } else if (m[2] !== undefined) {
-      segments.push({ text: m[2], bold: false, href: m[3] });
+      segments.push({ text: m[2], bold: false, ...(m[3] && { href: m[3] }) });
     } else if (m[4] !== undefined) {
       segments.push({ text: m[4], bold: false });
     }

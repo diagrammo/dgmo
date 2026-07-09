@@ -598,8 +598,8 @@ function drawNode(
         width: node.w - inset * 2,
         fontSize: CARD_META_FONT,
         lineHeight: lh,
-        color: palette.text,
-        linkColor: palette.primary,
+        color: colors.text, // match the header label (contrast-aware in solid)
+        linkColor: colors.text,
         maxLines: Math.max(1, Math.floor(avail / lh)),
       });
       if (badge) {
