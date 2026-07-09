@@ -77,6 +77,7 @@ export const ALL_CHART_TYPES = new Set([
   'sketch',
   'raci',
   'map',
+  'family',
 ]);
 
 /** Measure leading whitespace of a line, normalizing tabs to 4 spaces. */
@@ -855,6 +856,23 @@ export interface SplitNameAndMetaOptions {
    * the typical reason to disable. Default: true.
    */
   readonly peelAlias?: boolean;
+}
+
+/**
+ * Public wrapper over the module-private metadata-cut scan: returns the byte
+ * offset in `line` where the reserved-key metadata region begins (start of the
+ * first `<key>:` token), or `-1` if no metadata cut applies. Quoted-token
+ * contents never trigger the cut, so ` + ` or `:` inside `"..."` is protected.
+ *
+ * The family parser uses this to peel UNION-LEVEL metadata (`m: <year>`) off a
+ * union line before splitting on ` + ` — cleaner than exporting the three
+ * private scan symbols (`scanTokens` / `ScanToken` / `findMetadataCutOffset`).
+ */
+export function cutUnionMetadata(
+  line: string,
+  registry: ReservedKeyRegistry
+): number {
+  return findMetadataCutOffset(line, scanTokens(line), registry);
 }
 
 export function splitNameAndMeta(

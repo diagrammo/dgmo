@@ -234,6 +234,55 @@ function buildPathD(pts: Pt[], direction: 'LR' | 'TB'): string {
 
 type Rect = { x: number; y: number; width: number; height: number };
 
+/** Non-geometry defaults for the pseudo-nodes we synthesize from [Group]
+ *  boxes. Only x/y/width/height/id/groupId are read by edge geometry; the
+ *  rest exist purely to satisfy InfraLayoutNode. */
+const GROUP_PSEUDO_NODE_DEFAULTS = {
+  computedRps: 0,
+  overloaded: false,
+  rateLimited: false,
+  isEdge: false,
+  computedLatencyMs: 0,
+  computedLatencyPercentiles: { p50: 0, p90: 0, p99: 0 },
+  computedUptime: 1,
+  computedAvailability: 1,
+  computedAvailabilityPercentiles: { p50: 1, p90: 1, p99: 1 },
+  computedCbState: 'closed' as const,
+  computedInstances: 1,
+  computedConcurrentInvocations: 0,
+  properties: [],
+  tags: {},
+} satisfies Partial<InfraLayoutNode>;
+
+/** id→node map for edge geometry, augmented with pseudo-nodes for [Group]
+ *  containers. Edges may target a group id (e.g. `-/api-> [API Cluster]`);
+ *  without this, the renderer's `nodeMap.get(targetId)` misses and the whole
+ *  edge (path + label) is silently dropped, orphaning the group. The pseudo
+ *  node maps the group's top-left box to node-style center coords so the arrow
+ *  lands on the group boundary. `groupId: g.id` makes edgeWaypoints treat the
+ *  group's own box (and its children) as non-blocking. */
+function nodeMapWithGroups(
+  nodes: readonly InfraLayoutNode[],
+  groups: readonly InfraLayoutGroup[]
+): Map<string, InfraLayoutNode> {
+  const map = new Map<string, InfraLayoutNode>(nodes.map((n) => [n.id, n]));
+  for (const g of groups) {
+    if (map.has(g.id)) continue;
+    map.set(g.id, {
+      ...GROUP_PSEUDO_NODE_DEFAULTS,
+      id: g.id,
+      label: g.label,
+      x: g.x + g.width / 2,
+      y: g.y + g.height / 2,
+      width: g.width,
+      height: g.height,
+      groupId: g.id,
+      lineNumber: g.lineNumber,
+    });
+  }
+  return map;
+}
+
 /** Port-order exit and enter points for edges to eliminate fan-out crossings.
  *
  *  For each node with ≥2 outgoing edges: sort edges by target perpendicular coord
@@ -1244,7 +1293,7 @@ function renderEdgePaths(
   speedMultiplier: number = 1,
   sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity())
 ) {
-  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+  const nodeMap = nodeMapWithGroups(nodes, groups);
   const maxRps = Math.max(...edges.map((e) => e.computedRps), 1);
   const { srcPts, tgtPts } = computePortPts(edges, nodeMap, direction);
 
@@ -1324,7 +1373,7 @@ function renderEdgeLabels(
   direction: 'LR' | 'TB',
   sc: ScaledInfraConstants = buildScaledConstants(ScaleContext.identity())
 ) {
-  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+  const nodeMap = nodeMapWithGroups(nodes, groups);
   const { srcPts, tgtPts } = computePortPts(edges, nodeMap, direction);
   for (const edge of edges) {
     if (edge.points.length === 0) continue;

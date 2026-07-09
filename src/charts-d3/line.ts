@@ -45,6 +45,8 @@ export function renderLine(
   const data = chart.data;
   // `line` + a `fill` directive → filled (area) rendering. (#25)
   const isArea = chart.fill === true;
+  // `solid-fill` → opaque area under the line instead of the default 25% tint.
+  const solid = chart.solidFill === true;
   const seriesNames = chart.seriesNames?.length
     ? chart.seriesNames
     : [chart.series ?? ''];
@@ -246,7 +248,7 @@ export function renderLine(
       g.append('path')
         .attr('class', 'dgmo-series-area')
         .attr('d', areaGen(pts) ?? '')
-        .attr('fill', shapeFill(palette, color, isDark))
+        .attr('fill', solid ? color : shapeFill(palette, color, isDark))
         .attr('stroke', 'none');
     }
 

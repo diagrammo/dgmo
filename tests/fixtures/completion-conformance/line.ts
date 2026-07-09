@@ -13,6 +13,7 @@ export const fixture: ConformanceFixture = {
     'y-label',
     'y-right-label',
     'no-value',
+    'solid-fill',
   ],
   pipeKeys: {},
   enumChecks: [{ directive: 'palette', source: 'palettes' }],

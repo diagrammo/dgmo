@@ -1,0 +1,18 @@
+family The Rackham Line
+
+tag Allegiance as loyalty
+  Crown blue
+  Brethren red
+
+Elizabeth Swann b: 1687, sex: f, occupation: Pirate King, loyalty: Brethren
+"Will Turner" b: 1685, sex: m, occupation: Captain of the Dutchman, loyalty: Brethren
+
+Elizabeth Swann + "Will Turner" m: 1729
+  Henry Turner b: 1730, sex: m, occupation: Sailor
+
+Weatherby Swann + Margaret Smith m: 1685
+  Elizabeth Swann
+
+Henry Turner + Carina Smyth m: 1751
+  Joshamee Turner sex: m
+  Anna Turner adopted, sex: f

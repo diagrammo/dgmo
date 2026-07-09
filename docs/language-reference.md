@@ -101,7 +101,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 <!-- AI-CORE:STYLING end -->
 
 <!-- AI-CORE:TYPE-INDEX start -->
-### Chart-type index (43) — pick the type, then fetch its section
+### Chart-type index (45) — pick the type, then fetch its section
 
 | id | when to use |
 | -- | ----------- |
@@ -116,6 +116,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `sitemap` | site / app navigation structure |
 | `mindmap` | radial hierarchy of ideas from a central topic |
 | `org` | reporting hierarchy |
+| `family` | family tree / genealogy: unions (couples), children, remarriage, adoption, GEDCOM-style metadata |
 | `kanban` | task-board columns |
 | `gantt` | project scheduling with task dependencies and milestones |
 | `pert` | project network with three-point estimates and critical path |
@@ -1708,6 +1709,45 @@ In backward mode with Monte Carlo active, the project-stats caption reframes its
 Forward/backward pass, slack, M-world critical path, and project μ/σ are always computed. Critical-path activities and edges paint with a red border (`palette.colors.red`) in analytical mode. When Monte Carlo runs (any non-milestone activity has a duration), criticality is banded by the criticality index: red ≥ 0.80, orange ≥ 0.50, yellow ≥ 0.25, green ≥ 0.10, blue ≥ 0.02. The project-stats caption reports expected duration, σ, and P50/P80/P95 dates. Activities downstream of a TBD activity render `?` for ES/EF/LS/LF/slack and dashed borders.
 
 See spec §13A for full date-anchoring semantics, S-curve axes, and diagnostic codes.
+
+---
+
+## 13AA. Family Diagrams (genealogy)
+
+<!-- TYPE:family -->
+
+<!-- TIPS start -->
+**Styling tips:** Declare a person once with full metadata (`Anne b: 1665, sex: f`), then reference the bare name in union lines — don't repeat metadata. Model couples with the union line `A + B m: <year>` and indent children beneath it; reuse a name in a new union line for remarriage. The **legend** is the guaranteed sex channel (blue/purple sit close in hue and desaturate under the 25% tint) — where color-vision matters, add a `tag` group for the distinction you care about.
+<!-- TIPS end -->
+
+### Declaration
+
+```
+family [Title]
+```
+
+### Unions, children, remarriage
+
+A **union line** joins a couple with `+`; children are indented beneath it. Union-level metadata is only `m` (marriage year). Reuse a name to remarry; a lone person with indented children is a single parent.
+
+```dgmo
+family The Rackham Line
+
+Elizabeth Swann b: 1687, sex: f, occupation: Pirate King
+"Will Turner" b: 1685, sex: m
+
+Elizabeth Swann + "Will Turner" m: 1729
+  Henry Turner sex: m
+
+Henry Turner + Carina Smyth m: 1751
+  Joshamee sex: m
+  Anna adopted, sex: f
+```
+
+- **Person metadata** (fixed GEDCOM-flavored keys): `sex` (`m`/`f` → node color), `b`/`d` (birth/death year → a year-range row), `bp`/`dp` (birth/death place), `occupation`, `military`, `education`, `religion`, `burial`. Union-level: `m`. Unknown keys warn.
+- **Adoption:** a bare `adopted` token on a child line draws a dashed drop edge. A person literally named "Adopted" must be quoted.
+- **Sex → color:** `sex: m` → blue, `sex: f` → purple, unset → gray (25% tint). An explicit `tag`/inline color overrides the sex color.
+- The union split cuts `m:` metadata first, THEN splits ` + ` within the name region — so a `+` inside a quoted name (`"Anne + Jack"`) or a metadata value never mis-splits. Per-side `key: value` metadata on a union line is not supported — declare the person standalone.
 
 ---
 

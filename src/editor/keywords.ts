@@ -13,6 +13,7 @@ export const CHART_TYPES = new Set([
   'class',
   'er',
   'org',
+  'family',
   'kanban',
   'c4',
   'state',

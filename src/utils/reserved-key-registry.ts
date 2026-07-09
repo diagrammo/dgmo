@@ -246,3 +246,26 @@ export const RACI_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'color',
   'description',
 ]);
+
+// Family (genealogy): TWO registries. `FAMILY_PERSON_REGISTRY` holds every
+// GEDCOM-flavored person key and is used per-side when splitting a name; the
+// `sex` value additionally drives node color. `FAMILY_UNION_REGISTRY` holds
+// ONLY `m` (marriage year) and is used to cut union-level metadata off a union
+// line BEFORE splitting on ` + ` — a single combined registry would mis-cut a
+// person key like `Anne + Bob b: 1900` as union metadata and lose Bob's birth
+// year (see family/parser.ts). `color`/`description` are intentionally OMITTED:
+// color rides the §1.5 trailing-token rule and there is no description surface.
+export const FAMILY_PERSON_REGISTRY: ReservedKeyRegistry = staticRegistry([
+  'sex',
+  'b',
+  'd',
+  'bp',
+  'dp',
+  'occupation',
+  'military',
+  'education',
+  'religion',
+  'burial',
+]);
+
+export const FAMILY_UNION_REGISTRY: ReservedKeyRegistry = staticRegistry(['m']);

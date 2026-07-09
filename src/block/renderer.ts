@@ -380,9 +380,13 @@ function drawItems(
     }
 
     // leaf
+    // Children inherit their container's tag color, so a full-saturation leaf
+    // fill matches the solid container exactly and vanishes. In solid-fill mode
+    // lighten the leaf a step toward bg so it reads as an inset card, with the
+    // full-color stroke giving a crisp edge against the container.
     const fill = color
       ? solid
-        ? color
+        ? mix(color, palette.bg, 80)
         : mix(color, palette.bg, 14)
       : palette.bg;
     cell.attr('data-leaf', 'true');

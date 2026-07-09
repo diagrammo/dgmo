@@ -335,6 +335,21 @@ export type {
 export { layoutSwimlane } from './swimlane/layout';
 export { renderSwimlaneForExport } from './swimlane/renderer';
 
+export { parseFamily } from './family/parser';
+export type {
+  ParsedFamily,
+  FamilyPerson,
+  FamilyUnion,
+  FamilyChild,
+  FamilySex,
+  FamilyLayoutResult,
+  FamilyLayoutNode,
+  FamilyMarriageBar,
+  FamilyChildEdge,
+} from './family/types';
+export { layoutFamily } from './family/layout';
+export { renderFamily, renderFamilyForExport } from './family/renderer';
+
 export { parseSitemap, looksLikeSitemap } from './sitemap/parser';
 
 export type {

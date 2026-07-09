@@ -124,6 +124,11 @@ Jane Smith
   Alex Chen
     role CTO`,
 
+  family: `family
+Alice + Bob m: 1980
+  Carol sex: f
+  Dave sex: m`,
+
   kanban: `kanban
 [To Do]
   Task A

@@ -277,6 +277,7 @@ const REFERENCE_FIXTURES: Record<string, string> = {
   'boxes-and-lines': 'boxes-and-lines\nA -> B\n',
   sketch: 'sketch\nA at: 0 0\n  -> b\nB as b at: 2 0\n',
   venn: 'venn\nSwordsmanship as sw\nNavigation as nav\nsw + nav Overlap\n',
+  family: 'family\nAlice + Bob\n  Carol\n',
 };
 
 describe('reference-grammar drift-guard (generative over ALL_CHART_TYPES)', () => {
