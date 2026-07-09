@@ -714,26 +714,19 @@ function edgePath(
     arr.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a), arr[0]!);
   // Attachment coordinate:
   //  • a GROUP endpoint snaps to its nearest discrete port (a contained node's
-  //    row/column or the group midpoint) — never an arbitrary perimeter point;
-  //  • otherwise both ends meet at the center of their span OVERLAP, so aligned
-  //    shapes get a straight line; no overlap → each rect's own center.
-  const overlap = (
-    a0: number,
-    a1: number,
-    b0: number,
-    b1: number
-  ): number | null => {
-    const lo = Math.max(a0, b0);
-    const hi = Math.min(a1, b1);
-    return lo < hi ? (lo + hi) / 2 : null;
-  };
+  //    row/column or the group midpoint) — a group's chosen port drives BOTH
+  //    ends (clamped in), so the line runs straight into that child row/col;
+  //  • two PLAIN shapes each attach at their own facing-side MIDPOINT (own
+  //    center) — a canonical port, not an arbitrary overlap-band point. Aligned
+  //    shapes → equal centers → straight; offset → clean center-to-center
+  //    diagonal (auto-align removes most offsets before this is seen).
   if (horiz) {
     const sign = bcx >= acx ? 1 : -1;
     const cy: number | null = targetPorts
       ? nearest(targetPorts.ys, acy)
       : sourcePorts
         ? nearest(sourcePorts.ys, bcy)
-        : overlap(source.y, source.y + source.h, target.y, target.y + target.h);
+        : null;
     const y0 = cy === null ? acy : clamp(cy, source.y, source.y + source.h);
     const y1 = cy === null ? bcy : clamp(cy, target.y, target.y + target.h);
     p0 = { x: sign > 0 ? source.x + source.w : source.x, y: y0 };
@@ -750,7 +743,7 @@ function edgePath(
       ? nearest(targetPorts.xs, acx)
       : sourcePorts
         ? nearest(sourcePorts.xs, bcx)
-        : overlap(source.x, source.x + source.w, target.x, target.x + target.w);
+        : null;
     const x0 = cx === null ? acx : clamp(cx, source.x, source.x + source.w);
     const x1 = cx === null ? bcx : clamp(cx, target.x, target.x + target.w);
     p0 = { x: x0, y: sign > 0 ? source.y + source.h : source.y };

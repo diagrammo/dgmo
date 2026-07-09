@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { getPalette } from '../src/palettes';
 import { mix, shapeFill } from '../src/palettes/color-utils';
+import { SKETCH_FOOT_H, SKETCH_HALF_SLOT_Y } from '../src/sketch/geometry';
 import { layoutSketch } from '../src/sketch/layout';
 import { parseSketch } from '../src/sketch/parser';
 import { renderSketch } from '../src/sketch/renderer';
@@ -133,6 +134,28 @@ describe('sketch renderer — edges', () => {
     const m = d.match(/^M ([\d.]+) ([\d.]+) C ([\d.]+) ([\d.]+),/);
     expect(m).not.toBeNull();
     expect(m![2]).toBe(m![4]);
+  });
+
+  it('plain endpoints attach at facing-side midpoints (real ports)', () => {
+    const parseEnds = (svg: SVGSVGElement): { y0: number; y1: number } => {
+      const d = svg.querySelector('.sk-edge-group path')!.getAttribute('d')!;
+      const m = d.match(/^M (\S+) (\S+) C \S+ \S+, \S+ \S+, (\S+) (\S+)$/)!;
+      return { y0: Number(m[2]), y1: Number(m[4]) };
+    };
+    // Aligned pair → straight line through both card centers (equal endpoint y).
+    const aligned = parseEnds(
+      render('sketch\nA at: 0 0\n  -> b\nB as b at: 4 0')
+    );
+    expect(aligned.y0).toBeCloseTo(SKETCH_FOOT_H / 2, 3);
+    expect(aligned.y1).toBeCloseTo(aligned.y0, 3);
+    // Half-slot cross-offset → each end sits at its OWN card midpoint (a port),
+    // not clamped to the overlap band → the two ys differ (clean diagonal).
+    const offset = parseEnds(
+      render('sketch\nA at: 0 0\n  -> b\nB as b at: 4 1')
+    );
+    expect(offset.y0).toBeCloseTo(SKETCH_FOOT_H / 2, 3);
+    expect(offset.y1).toBeCloseTo(SKETCH_HALF_SLOT_Y + SKETCH_FOOT_H / 2, 3);
+    expect(offset.y0).not.toBeCloseTo(offset.y1, 1);
   });
 
   it('renders edge labels with a background halo above nodes', () => {
