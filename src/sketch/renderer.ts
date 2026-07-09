@@ -372,6 +372,18 @@ export function renderSketch(
   for (const box of layout.boxes) {
     rectById.set(box.id, { x: box.x, y: box.y, w: box.w, h: box.h });
   }
+  // Discrete ports for a group: one per contained node (aligned to its row /
+  // column centerline) plus the group midpoint. Edges to a box snap to the
+  // nearest of these instead of attaching anywhere on the perimeter.
+  const portsById = new Map<string, { ys: number[]; xs: number[] }>();
+  for (const box of layout.boxes) {
+    const kids = layout.nodes.filter((n) => n.boxLabel === box.label);
+    const ys = kids.map((k) => k.y + k.h / 2);
+    const xs = kids.map((k) => k.x + k.w / 2);
+    ys.push(box.y + box.h / 2);
+    xs.push(box.x + box.w / 2);
+    portsById.set(box.id, { ys, xs });
+  }
 
   // ── Boxes (frames) ──────────────────────────────────────────
   const boxLayer = root.append('g').attr('class', 'sk-boxes');
@@ -395,7 +407,12 @@ export function renderSketch(
     if (!source || !target) continue;
     const color = flowColor(edge);
     const hex = color.replace('#', '');
-    const { d, mid } = edgePath(source, target);
+    const { d, mid } = edgePath(
+      source,
+      target,
+      portsById.get(edge.sourceId),
+      portsById.get(edge.targetId)
+    );
     const g = edgeLayer
       .append('g')
       .attr('class', 'sk-edge-group')
@@ -672,9 +689,15 @@ function drawNode(
 }
 
 /** Cubic edge leaving both ports at 90° (spec decision 15 — never elbowed). */
+interface Ports {
+  ys: number[];
+  xs: number[];
+}
 function edgePath(
   source: Rect,
-  target: Rect
+  target: Rect,
+  sourcePorts?: Ports,
+  targetPorts?: Ports
 ): { d: string; mid: { x: number; y: number } } {
   const acx = source.x + source.w / 2;
   const acy = source.y + source.h / 2;
@@ -685,11 +708,15 @@ function edgePath(
   let p1: { x: number; y: number };
   let h0: { x: number; y: number };
   let h1: { x: number; y: number };
-  // Straight-when-aligned: attach both ends at the CENTER OF THE VERTICAL (or
-  // horizontal) OVERLAP of the two rects instead of each rect's own center. So
-  // a node aligned with a child inside a tall group gets a straight line
-  // entering the group at that row — no forced angle to the group's midline.
-  // No overlap → fall back to center-to-center (angle is unavoidable).
+  const clamp = (v: number, lo: number, hi: number): number =>
+    Math.max(lo, Math.min(hi, v));
+  const nearest = (arr: number[], v: number): number =>
+    arr.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a), arr[0]!);
+  // Attachment coordinate:
+  //  • a GROUP endpoint snaps to its nearest discrete port (a contained node's
+  //    row/column or the group midpoint) — never an arbitrary perimeter point;
+  //  • otherwise both ends meet at the center of their span OVERLAP, so aligned
+  //    shapes get a straight line; no overlap → each rect's own center.
   const overlap = (
     a0: number,
     a1: number,
@@ -702,14 +729,13 @@ function edgePath(
   };
   if (horiz) {
     const sign = bcx >= acx ? 1 : -1;
-    const yOv = overlap(
-      source.y,
-      source.y + source.h,
-      target.y,
-      target.y + target.h
-    );
-    const y0 = yOv ?? acy;
-    const y1 = yOv ?? bcy;
+    const cy: number | null = targetPorts
+      ? nearest(targetPorts.ys, acy)
+      : sourcePorts
+        ? nearest(sourcePorts.ys, bcy)
+        : overlap(source.y, source.y + source.h, target.y, target.y + target.h);
+    const y0 = cy === null ? acy : clamp(cy, source.y, source.y + source.h);
+    const y1 = cy === null ? bcy : clamp(cy, target.y, target.y + target.h);
     p0 = { x: sign > 0 ? source.x + source.w : source.x, y: y0 };
     p1 = { x: sign > 0 ? target.x : target.x + target.w, y: y1 };
     const k = Math.max(
@@ -720,14 +746,13 @@ function edgePath(
     h1 = { x: p1.x - sign * k, y: p1.y };
   } else {
     const sign = bcy >= acy ? 1 : -1;
-    const xOv = overlap(
-      source.x,
-      source.x + source.w,
-      target.x,
-      target.x + target.w
-    );
-    const x0 = xOv ?? acx;
-    const x1 = xOv ?? bcx;
+    const cx: number | null = targetPorts
+      ? nearest(targetPorts.xs, acx)
+      : sourcePorts
+        ? nearest(sourcePorts.xs, bcx)
+        : overlap(source.x, source.x + source.w, target.x, target.x + target.w);
+    const x0 = cx === null ? acx : clamp(cx, source.x, source.x + source.w);
+    const x1 = cx === null ? bcx : clamp(cx, target.x, target.x + target.w);
     p0 = { x: x0, y: sign > 0 ? source.y + source.h : source.y };
     p1 = { x: x1, y: sign > 0 ? target.y : target.y + target.h };
     const k = Math.max(
