@@ -105,6 +105,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   'boxes-and-lines': exportBoxesAndLines,
   sketch: exportSketch,
   swimlane: exportSwimlane,
+  family: exportFamily,
   'version-control': exportVersionControl,
   mindmap: exportMindmap,
   wireframe: exportWireframe,
@@ -552,6 +553,7 @@ async function exportSketch(ctx: ExportContext): Promise<string> {
     {
       ...(skTagOverride !== undefined && { activeTagGroup: skTagOverride }),
       ...(exportMode !== undefined && { exportMode }),
+      ...(viewState?.hd !== undefined && { hideDescriptions: viewState.hd }),
     }
   );
   return finalizeSvgExport(container, theme, effectivePalette);
@@ -632,6 +634,42 @@ async function exportSwimlane(ctx: ExportContext): Promise<string> {
       activeTagGroup: resolveActiveTagGroup(
         swimParsed.tagGroups,
         swimParsed.options['active-tag'],
+        ctxTagOverride(ctx)
+      ),
+      exportMode: ctx.exportMode,
+    }
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportFamily(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseFamily } = await import('./family/parser');
+  const { layoutFamily } = await import('./family/layout');
+  const { renderFamilyForExport } = await import('./family/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const parsed = parseFamily(content, effectivePalette);
+  if (parsed.error || parsed.persons.size === 0) return '';
+
+  const layout = layoutFamily(parsed);
+  const PADDING = 20;
+  const titleOffset = parsed.title ? 40 : 0;
+  const exportWidth = layout.width + PADDING * 2;
+  const exportHeight = layout.height + PADDING * 2 + titleOffset;
+  const container = createExportContainer(exportWidth, exportHeight);
+
+  renderFamilyForExport(
+    container,
+    parsed,
+    layout,
+    effectivePalette,
+    ctx.isDark,
+    {
+      exportDims: { width: exportWidth, height: exportHeight },
+      activeTagGroup: resolveActiveTagGroup(
+        parsed.tagGroups,
+        parsed.options['active-tag'],
         ctxTagOverride(ctx)
       ),
       exportMode: ctx.exportMode,

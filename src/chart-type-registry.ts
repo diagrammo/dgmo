@@ -62,6 +62,7 @@ import { parseMap } from './map/parser';
 import { parseBoxesAndLines } from './boxes-and-lines/parser';
 import { parseSketch } from './sketch/parser';
 import { parseSwimlane } from './swimlane/parser';
+import { parseFamily } from './family/parser';
 import { parseMindmap } from './mindmap/parser';
 import { parseWireframe } from './wireframe/parser';
 import { parseTechRadar } from './tech-radar/parser';
@@ -224,6 +225,11 @@ function measureSwimlane(content: string): ContentCounts {
   return { lanes: parsed.lanes.length, nodes: parsed.nodes.length };
 }
 
+function measureFamily(content: string): ContentCounts {
+  const parsed = parseFamily(content);
+  return { nodes: parsed.persons.size };
+}
+
 // ============================================================
 // minDims() implementations — relocated verbatim from computeMinDimensions() in
 // utils/scaling.ts so the registry owns per-type minimum-dimension formulas
@@ -338,6 +344,14 @@ function minDimsSwimlane(c: ContentCounts): { width: number; height: number } {
     height: Math.max((c.lanes ?? 3) * 100 + 60, 240),
   };
 }
+// Family trees fan wide (a generation is a horizontal row of cards) and deepen
+// with each generation; grow width faster than height.
+function minDimsFamily(c: ContentCounts): { width: number; height: number } {
+  return {
+    width: Math.max((c.nodes ?? 4) * 90, 420),
+    height: Math.max((c.nodes ?? 4) * 40 + 80, 240),
+  };
+}
 
 // ============================================================
 // THE REGISTRY — ordered to match the previous chartTypeParsers grouping
@@ -428,6 +442,13 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
     parse: parseSwimlane,
     measure: measureSwimlane,
     minDims: minDimsSwimlane,
+  },
+  {
+    id: 'family',
+    category: 'diagram',
+    parse: parseFamily,
+    measure: measureFamily,
+    minDims: minDimsFamily,
   },
   {
     id: 'version-control',

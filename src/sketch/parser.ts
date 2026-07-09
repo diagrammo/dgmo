@@ -115,7 +115,11 @@ export function parseSketch(
   content: string,
   palette?: PaletteColors
 ): ParsedSketch {
-  const options = { noLegend: false, solidFill: false };
+  const options = {
+    noLegend: false,
+    solidFill: false,
+    noDescriptions: false,
+  };
   const result: Writable<ParsedSketch> = {
     type: 'sketch',
     title: null,
@@ -550,9 +554,35 @@ export function parseSketch(
       options.solidFill = true;
       continue;
     }
+    if (indent === 0 && /^no-descriptions\s*$/i.test(trimmed)) {
+      options.noDescriptions = true;
+      continue;
+    }
 
     // ── Content ─────────────────────────────────────────────
     contentStarted = true;
+
+    // Description line — an indented `>` block under a shape. Markdown text;
+    // preserve the content after `> ` verbatim (incl. its own leading spaces
+    // for nested bullets). Multiple lines newline-join.
+    if (trimmed.startsWith('>')) {
+      const descLine = trimmed.slice(1).replace(/^ /, '');
+      if (indent > 0 && currentShape && indent > currentShape.indent) {
+        const node = nodeById.get(currentShape.id) as WritableNode | undefined;
+        if (node) {
+          node.description =
+            node.description === undefined
+              ? descLine
+              : `${node.description}\n${descLine}`;
+        }
+      } else {
+        warn(
+          lineNumber,
+          `Description "${trimmed}" has no shape — indent it under the shape it describes`
+        );
+      }
+      continue;
+    }
 
     // Edge line — attaches to the innermost open context.
     if (EDGE_START_RE.test(trimmed)) {

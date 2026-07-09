@@ -92,6 +92,11 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     description: 'Reporting hierarchy',
   },
   {
+    id: 'family',
+    description:
+      'Family tree / genealogy: unions (couples), children, remarriage, adoption, and GEDCOM-style metadata',
+  },
+  {
     id: 'sitemap',
     description: 'Site / app navigation structure',
   },

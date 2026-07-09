@@ -11,7 +11,7 @@ Use dgmo tools to create, render, and share diagrams. dgmo is a text-based diagr
 <!-- DGMO-AI-CORE:START -->
 ## DGMO AI Core
 
-_Generated from `language-reference.md` — the anti-patterns and 44-type index below are identical across every DGMO AI surface._
+_Generated from `language-reference.md` — the anti-patterns and 45-type index below are identical across every DGMO AI surface._
 
 ### Disambiguation — where DGMO diverges from LLM priors
 
@@ -65,7 +65,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 - **Let the defaults show.** Don't add `no-*` opt-outs unless the user asked to hide or disable something — they strip helpful labels, values, and color.
 - **Pick a fitting direction.** Top-to-bottom for hierarchies and processes; left-to-right for pipelines and flows (where the type supports a direction).
 
-### Chart-type index (43) — pick the type, then fetch its section
+### Chart-type index (45) — pick the type, then fetch its section
 
 | id | when to use |
 | -- | ----------- |
@@ -80,6 +80,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `sitemap` | site / app navigation structure |
 | `mindmap` | radial hierarchy of ideas from a central topic |
 | `org` | reporting hierarchy |
+| `family` | family tree / genealogy: unions (couples), children, remarriage, adoption, GEDCOM-style metadata |
 | `kanban` | task-board columns |
 | `gantt` | project scheduling with task dependencies and milestones |
 | `pert` | project network with three-point estimates and critical path |
@@ -120,7 +121,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 
 ### Common examples (curated, parse-clean)
 
-_The most common types, inline so you can generate them without a fetch. For the other 36, get the per-type section (see below)._
+_The most common types, inline so you can generate them without a fetch. For the other 37, get the per-type section (see below)._
 
 #### journey-map
 
@@ -231,6 +232,8 @@ ports
 
 ```dgmo
 class Ship Class Hierarchy
+
+solid-fill 
 
 interface Vessel
   + sail(): void

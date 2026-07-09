@@ -35,6 +35,7 @@ export interface SketchLayoutNode {
   readonly label: string;
   readonly shape: SketchShapeKind;
   readonly metadata: Record<string, string>;
+  readonly description?: string;
   readonly boxLabel?: string;
   readonly lineNumber: number;
   /** resolved ABSOLUTE half-slot origin */
@@ -361,6 +362,7 @@ export function layoutSketch(
         label: unit.node.label,
         shape: unit.node.shape,
         metadata: unit.node.metadata,
+        ...(unit.node.description && { description: unit.node.description }),
         lineNumber: unit.node.lineNumber,
         slot: spot,
         x,
@@ -398,6 +400,9 @@ export function layoutSketch(
           label: child.node.label,
           shape: child.node.shape,
           metadata: child.node.metadata,
+          ...(child.node.description && {
+            description: child.node.description,
+          }),
           boxLabel: unit.box.label,
           lineNumber: child.node.lineNumber,
           slot: { c: spot.c + child.c, r: spot.r + child.r },

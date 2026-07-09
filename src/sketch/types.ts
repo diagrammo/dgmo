@@ -38,6 +38,9 @@ export interface SketchNode {
   readonly at: SketchAt | null;
   /** tag metadata only (shape/at/alias are lifted out) */
   readonly metadata: Record<string, string>;
+  /** Free-text markdown description (indented `>` lines under the shape).
+   *  Newline-joined; a small markdown subset renders in the card body. */
+  readonly description?: string;
   /** owning box label (undefined = root) */
   readonly boxLabel?: string;
   readonly lineNumber: number;
@@ -72,6 +75,9 @@ export interface SketchBox {
 export interface SketchOptions {
   readonly noLegend: boolean;
   readonly solidFill: boolean;
+  /** `no-descriptions` directive (mindmap `hd` standard): hide the card
+   *  metadata rows so each card is just its name. */
+  readonly noDescriptions: boolean;
 }
 
 export interface ParsedSketch {

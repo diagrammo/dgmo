@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { getPalette } from '../src/palettes';
 import { mix, shapeFill } from '../src/palettes/color-utils';
+import { SKETCH_FOOT_H, SKETCH_HALF_SLOT_Y } from '../src/sketch/geometry';
 import { layoutSketch } from '../src/sketch/layout';
 import { parseSketch } from '../src/sketch/parser';
 import { renderSketch } from '../src/sketch/renderer';
@@ -88,9 +89,9 @@ describe('sketch renderer — colors', () => {
     expect(rect.getAttribute('stroke')).toBe(P.textMuted);
   });
 
-  it('edges: own tag color > source-shape flow color > gray', () => {
-    // A is Deck; edge x is Hold (own tag wins), edge y is untagged (inherits
-    // A's Deck flow color), edge z leaves an untagged shape (stays gray).
+  it('edges: colored only by their OWN tag; untagged lines stay neutral', () => {
+    // A is Deck; edge x is Hold (own tag → colored), edge y is untagged so it
+    // stays neutral (no source inheritance), edge z is untagged too.
     const src =
       'sketch\n\ntag Crew\n  Deck\n  Hold\n\nA at: 0 0, crew: Deck\n  -x-> b crew: Hold\n  -y-> b\nB as b at: 2 0\nLone at: 0 2\n  -z-> b';
     const svg = render(src);
@@ -103,8 +104,8 @@ describe('sketch renderer — colors', () => {
       )
     );
     expect(strokes).toContain(holdColor); // edge's own tag
-    expect(strokes).toContain(deckColor); // untagged edge inherits tagged source
-    expect(strokes).toContain(P.textMuted); // untagged edge from untagged source
+    expect(strokes).toContain(P.textMuted); // untagged lines are neutral
+    expect(strokes).not.toContain(deckColor); // no source-shape flow inheritance
   });
 });
 
@@ -133,6 +134,28 @@ describe('sketch renderer — edges', () => {
     const m = d.match(/^M ([\d.]+) ([\d.]+) C ([\d.]+) ([\d.]+),/);
     expect(m).not.toBeNull();
     expect(m![2]).toBe(m![4]);
+  });
+
+  it('plain endpoints attach at facing-side midpoints (real ports)', () => {
+    const parseEnds = (svg: SVGSVGElement): { y0: number; y1: number } => {
+      const d = svg.querySelector('.sk-edge-group path')!.getAttribute('d')!;
+      const m = d.match(/^M (\S+) (\S+) C \S+ \S+, \S+ \S+, (\S+) (\S+)$/)!;
+      return { y0: Number(m[2]), y1: Number(m[4]) };
+    };
+    // Aligned pair → straight line through both card centers (equal endpoint y).
+    const aligned = parseEnds(
+      render('sketch\nA at: 0 0\n  -> b\nB as b at: 4 0')
+    );
+    expect(aligned.y0).toBeCloseTo(SKETCH_FOOT_H / 2, 3);
+    expect(aligned.y1).toBeCloseTo(aligned.y0, 3);
+    // Half-slot cross-offset → each end sits at its OWN card midpoint (a port),
+    // not clamped to the overlap band → the two ys differ (clean diagonal).
+    const offset = parseEnds(
+      render('sketch\nA at: 0 0\n  -> b\nB as b at: 4 1')
+    );
+    expect(offset.y0).toBeCloseTo(SKETCH_FOOT_H / 2, 3);
+    expect(offset.y1).toBeCloseTo(SKETCH_HALF_SLOT_Y + SKETCH_FOOT_H / 2, 3);
+    expect(offset.y0).not.toBeCloseTo(offset.y1, 1);
   });
 
   it('renders edge labels with a background halo above nodes', () => {
@@ -192,5 +215,28 @@ describe('sketch renderer — options', () => {
     const tagColor = parseSketch(src, P).tagGroups[0]!.entries[0]!.color;
     const rect = svg.querySelector('.sk-node rect')!;
     expect(rect.getAttribute('fill')).toBe(tagColor);
+  });
+
+  it('no-descriptions hides card metadata rows (name fills the card)', () => {
+    const rows = (svg: SVGSVGElement) =>
+      [...svg.querySelectorAll('.sk-node text')].map((t) => t.textContent);
+    const withRows = render(
+      'sketch\ntag Crew\n  Deck\n\nA at: 0 0, crew: Deck'
+    );
+    expect(rows(withRows).some((t) => t?.includes('Crew'))).toBe(true);
+    const hidden = render(
+      'sketch\nno-descriptions\ntag Crew\n  Deck\n\nA at: 0 0, crew: Deck'
+    );
+    expect(rows(hidden).some((t) => t?.includes('Crew'))).toBe(false);
+    expect(hidden.textContent).toContain('A'); // name still there
+  });
+
+  it('the hideDescriptions render option hides rows (view-state hd path)', () => {
+    const src = 'sketch\ntag Crew\n  Deck\n\nA at: 0 0, crew: Deck';
+    const svg = render(src, { hideDescriptions: true });
+    const rowTexts = [...svg.querySelectorAll('.sk-node text')].map(
+      (t) => t.textContent
+    );
+    expect(rowTexts.some((t) => t?.includes('Crew'))).toBe(false);
   });
 });

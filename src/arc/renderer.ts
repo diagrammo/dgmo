@@ -573,10 +573,12 @@ export function renderArcDiagram(
       ? labelPivotGap + rotatedLabelDrop
       : sNodeLabelYOffset + sNodeLabelFont;
     const groupNameGap = sGroupLabelFont + sBandLabelBottomOffset;
-    const belowExtent =
-      hasGroups && rotateLabels
-        ? nodeLabelDepth + groupNameGap + sGroupLabelFont * 0.25
-        : Math.max(sBandHalfH, nodeLabelDepth);
+    // Grouped bands (either orientation of labels) seat the group name a full
+    // font below the node labels, then the box extends further below it so the
+    // name never crowds the band's bottom edge.
+    const belowExtent = hasGroups
+      ? nodeLabelDepth + groupNameGap + sGroupLabelFont * 0.25
+      : Math.max(sBandHalfH, nodeLabelDepth);
 
     // Live preview centers the baseline in the host container; export sizes the
     // canvas to the arc band so the SVG carries no dead whitespace (arcs bow up
@@ -625,9 +627,7 @@ export function renderArcDiagram(
         const bandRight = maxP + sidePad;
         const bandFill = group.color ?? textColor;
         const bandFillOpacity = group.color ? 0.15 : 0.06;
-        const nameY = rotateLabels
-          ? baseY + nodeLabelDepth + sGroupLabelFont
-          : bandBottomY - sBandLabelBottomOffset;
+        const nameY = baseY + nodeLabelDepth + sGroupLabelFont;
 
         g.append('rect')
           .attr('class', 'arc-group-band')

@@ -581,9 +581,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'sketch',
     // GUI-first canvas: shapes carry their own metadata (shape:/at:); the only
-    // directives are legend/fill toggles.
+    // directives are legend/fill/description toggles.
     withGlobals({
       'no-legend': { description: 'Hide the tag legend' },
+      'no-descriptions': {
+        description: 'Hide card metadata rows — the name fills each card',
+      },
     }),
   ],
   [

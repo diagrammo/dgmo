@@ -480,9 +480,9 @@ interface InstallOpts {
 }
 
 // `dgmo mcp` — run the MCP server. This is what AI client configs invoke. It
-// execs the installed `dgmo-mcp` binary if present, otherwise fetches and runs
-// it on demand via npx so a config pointing at `dgmo mcp` works even before the
-// server package has been installed. stdio is inherited so the stdio MCP
+// runs the server bundled next to this CLI if present, otherwise fetches and
+// runs it on demand via npx so a config pointing at `dgmo mcp` works even before
+// the server package has been installed. stdio is inherited so the stdio MCP
 // transport is fully transparent.
 function runMcpCommand(args: string[]): never {
   const onWin = process.platform === 'win32';
@@ -490,15 +490,23 @@ function runMcpCommand(args: string[]): never {
     spawnSync(cmd, cmdArgs, { stdio: 'inherit', shell: onWin });
   // npx path is pinned to @latest so the on-demand server is never stale.
   const npx = () => run('npx', ['-y', '@diagrammo/dgmo-mcp@latest', ...args]);
-  // Default: prefer the installed binary — fast, works offline, and
-  // `dgmo install` keeps it on @latest. Set DGMO_MCP_LATEST=1 to always fetch
+  // Default: prefer the server bundled next to this CLI (Homebrew installs both
+  // into one prefix; a co-located npm-global lands it as a sibling too) — fast,
+  // works offline, and `dgmo install` keeps it on @latest. Resolving it by
+  // absolute path means the Homebrew formula never puts a `dgmo-mcp` binary on
+  // PATH, so it can't collide with a stale `npm i -g @diagrammo/dgmo-mcp`
+  // symlink and abort `brew link`. Fall back to a `dgmo-mcp` already on PATH
+  // (older global installs), then npx. Set DGMO_MCP_LATEST=1 to always fetch
   // the newest server via npx instead (needs network; adds cold-start).
+  const bundled = bundledMcpEntry();
   const res =
     process.env['DGMO_MCP_LATEST'] === '1'
       ? npx()
-      : commandExists('dgmo-mcp')
-        ? run('dgmo-mcp', args)
-        : npx();
+      : bundled
+        ? run(process.execPath, [bundled, ...args])
+        : commandExists('dgmo-mcp')
+          ? run('dgmo-mcp', args)
+          : npx();
   if (res.error) {
     console.error(
       'Could not launch the dgmo MCP server. Install it with: npm install -g @diagrammo/dgmo-mcp'
@@ -551,16 +559,25 @@ function isHomebrewManaged(): boolean {
   return PKG_ROOT.includes('/Cellar/') || PKG_ROOT.includes('/homebrew/');
 }
 
+// Absolute path to the MCP server bundled next to this CLI, or null. Homebrew
+// (and a co-located npm-global) install @diagrammo/dgmo-mcp as a sibling of
+// @diagrammo/dgmo under the same node_modules, so it resolves relative to
+// PKG_ROOT — no PATH entry needed, hence no `dgmo-mcp` symlink to collide with.
+function bundledMcpEntry(): string | null {
+  const entry = resolve(PKG_ROOT, '..', 'dgmo-mcp', 'dist', 'index.js');
+  return existsSync(entry) ? entry : null;
+}
+
 let mcpEnsured = false;
 function ensureDgmoMcp(opts: InstallOpts): void {
   if (mcpEnsured) return;
   mcpEnsured = true;
   // Homebrew vendors and upgrades the MCP server alongside the CLI (the formula
-  // installs `dgmo-mcp` into the same prefix). Don't npm-install a second global
-  // copy that would shadow brew's — `brew upgrade dgmo` keeps it current.
+  // installs it as a sibling in the same prefix). Don't npm-install a second
+  // global copy — `brew upgrade dgmo` keeps it current.
   if (isHomebrewManaged()) {
     console.log(
-      commandExists('dgmo-mcp')
+      bundledMcpEntry()
         ? '✓ MCP server managed by Homebrew (upgrades with `brew upgrade dgmo`)'
         : '  MCP server not found — it will be fetched on first use via npx.'
     );

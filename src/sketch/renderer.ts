@@ -6,17 +6,19 @@
 // directly with a scene-graph-derived model; embeds/CLI reach it via render()
 // with parsed text (spec decision 21 — parity by construction).
 //
-// Node recipe: 25% tint fill (shapeFill), 1.5 stroke, rx 6, 13pt bold label
-// that ALWAYS fits (shrink → smart-wrap → ellipsis; the footprint never
-// grows). Untagged = neutral gray (decision 26a). Boxes reserve a top band
-// for a big/thick/faded label. Edges leave ports at 90° on cubic curves,
-// 10×7 arrowheads, '6 3' dash for the ~ family. No manual colors anywhere.
+// Node recipe: an org-style card (renderNodeCard) — 25% tint fill (shapeFill),
+// 2px tag stroke, a header with the name (one line, shrink → ellipsis) + a type
+// badge, a rule, and one metadata row per tag (Group: value). Untagged = neutral
+// gray (decision 26a), name centered. `note` is the one non-card shape. Boxes
+// reserve a top band for a big/thick/faded label. Edges leave ports at 90° on
+// cubic curves, 12×8 arrowheads, '6 3' dash for the ~ family. No manual colors.
 
 import * as d3 from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { renderCollapseBar, renderNodeCard } from '../utils/card';
+import { drawMarkdownBlock } from './markdown-card';
 import type { LegendGroupData } from '../utils/legend-types';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
 import { renderIntegratedLegend } from '../utils/legend-integration';
@@ -54,6 +56,9 @@ export interface SketchRenderOptions {
   activeTagGroup?: string | null;
   exportMode?: boolean;
   onClickItem?: (lineNumber: number) => void;
+  /** View-state `hd` (hide descriptions): drop the metadata rows so each card
+   *  is just its header/name — the standard mindmap toggle, shelf-driven. */
+  hideDescriptions?: boolean;
 }
 
 type Sel = d3.Selection<SVGGElement, unknown, null, undefined>;
@@ -158,14 +163,17 @@ const CARD_HEADER_H = 34;
 const CARD_LABEL_MAX = 15;
 const CARD_LABEL_MIN = 11;
 const CARD_META_FONT = 12;
+/** Header font ceiling when the name fills a card with no rows. */
+const CARD_TITLE_MAX = 30;
 
-/** Largest header font in [MIN,MAX] that fits the label on one line, else the
- *  min font with a middle-ellipsized label. */
+/** Largest header font in [MIN, maxFont] that fits the label on one line, else
+ *  the min font with a middle-ellipsized label. */
 function fitOneLine(
   label: string,
-  maxWidth: number
+  maxWidth: number,
+  maxFont: number = CARD_LABEL_MAX
 ): { text: string; fontSize: number } {
-  for (let fs = CARD_LABEL_MAX; fs >= CARD_LABEL_MIN; fs--) {
+  for (let fs = maxFont; fs >= CARD_LABEL_MIN; fs--) {
     if (measureText(label, fs) <= maxWidth)
       return { text: label, fontSize: fs };
   }
@@ -189,7 +197,14 @@ export function renderSketch(
   isDark: boolean,
   options: SketchRenderOptions = {}
 ): void {
-  const { activeTagGroup, exportMode = false } = options;
+  const {
+    activeTagGroup,
+    exportMode = false,
+    hideDescriptions = false,
+  } = options;
+  // Hide the metadata rows when the source directive OR the shelf/view-state
+  // toggle asks — the name then takes the whole card.
+  const hideDesc = hideDescriptions || parsed.options.noDescriptions;
 
   const neutralFill = mix(palette.surface, palette.bg, 40);
   const tagGroups = [...parsed.tagGroups];
@@ -272,20 +287,13 @@ export function renderSketch(
     }
     return palette.textMuted;
   };
-  // Flow color: an untagged line inherits its SOURCE shape's tag color, so
-  // lines read as connected flows instead of anonymous gray wires.
-  const nodeMetaById = new Map(
-    layout.nodes.map((n) => [n.id, n.metadata] as const)
-  );
+  // Lines are neutral by default: a line is colored only when it carries its
+  // OWN tag (via the active group). Newly created lines are untagged, so they
+  // read as plain connectors rather than inheriting a shape's meaning.
   const flowColor = (edge: {
     sourceId: string;
     metadata: Record<string, string>;
-  }): string => {
-    const own = edgeColorFor(edge.metadata);
-    if (own !== palette.textMuted) return own;
-    const sm = nodeMetaById.get(edge.sourceId);
-    return sm ? edgeColorFor(sm) : own;
-  };
+  }): string => edgeColorFor(edge.metadata);
   const edgeColors = new Set(layout.edges.map((e) => flowColor(e)));
   for (const color of edgeColors) {
     const hex = color.replace('#', '');
@@ -364,6 +372,18 @@ export function renderSketch(
   for (const box of layout.boxes) {
     rectById.set(box.id, { x: box.x, y: box.y, w: box.w, h: box.h });
   }
+  // Discrete ports for a group: one per contained node (aligned to its row /
+  // column centerline) plus the group midpoint. Edges to a box snap to the
+  // nearest of these instead of attaching anywhere on the perimeter.
+  const portsById = new Map<string, { ys: number[]; xs: number[] }>();
+  for (const box of layout.boxes) {
+    const kids = layout.nodes.filter((n) => n.boxLabel === box.label);
+    const ys = kids.map((k) => k.y + k.h / 2);
+    const xs = kids.map((k) => k.x + k.w / 2);
+    ys.push(box.y + box.h / 2);
+    xs.push(box.x + box.w / 2);
+    portsById.set(box.id, { ys, xs });
+  }
 
   // ── Boxes (frames) ──────────────────────────────────────────
   const boxLayer = root.append('g').attr('class', 'sk-boxes');
@@ -387,7 +407,12 @@ export function renderSketch(
     if (!source || !target) continue;
     const color = flowColor(edge);
     const hex = color.replace('#', '');
-    const { d, mid } = edgePath(source, target);
+    const { d, mid } = edgePath(
+      source,
+      target,
+      portsById.get(edge.sourceId),
+      portsById.get(edge.targetId)
+    );
     const g = edgeLayer
       .append('g')
       .attr('class', 'sk-edge-group')
@@ -428,7 +453,7 @@ export function renderSketch(
       colorsFor(node.metadata),
       palette,
       isDark,
-      tagGroups
+      hideDesc ? [] : tagGroups
     );
   }
 
@@ -447,8 +472,7 @@ export function renderSketch(
       .attr('width', textWidth + 6)
       .attr('height', EDGE_LABEL_FONT_SIZE + 6)
       .attr('rx', 3)
-      .attr('fill', palette.bg)
-      .attr('opacity', 0.72);
+      .attr('fill', palette.bg);
     g.append('text')
       .attr('x', l.x)
       .attr('y', l.y)
@@ -549,8 +573,73 @@ function drawNode(
     const rows = node.isCollapsedBox ? [] : metaRows(node.metadata, tagGroups);
     const badge = node.shape !== 'rectangle';
     const labelInset = badge ? 22 : 0;
+    // Solid-fill: the stroke IS the fill, so a stroke-colored rule/text would
+    // vanish — use the (contrast-aware) label color instead, like the org card.
+    const solid = colors.stroke === colors.fill;
+    const ruleColor = solid ? colors.text : colors.stroke;
+
+    // Free-text markdown description: header band + rule, then the rendered
+    // markdown block fills the body (in place of the tag rows). Wrapped, with a
+    // small subset (bold/bullets/indent/links); clamps to the fixed card body.
+    if (node.description && !node.isCollapsedBox) {
+      const fitH = fitOneLine(
+        node.label,
+        node.w - 24 - labelInset,
+        CARD_LABEL_MAX
+      );
+      renderNodeCard(g, {
+        width: node.w,
+        height: node.h,
+        rx: CARD_RADIUS,
+        fill: colors.fill,
+        stroke: colors.stroke,
+        strokeWidth: NODE_STROKE_WIDTH,
+        label: fitH.text,
+        labelColor: colors.text,
+        labelFontSize: fitH.fontSize,
+        headerHeight: CARD_HEADER_H,
+      });
+      g.append('line')
+        .attr('x1', 0)
+        .attr('y1', CARD_HEADER_H)
+        .attr('x2', node.w)
+        .attr('y2', CARD_HEADER_H)
+        .attr('stroke', ruleColor)
+        .attr('stroke-opacity', 0.3)
+        .attr('stroke-width', 1);
+      const inset = 12;
+      const bodyGap = 8;
+      const lh = CARD_META_FONT + 4;
+      const avail = node.h - CARD_HEADER_H - bodyGap - 8;
+      const body = g
+        .append('g')
+        .attr('class', 'sk-desc')
+        .attr('transform', `translate(${inset} ${CARD_HEADER_H + bodyGap})`);
+      drawMarkdownBlock(body, node.description, {
+        width: node.w - inset * 2,
+        fontSize: CARD_META_FONT,
+        lineHeight: lh,
+        color: colors.text, // match the header label (contrast-aware in solid)
+        linkColor: colors.text,
+        maxLines: Math.max(1, Math.floor(avail / lh)),
+      });
+      if (badge) {
+        drawTypeBadge(g, node.shape, colors.text, 10, (CARD_HEADER_H - 16) / 2);
+      }
+      return;
+    }
+
     const headerH = rows.length ? CARD_HEADER_H : node.h;
-    const fit = fitOneLine(node.label, node.w - 24 - labelInset);
+    // No rows (descriptions off, an untagged shape, OR a collapsed group card):
+    // the name grows to fill the card, centered in the full-height header band.
+    // A collapsed group is styled exactly like a plain node — same big centered
+    // name — and differs only by the collapse bar drawn at its bottom.
+    const fillTitle = rows.length === 0;
+    const fit = fitOneLine(
+      node.label,
+      node.w - 24 - labelInset,
+      fillTitle ? CARD_TITLE_MAX : CARD_LABEL_MAX
+    );
     renderNodeCard(g, {
       width: node.w,
       height: node.h,
@@ -569,15 +658,19 @@ function drawNode(
               fontSize: CARD_META_FONT,
               lineHeight: CARD_META_FONT + 5,
               separatorGap: 8,
-              separatorColor: colors.stroke,
-              textColor: palette.text,
+              separatorColor: ruleColor,
+              textColor: solid ? colors.text : palette.text,
               keyX: 12,
             },
           }
         : {}),
     });
     if (badge) {
-      drawTypeBadge(g, node.shape, colors.stroke, 10, (headerH - 16) / 2);
+      // Badge stays in the top-left corner in both modes (a full-height header
+      // would otherwise sink it to the vertical center).
+      // colors.text (not stroke): in solid-fill the stroke IS the fill, so a
+      // stroke-colored badge would vanish; colors.text stays contrast-aware.
+      drawTypeBadge(g, node.shape, colors.text, 10, (CARD_HEADER_H - 16) / 2);
     }
   }
 
@@ -597,9 +690,15 @@ function drawNode(
 }
 
 /** Cubic edge leaving both ports at 90° (spec decision 15 — never elbowed). */
+interface Ports {
+  ys: number[];
+  xs: number[];
+}
 function edgePath(
   source: Rect,
-  target: Rect
+  target: Rect,
+  sourcePorts?: Ports,
+  targetPorts?: Ports
 ): { d: string; mid: { x: number; y: number } } {
   const acx = source.x + source.w / 2;
   const acy = source.y + source.h / 2;
@@ -610,10 +709,29 @@ function edgePath(
   let p1: { x: number; y: number };
   let h0: { x: number; y: number };
   let h1: { x: number; y: number };
+  const clamp = (v: number, lo: number, hi: number): number =>
+    Math.max(lo, Math.min(hi, v));
+  const nearest = (arr: number[], v: number): number =>
+    arr.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a), arr[0]!);
+  // Attachment coordinate:
+  //  • a GROUP endpoint snaps to its nearest discrete port (a contained node's
+  //    row/column or the group midpoint) — a group's chosen port drives BOTH
+  //    ends (clamped in), so the line runs straight into that child row/col;
+  //  • two PLAIN shapes each attach at their own facing-side MIDPOINT (own
+  //    center) — a canonical port, not an arbitrary overlap-band point. Aligned
+  //    shapes → equal centers → straight; offset → clean center-to-center
+  //    diagonal (auto-align removes most offsets before this is seen).
   if (horiz) {
     const sign = bcx >= acx ? 1 : -1;
-    p0 = { x: sign > 0 ? source.x + source.w : source.x, y: acy };
-    p1 = { x: sign > 0 ? target.x : target.x + target.w, y: bcy };
+    const cy: number | null = targetPorts
+      ? nearest(targetPorts.ys, acy)
+      : sourcePorts
+        ? nearest(sourcePorts.ys, bcy)
+        : null;
+    const y0 = cy === null ? acy : clamp(cy, source.y, source.y + source.h);
+    const y1 = cy === null ? bcy : clamp(cy, target.y, target.y + target.h);
+    p0 = { x: sign > 0 ? source.x + source.w : source.x, y: y0 };
+    p1 = { x: sign > 0 ? target.x : target.x + target.w, y: y1 };
     const k = Math.max(
       CURVE_HANDLE_MIN,
       Math.min(CURVE_HANDLE_MAX, Math.abs(p1.x - p0.x) / 2)
@@ -622,8 +740,15 @@ function edgePath(
     h1 = { x: p1.x - sign * k, y: p1.y };
   } else {
     const sign = bcy >= acy ? 1 : -1;
-    p0 = { x: acx, y: sign > 0 ? source.y + source.h : source.y };
-    p1 = { x: bcx, y: sign > 0 ? target.y : target.y + target.h };
+    const cx: number | null = targetPorts
+      ? nearest(targetPorts.xs, acx)
+      : sourcePorts
+        ? nearest(sourcePorts.xs, bcx)
+        : null;
+    const x0 = cx === null ? acx : clamp(cx, source.x, source.x + source.w);
+    const x1 = cx === null ? bcx : clamp(cx, target.x, target.x + target.w);
+    p0 = { x: x0, y: sign > 0 ? source.y + source.h : source.y };
+    p1 = { x: x1, y: sign > 0 ? target.y : target.y + target.h };
     const k = Math.max(
       CURVE_HANDLE_MIN,
       Math.min(CURVE_HANDLE_MAX, Math.abs(p1.y - p0.y) / 2)
@@ -633,7 +758,10 @@ function edgePath(
   }
   return {
     d: `M ${p0.x} ${p0.y} C ${h0.x} ${h0.y}, ${h1.x} ${h1.y}, ${p1.x} ${p1.y}`,
-    mid: { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 - 8 },
+    // Centered ON the line (no vertical offset): the opaque label halo masks
+    // the segment behind it cleanly, so the label reads as sitting on the line
+    // rather than floating awkwardly just above it.
+    mid: { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 },
   };
 }
 
@@ -648,6 +776,7 @@ export function renderSketchForExport(
     exportDims?: { width: number; height: number };
     activeTagGroup?: string | null;
     exportMode?: boolean;
+    hideDescriptions?: boolean;
   } = {}
 ): void {
   renderSketch(container, parsed, layout, palette, isDark, {
