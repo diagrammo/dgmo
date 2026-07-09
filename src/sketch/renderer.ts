@@ -685,10 +685,33 @@ function edgePath(
   let p1: { x: number; y: number };
   let h0: { x: number; y: number };
   let h1: { x: number; y: number };
+  // Straight-when-aligned: attach both ends at the CENTER OF THE VERTICAL (or
+  // horizontal) OVERLAP of the two rects instead of each rect's own center. So
+  // a node aligned with a child inside a tall group gets a straight line
+  // entering the group at that row — no forced angle to the group's midline.
+  // No overlap → fall back to center-to-center (angle is unavoidable).
+  const overlap = (
+    a0: number,
+    a1: number,
+    b0: number,
+    b1: number
+  ): number | null => {
+    const lo = Math.max(a0, b0);
+    const hi = Math.min(a1, b1);
+    return lo < hi ? (lo + hi) / 2 : null;
+  };
   if (horiz) {
     const sign = bcx >= acx ? 1 : -1;
-    p0 = { x: sign > 0 ? source.x + source.w : source.x, y: acy };
-    p1 = { x: sign > 0 ? target.x : target.x + target.w, y: bcy };
+    const yOv = overlap(
+      source.y,
+      source.y + source.h,
+      target.y,
+      target.y + target.h
+    );
+    const y0 = yOv ?? acy;
+    const y1 = yOv ?? bcy;
+    p0 = { x: sign > 0 ? source.x + source.w : source.x, y: y0 };
+    p1 = { x: sign > 0 ? target.x : target.x + target.w, y: y1 };
     const k = Math.max(
       CURVE_HANDLE_MIN,
       Math.min(CURVE_HANDLE_MAX, Math.abs(p1.x - p0.x) / 2)
@@ -697,8 +720,16 @@ function edgePath(
     h1 = { x: p1.x - sign * k, y: p1.y };
   } else {
     const sign = bcy >= acy ? 1 : -1;
-    p0 = { x: acx, y: sign > 0 ? source.y + source.h : source.y };
-    p1 = { x: bcx, y: sign > 0 ? target.y : target.y + target.h };
+    const xOv = overlap(
+      source.x,
+      source.x + source.w,
+      target.x,
+      target.x + target.w
+    );
+    const x0 = xOv ?? acx;
+    const x1 = xOv ?? bcx;
+    p0 = { x: x0, y: sign > 0 ? source.y + source.h : source.y };
+    p1 = { x: x1, y: sign > 0 ? target.y : target.y + target.h };
     const k = Math.max(
       CURVE_HANDLE_MIN,
       Math.min(CURVE_HANDLE_MAX, Math.abs(p1.y - p0.y) / 2)
