@@ -124,6 +124,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   treemap: exportTreemap,
   block: exportBlock,
   raci: exportRaci,
+  body: exportBody,
   // D3 visualizations — own handler per type (Story 109.2). Only `sequence`
   // still falls through to exportVisualization (no chart-type of its own).
   slope: exportSlope,
@@ -227,6 +228,27 @@ async function exportEventLine(ctx: ExportContext): Promise<string> {
 
   const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
   renderEventLineForExport(
+    container,
+    parsed,
+    effectivePalette,
+    ctx.isDark,
+    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
+    ctxTagOverride(ctx)
+  );
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportBody(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseBody } = await import('./body/parser');
+  const { renderBodyForExport } = await import('./body/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const parsed = parseBody(content, effectivePalette);
+  if (parsed.error) return '';
+
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  renderBodyForExport(
     container,
     parsed,
     effectivePalette,

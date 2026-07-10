@@ -271,6 +271,17 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   ['venn', withGlobals()],
   [
+    'body',
+    withGlobals({
+      muscle: { description: 'Muscle form (default)' },
+      skin: { description: 'Skin silhouette form' },
+      male: { description: 'Male figure (default)' },
+      front: { description: 'Front view (default)' },
+      'no-legend': { description: 'Hide the tag legend' },
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
+  [
     'quadrant',
     withGlobals({
       'x-label': { description: 'X-axis labels (low, high)' },

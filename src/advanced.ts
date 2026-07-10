@@ -587,6 +587,15 @@ export type {
   EventLineEra,
 } from './event-line/types';
 
+export { parseBody } from './body/parser';
+export { renderBody, renderBodyForExport } from './body/renderer';
+export type {
+  ParsedBody,
+  BodyPart,
+  BodyOptions,
+  BodyFigure,
+} from './body/types';
+
 export { parseVersionControl } from './version-control/parser';
 export {
   renderVersionControl,

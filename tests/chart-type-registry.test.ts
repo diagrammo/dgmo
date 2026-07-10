@@ -54,6 +54,7 @@ const EXPECTED_CATEGORY: Record<
   wireframe: 'diagram',
   'journey-map': 'diagram',
   raci: 'diagram',
+  body: 'diagram',
   // visualization (12)
   slope: 'visualization',
   wordcloud: 'visualization',
@@ -85,6 +86,7 @@ const EXPECTED_CATEGORY: Record<
 // The set of types that had a content-count extractor in dimensions.ts.
 const EXPECTED_MEASURE_IDS = [
   'arc',
+  'body',
   'class',
   'er',
   'event-line',
@@ -112,6 +114,7 @@ const EXPECTED_MEASURE_IDS = [
 // no switch case — they intentionally keep the {300,200} default.)
 const EXPECTED_MINDIMS_IDS = [
   'arc',
+  'body',
   'class',
   'er',
   'event-line',

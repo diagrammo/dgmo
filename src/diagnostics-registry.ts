@@ -23,6 +23,7 @@ import { SWIMLANE_DIAGNOSTICS } from './swimlane/diagnostics';
 import { RACI_DIAGNOSTICS } from './raci/diagnostics';
 import { TREEMAP_DIAGNOSTICS } from './treemap/diagnostics';
 import { EVENT_LINE_DIAGNOSTICS } from './event-line/diagnostics';
+import { BODY_DIAGNOSTICS } from './body/diagnostics';
 import { VERSION_CONTROL_DIAGNOSTICS } from './version-control/diagnostics';
 import { ARROW_DIAGNOSTICS } from './utils/arrows-diagnostics';
 import { MAP_DIAGNOSTICS } from './map/diagnostics';
@@ -85,6 +86,7 @@ const REGISTRY: DiagnosticSpec[] = [
   ...RACI_DIAGNOSTICS,
   ...TREEMAP_DIAGNOSTICS,
   ...EVENT_LINE_DIAGNOSTICS,
+  ...BODY_DIAGNOSTICS,
   ...VERSION_CONTROL_DIAGNOSTICS,
   ...ARROW_DIAGNOSTICS,
   ...MAP_DIAGNOSTICS,

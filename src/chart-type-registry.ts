@@ -73,6 +73,7 @@ import { parseRing } from './ring/parser';
 import { parseTreemap } from './treemap/parser';
 import { parseBlock } from './block/parser';
 import { parseRaci, allTasks } from './raci/parser';
+import { parseBody } from './body/parser';
 import type { DgmoError } from './diagnostics';
 
 /** User-visible rendering category for dispatch and routing. */
@@ -273,6 +274,13 @@ function minDimsArc(c: ContentCounts): { width: number; height: number } {
 }
 function measureEventLine(content: string): ContentCounts {
   return { items: parseEventLine(content).events.length };
+}
+function measureBody(content: string): ContentCounts {
+  return { items: parseBody(content).parts.length };
+}
+function minDimsBody(): { width: number; height: number } {
+  // Fixed-aspect human figure (724×1448) plus side gutters for leader labels.
+  return { width: 720, height: 900 };
 }
 function minDimsEventLine(c: ContentCounts): { width: number; height: number } {
   return {
@@ -514,6 +522,13 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
   },
   { id: 'venn', category: 'visualization', parse: parseVenn },
   { id: 'quadrant', category: 'visualization', parse: parseQuadrant },
+  {
+    id: 'body',
+    category: 'diagram',
+    parse: parseBody,
+    measure: measureBody,
+    minDims: minDimsBody,
+  },
 
   // ── Visualizations with their own parsers ─────────────────
   {

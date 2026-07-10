@@ -61,7 +61,7 @@ To teach Claude about DGMO in a specific project without the global skill, paste
 <!-- DGMO-AI-CORE:START -->
 ## DGMO AI Core
 
-_Generated from `language-reference.md` — the anti-patterns and 45-type index below are identical across every DGMO AI surface._
+_Generated from `language-reference.md` — the anti-patterns and 46-type index below are identical across every DGMO AI surface._
 
 ### Disambiguation — where DGMO diverges from LLM priors
 
@@ -138,6 +138,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `version-control` | git / version-control branch-and-merge graph: commits, branches, merges, rebase, HEAD and remote-tracking (gitGraph-style) |
 | `timeline` | events, eras, and date ranges |
 | `event-line` | annotated narrative timeline — events on a line with descriptions, optionally not to scale (NOT the date-scaled `timeline`) |
+| `body` | human anatomy figure annotated by muscle name — for medical, exercise, and educational diagrams |
 | `journey-map` | UX flow with emotion scores, phases, annotations |
 | `cycle` | cyclical process (PDCA, OODA, DevOps loops) |
 | `raci` | tasks × roles responsibility matrix; variant (RACI / RASCI / DACI) is inferred from the markers used |
@@ -171,7 +172,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 
 ### Common examples (curated, parse-clean)
 
-_The most common types, inline so you can generate them without a fetch. For the other 37, get the per-type section (see below)._
+_The most common types, inline so you can generate them without a fetch. For the other 38, get the per-type section (see below)._
 
 #### journey-map
 

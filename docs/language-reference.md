@@ -124,6 +124,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `version-control` | git / version-control branch-and-merge graph: commits, branches, merges, rebase, HEAD and remote-tracking (gitGraph-style) |
 | `timeline` | events, eras, and date ranges |
 | `event-line` | annotated narrative timeline — events on a line with descriptions, optionally not to scale (NOT the date-scaled `timeline`) |
+| `body` | human anatomy figure annotated by muscle name — for medical, exercise, and educational diagrams |
 | `journey-map` | UX flow with emotion scores, phases, annotations |
 | `cycle` | cyclical process (PDCA, OODA, DevOps loops) |
 | `raci` | tasks × roles responsibility matrix; variant (RACI / RASCI / DACI) is inferred from the markers used |
@@ -2512,6 +2513,53 @@ Group a run of events into a labeled section with a `[Name]` bracket, then **ind
 - `no-scale` — space events evenly instead of by date (dates become captions).
 - `side above` / `side below` — place all cards on one side instead of alternating (`side alternate` is the default).
 - `no-box` — card-less style for slides: a tag-colored label, a rule, and the description below (no box / fill / border).
+- `no-legend` — hide the tag legend.
+
+### 16.4C Body Diagrams
+
+<!-- TYPE:body -->
+
+<!-- TIPS start -->
+**Styling tips:** a body diagram is a human figure you annotate by muscle name — for workout splits, PT/rehab, and anatomy teaching. Name the muscles you care about, color them by intensity/severity with a tag group, and add a short note beneath each for the exercise or finding. Keep to the muscles that matter; the rest stay a neutral gray so the highlighted ones read at a glance.
+<!-- TIPS end -->
+
+**Figures:** male and female, front and back — four figures. `skin` form renders any figure as a plain silhouette (with head + hair) instead of the segmented muscle map. `skeletal` is reserved.
+
+#### Declaration
+
+```
+body [Title]
+```
+
+#### Form / sex / view (bare directives)
+
+Set the figure with bare directives before the parts: `muscle` (default) or `skin`; `male` (default) or `female`; `front` (default) or `back`. Each is optional. **Name both `front` and `back`** to render the two views side by side in one diagram — a part is drawn on whichever view(s) contain it (`chest` on front, `lats` on back, `deltoids`/`calves` on both).
+
+#### Parts
+
+A bare line is a **catalog muscle name**, in any order, with optional trailing tag metadata and an indented body note. Names accept gym shorthand or formal anatomy (`pecs` / `pectoralis-major` → `chest`; `quads` → `quadriceps`).
+
+```
+body Push Day
+muscle
+
+tag Effort as e
+  Primary red
+  Secondary orange
+
+chest        e: Primary
+  Barbell bench press — 4×8
+deltoids     e: Primary
+triceps      e: Secondary
+abs          e: Secondary
+```
+
+- **Part** — a catalog name for the active figure. Front: `chest`, `deltoids`, `biceps`, `triceps`, `abs`, `obliques`, `trapezius`, `forearm`, `quadriceps`, `adductors`, `calves`, `tibialis`. Back: `lats`, `trapezius`, `rear-delts`, `triceps`, `lower-back`, `glutes`, `hamstring`, `calves`, `forearm`. Fine heads (`vastus-lateralis`, `serratus-anterior`, `biceps-femoris`, …) and gym/anatomical aliases (`pecs`/`pectoralis-major`→chest, `quads`→quadriceps, `glutes`→gluteal) both resolve. Unknown names warn.
+- **Tag** — trailing same-line metadata (`e: Primary`); colors the highlighted muscle, its leader, and its label.
+- **Note** — bare indented body line (like `pyramid`/`ring`); the first note prints beneath the muscle's gutter label.
+
+#### Options
+
 - `no-legend` — hide the tag legend.
 
 ### 16.4B Version-Control Diagrams

@@ -77,6 +77,17 @@ C -> A 2`,
 2021-06 Launch
   Shipped to users.`,
 
+  body: `body Push Day
+muscle
+
+tag Effort as e
+  Primary red
+
+chest  e: Primary
+  Barbell bench press.
+deltoids  e: Primary
+triceps  e: Primary`,
+
   'version-control': `version-control Feature Workflow
 main
   Initial commit

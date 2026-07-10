@@ -88,6 +88,11 @@ export const chartTypes: readonly ChartTypeMeta[] = [
       'Annotated narrative timeline — events on a horizontal line with descriptions (not the date-scaled timeline)',
   },
   {
+    id: 'body',
+    description:
+      'Human anatomy figure annotated by muscle/bone/joint name — for medical, exercise, and educational diagrams',
+  },
+  {
     id: 'org',
     description: 'Reporting hierarchy',
   },

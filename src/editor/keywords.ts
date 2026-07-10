@@ -55,6 +55,7 @@ export const CHART_TYPES = new Set([
   'venn',
   'quadrant',
   'map',
+  'body',
 ]);
 
 /** Metadata keys recognized across chart types. */

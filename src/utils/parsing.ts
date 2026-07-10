@@ -50,6 +50,7 @@ export const ALL_CHART_TYPES = new Set([
   'venn',
   'quadrant',
   // diagrams
+  'body',
   'sequence',
   'flowchart',
   'class',

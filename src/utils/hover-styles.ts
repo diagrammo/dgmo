@@ -406,6 +406,12 @@ export const HOVER_SPECS: Record<string, HoverSpec> = {
     groupAttrMode: 'tag-active',
     legend: true,
   },
+  body: {
+    markSelector: '.dgmo-body-part',
+    strategy: 'enumerated',
+    groupAttrMode: 'tag-active',
+    legend: true,
+  },
 
   // ── Connection graph-family — edge endpoint attrs baked in the renderers ──
   // Hover a node → dim edges not incident to it. Node id ↔ edge from/to.
