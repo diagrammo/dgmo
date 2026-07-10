@@ -238,6 +238,33 @@ export function renderFamilyForExport(
       `translate(${contentX}, ${chrome + PAD}) scale(${scale})`
     ) as unknown as D3G;
 
+  // ── Generation zebra bands (opt-in `generations`) ──
+  // Subtle alternating full-width bands behind each generation row, so it's easy
+  // to see who sits in the same generation. Drawn FIRST (behind everything) and
+  // tiled to fill the row gaps so the stripes are continuous.
+  if (parsed.options['generations'] === 'true' && layout.rows.length > 0) {
+    const bandG = root.append('g').attr('class', 'family-generation-bands');
+    const rows = layout.rows;
+    const band = mix(palette.textMuted, baseBg, 6);
+    for (let i = 0; i < rows.length; i++) {
+      if (i % 2 !== 0) continue; // stripe every other generation
+      const r = rows[i]!;
+      const top =
+        i === 0 ? 0 : (rows[i - 1]!.y + rows[i - 1]!.height + r.y) / 2;
+      const bot =
+        i === rows.length - 1
+          ? contentH
+          : (r.y + r.height + rows[i + 1]!.y) / 2;
+      bandG
+        .append('rect')
+        .attr('x', 0)
+        .attr('y', top)
+        .attr('width', contentW)
+        .attr('height', bot - top)
+        .attr('fill', band);
+    }
+  }
+
   // ── Children buses (drawn under cards) ──
   const edgeG = root.append('g').attr('class', 'family-edges');
   const pathD = (pts: ReadonlyArray<{ x: number; y: number }>): string =>

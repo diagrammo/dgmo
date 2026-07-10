@@ -158,6 +158,22 @@ A + B
 A + B
   C`);
     expect(svg.querySelector('.family-generations')).toBeNull();
+    expect(svg.querySelector('.family-generation-bands')).toBeNull();
+  });
+
+  it('shades alternating generations with subtle zebra bands, behind everything', () => {
+    const svg = render(`family
+generations
+A + B
+  C + D
+    E + F
+      G`);
+    const bands = svg.querySelectorAll('.family-generation-bands rect');
+    expect(bands.length).toBe(2); // 4 rows → every other → 2 bands
+    const root = svg.querySelector('g[transform*="scale"]')!;
+    expect(root.children[0]!.getAttribute('class')).toBe(
+      'family-generation-bands'
+    );
   });
 });
 
