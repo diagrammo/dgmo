@@ -64,6 +64,27 @@ Alice + Bob m: 1980 divorced
   });
 });
 
+// ── 1b. Adoption trailing token (regression) ────────────────
+describe('family — adopted token AFTER metadata (spec §32.5)', () => {
+  it('strips a trailing `adopted` even when it follows metadata values', () => {
+    const p = parseFamily(`family
+Anne + Bob
+  Pearl b: 1715, sex: f, occupation: Cartographer adopted`);
+    const pearl = p.persons.get('pearl')!;
+    expect(pearl.metadata['occupation']).toBe('Cartographer'); // not "Cartographer adopted"
+    expect(pearl.sex).toBe('f');
+    expect(p.unions[0]!.children[0]!.adopted).toBe(true);
+  });
+
+  it('still handles the leading form `Name adopted, meta`', () => {
+    const p = parseFamily(`family
+Anne + Bob
+  Kit adopted, sex: m`);
+    expect(p.unions[0]!.children[0]!.adopted).toBe(true);
+    expect(p.persons.get('kit')!.sex).toBe('m');
+  });
+});
+
 // ── 2. Deceased marker ──────────────────────────────────────
 describe('family — deceased dagger (derived from `d:`)', () => {
   it('prefixes a dagger on a person with a death year, not on the living', () => {

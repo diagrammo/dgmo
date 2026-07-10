@@ -296,13 +296,27 @@ export function parseFamily(
     lineNum: number,
     allowAdopted: boolean
   ): { person: MutablePerson; adopted: boolean } => {
+    let adopted = false;
+    let seg = segment;
+    // A child line may END in a bare `adopted` token AFTER its metadata
+    // (`Ned b: 1705, sex: m adopted`, spec §32.5). Peel it off the whole segment
+    // BEFORE splitNameAndMeta — otherwise it is swallowed into the last metadata
+    // value (occupation/sex) and never registers. The name-region peel below
+    // still handles the leading form (`Anna adopted, sex: f`).
+    if (allowAdopted) {
+      const toks = tokenizeQuoteAware(seg);
+      if (toks.length >= 2 && toks[toks.length - 1] === 'adopted') {
+        adopted = true;
+        seg = toks.slice(0, -1).join(' ');
+      }
+    }
     const {
       name,
       meta,
       color: rawColor,
       alias,
     } = splitNameAndMeta(
-      segment,
+      seg,
       personRegistry,
       metaAliasMap,
       palette,
@@ -311,7 +325,6 @@ export function parseFamily(
     );
     let cleanName = name.replace(/,\s*$/, '').trim();
     let color = rawColor;
-    let adopted = false;
     if (allowAdopted) {
       const toks = tokenizeQuoteAware(cleanName);
       if (
