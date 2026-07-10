@@ -52,8 +52,12 @@ export interface NodeCardOptions {
   strokeWidth: number;
   /** Dashed border (e.g. org `isContainer`); uses the `'6 3'` convention pattern. */
   dashed?: boolean;
-  /** Label text. */
+  /** Label text (single line). Used when `labelLines` is not supplied. */
   label: string;
+  /** Pre-wrapped label lines. When supplied with 2+ entries the header label is
+   *  drawn multi-line (centered in the header band); a single entry / omitted
+   *  falls back to the one-line `label` path. */
+  labelLines?: readonly string[];
   /** Resolved label color (also used for metadata text). */
   labelColor: string;
   /** Scaled label font size. */
@@ -84,15 +88,36 @@ export function renderNodeCard(container: D3Sel, opts: NodeCardOptions): void {
     rect.attr('stroke-dasharray', '6 3');
   }
 
-  container
-    .append('text')
-    .attr('x', opts.width / 2)
-    .attr('y', opts.headerHeight / 2 + opts.labelFontSize / 2 - 2)
-    .attr('text-anchor', 'middle')
-    .attr('fill', opts.labelColor)
-    .attr('font-size', opts.labelFontSize)
-    .attr('font-weight', 'bold')
-    .text(opts.label);
+  const labelLines = opts.labelLines;
+  if (labelLines && labelLines.length > 1) {
+    // Multi-line title: stack lines centered on the header band's mid-line.
+    const lineH = opts.labelFontSize * 1.2;
+    const midY = opts.headerHeight / 2;
+    const startY = midY - ((labelLines.length - 1) * lineH) / 2;
+    for (let li = 0; li < labelLines.length; li++) {
+      container
+        .append('text')
+        .attr('x', opts.width / 2)
+        .attr('y', startY + li * lineH)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('fill', opts.labelColor)
+        .attr('font-size', opts.labelFontSize)
+        .attr('font-weight', 'bold')
+        // In-bounds by loop guard.
+        .text(labelLines[li]!);
+    }
+  } else {
+    container
+      .append('text')
+      .attr('x', opts.width / 2)
+      .attr('y', opts.headerHeight / 2 + opts.labelFontSize / 2 - 2)
+      .attr('text-anchor', 'middle')
+      .attr('fill', opts.labelColor)
+      .attr('font-size', opts.labelFontSize)
+      .attr('font-weight', 'bold')
+      .text(labelLines?.[0] ?? opts.label);
+  }
 
   const meta = opts.meta;
   if (!meta || meta.rows.length === 0) return;
