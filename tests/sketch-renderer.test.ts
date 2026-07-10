@@ -266,6 +266,36 @@ describe('sketch renderer — edges', () => {
     expect(inside).toBe(0);
   });
 
+  it('places a rerouted edge`s label clear of every shape', () => {
+    // The Net→Top edge detours around the box; its label must sit on the ARC
+    // midpoint (out in the bulge), not the endpoint average (which lands on the
+    // box / sibling it routed past).
+    const src =
+      'sketch\n' +
+      'Net as net at: 0 6\n  -binds-> top\n' +
+      '[Hold] at: 0 0\n' +
+      '  Top as top at: 0 0\n' +
+      '  Bot as bot at: 0 3\n';
+    const layout = layoutSketch(parseSketch(src, P));
+    const idOf = (label: string) =>
+      layout.nodes.find((n) => n.label === label)!.id;
+    const geom = sketchEdgeGeometry(layout).find(
+      (g) => g?.sourceId === idOf('Net') && g?.targetId === idOf('Top')
+    )!;
+    const rects = [
+      ...layout.nodes.map((n) => ({ x: n.x, y: n.y, w: n.w, h: n.h })),
+      ...layout.boxes.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h })),
+    ];
+    const inside = rects.some(
+      (r) =>
+        geom.mid.x > r.x &&
+        geom.mid.x < r.x + r.w &&
+        geom.mid.y > r.y &&
+        geom.mid.y < r.y + r.h
+    );
+    expect(inside).toBe(false);
+  });
+
   it('picks the side that avoids crossing another edge', () => {
     // Mirrors the twin-holds case: a bottom-right node links to the TOP child of
     // a group, while a bottom-left node links to the BOTTOM child of the same

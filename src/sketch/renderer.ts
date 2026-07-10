@@ -263,7 +263,40 @@ export function renderSketch(
   const legendGroups: readonly LegendGroupData[] = parsed.options.noLegend
     ? []
     : tagGroups;
-  const contentWidth = layout.width + 2 * DIAGRAM_PADDING;
+  // Route edges up front (same pure pipeline the app drag-preview + the edge
+  // layer below use) so the diagram bounds can grow to CONTAIN them: a reroute
+  // that bulges outside the node/box footprint — and its on-line label — must
+  // stay on-canvas, not clip at the frame edge.
+  const edgeGeom = sketchEdgeGeometry(layout);
+  let minX = 0;
+  let minY = 0;
+  let maxX = layout.width;
+  let maxY = layout.height;
+  for (let i = 0; i < edgeGeom.length; i++) {
+    const g = edgeGeom[i];
+    if (!g) continue;
+    const nums = (g.d.match(/-?[\d.]+/g) ?? []).map(Number);
+    for (let k = 0; k + 1 < nums.length; k += 2) {
+      minX = Math.min(minX, nums[k]!);
+      maxX = Math.max(maxX, nums[k]!);
+      minY = Math.min(minY, nums[k + 1]!);
+      maxY = Math.max(maxY, nums[k + 1]!);
+    }
+    const label = layout.edges[i]?.label;
+    if (label) {
+      const hw = measureText(label, EDGE_LABEL_FONT_SIZE) / 2 + 6;
+      const hh = EDGE_LABEL_FONT_SIZE / 2 + 4;
+      minX = Math.min(minX, g.mid.x - hw);
+      maxX = Math.max(maxX, g.mid.x + hw);
+      minY = Math.min(minY, g.mid.y - hh);
+      maxY = Math.max(maxY, g.mid.y + hh);
+    }
+  }
+  const extraLeft = Math.max(0, -minX);
+  const extraTop = Math.max(0, -minY);
+  const boundW = maxX + extraLeft;
+
+  const contentWidth = boundW + 2 * DIAGRAM_PADDING;
   const width = Math.max(contentWidth, options.exportDims?.width ?? 0);
   const legendHeight =
     legendGroups.length > 0
@@ -276,9 +309,9 @@ export function renderSketch(
           width
         )
       : 0;
-  const contentTop = titleOffset + legendHeight + DIAGRAM_PADDING;
+  const contentTop = titleOffset + legendHeight + DIAGRAM_PADDING + extraTop;
   const height = Math.max(
-    contentTop + layout.height + DIAGRAM_PADDING,
+    contentTop + maxY + DIAGRAM_PADDING,
     options.exportDims?.height ?? 0
   );
 
@@ -372,7 +405,10 @@ export function renderSketch(
   }
 
   // ── Content root (centers narrow content when exportDims pad us out) ──
-  const contentX = DIAGRAM_PADDING + Math.max(0, (width - contentWidth) / 2);
+  // extraLeft shifts local coords right so an edge bulging to negative x lands
+  // inside the frame rather than clipping past the left edge.
+  const contentX =
+    DIAGRAM_PADDING + extraLeft + Math.max(0, (width - contentWidth) / 2);
   const root = svg
     .append('g')
     .attr('class', 'sk-root')
@@ -385,9 +421,8 @@ export function renderSketch(
   }
 
   // ── Edges ───────────────────────────────────────────────────
-  // Same pipeline the app`s live-drag preview uses (sketchEdgeGeometry), so a
-  // dragged edge previews exactly as it commits.
-  const edgeGeom = sketchEdgeGeometry(layout);
+  // `edgeGeom` was computed above (same pipeline the app`s live-drag preview
+  // uses) so a dragged edge previews exactly as it commits.
   const edgeLayer = root.append('g').attr('class', 'sk-edges');
   const labelLayerData: Array<{
     x: number;
@@ -890,10 +925,15 @@ function edgePath(
   const h1 = { x: p1.x + n1.x * k, y: p1.y + n1.y * k };
   return {
     d: `M ${p0.x} ${p0.y} C ${h0.x} ${h0.y}, ${h1.x} ${h1.y}, ${p1.x} ${p1.y}`,
-    // Centered ON the line (no vertical offset): the opaque label halo masks
-    // the segment behind it cleanly, so the label reads as sitting on the line
-    // rather than floating awkwardly just above it.
-    mid: { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 },
+    // Centered ON the line at its ARC midpoint (t=0.5 on the cubic), not the
+    // endpoint average: for a straight edge the two coincide, but for a curve
+    // that bulges out to route around a shape the arc midpoint sits at the
+    // bulge apex — in open space — while the endpoint average would land on the
+    // very shape the edge detoured past. The opaque halo masks the line behind.
+    mid: {
+      x: 0.125 * p0.x + 0.375 * h0.x + 0.375 * h1.x + 0.125 * p1.x,
+      y: 0.125 * p0.y + 0.375 * h0.y + 0.375 * h1.y + 0.125 * p1.y,
+    },
     p0,
     h0,
     h1,
