@@ -51,6 +51,7 @@ import type {
   ParsedFamily,
   FamilyLayoutResult,
   FamilyLayoutNode,
+  FamilyChildEdge,
 } from './types';
 
 type D3Svg = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
@@ -241,32 +242,44 @@ export function renderFamilyForExport(
   const edgeG = root.append('g').attr('class', 'family-edges');
   const pathD = (pts: ReadonlyArray<{ x: number; y: number }>): string =>
     pts.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join(' ');
+  const line = (
+    pts: ReadonlyArray<{ x: number; y: number }>,
+    dashed: boolean,
+    dimmed: boolean
+  ): void => {
+    edgeG
+      .append('path')
+      .attr('d', pathD(pts))
+      .attr('fill', 'none')
+      .attr('stroke', palette.textMuted)
+      .attr('stroke-width', EDGE_STROKE_WIDTH)
+      .attr('stroke-dasharray', dashed ? '6 3' : null)
+      .attr('stroke-opacity', dimmed ? DIM_OPACITY : null);
+  };
+  // Group child edges by union so a union's shared bus TRUNK is drawn ONCE. The
+  // trunk is dashed only when EVERY child is adopted (all-adopted union → fully
+  // dotted bus); if any bio child shares the trunk it stays solid, and only each
+  // adopted child's own branch (horizontal run + drop) is dashed — otherwise a
+  // dashed trunk overlaps the bio child's solid trunk as a bumpy solid line.
+  const byUnion = new Map<string, FamilyChildEdge[]>();
   for (const e of layout.edges) {
-    const op = e.dimmed ? DIM_OPACITY : null;
-    const line = (
-      pts: ReadonlyArray<{ x: number; y: number }>,
-      dashed: boolean
-    ): void => {
-      edgeG
-        .append('path')
-        .attr('d', pathD(pts))
-        .attr('fill', 'none')
-        .attr('stroke', palette.textMuted)
-        .attr('stroke-width', EDGE_STROKE_WIDTH)
-        .attr('stroke-dasharray', dashed ? '6 3' : null)
-        .attr('stroke-opacity', op);
-    };
-    if (e.adopted && e.points.length > 2) {
-      // The first segment is the bus TRUNK, shared with (and overlapping) a
-      // solid sibling's trunk — dashing it there reads as a bumpy solid line.
-      // Keep the trunk solid; dash only this child's own branch (the horizontal
-      // run + drop) to mark adoption.
-      line(e.points.slice(0, 2), false);
-      line(e.points.slice(1), true);
+    (byUnion.get(e.unionId) ?? byUnion.set(e.unionId, []).get(e.unionId)!).push(
+      e
+    );
+  }
+  for (const group of byUnion.values()) {
+    const first = group[0]!;
+    const allAdopted = group.every((e) => e.adopted);
+    const trunkDimmed = group.every((e) => e.dimmed);
+    if (first.points.length > 2) {
+      // Shared trunk (anchor → the bus row), drawn once for the union.
+      line(first.points.slice(0, 2), allAdopted, trunkDimmed);
+      for (const e of group) line(e.points.slice(1), e.adopted, !!e.dimmed);
     } else {
-      line(e.points, e.adopted);
+      for (const e of group) line(e.points, e.adopted, !!e.dimmed);
     }
-    if (e.adopted) {
+    for (const e of group) {
+      if (!e.adopted) continue;
       // Italic `adopted` label near the child drop.
       const last = e.points[e.points.length - 1]!;
       const prev = e.points[e.points.length - 2] ?? last;
