@@ -813,6 +813,16 @@ function assignEdgeSides(
   return out;
 }
 
+type Pt = { x: number; y: number };
+interface EdgeGeom {
+  d: string;
+  mid: Pt;
+  p0: Pt;
+  h0: Pt;
+  h1: Pt;
+  p1: Pt;
+}
+
 function edgePath(
   source: Rect,
   target: Rect,
@@ -820,7 +830,7 @@ function edgePath(
   tSide: Side,
   sourcePorts?: Ports,
   targetPorts?: Ports
-): { d: string; mid: { x: number; y: number } } {
+): EdgeGeom {
   const acx = source.x + source.w / 2;
   const acy = source.y + source.h / 2;
   const bcx = target.x + target.w / 2;
@@ -884,7 +894,54 @@ function edgePath(
     // the segment behind it cleanly, so the label reads as sitting on the line
     // rather than floating awkwardly just above it.
     mid: { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 },
+    p0,
+    h0,
+    h1,
+    p1,
   };
+}
+
+const SIDES: readonly Side[] = ['T', 'B', 'L', 'R'];
+
+/** Point on a cubic Bézier at parameter t. */
+function cubicAt(g: EdgeGeom, t: number): Pt {
+  const u = 1 - t;
+  const a = u * u * u;
+  const b = 3 * u * u * t;
+  const c = 3 * u * t * t;
+  const dd = t * t * t;
+  return {
+    x: a * g.p0.x + b * g.h0.x + c * g.h1.x + dd * g.p1.x,
+    y: a * g.p0.y + b * g.h0.y + c * g.h1.y + dd * g.p1.y,
+  };
+}
+
+/**
+ * How many sampled points of a cubic fall INSIDE any obstacle rect (shrunk by
+ * `inset` so a curve grazing a neighbour's edge doesn't count). The endpoints'
+ * own boxes/nodes are pre-excluded by the caller; a positive count means the
+ * line visibly cuts through an unrelated shape.
+ */
+const EDGE_OBSTACLE_INSET = 6;
+const EDGE_SAMPLES = 24;
+function pathCrossings(g: EdgeGeom, obstacles: readonly Rect[]): number {
+  if (obstacles.length === 0) return 0;
+  let hits = 0;
+  // Skip the very ends (t≈0/1) — those sit on the endpoint shapes by design.
+  for (let i = 1; i < EDGE_SAMPLES; i++) {
+    const p = cubicAt(g, i / EDGE_SAMPLES);
+    for (const r of obstacles) {
+      const x0 = r.x + EDGE_OBSTACLE_INSET;
+      const y0 = r.y + EDGE_OBSTACLE_INSET;
+      const x1 = r.x + r.w - EDGE_OBSTACLE_INSET;
+      const y1 = r.y + r.h - EDGE_OBSTACLE_INSET;
+      if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) {
+        hits++;
+        break;
+      }
+    }
+  }
+  return hits;
 }
 
 export interface SketchEdgeGeometry {
@@ -927,20 +984,86 @@ export function sketchEdgeGeometry(
     portsById.set(box.id, { ys, xs });
   }
   const sides = assignEdgeSides(layout.edges, rectById);
+
+  // Obstacle set for around-routing: every node/box rect, tagged by id. An edge
+  // excludes its two endpoints AND the box each endpoint lives in (a line
+  // legitimately enters its own group), but NOT sibling children — those are
+  // exactly the shapes an edge must not cut through to reach a stacked sibling.
+  const boxIdByLabel = new Map<string, string>();
+  for (const b of layout.boxes) boxIdByLabel.set(b.label, b.id);
+  const boxOf = (id: string): string | undefined => {
+    const n = layout.nodes.find((m) => m.id === id);
+    return n?.boxLabel ? boxIdByLabel.get(n.boxLabel) : undefined;
+  };
+  const obstacles: Array<{ id: string; rect: Rect }> = [];
+  for (const [id, rect] of rectById) obstacles.push({ id, rect });
+
+  // Deviation cost of a side pair: 0 when both normals point straight at the
+  // other endpoint, rising as they turn away — the tie-breaker that keeps a
+  // reroute as close to the natural (facing) attachment as clearance allows.
+  const normalOf = (s: Side): Pt =>
+    s === 'L'
+      ? { x: -1, y: 0 }
+      : s === 'R'
+        ? { x: 1, y: 0 }
+        : s === 'T'
+          ? { x: 0, y: -1 }
+          : { x: 0, y: 1 };
+  const facingCost = (from: Rect, to: Rect, side: Side): number => {
+    const dx = to.x + to.w / 2 - (from.x + from.w / 2);
+    const dy = to.y + to.h / 2 - (from.y + from.h / 2);
+    const len = Math.hypot(dx, dy) || 1;
+    const n = normalOf(side);
+    return 1 - (n.x * dx + n.y * dy) / len; // 0 (facing) … 2 (opposed)
+  };
+
   return layout.edges.map((edge, i) => {
     const source = rectById.get(edge.sourceId);
     const target = rectById.get(edge.targetId);
     if (!source || !target) return null;
-    const sd = sides[i] ?? { s: 'R' as Side, t: 'L' as Side };
-    const { d, mid } = edgePath(
-      source,
-      target,
-      sd.s,
-      sd.t,
-      portsById.get(edge.sourceId),
-      portsById.get(edge.targetId)
+    const sPorts = portsById.get(edge.sourceId);
+    const tPorts = portsById.get(edge.targetId);
+    const exclude = new Set(
+      [
+        edge.sourceId,
+        edge.targetId,
+        boxOf(edge.sourceId),
+        boxOf(edge.targetId),
+      ].filter((x): x is string => x !== undefined)
     );
-    return { sourceId: edge.sourceId, targetId: edge.targetId, d, mid };
+    const relevant = obstacles
+      .filter((o) => !exclude.has(o.id))
+      .map((o) => o.rect);
+
+    const sd = sides[i] ?? { s: 'R' as Side, t: 'L' as Side };
+    let best = edgePath(source, target, sd.s, sd.t, sPorts, tPorts);
+    // Only search when the assigned sides actually cut through a shape — a clear
+    // path keeps its congestion-aware side assignment untouched.
+    if (pathCrossings(best, relevant) > 0) {
+      let bestScore =
+        pathCrossings(best, relevant) * 100 +
+        facingCost(source, target, sd.s) +
+        facingCost(target, source, sd.t);
+      for (const s of SIDES) {
+        for (const t of SIDES) {
+          const g = edgePath(source, target, s, t, sPorts, tPorts);
+          const score =
+            pathCrossings(g, relevant) * 100 +
+            facingCost(source, target, s) +
+            facingCost(target, source, t);
+          if (score < bestScore) {
+            bestScore = score;
+            best = g;
+          }
+        }
+      }
+    }
+    return {
+      sourceId: edge.sourceId,
+      targetId: edge.targetId,
+      d: best.d,
+      mid: best.mid,
+    };
   });
 }
 

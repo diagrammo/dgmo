@@ -5,7 +5,7 @@ import { mix, shapeFill } from '../src/palettes/color-utils';
 import { SKETCH_FOOT_H, SKETCH_HALF_SLOT_Y } from '../src/sketch/geometry';
 import { layoutSketch } from '../src/sketch/layout';
 import { parseSketch } from '../src/sketch/parser';
-import { renderSketch } from '../src/sketch/renderer';
+import { renderSketch, sketchEdgeGeometry } from '../src/sketch/renderer';
 
 const P = getPalette('nord').light;
 
@@ -202,6 +202,68 @@ describe('sketch renderer — edges', () => {
     const label = svg.querySelector('.sk-edge-label')!;
     expect(label.querySelector('rect')).not.toBeNull();
     expect(label.textContent).toBe('haul');
+  });
+
+  it('routes an edge AROUND a stacked sibling instead of through it', () => {
+    // A shape below a group links to the group`s TOP child. The natural
+    // straight attachment would enter the box from the bottom and cut through
+    // the BOTTOM sibling to reach the top one — obstacle avoidance must reroute
+    // it (here: enter the top child from a clear side).
+    const src =
+      'sketch\n' +
+      'Net as net at: 0 6\n  -binds-> top\n' +
+      '[Hold] at: 0 0\n' +
+      '  Top as top at: 0 0\n' +
+      '  Bot as bot at: 0 3\n';
+    const parsed = parseSketch(src, P);
+    const layout = layoutSketch(parsed);
+    const idOf = (label: string) =>
+      layout.nodes.find((n) => n.label === label)!.id;
+    const [netId, topId, botId] = [idOf('Net'), idOf('Top'), idOf('Bot')];
+    const geom = sketchEdgeGeometry(layout).find(
+      (g) => g?.sourceId === netId && g?.targetId === topId
+    )!;
+    expect(geom).toBeTruthy();
+
+    // Sample the cubic and assert no point lands inside the sibling `bot` rect.
+    const m =
+      /^M\s+([-\d.]+)\s+([-\d.]+)\s+C\s+([-\d.]+)\s+([-\d.]+),\s+([-\d.]+)\s+([-\d.]+),\s+([-\d.]+)\s+([-\d.]+)/.exec(
+        geom.d
+      )!;
+    const [x0, y0, cx0, cy0, cx1, cy1, x1, y1] = m.slice(1).map(Number) as [
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+    ];
+    const bot = layout.nodes.find((n) => n.id === botId)!;
+    let inside = 0;
+    for (let i = 0; i <= 40; i++) {
+      const t = i / 40;
+      const u = 1 - t;
+      const px =
+        u * u * u * x0 +
+        3 * u * u * t * cx0 +
+        3 * u * t * t * cx1 +
+        t * t * t * x1;
+      const py =
+        u * u * u * y0 +
+        3 * u * u * t * cy0 +
+        3 * u * t * t * cy1 +
+        t * t * t * y1;
+      if (
+        px > bot.x + 6 &&
+        px < bot.x + bot.w - 6 &&
+        py > bot.y + 6 &&
+        py < bot.y + bot.h - 6
+      )
+        inside++;
+    }
+    expect(inside).toBe(0);
   });
 });
 
