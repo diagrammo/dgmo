@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-07-10
+
+### Added
+- **New `body` anatomy chart type.** Render the human body — male or female, front or back — with individually colorable muscle groups over a skin layer, for fitness, medical, and educational diagrams.
+- **New `sketch` chart type.** Freeform org-style node cards (header rule + tag rows), group containers, and edges that snap to discrete ports and attach at facing-side midpoints; supports indented `>` markdown shape descriptions, a `no-descriptions` directive, and neutral edges that only take color from their own tag.
+- **Family charts gain a full presentation batch.** Divorce lines, a deceased marker, child sorting, generation grouping, a `?` placeholder for unknown people, and lineage highlighting that dims everyone outside the highlighted bloodline.
+- **Family generations now zebra-shade under `generations`.** Alternating generations get two rounded gray bands (matching the kanban/RACI row-band convention) so the tree reads rank by rank.
+- **`no-daggers` option for family charts** hides the deceased marker for audiences where the dagger reads as morbid.
+- **Solid-fill directive support for line and event-line charts.**
+- **Full-screen expand button on the standard embed block toolbar**, so any embedded diagram can be opened edge-to-edge.
+- **Map POI references resolve by display label** (e.g. reference a city by its name), erroring clearly when a label is ambiguous.
+- **Heatmap axis labels are interactive** — hover to emphasize a row or column, click to pin the highlight — and cell value labels now scale to fill their cell.
+- **Funnel charts show conversion percentages** with colored side labels and a `no-percent` opt-out.
+- **Scatter charts size bubbles by area** (with a pane-fit budget) and highlight a bubble, its label, and leader line on hover.
+- **Pie and treemap label polish** — pie highlights a segment's label and leader on hover; treemap sunburst gains two-line tonal labels and a wide-segment fix.
+- **Arc diagrams gain group-aware coloring, collision-safe labels, and a vertical orientation.**
+
+### Changed
+- **Funnel charts redesigned** — contiguous bands with values centered inside each band, larger colored side labels, and a responsive layout so labels never clip at any pane size (no more leader lines).
+- **Flowchart branches now render in source-definition order** rather than a reordered layout.
+- **Infrastructure edges can now target a `[Group]` container** directly (#29).
+
+### Fixed
+- **Family chart connector cleanup** — marriage bars connect through the name-header center at a uniform height, a union's shared bus trunk dashes only when all children are adopted (and stays solid for a single adopted child), the `?` placeholder gets a solid border with a fainter fill instead of a dash, edges are occluded behind dimmed cards during lineage highlight, and a stray trailing `adopted` token after metadata is stripped.
+- **Sketch rendering fixes** — collapsed group cards styled like a plain node, opaque edge-label halos so lines don't fade behind labels, edge labels centered on the line, type badges visible in solid-fill mode, and description text using the label color.
+- **Invalid embed blocks now render the standard error card** instead of a blank box.
+- **Solid-fill legibility improved on grouped arc bands and nested blocks.**
+- **Radar and pie sizing fixes** so labels and radius survive a narrow canvas (radar value labels sit outside the web with per-series color).
+- **The CLI resolves the bundled MCP server by absolute path** rather than relying on `PATH`.
+
 ## [0.48.2] - 2026-07-06
 
 ### Fixed

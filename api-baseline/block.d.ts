@@ -29,11 +29,13 @@ declare const BLOCK_CSS: string;
  *
  * Chrome contract (user-approved 2026-07-05): the diagram is the star. A slim
  * icon toolbar sits in a reserved row below the SVG, invisible until the
- * block is hovered/focused or the source is open. Three wordless icon
- * buttons — `</>` toggles the hidden source panel, copy, open-in-editor. No
- * disclosure triangle, no text labels. The toolbar IS the <summary> of a
- * native <details>, so show/hide works with zero JavaScript; copy needs a
- * small delegated click handler (remark-dgmo's `bindDgmo` is the reference).
+ * block is hovered/focused or the source is open. Four wordless icon
+ * buttons — `</>` toggles the hidden source panel, expand (full-screen),
+ * copy, open-in-editor. No disclosure triangle, no text labels. The toolbar
+ * IS the <summary> of a native <details>, so show/hide works with zero
+ * JavaScript; copy and expand need a small delegated click handler
+ * (remark-dgmo's `bindDgmo` is the reference — expand's lightbox helper is
+ * mirrored across every client surface, same as copy).
  *
  * Markup vocabulary: `figure.dgmo` (`--diagram`/`--showcase`/`--error`),
  * `.dgmo-light`/`.dgmo-dark` (dual color-mode) or `.dgmo-svg` (single),
@@ -64,6 +66,12 @@ interface DgmoBlockOptions {
     showSource?: boolean;
     /** Default: true in showcase mode, false in diagram mode. */
     showCopy?: boolean;
+    /**
+     * Show the expand (full-screen) toolbar button. Default: true in showcase
+     * mode, false in diagram mode. Needs the client lightbox handler to do
+     * anything (mirrored across surfaces); markup-only surfaces can omit it.
+     */
+    showExpand?: boolean;
     /** Default: true in showcase mode, false in diagram mode. */
     showOpenInEditor?: boolean;
     /** Base URL for the open-in-editor link. Default: online.diagrammo.app. */

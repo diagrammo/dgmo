@@ -96,7 +96,11 @@ declare function getDiagnosticSpec(code: string): DiagnosticSpec | undefined;
 
 interface RenderOptions {
     theme?: Theme;
-    palette?: PaletteConfig;
+    /**
+     * A `PaletteConfig` (e.g. `palettes.catppuccin`) or a palette id string
+     * (e.g. `'catppuccin'`). Unknown ids fall back to the default palette.
+     */
+    palette?: PaletteConfig | string;
     /**
      * How to handle parse errors:
      *   'svg'    — render an inline error SVG (default)

@@ -2133,6 +2133,208 @@ interface BLCollapseResult {
  */
 declare function collapseBoxesAndLines(parsed: ParsedBoxesAndLines, collapsedGroups: Set<string>): BLCollapseResult;
 
+/** Closed shape lexicon — rectangle is the default and never written. */
+declare const SKETCH_SHAPE_KINDS: readonly ["rectangle", "database", "queue", "person", "document", "note"];
+type SketchShapeKind = (typeof SKETCH_SHAPE_KINDS)[number];
+/** Half-slot lattice position (spec §31.3). Box children are box-relative. */
+interface SketchAt {
+    readonly c: number;
+    readonly r: number;
+}
+interface SketchNode {
+    /** Synthetic stable id (parse-order); use alias/label indexes to resolve. */
+    readonly id: string;
+    readonly label: string;
+    readonly alias?: string;
+    readonly shape: SketchShapeKind;
+    /** null → flow auto-place at layout */
+    readonly at: SketchAt | null;
+    /** tag metadata only (shape/at/alias are lifted out) */
+    readonly metadata: Record<string, string>;
+    /** Free-text markdown description (indented `>` lines under the shape).
+     *  Newline-joined; a small markdown subset renders in the card body. */
+    readonly description?: string;
+    /** owning box label (undefined = root) */
+    readonly boxLabel?: string;
+    readonly lineNumber: number;
+}
+type SketchEdgeHeads = 'one' | 'both' | 'none';
+interface SketchEdge {
+    readonly sourceId: string;
+    readonly targetId: string;
+    readonly label?: string;
+    readonly heads: SketchEdgeHeads;
+    /** dashed = "secondary", NOT async (spec §31.4 divergence note) */
+    readonly dashed: boolean;
+    readonly metadata: Record<string, string>;
+    readonly lineNumber: number;
+}
+interface SketchBox {
+    /** `[<normalized label>]` — the infra group-id scheme */
+    readonly id: string;
+    readonly label: string;
+    readonly alias?: string;
+    readonly at: SketchAt | null;
+    readonly metadata: Record<string, string>;
+    readonly collapsed: boolean;
+    /** child node ids, declaration order */
+    readonly children: readonly string[];
+    readonly lineNumber: number;
+}
+interface SketchOptions {
+    readonly noLegend: boolean;
+    readonly solidFill: boolean;
+    /** `no-descriptions` directive (mindmap `hd` standard): hide the card
+     *  metadata rows so each card is just its name. */
+    readonly noDescriptions: boolean;
+}
+interface ParsedSketch {
+    readonly type: 'sketch';
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly nodes: readonly SketchNode[];
+    readonly edges: readonly SketchEdge[];
+    readonly boxes: readonly SketchBox[];
+    readonly tagGroups: readonly TagGroup[];
+    readonly options: SketchOptions;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
+}
+declare function isSketchShapeKind(value: string): value is SketchShapeKind;
+
+declare function parseSketch(content: string, palette?: PaletteColors): ParsedSketch;
+
+interface SketchLayoutNode {
+    readonly id: string;
+    readonly label: string;
+    readonly shape: SketchShapeKind;
+    readonly metadata: Record<string, string>;
+    readonly description?: string;
+    readonly boxLabel?: string;
+    readonly lineNumber: number;
+    /** resolved ABSOLUTE half-slot origin */
+    readonly slot: {
+        c: number;
+        r: number;
+    };
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly h: number;
+    /** set when this card is a folded box (draws the collapse-bar) */
+    readonly isCollapsedBox?: boolean;
+    readonly childCount?: number;
+}
+interface SketchLayoutBox {
+    readonly id: string;
+    readonly label: string;
+    readonly metadata: Record<string, string>;
+    readonly lineNumber: number;
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly h: number;
+    readonly bandH: number;
+}
+interface SketchLayout {
+    readonly nodes: readonly SketchLayoutNode[];
+    readonly boxes: readonly SketchLayoutBox[];
+    readonly edges: readonly SketchEdge[];
+    readonly width: number;
+    readonly height: number;
+    /** layout-time warnings (overlap auto-resolution) */
+    readonly diagnostics: readonly DgmoError[];
+}
+interface SketchLayoutOptions {
+    /** Box labels to fold; defaults to the authored `collapsed` flags. */
+    readonly collapsedBoxes?: ReadonlySet<string>;
+}
+declare function layoutSketch(parsed: Pick<ParsedSketch, 'nodes' | 'edges' | 'boxes'>, options?: SketchLayoutOptions): SketchLayout;
+
+interface SketchRenderOptions {
+    exportDims?: {
+        width?: number;
+        height?: number;
+    };
+    activeTagGroup?: string | null;
+    exportMode?: boolean;
+    onClickItem?: (lineNumber: number) => void;
+    /** View-state `hd` (hide descriptions): drop the metadata rows so each card
+     *  is just its header/name — the standard mindmap toggle, shelf-driven. */
+    hideDescriptions?: boolean;
+}
+declare function renderSketch(container: HTMLDivElement, parsed: ParsedSketch, layout: SketchLayout, palette: PaletteColors, isDark: boolean, options?: SketchRenderOptions): void;
+/** Export wrapper — the b&l precedent (thin spread). */
+declare function renderSketchForExport(container: HTMLDivElement, parsed: ParsedSketch, layout: SketchLayout, palette: PaletteColors, isDark: boolean, options?: {
+    exportDims?: {
+        width: number;
+        height: number;
+    };
+    activeTagGroup?: string | null;
+    exportMode?: boolean;
+    hideDescriptions?: boolean;
+}): void;
+
+interface SketchCollapseResult {
+    /** Visible shapes (collapsed boxes' children removed). */
+    readonly nodes: readonly SketchNode[];
+    /** Boxes still rendered as frames (the expanded ones). */
+    readonly boxes: readonly SketchBox[];
+    /** Collapsed boxes — each renders as one virtual node card. */
+    readonly virtualBoxes: readonly SketchBox[];
+    /** Edges with endpoints re-targeted to virtual boxes; deduped. */
+    readonly edges: readonly SketchEdge[];
+    /** box label → immediate child count (for the collapse-bar affordance). */
+    readonly collapsedChildCounts: ReadonlyMap<string, number>;
+}
+/**
+ * @param collapsedLabels box LABELS to fold. Defaults to the authored
+ *   `collapsed` flags; the app/viewState passes an explicit set instead
+ *   (interactive-vs-export split — options win when supplied).
+ */
+declare function collapseSketch(parsed: Pick<ParsedSketch, 'nodes' | 'edges' | 'boxes'>, collapsedLabels?: ReadonlySet<string>): SketchCollapseResult;
+
+declare const SKETCH_GEOMETRY: {
+    /** px per grid cell (the dot-grid pitch) */
+    readonly cellPx: 26;
+    /** universal footprint width, in grid cells */
+    readonly footprintCellsW: 8;
+    /** mandatory gap between footprints, in cells */
+    readonly gapCellsX: 4;
+    readonly gapCellsY: 4;
+    /** box reserved top band, px (spec decision 12) */
+    readonly bandPx: 44;
+    /** box frame padding around the children bbox, px */
+    readonly boxPadPx: 26;
+    /** edge-ring (connect hook) width as a fraction of footprint height */
+    readonly ringFrac: 0.22;
+};
+/** Footprint width, px (208 at the default cell). */
+declare const SKETCH_FOOT_W: number;
+/**
+ * Footprint height, px — the ONE universal size (spec §31.2). Every shape is a
+ * golden-ratio landscape box: height = width / φ. Uniform: every shape draws to
+ * exactly SKETCH_FOOT_W × SKETCH_FOOT_H, keeping the half-slot lattice (and the
+ * app's alignment/spacing guides that read these constants) exact. The org-card
+ * body (header + rule + ~4 rows) fits within this height.
+ */
+declare const SKETCH_FOOT_H: number;
+/** Horizontal half-slot pitch, px: (footprint + gap) / 2. */
+declare const SKETCH_HALF_SLOT_X: number;
+/** Vertical half-slot pitch, px: (footprint + gap) / 2. */
+declare const SKETCH_HALF_SLOT_Y: number;
+/**
+ * Minimum origin separation in half-slots: two shapes collide when BOTH
+ * axis deltas are < SKETCH_SEP (at exactly SEP the footprint gap equals the
+ * mandatory gap).
+ */
+declare const SKETCH_SEP = 2;
+/** Slot → px (origin of the footprint), before any canvas padding. */
+declare function sketchSlotToPx(c: number, r: number): {
+    x: number;
+    y: number;
+};
+
 interface FocusTarget {
     readonly kind: 'box' | 'group';
     /** Canonical endpoint key the parser uses for edges: a node label for a box,
@@ -2305,6 +2507,175 @@ interface SwimlaneRenderOptions {
     exportMode?: boolean;
 }
 declare function renderSwimlaneForExport(container: HTMLElement, parsed: ParsedSwimlane, layout: SwimlaneLayoutResult, palette: PaletteColors, isDark: boolean, opts?: SwimlaneRenderOptions): void;
+
+/** Recognized sex values (drives node color). `unknown` = no `sex:` key. */
+type FamilySex = 'm' | 'f' | 'unknown';
+/**
+ * A person — identity is the normalized name. Declared standalone (with full
+ * metadata) or first seen inside a union / as a child; later mentions merge
+ * into the same person. Metadata lives ONLY on person lines (never per-side on
+ * a union line — that form is unsupported).
+ */
+interface FamilyPerson {
+    /** Canonical (display) name — globally unique after name-normalization. */
+    readonly id: string;
+    readonly label: string;
+    /** Resolved from the `sex:` key (`unknown` when unset). */
+    readonly sex: FamilySex;
+    /** Fixed-key metadata in declaration order (b, d, bp, dp, occupation, …). */
+    readonly metadata: Readonly<Record<string, string>>;
+    /** Explicit trailing/inline color (raw recognized name), if any — overrides sex color. */
+    readonly color?: string;
+    /** Tag-group values applied to this person (`{ concern: 'royal' }`). */
+    readonly tagMetadata: Readonly<Record<string, string>>;
+    /** True when this person is an anonymous `?` placeholder (unmerged, muted card). */
+    readonly placeholder?: boolean;
+    readonly lineNumber: number;
+}
+/** One child of a union / single parent. */
+interface FamilyChild {
+    /** Person id of the child. */
+    readonly personId: string;
+    /** True when the child line carried the bare `adopted` token (dashed edge). */
+    readonly adopted: boolean;
+}
+/**
+ * A union — a couple (1 or 2 parents) whose children are declared indented
+ * beneath. A single parent is a union with exactly one parent. `metadata.m`
+ * holds the marriage year (there is NO separate `marriageYear` field).
+ */
+interface FamilyUnion {
+    /** Stable synthetic id (declaration order). */
+    readonly id: string;
+    /** 1–2 parent person ids. */
+    readonly parents: readonly string[];
+    /** Union-level metadata — only `m` (marriage year) is recognized. */
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly children: readonly FamilyChild[];
+    /** True when the union line carried the bare `divorced` token (dashed bar). */
+    readonly divorced?: boolean;
+    readonly lineNumber: number;
+}
+interface ParsedFamily {
+    readonly title?: string;
+    readonly titleLineNumber?: number;
+    /** Persons keyed by normalized id, in first-seen declaration order via `.values()`. */
+    readonly persons: ReadonlyMap<string, FamilyPerson>;
+    readonly unions: readonly FamilyUnion[];
+    readonly tagGroups: readonly TagGroup[];
+    readonly options: Readonly<Record<string, string>>;
+    readonly diagnostics: readonly DgmoError[];
+    /** Set (fatal) on an ancestry cycle — the renderer bails before layout. */
+    readonly error?: string | null;
+}
+/** A laid-out person card. Top-left origin (mirrors org's `LayoutNode`). */
+interface FamilyLayoutNode {
+    readonly id: string;
+    readonly label: string;
+    readonly sex: FamilySex;
+    readonly metadata: Readonly<Record<string, string>>;
+    readonly color?: string;
+    readonly tagMetadata: Readonly<Record<string, string>>;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    /** Assigned generation row (0 = top). */
+    readonly row: number;
+    /** Anonymous `?` placeholder — renderer draws a faint, solid-bordered, name-only card. */
+    readonly placeholder?: boolean;
+    /** Outside the `highlight` person's bloodline — renderer draws it faded. */
+    readonly dimmed?: boolean;
+    readonly lineNumber: number;
+}
+/** A horizontal marriage bar joining two spouse cards on one row. */
+interface FamilyMarriageBar {
+    readonly unionId: string;
+    /** Bar endpoints (always horizontal — spouses share a row). */
+    readonly x1: number;
+    readonly x2: number;
+    readonly y: number;
+    /** Midpoint (child bus drops from here). */
+    readonly midX: number;
+    /** Center of the visible gap between the cards — where the `m.` label sits
+     * (offset from midX when the two cards differ in width, so the label never
+     * tucks under the wider card). */
+    readonly labelX: number;
+    /** Marriage year (`metadata.m`), if any — drawn at the label position. */
+    readonly year?: string;
+    /** Dissolved union (`divorced` token) — renderer draws a dashed bar. */
+    readonly divorced?: boolean;
+    /** Outside the `highlight` bloodline — renderer draws it faded. */
+    readonly dimmed?: boolean;
+    readonly lineNumber: number;
+}
+/** A child drop edge (org bus-edge pattern: trunk + bar + per-child drops). */
+interface FamilyChildEdge {
+    readonly unionId: string;
+    readonly childId: string;
+    /** Polyline points from the union anchor to the child card top. */
+    readonly points: ReadonlyArray<{
+        readonly x: number;
+        readonly y: number;
+    }>;
+    /** Adopted children render a dashed drop. */
+    readonly adopted: boolean;
+    /** Outside the `highlight` bloodline — renderer draws it faded. */
+    readonly dimmed?: boolean;
+}
+/** A collapsed ancestor shown as a small labeled dot above the focused card. */
+interface FamilyAncestorDot {
+    readonly id: string;
+    readonly label: string;
+    readonly sex: FamilySex;
+    readonly color?: string;
+    readonly x: number;
+    readonly y: number;
+}
+interface FamilyLayoutResult {
+    readonly nodes: readonly FamilyLayoutNode[];
+    readonly bars: readonly FamilyMarriageBar[];
+    readonly edges: readonly FamilyChildEdge[];
+    /** Focus mode: the focused person's parents, drawn as dots above their card. */
+    readonly ancestors: readonly FamilyAncestorDot[];
+    /** Top-center of the focused card, for the ancestor-trail connector. */
+    readonly focusAnchor?: {
+        readonly x: number;
+        readonly y: number;
+    };
+    /** Per-occupied-row bands (for the `generations` gutter labels). */
+    readonly rows: readonly {
+        readonly row: number;
+        readonly y: number;
+        readonly height: number;
+    }[];
+    readonly width: number;
+    readonly height: number;
+}
+
+declare function parseFamily(content: string, palette?: PaletteColors): ParsedFamily;
+
+declare function layoutFamily(parsed: ParsedFamily, focusId?: string | null): FamilyLayoutResult;
+
+interface FamilyRenderOptions {
+    exportDims?: {
+        width: number;
+        height: number;
+    };
+    /**
+     * App-preview display size (px). When set, the diagram is scaled to fit while
+     * the title + legend stay at NATIVE size (always legible). Omit for export.
+     */
+    fit?: {
+        width: number;
+        height: number;
+    };
+    activeTagGroup?: string | null;
+    exportMode?: boolean;
+}
+declare function renderFamilyForExport(container: HTMLElement, parsed: ParsedFamily, layout: FamilyLayoutResult, palette: PaletteColors, isDark: boolean, opts?: FamilyRenderOptions): void;
+/** App-preview entry: scales the diagram to fit the container. */
+declare function renderFamily(container: HTMLElement, parsed: ParsedFamily, layout: FamilyLayoutResult, palette: PaletteColors, isDark: boolean, opts?: FamilyRenderOptions): void;
 
 interface SitemapNode {
     readonly id: string;
@@ -4273,6 +4644,8 @@ interface EventLineOptions {
     readonly noBox: boolean;
     /** True when `no-legend` — hide the tag legend. */
     readonly noLegend: boolean;
+    /** True when `solid-fill` — opaque card / shelf fill instead of the soft tint. */
+    readonly solidFill: boolean;
 }
 interface ParsedEventLine {
     readonly type: 'event-line';
@@ -4317,6 +4690,76 @@ declare function clearEventLineMuted(container: HTMLElement): void;
  */
 declare function focusEventLine(container: HTMLElement, spec: EventLineFocus | null): void;
 declare function renderEventLineForExport(container: HTMLDivElement, parsed: ParsedEventLine, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, tagOverride?: string): void;
+
+/** A named part annotation (`chest e: Primary` + bare-body notes). */
+interface BodyPart {
+    /** Canonical part name as written (label text). */
+    readonly name: string;
+    /** Tag metadata — keys are `tagAttrKey(group)` (e.g. `{ effort: 'Primary' }`). */
+    readonly metadata: Readonly<Record<string, string>>;
+    /** Bare indented body lines (markdown-light; `- ` bullets normalized). */
+    readonly notes: readonly string[];
+    readonly lineNumber: number;
+}
+type BodyView = 'front' | 'back';
+type BodySex = 'male' | 'female';
+interface BodyOptions {
+    /** Figure form: `muscle` (default) · `skin` · `skeletal` (reserved). */
+    readonly form: 'muscle' | 'skin' | 'skeletal';
+    /** `male` (default) · `female`. */
+    readonly sex: BodySex;
+    /** Requested views in declaration order — `['front']` default; both when the
+     *  diagram names `front` and `back` (rendered side by side). */
+    readonly views: readonly BodyView[];
+    /** True when `no-legend` — hide the tag legend. */
+    readonly noLegend: boolean;
+}
+interface ParsedBody {
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly options: BodyOptions;
+    readonly tagGroups: readonly TagGroup[];
+    readonly parts: readonly BodyPart[];
+    readonly diagnostics: readonly DgmoError[];
+    readonly error?: DgmoError;
+}
+/** A resolvable catalog entry: its path geometry + a baked leader anchor. */
+interface BodyPartGeometry {
+    readonly paths: readonly string[];
+    readonly anchor: {
+        readonly x: number;
+        readonly y: number;
+    };
+}
+/** One figure: silhouette + muscle geometry + catalog lookup. */
+interface BodyFigure {
+    /** SVG viewBox, e.g. `"0 0 724 1448"`. */
+    readonly viewBox: string;
+    /** True visible extent of the figure (outline + head + hair) in viewBox
+     *  coords — used to align/scale figures by real body size, not the padded
+     *  viewBox, so front/back line up exactly. */
+    readonly contentBox: {
+        readonly x: number;
+        readonly y: number;
+        readonly w: number;
+        readonly h: number;
+    };
+    /** Silhouette outline path `d`. */
+    readonly outline: string;
+    /** Every muscle path `d` (gray base fill). */
+    readonly base: readonly string[];
+    /** Head silhouette path(s) — excluded from `outline`; used by skin form. */
+    readonly headPaths: readonly string[];
+    /** Hair path(s) — drawn atop the head in skin form. */
+    readonly hairPaths: readonly string[];
+    /** Catalog: canonical name (fine or slug-group) → geometry + anchor. */
+    readonly parts: Readonly<Record<string, BodyPartGeometry>>;
+}
+
+declare function parseBody(content: string, palette?: PaletteColors): ParsedBody;
+
+declare function renderBody(container: HTMLDivElement, parsed: ParsedBody, palette: PaletteColors, _isDark: boolean, _onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions, tagOverride?: string): void;
+declare function renderBodyForExport(container: HTMLDivElement, parsed: ParsedBody, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, tagOverride?: string): void;
 
 type VCNodeKind = 'commit' | 'merge' | 'cherry';
 type VCCommitType = 'normal' | 'highlight' | 'reverse';
@@ -5716,4 +6159,4 @@ declare function parseFirstLine(line: string): {
     title: string | undefined;
 } | null;
 
-export { ALL_CHART_TYPES, ARROW_DIAGNOSTIC_CODES, type Activation, type AncestorInfo, type ArcLink, type ArcNodeGroup, type BLCollapseResult, type BLEdge, type BLGroup, type BLLayoutEdge, type BLLayoutGroup, type BLLayoutNode, type BLLayoutResult, type BLNode, type BlipTrend, type BlockCell, type BlockGrid, type BlockLayoutItem, type BlockLayoutResult, type BlockNode, type BlockOptions, type C4ArrowType, type C4DeploymentNode, type C4Element, type C4ElementType, type C4Group, type C4LayoutBoundary, type C4LayoutEdge, type C4LayoutNode, type C4LayoutResult, type C4LegendEntry, type C4LegendGroup, type C4Relationship, type C4Shape, type C4TagEntry, type C4TagGroup, type ChartDataPoint, type ChartEra, type ChartType$1 as ChartType, type ClassLayoutEdge, type ClassLayoutNode, type ClassLayoutResult, type ClassMember, type ClassModifier, type ClassNode, type ClassRelationship, type CollapsedMindmapResult, type CollapsedOrgResult, type CollapsedSitemapResult, type CollapsedView, CompactViewState, type ComputedInfraEdge, type ComputedInfraModel, type ComputedInfraNode, type ContextRelationship, type CreateMapGeoQueryOptions, type CycleEdge, type CycleLayoutEdge, type CycleLayoutNode, type CycleLayoutResult, type CycleNode, type CycleRenderOptions, type D3ExportDimensions, DgmoError, type DiagramSymbols, type Duration, type DurationUnit, type ERCardinality, type ERColumn, type ERConstraint, type ERLayoutEdge, type ERLayoutNode, type ERLayoutResult, type ERRelationship, type ERTable, type ElseIfBranch, type EventLineEra, type EventLineEvent, type EventLineFocus, type EventLineOptions, type ExpandedActivity, type ExtendedChartType, type FocusOrgResult, type FocusResult, type FocusTarget, type GanttDependency, type GanttEra, type GanttGroup, type GroupRow as GanttGroupRow, type GanttHolidays, type GanttInteractiveOptions, type LaneHeaderRow as GanttLaneHeaderRow, type GanttMarker, type GanttNode, type GanttOptions, type Row as GanttRow, type GanttTask, type TaskRow as GanttTaskRow, GeoExtent, type GetOrCreateNameResult, type GraphDirection, type GraphEdge, type GraphGroup, type GraphNode, type GraphShape, INFRA_BEHAVIOR_KEYS, INVALID_COLOR_CODE, INVALID_CSS_COLOR_HEX, type ImportSource, type InfraAvailabilityPercentiles, type InfraBehaviorKey, type InfraCbState, type InfraComputeParams, type InfraDiagnostic, type InfraEdge, type InfraGroup, type InfraLatencyPercentiles, type InfraLayoutEdge, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutResult, type InfraLegendGroup, type InfraNode, type InfraPlaybackState, type InfraProperty, type InfraRole, type InfraTagGroup, type InlineSpan, type JourneyMapAnnotation, type JourneyMapInteractiveOptions, type JourneyMapLayout, type JourneyMapPersona, type JourneyMapPhase, type JourneyMapStep, type KanbanCard, type KanbanColumn, type KanbanTagEntry, type KanbanTagGroup, LEGEND_GEAR_PILL_W, LEGEND_HEIGHT, type LayoutEdge, type LayoutGroup, type LayoutNode, type LayoutOptions$1 as LayoutOptions, type LayoutResult$1 as LayoutResult, type LegendCallbacks, type LegendConfig, type LegendControl, type LegendGroupData, type LegendHandle, type LegendLayout, type LegendMode, type LegendPalette, type LegendPosition, type LegendState, MapData, type MapExportDimensions, type MapGeoQuery, type MapLayout, type MapLayoutInset, type MapLayoutLeg, MapLayoutLegend, type MapLayoutPoi, type MapLayoutRegion, type MapLayoutStretch, type MemberVisibility, type MindmapLayoutEdge, type MindmapLayoutNode, type MindmapLayoutResult, type MindmapNode, type MonteCarloResult, type NameEntry, type NearestCity, type NodeDetail, type OrgContainerBounds, type OrgLayoutEdge, type OrgLayoutNode, type OrgLayoutResult, type OrgNode, PaletteColors, PaletteConfig, type ParseInArrowLabelResult, type ParsedBlock, type ParsedBoxesAndLines, type ParsedC4, type ParsedChart, type ParsedClassDiagram, type ParsedCycle, type ParsedERDiagram, type ParsedEventLine, type ParsedExtendedChart, type ParsedGantt, type ParsedGraph, type ParsedInfra, type ParsedJourneyMap, type ParsedKanban, ParsedMap, type ParsedMindmap, type ParsedOrg, type ParsedPert, type ParsedPyramid, type ParsedRaci, type ParsedRing, type ParsedSequenceDgmo, type ParsedSitemap, type ParsedSwimlane, type ParsedTechRadar, type ParsedTreemap, type ParsedVersionControl, type ParsedVisualization, type ParsedWireframe, type ParticipantType, type PertActivity, type Anchor as PertAnchor, type PertDirection, type PertEdge, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type LayoutOverrides as PertLayoutOverrides, type LayoutResult as PertLayoutResult, type PertMilestone, type PertOptions, type PertRenderOptions, type PlacedLabel, type ProjectedCity, type PyramidLayer, type QuadrantPosition, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, type RaciDragSource, type RaciInteractionHandlers, type RaciMarker, type RaciPhase, type RaciRoleAssignment, type RaciTask, type RaciVariant, type RadialCell, type RadialLayoutResult, type ReadFileFn, type RegionToken, type RelationshipType, type RenderStep, type ResolveImportsResult, type ResolvedActivity, type ResolvedGroup$1 as ResolvedGroup, ResolvedMap, type ResolvedPert, type ResolvedGroup as ResolvedPertGroup, type ResolvedSchedule, type ResolvedTask, type ResultCard, type ResultTokens, type RingLayer, ScaleContext, type SectionMessageGroup, type SequenceBlock, type SequenceElement, type SequenceGroup, type SequenceMessage, type SequenceNote, type SequenceParticipant, type SequenceRenderOptions, type SequenceSection, type SimulateOptions, type SitemapContainerBounds, type SitemapDirection, type SitemapEdge, type SitemapLayoutEdge, type SitemapLayoutNode, type SitemapLayoutResult, type SitemapLegendEntry, type SitemapLegendGroup, type SitemapNode, type StateCollapseResult, type SwimEdge, type SwimEvent, type SwimLane, type SwimNode, type SwimPhase, type SwimShape, type LayoutBand as SwimlaneLayoutBand, type SwimlaneLayoutResult, TagEntry, TagGroup, type TechRadarBlip, type TechRadarLayoutPoint, type TechRadarQuadrant, type TechRadarRing, type TreemapCell, type TreemapColorMode, type TreemapLayoutResult, type TreemapNode, type TreemapOptions, type VCBranch, type VCNode, type VCNote, type VCOptions, type VCRef, type VisualizationType, type WireframeElement, type WireframeElementType, type WireframeFormFactor, type WireframeLayout, type WireframeLayoutNode, addDurationToDate, albersSkewFallback, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, authoredCollapsedIds, blueprintPalette, buildNoteMessageMap, buildRenderSequence, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, clearEventLineMuted, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeTimeTicks, contrastText, controlsGroupCapsuleWidth, createMapGeoQuery, displayName, extractSymbols$2 as extractClassSymbols, extractSymbols$1 as extractErSymbols, extractSymbols$3 as extractFlowchartSymbols, extractSymbols as extractInfraSymbols, extractPertSymbols, focusBoxesAndLines, focusEventLine, focusOrgTree, formatDateLabel, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getRadarGeometry, getSeriesColors, getSimpleChartLegendGroups, groupMessagesBySection, hexToHSL, hexToHSLString, hslToHex, inferParticipantType, inferRoles, invalidColorDiagnostic, isArchiveColumn, isInvalidColorToken, isRecognizedColorName, isSequenceBlock, isSequenceNote, layoutBlock, layoutBoxesAndLines, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutSwimlane, layoutTreemap, layoutTreemapRadial, layoutWireframe, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, measurePertAnalysisBlock, mix, mulberry32, nearestNamedColor, nord, nordPalette, normalizeName, normalizePertSourceForShare, orderArcNodes, parseAndLayoutInfra, parseBlock, parseBoxesAndLines, parseC4, parseChart, parseClassDiagram, parseCycle, parseDataRowValues, parseERDiagram, parseEventLine, parseExtendedChart, parseFirstLine, parseFlowchart, parseGantt, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseMap, parseMindmap, parseOrg, parsePert, parsePyramid, parseRaci, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseState, parseSwimlane, parseTechRadar, parseTimelineDate, parseTreemap, parseVersionControl, parseVisualization, parseWireframe, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, relayoutPert, render, renderArcDiagram, renderBlock, renderBlockForExport, renderBoxesAndLines, renderBoxesAndLinesForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderEventLine, renderEventLineForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderMap, renderMapForExport, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSlopeChart, renderState, renderStateForExport, renderSwimlaneForExport, renderTechRadar, renderTechRadarForExport, renderTimeline, renderTreemap, renderTreemapForExport, renderTreemapRadial, renderTreemapRadialForExport, renderVenn, renderVersionControl, renderVersionControlForExport, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolveOrgImports, resolveTaskName, rollUpContextRelationships, sampleBetaPert, seriesColors, shade, shapeFill, simulateCanonical, simulateFast, slatePalette, tidewaterPalette, tint, tokyoNightPalette, truncateBareUrl, validateComputed, validateInfra, validateLabelCharacters };
+export { ALL_CHART_TYPES, ARROW_DIAGNOSTIC_CODES, type Activation, type AncestorInfo, type ArcLink, type ArcNodeGroup, type BLCollapseResult, type BLEdge, type BLGroup, type BLLayoutEdge, type BLLayoutGroup, type BLLayoutNode, type BLLayoutResult, type BLNode, type BlipTrend, type BlockCell, type BlockGrid, type BlockLayoutItem, type BlockLayoutResult, type BlockNode, type BlockOptions, type BodyFigure, type BodyOptions, type BodyPart, type C4ArrowType, type C4DeploymentNode, type C4Element, type C4ElementType, type C4Group, type C4LayoutBoundary, type C4LayoutEdge, type C4LayoutNode, type C4LayoutResult, type C4LegendEntry, type C4LegendGroup, type C4Relationship, type C4Shape, type C4TagEntry, type C4TagGroup, type ChartDataPoint, type ChartEra, type ChartType$1 as ChartType, type ClassLayoutEdge, type ClassLayoutNode, type ClassLayoutResult, type ClassMember, type ClassModifier, type ClassNode, type ClassRelationship, type CollapsedMindmapResult, type CollapsedOrgResult, type CollapsedSitemapResult, type CollapsedView, CompactViewState, type ComputedInfraEdge, type ComputedInfraModel, type ComputedInfraNode, type ContextRelationship, type CreateMapGeoQueryOptions, type CycleEdge, type CycleLayoutEdge, type CycleLayoutNode, type CycleLayoutResult, type CycleNode, type CycleRenderOptions, type D3ExportDimensions, DgmoError, type DiagramSymbols, type Duration, type DurationUnit, type ERCardinality, type ERColumn, type ERConstraint, type ERLayoutEdge, type ERLayoutNode, type ERLayoutResult, type ERRelationship, type ERTable, type ElseIfBranch, type EventLineEra, type EventLineEvent, type EventLineFocus, type EventLineOptions, type ExpandedActivity, type ExtendedChartType, type FamilyChild, type FamilyChildEdge, type FamilyLayoutNode, type FamilyLayoutResult, type FamilyMarriageBar, type FamilyPerson, type FamilySex, type FamilyUnion, type FocusOrgResult, type FocusResult, type FocusTarget, type GanttDependency, type GanttEra, type GanttGroup, type GroupRow as GanttGroupRow, type GanttHolidays, type GanttInteractiveOptions, type LaneHeaderRow as GanttLaneHeaderRow, type GanttMarker, type GanttNode, type GanttOptions, type Row as GanttRow, type GanttTask, type TaskRow as GanttTaskRow, GeoExtent, type GetOrCreateNameResult, type GraphDirection, type GraphEdge, type GraphGroup, type GraphNode, type GraphShape, INFRA_BEHAVIOR_KEYS, INVALID_COLOR_CODE, INVALID_CSS_COLOR_HEX, type ImportSource, type InfraAvailabilityPercentiles, type InfraBehaviorKey, type InfraCbState, type InfraComputeParams, type InfraDiagnostic, type InfraEdge, type InfraGroup, type InfraLatencyPercentiles, type InfraLayoutEdge, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutResult, type InfraLegendGroup, type InfraNode, type InfraPlaybackState, type InfraProperty, type InfraRole, type InfraTagGroup, type InlineSpan, type JourneyMapAnnotation, type JourneyMapInteractiveOptions, type JourneyMapLayout, type JourneyMapPersona, type JourneyMapPhase, type JourneyMapStep, type KanbanCard, type KanbanColumn, type KanbanTagEntry, type KanbanTagGroup, LEGEND_GEAR_PILL_W, LEGEND_HEIGHT, type LayoutEdge, type LayoutGroup, type LayoutNode, type LayoutOptions$1 as LayoutOptions, type LayoutResult$1 as LayoutResult, type LegendCallbacks, type LegendConfig, type LegendControl, type LegendGroupData, type LegendHandle, type LegendLayout, type LegendMode, type LegendPalette, type LegendPosition, type LegendState, MapData, type MapExportDimensions, type MapGeoQuery, type MapLayout, type MapLayoutInset, type MapLayoutLeg, MapLayoutLegend, type MapLayoutPoi, type MapLayoutRegion, type MapLayoutStretch, type MemberVisibility, type MindmapLayoutEdge, type MindmapLayoutNode, type MindmapLayoutResult, type MindmapNode, type MonteCarloResult, type NameEntry, type NearestCity, type NodeDetail, type OrgContainerBounds, type OrgLayoutEdge, type OrgLayoutNode, type OrgLayoutResult, type OrgNode, PaletteColors, PaletteConfig, type ParseInArrowLabelResult, type ParsedBlock, type ParsedBody, type ParsedBoxesAndLines, type ParsedC4, type ParsedChart, type ParsedClassDiagram, type ParsedCycle, type ParsedERDiagram, type ParsedEventLine, type ParsedExtendedChart, type ParsedFamily, type ParsedGantt, type ParsedGraph, type ParsedInfra, type ParsedJourneyMap, type ParsedKanban, ParsedMap, type ParsedMindmap, type ParsedOrg, type ParsedPert, type ParsedPyramid, type ParsedRaci, type ParsedRing, type ParsedSequenceDgmo, type ParsedSitemap, type ParsedSketch, type ParsedSwimlane, type ParsedTechRadar, type ParsedTreemap, type ParsedVersionControl, type ParsedVisualization, type ParsedWireframe, type ParticipantType, type PertActivity, type Anchor as PertAnchor, type PertDirection, type PertEdge, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type LayoutOverrides as PertLayoutOverrides, type LayoutResult as PertLayoutResult, type PertMilestone, type PertOptions, type PertRenderOptions, type PlacedLabel, type ProjectedCity, type PyramidLayer, type QuadrantPosition, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, type RaciDragSource, type RaciInteractionHandlers, type RaciMarker, type RaciPhase, type RaciRoleAssignment, type RaciTask, type RaciVariant, type RadialCell, type RadialLayoutResult, type ReadFileFn, type RegionToken, type RelationshipType, type RenderStep, type ResolveImportsResult, type ResolvedActivity, type ResolvedGroup$1 as ResolvedGroup, ResolvedMap, type ResolvedPert, type ResolvedGroup as ResolvedPertGroup, type ResolvedSchedule, type ResolvedTask, type ResultCard, type ResultTokens, type RingLayer, SKETCH_FOOT_H, SKETCH_FOOT_W, SKETCH_GEOMETRY, SKETCH_HALF_SLOT_X, SKETCH_HALF_SLOT_Y, SKETCH_SEP, SKETCH_SHAPE_KINDS, ScaleContext, type SectionMessageGroup, type SequenceBlock, type SequenceElement, type SequenceGroup, type SequenceMessage, type SequenceNote, type SequenceParticipant, type SequenceRenderOptions, type SequenceSection, type SimulateOptions, type SitemapContainerBounds, type SitemapDirection, type SitemapEdge, type SitemapLayoutEdge, type SitemapLayoutNode, type SitemapLayoutResult, type SitemapLegendEntry, type SitemapLegendGroup, type SitemapNode, type SketchAt, type SketchBox, type SketchCollapseResult, type SketchEdge, type SketchEdgeHeads, type SketchLayout, type SketchLayoutBox, type SketchLayoutNode, type SketchLayoutOptions, type SketchNode, type SketchOptions, type SketchRenderOptions, type SketchShapeKind, type StateCollapseResult, type SwimEdge, type SwimEvent, type SwimLane, type SwimNode, type SwimPhase, type SwimShape, type LayoutBand as SwimlaneLayoutBand, type SwimlaneLayoutResult, TagEntry, TagGroup, type TechRadarBlip, type TechRadarLayoutPoint, type TechRadarQuadrant, type TechRadarRing, type TreemapCell, type TreemapColorMode, type TreemapLayoutResult, type TreemapNode, type TreemapOptions, type VCBranch, type VCNode, type VCNote, type VCOptions, type VCRef, type VisualizationType, type WireframeElement, type WireframeElementType, type WireframeFormFactor, type WireframeLayout, type WireframeLayoutNode, addDurationToDate, albersSkewFallback, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, authoredCollapsedIds, blueprintPalette, buildNoteMessageMap, buildRenderSequence, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, clearEventLineMuted, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseSketch, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeTimeTicks, contrastText, controlsGroupCapsuleWidth, createMapGeoQuery, displayName, extractSymbols$2 as extractClassSymbols, extractSymbols$1 as extractErSymbols, extractSymbols$3 as extractFlowchartSymbols, extractSymbols as extractInfraSymbols, extractPertSymbols, focusBoxesAndLines, focusEventLine, focusOrgTree, formatDateLabel, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getRadarGeometry, getSeriesColors, getSimpleChartLegendGroups, groupMessagesBySection, hexToHSL, hexToHSLString, hslToHex, inferParticipantType, inferRoles, invalidColorDiagnostic, isArchiveColumn, isInvalidColorToken, isRecognizedColorName, isSequenceBlock, isSequenceNote, isSketchShapeKind, layoutBlock, layoutBoxesAndLines, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutFamily, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutSketch, layoutSwimlane, layoutTreemap, layoutTreemapRadial, layoutWireframe, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, measurePertAnalysisBlock, mix, mulberry32, nearestNamedColor, nord, nordPalette, normalizeName, normalizePertSourceForShare, orderArcNodes, parseAndLayoutInfra, parseBlock, parseBody, parseBoxesAndLines, parseC4, parseChart, parseClassDiagram, parseCycle, parseDataRowValues, parseERDiagram, parseEventLine, parseExtendedChart, parseFamily, parseFirstLine, parseFlowchart, parseGantt, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseMap, parseMindmap, parseOrg, parsePert, parsePyramid, parseRaci, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseSketch, parseState, parseSwimlane, parseTechRadar, parseTimelineDate, parseTreemap, parseVersionControl, parseVisualization, parseWireframe, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, relayoutPert, render, renderArcDiagram, renderBlock, renderBlockForExport, renderBody, renderBodyForExport, renderBoxesAndLines, renderBoxesAndLinesForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderEventLine, renderEventLineForExport, renderFamily, renderFamilyForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderMap, renderMapForExport, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSketch, renderSketchForExport, renderSlopeChart, renderState, renderStateForExport, renderSwimlaneForExport, renderTechRadar, renderTechRadarForExport, renderTimeline, renderTreemap, renderTreemapForExport, renderTreemapRadial, renderTreemapRadialForExport, renderVenn, renderVersionControl, renderVersionControlForExport, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolveOrgImports, resolveTaskName, rollUpContextRelationships, sampleBetaPert, seriesColors, shade, shapeFill, simulateCanonical, simulateFast, sketchSlotToPx, slatePalette, tidewaterPalette, tint, tokyoNightPalette, truncateBareUrl, validateComputed, validateInfra, validateLabelCharacters };
