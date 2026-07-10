@@ -16,27 +16,31 @@ const node = (l: ReturnType<typeof layoutSketch>, label: string) =>
 
 describe('sketch layout — slot math', () => {
   it('maps half-slot coordinates to the px lattice', () => {
-    const p = parseSketch('sketch\nA at: 0 0\nB at: 2 0\nC at: 1 2');
+    // B is 3 half-units right (gap-legal); C is off in y so its non-SEP x=1
+    // (half-unit granularity) doesn't collide with A.
+    const p = parseSketch('sketch\nA at: 0 0\nB at: 3 0\nC at: 1 6');
     const l = layoutSketch(p);
     expect(node(l, 'A').x).toBe(0);
     expect(node(l, 'A').y).toBe(0);
-    expect(node(l, 'B').x).toBe(2 * SKETCH_HALF_SLOT_X);
+    expect(node(l, 'B').x).toBe(3 * SKETCH_HALF_SLOT_X);
     expect(node(l, 'C').x).toBe(1 * SKETCH_HALF_SLOT_X);
-    expect(node(l, 'C').y).toBe(2 * SKETCH_HALF_SLOT_Y);
+    expect(node(l, 'C').y).toBe(6 * SKETCH_HALF_SLOT_Y);
     expect(node(l, 'A').w).toBe(SKETCH_FOOT_W);
     expect(node(l, 'A').h).toBe(SKETCH_FOOT_H);
   });
 
   it('normalizes negative authored coordinates to a 0-based origin', () => {
-    const p = parseSketch('sketch\nA at: -2 -2\nB at: 0 0');
+    const p = parseSketch('sketch\nA at: -3 -3\nB at: 0 0');
     const l = layoutSketch(p);
     expect(node(l, 'A').x).toBe(0);
     expect(node(l, 'A').y).toBe(0);
-    expect(node(l, 'B').x).toBe(2 * SKETCH_HALF_SLOT_X);
+    expect(node(l, 'B').x).toBe(3 * SKETCH_HALF_SLOT_X);
   });
 
-  it('brick offsets are legal: 1 half-slot apart on x with 2 on y', () => {
-    const p = parseSketch('sketch\nA at: 0 0\nB at: 1 2');
+  it('brick offsets are legal: 1 half-unit apart on x with 3 on y', () => {
+    // A footprint spans 2 half-units + a 1-unit gap, so the clear axis needs
+    // a full SEP (3) of separation; the other can be a single half-unit.
+    const p = parseSketch('sketch\nA at: 0 0\nB at: 1 3');
     const l = layoutSketch(p);
     expect(l.diagnostics).toHaveLength(0);
     expect(node(l, 'B').x).toBe(SKETCH_HALF_SLOT_X);
@@ -102,7 +106,7 @@ describe('sketch layout — boxes', () => {
   const SRC = `sketch
 [Below Decks] at: 2 2
   Booty Queue at: 0 0
-  Ship Ledger at: 2 0
+  Ship Ledger at: 3 0
 `;
 
   it('absolutizes box-relative children and wraps the frame around them', () => {
@@ -111,7 +115,7 @@ describe('sketch layout — boxes', () => {
     const q = node(l, 'Booty Queue');
     const s = node(l, 'Ship Ledger');
     expect(q.slot).toEqual({ c: 2, r: 2 });
-    expect(s.slot).toEqual({ c: 4, r: 2 });
+    expect(s.slot).toEqual({ c: 5, r: 2 });
     expect(l.boxes).toHaveLength(1);
     const box = l.boxes[0]!;
     expect(box.x).toBe(q.x - SKETCH_GEOMETRY.boxPadPx);

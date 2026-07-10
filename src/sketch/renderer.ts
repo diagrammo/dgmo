@@ -378,26 +378,6 @@ export function renderSketch(
     .attr('class', 'sk-root')
     .attr('transform', `translate(${contentX},${contentTop})`);
 
-  const rectById = new Map<string, Rect>();
-  for (const node of layout.nodes) {
-    rectById.set(node.id, { x: node.x, y: node.y, w: node.w, h: node.h });
-  }
-  for (const box of layout.boxes) {
-    rectById.set(box.id, { x: box.x, y: box.y, w: box.w, h: box.h });
-  }
-  // Discrete ports for a group: one per contained node (aligned to its row /
-  // column centerline) plus the group midpoint. Edges to a box snap to the
-  // nearest of these instead of attaching anywhere on the perimeter.
-  const portsById = new Map<string, { ys: number[]; xs: number[] }>();
-  for (const box of layout.boxes) {
-    const kids = layout.nodes.filter((n) => n.boxLabel === box.label);
-    const ys = kids.map((k) => k.y + k.h / 2);
-    const xs = kids.map((k) => k.x + k.w / 2);
-    ys.push(box.y + box.h / 2);
-    xs.push(box.x + box.w / 2);
-    portsById.set(box.id, { ys, xs });
-  }
-
   // ── Boxes (frames) ──────────────────────────────────────────
   const boxLayer = root.append('g').attr('class', 'sk-boxes');
   for (const box of layout.boxes) {
@@ -405,6 +385,9 @@ export function renderSketch(
   }
 
   // ── Edges ───────────────────────────────────────────────────
+  // Same pipeline the app`s live-drag preview uses (sketchEdgeGeometry), so a
+  // dragged edge previews exactly as it commits.
+  const edgeGeom = sketchEdgeGeometry(layout);
   const edgeLayer = root.append('g').attr('class', 'sk-edges');
   const labelLayerData: Array<{
     x: number;
@@ -414,18 +397,13 @@ export function renderSketch(
     from: string;
     to: string;
   }> = [];
-  for (const edge of layout.edges) {
-    const source = rectById.get(edge.sourceId);
-    const target = rectById.get(edge.targetId);
-    if (!source || !target) continue;
+  for (let ei = 0; ei < layout.edges.length; ei++) {
+    const edge = layout.edges[ei]!;
+    const geo = edgeGeom[ei];
+    if (!geo) continue;
     const color = flowColor(edge);
     const hex = color.replace('#', '');
-    const { d, mid } = edgePath(
-      source,
-      target,
-      portsById.get(edge.sourceId),
-      portsById.get(edge.targetId)
-    );
+    const { d, mid } = geo;
     const g = edgeLayer
       .append('g')
       .attr('class', 'sk-edge-group')
@@ -742,9 +720,104 @@ interface Ports {
   ys: number[];
   xs: number[];
 }
+type Side = 'T' | 'B' | 'L' | 'R';
+
+/**
+ * Assign each edge a side on its source and target box, avoiding side
+ * collisions on shared nodes. Each edge prefers the side its dominant axis
+ * points at (a mostly-horizontal edge → left/right; mostly-vertical → top/
+ * bottom). Strongly-directional edges are placed first; a near-diagonal edge
+ * whose preferred side is already claimed on either end flips to the free
+ * perpendicular side — so a hub with left+right edges routes a third,
+ * up-and-over edge out its TOP rather than crowding a side.
+ */
+function assignEdgeSides(
+  edges: readonly { sourceId: string; targetId: string }[],
+  rectById: Map<string, Rect>
+): Array<{ s: Side; t: Side } | null> {
+  const cx = (r: Rect): number => r.x + r.w / 2;
+  const cy = (r: Rect): number => r.y + r.h / 2;
+  // The side of a box facing (dx,dy): the dominant-axis side, and the
+  // perpendicular fallback toward the same point.
+  const opposite = (s: Side): Side =>
+    s === 'L' ? 'R' : s === 'R' ? 'L' : s === 'T' ? 'B' : 'T';
+  // The dominant-axis side facing (dx,dy), plus the perpendicular fallback.
+  const facing = (dx: number, dy: number): { primary: Side; alt: Side } => {
+    const horiz = Math.abs(dx) >= Math.abs(dy);
+    return horiz
+      ? { primary: dx >= 0 ? 'R' : 'L', alt: dy >= 0 ? 'B' : 'T' }
+      : { primary: dy >= 0 ? 'B' : 'T', alt: dx >= 0 ? 'R' : 'L' };
+  };
+  // Below this min/max axis ratio an edge counts as ~aligned (drawn straight,
+  // opposite sides); above it, diagonal (drawn as a corner — perpendicular
+  // sides).
+  const DIAG = 0.4;
+  const descs = edges
+    .map((e, i) => {
+      const s = rectById.get(e.sourceId);
+      const t = rectById.get(e.targetId);
+      if (!s || !t) return null;
+      const dx = cx(t) - cx(s);
+      const dy = cy(t) - cy(s);
+      const ratio =
+        Math.min(Math.abs(dx), Math.abs(dy)) /
+        Math.max(Math.abs(dx), Math.abs(dy), 1);
+      return {
+        i,
+        sId: e.sourceId,
+        tId: e.targetId,
+        dx,
+        dy,
+        diagonal: ratio >= DIAG,
+        dominance: Math.abs(Math.abs(dx) - Math.abs(dy)),
+      };
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null);
+
+  const used = new Map<string, Set<Side>>();
+  const has = (id: string, side: Side): boolean =>
+    used.get(id)?.has(side) ?? false;
+  const take = (id: string, side: Side): void => {
+    const set = used.get(id) ?? new Set<Side>();
+    set.add(side);
+    used.set(id, set);
+  };
+  // Pick a side for one endpoint: its preferred side if free, else the fallback
+  // if free, else share the preferred side.
+  const pick = (id: string, sides: { primary: Side; alt: Side }): Side => {
+    const side = !has(id, sides.primary)
+      ? sides.primary
+      : !has(id, sides.alt)
+        ? sides.alt
+        : sides.primary;
+    take(id, side);
+    return side;
+  };
+
+  const out: Array<{ s: Side; t: Side } | null> = edges.map(() => null);
+  // Strongest-axis edges claim their side first; ambiguous ones adapt. The
+  // source takes its dominant-axis side (flipping to the perpendicular only if
+  // that side is congested). The target then either mirrors it (aligned →
+  // straight) or attaches on the PERPENDICULAR side facing the source (diagonal
+  // → clean corner, e.g. source-right + target-top for a box below-and-right).
+  for (const d of [...descs].sort((a, b) => b.dominance - a.dominance)) {
+    const sSide = pick(d.sId, facing(d.dx, d.dy));
+    const sHoriz = sSide === 'L' || sSide === 'R';
+    // Perpendicular-axis side of the target facing the source.
+    const perp: Side = sHoriz ? (d.dy <= 0 ? 'B' : 'T') : d.dx <= 0 ? 'R' : 'L';
+    const tgt = d.diagonal
+      ? { primary: perp, alt: opposite(sSide) }
+      : { primary: opposite(sSide), alt: perp };
+    out[d.i] = { s: sSide, t: pick(d.tId, tgt) };
+  }
+  return out;
+}
+
 function edgePath(
   source: Rect,
   target: Rect,
+  sSide: Side,
+  tSide: Side,
   sourcePorts?: Ports,
   targetPorts?: Ports
 ): { d: string; mid: { x: number; y: number } } {
@@ -752,11 +825,6 @@ function edgePath(
   const acy = source.y + source.h / 2;
   const bcx = target.x + target.w / 2;
   const bcy = target.y + target.h / 2;
-  const horiz = Math.abs(bcx - acx) >= Math.abs(bcy - acy);
-  let p0: { x: number; y: number };
-  let p1: { x: number; y: number };
-  let h0: { x: number; y: number };
-  let h1: { x: number; y: number };
   const clamp = (v: number, lo: number, hi: number): number =>
     Math.max(lo, Math.min(hi, v));
   // Keep a port off the corners: clamp into the middle band of the side (a
@@ -769,52 +837,47 @@ function edgePath(
   };
   const nearest = (arr: number[], v: number): number =>
     arr.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a), arr[0]!);
-  // Attachment coordinate:
-  //  • a GROUP endpoint snaps to its nearest discrete port (a contained node's
-  //    row/column or the group midpoint) — a group's chosen port drives BOTH
-  //    ends (clamped in), so the line runs straight into that child row/col;
-  //  • two PLAIN shapes each attach at their own facing-side MIDPOINT (own
-  //    center) — a canonical port, not an arbitrary overlap-band point. Aligned
-  //    shapes → equal centers → straight; offset → clean center-to-center
-  //    diagonal (auto-align removes most offsets before this is seen).
-  if (horiz) {
-    const sign = bcx >= acx ? 1 : -1;
-    // Each end resolves INDEPENDENTLY: a GROUP end snaps to its nearest child
-    // port (clamped off the corners); a BARE node has no alt ports — it always
-    // attaches at its own facing-side midpoint (its center).
-    const y0 = sourcePorts
-      ? midClamp(nearest(sourcePorts.ys, bcy), source.y, source.y + source.h)
-      : acy;
-    const y1 = targetPorts
-      ? midClamp(nearest(targetPorts.ys, acy), target.y, target.y + target.h)
-      : bcy;
-    p0 = { x: sign > 0 ? source.x + source.w : source.x, y: y0 };
-    p1 = { x: sign > 0 ? target.x : target.x + target.w, y: y1 };
-    const k = Math.max(
-      CURVE_HANDLE_MIN,
-      Math.min(CURVE_HANDLE_MAX, Math.abs(p1.x - p0.x) / 2)
-    );
-    h0 = { x: p0.x + sign * k, y: p0.y };
-    h1 = { x: p1.x - sign * k, y: p1.y };
-  } else {
-    const sign = bcy >= acy ? 1 : -1;
-    // Independent per-end: GROUP → nearest child port (off-corner); BARE node →
-    // its own facing-side midpoint (no alternative ports).
-    const x0 = sourcePorts
-      ? midClamp(nearest(sourcePorts.xs, bcx), source.x, source.x + source.w)
-      : acx;
-    const x1 = targetPorts
-      ? midClamp(nearest(targetPorts.xs, acx), target.x, target.x + target.w)
-      : bcx;
-    p0 = { x: x0, y: sign > 0 ? source.y + source.h : source.y };
-    p1 = { x: x1, y: sign > 0 ? target.y : target.y + target.h };
-    const k = Math.max(
-      CURVE_HANDLE_MIN,
-      Math.min(CURVE_HANDLE_MAX, Math.abs(p1.y - p0.y) / 2)
-    );
-    h0 = { x: p0.x, y: p0.y + sign * k };
-    h1 = { x: p1.x, y: p1.y - sign * k };
-  }
+  // Attachment point on `side` of `rect`. A GROUP endpoint snaps the cross-axis
+  // coordinate to its nearest discrete child port (row for L/R, column for
+  // T/B); a BARE node attaches at that side's midpoint (its center on that
+  // axis). `toward` is the other end's center, which the port snaps nearest to.
+  const attach = (
+    side: Side,
+    rect: Rect,
+    ports: Ports | undefined,
+    toward: { x: number; y: number }
+  ): { x: number; y: number } => {
+    if (side === 'L' || side === 'R') {
+      const x = side === 'L' ? rect.x : rect.x + rect.w;
+      const y = ports
+        ? midClamp(nearest(ports.ys, toward.y), rect.y, rect.y + rect.h)
+        : rect.y + rect.h / 2;
+      return { x, y };
+    }
+    const y = side === 'T' ? rect.y : rect.y + rect.h;
+    const x = ports
+      ? midClamp(nearest(ports.xs, toward.x), rect.x, rect.x + rect.w)
+      : rect.x + rect.w / 2;
+    return { x, y };
+  };
+  const normal = (side: Side): { x: number; y: number } =>
+    side === 'L'
+      ? { x: -1, y: 0 }
+      : side === 'R'
+        ? { x: 1, y: 0 }
+        : side === 'T'
+          ? { x: 0, y: -1 }
+          : { x: 0, y: 1 };
+  const p0 = attach(sSide, source, sourcePorts, { x: bcx, y: bcy });
+  const p1 = attach(tSide, target, targetPorts, { x: acx, y: acy });
+  const n0 = normal(sSide);
+  const n1 = normal(tSide);
+  const k = Math.max(
+    CURVE_HANDLE_MIN,
+    Math.min(CURVE_HANDLE_MAX, Math.hypot(p1.x - p0.x, p1.y - p0.y) / 2)
+  );
+  const h0 = { x: p0.x + n0.x * k, y: p0.y + n0.y * k };
+  const h1 = { x: p1.x + n1.x * k, y: p1.y + n1.y * k };
   return {
     d: `M ${p0.x} ${p0.y} C ${h0.x} ${h0.y}, ${h1.x} ${h1.y}, ${p1.x} ${p1.y}`,
     // Centered ON the line (no vertical offset): the opaque label halo masks
@@ -822,6 +885,63 @@ function edgePath(
     // rather than floating awkwardly just above it.
     mid: { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 },
   };
+}
+
+export interface SketchEdgeGeometry {
+  sourceId: string;
+  targetId: string;
+  d: string;
+  mid: { x: number; y: number };
+}
+
+/**
+ * The full edge-routing pipeline (side assignment + curved paths + group-port
+ * snapping) as a pure function, so the renderer AND the app`s live-drag preview
+ * draw edges with IDENTICAL geometry. `offsets` shifts individual nodes/boxes
+ * by live pixel deltas (a dragged shape and its box children) — pass none for
+ * the committed layout.
+ */
+export function sketchEdgeGeometry(
+  layout: SketchLayout,
+  offsets?: ReadonlyMap<string, { dx: number; dy: number }>
+): Array<SketchEdgeGeometry | null> {
+  const off = (id: string): { dx: number; dy: number } =>
+    offsets?.get(id) ?? { dx: 0, dy: 0 };
+  const rectById = new Map<string, Rect>();
+  for (const n of layout.nodes) {
+    const o = off(n.id);
+    rectById.set(n.id, { x: n.x + o.dx, y: n.y + o.dy, w: n.w, h: n.h });
+  }
+  for (const b of layout.boxes) {
+    const o = off(b.id);
+    rectById.set(b.id, { x: b.x + o.dx, y: b.y + o.dy, w: b.w, h: b.h });
+  }
+  const portsById = new Map<string, Ports>();
+  for (const box of layout.boxes) {
+    const o = off(box.id);
+    const kids = layout.nodes.filter((n) => n.boxLabel === box.label);
+    const ys = kids.map((k) => k.y + off(k.id).dy + k.h / 2);
+    const xs = kids.map((k) => k.x + off(k.id).dx + k.w / 2);
+    ys.push(box.y + o.dy + box.h / 2);
+    xs.push(box.x + o.dx + box.w / 2);
+    portsById.set(box.id, { ys, xs });
+  }
+  const sides = assignEdgeSides(layout.edges, rectById);
+  return layout.edges.map((edge, i) => {
+    const source = rectById.get(edge.sourceId);
+    const target = rectById.get(edge.targetId);
+    if (!source || !target) return null;
+    const sd = sides[i] ?? { s: 'R' as Side, t: 'L' as Side };
+    const { d, mid } = edgePath(
+      source,
+      target,
+      sd.s,
+      sd.t,
+      portsById.get(edge.sourceId),
+      portsById.get(edge.targetId)
+    );
+    return { sourceId: edge.sourceId, targetId: edge.targetId, d, mid };
+  });
 }
 
 /** Export wrapper — the b&l precedent (thin spread). */

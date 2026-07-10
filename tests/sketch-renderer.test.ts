@@ -48,6 +48,28 @@ describe('sketch renderer — structure', () => {
     expect(svg.querySelector('.sk-legend-group')).not.toBeNull();
   });
 
+  it('routes a hub`s third edge out a free side (top) when left+right are taken', () => {
+    // Hub has edges left (l) and right (r); the up-and-left edge (u) is
+    // primarily horizontal but its left side is claimed, so it must flip to the
+    // hub`s TOP rather than crowd the left port.
+    const svg = render(
+      'sketch\n' +
+        'Hub as hub at: 10 4\n  -a-> l\n  -b-> r\n  -c-> u\n' +
+        'L as l at: 0 4\nR as r at: 20 4\nU as u at: 4 0\n'
+    );
+    // Edge groups are appended in declaration order: [→l, →r, →u].
+    const [yl, yr, yu] = [...svg.querySelectorAll('.sk-edge-group')].map((g) =>
+      Number(
+        /^M\s+[-\d.]+\s+([-\d.]+)/.exec(
+          g.querySelector('path')!.getAttribute('d')!
+        )![1]
+      )
+    );
+    // The side edges leave at mid-height; the flipped edge leaves higher (top).
+    expect(yu).toBeLessThan(yl);
+    expect(yu).toBeLessThan(yr);
+  });
+
   it('marks each shape kind with a header type badge', () => {
     const svg = render(
       'sketch\nR at: 0 0\nD shape: database, at: 2 0\nQ shape: queue, at: 4 0\nP shape: person, at: 2 2\nDoc shape: document, at: 4 2\nN shape: note, at: 0 4'
@@ -115,7 +137,9 @@ describe('sketch renderer — edges', () => {
       'sketch\nA at: 0 0\n  -one-> b\n  <-both-> b\n  -none- b\n  ~sec~> b\nB as b at: 4 0';
     const svg = render(src);
     // Exclude the wide transparent hit paths (.sk-edge-hit) — count drawn lines.
-    const paths = [...svg.querySelectorAll('.sk-edge-group path:not(.sk-edge-hit)')];
+    const paths = [
+      ...svg.querySelectorAll('.sk-edge-group path:not(.sk-edge-hit)'),
+    ];
     expect(paths.filter((p) => p.getAttribute('marker-end')).length).toBe(3);
     expect(paths.filter((p) => p.getAttribute('marker-start')).length).toBe(1);
     expect(
@@ -267,7 +291,9 @@ describe('sketch renderer — options', () => {
     expect(shown.querySelector('.sk-desc')).not.toBeNull();
     expect(shown.textContent).toContain('this is a note');
     // Hidden via directive.
-    const viaDirective = render('sketch\nno-descriptions\nLedger at: 0 0\n  > this is a note');
+    const viaDirective = render(
+      'sketch\nno-descriptions\nLedger at: 0 0\n  > this is a note'
+    );
     expect(viaDirective.querySelector('.sk-desc')).toBeNull();
     expect(viaDirective.textContent).not.toContain('this is a note');
     expect(viaDirective.textContent).toContain('Ledger'); // name still there
