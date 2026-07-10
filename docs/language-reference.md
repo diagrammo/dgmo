@@ -1718,7 +1718,7 @@ See spec §13A for full date-anchoring semantics, S-curve axes, and diagnostic c
 <!-- TYPE:family -->
 
 <!-- TIPS start -->
-**Styling tips:** Declare a person once with full metadata (`Anne b: 1665, sex: f`), then reference the bare name in union lines — don't repeat metadata. Model couples with the union line `A + B m: <year>` and indent children beneath it; reuse a name in a new union line for remarriage. The **legend** is the guaranteed sex channel (blue/purple sit close in hue and desaturate under the 25% tint) — where color-vision matters, add a `tag` group for the distinction you care about.
+**Styling tips:** Two line shapes carry the whole tree: a **person line** (`Anne b: 1665, sex: f`) and a **union line** (`Anne + Jack m: 1701`), with children indented under the union. Declare each person **standalone** with their full metadata — per-side metadata on a union line is unsupported and re-stating a name just re-references the same person. Set `sex:` so cards color (m→blue, f→purple), but **treat the legend as the real sex channel**: blue and purple separate weakly under the 25% tint, so where color-vision matters distinguish with a `tag` group (labeled legend entries) instead. Reuse a name in a second union for remarriage (one card, two bars); a lone person with indented children is a single parent; a bare trailing `adopted` token marks an adopted child.
 <!-- TIPS end -->
 
 ### Declaration
@@ -2526,7 +2526,7 @@ Group a run of events into a labeled section with a `[Name]` bracket, then **ind
 <!-- TYPE:body -->
 
 <!-- TIPS start -->
-**Styling tips:** a body diagram is a human figure you annotate by muscle name — for workout splits, PT/rehab, and anatomy teaching. Name the muscles you care about, color them by intensity/severity with a tag group, and add a short note beneath each for the exercise or finding. Keep to the muscles that matter; the rest stay a neutral gray so the highlighted ones read at a glance.
+**Styling tips:** Reach for `body` when the drawing IS the human figure — colour muscle groups over a skin layer to show which parts a workout targets, where an injury sits, or how the musculature is organised. Choose the figure with `male`/`female` and `front`/`back`; each named muscle group takes a tag so the legend carries the meaning. Best for fitness, medical, exercise, and educational diagrams — not for generic part-to-whole (that's `pie`/`treemap`).
 <!-- TIPS end -->
 
 **Figures:** male and female, front and back — four figures. `skin` form renders any figure as a plain silhouette (with head + hair) instead of the segmented muscle map. `skeletal` is reserved.
@@ -3630,7 +3630,7 @@ In the desktop app a block diagram is interactive: click a container header to c
 <!-- TYPE:sketch -->
 
 <!-- TIPS start -->
-**Styling tips:** Sketch is a **GUI-authored format** — the desktop/web canvas editor generates this markup, and hand-writing it is the exception. If you generate it anyway: keep it SMALL (sketches read best under ~15 shapes), use integer `at:` coordinates on the half-slot lattice with shapes at least 2 half-slots apart on one axis — or simply **omit `at:` everywhere** and let flow placement arrange rows (the safest generator path). Alias any shape an edge references (`as con`). Never write `size:`, colors, fonts, or a `shape:` outside the closed 7-kind set. In sketch, `~` dashed means **secondary emphasis, NOT async** — don't carry infra's async reading over. Categorize with a tag group (named palette colors only) instead of reaching for more shape kinds — kind-of-thing is meaning, and meaning lives in tags. Malformed coordinates never break a render (overlaps auto-resolve with a warning), but tidy input diffs better.
+**Styling tips:** Sketch is a GUI-authored format — the desktop and web canvas editors generate this markup, so hand-writing it is the exception. If you generate it anyway: keep it SMALL (sketches read best under ~15 shapes), and either omit `at:` everywhere (shapes flow into rows) or use integer half-slot coordinates with shapes at least 2 half-slots apart on one axis. Alias any shape an edge references (`as con`). Never write `size:`, colors, fonts, or a `shape:` outside the closed set (database, queue, cloud, person, document, note). In sketch, `~` dashed means secondary emphasis, NOT async. Categorize with a tag group instead of reaching for more shape kinds — kind-of-thing is meaning, and meaning lives in tags. Reach for `sketch` when the drawing itself is the content; reach for `boxes-and-lines` when topology should auto-lay-out.
 <!-- TIPS end -->
 
 A **GUI-first constrained canvas**: uniformly-sized shapes placed freely on a snap grid, arrows between them, meaning through tags. The renderer owns all styling — authors own placement, connection, naming, and tags. Every shape has ONE universal footprint (no resizing); text always fits (shrink → smart-wrap → `…`). Pick `sketch` when the spatial arrangement is yours to decide; pick `boxes-and-lines` when topology should auto-lay-out.

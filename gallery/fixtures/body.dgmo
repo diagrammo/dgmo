@@ -1,0 +1,17 @@
+body Powder Monkey Push Day
+muscle
+front
+
+tag Effort as e
+  Primary red
+  Secondary orange
+  Warm-up yellow
+
+chest        e: Primary
+  Barbell bench press — 4×8
+deltoids     e: Primary
+  Overhead press — 3×10
+triceps      e: Secondary
+  Rope pushdowns — 3×12
+abs          e: Warm-up
+  Plank — 3×45s
