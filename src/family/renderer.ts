@@ -331,6 +331,25 @@ export function renderFamilyForExport(
     }
   }
 
+  // ── Dim occluders ──
+  // A dimmed card is drawn translucent (opacity DIM_OPACITY), which would let
+  // the marriage bars / bus edges behind it show THROUGH the card. Lay an opaque
+  // background rect under each dimmed card first (above bars + edges, below the
+  // cards) so the card still reads dimmed against the page but no line bleeds
+  // through it.
+  const occludeG = root.append('g').attr('class', 'family-dim-occluders');
+  for (const node of layout.nodes) {
+    if (!node.dimmed) continue;
+    occludeG
+      .append('rect')
+      .attr('x', node.x)
+      .attr('y', node.y)
+      .attr('width', node.width)
+      .attr('height', node.height)
+      .attr('rx', CARD_RADIUS)
+      .attr('fill', baseBg);
+  }
+
   // ── Person cards ──
   const cardsG = root.append('g').attr('class', 'family-cards');
   for (const node of layout.nodes) {

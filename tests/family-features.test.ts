@@ -223,6 +223,19 @@ Ned + Anne
     expect(faded.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('backs each dimmed card with an opaque occluder so no line bleeds through', () => {
+    const svg = render(SRC);
+    const faded = [...svg.querySelectorAll('.family-card')].filter(
+      (c) => c.getAttribute('opacity') === '0.28'
+    ).length;
+    const occ = svg.querySelectorAll('.family-dim-occluders rect');
+    expect(occ.length).toBe(faded);
+    // opaque (no opacity attr) and drawn before the cards so it occludes edges
+    expect([...occ].every((r) => r.getAttribute('opacity') === null)).toBe(
+      true
+    );
+  });
+
   it('warns and dims nothing when the target is unknown', () => {
     expect(
       codes(`family
