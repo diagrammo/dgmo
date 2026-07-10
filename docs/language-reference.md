@@ -1747,6 +1747,12 @@ Henry Turner + Carina Smyth m: 1751
 
 - **Person metadata** (fixed GEDCOM-flavored keys): `sex` (`m`/`f` → node color), `b`/`d` (birth/death year → a year-range row), `bp`/`dp` (birth/death place), `occupation`, `military`, `education`, `religion`, `burial`. Union-level: `m`. Unknown keys warn.
 - **Adoption:** a bare `adopted` token on a child line draws a dashed drop edge. A person literally named "Adopted" must be quoted.
+- **Divorce:** a bare `divorced` token on a union line (`A + B m: 1980 divorced`) draws a dashed marriage bar; children still attach.
+- **Deceased:** a person with a death year (`d:`) is auto-marked with a muted dagger (†) — derived, no syntax; add `no-daggers` to hide it.
+- **Children** are auto-ordered eldest→left by birth year (`b:`); undated children keep declaration order.
+- **Unknown/private person:** a bare `?` renders a faint, solid-bordered, name-only placeholder card; each `?` is a distinct person.
+- **`generations`** (option): draws a left gutter of Roman-numeral generation labels (`Gen I`, `Gen II`, …) plus subtle zebra shading behind alternating generations.
+- **`highlight <name>`** (directive): dims everyone outside that person's bloodline (ancestors + descendants + spouses stay lit).
 - **Sex → color:** `sex: m` → blue, `sex: f` → purple, unset → gray (25% tint). An explicit `tag`/inline color overrides the sex color.
 - The union split cuts `m:` metadata first, THEN splits ` + ` within the name region — so a `+` inside a quoted name (`"Anne + Jack"`) or a metadata value never mis-splits. Per-side `key: value` metadata on a union line is not supported — declare the person standalone.
 

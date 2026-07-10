@@ -45,12 +45,13 @@ import {
   NODE_STROKE_WIDTH,
   EDGE_STROKE_WIDTH,
 } from '../utils/visual-conventions';
-import { familyCardRows } from './card-model';
+import { familyCardRows, familyDisplayLabel } from './card-model';
 import type { PaletteColors } from '../palettes';
 import type {
   ParsedFamily,
   FamilyLayoutResult,
   FamilyLayoutNode,
+  FamilyChildEdge,
 } from './types';
 
 type D3Svg = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
@@ -60,6 +61,26 @@ const KEY_X = 10;
 const KEY_VALUE_GAP = 6;
 const BAR_DOT_R = 3.5;
 const TITLE_RESERVE = 40; // native vertical band for the title
+const DIM_OPACITY = 0.28; // faded cards/edges outside the `highlight` bloodline
+
+const ROMAN: ReadonlyArray<readonly [number, string]> = [
+  [10, 'X'],
+  [9, 'IX'],
+  [5, 'V'],
+  [4, 'IV'],
+  [1, 'I'],
+];
+/** Small positive integer → Roman numeral (generation gutter labels). */
+function toRoman(n: number): string {
+  let out = '';
+  let v = n;
+  for (const [val, sym] of ROMAN)
+    while (v >= val) {
+      out += sym;
+      v -= val;
+    }
+  return out;
+}
 
 export interface FamilyRenderOptions {
   exportDims?: { width: number; height: number };
@@ -110,6 +131,7 @@ export function renderFamilyForExport(
 
   const activeTagGroup = opts.activeTagGroup ?? null;
   const solid = parsed.options['solid-fill'] === 'on';
+  const noDaggers = parsed.options['no-daggers'] === 'true';
   const baseBg = themeBaseBg(palette, isDark);
 
   const PAD = 20;
@@ -217,18 +239,75 @@ export function renderFamilyForExport(
       `translate(${contentX}, ${chrome + PAD}) scale(${scale})`
     ) as unknown as D3G;
 
+  // ── Generation zebra bands (opt-in `generations`) ──
+  // Subtle alternating ROUNDED bands hugging each generation's row, so it's easy
+  // to see who sits in the same generation (kanban/RACI row-band convention:
+  // rounded corners + inset + a vertical gap so bands never touch). Drawn FIRST,
+  // behind everything.
+  if (parsed.options['generations'] === 'true' && layout.rows.length > 0) {
+    const bandG = root.append('g').attr('class', 'family-generation-bands');
+    // Two subtle gray tones alternating per generation — every row gets a band
+    // (not just every other), so each generation reads as its own zone while
+    // staying quiet. Tone B is barely-there; tone A a touch deeper.
+    const toneA = mix(palette.textMuted, baseBg, 7);
+    const toneB = mix(palette.textMuted, baseBg, 2);
+    const BAND_VPAD = 12; // vertical breathing room above/below the row's cards
+    const BAND_INSET = 2; // horizontal inset from the content edges
+    for (let i = 0; i < layout.rows.length; i++) {
+      const r = layout.rows[i]!;
+      bandG
+        .append('rect')
+        .attr('x', BAND_INSET)
+        .attr('y', r.y - BAND_VPAD)
+        .attr('width', Math.max(0, contentW - BAND_INSET * 2))
+        .attr('height', r.height + BAND_VPAD * 2)
+        .attr('rx', CARD_RADIUS)
+        .attr('fill', i % 2 === 0 ? toneA : toneB);
+    }
+  }
+
   // ── Children buses (drawn under cards) ──
   const edgeG = root.append('g').attr('class', 'family-edges');
-  for (const e of layout.edges) {
-    const d = e.points.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join(' ');
+  const pathD = (pts: ReadonlyArray<{ x: number; y: number }>): string =>
+    pts.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join(' ');
+  const line = (
+    pts: ReadonlyArray<{ x: number; y: number }>,
+    dashed: boolean,
+    dimmed: boolean
+  ): void => {
     edgeG
       .append('path')
-      .attr('d', d)
+      .attr('d', pathD(pts))
       .attr('fill', 'none')
       .attr('stroke', palette.textMuted)
       .attr('stroke-width', EDGE_STROKE_WIDTH)
-      .attr('stroke-dasharray', e.adopted ? '6 3' : null);
-    if (e.adopted) {
+      .attr('stroke-dasharray', dashed ? '6 3' : null)
+      .attr('stroke-opacity', dimmed ? DIM_OPACITY : null);
+  };
+  // Group child edges by union so a union's shared bus TRUNK is drawn ONCE. The
+  // trunk is dashed only when EVERY child is adopted (all-adopted union → fully
+  // dotted bus); if any bio child shares the trunk it stays solid, and only each
+  // adopted child's own branch (horizontal run + drop) is dashed — otherwise a
+  // dashed trunk overlaps the bio child's solid trunk as a bumpy solid line.
+  const byUnion = new Map<string, FamilyChildEdge[]>();
+  for (const e of layout.edges) {
+    (byUnion.get(e.unionId) ?? byUnion.set(e.unionId, []).get(e.unionId)!).push(
+      e
+    );
+  }
+  for (const group of byUnion.values()) {
+    const first = group[0]!;
+    const allAdopted = group.every((e) => e.adopted);
+    const trunkDimmed = group.every((e) => e.dimmed);
+    if (first.points.length > 2) {
+      // Shared trunk (anchor → the bus row), drawn once for the union.
+      line(first.points.slice(0, 2), allAdopted, trunkDimmed);
+      for (const e of group) line(e.points.slice(1), e.adopted, !!e.dimmed);
+    } else {
+      for (const e of group) line(e.points, e.adopted, !!e.dimmed);
+    }
+    for (const e of group) {
+      if (!e.adopted) continue;
       // Italic `adopted` label near the child drop.
       const last = e.points[e.points.length - 1]!;
       const prev = e.points[e.points.length - 2] ?? last;
@@ -239,6 +318,7 @@ export function renderFamilyForExport(
         .attr('font-size', META_FONT_SIZE)
         .attr('font-style', 'italic')
         .attr('fill', palette.textMuted)
+        .attr('fill-opacity', e.dimmed ? DIM_OPACITY : null)
         .text('adopted');
     }
   }
@@ -246,25 +326,26 @@ export function renderFamilyForExport(
   // ── Marriage bars ──
   const barG = root.append('g').attr('class', 'family-bars');
   for (const bar of layout.bars) {
-    barG
-      .append('line')
+    const bg = barG.append('g');
+    if (bar.dimmed) bg.attr('opacity', DIM_OPACITY);
+    bg.append('line')
       .attr('x1', bar.x1)
       .attr('y1', bar.y)
       .attr('x2', bar.x2)
       .attr('y2', bar.y)
       .attr('stroke', palette.textMuted)
       .attr('stroke-width', EDGE_STROKE_WIDTH)
+      // Divorced/dissolved union → dashed marriage bar.
+      .attr('stroke-dasharray', bar.divorced ? '6 3' : null)
       .attr('class', 'family-marriage-bar')
       .attr('data-line-number', String(bar.lineNumber));
-    barG
-      .append('circle')
+    bg.append('circle')
       .attr('cx', bar.midX)
       .attr('cy', bar.y)
       .attr('r', BAR_DOT_R)
       .attr('fill', palette.textMuted);
     if (bar.year) {
-      barG
-        .append('text')
+      bg.append('text')
         .attr('x', bar.labelX)
         .attr('y', bar.y - BAR_DOT_R - 3)
         .attr('text-anchor', 'middle')
@@ -278,23 +359,46 @@ export function renderFamilyForExport(
     }
   }
 
+  // ── Dim occluders ──
+  // A dimmed card is drawn translucent (opacity DIM_OPACITY), which would let
+  // the marriage bars / bus edges behind it show THROUGH the card. Lay an opaque
+  // background rect under each dimmed card first (above bars + edges, below the
+  // cards) so the card still reads dimmed against the page but no line bleeds
+  // through it.
+  const occludeG = root.append('g').attr('class', 'family-dim-occluders');
+  for (const node of layout.nodes) {
+    if (!node.dimmed) continue;
+    occludeG
+      .append('rect')
+      .attr('x', node.x)
+      .attr('y', node.y)
+      .attr('width', node.width)
+      .attr('height', node.height)
+      .attr('rx', CARD_RADIUS)
+      .attr('fill', baseBg);
+  }
+
   // ── Person cards ──
   const cardsG = root.append('g').attr('class', 'family-cards');
   for (const node of layout.nodes) {
+    const isPh = !!node.placeholder;
     const base = baseColor(node, parsed, palette, activeTagGroup);
-    const fill = shapeFill(palette, base, isDark, { solid });
-    const stroke = base;
-    const labelColor = contrastText(
-      fill,
-      palette.textOnFillLight,
-      palette.textOnFillDark
-    );
+    // Placeholder `?`: a fainter, name-only card with a SOLID (muted) border —
+    // no color identity. (Dashing is reserved for adoption/divorce edges.)
+    const fill = isPh
+      ? mix(palette.textMuted, baseBg, 6)
+      : shapeFill(palette, base, isDark, { solid });
+    const stroke = isPh ? palette.textMuted : base;
+    const labelColor = isPh
+      ? palette.textMuted
+      : contrastText(fill, palette.textOnFillLight, palette.textOnFillDark);
     const g = cardsG
       .append('g')
       .attr('class', 'family-card')
       .attr('transform', `translate(${node.x}, ${node.y})`)
       .attr('data-line-number', String(node.lineNumber))
       .attr('data-person-id', node.id) as D3G;
+    if (node.dimmed) g.attr('opacity', DIM_OPACITY);
     // Expose the active tag value for legend-entry hover-dim (org precedent).
     if (activeTagGroup) {
       const key = tagAttrKey(activeTagGroup);
@@ -319,7 +423,11 @@ export function renderFamilyForExport(
       .attr('fill', labelColor)
       .attr('font-size', LABEL_FONT_SIZE)
       .attr('font-weight', 'bold')
-      .text(node.label);
+      // Deceased persons (`d:`) get a leading dagger — unless `no-daggers`.
+      .text(noDaggers ? node.label : familyDisplayLabel(node));
+
+    // Placeholder `?` cards have no identity to focus on — skip the dot-target.
+    if (isPh) continue;
 
     // Focus dot-target (org precedent) — click to collapse the tree to this
     // person's line. Subtle by default; the app reveals it fully on hover.
@@ -398,6 +506,23 @@ export function renderFamilyForExport(
           .text(r.value);
       }
     });
+  }
+
+  // ── Generation gutter (opt-in `generations`): Roman-numeral row labels in the
+  // reserved left band (layout added GUTTER_WIDTH to every card's x when on).
+  if (parsed.options['generations'] === 'true') {
+    const genG = root.append('g').attr('class', 'family-generations');
+    for (const rw of layout.rows) {
+      genG
+        .append('text')
+        .attr('x', 6)
+        .attr('y', rw.y + rw.height / 2)
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', META_FONT_SIZE)
+        .attr('font-weight', 'bold')
+        .attr('fill', palette.textMuted)
+        .text(`Gen ${toRoman(rw.row + 1)}`);
+    }
   }
 
   // ── Ancestor dots (focus mode): the focused person's parents, collapsed to

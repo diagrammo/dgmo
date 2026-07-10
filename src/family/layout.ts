@@ -27,6 +27,7 @@ import type {
   ParsedFamily,
   FamilyPerson,
   FamilyUnion,
+  FamilyChild,
   FamilyLayoutNode,
   FamilyLayoutResult,
   FamilyMarriageBar,
@@ -41,10 +42,89 @@ const H_GAP = 60; // horizontal gap between adjacent cards (room for the `m. YYY
 const ROW_GAP = 74; // vertical gap between generation rows (room for the bus)
 const KEY_VALUE_GAP = 6;
 const KEY_X = 10; // left inset of the key column (MUST match the renderer)
+const GUTTER_WIDTH = 72; // left band reserved for `generations` row labels
 
 interface CardSize {
   width: number;
   height: number;
+}
+
+/** Numeric birth year for a person id, or null when absent/unparseable. */
+function birthYear(
+  persons: ReadonlyMap<string, FamilyPerson>,
+  id: string
+): number | null {
+  const b = persons.get(id)?.metadata['b'];
+  if (b === undefined) return null;
+  const n = parseInt(b, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Sort a union's children by birth year (eldest → left, the genealogy norm).
+ * Children WITHOUT a `b:` year keep their declaration order and follow the dated
+ * ones — a STABLE decorate-sort keyed on (hasYear, year, originalIndex).
+ */
+function sortChildrenByBirth(
+  children: readonly FamilyChild[],
+  persons: ReadonlyMap<string, FamilyPerson>
+): FamilyChild[] {
+  return children
+    .map((c, i) => ({ c, i, b: birthYear(persons, c.personId) }))
+    .sort((x, y) => {
+      if (x.b !== null && y.b !== null) return x.b - y.b || x.i - y.i;
+      if (x.b !== null) return -1;
+      if (y.b !== null) return 1;
+      return x.i - y.i;
+    })
+    .map((o) => o.c);
+}
+
+/**
+ * The `highlight` bloodline: the focus person + ALL ancestors + ALL descendants
+ * + the spouses of everyone in that set (so couples still read). Everyone else is
+ * dimmed. Bidirectional analog of `focusFamily`'s one-way walk, keeping all nodes.
+ */
+function computeBloodline(
+  unions: readonly FamilyUnion[],
+  focusId: string
+): Set<string> {
+  const childOf = new Map<string, string[]>();
+  const parentOf = new Map<string, string[]>();
+  const unionById = new Map(unions.map((u) => [u.id, u]));
+  for (const u of unions) {
+    for (const p of u.parents)
+      (parentOf.get(p) ?? parentOf.set(p, []).get(p)!).push(u.id);
+    for (const c of u.children)
+      (
+        childOf.get(c.personId) ?? childOf.set(c.personId, []).get(c.personId)!
+      ).push(u.id);
+  }
+  const set = new Set<string>([focusId]);
+  const up = [focusId];
+  while (up.length) {
+    const id = up.pop()!;
+    for (const uid of childOf.get(id) ?? [])
+      for (const p of unionById.get(uid)!.parents)
+        if (!set.has(p)) {
+          set.add(p);
+          up.push(p);
+        }
+  }
+  const down = [focusId];
+  while (down.length) {
+    const id = down.pop()!;
+    for (const uid of parentOf.get(id) ?? [])
+      for (const c of unionById.get(uid)!.children)
+        if (!set.has(c.personId)) {
+          set.add(c.personId);
+          down.push(c.personId);
+        }
+  }
+  for (const id of [...set])
+    for (const uid of parentOf.get(id) ?? [])
+      for (const p of unionById.get(uid)!.parents) set.add(p);
+  return set;
 }
 
 // Card width MUST mirror the renderer's row geometry exactly: labeled rows put
@@ -247,8 +327,18 @@ export function layoutFamily(
 ): FamilyLayoutResult {
   const focused = focusId ? focusFamily(parsed, focusId) : null;
   const persons = focused ? focused.persons : parsed.persons;
-  const unions = focused ? focused.unions : parsed.unions;
+  // Children sorted eldest→left (by `b:`); the clone keeps the parsed model
+  // declaration-faithful while every downstream consumer sees sorted order.
+  const unions: readonly FamilyUnion[] = (
+    focused ? focused.unions : parsed.unions
+  ).map((u) => ({ ...u, children: sortChildrenByBirth(u.children, persons) }));
   const focusParents = focused ? focused.parents : [];
+
+  // `highlight` bloodline (dim everyone outside it). Empty when unset — parser
+  // has already dropped an unknown target, so this id always resolves.
+  const highlightId = parsed.options['highlight'] || null;
+  const litSet = highlightId ? computeBloodline(unions, highlightId) : null;
+  const showGen = parsed.options['generations'] === 'true';
   const ANCESTOR_STAGGER = 20; // vertical step between successive parent dots
   const ANCESTOR_BAND =
     focusParents.length > 0
@@ -441,7 +531,8 @@ export function layoutFamily(
   let minLeft = Infinity;
   for (const id of persons.keys())
     minLeft = Math.min(minLeft, centerX.get(id)! - sizes.get(id)!.width / 2);
-  const dx = Number.isFinite(minLeft) ? MARGIN - minLeft : MARGIN;
+  const gutter = showGen ? GUTTER_WIDTH : 0;
+  const dx = (Number.isFinite(minLeft) ? MARGIN - minLeft : MARGIN) + gutter;
 
   const nodes: FamilyLayoutNode[] = [];
   const topY = new Map<string, number>();
@@ -467,6 +558,8 @@ export function layoutFamily(
         width: s.width,
         height: s.height,
         row: r,
+        ...(p.placeholder && { placeholder: true }),
+        ...(litSet && !litSet.has(id) && { dimmed: true }),
         lineNumber: p.lineNumber,
       });
     }
@@ -481,15 +574,14 @@ export function layoutFamily(
     if (u.parents.length !== 2) continue;
     const [a, b] = u.parents;
     if (!centerX.has(a!) || !centerX.has(b!)) continue;
-    // Connect at the SHORTER card's vertical center. Both cards are top-aligned
-    // on the row, so this lands inside both — and since a detail-less spouse is
-    // title-only, that center is the name row, giving a consistent bar-to-name
-    // connection regardless of how tall the other spouse's meta stack is.
-    // (Averaging the two mids instead sinks the bar below a short card when its
-    // partner is tall — e.g. Philip beside a fully-detailed Elizabeth II.)
+    // Connect through the NAME-HEADER center. Every card shares HEADER_HEIGHT and
+    // all cards on a row are top-aligned, so this puts EVERY marriage bar on the
+    // row at the same height (uniform) and always inside both cards — regardless
+    // of how tall either spouse's meta stack is. (Using the shorter card's full
+    // center instead makes a title-only spouse's bar ride higher than a
+    // detailed couple's bar on the same row.)
     const rowTop = Math.min(topY.get(a!)!, topY.get(b!)!);
-    const shortBottom = Math.min(bottomY.get(a!)!, bottomY.get(b!)!);
-    const ay = (rowTop + shortBottom) / 2;
+    const ay = rowTop + HEADER_HEIGHT / 2;
     const ax = centerX.get(a!)!;
     const bx = centerX.get(b!)!;
     const x1 = Math.min(ax, bx);
@@ -514,6 +606,8 @@ export function layoutFamily(
       midX: (x1 + x2) / 2,
       labelX: gapCenter,
       ...(u.metadata['m'] !== undefined && { year: u.metadata['m'] }),
+      ...(u.divorced && { divorced: true }),
+      ...(litSet && !(litSet.has(a!) && litSet.has(b!)) && { dimmed: true }),
       lineNumber: u.lineNumber,
     });
   }
@@ -559,6 +653,7 @@ export function layoutFamily(
           { x: cx, y: cTop },
         ],
         adopted: c.adopted,
+        ...(litSet && !litSet.has(c.personId) && { dimmed: true }),
       });
     }
   }
@@ -598,12 +693,20 @@ export function layoutFamily(
   const height =
     (rowY.get(lastR) ?? MARGIN) + (rowHeight.get(lastR) ?? 0) + MARGIN;
 
+  // Occupied-row bands, for the `generations` gutter labels.
+  const rows: { row: number; y: number; height: number }[] = [];
+  for (let r = 0; r <= maxRow; r++) {
+    if (!rowPersons.get(r)?.length) continue;
+    rows.push({ row: r, y: rowY.get(r)!, height: rowHeight.get(r) ?? 0 });
+  }
+
   return {
     nodes,
     bars,
     edges,
     ancestors,
     ...(focusAnchor !== undefined && { focusAnchor }),
+    rows,
     width,
     height,
   };

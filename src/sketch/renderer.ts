@@ -40,6 +40,11 @@ const TITLE_FONT_SIZE = 18;
 // Sketch overrides the shared visual weights for a bolder, less-washed look.
 const NODE_STROKE_WIDTH = 2;
 const EDGE_STROKE_WIDTH = 2;
+// A wide, invisible stroke laid over each edge so it's easy to click/select even
+// though the drawn line is thin. pointer-events:stroke makes the transparent
+// paint catch clicks; it sits last in the group so `.sk-edge-group path` (first
+// path) still resolves to the VISIBLE line.
+const EDGE_HIT_WIDTH = 18;
 const ARROWHEAD_W = 12;
 const ARROWHEAD_H = 8;
 const DASH = '6 3';
@@ -166,25 +171,30 @@ const CARD_META_FONT = 12;
 /** Header font ceiling when the name fills a card with no rows. */
 const CARD_TITLE_MAX = 30;
 
-/** Largest header font in [MIN, maxFont] that fits the label on one line, else
- *  the min font with a middle-ellipsized label. */
-function fitOneLine(
+/** Largest font in [minFont, maxFont] whose word-wrap of `label` fits `maxWidth`
+ *  in ≤ maxLines lines. Wraps (multi-line) before it shrinks, so a long label
+ *  reads at a comfortable size across several lines rather than collapsing to a
+ *  tiny one-liner. If even minFont can't fit within maxLines, the last shown
+ *  line is middle-ellipsized so the block stays bounded. */
+function fitWrapped(
   label: string,
   maxWidth: number,
-  maxFont: number = CARD_LABEL_MAX
-): { text: string; fontSize: number } {
-  for (let fs = maxFont; fs >= CARD_LABEL_MIN; fs--) {
-    if (measureText(label, fs) <= maxWidth)
-      return { text: label, fontSize: fs };
+  maxFont: number = CARD_LABEL_MAX,
+  minFont: number = CARD_LABEL_MIN,
+  maxLines: number = 2
+): { lines: string[]; fontSize: number } {
+  for (let fs = maxFont; fs >= minFont; fs--) {
+    const lines = wrapTextToWidth(label, fs, maxWidth, { hardBreak: true });
+    if (lines.length <= maxLines) return { lines, fontSize: fs };
   }
-  let text = label;
-  while (
-    text.length > 1 &&
-    measureText(`${text}…`, CARD_LABEL_MIN) > maxWidth
-  ) {
-    text = text.slice(0, -1);
-  }
-  return { text: `${text}…`, fontSize: CARD_LABEL_MIN };
+  const lines = wrapTextToWidth(label, minFont, maxWidth, { hardBreak: true });
+  if (lines.length <= maxLines) return { lines, fontSize: minFont };
+  const kept = lines.slice(0, maxLines);
+  let last = kept[maxLines - 1]!;
+  while (last.length > 1 && measureText(`${last}…`, minFont) > maxWidth)
+    last = last.slice(0, -1);
+  kept[maxLines - 1] = `${last}…`;
+  return { lines: kept, fontSize: minFont };
 }
 
 // ── Main renderer ───────────────────────────────────────────
@@ -206,7 +216,10 @@ export function renderSketch(
   // toggle asks — the name then takes the whole card.
   const hideDesc = hideDescriptions || parsed.options.noDescriptions;
 
-  const neutralFill = mix(palette.surface, palette.bg, 40);
+  // Untagged shapes still read as filled cards, not empty outlines: a slight
+  // gray tint (muted mixed into the bg) — subtle on light, a touch lighter than
+  // the bg on dark.
+  const neutralFill = mix(palette.textMuted, palette.bg, 12);
   const tagGroups = [...parsed.tagGroups];
   const activeName = resolveActiveTagGroup(
     tagGroups,
@@ -432,6 +445,15 @@ export function renderSketch(
     if (edge.heads === 'both') {
       path.attr('marker-start', `url(#sk-arrow-rev-${hex})`);
     }
+    // Wide transparent hit target (appended last → visible path stays first).
+    g.append('path')
+      .attr('class', 'sk-edge-hit')
+      .attr('d', d)
+      .attr('fill', 'none')
+      .attr('stroke', 'transparent')
+      .attr('stroke-width', EDGE_HIT_WIDTH)
+      .attr('stroke-linecap', 'round')
+      .attr('pointer-events', 'stroke');
     if (edge.label) {
       labelLayerData.push({
         x: mid.x,
@@ -447,9 +469,17 @@ export function renderSketch(
   // ── Nodes ───────────────────────────────────────────────────
   const nodeLayer = root.append('g').attr('class', 'sk-nodes');
   for (const node of layout.nodes) {
+    // "Descriptions" toggle hides BOTH tag-metadata rows (empty tagGroups) and a
+    // node's free-text markdown description (strip it so the card renders as a
+    // plain centered-title node).
+    let n = node;
+    if (hideDesc && node.description) {
+      n = { ...node };
+      delete (n as { description?: string }).description;
+    }
     drawNode(
       nodeLayer,
-      node,
+      n,
       colorsFor(node.metadata),
       palette,
       isDark,
@@ -520,16 +550,25 @@ function drawBoxFrame(
     .attr('stroke', colors.stroke)
     .attr('stroke-opacity', 0.7)
     .attr('stroke-width', NODE_STROKE_WIDTH);
-  g.append('text')
-    .attr('x', box.x + box.w / 2)
-    .attr('y', box.y + box.bandH / 2)
-    .attr('text-anchor', 'middle')
-    .attr('dominant-baseline', 'central')
-    .attr('font-size', BAND_LABEL_FONT_SIZE)
-    .attr('font-weight', 800)
-    .attr('fill', palette.text)
-    .attr('opacity', BAND_LABEL_OPACITY)
-    .text(box.label);
+  // Wrap the group name (up to 2 lines) so a long label stays legible in the
+  // fixed top band instead of overflowing the box width.
+  const fit = fitWrapped(box.label, box.w - 16, BAND_LABEL_FONT_SIZE, 12, 2);
+  const lineH = fit.fontSize * 1.2;
+  const bandMid = box.y + box.bandH / 2;
+  const startY = bandMid - ((fit.lines.length - 1) * lineH) / 2;
+  for (let li = 0; li < fit.lines.length; li++) {
+    g.append('text')
+      .attr('x', box.x + box.w / 2)
+      .attr('y', startY + li * lineH)
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'central')
+      .attr('font-size', fit.fontSize)
+      .attr('font-weight', 800)
+      .attr('fill', palette.text)
+      .attr('opacity', BAND_LABEL_OPACITY)
+      // In-bounds by loop guard.
+      .text(fit.lines[li]!);
+  }
 }
 
 function drawNode(
@@ -582,10 +621,14 @@ function drawNode(
     // markdown block fills the body (in place of the tag rows). Wrapped, with a
     // small subset (bold/bullets/indent/links); clamps to the fixed card body.
     if (node.description && !node.isCollapsedBox) {
-      const fitH = fitOneLine(
+      // Single-line title: its 34px band sits directly above the rule + body,
+      // so it stays one (ellipsized) line rather than wrapping into the rule.
+      const fitH = fitWrapped(
         node.label,
         node.w - 24 - labelInset,
-        CARD_LABEL_MAX
+        CARD_LABEL_MAX,
+        CARD_LABEL_MIN,
+        1
       );
       renderNodeCard(g, {
         width: node.w,
@@ -594,7 +637,7 @@ function drawNode(
         fill: colors.fill,
         stroke: colors.stroke,
         strokeWidth: NODE_STROKE_WIDTH,
-        label: fitH.text,
+        label: fitH.lines[0] ?? node.label,
         labelColor: colors.text,
         labelFontSize: fitH.fontSize,
         headerHeight: CARD_HEADER_H,
@@ -635,10 +678,14 @@ function drawNode(
     // A collapsed group is styled exactly like a plain node — same big centered
     // name — and differs only by the collapse bar drawn at its bottom.
     const fillTitle = rows.length === 0;
-    const fit = fitOneLine(
+    // Wrap the name onto multiple lines before shrinking it: a full-height title
+    // (no rows) gets up to 3 lines; a header-band title (with rows below) gets 2.
+    const fit = fitWrapped(
       node.label,
       node.w - 24 - labelInset,
-      fillTitle ? CARD_TITLE_MAX : CARD_LABEL_MAX
+      fillTitle ? CARD_TITLE_MAX : CARD_LABEL_MAX,
+      CARD_LABEL_MIN,
+      fillTitle ? 3 : 2
     );
     renderNodeCard(g, {
       width: node.w,
@@ -647,7 +694,8 @@ function drawNode(
       fill: colors.fill,
       stroke: colors.stroke,
       strokeWidth: NODE_STROKE_WIDTH,
-      label: fit.text,
+      label: fit.lines.join(' '),
+      labelLines: fit.lines,
       labelColor: colors.text,
       labelFontSize: fit.fontSize,
       headerHeight: headerH,
@@ -711,6 +759,14 @@ function edgePath(
   let h1: { x: number; y: number };
   const clamp = (v: number, lo: number, hi: number): number =>
     Math.max(lo, Math.min(hi, v));
+  // Keep a port off the corners: clamp into the middle band of the side (a
+  // corner is never a valid attachment — an edge always meets a side mid-
+  // section). CORNER_FRAC trims this fraction off each end of the side.
+  const CORNER_FRAC = 0.25;
+  const midClamp = (v: number, lo: number, hi: number): number => {
+    const m = (hi - lo) * CORNER_FRAC;
+    return clamp(v, lo + m, hi - m);
+  };
   const nearest = (arr: number[], v: number): number =>
     arr.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a), arr[0]!);
   // Attachment coordinate:
@@ -723,13 +779,15 @@ function edgePath(
   //    diagonal (auto-align removes most offsets before this is seen).
   if (horiz) {
     const sign = bcx >= acx ? 1 : -1;
-    const cy: number | null = targetPorts
-      ? nearest(targetPorts.ys, acy)
-      : sourcePorts
-        ? nearest(sourcePorts.ys, bcy)
-        : null;
-    const y0 = cy === null ? acy : clamp(cy, source.y, source.y + source.h);
-    const y1 = cy === null ? bcy : clamp(cy, target.y, target.y + target.h);
+    // Each end resolves INDEPENDENTLY: a GROUP end snaps to its nearest child
+    // port (clamped off the corners); a BARE node has no alt ports — it always
+    // attaches at its own facing-side midpoint (its center).
+    const y0 = sourcePorts
+      ? midClamp(nearest(sourcePorts.ys, bcy), source.y, source.y + source.h)
+      : acy;
+    const y1 = targetPorts
+      ? midClamp(nearest(targetPorts.ys, acy), target.y, target.y + target.h)
+      : bcy;
     p0 = { x: sign > 0 ? source.x + source.w : source.x, y: y0 };
     p1 = { x: sign > 0 ? target.x : target.x + target.w, y: y1 };
     const k = Math.max(
@@ -740,13 +798,14 @@ function edgePath(
     h1 = { x: p1.x - sign * k, y: p1.y };
   } else {
     const sign = bcy >= acy ? 1 : -1;
-    const cx: number | null = targetPorts
-      ? nearest(targetPorts.xs, acx)
-      : sourcePorts
-        ? nearest(sourcePorts.xs, bcx)
-        : null;
-    const x0 = cx === null ? acx : clamp(cx, source.x, source.x + source.w);
-    const x1 = cx === null ? bcx : clamp(cx, target.x, target.x + target.w);
+    // Independent per-end: GROUP → nearest child port (off-corner); BARE node →
+    // its own facing-side midpoint (no alternative ports).
+    const x0 = sourcePorts
+      ? midClamp(nearest(sourcePorts.xs, bcx), source.x, source.x + source.w)
+      : acx;
+    const x1 = targetPorts
+      ? midClamp(nearest(targetPorts.xs, acx), target.x, target.x + target.w)
+      : bcx;
     p0 = { x: x0, y: sign > 0 ? source.y + source.h : source.y };
     p1 = { x: x1, y: sign > 0 ? target.y : target.y + target.h };
     const k = Math.max(

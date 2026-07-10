@@ -341,6 +341,16 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // SOLID_FILL_CAPABLE.
     withGlobals({
       'active-tag': { description: 'Active tag group name' },
+      highlight: {
+        description:
+          'Dim everyone outside a person’s bloodline (highlight Name)',
+      },
+      generations: {
+        description: 'Show Roman-numeral generation labels in a left gutter',
+      },
+      'no-daggers': {
+        description: 'Hide the deceased dagger (†) marker',
+      },
     }),
   ],
   [

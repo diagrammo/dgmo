@@ -89,6 +89,19 @@ Anne favouritecolor: red`,
 Anne b: 1665
 Anne b: 1666`,
   },
+  HIGHLIGHT_UNKNOWN: {
+    code: 'W_FAMILY_HIGHLIGHT_UNKNOWN',
+    severity: 'warning',
+    chartType: 'family',
+    title: 'Highlight target not found',
+    message: (p) =>
+      `\`highlight\` names an unknown person "${p.name ?? 'Ghost'}" — nothing was dimmed.`,
+    hint: 'The `highlight` directive must name a person that appears in the tree.',
+    example: `family
+highlight Ghost
+
+Anne + Bob`,
+  },
 } satisfies Record<string, DiagnosticSpec>;
 
 export const FAMILY_DIAGNOSTICS: DiagnosticSpec[] = Object.values(FAMILY_DX);

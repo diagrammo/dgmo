@@ -85,7 +85,7 @@ describe('sketch renderer — colors', () => {
   it('untagged shapes render neutral gray (decision 26a)', () => {
     const svg = render('sketch\nLonely at: 0 0');
     const rect = svg.querySelector('.sk-node rect')!;
-    expect(rect.getAttribute('fill')).toBe(mix(P.surface, P.bg, 40));
+    expect(rect.getAttribute('fill')).toBe(mix(P.textMuted, P.bg, 12));
     expect(rect.getAttribute('stroke')).toBe(P.textMuted);
   });
 
@@ -114,7 +114,8 @@ describe('sketch renderer — edges', () => {
     const src =
       'sketch\nA at: 0 0\n  -one-> b\n  <-both-> b\n  -none- b\n  ~sec~> b\nB as b at: 4 0';
     const svg = render(src);
-    const paths = [...svg.querySelectorAll('.sk-edge-group path')];
+    // Exclude the wide transparent hit paths (.sk-edge-hit) — count drawn lines.
+    const paths = [...svg.querySelectorAll('.sk-edge-group path:not(.sk-edge-hit)')];
     expect(paths.filter((p) => p.getAttribute('marker-end')).length).toBe(3);
     expect(paths.filter((p) => p.getAttribute('marker-start')).length).toBe(1);
     expect(
@@ -125,6 +126,20 @@ describe('sketch renderer — edges', () => {
     expect(
       paths.filter((p) => p.getAttribute('stroke-dasharray') === '6 3').length
     ).toBe(1);
+  });
+
+  it('each edge carries a wide transparent hit path (easy click target)', () => {
+    const svg = render('sketch\nA at: 0 0\n  -> b\nB as b at: 4 0');
+    const hit = svg.querySelector('.sk-edge-group path.sk-edge-hit')!;
+    expect(hit).not.toBeNull();
+    expect(hit.getAttribute('stroke')).toBe('transparent');
+    expect(Number(hit.getAttribute('stroke-width'))).toBeGreaterThan(10);
+    expect(hit.getAttribute('pointer-events')).toBe('stroke');
+    // Same geometry as the drawn line, and the drawn line is still resolved
+    // first by `.sk-edge-group path` (hit path is appended last).
+    const drawn = svg.querySelector('.sk-edge-group path')!;
+    expect(drawn.classList.contains('sk-edge-hit')).toBe(false);
+    expect(hit.getAttribute('d')).toBe(drawn.getAttribute('d'));
   });
 
   it('edges leave ports at 90° (cubic with axis-aligned handles)', () => {
@@ -167,16 +182,21 @@ describe('sketch renderer — edges', () => {
 });
 
 describe('sketch renderer — text fit (AC 9)', () => {
-  it('a 40-char name is ellipsized to fit the card header', () => {
+  it('a 40-char name wraps onto multiple lines within the fixed footprint', () => {
     const name = 'Extraordinarily Long Shape Name For Test';
     expect(name.length).toBe(40);
     const svg = render(`sketch\n${name} at: 0 0`);
     const texts = [...svg.querySelectorAll('.sk-node text')];
-    expect(texts.length).toBe(1); // single header line (no wrap)
-    expect(texts[0]!.textContent!.endsWith('…')).toBe(true); // truncated to fit
+    expect(texts.length).toBeGreaterThan(1); // wraps, not a tiny one-liner
+    // No text lost: the visible lines reconstruct the full name (no ellipsis).
+    expect(texts.map((t) => t.textContent).join(' ')).toBe(name);
+    for (const t of texts) {
+      const fs = Number(t.getAttribute('font-size'));
+      expect(fs).toBeGreaterThanOrEqual(11);
+      expect(fs).toBeLessThanOrEqual(30);
+    }
     const node = svg.querySelector('.sk-node rect')!;
     expect(Number(node.getAttribute('width'))).toBe(208); // footprint never grows
-    expect(Number(texts[0]!.getAttribute('font-size'))).toBeLessThanOrEqual(15);
   });
 });
 
@@ -238,5 +258,22 @@ describe('sketch renderer — options', () => {
       (t) => t.textContent
     );
     expect(rowTexts.some((t) => t?.includes('Crew'))).toBe(false);
+  });
+
+  it('no-descriptions hides a free-text markdown description block', () => {
+    const src = 'sketch\nLedger at: 0 0\n  > this is a note';
+    // Shown by default: the markdown block (.sk-desc) is drawn.
+    const shown = render(src);
+    expect(shown.querySelector('.sk-desc')).not.toBeNull();
+    expect(shown.textContent).toContain('this is a note');
+    // Hidden via directive.
+    const viaDirective = render('sketch\nno-descriptions\nLedger at: 0 0\n  > this is a note');
+    expect(viaDirective.querySelector('.sk-desc')).toBeNull();
+    expect(viaDirective.textContent).not.toContain('this is a note');
+    expect(viaDirective.textContent).toContain('Ledger'); // name still there
+    // Hidden via the render-option (canvas toggle path).
+    const viaOption = render(src, { hideDescriptions: true });
+    expect(viaOption.querySelector('.sk-desc')).toBeNull();
+    expect(viaOption.textContent).not.toContain('this is a note');
   });
 });
