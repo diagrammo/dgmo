@@ -574,15 +574,14 @@ export function layoutFamily(
     if (u.parents.length !== 2) continue;
     const [a, b] = u.parents;
     if (!centerX.has(a!) || !centerX.has(b!)) continue;
-    // Connect at the SHORTER card's vertical center. Both cards are top-aligned
-    // on the row, so this lands inside both — and since a detail-less spouse is
-    // title-only, that center is the name row, giving a consistent bar-to-name
-    // connection regardless of how tall the other spouse's meta stack is.
-    // (Averaging the two mids instead sinks the bar below a short card when its
-    // partner is tall — e.g. Philip beside a fully-detailed Elizabeth II.)
+    // Connect through the NAME-HEADER center. Every card shares HEADER_HEIGHT and
+    // all cards on a row are top-aligned, so this puts EVERY marriage bar on the
+    // row at the same height (uniform) and always inside both cards — regardless
+    // of how tall either spouse's meta stack is. (Using the shorter card's full
+    // center instead makes a title-only spouse's bar ride higher than a
+    // detailed couple's bar on the same row.)
     const rowTop = Math.min(topY.get(a!)!, topY.get(b!)!);
-    const shortBottom = Math.min(bottomY.get(a!)!, bottomY.get(b!)!);
-    const ay = (rowTop + shortBottom) / 2;
+    const ay = rowTop + HEADER_HEIGHT / 2;
     const ax = centerX.get(a!)!;
     const bx = centerX.get(b!)!;
     const x1 = Math.min(ax, bx);
