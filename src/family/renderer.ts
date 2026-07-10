@@ -355,9 +355,10 @@ export function renderFamilyForExport(
   for (const node of layout.nodes) {
     const isPh = !!node.placeholder;
     const base = baseColor(node, parsed, palette, activeTagGroup);
-    // Placeholder `?`: a muted, dashed, name-only card — no color identity.
+    // Placeholder `?`: a fainter, name-only card with a SOLID (muted) border —
+    // no color identity. (Dashing is reserved for adoption/divorce edges.)
     const fill = isPh
-      ? mix(palette.textMuted, baseBg, 12)
+      ? mix(palette.textMuted, baseBg, 6)
       : shapeFill(palette, base, isDark, { solid });
     const stroke = isPh ? palette.textMuted : base;
     const labelColor = isPh
@@ -385,8 +386,7 @@ export function renderFamilyForExport(
       .attr('rx', CARD_RADIUS)
       .attr('fill', fill)
       .attr('stroke', stroke)
-      .attr('stroke-width', NODE_STROKE_WIDTH)
-      .attr('stroke-dasharray', isPh ? '4 3' : null);
+      .attr('stroke-width', NODE_STROKE_WIDTH);
 
     g.append('text')
       .attr('x', node.width / 2)

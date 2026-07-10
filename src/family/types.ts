@@ -96,7 +96,7 @@ export interface FamilyLayoutNode {
   readonly height: number;
   /** Assigned generation row (0 = top). */
   readonly row: number;
-  /** Anonymous `?` placeholder — renderer draws a muted, dashed, name-only card. */
+  /** Anonymous `?` placeholder — renderer draws a faint, solid-bordered, name-only card. */
   readonly placeholder?: boolean;
   /** Outside the `highlight` person's bloodline — renderer draws it faded. */
   readonly dimmed?: boolean;

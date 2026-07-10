@@ -174,15 +174,16 @@ describe('family — anonymous `?` placeholder', () => {
     expect(placeholders[0]!.id).not.toBe(placeholders[1]!.id);
   });
 
-  it('renders a dashed, muted, name-only `?` card', () => {
+  it('renders a faint, name-only `?` card with a SOLID (not dashed) border', () => {
     const svg = render(`family
 ? + Anne
   Kid`);
     const cards = [...svg.querySelectorAll('.family-card')];
     const ph = cards.find((c) => c.querySelector('text')?.textContent === '?')!;
-    expect(ph.querySelector('rect')!.getAttribute('stroke-dasharray')).toBe(
-      '4 3'
-    );
+    const rect = ph.querySelector('rect')!;
+    // Solid border — dashing is reserved for adoption/divorce edges.
+    expect(rect.getAttribute('stroke-dasharray')).toBeNull();
+    expect(rect.getAttribute('stroke')).toBeTruthy();
     // No focus dot-target on a placeholder.
     expect(ph.querySelector('.family-focus-icon')).toBeNull();
   });

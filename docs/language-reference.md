@@ -1749,7 +1749,7 @@ Henry Turner + Carina Smyth m: 1751
 - **Divorce:** a bare `divorced` token on a union line (`A + B m: 1980 divorced`) draws a dashed marriage bar; children still attach.
 - **Deceased:** a person with a death year (`d:`) is auto-marked with a muted dagger (†) — derived, no syntax.
 - **Children** are auto-ordered eldest→left by birth year (`b:`); undated children keep declaration order.
-- **Unknown/private person:** a bare `?` renders a muted, dashed, name-only placeholder card; each `?` is a distinct person.
+- **Unknown/private person:** a bare `?` renders a faint, solid-bordered, name-only placeholder card; each `?` is a distinct person.
 - **`generations`** (option): draws a left gutter of Roman-numeral generation labels (`Gen I`, `Gen II`, …).
 - **`highlight <name>`** (directive): dims everyone outside that person's bloodline (ancestors + descendants + spouses stay lit).
 - **Sex → color:** `sex: m` → blue, `sex: f` → purple, unset → gray (25% tint). An explicit `tag`/inline color overrides the sex color.
