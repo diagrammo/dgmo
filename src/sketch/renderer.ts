@@ -451,7 +451,9 @@ export function renderSketch(
       .attr('data-line-number', edge.lineNumber);
     const path = g
       .append('path')
-      .attr('d', d)
+      // Visible stroke uses the hopped path when this edge jumps another; the
+      // hit-path + all geometry consumers keep the pure cubic `d`.
+      .attr('d', geo.dRender ?? d)
       .attr('fill', 'none')
       .attr('stroke', color)
       .attr('stroke-width', EDGE_STROKE_WIDTH);
@@ -1065,8 +1067,11 @@ function cubicAt(g: EdgeGeom, t: number): Pt {
 const EDGE_OBSTACLE_INSET = 6;
 const EDGE_SAMPLES = 24;
 
-/** Sample a cubic into a polyline for segment-level intersection tests. */
-const POLY_SAMPLES = 18;
+/** Sample a cubic into a polyline for segment-level intersection tests. ODD on
+ *  purpose: t=0.5 is never a sample, so a crossing at two mirror-symmetric
+ *  curves` shared midpoint lands MID-segment where `segmentsCross` (strict, so
+ *  blind to a crossing exactly on a vertex) can still see it. */
+const POLY_SAMPLES = 19;
 function polyline(g: EdgeGeom): Pt[] {
   const pts: Pt[] = [];
   for (let i = 0; i <= POLY_SAMPLES; i++)
@@ -1097,6 +1102,102 @@ function polyCrossings(a: Pt[], b: Pt[]): number {
   return n;
 }
 
+/** Intersection point of two crossing polylines, or null if they don't cross. */
+function polyIntersection(a: Pt[], b: Pt[]): Pt | null {
+  for (let i = 0; i + 1 < a.length; i++) {
+    const p = a[i]!;
+    const p2 = a[i + 1]!;
+    for (let j = 0; j + 1 < b.length; j++) {
+      const q = b[j]!;
+      const q2 = b[j + 1]!;
+      if (!segmentsCross(p, p2, q, q2)) continue;
+      const rx = p2.x - p.x;
+      const ry = p2.y - p.y;
+      const sx = q2.x - q.x;
+      const sy = q2.y - q.y;
+      const denom = rx * sy - ry * sx;
+      if (denom === 0) continue;
+      const t = ((q.x - p.x) * sy - (q.y - p.y) * sx) / denom;
+      return { x: p.x + t * rx, y: p.y + t * ry };
+    }
+  }
+  return null;
+}
+
+// Radius (half-chord) of the little semicircular hop drawn where one line jumps
+// another so the two read as distinct (circuit-diagram convention).
+const HOP_R = 7;
+
+/**
+ * Render-path for a cubic that HOPS over the given crossing points: a small
+ * rounded hump replaces the line at each crossing so it reads as passing over,
+ * not joining. Returns null when there`s nothing to hop (caller uses the plain
+ * cubic `d`). The hump is a short cubic bulging to the side of least y (a
+ * consistent "up-and-over"), so only the visible stroke changes — `d`/`mid`
+ * stay the pure cubic every other consumer parses.
+ */
+function hoppedPath(g: EdgeGeom, hops: readonly Pt[]): string | null {
+  if (hops.length === 0) return null;
+  const N = 48;
+  const pts: Pt[] = [];
+  for (let s = 0; s <= N; s++) pts.push(cubicAt(g, s / N));
+  // Snap each hop to the nearest interior segment of this edge`s fine polyline.
+  const onSeg = new Map<number, Pt>();
+  for (const hp of hops) {
+    let bestSeg = -1;
+    let bestD = Infinity;
+    let bestPt: Pt | null = null;
+    for (let k = 1; k <= N; k++) {
+      const a = pts[k - 1]!;
+      const b = pts[k]!;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len2 = dx * dx + dy * dy || 1;
+      let f = ((hp.x - a.x) * dx + (hp.y - a.y) * dy) / len2;
+      f = Math.max(0, Math.min(1, f));
+      const px = a.x + f * dx;
+      const py = a.y + f * dy;
+      const d = Math.hypot(hp.x - px, hp.y - py);
+      if (d < bestD) {
+        bestD = d;
+        bestSeg = k;
+        bestPt = { x: px, y: py };
+      }
+    }
+    // Skip hops too near an endpoint (no room for the hump).
+    if (bestSeg >= 3 && bestSeg <= N - 3 && bestPt && !onSeg.has(bestSeg))
+      onSeg.set(bestSeg, bestPt);
+  }
+  if (onSeg.size === 0) return null;
+  let d = `M ${pts[0]!.x} ${pts[0]!.y}`;
+  for (let k = 1; k <= N; k++) {
+    const a = pts[k - 1]!;
+    const b = pts[k]!;
+    const hp = onSeg.get(k);
+    if (hp) {
+      const segLen = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const dir = { x: (b.x - a.x) / segLen, y: (b.y - a.y) / segLen };
+      // Perpendicular pointing "up" (toward smaller y) for a consistent arch.
+      let perp = { x: dir.y, y: -dir.x };
+      if (perp.y > 0) perp = { x: -perp.x, y: -perp.y };
+      const A = { x: hp.x - dir.x * HOP_R, y: hp.y - dir.y * HOP_R };
+      const B = { x: hp.x + dir.x * HOP_R, y: hp.y + dir.y * HOP_R };
+      const k1 = {
+        x: A.x + perp.x * HOP_R * 1.33,
+        y: A.y + perp.y * HOP_R * 1.33,
+      };
+      const k2 = {
+        x: B.x + perp.x * HOP_R * 1.33,
+        y: B.y + perp.y * HOP_R * 1.33,
+      };
+      d += ` L ${A.x} ${A.y} C ${k1.x} ${k1.y}, ${k2.x} ${k2.y}, ${B.x} ${B.y} L ${b.x} ${b.y}`;
+    } else {
+      d += ` L ${b.x} ${b.y}`;
+    }
+  }
+  return d;
+}
+
 function pathCrossings(g: EdgeGeom, obstacles: readonly Rect[]): number {
   if (obstacles.length === 0) return 0;
   let hits = 0;
@@ -1120,8 +1221,12 @@ function pathCrossings(g: EdgeGeom, obstacles: readonly Rect[]): number {
 export interface SketchEdgeGeometry {
   sourceId: string;
   targetId: string;
+  /** Pure cubic path — parsed as one cubic by label/bounds/hit-test consumers. */
   d: string;
   mid: { x: number; y: number };
+  /** Visible stroke path WITH crossing-hops, when this edge hops another. The
+   *  renderer draws this if present; everything else still uses `d`. */
+  dRender?: string;
 }
 
 /**
@@ -1327,14 +1432,31 @@ export function sketchEdgeGeometry(
     if (!changed) break;
   }
 
+  // Crossing-hops: where two (non-adjacent) edges still cross, the HIGHER-index
+  // edge hops over the lower one so the two read as distinct. `polys` holds the
+  // final routing after relaxation.
+  const hopsFor: Array<Pt[]> = layout.edges.map(() => []);
+  for (let i = 0; i < polys.length; i++) {
+    for (let j = i + 1; j < polys.length; j++) {
+      if (ctx[i]?.adjacent.has(j)) continue;
+      const a = polys[i];
+      const b = polys[j];
+      if (!a || !b) continue;
+      const pt = polyIntersection(a, b);
+      if (pt) hopsFor[j]!.push(pt); // j (drawn later, on top) does the hop
+    }
+  }
+
   return layout.edges.map((edge, i) => {
     const g = geoms[i];
     if (!g) return null;
+    const dRender = hoppedPath(g, hopsFor[i]!);
     return {
       sourceId: edge.sourceId,
       targetId: edge.targetId,
       d: g.d,
       mid: g.mid,
+      ...(dRender && { dRender }),
     };
   });
 }

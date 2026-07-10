@@ -319,6 +319,31 @@ describe('sketch renderer — edges', () => {
     expect(overlap).toBe(false);
   });
 
+  it('adds a hop on one line where two edges cross', () => {
+    // Two edges cross in the middle (swapped corners). Exactly one gets a
+    // `dRender` hop path (an added C hump) so the crossing reads as a jump; the
+    // pure `d` cubic is untouched. The other edge keeps a plain cubic.
+    const layout = layoutSketch(
+      parseSketch(
+        'sketch\n' +
+          'A as a at: 0 4\n  -x-> c\n' +
+          'B as b at: 8 4\n  -y-> d\n' +
+          'C as c at: 8 0\nD as d at: 0 0\n',
+        P
+      )
+    );
+    const geom = sketchEdgeGeometry(layout).filter(Boolean);
+    const hopped = geom.filter((g) => g!.dRender);
+    expect(hopped.length).toBe(1);
+    const h = hopped[0]!;
+    // Pure `d` is a single cubic (one `C`, no line-tos) for other consumers.
+    expect(h.d).toMatch(/^M [\d.-]+ [\d.-]+ C [^A-Z]+$/);
+    // The hop render path is a polyline (L commands) with a hump cubic — the
+    // added geometry that reads as a jump.
+    expect(h.dRender).toContain('L ');
+    expect(h.dRender).toContain('C ');
+  });
+
   it('picks the side that avoids crossing another edge', () => {
     // Mirrors the twin-holds case: a bottom-right node links to the TOP child of
     // a group, while a bottom-left node links to the BOTTOM child of the same
