@@ -70,6 +70,7 @@ interface MutablePerson {
   metadata: Record<string, string>;
   color?: string;
   tagMetadata: Record<string, string>;
+  placeholder?: boolean;
   lineNumber: number;
 }
 
@@ -92,6 +93,21 @@ function splitUnionSides(nameRegion: string): string[] {
   }
   sides.push(cur.join(' '));
   return sides;
+}
+
+/**
+ * Family-specific top-level directives (not generic shared options):
+ *   `highlight <name>` — dim everyone outside the named person's bloodline
+ *   `generations`      — draw the Roman-numeral generation gutter
+ * Returns the captured key/value, or null when the line is not a family option.
+ */
+function matchFamilyOption(
+  line: string
+): { key: string; value: string } | null {
+  const h = line.match(/^highlight\s+(.+)$/i);
+  if (h) return { key: 'highlight', value: h[1]!.trim() };
+  if (/^generations$/i.test(line)) return { key: 'generations', value: 'true' };
+  return null;
 }
 
 export function parseFamily(
@@ -192,6 +208,15 @@ export function parseFamily(
       continue;
     }
     if (indent === 0) currentTagGroup = null;
+
+    // Family directives (`highlight <name>`, `generations`).
+    if (indent === 0) {
+      const fam = matchFamilyOption(trimmed);
+      if (fam) {
+        options[fam.key] = fam.value;
+        continue;
+      }
+    }
 
     // Bare shared options (solid-fill, no-title, …).
     if (indent === 0 && tryParseSharedOption(trimmed, options)) continue;
@@ -323,6 +348,22 @@ export function parseFamily(
       }
     }
     cleanName = stripQuotes(cleanName.trim());
+    // Anonymous `?` placeholder: each `?` is a DISTINCT person (never merged by
+    // name), so a unique synthetic id — an unknown grandparent and an unknown
+    // spouse must not collapse into one card.
+    if (cleanName === '?') {
+      const ph: MutablePerson = {
+        id: `?#${++placeholderSeq}`,
+        label: '?',
+        sex: 'unknown',
+        metadata: {},
+        tagMetadata: {},
+        placeholder: true,
+        lineNumber: lineNum,
+      };
+      persons.set(ph.id, ph);
+      return { person: ph, adopted };
+    }
     const person = getPerson(cleanName, lineNum);
     if (alias !== undefined) aliasMap.set(normalizeName(alias), person.id);
     applyMeta(person, meta, color, lineNum);
@@ -341,18 +382,21 @@ export function parseFamily(
   }
   const stack: Scope[] = [];
   let unionSeq = 0;
+  let placeholderSeq = 0;
   const unionById = new Map<string, Writable<FamilyUnion>>();
 
   const makeUnion = (
     parents: string[],
     metadata: Record<string, string>,
-    lineNum: number
+    lineNum: number,
+    divorced = false
   ): Writable<FamilyUnion> => {
     const u: Writable<FamilyUnion> = {
       id: `u${unionSeq++}`,
       parents,
       metadata,
       children: [] as FamilyChild[],
+      ...(divorced && { divorced: true }),
       lineNumber: lineNum,
     };
     unions.push(u);
@@ -397,6 +441,7 @@ export function parseFamily(
     }
     if (indent === 0) inTagBlock = false;
     if (inTagBlock && indent > 0) continue;
+    if (indent === 0 && matchFamilyOption(trimmed)) continue;
     if (indent === 0 && tryParseSharedOption(trimmed, {})) continue;
 
     // Pop scopes shallower-or-equal to this line's indent.
@@ -407,6 +452,15 @@ export function parseFamily(
 
     // A child line indented with no scope above → error (but still register the
     // person so downstream refs resolve).
+    // Divorce: a union line may end in a bare `divorced` token (`A + B m: 1980
+    // divorced` or `A + B divorced`). Peel it off the whole line BEFORE the
+    // metadata cut / ` + ` split — it is union-level, sits after any `m:`, and
+    // only applies to a line that actually joins two people (has a spaced `+`).
+    let divorced = false;
+    if (/\s\+\s/.test(trimmed) && /\s+divorced$/i.test(trimmed)) {
+      divorced = true;
+      trimmed = trimmed.replace(/\s+divorced$/i, '').trimEnd();
+    }
     // Detect union vs person: cut union-level metadata FIRST, then split ` + `.
     const cut = cutUnionMetadata(trimmed, FAMILY_UNION_REGISTRY);
     const nameRegion = cut < 0 ? trimmed : trimmed.slice(0, cut).trimEnd();
@@ -466,7 +520,8 @@ export function parseFamily(
       const u = makeUnion(
         parentPersons.map((p) => p.id),
         unionMeta,
-        lineNum
+        lineNum,
+        divorced
       );
       stack.push({ indent, unionId: u.id });
     } else if (hadPlus) {
@@ -547,8 +602,26 @@ export function parseFamily(
       metadata: p.metadata,
       ...(p.color !== undefined && { color: p.color }),
       tagMetadata: p.tagMetadata,
+      ...(p.placeholder && { placeholder: true }),
       lineNumber: p.lineNumber,
     });
+  }
+
+  // ── Resolve the `highlight` target to a canonical id (or warn) ──
+  // A `highlight <name>` that matches no person emits a warning and is dropped
+  // so layout dims nothing; a match is rewritten to the canonical id for layout.
+  if (options['highlight']) {
+    const norm = normalizeName(options['highlight']);
+    const hit =
+      aliasMap.get(norm) ?? (frozenPersons.has(norm) ? norm : undefined);
+    if (hit) {
+      options['highlight'] = hit;
+    } else {
+      diagnostics.push(
+        emit(FAMILY_DX.HIGHLIGHT_UNKNOWN, 0, { name: options['highlight'] })
+      );
+      delete options['highlight'];
+    }
   }
 
   // ── Ancestry cycle = quotient cycle (fatal; renderer bails on error) ──

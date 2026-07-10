@@ -36,6 +36,8 @@ export interface FamilyPerson {
   readonly color?: string;
   /** Tag-group values applied to this person (`{ concern: 'royal' }`). */
   readonly tagMetadata: Readonly<Record<string, string>>;
+  /** True when this person is an anonymous `?` placeholder (unmerged, muted card). */
+  readonly placeholder?: boolean;
   readonly lineNumber: number;
 }
 
@@ -60,6 +62,8 @@ export interface FamilyUnion {
   /** Union-level metadata — only `m` (marriage year) is recognized. */
   readonly metadata: Readonly<Record<string, string>>;
   readonly children: readonly FamilyChild[];
+  /** True when the union line carried the bare `divorced` token (dashed bar). */
+  readonly divorced?: boolean;
   readonly lineNumber: number;
 }
 
@@ -92,6 +96,10 @@ export interface FamilyLayoutNode {
   readonly height: number;
   /** Assigned generation row (0 = top). */
   readonly row: number;
+  /** Anonymous `?` placeholder — renderer draws a muted, dashed, name-only card. */
+  readonly placeholder?: boolean;
+  /** Outside the `highlight` person's bloodline — renderer draws it faded. */
+  readonly dimmed?: boolean;
   readonly lineNumber: number;
 }
 
@@ -110,6 +118,10 @@ export interface FamilyMarriageBar {
   readonly labelX: number;
   /** Marriage year (`metadata.m`), if any — drawn at the label position. */
   readonly year?: string;
+  /** Dissolved union (`divorced` token) — renderer draws a dashed bar. */
+  readonly divorced?: boolean;
+  /** Outside the `highlight` bloodline — renderer draws it faded. */
+  readonly dimmed?: boolean;
   readonly lineNumber: number;
 }
 
@@ -121,6 +133,8 @@ export interface FamilyChildEdge {
   readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
   /** Adopted children render a dashed drop. */
   readonly adopted: boolean;
+  /** Outside the `highlight` bloodline — renderer draws it faded. */
+  readonly dimmed?: boolean;
 }
 
 /** A collapsed ancestor shown as a small labeled dot above the focused card. */
@@ -141,6 +155,12 @@ export interface FamilyLayoutResult {
   readonly ancestors: readonly FamilyAncestorDot[];
   /** Top-center of the focused card, for the ancestor-trail connector. */
   readonly focusAnchor?: { readonly x: number; readonly y: number };
+  /** Per-occupied-row bands (for the `generations` gutter labels). */
+  readonly rows: readonly {
+    readonly row: number;
+    readonly y: number;
+    readonly height: number;
+  }[];
   readonly width: number;
   readonly height: number;
 }

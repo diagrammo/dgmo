@@ -29,6 +29,20 @@ export interface FamilyCardRow {
   readonly year: boolean;
 }
 
+/**
+ * Card header label — a muted dagger (†) prefixes a DECEASED person (one with a
+ * `d:` death year), the standard genealogy convention. Anonymous `?` placeholders
+ * never get a dagger. Computed here (not in the renderer) so `cardSize` measures
+ * the same string the renderer draws — the dagger widens the header.
+ */
+export function familyDisplayLabel(p: {
+  label: string;
+  metadata: Readonly<Record<string, string>>;
+  placeholder?: boolean;
+}): string {
+  return !p.placeholder && p.metadata['d'] ? `† ${p.label}` : p.label;
+}
+
 /** Build the ordered card rows for a person / laid-out node (may be empty). */
 export function familyCardRows(p: {
   metadata: Readonly<Record<string, string>>;

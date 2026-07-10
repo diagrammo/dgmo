@@ -45,7 +45,7 @@ import {
   NODE_STROKE_WIDTH,
   EDGE_STROKE_WIDTH,
 } from '../utils/visual-conventions';
-import { familyCardRows } from './card-model';
+import { familyCardRows, familyDisplayLabel } from './card-model';
 import type { PaletteColors } from '../palettes';
 import type {
   ParsedFamily,
@@ -60,6 +60,26 @@ const KEY_X = 10;
 const KEY_VALUE_GAP = 6;
 const BAR_DOT_R = 3.5;
 const TITLE_RESERVE = 40; // native vertical band for the title
+const DIM_OPACITY = 0.28; // faded cards/edges outside the `highlight` bloodline
+
+const ROMAN: ReadonlyArray<readonly [number, string]> = [
+  [10, 'X'],
+  [9, 'IX'],
+  [5, 'V'],
+  [4, 'IV'],
+  [1, 'I'],
+];
+/** Small positive integer → Roman numeral (generation gutter labels). */
+function toRoman(n: number): string {
+  let out = '';
+  let v = n;
+  for (const [val, sym] of ROMAN)
+    while (v >= val) {
+      out += sym;
+      v -= val;
+    }
+  return out;
+}
 
 export interface FamilyRenderOptions {
   exportDims?: { width: number; height: number };
@@ -227,7 +247,8 @@ export function renderFamilyForExport(
       .attr('fill', 'none')
       .attr('stroke', palette.textMuted)
       .attr('stroke-width', EDGE_STROKE_WIDTH)
-      .attr('stroke-dasharray', e.adopted ? '6 3' : null);
+      .attr('stroke-dasharray', e.adopted ? '6 3' : null)
+      .attr('stroke-opacity', e.dimmed ? DIM_OPACITY : null);
     if (e.adopted) {
       // Italic `adopted` label near the child drop.
       const last = e.points[e.points.length - 1]!;
@@ -239,6 +260,7 @@ export function renderFamilyForExport(
         .attr('font-size', META_FONT_SIZE)
         .attr('font-style', 'italic')
         .attr('fill', palette.textMuted)
+        .attr('fill-opacity', e.dimmed ? DIM_OPACITY : null)
         .text('adopted');
     }
   }
@@ -246,25 +268,26 @@ export function renderFamilyForExport(
   // ── Marriage bars ──
   const barG = root.append('g').attr('class', 'family-bars');
   for (const bar of layout.bars) {
-    barG
-      .append('line')
+    const bg = barG.append('g');
+    if (bar.dimmed) bg.attr('opacity', DIM_OPACITY);
+    bg.append('line')
       .attr('x1', bar.x1)
       .attr('y1', bar.y)
       .attr('x2', bar.x2)
       .attr('y2', bar.y)
       .attr('stroke', palette.textMuted)
       .attr('stroke-width', EDGE_STROKE_WIDTH)
+      // Divorced/dissolved union → dashed marriage bar.
+      .attr('stroke-dasharray', bar.divorced ? '6 3' : null)
       .attr('class', 'family-marriage-bar')
       .attr('data-line-number', String(bar.lineNumber));
-    barG
-      .append('circle')
+    bg.append('circle')
       .attr('cx', bar.midX)
       .attr('cy', bar.y)
       .attr('r', BAR_DOT_R)
       .attr('fill', palette.textMuted);
     if (bar.year) {
-      barG
-        .append('text')
+      bg.append('text')
         .attr('x', bar.labelX)
         .attr('y', bar.y - BAR_DOT_R - 3)
         .attr('text-anchor', 'middle')
@@ -281,20 +304,23 @@ export function renderFamilyForExport(
   // ── Person cards ──
   const cardsG = root.append('g').attr('class', 'family-cards');
   for (const node of layout.nodes) {
+    const isPh = !!node.placeholder;
     const base = baseColor(node, parsed, palette, activeTagGroup);
-    const fill = shapeFill(palette, base, isDark, { solid });
-    const stroke = base;
-    const labelColor = contrastText(
-      fill,
-      palette.textOnFillLight,
-      palette.textOnFillDark
-    );
+    // Placeholder `?`: a muted, dashed, name-only card — no color identity.
+    const fill = isPh
+      ? mix(palette.textMuted, baseBg, 12)
+      : shapeFill(palette, base, isDark, { solid });
+    const stroke = isPh ? palette.textMuted : base;
+    const labelColor = isPh
+      ? palette.textMuted
+      : contrastText(fill, palette.textOnFillLight, palette.textOnFillDark);
     const g = cardsG
       .append('g')
       .attr('class', 'family-card')
       .attr('transform', `translate(${node.x}, ${node.y})`)
       .attr('data-line-number', String(node.lineNumber))
       .attr('data-person-id', node.id) as D3G;
+    if (node.dimmed) g.attr('opacity', DIM_OPACITY);
     // Expose the active tag value for legend-entry hover-dim (org precedent).
     if (activeTagGroup) {
       const key = tagAttrKey(activeTagGroup);
@@ -310,7 +336,8 @@ export function renderFamilyForExport(
       .attr('rx', CARD_RADIUS)
       .attr('fill', fill)
       .attr('stroke', stroke)
-      .attr('stroke-width', NODE_STROKE_WIDTH);
+      .attr('stroke-width', NODE_STROKE_WIDTH)
+      .attr('stroke-dasharray', isPh ? '4 3' : null);
 
     g.append('text')
       .attr('x', node.width / 2)
@@ -319,7 +346,11 @@ export function renderFamilyForExport(
       .attr('fill', labelColor)
       .attr('font-size', LABEL_FONT_SIZE)
       .attr('font-weight', 'bold')
-      .text(node.label);
+      // Deceased persons (`d:`) get a leading dagger via familyDisplayLabel.
+      .text(familyDisplayLabel(node));
+
+    // Placeholder `?` cards have no identity to focus on — skip the dot-target.
+    if (isPh) continue;
 
     // Focus dot-target (org precedent) — click to collapse the tree to this
     // person's line. Subtle by default; the app reveals it fully on hover.
@@ -398,6 +429,23 @@ export function renderFamilyForExport(
           .text(r.value);
       }
     });
+  }
+
+  // ── Generation gutter (opt-in `generations`): Roman-numeral row labels in the
+  // reserved left band (layout added GUTTER_WIDTH to every card's x when on).
+  if (parsed.options['generations'] === 'true') {
+    const genG = root.append('g').attr('class', 'family-generations');
+    for (const rw of layout.rows) {
+      genG
+        .append('text')
+        .attr('x', 6)
+        .attr('y', rw.y + rw.height / 2)
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', META_FONT_SIZE)
+        .attr('font-weight', 'bold')
+        .attr('fill', palette.textMuted)
+        .text(`Gen ${toRoman(rw.row + 1)}`);
+    }
   }
 
   // ── Ancestor dots (focus mode): the focused person's parents, collapsed to
