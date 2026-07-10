@@ -239,16 +239,33 @@ export function renderFamilyForExport(
 
   // ── Children buses (drawn under cards) ──
   const edgeG = root.append('g').attr('class', 'family-edges');
+  const pathD = (pts: ReadonlyArray<{ x: number; y: number }>): string =>
+    pts.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join(' ');
   for (const e of layout.edges) {
-    const d = e.points.map((p, i) => `${i ? 'L' : 'M'}${p.x} ${p.y}`).join(' ');
-    edgeG
-      .append('path')
-      .attr('d', d)
-      .attr('fill', 'none')
-      .attr('stroke', palette.textMuted)
-      .attr('stroke-width', EDGE_STROKE_WIDTH)
-      .attr('stroke-dasharray', e.adopted ? '6 3' : null)
-      .attr('stroke-opacity', e.dimmed ? DIM_OPACITY : null);
+    const op = e.dimmed ? DIM_OPACITY : null;
+    const line = (
+      pts: ReadonlyArray<{ x: number; y: number }>,
+      dashed: boolean
+    ): void => {
+      edgeG
+        .append('path')
+        .attr('d', pathD(pts))
+        .attr('fill', 'none')
+        .attr('stroke', palette.textMuted)
+        .attr('stroke-width', EDGE_STROKE_WIDTH)
+        .attr('stroke-dasharray', dashed ? '6 3' : null)
+        .attr('stroke-opacity', op);
+    };
+    if (e.adopted && e.points.length > 2) {
+      // The first segment is the bus TRUNK, shared with (and overlapping) a
+      // solid sibling's trunk — dashing it there reads as a bumpy solid line.
+      // Keep the trunk solid; dash only this child's own branch (the horizontal
+      // run + drop) to mark adoption.
+      line(e.points.slice(0, 2), false);
+      line(e.points.slice(1), true);
+    } else {
+      line(e.points, e.adopted);
+    }
     if (e.adopted) {
       // Italic `adopted` label near the child drop.
       const last = e.points[e.points.length - 1]!;
