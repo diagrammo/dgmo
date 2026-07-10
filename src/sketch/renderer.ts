@@ -960,13 +960,22 @@ interface EdgeGeom {
   p1: Pt;
 }
 
+/** Fan slot for a bare-node port: this edge is #idx of `count` sharing a side,
+ *  so it attaches at a distinct point along the side rather than the midpoint. */
+interface Fan {
+  idx: number;
+  count: number;
+}
+
 function edgePath(
   source: Rect,
   target: Rect,
   sSide: Side,
   tSide: Side,
   sourcePorts?: Ports,
-  targetPorts?: Ports
+  targetPorts?: Ports,
+  sFan?: Fan,
+  tFan?: Fan
 ): EdgeGeom {
   const acx = source.x + source.w / 2;
   const acy = source.y + source.h / 2;
@@ -988,23 +997,32 @@ function edgePath(
   // coordinate to its nearest discrete child port (row for L/R, column for
   // T/B); a BARE node attaches at that side's midpoint (its center on that
   // axis). `toward` is the other end's center, which the port snaps nearest to.
+  // Fan position along a side`s mid-band: a lone edge sits dead-center (frac
+  // 0.5 → the old midpoint, no change), while N edges sharing a side spread to N
+  // evenly-spaced ports so a hub`s spokes leave from distinct points.
+  const fanPos = (lo: number, hi: number, fan: Fan | undefined): number => {
+    const frac = fan && fan.count > 1 ? (fan.idx + 1) / (fan.count + 1) : 0.5;
+    const m = (hi - lo) * CORNER_FRAC;
+    return lo + m + (hi - lo - 2 * m) * frac;
+  };
   const attach = (
     side: Side,
     rect: Rect,
     ports: Ports | undefined,
-    toward: { x: number; y: number }
+    toward: { x: number; y: number },
+    fan: Fan | undefined
   ): { x: number; y: number } => {
     if (side === 'L' || side === 'R') {
       const x = side === 'L' ? rect.x : rect.x + rect.w;
       const y = ports
         ? midClamp(nearest(ports.ys, toward.y), rect.y, rect.y + rect.h)
-        : rect.y + rect.h / 2;
+        : fanPos(rect.y, rect.y + rect.h, fan);
       return { x, y };
     }
     const y = side === 'T' ? rect.y : rect.y + rect.h;
     const x = ports
       ? midClamp(nearest(ports.xs, toward.x), rect.x, rect.x + rect.w)
-      : rect.x + rect.w / 2;
+      : fanPos(rect.x, rect.x + rect.w, fan);
     return { x, y };
   };
   const normal = (side: Side): { x: number; y: number } =>
@@ -1015,8 +1033,8 @@ function edgePath(
         : side === 'T'
           ? { x: 0, y: -1 }
           : { x: 0, y: 1 };
-  const p0 = attach(sSide, source, sourcePorts, { x: bcx, y: bcy });
-  const p1 = attach(tSide, target, targetPorts, { x: acx, y: acy });
+  const p0 = attach(sSide, source, sourcePorts, { x: bcx, y: bcy }, sFan);
+  const p1 = attach(tSide, target, targetPorts, { x: acx, y: acy }, tFan);
   const n0 = normal(sSide);
   const n1 = normal(tSide);
   const k = Math.max(
@@ -1430,6 +1448,67 @@ export function sketchEdgeGeometry(
       }
     }
     if (!changed) break;
+  }
+
+  // Fan-out: when several edges attach to the SAME side of the SAME bare node
+  // (a hub`s spokes), spread them to distinct ports instead of stacking on the
+  // midpoint — the same rule on every side, so the hub reads as a clean radial
+  // fan. Group endpoints keep their child-port snapping (skipped here). Edges on
+  // a side are ordered by the far endpoint`s cross-axis position so their lines
+  // don`t cross near the port.
+  // bucket key → the edge indices attaching to that (bare node, side).
+  const bucket = new Map<string, number[]>();
+  const push = (key: string, i: number): void => {
+    const arr = bucket.get(key);
+    if (arr) arr.push(i);
+    else bucket.set(key, [i]);
+  };
+  for (let i = 0; i < ctx.length; i++) {
+    if (!ctx[i]) continue;
+    const e = layout.edges[i]!;
+    if (!portsById.has(e.sourceId)) push(`${e.sourceId}|${chosen[i]!.s}`, i);
+    if (!portsById.has(e.targetId)) push(`${e.targetId}|${chosen[i]!.t}`, i);
+  }
+  const crossAxis = (side: Side, r: Rect): number =>
+    side === 'L' || side === 'R' ? r.y + r.h / 2 : r.x + r.w / 2;
+  const fanFor = new Map<string, Fan>(); // `${edgeIndex}|s` or `|t` → slot
+  for (const [key, idxs] of bucket) {
+    if (idxs.length < 2) continue;
+    const sep = key.lastIndexOf('|');
+    const id = key.slice(0, sep);
+    const side = key.slice(sep + 1) as Side;
+    // Order by the far endpoint`s cross-axis so lines don`t tangle at the port.
+    const ordered = [...idxs].sort((a, b) => {
+      const fa =
+        layout.edges[a]!.sourceId === id ? ctx[a]!.target : ctx[a]!.source;
+      const fb =
+        layout.edges[b]!.sourceId === id ? ctx[b]!.target : ctx[b]!.source;
+      return crossAxis(side, fa) - crossAxis(side, fb);
+    });
+    ordered.forEach((i, k) => {
+      const role =
+        layout.edges[i]!.sourceId === id && chosen[i]!.s === side ? 's' : 't';
+      fanFor.set(`${i}|${role}`, { idx: k, count: ordered.length });
+    });
+  }
+  // Rebuild geometry for any edge that got a fan slot on either endpoint.
+  for (let i = 0; i < ctx.length; i++) {
+    const c = ctx[i];
+    if (!c) continue;
+    const sFan = fanFor.get(`${i}|s`);
+    const tFan = fanFor.get(`${i}|t`);
+    if (!sFan && !tFan) continue;
+    geoms[i] = edgePath(
+      c.source,
+      c.target,
+      chosen[i]!.s,
+      chosen[i]!.t,
+      c.sPorts,
+      c.tPorts,
+      sFan,
+      tFan
+    );
+    polys[i] = polyline(geoms[i]!);
   }
 
   // Crossing-hops: where two (non-adjacent) edges still cross, the HIGHER-index

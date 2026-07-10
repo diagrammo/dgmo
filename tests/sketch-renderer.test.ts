@@ -319,6 +319,34 @@ describe('sketch renderer — edges', () => {
     expect(overlap).toBe(false);
   });
 
+  it('fans multiple edges sharing a node side to distinct ports', () => {
+    // Three edges leave a hub toward three right-side targets. All pick the
+    // RIGHT side; they must attach at three DISTINCT points (a fan), not stack
+    // on the side midpoint.
+    const layout = layoutSketch(
+      parseSketch(
+        'sketch\n' +
+          'H as h at: 0 3\n  -> a\n  -> b\n  -> c\n' +
+          'A as a at: 6 0\nB as b at: 6 3\nC as c at: 6 6\n',
+        P
+      )
+    );
+    const idOf = (label: string) =>
+      layout.nodes.find((n) => n.label === label)!.id;
+    const geom = sketchEdgeGeometry(layout);
+    const startY = (to: string) => {
+      const g = geom.find(
+        (x) => x?.sourceId === idOf('H') && x?.targetId === idOf(to)
+      )!;
+      return Number(/^M [\d.-]+ ([\d.-]+)/.exec(g.d)![1]);
+    };
+    const ys = [startY('A'), startY('B'), startY('C')];
+    expect(new Set(ys).size).toBe(3); // three distinct ports
+    // Ordered by target row: A (top) highest port, C (bottom) lowest.
+    expect(ys[0]).toBeLessThan(ys[1]!);
+    expect(ys[1]).toBeLessThan(ys[2]!);
+  });
+
   it('adds a hop on one line where two edges cross', () => {
     // Two edges cross in the middle (swapped corners). Exactly one gets a
     // `dRender` hop path (an added C hump) so the crossing reads as a jump; the
