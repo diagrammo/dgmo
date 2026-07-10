@@ -337,6 +337,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       generations: {
         description: 'Show Roman-numeral generation labels in a left gutter',
       },
+      'no-daggers': {
+        description: 'Hide the deceased dagger (†) marker',
+      },
     }),
   ],
   [

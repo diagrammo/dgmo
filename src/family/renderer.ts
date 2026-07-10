@@ -131,6 +131,7 @@ export function renderFamilyForExport(
 
   const activeTagGroup = opts.activeTagGroup ?? null;
   const solid = parsed.options['solid-fill'] === 'on';
+  const noDaggers = parsed.options['no-daggers'] === 'true';
   const baseBg = themeBaseBg(palette, isDark);
 
   const PAD = 20;
@@ -422,8 +423,8 @@ export function renderFamilyForExport(
       .attr('fill', labelColor)
       .attr('font-size', LABEL_FONT_SIZE)
       .attr('font-weight', 'bold')
-      // Deceased persons (`d:`) get a leading dagger via familyDisplayLabel.
-      .text(familyDisplayLabel(node));
+      // Deceased persons (`d:`) get a leading dagger — unless `no-daggers`.
+      .text(noDaggers ? node.label : familyDisplayLabel(node));
 
     // Placeholder `?` cards have no identity to focus on — skip the dot-target.
     if (isPh) continue;

@@ -100,6 +100,21 @@ Blackbeard + Mary
     expect(labels).not.toContain('† Edward');
   });
 
+  it('`no-daggers` suppresses the dagger (death year still shows)', () => {
+    const svg = render(`family
+no-daggers
+Blackbeard b: 1680, d: 1718
+Blackbeard + Mary
+  Edward b: 1710`);
+    const labels = [...svg.querySelectorAll('.family-card > text')].map(
+      (t) => t.textContent
+    );
+    expect(labels).toContain('Blackbeard'); // no dagger prefix
+    expect(labels).not.toContain('† Blackbeard');
+    // death year still rendered in the year row
+    expect(svg.textContent).toContain('1680 – 1718');
+  });
+
   it('placeholder `?` never gets a dagger', () => {
     const svg = render(`family
 ? + Mary

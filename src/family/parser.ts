@@ -107,6 +107,8 @@ function matchFamilyOption(
   const h = line.match(/^highlight\s+(.+)$/i);
   if (h) return { key: 'highlight', value: h[1]!.trim() };
   if (/^generations$/i.test(line)) return { key: 'generations', value: 'true' };
+  // Turn off the deceased dagger (†) marker.
+  if (/^no-daggers$/i.test(line)) return { key: 'no-daggers', value: 'true' };
   return null;
 }
 
