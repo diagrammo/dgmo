@@ -161,15 +161,18 @@ A + B
     expect(svg.querySelector('.family-generation-bands')).toBeNull();
   });
 
-  it('shades alternating generations with subtle zebra bands, behind everything', () => {
+  it('shades every generation with alternating subtle bands, behind everything', () => {
     const svg = render(`family
 generations
 A + B
   C + D
     E + F
       G`);
-    const bands = svg.querySelectorAll('.family-generation-bands rect');
-    expect(bands.length).toBe(2); // 4 rows → every other → 2 bands
+    const bands = [...svg.querySelectorAll('.family-generation-bands rect')];
+    expect(bands.length).toBe(4); // one band per generation row
+    // two alternating tones, all rounded
+    expect(new Set(bands.map((b) => b.getAttribute('fill'))).size).toBe(2);
+    expect(bands.every((b) => b.getAttribute('rx') === '6')).toBe(true);
     const root = svg.querySelector('g[transform*="scale"]')!;
     expect(root.children[0]!.getAttribute('class')).toBe(
       'family-generation-bands'

@@ -245,11 +245,14 @@ export function renderFamilyForExport(
   // behind everything.
   if (parsed.options['generations'] === 'true' && layout.rows.length > 0) {
     const bandG = root.append('g').attr('class', 'family-generation-bands');
-    const band = mix(palette.textMuted, baseBg, 6);
+    // Two subtle gray tones alternating per generation — every row gets a band
+    // (not just every other), so each generation reads as its own zone while
+    // staying quiet. Tone B is barely-there; tone A a touch deeper.
+    const toneA = mix(palette.textMuted, baseBg, 7);
+    const toneB = mix(palette.textMuted, baseBg, 2);
     const BAND_VPAD = 12; // vertical breathing room above/below the row's cards
     const BAND_INSET = 2; // horizontal inset from the content edges
     for (let i = 0; i < layout.rows.length; i++) {
-      if (i % 2 !== 0) continue; // stripe every other generation
       const r = layout.rows[i]!;
       bandG
         .append('rect')
@@ -258,7 +261,7 @@ export function renderFamilyForExport(
         .attr('width', Math.max(0, contentW - BAND_INSET * 2))
         .attr('height', r.height + BAND_VPAD * 2)
         .attr('rx', CARD_RADIUS)
-        .attr('fill', band);
+        .attr('fill', i % 2 === 0 ? toneA : toneB);
     }
   }
 
