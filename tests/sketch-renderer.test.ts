@@ -296,6 +296,29 @@ describe('sketch renderer — edges', () => {
     expect(inside).toBe(false);
   });
 
+  it('declutters overlapping edge labels onto their own lines', () => {
+    // Two edges cross in the middle; naively both labels land on the crossing
+    // point and overlap. Declutter must slide them apart (each stays on its own
+    // curve) so neither box intersects the other.
+    const svg = render(
+      'sketch\n' +
+        'A as a at: 0 4\n  -alpha-> c\n' +
+        'B as b at: 8 4\n  -beta-> d\n' +
+        'C as c at: 8 0\nD as d at: 0 0\n'
+    );
+    const boxes = [...svg.querySelectorAll('.sk-edge-label rect')].map((r) => ({
+      x: Number(r.getAttribute('x')),
+      y: Number(r.getAttribute('y')),
+      w: Number(r.getAttribute('width')),
+      h: Number(r.getAttribute('height')),
+    }));
+    expect(boxes.length).toBe(2);
+    const [a, b] = boxes as [(typeof boxes)[0], (typeof boxes)[0]];
+    const overlap =
+      a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    expect(overlap).toBe(false);
+  });
+
   it('picks the side that avoids crossing another edge', () => {
     // Mirrors the twin-holds case: a bottom-right node links to the TOP child of
     // a group, while a bottom-left node links to the BOTTOM child of the same

@@ -431,6 +431,8 @@ export function renderSketch(
     color: string;
     from: string;
     to: string;
+    /** cubic control points [x0,y0,hx0,hy0,hx1,hy1,x1,y1] for on-line nudging */
+    cp: number[];
   }> = [];
   for (let ei = 0; ei < layout.edges.length; ei++) {
     const edge = layout.edges[ei]!;
@@ -475,7 +477,78 @@ export function renderSketch(
         color,
         from: edge.sourceId,
         to: edge.targetId,
+        cp: (d.match(/-?[\d.]+/g) ?? []).map(Number),
       });
+    }
+  }
+
+  // ── Edge-label declutter ────────────────────────────────────
+  // Two labels can land on the same spot (most obviously where two edges cross).
+  // Slide the later one ALONG ITS OWN CURVE to the nearest clear parameter — the
+  // label stays on its line (so it`s unambiguous which edge it belongs to) while
+  // stepping out of the collision and off any shape.
+  {
+    const labelW = (t: string): number =>
+      t.length * EDGE_LABEL_FONT_SIZE * 0.56;
+    const halfH = EDGE_LABEL_FONT_SIZE / 2 + 3;
+    const shapeRects: Rect[] = [
+      ...layout.nodes.map((n) => ({ x: n.x, y: n.y, w: n.w, h: n.h })),
+      ...layout.boxes.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h })),
+    ];
+    const at = (cp: number[], t: number): Pt => {
+      const u = 1 - t;
+      const a = u * u * u;
+      const b = 3 * u * u * t;
+      const c = 3 * u * t * t;
+      const dd = t * t * t;
+      return {
+        x: a * cp[0]! + b * cp[2]! + c * cp[4]! + dd * cp[6]!,
+        y: a * cp[1]! + b * cp[3]! + c * cp[5]! + dd * cp[7]!,
+      };
+    };
+    // AABB overlap (with a 2px breathing gap) of two label boxes / a label & rect.
+    const boxHit = (
+      cx: number,
+      cy: number,
+      hw: number,
+      ox: number,
+      oy: number,
+      ohw: number,
+      ohh: number
+    ): boolean =>
+      Math.abs(cx - ox) < hw + ohw + 2 && Math.abs(cy - oy) < halfH + ohh + 2;
+    const placed: Array<{ x: number; y: number; hw: number }> = [];
+    // Try t=0.5 first, then step outward alternately toward each end.
+    const TS = [0.5, 0.42, 0.58, 0.34, 0.66, 0.27, 0.73, 0.2, 0.8];
+    for (const l of labelLayerData) {
+      const hw = labelW(l.text) / 2 + 3;
+      let bestT = 0.5;
+      let bestScore = Infinity;
+      for (const t of TS) {
+        const p = at(l.cp, t);
+        let labelHits = 0;
+        for (const q of placed)
+          if (boxHit(p.x, p.y, hw, q.x, q.y, q.hw, halfH)) labelHits++;
+        let shapeHits = 0;
+        for (const r of shapeRects)
+          if (
+            boxHit(p.x, p.y, hw, r.x + r.w / 2, r.y + r.h / 2, r.w / 2, r.h / 2)
+          )
+            shapeHits++;
+        if (labelHits === 0 && shapeHits === 0) {
+          bestT = t; // TS is preference-ordered → first fully-clear t wins
+          break;
+        }
+        const score = labelHits * 10 + shapeHits * 5 + Math.abs(t - 0.5);
+        if (score < bestScore) {
+          bestScore = score;
+          bestT = t;
+        }
+      }
+      const p = at(l.cp, bestT);
+      l.x = p.x;
+      l.y = p.y;
+      placed.push({ x: p.x, y: p.y, hw });
     }
   }
 
