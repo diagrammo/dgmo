@@ -265,6 +265,77 @@ describe('sketch renderer — edges', () => {
     }
     expect(inside).toBe(0);
   });
+
+  it('picks the side that avoids crossing another edge', () => {
+    // Mirrors the twin-holds case: a bottom-right node links to the TOP child of
+    // a group, while a bottom-left node links to the BOTTOM child of the same
+    // group. Routing the top-child edge up the group`s INNER side would cross
+    // the bottom-child edge; it must take the OUTER side instead.
+    const src =
+      'sketch\n' +
+      'Left as left at: 0 6\n  -> d\n' +
+      'Right as right at: 8 6\n  -> c\n' +
+      '[Box] at: 6 0\n' +
+      '  Ctop as c at: 0 0\n' +
+      '  Dbot as d at: 0 3\n';
+    const layout = layoutSketch(parseSketch(src, P));
+    const idOf = (label: string) =>
+      layout.nodes.find((n) => n.label === label)!.id;
+    const geom = sketchEdgeGeometry(layout);
+    const find = (from: string, to: string) =>
+      geom.find((g) => g?.sourceId === idOf(from) && g?.targetId === idOf(to))!;
+    const sample = (d: string) => {
+      const m =
+        /^M\s+([-\d.]+)\s+([-\d.]+)\s+C\s+([-\d.]+)\s+([-\d.]+),\s+([-\d.]+)\s+([-\d.]+),\s+([-\d.]+)\s+([-\d.]+)/.exec(
+          d
+        )!;
+      const [x0, y0, cx0, cy0, cx1, cy1, x1, y1] = m
+        .slice(1)
+        .map(Number) as number[];
+      const pts: Array<{ x: number; y: number }> = [];
+      for (let i = 0; i <= 24; i++) {
+        const t = i / 24;
+        const u = 1 - t;
+        pts.push({
+          x:
+            u * u * u * x0! +
+            3 * u * u * t * cx0! +
+            3 * u * t * t * cx1! +
+            t * t * t * x1!,
+          y:
+            u * u * u * y0! +
+            3 * u * u * t * cy0! +
+            3 * u * t * t * cy1! +
+            t * t * t * y1!,
+        });
+      }
+      return pts;
+    };
+    const cross = (
+      a: { x: number; y: number }[],
+      b: { x: number; y: number }[]
+    ) => {
+      const o = (p: any, q: any, r: any) =>
+        (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+      let n = 0;
+      for (let i = 0; i + 1 < a.length; i++)
+        for (let j = 0; j + 1 < b.length; j++) {
+          const d1 = o(a[i], a[i + 1], b[j]);
+          const d2 = o(a[i], a[i + 1], b[j + 1]);
+          const d3 = o(b[j], b[j + 1], a[i]);
+          const d4 = o(b[j], b[j + 1], a[i + 1]);
+          if (
+            ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+            ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+          )
+            n++;
+        }
+      return n;
+    };
+    expect(
+      cross(sample(find('Right', 'Ctop').d), sample(find('Left', 'Dbot').d))
+    ).toBe(0);
+  });
 });
 
 describe('sketch renderer — text fit (AC 9)', () => {

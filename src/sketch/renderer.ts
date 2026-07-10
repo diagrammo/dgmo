@@ -924,6 +924,39 @@ function cubicAt(g: EdgeGeom, t: number): Pt {
  */
 const EDGE_OBSTACLE_INSET = 6;
 const EDGE_SAMPLES = 24;
+
+/** Sample a cubic into a polyline for segment-level intersection tests. */
+const POLY_SAMPLES = 18;
+function polyline(g: EdgeGeom): Pt[] {
+  const pts: Pt[] = [];
+  for (let i = 0; i <= POLY_SAMPLES; i++)
+    pts.push(cubicAt(g, i / POLY_SAMPLES));
+  return pts;
+}
+
+/** Do open segments p→p2 and q→q2 properly cross? (shared endpoints excluded) */
+function segmentsCross(p: Pt, p2: Pt, q: Pt, q2: Pt): boolean {
+  const o = (a: Pt, b: Pt, c: Pt): number =>
+    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const d1 = o(p, p2, q);
+  const d2 = o(p, p2, q2);
+  const d3 = o(q, q2, p);
+  const d4 = o(q, q2, p2);
+  return (
+    ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+    ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+  );
+}
+
+/** Count how many times two sampled edge polylines cross. */
+function polyCrossings(a: Pt[], b: Pt[]): number {
+  let n = 0;
+  for (let i = 0; i + 1 < a.length; i++)
+    for (let j = 0; j + 1 < b.length; j++)
+      if (segmentsCross(a[i]!, a[i + 1]!, b[j]!, b[j + 1]!)) n++;
+  return n;
+}
+
 function pathCrossings(g: EdgeGeom, obstacles: readonly Rect[]): number {
   if (obstacles.length === 0) return 0;
   let hits = 0;
@@ -1017,12 +1050,21 @@ export function sketchEdgeGeometry(
     return 1 - (n.x * dx + n.y * dy) / len; // 0 (facing) … 2 (opposed)
   };
 
-  return layout.edges.map((edge, i) => {
+  // Per-edge routing context: endpoint rects, ports, and the node/box rects this
+  // edge must not cut through (its endpoints and their own boxes excluded).
+  interface Ctx {
+    source: Rect;
+    target: Rect;
+    sPorts: Ports | undefined;
+    tPorts: Ports | undefined;
+    obstacleRects: Rect[];
+    /** edge indices sharing an endpoint — their meeting point isn`t a crossing */
+    adjacent: Set<number>;
+  }
+  const ctx: Array<Ctx | null> = layout.edges.map((edge) => {
     const source = rectById.get(edge.sourceId);
     const target = rectById.get(edge.targetId);
     if (!source || !target) return null;
-    const sPorts = portsById.get(edge.sourceId);
-    const tPorts = portsById.get(edge.targetId);
     const exclude = new Set(
       [
         edge.sourceId,
@@ -1031,38 +1073,128 @@ export function sketchEdgeGeometry(
         boxOf(edge.targetId),
       ].filter((x): x is string => x !== undefined)
     );
-    const relevant = obstacles
-      .filter((o) => !exclude.has(o.id))
-      .map((o) => o.rect);
+    return {
+      source,
+      target,
+      sPorts: portsById.get(edge.sourceId),
+      tPorts: portsById.get(edge.targetId),
+      obstacleRects: obstacles
+        .filter((o) => !exclude.has(o.id))
+        .map((o) => o.rect),
+      adjacent: new Set<number>(),
+    };
+  });
+  for (let a = 0; a < layout.edges.length; a++) {
+    for (let b = a + 1; b < layout.edges.length; b++) {
+      const ea = layout.edges[a]!;
+      const eb = layout.edges[b]!;
+      if (
+        ea.sourceId === eb.sourceId ||
+        ea.sourceId === eb.targetId ||
+        ea.targetId === eb.sourceId ||
+        ea.targetId === eb.targetId
+      ) {
+        ctx[a]?.adjacent.add(b);
+        ctx[b]?.adjacent.add(a);
+      }
+    }
+  }
 
-    const sd = sides[i] ?? { s: 'R' as Side, t: 'L' as Side };
-    let best = edgePath(source, target, sd.s, sd.t, sPorts, tPorts);
-    // Only search when the assigned sides actually cut through a shape — a clear
-    // path keeps its congestion-aware side assignment untouched.
-    if (pathCrossings(best, relevant) > 0) {
-      let bestScore =
-        pathCrossings(best, relevant) * 100 +
-        facingCost(source, target, sd.s) +
-        facingCost(target, source, sd.t);
+  // A node crossing (edge cuts through a shape) is far worse than an edge–edge
+  // crossing, which in turn costs more than a slightly-off attachment angle.
+  const W_NODE = 100;
+  const W_EDGE = 8;
+  const scoreOf = (
+    c: Ctx,
+    g: EdgeGeom,
+    poly: Pt[],
+    self: number,
+    polys: Array<Pt[] | null>,
+    s: Side,
+    t: Side
+  ): number => {
+    let edgeCross = 0;
+    for (let j = 0; j < polys.length; j++) {
+      if (j === self || c.adjacent.has(j)) continue;
+      const pj = polys[j];
+      if (pj) edgeCross += polyCrossings(poly, pj);
+    }
+    return (
+      pathCrossings(g, c.obstacleRects) * W_NODE +
+      edgeCross * W_EDGE +
+      facingCost(c.source, c.target, s) +
+      facingCost(c.target, c.source, t)
+    );
+  };
+
+  // Initial geometry from the congestion-aware side assignment.
+  const chosen: Array<{ s: Side; t: Side }> = layout.edges.map(
+    (_, i) => sides[i] ?? { s: 'R' as Side, t: 'L' as Side }
+  );
+  const geoms: Array<EdgeGeom | null> = ctx.map((c, i) =>
+    c
+      ? edgePath(
+          c.source,
+          c.target,
+          chosen[i]!.s,
+          chosen[i]!.t,
+          c.sPorts,
+          c.tPorts
+        )
+      : null
+  );
+  const polys: Array<Pt[] | null> = geoms.map((g) => (g ? polyline(g) : null));
+
+  // Relax: repeatedly let each edge re-pick the side pair that minimises its
+  // combined node + edge crossings against everyone else`s CURRENT routing. An
+  // edge already clear of both keeps its assignment. A couple of passes settles
+  // the mutual dependence (edge A`s best side depends on where B ended up).
+  for (let pass = 0; pass < 3; pass++) {
+    let changed = false;
+    for (let i = 0; i < ctx.length; i++) {
+      const c = ctx[i];
+      const g = geoms[i];
+      const p = polys[i];
+      if (!c || !g || !p) continue;
+      const cur = chosen[i]!;
+      const curScore = scoreOf(c, g, p, i, polys, cur.s, cur.t);
+      // Nothing to fix (no node cut, no edge crossing, best facing) — leave it.
+      if (curScore < W_EDGE) continue;
+      let bestScore = curScore;
+      let bestG = g;
+      let bestP = p;
+      let bestSide = cur;
       for (const s of SIDES) {
         for (const t of SIDES) {
-          const g = edgePath(source, target, s, t, sPorts, tPorts);
-          const score =
-            pathCrossings(g, relevant) * 100 +
-            facingCost(source, target, s) +
-            facingCost(target, source, t);
-          if (score < bestScore) {
-            bestScore = score;
-            best = g;
+          const cg = edgePath(c.source, c.target, s, t, c.sPorts, c.tPorts);
+          const cp = polyline(cg);
+          const sc = scoreOf(c, cg, cp, i, polys, s, t);
+          if (sc < bestScore) {
+            bestScore = sc;
+            bestG = cg;
+            bestP = cp;
+            bestSide = { s, t };
           }
         }
       }
+      if (bestSide !== cur) {
+        chosen[i] = bestSide;
+        geoms[i] = bestG;
+        polys[i] = bestP;
+        changed = true;
+      }
     }
+    if (!changed) break;
+  }
+
+  return layout.edges.map((edge, i) => {
+    const g = geoms[i];
+    if (!g) return null;
     return {
       sourceId: edge.sourceId,
       targetId: edge.targetId,
-      d: best.d,
-      mid: best.mid,
+      d: g.d,
+      mid: g.mid,
     };
   });
 }
