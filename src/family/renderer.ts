@@ -239,28 +239,25 @@ export function renderFamilyForExport(
     ) as unknown as D3G;
 
   // ── Generation zebra bands (opt-in `generations`) ──
-  // Subtle alternating full-width bands behind each generation row, so it's easy
-  // to see who sits in the same generation. Drawn FIRST (behind everything) and
-  // tiled to fill the row gaps so the stripes are continuous.
+  // Subtle alternating ROUNDED bands hugging each generation's row, so it's easy
+  // to see who sits in the same generation (kanban/RACI row-band convention:
+  // rounded corners + inset + a vertical gap so bands never touch). Drawn FIRST,
+  // behind everything.
   if (parsed.options['generations'] === 'true' && layout.rows.length > 0) {
     const bandG = root.append('g').attr('class', 'family-generation-bands');
-    const rows = layout.rows;
     const band = mix(palette.textMuted, baseBg, 6);
-    for (let i = 0; i < rows.length; i++) {
+    const BAND_VPAD = 12; // vertical breathing room above/below the row's cards
+    const BAND_INSET = 2; // horizontal inset from the content edges
+    for (let i = 0; i < layout.rows.length; i++) {
       if (i % 2 !== 0) continue; // stripe every other generation
-      const r = rows[i]!;
-      const top =
-        i === 0 ? 0 : (rows[i - 1]!.y + rows[i - 1]!.height + r.y) / 2;
-      const bot =
-        i === rows.length - 1
-          ? contentH
-          : (r.y + r.height + rows[i + 1]!.y) / 2;
+      const r = layout.rows[i]!;
       bandG
         .append('rect')
-        .attr('x', 0)
-        .attr('y', top)
-        .attr('width', contentW)
-        .attr('height', bot - top)
+        .attr('x', BAND_INSET)
+        .attr('y', r.y - BAND_VPAD)
+        .attr('width', Math.max(0, contentW - BAND_INSET * 2))
+        .attr('height', r.height + BAND_VPAD * 2)
+        .attr('rx', CARD_RADIUS)
         .attr('fill', band);
     }
   }
