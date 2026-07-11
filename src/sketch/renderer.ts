@@ -1090,7 +1090,10 @@ const HOP_R = 7;
  */
 function hoppedPath(g: EdgeGeom, hops: readonly Pt[]): string | null {
   if (hops.length === 0) return null;
-  const N = 48;
+  // ODD: t=0.5 is never a vertex, so a crossing at two symmetric curves' shared
+  // midpoint lands MID-segment — the hump`s A/B straddle the crossing inside one
+  // segment instead of overshooting a vertex (which left a backward stub).
+  const N = 49;
   const pts: Pt[] = [];
   for (let s = 0; s <= N; s++) pts.push(cubicAt(g, s / N));
   // Snap each hop to the nearest interior segment of this edge`s fine polyline.
