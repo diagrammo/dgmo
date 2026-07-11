@@ -593,9 +593,12 @@ export function parseFlowchart(
 
     // Options (space-separated, before content)
     if (!contentStarted) {
-      // Bare boolean: direction-lr
-      if (/^direction-lr$/i.test(trimmed)) {
-        result.direction = 'LR';
+      // Direction: space form (`direction LR`/`direction TB`, house
+      // convention shared with boxes-and-lines/swimlane/state) or legacy
+      // bare-boolean (`direction-lr`/`direction-tb`). Only LR/TB supported.
+      const dirMatch = trimmed.match(/^direction[-\s]+(lr|tb)$/i);
+      if (dirMatch) {
+        result.direction = dirMatch[1]!.toUpperCase() as 'LR' | 'TB';
         continue;
       }
 
