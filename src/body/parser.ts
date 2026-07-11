@@ -25,7 +25,7 @@ import {
 } from '../utils/tag-groups';
 import { measureIndent, extractColor, parseFirstLine } from '../utils/parsing';
 import { BODY_DX } from './diagnostics';
-import { getFigure, resolvePartKey } from './catalog';
+import { BODY_TERMS, getFigure, resolvePartKey } from './catalog';
 import type { BodyOptions, BodyPart, BodyView, ParsedBody } from './types';
 
 const FORM_RE = /^(muscle|skin|skeletal)$/i;
@@ -236,4 +236,24 @@ export function parseBody(
     parts,
     diagnostics,
   };
+}
+
+/**
+ * Completion vocabulary for the active figure(s): every catalog muscle,
+ * surface landmark, and alias that resolves in a requested view, plus the
+ * `left`/`right` side modifier. Powers editor autocomplete + highlighting.
+ */
+export function extractSymbols(docText: string): {
+  kind: 'body';
+  entities: string[];
+} {
+  const parsed = parseBody(docText);
+  const figures = (
+    parsed.options.views.length ? parsed.options.views : ['front']
+  ).map((v) => getFigure(parsed.options.sex, v as BodyView));
+  const entities = BODY_TERMS.filter(
+    (t) =>
+      t === 'left' || t === 'right' || figures.some((f) => resolvePartKey(f, t))
+  );
+  return { kind: 'body', entities };
 }
