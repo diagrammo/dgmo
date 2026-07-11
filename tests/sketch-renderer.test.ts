@@ -319,32 +319,28 @@ describe('sketch renderer — edges', () => {
     expect(overlap).toBe(false);
   });
 
-  it('fans multiple edges sharing a node side to distinct ports', () => {
-    // Three edges leave a hub toward three right-side targets. All pick the
-    // RIGHT side; they must attach at three DISTINCT points (a fan), not stack
-    // on the side midpoint.
+  it('uses at most 4 ports per node (one shared port per side)', () => {
+    // An 8-way hub: every spoke must leave from one of ONLY four source ports
+    // (the four side midpoints), edges on the same side sharing a port.
     const layout = layoutSketch(
       parseSketch(
         'sketch\n' +
-          'H as h at: 0 3\n  -> a\n  -> b\n  -> c\n' +
-          'A as a at: 6 0\nB as b at: 6 3\nC as c at: 6 6\n',
+          'H as h at: 6 4\n  -> n\n  -> ne\n  -> e\n  -> se\n  -> s\n  -> sw\n  -> w\n  -> nw\n' +
+          'N as n at: 6 0\nNE as ne at: 12 0\nE as e at: 12 4\nSE as se at: 12 8\n' +
+          'S as s at: 6 8\nSW as sw at: 0 8\nW as w at: 0 4\nNW as nw at: 0 0\n',
         P
       )
     );
-    const idOf = (label: string) =>
-      layout.nodes.find((n) => n.label === label)!.id;
-    const geom = sketchEdgeGeometry(layout);
-    const startY = (to: string) => {
-      const g = geom.find(
-        (x) => x?.sourceId === idOf('H') && x?.targetId === idOf(to)
-      )!;
-      return Number(/^M [\d.-]+ ([\d.-]+)/.exec(g.d)![1]);
-    };
-    const ys = [startY('A'), startY('B'), startY('C')];
-    expect(new Set(ys).size).toBe(3); // three distinct ports
-    // Ordered by target row: A (top) highest port, C (bottom) lowest.
-    expect(ys[0]).toBeLessThan(ys[1]!);
-    expect(ys[1]).toBeLessThan(ys[2]!);
+    const idH = layout.nodes.find((n) => n.label === 'H')!.id;
+    const ports = new Set(
+      sketchEdgeGeometry(layout)
+        .filter((g) => g?.sourceId === idH)
+        .map((g) => {
+          const m = /^M ([\d.-]+) ([\d.-]+)/.exec(g!.d)!;
+          return `${Math.round(Number(m[1]))},${Math.round(Number(m[2]))}`;
+        })
+    );
+    expect(ports.size).toBeLessThanOrEqual(4);
   });
 
   it('adds a hop on one line where two edges cross', () => {
