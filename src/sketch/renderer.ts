@@ -960,12 +960,15 @@ interface EdgeGeom {
   p1: Pt;
 }
 
-/** Fan slot for a bare-node port: this edge is #idx of `count` sharing a side,
- *  so it attaches at a distinct point along the side rather than the midpoint. */
+/** Port slot for a bare-node attachment: a fixed fraction (0..1) along the side.
+ *  Undefined → the side midpoint (a lone edge stays centered). */
 interface Fan {
-  idx: number;
-  count: number;
+  frac: number;
 }
+
+/** Fixed port fractions: 4 anchors per side. Same positions on every node/side
+ *  regardless of how many edges attach — a hub reads as a consistent grid. */
+const PORT_SLOTS = [0.2, 0.4, 0.6, 0.8] as const;
 
 function edgePath(
   source: Rect,
@@ -997,11 +1000,11 @@ function edgePath(
   // coordinate to its nearest discrete child port (row for L/R, column for
   // T/B); a BARE node attaches at that side's midpoint (its center on that
   // axis). `toward` is the other end's center, which the port snaps nearest to.
-  // Fan position along a side`s mid-band: a lone edge sits dead-center (frac
-  // 0.5 → the old midpoint, no change), while N edges sharing a side spread to N
-  // evenly-spaced ports so a hub`s spokes leave from distinct points.
+  // Port position along a side`s mid-band. A lone edge sits dead-center (no
+  // `fan` → 0.5 → the old midpoint); shared sides snap each edge to one of the
+  // fixed PORT_SLOTS.
   const fanPos = (lo: number, hi: number, fan: Fan | undefined): number => {
-    const frac = fan && fan.count > 1 ? (fan.idx + 1) / (fan.count + 1) : 0.5;
+    const frac = fan ? fan.frac : 0.5;
     const m = (hi - lo) * CORNER_FRAC;
     return lo + m + (hi - lo - 2 * m) * frac;
   };
@@ -1450,13 +1453,12 @@ export function sketchEdgeGeometry(
     if (!changed) break;
   }
 
-  // Fan-out: when several edges attach to the SAME side of the SAME bare node
-  // (a hub`s spokes), spread them to distinct ports instead of stacking on the
-  // midpoint — the same rule on every side, so the hub reads as a clean radial
-  // fan. Group endpoints keep their child-port snapping (skipped here). Edges on
-  // a side are ordered by the far endpoint`s cross-axis position so their lines
-  // don`t cross near the port.
-  // bucket key → the edge indices attaching to that (bare node, side).
+  // Fixed ports: when several edges attach to the SAME side of the SAME bare
+  // node (a hub`s spokes), each snaps to one of the 4 fixed PORT_SLOTS on that
+  // side — chosen by the direction it pulls (its far endpoint`s cross-axis),
+  // one edge per slot, sharing the nearest slot only past 4. Same fixed anchors
+  // on every side; a lone edge keeps the centre (no slot). Group endpoints keep
+  // their child-port snapping (skipped here).
   const bucket = new Map<string, number[]>();
   const push = (key: string, i: number): void => {
     const arr = bucket.get(key);
@@ -1477,19 +1479,30 @@ export function sketchEdgeGeometry(
     const sep = key.lastIndexOf('|');
     const id = key.slice(0, sep);
     const side = key.slice(sep + 1) as Side;
-    // Order by the far endpoint`s cross-axis so lines don`t tangle at the port.
-    const ordered = [...idxs].sort((a, b) => {
-      const fa =
-        layout.edges[a]!.sourceId === id ? ctx[a]!.target : ctx[a]!.source;
-      const fb =
-        layout.edges[b]!.sourceId === id ? ctx[b]!.target : ctx[b]!.source;
-      return crossAxis(side, fa) - crossAxis(side, fb);
+    const nodeRect = rectById.get(id)!;
+    const lo = side === 'L' || side === 'R' ? nodeRect.y : nodeRect.x;
+    const span = side === 'L' || side === 'R' ? nodeRect.h : nodeRect.w;
+    // Desired fraction 0..1: where each edge`s far endpoint pulls the port.
+    const want = idxs.map((i) => {
+      const far =
+        layout.edges[i]!.sourceId === id ? ctx[i]!.target : ctx[i]!.source;
+      const f = span > 0 ? (crossAxis(side, far) - lo) / span : 0.5;
+      return { i, f: Math.max(0, Math.min(1, f)) };
     });
-    ordered.forEach((i, k) => {
+    // Assign in pull order to the nearest FREE slot; past 4 edges, share the
+    // nearest slot (never more than 4 distinct anchors per side).
+    want.sort((a, b) => a.f - b.f);
+    const used = new Set<number>();
+    for (const { i, f } of want) {
+      const order = [0, 1, 2, 3].sort(
+        (a, b) => Math.abs(PORT_SLOTS[a]! - f) - Math.abs(PORT_SLOTS[b]! - f)
+      );
+      const slot = order.find((s) => !used.has(s)) ?? order[0]!;
+      used.add(slot);
       const role =
         layout.edges[i]!.sourceId === id && chosen[i]!.s === side ? 's' : 't';
-      fanFor.set(`${i}|${role}`, { idx: k, count: ordered.length });
-    });
+      fanFor.set(`${i}|${role}`, { frac: PORT_SLOTS[slot]! });
+    }
   }
   // Rebuild geometry for any edge that got a fan slot on either endpoint.
   for (let i = 0; i < ctx.length; i++) {
