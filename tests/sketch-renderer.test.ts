@@ -48,26 +48,28 @@ describe('sketch renderer — structure', () => {
     expect(svg.querySelector('.sk-legend-group')).not.toBeNull();
   });
 
-  it('routes a hub`s third edge out a free side (top) when left+right are taken', () => {
-    // Hub has edges left (l) and right (r); the up-and-left edge (u) is
-    // primarily horizontal but its left side is claimed, so it must flip to the
-    // hub`s TOP rather than crowd the left port.
+  it('assigns sides by direction only — an up-left edge shares the left port', () => {
+    // Hub with left (l), right (r), and an up-and-left edge (u). Assignment is
+    // purely directional: u is horizontally dominant → LEFT side, so it leaves
+    // the same left-side port as l (one shared port per side, no congestion
+    // flip to the top — that`s what kept mirror-image spokes symmetric).
     const svg = render(
       'sketch\n' +
         'Hub as hub at: 10 4\n  -a-> l\n  -b-> r\n  -c-> u\n' +
         'L as l at: 0 4\nR as r at: 20 4\nU as u at: 4 0\n'
     );
     // Edge groups are appended in declaration order: [→l, →r, →u].
-    const [yl, yr, yu] = [...svg.querySelectorAll('.sk-edge-group')].map((g) =>
-      Number(
-        /^M\s+[-\d.]+\s+([-\d.]+)/.exec(
-          g.querySelector('path')!.getAttribute('d')!
-        )![1]
-      )
-    );
-    // The side edges leave at mid-height; the flipped edge leaves higher (top).
-    expect(yu).toBeLessThan(yl);
-    expect(yu).toBeLessThan(yr);
+    const starts = [...svg.querySelectorAll('.sk-edge-group')].map((g) => {
+      const m = /^M\s+([-\d.]+)\s+([-\d.]+)/.exec(
+        g.querySelector('path')!.getAttribute('d')!
+      )!;
+      return { x: Number(m[1]), y: Number(m[2]) };
+    });
+    const [sl, sr, su] = starts;
+    // u shares l`s exact left-side port; r leaves the opposite (right) side.
+    expect(su!.x).toBeCloseTo(sl!.x, 1);
+    expect(su!.y).toBeCloseTo(sl!.y, 1);
+    expect(sr!.x).not.toBeCloseTo(sl!.x, 1);
   });
 
   it('marks each shape kind with a header type badge', () => {

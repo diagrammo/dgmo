@@ -860,13 +860,14 @@ interface Ports {
 type Side = 'T' | 'B' | 'L' | 'R';
 
 /**
- * Assign each edge a side on its source and target box, avoiding side
- * collisions on shared nodes. Each edge prefers the side its dominant axis
- * points at (a mostly-horizontal edge → left/right; mostly-vertical → top/
- * bottom). Strongly-directional edges are placed first; a near-diagonal edge
- * whose preferred side is already claimed on either end flips to the free
- * perpendicular side — so a hub with left+right edges routes a third,
- * up-and-over edge out its TOP rather than crowding a side.
+ * Assign each edge a side on its source and target box, purely by direction —
+ * a deterministic, mirror-symmetric function of (dx,dy), NOT congestion-aware.
+ * (Since every side has ONE shared port, spreading edges off a "crowded" side
+ * bought nothing and was the sole reason two mirror-image spokes could pick
+ * different sides.) The source takes its dominant-axis side; the target mirrors
+ * it (aligned → straight, opposite sides) or attaches on the perpendicular side
+ * facing the source (diagonal → clean corner). The later relaxation pass still
+ * flips sides where it removes a real node/edge crossing.
  */
 function assignEdgeSides(
   edges: readonly { sourceId: string; targetId: string }[],
@@ -874,80 +875,30 @@ function assignEdgeSides(
 ): Array<{ s: Side; t: Side } | null> {
   const cx = (r: Rect): number => r.x + r.w / 2;
   const cy = (r: Rect): number => r.y + r.h / 2;
-  // The side of a box facing (dx,dy): the dominant-axis side, and the
-  // perpendicular fallback toward the same point.
   const opposite = (s: Side): Side =>
     s === 'L' ? 'R' : s === 'R' ? 'L' : s === 'T' ? 'B' : 'T';
-  // The dominant-axis side facing (dx,dy), plus the perpendicular fallback.
-  const facing = (dx: number, dy: number): { primary: Side; alt: Side } => {
-    const horiz = Math.abs(dx) >= Math.abs(dy);
-    return horiz
-      ? { primary: dx >= 0 ? 'R' : 'L', alt: dy >= 0 ? 'B' : 'T' }
-      : { primary: dy >= 0 ? 'B' : 'T', alt: dx >= 0 ? 'R' : 'L' };
-  };
-  // Below this min/max axis ratio an edge counts as ~aligned (drawn straight,
-  // opposite sides); above it, diagonal (drawn as a corner — perpendicular
-  // sides).
+  // The dominant-axis side facing (dx,dy).
+  const facing = (dx: number, dy: number): Side =>
+    Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'R' : 'L') : dy >= 0 ? 'B' : 'T';
+  // Below this min/max axis ratio an edge is ~aligned (straight, opposite
+  // sides); above it, diagonal (a corner — perpendicular sides).
   const DIAG = 0.4;
-  const descs = edges
-    .map((e, i) => {
-      const s = rectById.get(e.sourceId);
-      const t = rectById.get(e.targetId);
-      if (!s || !t) return null;
-      const dx = cx(t) - cx(s);
-      const dy = cy(t) - cy(s);
-      const ratio =
-        Math.min(Math.abs(dx), Math.abs(dy)) /
-        Math.max(Math.abs(dx), Math.abs(dy), 1);
-      return {
-        i,
-        sId: e.sourceId,
-        tId: e.targetId,
-        dx,
-        dy,
-        diagonal: ratio >= DIAG,
-        dominance: Math.abs(Math.abs(dx) - Math.abs(dy)),
-      };
-    })
-    .filter((d): d is NonNullable<typeof d> => d !== null);
-
-  const used = new Map<string, Set<Side>>();
-  const has = (id: string, side: Side): boolean =>
-    used.get(id)?.has(side) ?? false;
-  const take = (id: string, side: Side): void => {
-    const set = used.get(id) ?? new Set<Side>();
-    set.add(side);
-    used.set(id, set);
-  };
-  // Pick a side for one endpoint: its preferred side if free, else the fallback
-  // if free, else share the preferred side.
-  const pick = (id: string, sides: { primary: Side; alt: Side }): Side => {
-    const side = !has(id, sides.primary)
-      ? sides.primary
-      : !has(id, sides.alt)
-        ? sides.alt
-        : sides.primary;
-    take(id, side);
-    return side;
-  };
-
-  const out: Array<{ s: Side; t: Side } | null> = edges.map(() => null);
-  // Strongest-axis edges claim their side first; ambiguous ones adapt. The
-  // source takes its dominant-axis side (flipping to the perpendicular only if
-  // that side is congested). The target then either mirrors it (aligned →
-  // straight) or attaches on the PERPENDICULAR side facing the source (diagonal
-  // → clean corner, e.g. source-right + target-top for a box below-and-right).
-  for (const d of [...descs].sort((a, b) => b.dominance - a.dominance)) {
-    const sSide = pick(d.sId, facing(d.dx, d.dy));
+  return edges.map((e) => {
+    const s = rectById.get(e.sourceId);
+    const t = rectById.get(e.targetId);
+    if (!s || !t) return null;
+    const dx = cx(t) - cx(s);
+    const dy = cy(t) - cy(s);
+    const ratio =
+      Math.min(Math.abs(dx), Math.abs(dy)) /
+      Math.max(Math.abs(dx), Math.abs(dy), 1);
+    const sSide = facing(dx, dy);
     const sHoriz = sSide === 'L' || sSide === 'R';
     // Perpendicular-axis side of the target facing the source.
-    const perp: Side = sHoriz ? (d.dy <= 0 ? 'B' : 'T') : d.dx <= 0 ? 'R' : 'L';
-    const tgt = d.diagonal
-      ? { primary: perp, alt: opposite(sSide) }
-      : { primary: opposite(sSide), alt: perp };
-    out[d.i] = { s: sSide, t: pick(d.tId, tgt) };
-  }
-  return out;
+    const perp: Side = sHoriz ? (dy <= 0 ? 'B' : 'T') : dx <= 0 ? 'R' : 'L';
+    const tSide = ratio >= DIAG ? perp : opposite(sSide);
+    return { s: sSide, t: tSide };
+  });
 }
 
 type Pt = { x: number; y: number };
