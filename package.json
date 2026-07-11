@@ -35,6 +35,10 @@
       "types": "./dist/advanced.d.ts",
       "default": "./dist/advanced.js"
     },
+    "./countdown": {
+      "types": "./dist/countdown.d.ts",
+      "default": "./dist/countdown.js"
+    },
     "./pert": {
       "types": "./dist/pert.d.ts",
       "default": "./dist/pert.js"
@@ -80,15 +84,15 @@
     "typecheck": "tsc --noEmit",
     "dev": "DGMO_DEV_RELOAD=1 tsup --watch",
     "pretest": "pnpm codegen",
-    "test": "vitest run --coverage",
+    "test": "TZ=UTC vitest run --coverage",
     "bench:perf": "vitest run --config vitest.perf.config.ts tests/perf-bench.ts",
     "bench:bl": "vitest run --config vitest.bench.config.ts tests/bl-layout-bench.ts",
     "bench:bl-collapse": "vitest run --config vitest.bench.config.ts tests/bl-collapse-bench.ts",
     "bench:bl-options": "vitest run --config vitest.bench.config.ts tests/bl-options.ts",
     "bench:bl-overlap": "vitest run --config vitest.bench.config.ts tests/bl-overlap-debug.ts",
     "bl-gallery": "vitest run --config vitest.bench.config.ts tests/bl-gallery.ts",
-    "test:watch": "vitest",
-    "test:auto": "pnpm build && vitest run tests/auto.test.ts tests/safe-href.test.ts",
+    "test:watch": "TZ=UTC vitest",
+    "test:auto": "pnpm build && TZ=UTC vitest run tests/auto.test.ts tests/safe-href.test.ts",
     "sri": "node scripts/sri.mjs",
     "eval:tools": "pnpm build && pnpm -C ../dgmo-mcp build:fast && node scripts/eval-tools.mjs",
     "eval:ai": "pnpm build && pnpm -C ../dgmo-mcp build:fast && node scripts/eval-ai-generation.mjs",

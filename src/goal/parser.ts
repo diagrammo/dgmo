@@ -7,6 +7,7 @@
 //   [thermometer | gauge]           // bare-flag mode (omit = progress bar)
 //   now <number>                    // space-separated key value (no colon)
 //   target <number>
+//   note <text>                     // optional free-text caption/description
 //   [no-percent] [no-value] [solid-fill] [no-title]
 //
 // One value only — this type has no children/rows. Unit lives in the title
@@ -44,6 +45,7 @@ export function parseGoal(
     type: 'goal',
     title: null,
     titleLineNumber: null,
+    description: null,
     mode: 'bar',
     now: 0,
     target: 0,
@@ -97,7 +99,22 @@ export function parseGoal(
       continue;
     }
 
-    // Single-value type — indented content is a parse warning (§3).
+    // ── `note` — free-text caption. Either inline (`note <text>`) or a block
+    //    header followed by indented body lines (multi-line, simple markdown,
+    //    `- ` list items). Body lines keep their newlines. ──
+    const noteHeader = trimmed.match(/^note(?:\s+(.+))?$/i);
+    if (noteHeader && measureIndent(raw) === 0) {
+      const body: string[] = [];
+      if (noteHeader[1]) body.push(noteHeader[1].trim());
+      while (i + 1 < lines.length && measureIndent(lines[i + 1]!) > 0) {
+        body.push(lines[i + 1]!.trim());
+        i++;
+      }
+      result.description = body.length ? body.join('\n') : null;
+      continue;
+    }
+
+    // Single-value type — other indented content is a parse warning (§3).
     if (measureIndent(raw) > 0) {
       warn(
         lineNum,

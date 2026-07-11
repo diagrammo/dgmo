@@ -1043,6 +1043,16 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Countdown is the only dynamic chart type — a rendered file is a snapshot
+  // that can't tick. Warn (in-figure the "as of" stamp says the same). Skip in
+  // JSON mode to keep stdout clean.
+  if (chartType === 'countdown' && !opts.json) {
+    const asof = new Date().toISOString().slice(0, 10);
+    console.error(
+      `⚠ countdown is dynamic — this file is a snapshot as of ${asof}. Use a live embed to keep it ticking.`
+    );
+  }
+
   // Determine output destination
   const pngBg = opts.theme === 'transparent' ? undefined : paletteColors.bg;
 

@@ -26,6 +26,8 @@ export interface ParsedGoal {
   readonly type: 'goal';
   readonly title: string | null;
   readonly titleLineNumber: number | null;
+  /** Optional free-text caption shown under the value (via `note <text>`). */
+  readonly description: string | null;
   readonly mode: GoalMode;
   /** Current value (raw; may be negative or exceed target). */
   readonly now: number;

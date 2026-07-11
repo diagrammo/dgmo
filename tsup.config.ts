@@ -191,6 +191,16 @@ const BUILDS: Options[] = [
     onSuccess: chain(copyMapData, emitBlockCss),
   },
   {
+    // Countdown ticker — a self-contained (zero-import) ~1 KB browser runtime.
+    // Its own entry so client surfaces (remark-dgmo, Obsidian, the app) import
+    // ONLY the ticker, never the heavy render pipeline.
+    entry: { countdown: 'src/countdown/ticker.ts' },
+    format: ['esm'],
+    dts: true,
+    sourcemap: true,
+    external: ['jsdom'],
+  },
+  {
     entry: { editor: 'src/editor/index.ts' },
     format: ['esm'],
     dts: true,

@@ -112,6 +112,42 @@ target 4`);
     expect(r.options.noTitle).toBe(true);
   });
 
+  it('parses a `note` free-text description', () => {
+    const r = parseGoal(`goal T
+thermometer
+now 34
+target 50
+note Great job crew, one more push to the goal`);
+    expect(r.description).toBe('Great job crew, one more push to the goal');
+    expect(r.diagnostics.some((d) => /Unrecognized/.test(d.message))).toBe(
+      false
+    );
+  });
+
+  it('description defaults to null', () => {
+    const r = parseGoal(`goal T\nnow 1\ntarget 4`);
+    expect(r.description).toBeNull();
+  });
+
+  it('parses a `note` block with indented multi-line markdown body', () => {
+    const r = parseGoal(`goal T
+now 1
+target 4
+note
+  Great Job! We just need reports from:
+  - Seattle
+  - Columbus *almost there!*`);
+    expect(r.description).toBe(
+      'Great Job! We just need reports from:\n- Seattle\n- Columbus *almost there!*'
+    );
+    expect(r.diagnostics.some((d) => /Indented content/.test(d.message))).toBe(
+      false
+    );
+    expect(r.diagnostics.some((d) => /Unrecognized/.test(d.message))).toBe(
+      false
+    );
+  });
+
   it('warns on indented content (single-value type)', () => {
     const r = parseGoal(`goal T\nnow 1\ntarget 4\n  child ignored`);
     expect(r.diagnostics.some((d) => /Indented content/.test(d.message))).toBe(
@@ -168,16 +204,19 @@ describe('goal renderer — faces', () => {
     expect(svg).not.toBeNull();
     expect(svg.querySelectorAll('rect').length).toBeGreaterThanOrEqual(3); // bg + track + fill
     const all = texts(svg).join(' ');
-    expect(all).toContain('60%');
-    expect(all).toContain('3 / 5');
+    // Bar shows the raw now value (inside the fill) + target (right of bar).
+    expect(all).toContain('3');
+    expect(all).toContain('5');
   });
 
-  it('thermometer: renders bulb circles', () => {
+  it('thermometer: renders bulb + column silhouette and % label', () => {
     const parsed = parseGoal(`goal Fund\nthermometer\nnow 6400\ntarget 10000`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const svg = c.querySelector('svg')!;
-    expect(svg.querySelectorAll('circle').length).toBeGreaterThanOrEqual(2);
+    expect(
+      svg.querySelectorAll('.goal-thermometer path').length
+    ).toBeGreaterThanOrEqual(2); // glass track + mercury
     expect(texts(svg).join(' ')).toContain('64%');
   });
 
@@ -188,10 +227,30 @@ describe('goal renderer — faces', () => {
     const svg = c.querySelector('svg')!;
     expect(svg.querySelectorAll('path').length).toBeGreaterThanOrEqual(2); // track + value arc
     expect(svg.querySelectorAll('line').length).toBeGreaterThanOrEqual(1); // needle
-    expect(texts(svg).join(' ')).toContain('64%');
+    // The gauge shows the raw now value big in the arc belly, not a percentage.
+    const gaugeText = texts(svg).join(' ');
+    expect(gaugeText).toContain('64');
+    expect(gaugeText).not.toContain('%');
   });
 
-  it('over-target: fill clamps but the % label stays truthful', () => {
+  it('gauge fill above 50% uses the minor arc, not the reflex circle', () => {
+    // Regression: the semicircle sweep never exceeds 180°, so the SVG arc
+    // large-arc flag must always be 0. A >0.5 test drew the reflex (major) arc
+    // for any fill above 50%, ballooning it into a near-full circle.
+    const parsed = parseGoal(`goal Quota\ngauge\nnow 64\ntarget 100`);
+    const c = makeContainer();
+    renderGoal(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    const arcs = Array.from(svg.querySelectorAll('.goal-gauge path'));
+    expect(arcs.length).toBeGreaterThanOrEqual(2);
+    for (const p of arcs) {
+      // "M x y A rx ry x-rot large-arc sweep x y" — the 6th A-param is large-arc.
+      const m = p.getAttribute('d')!.match(/A\s+\S+\s+\S+\s+\S+\s+(\d)\s+\d/);
+      expect(m?.[1]).toBe('0');
+    }
+  });
+
+  it('over-target: bar fill clamps to the track width', () => {
     const parsed = parseGoal(`goal Stretch\nnow 6\ntarget 5`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
@@ -201,7 +260,7 @@ describe('goal renderer — faces', () => {
     expect(parseFloat(fill.getAttribute('width')!)).toBeLessThanOrEqual(
       parseFloat(track.getAttribute('width')!) + 0.5
     );
-    expect(texts(svg).join(' ')).toContain('120%');
+    expect(texts(svg).join(' ')).toContain('6'); // raw now value, uncapped
   });
 
   it('no-percent / no-value suppress their labels', () => {
@@ -213,13 +272,14 @@ describe('goal renderer — faces', () => {
     expect(all).not.toContain('1 / 4');
   });
 
-  it('missing target still renders a 0% shell', () => {
+  it('missing target still renders a shell (track rect + now value)', () => {
     const parsed = parseGoal(`goal T\nnow 3`);
     const c = makeContainer();
     renderGoal(c, parsed, nordLight, false);
     const svg = c.querySelector('svg')!;
     expect(svg).not.toBeNull();
-    expect(texts(svg).join(' ')).toContain('0%');
+    expect(svg.querySelectorAll('rect').length).toBeGreaterThanOrEqual(2); // bg + track
+    expect(texts(svg).join(' ')).toContain('3');
   });
 
   it('sets an aria-label describing the goal', () => {

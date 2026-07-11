@@ -1,0 +1,326 @@
+// ============================================================
+// Countdown chart — shared resolution + formatting (dependency-free)
+// ============================================================
+//
+// The single source of truth for turning a recurrence rule into a concrete
+// next instant, rolling forward when it passes, computing the `since` ordinal,
+// and formatting both the hero count and the footer resolution line.
+//
+// Imported by BOTH:
+//   • renderer.ts (Node/resvg + browser) — bakes the no-JS floor
+//   • ticker.ts    (browser only)        — recomputes live every second
+// so the baked value and the live value never disagree. MUST stay
+// dependency-free (no d3, no palettes) — it is bundled into the tiny
+// `dist/countdown.js` browser entry alongside the ticker.
+//
+// All Date construction uses LOCAL components (viewer-local, v1 — see spec §2.3).
+// Under TZ=UTC (the test env) local == UTC, so fixtures are deterministic.
+
+export const DAY_MS = 86_400_000;
+export const WEEK_MS = 7 * DAY_MS;
+
+/** A resolved recurrence rule. Built by the parser, re-read by the ticker. */
+export interface RecurRule {
+  /** How `on` binds to the cadence. */
+  readonly kind:
+    | 'month-day' // every year on Aug 21
+    | 'nth-weekday' // every month on 3rd Tuesday
+    | 'last-weekday' // every month on last Friday
+    | 'weekly' // every week on Friday
+    | 'interval'; // every N days|weeks|months from <anchor>
+  /** month-day: 0-11. */
+  readonly month?: number | undefined;
+  /** month-day: 1-31. */
+  readonly day?: number | undefined;
+  /** nth-weekday: 1-5. */
+  readonly nth?: number | undefined;
+  /** nth/last/weekly: 0 (Sun) – 6 (Sat). */
+  readonly weekday?: number | undefined;
+  /** time-of-day hour 0-23 (default 0). */
+  readonly hour: number;
+  /** time-of-day minute 0-59 (default 0). */
+  readonly minute: number;
+  /** interval cadence unit. */
+  readonly intervalUnit?: 'day' | 'week' | 'month' | undefined;
+  /** interval multiplier (>= 1). */
+  readonly intervalN?: number | undefined;
+  /** interval anchor epoch ms (from `from <date>`). */
+  readonly anchorMs?: number | undefined;
+}
+
+// ── Closed vocab (autocomplete + named errors, never a silent wrong date) ──
+
+/** Month name (full or 3-letter) → 0-11, or null. */
+export function monthIndex(token: string): number | null {
+  const t = token.trim().toLowerCase().slice(0, 3);
+  const i = [
+    'jan',
+    'feb',
+    'mar',
+    'apr',
+    'may',
+    'jun',
+    'jul',
+    'aug',
+    'sep',
+    'oct',
+    'nov',
+    'dec',
+  ].indexOf(t);
+  return i < 0 ? null : i;
+}
+
+/** Weekday name (full or 3-letter) → 0 (Sun) – 6 (Sat), or null. */
+export function weekdayIndex(token: string): number | null {
+  const t = token.trim().toLowerCase().slice(0, 3);
+  const i = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].indexOf(t);
+  return i < 0 ? null : i;
+}
+
+/** Ordinal word: 1 → "1st", 2 → "2nd", 7 → "7th", 21 → "21st". */
+export function ordinalWord(n: number): string {
+  const abs = Math.abs(n);
+  const tens = abs % 100;
+  let suffix = 'th';
+  if (tens < 11 || tens > 13) {
+    const ones = abs % 10;
+    suffix = ones === 1 ? 'st' : ones === 2 ? 'nd' : ones === 3 ? 'rd' : 'th';
+  }
+  return `${n}${suffix}`;
+}
+
+// ── Next-instant resolution + roll-forward ──
+
+/** The nth (1-5) occurrence of `weekday` in year/month, or last (nth<0). */
+function nthWeekdayOfMonth(
+  year: number,
+  month: number,
+  weekday: number,
+  nth: number,
+  hour: number,
+  minute: number
+): number | null {
+  if (nth < 0) {
+    // last: walk back from the month's final day.
+    const last = new Date(year, month + 1, 0).getDate();
+    for (let d = last; d >= 1; d--) {
+      if (new Date(year, month, d).getDay() === weekday) {
+        return new Date(year, month, d, hour, minute).getTime();
+      }
+    }
+    return null;
+  }
+  const firstDow = new Date(year, month, 1).getDay();
+  const offset = (weekday - firstDow + 7) % 7;
+  const day = 1 + offset + (nth - 1) * 7;
+  // Overflowed the month (e.g. "5th Tuesday" that doesn't exist) → no match.
+  if (day > new Date(year, month + 1, 0).getDate()) return null;
+  return new Date(year, month, day, hour, minute).getTime();
+}
+
+/**
+ * The next instant strictly after `now` that matches `rule`. Used by both the
+ * renderer (bake) and the ticker (live) — calling it with a fresh `now` on each
+ * pass is what makes recurring countdowns roll forward automatically.
+ */
+export function resolveNext(rule: RecurRule, now: number): number {
+  const nowD = new Date(now);
+  const { hour, minute } = rule;
+
+  switch (rule.kind) {
+    case 'month-day': {
+      const month = rule.month!;
+      const day = rule.day!;
+      for (let y = nowD.getFullYear(); ; y++) {
+        const t = new Date(y, month, day, hour, minute).getTime();
+        if (t > now) return t;
+      }
+    }
+    case 'nth-weekday':
+    case 'last-weekday': {
+      const weekday = rule.weekday!;
+      const nth = rule.kind === 'last-weekday' ? -1 : rule.nth!;
+      // Scan forward month by month (a valid match always exists within 12).
+      let y = nowD.getFullYear();
+      let m = nowD.getMonth();
+      for (let i = 0; i < 24; i++) {
+        const t = nthWeekdayOfMonth(y, m, weekday, nth, hour, minute);
+        if (t !== null && t > now) return t;
+        m++;
+        if (m > 11) {
+          m = 0;
+          y++;
+        }
+      }
+      // Unreachable for valid rules; fall back to a week out.
+      return now + WEEK_MS;
+    }
+    case 'weekly': {
+      const weekday = rule.weekday!;
+      // Start from today at the target time, advance a day until weekday & > now.
+      for (let i = 0; i < 8; i++) {
+        const d = new Date(
+          nowD.getFullYear(),
+          nowD.getMonth(),
+          nowD.getDate() + i,
+          hour,
+          minute
+        );
+        if (d.getDay() === weekday && d.getTime() > now) return d.getTime();
+      }
+      return now + WEEK_MS;
+    }
+    case 'interval': {
+      const n = rule.intervalN ?? 1;
+      const anchor = rule.anchorMs ?? now;
+      if (rule.intervalUnit === 'month') {
+        const a = new Date(anchor);
+        for (let k = 0; ; k++) {
+          const t = new Date(
+            a.getFullYear(),
+            a.getMonth() + k * n,
+            a.getDate(),
+            hour,
+            minute
+          ).getTime();
+          if (t > now) return t;
+        }
+      }
+      const step = (rule.intervalUnit === 'week' ? WEEK_MS : DAY_MS) * n;
+      if (anchor > now) return anchor;
+      const k = Math.floor((now - anchor) / step) + 1;
+      return anchor + k * step;
+    }
+  }
+}
+
+/** The `since` ordinal for a resolved instant: `resolvedYear − since`. */
+export function ordinalFor(resolvedMs: number, since: number): number {
+  return new Date(resolvedMs).getFullYear() - since;
+}
+
+// ── Count + footer formatting (shared so baked == live) ──
+
+export type CountUnits = 'days' | 'full' | 'clock' | 'weeks' | 'words';
+export type RoundMode = 'up' | 'down' | 'nearest';
+/** Which `full`-mode segments show. */
+export type Field = 'd' | 'h' | 'm' | 's';
+
+function roundBy(value: number, mode: RoundMode): number {
+  return mode === 'down'
+    ? Math.floor(value)
+    : mode === 'nearest'
+      ? Math.round(value)
+      : Math.ceil(value);
+}
+
+function pad2(n: number): string {
+  return n < 10 ? '0' + n : String(n);
+}
+
+function plural(n: number, unit: string): string {
+  return `${n} ${unit}${n === 1 ? '' : 's'}`;
+}
+
+export interface CountOpts {
+  readonly units: CountUnits;
+  readonly round: RoundMode;
+  readonly fields: readonly Field[];
+}
+
+/** The hero string for `remainingMs` (already clamped ≥ 0 by the caller). */
+export function formatCount(remainingMs: number, opts: CountOpts): string {
+  const { units, round, fields } = opts;
+  if (units === 'days')
+    return plural(roundBy(remainingMs / DAY_MS, round), 'day');
+  if (units === 'weeks')
+    return plural(roundBy(remainingMs / WEEK_MS, round), 'week');
+
+  const totalSec = Math.floor(remainingMs / 1000);
+  if (units === 'clock') {
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
+  }
+  if (units === 'words') {
+    const days = Math.ceil(remainingMs / DAY_MS);
+    if (days <= 0) return 'now';
+    if (days === 1) return 'tomorrow';
+    if (days < 14) return `in ${days} days`;
+    if (days < 60) return `in ${Math.round(days / 7)} weeks`;
+    return `in ${Math.round(days / 30)} months`;
+  }
+  // full: floor days + HH:MM:SS remainder, pruned by `fields`.
+  const days = Math.floor(totalSec / 86_400);
+  const h = Math.floor((totalSec % 86_400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const has = (f: Field): boolean => fields.includes(f);
+  const clockParts: string[] = [];
+  if (has('h')) clockParts.push(pad2(h));
+  if (has('m')) clockParts.push(pad2(m));
+  if (has('s')) clockParts.push(pad2(s));
+  const clock = clockParts.join(':');
+  // Drop the "0d " prefix under a day so a same-day countdown reads as a clean
+  // clock (matches v1 behavior).
+  const dayPrefix = has('d') && days > 0 ? `${days}d${clock ? ' ' : ''}` : '';
+  return dayPrefix + clock || plural(days, 'day');
+}
+
+/** Short relative phrase for the footer ("in 8 days", "tomorrow", "today"). */
+export function relativePhrase(remainingMs: number): string {
+  if (remainingMs <= 0) return 'now';
+  const days = Math.ceil(remainingMs / DAY_MS);
+  if (days === 1) return 'tomorrow';
+  if (days < 14) return `in ${days} days`;
+  if (days < 60) return `in ${Math.round(days / 7)} weeks`;
+  return `in ${Math.round(days / 30)} months`;
+}
+
+const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_ABBR = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/** "Tue Jul 21 2026" (locale-free so baked == live regardless of environment). */
+export function formatDate(ms: number): string {
+  const d = new Date(ms);
+  return `${WEEKDAY_ABBR[d.getDay()]} ${MONTH_ABBR[d.getMonth()]} ${d.getDate()} ${d.getFullYear()}`;
+}
+
+/** "Jul 11 2026" — the compact form used by the "as of" stamp. */
+export function formatDateShort(ms: number): string {
+  const d = new Date(ms);
+  return `${MONTH_ABBR[d.getMonth()]} ${d.getDate()} ${d.getFullYear()}`;
+}
+
+/**
+ * The in-chart footer resolution line:
+ *   `→ Tue Jul 21 2026 · 18:00 · in 8 days`
+ * `hasTime` includes the clock segment (omitted for midnight one-shot dates).
+ */
+export function formatFooter(
+  resolvedMs: number,
+  now: number,
+  hasTime: boolean
+): string {
+  const parts = [formatDate(resolvedMs)];
+  if (hasTime) {
+    const d = new Date(resolvedMs);
+    parts.push(`${pad2(d.getHours())}:${pad2(d.getMinutes())}`);
+  }
+  parts.push(relativePhrase(resolvedMs - now));
+  return `→ ${parts.join(' · ')}`;
+}

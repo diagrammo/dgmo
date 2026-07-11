@@ -15,6 +15,7 @@
  */
 
 import { render } from '../render';
+import { startCountdowns } from '../countdown/ticker';
 import { getAvailablePalettes } from '../palettes/registry';
 import '../palettes';
 import {
@@ -403,6 +404,9 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
   // re-runs, since each source is processed at most once per run() pass.
   const replaceTarget = determineReplaceTarget(el);
   replaceTarget.replaceWith(wrapper);
+  // Light up any `countdown` chart in this block: seeds the value on load and
+  // registers the single page-level 1s ticker (idempotent). No-op otherwise.
+  startCountdowns(wrapper);
   return { wrapper };
 }
 

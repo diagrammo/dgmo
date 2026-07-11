@@ -106,6 +106,11 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     description: 'Site / app navigation structure',
   },
   {
+    id: 'bracket',
+    description:
+      'Single-elimination tournament bracket: winners auto-advance up a tree; seed the field for a day-0 skeleton or list results for a casual bracket, with two sides mirroring inward to a championship',
+  },
+  {
     id: 'kanban',
     description: 'Task board columns',
   },
@@ -158,6 +163,11 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     id: 'goal',
     description:
       'Single progress-toward-a-target value (now vs target) as a progress bar, thermometer, or gauge — KPIs, fundraising, quotas, completion',
+  },
+  {
+    id: 'countdown',
+    description:
+      'Live "N days until X" that ticks every second and is accurate on every load — trip dates, launches, deadlines; the only dynamic chart type',
   },
   {
     id: 'map',

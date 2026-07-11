@@ -73,6 +73,8 @@ import { parseRing } from './ring/parser';
 import { parseTreemap } from './treemap/parser';
 import { parseBlock } from './block/parser';
 import { parseGoal } from './goal/parser';
+import { parseCountdown } from './countdown/parser';
+import { parseBracket } from './bracket/parser';
 import { parseRaci, allTasks } from './raci/parser';
 import { parseBody } from './body/parser';
 import type { DgmoError } from './diagnostics';
@@ -551,6 +553,12 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
   // Goal: a single now/target value in one of three faces (bar/thermometer/
   // gauge). No measure/minDims — it centers in whatever rectangle it's given.
   { id: 'goal', category: 'visualization', parse: parseGoal },
+  // Countdown: the only dynamic chart — a single "N days until X" that ticks
+  // live. No measure/minDims; it centers in whatever rectangle it's given.
+  { id: 'countdown', category: 'visualization', parse: parseCountdown },
+  // Bracket: single-elim tournament tree. A diagram (structural, node-and-edge);
+  // no measure/minDims — it sizes to content and scales to fit its rectangle.
+  { id: 'bracket', category: 'diagram', parse: parseBracket },
 
   // ── Geographic map (own parser → resolver → layout → renderer) ──
   { id: 'map', category: 'visualization', parse: parseMap },

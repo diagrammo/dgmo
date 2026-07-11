@@ -596,6 +596,15 @@ export type {
   EventLineEra,
 } from './event-line/types';
 
+export { parseCountdown, targetToMs } from './countdown/parser';
+export {
+  renderCountdown,
+  renderCountdownForExport,
+} from './countdown/renderer';
+export { startCountdowns, tickCountdowns } from './countdown/ticker';
+export type { ParsedCountdown, SinceStyle } from './countdown/types';
+export type { RecurRule, CountUnits, RoundMode } from './countdown/resolve';
+
 export { parseBody } from './body/parser';
 export { renderBody, renderBodyForExport } from './body/renderer';
 export type {
@@ -604,6 +613,20 @@ export type {
   BodyOptions,
   BodyFigure,
 } from './body/types';
+
+export { parseGoal } from './goal/parser';
+export { renderGoal, renderGoalForExport } from './goal/renderer';
+export type { ParsedGoal, GoalMode, GoalOptions } from './goal/types';
+export { parseBracket } from './bracket/parser';
+export { renderBracket, renderBracketForExport } from './bracket/renderer';
+export { layoutBracket } from './bracket/layout';
+export type {
+  ParsedBracket,
+  BracketMode,
+  BracketSide,
+  RawMatch,
+  RawSeed,
+} from './bracket/types';
 
 export { parseVersionControl } from './version-control/parser';
 export {
