@@ -75,6 +75,7 @@ export const ALL_CHART_TYPES = new Set([
   'ring',
   'treemap',
   'block',
+  'goal',
   'sketch',
   'raci',
   'map',

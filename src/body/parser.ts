@@ -179,18 +179,32 @@ export function parseBody(
       if (m) {
         contentStarted = true;
         currentTagGroup = null;
+        let name = m[1]!;
+        let rest = m[2] ?? '';
+        // A bare leading `left`/`right` is an anatomical-side modifier (no
+        // catalog part is named that), e.g. `right pec`. Peel it off and take
+        // the next token as the real part name.
+        let side: 'left' | 'right' | undefined;
+        if (/^(left|right)$/i.test(name)) {
+          const m2 = rest.match(PART_RE);
+          if (m2) {
+            side = name.toLowerCase() as 'left' | 'right';
+            name = m2[1]!;
+            rest = m2[2] ?? '';
+          }
+        }
         const metadata: Record<string, string> = {};
-        const rest = m[2] ?? '';
         for (const pair of rest.matchAll(META_PAIR_RE)) {
           const key =
             aliasMap.get(pair[1]!.toLowerCase()) ?? tagAttrKey(pair[1]!);
           metadata[key] = pair[2]!.trim();
         }
         currentPart = {
-          name: m[1]!,
+          name,
           metadata,
           notes: [],
           lineNumber,
+          ...(side && { side }),
         };
         parts.push(currentPart);
         continue;

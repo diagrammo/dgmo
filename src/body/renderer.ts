@@ -27,7 +27,7 @@ import { resolveActiveTagGroup, resolveTagColor } from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type { LegendGroupData } from '../utils/legend-types';
 import { getFigure, resolvePartKey } from './catalog';
-import type { BodyFigure, BodyPart, ParsedBody } from './types';
+import type { BodyFigure, BodyPart, BodyView, ParsedBody } from './types';
 
 const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -69,9 +69,42 @@ interface FigureRender {
   vh: number;
 }
 
+/** Absolute x of a path's start point (the initial M/m is always absolute). */
+function pathStartX(d: string): number {
+  const m = d.match(/[Mm]\s*(-?[\d.]+)/);
+  return m ? parseFloat(m[1]!) : 0;
+}
+
+/** Distinct anchor-map key so `left biceps` and `right biceps` don't collide. */
+function partKey(part: BodyPart): string {
+  return (part.side ? `${part.side} ` : '') + part.name.toLowerCase();
+}
+
+/** Label text — prefixes the anatomical side when one was given. */
+function partLabel(part: BodyPart): string {
+  return part.side ? `${part.side} ${part.name}` : part.name;
+}
+
+/**
+ * Pick the component centre for a named anatomical side. `side` is the
+ * patient's own left/right; on a front view that mirrors to the opposite
+ * screen side, on a back view it maps straight through.
+ */
+function sideCenter(
+  centers: Array<{ x: number; y: number }>,
+  side: 'left' | 'right',
+  view: BodyView
+): { x: number; y: number } {
+  const wantScreenRight = view === 'front' ? side === 'left' : side === 'right';
+  return centers.reduce((best, c) =>
+    wantScreenRight ? (c.x > best.x ? c : best) : c.x < best.x ? c : best
+  );
+}
+
 /** Render a figure's body (no labels) + collect per-part anchors in raw coords. */
 function renderFigureBody(
   fig: BodyFigure,
+  view: BodyView,
   parts: readonly BodyPart[],
   partColor: (p: BodyPart) => string,
   form: ParsedBody['options']['form'],
@@ -132,30 +165,49 @@ function renderFigureBody(
       part: BodyPart;
     }
   >();
+  const cxMid = vx + vw / 2;
   for (const part of parts) {
     const key = resolvePartKey(fig, part.name);
     if (!key) continue;
     const geom = fig.parts[key]!;
     const color = partColor(part);
     const dataLine = ` class="dgmo-body-part" data-line-number="${part.lineNumber}"`;
+    // With a side modifier, fill only that side's shapes (patient's right pec →
+    // the screen-left path), so a one-sided injury highlights one side alone.
+    let paths = geom.paths as readonly string[];
+    if (part.side) {
+      const wantScreenRight =
+        view === 'front' ? part.side === 'left' : part.side === 'right';
+      const sidePaths = geom.paths.filter((d) =>
+        wantScreenRight ? pathStartX(d) >= cxMid : pathStartX(d) < cxMid
+      );
+      if (sidePaths.length) paths = sidePaths;
+    }
     if (form === 'skin') {
-      for (const d of geom.paths) {
+      for (const d of paths) {
         out += `<path${dataLine} d="${d}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="1.5"/>`;
       }
     } else {
       // Muted fill (~70% colour, 30% bg) with a full-strength coloured edge —
       // clearly filled, but soft enough that the leader line reads across it.
       const lightFill = mix(color, palette.bg, 70);
-      for (const d of geom.paths) {
+      for (const d of paths) {
         out += `<path${dataLine} d="${d}" fill="${lightFill}" stroke="${color}" stroke-width="1.5"/>`;
       }
     }
-    anchors.set(part.name.toLowerCase(), {
-      x: geom.anchor.x,
-      y: geom.anchor.y,
-      centers: geom.centers?.length
-        ? geom.centers.map((c) => ({ x: c.x, y: c.y }))
-        : [{ x: geom.anchor.x, y: geom.anchor.y }],
+    const allCenters = geom.centers?.length
+      ? geom.centers.map((c) => ({ x: c.x, y: c.y }))
+      : [{ x: geom.anchor.x, y: geom.anchor.y }];
+    // A `left`/`right` modifier locks the leader onto that side's component;
+    // otherwise keep every component so the label picks the nearest one.
+    const chosen =
+      part.side && allCenters.length > 1
+        ? sideCenter(allCenters, part.side, view)
+        : null;
+    anchors.set(partKey(part), {
+      x: chosen?.x ?? geom.anchor.x,
+      y: chosen?.y ?? geom.anchor.y,
+      centers: chosen ? [chosen] : allCenters,
       color,
       part,
     });
@@ -204,7 +256,7 @@ function gutterLabels(r: FigureRender, palette: PaletteColors): string {
       labels +=
         `<path d="M${gx} ${ly} L${tgt.x} ${tgt.y}" stroke="${a.color}" stroke-width="1.6" fill="none" opacity="0.75"/>` +
         `<circle cx="${tgt.x}" cy="${tgt.y}" r="5.5" fill="${a.color}" stroke="${palette.bg}" stroke-width="2"/>` +
-        `<text x="${gx}" y="${ly - 3}" text-anchor="${anchorX}" font-size="${LABEL_FONT}" font-weight="700" fill="${palette.text}">${esc(a.part.name)}</text>`;
+        `<text x="${gx}" y="${ly - 3}" text-anchor="${anchorX}" font-size="${LABEL_FONT}" font-weight="700" fill="${palette.text}">${esc(partLabel(a.part))}</text>`;
       if (note) {
         labels += `<text x="${gx}" y="${ly + 21}" text-anchor="${anchorX}" font-size="${NOTE_FONT}" fill="${palette.textMuted}">${esc(note)}</text>`;
       }
@@ -238,6 +290,7 @@ export function renderBody(
   const rendered = parsed.options.views.map((view) =>
     renderFigureBody(
       getFigure(parsed.options.sex, view),
+      view,
       parsed.parts,
       partColor,
       parsed.options.form,
@@ -301,7 +354,7 @@ export function renderBody(
     const seen = new Set<string>();
     const items: Item[] = [];
     for (const part of parsed.parts) {
-      const nm = part.name.toLowerCase();
+      const nm = partKey(part);
       if (seen.has(nm)) continue;
       const aL = fL.anchors.get(nm);
       const aR = fR.anchors.get(nm);
@@ -313,7 +366,7 @@ export function renderBody(
       const right = aR ? mapR(nearestCenter(aR, fR.vx)) : undefined;
       const ys = [left?.y, right?.y].filter((v): v is number => v != null);
       items.push({
-        name: part.name,
+        name: partLabel(part),
         note: part.notes.length ? part.notes[0]! : '',
         color: (aL ?? aR)!.color,
         ...(left && { left }),

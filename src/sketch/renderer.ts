@@ -935,21 +935,16 @@ function edgePath(
   const bcy = target.y + target.h / 2;
   const clamp = (v: number, lo: number, hi: number): number =>
     Math.max(lo, Math.min(hi, v));
-  // Keep a port off the corners: clamp into the middle band of the side (a
-  // corner is never a valid attachment — an edge always meets a side mid-
-  // section). CORNER_FRAC trims this fraction off each end of the side.
-  const CORNER_FRAC = 0.25;
-  const midClamp = (v: number, lo: number, hi: number): number => {
-    const m = (hi - lo) * CORNER_FRAC;
-    return clamp(v, lo + m, hi - m);
-  };
   const nearest = (arr: number[], v: number): number =>
     arr.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a), arr[0]!);
   // Attachment point on `side` of `rect`. A GROUP endpoint snaps the cross-axis
   // coordinate to its nearest discrete child port (row for L/R, column for
-  // T/B); a BARE node attaches at that side's MIDPOINT — one port per side (4
-  // per node), shared by every edge on that side. `toward` is the other end's
-  // center, which the group port snaps nearest to.
+  // T/B) — a synthetic port aligned with that child's midpoint, used VERBATIM so
+  // an aligned edge runs dead straight into it. (No corner trim: a child center
+  // is already inset by the band + padding, well clear of the frame corners, and
+  // clamping it to the tall side's middle band would bend an otherwise-straight
+  // line.) A BARE node attaches at that side's MIDPOINT — one port per side (4
+  // per node). `toward` is the other end's center, which the group port snaps to.
   const attach = (
     side: Side,
     rect: Rect,
@@ -959,13 +954,13 @@ function edgePath(
     if (side === 'L' || side === 'R') {
       const x = side === 'L' ? rect.x : rect.x + rect.w;
       const y = ports
-        ? midClamp(nearest(ports.ys, toward.y), rect.y, rect.y + rect.h)
+        ? clamp(nearest(ports.ys, toward.y), rect.y, rect.y + rect.h)
         : rect.y + rect.h / 2;
       return { x, y };
     }
     const y = side === 'T' ? rect.y : rect.y + rect.h;
     const x = ports
-      ? midClamp(nearest(ports.xs, toward.x), rect.x, rect.x + rect.w)
+      ? clamp(nearest(ports.xs, toward.x), rect.x, rect.x + rect.w)
       : rect.x + rect.w / 2;
     return { x, y };
   };

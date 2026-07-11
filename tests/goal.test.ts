@@ -1,0 +1,264 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import { JSDOM } from 'jsdom';
+import { parseGoal } from '../src/goal/parser';
+import { renderGoal } from '../src/goal/renderer';
+import { render } from '../src/render';
+import { getPalette } from '../src/palettes';
+import { getRenderCategory } from '../src/dgmo-router';
+
+beforeAll(() => {
+  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+  const win = dom.window;
+  for (const [key, value] of Object.entries({
+    document: win.document,
+    window: win,
+    navigator: win.navigator,
+    HTMLElement: win.HTMLElement,
+    SVGElement: win.SVGElement,
+  })) {
+    Object.defineProperty(globalThis, key, { value, configurable: true });
+  }
+});
+
+const nordLight = getPalette('nord').light;
+
+function makeContainer(): HTMLDivElement {
+  const c = document.createElement('div');
+  Object.defineProperty(c, 'clientWidth', { value: 800 });
+  Object.defineProperty(c, 'clientHeight', { value: 600 });
+  return c as HTMLDivElement;
+}
+
+function texts(svg: SVGSVGElement): string[] {
+  return Array.from(svg.querySelectorAll('text')).map(
+    (t) => t.textContent ?? ''
+  );
+}
+
+function errors(diagnostics: readonly { severity: string }[]): unknown[] {
+  return diagnostics.filter((d) => d.severity === 'error');
+}
+
+// ============================================================
+// Parser
+// ============================================================
+
+describe('goal parser — basic', () => {
+  it('parses title, now, target, default bar mode', () => {
+    const r = parseGoal(`goal Books this month
+now 3
+target 5`);
+    expect(r.type).toBe('goal');
+    expect(r.title).toBe('Books this month');
+    expect(r.mode).toBe('bar');
+    expect(r.now).toBe(3);
+    expect(r.target).toBe(5);
+    expect(r.hasTarget).toBe(true);
+    expect(r.error).toBeNull();
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('selects thermometer mode via bare flag', () => {
+    const r = parseGoal(`goal Marathon Fund ($)
+thermometer
+now 6400
+target 10000`);
+    expect(r.mode).toBe('thermometer');
+    expect(r.now).toBe(6400);
+    expect(r.target).toBe(10000);
+  });
+
+  it('selects gauge mode via bare flag', () => {
+    const r = parseGoal(`goal Quarterly Quota
+gauge
+now 64
+target 100`);
+    expect(r.mode).toBe('gauge');
+  });
+
+  it('honors underscore separators, rejects commas', () => {
+    const ok = parseGoal(`goal Fund\nnow 6_400\ntarget 10_000`);
+    expect(ok.now).toBe(6400);
+    expect(ok.target).toBe(10000);
+
+    const bad = parseGoal(`goal Fund\nnow 6,400\ntarget 10000`);
+    expect(errors(bad.diagnostics).length).toBeGreaterThan(0);
+  });
+
+  it('peels a trailing color token from the title (§1.5)', () => {
+    const r = parseGoal(`goal Marathon Fund ($) green\nnow 1\ntarget 2`);
+    expect(r.title).toBe('Marathon Fund ($)');
+    expect(r.color).toBeDefined();
+  });
+
+  it('rejects a non-goal first line', () => {
+    const r = parseGoal(`pyramid Nope\nnow 1\ntarget 2`);
+    expect(r.error).toMatch(/Expected "goal/);
+  });
+});
+
+describe('goal parser — options', () => {
+  it('parses no-percent / no-value / solid-fill / no-title flags', () => {
+    const r = parseGoal(`goal T
+no-percent
+no-value
+solid-fill
+no-title
+now 1
+target 4`);
+    expect(r.options.noPercent).toBe(true);
+    expect(r.options.noValue).toBe(true);
+    expect(r.options.solidFill).toBe(true);
+    expect(r.options.noTitle).toBe(true);
+  });
+
+  it('warns on indented content (single-value type)', () => {
+    const r = parseGoal(`goal T\nnow 1\ntarget 4\n  child ignored`);
+    expect(r.diagnostics.some((d) => /Indented content/.test(d.message))).toBe(
+      true
+    );
+  });
+});
+
+describe('goal parser — edge cases', () => {
+  it('missing target → error diagnostic but no fatal error (shell renders)', () => {
+    const r = parseGoal(`goal T\nnow 3`);
+    expect(r.hasTarget).toBe(false);
+    expect(r.error).toBeNull();
+    expect(errors(r.diagnostics).length).toBeGreaterThan(0);
+  });
+
+  it('target ≤ 0 → error diagnostic, hasTarget false', () => {
+    const r = parseGoal(`goal T\nnow 3\ntarget 0`);
+    expect(r.hasTarget).toBe(false);
+    expect(errors(r.diagnostics).length).toBeGreaterThan(0);
+  });
+
+  it('missing now → warning, treated as 0', () => {
+    const r = parseGoal(`goal T\ntarget 5`);
+    expect(r.now).toBe(0);
+    expect(
+      r.diagnostics.some(
+        (d) => d.severity === 'warning' && /now/.test(d.message)
+      )
+    ).toBe(true);
+  });
+});
+
+// ============================================================
+// Router
+// ============================================================
+
+describe('goal router', () => {
+  it('goal is a visualization render category', () => {
+    expect(getRenderCategory('goal')).toBe('visualization');
+  });
+});
+
+// ============================================================
+// Renderer
+// ============================================================
+
+describe('goal renderer — faces', () => {
+  it('bar: renders track + fill rects and truthful labels', () => {
+    const parsed = parseGoal(`goal Books\nnow 3\ntarget 5`);
+    const c = makeContainer();
+    renderGoal(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    expect(svg).not.toBeNull();
+    expect(svg.querySelectorAll('rect').length).toBeGreaterThanOrEqual(3); // bg + track + fill
+    const all = texts(svg).join(' ');
+    expect(all).toContain('60%');
+    expect(all).toContain('3 / 5');
+  });
+
+  it('thermometer: renders bulb circles', () => {
+    const parsed = parseGoal(`goal Fund\nthermometer\nnow 6400\ntarget 10000`);
+    const c = makeContainer();
+    renderGoal(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    expect(svg.querySelectorAll('circle').length).toBeGreaterThanOrEqual(2);
+    expect(texts(svg).join(' ')).toContain('64%');
+  });
+
+  it('gauge: renders arc paths + needle', () => {
+    const parsed = parseGoal(`goal Quota\ngauge\nnow 64\ntarget 100`);
+    const c = makeContainer();
+    renderGoal(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    expect(svg.querySelectorAll('path').length).toBeGreaterThanOrEqual(2); // track + value arc
+    expect(svg.querySelectorAll('line').length).toBeGreaterThanOrEqual(1); // needle
+    expect(texts(svg).join(' ')).toContain('64%');
+  });
+
+  it('over-target: fill clamps but the % label stays truthful', () => {
+    const parsed = parseGoal(`goal Stretch\nnow 6\ntarget 5`);
+    const c = makeContainer();
+    renderGoal(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    const fill = Array.from(svg.querySelectorAll('rect'))[2]!; // bg, track, fill
+    const track = Array.from(svg.querySelectorAll('rect'))[1]!;
+    expect(parseFloat(fill.getAttribute('width')!)).toBeLessThanOrEqual(
+      parseFloat(track.getAttribute('width')!) + 0.5
+    );
+    expect(texts(svg).join(' ')).toContain('120%');
+  });
+
+  it('no-percent / no-value suppress their labels', () => {
+    const parsed = parseGoal(`goal T\nno-percent\nno-value\nnow 1\ntarget 4`);
+    const c = makeContainer();
+    renderGoal(c, parsed, nordLight, false);
+    const all = texts(c.querySelector('svg')!).join(' ');
+    expect(all).not.toContain('25%');
+    expect(all).not.toContain('1 / 4');
+  });
+
+  it('missing target still renders a 0% shell', () => {
+    const parsed = parseGoal(`goal T\nnow 3`);
+    const c = makeContainer();
+    renderGoal(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    expect(svg).not.toBeNull();
+    expect(texts(svg).join(' ')).toContain('0%');
+  });
+
+  it('sets an aria-label describing the goal', () => {
+    const parsed = parseGoal(`goal Books\nnow 3\ntarget 5`);
+    const c = makeContainer();
+    renderGoal(c, parsed, nordLight, false);
+    expect(c.querySelector('svg')!.getAttribute('aria-label')).toBe(
+      'Books: 3 of 5 (60%)'
+    );
+  });
+});
+
+// ============================================================
+// End-to-end via the real render() pipeline (routing → handler)
+// ============================================================
+
+describe('goal render() pipeline', () => {
+  it('routes each face through renderForExport and emits a real SVG', async () => {
+    for (const src of [
+      `goal Books\nnow 3\ntarget 5`,
+      `goal Fund ($)\nthermometer\nnow 6400\ntarget 10000`,
+      `goal Quota\ngauge\nnow 64\ntarget 100`,
+    ]) {
+      const { svg } = await render(src, { theme: 'light', palette: 'slate' });
+      expect(svg).toMatch(/<svg/);
+      expect(svg).toContain('aria-label');
+      expect(svg).not.toMatch(/Parse error/i);
+    }
+  });
+
+  it('over-target renders (no error card) with a truthful 120% label', async () => {
+    const { svg } = await render(`goal Stretch\nnow 6\ntarget 5`);
+    expect(svg).toContain('120%');
+    expect(svg).not.toMatch(/Parse error/i);
+  });
+
+  it('missing target surfaces an error-card via render() (error diagnostic)', async () => {
+    const { svg, diagnostics } = await render(`goal Broken\nnow 3`);
+    expect(diagnostics.some((d) => d.severity === 'error')).toBe(true);
+    expect(svg).toMatch(/<svg/);
+  });
+});

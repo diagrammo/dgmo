@@ -123,6 +123,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   ring: exportRing,
   treemap: exportTreemap,
   block: exportBlock,
+  goal: exportGoal,
   raci: exportRaci,
   body: exportBody,
   // D3 visualizations — own handler per type (Story 109.2). Only `sequence`
@@ -1333,6 +1334,25 @@ async function exportBlock(ctx: ExportContext): Promise<string> {
 
   const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
   renderBlockForExport(container, blockParsed, effectivePalette, ctx.isDark, {
+    width: EXPORT_WIDTH,
+    height: EXPORT_HEIGHT,
+  });
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportGoal(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseGoal } = await import('./goal/parser');
+  const { renderGoalForExport } = await import('./goal/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const parsed = parseGoal(content, effectivePalette);
+  // Renders even without a valid target (0% shell, §3); only a hard parse
+  // failure (wrong first line) sets parsed.error.
+  if (parsed.error) return '';
+
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  renderGoalForExport(container, parsed, effectivePalette, ctx.isDark, {
     width: EXPORT_WIDTH,
     height: EXPORT_HEIGHT,
   });

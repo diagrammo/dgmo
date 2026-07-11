@@ -72,6 +72,7 @@ import { parsePyramid } from './pyramid/parser';
 import { parseRing } from './ring/parser';
 import { parseTreemap } from './treemap/parser';
 import { parseBlock } from './block/parser';
+import { parseGoal } from './goal/parser';
 import { parseRaci, allTasks } from './raci/parser';
 import { parseBody } from './body/parser';
 import type { DgmoError } from './diagnostics';
@@ -547,6 +548,9 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
   // Block diagram: deterministic grid (no measure/minDims — it sizes to content
   // and is scaled to fit whatever rectangle it's given).
   { id: 'block', category: 'visualization', parse: parseBlock },
+  // Goal: a single now/target value in one of three faces (bar/thermometer/
+  // gauge). No measure/minDims — it centers in whatever rectangle it's given.
+  { id: 'goal', category: 'visualization', parse: parseGoal },
 
   // ── Geographic map (own parser → resolver → layout → renderer) ──
   { id: 'map', category: 'visualization', parse: parseMap },

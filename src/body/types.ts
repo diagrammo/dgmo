@@ -23,6 +23,11 @@ export interface BodyPart {
   /** Bare indented body lines (markdown-light; `- ` bullets normalized). */
   readonly notes: readonly string[];
   readonly lineNumber: number;
+  /**
+   * Optional anatomical side (patient's own left/right) from a `left `/`right `
+   * prefix, e.g. `right pec`. Aims the leader at just that side's component.
+   */
+  readonly side?: 'left' | 'right';
 }
 
 export type BodyView = 'front' | 'back';

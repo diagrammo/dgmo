@@ -199,6 +199,32 @@ describe('sketch renderer — edges', () => {
     expect(offset.y0).not.toBeCloseTo(offset.y1, 1);
   });
 
+  it('a source aligned with a group child gets a STRAIGHT line to that child`s port', () => {
+    // A tall group: the source aligns (same row) with the TOP child, which sits
+    // in the top quarter of the group`s left side. The synthetic port must be the
+    // child`s own midpoint (used verbatim) so the line is dead straight — NOT
+    // corner-clamped toward the group`s vertical middle (which would bend it).
+    const svg = render(
+      'sketch\n' +
+        'Feed as feed at: 0 0\n  -> ptop\n' +
+        '[Rack] as rack at: 4 0\n' +
+        '  Top as ptop at: 0 0\n' +
+        '  Mid as pmid at: 0 3\n' +
+        '  Low as plow at: 0 6\n'
+    );
+    const d = svg.querySelector('.sk-edge-group path')!.getAttribute('d')!;
+    const m = d.match(
+      /^M (\S+) (\S+) C (\S+) (\S+), (\S+) (\S+), (\S+) (\S+)$/
+    )!;
+    const [y0, cy0, cy1, y1] = [m[2], m[4], m[6], m[8]].map(Number);
+    // Equal endpoint ys AND flat control-point ys → a dead-straight horizontal
+    // line into the top child`s synthetic port. A corner-clamp toward the tall
+    // group`s vertical middle would have bent it (y1 ≠ y0).
+    expect(y1).toBeCloseTo(y0, 3);
+    expect(cy0).toBeCloseTo(y0, 3);
+    expect(cy1).toBeCloseTo(y0, 3);
+  });
+
   it('renders edge labels with a bg stroke halo (no rect) above nodes', () => {
     const svg = render('sketch\nA at: 0 0\n  -haul-> b\nB as b at: 4 0');
     const label = svg.querySelector('.sk-edge-label')!;

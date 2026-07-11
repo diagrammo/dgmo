@@ -44,6 +44,22 @@ L
   Foo
 Foo -> Bar`,
   },
+  AMBIGUOUS_NODE: {
+    code: 'E_SWIMLANE_AMBIGUOUS_NODE',
+    severity: 'warning',
+    chartType: 'swimlane',
+    title: 'Ambiguous node reference',
+    message: (p) =>
+      `Node '${p.node ?? 'Review'}' is declared in more than one lane${
+        p.lanes ? ` (${p.lanes})` : ''
+      } — qualify it as Lane.${p.node ?? 'Review'}`,
+    hint: 'Two lanes hold a node with this name. Prefix the reference with its lane (`Customs.Inspect`) to pick one; resolved to the first match otherwise.',
+    example: `swimlane T
+lane Customs
+  Customs.Inspect -> Harbor.Inspect
+lane Harbor
+  Harbor.Inspect`,
+  },
   UNKNOWN_LANE: {
     code: 'E_SWIMLANE_UNKNOWN_LANE',
     severity: 'error',
