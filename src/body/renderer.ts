@@ -83,15 +83,19 @@ function renderFigureBody(
   const seam = palette.bg;
   const outlineStroke = palette.textMuted;
 
+  // Shared soft body gradient — both forms fill the silhouette with it so the
+  // figure reads as one shaded shape, making highlighted parts + their leaders
+  // stand out instead of getting lost in white space.
+  const gid = `body-skin-${vx}-${vy}`;
+  defs.push(
+    `<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">` +
+      `<stop offset="0" stop-color="${mix(palette.surface, palette.bg, 0.4)}"/>` +
+      `<stop offset="1" stop-color="${mix(palette.border, palette.bg, 0.3)}"/>` +
+      `</linearGradient>`
+  );
+
   let out = '';
   if (form === 'skin') {
-    const gid = `body-skin-${vx}-${vy}`;
-    defs.push(
-      `<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">` +
-        `<stop offset="0" stop-color="${mix(palette.surface, palette.bg, 0.4)}"/>` +
-        `<stop offset="1" stop-color="${mix(palette.border, palette.bg, 0.3)}"/>` +
-        `</linearGradient>`
-    );
     out += `<path d="${fig.outline}" fill="url(#${gid})"/>`;
     for (const d of fig.headPaths) {
       out += `<path d="${d}" fill="url(#${gid})" stroke="${outlineStroke}" stroke-width="2.5"/>`;
@@ -101,14 +105,17 @@ function renderFigureBody(
       out += `<path d="${d}" fill="${hairFill}" stroke="${outlineStroke}" stroke-width="1.5"/>`;
     }
   } else {
+    // Shade the whole silhouette first, then lay the muscle striations over it
+    // as subtle relief so the body is a single tinted shape (not white).
+    out += `<path d="${fig.outline}" fill="url(#${gid})"/>`;
     for (const d of fig.base) {
-      out += `<path d="${d}" fill="${muscleFill}" stroke="${seam}" stroke-width="1"/>`;
+      out += `<path d="${d}" fill="${muscleFill}" fill-opacity="0.55" stroke="${seam}" stroke-width="1"/>`;
     }
     // Muscle silhouette (fig.outline) traces the jaw but not the scalp, so the
     // crown is left un-bordered. Overlay the head + hairline outline (stroke
     // only) so the dark border follows the hairline like every other edge.
     for (const d of fig.headPaths) {
-      out += `<path d="${d}" fill="none" stroke="${outlineStroke}" stroke-width="2.5"/>`;
+      out += `<path d="${d}" fill="url(#${gid})" stroke="${outlineStroke}" stroke-width="2.5"/>`;
     }
     for (const d of fig.hairPaths) {
       out += `<path d="${d}" fill="none" stroke="${outlineStroke}" stroke-width="2.5"/>`;
@@ -136,8 +143,11 @@ function renderFigureBody(
         out += `<path${dataLine} d="${d}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="1.5"/>`;
       }
     } else {
+      // Muted fill (~70% colour, 30% bg) with a full-strength coloured edge —
+      // clearly filled, but soft enough that the leader line reads across it.
+      const lightFill = mix(color, palette.bg, 70);
       for (const d of geom.paths) {
-        out += `<path${dataLine} d="${d}" fill="${color}" stroke="${seam}" stroke-width="1"/>`;
+        out += `<path${dataLine} d="${d}" fill="${lightFill}" stroke="${color}" stroke-width="1.5"/>`;
       }
     }
     anchors.set(part.name.toLowerCase(), {
@@ -193,7 +203,7 @@ function gutterLabels(r: FigureRender, palette: PaletteColors): string {
       const note = a.part.notes.length ? a.part.notes[0]! : '';
       labels +=
         `<path d="M${gx} ${ly} L${tgt.x} ${tgt.y}" stroke="${a.color}" stroke-width="1.6" fill="none" opacity="0.75"/>` +
-        `<circle cx="${tgt.x}" cy="${tgt.y}" r="5" fill="${a.color}"/>` +
+        `<circle cx="${tgt.x}" cy="${tgt.y}" r="5.5" fill="${a.color}" stroke="${palette.bg}" stroke-width="2"/>` +
         `<text x="${gx}" y="${ly - 3}" text-anchor="${anchorX}" font-size="${LABEL_FONT}" font-weight="700" fill="${palette.text}">${esc(a.part.name)}</text>`;
       if (note) {
         labels += `<text x="${gx}" y="${ly + 21}" text-anchor="${anchorX}" font-size="${NOTE_FONT}" fill="${palette.textMuted}">${esc(note)}</text>`;
@@ -327,12 +337,12 @@ export function renderBody(
       if (it.left) {
         labels +=
           `<path d="M${(centerX - stub).toFixed(1)} ${it.y.toFixed(1)} L${it.left.x.toFixed(1)} ${it.left.y.toFixed(1)}" stroke="${it.color}" stroke-width="1.6" fill="none" opacity="0.75"/>` +
-          `<circle cx="${it.left.x.toFixed(1)}" cy="${it.left.y.toFixed(1)}" r="5" fill="${it.color}"/>`;
+          `<circle cx="${it.left.x.toFixed(1)}" cy="${it.left.y.toFixed(1)}" r="5.5" fill="${it.color}" stroke="${palette.bg}" stroke-width="2"/>`;
       }
       if (it.right) {
         labels +=
           `<path d="M${(centerX + stub).toFixed(1)} ${it.y.toFixed(1)} L${it.right.x.toFixed(1)} ${it.right.y.toFixed(1)}" stroke="${it.color}" stroke-width="1.6" fill="none" opacity="0.75"/>` +
-          `<circle cx="${it.right.x.toFixed(1)}" cy="${it.right.y.toFixed(1)}" r="5" fill="${it.color}"/>`;
+          `<circle cx="${it.right.x.toFixed(1)}" cy="${it.right.y.toFixed(1)}" r="5.5" fill="${it.color}" stroke="${palette.bg}" stroke-width="2"/>`;
       }
       labels += `<text x="${centerX}" y="${(it.y - 3).toFixed(1)}" text-anchor="middle" font-size="${LABEL_FONT}" font-weight="700" fill="${palette.text}">${esc(it.name)}</text>`;
       if (it.note) {

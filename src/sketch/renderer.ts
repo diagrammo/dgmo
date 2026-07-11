@@ -870,7 +870,8 @@ type Side = 'T' | 'B' | 'L' | 'R';
  */
 function assignEdgeSides(
   edges: readonly { sourceId: string; targetId: string }[],
-  rectById: Map<string, Rect>
+  rectById: Map<string, Rect>,
+  isGroup: (id: string) => boolean
 ): Array<{ s: Side; t: Side } | null> {
   const cx = (r: Rect): number => r.x + r.w / 2;
   const cy = (r: Rect): number => r.y + r.h / 2;
@@ -895,7 +896,17 @@ function assignEdgeSides(
     const sHoriz = sSide === 'L' || sSide === 'R';
     // Perpendicular-axis side of the target facing the source.
     const perp: Side = sHoriz ? (dy <= 0 ? 'B' : 'T') : dx <= 0 ? 'R' : 'L';
-    const tSide = ratio >= DIAG ? perp : opposite(sSide);
+    // A GROUP carries discrete child ports on every side, so it should attach on
+    // the side directly FACING the other endpoint — the line then lands on an
+    // aligned child port (or the group midpoint) and runs straight in. The
+    // perpendicular corner heuristic is only right for a bare 4-port node, whose
+    // sides are plain midpoints. (facing(-d) = the target side pointing back at
+    // the source.)
+    const tSide = isGroup(e.targetId)
+      ? facing(-dx, -dy)
+      : ratio >= DIAG
+        ? perp
+        : opposite(sSide);
     return { s: sSide, t: tSide };
   });
 }
@@ -1215,7 +1226,10 @@ export function sketchEdgeGeometry(
     xs.push(box.x + o.dx + box.w / 2);
     portsById.set(box.id, { ys, xs });
   }
-  const sides = assignEdgeSides(layout.edges, rectById);
+  const groupIdSet = new Set(layout.boxes.map((b) => b.id));
+  const sides = assignEdgeSides(layout.edges, rectById, (id) =>
+    groupIdSet.has(id)
+  );
 
   // Obstacle set for around-routing: every node/box rect, tagged by id. An edge
   // excludes its two endpoints AND the box each endpoint lives in (a line
