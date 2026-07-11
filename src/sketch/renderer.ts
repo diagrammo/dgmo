@@ -610,14 +610,9 @@ export function renderSketch(
       .attr('class', 'sk-edge-label')
       .attr('data-from', l.from)
       .attr('data-to', l.to);
-    const textWidth = l.text.length * EDGE_LABEL_FONT_SIZE * 0.56;
-    g.append('rect')
-      .attr('x', l.x - textWidth / 2 - 3)
-      .attr('y', l.y - EDGE_LABEL_FONT_SIZE / 2 - 3)
-      .attr('width', textWidth + 6)
-      .attr('height', EDGE_LABEL_FONT_SIZE + 6)
-      .attr('rx', 3)
-      .attr('fill', palette.bg);
+    // No bg rect — a bg-colored stroke halo painted UNDER the fill (paint-order)
+    // hugs each glyph, so the line is masked behind the text without a visible
+    // rectangle of whitespace around it.
     g.append('text')
       .attr('x', l.x)
       .attr('y', l.y)
@@ -625,6 +620,10 @@ export function renderSketch(
       .attr('dominant-baseline', 'central')
       .attr('font-size', EDGE_LABEL_FONT_SIZE)
       .attr('fill', l.color)
+      .attr('stroke', palette.bg)
+      .attr('stroke-width', 3)
+      .attr('stroke-linejoin', 'round')
+      .attr('paint-order', 'stroke')
       .text(l.text);
   }
 

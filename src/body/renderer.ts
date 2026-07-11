@@ -53,7 +53,16 @@ type Box = [number, number, number, number]; // vx vy vw vh
 interface FigureRender {
   fig: BodyFigure;
   body: string; // base + highlighted parts + outline + head (raw coords)
-  anchors: Map<string, { x: number; y: number; color: string; part: BodyPart }>;
+  anchors: Map<
+    string,
+    {
+      x: number;
+      y: number;
+      centers: Array<{ x: number; y: number }>;
+      color: string;
+      part: BodyPart;
+    }
+  >;
   vx: number;
   vy: number;
   vw: number;
@@ -95,11 +104,26 @@ function renderFigureBody(
     for (const d of fig.base) {
       out += `<path d="${d}" fill="${muscleFill}" stroke="${seam}" stroke-width="1"/>`;
     }
+    // Muscle silhouette (fig.outline) traces the jaw but not the scalp, so the
+    // crown is left un-bordered. Overlay the head + hairline outline (stroke
+    // only) so the dark border follows the hairline like every other edge.
+    for (const d of fig.headPaths) {
+      out += `<path d="${d}" fill="none" stroke="${outlineStroke}" stroke-width="2.5"/>`;
+    }
+    for (const d of fig.hairPaths) {
+      out += `<path d="${d}" fill="none" stroke="${outlineStroke}" stroke-width="2.5"/>`;
+    }
   }
 
   const anchors = new Map<
     string,
-    { x: number; y: number; color: string; part: BodyPart }
+    {
+      x: number;
+      y: number;
+      centers: Array<{ x: number; y: number }>;
+      color: string;
+      part: BodyPart;
+    }
   >();
   for (const part of parts) {
     const key = resolvePartKey(fig, part.name);
@@ -119,6 +143,9 @@ function renderFigureBody(
     anchors.set(part.name.toLowerCase(), {
       x: geom.anchor.x,
       y: geom.anchor.y,
+      centers: geom.centers?.length
+        ? geom.centers.map((c) => ({ x: c.x, y: c.y }))
+        : [{ x: geom.anchor.x, y: geom.anchor.y }],
       color,
       part,
     });
@@ -126,6 +153,23 @@ function renderFigureBody(
 
   out += `<path d="${fig.outline}" fill="none" stroke="${outlineStroke}" stroke-width="2.5"/>`;
   return { fig, body: out, anchors, vx, vy, vw, vh };
+}
+
+/** Pick the muscle component centroid nearest a target x (the label side). */
+function nearestCenter(
+  a: { x: number; y: number; centers: Array<{ x: number; y: number }> },
+  targetX: number
+): { x: number; y: number } {
+  let best = a.centers[0] ?? { x: a.x, y: a.y };
+  let bestD = Math.abs(best.x - targetX);
+  for (const c of a.centers) {
+    const d = Math.abs(c.x - targetX);
+    if (d < bestD) {
+      bestD = d;
+      best = c;
+    }
+  }
+  return best;
 }
 
 /** Gutter labels for the single-view case (raw coords, drawn inside the g). */
@@ -142,12 +186,14 @@ function gutterLabels(r: FigureRender, palette: PaletteColors): string {
     const minGap = vh * 0.05;
     let prevY = -1e9;
     for (const a of arr) {
-      const ly = Math.max(a.y - 6, prevY + minGap);
+      // Aim at the muscle component nearest this label's gutter side.
+      const tgt = nearestCenter(a, gx);
+      const ly = Math.max(tgt.y - 6, prevY + minGap);
       prevY = ly;
       const note = a.part.notes.length ? a.part.notes[0]! : '';
       labels +=
-        `<path d="M${gx} ${ly} L${a.x} ${a.y}" stroke="${a.color}" stroke-width="1.6" fill="none" opacity="0.75"/>` +
-        `<circle cx="${a.x}" cy="${a.y}" r="5" fill="${a.color}"/>` +
+        `<path d="M${gx} ${ly} L${tgt.x} ${tgt.y}" stroke="${a.color}" stroke-width="1.6" fill="none" opacity="0.75"/>` +
+        `<circle cx="${tgt.x}" cy="${tgt.y}" r="5" fill="${a.color}"/>` +
         `<text x="${gx}" y="${ly - 3}" text-anchor="${anchorX}" font-size="${LABEL_FONT}" font-weight="700" fill="${palette.text}">${esc(a.part.name)}</text>`;
       if (note) {
         labels += `<text x="${gx}" y="${ly + 21}" text-anchor="${anchorX}" font-size="${NOTE_FONT}" fill="${palette.textMuted}">${esc(note)}</text>`;
@@ -251,8 +297,10 @@ export function renderBody(
       const aR = fR.anchors.get(nm);
       if (!aL && !aR) continue;
       seen.add(nm);
-      const left = aL ? mapL(aL) : undefined;
-      const right = aR ? mapR(aR) : undefined;
+      // Central label column sits between the figures, so aim each figure's
+      // leader at the muscle component nearest that inner edge.
+      const left = aL ? mapL(nearestCenter(aL, fL.vx + fL.vw)) : undefined;
+      const right = aR ? mapR(nearestCenter(aR, fR.vx)) : undefined;
       const ys = [left?.y, right?.y].filter((v): v is number => v != null);
       items.push({
         name: part.name,

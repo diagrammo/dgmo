@@ -199,10 +199,15 @@ describe('sketch renderer — edges', () => {
     expect(offset.y0).not.toBeCloseTo(offset.y1, 1);
   });
 
-  it('renders edge labels with a background halo above nodes', () => {
+  it('renders edge labels with a bg stroke halo (no rect) above nodes', () => {
     const svg = render('sketch\nA at: 0 0\n  -haul-> b\nB as b at: 4 0');
     const label = svg.querySelector('.sk-edge-label')!;
-    expect(label.querySelector('rect')).not.toBeNull();
+    // No opaque bg rect — the line is masked by a bg-colored glyph halo painted
+    // under the fill (paint-order: stroke), so no visible whitespace box.
+    expect(label.querySelector('rect')).toBeNull();
+    const text = label.querySelector('text')!;
+    expect(text.getAttribute('paint-order')).toBe('stroke');
+    expect(text.getAttribute('stroke')).toBeTruthy();
     expect(label.textContent).toBe('haul');
   });
 
@@ -308,12 +313,15 @@ describe('sketch renderer — edges', () => {
         'B as b at: 8 4\n  -beta-> d\n' +
         'C as c at: 8 0\nD as d at: 0 0\n'
     );
-    const boxes = [...svg.querySelectorAll('.sk-edge-label rect')].map((r) => ({
-      x: Number(r.getAttribute('x')),
-      y: Number(r.getAttribute('y')),
-      w: Number(r.getAttribute('width')),
-      h: Number(r.getAttribute('height')),
-    }));
+    // No bg rect anymore — reconstruct each label`s footprint from its centered
+    // text position + an approximate glyph extent (font-size 12, ~0.56 em/char).
+    const FS = 12;
+    const boxes = [...svg.querySelectorAll('.sk-edge-label text')].map((t) => {
+      const cx = Number(t.getAttribute('x'));
+      const cy = Number(t.getAttribute('y'));
+      const w = (t.textContent ?? '').length * FS * 0.56;
+      return { x: cx - w / 2, y: cy - FS / 2, w, h: FS };
+    });
     expect(boxes.length).toBe(2);
     const [a, b] = boxes as [(typeof boxes)[0], (typeof boxes)[0]];
     const overlap =
