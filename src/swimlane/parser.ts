@@ -2,25 +2,30 @@
 // Swimlane Diagram — Parser
 // ============================================================
 //
-// Grammar (syntax source of truth: `docs/swimlane-syntax.html`):
+// Grammar (spec §27 — "lane blocks own their edges"):
 //   swimlane [Title]
 //   direction LR|TB                 // optional, default LR
-//   lane <Name> [color]             // row declarations (order + color)
 //   tag <Name> as <a> …             // optional tag groups (§1.5)
-//   [Phase]                         // optional phase columns (3-deep)
-//     <Lane ref>                    //   bare line matching a declared lane
-//       <node>                      //     bare task / <gateway> / (terminal) / [[subprocess]]
-//   <Lane ref>                      // 2-deep (no phases): lane ▸ node
-//     <node>
-//   A -label-> B -> C               // flow block (last); in-arrow labels;
-//   <Source>                        //   a bare source header groups indented
-//     -label-> Target               //   arrows beneath it
+//   lane <Name> [color]             // declares a lane AND opens its block
+//     <node>                        //   bare task / <gateway> / (terminal) / [[subprocess]]
+//     A -label-> B                  //   edges are inline — no separate flow block
+//     <Source>                      //   a bare node header groups the indented
+//       -label-> Target             //   arrows beneath it (fan)
+//   [Phase]                         // optional phase columns (3-deep):
+//     lane <Name> [color]           //   [Phase] ▸ lane ▸ nodes
+//       <node>
 //
-// Detection is via `ALL_CHART_TYPES` (utils/parsing.ts), matched by
-// `parseFirstLine` — NOT the registry. Lanes are pre-declared with the `lane`
-// keyword, which lets the main pass disambiguate a lane-context line (matches a
-// declared lane) from a node declaration (anything else) from a flow
-// source-group header (bare, indent-0, not a lane).
+// A node is OWNED by the lane where it is a line-head (bare node or arrow
+// source); elsewhere the same name is a reference, resolved after the whole
+// diagram is read (forward references are fine). References are lane-scoped —
+// resolve own-lane-first, then global-unique, then ambiguous; a `Lane.Node`
+// qualifier picks one lane. An unresolved reference auto-creates a leaf ONLY
+// when delimited (terminal/gateway/subprocess); an unresolved bare task is an
+// UNKNOWN_NODE error (typo protection).
+//
+// Two passes: a scan collects node declarations + raw edges, then a resolve
+// pass wires the edges (so edges may point at not-yet-declared nodes).
+// Detection is via `ALL_CHART_TYPES` (utils/parsing.ts) / `parseFirstLine`.
 
 import { emit, type DgmoError } from '../diagnostics';
 import { SWIMLANE_DX } from './diagnostics';
@@ -222,7 +227,6 @@ export function parseSwimlane(
 
   const laneByKey = new Map<string, SwimLane>();
   const phaseByKey = new Map<string, SwimPhase>();
-  const nodeByKey = new Map<string, SwimNode>();
   const metaAliasMap = new Map<string, string>();
   const options: Record<string, string> = {};
   let direction: SwimDirection = 'LR';
@@ -333,8 +337,11 @@ export function parseSwimlane(
       continue;
     }
 
-    // `lane <Name> [color]`.
-    if (indent === 0 && /^lane\s+/i.test(trimmed)) {
+    // `lane <Name> [color]` — at ANY indent. In Candidate-A a lane header both
+    // declares the lane AND opens its block; under a `[Phase]` the header is
+    // indented, so we can't gate on indent 0. Declaration order (first
+    // appearance) fixes lane order; re-declarations are ignored below.
+    if (/^lane\s+/i.test(trimmed)) {
       const rest = trimmed.replace(/^lane\s+/i, '').trim();
       const { label, color } = extractColor(
         rest,
@@ -364,50 +371,76 @@ export function parseSwimlane(
   // resolves to hex. (extractColor already stored a hex; but we stored the raw
   // word above via extractColor's label/color — color IS a resolved hex string.)
 
-  // ── Pass 2: phases, lane context, nodes, flow ───────────────
-  let currentPhase: SwimPhase | null = null;
-  let currentLane: SwimLane | null = null;
-  let laneIndent = -1; // indent at which the current lane context was opened
-  let currentFlowSource: string | null = null;
+  // ── Pass 2 (Candidate A) ────────────────────────────────────
+  //
+  // Two sub-passes so edges may forward-reference nodes and so a node can be
+  // declared by the arrow line that first mentions it (no separate flow block):
+  //
+  //   scan   — walk lines top-to-bottom. A `lane` header (or a bare line
+  //            matching a lane) opens a lane block; indented lines beneath it
+  //            declare nodes AND their outgoing edges inline. Arrow HEADS
+  //            declare their node in the current lane; arrow TARGETS are only
+  //            references, collected raw. Back-compat: an arrow at indent 0
+  //            (old flow block) declares nothing and resolves strictly.
+  //   resolve — with every explicit node now known, resolve each raw edge's
+  //            source + target. A bare reference looks in its own lane first,
+  //            then across all lanes (unique → resolve, many → ambiguous). A
+  //            `Lane.Node` qualifier targets one lane. A target that resolves
+  //            nowhere is implicitly declared in the referencing lane (a leaf),
+  //            unless the edge was authored at indent 0 (then it is UNKNOWN).
+  //
+  // Node identity is lane-scoped: two lanes may each hold a `Review`. The
+  // emitted `id` is the label when globally unique, else lane-suffixed, so the
+  // layout/renderer (which key purely off unique ids) stay untouched.
 
-  const declareNode = (
-    token: string,
+  interface Draft {
+    id: string; // assigned after resolve
+    label: string;
+    laneId: string;
+    phaseId?: string;
+    shape: SwimShape;
+    event: SwimEvent;
+    color?: string;
+    tags: Record<string, string>;
+    lineNumber: number;
+    /** A pure declaration line (bare node or `lane`-scoped head) claimed it. */
+    hasBareDecl: boolean;
+  }
+  interface RawEdge {
+    srcText: string | null; // null → dropped (no fan source in scope)
+    tgtText: string;
+    label?: string;
+    laneId: string | null; // lane context at author time
+    phaseId?: string; // phase context at author time (for implicit leaves)
+    inLane: boolean; // authored inside a lane block (indent > lane indent)
+    lineNumber: number;
+  }
+
+  const drafts: Draft[] = [];
+  const draftByKey = new Map<string, Draft>(); // `${laneId}\x00${normLabel}`
+  const draftsByLabel = new Map<string, Draft[]>(); // normLabel → drafts
+  const rawEdges: RawEdge[] = [];
+  const laneKey = (laneId: string, label: string): string =>
+    `${normKey(laneId)}\x00${normKey(label)}`;
+
+  /** Split a leading `Lane.` qualifier off a bare (undelimited) token. */
+  const splitQualifier = (token: string): { laneId?: string; rest: string } => {
+    const t = token.trim();
+    if (/^[<([]/.test(t)) return { rest: t }; // shape-delimited → never qualified
+    const dot = t.indexOf('.');
+    if (dot > 0) {
+      const lane = laneByKey.get(normKey(t.slice(0, dot)));
+      if (lane) return { laneId: lane.id, rest: t.slice(dot + 1).trim() };
+    }
+    return { rest: t };
+  };
+
+  /** Apply same-line `key: value` tag metadata to a draft (rejecting reserved keys). */
+  const applyMeta = (
+    draft: Draft,
     meta: Record<string, string>,
     lineNum: number
   ): void => {
-    const parsed = parseNodeToken(token);
-    if (parsed.unsupported) {
-      diagnostics.push(
-        emit(SWIMLANE_DX.UNSUPPORTED, lineNum, { reason: parsed.unsupported })
-      );
-      return;
-    }
-    if (!parsed.label) return;
-    if (!currentLane) {
-      diagnostics.push(
-        emit(SWIMLANE_DX.UNKNOWN_LANE, lineNum, { node: parsed.label })
-      );
-      return;
-    }
-    // Strip the same-line trailing color token BEFORE computing the identity
-    // key — the flow block references the node by its clean name (`resolveRef`
-    // keys off the post-color label), so dedup + lookup must use `cleanLabel`
-    // too, else a colored node is unreferenceable and duplicates slip the gate.
-    const { label: cleanLabel, color } = extractColor(
-      parsed.label,
-      palette,
-      diagnostics,
-      lineNum
-    );
-    const key = normKey(cleanLabel);
-    if (nodeByKey.has(key)) {
-      diagnostics.push(
-        emit(SWIMLANE_DX.DUPLICATE_NODE, lineNum, { name: cleanLabel })
-      );
-      return;
-    }
-    // Tag-meta: reject the deferred reserved keys.
-    const tags: Record<string, string> = {};
     for (const [k, v] of Object.entries(meta)) {
       if (k === 'note') {
         diagnostics.push(
@@ -434,107 +467,219 @@ export function parseSwimlane(
         continue;
       }
       const canonical = metaAliasMap.get(k) ?? k;
-      tags[canonical] = v;
+      draft.tags[canonical] = v;
     }
-    const node: SwimNode = {
-      id: cleanLabel,
-      label: cleanLabel,
-      shape: parsed.shape,
-      event: parsed.event,
-      lane: currentLane.id,
-      ...(currentPhase && { phase: currentPhase.id }),
-      ...(color !== undefined && { color }),
-      tags,
-      lineNumber: lineNum,
-    };
-    nodes.push(node);
-    nodeByKey.set(key, node);
   };
 
-  const resolveRef = (token: string, lineNum: number): string | null => {
-    const parsed = parseNodeToken(token);
+  const registerDraft = (draft: Draft): void => {
+    draftByKey.set(laneKey(draft.laneId, draft.label), draft);
+    const nk = normKey(draft.label);
+    (draftsByLabel.get(nk) ?? draftsByLabel.set(nk, []).get(nk)!).push(draft);
+    drafts.push(draft);
+  };
+
+  /** Merge a fresh appearance into an existing draft (shape/event/color upgrades). */
+  const mergeDraft = (
+    draft: Draft,
+    parsed: NodeTokenResult,
+    color: string | undefined
+  ): void => {
+    if (draft.shape === 'task' && parsed.shape !== 'task')
+      draft.shape = parsed.shape;
+    if (draft.event === 'none' && parsed.event !== 'none')
+      draft.event = parsed.event;
+    if (draft.color === undefined && color !== undefined) draft.color = color;
+  };
+
+  /**
+   * Declare (or merge) a node from a line-head / bare token in `laneId`.
+   * `bare` marks a pure declaration line so a second one flags a duplicate.
+   */
+  const declareInLane = (
+    rawText: string,
+    laneId: string,
+    phaseId: string | undefined,
+    bare: boolean,
+    lineNum: number
+  ): Draft | null => {
+    const { token, meta } = splitNodeMeta(rawText);
+    const { rest } = splitQualifier(token); // a head qualifier only strips the label
+    const parsed = parseNodeToken(rest);
     if (parsed.unsupported) {
       diagnostics.push(
         emit(SWIMLANE_DX.UNSUPPORTED, lineNum, { reason: parsed.unsupported })
       );
       return null;
     }
-    const { label } = extractColor(parsed.label, palette);
-    const key = normKey(label);
-    const node = nodeByKey.get(key);
-    if (!node) {
+    if (!parsed.label) return null;
+    const { label: cleanLabel, color } = extractColor(
+      parsed.label,
+      palette,
+      diagnostics,
+      lineNum
+    );
+    const key = laneKey(laneId, cleanLabel);
+    const existing = draftByKey.get(key);
+    if (existing) {
+      if (bare && existing.hasBareDecl) {
+        diagnostics.push(
+          emit(SWIMLANE_DX.DUPLICATE_NODE, lineNum, { name: cleanLabel })
+        );
+        return existing;
+      }
+      mergeDraft(existing, parsed, color);
+      if (bare) existing.hasBareDecl = true;
+      if (existing.phaseId === undefined && phaseId !== undefined)
+        existing.phaseId = phaseId;
+      applyMeta(existing, meta, lineNum);
+      return existing;
+    }
+    const draft: Draft = {
+      id: cleanLabel,
+      label: cleanLabel,
+      laneId,
+      ...(phaseId !== undefined && { phaseId }),
+      shape: parsed.shape,
+      event: parsed.event,
+      ...(color !== undefined && { color }),
+      tags: {},
+      lineNumber: lineNum,
+      hasBareDecl: bare,
+    };
+    applyMeta(draft, meta, lineNum);
+    registerDraft(draft);
+    return draft;
+  };
+
+  /**
+   * Resolve an edge endpoint (source or target) to a draft. Bare refs resolve
+   * lane-first → global-unique → ambiguous; `Lane.Node` targets one lane. An
+   * unresolved reference is materialized as a leaf node ONLY when it is
+   * **delimited** — a terminal `(…)`, gateway `<…>`, or subprocess `[[…]]`,
+   * i.e. an intentional endpoint. An unresolved **bare task** is an
+   * `E_SWIMLANE_UNKNOWN_NODE` error, so a typo'd target name is caught instead
+   * of silently spawning a phantom node.
+   */
+  const resolveEndpoint = (
+    rawText: string,
+    laneId: string | null,
+    phaseId: string | undefined,
+    lineNum: number
+  ): Draft | null => {
+    const { token, meta } = splitNodeMeta(rawText);
+    const { laneId: qLane, rest } = splitQualifier(token);
+    const parsed = parseNodeToken(rest);
+    if (parsed.unsupported) {
       diagnostics.push(
-        emit(SWIMLANE_DX.UNKNOWN_NODE, lineNum, { node: parsed.label })
+        emit(SWIMLANE_DX.UNSUPPORTED, lineNum, { reason: parsed.unsupported })
       );
       return null;
     }
-    return node.id;
-  };
+    const { label: cleanLabel } = extractColor(parsed.label, palette);
+    const nk = normKey(cleanLabel);
+    // Only a delimited endpoint (terminal/gateway/subprocess) may auto-create.
+    const delimited = parsed.shape !== 'task';
 
-  const addChain = (line: string, lineNum: number): void => {
-    if (line.includes('~>')) {
+    const finish = (d: Draft): Draft => {
+      applyMeta(d, meta, lineNum);
+      return d;
+    };
+    const implicit = (owner: string): Draft => {
+      const draft: Draft = {
+        id: cleanLabel,
+        label: cleanLabel,
+        laneId: owner,
+        ...(phaseId !== undefined && { phaseId }),
+        shape: parsed.shape,
+        event: parsed.event,
+        tags: {},
+        lineNumber: lineNum,
+        hasBareDecl: false,
+      };
+      applyMeta(draft, meta, lineNum);
+      registerDraft(draft);
+      return draft;
+    };
+
+    // Qualified `Lane.Node` → that lane exactly.
+    if (qLane) {
+      const hit = draftByKey.get(laneKey(qLane, cleanLabel));
+      if (hit) return finish(hit);
+      if (delimited) return implicit(qLane);
       diagnostics.push(
-        emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
-          reason: 'message flow (~>) is fast-follow',
+        emit(SWIMLANE_DX.UNKNOWN_NODE, lineNum, {
+          node: `${qLane}.${cleanLabel}`,
         })
       );
-      return;
+      return null;
     }
-    const parts = splitChain(line);
-    if (parts.length < 2) return;
-    // A leading empty part means the chain starts with `-label->`, so its source
-    // is the group header (`currentFlowSource`). Every indented arrow under one
-    // header fans out from the SAME header — we never chain off a prior line's
-    // tail — so the group source is read but not reassigned here.
-    const resolved: (string | null)[] = [];
-    for (let p = 0; p < parts.length; p++) {
-      const text = parts[p]!.text;
-      if (p === 0 && text === '') {
-        resolved.push(currentFlowSource);
-        continue;
-      }
-      resolved.push(resolveRef(text, lineNum));
+
+    // Bare: prefer the current lane, then a global-unique match.
+    if (laneId) {
+      const own = draftByKey.get(laneKey(laneId, cleanLabel));
+      if (own) return finish(own);
     }
-    for (let p = 0; p < parts.length - 1; p++) {
-      const src = resolved[p];
-      const tgt = resolved[p + 1];
-      const label = parts[p]!.labelAfter;
-      if (!src || !tgt) continue;
-      edges.push({
-        source: src,
-        target: tgt,
-        ...(label !== undefined && { label }),
-        lineNumber: lineNum,
-      });
+    const cands = draftsByLabel.get(nk) ?? [];
+    if (cands.length === 1) return finish(cands[0]!);
+    if (cands.length > 1) {
+      diagnostics.push(
+        emit(SWIMLANE_DX.AMBIGUOUS_NODE, lineNum, {
+          node: cleanLabel,
+          lanes: cands.map((c) => c.laneId).join(', '),
+        })
+      );
+      return finish(cands[0]!);
     }
+    if (delimited && laneId) return implicit(laneId);
+    diagnostics.push(
+      emit(SWIMLANE_DX.UNKNOWN_NODE, lineNum, { node: parsed.label })
+    );
+    return null;
   };
 
-  let inTagBlock = false; // skip a `tag` heading's indented entries (pass-1 owns them)
+  // ── scan ──
+  let currentPhase: SwimPhase | null = null;
+  let currentLane: SwimLane | null = null;
+  let laneIndent = -1; // indent at which the current lane block was opened
+  let flowSource: string | null = null; // last bare/header token (fan source)
+  let inTagBlock = false;
+
+  const openLane = (lane: SwimLane, indent: number, phased: boolean): void => {
+    currentLane = lane;
+    laneIndent = indent;
+    if (!phased) currentPhase = null;
+    flowSource = null;
+  };
+
   for (let i = startIdx; i < rawLines.length; i++) {
     const raw = rawLines[i]!;
     const lineNum = i + 1;
     let trimmed = raw.trim();
     if (!trimmed || trimmed.startsWith('//')) continue;
-    // Strip trailing inline comments.
     const cIdx = trimmed.indexOf('//');
     if (cIdx > 0) trimmed = trimmed.slice(0, cIdx).trim();
     if (!trimmed) continue;
     const indent = measureIndent(raw);
 
-    // Skip the declarations pass-1 already consumed.
-    if (indent === 0 && /^(lane|direction|tag)\s+/i.test(trimmed)) {
-      inTagBlock = /^tag\s+/i.test(trimmed);
-      continue;
-    }
-    // Bare diagram-level directives consumed in pass 1.
+    // `direction` / `tag` were consumed in pass 1.
+    if (indent === 0 && /^direction\s+/i.test(trimmed)) continue;
     if (indent === 0 && /^solid-fill\s*$/i.test(trimmed)) continue;
-    // Indented tag entries (already consumed in pass 1).
     if (matchTagBlockHeading(trimmed) && indent === 0) {
       inTagBlock = true;
       continue;
     }
     if (indent === 0) inTagBlock = false;
     if (inTagBlock && indent > 0) continue;
+
+    // `lane <Name> [color]` opens (or re-opens) that lane's block. Indented
+    // under a `[Phase]` it keeps the current phase; at indent 0 it clears it.
+    if (/^lane\s+/i.test(trimmed)) {
+      const rest = trimmed.replace(/^lane\s+/i, '').trim();
+      const { label } = extractColor(rest, palette);
+      const lane = laneByKey.get(normKey(label));
+      if (lane) openLane(lane, indent, indent > 0);
+      continue;
+    }
 
     // `[Phase]` header (bracketed, not `[[subprocess]]`).
     if (
@@ -557,46 +702,147 @@ export function parseSwimlane(
       currentPhase = phase;
       currentLane = null;
       laneIndent = -1;
-      currentFlowSource = null;
+      flowSource = null;
       continue;
     }
 
-    // Flow edge (contains an arrow). Node names can't contain `->`, so a bare
-    // `->`/`~>` presence unambiguously marks a flow line.
+    const cl = currentLane as SwimLane | null;
+    const cp = currentPhase as SwimPhase | null;
+    const laneCtx = cl?.id ?? null;
+    const phaseCtx = cp?.id;
+    const inLane = cl !== null && indent > laneIndent;
+
+    // Flow edge (contains an arrow). A node name can't hold `->`/`~>`.
     if (trimmed.includes('->') || trimmed.includes('~>')) {
-      addChain(trimmed, lineNum);
+      if (trimmed.includes('~>')) {
+        diagnostics.push(
+          emit(SWIMLANE_DX.UNSUPPORTED, lineNum, {
+            reason: 'message flow (~>) is fast-follow',
+          })
+        );
+        continue;
+      }
+      const parts = splitChain(trimmed);
+      if (parts.length < 2) continue;
+      // The head declares its node (inside a lane block only); a leading empty
+      // head means the chain fans from the current header (`flowSource`).
+      let headText: string | null;
+      if (parts[0]!.text === '') {
+        headText = flowSource;
+      } else {
+        headText = parts[0]!.text;
+        if (inLane) declareInLane(headText, laneCtx!, phaseCtx, false, lineNum);
+      }
+      for (let p = 0; p < parts.length - 1; p++) {
+        const srcText = p === 0 ? headText : parts[p]!.text;
+        rawEdges.push({
+          srcText,
+          tgtText: parts[p + 1]!.text,
+          ...(parts[p]!.labelAfter !== undefined && {
+            label: parts[p]!.labelAfter,
+          }),
+          laneId: laneCtx,
+          ...(phaseCtx !== undefined && { phaseId: phaseCtx }),
+          inLane,
+          lineNumber: lineNum,
+        });
+      }
       continue;
     }
 
-    // A bare line matching a declared lane opens that lane's context — but ONLY
-    // at the lane indent level (or shallower). A line DEEPER than the current
-    // lane is a node even when it shares a lane's name (lanes and nodes are
-    // separate namespaces; the indent disambiguates 3-deep phase ▸ lane ▸ node).
+    // A bare line matching a declared lane (at/above the lane indent) opens it.
     const laneRef = laneByKey.get(normKey(trimmed));
     if (laneRef && (laneIndent < 0 || indent <= laneIndent)) {
-      currentLane = laneRef;
-      laneIndent = indent;
-      currentFlowSource = null;
+      openLane(laneRef, indent, currentPhase !== null && indent > 0);
       continue;
     }
 
-    // A bare indent-0 line that is NOT a lane → flow source-group header.
+    // A bare node line inside a lane block → declaration; it also becomes the
+    // fan source for any `-label->` lines that follow.
+    if (inLane) {
+      declareInLane(trimmed, laneCtx!, phaseCtx, true, lineNum);
+      flowSource = trimmed;
+      continue;
+    }
+
+    // A bare line with no lane in scope → node outside a lane (error), unless it
+    // is a back-compat flow source-group header (indent 0) referencing a node.
     if (indent === 0) {
-      const ref = resolveRef(trimmed, lineNum);
-      if (ref) currentFlowSource = ref;
+      flowSource = trimmed; // resolved lazily as an edge source below
       continue;
     }
+    const { token } = splitNodeMeta(trimmed);
+    const nodeLabel = parseNodeToken(splitQualifier(token).rest).label;
+    diagnostics.push(
+      emit(SWIMLANE_DX.UNKNOWN_LANE, lineNum, { node: nodeLabel })
+    );
+  }
 
-    // Indented bare line → node declaration under the current lane.
-    const { token, meta } = splitNodeMeta(trimmed);
-    declareNode(token, meta, lineNum);
+  // ── resolve (into draft pairs; ids are finalized below) ──
+  const resolvedPairs: Array<{
+    s: Draft;
+    t: Draft;
+    label?: string;
+    lineNumber: number;
+  }> = [];
+  for (const e of rawEdges) {
+    if (e.srcText === null) continue;
+    const s = resolveEndpoint(e.srcText, e.laneId, e.phaseId, e.lineNumber);
+    const t = resolveEndpoint(e.tgtText, e.laneId, e.phaseId, e.lineNumber);
+    if (!s || !t) continue;
+    resolvedPairs.push({
+      s,
+      t,
+      ...(e.label !== undefined && { label: e.label }),
+      lineNumber: e.lineNumber,
+    });
+  }
+
+  // ── assign unique ids + emit nodes ──
+  // id = label when the label is globally unique; else lane-suffixed so the
+  // layout/renderer (keyed on id) never sees a collision.
+  const labelCounts = new Map<string, number>();
+  for (const d of drafts)
+    labelCounts.set(
+      normKey(d.label),
+      (labelCounts.get(normKey(d.label)) ?? 0) + 1
+    );
+  const usedIds = new Set<string>();
+  for (const d of drafts) {
+    let id = d.label;
+    if ((labelCounts.get(normKey(d.label)) ?? 0) > 1)
+      id = `${d.label}␟${d.laneId}`;
+    while (usedIds.has(id)) id = `${id}␟`;
+    usedIds.add(id);
+    d.id = id;
+    nodes.push({
+      id,
+      label: d.label,
+      shape: d.shape,
+      event: d.event,
+      lane: d.laneId,
+      ...(d.phaseId !== undefined && { phase: d.phaseId }),
+      ...(d.color !== undefined && { color: d.color }),
+      tags: d.tags,
+      lineNumber: d.lineNumber,
+    });
+  }
+  // Build edges now that draft ids are final.
+  for (const p of resolvedPairs) {
+    if (p.s.id === p.t.id) continue; // self-loop → nothing to route
+    edges.push({
+      source: p.s.id,
+      target: p.t.id,
+      ...(p.label !== undefined && { label: p.label }),
+      lineNumber: p.lineNumber,
+    });
   }
 
   finalizeAutoTagColors(tagGroups, palette);
 
-  // Per-element diagnostics (duplicate/unknown/unsupported) are non-fatal — the
-  // rest of the diagram still renders best-effort. `error` stays null so the
-  // export guard only bails on a genuinely empty diagram (nodes.length === 0).
+  // Per-element diagnostics (duplicate/unknown/unsupported/ambiguous) are
+  // non-fatal — the rest of the diagram still renders best-effort. `error`
+  // stays null so the export guard only bails on a genuinely empty diagram.
   return {
     ...(title !== undefined && { title }),
     ...(titleLineNumber !== undefined && { titleLineNumber }),
