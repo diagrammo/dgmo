@@ -180,12 +180,15 @@ export function renderSwimlaneForExport(
   if (parsed.title) {
     svg
       .append('text')
+      .attr('class', 'chart-title')
       .attr('x', width / 2)
       .attr('y', TITLE_Y)
       .attr('text-anchor', 'middle')
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
+      // Editor↔diagram sync anchor (cursor on the title line highlights it).
+      .attr('data-line-number', String(parsed.titleLineNumber ?? 1))
       .text(parsed.title);
   }
 
@@ -370,6 +373,9 @@ export function renderSwimlaneForExport(
     const d = roundedPolyline(e.points, EDGE_CORNER_R);
     edgeG
       .append('path')
+      // `sw-edge sw-edge-group` are the editor↔diagram sync anchors (the app
+      // binary-sync adapter highlights/dims `.sw-edge-group[data-line-number]`).
+      .attr('class', 'sw-edge sw-edge-group')
       .attr('d', d)
       .attr('fill', 'none')
       .attr('stroke', stroke)
@@ -486,6 +492,10 @@ export function renderSwimlaneForExport(
     const { fill, stroke } = nodeFill(n);
     const g = nodesG
       .append('g')
+      // `sw-node` + `data-node-id` are the editor↔diagram sync anchors (the app
+      // binary-sync adapter queries `.sw-node[data-node-id=…]`).
+      .attr('class', 'sw-node')
+      .attr('data-node-id', n.id)
       .attr('data-line-number', String(n.lineNumber))
       // Lane key for baked-CSS cross-highlight (hover a node → dim other lanes).
       .attr('data-lane', n.lane);

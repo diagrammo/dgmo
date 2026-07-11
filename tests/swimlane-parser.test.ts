@@ -65,10 +65,8 @@ describe('swimlane parser — edges & in-arrow labels (AC5)', () => {
   it('reads the label from inside the arrow, not a trailing word', () => {
     const p = parseSwimlane(`swimlane T
 lane L
-L
-  <X>
-  B
-<X> -invalid-> B`);
+  <X> -invalid-> B
+  B`);
     const e = p.edges.find((x) => x.source === 'X' && x.target === 'B')!;
     expect(e.label).toBe('invalid');
   });
@@ -102,9 +100,7 @@ L
   it('flags an edge to an unknown node', () => {
     const p = parseSwimlane(`swimlane T
 lane L
-L
-  Foo
-Foo -> Bar`);
+  Foo -> Bar`);
     expect(codes(p.diagnostics)).toContain('E_SWIMLANE_UNKNOWN_NODE');
   });
 });
@@ -147,10 +143,8 @@ describe('swimlane parser — name/key edge cases (adversarial review)', () => {
   it('keeps a hyphen inside a source node name (not an arrow label)', () => {
     const p = parseSwimlane(`swimlane T
 lane L gray
-L
-  Read-Write
-  Done
-Read-Write -> Done`);
+  Read-Write -> Done
+  Done`);
     expect(codes(p.diagnostics)).not.toContain('E_SWIMLANE_UNKNOWN_NODE');
     expect(p.edges.map((e) => `${e.source}->${e.target}`)).toContain(
       'Read-Write->Done'
@@ -184,10 +178,8 @@ L
   it('makes a node with a trailing color token referenceable in the flow', () => {
     const p = parseSwimlane(`swimlane T
 lane L gray
-L
-  Charge blue
-  Receipt
-Charge -> Receipt`);
+  Charge blue -> Receipt
+  Receipt`);
     expect(p.nodes.map((n) => n.id)).toContain('Charge');
     expect(p.edges.map((e) => `${e.source}->${e.target}`)).toContain(
       'Charge->Receipt'

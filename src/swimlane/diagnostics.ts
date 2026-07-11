@@ -24,10 +24,9 @@ export const SWIMLANE_DX = {
     chartType: 'swimlane',
     title: 'Duplicate node',
     message: (p) => `Duplicate node name '${p.name ?? 'Foo'}'`,
-    hint: 'Every node name must be unique across the diagram — rename or remove the second declaration.',
+    hint: 'Within a lane a node name must be unique — rename or remove the second declaration (different lanes may reuse a name).',
     example: `swimlane T
 lane L
-L
   Foo
   Foo`,
   },
@@ -37,12 +36,10 @@ L
     chartType: 'swimlane',
     title: 'Unknown node in edge',
     message: (p) => `Edge references unknown node '${p.node ?? 'Bar'}'`,
-    hint: 'Declare the node under a lane before referencing it in a flow arrow.',
+    hint: 'A bare-task target must be declared as a line-head in some lane; delimited endpoints ((…)/<…>/[[…]]) auto-create. Check for a typo, or qualify a cross-lane name as Lane.Node.',
     example: `swimlane T
 lane L
-L
-  Foo
-Foo -> Bar`,
+  Foo -> Bar`,
   },
   AMBIGUOUS_NODE: {
     code: 'E_SWIMLANE_AMBIGUOUS_NODE',

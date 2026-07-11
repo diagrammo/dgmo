@@ -2,20 +2,13 @@ swimlane Weekly Publishing
 direction LR
 
 lane Writer gray
+  Draft Post -> Review
+  Revise -> Review
 lane Editor blue
-lane Social green
-
-Writer
-  Draft Post
-  Revise
-Editor
   <Review>
-  Schedule
-  Publish
-Social
+    -changes-> Revise
+    -ok-> Schedule
+  Schedule -> Publish
+  Publish -> Promote
+lane Social green
   Promote
-
-Draft Post -> <Review>
-<Review>
-  -changes-> Revise -> <Review>
-  -ok-> Schedule -> Publish -> Promote

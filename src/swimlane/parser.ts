@@ -2,25 +2,30 @@
 // Swimlane Diagram — Parser
 // ============================================================
 //
-// Grammar (syntax source of truth: `docs/swimlane-syntax.html`):
+// Grammar (spec §27 — "lane blocks own their edges"):
 //   swimlane [Title]
 //   direction LR|TB                 // optional, default LR
-//   lane <Name> [color]             // row declarations (order + color)
 //   tag <Name> as <a> …             // optional tag groups (§1.5)
-//   [Phase]                         // optional phase columns (3-deep)
-//     <Lane ref>                    //   bare line matching a declared lane
-//       <node>                      //     bare task / <gateway> / (terminal) / [[subprocess]]
-//   <Lane ref>                      // 2-deep (no phases): lane ▸ node
-//     <node>
-//   A -label-> B -> C               // flow block (last); in-arrow labels;
-//   <Source>                        //   a bare source header groups indented
-//     -label-> Target               //   arrows beneath it
+//   lane <Name> [color]             // declares a lane AND opens its block
+//     <node>                        //   bare task / <gateway> / (terminal) / [[subprocess]]
+//     A -label-> B                  //   edges are inline — no separate flow block
+//     <Source>                      //   a bare node header groups the indented
+//       -label-> Target             //   arrows beneath it (fan)
+//   [Phase]                         // optional phase columns (3-deep):
+//     lane <Name> [color]           //   [Phase] ▸ lane ▸ nodes
+//       <node>
 //
-// Detection is via `ALL_CHART_TYPES` (utils/parsing.ts), matched by
-// `parseFirstLine` — NOT the registry. Lanes are pre-declared with the `lane`
-// keyword, which lets the main pass disambiguate a lane-context line (matches a
-// declared lane) from a node declaration (anything else) from a flow
-// source-group header (bare, indent-0, not a lane).
+// A node is OWNED by the lane where it is a line-head (bare node or arrow
+// source); elsewhere the same name is a reference, resolved after the whole
+// diagram is read (forward references are fine). References are lane-scoped —
+// resolve own-lane-first, then global-unique, then ambiguous; a `Lane.Node`
+// qualifier picks one lane. An unresolved reference auto-creates a leaf ONLY
+// when delimited (terminal/gateway/subprocess); an unresolved bare task is an
+// UNKNOWN_NODE error (typo protection).
+//
+// Two passes: a scan collects node declarations + raw edges, then a resolve
+// pass wires the edges (so edges may point at not-yet-declared nodes).
+// Detection is via `ALL_CHART_TYPES` (utils/parsing.ts) / `parseFirstLine`.
 
 import { emit, type DgmoError } from '../diagnostics';
 import { SWIMLANE_DX } from './diagnostics';
@@ -406,6 +411,7 @@ export function parseSwimlane(
     tgtText: string;
     label?: string;
     laneId: string | null; // lane context at author time
+    phaseId?: string; // phase context at author time (for implicit leaves)
     inLane: boolean; // authored inside a lane block (indent > lane indent)
     lineNumber: number;
   }
@@ -547,14 +553,17 @@ export function parseSwimlane(
 
   /**
    * Resolve an edge endpoint (source or target) to a draft. Bare refs resolve
-   * lane-first → global-unique → ambiguous; `Lane.Node` targets one lane. When
-   * `allowImplicit`, an unresolved reference is materialized as a leaf node in
-   * `laneId`; otherwise (indent-0 back-compat flow) it is an UNKNOWN error.
+   * lane-first → global-unique → ambiguous; `Lane.Node` targets one lane. An
+   * unresolved reference is materialized as a leaf node ONLY when it is
+   * **delimited** — a terminal `(…)`, gateway `<…>`, or subprocess `[[…]]`,
+   * i.e. an intentional endpoint. An unresolved **bare task** is an
+   * `E_SWIMLANE_UNKNOWN_NODE` error, so a typo'd target name is caught instead
+   * of silently spawning a phantom node.
    */
   const resolveEndpoint = (
     rawText: string,
     laneId: string | null,
-    allowImplicit: boolean,
+    phaseId: string | undefined,
     lineNum: number
   ): Draft | null => {
     const { token, meta } = splitNodeMeta(rawText);
@@ -568,6 +577,8 @@ export function parseSwimlane(
     }
     const { label: cleanLabel } = extractColor(parsed.label, palette);
     const nk = normKey(cleanLabel);
+    // Only a delimited endpoint (terminal/gateway/subprocess) may auto-create.
+    const delimited = parsed.shape !== 'task';
 
     const finish = (d: Draft): Draft => {
       applyMeta(d, meta, lineNum);
@@ -578,6 +589,7 @@ export function parseSwimlane(
         id: cleanLabel,
         label: cleanLabel,
         laneId: owner,
+        ...(phaseId !== undefined && { phaseId }),
         shape: parsed.shape,
         event: parsed.event,
         tags: {},
@@ -593,7 +605,7 @@ export function parseSwimlane(
     if (qLane) {
       const hit = draftByKey.get(laneKey(qLane, cleanLabel));
       if (hit) return finish(hit);
-      if (allowImplicit) return implicit(qLane);
+      if (delimited) return implicit(qLane);
       diagnostics.push(
         emit(SWIMLANE_DX.UNKNOWN_NODE, lineNum, {
           node: `${qLane}.${cleanLabel}`,
@@ -618,7 +630,7 @@ export function parseSwimlane(
       );
       return finish(cands[0]!);
     }
-    if (allowImplicit && laneId) return implicit(laneId);
+    if (delimited && laneId) return implicit(laneId);
     diagnostics.push(
       emit(SWIMLANE_DX.UNKNOWN_NODE, lineNum, { node: parsed.label })
     );
@@ -730,6 +742,7 @@ export function parseSwimlane(
             label: parts[p]!.labelAfter,
           }),
           laneId: laneCtx,
+          ...(phaseCtx !== undefined && { phaseId: phaseCtx }),
           inLane,
           lineNumber: lineNum,
         });
@@ -774,8 +787,8 @@ export function parseSwimlane(
   }> = [];
   for (const e of rawEdges) {
     if (e.srcText === null) continue;
-    const s = resolveEndpoint(e.srcText, e.laneId, e.inLane, e.lineNumber);
-    const t = resolveEndpoint(e.tgtText, e.laneId, e.inLane, e.lineNumber);
+    const s = resolveEndpoint(e.srcText, e.laneId, e.phaseId, e.lineNumber);
+    const t = resolveEndpoint(e.tgtText, e.laneId, e.phaseId, e.lineNumber);
     if (!s || !t) continue;
     resolvedPairs.push({
       s,

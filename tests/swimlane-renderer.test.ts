@@ -43,6 +43,17 @@ describe('swimlane renderer — structure appears (AC11)', () => {
     ).toBeGreaterThan(0);
   });
 
+  it('emits editor↔diagram sync anchors (sw-node/data-node-id, sw-edge-group, chart-title)', () => {
+    const svg = render('swimlane-insurance.dgmo');
+    expect(
+      svg.querySelectorAll('.sw-node[data-node-id]').length
+    ).toBeGreaterThan(0);
+    expect(
+      svg.querySelectorAll('.sw-edge-group[data-line-number]').length
+    ).toBeGreaterThan(0);
+    expect(svg.querySelector('.chart-title[data-line-number]')).toBeTruthy();
+  });
+
   it('draws a diamond for gateways and a circle for terminals', () => {
     const svg = render('swimlane-insurance.dgmo');
     expect(

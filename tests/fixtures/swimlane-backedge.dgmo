@@ -2,14 +2,9 @@ swimlane Retry Loop
 direction LR
 
 lane Ops gray
-
-Ops
-  Start
-  Process
+  Start -> Process
+  Process -> <Check>
   <Check>
+    -fail-> Process
+    -ok-> Done
   Done
-
-Start -> Process -> <Check>
-<Check>
-  -fail-> Process
-  -ok-> Done
