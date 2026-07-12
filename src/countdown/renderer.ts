@@ -421,11 +421,11 @@ function bandHeightFor(
     case 'year': {
       const R =
         new Date(resolvedMs).getFullYear() - new Date(nowMs).getFullYear() + 1;
-      const yearW = 48; // left gutter for the big year number
-      const gap = 4;
+      const yearW = 66; // left gutter for the big (right-aligned) year number
+      const gap = 8; // enough that the event halo never touches a neighbor
       const cellW = (contentW - yearW - 11 * gap) / 12;
       const cellH = clamp(cellW * 0.6, 28, 44);
-      const rowGap = 10;
+      const rowGap = 12;
       return R * cellH + (R - 1) * rowGap;
     }
     case 'months': {
@@ -482,9 +482,9 @@ function vizYear(
   const R = years.length;
   // Compact: the year lives in a LEFT GUTTER (big), rows are short, gaps tight,
   // and each month cell holds just its MMM (+ a day number on the anchors).
-  const yearW = 48;
-  const gap = 4;
-  const rowGap = 10;
+  const yearW = 66;
+  const gap = 8;
+  const rowGap = 12;
   const rowH = (g.height - rowGap * (R - 1)) / R;
   const cellH = rowH;
   const cellW = (g.contentW - yearW - 11 * gap) / 12;
@@ -496,15 +496,16 @@ function vizYear(
   const evOrd = evY * 12 + evM;
   years.forEach((yr, r) => {
     const ry = g.top + r * (rowH + rowGap);
-    // Big year number in the left gutter, vertically centered on the row.
+    // Big year number in the left gutter — RIGHT-aligned to the gutter edge so it
+    // never collides with (or gets clipped by) the first month cell.
     aText(
       svg,
-      g.left,
+      g.left + yearW - 12,
       ry + rowH / 2,
-      Math.min(23, rowH * 0.62),
+      Math.min(22, rowH * 0.6),
       C.muted,
       800,
-      'start',
+      'end',
       String(yr),
       { 'dominant-baseline': 'central' }
     );
