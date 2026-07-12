@@ -40,6 +40,8 @@ export interface RecurRule {
   readonly hour: number;
   /** time-of-day minute 0-59 (default 0). */
   readonly minute: number;
+  /** No `at` time given → the occurrence is the whole DAY (see resolveNext). */
+  readonly allDay: boolean;
   /** interval cadence unit. */
   readonly intervalUnit?: 'day' | 'week' | 'month' | undefined;
   /** interval multiplier (>= 1). */
@@ -89,6 +91,24 @@ export function ordinalWord(n: number): string {
   return `${n}${suffix}`;
 }
 
+/**
+ * Fill an ordinal template: `Nth` → the ordinal word ("7th"), `N` → the bare
+ * number ("7"). Free-form so any phrasing works — "Nth Anniversary",
+ * "Nth Time Around the Sun", "Year N". Case-sensitive tokens so ordinary words
+ * containing "n" are untouched. Shared so bake == live.
+ */
+export function applyOrdinalTemplate(template: string, n: number): string {
+  return template
+    .replace(/\bNth\b/g, ordinalWord(n))
+    .replace(/\bN\b/g, String(n));
+}
+
+/** Local midnight for `ms`. */
+function dayStart(ms: number): number {
+  const d = new Date(ms);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
 // ── Next-instant resolution + roll-forward ──
 
 /** The nth (1-5) occurrence of `weekday` in year/month, or last (nth<0). */
@@ -126,14 +146,27 @@ function nthWeekdayOfMonth(
 export function resolveNext(rule: RecurRule, now: number): number {
   const nowD = new Date(now);
   const { hour, minute } = rule;
+  // An ALL-DAY occurrence stays current for its whole day: compare at day
+  // granularity, so on the day itself `t` (00:00, already behind `now`) still
+  // counts and the chart reads "Today!" / the on-day text instead of rolling to
+  // next year. Timed occurrences roll at the exact instant.
+  const passes = rule.allDay
+    ? (t: number): boolean => dayStart(t) >= dayStart(now)
+    : (t: number): boolean => t > now;
+  // A Y/M/D exists only if constructing it didn't roll into another month
+  // (e.g. Feb 29 in a common year, or the 31st of a 30-day month) — then SKIP it,
+  // matching RRULE BYMONTHDAY semantics (never a silently shifted date).
+  const dayExists = (y: number, m: number, d: number): boolean =>
+    new Date(y, m, d).getMonth() === m;
 
   switch (rule.kind) {
     case 'month-day': {
       const month = rule.month!;
       const day = rule.day!;
       for (let y = nowD.getFullYear(); ; y++) {
+        if (!dayExists(y, month, day)) continue; // skip non-leap Feb 29, etc.
         const t = new Date(y, month, day, hour, minute).getTime();
-        if (t > now) return t;
+        if (passes(t)) return t;
       }
     }
     case 'nth-weekday':
@@ -145,7 +178,7 @@ export function resolveNext(rule: RecurRule, now: number): number {
       let m = nowD.getMonth();
       for (let i = 0; i < 24; i++) {
         const t = nthWeekdayOfMonth(y, m, weekday, nth, hour, minute);
-        if (t !== null && t > now) return t;
+        if (t !== null && passes(t)) return t;
         m++;
         if (m > 11) {
           m = 0;
@@ -157,7 +190,7 @@ export function resolveNext(rule: RecurRule, now: number): number {
     }
     case 'weekly': {
       const weekday = rule.weekday!;
-      // Start from today at the target time, advance a day until weekday & > now.
+      // Start from today at the target time, advance a day until weekday & passes.
       for (let i = 0; i < 8; i++) {
         const d = new Date(
           nowD.getFullYear(),
@@ -166,7 +199,7 @@ export function resolveNext(rule: RecurRule, now: number): number {
           hour,
           minute
         );
-        if (d.getDay() === weekday && d.getTime() > now) return d.getTime();
+        if (d.getDay() === weekday && passes(d.getTime())) return d.getTime();
       }
       return now + WEEK_MS;
     }
@@ -175,21 +208,27 @@ export function resolveNext(rule: RecurRule, now: number): number {
       const anchor = rule.anchorMs ?? now;
       if (rule.intervalUnit === 'month') {
         const a = new Date(anchor);
+        const day = a.getDate();
         for (let k = 0; ; k++) {
-          const t = new Date(
-            a.getFullYear(),
-            a.getMonth() + k * n,
-            a.getDate(),
-            hour,
-            minute
-          ).getTime();
-          if (t > now) return t;
+          const y = a.getFullYear();
+          const m = a.getMonth() + k * n;
+          // Normalize the month, then SKIP if the anchor day-of-month doesn't
+          // exist there (the 31st in a 30-day month) — same RRULE semantics.
+          const yy = y + Math.floor(m / 12);
+          const mm = ((m % 12) + 12) % 12;
+          if (!dayExists(yy, mm, day)) continue;
+          const t = new Date(yy, mm, day, hour, minute).getTime();
+          if (passes(t)) return t;
         }
       }
       const step = (rule.intervalUnit === 'week' ? WEEK_MS : DAY_MS) * n;
-      if (anchor > now) return anchor;
-      const k = Math.floor((now - anchor) / step) + 1;
-      return anchor + k * step;
+      let t = anchor;
+      if (!passes(t)) {
+        const k = Math.max(0, Math.floor((now - anchor) / step));
+        t = anchor + k * step;
+        while (!passes(t)) t += step; // 1–2 corrections
+      }
+      return t;
     }
   }
 }

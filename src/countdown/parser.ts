@@ -28,7 +28,7 @@ import type { PaletteColors } from '../palettes';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import { extractColor, measureIndent, parseFirstLine } from '../utils/parsing';
-import type { ParsedCountdown, SinceStyle } from './types';
+import type { ParsedCountdown } from './types';
 import {
   monthIndex,
   weekdayIndex,
@@ -122,7 +122,6 @@ export function parseCountdown(
     hasTime: false,
     since: null,
     sinceLabel: null,
-    sinceStyle: 'eyebrow',
     units: 'human',
     round: 'up',
     fields: ['d', 'h', 'm', 's'],
@@ -255,8 +254,24 @@ export function parseCountdown(
         }
 
         const head = (seg.cadence[0] ?? '').toLowerCase();
-        if (head === 'year' || head === 'month' || head === 'week') {
+        // `every {day|week|month} from <date>` (no `on`) is a plain interval, N=1
+        // — so "every month from the 31st" works, not just "every 2 months from".
+        const bareInterval =
+          (head === 'day' || head === 'week' || head === 'month') &&
+          seg.from.length > 0 &&
+          seg.on.length === 0;
+        if (bareInterval) {
+          cadence = 'interval';
+          intervalN = 1;
+          intervalUnit = head as 'day' | 'week' | 'month';
+        } else if (head === 'year' || head === 'month' || head === 'week') {
           cadence = head;
+        } else if (head === 'day') {
+          softError(
+            lineNum,
+            '`every day` needs `from <date>` (an interval anchor).'
+          );
+          break;
         } else if (/^\d+$/.test(head) && seg.cadence[1]) {
           const unit = seg.cadence[1]!.toLowerCase().replace(/s$/, '');
           if (unit === 'day' || unit === 'week' || unit === 'month') {
@@ -314,30 +329,17 @@ export function parseCountdown(
         break;
       }
 
-      // ── Ordinal / since ──
+      // ── Ordinal / since — numbers a yearly occurrence (resolvedYear − since) ──
       case 'since': {
         const y = Number(rest);
         if (Number.isInteger(y) && y > 0) result.since = y;
         else softError(lineNum, `"since" needs a year (got "${rest}").`);
         break;
       }
+      // The eyebrow template: `Nth` → ordinal word, `N` → the number.
       case 'since-label':
         result.sinceLabel = rest || null;
         break;
-      case 'since-style': {
-        const v = rest.toLowerCase();
-        if (
-          v === 'eyebrow' ||
-          v === 'headline' ||
-          v === 'tenure' ||
-          v === 'inline'
-        ) {
-          result.sinceStyle = v as SinceStyle;
-        } else {
-          warn(lineNum, `Unknown since-style "${rest}" — using eyebrow.`);
-        }
-        break;
-      }
 
       // ── Display ──
       case 'units': {
@@ -522,6 +524,7 @@ function assembleRule(
 ): RecurRule | null {
   const hour = atTime?.hour ?? 0;
   const minute = atTime?.minute ?? 0;
+  const allDay = atTime === null; // no `at` → whole-day occurrence
 
   if (cadence === 'interval') {
     return {
@@ -531,6 +534,7 @@ function assembleRule(
       anchorMs: interval.anchorMs ?? undefined,
       hour,
       minute,
+      allDay,
     };
   }
 
@@ -548,6 +552,7 @@ function assembleRule(
       day: onSpec.day,
       hour,
       minute,
+      allDay,
     };
   }
 
@@ -555,18 +560,19 @@ function assembleRule(
     if (onSpec?.nth === undefined || onSpec.weekday === undefined) {
       softError(
         lineNum,
-        '`every month` needs `on <nth> <weekday>` or `on last <weekday>`.'
+        '`every month` needs `on <nth> <weekday>`, `on last <weekday>`, or `from <date>`.'
       );
       return null;
     }
     return onSpec.nth < 0
-      ? { kind: 'last-weekday', weekday: onSpec.weekday, hour, minute }
+      ? { kind: 'last-weekday', weekday: onSpec.weekday, hour, minute, allDay }
       : {
           kind: 'nth-weekday',
           nth: onSpec.nth,
           weekday: onSpec.weekday,
           hour,
           minute,
+          allDay,
         };
   }
 
@@ -575,7 +581,7 @@ function assembleRule(
     softError(lineNum, '`every week` needs `on <weekday>` (e.g. on Friday).');
     return null;
   }
-  return { kind: 'weekly', weekday: onSpec.weekday, hour, minute };
+  return { kind: 'weekly', weekday: onSpec.weekday, hour, minute, allDay };
 }
 
 /** Emit the §2.4 free-prose rejection with a suggested canonical form. */

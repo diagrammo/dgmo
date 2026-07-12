@@ -25,9 +25,8 @@ import {
   formatFooter,
   formatHuman,
   formatWordsDetail,
+  applyOrdinalTemplate,
   ordinalFor,
-  ordinalWord,
-  relativePhrase,
   resolveNext,
   type CountUnits,
   type Field,
@@ -134,6 +133,7 @@ function readRule(node: Element): RecurRule | null {
     weekday: num('data-dgmo-recur-weekday'),
     hour: num('data-dgmo-recur-hour') ?? 0,
     minute: num('data-dgmo-recur-minute') ?? 0,
+    allDay: node.getAttribute('data-dgmo-recur-allday') !== '0',
     intervalN: num('data-dgmo-recur-interval-n'),
     intervalUnit:
       (node.getAttribute('data-dgmo-recur-interval-unit') as
@@ -187,7 +187,6 @@ function updateNode(node: Element, now: number): void {
 
   const remaining = resolvedMs - now;
   const sinceAttr = node.getAttribute('data-dgmo-countdown-since');
-  const hero = node.getAttribute('data-dgmo-countdown-hero'); // headline | inline | null
   const custom = node.getAttribute('data-dgmo-countdown-expired');
   const hasTime = node.getAttribute('data-dgmo-countdown-hastime') === '1';
   // Timed pivot: on the final day (or past) the hero is the ticking clock and the
@@ -215,16 +214,9 @@ function updateNode(node: Element, now: number): void {
           ? 'Now!'
           : `${formatCount(elapsed, { units, round, fields })} ago`;
     }
-  } else if (rule && onDay && sameLocalDay(resolvedMs, now)) {
-    text = onDay;
-  } else if (hero && sinceAttr) {
-    // The ordinal is the hero (day-count demoted to the footer) — match the bake.
-    const n = ordinalFor(resolvedMs, Number(sinceAttr));
-    const label = node.getAttribute('data-dgmo-countdown-since-label') || '';
-    text =
-      hero === 'inline'
-        ? `${ordinalWord(n)} ${label} ${relativePhrase(Math.max(0, remaining))}`.trim()
-        : ordinalWord(n);
+  } else if (rule && sameLocalDay(resolvedMs, now)) {
+    // On the occurrence day the all-day rule resolves to today — show on-day / Today!
+    text = onDay ?? 'Today!';
   } else if (units === 'human') {
     // All-day targets floor to midnights → flat whole-day hero (baked-hero parity).
     text = hasTime
@@ -253,6 +245,16 @@ function updateNode(node: Element, now: number): void {
     footer.textContent = formatFooter(resolvedMs, hasTime);
   }
 
+  // Since eyebrow — re-apply the Nth/N template when the ordinal rolls forward.
+  const eyebrowEl = svg.querySelector('[data-dgmo-countdown-eyebrow]');
+  if (eyebrowEl && sinceAttr) {
+    const tpl = node.getAttribute('data-dgmo-countdown-since-label') || 'Nth';
+    eyebrowEl.textContent = applyOrdinalTemplate(
+      tpl,
+      ordinalFor(resolvedMs, Number(sinceAttr))
+    );
+  }
+
   // Hero sub-line, ticking: words precision, or the human remainder / days-out
   // clock. Suppressed once the hero itself is the clock (rings carry the time).
   const detail = svg.querySelector('[data-dgmo-countdown-detail]');
@@ -268,14 +270,6 @@ function updateNode(node: Element, now: number): void {
 
   // Timed finale: recompute the three ring gauges (numeral · arc · caption).
   if (clockFinale) updateGauges(svg, remaining);
-
-  // Eyebrow ordinal (rolls up when a recurring anniversary passes).
-  const eyebrow = svg.querySelector('[data-dgmo-countdown-eyebrow]');
-  if (eyebrow && sinceAttr) {
-    const label = node.getAttribute('data-dgmo-countdown-since-label') || '';
-    const n = ordinalFor(resolvedMs, Number(sinceAttr));
-    eyebrow.textContent = `${ordinalWord(n)} ${label}`.trim().toUpperCase();
-  }
 
   // The "as of" stamp proves liveness — erase it on the first live tick. On a
   // baked image no tick ever fires, so the stamp stays and the picture is

@@ -602,8 +602,18 @@ export {
   renderCountdownForExport,
 } from './countdown/renderer';
 export { startCountdowns, tickCountdowns } from './countdown/ticker';
-export type { ParsedCountdown, SinceStyle } from './countdown/types';
+export type { ParsedCountdown } from './countdown/types';
 export type { RecurRule, CountUnits, RoundMode } from './countdown/resolve';
+
+export { parseClock } from './clock/parser';
+export { renderClock, renderClockForExport } from './clock/renderer';
+export { startClocks, tickClocks } from './clock/ticker';
+export type {
+  ParsedClock,
+  ClockEntry,
+  ClockFace,
+  WorkWindow,
+} from './clock/types';
 
 export { parseBody } from './body/parser';
 export { renderBody, renderBodyForExport } from './body/renderer';

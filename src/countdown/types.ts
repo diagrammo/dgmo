@@ -18,9 +18,6 @@ import type { CountUnits, Field, RecurRule, RoundMode } from './resolve';
 // (src/countdown/ticker.ts) overwrites them live. NEVER a `<script>` in the
 // SVG — every sanitizer strips it.
 
-/** How prominent the `since` ordinal is. Default `eyebrow` (day-count stays hero). */
-export type SinceStyle = 'eyebrow' | 'headline' | 'tenure' | 'inline';
-
 export interface ParsedCountdown {
   readonly type: 'countdown';
   readonly title: string | null;
@@ -53,10 +50,10 @@ export interface ParsedCountdown {
   /** Whether the resolved instant carries a meaningful time-of-day (drives footer). */
   readonly hasTime: boolean;
 
-  // ── Ordinal / since ──
+  // ── Ordinal / since — numbers a yearly occurrence (resolvedYear − since) ──
   readonly since: number | null;
+  /** Eyebrow template: `Nth` → ordinal word, `N` → the number. Null → "Nth <title>". */
   readonly sinceLabel: string | null;
-  readonly sinceStyle: SinceStyle;
 
   // ── Display ──
   readonly units: CountUnits;

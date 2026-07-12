@@ -34,17 +34,11 @@ import {
   formatHuman,
   formatWordsDetail,
   ordinalFor,
-  ordinalWord,
-  relativePhrase,
+  applyOrdinalTemplate,
 } from './resolve';
 
 /** The hero string baked at render time (the no-JS floor). */
-function bakedHero(
-  parsed: ParsedCountdown,
-  now: number,
-  ordinal: number | null,
-  label: string
-): string {
+function bakedHero(parsed: ParsedCountdown, now: number): string {
   const resolved = parsed.resolvedMs;
   if (resolved === null) return '—';
   const remaining = resolved - now;
@@ -62,14 +56,10 @@ function bakedHero(
         : parsed.units;
     return `${formatCount(elapsed, { units: bu, round: parsed.round, fields: parsed.fields })} ago`;
   }
-  // Occurrence-day label (recurring).
-  if (parsed.rule && parsed.onDay && sameLocalDay(resolved, now))
-    return parsed.onDay;
-  if (ordinal !== null && parsed.sinceStyle === 'headline')
-    return ordinalWord(ordinal);
-  if (ordinal !== null && parsed.sinceStyle === 'inline') {
-    return `${ordinalWord(ordinal)} ${label} ${relativePhrase(Math.max(0, remaining))}`.trim();
-  }
+  // Occurrence-day label (recurring): on the day itself, show the on-day text or
+  // a plain "Today!" — the all-day rule now resolves to today, not next year.
+  if (parsed.rule && sameLocalDay(resolved, now))
+    return parsed.onDay ?? 'Today!';
   if (parsed.units === 'human') {
     // All-day (no-time) targets floor to LOCAL MIDNIGHTS so the hero reads as a
     // flat whole-day count ("8 days") instead of false hours/minutes precision
@@ -117,6 +107,7 @@ function stampRecur(
   if (r.weekday !== undefined) sel.attr('data-dgmo-recur-weekday', r.weekday);
   sel.attr('data-dgmo-recur-hour', r.hour);
   sel.attr('data-dgmo-recur-minute', r.minute);
+  sel.attr('data-dgmo-recur-allday', r.allDay ? '1' : '0');
   if (r.intervalN !== undefined)
     sel.attr('data-dgmo-recur-interval-n', r.intervalN);
   if (r.intervalUnit !== undefined)
@@ -316,6 +307,48 @@ function aLine(
     .attr('stroke', stroke)
     .attr('stroke-width', sw);
   if (opacity != null) l.attr('opacity', opacity);
+}
+
+/**
+ * A small "recurring" glyph — two opposing circular arrows — that marks a chart
+ * as a repeating event (drawn beside the resolution footer).
+ */
+function recurGlyph(
+  svg: SvgSel,
+  cx: number,
+  cy: number,
+  r: number,
+  color: string
+): void {
+  const sw = Math.max(1.5, r * 0.34);
+  const pt = (deg: number): [number, number] => [
+    cx + r * Math.cos((deg * Math.PI) / 180),
+    cy + r * Math.sin((deg * Math.PI) / 180),
+  ];
+  for (const base of [0, 180]) {
+    const [x0, y0] = pt(base + 30);
+    const [x1, y1] = pt(base + 175);
+    svg
+      .append('path')
+      .attr('d', `M ${x0} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y1}`)
+      .attr('fill', 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', sw)
+      .attr('stroke-linecap', 'round');
+    // arrowhead at the leading (a1) end, along the tangent.
+    const tang = ((base + 175 + 90) * Math.PI) / 180;
+    const hl = r * 0.9;
+    svg
+      .append('path')
+      .attr(
+        'd',
+        `M ${x1} ${y1} l ${Math.cos(tang + 2.5) * hl} ${Math.sin(tang + 2.5) * hl} M ${x1} ${y1} l ${Math.cos(tang - 2.5) * hl} ${Math.sin(tang - 2.5) * hl}`
+      )
+      .attr('fill', 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', sw)
+      .attr('stroke-linecap', 'round');
+  }
 }
 
 /**
@@ -1202,7 +1235,7 @@ export function renderCountdown(
       ? null
       : pickBand(now, resolved, parsed.hasTime);
 
-  let hero = bakedHero(parsed, now, ordinal, label);
+  let hero = bakedHero(parsed, now);
   // Timed finale: the hero becomes the ticking H·M·S clock (down, then up past).
   if (bandKind === 'clock' && resolved !== null) {
     const clock = formatCount(Math.abs(resolved - now), {
@@ -1273,7 +1306,6 @@ export function renderCountdown(
   //    can make it — `full`/`clock` bake a narrow day count ("52 days") but tick
   //    to `Nd HH:MM:SS` / `HH:MM:SS`, so lay out against that or the rule runs
   //    under the hero. ──
-  const isInlineHero = parsed.sinceStyle === 'inline' && ordinal !== null;
   const remainingNow = resolved === null ? 0 : Math.max(0, resolved - now);
   const dayCount = Math.ceil(remainingNow / DAY_MS);
   const heroSizeStr =
@@ -1286,8 +1318,8 @@ export function renderCountdown(
             fields: parsed.fields,
           })
         : hero;
-  const heroMaxW = contentW * (isInlineHero ? 0.5 : 0.44);
-  const heroFont = fitFont(heroSizeStr, isInlineHero ? 40 : 96, heroMaxW, 26);
+  const heroMaxW = contentW * 0.44;
+  const heroFont = fitFont(heroSizeStr, 96, heroMaxW, 26);
   const heroW = Math.min(heroMaxW, estWidth(heroSizeStr, heroFont));
   const gapMid = Math.max(28, Math.round(width * 0.03));
   const leftW = Math.max(contentW * 0.42, contentW - heroW - gapMid);
@@ -1307,12 +1339,11 @@ export function renderCountdown(
     const cpl = Math.max(6, Math.floor(leftW / (titleFont * 0.58)));
     titleLines = wrapDescriptionLines([parsed.title], cpl).map((l) => l.text);
   }
+  // The since eyebrow is a free-form template: `Nth` → ordinal word, `N` → the
+  // number. Default (no since-label) = "Nth <title>".
   const eyebrowText =
-    ordinal !== null &&
-    (parsed.sinceStyle === 'eyebrow' || parsed.sinceStyle === 'tenure')
-      ? parsed.sinceStyle === 'tenure'
-        ? `${ordinal} year${ordinal === 1 ? '' : 's'} together · ${label}`
-        : `${ordinalWord(ordinal)} ${label}`.trim().toUpperCase()
+    ordinal !== null
+      ? applyOrdinalTemplate(parsed.sinceLabel ?? `Nth ${label}`, ordinal)
       : null;
   const eyebrowFont = 16;
   const footerText =
@@ -1384,18 +1415,30 @@ export function renderCountdown(
   // Eyebrow ordinal (ancillary — below the rule): the `since`/tenure count is
   // BANKED time, so it wears the calm green, not the red deadline hue.
   if (eyebrowText) {
-    drawText(eyebrowText, y, eyebrowFont, banked, 700)
-      .attr('letter-spacing', parsed.sinceStyle === 'eyebrow' ? '0.09em' : null)
-      .attr('data-dgmo-countdown-eyebrow', '');
+    drawText(eyebrowText, y, eyebrowFont, banked, 700).attr(
+      'data-dgmo-countdown-eyebrow',
+      ''
+    );
     y += eyebrowFont + 8;
   }
 
-  // Footer resolution line.
+  // Footer resolution line — recurring blocks get the ↻ glyph as a prefix.
   if (footerText) {
-    drawText(footerText, y, footerFont, muted, 500).attr(
-      'data-dgmo-countdown-footer',
-      ''
-    );
+    const fx = parsed.rule ? leftX + 22 : leftX;
+    if (parsed.rule)
+      recurGlyph(svg, leftX + 8, y + footerFont * 0.52, 6.5, muted);
+    svg
+      .append('text')
+      .attr('x', fx)
+      .attr('y', y + footerFont)
+      .attr('text-anchor', 'start')
+      .attr('dominant-baseline', 'alphabetic')
+      .attr('fill', muted)
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', footerFont)
+      .attr('font-weight', 500)
+      .attr('data-dgmo-countdown-footer', '')
+      .text(footerText);
     y += footerFont + 8;
   }
 
@@ -1537,10 +1580,12 @@ export function renderCountdown(
   if (parsed.hasTime) value.attr('data-dgmo-countdown-hastime', '1');
   if (parsed.since !== null) {
     value.attr('data-dgmo-countdown-since', parsed.since);
-    value.attr('data-dgmo-countdown-since-label', label);
-  }
-  if (parsed.sinceStyle === 'headline' || parsed.sinceStyle === 'inline') {
-    value.attr('data-dgmo-countdown-hero', parsed.sinceStyle);
+    // Bake the eyebrow TEMPLATE (Nth/N tokens) so the ticker re-applies it when
+    // the ordinal rolls to the next year.
+    value.attr(
+      'data-dgmo-countdown-since-label',
+      parsed.sinceLabel ?? `Nth ${parsed.title ?? ''}`
+    );
   }
   stampRecur(value, parsed);
 

@@ -448,14 +448,23 @@ describe('countdown renderer — baked markers', () => {
     expect(node.getAttribute('data-dgmo-countdown')).toContain('2026-07-21');
   });
 
-  it('since eyebrow: bakes the ordinal eyebrow', () => {
+  it('since eyebrow: fills the Nth/N template', () => {
     const c = renderAt(
-      `countdown Anniversary\nevery year on Jun 14\nsince 2019\nsince-label anniversary`,
+      `countdown Anniversary\nevery year on Jun 14\nsince 2019\nsince-label Nth Anniversary`,
       '2026-07-10T00:00:00Z'
     );
-    // Next Jun 14 is 2027 → 2027 − 2019 = 8th.
+    // Next Jun 14 is 2027 → 2027 − 2019 = 8 → "8th Anniversary".
     const eyebrow = c.querySelector('[data-dgmo-countdown-eyebrow]');
-    expect(eyebrow?.textContent).toBe('8TH ANNIVERSARY');
+    expect(eyebrow?.textContent).toBe('8th Anniversary');
+  });
+
+  it('since eyebrow: default template is "Nth <title>"', () => {
+    const c = renderAt(
+      `countdown Trip\nevery year on Jun 14\nsince 2019`,
+      '2026-07-10T00:00:00Z'
+    );
+    const eyebrow = c.querySelector('[data-dgmo-countdown-eyebrow]');
+    expect(eyebrow?.textContent).toBe('8th Trip');
   });
 });
 
@@ -629,16 +638,29 @@ describe('countdown ticker', () => {
     ).toContain('Aug 21 2027');
   });
 
-  it('headline style: the ordinal stays the hero after a tick (not a day count)', () => {
+  it('all-day recurring ON its day → on-day text, not "next year"', () => {
+    // The critical fix: an all-day occurrence stays current for its whole day.
     const c = renderAt(
-      `countdown Anniversary\nevery year on Jun 14\nsince 2019\nsince-style headline`,
-      '2026-07-10T00:00:00Z'
+      `countdown Birthday\nevery year on Jul 12\non-day 🎂 Today!`,
+      '2026-07-12T12:00:00Z' // Jul 12 IS the day
     );
-    // Next Jun 14 is 2027 → 8th; the hero must remain "8th", not "338 days".
-    expect(valueNode(c).textContent).toBe('8th');
-    vi.setSystemTime(Date.parse('2026-07-11T00:00:00Z'));
+    expect(valueNode(c).textContent).toBe('🎂 Today!');
+  });
+
+  it('since eyebrow re-applies the template live on a roll-forward tick', () => {
+    const c = renderAt(
+      `countdown Anniversary\nevery year on Jul 12\nsince 2019\nsince-label Nth Anniversary`,
+      '2026-07-11T00:00:00Z'
+    );
+    // Jul 12 2026 → 7th. After it passes, rolls to Jul 12 2027 → 8th.
+    expect(c.querySelector('[data-dgmo-countdown-eyebrow]')?.textContent).toBe(
+      '7th Anniversary'
+    );
+    vi.setSystemTime(Date.parse('2026-07-13T00:00:00Z'));
     tickCountdowns(c);
-    expect(valueNode(c).textContent).toBe('8th');
+    expect(c.querySelector('[data-dgmo-countdown-eyebrow]')?.textContent).toBe(
+      '8th Anniversary'
+    );
   });
 
   it('erases the "as of" stamp on the first tick', () => {
