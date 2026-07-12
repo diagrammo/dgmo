@@ -123,6 +123,50 @@ interface BoxInfo {
   isHome: boolean;
 }
 
+/** Active tag group + its legend entries — shared by the renderer and the
+ *  export-dimension helper so both agree on legend reserve. */
+function resolveBracketLegend(parsed: ParsedBracket, palette: PaletteColors) {
+  const activeTag = parsed.activeTag;
+  const activeGroup = activeTag
+    ? parsed.tagGroups.find((g) => tagAttrKey(g.name) === tagAttrKey(activeTag))
+    : undefined;
+  const legendGroups: LegendGroupData[] =
+    activeGroup && !parsed.noLegend
+      ? [
+          {
+            name: activeGroup.name,
+            entries: activeGroup.entries.map((e) => ({
+              value: e.value,
+              color: resolveColor(e.color, palette) ?? e.color,
+            })),
+          },
+        ]
+      : [];
+  return { activeGroup, legendGroups };
+}
+
+/** Intrinsic export canvas: exactly fits the bracket at scale 1 — no dead space
+ *  around a small bracket, no clipping of a large one. Mirrors the vertical
+ *  chrome the renderer stacks (title band, legend reserve, padding). */
+export function bracketExportDimensions(
+  parsed: ParsedBracket,
+  palette: PaletteColors
+): { width: number; height: number } {
+  const layout = layoutBracket(parsed);
+  const width = layout.width + PADDING * 2;
+  const titleH = parsed.title ? TITLE_BAND : 0;
+  const { legendGroups } = resolveBracketLegend(parsed, palette);
+  const legendReserve =
+    legendGroups.length > 0
+      ? getMaxLegendReservedHeight(
+          { groups: legendGroups, position: LEGEND_POSITION, mode: 'export' },
+          width
+        ) + LEGEND_GROUP_GAP
+      : 0;
+  const height = titleH + legendReserve + PADDING + layout.height + PADDING;
+  return { width, height };
+}
+
 export function renderBracket(
   container: HTMLDivElement,
   parsed: ParsedBracket,
@@ -162,21 +206,7 @@ export function renderBracket(
   };
 
   // ── Tag legend ──
-  const activeGroup = activeTag
-    ? parsed.tagGroups.find((g) => tagAttrKey(g.name) === tagAttrKey(activeTag))
-    : undefined;
-  const legendGroups: LegendGroupData[] =
-    activeGroup && !parsed.noLegend
-      ? [
-          {
-            name: activeGroup.name,
-            entries: activeGroup.entries.map((e) => ({
-              value: e.value,
-              color: resolveColor(e.color, palette) ?? e.color,
-            })),
-          },
-        ]
-      : [];
+  const { activeGroup, legendGroups } = resolveBracketLegend(parsed, palette);
   const legendReserve =
     legendGroups.length > 0
       ? getMaxLegendReservedHeight(
