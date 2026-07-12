@@ -289,13 +289,14 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'start-date', category: 'directive' },
   { token: 'end-date', category: 'directive' },
   // ── Goal ─────────────────────────────────────────────────
-  // Mode flags + opt-outs highlight. The value-key leaders `now`/`target` are
-  // intentionally absent — they collide with common label prose ("start now",
-  // "target audience") and the context-free specializer would mis-highlight
-  // them mid-label (same rationale as the tech-radar trend values). Completion
-  // still suggests them in leader position.
+  // Mode flags, value-key leaders, and opt-outs. `now`/`target` collide with
+  // label prose ("start now", "on target"), but the arrow-label demotion pass
+  // (see highlight-api LABEL_WORD_NODES) treats any keyword-bearing label as
+  // text and demotes them, so they highlight only as line leaders.
   { token: 'thermometer', category: 'directive' },
   { token: 'gauge', category: 'directive' },
+  { token: 'now', category: 'directive' },
+  { token: 'target', category: 'directive' },
   { token: 'no-note', category: 'directive' },
   { token: 'no-auto-color', category: 'directive' },
 

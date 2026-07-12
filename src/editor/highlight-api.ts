@@ -89,6 +89,19 @@ const OVERRIDE_IN_LABEL = new Set([
 ]);
 
 /** Lines starting with these are keyword-led — not entity declarations. */
+// Tokens that mark an arrow-label zone as text (vs a numeric offset/lag like
+// `--1w->`). An offset is only Number/Duration; anything word-shaped — a plain
+// Identifier or a keyword-class token — means the zone is a written label and
+// its keyword tokens should demote to default.
+const LABEL_WORD_NODES = new Set([
+  'Identifier',
+  'ChartType',
+  'TagKeyword',
+  'DirectiveKeyword',
+  'ControlKeyword',
+  'ModifierKeyword',
+]);
+
 const KEYWORD_STARTS = new Set([
   'TagKeyword',
   'DirectiveKeyword',
@@ -388,16 +401,19 @@ function applyLabelOverrides(tokens: HighlightToken[]): void {
 
     if (!hasArrow) continue;
 
-    // If the label zone has no Identifier tokens, it's an offset/lag
-    // pattern (e.g. --1w->), not a text label — keep grammar styling.
-    let labelHasIdentifier = false;
+    // If the label zone has no word tokens, it's an offset/lag pattern
+    // (e.g. --1w->, just Number/Duration), not a text label — keep grammar
+    // styling. A "word" is an Identifier OR any keyword-class token: a label
+    // made entirely of keyword words (`-start now->`) is still text and must
+    // demote, whereas an offset never contains a keyword.
+    let labelHasWord = false;
     for (let li = firstDashTildeIdx + 1; li < lastArrowIdx; li++) {
-      if (nonWs[li]!.nodeName === 'Identifier') {
-        labelHasIdentifier = true;
+      if (LABEL_WORD_NODES.has(nonWs[li]!.nodeName)) {
+        labelHasWord = true;
         break;
       }
     }
-    if (!labelHasIdentifier) continue;
+    if (!labelHasWord) continue;
 
     // Override tokens in label zone (between first dash/tilde and last arrow)
     for (let li = firstDashTildeIdx + 1; li < lastArrowIdx; li++) {
