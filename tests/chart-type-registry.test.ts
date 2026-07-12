@@ -72,6 +72,7 @@ const EXPECTED_CATEGORY: Record<
   block: 'visualization',
   goal: 'visualization',
   countdown: 'visualization',
+  clock: 'visualization',
   map: 'visualization',
   // data-chart (14)
   bar: 'data-chart',

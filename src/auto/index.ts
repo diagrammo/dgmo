@@ -16,6 +16,7 @@
 
 import { render } from '../render';
 import { startCountdowns } from '../countdown/ticker';
+import { startClocks } from '../clock/ticker';
 import { getAvailablePalettes } from '../palettes/registry';
 import '../palettes';
 import {
@@ -407,6 +408,8 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
   // Light up any `countdown` chart in this block: seeds the value on load and
   // registers the single page-level 1s ticker (idempotent). No-op otherwise.
   startCountdowns(wrapper);
+  // Same for any `clock` chart: seed the world-clock rows and share the ticker.
+  startClocks(wrapper);
   return { wrapper };
 }
 

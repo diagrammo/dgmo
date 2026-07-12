@@ -138,6 +138,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `sketch` | GUI-first free-placement canvas: uniform shapes on a snap grid, arrows, tags (markup is app-generated) |
 | `goal` | single progress-toward-a-target value (`now` vs `target`) as a progress bar, thermometer, or gauge — KPIs, fundraising, quotas |
 | `countdown` | live "N days until X" that ticks every second and is accurate on every load — trip dates, launches, deadlines; the only dynamic chart type |
+| `clock` | live world-clock board: current time for people/places across time zones, ticking every second, with optional working-hours status and sundown line |
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
 | `bar` | categorical comparisons (multi-series via `stack` / `group`) |
@@ -3703,7 +3704,7 @@ In the desktop and web app a sketch opens in the **canvas editor** (the code pan
 <!-- TYPE:goal -->
 
 <!-- TIPS start -->
-**Styling tips:** Put the unit in the title (`Marathon Fund ($)`) — there is no format/currency directive. Pick the face for the story: the default progress **bar** for a plain KPI, `thermometer` for fundraising/fill-the-tank goals, `gauge` for a speedometer/quota dial. The fill is **auto traffic-light** by completion (`< 50%` red, `50–80%` orange, `≥ 80%` green) so the color already reads the health of the number — leave it unless you have a reason to override. A trailing color on the title line (`goal Marathon Fund ($) green`) pins one color; `no-auto-color` drops the bands back to the flat palette series color. Percent is always `now / target`; over-target keeps filling the label past 100% while the fill itself clamps, so a stretch result still reads truthfully. Add a `note` block to caption the number with context (who's still owed, what's left) — it takes simple markdown (`**bold**`, `*italic*`, `` `code` ``) and `- ` bullets. Use `solid-fill` when the tint reads too faint on a dashboard, and `no-percent` / `no-value` to drop either label when the number speaks for itself.
+**Styling tips:** A single progress-toward-a-target reading — one `now` against one `target`, answering "how close am I?". Reach for it for a KPI tile, a fundraising thermometer, a quarterly quota, or a completion percentage; there is no time axis, series, or milestones (use `line` for a trend, `countdown` for a live deadline). Put the **unit in the title** (`Marathon Fund ($)`, `Grog Barrel Fill (L)`) — there is no format/currency directive. `now` and `target` are **space-separated `key value`** directives, no colon (`now 6400` / `target 10000`); the percent is `now / target` and values auto-compact (`6.4k`, `1.2M`). Pick the face for the story with a bare flag on its own line: the default progress **bar** for a plain KPI, `thermometer` for fundraising/fill-the-tank framings, `gauge` for a speedometer/quota dial — all three read the same value pair. The fill is **auto traffic-light** by completion (`< 50%` red, `50–80%` orange, `≥ 80%` green; over-target stays green) so the color already reads the number's health — leave it unless you have reason to override with a trailing color on the title line (`goal Marathon Fund ($) green`) or `no-auto-color` (flat palette color). Over-target clamps the fill at 100% while the `%` label stays truthful (`120%`). Add a `note` — inline (`note Still waiting on three crews`) or a block header on its own line with an indented body — to caption the number with context (who's still owed, what's left); it takes simple markdown (`**bold**`, `*italic*`, `` `code` ``) and `- ` bullets. `solid-fill` for a bolder fill; `no-percent` / `no-value` / `no-title` / `no-note` to drop labels.
 <!-- TIPS end -->
 
 A single progress-toward-a-target value: one `now` measured against one `target`, drawn in one of three static faces. No time axis, no series, no milestones — just "how close am I?". The face is a bare-flag mode directive under the title (like treemap's `radial`); all three faces consume the same value pair.
@@ -3817,12 +3818,74 @@ Days mode uses `ceil` — a target later *today* reads "1 day", not "0". Full mo
 
 ---
 
+## 24Eb. Clock
+
+<!-- TYPE:clock -->
+
+<!-- TIPS start -->
+**Styling tips:** A live world clock — one panel per person or place, each showing the CURRENT time in its zone and ticking every second, accurate the instant the page loads. Reach for it to answer "what time is it for the crew right now": a distributed team's local times, a single collaborator's clock, or the overlap window for scheduling a call. The first line declares the type and a title (`Crew standups`). Each entry is one line, `<place> <IANA/Zone> [as <label>]`: a human-readable place, then a real IANA zone (`Europe/London`, `America/New_York`, `America/Los_Angeles`, `Asia/Tokyo`) — never a bare offset like `GMT+1`, which doesn't track daylight saving. Use `as <label>` to name the person or role behind a zone (`New York America/New_York as Dani (NY)`); the label becomes the caption. The single-clock case is common and encouraged — one title, one entry (`clock Dani` / `New York America/New_York`). Global directives are flat, no colon: `analog` for analog dials (digital is the default face), `time-24` for a 24-hour readout (12h am/pm is the default), and optional context bands `hours 9-17` + `days mon-fri` (the window accepts `HH:MM` and am/pm, e.g. `hours 8:30-17:15`) to shade each zone's working window so out-of-hours people read at a glance. `no-sun` hides the sunrise/sundown indicator (on by default). Add `hours`/`days` only when the point is scheduling overlap; drop them for a plain "current time" widget. Zones are **colorized by default** (`color-by`, default `place` — a distinct palette accent per place); reach for a semantic mode when color should *mean* something: `color-by time` or `color-by daylight` make an at-a-glance world board read as day-vs-night (order the zones west→east so the daylight sweeps across), and `color-by work` turns a standup/team board green/amber/grey by availability — it needs `hours` set. A hand-set per-zone color (`London Europe/London as UK team purple`) is a **defined** shade that always wins over the dimension, so you can pin one zone and let the rest follow. `color-by none` goes neutral. On image surfaces (PNG, `.svg` via `<img>`, GitHub camo) it can't tick and bakes the time at export — the correct graceful fallback.
+<!-- TIPS end -->
+
+The second *dynamic* dgmo chart (with `countdown`): a live board of world clocks recomputed against the viewer's clock every second. Flat syntax — the first line is `clock <Title>`; every other non-blank line is either a board-level directive (its first token is an option keyword) or a place row. Order-independent; no colons anywhere.
+
+### Declaration
+
+```
+clock [Title]
+
+analog                      // analog dials; digital is the default face
+hours <start>-<end>         // optional working window (24h, HH:MM or am/pm)
+days <mon-fri | mon,wed,fri> // optional working days (default mon-fri)
+no-sun                      // hide the sundown/sunrise line (on by default)
+time-24                     // 24-hour readout (12h am/pm is the default)
+no-title                    // suppress the board title
+direction lr                // lay the panels out in a row
+color-by <place|work|daylight|time|none> // zone coloring; default place
+
+<place tokens…> <IANA/Zone> [as <label…>]
+```
+
+### Example
+
+```
+clock Crew standups
+hours 9-17
+days mon-fri
+
+London        Europe/London        as UK team
+New York      America/New_York     as Dani (NY)
+Los Angeles   America/Los_Angeles  as West coast
+```
+
+### Directives
+
+| Directive              | Effect                                                                 |
+| ---------------------- | ---------------------------------------------------------------------- |
+| `analog`               | Analog dials for the WHOLE board. Digital is the default face. |
+| `hours <start>-<end>`  | Working window (e.g. `9-17`, `8:30-17:15`, or am/pm); drives the status chip, evaluated in each row's own zone. |
+| `days <range\|list>`   | Working days: `mon-fri` or `mon,wed,fri`. Default Mon–Fri. No effect without `hours`. |
+| `no-sun`               | Hide the sundown/sunrise line (on by default when the zone's city coordinates are known). |
+| `time-24`              | 24-hour readout (12-hour am/pm is the default).                        |
+| `no-title`             | Suppress the board title.                                              |
+| `direction lr`         | Lay the panels out in a row (columns) instead of stacked.             |
+| `color-by <place\|work\|daylight\|time\|none>` | Which dimension colors the zones. Default `place`; `color-by none` goes neutral. `place` = identity accent per place; `work` = green/amber/grey by the `hours` window; `daylight` = warm sun-up / cool sun-down; `time` = local-hour dawn→night ramp (order zones west→east). A hand-set (**defined**) per-zone trailing color always wins over the dimension. |
+
+### Entry grammar
+
+Each place row is `<place tokens…> <IANA/Zone> [as <label…>]`. The zone is the token containing `/` (a full IANA name like `America/New_York`); text before it is the place, and `as <label>` sets the display alias (default = place). A row that is just a zone (`Asia/Tokyo`) uses the zone's city as the place.
+
+### Semantics
+
+Each row's time comes from `Intl.DateTimeFormat` with that row's zone, so DST is always correct. The renderer bakes the time, hands, offset, status, and sundown line at render (the no-JS floor); a tiny page-level ticker recomputes them from the baked zone/coords every second — no persisted state, no drift. Image surfaces (PNG, `.svg`-as-image, GitHub camo) show the time baked at export.
+
+---
+
 ## 24F. Bracket
 
 <!-- TYPE:bracket -->
 
 <!-- TIPS start -->
-**Styling tips:** Two ways to author. For a bracket you post before the games — a formal tournament — declare the field with `seed N Name` and (optionally) name the columns with `rounds Wild Card, Division, Championship`; the full skeleton renders on day 0 with unplayed slots as dashed `TBD`, top seeds pre-placed on their byes. For a game-night or a finished bracket, skip the seeds entirely and just list results — the tree shape is inferred. Results read left-to-right: **the winner is always on the left of `beats`** (`Yankees beats Guardians 2-1`), and the score is a cosmetic tag that never changes who advanced. Use `A vs B` for a matchup that hasn't been played. Wrap each half in a `[Side]` header (the kanban idiom, optional trailing color) and the two sides mirror inward to a center championship — an indent-0 result outside any side. Names are identifiers: reuse the exact same name to advance a competitor a round.
+**Styling tips:** A single-elimination tournament bracket: winners auto-advance rightward toward a championship. Reach for it for playoff trees, knockout draws, and seeded fields. Two ways to author: seed the field for a **day-0 skeleton** (`seed 1 Team A`, `seed 2 Team B` …) and let matches fill in, or list results casually as `A beats B` / `A vs B` lines and let winners flow forward. Name the columns with `rounds` (comma-separated, e.g. `rounds Quarterfinals, Semifinals, Final`) or an indented `rounds` block with per-round colors. The two sides mirror inward to the final. Color a competitor's box outline with a `tag` group; `accent` overrides the winner highlight (default blue). `single-elim` is the default; opt-outs are `no-round` (hide column labels) and `no-legend`.
 <!-- TIPS end -->
 
 A single-elimination tournament bracket. Winners auto-advance up a tree that builds itself from the results — a one-sided ladder for a simple pool, or two `[Side]` columns that mirror inward and meet at a championship (MLB / NBA / NCAA-style). Any `seed` line switches on **seeded mode** (day-0 skeleton); otherwise the bracket is **casual** (structure inferred from `beats` / `vs` lines).

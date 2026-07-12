@@ -298,6 +298,12 @@ target 10000`,
 target 2099-08-21
 units days`,
 
+  clock: `clock Crew watch
+hours 9-17
+
+Tortuga America/New_York as First mate
+Port Royal America/Jamaica as Quartermaster`,
+
   bracket: `bracket Grog Cup
 
 Black Pearl beats Sea Serpent 5-3

@@ -201,6 +201,15 @@ const BUILDS: Options[] = [
     external: ['jsdom'],
   },
   {
+    // Clock ticker — a self-contained (zero-import) browser runtime, mirroring
+    // the countdown entry. Client surfaces import ONLY the ticker + shared math.
+    entry: { clock: 'src/clock/ticker.ts' },
+    format: ['esm'],
+    dts: true,
+    sourcemap: true,
+    external: ['jsdom'],
+  },
+  {
     entry: { editor: 'src/editor/index.ts' },
     format: ['esm'],
     dts: true,

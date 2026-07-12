@@ -39,6 +39,10 @@
       "types": "./dist/countdown.d.ts",
       "default": "./dist/countdown.js"
     },
+    "./clock": {
+      "types": "./dist/clock.d.ts",
+      "default": "./dist/clock.js"
+    },
     "./pert": {
       "types": "./dist/pert.d.ts",
       "default": "./dist/pert.js"

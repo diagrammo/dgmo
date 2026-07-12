@@ -170,6 +170,11 @@ export const chartTypes: readonly ChartTypeMeta[] = [
       'Live "N days until X" that ticks every second and is accurate on every load — trip dates, launches, deadlines; the only dynamic chart type',
   },
   {
+    id: 'clock',
+    description:
+      'Live world-clock board: current time for people/places across time zones, ticking every second, with optional working-hours status and sundown line',
+  },
+  {
     id: 'map',
     description:
       'Geographic concept map: highlight/score regions, drop points of interest, connect with routes or edges',

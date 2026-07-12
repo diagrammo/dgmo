@@ -74,6 +74,7 @@ import { parseTreemap } from './treemap/parser';
 import { parseBlock } from './block/parser';
 import { parseGoal } from './goal/parser';
 import { parseCountdown } from './countdown/parser';
+import { parseClock } from './clock/parser';
 import { parseBracket } from './bracket/parser';
 import { parseRaci, allTasks } from './raci/parser';
 import { parseBody } from './body/parser';
@@ -556,6 +557,9 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
   // Countdown: the only dynamic chart — a single "N days until X" that ticks
   // live. No measure/minDims; it centers in whatever rectangle it's given.
   { id: 'countdown', category: 'visualization', parse: parseCountdown },
+  // Clock: live world-clock board — one row per place/zone, ticking every
+  // second. No measure/minDims; it sizes to its rows and scales to fit.
+  { id: 'clock', category: 'visualization', parse: parseClock },
   // Bracket: single-elim tournament tree. A diagram (structural, node-and-edge);
   // no measure/minDims — it sizes to content and scales to fit its rectangle.
   { id: 'bracket', category: 'diagram', parse: parseBracket },

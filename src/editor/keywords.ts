@@ -35,6 +35,7 @@ export const CHART_TYPES = new Set([
   'block',
   'goal',
   'countdown',
+  'clock',
   'sketch',
   'raci',
   'cycle',

@@ -1,0 +1,8 @@
+clock Crew standups
+hours 9-17
+days mon-fri
+color-by work
+
+London        Europe/London        as UK team
+New York      America/New_York     as Dani (NY)
+Los Angeles   America/Los_Angeles  as West coast

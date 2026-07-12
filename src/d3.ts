@@ -125,6 +125,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   block: exportBlock,
   goal: exportGoal,
   countdown: exportCountdown,
+  clock: exportClock,
   bracket: exportBracket,
   raci: exportRaci,
   body: exportBody,
@@ -1374,6 +1375,24 @@ async function exportCountdown(ctx: ExportContext): Promise<string> {
 
   const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
   renderCountdownForExport(container, parsed, effectivePalette, ctx.isDark, {
+    width: EXPORT_WIDTH,
+    height: EXPORT_HEIGHT,
+  });
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportClock(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseClock } = await import('./clock/parser');
+  const { renderClockForExport } = await import('./clock/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const parsed = parseClock(content, effectivePalette);
+  // Renders even without a valid row (only a hard first-line failure sets error).
+  if (parsed.error) return '';
+
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  renderClockForExport(container, parsed, effectivePalette, ctx.isDark, {
     width: EXPORT_WIDTH,
     height: EXPORT_HEIGHT,
   });

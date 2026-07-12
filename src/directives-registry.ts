@@ -196,6 +196,17 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'import', category: 'directive' },
   { token: 'hide', category: 'directive' },
   { token: 'direction', category: 'directive' },
+  // ── Clock ────────────────────────────────────────────────
+  // The board's flat directives — highlight-only (the parser validates them
+  // inline, no extractable Set). `no-title` + `direction` are already listed
+  // above (shared). Values (analog is a bare flag; color-by's
+  // place|work|daylight|time|none) highlight as plain tokens.
+  { token: 'analog', category: 'directive' },
+  { token: 'hours', category: 'directive' },
+  { token: 'days', category: 'directive' },
+  { token: 'no-sun', category: 'directive' },
+  { token: 'time-24', category: 'directive' },
+  { token: 'color-by', category: 'directive' },
   // ── Boxes-and-lines ──────────────────────────────────────
   // `heat <Label> [low] [high]` is the value→colour ramp directive, but `heat`
   // is NOT registered as a directive keyword: it is dual-use with the `heat:`

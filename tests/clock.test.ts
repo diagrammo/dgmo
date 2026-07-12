@@ -1,0 +1,612 @@
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
+import { parseClock } from '../src/clock/parser';
+import { renderClock } from '../src/clock/renderer';
+import { tickClocks } from '../src/clock/ticker';
+import {
+  zoneParts,
+  formatTime,
+  handAngles,
+  workStatus,
+  sunLine,
+  type WorkSpec,
+} from '../src/clock/resolve';
+import { coordsFor } from '../src/clock/zone-coords';
+import { getPalette } from '../src/palettes';
+import { getRenderCategory } from '../src/dgmo-router';
+
+// Determinism: the suite assumes TZ=UTC (set by the package test script / CI).
+// A summer instant so DST offsets (BST / EDT) are stable and known.
+const FIXED_ISO = '2026-07-10T15:30:07Z'; // a Friday, 15:30:07 UTC
+
+beforeAll(() => {
+  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+  const win = dom.window;
+  for (const [key, value] of Object.entries({
+    document: win.document,
+    window: win,
+    navigator: win.navigator,
+    HTMLElement: win.HTMLElement,
+    SVGElement: win.SVGElement,
+  })) {
+    Object.defineProperty(globalThis, key, { value, configurable: true });
+  }
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+const nordLight = getPalette('nord').light;
+
+function makeContainer(): HTMLDivElement {
+  const c = document.createElement('div');
+  Object.defineProperty(c, 'clientWidth', { value: 800 });
+  Object.defineProperty(c, 'clientHeight', { value: 400 });
+  return c as HTMLDivElement;
+}
+
+function errors(diagnostics: readonly { severity: string }[]): unknown[] {
+  return diagnostics.filter((d) => d.severity === 'error');
+}
+function warnings(diagnostics: readonly { severity: string }[]): unknown[] {
+  return diagnostics.filter((d) => d.severity === 'warning');
+}
+
+function renderAt(source: string, iso: string): HTMLDivElement {
+  vi.useFakeTimers();
+  vi.setSystemTime(Date.parse(iso));
+  const container = makeContainer();
+  const parsed = parseClock(source);
+  renderClock(container, parsed, nordLight, false, { width: 800, height: 400 });
+  return container;
+}
+
+// ============================================================
+// Parser
+// ============================================================
+
+describe('clock parser', () => {
+  it('parses title + a single entry with defaults', () => {
+    const r = parseClock(`clock Dani\nNew York America/New_York`);
+    expect(r.type).toBe('clock');
+    expect(r.title).toBe('Dani');
+    expect(r.face).toBe('digital');
+    expect(r.hours12).toBe(true);
+    expect(r.sun).toBe(true);
+    expect(r.work).toBeNull();
+    expect(r.entries).toHaveLength(1);
+    expect(r.entries[0]!.place).toBe('New York');
+    expect(r.entries[0]!.zone).toBe('America/New_York');
+    expect(r.entries[0]!.label).toBe('New York');
+    expect(r.error).toBeNull();
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('resolves lat/lon from the zone coords table', () => {
+    const r = parseClock(`clock T\nLondon Europe/London`);
+    const e = r.entries[0]!;
+    expect(e.lat).toBeCloseTo(51.51, 1);
+    expect(e.lon).toBeCloseTo(-0.13, 1);
+    expect(coordsFor('Europe/London')).not.toBeNull();
+  });
+
+  it('honors the `as <label>` alias and multi-word places', () => {
+    const r = parseClock(
+      `clock Crew\nLos Angeles America/Los_Angeles as West coast`
+    );
+    const e = r.entries[0]!;
+    expect(e.place).toBe('Los Angeles');
+    expect(e.zone).toBe('America/Los_Angeles');
+    expect(e.label).toBe('West coast');
+  });
+
+  it('defaults place to the zone city when no place tokens precede the zone', () => {
+    const r = parseClock(`clock T\nAmerica/New_York`);
+    expect(r.entries[0]!.place).toBe('New York');
+    expect(r.entries[0]!.label).toBe('New York');
+  });
+
+  it('parses flat board flags (analog/no-sun/time-24) + work window', () => {
+    const r = parseClock(
+      `clock Team\nanalog\nhours 9-17\ndays mon-fri\nno-sun\ntime-24\nBerlin Europe/Berlin`
+    );
+    expect(r.face).toBe('analog');
+    expect(r.hours12).toBe(false);
+    expect(r.sun).toBe(false);
+    expect(r.work).not.toBeNull();
+    expect(r.work!.startMin).toBe(540);
+    expect(r.work!.endMin).toBe(1020);
+    expect(r.work!.days).toEqual({
+      Mon: true,
+      Tue: true,
+      Wed: true,
+      Thu: true,
+      Fri: true,
+    });
+  });
+
+  it('parses hours as 24h, am/pm, and smart-bare PM', () => {
+    const win = (s: string) =>
+      parseClock(`clock T\nhours ${s}\nLondon Europe/London`).work;
+    expect(win('9-17')).toMatchObject({ startMin: 540, endMin: 1020 });
+    expect(win('9-5')).toMatchObject({ startMin: 540, endMin: 1020 }); // bare→PM
+    expect(win('9am-5pm')).toMatchObject({ startMin: 540, endMin: 1020 });
+    expect(win('8:30-5:15')).toMatchObject({ startMin: 510, endMin: 1035 });
+    expect(win('8:30am-5:15pm')).toMatchObject({ startMin: 510, endMin: 1035 });
+    expect(win('12pm-9pm')).toMatchObject({ startMin: 720, endMin: 1260 });
+    expect(win('6-8')).toMatchObject({ startMin: 360, endMin: 480 }); // fwd→literal
+  });
+
+  it('reads a trailing palette color per row (swimlane tint)', () => {
+    const r = parseClock(
+      `clock T\nEl Segundo America/Los_Angeles as Paul blue\nNY America/New_York as Greg`,
+      nordLight
+    );
+    expect(r.entries[0]!.label).toBe('Paul');
+    expect(r.entries[0]!.color).not.toBeNull();
+    expect(r.entries[1]!.color).toBeNull();
+  });
+
+  it('reads `direction lr` as a columns layout', () => {
+    expect(
+      parseClock(`clock T\ndirection lr\nNY America/New_York`).columns
+    ).toBe(true);
+    expect(parseClock(`clock T\nNY America/New_York`).columns).toBe(false);
+    expect(
+      parseClock(`clock T\ndirection tb\nNY America/New_York`).columns
+    ).toBe(false);
+  });
+
+  it('renders one column group per entry in columns mode', () => {
+    const c = renderAt(
+      `clock T\ndirection lr\nLA America/Los_Angeles as West\nNY America/New_York as East`,
+      FIXED_ISO
+    );
+    expect(c.querySelectorAll('[data-dgmo-clock]')).toHaveLength(2);
+    expect(
+      c.querySelector('[data-dgmo-clock-digital-part="main"]')
+    ).not.toBeNull();
+  });
+
+  it('is order-independent and tolerant of blank lines / comments', () => {
+    const r = parseClock(
+      `clock Board\n\nNew York America/New_York\n# a comment\nhours 8-16\nLondon Europe/London\n`
+    );
+    expect(r.entries).toHaveLength(2);
+    expect(r.work!.startMin).toBe(480);
+  });
+
+  it('supports a comma list for days', () => {
+    const r = parseClock(`clock T\nhours 9-17\ndays mon,wed,fri\nUTC`);
+    expect(r.work!.days).toEqual({ Mon: true, Wed: true, Fri: true });
+  });
+
+  it('skips an unrecognized zone (no clock without a real zone) and warns', () => {
+    const r = parseClock(`clock T\nOlympus Mars/Phobos\nLondon Europe/London`);
+    expect(r.entries).toHaveLength(1); // only the valid row survives
+    expect(r.entries[0]!.zone).toBe('Europe/London');
+    expect(warnings(r.diagnostics).length).toBeGreaterThan(0);
+  });
+
+  it('warns when `days` is given without `hours` (no work window)', () => {
+    const r = parseClock(`clock T\ndays mon-fri\nLondon Europe/London`);
+    expect(r.work).toBeNull();
+    expect(warnings(r.diagnostics).length).toBeGreaterThan(0);
+  });
+
+  it('errors on a bad first line and on a bodyless clock', () => {
+    expect(parseClock(`flowchart X\nA -> B`).error).not.toBeNull();
+    const empty = parseClock(`clock Nobody`);
+    expect(errors(empty.diagnostics).length).toBeGreaterThan(0);
+  });
+
+  it('is registered as a visualization', () => {
+    expect(getRenderCategory('clock')).toBe('visualization');
+  });
+});
+
+// ============================================================
+// resolve.ts — shared math
+// ============================================================
+
+describe('clock resolve — zoneParts', () => {
+  it('reads zone-local hour/minute/second + offset (summer DST)', () => {
+    const ms = Date.parse(FIXED_ISO);
+    const ny = zoneParts('America/New_York', ms);
+    expect(ny.h).toBe(11); // 15:30 UTC − 4 = 11:30 EDT
+    expect(ny.m).toBe(30);
+    expect(ny.s).toBe(7);
+    expect(ny.weekday).toBe('Fri');
+    expect(ny.offsetLabel).toBe('UTC-4');
+
+    const london = zoneParts('Europe/London', ms);
+    expect(london.h).toBe(16); // 15:30 UTC + 1 = 16:30 BST
+    expect(london.offsetLabel).toBe('UTC+1');
+  });
+
+  it('falls back to UTC parts for an invalid zone', () => {
+    const ms = Date.parse(FIXED_ISO);
+    const p = zoneParts('Mars/Phobos', ms);
+    expect(p.h).toBe(15);
+    expect(p.m).toBe(30);
+    expect(p.weekday).toBe('Fri');
+  });
+});
+
+describe('clock resolve — formatTime', () => {
+  it('formats 12-hour am/pm', () => {
+    expect(formatTime(11, 30, 7, true)).toEqual({
+      main: '11:30',
+      sec: '07',
+      ap: 'am',
+    });
+    expect(formatTime(13, 5, 9, true)).toEqual({
+      main: '1:05',
+      sec: '09',
+      ap: 'pm',
+    });
+    expect(formatTime(0, 0, 0, true)).toEqual({
+      main: '12:00',
+      sec: '00',
+      ap: 'am',
+    });
+  });
+  it('formats 24-hour with no am/pm', () => {
+    expect(formatTime(13, 5, 9, false)).toEqual({
+      main: '13:05',
+      sec: '09',
+      ap: '',
+    });
+  });
+});
+
+describe('clock resolve — handAngles', () => {
+  it('computes sweeping hand angles', () => {
+    expect(handAngles(3, 0, 0)).toEqual({ hour: 90, minute: 0, second: 0 });
+    expect(handAngles(6, 30, 0)).toEqual({
+      hour: 195,
+      minute: 180,
+      second: 0,
+    });
+    expect(handAngles(0, 0, 30)).toEqual({ hour: 0, minute: 3, second: 180 });
+  });
+});
+
+describe('clock resolve — workStatus', () => {
+  const work: WorkSpec = {
+    startMin: 540,
+    endMin: 1020,
+    days: { Mon: true, Tue: true, Wed: true, Thu: true, Fri: true },
+  };
+  it('returns null when no window', () => {
+    expect(workStatus({ h: 10, m: 0, weekday: 'Mon' }, null)).toBeNull();
+  });
+  it('green while inside the window', () => {
+    const s = workStatus({ h: 11, m: 30, weekday: 'Fri' }, work)!;
+    expect(s.cls).toBe('ok');
+    expect(s.text).toBe('5h 30m left');
+  });
+  it('soon within an hour of opening', () => {
+    const s = workStatus({ h: 8, m: 40, weekday: 'Mon' }, work)!;
+    expect(s.cls).toBe('soon');
+    expect(s.text).toBe('starts in 20m');
+  });
+  it('off before the window (more than an hour out)', () => {
+    const s = workStatus({ h: 6, m: 0, weekday: 'Mon' }, work)!;
+    expect(s.cls).toBe('off');
+    expect(s.text).toBe('starts in 3h 0m');
+  });
+  it('off after the window', () => {
+    const s = workStatus({ h: 20, m: 10, weekday: 'Mon' }, work)!;
+    expect(s.cls).toBe('off');
+    expect(s.text).toBe('ended 3h 10m ago');
+  });
+  it('Weekend on a non-working day', () => {
+    const s = workStatus({ h: 12, m: 0, weekday: 'Sun' }, work)!;
+    expect(s.cls).toBe('off');
+    expect(s.text).toBe('Weekend');
+  });
+});
+
+describe('clock resolve — sunLine', () => {
+  const ldn = coordsFor('Europe/London')!;
+  it('sun up during the day (sunset in …)', () => {
+    const s = sunLine(Date.parse('2026-07-10T15:30:00Z'), ldn.lat, ldn.lon);
+    expect(s.up).toBe(true);
+    expect(s.text).toMatch(/^sunset in /);
+  });
+  it('sun down before dawn (sunrise in …)', () => {
+    const s = sunLine(Date.parse('2026-07-10T02:00:00Z'), ldn.lat, ldn.lon);
+    expect(s.up).toBe(false);
+    expect(s.text).toMatch(/sunrise/);
+  });
+});
+
+// ============================================================
+// Renderer — baked anchors
+// ============================================================
+
+describe('clock renderer — baked anchors', () => {
+  it('bakes per-row clock anchors (analog + work + sun)', () => {
+    const c = renderAt(
+      `clock Crew\nanalog\nhours 9-17\ndays mon-fri\nLondon Europe/London as UK`,
+      FIXED_ISO
+    );
+    const row = c.querySelector('[data-dgmo-clock]')!;
+    expect(row).not.toBeNull();
+    expect(row.getAttribute('data-dgmo-clock-zone')).toBe('Europe/London');
+    expect(row.getAttribute('data-dgmo-clock-face')).toBe('analog');
+    expect(row.getAttribute('data-dgmo-clock-hours12')).toBe('1');
+    expect(row.getAttribute('data-dgmo-clock-sun')).toBe('1');
+    expect(row.getAttribute('data-dgmo-clock-work-start')).toBe('540');
+    expect(row.getAttribute('data-dgmo-clock-work-end')).toBe('1020');
+    expect(row.getAttribute('data-dgmo-clock-work-days')).toBe(
+      'Mon,Tue,Wed,Thu,Fri'
+    );
+    expect(row.getAttribute('data-dgmo-clock-lat')).not.toBeNull();
+    // Analog hands + face + status + sun anchors all present.
+    expect(row.querySelector('[data-dgmo-clock-hand="h"]')).not.toBeNull();
+    expect(row.querySelector('[data-dgmo-clock-hand="m"]')).not.toBeNull();
+    expect(row.querySelector('[data-dgmo-clock-hand="s"]')).not.toBeNull();
+    expect(row.querySelector('[data-dgmo-clock-facebg]')).not.toBeNull();
+    expect(row.querySelector('[data-dgmo-clock-status]')).not.toBeNull();
+    expect(row.querySelector('[data-dgmo-clock-sun-line]')).not.toBeNull();
+    // Hour hand carries a render-time rotate transform.
+    const hand = row.querySelector('[data-dgmo-clock-hand="h"]')!;
+    expect(hand.getAttribute('transform')).toMatch(/rotate\(/);
+  });
+
+  it('bakes a digital readout (main + dim seconds) in digital face', () => {
+    const c = renderAt(`clock Mum\nLondon Europe/London`, FIXED_ISO);
+    const row = c.querySelector('[data-dgmo-clock]')!;
+    expect(row.getAttribute('data-dgmo-clock-face')).toBe('digital');
+    const digital = row.querySelector('[data-dgmo-clock-digital]')!;
+    expect(digital).not.toBeNull();
+    const main = row.querySelector('[data-dgmo-clock-digital-part="main"]')!;
+    expect(main.textContent).toBe('4:30'); // 16:30 BST in 12h
+    const sec = row.querySelector('[data-dgmo-clock-digital-part="sec"]')!;
+    expect(sec.textContent).toBe(':07');
+    // No work → no status chip.
+    expect(row.querySelector('[data-dgmo-clock-status]')).toBeNull();
+  });
+
+  it('analog draws only the dial — no numeric time readout', () => {
+    const c = renderAt(`clock T\nanalog\nLondon Europe/London`, FIXED_ISO);
+    const row = c.querySelector('[data-dgmo-clock]')!;
+    expect(row.querySelector('[data-dgmo-clock-hand="h"]')).not.toBeNull();
+    expect(row.querySelector('[data-dgmo-clock-midtime]')).toBeNull();
+    expect(row.querySelector('[data-dgmo-clock-digital]')).toBeNull();
+    expect(row.querySelector('[data-dgmo-clock-ampm]')).toBeNull();
+  });
+
+  it('omits the sun line when sun is off', () => {
+    const c = renderAt(`clock T\nno-sun\nLondon Europe/London`, FIXED_ISO);
+    const row = c.querySelector('[data-dgmo-clock]')!;
+    expect(row.getAttribute('data-dgmo-clock-sun')).toBe('0');
+    expect(row.querySelector('[data-dgmo-clock-sun-line]')).toBeNull();
+  });
+
+  it('renders one row per entry', () => {
+    const c = renderAt(
+      `clock Board\nNew York America/New_York\nLondon Europe/London\nAsia/Tokyo`,
+      FIXED_ISO
+    );
+    expect(c.querySelectorAll('[data-dgmo-clock]')).toHaveLength(3);
+  });
+});
+
+// ============================================================
+// Ticker — live update from baked state
+// ============================================================
+
+describe('clock ticker', () => {
+  it('updates the digital readout to a new instant', () => {
+    const c = renderAt(
+      `clock Mum\nLondon Europe/London`,
+      '2026-07-10T15:30:07Z'
+    );
+    const main = () =>
+      c.querySelector('[data-dgmo-clock-digital-part="main"]')!.textContent;
+    const sec = () =>
+      c.querySelector('[data-dgmo-clock-digital-part="sec"]')!.textContent;
+    expect(main()).toBe('4:30');
+    vi.setSystemTime(Date.parse('2026-07-10T16:45:22Z')); // 17:45 BST
+    tickClocks(c);
+    expect(main()).toBe('5:45');
+    expect(sec()).toBe(':22');
+  });
+
+  it('rotates analog hands and recolors on tick', () => {
+    const c = renderAt(
+      `clock T\nanalog\nLondon Europe/London`,
+      '2026-07-10T15:30:07Z'
+    );
+    const hourHand = c.querySelector('[data-dgmo-clock-hand="h"]')!;
+    const before = hourHand.getAttribute('transform');
+    vi.setSystemTime(Date.parse('2026-07-10T18:30:07Z'));
+    tickClocks(c);
+    expect(hourHand.getAttribute('transform')).not.toBe(before);
+  });
+});
+
+describe('clock renderer — layout fit (scales, never overflows)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  const LONG = [
+    'clock Quarterly all-hands sync across every regional pod and office',
+    'hours 9-17',
+    'days mon-fri',
+    '',
+    'London  Europe/London  as The London growth & partnerships pod',
+    'Denver  America/Denver',
+  ].join('\n');
+
+  function renderWidth(source: string, clientWidth: number): HTMLDivElement {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse('2026-07-11T12:00:00Z'));
+    const c = document.createElement('div');
+    Object.defineProperty(c, 'clientWidth', { value: clientWidth });
+    Object.defineProperty(c, 'clientHeight', { value: 600 });
+    // No exportDims → exercises the responsive clamp + viewBox path.
+    renderClock(c as HTMLDivElement, parseClock(LONG), nordLight, false);
+    return c as HTMLDivElement;
+  }
+
+  it('clamps the layout width to a comfortable floor on a narrow panel', () => {
+    const c = renderWidth(LONG, 300);
+    const vb = c.querySelector('svg')!.getAttribute('viewBox')!;
+    // 300 < floor(460) → lays out at 460 and lets fitSvg scale it down.
+    expect(vb.split(' ')[2]).toBe('460');
+  });
+
+  it('ellipsizes a long title instead of overflowing', () => {
+    const c = renderWidth(LONG, 300);
+    const title = c.querySelector('text[data-line-number="1"]')!.textContent!;
+    expect(title.endsWith('…')).toBe(true);
+    expect(title.length).toBeLessThan(
+      'Quarterly all-hands sync across'.length + 5
+    );
+  });
+
+  it('wraps a long row label to multiple lines instead of overflowing', () => {
+    const c = renderWidth(LONG, 300);
+    const row = c.querySelector('[data-dgmo-clock]')!;
+    const aliasLines = [...row.querySelectorAll('text')].filter(
+      (t) => t.getAttribute('font-weight') === '650'
+    );
+    expect(aliasLines.length).toBeGreaterThan(1);
+  });
+
+  it('lines every row label up at the same x despite varying time widths', () => {
+    // 9 vs 12 vs 10:06 → different digital widths; labels must still align.
+    const src = [
+      'clock World',
+      'San Francisco America/Los_Angeles as West',
+      'New York America/New_York as East',
+      'Mumbai Asia/Kolkata as Mumbai',
+    ].join('\n');
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse('2026-07-11T12:00:00Z'));
+    const c = document.createElement('div');
+    Object.defineProperty(c, 'clientWidth', { value: 640 });
+    Object.defineProperty(c, 'clientHeight', { value: 600 });
+    renderClock(c as HTMLDivElement, parseClock(src), nordLight, false);
+    const labelXs = [...c.querySelectorAll('[data-dgmo-clock]')].map((g) =>
+      [...g.querySelectorAll('text')]
+        .find((t) => t.getAttribute('font-weight') === '650')
+        ?.getAttribute('x')
+    );
+    expect(new Set(labelXs).size).toBe(1);
+  });
+
+  it('keeps a short label in full at a wide layout', () => {
+    const src = 'clock W\nLondon Europe/London as UK team';
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse('2026-07-11T12:00:00Z'));
+    const c = document.createElement('div');
+    Object.defineProperty(c, 'clientWidth', { value: 700 });
+    Object.defineProperty(c, 'clientHeight', { value: 400 });
+    renderClock(c as HTMLDivElement, parseClock(src), nordLight, false);
+    const full = [...c.querySelectorAll('text')].some(
+      (t) => t.textContent === 'UK team'
+    );
+    expect(full).toBe(true);
+  });
+});
+
+// ============================================================
+// color-by
+// ============================================================
+
+describe('clock parser — color-by', () => {
+  it('defaults to place', () => {
+    expect(parseClock('clock T\nLondon Europe/London').colorBy).toBe('place');
+  });
+  it('parses each dimension', () => {
+    for (const m of ['place', 'work', 'daylight', 'time', 'none'] as const) {
+      expect(
+        parseClock(`clock T\ncolor-by ${m}\nLondon Europe/London`).colorBy
+      ).toBe(m);
+    }
+  });
+  it('bare `color-by` is the place default', () => {
+    expect(parseClock('clock T\ncolor-by\nLondon Europe/London').colorBy).toBe(
+      'place'
+    );
+  });
+  it('`color-by none` disables coloring', () => {
+    expect(
+      parseClock('clock T\ncolor-by none\nLondon Europe/London').colorBy
+    ).toBe('none');
+  });
+  it('warns on an unknown dimension and keeps the default', () => {
+    const r = parseClock('clock T\ncolor-by rainbow\nLondon Europe/London');
+    expect(r.colorBy).toBe('place');
+    expect(warnings(r.diagnostics).length).toBeGreaterThan(0);
+  });
+});
+
+describe('clock renderer — color-by', () => {
+  it('place mode washes every row and colors the time solid', () => {
+    const c = renderAt(
+      'clock World\ncolor-by place\nLondon Europe/London as UK\nTokyo Asia/Tokyo as JP',
+      FIXED_ISO
+    );
+    const rows = c.querySelectorAll('[data-dgmo-clock]');
+    expect(rows).toHaveLength(2);
+    // Each row baked a resolved solid, and the two differ (distinct accents).
+    const solids = [...rows].map((r) =>
+      r.getAttribute('data-dgmo-clock-auto-solid')
+    );
+    expect(solids[0]).toBeTruthy();
+    expect(solids[1]).toBeTruthy();
+    expect(solids[0]).not.toBe(solids[1]);
+    // The digital time is painted in the resolved solid, not the ink text color.
+    const main = rows[0]!.querySelector(
+      '[data-dgmo-clock-digital-part="main"]'
+    )!;
+    expect(main.getAttribute('fill')).toBe(solids[0]);
+  });
+
+  it('color-by none leaves rows neutral (no baked solid, no lane wash)', () => {
+    const c = renderAt(
+      'clock World\ncolor-by none\nLondon Europe/London as UK',
+      FIXED_ISO
+    );
+    const row = c.querySelector('[data-dgmo-clock]')!;
+    expect(row.getAttribute('data-dgmo-clock-auto-solid')).toBeNull();
+    // No per-row lane rect beyond the card/background.
+    expect(row.querySelector('rect')).toBeNull();
+  });
+
+  it('a hand-set per-zone shade overrides the dimension', () => {
+    const c = renderAt(
+      'clock World\ncolor-by daylight\nLondon Europe/London as UK purple\nTokyo Asia/Tokyo as JP',
+      FIXED_ISO
+    );
+    const rows = c.querySelectorAll('[data-dgmo-clock]');
+    const purple = getPalette('nord').light.colors.purple;
+    expect(rows[0]!.getAttribute('data-dgmo-clock-auto-solid')).toBe(purple);
+    // The second zone follows the daylight dimension, so it differs from the shade.
+    expect(rows[1]!.getAttribute('data-dgmo-clock-auto-solid')).not.toBe(
+      purple
+    );
+  });
+
+  it('ticker repaints the analog dial in the resolved color, not day/night', () => {
+    const c = renderAt(
+      'clock Desks\nanalog\ncolor-by place\nLondon Europe/London as UK',
+      FIXED_ISO
+    );
+    const row = c.querySelector('[data-dgmo-clock]')!;
+    const solid = row.getAttribute('data-dgmo-clock-auto-solid')!;
+    const dayC = row.getAttribute('data-dgmo-clock-c-day')!;
+    tickClocks(c);
+    const second = row.querySelector('[data-dgmo-clock-hand="s"]')!;
+    expect(second.getAttribute('stroke')).toBe(solid);
+    expect(second.getAttribute('stroke')).not.toBe(dayC);
+    const ring = row.querySelector('[data-dgmo-clock-facering]')!;
+    expect(ring.getAttribute('stroke')).toBe(solid);
+  });
+});

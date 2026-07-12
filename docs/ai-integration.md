@@ -61,7 +61,7 @@ To teach Claude about DGMO in a specific project without the global skill, paste
 <!-- DGMO-AI-CORE:START -->
 ## DGMO AI Core
 
-_Generated from `language-reference.md` — the anti-patterns and 49-type index below are identical across every DGMO AI surface._
+_Generated from `language-reference.md` — the anti-patterns and 50-type index below are identical across every DGMO AI surface._
 
 ### Disambiguation — where DGMO diverges from LLM priors
 
@@ -152,6 +152,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `sketch` | GUI-first free-placement canvas: uniform shapes on a snap grid, arrows, tags (markup is app-generated) |
 | `goal` | single progress-toward-a-target value (`now` vs `target`) as a progress bar, thermometer, or gauge — KPIs, fundraising, quotas |
 | `countdown` | live "N days until X" that ticks every second and is accurate on every load — trip dates, launches, deadlines; the only dynamic chart type |
+| `clock` | live world-clock board: current time for people/places across time zones, ticking every second, with optional working-hours status and sundown line |
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
 | `bar` | categorical comparisons (multi-series via `stack` / `group`) |
@@ -175,7 +176,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 
 ### Common examples (curated, parse-clean)
 
-_The most common types, inline so you can generate them without a fetch. For the other 41, get the per-type section (see below)._
+_The most common types, inline so you can generate them without a fetch. For the other 42, get the per-type section (see below)._
 
 #### journey-map
 

@@ -77,6 +77,7 @@ export const ALL_CHART_TYPES = new Set([
   'block',
   'goal',
   'countdown',
+  'clock',
   'sketch',
   'raci',
   'map',

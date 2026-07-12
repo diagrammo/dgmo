@@ -54,14 +54,14 @@ describe('flowchart routing', () => {
     expect(getAllChartTypes()).toContain('flowchart');
   });
 
-  it('surfaced chart type count is 49', () => {
+  it('surfaced chart type count is 50', () => {
     // Consolidation #23-27 de-surfaced doughnut, area, multi-line, rasci, daci
     // and hard-removed bar-stacked: 50 → 44. #29 removed the `chord` keyword
     // (circular layout now lives under `arc` + `layout chord`): 44 → 43.
     // BL-115 added `sketch`: 43 → 44. Family chart type added: 44 → 45.
     // Body chart type added: 45 → 46. Goal chart type added: 46 → 47.
-    // Bracket + countdown chart types added: 47 → 49.
-    expect(getAllChartTypes().length).toBe(49);
+    // Bracket + countdown chart types added: 47 → 49. Clock added: 49 → 50.
+    expect(getAllChartTypes().length).toBe(50);
   });
 });
 
