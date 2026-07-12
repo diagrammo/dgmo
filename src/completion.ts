@@ -631,28 +631,60 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       every: {
         description:
-          'Recurring cadence: year | month | week | N days|weeks|months',
+          'Recurring: every <year|month|week|N days|weeks|months> [on <instant>] [at HH:MM] [from <date>]',
       },
       on: {
         description:
           'Instant within the cadence: Aug 21 | 3rd Tuesday | last Friday | Friday',
       },
       at: { description: 'Time of day, 24h (e.g. 18:00); default midnight' },
-      from: { description: 'Anchor date for interval cadences (every N …)' },
-      units: { description: 'days (default) | full | clock | weeks | words' },
+      from: {
+        description:
+          'Interval anchor date: every [N] day|week|month from <date> (e.g. every month from 2026-01-31)',
+      },
+      units: {
+        description: 'human (default) | days | full | clock | weeks | words',
+      },
       round: { description: 'up (default) | down | nearest' },
       fields: { description: 'full-mode segments: subset of d,h,m,s' },
+      'no-visual': {
+        description: 'Suppress the default-on calendar band (header only)',
+      },
       lang: { description: 'Locale for words/month names (en)' },
       'on-day': { description: 'Text shown on the occurrence day (recurring)' },
       since: { description: 'Anchor year → enables the ordinal ("7th")' },
       'since-label': {
-        description: 'Noun the ordinal counts (anniversary, birthday)',
-      },
-      'since-style': {
         description:
-          'Ordinal prominence: eyebrow (default) | headline | tenure | inline',
+          'Eyebrow template: Nth → ordinal word, N → number (e.g. "Nth Anniversary")',
       },
       expired: { description: 'Text shown once a one-shot target passes' },
+    }),
+  ],
+  [
+    'clock',
+    // Live world-clock board. Each row is a place + IANA zone (+ `as` alias).
+    // Directives shape the board; all space-separated key value (no colon).
+    withGlobals({
+      analog: { description: 'Analog dials (default face is digital)' },
+      hours: {
+        description:
+          'Working window: 9-17 | 9am-5pm | 8:30-17:15 (enables status)',
+      },
+      days: {
+        description: 'Working days: mon-fri | mon,wed,fri (default mon-fri)',
+      },
+      'no-sun': {
+        description: 'Hide the sundown/sunrise line (on by default)',
+      },
+      'time-24': {
+        description: '24-hour readout (12-hour am/pm is the default)',
+      },
+      direction: { description: 'lr → columns (time on top); default rows' },
+      'color-by': {
+        description:
+          'What drives each place color: place (default) | work | daylight | time | none',
+        values: ['place', 'work', 'daylight', 'time', 'none'],
+      },
     }),
   ],
   [
