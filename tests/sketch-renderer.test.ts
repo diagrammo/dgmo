@@ -225,6 +225,35 @@ describe('sketch renderer — edges', () => {
     expect(cy1).toBeCloseTo(y0, 3);
   });
 
+  it('a node under a wide group leaves its TOP toward the child above (closest side)', () => {
+    // Q sits directly below the MIDDLE child of a wide 3-across group. The link
+    // is vertical (shared column band), so Q must leave its TOP edge — NOT a
+    // left/right side, which a center-to-center dominant-axis pick would choose
+    // because the group's center sits off to the side.
+    const src =
+      'sketch\n' +
+      '[Vault] at: 0 0\n' +
+      '  A as a at: 0 0\n' +
+      '  B as b at: 3 0\n' +
+      '  C as c at: 6 0\n' +
+      'Q as q at: 3 6\n' +
+      '  -q-> b\n';
+    const parsed = parseSketch(src, P);
+    const layout = layoutSketch(parsed);
+    const idOf = (label: string) =>
+      layout.nodes.find((n) => n.label === label)!.id;
+    const q = layout.nodes.find((n) => n.label === 'Q')!;
+    const geom = sketchEdgeGeometry(layout).find(
+      (g) => g?.sourceId === idOf('Q') && g?.targetId === idOf('B')
+    )!;
+    expect(geom).toBeTruthy();
+    const m = /^M\s+([-\d.]+)\s+([-\d.]+)/.exec(geom.d)!;
+    const [x0, y0] = [Number(m[1]), Number(m[2])];
+    // Start point is on Q's TOP edge, centered on Q — not either vertical side.
+    expect(y0).toBeCloseTo(q.y, 1); // top edge (y), not q.y + q.h (bottom)
+    expect(x0).toBeCloseTo(q.x + q.w / 2, 1); // horizontal midpoint (a top port)
+  });
+
   it('renders edge labels with a bg stroke halo (no rect) above nodes', () => {
     const svg = render('sketch\nA at: 0 0\n  -haul-> b\nB as b at: 4 0');
     const label = svg.querySelector('.sk-edge-label')!;

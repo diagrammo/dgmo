@@ -859,55 +859,48 @@ interface Ports {
 type Side = 'T' | 'B' | 'L' | 'R';
 
 /**
- * Assign each edge a side on its source and target box, purely by direction —
- * a deterministic, mirror-symmetric function of (dx,dy), NOT congestion-aware.
- * (Since every side has ONE shared port, spreading edges off a "crowded" side
- * bought nothing and was the sole reason two mirror-image spokes could pick
- * different sides.) The source takes its dominant-axis side; the target mirrors
- * it (aligned → straight, opposite sides) or attaches on the perpendicular side
- * facing the source (diagonal → clean corner). The later relaxation pass still
- * flips sides where it removes a real node/edge crossing.
+ * Assign each edge a side on its source and target box: each endpoint attaches
+ * on the side CLOSEST to the other box. Orientation is decided by axis overlap,
+ * not a center-to-center dominant axis — the latter mis-picks a side when one
+ * endpoint is a wide group the other sits directly under/beside (a node below a
+ * broad group would leave its RIGHT because the group's center was slightly
+ * more to the side than above). If the two boxes share a column band (their
+ * x-ranges intersect) the link is vertical → top/bottom ports; if they share a
+ * row band it's horizontal → left/right ports; a true diagonal (no overlap on
+ * either axis) faces the other box's center. The port then snaps to the nearest
+ * child (attach()), so a group lands the line on the aligned child. The later
+ * relaxation pass still flips sides where it removes a real node/edge crossing.
  */
 function assignEdgeSides(
   edges: readonly { sourceId: string; targetId: string }[],
-  rectById: Map<string, Rect>,
-  isGroup: (id: string) => boolean
+  rectById: Map<string, Rect>
 ): Array<{ s: Side; t: Side } | null> {
   const cx = (r: Rect): number => r.x + r.w / 2;
   const cy = (r: Rect): number => r.y + r.h / 2;
-  const opposite = (s: Side): Side =>
-    s === 'L' ? 'R' : s === 'R' ? 'L' : s === 'T' ? 'B' : 'T';
-  // The dominant-axis side facing (dx,dy).
+  // The dominant-axis side facing (dx,dy) — diagonal fallback only.
   const facing = (dx: number, dy: number): Side =>
     Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'R' : 'L') : dy >= 0 ? 'B' : 'T';
-  // Below this min/max axis ratio an edge is ~aligned (straight, opposite
-  // sides); above it, diagonal (a corner — perpendicular sides).
-  const DIAG = 0.4;
   return edges.map((e) => {
     const s = rectById.get(e.sourceId);
     const t = rectById.get(e.targetId);
     if (!s || !t) return null;
     const dx = cx(t) - cx(s);
     const dy = cy(t) - cy(s);
-    const ratio =
-      Math.min(Math.abs(dx), Math.abs(dy)) /
-      Math.max(Math.abs(dx), Math.abs(dy), 1);
-    const sSide = facing(dx, dy);
-    const sHoriz = sSide === 'L' || sSide === 'R';
-    // Perpendicular-axis side of the target facing the source.
-    const perp: Side = sHoriz ? (dy <= 0 ? 'B' : 'T') : dx <= 0 ? 'R' : 'L';
-    // A GROUP carries discrete child ports on every side, so it should attach on
-    // the side directly FACING the other endpoint — the line then lands on an
-    // aligned child port (or the group midpoint) and runs straight in. The
-    // perpendicular corner heuristic is only right for a bare 4-port node, whose
-    // sides are plain midpoints. (facing(-d) = the target side pointing back at
-    // the source.)
-    const tSide = isGroup(e.targetId)
-      ? facing(-dx, -dy)
-      : ratio >= DIAG
-        ? perp
-        : opposite(sSide);
-    return { s: sSide, t: tSide };
+    // Overlap span on each axis (negative = a gap between the two rects).
+    const xOverlap = Math.min(s.x + s.w, t.x + t.w) - Math.max(s.x, t.x);
+    const yOverlap = Math.min(s.y + s.h, t.y + t.h) - Math.max(s.y, t.y);
+    if (xOverlap >= 0 && xOverlap >= yOverlap) {
+      // Shared column band → vertical link, top/bottom ports.
+      const below = dy >= 0;
+      return { s: below ? 'B' : 'T', t: below ? 'T' : 'B' };
+    }
+    if (yOverlap >= 0 && yOverlap >= xOverlap) {
+      // Shared row band → horizontal link, left/right ports.
+      const right = dx >= 0;
+      return { s: right ? 'R' : 'L', t: right ? 'L' : 'R' };
+    }
+    // True diagonal: each faces the other's center (target points back).
+    return { s: facing(dx, dy), t: facing(-dx, -dy) };
   });
 }
 
@@ -1221,10 +1214,7 @@ export function sketchEdgeGeometry(
     xs.push(box.x + o.dx + box.w / 2);
     portsById.set(box.id, { ys, xs });
   }
-  const groupIdSet = new Set(layout.boxes.map((b) => b.id));
-  const sides = assignEdgeSides(layout.edges, rectById, (id) =>
-    groupIdSet.has(id)
-  );
+  const sides = assignEdgeSides(layout.edges, rectById);
 
   // Obstacle set for around-routing: every node/box rect, tagged by id. An edge
   // excludes its two endpoints AND the box each endpoint lives in (a line
