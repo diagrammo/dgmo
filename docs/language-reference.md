@@ -117,6 +117,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `mindmap` | radial hierarchy of ideas from a central topic |
 | `org` | reporting hierarchy |
 | `family` | family tree / genealogy: unions (couples), children, remarriage, adoption, GEDCOM-style metadata |
+| `bracket` | single-elimination tournament bracket: winners auto-advance; seed the field for a day-0 skeleton or list results casually; two sides mirror to a championship |
 | `kanban` | task-board columns |
 | `gantt` | project scheduling with task dependencies and milestones |
 | `pert` | project network with three-point estimates and critical path |
@@ -135,6 +136,8 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `treemap` | nested rectangles sized by value (budgets, disk usage, portfolios) |
 | `block` | author-controlled grid of nested, collapsible blocks (system / architecture layouts) |
 | `sketch` | GUI-first free-placement canvas: uniform shapes on a snap grid, arrows, tags (markup is app-generated) |
+| `goal` | single progress-toward-a-target value (`now` vs `target`) as a progress bar, thermometer, or gauge — KPIs, fundraising, quotas |
+| `countdown` | live "N days until X" that ticks every second and is accurate on every load — trip dates, launches, deadlines; the only dynamic chart type |
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
 | `bar` | categorical comparisons (multi-series via `stack` / `group`) |
@@ -1766,38 +1769,31 @@ Henry Turner + Carina Smyth m: 1751
 **Styling tips:** Give each lane a color and let nodes inherit it — reach for a `tag` group only when you need a *second* dimension (e.g. risk) that deliberately breaks lane color. Echo the gateway/terminal delimiters (`<Review>`, `(Paid) success`) even though bare names also resolve — it keeps the source self-documenting. Put every edge label *inside* the arrow (`-invalid->`), never as a trailing word.
 <!-- TIPS end -->
 
-Swimlane diagrams model a cross-functional process: actors/systems are **lanes**, the process flows along the flow axis (`direction LR` default, `TB` transposes), and optional `[Phase]` columns group steps into stages. Nodes are tasks (bare), exclusive gateways (`<X>`), parallel gateways (`<+ X>`), terminals (`(X)`), and subprocesses (`[[X]]`). Edges go last as a flow block; a back-edge to an earlier node draws a routed loop.
+Swimlane diagrams model a cross-functional process: actors/systems are **lanes**, the process flows along the flow axis (`direction LR` default, `TB` transposes), and optional `[Phase]` columns group steps into stages. Nodes are tasks (bare), exclusive gateways (`<X>`), parallel gateways (`<+ X>`), terminals (`(X)`), and subprocesses (`[[X]]`). A `lane` block **owns its edges** — nodes and their outgoing `->` edges are written inline, no separate flow block. A back-edge to an earlier node draws a routed loop.
 
 ```
 swimlane Weekly Publishing
 direction LR
 
 lane Writer gray
+  Draft Post -> Review
+  Revise -> Review
 lane Editor blue
-lane Social green
-
-Writer
-  Draft Post
-  Revise
-Editor
   <Review>
-  Schedule
-  Publish
-Social
+    -changes-> Revise
+    -ok-> Schedule
+  Schedule -> Publish
+  Publish -> Promote
+lane Social green
   Promote
-
-Draft Post -> <Review>
-<Review>
-  -changes-> Revise -> <Review>
-  -ok-> Schedule -> Publish -> Promote
 ```
 
 ### Structure
 
-- `lane <Name> [color]` declares a row (occupant-neutral; person, system, or org) in order. The trailing color (§1.5) tints the band and is the default node fill.
-- A bare line matching a declared lane opens that lane's context; indented lines beneath it are nodes.
-- `[Phase]` opens a phase column (3-deep: phase ▸ lane ▸ node). With no `[Phase]`, the diagram is 2-deep (lane ▸ node). A node's phase membership can only push it right, never left of its column.
-- Node names are globally unique; the flow block references a node by name.
+- `lane <Name> [color]` declares a row (occupant-neutral; person, system, or org) **and opens its block** — the indented lines beneath are its nodes and their inline edges. The trailing color (§1.5) tints the band and is the default node fill. Lane order is first-appearance; re-opening a lane resumes it.
+- A node is owned by the lane where it is a **line-head** (bare node or arrow source); elsewhere the name is a reference. References may point forward. Names are **lane-scoped** — resolve own-lane-first → global-unique → ambiguous; qualify a shared name `Lane.Node`.
+- An unresolved target auto-creates only if **delimited** (`(…)`/`<…>`/`[[…]]`, taking the edge's lane/phase); an unresolved **bare task** is `E_SWIMLANE_UNKNOWN_NODE` (typo protection).
+- `[Phase]` opens a phase column (3-deep: phase ▸ `lane` block ▸ nodes). With no `[Phase]`, the diagram is 2-deep (lane ▸ nodes). A node's phase membership can only push it right, never left of its column.
 
 ### Node tokens
 
@@ -3699,6 +3695,178 @@ Indented under the source shape, targeting an alias (or an unambiguous bare labe
 ### Interactivity vs export
 
 In the desktop and web app a sketch opens in the **canvas editor** (the code pane hides behind a toggle); boxes fold/unfold interactively. Static SVG / PNG export renders the authored state — the same interactive-vs-export split the map, treemap, and block charts use.
+
+---
+
+## 24E. Goal
+
+<!-- TYPE:goal -->
+
+<!-- TIPS start -->
+**Styling tips:** Put the unit in the title (`Marathon Fund ($)`) — there is no format/currency directive. Pick the face for the story: the default progress **bar** for a plain KPI, `thermometer` for fundraising/fill-the-tank goals, `gauge` for a speedometer/quota dial. The fill is **auto traffic-light** by completion (`< 50%` red, `50–80%` orange, `≥ 80%` green) so the color already reads the health of the number — leave it unless you have a reason to override. A trailing color on the title line (`goal Marathon Fund ($) green`) pins one color; `no-auto-color` drops the bands back to the flat palette series color. Percent is always `now / target`; over-target keeps filling the label past 100% while the fill itself clamps, so a stretch result still reads truthfully. Add a `note` block to caption the number with context (who's still owed, what's left) — it takes simple markdown (`**bold**`, `*italic*`, `` `code` ``) and `- ` bullets. Use `solid-fill` when the tint reads too faint on a dashboard, and `no-percent` / `no-value` to drop either label when the number speaks for itself.
+<!-- TIPS end -->
+
+A single progress-toward-a-target value: one `now` measured against one `target`, drawn in one of three static faces. No time axis, no series, no milestones — just "how close am I?". The face is a bare-flag mode directive under the title (like treemap's `radial`); all three faces consume the same value pair.
+
+### Declaration
+
+```
+goal [Title with unit]
+
+[thermometer | gauge]     // omit for the default progress bar
+now <number>
+target <number>
+```
+
+### Example
+
+```
+goal Doubloons Recovered ($)
+
+thermometer
+
+now 6400
+target 10000
+```
+
+### Directives
+
+| Directive              | Effect                                                        |
+| ---------------------- | ------------------------------------------------------------- |
+| `thermometer` / `gauge`| Select the render face (bare flag; omit for the progress bar). |
+| `now <number>`         | Current value (required; may exceed the target).              |
+| `target <number>`      | Goal value (required; must be > 0).                           |
+| `no-percent`           | Hide the `%` label.                                           |
+| `no-value`             | Hide the raw `now / target` label.                            |
+| `solid-fill`           | Full-saturation fill instead of the default 25% tint.         |
+| `no-title`             | Hide the banner title.                                        |
+| `no-note`              | Suppress the `note` block even if one is authored.           |
+| `no-auto-color`        | Disable the traffic-light bands; use the flat palette color.  |
+| `note <text>` / `note` + indented body | Free-text caption beside/below the face (§ note block). |
+
+### Note block
+
+An optional caption. Inline (`note Still waiting on three crews`) or a block header on its own line followed by an **indented body**:
+
+```
+goal Grog Barrel Fill (L)
+thermometer
+now 34
+target 50
+note
+  **Great job, crew!** Still waiting on tallies from:
+  - Seattle — first mate says "soon"
+  - Columbus — *almost there!*
+```
+
+The body supports inline `**bold**` / `*italic*` / `` `code` ``, `- `/`* ` bullets, and blank-line gaps. It renders in the left column for `thermometer`/`gauge` and under the bar for the default face. `no-note` hides it even when authored.
+
+### Values & color
+
+Values accept `_` separators (`10_000`) but not thousands commas; the unit lives in the title. Color precedence: (1) an explicit trailing color token on the title line (`goal Marathon Fund ($) green`, §1.5) always wins; (2) otherwise the **auto traffic-light** band by completion — `< 50%` red, `50–80%` orange, `≥ 80%` green (over-target stays green), which needs a `target`; (3) `no-auto-color` disables the bands and falls back to the palette series color. The fill is a 25% tint of the resolved color; `solid-fill` opts into full saturation.
+
+### Semantics
+
+Percent is `now / target`. Over-target clamps the fill at 100% while the `%` label shows the true value (e.g. `120%`); the gauge needle pins at max. A negative `now` clamps the fill to 0% but keeps the label truthful. A missing or ≤ 0 `target` emits an error-severity diagnostic and the chart falls back to a 0% shell; a missing `now` is treated as 0 with a warning.
+
+---
+
+## 24E. Countdown
+
+<!-- TYPE:countdown -->
+
+<!-- TIPS start -->
+**Styling tips:** The only dynamic chart — it ticks every second and is accurate on every load, so use it for a live "N days until X" widget, not a static report. Keep the title to the event (`Trip to Japan`); the target date renders as a caption automatically. `target` is a space-separated `key value` directive (no colon): a bare date (`2026-08-21`) counts to the viewer's local midnight, a datetime or offset is honored. Default `units days` reads best for weeks/months out; use `units full` for a launch-day `Nd HH:MM:SS` clock. Set `expired` to the celebration text (`🚀 Shipped!`); after the target passes every live surface shows it and the tick stops. On images (PNG export, `.svg` via `<img>`, GitHub camo) it can't tick and shows the whole-day count baked at export time — the correct fallback.
+<!-- TIPS end -->
+
+The only *dynamic* dgmo chart: a single "N days until X" recomputed against the viewer's clock on every load and ticking every second on any live surface. Distinct from `goal` (static) — a countdown has no `now`/`target` pair, just one future instant. The renderer bakes a whole-day fallback number (the no-JS floor); a tiny page-level ticker overwrites it live and, in `units full`, upgrades it to `Nd HH:MM:SS`.
+
+### Declaration
+
+```
+countdown [Title]
+
+target <ISO date | datetime | now>
+units <days | full>       // default days
+expired <text>            // default "Now!"
+```
+
+### Example
+
+```
+countdown Trip to Japan
+
+target 2026-08-21
+```
+
+### Directives
+
+| Directive               | Effect                                                                 |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `target <iso>`          | The future instant (required). `2026-08-21`, `2026-08-21T18:00`, or with a tz offset. The literal `now` resolves at render (→ immediately expired; for testing). |
+| `units <days\|full>`    | `days` (default) shows whole days (ceil); `full` ticks `Nd HH:MM:SS` on live surfaces. |
+| `expired <text>`        | Shown once the target passes; the tick stops. Default `"Now!"`.        |
+
+### Values & color
+
+A bare `YYYY-MM-DD` counts to the viewer's **local midnight**; a datetime with no offset is viewer-local; an explicit offset is honored. The trailing-token color rule (§1.5) applies to the title line (`countdown Trip to Japan blue`) and tints the figure.
+
+### Semantics
+
+Days mode uses `ceil` — a target later *today* reads "1 day", not "0". Full mode floors the days and shows `HH:MM:SS` for the remainder. Once the target passes, the `expired` text replaces the number and that node stops ticking (no negative counts). Live surfaces recompute from the absolute target on every load/route-change/note-open, so there is **no persisted state** and no drift; image surfaces (PNG, `.svg`-as-image, GitHub camo) show the whole-day count baked at export time.
+
+---
+
+## 24F. Bracket
+
+<!-- TYPE:bracket -->
+
+<!-- TIPS start -->
+**Styling tips:** Two ways to author. For a bracket you post before the games — a formal tournament — declare the field with `seed N Name` and (optionally) name the columns with `rounds Wild Card, Division, Championship`; the full skeleton renders on day 0 with unplayed slots as dashed `TBD`, top seeds pre-placed on their byes. For a game-night or a finished bracket, skip the seeds entirely and just list results — the tree shape is inferred. Results read left-to-right: **the winner is always on the left of `beats`** (`Yankees beats Guardians 2-1`), and the score is a cosmetic tag that never changes who advanced. Use `A vs B` for a matchup that hasn't been played. Wrap each half in a `[Side]` header (the kanban idiom, optional trailing color) and the two sides mirror inward to a center championship — an indent-0 result outside any side. Names are identifiers: reuse the exact same name to advance a competitor a round.
+<!-- TIPS end -->
+
+A single-elimination tournament bracket. Winners auto-advance up a tree that builds itself from the results — a one-sided ladder for a simple pool, or two `[Side]` columns that mirror inward and meet at a championship (MLB / NBA / NCAA-style). Any `seed` line switches on **seeded mode** (day-0 skeleton); otherwise the bracket is **casual** (structure inferred from `beats` / `vs` lines).
+
+### Declaration
+
+```
+bracket [Title]
+rounds [Col1, Col2, ...]         // optional column names, entry round → inner
+
+[Side] [color]                   // optional — two sides mirror to a center final
+  seed N [Competitor]            // seeded mode: declare the field (day-0 skeleton)
+  [Winner] beats [Loser] [score] // decided match — WINNER on the left, score cosmetic
+  [A] vs [B]                     // pending match — no winner yet
+```
+
+### Example
+
+```
+bracket Grog Cup
+
+Black Pearl beats Sea Serpent 5-3
+Salty Dog beats Kraken 4-2
+Black Pearl beats Salty Dog 6-5
+```
+
+### Directives
+
+| Directive                      | Effect                                                                       |
+| ------------------------------ | ---------------------------------------------------------------------------- |
+| `rounds A, B, C`               | Name the columns entry-round → inner (or an indented block with per-round `Name color`); absent → generic `Round N` / `Final`. |
+| `seed N [Name] [k: v]`         | Declare a seeded entrant → seeded mode + day-0 skeleton (top seeds get byes); trailing `k: v` tags the team. |
+| `tag Group [as g]`             | Tag group (block/kanban idiom) — a competitor's tag value colors its box outline; a legend renders. |
+| `[Side] [color]`               | A bracket column (kanban idiom); two sides mirror to a center championship.   |
+| `[Winner] beats [Loser] [score] [@ Home]` | A decided match — the left name advances; score is cosmetic; `@ Home` marks the host. Indent prose under it for commentary. |
+| `[A] vs [B]`                   | A pending, undecided match (both boxes drawn, no winner emphasis).            |
+| `accent <color>`               | Winner accent color override (default blue). Tags/sides still win per-box.    |
+| `no-round`                     | Suppress the round/column labels.                                            |
+| `no-legend`                    | Hide the tag legend (outlines still colored).                               |
+| `single-elim` / `double-elim` / `seeded` | Format flags. `double-elim` reserved — not yet supported; `seeded` forces seeded mode. |
+
+### Semantics
+
+The winner is always the left operand of `beats`, regardless of the score; a score that shows the winner lower emits a warning but keeps the declared winner. Reusing a name advances that competitor (same string = same entrant); a competitor whose first appearance is a later round simply never played round 1 (a bye). In seeded mode the field builds the standard single-elim skeleton (recursive 1-vs-N seeding: `3v6` / `4v5` for a six-team side, top seeds bye), every slot renders on day 0, and `beats` lines overwrite the `TBD` slots as games are played. Duplicate competitor names error (names are identifiers); `double-elim` parses but emits a "not yet supported" diagnostic.
 
 ---
 

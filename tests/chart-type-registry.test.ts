@@ -42,6 +42,7 @@ const EXPECTED_CATEGORY: Record<
   c4: 'diagram',
   state: 'diagram',
   sitemap: 'diagram',
+  bracket: 'diagram',
   infra: 'diagram',
   gantt: 'diagram',
   pert: 'diagram',
@@ -69,6 +70,8 @@ const EXPECTED_CATEGORY: Record<
   ring: 'visualization',
   treemap: 'visualization',
   block: 'visualization',
+  goal: 'visualization',
+  countdown: 'visualization',
   map: 'visualization',
   // data-chart (14)
   bar: 'data-chart',

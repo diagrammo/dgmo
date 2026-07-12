@@ -199,6 +199,7 @@ describe('highlight coverage — rendered role (R2)', () => {
 const INVENTORY = {
   DIRECTIVE: [
     'abstract',
+    'accent',
     'activations',
     'active-tag',
     'animate',
@@ -225,6 +226,7 @@ const INVENTORY = {
     'era',
     'extends',
     'flow-width',
+    'gauge',
     'hide',
     'holiday',
     'implements',
@@ -238,6 +240,7 @@ const INVENTORY = {
     'marker',
     'max',
     'no-activations',
+    'no-auto-color',
     'no-cities',
     'no-cluster-pois',
     'no-coastline',
@@ -246,6 +249,7 @@ const INVENTORY = {
     'no-dependencies',
     'no-legend',
     'no-name',
+    'no-note',
     'no-notes',
     'no-percent',
     'no-poi-labels',
@@ -256,6 +260,7 @@ const INVENTORY = {
     'no-value',
     'node-detail',
     'notation',
+    'now',
     'order',
     'orientation',
     'orientation-horizontal',
@@ -268,6 +273,7 @@ const INVENTORY = {
     'rings',
     'roles',
     'rotate',
+    'rounds',
     'route',
     'rows',
     'scale',
@@ -293,7 +299,9 @@ const INVENTORY = {
     'start-date',
     'sub-node-label',
     'tags',
+    'target',
     'technology',
+    'thermometer',
     'time-unit',
     'title',
     'today-marker',
@@ -311,6 +319,7 @@ const INVENTORY = {
   ],
   CONTROL: [
     'alert',
+    'beats',
     'chart',
     'else',
     'if',
@@ -325,6 +334,7 @@ const INVENTORY = {
     'skeleton',
     'table',
     'tabs',
+    'vs',
   ],
   STATUS: [
     'backlog',
@@ -344,12 +354,17 @@ const INVENTORY = {
     'date',
     'decimal',
     'default',
+    'double-elim',
     'fk',
     'float',
     'int',
+    'no-round',
+    'no-rounds',
     'nullable',
     'pk',
     'position',
+    'seeded',
+    'single-elim',
     'text',
     'timestamp',
     'unique',
@@ -427,11 +442,24 @@ describe('highlight coverage — label demotion (R3)', () => {
   // it is content, not a directive. This is the only collision mitigation the
   // context-free specializer allows (label-zone demotion post-pass).
   it("'start' inside an arrow label renders as default, not keyword", () => {
-    // Label zone must contain an Identifier ('now') for the demotion pass to
-    // treat it as text (vs an offset/lag pattern like `--1w->`).
+    // A label made entirely of keyword words (`start now`) is still text: the
+    // demotion pass treats any keyword-bearing zone as a label (not an offset
+    // like `--1w->`) and demotes them all.
     const tokens = highlightDgmo('flowchart\nA -start now-> B\n');
     const label = tokens.filter((t) => t.text === 'start');
     expect(label.length).toBeGreaterThanOrEqual(1);
     expect(label[0]!.role).toBe('default');
+  });
+
+  it('goal `now`/`target` highlight as leaders but demote inside labels', () => {
+    const goal = highlightDgmo('goal Quota\nnow 6400\ntarget 10000\n');
+    expect(goal.find((t) => t.text === 'now')!.role).toBe('keyword');
+    expect(goal.find((t) => t.text === 'target')!.role).toBe('keyword');
+
+    // Same words inside a flowchart arrow label must NOT light up.
+    const nowLabel = highlightDgmo('flowchart\nA -start now-> B\n');
+    expect(nowLabel.find((t) => t.text === 'now')!.role).toBe('default');
+    const targetLabel = highlightDgmo('flowchart\nA -pay target-> B\n');
+    expect(targetLabel.find((t) => t.text === 'target')!.role).toBe('default');
   });
 });

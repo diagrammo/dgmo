@@ -409,6 +409,7 @@ describe('COMPLETION_REGISTRY', () => {
       'timeline',
       'line',
       'event-line',
+      'goal',
     ];
     for (const type of expected) {
       it(`exposes solid-fill for ${type}`, () => {
@@ -444,6 +445,26 @@ describe('COMPLETION_REGISTRY', () => {
           `${type} should not expose solid-fill`
         ).toBeUndefined();
       });
+    }
+  });
+
+  it('goal exposes its faces, values, and opt-out directives', () => {
+    const spec = COMPLETION_REGISTRY.get('goal');
+    expect(spec, 'goal not in registry').toBeDefined();
+    for (const key of [
+      'thermometer',
+      'gauge',
+      'now',
+      'target',
+      'note',
+      'no-percent',
+      'no-value',
+      'no-note',
+      'no-auto-color',
+      'solid-fill',
+      'no-title',
+    ]) {
+      expect(spec!.directives[key], `goal should expose ${key}`).toBeDefined();
     }
   });
 

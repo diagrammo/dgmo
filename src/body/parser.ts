@@ -25,7 +25,7 @@ import {
 } from '../utils/tag-groups';
 import { measureIndent, extractColor, parseFirstLine } from '../utils/parsing';
 import { BODY_DX } from './diagnostics';
-import { getFigure, resolvePartKey } from './catalog';
+import { BODY_TERMS, getFigure, resolvePartKey } from './catalog';
 import type { BodyOptions, BodyPart, BodyView, ParsedBody } from './types';
 
 const FORM_RE = /^(muscle|skin|skeletal)$/i;
@@ -179,18 +179,32 @@ export function parseBody(
       if (m) {
         contentStarted = true;
         currentTagGroup = null;
+        let name = m[1]!;
+        let rest = m[2] ?? '';
+        // A bare leading `left`/`right` is an anatomical-side modifier (no
+        // catalog part is named that), e.g. `right pec`. Peel it off and take
+        // the next token as the real part name.
+        let side: 'left' | 'right' | undefined;
+        if (/^(left|right)$/i.test(name)) {
+          const m2 = rest.match(PART_RE);
+          if (m2) {
+            side = name.toLowerCase() as 'left' | 'right';
+            name = m2[1]!;
+            rest = m2[2] ?? '';
+          }
+        }
         const metadata: Record<string, string> = {};
-        const rest = m[2] ?? '';
         for (const pair of rest.matchAll(META_PAIR_RE)) {
           const key =
             aliasMap.get(pair[1]!.toLowerCase()) ?? tagAttrKey(pair[1]!);
           metadata[key] = pair[2]!.trim();
         }
         currentPart = {
-          name: m[1]!,
+          name,
           metadata,
           notes: [],
           lineNumber,
+          ...(side && { side }),
         };
         parts.push(currentPart);
         continue;
@@ -222,4 +236,24 @@ export function parseBody(
     parts,
     diagnostics,
   };
+}
+
+/**
+ * Completion vocabulary for the active figure(s): every catalog muscle,
+ * surface landmark, and alias that resolves in a requested view, plus the
+ * `left`/`right` side modifier. Powers editor autocomplete + highlighting.
+ */
+export function extractSymbols(docText: string): {
+  kind: 'body';
+  entities: string[];
+} {
+  const parsed = parseBody(docText);
+  const figures = (
+    parsed.options.views.length ? parsed.options.views : ['front']
+  ).map((v) => getFigure(parsed.options.sex, v as BodyView));
+  const entities = BODY_TERMS.filter(
+    (t) =>
+      t === 'left' || t === 'right' || figures.some((f) => resolvePartKey(f, t))
+  );
+  return { kind: 'body', entities };
 }

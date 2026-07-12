@@ -5,7 +5,7 @@ import { mix, shapeFill } from '../src/palettes/color-utils';
 import { SKETCH_FOOT_H, SKETCH_HALF_SLOT_Y } from '../src/sketch/geometry';
 import { layoutSketch } from '../src/sketch/layout';
 import { parseSketch } from '../src/sketch/parser';
-import { renderSketch } from '../src/sketch/renderer';
+import { renderSketch, sketchEdgeGeometry } from '../src/sketch/renderer';
 
 const P = getPalette('nord').light;
 
@@ -46,6 +46,30 @@ describe('sketch renderer — structure', () => {
     expect(svg.querySelectorAll('.sk-edge-group').length).toBe(3);
     expect(svg.textContent).toContain('Plunder Pipeline');
     expect(svg.querySelector('.sk-legend-group')).not.toBeNull();
+  });
+
+  it('assigns sides by direction only — an up-left edge shares the left port', () => {
+    // Hub with left (l), right (r), and an up-and-left edge (u). Assignment is
+    // purely directional: u is horizontally dominant → LEFT side, so it leaves
+    // the same left-side port as l (one shared port per side, no congestion
+    // flip to the top — that`s what kept mirror-image spokes symmetric).
+    const svg = render(
+      'sketch\n' +
+        'Hub as hub at: 10 4\n  -a-> l\n  -b-> r\n  -c-> u\n' +
+        'L as l at: 0 4\nR as r at: 20 4\nU as u at: 4 0\n'
+    );
+    // Edge groups are appended in declaration order: [→l, →r, →u].
+    const starts = [...svg.querySelectorAll('.sk-edge-group')].map((g) => {
+      const m = /^M\s+([-\d.]+)\s+([-\d.]+)/.exec(
+        g.querySelector('path')!.getAttribute('d')!
+      )!;
+      return { x: Number(m[1]), y: Number(m[2]) };
+    });
+    const [sl, sr, su] = starts;
+    // u shares l`s exact left-side port; r leaves the opposite (right) side.
+    expect(su!.x).toBeCloseTo(sl!.x, 1);
+    expect(su!.y).toBeCloseTo(sl!.y, 1);
+    expect(sr!.x).not.toBeCloseTo(sl!.x, 1);
   });
 
   it('marks each shape kind with a header type badge', () => {
@@ -115,7 +139,9 @@ describe('sketch renderer — edges', () => {
       'sketch\nA at: 0 0\n  -one-> b\n  <-both-> b\n  -none- b\n  ~sec~> b\nB as b at: 4 0';
     const svg = render(src);
     // Exclude the wide transparent hit paths (.sk-edge-hit) — count drawn lines.
-    const paths = [...svg.querySelectorAll('.sk-edge-group path:not(.sk-edge-hit)')];
+    const paths = [
+      ...svg.querySelectorAll('.sk-edge-group path:not(.sk-edge-hit)'),
+    ];
     expect(paths.filter((p) => p.getAttribute('marker-end')).length).toBe(3);
     expect(paths.filter((p) => p.getAttribute('marker-start')).length).toBe(1);
     expect(
@@ -173,11 +199,280 @@ describe('sketch renderer — edges', () => {
     expect(offset.y0).not.toBeCloseTo(offset.y1, 1);
   });
 
-  it('renders edge labels with a background halo above nodes', () => {
+  it('a source aligned with a group child gets a STRAIGHT line to that child`s port', () => {
+    // A tall group: the source aligns (same row) with the TOP child, which sits
+    // in the top quarter of the group`s left side. The synthetic port must be the
+    // child`s own midpoint (used verbatim) so the line is dead straight — NOT
+    // corner-clamped toward the group`s vertical middle (which would bend it).
+    const svg = render(
+      'sketch\n' +
+        'Feed as feed at: 0 0\n  -> ptop\n' +
+        '[Rack] as rack at: 4 0\n' +
+        '  Top as ptop at: 0 0\n' +
+        '  Mid as pmid at: 0 3\n' +
+        '  Low as plow at: 0 6\n'
+    );
+    const d = svg.querySelector('.sk-edge-group path')!.getAttribute('d')!;
+    const m = d.match(
+      /^M (\S+) (\S+) C (\S+) (\S+), (\S+) (\S+), (\S+) (\S+)$/
+    )!;
+    const [y0, cy0, cy1, y1] = [m[2], m[4], m[6], m[8]].map(Number);
+    // Equal endpoint ys AND flat control-point ys → a dead-straight horizontal
+    // line into the top child`s synthetic port. A corner-clamp toward the tall
+    // group`s vertical middle would have bent it (y1 ≠ y0).
+    expect(y1).toBeCloseTo(y0, 3);
+    expect(cy0).toBeCloseTo(y0, 3);
+    expect(cy1).toBeCloseTo(y0, 3);
+  });
+
+  it('renders edge labels with a bg stroke halo (no rect) above nodes', () => {
     const svg = render('sketch\nA at: 0 0\n  -haul-> b\nB as b at: 4 0');
     const label = svg.querySelector('.sk-edge-label')!;
-    expect(label.querySelector('rect')).not.toBeNull();
+    // No opaque bg rect — the line is masked by a bg-colored glyph halo painted
+    // under the fill (paint-order: stroke), so no visible whitespace box.
+    expect(label.querySelector('rect')).toBeNull();
+    const text = label.querySelector('text')!;
+    expect(text.getAttribute('paint-order')).toBe('stroke');
+    expect(text.getAttribute('stroke')).toBeTruthy();
     expect(label.textContent).toBe('haul');
+  });
+
+  it('routes an edge AROUND a stacked sibling instead of through it', () => {
+    // A shape below a group links to the group`s TOP child. The natural
+    // straight attachment would enter the box from the bottom and cut through
+    // the BOTTOM sibling to reach the top one — obstacle avoidance must reroute
+    // it (here: enter the top child from a clear side).
+    const src =
+      'sketch\n' +
+      'Net as net at: 0 6\n  -binds-> top\n' +
+      '[Hold] at: 0 0\n' +
+      '  Top as top at: 0 0\n' +
+      '  Bot as bot at: 0 3\n';
+    const parsed = parseSketch(src, P);
+    const layout = layoutSketch(parsed);
+    const idOf = (label: string) =>
+      layout.nodes.find((n) => n.label === label)!.id;
+    const [netId, topId, botId] = [idOf('Net'), idOf('Top'), idOf('Bot')];
+    const geom = sketchEdgeGeometry(layout).find(
+      (g) => g?.sourceId === netId && g?.targetId === topId
+    )!;
+    expect(geom).toBeTruthy();
+
+    // Sample the cubic and assert no point lands inside the sibling `bot` rect.
+    const m =
+      /^M\s+([-\d.]+)\s+([-\d.]+)\s+C\s+([-\d.]+)\s+([-\d.]+),\s+([-\d.]+)\s+([-\d.]+),\s+([-\d.]+)\s+([-\d.]+)/.exec(
+        geom.d
+      )!;
+    const [x0, y0, cx0, cy0, cx1, cy1, x1, y1] = m.slice(1).map(Number) as [
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+    ];
+    const bot = layout.nodes.find((n) => n.id === botId)!;
+    let inside = 0;
+    for (let i = 0; i <= 40; i++) {
+      const t = i / 40;
+      const u = 1 - t;
+      const px =
+        u * u * u * x0 +
+        3 * u * u * t * cx0 +
+        3 * u * t * t * cx1 +
+        t * t * t * x1;
+      const py =
+        u * u * u * y0 +
+        3 * u * u * t * cy0 +
+        3 * u * t * t * cy1 +
+        t * t * t * y1;
+      if (
+        px > bot.x + 6 &&
+        px < bot.x + bot.w - 6 &&
+        py > bot.y + 6 &&
+        py < bot.y + bot.h - 6
+      )
+        inside++;
+    }
+    expect(inside).toBe(0);
+  });
+
+  it('places a rerouted edge`s label clear of every shape', () => {
+    // The Net→Top edge detours around the box; its label must sit on the ARC
+    // midpoint (out in the bulge), not the endpoint average (which lands on the
+    // box / sibling it routed past).
+    const src =
+      'sketch\n' +
+      'Net as net at: 0 6\n  -binds-> top\n' +
+      '[Hold] at: 0 0\n' +
+      '  Top as top at: 0 0\n' +
+      '  Bot as bot at: 0 3\n';
+    const layout = layoutSketch(parseSketch(src, P));
+    const idOf = (label: string) =>
+      layout.nodes.find((n) => n.label === label)!.id;
+    const geom = sketchEdgeGeometry(layout).find(
+      (g) => g?.sourceId === idOf('Net') && g?.targetId === idOf('Top')
+    )!;
+    const rects = [
+      ...layout.nodes.map((n) => ({ x: n.x, y: n.y, w: n.w, h: n.h })),
+      ...layout.boxes.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h })),
+    ];
+    const inside = rects.some(
+      (r) =>
+        geom.mid.x > r.x &&
+        geom.mid.x < r.x + r.w &&
+        geom.mid.y > r.y &&
+        geom.mid.y < r.y + r.h
+    );
+    expect(inside).toBe(false);
+  });
+
+  it('declutters overlapping edge labels onto their own lines', () => {
+    // Two edges cross in the middle; naively both labels land on the crossing
+    // point and overlap. Declutter must slide them apart (each stays on its own
+    // curve) so neither box intersects the other.
+    const svg = render(
+      'sketch\n' +
+        'A as a at: 0 4\n  -alpha-> c\n' +
+        'B as b at: 8 4\n  -beta-> d\n' +
+        'C as c at: 8 0\nD as d at: 0 0\n'
+    );
+    // No bg rect anymore — reconstruct each label`s footprint from its centered
+    // text position + an approximate glyph extent (font-size 12, ~0.56 em/char).
+    const FS = 12;
+    const boxes = [...svg.querySelectorAll('.sk-edge-label text')].map((t) => {
+      const cx = Number(t.getAttribute('x'));
+      const cy = Number(t.getAttribute('y'));
+      const w = (t.textContent ?? '').length * FS * 0.56;
+      return { x: cx - w / 2, y: cy - FS / 2, w, h: FS };
+    });
+    expect(boxes.length).toBe(2);
+    const [a, b] = boxes as [(typeof boxes)[0], (typeof boxes)[0]];
+    const overlap =
+      a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    expect(overlap).toBe(false);
+  });
+
+  it('uses at most 4 ports per node (one shared port per side)', () => {
+    // An 8-way hub: every spoke must leave from one of ONLY four source ports
+    // (the four side midpoints), edges on the same side sharing a port.
+    const layout = layoutSketch(
+      parseSketch(
+        'sketch\n' +
+          'H as h at: 6 4\n  -> n\n  -> ne\n  -> e\n  -> se\n  -> s\n  -> sw\n  -> w\n  -> nw\n' +
+          'N as n at: 6 0\nNE as ne at: 12 0\nE as e at: 12 4\nSE as se at: 12 8\n' +
+          'S as s at: 6 8\nSW as sw at: 0 8\nW as w at: 0 4\nNW as nw at: 0 0\n',
+        P
+      )
+    );
+    const idH = layout.nodes.find((n) => n.label === 'H')!.id;
+    const ports = new Set(
+      sketchEdgeGeometry(layout)
+        .filter((g) => g?.sourceId === idH)
+        .map((g) => {
+          const m = /^M ([\d.-]+) ([\d.-]+)/.exec(g!.d)!;
+          return `${Math.round(Number(m[1]))},${Math.round(Number(m[2]))}`;
+        })
+    );
+    expect(ports.size).toBeLessThanOrEqual(4);
+  });
+
+  it('adds a hop on one line where two edges cross', () => {
+    // Two edges cross in the middle (swapped corners). Exactly one gets a
+    // `dRender` hop path (an added C hump) so the crossing reads as a jump; the
+    // pure `d` cubic is untouched. The other edge keeps a plain cubic.
+    const layout = layoutSketch(
+      parseSketch(
+        'sketch\n' +
+          'A as a at: 0 4\n  -x-> c\n' +
+          'B as b at: 8 4\n  -y-> d\n' +
+          'C as c at: 8 0\nD as d at: 0 0\n',
+        P
+      )
+    );
+    const geom = sketchEdgeGeometry(layout).filter(Boolean);
+    const hopped = geom.filter((g) => g!.dRender);
+    expect(hopped.length).toBe(1);
+    const h = hopped[0]!;
+    // Pure `d` is a single cubic (one `C`, no line-tos) for other consumers.
+    expect(h.d).toMatch(/^M [\d.-]+ [\d.-]+ C [^A-Z]+$/);
+    // The hop render path is a polyline (L commands) with a hump cubic — the
+    // added geometry that reads as a jump.
+    expect(h.dRender).toContain('L ');
+    expect(h.dRender).toContain('C ');
+  });
+
+  it('picks the side that avoids crossing another edge', () => {
+    // Mirrors the twin-holds case: a bottom-right node links to the TOP child of
+    // a group, while a bottom-left node links to the BOTTOM child of the same
+    // group. Routing the top-child edge up the group`s INNER side would cross
+    // the bottom-child edge; it must take the OUTER side instead.
+    const src =
+      'sketch\n' +
+      'Left as left at: 0 6\n  -> d\n' +
+      'Right as right at: 8 6\n  -> c\n' +
+      '[Box] at: 6 0\n' +
+      '  Ctop as c at: 0 0\n' +
+      '  Dbot as d at: 0 3\n';
+    const layout = layoutSketch(parseSketch(src, P));
+    const idOf = (label: string) =>
+      layout.nodes.find((n) => n.label === label)!.id;
+    const geom = sketchEdgeGeometry(layout);
+    const find = (from: string, to: string) =>
+      geom.find((g) => g?.sourceId === idOf(from) && g?.targetId === idOf(to))!;
+    const sample = (d: string) => {
+      const m =
+        /^M\s+([-\d.]+)\s+([-\d.]+)\s+C\s+([-\d.]+)\s+([-\d.]+),\s+([-\d.]+)\s+([-\d.]+),\s+([-\d.]+)\s+([-\d.]+)/.exec(
+          d
+        )!;
+      const [x0, y0, cx0, cy0, cx1, cy1, x1, y1] = m
+        .slice(1)
+        .map(Number) as number[];
+      const pts: Array<{ x: number; y: number }> = [];
+      for (let i = 0; i <= 24; i++) {
+        const t = i / 24;
+        const u = 1 - t;
+        pts.push({
+          x:
+            u * u * u * x0! +
+            3 * u * u * t * cx0! +
+            3 * u * t * t * cx1! +
+            t * t * t * x1!,
+          y:
+            u * u * u * y0! +
+            3 * u * u * t * cy0! +
+            3 * u * t * t * cy1! +
+            t * t * t * y1!,
+        });
+      }
+      return pts;
+    };
+    const cross = (
+      a: { x: number; y: number }[],
+      b: { x: number; y: number }[]
+    ) => {
+      const o = (p: any, q: any, r: any) =>
+        (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+      let n = 0;
+      for (let i = 0; i + 1 < a.length; i++)
+        for (let j = 0; j + 1 < b.length; j++) {
+          const d1 = o(a[i], a[i + 1], b[j]);
+          const d2 = o(a[i], a[i + 1], b[j + 1]);
+          const d3 = o(b[j], b[j + 1], a[i]);
+          const d4 = o(b[j], b[j + 1], a[i + 1]);
+          if (
+            ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+            ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+          )
+            n++;
+        }
+      return n;
+    };
+    expect(
+      cross(sample(find('Right', 'Ctop').d), sample(find('Left', 'Dbot').d))
+    ).toBe(0);
   });
 });
 
@@ -267,7 +562,9 @@ describe('sketch renderer — options', () => {
     expect(shown.querySelector('.sk-desc')).not.toBeNull();
     expect(shown.textContent).toContain('this is a note');
     // Hidden via directive.
-    const viaDirective = render('sketch\nno-descriptions\nLedger at: 0 0\n  > this is a note');
+    const viaDirective = render(
+      'sketch\nno-descriptions\nLedger at: 0 0\n  > this is a note'
+    );
     expect(viaDirective.querySelector('.sk-desc')).toBeNull();
     expect(viaDirective.textContent).not.toContain('this is a note');
     expect(viaDirective.textContent).toContain('Ledger'); // name still there

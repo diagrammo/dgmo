@@ -23,11 +23,15 @@ import type { D3ExportDimensions } from '../utils/d3-types';
 import { getSeriesColors, mix } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { FONT_FAMILY } from '../fonts';
-import { resolveActiveTagGroup, resolveTagColor } from '../utils/tag-groups';
+import {
+  resolveActiveTagGroup,
+  resolveTagColor,
+  tagAttrKey,
+} from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type { LegendGroupData } from '../utils/legend-types';
-import { getFigure, resolvePartKey } from './catalog';
-import type { BodyFigure, BodyPart, ParsedBody } from './types';
+import { getFigure, getPartGeom, resolvePartKey } from './catalog';
+import type { BodyFigure, BodyPart, BodyView, ParsedBody } from './types';
 
 const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -53,18 +57,62 @@ type Box = [number, number, number, number]; // vx vy vw vh
 interface FigureRender {
   fig: BodyFigure;
   body: string; // base + highlighted parts + outline + head (raw coords)
-  anchors: Map<string, { x: number; y: number; color: string; part: BodyPart }>;
+  anchors: Map<
+    string,
+    {
+      x: number;
+      y: number;
+      centers: Array<{ x: number; y: number }>;
+      color: string;
+      emph: string;
+      part: BodyPart;
+    }
+  >;
   vx: number;
   vy: number;
   vw: number;
   vh: number;
 }
 
+/** Absolute x of a path's start point (the initial M/m is always absolute). */
+function pathStartX(d: string): number {
+  const m = d.match(/[Mm]\s*(-?[\d.]+)/);
+  return m ? parseFloat(m[1]!) : 0;
+}
+
+/** Distinct anchor-map key so `left biceps` and `right biceps` don't collide. */
+function partKey(part: BodyPart): string {
+  return (part.side ? `${part.side} ` : '') + part.name.toLowerCase();
+}
+
+/** Label text — prefixes the anatomical side when one was given. */
+function partLabel(part: BodyPart): string {
+  return part.side ? `${part.side} ${part.name}` : part.name;
+}
+
+/**
+ * Pick the component centre for a named anatomical side. `side` is the
+ * patient's own left/right; on a front view that mirrors to the opposite
+ * screen side, on a back view it maps straight through.
+ */
+function sideCenter(
+  centers: Array<{ x: number; y: number }>,
+  side: 'left' | 'right',
+  view: BodyView
+): { x: number; y: number } {
+  const wantScreenRight = view === 'front' ? side === 'left' : side === 'right';
+  return centers.reduce((best, c) =>
+    wantScreenRight ? (c.x > best.x ? c : best) : c.x < best.x ? c : best
+  );
+}
+
 /** Render a figure's body (no labels) + collect per-part anchors in raw coords. */
 function renderFigureBody(
   fig: BodyFigure,
+  view: BodyView,
   parts: readonly BodyPart[],
   partColor: (p: BodyPart) => string,
+  emphKey: (p: BodyPart) => string,
   form: ParsedBody['options']['form'],
   palette: PaletteColors,
   defs: string[]
@@ -74,15 +122,19 @@ function renderFigureBody(
   const seam = palette.bg;
   const outlineStroke = palette.textMuted;
 
+  // Shared soft body gradient — both forms fill the silhouette with it so the
+  // figure reads as one shaded shape, making highlighted parts + their leaders
+  // stand out instead of getting lost in white space.
+  const gid = `body-skin-${vx}-${vy}`;
+  defs.push(
+    `<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">` +
+      `<stop offset="0" stop-color="${mix(palette.surface, palette.bg, 0.4)}"/>` +
+      `<stop offset="1" stop-color="${mix(palette.border, palette.bg, 0.3)}"/>` +
+      `</linearGradient>`
+  );
+
   let out = '';
   if (form === 'skin') {
-    const gid = `body-skin-${vx}-${vy}`;
-    defs.push(
-      `<linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">` +
-        `<stop offset="0" stop-color="${mix(palette.surface, palette.bg, 0.4)}"/>` +
-        `<stop offset="1" stop-color="${mix(palette.border, palette.bg, 0.3)}"/>` +
-        `</linearGradient>`
-    );
     out += `<path d="${fig.outline}" fill="url(#${gid})"/>`;
     for (const d of fig.headPaths) {
       out += `<path d="${d}" fill="url(#${gid})" stroke="${outlineStroke}" stroke-width="2.5"/>`;
@@ -92,34 +144,80 @@ function renderFigureBody(
       out += `<path d="${d}" fill="${hairFill}" stroke="${outlineStroke}" stroke-width="1.5"/>`;
     }
   } else {
+    // Shade the whole silhouette first, then lay the muscle striations over it
+    // as subtle relief so the body is a single tinted shape (not white).
+    out += `<path d="${fig.outline}" fill="url(#${gid})"/>`;
     for (const d of fig.base) {
-      out += `<path d="${d}" fill="${muscleFill}" stroke="${seam}" stroke-width="1"/>`;
+      out += `<path d="${d}" fill="${muscleFill}" fill-opacity="0.55" stroke="${seam}" stroke-width="1"/>`;
+    }
+    // Muscle silhouette (fig.outline) traces the jaw but not the scalp, so the
+    // crown is left un-bordered. Overlay the head + hairline outline (stroke
+    // only) so the dark border follows the hairline like every other edge.
+    for (const d of fig.headPaths) {
+      out += `<path d="${d}" fill="url(#${gid})" stroke="${outlineStroke}" stroke-width="2.5"/>`;
+    }
+    for (const d of fig.hairPaths) {
+      out += `<path d="${d}" fill="none" stroke="${outlineStroke}" stroke-width="2.5"/>`;
     }
   }
 
   const anchors = new Map<
     string,
-    { x: number; y: number; color: string; part: BodyPart }
+    {
+      x: number;
+      y: number;
+      centers: Array<{ x: number; y: number }>;
+      color: string;
+      emph: string;
+      part: BodyPart;
+    }
   >();
+  const cxMid = vx + vw / 2;
   for (const part of parts) {
     const key = resolvePartKey(fig, part.name);
     if (!key) continue;
-    const geom = fig.parts[key]!;
+    const geom = getPartGeom(fig, key)!;
     const color = partColor(part);
-    const dataLine = ` class="dgmo-body-part" data-line-number="${part.lineNumber}"`;
+    const emph = emphKey(part).toLowerCase();
+    const dataLine = ` class="dgmo-body-part" data-line-number="${part.lineNumber}" data-emph-key="${esc(emph)}"`;
+    // With a side modifier, fill only that side's shapes (patient's right pec →
+    // the screen-left path), so a one-sided injury highlights one side alone.
+    let paths = geom.paths as readonly string[];
+    if (part.side) {
+      const wantScreenRight =
+        view === 'front' ? part.side === 'left' : part.side === 'right';
+      const sidePaths = geom.paths.filter((d) =>
+        wantScreenRight ? pathStartX(d) >= cxMid : pathStartX(d) < cxMid
+      );
+      if (sidePaths.length) paths = sidePaths;
+    }
     if (form === 'skin') {
-      for (const d of geom.paths) {
+      for (const d of paths) {
         out += `<path${dataLine} d="${d}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="1.5"/>`;
       }
     } else {
-      for (const d of geom.paths) {
-        out += `<path${dataLine} d="${d}" fill="${color}" stroke="${seam}" stroke-width="1"/>`;
+      // Muted fill (~70% colour, 30% bg) with a full-strength coloured edge —
+      // clearly filled, but soft enough that the leader line reads across it.
+      const lightFill = mix(color, palette.bg, 70);
+      for (const d of paths) {
+        out += `<path${dataLine} d="${d}" fill="${lightFill}" stroke="${color}" stroke-width="1.5"/>`;
       }
     }
-    anchors.set(part.name.toLowerCase(), {
-      x: geom.anchor.x,
-      y: geom.anchor.y,
+    const allCenters = geom.centers?.length
+      ? geom.centers.map((c) => ({ x: c.x, y: c.y }))
+      : [{ x: geom.anchor.x, y: geom.anchor.y }];
+    // A `left`/`right` modifier locks the leader onto that side's component;
+    // otherwise keep every component so the label picks the nearest one.
+    const chosen =
+      part.side && allCenters.length > 1
+        ? sideCenter(allCenters, part.side, view)
+        : null;
+    anchors.set(partKey(part), {
+      x: chosen?.x ?? geom.anchor.x,
+      y: chosen?.y ?? geom.anchor.y,
+      centers: chosen ? [chosen] : allCenters,
       color,
+      emph,
       part,
     });
   }
@@ -128,29 +226,65 @@ function renderFigureBody(
   return { fig, body: out, anchors, vx, vy, vw, vh };
 }
 
+/** Pick the muscle component centroid nearest a target x (the label side). */
+function nearestCenter(
+  a: { x: number; y: number; centers: Array<{ x: number; y: number }> },
+  targetX: number
+): { x: number; y: number } {
+  let best = a.centers[0] ?? { x: a.x, y: a.y };
+  let bestD = Math.abs(best.x - targetX);
+  for (const c of a.centers) {
+    const d = Math.abs(c.x - targetX);
+    if (d < bestD) {
+      bestD = d;
+      best = c;
+    }
+  }
+  return best;
+}
+
 /** Gutter labels for the single-view case (raw coords, drawn inside the g). */
 function gutterLabels(r: FigureRender, palette: PaletteColors): string {
   const { vx, vw, vh } = r;
   const cx = vx + vw / 2;
   const list = [...r.anchors.values()];
-  const left = list.filter((a) => a.x < cx).sort((a, b) => a.y - b.y);
-  const right = list.filter((a) => a.x >= cx).sort((a, b) => a.y - b.y);
+  // Clearly lateral parts label on their own side; near-midline ones (face,
+  // spine, navel…) would all pile onto one gutter, so spread them across both
+  // to balance the columns.
+  const band = vw * 0.1;
+  const left = list.filter((a) => a.x < cx - band);
+  const right = list.filter((a) => a.x > cx + band);
+  const mid = list
+    .filter((a) => a.x >= cx - band && a.x <= cx + band)
+    .sort((a, b) => a.y - b.y);
+  for (const a of mid) (left.length <= right.length ? left : right).push(a);
   let labels = '';
   const place = (arr: typeof list, side: 'L' | 'R'): void => {
     const gx = side === 'L' ? vx - 14 : vx + vw + 14;
+    // Leader starts a short gap in from the label text so the line never
+    // crowds the words; `sx` is that start x (pointing toward the figure).
+    const sx = side === 'L' ? gx + 26 : gx - 26;
     const anchorX = side === 'L' ? 'end' : 'start';
     const minGap = vh * 0.05;
+    // Aim each label at the muscle component nearest its gutter side, then order
+    // by that target's y so leaders never cross. Each label sits AT its target y
+    // (giving a flat, horizontal leader) and only slides down when the previous
+    // label is too close — the single straight leader tilts only when it must.
+    const rows = arr
+      .map((a) => ({ a, tgt: nearestCenter(a, gx) }))
+      .sort((p, q) => p.tgt.y - q.tgt.y);
     let prevY = -1e9;
-    for (const a of arr) {
-      const ly = Math.max(a.y - 6, prevY + minGap);
+    for (const { a, tgt } of rows) {
+      const ly = Math.max(tgt.y, prevY + minGap);
       prevY = ly;
       const note = a.part.notes.length ? a.part.notes[0]! : '';
+      const dl = ` class="dgmo-body-part" data-line-number="${a.part.lineNumber}" data-emph-key="${esc(a.emph)}"`;
       labels +=
-        `<path d="M${gx} ${ly} L${a.x} ${a.y}" stroke="${a.color}" stroke-width="1.6" fill="none" opacity="0.75"/>` +
-        `<circle cx="${a.x}" cy="${a.y}" r="5" fill="${a.color}"/>` +
-        `<text x="${gx}" y="${ly - 3}" text-anchor="${anchorX}" font-size="${LABEL_FONT}" font-weight="700" fill="${palette.text}">${esc(a.part.name)}</text>`;
+        `<path${dl} d="M${sx} ${ly} L${tgt.x} ${tgt.y}" stroke="${a.color}" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke" fill="none" opacity="0.85"/>` +
+        `<circle${dl} cx="${tgt.x}" cy="${tgt.y}" r="5.5" fill="${a.color}" stroke="${palette.bg}" stroke-width="2" vector-effect="non-scaling-stroke"/>` +
+        `<text${dl} x="${gx}" y="${ly + (note ? -2 : 7)}" text-anchor="${anchorX}" font-size="${LABEL_FONT}" font-weight="700" fill="${palette.text}">${esc(partLabel(a.part))}</text>`;
       if (note) {
-        labels += `<text x="${gx}" y="${ly + 21}" text-anchor="${anchorX}" font-size="${NOTE_FONT}" fill="${palette.textMuted}">${esc(note)}</text>`;
+        labels += `<text${dl} x="${gx}" y="${ly + 22}" text-anchor="${anchorX}" font-size="${NOTE_FONT}" fill="${palette.textMuted}">${esc(note)}</text>`;
       }
     }
   };
@@ -177,13 +311,18 @@ export function renderBody(
   const partColor = (part: BodyPart): string =>
     resolveTagColor(part.metadata, parsed.tagGroups as never, activeGroup) ??
     accent;
+  // Tag value that colours this part, for legend↔chart hover pairing.
+  const emphKey = (part: BodyPart): string =>
+    activeGroup ? (part.metadata[tagAttrKey(activeGroup)] ?? '') : '';
 
   const defs: string[] = [];
   const rendered = parsed.options.views.map((view) =>
     renderFigureBody(
       getFigure(parsed.options.sex, view),
+      view,
       parsed.parts,
       partColor,
+      emphKey,
       parsed.options.form,
       palette,
       defs
@@ -238,6 +377,8 @@ export function renderBody(
       name: string;
       note: string;
       color: string;
+      emph: string;
+      line: number;
       left?: { x: number; y: number };
       right?: { x: number; y: number };
       y: number;
@@ -245,19 +386,23 @@ export function renderBody(
     const seen = new Set<string>();
     const items: Item[] = [];
     for (const part of parsed.parts) {
-      const nm = part.name.toLowerCase();
+      const nm = partKey(part);
       if (seen.has(nm)) continue;
       const aL = fL.anchors.get(nm);
       const aR = fR.anchors.get(nm);
       if (!aL && !aR) continue;
       seen.add(nm);
-      const left = aL ? mapL(aL) : undefined;
-      const right = aR ? mapR(aR) : undefined;
+      // Central label column sits between the figures, so aim each figure's
+      // leader at the muscle component nearest that inner edge.
+      const left = aL ? mapL(nearestCenter(aL, fL.vx + fL.vw)) : undefined;
+      const right = aR ? mapR(nearestCenter(aR, fR.vx)) : undefined;
       const ys = [left?.y, right?.y].filter((v): v is number => v != null);
       items.push({
-        name: part.name,
+        name: partLabel(part),
         note: part.notes.length ? part.notes[0]! : '',
         color: (aL ?? aR)!.color,
+        emph: (aL ?? aR)!.emph,
+        line: part.lineNumber,
         ...(left && { left }),
         ...(right && { right }),
         y: ys.reduce((s, v) => s + v, 0) / ys.length,
@@ -276,19 +421,20 @@ export function renderBody(
     let labels = '';
     const stub = 96; // leader start offset from center, clears the label text
     for (const it of items) {
+      const dl = ` class="dgmo-body-part" data-line-number="${it.line}" data-emph-key="${esc(it.emph)}"`;
       if (it.left) {
         labels +=
-          `<path d="M${(centerX - stub).toFixed(1)} ${it.y.toFixed(1)} L${it.left.x.toFixed(1)} ${it.left.y.toFixed(1)}" stroke="${it.color}" stroke-width="1.6" fill="none" opacity="0.75"/>` +
-          `<circle cx="${it.left.x.toFixed(1)}" cy="${it.left.y.toFixed(1)}" r="5" fill="${it.color}"/>`;
+          `<path${dl} d="M${(centerX - stub).toFixed(1)} ${it.y.toFixed(1)} L${it.left.x.toFixed(1)} ${it.left.y.toFixed(1)}" stroke="${it.color}" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke" fill="none" opacity="0.85"/>` +
+          `<circle${dl} cx="${it.left.x.toFixed(1)}" cy="${it.left.y.toFixed(1)}" r="5.5" fill="${it.color}" stroke="${palette.bg}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
       }
       if (it.right) {
         labels +=
-          `<path d="M${(centerX + stub).toFixed(1)} ${it.y.toFixed(1)} L${it.right.x.toFixed(1)} ${it.right.y.toFixed(1)}" stroke="${it.color}" stroke-width="1.6" fill="none" opacity="0.75"/>` +
-          `<circle cx="${it.right.x.toFixed(1)}" cy="${it.right.y.toFixed(1)}" r="5" fill="${it.color}"/>`;
+          `<path${dl} d="M${(centerX + stub).toFixed(1)} ${it.y.toFixed(1)} L${it.right.x.toFixed(1)} ${it.right.y.toFixed(1)}" stroke="${it.color}" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke" fill="none" opacity="0.85"/>` +
+          `<circle${dl} cx="${it.right.x.toFixed(1)}" cy="${it.right.y.toFixed(1)}" r="5.5" fill="${it.color}" stroke="${palette.bg}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
       }
-      labels += `<text x="${centerX}" y="${(it.y - 3).toFixed(1)}" text-anchor="middle" font-size="${LABEL_FONT}" font-weight="700" fill="${palette.text}">${esc(it.name)}</text>`;
+      labels += `<text${dl} x="${centerX}" y="${(it.y - 3).toFixed(1)}" text-anchor="middle" font-size="${LABEL_FONT}" font-weight="700" fill="${palette.text}">${esc(it.name)}</text>`;
       if (it.note) {
-        labels += `<text x="${centerX}" y="${(it.y + 20).toFixed(1)}" text-anchor="middle" font-size="${NOTE_FONT}" fill="${palette.textMuted}">${esc(it.note)}</text>`;
+        labels += `<text${dl} x="${centerX}" y="${(it.y + 20).toFixed(1)}" text-anchor="middle" font-size="${NOTE_FONT}" fill="${palette.textMuted}">${esc(it.note)}</text>`;
       }
     }
     body += labels;

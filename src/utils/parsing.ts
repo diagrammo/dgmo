@@ -75,10 +75,13 @@ export const ALL_CHART_TYPES = new Set([
   'ring',
   'treemap',
   'block',
+  'goal',
+  'countdown',
   'sketch',
   'raci',
   'map',
   'family',
+  'bracket',
 ]);
 
 /** Measure leading whitespace of a line, normalizing tabs to 4 spaces. */

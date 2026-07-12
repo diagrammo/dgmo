@@ -1,0 +1,30 @@
+bracket World Series
+rounds Wild Card, Division, Championship
+
+[American League] blue
+  seed 1 Blue Jays
+  seed 2 Mariners
+  seed 3 Yankees
+  seed 4 Red Sox
+  seed 5 Tigers
+  seed 6 Guardians
+  Yankees beats Guardians 2-1
+  Red Sox beats Tigers 2-1
+  Blue Jays beats Red Sox 3-1
+  Mariners beats Yankees 3-2
+  Blue Jays beats Mariners 4-3
+
+[National League] red
+  seed 1 Brewers
+  seed 2 Phillies
+  seed 3 Dodgers
+  seed 4 Cubs
+  seed 5 Padres
+  seed 6 Mets
+  Dodgers beats Mets 2-0
+  Cubs beats Padres 2-1
+  Brewers beats Cubs 3-2
+  Phillies beats Dodgers 3-1
+  Brewers beats Phillies 4-2
+
+Blue Jays beats Brewers 4-3

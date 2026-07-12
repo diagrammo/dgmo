@@ -20,6 +20,8 @@ import {
   SKETCH_HALF_SLOT_X,
   SKETCH_HALF_SLOT_Y,
   SKETCH_SEP,
+  SKETCH_SLOT_X,
+  SKETCH_SLOT_Y,
 } from './geometry';
 import { collapseSketch } from './collapse';
 import type {
@@ -435,6 +437,93 @@ export function layoutSketch(
         h: maxY - minY + SKETCH_GEOMETRY.bandPx + SKETCH_GEOMETRY.boxPadPx,
         bandH: SKETCH_GEOMETRY.bandPx,
       });
+    }
+  }
+
+  // Never let a root shape sit on a NON-INCIDENT edge (a line between two OTHER
+  // shapes). Approximate each edge as the segment between its endpoints' centers;
+  // when a shape's footprint crosses one, nudge the shape a full slot off the
+  // line (perpendicular to it) and warn. Bounded passes handle cascades.
+  {
+    const centerOf = (id: string): { x: number; y: number } | null => {
+      const n = nodes.find((nd) => nd.id === id);
+      if (n) return { x: n.x + n.w / 2, y: n.y + n.h / 2 };
+      const b = boxes.find((bx) => bx.id === id);
+      if (b) return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+      return null;
+    };
+    // Liang–Barsky: does segment a→b touch the axis-aligned rect?
+    const segHitsRect = (
+      ax: number,
+      ay: number,
+      bx: number,
+      by: number,
+      rx0: number,
+      ry0: number,
+      rx1: number,
+      ry1: number
+    ): boolean => {
+      let t0 = 0;
+      let t1 = 1;
+      const p = [-(bx - ax), bx - ax, -(by - ay), by - ay];
+      const q = [ax - rx0, rx1 - ax, ay - ry0, ry1 - ay];
+      for (let i = 0; i < 4; i++) {
+        if (p[i] === 0) {
+          if (q[i]! < 0) return false;
+        } else {
+          const t = q[i]! / p[i]!;
+          if (p[i]! < 0) {
+            if (t > t1) return false;
+            if (t > t0) t0 = t;
+          } else {
+            if (t < t0) return false;
+            if (t < t1) t1 = t;
+          }
+        }
+      }
+      return t0 <= t1;
+    };
+    const warned = new Set<string>();
+    for (let pass = 0; pass < 4; pass++) {
+      let moved = false;
+      for (const n of nodes) {
+        if (n.boxLabel) continue; // box children ride their frame
+        for (const e of collapsed.edges) {
+          if (e.sourceId === n.id || e.targetId === n.id) continue; // incident
+          const a = centerOf(e.sourceId);
+          const b = centerOf(e.targetId);
+          if (!a || !b) continue;
+          if (!segHitsRect(a.x, a.y, b.x, b.y, n.x, n.y, n.x + n.w, n.y + n.h))
+            continue;
+          const ncx = n.x + n.w / 2;
+          const ncy = n.y + n.h / 2;
+          const m = n as {
+            x: number;
+            y: number;
+            slot: { c: number; r: number };
+          };
+          if (Math.abs(b.x - a.x) >= Math.abs(b.y - a.y)) {
+            const lineY = a.y + ((b.y - a.y) * (ncx - a.x)) / (b.x - a.x || 1);
+            let dir = ncy >= lineY ? 1 : -1;
+            if (n.slot.r + dir * SKETCH_SEP < 0) dir = 1;
+            m.y += dir * SKETCH_SLOT_Y;
+            m.slot = { c: n.slot.c, r: n.slot.r + dir * SKETCH_SEP };
+          } else {
+            const lineX = a.x + ((b.x - a.x) * (ncy - a.y)) / (b.y - a.y || 1);
+            let dir = ncx >= lineX ? 1 : -1;
+            if (n.slot.c + dir * SKETCH_SEP < 0) dir = 1;
+            m.x += dir * SKETCH_SLOT_X;
+            m.slot = { c: n.slot.c + dir * SKETCH_SEP, r: n.slot.r };
+          }
+          if (!warned.has(n.id)) {
+            overlapWarn(n.lineNumber, n.label);
+            warned.add(n.id);
+          }
+          moved = true;
+          break;
+        }
+      }
+      if (!moved) break;
     }
   }
 

@@ -663,14 +663,15 @@ describe('2. Rejected syntax', () => {
     expect(r.options['direction']).toBeUndefined();
   });
 
-  it('direction TB (space form) does not set direction in flowchart', () => {
+  it('direction LR (space form) sets direction in flowchart', () => {
     const r = parseFlowchart(
-      'flowchart Test\ndirection TB\n\n(Start) -> [End]',
+      'flowchart Test\ndirection LR\n\n(Start) -> [End]',
       palette
     );
-    // "direction TB" is stored as an option but doesn't change the direction field
-    // The boolean form "direction-lr" is needed to override the TB default
-    expect(r.direction).toBe('TB');
+    // Space form `direction LR` is the house convention (shared with
+    // boxes-and-lines/swimlane/state) and overrides the TB default. The
+    // legacy bare-boolean `direction-lr` still works too.
+    expect(r.direction).toBe('LR');
   });
 
   it('orientation horizontal (space form) is not the boolean form for bar charts', () => {

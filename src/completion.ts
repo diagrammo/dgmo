@@ -11,6 +11,7 @@
  * All built-in extractors are registered at module init below.
  */
 
+import { extractSymbols as extractBodySymbols } from './body/parser';
 import { extractSymbols as extractErSymbols } from './er/parser';
 import { extractSymbols as extractFlowchartSymbols } from './graph/flowchart-parser';
 import { extractSymbols as extractInfraSymbols } from './infra/parser';
@@ -600,6 +601,87 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   [
+    'goal',
+    // Single now/target value. Mode is a bare flag (thermometer/gauge; the
+    // progress bar is the default). `solid-fill`/`no-title` come via globals.
+    withGlobals({
+      thermometer: { description: 'Render as a vertical thermometer' },
+      gauge: { description: 'Render as a semicircular gauge dial' },
+      now: { description: 'Current value (key value; no colon)' },
+      target: { description: 'Goal value (must be > 0)' },
+      note: {
+        description: 'Free-text caption block (indented body, simple markdown)',
+      },
+      'no-percent': { description: 'Hide the % label' },
+      'no-value': { description: 'Hide the raw now / target label' },
+      'no-note': { description: 'Suppress the note block even if present' },
+      'no-auto-color': {
+        description: 'Disable traffic-light coloring; use the palette color',
+      },
+    }),
+  ],
+  [
+    'countdown',
+    // Live "N until X". One-shot `target` OR a recurring `every … on … at …`
+    // rule (never both). `units`/`round`/`fields` shape the display; `since*`
+    // number the ordinal. All space-separated key value (no colon).
+    withGlobals({
+      target: {
+        description: 'One-shot instant: ISO date/datetime or `now` (key value)',
+      },
+      every: {
+        description:
+          'Recurring cadence: year | month | week | N days|weeks|months',
+      },
+      on: {
+        description:
+          'Instant within the cadence: Aug 21 | 3rd Tuesday | last Friday | Friday',
+      },
+      at: { description: 'Time of day, 24h (e.g. 18:00); default midnight' },
+      from: { description: 'Anchor date for interval cadences (every N …)' },
+      units: { description: 'days (default) | full | clock | weeks | words' },
+      round: { description: 'up (default) | down | nearest' },
+      fields: { description: 'full-mode segments: subset of d,h,m,s' },
+      lang: { description: 'Locale for words/month names (en)' },
+      'on-day': { description: 'Text shown on the occurrence day (recurring)' },
+      since: { description: 'Anchor year → enables the ordinal ("7th")' },
+      'since-label': {
+        description: 'Noun the ordinal counts (anniversary, birthday)',
+      },
+      'since-style': {
+        description:
+          'Ordinal prominence: eyebrow (default) | headline | tenure | inline',
+      },
+      expired: { description: 'Text shown once a one-shot target passes' },
+    }),
+  ],
+  [
+    'bracket',
+    // Tournament bracket. `rounds`/`seed` shape the field; `single-elim` is the
+    // default format. `beats`/`vs` are infix match keywords (not directives).
+    withGlobals({
+      rounds: {
+        description:
+          'Name the columns (comma-separated, or an indented block with per-round colors)',
+      },
+      seed: {
+        description:
+          'Declare a seeded entrant (`seed N Name`) → day-0 skeleton',
+      },
+      tag: {
+        description: 'Tag group — a competitor tag colors its box outline',
+      },
+      accent: { description: 'Winner accent color override (default blue)' },
+      'no-legend': { description: 'Hide the tag legend' },
+      'no-round': { description: 'Suppress the round/column labels' },
+      'single-elim': { description: 'Single-elimination format (default)' },
+      'double-elim': {
+        description: 'Double-elimination (reserved — not yet supported)',
+      },
+      seeded: { description: 'Force seeded mode (full skeleton from day 0)' },
+    }),
+  ],
+  [
     'sketch',
     // GUI-first canvas: shapes carry their own metadata (shape:/at:); the only
     // directives are legend/fill/description toggles.
@@ -715,6 +797,7 @@ const SOLID_FILL_CAPABLE = new Set([
   'timeline',
   'line',
   'event-line',
+  'goal',
 ]);
 for (const [type, spec] of COMPLETION_REGISTRY) {
   if (SOLID_FILL_CAPABLE.has(type)) {
@@ -2606,6 +2689,7 @@ function extractWireframeSymbols(docText: string): DiagramSymbols {
 // Register built-in extractors
 // ============================================================
 
+registerExtractor('body', extractBodySymbols);
 registerExtractor('er', extractErSymbols);
 registerExtractor('flowchart', extractFlowchartSymbols);
 registerExtractor('infra', extractInfraSymbols);

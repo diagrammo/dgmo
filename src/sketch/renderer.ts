@@ -263,7 +263,40 @@ export function renderSketch(
   const legendGroups: readonly LegendGroupData[] = parsed.options.noLegend
     ? []
     : tagGroups;
-  const contentWidth = layout.width + 2 * DIAGRAM_PADDING;
+  // Route edges up front (same pure pipeline the app drag-preview + the edge
+  // layer below use) so the diagram bounds can grow to CONTAIN them: a reroute
+  // that bulges outside the node/box footprint — and its on-line label — must
+  // stay on-canvas, not clip at the frame edge.
+  const edgeGeom = sketchEdgeGeometry(layout);
+  let minX = 0;
+  let minY = 0;
+  let maxX = layout.width;
+  let maxY = layout.height;
+  for (let i = 0; i < edgeGeom.length; i++) {
+    const g = edgeGeom[i];
+    if (!g) continue;
+    const nums = (g.d.match(/-?[\d.]+/g) ?? []).map(Number);
+    for (let k = 0; k + 1 < nums.length; k += 2) {
+      minX = Math.min(minX, nums[k]!);
+      maxX = Math.max(maxX, nums[k]!);
+      minY = Math.min(minY, nums[k + 1]!);
+      maxY = Math.max(maxY, nums[k + 1]!);
+    }
+    const label = layout.edges[i]?.label;
+    if (label) {
+      const hw = measureText(label, EDGE_LABEL_FONT_SIZE) / 2 + 6;
+      const hh = EDGE_LABEL_FONT_SIZE / 2 + 4;
+      minX = Math.min(minX, g.mid.x - hw);
+      maxX = Math.max(maxX, g.mid.x + hw);
+      minY = Math.min(minY, g.mid.y - hh);
+      maxY = Math.max(maxY, g.mid.y + hh);
+    }
+  }
+  const extraLeft = Math.max(0, -minX);
+  const extraTop = Math.max(0, -minY);
+  const boundW = maxX + extraLeft;
+
+  const contentWidth = boundW + 2 * DIAGRAM_PADDING;
   const width = Math.max(contentWidth, options.exportDims?.width ?? 0);
   const legendHeight =
     legendGroups.length > 0
@@ -276,9 +309,9 @@ export function renderSketch(
           width
         )
       : 0;
-  const contentTop = titleOffset + legendHeight + DIAGRAM_PADDING;
+  const contentTop = titleOffset + legendHeight + DIAGRAM_PADDING + extraTop;
   const height = Math.max(
-    contentTop + layout.height + DIAGRAM_PADDING,
+    contentTop + maxY + DIAGRAM_PADDING,
     options.exportDims?.height ?? 0
   );
 
@@ -372,31 +405,14 @@ export function renderSketch(
   }
 
   // ── Content root (centers narrow content when exportDims pad us out) ──
-  const contentX = DIAGRAM_PADDING + Math.max(0, (width - contentWidth) / 2);
+  // extraLeft shifts local coords right so an edge bulging to negative x lands
+  // inside the frame rather than clipping past the left edge.
+  const contentX =
+    DIAGRAM_PADDING + extraLeft + Math.max(0, (width - contentWidth) / 2);
   const root = svg
     .append('g')
     .attr('class', 'sk-root')
     .attr('transform', `translate(${contentX},${contentTop})`);
-
-  const rectById = new Map<string, Rect>();
-  for (const node of layout.nodes) {
-    rectById.set(node.id, { x: node.x, y: node.y, w: node.w, h: node.h });
-  }
-  for (const box of layout.boxes) {
-    rectById.set(box.id, { x: box.x, y: box.y, w: box.w, h: box.h });
-  }
-  // Discrete ports for a group: one per contained node (aligned to its row /
-  // column centerline) plus the group midpoint. Edges to a box snap to the
-  // nearest of these instead of attaching anywhere on the perimeter.
-  const portsById = new Map<string, { ys: number[]; xs: number[] }>();
-  for (const box of layout.boxes) {
-    const kids = layout.nodes.filter((n) => n.boxLabel === box.label);
-    const ys = kids.map((k) => k.y + k.h / 2);
-    const xs = kids.map((k) => k.x + k.w / 2);
-    ys.push(box.y + box.h / 2);
-    xs.push(box.x + box.w / 2);
-    portsById.set(box.id, { ys, xs });
-  }
 
   // ── Boxes (frames) ──────────────────────────────────────────
   const boxLayer = root.append('g').attr('class', 'sk-boxes');
@@ -405,6 +421,8 @@ export function renderSketch(
   }
 
   // ── Edges ───────────────────────────────────────────────────
+  // `edgeGeom` was computed above (same pipeline the app`s live-drag preview
+  // uses) so a dragged edge previews exactly as it commits.
   const edgeLayer = root.append('g').attr('class', 'sk-edges');
   const labelLayerData: Array<{
     x: number;
@@ -413,19 +431,18 @@ export function renderSketch(
     color: string;
     from: string;
     to: string;
+    /** edge index (so declutter can skip the label`s OWN line) */
+    ei: number;
+    /** cubic control points [x0,y0,hx0,hy0,hx1,hy1,x1,y1] for on-line nudging */
+    cp: number[];
   }> = [];
-  for (const edge of layout.edges) {
-    const source = rectById.get(edge.sourceId);
-    const target = rectById.get(edge.targetId);
-    if (!source || !target) continue;
+  for (let ei = 0; ei < layout.edges.length; ei++) {
+    const edge = layout.edges[ei]!;
+    const geo = edgeGeom[ei];
+    if (!geo) continue;
     const color = flowColor(edge);
     const hex = color.replace('#', '');
-    const { d, mid } = edgePath(
-      source,
-      target,
-      portsById.get(edge.sourceId),
-      portsById.get(edge.targetId)
-    );
+    const { d, mid } = geo;
     const g = edgeLayer
       .append('g')
       .attr('class', 'sk-edge-group')
@@ -434,7 +451,9 @@ export function renderSketch(
       .attr('data-line-number', edge.lineNumber);
     const path = g
       .append('path')
-      .attr('d', d)
+      // Visible stroke uses the hopped path when this edge jumps another; the
+      // hit-path + all geometry consumers keep the pure cubic `d`.
+      .attr('d', geo.dRender ?? d)
       .attr('fill', 'none')
       .attr('stroke', color)
       .attr('stroke-width', EDGE_STROKE_WIDTH);
@@ -462,7 +481,103 @@ export function renderSketch(
         color,
         from: edge.sourceId,
         to: edge.targetId,
+        ei,
+        cp: (d.match(/-?[\d.]+/g) ?? []).map(Number),
       });
+    }
+  }
+
+  // ── Edge-label declutter ────────────────────────────────────
+  // A label must read as belonging to exactly ONE line. It fails that when it
+  // overlaps another label, sits on a shape, or sits on top of a DIFFERENT
+  // edge`s line (most obviously at a crossing, where the naive midpoint lands
+  // right where two lines meet). Slide each label ALONG ITS OWN CURVE to the
+  // nearest parameter clear of all three — it stays on its line while stepping
+  // off the ambiguous spot.
+  {
+    const labelW = (t: string): number =>
+      t.length * EDGE_LABEL_FONT_SIZE * 0.56;
+    const halfH = EDGE_LABEL_FONT_SIZE / 2 + 3;
+    const GAP = 4; // breathing room around each label box
+    const shapeRects: Rect[] = [
+      ...layout.nodes.map((n) => ({ x: n.x, y: n.y, w: n.w, h: n.h })),
+      ...layout.boxes.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h })),
+    ];
+    const cubicPt = (cp: number[], t: number): Pt => {
+      const u = 1 - t;
+      const a = u * u * u;
+      const b = 3 * u * u * t;
+      const c = 3 * u * t * t;
+      const dd = t * t * t;
+      return {
+        x: a * cp[0]! + b * cp[2]! + c * cp[4]! + dd * cp[6]!,
+        y: a * cp[1]! + b * cp[3]! + c * cp[5]! + dd * cp[7]!,
+      };
+    };
+    // Densely sampled polyline per edge, so a label can detect a foreign line
+    // running under it (not only at the exact crossing vertex).
+    const allPolys: Array<Pt[] | null> = edgeGeom.map((g) => {
+      if (!g) return null;
+      const cp = (g.d.match(/-?[\d.]+/g) ?? []).map(Number);
+      if (cp.length < 8) return null;
+      const pts: Pt[] = [];
+      for (let s = 0; s <= 32; s++) pts.push(cubicPt(cp, s / 32));
+      return pts;
+    });
+    // Does a label box centred at (cx,cy), half-extents (hw,halfH), cover the
+    // point (ox,oy) padded by (ohw,ohh)?
+    const covers = (
+      cx: number,
+      cy: number,
+      hw: number,
+      ox: number,
+      oy: number,
+      ohw: number,
+      ohh: number
+    ): boolean =>
+      Math.abs(cx - ox) < hw + ohw + GAP &&
+      Math.abs(cy - oy) < halfH + ohh + GAP;
+    const placed: Array<{ x: number; y: number; hw: number }> = [];
+    // t=0.5 first, then step outward toward each end.
+    const TS = [0.5, 0.4, 0.6, 0.32, 0.68, 0.25, 0.75, 0.18, 0.82];
+    for (const l of labelLayerData) {
+      const hw = labelW(l.text) / 2 + 3;
+      let bestT = 0.5;
+      let bestScore = Infinity;
+      for (const t of TS) {
+        const p = cubicPt(l.cp, t);
+        let labelHits = 0;
+        for (const q of placed)
+          if (covers(p.x, p.y, hw, q.x, q.y, q.hw, halfH)) labelHits++;
+        let shapeHits = 0;
+        for (const r of shapeRects)
+          if (
+            covers(p.x, p.y, hw, r.x + r.w / 2, r.y + r.h / 2, r.w / 2, r.h / 2)
+          )
+            shapeHits++;
+        // Foreign line under the label box → ambiguous ownership.
+        let lineHits = 0;
+        for (let k = 0; k < allPolys.length; k++) {
+          if (k === l.ei) continue;
+          const poly = allPolys[k];
+          if (poly?.some((pt) => covers(p.x, p.y, hw, pt.x, pt.y, 0, 0)))
+            lineHits++;
+        }
+        if (labelHits === 0 && shapeHits === 0 && lineHits === 0) {
+          bestT = t; // TS is preference-ordered → first fully-clear t wins
+          break;
+        }
+        const score =
+          labelHits * 10 + shapeHits * 6 + lineHits * 4 + Math.abs(t - 0.5);
+        if (score < bestScore) {
+          bestScore = score;
+          bestT = t;
+        }
+      }
+      const p = cubicPt(l.cp, bestT);
+      l.x = p.x;
+      l.y = p.y;
+      placed.push({ x: p.x, y: p.y, hw });
     }
   }
 
@@ -495,14 +610,9 @@ export function renderSketch(
       .attr('class', 'sk-edge-label')
       .attr('data-from', l.from)
       .attr('data-to', l.to);
-    const textWidth = l.text.length * EDGE_LABEL_FONT_SIZE * 0.56;
-    g.append('rect')
-      .attr('x', l.x - textWidth / 2 - 3)
-      .attr('y', l.y - EDGE_LABEL_FONT_SIZE / 2 - 3)
-      .attr('width', textWidth + 6)
-      .attr('height', EDGE_LABEL_FONT_SIZE + 6)
-      .attr('rx', 3)
-      .attr('fill', palette.bg);
+    // No bg rect — a bg-colored stroke halo painted UNDER the fill (paint-order)
+    // hugs each glyph, so the line is masked behind the text without a visible
+    // rectangle of whitespace around it.
     g.append('text')
       .attr('x', l.x)
       .attr('y', l.y)
@@ -510,6 +620,10 @@ export function renderSketch(
       .attr('dominant-baseline', 'central')
       .attr('font-size', EDGE_LABEL_FONT_SIZE)
       .attr('fill', l.color)
+      .attr('stroke', palette.bg)
+      .attr('stroke-width', 3)
+      .attr('stroke-linejoin', 'round')
+      .attr('paint-order', 'stroke')
       .text(l.text);
   }
 
@@ -742,86 +856,572 @@ interface Ports {
   ys: number[];
   xs: number[];
 }
+type Side = 'T' | 'B' | 'L' | 'R';
+
+/**
+ * Assign each edge a side on its source and target box, purely by direction —
+ * a deterministic, mirror-symmetric function of (dx,dy), NOT congestion-aware.
+ * (Since every side has ONE shared port, spreading edges off a "crowded" side
+ * bought nothing and was the sole reason two mirror-image spokes could pick
+ * different sides.) The source takes its dominant-axis side; the target mirrors
+ * it (aligned → straight, opposite sides) or attaches on the perpendicular side
+ * facing the source (diagonal → clean corner). The later relaxation pass still
+ * flips sides where it removes a real node/edge crossing.
+ */
+function assignEdgeSides(
+  edges: readonly { sourceId: string; targetId: string }[],
+  rectById: Map<string, Rect>,
+  isGroup: (id: string) => boolean
+): Array<{ s: Side; t: Side } | null> {
+  const cx = (r: Rect): number => r.x + r.w / 2;
+  const cy = (r: Rect): number => r.y + r.h / 2;
+  const opposite = (s: Side): Side =>
+    s === 'L' ? 'R' : s === 'R' ? 'L' : s === 'T' ? 'B' : 'T';
+  // The dominant-axis side facing (dx,dy).
+  const facing = (dx: number, dy: number): Side =>
+    Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'R' : 'L') : dy >= 0 ? 'B' : 'T';
+  // Below this min/max axis ratio an edge is ~aligned (straight, opposite
+  // sides); above it, diagonal (a corner — perpendicular sides).
+  const DIAG = 0.4;
+  return edges.map((e) => {
+    const s = rectById.get(e.sourceId);
+    const t = rectById.get(e.targetId);
+    if (!s || !t) return null;
+    const dx = cx(t) - cx(s);
+    const dy = cy(t) - cy(s);
+    const ratio =
+      Math.min(Math.abs(dx), Math.abs(dy)) /
+      Math.max(Math.abs(dx), Math.abs(dy), 1);
+    const sSide = facing(dx, dy);
+    const sHoriz = sSide === 'L' || sSide === 'R';
+    // Perpendicular-axis side of the target facing the source.
+    const perp: Side = sHoriz ? (dy <= 0 ? 'B' : 'T') : dx <= 0 ? 'R' : 'L';
+    // A GROUP carries discrete child ports on every side, so it should attach on
+    // the side directly FACING the other endpoint — the line then lands on an
+    // aligned child port (or the group midpoint) and runs straight in. The
+    // perpendicular corner heuristic is only right for a bare 4-port node, whose
+    // sides are plain midpoints. (facing(-d) = the target side pointing back at
+    // the source.)
+    const tSide = isGroup(e.targetId)
+      ? facing(-dx, -dy)
+      : ratio >= DIAG
+        ? perp
+        : opposite(sSide);
+    return { s: sSide, t: tSide };
+  });
+}
+
+type Pt = { x: number; y: number };
+interface EdgeGeom {
+  d: string;
+  mid: Pt;
+  p0: Pt;
+  h0: Pt;
+  h1: Pt;
+  p1: Pt;
+}
+
 function edgePath(
   source: Rect,
   target: Rect,
+  sSide: Side,
+  tSide: Side,
   sourcePorts?: Ports,
   targetPorts?: Ports
-): { d: string; mid: { x: number; y: number } } {
+): EdgeGeom {
   const acx = source.x + source.w / 2;
   const acy = source.y + source.h / 2;
   const bcx = target.x + target.w / 2;
   const bcy = target.y + target.h / 2;
-  const horiz = Math.abs(bcx - acx) >= Math.abs(bcy - acy);
-  let p0: { x: number; y: number };
-  let p1: { x: number; y: number };
-  let h0: { x: number; y: number };
-  let h1: { x: number; y: number };
   const clamp = (v: number, lo: number, hi: number): number =>
     Math.max(lo, Math.min(hi, v));
-  // Keep a port off the corners: clamp into the middle band of the side (a
-  // corner is never a valid attachment — an edge always meets a side mid-
-  // section). CORNER_FRAC trims this fraction off each end of the side.
-  const CORNER_FRAC = 0.25;
-  const midClamp = (v: number, lo: number, hi: number): number => {
-    const m = (hi - lo) * CORNER_FRAC;
-    return clamp(v, lo + m, hi - m);
-  };
   const nearest = (arr: number[], v: number): number =>
     arr.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a), arr[0]!);
-  // Attachment coordinate:
-  //  • a GROUP endpoint snaps to its nearest discrete port (a contained node's
-  //    row/column or the group midpoint) — a group's chosen port drives BOTH
-  //    ends (clamped in), so the line runs straight into that child row/col;
-  //  • two PLAIN shapes each attach at their own facing-side MIDPOINT (own
-  //    center) — a canonical port, not an arbitrary overlap-band point. Aligned
-  //    shapes → equal centers → straight; offset → clean center-to-center
-  //    diagonal (auto-align removes most offsets before this is seen).
-  if (horiz) {
-    const sign = bcx >= acx ? 1 : -1;
-    // Each end resolves INDEPENDENTLY: a GROUP end snaps to its nearest child
-    // port (clamped off the corners); a BARE node has no alt ports — it always
-    // attaches at its own facing-side midpoint (its center).
-    const y0 = sourcePorts
-      ? midClamp(nearest(sourcePorts.ys, bcy), source.y, source.y + source.h)
-      : acy;
-    const y1 = targetPorts
-      ? midClamp(nearest(targetPorts.ys, acy), target.y, target.y + target.h)
-      : bcy;
-    p0 = { x: sign > 0 ? source.x + source.w : source.x, y: y0 };
-    p1 = { x: sign > 0 ? target.x : target.x + target.w, y: y1 };
-    const k = Math.max(
-      CURVE_HANDLE_MIN,
-      Math.min(CURVE_HANDLE_MAX, Math.abs(p1.x - p0.x) / 2)
-    );
-    h0 = { x: p0.x + sign * k, y: p0.y };
-    h1 = { x: p1.x - sign * k, y: p1.y };
-  } else {
-    const sign = bcy >= acy ? 1 : -1;
-    // Independent per-end: GROUP → nearest child port (off-corner); BARE node →
-    // its own facing-side midpoint (no alternative ports).
-    const x0 = sourcePorts
-      ? midClamp(nearest(sourcePorts.xs, bcx), source.x, source.x + source.w)
-      : acx;
-    const x1 = targetPorts
-      ? midClamp(nearest(targetPorts.xs, acx), target.x, target.x + target.w)
-      : bcx;
-    p0 = { x: x0, y: sign > 0 ? source.y + source.h : source.y };
-    p1 = { x: x1, y: sign > 0 ? target.y : target.y + target.h };
-    const k = Math.max(
-      CURVE_HANDLE_MIN,
-      Math.min(CURVE_HANDLE_MAX, Math.abs(p1.y - p0.y) / 2)
-    );
-    h0 = { x: p0.x, y: p0.y + sign * k };
-    h1 = { x: p1.x, y: p1.y - sign * k };
-  }
+  // Attachment point on `side` of `rect`. A GROUP endpoint snaps the cross-axis
+  // coordinate to its nearest discrete child port (row for L/R, column for
+  // T/B) — a synthetic port aligned with that child's midpoint, used VERBATIM so
+  // an aligned edge runs dead straight into it. (No corner trim: a child center
+  // is already inset by the band + padding, well clear of the frame corners, and
+  // clamping it to the tall side's middle band would bend an otherwise-straight
+  // line.) A BARE node attaches at that side's MIDPOINT — one port per side (4
+  // per node). `toward` is the other end's center, which the group port snaps to.
+  const attach = (
+    side: Side,
+    rect: Rect,
+    ports: Ports | undefined,
+    toward: { x: number; y: number }
+  ): { x: number; y: number } => {
+    if (side === 'L' || side === 'R') {
+      const x = side === 'L' ? rect.x : rect.x + rect.w;
+      const y = ports
+        ? clamp(nearest(ports.ys, toward.y), rect.y, rect.y + rect.h)
+        : rect.y + rect.h / 2;
+      return { x, y };
+    }
+    const y = side === 'T' ? rect.y : rect.y + rect.h;
+    const x = ports
+      ? clamp(nearest(ports.xs, toward.x), rect.x, rect.x + rect.w)
+      : rect.x + rect.w / 2;
+    return { x, y };
+  };
+  const normal = (side: Side): { x: number; y: number } =>
+    side === 'L'
+      ? { x: -1, y: 0 }
+      : side === 'R'
+        ? { x: 1, y: 0 }
+        : side === 'T'
+          ? { x: 0, y: -1 }
+          : { x: 0, y: 1 };
+  const p0 = attach(sSide, source, sourcePorts, { x: bcx, y: bcy });
+  const p1 = attach(tSide, target, targetPorts, { x: acx, y: acy });
+  const n0 = normal(sSide);
+  const n1 = normal(tSide);
+  const k = Math.max(
+    CURVE_HANDLE_MIN,
+    Math.min(CURVE_HANDLE_MAX, Math.hypot(p1.x - p0.x, p1.y - p0.y) / 2)
+  );
+  const h0 = { x: p0.x + n0.x * k, y: p0.y + n0.y * k };
+  const h1 = { x: p1.x + n1.x * k, y: p1.y + n1.y * k };
   return {
     d: `M ${p0.x} ${p0.y} C ${h0.x} ${h0.y}, ${h1.x} ${h1.y}, ${p1.x} ${p1.y}`,
-    // Centered ON the line (no vertical offset): the opaque label halo masks
-    // the segment behind it cleanly, so the label reads as sitting on the line
-    // rather than floating awkwardly just above it.
-    mid: { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 },
+    // Centered ON the line at its ARC midpoint (t=0.5 on the cubic), not the
+    // endpoint average: for a straight edge the two coincide, but for a curve
+    // that bulges out to route around a shape the arc midpoint sits at the
+    // bulge apex — in open space — while the endpoint average would land on the
+    // very shape the edge detoured past. The opaque halo masks the line behind.
+    mid: {
+      x: 0.125 * p0.x + 0.375 * h0.x + 0.375 * h1.x + 0.125 * p1.x,
+      y: 0.125 * p0.y + 0.375 * h0.y + 0.375 * h1.y + 0.125 * p1.y,
+    },
+    p0,
+    h0,
+    h1,
+    p1,
   };
+}
+
+const SIDES: readonly Side[] = ['T', 'B', 'L', 'R'];
+
+/** Point on a cubic Bézier at parameter t. */
+function cubicAt(g: EdgeGeom, t: number): Pt {
+  const u = 1 - t;
+  const a = u * u * u;
+  const b = 3 * u * u * t;
+  const c = 3 * u * t * t;
+  const dd = t * t * t;
+  return {
+    x: a * g.p0.x + b * g.h0.x + c * g.h1.x + dd * g.p1.x,
+    y: a * g.p0.y + b * g.h0.y + c * g.h1.y + dd * g.p1.y,
+  };
+}
+
+/**
+ * How many sampled points of a cubic fall INSIDE any obstacle rect (shrunk by
+ * `inset` so a curve grazing a neighbour's edge doesn't count). The endpoints'
+ * own boxes/nodes are pre-excluded by the caller; a positive count means the
+ * line visibly cuts through an unrelated shape.
+ */
+const EDGE_OBSTACLE_INSET = 6;
+const EDGE_SAMPLES = 24;
+
+/** Sample a cubic into a polyline for segment-level intersection tests. ODD on
+ *  purpose: t=0.5 is never a sample, so a crossing at two mirror-symmetric
+ *  curves` shared midpoint lands MID-segment where `segmentsCross` (strict, so
+ *  blind to a crossing exactly on a vertex) can still see it. */
+const POLY_SAMPLES = 19;
+function polyline(g: EdgeGeom): Pt[] {
+  const pts: Pt[] = [];
+  for (let i = 0; i <= POLY_SAMPLES; i++)
+    pts.push(cubicAt(g, i / POLY_SAMPLES));
+  return pts;
+}
+
+/** Do open segments p→p2 and q→q2 properly cross? (shared endpoints excluded) */
+function segmentsCross(p: Pt, p2: Pt, q: Pt, q2: Pt): boolean {
+  const o = (a: Pt, b: Pt, c: Pt): number =>
+    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const d1 = o(p, p2, q);
+  const d2 = o(p, p2, q2);
+  const d3 = o(q, q2, p);
+  const d4 = o(q, q2, p2);
+  return (
+    ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+    ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+  );
+}
+
+/** Count how many times two sampled edge polylines cross. */
+function polyCrossings(a: Pt[], b: Pt[]): number {
+  let n = 0;
+  for (let i = 0; i + 1 < a.length; i++)
+    for (let j = 0; j + 1 < b.length; j++)
+      if (segmentsCross(a[i]!, a[i + 1]!, b[j]!, b[j + 1]!)) n++;
+  return n;
+}
+
+/** Intersection point of two crossing polylines, or null if they don't cross. */
+function polyIntersection(a: Pt[], b: Pt[]): Pt | null {
+  for (let i = 0; i + 1 < a.length; i++) {
+    const p = a[i]!;
+    const p2 = a[i + 1]!;
+    for (let j = 0; j + 1 < b.length; j++) {
+      const q = b[j]!;
+      const q2 = b[j + 1]!;
+      if (!segmentsCross(p, p2, q, q2)) continue;
+      const rx = p2.x - p.x;
+      const ry = p2.y - p.y;
+      const sx = q2.x - q.x;
+      const sy = q2.y - q.y;
+      const denom = rx * sy - ry * sx;
+      if (denom === 0) continue;
+      const t = ((q.x - p.x) * sy - (q.y - p.y) * sx) / denom;
+      return { x: p.x + t * rx, y: p.y + t * ry };
+    }
+  }
+  return null;
+}
+
+// Radius (half-chord) of the little semicircular hop drawn where one line jumps
+// another so the two read as distinct (circuit-diagram convention).
+const HOP_R = 7;
+
+/**
+ * Render-path for a cubic that HOPS over the given crossing points: a small
+ * rounded hump replaces the line at each crossing so it reads as passing over,
+ * not joining. Returns null when there`s nothing to hop (caller uses the plain
+ * cubic `d`). The hump is a short cubic bulging to the side of least y (a
+ * consistent "up-and-over"), so only the visible stroke changes — `d`/`mid`
+ * stay the pure cubic every other consumer parses.
+ */
+function hoppedPath(g: EdgeGeom, hops: readonly Pt[]): string | null {
+  if (hops.length === 0) return null;
+  // ODD: t=0.5 is never a vertex, so a crossing at two symmetric curves' shared
+  // midpoint lands MID-segment — the hump`s A/B straddle the crossing inside one
+  // segment instead of overshooting a vertex (which left a backward stub).
+  const N = 49;
+  const pts: Pt[] = [];
+  for (let s = 0; s <= N; s++) pts.push(cubicAt(g, s / N));
+  // Snap each hop to the nearest interior segment of this edge`s fine polyline.
+  const onSeg = new Map<number, Pt>();
+  for (const hp of hops) {
+    let bestSeg = -1;
+    let bestD = Infinity;
+    let bestPt: Pt | null = null;
+    for (let k = 1; k <= N; k++) {
+      const a = pts[k - 1]!;
+      const b = pts[k]!;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len2 = dx * dx + dy * dy || 1;
+      let f = ((hp.x - a.x) * dx + (hp.y - a.y) * dy) / len2;
+      f = Math.max(0, Math.min(1, f));
+      const px = a.x + f * dx;
+      const py = a.y + f * dy;
+      const d = Math.hypot(hp.x - px, hp.y - py);
+      if (d < bestD) {
+        bestD = d;
+        bestSeg = k;
+        bestPt = { x: px, y: py };
+      }
+    }
+    // Skip hops too near an endpoint (no room for the hump).
+    if (bestSeg >= 3 && bestSeg <= N - 3 && bestPt && !onSeg.has(bestSeg))
+      onSeg.set(bestSeg, bestPt);
+  }
+  if (onSeg.size === 0) return null;
+  let d = `M ${pts[0]!.x} ${pts[0]!.y}`;
+  for (let k = 1; k <= N; k++) {
+    const a = pts[k - 1]!;
+    const b = pts[k]!;
+    const hp = onSeg.get(k);
+    if (hp) {
+      const segLen = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const dir = { x: (b.x - a.x) / segLen, y: (b.y - a.y) / segLen };
+      // Perpendicular pointing "up" (toward smaller y) for a consistent arch.
+      let perp = { x: dir.y, y: -dir.x };
+      if (perp.y > 0) perp = { x: -perp.x, y: -perp.y };
+      const A = { x: hp.x - dir.x * HOP_R, y: hp.y - dir.y * HOP_R };
+      const B = { x: hp.x + dir.x * HOP_R, y: hp.y + dir.y * HOP_R };
+      const k1 = {
+        x: A.x + perp.x * HOP_R * 1.33,
+        y: A.y + perp.y * HOP_R * 1.33,
+      };
+      const k2 = {
+        x: B.x + perp.x * HOP_R * 1.33,
+        y: B.y + perp.y * HOP_R * 1.33,
+      };
+      d += ` L ${A.x} ${A.y} C ${k1.x} ${k1.y}, ${k2.x} ${k2.y}, ${B.x} ${B.y} L ${b.x} ${b.y}`;
+    } else {
+      d += ` L ${b.x} ${b.y}`;
+    }
+  }
+  return d;
+}
+
+function pathCrossings(g: EdgeGeom, obstacles: readonly Rect[]): number {
+  if (obstacles.length === 0) return 0;
+  let hits = 0;
+  // Skip the very ends (t≈0/1) — those sit on the endpoint shapes by design.
+  for (let i = 1; i < EDGE_SAMPLES; i++) {
+    const p = cubicAt(g, i / EDGE_SAMPLES);
+    for (const r of obstacles) {
+      const x0 = r.x + EDGE_OBSTACLE_INSET;
+      const y0 = r.y + EDGE_OBSTACLE_INSET;
+      const x1 = r.x + r.w - EDGE_OBSTACLE_INSET;
+      const y1 = r.y + r.h - EDGE_OBSTACLE_INSET;
+      if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) {
+        hits++;
+        break;
+      }
+    }
+  }
+  return hits;
+}
+
+export interface SketchEdgeGeometry {
+  sourceId: string;
+  targetId: string;
+  /** Pure cubic path — parsed as one cubic by label/bounds/hit-test consumers. */
+  d: string;
+  mid: { x: number; y: number };
+  /** Visible stroke path WITH crossing-hops, when this edge hops another. The
+   *  renderer draws this if present; everything else still uses `d`. */
+  dRender?: string;
+}
+
+/**
+ * The full edge-routing pipeline (side assignment + curved paths + group-port
+ * snapping) as a pure function, so the renderer AND the app`s live-drag preview
+ * draw edges with IDENTICAL geometry. `offsets` shifts individual nodes/boxes
+ * by live pixel deltas (a dragged shape and its box children) — pass none for
+ * the committed layout.
+ */
+export function sketchEdgeGeometry(
+  layout: SketchLayout,
+  offsets?: ReadonlyMap<string, { dx: number; dy: number }>
+): Array<SketchEdgeGeometry | null> {
+  const off = (id: string): { dx: number; dy: number } =>
+    offsets?.get(id) ?? { dx: 0, dy: 0 };
+  const rectById = new Map<string, Rect>();
+  for (const n of layout.nodes) {
+    const o = off(n.id);
+    rectById.set(n.id, { x: n.x + o.dx, y: n.y + o.dy, w: n.w, h: n.h });
+  }
+  for (const b of layout.boxes) {
+    const o = off(b.id);
+    rectById.set(b.id, { x: b.x + o.dx, y: b.y + o.dy, w: b.w, h: b.h });
+  }
+  const portsById = new Map<string, Ports>();
+  for (const box of layout.boxes) {
+    const o = off(box.id);
+    const kids = layout.nodes.filter((n) => n.boxLabel === box.label);
+    const ys = kids.map((k) => k.y + off(k.id).dy + k.h / 2);
+    const xs = kids.map((k) => k.x + off(k.id).dx + k.w / 2);
+    ys.push(box.y + o.dy + box.h / 2);
+    xs.push(box.x + o.dx + box.w / 2);
+    portsById.set(box.id, { ys, xs });
+  }
+  const groupIdSet = new Set(layout.boxes.map((b) => b.id));
+  const sides = assignEdgeSides(layout.edges, rectById, (id) =>
+    groupIdSet.has(id)
+  );
+
+  // Obstacle set for around-routing: every node/box rect, tagged by id. An edge
+  // excludes its two endpoints AND the box each endpoint lives in (a line
+  // legitimately enters its own group), but NOT sibling children — those are
+  // exactly the shapes an edge must not cut through to reach a stacked sibling.
+  const boxIdByLabel = new Map<string, string>();
+  for (const b of layout.boxes) boxIdByLabel.set(b.label, b.id);
+  const boxOf = (id: string): string | undefined => {
+    const n = layout.nodes.find((m) => m.id === id);
+    return n?.boxLabel ? boxIdByLabel.get(n.boxLabel) : undefined;
+  };
+  const obstacles: Array<{ id: string; rect: Rect }> = [];
+  for (const [id, rect] of rectById) obstacles.push({ id, rect });
+
+  // Deviation cost of a side pair: 0 when both normals point straight at the
+  // other endpoint, rising as they turn away — the tie-breaker that keeps a
+  // reroute as close to the natural (facing) attachment as clearance allows.
+  const normalOf = (s: Side): Pt =>
+    s === 'L'
+      ? { x: -1, y: 0 }
+      : s === 'R'
+        ? { x: 1, y: 0 }
+        : s === 'T'
+          ? { x: 0, y: -1 }
+          : { x: 0, y: 1 };
+  const facingCost = (from: Rect, to: Rect, side: Side): number => {
+    const dx = to.x + to.w / 2 - (from.x + from.w / 2);
+    const dy = to.y + to.h / 2 - (from.y + from.h / 2);
+    const len = Math.hypot(dx, dy) || 1;
+    const n = normalOf(side);
+    return 1 - (n.x * dx + n.y * dy) / len; // 0 (facing) … 2 (opposed)
+  };
+
+  // Per-edge routing context: endpoint rects, ports, and the node/box rects this
+  // edge must not cut through (its endpoints and their own boxes excluded).
+  interface Ctx {
+    source: Rect;
+    target: Rect;
+    sPorts: Ports | undefined;
+    tPorts: Ports | undefined;
+    obstacleRects: Rect[];
+    /** edge indices sharing an endpoint — their meeting point isn`t a crossing */
+    adjacent: Set<number>;
+  }
+  const ctx: Array<Ctx | null> = layout.edges.map((edge) => {
+    const source = rectById.get(edge.sourceId);
+    const target = rectById.get(edge.targetId);
+    if (!source || !target) return null;
+    const exclude = new Set(
+      [
+        edge.sourceId,
+        edge.targetId,
+        boxOf(edge.sourceId),
+        boxOf(edge.targetId),
+      ].filter((x): x is string => x !== undefined)
+    );
+    return {
+      source,
+      target,
+      sPorts: portsById.get(edge.sourceId),
+      tPorts: portsById.get(edge.targetId),
+      obstacleRects: obstacles
+        .filter((o) => !exclude.has(o.id))
+        .map((o) => o.rect),
+      adjacent: new Set<number>(),
+    };
+  });
+  for (let a = 0; a < layout.edges.length; a++) {
+    for (let b = a + 1; b < layout.edges.length; b++) {
+      const ea = layout.edges[a]!;
+      const eb = layout.edges[b]!;
+      if (
+        ea.sourceId === eb.sourceId ||
+        ea.sourceId === eb.targetId ||
+        ea.targetId === eb.sourceId ||
+        ea.targetId === eb.targetId
+      ) {
+        ctx[a]?.adjacent.add(b);
+        ctx[b]?.adjacent.add(a);
+      }
+    }
+  }
+
+  // A node crossing (edge cuts through a shape) is far worse than an edge–edge
+  // crossing, which in turn costs more than a slightly-off attachment angle.
+  const W_NODE = 100;
+  const W_EDGE = 8;
+  const scoreOf = (
+    c: Ctx,
+    g: EdgeGeom,
+    poly: Pt[],
+    self: number,
+    polys: Array<Pt[] | null>,
+    s: Side,
+    t: Side
+  ): number => {
+    let edgeCross = 0;
+    for (let j = 0; j < polys.length; j++) {
+      if (j === self || c.adjacent.has(j)) continue;
+      const pj = polys[j];
+      if (pj) edgeCross += polyCrossings(poly, pj);
+    }
+    return (
+      pathCrossings(g, c.obstacleRects) * W_NODE +
+      edgeCross * W_EDGE +
+      facingCost(c.source, c.target, s) +
+      facingCost(c.target, c.source, t)
+    );
+  };
+
+  // Initial geometry from the congestion-aware side assignment.
+  const chosen: Array<{ s: Side; t: Side }> = layout.edges.map(
+    (_, i) => sides[i] ?? { s: 'R' as Side, t: 'L' as Side }
+  );
+  const geoms: Array<EdgeGeom | null> = ctx.map((c, i) =>
+    c
+      ? edgePath(
+          c.source,
+          c.target,
+          chosen[i]!.s,
+          chosen[i]!.t,
+          c.sPorts,
+          c.tPorts
+        )
+      : null
+  );
+  const polys: Array<Pt[] | null> = geoms.map((g) => (g ? polyline(g) : null));
+
+  // Relax: repeatedly let each edge re-pick the side pair that minimises its
+  // combined node + edge crossings against everyone else`s CURRENT routing. An
+  // edge already clear of both keeps its assignment. A couple of passes settles
+  // the mutual dependence (edge A`s best side depends on where B ended up).
+  for (let pass = 0; pass < 3; pass++) {
+    let changed = false;
+    for (let i = 0; i < ctx.length; i++) {
+      const c = ctx[i];
+      const g = geoms[i];
+      const p = polys[i];
+      if (!c || !g || !p) continue;
+      const cur = chosen[i]!;
+      const curScore = scoreOf(c, g, p, i, polys, cur.s, cur.t);
+      // Nothing to fix (no node cut, no edge crossing, best facing) — leave it.
+      if (curScore < W_EDGE) continue;
+      let bestScore = curScore;
+      let bestG = g;
+      let bestP = p;
+      let bestSide = cur;
+      for (const s of SIDES) {
+        for (const t of SIDES) {
+          const cg = edgePath(c.source, c.target, s, t, c.sPorts, c.tPorts);
+          const cp = polyline(cg);
+          const sc = scoreOf(c, cg, cp, i, polys, s, t);
+          if (sc < bestScore) {
+            bestScore = sc;
+            bestG = cg;
+            bestP = cp;
+            bestSide = { s, t };
+          }
+        }
+      }
+      if (bestSide !== cur) {
+        chosen[i] = bestSide;
+        geoms[i] = bestG;
+        polys[i] = bestP;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+
+  // Crossing-hops: where two (non-adjacent) edges still cross, the HIGHER-index
+  // edge hops over the lower one so the two read as distinct. `polys` holds the
+  // final routing after relaxation.
+  const hopsFor: Array<Pt[]> = layout.edges.map(() => []);
+  for (let i = 0; i < polys.length; i++) {
+    for (let j = i + 1; j < polys.length; j++) {
+      if (ctx[i]?.adjacent.has(j)) continue;
+      const a = polys[i];
+      const b = polys[j];
+      if (!a || !b) continue;
+      const pt = polyIntersection(a, b);
+      if (pt) hopsFor[j]!.push(pt); // j (drawn later, on top) does the hop
+    }
+  }
+
+  return layout.edges.map((edge, i) => {
+    const g = geoms[i];
+    if (!g) return null;
+    const dRender = hoppedPath(g, hopsFor[i]!);
+    return {
+      sourceId: edge.sourceId,
+      targetId: edge.targetId,
+      d: g.d,
+      mid: g.mid,
+      ...(dRender && { dRender }),
+    };
+  });
 }
 
 /** Export wrapper — the b&l precedent (thin spread). */

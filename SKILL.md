@@ -11,7 +11,7 @@ Use dgmo tools to create, render, and share diagrams. dgmo is a text-based diagr
 <!-- DGMO-AI-CORE:START -->
 ## DGMO AI Core
 
-_Generated from `language-reference.md` — the anti-patterns and 46-type index below are identical across every DGMO AI surface._
+_Generated from `language-reference.md` — the anti-patterns and 49-type index below are identical across every DGMO AI surface._
 
 ### Disambiguation — where DGMO diverges from LLM priors
 
@@ -81,6 +81,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `mindmap` | radial hierarchy of ideas from a central topic |
 | `org` | reporting hierarchy |
 | `family` | family tree / genealogy: unions (couples), children, remarriage, adoption, GEDCOM-style metadata |
+| `bracket` | single-elimination tournament bracket: winners auto-advance; seed the field for a day-0 skeleton or list results casually; two sides mirror to a championship |
 | `kanban` | task-board columns |
 | `gantt` | project scheduling with task dependencies and milestones |
 | `pert` | project network with three-point estimates and critical path |
@@ -99,6 +100,8 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 | `treemap` | nested rectangles sized by value (budgets, disk usage, portfolios) |
 | `block` | author-controlled grid of nested, collapsible blocks (system / architecture layouts) |
 | `sketch` | GUI-first free-placement canvas: uniform shapes on a snap grid, arrows, tags (markup is app-generated) |
+| `goal` | single progress-toward-a-target value (`now` vs `target`) as a progress bar, thermometer, or gauge — KPIs, fundraising, quotas |
+| `countdown` | live "N days until X" that ticks every second and is accurate on every load — trip dates, launches, deadlines; the only dynamic chart type |
 | `map` | geographic concept map: regions, points, routes |
 | `wireframe` | low-fidelity UI layout with panels and controls |
 | `bar` | categorical comparisons (multi-series via `stack` / `group`) |
@@ -122,7 +125,7 @@ Valid markup is the floor, not the goal. A good diagram reads at a glance. Apply
 
 ### Common examples (curated, parse-clean)
 
-_The most common types, inline so you can generate them without a fetch. For the other 38, get the per-type section (see below)._
+_The most common types, inline so you can generate them without a fetch. For the other 41, get the per-type section (see below)._
 
 #### journey-map
 

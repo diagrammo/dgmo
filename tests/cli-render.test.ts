@@ -286,6 +286,24 @@ tag Layer as l
 [Backend] l: Service
   [Auth] [Orders]`,
 
+  goal: `goal Doubloons Recovered ($)
+
+thermometer
+
+now 6400
+target 10000`,
+
+  countdown: `countdown Voyage to Tortuga
+
+target 2099-08-21
+units days`,
+
+  bracket: `bracket Grog Cup
+
+Black Pearl beats Sea Serpent 5-3
+Salty Dog beats Kraken 4-2
+Black Pearl beats Salty Dog 6-5`,
+
   raci: `raci Test RACI
 roles Cap, QM, Bos
 

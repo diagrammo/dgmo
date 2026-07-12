@@ -35,6 +35,7 @@
  */
 
 import { render } from '../render';
+import { startCountdowns } from '../countdown/ticker';
 import { parseDgmoChartType } from '../dgmo-router';
 import type { MapData } from '../map/resolved-types';
 import '../palettes';
@@ -406,6 +407,9 @@ export class DgmoDiagram extends HTMLElement {
     });
 
     this.mount(wrapper, 'dgmo--rendered');
+    // Light up any `countdown` chart: seed on load + register the 1s ticker
+    // (idempotent, single page-level interval). No-op for other chart types.
+    startCountdowns(wrapper);
   }
 }
 

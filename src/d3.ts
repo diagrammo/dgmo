@@ -123,6 +123,9 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   ring: exportRing,
   treemap: exportTreemap,
   block: exportBlock,
+  goal: exportGoal,
+  countdown: exportCountdown,
+  bracket: exportBracket,
   raci: exportRaci,
   body: exportBody,
   // D3 visualizations — own handler per type (Story 109.2). Only `sequence`
@@ -1335,6 +1338,65 @@ async function exportBlock(ctx: ExportContext): Promise<string> {
   renderBlockForExport(container, blockParsed, effectivePalette, ctx.isDark, {
     width: EXPORT_WIDTH,
     height: EXPORT_HEIGHT,
+  });
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportGoal(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseGoal } = await import('./goal/parser');
+  const { renderGoalForExport } = await import('./goal/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const parsed = parseGoal(content, effectivePalette);
+  // Renders even without a valid target (0% shell, §3); only a hard parse
+  // failure (wrong first line) sets parsed.error.
+  if (parsed.error) return '';
+
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  renderGoalForExport(container, parsed, effectivePalette, ctx.isDark, {
+    width: EXPORT_WIDTH,
+    height: EXPORT_HEIGHT,
+  });
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportCountdown(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseCountdown } = await import('./countdown/parser');
+  const { renderCountdownForExport } = await import('./countdown/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const parsed = parseCountdown(content, effectivePalette);
+  // Renders even without a valid target (— shell); only a hard parse failure
+  // (wrong first line) sets parsed.error.
+  if (parsed.error) return '';
+
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  renderCountdownForExport(container, parsed, effectivePalette, ctx.isDark, {
+    width: EXPORT_WIDTH,
+    height: EXPORT_HEIGHT,
+  });
+  return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+async function exportBracket(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseBracket } = await import('./bracket/parser');
+  const { renderBracketForExport, bracketExportDimensions } =
+    await import('./bracket/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  const parsed = parseBracket(content, effectivePalette);
+  if (parsed.error) return '';
+
+  // Size the canvas to the bracket (fits at scale 1) instead of a fixed box, so
+  // a small bracket isn't marooned in dead space nor a large one clipped.
+  const { width, height } = bracketExportDimensions(parsed, effectivePalette);
+  const container = createExportContainer(width, height);
+  renderBracketForExport(container, parsed, effectivePalette, ctx.isDark, {
+    width,
+    height,
   });
   return finalizeSvgExport(container, theme, effectivePalette);
 }

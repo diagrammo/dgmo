@@ -23,6 +23,11 @@ export interface BodyPart {
   /** Bare indented body lines (markdown-light; `- ` bullets normalized). */
   readonly notes: readonly string[];
   readonly lineNumber: number;
+  /**
+   * Optional anatomical side (patient's own left/right) from a `left `/`right `
+   * prefix, e.g. `right pec`. Aims the leader at just that side's component.
+   */
+  readonly side?: 'left' | 'right';
 }
 
 export type BodyView = 'front' | 'back';
@@ -57,7 +62,14 @@ export interface ParsedBody {
 /** A resolvable catalog entry: its path geometry + a baked leader anchor. */
 export interface BodyPartGeometry {
   readonly paths: readonly string[];
+  /** Union centroid — used for gutter side (L/R) + vertical ordering. */
   readonly anchor: { readonly x: number; readonly y: number };
+  /**
+   * Centroids of each disjoint muscle component (e.g. left + right pec). The
+   * renderer aims a leader at whichever component sits nearest the label, so a
+   * bilateral muscle connects to the side it's labelled on — not the midline.
+   */
+  readonly centers?: ReadonlyArray<{ readonly x: number; readonly y: number }>;
 }
 
 /** One figure: silhouette + muscle geometry + catalog lookup. */

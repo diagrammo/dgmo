@@ -26,6 +26,27 @@ describe('parseFlowchart', () => {
       expect(result.direction).toBe('LR');
     });
 
+    it('parses space form direction LR', () => {
+      const result = parseFlowchart(
+        'flowchart\ndirection LR\n(Start) -> (End)'
+      );
+      expect(result.direction).toBe('LR');
+    });
+
+    it('parses space form direction TB', () => {
+      const result = parseFlowchart(
+        'flowchart\ndirection TB\n(Start) -> (End)'
+      );
+      expect(result.direction).toBe('TB');
+    });
+
+    it('parses legacy bare boolean direction-tb', () => {
+      const result = parseFlowchart(
+        'flowchart\ndirection-tb\n(Start) -> (End)'
+      );
+      expect(result.direction).toBe('TB');
+    });
+
     it('defaults to TB when no direction specified', () => {
       const result = parseFlowchart('(Start) -> (End)');
       expect(result.direction).toBe('TB');
