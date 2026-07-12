@@ -20,6 +20,7 @@
 
 import {
   DAY_MS,
+  formatCompound,
   formatCount,
   formatFooter,
   formatWordsDetail,
@@ -124,6 +125,8 @@ function updateNode(node: Element, now: number): void {
     // Explicit `expired <text>` wins; otherwise count UP how long ago it was.
     const custom = node.getAttribute('data-dgmo-countdown-expired');
     if (custom) text = custom;
+    else if (units === 'compound')
+      text = `${formatCompound(resolvedMs, now)} ago`;
     else {
       const elapsed = -remaining;
       text =
@@ -141,6 +144,8 @@ function updateNode(node: Element, now: number): void {
       hero === 'inline'
         ? `${ordinalWord(n)} ${label} ${relativePhrase(Math.max(0, remaining))}`.trim()
         : ordinalWord(n);
+  } else if (units === 'compound') {
+    text = formatCompound(now, resolvedMs);
   } else {
     text = formatCount(Math.max(0, remaining), { units, round, fields });
   }

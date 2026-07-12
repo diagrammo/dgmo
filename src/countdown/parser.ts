@@ -131,6 +131,7 @@ export function parseCountdown(
     expired: null,
     note: null,
     thresholds: null,
+    calendar: null,
     diagnostics: [],
     error: null,
   };
@@ -347,13 +348,14 @@ export function parseCountdown(
           v === 'full' ||
           v === 'clock' ||
           v === 'weeks' ||
-          v === 'words'
+          v === 'words' ||
+          v === 'compound'
         ) {
           result.units = v as CountUnits;
         } else {
           warn(
             lineNum,
-            `Unknown units "${rest}" — use days|full|clock|weeks|words.`
+            `Unknown units "${rest}" — use days|full|clock|weeks|words|compound.`
           );
         }
         break;
@@ -386,6 +388,17 @@ export function parseCountdown(
       case 'expired':
         result.expired = rest;
         break;
+
+      // ── `calendar <year|month|week>` — you-are-here → event band. ──
+      case 'calendar': {
+        const v = rest.toLowerCase();
+        if (v === 'year' || v === 'month' || v === 'week') {
+          result.calendar = v;
+        } else {
+          warn(lineNum, `"calendar" needs year|month|week (got "${rest}").`);
+        }
+        break;
+      }
 
       // ── `thresholds <amber> <red>` — traffic-light urgency ramp (days). ──
       case 'thresholds': {

@@ -217,7 +217,13 @@ export function rampIndex(
 
 // ── Count + footer formatting (shared so baked == live) ──
 
-export type CountUnits = 'days' | 'full' | 'clock' | 'weeks' | 'words';
+export type CountUnits =
+  | 'days'
+  | 'full'
+  | 'clock'
+  | 'weeks'
+  | 'words'
+  | 'compound';
 export type RoundMode = 'up' | 'down' | 'nearest';
 /** Which `full`-mode segments show. */
 export type Field = 'd' | 'h' | 'm' | 's';
@@ -299,6 +305,77 @@ export function formatWordsDetail(remainingMs: number): string {
   if (d > 0 || h > 0) parts.push(`${h} hour${h === 1 ? '' : 's'}`);
   parts.push(`${m} minute${m === 1 ? '' : 's'}`);
   return parts.join(' ');
+}
+
+/**
+ * Calendar-aware date subtraction `target − now` (months vary in length, so this
+ * can't be done from a raw ms delta). Borrows like long subtraction. Assumes
+ * `targetMs >= nowMs` (callers swap args for the count-up "ago" case).
+ */
+export function breakdown(
+  nowMs: number,
+  targetMs: number
+): {
+  months: number;
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+} {
+  const n = new Date(nowMs);
+  const t = new Date(targetMs);
+  let y = t.getFullYear() - n.getFullYear();
+  let mo = t.getMonth() - n.getMonth();
+  let d = t.getDate() - n.getDate();
+  let h = t.getHours() - n.getHours();
+  let mi = t.getMinutes() - n.getMinutes();
+  let s = t.getSeconds() - n.getSeconds();
+  if (s < 0) {
+    s += 60;
+    mi--;
+  }
+  if (mi < 0) {
+    mi += 60;
+    h--;
+  }
+  if (h < 0) {
+    h += 24;
+    d--;
+  }
+  if (d < 0) {
+    d += new Date(t.getFullYear(), t.getMonth(), 0).getDate(); // days in prev month
+    mo--;
+  }
+  if (mo < 0) {
+    mo += 12;
+    y--;
+  }
+  return { months: y * 12 + mo, days: d, hours: h, minutes: mi, seconds: s };
+}
+
+/**
+ * Compound human phrase — "10 months, 20 days". Drops leading zero units and
+ * shows at most `maxUnits` (default 2) from months→days→hours→minutes.
+ */
+export function formatCompound(
+  nowMs: number,
+  targetMs: number,
+  maxUnits = 2
+): string {
+  const b = breakdown(nowMs, targetMs);
+  const all: Array<[number, string]> = [
+    [b.months, 'month'],
+    [b.days, 'day'],
+    [b.hours, 'hour'],
+    [b.minutes, 'minute'],
+  ];
+  let i = 0;
+  while (i < all.length - 1 && all[i]![0] === 0) i++;
+  const chosen = all
+    .slice(i, i + maxUnits)
+    .filter((p, idx) => p[0] > 0 || idx === 0);
+  if (!chosen.length) return 'now';
+  return chosen.map(([n, u]) => `${n} ${u}${n === 1 ? '' : 's'}`).join(', ');
 }
 
 /** Short relative phrase for the footer ("in 8 days", "tomorrow", "today"). */

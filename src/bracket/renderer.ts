@@ -266,7 +266,7 @@ export function renderBracket(
 
   const sideBarH = layout.sideLabels.length ? 30 : 0;
   const bandTop = sideBarH + 2;
-  const roundY = sideBarH + 20;
+  const roundY = sideBarH + 24;
 
   // ── Column shade bands (behind everything) for colored rounds ──
   // A column under a side bar starts below it; a groupless column (no side bar
@@ -329,13 +329,13 @@ export function renderBracket(
     root
       .append('text')
       .attr('x', col.x)
-      .attr('y', covered ? roundY : 18)
+      .attr('y', covered ? roundY : 22)
       .attr('text-anchor', 'middle')
-      .attr('font-size', covered ? 12 : 13)
+      .attr('font-size', covered ? 14 : 15)
       .attr('font-weight', covered ? 700 : 800)
       .attr('fill', c)
-      .attr('letter-spacing', 0.3)
-      .text(clip(col.label, BOX_W + 20, covered ? 12 : 13));
+      .attr('letter-spacing', 0.4)
+      .text(clip(col.label, BOX_W + 20, covered ? 14 : 15));
   }
 
   // ── Connectors (behind boxes) ──
@@ -435,8 +435,18 @@ function drawConnector(
   const childEdge = childIsLeft ? from.x + BOX_W / 2 : from.x - BOX_W / 2;
   const parentEdge = childIsLeft ? parentLeft : parentRight;
   const midX = (childEdge + parentEdge) / 2;
+  // Undecided child (yA ≠ yB): a `]` merge — a stub from EACH contestant box to
+  // a shared vertical, then out to the parent box. The vertical must also reach
+  // `toCy` (the parent box), which usually sits OUTSIDE the child's own span, or
+  // the parent stub floats disconnected.
+  const vLo = Math.min(from.yA, from.yB, toCy);
+  const vHi = Math.max(from.yA, from.yB, toCy);
+  const d =
+    from.yA !== from.yB
+      ? `M ${childEdge} ${from.yA} H ${midX} M ${childEdge} ${from.yB} H ${midX} M ${midX} ${vLo} V ${vHi} M ${midX} ${toCy} H ${parentEdge}`
+      : `M ${childEdge} ${from.y} H ${midX} V ${toCy} H ${parentEdge}`;
   g.append('path')
-    .attr('d', `M ${childEdge} ${from.y} H ${midX} V ${toCy} H ${parentEdge}`)
+    .attr('d', d)
     .attr('fill', 'none')
     .attr('stroke', paint.wire)
     .attr('stroke-width', 1.5);

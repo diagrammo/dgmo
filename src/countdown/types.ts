@@ -82,6 +82,13 @@ export interface ParsedCountdown {
    */
   readonly thresholds: readonly [number, number] | null;
 
+  /**
+   * Optional "you-are-here → event" calendar visualization drawn as a band at
+   * the bottom of the banner. `year` = a Jan→Dec axis with now/event markers.
+   * Null = none.
+   */
+  readonly calendar: 'year' | 'month' | 'week' | null;
+
   /** Resolved trailing-token / `color:` hex, if any. Overrides the ramp. */
   readonly color?: string;
   readonly diagnostics: readonly DgmoError[];

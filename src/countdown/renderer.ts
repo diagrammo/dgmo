@@ -27,6 +27,7 @@ import {
 import type { ParsedCountdown } from './types';
 import {
   DAY_MS,
+  formatCompound,
   formatCount,
   formatDateShort,
   formatFooter,
@@ -53,6 +54,8 @@ function bakedHero(
     if (parsed.expired !== null) return parsed.expired;
     const elapsed = -remaining;
     if (elapsed <= 0) return 'Now!';
+    if (parsed.units === 'compound')
+      return `${formatCompound(resolved, now)} ago`;
     const bu =
       parsed.units === 'full' || parsed.units === 'clock'
         ? 'days'
@@ -67,6 +70,7 @@ function bakedHero(
   if (ordinal !== null && parsed.sinceStyle === 'inline') {
     return `${ordinalWord(ordinal)} ${label} ${relativePhrase(Math.max(0, remaining))}`.trim();
   }
+  if (parsed.units === 'compound') return formatCompound(now, resolved);
   // Baked no-JS floor: `full`/`clock` need per-second ticking that only the live
   // ticker provides. Bake the day count as the honest static fallback — the
   // ticker upgrades it to `Nd HH:MM:SS` on live surfaces (spike §"Honest limits").
@@ -108,6 +112,106 @@ function stampRecur(
   if (r.intervalUnit !== undefined)
     sel.attr('data-dgmo-recur-interval-unit', r.intervalUnit);
   if (r.anchorMs !== undefined) sel.attr('data-dgmo-recur-anchor', r.anchorMs);
+}
+
+type SvgSel = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
+
+/**
+ * "You-are-here → event" band. v1 = a year strip: a Jan→Dec axis (spanning
+ * however many years the event is out), month ticks, the now→event span shaded,
+ * and two markers (now = blue, event = accent). `month`/`week` fall back to the
+ * year strip for now.
+ */
+function drawCalendarBand(
+  svg: SvgSel,
+  _kind: 'year' | 'month' | 'week',
+  x0: number,
+  x1: number,
+  top: number,
+  nowMs: number,
+  resolvedMs: number,
+  accent: string,
+  palette: PaletteColors,
+  _muted: string,
+  faint: string
+): void {
+  const W = x1 - x0;
+  const startYear = new Date(nowMs).getFullYear();
+  const endYear = new Date(resolvedMs).getFullYear();
+  const start = new Date(startYear, 0, 1).getTime();
+  const end = new Date(endYear, 11, 31, 23, 59, 59).getTime();
+  const span = Math.max(1, end - start);
+  const fx = (ms: number): number => x0 + ((ms - start) / span) * W;
+
+  const trackY = top + 16;
+  const trackH = 12;
+  svg
+    .append('rect')
+    .attr('x', x0)
+    .attr('y', trackY)
+    .attr('width', W)
+    .attr('height', trackH)
+    .attr('rx', trackH / 2)
+    .attr('fill', mix(palette.text, palette.bg, 10));
+
+  const sx = fx(nowMs);
+  const ex = fx(resolvedMs);
+  svg
+    .append('rect')
+    .attr('x', sx)
+    .attr('y', trackY)
+    .attr('width', Math.max(0, ex - sx))
+    .attr('height', trackH)
+    .attr('rx', trackH / 2)
+    .attr('fill', mix(accent, palette.bg, 26));
+
+  for (let yr = startYear; yr <= endYear; yr++) {
+    for (let m = 0; m < 12; m++) {
+      const t = new Date(yr, m, 1).getTime();
+      if (t < start || t > end) continue;
+      const x = fx(t);
+      svg
+        .append('line')
+        .attr('x1', x)
+        .attr('x2', x)
+        .attr('y1', trackY - 3)
+        .attr('y2', trackY + trackH + 3)
+        .attr('stroke', mix(palette.text, palette.bg, m === 0 ? 30 : 18))
+        .attr('stroke-width', m === 0 ? 1 : 0.5);
+      if (m === 0) {
+        svg
+          .append('text')
+          .attr('x', x + 3)
+          .attr('y', trackY + trackH + 17)
+          .attr('text-anchor', 'start')
+          .attr('font-size', 11)
+          .attr('fill', faint)
+          .attr('font-family', FONT_FAMILY)
+          .text(String(yr));
+      }
+    }
+  }
+
+  const nowColor =
+    resolveColor('blue', palette) ?? mix(palette.text, palette.bg, 42);
+  const marker = (x: number, col: string): void => {
+    svg
+      .append('line')
+      .attr('x1', x)
+      .attr('x2', x)
+      .attr('y1', trackY - 9)
+      .attr('y2', trackY + trackH + 9)
+      .attr('stroke', col)
+      .attr('stroke-width', 1.6);
+    svg
+      .append('circle')
+      .attr('cx', x)
+      .attr('cy', trackY - 9)
+      .attr('r', 4)
+      .attr('fill', col);
+  };
+  marker(sx, nowColor);
+  marker(ex, accent);
 }
 
 export function renderCountdown(
@@ -198,15 +302,22 @@ export function renderCountdown(
 
   // ── Right column: the hero figure. Size it first so the left column knows
   //    how much horizontal room it has. Reserve for the WIDEST the live ticker
-  //    can make it — `units full` bakes a narrow day count ("52 days") but ticks
-  //    to `Nd HH:MM:SS`, so lay out against that or the rule runs under it. ──
+  //    can make it — `full`/`clock` bake a narrow day count ("52 days") but tick
+  //    to `Nd HH:MM:SS` / `HH:MM:SS`, so lay out against that or the rule runs
+  //    under the hero. ──
   const isInlineHero = parsed.sinceStyle === 'inline' && ordinal !== null;
-  const dayCount =
-    resolved === null ? 0 : Math.max(0, Math.ceil((resolved - now) / DAY_MS));
+  const remainingNow = resolved === null ? 0 : Math.max(0, resolved - now);
+  const dayCount = Math.ceil(remainingNow / DAY_MS);
   const heroSizeStr =
     parsed.units === 'full'
       ? `${dayCount > 0 ? `${dayCount}d ` : ''}00:00:00`
-      : hero;
+      : parsed.units === 'clock'
+        ? formatCount(remainingNow, {
+            units: 'clock',
+            round: parsed.round,
+            fields: parsed.fields,
+          })
+        : hero;
   const heroMaxW = contentW * (isInlineHero ? 0.5 : 0.44);
   const heroFont = fitFont(heroSizeStr, isInlineHero ? 40 : 96, heroMaxW, 26);
   const heroW = Math.min(heroMaxW, estWidth(heroSizeStr, heroFont));
@@ -214,7 +325,20 @@ export function renderCountdown(
   const leftW = Math.max(contentW * 0.42, contentW - heroW - gapMid);
 
   // ── Left column fonts + content ──
-  const titleFont = parsed.title ? fitFont(parsed.title, 40, leftW, 20) : 0;
+  // Title: keep a comfortable size and WRAP onto new lines when it runs over,
+  // rather than shrinking to a tiny font or overflowing into the hero. Only a
+  // single over-long word forces a shrink (so it never overflows the column).
+  const titleBase = 40;
+  let titleFont = 0;
+  let titleLines: string[] = [];
+  if (parsed.title) {
+    const longestWord = parsed.title
+      .split(/\s+/)
+      .reduce((a, b) => (b.length > a.length ? b : a), '');
+    titleFont = fitFont(longestWord, titleBase, leftW, 22);
+    const cpl = Math.max(6, Math.floor(leftW / (titleFont * 0.58)));
+    titleLines = wrapDescriptionLines([parsed.title], cpl).map((l) => l.text);
+  }
   const eyebrowText =
     ordinal !== null &&
     (parsed.sinceStyle === 'eyebrow' || parsed.sinceStyle === 'tenure')
@@ -267,11 +391,12 @@ export function renderCountdown(
     >;
 
   if (parsed.title) {
-    drawText(parsed.title, y, titleFont, palette.text, 700).attr(
-      'data-line-number',
-      parsed.titleLineNumber
-    );
-    y += titleFont + Math.round(titleFont * 0.45);
+    titleLines.forEach((tl, i) => {
+      const t = drawText(tl, y, titleFont, palette.text, 700);
+      if (i === 0) t.attr('data-line-number', parsed.titleLineNumber);
+      y += i < titleLines.length - 1 ? Math.round(titleFont * 1.12) : titleFont;
+    });
+    y += Math.round(titleFont * 0.45);
     // Hairline rule under the title, spanning the left column.
     svg
       .append('line')
@@ -367,15 +492,38 @@ export function renderCountdown(
   const heroBlockBottom =
     heroBaseline + (detailText ? heroFont * 0.28 + detailFont : 0);
 
-  // ── Banner height: the taller of the two columns drives it. ──
+  // ── Optional calendar band ("you-are-here → event") spans the full width
+  //    below both columns; reserve its height. ──
+  const contentBottom = Math.max(leftBottom, heroBlockBottom);
+  const calStripH = 52;
+  const calTop = contentBottom + 18;
+  const hasCal = parsed.calendar !== null && resolved !== null;
+
+  // ── Banner height: the taller of the two columns (plus any calendar) drives it. ──
   const bannerH = Math.max(
-    leftBottom + padY,
-    heroBlockBottom + padY,
+    contentBottom + padY,
+    hasCal ? calTop + calStripH + padY : 0,
     heroFont * 1.25 + 2 * padY,
     Math.round(width * 0.28)
   );
   svg.attr('height', bannerH).attr('viewBox', `0 0 ${width} ${bannerH}`);
   bgRect.attr('height', bannerH);
+
+  if (hasCal) {
+    drawCalendarBand(
+      svg,
+      parsed.calendar!,
+      leftX,
+      width - padX,
+      calTop,
+      now,
+      resolved!,
+      accent,
+      palette,
+      muted,
+      faint
+    );
+  }
 
   // ── The live hero marker — big, accent, TOP-aligned with the title on the
   //    right. Match cap-tops: title cap-top ≈ padY + 0.28·titleFont. ──

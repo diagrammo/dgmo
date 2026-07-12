@@ -69,7 +69,11 @@ function commentaryLineCount(commentary: readonly string[]): number {
 
 export interface ConnectorPoint {
   readonly x: number;
+  /** Origin y. For a decided child this is the winner box; for an undecided
+   *  child `yA`/`yB` are its two boxes (renderer draws a `]` merge). */
   readonly y: number;
+  readonly yA: number;
+  readonly yB: number;
 }
 
 export interface LaidMatch {
@@ -465,15 +469,49 @@ function buildCasualSide(
 // Positioning (slot assignment) — shared by both builders
 // ============================================================
 
-function positionSide(built: BuiltSide): void {
+function positionSide(built: BuiltSide, rowScale: number): void {
   const byId = new Map(built.nodes.map((n) => [n.id, n]));
   let slot = 0;
+  // Half a box-pair in slot units — used to line an advancing box up exactly
+  // with its feeder's winner box (so a bye vs a played match runs straight).
+  // Must use the FINAL row height (rowScale, which commentary can inflate), not
+  // the ROW constant, or the alignment is off whenever rowScale ≠ ROW.
+  const R = HALF_SPAN / rowScale;
   const place = (id: number): number => {
     const n = byId.get(id)!;
-    const ys: number[] = [];
-    ys.push(n.topChildId !== null ? place(n.topChildId) : slot++);
-    ys.push(n.botChildId !== null ? place(n.botChildId) : slot++);
-    n.y = mean(ys);
+    const tHas = n.topChildId !== null;
+    const bHas = n.botChildId !== null;
+    let ty: number;
+    let by: number;
+    const winBoxY = (m: Node): number =>
+      m.y + (m.winner === 'bot' ? R : m.winner === 'top' ? -R : 0);
+    if (tHas && bHas) {
+      ty = place(n.topChildId!);
+      by = place(n.botChildId!);
+      const tc = byId.get(n.topChildId!)!;
+      const bc = byId.get(n.botChildId!)!;
+      // Balanced feeders (same round — every seeded match) center on the mean.
+      // Uneven feeders (one skipped a round, e.g. a casual bye advancing across
+      // rounds) align the deeper-gap feeder's winner box so its long cross-round
+      // advance runs straight instead of splitting the difference.
+      if (tc.round === bc.round) n.y = mean([ty, by]);
+      else if (tc.round < bc.round) n.y = winBoxY(tc) + R;
+      else n.y = winBoxY(bc) - R;
+    } else if (tHas) {
+      // Bot is a bye: align this match's top box onto the feeder's winner box.
+      const f = byId.get(n.topChildId!)!;
+      place(n.topChildId!);
+      n.y = winBoxY(f) + R;
+    } else if (bHas) {
+      const f = byId.get(n.botChildId!)!;
+      place(n.botChildId!);
+      n.y = winBoxY(f) - R;
+    } else {
+      // Round-1 match: two entrant leaves take fresh slots.
+      ty = slot++;
+      by = slot++;
+      n.y = mean([ty, by]);
+    }
     return n.y;
   };
   // Place all roots (a well-formed side has one; casual ladders may have more).
@@ -525,7 +563,6 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
     const built = parsed.seeded
       ? buildSeededSide(sideSeeds, sideMatches, label, nextId, diagnostics)
       : buildCasualSide(sideMatches, label, nextId, diagnostics);
-    positionSide(built);
     groups.push(
       color !== undefined ? { label, color, built } : { label, built }
     );
@@ -536,6 +573,23 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
   } else {
     for (const s of parsed.sides) buildFor(s.label, s.color);
   }
+
+  // Row spacing grows to fit commentary so captions never overlap the next
+  // match. Compute it BEFORE positioning: the bye-alignment offset is a fraction
+  // of this final row height, so positioning must know it up front.
+  const maxComment = Math.max(
+    0,
+    ...groups.flatMap((g) =>
+      g.built.nodes.map((n) => commentaryLineCount(n.commentary))
+    )
+  );
+  const COMMENT_LH = 15;
+  const rowScale =
+    maxComment > 0
+      ? Math.max(ROW, 2 * BOX_H + PAIR_GAP + maxComment * COMMENT_LH + 16)
+      : ROW;
+
+  for (const g of groups) positionSide(g.built, rowScale);
 
   // Championship results: indent-0 lines when sides exist.
   const champResults = parsed.matches.filter(
@@ -579,20 +633,6 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
   };
 
   let champion: string | null = null;
-
-  // Row spacing grows to fit commentary so captions never overlap the next
-  // match. A match's own footprint is its two boxes; commentary sits below.
-  const maxComment = Math.max(
-    0,
-    ...groups.flatMap((g) =>
-      g.built.nodes.map((n) => commentaryLineCount(n.commentary))
-    )
-  );
-  const COMMENT_LH = 15;
-  const rowScale =
-    maxComment > 0
-      ? Math.max(ROW, 2 * BOX_H + PAIR_GAP + maxComment * COMMENT_LH + 16)
-      : ROW;
 
   if (!twoSide) {
     // Stack sides vertically (single ladder = one group). No mirroring.
@@ -719,6 +759,14 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
     if (n.winner === 'top') return n.y - half;
     return n.y;
   };
+  // Connector origin. Decided child → single winner-box point (yA=yB). Undecided
+  // → both its boxes so the renderer draws a `]` merge from each contestant.
+  const fromPoint = (c: Node): ConnectorPoint => {
+    const y = winnerBoxCy(c);
+    return c.winner === null
+      ? { x: c.x, y, yA: c.y - half, yB: c.y + half }
+      : { x: c.x, y, yA: y, yB: y };
+  };
   const matches: LaidMatch[] = allNodes.map((n) => {
     const topChild = n.topChildId !== null ? nodeById.get(n.topChildId) : null;
     const botChild = n.botChildId !== null ? nodeById.get(n.botChildId) : null;
@@ -733,8 +781,8 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
       score: n.score,
       pending: n.winner === null && n.topName !== null && n.botName !== null,
       isChampionship: n.isChampionship,
-      topFrom: topChild ? { x: topChild.x, y: winnerBoxCy(topChild) } : null,
-      botFrom: botChild ? { x: botChild.x, y: winnerBoxCy(botChild) } : null,
+      topFrom: topChild ? fromPoint(topChild) : null,
+      botFrom: botChild ? fromPoint(botChild) : null,
       commentary: n.commentary,
       home: n.homeName,
       lineNumber: n.lineNumber,
@@ -778,7 +826,7 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
   // Top region: an optional side-bar band, then the round-title band (with
   // breathing room above the titles), then the boxes.
   const SIDE_BAR = sideLabelOut.length ? 30 : 0;
-  const LABEL_BAND = columnLabels.length ? 30 : 0;
+  const LABEL_BAND = columnLabels.length ? 48 : 0;
   const topBand = SIDE_BAR + LABEL_BAND;
 
   // Shift everything into a >=0 box, leaving room for the top label band.
@@ -789,10 +837,20 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
     x: m.x + shiftX,
     y: m.y + shiftY,
     topFrom: m.topFrom
-      ? { x: m.topFrom.x + shiftX, y: m.topFrom.y + shiftY }
+      ? {
+          x: m.topFrom.x + shiftX,
+          y: m.topFrom.y + shiftY,
+          yA: m.topFrom.yA + shiftY,
+          yB: m.topFrom.yB + shiftY,
+        }
       : null,
     botFrom: m.botFrom
-      ? { x: m.botFrom.x + shiftX, y: m.botFrom.y + shiftY }
+      ? {
+          x: m.botFrom.x + shiftX,
+          y: m.botFrom.y + shiftY,
+          yA: m.botFrom.yA + shiftY,
+          yB: m.botFrom.yB + shiftY,
+        }
       : null,
   }));
   const shiftedCols = columnLabels.map((c) => ({ ...c, x: c.x + shiftX }));
