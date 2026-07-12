@@ -8,7 +8,7 @@
 //   now <number>                    // space-separated key value (no colon)
 //   target <number>
 //   note <text>                     // optional free-text caption/description
-//   [no-percent] [no-value] [solid-fill] [no-title]
+//   [no-percent] [no-value] [solid-fill] [no-title] [no-auto-color] [no-note]
 //
 // One value only — this type has no children/rows. Unit lives in the title
 // (treemap rule §24C); values accept `_` separators but not thousands commas.
@@ -40,6 +40,8 @@ export function parseGoal(
     noValue: false,
     solidFill: false,
     noTitle: false,
+    noAutoColor: false,
+    noNote: false,
   };
   const result: Writable<ParsedGoal> = {
     type: 'goal',
@@ -138,6 +140,14 @@ export function parseGoal(
     }
     if (lower === 'no-value') {
       options.noValue = true;
+      continue;
+    }
+    if (lower === 'no-auto-color') {
+      options.noAutoColor = true;
+      continue;
+    }
+    if (lower === 'no-note') {
+      options.noNote = true;
       continue;
     }
 

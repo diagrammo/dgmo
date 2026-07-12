@@ -112,6 +112,21 @@ target 4`);
     expect(r.options.noTitle).toBe(true);
   });
 
+  it('parses no-note flag (defaults false)', () => {
+    expect(parseGoal(`goal T\nnow 1\ntarget 4`).options.noNote).toBe(false);
+    const r = parseGoal(`goal T\nno-note\nnow 1\ntarget 4\nnote\n  hi crew`);
+    expect(r.options.noNote).toBe(true);
+    expect(r.description).toBe('hi crew');
+  });
+
+  it('parses no-auto-color flag (defaults false)', () => {
+    expect(parseGoal(`goal T\nnow 1\ntarget 4`).options.noAutoColor).toBe(
+      false
+    );
+    const r = parseGoal(`goal T\nno-auto-color\nnow 1\ntarget 4`);
+    expect(r.options.noAutoColor).toBe(true);
+  });
+
   it('parses a `note` free-text description', () => {
     const r = parseGoal(`goal T
 thermometer

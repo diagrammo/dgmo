@@ -20,6 +20,10 @@ export interface GoalOptions {
   readonly solidFill: boolean;
   /** Hide the banner title. */
   readonly noTitle: boolean;
+  /** Disable auto traffic-light fill color (fall back to the palette color). */
+  readonly noAutoColor: boolean;
+  /** Suppress the `note` description block even when one is present. */
+  readonly noNote: boolean;
 }
 
 export interface ParsedGoal {
