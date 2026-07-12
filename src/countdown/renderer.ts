@@ -31,10 +31,10 @@ import {
   formatCount,
   formatDateShort,
   formatFooter,
+  formatHuman,
   formatWordsDetail,
   ordinalFor,
   ordinalWord,
-  rampIndex,
   relativePhrase,
 } from './resolve';
 
@@ -54,7 +54,7 @@ function bakedHero(
     if (parsed.expired !== null) return parsed.expired;
     const elapsed = -remaining;
     if (elapsed <= 0) return 'Now!';
-    if (parsed.units === 'compound')
+    if (parsed.units === 'compound' || parsed.units === 'human')
       return `${formatCompound(resolved, now)} ago`;
     const bu =
       parsed.units === 'full' || parsed.units === 'clock'
@@ -69,6 +69,16 @@ function bakedHero(
     return ordinalWord(ordinal);
   if (ordinal !== null && parsed.sinceStyle === 'inline') {
     return `${ordinalWord(ordinal)} ${label} ${relativePhrase(Math.max(0, remaining))}`.trim();
+  }
+  if (parsed.units === 'human') {
+    // All-day (no-time) targets floor to LOCAL MIDNIGHTS so the hero reads as a
+    // flat whole-day count ("8 days") instead of false hours/minutes precision
+    // ("7 days, 14 hours") — it's really counting to midnight. Timed targets keep
+    // the full breakdown.
+    const [hn, ht] = parsed.hasTime
+      ? [now, resolved]
+      : [DAY_START(now), DAY_START(resolved)];
+    return formatHuman(hn, ht).big;
   }
   if (parsed.units === 'compound') return formatCompound(now, resolved);
   // Baked no-JS floor: `full`/`clock` need per-second ticking that only the live
@@ -116,102 +126,1026 @@ function stampRecur(
 
 type SvgSel = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
 
+const MON_ABBR = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+const WD_ABBR = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+const DAY_START = (ms: number): number => {
+  const d = new Date(ms);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+};
+/** Whole-day span between two instants (local-midnight aligned; never an ordinal round-trip). */
+const dayDelta = (a: number, b: number): number =>
+  Math.round((DAY_START(b) - DAY_START(a)) / DAY_MS);
+/** Monotonic yyyymmdd key for same-scale day equality/ordering. */
+const keyOf = (ms: number): number => {
+  const d = new Date(ms);
+  return d.getFullYear() * 10000 + d.getMonth() * 100 + d.getDate();
+};
+
+// ── Palette-mapped band colors — two live anchors on a bed of inert gray ──
+// Color encodes DISTANCE, not decoration: `now` is a FIXED cold blue
+// (you-are-here), `event` is the hot target/accent, and every cell strictly
+// between them is a per-cell blend of the two (see gradStyle) — so a cell's color
+// reads as how far along the now→event journey it sits. Everything outside the
+// span is one inert gray. Collapsed from the old six-token set: remain+eventSoft →
+// accentSoft, past+track → inert.
+interface BandColors {
+  readonly bg: string;
+  readonly text: string;
+  readonly muted: string;
+  readonly faint: string;
+  readonly rule: string;
+  readonly now: string; // fixed blue anchor (teal if the accent is itself blue)
+  readonly event: string; // the target — the accent
+  readonly midSoft: string; // a pale wash at the now→event MIDPOINT (cool purple)
+  readonly inert: string; // elapsed + empty-future fill (one gray)
+  readonly inertBorder: string;
+}
+function bandColors(
+  palette: PaletteColors,
+  accent: string,
+  muted: string,
+  faint: string
+): BandColors {
+  // mix(a, b, pct) = pct% of `a` blended over `b`.
+  // `now` is a FIXED blue so it always stands apart from the (any-hue) accent; if
+  // the accent is itself blue we shift `now` to teal so the two never merge.
+  const blue =
+    resolveColor('blue', palette) ?? mix(palette.text, palette.bg, 45);
+  const collides = accent.toLowerCase() === blue.toLowerCase();
+  const now = collides
+    ? (resolveColor('teal', palette) ??
+      resolveColor('cyan', palette) ??
+      mix(palette.text, palette.bg, 55))
+    : blue;
+  // The soft wash sits at the now→event MIDPOINT (a cool purple when the anchors
+  // are blue↔red), not on the warm accent — it belongs to the gradient, not the
+  // target.
+  const mid = mix(accent, now, 50);
+  return {
+    bg: palette.bg,
+    text: palette.text,
+    muted,
+    faint,
+    rule: mix(palette.text, palette.bg, 14),
+    now,
+    event: accent,
+    midSoft: mix(mid, palette.bg, 24),
+    inert: mix(palette.text, palette.bg, 7),
+    inertBorder: mix(palette.text, palette.bg, 22),
+  };
+}
+
+// ── One unified cell convention for EVERY tier ──
+// now/event = SOLID anchor chips (white text); elapsed & empty-future = one inert
+// gray (told apart by text weight/position, not fill). Cells strictly BETWEEN the
+// anchors use gradStyle — a now→event blend where the gradient itself is the edge.
+type CellRole = 'past' | 'future' | 'today' | 'event';
+interface CellStyle {
+  readonly fill: string;
+  readonly stroke: string;
+  readonly text: string;
+}
+function roleStyle(C: BandColors, role: CellRole): CellStyle {
+  switch (role) {
+    case 'past':
+      return { fill: C.inert, stroke: C.inertBorder, text: C.faint };
+    case 'future':
+      return { fill: C.inert, stroke: C.inertBorder, text: C.muted };
+    case 'today':
+      return { fill: C.now, stroke: C.now, text: C.bg };
+    case 'event':
+      return { fill: C.event, stroke: C.event, text: C.bg };
+  }
+}
 /**
- * "You-are-here → event" band. v1 = a year strip: a Jan→Dec axis (spanning
- * however many years the event is out), month ticks, the now→event span shaded,
- * and two markers (now = blue, event = accent). `month`/`week` fall back to the
- * year strip for now.
+ * A cell strictly between the two anchors. `frac` 0 = at now (cold blue), 1 = at
+ * the event (hot accent); fill is the now→event blend and the stroke matches it,
+ * so the run of continuation cells reads as one gradient rather than bordered
+ * chips. White text keeps the (saturated) blend legible.
  */
-function drawCalendarBand(
+function gradStyle(C: BandColors, frac: number): CellStyle {
+  const t = Math.max(0, Math.min(1, frac));
+  const f = mix(C.event, C.now, Math.round(t * 100));
+  return { fill: f, stroke: f, text: C.bg };
+}
+
+/** The fixed band box each viz fills. */
+interface BandBox {
+  readonly left: number;
+  readonly top: number;
+  readonly contentW: number;
+  readonly height: number;
+}
+
+// ── Tiny d3 append helpers keep the ports readable ──
+function aText(
   svg: SvgSel,
-  _kind: 'year' | 'month' | 'week',
-  x0: number,
+  x: number,
+  y: number,
+  size: number,
+  fill: string,
+  weight: number,
+  anchor: 'start' | 'middle' | 'end',
+  txt: string,
+  extra?: Record<string, string | number>
+): void {
+  const t = svg
+    .append('text')
+    .attr('x', x)
+    .attr('y', y)
+    .attr('text-anchor', anchor)
+    .attr('font-size', size)
+    .attr('font-weight', weight)
+    .attr('fill', fill)
+    .attr('font-family', FONT_FAMILY)
+    .attr('font-variant-numeric', 'tabular-nums')
+    .text(txt);
+  if (extra) for (const k in extra) t.attr(k, extra[k]!);
+}
+function aRect(
+  svg: SvgSel,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  rx: number,
+  fill: string,
+  stroke?: string,
+  sw?: number
+): void {
+  const r = svg
+    .append('rect')
+    .attr('x', x)
+    .attr('y', y)
+    .attr('width', w)
+    .attr('height', h)
+    .attr('rx', rx)
+    .attr('fill', fill);
+  if (stroke) r.attr('stroke', stroke).attr('stroke-width', sw ?? 1);
+}
+function aLine(
+  svg: SvgSel,
   x1: number,
-  top: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  stroke: string,
+  sw: number,
+  opacity?: number
+): void {
+  const l = svg
+    .append('line')
+    .attr('x1', x1)
+    .attr('y1', y1)
+    .attr('x2', x2)
+    .attr('y2', y2)
+    .attr('stroke', stroke)
+    .attr('stroke-width', sw);
+  if (opacity != null) l.attr('opacity', opacity);
+}
+
+/**
+ * A bright outer ring around the event chip, split from it by a background gap,
+ * so the target reads as THE destination even when the ramp's approach runs warm
+ * and a neighbor cell is nearly as red. Draw right after the event cell's fill.
+ */
+function haloRect(
+  svg: SvgSel,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  rx: number,
+  C: BandColors
+): void {
+  // bg gap hugging the chip (0–2px out), then the bright event ring (2–4px out).
+  aRect(svg, x - 1, y - 1, w + 2, h + 2, rx + 1, 'none', C.bg, 2);
+  aRect(svg, x - 3, y - 3, w + 6, h + 6, rx + 3, 'none', C.event, 2);
+}
+
+/** Which tier fills the band, chosen from the whole-day span to the target. */
+type BandKind =
+  | 'year'
+  | 'months'
+  | 'monthgrid'
+  | 'weekstrip'
+  | 'today'
+  | 'after'
+  | 'clock';
+
+function pickBand(
   nowMs: number,
   resolvedMs: number,
-  accent: string,
-  palette: PaletteColors,
-  _muted: string,
-  faint: string
+  hasTime: boolean
+): BandKind {
+  const days = dayDelta(nowMs, resolvedMs);
+  // Timed pivot: on the final day (or past) the band becomes the H·M·S rings.
+  if (hasTime && days <= 0) return 'clock';
+  if (days > 365) return 'year';
+  if (days > 92) return 'months'; // 3–12mo → abstract month rectangles
+  if (days > 18) return 'monthgrid'; // ~3wk–3mo → cropped day calendars
+  if (days >= 1) return 'weekstrip'; // ≤ 18d → one stretchy linear day-strip
+  if (days === 0) return 'today';
+  return 'after';
+}
+
+/** Inclusive count of calendar months spanned from now's month to target's month. */
+function monthSpan(nowMs: number, resolvedMs: number): number {
+  const n = new Date(nowMs);
+  const t = new Date(resolvedMs);
+  return (
+    (t.getFullYear() - n.getFullYear()) * 12 + (t.getMonth() - n.getMonth()) + 1
+  );
+}
+
+/**
+ * Layout for the day-calendar tier. Cropping the rows made stubby, wide months
+ * that don't read as a calendar; instead we keep every month FULL-height and pad
+ * the sides with quiet CONTEXT months so each column lands at a natural width
+ * (~200px). `dim[i]` marks a context month (before now's month or after the
+ * event's) — rendered dimmed, so the eye still lands on the real span.
+ */
+const MONTH_TARGET_PX = 200;
+function monthGridLayout(
+  nowMs: number,
+  resolvedMs: number,
+  contentW: number
+): { months: Date[]; dim: boolean[] } {
+  const now = new Date(nowMs);
+  const ev = new Date(resolvedMs);
+  const realSpan = monthSpan(nowMs, resolvedMs);
+  const shown = Math.max(realSpan, Math.round(contentW / MONTH_TARGET_PX));
+  const padBefore = Math.floor((shown - realSpan) / 2);
+  const nowMk = now.getFullYear() * 12 + now.getMonth();
+  const evMk = ev.getFullYear() * 12 + ev.getMonth();
+  const months: Date[] = [];
+  const dim: boolean[] = [];
+  for (let i = 0; i < shown; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - padBefore + i, 1);
+    const mk = d.getFullYear() * 12 + d.getMonth();
+    months.push(d);
+    dim.push(mk < nowMk || mk > evMk);
+  }
+  return { months, dim };
+}
+
+/**
+ * The band's height is CONTENT-driven and compact — deliberately NOT tied to the
+ * header height, so a tall wrapped title/note in a narrow panel never elongates
+ * the calendar. Each tier returns a bounded height (its cells keep a sane aspect
+ * whatever the panel width); the viz then fills that box.
+ */
+function bandHeightFor(
+  kind: BandKind,
+  nowMs: number,
+  resolvedMs: number,
+  contentW: number
+): number {
+  const clamp = (v: number, lo: number, hi: number): number =>
+    Math.max(lo, Math.min(hi, v));
+  switch (kind) {
+    case 'year': {
+      const R =
+        new Date(resolvedMs).getFullYear() - new Date(nowMs).getFullYear() + 1;
+      const cellW = (contentW - 11 * 6) / 12;
+      const cellH = clamp(cellW * 0.82, 40, 62);
+      return R * (16 + cellH) + (R - 1) * 16;
+    }
+    case 'months': {
+      let M = monthSpan(nowMs, resolvedMs);
+      if (M % 2 === 1) M++;
+      const rows = Math.max(1, Math.round(Math.sqrt(M / 3)));
+      const perRow = Math.ceil(M / rows);
+      const cellW = (contentW - 16 * (perRow - 1)) / perRow;
+      // Flat, landscape month cells — short as they can be while fitting the
+      // bigger label + date.
+      const cellH = clamp(cellW * 0.5, 58, 84);
+      return rows * cellH + (rows - 1) * 16;
+    }
+    case 'monthgrid': {
+      const { months } = monthGridLayout(nowMs, resolvedMs, contentW);
+      const nM = months.length;
+      const mw = (contentW - 20 * (nM - 1)) / nM;
+      const cellW = (mw - 20) / 7;
+      // Full 6-row months (padded to a natural width), so proportions read right.
+      const cellH = clamp(cellW * 0.8, 15, 22);
+      return 26 + 6 * cellH + 8;
+    }
+    case 'weekstrip': {
+      // Stretchy day-strip: one cell per day from today to the event (≤ 18).
+      const n = dayDelta(nowMs, resolvedMs) + 1;
+      const cw = (contentW - 10 * (n - 1)) / n;
+      return clamp(cw * 1.5, 116, 170);
+    }
+    case 'clock':
+      return clamp(contentW * 0.26, 150, 205);
+    case 'today':
+    case 'after':
+      return clamp(contentW * 0.22, 125, 170);
+  }
+}
+
+// ================= FAR TIERS (box-filling) =================
+
+/** > 1yr — one row of 12 month cells per year; rows fill height, cells fill width. */
+function vizYear(
+  svg: SvgSel,
+  g: BandBox,
+  nowMs: number,
+  resolvedMs: number,
+  C: BandColors
 ): void {
-  const W = x1 - x0;
-  const startYear = new Date(nowMs).getFullYear();
-  const endYear = new Date(resolvedMs).getFullYear();
-  const start = new Date(startYear, 0, 1).getTime();
-  const end = new Date(endYear, 11, 31, 23, 59, 59).getTime();
-  const span = Math.max(1, end - start);
-  const fx = (ms: number): number => x0 + ((ms - start) / span) * W;
-
-  const trackY = top + 16;
-  const trackH = 12;
-  svg
-    .append('rect')
-    .attr('x', x0)
-    .attr('y', trackY)
-    .attr('width', W)
-    .attr('height', trackH)
-    .attr('rx', trackH / 2)
-    .attr('fill', mix(palette.text, palette.bg, 10));
-
-  const sx = fx(nowMs);
-  const ex = fx(resolvedMs);
-  svg
-    .append('rect')
-    .attr('x', sx)
-    .attr('y', trackY)
-    .attr('width', Math.max(0, ex - sx))
-    .attr('height', trackH)
-    .attr('rx', trackH / 2)
-    .attr('fill', mix(accent, palette.bg, 26));
-
-  for (let yr = startYear; yr <= endYear; yr++) {
+  const now = new Date(nowMs);
+  const ev = new Date(resolvedMs);
+  const y0 = now.getFullYear();
+  const y1 = ev.getFullYear();
+  const years: number[] = [];
+  for (let y = y0; y <= y1; y++) years.push(y);
+  const R = years.length;
+  const rowGap = 16;
+  const labelH = 16;
+  const gap = 6;
+  const rowH = (g.height - rowGap * (R - 1)) / R;
+  const cellH = rowH - labelH;
+  const cellW = (g.contentW - 11 * gap) / 12;
+  const nowY = now.getFullYear();
+  const nowM = now.getMonth();
+  const evY = ev.getFullYear();
+  const evM = ev.getMonth();
+  years.forEach((yr, r) => {
+    const ry = g.top + r * (rowH + rowGap);
+    aText(svg, g.left, ry + 12, 12, C.muted, 700, 'start', String(yr));
     for (let m = 0; m < 12; m++) {
-      const t = new Date(yr, m, 1).getTime();
-      if (t < start || t > end) continue;
-      const x = fx(t);
-      svg
-        .append('line')
-        .attr('x1', x)
-        .attr('x2', x)
-        .attr('y1', trackY - 3)
-        .attr('y2', trackY + trackH + 3)
-        .attr('stroke', mix(palette.text, palette.bg, m === 0 ? 30 : 18))
-        .attr('stroke-width', m === 0 ? 1 : 0.5);
-      if (m === 0) {
-        svg
-          .append('text')
-          .attr('x', x + 3)
-          .attr('y', trackY + trackH + 17)
-          .attr('text-anchor', 'start')
-          .attr('font-size', 11)
-          .attr('fill', faint)
-          .attr('font-family', FONT_FAMILY)
-          .text(String(yr));
+      const before = yr < nowY || (yr === nowY && m < nowM);
+      const isNow = yr === nowY && m === nowM;
+      const isEv = yr === evY && m === evM;
+      const between =
+        (yr > nowY || (yr === nowY && m > nowM)) &&
+        (yr < evY || (yr === evY && m < evM));
+      const anchor = isEv || isNow;
+      const nowOrd = nowY * 12 + nowM;
+      const evOrd = evY * 12 + evM;
+      const st = isEv
+        ? roleStyle(C, 'event')
+        : isNow
+          ? roleStyle(C, 'today')
+          : between
+            ? gradStyle(C, (yr * 12 + m - nowOrd) / (evOrd - nowOrd))
+            : roleStyle(C, before ? 'past' : 'future');
+      const x = g.left + m * (cellW + gap);
+      const yy = ry + labelH;
+      const rxY = Math.min(8, Math.min(cellW, cellH) * 0.24);
+      aRect(svg, x, yy, cellW, cellH, rxY, st.fill, st.stroke, 1.25);
+      if (isEv) haloRect(svg, x, yy, cellW, cellH, rxY, C);
+      const cx = x + cellW / 2;
+      aText(
+        svg,
+        cx,
+        yy + 15,
+        Math.min(14, cellW * 0.34),
+        st.text,
+        700,
+        'middle',
+        MON_ABBR[m]!
+      );
+      aLine(
+        svg,
+        x,
+        yy + 21,
+        x + cellW,
+        yy + 21,
+        st.text,
+        1,
+        anchor ? 0.55 : 0.35
+      );
+      if (anchor) {
+        const dnum = isEv ? ev.getDate() : now.getDate();
+        // Sit the day number in the space below the label rule, sized to fit it
+        // comfortably (never crowding the MMM label above).
+        const dFont = Math.max(
+          10,
+          Math.min(19, cellW * 0.48, (cellH - 24) * 0.66)
+        );
+        aText(
+          svg,
+          cx,
+          yy + 21 + (cellH - 21) / 2,
+          dFont,
+          st.text,
+          800,
+          'middle',
+          String(dnum),
+          { 'dominant-baseline': 'central' }
+        );
       }
     }
-  }
+  });
+}
 
-  const nowColor =
-    resolveColor('blue', palette) ?? mix(palette.text, palette.bg, 42);
-  const marker = (x: number, col: string): void => {
+/**
+ * 3–12mo — one rectangle PER MONTH (same idiom as the >1yr year tier, just not
+ * grouped into 12-per-row year rows): muted/role fill + solid border, a month
+ * label top-left with a full-width hairline rule under it, and ONLY the now-month
+ * and target-month dated (their day-of-month centered in the body). A full
+ * numbered day calendar only appears once the span is short enough (≤ ~3 months).
+ */
+function vizMonths(
+  svg: SvgSel,
+  g: BandBox,
+  nowMs: number,
+  resolvedMs: number,
+  C: BandColors
+): void {
+  const now = new Date(nowMs);
+  const ev = new Date(resolvedMs);
+  const months: Array<{ y: number; m: number }> = [];
+  const d = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(ev.getFullYear(), ev.getMonth(), 1);
+  while (d <= end && months.length < 14) {
+    months.push({ y: d.getFullYear(), m: d.getMonth() });
+    d.setMonth(d.getMonth() + 1);
+  }
+  // Pad to an even count so rows divide cleanly (a spare trailing month is fine).
+  if (months.length % 2 === 1) {
+    const l = months[months.length - 1]!;
+    const nx = new Date(l.y, l.m + 1, 1);
+    months.push({ y: nx.getFullYear(), m: nx.getMonth() });
+  }
+  const M = months.length;
+  const gap = 16;
+  const rowGap = 16;
+  const labelH = 27;
+  const rows = Math.max(1, Math.round(Math.sqrt(M / 3)));
+  const perRow = Math.ceil(M / rows);
+  const cellW = (g.contentW - gap * (perRow - 1)) / perRow;
+  const cellH = (g.height - rowGap * (rows - 1)) / rows;
+  const nowMk = now.getFullYear() * 100 + now.getMonth();
+  const evMk = ev.getFullYear() * 100 + ev.getMonth();
+  const rowCount = (r: number): number => Math.min(perRow, M - r * perRow);
+  months.forEach((mo, i) => {
+    const col = i % perRow;
+    const row = Math.floor(i / perRow);
+    const inRow = rowCount(row);
+    const rowW = inRow * cellW + (inRow - 1) * gap;
+    const rowX = g.left + (g.contentW - rowW) / 2;
+    const x = rowX + col * (cellW + gap);
+    const y = g.top + row * (cellH + rowGap);
+    const mk = mo.y * 100 + mo.m;
+    const isNow = mk === nowMk;
+    const isEv = mk === evMk;
+    const anchor = isNow || isEv;
+    const nowOrd = now.getFullYear() * 12 + now.getMonth();
+    const evOrd = ev.getFullYear() * 12 + ev.getMonth();
+    const st = isEv
+      ? roleStyle(C, 'event')
+      : isNow
+        ? roleStyle(C, 'today')
+        : mk > nowMk && mk < evMk
+          ? gradStyle(C, (mo.y * 12 + mo.m - nowOrd) / (evOrd - nowOrd))
+          : roleStyle(C, mk < nowMk ? 'past' : 'future');
+    const rxM = Math.min(12, cellH * 0.14);
+    aRect(svg, x, y, cellW, cellH, rxM, st.fill, st.stroke, 1.25);
+    if (isEv) haloRect(svg, x, y, cellW, cellH, rxM, C);
+    // Centered month name (no year — it won't fit the narrow cell).
+    aText(
+      svg,
+      x + cellW / 2,
+      y + 19,
+      16,
+      st.text,
+      700,
+      'middle',
+      MON_ABBR[mo.m]!
+    );
+    aLine(
+      svg,
+      x,
+      y + labelH,
+      x + cellW,
+      y + labelH,
+      st.text,
+      1,
+      anchor ? 0.5 : 0.3
+    );
+    if (anchor) {
+      const dnum = isEv ? ev.getDate() : now.getDate();
+      const dFont = Math.min(cellH - labelH - 6, cellW * 0.42, 44);
+      aText(
+        svg,
+        x + cellW / 2,
+        y + labelH + (cellH - labelH) / 2 + 1,
+        dFont,
+        st.text,
+        800,
+        'middle',
+        String(dnum),
+        { 'dominant-baseline': 'central' }
+      );
+    }
+  });
+}
+
+// ================= CLOSE-IN TIERS (box-filling) =================
+
+/**
+ * ≤ ~3mo — real side-by-side month day-calendars. Each month sits in a rounded
+ * rectangle: month name centered up top with a full-width hairline rule under it
+ * (no weekday header row); the weekend columns (Sun/Sat) are shaded vertically so
+ * you can read the rhythm without the S·M·T header. Day numbers carry the shared
+ * role convention (today/event/remaining chips).
+ */
+function vizMonthGrid(
+  svg: SvgSel,
+  g: BandBox,
+  nowMs: number,
+  resolvedMs: number,
+  C: BandColors
+): void {
+  const { months, dim: isContext } = monthGridLayout(
+    nowMs,
+    resolvedMs,
+    g.contentW
+  );
+  const nM = months.length;
+  const gap = 20;
+  const mw = (g.contentW - gap * (nM - 1)) / nM;
+  const padX = 10;
+  const gridLeft = padX;
+  const gridW = mw - 2 * padX;
+  const cols = 7;
+  const cellW = gridW / cols;
+  const top = g.top;
+  const headH = 26; // centered label + rule, no weekday row
+  const cellH = (g.height - headH - 8) / 6; // full 6-row months
+  const gridH = 6 * cellH;
+  const weekendShade = mix(C.text, C.bg, 8);
+  const todayKey = keyOf(nowMs);
+  const evKey = keyOf(resolvedMs);
+  months.forEach((m, mi) => {
+    // Context months render into a dimmed group so the real span stays dominant.
+    const mt = (
+      isContext[mi] ? svg.append('g').attr('opacity', 0.42) : svg
+    ) as SvgSel;
+    const mx = g.left + mi * (mw + gap);
+    // Rounded-rect container for the whole month.
+    aRect(mt, mx, top, mw, g.height, 14, C.inert, C.inertBorder, 1.25);
+    const gy = top + headH;
+    // Weekend columns shaded vertically (Sun = col 0, Sat = col 6).
+    for (const wcol of [0, 6])
+      aRect(
+        mt,
+        mx + gridLeft + wcol * cellW,
+        gy,
+        cellW,
+        gridH,
+        6,
+        weekendShade
+      );
+    // Centered month name + rule beneath it, spanning the container edge to edge.
+    aText(
+      mt,
+      mx + mw / 2,
+      top + 16,
+      14,
+      C.text,
+      700,
+      'middle',
+      `${MON_ABBR[m.getMonth()]} ${m.getFullYear()}`
+    );
+    aLine(mt, mx, top + headH - 6, mx + mw, top + headH - 6, C.rule, 1.25);
+    const first = new Date(m.getFullYear(), m.getMonth(), 1).getDay();
+    const dim = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+    for (let day = 1; day <= dim; day++) {
+      const pos = first + day - 1;
+      const wk = Math.floor(pos / 7);
+      const dk = keyOf(new Date(m.getFullYear(), m.getMonth(), day).getTime());
+      const wd = pos % 7;
+      const cx = mx + gridLeft + wd * cellW;
+      const cy = gy + wk * cellH;
+      const isEvent = dk === evKey;
+      const isToday = dk === todayKey;
+      const between = dk > todayKey && dk < evKey;
+      const anchor = isEvent || isToday;
+      const dtMs = new Date(m.getFullYear(), m.getMonth(), day).getTime();
+      const st = isEvent
+        ? roleStyle(C, 'event')
+        : isToday
+          ? roleStyle(C, 'today')
+          : between
+            ? gradStyle(C, dayDelta(nowMs, dtMs) / dayDelta(nowMs, resolvedMs))
+            : roleStyle(C, dk < todayKey ? 'past' : 'future');
+      if (anchor) {
+        // Only today & the target are DATED — a bordered chip with its number.
+        const s = Math.min(cellW, cellH) * 1.02;
+        const sx = cx + (cellW - s) / 2;
+        const sy = cy + (cellH - s) / 2;
+        aRect(mt, sx, sy, s, s, 7, st.fill, st.stroke, 2);
+        if (isEvent) haloRect(mt, sx, sy, s, s, 7, C);
+        aText(
+          mt,
+          cx + cellW / 2,
+          cy + cellH / 2,
+          Math.min(16, cellH * 0.62),
+          st.text,
+          750,
+          'middle',
+          String(day),
+          { 'dominant-baseline': 'central' }
+        );
+      } else {
+        // Every other day is a small unlabeled dot carrying only its role color.
+        const s = Math.min(cellW, cellH) * 0.5;
+        aRect(
+          mt,
+          cx + (cellW - s) / 2,
+          cy + (cellH - s) / 2,
+          s,
+          s,
+          Math.min(3, s * 0.3),
+          st.fill,
+          st.stroke,
+          1
+        );
+      }
+    }
+  });
+}
+
+/**
+ * ≤ 18d — one STRETCHY linear day-strip: a cell per day from today (leftmost) to
+ * the event (rightmost, haloed), warming along the now→event gradient. Replaces
+ * the old fixed 7-cell strip AND the sprawling month calendar for short spans, so
+ * an 8-day count reads left-to-right instead of scattering across an empty grid.
+ * Weekday labels drop and cells compact as the span grows.
+ */
+function vizWeekStrip(
+  svg: SvgSel,
+  g: BandBox,
+  nowMs: number,
+  resolvedMs: number,
+  C: BandColors
+): void {
+  const now = new Date(nowMs);
+  const n = dayDelta(nowMs, resolvedMs) + 1; // today .. event inclusive
+  const gap = n <= 7 ? 14 : n <= 12 ? 10 : 7;
+  const cw = (g.contentW - gap * (n - 1)) / n;
+  const cellTop = g.top;
+  const ch = g.height;
+  const showWd = cw >= 30; // weekday label + rule fit?
+  const showTag = cw >= 44; // room for a TODAY tag under the date?
+  const nowOrd = DAY_START(nowMs);
+  const evOrd = DAY_START(resolvedMs);
+  for (let i = 0; i < n; i++) {
+    // Component arithmetic (JS normalizes month overflow) — never an ordinal round-trip.
+    const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    const dtOrd = DAY_START(dt.getTime());
+    const x = g.left + i * (cw + gap);
+    const isToday = i === 0;
+    const isEvent = i === n - 1;
+    const st = isEvent
+      ? roleStyle(C, 'event')
+      : isToday
+        ? roleStyle(C, 'today')
+        : gradStyle(C, (dtOrd - nowOrd) / (evOrd - nowOrd));
+    const sw = isToday || isEvent ? 2 : 1.25;
+    aRect(svg, x, cellTop, cw, ch, 14, st.fill, st.stroke, sw);
+    if (isEvent) haloRect(svg, x, cellTop, cw, ch, 14, C);
+    if (showWd) {
+      aText(
+        svg,
+        x + cw / 2,
+        cellTop + 18,
+        Math.min(12, cw * 0.3),
+        st.text,
+        700,
+        'middle',
+        WD_ABBR[dt.getDay()]!,
+        { 'letter-spacing': '0.04em' }
+      );
+      aLine(
+        svg,
+        x,
+        cellTop + 27,
+        x + cw,
+        cellTop + 27,
+        st.text,
+        1,
+        isToday || isEvent ? 0.5 : 0.3
+      );
+    }
+    aText(
+      svg,
+      x + cw / 2,
+      cellTop + (showWd ? ch * 0.6 : ch * 0.54),
+      Math.min(44, cw * 0.62),
+      st.text,
+      750,
+      'middle',
+      String(dt.getDate())
+    );
+    if (showTag && isToday)
+      aText(
+        svg,
+        x + cw / 2,
+        cellTop + ch - 13,
+        10,
+        st.text,
+        700,
+        'middle',
+        'TODAY',
+        { 'letter-spacing': '0.04em' }
+      );
+  }
+}
+
+/** = today (all-day, no time) — the day is the message. */
+function vizToday(
+  svg: SvgSel,
+  g: BandBox,
+  resolvedMs: number,
+  C: BandColors
+): void {
+  const ev = new Date(resolvedMs);
+  const cx = g.left + g.contentW / 2;
+  const cy = g.top + g.height / 2;
+  aLine(svg, g.left, cy, g.left + g.contentW, cy, C.rule, 2);
+  aLine(svg, cx, cy, g.left + g.contentW, cy, C.midSoft, 2);
+  const rays = 16;
+  const r0 = g.height * 0.3;
+  const r1 = g.height * 0.44;
+  for (let i = 0; i < rays; i++) {
+    const a = (i / rays) * Math.PI * 2;
     svg
       .append('line')
-      .attr('x1', x)
-      .attr('x2', x)
-      .attr('y1', trackY - 9)
-      .attr('y2', trackY + trackH + 9)
-      .attr('stroke', col)
-      .attr('stroke-width', 1.6);
+      .attr('x1', cx + Math.cos(a) * r0)
+      .attr('y1', cy + Math.sin(a) * r0)
+      .attr('x2', cx + Math.cos(a) * r1)
+      .attr('y2', cy + Math.sin(a) * r1)
+      .attr('stroke', C.event)
+      .attr('stroke-width', 2.5)
+      .attr('stroke-linecap', 'round')
+      .attr('opacity', 0.45);
+  }
+  const w = Math.min(120, g.contentW * 0.16);
+  const h = g.height * 0.52;
+  aRect(svg, cx - w / 2, cy - h / 2, w, h, 18, C.event, C.event, 2);
+  aText(
+    svg,
+    cx,
+    cy - h * 0.14,
+    14,
+    C.bg,
+    700,
+    'middle',
+    MON_ABBR[ev.getMonth()]!.toUpperCase(),
+    { 'letter-spacing': '0.08em' }
+  );
+  aText(
+    svg,
+    cx,
+    cy + h * 0.22,
+    Math.min(48, h * 0.4),
+    C.bg,
+    800,
+    'middle',
+    String(ev.getDate())
+  );
+  aText(
+    svg,
+    cx,
+    cy + h / 2 + 26,
+    13,
+    C.event,
+    700,
+    'middle',
+    'THE DAY IS HERE',
+    { 'letter-spacing': '0.12em' }
+  );
+}
+
+/** past (day-scale) — afterglow; event ringed, elapsed trails to today. */
+function vizAfter(
+  svg: SvgSel,
+  g: BandBox,
+  nowMs: number,
+  resolvedMs: number,
+  C: BandColors
+): void {
+  const ev = new Date(resolvedMs);
+  const elapsed = dayDelta(resolvedMs, nowMs);
+  const n = elapsed + 1;
+  const gap = 10;
+  const cw = (g.contentW - gap * (n - 1)) / n;
+  const ch = Math.min(cw * 1.1, g.height * 0.62);
+  const top = g.top + (g.height - ch) / 2 - 8;
+  for (let i = 0; i < n; i++) {
+    const dt = new Date(ev);
+    dt.setDate(ev.getDate() + i);
+    const x = g.left + i * (cw + gap);
+    const isEvent = i === 0;
+    const isToday = i === n - 1;
+    // The event stays a SOLID accent chip — the one anchor that reads as the event
+    // everywhere else, past included; the whole trail (incl. today) desaturates to
+    // inert so "it happened, and here's how long ago" reads at a glance.
+    const st = roleStyle(C, isEvent ? 'event' : 'past');
+    const fill = st.fill;
+    const stroke = st.stroke;
+    const tcol = st.text;
+    const sw = isEvent ? 2.5 : 1;
+    aRect(svg, x, top, cw, ch, 12, fill, stroke, sw);
+    if (isEvent) haloRect(svg, x, top, cw, ch, 12, C);
+    aText(
+      svg,
+      x + cw / 2,
+      top + ch * 0.46,
+      Math.min(34, cw * 0.34),
+      tcol,
+      isEvent ? 750 : 500,
+      'middle',
+      String(dt.getDate())
+    );
+    aText(
+      svg,
+      x + cw / 2,
+      top + ch * 0.72,
+      11,
+      tcol,
+      600,
+      'middle',
+      MON_ABBR[dt.getMonth()]!
+    );
+    if (isEvent)
+      aText(
+        svg,
+        x + cw / 2,
+        top - 8,
+        11,
+        C.event,
+        700,
+        'middle',
+        'IT HAPPENED',
+        { 'letter-spacing': '0.05em' }
+      );
+    if (isToday)
+      aText(svg, x + cw / 2, top - 8, 11, C.now, 700, 'middle', 'TODAY', {
+        'letter-spacing': '0.05em',
+      });
+  }
+  aText(
+    svg,
+    g.left,
+    top + ch + 28,
+    14,
+    C.muted,
+    400,
+    'start',
+    `${elapsed} day${elapsed === 1 ? '' : 's'} ago — the day has passed`
+  );
+}
+
+// ── Timed finale ring gauges (hours · minutes · seconds) ──
+function polar(
+  cx: number,
+  cy: number,
+  r: number,
+  deg: number
+): [number, number] {
+  const a = ((deg - 90) * Math.PI) / 180;
+  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+}
+function arcPath(cx: number, cy: number, r: number, frac: number): string {
+  frac = Math.max(0, Math.min(0.9999, frac));
+  const [x0, y0] = polar(cx, cy, r, 0);
+  const [x1, y1] = polar(cx, cy, r, frac * 360);
+  return `M ${x0} ${y0} A ${r} ${r} 0 ${frac > 0.5 ? 1 : 0} 1 ${x1} ${y1}`;
+}
+/**
+ * Three ring gauges HOURS·MINUTES·SECONDS. Symmetric down→up: `ahead` (before
+ * the instant) counts DOWN with a "TO GO" caption, else UP with "AGO". Each
+ * gauge tags its numeral/arc so the ticker can recompute live. Fills the band.
+ */
+function vizClock(
+  svg: SvgSel,
+  g: BandBox,
+  nowMs: number,
+  targetMs: number,
+  C: BandColors
+): void {
+  const ahead = targetMs >= nowMs;
+  const rem = Math.abs(targetMs - nowMs);
+  const h = Math.floor(rem / 3600000);
+  const m = Math.floor((rem % 3600000) / 60000);
+  const s = Math.floor((rem % 60000) / 1000);
+  const R = Math.min((g.contentW / 3) * 0.3, g.height * 0.34);
+  const cy = g.top + g.height * 0.42;
+  const sw = Math.max(8, R * 0.17);
+  // Final day = imminent = hot: all three rings sweep the target accent. The live
+  // seconds hand reads by its motion, not by a borrowed hue (was a fixed blue).
+  const gauges = [
+    { frac: (h % 24) / 24, val: h, label: 'HOURS', col: C.event, key: 'h' },
+    { frac: m / 60, val: m, label: 'MINUTES', col: C.event, key: 'm' },
+    { frac: s / 60, val: s, label: 'SECONDS', col: C.event, key: 's' },
+  ];
+  gauges.forEach((gg, i) => {
+    const cx = g.left + (g.contentW * (i + 0.5)) / 3;
     svg
       .append('circle')
-      .attr('cx', x)
-      .attr('cy', trackY - 9)
-      .attr('r', 4)
-      .attr('fill', col);
-  };
-  marker(sx, nowColor);
-  marker(ex, accent);
+      .attr('cx', cx)
+      .attr('cy', cy)
+      .attr('r', R)
+      .attr('fill', 'none')
+      .attr('stroke', C.inert)
+      .attr('stroke-width', sw);
+    const arc = svg
+      .append('path')
+      .attr('d', gg.frac > 0.001 ? arcPath(cx, cy, R, gg.frac) : '')
+      .attr('fill', 'none')
+      .attr('stroke', gg.col)
+      .attr('stroke-width', sw)
+      .attr('stroke-linecap', 'round')
+      .attr('data-dgmo-gauge-arc', gg.key)
+      .attr('data-cx', cx)
+      .attr('data-cy', cy)
+      .attr('data-r', R);
+    void arc;
+    aText(
+      svg,
+      cx,
+      cy + R * 0.22,
+      R * 0.62,
+      C.text,
+      800,
+      'middle',
+      pad2(gg.val),
+      {
+        'data-dgmo-gauge-val': gg.key,
+      }
+    );
+    aText(svg, cx, cy + R + 22, 12, C.muted, 700, 'middle', gg.label, {
+      'letter-spacing': '0.1em',
+    });
+  });
+  const cxMid = g.left + g.contentW * 0.5;
+  aText(
+    svg,
+    cxMid,
+    cy - R - 14,
+    13,
+    ahead ? C.event : C.muted,
+    700,
+    'middle',
+    ahead ? 'TO GO' : 'AGO',
+    {
+      'letter-spacing': '0.12em',
+      'data-dgmo-gauge-caption': '',
+    }
+  );
+}
+
+/** Small local pad-2 (resolve.pad2 is not exported). */
+function pad2(n: number): string {
+  return n < 10 ? '0' + n : String(n);
+}
+
+/** Dispatch the tier-appropriate band viz, filling the fixed reservation. */
+function drawBand(
+  svg: SvgSel,
+  kind: BandKind,
+  g: BandBox,
+  nowMs: number,
+  resolvedMs: number,
+  C: BandColors
+): void {
+  switch (kind) {
+    case 'year':
+      return vizYear(svg, g, nowMs, resolvedMs, C);
+    case 'months':
+      return vizMonths(svg, g, nowMs, resolvedMs, C);
+    case 'monthgrid':
+      return vizMonthGrid(svg, g, nowMs, resolvedMs, C);
+    case 'weekstrip':
+      return vizWeekStrip(svg, g, nowMs, resolvedMs, C);
+    case 'today':
+      return vizToday(svg, g, resolvedMs, C);
+    case 'after':
+      return vizAfter(svg, g, nowMs, resolvedMs, C);
+    case 'clock':
+      return vizClock(svg, g, nowMs, resolvedMs, C);
+  }
 }
 
 export function renderCountdown(
@@ -233,35 +1167,48 @@ export function renderCountdown(
     parsed.since !== null && resolved !== null
       ? ordinalFor(resolved, parsed.since)
       : null;
-  const hero = bakedHero(parsed, now, ordinal, label);
+
+  // Band tier — auto-picked from the whole-day span (§36.6). `no-visual` and an
+  // `expired`-frozen one-shot suppress the band. The timed finale ('clock') also
+  // promotes the ticking clock into the hero.
+  const expiredFrozen =
+    !parsed.rule &&
+    parsed.expired !== null &&
+    resolved !== null &&
+    resolved - now <= 0;
+  const bandKind: BandKind | null =
+    resolved === null || parsed.noVisual || expiredFrozen
+      ? null
+      : pickBand(now, resolved, parsed.hasTime);
+
+  let hero = bakedHero(parsed, now, ordinal, label);
+  // Timed finale: the hero becomes the ticking H·M·S clock (down, then up past).
+  if (bandKind === 'clock' && resolved !== null) {
+    const clock = formatCount(Math.abs(resolved - now), {
+      units: 'clock',
+      round: parsed.round,
+      fields: parsed.fields,
+    });
+    hero = resolved - now < 0 ? `${clock} ago` : clock;
+  }
 
   const seriesAccent = getSeriesColors(palette)[0]!;
+  // The target defaults to HOT red — the far end of the now(cold)→target(hot)
+  // gradient — so an un-colored countdown still reads as "heating up." The
+  // gradient itself IS the urgency signal, so there is no separate traffic-light
+  // ramp. An explicit §1.5 color token overrides the default (becomes the
+  // gradient's hot endpoint).
+  const defaultAccent = resolveColor('red', palette) ?? seriesAccent;
   const manualColor =
     (parsed.color && resolveColor(parsed.color, palette)) ||
     parsed.color ||
     null;
-
-  // Traffic-light ramp — green (far) · orange (amber) · red (close). Palette-
-  // aware so both themes stay legible. Ignored when a manual color is set.
-  const ramp: [string, string, string] = [
-    resolveColor('green', palette) ?? seriesAccent,
-    resolveColor('orange', palette) ?? seriesAccent,
-    resolveColor('red', palette) ?? seriesAccent,
-  ];
-  const remainingForRamp = resolved === null ? 0 : resolved - now;
-  const useRamp = parsed.thresholds !== null && !manualColor;
-  const accent = manualColor
-    ? manualColor
-    : useRamp
-      ? ramp[
-          rampIndex(
-            remainingForRamp,
-            parsed.thresholds![0],
-            parsed.thresholds![1]
-          )
-        ]
-      : seriesAccent;
+  const accent = manualColor ?? defaultAccent;
   const muted = mix(palette.text, themeBaseBg(palette, isDark), 55);
+  // Green = time BANKED — the `since`/anniversary/tenure count (what you've
+  // accumulated), the calm positive mirror of red's "time remaining." The lone
+  // third hue in an otherwise blue↔red chart.
+  const banked = resolveColor('green', palette) ?? muted;
   const faint = mix(palette.text, themeBaseBg(palette, isDark), 72);
 
   const svg = d3Selection
@@ -397,27 +1344,22 @@ export function renderCountdown(
       y += i < titleLines.length - 1 ? Math.round(titleFont * 1.12) : titleFont;
     });
     y += Math.round(titleFont * 0.45);
-    // Hairline rule under the title, spanning the left column.
+    // Hairline rule under the title, spanning the full content width (edge to edge).
     svg
       .append('line')
       .attr('x1', leftX)
-      .attr('x2', leftX + leftW)
+      .attr('x2', width - padX)
       .attr('y1', y)
       .attr('y2', y)
-      .attr('stroke', mix(palette.text, palette.bg, 82))
+      .attr('stroke', mix(palette.text, palette.bg, 14))
       .attr('stroke-width', 1.25);
     y += Math.round(titleFont * 0.5);
   }
 
-  // Eyebrow ordinal (ancillary — below the rule).
+  // Eyebrow ordinal (ancillary — below the rule): the `since`/tenure count is
+  // BANKED time, so it wears the calm green, not the red deadline hue.
   if (eyebrowText) {
-    drawText(
-      eyebrowText,
-      y,
-      eyebrowFont,
-      parsed.sinceStyle === 'tenure' ? accent : muted,
-      700
-    )
+    drawText(eyebrowText, y, eyebrowFont, banked, 700)
       .attr('letter-spacing', parsed.sinceStyle === 'eyebrow' ? '0.09em' : null)
       .attr('data-dgmo-countdown-eyebrow', '');
     y += eyebrowFont + 8;
@@ -480,48 +1422,62 @@ export function renderCountdown(
 
   const leftBottom = y;
 
-  // ── The words-mode precision sub-line ("3 days 2 hours 7 minutes"): a coarse
-  //    hero ("4 months") with the exact remaining underneath, ticking live. ──
+  // ── Hero sub-line: the finer remainder ("3 days") for the human hero, or the
+  //    words-mode precision line, or a ticking clock for a timed target days out.
+  //    The timed finale ('clock') carries its time in the ring gauges instead. ──
   const detailFont = 18;
-  const detailText =
-    parsed.units === 'words' && resolved !== null && resolved - now > 0
-      ? formatWordsDetail(resolved - now)
-      : null;
+  const remainingSub = resolved !== null ? resolved - now : 0;
+  const subText: string | null =
+    resolved === null || remainingSub <= 0
+      ? null
+      : parsed.units === 'words'
+        ? formatWordsDetail(remainingSub)
+        : parsed.units === 'human' && bandKind !== 'clock'
+          ? parsed.hasTime
+            ? formatCount(remainingSub, {
+                units: 'clock',
+                round: parsed.round,
+                fields: parsed.fields,
+              })
+            : formatHuman(DAY_START(now), DAY_START(resolved)).sub || null
+          : null;
   const heroCapTop = padY + 0.28 * titleFont;
   const heroBaseline = heroCapTop + 0.72 * heroFont;
   const heroBlockBottom =
-    heroBaseline + (detailText ? heroFont * 0.28 + detailFont : 0);
+    heroBaseline + (subText ? heroFont * 0.28 + detailFont : 0);
 
-  // ── Optional calendar band ("you-are-here → event") spans the full width
-  //    below both columns; reserve its height. ──
+  // ── The calendar band ("you-are-here → event"): a FIXED reservation below the
+  //    header — a constant 1.5× the header height, identical across tiers — that
+  //    each viz FILLS. Default-on for date-bearing countdowns; `no-visual` off. ──
   const contentBottom = Math.max(leftBottom, heroBlockBottom);
-  const calStripH = 52;
-  const calTop = contentBottom + 18;
-  const hasCal = parsed.calendar !== null && resolved !== null;
+  const hasBand = bandKind !== null;
+  const topSection = contentBottom;
+  const bandTop = topSection + 26;
+  // Compact, content-driven band height — NOT a multiple of the header, so a tall
+  // header (wrapped title/note in a narrow panel) can't stretch the calendar.
+  const BAND_H =
+    hasBand && resolved !== null
+      ? Math.round(bandHeightFor(bandKind, now, resolved, width - 2 * padX))
+      : 0;
 
-  // ── Banner height: the taller of the two columns (plus any calendar) drives it. ──
-  const bannerH = Math.max(
-    contentBottom + padY,
-    hasCal ? calTop + calStripH + padY : 0,
-    heroFont * 1.25 + 2 * padY,
-    Math.round(width * 0.28)
-  );
+  const bannerH = hasBand
+    ? bandTop + BAND_H + padY
+    : Math.max(
+        contentBottom + padY,
+        heroFont * 1.25 + 2 * padY,
+        Math.round(width * 0.28)
+      );
   svg.attr('height', bannerH).attr('viewBox', `0 0 ${width} ${bannerH}`);
   bgRect.attr('height', bannerH);
 
-  if (hasCal) {
-    drawCalendarBand(
+  if (hasBand && resolved !== null) {
+    drawBand(
       svg,
-      parsed.calendar!,
-      leftX,
-      width - padX,
-      calTop,
+      bandKind,
+      { left: leftX, top: bandTop, contentW: width - 2 * padX, height: BAND_H },
       now,
-      resolved!,
-      accent,
-      palette,
-      muted,
-      faint
+      resolved,
+      bandColors(palette, accent, muted, faint)
     );
   }
 
@@ -561,17 +1517,11 @@ export function renderCountdown(
   if (parsed.sinceStyle === 'headline' || parsed.sinceStyle === 'inline') {
     value.attr('data-dgmo-countdown-hero', parsed.sinceStyle);
   }
-  if (useRamp) {
-    value.attr(
-      'data-dgmo-countdown-thresholds',
-      `${parsed.thresholds![0]},${parsed.thresholds![1]}`
-    );
-    value.attr('data-dgmo-countdown-ramp', ramp.join(','));
-  }
   stampRecur(value, parsed);
 
-  // Words-mode precision sub-line under the hero (right-aligned, muted, ticks).
-  if (detailText) {
+  // Hero sub-line under the hero (right-aligned, muted, ticks): the human
+  // remainder / words precision / days-out clock. Tagged so the ticker updates it.
+  if (subText) {
     svg
       .append('text')
       .attr('x', width - padX)
@@ -583,7 +1533,7 @@ export function renderCountdown(
       .attr('font-size', detailFont)
       .attr('font-weight', 500)
       .attr('data-dgmo-countdown-detail', '')
-      .text(detailText);
+      .text(subText);
   }
 }
 

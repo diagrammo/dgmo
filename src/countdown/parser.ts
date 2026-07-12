@@ -19,8 +19,8 @@
 //     since <year> / since-label <noun> / since-style <eyebrow|headline|tenure|inline>
 //
 //   Display (both):
-//     units <days|full|clock|weeks|words> / round <up|down|nearest>
-//     fields <d,h,m,s> / lang <en>
+//     units <human|days|full|clock|weeks|words> / round <up|down|nearest>
+//     fields <d,h,m,s> / lang <en> / no-visual   // suppress the calendar band
 //
 // A block has EITHER `target` OR `every`, never both.
 
@@ -123,15 +123,14 @@ export function parseCountdown(
     since: null,
     sinceLabel: null,
     sinceStyle: 'eyebrow',
-    units: 'days',
+    units: 'human',
     round: 'up',
     fields: ['d', 'h', 'm', 's'],
     lang: 'en',
     onDay: null,
     expired: null,
     note: null,
-    thresholds: null,
-    calendar: null,
+    noVisual: false,
     diagnostics: [],
     error: null,
   };
@@ -344,6 +343,7 @@ export function parseCountdown(
       case 'units': {
         const v = rest.toLowerCase();
         if (
+          v === 'human' ||
           v === 'days' ||
           v === 'full' ||
           v === 'clock' ||
@@ -355,7 +355,7 @@ export function parseCountdown(
         } else {
           warn(
             lineNum,
-            `Unknown units "${rest}" — use days|full|clock|weeks|words|compound.`
+            `Unknown units "${rest}" — use human|days|full|clock|weeks|words.`
           );
         }
         break;
@@ -389,33 +389,10 @@ export function parseCountdown(
         result.expired = rest;
         break;
 
-      // ── `calendar <year|month|week>` — you-are-here → event band. ──
-      case 'calendar': {
-        const v = rest.toLowerCase();
-        if (v === 'year' || v === 'month' || v === 'week') {
-          result.calendar = v;
-        } else {
-          warn(lineNum, `"calendar" needs year|month|week (got "${rest}").`);
-        }
+      // ── `no-visual` — suppress the default-on calendar band (§36.6). ──
+      case 'no-visual':
+        result.noVisual = true;
         break;
-      }
-
-      // ── `thresholds <amber> <red>` — traffic-light urgency ramp (days). ──
-      case 'thresholds': {
-        const nums = rest
-          .split(/[,\s]+/)
-          .map(Number)
-          .filter((n) => Number.isFinite(n) && n > 0);
-        if (nums.length === 2 && nums[0]! > nums[1]!) {
-          result.thresholds = [nums[0]!, nums[1]!];
-        } else {
-          warn(
-            lineNum,
-            `"thresholds" needs two day counts, amber > red (e.g. thresholds 30 7).`
-          );
-        }
-        break;
-      }
 
       // ── `note` — markdown caption; inline value or indented body block. ──
       case 'note':

@@ -199,25 +199,10 @@ export function ordinalFor(resolvedMs: number, since: number): number {
   return new Date(resolvedMs).getFullYear() - since;
 }
 
-/**
- * Traffic-light band for `remainingMs` against `[amberDays, redDays]`:
- * 0 = green (far, > amber), 1 = amber (≤ amber), 2 = red (≤ red). Shared so the
- * baked color and the live recolor agree.
- */
-export function rampIndex(
-  remainingMs: number,
-  amberDays: number,
-  redDays: number
-): 0 | 1 | 2 {
-  const days = remainingMs / DAY_MS;
-  if (days <= redDays) return 2;
-  if (days <= amberDays) return 1;
-  return 0;
-}
-
 // ── Count + footer formatting (shared so baked == live) ──
 
 export type CountUnits =
+  | 'human'
   | 'days'
   | 'full'
   | 'clock'
@@ -316,6 +301,7 @@ export function breakdown(
   nowMs: number,
   targetMs: number
 ): {
+  years: number;
   months: number;
   days: number;
   hours: number;
@@ -350,25 +336,52 @@ export function breakdown(
     mo += 12;
     y--;
   }
-  return { months: y * 12 + mo, days: d, hours: h, minutes: mi, seconds: s };
+  return { years: y, months: mo, days: d, hours: h, minutes: mi, seconds: s };
+}
+
+/** The calendar-aware unit ladder years→months→days→hours→minutes for a delta. */
+function humanUnits(nowMs: number, targetMs: number): Array<[number, string]> {
+  const b = breakdown(nowMs, targetMs);
+  return [
+    [b.years, 'year'],
+    [b.months, 'month'],
+    [b.days, 'day'],
+    [b.hours, 'hour'],
+    [b.minutes, 'minute'],
+  ];
+}
+
+/**
+ * Human hero (default `units human`): the coarse **top-two units including
+ * years** as the hero (`big`), the finer **remainder** as a muted sub-line
+ * (`sub`). Leading zero units are dropped ("2 months, 4 days", never "0 years,
+ * …"). Shared so the baked hero and the live tick agree.
+ */
+export function formatHuman(
+  nowMs: number,
+  targetMs: number
+): { big: string; sub: string } {
+  const units = humanUnits(nowMs, targetMs);
+  let i = 0;
+  while (i < units.length - 1 && units[i]![0] === 0) i++;
+  const rest = units.slice(i);
+  const say = (arr: Array<[number, string]>): string =>
+    arr.map(([n, u]) => `${n} ${u}${n === 1 ? '' : 's'}`).join(', ');
+  const primary = rest.slice(0, 2).filter((p, idx) => p[0] > 0 || idx === 0);
+  const secondary = rest.slice(2).filter((p) => p[0] > 0);
+  return { big: say(primary) || 'now', sub: say(secondary) };
 }
 
 /**
  * Compound human phrase — "10 months, 20 days". Drops leading zero units and
- * shows at most `maxUnits` (default 2) from months→days→hours→minutes.
+ * shows at most `maxUnits` (default 2) from years→months→days→hours→minutes.
  */
 export function formatCompound(
   nowMs: number,
   targetMs: number,
   maxUnits = 2
 ): string {
-  const b = breakdown(nowMs, targetMs);
-  const all: Array<[number, string]> = [
-    [b.months, 'month'],
-    [b.days, 'day'],
-    [b.hours, 'hour'],
-    [b.minutes, 'minute'],
-  ];
+  const all = humanUnits(nowMs, targetMs);
   let i = 0;
   while (i < all.length - 1 && all[i]![0] === 0) i++;
   const chosen = all

@@ -76,20 +76,16 @@ export interface ParsedCountdown {
   readonly note: string | null;
 
   /**
-   * Traffic-light urgency ramp `[amber, red]` in DAYS (amber > red). The hero
-   * is green while remaining > amber, amber within, red once ≤ red. Ignored
-   * when an explicit `color` is set (manual always wins). Null = no ramp.
+   * Suppress the "you-are-here → event" calendar band. The band is **default-on**
+   * for every date-bearing countdown (the renderer auto-picks the tier from the
+   * span to the target — §36.6); `no-visual` collapses the chart to the header.
    */
-  readonly thresholds: readonly [number, number] | null;
+  readonly noVisual: boolean;
 
   /**
-   * Optional "you-are-here → event" calendar visualization drawn as a band at
-   * the bottom of the banner. `year` = a Jan→Dec axis with now/event markers.
-   * Null = none.
+   * Resolved trailing-token / `color:` hex, if any. Sets the gradient's HOT
+   * endpoint (the target color); defaults to red when unset.
    */
-  readonly calendar: 'year' | 'month' | 'week' | null;
-
-  /** Resolved trailing-token / `color:` hex, if any. Overrides the ramp. */
   readonly color?: string;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;

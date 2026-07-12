@@ -23,10 +23,10 @@ import {
   formatCompound,
   formatCount,
   formatFooter,
+  formatHuman,
   formatWordsDetail,
   ordinalFor,
   ordinalWord,
-  rampIndex,
   relativePhrase,
   resolveNext,
   type CountUnits,
@@ -36,6 +36,74 @@ import {
 } from './resolve';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Local midnight for `ms` (mirrors renderer.DAY_START). */
+function dayStartLocal(ms: number): number {
+  const d = new Date(ms);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+/** Whole-day span (local-midnight aligned) — mirrors renderer.dayDelta. */
+function dayDeltaLocal(aMs: number, bMs: number): number {
+  const a = new Date(aMs);
+  const b = new Date(bMs);
+  const a0 = new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime();
+  const b0 = new Date(b.getFullYear(), b.getMonth(), b.getDate()).getTime();
+  return Math.round((b0 - a0) / DAY_MS);
+}
+
+function pad2(n: number): string {
+  return n < 10 ? '0' + n : String(n);
+}
+
+// Ring-gauge arc geometry — mirrors renderer.polar/arcPath so live == baked.
+function polar(
+  cx: number,
+  cy: number,
+  r: number,
+  deg: number
+): [number, number] {
+  const a = ((deg - 90) * Math.PI) / 180;
+  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+}
+function arcPath(cx: number, cy: number, r: number, frac: number): string {
+  frac = Math.max(0, Math.min(0.9999, frac));
+  const [x0, y0] = polar(cx, cy, r, 0);
+  const [x1, y1] = polar(cx, cy, r, frac * 360);
+  return `M ${x0} ${y0} A ${r} ${r} 0 ${frac > 0.5 ? 1 : 0} 1 ${x1} ${y1}`;
+}
+
+/** Recompute the three H·M·S ring gauges (numeral · swept arc · caption). */
+function updateGauges(svg: Element, remaining: number): void {
+  const rem = Math.abs(remaining);
+  const vals: Record<string, number> = {
+    h: Math.floor(rem / 3600000),
+    m: Math.floor((rem % 3600000) / 60000),
+    s: Math.floor((rem % 60000) / 1000),
+  };
+  const fracs: Record<string, number> = {
+    h: (vals['h']! % 24) / 24,
+    m: vals['m']! / 60,
+    s: vals['s']! / 60,
+  };
+  svg.querySelectorAll('[data-dgmo-gauge-val]').forEach((el) => {
+    const k = el.getAttribute('data-dgmo-gauge-val')!;
+    const v = pad2(vals[k] ?? 0);
+    if (el.textContent !== v) el.textContent = v;
+  });
+  svg.querySelectorAll('[data-dgmo-gauge-arc]').forEach((el) => {
+    const k = el.getAttribute('data-dgmo-gauge-arc')!;
+    const cx = Number(el.getAttribute('data-cx'));
+    const cy = Number(el.getAttribute('data-cy'));
+    const r = Number(el.getAttribute('data-r'));
+    const f = fracs[k] ?? 0;
+    el.setAttribute('d', f > 0.001 ? arcPath(cx, cy, r, f) : '');
+  });
+  const cap = svg.querySelector('[data-dgmo-gauge-caption]');
+  if (cap) {
+    const t = remaining >= 0 ? 'TO GO' : 'AGO';
+    if (cap.textContent !== t) cap.textContent = t;
+  }
+}
 
 /** Mirror of parser.ts `targetToMs` (bare date → local midnight). */
 function targetToMs(target: string): number | null {
@@ -120,12 +188,25 @@ function updateNode(node: Element, now: number): void {
   const remaining = resolvedMs - now;
   const sinceAttr = node.getAttribute('data-dgmo-countdown-since');
   const hero = node.getAttribute('data-dgmo-countdown-hero'); // headline | inline | null
+  const custom = node.getAttribute('data-dgmo-countdown-expired');
+  const hasTime = node.getAttribute('data-dgmo-countdown-hastime') === '1';
+  // Timed pivot: on the final day (or past) the hero is the ticking clock and the
+  // band is the H·M·S rings. An explicit `expired` text always freezes instead.
+  const frozen = expiredNow && custom !== null;
+  const clockFinale = hasTime && !frozen && dayDeltaLocal(now, resolvedMs) <= 0;
   let text: string;
-  if (expiredNow) {
-    // Explicit `expired <text>` wins; otherwise count UP how long ago it was.
-    const custom = node.getAttribute('data-dgmo-countdown-expired');
-    if (custom) text = custom;
-    else if (units === 'compound')
+  if (frozen) {
+    text = custom!;
+  } else if (clockFinale) {
+    const clock = formatCount(Math.abs(remaining), {
+      units: 'clock',
+      round,
+      fields,
+    });
+    text = remaining < 0 ? `${clock} ago` : clock;
+  } else if (expiredNow) {
+    // Count UP how long ago it was (all-day past).
+    if (units === 'compound' || units === 'human')
       text = `${formatCompound(resolvedMs, now)} ago`;
     else {
       const elapsed = -remaining;
@@ -144,6 +225,11 @@ function updateNode(node: Element, now: number): void {
       hero === 'inline'
         ? `${ordinalWord(n)} ${label} ${relativePhrase(Math.max(0, remaining))}`.trim()
         : ordinalWord(n);
+  } else if (units === 'human') {
+    // All-day targets floor to midnights → flat whole-day hero (baked-hero parity).
+    text = hasTime
+      ? formatHuman(now, resolvedMs).big
+      : formatHuman(dayStartLocal(now), dayStartLocal(resolvedMs)).big;
   } else if (units === 'compound') {
     text = formatCompound(now, resolvedMs);
   } else {
@@ -156,16 +242,6 @@ function updateNode(node: Element, now: number): void {
     title ? `${title}: ${text}` : expiredNow ? text : `${text} remaining`
   );
 
-  // Traffic-light ramp — recolor the hero live as it crosses a threshold.
-  const thAttr = node.getAttribute('data-dgmo-countdown-thresholds');
-  const rampAttr = node.getAttribute('data-dgmo-countdown-ramp');
-  if (thAttr && rampAttr && !expiredNow) {
-    const [amber, red] = thAttr.split(',').map(Number) as [number, number];
-    const cols = rampAttr.split(',');
-    const col = cols[rampIndex(Math.max(0, remaining), amber, red)];
-    if (col) node.setAttribute('fill', col);
-  }
-
   // Scope sibling lookups to this countdown's own SVG.
   const svg = (node as SVGElement).ownerSVGElement ?? node.closest('svg');
   if (!svg) return;
@@ -177,11 +253,21 @@ function updateNode(node: Element, now: number): void {
     footer.textContent = formatFooter(resolvedMs, hasTime);
   }
 
-  // Words-mode precision sub-line ("3 days 2 hours 7 minutes"), ticking.
+  // Hero sub-line, ticking: words precision, or the human remainder / days-out
+  // clock. Suppressed once the hero itself is the clock (rings carry the time).
   const detail = svg.querySelector('[data-dgmo-countdown-detail]');
-  if (detail && units === 'words' && !expiredNow) {
-    detail.textContent = formatWordsDetail(Math.max(0, remaining));
+  if (detail && !expiredNow && !clockFinale) {
+    if (units === 'words') {
+      detail.textContent = formatWordsDetail(Math.max(0, remaining));
+    } else if (units === 'human' && remaining > 0) {
+      detail.textContent = hasTime
+        ? formatCount(remaining, { units: 'clock', round, fields })
+        : formatHuman(dayStartLocal(now), dayStartLocal(resolvedMs)).sub;
+    }
   }
+
+  // Timed finale: recompute the three ring gauges (numeral · arc · caption).
+  if (clockFinale) updateGauges(svg, remaining);
 
   // Eyebrow ordinal (rolls up when a recurring anniversary passes).
   const eyebrow = svg.querySelector('[data-dgmo-countdown-eyebrow]');

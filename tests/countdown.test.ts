@@ -8,6 +8,7 @@ import {
   ordinalFor,
   ordinalWord,
   formatCount,
+  formatHuman,
   type RecurRule,
 } from '../src/countdown/resolve';
 import { render } from '../src/render';
@@ -73,16 +74,23 @@ function renderAt(source: string, nowIso: string): HTMLDivElement {
 // ============================================================
 
 describe('countdown parser — one-shot', () => {
-  it('parses title + target date; defaults units=days round=up expired=null', () => {
+  it('parses title + target date; defaults units=human round=up expired=null, band on', () => {
     const r = parseCountdown(`countdown Trip to Japan\ntarget 2026-08-21`);
     expect(r.type).toBe('countdown');
     expect(r.title).toBe('Trip to Japan');
     expect(r.target).toBe('2026-08-21');
     expect(r.rule).toBeNull();
-    expect(r.units).toBe('days');
+    expect(r.units).toBe('human');
     expect(r.round).toBe('up');
     expect(r.expired).toBeNull();
+    expect(r.noVisual).toBe(false);
     expect(r.error).toBeNull();
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('`no-visual` suppresses the calendar band', () => {
+    const r = parseCountdown(`countdown Trip\ntarget 2026-08-21\nno-visual`);
+    expect(r.noVisual).toBe(true);
     expect(errors(r.diagnostics)).toHaveLength(0);
   });
 
@@ -368,6 +376,33 @@ describe('formatCount — round modes', () => {
   });
 });
 
+describe('formatHuman — coarse hero + finer remainder', () => {
+  const at = (iso: string): number => Date.parse(iso);
+  it('years cross into the hero; months/days demote to the sub-line', () => {
+    // 1 year, 2 months, 3 days out.
+    const h = formatHuman(at('2026-05-15T00:00:00'), at('2027-07-18T00:00:00'));
+    expect(h.big).toBe('1 year, 2 months');
+    expect(h.sub).toBe('3 days');
+  });
+  it('drops leading zero units (no "0 years")', () => {
+    // 2 months, 4 days.
+    const h = formatHuman(at('2026-05-15T00:00:00'), at('2026-07-19T00:00:00'));
+    expect(h.big).toBe('2 months, 4 days');
+    expect(h.sub).toBe('');
+  });
+  it('sub-day delta reads in hours/minutes, no empty remainder', () => {
+    const h = formatHuman(at('2026-05-15T09:00:00'), at('2026-05-15T14:30:00'));
+    expect(h.big).toBe('5 hours, 30 minutes');
+    expect(h.sub).toBe('');
+  });
+  it('a coarse-only span keeps a single hero unit', () => {
+    // Exactly 3 months, no remainder.
+    const h = formatHuman(at('2026-05-15T00:00:00'), at('2026-08-15T00:00:00'));
+    expect(h.big).toBe('3 months');
+    expect(h.sub).toBe('');
+  });
+});
+
 // ============================================================
 // Renderer — baked markers, footer, as-of stamp
 // ============================================================
@@ -375,7 +410,7 @@ describe('formatCount — round modes', () => {
 describe('countdown renderer — baked markers', () => {
   it('bakes a whole-day count + data-* attrs, footer, as-of stamp, no <script>', () => {
     const c = renderAt(
-      `countdown Trip\ntarget 2026-08-21`,
+      `countdown Trip\ntarget 2026-08-21\nunits days`,
       '2026-07-10T00:00:00Z'
     );
     const node = valueNode(c);
@@ -425,13 +460,134 @@ describe('countdown renderer — baked markers', () => {
 });
 
 // ============================================================
+// Renderer — human hero + calendar band tiers (§36.5–36.7)
+// ============================================================
+
+function allText(c: HTMLElement): string {
+  return Array.from(c.querySelectorAll('text'))
+    .map((t) => t.textContent ?? '')
+    .join(' | ');
+}
+function svgHeight(c: HTMLElement): number {
+  return Number(c.querySelector('svg')?.getAttribute('height') ?? 0);
+}
+
+describe('countdown renderer — human hero + band', () => {
+  it('default human hero: coarse top-2 units, finer remainder in the sub-line', () => {
+    // 2026-07-10 → 2027-09-13 = 1 year, 2 months, 3 days.
+    const c = renderAt(
+      `countdown Voyage\ntarget 2027-09-13`,
+      '2026-07-10T00:00:00Z'
+    );
+    expect(valueNode(c).textContent).toBe('1 year, 2 months');
+    expect(c.querySelector('[data-dgmo-countdown-detail]')?.textContent).toBe(
+      '3 days'
+    );
+    expect(valueNode(c).getAttribute('data-dgmo-countdown-units')).toBe(
+      'human'
+    );
+  });
+
+  it('band is default-on; `no-visual` suppresses it (shorter banner)', () => {
+    const withBand = renderAt(
+      `countdown Voyage\ntarget 2027-09-13`,
+      '2026-07-10T00:00:00Z'
+    );
+    const noBand = renderAt(
+      `countdown Voyage\ntarget 2027-09-13\nno-visual`,
+      '2026-07-10T00:00:00Z'
+    );
+    expect(svgHeight(withBand)).toBeGreaterThan(svgHeight(noBand));
+  });
+
+  it('> 1 year → year-blocks band (year labels)', () => {
+    const c = renderAt(
+      `countdown Voyage\ntarget 2028-08-21`,
+      '2026-07-10T00:00:00Z'
+    );
+    expect(allText(c)).toContain('2026');
+    expect(allText(c)).toContain('2028');
+  });
+
+  it('3–12 months → month rectangles (labels + only now/target dated, no day grid)', () => {
+    // ~5 months out.
+    const c = renderAt(
+      `countdown Voyage\ntarget 2026-12-01`,
+      '2026-07-12T00:00:00Z'
+    );
+    const tokens = allText(c).split(' | ');
+    expect(tokens).toContain('Jul'); // month-rect label, no year
+    expect(tokens).not.toContain('Jul 2026');
+    // Month-rectangles date ONLY now/target — no mid-month day like 25.
+    expect(tokens).not.toContain('25');
+  });
+
+  it('≤ ~3 months → dot calendars dating only now + target', () => {
+    const c = renderAt(
+      `countdown Voyage\ntarget 2026-09-01`,
+      '2026-07-12T00:00:00Z'
+    );
+    const tokens = allText(c).split(' | ');
+    expect(tokens).toContain('Jul 2026'); // centered month label with year
+    expect(tokens).toContain('12'); // today is dated
+    // Every other day is an unlabeled dot — no mid-month number.
+    expect(tokens).not.toContain('25');
+  });
+
+  it('short span → stretchy day-strip today→event (TODAY tag; a cell per day)', () => {
+    const c = renderAt(
+      `countdown Voyage\ntarget 2026-07-14`,
+      '2026-07-10T00:00:00Z'
+    );
+    const txt = allText(c);
+    expect(txt).toContain('TODAY');
+    // One cell per day from today (10) to the event (14, rightmost). The gradient
+    // + halo carry progress, so there are no per-cell "Nd to go" tags.
+    for (const d of ['10', '11', '12', '13', '14']) expect(txt).toContain(d);
+    expect(txt).not.toContain('to go');
+  });
+
+  it('timed final day → three H·M·S ring gauges + a clock hero', () => {
+    const c = renderAt(
+      `countdown Launch\ntarget 2026-07-10T18:00`,
+      '2026-07-10T12:00:00Z'
+    );
+    expect(c.querySelectorAll('[data-dgmo-gauge-val]')).toHaveLength(3);
+    expect(c.querySelector('[data-dgmo-gauge-caption]')?.textContent).toBe(
+      'TO GO'
+    );
+    expect(valueNode(c).textContent).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+  });
+
+  it('timed past instant → rings count up, caption flips to AGO', () => {
+    const c = renderAt(
+      `countdown Launch\ntarget 2026-07-10T12:00`,
+      '2026-07-10T13:00:00Z'
+    );
+    expect(c.querySelector('[data-dgmo-gauge-caption]')?.textContent).toBe(
+      'AGO'
+    );
+    expect(valueNode(c).textContent).toContain('ago');
+  });
+
+  it('`expired` freezes a passed one-shot — no band, fixed message', () => {
+    const c = renderAt(
+      `countdown Gone\ntarget 2026-07-01T09:00\nexpired ⚓ Sailed`,
+      '2026-07-10T00:00:00Z'
+    );
+    expect(valueNode(c).textContent).toBe('⚓ Sailed');
+    expect(c.querySelectorAll('[data-dgmo-gauge-val]')).toHaveLength(0);
+  });
+});
+
+// ============================================================
 // Ticker — live update, roll-forward, stamp erasure
 // ============================================================
 
 describe('countdown ticker', () => {
   it('days mode: rewrites textContent + aria-label from the absolute target', () => {
     const c = renderAt(
-      `countdown Trip\ntarget 2026-08-21`,
+      `countdown Trip\ntarget 2026-08-21\nunits days`,
       '2026-07-10T00:00:00Z'
     );
     vi.setSystemTime(Date.parse('2026-08-01T00:00:00Z'));
@@ -494,6 +650,44 @@ describe('countdown ticker', () => {
     vi.setSystemTime(Date.parse('2026-07-11T00:00:00Z'));
     tickCountdowns(c);
     expect(c.querySelector('[data-dgmo-countdown-asof]')).toBeNull();
+  });
+
+  it('human mode: recomputes the coarse hero + finer sub-line each tick', () => {
+    const c = renderAt(
+      `countdown Voyage\ntarget 2027-09-13`,
+      '2026-07-10T00:00:00Z'
+    );
+    vi.setSystemTime(Date.parse('2026-08-01T00:00:00Z'));
+    tickCountdowns(c);
+    // 2026-08-01 → 2027-09-13 = 1 year, 1 month, 12 days.
+    expect(valueNode(c).textContent).toBe('1 year, 1 month');
+    expect(c.querySelector('[data-dgmo-countdown-detail]')?.textContent).toBe(
+      '12 days'
+    );
+  });
+
+  it('timed finale: ring gauges + clock hero recompute; caption flips at the pivot', () => {
+    const c = renderAt(
+      `countdown Launch\ntarget 2026-07-10T18:00`,
+      '2026-07-10T12:00:00Z'
+    );
+    // 3 h before → 03:00:00, TO GO.
+    vi.setSystemTime(Date.parse('2026-07-10T15:00:00Z'));
+    tickCountdowns(c);
+    expect(valueNode(c).textContent).toBe('03:00:00');
+    expect(c.querySelector('[data-dgmo-gauge-val="h"]')?.textContent).toBe(
+      '03'
+    );
+    expect(c.querySelector('[data-dgmo-gauge-caption]')?.textContent).toBe(
+      'TO GO'
+    );
+    // 30 min after → counts up, AGO.
+    vi.setSystemTime(Date.parse('2026-07-10T18:30:00Z'));
+    tickCountdowns(c);
+    expect(valueNode(c).textContent).toBe('00:30:00 ago');
+    expect(c.querySelector('[data-dgmo-gauge-caption]')?.textContent).toBe(
+      'AGO'
+    );
   });
 });
 
