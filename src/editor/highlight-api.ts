@@ -14,6 +14,7 @@
 
 import { parser } from './dgmo.grammar.js';
 import { REGISTRY_COLON_KEY_TOKENS } from '../directives-registry';
+import { monthIndex, weekdayIndex } from '../countdown/resolve';
 
 // ============================================================
 // Types
@@ -182,6 +183,10 @@ export function highlightDgmo(source: string): HighlightToken[] {
 
   // Phase 4: Post-process — note content detection
   applyNoteContent(tokens);
+
+  // Phase 5: Post-process — countdown recurrence line (context-aware; no-op
+  // for non-countdown docs).
+  applyRecurringLine(tokens);
 
   return tokens;
 }
@@ -426,6 +431,136 @@ function applyLabelOverrides(tokens: HighlightToken[]): void {
         tokens[ref.idx]!.role = 'default';
       }
     }
+  }
+}
+
+// ============================================================
+// Post-processing: countdown recurrence line
+// ============================================================
+//
+// The recurrence line `every <cadence> [on …] [at …] [from …]` (and its
+// standalone slot lines) is a fixed-slot grammar the flat Lezer tokenizer can't
+// see — the whole line renders generically. This context-aware pass lights up
+// the sub-keywords + closed instant vocab WITHOUT teaching them to the
+// context-free specializer (which would leak `on`/`at`/`from` into every prose
+// label in every chart). Gated on the countdown chart type + the leader word,
+// so it only fires on real recurrence lines. Shared with the desktop editor's
+// ViewPlugin via `classifyRecurrenceLine` so the two render paths can't drift.
+
+/** A role override for one token span on a recurrence line. */
+export interface RecurrenceSpan {
+  /** Char offset of the token within the line. */
+  start: number;
+  /** Char offset (exclusive) of the token end within the line. */
+  end: number;
+  role: 'keyword' | 'modifier';
+}
+
+/** Line leaders that open a recurrence line or a standalone slot line. */
+const RECUR_LEADERS = new Set([
+  'every',
+  'on',
+  'at',
+  'from',
+  'on-day',
+  'since-label',
+]);
+/** Connector sub-keywords inside `every …`. */
+const RECUR_CONNECTORS = new Set(['on', 'at', 'from']);
+/** Cadence unit words (only keyword-worthy in the cadence slot of `every`). */
+const RECUR_CADENCE_WORDS = new Set([
+  'year',
+  'month',
+  'week',
+  'day',
+  'days',
+  'weeks',
+  'months',
+]);
+
+/** `3rd` / `21st` / `last` — the ordinal position of an `on <nth> <weekday>`. */
+function isRecurOrdinal(token: string): boolean {
+  return /^(?:\d+(?:st|nd|rd|th)|last)$/i.test(token);
+}
+
+/**
+ * Classify the significant tokens on a countdown recurrence line. Returns the
+ * spans to re-role: sub-keywords (`every`/`on`/`at`/`from` + cadence units) →
+ * `keyword`, closed instant vocab (month/weekday names, ordinals) → `modifier`.
+ * Numeric tokens (day, `HH:MM`, dates) already tokenize as numbers, so they are
+ * left alone. Returns `[]` for any non-recurrence line.
+ */
+export function classifyRecurrenceLine(line: string): RecurrenceSpan[] {
+  const spans: RecurrenceSpan[] = [];
+  const toks: Array<{ t: string; s: number; e: number }> = [];
+  const re = /\S+/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(line)) !== null) {
+    toks.push({ t: m[0], s: m.index, e: m.index + m[0].length });
+  }
+  if (toks.length === 0) return spans;
+
+  const lead = toks[0]!.t.toLowerCase();
+  if (!RECUR_LEADERS.has(lead)) return spans;
+  const everyLine = lead === 'every';
+  let seenConnector = false;
+
+  for (let i = 0; i < toks.length; i++) {
+    const { t, s, e } = toks[i]!;
+    const low = t.toLowerCase();
+    if (i === 0) {
+      spans.push({ start: s, end: e, role: 'keyword' }); // the leader
+      continue;
+    }
+    if (RECUR_CONNECTORS.has(low)) {
+      spans.push({ start: s, end: e, role: 'keyword' });
+      seenConnector = true;
+      continue;
+    }
+    // Cadence unit words are keywords only in `every`'s cadence slot (before the
+    // first connector) — checked before the weekday match so `month`/`week`
+    // don't collide with weekdayIndex's 3-letter prefix ('mon' → Monday).
+    if (everyLine && !seenConnector && RECUR_CADENCE_WORDS.has(low)) {
+      spans.push({ start: s, end: e, role: 'keyword' });
+      continue;
+    }
+    if (
+      isRecurOrdinal(low) ||
+      monthIndex(t) !== null ||
+      weekdayIndex(t) !== null
+    ) {
+      spans.push({ start: s, end: e, role: 'modifier' });
+    }
+  }
+  return spans;
+}
+
+/**
+ * Re-role recurrence sub-keywords / instant vocab when the document is a
+ * countdown. No-op for every other chart type (so `on`/`at`/`from` never leak
+ * into prose elsewhere).
+ */
+function applyRecurringLine(tokens: HighlightToken[]): void {
+  const fullText = tokens.map((t) => t.text).join('');
+  const lines = fullText.split('\n');
+  const firstContent = lines.find((l) => {
+    const t = l.trim();
+    return t.length > 0 && !t.startsWith('//');
+  });
+  if (firstContent?.trim().split(/\s+/)[0]!.toLowerCase() !== 'countdown') {
+    return;
+  }
+
+  let offset = 0;
+  for (const lineText of lines) {
+    // Recurrence leaders sit at column 0; an indented line is note-block body
+    // (or ignored content) and must keep its existing role.
+    if (!/^\s/.test(lineText)) {
+      for (const sp of classifyRecurrenceLine(lineText)) {
+        markTokensInRange(tokens, offset + sp.start, offset + sp.end, sp.role);
+      }
+    }
+    offset += lineText.length + 1; // +1 for the \n
   }
 }
 
