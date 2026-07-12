@@ -128,7 +128,9 @@ export function parseCountdown(
     fields: ['d', 'h', 'm', 's'],
     lang: 'en',
     onDay: null,
-    expired: 'Now!',
+    expired: null,
+    note: null,
+    thresholds: null,
     diagnostics: [],
     error: null,
   };
@@ -161,6 +163,9 @@ export function parseCountdown(
   let targetMs: number | null = null;
   let hasTargetLine = false;
   let hasEvery = false;
+  // `note` block: indented lines accumulate here until the next top-level line.
+  const noteBody: string[] = [];
+  let inNote = false;
 
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1;
@@ -190,16 +195,21 @@ export function parseCountdown(
     }
 
     if (measureIndent(raw) > 0) {
-      warn(
-        lineNum,
-        `Indented content "${trimmed}" ignored — countdown is a single value.`
-      );
+      // Indented lines belong to an open `note` block; otherwise ignored.
+      if (inNote) noteBody.push(trimmed);
+      else
+        warn(
+          lineNum,
+          `Indented content "${trimmed}" ignored — countdown is a single value.`
+        );
       continue;
     }
 
     const [keyword, ...restTokens] = trimmed.split(/\s+/);
     const key = keyword!.toLowerCase();
     const rest = restTokens.join(' ').trim();
+    // Any top-level line closes an open note block.
+    if (key !== 'note') inNote = false;
 
     switch (key) {
       // ── One-shot target ──
@@ -377,10 +387,35 @@ export function parseCountdown(
         result.expired = rest;
         break;
 
+      // ── `thresholds <amber> <red>` — traffic-light urgency ramp (days). ──
+      case 'thresholds': {
+        const nums = rest
+          .split(/[,\s]+/)
+          .map(Number)
+          .filter((n) => Number.isFinite(n) && n > 0);
+        if (nums.length === 2 && nums[0]! > nums[1]!) {
+          result.thresholds = [nums[0]!, nums[1]!];
+        } else {
+          warn(
+            lineNum,
+            `"thresholds" needs two day counts, amber > red (e.g. thresholds 30 7).`
+          );
+        }
+        break;
+      }
+
+      // ── `note` — markdown caption; inline value or indented body block. ──
+      case 'note':
+        inNote = true;
+        if (rest) noteBody.push(rest);
+        break;
+
       default:
         warn(lineNum, `Unrecognized line "${trimmed}".`);
     }
   }
+
+  if (noteBody.length) result.note = noteBody.join('\n');
 
   // ── Mutual exclusion ──
   if (hasEvery && hasTargetLine) {
@@ -389,7 +424,7 @@ export function parseCountdown(
       'A countdown has either `target` (one-shot) or `every` (recurring), not both.'
     );
   }
-  if (result.expired !== 'Now!' && hasEvery) {
+  if (result.expired !== null && hasEvery) {
     warn(
       result.titleLineNumber ?? 1,
       '`expired` applies only to one-shot `target` blocks; recurring blocks roll forward.'

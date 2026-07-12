@@ -609,8 +609,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       gauge: { description: 'Render as a semicircular gauge dial' },
       now: { description: 'Current value (key value; no colon)' },
       target: { description: 'Goal value (must be > 0)' },
+      note: {
+        description: 'Free-text caption block (indented body, simple markdown)',
+      },
       'no-percent': { description: 'Hide the % label' },
       'no-value': { description: 'Hide the raw now / target label' },
+      'no-note': { description: 'Suppress the note block even if present' },
+      'no-auto-color': {
+        description: 'Disable traffic-light coloring; use the palette color',
+      },
     }),
   ],
   [
@@ -654,12 +661,19 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // default format. `beats`/`vs` are infix match keywords (not directives).
     withGlobals({
       rounds: {
-        description: 'Name the columns, entry round → inner (comma-separated)',
+        description:
+          'Name the columns (comma-separated, or an indented block with per-round colors)',
       },
       seed: {
         description:
           'Declare a seeded entrant (`seed N Name`) → day-0 skeleton',
       },
+      tag: {
+        description: 'Tag group — a competitor tag colors its box outline',
+      },
+      accent: { description: 'Winner accent color override (default blue)' },
+      'no-legend': { description: 'Hide the tag legend' },
+      'no-round': { description: 'Suppress the round/column labels' },
       'single-elim': { description: 'Single-elimination format (default)' },
       'double-elim': {
         description: 'Double-elimination (reserved — not yet supported)',

@@ -30,11 +30,18 @@ export const PAIR_GAP = 8;
 export const ROW = 82;
 /** Center-to-center horizontal spacing of adjacent rounds. */
 export const COL_W = 220;
-/** Max width a commentary caption wraps to — the box width, so a caption stays
- *  strictly under its matchup and never bleeds into the connector lines. */
-export const COMMENT_W = BOX_W;
+/** Max width a commentary caption wraps to — a hair under the box width, so a
+ *  wrapped line stays strictly inside its column band (never the connectors). */
+export const COMMENT_W = BOX_W - 14;
 
 const HALF_SPAN = (BOX_H + PAIR_GAP) / 2;
+
+/** Drop inline-markdown markers so wrap widths match the RENDERED text. */
+function stripInline(s: string): string {
+  return s
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\*\*|__|\*|_|`/g, '');
+}
 
 /** Greedy word-wrap `text` to `maxW` at font size `fs`. */
 export function wrapText(text: string, maxW: number, fs: number): string[] {
@@ -43,7 +50,9 @@ export function wrapText(text: string, maxW: number, fs: number): string[] {
   let cur = '';
   for (const w of words) {
     const attempt = cur ? `${cur} ${w}` : w;
-    if (!cur || measureText(attempt, fs) <= maxW) cur = attempt;
+    // Measure without markers, with a small bold-safety factor.
+    if (!cur || measureText(stripInline(attempt), fs) * 1.06 <= maxW)
+      cur = attempt;
     else {
       lines.push(cur);
       cur = w;
@@ -559,6 +568,7 @@ export function layoutBracket(parsed: ParsedBracket): BracketLayout {
     x: number,
     rl: { label: string; color?: string }
   ): void => {
+    if (parsed.noRounds) return;
     if (seenColX.has(x)) return;
     seenColX.add(x);
     columnLabels.push(

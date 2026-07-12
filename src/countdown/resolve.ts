@@ -199,6 +199,22 @@ export function ordinalFor(resolvedMs: number, since: number): number {
   return new Date(resolvedMs).getFullYear() - since;
 }
 
+/**
+ * Traffic-light band for `remainingMs` against `[amberDays, redDays]`:
+ * 0 = green (far, > amber), 1 = amber (≤ amber), 2 = red (≤ red). Shared so the
+ * baked color and the live recolor agree.
+ */
+export function rampIndex(
+  remainingMs: number,
+  amberDays: number,
+  redDays: number
+): 0 | 1 | 2 {
+  const days = remainingMs / DAY_MS;
+  if (days <= redDays) return 2;
+  if (days <= amberDays) return 1;
+  return 0;
+}
+
 // ── Count + footer formatting (shared so baked == live) ──
 
 export type CountUnits = 'days' | 'full' | 'clock' | 'weeks' | 'words';
@@ -247,9 +263,9 @@ export function formatCount(remainingMs: number, opts: CountOpts): string {
     const days = Math.ceil(remainingMs / DAY_MS);
     if (days <= 0) return 'now';
     if (days === 1) return 'tomorrow';
-    if (days < 14) return `in ${days} days`;
-    if (days < 60) return `in ${Math.round(days / 7)} weeks`;
-    return `in ${Math.round(days / 30)} months`;
+    if (days < 14) return `${days} days`;
+    if (days < 60) return `${Math.round(days / 7)} weeks`;
+    return `${Math.round(days / 30)} months`;
   }
   // full: floor days + HH:MM:SS remainder, pruned by `fields`.
   const days = Math.floor(totalSec / 86_400);
@@ -266,6 +282,23 @@ export function formatCount(remainingMs: number, opts: CountOpts): string {
   // clock (matches v1 behavior).
   const dayPrefix = has('d') && days > 0 ? `${days}d${clock ? ' ' : ''}` : '';
   return dayPrefix + clock || plural(days, 'day');
+}
+
+/**
+ * Precise breakdown for the `units words` sub-line: `3 days 2 hours 7 minutes`.
+ * Drops leading zero units (a sub-day countdown reads `2 hours 7 minutes`);
+ * minutes always show so it visibly ticks. Ticker-updated live.
+ */
+export function formatWordsDetail(remainingMs: number): string {
+  const totalMin = Math.floor(Math.max(0, remainingMs) / 60_000);
+  const d = Math.floor(totalMin / 1440);
+  const h = Math.floor((totalMin % 1440) / 60);
+  const m = totalMin % 60;
+  const parts: string[] = [];
+  if (d > 0) parts.push(`${d} day${d === 1 ? '' : 's'}`);
+  if (d > 0 || h > 0) parts.push(`${h} hour${h === 1 ? '' : 's'}`);
+  parts.push(`${m} minute${m === 1 ? '' : 's'}`);
+  return parts.join(' ');
 }
 
 /** Short relative phrase for the footer ("in 8 days", "tomorrow", "today"). */
@@ -307,20 +340,15 @@ export function formatDateShort(ms: number): string {
 }
 
 /**
- * The in-chart footer resolution line:
- *   `→ Tue Jul 21 2026 · 18:00 · in 8 days`
+ * The in-chart footer resolution line — just the resolved instant:
+ *   `Tue Jul 21 2026 · 18:00`
  * `hasTime` includes the clock segment (omitted for midnight one-shot dates).
  */
-export function formatFooter(
-  resolvedMs: number,
-  now: number,
-  hasTime: boolean
-): string {
+export function formatFooter(resolvedMs: number, hasTime: boolean): string {
   const parts = [formatDate(resolvedMs)];
   if (hasTime) {
     const d = new Date(resolvedMs);
     parts.push(`${pad2(d.getHours())}:${pad2(d.getMinutes())}`);
   }
-  parts.push(relativePhrase(resolvedMs - now));
-  return `→ ${parts.join(' · ')}`;
+  return parts.join(' · ');
 }

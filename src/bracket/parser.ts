@@ -73,9 +73,7 @@ interface MutMatch {
 }
 
 /** Split a decided match tail into `{left, right, score, home}`. */
-function splitMatch(
-  body: string
-): {
+function splitMatch(body: string): {
   left: string;
   right: string;
   score: string | null;
@@ -118,6 +116,7 @@ export function parseBracket(
     competitorMeta: new Map(),
     activeTag: null,
     noLegend: false,
+    noRounds: false,
     diagnostics: [],
     error: null,
   };
@@ -295,6 +294,23 @@ export function parseBracket(
     }
     if (lower === 'no-legend') {
       result.noLegend = true;
+      continue;
+    }
+    if (lower === 'no-round' || lower === 'no-rounds') {
+      result.noRounds = true;
+      continue;
+    }
+
+    // ── `accent <color>` — override the default winner accent (blue). ──
+    const accentM = trimmed.match(/^accent\s+(.+)$/i);
+    if (accentM) {
+      const { color } = extractColor(
+        `x ${accentM[1]!.trim()}`,
+        palette,
+        result.diagnostics,
+        lineNum
+      );
+      if (color !== undefined) result.accentColor = color;
       continue;
     }
 

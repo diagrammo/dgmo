@@ -65,10 +65,24 @@ export interface ParsedCountdown {
   readonly lang: string;
   /** Text shown on the occurrence day (recurring only). */
   readonly onDay: string | null;
-  /** Text shown once a one-shot target passes. Default `"Now!"`. */
-  readonly expired: string;
+  /** Explicit text shown once a one-shot target passes; null → count UP ("N ago"). */
+  readonly expired: string | null;
 
-  /** Resolved trailing-token / `color:` hex, if any. */
+  /**
+   * Free-text note under the ancillary line — inline (`note buy flowers`) or a
+   * `note` header + indented body lines. Simple markdown (**bold** / *italic* /
+   * `code` / links / `- ` bullets), like `goal`'s caption.
+   */
+  readonly note: string | null;
+
+  /**
+   * Traffic-light urgency ramp `[amber, red]` in DAYS (amber > red). The hero
+   * is green while remaining > amber, amber within, red once ≤ red. Ignored
+   * when an explicit `color` is set (manual always wins). Null = no ramp.
+   */
+  readonly thresholds: readonly [number, number] | null;
+
+  /** Resolved trailing-token / `color:` hex, if any. Overrides the ramp. */
   readonly color?: string;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;

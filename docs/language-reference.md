@@ -3833,12 +3833,16 @@ Black Pearl beats Salty Dog 6-5
 
 | Directive                      | Effect                                                                       |
 | ------------------------------ | ---------------------------------------------------------------------------- |
-| `rounds A, B, C`               | Name the columns entry-round → inner; absent → generic `Round N` / `Final`.  |
-| `seed N [Name]`                | Declare a seeded entrant → seeded mode + day-0 skeleton (top seeds get byes). |
+| `rounds A, B, C`               | Name the columns entry-round → inner (or an indented block with per-round `Name color`); absent → generic `Round N` / `Final`. |
+| `seed N [Name] [k: v]`         | Declare a seeded entrant → seeded mode + day-0 skeleton (top seeds get byes); trailing `k: v` tags the team. |
+| `tag Group [as g]`             | Tag group (block/kanban idiom) — a competitor's tag value colors its box outline; a legend renders. |
 | `[Side] [color]`               | A bracket column (kanban idiom); two sides mirror to a center championship.   |
-| `[Winner] beats [Loser] [score]` | A decided match — the left name advances; the score is a cosmetic annotation. |
+| `[Winner] beats [Loser] [score] [@ Home]` | A decided match — the left name advances; score is cosmetic; `@ Home` marks the host. Indent prose under it for commentary. |
 | `[A] vs [B]`                   | A pending, undecided match (both boxes drawn, no winner emphasis).            |
-| `single-elim` / `double-elim`  | Bracket format (bare flag). `double-elim` is reserved — not yet supported.    |
+| `accent <color>`               | Winner accent color override (default blue). Tags/sides still win per-box.    |
+| `no-round`                     | Suppress the round/column labels.                                            |
+| `no-legend`                    | Hide the tag legend (outlines still colored).                               |
+| `single-elim` / `double-elim` / `seeded` | Format flags. `double-elim` reserved — not yet supported; `seeded` forces seeded mode. |
 
 ### Semantics
 

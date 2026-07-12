@@ -76,6 +76,10 @@ export interface ParsedBracket {
   readonly activeTag: string | null;
   /** Hide the tag legend. */
   readonly noLegend: boolean;
+  /** Suppress round/column labels (`no-round`). */
+  readonly noRounds: boolean;
+  /** Winner accent color override (`accent <color>`); default blue. */
+  readonly accentColor?: string;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }

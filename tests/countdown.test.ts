@@ -73,7 +73,7 @@ function renderAt(source: string, nowIso: string): HTMLDivElement {
 // ============================================================
 
 describe('countdown parser — one-shot', () => {
-  it('parses title + target date; defaults units=days round=up expired=Now!', () => {
+  it('parses title + target date; defaults units=days round=up expired=null', () => {
     const r = parseCountdown(`countdown Trip to Japan\ntarget 2026-08-21`);
     expect(r.type).toBe('countdown');
     expect(r.title).toBe('Trip to Japan');
@@ -81,7 +81,7 @@ describe('countdown parser — one-shot', () => {
     expect(r.rule).toBeNull();
     expect(r.units).toBe('days');
     expect(r.round).toBe('up');
-    expect(r.expired).toBe('Now!');
+    expect(r.expired).toBeNull();
     expect(r.error).toBeNull();
     expect(errors(r.diagnostics)).toHaveLength(0);
   });
@@ -123,6 +123,22 @@ describe('countdown parser — one-shot', () => {
   it('warns on indented content', () => {
     const r = parseCountdown(`countdown X\ntarget 2026-08-21\n  stray`);
     expect(r.diagnostics.some((d) => d.severity === 'warning')).toBe(true);
+  });
+
+  it('parses an inline note', () => {
+    const r = parseCountdown(
+      `countdown X\ntarget 2026-08-21\nnote buy **flowers**`
+    );
+    expect(r.note).toBe('buy **flowers**');
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('parses a note block with indented body (no indent warning)', () => {
+    const r = parseCountdown(
+      `countdown X\ntarget 2026-08-21\nnote Agenda\n  - divide plunder\n  - grog`
+    );
+    expect(r.note).toBe('Agenda\n- divide plunder\n- grog');
+    expect(r.diagnostics.some((d) => d.severity === 'warning')).toBe(false);
   });
 });
 
@@ -345,10 +361,10 @@ describe('formatCount — round modes', () => {
       formatCount(ms, { units: 'full', round: 'up', fields: ['d', 'h', 'm'] })
     ).toBe('3d 06:14');
   });
-  it('words', () => {
+  it('words (no leading "in")', () => {
     expect(
       formatCount(6 * DAY, { units: 'words', round: 'up', fields: [] })
-    ).toBe('in 6 days');
+    ).toBe('6 days');
   });
 });
 

@@ -89,8 +89,10 @@ function paintForAccent(
     accent,
     ink: palette.text,
     muted: mix(palette.text, base, 52),
-    hair: mix(palette.border, base, 30),
-    wire: mix(palette.border, base, 78),
+    // Loser / TBD outlines + connectors are ink-based (not the pale border) so
+    // they stay legible on top of a colored, shaded column band.
+    hair: mix(palette.text, base, 34),
+    wire: mix(palette.text, base, 30),
     track: mix(palette.border, base, 55),
     tint: shapeFill(palette, accent, isDark),
   };
@@ -252,7 +254,13 @@ export function renderBracket(
     });
   }
 
-  const basePaint = paintFor(palette, isDark);
+  // Default winner accent is blue (overridable with `accent <color>`); a side or
+  // tag color still wins per-box.
+  const baseAccent =
+    parsed.accentColor ??
+    resolveColor('blue', palette) ??
+    getSeriesColors(palette)[0]!;
+  const basePaint = paintForAccent(palette, isDark, baseAccent);
   const sideColorByLabel = new Map<string, string | undefined>();
   for (const s of parsed.sides) sideColorByLabel.set(s.label, s.color);
 
@@ -308,20 +316,26 @@ export function renderBracket(
   }
 
   // ── Round labels ──
+  // A groupless column (no side bar above it) puts its label in the top header
+  // row, aligned with the side-bar labels; a grouped column's round label sits
+  // in the lower band under its side bar.
   for (const col of layout.columns) {
     const c = col.color
       ? (resolveColor(col.color, palette) ?? col.color)
       : basePaint.muted;
+    const covered = layout.sideLabels.some(
+      (s) => col.x >= s.x0 && col.x <= s.x1
+    );
     root
       .append('text')
       .attr('x', col.x)
-      .attr('y', roundY)
+      .attr('y', covered ? roundY : 18)
       .attr('text-anchor', 'middle')
-      .attr('font-size', 12)
-      .attr('font-weight', 700)
+      .attr('font-size', covered ? 12 : 13)
+      .attr('font-weight', covered ? 700 : 800)
       .attr('fill', c)
       .attr('letter-spacing', 0.3)
-      .text(clip(col.label, BOX_W + 20, 12));
+      .text(clip(col.label, BOX_W + 20, covered ? 12 : 13));
   }
 
   // ── Connectors (behind boxes) ──
@@ -569,23 +583,37 @@ function drawUpset(g: GSel, m: LaidMatch, paint: Paint): void {
     .text('UPSET');
 }
 
-/** Prose commentary under the match's bottom box, word-wrapped to the column. */
+/** Prose commentary under the match's bottom box, word-wrapped to the column.
+ *  Bullet lines get a hanging indent so wrapped continuations align with the
+ *  text after the bullet, not under the bullet itself. */
 function drawCommentary(g: GSel, m: LaidMatch, palette: PaletteColors): void {
   const x = m.x - BOX_W / 2 + 2;
   let y = m.y + HALF_SPAN + BOX_H / 2 + 13;
   const muted = mix(palette.text, palette.bg, 45);
+  const bulletW = measureText('• ', 11);
+
+  const emit = (line: string, lx: number): void => {
+    const t = g
+      .append('text')
+      .attr('x', lx)
+      .attr('y', y)
+      .attr('text-anchor', 'start')
+      .attr('font-size', 11)
+      .attr('font-style', 'italic')
+      .attr('fill', muted);
+    renderInlineText(t, line, palette, 11);
+    y += COMMENT_LH;
+  };
+
   for (const raw of m.commentary) {
-    for (const line of wrapText(raw, COMMENT_W, 11)) {
-      const t = g
-        .append('text')
-        .attr('x', x)
-        .attr('y', y)
-        .attr('text-anchor', 'start')
-        .attr('font-size', 11)
-        .attr('font-style', 'italic')
-        .attr('fill', muted);
-      renderInlineText(t, line, palette, 11);
-      y += COMMENT_LH;
+    const isBullet = raw.startsWith('• ');
+    if (isBullet) {
+      const body = raw.slice(2);
+      wrapText(body, COMMENT_W - bulletW, 11).forEach((line, i) =>
+        i === 0 ? emit(`• ${line}`, x) : emit(line, x + bulletW)
+      );
+    } else {
+      for (const line of wrapText(raw, COMMENT_W, 11)) emit(line, x);
     }
   }
 }

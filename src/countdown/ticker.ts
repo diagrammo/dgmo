@@ -22,8 +22,10 @@ import {
   DAY_MS,
   formatCount,
   formatFooter,
+  formatWordsDetail,
   ordinalFor,
   ordinalWord,
+  rampIndex,
   relativePhrase,
   resolveNext,
   type CountUnits,
@@ -119,7 +121,16 @@ function updateNode(node: Element, now: number): void {
   const hero = node.getAttribute('data-dgmo-countdown-hero'); // headline | inline | null
   let text: string;
   if (expiredNow) {
-    text = node.getAttribute('data-dgmo-countdown-expired') || 'Now!';
+    // Explicit `expired <text>` wins; otherwise count UP how long ago it was.
+    const custom = node.getAttribute('data-dgmo-countdown-expired');
+    if (custom) text = custom;
+    else {
+      const elapsed = -remaining;
+      text =
+        elapsed <= 0
+          ? 'Now!'
+          : `${formatCount(elapsed, { units, round, fields })} ago`;
+    }
   } else if (rule && onDay && sameLocalDay(resolvedMs, now)) {
     text = onDay;
   } else if (hero && sinceAttr) {
@@ -137,8 +148,18 @@ function updateNode(node: Element, now: number): void {
   if (node.textContent !== text) node.textContent = text;
   node.setAttribute(
     'aria-label',
-    title ? `${title}: ${text}` : `${text} remaining`
+    title ? `${title}: ${text}` : expiredNow ? text : `${text} remaining`
   );
+
+  // Traffic-light ramp — recolor the hero live as it crosses a threshold.
+  const thAttr = node.getAttribute('data-dgmo-countdown-thresholds');
+  const rampAttr = node.getAttribute('data-dgmo-countdown-ramp');
+  if (thAttr && rampAttr && !expiredNow) {
+    const [amber, red] = thAttr.split(',').map(Number) as [number, number];
+    const cols = rampAttr.split(',');
+    const col = cols[rampIndex(Math.max(0, remaining), amber, red)];
+    if (col) node.setAttribute('fill', col);
+  }
 
   // Scope sibling lookups to this countdown's own SVG.
   const svg = (node as SVGElement).ownerSVGElement ?? node.closest('svg');
@@ -148,7 +169,13 @@ function updateNode(node: Element, now: number): void {
   const footer = svg.querySelector('[data-dgmo-countdown-footer]');
   if (footer && !expiredNow) {
     const hasTime = node.getAttribute('data-dgmo-countdown-hastime') === '1';
-    footer.textContent = formatFooter(resolvedMs, now, hasTime);
+    footer.textContent = formatFooter(resolvedMs, hasTime);
+  }
+
+  // Words-mode precision sub-line ("3 days 2 hours 7 minutes"), ticking.
+  const detail = svg.querySelector('[data-dgmo-countdown-detail]');
+  if (detail && units === 'words' && !expiredNow) {
+    detail.textContent = formatWordsDetail(Math.max(0, remaining));
   }
 
   // Eyebrow ordinal (rolls up when a recurring anniversary passes).

@@ -333,6 +333,19 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'timestamp', category: 'modifier' },
   { token: 'float', category: 'modifier' },
   { token: 'decimal', category: 'modifier' },
+
+  // ── Bracket ──────────────────────────────────────────────
+  // `beats` / `vs` are the infix match keywords; the rest are line directives.
+  // (`seed` and `no-legend` already appear above — shared, not re-listed.)
+  { token: 'beats', category: 'control' },
+  { token: 'vs', category: 'control' },
+  { token: 'rounds', category: 'directive' },
+  { token: 'accent', category: 'directive' },
+  { token: 'no-round', category: 'modifier' },
+  { token: 'no-rounds', category: 'modifier' },
+  { token: 'single-elim', category: 'modifier' },
+  { token: 'double-elim', category: 'modifier' },
+  { token: 'seeded', category: 'modifier' },
 ];
 
 // ============================================================
