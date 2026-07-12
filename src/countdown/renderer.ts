@@ -421,9 +421,12 @@ function bandHeightFor(
     case 'year': {
       const R =
         new Date(resolvedMs).getFullYear() - new Date(nowMs).getFullYear() + 1;
-      const cellW = (contentW - 11 * 6) / 12;
-      const cellH = clamp(cellW * 0.82, 40, 62);
-      return R * (16 + cellH) + (R - 1) * 16;
+      const yearW = 48; // left gutter for the big year number
+      const gap = 4;
+      const cellW = (contentW - yearW - 11 * gap) / 12;
+      const cellH = clamp(cellW * 0.6, 28, 44);
+      const rowGap = 10;
+      return R * cellH + (R - 1) * rowGap;
     }
     case 'months': {
       // Minimum 6 months, 6 per row, padded with context months (see vizMonths).
@@ -477,19 +480,34 @@ function vizYear(
   const years: number[] = [];
   for (let y = y0; y <= y1; y++) years.push(y);
   const R = years.length;
-  const rowGap = 16;
-  const labelH = 16;
-  const gap = 6;
+  // Compact: the year lives in a LEFT GUTTER (big), rows are short, gaps tight,
+  // and each month cell holds just its MMM (+ a day number on the anchors).
+  const yearW = 48;
+  const gap = 4;
+  const rowGap = 10;
   const rowH = (g.height - rowGap * (R - 1)) / R;
-  const cellH = rowH - labelH;
-  const cellW = (g.contentW - 11 * gap) / 12;
+  const cellH = rowH;
+  const cellW = (g.contentW - yearW - 11 * gap) / 12;
   const nowY = now.getFullYear();
   const nowM = now.getMonth();
   const evY = ev.getFullYear();
   const evM = ev.getMonth();
+  const nowOrd = nowY * 12 + nowM;
+  const evOrd = evY * 12 + evM;
   years.forEach((yr, r) => {
     const ry = g.top + r * (rowH + rowGap);
-    aText(svg, g.left, ry + 12, 12, C.muted, 700, 'start', String(yr));
+    // Big year number in the left gutter, vertically centered on the row.
+    aText(
+      svg,
+      g.left,
+      ry + rowH / 2,
+      Math.min(23, rowH * 0.62),
+      C.muted,
+      800,
+      'start',
+      String(yr),
+      { 'dominant-baseline': 'central' }
+    );
     for (let m = 0; m < 12; m++) {
       const before = yr < nowY || (yr === nowY && m < nowM);
       const isNow = yr === nowY && m === nowM;
@@ -498,8 +516,6 @@ function vizYear(
         (yr > nowY || (yr === nowY && m > nowM)) &&
         (yr < evY || (yr === evY && m < evM));
       const anchor = isEv || isNow;
-      const nowOrd = nowY * 12 + nowM;
-      const evOrd = evY * 12 + evM;
       const st = isEv
         ? roleStyle(C, 'event')
         : isNow
@@ -507,49 +523,46 @@ function vizYear(
           : between
             ? gradStyle(C, (yr * 12 + m - nowOrd) / (evOrd - nowOrd))
             : roleStyle(C, before ? 'past' : 'future');
-      const x = g.left + m * (cellW + gap);
-      const yy = ry + labelH;
-      const rxY = Math.min(8, Math.min(cellW, cellH) * 0.24);
-      aRect(svg, x, yy, cellW, cellH, rxY, st.fill, st.stroke, 1.25);
-      if (isEv) haloRect(svg, x, yy, cellW, cellH, rxY, C);
+      const x = g.left + yearW + m * (cellW + gap);
+      const rx = Math.min(5, Math.min(cellW, cellH) * 0.22);
+      aRect(svg, x, ry, cellW, cellH, rx, st.fill, st.stroke, 1);
+      if (isEv) haloRect(svg, x, ry, cellW, cellH, rx, C);
       const cx = x + cellW / 2;
-      aText(
-        svg,
-        cx,
-        yy + 15,
-        Math.min(14, cellW * 0.34),
-        st.text,
-        700,
-        'middle',
-        MON_ABBR[m]!
-      );
-      aLine(
-        svg,
-        x,
-        yy + 21,
-        x + cellW,
-        yy + 21,
-        st.text,
-        1,
-        anchor ? 0.55 : 0.35
-      );
+      const mFont = Math.min(11, cellW * 0.32);
       if (anchor) {
-        const dnum = isEv ? ev.getDate() : now.getDate();
-        // Sit the day number in the space below the label rule, sized to fit it
-        // comfortably (never crowding the MMM label above).
-        const dFont = Math.max(
-          10,
-          Math.min(19, cellW * 0.48, (cellH - 24) * 0.66)
-        );
         aText(
           svg,
           cx,
-          yy + 21 + (cellH - 21) / 2,
-          dFont,
+          ry + cellH * 0.36,
+          mFont,
+          st.text,
+          700,
+          'middle',
+          MON_ABBR[m]!,
+          { 'dominant-baseline': 'central' }
+        );
+        const dnum = isEv ? ev.getDate() : now.getDate();
+        aText(
+          svg,
+          cx,
+          ry + cellH * 0.72,
+          Math.min(14, cellW * 0.42),
           st.text,
           800,
           'middle',
           String(dnum),
+          { 'dominant-baseline': 'central' }
+        );
+      } else {
+        aText(
+          svg,
+          cx,
+          ry + cellH / 2,
+          mFont,
+          st.text,
+          700,
+          'middle',
+          MON_ABBR[m]!,
           { 'dominant-baseline': 'central' }
         );
       }
