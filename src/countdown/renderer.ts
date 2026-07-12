@@ -426,10 +426,11 @@ function bandHeightFor(
       return R * (16 + cellH) + (R - 1) * 16;
     }
     case 'months': {
-      let M = monthSpan(nowMs, resolvedMs);
-      if (M % 2 === 1) M++;
-      const rows = Math.max(1, Math.round(Math.sqrt(M / 3)));
-      const perRow = Math.ceil(M / rows);
+      // Minimum 6 months, 6 per row, padded with context months (see vizMonths).
+      const realSpan = monthSpan(nowMs, resolvedMs);
+      const perRow = 6;
+      const shown = Math.max(perRow, Math.ceil(realSpan / perRow) * perRow);
+      const rows = shown / perRow;
       const cellW = (contentW - 16 * (perRow - 1)) / perRow;
       // Flat, landscape month cells — short as they can be while fitting the
       // bigger label + date.
@@ -446,8 +447,8 @@ function bandHeightFor(
       return 26 + 6 * cellH + 8;
     }
     case 'weekstrip': {
-      // Stretchy day-strip: one cell per day from today to the event (≤ 18).
-      const n = dayDelta(nowMs, resolvedMs) + 1;
+      // Stretchy day-strip: a cell per day today→event, padded to a minimum of 7.
+      const n = Math.max(7, dayDelta(nowMs, resolvedMs) + 1);
       const cw = (contentW - 10 * (n - 1)) / n;
       return clamp(cw * 1.5, 116, 170);
     }
@@ -572,67 +573,58 @@ function vizMonths(
 ): void {
   const now = new Date(nowMs);
   const ev = new Date(resolvedMs);
-  const months: Array<{ y: number; m: number }> = [];
-  const d = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(ev.getFullYear(), ev.getMonth(), 1);
-  while (d <= end && months.length < 14) {
-    months.push({ y: d.getFullYear(), m: d.getMonth() });
-    d.setMonth(d.getMonth() + 1);
-  }
-  // Pad to an even count so rows divide cleanly (a spare trailing month is fine).
-  if (months.length % 2 === 1) {
-    const l = months[months.length - 1]!;
-    const nx = new Date(l.y, l.m + 1, 1);
-    months.push({ y: nx.getFullYear(), m: nx.getMonth() });
-  }
-  const M = months.length;
+  // Minimum 6 months, 6 per row, padded with dimmed context months on either side
+  // so short spans read at a natural width instead of a few over-wide rectangles.
+  const realSpan = monthSpan(nowMs, resolvedMs);
+  const perRow = 6;
+  const shown = Math.max(perRow, Math.ceil(realSpan / perRow) * perRow);
+  const padBefore = Math.floor((shown - realSpan) / 2);
+  const rows = shown / perRow;
   const gap = 16;
   const rowGap = 16;
   const labelH = 27;
-  const rows = Math.max(1, Math.round(Math.sqrt(M / 3)));
-  const perRow = Math.ceil(M / rows);
   const cellW = (g.contentW - gap * (perRow - 1)) / perRow;
   const cellH = (g.height - rowGap * (rows - 1)) / rows;
-  const nowMk = now.getFullYear() * 100 + now.getMonth();
-  const evMk = ev.getFullYear() * 100 + ev.getMonth();
-  const rowCount = (r: number): number => Math.min(perRow, M - r * perRow);
-  months.forEach((mo, i) => {
-    const col = i % perRow;
-    const row = Math.floor(i / perRow);
-    const inRow = rowCount(row);
-    const rowW = inRow * cellW + (inRow - 1) * gap;
-    const rowX = g.left + (g.contentW - rowW) / 2;
-    const x = rowX + col * (cellW + gap);
-    const y = g.top + row * (cellH + rowGap);
-    const mk = mo.y * 100 + mo.m;
+  const nowMk = now.getFullYear() * 12 + now.getMonth();
+  const evMk = ev.getFullYear() * 12 + ev.getMonth();
+  for (let i = 0; i < shown; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - padBefore + i, 1);
+    const mk = d.getFullYear() * 12 + d.getMonth();
     const isNow = mk === nowMk;
     const isEv = mk === evMk;
+    const isContext = mk < nowMk || mk > evMk;
     const anchor = isNow || isEv;
-    const nowOrd = now.getFullYear() * 12 + now.getMonth();
-    const evOrd = ev.getFullYear() * 12 + ev.getMonth();
+    const col = i % perRow;
+    const row = Math.floor(i / perRow);
+    const x = g.left + col * (cellW + gap);
+    const y = g.top + row * (cellH + rowGap);
+    // Context months render dimmed so the real now→event run stays dominant.
+    const mt = (
+      isContext ? svg.append('g').attr('opacity', 0.42) : svg
+    ) as SvgSel;
     const st = isEv
       ? roleStyle(C, 'event')
       : isNow
         ? roleStyle(C, 'today')
         : mk > nowMk && mk < evMk
-          ? gradStyle(C, (mo.y * 12 + mo.m - nowOrd) / (evOrd - nowOrd))
+          ? gradStyle(C, (mk - nowMk) / (evMk - nowMk))
           : roleStyle(C, mk < nowMk ? 'past' : 'future');
     const rxM = Math.min(12, cellH * 0.14);
-    aRect(svg, x, y, cellW, cellH, rxM, st.fill, st.stroke, 1.25);
-    if (isEv) haloRect(svg, x, y, cellW, cellH, rxM, C);
+    aRect(mt, x, y, cellW, cellH, rxM, st.fill, st.stroke, 1.25);
+    if (isEv) haloRect(mt, x, y, cellW, cellH, rxM, C);
     // Centered month name (no year — it won't fit the narrow cell).
     aText(
-      svg,
+      mt,
       x + cellW / 2,
       y + 19,
       16,
       st.text,
       700,
       'middle',
-      MON_ABBR[mo.m]!
+      MON_ABBR[d.getMonth()]!
     );
     aLine(
-      svg,
+      mt,
       x,
       y + labelH,
       x + cellW,
@@ -645,7 +637,7 @@ function vizMonths(
       const dnum = isEv ? ev.getDate() : now.getDate();
       const dFont = Math.min(cellH - labelH - 6, cellW * 0.42, 44);
       aText(
-        svg,
+        mt,
         x + cellW / 2,
         y + labelH + (cellH - labelH) / 2 + 1,
         dFont,
@@ -656,7 +648,7 @@ function vizMonths(
         { 'dominant-baseline': 'central' }
       );
     }
-  });
+  }
 }
 
 // ================= CLOSE-IN TIERS (box-filling) =================
@@ -800,7 +792,11 @@ function vizWeekStrip(
   C: BandColors
 ): void {
   const now = new Date(nowMs);
-  const n = dayDelta(nowMs, resolvedMs) + 1; // today .. event inclusive
+  const nReal = dayDelta(nowMs, resolvedMs) + 1; // today .. event inclusive
+  // Pad to a minimum of 7 cells with dimmed context days on either side, so a
+  // 1–2 day span isn't two enormous cells.
+  const n = Math.max(7, nReal);
+  const padBefore = Math.floor((n - nReal) / 2);
   const gap = n <= 7 ? 14 : n <= 12 ? 10 : 7;
   const cw = (g.contentW - gap * (n - 1)) / n;
   const cellTop = g.top;
@@ -811,22 +807,33 @@ function vizWeekStrip(
   const evOrd = DAY_START(resolvedMs);
   for (let i = 0; i < n; i++) {
     // Component arithmetic (JS normalizes month overflow) — never an ordinal round-trip.
-    const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    const dt = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + i - padBefore
+    );
     const dtOrd = DAY_START(dt.getTime());
     const x = g.left + i * (cw + gap);
-    const isToday = i === 0;
-    const isEvent = i === n - 1;
+    const isToday = dtOrd === nowOrd;
+    const isEvent = dtOrd === evOrd;
+    const isContext = dtOrd < nowOrd || dtOrd > evOrd;
     const st = isEvent
       ? roleStyle(C, 'event')
       : isToday
         ? roleStyle(C, 'today')
-        : gradStyle(C, (dtOrd - nowOrd) / (evOrd - nowOrd));
+        : isContext
+          ? roleStyle(C, dtOrd < nowOrd ? 'past' : 'future')
+          : gradStyle(C, (dtOrd - nowOrd) / (evOrd - nowOrd));
+    // Context (padding) days render dimmed so the real today→event run leads.
+    const ct = (
+      isContext ? svg.append('g').attr('opacity', 0.5) : svg
+    ) as SvgSel;
     const sw = isToday || isEvent ? 2 : 1.25;
-    aRect(svg, x, cellTop, cw, ch, 14, st.fill, st.stroke, sw);
-    if (isEvent) haloRect(svg, x, cellTop, cw, ch, 14, C);
+    aRect(ct, x, cellTop, cw, ch, 14, st.fill, st.stroke, sw);
+    if (isEvent) haloRect(ct, x, cellTop, cw, ch, 14, C);
     if (showWd) {
       aText(
-        svg,
+        ct,
         x + cw / 2,
         cellTop + 18,
         Math.min(12, cw * 0.3),
@@ -837,7 +844,7 @@ function vizWeekStrip(
         { 'letter-spacing': '0.04em' }
       );
       aLine(
-        svg,
+        ct,
         x,
         cellTop + 27,
         x + cw,
@@ -848,7 +855,7 @@ function vizWeekStrip(
       );
     }
     aText(
-      svg,
+      ct,
       x + cw / 2,
       cellTop + (showWd ? ch * 0.6 : ch * 0.54),
       Math.min(44, cw * 0.62),
@@ -859,7 +866,7 @@ function vizWeekStrip(
     );
     if (showTag && isToday)
       aText(
-        svg,
+        ct,
         x + cw / 2,
         cellTop + ch - 13,
         10,
@@ -1344,11 +1351,15 @@ export function renderCountdown(
       y += i < titleLines.length - 1 ? Math.round(titleFont * 1.12) : titleFont;
     });
     y += Math.round(titleFont * 0.45);
-    // Hairline rule under the title, spanning the full content width (edge to edge).
+    // Hairline rule under the title. Stop it short of the hero's left edge so the
+    // big count never gets a line struck through it (the hero is top-aligned and
+    // taller than the title, so a full-width rule would cross it).
+    const heroLeft = width - padX - heroW;
+    const ruleRight = Math.max(leftX + 40, heroLeft - 20);
     svg
       .append('line')
       .attr('x1', leftX)
-      .attr('x2', width - padX)
+      .attr('x2', ruleRight)
       .attr('y1', y)
       .attr('y2', y)
       .attr('stroke', mix(palette.text, palette.bg, 14))
