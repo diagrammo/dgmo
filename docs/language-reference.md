@@ -3703,7 +3703,7 @@ In the desktop and web app a sketch opens in the **canvas editor** (the code pan
 <!-- TYPE:goal -->
 
 <!-- TIPS start -->
-**Styling tips:** Put the unit in the title (`Marathon Fund ($)`) — there is no format/currency directive. Pick the face for the story: the default progress **bar** for a plain KPI, `thermometer` for fundraising/fill-the-tank goals, `gauge` for a speedometer/quota dial. Percent is always `now / target`; over-target keeps filling the label past 100% while the fill itself clamps, so a stretch result still reads truthfully. Use `solid-fill` when the tint reads too faint on a dashboard, and `no-percent` / `no-value` to drop either label when the number speaks for itself.
+**Styling tips:** Put the unit in the title (`Marathon Fund ($)`) — there is no format/currency directive. Pick the face for the story: the default progress **bar** for a plain KPI, `thermometer` for fundraising/fill-the-tank goals, `gauge` for a speedometer/quota dial. The fill is **auto traffic-light** by completion (`< 50%` red, `50–80%` orange, `≥ 80%` green) so the color already reads the health of the number — leave it unless you have a reason to override. A trailing color on the title line (`goal Marathon Fund ($) green`) pins one color; `no-auto-color` drops the bands back to the flat palette series color. Percent is always `now / target`; over-target keeps filling the label past 100% while the fill itself clamps, so a stretch result still reads truthfully. Add a `note` block to caption the number with context (who's still owed, what's left) — it takes simple markdown (`**bold**`, `*italic*`, `` `code` ``) and `- ` bullets. Use `solid-fill` when the tint reads too faint on a dashboard, and `no-percent` / `no-value` to drop either label when the number speaks for itself.
 <!-- TIPS end -->
 
 A single progress-toward-a-target value: one `now` measured against one `target`, drawn in one of three static faces. No time axis, no series, no milestones — just "how close am I?". The face is a bare-flag mode directive under the title (like treemap's `radial`); all three faces consume the same value pair.
@@ -3740,10 +3740,30 @@ target 10000
 | `no-value`             | Hide the raw `now / target` label.                            |
 | `solid-fill`           | Full-saturation fill instead of the default 25% tint.         |
 | `no-title`             | Hide the banner title.                                        |
+| `no-note`              | Suppress the `note` block even if one is authored.           |
+| `no-auto-color`        | Disable the traffic-light bands; use the flat palette color.  |
+| `note <text>` / `note` + indented body | Free-text caption beside/below the face (§ note block). |
+
+### Note block
+
+An optional caption. Inline (`note Still waiting on three crews`) or a block header on its own line followed by an **indented body**:
+
+```
+goal Grog Barrel Fill (L)
+thermometer
+now 34
+target 50
+note
+  **Great job, crew!** Still waiting on tallies from:
+  - Seattle — first mate says "soon"
+  - Columbus — *almost there!*
+```
+
+The body supports inline `**bold**` / `*italic*` / `` `code` ``, `- `/`* ` bullets, and blank-line gaps. It renders in the left column for `thermometer`/`gauge` and under the bar for the default face. `no-note` hides it even when authored.
 
 ### Values & color
 
-Values accept `_` separators (`10_000`) but not thousands commas; the unit lives in the title. The trailing-token color rule (§1.5) applies to the title line (`goal Marathon Fund ($) green`); with no color the fill uses the first series color at a 25% tint.
+Values accept `_` separators (`10_000`) but not thousands commas; the unit lives in the title. Color precedence: (1) an explicit trailing color token on the title line (`goal Marathon Fund ($) green`, §1.5) always wins; (2) otherwise the **auto traffic-light** band by completion — `< 50%` red, `50–80%` orange, `≥ 80%` green (over-target stays green), which needs a `target`; (3) `no-auto-color` disables the bands and falls back to the palette series color. The fill is a 25% tint of the resolved color; `solid-fill` opts into full saturation.
 
 ### Semantics
 
