@@ -35,7 +35,7 @@ import {
 import { resolveColor } from '../colors';
 import { renderNodeCard } from '../utils/card';
 import { renderInlineText } from '../utils/inline-markdown';
-import { CHAR_WIDTH_RATIO } from '../utils/text-measure';
+import { CHAR_WIDTH_RATIO, wrapTextToWidth } from '../utils/text-measure';
 import {
   wrapDescriptionLines,
   type WrappedDescLine,
@@ -63,6 +63,13 @@ const DESC_FONT = 11.5;
 const DESC_LINE_H = 16;
 const CARD_PAD = 9;
 const CARD_BODY_TOP = HEADER_HEIGHT + SEPARATOR_GAP;
+// A long title wraps inside the fixed-width card rather than running over its
+// edge. Each wrapped line is TITLE_LINE_H tall; the header band grows to hold
+// them (a 1-line title keeps the default HEADER_HEIGHT). Bold titles measure
+// ~7% wider than the regular-weight glyph table, so the wrap width is trimmed to
+// keep a wrapped line clear of the card edge.
+const TITLE_LINE_H = 16;
+const TITLE_MAX_W = (CARD_W - CARD_PAD * 2) * 0.93;
 const DOT_R = 5.5;
 const MIN_SPACING = 96;
 const LANE_GAP = 16;
@@ -160,6 +167,10 @@ interface Placed {
   color: string;
   cardFill: string;
   titleColor: string;
+  /** Title wrapped to fit the card width (1+ lines). */
+  titleLines: string[];
+  /** Header-band height sized to hold `titleLines` (>= HEADER_HEIGHT). */
+  headerH: number;
   lines: WrappedDescLine[];
   /** For a collapsed era: per-member tag color, in member order (one per bullet). */
   bulletColors: readonly string[];
@@ -263,8 +274,20 @@ export function renderEventLine(
     8,
     Math.floor((CARD_W - CARD_PAD * 2) / (DESC_FONT * CHAR_WIDTH_RATIO))
   );
-  const cardHeight = (lines: WrappedDescLine[], hasDate: boolean): number =>
-    HEADER_HEIGHT +
+  // Wrap the title to the card width and size the header band to the line count.
+  const titleLayout = (label: string): { lines: string[]; headerH: number } => {
+    const lines = wrapTextToWidth(label, LABEL_FONT_SIZE, TITLE_MAX_W, {
+      hardBreak: true,
+    });
+    const headerH = Math.max(HEADER_HEIGHT, lines.length * TITLE_LINE_H + 12);
+    return { lines, headerH };
+  };
+  const cardHeight = (
+    headerH: number,
+    lines: WrappedDescLine[],
+    hasDate: boolean
+  ): number =>
+    headerH +
     (hasDate ? DATE_SUBTITLE_H : 0) +
     (lines.length > 0 ? SEPARATOR_GAP + lines.length * DESC_LINE_H : 0) +
     (lines.length > 0 ? CARD_PAD : 6);
@@ -301,6 +324,7 @@ export function renderEventLine(
         palette.textOnFillDark
       );
       const lines = wrapDescription(event.description, charsPerLine);
+      const title = titleLayout(event.label);
       return {
         kind: 'event',
         event,
@@ -316,10 +340,12 @@ export function renderEventLine(
         color: solid,
         cardFill,
         titleColor,
+        titleLines: title.lines,
+        headerH: title.headerH,
         lines,
         bulletColors: [],
         bulletMeta: [],
-        cardH: cardHeight(lines, !!event.date),
+        cardH: cardHeight(title.headerH, lines, !!event.date),
         x: 0,
         side,
         lane: 0,
@@ -379,6 +405,7 @@ export function renderEventLine(
     const bulletColors = visibleMembers.map(eventColor);
     const bulletMeta = visibleMembers.map((m) => m.metadata);
     const lines = wrapDescription(memberStrs, charsPerLine);
+    const title = titleLayout(era.name);
     return {
       kind: 'era',
       event: null,
@@ -394,10 +421,12 @@ export function renderEventLine(
       color: solid,
       cardFill,
       titleColor,
+      titleLines: title.lines,
+      headerH: title.headerH,
       lines,
       bulletColors,
       bulletMeta,
-      cardH: cardHeight(lines, false),
+      cardH: cardHeight(title.headerH, lines, false),
       x: 0,
       side,
       lane: 0,
@@ -907,11 +936,11 @@ export function renderEventLine(
       // title (the anchor) sits nearest the spine; for above-side blocks the
       // header order flips to description → date → title.
       const titleNearTop = p.side === 'below';
-      const headBandTop = titleNearTop ? 0 : p.cardH - HEADER_HEIGHT;
+      const headBandTop = titleNearTop ? 0 : p.cardH - p.headerH;
       // The shelf wraps the whole header band (title + date). Its spine-side edge
       // (top for below-side blocks, bottom otherwise) is where the leader lands.
-      const shelfTop = titleNearTop ? 0 : p.cardH - HEADER_HEIGHT - dateH;
-      const shelfH = HEADER_HEIGHT + dateH;
+      const shelfTop = titleNearTop ? 0 : p.cardH - p.headerH - dateH;
+      const shelfH = p.headerH + dateH;
       // Clip both the tint and the colored edge to ONE rounded-rect mask so the
       // edge carries through the shelf's curved corners (the collapse-bar idiom,
       // utils/card.ts) instead of reading as a straight bar bolted on top.
@@ -956,22 +985,30 @@ export function renderEventLine(
       const shelfText = parsed.options.solidFill
         ? contrastText(p.color, palette.textOnFillLight, palette.textOnFillDark)
         : p.color;
-      cardG
-        .append('text')
-        .attr('x', CARD_PAD)
-        .attr('y', headBandTop + HEADER_HEIGHT / 2 + LABEL_FONT_SIZE / 2 - 2)
-        .attr('fill', shelfText)
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', LABEL_FONT_SIZE)
-        .attr('font-weight', 700)
-        .text(p.label);
+      // Title lines stack centered in the header band (a 1-line title matches the
+      // prior single-baseline position exactly).
+      const titleMid = headBandTop + p.headerH / 2;
+      const titleTop =
+        titleMid - ((p.titleLines.length - 1) * TITLE_LINE_H) / 2;
+      for (let ti = 0; ti < p.titleLines.length; ti++) {
+        cardG
+          .append('text')
+          .attr('x', CARD_PAD)
+          .attr('y', titleTop + ti * TITLE_LINE_H + LABEL_FONT_SIZE / 2 - 2)
+          .attr('fill', shelfText)
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', LABEL_FONT_SIZE)
+          .attr('font-weight', 700)
+          // In-bounds by loop guard.
+          .text(p.titleLines[ti]!);
+      }
       if (dateStr) {
         cardG
           .append('text')
           .attr('x', CARD_PAD)
           .attr(
             'y',
-            (titleNearTop ? HEADER_HEIGHT : headBandTop - dateH) +
+            (titleNearTop ? p.headerH : headBandTop - dateH) +
               DATE_SUBTITLE_FONT +
               2
           )
@@ -988,7 +1025,7 @@ export function renderEventLine(
       }
       if (p.lines.length > 0) {
         const startBaseline = titleNearTop
-          ? CARD_BODY_TOP + dateH + DESC_FONT
+          ? p.headerH + SEPARATOR_GAP + dateH + DESC_FONT
           : CARD_PAD + DESC_FONT;
         renderBody(
           cardG,
@@ -1010,16 +1047,17 @@ export function renderEventLine(
         stroke: p.color,
         strokeWidth: NODE_STROKE_WIDTH,
         label: p.label,
+        labelLines: p.titleLines,
         labelColor: p.titleColor,
         labelFontSize: LABEL_FONT_SIZE,
-        headerHeight: HEADER_HEIGHT,
+        headerHeight: p.headerH,
       });
 
       if (dateStr) {
         cardG
           .append('text')
           .attr('x', CARD_W / 2)
-          .attr('y', HEADER_HEIGHT + DATE_SUBTITLE_FONT + 1)
+          .attr('y', p.headerH + DATE_SUBTITLE_FONT + 1)
           .attr('text-anchor', 'middle')
           .attr('fill', mix(p.titleColor, p.cardFill, 60))
           .attr('font-family', FONT_FAMILY)
@@ -1033,9 +1071,9 @@ export function renderEventLine(
         cardG
           .append('line')
           .attr('x1', 0)
-          .attr('y1', HEADER_HEIGHT + dateH)
+          .attr('y1', p.headerH + dateH)
           .attr('x2', CARD_W)
-          .attr('y2', HEADER_HEIGHT + dateH)
+          .attr('y2', p.headerH + dateH)
           .attr('stroke', p.titleColor)
           .attr('stroke-opacity', 0.3)
           .attr('stroke-width', 1);
@@ -1044,7 +1082,7 @@ export function renderEventLine(
           p.lines,
           p.titleColor,
           palette,
-          CARD_BODY_TOP + dateH + DESC_FONT,
+          p.headerH + SEPARATOR_GAP + dateH + DESC_FONT,
           p.bulletColors,
           p.bulletMeta
         );

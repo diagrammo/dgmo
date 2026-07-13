@@ -8,6 +8,7 @@ import {
 } from '../src/event-line/renderer';
 import { getPalette } from '../src/palettes';
 import { getRenderCategory } from '../src/dgmo-router';
+import { measureText } from '../src/utils/text-measure';
 
 beforeAll(() => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
@@ -76,6 +77,32 @@ describe('event-line renderer', () => {
     );
     // legend root from the shared framework
     expect(svg!.querySelector('.dgmo-legend')).not.toBeNull();
+  });
+
+  it('wraps a long event title into multiple lines within the card width', () => {
+    const parsed = parseEventLine(
+      `event-line
+no-box
+
+2021 This is an extremely long event title that would otherwise run over
+2022 Short`,
+      nordLight
+    );
+    const container = mount();
+    renderEventLine(container, parsed, nordLight, false);
+    const svg = container.querySelector('svg')!;
+    const titleLines = Array.from(svg.querySelectorAll('text')).filter(
+      (t) => t.getAttribute('font-weight') === '700'
+    );
+    // The long title spills onto 2+ bold lines; the short one stays single.
+    const longLines = titleLines.filter((t) =>
+      /extremely|would|otherwise|run over|title/.test(t.textContent ?? '')
+    );
+    expect(longLines.length).toBeGreaterThanOrEqual(2);
+    // No wrapped line runs past the card interior (CARD_W 210 − 2·CARD_PAD 9 = 192).
+    for (const t of titleLines) {
+      expect(measureText(t.textContent ?? '', 13)).toBeLessThanOrEqual(192);
+    }
   });
 
   it('renders the export path with fixed dimensions', () => {
