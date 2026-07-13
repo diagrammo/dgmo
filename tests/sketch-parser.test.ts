@@ -248,6 +248,19 @@ describe('sketch parser — tags & directives', () => {
     expect(p.nodes[0]!.metadata['crew']).toBe('Deck');
   });
 
+  it('records the authored color name on explicit entries only', () => {
+    const p = parseSketch('sketch\n\ntag Prio\n  High red\n  Low\n  Mid blue');
+    const entries = p.tagGroups[0]!.entries;
+    // Explicit named colors keep the authored token; bare values do not.
+    expect(entries.map((e) => e.authoredColor)).toEqual([
+      'red',
+      undefined,
+      'blue',
+    ]);
+    // `color` is always a resolved hex for every entry (auto + explicit).
+    expect(entries.every((e) => /^#/.test(e.color))).toBe(true);
+  });
+
   it('unknown tag value warns', () => {
     const p = parseSketch('sketch\n\ntag Crew\n  Deck\n\nA crew: Pirates');
     expect(warnings(p).length).toBeGreaterThan(0);
