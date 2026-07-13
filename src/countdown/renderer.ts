@@ -366,6 +366,7 @@ function haloRect(
 
 /** Which tier fills the band, chosen from the whole-day span to the target. */
 type BandKind =
+  | 'years'
   | 'year'
   | 'months'
   | 'monthgrid'
@@ -382,7 +383,11 @@ function pickBand(
   const days = dayDelta(nowMs, resolvedMs);
   // Timed pivot: on the final day (or past) the band becomes the H·M·S rings.
   if (hasTime && days <= 0) return 'clock';
-  if (days > 365) return 'year';
+  // >3yr: the per-year month tier would stack one 12-month row per year (a 70yr
+  // target = 71 rows of nothing). The years-strip collapses to decade-aligned
+  // rows, one cell per year, and shrinks its cells for absurd spans instead.
+  if (days > 3 * 365) return 'years';
+  if (days > 365) return 'year'; // 1–3yr → the detailed per-year month rows
   if (days > 92) return 'months'; // 3–12mo → abstract month rectangles
   if (days > 18) return 'monthgrid'; // ~3wk–3mo → cropped day calendars
   if (days >= 1) return 'weekstrip'; // ≤ 18d → one stretchy linear day-strip
@@ -431,6 +436,23 @@ function monthGridLayout(
 }
 
 /**
+ * The years-strip span: decade-aligned rows from now's decade through the target's
+ * decade (inclusive), one cell per year. `d0`/`d1` are the first years of those
+ * bounding decades; `rows` is the decade count. Years before now or after the
+ * target still appear (dimmed) so every row is a full, gridded decade.
+ */
+function yearsLayout(
+  nowMs: number,
+  resolvedMs: number
+): { d0: number; d1: number; rows: number } {
+  const y0 = new Date(nowMs).getFullYear();
+  const y1 = new Date(resolvedMs).getFullYear();
+  const d0 = Math.floor(y0 / 10) * 10;
+  const d1 = Math.floor(y1 / 10) * 10;
+  return { d0, d1, rows: (d1 - d0) / 10 + 1 };
+}
+
+/**
  * The band's height is CONTENT-driven and compact — deliberately NOT tied to the
  * header height, so a tall wrapped title/note in a narrow panel never elongates
  * the calendar. Each tier returns a bounded height (its cells keep a sane aspect
@@ -445,6 +467,23 @@ function bandHeightFor(
   const clamp = (v: number, lo: number, hi: number): number =>
     Math.max(lo, Math.min(hi, v));
   switch (kind) {
+    case 'years': {
+      const { rows } = yearsLayout(nowMs, resolvedMs);
+      const rowGap = 11;
+      const labW = 54;
+      const gap = 7;
+      const cellW = (contentW - labW - 10 * gap) / 10;
+      let cellH = clamp(cellW * 0.5, 26, 40);
+      // Absurd spans (centuries) would still tower; cap the whole band and let the
+      // cells shrink to fit rather than opening a fresh wall of rows.
+      const MAX = 380;
+      let total = rows * cellH + (rows - 1) * rowGap;
+      if (total > MAX) {
+        cellH = Math.max(9, (MAX - (rows - 1) * rowGap) / rows);
+        total = rows * cellH + (rows - 1) * rowGap;
+      }
+      return total;
+    }
     case 'year': {
       const R =
         new Date(resolvedMs).getFullYear() - new Date(nowMs).getFullYear() + 1;
@@ -491,6 +530,84 @@ function bandHeightFor(
 }
 
 // ================= FAR TIERS (box-filling) =================
+
+/**
+ * > 3yr — decade-aligned rows, ONE cell per year. Same now→event idiom as every
+ * other tier: `now` is the fixed-blue anchor, the target the accent chip (haloed),
+ * cells between them a per-year now→event blend, everything outside the span one
+ * inert gray. Scales from a handful of years to centuries — for very long spans
+ * the band height is capped upstream and the cells shrink (labels drop) rather
+ * than stacking a fresh wall of rows.
+ */
+function vizYears(
+  svg: SvgSel,
+  g: BandBox,
+  nowMs: number,
+  resolvedMs: number,
+  C: BandColors
+): void {
+  const now = new Date(nowMs);
+  const ev = new Date(resolvedMs);
+  const nowY = now.getFullYear();
+  const evY = ev.getFullYear();
+  const { d0, rows } = yearsLayout(nowMs, resolvedMs);
+  const labW = 54;
+  const gap = 7;
+  const rowGap = 11;
+  const rowH = (g.height - rowGap * (rows - 1)) / rows;
+  const cellH = rowH;
+  const cellW = (g.contentW - labW - 10 * gap) / 10;
+  const rx = Math.min(6, Math.min(cellW, cellH) * 0.22);
+  const showLabel = cellH >= 18 && cellW >= 22;
+  const yrFont = Math.min(12, cellW * 0.34, cellH * 0.5);
+
+  for (let r = 0; r < rows; r++) {
+    const dec = d0 + r * 10;
+    const ry = g.top + r * (rowH + rowGap);
+    // Decade label in the left gutter, right-aligned to its edge (matches vizYear).
+    aText(
+      svg,
+      g.left + labW - 12,
+      ry + rowH / 2,
+      Math.min(14, rowH * 0.5),
+      C.muted,
+      800,
+      'end',
+      `${dec}s`,
+      { 'dominant-baseline': 'central' }
+    );
+    for (let i = 0; i < 10; i++) {
+      const yr = dec + i;
+      const before = yr < nowY;
+      const isNow = yr === nowY;
+      const isEv = yr === evY;
+      const between = yr > nowY && yr < evY;
+      const st = isEv
+        ? roleStyle(C, 'event')
+        : isNow
+          ? roleStyle(C, 'today')
+          : between
+            ? gradStyle(C, (yr - nowY) / (evY - nowY))
+            : roleStyle(C, before ? 'past' : 'future');
+      const x = g.left + labW + i * (cellW + gap);
+      aRect(svg, x, ry, cellW, cellH, rx, st.fill, st.stroke, 1);
+      if (isEv) haloRect(svg, x, ry, cellW, cellH, rx, C);
+      if (showLabel) {
+        aText(
+          svg,
+          x + cellW / 2,
+          ry + cellH / 2,
+          yrFont,
+          st.text,
+          isNow || isEv ? 800 : 650,
+          'middle',
+          String(yr),
+          { 'dominant-baseline': 'central' }
+        );
+      }
+    }
+  }
+}
 
 /** > 1yr — one row of 12 month cells per year; rows fill height, cells fill width. */
 function vizYear(
@@ -1179,6 +1296,8 @@ function drawBand(
   C: BandColors
 ): void {
   switch (kind) {
+    case 'years':
+      return vizYears(svg, g, nowMs, resolvedMs, C);
     case 'year':
       return vizYear(svg, g, nowMs, resolvedMs, C);
     case 'months':
