@@ -49,6 +49,7 @@ export function parseBody(
     sex: 'male',
     views,
     noLegend: false,
+    noTitle: false,
   };
   const tagGroups: Writable<TagGroup>[] = [];
   const parts: Writable<BodyPart>[] = [];
@@ -114,6 +115,10 @@ export function parseBody(
       }
       if (/^no-legend$/i.test(trimmed)) {
         options.noLegend = true;
+        continue;
+      }
+      if (/^no-title$/i.test(trimmed)) {
+        options.noTitle = true;
         continue;
       }
     }

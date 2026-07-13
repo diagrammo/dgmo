@@ -45,6 +45,8 @@ export interface BodyOptions {
   readonly views: readonly BodyView[];
   /** True when `no-legend` — hide the tag legend. */
   readonly noLegend: boolean;
+  /** True when `no-title` — hide the diagram title. */
+  readonly noTitle: boolean;
 }
 
 export interface ParsedBody {

@@ -464,7 +464,7 @@ export function renderBody(
   svg.append('g').html(body); // figures + labels
 
   // Title (centered over the whole canvas).
-  if (parsed.title) {
+  if (parsed.title && !parsed.options.noTitle) {
     svg
       .append('text')
       .attr('x', totalW / 2)
