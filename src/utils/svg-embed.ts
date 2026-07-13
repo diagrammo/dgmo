@@ -195,16 +195,23 @@ function computeBBox(
   }
 
   // <text x y>some content</text>
-  // Approximate width: text content length × an empirical font width factor.
-  // dgmo uses Inter ~14px by default; ~7px per character is a usable rough
-  // estimate that won't drastically under- or over-count.
+  // Extent is FONT-SIZE-aware: a fixed guess (e.g. ~14px tall, ~7px/char)
+  // clips large text — the countdown hero (96px) and title (40px) tower far
+  // above a baseline−14 top, so a fixed box crops their caps when the embed
+  // viewBox is tightened. Scale both axes off the tag's font-size instead.
   for (const m of svg.matchAll(/<text\b([^>]*?)>([\s\S]*?)<\/text>/g)) {
     const tag = `<text${m[1]}>`;
     const text = m[2]!.replace(/<[^>]+>/g, ''); // strip inner tags (tspan, etc.)
     const x = attr(tag, 'x');
     const y = attr(tag, 'y');
     if (x !== null && y !== null) {
-      const w = text.length * 7;
+      const fontSize =
+        attr(tag, 'font-size') ??
+        (() => {
+          const s = tag.match(/font-size:\s*([\d.]+)/);
+          return s ? parseFloat(s[1]!) : 14;
+        })();
+      const w = text.length * fontSize * 0.5; // ~0.5em/char (the old 7px @14px)
       // Honor text-anchor so the horizontal extent points the right way:
       // `start` (SVG default) grows rightward from x, `end` grows leftward,
       // `middle` straddles x. Assuming middle for everything under-measures
@@ -215,8 +222,10 @@ function computeBBox(
         anchor === 'middle' ? x - w / 2 : anchor === 'end' ? x - w : x;
       const right =
         anchor === 'middle' ? x + w / 2 : anchor === 'end' ? x : x + w;
-      push(left, y - 14);
-      push(right, y + 4);
+      // Ascent above baseline ≈ 0.9em (caps + a little slack for round tops);
+      // descent below ≈ 0.25em. Generalizes the old fixed 14/4 at 14px.
+      push(left, y - fontSize * 0.9);
+      push(right, y + fontSize * 0.25);
     }
   }
 
