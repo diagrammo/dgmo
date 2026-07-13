@@ -256,7 +256,11 @@ function assembleBlock(
 
   const ariaAttr = opts.title ? ` aria-label="${escapeAttr(opts.title)}"` : '';
 
-  const sourceHtml = showcase ? sourceDisclosure(source, opts) : '';
+  // The toolbar is emitted whenever ANY of its buttons is enabled — each
+  // show* flag is independent, so authors can keep e.g. copy without the
+  // source-view toggle. In `diagram` mode every flag defaults off, so this
+  // stays empty unless a flag is explicitly turned on.
+  const sourceHtml = sourceDisclosure(source, opts);
 
   return (
     `<${Wrapper} class="${escapeAttr(wrapperClasses(opts, variant))}"${ariaAttr}>` +
@@ -274,17 +278,27 @@ const EXTERNAL_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="non
 const EXPAND_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 2.5h4v4"/><path d="M6.5 13.5h-4v-4"/><path d="M13.5 2.5 9 7"/><path d="M2.5 13.5 7 9"/></svg>`;
 
 /**
- * The hidden source panel plus its toolbar. The <summary> is the toolbar row;
- * its default click behavior is the source toggle, so no JS is needed for
- * show/hide. The `</>` span deliberately does NOT get the `.dgmo-toolbar-btn`
- * class — client copy/open handlers preventDefault on `.dgmo-toolbar-btn`
- * inside a <summary> (to not also toggle), and the toggle must keep the
- * default.
+ * The overlay toolbar, plus the hidden source panel when the source-view
+ * toggle is on. Every button is independently gated by its own `show*` flag,
+ * so any subset can be turned off:
+ *
+ * - `showSource` — the `</>` toggle AND the collapsible source panel. When on,
+ *   the wrapper is a native `<details>` whose `<summary>` is the toolbar, so
+ *   show/hide needs no JS. The toggle deliberately does NOT get the
+ *   `.dgmo-toolbar-btn` class — client copy/open handlers preventDefault on
+ *   `.dgmo-toolbar-btn` inside a `<summary>` (to not also toggle), and the
+ *   toggle must keep the default.
+ * - `showExpand` / `showCopy` / `showOpenInEditor` — the respective buttons.
+ *
+ * When the source toggle is off but another button is on, there's no
+ * `<details>` to drive, so the wrapper is a plain `<div>` (same
+ * `.dgmo-source-wrap` / `.dgmo-toolbar` classes, so the overlay CSS is shared)
+ * with no source panel. When nothing is enabled, returns ''.
  */
 function sourceDisclosure(source: string, opts: ResolvedBlockOptions): string {
-  if (!opts.showSource) return '';
-
-  const toggle = `<span class="dgmo-toggle" title="View DGMO source">${CODE_ICON}</span>`;
+  const toggle = opts.showSource
+    ? `<span class="dgmo-toggle" title="View DGMO source">${CODE_ICON}</span>`
+    : '';
 
   const expandButton = opts.showExpand
     ? `<button type="button" class="dgmo-toolbar-btn dgmo-expand" aria-label="View full screen" title="Expand">${EXPAND_ICON}</button>`
@@ -303,11 +317,20 @@ function sourceDisclosure(source: string, opts: ResolvedBlockOptions): string {
     }
   }
 
-  const sourceHtml = highlightedSource(source);
+  const buttons = `${toggle}${expandButton}${copyButton}${openButton}`;
+  if (!buttons) return '';
 
+  // No source-view toggle → no <details> to drive; render a plain toolbar
+  // overlay with whatever buttons remain (copy/expand still work via JS; the
+  // open-in-editor link is a plain anchor and needs no JS).
+  if (!opts.showSource) {
+    return `<div class="dgmo-source-wrap"><div class="dgmo-toolbar">${buttons}</div></div>`;
+  }
+
+  const sourceHtml = highlightedSource(source);
   return (
     `<details class="dgmo-source-wrap">` +
-    `<summary class="dgmo-toolbar" aria-label="View DGMO source">${toggle}${expandButton}${copyButton}${openButton}</summary>` +
+    `<summary class="dgmo-toolbar" aria-label="View DGMO source">${buttons}</summary>` +
     `<div class="dgmo-source-inner">${sourceHtml}</div>` +
     `</details>`
   );

@@ -120,6 +120,34 @@ describe('<dgmo-diagram> custom element', () => {
     ).toBeTruthy();
   });
 
+  it('per-button show-* attributes toggle toolbar buttons independently', async () => {
+    // showcase, but the copy + expand buttons individually turned off.
+    const el = makeElement('flowchart\n[A] -> [B]', {
+      mode: 'showcase',
+      'show-copy': 'false',
+      'show-expand': 'false',
+    });
+    document.body.appendChild(el);
+    await waitFor(() => el.querySelector('svg') !== null);
+    expect(el.querySelector('details.dgmo-source-wrap')).toBeTruthy();
+    expect(el.querySelector('.dgmo-toggle')).toBeTruthy();
+    expect(el.querySelector('button.dgmo-copy')).toBeNull();
+    expect(el.querySelector('button.dgmo-expand')).toBeNull();
+    expect(el.querySelector('a.dgmo-open')).toBeTruthy();
+  });
+
+  it('show-copy on its own in diagram mode yields a toolbar with only copy', async () => {
+    const el = makeElement('flowchart\n[A] -> [B]', { 'show-copy': 'true' });
+    document.body.appendChild(el);
+    await waitFor(() => el.querySelector('svg') !== null);
+    // No source-view toggle → plain toolbar overlay, no <details>.
+    expect(el.querySelector('.dgmo-toolbar')).toBeTruthy();
+    expect(el.querySelector('details')).toBeNull();
+    expect(el.querySelector('button.dgmo-copy')).toBeTruthy();
+    expect(el.querySelector('.dgmo-toggle')).toBeNull();
+    expect(el.querySelector('a.dgmo-open')).toBeNull();
+  });
+
   it('does NOT render a source panel by default (mode omitted)', async () => {
     const el = makeElement('flowchart\n[A] -> [B]');
     document.body.appendChild(el);

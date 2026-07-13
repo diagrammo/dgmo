@@ -177,6 +177,10 @@ const OBSERVED = [
   'mode',
   'editor-base',
   'map-data-base',
+  'show-source',
+  'show-copy',
+  'show-expand',
+  'show-editor-link',
 ] as const;
 
 export class DgmoDiagram extends HTMLElement {
@@ -260,6 +264,17 @@ export class DgmoDiagram extends HTMLElement {
     return (
       (this.getAttribute('mode') || 'diagram').toLowerCase() === 'showcase'
     );
+  }
+
+  /**
+   * Per-button visibility. Each defaults to the `mode` (showcase → on,
+   * diagram → off) and can be independently overridden with a `show-*`
+   * attribute set to `true` / `false`.
+   */
+  private boolAttr(name: string, fallback: boolean): boolean {
+    const v = this.getAttribute(name);
+    if (v === null) return fallback;
+    return v.toLowerCase() !== 'false';
   }
 
   // ---- render pipeline ----
@@ -386,9 +401,15 @@ export class DgmoDiagram extends HTMLElement {
           : 'dgmo-theme-light';
 
     // Showcase chrome: standard embed block (BL-114) with the hover-reveal
-    // toolbar (view-source toggle + Copy + Open-in-editor).
+    // toolbar. Each button defaults to `mode` and is independently
+    // overridable via `show-source` / `show-copy` / `show-expand` /
+    // `show-editor-link`.
     const showcase = this.isShowcase();
-    const shareUrl = showcase
+    const showSource = this.boolAttr('show-source', showcase);
+    const showCopy = this.boolAttr('show-copy', showcase);
+    const showExpand = this.boolAttr('show-expand', showcase);
+    const showEditorLink = this.boolAttr('show-editor-link', showcase);
+    const shareUrl = showEditorLink
       ? buildShareUrl(src, {
           palette,
           theme: resolvedTheme === 'dark' ? 'dark' : 'light',
@@ -402,8 +423,10 @@ export class DgmoDiagram extends HTMLElement {
       source: src,
       svgEl,
       themeClass,
-      showSource: showcase,
-      showEditorLink: showcase,
+      showSource,
+      showCopy,
+      showExpand,
+      showEditorLink,
       shareUrl,
     });
 

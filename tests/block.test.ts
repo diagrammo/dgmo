@@ -90,21 +90,60 @@ describe('renderDgmoBlock — standard embed block', () => {
     expect(html).not.toContain('dgmo-caption');
   });
 
-  it('showSource/showCopy/showOpenInEditor toggles', async () => {
+  it('each toolbar button toggles independently', async () => {
+    // showSource off but the other buttons on: toolbar survives as a plain
+    // <div> overlay (no <details>/<summary>, no source panel, no toggle).
     const noSource = await renderDgmoBlock(PIE, {
       mode: 'showcase',
       showSource: false,
     });
-    expect(noSource.html).not.toContain('dgmo-source-wrap');
+    expect(noSource.html).toContain('<div class="dgmo-source-wrap">');
+    expect(noSource.html).toContain('<div class="dgmo-toolbar">');
+    expect(noSource.html).not.toContain('<details');
+    expect(noSource.html).not.toContain('<summary');
+    expect(noSource.html).not.toContain('dgmo-toggle');
+    expect(noSource.html).not.toContain('dgmo-source-inner');
+    expect(noSource.html).toContain('dgmo-copy');
+    expect(noSource.html).toContain('dgmo-expand');
+    expect(noSource.html).toContain('dgmo-open');
 
+    // showCopy/showOpenInEditor off, source view on: <details> stays.
     const noExtras = await renderDgmoBlock(PIE, {
       mode: 'showcase',
       showCopy: false,
       showOpenInEditor: false,
     });
-    expect(noExtras.html).toContain('dgmo-source-wrap');
+    expect(noExtras.html).toContain('<details class="dgmo-source-wrap">');
     expect(noExtras.html).not.toContain('dgmo-copy');
     expect(noExtras.html).not.toContain('dgmo-open');
+    expect(noExtras.html).toContain('dgmo-toggle');
+    expect(noExtras.html).toContain('dgmo-expand');
+
+    // expand off on its own.
+    const noExpand = await renderDgmoBlock(PIE, {
+      mode: 'showcase',
+      showExpand: false,
+    });
+    expect(noExpand.html).not.toContain('dgmo-expand');
+    expect(noExpand.html).toContain('dgmo-copy');
+
+    // every button off: no toolbar at all, even in showcase mode.
+    const bare = await renderDgmoBlock(PIE, {
+      mode: 'showcase',
+      showSource: false,
+      showCopy: false,
+      showExpand: false,
+      showOpenInEditor: false,
+    });
+    expect(bare.html).not.toContain('dgmo-source-wrap');
+    expect(bare.html).not.toContain('dgmo-toolbar');
+
+    // a single button explicitly on in diagram mode (all default off).
+    const copyOnly = await renderDgmoBlock(PIE, { showCopy: true });
+    expect(copyOnly.html).toContain('dgmo-toolbar');
+    expect(copyOnly.html).toContain('dgmo-copy');
+    expect(copyOnly.html).not.toContain('dgmo-toggle');
+    expect(copyOnly.html).not.toContain('dgmo-open');
   });
 
   it('unknown palette warns via onWarn and falls back', async () => {

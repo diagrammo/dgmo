@@ -38,7 +38,13 @@ import {
 export interface AutoConfig {
   theme?: 'auto' | 'light' | 'dark' | 'transparent';
   palette?: string;
+  /** Show the source-view toggle + collapsible source panel. Default true. */
   showSource?: boolean;
+  /** Show the copy-source button. Default true. */
+  showCopy?: boolean;
+  /** Show the expand (full-screen) button. Default true. */
+  showExpand?: boolean;
+  /** Show the open-in-editor link. Default true. */
   showEditorLink?: boolean;
 }
 
@@ -54,16 +60,26 @@ const DEFAULTS: Required<AutoConfig> = {
   theme: 'auto',
   palette: 'slate',
   showSource: true,
+  showCopy: true,
+  showExpand: true,
   showEditorLink: true,
 };
 
 let activeConfig: Required<AutoConfig> = { ...DEFAULTS };
 
 // Track wrappers so we can re-render on theme changes / re-runs.
+/** Per-element `data-show-*` overrides; `null` means "use the global config". */
+interface PerElementOverrides {
+  showSource: boolean | null;
+  showCopy: boolean | null;
+  showExpand: boolean | null;
+  showEditorLink: boolean | null;
+}
+
 interface TrackedWrapper {
   wrapper: HTMLElement;
   source: string;
-  perElementShowSource: boolean | null;
+  overrides: PerElementOverrides;
 }
 const wrappers: Set<TrackedWrapper> = new Set();
 
@@ -83,6 +99,25 @@ function warn(...args: unknown[]): void {
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/**
+ * Read a per-element boolean `data-*` override. Strict allowlist: only the
+ * exact strings 'true' / 'false' count; anything else warns and is ignored
+ * (falls back to the global config). Returns `null` when unset/invalid.
+ */
+function readBoolOverride(
+  el: HTMLElement,
+  datasetKey: string,
+  attrLabel: string
+): boolean | null {
+  const raw = el.dataset[datasetKey];
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  if (raw !== undefined) {
+    warn(`${attrLabel}: invalid value`, raw, '— expected "true" or "false"');
+  }
+  return null;
 }
 
 function paletteExists(id: string): boolean {
@@ -109,7 +144,14 @@ export function findScriptTag(): HTMLScriptElement | null {
   return candidates[candidates.length - 1] as HTMLScriptElement;
 }
 
-const ALLOWED_KEYS = ['theme', 'palette', 'showSource', 'showEditorLink'];
+const ALLOWED_KEYS = [
+  'theme',
+  'palette',
+  'showSource',
+  'showCopy',
+  'showExpand',
+  'showEditorLink',
+];
 const FORBIDDEN_KEYS = ['__proto__', 'constructor', 'prototype'];
 const VALID_THEMES = ['auto', 'light', 'dark', 'transparent'] as const;
 type ValidTheme = (typeof VALID_THEMES)[number];
@@ -169,6 +211,18 @@ export function parseConfig(
         continue;
       }
       out.showSource = value;
+    } else if (key === 'showCopy') {
+      if (typeof value !== 'boolean') {
+        warn('data-config: rejected showCopy', value);
+        continue;
+      }
+      out.showCopy = value;
+    } else if (key === 'showExpand') {
+      if (typeof value !== 'boolean') {
+        warn('data-config: rejected showExpand', value);
+        continue;
+      }
+      out.showExpand = value;
     } else if (key === 'showEditorLink') {
       if (typeof value !== 'boolean') {
         warn('data-config: rejected showEditorLink', value);
@@ -275,19 +329,22 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
     resolvedTheme === 'transparent' ? 'transparent' : resolvedTheme;
   const ariaLabel = deriveAriaLabel(source);
 
-  const perElementShowSource = el.dataset['showSource'];
-  let showSource = cfg.showSource;
-  // Strict allowlist: only the exact strings 'true' / 'false' override the
-  // global. Anything else (e.g. 'yes', '1') is ignored with a warning.
-  if (perElementShowSource === 'true') showSource = true;
-  else if (perElementShowSource === 'false') showSource = false;
-  else if (perElementShowSource !== undefined) {
-    warn(
-      'data-show-source: invalid value',
-      perElementShowSource,
-      '— expected "true" or "false"'
-    );
-  }
+  // Each toolbar button can be toggled per-element via `data-show-*`, falling
+  // back to the global config. Strict allowlist: only 'true'/'false' override.
+  const overrides: PerElementOverrides = {
+    showSource: readBoolOverride(el, 'showSource', 'data-show-source'),
+    showCopy: readBoolOverride(el, 'showCopy', 'data-show-copy'),
+    showExpand: readBoolOverride(el, 'showExpand', 'data-show-expand'),
+    showEditorLink: readBoolOverride(
+      el,
+      'showEditorLink',
+      'data-show-editor-link'
+    ),
+  };
+  const showSource = overrides.showSource ?? cfg.showSource;
+  const showCopy = overrides.showCopy ?? cfg.showCopy;
+  const showExpand = overrides.showExpand ?? cfg.showExpand;
+  const showEditorLink = overrides.showEditorLink ?? cfg.showEditorLink;
 
   let result: {
     svg: string;
@@ -361,9 +418,11 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
   svgEl.setAttribute('role', 'img');
   svgEl.setAttribute('aria-label', ariaLabel);
 
-  // Build share URL for the "Open in editor" toolbar action.
+  // Build share URL for the "Open in editor" toolbar action. Gated only by
+  // showEditorLink now — the open-in-editor button is independent of the
+  // source-view toggle.
   let shareUrl: string | null = null;
-  if (showSource && cfg.showEditorLink) {
+  if (showEditorLink) {
     shareUrl = buildShareUrl(source, {
       palette: cfg.palette,
       theme: resolvedTheme === 'dark' ? 'dark' : 'light',
@@ -379,24 +438,19 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
     svgEl,
     themeClass,
     showSource,
-    showEditorLink: cfg.showEditorLink,
+    showCopy,
+    showExpand,
+    showEditorLink,
     shareUrl,
   });
   wrapper.dataset['dgmoProcessed'] = 'true';
 
-  // Track wrapper so re-runs / theme changes can update it. Only persist
-  // the explicit 'true'/'false' values; treat any other value as null so
-  // the global default applies on re-render (matches first-render behavior).
-  const trackedShowSource: boolean | null =
-    perElementShowSource === 'true'
-      ? true
-      : perElementShowSource === 'false'
-        ? false
-        : null;
+  // Track wrapper so re-runs / theme changes can update it. Persist the
+  // per-element overrides verbatim (null = fall back to global on re-render).
   const tracked: TrackedWrapper = {
     wrapper,
     source,
-    perElementShowSource: trackedShowSource,
+    overrides,
   };
   wrappers.add(tracked);
 
@@ -494,9 +548,16 @@ function rerenderAllForTheme(): void {
     const placeholder = document.createElement('pre');
     placeholder.className = 'dgmo';
     placeholder.textContent = t.source;
-    if (t.perElementShowSource !== null) {
-      placeholder.dataset['showSource'] = String(t.perElementShowSource);
-    }
+    if (t.overrides.showSource !== null)
+      placeholder.dataset['showSource'] = String(t.overrides.showSource);
+    if (t.overrides.showCopy !== null)
+      placeholder.dataset['showCopy'] = String(t.overrides.showCopy);
+    if (t.overrides.showExpand !== null)
+      placeholder.dataset['showExpand'] = String(t.overrides.showExpand);
+    if (t.overrides.showEditorLink !== null)
+      placeholder.dataset['showEditorLink'] = String(
+        t.overrides.showEditorLink
+      );
     t.wrapper.replaceWith(placeholder);
     wrappers.delete(t);
     // Process inline; ignore errors (already logged).

@@ -159,8 +159,12 @@ export interface RenderedBlockOptions {
   svgEl: Element;
   /** `dgmo-theme-light` / `dgmo-theme-dark` / `dgmo-theme-transparent`. */
   themeClass: string;
-  /** Emit the source disclosure + toolbar (showcase) or diagram-only. */
+  /** Emit the source-view toggle + collapsible source panel. */
   showSource: boolean;
+  /** Emit the copy-source button. */
+  showCopy: boolean;
+  /** Emit the expand (full-screen) button. */
+  showExpand: boolean;
   /** Emit the open-in-editor toolbar link at all. */
   showEditorLink: boolean;
   /**
@@ -181,9 +185,17 @@ export interface RenderedBlockOptions {
  * and (3) attaches the click handler that `<details>` can't provide (copy).
  */
 export function buildRenderedBlock(opts: RenderedBlockOptions): HTMLElement {
+  // Each toolbar button is independently gated. `mode: showcase` only sets the
+  // wrapper variant class + the (unused-here) defaults; every show* flag is
+  // passed explicitly, so the emitted toolbar reflects exactly this subset.
+  const anyButton =
+    opts.showSource || opts.showCopy || opts.showExpand || opts.showEditorLink;
   const html = buildDgmoBlockHtml(opts.source, '<div class="dgmo-svg"></div>', {
-    mode: opts.showSource ? 'showcase' : 'diagram',
-    showOpenInEditor: opts.showSource && opts.showEditorLink,
+    mode: anyButton ? 'showcase' : 'diagram',
+    showSource: opts.showSource,
+    showCopy: opts.showCopy,
+    showExpand: opts.showExpand,
+    showOpenInEditor: opts.showEditorLink,
     // Keep the legacy `.dgmo-rendered` + theme hooks so the anti-flash CSS,
     // idempotency filters, and theme-scoped token colors keep working.
     legacyClassNames: ['dgmo-rendered', opts.themeClass],

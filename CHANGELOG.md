@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Every embed toolbar button can be turned off individually.** `showSource`, `showCopy`, `showExpand`, and `showOpenInEditor` are now fully independent — turning off the source-view toggle no longer removes copy/expand/open (they render as a plain overlay toolbar), and any single button can be shown or hidden on its own. Exposed on every surface: `renderDgmoBlock`/`buildDgmoBlockHtml` options, the `/auto` script config (`data-config` + per-element `data-show-source` / `data-show-copy` / `data-show-expand` / `data-show-editor-link`), and the `<dgmo-diagram>` element (`show-source` / `show-copy` / `show-expand` / `show-editor-link` attributes). When no button is enabled, no toolbar is emitted.
+
 ### Changed
 - **Embedded-diagram toolbar is now an overlay** pinned to the diagram's top-right corner instead of a reserved row below the chart. The hover-reveal icon strip (source / copy / expand) no longer adds layout height, so an embedded block is exactly as tall as the chart it renders.
 

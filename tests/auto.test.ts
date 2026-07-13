@@ -211,14 +211,31 @@ describeIfBuilt('auto bundle — tier-2 selector + replace', () => {
     expect(win.document.querySelectorAll('.dgmo-rendered').length).toBe(3);
   });
 
-  it('per-element data-show-source override drops the source panel', async () => {
+  it('per-element data-show-source override drops the source panel (keeps toolbar)', async () => {
     const { win } = await bootInJsdom({
       body:
         '<pre class="dgmo" data-show-source="true">pie\nA: 1</pre>' +
         '<pre class="dgmo" data-show-source="false">pie\nA: 1</pre>',
     });
-    const panels = win.document.querySelectorAll('.dgmo-source-wrap');
-    expect(panels.length).toBe(1);
+    // Both still get a toolbar overlay; only the source-view toggle differs.
+    expect(win.document.querySelectorAll('.dgmo-toolbar').length).toBe(2);
+    // Only the showSource=true block gets the collapsible source panel.
+    expect(
+      win.document.querySelectorAll('details.dgmo-source-wrap').length
+    ).toBe(1);
+    expect(win.document.querySelectorAll('.dgmo-source-inner').length).toBe(1);
+    expect(win.document.querySelectorAll('.dgmo-toggle').length).toBe(1);
+  });
+
+  it('per-element data-show-copy / data-show-expand / data-show-editor-link', async () => {
+    const { win } = await bootInJsdom({
+      body: '<pre class="dgmo" data-show-copy="false" data-show-expand="false" data-show-editor-link="false">pie\nA: 1</pre>',
+    });
+    // Source toggle survives; the three others are individually suppressed.
+    expect(win.document.querySelector('.dgmo-toggle')).toBeTruthy();
+    expect(win.document.querySelector('button.dgmo-copy')).toBeNull();
+    expect(win.document.querySelector('button.dgmo-expand')).toBeNull();
+    expect(win.document.querySelector('a.dgmo-open')).toBeNull();
   });
 
   it('showEditorLink: false omits the editor button', async () => {
