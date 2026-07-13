@@ -80,7 +80,9 @@ export function renderLine(
     width
   );
 
-  // Per-axis value extent (0-baseline for all-positive data, ECharts parity).
+  // Per-axis value extent. Default: fit a padded data-min→max window so detail
+  // isn't crushed against a forced 0 baseline — line charts float (unlike
+  // magnitude-encoding bars). `no-auto-y` restores the 0 floor (§15.1).
   const extentFor = (side: 'left' | 'right'): [number, number] => {
     let lo = Infinity;
     let hi = -Infinity;
@@ -92,7 +94,17 @@ export function renderLine(
           hi = Math.max(hi, v);
         }
     if (!isFinite(lo)) return [0, 1];
-    if (lo > 0) lo = 0;
+    if (chart.noAutoY) {
+      // Opt-out: anchor baseline at 0 for non-negative data (ECharts parity).
+      if (lo > 0) lo = 0;
+    } else {
+      // Auto-fit: pad ~5% each side; `.nice()` then rounds the domain outward.
+      // Don't cross 0 for non-negative data (a floating negative axis reads odd).
+      const pad = (hi - lo) * 0.05 || Math.abs(hi) * 0.05 || 1;
+      const nlo = lo - pad;
+      lo = lo >= 0 && nlo < 0 ? 0 : nlo;
+      hi = hi + pad;
+    }
     if (lo === hi) hi = lo + 1;
     return [lo, hi];
   };

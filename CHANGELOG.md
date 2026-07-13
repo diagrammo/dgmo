@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Line charts now auto-fit the y-axis to the data by default** instead of forcing a 0 baseline. The axis spans a padded min→max window across all series and both y-axes, so a tight, high-valued series (e.g. a 315→395 lb strength log) fills the plot rather than hugging the top of a 0-based scale. Add `no-auto-y` to restore the 0 baseline. Line-only — bar charts keep the 0 anchor (length encodes magnitude); non-negative data never fits to a negative floor.
+
 ## [0.50.1] - 2026-07-13
 
 ### Fixed

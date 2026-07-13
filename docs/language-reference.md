@@ -2202,6 +2202,7 @@ orientation-horizontal   // bar: horizontal bars
 fill                     // line: fill the area under the line
 hole                     // pie: doughnut ring (optional ratio, e.g. `hole 0.5`)
 no-center-total          // pie: hide the center total (shown by default when `hole` is set)
+no-auto-y                // line: anchor the y-axis at 0 (opt out of auto-fit)
 ```
 
 - `orientation-horizontal` (bar; default is vertical bars)
@@ -2209,6 +2210,10 @@ no-center-total          // pie: hide the center total (shown by default when `h
 - `hole` (pie; renders the doughnut ring — bare `hole`, or `hole <0–0.9>` for a
   custom inner-radius ratio. The value total shows in the center by default;
   suppress with `no-center-total`)
+- `no-auto-y` (**line only**) — by default a line chart auto-fits its y-axis to a
+  padded window around the data (min→max across all series, not a forced 0
+  baseline), so a tight high-valued series fills the plot. `no-auto-y` restores
+  the 0 baseline. Bars always anchor at 0 and ignore the flag.
 - Legend is always shown (no option needed)
 
 **Value-display flags — show-everything default.** Every renderable part is on by default. Suppress with `no-*`:
