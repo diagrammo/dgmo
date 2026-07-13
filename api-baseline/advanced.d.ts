@@ -2264,6 +2264,30 @@ interface SketchRenderOptions {
     hideDescriptions?: boolean;
 }
 declare function renderSketch(container: HTMLDivElement, parsed: ParsedSketch, layout: SketchLayout, palette: PaletteColors, isDark: boolean, options?: SketchRenderOptions): void;
+interface SketchEdgeGeometry {
+    sourceId: string;
+    targetId: string;
+    /** Pure cubic path — parsed as one cubic by label/bounds/hit-test consumers. */
+    d: string;
+    mid: {
+        x: number;
+        y: number;
+    };
+    /** Visible stroke path WITH crossing-hops, when this edge hops another. The
+     *  renderer draws this if present; everything else still uses `d`. */
+    dRender?: string;
+}
+/**
+ * The full edge-routing pipeline (side assignment + curved paths + group-port
+ * snapping) as a pure function, so the renderer AND the app`s live-drag preview
+ * draw edges with IDENTICAL geometry. `offsets` shifts individual nodes/boxes
+ * by live pixel deltas (a dragged shape and its box children) — pass none for
+ * the committed layout.
+ */
+declare function sketchEdgeGeometry(layout: SketchLayout, offsets?: ReadonlyMap<string, {
+    dx: number;
+    dy: number;
+}>): Array<SketchEdgeGeometry | null>;
 /** Export wrapper — the b&l precedent (thin spread). */
 declare function renderSketchForExport(container: HTMLDivElement, parsed: ParsedSketch, layout: SketchLayout, palette: PaletteColors, isDark: boolean, options?: {
     exportDims?: {
@@ -2299,7 +2323,10 @@ declare const SKETCH_GEOMETRY: {
     readonly cellPx: 26;
     /** universal footprint width, in grid cells */
     readonly footprintCellsW: 8;
-    /** mandatory gap between footprints, in cells */
+    /**
+     * Legacy — the gap is now a derived half-unit (footprint/2 per axis), not
+     * these cell counts. Kept only so the shape of SKETCH_GEOMETRY is stable.
+     */
     readonly gapCellsX: 4;
     readonly gapCellsY: 4;
     /** box reserved top band, px (spec decision 12) */
@@ -2313,22 +2340,34 @@ declare const SKETCH_GEOMETRY: {
 declare const SKETCH_FOOT_W: number;
 /**
  * Footprint height, px — the ONE universal size (spec §31.2). Every shape is a
- * golden-ratio landscape box: height = width / φ. Uniform: every shape draws to
- * exactly SKETCH_FOOT_W × SKETCH_FOOT_H, keeping the half-slot lattice (and the
- * app's alignment/spacing guides that read these constants) exact. The org-card
- * body (header + rule + ~4 rows) fits within this height.
+ * golden-ratio landscape box: height ≈ width / φ, forced EVEN so half the
+ * height is a whole pixel (the vertical half-unit). 208/φ = 128.6 → 128
+ * (ratio 1.625). Uniform: every shape draws to exactly SKETCH_FOOT_W ×
+ * SKETCH_FOOT_H. The org-card body (header + rule + ~4 rows) fits within it.
  */
 declare const SKETCH_FOOT_H: number;
-/** Horizontal half-slot pitch, px: (footprint + gap) / 2. */
+/**
+ * Horizontal half-unit pitch, px: HALF a footprint (104). This is the dot grid
+ * AND the snap step — a footprint is 2 of these wide, so its left/right edges
+ * both land on dots.
+ */
 declare const SKETCH_HALF_SLOT_X: number;
-/** Vertical half-slot pitch, px: (footprint + gap) / 2. */
+/** Vertical half-unit pitch, px: half a footprint (64). */
 declare const SKETCH_HALF_SLOT_Y: number;
 /**
- * Minimum origin separation in half-slots: two shapes collide when BOTH
- * axis deltas are < SKETCH_SEP (at exactly SEP the footprint gap equals the
- * mandatory gap).
+ * Minimum origin separation in half-units. A footprint spans 2 half-units and
+ * the mandatory gap adds 1 more, so each shape claims a SEP×SEP (3×3) collision
+ * block (unitRect in layout.ts); two shapes collide when their blocks overlap.
+ * At exactly SEP apart the gap between footprints == one half-unit.
  */
-declare const SKETCH_SEP = 2;
+declare const SKETCH_SEP = 3;
+/**
+ * Full-slot pitch, px: footprint + gap (== SKETCH_SEP half-units). The
+ * origin-to-origin distance between two edge-adjacent shapes. 312 × 192 —
+ * horizontal spacing is unchanged from the old geometry, vertical is tighter.
+ */
+declare const SKETCH_SLOT_X: number;
+declare const SKETCH_SLOT_Y: number;
 /** Slot → px (origin of the footprint), before any canvas padding. */
 declare function sketchSlotToPx(c: number, r: number): {
     x: number;
@@ -4691,6 +4730,196 @@ declare function clearEventLineMuted(container: HTMLElement): void;
 declare function focusEventLine(container: HTMLElement, spec: EventLineFocus | null): void;
 declare function renderEventLineForExport(container: HTMLDivElement, parsed: ParsedEventLine, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, tagOverride?: string): void;
 
+/** A resolved recurrence rule. Built by the parser, re-read by the ticker. */
+interface RecurRule {
+    /** How `on` binds to the cadence. */
+    readonly kind: 'month-day' | 'nth-weekday' | 'last-weekday' | 'weekly' | 'interval';
+    /** month-day: 0-11. */
+    readonly month?: number | undefined;
+    /** month-day: 1-31. */
+    readonly day?: number | undefined;
+    /** nth-weekday: 1-5. */
+    readonly nth?: number | undefined;
+    /** nth/last/weekly: 0 (Sun) – 6 (Sat). */
+    readonly weekday?: number | undefined;
+    /** time-of-day hour 0-23 (default 0). */
+    readonly hour: number;
+    /** time-of-day minute 0-59 (default 0). */
+    readonly minute: number;
+    /** No `at` time given → the occurrence is the whole DAY (see resolveNext). */
+    readonly allDay: boolean;
+    /** interval cadence unit. */
+    readonly intervalUnit?: 'day' | 'week' | 'month' | undefined;
+    /** interval multiplier (>= 1). */
+    readonly intervalN?: number | undefined;
+    /** interval anchor epoch ms (from `from <date>`). */
+    readonly anchorMs?: number | undefined;
+}
+type CountUnits = 'human' | 'days' | 'full' | 'clock' | 'weeks' | 'words' | 'compound';
+type RoundMode = 'up' | 'down' | 'nearest';
+/** Which `full`-mode segments show. */
+type Field = 'd' | 'h' | 'm' | 's';
+
+interface ParsedCountdown {
+    readonly type: 'countdown';
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    /**
+     * Canonical one-shot target string emitted verbatim into `data-dgmo-countdown`.
+     * A bare `YYYY-MM-DD` stays a date (ticker resolves it to viewer-local
+     * midnight); a datetime keeps its authored form; `now` resolves to a fixed
+     * render-time instant. Null for recurring blocks.
+     */
+    readonly target: string | null;
+    /**
+     * The one-shot target resolved to absolute epoch ms (bare date → local
+     * midnight; `now` → the render-time instant). Null for recurring blocks or an
+     * unparseable target. For one-shot blocks this equals `resolvedMs`.
+     */
+    readonly targetMs: number | null;
+    /** The recurrence rule, or null for one-shot blocks. */
+    readonly rule: RecurRule | null;
+    /**
+     * The resolved next instant (epoch ms). For one-shot == the target; for
+     * recurring == `resolveNext(rule, renderTime)`. Null when unresolvable.
+     */
+    readonly resolvedMs: number | null;
+    /** Whether the resolved instant carries a meaningful time-of-day (drives footer). */
+    readonly hasTime: boolean;
+    readonly since: number | null;
+    /** Eyebrow template: `Nth` → ordinal word, `N` → the number. Null → "Nth <title>". */
+    readonly sinceLabel: string | null;
+    readonly units: CountUnits;
+    readonly round: RoundMode;
+    readonly fields: readonly Field[];
+    readonly lang: string;
+    /** Text shown on the occurrence day (recurring only). */
+    readonly onDay: string | null;
+    /** Explicit text shown once a one-shot target passes; null → count UP ("N ago"). */
+    readonly expired: string | null;
+    /**
+     * Free-text note under the ancillary line — inline (`note buy flowers`) or a
+     * `note` header + indented body lines. Simple markdown (**bold** / *italic* /
+     * `code` / links / `- ` bullets), like `goal`'s caption.
+     */
+    readonly note: string | null;
+    /**
+     * Suppress the "you-are-here → event" calendar band. The band is **default-on**
+     * for every date-bearing countdown (the renderer auto-picks the tier from the
+     * span to the target — §36.6); `no-visual` collapses the chart to the header.
+     */
+    readonly noVisual: boolean;
+    /**
+     * Resolved trailing-token / `color:` hex, if any. Sets the gradient's HOT
+     * endpoint (the target color); defaults to red when unset.
+     */
+    readonly color?: string;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
+}
+
+/**
+ * Resolve a one-shot target string to absolute epoch ms. A bare `YYYY-MM-DD` is
+ * **local** midnight (JS `new Date("2026-08-21")` would be UTC midnight — wrong
+ * for "days until"); a datetime with no offset is local; an offset is honored.
+ */
+declare function targetToMs(target: string): number | null;
+declare function parseCountdown(content: string, palette?: PaletteColors): ParsedCountdown;
+
+declare function renderCountdown(container: HTMLDivElement, parsed: ParsedCountdown, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
+declare function renderCountdownForExport(container: HTMLDivElement, parsed: ParsedCountdown, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
+
+/** Run one update pass over every countdown node inside `root`. */
+declare function tickCountdowns(root?: ParentNode): void;
+/**
+ * Update `root` immediately, then (once per page) register a single 1s interval
+ * that re-scans the whole document. Idempotent — safe to call on every render /
+ * route change (mirrors remark's `clickHandlerBound` guard). No-op with no DOM.
+ */
+declare function startCountdowns(root?: ParentNode): void;
+
+/** Which clock face the whole board renders. EITHER/OR — never both. */
+type ClockFace = 'analog' | 'digital';
+/**
+ * What dimension drives each zone's color (`color-by <dimension>`). Time + label
+ * render in the resolved solid color; the lane/column gets a soft wash of it. A
+ * hand-set per-zone shade ("defined") always overrides the dimension for that
+ * zone — `color-by` only fills the zones you did not color yourself.
+ *   • `place`    — a distinct palette accent per place (identity, default)
+ *   • `work`     — green in-hours / amber closing / grey off (needs `hours`)
+ *   • `daylight` — warm sun-up / cool sun-down
+ *   • `time`     — continuous dawn→dusk→night ramp by local hour
+ *   • `none`     — neutral greyscale (`color-by none`)
+ */
+type ClockColorBy = 'place' | 'work' | 'daylight' | 'time' | 'none';
+/** A resolved working window, applied in each row's OWN zone-local time. */
+interface WorkWindow {
+    /** Minutes past midnight the window opens (e.g. 9:00 → 540). */
+    readonly startMin: number;
+    /** Minutes past midnight the window closes (e.g. 17:00 → 1020). */
+    readonly endMin: number;
+    /**
+     * Working days as a set keyed by the 3-letter weekday abbreviation the
+     * `Intl` short weekday emits (`Mon`,`Tue`,…,`Sun`). A day maps to `true` when
+     * it is a working day. Defaults to Mon–Fri when `hours` is given without
+     * `days`.
+     */
+    readonly days: Record<string, boolean>;
+}
+/** One place/person row on the board. */
+interface ClockEntry {
+    /** The place name (before the zone token), e.g. "New York". */
+    readonly place: string;
+    /** The IANA zone token, e.g. "America/New_York". */
+    readonly zone: string;
+    /** The display alias (`as <label>`), defaulting to `place`. */
+    readonly label: string;
+    /** Representative latitude for sundown math, or null when unknown. */
+    readonly lat: number | null;
+    /** Representative longitude for sundown math, or null when unknown. */
+    readonly lon: number | null;
+    /** Resolved trailing palette color (a faint row tint), or null. */
+    readonly color: string | null;
+    /** 1-based source line the entry was authored on. */
+    readonly lineNumber: number;
+}
+interface ParsedClock {
+    readonly type: 'clock';
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    /** Board-level face. Default `digital`. */
+    readonly face: ClockFace;
+    /** 12-hour am/pm display when true (default), 24-hour when false (`time-24`). */
+    readonly hours12: boolean;
+    /** Whether the sundown/sunrise line is drawn (default on; `sun false` to hide). */
+    readonly sun: boolean;
+    /** `no-title` directive — suppress the title AND the working-window summary. */
+    readonly noTitle: boolean;
+    /** `direction lr` lays entries out as vertical columns (time on top); default rows. */
+    readonly columns: boolean;
+    /** What drives each zone's color. Default `place`; disable via `color-by none`. */
+    readonly colorBy: ClockColorBy;
+    /** The working window, or null when no `hours` directive was given. */
+    readonly work: WorkWindow | null;
+    readonly entries: readonly ClockEntry[];
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
+}
+
+declare function parseClock(content: string, palette?: PaletteColors): ParsedClock;
+
+declare function renderClock(container: HTMLDivElement, parsed: ParsedClock, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
+declare function renderClockForExport(container: HTMLDivElement, parsed: ParsedClock, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
+
+/** Run one update pass over every clock row inside `root`. */
+declare function tickClocks(root?: ParentNode): void;
+/**
+ * Update `root` immediately, then (once per page) register a single 1s interval
+ * that re-scans the whole document. Idempotent — safe to call on every render /
+ * route change. No-op with no DOM.
+ */
+declare function startClocks(root?: ParentNode): void;
+
 /** A named part annotation (`chest e: Primary` + bare-body notes). */
 interface BodyPart {
     /** Canonical part name as written (label text). */
@@ -4700,6 +4929,11 @@ interface BodyPart {
     /** Bare indented body lines (markdown-light; `- ` bullets normalized). */
     readonly notes: readonly string[];
     readonly lineNumber: number;
+    /**
+     * Optional anatomical side (patient's own left/right) from a `left `/`right `
+     * prefix, e.g. `right pec`. Aims the leader at just that side's component.
+     */
+    readonly side?: 'left' | 'right';
 }
 type BodyView = 'front' | 'back';
 type BodySex = 'male' | 'female';
@@ -4726,10 +4960,20 @@ interface ParsedBody {
 /** A resolvable catalog entry: its path geometry + a baked leader anchor. */
 interface BodyPartGeometry {
     readonly paths: readonly string[];
+    /** Union centroid — used for gutter side (L/R) + vertical ordering. */
     readonly anchor: {
         readonly x: number;
         readonly y: number;
     };
+    /**
+     * Centroids of each disjoint muscle component (e.g. left + right pec). The
+     * renderer aims a leader at whichever component sits nearest the label, so a
+     * bilateral muscle connects to the side it's labelled on — not the midline.
+     */
+    readonly centers?: ReadonlyArray<{
+        readonly x: number;
+        readonly y: number;
+    }>;
 }
 /** One figure: silhouette + muscle geometry + catalog lookup. */
 interface BodyFigure {
@@ -4760,6 +5004,169 @@ declare function parseBody(content: string, palette?: PaletteColors): ParsedBody
 
 declare function renderBody(container: HTMLDivElement, parsed: ParsedBody, palette: PaletteColors, _isDark: boolean, _onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions, tagOverride?: string): void;
 declare function renderBodyForExport(container: HTMLDivElement, parsed: ParsedBody, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, tagOverride?: string): void;
+
+/** Render face. `bar` is the default (no mode flag). */
+type GoalMode = 'bar' | 'thermometer' | 'gauge';
+interface GoalOptions {
+    /** Hide the `%` label. */
+    readonly noPercent: boolean;
+    /** Hide the raw `now / target` label. */
+    readonly noValue: boolean;
+    /** Full-saturation fill instead of the 25% tint. */
+    readonly solidFill: boolean;
+    /** Hide the banner title. */
+    readonly noTitle: boolean;
+    /** Disable auto traffic-light fill color (fall back to the palette color). */
+    readonly noAutoColor: boolean;
+    /** Suppress the `note` description block even when one is present. */
+    readonly noNote: boolean;
+}
+interface ParsedGoal {
+    readonly type: 'goal';
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    /** Optional free-text caption shown under the value (via `note <text>`). */
+    readonly description: string | null;
+    readonly mode: GoalMode;
+    /** Current value (raw; may be negative or exceed target). */
+    readonly now: number;
+    /** Goal value. `0` when missing/invalid — the renderer draws a 0% shell. */
+    readonly target: number;
+    /** False when `target` was missing or ≤ 0 (an error was emitted). */
+    readonly hasTarget: boolean;
+    /** Resolved trailing-token / `color:` hex, if any. */
+    readonly color?: string;
+    readonly options: GoalOptions;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
+}
+
+declare function parseGoal(content: string, palette?: PaletteColors): ParsedGoal;
+
+declare function renderGoal(container: HTMLDivElement, parsed: ParsedGoal, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
+declare function renderGoalForExport(container: HTMLDivElement, parsed: ParsedGoal, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
+
+type BracketMode = 'single-elim' | 'double-elim';
+/** One authored match line. `p1` is left of the keyword (= winner if decided). */
+interface RawMatch {
+    /** Left operand — the winner for a `beats` line. */
+    readonly p1: string;
+    /** Right operand — the loser for a `beats` line. */
+    readonly p2: string;
+    /** True for `beats` (decided); false for `vs` (pending). */
+    readonly decided: boolean;
+    /** Cosmetic score text (`2-1`), if present. Never changes the winner (§3). */
+    readonly score: string | null;
+    /** Owning side label, or null for an indent-0 championship / single ladder. */
+    readonly side: string | null;
+    /** Home competitor for this match (`@ Name`), or null. */
+    readonly home: string | null;
+    /** Prose commentary lines indented under the match (`- ` → •, inline md). */
+    readonly commentary: readonly string[];
+    readonly lineNumber: number;
+}
+/** A `seed N Name` declaration (seeded mode only). */
+interface RawSeed {
+    readonly seed: number;
+    readonly name: string;
+    readonly side: string | null;
+    readonly lineNumber: number;
+}
+interface BracketSide {
+    readonly label: string;
+    /** Resolved trailing-token color for the side, if any. */
+    readonly color?: string;
+}
+/** A round/column: its name plus an optional color (tints the label + column). */
+interface RoundDef {
+    readonly name: string;
+    readonly color?: string;
+}
+interface ParsedBracket {
+    readonly type: 'bracket';
+    readonly title: string | null;
+    readonly titleLineNumber: number | null;
+    readonly mode: BracketMode;
+    /** True when any `seed` line was present → full-skeleton (day-0) rendering. */
+    readonly seeded: boolean;
+    /** Column definitions from `rounds` (entry round → inner), each colorable. */
+    readonly roundNames: readonly RoundDef[];
+    readonly sides: readonly BracketSide[];
+    readonly matches: readonly RawMatch[];
+    readonly seeds: readonly RawSeed[];
+    /** Tag groups (block/org idiom) — a competitor's tag colors its box outline. */
+    readonly tagGroups: readonly TagGroup[];
+    /** competitor name → its metadata (`{ tk: 'MLB Ballpark' }`). */
+    readonly competitorMeta: ReadonlyMap<string, Record<string, string>>;
+    /** Resolved active tag group name (drives outline color + legend), or null. */
+    readonly activeTag: string | null;
+    /** Hide the tag legend. */
+    readonly noLegend: boolean;
+    /** Suppress round/column labels (`no-round`). */
+    readonly noRounds: boolean;
+    /** Winner accent color override (`accent <color>`); default blue. */
+    readonly accentColor?: string;
+    readonly diagnostics: readonly DgmoError[];
+    readonly error: string | null;
+}
+
+declare function parseBracket(content: string, palette?: PaletteColors): ParsedBracket;
+
+declare function renderBracket(container: HTMLDivElement, parsed: ParsedBracket, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
+declare function renderBracketForExport(container: HTMLDivElement, parsed: ParsedBracket, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions): void;
+
+interface ConnectorPoint {
+    readonly x: number;
+    /** Origin y. For a decided child this is the winner box; for an undecided
+     *  child `yA`/`yB` are its two boxes (renderer draws a `]` merge). */
+    readonly y: number;
+    readonly yA: number;
+    readonly yB: number;
+}
+interface LaidMatch {
+    readonly round: number;
+    readonly side: string | null;
+    /** Center x of this match's two boxes. */
+    readonly x: number;
+    /** Center y between the two boxes. */
+    readonly y: number;
+    readonly top: string | null;
+    readonly bot: string | null;
+    readonly winner: 'top' | 'bot' | null;
+    readonly score: string | null;
+    /** Both participants known but undecided (`vs`). */
+    readonly pending: boolean;
+    readonly isChampionship: boolean;
+    /** Origin point of the connector into the top box (child winner), or null. */
+    readonly topFrom: ConnectorPoint | null;
+    readonly botFrom: ConnectorPoint | null;
+    /** Prose commentary lines rendered under the match. */
+    readonly commentary: readonly string[];
+    /** Explicit home competitor (`@ Name`), or null. */
+    readonly home: string | null;
+    readonly lineNumber: number | null;
+}
+interface ColumnLabel {
+    readonly x: number;
+    readonly label: string;
+    /** Round color — tints the label and shades the column. */
+    readonly color?: string;
+}
+interface BracketLayout {
+    readonly matches: readonly LaidMatch[];
+    readonly columns: readonly ColumnLabel[];
+    readonly sideLabels: readonly {
+        x0: number;
+        x1: number;
+        label: string;
+        color?: string;
+    }[];
+    readonly width: number;
+    readonly height: number;
+    readonly champion: string | null;
+    readonly diagnostics: readonly DgmoError[];
+}
+declare function layoutBracket(parsed: ParsedBracket): BracketLayout;
 
 type VCNodeKind = 'commit' | 'merge' | 'cherry';
 type VCCommitType = 'normal' | 'highlight' | 'reverse';
@@ -6159,4 +6566,4 @@ declare function parseFirstLine(line: string): {
     title: string | undefined;
 } | null;
 
-export { ALL_CHART_TYPES, ARROW_DIAGNOSTIC_CODES, type Activation, type AncestorInfo, type ArcLink, type ArcNodeGroup, type BLCollapseResult, type BLEdge, type BLGroup, type BLLayoutEdge, type BLLayoutGroup, type BLLayoutNode, type BLLayoutResult, type BLNode, type BlipTrend, type BlockCell, type BlockGrid, type BlockLayoutItem, type BlockLayoutResult, type BlockNode, type BlockOptions, type BodyFigure, type BodyOptions, type BodyPart, type C4ArrowType, type C4DeploymentNode, type C4Element, type C4ElementType, type C4Group, type C4LayoutBoundary, type C4LayoutEdge, type C4LayoutNode, type C4LayoutResult, type C4LegendEntry, type C4LegendGroup, type C4Relationship, type C4Shape, type C4TagEntry, type C4TagGroup, type ChartDataPoint, type ChartEra, type ChartType$1 as ChartType, type ClassLayoutEdge, type ClassLayoutNode, type ClassLayoutResult, type ClassMember, type ClassModifier, type ClassNode, type ClassRelationship, type CollapsedMindmapResult, type CollapsedOrgResult, type CollapsedSitemapResult, type CollapsedView, CompactViewState, type ComputedInfraEdge, type ComputedInfraModel, type ComputedInfraNode, type ContextRelationship, type CreateMapGeoQueryOptions, type CycleEdge, type CycleLayoutEdge, type CycleLayoutNode, type CycleLayoutResult, type CycleNode, type CycleRenderOptions, type D3ExportDimensions, DgmoError, type DiagramSymbols, type Duration, type DurationUnit, type ERCardinality, type ERColumn, type ERConstraint, type ERLayoutEdge, type ERLayoutNode, type ERLayoutResult, type ERRelationship, type ERTable, type ElseIfBranch, type EventLineEra, type EventLineEvent, type EventLineFocus, type EventLineOptions, type ExpandedActivity, type ExtendedChartType, type FamilyChild, type FamilyChildEdge, type FamilyLayoutNode, type FamilyLayoutResult, type FamilyMarriageBar, type FamilyPerson, type FamilySex, type FamilyUnion, type FocusOrgResult, type FocusResult, type FocusTarget, type GanttDependency, type GanttEra, type GanttGroup, type GroupRow as GanttGroupRow, type GanttHolidays, type GanttInteractiveOptions, type LaneHeaderRow as GanttLaneHeaderRow, type GanttMarker, type GanttNode, type GanttOptions, type Row as GanttRow, type GanttTask, type TaskRow as GanttTaskRow, GeoExtent, type GetOrCreateNameResult, type GraphDirection, type GraphEdge, type GraphGroup, type GraphNode, type GraphShape, INFRA_BEHAVIOR_KEYS, INVALID_COLOR_CODE, INVALID_CSS_COLOR_HEX, type ImportSource, type InfraAvailabilityPercentiles, type InfraBehaviorKey, type InfraCbState, type InfraComputeParams, type InfraDiagnostic, type InfraEdge, type InfraGroup, type InfraLatencyPercentiles, type InfraLayoutEdge, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutResult, type InfraLegendGroup, type InfraNode, type InfraPlaybackState, type InfraProperty, type InfraRole, type InfraTagGroup, type InlineSpan, type JourneyMapAnnotation, type JourneyMapInteractiveOptions, type JourneyMapLayout, type JourneyMapPersona, type JourneyMapPhase, type JourneyMapStep, type KanbanCard, type KanbanColumn, type KanbanTagEntry, type KanbanTagGroup, LEGEND_GEAR_PILL_W, LEGEND_HEIGHT, type LayoutEdge, type LayoutGroup, type LayoutNode, type LayoutOptions$1 as LayoutOptions, type LayoutResult$1 as LayoutResult, type LegendCallbacks, type LegendConfig, type LegendControl, type LegendGroupData, type LegendHandle, type LegendLayout, type LegendMode, type LegendPalette, type LegendPosition, type LegendState, MapData, type MapExportDimensions, type MapGeoQuery, type MapLayout, type MapLayoutInset, type MapLayoutLeg, MapLayoutLegend, type MapLayoutPoi, type MapLayoutRegion, type MapLayoutStretch, type MemberVisibility, type MindmapLayoutEdge, type MindmapLayoutNode, type MindmapLayoutResult, type MindmapNode, type MonteCarloResult, type NameEntry, type NearestCity, type NodeDetail, type OrgContainerBounds, type OrgLayoutEdge, type OrgLayoutNode, type OrgLayoutResult, type OrgNode, PaletteColors, PaletteConfig, type ParseInArrowLabelResult, type ParsedBlock, type ParsedBody, type ParsedBoxesAndLines, type ParsedC4, type ParsedChart, type ParsedClassDiagram, type ParsedCycle, type ParsedERDiagram, type ParsedEventLine, type ParsedExtendedChart, type ParsedFamily, type ParsedGantt, type ParsedGraph, type ParsedInfra, type ParsedJourneyMap, type ParsedKanban, ParsedMap, type ParsedMindmap, type ParsedOrg, type ParsedPert, type ParsedPyramid, type ParsedRaci, type ParsedRing, type ParsedSequenceDgmo, type ParsedSitemap, type ParsedSketch, type ParsedSwimlane, type ParsedTechRadar, type ParsedTreemap, type ParsedVersionControl, type ParsedVisualization, type ParsedWireframe, type ParticipantType, type PertActivity, type Anchor as PertAnchor, type PertDirection, type PertEdge, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type LayoutOverrides as PertLayoutOverrides, type LayoutResult as PertLayoutResult, type PertMilestone, type PertOptions, type PertRenderOptions, type PlacedLabel, type ProjectedCity, type PyramidLayer, type QuadrantPosition, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, type RaciDragSource, type RaciInteractionHandlers, type RaciMarker, type RaciPhase, type RaciRoleAssignment, type RaciTask, type RaciVariant, type RadialCell, type RadialLayoutResult, type ReadFileFn, type RegionToken, type RelationshipType, type RenderStep, type ResolveImportsResult, type ResolvedActivity, type ResolvedGroup$1 as ResolvedGroup, ResolvedMap, type ResolvedPert, type ResolvedGroup as ResolvedPertGroup, type ResolvedSchedule, type ResolvedTask, type ResultCard, type ResultTokens, type RingLayer, SKETCH_FOOT_H, SKETCH_FOOT_W, SKETCH_GEOMETRY, SKETCH_HALF_SLOT_X, SKETCH_HALF_SLOT_Y, SKETCH_SEP, SKETCH_SHAPE_KINDS, ScaleContext, type SectionMessageGroup, type SequenceBlock, type SequenceElement, type SequenceGroup, type SequenceMessage, type SequenceNote, type SequenceParticipant, type SequenceRenderOptions, type SequenceSection, type SimulateOptions, type SitemapContainerBounds, type SitemapDirection, type SitemapEdge, type SitemapLayoutEdge, type SitemapLayoutNode, type SitemapLayoutResult, type SitemapLegendEntry, type SitemapLegendGroup, type SitemapNode, type SketchAt, type SketchBox, type SketchCollapseResult, type SketchEdge, type SketchEdgeHeads, type SketchLayout, type SketchLayoutBox, type SketchLayoutNode, type SketchLayoutOptions, type SketchNode, type SketchOptions, type SketchRenderOptions, type SketchShapeKind, type StateCollapseResult, type SwimEdge, type SwimEvent, type SwimLane, type SwimNode, type SwimPhase, type SwimShape, type LayoutBand as SwimlaneLayoutBand, type SwimlaneLayoutResult, TagEntry, TagGroup, type TechRadarBlip, type TechRadarLayoutPoint, type TechRadarQuadrant, type TechRadarRing, type TreemapCell, type TreemapColorMode, type TreemapLayoutResult, type TreemapNode, type TreemapOptions, type VCBranch, type VCNode, type VCNote, type VCOptions, type VCRef, type VisualizationType, type WireframeElement, type WireframeElementType, type WireframeFormFactor, type WireframeLayout, type WireframeLayoutNode, addDurationToDate, albersSkewFallback, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, authoredCollapsedIds, blueprintPalette, buildNoteMessageMap, buildRenderSequence, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, clearEventLineMuted, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseSketch, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeTimeTicks, contrastText, controlsGroupCapsuleWidth, createMapGeoQuery, displayName, extractSymbols$2 as extractClassSymbols, extractSymbols$1 as extractErSymbols, extractSymbols$3 as extractFlowchartSymbols, extractSymbols as extractInfraSymbols, extractPertSymbols, focusBoxesAndLines, focusEventLine, focusOrgTree, formatDateLabel, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getRadarGeometry, getSeriesColors, getSimpleChartLegendGroups, groupMessagesBySection, hexToHSL, hexToHSLString, hslToHex, inferParticipantType, inferRoles, invalidColorDiagnostic, isArchiveColumn, isInvalidColorToken, isRecognizedColorName, isSequenceBlock, isSequenceNote, isSketchShapeKind, layoutBlock, layoutBoxesAndLines, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutFamily, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutSketch, layoutSwimlane, layoutTreemap, layoutTreemapRadial, layoutWireframe, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, measurePertAnalysisBlock, mix, mulberry32, nearestNamedColor, nord, nordPalette, normalizeName, normalizePertSourceForShare, orderArcNodes, parseAndLayoutInfra, parseBlock, parseBody, parseBoxesAndLines, parseC4, parseChart, parseClassDiagram, parseCycle, parseDataRowValues, parseERDiagram, parseEventLine, parseExtendedChart, parseFamily, parseFirstLine, parseFlowchart, parseGantt, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseMap, parseMindmap, parseOrg, parsePert, parsePyramid, parseRaci, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseSketch, parseState, parseSwimlane, parseTechRadar, parseTimelineDate, parseTreemap, parseVersionControl, parseVisualization, parseWireframe, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, relayoutPert, render, renderArcDiagram, renderBlock, renderBlockForExport, renderBody, renderBodyForExport, renderBoxesAndLines, renderBoxesAndLinesForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderEventLine, renderEventLineForExport, renderFamily, renderFamilyForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderMap, renderMapForExport, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSketch, renderSketchForExport, renderSlopeChart, renderState, renderStateForExport, renderSwimlaneForExport, renderTechRadar, renderTechRadarForExport, renderTimeline, renderTreemap, renderTreemapForExport, renderTreemapRadial, renderTreemapRadialForExport, renderVenn, renderVersionControl, renderVersionControlForExport, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolveOrgImports, resolveTaskName, rollUpContextRelationships, sampleBetaPert, seriesColors, shade, shapeFill, simulateCanonical, simulateFast, sketchSlotToPx, slatePalette, tidewaterPalette, tint, tokyoNightPalette, truncateBareUrl, validateComputed, validateInfra, validateLabelCharacters };
+export { ALL_CHART_TYPES, ARROW_DIAGNOSTIC_CODES, type Activation, type AncestorInfo, type ArcLink, type ArcNodeGroup, type BLCollapseResult, type BLEdge, type BLGroup, type BLLayoutEdge, type BLLayoutGroup, type BLLayoutNode, type BLLayoutResult, type BLNode, type BlipTrend, type BlockCell, type BlockGrid, type BlockLayoutItem, type BlockLayoutResult, type BlockNode, type BlockOptions, type BodyFigure, type BodyOptions, type BodyPart, type BracketMode, type BracketSide, type C4ArrowType, type C4DeploymentNode, type C4Element, type C4ElementType, type C4Group, type C4LayoutBoundary, type C4LayoutEdge, type C4LayoutNode, type C4LayoutResult, type C4LegendEntry, type C4LegendGroup, type C4Relationship, type C4Shape, type C4TagEntry, type C4TagGroup, type ChartDataPoint, type ChartEra, type ChartType$1 as ChartType, type ClassLayoutEdge, type ClassLayoutNode, type ClassLayoutResult, type ClassMember, type ClassModifier, type ClassNode, type ClassRelationship, type ClockEntry, type ClockFace, type CollapsedMindmapResult, type CollapsedOrgResult, type CollapsedSitemapResult, type CollapsedView, CompactViewState, type ComputedInfraEdge, type ComputedInfraModel, type ComputedInfraNode, type ContextRelationship, type CountUnits, type CreateMapGeoQueryOptions, type CycleEdge, type CycleLayoutEdge, type CycleLayoutNode, type CycleLayoutResult, type CycleNode, type CycleRenderOptions, type D3ExportDimensions, DgmoError, type DiagramSymbols, type Duration, type DurationUnit, type ERCardinality, type ERColumn, type ERConstraint, type ERLayoutEdge, type ERLayoutNode, type ERLayoutResult, type ERRelationship, type ERTable, type ElseIfBranch, type EventLineEra, type EventLineEvent, type EventLineFocus, type EventLineOptions, type ExpandedActivity, type ExtendedChartType, type FamilyChild, type FamilyChildEdge, type FamilyLayoutNode, type FamilyLayoutResult, type FamilyMarriageBar, type FamilyPerson, type FamilySex, type FamilyUnion, type FocusOrgResult, type FocusResult, type FocusTarget, type GanttDependency, type GanttEra, type GanttGroup, type GroupRow as GanttGroupRow, type GanttHolidays, type GanttInteractiveOptions, type LaneHeaderRow as GanttLaneHeaderRow, type GanttMarker, type GanttNode, type GanttOptions, type Row as GanttRow, type GanttTask, type TaskRow as GanttTaskRow, GeoExtent, type GetOrCreateNameResult, type GoalMode, type GoalOptions, type GraphDirection, type GraphEdge, type GraphGroup, type GraphNode, type GraphShape, INFRA_BEHAVIOR_KEYS, INVALID_COLOR_CODE, INVALID_CSS_COLOR_HEX, type ImportSource, type InfraAvailabilityPercentiles, type InfraBehaviorKey, type InfraCbState, type InfraComputeParams, type InfraDiagnostic, type InfraEdge, type InfraGroup, type InfraLatencyPercentiles, type InfraLayoutEdge, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutResult, type InfraLegendGroup, type InfraNode, type InfraPlaybackState, type InfraProperty, type InfraRole, type InfraTagGroup, type InlineSpan, type JourneyMapAnnotation, type JourneyMapInteractiveOptions, type JourneyMapLayout, type JourneyMapPersona, type JourneyMapPhase, type JourneyMapStep, type KanbanCard, type KanbanColumn, type KanbanTagEntry, type KanbanTagGroup, LEGEND_GEAR_PILL_W, LEGEND_HEIGHT, type LayoutEdge, type LayoutGroup, type LayoutNode, type LayoutOptions$1 as LayoutOptions, type LayoutResult$1 as LayoutResult, type LegendCallbacks, type LegendConfig, type LegendControl, type LegendGroupData, type LegendHandle, type LegendLayout, type LegendMode, type LegendPalette, type LegendPosition, type LegendState, MapData, type MapExportDimensions, type MapGeoQuery, type MapLayout, type MapLayoutInset, type MapLayoutLeg, MapLayoutLegend, type MapLayoutPoi, type MapLayoutRegion, type MapLayoutStretch, type MemberVisibility, type MindmapLayoutEdge, type MindmapLayoutNode, type MindmapLayoutResult, type MindmapNode, type MonteCarloResult, type NameEntry, type NearestCity, type NodeDetail, type OrgContainerBounds, type OrgLayoutEdge, type OrgLayoutNode, type OrgLayoutResult, type OrgNode, PaletteColors, PaletteConfig, type ParseInArrowLabelResult, type ParsedBlock, type ParsedBody, type ParsedBoxesAndLines, type ParsedBracket, type ParsedC4, type ParsedChart, type ParsedClassDiagram, type ParsedClock, type ParsedCountdown, type ParsedCycle, type ParsedERDiagram, type ParsedEventLine, type ParsedExtendedChart, type ParsedFamily, type ParsedGantt, type ParsedGoal, type ParsedGraph, type ParsedInfra, type ParsedJourneyMap, type ParsedKanban, ParsedMap, type ParsedMindmap, type ParsedOrg, type ParsedPert, type ParsedPyramid, type ParsedRaci, type ParsedRing, type ParsedSequenceDgmo, type ParsedSitemap, type ParsedSketch, type ParsedSwimlane, type ParsedTechRadar, type ParsedTreemap, type ParsedVersionControl, type ParsedVisualization, type ParsedWireframe, type ParticipantType, type PertActivity, type Anchor as PertAnchor, type PertDirection, type PertEdge, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type LayoutOverrides as PertLayoutOverrides, type LayoutResult as PertLayoutResult, type PertMilestone, type PertOptions, type PertRenderOptions, type PlacedLabel, type ProjectedCity, type PyramidLayer, type QuadrantPosition, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, type RaciDragSource, type RaciInteractionHandlers, type RaciMarker, type RaciPhase, type RaciRoleAssignment, type RaciTask, type RaciVariant, type RadialCell, type RadialLayoutResult, type RawMatch, type RawSeed, type ReadFileFn, type RecurRule, type RegionToken, type RelationshipType, type RenderStep, type ResolveImportsResult, type ResolvedActivity, type ResolvedGroup$1 as ResolvedGroup, ResolvedMap, type ResolvedPert, type ResolvedGroup as ResolvedPertGroup, type ResolvedSchedule, type ResolvedTask, type ResultCard, type ResultTokens, type RingLayer, type RoundMode, SKETCH_FOOT_H, SKETCH_FOOT_W, SKETCH_GEOMETRY, SKETCH_HALF_SLOT_X, SKETCH_HALF_SLOT_Y, SKETCH_SEP, SKETCH_SHAPE_KINDS, SKETCH_SLOT_X, SKETCH_SLOT_Y, ScaleContext, type SectionMessageGroup, type SequenceBlock, type SequenceElement, type SequenceGroup, type SequenceMessage, type SequenceNote, type SequenceParticipant, type SequenceRenderOptions, type SequenceSection, type SimulateOptions, type SitemapContainerBounds, type SitemapDirection, type SitemapEdge, type SitemapLayoutEdge, type SitemapLayoutNode, type SitemapLayoutResult, type SitemapLegendEntry, type SitemapLegendGroup, type SitemapNode, type SketchAt, type SketchBox, type SketchCollapseResult, type SketchEdge, type SketchEdgeGeometry, type SketchEdgeHeads, type SketchLayout, type SketchLayoutBox, type SketchLayoutNode, type SketchLayoutOptions, type SketchNode, type SketchOptions, type SketchRenderOptions, type SketchShapeKind, type StateCollapseResult, type SwimEdge, type SwimEvent, type SwimLane, type SwimNode, type SwimPhase, type SwimShape, type LayoutBand as SwimlaneLayoutBand, type SwimlaneLayoutResult, TagEntry, TagGroup, type TechRadarBlip, type TechRadarLayoutPoint, type TechRadarQuadrant, type TechRadarRing, type TreemapCell, type TreemapColorMode, type TreemapLayoutResult, type TreemapNode, type TreemapOptions, type VCBranch, type VCNode, type VCNote, type VCOptions, type VCRef, type VisualizationType, type WireframeElement, type WireframeElementType, type WireframeFormFactor, type WireframeLayout, type WireframeLayoutNode, type WorkWindow, addDurationToDate, albersSkewFallback, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, authoredCollapsedIds, blueprintPalette, buildNoteMessageMap, buildRenderSequence, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, clearEventLineMuted, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseSketch, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeTimeTicks, contrastText, controlsGroupCapsuleWidth, createMapGeoQuery, displayName, extractSymbols$2 as extractClassSymbols, extractSymbols$1 as extractErSymbols, extractSymbols$3 as extractFlowchartSymbols, extractSymbols as extractInfraSymbols, extractPertSymbols, focusBoxesAndLines, focusEventLine, focusOrgTree, formatDateLabel, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getRadarGeometry, getSeriesColors, getSimpleChartLegendGroups, groupMessagesBySection, hexToHSL, hexToHSLString, hslToHex, inferParticipantType, inferRoles, invalidColorDiagnostic, isArchiveColumn, isInvalidColorToken, isRecognizedColorName, isSequenceBlock, isSequenceNote, isSketchShapeKind, layoutBlock, layoutBoxesAndLines, layoutBracket, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutFamily, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutSketch, layoutSwimlane, layoutTreemap, layoutTreemapRadial, layoutWireframe, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, measurePertAnalysisBlock, mix, mulberry32, nearestNamedColor, nord, nordPalette, normalizeName, normalizePertSourceForShare, orderArcNodes, parseAndLayoutInfra, parseBlock, parseBody, parseBoxesAndLines, parseBracket, parseC4, parseChart, parseClassDiagram, parseClock, parseCountdown, parseCycle, parseDataRowValues, parseERDiagram, parseEventLine, parseExtendedChart, parseFamily, parseFirstLine, parseFlowchart, parseGantt, parseGoal, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseMap, parseMindmap, parseOrg, parsePert, parsePyramid, parseRaci, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseSketch, parseState, parseSwimlane, parseTechRadar, parseTimelineDate, parseTreemap, parseVersionControl, parseVisualization, parseWireframe, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, relayoutPert, render, renderArcDiagram, renderBlock, renderBlockForExport, renderBody, renderBodyForExport, renderBoxesAndLines, renderBoxesAndLinesForExport, renderBracket, renderBracketForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderClock, renderClockForExport, renderCountdown, renderCountdownForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderEventLine, renderEventLineForExport, renderFamily, renderFamilyForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderGoal, renderGoalForExport, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderMap, renderMapForExport, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSketch, renderSketchForExport, renderSlopeChart, renderState, renderStateForExport, renderSwimlaneForExport, renderTechRadar, renderTechRadarForExport, renderTimeline, renderTreemap, renderTreemapForExport, renderTreemapRadial, renderTreemapRadialForExport, renderVenn, renderVersionControl, renderVersionControlForExport, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolveOrgImports, resolveTaskName, rollUpContextRelationships, sampleBetaPert, seriesColors, shade, shapeFill, simulateCanonical, simulateFast, sketchEdgeGeometry, sketchSlotToPx, slatePalette, startClocks, startCountdowns, targetToMs, tickClocks, tickCountdowns, tidewaterPalette, tint, tokyoNightPalette, truncateBareUrl, validateComputed, validateInfra, validateLabelCharacters };

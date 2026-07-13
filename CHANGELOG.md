@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-07-12
+
+### Added
+- **New `countdown` chart type (dynamic, live-ticking).** Count down to — or up from — a target date across every rendering surface, with a distance-as-colour band, a short-span compact layout, recurring-event support (including Nth-occurrence templates), and contextual editor highlighting for the recurrence line.
+- **New `clock` world-clock chart type.** A live ticking board of world clocks across time zones, for standups, launch windows, and follow-the-sun coverage.
+- **New `bracket` chart type.** Single-elimination tournament brackets with match enrichment (scores, tags, commentary, home marker), colored rounds, and layout directives.
+- **New `goal` chart type.** Now/target progress with three faces, a note block, traffic-light coloring, `no-note`/`no-auto-color` opt-outs, and an auto-fit layout.
+- **Swimlane lanes now own their edges** — a `lane-blocks-own-their-edges` grammar with synced anchors keeps cross-lane connectors attached correctly.
+- **Flowcharts honor the space form of `direction LR` / `direction TB`.**
+
+### Changed
+- **Sketch edge routing rebuilt.** Edges route around intervening shapes, minimize edge–edge crossings, draw a visible hop where two lines cross, snap to a fixed per-side port grid, and declutter overlapping labels along their own curves with a glyph halo instead of a background rect. Shapes nudge off non-incident edges at layout time.
+- **Bracket export/preview canvas sizes to content** instead of a fixed 1200×800.
+
 ## [0.49.0] - 2026-07-10
 
 ### Added

@@ -30,6 +30,22 @@ declare function highlightDgmo(source: string): HighlightToken[];
  * ViewPlugin both consume it, so the two render paths can't drift.
  */
 declare const ATTRIBUTE_KEYS: Set<string>;
+/** A role override for one token span on a recurrence line. */
+interface RecurrenceSpan {
+    /** Char offset of the token within the line. */
+    start: number;
+    /** Char offset (exclusive) of the token end within the line. */
+    end: number;
+    role: 'keyword' | 'modifier';
+}
+/**
+ * Classify the significant tokens on a countdown recurrence line. Returns the
+ * spans to re-role: sub-keywords (`every`/`on`/`at`/`from` + cadence units) →
+ * `keyword`, closed instant vocab (month/weekday names, ordinals) → `modifier`.
+ * Numeric tokens (day, `HH:MM`, dates) already tokenize as numbers, so they are
+ * left alone. Returns `[]` for any non-recurrence line.
+ */
+declare function classifyRecurrenceLine(line: string): RecurrenceSpan[];
 declare const NORD_ROLE_STYLES: Record<string, Record<string, string>>;
 /**
  * Light-background counterpart of NORD_ROLE_STYLES for static contexts
@@ -46,4 +62,4 @@ declare const ROLE_TO_ANSI: Record<string, string>;
  */
 declare function renderAnsi(tokens: HighlightToken[], useColor: boolean): string;
 
-export { ATTRIBUTE_KEYS, type HighlightToken, LIGHT_ROLE_STYLES, NODE_TO_ROLE, NORD_ROLE_STYLES, ROLE_TO_ANSI, highlightDgmo, renderAnsi };
+export { ATTRIBUTE_KEYS, type HighlightToken, LIGHT_ROLE_STYLES, NODE_TO_ROLE, NORD_ROLE_STYLES, ROLE_TO_ANSI, type RecurrenceSpan, classifyRecurrenceLine, highlightDgmo, renderAnsi };
