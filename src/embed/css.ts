@@ -248,6 +248,13 @@ export const BLOCK_CSS: string = `
   font-size: 0.85em;
   margin: 0.5em 0 0;
 }
+.dgmo-error-docs {
+  display: inline-block;
+  margin-top: 0.6em;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: inherit;
+}
 
 /* === Source highlight roles ===
  * Light values mirror LIGHT_ROLE_STYLES; dark overrides mirror

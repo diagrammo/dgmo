@@ -32,7 +32,7 @@ import {
   normalizeSvgForEmbed,
   defaultEmbedBackground,
 } from '../utils/svg-embed';
-import { renderErrorCard } from '../error-card';
+import { renderErrorCard, docsLink } from '../error-card';
 import { escapeHtml, escapeAttr } from './escape';
 
 export { BLOCK_CSS } from './css';
@@ -220,10 +220,14 @@ export function errorBlockHtml(
   const cls = legacy
     ? `${base} ${legacy} ${base}--error`
     : `${base} ${base}--error`;
+  // Always-present documentation link (chart-type-specific when detectable).
+  const docs = docsLink(source);
   return (
     `<div class="${escapeAttr(cls)}" role="alert">` +
     `<strong>dgmo render error:</strong> ${escapeHtml(msg)}` +
-    `<pre>${escapeHtml(source)}</pre></div>`
+    `<pre>${escapeHtml(source)}</pre>` +
+    `<a class="${escapeAttr(base)}-error-docs" href="${escapeAttr(docs.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(docs.label)}</a>` +
+    `</div>`
   );
 }
 

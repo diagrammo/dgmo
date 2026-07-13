@@ -40,6 +40,31 @@ describe('renderErrorCard', () => {
     expect(svg).toContain('<g transform="translate(');
   });
 
+  it('always adds a documentation link, deep-linked to the chart-type guide', () => {
+    const svg = renderErrorCard(
+      [err({ line: 2, message: 'bad thing' })],
+      'sequence Flow\nAlice bad thing',
+      palettes.slate,
+      'light'
+    );
+    // Detected type → chart-type guide page.
+    expect(svg).toContain(
+      '<a href="https://diagrammo.app/docs/chart-sequence/"'
+    );
+    expect(svg).toContain('Read the sequence guide ↗');
+  });
+
+  it('falls back to the docs landing page when the type is undetectable', () => {
+    const svg = renderErrorCard(
+      [err({ line: 1, message: 'nope' })],
+      '???not a chart???',
+      palettes.slate,
+      'light'
+    );
+    expect(svg).toContain('<a href="https://diagrammo.app/docs/"');
+    expect(svg).toContain('Browse the DGMO docs ↗');
+  });
+
   it('quotes the offending source line and its line number', () => {
     const source = 'sequence Flow\nAlice goes left\nBob | Carol bad pipe';
     const svg = renderErrorCard(

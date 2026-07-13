@@ -217,6 +217,18 @@ describe('errorBlockHtml — standard error card', () => {
     expect(html).toContain('class="dgmo astro-dgmo dgmo--error"');
     expect(html).toContain('Failed to render dgmo block.');
   });
+
+  it('always carries a docs link, chart-type-aware', () => {
+    const typed = errorBlockHtml(new Error('boom'), 'gantt Launch\nbad');
+    expect(typed).toContain(
+      '<a class="dgmo-error-docs" href="https://diagrammo.app/docs/chart-gantt/"'
+    );
+    expect(typed).toContain('Read the gantt guide ↗');
+
+    const untyped = errorBlockHtml(new Error('boom'), '@@@');
+    expect(untyped).toContain('href="https://diagrammo.app/docs/"');
+    expect(untyped).toContain('Browse the DGMO docs ↗');
+  });
 });
 
 describe('BLOCK_CSS ↔ role-style parity (drift guard)', () => {

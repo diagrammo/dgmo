@@ -15,9 +15,27 @@
 import { truncateText, measureText } from './utils/text-measure';
 import { FONT_FAMILY } from './fonts';
 import { encodeDiagramUrl } from './sharing';
+import { parseDgmoChartType } from './dgmo-router';
 import type { PaletteConfig } from './palettes/types';
 import type { Theme } from './themes';
 import type { DgmoError } from './diagnostics';
+
+const DOCS_BASE = 'https://diagrammo.app/docs';
+
+/**
+ * Documentation URL for the failed diagram. Points at the specific chart-type
+ * guide when the type can be recovered from the (broken) source — the first
+ * line usually still declares it — and otherwise at the docs landing page.
+ */
+export function docsLink(source: string): { url: string; label: string } {
+  const chartType = parseDgmoChartType(source);
+  return chartType
+    ? {
+        url: `${DOCS_BASE}/chart-${chartType}/`,
+        label: `Read the ${chartType} guide ↗`,
+      }
+    : { url: `${DOCS_BASE}/`, label: 'Browse the DGMO docs ↗' };
+}
 
 const MONO_FAMILY =
   "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace";
@@ -188,6 +206,18 @@ export function renderErrorCard(
       `<text x="${PAD + iconSize + 8}" y="${y}" fill="${linkColor}" font-family="${FONT_FAMILY}" font-size="12.5" font-weight="600" text-decoration="underline">Edit &amp; fix this diagram at online.diagrammo.app ↗</text>` +
       `</a>`
   );
+  y += 22;
+
+  // Documentation link — always emitted (there's nothing to toggle on the
+  // fall-through card). Deep-links to the chart-type guide when the type is
+  // recoverable from the source, else the docs landing page.
+  const docs = docsLink(source);
+  parts.push(
+    `<a href="${escapeXml(docs.url)}" target="_blank" rel="noopener noreferrer">` +
+      docIcon(PAD, y - 14, iconSize, linkColor) +
+      `<text x="${PAD + iconSize + 8}" y="${y}" fill="${linkColor}" font-family="${FONT_FAMILY}" font-size="12.5" font-weight="600" text-decoration="underline">${escapeXml(docs.label)}</text>` +
+      `</a>`
+  );
   y += 8;
 
   const height = Math.round(y + PAD - 14);
@@ -256,6 +286,19 @@ function diagrammoIcon(x: number, y: number, size: number): string {
     `<rect x="36" y="75" width="28" height="4.6" rx="2.3" fill="#7d5ba6"/>` +
     `<rect x="36" y="82" width="28" height="4.6" rx="2.3" fill="#7d5ba6"/>` +
     `<rect x="36" y="89" width="28" height="4.6" rx="2.3" fill="#7d5ba6"/>` +
+    `</g>`
+  );
+}
+
+// A simple document glyph (page with a folded corner + text lines), stroked in
+// the link color. Native 18×18 box scaled to `size` px at (x,y).
+function docIcon(x: number, y: number, size: number, color: string): string {
+  const s = size / 18;
+  return (
+    `<g transform="translate(${x} ${y}) scale(${s})" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">` +
+    `<path d="M3.5 1.5h7l4 4v11h-11z"/>` +
+    `<path d="M10.5 1.5v4h4"/>` +
+    `<path d="M6 9.5h6M6 12.5h6"/>` +
     `</g>`
   );
 }

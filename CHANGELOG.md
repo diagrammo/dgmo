@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **The error fall-through card now links to the online documentation**, and the link is always present (there's nothing to toggle on the failure card). It deep-links to the chart-type guide (`diagrammo.app/docs/chart-<type>/`) when the type is recoverable from the broken source — the first line usually still declares it — and falls back to the docs landing page otherwise. Present on both the SVG card (embeds/exports) and the HTML card (`/auto`, `<dgmo-diagram>`).
 - **Every embed toolbar button can be turned off individually.** `showSource`, `showCopy`, `showExpand`, and `showOpenInEditor` are now fully independent — turning off the source-view toggle no longer removes copy/expand/open (they render as a plain overlay toolbar), and any single button can be shown or hidden on its own. Exposed on every surface: `renderDgmoBlock`/`buildDgmoBlockHtml` options, the `/auto` script config (`data-config` + per-element `data-show-source` / `data-show-copy` / `data-show-expand` / `data-show-editor-link`), and the `<dgmo-diagram>` element (`show-source` / `show-copy` / `show-expand` / `show-editor-link` attributes). When no button is enabled, no toolbar is emitted.
 
 ### Changed
