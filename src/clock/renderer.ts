@@ -660,6 +660,18 @@ function drawRow(
     const mainFont = 48;
     const baseY = center + 16;
     const capTop = baseY - mainFont * 0.7;
+    const sf = 20;
+    // Pin the digits to an exact advance so the :SS / am-pm stack always hugs
+    // them. Per-surface shaping diverges — the browser honours tabular-nums
+    // (uniform ~0.6em figures) while resvg ignores it and shapes proportional
+    // ('1'≈0.43em, '4'≈0.68em) — so no fixed em estimate can anchor the stack on
+    // both. `textLength` forces every renderer to this width; the estimate just
+    // needs to sit near the tabular natural width to keep distortion tiny.
+    const mainW = [...ts.main].reduce(
+      (w, c) => w + mainFont * (c === ':' ? 0.334 : 0.6),
+      0
+    );
+    const stackX = contentLeft + mainW + 5;
     g.append('text')
       .attr('data-dgmo-clock-digital', '')
       .attr('data-dgmo-clock-digital-part', 'main')
@@ -669,16 +681,10 @@ function drawRow(
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', mainFont)
       .attr('font-weight', 600)
+      .attr('textLength', mainW)
+      .attr('lengthAdjust', 'spacing')
       .style('font-variant-numeric', 'tabular-nums')
       .text(ts.main);
-    const sf = 20;
-    // True tabular width — estWidth treats ':' as a full 0.6em glyph and
-    // overshoots by ~a colon's worth, floating the stack away from the digits.
-    const mainW = [...ts.main].reduce(
-      (w, c) => w + mainFont * (c === ':' ? 0.28 : 0.6),
-      0
-    );
-    const stackX = contentLeft + mainW + 5;
     g.append('text')
       .attr('data-dgmo-clock-digital-part', 'sec')
       .attr('x', stackX)
@@ -1002,10 +1008,11 @@ function drawColumns(
       // the whole group is centered in the column.
       const sf = 13;
       const tf = fitFont(ts.main, 44, innerW - 30, 20);
-      // True tabular width — estWidth treats ':' as a full 0.6em glyph and
-      // overshoots by ~a colon's worth, floating the stack off the digits.
+      // Pin the digits to an exact advance so the stack always hugs them —
+      // `textLength` overrides the per-surface shaping split (browser tabular
+      // ~0.6em vs resvg proportional). The estimate only sets the target width.
       const mainW = [...ts.main].reduce(
-        (w, c) => w + tf * (c === ':' ? 0.28 : 0.6),
+        (w, c) => w + tf * (c === ':' ? 0.334 : 0.6),
         0
       );
       const stackW = Math.max(estWidth(`:${ts.sec}`, sf), estWidth(ts.ap, sf));
@@ -1020,6 +1027,8 @@ function drawColumns(
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', tf)
         .attr('font-weight', 600)
+        .attr('textLength', mainW)
+        .attr('lengthAdjust', 'spacing')
         .style('font-variant-numeric', 'tabular-nums')
         .text(ts.main);
       const stackX = gLeft + mainW + 7;
