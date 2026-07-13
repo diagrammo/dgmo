@@ -28,7 +28,10 @@ import { render } from '../render';
 import { encodeDiagramUrl } from '../sharing';
 import { resolvePaletteOrFallback } from '../palettes';
 import { highlightDgmo } from '../editor/highlight-api';
-import { normalizeSvgForEmbed } from '../utils/svg-embed';
+import {
+  normalizeSvgForEmbed,
+  defaultEmbedBackground,
+} from '../utils/svg-embed';
 import { renderErrorCard } from '../error-card';
 import { escapeHtml, escapeAttr } from './escape';
 
@@ -53,6 +56,13 @@ export interface DgmoBlockOptions {
   palette?: string;
   /** Default `auto` (dual light/dark render). */
   colorMode?: BlockColorMode;
+  /**
+   * Embed background. `auto` (default) strips the theme's opaque root
+   * background so the diagram blends into the host page — except for
+   * background-meaningful types like `map`, which stay opaque. `transparent` /
+   * `opaque` force the choice regardless of type (the embedder opt-out).
+   */
+  background?: 'auto' | 'transparent' | 'opaque';
   /** Default: true in showcase mode, false in diagram mode. */
   showSource?: boolean;
   /** Default: true in showcase mode, false in diagram mode. */
@@ -101,6 +111,7 @@ function resolveBlockOptions(opts: DgmoBlockOptions): ResolvedBlockOptions {
     mode,
     palette: opts.palette ?? 'slate',
     colorMode: opts.colorMode ?? 'auto',
+    background: opts.background ?? 'auto',
     showSource: opts.showSource ?? showcase,
     showCopy: opts.showCopy ?? showcase,
     showExpand: opts.showExpand ?? showcase,
@@ -138,10 +149,14 @@ export async function renderDgmoBlock(
   // error-severity diagnostics. So substitute the shared error card — the same
   // fall-through image every host shows — whenever the parse errored. Without
   // this the block emits an empty `.dgmo-light`/`.dgmo-dark` div: a blank box.
+  // The detected chart type (same across color modes) selects the default embed
+  // background — `map` and other background-meaningful types stay opaque.
+  let chartType: string | undefined;
   const renderTheme = async (
     theme: 'light' | 'dark' | 'transparent'
   ): Promise<string> => {
     const r = await render(trimmed, { palette: palette.id, theme });
+    chartType = r.chartType;
     diagnostics.push(...r.diagnostics);
     const errors = r.diagnostics.filter((d) => d.severity === 'error');
     return errors.length
@@ -155,12 +170,20 @@ export async function renderDgmoBlock(
       renderTheme('light'),
       renderTheme('dark'),
     ]);
+    const background =
+      opts.background === 'auto'
+        ? defaultEmbedBackground(chartType)
+        : opts.background;
     svgsHtml =
-      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-light'))}">${normalizeSvgForEmbed(light)}</div>` +
-      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-dark'))}">${normalizeSvgForEmbed(dark)}</div>`;
+      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-light'))}">${normalizeSvgForEmbed(light, { background })}</div>` +
+      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-dark'))}">${normalizeSvgForEmbed(dark, { background })}</div>`;
   } else {
     const svg = await renderTheme(opts.colorMode);
-    svgsHtml = `<div class="${escapeAttr(innerClasses(opts, 'dgmo-svg'))}">${normalizeSvgForEmbed(svg)}</div>`;
+    const background =
+      opts.background === 'auto'
+        ? defaultEmbedBackground(chartType)
+        : opts.background;
+    svgsHtml = `<div class="${escapeAttr(innerClasses(opts, 'dgmo-svg'))}">${normalizeSvgForEmbed(svg, { background })}</div>`;
   }
 
   return { html: assembleBlock(trimmed, svgsHtml, opts), diagnostics };

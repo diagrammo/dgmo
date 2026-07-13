@@ -154,7 +154,13 @@ export async function render(
      *  entry), so it keeps its JS emphasis; pass `false` to opt out. */
     bakeHover?: boolean;
   }
-): Promise<{ svg: string; diagnostics: DgmoError[] }> {
+): Promise<{
+  svg: string;
+  diagnostics: DgmoError[];
+  /** Detected chart type (e.g. `map`, `clock`), or undefined when inference
+   *  failed. Embed callers use it to pick the default embed background. */
+  chartType: string | undefined;
+}> {
   const theme = options?.theme ?? 'light';
   const paletteName = options?.palette ?? 'slate';
   const bakeHover = options?.bakeHover ?? true;
@@ -208,7 +214,7 @@ export async function render(
       // the SVG DOM for group values). No-op unless `chartType` has a registry
       // row and `bakeHover` is on.
       const svg = injectHoverStyles(raw, chartType, { bakeHover });
-      return { svg, diagnostics };
+      return { svg, diagnostics, chartType: chartType ?? undefined };
     } finally {
       releaseDom();
     }
@@ -264,5 +270,5 @@ export async function render(
     }
   }
 
-  return { svg, diagnostics };
+  return { svg, diagnostics, chartType: chartType ?? undefined };
 }

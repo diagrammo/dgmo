@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { getEmbedSvgViewBox, normalizeSvgForEmbed } from '../src/index';
+import {
+  defaultEmbedBackground,
+  getEmbedSvgViewBox,
+  normalizeSvgForEmbed,
+} from '../src/index';
 
 describe('normalizeSvgForEmbed', () => {
   it('tightens a fixed-canvas viewBox to the content bbox (+padding)', () => {
@@ -54,18 +58,55 @@ describe('normalizeSvgForEmbed', () => {
     expect(y + h).toBeLessThanOrEqual(500 + 2);
   });
 
-  it('strips fixed width/height but preserves the opaque root background', () => {
+  it('strips fixed width/height and the opaque root background by default', () => {
+    // Full-canvas palette.bg rect (rgb) + CSS background (hex) — the two
+    // mechanisms renderers use. Both get removed so the embed blends into host.
     const input =
-      '<svg width="1200" height="800" viewBox="0 0 1200 800" style="background:#fff;">' +
+      '<svg width="1200" height="800" viewBox="0 0 1200 800" style="font-family: Inter; background: rgb(22, 27, 34);">' +
+      '<rect width="1200" height="800" fill="#161b22"></rect>' +
       '<circle cx="50" cy="50" r="10"></circle>' +
       '</svg>';
     const out = normalizeSvgForEmbed(input);
     expect(out).not.toMatch(/<svg[^>]*\swidth="/);
     expect(out).not.toMatch(/<svg[^>]*\sheight="/);
-    // Background is intentionally kept: every chart carries its own opaque
-    // palette.bg so embeds render consistently instead of inheriting the host.
-    expect(out).toMatch(/background:\s*#fff/);
+    expect(out).not.toMatch(/background:/); // CSS background stripped
+    expect(out).not.toMatch(/fill="#161b22"/); // full-canvas bg rect removed
+    expect(out).toMatch(/font-family: Inter/); // other styles kept
+    expect(out).toMatch(/<circle/); // content untouched
     expect(out).toMatch(/viewBox="/);
+  });
+
+  it('preserves the opaque background when background: "opaque"', () => {
+    const input =
+      '<svg width="1200" height="800" viewBox="0 0 1200 800" style="background: rgb(22, 27, 34);">' +
+      '<rect width="1200" height="800" fill="#161b22"></rect>' +
+      '<circle cx="50" cy="50" r="10"></circle>' +
+      '</svg>';
+    const out = normalizeSvgForEmbed(input, { background: 'opaque' });
+    expect(out).toMatch(/background:\s*rgb\(22, 27, 34\)/);
+    expect(out).toMatch(/fill="#161b22"/);
+  });
+
+  it('never strips a full-canvas rect whose fill differs from the bg color', () => {
+    // A map-style ocean rect: full-canvas but NOT palette.bg. The CSS bg matches
+    // it (water), so stripping CSS is fine, but the content rect must survive.
+    const input =
+      '<svg width="1200" height="800" viewBox="0 0 1200 800" style="background: rgb(39, 58, 77);">' +
+      '<rect width="1200" height="800" fill="#273a4d"></rect>' +
+      '<rect x="10" y="10" width="40" height="20" fill="#161b22"></rect>' +
+      '</svg>';
+    const out = normalizeSvgForEmbed(input);
+    // CSS bg matches the ocean color, so both would be stripped — this is why
+    // map defaults to `opaque` upstream. Here (forced transparent) the water
+    // IS removed; assert the non-bg-colored inset rect is untouched.
+    expect(out).toMatch(/fill="#161b22"/);
+  });
+
+  it('defaultEmbedBackground: map is opaque, everything else transparent', () => {
+    expect(defaultEmbedBackground('map')).toBe('opaque');
+    expect(defaultEmbedBackground('clock')).toBe('transparent');
+    expect(defaultEmbedBackground('body')).toBe('transparent');
+    expect(defaultEmbedBackground(undefined)).toBe('transparent');
   });
 
   it('leaves output usable when there is no measurable content', () => {

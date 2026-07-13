@@ -207,7 +207,12 @@ export { getMinDimensions } from './dimensions';
 // Tightens a static render() SVG's viewBox to its content + strips fixed
 // width/height so hosts (Obsidian, remark/markdown, web) can size it to its
 // natural aspect ratio with no dead space. Pure string transform.
-export { normalizeSvgForEmbed, getEmbedSvgViewBox } from './utils/svg-embed';
+export {
+  normalizeSvgForEmbed,
+  getEmbedSvgViewBox,
+  defaultEmbedBackground,
+} from './utils/svg-embed';
+export type { NormalizeSvgForEmbedOptions } from './utils/svg-embed';
 
 // ============================================================
 // Map chart-type completion (gazetteer-fed; §24B.5/.8)

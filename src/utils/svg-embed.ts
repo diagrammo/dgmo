@@ -12,18 +12,40 @@
  * - Strip fixed `width="N"` / `height="N"` so CSS (e.g. `width:100%;
  *   height:auto`, or an aspect-ratio derived from the tight viewBox) controls
  *   sizing.
- * - The root inline `background:` (the theme's opaque `palette.bg`) is
- *   PRESERVED: every chart type now carries its own opaque background so
- *   diagrams render consistently across hosts and color modes rather than
- *   inheriting an arbitrary host page background.
+ * - The root background (the theme's opaque `palette.bg` — both the inline
+ *   `background:` style and the full-canvas `<rect>` some renderers paint) is
+ *   STRIPPED by default so the embed inherits the host page surface and blends
+ *   into Obsidian / doc-site / arbitrary pages instead of showing a mismatched
+ *   rectangle. Pass `{ background: 'opaque' }` to keep it — the embedder
+ *   opt-out, and the automatic default for background-meaningful types like
+ *   `map` (whose bg is the ocean) via `defaultEmbedBackground`. Standalone
+ *   PNG/SVG export does NOT go through here and stays opaque.
  *
  * This is intentionally a string transform, not a DOM `getBBox()` step: dgmo
  * can dual-render light/dark SVGs where one is hidden by color-mode CSS, and
  * `getBBox()` returns 0 for the hidden copy. Parsing coordinates from the
  * markup measures both copies reliably and works server-side (Node).
  */
-export function normalizeSvgForEmbed(input: string): string {
+export interface NormalizeSvgForEmbedOptions {
+  /**
+   * `transparent` (default) strips the theme's opaque root background so the
+   * embed inherits the host page surface. `opaque` preserves it — the embedder
+   * opt-out for diagrams that need their own solid backdrop. Callers that know
+   * the chart type should resolve this via `defaultEmbedBackground`.
+   */
+  background?: 'transparent' | 'opaque';
+}
+
+export function normalizeSvgForEmbed(
+  input: string,
+  opts: NormalizeSvgForEmbedOptions = {}
+): string {
   let svg = input;
+  // Strip the opaque root background FIRST — it reads the canvas size from the
+  // root width/height, which the width/height strip below removes.
+  if ((opts.background ?? 'transparent') === 'transparent') {
+    svg = stripRootBackground(svg);
+  }
   const rootMatch = svg.match(/<svg[^>]*>/);
   const rootTag = rootMatch?.[0] ?? '';
   if (rootTag && !rootTag.includes('viewBox')) {
@@ -73,6 +95,129 @@ export function normalizeSvgForEmbed(input: string): string {
   svg = svg.replace(/(<svg[^>]*?) height="[^"]*"/g, '$1');
   svg = svg.replace(/<svg\s{2,}/g, '<svg ');
   return svg;
+}
+
+/**
+ * Chart types whose background carries meaning rather than being theme chrome —
+ * e.g. `map`, whose full-canvas fill IS the ocean. These stay opaque when
+ * embedded even under the transparent-by-default policy; an embedder can still
+ * force `transparent` explicitly, accepting the loss.
+ */
+const BG_MEANINGFUL_TYPES = new Set<string>(['map']);
+
+/**
+ * The embed background an embedder gets by default for a given chart type:
+ * `transparent` (blend into the host) for everything except
+ * background-meaningful types, which stay `opaque`.
+ */
+export function defaultEmbedBackground(
+  chartType?: string
+): 'transparent' | 'opaque' {
+  return chartType && BG_MEANINGFUL_TYPES.has(chartType)
+    ? 'opaque'
+    : 'transparent';
+}
+
+/**
+ * Remove the theme's opaque root background so the embed inherits the host
+ * surface: drop the root `background:` CSS declaration AND any full-canvas
+ * `<rect>` painted in that same color. Matching the rect by BOTH color (== the
+ * CSS background) and full-canvas geometry means a content rect that merely
+ * fills the canvas (a map's ocean) is never removed.
+ */
+function stripRootBackground(svg: string): string {
+  const rootMatch = svg.match(/<svg\b[^>]*>/);
+  if (!rootMatch) return svg;
+  const rootTag = rootMatch[0];
+
+  const styleMatch = rootTag.match(/style="([^"]*)"/);
+  const style = styleMatch?.[1] ?? '';
+  const bgMatch = style.match(/background:\s*([^;]+)/);
+  // 'none'/'transparent'/named colors normalize to null — nothing to strip.
+  const bgColor = bgMatch ? normalizeColor(bgMatch[1]!) : null;
+
+  const canvas = rootCanvas(rootTag, svg);
+  let out = svg;
+
+  // 1) Drop the CSS `background:` declaration, keeping the rest of the style.
+  if (bgMatch) {
+    const cleaned = style
+      .replace(/background:\s*[^;]+;?/i, '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/;\s*$/, '')
+      .trim();
+    const newRoot = (
+      cleaned
+        ? rootTag.replace(/style="[^"]*"/, `style="${cleaned}"`)
+        : rootTag.replace(/\s*style="[^"]*"/, '')
+    ).replace(/<svg\s{2,}/, '<svg ');
+    out = out.replace(rootTag, newRoot);
+  }
+
+  // 2) Remove the full-canvas root rect(s) painted with palette.bg.
+  if (bgColor && canvas) {
+    out = out.replace(/<rect\b[^>]*?\/?>(?:\s*<\/rect>)?/g, (m) =>
+      isFullCanvasFill(m, bgColor, canvas) ? '' : m
+    );
+  }
+  return out;
+}
+
+function isFullCanvasFill(
+  tag: string,
+  bgColor: string,
+  canvas: { w: number; h: number }
+): boolean {
+  const fm = tag.match(/\bfill="([^"]*)"/);
+  if (!fm || normalizeColor(fm[1]!) !== bgColor) return false;
+  const w = numAttr(tag, 'width');
+  const h = numAttr(tag, 'height');
+  if (w === null || h === null) return false;
+  const x = numAttr(tag, 'x') ?? 0;
+  const y = numAttr(tag, 'y') ?? 0;
+  const T = 1.5; // sub-pixel tolerance
+  return (
+    Math.abs(x) <= T &&
+    Math.abs(y) <= T &&
+    Math.abs(w - canvas.w) <= T &&
+    Math.abs(h - canvas.h) <= T
+  );
+}
+
+function rootCanvas(
+  rootTag: string,
+  svg: string
+): { w: number; h: number } | null {
+  const wm = rootTag.match(/\bwidth="([\d.]+)"/);
+  const hm = rootTag.match(/\bheight="([\d.]+)"/);
+  if (wm && hm) return { w: parseFloat(wm[1]!), h: parseFloat(hm[1]!) };
+  const vb = readViewBox(svg);
+  return vb ? { w: vb.width, h: vb.height } : null;
+}
+
+function numAttr(tag: string, name: string): number | null {
+  const m = tag.match(new RegExp(`\\b${name}="([^"]*)"`));
+  if (!m) return null;
+  const n = parseFloat(m[1]!);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Normalize a hex or rgb()/rgba() color to `"r,g,b"`; null for named/none. */
+function normalizeColor(c: string): string | null {
+  const s = c.trim().toLowerCase();
+  const hex6 = s.match(/^#([0-9a-f]{6})$/);
+  if (hex6) {
+    const n = parseInt(hex6[1]!, 16);
+    return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  }
+  const hex3 = s.match(/^#([0-9a-f]{3})$/);
+  if (hex3) {
+    const [r, g, b] = hex3[1]!.split('').map((ch) => parseInt(ch + ch, 16));
+    return `${r},${g},${b}`;
+  }
+  const rgb = s.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+  if (rgb) return `${+rgb[1]!},${+rgb[2]!},${+rgb[3]!}`;
+  return null;
 }
 
 /**
