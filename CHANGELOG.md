@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.2] - 2026-07-13
+
 ### Changed
+- **Embedded diagrams now have a transparent background by default**, so they blend into the host page — Obsidian, the doc-site wrappers, any surface — instead of showing a mismatched dark or light rectangle behind the chart. Standalone PNG/SVG exports are unaffected (still opaque). Background-meaningful types like `map`, whose background *is* the ocean, stay opaque automatically. Embedders can force either behaviour with the block `background: 'transparent' | 'opaque'` option (`renderDgmoBlock`), and `normalizeSvgForEmbed(svg, { background })` exposes the same control directly.
 - **Line charts now auto-fit the y-axis to the data by default** instead of forcing a 0 baseline. The axis spans a padded min→max window across all series and both y-axes, so a tight, high-valued series (e.g. a 315→395 lb strength log) fills the plot rather than hugging the top of a 0-based scale. Add `no-auto-y` to restore the 0 baseline. Line-only — bar charts keep the 0 anchor (length encodes magnitude); non-negative data never fits to a negative floor.
+
+### Added
+- **Countdown: a years-strip tier for targets more than three years out**, giving distant countdowns a legible long-range layout instead of an unreadable day count.
+
+### Fixed
+- **Clock: digital time width is pinned** so the `:SS` and am/pm segments hug the digits instead of drifting as the value changes.
 
 ## [0.50.1] - 2026-07-13
 

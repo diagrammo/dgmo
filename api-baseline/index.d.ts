@@ -20,17 +20,36 @@ declare function getMinDimensions(content: string): {
  * - Strip fixed `width="N"` / `height="N"` so CSS (e.g. `width:100%;
  *   height:auto`, or an aspect-ratio derived from the tight viewBox) controls
  *   sizing.
- * - The root inline `background:` (the theme's opaque `palette.bg`) is
- *   PRESERVED: every chart type now carries its own opaque background so
- *   diagrams render consistently across hosts and color modes rather than
- *   inheriting an arbitrary host page background.
+ * - The root background (the theme's opaque `palette.bg` — both the inline
+ *   `background:` style and the full-canvas `<rect>` some renderers paint) is
+ *   STRIPPED by default so the embed inherits the host page surface and blends
+ *   into Obsidian / doc-site / arbitrary pages instead of showing a mismatched
+ *   rectangle. Pass `{ background: 'opaque' }` to keep it — the embedder
+ *   opt-out, and the automatic default for background-meaningful types like
+ *   `map` (whose bg is the ocean) via `defaultEmbedBackground`. Standalone
+ *   PNG/SVG export does NOT go through here and stays opaque.
  *
  * This is intentionally a string transform, not a DOM `getBBox()` step: dgmo
  * can dual-render light/dark SVGs where one is hidden by color-mode CSS, and
  * `getBBox()` returns 0 for the hidden copy. Parsing coordinates from the
  * markup measures both copies reliably and works server-side (Node).
  */
-declare function normalizeSvgForEmbed(input: string): string;
+interface NormalizeSvgForEmbedOptions {
+    /**
+     * `transparent` (default) strips the theme's opaque root background so the
+     * embed inherits the host page surface. `opaque` preserves it — the embedder
+     * opt-out for diagrams that need their own solid backdrop. Callers that know
+     * the chart type should resolve this via `defaultEmbedBackground`.
+     */
+    background?: 'transparent' | 'opaque';
+}
+declare function normalizeSvgForEmbed(input: string, opts?: NormalizeSvgForEmbedOptions): string;
+/**
+ * The embed background an embedder gets by default for a given chart type:
+ * `transparent` (blend into the host) for everything except
+ * background-meaningful types, which stay `opaque`.
+ */
+declare function defaultEmbedBackground(chartType?: string): 'transparent' | 'opaque';
 /**
  * Parse the content bounding box of a normalized embed SVG, if one can be
  * derived. Returns `null` when no usable coordinates are found (e.g. an empty
@@ -163,4 +182,4 @@ interface DecodedDiagramUrl {
  */
 declare function decodeDiagramUrl(url: string): DecodedDiagramUrl | null;
 
-export { CompactViewState, D3_DATA_CHART_TYPES, type DataChartInteractionOpts, type DecodedDiagramUrl, DgmoError, DiagnosticSpec, type EncodeDiagramUrlOptions, type MountD3Opts, type MountedD3Chart, PaletteConfig, type RenderOptions, type RenderResult, Theme, attachDataChartInteractions, decodeDiagramUrl, encodeDiagramUrl, getDiagnosticSpec, getEmbedSvgViewBox, getMinDimensions, listDiagnosticCodes, mountD3DataChart, normalizeSvgForEmbed, render, supportsD3DataChart };
+export { CompactViewState, D3_DATA_CHART_TYPES, type DataChartInteractionOpts, type DecodedDiagramUrl, DgmoError, DiagnosticSpec, type EncodeDiagramUrlOptions, type MountD3Opts, type MountedD3Chart, type NormalizeSvgForEmbedOptions, PaletteConfig, type RenderOptions, type RenderResult, Theme, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, getDiagnosticSpec, getEmbedSvgViewBox, getMinDimensions, listDiagnosticCodes, mountD3DataChart, normalizeSvgForEmbed, render, supportsD3DataChart };

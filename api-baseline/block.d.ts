@@ -62,6 +62,13 @@ interface DgmoBlockOptions {
     palette?: string;
     /** Default `auto` (dual light/dark render). */
     colorMode?: BlockColorMode;
+    /**
+     * Embed background. `auto` (default) strips the theme's opaque root
+     * background so the diagram blends into the host page — except for
+     * background-meaningful types like `map`, which stay opaque. `transparent` /
+     * `opaque` force the choice regardless of type (the embedder opt-out).
+     */
+    background?: 'auto' | 'transparent' | 'opaque';
     /** Default: true in showcase mode, false in diagram mode. */
     showSource?: boolean;
     /** Default: true in showcase mode, false in diagram mode. */

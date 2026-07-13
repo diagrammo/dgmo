@@ -105,6 +105,9 @@ declare function render(content: string, options?: {
 }): Promise<{
     svg: string;
     diagnostics: DgmoError[];
+    /** Detected chart type (e.g. `map`, `clock`), or undefined when inference
+     *  failed. Embed callers use it to pick the default embed background. */
+    chartType: string | undefined;
 }>;
 
 declare class ScaleContext {
