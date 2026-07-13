@@ -28,6 +28,7 @@ import {
   applyOrdinalTemplate,
   ordinalFor,
   resolveNext,
+  splitClockSeconds,
   type CountUnits,
   type Field,
   type RecurRule,
@@ -52,6 +53,44 @@ function dayDeltaLocal(aMs: number, bMs: number): number {
 
 function pad2(n: number): string {
   return n < 10 ? '0' + n : String(n);
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * Write text into a clock-capable element (hero / detail). When the element is
+ * marked `data-dgmo-cd-clock` AND the string carries a `:SS` tail, render the
+ * seconds as a smaller, cold-blue `<tspan>` (mirrors renderer.paintClock so
+ * live == baked); otherwise fall back to a plain text node. Reconciles in place
+ * so a per-second tick only rewrites the changed segment.
+ */
+function setClockText(el: Element, str: string): void {
+  if (el.hasAttribute('data-dgmo-cd-clock')) {
+    const { lead, sec } = splitClockSeconds(str);
+    if (sec !== null) {
+      let leadT = el.querySelector('[data-cd-lead]');
+      let secT = el.querySelector('[data-cd-sec]');
+      if (!leadT || !secT) {
+        while (el.firstChild) el.removeChild(el.firstChild);
+        const doc = el.ownerDocument!;
+        leadT = doc.createElementNS(SVG_NS, 'tspan');
+        leadT.setAttribute('data-cd-lead', '');
+        secT = doc.createElementNS(SVG_NS, 'tspan');
+        secT.setAttribute('data-cd-sec', '');
+        const size = el.getAttribute('data-dgmo-cd-sec-size');
+        const fill = el.getAttribute('data-dgmo-cd-sec-fill');
+        if (size) secT.setAttribute('font-size', size);
+        if (fill) secT.setAttribute('fill', fill);
+        secT.setAttribute('font-weight', '700');
+        el.appendChild(leadT);
+        el.appendChild(secT);
+      }
+      if (leadT.textContent !== lead) leadT.textContent = lead;
+      if (secT.textContent !== sec) secT.textContent = sec;
+      return;
+    }
+  }
+  if (el.textContent !== str) el.textContent = str;
 }
 
 // Ring-gauge arc geometry — mirrors renderer.polar/arcPath so live == baked.
@@ -228,7 +267,7 @@ function updateNode(node: Element, now: number): void {
     text = formatCount(Math.max(0, remaining), { units, round, fields });
   }
 
-  if (node.textContent !== text) node.textContent = text;
+  setClockText(node, text);
   node.setAttribute(
     'aria-label',
     title ? `${title}: ${text}` : expiredNow ? text : `${text} remaining`
@@ -260,11 +299,14 @@ function updateNode(node: Element, now: number): void {
   const detail = svg.querySelector('[data-dgmo-countdown-detail]');
   if (detail && !expiredNow && !clockFinale) {
     if (units === 'words') {
-      detail.textContent = formatWordsDetail(Math.max(0, remaining));
+      setClockText(detail, formatWordsDetail(Math.max(0, remaining)));
     } else if (units === 'human' && remaining > 0) {
-      detail.textContent = hasTime
-        ? formatCount(remaining, { units: 'clock', round, fields })
-        : formatHuman(dayStartLocal(now), dayStartLocal(resolvedMs)).sub;
+      setClockText(
+        detail,
+        hasTime
+          ? formatCount(remaining, { units: 'clock', round, fields })
+          : formatHuman(dayStartLocal(now), dayStartLocal(resolvedMs)).sub
+      );
     }
   }
 

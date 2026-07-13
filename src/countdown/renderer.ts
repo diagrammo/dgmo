@@ -35,6 +35,7 @@ import {
   formatWordsDetail,
   ordinalFor,
   applyOrdinalTemplate,
+  splitClockSeconds,
 } from './resolve';
 
 /** The hero string baked at render time (the no-JS floor). */
@@ -1286,6 +1287,38 @@ function pad2(n: number): string {
   return n < 10 ? '0' + n : String(n);
 }
 
+/**
+ * Paint a clock-capable text element as `<tspan>` parts so the fast-ticking
+ * seconds ride smaller (and in the cold-blue `now` hue) — subordinate to the
+ * `HH:MM` lead. Marks the element (`data-dgmo-cd-clock` + baked seconds size /
+ * fill) so the ticker can rebuild the same split live. Non-clock strings paint
+ * as a single lead tspan (identical to plain text). The parent's tabular-nums
+ * keeps every digit a fixed advance, so the right-anchored string never wobbles.
+ */
+function paintClock(
+  sel: d3Selection.Selection<SVGTextElement, unknown, null, undefined>,
+  str: string,
+  secSize: number,
+  secFill: string
+): void {
+  const { lead, sec } = splitClockSeconds(str);
+  sel
+    .attr('font-variant-numeric', 'tabular-nums')
+    .attr('data-dgmo-cd-clock', '')
+    .attr('data-dgmo-cd-sec-size', secSize)
+    .attr('data-dgmo-cd-sec-fill', secFill)
+    .text(null);
+  sel.append('tspan').attr('data-cd-lead', '').text(lead);
+  if (sec !== null)
+    sel
+      .append('tspan')
+      .attr('data-cd-sec', '')
+      .attr('font-size', secSize)
+      .attr('fill', secFill)
+      .attr('font-weight', 700)
+      .text(sec);
+}
+
 /** Dispatch the tier-appropriate band viz, filling the fixed reservation. */
 function drawBand(
   svg: SvgSel,
@@ -1651,6 +1684,9 @@ export function renderCountdown(
   svg.attr('height', bannerH).attr('viewBox', `0 0 ${width} ${bannerH}`);
   bgRect.attr('height', bannerH);
 
+  // `now` is the fixed cold-blue anchor — shared by the band gradient AND the
+  // subordinate hero/detail seconds so the whole chart's "you-are-here" reads blue.
+  const bandC = bandColors(palette, accent, muted, faint);
   if (hasBand && resolved !== null) {
     drawBand(
       svg,
@@ -1658,7 +1694,7 @@ export function renderCountdown(
       { left: leftX, top: bandTop, contentW: width - 2 * padX, height: BAND_H },
       now,
       resolved,
-      bandColors(palette, accent, muted, faint)
+      bandC
     );
   }
 
@@ -1679,8 +1715,10 @@ export function renderCountdown(
     .attr('data-dgmo-countdown-round', parsed.round)
     .attr('data-dgmo-countdown-fields', parsed.fields.join(','))
     .attr('data-dgmo-countdown-expired', parsed.expired)
-    .attr('aria-label', `${parsed.title ?? 'Countdown'}: ${hero}`)
-    .text(hero);
+    .attr('aria-label', `${parsed.title ?? 'Countdown'}: ${hero}`);
+  // Tabular digits + subordinate seconds (clock states). Non-clock heroes
+  // ("1 year, 2 months") paint as a single tspan — identical to plain text.
+  paintClock(value, hero, Math.round(heroFont * 0.55), bandC.now);
   // The count target: a one-shot's authored string (ticker re-parses), or the
   // resolved instant for recurring (ticker ignores it and re-resolves the rule).
   if (parsed.rule && resolved !== null) {
@@ -1705,7 +1743,7 @@ export function renderCountdown(
   // Hero sub-line under the hero (right-aligned, muted, ticks): the human
   // remainder / words precision / days-out clock. Tagged so the ticker updates it.
   if (subText) {
-    svg
+    const detailSel = svg
       .append('text')
       .attr('x', width - padX)
       .attr('y', heroBaseline + heroFont * 0.28 + detailFont)
@@ -1715,8 +1753,18 @@ export function renderCountdown(
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', detailFont)
       .attr('font-weight', 500)
-      .attr('data-dgmo-countdown-detail', '')
-      .text(subText);
+      .attr('data-dgmo-countdown-detail', '');
+    paintClock(
+      detailSel as unknown as d3Selection.Selection<
+        SVGTextElement,
+        unknown,
+        null,
+        undefined
+      >,
+      subText,
+      Math.round(detailFont * 0.66),
+      bandC.now
+    );
   }
 }
 

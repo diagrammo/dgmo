@@ -9,6 +9,7 @@ import {
   ordinalWord,
   formatCount,
   formatHuman,
+  splitClockSeconds,
   type RecurRule,
 } from '../src/countdown/resolve';
 import { render } from '../src/render';
@@ -710,6 +711,89 @@ describe('countdown ticker', () => {
     expect(c.querySelector('[data-dgmo-gauge-caption]')?.textContent).toBe(
       'AGO'
     );
+  });
+});
+
+// ============================================================
+// Subordinate seconds — split HH:MM:SS so the fast seconds ride smaller/blue
+// and tabular-nums keeps the right-anchored clock from staggering per tick.
+// ============================================================
+
+describe('splitClockSeconds', () => {
+  it('splits a full clock into lead + :SS', () => {
+    expect(splitClockSeconds('06:29:20')).toEqual({
+      lead: '06:29',
+      sec: ':20',
+    });
+    expect(splitClockSeconds('3d 06:14:03')).toEqual({
+      lead: '3d 06:14',
+      sec: ':03',
+    });
+  });
+  it('leaves non-clock / seconds-pruned strings whole', () => {
+    expect(splitClockSeconds('1 year, 2 months')).toEqual({
+      lead: '1 year, 2 months',
+      sec: null,
+    });
+    expect(splitClockSeconds('06:29')).toEqual({ lead: '06:29', sec: null });
+    expect(splitClockSeconds('20 days')).toEqual({
+      lead: '20 days',
+      sec: null,
+    });
+  });
+});
+
+describe('countdown seconds — subordinate rendering', () => {
+  it('bakes a smaller cold-blue seconds tspan + tabular-nums on the clock finale hero', () => {
+    const c = renderAt(
+      `countdown Launch\ntarget 2026-07-10T18:00\nunits clock`,
+      '2026-07-10T15:00:00Z' // 03:00:00 to go — clock finale
+    );
+    const hero = valueNode(c);
+    expect(hero.getAttribute('font-variant-numeric')).toBe('tabular-nums');
+    expect(hero.querySelector('[data-cd-lead]')?.textContent).toBe('03:00');
+    const sec = hero.querySelector('[data-cd-sec]') as Element;
+    expect(sec.textContent).toBe(':00');
+    // seconds render smaller than the hero font and in the `now` blue.
+    expect(Number(sec.getAttribute('font-size'))).toBeLessThan(
+      Number(hero.getAttribute('font-size'))
+    );
+    expect(sec.getAttribute('fill')).toBe(
+      hero.getAttribute('data-dgmo-cd-sec-fill')
+    );
+  });
+
+  it('a non-clock (human) hero has no seconds tspan', () => {
+    const c = renderAt(
+      `countdown Voyage\ntarget 2027-09-13`,
+      '2026-07-10T00:00:00Z'
+    );
+    expect(valueNode(c).querySelector('[data-cd-sec]')).toBeNull();
+  });
+
+  it('the live ticker splits the seconds when full mode upgrades to Nd HH:MM:SS', () => {
+    const c = renderAt(
+      `countdown Launch\ntarget 2026-08-21T00:00:00Z\nunits full`,
+      '2026-07-10T00:00:00Z'
+    );
+    vi.setSystemTime(Date.parse('2026-08-17T17:45:57Z'));
+    tickCountdowns(c);
+    const hero = valueNode(c);
+    expect(hero.textContent).toBe('3d 06:14:03'); // concatenated tspans
+    expect(hero.querySelector('[data-cd-lead]')?.textContent).toBe('3d 06:14');
+    expect(hero.querySelector('[data-cd-sec]')?.textContent).toBe(':03');
+  });
+
+  it('the detail sub-line splits its ticking clock (human hero, timed target days out)', () => {
+    const c = renderAt(
+      `countdown Launch\ntarget 2026-07-20T18:00`,
+      '2026-07-10T12:00:00Z'
+    );
+    vi.setSystemTime(Date.parse('2026-07-15T12:34:56Z'));
+    tickCountdowns(c);
+    const detail = c.querySelector('[data-dgmo-countdown-detail]') as Element;
+    expect(detail.textContent).toContain(':'); // a HH:MM:SS clock
+    expect(detail.querySelector('[data-cd-sec]')).not.toBeNull();
   });
 });
 

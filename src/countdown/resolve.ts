@@ -315,6 +315,20 @@ export function formatCount(remainingMs: number, opts: CountOpts): string {
 }
 
 /**
+ * Split a clock string (`HH:MM:SS`, `Nd HH:MM:SS`) into its lead and the
+ * trailing seconds segment (`:SS`) so the fast-ticking seconds can render
+ * smaller/subordinate. Non-clock strings, or clocks whose seconds field was
+ * pruned (`H:MM`), return `sec: null` and are shown whole.
+ */
+export function splitClockSeconds(s: string): {
+  lead: string;
+  sec: string | null;
+} {
+  const m = /^(.+:\d{2}):(\d{2})$/.exec(s);
+  return m ? { lead: m[1]!, sec: ':' + m[2]! } : { lead: s, sec: null };
+}
+
+/**
  * Precise breakdown for the `units words` sub-line: `3 days 2 hours 7 minutes`.
  * Drops leading zero units (a sub-day countdown reads `2 hours 7 minutes`);
  * minutes always show so it visibly ticks. Ticker-updated live.
