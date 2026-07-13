@@ -517,6 +517,11 @@ export function parseSketch(
             currentTagGroup.entries.push({
               value: label,
               color: color ?? AUTO_TAG_COLOR_SENTINEL,
+              // When a color resolved, the recognized name is the entry's last
+              // token — keep it so a reparse can tell authored from auto.
+              ...(color !== undefined && {
+                authoredColor: cleanEntry.trim().split(/\s+/).pop()!,
+              }),
               lineNumber,
             });
           }
@@ -539,6 +544,11 @@ export function parseSketch(
       currentTagGroup.entries.push({
         value: label,
         color: color ?? AUTO_TAG_COLOR_SENTINEL,
+        // When a color resolved, the recognized name is the entry's last token
+        // — keep it so a reparse can tell authored from auto.
+        ...(color !== undefined && {
+          authoredColor: cleanEntry.trim().split(/\s+/).pop()!,
+        }),
         lineNumber,
       });
       continue;
