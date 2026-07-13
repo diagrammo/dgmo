@@ -47,21 +47,25 @@ export const BLOCK_CSS: string = `
 }
 
 /* === Toolbar ===
- * The diagram is the star: the toolbar is a slim reserved row below the SVG
- * (height always in flow — no layout shift) that stays fully transparent
- * until the block is hovered or focused, or the source panel is open. It is
- * the <summary> of the source <details>, so toggling works without any JS.
+ * The diagram is the star: the toolbar is an overlay pinned to the diagram's
+ * top-right corner (position:absolute — it reserves no layout space, so the
+ * block is exactly as tall as the chart). It stays fully transparent until
+ * the block is hovered or focused, or the source panel is open. It is the
+ * <summary> of the source <details>, so toggling works without any JS.
  * No text labels, no disclosure triangle — three wordless icon buttons. */
 .dgmo-source-wrap {
   margin: 0;
 }
 .dgmo-toolbar {
+  position: absolute;
+  top: 0.4em;
+  right: 0.4em;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 0.25em;
-  min-height: 1.9em;
-  padding: 0.15em 0;
+  padding: 0.15em;
   opacity: 0;
   transition: opacity 0.15s ease;
   cursor: pointer;
@@ -198,9 +202,10 @@ export const BLOCK_CSS: string = `
  * border so the code visibly belongs to the chart above it. The frame box
  * (border + padding) is RESERVED at all times — with the border transparent
  * while closed — so opening the panel only paints the border in. It never
- * reflows the diagram or shifts the toolbar: the SVG box and toolbar position
- * are identical open vs closed. */
+ * reflows the diagram. position:relative anchors the overlay toolbar to
+ * this box. */
 .dgmo:has(> .dgmo-source-wrap) {
+  position: relative;
   border: 1px solid transparent;
   border-radius: 0.6em;
   padding: 0.75em 0.75em 0.5em;

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Embedded-diagram toolbar is now an overlay** pinned to the diagram's top-right corner instead of a reserved row below the chart. The hover-reveal icon strip (source / copy / expand) no longer adds layout height, so an embedded block is exactly as tall as the chart it renders.
+
 ## [0.50.2] - 2026-07-13
 
 ### Changed
