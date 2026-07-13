@@ -527,51 +527,14 @@ export function renderEventLine(
         p.x = H_MARGIN + i * spacing;
       });
     }
-    // ── Spread crowded dots into horizontal slack (scaled only) ──
-    // When several events bunch up next to a tall collapsed-era card, they get
-    // shoved into deep lanes far from the spine even though the chart has empty
-    // room to the right. Nudge each crowded EVENT dot rightward — per side, since
-    // collisions are per side — just far enough to clear the previous same-side
-    // card, but never within a card-width of the NEXT obstacle. Era capsules are
-    // fixed anchors (never moved); a well-spaced event acts as a wall that caps
-    // the spread. Iterated to a fixpoint so a cluster relaxes as its members move.
-    // Scale is already non-literal here (collapsed eras break it), so trading a
-    // dot's exact date position for a shallow, readable lane is a good deal.
-    if (scaled) {
-      const SPREAD = CARD_W + FAN_GAP; // min center-to-center so cards don't overlap
-      for (let iter = 0; iter < 8; iter++) {
-        let moved = false;
-        for (const side of ['above', 'below'] as Side[]) {
-          const obs = placed
-            .filter((p) => p.side === side)
-            .sort((a, b) => a.x - b.x);
-          for (let i = 1; i < obs.length; i++) {
-            const p = obs[i]!;
-            if (p.kind !== 'event') continue; // only event dots move; eras anchor
-            const prev = obs[i - 1]!;
-            // Coincident-date events legitimately share an x and stack with faded
-            // leaders — never fan those apart.
-            if (prev.kind === 'event' && p.dateValue === prev.dateValue)
-              continue;
-            const need = prev.x + SPREAD; // clear the previous same-side card
-            if (need <= p.x) continue;
-            // Cap only against the next FIXED era anchor (capsules never move); a
-            // movable event downstream is NOT a cap — it cascades right in turn,
-            // and a far, well-spaced event naturally stays put (its `need` check
-            // no-ops) and acts as the wall. Capping by movable events would pin
-            // the cluster left and leave it stacked behind the tall era card.
-            const nxt = obs[i + 1];
-            const cap = nxt?.kind === 'era' ? nxt.x - SPREAD : Infinity;
-            const target = Math.min(need, cap);
-            if (target > p.x + 0.5) {
-              p.x = target;
-              moved = true;
-            }
-          }
-        }
-        if (!moved) break;
-      }
-    }
+    // ── Dots stay on their true date; crowding resolves in DEPTH, not width ──
+    // A dot's x is its exact calendar position and is never nudged sideways to make
+    // room for a card. When same-side events cluster tighter than a card is wide, the
+    // fan/lane packer below stacks their cards into deeper lanes (each with its own
+    // vertical leader landing on the dot) rather than sliding the dot off its date.
+    // The axis-stretch search widens the whole timeline when the panel is wide, which
+    // relieves clusters honestly (to scale) instead of distorting positions.
+    // (Coincident-date events still share an x and stack with faded leaders below.)
     // ── Fan side-by-side, stack into lanes when too tight ──
     // Each card keeps its dot within [left+INSET, left+CARD_W-INSET] so a vertical
     // leader lands on it. A card joins the innermost lane where it clears the

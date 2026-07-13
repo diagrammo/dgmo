@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Embedded-diagram toolbar is now an overlay** pinned to the diagram's top-right corner instead of a reserved row below the chart. The hover-reveal icon strip (source / copy / expand) no longer adds layout height, so an embedded block is exactly as tall as the chart it renders.
 
+### Fixed
+- **Event-line: dots now sit at their true calendar position.** Clustered same-side events were being slid horizontally so their cards wouldn't overlap, which pushed dots off their date (e.g. a Jan 15 event rendering at 20% of the span instead of 4%). Dots now hold their exact date-proportional x and card collisions resolve by stacking into deeper lanes (each with its own vertical leader) instead. Dense clusters therefore grow taller rather than distorting the timeline; wide panels still widen the whole axis to relieve crowding to scale.
+
 ## [0.50.2] - 2026-07-13
 
 ### Changed

@@ -238,10 +238,11 @@ no-scale
     ).not.toBeNull();
   });
 
-  it('spreads a crowded event past a tall collapsed-era card into open space', () => {
-    // Era E (collapsed, tall) then a near event that would stack behind it, plus
-    // a far event giving horizontal slack. `side above` forces a same-side
-    // collision so the spread pass must kick in.
+  it('keeps a crowded event on its true date and stacks its card into a deeper lane', () => {
+    // Era E (collapsed, tall) then a near event whose card would collide with the
+    // era card, plus a far event. `side above` forces a same-side collision. The
+    // dot must stay on its true calendar x (NOT be shoved past the era card); the
+    // collision is resolved by stacking the near card into a deeper lane instead.
     const parsed = parseEventLine(
       `event-line T
 no-box
@@ -271,18 +272,34 @@ side above
       eraCard.getAttribute('transform') ?? ''
     )!;
     const eraLeft = Number(m[1]);
+    const eraY = Number(
+      /translate\([-\d.]+,\s*([-\d.]+)\)/.exec(
+        eraCard.getAttribute('transform') ?? ''
+      )![1]
+    );
     const CARD_W = 210;
     const eraCenter = eraLeft + CARD_W / 2;
     const eraRight = eraLeft + CARD_W;
-    // The first event dot to the right of the era center must clear the era
-    // card's right edge — i.e. it was nudged into the open space, not left to
-    // stack behind the tall card.
-    const dotXs = [...svg.querySelectorAll('circle.dgmo-event-dot')]
+    // The `Near` event (2020-03-01) sits chronologically just past the collapsed
+    // era, so its card overlaps the era card horizontally.
+    const nearDot = [...svg.querySelectorAll('circle.dgmo-event-dot')]
       .map((c) => Number(c.getAttribute('cx')))
       .filter((x) => x > eraCenter + 1)
-      .sort((a, b) => a - b);
-    expect(dotXs.length).toBeGreaterThan(0);
-    expect(dotXs[0]!).toBeGreaterThanOrEqual(eraRight - 1);
+      .sort((a, b) => a - b)[0]!;
+    // Its dot stays on its true date — it is NOT shoved past the era card's right
+    // edge to make room. The collision is absorbed in depth, not width.
+    expect(nearDot).toBeLessThan(eraRight);
+    // And its card is stacked into a DIFFERENT (deeper) lane than the era card, so
+    // the two same-side cards never overlap despite sharing horizontal space.
+    const nearCard = [...svg.querySelectorAll('g.dgmo-event-card')].find(
+      (g) => g.getAttribute('data-line-number') === '11'
+    )!;
+    const nearY = Number(
+      /translate\([-\d.]+,\s*([-\d.]+)\)/.exec(
+        nearCard.getAttribute('transform') ?? ''
+      )![1]
+    );
+    expect(nearY).not.toBe(eraY);
   });
 
   it('places era brackets opposite the cards under `side below`', () => {
