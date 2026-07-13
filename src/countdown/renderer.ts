@@ -313,6 +313,11 @@ function aLine(
  * A small "recurring" glyph — two opposing circular arrows — that marks a chart
  * as a repeating event (drawn beside the resolution footer).
  */
+// Lucide `repeat` (MIT) — the recurring-event glyph, matching the icon set the
+// app (lucide-react) and Obsidian (setIcon) already use. Inlined as its raw
+// 24×24 path so dgmo core stays dependency-free; scaled/centered on (cx,cy).
+const REPEAT_ICON_PATH =
+  'm17 2 4 4-4 4 M3 11v-1a4 4 0 0 1 4-4h14 m7 22-4-4 4-4 M21 13v1a4 4 0 0 1-4 4H3';
 function recurGlyph(
   svg: SvgSel,
   cx: number,
@@ -320,35 +325,24 @@ function recurGlyph(
   r: number,
   color: string
 ): void {
-  const sw = Math.max(1.5, r * 0.34);
-  const pt = (deg: number): [number, number] => [
-    cx + r * Math.cos((deg * Math.PI) / 180),
-    cy + r * Math.sin((deg * Math.PI) / 180),
-  ];
-  for (const base of [0, 180]) {
-    const [x0, y0] = pt(base + 30);
-    const [x1, y1] = pt(base + 175);
-    svg
-      .append('path')
-      .attr('d', `M ${x0} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y1}`)
-      .attr('fill', 'none')
-      .attr('stroke', color)
-      .attr('stroke-width', sw)
-      .attr('stroke-linecap', 'round');
-    // arrowhead at the leading (a1) end, along the tangent.
-    const tang = ((base + 175 + 90) * Math.PI) / 180;
-    const hl = r * 0.9;
-    svg
-      .append('path')
-      .attr(
-        'd',
-        `M ${x1} ${y1} l ${Math.cos(tang + 2.5) * hl} ${Math.sin(tang + 2.5) * hl} M ${x1} ${y1} l ${Math.cos(tang - 2.5) * hl} ${Math.sin(tang - 2.5) * hl}`
-      )
-      .attr('fill', 'none')
-      .attr('stroke', color)
-      .attr('stroke-width', sw)
-      .attr('stroke-linecap', 'round');
-  }
+  const side = r * 2.4; // visual box side ≈ footer cap height
+  const scale = side / 24;
+  const swPx = Math.max(1.5, r * 0.34);
+  svg
+    .append('path')
+    .attr('d', REPEAT_ICON_PATH)
+    .attr(
+      'transform',
+      `translate(${cx - side / 2} ${cy - side / 2}) scale(${scale})`
+    )
+    // Local 0–24 coords under a transform — hide from the embed bbox parser
+    // (it ignores transforms; raw coords would corrupt the tight viewBox).
+    .attr('data-embed-ignore-bbox', '')
+    .attr('fill', 'none')
+    .attr('stroke', color)
+    .attr('stroke-width', swPx / scale)
+    .attr('stroke-linecap', 'round')
+    .attr('stroke-linejoin', 'round');
 }
 
 /**

@@ -230,8 +230,15 @@ function computeBBox(
   }
 
   // <path d="..."> — pull every coordinate pair out of the d attribute.
-  for (const m of svg.matchAll(/<path\b[^>]*?\bd="([^"]+)"/g)) {
-    const d = m[1]!;
+  // Skip paths flagged `data-embed-ignore-bbox`: decorative micro-glyphs drawn
+  // in a local coord space under a `transform` (e.g. the countdown recurring
+  // icon), whose raw 0–N coords don't map to diagram space.
+  for (const m of svg.matchAll(/<path\b[^>]*?>/g)) {
+    const tag = m[0];
+    if (tag.includes('data-embed-ignore-bbox')) continue;
+    const dm = tag.match(/\bd="([^"]+)"/);
+    if (!dm) continue;
+    const d = dm[1]!;
     const nums = d.match(/-?\d+(?:\.\d+)?/g);
     if (!nums) continue;
     for (let i = 0; i + 1 < nums.length; i += 2) {
