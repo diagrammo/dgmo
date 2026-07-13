@@ -1,5 +1,5 @@
-import { D as DgmoError, C as CompactViewState, M as MapData, P as PaletteColors, a as PaletteConfig, T as TagGroup, b as TagEntry, c as ParsedMap, R as ResolvedMap, d as MapLayoutLegend, G as GeoExtent } from './themes-1-CuKpeH.js';
-export { A as AirportData, B as BoundaryTopology, e as CHART_TYPE_DESCRIPTIONS, f as ChartTypeMeta, g as DecodedDiagramUrl, h as DgmoSeverity, E as EncodeDiagramUrlOptions, i as EncodeDiagramUrlResult, j as Gazetteer, k as GazetteerEntry, l as MapCompletionOptions, m as MapDirectives, n as MapEdge, o as MapLocationMatch, p as MapPlaceCompletion, q as MapPoi, r as MapRegion, s as MapRegionCompletion, t as MapRoute, u as PoiPos, v as ProjectionFamily, w as RegionName, x as RegionNames, y as RenderCategory, z as ResolvedEdge, F as ResolvedPoi, H as ResolvedRegion, I as ResolvedRoute, J as Theme, K as autoTagColorCycle, L as chartTypeParsers, N as chartTypes, O as completeMapPlaces, Q as completeMapRegions, S as decodeDiagramUrl, U as decodeViewState, V as encodeDiagramUrl, W as encodeViewState, X as formatDgmoError, Y as getAllChartTypes, Z as getAvailablePalettes, _ as getPalette, $ as getRenderCategory, a0 as isExtendedChartType, a1 as isValidHex, a2 as knownChartTypeIds, a3 as makeDgmoError, a4 as palettes, a5 as parseDgmo, a6 as parseDgmoChartType, a7 as registerPalette, a8 as searchMapLocations, a9 as tagAttrKey, aa as themes, a5 as validate } from './themes-1-CuKpeH.js';
+import { D as DgmoError, C as CompactViewState, M as MapData, P as PaletteColors, a as PaletteConfig, T as TagGroup, b as TagEntry, c as ParsedMap, R as ResolvedMap, d as MapLayoutLegend, G as GeoExtent } from './themes-PdPR1-hC.js';
+export { A as AirportData, B as BoundaryTopology, e as CHART_TYPE_DESCRIPTIONS, f as ChartTypeMeta, g as DecodedDiagramUrl, h as DgmoSeverity, E as EncodeDiagramUrlOptions, i as EncodeDiagramUrlResult, j as Gazetteer, k as GazetteerEntry, l as MapCompletionOptions, m as MapDirectives, n as MapEdge, o as MapLocationMatch, p as MapPlaceCompletion, q as MapPoi, r as MapRegion, s as MapRegionCompletion, t as MapRoute, u as PoiPos, v as ProjectionFamily, w as RegionName, x as RegionNames, y as RenderCategory, z as ResolvedEdge, F as ResolvedPoi, H as ResolvedRegion, I as ResolvedRoute, J as Theme, K as autoTagColorCycle, L as chartTypeParsers, N as chartTypes, O as completeMapPlaces, Q as completeMapRegions, S as decodeDiagramUrl, U as decodeViewState, V as encodeDiagramUrl, W as encodeViewState, X as formatDgmoError, Y as getAllChartTypes, Z as getAvailablePalettes, _ as getPalette, $ as getRenderCategory, a0 as isExtendedChartType, a1 as isValidHex, a2 as knownChartTypeIds, a3 as makeDgmoError, a4 as palettes, a5 as parseDgmo, a6 as parseDgmoChartType, a7 as registerPalette, a8 as searchMapLocations, a9 as tagAttrKey, aa as themes, a5 as validate } from './themes-PdPR1-hC.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
 import { GeoProjection } from 'd3-geo';
@@ -4947,6 +4947,8 @@ interface BodyOptions {
     readonly views: readonly BodyView[];
     /** True when `no-legend` — hide the tag legend. */
     readonly noLegend: boolean;
+    /** True when `no-title` — hide the diagram title. */
+    readonly noTitle: boolean;
 }
 interface ParsedBody {
     readonly title: string | null;

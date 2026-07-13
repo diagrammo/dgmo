@@ -16,6 +16,14 @@ interface DgmoError {
 interface TagEntry {
     readonly value: string;
     readonly color: string;
+    /**
+     * The color NAME the author wrote (one of the recognized palette names),
+     * when the entry declared an explicit color. Absent for bare/auto-colored
+     * entries. `color` above is always the RESOLVED hex (auto and explicit are
+     * indistinguishable there); this preserves the authored-vs-auto distinction
+     * so a GUI editor can round-trip an explicit color through a reparse.
+     */
+    readonly authoredColor?: string;
     readonly lineNumber: number;
 }
 /**

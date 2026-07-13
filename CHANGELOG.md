@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.1] - 2026-07-13
+
+### Fixed
+- **Countdown (and any large-text chart) no longer has its top clipped in responsive embeds** (Obsidian, remark-based wrappers). The embed normalizer sized every text box at a fixed height regardless of font-size, so the 40px title and 96px hero landed a hair below the tightened viewBox and browser font metrics tipped them into a clip. Text extent is now font-size-aware.
+
+### Changed
+- **Countdown recurring-event glyph is now the Lucide `repeat` icon** — matching the icon set the app and Obsidian already use — replacing the hand-drawn double-arrow.
+
 ## [0.50.0] - 2026-07-12
 
 ### Added
