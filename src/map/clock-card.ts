@@ -97,10 +97,9 @@ export function renderClockCards(
     const ts = formatTime(parts.h, parts.m, parts.s, hours12);
     const status = workStatus(parts, work);
 
-    const label = poi.label ?? poi.name ?? poi.id;
-    const line2 = status
-      ? `${label} · ${parts.weekday} · ${status.text}`
-      : `${label} · ${parts.weekday}`;
+    // No place name on the card — the marker already carries its label right
+    // below (repeating it is noise). The card is pure time info.
+    const line2 = status ? `${parts.weekday} · ${status.text}` : parts.weekday;
 
     // ── Geometry: size the card to its widest line, centre it over the marker. ──
     const timeW =
@@ -224,9 +223,9 @@ export function renderClockCards(
       .attr('fill', muted)
       .text(ts.ap ? ` ${ts.ap}` : '');
 
-    // ── Second line: label · weekday · availability. `status` text is the only
-    // ticked part; label/weekday are baked (weekday shifts only at local
-    // midnight). Split so the status word can carry a live anchor + colour. ──
+    // ── Second line: weekday · availability. `status` text is the only ticked
+    // part; weekday is baked (it shifts only at local midnight). Split so the
+    // status word can carry a live anchor + colour. ──
     const line2Y = cardTop + 32;
     const l2 = g
       .append('text')
@@ -235,7 +234,7 @@ export function renderClockCards(
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', 10.5)
       .attr('fill', muted);
-    l2.append('tspan').text(`${label} · ${parts.weekday}`);
+    l2.append('tspan').text(parts.weekday);
     if (status) {
       l2.append('tspan').text(' · ');
       l2.append('tspan')
