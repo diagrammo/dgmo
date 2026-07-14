@@ -90,6 +90,15 @@ export interface ResolvedPoi {
   readonly lineNumber: number;
   /** True when created from an undeclared edge/route endpoint (§24B.10). */
   readonly implicit?: boolean;
+  /** BL-122 clock channel: the resolved IANA zone id (`Asia/Tokyo`) or a canonical
+   *  fixed-offset label (`UTC+9`) for this pin, from an explicit `tz:` meta (or a
+   *  gazetteer `tz` once built). Absent ⇒ no time card. Set only when the map's
+   *  `clock` directive is on and `tz:` validated; a malformed `tz:` warns + omits. */
+  readonly tz?: string;
+  /** BL-122: minutes-east-of-UTC when `tz` is a FIXED offset (from `tz: UTC+9`),
+   *  so the renderer bakes `data-dgmo-clock-fixed-offset` and the ticker skips DST.
+   *  Absent for real IANA zones. */
+  readonly tzFixedOffsetMin?: number;
 }
 
 export interface ResolvedEdge {

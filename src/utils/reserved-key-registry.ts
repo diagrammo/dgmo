@@ -90,6 +90,10 @@ export const MAP_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'width',
   'label',
   'style',
+  // `tz` (BL-122): POI time-zone for the `clock` channel — an IANA id
+  // (`Asia/Tokyo`) or a fixed offset (`UTC+9`). Reserved so it peels off the
+  // POI name cleanly instead of corrupting a bare-coord `<lat> <lon>` parse.
+  'tz',
   // `surface:` was removed in the 2026-06-02 defaults-on review — it is no longer
   // a recognized metadata key (the route/edge surface feature was cut; §24B.7).
   // A stray `surface: water` is no longer captured as a reserved key.

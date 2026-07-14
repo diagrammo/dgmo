@@ -131,6 +131,22 @@ function pad2(n: number): string {
   return n < 10 ? '0' + n : String(n);
 }
 
+/**
+ * True when `zone` is an IANA zone id `Intl.DateTimeFormat` recognizes
+ * (`America/New_York`, `Asia/Tokyo`, `UTC`). Used to validate an explicit
+ * `tz:` before wiring a clock card — an unknown id warns + skips rather than
+ * silently ticking off UTC. Does NOT accept fixed-offset tokens (`UTC+9`);
+ * check `parseFixedOffset` first for those.
+ */
+export function isValidZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const WEEKDAY_SHORT = [
   'Sun',
   'Mon',

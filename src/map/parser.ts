@@ -410,6 +410,19 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       case 'no-cluster-pois':
         d.noClusterPois = true;
         break;
+      // ── Clock channel (BL-122). `clock` is a bare flag; `hours`/`days` set the
+      //    availability window, stored raw and parsed at resolve. ──
+      case 'clock':
+        d.clock = true;
+        break;
+      case 'hours':
+        dup(d.clockHours);
+        d.clockHours = value;
+        break;
+      case 'days':
+        dup(d.clockDays);
+        d.clockDays = value;
+        break;
     }
   }
 

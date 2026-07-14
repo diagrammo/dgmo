@@ -13,6 +13,7 @@ import {
 } from '../utils/title-constants';
 import { mix } from '../palettes/color-utils';
 import { measureText } from '../utils/text-measure';
+import { renderClockCards } from './clock-card';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type { LegendConfig } from '../utils/legend-types';
 import { mapLegendConfig, mapLegendGroups } from './legend-band';
@@ -1274,6 +1275,21 @@ export function renderMap(
         LABEL_FONT
       );
     }
+  }
+
+  // ── Clock cards (BL-122) — live local-time cards above tz-resolved POIs,
+  // layered above markers/labels. Baked snapshot ticks live via the shared
+  // clock ticker on interactive surfaces. ──
+  if (resolved.directives.clock) {
+    const gCards = svg.append('g').attr('class', 'dgmo-map-clock-cards');
+    renderClockCards(
+      gCards,
+      layout.pois,
+      resolved,
+      palette,
+      isDark,
+      Date.now()
+    );
   }
 
   // ── Legend (categorical via renderLegendD3 + ramp/size/weight blocks; AR1) ──

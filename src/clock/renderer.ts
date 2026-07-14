@@ -23,6 +23,7 @@ import { FONT_FAMILY } from '../fonts';
 import { mix, themeBaseBg } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
+import { buildSwatches, type Swatches } from './swatches';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { D3Sel } from '../utils/legend-types';
 import type { ClockColorBy, ClockEntry, ParsedClock } from './types';
@@ -248,45 +249,6 @@ function daysLabel(days: Record<string, boolean>): string {
   return on.join(', ');
 }
 
-/** Palette-resolved day/night/status swatches, baked so the ticker can recolor. */
-interface Swatches {
-  readonly day: string;
-  readonly night: string;
-  readonly dayTint: string;
-  readonly nightTint: string;
-  readonly ok: string;
-  readonly soon: string;
-  readonly off: string;
-  readonly okSoft: string;
-  readonly soonSoft: string;
-  readonly offSoft: string;
-  readonly sunIcon: string;
-  readonly moonIcon: string;
-}
-
-function buildSwatches(palette: PaletteColors, muted: string): Swatches {
-  const bg = palette.bg;
-  const day = resolveColor('orange', palette) ?? '#d98a1f';
-  const night = resolveColor('blue', palette) ?? '#4864b0';
-  const ok = resolveColor('green', palette) ?? '#3f9e59';
-  const soon = resolveColor('orange', palette) ?? '#c9761a';
-  return {
-    day,
-    night,
-    dayTint: mix(day, bg, 14),
-    nightTint: mix(night, bg, 14),
-    ok,
-    soon,
-    off: muted,
-    okSoft: mix(ok, bg, 14),
-    soonSoft: mix(soon, bg, 14),
-    offSoft: mix(muted, bg, 16),
-    // Sundown indicator: a yellow sun by day, a blue moon by night.
-    sunIcon: resolveColor('yellow', palette) ?? '#f4b400',
-    moonIcon: night,
-  };
-}
-
 export function renderClock(
   container: HTMLDivElement,
   parsed: ParsedClock,
@@ -303,7 +265,23 @@ export function renderClock(
   // floor stops narrow panels from cramping the columns into each other; a
   // ceiling stops wide panels from ballooning the clocks. Exports honor their
   // requested width verbatim.
-  const width = exportDims?.width ?? Math.min(720, Math.max(460, avail));
+  const cardM = 8;
+  const baseWidth = Math.min(720, Math.max(460, avail));
+  // Columns mode: hold each column at a readable intrinsic width and GROW the
+  // canvas with the column count instead of cramming N columns into a fixed
+  // 720. The viewBox `meet` (fitSvg / embed max-width) then scales the whole
+  // board down into the panel — so past ~4 columns everything gets uniformly
+  // smaller rather than clipping the detail text. `baseWidth` stays the floor
+  // so a handful of columns still fill a wide panel. Exports keep their dims.
+  const COL_MIN_W = 190;
+  const width =
+    exportDims?.width ??
+    (parsed.columns
+      ? Math.max(
+          baseWidth,
+          COL_MIN_W * Math.max(1, parsed.entries.length) + 2 * cardM
+        )
+      : baseWidth);
 
   const now = Date.now();
   const baseBg = themeBaseBg(palette, isDark);
@@ -334,7 +312,6 @@ export function renderClock(
     .attr('fill', palette.bg);
 
   // ── Container card: solid gray border + muted-gray fill behind everything. ──
-  const cardM = 8;
   const card = svg
     .append('rect')
     .attr('x', cardM)

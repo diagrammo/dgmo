@@ -142,6 +142,19 @@ export const MAP_DX = {
     hint: 'The name collides between a country and a US state — pin it with an ISO code or a `US` / `US-XX` scope.',
     example: 'map\nGeorgia heat: 2',
   },
+  CLOCK_TZ_INVALID: {
+    // Runtime severity: 'warning' (matches W_ prefix). The `clock` channel is on
+    // and a POI carried a `tz:` that is neither a known IANA zone nor a fixed
+    // offset — the pin renders normally but gets no time card (BL-122).
+    code: 'W_MAP_CLOCK_TZ_INVALID',
+    severity: 'warning',
+    chartType: 'map',
+    title: 'Unrecognized time zone',
+    message: (p) =>
+      `\`tz: ${p.name ?? ''}\` is not a known IANA zone or offset — this pin renders without a time card. Use an IANA id (\`Asia/Tokyo\`) or a fixed offset (\`UTC+9\`).`,
+    hint: 'Use an IANA zone id (`Asia/Tokyo`) or a fixed offset (`UTC+9`).',
+    example: 'map\nclock\npoi Tokyo tz: Asia/Tokyo',
+  },
 } satisfies Record<string, DiagnosticSpec>;
 
 export const MAP_DIAGNOSTICS: DiagnosticSpec[] = Object.values(MAP_DX);

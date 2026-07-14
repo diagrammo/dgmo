@@ -28,6 +28,11 @@ import {
   decodeFeatures,
   regionAt,
 } from './geo';
+import {
+  isValidZone,
+  parseFixedOffset,
+  formatOffsetLabel,
+} from '../clock/resolve';
 
 /** Discriminated result of a gazetteer name lookup (#5): `defer` is "ambiguous,
  *  retry in pass B with inferred scope" — distinct from `miss` (errored, drop) so
@@ -642,6 +647,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   ): void {
     const id = poiIdFor(p.pos, p.alias);
     const name = p.pos.kind === 'name' ? p.pos.name : p.alias;
+    const tz = resolveTz(p.meta['tz'], p.lineNumber);
     const poi: Writable<ResolvedPoi> = {
       id,
       ...(name !== undefined && { name }),
@@ -652,8 +658,32 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       tags: p.tags,
       meta: p.meta,
       lineNumber: p.lineNumber,
+      ...(tz !== undefined && { tz: tz.zone }),
+      ...(tz?.fixedOffsetMin !== undefined && {
+        tzFixedOffsetMin: tz.fixedOffsetMin,
+      }),
     };
     registerPoi(id, poi, p.lineNumber);
+  }
+
+  /** BL-122 clock channel: resolve a POI's explicit `tz:` to an IANA zone id or a
+   *  canonical fixed-offset label. Only runs when the `clock` directive is on
+   *  (a stray `tz:` on a non-clock map is inert). A fixed offset (`UTC+9`) wins
+   *  first (DST-blind), then an IANA id; an unrecognized value warns + omits so
+   *  the pin still renders, just without a card. */
+  function resolveTz(
+    raw: string | undefined,
+    line: number
+  ): { zone: string; fixedOffsetMin?: number } | undefined {
+    if (!parsed.directives.clock || raw === undefined) return undefined;
+    const v = raw.trim();
+    if (!v) return undefined;
+    const off = parseFixedOffset(v);
+    if (off !== null)
+      return { zone: formatOffsetLabel(off), fixedOffsetMin: off };
+    if (isValidZone(v)) return { zone: v };
+    diagnostics.push(emit(MAP_DX.CLOCK_TZ_INVALID, line, { name: v }));
+    return undefined;
   }
 
   // ── Edges + routes: bind endpoints, create implicit POIs (R7/R8) ──

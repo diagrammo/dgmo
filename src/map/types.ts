@@ -73,6 +73,17 @@ export interface MapDirectives {
    *  export — so a dense map reads the same on screen as on paper. No-op for
    *  export (already always expanded). */
   noClusterPois?: boolean;
+  /** `clock` (BL-122) — turn on the live local-time card channel: every POI that
+   *  resolves to an IANA zone (explicit `tz:` meta, or a gazetteer `tz` once
+   *  built) renders a time card above its marker, ticking each second on live
+   *  surfaces (baked snapshot on CLI/PNG). Bare flag; off by default. */
+  clock?: boolean;
+  /** `hours 9-17` — availability window for the clock channel (open/closed status
+   *  dot), evaluated per pin in its own zone. Raw string; parsed at resolve. */
+  clockHours?: string;
+  /** `days mon-fri` — working days for the clock channel window (default mon-fri
+   *  when `hours` is set). Raw string; parsed at resolve. */
+  clockDays?: string;
 }
 
 /** A region-fill: a subdivision name with an optional score and/or tag values
