@@ -99,7 +99,14 @@ export function renderClockCards(
 
     // No place name on the card — the marker already carries its label right
     // below (repeating it is noise). The card is pure time info.
-    const line2 = status ? `${parts.weekday} · ${status.text}` : parts.weekday;
+    // Weekday shows ONLY when the pin is on a different calendar day than the
+    // viewer (the dateline case, e.g. a US viewer looking at Sydney) — otherwise
+    // it is redundant. Compare against the viewer's own local weekday at `now`.
+    const viewerWeekday = WEEKDAY_ABBR[new Date(now).getDay()]!;
+    const showWeekday = parts.weekday !== viewerWeekday;
+    const line2 = [showWeekday ? parts.weekday : null, status?.text]
+      .filter(Boolean)
+      .join(' · ');
 
     // ── Geometry: size the card to its widest line, centre it over the marker. ──
     const timeW =
@@ -234,9 +241,13 @@ export function renderClockCards(
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', 10.5)
       .attr('fill', muted);
-    l2.append('tspan').text(parts.weekday);
+    let needSep = false;
+    if (showWeekday) {
+      l2.append('tspan').text(parts.weekday);
+      needSep = true;
+    }
     if (status) {
-      l2.append('tspan').text(' · ');
+      if (needSep) l2.append('tspan').text(' · ');
       l2.append('tspan')
         .attr('data-dgmo-clock-status', '')
         .attr(
