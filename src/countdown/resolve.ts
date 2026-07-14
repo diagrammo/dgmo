@@ -631,16 +631,6 @@ export function formatCompound(
   return chosen.map(([n, u]) => `${n} ${u}${n === 1 ? '' : 's'}`).join(', ');
 }
 
-/** Short relative phrase for the footer ("in 8 days", "tomorrow", "today"). */
-export function relativePhrase(remainingMs: number): string {
-  if (remainingMs <= 0) return 'now';
-  const days = Math.ceil(remainingMs / DAY_MS);
-  if (days === 1) return 'tomorrow';
-  if (days < 14) return `in ${days} days`;
-  if (days < 60) return `in ${Math.round(days / 7)} weeks`;
-  return `in ${Math.round(days / 30)} months`;
-}
-
 const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_ABBR = [
   'Jan',

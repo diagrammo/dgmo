@@ -11,6 +11,7 @@
     "scripts/build-airports-snapshot.mjs",
     "scripts/gen-ai-core.mjs",
     "scripts/gen-body-surface.mjs",
+    "scripts/enrich-gazetteer-tz.mjs",
     "api-baseline/**",
     "tools/**"
   ],

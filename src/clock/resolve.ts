@@ -198,8 +198,8 @@ export function formatOffsetLabel(offsetMin: number): string {
 /**
  * Wall-clock parts for a FIXED offset (a raw `UTC±HH:MM`), computed straight
  * from UTC + the offset. Deliberately DST-blind: a fixed offset never shifts, so
- * this is the honest reading for `UTC` itself, no-DST regions, and quick throw-
- * aways — and wrong half the year for anywhere that observes DST (the parser
+ * this is the honest reading for `UTC` itself, no-DST regions, and quick
+ * throwaways — and wrong half the year for anywhere that observes DST (the parser
  * flags that with a marker, not an error).
  */
 export function fixedParts(offsetMin: number, nowMs: number): ZoneParts {
