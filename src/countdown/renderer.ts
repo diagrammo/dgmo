@@ -1499,10 +1499,19 @@ export function renderCountdown(
   // overflows leftward into the title column. Size to whichever is wider.
   const sizeStr =
     estWidth(hero, 1) > estWidth(heroSizeStr, 1) ? hero : heroSizeStr;
-  const heroFont = fitFont(sizeStr, 96, heroMaxW, 26);
-  const heroW = Math.min(heroMaxW, estWidth(sizeStr, heroFont));
   const gapMid = Math.max(28, Math.round(width * 0.03));
-  const leftW = Math.max(contentW * 0.42, contentW - heroW - gapMid);
+  // In a narrow panel the hero string can't fit beside the title even at its
+  // floor font — it would overflow leftward into the title (a long "HH:MM:SS ago"
+  // count in a ~300px preview). When it would overflow the right column, STACK it
+  // on its own full-width line under the header instead of crowding both together.
+  const stacked = estWidth(sizeStr, 26) > heroMaxW;
+  const heroFont = fitFont(sizeStr, 96, stacked ? contentW : heroMaxW, 26);
+  const heroW = stacked
+    ? contentW
+    : Math.min(heroMaxW, estWidth(sizeStr, heroFont));
+  const leftW = stacked
+    ? contentW
+    : Math.max(contentW * 0.42, contentW - heroW - gapMid);
 
   // ── Left column fonts + content ──
   // Title: keep a comfortable size and WRAP onto new lines when it runs over,
@@ -1582,7 +1591,9 @@ export function renderCountdown(
     // big count never gets a line struck through it (the hero is top-aligned and
     // taller than the title, so a full-width rule would cross it).
     const heroLeft = width - padX - heroW;
-    const ruleRight = Math.max(leftX + 40, heroLeft - 20);
+    const ruleRight = stacked
+      ? width - padX
+      : Math.max(leftX + 40, heroLeft - 20);
     svg
       .append('line')
       .attr('x1', leftX)
@@ -1695,7 +1706,9 @@ export function renderCountdown(
                 parsed.tz
               ).sub || null
           : null;
-  const heroCapTop = padY + 0.28 * titleFont;
+  const heroCapTop = stacked
+    ? leftBottom + Math.round(heroFont * 0.2)
+    : padY + 0.28 * titleFont;
   const heroBaseline = heroCapTop + 0.72 * heroFont;
   const heroBlockBottom =
     heroBaseline + (subText ? heroFont * 0.28 + detailFont : 0);
@@ -1743,9 +1756,9 @@ export function renderCountdown(
   const value = svg
     .append('text')
     .attr('class', 'countdown-value')
-    .attr('x', width - padX)
+    .attr('x', stacked ? leftX : width - padX)
     .attr('y', heroBaseline)
-    .attr('text-anchor', 'end')
+    .attr('text-anchor', stacked ? 'start' : 'end')
     .attr('dominant-baseline', 'alphabetic')
     .attr('fill', accent)
     .attr('font-family', FONT_FAMILY)
@@ -1787,9 +1800,9 @@ export function renderCountdown(
   if (subText) {
     const detailSel = svg
       .append('text')
-      .attr('x', width - padX)
+      .attr('x', stacked ? leftX : width - padX)
       .attr('y', heroBaseline + heroFont * 0.28 + detailFont)
-      .attr('text-anchor', 'end')
+      .attr('text-anchor', stacked ? 'start' : 'end')
       .attr('dominant-baseline', 'alphabetic')
       .attr('fill', muted)
       .attr('font-family', FONT_FAMILY)
