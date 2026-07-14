@@ -763,6 +763,7 @@ function buildGazetteer(tsv) {
     const cc = c[8]; // ISO alpha-2 country
     const admin1 = c[10];
     const pop = Number(c[14]);
+    const tz = c[17]; // IANA time zone (BL-122 clock-on-map)
     const modDate = c[18];
     // strict guard (R15/Decision 15)
     if (
@@ -785,7 +786,7 @@ function buildGazetteer(tsv) {
 
     if (modDate && modDate < minDate) minDate = modDate;
     if (modDate && modDate > maxDate) maxDate = modDate;
-    recs.push({ lat: round(lat), lon: round(lon), cc, pop, name, sub, foldedName });
+    recs.push({ lat: round(lat), lon: round(lon), cc, pop, name, sub, foldedName, tz });
   }
 
   // Deterministic order, independent of source row order: name, country, sub,
@@ -802,13 +803,27 @@ function buildGazetteer(tsv) {
 
   const cities = [];
   const byName = {};
+  // BL-122: distinct IANA zones (sorted below) + a `tz` array parallel to
+  // `cities` (index into `zones`, −1 when a row had no zone) so `poi Denver
+  // clock` derives its local time without the author restating the zone.
+  const zoneId = new Map();
+  const rawTz = [];
   for (let i = 0; i < recs.length; i++) {
     const r = recs[i];
     const tuple = [r.lat, r.lon, r.cc, r.pop, r.name];
     if (r.sub) tuple.push(r.sub);
     cities.push(tuple);
     (byName[r.foldedName] ||= []).push(i);
+    if (r.tz) {
+      if (!zoneId.has(r.tz)) zoneId.set(r.tz, zoneId.size);
+      rawTz.push(zoneId.get(r.tz));
+    } else rawTz.push(-1);
   }
+  // Sort the zone table for a stable, readable emit; remap the tz indices.
+  const zonesUnsorted = [...zoneId.keys()];
+  const zones = [...zonesUnsorted].sort(cmp);
+  const zoneRemap = new Map(zones.map((z, newId) => [zonesUnsorted.indexOf(z), newId]));
+  const tz = rawTz.map((id) => (id < 0 ? -1 : zoneRemap.get(id)));
 
   // Curated aliases → most-populous matching city index (F5). Skip any that
   // don't resolve (warn) or that collide with a real city name (byName wins).
@@ -829,9 +844,9 @@ function buildGazetteer(tsv) {
   }
 
   return {
-    gaz: { cities, byName, alt },
+    gaz: { cities, byName, alt, zones, tz },
     stats: {
-      kept: cities.length, droppedRows, minDate, maxDate,
+      kept: cities.length, droppedRows, minDate, maxDate, zones: zones.length,
       capitalsHit: [...capitalsHit].sort(), aliases: Object.keys(alt).length,
       missingAliases,
     },

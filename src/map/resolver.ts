@@ -38,7 +38,7 @@ import {
  *  retry in pass B with inferred scope" — distinct from `miss` (errored, drop) so
  *  pass-A deferral never has to infer state from unrelated same-line diagnostics. */
 type LookupResult =
-  | { kind: 'ok'; lat: number; lon: number; iso: string }
+  | { kind: 'ok'; lat: number; lon: number; iso: string; tz?: string }
   | { kind: 'defer' }
   | { kind: 'miss' };
 
@@ -520,7 +520,9 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       diagnostics.push(emit(MAP_DX.UNKNOWN_PLACE, line, { name, hint }));
       return { kind: 'miss' };
     }
-    let cands = idxs.map((i) => data.gazetteer.cities[i]!);
+    // Keep each candidate's gazetteer index so the resolved city's IANA zone
+    // (`gazetteer.tz[i]` → `gazetteer.zones[…]`, BL-122) can ride back out.
+    let cands = idxs.map((i) => ({ i, c: data.gazetteer.cities[i]! }));
     const scopeUse = scope ?? scopeHint;
     if (scopeUse) {
       // ISO 3166-2 subdivision scope is `XX-…` (two letters + dash). A bare
@@ -529,7 +531,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
       // code; any other bare two-letter token is a 3166-1 country code.
       const bareState = usStateFromBareScope(scopeUse);
       const subScope = /^[A-Za-z]{2}-/.test(scopeUse) ? scopeUse : bareState;
-      const filtered = cands.filter((c) =>
+      const filtered = cands.filter(({ c }) =>
         subScope ? c[5] === subScope : c[2] === scopeUse
       );
       if (filtered.length) cands = filtered;
@@ -545,10 +547,10 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
         return { kind: 'defer' }; // ambiguous, no scope → pass B
       }
       // most-populous; tie-break lowest index (R11 — byName is NOT pop-ordered).
-      cands = [...cands].sort((a, b) => b[3] - a[3]);
+      cands = [...cands].sort((a, b) => b.c[3] - a.c[3]);
       if (!scope) diagnostics.push(emit(MAP_DX.AMBIGUOUS_NAME, line, { name }));
     }
-    const c = cands[0]!;
+    const { i: cityIdx, c } = cands[0]!;
     // Shadow hint (ADR-2/F9): the token resolved to a city but is ALSO a bundled
     // IATA code (e.g. `Ufa` city vs UFA airport). Non-blocking, once per code, and
     // only for the `byName` overlap set (an `alt`-alias hit whose key differs from
@@ -563,7 +565,18 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
         emit(MAP_DX.AIRPORT_SHADOWED_BY_CITY, line, { name, code })
       );
     }
-    return { kind: 'ok', lat: c[0], lon: c[1], iso: c[2] };
+    const zoneId = data.gazetteer.tz?.[cityIdx];
+    const gazTz =
+      zoneId !== undefined && zoneId >= 0
+        ? data.gazetteer.zones?.[zoneId]
+        : undefined;
+    return {
+      kind: 'ok',
+      lat: c[0],
+      lon: c[1],
+      iso: c[2],
+      ...(gazTz !== undefined && { tz: gazTz }),
+    };
   };
 
   const poiIdFor = (pos: PoiPos, alias: string | undefined): string => {
@@ -608,7 +621,7 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     );
     if (got.kind === 'ok') {
       noteCountry(got.iso);
-      addResolvedPoi(got.lat, got.lon, p);
+      addResolvedPoi(got.lat, got.lon, p, got.tz);
     } else if (got.kind === 'defer') {
       deferred.push(p); // ambiguous, not an error → pass B
     }
@@ -636,18 +649,19 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     );
     if (got.kind === 'ok') {
       noteCountry(got.iso);
-      addResolvedPoi(got.lat, got.lon, p);
+      addResolvedPoi(got.lat, got.lon, p, got.tz);
     }
   }
 
   function addResolvedPoi(
     lat: number,
     lon: number,
-    p: (typeof parsed.pois)[number]
+    p: (typeof parsed.pois)[number],
+    gazTz?: string
   ): void {
     const id = poiIdFor(p.pos, p.alias);
     const name = p.pos.kind === 'name' ? p.pos.name : p.alias;
-    const tz = resolveTz(p.meta['tz'], p.lineNumber);
+    const tz = resolveTz(p, gazTz);
     const poi: Writable<ResolvedPoi> = {
       id,
       ...(name !== undefined && { name }),
@@ -666,23 +680,41 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
     registerPoi(id, poi, p.lineNumber);
   }
 
-  /** BL-122 clock channel: resolve a POI's explicit `tz:` to an IANA zone id or a
-   *  canonical fixed-offset label. Only runs when the `clock` directive is on
-   *  (a stray `tz:` on a non-clock map is inert). A fixed offset (`UTC+9`) wins
-   *  first (DST-blind), then an IANA id; an unrecognized value warns + omits so
-   *  the pin still renders, just without a card. */
+  /** BL-122 clock channel: resolve the IANA zone for a POI flagged `clock`.
+   *  The place determines the zone — a named city inherits `gazTz` (the
+   *  gazetteer's GeoNames zone). An explicit `tz:` is an OVERRIDE, required only
+   *  for bare-coord pins (no gazetteer entry) and honored elsewhere (with a warn
+   *  if it contradicts the city's known zone). Accepts a fixed offset (`UTC+9`,
+   *  DST-blind) or an IANA id. Returns undefined (no card) when the pin isn't
+   *  flagged, or is flagged but has neither an override nor a derivable zone. */
   function resolveTz(
-    raw: string | undefined,
-    line: number
+    p: (typeof parsed.pois)[number],
+    gazTz: string | undefined
   ): { zone: string; fixedOffsetMin?: number } | undefined {
-    if (!parsed.directives.clock || raw === undefined) return undefined;
-    const v = raw.trim();
-    if (!v) return undefined;
-    const off = parseFixedOffset(v);
-    if (off !== null)
-      return { zone: formatOffsetLabel(off), fixedOffsetMin: off };
-    if (isValidZone(v)) return { zone: v };
-    diagnostics.push(emit(MAP_DX.CLOCK_TZ_INVALID, line, { name: v }));
+    if (!p.clock) return undefined;
+    const raw = p.meta['tz']?.trim();
+    const line = p.lineNumber;
+    if (raw) {
+      const off = parseFixedOffset(raw);
+      if (off !== null)
+        return { zone: formatOffsetLabel(off), fixedOffsetMin: off };
+      if (isValidZone(raw)) {
+        // A named city whose explicit tz contradicts its real zone is almost
+        // always a mistake (`poi Denver tz: UTC`) — flag it, but honor the
+        // author's override.
+        if (gazTz && raw !== gazTz)
+          diagnostics.push(
+            emit(MAP_DX.CLOCK_TZ_OVERRIDE, line, { name: raw, tz: gazTz })
+          );
+        return { zone: raw };
+      }
+      diagnostics.push(emit(MAP_DX.CLOCK_TZ_INVALID, line, { name: raw }));
+      return undefined;
+    }
+    if (gazTz) return { zone: gazTz };
+    // Flagged `clock` but no zone to be had: a bare-coord pin (or the rare city
+    // GeoNames didn't zone). Renders the marker, no card — tell the author how.
+    diagnostics.push(emit(MAP_DX.CLOCK_TZ_NEEDED, line, {}));
     return undefined;
   }
 

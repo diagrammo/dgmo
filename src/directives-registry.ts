@@ -161,10 +161,10 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'no-colorize', category: 'directive', map: true },
   { token: 'no-cities', category: 'directive', map: true },
   { token: 'no-cluster-pois', category: 'directive', map: true },
-  // ── Clock channel (BL-122): live local-time cards on tz-resolved POIs ──
-  // `clock` (bare flag) turns the channel on; `hours 9-17` / `days mon-fri`
-  // set the per-pin availability window (reused verbatim from the clock type).
-  { token: 'clock', category: 'directive', map: true },
+  // ── Clock channel (BL-122): live local-time cards on POIs flagged `clock` ──
+  // Activation is the per-POI `clock` flag (peeled in the map parser, not a
+  // directive). `hours 9-17` / `days mon-fri` are the global availability
+  // window (reused verbatim from the clock chart type).
   { token: 'hours', category: 'directive', map: true },
   { token: 'days', category: 'directive', map: true },
 

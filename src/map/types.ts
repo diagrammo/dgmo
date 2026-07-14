@@ -73,13 +73,9 @@ export interface MapDirectives {
    *  export — so a dense map reads the same on screen as on paper. No-op for
    *  export (already always expanded). */
   noClusterPois?: boolean;
-  /** `clock` (BL-122) — turn on the live local-time card channel: every POI that
-   *  resolves to an IANA zone (explicit `tz:` meta, or a gazetteer `tz` once
-   *  built) renders a time card above its marker, ticking each second on live
-   *  surfaces (baked snapshot on CLI/PNG). Bare flag; off by default. */
-  clock?: boolean;
   /** `hours 9-17` — availability window for the clock channel (open/closed status
-   *  dot), evaluated per pin in its own zone. Raw string; parsed at resolve. */
+   *  dot), evaluated per pin in its own zone. Raw string; parsed at resolve.
+   *  Activation is the per-POI `clock` flag (BL-122), not a header directive. */
   clockHours?: string;
   /** `days mon-fri` — working days for the clock channel window (default mon-fri
    *  when `hours` is set). Raw string; parsed at resolve. */
@@ -115,6 +111,10 @@ export interface MapPoi {
   /** §1.5 trailing-token color NAME → flat marker fill (§24B.5); wins over a
    *  tag color and the default orange. */
   readonly color?: string;
+  /** BL-122 — the bare `clock` flag on this POI line: render a live local-time
+   *  card above the marker. Zone comes from the gazetteer (named cities) or an
+   *  explicit `tz:` (required for bare-coord pins). */
+  readonly clock?: boolean;
   readonly tags: Readonly<Record<string, string>>;
   readonly meta: Readonly<Record<string, string>>;
   readonly lineNumber: number;

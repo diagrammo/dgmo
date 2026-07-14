@@ -208,7 +208,6 @@ const INVENTORY = {
     'bottom-right',
     'caption',
     'circle-nodes',
-    'clock',
     'color',
     'color-by',
     'columns',

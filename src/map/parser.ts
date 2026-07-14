@@ -410,11 +410,9 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       case 'no-cluster-pois':
         d.noClusterPois = true;
         break;
-      // ── Clock channel (BL-122). `clock` is a bare flag; `hours`/`days` set the
-      //    availability window, stored raw and parsed at resolve. ──
-      case 'clock':
-        d.clock = true;
-        break;
+      // ── Clock channel (BL-122). Activation is the per-POI `clock` flag (see
+      //    handlePoi); `hours`/`days` are the global availability window, stored
+      //    raw and parsed at resolve. ──
       case 'hours':
         dup(d.clockHours);
         d.clockHours = value;
@@ -526,6 +524,15 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
         line,
         'Coordinates are positional, not `at:` — write `poi <lat> <lon>`.'
       );
+    // BL-122 — peel a standalone `clock` flag before name/meta splitting so it
+    // never corrupts a bare-coord `<lat> <lon>` parse or the alias. Lowercase,
+    // whole-word, first occurrence (place names are capitalized; `clock` is a flag).
+    let clockFlag = false;
+    const clockPeeled = rest.replace(/(?:^|\s)clock(?=\s|$)/, (m) => {
+      clockFlag = true;
+      return m.startsWith(' ') ? '' : ' ';
+    });
+    if (clockFlag) rest = clockPeeled.replace(/\s{2,}/g, ' ').trim();
     const split = splitNameAndMeta(
       rest,
       registry(),
@@ -541,6 +548,7 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     const label = meta['label']; // label lifted out of meta; `size:` (→ marker size) stays in meta
     if (label !== undefined) delete (meta as Record<string, string>)['label'];
     const poi: Writable<MapPoi> = { pos, tags, meta, lineNumber: line };
+    if (clockFlag) poi.clock = true;
     if (split.alias) poi.alias = split.alias;
     if (label !== undefined) poi.label = label;
     // §1.5 trailing color → flat marker fill (§24B.5); wins over a tag color.

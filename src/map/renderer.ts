@@ -1277,10 +1277,10 @@ export function renderMap(
     }
   }
 
-  // ── Clock cards (BL-122) — live local-time cards above tz-resolved POIs,
-  // layered above markers/labels. Baked snapshot ticks live via the shared
-  // clock ticker on interactive surfaces. ──
-  if (resolved.directives.clock) {
+  // ── Clock cards (BL-122) — live local-time cards above POIs flagged `clock`
+  // (each carries a resolved `tz`). Layered above markers/labels; the baked
+  // snapshot ticks live via the shared clock ticker on interactive surfaces. ──
+  if (resolved.pois.some((p) => p.tz !== undefined)) {
     const gCards = svg.append('g').attr('class', 'dgmo-map-clock-cards');
     renderClockCards(
       gCards,

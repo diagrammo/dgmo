@@ -48,6 +48,12 @@ export interface Gazetteer {
   byName: Record<string, number[]>;
   /** Folded alias → index into `cities`. Never collides with a `byName` key. */
   alt: Record<string, number>;
+  /** BL-122 clock-on-map: distinct IANA zone ids (sorted), referenced by `tz`. */
+  zones?: string[];
+  /** BL-122: IANA zone per city, parallel to `cities` — `tz[i]` indexes `zones`
+   *  (−1 when a city had no GeoNames match). Lets `poi Denver clock` derive its
+   *  local time without the author restating the zone. */
+  tz?: number[];
 }
 
 /**

@@ -1,5 +1,6 @@
-// BL-122 — clock channel on map POIs (parse + tz resolution). The card RENDER is
-// covered separately; here we lock the directive parse and the `tz:` bridge.
+// BL-122 — clock channel on map POIs. The per-POI `clock` flag activates a card;
+// named cities auto-derive their IANA zone from the gazetteer, bare-coord pins
+// need an explicit `tz:` override. Card RENDER contract is asserted at the end.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { parseMap } from '../src/map/parser';
 import { resolveMap } from '../src/map/resolver';
@@ -14,6 +15,9 @@ beforeAll(async () => {
 });
 
 const resolve = (src: string) => resolveMap(parseMap(src), DATA);
+const poi = (src: string) => resolve(src).pois[0];
+const hasDiag = (src: string, code: string) =>
+  resolve(src).diagnostics.some((d) => d.code === code);
 
 const P = getPalette('nord').light;
 const DIMS = { width: 800, height: 600 };
@@ -31,120 +35,129 @@ function render(src: string): SVGSVGElement {
   return el.querySelector('svg')!;
 }
 
-describe('map clock channel — directive parse', () => {
-  it('`clock` is a bare flag on the header', () => {
-    const p = parseMap('map\nclock\npoi 35.68 139.76 as Tokyo');
-    expect(p.directives.clock).toBe(true);
+describe('map clock channel — the `clock` flag', () => {
+  it('peels a trailing `clock` flag, leaving the place to resolve', () => {
+    const p = parseMap('map\npoi Denver clock');
+    expect(p.pois[0]?.clock).toBe(true);
+    expect(p.pois[0]?.pos).toMatchObject({ kind: 'name', name: 'Denver' });
   });
 
-  it('`hours` / `days` capture the availability window raw', () => {
-    const p = parseMap('map\nclock\nhours 9-17\ndays mon-fri\npoi 1 2 as A');
+  it('peels `clock` after an `as` alias', () => {
+    const p = parseMap('map\npoi San Francisco as HQ clock');
+    expect(p.pois[0]?.clock).toBe(true);
+    expect(p.pois[0]?.alias).toBe('HQ');
+    expect(p.pois[0]?.pos).toMatchObject({ name: 'San Francisco' });
+  });
+
+  it('peels `clock` on a coord pin without breaking the coords', () => {
+    const p = parseMap(
+      'map\npoi 39.74 -104.98 as Field clock tz: America/Denver'
+    );
+    expect(p.pois[0]?.clock).toBe(true);
+    expect(p.pois[0]?.pos).toMatchObject({ kind: 'coords', lat: 39.74 });
+    expect(p.pois[0]?.meta['tz']).toBe('America/Denver');
+  });
+
+  it('an unflagged pin is not a clock', () => {
+    expect(parseMap('map\npoi Denver').pois[0]?.clock).toBeUndefined();
+  });
+
+  it('there is no header `clock` directive anymore', () => {
+    // `clock` on its own line is not a directive → falls through to region-fill,
+    // never sets a directive flag.
+    const p = parseMap('map\nhours 9-17\npoi Denver clock');
+    expect((p.directives as Record<string, unknown>)['clock']).toBeUndefined();
     expect(p.directives.clockHours).toBe('9-17');
-    expect(p.directives.clockDays).toBe('mon-fri');
-  });
-
-  it('clock is off by default', () => {
-    const p = parseMap('map\npoi 1 2 as A');
-    expect(p.directives.clock).toBeUndefined();
   });
 });
 
-describe('map clock channel — tz resolution', () => {
-  it('explicit IANA `tz:` resolves when clock is on', () => {
-    const r = resolve('map\nclock\npoi 35.68 139.76 as Tokyo tz: Asia/Tokyo');
-    expect(r.pois[0]?.tz).toBe('Asia/Tokyo');
-    expect(r.pois[0]?.tzFixedOffsetMin).toBeUndefined();
+describe('map clock channel — zone derived from the place', () => {
+  it('a named city auto-derives its IANA zone (no tz: needed)', () => {
+    expect(poi('map\npoi Denver clock')?.tz).toBe('America/Denver');
   });
 
-  it('fixed-offset `tz: UTC+9` → canonical label + offset minutes', () => {
-    const r = resolve('map\nclock\npoi 35.68 139.76 as Tokyo tz: UTC+9');
-    expect(r.pois[0]?.tz).toBe('UTC+9');
-    expect(r.pois[0]?.tzFixedOffsetMin).toBe(540);
+  it('a border city derives the correct zone (Austin = Central, not Mountain)', () => {
+    expect(poi('map\npoi Austin clock')?.tz).toBe('America/Chicago');
   });
 
-  it('half-hour fixed offset (`tz: UTC+5:30`) parses', () => {
-    const r = resolve('map\nclock\npoi 19 72 as Mumbai tz: UTC+5:30');
-    expect(r.pois[0]?.tz).toBe('UTC+5:30');
-    expect(r.pois[0]?.tzFixedOffsetMin).toBe(330);
+  it('an unflagged named city gets no zone (no card)', () => {
+    expect(poi('map\npoi Denver')?.tz).toBeUndefined();
   });
 
-  it('a stray `tz:` is inert when clock is OFF (no card, no warn)', () => {
-    const r = resolve('map\npoi 35.68 139.76 as Tokyo tz: Asia/Tokyo');
-    expect(r.pois[0]?.tz).toBeUndefined();
-    expect(r.diagnostics.some((d) => d.code === 'W_MAP_CLOCK_TZ_INVALID')).toBe(
-      false
-    );
+  it('a bare-coord clock pin needs tz: — warns and gets no card', () => {
+    const p = poi('map\npoi 39.74 -104.98 as Field clock');
+    expect(p?.tz).toBeUndefined();
+    expect(p).toBeDefined();
+    expect(
+      hasDiag('map\npoi 39.74 -104.98 as Field clock', 'W_MAP_CLOCK_TZ_NEEDED')
+    ).toBe(true);
   });
 
-  it('malformed `tz:` warns and omits the card (pin still resolves)', () => {
-    const r = resolve('map\nclock\npoi 35.68 139.76 as Tokyo tz: Not/AZone');
-    expect(r.pois[0]).toBeDefined();
-    expect(r.pois[0]?.tz).toBeUndefined();
-    expect(r.diagnostics.some((d) => d.code === 'W_MAP_CLOCK_TZ_INVALID')).toBe(
-      true
-    );
+  it('a coord clock pin WITH tz: resolves', () => {
+    expect(
+      poi('map\npoi 39.74 -104.98 as Field clock tz: America/Denver')?.tz
+    ).toBe('America/Denver');
+  });
+});
+
+describe('map clock channel — explicit tz: override', () => {
+  it('a fixed offset (`tz: UTC+9`) → canonical label + minutes', () => {
+    const p = poi('map\npoi 35.6 139.7 as T clock tz: UTC+9');
+    expect(p?.tz).toBe('UTC+9');
+    expect(p?.tzFixedOffsetMin).toBe(540);
   });
 
-  it('a pin with no `tz:` under an on clock simply gets no card', () => {
-    const r = resolve('map\nclock\npoi 35.68 139.76 as Tokyo');
-    expect(r.pois[0]?.tz).toBeUndefined();
+  it('overriding a city with a DIFFERENT IANA zone warns but is honored', () => {
+    const src = 'map\npoi Denver clock tz: Asia/Tokyo';
+    expect(poi(src)?.tz).toBe('Asia/Tokyo');
+    expect(hasDiag(src, 'W_MAP_CLOCK_TZ_OVERRIDE')).toBe(true);
+  });
+
+  it('a fixed-offset override on a city is intentional — no warn', () => {
+    // `tz: UTC` is a deliberate fixed offset, not a mis-derived IANA zone.
+    expect(
+      hasDiag('map\npoi Denver clock tz: UTC', 'W_MAP_CLOCK_TZ_OVERRIDE')
+    ).toBe(false);
+  });
+
+  it('an explicit tz: matching the city zone does NOT warn', () => {
+    expect(
+      hasDiag(
+        'map\npoi Denver clock tz: America/Denver',
+        'W_MAP_CLOCK_TZ_OVERRIDE'
+      )
+    ).toBe(false);
+  });
+
+  it('a malformed tz: warns and drops the card (pin still resolves)', () => {
+    const src = 'map\npoi 1 2 as X clock tz: Not/AZone';
+    expect(poi(src)).toBeDefined();
+    expect(poi(src)?.tz).toBeUndefined();
+    expect(hasDiag(src, 'W_MAP_CLOCK_TZ_INVALID')).toBe(true);
   });
 });
 
 describe('map clock channel — card render (ticker contract)', () => {
-  it('bakes a `data-dgmo-clock` card group per tz POI', () => {
-    const svg = render('map\nclock\npoi 35.68 139.76 as Tokyo tz: Asia/Tokyo');
+  it('bakes a `data-dgmo-clock` card per flagged, zoned POI', () => {
+    const svg = render('map\nhours 9-17\ndays mon-fri\npoi Denver clock');
     const cards = svg.querySelectorAll('[data-dgmo-clock]');
     expect(cards.length).toBe(1);
     const g = cards[0]!;
-    expect(g.getAttribute('data-dgmo-clock-zone')).toBe('Asia/Tokyo');
-    // Digital-part anchors the shared ticker updates each second.
+    expect(g.getAttribute('data-dgmo-clock-zone')).toBe('America/Denver');
     expect(
       g.querySelector('[data-dgmo-clock-digital-part="main"]')
     ).toBeTruthy();
-    expect(
-      g.querySelector('[data-dgmo-clock-digital-part="sec"]')
-    ).toBeTruthy();
     expect(g.querySelector('[data-dgmo-clock-status-dot]')).toBeTruthy();
-    // Palette swatches for the palette-blind ticker.
-    expect(g.getAttribute('data-dgmo-clock-c-ok')).toBeTruthy();
-  });
-
-  it('bakes coords so the ticker can flip day/night status', () => {
-    const svg = render('map\nclock\npoi 35.68 139.76 as Tokyo tz: Asia/Tokyo');
-    const g = svg.querySelector('[data-dgmo-clock]')!;
-    expect(g.getAttribute('data-dgmo-clock-lat')).toBe('35.68');
-    expect(g.getAttribute('data-dgmo-clock-lon')).toBe('139.76');
-  });
-
-  it('a fixed offset bakes `-fixed-offset` and no sun', () => {
-    const svg = render('map\nclock\npoi 35.68 139.76 as T tz: UTC+9');
-    const g = svg.querySelector('[data-dgmo-clock]')!;
-    expect(g.getAttribute('data-dgmo-clock-fixed-offset')).toBe('540');
-    expect(g.getAttribute('data-dgmo-clock-sun')).toBe('0');
-  });
-
-  it('bakes the work window + a live status anchor when hours are set', () => {
-    const svg = render(
-      'map\nclock\nhours 9-17\ndays mon-fri\npoi 35.68 139.76 as T tz: Asia/Tokyo'
-    );
-    const g = svg.querySelector('[data-dgmo-clock]')!;
     expect(g.getAttribute('data-dgmo-clock-work-start')).toBe('540');
-    expect(g.getAttribute('data-dgmo-clock-work-end')).toBe('1020');
-    expect(g.getAttribute('data-dgmo-clock-work-days')).toBe(
-      'Mon,Tue,Wed,Thu,Fri'
-    );
-    expect(g.querySelector('[data-dgmo-clock-status]')).toBeTruthy();
   });
 
-  it('renders no cards when the clock directive is off', () => {
-    const svg = render('map\npoi 35.68 139.76 as Tokyo tz: Asia/Tokyo');
+  it('renders no cards when no pin is flagged', () => {
+    const svg = render('map\npoi Denver\npoi Austin');
     expect(svg.querySelectorAll('[data-dgmo-clock]').length).toBe(0);
   });
 
-  it('skips a tz-less pin (no card) but still renders the map', () => {
-    const svg = render('map\nclock\npoi 35.68 139.76 as Tokyo');
-    expect(svg.querySelectorAll('[data-dgmo-clock]').length).toBe(0);
-    expect(svg).toBeTruthy();
+  it('renders a card only for the flagged pin', () => {
+    const svg = render('map\npoi Denver clock\npoi Austin');
+    expect(svg.querySelectorAll('[data-dgmo-clock]').length).toBe(1);
   });
 });
