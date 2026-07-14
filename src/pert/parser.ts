@@ -110,14 +110,16 @@ const NEAR_DIRECTIVE_HINTS: ReadonlyArray<{
     matches: /^(low|medium|high)$/i,
   },
   {
+    // ISO, numeric slash (§ BL-121), or `now`. Month-name forms are omitted
+    // to avoid flagging activities like `start the engines`.
     stem: 'start',
     canonical: 'start-date',
-    matches: /^(\d{4}-\d{2}-\d{2}|now)$/i,
+    matches: /^(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|now)$/i,
   },
   {
     stem: 'end',
     canonical: 'end-date',
-    matches: /^\d{4}-\d{2}-\d{2}$/,
+    matches: /^(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)$/,
   },
   {
     stem: 'time',

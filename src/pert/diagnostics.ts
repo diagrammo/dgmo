@@ -68,7 +68,7 @@ export const PERT_DX = {
         ? `Invalid date '${String(date)}' for ${String(key)}. Expected YYYY-MM-DD.`
         : `Invalid date for ${String(key)}. Expected YYYY-MM-DD.`;
     },
-    hint: 'Use a calendar-valid ISO date, e.g. `2026-06-01` (dashes, not slashes).',
+    hint: 'Use a calendar-valid date — ISO (`2026-06-01`), slash (`6/1/2026`), or month-name (`Jun 1, 2026`).',
     example: 'pert\nstart-date 2026-13-99\nA 1 2 3\n',
   },
   NEAR_DIRECTIVE: {

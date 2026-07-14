@@ -27,7 +27,12 @@ contentPart {
   AsyncArrow { "~>" }
 
   Duration { $[0-9]+ ("." $[0-9]+)? ("min" | "bd" | "h" | "d" | "w" | "m" | "q" | "y" | "s") "?"? }
-  DateLiteral { $[0-9] $[0-9] $[0-9] $[0-9] "-" $[0-9] $[0-9] ("-" $[0-9] $[0-9])? }
+  // ISO `YYYY-MM[-DD]` plus the § BL-121 liberal numeric slash form
+  // `M/D[/YY[YY]]` (month-name dates highlight as words/Identifiers).
+  DateLiteral {
+    $[0-9] $[0-9] $[0-9] $[0-9] "-" $[0-9] $[0-9] ("-" $[0-9] $[0-9])? |
+    $[0-9] $[0-9]? "/" $[0-9] $[0-9]? ("/" $[0-9] $[0-9] ($[0-9] $[0-9])?)?
+  }
   Percentage { $[0-9]+ ("." $[0-9]+)? "%" }
   Number {
     $[0-9] $[0-9]? $[0-9]? ("," $[0-9] $[0-9] $[0-9])+ ("." $[0-9]+)? |

@@ -10,6 +10,7 @@
 1. [Universal Constructs](#1-universal-constructs)
 2. [Universal Name Handling](#2-universal-name-handling)
    2A. [Universal Aliases (`as` keyword)](#2a-universal-aliases-as-keyword)
+   2B. [Universal Date Handling](#2b-universal-date-handling)
 3. [Sequence Diagrams](#3-sequence-diagrams)
 4. [Infrastructure Diagrams](#4-infrastructure-diagrams)
 5. [Flowchart Diagrams](#5-flowchart-diagrams)
@@ -506,6 +507,51 @@ rarely benefit. Aliases should aid comprehension, not obscure it.
 - `E_VENN_ALIAS_KEYWORD_REMOVED` — legacy venn `alias` keyword
 - `W_ALIAS_CASE_NEAR_MATCH` — case-near-match suggestion
 - `W_ALIAS_UNDERUSED` — alias declared but referenced ≤1 time
+
+---
+
+## 2B. Universal Date Handling
+
+<a id="2b-universal-date-handling"></a>
+
+Every date-bearing chart — **gantt (§13), pert (§13A), timeline (§15),
+event-line (§28), countdown (§36)** — accepts one liberal date grammar. Write
+dates however is natural; they store internally as ISO. (Family uses year-grain
+only; clock has no date input.)
+
+**Accepted forms** (all equivalent to `2026-07-04`):
+
+- `2026-07-04` — ISO, canonical, always unambiguous
+- `2026-07-04 14:30` — datetime (where the type supports a time)
+- `2026-07` / `2026` — month- / year-grain
+- `07-04` / `7/4` — numeric, **US month-first by default**
+- `Jul 4` / `July 4` / `July 4, 2026` / `4 Jul 2026` — month-name
+- `753 BCE` / `14 CE` — era-signed year (timeline)
+
+**Rarely type a year.** A bare month-day resolves via: (1) an explicit year on
+the date → (2) a `year 20XX` directive → (3) a sibling dated row (timeline/
+event-line carry forward + roll across New Year; gantt/pert anchor to the first
+full date, usually `start`) → (4) the current render year (only if the chart has
+no full date at all; emits a soft `year 20XX` hint).
+
+**Directives** (any date-bearing chart; position-independent):
+
+| Directive | Effect |
+| --------- | ------ |
+| `year 2026` | base year for bare month-days |
+| `date-order dmy` | numeric slash/dash dates read day-first (default `mdy`) |
+| `no-current-year` | a fully-bare chart errors instead of assuming this year |
+
+**TIPS (AI authoring):**
+
+- Prefer `Jul 4` or `07-04` + one `year 2026` line over repeating the ISO year
+  on every row — shorter and reproducible.
+- `7/4` is **Jul 4** (US month-first). For day-first documents add `date-order
+  dmy` once at the top; then `7/4` is **Apr 7**.
+- Month-name forms (`Jul 4`) are never ambiguous and ignore `date-order` — use
+  them when a mixed audience will read the source.
+- Existing ISO dates keep working unchanged; this is a superset, not a
+  migration.
 
 ---
 

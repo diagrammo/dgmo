@@ -24,6 +24,10 @@ export const fixture: ConformanceFixture = {
     'sprint-length',
     'sprint-number',
     'sprint-start',
+    // Universal date directives (§ BL-121).
+    'year',
+    'date-order',
+    'no-current-year',
   ],
   pipeKeys: {
     node: [],
