@@ -121,8 +121,6 @@ export function parseBoxesAndLines(
   const nodes: MutBLNode[] = [];
   const edges: MutBLEdge[] = [];
   const groups: MutBLGroup[] = [];
-  // Trailing `layout` block (Canvas Editor spike): node-id → absolute {x,y}.
-  const nodePositions = new Map<string, { x: number; y: number }>();
   const result: Writable<ParsedBoxesAndLines> = {
     type: 'boxes-and-lines',
     title: null,
@@ -174,11 +172,6 @@ export function parseBoxesAndLines(
 
   // Tag block state
   let contentStarted = false;
-  // `layout` coordinate-block state (Canvas Editor spike). Unlike tag blocks,
-  // this is a TRAILING appendix — it may appear after diagram content.
-  let inLayoutBlock = false;
-  const LAYOUT_ENTRY_RE =
-    /^(.+?):\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/;
   let currentTagGroup: Writable<TagGroup> | null = null;
   // metaAliasMap: tag-group metadata-key aliases (per A1).
   const metaAliasMap = new Map<string, string>();
@@ -426,52 +419,6 @@ export function parseBoxesAndLines(
     // Non-indented line closes tag group
     if (currentTagGroup && indent === 0) {
       currentTagGroup = null;
-    }
-
-    // `layout` coordinate block (Canvas Editor spike). A bare `layout` heading
-    // at indent 0 opens the block; indented `<node-id>: <x>, <y>` entries map a
-    // node to an absolute position. Any non-indented line closes it. Quarantined
-    // before group/node/edge matching so the entries don't parse as nodes.
-    if (!inLayoutBlock && indent === 0 && trimmed === 'layout') {
-      // Disambiguate from a node legitimately NAMED `layout`: only treat this as
-      // the coordinate appendix when the next non-blank line is an indented
-      // `<id>: <x>, <y>` entry. Otherwise fall through and parse `layout` as a
-      // normal node (no silent data loss).
-      let isBlock = false;
-      for (let j = i + 1; j < lines.length; j++) {
-        const peek = lines[j]!;
-        if (!peek.trim()) continue;
-        isBlock = measureIndent(peek) > 0 && LAYOUT_ENTRY_RE.test(peek.trim());
-        break;
-      }
-      if (isBlock) {
-        flushDescription();
-        closeGroupsToIndent(0);
-        inLayoutBlock = true;
-        continue;
-      }
-    }
-    if (inLayoutBlock) {
-      if (indent > 0) {
-        const lm = trimmed.match(LAYOUT_ENTRY_RE);
-        if (lm) {
-          nodePositions.set(lm[1]!.trim(), {
-            x: Number(lm[2]),
-            y: Number(lm[3]),
-          });
-        } else {
-          result.diagnostics.push(
-            makeDgmoError(
-              lineNum,
-              `Invalid layout entry "${trimmed}" — expected "<node-id>: <x>, <y>"`,
-              'warning'
-            )
-          );
-        }
-        continue;
-      }
-      // indent 0 → block ends; fall through to process this line normally.
-      inLayoutBlock = false;
     }
 
     // Description collection: indented non-edge lines under a node
@@ -799,31 +746,6 @@ export function parseBoxesAndLines(
   // resolves explicit tag colors against the Nord defaults (no palette is
   // passed to extractColor above), so auto colors match for consistency.
   finalizeAutoTagColors(result.tagGroups as Writable<TagGroup>[]);
-
-  // Attach parsed `layout` positions. Validate coverage: unknown ids warn; a
-  // PARTIAL block (some nodes unpositioned) is honored by neither pin nor seed —
-  // the layout engine ignores it and auto-lays-out (Decision 3, AC12), so emit a
-  // single diagnostic naming the gap.
-  if (nodePositions.size > 0) {
-    const nodeLabelSet = new Set(result.nodes.map((n) => n.label));
-    for (const id of nodePositions.keys()) {
-      if (!nodeLabelSet.has(id)) {
-        pushWarning(0, `layout entry for unknown node "${id}" (ignored)`);
-      }
-    }
-    const unpositioned = result.nodes
-      .filter((n) => !nodePositions.has(n.label))
-      .map((n) => n.label);
-    if (unpositioned.length > 0) {
-      pushWarning(
-        0,
-        `layout block is partial — ${unpositioned.length} node(s) without coordinates ` +
-          `(${unpositioned.slice(0, 5).join(', ')}${unpositioned.length > 5 ? '…' : ''}); ` +
-          `ignoring the block and auto-laying-out`
-      );
-    }
-    result.nodePositions = nodePositions;
-  }
 
   // Post-parse: inject default tag metadata and validate tag values
   if (result.tagGroups.length > 0) {

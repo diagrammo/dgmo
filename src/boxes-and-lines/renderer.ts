@@ -93,15 +93,6 @@ const lineGeneratorTB = d3Shape
   .y((d) => d.y)
   .curve(d3Shape.curveBasis);
 
-// Straight (linear) generator for pinned-layout connectors (Canvas Editor
-// spike). curveBasis collapses a 2-point polyline, so border-clipped straight
-// edges must draw linearly.
-const lineGeneratorStraight = d3Shape
-  .line<{ x: number; y: number }>()
-  .x((d) => d.x)
-  .y((d) => d.y)
-  .curve(d3Shape.curveLinear);
-
 // ── Text fitting ───────────────────────────────────────────
 
 function splitCamelCase(word: string): string[] {
@@ -563,43 +554,8 @@ export function renderBoxesAndLines(
   const scaleY = height / (contentH + sDiagramPadding * 2);
   const scale = Math.min(scaleX, scaleY, 3);
 
-  // Pinned (`layout`-block) coordinates can leave the content's real extent
-  // sitting off-centre inside layout.width/height — e.g. nodes pinned far from
-  // the origin bake a wide gap on one side. Re-centre the content within its
-  // own box by equalizing opposite margins. Gated to pinned diagrams so the
-  // auto-layout path (and its snapshots) stays byte-identical: that path
-  // already produces symmetric margins.
-  let centerShiftX = 0;
-  let centerShiftY = 0;
-  if (parsed.nodePositions && parsed.nodePositions.size > 0) {
-    let bMinX = Infinity,
-      bMinY = Infinity,
-      bMaxX = -Infinity,
-      bMaxY = -Infinity;
-    const accB = (x: number, y: number) => {
-      if (x < bMinX) bMinX = x;
-      if (x > bMaxX) bMaxX = x;
-      if (y < bMinY) bMinY = y;
-      if (y > bMaxY) bMaxY = y;
-    };
-    for (const n of layout.nodes) {
-      accB(n.x - n.width / 2, n.y - n.height / 2);
-      accB(n.x + n.width / 2, n.y + n.height / 2);
-    }
-    for (const g of layout.groups) {
-      accB(g.x - g.width / 2, g.y - g.height / 2);
-      accB(g.x + g.width / 2, g.y + g.height / 2);
-    }
-    for (const e of layout.edges) for (const p of e.points) accB(p.x, p.y);
-    if (Number.isFinite(bMinX)) {
-      centerShiftX = (layout.width - bMaxX - bMinX) / 2;
-      centerShiftY = (layout.height - bMaxY - bMinY) / 2;
-    }
-  }
-
-  const offsetX = (width - contentW * scale) / 2 + centerShiftX * scale;
-  const offsetY =
-    sDiagramPadding + titleOffset + legendH + centerShiftY * scale;
+  const offsetX = (width - contentW * scale) / 2;
+  const offsetY = sDiagramPadding + titleOffset + legendH;
 
   const svg: D3Svg = d3Selection
     .select(container)
@@ -874,11 +830,7 @@ export function renderBoxesAndLines(
       .attr('data-to', le.target);
 
     const markerId = `bl-arrow-${color.replace('#', '')}`;
-    const gen = le.straight
-      ? lineGeneratorStraight
-      : parsed.direction === 'TB'
-        ? lineGeneratorTB
-        : lineGeneratorLR;
+    const gen = parsed.direction === 'TB' ? lineGeneratorTB : lineGeneratorLR;
     const path = edgeG
       .append('path')
       .attr('class', 'bl-edge')

@@ -127,22 +127,6 @@ describe('focusBoxesAndLines', () => {
     expect(refs).not.toContain('D');
   });
 
-  it('Dec21 / FM2: pinned nodePositions are cleared on the focused subset', () => {
-    const parsed = parseBoxesAndLines(
-      src(
-        'A -> B',
-        'C -> A',
-        'layout',
-        '  A: 10, 20',
-        '  B: 100, 20',
-        '  C: 50, 80'
-      )
-    );
-    expect(parsed.nodePositions).toBeDefined();
-    const r = focusBoxesAndLines(parsed, { kind: 'box', id: 'A' });
-    expect(r.parsed.nodePositions).toBeUndefined();
-  });
-
   it('AC10 / Dec19: an edge-less target returns the lone element', () => {
     const parsed = parseBoxesAndLines(src('Lonely', 'B -> C'));
     const r = focusBoxesAndLines(parsed, { kind: 'box', id: 'Lonely' });

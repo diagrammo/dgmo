@@ -33,7 +33,13 @@ declare function resolveTheme(theme: ThemePreference | undefined): 'light' | 'da
 interface AutoConfig {
     theme?: 'auto' | 'light' | 'dark' | 'transparent';
     palette?: string;
+    /** Show the source-view toggle + collapsible source panel. Default true. */
     showSource?: boolean;
+    /** Show the copy-source button. Default true. */
+    showCopy?: boolean;
+    /** Show the expand (full-screen) button. Default true. */
+    showExpand?: boolean;
+    /** Show the open-in-editor link. Default true. */
     showEditorLink?: boolean;
 }
 interface RunOptions {

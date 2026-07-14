@@ -51,6 +51,12 @@ declare class DgmoDiagram extends HTMLElement {
     private editorBase;
     private mapDataBase;
     private isShowcase;
+    /**
+     * Per-button visibility. Each defaults to the `mode` (showcase → on,
+     * diagram → off) and can be independently overridden with a `show-*`
+     * attribute set to `true` / `false`.
+     */
+    private boolAttr;
     private mount;
     private showError;
     private rerender;

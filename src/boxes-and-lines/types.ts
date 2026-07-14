@@ -42,15 +42,6 @@ export interface ParsedBoxesAndLines {
   readonly notes?: readonly DiagramNote[];
   readonly initialHiddenTagValues: ReadonlyMap<string, ReadonlySet<string>>;
   readonly direction: 'LR' | 'TB';
-  /** Optional per-node absolute positions, parsed from a trailing `layout`
-   *  block (`<node-id>: <x>, <y>`). Diagram-space coordinates. When present and
-   *  covering EVERY node, the layout engine bypasses auto-placement and pins
-   *  nodes here (see Decision 3 — two clean modes). A partial block is ignored
-   *  with a diagnostic (AC12). Experimental — Canvas Editor spike. */
-  readonly nodePositions?: ReadonlyMap<
-    string,
-    { readonly x: number; readonly y: number }
-  >;
   /** `heat <label> [low] [high]` — names the value-ramp dimension and
    *  optionally sets its endpoint colours. One color = high hue over a neutral
    *  low; two = explicit `low high`. Mirror of map's `region-heat`. */

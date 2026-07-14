@@ -33,7 +33,7 @@ export interface FocusTarget {
 
 export interface FocusResult {
   /** Filtered model to lay out + render (neighbour groups already collapsed via
-   *  `collapseBoxesAndLines`; `nodePositions` cleared so the subset auto-lays). */
+   *  `collapseBoxesAndLines`). */
   readonly parsed: ParsedBoxesAndLines;
   /** Canonical keys of the 1-hop neighbours kept in view (box labels +
    *  `__group_<label>` for neighbour groups). */
@@ -225,9 +225,6 @@ export function focusBoxesAndLines(
     groups,
     ...(notes !== undefined && { notes }),
   };
-  // Clear pinned positions so the subset auto-lays-out (Dec 21 / FM2). Pins are
-  // restored on exit because exit re-renders the original unfiltered model.
-  delete (filtered as { nodePositions?: unknown }).nodePositions;
 
   // ── Step 5: collapse neighbour groups via the shared redirect+dedup (ADR-3) ──
   const collapsed = collapseBoxesAndLines(filtered, collapsedNeighborGroupIds);
