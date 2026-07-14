@@ -143,14 +143,48 @@ direction TB
     expect(p.events[0]!.dateValue).toBe(p.events[1]!.dateValue);
   });
 
-  it('warns on a non-ISO (slash) date', () => {
+  it('`year` directive supplies the year for bare month-days (BL-121)', () => {
+    const p = parseEventLine(`event-line X
+year 2026
+
+7/4 Independence
+9/2 Labor Day`);
+    expect(p.events.map((e) => e.date)).toEqual(['2026-07-04', '2026-09-02']);
+    expect(p.diagnostics.some((d) => d.severity === 'error')).toBe(false);
+  });
+
+  it('carry-forward + rollover from an explicit anchor (BL-121)', () => {
+    const p = parseEventLine(`event-line X
+
+2026-11-01 Kickoff
+12-15 Release candidate
+01-10 Launch`);
+    expect(p.events.map((e) => e.date)).toEqual([
+      '2026-11-01',
+      '2026-12-15',
+      '2027-01-10', // rolled: Jan < Dec
+    ]);
+  });
+
+  it('`date-order dmy` reads a slash date day-first (BL-121)', () => {
+    const p = parseEventLine(`event-line X
+year 2026
+date-order dmy
+
+7/4 Something`);
+    expect(p.events[0]!.date).toBe('2026-04-07');
+  });
+
+  it('accepts a US slash date (month-first) and normalizes to ISO (BL-121)', () => {
     const p = parseEventLine(`event-line X
 
 7/16/1969 Liftoff
   Departs.`);
     expect(p.diagnostics.some((d) => d.code === 'E_EVENT_LINE_BAD_DATE')).toBe(
-      true
+      false
     );
+    expect(p.events[0]!.date).toBe('1969-07-16');
+    expect(p.events[0]!.label).toBe('Liftoff');
   });
 
   it('rejects a date range as a reserved seam', () => {

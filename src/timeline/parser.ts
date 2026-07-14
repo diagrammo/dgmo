@@ -6,6 +6,13 @@ import {
   withTagAliases,
   type ReservedKeyRegistry,
 } from '../utils/reserved-key-registry';
+import {
+  parseDateToken,
+  toInternal,
+  type DateOrder,
+  type DateToken,
+  type ResolveOutcome,
+} from '../utils/date';
 import type { TimelineEvent } from './types';
 
 // ── Duration units supported by timeline (subset of gantt) ───
@@ -13,17 +20,20 @@ type TimelineDurationUnit = 'd' | 'w' | 'm' | 'y' | 'h' | 'min' | 's';
 
 const TIMELINE_DURATION_RE = /^(\d+(?:\.\d{1,2})?)(min|[dwmyhs])(\?)?$/;
 
-// ── Date prefix regex ────────────────────────────────────────
-// Matches: YYYY, YYYY-MM, YYYY-MM-DD, YYYY-MM-DD HH:MM(:SS)
-// Optionally followed by -> endDate (with optional ?)
-const DATE_RE = /^(\d{4}(?:-\d{2}(?:-\d{2})?)?)/;
-const TIME_RE = /^\s+(\d{1,2}:\d{2}(?::\d{2})?)/;
 const ARROW_RE = /^\s*(?:->|–>)\s*/;
-// Era-marked date (BCE/BC/CE/AD). Allows 1–4 digit years so ancient dates like
-// `753 BCE` / `44 BC` parse; the marker is what disambiguates a short year from
-// a stray number. BCE/BC are stored as a signed-year string (`-753`); CE/AD are
-// no-ops (positive years). Astronomical-naive: `N BCE` ↔ internal year `-N`.
-const ERA_DATE_RE = /^(\d{1,4}(?:-\d{2}(?:-\d{2})?)?)\s+(BCE|BC|CE|AD)\b/i;
+
+/**
+ * Carry-forward date resolution context (§ BL-121). Threaded through a parser's
+ * event loop so bare month-days derive their year (explicit → `year` directive →
+ * sibling carry-forward + rollover → current year). Absent → each date resolves
+ * standalone against `currentYear`, preserving the pre-BL-121 single-date view.
+ */
+export interface DatePrefixCtx {
+  order?: DateOrder | undefined;
+  /** Stateful resolver (mutates its own YearContext across calls). */
+  resolve?: ((tok: DateToken) => ResolveOutcome) | undefined;
+  currentYear?: number | undefined;
+}
 
 interface DatePrefix {
   startDate: string;
@@ -36,64 +46,37 @@ interface DatePrefix {
   invalidEndTime: string | undefined;
 }
 
-function parseTime(timeStr: string): {
-  valid: boolean;
-  h: number;
-  m: number;
-  s: number;
-} {
-  const [hStr, mStr, sStr] = timeStr.split(':');
-  const h = parseInt(hStr!, 10);
-  const m = parseInt(mStr!, 10);
-  const s = sStr !== undefined ? parseInt(sStr, 10) : 0;
-  const valid = h >= 0 && h <= 23 && m >= 0 && m <= 59 && s >= 0 && s <= 59;
-  return { valid, h, m, s };
-}
-
-function parseDateWithOptionalTime(input: string): {
+function parseDateWithOptionalTime(
+  input: string,
+  ctx?: DatePrefixCtx
+): {
   date: string;
   rest: string;
   timeValid: boolean;
   invalidTime: string | undefined;
 } | null {
-  // Era-marked dates (`753 BCE`, `44 BC`, `14 CE`) come first — they allow short
-  // years and never carry a time component.
-  const eraMatch = input.match(ERA_DATE_RE);
-  if (eraMatch) {
-    const marker = eraMatch[2]!.toUpperCase();
-    const bce = marker === 'BCE' || marker === 'BC';
-    const date = (bce ? '-' : '') + eraMatch[1]!;
-    return {
-      date,
-      rest: input.slice(eraMatch[0].length),
-      timeValid: true,
-      invalidTime: undefined,
-    };
-  }
-
-  const dateMatch = input.match(DATE_RE);
-  if (!dateMatch) return null;
-
-  let date = dateMatch[1]!;
-  let rest = input.slice(date.length);
-  let timeValid = true;
-  let invalidTime: string | undefined;
-
-  const timeMatch = rest.match(TIME_RE);
-  if (timeMatch) {
-    const timeStr = timeMatch[1]!;
-    const { valid } = parseTime(timeStr);
-    timeValid = valid;
-    if (!valid) invalidTime = timeStr;
-    date = `${date} ${timeStr}`;
-    rest = rest.slice(timeMatch[0].length);
-  }
-
-  return { date, rest, timeValid, invalidTime };
+  const res = parseDateToken(input, { dateOrder: ctx?.order });
+  if (!res) return null;
+  const { token, consumed } = res;
+  const internal = ctx?.resolve
+    ? ctx.resolve(token).internal
+    : toInternal(
+        token,
+        token.year ?? ctx?.currentYear ?? new Date().getFullYear()
+      );
+  return {
+    date: internal,
+    rest: input.slice(consumed),
+    timeValid: !token.invalidTime,
+    invalidTime: token.invalidTime,
+  };
 }
 
-export function extractDatePrefix(line: string): DatePrefix | null {
-  const startResult = parseDateWithOptionalTime(line);
+export function extractDatePrefix(
+  line: string,
+  ctx?: DatePrefixCtx
+): DatePrefix | null {
+  const startResult = parseDateWithOptionalTime(line, ctx);
   if (!startResult) return null;
 
   const { date: startDate } = startResult;
@@ -102,7 +85,7 @@ export function extractDatePrefix(line: string): DatePrefix | null {
   const arrowMatch = rest.match(ARROW_RE);
   if (arrowMatch) {
     rest = rest.slice(arrowMatch[0].length);
-    const endResult = parseDateWithOptionalTime(rest);
+    const endResult = parseDateWithOptionalTime(rest, ctx);
     if (endResult) {
       let uncertain = false;
       let afterEnd = endResult.rest;
@@ -325,11 +308,12 @@ export function parseTimelineEventLine(
   currentGroup: string | null,
   groupMetadata: Record<string, string>,
   aliasMap: Map<string, string>,
-  registry?: ReservedKeyRegistry
+  registry?: ReservedKeyRegistry,
+  dateCtx?: DatePrefixCtx
 ): ParseEventResult | null {
   const diagnostics: DgmoError[] = [];
 
-  const prefix = extractDatePrefix(line);
+  const prefix = extractDatePrefix(line, dateCtx);
   if (!prefix) {
     // Check if line starts with digits but doesn't match date format
     if (/^\d/.test(line)) {

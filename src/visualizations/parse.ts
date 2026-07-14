@@ -32,7 +32,13 @@ import {
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
-import { parseTimelineEventLine } from '../timeline/parser';
+import { parseTimelineEventLine, type DatePrefixCtx } from '../timeline/parser';
+import {
+  parseDateToken,
+  makeYearContext,
+  resolveTokenYear,
+  type DateOrder,
+} from '../utils/date';
 import {
   DEFAULT_CLOUD_OPTIONS,
   type ParsedVisualization,
@@ -113,6 +119,50 @@ function parseVisualizationFull(
   }
 
   const lines = content.split('\n');
+
+  // ── BL-121: timeline date directives + carry-forward year context ──
+  // Pre-scanned so directives may precede or follow the dates they govern, and
+  // a bare month-day derives its year (explicit → `year` → sibling carry-forward
+  // + rollover → current). Harmless for non-timeline types (no date lines).
+  let tlDateOrder: DateOrder = 'mdy';
+  let tlNoCurrentYear = false;
+  let tlDirectiveYear: number | null = null;
+  for (const raw of lines) {
+    const t = raw.trim().toLowerCase();
+    if (t === 'no-current-year') tlNoCurrentYear = true;
+    else if (t === 'date-order dmy') tlDateOrder = 'dmy';
+    else if (t === 'date-order mdy') tlDateOrder = 'mdy';
+    else {
+      const ym = t.match(/^year\s+(\d{1,4})$/);
+      if (ym) tlDirectiveYear = parseInt(ym[1]!, 10);
+    }
+  }
+  let tlPrescan: number | null = null;
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t) continue;
+    const p = parseDateToken(t, { dateOrder: tlDateOrder });
+    if (p?.token.year != null) {
+      tlPrescan = p.token.sign * p.token.year;
+      break;
+    }
+  }
+  const tlYearCtx = makeYearContext({
+    order: tlDateOrder,
+    directiveYear: tlDirectiveYear,
+    prescanYear: tlPrescan,
+    noCurrentYear: tlNoCurrentYear,
+  });
+  const tlDateCtx: DatePrefixCtx = {
+    order: tlDateOrder,
+    resolve: (tok) => resolveTokenYear(tok, tlYearCtx),
+  };
+  const isTlDateDirective = (t: string): boolean =>
+    t === 'no-current-year' ||
+    t === 'date-order dmy' ||
+    t === 'date-order mdy' ||
+    /^year\s+\d{1,4}$/.test(t);
+
   const freeformLines: string[] = [];
   let currentArcGroup: string | null = null;
   let currentTimelineGroup: string | null = null;
@@ -165,6 +215,9 @@ function parseVisualizationFull(
 
     // Timeline tag group heading: `tag Name [alias X]`
     if (result.type === 'timeline' && indent === 0) {
+      if (isTlDateDirective(line.toLowerCase())) {
+        continue; // BL-121 date directive — consumed in the pre-scan above
+      }
       const tagBlockMatch = matchTagBlockHeading(line);
       if (tagBlockMatch) {
         const newGroup: Writable<TagGroup> = {
@@ -598,7 +651,8 @@ function parseVisualizationFull(
         currentTimelineGroup,
         currentTimelineGroupMeta,
         timelineAliasMap,
-        tlRegistry
+        tlRegistry,
+        tlDateCtx
       );
 
       if (eventResult) {
