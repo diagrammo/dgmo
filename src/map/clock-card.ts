@@ -75,8 +75,11 @@ export function renderClockCards(
   const baseBg = themeBaseBg(palette, isDark);
   const muted = mix(palette.text, baseBg, 55);
   const sw = buildSwatches(palette, muted);
-  const cardFill = mix(palette.bg, palette.text, 4);
-  const border = mix(palette.text, palette.bg, 82);
+  // An elevated, theme-consistent surface: mostly bg with a whisper of ink, an
+  // opaque fill so the busy basemap never bleeds through, and a clear border so
+  // the card reads over pastel land the same way the map's own POI labels do.
+  const cardFill = mix(palette.text, palette.bg, 6);
+  const border = mix(palette.text, palette.bg, 32);
   const work = workFromDirectives(resolved.directives);
   const hours12 = true; // map cards default to 12-hour (matches clock default)
 
