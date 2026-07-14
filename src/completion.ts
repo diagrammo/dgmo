@@ -650,6 +650,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-visual': {
         description: 'Suppress the default-on calendar band (header only)',
       },
+      tz: {
+        description:
+          'Pin authored times to an IANA zone (e.g. America/New_York) so the count never drifts with the viewer; default viewer-local',
+      },
       lang: { description: 'Locale for words/month names (en)' },
       'on-day': { description: 'Text shown on the occurrence day (recurring)' },
       since: { description: 'Anchor year → enables the ordinal ("7th")' },

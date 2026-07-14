@@ -33,29 +33,38 @@ import {
   monthIndex,
   weekdayIndex,
   resolveNext,
+  targetToMs as resolveTargetToMs,
   type CountUnits,
   type Field,
   type RecurRule,
   type RoundMode,
 } from './resolve';
 
-const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_24H_RE = /^(\d{1,2}):(\d{2})$/;
 const AMPM_RE = /^(\d{1,2})(?::(\d{2}))?\s*([ap]m)$/i;
 
 /**
- * Resolve a one-shot target string to absolute epoch ms. A bare `YYYY-MM-DD` is
- * **local** midnight (JS `new Date("2026-08-21")` would be UTC midnight — wrong
- * for "days until"); a datetime with no offset is local; an offset is honored.
+ * Resolve a one-shot target string to absolute epoch ms, or null if unparseable.
+ * Thin back-compat wrapper over the canonical (tz-aware) `targetToMs` in
+ * `./resolve` — a bare `YYYY-MM-DD` counts to `tz`-midnight (viewer-local when
+ * `tz` is null); an ISO offset is always honored as an absolute instant.
  */
-export function targetToMs(target: string): number | null {
-  const s = target.trim();
-  if (DATE_ONLY_RE.test(s)) {
-    const [y, m, d] = s.split('-').map(Number) as [number, number, number];
-    return new Date(y, m - 1, d).getTime();
+export function targetToMs(
+  target: string,
+  tz: string | null = null
+): number | null {
+  const ms = resolveTargetToMs(target, tz);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Whether `zone` is an IANA zone (or `UTC`) that `Intl` recognizes. */
+function isValidZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+    return true;
+  } catch {
+    return false;
   }
-  const t = new Date(s).getTime();
-  return Number.isFinite(t) ? t : null;
 }
 
 /** The nth-ordinal prefix of an `on` token: `3rd` → 3, `last` → -1, else null. */
@@ -120,6 +129,7 @@ export function parseCountdown(
     rule: null,
     resolvedMs: null,
     hasTime: false,
+    tz: null,
     since: null,
     sinceLabel: null,
     units: 'human',
@@ -158,6 +168,13 @@ export function parseCountdown(
     weekday?: number;
   } | null = null;
   let atTime: { hour: number; minute: number } | null = null;
+  // Raw target/anchor strings, resolved to ms AFTER the loop so a `tz` line can
+  // appear in any order relative to `target`/`from`.
+  let targetRaw: string | null = null;
+  let targetIsNow = false;
+  let targetLine = 1;
+  let fromRaw: string | null = null;
+  let fromLine = 1;
   let anchorMs: number | null = null;
   let targetMs: number | null = null;
   let hasTargetLine = false;
@@ -214,22 +231,15 @@ export function parseCountdown(
       // ── One-shot target ──
       case 'target': {
         hasTargetLine = true;
+        targetLine = lineNum;
         if (/^now$/i.test(rest)) {
-          targetMs = Date.now();
-          result.target = new Date(targetMs).toISOString();
+          targetIsNow = true;
           result.hasTime = true;
         } else {
-          const ms = targetToMs(rest);
-          if (ms === null) {
-            softError(
-              lineNum,
-              `"target" needs an ISO date/datetime or "now" (got "${rest}").`
-            );
-          } else {
-            result.target = rest;
-            targetMs = ms;
-            if (rest.includes('T')) result.hasTime = true;
-          }
+          // Defer resolution until after the loop (a `tz` line may follow).
+          targetRaw = rest;
+          result.target = rest;
+          if (rest.includes('T')) result.hasTime = true;
         }
         break;
       }
@@ -294,15 +304,8 @@ export function parseCountdown(
         if (seg.at.length)
           atTime = parseAt(seg.at.join(' '), lineNum, softError);
         if (seg.from.length) {
-          const ms = targetToMs(seg.from.join(' '));
-          if (ms === null) {
-            softError(
-              lineNum,
-              `"from" needs an anchor date (got "${seg.from.join(' ')}").`
-            );
-          } else {
-            anchorMs = ms;
-          }
+          fromRaw = seg.from.join(' ');
+          fromLine = lineNum;
         }
         break;
       }
@@ -320,12 +323,8 @@ export function parseCountdown(
       }
 
       case 'from': {
-        const ms = targetToMs(rest);
-        if (ms === null) {
-          softError(lineNum, `"from" needs an anchor date (got "${rest}").`);
-        } else {
-          anchorMs = ms;
-        }
+        fromRaw = rest;
+        fromLine = lineNum;
         break;
       }
 
@@ -384,6 +383,23 @@ export function parseCountdown(
       case 'lang':
         result.lang = rest.toLowerCase() || 'en';
         break;
+
+      // ── `tz <IANA>` — pin authored wall-clock times to a zone (§36 tz slot).
+      //    Space-separated (no colon), an IANA id like `America/New_York`. ──
+      case 'tz': {
+        const zone = rest.trim();
+        if (!zone) {
+          warn(lineNum, '"tz" needs an IANA zone like America/New_York.');
+        } else if (!isValidZone(zone)) {
+          warn(
+            lineNum,
+            `Unknown time zone "${zone}" — use an IANA id like America/New_York. Counting viewer-local.`
+          );
+        } else {
+          result.tz = zone;
+        }
+        break;
+      }
       case 'on-day':
         result.onDay = rest || null;
         break;
@@ -408,6 +424,30 @@ export function parseCountdown(
   }
 
   if (noteBody.length) result.note = noteBody.join('\n');
+
+  // ── Resolve deferred target/anchor now that `tz` (if any) is known ──
+  if (targetIsNow) {
+    targetMs = Date.now();
+    result.target = new Date(targetMs).toISOString();
+  } else if (targetRaw !== null) {
+    const ms = targetToMs(targetRaw, result.tz);
+    if (ms === null) {
+      softError(
+        targetLine,
+        `"target" needs an ISO date/datetime or "now" (got "${targetRaw}").`
+      );
+    } else {
+      targetMs = ms;
+    }
+  }
+  if (fromRaw !== null) {
+    const ms = targetToMs(fromRaw, result.tz);
+    if (ms === null) {
+      softError(fromLine, `"from" needs an anchor date (got "${fromRaw}").`);
+    } else {
+      anchorMs = ms;
+    }
+  }
 
   // ── Mutual exclusion ──
   if (hasEvery && hasTargetLine) {
@@ -434,8 +474,10 @@ export function parseCountdown(
       softError
     );
     if (rule) {
-      result.rule = rule;
-      result.resolvedMs = resolveNext(rule, Date.now());
+      // Attach the zone so resolveNext anchors the `at`/`on` wall-clock in it.
+      const tzRule: RecurRule = result.tz ? { ...rule, tz: result.tz } : rule;
+      result.rule = tzRule;
+      result.resolvedMs = resolveNext(tzRule, Date.now());
       if (atTime) result.hasTime = true;
     }
   } else if (targetMs !== null) {

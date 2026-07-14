@@ -3782,7 +3782,7 @@ Percent is `now / target`. Over-target clamps the fill at 100% while the `%` lab
 <!-- TYPE:countdown -->
 
 <!-- TIPS start -->
-**Styling tips:** The only dynamic chart — it ticks every second and is accurate on every load, so use it for a live "N days until X" widget, not a static report. Keep the title to the event (`Trip to Japan`); the target date renders as a caption automatically. `target` is a space-separated `key value` directive (no colon): a bare date (`2026-08-21`) counts to the viewer's local midnight, a datetime or offset is honored. Default `units days` reads best for weeks/months out; use `units full` for a launch-day `Nd HH:MM:SS` clock. Set `expired` to the celebration text (`🚀 Shipped!`); after the target passes every live surface shows it and the tick stops. On images (PNG export, `.svg` via `<img>`, GitHub camo) it can't tick and shows the whole-day count baked at export time — the correct fallback.
+**Styling tips:** The only dynamic chart — it ticks every second and is accurate on every load, so use it for a live "N days until X" widget, not a static report. Keep the title to the event (`Trip to Japan`); the target date renders as a caption automatically. `target` is a space-separated `key value` directive (no colon): a bare date (`2026-08-21`) counts to midnight, a datetime or offset is honored. By default those times are **viewer-local** — each person sees their own; add `tz America/New_York` (any IANA zone, no colon) to **pin** the count so a shared launch/livestream page shows everyone the same remaining time and it doesn't shift when you carry the laptop to another zone. Default `units days` reads best for weeks/months out; use `units full` for a launch-day `Nd HH:MM:SS` clock. Set `expired` to the celebration text (`🚀 Shipped!`); after the target passes every live surface shows it and the tick stops. On images (PNG export, `.svg` via `<img>`, GitHub camo) it can't tick and shows the whole-day count baked at export time — the correct fallback.
 <!-- TIPS end -->
 
 The only *dynamic* dgmo chart: a single "N days until X" recomputed against the viewer's clock on every load and ticking every second on any live surface. Distinct from `goal` (static) — a countdown has no `now`/`target` pair, just one future instant. The renderer bakes a whole-day fallback number (the no-JS floor); a tiny page-level ticker overwrites it live and, in `units full`, upgrades it to `Nd HH:MM:SS`.
@@ -3810,12 +3810,13 @@ target 2026-08-21
 | Directive               | Effect                                                                 |
 | ----------------------- | ---------------------------------------------------------------------- |
 | `target <iso>`          | The future instant (required). `2026-08-21`, `2026-08-21T18:00`, or with a tz offset. The literal `now` resolves at render (→ immediately expired; for testing). |
+| `tz <IANA>`             | Pin authored times to a zone (`America/New_York`, `Asia/Kolkata`, `UTC`) so the count is the **same for every viewer** and doesn't drift when the host moves zones. Default viewer-local. Footer then shows the in-zone time + a `UTC±` tag. |
 | `units <days\|full>`    | `days` (default) shows whole days (ceil); `full` ticks `Nd HH:MM:SS` on live surfaces. |
 | `expired <text>`        | Shown once the target passes; the tick stops. Default `"Now!"`.        |
 
 ### Values & color
 
-A bare `YYYY-MM-DD` counts to the viewer's **local midnight**; a datetime with no offset is viewer-local; an explicit offset is honored. The trailing-token color rule (§1.5) applies to the title line (`countdown Trip to Japan blue`) and tints the figure.
+A bare `YYYY-MM-DD` counts to **midnight** and a datetime with no offset to that wall-clock time — both in the `tz` zone if one is set (`tz America/New_York`), otherwise **viewer-local**; an explicit ISO offset is always an absolute instant. Pin a `tz` when a shared page must show everyone the same countdown (a launch, a livestream); leave it off for a personal "my local deadline" widget. The trailing-token color rule (§1.5) applies to the title line (`countdown Trip to Japan blue`) and tints the figure.
 
 ### Semantics
 

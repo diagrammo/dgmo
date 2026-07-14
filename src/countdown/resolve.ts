@@ -13,11 +13,161 @@
 // dependency-free (no d3, no palettes) — it is bundled into the tiny
 // `dist/countdown.js` browser entry alongside the ticker.
 //
-// All Date construction uses LOCAL components (viewer-local, v1 — see spec §2.3).
-// Under TZ=UTC (the test env) local == UTC, so fixtures are deterministic.
+// Date math is viewer-local UNLESS a countdown carries a `tz <IANA>` slot, in
+// which case authored wall-clock times resolve *in that zone* (DST-correct via
+// `Intl`, dep-free — same approach as the clock chart) and instants format back
+// in that zone. A pinned tz makes the target an absolute instant, so a shared
+// page shows every viewer the same remaining time regardless of their OS clock
+// (spec §36 tz slot). With `tz` null the v1 viewer-local behavior is unchanged.
+// Under TZ=UTC (the test env) local == UTC, so fixtures stay deterministic.
 
 export const DAY_MS = 86_400_000;
 export const WEEK_MS = 7 * DAY_MS;
+
+// ── Time-zone helpers (dep-free; `Intl` only, like clock/resolve.ts) ──────────
+
+/** Zone-local wall-clock fields of an instant. `weekday` is 0 (Sun)–6 (Sat). */
+export interface ZoneFields {
+  year: number;
+  month: number; // 0-11
+  day: number; // 1-31
+  hour: number; // 0-23
+  minute: number; // 0-59
+  second: number; // 0-59
+  weekday: number; // 0-6
+}
+
+const ZONE_WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** The wall-clock fields of `ms` in `tz` (or viewer-local when `tz` is null). */
+export function zoneFields(ms: number, tz: string | null): ZoneFields {
+  const d = new Date(ms);
+  if (!tz) {
+    return {
+      year: d.getFullYear(),
+      month: d.getMonth(),
+      day: d.getDate(),
+      hour: d.getHours(),
+      minute: d.getMinutes(),
+      second: d.getSeconds(),
+      weekday: d.getDay(),
+    };
+  }
+  try {
+    const o: Record<string, string> = {};
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      weekday: 'short',
+    })
+      .formatToParts(d)
+      .forEach((x) => {
+        o[x.type] = x.value;
+      });
+    return {
+      year: Number(o['year']),
+      month: Number(o['month']) - 1,
+      day: Number(o['day']),
+      hour: Number(o['hour']) % 24,
+      minute: Number(o['minute']),
+      second: Number(o['second']),
+      weekday: Math.max(0, ZONE_WD.indexOf(o['weekday'] ?? 'Sun')),
+    };
+  } catch {
+    return {
+      year: d.getUTCFullYear(),
+      month: d.getUTCMonth(),
+      day: d.getUTCDate(),
+      hour: d.getUTCHours(),
+      minute: d.getUTCMinutes(),
+      second: d.getUTCSeconds(),
+      weekday: d.getUTCDay(),
+    };
+  }
+}
+
+/** Offset (ms) of `tz` at instant `ms`: (zone wall-clock) − UTC. */
+function zoneOffsetMs(tz: string, ms: number): number {
+  const f = zoneFields(ms, tz);
+  const asUTC = Date.UTC(f.year, f.month, f.day, f.hour, f.minute, f.second);
+  return asUTC - Math.floor(ms / 1000) * 1000;
+}
+
+/**
+ * The epoch ms of the wall-clock time y/mo(0-11)/d h:mi in `tz` (or viewer-local
+ * when `tz` is null). DST-correct with a one-pass offset correction across the
+ * spring/fall boundary. Dep-free — bundled into the tiny browser ticker.
+ */
+export function wallToMs(
+  y: number,
+  mo: number,
+  d: number,
+  h: number,
+  mi: number,
+  tz: string | null
+): number {
+  if (!tz) return new Date(y, mo, d, h, mi).getTime();
+  const guess = Date.UTC(y, mo, d, h, mi);
+  const off1 = zoneOffsetMs(tz, guess);
+  const ms = guess - off1;
+  const off2 = zoneOffsetMs(tz, ms);
+  return off2 === off1 ? ms : guess - off2;
+}
+
+/** The UTC-offset label for `ms` in `tz` (`"UTC−4"`, `"UTC+5:30"`), else "". */
+export function zoneOffsetLabel(ms: number, tz: string | null): string {
+  if (!tz) return '';
+  try {
+    const off = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      timeZoneName: 'shortOffset',
+    })
+      .formatToParts(new Date(ms))
+      .find((x) => x.type === 'timeZoneName');
+    return off ? off.value.replace('GMT', 'UTC') : '';
+  } catch {
+    return '';
+  }
+}
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+// A local (offset-free) datetime: `2026-08-21T18:00` / `2026-08-21 18:00[:ss]`.
+const LOCAL_DT_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/;
+
+/**
+ * Resolve a one-shot target/anchor string to absolute epoch ms. When `tz` is
+ * set, a bare date or an offset-free datetime is interpreted **in that zone**;
+ * a string carrying its own `Z`/`±HH:MM` offset is already absolute and honored
+ * as-is. With `tz` null the v1 behavior holds: bare date → viewer-local midnight
+ * (`new Date("2026-08-21")` would be UTC — wrong for "days until"), offset-free
+ * datetime → viewer-local. Shared by the parser and the ticker (single source).
+ */
+export function targetToMs(target: string, tz: string | null = null): number {
+  const s = target.trim();
+  if (DATE_ONLY_RE.test(s)) {
+    const [y, m, d] = s.split('-').map(Number) as [number, number, number];
+    return wallToMs(y, m - 1, d, 0, 0, tz);
+  }
+  const dt = LOCAL_DT_RE.exec(s);
+  if (dt) {
+    return wallToMs(
+      Number(dt[1]),
+      Number(dt[2]) - 1,
+      Number(dt[3]),
+      Number(dt[4]),
+      Number(dt[5]),
+      tz
+    );
+  }
+  // Anything else (an explicit-offset ISO string) is an absolute instant.
+  return new Date(s).getTime();
+}
 
 /** A resolved recurrence rule. Built by the parser, re-read by the ticker. */
 export interface RecurRule {
@@ -48,6 +198,8 @@ export interface RecurRule {
   readonly intervalN?: number | undefined;
   /** interval anchor epoch ms (from `from <date>`). */
   readonly anchorMs?: number | undefined;
+  /** IANA zone the `at`/`on` wall-clock resolves in; undefined → viewer-local. */
+  readonly tz?: string | undefined;
 }
 
 // ── Closed vocab (autocomplete + named errors, never a silent wrong date) ──
@@ -103,10 +255,30 @@ export function applyOrdinalTemplate(template: string, n: number): string {
     .replace(/\bN\b/g, String(n));
 }
 
-/** Local midnight for `ms`. */
-function dayStart(ms: number): number {
-  const d = new Date(ms);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+/** Midnight starting `ms`'s day, in `tz` (or viewer-local when tz is null). */
+export function dayStart(ms: number, tz: string | null = null): number {
+  const f = zoneFields(ms, tz);
+  return wallToMs(f.year, f.month, f.day, 0, 0, tz);
+}
+
+/** Whole-day span between two instants (midnight-aligned in `tz`). */
+export function dayDelta(
+  a: number,
+  b: number,
+  tz: string | null = null
+): number {
+  return Math.round((dayStart(b, tz) - dayStart(a, tz)) / DAY_MS);
+}
+
+/** Whether two instants fall on the same calendar day in `tz`. */
+export function sameDay(
+  a: number,
+  b: number,
+  tz: string | null = null
+): boolean {
+  const x = zoneFields(a, tz);
+  const y = zoneFields(b, tz);
+  return x.year === y.year && x.month === y.month && x.day === y.day;
 }
 
 // ── Next-instant resolution + roll-forward ──
@@ -118,14 +290,17 @@ function nthWeekdayOfMonth(
   weekday: number,
   nth: number,
   hour: number,
-  minute: number
+  minute: number,
+  tz: string | null
 ): number | null {
+  // Weekday-of-a-calendar-date is zone-independent, so day selection uses plain
+  // local `Date`; only the resolved instant is zone-anchored via wallToMs.
   if (nth < 0) {
     // last: walk back from the month's final day.
     const last = new Date(year, month + 1, 0).getDate();
     for (let d = last; d >= 1; d--) {
       if (new Date(year, month, d).getDay() === weekday) {
-        return new Date(year, month, d, hour, minute).getTime();
+        return wallToMs(year, month, d, hour, minute, tz);
       }
     }
     return null;
@@ -135,7 +310,7 @@ function nthWeekdayOfMonth(
   const day = 1 + offset + (nth - 1) * 7;
   // Overflowed the month (e.g. "5th Tuesday" that doesn't exist) → no match.
   if (day > new Date(year, month + 1, 0).getDate()) return null;
-  return new Date(year, month, day, hour, minute).getTime();
+  return wallToMs(year, month, day, hour, minute, tz);
 }
 
 /**
@@ -144,14 +319,15 @@ function nthWeekdayOfMonth(
  * pass is what makes recurring countdowns roll forward automatically.
  */
 export function resolveNext(rule: RecurRule, now: number): number {
-  const nowD = new Date(now);
+  const tz = rule.tz ?? null;
+  const nowF = zoneFields(now, tz);
   const { hour, minute } = rule;
   // An ALL-DAY occurrence stays current for its whole day: compare at day
   // granularity, so on the day itself `t` (00:00, already behind `now`) still
   // counts and the chart reads "Today!" / the on-day text instead of rolling to
   // next year. Timed occurrences roll at the exact instant.
   const passes = rule.allDay
-    ? (t: number): boolean => dayStart(t) >= dayStart(now)
+    ? (t: number): boolean => dayStart(t, tz) >= dayStart(now, tz)
     : (t: number): boolean => t > now;
   // A Y/M/D exists only if constructing it didn't roll into another month
   // (e.g. Feb 29 in a common year, or the 31st of a 30-day month) — then SKIP it,
@@ -163,9 +339,9 @@ export function resolveNext(rule: RecurRule, now: number): number {
     case 'month-day': {
       const month = rule.month!;
       const day = rule.day!;
-      for (let y = nowD.getFullYear(); ; y++) {
+      for (let y = nowF.year; ; y++) {
         if (!dayExists(y, month, day)) continue; // skip non-leap Feb 29, etc.
-        const t = new Date(y, month, day, hour, minute).getTime();
+        const t = wallToMs(y, month, day, hour, minute, tz);
         if (passes(t)) return t;
       }
     }
@@ -174,10 +350,10 @@ export function resolveNext(rule: RecurRule, now: number): number {
       const weekday = rule.weekday!;
       const nth = rule.kind === 'last-weekday' ? -1 : rule.nth!;
       // Scan forward month by month (a valid match always exists within 12).
-      let y = nowD.getFullYear();
-      let m = nowD.getMonth();
+      let y = nowF.year;
+      let m = nowF.month;
       for (let i = 0; i < 24; i++) {
-        const t = nthWeekdayOfMonth(y, m, weekday, nth, hour, minute);
+        const t = nthWeekdayOfMonth(y, m, weekday, nth, hour, minute, tz);
         if (t !== null && passes(t)) return t;
         m++;
         if (m > 11) {
@@ -192,14 +368,18 @@ export function resolveNext(rule: RecurRule, now: number): number {
       const weekday = rule.weekday!;
       // Start from today at the target time, advance a day until weekday & passes.
       for (let i = 0; i < 8; i++) {
-        const d = new Date(
-          nowD.getFullYear(),
-          nowD.getMonth(),
-          nowD.getDate() + i,
+        // Calendar weekday is zone-independent; anchor the instant via wallToMs.
+        const cal = new Date(nowF.year, nowF.month, nowF.day + i);
+        if (cal.getDay() !== weekday) continue;
+        const t = wallToMs(
+          cal.getFullYear(),
+          cal.getMonth(),
+          cal.getDate(),
           hour,
-          minute
+          minute,
+          tz
         );
-        if (d.getDay() === weekday && passes(d.getTime())) return d.getTime();
+        if (passes(t)) return t;
       }
       return now + WEEK_MS;
     }
@@ -207,17 +387,17 @@ export function resolveNext(rule: RecurRule, now: number): number {
       const n = rule.intervalN ?? 1;
       const anchor = rule.anchorMs ?? now;
       if (rule.intervalUnit === 'month') {
-        const a = new Date(anchor);
-        const day = a.getDate();
+        const a = zoneFields(anchor, tz);
+        const day = a.day;
         for (let k = 0; ; k++) {
-          const y = a.getFullYear();
-          const m = a.getMonth() + k * n;
+          const y = a.year;
+          const m = a.month + k * n;
           // Normalize the month, then SKIP if the anchor day-of-month doesn't
           // exist there (the 31st in a 30-day month) — same RRULE semantics.
           const yy = y + Math.floor(m / 12);
           const mm = ((m % 12) + 12) % 12;
           if (!dayExists(yy, mm, day)) continue;
-          const t = new Date(yy, mm, day, hour, minute).getTime();
+          const t = wallToMs(yy, mm, day, hour, minute, tz);
           if (passes(t)) return t;
         }
       }
@@ -352,7 +532,8 @@ export function formatWordsDetail(remainingMs: number): string {
  */
 export function breakdown(
   nowMs: number,
-  targetMs: number
+  targetMs: number,
+  tz: string | null = null
 ): {
   years: number;
   months: number;
@@ -361,14 +542,14 @@ export function breakdown(
   minutes: number;
   seconds: number;
 } {
-  const n = new Date(nowMs);
-  const t = new Date(targetMs);
-  let y = t.getFullYear() - n.getFullYear();
-  let mo = t.getMonth() - n.getMonth();
-  let d = t.getDate() - n.getDate();
-  let h = t.getHours() - n.getHours();
-  let mi = t.getMinutes() - n.getMinutes();
-  let s = t.getSeconds() - n.getSeconds();
+  const n = zoneFields(nowMs, tz);
+  const t = zoneFields(targetMs, tz);
+  let y = t.year - n.year;
+  let mo = t.month - n.month;
+  let d = t.day - n.day;
+  let h = t.hour - n.hour;
+  let mi = t.minute - n.minute;
+  let s = t.second - n.second;
   if (s < 0) {
     s += 60;
     mi--;
@@ -382,7 +563,7 @@ export function breakdown(
     d--;
   }
   if (d < 0) {
-    d += new Date(t.getFullYear(), t.getMonth(), 0).getDate(); // days in prev month
+    d += new Date(t.year, t.month, 0).getDate(); // days in prev month
     mo--;
   }
   if (mo < 0) {
@@ -393,8 +574,12 @@ export function breakdown(
 }
 
 /** The calendar-aware unit ladder years→months→days→hours→minutes for a delta. */
-function humanUnits(nowMs: number, targetMs: number): Array<[number, string]> {
-  const b = breakdown(nowMs, targetMs);
+function humanUnits(
+  nowMs: number,
+  targetMs: number,
+  tz: string | null = null
+): Array<[number, string]> {
+  const b = breakdown(nowMs, targetMs, tz);
   return [
     [b.years, 'year'],
     [b.months, 'month'],
@@ -412,9 +597,10 @@ function humanUnits(nowMs: number, targetMs: number): Array<[number, string]> {
  */
 export function formatHuman(
   nowMs: number,
-  targetMs: number
+  targetMs: number,
+  tz: string | null = null
 ): { big: string; sub: string } {
-  const units = humanUnits(nowMs, targetMs);
+  const units = humanUnits(nowMs, targetMs, tz);
   let i = 0;
   while (i < units.length - 1 && units[i]![0] === 0) i++;
   const rest = units.slice(i);
@@ -432,9 +618,10 @@ export function formatHuman(
 export function formatCompound(
   nowMs: number,
   targetMs: number,
-  maxUnits = 2
+  maxUnits = 2,
+  tz: string | null = null
 ): string {
-  const all = humanUnits(nowMs, targetMs);
+  const all = humanUnits(nowMs, targetMs, tz);
   let i = 0;
   while (i < all.length - 1 && all[i]![0] === 0) i++;
   const chosen = all
@@ -471,27 +658,35 @@ const MONTH_ABBR = [
 ];
 
 /** "Tue Jul 21 2026" (locale-free so baked == live regardless of environment). */
-export function formatDate(ms: number): string {
-  const d = new Date(ms);
-  return `${WEEKDAY_ABBR[d.getDay()]} ${MONTH_ABBR[d.getMonth()]} ${d.getDate()} ${d.getFullYear()}`;
+export function formatDate(ms: number, tz: string | null = null): string {
+  const f = zoneFields(ms, tz);
+  return `${WEEKDAY_ABBR[f.weekday]} ${MONTH_ABBR[f.month]} ${f.day} ${f.year}`;
 }
 
 /** "Jul 11 2026" — the compact form used by the "as of" stamp. */
-export function formatDateShort(ms: number): string {
-  const d = new Date(ms);
-  return `${MONTH_ABBR[d.getMonth()]} ${d.getDate()} ${d.getFullYear()}`;
+export function formatDateShort(ms: number, tz: string | null = null): string {
+  const f = zoneFields(ms, tz);
+  return `${MONTH_ABBR[f.month]} ${f.day} ${f.year}`;
 }
 
 /**
- * The in-chart footer resolution line — just the resolved instant:
- *   `Tue Jul 21 2026 · 18:00`
+ * The in-chart footer resolution line — the resolved instant formatted in `tz`
+ * (viewer-local when null):
+ *   `Tue Jul 21 2026 · 18:00`            (viewer-local)
+ *   `Fri Aug 21 2026 · 18:00 · UTC−4`    (pinned tz — offset tag disambiguates)
  * `hasTime` includes the clock segment (omitted for midnight one-shot dates).
  */
-export function formatFooter(resolvedMs: number, hasTime: boolean): string {
-  const parts = [formatDate(resolvedMs)];
+export function formatFooter(
+  resolvedMs: number,
+  hasTime: boolean,
+  tz: string | null = null
+): string {
+  const parts = [formatDate(resolvedMs, tz)];
   if (hasTime) {
-    const d = new Date(resolvedMs);
-    parts.push(`${pad2(d.getHours())}:${pad2(d.getMinutes())}`);
+    const f = zoneFields(resolvedMs, tz);
+    parts.push(`${pad2(f.hour)}:${pad2(f.minute)}`);
+    const label = zoneOffsetLabel(resolvedMs, tz);
+    if (label) parts.push(label);
   }
   return parts.join(' · ');
 }

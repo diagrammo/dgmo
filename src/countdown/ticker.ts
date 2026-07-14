@@ -20,6 +20,9 @@
 
 import {
   DAY_MS,
+  dayStart,
+  dayDelta,
+  sameDay,
   formatCompound,
   formatCount,
   formatFooter,
@@ -29,27 +32,12 @@ import {
   ordinalFor,
   resolveNext,
   splitClockSeconds,
+  targetToMs as resolveTargetToMs,
   type CountUnits,
   type Field,
   type RecurRule,
   type RoundMode,
 } from './resolve';
-
-const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Local midnight for `ms` (mirrors renderer.DAY_START). */
-function dayStartLocal(ms: number): number {
-  const d = new Date(ms);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
-/** Whole-day span (local-midnight aligned) — mirrors renderer.dayDelta. */
-function dayDeltaLocal(aMs: number, bMs: number): number {
-  const a = new Date(aMs);
-  const b = new Date(bMs);
-  const a0 = new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime();
-  const b0 = new Date(b.getFullYear(), b.getMonth(), b.getDate()).getTime();
-  return Math.round((b0 - a0) / DAY_MS);
-}
 
 function pad2(n: number): string {
   return n < 10 ? '0' + n : String(n);
@@ -143,14 +131,9 @@ function updateGauges(svg: Element, remaining: number): void {
   }
 }
 
-/** Mirror of parser.ts `targetToMs` (bare date → local midnight). */
-function targetToMs(target: string): number | null {
-  const s = target.trim();
-  if (DATE_ONLY_RE.test(s)) {
-    const p = s.split('-').map(Number);
-    return new Date(p[0]!, p[1]! - 1, p[2]!).getTime();
-  }
-  const t = new Date(s).getTime();
+/** Resolve a baked one-shot target string in `tz` (single-sourced via resolve). */
+function targetToMs(target: string, tz: string | null): number | null {
+  const t = resolveTargetToMs(target, tz);
   return Number.isFinite(t) ? t : null;
 }
 
@@ -179,17 +162,8 @@ function readRule(node: Element): RecurRule | null {
         | RecurRule['intervalUnit']
         | null) ?? undefined,
     anchorMs: num('data-dgmo-recur-anchor'),
+    tz: node.getAttribute('data-dgmo-recur-tz') ?? undefined,
   };
-}
-
-function sameLocalDay(a: number, b: number): boolean {
-  const x = new Date(a);
-  const y = new Date(b);
-  return (
-    x.getFullYear() === y.getFullYear() &&
-    x.getMonth() === y.getMonth() &&
-    x.getDate() === y.getDate()
-  );
 }
 
 function readFields(node: Element): Field[] {
@@ -210,6 +184,8 @@ function updateNode(node: Element, now: number): void {
   const fields = readFields(node);
   const onDay = node.getAttribute('data-dgmo-countdown-onday');
   const title = node.getAttribute('data-dgmo-countdown-title');
+  // Zone the wall-clock resolves/formats in (null → viewer-local, v1 default).
+  const tz = node.getAttribute('data-dgmo-countdown-tz');
 
   let resolvedMs: number | null;
   let expiredNow = false;
@@ -219,7 +195,7 @@ function updateNode(node: Element, now: number): void {
     resolvedMs = resolveNext(rule, now);
   } else {
     const target = node.getAttribute('data-dgmo-countdown');
-    resolvedMs = target ? targetToMs(target) : null;
+    resolvedMs = target ? targetToMs(target, tz) : null;
     if (resolvedMs !== null && resolvedMs - now <= 0) expiredNow = true;
   }
   if (resolvedMs === null) return; // unparseable — leave the baked text.
@@ -231,7 +207,7 @@ function updateNode(node: Element, now: number): void {
   // Timed pivot: on the final day (or past) the hero is the ticking clock and the
   // band is the H·M·S rings. An explicit `expired` text always freezes instead.
   const frozen = expiredNow && custom !== null;
-  const clockFinale = hasTime && !frozen && dayDeltaLocal(now, resolvedMs) <= 0;
+  const clockFinale = hasTime && !frozen && dayDelta(now, resolvedMs, tz) <= 0;
   let text: string;
   if (frozen) {
     text = custom!;
@@ -245,7 +221,7 @@ function updateNode(node: Element, now: number): void {
   } else if (expiredNow) {
     // Count UP how long ago it was (all-day past).
     if (units === 'compound' || units === 'human')
-      text = `${formatCompound(resolvedMs, now)} ago`;
+      text = `${formatCompound(resolvedMs, now, 2, tz)} ago`;
     else {
       const elapsed = -remaining;
       text =
@@ -253,16 +229,16 @@ function updateNode(node: Element, now: number): void {
           ? 'Now!'
           : `${formatCount(elapsed, { units, round, fields })} ago`;
     }
-  } else if (rule && sameLocalDay(resolvedMs, now)) {
+  } else if (rule && sameDay(resolvedMs, now, tz)) {
     // On the occurrence day the all-day rule resolves to today — show on-day / Today!
     text = onDay ?? 'Today!';
   } else if (units === 'human') {
     // All-day targets floor to midnights → flat whole-day hero (baked-hero parity).
     text = hasTime
-      ? formatHuman(now, resolvedMs).big
-      : formatHuman(dayStartLocal(now), dayStartLocal(resolvedMs)).big;
+      ? formatHuman(now, resolvedMs, tz).big
+      : formatHuman(dayStart(now, tz), dayStart(resolvedMs, tz), tz).big;
   } else if (units === 'compound') {
-    text = formatCompound(now, resolvedMs);
+    text = formatCompound(now, resolvedMs, 2, tz);
   } else {
     text = formatCount(Math.max(0, remaining), { units, round, fields });
   }
@@ -281,7 +257,7 @@ function updateNode(node: Element, now: number): void {
   const footer = svg.querySelector('[data-dgmo-countdown-footer]');
   if (footer && !expiredNow) {
     const hasTime = node.getAttribute('data-dgmo-countdown-hastime') === '1';
-    footer.textContent = formatFooter(resolvedMs, hasTime);
+    footer.textContent = formatFooter(resolvedMs, hasTime, tz);
   }
 
   // Since eyebrow — re-apply the Nth/N template when the ordinal rolls forward.
@@ -305,7 +281,7 @@ function updateNode(node: Element, now: number): void {
         detail,
         hasTime
           ? formatCount(remaining, { units: 'clock', round, fields })
-          : formatHuman(dayStartLocal(now), dayStartLocal(resolvedMs)).sub
+          : formatHuman(dayStart(now, tz), dayStart(resolvedMs, tz), tz).sub
       );
     }
   }

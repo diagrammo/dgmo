@@ -27,6 +27,8 @@ import {
 import type { ParsedCountdown } from './types';
 import {
   DAY_MS,
+  dayStart as tzDayStart,
+  sameDay,
   formatCompound,
   formatCount,
   formatDateShort,
@@ -42,6 +44,7 @@ import {
 function bakedHero(parsed: ParsedCountdown, now: number): string {
   const resolved = parsed.resolvedMs;
   if (resolved === null) return '—';
+  const tz = parsed.tz;
   const remaining = resolved - now;
   // One-shot expiry: explicit `expired <text>` wins; otherwise count UP how long
   // ago it was (the ticker keeps this live).
@@ -50,7 +53,7 @@ function bakedHero(parsed: ParsedCountdown, now: number): string {
     const elapsed = -remaining;
     if (elapsed <= 0) return 'Now!';
     if (parsed.units === 'compound' || parsed.units === 'human')
-      return `${formatCompound(resolved, now)} ago`;
+      return `${formatCompound(resolved, now, 2, tz)} ago`;
     const bu =
       parsed.units === 'full' || parsed.units === 'clock'
         ? 'days'
@@ -59,19 +62,19 @@ function bakedHero(parsed: ParsedCountdown, now: number): string {
   }
   // Occurrence-day label (recurring): on the day itself, show the on-day text or
   // a plain "Today!" — the all-day rule now resolves to today, not next year.
-  if (parsed.rule && sameLocalDay(resolved, now))
+  if (parsed.rule && sameDay(resolved, now, tz))
     return parsed.onDay ?? 'Today!';
   if (parsed.units === 'human') {
-    // All-day (no-time) targets floor to LOCAL MIDNIGHTS so the hero reads as a
+    // All-day (no-time) targets floor to `tz` MIDNIGHTS so the hero reads as a
     // flat whole-day count ("8 days") instead of false hours/minutes precision
     // ("7 days, 14 hours") — it's really counting to midnight. Timed targets keep
     // the full breakdown.
     const [hn, ht] = parsed.hasTime
       ? [now, resolved]
-      : [DAY_START(now), DAY_START(resolved)];
-    return formatHuman(hn, ht).big;
+      : [tzDayStart(now, tz), tzDayStart(resolved, tz)];
+    return formatHuman(hn, ht, tz).big;
   }
-  if (parsed.units === 'compound') return formatCompound(now, resolved);
+  if (parsed.units === 'compound') return formatCompound(now, resolved, 2, tz);
   // Baked no-JS floor: `full`/`clock` need per-second ticking that only the live
   // ticker provides. Bake the day count as the honest static fallback — the
   // ticker upgrades it to `Nd HH:MM:SS` on live surfaces (spike §"Honest limits").
@@ -82,16 +85,6 @@ function bakedHero(parsed: ParsedCountdown, now: number): string {
     round: parsed.round,
     fields: parsed.fields,
   });
-}
-
-function sameLocalDay(a: number, b: number): boolean {
-  const x = new Date(a);
-  const y = new Date(b);
-  return (
-    x.getFullYear() === y.getFullYear() &&
-    x.getMonth() === y.getMonth() &&
-    x.getDate() === y.getDate()
-  );
 }
 
 /** Stamp the structured recurrence attrs so the ticker can roll forward. */
@@ -114,6 +107,7 @@ function stampRecur(
   if (r.intervalUnit !== undefined)
     sel.attr('data-dgmo-recur-interval-unit', r.intervalUnit);
   if (r.anchorMs !== undefined) sel.attr('data-dgmo-recur-anchor', r.anchorMs);
+  if (r.tz !== undefined) sel.attr('data-dgmo-recur-tz', r.tz);
 }
 
 type SvgSel = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
@@ -317,8 +311,13 @@ function aLine(
 // Lucide `repeat` (MIT) — the recurring-event glyph, matching the icon set the
 // app (lucide-react) and Obsidian (setIcon) already use. Inlined as its raw
 // 24×24 path so dgmo core stays dependency-free; scaled/centered on (cx,cy).
+// Lucide ships `repeat` as FOUR separate <path>s; flattening them into one
+// string turns the bottom-arrow's leading `m7 22` into a RELATIVE move off the
+// top bar's end point (≈21,6) → the arrow lands offscreen and the glyph reads
+// as a squiggle. Force it absolute (`M7 22`) so each subpath starts where
+// Lucide intends.
 const REPEAT_ICON_PATH =
-  'm17 2 4 4-4 4 M3 11v-1a4 4 0 0 1 4-4h14 m7 22-4-4 4-4 M21 13v1a4 4 0 0 1-4 4H3';
+  'm17 2 4 4-4 4 M3 11v-1a4 4 0 0 1 4-4h14 M7 22l-4-4 4-4 M21 13v1a4 4 0 0 1-4 4H3';
 function recurGlyph(
   svg: SvgSel,
   cx: number,
@@ -362,7 +361,20 @@ function haloRect(
 ): void {
   // bg gap hugging the chip (0–2px out), then the bright event ring (2–4px out).
   aRect(svg, x - 1, y - 1, w + 2, h + 2, rx + 1, 'none', C.bg, 2);
-  aRect(svg, x - 3, y - 3, w + 6, h + 6, rx + 3, 'none', C.event, 2);
+  // Bright event ring — carries the subtle flash so the target pops out of a
+  // warm ramp on live surfaces. Class targets the baked `<style>` keyframes;
+  // resvg (PNG) ignores the animation and bakes the opacity-1 first frame.
+  svg
+    .append('rect')
+    .attr('class', 'dgmo-countdown-target-ring')
+    .attr('x', x - 3)
+    .attr('y', y - 3)
+    .attr('width', w + 6)
+    .attr('height', h + 6)
+    .attr('rx', rx + 3)
+    .attr('fill', 'none')
+    .attr('stroke', C.event)
+    .attr('stroke-width', 2);
 }
 
 /** Which tier fills the band, chosen from the whole-day span to the target. */
@@ -1421,6 +1433,22 @@ export function renderCountdown(
     .attr('aria-label', `${parsed.title ?? 'Countdown'}: ${hero}`)
     .style('font-family', FONT_FAMILY);
 
+  // Subtle target flash — a slow opacity/width breathe on the bright event ring
+  // so the destination stands out on live surfaces (app, Obsidian, web). resvg
+  // ignores the animation and bakes the first frame; honour reduced-motion.
+  svg.append('style').text(`
+    @keyframes dgmo-countdown-flash {
+      0%, 100% { opacity: 1; stroke-width: 2; }
+      50% { opacity: 0.45; stroke-width: 3; }
+    }
+    .dgmo-countdown-target-ring {
+      animation: dgmo-countdown-flash 1.8s ease-in-out infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .dgmo-countdown-target-ring { animation: none; }
+    }
+  `);
+
   // Background rect — sized once the banner height is known (see end).
   const bgRect = svg
     .append('rect')
@@ -1493,7 +1521,9 @@ export function renderCountdown(
       : null;
   const eyebrowFont = 16;
   const footerText =
-    resolved !== null ? formatFooter(resolved, parsed.hasTime) : null;
+    resolved !== null
+      ? formatFooter(resolved, parsed.hasTime, parsed.tz)
+      : null;
   const footerFont = 17;
   const noteFont = 19;
   const asofFont = 13;
@@ -1653,7 +1683,11 @@ export function renderCountdown(
                 round: parsed.round,
                 fields: parsed.fields,
               })
-            : formatHuman(DAY_START(now), DAY_START(resolved)).sub || null
+            : formatHuman(
+                tzDayStart(now, parsed.tz),
+                tzDayStart(resolved, parsed.tz),
+                parsed.tz
+              ).sub || null
           : null;
   const heroCapTop = padY + 0.28 * titleFont;
   const heroBaseline = heroCapTop + 0.72 * heroFont;
@@ -1729,6 +1763,8 @@ export function renderCountdown(
   if (parsed.title) value.attr('data-dgmo-countdown-title', parsed.title);
   if (parsed.onDay) value.attr('data-dgmo-countdown-onday', parsed.onDay);
   if (parsed.hasTime) value.attr('data-dgmo-countdown-hastime', '1');
+  // Zone for live display (one-shot re-parse + footer/hero formatting).
+  if (parsed.tz) value.attr('data-dgmo-countdown-tz', parsed.tz);
   if (parsed.since !== null) {
     value.attr('data-dgmo-countdown-since', parsed.since);
     // Bake the eyebrow TEMPLATE (Nth/N tokens) so the ticker re-applies it when

@@ -55,6 +55,14 @@ export interface ParsedCountdown {
   /** Eyebrow template: `Nth` → ordinal word, `N` → the number. Null → "Nth <title>". */
   readonly sinceLabel: string | null;
 
+  /**
+   * IANA zone (`America/New_York`) the authored wall-clock times resolve in, so
+   * a bare date / offset-free datetime / recurring `at` pins to an absolute
+   * instant instead of drifting with the viewer's OS clock (spec §36 tz slot).
+   * Null → viewer-local (v1 default). An explicit ISO offset always wins.
+   */
+  readonly tz: string | null;
+
   // ── Display ──
   readonly units: CountUnits;
   readonly round: RoundMode;

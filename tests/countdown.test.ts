@@ -158,6 +158,75 @@ describe('targetToMs', () => {
   it('returns null for garbage', () => {
     expect(targetToMs('nope')).toBeNull();
   });
+  it('resolves a bare date in an explicit tz (NY midnight = 04:00Z EDT)', () => {
+    expect(targetToMs('2026-08-21', 'America/New_York')).toBe(
+      Date.parse('2026-08-21T04:00:00Z')
+    );
+  });
+  it('resolves an offset-free datetime in tz (NY 18:00 EDT = 22:00Z)', () => {
+    expect(targetToMs('2026-08-21T18:00', 'America/New_York')).toBe(
+      Date.parse('2026-08-21T22:00:00Z')
+    );
+  });
+  it('honors an explicit ISO offset regardless of tz', () => {
+    expect(targetToMs('2026-08-21T18:00-04:00', 'Asia/Tokyo')).toBe(
+      Date.parse('2026-08-21T22:00:00Z')
+    );
+  });
+});
+
+// ============================================================
+// Parser — tz slot (§36 time-zone pinning)
+// ============================================================
+
+describe('countdown parser — tz', () => {
+  it('parses a valid IANA zone onto `tz`', () => {
+    const r = parseCountdown(
+      `countdown Launch\ntarget 2026-08-21T18:00\ntz America/New_York`
+    );
+    expect(r.tz).toBe('America/New_York');
+    // NY 18:00 EDT = 22:00Z — stable regardless of the machine's own clock.
+    expect(r.resolvedMs).toBe(Date.parse('2026-08-21T22:00:00Z'));
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('accepts `tz` before `target` (order-independent)', () => {
+    const r = parseCountdown(
+      `countdown Launch\ntz America/New_York\ntarget 2026-08-21T18:00`
+    );
+    expect(r.tz).toBe('America/New_York');
+    expect(r.resolvedMs).toBe(Date.parse('2026-08-21T22:00:00Z'));
+  });
+
+  it('warns and falls back to viewer-local on an unknown zone', () => {
+    const r = parseCountdown(`countdown X\ntarget 2026-08-21\ntz Not/AZone`);
+    expect(r.tz).toBeNull();
+    expect(r.diagnostics.some((d) => d.severity === 'warning')).toBe(true);
+  });
+
+  it('pins a recurring `at` time to the zone (Fri 09:00 IST = 03:30Z)', () => {
+    const r = parseCountdown(
+      `countdown Standup\nevery week on Friday at 09:00\ntz Asia/Kolkata`
+    );
+    expect(r.rule?.tz).toBe('Asia/Kolkata');
+    // FIXED_NOW is Fri 2026-07-10 00:00Z; 09:00 IST that day = 03:30Z, still
+    // ahead of now, so it's the next occurrence.
+    const resolved = resolveNext(r.rule!, FIXED_NOW);
+    expect(new Date(resolved).toISOString()).toBe('2026-07-10T03:30:00.000Z');
+  });
+
+  it('bakes tz onto the hero + footer so the ticker stays in-zone', () => {
+    const r = parseCountdown(
+      `countdown Launch\ntarget 2026-08-21T18:00\ntz America/New_York`
+    );
+    const c = makeContainer();
+    renderCountdown(c, r, nordLight, false);
+    const svg = c.querySelector('svg')!.outerHTML;
+    expect(svg).toContain('data-dgmo-countdown-tz="America/New_York"');
+    // Footer shows the NY wall-clock + an offset tag, not the viewer's time.
+    expect(svg).toContain('18:00');
+    expect(svg).toContain('UTC');
+  });
 });
 
 // ============================================================
