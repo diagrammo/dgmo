@@ -116,20 +116,20 @@ export function renderClockCards(
     // ── Geometry: size the card to its widest line, centre it over the marker.
     // The time is a big HH:MM with a small stack to its right: seconds ABOVE,
     // am/pm BELOW (mirrors the clock chart's digital readout). ──
-    const mainFont = 15;
-    const sf = 9.5; // seconds + am/pm stack font
+    const mainFont = 18;
+    const sf = 8; // seconds + am/pm stack font (~0.44 of main, like the clock)
     const mainW = measureText(ts.main, mainFont);
     const stackW = Math.max(
       measureText(`:${ts.sec}`, sf),
       ts.ap ? measureText(ts.ap, sf) : 0
     );
     const stackGap = 3;
-    const dotGap = 13; // status dot + gap before the time
+    const dotGap = 15; // status dot + gap before the time
     const padX = 9;
     const line1W = dotGap + mainW + stackGap + stackW;
     const line2W = measureText(line2, 10.5);
     const cardW = Math.max(line1W, line2W) + padX * 2;
-    const cardH = 40;
+    const cardH = 44;
     const leaderGap = 7;
     const M = 6; // keep the card this far off the frame edge
     const cx = lp.cx;
@@ -205,12 +205,12 @@ export function renderClockCards(
 
     // ── Status dot (filled when open/soon, hollow ring when off). ──
     const dotCX = cardLeft + padX + 3.5;
-    const line1Y = cardTop + 17;
+    const line1Y = cardTop + 20; // baseline of the big HH:MM
     const dot = g
       .append('circle')
       .attr('data-dgmo-clock-status-dot', '')
       .attr('cx', dotCX)
-      .attr('cy', line1Y - 4)
+      .attr('cy', line1Y - mainFont * 0.35)
       .attr('r', 3.5);
     if (status) {
       const dc =
@@ -238,11 +238,14 @@ export function renderClockCards(
       .attr('font-weight', 600)
       .style('font-variant-numeric', 'tabular-nums')
       .text(ts.main);
+    // Seconds cap-align to the TOP of the digits, am/pm baseline-align to their
+    // BOTTOM, so the trio brackets the big HH:MM as one unit (like the clock).
     const stackX = timeX + mainW + stackGap;
+    const capTop = line1Y - mainFont * 0.7;
     g.append('text')
       .attr('data-dgmo-clock-digital-part', 'sec')
       .attr('x', stackX)
-      .attr('y', line1Y - mainFont * 0.45)
+      .attr('y', capTop + sf * 0.72)
       .attr('font-family', FONT_FAMILY)
       .attr('fill', muted)
       .attr('font-size', sf)
@@ -260,7 +263,7 @@ export function renderClockCards(
     // ── Second line: weekday · availability. `status` text is the only ticked
     // part; weekday is baked (it shifts only at local midnight). Split so the
     // status word can carry a live anchor + colour. ──
-    const line2Y = cardTop + 32;
+    const line2Y = cardTop + 36;
     const l2 = g
       .append('text')
       .attr('x', cardLeft + padX)
