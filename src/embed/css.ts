@@ -168,6 +168,14 @@ export const BLOCK_CSS: string = `
   overflow: auto;
   border-radius: 0.5em;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+  /* Opaque surface behind the enlarged diagram so a transparent embed doesn't
+   * show the page through it. The client overrides this inline with the block's
+   * own palette bg (data-dgmo-bg); this is the fallback for blocks that predate
+   * that attribute. */
+  background: #fff;
+}
+[data-theme="dark"] .dgmo-lightbox-svg {
+  background: #1e1e1e;
 }
 .dgmo-lightbox-svg > svg {
   display: block;

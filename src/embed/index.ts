@@ -175,15 +175,20 @@ export async function renderDgmoBlock(
         ? defaultEmbedBackground(chartType)
         : opts.background;
     svgsHtml =
-      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-light'))}">${normalizeSvgForEmbed(light, { background })}</div>` +
-      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-dark'))}">${normalizeSvgForEmbed(dark, { background })}</div>`;
+      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-light'))}" data-dgmo-bg="${escapeAttr(palette.light.bg)}">${normalizeSvgForEmbed(light, { background })}</div>` +
+      `<div class="${escapeAttr(innerClasses(opts, 'dgmo-dark'))}" data-dgmo-bg="${escapeAttr(palette.dark.bg)}">${normalizeSvgForEmbed(dark, { background })}</div>`;
   } else {
     const svg = await renderTheme(opts.colorMode);
     const background =
       opts.background === 'auto'
         ? defaultEmbedBackground(chartType)
         : opts.background;
-    svgsHtml = `<div class="${escapeAttr(innerClasses(opts, 'dgmo-svg'))}">${normalizeSvgForEmbed(svg, { background })}</div>`;
+    // Stash the real palette background so the expand lightbox can paint an
+    // opaque surface even when this embed renders transparent (§transparent
+    // embeds strip the chart bg from the SVG itself). `transparent` colorMode
+    // falls back to the light background.
+    const paletteBg = palette[opts.colorMode === 'dark' ? 'dark' : 'light'].bg;
+    svgsHtml = `<div class="${escapeAttr(innerClasses(opts, 'dgmo-svg'))}" data-dgmo-bg="${escapeAttr(paletteBg)}">${normalizeSvgForEmbed(svg, { background })}</div>`;
   }
 
   return { html: assembleBlock(trimmed, svgsHtml, opts), diagnostics };
