@@ -33,8 +33,8 @@ export interface DateToken {
   second: number;
   grain: DateGrain;
   hasTime: boolean;
-  /** True when a time component was present but out of range (h>23 / m>59). */
-  invalidTime?: string;
+  /** Set when a time component was present but out of range (h>23 / m>59). */
+  invalidTime?: string | undefined;
 }
 
 export interface ParseDateResult {
@@ -95,7 +95,7 @@ function matchTime(rest: string): {
   second: number;
   hasTime: boolean;
   consumed: number;
-  invalid?: string;
+  invalid?: string | undefined;
 } {
   const m = rest.match(TIME_RE);
   if (!m) return { hour: 0, minute: 0, second: 0, hasTime: false, consumed: 0 };
@@ -140,7 +140,7 @@ function dayToken(
  */
 export function parseDateToken(
   input: string,
-  opts: { dateOrder?: DateOrder } = {}
+  opts: { dateOrder?: DateOrder | undefined } = {}
 ): ParseDateResult | null {
   const order: DateOrder = opts.dateOrder ?? 'mdy';
 
@@ -171,13 +171,12 @@ export function parseDateToken(
   if (iso) {
     const grain = (iso[3] ? 3 : iso[2] ? 2 : 1) as DateGrain;
     let consumed = iso[0].length;
-    let time = {
+    let time: ReturnType<typeof matchTime> = {
       hour: 0,
       minute: 0,
       second: 0,
       hasTime: false,
       consumed: 0,
-      invalid: undefined as string | undefined,
     };
     if (grain === 3) {
       time = matchTime(input.slice(consumed));
@@ -307,9 +306,9 @@ export interface YearContext {
 export interface ResolveOutcome {
   internal: string;
   /** Non-blocking hint (soft) when a bare date fell back to the current year. */
-  hint?: string;
+  hint?: string | undefined;
   /** Hard error when noCurrentYear is set and no year could be derived. */
-  error?: string;
+  error?: string | undefined;
 }
 
 function cmp(
