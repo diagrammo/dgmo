@@ -1288,7 +1288,9 @@ export function renderMap(
       resolved,
       palette,
       isDark,
-      Date.now()
+      Date.now(),
+      width,
+      height
     );
   }
 

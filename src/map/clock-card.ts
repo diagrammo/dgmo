@@ -34,6 +34,9 @@ type Sel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
 const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+const clamp = (v: number, lo: number, hi: number): number =>
+  Math.max(lo, Math.min(hi, v));
+
 /** Resolve the map's `hours`/`days` directives to a work window by reusing the
  *  clock parser verbatim (single-source — the map card and a standalone clock
  *  read the same grammar). `null` when no `hours` is set. */
@@ -66,7 +69,9 @@ export function renderClockCards(
   resolved: ResolvedMap,
   palette: PaletteColors,
   isDark: boolean,
-  now: number
+  now: number,
+  frameW: number,
+  frameH: number
 ): void {
   const withTz = resolved.pois.filter((p) => p.tz !== undefined);
   if (withTz.length === 0) return;
@@ -120,10 +125,18 @@ export function renderClockCards(
     const cardW = Math.max(line1W, line2W) + padX * 2;
     const cardH = 40;
     const leaderGap = 7;
+    const M = 6; // keep the card this far off the frame edge
     const cx = lp.cx;
-    const cardBottom = lp.cy - lp.r - leaderGap;
-    const cardTop = cardBottom - cardH;
-    const cardLeft = cx - cardW / 2;
+    // Default: centred above the marker. Flip BELOW when it would clip the top,
+    // and shift horizontally off whichever side edge it would run past — an
+    // edge pin's card lands opposite its near edge instead of off-frame.
+    const below = lp.cy - lp.r - leaderGap - cardH < M;
+    const cardTop = clamp(
+      below ? lp.cy + lp.r + leaderGap : lp.cy - lp.r - leaderGap - cardH,
+      M,
+      frameH - cardH - M
+    );
+    const cardLeft = clamp(cx - cardW / 2, M, frameW - cardW - M);
 
     // ── Group carries the ticker contract (subset — no analog/sun nodes). ──
     const g = gCards
@@ -161,12 +174,15 @@ export function renderClockCards(
         );
     }
 
-    // Leader from marker up to the card.
+    // Leader from the marker to the card's near edge. When the card was shifted
+    // (edge clamp), aim at the nearest point on that edge instead of the marker's
+    // x, so the line still meets the card.
+    const leaderX = clamp(cx, cardLeft + 10, cardLeft + cardW - 10);
     g.append('line')
       .attr('x1', cx)
-      .attr('y1', lp.cy - lp.r)
-      .attr('x2', cx)
-      .attr('y2', cardBottom)
+      .attr('y1', below ? lp.cy + lp.r : lp.cy - lp.r)
+      .attr('x2', leaderX)
+      .attr('y2', below ? cardTop : cardTop + cardH)
       .attr('stroke', border)
       .attr('stroke-width', 1);
 
