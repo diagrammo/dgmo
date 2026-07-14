@@ -1493,8 +1493,14 @@ export function renderCountdown(
           })
         : hero;
   const heroMaxW = contentW * 0.44;
-  const heroFont = fitFont(heroSizeStr, 96, heroMaxW, 26);
-  const heroW = Math.min(heroMaxW, estWidth(heroSizeStr, heroFont));
+  // Reserve for the WIDEST string the ticker can show. `heroSizeStr` is a
+  // FORWARD (remaining) reservation, so once the target has passed it collapses
+  // to "00:00:00" and misses the real "HH:MM:SS ago" up-count — which then
+  // overflows leftward into the title column. Size to whichever is wider.
+  const sizeStr =
+    estWidth(hero, 1) > estWidth(heroSizeStr, 1) ? hero : heroSizeStr;
+  const heroFont = fitFont(sizeStr, 96, heroMaxW, 26);
+  const heroW = Math.min(heroMaxW, estWidth(sizeStr, heroFont));
   const gapMid = Math.max(28, Math.round(width * 0.03));
   const leftW = Math.max(contentW * 0.42, contentW - heroW - gapMid);
 
