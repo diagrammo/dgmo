@@ -4102,7 +4102,7 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 <!-- TYPE:map -->
 
 <!-- TIPS start -->
-**Styling tips:** the zero-config map already looks good — name places and stop. When POIs fall into categories, tag them so each category gets its own color; keep place labels to the place name; leave region colorize and coastlines on unless the user asks to hide them. **For flights and airport routes, use IATA codes, not city names** — `LHR ~> JFK`, `LHR ~> DXB`, `LHR ~> SIN`, `LHR ~> HND` — the bundled airport set (large international hubs + all US commercial airports) resolves them to the right coordinates and labels them with the code. **For cities, use the exact canonical name**: "New York City" (NOT "New York"), "Washington, D.C.", etc. — a name the gazetteer doesn't have **silently drops that point** and the map just reframes around the rest, so it looks fine but is wrong. When unsure of the exact token, look it up: `dgmo map-search "<place>"` (or the `lookup_map_location` MCP tool) returns the city name or airport code to paste; fall back to coordinates (`poi Name as 40.71,-74.0`) for anything not found. **For routes/flows from a hub** (an airport's daily flights, a distribution center's shipments), write ONE edge per line and repeat the origin — never indented edges (those error). Use **arcs** (`~>`) for flights and long-haul links so the spokes separate; the connector label carries the relationship (`~daily~>`, `~2x daily~>`). Endpoints auto-create POIs, so don't add separate `poi` lines for places already in an edge. Reach for a `route` block only when the trip is an **ordered voyage** that continues stop→stop (a cruise itinerary), not a set of independent routes from one origin.
+**Styling tips:** the zero-config map already looks good — name places and stop. When POIs fall into categories, tag them so each category gets its own color; keep place labels to the place name; leave region colorize and coastlines on unless the user asks to hide them. **For flights and airport routes, use IATA codes, not city names** — `LHR ~> JFK`, `LHR ~> DXB`, `LHR ~> SIN`, `LHR ~> HND` — the bundled airport set (large international hubs + all US commercial airports) resolves them to the right coordinates and labels them with the code. **For cities, use the exact canonical name**: "New York City" (NOT "New York"), "Washington, D.C.", etc. — a name the gazetteer doesn't have **silently drops that point** and the map just reframes around the rest, so it looks fine but is wrong. When unsure of the exact token, look it up: `dgmo map-search "<place>"` (or the `lookup_map_location` MCP tool) returns the city name or airport code to paste; fall back to coordinates (`poi Name as 40.71,-74.0`) for anything not found. **For routes/flows from a hub** (an airport's daily flights, a distribution center's shipments), write ONE edge per line and repeat the origin — never indented edges (those error). Use **arcs** (`~>`) for flights and long-haul links so the spokes separate; the connector label carries the relationship (`~daily~>`, `~2x daily~>`). Endpoints auto-create POIs, so don't add separate `poi` lines for places already in an edge. Reach for a `route` block only when the trip is an **ordered voyage** that continues stop→stop (a cruise itinerary), not a set of independent routes from one origin. **For a "what time is it at each office" map**, flag each POI with `clock` — the zone comes from the place automatically, so just `poi Denver clock`; add `hours 9-17` + `days mon-fri` for open/closed dots, and `clock: <IANA>` only on bare-coordinate pins. Use `label:` (not `as`) for a multi-word office name.
 <!-- TIPS end -->
 
 Geographic concept maps: highlight/shade political subdivisions, drop points of interest (POIs), and connect them with routes or edges. For "share a concept" business maps, not cartography. Renders at a fixed, auto-fit position — no pan/zoom. Basemap and viewport are **inferred from the content you reference** — most maps need no directives. v1 boundaries: world countries + US states.
@@ -4173,8 +4173,27 @@ poi Austin red                      # direct marker color (trailing token, §1.5
 ```
 
 - **Coordinates are positional** — two leading signed numbers (lat then lon); cities never start with a number.
-- `size:` scales marker area (use `poi-size <label>` for the legend key). A trailing color (`poi Austin red`) sets the marker fill directly — winning over a tag color and the default orange. POI properties: `label`, `size`, `style`, applied tag alias, `as`. No `icon` in v1.
+- `size:` scales marker area (use `poi-size <label>` for the legend key). A trailing color (`poi Austin red`) sets the marker fill directly — winning over a tag color and the default orange. POI properties: `label`, `size`, `style`, applied tag alias, `as`, `clock`. No `icon` in v1.
 - Coord-positioned or relabeled POIs take `as <alias>` for route/edge references; named POIs are referenced by name.
+
+### Local-time cards (`clock`)
+
+Flag a POI with `clock` and it grows a **live local-time card** above the marker — for a team/office map that shows what time it is at each site.
+
+```
+map Team offices
+hours 9-17                          # per-pin availability window (open/closed dot)
+days mon-fri
+poi San Francisco clock             # zone auto-derived from the place
+poi London clock
+poi Bengaluru clock
+poi 1.29 103.85 as SG clock: Asia/Singapore   # bare-coord pin names its zone
+```
+
+- **The place picks the zone — don't type it.** A named city derives its IANA zone from the gazetteer (correct by construction, e.g. Austin → Central). Only a **bare-coordinate** pin needs the valued form `clock: <zone>` — an IANA id (`Asia/Tokyo`) or a fixed offset (`clock: UTC+9`, no DST). The valued form also *overrides* a city, but a mismatch warns (you almost never want it).
+- `hours 9-17` + `days mon-fri` (map-level) give a status dot per pin — green open / amber opening soon / hollow closed·weekend — evaluated in **each pin's own zone**.
+- Use `label:` for a multi-word office name (`poi Los Angeles clock, label: El Segundo`); the `as` alias is a single word and doesn't render.
+- The card ticks every second on live surfaces and bakes a snapshot for PNG/SVG. It shows the weekday only when the pin's day differs from the viewer's.
 
 ### Routes & connectors
 
