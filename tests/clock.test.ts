@@ -5,12 +5,16 @@ import { renderClock } from '../src/clock/renderer';
 import { tickClocks } from '../src/clock/ticker';
 import {
   zoneParts,
+  fixedParts,
+  parseFixedOffset,
+  formatOffsetLabel,
   formatTime,
   handAngles,
   workStatus,
   sunLine,
   type WorkSpec,
 } from '../src/clock/resolve';
+import { resolvePlace, searchZones } from '../src/clock/gazetteer';
 import { coordsFor } from '../src/clock/zone-coords';
 import { getPalette } from '../src/palettes';
 import { getRenderCategory } from '../src/dgmo-router';
@@ -63,12 +67,12 @@ function renderAt(source: string, iso: string): HTMLDivElement {
 }
 
 // ============================================================
-// Parser
+// Parser — anchor grammar (city | IANA | UTC offset)
 // ============================================================
 
 describe('clock parser', () => {
-  it('parses title + a single entry with defaults', () => {
-    const r = parseClock(`clock Dani\nNew York America/New_York`);
+  it('parses title + a single IANA entry with defaults', () => {
+    const r = parseClock(`clock Dani\nAmerica/New_York`);
     expect(r.type).toBe('clock');
     expect(r.title).toBe('Dani');
     expect(r.face).toBe('digital');
@@ -76,40 +80,72 @@ describe('clock parser', () => {
     expect(r.sun).toBe(true);
     expect(r.work).toBeNull();
     expect(r.entries).toHaveLength(1);
-    expect(r.entries[0]!.place).toBe('New York');
-    expect(r.entries[0]!.zone).toBe('America/New_York');
-    expect(r.entries[0]!.label).toBe('New York');
+    const e = r.entries[0]!;
+    expect(e.kind).toBe('iana');
+    expect(e.place).toBe('New York');
+    expect(e.zone).toBe('America/New_York');
+    expect(e.label).toBe('New York');
+    expect(e.fixedOffsetMin).toBeNull();
     expect(r.error).toBeNull();
     expect(errors(r.diagnostics)).toHaveLength(0);
   });
 
-  it('resolves lat/lon from the zone coords table', () => {
-    const r = parseClock(`clock T\nLondon Europe/London`);
+  it('resolves a bare city name through the gazetteer', () => {
+    const r = parseClock(`clock T\nLondon`);
     const e = r.entries[0]!;
+    expect(e.kind).toBe('iana');
+    expect(e.zone).toBe('Europe/London');
+    expect(e.place).toBe('London');
     expect(e.lat).toBeCloseTo(51.51, 1);
-    expect(e.lon).toBeCloseTo(-0.13, 1);
-    expect(coordsFor('Europe/London')).not.toBeNull();
+    expect(warnings(r.diagnostics)).toHaveLength(0);
   });
 
-  it('honors the `as <label>` alias and multi-word places', () => {
-    const r = parseClock(
-      `clock Crew\nLos Angeles America/Los_Angeles as West coast`
-    );
+  it('resolves a colloquial alias (NYC → America/New_York, canonical city)', () => {
+    const r = parseClock(`clock T\nNYC as Dani`);
     const e = r.entries[0]!;
+    expect(e.zone).toBe('America/New_York');
+    expect(e.place).toBe('New York');
+    expect(e.label).toBe('Dani');
+  });
+
+  it('resolves a historic alias (Bombay → Asia/Kolkata)', () => {
+    const e = parseClock(`clock T\nBombay`).entries[0]!;
+    expect(e.zone).toBe('Asia/Kolkata');
+    expect(e.place).toBe('Kolkata');
+  });
+
+  it('honors the `as <label>` alias and multi-word city names', () => {
+    const e = parseClock(`clock Crew\nLos Angeles as West coast`).entries[0]!;
     expect(e.place).toBe('Los Angeles');
     expect(e.zone).toBe('America/Los_Angeles');
     expect(e.label).toBe('West coast');
   });
 
-  it('defaults place to the zone city when no place tokens precede the zone', () => {
-    const r = parseClock(`clock T\nAmerica/New_York`);
-    expect(r.entries[0]!.place).toBe('New York');
-    expect(r.entries[0]!.label).toBe('New York');
+  it('accepts a raw UTC offset as a fixed, no-DST row', () => {
+    const e = parseClock(`clock T\nUTC+5:30 as Bangalore ops`).entries[0]!;
+    expect(e.kind).toBe('fixed');
+    expect(e.fixedOffsetMin).toBe(330);
+    expect(e.zone).toBe('UTC+5:30');
+    expect(e.place).toBe('UTC+5:30');
+    expect(e.label).toBe('Bangalore ops');
+    expect(e.lat).toBeNull();
+  });
+
+  it('accepts bare UTC (and GMT) as +00:00', () => {
+    const utc = parseClock(`clock T\nUTC as Servers`).entries[0]!;
+    expect(utc.kind).toBe('fixed');
+    expect(utc.fixedOffsetMin).toBe(0);
+    expect(utc.zone).toBe('UTC');
+    expect(utc.label).toBe('Servers');
+    const gmt = parseClock(`clock T\nGMT-3`).entries[0]!;
+    expect(gmt.kind).toBe('fixed');
+    expect(gmt.fixedOffsetMin).toBe(-180);
+    expect(gmt.zone).toBe('UTC-3');
   });
 
   it('parses flat board flags (analog/no-sun/time-24) + work window', () => {
     const r = parseClock(
-      `clock Team\nanalog\nhours 9-17\ndays mon-fri\nno-sun\ntime-24\nBerlin Europe/Berlin`
+      `clock Team\nanalog\nhours 9-17\ndays mon-fri\nno-sun\ntime-24\nBerlin`
     );
     expect(r.face).toBe('analog');
     expect(r.hours12).toBe(false);
@@ -127,8 +163,7 @@ describe('clock parser', () => {
   });
 
   it('parses hours as 24h, am/pm, and smart-bare PM', () => {
-    const win = (s: string) =>
-      parseClock(`clock T\nhours ${s}\nLondon Europe/London`).work;
+    const win = (s: string) => parseClock(`clock T\nhours ${s}\nLondon`).work;
     expect(win('9-17')).toMatchObject({ startMin: 540, endMin: 1020 });
     expect(win('9-5')).toMatchObject({ startMin: 540, endMin: 1020 }); // bare→PM
     expect(win('9am-5pm')).toMatchObject({ startMin: 540, endMin: 1020 });
@@ -140,7 +175,7 @@ describe('clock parser', () => {
 
   it('reads a trailing palette color per row (swimlane tint)', () => {
     const r = parseClock(
-      `clock T\nEl Segundo America/Los_Angeles as Paul blue\nNY America/New_York as Greg`,
+      `clock T\nLos Angeles as Paul blue\nNew York as Greg`,
       nordLight
     );
     expect(r.entries[0]!.label).toBe('Paul');
@@ -148,19 +183,22 @@ describe('clock parser', () => {
     expect(r.entries[1]!.color).toBeNull();
   });
 
+  it('reads a trailing color on a bare anchor (no alias)', () => {
+    const e = parseClock(`clock T\nLondon blue`, nordLight).entries[0]!;
+    expect(e.zone).toBe('Europe/London');
+    expect(e.color).not.toBeNull();
+    expect(e.label).toBe('London');
+  });
+
   it('reads `direction lr` as a columns layout', () => {
-    expect(
-      parseClock(`clock T\ndirection lr\nNY America/New_York`).columns
-    ).toBe(true);
-    expect(parseClock(`clock T\nNY America/New_York`).columns).toBe(false);
-    expect(
-      parseClock(`clock T\ndirection tb\nNY America/New_York`).columns
-    ).toBe(false);
+    expect(parseClock(`clock T\nNew York`).columns).toBe(false);
+    expect(parseClock(`clock T\ndirection lr\nNew York`).columns).toBe(true);
+    expect(parseClock(`clock T\ndirection tb\nNew York`).columns).toBe(false);
   });
 
   it('renders one column group per entry in columns mode', () => {
     const c = renderAt(
-      `clock T\ndirection lr\nLA America/Los_Angeles as West\nNY America/New_York as East`,
+      `clock T\ndirection lr\nLA as West\nNYC as East`,
       FIXED_ISO
     );
     expect(c.querySelectorAll('[data-dgmo-clock]')).toHaveLength(2);
@@ -171,7 +209,7 @@ describe('clock parser', () => {
 
   it('is order-independent and tolerant of blank lines / comments', () => {
     const r = parseClock(
-      `clock Board\n\nNew York America/New_York\n# a comment\nhours 8-16\nLondon Europe/London\n`
+      `clock Board\n\nAmerica/New_York\n# a comment\nhours 8-16\nLondon\n`
     );
     expect(r.entries).toHaveLength(2);
     expect(r.work!.startMin).toBe(480);
@@ -182,15 +220,36 @@ describe('clock parser', () => {
     expect(r.work!.days).toEqual({ Mon: true, Wed: true, Fri: true });
   });
 
-  it('skips an unrecognized zone (no clock without a real zone) and warns', () => {
-    const r = parseClock(`clock T\nOlympus Mars/Phobos\nLondon Europe/London`);
+  it('skips an unknown IANA zone and warns', () => {
+    const r = parseClock(`clock T\nMars/Phobos\nLondon`);
     expect(r.entries).toHaveLength(1); // only the valid row survives
     expect(r.entries[0]!.zone).toBe('Europe/London');
     expect(warnings(r.diagnostics).length).toBeGreaterThan(0);
   });
 
+  it('skips an unknown place and warns with a did-you-mean when close', () => {
+    const r = parseClock(`clock T\nLundon\nTokyo`);
+    expect(r.entries).toHaveLength(1);
+    expect(r.entries[0]!.zone).toBe('Asia/Tokyo');
+    const w = warnings(r.diagnostics);
+    expect(w.length).toBeGreaterThan(0);
+    expect((w[0] as { message: string }).message).toMatch(/London/);
+  });
+
+  it('errors on an ambiguous place, listing the candidates', () => {
+    const r = parseClock(`clock T\nSan Jose\nLondon`);
+    // Ambiguous row dropped; the valid row survives.
+    expect(r.entries).toHaveLength(1);
+    expect(r.entries[0]!.zone).toBe('Europe/London');
+    const errs = errors(r.diagnostics);
+    expect(errs.length).toBeGreaterThan(0);
+    expect((errs[0] as { message: string }).message).toMatch(
+      /America\/Los_Angeles/
+    );
+  });
+
   it('warns when `days` is given without `hours` (no work window)', () => {
-    const r = parseClock(`clock T\ndays mon-fri\nLondon Europe/London`);
+    const r = parseClock(`clock T\ndays mon-fri\nLondon`);
     expect(r.work).toBeNull();
     expect(warnings(r.diagnostics).length).toBeGreaterThan(0);
   });
@@ -203,6 +262,60 @@ describe('clock parser', () => {
 
   it('is registered as a visualization', () => {
     expect(getRenderCategory('clock')).toBe('visualization');
+  });
+});
+
+// ============================================================
+// Gazetteer
+// ============================================================
+
+describe('clock gazetteer', () => {
+  it('resolves exact cities, aliases, and reports unknowns', () => {
+    expect(resolvePlace('London')).toMatchObject({
+      kind: 'ok',
+      zone: 'Europe/London',
+    });
+    expect(resolvePlace('nyc')).toMatchObject({
+      kind: 'ok',
+      zone: 'America/New_York',
+    });
+    expect(resolvePlace('Bombay')).toMatchObject({
+      kind: 'ok',
+      zone: 'Asia/Kolkata',
+    });
+    expect(resolvePlace('Atlantis').kind).toBe('unknown');
+  });
+
+  it('flags an ambiguous name with all candidates', () => {
+    const r = resolvePlace('San Jose');
+    expect(r.kind).toBe('ambiguous');
+    if (r.kind === 'ambiguous') {
+      const zones = r.candidates.map((c) => c.zone);
+      expect(zones).toContain('America/Los_Angeles');
+      expect(zones).toContain('America/Costa_Rica');
+    }
+  });
+
+  it('suggests a near-miss via edit distance', () => {
+    const r = resolvePlace('Lundon');
+    expect(r.kind).toBe('unknown');
+    if (r.kind === 'unknown') expect(r.suggestion).toBe('London');
+  });
+
+  it('searchZones ranks a prefix match first with a live offset', () => {
+    const ms = Date.parse(FIXED_ISO);
+    const hits = searchZones('Lon', ms);
+    expect(hits[0]!.city).toBe('London');
+    expect(hits[0]!.zone).toBe('Europe/London');
+    expect(hits[0]!.offsetLabel).toBe('UTC+1'); // BST in July
+    // Also finds the disambiguated London, ON alias somewhere in the list.
+    expect(hits.some((h) => h.zone === 'America/Toronto')).toBe(true);
+  });
+
+  it('searchZones matches raw IANA text', () => {
+    const ms = Date.parse(FIXED_ISO);
+    const hits = searchZones('asia/tok', ms);
+    expect(hits.some((h) => h.zone === 'Asia/Tokyo')).toBe(true);
   });
 });
 
@@ -231,6 +344,43 @@ describe('clock resolve — zoneParts', () => {
     expect(p.h).toBe(15);
     expect(p.m).toBe(30);
     expect(p.weekday).toBe('Fri');
+  });
+});
+
+describe('clock resolve — fixed offsets', () => {
+  it('parseFixedOffset accepts UTC/GMT forms and rejects the rest', () => {
+    expect(parseFixedOffset('UTC')).toBe(0);
+    expect(parseFixedOffset('GMT')).toBe(0);
+    expect(parseFixedOffset('UTC+1')).toBe(60);
+    expect(parseFixedOffset('UTC-7')).toBe(-420);
+    expect(parseFixedOffset('UTC+5:30')).toBe(330);
+    expect(parseFixedOffset('UTC+0530')).toBe(330);
+    expect(parseFixedOffset('GMT+2')).toBe(120);
+    expect(parseFixedOffset('UTC+14')).toBe(840);
+    expect(parseFixedOffset('UTC+15')).toBeNull(); // out of range
+    expect(parseFixedOffset('UTC-13')).toBeNull();
+    expect(parseFixedOffset('Europe/London')).toBeNull();
+    expect(parseFixedOffset('London')).toBeNull();
+  });
+
+  it('formatOffsetLabel round-trips the canonical label', () => {
+    expect(formatOffsetLabel(0)).toBe('UTC');
+    expect(formatOffsetLabel(60)).toBe('UTC+1');
+    expect(formatOffsetLabel(-420)).toBe('UTC-7');
+    expect(formatOffsetLabel(330)).toBe('UTC+5:30');
+  });
+
+  it('fixedParts is DST-blind: UTC + offset, straight', () => {
+    const ms = Date.parse(FIXED_ISO); // 15:30:07 UTC Fri
+    const p = fixedParts(330, ms); // +5:30
+    expect(p.h).toBe(21);
+    expect(p.m).toBe(0);
+    expect(p.s).toBe(7);
+    expect(p.weekday).toBe('Fri');
+    expect(p.offsetLabel).toBe('UTC+5:30');
+    const w = fixedParts(-420, ms); // −7 → 08:30:07
+    expect(w.h).toBe(8);
+    expect(w.offsetLabel).toBe('UTC-7');
   });
 });
 
@@ -330,7 +480,7 @@ describe('clock resolve — sunLine', () => {
 describe('clock renderer — baked anchors', () => {
   it('bakes per-row clock anchors (analog + work + sun)', () => {
     const c = renderAt(
-      `clock Crew\nanalog\nhours 9-17\ndays mon-fri\nLondon Europe/London as UK`,
+      `clock Crew\nanalog\nhours 9-17\ndays mon-fri\nLondon as UK`,
       FIXED_ISO
     );
     const row = c.querySelector('[data-dgmo-clock]')!;
@@ -345,54 +495,68 @@ describe('clock renderer — baked anchors', () => {
       'Mon,Tue,Wed,Thu,Fri'
     );
     expect(row.getAttribute('data-dgmo-clock-lat')).not.toBeNull();
-    // Analog hands + face + status + sun anchors all present.
     expect(row.querySelector('[data-dgmo-clock-hand="h"]')).not.toBeNull();
     expect(row.querySelector('[data-dgmo-clock-hand="m"]')).not.toBeNull();
     expect(row.querySelector('[data-dgmo-clock-hand="s"]')).not.toBeNull();
     expect(row.querySelector('[data-dgmo-clock-facebg]')).not.toBeNull();
     expect(row.querySelector('[data-dgmo-clock-status]')).not.toBeNull();
     expect(row.querySelector('[data-dgmo-clock-sun-line]')).not.toBeNull();
-    // Hour hand carries a render-time rotate transform.
     const hand = row.querySelector('[data-dgmo-clock-hand="h"]')!;
     expect(hand.getAttribute('transform')).toMatch(/rotate\(/);
   });
 
   it('bakes a digital readout (main + dim seconds) in digital face', () => {
-    const c = renderAt(`clock Mum\nLondon Europe/London`, FIXED_ISO);
+    const c = renderAt(`clock Mum\nLondon`, FIXED_ISO);
     const row = c.querySelector('[data-dgmo-clock]')!;
     expect(row.getAttribute('data-dgmo-clock-face')).toBe('digital');
-    const digital = row.querySelector('[data-dgmo-clock-digital]')!;
-    expect(digital).not.toBeNull();
     const main = row.querySelector('[data-dgmo-clock-digital-part="main"]')!;
     expect(main.textContent).toBe('4:30'); // 16:30 BST in 12h
     const sec = row.querySelector('[data-dgmo-clock-digital-part="sec"]')!;
     expect(sec.textContent).toBe(':07');
-    // No work → no status chip.
     expect(row.querySelector('[data-dgmo-clock-status]')).toBeNull();
-  });
-
-  it('analog draws only the dial — no numeric time readout', () => {
-    const c = renderAt(`clock T\nanalog\nLondon Europe/London`, FIXED_ISO);
-    const row = c.querySelector('[data-dgmo-clock]')!;
-    expect(row.querySelector('[data-dgmo-clock-hand="h"]')).not.toBeNull();
-    expect(row.querySelector('[data-dgmo-clock-midtime]')).toBeNull();
-    expect(row.querySelector('[data-dgmo-clock-digital]')).toBeNull();
-    expect(row.querySelector('[data-dgmo-clock-ampm]')).toBeNull();
-  });
-
-  it('omits the sun line when sun is off', () => {
-    const c = renderAt(`clock T\nno-sun\nLondon Europe/London`, FIXED_ISO);
-    const row = c.querySelector('[data-dgmo-clock]')!;
-    expect(row.getAttribute('data-dgmo-clock-sun')).toBe('0');
-    expect(row.querySelector('[data-dgmo-clock-sun-line]')).toBeNull();
   });
 
   it('renders one row per entry', () => {
     const c = renderAt(
-      `clock Board\nNew York America/New_York\nLondon Europe/London\nAsia/Tokyo`,
+      `clock Board\nAmerica/New_York\nLondon\nAsia/Tokyo`,
       FIXED_ISO
     );
     expect(c.querySelectorAll('[data-dgmo-clock]')).toHaveLength(3);
+  });
+});
+
+// ============================================================
+// Fixed UTC-offset rows (no DST)
+// ============================================================
+
+describe('clock renderer — fixed offset rows', () => {
+  it('bakes a fixed-offset attr and a computed time (no Intl zone)', () => {
+    const c = renderAt(`clock Ops\nUTC+5:30 as Bangalore`, FIXED_ISO);
+    const row = c.querySelector('[data-dgmo-clock]')!;
+    expect(row.getAttribute('data-dgmo-clock-fixed-offset')).toBe('330');
+    // 15:30:07 UTC + 5:30 = 21:00 → 9:00 pm.
+    const main = row.querySelector('[data-dgmo-clock-digital-part="main"]')!;
+    expect(main.textContent).toBe('9:00');
+    // No coords → no sun line.
+    expect(row.querySelector('[data-dgmo-clock-sun-line]')).toBeNull();
+  });
+
+  it('marks a fixed row with a "no DST" note', () => {
+    const c = renderAt(`clock Ops\nUTC-7 as Servers`, FIXED_ISO);
+    const marked = [...c.querySelectorAll('text')].some((t) =>
+      (t.textContent ?? '').includes('no DST')
+    );
+    expect(marked).toBe(true);
+  });
+
+  it('ticks a fixed row off UTC+offset', () => {
+    const c = renderAt(`clock Ops\nUTC+1`, '2026-07-10T15:30:07Z');
+    const main = () =>
+      c.querySelector('[data-dgmo-clock-digital-part="main"]')!.textContent;
+    expect(main()).toBe('4:30'); // 16:30
+    vi.setSystemTime(Date.parse('2026-07-10T18:45:22Z')); // 19:45 +1
+    tickClocks(c);
+    expect(main()).toBe('7:45');
   });
 });
 
@@ -402,10 +566,7 @@ describe('clock renderer — baked anchors', () => {
 
 describe('clock ticker', () => {
   it('updates the digital readout to a new instant', () => {
-    const c = renderAt(
-      `clock Mum\nLondon Europe/London`,
-      '2026-07-10T15:30:07Z'
-    );
+    const c = renderAt(`clock Mum\nLondon`, '2026-07-10T15:30:07Z');
     const main = () =>
       c.querySelector('[data-dgmo-clock-digital-part="main"]')!.textContent;
     const sec = () =>
@@ -418,15 +579,29 @@ describe('clock ticker', () => {
   });
 
   it('rotates analog hands and recolors on tick', () => {
-    const c = renderAt(
-      `clock T\nanalog\nLondon Europe/London`,
-      '2026-07-10T15:30:07Z'
-    );
+    const c = renderAt(`clock T\nanalog\nLondon`, '2026-07-10T15:30:07Z');
     const hourHand = c.querySelector('[data-dgmo-clock-hand="h"]')!;
     const before = hourHand.getAttribute('transform');
     vi.setSystemTime(Date.parse('2026-07-10T18:30:07Z'));
     tickClocks(c);
     expect(hourHand.getAttribute('transform')).not.toBe(before);
+  });
+
+  it('repaints the work lane wash when status crosses work-start', () => {
+    // 08:30 EDT Fri — within 60min of 9:00 start → "soon" (orange wash).
+    const c = renderAt(
+      `clock\nhours 9-5\ndays mon-fri\ncolor-by work\nNew York`,
+      '2026-07-10T12:30:00Z'
+    );
+    const group = c.querySelector('[data-dgmo-clock]')!;
+    const lane = c.querySelector('[data-dgmo-clock-lane]')!;
+    const soonSoft = group.getAttribute('data-dgmo-clock-c-soon-soft');
+    const okSoft = group.getAttribute('data-dgmo-clock-c-ok-soft');
+    expect(lane.getAttribute('fill')).toBe(soonSoft);
+    vi.setSystemTime(Date.parse('2026-07-10T14:00:00Z'));
+    tickClocks(c);
+    expect(lane.getAttribute('fill')).toBe(okSoft);
+    expect(okSoft).not.toBe(soonSoft);
   });
 });
 
@@ -438,8 +613,8 @@ describe('clock renderer — layout fit (scales, never overflows)', () => {
     'hours 9-17',
     'days mon-fri',
     '',
-    'London  Europe/London  as The London growth & partnerships pod',
-    'Denver  America/Denver',
+    'London as The London growth & partnerships pod',
+    'Denver',
   ].join('\n');
 
   function renderWidth(source: string, clientWidth: number): HTMLDivElement {
@@ -448,15 +623,13 @@ describe('clock renderer — layout fit (scales, never overflows)', () => {
     const c = document.createElement('div');
     Object.defineProperty(c, 'clientWidth', { value: clientWidth });
     Object.defineProperty(c, 'clientHeight', { value: 600 });
-    // No exportDims → exercises the responsive clamp + viewBox path.
-    renderClock(c as HTMLDivElement, parseClock(LONG), nordLight, false);
+    renderClock(c as HTMLDivElement, parseClock(source), nordLight, false);
     return c as HTMLDivElement;
   }
 
   it('clamps the layout width to a comfortable floor on a narrow panel', () => {
     const c = renderWidth(LONG, 300);
     const vb = c.querySelector('svg')!.getAttribute('viewBox')!;
-    // 300 < floor(460) → lays out at 460 and lets fitSvg scale it down.
     expect(vb.split(' ')[2]).toBe('460');
   });
 
@@ -479,12 +652,11 @@ describe('clock renderer — layout fit (scales, never overflows)', () => {
   });
 
   it('lines every row label up at the same x despite varying time widths', () => {
-    // 9 vs 12 vs 10:06 → different digital widths; labels must still align.
     const src = [
       'clock World',
-      'San Francisco America/Los_Angeles as West',
-      'New York America/New_York as East',
-      'Mumbai Asia/Kolkata as Mumbai',
+      'San Francisco as West',
+      'New York as East',
+      'Mumbai as Mumbai',
     ].join('\n');
     vi.useFakeTimers();
     vi.setSystemTime(Date.parse('2026-07-11T12:00:00Z'));
@@ -501,7 +673,7 @@ describe('clock renderer — layout fit (scales, never overflows)', () => {
   });
 
   it('keeps a short label in full at a wide layout', () => {
-    const src = 'clock W\nLondon Europe/London as UK team';
+    const src = 'clock W\nLondon as UK team';
     vi.useFakeTimers();
     vi.setSystemTime(Date.parse('2026-07-11T12:00:00Z'));
     const c = document.createElement('div');
@@ -521,27 +693,21 @@ describe('clock renderer — layout fit (scales, never overflows)', () => {
 
 describe('clock parser — color-by', () => {
   it('defaults to place', () => {
-    expect(parseClock('clock T\nLondon Europe/London').colorBy).toBe('place');
+    expect(parseClock('clock T\nLondon').colorBy).toBe('place');
   });
   it('parses each dimension', () => {
     for (const m of ['place', 'work', 'daylight', 'time', 'none'] as const) {
-      expect(
-        parseClock(`clock T\ncolor-by ${m}\nLondon Europe/London`).colorBy
-      ).toBe(m);
+      expect(parseClock(`clock T\ncolor-by ${m}\nLondon`).colorBy).toBe(m);
     }
   });
   it('bare `color-by` is the place default', () => {
-    expect(parseClock('clock T\ncolor-by\nLondon Europe/London').colorBy).toBe(
-      'place'
-    );
+    expect(parseClock('clock T\ncolor-by\nLondon').colorBy).toBe('place');
   });
   it('`color-by none` disables coloring', () => {
-    expect(
-      parseClock('clock T\ncolor-by none\nLondon Europe/London').colorBy
-    ).toBe('none');
+    expect(parseClock('clock T\ncolor-by none\nLondon').colorBy).toBe('none');
   });
   it('warns on an unknown dimension and keeps the default', () => {
-    const r = parseClock('clock T\ncolor-by rainbow\nLondon Europe/London');
+    const r = parseClock('clock T\ncolor-by rainbow\nLondon');
     expect(r.colorBy).toBe('place');
     expect(warnings(r.diagnostics).length).toBeGreaterThan(0);
   });
@@ -550,19 +716,17 @@ describe('clock parser — color-by', () => {
 describe('clock renderer — color-by', () => {
   it('place mode washes every row and colors the time solid', () => {
     const c = renderAt(
-      'clock World\ncolor-by place\nLondon Europe/London as UK\nTokyo Asia/Tokyo as JP',
+      'clock World\ncolor-by place\nLondon as UK\nTokyo as JP',
       FIXED_ISO
     );
     const rows = c.querySelectorAll('[data-dgmo-clock]');
     expect(rows).toHaveLength(2);
-    // Each row baked a resolved solid, and the two differ (distinct accents).
     const solids = [...rows].map((r) =>
       r.getAttribute('data-dgmo-clock-auto-solid')
     );
     expect(solids[0]).toBeTruthy();
     expect(solids[1]).toBeTruthy();
     expect(solids[0]).not.toBe(solids[1]);
-    // The digital time is painted in the resolved solid, not the ink text color.
     const main = rows[0]!.querySelector(
       '[data-dgmo-clock-digital-part="main"]'
     )!;
@@ -570,25 +734,20 @@ describe('clock renderer — color-by', () => {
   });
 
   it('color-by none leaves rows neutral (no baked solid, no lane wash)', () => {
-    const c = renderAt(
-      'clock World\ncolor-by none\nLondon Europe/London as UK',
-      FIXED_ISO
-    );
+    const c = renderAt('clock World\ncolor-by none\nLondon as UK', FIXED_ISO);
     const row = c.querySelector('[data-dgmo-clock]')!;
     expect(row.getAttribute('data-dgmo-clock-auto-solid')).toBeNull();
-    // No per-row lane rect beyond the card/background.
     expect(row.querySelector('rect')).toBeNull();
   });
 
   it('a hand-set per-zone shade overrides the dimension', () => {
     const c = renderAt(
-      'clock World\ncolor-by daylight\nLondon Europe/London as UK purple\nTokyo Asia/Tokyo as JP',
+      'clock World\ncolor-by daylight\nLondon as UK purple\nTokyo as JP',
       FIXED_ISO
     );
     const rows = c.querySelectorAll('[data-dgmo-clock]');
     const purple = getPalette('nord').light.colors.purple;
     expect(rows[0]!.getAttribute('data-dgmo-clock-auto-solid')).toBe(purple);
-    // The second zone follows the daylight dimension, so it differs from the shade.
     expect(rows[1]!.getAttribute('data-dgmo-clock-auto-solid')).not.toBe(
       purple
     );
@@ -596,7 +755,7 @@ describe('clock renderer — color-by', () => {
 
   it('ticker repaints the analog dial in the resolved color, not day/night', () => {
     const c = renderAt(
-      'clock Desks\nanalog\ncolor-by place\nLondon Europe/London as UK',
+      'clock Desks\nanalog\ncolor-by place\nLondon as UK',
       FIXED_ISO
     );
     const row = c.querySelector('[data-dgmo-clock]')!;

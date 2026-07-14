@@ -608,10 +608,14 @@ export type { RecurRule, CountUnits, RoundMode } from './countdown/resolve';
 export { parseClock } from './clock/parser';
 export { renderClock, renderClockForExport } from './clock/renderer';
 export { startClocks, tickClocks } from './clock/ticker';
+export { parseFixedOffset, formatOffsetLabel } from './clock/resolve';
+export { searchZones, resolvePlace, normalizePlace } from './clock/gazetteer';
+export type { ZoneSuggestion, PlaceResolution } from './clock/gazetteer';
 export type {
   ParsedClock,
   ClockEntry,
   ClockFace,
+  ClockZoneKind,
   WorkWindow,
 } from './clock/types';
 

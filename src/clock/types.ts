@@ -51,12 +51,23 @@ export interface WorkWindow {
   readonly days: Record<string, boolean>;
 }
 
+/**
+ * How a row's zone was named (§37.3). `iana` — a real, DST-aware zone reached by
+ * a city name, an alias, or an explicit IANA id. `fixed` — a raw `UTC±HH:MM`
+ * offset that never observes daylight saving (rendered with a "no DST" marker).
+ */
+export type ClockZoneKind = 'iana' | 'fixed';
+
 /** One place/person row on the board. */
 export interface ClockEntry {
-  /** The place name (before the zone token), e.g. "New York". */
+  /** Whether the zone is a real IANA zone or a fixed UTC offset. */
+  readonly kind: ClockZoneKind;
+  /** The canonical display city ("New York"), or the offset label for a fixed row. */
   readonly place: string;
-  /** The IANA zone token, e.g. "America/New_York". */
+  /** The IANA zone ("America/New_York"), or the offset label ("UTC+5:30") when fixed. */
   readonly zone: string;
+  /** Minutes east of UTC for a `fixed` row; null for an `iana` row. */
+  readonly fixedOffsetMin: number | null;
   /** The display alias (`as <label>`), defaulting to `place`. */
   readonly label: string;
   /** Representative latitude for sundown math, or null when unknown. */

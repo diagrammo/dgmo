@@ -14,17 +14,21 @@
 //   sun    <true|false>                // sundown/sunrise line; default on
 //   time-24 / time-12                  // 24h vs 12h am/pm (default 12h)
 //
-//   <place tokens…> <IANA/Zone> [as <label…>]
+//   <anchor…> [as <label…>] [color]
 //
-// The zone is the token containing `/` (or a known IANA zone / `UTC`); text
-// before it is the place, `as <label>` the display alias (default = place).
-// Order-independent; blank lines allowed. No colons anywhere.
+// The ANCHOR is one of three forms, resolved in this order (§37.3):
+//   1. starts `UTC`/`GMT`  → a fixed offset (`UTC`, `UTC+1`, `UTC-7`, `UTC+5:30`)
+//   2. contains `/`        → an explicit IANA id (`America/New_York`)
+//   3. otherwise           → a city name, resolved via the gazetteer
+//                            (exact → alias → ambiguous error → did-you-mean)
+// `as <label>` is optional (default = the resolved city / offset label); a
+// trailing palette color token pins the row's shade. No place-then-zone pair,
+// no colons. Order-independent; blank lines allowed.
 
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import { extractColor, parseFirstLine } from '../utils/parsing';
-import { resolveColor } from '../colors';
 import type {
   ClockColorBy,
   ClockEntry,
@@ -32,6 +36,8 @@ import type {
   WorkWindow,
 } from './types';
 import { coordsFor } from './zone-coords';
+import { parseFixedOffset, formatOffsetLabel } from './resolve';
+import { resolvePlace } from './gazetteer';
 
 /** Board-level directive keywords — a line starting with one is NOT an entry. */
 const DIRECTIVES = new Set([
@@ -91,11 +97,6 @@ function isValidZone(zone: string): boolean {
   } catch {
     return false;
   }
-}
-
-/** Does this token look like a zone? (`/`-bearing, `UTC`, or in our coords). */
-function looksLikeZone(token: string): boolean {
-  return token.includes('/') || token === 'UTC' || coordsFor(token) !== null;
 }
 
 /** Mon–Fri, the default working-day set. */
@@ -288,26 +289,17 @@ export function parseClock(
       continue;
     }
 
-    // ── Otherwise: an ENTRY (a place row). ──
-    const zoneIdx = tokens.findIndex((t) => looksLikeZone(t));
-    if (zoneIdx < 0) {
-      warn(
-        lineNum,
-        `No time zone found in "${trimmed}" — expected an IANA zone like America/New_York.`
-      );
-      continue;
-    }
-    const zone = tokens[zoneIdx]!;
-    const placeTokens = tokens.slice(0, zoneIdx);
-    // `as <label> [color]` after the zone → alias + optional trailing palette
-    // color; without `as`, a lone trailing color token still applies.
+    // ── Otherwise: an ENTRY (a zone row). ──
+    // Split the line into ANCHOR [as LABEL] [color]. `as` is a bare token; the
+    // trailing color is pulled off whichever side it sits on.
+    const asIdx = tokens.findIndex((t) => t.toLowerCase() === 'as');
+    let anchor: string;
     let label: string | null = null;
     let color: string | undefined;
-    const afterZone = tokens.slice(zoneIdx + 1);
-    const asIdx = afterZone.findIndex((t) => t.toLowerCase() === 'as');
     if (asIdx >= 0) {
+      anchor = tokens.slice(0, asIdx).join(' ').trim();
       const ex = extractColor(
-        afterZone
+        tokens
           .slice(asIdx + 1)
           .join(' ')
           .trim(),
@@ -317,30 +309,99 @@ export function parseClock(
       );
       if (ex.label) label = ex.label;
       color = ex.color;
-    } else if (palette && afterZone.length === 1) {
-      color = resolveColor(afterZone[0]!, palette) ?? undefined;
+    } else {
+      // No alias: a trailing palette color still applies (`London purple`).
+      const ex = extractColor(
+        tokens.join(' ').trim(),
+        palette,
+        undefined,
+        lineNum
+      );
+      anchor = ex.label.trim();
+      color = ex.color;
     }
-    const place = placeTokens.join(' ').trim() || zoneCity(zone);
 
-    if (!isValidZone(zone)) {
-      // We can't tell the time without a real zone, so skip the row entirely
-      // rather than render a misleading UTC clock.
+    if (!anchor) {
       warn(
         lineNum,
-        `Unknown time zone "${zone}" — row skipped (use an IANA zone like America/New_York).`
+        `Empty zone on "${trimmed}" — expected a city, IANA zone, or UTC offset.`
       );
       continue;
     }
-    const coords = coordsFor(zone);
-    entries.push({
-      place,
-      zone,
-      label: label ?? place,
-      lat: coords?.lat ?? null,
-      lon: coords?.lon ?? null,
-      color: color ?? null,
-      lineNumber: lineNum,
-    });
+
+    // ── Classify the anchor: UTC/GMT offset → IANA id → gazetteer city. ──
+    // Every branch below either assigns `entry` or `continue`s the row.
+    let entry: ClockEntry;
+    const fixedOffset = parseFixedOffset(anchor);
+    if (fixedOffset !== null) {
+      // A raw fixed offset — no DST, no coordinates, no sun line.
+      const offLabel = formatOffsetLabel(fixedOffset);
+      entry = {
+        kind: 'fixed',
+        place: offLabel,
+        zone: offLabel,
+        fixedOffsetMin: fixedOffset,
+        label: label ?? offLabel,
+        lat: null,
+        lon: null,
+        color: color ?? null,
+        lineNumber: lineNum,
+      };
+    } else if (anchor.includes('/')) {
+      // An explicit IANA id.
+      if (!isValidZone(anchor)) {
+        warn(
+          lineNum,
+          `Unknown IANA zone "${anchor}" — row skipped (e.g. America/New_York). Or give a UTC offset like UTC-5.`
+        );
+        continue;
+      }
+      const coords = coordsFor(anchor);
+      const place = zoneCity(anchor);
+      entry = {
+        kind: 'iana',
+        place,
+        zone: anchor,
+        fixedOffsetMin: null,
+        label: label ?? place,
+        lat: coords?.lat ?? null,
+        lon: coords?.lon ?? null,
+        color: color ?? null,
+        lineNumber: lineNum,
+      };
+    } else {
+      // A bare place name — resolve it through the city gazetteer.
+      const res = resolvePlace(anchor);
+      if (res.kind === 'ambiguous') {
+        const list = res.candidates.map((c) => c.zone).join(', ');
+        softError(
+          lineNum,
+          `"${anchor}" is ambiguous — did you mean ${list}? Use the IANA zone to disambiguate.`
+        );
+        continue;
+      }
+      if (res.kind === 'unknown') {
+        const hint = res.suggestion
+          ? ` Did you mean ${res.suggestion}?`
+          : ' Give a city, an IANA zone (America/New_York), or a UTC offset (UTC-5).';
+        warn(lineNum, `Unknown place "${anchor}" — row skipped.${hint}`);
+        continue;
+      }
+      const coords = coordsFor(res.zone);
+      entry = {
+        kind: 'iana',
+        place: res.city,
+        zone: res.zone,
+        fixedOffsetMin: null,
+        label: label ?? res.city,
+        lat: coords?.lat ?? null,
+        lon: coords?.lon ?? null,
+        color: color ?? null,
+        lineNumber: lineNum,
+      };
+    }
+
+    entries.push(entry);
   }
 
   if (!headerParsed) {
@@ -366,7 +427,7 @@ export function parseClock(
   if (entries.length === 0) {
     softError(
       result.titleLineNumber ?? 1,
-      'A clock needs at least one place row (e.g. "London Europe/London").'
+      'A clock needs at least one zone row (e.g. "London as UK team").'
     );
   }
 

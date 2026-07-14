@@ -17,13 +17,16 @@
 // so the live value can never disagree with the baked fallback.
 
 import {
+  fixedParts,
   formatTime,
   handAngles,
+  rampColor,
   sunLine,
   workStatus,
   zoneParts,
   type WorkSpec,
 } from './resolve';
+import { mix } from '../palettes/color-utils';
 
 /** Reconstruct the working window from the baked `data-dgmo-clock-work-*` attrs. */
 function readWork(node: Element): WorkSpec | null {
@@ -55,7 +58,13 @@ function setPart(group: Element, sel: string, textContent: string): void {
 function updateRow(group: Element, now: number): void {
   const zone = group.getAttribute('data-dgmo-clock-zone');
   if (!zone) return;
-  const parts = zoneParts(zone, now);
+  // A fixed UTC offset ticks off UTC+offset (no DST); a real zone goes through
+  // `Intl`. The renderer bakes `data-dgmo-clock-fixed-offset` for the former.
+  const fixedAttr = group.getAttribute('data-dgmo-clock-fixed-offset');
+  const parts =
+    fixedAttr !== null
+      ? fixedParts(Number(fixedAttr), now)
+      : zoneParts(zone, now);
 
   const latAttr = group.getAttribute('data-dgmo-clock-lat');
   const lonAttr = group.getAttribute('data-dgmo-clock-lon');
@@ -82,9 +91,19 @@ function updateRow(group: Element, now: number): void {
   // hand, and center from the baked resolved color so a hue/work/time clock
   // stays its own color instead of reverting to day/night each tick. The lane
   // wash and digital time color are baked once and never touched here.
-  const autoSolid = group.getAttribute('data-dgmo-clock-auto-solid');
-  const autoFace = group.getAttribute('data-dgmo-clock-auto-face');
-  const faceFill = autoFace ?? stTint;
+  // Recompute the auto accent live so `daylight` flips at sunset and the `time`
+  // ramp drifts by hour instead of freezing at bake time; `place`/`work` accents
+  // are static so fall back to the baked solid for those.
+  const mode = group.getAttribute('data-dgmo-clock-auto-mode');
+  const cardFill = group.getAttribute('data-dgmo-clock-cardfill');
+  let autoSolid: string | null = null;
+  if (mode === 'daylight') autoSolid = up ? c('day') : c('night');
+  else if (mode === 'time') autoSolid = rampColor(parts.h);
+  else if (mode) autoSolid = group.getAttribute('data-dgmo-clock-auto-solid');
+  const faceFill =
+    autoSolid && cardFill
+      ? mix(autoSolid, cardFill, 20)
+      : (group.getAttribute('data-dgmo-clock-auto-face') ?? stTint);
   const handColor = autoSolid ?? stColor;
   const face = group.querySelector('[data-dgmo-clock-facebg]');
   if (face) face.setAttribute('fill', faceFill);
@@ -129,6 +148,26 @@ function updateRow(group: Element, now: number): void {
         dot.setAttribute('stroke', 'none');
       }
     }
+  }
+
+  // ── Auto lane wash — repaint so work/daylight/time modes track live state.
+  // The wash is otherwise baked once at render, so a page opened before
+  // work-start (or before sunset) keeps a stale color all day. `place` is
+  // static; leave its baked tint alone. ──
+  const lane = group.querySelector('[data-dgmo-clock-lane]');
+  if (lane && mode) {
+    let laneFill: string | null = null;
+    if (mode === 'daylight') laneFill = stTint;
+    else if (mode === 'time' && cardFill)
+      laneFill = mix(rampColor(parts.h), cardFill, 14);
+    else if (mode === 'work' && status)
+      laneFill =
+        status.cls === 'ok'
+          ? c('ok-soft')
+          : status.cls === 'soon'
+            ? c('soon-soft')
+            : c('off-soft');
+    if (laneFill) lane.setAttribute('fill', laneFill);
   }
 
   // ── Sundown / sunrise line + sun/moon icon. ──

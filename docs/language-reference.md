@@ -3829,7 +3829,7 @@ Days mode uses `ceil` — a target later *today* reads "1 day", not "0". Full mo
 <!-- TYPE:clock -->
 
 <!-- TIPS start -->
-**Styling tips:** A live world clock — one panel per person or place, each showing the CURRENT time in its zone and ticking every second, accurate the instant the page loads. Reach for it to answer "what time is it for the crew right now": a distributed team's local times, a single collaborator's clock, or the overlap window for scheduling a call. The first line declares the type and a title (`Crew standups`). Each entry is one line, `<place> <IANA/Zone> [as <label>]`: a human-readable place, then a real IANA zone (`Europe/London`, `America/New_York`, `America/Los_Angeles`, `Asia/Tokyo`) — never a bare offset like `GMT+1`, which doesn't track daylight saving. Use `as <label>` to name the person or role behind a zone (`New York America/New_York as Dani (NY)`); the label becomes the caption. The single-clock case is common and encouraged — one title, one entry (`clock Dani` / `New York America/New_York`). Global directives are flat, no colon: `analog` for analog dials (digital is the default face), `time-24` for a 24-hour readout (12h am/pm is the default), and optional context bands `hours 9-17` + `days mon-fri` (the window accepts `HH:MM` and am/pm, e.g. `hours 8:30-17:15`) to shade each zone's working window so out-of-hours people read at a glance. `no-sun` hides the sunrise/sundown indicator (on by default). Add `hours`/`days` only when the point is scheduling overlap; drop them for a plain "current time" widget. Zones are **colorized by default** (`color-by`, default `place` — a distinct palette accent per place); reach for a semantic mode when color should *mean* something: `color-by time` or `color-by daylight` make an at-a-glance world board read as day-vs-night (order the zones west→east so the daylight sweeps across), and `color-by work` turns a standup/team board green/amber/grey by availability — it needs `hours` set. A hand-set per-zone color (`London Europe/London as UK team purple`) is a **defined** shade that always wins over the dimension, so you can pin one zone and let the rest follow. `color-by none` goes neutral. On image surfaces (PNG, `.svg` via `<img>`, GitHub camo) it can't tick and bakes the time at export — the correct graceful fallback.
+**Styling tips:** A live world clock — one panel per person or place, each showing the CURRENT time in its zone and ticking every second, accurate the instant the page loads. Reach for it to answer "what time is it for the crew right now": a distributed team's local times, a single collaborator's clock, or the overlap window for scheduling a call. The first line declares the type and a title (`Crew standups`). Each entry is one line, `<anchor> [as <label>] [color]`: name the zone once as the anchor — a plain **city name** (`London`, `NYC`, `Bombay`, `Los Angeles` — easiest, resolved through the bundled gazetteer to its canonical zone and displayed as the canonical city), a full **IANA id** (the token containing `/`, like `Europe/London` or `America/New_York`), or a **UTC/GMT offset** (`UTC`, `UTC+1`, `UTC+5:30`, `GMT+2`) which pins a **fixed** offset with no daylight-saving shift (bare `UTC`/`GMT` = +00:00, and no sun line). Use `as <label>` to name the person or role behind a zone (`New York as Dani (NY)`); the label becomes the caption and defaults to the resolved city (or the offset label for a fixed row). The single-clock case is common and encouraged — one title, one entry (`clock Dani` / `New York`). Global directives are flat, no colon: `analog` for analog dials (digital is the default face), `time-24` for a 24-hour readout (12h am/pm is the default), and optional context bands `hours 9-17` + `days mon-fri` (the window accepts `HH:MM` and am/pm, e.g. `hours 8:30-17:15`) to shade each zone's working window so out-of-hours people read at a glance. `no-sun` hides the sunrise/sundown indicator (on by default). Add `hours`/`days` only when the point is scheduling overlap; drop them for a plain "current time" widget. Zones are **colorized by default** (`color-by`, default `place` — a distinct palette accent per place); reach for a semantic mode when color should *mean* something: `color-by time` or `color-by daylight` make an at-a-glance world board read as day-vs-night (order the zones west→east so the daylight sweeps across), and `color-by work` turns a standup/team board green/amber/grey by availability — it needs `hours` set. A hand-set per-zone color (`London as UK team purple`, or just `London purple`) is a **defined** shade that always wins over the dimension, so you can pin one zone and let the rest follow. `color-by none` goes neutral. On image surfaces (PNG, `.svg` via `<img>`, GitHub camo) it can't tick and bakes the time at export — the correct graceful fallback.
 <!-- TIPS end -->
 
 The second *dynamic* dgmo chart (with `countdown`): a live board of world clocks recomputed against the viewer's clock every second. Flat syntax — the first line is `clock <Title>`; every other non-blank line is either a board-level directive (its first token is an option keyword) or a place row. Order-independent; no colons anywhere.
@@ -3848,7 +3848,7 @@ no-title                    // suppress the board title
 direction lr                // lay the panels out in a row
 color-by <place|work|daylight|time|none> // zone coloring; default place
 
-<place tokens…> <IANA/Zone> [as <label…>]
+<anchor> [as <label…>] [color]
 ```
 
 ### Example
@@ -3858,9 +3858,20 @@ clock Crew standups
 hours 9-17
 days mon-fri
 
-London        Europe/London        as UK team
-New York      America/New_York     as Dani (NY)
-Los Angeles   America/Los_Angeles  as West coast
+London        as UK team
+New York      as Dani (NY)
+Los Angeles   as West coast
+```
+
+A UTC-offset board (offsets are fixed — no DST, no sun line):
+
+```
+clock Bridge watch
+time-24
+
+London        as UK team
+UTC+5:30      as Bangalore ops
+UTC           as Servers
 ```
 
 ### Directives
@@ -3878,7 +3889,13 @@ Los Angeles   America/Los_Angeles  as West coast
 
 ### Entry grammar
 
-Each place row is `<place tokens…> <IANA/Zone> [as <label…>]`. The zone is the token containing `/` (a full IANA name like `America/New_York`); text before it is the place, and `as <label>` sets the display alias (default = place). A row that is just a zone (`Asia/Tokyo`) uses the zone's city as the place.
+Each place row is `<anchor> [as <label…>] [color]`. The **anchor** names the zone exactly once and is resolved in this order:
+
+1. **UTC/GMT offset** — `UTC`, `UTC+1`, `UTC-7`, `UTC+5:30`, `GMT+2`. A **fixed** offset with no DST (bare `UTC`/`GMT` = +00:00); renders a "no DST" marker and no sun line.
+2. **IANA id** — the token containing `/` (`Europe/London`, `America/New_York`). DST-correct.
+3. **City name** — via the bundled gazetteer (`London`, `NYC`, `Bombay`, `Los Angeles`). Resolves to the canonical IANA zone and displays the canonical city. An ambiguous name (`San Jose`) errors and lists the candidates; an unknown name is skipped with a warning and a did-you-mean.
+
+`as <label>` sets the display alias (default = the resolved city, or the offset label for a fixed row). A trailing palette color token pins the row's shade (`London as UK team purple`, or `London purple`).
 
 ### Semantics
 

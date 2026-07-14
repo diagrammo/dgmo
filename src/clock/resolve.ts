@@ -131,6 +131,72 @@ function pad2(n: number): string {
   return n < 10 ? '0' + n : String(n);
 }
 
+const WEEKDAY_SHORT = [
+  'Sun',
+  'Mon',
+  'Tue',
+  'Wed',
+  'Thu',
+  'Fri',
+  'Sat',
+] as const;
+
+/**
+ * A `UTC`/`GMT` fixed-offset token → minutes east of UTC, or null when it is not
+ * one. Accepts bare `UTC`/`GMT` (→ 0), `UTC+1`, `UTC-7`, `UTC+5:30`, and the
+ * unpunctuated `UTC+0530`. `GMT` is treated as an exact synonym of `UTC`. The
+ * range is clamped to the real-world span (−12:00 … +14:00); anything outside is
+ * rejected (returns null) so a typo like `UTC+99` falls through to an error
+ * rather than rendering a nonsense clock.
+ */
+export function parseFixedOffset(token: string): number | null {
+  const m = token
+    .trim()
+    .match(/^(?:UTC|GMT)\s*([+-])?\s*(\d{1,2})?(?::?(\d{2}))?$/i);
+  if (!m) return null;
+  // Bare `UTC` / `GMT` → +00:00.
+  if (!m[1] && !m[2] && !m[3]) return 0;
+  // A sign with no digits, or digits with no sign, is malformed.
+  if (!m[1] || !m[2]) return null;
+  const sign = m[1] === '-' ? -1 : 1;
+  const h = Number(m[2]);
+  const mm = m[3] ? Number(m[3]) : 0;
+  if (h > 14 || mm > 59) return null;
+  const total = sign * (h * 60 + mm);
+  if (total < -12 * 60 || total > 14 * 60) return null;
+  return total;
+}
+
+/** A fixed offset (minutes east of UTC) → its canonical label (`UTC+5:30`, `UTC−7`, `UTC`). */
+export function formatOffsetLabel(offsetMin: number): string {
+  if (offsetMin === 0) return 'UTC';
+  // ASCII '-' to match `zoneParts`' Intl-derived labels ("UTC-4") and round-trip
+  // the author's typed offset.
+  const sign = offsetMin < 0 ? '-' : '+';
+  const abs = Math.abs(offsetMin);
+  const h = Math.floor(abs / 60);
+  const mm = abs % 60;
+  return `UTC${sign}${h}${mm ? ':' + pad2(mm) : ''}`;
+}
+
+/**
+ * Wall-clock parts for a FIXED offset (a raw `UTC±HH:MM`), computed straight
+ * from UTC + the offset. Deliberately DST-blind: a fixed offset never shifts, so
+ * this is the honest reading for `UTC` itself, no-DST regions, and quick throw-
+ * aways — and wrong half the year for anywhere that observes DST (the parser
+ * flags that with a marker, not an error).
+ */
+export function fixedParts(offsetMin: number, nowMs: number): ZoneParts {
+  const d = new Date(nowMs + offsetMin * 60_000);
+  return {
+    h: d.getUTCHours(),
+    m: d.getUTCMinutes(),
+    s: d.getUTCSeconds(),
+    weekday: WEEKDAY_SHORT[d.getUTCDay()]!,
+    offsetLabel: formatOffsetLabel(offsetMin),
+  };
+}
+
 /** The main + seconds + am/pm segments of a formatted time. */
 export interface TimeStr {
   /** "9:05" (12h) or "21:05" (24h). */

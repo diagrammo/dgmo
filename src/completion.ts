@@ -666,7 +666,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'clock',
-    // Live world-clock board. Each row is a place + IANA zone (+ `as` alias).
+    // Live world-clock board. Each row's anchor is a city (gazetteer), an IANA
+    // zone, or a `UTC±HH:MM` offset (+ optional `as` alias).
     // Directives shape the board; all space-separated key value (no colon).
     withGlobals({
       analog: { description: 'Analog dials (default face is digital)' },

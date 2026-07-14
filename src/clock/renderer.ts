@@ -27,6 +27,7 @@ import type { D3ExportDimensions } from '../utils/d3-types';
 import type { D3Sel } from '../utils/legend-types';
 import type { ClockColorBy, ClockEntry, ParsedClock } from './types';
 import {
+  fixedParts,
   formatTime,
   handAngles,
   rampColor,
@@ -35,9 +36,17 @@ import {
   zoneParts,
   type WorkSpec,
   type WorkStatus,
+  type ZoneParts,
 } from './resolve';
 
 type Sel = D3Sel;
+
+/** Wall-clock parts for an entry: fixed-offset math for `fixed`, IANA/Intl for the rest. */
+function partsFor(entry: ClockEntry, now: number): ZoneParts {
+  return entry.kind === 'fixed'
+    ? fixedParts(entry.fixedOffsetMin ?? 0, now)
+    : zoneParts(entry.zone, now);
+}
 
 // ── color-by ────────────────────────────────────────────────────────────────
 // A zone's resolved color: `solid` paints the time + label, `laneTint` washes
@@ -429,7 +438,7 @@ export function renderClock(
     if (parsed.face === 'digital') {
       let secW = 0;
       for (const e of parsed.entries) {
-        const p = zoneParts(e.zone, now);
+        const p = partsFor(e, now);
         const t = formatTime(p.h, p.m, p.s, parsed.hours12);
         mainW = Math.max(mainW, estWidth(t.main, 48));
         secW = Math.max(secW, estWidth(`:${t.sec}`, 16), estWidth(t.ap, 16));
@@ -500,7 +509,7 @@ function drawRow(
   const center = rowTop + rowH / 2;
 
   // ── Compute display state from the shared resolver (the no-JS floor). ──
-  const parts = zoneParts(entry.zone, now);
+  const parts = partsFor(entry, now);
   const hasCoords = entry.lat !== null && entry.lon !== null;
   const sun =
     parsed.sun && hasCoords ? sunLine(now, entry.lat!, entry.lon!) : null;
@@ -536,6 +545,7 @@ function drawRow(
   // or auto mode), drawn first so it sits behind the content. 9 = card inset.
   if (auto) {
     g.append('rect')
+      .attr('data-dgmo-clock-lane', '')
       .attr('x', 9)
       .attr('y', rowTop)
       .attr('width', geom.width - 18)
@@ -560,6 +570,10 @@ function drawRow(
     .attr('data-dgmo-clock-c-off-soft', sw.offSoft);
   if (entry.lat !== null) g.attr('data-dgmo-clock-lat', entry.lat);
   if (entry.lon !== null) g.attr('data-dgmo-clock-lon', entry.lon);
+  // A fixed UTC offset ticks off UTC+offset, not an IANA zone — the ticker
+  // branches on this attr so it never asks `Intl` about a synthetic zone name.
+  if (entry.kind === 'fixed')
+    g.attr('data-dgmo-clock-fixed-offset', entry.fixedOffsetMin ?? 0);
   if (parsed.work) {
     g.attr('data-dgmo-clock-work-start', parsed.work.startMin)
       .attr('data-dgmo-clock-work-end', parsed.work.endMin)
@@ -578,10 +592,10 @@ function drawRow(
   // Bake the resolved color so the ticker repaints analog dials with it rather
   // than reverting facebg/second-hand to day/night on every tick.
   if (auto) {
-    g.attr('data-dgmo-clock-auto-solid', auto.solid).attr(
-      'data-dgmo-clock-auto-face',
-      faceFill
-    );
+    g.attr('data-dgmo-clock-auto-solid', auto.solid)
+      .attr('data-dgmo-clock-auto-face', faceFill)
+      .attr('data-dgmo-clock-auto-mode', parsed.colorBy)
+      .attr('data-dgmo-clock-cardfill', cardFill);
   }
 
   if (parsed.face === 'analog') {
@@ -759,10 +773,13 @@ function drawRow(
   const textX = rightColLeft + 20;
   const textMax = geom.rightX - textX;
   interface Line {
-    readonly kind: 'place' | 'avail' | 'sun';
+    readonly kind: 'place' | 'avail' | 'sun' | 'fixed';
   }
   const lines: Line[] = [];
-  if (entry.label !== entry.place) lines.push({ kind: 'place' });
+  // A fixed offset gets a "no DST" note instead of a place pin (it isn't a
+  // place); a real zone shows its city when the alias differs from it.
+  if (entry.kind === 'fixed') lines.push({ kind: 'fixed' });
+  else if (entry.label !== entry.place) lines.push({ kind: 'place' });
   if (status) lines.push({ kind: 'avail' });
   if (sun) lines.push({ kind: 'sun' });
   const lh = 23;
@@ -821,8 +838,40 @@ function drawRow(
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', 13.5)
         .text(ellipsize(sun.text, 13.5, textMax));
+    } else if (ln.kind === 'fixed') {
+      drawFixedGlyph(g, iconX, yy - 5, muted);
+      g.append('text')
+        .attr('x', textX)
+        .attr('y', yy)
+        .attr('fill', muted)
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', 13.5)
+        .text(ellipsize(`${entry.place} · no DST`, 13.5, textMax));
     }
   });
+}
+
+/** A small "fixed offset" glyph — a snowflake-ish asterisk marking a no-DST row. */
+function drawFixedGlyph(
+  parent: Sel,
+  cx: number,
+  cy: number,
+  color: string
+): void {
+  const g = parent
+    .append('g')
+    .attr('transform', `translate(${cx},${cy})`) as Sel;
+  for (let k = 0; k < 3; k++) {
+    const a = (k * 60 * Math.PI) / 180;
+    g.append('line')
+      .attr('x1', -4 * Math.cos(a))
+      .attr('y1', -4 * Math.sin(a))
+      .attr('x2', 4 * Math.cos(a))
+      .attr('y2', 4 * Math.sin(a))
+      .attr('stroke', color)
+      .attr('stroke-width', 1.2)
+      .attr('stroke-linecap', 'round');
+  }
 }
 
 /** Bake the ticker anchors (zone/face/state + palette swatches) onto a row/col group. */
@@ -850,6 +899,10 @@ function bakeAnchors(
     .attr('data-dgmo-clock-c-off-soft', sw.offSoft);
   if (entry.lat !== null) g.attr('data-dgmo-clock-lat', entry.lat);
   if (entry.lon !== null) g.attr('data-dgmo-clock-lon', entry.lon);
+  // A fixed UTC offset ticks off UTC+offset, not an IANA zone — the ticker
+  // branches on this attr so it never asks `Intl` about a synthetic zone name.
+  if (entry.kind === 'fixed')
+    g.attr('data-dgmo-clock-fixed-offset', entry.fixedOffsetMin ?? 0);
   if (parsed.work) {
     g.attr('data-dgmo-clock-work-start', parsed.work.startMin)
       .attr('data-dgmo-clock-work-end', parsed.work.endMin)
@@ -875,11 +928,17 @@ function drawColumns(
   const colW = (width - 2 * cardM) / n;
   const tints: Sel[] = []; // heights set once the tallest column is known
   let maxBottom = top;
+  // Detail lists (place · availability · sundown) are drawn in a second pass so
+  // they bottom-align across columns: a column whose title wraps to two lines
+  // must not push its icon list below the others. Every list starts at the
+  // deepest post-alias Y, so the lists sit on one row regardless of title wrap.
+  const deferred: { kinds: number; draw: (startY: number) => void }[] = [];
+  let detailTop = top;
 
   parsed.entries.forEach((entry, i) => {
     const x0 = cardM + i * colW;
     const cx = x0 + colW / 2;
-    const parts = zoneParts(entry.zone, now);
+    const parts = partsFor(entry, now);
     const hasCoords = entry.lat !== null && entry.lon !== null;
     const sun =
       parsed.sun && hasCoords ? sunLine(now, entry.lat!, entry.lon!) : null;
@@ -907,25 +966,27 @@ function drawColumns(
     const faceFill = auto ? mix(auto.solid, cardFill, 20) : stTint;
     const ringColor = auto?.solid ?? line2;
     const accentColor = auto?.solid ?? stColor;
-    // Column tint appended first so it sits behind the content group.
+    const g = body
+      .append('g')
+      .attr('data-line-number', entry.lineNumber) as Sel;
+    bakeAnchors(g, entry, parsed, sun, sw);
+    // Column tint is g's first child so it sits behind the content and the
+    // ticker can find it via the row group (`data-dgmo-clock`).
     if (auto)
       tints.push(
-        body
+        g
           .append('rect')
+          .attr('data-dgmo-clock-lane', '')
           .attr('x', x0)
           .attr('y', top)
           .attr('width', colW)
           .attr('fill', auto.laneTint) as Sel
       );
-    const g = body
-      .append('g')
-      .attr('data-line-number', entry.lineNumber) as Sel;
-    bakeAnchors(g, entry, parsed, sun, sw);
     if (auto) {
-      g.attr('data-dgmo-clock-auto-solid', auto.solid).attr(
-        'data-dgmo-clock-auto-face',
-        faceFill
-      );
+      g.attr('data-dgmo-clock-auto-solid', auto.solid)
+        .attr('data-dgmo-clock-auto-face', faceFill)
+        .attr('data-dgmo-clock-auto-mode', parsed.colorBy)
+        .attr('data-dgmo-clock-cardfill', cardFill);
     }
 
     // Digital needs breathing room under the title rule; the analog dial reads
@@ -1004,10 +1065,13 @@ function drawColumns(
         .attr('fill', accentColor);
       cy += size + 6;
     } else {
-      // Big HH:MM with a small stack to its right — seconds on top, am/pm below;
-      // the whole group is centered in the column.
-      const sf = 13;
-      const tf = fitFont(ts.main, 44, innerW - 30, 20);
+      // Big HH:MM with a stack to its right — seconds hug the digits' TOP, am/pm
+      // hug their BOTTOM (baseline), so the trio reads as one block. Whole group
+      // centered in the column.
+      const sf = 22;
+      const gap = 11; // horizontal breathing room between digits and the stack
+      const cap = 0.7; // Inter figure cap-height as a fraction of font size
+      const tf = fitFont(ts.main, 54, innerW - 30 - gap, 20);
       // Pin the digits to an exact advance so the stack always hugs them —
       // `textLength` overrides the per-surface shaping split (browser tabular
       // ~0.6em vs resvg proportional). The estimate only sets the target width.
@@ -1016,7 +1080,7 @@ function drawColumns(
         0
       );
       const stackW = Math.max(estWidth(`:${ts.sec}`, sf), estWidth(ts.ap, sf));
-      const gLeft = cx - (mainW + 7 + stackW) / 2;
+      const gLeft = cx - (mainW + gap + stackW) / 2;
       const baseY = cy + tf * 0.34;
       g.append('text')
         .attr('data-dgmo-clock-digital', '')
@@ -1031,11 +1095,13 @@ function drawColumns(
         .attr('lengthAdjust', 'spacing')
         .style('font-variant-numeric', 'tabular-nums')
         .text(ts.main);
-      const stackX = gLeft + mainW + 7;
+      const stackX = gLeft + mainW + gap;
+      // Seconds baseline sits `sf·cap` below the digit top → its cap top aligns
+      // with the digits' top.
       g.append('text')
         .attr('data-dgmo-clock-digital-part', 'sec')
         .attr('x', stackX)
-        .attr('y', baseY - tf * 0.32)
+        .attr('y', baseY - tf * cap + sf * cap)
         .attr('fill', muted)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', sf)
@@ -1085,74 +1151,112 @@ function drawColumns(
     );
     cy += alines.length * alh + 12;
 
-    // Details — place · availability · sundown, left-aligned with an icon column.
+    // Details — place · availability · sundown, left-aligned with an icon
+    // column. Deferred to a second pass so every column's list starts at the
+    // same Y (bottom-aligned; see `deferred` above).
     const kinds: string[] = [];
-    if (entry.label !== entry.place) kinds.push('place');
+    if (entry.kind === 'fixed') kinds.push('fixed');
+    else if (entry.label !== entry.place) kinds.push('place');
     if (status) kinds.push('avail');
     if (sun) kinds.push('sun');
     const iconX = x0 + 16;
     const textX = x0 + 28;
     const tmax = colW - 40;
-    kinds.forEach((kind, j) => {
-      const yy = cy + j * 20;
-      if (kind === 'place') {
-        g.append('path')
-          .attr('transform', `translate(${iconX},${yy - 4})`)
-          .attr('d', 'M0,4 L-2.3,-0.6 A2.6,2.6 0 1 1 2.3,-0.6 Z')
-          .attr('fill', muted);
-        g.append('text')
-          .attr('x', textX)
-          .attr('y', yy)
-          .attr('fill', muted)
-          .attr('font-family', FONT_FAMILY)
-          .attr('font-size', 12)
-          .text(ellipsize(entry.place, 12, tmax));
-      } else if (kind === 'avail' && status) {
-        const stCol =
-          status.cls === 'ok'
-            ? sw.ok
-            : status.cls === 'soon'
-              ? sw.soon
-              : sw.off;
-        const dot = g
-          .append('circle')
-          .attr('data-dgmo-clock-status-dot', '')
-          .attr('cx', iconX)
-          .attr('cy', yy - 4)
-          .attr('r', 4);
-        if (status.cls === 'off')
-          dot
-            .attr('fill', 'none')
-            .attr('stroke', stCol)
-            .attr('stroke-width', 1.4);
-        else dot.attr('fill', stCol).attr('stroke', 'none');
-        g.append('text')
-          .attr('data-dgmo-clock-status', '')
-          .attr('x', textX)
-          .attr('y', yy)
-          .attr('fill', stCol)
-          .attr('font-family', FONT_FAMILY)
-          .attr('font-size', 12)
-          .attr('font-weight', 600)
-          .text(ellipsize(status.text, 12, tmax));
-      } else if (kind === 'sun' && sun) {
-        drawSunMoon(g, iconX, yy - 4, up, sw, 1);
-        g.append('text')
-          .attr('data-dgmo-clock-sun-line', '')
-          .attr('x', textX)
-          .attr('y', yy)
-          .attr('fill', muted)
-          .attr('font-family', FONT_FAMILY)
-          .attr('font-size', 11.5)
-          .text(ellipsize(sun.text, 11.5, tmax));
-      }
+    deferred.push({
+      kinds: kinds.length,
+      draw: (startY: number) => {
+        kinds.forEach((kind, j) => {
+          const yy = startY + j * 20;
+          if (kind === 'place') {
+            g.append('path')
+              .attr('transform', `translate(${iconX},${yy - 4})`)
+              .attr('d', 'M0,4 L-2.3,-0.6 A2.6,2.6 0 1 1 2.3,-0.6 Z')
+              .attr('fill', muted);
+            g.append('text')
+              .attr('x', textX)
+              .attr('y', yy)
+              .attr('fill', muted)
+              .attr('font-family', FONT_FAMILY)
+              .attr('font-size', 12)
+              .text(ellipsize(entry.place, 12, tmax));
+          } else if (kind === 'avail' && status) {
+            const stCol =
+              status.cls === 'ok'
+                ? sw.ok
+                : status.cls === 'soon'
+                  ? sw.soon
+                  : sw.off;
+            const dot = g
+              .append('circle')
+              .attr('data-dgmo-clock-status-dot', '')
+              .attr('cx', iconX)
+              .attr('cy', yy - 4)
+              .attr('r', 4);
+            if (status.cls === 'off')
+              dot
+                .attr('fill', 'none')
+                .attr('stroke', stCol)
+                .attr('stroke-width', 1.4);
+            else dot.attr('fill', stCol).attr('stroke', 'none');
+            g.append('text')
+              .attr('data-dgmo-clock-status', '')
+              .attr('x', textX)
+              .attr('y', yy)
+              .attr('fill', stCol)
+              .attr('font-family', FONT_FAMILY)
+              .attr('font-size', 12)
+              .attr('font-weight', 600)
+              .text(ellipsize(status.text, 12, tmax));
+          } else if (kind === 'sun' && sun) {
+            drawSunMoon(g, iconX, yy - 4, up, sw, 1);
+            g.append('text')
+              .attr('data-dgmo-clock-sun-line', '')
+              .attr('x', textX)
+              .attr('y', yy)
+              .attr('fill', muted)
+              .attr('font-family', FONT_FAMILY)
+              .attr('font-size', 11.5)
+              .text(ellipsize(sun.text, 11.5, tmax));
+          } else if (kind === 'fixed') {
+            drawFixedGlyph(g, iconX, yy - 4, muted);
+            g.append('text')
+              .attr('x', textX)
+              .attr('y', yy)
+              .attr('fill', muted)
+              .attr('font-family', FONT_FAMILY)
+              .attr('font-size', 11.5)
+              .text(ellipsize(`${entry.place} · no DST`, 11.5, tmax));
+          }
+        });
+      },
     });
-    const bottom = kinds.length ? cy + (kinds.length - 1) * 20 + 8 : cy;
+    if (cy > detailTop) detailTop = cy;
+  });
+
+  // Second pass: draw every detail list at the common (deepest) start Y.
+  deferred.forEach((d) => {
+    d.draw(detailTop);
+    const bottom = d.kinds ? detailTop + (d.kinds - 1) * 20 + 8 : detailTop;
     if (bottom > maxBottom) maxBottom = bottom;
   });
 
   const colBodyH = maxBottom - top + 14;
   tints.forEach((r) => r.attr('height', colBodyH));
+  // Subtle vertical dividers between columns — same shade as the card border,
+  // sitting on the seam between adjacent lane tints.
+  const dividerColor = mix(col.palette.text, col.palette.bg, 40);
+  for (let i = 1; i < n; i++) {
+    const x = cardM + i * colW;
+    body
+      .append('line')
+      .attr('data-dgmo-clock-col-divider', '')
+      .attr('x1', x)
+      .attr('x2', x)
+      .attr('y1', top)
+      .attr('y2', top + colBodyH)
+      .attr('stroke', dividerColor)
+      .attr('stroke-width', 1);
+  }
   return top + colBodyH + cardM;
 }
 
