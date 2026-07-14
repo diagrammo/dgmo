@@ -301,8 +301,8 @@ units days`,
   clock: `clock Crew watch
 hours 9-17
 
-Tortuga America/New_York as First mate
-Port Royal America/Jamaica as Quartermaster`,
+America/New_York as First mate
+America/Jamaica as Quartermaster`,
 
   bracket: `bracket Grog Cup
 
