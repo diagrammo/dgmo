@@ -503,6 +503,70 @@ describe('sketch renderer — edges', () => {
       cross(sample(find('Right', 'Ctop').d), sample(find('Left', 'Dbot').d))
     ).toBe(0);
   });
+
+  it('leaves a bare node from a free side, not one already used to terminate', () => {
+    // Hub has an INCOMING edge from a node on its right (terminates on Hub`s R
+    // side) and an OUTGOING edge to a node up-and-right. The outgoing edge would
+    // naturally also face R — but that port is taken, so it must leave the TOP
+    // instead of stacking two opposite-direction stubs on the same point.
+    const src =
+      'sketch\n' +
+      'Hub as hub at: 0 0\n  -> up\n' +
+      'Feeder as feeder at: 4 0\n  -> hub\n' +
+      'Up as up at: 4 -4\n';
+    const layout = layoutSketch(parseSketch(src, P));
+    const hub = layout.nodes.find((n) => n.label === 'Hub')!;
+    const idOf = (label: string) =>
+      layout.nodes.find((n) => n.label === label)!.id;
+    const geom = sketchEdgeGeometry(layout);
+    const find = (from: string, to: string) =>
+      geom.find((g) => g?.sourceId === idOf(from) && g?.targetId === idOf(to))!;
+    const start = (d: string) => {
+      const m = /^M\s+([-\d.]+)\s+([-\d.]+)/.exec(d)!;
+      return { x: Number(m[1]), y: Number(m[2]) };
+    };
+    const side = (p: { x: number; y: number }) => {
+      const e = 2;
+      if (Math.abs(p.y - hub.y) < e) return 'T';
+      if (Math.abs(p.y - (hub.y + hub.h)) < e) return 'B';
+      if (Math.abs(p.x - hub.x) < e) return 'L';
+      if (Math.abs(p.x - (hub.x + hub.w)) < e) return 'R';
+      return '?';
+    };
+    // Feeder→Hub terminates on Hub`s right; Hub→Up must NOT also leave the right.
+    const outSide = side(start(find('Hub', 'Up').d));
+    expect(outSide).not.toBe('R');
+    expect(outSide).toBe('T');
+  });
+
+  it('keeps reciprocal edges parallel on the facing sides (no wrap-around)', () => {
+    // A→B and B→A between the same pair are NOT a port clash — both belong on
+    // the facing sides (A`s right, B`s left). Splitting one to the far side to
+    // "free the port" would wrap it the long way around the node.
+    const src = 'sketch\nA as a at: 0 0\n  -> b\nB as b at: 4 0\n  -> a\n';
+    const layout = layoutSketch(parseSketch(src, P));
+    const a = layout.nodes.find((n) => n.label === 'A')!;
+    const b = layout.nodes.find((n) => n.label === 'B')!;
+    const idOf = (label: string) =>
+      layout.nodes.find((n) => n.label === label)!.id;
+    const geom = sketchEdgeGeometry(layout);
+    const find = (from: string, to: string) =>
+      geom.find((g) => g?.sourceId === idOf(from) && g?.targetId === idOf(to))!;
+    const start = (d: string) => {
+      const m = /^M\s+([-\d.]+)\s+([-\d.]+)/.exec(d)!;
+      return { x: Number(m[1]), y: Number(m[2]) };
+    };
+    const sideOf = (p: { x: number; y: number }, r: typeof a) => {
+      const e = 2;
+      if (Math.abs(p.x - r.x) < e) return 'L';
+      if (Math.abs(p.x - (r.x + r.w)) < e) return 'R';
+      return '?';
+    };
+    // A→B leaves A`s right; B→A leaves B`s left. Both edges run parallel in the
+    // gap; neither wraps out A`s left or B`s right.
+    expect(sideOf(start(find('A', 'B').d), a)).toBe('R');
+    expect(sideOf(start(find('B', 'A').d), b)).toBe('L');
+  });
 });
 
 describe('sketch renderer — text fit (AC 9)', () => {

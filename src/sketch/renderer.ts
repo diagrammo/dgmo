@@ -1302,6 +1302,50 @@ export function sketchEdgeGeometry(
   // crossing, which in turn costs more than a slightly-off attachment angle.
   const W_NODE = 100;
   const W_EDGE = 8;
+  // A bare node has ONE port per side (its midpoint), so a line LEAVING a node
+  // and another line ARRIVING at it on the same side stack onto the same point —
+  // the two read as one overlapping stub heading opposite ways. Penalize an
+  // origination on a side already used for termination (and vice versa) so the
+  // relaxation spreads them onto different sides. Group boxes snap to per-child
+  // ports (distinct points even on one side), so this only applies to bare
+  // nodes. Same-direction sharing (two leaves / a fan-in) is left alone — a
+  // legitimate fan. RECIPROCAL edges (a second edge between the SAME two nodes,
+  // e.g. A→B alongside B→A) are also exempt: they belong parallel on the facing
+  // sides, and forcing one to the far side would wrap it around the node. The
+  // weight sits BELOW the facing-cost swing (0…2) so a clash only bumps an edge
+  // to an equally- or barely-worse-facing side — never onto an opposed side,
+  // which would route the line the long way around under other shapes.
+  const W_PORT = 1.5;
+  const isBox = (id: string): boolean => portsById.has(id);
+  // Count OTHER edges that attach to a bare endpoint of edge `self` on the same
+  // side in the OPPOSITE role (self leaves here → count arrivals, and vice
+  // versa), excluding reciprocal edges that share BOTH endpoints with self.
+  const portClashCount = (self: number, s: Side, t: Side): number => {
+    const e = layout.edges[self]!;
+    let n = 0;
+    for (let j = 0; j < layout.edges.length; j++) {
+      if (j === self) continue;
+      const ej = layout.edges[j]!;
+      const cj = chosen[j]!;
+      // self ORIGINATES at e.sourceId on side s → an edge ARRIVING there clashes.
+      if (
+        !isBox(e.sourceId) &&
+        ej.targetId === e.sourceId &&
+        ej.sourceId !== e.targetId && // not reciprocal
+        cj.t === s
+      )
+        n++;
+      // self TERMINATES at e.targetId on side t → an edge LEAVING there clashes.
+      if (
+        !isBox(e.targetId) &&
+        ej.sourceId === e.targetId &&
+        ej.targetId !== e.sourceId && // not reciprocal
+        cj.s === t
+      )
+        n++;
+    }
+    return n;
+  };
   const scoreOf = (
     c: Ctx,
     g: EdgeGeom,
@@ -1320,6 +1364,7 @@ export function sketchEdgeGeometry(
     return (
       pathCrossings(g, c.obstacleRects) * W_NODE +
       edgeCross * W_EDGE +
+      portClashCount(self, s, t) * W_PORT +
       facingCost(c.source, c.target, s) +
       facingCost(c.target, c.source, t)
     );
@@ -1356,8 +1401,11 @@ export function sketchEdgeGeometry(
       if (!c || !g || !p) continue;
       const cur = chosen[i]!;
       const curScore = scoreOf(c, g, p, i, polys, cur.s, cur.t);
-      // Nothing to fix (no node cut, no edge crossing, best facing) — leave it.
-      if (curScore < W_EDGE) continue;
+      // Nothing to fix — no node cut, no edge crossing, no port clash, best
+      // facing. The port clash is small (< W_EDGE) so test it explicitly, else
+      // the crossing-only threshold would skip an edge that only needs to move
+      // off a shared port.
+      if (curScore < W_EDGE && portClashCount(i, cur.s, cur.t) === 0) continue;
       let bestScore = curScore;
       let bestG = g;
       let bestP = p;
