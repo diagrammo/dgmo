@@ -148,6 +148,34 @@ describe('<dgmo-diagram> custom element', () => {
     expect(el.querySelector('a.dgmo-open')).toBeNull();
   });
 
+  it('collapses an open source panel when the pointer leaves the block', async () => {
+    const el = makeElement('flowchart\n[A] -> [B]', { mode: 'showcase' });
+    document.body.appendChild(el);
+    await waitFor(() => el.querySelector('svg') !== null);
+
+    const details = el.querySelector(
+      'details.dgmo-source-wrap'
+    ) as HTMLDetailsElement;
+    details.open = true;
+    const wrapper = el.querySelector('figure.dgmo') as HTMLElement;
+    wrapper.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+    expect(details.open).toBe(false);
+  });
+
+  it('collapses an open source panel when focus leaves the block', async () => {
+    const el = makeElement('flowchart\n[A] -> [B]', { mode: 'showcase' });
+    document.body.appendChild(el);
+    await waitFor(() => el.querySelector('svg') !== null);
+
+    const details = el.querySelector(
+      'details.dgmo-source-wrap'
+    ) as HTMLDetailsElement;
+    details.open = true;
+    const wrapper = el.querySelector('figure.dgmo') as HTMLElement;
+    wrapper.dispatchEvent(new FocusEvent('focusout', { relatedTarget: null }));
+    expect(details.open).toBe(false);
+  });
+
   it('does NOT render a source panel by default (mode omitted)', async () => {
     const el = makeElement('flowchart\n[A] -> [B]');
     document.body.appendChild(el);

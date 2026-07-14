@@ -237,6 +237,29 @@ function bindBlockToolbar(wrapper: HTMLElement): void {
   wrapper.addEventListener('click', (e) => {
     void handleToolbarClick(e);
   });
+
+  // Auto-collapse the open source panel once the pointer AND focus have both
+  // left the block — the expanded code shouldn't linger after you move on.
+  // Bound per-wrapper (these surfaces build their DOM imperatively), so plain
+  // `mouseleave` works; the `activeElement` / `:hover` guards keep it open when
+  // only one of pointer/focus has left.
+  const collapse = (): void => {
+    wrapper
+      .querySelectorAll<HTMLDetailsElement>('details.dgmo-source-wrap[open]')
+      .forEach((d) => {
+        d.open = false;
+      });
+  };
+  wrapper.addEventListener('mouseleave', () => {
+    if (wrapper.contains(document.activeElement)) return;
+    collapse();
+  });
+  wrapper.addEventListener('focusout', (e) => {
+    const to = (e as FocusEvent).relatedTarget as Node | null;
+    if (to && wrapper.contains(to)) return;
+    if (wrapper.matches(':hover')) return;
+    collapse();
+  });
 }
 
 async function handleToolbarClick(e: Event): Promise<void> {
