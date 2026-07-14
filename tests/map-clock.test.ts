@@ -1,6 +1,6 @@
-// BL-122 — clock channel on map POIs. The per-POI `clock` flag activates a card;
-// named cities auto-derive their IANA zone from the gazetteer, bare-coord pins
-// need an explicit `tz:` override. Card RENDER contract is asserted at the end.
+// BL-122 — clock channel on map POIs. Bare `clock` activates a card and derives
+// the zone from the place; a valued `clock: <zone>` names the zone (bare-coord
+// pins / overrides). Card RENDER contract is asserted at the end.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { parseMap } from '../src/map/parser';
 import { resolveMap } from '../src/map/resolver';
@@ -49,13 +49,11 @@ describe('map clock channel — the `clock` flag', () => {
     expect(p.pois[0]?.pos).toMatchObject({ name: 'San Francisco' });
   });
 
-  it('peels `clock` on a coord pin without breaking the coords', () => {
-    const p = parseMap(
-      'map\npoi 39.74 -104.98 as Field clock tz: America/Denver'
-    );
+  it('valued `clock: <zone>` on a coord pin flags it + keeps the coords', () => {
+    const p = parseMap('map\npoi 39.74 -104.98 as Field clock: America/Denver');
     expect(p.pois[0]?.clock).toBe(true);
     expect(p.pois[0]?.pos).toMatchObject({ kind: 'coords', lat: 39.74 });
-    expect(p.pois[0]?.meta['tz']).toBe('America/Denver');
+    expect(p.pois[0]?.meta['clock']).toBe('America/Denver');
   });
 
   it('an unflagged pin is not a clock', () => {
@@ -84,7 +82,7 @@ describe('map clock channel — zone derived from the place', () => {
     expect(poi('map\npoi Denver')?.tz).toBeUndefined();
   });
 
-  it('a bare-coord clock pin needs tz: — warns and gets no card', () => {
+  it('a bare-coord clock pin needs a zone — warns and gets no card', () => {
     const p = poi('map\npoi 39.74 -104.98 as Field clock');
     expect(p?.tz).toBeUndefined();
     expect(p).toBeDefined();
@@ -93,44 +91,44 @@ describe('map clock channel — zone derived from the place', () => {
     ).toBe(true);
   });
 
-  it('a coord clock pin WITH tz: resolves', () => {
+  it('a coord pin with a valued `clock: <zone>` resolves', () => {
     expect(
-      poi('map\npoi 39.74 -104.98 as Field clock tz: America/Denver')?.tz
+      poi('map\npoi 39.74 -104.98 as Field clock: America/Denver')?.tz
     ).toBe('America/Denver');
   });
 });
 
-describe('map clock channel — explicit tz: override', () => {
-  it('a fixed offset (`tz: UTC+9`) → canonical label + minutes', () => {
-    const p = poi('map\npoi 35.6 139.7 as T clock tz: UTC+9');
+describe('map clock channel — valued `clock: <zone>` override', () => {
+  it('a fixed offset (`clock: UTC+9`) → canonical label + minutes', () => {
+    const p = poi('map\npoi 35.6 139.7 as T clock: UTC+9');
     expect(p?.tz).toBe('UTC+9');
     expect(p?.tzFixedOffsetMin).toBe(540);
   });
 
   it('overriding a city with a DIFFERENT IANA zone warns but is honored', () => {
-    const src = 'map\npoi Denver clock tz: Asia/Tokyo';
+    const src = 'map\npoi Denver clock: Asia/Tokyo';
     expect(poi(src)?.tz).toBe('Asia/Tokyo');
     expect(hasDiag(src, 'W_MAP_CLOCK_TZ_OVERRIDE')).toBe(true);
   });
 
   it('a fixed-offset override on a city is intentional — no warn', () => {
-    // `tz: UTC` is a deliberate fixed offset, not a mis-derived IANA zone.
+    // `clock: UTC` is a deliberate fixed offset, not a mis-derived IANA zone.
     expect(
-      hasDiag('map\npoi Denver clock tz: UTC', 'W_MAP_CLOCK_TZ_OVERRIDE')
+      hasDiag('map\npoi Denver clock: UTC', 'W_MAP_CLOCK_TZ_OVERRIDE')
     ).toBe(false);
   });
 
-  it('an explicit tz: matching the city zone does NOT warn', () => {
+  it('a valued clock: matching the city zone does NOT warn', () => {
     expect(
       hasDiag(
-        'map\npoi Denver clock tz: America/Denver',
+        'map\npoi Denver clock: America/Denver',
         'W_MAP_CLOCK_TZ_OVERRIDE'
       )
     ).toBe(false);
   });
 
-  it('a malformed tz: warns and drops the card (pin still resolves)', () => {
-    const src = 'map\npoi 1 2 as X clock tz: Not/AZone';
+  it('a malformed `clock:` warns and drops the card (pin still resolves)', () => {
+    const src = 'map\npoi 1 2 as X clock: Not/AZone';
     expect(poi(src)).toBeDefined();
     expect(poi(src)?.tz).toBeUndefined();
     expect(hasDiag(src, 'W_MAP_CLOCK_TZ_INVALID')).toBe(true);

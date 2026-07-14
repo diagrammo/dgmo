@@ -90,10 +90,12 @@ export const MAP_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'width',
   'label',
   'style',
-  // `tz` (BL-122): POI time-zone for the `clock` channel — an IANA id
-  // (`Asia/Tokyo`) or a fixed offset (`UTC+9`). Reserved so it peels off the
-  // POI name cleanly instead of corrupting a bare-coord `<lat> <lon>` parse.
-  'tz',
+  // `clock` (BL-122): the time-card control. Bare (`poi Denver clock`) → a card
+  // with the zone auto-derived from the place; valued (`clock: Europe/Oslo`) →
+  // that IANA id or fixed offset (`clock: UTC+9`) as the zone, for bare-coord
+  // pins or to override a city. Reserved so the valued form peels off the POI
+  // name cleanly; the BARE flag is peeled separately in handlePoi (no colon).
+  'clock',
   // `surface:` was removed in the 2026-06-02 defaults-on review — it is no longer
   // a recognized metadata key (the route/edge surface feature was cut; §24B.7).
   // A stray `surface: water` is no longer captured as a reserved key.

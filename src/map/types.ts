@@ -111,9 +111,10 @@ export interface MapPoi {
   /** §1.5 trailing-token color NAME → flat marker fill (§24B.5); wins over a
    *  tag color and the default orange. */
   readonly color?: string;
-  /** BL-122 — the bare `clock` flag on this POI line: render a live local-time
-   *  card above the marker. Zone comes from the gazetteer (named cities) or an
-   *  explicit `tz:` (required for bare-coord pins). */
+  /** BL-122 — a `clock` control on this POI line: render a live local-time card
+   *  above the marker. Bare (`poi Denver clock`) derives the zone from the place;
+   *  valued (`clock: Europe/Oslo`, held in `meta.clock`) names the zone, for
+   *  bare-coord pins or to override a city. */
   readonly clock?: boolean;
   readonly tags: Readonly<Record<string, string>>;
   readonly meta: Readonly<Record<string, string>>;

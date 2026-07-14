@@ -143,43 +143,43 @@ export const MAP_DX = {
     example: 'map\nGeorgia heat: 2',
   },
   CLOCK_TZ_INVALID: {
-    // Runtime severity: 'warning' (matches W_ prefix). A POI flagged `clock`
-    // carried a `tz:` that is neither a known IANA zone nor a fixed offset — the
-    // pin renders normally but gets no time card (BL-122).
+    // Runtime severity: 'warning' (matches W_ prefix). A POI's valued
+    // `clock: <zone>` is neither a known IANA zone nor a fixed offset — the pin
+    // renders normally but gets no time card (BL-122).
     code: 'W_MAP_CLOCK_TZ_INVALID',
     severity: 'warning',
     chartType: 'map',
     title: 'Unrecognized time zone',
     message: (p) =>
-      `\`tz: ${p.name ?? ''}\` is not a known IANA zone or offset — this pin renders without a time card. Use an IANA id (\`Asia/Tokyo\`) or a fixed offset (\`UTC+9\`).`,
-    hint: 'Use an IANA zone id (`Asia/Tokyo`) or a fixed offset (`UTC+9`).',
+      `\`clock: ${p.name ?? ''}\` is not a known IANA zone or offset — this pin renders without a time card. Use an IANA id (\`clock: Asia/Tokyo\`) or a fixed offset (\`clock: UTC+9\`).`,
+    hint: 'Use an IANA zone id (`clock: Asia/Tokyo`) or a fixed offset (`clock: UTC+9`).',
     example: 'map\npoi Tokyo clock',
   },
   CLOCK_TZ_NEEDED: {
-    // Runtime severity: 'warning' (matches W_ prefix). A POI flagged `clock`
+    // Runtime severity: 'warning' (matches W_ prefix). A bare `clock` pin
     // resolved to no IANA zone — a bare-coord pin (no gazetteer entry) or a rare
-    // city GeoNames didn't zone. Named cities auto-derive their zone; coords need
-    // an explicit `tz:` (BL-122).
+    // city GeoNames didn't zone. Named cities auto-derive their zone; coords name
+    // it with a valued `clock: <zone>` (BL-122).
     code: 'W_MAP_CLOCK_TZ_NEEDED',
     severity: 'warning',
     chartType: 'map',
     title: 'Clock pin needs a time zone',
     message: () =>
-      `This \`clock\` pin has no known time zone — a named city derives its zone automatically, but a bare-coordinate pin needs an explicit \`tz:\` (e.g. \`tz: America/Denver\` or \`tz: UTC-7\`). Rendered without a time card.`,
-    hint: 'Add `tz: <IANA/zone>` — coordinate pins can’t derive a zone on their own.',
-    example: 'map\npoi 39.74 -104.98 as Field clock tz: America/Denver',
+      `This \`clock\` pin has no known time zone — a named city derives its zone automatically, but a bare-coordinate pin needs a valued \`clock: <zone>\` (e.g. \`clock: America/Denver\` or \`clock: UTC-7\`). Rendered without a time card.`,
+    hint: 'Name the zone with `clock: <IANA/zone>` — coordinate pins can’t derive one on their own.',
+    example: 'map\npoi 39.74 -104.98 as Field clock: America/Denver',
   },
   CLOCK_TZ_OVERRIDE: {
-    // Runtime severity: 'warning' (matches W_ prefix). A named city's explicit
-    // `tz:` contradicts the gazetteer's real zone for that city — usually a
-    // mistake. Honored, but flagged (BL-122).
+    // Runtime severity: 'warning' (matches W_ prefix). A named city's valued
+    // `clock: <zone>` contradicts the gazetteer's real zone for that city —
+    // usually a mistake. Honored, but flagged (BL-122).
     code: 'W_MAP_CLOCK_TZ_OVERRIDE',
     severity: 'warning',
     chartType: 'map',
     title: 'Time zone overrides the city',
     message: (p) =>
-      `\`tz: ${p.name ?? ''}\` overrides this city's actual zone (${p.tz ?? ''}) — using your value. Drop the \`tz:\` to use the city's real zone.`,
-    hint: 'A named city derives its own zone — remove `tz:` unless you mean to override it.',
+      `\`clock: ${p.name ?? ''}\` overrides this city's actual zone (${p.tz ?? ''}) — using your value. Use a bare \`clock\` to take the city's real zone.`,
+    hint: 'A named city derives its own zone — use a bare `clock` unless you mean to override it.',
     example: 'map\npoi Denver clock',
   },
 } satisfies Record<string, DiagnosticSpec>;

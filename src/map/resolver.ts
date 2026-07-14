@@ -681,18 +681,20 @@ export function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap {
   }
 
   /** BL-122 clock channel: resolve the IANA zone for a POI flagged `clock`.
-   *  The place determines the zone — a named city inherits `gazTz` (the
-   *  gazetteer's GeoNames zone). An explicit `tz:` is an OVERRIDE, required only
-   *  for bare-coord pins (no gazetteer entry) and honored elsewhere (with a warn
-   *  if it contradicts the city's known zone). Accepts a fixed offset (`UTC+9`,
-   *  DST-blind) or an IANA id. Returns undefined (no card) when the pin isn't
-   *  flagged, or is flagged but has neither an override nor a derivable zone. */
+   *  The place determines the zone — a bare `clock` on a named city inherits
+   *  `gazTz` (the gazetteer's GeoNames zone). A valued `clock: <zone>` is an
+   *  OVERRIDE, required only for bare-coord pins (no gazetteer entry) and honored
+   *  elsewhere (with a warn if it contradicts the city's known zone). Accepts a
+   *  fixed offset (`clock: UTC+9`, DST-blind) or an IANA id. Returns undefined
+   *  (no card) when the pin isn't flagged, or is flagged but has neither an
+   *  override nor a derivable zone. */
   function resolveTz(
     p: (typeof parsed.pois)[number],
     gazTz: string | undefined
   ): { zone: string; fixedOffsetMin?: number } | undefined {
     if (!p.clock) return undefined;
-    const raw = p.meta['tz']?.trim();
+    // The zone override rides on the valued `clock: <zone>` key.
+    const raw = p.meta['clock']?.trim();
     const line = p.lineNumber;
     if (raw) {
       const off = parseFixedOffset(raw);

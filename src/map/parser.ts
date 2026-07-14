@@ -548,7 +548,9 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
     const label = meta['label']; // label lifted out of meta; `size:` (→ marker size) stays in meta
     if (label !== undefined) delete (meta as Record<string, string>)['label'];
     const poi: Writable<MapPoi> = { pos, tags, meta, lineNumber: line };
-    if (clockFlag) poi.clock = true;
+    // A card is requested by the bare `clock` flag OR the valued `clock: <zone>`
+    // key — both mean "put a time card here" (the value, if any, is the zone).
+    if (clockFlag || meta['clock'] !== undefined) poi.clock = true;
     if (split.alias) poi.alias = split.alias;
     if (label !== undefined) poi.label = label;
     // §1.5 trailing color → flat marker fill (§24B.5); wins over a tag color.
