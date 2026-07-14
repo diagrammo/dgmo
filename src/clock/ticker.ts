@@ -117,7 +117,9 @@ function updateRow(group: Element, now: number): void {
   // ── Digital readout (main + dim :SS + am/pm) + weekday sub-line. ──
   setPart(group, '[data-dgmo-clock-digital-part="main"]', ts.main);
   setPart(group, '[data-dgmo-clock-digital-part="sec"]', `:${ts.sec}`);
-  setPart(group, '[data-dgmo-clock-digital-part="ap"]', ` ${ts.ap}`);
+  // `ap` is its own stacked node (seconds above / am-pm below) — no leading
+  // space (that would nudge it right of its `x` after the first tick).
+  setPart(group, '[data-dgmo-clock-digital-part="ap"]', ts.ap);
 
   // ── Analog am/pm caption. ──
   setPart(group, '[data-dgmo-clock-ampm]', ts.ap.toUpperCase());

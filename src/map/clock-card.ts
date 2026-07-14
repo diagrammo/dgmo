@@ -113,14 +113,20 @@ export function renderClockCards(
       .filter(Boolean)
       .join(' · ');
 
-    // ── Geometry: size the card to its widest line, centre it over the marker. ──
-    const timeW =
-      measureText(ts.main, 15) +
-      measureText(`:${ts.sec}`, 10) +
-      (ts.ap ? measureText(` ${ts.ap}`, 10) : 0);
+    // ── Geometry: size the card to its widest line, centre it over the marker.
+    // The time is a big HH:MM with a small stack to its right: seconds ABOVE,
+    // am/pm BELOW (mirrors the clock chart's digital readout). ──
+    const mainFont = 15;
+    const sf = 9.5; // seconds + am/pm stack font
+    const mainW = measureText(ts.main, mainFont);
+    const stackW = Math.max(
+      measureText(`:${ts.sec}`, sf),
+      ts.ap ? measureText(ts.ap, sf) : 0
+    );
+    const stackGap = 3;
     const dotGap = 13; // status dot + gap before the time
     const padX = 9;
-    const line1W = dotGap + timeW;
+    const line1W = dotGap + mainW + stackGap + stackW;
     const line2W = measureText(line2, 10.5);
     const cardW = Math.max(line1W, line2W) + padX * 2;
     const cardH = 40;
@@ -219,32 +225,37 @@ export function renderClockCards(
       dot.attr('fill', up ? sw.day : sw.night);
     }
 
-    // ── Time headline (main bold + dim seconds + am/pm) — ticker anchors. ──
+    // ── Time headline (ticker anchors): a big HH:MM, then a small stack to its
+    // right — seconds ABOVE, am/pm BELOW (mirrors the clock chart). ──
     const timeX = cardLeft + padX + dotGap;
-    const tText = g
-      .append('text')
+    g.append('text')
+      .attr('data-dgmo-clock-digital-part', 'main')
       .attr('x', timeX)
       .attr('y', line1Y)
       .attr('font-family', FONT_FAMILY)
-      .attr('fill', palette.text);
-    tText
-      .append('tspan')
-      .attr('data-dgmo-clock-digital-part', 'main')
-      .attr('font-size', 15)
+      .attr('fill', palette.text)
+      .attr('font-size', mainFont)
       .attr('font-weight', 600)
+      .style('font-variant-numeric', 'tabular-nums')
       .text(ts.main);
-    tText
-      .append('tspan')
+    const stackX = timeX + mainW + stackGap;
+    g.append('text')
       .attr('data-dgmo-clock-digital-part', 'sec')
-      .attr('font-size', 10)
+      .attr('x', stackX)
+      .attr('y', line1Y - mainFont * 0.45)
+      .attr('font-family', FONT_FAMILY)
       .attr('fill', muted)
+      .attr('font-size', sf)
+      .style('font-variant-numeric', 'tabular-nums')
       .text(`:${ts.sec}`);
-    tText
-      .append('tspan')
+    g.append('text')
       .attr('data-dgmo-clock-digital-part', 'ap')
-      .attr('font-size', 10)
+      .attr('x', stackX)
+      .attr('y', line1Y)
+      .attr('font-family', FONT_FAMILY)
       .attr('fill', muted)
-      .text(ts.ap ? ` ${ts.ap}` : '');
+      .attr('font-size', sf)
+      .text(ts.ap);
 
     // ── Second line: weekday · availability. `status` text is the only ticked
     // part; weekday is baked (it shifts only at local midnight). Split so the
