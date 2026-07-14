@@ -633,6 +633,36 @@ describe('clock renderer — layout fit (scales, never overflows)', () => {
     expect(vb.split(' ')[2]).toBe('460');
   });
 
+  it('grows the columns-board width with the column count (fit scales it down)', () => {
+    const widePanel = 1200;
+    const cols = (n: number) =>
+      [
+        'clock Team',
+        'direction lr',
+        ...Array.from({ length: n }, (_, i) => `NYC as Office ${i}`),
+      ].join('\n');
+    const vbWidth = (n: number) =>
+      Number(
+        renderWidth(cols(n), widePanel)
+          .querySelector('svg')!
+          .getAttribute('viewBox')!
+          .split(' ')[2]
+      );
+    // Few columns fill the panel floor; past ~4 the intrinsic canvas widens so
+    // each column keeps a readable ~190px slot instead of clipping.
+    expect(vbWidth(3)).toBeLessThanOrEqual(720);
+    expect(vbWidth(6)).toBeGreaterThan(vbWidth(4));
+    expect(vbWidth(8)).toBeGreaterThan(vbWidth(6));
+    // Row mode ignores column count — never widens past the 720 ceiling.
+    const rowVb = Number(
+      renderWidth('clock T\nNYC\nLA\nMumbai\nDenver\nParis\nTokyo', widePanel)
+        .querySelector('svg')!
+        .getAttribute('viewBox')!
+        .split(' ')[2]
+    );
+    expect(rowVb).toBeLessThanOrEqual(720);
+  });
+
   it('ellipsizes a long title instead of overflowing', () => {
     const c = renderWidth(LONG, 300);
     const title = c.querySelector('text[data-line-number="1"]')!.textContent!;
