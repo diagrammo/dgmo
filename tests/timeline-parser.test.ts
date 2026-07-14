@@ -411,7 +411,7 @@ tag Team as t
     });
   });
 
-  describe('eras and markers (unchanged)', () => {
+  describe('eras and markers', () => {
     it('parses inline era', () => {
       const src = 'timeline\nera 1716 -> 1718 Nassau Republic';
       const result = parse(src);
@@ -447,6 +447,55 @@ marker
       const result = parse(src);
       expect(result.timelineMarkers).toHaveLength(1);
       expect(result.timelineEvents).toHaveLength(1);
+    });
+
+    // ── Liberal date input (BL-121) ──
+    it('inline era accepts month-name + slash range dates', () => {
+      const result = parse(
+        'timeline\nyear 2026\nera Jul 4 -> 8/21 Summer teal'
+      );
+      expect(result.timelineEras).toHaveLength(1);
+      expect(result.timelineEras[0].startDate).toBe('2026-07-04');
+      expect(result.timelineEras[0].endDate).toBe('2026-08-21');
+      expect(result.timelineEras[0].label).toBe('Summer');
+      expect(result.timelineEras[0].color).not.toBeNull();
+    });
+
+    it('inline marker accepts a slash date', () => {
+      const result = parse('timeline\nyear 2026\nmarker 6/15 Release green');
+      expect(result.timelineMarkers).toHaveLength(1);
+      expect(result.timelineMarkers[0].date).toBe('2026-06-15');
+      expect(result.timelineMarkers[0].label).toBe('Release');
+      expect(result.timelineMarkers[0].color).not.toBeNull();
+    });
+
+    it('era/marker blocks accept liberal dates and derive the year', () => {
+      const src = `timeline
+year 2026
+era
+  Apr 6 -> Apr 10 Conference
+marker
+  7/4 Independence Day
+2026-12-01 Event`;
+      const result = parse(src);
+      expect(result.timelineEras[0]).toMatchObject({
+        startDate: '2026-04-06',
+        endDate: '2026-04-10',
+        label: 'Conference',
+      });
+      expect(result.timelineMarkers[0]).toMatchObject({
+        date: '2026-07-04',
+        label: 'Independence Day',
+      });
+    });
+
+    it('bare-year eras still render byte-identically (regression)', () => {
+      const result = parse('timeline\nera 1716 -> 1718 Nassau Republic');
+      expect(result.timelineEras[0]).toMatchObject({
+        startDate: '1716',
+        endDate: '1718',
+        label: 'Nassau Republic',
+      });
     });
   });
 
