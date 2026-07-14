@@ -526,13 +526,27 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       );
     // BL-122 — peel a standalone `clock` flag before name/meta splitting so it
     // never corrupts a bare-coord `<lat> <lon>` parse or the alias. Lowercase,
-    // whole-word, first occurrence (place names are capitalized; `clock` is a flag).
+    // whole word, position-independent, and tolerant of a stray comma the author
+    // may put between it and other metadata (`poi LA clock, label: El Segundo`).
+    // The valued `clock: <zone>` form is left for the meta parser — a `:` after
+    // `clock` fails the trailing lookahead, so only the bare flag matches here.
     let clockFlag = false;
-    const clockPeeled = rest.replace(/(?:^|\s)clock(?=\s|$)/, (m) => {
+    rest = rest.replace(/(?<=^|[\s,])clock(?=[\s,]|$)/, () => {
       clockFlag = true;
-      return m.startsWith(' ') ? '' : ' ';
+      return '';
     });
-    if (clockFlag) rest = clockPeeled.replace(/\s{2,}/g, ' ').trim();
+    if (clockFlag) {
+      // Commas before the first metadata colon were the flag's separators (a real
+      // metadata comma follows a value) — collapse them to spaces; then tidy the
+      // gap the removal left and any dangling leading/trailing delimiter.
+      const colon = rest.indexOf(':');
+      if (colon >= 0)
+        rest = rest.slice(0, colon).replace(/,/g, ' ') + rest.slice(colon);
+      rest = rest
+        .replace(/^[\s,]+|[\s,]+$/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    }
     const split = splitNameAndMeta(
       rest,
       registry(),

@@ -60,6 +60,27 @@ describe('map clock channel — the `clock` flag', () => {
     expect(parseMap('map\npoi Denver').pois[0]?.clock).toBeUndefined();
   });
 
+  it('tolerates `clock` before a comma-separated `label:` (any order)', () => {
+    for (const src of [
+      'map\npoi Los Angeles clock, label: El Segundo',
+      'map\npoi Los Angeles clock label: El Segundo',
+      'map\npoi Los Angeles label: El Segundo clock',
+    ]) {
+      const r = resolve(src);
+      expect(r.pois[0]?.name).toBe('Los Angeles');
+      expect(r.pois[0]?.label).toBe('El Segundo');
+      expect(r.pois[0]?.tz).toBe('America/Los_Angeles');
+      expect(r.diagnostics).toHaveLength(0);
+    }
+  });
+
+  it('tolerates a trailing comma after a bare `clock`', () => {
+    const r = resolve('map\npoi Denver clock,');
+    expect(r.pois[0]?.name).toBe('Denver');
+    expect(r.pois[0]?.tz).toBe('America/Denver');
+    expect(r.diagnostics).toHaveLength(0);
+  });
+
   it('there is no header `clock` directive anymore', () => {
     // `clock` on its own line is not a directive → falls through to region-fill,
     // never sets a directive flag.
