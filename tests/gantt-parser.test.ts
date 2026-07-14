@@ -1633,4 +1633,129 @@ describe('gantt parser', () => {
       });
     });
   });
+
+  // ── Universal date handling (BL-121) — liberal input + directives ──
+  describe('liberal date input (BL-121)', () => {
+    it('start accepts month-name form', () => {
+      const result = parseGantt('gantt\nstart July 4, 2026', palette);
+      expect(result.error).toBeNull();
+      expect(result.options.start).toBe('2026-07-04');
+    });
+
+    it('start accepts US month-first slash form', () => {
+      const result = parseGantt('gantt\nstart 7/4/2026', palette);
+      expect(result.options.start).toBe('2026-07-04');
+    });
+
+    it('date-order dmy flips the slash reading', () => {
+      const result = parseGantt(
+        'gantt\ndate-order dmy\nstart 7/4/2026',
+        palette
+      );
+      expect(result.options.start).toBe('2026-04-07');
+    });
+
+    it('year directive anchors a bare month-day start', () => {
+      const result = parseGantt('gantt\nyear 2026\nstart 07-04', palette);
+      expect(result.options.start).toBe('2026-07-04');
+    });
+
+    it('bare task start: derives its year from the full start option (prescan)', () => {
+      const result = parseGantt(
+        'gantt\nstart 2026-01-01\nDesign Review start: 3/15',
+        palette
+      );
+      expect(result.error).toBeNull();
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.explicitStart).toBe('2026-03-15');
+      }
+    });
+
+    it('directives are position-independent (year may follow the date)', () => {
+      const result = parseGantt('gantt\nstart 07-04\nyear 2026', palette);
+      expect(result.options.start).toBe('2026-07-04');
+    });
+
+    it('today-marker accepts a liberal date', () => {
+      const result = parseGantt(
+        'gantt\nyear 2026\ntoday-marker Jul 4\nTask 5d',
+        palette
+      );
+      expect(result.options.todayMarker).toBe('2026-07-04');
+    });
+
+    it('inline holiday accepts a month-name date', () => {
+      const result = parseGantt(
+        'gantt\nyear 2026\nholiday Dec 25 Christmas\nTask 5d',
+        palette
+      );
+      expect(result.holidays.dates).toHaveLength(1);
+      expect(result.holidays.dates[0]).toMatchObject({
+        date: '2026-12-25',
+        label: 'Christmas',
+      });
+    });
+
+    it('holiday block accepts slash date and range', () => {
+      const result = parseGantt(
+        'gantt\nyear 2026\nholidays\n  12/25 Christmas\n  12/24 -> 12/26 Break\nTask 5d',
+        palette
+      );
+      expect(result.holidays.dates).toContainEqual(
+        expect.objectContaining({ date: '2026-12-25', label: 'Christmas' })
+      );
+      expect(result.holidays.ranges).toContainEqual(
+        expect.objectContaining({
+          startDate: '2026-12-24',
+          endDate: '2026-12-26',
+          label: 'Break',
+        })
+      );
+    });
+
+    it('inline marker accepts a slash date', () => {
+      const result = parseGantt(
+        'gantt\nyear 2026\nmarker 6/15 Release\nTask 5d',
+        palette
+      );
+      expect(result.markers).toContainEqual(
+        expect.objectContaining({ date: '2026-06-15', label: 'Release' })
+      );
+    });
+
+    it('inline era accepts month-name range', () => {
+      const result = parseGantt(
+        'gantt\nyear 2026\nera Apr 6 -> Apr 10 Conference\nTask 5d',
+        palette
+      );
+      expect(result.eras).toContainEqual(
+        expect.objectContaining({
+          startDate: '2026-04-06',
+          endDate: '2026-04-10',
+          label: 'Conference',
+        })
+      );
+    });
+
+    it('no-current-year makes a fully-bare start an error', () => {
+      const result = parseGantt(
+        'gantt\nno-current-year\nDesign start: 3/15',
+        palette
+      );
+      expect(result.diagnostics.some((d) => d.severity === 'error')).toBe(true);
+    });
+
+    it('ISO input is unchanged (regression)', () => {
+      const result = parseGantt(
+        'gantt\nstart 2024-01-15\nDesign start: 2024-02-15',
+        palette
+      );
+      expect(result.options.start).toBe('2024-01-15');
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.explicitStart).toBe('2024-02-15');
+      }
+    });
+  });
 });

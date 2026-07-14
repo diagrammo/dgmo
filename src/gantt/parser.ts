@@ -25,6 +25,13 @@ import {
   parseOffsetPrefix,
   parseDuration,
 } from '../utils/duration';
+import {
+  parseDateToken,
+  toInternal,
+  type DateOrder,
+  type DateGrain,
+  type DateToken,
+} from '../utils/date';
 import { normalizeName } from '../utils/name-normalize';
 import type { PaletteColors } from '../palettes';
 import { getSeriesColors } from '../palettes';
@@ -52,31 +59,12 @@ const DEPENDENCY_RE = /^(?:-(.+?))?->\s*(.+)$/;
 /** Comment line */
 const COMMENT_RE = /^\/\//;
 
-/** Era: `era YYYY[-MM[-DD[ HH:MM]]] -> YYYY[-MM[-DD[ HH:MM]]] Label (color?)` */
-const ERA_RE =
-  /^era\s+(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/i;
-
-/** Marker: `marker YYYY[-MM[-DD[ HH:MM]]] Label (color?)` */
-const MARKER_RE =
-  /^marker\s+(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/i;
-
-/** Holiday date: `2024-01-15 Label` */
-const HOLIDAY_DATE_RE = /^(\d{4}-\d{2}-\d{2})\s+(.+)$/;
-
-/** Holiday range: `2024-12-24 -> 2024-12-31 Label` */
-const HOLIDAY_RANGE_RE =
-  /^(\d{4}-\d{2}-\d{2})\s*(?:->|\u2013>)\s*(\d{4}-\d{2}-\d{2})\s+(.+)$/;
+// Era / marker / holiday date entries are parsed via the shared liberal date
+// core (§ BL-121) — `leadingDate` / `leadingRange` in parseGantt — rather than
+// dedicated ISO regexes, so they accept slash / month-name / bare-year forms.
 
 /** Workweek override: `workweek sun-thu` */
 const WORKWEEK_RE = /^workweek\s+(.+)$/i;
-
-/** Era entry (inside era block, no `era` prefix): `YYYY[-MM[-DD[ HH:MM]]] -> YYYY[-MM[-DD[ HH:MM]]] Label` */
-const ERA_ENTRY_RE =
-  /^(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/;
-
-/** Marker entry (inside marker block, no `marker` prefix): `YYYY[-MM[-DD[ HH:MM]]] Label` */
-const MARKER_ENTRY_RE =
-  /^(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/;
 
 // ── New-syntax regexes (v2: positional duration, arrow graph) ─
 
@@ -134,12 +122,106 @@ interface BlockEntry {
 
 // ── Parser ──────────────────────────────────────────────────
 
+/**
+ * First explicit-year date found anywhere in the document — the anchor for bare
+ * month-days (§ BL-121 prescan-anchor). Strips a leading directive/keyword and
+ * an optional range arrow so the date after `start`/`marker`/`holiday`/`era`/
+ * `<date> ->` is seen. Returns the signed year, or null when none carries a year.
+ */
+function prescanGanttYear(lines: string[], order: DateOrder): number | null {
+  for (const raw of lines) {
+    let cand = raw.trim();
+    if (!cand) continue;
+    cand = cand.replace(
+      /^(?:start|marker|holiday|era|sprint-start|today-marker)\s+/i,
+      ''
+    );
+    cand = cand.replace(/^(?:->|–>)\s*/, '');
+    const res = parseDateToken(cand, { dateOrder: order });
+    if (res?.token.year != null) return res.token.sign * res.token.year;
+  }
+  return null;
+}
+
 export function parseGantt(
   content: string,
   palette?: PaletteColors
 ): ParsedGantt {
   const lines = content.split('\n');
   const diagnostics: DgmoError[] = [];
+
+  // ── Universal date handling (§ BL-121) ────────────────────
+  // Pre-scan the document for the date directives so they govern every date
+  // regardless of where they appear. `date-order` picks how a numeric slash
+  // date reads (US month-first by default); `year 20XX` sets the base year for
+  // bare month-days; `no-current-year` forbids the current-year last resort.
+  let dateOrder: DateOrder = 'mdy';
+  let directiveYear: number | null = null;
+  let noCurrentYear = false;
+  for (const raw of lines) {
+    const t = raw.trim();
+    const dm = t.match(/^date-order\s+(mdy|dmy)$/i);
+    if (dm) dateOrder = dm[1]!.toLowerCase() as DateOrder;
+    const ym = t.match(/^year\s+(\d{1,4})$/i);
+    if (ym) directiveYear = parseInt(ym[1]!, 10);
+    if (t.toLowerCase() === 'no-current-year') noCurrentYear = true;
+  }
+  // Prescan-anchor: bare month-days derive their year from the directive, else
+  // the first explicit-year date found anywhere (usually `start`). Gantt is
+  // dependency-driven rather than a chronological row list, so it anchors to a
+  // single base year rather than carrying/rolling forward per row.
+  const currentYear = new Date().getFullYear();
+  const baseYear = directiveYear ?? prescanGanttYear(lines, dateOrder);
+
+  // Resolve a parsed token's year via the ladder. Returns canonical ISO, or
+  // null when a bare date has no derivable year and `no-current-year` forbids
+  // the current-year fallback.
+  const resolveToken = (tok: DateToken): string | null => {
+    if (tok.year != null) return toInternal(tok, tok.year);
+    if (baseYear == null && noCurrentYear) return null;
+    return toInternal(tok, baseYear ?? currentYear);
+  };
+
+  // Parse a whole-string date field (start, task `start:`, today-marker,
+  // sprint-start). Rejects trailing junk and partial dates below `minGrain`.
+  const wholeDate = (
+    rawStr: string,
+    minGrain: DateGrain = 1
+  ): { iso: string; grain: DateGrain; hasTime: boolean } | null => {
+    const s = rawStr.trim();
+    const res = parseDateToken(s, { dateOrder });
+    if (res?.consumed !== s.length || res.token.invalidTime) return null;
+    if (res.token.grain < minGrain) return null;
+    const iso = resolveToken(res.token);
+    return iso == null
+      ? null
+      : { iso, grain: res.token.grain, hasTime: res.token.hasTime };
+  };
+
+  // Split a leading date off a `<date> <label>` entry; `rest` keeps its
+  // original leading whitespace so the caller trims/parses the label.
+  const leadingDate = (
+    s: string
+  ): { iso: string; grain: DateGrain; rest: string } | null => {
+    const res = parseDateToken(s, { dateOrder });
+    if (!res || res.consumed === 0 || res.token.invalidTime) return null;
+    const iso = resolveToken(res.token);
+    if (iso == null) return null;
+    return { iso, grain: res.token.grain, rest: s.slice(res.consumed) };
+  };
+
+  // Split a `<date> -> <date> <label>` range entry.
+  const leadingRange = (
+    s: string
+  ): { start: string; end: string; rest: string } | null => {
+    const a = leadingDate(s);
+    if (!a) return null;
+    const arrow = a.rest.match(/^\s*(?:->|–>)\s*/);
+    if (!arrow) return null;
+    const b = leadingDate(a.rest.slice(arrow[0]!.length));
+    if (!b) return null;
+    return { start: a.iso, end: b.iso, rest: b.rest };
+  };
 
   const holidays: Writable<ParsedGantt['holidays']> = {
     dates: [],
@@ -314,25 +396,23 @@ export function parseGantt(
         inHolidaysBlock = false;
         // fall through to process this line normally
       } else {
-        // Parse holiday entries
-        const rangeMatch = line.match(HOLIDAY_RANGE_RE);
-        if (rangeMatch) {
-          // Capture groups 1-3 guaranteed by successful regex match.
+        // Parse holiday entries (liberal date input, § BL-121).
+        const rangeMatch = leadingRange(line);
+        if (rangeMatch && rangeMatch.rest.trim()) {
           holidays.ranges.push({
-            startDate: rangeMatch[1]!,
-            endDate: rangeMatch[2]!,
-            label: rangeMatch[3]!.trim(),
+            startDate: rangeMatch.start,
+            endDate: rangeMatch.end,
+            label: rangeMatch.rest.trim(),
             lineNumber,
           });
           continue;
         }
 
-        const dateMatch = line.match(HOLIDAY_DATE_RE);
-        if (dateMatch) {
-          // Capture groups 1-2 guaranteed by successful regex match.
+        const dateMatch = leadingDate(line);
+        if (dateMatch?.grain === 3 && dateMatch.rest.trim()) {
           holidays.dates.push({
-            date: dateMatch[1]!,
-            label: dateMatch[2]!.trim(),
+            date: dateMatch.iso,
+            label: dateMatch.rest.trim(),
             lineNumber,
           });
           continue;
@@ -372,10 +452,9 @@ export function parseGantt(
         // fall through to process this line normally
       } else {
         if (COMMENT_RE.test(line)) continue;
-        const eraEntryMatch = line.match(ERA_ENTRY_RE);
-        if (eraEntryMatch) {
-          // Capture groups 1-3 guaranteed by successful regex match.
-          const eraLabelRaw = eraEntryMatch[3]!.trim();
+        const eraEntryMatch = leadingRange(line);
+        if (eraEntryMatch && eraEntryMatch.rest.trim()) {
+          const eraLabelRaw = eraEntryMatch.rest.trim();
           const eraExtracted = extractColor(
             eraLabelRaw,
             palette,
@@ -383,8 +462,8 @@ export function parseGantt(
             lineNumber
           );
           result.eras.push({
-            startDate: eraEntryMatch[1]!,
-            endDate: eraEntryMatch[2]!,
+            startDate: eraEntryMatch.start,
+            endDate: eraEntryMatch.end,
             label: eraExtracted.label,
             color: eraExtracted.color || null,
             lineNumber,
@@ -407,10 +486,9 @@ export function parseGantt(
         // fall through to process this line normally
       } else {
         if (COMMENT_RE.test(line)) continue;
-        const markerEntryMatch = line.match(MARKER_ENTRY_RE);
-        if (markerEntryMatch) {
-          // Capture groups 1-2 guaranteed by successful regex match.
-          const markerLabelRaw = markerEntryMatch[2]!.trim();
+        const markerEntryMatch = leadingDate(line);
+        if (markerEntryMatch && markerEntryMatch.rest.trim()) {
+          const markerLabelRaw = markerEntryMatch.rest.trim();
           const markerExtracted = extractColor(
             markerLabelRaw,
             palette,
@@ -418,7 +496,7 @@ export function parseGantt(
             lineNumber
           );
           result.markers.push({
-            date: markerEntryMatch[1]!,
+            date: markerEntryMatch.iso,
             label: markerExtracted.label,
             color: markerExtracted.color || null,
             lineNumber,
@@ -743,6 +821,18 @@ export function parseGantt(
 
     if (COMMENT_RE.test(line)) continue;
 
+    // ── Universal date directives (§ BL-121, pre-scanned above) ──
+    // Consumed here so they don't fall through to the unknown-option warning.
+    if (
+      /^date-order\s+(mdy|dmy)$/i.test(line) ||
+      /^year\s+\d{1,4}$/i.test(line) ||
+      line.toLowerCase() === 'no-current-year'
+    ) {
+      result.options.optionLineNumbers[line.split(/\s+/)[0]!.toLowerCase()] =
+        lineNumber;
+      continue;
+    }
+
     // ── Header options ────────────────────────────────────
 
     if (line.toLowerCase() === 'holiday' || line.toLowerCase() === 'holidays') {
@@ -752,19 +842,19 @@ export function parseGantt(
       continue;
     }
 
-    // Single-line holiday: `holiday 2024-12-25 Christmas`
-    const holidayInlineMatch = line.match(
-      /^holiday\s+(\d{4}-\d{2}-\d{2})\s+(.+)$/i
-    );
-    if (holidayInlineMatch) {
-      // Capture groups 1-2 guaranteed by successful regex match.
-      holidays.dates.push({
-        date: holidayInlineMatch[1]!,
-        label: holidayInlineMatch[2]!.trim(),
-        lineNumber,
-      });
-      result.options.holidaysLineNumber ??= lineNumber;
-      continue;
+    // Single-line holiday: `holiday 2024-12-25 Christmas` (liberal date input).
+    const holidayInlinePrefix = line.match(/^holiday\s+(.+)$/i);
+    if (holidayInlinePrefix) {
+      const ld = leadingDate(holidayInlinePrefix[1]!);
+      if (ld?.grain === 3 && ld.rest.trim()) {
+        holidays.dates.push({
+          date: ld.iso,
+          label: ld.rest.trim(),
+          lineNumber,
+        });
+        result.options.holidaysLineNumber ??= lineNumber;
+        continue;
+      }
     }
 
     // Tag block heading
@@ -811,25 +901,27 @@ export function parseGantt(
       continue;
     }
 
-    // Era (inline)
-    const eraMatch = line.match(ERA_RE);
-    if (eraMatch) {
-      // Capture groups 1-3 guaranteed by successful regex match.
-      const eraLabelRaw = eraMatch[3]!.trim();
-      const eraExtracted = extractColor(
-        eraLabelRaw,
-        palette,
-        diagnostics,
-        lineNumber
-      );
-      result.eras.push({
-        startDate: eraMatch[1]!,
-        endDate: eraMatch[2]!,
-        label: eraExtracted.label,
-        color: eraExtracted.color || null,
-        lineNumber,
-      });
-      continue;
+    // Era (inline, liberal date input)
+    const eraInlinePrefix = line.match(/^era\s+(.+)$/i);
+    if (eraInlinePrefix) {
+      const eraMatch = leadingRange(eraInlinePrefix[1]!);
+      if (eraMatch && eraMatch.rest.trim()) {
+        const eraLabelRaw = eraMatch.rest.trim();
+        const eraExtracted = extractColor(
+          eraLabelRaw,
+          palette,
+          diagnostics,
+          lineNumber
+        );
+        result.eras.push({
+          startDate: eraMatch.start,
+          endDate: eraMatch.end,
+          label: eraExtracted.label,
+          color: eraExtracted.color || null,
+          lineNumber,
+        });
+        continue;
+      }
     }
 
     // Marker block: bare `marker` keyword starts a block
@@ -839,24 +931,26 @@ export function parseGantt(
       continue;
     }
 
-    // Marker (inline)
-    const markerMatch = line.match(MARKER_RE);
-    if (markerMatch) {
-      // Capture groups 1-2 guaranteed by successful regex match.
-      const markerLabelRaw = markerMatch[2]!.trim();
-      const markerExtracted = extractColor(
-        markerLabelRaw,
-        palette,
-        diagnostics,
-        lineNumber
-      );
-      result.markers.push({
-        date: markerMatch[1]!,
-        label: markerExtracted.label,
-        color: markerExtracted.color || null,
-        lineNumber,
-      });
-      continue;
+    // Marker (inline, liberal date input)
+    const markerInlinePrefix = line.match(/^marker\s+(.+)$/i);
+    if (markerInlinePrefix) {
+      const markerMatch = leadingDate(markerInlinePrefix[1]!);
+      if (markerMatch && markerMatch.rest.trim()) {
+        const markerLabelRaw = markerMatch.rest.trim();
+        const markerExtracted = extractColor(
+          markerLabelRaw,
+          palette,
+          diagnostics,
+          lineNumber
+        );
+        result.markers.push({
+          date: markerMatch.iso,
+          label: markerExtracted.label,
+          color: markerExtracted.color || null,
+          lineNumber,
+        });
+        continue;
+      }
     }
 
     // ── New-syntax task: `Name duration: Xd` or `Name start: DATE` ─
@@ -902,14 +996,15 @@ export function parseGantt(
 
         let explicitStart: string | undefined;
         if (rawStart !== undefined) {
-          if (!/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?$/.test(rawStart)) {
+          const sd = wholeDate(rawStart, 3);
+          if (!sd) {
             softError(
               lineNumber,
-              `Invalid start date: "${rawStart}". Expected YYYY-MM-DD or YYYY-MM-DD HH:MM.`
+              `Invalid start date: "${rawStart}". Expected a date like YYYY-MM-DD, 7/4, or Jul 4 (optionally with HH:MM).`
             );
             continue;
           }
-          explicitStart = rawStart;
+          explicitStart = sd.iso;
         }
 
         const taskName = split.name.trim();
@@ -1005,22 +1100,26 @@ export function parseGantt(
 
       switch (key) {
         case 'start':
-          result.options.start = value;
+          // Liberal input → canonical ISO (§ BL-121). Unparseable input falls
+          // through verbatim so downstream diagnostics are unchanged.
+          result.options.start = wholeDate(value)?.iso ?? value;
           break;
         case 'title':
           result.options.title = value;
           result.options.titleLineNumber = lineNumber;
           break;
-        case 'today-marker':
-          if (/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?$/.test(value)) {
-            result.options.todayMarker = value;
+        case 'today-marker': {
+          const td = wholeDate(value, 3);
+          if (td) {
+            result.options.todayMarker = td.iso;
           } else {
             warn(
               lineNumber,
-              `Invalid today-marker value: "${value}". Expected YYYY-MM-DD.`
+              `Invalid today-marker value: "${value}". Expected a date like YYYY-MM-DD, 7/4, or Jul 4.`
             );
           }
           break;
+        }
         case 'critical-path':
           result.options.criticalPath = true;
           break;
@@ -1092,15 +1191,16 @@ export function parseGantt(
           break;
         }
         case 'sprint-start': {
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+          const ss = wholeDate(value, 3);
+          if (!ss || ss.hasTime) {
             warn(
               lineNumber,
-              `sprint-start requires a full date (YYYY-MM-DD), got "${value}".`
+              `sprint-start requires a full date (e.g. YYYY-MM-DD, 7/4, or Jul 4), got "${value}".`
             );
-          } else if (Number.isNaN(new Date(value + 'T00:00:00').getTime())) {
+          } else if (Number.isNaN(new Date(ss.iso + 'T00:00:00').getTime())) {
             warn(lineNumber, `sprint-start is not a valid date: "${value}".`);
           } else {
-            result.options.sprintStart = value;
+            result.options.sprintStart = ss.iso;
           }
           break;
         }
@@ -1386,10 +1486,14 @@ export function parseGantt(
     // Check for explicit `start:` key
     if (metadata['start']) {
       const raw = metadata['start'];
-      if (!/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?$/.test(raw)) {
-        softError(ln, `Invalid start date: "${raw}". Expected YYYY-MM-DD.`);
+      const sd = wholeDate(raw, 3);
+      if (!sd) {
+        softError(
+          ln,
+          `Invalid start date: "${raw}". Expected a date like YYYY-MM-DD, 7/4, or Jul 4.`
+        );
       } else {
-        explicitStart = raw;
+        explicitStart = sd.iso;
       }
       delete metadata['start'];
     }
