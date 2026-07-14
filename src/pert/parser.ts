@@ -14,6 +14,7 @@ import { emit, makeDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import { PERT_DX } from './diagnostics';
 import { parseDuration } from '../utils/duration';
+import { parseDateToken, toInternal, type DateOrder } from '../utils/date';
 import {
   extractColor,
   measureIndent,
@@ -46,7 +47,7 @@ import type {
   PertDirection,
   NodeDetail,
 } from './types';
-import { formatLocalISODate, parseLocalISODate } from './internal';
+import { formatLocalISODate } from './internal';
 import type {
   DurationEstimate,
   DeclarationSite,
@@ -76,6 +77,10 @@ const DIRECTIVE_KEYS = new Set([
   'sprint-number',
   'sprint-start',
   'active-tag',
+  // Universal date directives (§ BL-121); effect captured in the prescan.
+  'year',
+  'date-order',
+  'no-current-year',
 ]);
 
 /**
@@ -105,14 +110,16 @@ const NEAR_DIRECTIVE_HINTS: ReadonlyArray<{
     matches: /^(low|medium|high)$/i,
   },
   {
+    // ISO, numeric slash (§ BL-121), or `now`. Month-name forms are omitted
+    // to avoid flagging activities like `start the engines`.
     stem: 'start',
     canonical: 'start-date',
-    matches: /^(\d{4}-\d{2}-\d{2}|now)$/i,
+    matches: /^(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|now)$/i,
   },
   {
     stem: 'end',
     canonical: 'end-date',
-    matches: /^\d{4}-\d{2}-\d{2}$/,
+    matches: /^(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)$/,
   },
   {
     stem: 'time',
@@ -523,6 +530,22 @@ export interface ParsePertOptions {
   palette?: PaletteColors;
 }
 
+/**
+ * First explicit-year date among the `start-date`/`end-date`/`sprint-start`
+ * anchors — the base year for a bare-date anchor (§ BL-121 prescan-anchor).
+ */
+function prescanPertYear(lines: string[], order: DateOrder): number | null {
+  for (const raw of lines) {
+    const m = raw
+      .trim()
+      .match(/^(?:start-date|end-date|sprint-start)\s+(.+)$/i);
+    if (!m) continue;
+    const res = parseDateToken(m[1]!.trim(), { dateOrder: order });
+    if (res?.token.year != null) return res.token.sign * res.token.year;
+  }
+  return null;
+}
+
 export function parsePert(
   content: string,
   parseOpts: ParsePertOptions = {}
@@ -542,6 +565,25 @@ export function parsePert(
   // recipient's render path with a frozen `today`, and `(as of …)`
   // suffixes reflect the author's clock.
   const today = formatLocalISODate(parseOpts.now ?? new Date());
+
+  // ── Universal date handling (§ BL-121) ────────────────────
+  // Pre-scan for the date directives so they govern the anchors regardless of
+  // line order, then resolve the base year: directive year, else the first
+  // explicit-year anchor found anywhere. `currentYear` comes from the frozen
+  // `today` snapshot so injected-clock tests stay deterministic.
+  let dateOrder: DateOrder = 'mdy';
+  let directiveYear: number | null = null;
+  let noCurrentYear = false;
+  for (const raw of lines) {
+    const t = raw.trim();
+    const dm = t.match(/^date-order\s+(mdy|dmy)$/i);
+    if (dm) dateOrder = dm[1]!.toLowerCase() as DateOrder;
+    const ym = t.match(/^year\s+(\d{1,4})$/i);
+    if (ym) directiveYear = parseInt(ym[1]!, 10);
+    if (t.toLowerCase() === 'no-current-year') noCurrentYear = true;
+  }
+  const currentYear = parseInt(today.slice(0, 4), 10);
+  const baseYear = directiveYear ?? prescanPertYear(lines, dateOrder);
 
   const options: PertOptions = { ...DEFAULT_OPTIONS, today };
   let title: string | null = null;
@@ -906,7 +948,8 @@ export function parsePert(
             options,
             diagnostics,
             firstAnchorLine,
-            firstAnchorKey
+            firstAnchorKey,
+            { order: dateOrder, baseYear, currentYear, noCurrentYear }
           );
           if (!hadAnchor && options.anchor !== null) {
             firstAnchorLine = lineNumber;
@@ -919,7 +962,12 @@ export function parsePert(
           }
           continue;
         }
-        applyDirective(head, value, lineNumber, options, error, warn);
+        applyDirective(head, value, lineNumber, options, error, warn, {
+          order: dateOrder,
+          baseYear,
+          currentYear,
+          noCurrentYear,
+        });
         continue;
       }
     }
@@ -1296,9 +1344,21 @@ function applyDirective(
   lineNumber: number,
   options: PertOptions,
   error: (line: number, msg: string, code?: string) => void,
-  warn: (line: number, msg: string, code?: string) => void
+  warn: (line: number, msg: string, code?: string) => void,
+  dateCfg: {
+    order: DateOrder;
+    baseYear: number | null;
+    currentYear: number;
+    noCurrentYear: boolean;
+  }
 ): void {
   switch (key) {
+    // Universal date directives (§ BL-121) — captured in the parsePert prescan;
+    // consumed here so they don't warn as unknown.
+    case 'year':
+    case 'date-order':
+    case 'no-current-year':
+      return;
     case 'time-unit': {
       const valid: DurationUnit[] = [
         'min',
@@ -1381,15 +1441,25 @@ function applyDirective(
       return;
     }
     case 'sprint-start': {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      // Liberal input → canonical ISO day (§ BL-121).
+      const res = parseDateToken(value.trim(), { dateOrder: dateCfg.order });
+      const yr = res?.token.year ?? dateCfg.baseYear ?? dateCfg.currentYear;
+      const iso =
+        res?.consumed === value.trim().length &&
+        !res.token.invalidTime &&
+        res.token.grain >= 3 &&
+        !res.token.hasTime
+          ? toInternal(res.token, yr)
+          : null;
+      if (!iso) {
         warn(
           lineNumber,
-          `sprint-start requires a full date (YYYY-MM-DD), got "${value}".`
+          `sprint-start requires a full date (e.g. YYYY-MM-DD, 7/4, or Jul 4), got "${value}".`
         );
-      } else if (Number.isNaN(new Date(value + 'T00:00:00').getTime())) {
+      } else if (Number.isNaN(new Date(iso + 'T00:00:00').getTime())) {
         warn(lineNumber, `sprint-start is not a valid date: "${value}".`);
       } else {
-        options.sprintStart = value;
+        options.sprintStart = iso;
       }
       return;
     }
@@ -1488,7 +1558,13 @@ function applyAnchorDirective(
   options: PertOptions,
   diagnostics: DgmoError[],
   firstAnchorLine: number | null,
-  firstAnchorKey: 'start-date' | 'end-date' | null
+  firstAnchorKey: 'start-date' | 'end-date' | null,
+  dateCfg: {
+    order: DateOrder;
+    baseYear: number | null;
+    currentYear: number;
+    noCurrentYear: boolean;
+  }
 ): void {
   // Both-anchors collision (per F4 — clear-on-collision policy):
   // if the user already authored an anchor of either kind, emit error
@@ -1525,16 +1601,45 @@ function applyAnchorDirective(
     return;
   }
 
-  const parsed = parseLocalISODate(trimmed);
-  if (!parsed) {
+  // Liberal input → canonical ISO (§ BL-121): slash / month-name / bare-year
+  // forms resolve here; a bare month-day derives its year via the ladder.
+  // Anchors need a specific day, so a full (day-grain) date is required.
+  const res = parseDateToken(trimmed, { dateOrder: dateCfg.order });
+  if (
+    res?.consumed !== trimmed.length ||
+    res.token.invalidTime ||
+    res.token.grain < 3
+  ) {
     diagnostics.push(emit(PERT_DX.INVALID_DATE, lineNumber, { trimmed, key }));
     return;
   }
+  let year = res.token.year;
+  if (year == null) {
+    if (dateCfg.baseYear == null && dateCfg.noCurrentYear) {
+      diagnostics.push(
+        emit(PERT_DX.INVALID_DATE, lineNumber, { trimmed, key })
+      );
+      return;
+    }
+    year = dateCfg.baseYear ?? dateCfg.currentYear;
+  }
+  // Calendar-validity check (parseDateToken is range-lenient): reject 2026-13-99,
+  // Feb 30, etc. so PERT keeps its strict anchor diagnostics.
+  const probe = new Date(year, res.token.month - 1, res.token.day);
+  if (
+    probe.getFullYear() !== year ||
+    probe.getMonth() !== res.token.month - 1 ||
+    probe.getDate() !== res.token.day
+  ) {
+    diagnostics.push(emit(PERT_DX.INVALID_DATE, lineNumber, { trimmed, key }));
+    return;
+  }
+  const iso = toInternal(res.token, year);
 
   options.anchor =
     key === 'start-date'
-      ? { kind: 'forward', date: trimmed }
-      : { kind: 'backward', date: trimmed };
+      ? { kind: 'forward', date: iso }
+      : { kind: 'backward', date: iso };
 }
 
 function classifyGroup(

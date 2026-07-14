@@ -65,6 +65,14 @@ export interface RegistryEntry {
 // ============================================================
 
 export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
+  // ── Universal date handling (§ BL-121) ───────────────────
+  // Accepted in every date-bearing chart (gantt, pert, countdown, timeline,
+  // event-line). Handled inline by each parser's prescan — no parser-Set
+  // membership here — so they only contribute highlighting (DIRECTIVE_KEYWORDS).
+  { token: 'year', category: 'directive' },
+  { token: 'date-order', category: 'directive' },
+  { token: 'no-current-year', category: 'directive' },
+
   // ── Infra ────────────────────────────────────────────────
   // Top-level SLO options that are ALSO accepted as node colon-properties
   // (dual membership). Highlight bare (kept in DIRECTIVE_KEYWORDS) — their

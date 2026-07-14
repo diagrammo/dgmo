@@ -23,6 +23,10 @@ export const fixture: ConformanceFixture = {
     'sprint-start',
     'active-tag',
     'solid-fill',
+    // Universal date directives (§ BL-121).
+    'year',
+    'date-order',
+    'no-current-year',
   ],
   pipeKeys: {
     node: ['description', 'confidence', 'collapsed'],

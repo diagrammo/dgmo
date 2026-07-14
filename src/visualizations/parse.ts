@@ -32,7 +32,15 @@ import {
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
-import { parseTimelineEventLine } from '../timeline/parser';
+import { parseTimelineEventLine, type DatePrefixCtx } from '../timeline/parser';
+import {
+  parseDateToken,
+  makeYearContext,
+  resolveTokenYear,
+  toInternal,
+  type DateOrder,
+  type DateToken,
+} from '../utils/date';
 import {
   DEFAULT_CLOUD_OPTIONS,
   type ParsedVisualization,
@@ -113,6 +121,90 @@ function parseVisualizationFull(
   }
 
   const lines = content.split('\n');
+
+  // ── BL-121: timeline date directives + carry-forward year context ──
+  // Pre-scanned so directives may precede or follow the dates they govern, and
+  // a bare month-day derives its year (explicit → `year` → sibling carry-forward
+  // + rollover → current). Harmless for non-timeline types (no date lines).
+  let tlDateOrder: DateOrder = 'mdy';
+  let tlNoCurrentYear = false;
+  let tlDirectiveYear: number | null = null;
+  for (const raw of lines) {
+    const t = raw.trim().toLowerCase();
+    if (t === 'no-current-year') tlNoCurrentYear = true;
+    else if (t === 'date-order dmy') tlDateOrder = 'dmy';
+    else if (t === 'date-order mdy') tlDateOrder = 'mdy';
+    else {
+      const ym = t.match(/^year\s+(\d{1,4})$/);
+      if (ym) tlDirectiveYear = parseInt(ym[1]!, 10);
+    }
+  }
+  let tlPrescan: number | null = null;
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t) continue;
+    const p = parseDateToken(t, { dateOrder: tlDateOrder });
+    if (p?.token.year != null) {
+      tlPrescan = p.token.sign * p.token.year;
+      break;
+    }
+  }
+  const tlYearCtx = makeYearContext({
+    order: tlDateOrder,
+    directiveYear: tlDirectiveYear,
+    prescanYear: tlPrescan,
+    noCurrentYear: tlNoCurrentYear,
+  });
+  const tlDateCtx: DatePrefixCtx = {
+    order: tlDateOrder,
+    resolve: (tok) => resolveTokenYear(tok, tlYearCtx),
+  };
+  const isTlDateDirective = (t: string): boolean =>
+    t === 'no-current-year' ||
+    t === 'date-order dmy' ||
+    t === 'date-order mdy' ||
+    /^year\s+\d{1,4}$/.test(t);
+
+  // ── BL-121: liberal era/marker dates ──
+  // Eras/markers accept the same liberal grammar as events, but resolve against
+  // a fixed base year (directive → first explicit-year date → current) rather
+  // than joining the events' mutating carry-forward chain — an era band is not a
+  // chronological row in that sequence.
+  const tlBaseYear = tlDirectiveYear ?? tlPrescan;
+  const tlCurrentYear = new Date().getFullYear();
+  const tlResolveYear = (tok: DateToken): string | null => {
+    if (tok.year != null) return toInternal(tok, tok.year);
+    if (tlBaseYear == null && tlNoCurrentYear) return null;
+    return toInternal(tok, tlBaseYear ?? tlCurrentYear);
+  };
+  const TL_TRAILING_COLOR =
+    /\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\s*$/;
+  const splitTrailingColor = (
+    s: string
+  ): { label: string; color: string | null } => {
+    const m = s.match(TL_TRAILING_COLOR);
+    return m
+      ? { label: s.slice(0, m.index).trim(), color: m[1]!.toLowerCase() }
+      : { label: s.trim(), color: null };
+  };
+  const tlLeadingDate = (s: string): { iso: string; rest: string } | null => {
+    const res = parseDateToken(s, { dateOrder: tlDateOrder });
+    if (!res || res.consumed === 0 || res.token.invalidTime) return null;
+    const iso = tlResolveYear(res.token);
+    return iso == null ? null : { iso, rest: s.slice(res.consumed) };
+  };
+  const tlLeadingRange = (
+    s: string
+  ): { start: string; end: string; rest: string } | null => {
+    const a = tlLeadingDate(s);
+    if (!a) return null;
+    const arrow = a.rest.match(/^\s*(?:->|–>)\s*/);
+    if (!arrow) return null;
+    const b = tlLeadingDate(a.rest.slice(arrow[0]!.length));
+    if (!b) return null;
+    return { start: a.iso, end: b.iso, rest: b.rest };
+  };
+
   const freeformLines: string[] = [];
   let currentArcGroup: string | null = null;
   let currentTimelineGroup: string | null = null;
@@ -165,6 +257,9 @@ function parseVisualizationFull(
 
     // Timeline tag group heading: `tag Name [alias X]`
     if (result.type === 'timeline' && indent === 0) {
+      if (isTlDateDirective(line.toLowerCase())) {
+        continue; // BL-121 date directive — consumed in the pre-scan above
+      }
       const tagBlockMatch = matchTagBlockHeading(line);
       if (tagBlockMatch) {
         const newGroup: Writable<TagGroup> = {
@@ -401,23 +496,19 @@ function parseVisualizationFull(
         // fall through to process this line normally
       } else {
         if (line.startsWith('//')) continue;
-        // Timeline era block entry (\u00a71.5 trailing-token):
+        // Timeline era block entry (\u00a71.5 trailing-token, \u00a7 BL-121 liberal date):
         //   `<start> -> <end> Label`           (no color)
         //   `<start> -> <end> Label color`     (trailing color word)
-        // Color (group 4) must be a recognized lowercase palette word.
-        const eraEntryMatch = line.match(
-          /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
-        );
-        if (eraEntryMatch) {
-          const colorAnnotation = eraEntryMatch[4]?.trim() || null;
+        const eraRange = tlLeadingRange(line);
+        const eraParsed = eraRange && splitTrailingColor(eraRange.rest);
+        if (eraRange && eraParsed && eraParsed.label) {
           result.timelineEras.push({
-            // Capture groups 1-3 guaranteed by the regex match.
-            startDate: eraEntryMatch[1]!,
-            endDate: eraEntryMatch[2]!,
-            label: eraEntryMatch[3]!.trim(),
-            color: colorAnnotation
+            startDate: eraRange.start,
+            endDate: eraRange.end,
+            label: eraParsed.label,
+            color: eraParsed.color
               ? (resolveColorWithDiagnostic(
-                  colorAnnotation,
+                  eraParsed.color,
                   lineNumber,
                   result.diagnostics,
                   palette
@@ -442,19 +533,16 @@ function parseVisualizationFull(
         // fall through to process this line normally
       } else {
         if (line.startsWith('//')) continue;
-        // Timeline marker block entry (§1.5 trailing-token).
-        const markerEntryMatch = line.match(
-          /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
-        );
-        if (markerEntryMatch) {
-          const colorAnnotation = markerEntryMatch[3]?.trim() || null;
+        // Timeline marker block entry (§1.5 trailing-token, § BL-121 liberal date).
+        const markerLd = tlLeadingDate(line);
+        const markerParsed = markerLd && splitTrailingColor(markerLd.rest);
+        if (markerLd && markerParsed && markerParsed.label) {
           result.timelineMarkers.push({
-            // Capture groups 1-2 guaranteed by the regex match.
-            date: markerEntryMatch[1]!,
-            label: markerEntryMatch[2]!.trim(),
-            color: colorAnnotation
+            date: markerLd.iso,
+            label: markerParsed.label,
+            color: markerParsed.color
               ? (resolveColorWithDiagnostic(
-                  colorAnnotation,
+                  markerParsed.color,
                   lineNumber,
                   result.diagnostics,
                   palette
@@ -488,22 +576,21 @@ function parseVisualizationFull(
         continue;
       }
 
-      // Timeline era lines, inline (\u00a71.5 trailing-token):
-      //   `era YYYY->YYYY Label`        \u2014 no color
-      //   `era YYYY->YYYY Label color`  \u2014 trailing-token color (recognized palette word)
-      const eraMatch = line.match(
-        /^era\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
-      );
-      if (eraMatch) {
-        const colorAnnotation = eraMatch[4]?.trim() || null;
+      // Timeline era lines, inline (\u00a71.5 trailing-token, \u00a7 BL-121 liberal date):
+      //   `era <start> -> <end> Label`        \u2014 no color
+      //   `era <start> -> <end> Label color`  \u2014 trailing-token color
+      const eraInline = line.match(/^era\s+(.+)$/i);
+      const eraInlineRange = eraInline && tlLeadingRange(eraInline[1]!);
+      const eraInlineParsed =
+        eraInlineRange && splitTrailingColor(eraInlineRange.rest);
+      if (eraInlineRange && eraInlineParsed && eraInlineParsed.label) {
         result.timelineEras.push({
-          // Capture groups 1-3 guaranteed by the regex match.
-          startDate: eraMatch[1]!,
-          endDate: eraMatch[2]!,
-          label: eraMatch[3]!.trim(),
-          color: colorAnnotation
+          startDate: eraInlineRange.start,
+          endDate: eraInlineRange.end,
+          label: eraInlineParsed.label,
+          color: eraInlineParsed.color
             ? (resolveColorWithDiagnostic(
-                colorAnnotation,
+                eraInlineParsed.color,
                 lineNumber,
                 result.diagnostics,
                 palette
@@ -514,21 +601,20 @@ function parseVisualizationFull(
         continue;
       }
 
-      // Timeline marker lines, inline (§1.5 trailing-token):
-      //   `marker YYYY Label`        — no color
-      //   `marker YYYY Label color`  — trailing-token color
-      const markerMatch = line.match(
-        /^marker\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
-      );
-      if (markerMatch) {
-        const colorAnnotation = markerMatch[3]?.trim() || null;
+      // Timeline marker lines, inline (§1.5 trailing-token, § BL-121 liberal date):
+      //   `marker <date> Label`        — no color
+      //   `marker <date> Label color`  — trailing-token color
+      const markerInline = line.match(/^marker\s+(.+)$/i);
+      const markerInlineLd = markerInline && tlLeadingDate(markerInline[1]!);
+      const markerInlineParsed =
+        markerInlineLd && splitTrailingColor(markerInlineLd.rest);
+      if (markerInlineLd && markerInlineParsed && markerInlineParsed.label) {
         result.timelineMarkers.push({
-          // Capture groups 1-2 guaranteed by the regex match.
-          date: markerMatch[1]!,
-          label: markerMatch[2]!.trim(),
-          color: colorAnnotation
+          date: markerInlineLd.iso,
+          label: markerInlineParsed.label,
+          color: markerInlineParsed.color
             ? (resolveColorWithDiagnostic(
-                colorAnnotation,
+                markerInlineParsed.color,
                 lineNumber,
                 result.diagnostics,
                 palette
@@ -598,7 +684,8 @@ function parseVisualizationFull(
         currentTimelineGroup,
         currentTimelineGroupMeta,
         timelineAliasMap,
-        tlRegistry
+        tlRegistry,
+        tlDateCtx
       );
 
       if (eventResult) {

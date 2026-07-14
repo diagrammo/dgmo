@@ -888,3 +888,53 @@ describe('countdown registry + render()', () => {
     expect(svg).not.toContain('<script');
   });
 });
+
+// ============================================================
+// Parser — liberal date input (BL-121)
+// ============================================================
+
+describe('countdown parser — liberal date input', () => {
+  it('accepts a month-name target and normalizes to ISO', () => {
+    const r = parseCountdown(`countdown Launch\ntarget July 4, 2026`);
+    expect(r.target).toBe('2026-07-04');
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('accepts a US slash target (month-first default)', () => {
+    const r = parseCountdown(`countdown Launch\ntarget 8/21/2026`);
+    expect(r.target).toBe('2026-08-21');
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('`year` directive supplies the year for a bare month-day', () => {
+    const r = parseCountdown(`countdown Launch\nyear 2026\ntarget 8/21`);
+    expect(r.target).toBe('2026-08-21');
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('`date-order dmy` reads the slash target day-first', () => {
+    const r = parseCountdown(
+      `countdown Launch\ndate-order dmy\ntarget 21/8/2026`
+    );
+    expect(r.target).toBe('2026-08-21');
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('out-of-range slash self-disambiguates regardless of order', () => {
+    const r = parseCountdown(`countdown Launch\ntarget 13/2/2026`);
+    expect(r.target).toBe('2026-02-13');
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('an explicit-offset ISO target passes through untouched (absolute instant)', () => {
+    const r = parseCountdown(`countdown Launch\ntarget 2026-08-21T18:00-04:00`);
+    expect(r.target).toBe('2026-08-21T18:00-04:00');
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('still accepts `now`', () => {
+    const r = parseCountdown(`countdown Launch\ntarget now`);
+    expect(r.error).toBeNull();
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+});

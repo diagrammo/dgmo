@@ -215,6 +215,7 @@ const INVENTORY = {
     'components',
     'containers',
     'critical-path',
+    'date-order',
     'days',
     'default-confidence',
     'default-latency-ms',
@@ -251,6 +252,7 @@ const INVENTORY = {
     'no-coastline',
     'no-colorize',
     'no-context-labels',
+    'no-current-year',
     'no-dependencies',
     'no-legend',
     'no-name',
@@ -323,6 +325,7 @@ const INVENTORY = {
     'x-label',
     'y-axis',
     'y-label',
+    'year',
   ],
   CONTROL: [
     'alert',

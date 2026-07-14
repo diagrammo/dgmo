@@ -124,6 +124,24 @@ function withGlobals(
   return { directives: { ...GLOBAL_DIRECTIVES, ...directives } };
 }
 
+// Universal date directives (§ BL-121) — offered by every date-bearing chart
+// type (gantt, pert, countdown, timeline, event-line). Spread into each below.
+const DATE_DIRECTIVES: Record<string, DirectiveValueSpec> = {
+  year: {
+    description:
+      'Base year for bare month-day dates (e.g. `year 2026`); makes the diagram reproducible',
+  },
+  'date-order': {
+    description:
+      'How numeric slash/dash dates read: mdy (US, default) or dmy (day-first)',
+    values: ['mdy', 'dmy'],
+  },
+  'no-current-year': {
+    description:
+      'Treat a fully-bare date (no year anywhere) as an error instead of assuming the current year',
+  },
+};
+
 /** Chart-type → directive specifications. Every chart type has at least palette + theme. */
 export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   // ── Data charts ──────────────────────────────────────────
@@ -249,12 +267,14 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'timeline',
     withGlobals({
+      ...DATE_DIRECTIVES,
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
     'event-line',
     withGlobals({
+      ...DATE_DIRECTIVES,
       'no-scale': { description: 'Space events evenly instead of by date' },
       side: {
         description: 'Card placement: side above | below (default alternate)',
@@ -414,6 +434,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'pert',
     withGlobals({
+      ...DATE_DIRECTIVES,
       'time-unit': {
         description: 'Time unit for activity durations',
         values: ['min', 'h', 'd', 'bd', 'w', 'm', 'q', 'y'],
@@ -447,9 +468,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'gantt',
     // Spec §13 §12.2 Options.
     withGlobals({
-      start: { description: 'Project start date (YYYY-MM-DD)' },
+      ...DATE_DIRECTIVES,
+      start: { description: 'Project start date (ISO, 7/4, or Jul 4)' },
       'today-marker': {
-        description: 'Today marker (bare = on, or YYYY-MM-DD date)',
+        description: 'Today marker (bare = on, or a date)',
       },
       sort: { description: 'Sort order', values: ['time', 'group', 'tag'] },
       'critical-path': { description: 'Show critical path' },
@@ -626,8 +648,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // rule (never both). `units`/`round`/`fields` shape the display; `since*`
     // number the ordinal. All space-separated key value (no colon).
     withGlobals({
+      ...DATE_DIRECTIVES,
       target: {
-        description: 'One-shot instant: ISO date/datetime or `now` (key value)',
+        description:
+          'One-shot instant: a date/datetime (ISO, 7/4, or Jul 4) or `now` (key value)',
       },
       every: {
         description:

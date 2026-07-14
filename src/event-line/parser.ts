@@ -45,7 +45,17 @@ import {
   EVENT_LINE_REGISTRY,
   withTagAliases,
 } from '../utils/reserved-key-registry';
-import { extractDatePrefix, parseTimelineDate } from '../timeline/parser';
+import {
+  extractDatePrefix,
+  parseTimelineDate,
+  type DatePrefixCtx,
+} from '../timeline/parser';
+import {
+  parseDateToken,
+  makeYearContext,
+  resolveTokenYear,
+  type DateOrder,
+} from '../utils/date';
 import type {
   EventLineEra,
   EventLineEvent,
@@ -105,6 +115,50 @@ export function parseEventLine(
   if (!content?.trim()) return fail(0, 'No content provided');
 
   const lines = content.split('\n');
+
+  // ── BL-121: date directives + carry-forward year context ──
+  // Pre-scan (directives can precede or follow the dates they govern) for
+  // `date-order` / `no-current-year` / `year`, then the first explicit year to
+  // anchor bare month-days that appear before any full date.
+  let dateOrder: DateOrder = 'mdy';
+  let noCurrentYear = false;
+  let directiveYear: number | null = null;
+  for (const raw of lines) {
+    const t = raw.trim().toLowerCase();
+    if (t === 'no-current-year') noCurrentYear = true;
+    else if (t === 'date-order dmy') dateOrder = 'dmy';
+    else if (t === 'date-order mdy') dateOrder = 'mdy';
+    else {
+      const ym = t.match(/^year\s+(\d{1,4})$/);
+      if (ym) directiveYear = parseInt(ym[1]!, 10);
+    }
+  }
+  let prescan: number | null = null;
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t) continue;
+    const p = parseDateToken(t, { dateOrder });
+    if (p?.token.year != null) {
+      prescan = p.token.sign * p.token.year;
+      break;
+    }
+  }
+  const yearCtx = makeYearContext({
+    order: dateOrder,
+    directiveYear,
+    prescanYear: prescan,
+    noCurrentYear,
+  });
+  const dateCtx: DatePrefixCtx = {
+    order: dateOrder,
+    resolve: (tok) => resolveTokenYear(tok, yearCtx),
+  };
+  const isDateDirective = (t: string): boolean =>
+    t === 'no-current-year' ||
+    t === 'date-order dmy' ||
+    t === 'date-order mdy' ||
+    /^year\s+\d{1,4}$/.test(t);
+
   let contentStarted = false;
   let headerParsed = false;
   const sharedOptions: Record<string, string> = {};
@@ -261,6 +315,9 @@ export function parseEventLine(
     // ── Top-level (indent 0) directives and reserved seams. ──
     if (indent === 0) {
       currentTagGroup = null;
+      if (isDateDirective(trimmed.toLowerCase())) {
+        continue; // consumed in the BL-121 pre-scan above
+      }
       if (trimmed.toLowerCase() === 'no-scale') {
         options.scale = false;
         continue;
@@ -319,7 +376,8 @@ export function parseEventLine(
       currentEra,
       aliasMap,
       result.diagnostics,
-      pushWarning
+      pushWarning,
+      dateCtx
     );
     result.events.push(event);
     currentEvent = event;
@@ -575,7 +633,8 @@ function parseEventHeader(
   era: string | null,
   aliasMap: Map<string, string>,
   diagnostics: DgmoError[],
-  pushWarning: (line: number, message: string, code?: string) => void
+  pushWarning: (line: number, message: string, code?: string) => void,
+  dateCtx: DatePrefixCtx
 ): Writable<EventLineEvent> {
   // Peel an optional ISO date line-prefix (timeline §15 idiom).
   let date: string | null = null;
@@ -592,7 +651,7 @@ function parseEventHeader(
     remainder = trimmed.slice(tbdMatch[0].length).trimStart();
   }
 
-  const prefix = future ? null : extractDatePrefix(trimmed);
+  const prefix = future ? null : extractDatePrefix(trimmed, dateCtx);
   if (prefix) {
     date = prefix.startDate;
     dateValue = parseTimelineDate(prefix.startDate);

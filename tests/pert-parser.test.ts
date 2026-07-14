@@ -417,6 +417,64 @@ describe('pert parser — date anchoring', () => {
     expect(diag!.message).toContain('discarded');
   });
 
+  // ── Universal date handling (BL-121) — liberal input + directives ──
+  it('accepts a month-name start-date', () => {
+    const parsed = parsePert(`pert\nstart-date July 4, 2026\nA 1 2 3\n`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.options.anchor).toEqual({
+      kind: 'forward',
+      date: '2026-07-04',
+    });
+  });
+
+  it('accepts a US month-first slash start-date', () => {
+    const parsed = parsePert(`pert\nstart-date 7/4/2026\nA 1 2 3\n`);
+    expect(parsed.options.anchor).toEqual({
+      kind: 'forward',
+      date: '2026-07-04',
+    });
+  });
+
+  it('date-order dmy flips the slash reading', () => {
+    const parsed = parsePert(
+      `pert\ndate-order dmy\nstart-date 7/4/2026\nA 1 2 3\n`
+    );
+    expect(parsed.options.anchor).toEqual({
+      kind: 'forward',
+      date: '2026-04-07',
+    });
+  });
+
+  it('year directive anchors a bare month-day end-date', () => {
+    const parsed = parsePert(`pert\nyear 2026\nend-date 09-15\nA 1 2 3\n`);
+    expect(parsed.options.anchor).toEqual({
+      kind: 'backward',
+      date: '2026-09-15',
+    });
+  });
+
+  it('directives are position-independent (year may follow the anchor)', () => {
+    const parsed = parsePert(`pert\nstart-date 06-01\nyear 2026\nA 1 2 3\n`);
+    expect(parsed.options.anchor).toEqual({
+      kind: 'forward',
+      date: '2026-06-01',
+    });
+  });
+
+  it('no-current-year makes a fully-bare anchor an error', () => {
+    const parsed = parsePert(
+      `pert\nno-current-year\nstart-date 06-01\nA 1 2 3\n`
+    );
+    expect(findCode(parsed, 'E_PERT_INVALID_DATE')).toBeDefined();
+    expect(parsed.options.anchor).toBeNull();
+  });
+
+  it('still calendar-validates a liberal date (Feb 30)', () => {
+    const parsed = parsePert(`pert\nstart-date Feb 30, 2026\nA 1 2 3\n`);
+    expect(findCode(parsed, 'E_PERT_INVALID_DATE')).toBeDefined();
+    expect(parsed.options.anchor).toBeNull();
+  });
+
   it('matches case-insensitively (Start-Date / START-DATE)', () => {
     const parsed = parsePert(`pert\nStart-Date 2026-06-01\nA 1 2 3\n`);
     expect(parsed.error).toBeNull();

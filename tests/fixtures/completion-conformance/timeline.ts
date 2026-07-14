@@ -7,7 +7,14 @@ export const fixture: ConformanceFixture = {
   structuralKeywords: ['era', 'marker', 'tag'],
   specSection: '15',
   firstLineKeyword: 'timeline',
-  directives: ['active-tag', 'solid-fill'],
+  directives: [
+    'active-tag',
+    'solid-fill',
+    // Universal date directives (§ BL-121).
+    'year',
+    'date-order',
+    'no-current-year',
+  ],
   pipeKeys: {
     node: ['description'],
   },

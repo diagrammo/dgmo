@@ -28,6 +28,7 @@ import type { PaletteColors } from '../palettes';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import { extractColor, measureIndent, parseFirstLine } from '../utils/parsing';
+import { normalizeDate, type DateOrder } from '../utils/date';
 import type { ParsedCountdown } from './types';
 import {
   monthIndex,
@@ -182,6 +183,10 @@ export function parseCountdown(
   // `note` block: indented lines accumulate here until the next top-level line.
   const noteBody: string[] = [];
   let inNote = false;
+  // Universal date directives (§ BL-121). `date-order` picks how a slash date
+  // reads; `year` sets the base year for a bare month-day `target`/`from`.
+  let dateOrder: DateOrder = 'mdy';
+  let baseYear: number | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1;
@@ -328,6 +333,21 @@ export function parseCountdown(
         break;
       }
 
+      // ── Universal date directives (§ BL-121) ──
+      case 'date-order': {
+        const v = rest.toLowerCase();
+        if (v === 'mdy' || v === 'dmy') dateOrder = v;
+        else
+          softError(lineNum, `"date-order" is "mdy" or "dmy" (got "${rest}").`);
+        break;
+      }
+      case 'year': {
+        const y = parseInt(rest, 10);
+        if (Number.isInteger(y) && y > 0) baseYear = y;
+        else softError(lineNum, `"year" needs a 4-digit year (got "${rest}").`);
+        break;
+      }
+
       // ── Ordinal / since — numbers a yearly occurrence (resolvedYear − since) ──
       case 'since': {
         const y = Number(rest);
@@ -430,18 +450,28 @@ export function parseCountdown(
     targetMs = Date.now();
     result.target = new Date(targetMs).toISOString();
   } else if (targetRaw !== null) {
-    const ms = targetToMs(targetRaw, result.tz);
+    // Liberal input → canonical ISO (slash/month-name/bare → YYYY-MM-DD). A
+    // string carrying its own offset or `now` returns null here and passes
+    // through to targetToMs unchanged (absolute-instant path).
+    const iso = normalizeDate(targetRaw, { order: dateOrder, year: baseYear });
+    const effective = iso ?? targetRaw;
+    const ms = targetToMs(effective, result.tz);
     if (ms === null) {
       softError(
         targetLine,
-        `"target" needs an ISO date/datetime or "now" (got "${targetRaw}").`
+        `"target" needs a date/datetime or "now" (got "${targetRaw}").`
       );
     } else {
       targetMs = ms;
+      if (iso) {
+        result.target = iso;
+        if (iso.includes(':')) result.hasTime = true;
+      }
     }
   }
   if (fromRaw !== null) {
-    const ms = targetToMs(fromRaw, result.tz);
+    const iso = normalizeDate(fromRaw, { order: dateOrder, year: baseYear });
+    const ms = targetToMs(iso ?? fromRaw, result.tz);
     if (ms === null) {
       softError(fromLine, `"from" needs an anchor date (got "${fromRaw}").`);
     } else {
