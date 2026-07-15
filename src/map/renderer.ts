@@ -78,24 +78,41 @@ function polylineToPath(pts: ReadonlyArray<[number, number]>): string {
  *  runs cleanly to the edge and only true coastline gets a water-line. */
 function ringToCoastPaths(
   ring: ReadonlyArray<[number, number]>,
-  frame?: { w: number; h: number }
+  frame?: { w: number; h: number },
+  inWater?: (x: number, y: number) => boolean
 ): string[] {
-  if (!frame) return [ringToPath(ring)];
+  if (!frame && !inWater) return [ringToPath(ring)];
   const n = ring.length;
   const eps = 0.75;
   const onL = (x: number): boolean => Math.abs(x) <= eps;
-  const onR = (x: number): boolean => Math.abs(x - frame.w) <= eps;
+  const onR = (x: number): boolean =>
+    frame !== undefined && Math.abs(x - frame.w) <= eps;
   const onT = (y: number): boolean => Math.abs(y) <= eps;
-  const onB = (y: number): boolean => Math.abs(y - frame.h) <= eps;
-  const isFrameEdge = (
+  const onB = (y: number): boolean =>
+    frame !== undefined && Math.abs(y - frame.h) <= eps;
+  // A "break" edge is not real coast: it either runs along a canvas edge (a
+  // synthetic clip cut) OR its midpoint lies inside a lake (a state/country
+  // boundary that runs through open lake water — e.g. the US–Canada border
+  // bisecting the Great Lakes). Buffering either would ring open water with a
+  // fake coast. The lake's OWN ring supplies the real lakeshore, so dropping
+  // these leaves the shore intact and removes the mid-water seam.
+  const isBreakEdge = (
     a: readonly [number, number],
     b: readonly [number, number]
-  ): boolean =>
-    (onL(a[0]) && onL(b[0])) ||
-    (onR(a[0]) && onR(b[0])) ||
-    (onT(a[1]) && onT(b[1])) ||
-    (onB(a[1]) && onB(b[1]));
-  // No frame-collinear edge anywhere → ordinary interior coastline (closed).
+  ): boolean => {
+    if (
+      frame !== undefined &&
+      ((onL(a[0]) && onL(b[0])) ||
+        (onR(a[0]) && onR(b[0])) ||
+        (onT(a[1]) && onT(b[1])) ||
+        (onB(a[1]) && onB(b[1])))
+    )
+      return true;
+    if (inWater?.((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)) return true;
+    return false;
+  };
+  const isFrameEdge = isBreakEdge;
+  // No break edge anywhere → ordinary interior coastline (closed).
   let firstBreak = -1;
   for (let i = 0; i < n; i++)
     if (isFrameEdge(ring[i]!, ring[(i + 1) % n]!)) {
@@ -129,16 +146,58 @@ function ringToCoastPaths(
  *  outer landmass boundary, odd = a hole) so an enclave (Lesotho) or a lake-hole
  *  is never ringed as a fake coast on land (R11). `minExtent` is a bare
  *  degenerate-ring floor now — every island, however small, grows coast rings. */
-function coastlineOuterRings(
+export function coastlineOuterRings(
   regions: readonly MapLayoutRegion[],
   minExtent: number,
   frame?: { w: number; h: number }
 ): string[] {
+  // Lake polygons (with a screen-space bbox for a cheap reject) so a NON-lake
+  // region's boundary that dips into open lake water — a state/country border
+  // through the Great Lakes — can be dropped edge-by-edge. Lakes buffer their
+  // own rings for the true shore, so they are never clipped against themselves.
+  const lakes: Array<{
+    rings: Array<Array<[number, number]>>;
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  }> = [];
+  for (const r of regions) {
+    if (r.id !== 'lake') continue;
+    const rings =
+      (r.rings as Array<Array<[number, number]>>) ?? parsePathRings(r.d);
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    for (const ring of rings)
+      for (const [x, y] of ring) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    lakes.push({ rings, minX, minY, maxX, maxY });
+  }
+  const inLake = (x: number, y: number): boolean => {
+    for (const lk of lakes) {
+      if (x < lk.minX || x > lk.maxX || y < lk.minY || y > lk.maxY) continue;
+      let inside = false;
+      for (const ring of lk.rings)
+        if (pointInRing(x, y, ring)) inside = !inside;
+      if (inside) return true;
+    }
+    return false;
+  };
+
   const paths: string[] = [];
   for (const r of regions) {
     // Reuse the rings parsed once in layoutMap; fall back for older layouts.
     const rings =
       (r.rings as Array<Array<[number, number]>>) ?? parsePathRings(r.d);
+    // Land/country rings get clipped against lakes; a lake's own ring must not
+    // be clipped against itself (its whole boundary is real shore).
+    const water = r.id !== 'lake' && lakes.length ? inLake : undefined;
     for (let i = 0; i < rings.length; i++) {
       const ring = rings[i]!;
       if (ring.length < 3) continue;
@@ -158,7 +217,7 @@ function coastlineOuterRings(
       for (let j = 0; j < rings.length; j++)
         if (j !== i && pointInRing(fx, fy, rings[j]!)) depth++;
       if (depth % 2 === 1) continue; // hole/enclave — skip
-      paths.push(...ringToCoastPaths(ring, frame));
+      paths.push(...ringToCoastPaths(ring, frame, water));
     }
   }
   return paths;

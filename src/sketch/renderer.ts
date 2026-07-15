@@ -378,6 +378,7 @@ export function renderSketch(
   if (showTitle) {
     svg
       .append('text')
+      .attr('class', 'sk-title')
       .attr('x', width / 2)
       .attr('y', TITLE_Y)
       .attr('text-anchor', 'middle')

@@ -466,6 +466,36 @@ function yearsLayout(
 }
 
 /**
+ * Weekstrip geometry — a single source of truth shared by `bandHeightFor` (which
+ * reserves the band height) and `vizWeekStrip` (which draws it), so the two never
+ * disagree. The strip FILLS the chart width (a cell per day + gaps span the whole
+ * content box); the pill HEIGHT is a sensible, bounded value that never grows into
+ * a tall tower — it tracks the cell width loosely but is clamped low, so a wide
+ * panel gets wide-and-short day tiles rather than columns.
+ */
+function weekStripGeom(
+  nowMs: number,
+  resolvedMs: number,
+  contentW: number
+): {
+  n: number;
+  nReal: number;
+  cw: number;
+  ch: number;
+  gap: number;
+  stripW: number;
+} {
+  const nReal = dayDelta(nowMs, resolvedMs) + 1;
+  const n = Math.max(7, nReal);
+  const gap = n <= 7 ? 14 : n <= 12 ? 10 : 7;
+  const cw = (contentW - gap * (n - 1)) / n;
+  // Sensible day-tile height — bounded so it never towers, whatever the width.
+  const ch = Math.max(86, Math.min(104, cw * 1.15));
+  const stripW = contentW; // fills the content box
+  return { n, nReal, cw, ch, gap, stripW };
+}
+
+/**
  * The band's height is CONTENT-driven and compact — deliberately NOT tied to the
  * header height, so a tall wrapped title/note in a narrow panel never elongates
  * the calendar. Each tier returns a bounded height (its cells keep a sane aspect
@@ -528,12 +558,10 @@ function bandHeightFor(
       const cellH = clamp(cellW * 0.8, 15, 22);
       return 26 + 6 * cellH + 8;
     }
-    case 'weekstrip': {
-      // Stretchy day-strip: a cell per day today→event, padded to a minimum of 7.
-      const n = Math.max(7, dayDelta(nowMs, resolvedMs) + 1);
-      const cw = (contentW - 10 * (n - 1)) / n;
-      return clamp(cw * 1.5, 116, 170);
-    }
+    case 'weekstrip':
+      // Aspect-locked day-strip: the pill's proportions are fixed, so the reserved
+      // height is just the pill height (shrinks with the panel, never stretches).
+      return weekStripGeom(nowMs, resolvedMs, contentW).ch;
     case 'clock':
       return clamp(contentW * 0.26, 150, 205);
     case 'today':
@@ -963,13 +991,18 @@ function vizWeekStrip(
   C: BandColors
 ): void {
   const now = new Date(nowMs);
-  const nReal = dayDelta(nowMs, resolvedMs) + 1; // today .. event inclusive
-  // Pad to a minimum of 7 cells with dimmed context days on either side, so a
-  // 1–2 day span isn't two enormous cells.
-  const n = Math.max(7, nReal);
+  // Aspect-locked geometry (shared with the height reservation): the pill keeps
+  // its proportions whatever the panel width. Pad to a minimum of 7 cells with
+  // dimmed context days on either side, so a 1–2 day span isn't two enormous cells.
+  const { n, nReal, cw, gap, stripW } = weekStripGeom(
+    nowMs,
+    resolvedMs,
+    g.contentW
+  );
   const padBefore = Math.floor((n - nReal) / 2);
-  const gap = n <= 7 ? 14 : n <= 12 ? 10 : 7;
-  const cw = (g.contentW - gap * (n - 1)) / n;
+  // Centre the strip in the band — a capped (wide-panel) strip is narrower than
+  // the content box, so it sits centred rather than pinned left.
+  const baseX = g.left + (g.contentW - stripW) / 2;
   const cellTop = g.top;
   const ch = g.height;
   const showWd = cw >= 30; // weekday label + rule fit?
@@ -984,7 +1017,7 @@ function vizWeekStrip(
       now.getDate() + i - padBefore
     );
     const dtOrd = DAY_START(dt.getTime());
-    const x = g.left + i * (cw + gap);
+    const x = baseX + i * (cw + gap);
     const isToday = dtOrd === nowOrd;
     const isEvent = dtOrd === evOrd;
     const isContext = dtOrd < nowOrd || dtOrd > evOrd;
@@ -1025,11 +1058,18 @@ function vizWeekStrip(
         isToday || isEvent ? 0.5 : 0.3
       );
     }
+    // Date number — centred in the space BELOW the weekday rule (so the rule
+    // never strikes through it), with the font bounded by the tile height so a
+    // short tile keeps clearance top and bottom.
+    const numFont = Math.min(cw * 0.62, ch * 0.42);
+    const regionTop = showWd ? 27 : ch * 0.2;
+    const regionBot = showTag ? ch - 20 : ch - 10;
+    const numBaseline = (regionTop + regionBot) / 2 + numFont * 0.34;
     aText(
       ct,
       x + cw / 2,
-      cellTop + (showWd ? ch * 0.6 : ch * 0.54),
-      Math.min(44, cw * 0.62),
+      cellTop + numBaseline,
+      numFont,
       st.text,
       750,
       'middle',

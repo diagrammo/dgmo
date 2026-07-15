@@ -23,6 +23,7 @@ import {
   hexToHSL,
   hslToHex,
   getSeriesColors,
+  mix,
 } from '../palettes/color-utils';
 import { tagAttrKey } from '../utils/tag-groups';
 import { measureText } from '../utils/text-measure';
@@ -45,6 +46,11 @@ import {
 } from './treemap-shared';
 
 const PADDING = 12;
+
+/** Leaf-ring mute: keep this % of the branch hue, blend the rest toward bg.
+ *  Matches the rectangular renderer's `LEAF_MUTE_PCT` so both geometries share
+ *  the faded-leaf / pure-container treatment (opt out with `solid-fill`). */
+const LEAF_MUTE_PCT = 50;
 
 /** Standard placement every dgmo legend uses: centered, under the title. */
 const LEGEND_POSITION: LegendPosition = {
@@ -104,6 +110,7 @@ export function renderTreemapRadial(
 
   const mode = resolveColorMode(parsed, options.colorMode);
   const opts = parsed.options;
+  const solid = opts.solidFill;
   const exportMode = options.exportMode ?? false;
   const seriesColors = getSeriesColors(palette);
 
@@ -185,7 +192,14 @@ export function renderTreemapRadial(
   let labelSeq = 0;
   if (!layout.isEmpty) {
     for (const cell of layout.cells) {
-      const fill = resolveCellColor(cell, colorCtx);
+      // Emphasis mirrors the rectangular renderer: container rings keep the pure
+      // branch hue; leaf rings fade toward the background (25%-style tint) unless
+      // `solid-fill` opts back into full saturation.
+      const baseColor = resolveCellColor(cell, colorCtx);
+      const fill =
+        cell.isContainer || solid
+          ? baseColor
+          : mix(baseColor, palette.bg, LEAF_MUTE_PCT);
       const g = plot
         .append('g')
         .attr('class', 'dgmo-treemap-cell')
