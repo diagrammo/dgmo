@@ -783,19 +783,7 @@ function drawRow(
     } else if (ln.kind === 'avail' && status) {
       const stCol =
         status.cls === 'ok' ? sw.ok : status.cls === 'soon' ? sw.soon : sw.off;
-      // State icon: filled disc when working/soon, hollow ring when off.
-      const dot = g
-        .append('circle')
-        .attr('data-dgmo-clock-status-dot', '')
-        .attr('cx', iconX)
-        .attr('cy', yy - 5)
-        .attr('r', 5);
-      if (status.cls === 'off')
-        dot
-          .attr('fill', 'none')
-          .attr('stroke', stCol)
-          .attr('stroke-width', 1.6);
-      else dot.attr('fill', stCol).attr('stroke', 'none');
+      drawStatusClock(g, iconX, yy - 5, 5, stCol);
       g.append('text')
         .attr('data-dgmo-clock-status', '')
         .attr('x', textX)
@@ -849,6 +837,25 @@ function drawFixedGlyph(
       .attr('stroke-width', 1.2)
       .attr('stroke-linecap', 'round');
   }
+}
+
+/** Filled status dot marking the availability line, coloured by work state
+ *  (ok/soon/off). The ticker recolours it live via `data-dgmo-clock-status-icon`.
+ *  Shared by clock rows/cols and the map card so both read identically. */
+function drawStatusClock(
+  parent: Sel,
+  cx: number,
+  cy: number,
+  r: number,
+  color: string
+): void {
+  parent
+    .append('circle')
+    .attr('data-dgmo-clock-status-icon', '')
+    .attr('cx', cx)
+    .attr('cy', cy)
+    .attr('r', r)
+    .attr('fill', color);
 }
 
 /** Bake the ticker anchors (zone/face/state + palette swatches) onto a row/col group. */
@@ -1163,18 +1170,7 @@ function drawColumns(
                 : status.cls === 'soon'
                   ? sw.soon
                   : sw.off;
-            const dot = g
-              .append('circle')
-              .attr('data-dgmo-clock-status-dot', '')
-              .attr('cx', iconX)
-              .attr('cy', yy - 4)
-              .attr('r', 4);
-            if (status.cls === 'off')
-              dot
-                .attr('fill', 'none')
-                .attr('stroke', stCol)
-                .attr('stroke-width', 1.4);
-            else dot.attr('fill', stCol).attr('stroke', 'none');
+            drawStatusClock(g, iconX, yy - 4, 4, stCol);
             g.append('text')
               .attr('data-dgmo-clock-status', '')
               .attr('x', textX)

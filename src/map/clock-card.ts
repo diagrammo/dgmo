@@ -98,7 +98,6 @@ export function renderClockCards(
     // A fixed offset has no real geography → no sun line; a real zone with coords
     // gets one so day/night status colours flip correctly.
     const sun = !isFixed && hasCoords ? sunLine(now, poi.lat, poi.lon) : null;
-    const up = sun ? sun.up : parts.h >= 6 && parts.h < 18;
     const ts = formatTime(parts.h, parts.m, parts.s, hours12);
     const status = workStatus(parts, work);
 
@@ -118,16 +117,26 @@ export function renderClockCards(
     // am/pm BELOW (mirrors the clock chart's digital readout). ──
     const mainFont = 18;
     const sf = 8; // seconds + am/pm stack font (~0.44 of main, like the clock)
-    const mainW = measureText(ts.main, mainFont);
-    const stackW = Math.max(
-      measureText(`:${ts.sec}`, sf),
-      ts.ap ? measureText(ts.ap, sf) : 0
-    );
-    const stackGap = 3;
-    const dotGap = 15; // status dot + gap before the time
+    // Pin every numeric advance to a fixed tabular estimate (colon ~0.334em,
+    // digits ~0.6em) and force it with `textLength` on the ticking nodes, exactly
+    // as the standalone clock does. Without this the seconds glyphs shape to their
+    // proportional widths and visibly wiggle as they tick each second. `:SS` is
+    // always colon + two digits → this width is invariant to the actual second.
+    const advance = (s: string, f: number): number =>
+      [...s].reduce((w, c) => w + f * (c === ':' ? 0.334 : 0.6), 0);
+    const mainW = advance(ts.main, mainFont);
+    const secW = advance(`:${ts.sec}`, sf);
+    const stackW = Math.max(secW, ts.ap ? measureText(ts.ap, sf) : 0);
+    const stackGap = 6;
     const padX = 9;
-    const line1W = dotGap + mainW + stackGap + stackW;
-    const line2W = measureText(line2, 10.5);
+    // A small analog-clock glyph leads the status line (mirrors the clock chart's
+    // dial); it replaces the old headline status dot. Only drawn when there IS a
+    // status word to pair with — a bare weekday line stays plain.
+    const iconR = 3.5;
+    const iconGap = 5;
+    const line2Icon = status ? iconR * 2 + iconGap : 0;
+    const line1W = mainW + stackGap + stackW;
+    const line2W = line2Icon + measureText(line2, 10.5);
     const cardW = Math.max(line1W, line2W) + padX * 2;
     const cardH = 44;
     const leaderGap = 7;
@@ -203,31 +212,13 @@ export function renderClockCards(
       .attr('stroke', border)
       .attr('stroke-width', 1);
 
-    // ── Status dot (filled when open/soon, hollow ring when off). ──
-    const dotCX = cardLeft + padX + 3.5;
-    const line1Y = cardTop + 20; // baseline of the big HH:MM
-    const dot = g
-      .append('circle')
-      .attr('data-dgmo-clock-status-dot', '')
-      .attr('cx', dotCX)
-      .attr('cy', line1Y - mainFont * 0.35)
-      .attr('r', 3.5);
-    if (status) {
-      const dc =
-        status.cls === 'ok' ? sw.ok : status.cls === 'soon' ? sw.soon : sw.off;
-      if (status.cls === 'off') {
-        dot.attr('fill', 'none').attr('stroke', dc).attr('stroke-width', 1.4);
-      } else {
-        dot.attr('fill', dc);
-      }
-    } else {
-      // No work window: the dot echoes day/night so it never reads as "closed".
-      dot.attr('fill', up ? sw.day : sw.night);
-    }
+    const statusColor = (cls: 'ok' | 'soon' | 'off'): string =>
+      cls === 'ok' ? sw.ok : cls === 'soon' ? sw.soon : sw.off;
 
     // ── Time headline (ticker anchors): a big HH:MM, then a small stack to its
     // right — seconds ABOVE, am/pm BELOW (mirrors the clock chart). ──
-    const timeX = cardLeft + padX + dotGap;
+    const line1Y = cardTop + 20; // baseline of the big HH:MM
+    const timeX = cardLeft + padX;
     g.append('text')
       .attr('data-dgmo-clock-digital-part', 'main')
       .attr('x', timeX)
@@ -236,6 +227,8 @@ export function renderClockCards(
       .attr('fill', palette.text)
       .attr('font-size', mainFont)
       .attr('font-weight', 600)
+      .attr('textLength', mainW)
+      .attr('lengthAdjust', 'spacing')
       .style('font-variant-numeric', 'tabular-nums')
       .text(ts.main);
     // Seconds cap-align to the TOP of the digits, am/pm baseline-align to their
@@ -249,6 +242,8 @@ export function renderClockCards(
       .attr('font-family', FONT_FAMILY)
       .attr('fill', muted)
       .attr('font-size', sf)
+      .attr('textLength', secW)
+      .attr('lengthAdjust', 'spacing')
       .style('font-variant-numeric', 'tabular-nums')
       .text(`:${ts.sec}`);
     g.append('text')
@@ -264,9 +259,19 @@ export function renderClockCards(
     // part; weekday is baked (it shifts only at local midnight). Split so the
     // status word can carry a live anchor + colour. ──
     const line2Y = cardTop + 36;
+    // Filled status dot leading the status word, coloured by work state — same
+    // treatment as the clock chart. Ticker recolours it via the shared anchor.
+    if (status) {
+      g.append('circle')
+        .attr('data-dgmo-clock-status-icon', '')
+        .attr('cx', cardLeft + padX + iconR)
+        .attr('cy', line2Y - 3.5)
+        .attr('r', iconR)
+        .attr('fill', statusColor(status.cls));
+    }
     const l2 = g
       .append('text')
-      .attr('x', cardLeft + padX)
+      .attr('x', cardLeft + padX + line2Icon)
       .attr('y', line2Y)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', 10.5)
