@@ -28,7 +28,7 @@ export function renderPie(
   // A hole turns the pie into a ring — `pie` + a `hole` directive. (#23)
   const holeRatio = chart.hole;
   const hasHole = holeRatio !== undefined;
-  const solid = chart.fillMode;
+  const fillMode = chart.fillMode;
   const total = data.reduce((a, d) => a + d.value, 0);
 
   const cx = width / 2;
@@ -95,7 +95,7 @@ export function renderPie(
 
   arcs.forEach((a, i) => {
     const stroke = strokeFor(i, data[i]!.color);
-    const fill = solid ? stroke : shapeFill(palette, stroke, isDark);
+    const fill = shapeFill(palette, stroke, isDark, { mode: fillMode });
     const pct = Math.round((data[i]!.value / total) * 100);
     const slice = g
       .append('path')

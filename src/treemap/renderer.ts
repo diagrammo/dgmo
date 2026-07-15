@@ -9,7 +9,12 @@
 
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
-import { contrastText, getSeriesColors, mix } from '../palettes/color-utils';
+import {
+  contrastText,
+  getSeriesColors,
+  mix,
+  themeBaseBg,
+} from '../palettes/color-utils';
 import { tagAttrKey } from '../utils/tag-groups';
 import { measureText } from '../utils/text-measure';
 import { renderIntegratedLegend } from '../utils/legend-integration';
@@ -89,7 +94,6 @@ export function renderTreemap(
   options: TreemapRenderOptions = {}
 ): void {
   if (parsed.error || parsed.roots.length === 0) return;
-  void isDark; // colors derive from the palette; kept for handler-signature parity.
 
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
   const width = exportDims?.width ?? container.clientWidth;
@@ -211,11 +215,15 @@ export function renderTreemap(
     // leaf cells are muted (mixed toward the background). Both are opaque so the
     // pure container behind a leaf doesn't bleed through.
     const baseColor = resolveCellColor(cell, colorCtx);
-    const fill = cell.isContainer
-      ? baseColor
-      : fillMode === 'solid'
-        ? baseColor
-        : mix(baseColor, palette.bg, LEAF_MUTE_PCT);
+    // fill-outline (§1.9): background cells, color rides the cell stroke.
+    const fill =
+      fillMode === 'outline'
+        ? themeBaseBg(palette, isDark)
+        : cell.isContainer
+          ? baseColor
+          : fillMode === 'solid'
+            ? baseColor
+            : mix(baseColor, palette.bg, LEAF_MUTE_PCT);
     const drillable = cell.isContainer || cell.isCollapsed;
 
     const g = root
@@ -244,10 +252,14 @@ export function renderTreemap(
       .attr('rx', 2)
       .attr('fill', fill)
       .attr('fill-opacity', 1)
-      .attr('stroke', palette.bg)
+      .attr('stroke', fillMode === 'outline' ? baseColor : palette.bg)
       // No stroke on internal leaf shapes — the paddingInner gap already
-      // separates them; only the containing box keeps a frame.
-      .attr('stroke-width', cell.isContainer ? 1 : 0);
+      // separates them; only the containing box keeps a frame. In outline
+      // mode every cell keeps a colored frame — the stroke IS the color.
+      .attr(
+        'stroke-width',
+        fillMode === 'outline' ? 1 : cell.isContainer ? 1 : 0
+      );
 
     if (drillable && options.onClickItem && cell.lineNumber !== undefined) {
       const ln = cell.lineNumber;
@@ -256,11 +268,10 @@ export function renderTreemap(
         .on('click', () => options.onClickItem!(ln));
     }
 
-    const ink = contrastText(
-      fill,
-      palette.textOnFillLight,
-      palette.textOnFillDark
-    );
+    const ink =
+      fillMode === 'outline'
+        ? baseColor
+        : contrastText(fill, palette.textOnFillLight, palette.textOnFillDark);
 
     // Header bar: group name (left) + its aggregate value/% (right) so a
     // container's share is readable without drilling.

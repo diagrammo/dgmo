@@ -37,7 +37,8 @@ export function renderRadar(
   const data = chart.data;
   const n = data.length;
   if (n < 3) return;
-  const solid = chart.fillMode;
+  const fillMode = chart.fillMode;
+  const solid = fillMode === 'solid';
 
   const seriesNames = chart.seriesNames?.length
     ? chart.seriesNames
@@ -133,7 +134,14 @@ export function renderRadar(
     // Single-series keeps the original opaque tint.
     g.append('polygon')
       .attr('points', poly)
-      .attr('fill', solid || multi ? color : shapeFill(palette, color, isDark))
+      .attr(
+        'fill',
+        fillMode === 'outline'
+          ? 'none'
+          : solid || multi
+            ? color
+            : shapeFill(palette, color, isDark)
+      )
       .attr('fill-opacity', solid ? 0.6 : multi ? 0.2 : 1)
       .attr('stroke', color)
       .attr('stroke-width', 2);
