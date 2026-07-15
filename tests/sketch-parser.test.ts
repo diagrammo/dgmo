@@ -84,6 +84,30 @@ describe('sketch parser — shapes', () => {
     expect(warnings(p).length).toBeGreaterThan(0);
   });
 
+  it('rejects an out-of-range at: (garbage canvas coord) and flow-places', () => {
+    // A ~1e19 coord (past MAX_SAFE_INTEGER) would blow the SVG viewBox up to
+    // ~1e20 and hang the renderer — warn W_SKETCH_AT_OUT_OF_RANGE, flow-place.
+    const p = parseSketch('sketch\nRunaway at: 4 10932207719976796000');
+    expect(p.nodes[0]!.at).toBeNull();
+    const w = warnings(p).find((d) => d.code === 'W_SKETCH_AT_OUT_OF_RANGE');
+    expect(w).toBeDefined();
+    expect(errors(p)).toHaveLength(0);
+  });
+
+  it('accepts a large-but-sane at: coordinate', () => {
+    const p = parseSketch('sketch\nEdge at: 0 2000');
+    expect(p.nodes[0]!.at).toEqual({ c: 0, r: 2000 });
+    expect(errors(p)).toHaveLength(0);
+  });
+
+  it('rejects a coordinate just past the bound (canvas runaway range)', () => {
+    const p = parseSketch('sketch\nFar at: 0 100000');
+    expect(p.nodes[0]!.at).toBeNull();
+    expect(
+      warnings(p).find((d) => d.code === 'W_SKETCH_AT_OUT_OF_RANGE')
+    ).toBeDefined();
+  });
+
   it('keeps a trailing color word as part of the name (no manual colors)', () => {
     const p = parseSketch('sketch\nCode Red at: 0 0');
     expect(p.nodes[0]!.label).toBe('Code Red');

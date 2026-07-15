@@ -94,6 +94,12 @@ const BOX_RE = /^\[([^\]]*)\]\s*(.*)$/;
 const BOX_TAIL_ALIAS_RE =
   /^as\s+([A-Za-z][A-Za-z0-9_]{0,11})(?=\s|,|$)\s*,?\s*/;
 const AT_VALUE_RE = /^(-?\d+)\s+(-?\d+)$/;
+// Sane bound for authored half-slot coords. Even a large hand-placed sketch
+// stays within a few hundred half-slots; anything past this is a garbage value
+// (e.g. a canvas-drag coord that ran away) and would blow the SVG viewBox up
+// past what a browser can render. A half-slot is 64–104px, so 2000 already
+// spans a ~128k–208k px canvas — far beyond any real diagram.
+const SKETCH_AT_MAX = 2000;
 
 interface PendingEdge {
   sourceId: string;
@@ -178,7 +184,25 @@ export function parseSketch(
       );
       return null;
     }
-    return { c: parseInt(m[1]!, 10), r: parseInt(m[2]!, 10) };
+    const c = parseInt(m[1]!, 10);
+    const r = parseInt(m[2]!, 10);
+    // Reject absurd coords (e.g. a garbage value from a canvas drag). A huge
+    // coordinate flows straight into the layout extent and blows the SVG
+    // viewBox up to ~1e20, which browsers refuse to render — flow-place instead.
+    if (
+      !Number.isSafeInteger(c) ||
+      !Number.isSafeInteger(r) ||
+      Math.abs(c) > SKETCH_AT_MAX ||
+      Math.abs(r) > SKETCH_AT_MAX
+    ) {
+      warn(
+        lineNumber,
+        `at: coordinate "${raw}" is out of range — half-slot coords must be whole numbers within ±${SKETCH_AT_MAX}; shape will flow-place`,
+        SKETCH_DIAGNOSTIC_CODES.AT_OUT_OF_RANGE
+      );
+      return null;
+    }
+    return { c, r };
   };
 
   /** Lift sketch-reserved keys out of metadata, leaving only tag values. */

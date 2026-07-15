@@ -9,6 +9,7 @@ export const SKETCH_DIAGNOSTIC_CODES = {
   AMBIGUOUS_TARGET: 'E_SKETCH_AMBIGUOUS_TARGET',
   UNKNOWN_SHAPE: 'W_SKETCH_UNKNOWN_SHAPE',
   OVERLAP_RESOLVED: 'W_SKETCH_OVERLAP_RESOLVED',
+  AT_OUT_OF_RANGE: 'W_SKETCH_AT_OUT_OF_RANGE',
 } as const;
 
 export const SKETCH_DIAGNOSTICS: DiagnosticSpec[] = [
@@ -51,5 +52,15 @@ export const SKETCH_DIAGNOSTICS: DiagnosticSpec[] = [
       `Shape "${String(p.label ?? '?')}" overlapped another at its authored position — moved to the nearest free slot`,
     hint: 'Keep shapes at least 2 half-slots apart on one axis, or omit at: to flow-place.',
     example: 'sketch\nA at: 0 0\nB at: 0 0',
+  },
+  {
+    code: SKETCH_DIAGNOSTIC_CODES.AT_OUT_OF_RANGE,
+    severity: 'warning',
+    chartType: 'sketch',
+    title: 'at: coordinate out of range',
+    message: (p) =>
+      `at: coordinate "${String(p.raw ?? '?')}" is out of range — half-slot coords must be whole numbers within ±${String(p.max ?? '?')}; shape will flow-place`,
+    hint: 'Use small integer half-slot coordinates near the origin, or omit at: to flow-place.',
+    example: 'sketch\nA at: 2 0',
   },
 ];
