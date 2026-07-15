@@ -124,11 +124,12 @@ export interface ParsedVizBase {
   /** When true, the renderer suppresses the chart title. */
   noTitle?: boolean;
   /**
-   * `solid-fill` directive — render filled marks at full intent saturation
-   * instead of the canonical muted tint. Honored by the renderers that have
-   * a fillable surface (e.g. venn set circles); a no-op for line/point types.
+   * §1.9 fill family — `'solid'` renders filled marks at full intent
+   * saturation, `'outline'` drops the fill to the theme background (color on
+   * the stroke). Honored by renderers with a fillable surface (e.g. venn set
+   * circles); a no-op for line/point types. Absent ⇒ canonical muted tint.
    */
-  solidFill?: boolean;
+  fillMode?: 'solid' | 'outline';
   diagnostics: DgmoError[];
   error: string | null;
 }
@@ -170,8 +171,8 @@ export interface ParsedTimeline extends ParsedVizBase {
   timelineSwimlanes: boolean;
   /** Authored `active-tag <group|none|metric>` directive (§15.6); resolved at render. */
   timelineActiveTag?: string;
-  /** Render with full intent saturation instead of the canonical 25% tint. */
-  solidFill?: boolean;
+  /** §1.9 fill family (`'solid'` | `'outline'`); absent ⇒ 25% tint. */
+  fillMode?: 'solid' | 'outline';
 }
 
 export interface ParsedWordcloud extends ParsedVizBase {
@@ -258,5 +259,5 @@ export interface ParsedVizFull extends ParsedVizBase {
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
-  solidFill?: boolean;
+  fillMode?: 'solid' | 'outline';
 }

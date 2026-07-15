@@ -98,17 +98,17 @@ target 100`);
 });
 
 describe('goal parser — options', () => {
-  it('parses no-percent / no-value / solid-fill / no-title flags', () => {
+  it('parses no-percent / no-value / fill-solid / no-title flags', () => {
     const r = parseGoal(`goal T
 no-percent
 no-value
-solid-fill
+fill-solid
 no-title
 now 1
 target 4`);
     expect(r.options.noPercent).toBe(true);
     expect(r.options.noValue).toBe(true);
-    expect(r.options.solidFill).toBe(true);
+    expect(r.options.fillMode).toBe('solid');
     expect(r.options.noTitle).toBe(true);
   });
 

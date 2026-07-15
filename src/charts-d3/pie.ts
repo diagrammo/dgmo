@@ -28,7 +28,7 @@ export function renderPie(
   // A hole turns the pie into a ring — `pie` + a `hole` directive. (#23)
   const holeRatio = chart.hole;
   const hasHole = holeRatio !== undefined;
-  const solid = chart.solidFill === true;
+  const solid = chart.fillMode;
   const total = data.reduce((a, d) => a + d.value, 0);
 
   const cx = width / 2;

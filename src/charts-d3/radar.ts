@@ -37,7 +37,7 @@ export function renderRadar(
   const data = chart.data;
   const n = data.length;
   if (n < 3) return;
-  const solid = chart.solidFill === true;
+  const solid = chart.fillMode;
 
   const seriesNames = chart.seriesNames?.length
     ? chart.seriesNames

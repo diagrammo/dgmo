@@ -3,6 +3,7 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
+import { fillModeFromOptions } from '../utils/parsing';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import { fitDiagramToCanvas } from '../utils/fit-canvas';
 import { FONT_FAMILY } from '../fonts';
@@ -82,13 +83,11 @@ function nodeFill(
   nodeColor?: string,
   isEndTerminal?: boolean,
   colorOff?: boolean,
-  solid?: boolean
+  fillMode?: 'solid' | 'outline'
 ): string {
   const color =
     nodeColor ?? shapeDefaultColor(shape, palette, isEndTerminal, colorOff);
-  return shapeFill(palette, color, isDark, {
-    ...(solid !== undefined && { solid }),
-  });
+  return shapeFill(palette, color, isDark, { mode: fillMode });
 }
 
 function nodeStroke(
@@ -116,7 +115,7 @@ function renderTerminal(
   isDark: boolean,
   isEnd: boolean,
   colorOff?: boolean,
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   sNodeStrokeWidth = NODE_STROKE_WIDTH
 ): void {
   const w = node.width;
@@ -131,7 +130,15 @@ function renderTerminal(
     .attr('ry', rx)
     .attr(
       'fill',
-      nodeFill(palette, isDark, node.shape, node.color, isEnd, colorOff, solid)
+      nodeFill(
+        palette,
+        isDark,
+        node.shape,
+        node.color,
+        isEnd,
+        colorOff,
+        fillMode
+      )
     )
     .attr(
       'stroke',
@@ -146,7 +153,7 @@ function renderProcess(
   palette: PaletteColors,
   isDark: boolean,
   colorOff?: boolean,
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   sNodeStrokeWidth = NODE_STROKE_WIDTH
 ): void {
   const w = node.width;
@@ -167,7 +174,7 @@ function renderProcess(
         node.color,
         undefined,
         colorOff,
-        solid
+        fillMode
       )
     )
     .attr(
@@ -183,7 +190,7 @@ function renderDecision(
   palette: PaletteColors,
   isDark: boolean,
   colorOff?: boolean,
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   sNodeStrokeWidth = NODE_STROKE_WIDTH
 ): void {
   const w = node.width / 2;
@@ -202,7 +209,7 @@ function renderDecision(
         node.color,
         undefined,
         colorOff,
-        solid
+        fillMode
       )
     )
     .attr(
@@ -218,7 +225,7 @@ function renderIO(
   palette: PaletteColors,
   isDark: boolean,
   colorOff?: boolean,
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   sNodeStrokeWidth = NODE_STROKE_WIDTH,
   sIoSkew = IO_SKEW
 ): void {
@@ -242,7 +249,7 @@ function renderIO(
         node.color,
         undefined,
         colorOff,
-        solid
+        fillMode
       )
     )
     .attr(
@@ -258,7 +265,7 @@ function renderSubroutine(
   palette: PaletteColors,
   isDark: boolean,
   colorOff?: boolean,
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   sNodeStrokeWidth = NODE_STROKE_WIDTH,
   sSubroutineInset = SUBROUTINE_INSET
 ): void {
@@ -272,11 +279,12 @@ function renderSubroutine(
     node.color,
     undefined,
     colorOff,
-    solid
+    fillMode
   );
-  const innerStroke = solid
-    ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
-    : s;
+  const innerStroke =
+    fillMode === 'solid'
+      ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
+      : s;
   g.append('rect')
     .attr('x', -w / 2)
     .attr('y', -h / 2)
@@ -309,7 +317,7 @@ function renderDocument(
   palette: PaletteColors,
   isDark: boolean,
   colorOff?: boolean,
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   sNodeStrokeWidth = NODE_STROKE_WIDTH,
   sDocWaveHeight = DOC_WAVE_HEIGHT
 ): void {
@@ -340,7 +348,7 @@ function renderDocument(
         node.color,
         undefined,
         colorOff,
-        solid
+        fillMode
       )
     )
     .attr(
@@ -357,7 +365,7 @@ function renderNodeShape(
   isDark: boolean,
   endTerminalIds: Set<string>,
   colorOff?: boolean,
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   sNodeStrokeWidth = NODE_STROKE_WIDTH,
   sIoSkew = IO_SKEW,
   sSubroutineInset = SUBROUTINE_INSET,
@@ -372,7 +380,7 @@ function renderNodeShape(
         isDark,
         endTerminalIds.has(node.id),
         colorOff,
-        solid,
+        fillMode,
         sNodeStrokeWidth
       );
       break;
@@ -383,7 +391,7 @@ function renderNodeShape(
         palette,
         isDark,
         colorOff,
-        solid,
+        fillMode,
         sNodeStrokeWidth
       );
       break;
@@ -394,7 +402,7 @@ function renderNodeShape(
         palette,
         isDark,
         colorOff,
-        solid,
+        fillMode,
         sNodeStrokeWidth
       );
       break;
@@ -405,7 +413,7 @@ function renderNodeShape(
         palette,
         isDark,
         colorOff,
-        solid,
+        fillMode,
         sNodeStrokeWidth,
         sIoSkew
       );
@@ -417,7 +425,7 @@ function renderNodeShape(
         palette,
         isDark,
         colorOff,
-        solid,
+        fillMode,
         sNodeStrokeWidth,
         sSubroutineInset
       );
@@ -429,7 +437,7 @@ function renderNodeShape(
         palette,
         isDark,
         colorOff,
-        solid,
+        fillMode,
         sNodeStrokeWidth,
         sDocWaveHeight
       );
@@ -660,7 +668,7 @@ export function renderFlowchart(
   }
 
   const colorOff = graph.options?.['color'] === 'off';
-  const solid = graph.options?.['solid-fill'] === 'on';
+  const fillMode = fillModeFromOptions(graph.options ?? {});
   const noNotes = graph.options?.['no-notes'] === 'on';
   for (const node of layout.nodes) {
     const nodeG = contentG
@@ -687,7 +695,7 @@ export function renderFlowchart(
       isDark,
       endTerminalIds,
       colorOff,
-      solid,
+      fillMode,
       sNodeStrokeWidth,
       sIoSkew,
       sSubroutineInset,
@@ -702,7 +710,7 @@ export function renderFlowchart(
       node.color,
       isEnd,
       colorOff,
-      solid
+      fillMode
     );
     nodeG
       .append('text')

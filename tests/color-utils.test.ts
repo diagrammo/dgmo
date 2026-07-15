@@ -10,6 +10,7 @@ import {
   shapeFill,
   valueRampColor,
   valueRampStops,
+  themeBaseBg,
 } from '../src/palettes/color-utils';
 import { resolveColor } from '../src/colors';
 import { nordPalette } from '../src/palettes/nord';
@@ -227,13 +228,23 @@ describe('shapeFill', () => {
     });
   }
 
-  it('opts.solid returns the raw intent (bypasses 25% tint)', () => {
+  it("mode: 'solid' returns the raw intent (bypasses 25% tint)", () => {
     const intent = nordPalette.light.colors.red;
-    expect(shapeFill(nordPalette.light, intent, false, { solid: true })).toBe(
+    expect(shapeFill(nordPalette.light, intent, false, { mode: 'solid' })).toBe(
       intent
     );
-    expect(shapeFill(nordPalette.dark, intent, true, { solid: true })).toBe(
+    expect(shapeFill(nordPalette.dark, intent, true, { mode: 'solid' })).toBe(
       intent
+    );
+  });
+
+  it("mode: 'outline' returns the theme base background (color rides the stroke)", () => {
+    const intent = nordPalette.light.colors.red;
+    expect(
+      shapeFill(nordPalette.light, intent, false, { mode: 'outline' })
+    ).toBe(themeBaseBg(nordPalette.light, false));
+    expect(shapeFill(nordPalette.dark, intent, true, { mode: 'outline' })).toBe(
+      themeBaseBg(nordPalette.dark, true)
     );
   });
 

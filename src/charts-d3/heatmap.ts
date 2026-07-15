@@ -40,12 +40,13 @@ export function renderHeatmap(
       maxValue = Math.max(maxValue, v);
     }
 
-  const solid = chart.solidFill === true;
+  // fill is the data surface — fill-outline ignored (§1.9)
+  const fillMode = chart.fillMode === 'solid' ? ('solid' as const) : undefined;
   const gradientStops = [
-    shapeFill(palette, palette.primary, isDark, { solid }),
-    shapeFill(palette, palette.colors.cyan, isDark, { solid }),
-    shapeFill(palette, palette.colors.yellow, isDark, { solid }),
-    shapeFill(palette, palette.colors.orange, isDark, { solid }),
+    shapeFill(palette, palette.primary, isDark, { mode: fillMode }),
+    shapeFill(palette, palette.colors.cyan, isDark, { mode: fillMode }),
+    shapeFill(palette, palette.colors.yellow, isDark, { mode: fillMode }),
+    shapeFill(palette, palette.colors.orange, isDark, { mode: fillMode }),
   ];
   const gradientAt = (t: number): string => {
     const tt = Math.max(0, Math.min(1, t));

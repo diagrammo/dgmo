@@ -136,7 +136,7 @@ function renderLabelBand(
   isDark: boolean,
   cssPrefix: 'group' | 'lane',
   dataAttr?: { key: string; value: string },
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   barH = BAR_H,
   bandRadius = BAND_RADIUS,
   bandAccentW = BAND_ACCENT_W
@@ -164,12 +164,7 @@ function renderLabelBand(
     .attr('width', bandW)
     .attr('height', barH)
     .attr('rx', bandRadius)
-    .attr(
-      'fill',
-      shapeFill(palette, color, isDark, {
-        ...(solid !== undefined && { solid }),
-      })
-    )
+    .attr('fill', shapeFill(palette, color, isDark, { mode: fillMode }))
     .style('pointer-events', 'none');
 
   const accent = svg
@@ -248,11 +243,12 @@ export function renderGantt(
   bandClipCounter = 0;
 
   if (resolved.tasks.length === 0) return;
-  // Gantt INTENTIONALLY ignores `solid-fill` — the partial-tint vs full-saturation
-  // split inside each bar IS the progress visualization (e.g. "Blockade 72%" =
-  // 72% saturated + 28% lighter). Solid mode would destroy that signal. Hardcode
-  // false so all `shapeFill()` calls in this renderer keep using the 25% tint.
-  const solid = false;
+  // Gantt INTENTIONALLY ignores the §1.9 fill family — the partial-tint vs
+  // full-saturation split inside each bar IS the progress visualization (e.g.
+  // "Blockade 72%" = 72% saturated + 28% lighter). Solid or outline mode would
+  // destroy that signal. Hardcode undefined so all `shapeFill()` calls in this
+  // renderer keep using the 25% tint.
+  const fillMode = undefined;
 
   // ── Destructure options ─────────────────────────────────
 
@@ -553,7 +549,7 @@ export function renderGantt(
         seriesColors,
         palette
       );
-      const fillColor = shapeFill(palette, color, isDark, { solid });
+      const fillColor = shapeFill(palette, color, isDark, { mode: fillMode });
       el.select('rect').attr('fill', fillColor).attr('stroke', color);
     });
   }
@@ -713,7 +709,7 @@ export function renderGantt(
         isDark,
         'lane',
         { key: 'data-lane', value: row.laneName },
-        solid,
+        fillMode,
         sBarH,
         sBandRadius,
         sBandAccentW
@@ -764,7 +760,9 @@ export function renderGantt(
         );
 
       if (laneBarWidth > 0) {
-        const barFill = shapeFill(palette, laneColor, isDark, { solid });
+        const barFill = shapeFill(palette, laneColor, isDark, {
+          mode: fillMode,
+        });
         const laneBandG = g
           .append('g')
           .attr('class', 'gantt-lane-band-group')
@@ -842,7 +840,7 @@ export function renderGantt(
         isDark,
         'group',
         { key: 'data-group', value: group.name },
-        solid,
+        fillMode,
         sBarH,
         sBandRadius,
         sBandAccentW
@@ -929,7 +927,10 @@ export function renderGantt(
             .attr('width', barWidth)
             .attr('height', sBarH)
             .attr('rx', 4)
-            .attr('fill', shapeFill(palette, groupColor, isDark, { solid }))
+            .attr(
+              'fill',
+              shapeFill(palette, groupColor, isDark, { mode: fillMode })
+            )
             .attr('stroke', groupColor)
             .attr('stroke-width', 2);
 
@@ -954,7 +955,7 @@ export function renderGantt(
             innerWidth,
             palette.text,
             contrastText(
-              shapeFill(palette, groupColor, isDark, { solid }),
+              shapeFill(palette, groupColor, isDark, { mode: fillMode }),
               palette.textOnFillLight,
               palette.textOnFillDark
             ),
@@ -983,7 +984,9 @@ export function renderGantt(
           });
         } else {
           const groupBarWidth = Math.max(gx2 - gx1, 2);
-          const bandFill = shapeFill(palette, groupColor, isDark, { solid });
+          const bandFill = shapeFill(palette, groupColor, isDark, {
+            mode: fillMode,
+          });
           const groupBarG = g
             .append('g')
             .attr('class', 'gantt-group-bar')
@@ -1038,7 +1041,7 @@ export function renderGantt(
             innerWidth,
             palette.text,
             contrastText(
-              shapeFill(palette, groupColor, isDark, { solid }),
+              shapeFill(palette, groupColor, isDark, { mode: fillMode }),
               palette.textOnFillLight,
               palette.textOnFillDark
             ),
@@ -1175,7 +1178,9 @@ export function renderGantt(
         const x2 = xScale(tEnd);
         const barWidth = Math.max(x2 - x1, 2);
 
-        const fillColor = shapeFill(palette, barColor, isDark, { solid });
+        const fillColor = shapeFill(palette, barColor, isDark, {
+          mode: fillMode,
+        });
 
         const taskG = g
           .append('g')
@@ -1342,7 +1347,7 @@ export function renderGantt(
           innerWidth,
           palette.text,
           contrastText(
-            shapeFill(palette, barColor, isDark, { solid }),
+            shapeFill(palette, barColor, isDark, { mode: fillMode }),
             palette.textOnFillLight,
             palette.textOnFillDark
           ),

@@ -54,7 +54,12 @@ const AS_ALIAS_TOKEN_RE = /^as\s+([A-Za-z][A-Za-z0-9_]{0,11})\b/;
 // parse as a swimlane-chart declaration titled "Team".
 const KNOWN_OPTIONS = new Set(['hide', 'active-tag', 'lane-by']);
 /** Known kanban boolean options (bare keyword = on). */
-const KNOWN_BOOLEANS = new Set<string>(['solid-fill', 'no-title']);
+const KNOWN_BOOLEANS = new Set<string>([
+  'fill-tint',
+  'fill-solid',
+  'fill-outline',
+  'no-title',
+]);
 const REMOVED_BOOLEANS: Record<string, string> = {
   'no-auto-color':
     '"no-auto-color" was removed — colors are always auto-assigned from the palette; delete this line.',

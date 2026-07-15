@@ -229,17 +229,17 @@ describe('renderState', () => {
     });
   });
 
-  describe('solid-fill option', () => {
-    it('state fill equals raw intent when solid-fill is on', () => {
-      const container = renderToContainer('solid-fill\nIdle -> Active');
+  describe('fill-solid option', () => {
+    it('state fill equals raw intent when fill-solid is on', () => {
+      const container = renderToContainer('fill-solid\nIdle -> Active');
       const rect = container.querySelector('g.st-node rect');
       expect(rect).toBeTruthy();
-      // Default state color is blue; solid-fill returns the raw intent
+      // Default state color is blue; fill-solid returns the raw intent
       expect(rect!.getAttribute('fill')).toBe(testPalette.colors.blue);
       document.body.removeChild(container);
     });
 
-    it('state fill is the 25% mix when solid-fill is absent', () => {
+    it('state fill is the 25% mix when fill-solid is absent', () => {
       const container = renderToContainer('Idle -> Active');
       const rect = container.querySelector('g.st-node rect');
       expect(rect).toBeTruthy();
@@ -248,9 +248,9 @@ describe('renderState', () => {
       document.body.removeChild(container);
     });
 
-    it('collapsed-group fill equals raw group color when solid-fill is on', () => {
+    it('collapsed-group fill equals raw group color when fill-solid is on', () => {
       const parsed = parseState(
-        'solid-fill\n[Processing] red\n  Validating -> Approved',
+        'fill-solid\n[Processing] red\n  Validating -> Approved',
         testPalette
       );
       expect(parsed.error).toBeNull();
@@ -283,7 +283,7 @@ describe('renderState', () => {
       document.body.removeChild(container);
     });
 
-    it('collapsed-group fill is the 25% mix when solid-fill is absent', () => {
+    it('collapsed-group fill is the 25% mix when fill-solid is absent', () => {
       const parsed = parseState(
         '[Processing] red\n  Validating -> Approved',
         testPalette

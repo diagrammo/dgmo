@@ -1,4 +1,5 @@
 import * as d3Selection from 'd3-selection';
+import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
 import { mix, shapeFill } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
@@ -428,7 +429,7 @@ function renderHtmlPanel(
 ): (lineNumber: number) => void {
   const ringOrder = parsed.rings.map((r) => r.name);
   const fillColor = shapeFill(palette, qColor, isDark, {
-    solid: parsed.options['solid-fill'] === 'on',
+    mode: fillModeFromOptions(parsed.options),
   });
   let expandedLineNum: string | null = null;
 
@@ -1016,7 +1017,7 @@ function renderStaticHtmlPanel(
 ): void {
   const ringOrder = parsed.rings.map((r) => r.name);
   const fillColor = shapeFill(palette, qColor, isDark, {
-    solid: parsed.options['solid-fill'] === 'on',
+    mode: fillModeFromOptions(parsed.options),
   });
 
   for (const ringName of ringOrder) {

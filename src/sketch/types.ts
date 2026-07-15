@@ -74,7 +74,8 @@ export interface SketchBox {
 
 export interface SketchOptions {
   readonly noLegend: boolean;
-  readonly solidFill: boolean;
+  /** §1.9 fill family; undefined ⇒ canonical 25% tint. */
+  readonly fillMode: 'solid' | 'outline' | undefined;
   /** `no-descriptions` directive (mindmap `hd` standard): hide the card
    *  metadata rows so each card is just its name. */
   readonly noDescriptions: boolean;

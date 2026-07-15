@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { renderDataChartD3 } from '../src/charts-d3/index';
 
 const PIE = `pie Crew Roles
-solid-fill
+fill-solid
 
 Sailors 45
 Gunners 20

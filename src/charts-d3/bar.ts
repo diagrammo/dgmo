@@ -65,7 +65,7 @@ export function renderBar(
       : 1;
   const horizontal = chart.orientation === 'horizontal';
   const multiSeries = seriesCount > 1;
-  const solid = chart.solidFill === true;
+  const solid = chart.fillMode;
 
   // Single series → each category gets its own palette color (ECharts parity).
   // Multi series → color by series index.

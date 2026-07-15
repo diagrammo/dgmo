@@ -3,6 +3,7 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
+import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import type { PaletteColors } from '../palettes';
 import {
@@ -165,12 +166,10 @@ const fill = (
   palette: PaletteColors,
   isDark: boolean,
   color?: string,
-  solid?: boolean
+  fillMode?: 'solid' | 'outline'
 ): string =>
   color
-    ? shapeFill(palette, color, isDark, {
-        ...(solid !== undefined && { solid }),
-      })
+    ? shapeFill(palette, color, isDark, { mode: fillMode })
     : isDark
       ? mix(palette.overlay, palette.surface, 50)
       : mix(palette.bg, palette.surface, 50);
@@ -189,7 +188,7 @@ function renderRectParticipant(
   palette: PaletteColors,
   isDark: boolean,
   color?: string,
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   w: number = W,
   h: number = H
 ): void {
@@ -200,7 +199,7 @@ function renderRectParticipant(
     .attr('height', h)
     .attr('rx', 2)
     .attr('ry', 2)
-    .attr('fill', fill(palette, isDark, color, solid))
+    .attr('fill', fill(palette, isDark, color, fillMode))
     .attr('stroke', stroke(palette, color))
     .attr('stroke-width', SW);
 }
@@ -275,7 +274,7 @@ function renderDatabaseParticipant(
   palette: PaletteColors,
   isDark: boolean,
   color?: string,
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   w: number = W,
   h: number = H
 ): void {
@@ -283,7 +282,7 @@ function renderDatabaseParticipant(
   const ry = 7;
   const topY = ry;
   const bodyH = h - ry * 2;
-  const f = fill(palette, isDark, color, solid);
+  const f = fill(palette, isDark, color, fillMode);
   const s = stroke(palette, color);
 
   // Bottom ellipse (drawn first — rect will cover its top arc)
@@ -338,7 +337,7 @@ function renderQueueParticipant(
   palette: PaletteColors,
   isDark: boolean,
   color?: string,
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   w: number = W,
   h: number = H
 ): void {
@@ -346,7 +345,7 @@ function renderQueueParticipant(
   const rx = 10;
   const leftX = -w / 2 + rx;
   const bodyW = w - rx * 2;
-  const f = fill(palette, isDark, color, solid);
+  const f = fill(palette, isDark, color, fillMode);
   const s = stroke(palette, color);
 
   // Right ellipse (back face, drawn first — rect will cover its left arc)
@@ -401,7 +400,7 @@ function renderCacheParticipant(
   palette: PaletteColors,
   isDark: boolean,
   color?: string,
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   w: number = W,
   h: number = H
 ): void {
@@ -409,7 +408,7 @@ function renderCacheParticipant(
   const ry = 7;
   const topY = ry;
   const bodyH = h - ry * 2;
-  const f = fill(palette, isDark, color, solid);
+  const f = fill(palette, isDark, color, fillMode);
   const s = stroke(palette, color);
   const dash = '4 3';
 
@@ -877,7 +876,7 @@ export function renderSequenceDiagram(
   d3Selection.select(container).selectAll('*').remove();
 
   const { title, options: parsedOptions } = parsed;
-  const solid = parsedOptions['solid-fill'] === 'on';
+  const fillMode = fillModeFromOptions(parsedOptions);
 
   // Effective collapsed groups. `options.collapsedGroups` is the AUTHORITATIVE
   // desired set when supplied — the app seeds it from the source `collapsed:
@@ -2101,7 +2100,7 @@ export function renderSequenceDiagram(
       isDark,
       effectiveTagColor,
       pTagAttr,
-      solid,
+      fillMode,
       sBoxW,
       sBoxH,
       sLabelTextWidth,
@@ -2503,7 +2502,9 @@ export function renderSequenceDiagram(
       .attr('fill', themeBaseBg(palette, isDark));
 
     // Canonical 25% tint via shapeFill() (or full intent when solid-fill is on).
-    const actFill = shapeFill(palette, actBaseColor, isDark, { solid });
+    const actFill = shapeFill(palette, actBaseColor, isDark, {
+      mode: fillMode,
+    });
     const actRect = svg
       .append('rect')
       .attr('x', x)
@@ -3083,7 +3084,7 @@ function renderParticipant(
   isDark: boolean,
   color?: string,
   tagAttr?: { key: string; value: string },
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   boxW: number = W,
   boxH: number = H,
   labelTextW: number = labelTextWidth(W),
@@ -3106,16 +3107,24 @@ function renderParticipant(
       renderActorParticipant(g, palette, color, boxH);
       break;
     case 'database':
-      renderDatabaseParticipant(g, palette, isDark, color, solid, boxW, boxH);
+      renderDatabaseParticipant(
+        g,
+        palette,
+        isDark,
+        color,
+        fillMode,
+        boxW,
+        boxH
+      );
       break;
     case 'queue':
-      renderQueueParticipant(g, palette, isDark, color, solid, boxW, boxH);
+      renderQueueParticipant(g, palette, isDark, color, fillMode, boxW, boxH);
       break;
     case 'cache':
-      renderCacheParticipant(g, palette, isDark, color, solid, boxW, boxH);
+      renderCacheParticipant(g, palette, isDark, color, fillMode, boxW, boxH);
       break;
     default:
-      renderRectParticipant(g, palette, isDark, color, solid, boxW, boxH);
+      renderRectParticipant(g, palette, isDark, color, fillMode, boxW, boxH);
       break;
   }
 
@@ -3131,7 +3140,7 @@ function renderParticipant(
   const labelFill = isActor
     ? palette.text
     : contrastText(
-        fill(palette, isDark, color, solid),
+        fill(palette, isDark, color, fillMode),
         palette.textOnFillLight,
         palette.textOnFillDark
       );

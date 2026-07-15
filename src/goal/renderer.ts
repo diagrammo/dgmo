@@ -97,7 +97,10 @@ function resolvePaint(
     getSeriesColors(palette)[0]!;
   return {
     base,
-    fill: shapeFill(palette, base, isDark, { solid: parsed.options.solidFill }),
+    // fill is the meter — fill-outline ignored (§1.9)
+    fill: shapeFill(palette, base, isDark, {
+      mode: parsed.options.fillMode === 'solid' ? 'solid' : undefined,
+    }),
     track: mix(palette.border, themeBaseBg(palette, isDark), 45),
     text: palette.text,
     muted: mix(palette.text, themeBaseBg(palette, isDark), 55),

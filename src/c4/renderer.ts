@@ -3,6 +3,7 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
+import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
@@ -96,12 +97,10 @@ function nodeFill(
   isDark: boolean,
   type: 'person' | 'system' | 'container' | 'component',
   nodeColor?: string,
-  solid?: boolean
+  fillMode?: 'solid' | 'outline'
 ): string {
   const color = typeColor(type, palette, nodeColor);
-  return shapeFill(palette, color, isDark, {
-    ...(solid !== undefined && { solid }),
-  });
+  return shapeFill(palette, color, isDark, { mode: fillMode });
 }
 
 function nodeStroke(
@@ -465,8 +464,8 @@ export function renderC4Context(
 
     const w = node.width;
     const h = node.height;
-    const solid = parsed.options['solid-fill'] === 'on';
-    const fill = nodeFill(palette, isDark, node.type, node.color, solid);
+    const fillMode = fillModeFromOptions(parsed.options);
+    const fill = nodeFill(palette, isDark, node.type, node.color, fillMode);
     const stroke = nodeStroke(palette, node.type, node.color);
     const onFillText = contrastText(
       fill,
@@ -552,7 +551,7 @@ export function renderC4Context(
       .attr('y1', yPos)
       .attr('x2', w / 2 - CARD_H_PAD / 2)
       .attr('y2', yPos)
-      .attr('stroke', solid ? onFillText : stroke)
+      .attr('stroke', fillMode === 'solid' ? onFillText : stroke)
       .attr('stroke-width', 0.5)
       .attr('stroke-opacity', 0.4);
 
@@ -605,7 +604,7 @@ export function renderC4Context(
         .attr('height', DRILL_BAR_HEIGHT)
         // In solid mode, `stroke` matches the fill — drill-bar disappears.
         // Use the contrast text color so the indicator stays visible.
-        .attr('fill', solid ? onFillText : stroke)
+        .attr('fill', fillMode === 'solid' ? onFillText : stroke)
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'c4-drill-bar');
     }
@@ -1557,8 +1556,8 @@ export function renderC4Containers(
 
     const w = node.width;
     const h = node.height;
-    const solid = parsed.options['solid-fill'] === 'on';
-    const fill = nodeFill(palette, isDark, node.type, node.color, solid);
+    const fillMode = fillModeFromOptions(parsed.options);
+    const fill = nodeFill(palette, isDark, node.type, node.color, fillMode);
     const stroke = nodeStroke(palette, node.type, node.color);
     const onFillText = contrastText(
       fill,
@@ -1686,7 +1685,7 @@ export function renderC4Containers(
           .attr('y1', yPos)
           .attr('x2', w / 2 - CARD_H_PAD / 2)
           .attr('y2', yPos)
-          .attr('stroke', solid ? onFillText : stroke)
+          .attr('stroke', fillMode === 'solid' ? onFillText : stroke)
           .attr('stroke-width', 0.5)
           .attr('stroke-opacity', 0.4);
 
@@ -1733,7 +1732,7 @@ export function renderC4Containers(
         .attr('y1', yPos)
         .attr('x2', w / 2 - CARD_H_PAD / 2)
         .attr('y2', yPos)
-        .attr('stroke', solid ? onFillText : stroke)
+        .attr('stroke', fillMode === 'solid' ? onFillText : stroke)
         .attr('stroke-width', 0.5)
         .attr('stroke-opacity', 0.4);
 
@@ -1787,7 +1786,7 @@ export function renderC4Containers(
         .attr('height', DRILL_BAR_HEIGHT)
         // In solid mode, `stroke` matches the fill — drill-bar disappears.
         // Use the contrast text color so the indicator stays visible.
-        .attr('fill', solid ? onFillText : stroke)
+        .attr('fill', fillMode === 'solid' ? onFillText : stroke)
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'c4-drill-bar');
     }

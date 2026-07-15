@@ -10,7 +10,9 @@ export const fixture: ConformanceFixture = {
     'no-name',
     'no-value',
     'no-percent',
-    'solid-fill', // working via SOLID_FILL_CAPABLE
+    'fill-tint',
+    'fill-solid',
+    'fill-outline', // working via FILL_FAMILY_CAPABLE
   ],
   pipeKeys: {},
   enumChecks: [{ directive: 'palette', source: 'palettes' }],

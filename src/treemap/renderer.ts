@@ -98,7 +98,7 @@ export function renderTreemap(
 
   const mode = resolveColorMode(parsed, options.colorMode);
   const opts = parsed.options;
-  const solid = opts.solidFill;
+  const fillMode = opts.fillMode;
   const exportMode = options.exportMode ?? false;
   const seriesColorsTop = getSeriesColors(palette);
   const showTitle = !!parsed.title;
@@ -213,7 +213,7 @@ export function renderTreemap(
     const baseColor = resolveCellColor(cell, colorCtx);
     const fill = cell.isContainer
       ? baseColor
-      : solid
+      : fillMode === 'solid'
         ? baseColor
         : mix(baseColor, palette.bg, LEAF_MUTE_PCT);
     const drillable = cell.isContainer || cell.isCollapsed;

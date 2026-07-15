@@ -316,7 +316,7 @@ export function renderEventLine(
       const event = slot.event;
       const solid = eventColor(event);
       const cardFill = shapeFill(palette, solid, isDark, {
-        solid: parsed.options.solidFill,
+        mode: parsed.options.fillMode,
       });
       const titleColor = contrastText(
         cardFill,
@@ -963,7 +963,7 @@ export function renderEventLine(
         .attr('clip-path', `url(#${clipId})`)
         .attr(
           'fill',
-          parsed.options.solidFill
+          parsed.options.fillMode
             ? p.color
             : mix(p.color, themeBaseBg(palette, isDark), SHELF_TINT)
         );
@@ -982,7 +982,7 @@ export function renderEventLine(
         .attr('fill-opacity', p.future ? 0.4 : 1);
       // On a solid shelf the title/date must contrast against the fill; the
       // default (tinted) shelf keeps the tag color for the title.
-      const shelfText = parsed.options.solidFill
+      const shelfText = parsed.options.fillMode
         ? contrastText(p.color, palette.textOnFillLight, palette.textOnFillDark)
         : p.color;
       // Title lines stack centered in the header band (a 1-line title matches the
@@ -1014,7 +1014,7 @@ export function renderEventLine(
           )
           .attr(
             'fill',
-            parsed.options.solidFill
+            parsed.options.fillMode
               ? mix(shelfText, p.color, 25)
               : mix(palette.text, palette.bg, 55)
           )

@@ -1,6 +1,6 @@
 import type { ConformanceFixture } from './_types';
 
-// Spec §10 §9.5 Options: solid-fill via SOLID_FILL_CAPABLE.
+// Spec §10 §9.5 Options: fill family via FILL_FAMILY_CAPABLE.
 export const fixture: ConformanceFixture = {
   chartType: 'class',
   structuralKeywords: [
@@ -12,7 +12,7 @@ export const fixture: ConformanceFixture = {
   ],
   specSection: '10',
   firstLineKeyword: 'class',
-  directives: ['solid-fill'],
+  directives: ['fill-tint', 'fill-solid', 'fill-outline'],
   pipeKeys: {
     node: ['description'],
   },

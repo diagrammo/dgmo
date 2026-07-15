@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '../src/render';
 
-// Cross-cutting `solid-fill` directive (§1): every chart type with a tinted
+// Cross-cutting `fill-solid` directive (§1): every chart type with a tinted
 // node/mark fill surface must honor it (full intent saturation instead of the
 // canonical muted tint). These cases lock in the wiring for the types that
 // gained support — a regression that silently drops the directive makes the
-// solid-fill render identical to the default, which this suite catches.
+// fill-solid render identical to the default, which this suite catches.
 //
-// The fixtures all carry a colored fill, so honoring solid-fill necessarily
+// The fixtures all carry a colored fill, so honoring fill-solid necessarily
 // changes the emitted `fill` attributes; the only source difference is the
 // directive itself, so SVG inequality is a precise proof of end-to-end wiring.
 
@@ -46,13 +46,13 @@ Row1 5 8`,
 Swordsmanship as sw
 Navigation as nav
 sw + nav Overlap`,
-  // Area line: solid-fill makes the area under the line opaque (not 25% tint).
+  // Area line: fill-solid makes the area under the line opaque (not 25% tint).
   line: `line Treasure Hauled
 fill
 Jan 10
 Feb 40
 Mar 25`,
-  // Event-line: solid-fill saturates the card fill (and the no-box shelf).
+  // Event-line: fill-solid saturates the card fill (and the no-box shelf).
   'event-line': `event-line Voyage
 tag Landfall as l
 
@@ -66,13 +66,13 @@ function withSolidFill(src: string): string {
   // Insert the directive on the line after the chart-type header so it lands
   // in the diagram-level option block for every type.
   const lines = src.split('\n');
-  lines.splice(1, 0, 'solid-fill');
+  lines.splice(1, 0, 'fill-solid');
   return lines.join('\n');
 }
 
-describe('solid-fill directive — cross-type consistency', () => {
+describe('fill-solid directive — cross-type consistency', () => {
   for (const [type, src] of Object.entries(CASES)) {
-    it(`${type} parses cleanly and honors solid-fill`, async () => {
+    it(`${type} parses cleanly and honors fill-solid`, async () => {
       const base = await render(src);
       const solid = await render(withSolidFill(src));
 
@@ -85,7 +85,7 @@ describe('solid-fill directive — cross-type consistency', () => {
       expect(base.svg).toContain('<svg');
       expect(solid.svg).toContain('<svg');
 
-      // solid-fill must change the rendered fills — otherwise the directive
+      // fill-solid must change the rendered fills — otherwise the directive
       // is being parsed-but-ignored (the inconsistency this suite guards).
       expect(solid.svg).not.toBe(base.svg);
     });

@@ -14,7 +14,9 @@ export const fixture: ConformanceFixture = {
     'y-label',
     'orientation-horizontal',
     'no-value',
-    'solid-fill',
+    'fill-tint',
+    'fill-solid',
+    'fill-outline',
     // Color is in completion as a bar override; not formally documented in
     // §15.1 but tolerated for back-compat.
     'color',

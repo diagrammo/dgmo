@@ -3,6 +3,7 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
+import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
@@ -58,7 +59,7 @@ interface RenderContext {
   isTransparent: boolean;
   isDark: boolean;
   showGroupLabels: boolean;
-  solid: boolean;
+  fillMode: 'solid' | 'outline' | undefined;
 }
 
 // ============================================================
@@ -121,7 +122,7 @@ export function renderWireframe(
     isTransparent: effectiveTheme === 'transparent',
     isDark,
     showGroupLabels: opts.showGroupLabels ?? true,
-    solid: parsed.options['solid-fill'] === 'on',
+    fillMode: fillModeFromOptions(parsed.options),
   };
 
   // Background
@@ -1076,7 +1077,7 @@ function renderAlert(
   // Background
   const fill = isTransparent
     ? null
-    : shapeFill(palette, color, isDark, { solid: ctx.solid });
+    : shapeFill(palette, color, isDark, { mode: ctx.fillMode });
   if (fill) {
     g.append('rect')
       .attr('width', node.width)

@@ -49,7 +49,9 @@ const KNOWN_OPTIONS = new Set<string>([]);
 /** Known tech-radar boolean options (bare keyword). */
 const KNOWN_BOOLEANS = new Set<string>([
   'show-blip-legend',
-  'solid-fill',
+  'fill-tint',
+  'fill-solid',
+  'fill-outline',
   'no-title',
 ]);
 

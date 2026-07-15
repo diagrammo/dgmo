@@ -3,6 +3,7 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
+import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
 import {
   TITLE_FONT_SIZE,
@@ -214,7 +215,7 @@ export function renderPyramid(
 
     const solidColor = resolveSolid(layer, i);
     const fillColor = shapeFill(palette, solidColor, isDark, {
-      solid: parsed.options['solid-fill'] === 'on',
+      mode: fillModeFromOptions(parsed.options),
     });
 
     const layerG = diagramG

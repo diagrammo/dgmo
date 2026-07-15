@@ -3,6 +3,7 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
+import { fillModeFromOptions } from '../utils/parsing';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import { fitDiagramToCanvas } from '../utils/fit-canvas';
 import { FONT_FAMILY } from '../fonts';
@@ -65,12 +66,10 @@ function stateFill(
   isDark: boolean,
   nodeColor?: string,
   colorOff?: boolean,
-  solid?: boolean
+  fillMode?: 'solid' | 'outline'
 ): string {
   const color = nodeColor ?? stateDefaultColor(palette, colorOff);
-  return shapeFill(palette, color, isDark, {
-    ...(solid !== undefined && { solid }),
-  });
+  return shapeFill(palette, color, isDark, { mode: fillMode });
 }
 
 function stateStroke(
@@ -422,7 +421,7 @@ export function renderState(
   }
 
   const colorOff = graph.options?.['color'] === 'off';
-  const solid = graph.options?.['solid-fill'] === 'on';
+  const fillMode = fillModeFromOptions(graph.options ?? {});
   const noNotes = graph.options?.['no-notes'] === 'on';
   for (const node of layout.nodes) {
     const isCollapsedGroup = collapsedGroupIds.has(node.id);
@@ -466,7 +465,9 @@ export function renderState(
       const w = node.width;
       const h = node.height;
       const groupColor = node.color ?? stateDefaultColor(palette, colorOff);
-      const fillColor = shapeFill(palette, groupColor, isDark, { solid });
+      const fillColor = shapeFill(palette, groupColor, isDark, {
+        mode: fillMode,
+      });
       const strokeColor = groupColor;
       const COLLAPSE_BAR_H = 6;
 
@@ -526,7 +527,7 @@ export function renderState(
         isDark,
         node.color,
         colorOff,
-        solid
+        fillMode
       );
       nodeG
         .append('rect')

@@ -21,6 +21,7 @@ import {
   measureIndent,
   parseFirstLine,
   tryParseSharedOption,
+  fillModeFromOptions,
 } from '../utils/parsing';
 import type { GoalMode, GoalOptions, ParsedGoal } from './types';
 
@@ -38,7 +39,7 @@ export function parseGoal(
   const options: Writable<GoalOptions> = {
     noPercent: false,
     noValue: false,
-    solidFill: false,
+    fillMode: undefined,
     noTitle: false,
     noAutoColor: false,
     noNote: false,
@@ -151,9 +152,9 @@ export function parseGoal(
       continue;
     }
 
-    // ── Shared cross-cutting flags: solid-fill / no-title ──
+    // ── Shared cross-cutting flags: fill family / no-title ──
     if (tryParseSharedOption(trimmed, sharedOpts)) {
-      if (sharedOpts['solid-fill'] === 'on') options.solidFill = true;
+      options.fillMode = fillModeFromOptions(sharedOpts);
       if (sharedOpts['no-title'] === 'on') options.noTitle = true;
       continue;
     }

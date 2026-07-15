@@ -24,6 +24,7 @@
 //     click → editor cursor jumps to the source.
 
 import * as d3Selection from 'd3-selection';
+import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
 import {
   TITLE_FONT_SIZE,
@@ -393,7 +394,7 @@ export function renderRaci(
   const tasksAll = [...allTasks(parsed)];
   if (tasksAll.length === 0 && parsed.phases.length === 0) return;
 
-  const solid = parsed.options['solid-fill'] === 'on';
+  const fillMode = fillModeFromOptions(parsed.options);
   const surfaceBg = themeBaseBg(palette, isDark);
 
   // --- ScaleContext: differential scaling ---
@@ -628,7 +629,7 @@ export function renderRaci(
       legendChipW,
       palette,
       surfaceBg,
-      solid,
+      fillMode,
       onMarkerDragStart,
       sLegendChipGap,
       sLegendHeight,
@@ -788,7 +789,7 @@ export function renderRaci(
         roleColW,
         parsed.variant,
         surfaceBg,
-        solid,
+        fillMode,
         chartCanShowSummaries,
         sPhaseHeight,
         sPhaseFont,
@@ -807,7 +808,7 @@ export function renderRaci(
         roleColW,
         palette,
         surfaceBg,
-        solid,
+        fillMode,
         taskDiagnostics,
         hasAnyDiagnostic,
         taskRowContent.get(row.task.id),
@@ -911,7 +912,7 @@ function renderLegend(
   chipW: number,
   palette: PaletteColors,
   surfaceBg: string,
-  solid: boolean,
+  fillMode: 'solid' | 'outline' | undefined,
   _onMarkerDragStart:
     | ((source: RaciDragSource, e: PointerEvent) => void)
     | undefined,
@@ -944,8 +945,10 @@ function renderLegend(
     if (mode === 'letters') {
       // Compact: a single colored pill with just the marker letter.
       // The full label moves to a native tooltip so hover still teaches it.
-      const fill = solid ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
-      const stroke = solid ? mix(rawColor, surfaceBg, 70) : rawColor;
+      const fill =
+        fillMode === 'solid' ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
+      const stroke =
+        fillMode === 'solid' ? mix(rawColor, surfaceBg, 70) : rawColor;
       chipG
         .append('rect')
         .attr('x', cx)
@@ -966,7 +969,7 @@ function renderLegend(
         .attr('font-weight', 700)
         .attr(
           'fill',
-          solid
+          fillMode === 'solid'
             ? contrastText(
                 fill,
                 palette.textOnFillLight,
@@ -979,7 +982,8 @@ function renderLegend(
     }
 
     // Full mode: bordered chip with a letter slab on the left and label text.
-    const fill = solid ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
+    const fill =
+      fillMode === 'solid' ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
     const stroke = mix(rawColor, surfaceBg, 70);
 
     chipG
@@ -997,9 +1001,10 @@ function renderLegend(
     // the same visual register as the diagram's marker cells.
     const slabPad = 4;
     const slabW = 24;
-    const slabFill = solid
-      ? mix(rawColor, surfaceBg, 70)
-      : mix(rawColor, surfaceBg, 55);
+    const slabFill =
+      fillMode === 'solid'
+        ? mix(rawColor, surfaceBg, 70)
+        : mix(rawColor, surfaceBg, 55);
     chipG
       .append('rect')
       .attr('x', cx + slabPad)
@@ -1019,7 +1024,7 @@ function renderLegend(
       .attr('font-weight', 700)
       .attr(
         'fill',
-        solid
+        fillMode === 'solid'
           ? contrastText(
               slabFill,
               palette.textOnFillLight,
@@ -1077,7 +1082,7 @@ function renderPhaseBar(
   roleColW: number,
   variant: RaciVariant,
   surfaceBg: string,
-  solid: boolean,
+  fillMode: 'solid' | 'outline' | undefined,
   showSummary: boolean,
   sPhaseHeight: number,
   sPhaseFont: number,
@@ -1185,8 +1190,10 @@ function renderPhaseBar(
         // corner radius. Stroke width is a touch thinner than
         // NODE_STROKE_WIDTH because at the smaller summary scale the
         // full 1.5 reads as too heavy.
-        const fill = solid ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
-        const stroke = solid ? mix(rawColor, surfaceBg, 70) : rawColor;
+        const fill =
+          fillMode === 'solid' ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
+        const stroke =
+          fillMode === 'solid' ? mix(rawColor, surfaceBg, 70) : rawColor;
         const chipG = phaseG.append('g').attr('class', 'raci-phase-summary');
         chipG
           .append('rect')
@@ -1208,7 +1215,7 @@ function renderPhaseBar(
           .attr('font-weight', 700)
           .attr(
             'fill',
-            solid
+            fillMode === 'solid'
               ? contrastText(
                   fill,
                   palette.textOnFillLight,
@@ -1244,7 +1251,7 @@ function renderTaskRow(
   roleColW: number,
   palette: PaletteColors,
   surfaceBg: string,
-  solid: boolean,
+  fillMode: 'solid' | 'outline' | undefined,
   taskDiagnostics: Map<string, TaskDiagnosticBucket> | null,
   _hasAnyDiagnostic: boolean,
   rowContent: RowContent | undefined,
@@ -1446,7 +1453,8 @@ function renderTaskRow(
     const variantLabels = MARKER_LABELS[parsed.variant];
     markers.forEach((m, i) => {
       const rawColor = markerColor(m, palette);
-      const fill = solid ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
+      const fill =
+        fillMode === 'solid' ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
       const stroke = rawColor;
       const sliceX = cx + i * (sliceW + SLICE_GAP);
 
@@ -1486,7 +1494,7 @@ function renderTaskRow(
         .attr('font-weight', MARKER_FONT_WEIGHT)
         .attr(
           'fill',
-          solid
+          fillMode === 'solid'
             ? contrastText(
                 fill,
                 palette.textOnFillLight,

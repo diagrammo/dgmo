@@ -5,7 +5,7 @@ export const fixture: ConformanceFixture = {
   chartType: 'radar',
   specSection: '16',
   firstLineKeyword: 'radar',
-  directives: ['no-value', 'solid-fill'],
+  directives: ['no-value', 'fill-tint', 'fill-solid', 'fill-outline'],
   pipeKeys: {},
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

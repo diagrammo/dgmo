@@ -291,7 +291,9 @@ no-option-name       // off
 
 | Directive    | Effect                                                                                  |
 | ------------ | --------------------------------------------------------------------------------------- |
-| `solid-fill` | Render nodes/bars at full intent saturation instead of the canonical 25% tint           |
+| `fill-tint` | The default, spelled explicitly — shapes get the canonical 25% tint fill with a solid intent-color outline |
+| `fill-solid` | Render nodes/bars at full intent saturation instead of the canonical 25% tint           |
+| `fill-outline` | No fill — shapes take the theme background fill; the intent color is carried entirely by the outline |
 | `no-title`   | Hide the diagram banner title in the rendered output (does not mutate the parsed model) |
 
 Examples: `no-legend` (journey-map), `no-color` (flowchart, state), `no-title` (all chart types with a banner title).
@@ -839,7 +841,7 @@ tag Team as t
 - `animate` / `no-animate`
 - `active-tag GroupName` / `active-tag none` — pre-select a tag filter on render
 
-The universal options `solid-fill` and `no-title` also apply.
+The universal options `no-title` and the `fill-*` family also apply — but severity/SLO status tints are data and are never restyled by the fill family.
 
 ### 4.8 Edge Nodes
 
@@ -934,10 +936,10 @@ Bracket syntax only.
 - `direction-lr` (boolean; default is TB)
 - `orientation-vertical` (boolean; default is horizontal)
 - `no-color` (boolean; default off — when on, all nodes resolve to the muted neutral fill instead of their default intent color)
-- `solid-fill` (boolean; default off — render shapes with their full intent color instead of the canonical 25% tint)
+- `fill-solid` / `fill-outline` (fill family; default is the 25% tint — `fill-solid` renders shapes at full intent color, `fill-outline` drops the fill and carries color on the outline alone)
 - `no-notes` (boolean; default off — suppress all note boxes, see §4.7)
 
-`no-color` + `solid-fill` precedence: `no-color` wins for nodes with no explicit color (the muted neutral path bypasses `solid-fill`). Nodes with an explicit color survive `no-color` and are then rendered at full saturation if `solid-fill` is also on.
+`no-color` + `fill-solid` precedence: `no-color` wins for nodes with no explicit color (the muted neutral path bypasses `fill-solid`). Nodes with an explicit color survive `no-color` and are then rendered at full saturation if `fill-solid` is also on.
 
 ### 4.7 Notes (Nodes)
 
@@ -1020,10 +1022,10 @@ Pending p: Active
 Shipped p: Done
 Pending -ship-> Shipped
 ```
-- `solid-fill` (boolean; default off — render states with their full intent color instead of the canonical 25% tint; collapsed groups are also rendered at full saturation)
+- `fill-solid` / `fill-outline` (fill family; default is the 25% tint — collapsed groups follow the same mode, e.g. full saturation under `fill-solid`)
 - `no-notes` (boolean; default off — suppress all note boxes, see §4.7)
 
-`no-color` + `solid-fill` precedence: `no-color` wins for states with no explicit color (the muted neutral path bypasses `solid-fill`). Group colors survive `no-color` and are then rendered at full saturation if `solid-fill` is also on.
+`no-color` + `fill-solid` precedence: `no-color` wins for states with no explicit color (the muted neutral path bypasses `fill-solid`). Group colors survive `no-color` and are then rendered at full saturation if `fill-solid` is also on.
 
 ---
 
@@ -3426,7 +3428,7 @@ LayerLabel green
 ```
 ring Captain's Sphere of Influence
 
-solid-fill
+fill-solid
 
 Captain purple
   Final word on heading and plunder,
@@ -3459,7 +3461,7 @@ Indented lines under a layer are description text. Markdown inline formatting is
 
 | Directive    | Effect                                                               |
 | ------------ | -------------------------------------------------------------------- |
-| `solid-fill` | Render rings with full intent color instead of the default 25% tint. |
+| `fill-solid` / `fill-outline` | Render rings with full intent color, or outline-only, instead of the default 25% tint (fill family). |
 
 `inverted` is **not** valid on ring diagrams (rings are rotationally symmetric). Using it emits an error-severity diagnostic and the line is discarded.
 
@@ -3755,7 +3757,7 @@ In the desktop and web app a sketch opens in the **canvas editor** (the code pan
 <!-- TYPE:goal -->
 
 <!-- TIPS start -->
-**Styling tips:** A single progress-toward-a-target reading — one `now` against one `target`, answering "how close am I?". Reach for it for a KPI tile, a fundraising thermometer, a quarterly quota, or a completion percentage; there is no time axis, series, or milestones (use `line` for a trend, `countdown` for a live deadline). Put the **unit in the title** (`Marathon Fund ($)`, `Grog Barrel Fill (L)`) — there is no format/currency directive. `now` and `target` are **space-separated `key value`** directives, no colon (`now 6400` / `target 10000`); the percent is `now / target` and values auto-compact (`6.4k`, `1.2M`). Pick the face for the story with a bare flag on its own line: the default progress **bar** for a plain KPI, `thermometer` for fundraising/fill-the-tank framings, `gauge` for a speedometer/quota dial — all three read the same value pair. The fill is **auto traffic-light** by completion (`< 50%` red, `50–80%` orange, `≥ 80%` green; over-target stays green) so the color already reads the number's health — leave it unless you have reason to override with a trailing color on the title line (`goal Marathon Fund ($) green`) or `no-auto-color` (flat palette color). Over-target clamps the fill at 100% while the `%` label stays truthful (`120%`). Add a `note` — inline (`note Still waiting on three crews`) or a block header on its own line with an indented body — to caption the number with context (who's still owed, what's left); it takes simple markdown (`**bold**`, `*italic*`, `` `code` ``) and `- ` bullets. `solid-fill` for a bolder fill; `no-percent` / `no-value` / `no-title` / `no-note` to drop labels.
+**Styling tips:** A single progress-toward-a-target reading — one `now` against one `target`, answering "how close am I?". Reach for it for a KPI tile, a fundraising thermometer, a quarterly quota, or a completion percentage; there is no time axis, series, or milestones (use `line` for a trend, `countdown` for a live deadline). Put the **unit in the title** (`Marathon Fund ($)`, `Grog Barrel Fill (L)`) — there is no format/currency directive. `now` and `target` are **space-separated `key value`** directives, no colon (`now 6400` / `target 10000`); the percent is `now / target` and values auto-compact (`6.4k`, `1.2M`). Pick the face for the story with a bare flag on its own line: the default progress **bar** for a plain KPI, `thermometer` for fundraising/fill-the-tank framings, `gauge` for a speedometer/quota dial — all three read the same value pair. The fill is **auto traffic-light** by completion (`< 50%` red, `50–80%` orange, `≥ 80%` green; over-target stays green) so the color already reads the number's health — leave it unless you have reason to override with a trailing color on the title line (`goal Marathon Fund ($) green`) or `no-auto-color` (flat palette color). Over-target clamps the fill at 100% while the `%` label stays truthful (`120%`). Add a `note` — inline (`note Still waiting on three crews`) or a block header on its own line with an indented body — to caption the number with context (who's still owed, what's left); it takes simple markdown (`**bold**`, `*italic*`, `` `code` ``) and `- ` bullets. `fill-solid` for a bolder fill; `no-percent` / `no-value` / `no-title` / `no-note` to drop labels.
 <!-- TIPS end -->
 
 A single progress-toward-a-target value: one `now` measured against one `target`, drawn in one of three static faces. No time axis, no series, no milestones — just "how close am I?". The face is a bare-flag mode directive under the title (like treemap's `radial`); all three faces consume the same value pair.
@@ -3790,7 +3792,7 @@ target 10000
 | `target <number>`      | Goal value (required; must be > 0).                           |
 | `no-percent`           | Hide the `%` label.                                           |
 | `no-value`             | Hide the raw `now / target` label.                            |
-| `solid-fill`           | Full-saturation fill instead of the default 25% tint.         |
+| `fill-solid`           | Full-saturation fill instead of the default 25% tint (`fill-outline` is ignored — the fill is the meter). |
 | `no-title`             | Hide the banner title.                                        |
 | `no-note`              | Suppress the `note` block even if one is authored.           |
 | `no-auto-color`        | Disable the traffic-light bands; use the flat palette color.  |
@@ -3815,7 +3817,7 @@ The body supports inline `**bold**` / `*italic*` / `` `code` ``, `- `/`* ` bulle
 
 ### Values & color
 
-Values accept `_` separators (`10_000`) but not thousands commas; the unit lives in the title. Color precedence: (1) an explicit trailing color token on the title line (`goal Marathon Fund ($) green`, §1.5) always wins; (2) otherwise the **auto traffic-light** band by completion — `< 50%` red, `50–80%` orange, `≥ 80%` green (over-target stays green), which needs a `target`; (3) `no-auto-color` disables the bands and falls back to the palette series color. The fill is a 25% tint of the resolved color; `solid-fill` opts into full saturation.
+Values accept `_` separators (`10_000`) but not thousands commas; the unit lives in the title. Color precedence: (1) an explicit trailing color token on the title line (`goal Marathon Fund ($) green`, §1.5) always wins; (2) otherwise the **auto traffic-light** band by completion — `< 50%` red, `50–80%` orange, `≥ 80%` green (over-target stays green), which needs a `target`; (3) `no-auto-color` disables the bands and falls back to the palette series color. The fill is a 25% tint of the resolved color; `fill-solid` opts into full saturation (`fill-outline` is ignored — the fill is the meter).
 
 ### Semantics
 

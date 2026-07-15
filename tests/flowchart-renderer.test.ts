@@ -248,10 +248,10 @@ describe('renderFlowchart', () => {
     });
   });
 
-  describe('solid-fill option', () => {
-    it('node fill equals raw intent when solid-fill is on', () => {
+  describe('fill-solid option', () => {
+    it('node fill equals raw intent when fill-solid is on', () => {
       const container = renderToContainer(
-        'flowchart\nsolid-fill\n(Start) -> (End)'
+        'flowchart\nfill-solid\n(Start) -> (End)'
       );
       const rect = container.querySelector('g.fc-node rect');
       expect(rect).toBeTruthy();
@@ -260,7 +260,7 @@ describe('renderFlowchart', () => {
       document.body.removeChild(container);
     });
 
-    it('node fill is the 25% mix when solid-fill is absent', () => {
+    it('node fill is the 25% mix when fill-solid is absent', () => {
       const container = renderToContainer('flowchart\n(Start) -> (End)');
       const rect = container.querySelector('g.fc-node rect');
       expect(rect).toBeTruthy();
@@ -271,7 +271,7 @@ describe('renderFlowchart', () => {
 
     it('label uses contrast-aware text fill against the saturated background', () => {
       const container = renderToContainer(
-        'flowchart\nsolid-fill\n(Start) -> (End)'
+        'flowchart\nfill-solid\n(Start) -> (End)'
       );
       const text = container.querySelector('g.fc-node text');
       expect(text).toBeTruthy();
@@ -310,9 +310,9 @@ describe('renderFlowchart', () => {
       expect(svg).toContain('<svg');
     });
 
-    it('renderFlowchartForExport threads solid-fill through to the SVG fill attribute', () => {
+    it('renderFlowchartForExport threads fill-solid through to the SVG fill attribute', () => {
       const svg = renderFlowchartForExport(
-        'flowchart\nsolid-fill\n(Start) -> (End)',
+        'flowchart\nfill-solid\n(Start) -> (End)',
         'light',
         testPalette
       );

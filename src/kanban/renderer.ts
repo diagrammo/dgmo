@@ -3,6 +3,7 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
+import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
@@ -287,7 +288,7 @@ export function renderKanban(
     options?.collapsedColumns ??
     new Set(parsed.columns.filter((c) => c.collapsed).map((c) => c.id));
   const compactMeta = options?.compactMeta ?? false;
-  const solid = parsed.options['solid-fill'] === 'on';
+  const fillMode = fillModeFromOptions(parsed.options);
   const requestedSwimlane = options?.currentSwimlaneGroup ?? null;
   const swimlaneGroup = requestedSwimlane
     ? (parsed.tagGroups.find(
@@ -511,7 +512,7 @@ export function renderKanban(
 
     const thisColBg = defaultColBg;
     const thisColHeaderBg = col.color
-      ? shapeFill(palette, col.color, isDark, { solid })
+      ? shapeFill(palette, col.color, isDark, { mode: fillMode })
       : defaultColHeaderBg;
     const onHeaderText = col.color
       ? contrastText(
@@ -629,7 +630,7 @@ export function renderKanban(
         palette,
         resolvedColor ?? palette.primary,
         isDark,
-        { solid }
+        { mode: fillMode }
       );
       const cardStroke = resolvedColor ?? palette.textMuted;
       const onCardText = contrastText(
@@ -686,7 +687,7 @@ export function renderKanban(
           .attr('y1', separatorY)
           .attr('x2', cx + cardLayout.width)
           .attr('y2', separatorY)
-          .attr('stroke', solid ? onCardText : cardStroke)
+          .attr('stroke', fillMode === 'solid' ? onCardText : cardStroke)
           .attr('stroke-opacity', 0.3)
           .attr('stroke-width', 1);
 
@@ -1115,7 +1116,7 @@ function renderSwimlaneBoard(
 
     const colHeaderBg = col.color
       ? shapeFill(palette, col.color, isDark, {
-          solid: parsed.options['solid-fill'] === 'on',
+          mode: fillModeFromOptions(parsed.options),
         })
       : defaultColHeaderBg;
 
@@ -1312,7 +1313,7 @@ function renderSwimlaneBoard(
             palette,
             isDark,
             hiddenMetaGroups,
-            parsed.options['solid-fill'] === 'on',
+            fillModeFromOptions(parsed.options),
             sCardRadius,
             sCardPaddingX,
             sCardPaddingY,
@@ -1337,7 +1338,7 @@ function renderSwimlaneCard(
   palette: PaletteColors,
   isDark: boolean,
   hiddenMetaGroups?: string[],
-  solid?: boolean,
+  fillMode?: 'solid' | 'outline',
   sCardRadius = CARD_RADIUS,
   sCardPaddingX = CARD_PADDING_X,
   sCardPaddingY = CARD_PADDING_Y,
@@ -1357,9 +1358,7 @@ function renderSwimlaneCard(
     palette,
     resolvedColor ?? palette.primary,
     isDark,
-    {
-      ...(solid !== undefined && { solid }),
-    }
+    { mode: fillMode }
   );
   const cardStroke = resolvedColor ?? palette.textMuted;
   const onCardText = contrastText(

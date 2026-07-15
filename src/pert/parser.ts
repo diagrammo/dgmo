@@ -72,7 +72,9 @@ const DIRECTIVE_KEYS = new Set([
   'start-date',
   'end-date',
   'no-title',
-  'solid-fill',
+  'fill-tint',
+  'fill-solid',
+  'fill-outline',
   'sprint-length',
   'sprint-number',
   'sprint-start',
@@ -1391,9 +1393,19 @@ function applyDirective(
       options.noTitle = true;
       return;
     }
-    case 'solid-fill': {
-      // Bare boolean directive — render card fills at full saturation.
-      options.solidFill = true;
+    case 'fill-solid': {
+      // §1.9 fill family — render card fills at full saturation.
+      options.fillMode = 'solid';
+      return;
+    }
+    case 'fill-outline': {
+      // §1.9 fill family — theme-background card fills, color on the outline.
+      options.fillMode = 'outline';
+      return;
+    }
+    case 'fill-tint': {
+      // §1.9 fill family — the explicit default (25% tint).
+      delete options.fillMode;
       return;
     }
     case 'active-tag': {

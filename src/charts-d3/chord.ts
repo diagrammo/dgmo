@@ -25,7 +25,7 @@ export function renderChord(
 ): void {
   const links = chart.links ?? [];
   if (links.length === 0) return;
-  const solid = chart.solidFill === true;
+  const solid = chart.fillMode;
 
   const names = Array.from(new Set(links.flatMap((l) => [l.source, l.target])));
   const n = names.length;

@@ -72,7 +72,9 @@ const KNOWN_OPTIONS = new Set([
 const KNOWN_BOOLEANS = new Set([
   'show-sub-node-count',
   'direction-tb',
-  'solid-fill',
+  'fill-tint',
+  'fill-solid',
+  'fill-outline',
   'no-title',
 ]);
 

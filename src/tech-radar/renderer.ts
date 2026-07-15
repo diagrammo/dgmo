@@ -527,7 +527,7 @@ export function renderTechRadar(
           // Tech-radar opts out of solid-fill: blip popover stays in tinted
           // form so it reads consistently against the radar bg regardless of
           // the diagram's option setting.
-          false
+          undefined
         );
         showBlipHighlight(lineNum, bx, by, blipGroup);
       })
@@ -563,7 +563,7 @@ export function renderTechRadar(
           // Tech-radar opts out of solid-fill: blip popover stays in tinted
           // form so it reads consistently against the radar bg regardless of
           // the diagram's option setting.
-          false
+          undefined
         );
         popover.style.pointerEvents = 'auto';
         showBlipHighlight(lineNum, bx, by, blipGroup);
@@ -617,7 +617,7 @@ export function renderTechRadar(
             // Tech-radar opts out of solid-fill: blip popover stays in tinted
             // form so it reads consistently against the radar bg regardless of
             // the diagram's option setting.
-            false
+            undefined
           );
         }
         // Scale up and dim
@@ -996,11 +996,9 @@ function showBlipPopover(
   palette: PaletteColors,
   isDark: boolean,
   event: MouseEvent,
-  solid?: boolean
+  fillMode?: 'solid' | 'outline'
 ): void {
-  const fillColor = shapeFill(palette, qColor, isDark, {
-    ...(solid !== undefined && { solid }),
-  });
+  const fillColor = shapeFill(palette, qColor, isDark, { mode: fillMode });
   const hasDesc = blip.description.length > 0;
   const onFillText = contrastText(
     fillColor,

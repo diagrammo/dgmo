@@ -23,7 +23,7 @@ export function renderPolarArea(
   const data = chart.data.filter((d) => d.value > 0);
   const n = data.length;
   if (n === 0) return;
-  const solid = chart.solidFill === true;
+  const solid = chart.fillMode;
   const total = data.reduce((a, d) => a + d.value, 0);
   const maxValue = Math.max(...data.map((d) => d.value)) || 1;
 

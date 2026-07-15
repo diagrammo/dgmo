@@ -31,7 +31,7 @@ export function renderFunnel(
   const sorted = [...chart.data].sort((a, b) => b.value - a.value);
   const n = sorted.length;
   if (n === 0) return;
-  const solid = chart.solidFill === true;
+  const solid = chart.fillMode;
 
   const top = topInset + 8;
   const bottom = height - 30;

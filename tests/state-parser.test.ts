@@ -42,24 +42,24 @@ describe('parseState', () => {
     });
   });
 
-  describe('solid-fill option', () => {
-    it('parses bare solid-fill keyword as on', () => {
-      const result = parseState('solid-fill\n[*] -> Idle');
-      expect(result.options['solid-fill']).toBe('on');
+  describe('fill-solid option', () => {
+    it('parses bare fill-solid keyword as on', () => {
+      const result = parseState('fill-solid\n[*] -> Idle');
+      expect(result.options['fill-solid']).toBe('on');
     });
 
-    it('parses solid-fill case-insensitively', () => {
-      expect(parseState('Solid-Fill\n[*] -> Idle').options['solid-fill']).toBe(
+    it('parses fill-solid case-insensitively', () => {
+      expect(parseState('Fill-Solid\n[*] -> Idle').options['fill-solid']).toBe(
         'on'
       );
-      expect(parseState('SOLID-FILL\n[*] -> Idle').options['solid-fill']).toBe(
+      expect(parseState('FILL-SOLID\n[*] -> Idle').options['fill-solid']).toBe(
         'on'
       );
     });
 
     it('defaults to undefined when keyword absent', () => {
       const result = parseState('[*] -> Idle');
-      expect(result.options['solid-fill']).toBeUndefined();
+      expect(result.options['fill-solid']).toBeUndefined();
     });
   });
 

@@ -133,7 +133,7 @@ export function renderVenn(
   exportDims?: D3ExportDimensions
 ): void {
   const { vennSets, vennOverlaps } = parsed;
-  const solid = parsed.solidFill === true;
+  const solid = parsed.fillMode;
   const title = parsed.noTitle ? null : parsed.title;
   if (vennSets.length < 2 || vennSets.length > 3) return;
 

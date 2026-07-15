@@ -9,7 +9,9 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'timeline',
   directives: [
     'active-tag',
-    'solid-fill',
+    'fill-tint',
+    'fill-solid',
+    'fill-outline',
     // Universal date directives (§ BL-121).
     'year',
     'date-order',

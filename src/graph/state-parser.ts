@@ -15,6 +15,7 @@ import {
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
   tryParseSharedOption,
+  FILL_FAMILY_TOKENS,
 } from '../utils/parsing';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import type { Writable } from '../utils/brand';
@@ -366,9 +367,11 @@ export function parseState(
         continue;
       }
 
-      // Bare boolean: solid-fill
-      if (/^solid-fill$/i.test(trimmed)) {
-        options['solid-fill'] = 'on';
+      // Bare boolean: fill family (§1.9, last one wins)
+      if (FILL_FAMILY_TOKENS.has(trimmed.toLowerCase())) {
+        for (const t of FILL_FAMILY_TOKENS) delete options[t];
+        if (trimmed.toLowerCase() !== 'fill-tint')
+          options[trimmed.toLowerCase()] = 'on';
         continue;
       }
 

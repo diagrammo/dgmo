@@ -175,14 +175,14 @@ Outer`);
     expect(diag!.severity).toBe('error');
   });
 
-  it('captures solid-fill directive', () => {
+  it('captures fill-solid directive', () => {
     const result = parseRing(`ring T
 
-solid-fill
+fill-solid
 
 Inner
 Outer`);
-    expect(result.options['solid-fill']).toBe('on');
+    expect(result.options['fill-solid']).toBe('on');
   });
 });
 
@@ -351,8 +351,8 @@ B`);
   it('completion registry exposes ring directives (AC 14)', () => {
     const spec = COMPLETION_REGISTRY.get('ring');
     expect(spec).toBeDefined();
-    // solid-fill is mixed in for ring (it's in SOLID_FILL_CAPABLE).
-    expect(spec!.directives['solid-fill']).toBeDefined();
+    // fill-solid is mixed in for ring (it's in SOLID_FILL_CAPABLE).
+    expect(spec!.directives['fill-solid']).toBeDefined();
     // color/description are layer pipe metadata (spec §24.4), not
     // directives — they live in PIPE_METADATA under the `layer` context.
     const pipe = PIPE_METADATA.get('ring');

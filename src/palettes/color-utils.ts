@@ -262,7 +262,7 @@ export function contrastRatio(a: string, b: string): number {
  * so vibrance alone misclassifies them as "saturated."
  *
  * Tinted fills (luminance ~0.7+ in light themes / ~0.02–0.14 in dark themes)
- * are unambiguous in either branch; only solid-fill output shifts here.
+ * are unambiguous in either branch; only fill-solid output shifts here.
  */
 export function contrastText(
   bg: string,
@@ -302,8 +302,10 @@ export function contrastText(
  *
  * Sankey is the only documented exception (75/45% custom desaturation).
  *
- * `opts.solid` (per `option solid-fill`): bypass the 25% tint and return
- * the raw intent. Opt-in only; default behavior unchanged.
+ * `opts.mode` (spec §1.9 fill family): `'solid'` (`fill-solid`) bypasses the
+ * 25% tint and returns the raw intent; `'outline'` (`fill-outline`) returns
+ * the theme base background so the intent color rides on the stroke alone.
+ * Absent ⇒ the canonical tint.
  */
 /**
  * The theme-aware base background a diagram's tinted shapes blend toward:
@@ -319,9 +321,10 @@ export function shapeFill(
   palette: PaletteColors,
   intent: string,
   isDark: boolean,
-  opts?: { solid?: boolean }
+  opts?: { mode?: 'solid' | 'outline' | undefined }
 ): string {
-  if (opts?.solid) return intent;
+  if (opts?.mode === 'solid') return intent;
+  if (opts?.mode === 'outline') return themeBaseBg(palette, isDark);
   return mix(intent, themeBaseBg(palette, isDark), 25);
 }
 

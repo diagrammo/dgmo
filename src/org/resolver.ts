@@ -51,7 +51,9 @@ const KNOWN_HEADER_OPTIONS = new Set([
   'hide',
   'show-sub-node-count',
   'color-off',
-  'solid-fill',
+  'fill-tint',
+  'fill-solid',
+  'fill-outline',
   'active-tag',
 ]);
 

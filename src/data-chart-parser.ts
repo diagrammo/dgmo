@@ -87,8 +87,9 @@ export interface ParsedExtendedBase {
   noValue?: boolean;
   noPercent?: boolean;
   shade?: boolean;
-  /** Render with full intent saturation instead of the canonical 25% tint. */
-  solidFill?: boolean;
+  /** §1.9 fill family: `'solid'` = full intent saturation, `'outline'` =
+   *  theme-background fill with color on the stroke. Absent ⇒ 25% tint. */
+  fillMode?: 'solid' | 'outline';
   /** Cross-chart-type: when true, the renderer suppresses the chart title. */
   noTitle?: boolean;
   categoryColors?: Record<string, string>;
@@ -173,6 +174,7 @@ import { resolveColorWithDiagnostic } from './colors';
 import {
   collectIndentedValues,
   extractColor,
+  fillModeFromToken,
   measureIndent,
   normalizeNumericToken,
   parseFirstLine,
@@ -597,7 +599,7 @@ function parseExtendedChartFull(
         !isNaN(parseFloat(normalizeNumericToken(lastTok) ?? lastTok));
       const isBareKeywordOption =
         spaceIdx < 0 &&
-        /^(solid-fill|no-name|no-value|no-percent|shade|no-title)$/i.test(
+        /^(fill-tint|fill-solid|fill-outline|no-name|no-value|no-percent|shade|no-title)$/i.test(
           trimmed
         );
       // `layout arc|chord` (#26) is a directive, not a node — let it fall through
@@ -759,8 +761,10 @@ function parseExtendedChartFull(
       result.shade = true;
       continue;
     }
-    if (firstToken === 'solid-fill') {
-      result.solidFill = true;
+    const fillFamily = fillModeFromToken(firstToken);
+    if (fillFamily !== null && spaceIdx < 0) {
+      if (fillFamily === 'tint') delete result.fillMode;
+      else result.fillMode = fillFamily;
       continue;
     }
     if (firstToken === 'no-title' && spaceIdx < 0) {

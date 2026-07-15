@@ -154,7 +154,7 @@ export function renderScatter(
 ): void {
   const points = chart.scatterPoints ?? [];
   if (points.length === 0) return;
-  const solid = chart.solidFill === true;
+  const solid = chart.fillMode;
   const hasSize = points.some((p) => p.size !== undefined);
 
   const categories = [

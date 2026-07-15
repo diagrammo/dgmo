@@ -250,7 +250,7 @@ export function parseGantt(
       sprintNumber: null,
       sprintStart: null,
       sprintMode: null,
-      solidFill: false,
+      fillMode: undefined,
       noTitle: false,
     },
     diagnostics,
@@ -1061,8 +1061,14 @@ export function parseGantt(
         case 'today-marker':
           result.options.todayMarker = 'on';
           break;
-        case 'solid-fill':
-          result.options.solidFill = true;
+        case 'fill-solid':
+          result.options.fillMode = 'solid';
+          break;
+        case 'fill-outline':
+          result.options.fillMode = 'outline';
+          break;
+        case 'fill-tint':
+          result.options.fillMode = undefined;
           break;
         case 'no-title':
           result.options.noTitle = true;
