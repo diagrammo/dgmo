@@ -138,18 +138,10 @@ function updateRow(group: Element, now: number): void {
     if (statusEl.textContent !== status.text)
       statusEl.textContent = status.text;
     statusEl.setAttribute('fill', col);
-    const dot = group.querySelector('[data-dgmo-clock-status-dot]');
-    if (dot) {
-      // Filled disc when working/soon; hollow ring when off.
-      if (status.cls === 'off') {
-        dot.setAttribute('fill', 'none');
-        dot.setAttribute('stroke', col);
-        dot.setAttribute('stroke-width', '1.4');
-      } else {
-        dot.setAttribute('fill', col);
-        dot.setAttribute('stroke', 'none');
-      }
-    }
+    // Status dot — filled circle coloured by work state. Shared by clock
+    // rows/cols and the map card.
+    const icon = group.querySelector('[data-dgmo-clock-status-icon]');
+    if (icon) icon.setAttribute('fill', col);
   }
 
   // ── Auto lane wash — repaint so work/daylight/time modes track live state.

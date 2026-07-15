@@ -166,7 +166,7 @@ describe('map clock channel — card render (ticker contract)', () => {
     expect(
       g.querySelector('[data-dgmo-clock-digital-part="main"]')
     ).toBeTruthy();
-    expect(g.querySelector('[data-dgmo-clock-status-dot]')).toBeTruthy();
+    expect(g.querySelector('[data-dgmo-clock-status-icon]')).toBeTruthy();
     expect(g.getAttribute('data-dgmo-clock-work-start')).toBe('540');
   });
 
