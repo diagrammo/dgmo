@@ -78,6 +78,7 @@ const probeStyle = HighlightStyle.define([
   { tag: tags.controlKeyword, class: 'tok-control' },
   { tag: tags.modifier, class: 'tok-modifier' },
   { tag: tags.definitionKeyword, class: 'tok-definition' },
+  { tag: tags.number, class: 'tok-number' },
 ]);
 
 /** Return the class highlightTree assigns to the first `text` occurrence. */
@@ -158,4 +159,46 @@ describe('highlight roles — propertyName orphan is app-handled', () => {
     const cls = lezerClassOf('infra\nAPI\n  latency-ms: 1\n', 'latency-ms');
     expect(cls).toBeNull();
   });
+});
+
+// ============================================================
+// DateLiteral — liberal numeric dates highlight whole (§ BL-121)
+// ============================================================
+//
+// Regression guard: `07-11` (and other slash/dash/ISO forms) must tokenize as
+// ONE DateLiteral, not `Number Dash Number`. Before the dash arm was added to
+// the grammar, `07-11` split — `07` highlighted, `-11` did not.
+
+describe('highlight — liberal date literals stay whole (both paths)', () => {
+  const dates = [
+    '07-11', // bare MM-DD (the reported bug)
+    '5-3', // bare M-D
+    '12-31-2026', // US MM-DD-YYYY
+    '07-11-26', // MM-DD-YY
+    '2026-07-11', // ISO (already worked — guard against regression)
+    '2026-07', // ISO year-month
+    '1/3', // slash M/D
+    '1/2/2026', // slash M/D/YYYY
+  ];
+
+  for (const d of dates) {
+    it(`standalone: "${d}" is a single number token`, () => {
+      // Wrap in a gantt task line so it parses in a realistic context.
+      const tokens = highlightDgmo(`gantt\nTask ${d}\n`).filter((t) =>
+        (t.text ?? '').trim()
+      );
+      const match = tokens.find((t) => t.text === d);
+      expect(
+        match,
+        `"${d}" did not survive as a single token — got: ${tokens
+          .map((t) => `${t.text}:${t.role}`)
+          .join(' ')}`
+      ).toBeDefined();
+      expect(match?.role).toBe('number');
+    });
+
+    it(`lezer/app: "${d}" is one tok-number span`, () => {
+      expect(lezerClassOf(`gantt\nTask ${d}\n`, d)).toBe('tok-number');
+    });
+  }
 });

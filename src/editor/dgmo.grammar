@@ -27,11 +27,15 @@ contentPart {
   AsyncArrow { "~>" }
 
   Duration { $[0-9]+ ("." $[0-9]+)? ("min" | "bd" | "h" | "d" | "w" | "m" | "q" | "y" | "s") "?"? }
-  // ISO `YYYY-MM[-DD]` plus the § BL-121 liberal numeric slash form
-  // `M/D[/YY[YY]]` (month-name dates highlight as words/Identifiers).
+  // ISO `YYYY-MM[-DD]` plus the § BL-121 liberal numeric slash/dash forms
+  // `M/D[/YY[YY]]` and `M-D[-YY[YY]]` (month-name dates highlight as
+  // words/Identifiers). The ISO arm keeps 4-digit-year dates whole via
+  // longest-match; the short dash arm covers bare `MM-DD`/`M-D` and US
+  // `MM-DD-YYYY` — without it `07-11` split into Number-Dash-Number.
   DateLiteral {
     $[0-9] $[0-9] $[0-9] $[0-9] "-" $[0-9] $[0-9] ("-" $[0-9] $[0-9])? |
-    $[0-9] $[0-9]? "/" $[0-9] $[0-9]? ("/" $[0-9] $[0-9] ($[0-9] $[0-9])?)?
+    $[0-9] $[0-9]? "/" $[0-9] $[0-9]? ("/" $[0-9] $[0-9] ($[0-9] $[0-9])?)? |
+    $[0-9] $[0-9]? "-" $[0-9] $[0-9]? ("-" $[0-9] $[0-9] ($[0-9] $[0-9])?)?
   }
   Percentage { $[0-9]+ ("." $[0-9]+)? "%" }
   Number {
