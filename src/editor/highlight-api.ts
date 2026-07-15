@@ -15,6 +15,11 @@
 import { parser } from './dgmo.grammar.js';
 import { REGISTRY_COLON_KEY_TOKENS } from '../directives-registry';
 import { monthIndex, weekdayIndex } from '../countdown/resolve';
+import { scanMonthNameDates } from '../utils/date';
+
+// Re-exported for the app's parallel CodeMirror ViewPlugin (single-source with
+// the standalone post-pass below — same pattern as `classifyRecurrenceLine`).
+export { scanMonthNameDates } from '../utils/date';
 
 // ============================================================
 // Types
@@ -187,6 +192,11 @@ export function highlightDgmo(source: string): HighlightToken[] {
   // Phase 5: Post-process — countdown recurrence line (context-aware; no-op
   // for non-countdown docs).
   applyRecurringLine(tokens);
+
+  // Phase 6: Post-process — month-name date literals (`Jan 3`, `3 January`).
+  // The grammar can't join a month word to its day across a space; this colors
+  // them like numeric dates. Gated to the date-bearing charts.
+  applyMonthNameDates(tokens);
 
   return tokens;
 }
@@ -561,6 +571,71 @@ function applyRecurringLine(tokens: HighlightToken[]): void {
       }
     }
     offset += lineText.length + 1; // +1 for the \n
+  }
+}
+
+// ============================================================
+// Post-processing: month-name date literals
+// ============================================================
+
+/** Charts where the § BL-121 liberal date parser treats dates as meaningful. */
+const DATE_BEARING_CHARTS = new Set([
+  'gantt',
+  'pert',
+  'countdown',
+  'timeline',
+  'event-line',
+]);
+
+/**
+ * Color month-name date literals (`Jan 3`, `3 January`, `Jan 3, 2026`) with the
+ * `number` role — the same visual as numeric `DateLiteral`s. The context-free
+ * grammar can't join a month word to its day across a space, so this fills the
+ * gap. Gated to the date-bearing charts so common month words in prose (a
+ * flowchart node "March forward") don't get mis-highlighted elsewhere.
+ */
+function applyMonthNameDates(tokens: HighlightToken[]): void {
+  const fullText = tokens.map((t) => t.text).join('');
+  const lines = fullText.split('\n');
+  const firstContent = lines.find((l) => {
+    const t = l.trim();
+    return t.length > 0 && !t.startsWith('//');
+  });
+  const chartType = firstContent?.trim().split(/\s+/)[0]?.toLowerCase();
+  if (!chartType || !DATE_BEARING_CHARTS.has(chartType)) return;
+
+  let offset = 0;
+  for (const lineText of lines) {
+    for (const sp of scanMonthNameDates(lineText)) {
+      markDateSpan(tokens, offset + sp.start, offset + sp.end);
+    }
+    offset += lineText.length + 1; // +1 for the \n
+  }
+}
+
+/**
+ * Promote plain/number tokens overlapping [from, to) to the `number` role.
+ * Unlike `markTokensInRange`, this never overrides a semantic role an earlier
+ * pass set deliberately — e.g. the countdown recurrence pass marks a month word
+ * as `modifier` ("every August"), which must survive.
+ */
+function markDateSpan(
+  tokens: HighlightToken[],
+  from: number,
+  to: number
+): void {
+  let pos = 0;
+  for (const token of tokens) {
+    const tokenEnd = pos + token.text.length;
+    if (
+      tokenEnd > from &&
+      pos < to &&
+      token.text.trim().length > 0 &&
+      (token.role === 'default' || token.role === 'number')
+    ) {
+      token.role = 'number';
+    }
+    pos = tokenEnd;
   }
 }
 

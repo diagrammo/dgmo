@@ -81,6 +81,48 @@ export function monthNameToNum(raw: string): number {
   return i >= 0 ? i + 1 : 0;
 }
 
+// Non-anchored, global mirror of the MONTH_D_RE / D_MONTH_RE arms below, for
+// scanning a whole line during syntax highlighting. `\b` keeps the leader
+// standalone (no matching inside identifiers). Alt 1 = D_MONTH (`3 Jan`),
+// alt 2 = MONTH_D (`Jan 3` / `Jan 3, 2026`).
+const MONTH_NAME_SCAN_RE =
+  /\b(\d{1,2})\s+([A-Za-z]{3,9})\.?(?:\s+\d{4})?|\b([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:,?\s+\d{4})?/g;
+
+/**
+ * Find every month-name date literal in `line` (`Jan 3`, `3 January`,
+ * `Jan 3, 2026`, `3 Jan 2026`) and return the char-offset span of each whole
+ * literal, left-to-right and non-overlapping.
+ *
+ * The Lezer grammar already tokenizes numeric/ISO/slash dates as `DateLiteral`,
+ * but it cannot join a month word and its day across a space — this powers a
+ * highlight post-pass that colors them like numeric dates. It mirrors the
+ * MONTH_D / D_MONTH parser arms exactly — same regex shape plus the
+ * `monthNameToNum` guard — so highlighting matches parser acceptance, including
+ * its month-prefix over-acceptance (e.g. `Marina` → March). It is intentionally
+ * liberal about position (matches anywhere in the line, not just the front) so
+ * a date mid-label (`Task  Jan 3`) still highlights.
+ */
+export function scanMonthNameDates(
+  line: string
+): Array<{ start: number; end: number }> {
+  const spans: Array<{ start: number; end: number }> = [];
+  const re = new RegExp(MONTH_NAME_SCAN_RE.source, 'g');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(line)) !== null) {
+    // Group 2 = month word in the D_MONTH arm; group 3 = month in MONTH_D.
+    const month = m[2] ?? m[3] ?? '';
+    if (monthNameToNum(month) <= 0) {
+      // False candidate (`Sprint 3`, `3 items`). Resume ONE char past the
+      // match start rather than past its end, so a real date that overlaps the
+      // tail isn't swallowed — `Sprint 3 Jan` must still yield `3 Jan`.
+      re.lastIndex = m.index + 1;
+      continue;
+    }
+    spans.push({ start: m.index, end: m.index + m[0].length });
+  }
+  return spans;
+}
+
 // ── Regexes (anchored at the front for prefix scanning) ──────
 const ERA_RE = /^(\d{1,4})(?:-(\d{2})(?:-(\d{2}))?)?\s+(BCE|BC|CE|AD)\b/i;
 const ISO_RE = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?/;
