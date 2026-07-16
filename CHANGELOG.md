@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-07-16
+
+### Changed
+- **BREAKING: `solid-fill` is gone — the `fill-*` family replaces it.** Chart fill is now a three-way choice spelled as sibling directives: `fill-tint` (the default 25% tint with a solid intent-color outline, now spellable explicitly), `fill-solid` (full intent saturation — the exact successor to `solid-fill`), and the new **`fill-outline`** (no fill at all; shapes take the theme background and the color rides entirely on the outline, for a clean line-art look). The three are mutually exclusive — when more than one appears, the last one wins. `solid-fill` was removed outright with no alias: replace it with `fill-solid`. Charts whose fill *encodes data* ignore the family entirely (map choropleth, infra severity tints, gantt progress, tech-radar blips), and a small group honors `fill-solid` but skips `fill-outline` because hollowing the surface would erase the chart (line/function area fills, sankey/chord ribbons). Everything else renders outline for real — bar, pie, polar, funnel, scatter, treemap (colored frames with matching label ink), radar and venn (stroke-only overlaps), quadrant, arc (including group bands), bracket (winner boxes, wells, capsules), body, clock (daylight/state tints stay — they're data), countdown, journey-map, PERT tornado bars, RACI, kanban wells, state group areas, sketch, goal (hollow meter with a colored rim), and heatmap (background cells with full-intent ramp strokes). See spec §1.9 and decisions #46–47.
+- **Clock and map time-cards share one status indicator** — the open/closed state is a filled colored dot on both surfaces, replacing the clock board's earlier outline ring.
+
+### Fixed
+- **Every exported sankey SVG was malformed XML.** The internal emphasis-key separator embedded a raw NUL character in a `data-` attribute; XML parsers and `data:`-URI loaders reject the file (Safari refused to display it). The separator is now a printable Unicode character, so sankey exports parse everywhere.
+- **Sequence diagrams no longer reserve a phantom trailing gap** — total width now ends at the last participant instead of carrying an extra message-gap of dead space.
+- **Sketch rejects out-of-range `at:` coordinates** with a diagnostic instead of silently blowing the canvas up around a runaway point.
+- **Editor highlighting keeps up with the liberal date grammar**: month-name date literals (`Jan 3`, `3 January 2026`) are colored as dates (#33), and bare-dash dates (`07-04`) tokenize as a single date literal instead of two numbers and a minus (#32).
+
 ## [0.51.0] - 2026-07-14
 
 ### Added
