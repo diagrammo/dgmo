@@ -1,4 +1,23 @@
 /**
+ * Find every month-name date literal in `line` (`Jan 3`, `3 January`,
+ * `Jan 3, 2026`, `3 Jan 2026`) and return the char-offset span of each whole
+ * literal, left-to-right and non-overlapping.
+ *
+ * The Lezer grammar already tokenizes numeric/ISO/slash dates as `DateLiteral`,
+ * but it cannot join a month word and its day across a space — this powers a
+ * highlight post-pass that colors them like numeric dates. It mirrors the
+ * MONTH_D / D_MONTH parser arms exactly — same regex shape plus the
+ * `monthNameToNum` guard — so highlighting matches parser acceptance, including
+ * its month-prefix over-acceptance (e.g. `Marina` → March). It is intentionally
+ * liberal about position (matches anywhere in the line, not just the front) so
+ * a date mid-label (`Task  Jan 3`) still highlights.
+ */
+declare function scanMonthNameDates(line: string): Array<{
+    start: number;
+    end: number;
+}>;
+
+/**
  * Standalone DGMO syntax highlighter — no CodeMirror dependency.
  *
  * Exports:
@@ -11,6 +30,7 @@
  *
  * @module @diagrammo/dgmo/highlight
  */
+
 interface HighlightToken {
     text: string;
     role: string;
@@ -62,4 +82,4 @@ declare const ROLE_TO_ANSI: Record<string, string>;
  */
 declare function renderAnsi(tokens: HighlightToken[], useColor: boolean): string;
 
-export { ATTRIBUTE_KEYS, type HighlightToken, LIGHT_ROLE_STYLES, NODE_TO_ROLE, NORD_ROLE_STYLES, ROLE_TO_ANSI, type RecurrenceSpan, classifyRecurrenceLine, highlightDgmo, renderAnsi };
+export { ATTRIBUTE_KEYS, type HighlightToken, LIGHT_ROLE_STYLES, NODE_TO_ROLE, NORD_ROLE_STYLES, ROLE_TO_ANSI, type RecurrenceSpan, classifyRecurrenceLine, highlightDgmo, renderAnsi, scanMonthNameDates };

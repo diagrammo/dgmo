@@ -186,11 +186,11 @@ declare function mix(a: string, b: string, pct: number): string;
  * so vibrance alone misclassifies them as "saturated."
  *
  * Tinted fills (luminance ~0.7+ in light themes / ~0.02–0.14 in dark themes)
- * are unambiguous in either branch; only solid-fill output shifts here.
+ * are unambiguous in either branch; only fill-solid output shifts here.
  */
 declare function contrastText(bg: string, lightText: string, darkText: string): string;
 declare function shapeFill(palette: PaletteColors, intent: string, isDark: boolean, opts?: {
-    solid?: boolean;
+    mode?: 'solid' | 'outline' | undefined;
 }): string;
 /**
  * Derive the 8-color series rotation from a palette's named colors, in the
@@ -267,8 +267,9 @@ interface ParsedChart {
     noName?: boolean;
     noValue?: boolean;
     noPercent?: boolean;
-    /** Render with full intent saturation instead of the canonical 25% tint. */
-    solidFill?: boolean;
+    /** §1.9 fill family: `'solid'` = full intent saturation, `'outline'` =
+     *  theme-background fill with color on the stroke. Absent ⇒ 25% tint. */
+    fillMode?: 'solid' | 'outline';
     /** Cross-chart-type: when true, the renderer suppresses the chart title. */
     noTitle?: boolean;
     /** Line only: opt out of the data-driven y-axis auto-fit and anchor the
@@ -604,8 +605,9 @@ interface ParsedExtendedBase {
     noValue?: boolean;
     noPercent?: boolean;
     shade?: boolean;
-    /** Render with full intent saturation instead of the canonical 25% tint. */
-    solidFill?: boolean;
+    /** §1.9 fill family: `'solid'` = full intent saturation, `'outline'` =
+     *  theme-background fill with color on the stroke. Absent ⇒ 25% tint. */
+    fillMode?: 'solid' | 'outline';
     /** Cross-chart-type: when true, the renderer suppresses the chart title. */
     noTitle?: boolean;
     categoryColors?: Record<string, string>;
@@ -777,11 +779,12 @@ interface ParsedVizBase {
     /** When true, the renderer suppresses the chart title. */
     noTitle?: boolean;
     /**
-     * `solid-fill` directive — render filled marks at full intent saturation
-     * instead of the canonical muted tint. Honored by the renderers that have
-     * a fillable surface (e.g. venn set circles); a no-op for line/point types.
+     * §1.9 fill family — `'solid'` renders filled marks at full intent
+     * saturation, `'outline'` drops the fill to the theme background (color on
+     * the stroke). Honored by renderers with a fillable surface (e.g. venn set
+     * circles); a no-op for line/point types. Absent ⇒ canonical muted tint.
      */
-    solidFill?: boolean;
+    fillMode?: 'solid' | 'outline';
     diagnostics: DgmoError[];
     error: string | null;
 }
@@ -820,8 +823,8 @@ interface ParsedTimeline extends ParsedVizBase {
     timelineSwimlanes: boolean;
     /** Authored `active-tag <group|none|metric>` directive (§15.6); resolved at render. */
     timelineActiveTag?: string;
-    /** Render with full intent saturation instead of the canonical 25% tint. */
-    solidFill?: boolean;
+    /** §1.9 fill family (`'solid'` | `'outline'`); absent ⇒ 25% tint. */
+    fillMode?: 'solid' | 'outline';
 }
 interface ParsedWordcloud extends ParsedVizBase {
     type: 'wordcloud';
@@ -877,7 +880,7 @@ declare function orderArcNodes(links: ArcLink[], order: ArcOrder, groups: ArcNod
 /**
  * Renders an arc diagram into the given container using D3.
  */
-declare function renderArcDiagram(container: HTMLDivElement, parsed: ParsedArc, palette: PaletteColors, _isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
+declare function renderArcDiagram(container: HTMLDivElement, parsed: ParsedArc, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
 
 /**
  * Converts a DSL date string to a human-readable label.
@@ -2177,7 +2180,8 @@ interface SketchBox {
 }
 interface SketchOptions {
     readonly noLegend: boolean;
-    readonly solidFill: boolean;
+    /** §1.9 fill family; undefined ⇒ canonical 25% tint. */
+    readonly fillMode: 'solid' | 'outline' | undefined;
     /** `no-descriptions` directive (mindmap `hd` standard): hide the card
      *  metadata rows so each card is just its name. */
     readonly noDescriptions: boolean;
@@ -3229,7 +3233,8 @@ interface GanttOptions {
     sprintStart: string | null;
     sprintMode: 'auto' | 'explicit' | null;
     /** When true, render bars at full intent saturation instead of the canonical 25% tint. */
-    solidFill: boolean;
+    /** §1.9 fill family; undefined ⇒ canonical 25% tint. */
+    fillMode: 'solid' | 'outline' | undefined;
     /** When true, the renderer suppresses the chart banner title. */
     noTitle: boolean;
 }
@@ -3447,10 +3452,10 @@ interface PertOptions {
     /** When true, the renderer suppresses the diagram banner title. */
     noTitle?: boolean;
     /**
-     * `solid-fill` directive — render node/group card fills at full intent
+     * §1.9 fill family — `fill-solid` renders node/group card fills at full intent
      * saturation instead of the canonical 25% tint (via `shapeFill`).
      */
-    solidFill?: boolean;
+    fillMode?: 'solid' | 'outline';
     /**
      * `no-analysis` directive — suppresses the analysis layer (tornado +
      * S-curve). The layer renders by default whenever Monte Carlo ran;
@@ -4677,8 +4682,8 @@ interface EventLineOptions {
     readonly noBox: boolean;
     /** True when `no-legend` — hide the tag legend. */
     readonly noLegend: boolean;
-    /** True when `solid-fill` — opaque card / shelf fill instead of the soft tint. */
-    readonly solidFill: boolean;
+    /** §1.9 fill family: 'solid' | 'outline'; undefined ⇒ canonical soft tint. */
+    readonly fillMode: 'solid' | 'outline' | undefined;
 }
 interface ParsedEventLine {
     readonly type: 'event-line';
@@ -4723,6 +4728,30 @@ declare function clearEventLineMuted(container: HTMLElement): void;
  */
 declare function focusEventLine(container: HTMLElement, spec: EventLineFocus | null): void;
 declare function renderEventLineForExport(container: HTMLDivElement, parsed: ParsedEventLine, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, tagOverride?: string): void;
+
+/**
+ * Shared parser utilities — extracted from individual parsers to eliminate
+ * duplication of measureIndent, extractColor, header regexes, and
+ * pipe-metadata parsing.
+ */
+
+/** Complete set of recognized chart type identifiers. */
+declare const ALL_CHART_TYPES: Set<string>;
+/**
+ * Cross-chart fill treatment (spec §1.9 fill family). Absent ⇒ the canonical
+ * 25% tint (`fill-tint` is the explicit spelling of that default).
+ */
+type FillMode = 'solid' | 'outline';
+/**
+ * Parse the first non-empty, non-comment line to extract chart type and optional title.
+ * The first token is matched against `ALL_CHART_TYPES`; the remainder is the title.
+ *
+ * Returns `null` if the first token is not a recognized chart type.
+ */
+declare function parseFirstLine(line: string): {
+    chartType: string;
+    title: string | undefined;
+} | null;
 
 /** A resolved recurrence rule. Built by the parser, re-read by the ticker. */
 interface RecurRule {
@@ -4817,6 +4846,12 @@ interface ParsedCountdown {
      * endpoint (the target color); defaults to red when unset.
      */
     readonly color?: string;
+    /**
+     * §1.9 fill family (`fill-solid` / `fill-outline`; absent ⇒ the legacy
+     * saturated chips). Restyles the calendar-band chips only — the final-day
+     * ring gauges are meters and stay saturated in every mode (§36.6).
+     */
+    readonly fillMode?: FillMode;
     readonly diagnostics: readonly DgmoError[];
     readonly error: string | null;
 }
@@ -4913,6 +4948,12 @@ interface ParsedClock {
     readonly columns: boolean;
     /** What drives each zone's color. Default `place`; disable via `color-by none`. */
     readonly colorBy: ClockColorBy;
+    /**
+     * §1.9 fill family (`fill-solid` / `fill-outline`; absent ⇒ canonical tint).
+     * Restyles only DECORATIVE surface tints (card, identity lane washes, dial
+     * faces) — state-encoding fills (day/night, work status) keep their fills.
+     */
+    readonly fillMode?: FillMode;
     /** The working window, or null when no `hours` directive was given. */
     readonly work: WorkWindow | null;
     readonly entries: readonly ClockEntry[];
@@ -5018,6 +5059,8 @@ interface BodyOptions {
     readonly noLegend: boolean;
     /** True when `no-title` — hide the diagram title. */
     readonly noTitle: boolean;
+    /** §1.9 fill family (`fill-solid` / `fill-outline`); absent ⇒ default fill. */
+    readonly fillMode?: FillMode;
 }
 interface ParsedBody {
     readonly title: string | null;
@@ -5084,7 +5127,8 @@ interface GoalOptions {
     /** Hide the raw `now / target` label. */
     readonly noValue: boolean;
     /** Full-saturation fill instead of the 25% tint. */
-    readonly solidFill: boolean;
+    /** §1.9 fill family; undefined ⇒ canonical 25% tint. */
+    readonly fillMode: 'solid' | 'outline' | undefined;
     /** Hide the banner title. */
     readonly noTitle: boolean;
     /** Disable auto traffic-light fill color (fall back to the palette color). */
@@ -5177,6 +5221,8 @@ interface ParsedBracket {
     readonly noRounds: boolean;
     /** Winner accent color override (`accent <color>`); default blue. */
     readonly accentColor?: string;
+    /** §1.9 fill family (`fill-solid` / `fill-outline`); absent ⇒ 25% tint. */
+    readonly fillMode?: FillMode;
     readonly diagnostics: readonly DgmoError[];
     readonly error: string | null;
 }
@@ -5398,7 +5444,8 @@ interface TreemapOptions {
     noPercent: boolean;
     noHeaders: boolean;
     noLegend: boolean;
-    solidFill: boolean;
+    /** §1.9 fill family; undefined ⇒ canonical 25% tint. */
+    fillMode: 'solid' | 'outline' | undefined;
     /** `radial` — render as a sunburst (concentric rings) instead of rectangles. */
     radial: boolean;
 }
@@ -5574,8 +5621,8 @@ interface BlockGrid {
 interface BlockOptions {
     /** `no-legend` — hide the tag legend. */
     noLegend: boolean;
-    /** `solid-fill` — fill nodes at full intent saturation instead of a tint. */
-    solidFill: boolean;
+    /** §1.9 fill family: 'solid' | 'outline'; absent ⇒ canonical 25% tint. */
+    fillMode?: 'solid' | 'outline';
 }
 interface ParsedBlock {
     readonly type: 'block';
@@ -6617,24 +6664,5 @@ declare function resolveColorWithDiagnostic(color: string, line: number, diagnos
 }): string | undefined;
 /** @deprecated Use getSeriesColors(palette) from '@/lib/palettes' instead. */
 declare const seriesColors: string[];
-
-/**
- * Shared parser utilities — extracted from individual parsers to eliminate
- * duplication of measureIndent, extractColor, header regexes, and
- * pipe-metadata parsing.
- */
-
-/** Complete set of recognized chart type identifiers. */
-declare const ALL_CHART_TYPES: Set<string>;
-/**
- * Parse the first non-empty, non-comment line to extract chart type and optional title.
- * The first token is matched against `ALL_CHART_TYPES`; the remainder is the title.
- *
- * Returns `null` if the first token is not a recognized chart type.
- */
-declare function parseFirstLine(line: string): {
-    chartType: string;
-    title: string | undefined;
-} | null;
 
 export { ALL_CHART_TYPES, ARROW_DIAGNOSTIC_CODES, type Activation, type AncestorInfo, type ArcLink, type ArcNodeGroup, type BLCollapseResult, type BLEdge, type BLGroup, type BLLayoutEdge, type BLLayoutGroup, type BLLayoutNode, type BLLayoutResult, type BLNode, type BlipTrend, type BlockCell, type BlockGrid, type BlockLayoutItem, type BlockLayoutResult, type BlockNode, type BlockOptions, type BodyFigure, type BodyOptions, type BodyPart, type BracketMode, type BracketSide, type C4ArrowType, type C4DeploymentNode, type C4Element, type C4ElementType, type C4Group, type C4LayoutBoundary, type C4LayoutEdge, type C4LayoutNode, type C4LayoutResult, type C4LegendEntry, type C4LegendGroup, type C4Relationship, type C4Shape, type C4TagEntry, type C4TagGroup, type ChartDataPoint, type ChartEra, type ChartType$1 as ChartType, type ClassLayoutEdge, type ClassLayoutNode, type ClassLayoutResult, type ClassMember, type ClassModifier, type ClassNode, type ClassRelationship, type ClockEntry, type ClockFace, type ClockZoneKind, type CollapsedMindmapResult, type CollapsedOrgResult, type CollapsedSitemapResult, type CollapsedView, CompactViewState, type ComputedInfraEdge, type ComputedInfraModel, type ComputedInfraNode, type ContextRelationship, type CountUnits, type CreateMapGeoQueryOptions, type CycleEdge, type CycleLayoutEdge, type CycleLayoutNode, type CycleLayoutResult, type CycleNode, type CycleRenderOptions, type D3ExportDimensions, DgmoError, type DiagramSymbols, type Duration, type DurationUnit, type ERCardinality, type ERColumn, type ERConstraint, type ERLayoutEdge, type ERLayoutNode, type ERLayoutResult, type ERRelationship, type ERTable, type ElseIfBranch, type EventLineEra, type EventLineEvent, type EventLineFocus, type EventLineOptions, type ExpandedActivity, type ExtendedChartType, type FamilyChild, type FamilyChildEdge, type FamilyLayoutNode, type FamilyLayoutResult, type FamilyMarriageBar, type FamilyPerson, type FamilySex, type FamilyUnion, type FocusOrgResult, type FocusResult, type FocusTarget, type GanttDependency, type GanttEra, type GanttGroup, type GroupRow as GanttGroupRow, type GanttHolidays, type GanttInteractiveOptions, type LaneHeaderRow as GanttLaneHeaderRow, type GanttMarker, type GanttNode, type GanttOptions, type Row as GanttRow, type GanttTask, type TaskRow as GanttTaskRow, GeoExtent, type GetOrCreateNameResult, type GoalMode, type GoalOptions, type GraphDirection, type GraphEdge, type GraphGroup, type GraphNode, type GraphShape, INFRA_BEHAVIOR_KEYS, INVALID_COLOR_CODE, INVALID_CSS_COLOR_HEX, type ImportSource, type InfraAvailabilityPercentiles, type InfraBehaviorKey, type InfraCbState, type InfraComputeParams, type InfraDiagnostic, type InfraEdge, type InfraGroup, type InfraLatencyPercentiles, type InfraLayoutEdge, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutResult, type InfraLegendGroup, type InfraNode, type InfraPlaybackState, type InfraProperty, type InfraRole, type InfraTagGroup, type InlineSpan, type JourneyMapAnnotation, type JourneyMapInteractiveOptions, type JourneyMapLayout, type JourneyMapPersona, type JourneyMapPhase, type JourneyMapStep, type KanbanCard, type KanbanColumn, type KanbanTagEntry, type KanbanTagGroup, LEGEND_GEAR_PILL_W, LEGEND_HEIGHT, type LayoutEdge, type LayoutGroup, type LayoutNode, type LayoutOptions$1 as LayoutOptions, type LayoutResult$1 as LayoutResult, type LegendCallbacks, type LegendConfig, type LegendControl, type LegendGroupData, type LegendHandle, type LegendLayout, type LegendMode, type LegendPalette, type LegendPosition, type LegendState, MapData, type MapExportDimensions, type MapGeoQuery, type MapLayout, type MapLayoutInset, type MapLayoutLeg, MapLayoutLegend, type MapLayoutPoi, type MapLayoutRegion, type MapLayoutStretch, type MemberVisibility, type MindmapLayoutEdge, type MindmapLayoutNode, type MindmapLayoutResult, type MindmapNode, type MonteCarloResult, type NameEntry, type NearestCity, type NodeDetail, type OrgContainerBounds, type OrgLayoutEdge, type OrgLayoutNode, type OrgLayoutResult, type OrgNode, PaletteColors, PaletteConfig, type ParseInArrowLabelResult, type ParsedBlock, type ParsedBody, type ParsedBoxesAndLines, type ParsedBracket, type ParsedC4, type ParsedChart, type ParsedClassDiagram, type ParsedClock, type ParsedCountdown, type ParsedCycle, type ParsedERDiagram, type ParsedEventLine, type ParsedExtendedChart, type ParsedFamily, type ParsedGantt, type ParsedGoal, type ParsedGraph, type ParsedInfra, type ParsedJourneyMap, type ParsedKanban, ParsedMap, type ParsedMindmap, type ParsedOrg, type ParsedPert, type ParsedPyramid, type ParsedRaci, type ParsedRing, type ParsedSequenceDgmo, type ParsedSitemap, type ParsedSketch, type ParsedSwimlane, type ParsedTechRadar, type ParsedTreemap, type ParsedVersionControl, type ParsedVisualization, type ParsedWireframe, type ParticipantType, type PertActivity, type Anchor as PertAnchor, type PertDirection, type PertEdge, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type LayoutOverrides as PertLayoutOverrides, type LayoutResult as PertLayoutResult, type PertMilestone, type PertOptions, type PertRenderOptions, type PlaceResolution, type PlacedLabel, type ProjectedCity, type PyramidLayer, type QuadrantPosition, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, type RaciDragSource, type RaciInteractionHandlers, type RaciMarker, type RaciPhase, type RaciRoleAssignment, type RaciTask, type RaciVariant, type RadialCell, type RadialLayoutResult, type RawMatch, type RawSeed, type ReadFileFn, type RecurRule, type RegionToken, type RelationshipType, type RenderStep, type ResolveImportsResult, type ResolvedActivity, type ResolvedGroup$1 as ResolvedGroup, ResolvedMap, type ResolvedPert, type ResolvedGroup as ResolvedPertGroup, type ResolvedSchedule, type ResolvedTask, type ResultCard, type ResultTokens, type RingLayer, type RoundMode, SKETCH_FOOT_H, SKETCH_FOOT_W, SKETCH_GEOMETRY, SKETCH_HALF_SLOT_X, SKETCH_HALF_SLOT_Y, SKETCH_SEP, SKETCH_SHAPE_KINDS, SKETCH_SLOT_X, SKETCH_SLOT_Y, ScaleContext, type SectionMessageGroup, type SequenceBlock, type SequenceElement, type SequenceGroup, type SequenceMessage, type SequenceNote, type SequenceParticipant, type SequenceRenderOptions, type SequenceSection, type SimulateOptions, type SitemapContainerBounds, type SitemapDirection, type SitemapEdge, type SitemapLayoutEdge, type SitemapLayoutNode, type SitemapLayoutResult, type SitemapLegendEntry, type SitemapLegendGroup, type SitemapNode, type SketchAt, type SketchBox, type SketchCollapseResult, type SketchEdge, type SketchEdgeGeometry, type SketchEdgeHeads, type SketchLayout, type SketchLayoutBox, type SketchLayoutNode, type SketchLayoutOptions, type SketchNode, type SketchOptions, type SketchRenderOptions, type SketchShapeKind, type StateCollapseResult, type SwimEdge, type SwimEvent, type SwimLane, type SwimNode, type SwimPhase, type SwimShape, type LayoutBand as SwimlaneLayoutBand, type SwimlaneLayoutResult, TagEntry, TagGroup, type TechRadarBlip, type TechRadarLayoutPoint, type TechRadarQuadrant, type TechRadarRing, type TreemapCell, type TreemapColorMode, type TreemapLayoutResult, type TreemapNode, type TreemapOptions, type VCBranch, type VCNode, type VCNote, type VCOptions, type VCRef, type VisualizationType, type WireframeElement, type WireframeElementType, type WireframeFormFactor, type WireframeLayout, type WireframeLayoutNode, type WorkWindow, type ZoneSuggestion, addDurationToDate, albersSkewFallback, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, authoredCollapsedIds, blueprintPalette, buildNoteMessageMap, buildRenderSequence, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, clearEventLineMuted, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseSketch, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeTimeTicks, contrastText, controlsGroupCapsuleWidth, createMapGeoQuery, displayName, extractSymbols$2 as extractClassSymbols, extractSymbols$1 as extractErSymbols, extractSymbols$3 as extractFlowchartSymbols, extractSymbols as extractInfraSymbols, extractPertSymbols, focusBoxesAndLines, focusEventLine, focusOrgTree, formatDateLabel, formatOffsetLabel, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getRadarGeometry, getSeriesColors, getSimpleChartLegendGroups, groupMessagesBySection, hexToHSL, hexToHSLString, hslToHex, inferParticipantType, inferRoles, invalidColorDiagnostic, isArchiveColumn, isInvalidColorToken, isRecognizedColorName, isSequenceBlock, isSequenceNote, isSketchShapeKind, layoutBlock, layoutBoxesAndLines, layoutBracket, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutFamily, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutSketch, layoutSwimlane, layoutTreemap, layoutTreemapRadial, layoutWireframe, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, measurePertAnalysisBlock, mix, mulberry32, nearestNamedColor, nord, nordPalette, normalizeName, normalizePertSourceForShare, normalizePlace, orderArcNodes, parseAndLayoutInfra, parseBlock, parseBody, parseBoxesAndLines, parseBracket, parseC4, parseChart, parseClassDiagram, parseClock, parseCountdown, parseCycle, parseDataRowValues, parseERDiagram, parseEventLine, parseExtendedChart, parseFamily, parseFirstLine, parseFixedOffset, parseFlowchart, parseGantt, parseGoal, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseMap, parseMindmap, parseOrg, parsePert, parsePyramid, parseRaci, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseSketch, parseState, parseSwimlane, parseTechRadar, parseTimelineDate, parseTreemap, parseVersionControl, parseVisualization, parseWireframe, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, relayoutPert, render, renderArcDiagram, renderBlock, renderBlockForExport, renderBody, renderBodyForExport, renderBoxesAndLines, renderBoxesAndLinesForExport, renderBracket, renderBracketForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderClock, renderClockForExport, renderCountdown, renderCountdownForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderEventLine, renderEventLineForExport, renderFamily, renderFamilyForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderGoal, renderGoalForExport, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderMap, renderMapForExport, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSketch, renderSketchForExport, renderSlopeChart, renderState, renderStateForExport, renderSwimlaneForExport, renderTechRadar, renderTechRadarForExport, renderTimeline, renderTreemap, renderTreemapForExport, renderTreemapRadial, renderTreemapRadialForExport, renderVenn, renderVersionControl, renderVersionControlForExport, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolveOrgImports, resolvePlace, resolveTaskName, rollUpContextRelationships, sampleBetaPert, searchZones, seriesColors, shade, shapeFill, simulateCanonical, simulateFast, sketchEdgeGeometry, sketchSlotToPx, slatePalette, startClocks, startCountdowns, targetToMs, tickClocks, tickCountdowns, tidewaterPalette, tint, tokyoNightPalette, truncateBareUrl, validateComputed, validateInfra, validateLabelCharacters };
