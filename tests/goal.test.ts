@@ -4,6 +4,8 @@ import { parseGoal } from '../src/goal/parser';
 import { renderGoal } from '../src/goal/renderer';
 import { render } from '../src/render';
 import { getPalette } from '../src/palettes';
+import { mix, themeBaseBg } from '../src/palettes/color-utils';
+import { resolveColor } from '../src/colors';
 import { getRenderCategory } from '../src/dgmo-router';
 
 beforeAll(() => {
@@ -295,6 +297,88 @@ describe('goal renderer — faces', () => {
     expect(svg).not.toBeNull();
     expect(svg.querySelectorAll('rect').length).toBeGreaterThanOrEqual(2); // bg + track
     expect(texts(svg).join(' ')).toContain('3');
+  });
+
+  it('bar fill-outline: meter renders hollow with the band color on the border', () => {
+    // 3/5 = 60% → auto traffic-light band is orange; in outline mode that
+    // color moves to the border and the meter interior is the theme base bg.
+    const parsed = parseGoal(`goal Books\nfill-outline\nnow 3\ntarget 5`);
+    const c = makeContainer();
+    renderGoal(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    const meter = Array.from(svg.querySelectorAll('rect'))[2]!; // bg, track, fill
+    const band = resolveColor('orange', nordLight);
+    expect(meter.getAttribute('fill')).toBe(themeBaseBg(nordLight, false));
+    expect(meter.getAttribute('stroke')).toBe(band);
+    expect(meter.getAttribute('stroke-width')).toBe('1.5');
+  });
+
+  it('bar default (no fill directive) keeps the 25%-tint meter unchanged', () => {
+    const parsed = parseGoal(`goal Books\nnow 3\ntarget 5`);
+    const c = makeContainer();
+    renderGoal(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    const meter = Array.from(svg.querySelectorAll('rect'))[2]!;
+    const band = resolveColor('orange', nordLight);
+    expect(meter.getAttribute('fill')).toBe(
+      mix(band, themeBaseBg(nordLight, false), 25)
+    );
+    expect(meter.getAttribute('stroke')).toBe(band);
+    expect(meter.getAttribute('stroke-width')).toBe('2');
+  });
+
+  it('thermometer fill-outline: mercury renders hollow, band color on the stroke', () => {
+    // 6400/10000 = 64% → orange band.
+    const parsed = parseGoal(
+      `goal Fund\nthermometer\nfill-outline\nnow 6400\ntarget 10000`
+    );
+    const c = makeContainer();
+    renderGoal(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    const paths = Array.from(svg.querySelectorAll('.goal-thermometer path'));
+    const mercury = paths[1]!; // glass track, then mercury
+    const band = resolveColor('orange', nordLight);
+    expect(mercury.getAttribute('fill')).toBe(themeBaseBg(nordLight, false));
+    expect(mercury.getAttribute('stroke')).toBe(band);
+    expect(mercury.getAttribute('stroke-width')).toBe('1.5');
+  });
+
+  it('gauge fill-outline: value band renders hollow with a colored rim', () => {
+    // 64/100 = 64% → orange band. Outline mode draws the value arc twice:
+    // full-width band in the band color, then 3px narrower in the theme base
+    // bg — a hollow band with a ~1.5px rim whose extent reads the progress.
+    const parsed = parseGoal(
+      `goal Quota\ngauge\nfill-outline\nnow 64\ntarget 100`
+    );
+    const c = makeContainer();
+    renderGoal(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    const arcs = Array.from(svg.querySelectorAll('.goal-gauge path'));
+    expect(arcs.length).toBeGreaterThanOrEqual(3); // track + rim + hollow
+    const band = resolveColor('orange', nordLight);
+    const rim = arcs.find((p) => p.getAttribute('stroke') === band)!;
+    expect(rim).toBeTruthy();
+    expect(rim.getAttribute('stroke-width')).toBe('36');
+    const hollow = arcs.find(
+      (p) => p.getAttribute('stroke') === themeBaseBg(nordLight, false)
+    )!;
+    expect(hollow).toBeTruthy();
+    expect(hollow.getAttribute('stroke-width')).toBe('33');
+    expect(hollow.getAttribute('d')).toBe(rim.getAttribute('d'));
+  });
+
+  it('gauge default keeps a single tinted value arc unchanged', () => {
+    const parsed = parseGoal(`goal Quota\ngauge\nnow 64\ntarget 100`);
+    const c = makeContainer();
+    renderGoal(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    const arcs = Array.from(svg.querySelectorAll('.goal-gauge path'));
+    expect(arcs.length).toBe(2); // track + value arc only
+    const band = resolveColor('orange', nordLight);
+    expect(arcs[1]!.getAttribute('stroke')).toBe(
+      mix(band, themeBaseBg(nordLight, false), 25)
+    );
+    expect(arcs[1]!.getAttribute('stroke-width')).toBe('36');
   });
 
   it('sets an aria-label describing the goal', () => {

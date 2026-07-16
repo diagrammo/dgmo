@@ -97,10 +97,11 @@ function resolvePaint(
     getSeriesColors(palette)[0]!;
   return {
     base,
-    // fill is the meter — fill-outline ignored (§1.9)
-    fill: shapeFill(palette, base, isDark, {
-      mode: parsed.options.fillMode === 'solid' ? 'solid' : undefined,
-    }),
+    // §1.9 fill family: tint (default) / solid / outline. In outline mode the
+    // progress region renders hollow (theme base bg) and the traffic-light /
+    // override color moves to the border — advancement still reads from the
+    // outlined region's extent against the gray track.
+    fill: shapeFill(palette, base, isDark, { mode: parsed.options.fillMode }),
     track: mix(palette.border, themeBaseBg(palette, isDark), 45),
     text: palette.text,
     muted: mix(palette.text, themeBaseBg(palette, isDark), 55),
@@ -388,7 +389,7 @@ function renderBar(
       .attr('rx', r)
       .attr('fill', paint.fill)
       .attr('stroke', paint.base)
-      .attr('stroke-width', 2);
+      .attr('stroke-width', parsed.options.fillMode === 'outline' ? 1.5 : 2);
   }
 
   // Current value rides INSIDE the fill, tracking its right end.
@@ -491,7 +492,7 @@ function renderThermometer(
     .attr('d', bodyPath(fillTopY, mHalf, mBulb, false))
     .attr('fill', paint.fill)
     .attr('stroke', paint.base)
-    .attr('stroke-width', 2)
+    .attr('stroke-width', parsed.options.fillMode === 'outline' ? 1.5 : 2)
     .attr('stroke-linejoin', 'round');
 
   // Graduation ticks etched ON the glass (from the right inner edge inward),
@@ -684,12 +685,32 @@ function renderGauge(
     .attr('stroke-linecap', 'round');
 
   if (metrics.fillFrac > 0.001) {
-    g.append('path')
-      .attr('d', arcPath(cx, cy, r, 0, metrics.fillFrac))
-      .attr('fill', 'none')
-      .attr('stroke', paint.fill)
-      .attr('stroke-width', stroke)
-      .attr('stroke-linecap', 'round');
+    const valueArc = arcPath(cx, cy, r, 0, metrics.fillFrac);
+    if (parsed.options.fillMode === 'outline') {
+      // Hollow band: a full-width band in the border color, then the same
+      // path re-stroked 3px narrower in the theme base bg (paint.fill in
+      // outline mode) — concentric round caps leave a uniform ~1.5px rim, so
+      // the outlined region's extent still reads against the gray track.
+      g.append('path')
+        .attr('d', valueArc)
+        .attr('fill', 'none')
+        .attr('stroke', paint.base)
+        .attr('stroke-width', stroke)
+        .attr('stroke-linecap', 'round');
+      g.append('path')
+        .attr('d', valueArc)
+        .attr('fill', 'none')
+        .attr('stroke', paint.fill)
+        .attr('stroke-width', stroke - 3)
+        .attr('stroke-linecap', 'round');
+    } else {
+      g.append('path')
+        .attr('d', valueArc)
+        .attr('fill', 'none')
+        .attr('stroke', paint.fill)
+        .attr('stroke-width', stroke)
+        .attr('stroke-linecap', 'round');
+    }
   }
 
   // Needle at the fill angle.

@@ -5,6 +5,8 @@ import { layoutBracket } from '../src/bracket/layout';
 import { renderBracket } from '../src/bracket/renderer';
 import { render } from '../src/render';
 import { getPalette } from '../src/palettes';
+import { themeBaseBg } from '../src/palettes/color-utils';
+import { resolveColor } from '../src/colors';
 import { getRenderCategory } from '../src/dgmo-router';
 
 beforeAll(() => {
@@ -165,6 +167,25 @@ describe('bracket parser', () => {
   it('rejects a non-bracket first line', () => {
     const r = parseBracket(`pyramid Nope\nA beats B`);
     expect(r.error).toMatch(/Expected "bracket/);
+  });
+});
+
+describe('bracket parser — §1.9 fill family', () => {
+  it('`fill-solid` sets fillMode to solid', () => {
+    const r = parseBracket(`bracket X\nfill-solid\nA beats B`);
+    expect(r.fillMode).toBe('solid');
+    expect(warnings(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('`fill-outline` sets fillMode to outline', () => {
+    const r = parseBracket(`bracket X\nfill-outline\nA beats B`);
+    expect(r.fillMode).toBe('outline');
+    expect(warnings(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('last one wins — `fill-tint` after `fill-solid` restores the default', () => {
+    const r = parseBracket(`bracket X\nfill-solid\nfill-tint\nA beats B`);
+    expect(r.fillMode).toBeUndefined();
   });
 });
 
@@ -405,6 +426,48 @@ describe('bracket renderer — enrichment', () => {
       )
     );
     expect(strokes.size).toBeGreaterThanOrEqual(2);
+  });
+
+  it('fill-outline: winner boxes fill with the base bg, accent on the stroke', () => {
+    const parsed = parseBracket(`${CASUAL}\nfill-outline`);
+    const c = makeContainer();
+    renderBracket(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    const baseBg = themeBaseBg(nordLight, false);
+    const accent = resolveColor('blue', nordLight)!;
+    // Winner (sw=2) + champion (sw=3) boxes are hollowed to the base bg.
+    const emphasized = Array.from(
+      svg.querySelectorAll('rect[stroke-width="2"], rect[stroke-width="3"]')
+    );
+    expect(emphasized.length).toBeGreaterThan(0);
+    for (const r of emphasized) {
+      expect(r.getAttribute('fill')).toBe(baseBg);
+      expect(r.getAttribute('stroke')).toBe(accent);
+    }
+  });
+
+  it('fill-solid: winner boxes carry the raw accent fill', () => {
+    const parsed = parseBracket(`${CASUAL}\nfill-solid`);
+    const c = makeContainer();
+    renderBracket(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    const accent = resolveColor('blue', nordLight)!;
+    const solidFills = Array.from(svg.querySelectorAll('rect')).filter(
+      (r) => r.getAttribute('fill') === accent
+    );
+    expect(solidFills.length).toBeGreaterThan(0);
+  });
+
+  it('default (no fill token) keeps the 25% tint — not solid, not hollow', () => {
+    const parsed = parseBracket(CASUAL);
+    const c = makeContainer();
+    renderBracket(c, parsed, nordLight, false);
+    const svg = c.querySelector('svg')!;
+    const baseBg = themeBaseBg(nordLight, false);
+    const accent = resolveColor('blue', nordLight)!;
+    const winner = svg.querySelector('rect[stroke-width="2"]')!;
+    expect(winner.getAttribute('fill')).not.toBe(baseBg);
+    expect(winner.getAttribute('fill')).not.toBe(accent);
   });
 
   it('renders commentary, an UPSET flag, and seed badges', () => {

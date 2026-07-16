@@ -995,7 +995,10 @@ function paintAnalysisRowMode(
       isDark,
     };
     if (w.kind === 'tornado') {
-      renderTornadoBlock(svg, state.tornadoRows, args);
+      renderTornadoBlock(svg, state.tornadoRows, {
+        ...args,
+        fillMode: resolved.options.fillMode,
+      });
     } else {
       // Promote the first caption row ("Expected duration: …") into
       // the S-curve's header band when the Summary card is suppressed,
@@ -1168,7 +1171,10 @@ function paintAnalysisStackMode(
       };
       switch (item.kind) {
         case 'tornado':
-          renderTornadoBlock(svg, state.tornadoRows, args);
+          renderTornadoBlock(svg, state.tornadoRows, {
+            ...args,
+            fillMode: resolved.options.fillMode,
+          });
           break;
         case 'scurve': {
           // Same rule as the side-by-side path: promote the headline
@@ -2990,6 +2996,13 @@ interface TornadoBlockArgs {
   height: number;
   palette: PaletteColors;
   isDark: boolean;
+  /**
+   * §1.9 fill family. Only `'outline'` changes tornado bars (hollow:
+   * theme-bg fill, color on the stroke). `'solid'` intentionally keeps
+   * the canonical tint — full-saturation micro-bars would overpower the
+   * analysis block's muted chrome.
+   */
+  fillMode?: 'solid' | 'outline' | undefined;
 }
 
 function renderTornadoBlock(
@@ -2997,7 +3010,7 @@ function renderTornadoBlock(
   rows: TornadoRow[],
   args: TornadoBlockArgs
 ): void {
-  const { x, y, width, height, palette, isDark } = args;
+  const { x, y, width, height, palette, isDark, fillMode } = args;
   const { fill, stroke: chromeStroke } = analysisBlockChrome(palette, isDark);
   const labelColor = contrastText(
     fill,
@@ -3107,7 +3120,12 @@ function renderTornadoBlock(
     const labelY =
       rowY + TORNADO_ROW_HEIGHT / 2 + TORNADO_BAR_FONT_SIZE / 2 - 2;
     const barColor = bandColor(row.band, palette, palette.primary);
-    const barFill = shapeFill(palette, barColor, isDark);
+    // fill-outline → hollow bar (theme-bg fill, existing colored stroke
+    // carries the band color). Tint + solid both keep the canonical tint.
+    const barFill =
+      fillMode === 'outline'
+        ? shapeFill(palette, barColor, isDark, { mode: 'outline' })
+        : shapeFill(palette, barColor, isDark);
     const lowW = row.lowSwing * pixelsPerUnit;
     const highW = row.highSwing * pixelsPerUnit;
 

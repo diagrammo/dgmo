@@ -7,7 +7,13 @@
 import type { ParsedHeatmap } from '../data-chart-parser';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
-import { shapeFill, mix, hexToHSL, hslToHex } from '../palettes/color-utils';
+import {
+  shapeFill,
+  mix,
+  hexToHSL,
+  hslToHex,
+  themeBaseBg,
+} from '../palettes/color-utils';
 import { measureText } from '../utils/text-measure';
 import type { Svg } from './shared';
 import { fmtNum, tagDatum } from './shared';
@@ -40,8 +46,14 @@ export function renderHeatmap(
       maxValue = Math.max(maxValue, v);
     }
 
-  // fill is the data surface — fill-outline ignored (§1.9)
-  const fillMode = chart.fillMode === 'solid' ? ('solid' as const) : undefined;
+  // §1.9 fill family: tint (default) / solid / outline. In outline mode cells
+  // render hollow (theme base bg fill) and the value's ramp color moves to the
+  // cell STROKE — the ramp stops are built at FULL intent ('solid') so low
+  // values stay visible (the tint-stop ramp would wash the border out).
+  const outline = chart.fillMode === 'outline';
+  const fillMode =
+    outline || chart.fillMode === 'solid' ? ('solid' as const) : undefined;
+  const baseBg = themeBaseBg(palette, isDark);
   const gradientStops = [
     shapeFill(palette, palette.primary, isDark, { mode: fillMode }),
     shapeFill(palette, palette.colors.cyan, isDark, { mode: fillMode }),
@@ -127,7 +139,9 @@ export function renderHeatmap(
     row.values.forEach((v, ci) => {
       const t =
         maxValue === minValue ? 0.5 : (v - minValue) / (maxValue - minValue);
-      const cell = gradientAt(t);
+      const ramp = gradientAt(t);
+      // Outline: hollow cell, ramp on the border. Otherwise the ramp IS the fill.
+      const cell = outline ? baseBg : ramp;
       const colLabel = cols[ci] ?? `Col ${ci + 1}`;
       // Per-cell emph key: hovering a cell emphasizes ONLY that cell (rect +
       // its value label). Row/column emphasis comes from the axis labels via
@@ -140,8 +154,8 @@ export function renderHeatmap(
         .attr('width', cw)
         .attr('height', ch)
         .attr('fill', cell)
-        .attr('stroke', bgColor)
-        .attr('stroke-width', 2)
+        .attr('stroke', outline ? ramp : bgColor)
+        .attr('stroke-width', outline ? 1.5 : 2)
         .attr('data-row-key', row.label)
         .attr('data-col-key', colLabel);
       tagDatum(r, {
@@ -149,7 +163,7 @@ export function renderHeatmap(
         key: cellKey,
         name: cellKey,
         value: fmtNum(v),
-        color: cell,
+        color: ramp,
       });
       if (!chart.noValue) {
         const label = svg
@@ -157,7 +171,7 @@ export function renderHeatmap(
           .attr('x', left + ci * cw + cw / 2)
           .attr('y', top + ri * ch + ch / 2 + cellFont / 3)
           .attr('text-anchor', 'middle')
-          .attr('fill', labelTint(cell))
+          .attr('fill', labelTint(ramp))
           .attr('font-size', cellFont)
           .attr('font-weight', 600)
           .attr('font-family', FONT_FAMILY)
@@ -167,7 +181,7 @@ export function renderHeatmap(
           key: cellKey,
           name: cellKey,
           value: fmtNum(v),
-          color: cell,
+          color: ramp,
         });
         label.attr('data-row-key', row.label).attr('data-col-key', colLabel);
       }

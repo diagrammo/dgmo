@@ -27,7 +27,12 @@
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
-import { extractColor, measureIndent, parseFirstLine } from '../utils/parsing';
+import {
+  extractColor,
+  fillModeFromToken,
+  measureIndent,
+  parseFirstLine,
+} from '../utils/parsing';
 import { normalizeDate, type DateOrder } from '../utils/date';
 import type { ParsedCountdown } from './types';
 import {
@@ -431,6 +436,17 @@ export function parseCountdown(
       case 'no-visual':
         result.noVisual = true;
         break;
+
+      // ── §1.9 fill family — mutually exclusive bare flags, last one wins;
+      //    `fill-tint` is the explicit spelling of the default (clears it). ──
+      case 'fill-tint':
+      case 'fill-solid':
+      case 'fill-outline': {
+        const fm = fillModeFromToken(key);
+        if (fm === 'solid' || fm === 'outline') result.fillMode = fm;
+        else delete result.fillMode;
+        break;
+      }
 
       // ── `note` — markdown caption; inline value or indented body block. ──
       case 'note':

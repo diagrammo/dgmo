@@ -96,23 +96,30 @@ function updateRow(group: Element, now: number): void {
   // are static so fall back to the baked solid for those.
   const mode = group.getAttribute('data-dgmo-clock-auto-mode');
   const cardFill = group.getAttribute('data-dgmo-clock-cardfill');
+  // §1.9 fill family: a restyled row (fill-solid / fill-outline on a decorative
+  // identity color) bakes its final face/lane/hand inks at render time — the
+  // identity color never changes live, so skip the recolors (rotation still
+  // ticks) rather than re-deriving the tint wash and undoing the restyle.
+  const fillMode = group.getAttribute('data-dgmo-clock-fill-mode');
   let autoSolid: string | null = null;
   if (mode === 'daylight') autoSolid = up ? c('day') : c('night');
   else if (mode === 'time') autoSolid = rampColor(parts.h);
   else if (mode) autoSolid = group.getAttribute('data-dgmo-clock-auto-solid');
-  const faceFill =
-    autoSolid && cardFill
-      ? mix(autoSolid, cardFill, 20)
-      : (group.getAttribute('data-dgmo-clock-auto-face') ?? stTint);
-  const handColor = autoSolid ?? stColor;
-  const face = group.querySelector('[data-dgmo-clock-facebg]');
-  if (face) face.setAttribute('fill', faceFill);
-  const ring = group.querySelector('[data-dgmo-clock-facering]');
-  if (ring && autoSolid) ring.setAttribute('stroke', autoSolid);
-  const center = group.querySelector('[data-dgmo-clock-center]');
-  if (center) center.setAttribute('fill', handColor);
-  const secondHand = group.querySelector('[data-dgmo-clock-hand="s"]');
-  if (secondHand) secondHand.setAttribute('stroke', handColor);
+  if (!fillMode) {
+    const faceFill =
+      autoSolid && cardFill
+        ? mix(autoSolid, cardFill, 20)
+        : (group.getAttribute('data-dgmo-clock-auto-face') ?? stTint);
+    const handColor = autoSolid ?? stColor;
+    const face = group.querySelector('[data-dgmo-clock-facebg]');
+    if (face) face.setAttribute('fill', faceFill);
+    const ring = group.querySelector('[data-dgmo-clock-facering]');
+    if (ring && autoSolid) ring.setAttribute('stroke', autoSolid);
+    const center = group.querySelector('[data-dgmo-clock-center]');
+    if (center) center.setAttribute('fill', handColor);
+    const secondHand = group.querySelector('[data-dgmo-clock-hand="s"]');
+    if (secondHand) secondHand.setAttribute('stroke', handColor);
+  }
 
   // ── Digital readout (main + dim :SS + am/pm) + weekday sub-line. ──
   setPart(group, '[data-dgmo-clock-digital-part="main"]', ts.main);
@@ -149,7 +156,7 @@ function updateRow(group: Element, now: number): void {
   // work-start (or before sunset) keeps a stale color all day. `place` is
   // static; leave its baked tint alone. ──
   const lane = group.querySelector('[data-dgmo-clock-lane]');
-  if (lane && mode) {
+  if (lane && mode && !fillMode) {
     let laneFill: string | null = null;
     if (mode === 'daylight') laneFill = stTint;
     else if (mode === 'time' && cardFill)

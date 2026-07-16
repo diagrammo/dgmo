@@ -18,6 +18,7 @@ import {
   TITLE_Y,
 } from '../utils/title-constants';
 import {
+  contrastText,
   mix,
   shapeFill,
   getSeriesColors,
@@ -33,6 +34,7 @@ import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
 import type { LegendGroupData, LegendPosition } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
+import type { FillMode } from '../utils/parsing';
 import type { ParsedBracket } from './types';
 import {
   layoutBracket,
@@ -82,7 +84,8 @@ interface Paint {
 function paintForAccent(
   palette: PaletteColors,
   isDark: boolean,
-  accent: string
+  accent: string,
+  fillMode?: FillMode
 ): Paint {
   const base = themeBaseBg(palette, isDark);
   return {
@@ -94,20 +97,23 @@ function paintForAccent(
     hair: mix(palette.text, base, 34),
     wire: mix(palette.text, base, 30),
     track: mix(palette.border, base, 55),
-    tint: shapeFill(palette, accent, isDark),
+    // §1.9 fill family rides through shapeFill: solid ⇒ raw accent,
+    // outline ⇒ theme base bg (accent stays on the stroke), absent ⇒ 25% tint.
+    tint: shapeFill(palette, accent, isDark, { mode: fillMode }),
   };
 }
 
 function paintFor(
   palette: PaletteColors,
   isDark: boolean,
-  sideColor?: string
+  sideColor?: string,
+  fillMode?: FillMode
 ): Paint {
   const accent =
     (sideColor && resolveColor(sideColor, palette)) ||
     sideColor ||
     getSeriesColors(palette)[0]!;
-  return paintForAccent(palette, isDark, accent);
+  return paintForAccent(palette, isDark, accent, fillMode);
 }
 
 /** Per-box facts the renderer resolves from `parsed` + the competitor name. */
@@ -290,7 +296,8 @@ export function renderBracket(
     parsed.accentColor ??
     resolveColor('blue', palette) ??
     getSeriesColors(palette)[0]!;
-  const basePaint = paintForAccent(palette, isDark, baseAccent);
+  const fillMode = parsed.fillMode;
+  const basePaint = paintForAccent(palette, isDark, baseAccent, fillMode);
   const sideColorByLabel = new Map<string, string | undefined>();
   for (const s of parsed.sides) sideColorByLabel.set(s.label, s.color);
 
@@ -378,7 +385,7 @@ export function renderBracket(
   for (const m of layout.matches) {
     const sidePaint =
       m.side && sideColorByLabel.get(m.side)
-        ? paintFor(palette, isDark, sideColorByLabel.get(m.side))
+        ? paintFor(palette, isDark, sideColorByLabel.get(m.side), fillMode)
         : basePaint;
 
     // Home: explicit `@ Name`, else higher seed (lower number) is home.
@@ -431,7 +438,8 @@ export function renderBracket(
       palette,
       isDark,
       m,
-      activeKey
+      activeKey,
+      fillMode
     );
     drawBox(
       root,
@@ -443,7 +451,8 @@ export function renderBracket(
       palette,
       isDark,
       m,
-      activeKey
+      activeKey,
+      fillMode
     );
 
     if (isUpset) drawUpset(root, m, sidePaint);
@@ -492,14 +501,15 @@ function drawBox(
   palette: PaletteColors,
   isDark: boolean,
   m: LaidMatch,
-  activeKey: string | null
+  activeKey: string | null,
+  fillMode?: FillMode
 ): void {
   const x = cx - BOX_W / 2;
   const y = cy - BOX_H / 2;
   // A tagged competitor recolors the box accent (outline + tint); otherwise the
   // side/default accent. Fill intensity still encodes win/loss.
   const paint = info.tagColor
-    ? paintForAccent(palette, isDark, info.tagColor)
+    ? paintForAccent(palette, isDark, info.tagColor, fillMode)
     : sidePaint;
 
   const cell = g.append('g').attr('class', 'dgmo-bracket-box');
@@ -538,6 +548,20 @@ function drawBox(
     stroke = mix(paint.accent, paint.hair, 50);
   }
 
+  // fill-solid: the tinted (winner/champion) boxes carry the raw accent, so
+  // their label/score/gutter marks flip to the on-fill contrast color. The
+  // outline mode needs nothing extra — `paint.tint` is already the base bg.
+  const onSolid =
+    fillMode === 'solid' && (info.isChampion || info.isWinner)
+      ? contrastText(
+          paint.tint,
+          palette.textOnFillLight,
+          palette.textOnFillDark
+        )
+      : null;
+  if (onSolid) textColor = onSolid;
+  const gutterColor = onSolid ?? paint.muted;
+
   const rect = cell
     .append('rect')
     .attr('x', x)
@@ -560,7 +584,7 @@ function drawBox(
       .attr('text-anchor', 'start')
       .attr('font-size', 10)
       .attr('font-weight', 700)
-      .attr('fill', paint.muted)
+      .attr('fill', gutterColor)
       .text(info.seed);
     leftPad = 9 + Math.max(12, measureText(String(info.seed), 10)) + 6;
   }
@@ -569,7 +593,7 @@ function drawBox(
   let rightPad = 11;
   if (info.score) rightPad += 20;
   if (info.isHome) {
-    drawHome(cell, x + BOX_W - rightPad - 6, cy, paint.muted);
+    drawHome(cell, x + BOX_W - rightPad - 6, cy, gutterColor);
     rightPad += 16;
   }
 
@@ -591,7 +615,7 @@ function drawBox(
       .attr('text-anchor', 'end')
       .attr('font-size', 12)
       .attr('font-weight', info.isWinner ? 700 : 500)
-      .attr('fill', info.isWinner ? textColor : paint.muted)
+      .attr('fill', info.isWinner ? textColor : gutterColor)
       .text(info.score);
   }
 }

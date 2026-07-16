@@ -6,6 +6,7 @@ import {
   renderJourneyMapForExport,
 } from '../src/journey-map/renderer';
 import { getPalette } from '../src/palettes';
+import { themeBaseBg } from '../src/palettes/color-utils';
 
 // Set up jsdom globals
 beforeAll(() => {
@@ -308,6 +309,100 @@ persona Sam color: blue
       const overlaps =
         bx < px + pw && bx + bw > px && by < py + ph && by + bh > py;
       expect(overlaps).toBe(false);
+    });
+  });
+
+  // ── fill-outline (§1.9 fill family) ───────────────────
+
+  describe('fill-outline', () => {
+    const outlineInput = `journey-map Outline Voyage
+fill-outline
+
+persona Sam
+  Greenhorn cabin boy
+
+[Flow]
+  Set sail score: 5, emotion: Thrilled
+  Storm hits score: 1, emotion: Terrified`;
+
+    const tintInput = outlineInput.replace('\nfill-outline', '');
+    const lightBase = themeBaseBg(palette.light, false);
+
+    it('emotion faces render hollow: theme-bg disc, colored ring intact', () => {
+      const { container } = renderToContainer(outlineInput);
+      // The ring is the only stroked circle per face (halo + eyes have no stroke).
+      const rings = container.querySelectorAll(
+        '.journey-face-icon circle[stroke]'
+      );
+      expect(rings.length).toBeGreaterThan(0);
+      for (const ring of rings) {
+        expect(ring.getAttribute('fill')).toBe(lightBase);
+        const stroke = ring.getAttribute('stroke');
+        expect(stroke).toBeTruthy();
+        expect(stroke).not.toBe(lightBase);
+      }
+    });
+
+    it('default (tint) faces keep the tinted disc', () => {
+      const { container } = renderToContainer(tintInput);
+      const ring = container.querySelector(
+        '.journey-face-icon circle[stroke]'
+      )!;
+      expect(ring.getAttribute('fill')).not.toBe(lightBase);
+    });
+
+    it('dark mode hollows the face to surface (theme base bg), not page bg', () => {
+      const parsed = parseJourneyMap(outlineInput, palette.dark);
+      const container = document.createElement('div');
+      renderJourneyMap(container, parsed, palette.dark, true);
+      const ring = container.querySelector(
+        '.journey-face-icon circle[stroke]'
+      )!;
+      expect(ring.getAttribute('fill')).toBe(themeBaseBg(palette.dark, true));
+      expect(themeBaseBg(palette.dark, true)).toBe(palette.dark.surface);
+    });
+
+    it('persona silhouette renders hollow: theme-bg fill, colored stroke', () => {
+      const { container } = renderToContainer(outlineInput);
+      // Torso + head paths live in the clipped group inside the persona card.
+      const silPaths = container.querySelectorAll(
+        '.journey-persona g[clip-path] path'
+      );
+      expect(silPaths).toHaveLength(2);
+      for (const p of silPaths) {
+        expect(p.getAttribute('fill')).toBe(lightBase);
+        // No persona color declared → silhouette stroke is textMuted.
+        expect(p.getAttribute('stroke')).toBe(palette.light.textMuted);
+      }
+    });
+
+    it('persona silhouette keeps its 70% mix fill in default mode', () => {
+      const { container } = renderToContainer(tintInput);
+      const silPath = container.querySelector(
+        '.journey-persona g[clip-path] path'
+      )!;
+      expect(silPath.getAttribute('fill')).not.toBe(lightBase);
+    });
+
+    it('emotion gradient band drops to theme base bg; curve stroke carries the color', () => {
+      const { container } = renderToContainer(outlineInput);
+      // Direct-child paths of the curve group: [area, frame, curve line].
+      const paths = container.querySelectorAll('.journey-curve-area > path');
+      expect(paths).toHaveLength(3);
+      expect(paths[0].getAttribute('fill')).toBe(lightBase);
+      const line = paths[2];
+      expect(line.getAttribute('stroke')).toBe(palette.light.primary);
+      expect(
+        parseFloat(line.getAttribute('stroke-width')!)
+      ).toBeGreaterThanOrEqual(2);
+    });
+
+    it('default render keeps the gradient url fill on the area band', () => {
+      const { container } = renderToContainer(tintInput);
+      const areaPath = container.querySelector('.journey-curve-area > path')!;
+      expect(areaPath.getAttribute('fill')).toBe(
+        'url(#journey-curve-gradient)'
+      );
     });
   });
 

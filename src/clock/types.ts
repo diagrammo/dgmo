@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { FillMode } from '../utils/parsing';
 
 // ============================================================
 // Clock chart — Parsed Types
@@ -97,6 +98,12 @@ export interface ParsedClock {
   readonly columns: boolean;
   /** What drives each zone's color. Default `place`; disable via `color-by none`. */
   readonly colorBy: ClockColorBy;
+  /**
+   * §1.9 fill family (`fill-solid` / `fill-outline`; absent ⇒ canonical tint).
+   * Restyles only DECORATIVE surface tints (card, identity lane washes, dial
+   * faces) — state-encoding fills (day/night, work status) keep their fills.
+   */
+  readonly fillMode?: FillMode;
   /** The working window, or null when no `hours` directive was given. */
   readonly work: WorkWindow | null;
 

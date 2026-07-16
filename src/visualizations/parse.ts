@@ -697,9 +697,11 @@ function parseVisualizationFull(
         continue;
       }
 
-      // Bare name with no date prefix (not a keyword)
+      // Bare name with no date prefix (not a keyword). The §1.9 fill-family
+      // tokens are cross-chart bare keywords — let them fall through to the
+      // shared bare-keyword block below (same carve-out venn makes).
       if (
-        !/^(era|marker|tag|sort|active-tag|swimlanes|no-scale|lane-by)\b/i.test(
+        !/^(era|marker|tag|sort|active-tag|swimlanes|no-scale|lane-by|fill-tint|fill-solid|fill-outline)\b/i.test(
           line
         ) &&
         !line.startsWith('[')

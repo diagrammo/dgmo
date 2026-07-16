@@ -7,6 +7,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { renderArcDiagram } from '../src/arc/renderer';
 import { parseArc } from '../src/arc/parser';
 import { getPalette } from '../src/palettes';
+import { themeBaseBg } from '../src/palettes/color-utils';
 
 function renderAt(source: string, widthPx: number): string {
   const container = document.createElement('div');
@@ -114,6 +115,55 @@ describe('arc group bands', () => {
     // Rotated labels drop below the baseline, so the band must reach further
     // down than up (a flat band would be symmetric about the baseline).
     expect(below).toBeGreaterThan(above * 1.2);
+    c.remove();
+  });
+});
+
+// §1.9 fill family on the linear arc: `fill-outline` hollows the node dots —
+// theme base background fill, the node's color moved onto the stroke. The
+// stroke-drawn arcs and the default dot treatment are untouched.
+describe('arc fill-outline node dots (§1.9)', () => {
+  const PLAIN = `arc Trade\nA -> B 5\nB -> C 4\nC -> A 3\n`;
+  const OUTLINED = PLAIN.replace('\n', '\nfill-outline\n');
+  const palette = getPalette('slate').light;
+
+  function nodeDots(c: Element): { fill: string; stroke: string }[] {
+    return [...c.querySelectorAll('g.arc-node circle')].map((el) => ({
+      fill: el.getAttribute('fill')!,
+      stroke: el.getAttribute('stroke')!,
+    }));
+  }
+
+  it('parses bare `fill-outline` into fillMode', () => {
+    expect(parseArc(OUTLINED).fillMode).toBe('outline');
+    expect(parseArc(PLAIN).fillMode).toBeUndefined();
+  });
+
+  it('fill-outline renders hollow dots: theme bg fill, color on the stroke', () => {
+    const base = renderContainer(PLAIN, 1400);
+    const outlined = renderContainer(OUTLINED, 1400);
+    const baseDots = nodeDots(base);
+    const outlinedDots = nodeDots(outlined);
+    const bg = themeBaseBg(palette, false);
+    expect(outlinedDots.length).toBe(baseDots.length);
+    expect(outlinedDots.length).toBe(3);
+    outlinedDots.forEach((dot, i) => {
+      // Hollow: theme base background fill; the color that used to be the
+      // dot's fill now rides on the stroke.
+      expect(dot.fill).toBe(bg);
+      expect(dot.stroke).toBe(baseDots[i]!.fill);
+    });
+    base.remove();
+    outlined.remove();
+  });
+
+  it('default dot rendering is unchanged (color fill, bg stroke)', () => {
+    const c = renderContainer(PLAIN, 1400);
+    const bg = themeBaseBg(palette, false);
+    for (const dot of nodeDots(c)) {
+      expect(dot.fill).not.toBe(bg);
+      expect(dot.stroke).not.toBe(dot.fill);
+    }
     c.remove();
   });
 });

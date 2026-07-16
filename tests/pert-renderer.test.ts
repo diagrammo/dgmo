@@ -7,6 +7,7 @@ import { parsePert } from '../src/pert/parser';
 import { analyzePert } from '../src/pert/analyzer';
 import { relayoutPert } from '../src/pert/layout';
 import { getPalette } from '../src/palettes';
+import { themeBaseBg } from '../src/palettes/color-utils';
 
 const FIXTURES = join(__dirname, '../test-fixtures/pert');
 function loadFixture(name: string): string {
@@ -498,6 +499,56 @@ A
     // least one swing exists for the three-point.dgmo fixture.
     const bars = block!.querySelectorAll('rect.pert-tornado-bar');
     expect(bars.length).toBeGreaterThan(0);
+    document.body.removeChild(c);
+  });
+
+  it('tornado bars render hollow in fill-outline mode (theme-bg fill, band stroke)', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+    const src = loadFixture('three-point.dgmo').replace(
+      'time-unit d',
+      'time-unit d\nfill-outline'
+    );
+    const parsed = parsePert(src);
+    const resolved = analyzePert(parsed);
+    expect(resolved.options.fillMode).toBe('outline');
+    const layout = relayoutPert(resolved, {});
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+      showTornado: true,
+    });
+    const bars = c.querySelectorAll('rect.pert-tornado-bar');
+    expect(bars.length).toBeGreaterThan(0);
+    const base = themeBaseBg(colors, false);
+    for (const bar of bars) {
+      expect(bar.getAttribute('fill')).toBe(base);
+      const stroke = bar.getAttribute('stroke');
+      expect(stroke).toBeTruthy();
+      expect(stroke).not.toBe(base);
+    }
+    document.body.removeChild(c);
+  });
+
+  it('tornado bars keep the canonical tint fill without fill-outline', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+    const parsed = parsePert(loadFixture('three-point.dgmo'));
+    const resolved = analyzePert(parsed);
+    const layout = relayoutPert(resolved, {});
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+      showTornado: true,
+    });
+    const bars = c.querySelectorAll('rect.pert-tornado-bar');
+    expect(bars.length).toBeGreaterThan(0);
+    const base = themeBaseBg(colors, false);
+    for (const bar of bars) {
+      // Tinted, not hollow, not solid.
+      expect(bar.getAttribute('fill')).not.toBe(base);
+      expect(bar.getAttribute('fill')).not.toBe(bar.getAttribute('stroke'));
+    }
     document.body.removeChild(c);
   });
 

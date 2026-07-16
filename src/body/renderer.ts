@@ -20,7 +20,8 @@
 import * as d3Selection from 'd3-selection';
 import type { PaletteColors } from './../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
-import { getSeriesColors, mix } from '../palettes/color-utils';
+import { getSeriesColors, mix, themeBaseBg } from '../palettes/color-utils';
+import type { FillMode } from '../utils/parsing';
 import { resolveColor } from '../colors';
 import { FONT_FAMILY } from '../fonts';
 import {
@@ -115,6 +116,8 @@ function renderFigureBody(
   emphKey: (p: BodyPart) => string,
   form: ParsedBody['options']['form'],
   palette: PaletteColors,
+  isDark: boolean,
+  fillMode: FillMode | undefined,
   defs: string[]
 ): FigureRender {
   const [vx, vy, vw, vh] = fig.viewBox.split(' ').map(Number) as Box;
@@ -191,7 +194,19 @@ function renderFigureBody(
       );
       if (sidePaths.length) paths = sidePaths;
     }
-    if (form === 'skin') {
+    if (fillMode === 'solid') {
+      // §1.9 fill-solid: full-saturation region fill, coloured edge.
+      for (const d of paths) {
+        out += `<path${dataLine} d="${d}" fill="${color}" stroke="${color}" stroke-width="1.5"/>`;
+      }
+    } else if (fillMode === 'outline') {
+      // §1.9 fill-outline: the region is a clean base-bg cut-out; its colour
+      // rides on a heavier stroke alone (the only signal, so 2.5 not 1.5).
+      const baseBg = themeBaseBg(palette, isDark);
+      for (const d of paths) {
+        out += `<path${dataLine} d="${d}" fill="${baseBg}" stroke="${color}" stroke-width="2.5"/>`;
+      }
+    } else if (form === 'skin') {
       for (const d of paths) {
         out += `<path${dataLine} d="${d}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="1.5"/>`;
       }
@@ -325,6 +340,8 @@ export function renderBody(
       emphKey,
       parsed.options.form,
       palette,
+      _isDark,
+      parsed.options.fillMode,
       defs
     )
   );

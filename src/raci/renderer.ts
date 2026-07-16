@@ -663,7 +663,8 @@ export function renderRaci(
       // In-bounds: forEach index i is < rowYs.length (rowYs aligned with phasedRows).
       const yTop = rowYs[i]!;
       const rh = taskRowContent.get(row.task.id)?.rowHeight ?? sRowHeight;
-      bandsG
+      const bandAccent = autoAccent(taskIdx, palette);
+      const band = bandsG
         .append('rect')
         .attr('class', 'raci-row-band')
         .attr('data-task-id', row.task.id)
@@ -672,7 +673,14 @@ export function renderRaci(
         .attr('width', innerWidth)
         .attr('height', rh - 4)
         .attr('rx', 6)
-        .attr('fill', mix(autoAccent(taskIdx, palette), surfaceBg, 12));
+        .attr(
+          'fill',
+          fillMode === 'outline' ? surfaceBg : mix(bandAccent, surfaceBg, 12)
+        );
+      if (fillMode === 'outline') {
+        // Outline treatment: intent color moves entirely to the stroke.
+        band.attr('stroke', bandAccent).attr('stroke-width', 1);
+      }
     });
   }
 
@@ -690,13 +698,22 @@ export function renderRaci(
     // each column has a subtle visual identity instead of every column
     // reading as the same neutral gray.
     const roleColor = parsed.roleColors[i] ?? autoAccent(i, palette);
-    const bodyFill = mix(roleColor, themeBaseBg(palette, isDark), 16);
-    const headerFill = mix(roleColor, themeBaseBg(palette, isDark), 30);
+    const outline = fillMode === 'outline';
+    // Outline treatment: body + header drop their tints in favor of the
+    // theme base bg; the role color is carried entirely by the stroke. The
+    // header path keeps its flat-bottom close so the stroke doubles as a
+    // divider line between header and body.
+    const bodyFill = outline
+      ? surfaceBg
+      : mix(roleColor, themeBaseBg(palette, isDark), 16);
+    const headerFill = outline
+      ? surfaceBg
+      : mix(roleColor, themeBaseBg(palette, isDark), 30);
     const colG = columnsG
       .append('g')
       .attr('class', 'raci-column')
       .attr('data-role-id', roleId);
-    colG
+    const bodyRect = colG
       .append('rect')
       .attr('class', 'raci-column-body')
       .attr('x', cx)
@@ -705,10 +722,13 @@ export function renderRaci(
       .attr('height', colTotalHeight)
       .attr('rx', sColumnRadius)
       .attr('fill', bodyFill);
+    if (outline) {
+      bodyRect.attr('stroke', roleColor).attr('stroke-width', 1);
+    }
     // Top-rounded path (flat bottom) — matches kanban COLUMN_HEADER. The
     // header sits flush against the body content below; rounded bottoms
     // would leave a visible seam between header and the first task row.
-    colG
+    const headerPath = colG
       .append('path')
       .attr('class', 'raci-column-header')
       .attr(
@@ -716,6 +736,9 @@ export function renderRaci(
         topRoundedRectPath(cx, headerY, cw, sHeaderHeight, sColumnRadius)
       )
       .attr('fill', headerFill);
+    if (outline) {
+      headerPath.attr('stroke', roleColor).attr('stroke-width', 1);
+    }
     const cxText = roleX(i) + roleColW / 2;
     colG
       .append('text')
@@ -946,7 +969,11 @@ function renderLegend(
       // Compact: a single colored pill with just the marker letter.
       // The full label moves to a native tooltip so hover still teaches it.
       const fill =
-        fillMode === 'solid' ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
+        fillMode === 'solid'
+          ? rawColor
+          : fillMode === 'outline'
+            ? surfaceBg
+            : mix(rawColor, surfaceBg, TINT_PCT);
       const stroke =
         fillMode === 'solid' ? mix(rawColor, surfaceBg, 70) : rawColor;
       chipG
@@ -983,8 +1010,13 @@ function renderLegend(
 
     // Full mode: bordered chip with a letter slab on the left and label text.
     const fill =
-      fillMode === 'solid' ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
-    const stroke = mix(rawColor, surfaceBg, 70);
+      fillMode === 'solid'
+        ? rawColor
+        : fillMode === 'outline'
+          ? surfaceBg
+          : mix(rawColor, surfaceBg, TINT_PCT);
+    const stroke =
+      fillMode === 'outline' ? rawColor : mix(rawColor, surfaceBg, 70);
 
     chipG
       .append('rect')
@@ -1004,8 +1036,10 @@ function renderLegend(
     const slabFill =
       fillMode === 'solid'
         ? mix(rawColor, surfaceBg, 70)
-        : mix(rawColor, surfaceBg, 55);
-    chipG
+        : fillMode === 'outline'
+          ? surfaceBg
+          : mix(rawColor, surfaceBg, 55);
+    const slabRect = chipG
       .append('rect')
       .attr('x', cx + slabPad)
       .attr('y', y + slabPad)
@@ -1013,6 +1047,9 @@ function renderLegend(
       .attr('height', sLegendHeight - 2 * slabPad)
       .attr('rx', 4)
       .attr('fill', slabFill);
+    if (fillMode === 'outline') {
+      slabRect.attr('stroke', rawColor).attr('stroke-width', 1);
+    }
 
     chipG
       .append('text')
@@ -1102,15 +1139,22 @@ function renderPhaseBar(
   // Phase color rules: explicit `[Voyage] | color: blue` wins; absent
   // that, fall back to the marker-safe auto-accent so each phase bar
   // has its own identity.
-  const phaseFill = mix(phase.color ?? autoColor, palette.bg, 30);
-  phaseG
+  const phaseColor = phase.color ?? autoColor;
+  const phaseRect = phaseG
     .append('rect')
     .attr('x', x)
     .attr('y', y + 4)
     .attr('width', width)
     .attr('height', sPhaseHeight - 8)
-    .attr('fill', phaseFill)
+    .attr(
+      'fill',
+      fillMode === 'outline' ? surfaceBg : mix(phaseColor, palette.bg, 30)
+    )
     .attr('rx', 4);
+  if (fillMode === 'outline') {
+    // Outline treatment: band drops its tint; the phase color rides the stroke.
+    phaseRect.attr('stroke', phaseColor).attr('stroke-width', 1.25);
+  }
 
   const chevX = x + 12;
   const chevY = y + sPhaseHeight / 2;
@@ -1191,7 +1235,11 @@ function renderPhaseBar(
         // NODE_STROKE_WIDTH because at the smaller summary scale the
         // full 1.5 reads as too heavy.
         const fill =
-          fillMode === 'solid' ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
+          fillMode === 'solid'
+            ? rawColor
+            : fillMode === 'outline'
+              ? surfaceBg
+              : mix(rawColor, surfaceBg, TINT_PCT);
         const stroke =
           fillMode === 'solid' ? mix(rawColor, surfaceBg, 70) : rawColor;
         const chipG = phaseG.append('g').attr('class', 'raci-phase-summary');
@@ -1454,7 +1502,11 @@ function renderTaskRow(
     markers.forEach((m, i) => {
       const rawColor = markerColor(m, palette);
       const fill =
-        fillMode === 'solid' ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
+        fillMode === 'solid'
+          ? rawColor
+          : fillMode === 'outline'
+            ? surfaceBg
+            : mix(rawColor, surfaceBg, TINT_PCT);
       const stroke = rawColor;
       const sliceX = cx + i * (sliceW + SLICE_GAP);
 

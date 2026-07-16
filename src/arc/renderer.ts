@@ -15,6 +15,7 @@ import type {
   ArcNodeGroup,
 } from '../visualizations/types';
 import type { PaletteColors } from '../palettes';
+import { themeBaseBg } from '../palettes/color-utils';
 
 export function orderArcNodes(
   links: ArcLink[],
@@ -154,11 +155,16 @@ export function renderArcDiagram(
   container: HTMLDivElement,
   parsed: ParsedArc,
   palette: PaletteColors,
-  _isDark: boolean,
+  isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions
 ): void {
   const { links, orientation, arcOrder, arcNodeGroups } = parsed;
+  // §1.9 fill-outline: node dots go hollow — theme base background fill with
+  // the node's color moved onto the stroke. Arcs are strokes already; the
+  // default (tint/solid) dot treatment is untouched.
+  const outlineDots = parsed.fillMode === 'outline';
+  const hollowFill = themeBaseBg(palette, isDark);
   const title = parsed.noTitle ? null : parsed.title;
   if (links.length === 0) return;
 
@@ -485,9 +491,12 @@ export function renderArcDiagram(
         .attr('cx', baseX)
         .attr('cy', y)
         .attr('r', sNodeRadius)
-        .attr('fill', nodeColor)
-        .attr('stroke', bgColor)
-        .attr('stroke-width', sNodeStrokeWidth);
+        .attr('fill', outlineDots ? hollowFill : nodeColor)
+        .attr('stroke', outlineDots ? nodeColor : bgColor)
+        .attr(
+          'stroke-width',
+          outlineDots ? ctx.structural(2) : sNodeStrokeWidth
+        );
 
       nodeG
         .append('text')
@@ -736,9 +745,12 @@ export function renderArcDiagram(
         .attr('cx', x)
         .attr('cy', baseY)
         .attr('r', sNodeRadius)
-        .attr('fill', nodeColor)
-        .attr('stroke', bgColor)
-        .attr('stroke-width', sNodeStrokeWidth);
+        .attr('fill', outlineDots ? hollowFill : nodeColor)
+        .attr('stroke', outlineDots ? nodeColor : bgColor)
+        .attr(
+          'stroke-width',
+          outlineDots ? ctx.structural(2) : sNodeStrokeWidth
+        );
 
       const labelY = rotateLabels
         ? baseY + labelPivotGap

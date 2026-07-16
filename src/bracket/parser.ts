@@ -26,6 +26,7 @@ import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
 import {
   extractColor,
+  fillModeFromToken,
   measureIndent,
   parseFirstLine,
   splitNameAndMeta,
@@ -298,6 +299,14 @@ export function parseBracket(
     }
     if (lower === 'no-round' || lower === 'no-rounds') {
       result.noRounds = true;
+      continue;
+    }
+    // §1.9 fill family — mutually exclusive, last one wins (`fill-tint` is the
+    // explicit spelling of the default, so it clears the mode back to tint).
+    const fm = fillModeFromToken(lower);
+    if (fm !== null) {
+      if (fm === 'tint') delete result.fillMode;
+      else result.fillMode = fm;
       continue;
     }
 

@@ -316,6 +316,9 @@ export function renderSwimlaneForExport(
 
   // ── Node fill cascade ───────────────────────────────────────
   const activeTag = opts.activeTagGroup ?? null;
+  // §1.9 fill family: 'outline' drops the tint — shapes take the theme base
+  // bg and the intent color rides entirely on the stroke.
+  const outline = fillMode === 'outline';
   const nodeFill = (n: SwimLayoutNode): { fill: string; stroke: string } => {
     // 1. active tag value.
     if (activeTag) {
@@ -324,7 +327,8 @@ export function renderSwimlaneForExport(
         const c = resolveTagColor(n.tags, [...parsed.tagGroups], activeTag);
         if (c && c !== '#999999')
           return {
-            fill: fillMode === 'solid' ? c : mix(c, baseBg, 22),
+            fill:
+              fillMode === 'solid' ? c : outline ? baseBg : mix(c, baseBg, 22),
             stroke: c,
           };
       }
@@ -333,16 +337,29 @@ export function renderSwimlaneForExport(
     if (n.shape === 'terminal') {
       if (n.event === 'error')
         return {
-          fill: fillMode === 'solid' ? ev.error : mix(ev.error, baseBg, 22),
+          fill:
+            fillMode === 'solid'
+              ? ev.error
+              : outline
+                ? baseBg
+                : mix(ev.error, baseBg, 22),
           stroke: ev.error,
         };
       if (n.event === 'success')
         return {
-          fill: fillMode === 'solid' ? ev.success : mix(ev.success, baseBg, 22),
+          fill:
+            fillMode === 'solid'
+              ? ev.success
+              : outline
+                ? baseBg
+                : mix(ev.success, baseBg, 22),
           stroke: ev.success,
         };
       if (n.event === 'terminate')
-        return { fill: mix(palette.text, baseBg, 30), stroke: palette.text };
+        return {
+          fill: outline ? baseBg : mix(palette.text, baseBg, 30),
+          stroke: palette.text,
+        };
       return { fill: palette.bg, stroke: palette.textMuted };
     }
     if (n.shape === 'exclusive' || n.shape === 'parallel') {
@@ -355,8 +372,9 @@ export function renderSwimlaneForExport(
     // 3. lane shade.
     const hex = laneColorById.get(n.lane) ?? palette.border;
     return {
-      fill: fillMode === 'solid' ? hex : mix(hex, baseBg, 20),
-      stroke: mix(hex, palette.text, 40),
+      fill:
+        fillMode === 'solid' ? hex : outline ? baseBg : mix(hex, baseBg, 20),
+      stroke: outline ? hex : mix(hex, palette.text, 40),
     };
   };
 

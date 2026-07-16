@@ -6,9 +6,11 @@
 // circular preset — it is treated as an unknown/removed type like any other.
 
 import { describe, it, expect } from 'vitest';
-import { renderForExport } from '../src/d3';
+import { renderForExport, resolveArcChordOverride } from '../src/d3';
 import { render } from '../src/render';
 import { parseDgmoChartType, getRenderCategory } from '../src/dgmo-router';
+import { getPalette } from '../src/palettes';
+import { themeBaseBg, mix } from '../src/palettes/color-utils';
 
 /** Distinct rounded circle-cy values: 1 ⇒ nodes share a baseline (arc/linear),
  *  >1 ⇒ nodes are spread around a circle (chord/circular). */
@@ -51,5 +53,69 @@ describe('arc circular layout override (#26 / #29)', () => {
     // exactly as `doughnut`/`area` do — it is never the chord preset.)
     expect(parseDgmoChartType(`chord D\n${EDGES}`)).not.toBe('chord');
     expect(getRenderCategory('chord')).toBeNull();
+  });
+});
+
+// §1.9 fill family on the circular layout: `fill-outline` hollows the node
+// dots (theme base background fill, the node's color on the stroke); the
+// curved edges are stroke-drawn already, so they are untouched in every mode.
+describe('fill family through `layout chord` (§1.9)', () => {
+  const palette = getPalette('slate').light;
+  const bg = themeBaseBg(palette, false);
+
+  /** fill/stroke pairs of every rendered <circle> (chord draws one per node). */
+  function circleFillStroke(svg: string): { fill: string; stroke: string }[] {
+    return [
+      ...svg.matchAll(/<circle[^>]*fill="([^"]+)"[^>]*stroke="([^"]+)"/g),
+    ].map((m) => ({ fill: m[1]!, stroke: m[2]! }));
+  }
+
+  it('the layout re-emit carries the authored fill token', () => {
+    const o = resolveArcChordOverride(
+      `arc D\nlayout chord\nfill-outline\n${EDGES}`,
+      'arc'
+    );
+    expect(o?.type).toBe('chord');
+    expect(o?.content).toContain('fill-outline');
+  });
+
+  it('fill-outline renders hollow node dots: theme bg fill, color on the stroke', async () => {
+    const svg = await renderForExport(
+      `arc D\nlayout chord\nfill-outline\n${EDGES}`,
+      'light',
+      palette
+    );
+    const dots = circleFillStroke(svg);
+    expect(dots.length).toBe(3);
+    for (const dot of dots) {
+      expect(dot.fill).toBe(bg);
+      expect(dot.stroke).not.toBe(bg);
+    }
+  });
+
+  it('default chord dots keep the muted 25% tint (unchanged)', async () => {
+    const svg = await renderForExport(
+      `arc D\nlayout chord\n${EDGES}`,
+      'light',
+      palette
+    );
+    const dots = circleFillStroke(svg);
+    expect(dots.length).toBe(3);
+    for (const dot of dots) {
+      expect(dot.fill).toBe(mix(dot.stroke, bg, 25));
+    }
+  });
+
+  it('fill-solid chord dots take the raw stroke color (unchanged)', async () => {
+    const svg = await renderForExport(
+      `arc D\nlayout chord\nfill-solid\n${EDGES}`,
+      'light',
+      palette
+    );
+    const dots = circleFillStroke(svg);
+    expect(dots.length).toBe(3);
+    for (const dot of dots) {
+      expect(dot.fill).toBe(dot.stroke);
+    }
   });
 });

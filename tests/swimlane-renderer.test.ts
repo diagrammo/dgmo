@@ -5,6 +5,7 @@ import { parseSwimlane } from '../src/swimlane/parser';
 import { layoutSwimlane } from '../src/swimlane/layout';
 import { renderSwimlaneForExport } from '../src/swimlane/renderer';
 import { getPalette } from '../src/palettes';
+import { mix, themeBaseBg } from '../src/palettes/color-utils';
 import { renderForExport } from '../src/d3';
 
 const FIX = (name: string): string =>
@@ -91,6 +92,78 @@ describe('swimlane renderer — snapshots', () => {
   });
   it('onboarding (TB transpose)', () => {
     expect(render('swimlane-tb.dgmo').outerHTML).toMatchSnapshot();
+  });
+});
+
+describe('swimlane renderer — fill-outline (§1.9)', () => {
+  const SRC = (directive: string): string => `swimlane Voyage
+direction LR
+${directive}
+[Prep]
+  lane Crew blue
+    Chart Course -> Rig Sails
+[Sail]
+  lane Crew blue
+    Rig Sails -> (Underway) success
+  lane Port red
+    (!Aground)`;
+
+  function renderSrc(src: string): SVGSVGElement {
+    const palette = getPalette('nord').light;
+    const parsed = parseSwimlane(src, palette);
+    const layout = layoutSwimlane(parsed);
+    const el = document.createElement('div');
+    renderSwimlaneForExport(el, parsed, layout, palette, false, {
+      exportDims: { width: layout.width + 40, height: layout.height + 80 },
+      activeTagGroup: null,
+    });
+    return el.querySelector('svg')!;
+  }
+
+  const palette = getPalette('nord').light;
+  const baseBg = themeBaseBg(palette, false);
+
+  it('task rects take the theme base bg with the raw lane color as stroke', () => {
+    const svg = renderSrc(SRC('fill-outline'));
+    const rects = [
+      ...svg.querySelectorAll('.dgmo-swimlane-nodes .sw-node > rect'),
+    ];
+    expect(rects.length).toBeGreaterThan(0);
+    for (const r of rects) {
+      expect(r.getAttribute('fill')).toBe(baseBg);
+      expect(r.getAttribute('stroke')).toBe(palette.colors.blue);
+    }
+  });
+
+  it('event terminals honor outline (success circle = bg fill, green stroke)', () => {
+    const svg = renderSrc(SRC('fill-outline'));
+    const circles = [
+      ...svg.querySelectorAll('.dgmo-swimlane-nodes circle'),
+    ].filter((c) => c.getAttribute('stroke') === palette.colors.green);
+    expect(circles.length).toBeGreaterThan(0);
+    // Outer success ring is bg-filled; inner decoration ring is fill=none.
+    expect(circles.some((c) => c.getAttribute('fill') === baseBg)).toBe(true);
+    const errCircle = [
+      ...svg.querySelectorAll('.dgmo-swimlane-nodes circle'),
+    ].find((c) => c.getAttribute('stroke') === palette.colors.red)!;
+    expect(errCircle.getAttribute('fill')).toBe(baseBg);
+  });
+
+  it('lane background bands deliberately keep their structural tint', () => {
+    const svg = renderSrc(SRC('fill-outline'));
+    const band = svg.querySelector('.dgmo-swimlane-lanes path')!;
+    expect(band.getAttribute('fill')).toBe(mix(palette.colors.blue, baseBg, 9));
+  });
+
+  it('default (tint) node fills are unchanged by the outline support', () => {
+    const svg = renderSrc(SRC(''));
+    const rect = svg.querySelector('.dgmo-swimlane-nodes .sw-node > rect')!;
+    expect(rect.getAttribute('fill')).toBe(
+      mix(palette.colors.blue, baseBg, 20)
+    );
+    expect(rect.getAttribute('stroke')).toBe(
+      mix(palette.colors.blue, palette.text, 40)
+    );
   });
 });
 

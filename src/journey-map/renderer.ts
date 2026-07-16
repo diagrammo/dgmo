@@ -3,7 +3,12 @@ import { fillModeFromOptions } from '../utils/parsing';
 import * as d3 from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  shapeFill,
+  themeBaseBg,
+} from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
 import { parseJourneyMap } from './parser';
 import {
@@ -267,7 +272,16 @@ export function renderJourneyMap(
     const silX = panelX + panelWidth - 32;
     const silY = panelY + panelHeight / 2 - 6;
     const silClip = personaG.append('g').attr('clip-path', `url(#${clipId})`);
-    renderPersonaSilhouette(silClip, silX, silY, personaColor, palette, 1.2);
+    renderPersonaSilhouette(
+      silClip,
+      silX,
+      silY,
+      personaColor,
+      palette,
+      isDark,
+      1.2,
+      fillMode
+    );
 
     // Card border (drawn on top so outline is clean all around)
     personaG
@@ -484,10 +498,19 @@ export function renderJourneyMap(
       .y1((d) => d.y)
       .curve(d3Shape.curveMonotoneX);
 
+    // fill-outline drops the green→red gradient band to the theme base
+    // background — the 2.5px primary curve stroke alone carries the shape.
+    // Tint + solid keep the gradient (solid saturation on a broad band
+    // would drown the plot, so only outline diverges).
     curveG
       .append('path')
       .attr('d', areaGen(extendedPoints) ?? '')
-      .attr('fill', 'url(#journey-curve-gradient)')
+      .attr(
+        'fill',
+        fillMode === 'outline'
+          ? themeBaseBg(palette, isDark)
+          : 'url(#journey-curve-gradient)'
+      )
       .attr('stroke', 'none');
 
     // Frame the filled area on three sides (left, bottom, right) — the curve
@@ -536,7 +559,9 @@ export function renderJourneyMap(
         pt.y,
         pt.score,
         palette,
-        isDark
+        isDark,
+        undefined,
+        fillMode
       );
       addEmotionLabel(faceG, pt, palette);
       if (step) {
@@ -575,7 +600,9 @@ export function renderJourneyMap(
       pt.y,
       pt.score,
       palette,
-      isDark
+      isDark,
+      undefined,
+      fillMode
     );
     addEmotionLabel(faceG, pt, palette);
     if (step) {
@@ -751,7 +778,8 @@ export function renderJourneyMap(
               step.score,
               palette,
               isDark,
-              COLLAPSED_FACE_R
+              COLLAPSED_FACE_R,
+              fillMode
             );
             faceG.attr('data-line-number', step.lineNumber);
             faceG.attr('data-score', step.score);
@@ -1286,10 +1314,19 @@ function renderPersonaSilhouette(
   cy: number,
   color: string,
   palette: PaletteColors,
-  scale = 1
+  isDark: boolean,
+  scale = 1,
+  fillMode?: 'solid' | 'outline'
 ): void {
-  // Solid color border, muted fill that stands out slightly from card bg
-  const fill = mix(color, palette.bg, 70);
+  // Solid color border, muted fill that stands out slightly from card bg.
+  // fill-outline hollows the figure to the theme base background so the
+  // colored stroke alone draws it (tint + solid keep the 70% mix — the
+  // silhouette is decorative and reads better with body than at full
+  // saturation).
+  const fill =
+    fillMode === 'outline'
+      ? themeBaseBg(palette, isDark)
+      : mix(color, palette.bg, 70);
   const stroke = color;
   const s = scale;
 
@@ -1341,7 +1378,8 @@ function renderScoreFace(
   score: number,
   palette: PaletteColors,
   isDark: boolean,
-  radius?: number
+  radius?: number,
+  fillMode?: 'solid' | 'outline'
 ): d3.Selection<SVGGElement, unknown, null, undefined> {
   const r = radius ?? FACE_RADIUS;
   const color = scoreToColor(score, palette);
@@ -1358,8 +1396,14 @@ function renderScoreFace(
 
   // Face: a solid colored ring over the canonical tinted fill (the same
   // shapeFill() tint used for unsolid shapes elsewhere), with the eyes and
-  // mouth drawn in the full score color.
-  const faceFill = shapeFill(palette, color, isDark);
+  // mouth drawn in the full score color. fill-outline hollows the disc
+  // (theme-bg fill) so the ring + features alone carry the score color;
+  // solid keeps the tint — a fully saturated disc would swallow the
+  // same-color eyes/mouth.
+  const faceFill =
+    fillMode === 'outline'
+      ? shapeFill(palette, color, isDark, { mode: 'outline' })
+      : shapeFill(palette, color, isDark);
 
   // Thin bg halo so the colored ring reads crisply where it crosses the line.
   iconG

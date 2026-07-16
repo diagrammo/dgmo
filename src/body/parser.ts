@@ -23,7 +23,12 @@ import {
   AUTO_TAG_COLOR_SENTINEL,
   tagAttrKey,
 } from '../utils/tag-groups';
-import { measureIndent, extractColor, parseFirstLine } from '../utils/parsing';
+import {
+  measureIndent,
+  extractColor,
+  fillModeFromToken,
+  parseFirstLine,
+} from '../utils/parsing';
 import { BODY_DX } from './diagnostics';
 import { BODY_TERMS, getFigure, resolvePartKey } from './catalog';
 import type { BodyOptions, BodyPart, BodyView, ParsedBody } from './types';
@@ -119,6 +124,15 @@ export function parseBody(
       }
       if (/^no-title$/i.test(trimmed)) {
         options.noTitle = true;
+        continue;
+      }
+      // §1.9 fill family — mutually exclusive, last one wins (`fill-tint` is
+      // the explicit spelling of the default, so it clears the mode).
+      const fm = fillModeFromToken(trimmed);
+      if (fm !== null) {
+        if (fm === 'tint') delete options.fillMode;
+        else options.fillMode = fm;
+        currentTagGroup = null;
         continue;
       }
     }

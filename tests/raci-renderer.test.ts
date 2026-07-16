@@ -3,6 +3,7 @@ import { JSDOM } from 'jsdom';
 import { parseRaci } from '../src/raci/parser';
 import { renderRaci } from '../src/raci/renderer';
 import { getPalette } from '../src/palettes';
+import { mix, themeBaseBg } from '../src/palettes/color-utils';
 
 beforeAll(() => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
@@ -233,6 +234,110 @@ Task
       .map((el) => el.getAttribute('data-marker'))
       .sort();
     expect(markers).toEqual(['A', 'R']);
+  });
+
+  it('fill-outline: every intent-colored surface takes the theme base bg', () => {
+    const baseBg = themeBaseBg(palette, false);
+    const c = render(`raci
+fill-outline
+
+[Voyage]
+  Task A
+    Cap: A R
+    Crew: I`);
+
+    // Marker slices: fill = base bg, stroke = raw marker color.
+    const rSlice = c.querySelector('.raci-marker-slice[data-marker="R"]')!;
+    const rRect = rSlice.querySelector('rect')!;
+    expect(rRect.getAttribute('fill')).toBe(baseBg);
+    expect(rRect.getAttribute('stroke')).toBe(palette.colors.green);
+    // Slice text keeps readable palette ink.
+    expect(rSlice.querySelector('text')!.getAttribute('fill')).toBe(
+      palette.text
+    );
+
+    // Role columns: body + header drop their tints; role color on the stroke.
+    const body = c.querySelector('.raci-column-body')!;
+    expect(body.getAttribute('fill')).toBe(baseBg);
+    expect(body.getAttribute('stroke')).toBe(palette.colors.blue);
+    const header = c.querySelector('.raci-column-header')!;
+    expect(header.getAttribute('fill')).toBe(baseBg);
+    expect(header.getAttribute('stroke')).toBe(palette.colors.blue);
+
+    // Phase band: bg fill + colored stroke.
+    const phaseRect = c.querySelector('.raci-phase rect')!;
+    expect(phaseRect.getAttribute('fill')).toBe(baseBg);
+    expect(phaseRect.getAttribute('stroke')).toBe(palette.colors.blue);
+
+    // Legend chips: chip + letter slab both drop their tints.
+    for (const rect of c.querySelectorAll('.raci-legend-chip rect')) {
+      expect(rect.getAttribute('fill')).toBe(baseBg);
+      expect(rect.getAttribute('stroke')).toBeTruthy();
+    }
+  });
+
+  it('fill-outline: no-phase row bands drop the accent tint', () => {
+    const baseBg = themeBaseBg(palette, false);
+    const c = render(`raci
+fill-outline
+
+Task
+  Cap: A`);
+    const band = c.querySelector('.raci-row-band')!;
+    expect(band.getAttribute('fill')).toBe(baseBg);
+    expect(band.getAttribute('stroke')).toBe(palette.colors.blue);
+  });
+
+  it('fill-outline: collapsed-phase summary chips honor outline', () => {
+    const baseBg = themeBaseBg(palette, false);
+    const parsed = parseRaci(
+      `raci
+fill-outline
+
+[Voyage]
+  Task A
+    Cap: A`,
+      palette
+    );
+    const container = document.createElement('div');
+    renderRaci(
+      container,
+      parsed,
+      palette,
+      false,
+      { collapsedPhases: new Set([parsed.phases[0]!.id]) },
+      { width: 1200, height: 600 }
+    );
+    const chip = container.querySelector('.raci-phase-summary rect')!;
+    expect(chip.getAttribute('fill')).toBe(baseBg);
+    expect(chip.getAttribute('stroke')).toBe(palette.colors.red); // A = red
+  });
+
+  it('fill-outline: dark theme uses the surface base bg', () => {
+    const dark = getPalette('nord').dark;
+    const parsed = parseRaci(`raci\nfill-outline\n\nTask\n  Cap: A`, dark);
+    const container = document.createElement('div');
+    renderRaci(container, parsed, dark, true, undefined, {
+      width: 1200,
+      height: 600,
+    });
+    const rect = container.querySelector('.raci-marker-slice rect')!;
+    expect(rect.getAttribute('fill')).toBe(themeBaseBg(dark, true));
+    expect(rect.getAttribute('fill')).toBe(dark.surface);
+  });
+
+  it('default (tint) rendering is unchanged by the outline support', () => {
+    const baseBg = themeBaseBg(palette, false);
+    const c = render(`raci\n\nTask\n  Cap: R`);
+    const rect = c.querySelector('.raci-marker-slice[data-marker="R"] rect')!;
+    expect(rect.getAttribute('fill')).toBe(
+      mix(palette.colors.green, baseBg, 25)
+    );
+    const band = c.querySelector('.raci-row-band')!;
+    expect(band.getAttribute('fill')).toBe(
+      mix(palette.colors.blue, baseBg, 12)
+    );
+    expect(band.getAttribute('stroke')).toBeNull();
   });
 
   it('DACI legend uses Driver/Approver/Contributor/Informed labels', () => {

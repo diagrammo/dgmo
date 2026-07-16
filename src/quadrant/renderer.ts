@@ -532,13 +532,15 @@ export function renderQuadrant(
         .attr('opacity', 0.5);
     }
 
-    // Circle with white fill and colored border for visibility on opaque quadrants
+    // Circle with white fill and colored border for visibility on opaque
+    // quadrants. §1.9 fill-outline hollows the dot: theme base background
+    // fill so only the colored ring reads (stroke already carries the color).
     pointG
       .append('circle')
       .attr('cx', cx)
       .attr('cy', cy)
       .attr('r', POINT_RADIUS)
-      .attr('fill', '#ffffff')
+      .attr('fill', parsed.fillMode === 'outline' ? bg : '#ffffff')
       .attr('stroke', pointColor)
       .attr('stroke-width', ctx.structural(2));
 

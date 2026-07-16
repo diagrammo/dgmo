@@ -12,6 +12,7 @@
 // back to the single available figure and flags unsupported combinations.
 
 import type { DgmoError } from '../diagnostics';
+import type { FillMode } from '../utils/parsing';
 import type { TagGroup } from '../utils/tag-groups';
 
 /** A named part annotation (`chest e: Primary` + bare-body notes). */
@@ -47,6 +48,8 @@ export interface BodyOptions {
   readonly noLegend: boolean;
   /** True when `no-title` — hide the diagram title. */
   readonly noTitle: boolean;
+  /** §1.9 fill family (`fill-solid` / `fill-outline`); absent ⇒ default fill. */
+  readonly fillMode?: FillMode;
 }
 
 export interface ParsedBody {

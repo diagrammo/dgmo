@@ -28,7 +28,11 @@
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, makeFail } from '../diagnostics';
 import type { Writable } from '../utils/brand';
-import { extractColor, parseFirstLine } from '../utils/parsing';
+import {
+  extractColor,
+  fillModeFromToken,
+  parseFirstLine,
+} from '../utils/parsing';
 import type {
   ClockColorBy,
   ClockEntry,
@@ -49,6 +53,9 @@ const DIRECTIVES = new Set([
   'no-title',
   'direction',
   'color-by',
+  'fill-tint',
+  'fill-solid',
+  'fill-outline',
 ]);
 
 /** `Intl` short weekday abbreviations, Sun-first (matches `zoneParts`). */
@@ -265,6 +272,16 @@ export function parseClock(
         case 'no-title':
           result.noTitle = true;
           break;
+        case 'fill-tint':
+        case 'fill-solid':
+        case 'fill-outline': {
+          // §1.9 fill family — mutually exclusive, last one wins; `fill-tint`
+          // is the explicit spelling of the default (clears the mode).
+          const fm = fillModeFromToken(key);
+          if (fm === 'solid' || fm === 'outline') result.fillMode = fm;
+          else delete result.fillMode;
+          break;
+        }
         case 'color-by': {
           const v = rest.trim().toLowerCase();
           const modes = ['place', 'work', 'daylight', 'time', 'none'];

@@ -25,8 +25,11 @@ export function renderChord(
 ): void {
   const links = chart.links ?? [];
   if (links.length === 0) return;
-  // Ribbons ARE the data surface — fill-outline ignored (§1.9).
-  const fillMode = chart.fillMode === 'solid' ? ('solid' as const) : undefined;
+  // §1.9 fill family — honored in full (decision override): `fill-outline`
+  // hollows the node dots (theme base background fill, color on the stroke via
+  // shapeFill); the curved edges are stroke-drawn (fill:none) so they already
+  // read as outlines in every mode. Tint/solid unchanged.
+  const fillMode = chart.fillMode;
 
   const names = Array.from(new Set(links.flatMap((l) => [l.source, l.target])));
   const n = names.length;

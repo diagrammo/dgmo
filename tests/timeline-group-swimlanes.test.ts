@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { getPalette } from '../src/palettes';
+import { mix, themeBaseBg } from '../src/palettes/color-utils';
 import { parseVisualization, renderTimeline } from '../src/d3';
 
 beforeAll(() => {
@@ -265,5 +266,79 @@ describe('timeline group collapse', () => {
     expect(summaryRect).not.toBeNull();
     const width = parseFloat(summaryRect!.getAttribute('width') ?? '0');
     expect(width).toBeGreaterThanOrEqual(20);
+  });
+
+  it('fill-outline: bars, points, header bands, eras and markers all take the theme base bg', () => {
+    const baseBg = themeBaseBg(palette, false);
+    const container = renderToContainer(`timeline
+fill-outline
+era 2024-01 -> 2024-06 Era One
+marker 2024-03 Midpoint
+[Alpha]
+  2024-01 -> 2024-03 Task A
+  2024-05 Point B
+[Beta]
+  2024-02 -> 2024-05? Task C`);
+
+    // Range bars: base-bg fill, color on the stroke (uncertain bars use a
+    // gradient url fill — asserted separately below).
+    const barRects = [...container.querySelectorAll('.tl-event rect')].filter(
+      (r) => !(r.getAttribute('fill') ?? '').startsWith('url(')
+    );
+    expect(barRects.length).toBeGreaterThan(0);
+    for (const r of barRects) {
+      expect(r.getAttribute('fill')).toBe(baseBg);
+      expect(r.getAttribute('stroke')).toBeTruthy();
+    }
+
+    // Point events: hollow circles.
+    const point = container.querySelector('.tl-event circle')!;
+    expect(point.getAttribute('fill')).toBe(baseBg);
+    expect(point.getAttribute('stroke')).toBeTruthy();
+
+    // Group header label bands.
+    const headerBands = container.querySelectorAll('.tl-group-header-bg');
+    expect(headerBands.length).toBeGreaterThan(0);
+    for (const band of headerBands) {
+      expect(band.getAttribute('fill')).toBe(baseBg);
+    }
+
+    // Era band: wash dropped in favor of bg fill + colored stroke.
+    const eraRect = container.querySelector('.tl-era rect')!;
+    expect(eraRect.getAttribute('fill')).toBe(baseBg);
+    expect(eraRect.getAttribute('stroke')).toBeTruthy();
+
+    // Milestone marker diamond: hollow.
+    const diamond = container.querySelector('.tl-marker path')!;
+    expect(diamond.getAttribute('fill')).toBe(baseBg);
+    expect(diamond.getAttribute('stroke')).toBeTruthy();
+
+    // Uncertain bar: fill gradient fades from the base bg (not a tint).
+    // Query by element to dodge jsdom attribute-selector quirks.
+    const fillGrads = [...container.querySelectorAll('linearGradient')].filter(
+      (g) => g.id.startsWith('uncertain-') && !g.id.includes('-s-')
+    );
+    expect(fillGrads.length).toBeGreaterThan(0);
+    for (const grad of fillGrads) {
+      const stops = grad.querySelectorAll('stop');
+      expect(stops.length).toBeGreaterThan(0);
+      for (const stop of stops) {
+        expect(stop.getAttribute('stop-color')).toBe(baseBg);
+      }
+    }
+  });
+
+  it('default (tint) rendering is unchanged by the outline support', () => {
+    const baseBg = themeBaseBg(palette, false);
+    const container = renderToContainer(GROUPED_SRC);
+    const rect = container.querySelector('.tl-event rect')!;
+    // Canonical 25% tint of the event color against the base bg.
+    const fill = rect.getAttribute('fill')!;
+    expect(fill).not.toBe(baseBg);
+    const stroke = rect.getAttribute('stroke');
+    // Tinted bar fill must be the 25% mix of its stroke color.
+    if (stroke && stroke.startsWith('#')) {
+      expect(fill).toBe(mix(stroke, baseBg, 25));
+    }
   });
 });

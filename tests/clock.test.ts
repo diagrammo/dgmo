@@ -17,6 +17,7 @@ import {
 import { resolvePlace, searchZones } from '../src/clock/gazetteer';
 import { coordsFor } from '../src/clock/zone-coords';
 import { getPalette } from '../src/palettes';
+import { contrastText, themeBaseBg } from '../src/palettes/color-utils';
 import { getRenderCategory } from '../src/dgmo-router';
 
 // Determinism: the suite assumes TZ=UTC (set by the package test script / CI).
@@ -797,5 +798,122 @@ describe('clock renderer — color-by', () => {
     expect(second.getAttribute('stroke')).not.toBe(dayC);
     const ring = row.querySelector('[data-dgmo-clock-facering]')!;
     expect(ring.getAttribute('stroke')).toBe(solid);
+  });
+});
+
+// ============================================================
+// §1.9 fill family (fill-tint / fill-solid / fill-outline)
+// ============================================================
+
+describe('clock parser — §1.9 fill family', () => {
+  it('defaults to no fillMode (canonical tint)', () => {
+    expect(parseClock('clock T\nLondon').fillMode).toBeUndefined();
+  });
+
+  it('parses the tokens as board directives, not place rows', () => {
+    const r = parseClock('clock T\nfill-outline\nLondon');
+    expect(r.fillMode).toBe('outline');
+    expect(r.entries).toHaveLength(1);
+    expect(r.diagnostics).toHaveLength(0); // no "Unknown place" warning
+    expect(parseClock('clock T\nfill-solid\nLondon').fillMode).toBe('solid');
+  });
+
+  it('is mutually exclusive, last one wins; fill-tint resets', () => {
+    expect(
+      parseClock('clock T\nfill-solid\nfill-outline\nLondon').fillMode
+    ).toBe('outline');
+    expect(
+      parseClock('clock T\nfill-outline\nfill-tint\nLondon').fillMode
+    ).toBeUndefined();
+  });
+});
+
+describe('clock renderer — §1.9 fill family', () => {
+  const baseBg = themeBaseBg(nordLight, false);
+
+  it('fill-outline empties the card, lane wash, and dial face to the base bg; the color stays on the ring', () => {
+    const c = renderAt(
+      'clock World\nanalog\nfill-outline\nLondon as UK',
+      FIXED_ISO
+    );
+    const card = c.querySelectorAll('svg > rect')[1]!; // [0] = page bg
+    expect(card.getAttribute('fill')).toBe(baseBg);
+    const row = c.querySelector('[data-dgmo-clock]')!;
+    const solid = row.getAttribute('data-dgmo-clock-auto-solid')!;
+    expect(
+      row.querySelector('[data-dgmo-clock-lane]')!.getAttribute('fill')
+    ).toBe(baseBg);
+    expect(
+      row.querySelector('[data-dgmo-clock-facebg]')!.getAttribute('fill')
+    ).toBe(baseBg);
+    expect(
+      row.querySelector('[data-dgmo-clock-facering]')!.getAttribute('stroke')
+    ).toBe(solid);
+  });
+
+  it('fill-outline survives a live tick (no revert to the tint wash)', () => {
+    const c = renderAt(
+      'clock Desks\nanalog\nfill-outline\nLondon as UK',
+      FIXED_ISO
+    );
+    tickClocks(c);
+    const row = c.querySelector('[data-dgmo-clock]')!;
+    expect(
+      row.querySelector('[data-dgmo-clock-facebg]')!.getAttribute('fill')
+    ).toBe(baseBg);
+    expect(
+      row.querySelector('[data-dgmo-clock-lane]')!.getAttribute('fill')
+    ).toBe(baseBg);
+  });
+
+  it('fill-solid saturates the dial face and swaps the hands to contrast ink', () => {
+    const c = renderAt(
+      'clock Desks\nanalog\nfill-solid\nLondon as UK',
+      FIXED_ISO
+    );
+    const row = c.querySelector('[data-dgmo-clock]')!;
+    const solid = row.getAttribute('data-dgmo-clock-auto-solid')!;
+    const ink = contrastText(
+      solid,
+      nordLight.textOnFillLight,
+      nordLight.textOnFillDark
+    );
+    expect(
+      row.querySelector('[data-dgmo-clock-facebg]')!.getAttribute('fill')
+    ).toBe(solid);
+    expect(
+      row.querySelector('[data-dgmo-clock-hand="h"]')!.getAttribute('stroke')
+    ).toBe(ink);
+    expect(
+      row.querySelector('[data-dgmo-clock-hand="s"]')!.getAttribute('stroke')
+    ).toBe(ink);
+  });
+
+  it('columns mode honors fill-outline on every lane', () => {
+    const c = renderAt(
+      'clock W\ndirection lr\nfill-outline\nLondon as UK\nTokyo as JP',
+      FIXED_ISO
+    );
+    const lanes = c.querySelectorAll('[data-dgmo-clock-lane]');
+    expect(lanes).toHaveLength(2);
+    for (const l of lanes) expect(l.getAttribute('fill')).toBe(baseBg);
+  });
+
+  it('state-encoding fills are exempt: daylight lane/face tints and the status dot keep their fills', () => {
+    const c = renderAt(
+      'clock Team\nanalog\ncolor-by daylight\nhours 9-17\nfill-outline\nLondon as UK',
+      FIXED_ISO
+    );
+    const row = c.querySelector('[data-dgmo-clock]')!;
+    // 16:30 BST → daytime, in-hours: lane + face keep the day tint, dot stays ok.
+    expect(
+      row.querySelector('[data-dgmo-clock-lane]')!.getAttribute('fill')
+    ).toBe(row.getAttribute('data-dgmo-clock-c-day-soft'));
+    expect(
+      row.querySelector('[data-dgmo-clock-facebg]')!.getAttribute('fill')
+    ).not.toBe(baseBg);
+    expect(
+      row.querySelector('[data-dgmo-clock-status-icon]')!.getAttribute('fill')
+    ).toBe(row.getAttribute('data-dgmo-clock-c-ok'));
   });
 });

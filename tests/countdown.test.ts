@@ -14,6 +14,7 @@ import {
 } from '../src/countdown/resolve';
 import { render } from '../src/render';
 import { getPalette } from '../src/palettes';
+import { contrastText, mix, themeBaseBg } from '../src/palettes/color-utils';
 import { getRenderCategory } from '../src/dgmo-router';
 
 // Determinism: the suite assumes TZ=UTC (set by the package test script / CI),
@@ -936,5 +937,116 @@ describe('countdown parser — liberal date input', () => {
     const r = parseCountdown(`countdown Launch\ntarget now`);
     expect(r.error).toBeNull();
     expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+});
+
+// ============================================================
+// §1.9 fill family (fill-tint / fill-solid / fill-outline) — §36.6
+// ============================================================
+
+describe('countdown parser — §1.9 fill family', () => {
+  it('defaults to no fillMode; parses solid/outline; last one wins; fill-tint resets', () => {
+    const base = 'countdown T\ntarget 2026-08-21';
+    expect(parseCountdown(base).fillMode).toBeUndefined();
+    expect(parseCountdown(`${base}\nfill-solid`).fillMode).toBe('solid');
+    expect(parseCountdown(`${base}\nfill-outline`).fillMode).toBe('outline');
+    expect(parseCountdown(`${base}\nfill-solid\nfill-outline`).fillMode).toBe(
+      'outline'
+    );
+    expect(
+      parseCountdown(`${base}\nfill-outline\nfill-tint`).fillMode
+    ).toBeUndefined();
+  });
+
+  it('the tokens are recognized directives (no "Unrecognized line" warning)', () => {
+    const r = parseCountdown('countdown T\ntarget 2026-08-21\nfill-outline');
+    expect(r.diagnostics).toHaveLength(0);
+  });
+});
+
+describe('countdown renderer — §1.9 fill family', () => {
+  const baseBg = themeBaseBg(nordLight, false);
+  const red = nordLight.colors.red!; // the default accent = the event chip
+  const blue = nordLight.colors.blue!; // the fixed `now` anchor
+  const NOW = '2026-07-10T00:00:00Z';
+  const SRC = 'countdown Launch\ntarget 2026-07-18'; // 8 days → weekstrip tier
+
+  const rects = (c: HTMLElement): Element[] =>
+    Array.from(c.querySelectorAll('rect'));
+
+  it('fill-outline: anchor chips fill with the base bg, color moves to the stroke', () => {
+    const c = renderAt(`${SRC}\nfill-outline`, NOW);
+    expect(
+      rects(c).some(
+        (r) =>
+          r.getAttribute('fill') === baseBg && r.getAttribute('stroke') === red
+      )
+    ).toBe(true); // the event chip
+    expect(
+      rects(c).some(
+        (r) =>
+          r.getAttribute('fill') === baseBg && r.getAttribute('stroke') === blue
+      )
+    ).toBe(true); // the today chip
+    // Cell text takes the chip color (readable on the empty fill).
+    const todayTag = Array.from(c.querySelectorAll('text')).find(
+      (t) => t.textContent === 'TODAY'
+    )!;
+    expect(todayTag.getAttribute('fill')).toBe(blue);
+  });
+
+  it('fill-outline: the inert gray padding cells stay gray', () => {
+    // 3-day span → weekstrip pads with context cells on either side.
+    const c = renderAt('countdown Gig\ntarget 2026-07-13\nfill-outline', NOW);
+    const inert = mix(nordLight.text, nordLight.bg, 7);
+    expect(rects(c).some((r) => r.getAttribute('fill') === inert)).toBe(true);
+  });
+
+  it('fill-solid: chips stay full-saturation with contrast-aware text', () => {
+    const c = renderAt(`${SRC}\nfill-solid`, NOW);
+    const evChip = rects(c).find(
+      (r) => r.getAttribute('fill') === red && r.getAttribute('stroke') === red
+    );
+    expect(evChip).toBeTruthy();
+    const ink = contrastText(
+      red,
+      nordLight.textOnFillLight,
+      nordLight.textOnFillDark
+    );
+    expect(
+      Array.from(c.querySelectorAll('text')).some(
+        (t) => t.getAttribute('fill') === ink
+      )
+    ).toBe(true);
+  });
+
+  it('default (no token) keeps the legacy saturated chips (byte-identical)', () => {
+    const c = renderAt(SRC, NOW);
+    // No outline-style chip exists: nothing fills base-bg with a colored stroke.
+    expect(
+      rects(c).some(
+        (r) =>
+          r.getAttribute('fill') === baseBg &&
+          (r.getAttribute('stroke') === red ||
+            r.getAttribute('stroke') === blue)
+      )
+    ).toBe(false);
+    expect(
+      rects(c).some(
+        (r) =>
+          r.getAttribute('fill') === red && r.getAttribute('stroke') === red
+      )
+    ).toBe(true);
+  });
+
+  it('final-day ring gauges are meters — saturated in every fill mode', () => {
+    for (const tok of ['fill-outline', 'fill-solid']) {
+      const c = renderAt(
+        `countdown Gig\ntarget 2026-07-10T18:00:00\n${tok}`,
+        '2026-07-10T15:00:00Z'
+      );
+      const arc = c.querySelector('[data-dgmo-gauge-arc="h"]')!;
+      expect(arc.getAttribute('stroke')).toBe(red);
+    }
   });
 });

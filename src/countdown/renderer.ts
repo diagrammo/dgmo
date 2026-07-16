@@ -15,7 +15,13 @@
 
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
-import { mix, getSeriesColors, themeBaseBg } from '../palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  getSeriesColors,
+  themeBaseBg,
+} from '../palettes/color-utils';
+import type { FillMode } from '../utils/parsing';
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
@@ -159,12 +165,20 @@ interface BandColors {
   readonly midSoft: string; // a pale wash at the now→event MIDPOINT (cool purple)
   readonly inert: string; // elapsed + empty-future fill (one gray)
   readonly inertBorder: string;
+  // ── §1.9 fill family — restyles the live now→event chips only ──
+  /** `fill-solid` / `fill-outline`; undefined ⇒ the legacy saturated chips. */
+  readonly fillMode: FillMode | undefined;
+  readonly baseBg: string; // theme base bg — outline-mode chip fill
+  readonly onLight: string; // palette.textOnFillLight (solid-mode chip text)
+  readonly onDark: string; // palette.textOnFillDark
 }
 function bandColors(
   palette: PaletteColors,
   accent: string,
   muted: string,
-  faint: string
+  faint: string,
+  isDark: boolean,
+  fillMode: FillMode | undefined
 ): BandColors {
   // mix(a, b, pct) = pct% of `a` blended over `b`.
   // `now` is a FIXED blue so it always stands apart from the (any-hue) accent; if
@@ -192,6 +206,10 @@ function bandColors(
     midSoft: mix(mid, palette.bg, 24),
     inert: mix(palette.text, palette.bg, 7),
     inertBorder: mix(palette.text, palette.bg, 22),
+    fillMode,
+    baseBg: themeBaseBg(palette, isDark),
+    onLight: palette.textOnFillLight,
+    onDark: palette.textOnFillDark,
   };
 }
 
@@ -212,10 +230,28 @@ function roleStyle(C: BandColors, role: CellRole): CellStyle {
     case 'future':
       return { fill: C.inert, stroke: C.inertBorder, text: C.muted };
     case 'today':
-      return { fill: C.now, stroke: C.now, text: C.bg };
+      return chipStyle(C, C.now);
     case 'event':
-      return { fill: C.event, stroke: C.event, text: C.bg };
+      return chipStyle(C, C.event);
   }
+}
+/**
+ * A live (now/event/gradient) chip under the §1.9 fill family. Default is the
+ * legacy saturated chip with bg-colored text; `fill-solid` keeps the full-sat
+ * fill but picks contrast-aware text; `fill-outline` moves the color to the
+ * stroke + text over the theme base bg. Inert padding cells never route here —
+ * they stay gray in every mode.
+ */
+function chipStyle(C: BandColors, color: string): CellStyle {
+  if (C.fillMode === 'outline')
+    return { fill: C.baseBg, stroke: color, text: color };
+  if (C.fillMode === 'solid')
+    return {
+      fill: color,
+      stroke: color,
+      text: contrastText(color, C.onLight, C.onDark),
+    };
+  return { fill: color, stroke: color, text: C.bg };
 }
 /**
  * A cell strictly between the two anchors. `frac` 0 = at now (cold blue), 1 = at
@@ -226,7 +262,7 @@ function roleStyle(C: BandColors, role: CellRole): CellStyle {
 function gradStyle(C: BandColors, frac: number): CellStyle {
   const t = Math.max(0, Math.min(1, frac));
   const f = mix(C.event, C.now, Math.round(t * 100));
-  return { fill: f, stroke: f, text: C.bg };
+  return chipStyle(C, f);
 }
 
 /** The fixed band box each viz fills. */
@@ -1080,13 +1116,15 @@ function vizToday(
   }
   const w = Math.min(120, g.contentW * 0.16);
   const h = g.height * 0.52;
-  aRect(svg, cx - w / 2, cy - h / 2, w, h, 18, C.event, C.event, 2);
+  // The date chip is an event chip — it follows the §1.9 fill family.
+  const st = roleStyle(C, 'event');
+  aRect(svg, cx - w / 2, cy - h / 2, w, h, 18, st.fill, st.stroke, 2);
   aText(
     svg,
     cx,
     cy - h * 0.14,
     14,
-    C.bg,
+    st.text,
     700,
     'middle',
     MON_ABBR[ev.getMonth()]!.toUpperCase(),
@@ -1097,7 +1135,7 @@ function vizToday(
     cx,
     cy + h * 0.22,
     Math.min(48, h * 0.4),
-    C.bg,
+    st.text,
     800,
     'middle',
     String(ev.getDate())
@@ -1739,7 +1777,14 @@ export function renderCountdown(
 
   // `now` is the fixed cold-blue anchor — shared by the band gradient AND the
   // subordinate hero/detail seconds so the whole chart's "you-are-here" reads blue.
-  const bandC = bandColors(palette, accent, muted, faint);
+  const bandC = bandColors(
+    palette,
+    accent,
+    muted,
+    faint,
+    isDark,
+    parsed.fillMode
+  );
   if (hasBand && resolved !== null) {
     drawBand(
       svg,

@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { FillMode } from '../utils/parsing';
 import type { TagGroup } from '../utils/tag-groups';
 
 // ============================================================
@@ -80,6 +81,8 @@ export interface ParsedBracket {
   readonly noRounds: boolean;
   /** Winner accent color override (`accent <color>`); default blue. */
   readonly accentColor?: string;
+  /** §1.9 fill family (`fill-solid` / `fill-outline`); absent ⇒ 25% tint. */
+  readonly fillMode?: FillMode;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }

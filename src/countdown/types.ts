@@ -1,4 +1,5 @@
 import type { DgmoError } from '../diagnostics';
+import type { FillMode } from '../utils/parsing';
 import type { CountUnits, Field, RecurRule, RoundMode } from './resolve';
 
 // ============================================================
@@ -92,6 +93,13 @@ export interface ParsedCountdown {
    * endpoint (the target color); defaults to red when unset.
    */
   readonly color?: string;
+
+  /**
+   * §1.9 fill family (`fill-solid` / `fill-outline`; absent ⇒ the legacy
+   * saturated chips). Restyles the calendar-band chips only — the final-day
+   * ring gauges are meters and stay saturated in every mode (§36.6).
+   */
+  readonly fillMode?: FillMode;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }

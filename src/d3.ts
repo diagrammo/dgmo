@@ -160,6 +160,9 @@ export function resolveArcChordOverride(
     if (!p.error && p.layout === 'chord' && p.links.length) {
       const emitted = [
         `chord ${p.title ?? ''}`.trimEnd(),
+        // §1.9 fill family survives the layout re-emit so the circular
+        // renderer honors fill-solid / fill-outline authored on the arc.
+        ...(p.fillMode ? [`fill-${p.fillMode}`] : []),
         ...p.links.map((l) => `${l.source} -> ${l.target} ${l.value}`),
       ].join('\n');
       return { content: emitted, type: 'chord' };

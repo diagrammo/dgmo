@@ -20,7 +20,7 @@
 
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
-import { mix, themeBaseBg } from '../palettes/color-utils';
+import { contrastText, mix, themeBaseBg } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { buildSwatches, type Swatches } from './swatches';
@@ -311,14 +311,16 @@ export function renderClock(
     .attr('width', width)
     .attr('fill', palette.bg);
 
-  // ── Container card: solid gray border + muted-gray fill behind everything. ──
+  // ── Container card: solid gray border + muted-gray fill behind everything.
+  //    The card surface is purely decorative, so `fill-outline` empties it to
+  //    the theme base bg (the gray border keeps carrying the frame). ──
   const card = svg
     .append('rect')
     .attr('x', cardM)
     .attr('y', cardM)
     .attr('width', width - 2 * cardM)
     .attr('rx', 14)
-    .attr('fill', cardFill)
+    .attr('fill', parsed.fillMode === 'outline' ? baseBg : cardFill)
     .attr('stroke', mix(palette.text, palette.bg, 40))
     .attr('stroke-width', 1);
   // Rounded clip so the row lanes can tile flush to the card edges (no gray
@@ -400,6 +402,8 @@ export function renderClock(
     line2,
     tick: mix(palette.text, palette.bg, 35),
     cardFill,
+    baseBg,
+    fillMode: parsed.fillMode,
     sw,
     palette,
   };
@@ -466,8 +470,27 @@ interface Colors {
   readonly line2: string;
   readonly tick: string;
   readonly cardFill: string;
+  /** Theme base bg — the fill decorative surfaces empty to under `fill-outline`. */
+  readonly baseBg: string;
+  /** §1.9 fill family; undefined ⇒ canonical tints. */
+  readonly fillMode: 'solid' | 'outline' | undefined;
   readonly sw: Swatches;
   readonly palette: PaletteColors;
+}
+
+/**
+ * The §1.9 fill mode a zone's surfaces honor — only DECORATIVE identity tints
+ * restyle (a hand-set shade, or the default `color-by place` accents). The
+ * work / daylight / time dimensions (and the no-auto day/night face tint)
+ * ENCODE LIVE STATE in their fills, so they ignore the family; status dots and
+ * the sun/moon glyphs are state too and always stay filled.
+ */
+function zoneFillMode(
+  entry: ClockEntry,
+  parsed: ParsedClock,
+  col: Colors
+): 'solid' | 'outline' | undefined {
+  return entry.color || parsed.colorBy === 'place' ? col.fillMode : undefined;
 }
 
 function drawRow(
@@ -516,10 +539,15 @@ function drawRow(
   const rightBlockW = 178;
   const rightColLeft = geom.rightX - rightBlockW;
 
+  // §1.9 fill family — applies to this row's decorative surfaces only.
+  const fm = zoneFillMode(entry, parsed, col);
+
   // ── Row group (carries all the ticker anchors). ──
   const g = svg.append('g').attr('data-line-number', entry.lineNumber) as Sel;
   // Per-row swimlane tint — a faint wash of the resolved color (explicit shade
   // or auto mode), drawn first so it sits behind the content. 9 = card inset.
+  // `fill-outline` empties the decorative wash to the base bg (the identity
+  // color still rides the time/label text and the dial ring).
   if (auto) {
     g.append('rect')
       .attr('data-dgmo-clock-lane', '')
@@ -527,7 +555,7 @@ function drawRow(
       .attr('y', rowTop)
       .attr('width', geom.width - 18)
       .attr('height', rowH)
-      .attr('fill', auto.laneTint);
+      .attr('fill', fm === 'outline' ? col.baseBg : auto.laneTint);
   }
   g.attr('data-dgmo-clock', '')
     .attr('data-dgmo-clock-zone', entry.zone)
@@ -562,10 +590,31 @@ function drawRow(
 
   const contentLeft = padX + 4;
   // Solid coloring of the reading itself (time + label + dial accents).
+  // Decorative dial faces follow the fill family: `fill-outline` empties the
+  // face to the base bg (the intent color stays on the ring/second hand);
+  // `fill-solid` saturates it fully. Day/night state tints (no auto) keep.
   const timeColor = auto?.solid ?? text;
-  const faceFill = auto ? mix(auto.solid, cardFill, 20) : stTint;
+  const faceFill =
+    auto && fm === 'outline'
+      ? col.baseBg
+      : auto && fm === 'solid'
+        ? auto.solid
+        : auto
+          ? mix(auto.solid, cardFill, 20)
+          : stTint;
   const ringColor = auto?.solid ?? line2;
-  const accentColor = auto?.solid ?? stColor;
+  // On a full-saturation face the text-colored hands would vanish — hands and
+  // the center dot swap to contrast ink under `fill-solid`.
+  const handInk =
+    auto && fm === 'solid'
+      ? contrastText(
+          auto.solid,
+          col.palette.textOnFillLight,
+          col.palette.textOnFillDark
+        )
+      : text;
+  const accentColor =
+    auto && fm === 'solid' ? handInk : (auto?.solid ?? stColor);
   // Bake the resolved color so the ticker repaints analog dials with it rather
   // than reverting facebg/second-hand to day/night on every tick.
   if (auto) {
@@ -574,6 +623,9 @@ function drawRow(
       .attr('data-dgmo-clock-auto-mode', parsed.colorBy)
       .attr('data-dgmo-clock-cardfill', cardFill);
   }
+  // Mark restyled rows so the ticker keeps the baked fills instead of
+  // re-deriving the tint wash on every tick.
+  if (fm) g.attr('data-dgmo-clock-fill-mode', fm);
 
   if (parsed.face === 'analog') {
     // Analog dial — a scaled 0-100 group so hand rotates use the mockup's "50 50".
@@ -614,7 +666,7 @@ function drawRow(
       .attr('y1', 50)
       .attr('x2', 50)
       .attr('y2', 28)
-      .attr('stroke', text)
+      .attr('stroke', handInk)
       .attr('stroke-width', 4)
       .attr('stroke-linecap', 'round')
       .attr('transform', `rotate(${ang.hour} 50 50)`);
@@ -624,7 +676,7 @@ function drawRow(
       .attr('y1', 50)
       .attr('x2', 50)
       .attr('y2', 17)
-      .attr('stroke', text)
+      .attr('stroke', handInk)
       .attr('stroke-width', 2.6)
       .attr('stroke-linecap', 'round')
       .attr('transform', `rotate(${ang.minute} 50 50)`);
@@ -946,10 +998,28 @@ function drawColumns(
       palette: col.palette,
       cardFill,
     });
+    // §1.9 fill family — decorative surfaces only (see zoneFillMode).
+    const fm = zoneFillMode(entry, parsed, col);
     const timeColor = auto?.solid ?? text;
-    const faceFill = auto ? mix(auto.solid, cardFill, 20) : stTint;
+    const faceFill =
+      auto && fm === 'outline'
+        ? col.baseBg
+        : auto && fm === 'solid'
+          ? auto.solid
+          : auto
+            ? mix(auto.solid, cardFill, 20)
+            : stTint;
     const ringColor = auto?.solid ?? line2;
-    const accentColor = auto?.solid ?? stColor;
+    const handInk =
+      auto && fm === 'solid'
+        ? contrastText(
+            auto.solid,
+            col.palette.textOnFillLight,
+            col.palette.textOnFillDark
+          )
+        : text;
+    const accentColor =
+      auto && fm === 'solid' ? handInk : (auto?.solid ?? stColor);
     const g = body
       .append('g')
       .attr('data-line-number', entry.lineNumber) as Sel;
@@ -964,7 +1034,7 @@ function drawColumns(
           .attr('x', x0)
           .attr('y', top)
           .attr('width', colW)
-          .attr('fill', auto.laneTint) as Sel
+          .attr('fill', fm === 'outline' ? col.baseBg : auto.laneTint) as Sel
       );
     if (auto) {
       g.attr('data-dgmo-clock-auto-solid', auto.solid)
@@ -972,6 +1042,7 @@ function drawColumns(
         .attr('data-dgmo-clock-auto-mode', parsed.colorBy)
         .attr('data-dgmo-clock-cardfill', cardFill);
     }
+    if (fm) g.attr('data-dgmo-clock-fill-mode', fm);
 
     // Digital needs breathing room under the title rule; the analog dial reads
     // fine sitting higher (its own padding is baked into the face).
@@ -1017,7 +1088,7 @@ function drawColumns(
         .attr('y1', 50)
         .attr('x2', 50)
         .attr('y2', 28)
-        .attr('stroke', text)
+        .attr('stroke', handInk)
         .attr('stroke-width', 4)
         .attr('stroke-linecap', 'round')
         .attr('transform', `rotate(${ang.hour} 50 50)`);
@@ -1027,7 +1098,7 @@ function drawColumns(
         .attr('y1', 50)
         .attr('x2', 50)
         .attr('y2', 17)
-        .attr('stroke', text)
+        .attr('stroke', handInk)
         .attr('stroke-width', 2.6)
         .attr('stroke-linecap', 'round')
         .attr('transform', `rotate(${ang.minute} 50 50)`);

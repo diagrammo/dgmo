@@ -72,7 +72,12 @@ function renderEras(
   // in the dedicated header row at this Y, the rect stays inside the chart
   // (rectTop=0), and the label is truncated to fit the era's span. Hover
   // restores the full text.
-  reservedLabelY?: number
+  reservedLabelY?: number,
+  // §1.9 fill family. Under 'outline' the era band drops its tinted wash:
+  // fill becomes the theme base bg (outlineBg) and the era color rides a
+  // 1px stroke instead. Tint/solid rendering is unchanged.
+  fillMode?: 'solid' | 'outline',
+  outlineBg?: string
 ): void {
   const eraColors = palette
     ? getEraColors(palette)
@@ -104,17 +109,31 @@ function renderEras(
     let displayLabel = era.label;
     let truncated = false;
 
+    const outlineEra = fillMode === 'outline' && outlineBg !== undefined;
+    const applyEraFill = (
+      rect: d3Selection.Selection<SVGRectElement, unknown, null, undefined>
+    ): void => {
+      if (outlineEra) {
+        rect
+          .attr('fill', outlineBg!)
+          .attr('stroke', color)
+          .attr('stroke-width', 1);
+      } else {
+        rect.attr('fill', color).attr('opacity', 0.08);
+      }
+    };
+
     if (isVertical) {
       const y = Math.min(start, end);
       const h = Math.abs(end - start);
-      eraG
-        .append('rect')
-        .attr('x', 0)
-        .attr('y', y)
-        .attr('width', innerWidth)
-        .attr('height', h)
-        .attr('fill', color)
-        .attr('opacity', 0.08);
+      applyEraFill(
+        eraG
+          .append('rect')
+          .attr('x', 0)
+          .attr('y', y)
+          .attr('width', innerWidth)
+          .attr('height', h)
+      );
       labelEl = eraG
         .append('text')
         .attr('x', 6)
@@ -134,14 +153,14 @@ function renderEras(
       const useReservedRow = reservedLabelY != null;
       const rectTop = useReservedRow ? 0 : hasScale ? -48 : 0;
       const labelY = useReservedRow ? reservedLabelY! : hasScale ? -32 : 18;
-      eraG
-        .append('rect')
-        .attr('x', x)
-        .attr('y', rectTop)
-        .attr('width', w)
-        .attr('height', innerHeight - rectTop)
-        .attr('fill', color)
-        .attr('opacity', 0.08);
+      applyEraFill(
+        eraG
+          .append('rect')
+          .attr('x', x)
+          .attr('y', rectTop)
+          .attr('width', w)
+          .attr('height', innerHeight - rectTop)
+      );
       if (useReservedRow) {
         // Truncate to era's own span so labels stay inside their tinted band.
         const maxW = Math.max(0, w - 8);
@@ -190,7 +209,12 @@ function renderMarkers(
   // When provided (horizontal reserved-row mode), labels render at this Y
   // above the chart edge instead of inside the chart at y=6, and are
   // truncated symmetrically based on neighbor distance.
-  reservedLabelY?: number
+  reservedLabelY?: number,
+  // §1.9 fill family. Under 'outline' the milestone diamond renders hollow:
+  // fill becomes the theme base bg (outlineBg), the marker color rides the
+  // stroke. Tint/solid rendering is unchanged.
+  fillMode?: 'solid' | 'outline',
+  outlineBg?: string
 ): void {
   // Default marker color - bright orange/red that "pops"
   const defaultColor = palette?.accent || '#3a9188';
@@ -212,6 +236,20 @@ function renderMarkers(
     const color = marker.color || defaultColor;
     const lineOpacity = 0.5;
     const diamondSize = 5;
+    const outlineDiamond = fillMode === 'outline' && outlineBg !== undefined;
+    const applyDiamondFill = (
+      path: d3Selection.Selection<SVGPathElement, unknown, null, undefined>
+    ): void => {
+      if (outlineDiamond) {
+        path
+          .attr('fill', outlineBg!)
+          .attr('stroke', color)
+          .attr('stroke-width', 1.25)
+          .attr('opacity', 0.9);
+      } else {
+        path.attr('fill', color).attr('opacity', 0.9);
+      }
+    };
 
     const markerG = g
       .append('g')
@@ -245,14 +283,14 @@ function renderMarkers(
         .text(marker.label);
 
       // Diamond at the left edge
-      markerG
-        .append('path')
-        .attr(
-          'd',
-          `M${-diamondSize - 8},${pos} l${diamondSize},-${diamondSize} l${diamondSize},${diamondSize} l-${diamondSize},${diamondSize} Z`
-        )
-        .attr('fill', color)
-        .attr('opacity', 0.9);
+      applyDiamondFill(
+        markerG
+          .append('path')
+          .attr(
+            'd',
+            `M${-diamondSize - 8},${pos} l${diamondSize},-${diamondSize} l${diamondSize},${diamondSize} l-${diamondSize},${diamondSize} Z`
+          )
+      );
 
       markerG
         .on('mouseenter', function () {
@@ -302,14 +340,14 @@ function renderMarkers(
         .text(displayLabel);
 
       // Diamond
-      markerG
-        .append('path')
-        .attr(
-          'd',
-          `M${pos},${diamondY - diamondSize} l${diamondSize},${diamondSize} l-${diamondSize},${diamondSize} l-${diamondSize},-${diamondSize} Z`
-        )
-        .attr('fill', color)
-        .attr('opacity', 0.9);
+      applyDiamondFill(
+        markerG
+          .append('path')
+          .attr(
+            'd',
+            `M${pos},${diamondY - diamondSize} l${diamondSize},${diamondSize} l-${diamondSize},${diamondSize} l-${diamondSize},-${diamondSize} Z`
+          )
+      );
 
       // Dashed line down the chart
       markerG
@@ -1604,7 +1642,9 @@ function renderTimelineHorizontalTimeSort(
     timelineScale,
     tooltip,
     palette,
-    eraReserve ? eraLabelY : undefined
+    eraReserve ? eraLabelY : undefined,
+    fillMode,
+    bg
   );
 
   renderMarkers(
@@ -1619,7 +1659,9 @@ function renderTimelineHorizontalTimeSort(
     timelineScale,
     tooltip,
     palette,
-    markerReserve ? markerLabelY : undefined
+    markerReserve ? markerLabelY : undefined,
+    fillMode,
+    bg
   );
 
   if (timelineScale) {
@@ -1733,7 +1775,7 @@ function renderTimelineHorizontalTimeSort(
           .enter()
           .append('stop')
           .attr('offset', (d) => d.offset)
-          .attr('stop-color', mix(color, bg, 30))
+          .attr('stop-color', fillMode === 'outline' ? bg : mix(color, bg, 30))
           .attr('stop-opacity', (d) => d.opacity);
         defsEl
           .append('linearGradient')
@@ -2001,7 +2043,9 @@ function renderTimelineHorizontalGrouped(
     timelineScale,
     tooltip,
     palette,
-    eraReserve ? eraLabelY : undefined
+    eraReserve ? eraLabelY : undefined,
+    fillMode,
+    bg
   );
 
   renderMarkers(
@@ -2016,7 +2060,9 @@ function renderTimelineHorizontalGrouped(
     timelineScale,
     tooltip,
     palette,
-    markerReserve ? markerLabelY : undefined
+    markerReserve ? markerLabelY : undefined,
+    fillMode,
+    bg
   );
 
   if (timelineScale) {
@@ -2242,7 +2288,10 @@ function renderTimelineHorizontalGrouped(
             .enter()
             .append('stop')
             .attr('offset', (d) => d.offset)
-            .attr('stop-color', mix(evColor, bg, 30))
+            .attr(
+              'stop-color',
+              fillMode === 'outline' ? bg : mix(evColor, bg, 30)
+            )
             .attr('stop-opacity', (d) => d.opacity);
           defsEl
             .append('linearGradient')
@@ -2435,7 +2484,10 @@ function renderTimelineVertical(
       () => fadeReset(g),
       timelineScale,
       tooltip,
-      palette
+      palette,
+      undefined,
+      fillMode,
+      bg
     );
 
     renderMarkers(
@@ -2449,7 +2501,10 @@ function renderTimelineVertical(
       () => fadeReset(g),
       timelineScale,
       tooltip,
-      palette
+      palette,
+      undefined,
+      fillMode,
+      bg
     );
 
     if (timelineScale) {
@@ -2578,7 +2633,10 @@ function renderTimelineVertical(
               .enter()
               .append('stop')
               .attr('offset', (d) => d.offset)
-              .attr('stop-color', mix(laneColor, bg, 30))
+              .attr(
+                'stop-color',
+                fillMode === 'outline' ? bg : mix(laneColor, bg, 30)
+              )
               .attr('stop-opacity', (d) => d.opacity);
             defsEl
               .append('linearGradient')
@@ -2698,7 +2756,10 @@ function renderTimelineVertical(
       () => fadeReset(g),
       timelineScale,
       tooltip,
-      palette
+      palette,
+      undefined,
+      fillMode,
+      bg
     );
 
     renderMarkers(
@@ -2712,7 +2773,10 @@ function renderTimelineVertical(
       () => fadeReset(g),
       timelineScale,
       tooltip,
-      palette
+      palette,
+      undefined,
+      fillMode,
+      bg
     );
 
     if (timelineScale) {
@@ -2813,7 +2877,10 @@ function renderTimelineVertical(
             .enter()
             .append('stop')
             .attr('offset', (d) => d.offset)
-            .attr('stop-color', mix(color, bg, 30))
+            .attr(
+              'stop-color',
+              fillMode === 'outline' ? bg : mix(color, bg, 30)
+            )
             .attr('stop-opacity', (d) => d.opacity);
           defsEl
             .append('linearGradient')
