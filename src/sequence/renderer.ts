@@ -1713,7 +1713,11 @@ export function renderSequenceDiagram(
   let rightMargin = Math.max(rightProjection + 10, sGap / 2);
 
   let leftMargin = sGap / 2;
-  const diagramWidth = participants.length * sGap;
+  // Lifelines span (n-1) gaps; overhang past the last lifeline (box half,
+  // group padding) is already covered by rightMargin's rightProjection. The
+  // previous `participants.length * sGap` baked one phantom trailing gap into
+  // totalWidth, so wide-container centering sat every diagram left of center.
+  const diagramWidth = Math.max(0, participants.length - 1) * sGap;
   let totalWidth = Math.max(
     leftMargin + diagramWidth + rightMargin,
     sBoxW + 40
