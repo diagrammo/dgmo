@@ -7,7 +7,12 @@ import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  shapeFill,
+  themeBaseBg,
+} from '../palettes/color-utils';
 import { renderInlineText } from '../utils/inline-markdown';
 import type {
   ParsedKanban,
@@ -289,6 +294,9 @@ export function renderKanban(
     new Set(parsed.columns.filter((c) => c.collapsed).map((c) => c.id));
   const compactMeta = options?.compactMeta ?? false;
   const fillMode = fillModeFromOptions(parsed.options);
+  // §1.9 fill-outline: column wells drop their gray panel — bg + hairline.
+  const baseBg = themeBaseBg(palette, isDark);
+  const wellStroke = mix(palette.border, baseBg, 20);
   const requestedSwimlane = options?.currentSwimlaneGroup ?? null;
   const swimlaneGroup = requestedSwimlane
     ? (parsed.tagGroups.find(
@@ -529,7 +537,11 @@ export function renderKanban(
         .attr('width', sCollapsedColumnWidth)
         .attr('height', colLayout.height)
         .attr('rx', sColumnRadius)
-        .attr('fill', thisColBg);
+        .attr('fill', fillMode === 'outline' ? baseBg : thisColBg)
+        .call((sel) => {
+          if (fillMode === 'outline')
+            sel.attr('stroke', wellStroke).attr('stroke-width', 1);
+        });
 
       g.append('rect')
         .attr('x', colLayout.x)
@@ -567,7 +579,11 @@ export function renderKanban(
       .attr('width', colLayout.width)
       .attr('height', colLayout.height)
       .attr('rx', sColumnRadius)
-      .attr('fill', thisColBg);
+      .attr('fill', fillMode === 'outline' ? baseBg : thisColBg)
+      .call((sel) => {
+        if (fillMode === 'outline')
+          sel.attr('stroke', wellStroke).attr('stroke-width', 1);
+      });
 
     g.append('rect')
       .attr('x', colLayout.x)

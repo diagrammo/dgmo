@@ -16,7 +16,12 @@
 import * as d3 from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  shapeFill,
+  themeBaseBg,
+} from '../palettes/color-utils';
 import { renderCollapseBar, renderNodeCard } from '../utils/card';
 import { drawMarkdownBlock } from './markdown-card';
 import type { LegendGroupData } from '../utils/legend-types';
@@ -219,7 +224,10 @@ export function renderSketch(
   // Untagged shapes still read as filled cards, not empty outlines: a slight
   // gray tint (muted mixed into the bg) — subtle on light, a touch lighter than
   // the bg on dark.
-  const neutralFill = mix(palette.textMuted, palette.bg, 12);
+  const neutralFill =
+    parsed.options.fillMode === 'outline'
+      ? themeBaseBg(palette, isDark)
+      : mix(palette.textMuted, palette.bg, 12);
   const tagGroups = [...parsed.tagGroups];
   const activeName = resolveActiveTagGroup(
     tagGroups,
@@ -251,9 +259,10 @@ export function renderSketch(
       stroke: tagColor,
       // Label text takes the shape's own (tag) color — but for solid fills the
       // tag color would vanish into the fill, so keep a contrast color there.
-      text: parsed.options.fillMode
-        ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
-        : tagColor,
+      text:
+        parsed.options.fillMode === 'solid'
+          ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
+          : tagColor,
     };
   };
 

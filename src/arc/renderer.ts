@@ -391,8 +391,14 @@ export function renderArcDiagram(
           .attr('width', bandRight - bandLeft)
           .attr('height', maxY - minY)
           .attr('rx', sBandRadius)
-          .attr('fill', group.color ?? textColor)
+          .attr('fill', outlineDots ? 'none' : (group.color ?? textColor))
           .attr('fill-opacity', group.color ? 0.15 : 0.06)
+          .call((sel) => {
+            if (outlineDots)
+              sel
+                .attr('stroke', group.color ?? textColor)
+                .attr('stroke-width', 1.25);
+          })
           .style('cursor', 'pointer')
           .on('mouseenter', () => handleGroupEnter(group.name))
           .on('mouseleave', handleMouseLeave)
@@ -647,8 +653,12 @@ export function renderArcDiagram(
           .attr('width', bandRight - bandLeft)
           .attr('height', bandBottomY - bandTopY)
           .attr('rx', sBandRadius)
-          .attr('fill', bandFill)
+          .attr('fill', outlineDots ? 'none' : bandFill)
           .attr('fill-opacity', bandFillOpacity)
+          .call((sel) => {
+            if (outlineDots)
+              sel.attr('stroke', bandFill).attr('stroke-width', 1.25);
+          })
           .style('cursor', 'pointer')
           .on('mouseenter', () => handleGroupEnter(group.name))
           .on('mouseleave', handleMouseLeave)

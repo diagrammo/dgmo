@@ -505,12 +505,9 @@ export function renderJourneyMap(
     curveG
       .append('path')
       .attr('d', areaGen(extendedPoints) ?? '')
-      .attr(
-        'fill',
-        fillMode === 'outline'
-          ? themeBaseBg(palette, isDark)
-          : 'url(#journey-curve-gradient)'
-      )
+      // The emotion area keeps its gradient wash in every fill mode — the
+      // wash is the read of the journey's emotional arc (user ruling).
+      .attr('fill', 'url(#journey-curve-gradient)')
       .attr('stroke', 'none');
 
     // Frame the filled area on three sides (left, bottom, right) — the curve
@@ -931,7 +928,10 @@ export function renderJourneyMap(
       const by = Math.max(PADDING, fcy - FACE_HOVER_R - THOUGHT_GAP - bh);
 
       const scoreColor = scoreToColor(score, palette);
-      const tintedBg = mix(scoreColor, palette.surface, 20);
+      const tintedBg =
+        fillMode === 'outline'
+          ? themeBaseBg(palette, isDark)
+          : mix(scoreColor, palette.surface, 20);
 
       const g = overlayG.append('g').attr('class', 'journey-thought-hover');
 

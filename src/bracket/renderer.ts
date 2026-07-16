@@ -322,7 +322,16 @@ export function renderBracket(
       .attr('width', BOX_W + 20)
       .attr('height', Math.max(0, layout.height - top))
       .attr('rx', 10)
-      .attr('fill', mix(c, palette.bg, isDark ? 12 : 8));
+      .attr(
+        'fill',
+        fillMode === 'outline'
+          ? themeBaseBg(palette, isDark)
+          : mix(c, palette.bg, isDark ? 12 : 8)
+      )
+      .call((sel) => {
+        if (fillMode === 'outline')
+          sel.attr('stroke', mix(c, palette.bg, 35)).attr('stroke-width', 1);
+      });
   }
 
   // ── Side bars: a colored, shaded header spanning each side's columns ──
@@ -337,8 +346,13 @@ export function renderBracket(
       .attr('width', s.x1 - s.x0 + 16)
       .attr('height', 24)
       .attr('rx', 8)
-      .attr('fill', mix(c, palette.bg, isDark ? 20 : 14))
-      .attr('stroke', mix(c, palette.bg, 55))
+      .attr(
+        'fill',
+        fillMode === 'outline'
+          ? themeBaseBg(palette, isDark)
+          : mix(c, palette.bg, isDark ? 20 : 14)
+      )
+      .attr('stroke', fillMode === 'outline' ? c : mix(c, palette.bg, 55))
       .attr('stroke-width', 1);
     root
       .append('text')

@@ -214,11 +214,15 @@ export function renderState(
     const gw = group.width + sGroupExtraPadding * 2;
     const gh = group.height + sGroupExtraPadding * 2 + sGroupLabelFontSize + 4;
 
-    const fillColor = group.color
-      ? mix(group.color, themeBaseBg(palette, isDark), 10)
-      : isDark
-        ? palette.surface
-        : mix(palette.border, palette.bg, 30);
+    // §1.9 fill-outline: group areas drop their wash — bg fill, colored frame.
+    const groupOutline = fillModeFromOptions(graph.options ?? {}) === 'outline';
+    const fillColor = groupOutline
+      ? themeBaseBg(palette, isDark)
+      : group.color
+        ? mix(group.color, themeBaseBg(palette, isDark), 10)
+        : isDark
+          ? palette.surface
+          : mix(palette.border, palette.bg, 30);
     const strokeColor = group.color ?? palette.textMuted;
 
     const groupWrapper = contentG

@@ -1009,12 +1009,35 @@ function renderLegend(
     }
 
     // Full mode: bordered chip with a letter slab on the left and label text.
-    const fill =
-      fillMode === 'solid'
-        ? rawColor
-        : fillMode === 'outline'
-          ? surfaceBg
-          : mix(rawColor, surfaceBg, TINT_PCT);
+    // Outline mode: the legend keeps a soft vertical gradient of its marker
+    // color (user ruling — a fully hollow legend read too flat up top).
+    let fill: string;
+    if (fillMode === 'outline') {
+      const gradId = `raci-legend-grad-${marker}`;
+      let defs = svg.select<SVGDefsElement>('defs');
+      if (defs.empty()) defs = svg.append('defs');
+      if (defs.select(`#${gradId}`).empty()) {
+        const grad = defs
+          .append('linearGradient')
+          .attr('id', gradId)
+          .attr('x1', '0%')
+          .attr('y1', '0%')
+          .attr('x2', '0%')
+          .attr('y2', '100%');
+        grad
+          .append('stop')
+          .attr('offset', '0%')
+          .attr('stop-color', mix(rawColor, surfaceBg, 38));
+        grad
+          .append('stop')
+          .attr('offset', '100%')
+          .attr('stop-color', mix(rawColor, surfaceBg, 8));
+      }
+      fill = `url(#${gradId})`;
+    } else {
+      fill =
+        fillMode === 'solid' ? rawColor : mix(rawColor, surfaceBg, TINT_PCT);
+    }
     const stroke =
       fillMode === 'outline' ? rawColor : mix(rawColor, surfaceBg, 70);
 

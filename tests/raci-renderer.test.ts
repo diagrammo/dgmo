@@ -269,11 +269,22 @@ fill-outline
     expect(phaseRect.getAttribute('fill')).toBe(baseBg);
     expect(phaseRect.getAttribute('stroke')).toBe(palette.colors.blue);
 
-    // Legend chips: chip + letter slab both drop their tints.
-    for (const rect of c.querySelectorAll('.raci-legend-chip rect')) {
-      expect(rect.getAttribute('fill')).toBe(baseBg);
+    // Legend chips keep a soft vertical gradient of their marker color
+    // (user ruling); the letter slab drops to the base bg.
+    const chipRects = [...c.querySelectorAll('.raci-legend-chip rect')];
+    expect(chipRects.length).toBeGreaterThan(0);
+    for (const rect of chipRects) {
+      const fill = rect.getAttribute('fill')!;
+      expect(fill === baseBg || /^url\(#raci-legend-grad-/.test(fill)).toBe(
+        true
+      );
       expect(rect.getAttribute('stroke')).toBeTruthy();
     }
+    // The gradient defs exist and fade toward the surface bg.
+    const grads = [...c.querySelectorAll('linearGradient')].filter((g) =>
+      g.id.startsWith('raci-legend-grad-')
+    );
+    expect(grads.length).toBeGreaterThan(0);
   });
 
   it('fill-outline: no-phase row bands drop the accent tint', () => {

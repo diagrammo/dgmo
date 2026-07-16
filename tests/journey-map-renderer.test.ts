@@ -384,12 +384,14 @@ persona Sam
       expect(silPath.getAttribute('fill')).not.toBe(lightBase);
     });
 
-    it('emotion gradient band drops to theme base bg; curve stroke carries the color', () => {
+    it('emotion gradient wash stays in outline mode (user ruling); curve stroke carries the color', () => {
       const { container } = renderToContainer(outlineInput);
       // Direct-child paths of the curve group: [area, frame, curve line].
       const paths = container.querySelectorAll('.journey-curve-area > path');
       expect(paths).toHaveLength(3);
-      expect(paths[0].getAttribute('fill')).toBe(lightBase);
+      expect(paths[0].getAttribute('fill')).toBe(
+        'url(#journey-curve-gradient)'
+      );
       const line = paths[2];
       expect(line.getAttribute('stroke')).toBe(palette.light.primary);
       expect(
