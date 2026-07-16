@@ -323,7 +323,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'flowchart',
-    // Spec §5 §4.6: direction-lr, orientation-vertical, solid-fill, no-notes
+    // Spec §5 §4.6: direction-lr, orientation-vertical, fill family, no-notes
     withGlobals({
       'direction-lr': { description: 'Switch to left-to-right layout' },
       'orientation-vertical': {
@@ -347,7 +347,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'org',
     // Spec §7 §6.5: direction-tb, sub-node-label, show-sub-node-count,
-    // hide, active-tag. solid-fill via SOLID_FILL_CAPABLE.
+    // hide, active-tag. fill family via FILL_FAMILY_CAPABLE.
     withGlobals({
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
       'sub-node-label': { description: 'Label for sub-nodes' },
@@ -358,8 +358,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'family',
-    // Spec §32: sex-as-color + tag legend; active-tag. solid-fill via
-    // SOLID_FILL_CAPABLE.
+    // Spec §32: sex-as-color + tag legend; active-tag. Fill family via
+    // FILL_FAMILY_CAPABLE.
     withGlobals({
       'active-tag': { description: 'Active tag group name' },
       highlight: {
@@ -404,7 +404,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'state',
-    // Spec §6 §5.6: direction-tb, solid-fill, no-notes.
+    // Spec §6 §5.6: direction-tb, fill family, no-notes.
     withGlobals({
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
       'no-notes': { description: 'Suppress all state note boxes' },
@@ -567,15 +567,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'journey-map',
     // Spec §22 directives: `active-tag`. `persona` is a
     // structural keyword (like `tag` / `roles`), not a directive.
-    // `solid-fill` is added via SOLID_FILL_CAPABLE below.
+    // the fill family is added via FILL_FAMILY_CAPABLE below.
     withGlobals({
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
     'pyramid',
-    // Spec §23.5 documents `inverted`; `solid-fill` is added via
-    // SOLID_FILL_CAPABLE below (working but not yet in spec §23.5).
+    // Spec §23.5 documents `inverted`; the fill family is added via
+    // FILL_FAMILY_CAPABLE below (working but not yet in spec §23.5).
     // `color`/`description` are layer pipe-metadata, not directives.
     withGlobals({
       inverted: { description: 'Flip apex to the bottom (funnel orientation)' },
@@ -583,8 +583,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'ring',
-    // Per spec §24.5 the only chart-specific directive is `solid-fill`,
-    // applied via SOLID_FILL_CAPABLE below. `color`/`description` are
+    // Per spec §24.5 the only chart-specific directive family is `fill-*`,
+    // applied via FILL_FAMILY_CAPABLE below. `color`/`description` are
     // layer pipe-metadata, not directives — they live in PIPE_METADATA.
     withGlobals({}),
   ],
@@ -625,7 +625,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'goal',
     // Single now/target value. Mode is a bare flag (thermometer/gauge; the
-    // progress bar is the default). `solid-fill`/`no-title` come via globals.
+    // progress bar is the default). Fill family/`no-title` come via globals.
     withGlobals({
       thermometer: { description: 'Render as a vertical thermometer' },
       gauge: { description: 'Render as a semicircular gauge dial' },
@@ -816,15 +816,17 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
 ]);
 
-// ── Cross-chart-type bare-keyword option: `solid-fill` ──────────
-// Adds the directive to every chart type whose renderer actually responds to
-// it (renders shapes at full intent saturation when set). Chart types where
-// the keyword is a no-op (gantt/infra/tech-radar deliberately opt out;
-// quadrant/scatter-dot/wordcloud/arc/slope have no tinted shape fill)
-// intentionally don't list it — keeps the completion popup honest.
-// `line` honors it only for area (`fill`) charts; `event-line` saturates the
-// card / no-box shelf fill.
-const SOLID_FILL_CAPABLE = new Set([
+// ── Cross-chart-type bare-keyword options: the fill family ──────
+// Adds the §1.9 fill-family directives (`fill-tint`/`fill-solid`/
+// `fill-outline`) to every chart type whose renderer actually responds to
+// them. Chart types where the family is a no-op (gantt/infra/tech-radar
+// deliberately opt out; quadrant/scatter-dot/wordcloud/arc/slope have no
+// tinted shape fill) intentionally don't list them — keeps the completion
+// popup honest. `line` honors them only for area (`fill`) charts;
+// `event-line` restyles the card / no-box shelf fill. goal/heatmap and
+// line/function area fills honor `fill-solid` but ignore `fill-outline`
+// (their fill is the data surface).
+const FILL_FAMILY_CAPABLE = new Set([
   'sketch',
   'flowchart',
   'state',
@@ -861,10 +863,18 @@ const SOLID_FILL_CAPABLE = new Set([
   'goal',
 ]);
 for (const [type, spec] of COMPLETION_REGISTRY) {
-  if (SOLID_FILL_CAPABLE.has(type)) {
-    spec.directives['solid-fill'] = {
+  if (FILL_FAMILY_CAPABLE.has(type)) {
+    spec.directives['fill-solid'] = {
       description:
         'Render shapes with full intent color instead of the default 25% tint',
+    };
+    spec.directives['fill-outline'] = {
+      description:
+        'No fill — theme-background shapes with the color carried by the outline',
+    };
+    spec.directives['fill-tint'] = {
+      description:
+        'The default 25% tint fill, spelled explicitly (overrides an earlier fill-solid/fill-outline)',
     };
   }
 }
@@ -2250,7 +2260,8 @@ function extractSketchSymbols(docText: string): DiagramSymbols {
       pastFirstLine = true;
       continue;
     }
-    if (/^(no-[a-z-]+|solid-fill)\s*$/i.test(trimmed)) continue;
+    if (/^(no-[a-z-]+|fill-tint|fill-solid|fill-outline)\s*$/i.test(trimmed))
+      continue;
     if (/^tag\s+/i.test(trimmed)) {
       inTagBlock = true;
       continue;
@@ -2307,7 +2318,13 @@ function extractPyramidSymbols(docText: string): DiagramSymbols {
 
     const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
-    if (firstToken === 'inverted' || firstToken === 'solid-fill') continue;
+    if (
+      firstToken === 'inverted' ||
+      firstToken === 'fill-tint' ||
+      firstToken === 'fill-solid' ||
+      firstToken === 'fill-outline'
+    )
+      continue;
 
     // Skip indented description lines
     if (line[0] === ' ' || line[0] === '\t') continue;
@@ -2340,7 +2357,12 @@ function extractRingSymbols(docText: string): DiagramSymbols {
 
     const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
-    if (firstToken === 'solid-fill') continue;
+    if (
+      firstToken === 'fill-tint' ||
+      firstToken === 'fill-solid' ||
+      firstToken === 'fill-outline'
+    )
+      continue;
 
     // Skip indented description lines
     if (line[0] === ' ' || line[0] === '\t') continue;
@@ -2927,7 +2949,9 @@ function extractRaciSymbols(docText: string): DiagramSymbols {
         continue;
       if (
         trimmed.toLowerCase() === 'draft' ||
-        trimmed.toLowerCase() === 'solid-fill'
+        trimmed.toLowerCase() === 'fill-tint' ||
+        trimmed.toLowerCase() === 'fill-solid' ||
+        trimmed.toLowerCase() === 'fill-outline'
       )
         continue;
     }

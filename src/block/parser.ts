@@ -28,7 +28,12 @@ import {
   AUTO_TAG_COLOR_SENTINEL,
   tagAttrKey,
 } from '../utils/tag-groups';
-import { measureIndent, extractColor, parseFirstLine } from '../utils/parsing';
+import {
+  measureIndent,
+  extractColor,
+  parseFirstLine,
+  fillModeFromToken,
+} from '../utils/parsing';
 import type {
   ParsedBlock,
   BlockOptions,
@@ -44,7 +49,7 @@ export function parseBlock(
   content: string,
   palette?: PaletteColors
 ): ParsedBlock {
-  const options: BlockOptions = { noLegend: false, solidFill: false };
+  const options: BlockOptions = { noLegend: false };
   const result: Writable<ParsedBlock> = {
     type: 'block',
     title: null,
@@ -167,8 +172,10 @@ export function parseBlock(
           options.noLegend = true;
           continue;
         }
-        if (/^solid-fill\s*$/i.test(trimmed)) {
-          options.solidFill = true;
+        const fm = fillModeFromToken(trimmed);
+        if (fm !== null) {
+          if (fm === 'tint') delete options.fillMode;
+          else options.fillMode = fm;
           continue;
         }
       }

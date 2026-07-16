@@ -3,6 +3,7 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
+import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import {
@@ -81,12 +82,10 @@ function nodeFill(
   palette: PaletteColors,
   isDark: boolean,
   nodeColor?: string,
-  solid?: boolean
+  fillMode?: 'solid' | 'outline'
 ): string {
   const color = nodeColor ?? palette.primary;
-  return shapeFill(palette, color, isDark, {
-    ...(solid !== undefined && { solid }),
-  });
+  return shapeFill(palette, color, isDark, { mode: fillMode });
 }
 
 function nodeStroke(palette: PaletteColors, nodeColor?: string): string {
@@ -495,12 +494,12 @@ export function renderOrg(
     }
 
     // Card background
-    const solid = parsed.options['solid-fill'] === 'on';
+    const fillMode = fillModeFromOptions(parsed.options);
     const fill = nodeFill(
       palette,
       isDark,
       colorOff ? undefined : node.color,
-      solid
+      fillMode
     );
     const stroke = nodeStroke(palette, colorOff ? undefined : node.color);
 
@@ -531,7 +530,7 @@ export function renderOrg(
           fontSize: sMetaFontSize,
           lineHeight: sMetaLineHeight,
           separatorGap: sSeparatorGap,
-          separatorColor: solid ? labelColor : stroke,
+          separatorColor: fillMode === 'solid' ? labelColor : stroke,
           textColor: labelColor,
         },
       }),
@@ -544,9 +543,10 @@ export function renderOrg(
         barHeight: sCollapseBarHeight,
         inset: sCollapseBarInset,
         rx: sCardRadius,
-        fill: solid
-          ? labelColor
-          : nodeStroke(palette, colorOff ? undefined : node.color),
+        fill:
+          fillMode === 'solid'
+            ? labelColor
+            : nodeStroke(palette, colorOff ? undefined : node.color),
         clipId: `clip-${node.id}`,
         className: 'org-collapse-bar',
       });

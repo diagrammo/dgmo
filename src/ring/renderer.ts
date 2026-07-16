@@ -3,6 +3,7 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
+import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
 import {
   TITLE_FONT_SIZE,
@@ -182,10 +183,10 @@ export function renderRing(
     // seriesColors is always non-empty (8 series colors).
     return seriesColors[i % seriesColors.length]!;
   };
-  const solid = parsed.options['solid-fill'] === 'on';
+  const fillMode = fillModeFromOptions(parsed.options);
   const layerColors = parsed.layers.map((l, i) => resolveLayerColor(l, i));
   const layerFills = layerColors.map((c) =>
-    shapeFill(palette, c, isDark, { solid })
+    shapeFill(palette, c, isDark, { mode: fillMode })
   );
 
   // ── Render rings ────────────────────────────────────────────

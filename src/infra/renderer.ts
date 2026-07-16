@@ -1151,7 +1151,7 @@ function nodeColor(
   palette: PaletteColors,
   isDark: boolean,
   severity: ReturnType<typeof worstNodeSeverity>,
-  solid?: boolean
+  fillMode?: 'solid' | 'outline'
 ): {
   fill: string;
   stroke: string;
@@ -1162,7 +1162,7 @@ function nodeColor(
   // the 2x OVERLOAD_STROKE_WIDTH, severity reads cleanly without a badge.
   if (severity === 'overloaded') {
     const fill = shapeFill(palette, COLOR_OVERLOADED, isDark, {
-      ...(solid !== undefined && { solid }),
+      mode: fillMode,
     });
     return {
       fill,
@@ -1175,9 +1175,7 @@ function nodeColor(
     };
   }
   if (severity === 'warning') {
-    const fill = shapeFill(palette, COLOR_WARNING, isDark, {
-      ...(solid !== undefined && { solid }),
-    });
+    const fill = shapeFill(palette, COLOR_WARNING, isDark, { mode: fillMode });
     return {
       fill,
       stroke: COLOR_WARNING,
@@ -1189,9 +1187,7 @@ function nodeColor(
     };
   }
   if (severity === 'healthy') {
-    const fill = shapeFill(palette, COLOR_HEALTHY, isDark, {
-      ...(solid !== undefined && { solid }),
-    });
+    const fill = shapeFill(palette, COLOR_HEALTHY, isDark, { mode: fillMode });
     return {
       fill,
       stroke: COLOR_HEALTHY,
@@ -1477,7 +1473,7 @@ function renderNodes(
     // overloaded), instance counts, RPS load indicators, and the nested
     // header/body/metrics panel structure. Solid fills collapse all of those
     // signals into one saturated rectangle, making the diagram unreadable.
-    const nodeColors = nodeColor(node, palette, isDark, severity, false);
+    const nodeColors = nodeColor(node, palette, isDark, severity, undefined);
     const textFill = nodeColors.textFill;
     let { fill, stroke } = nodeColors;
 

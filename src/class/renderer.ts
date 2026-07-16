@@ -3,6 +3,7 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
+import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import {
@@ -83,12 +84,10 @@ function nodeFill(
   modifier: ClassModifier | undefined,
   nodeColor?: string,
   colorOff?: boolean,
-  solid?: boolean
+  fillMode?: 'solid' | 'outline'
 ): string {
   const color = nodeColor ?? modifierColor(modifier, palette, colorOff);
-  return shapeFill(palette, color, isDark, {
-    ...(solid !== undefined && { solid }),
-  });
+  return shapeFill(palette, color, isDark, { mode: fillMode });
 }
 
 function nodeStroke(
@@ -521,14 +520,14 @@ export function renderClassDiagram(
     // When legend is collapsed, use neutral color for nodes without explicit color
     const neutralize = hasLegend && !isLegendExpanded && !node.color;
     const effectiveColor = neutralize ? palette.primary : node.color;
-    const solid = parsed.options?.['solid-fill'] === 'on';
+    const fillMode = fillModeFromOptions(parsed.options ?? {});
     const fill = nodeFill(
       palette,
       isDark,
       node.modifier,
       effectiveColor,
       colorOff,
-      solid
+      fillMode
     );
     const stroke = nodeStroke(palette, node.modifier, effectiveColor, colorOff);
     const onFillText = contrastText(
@@ -607,7 +606,7 @@ export function renderClassDiagram(
         .attr('y1', yPos)
         .attr('x2', w / 2)
         .attr('y2', yPos)
-        .attr('stroke', solid ? onFillText : stroke)
+        .attr('stroke', fillMode === 'solid' ? onFillText : stroke)
         .attr('stroke-width', 0.5)
         .attr('stroke-opacity', 0.5);
 
@@ -633,7 +632,7 @@ export function renderClassDiagram(
         .attr('y1', yPos)
         .attr('x2', w / 2)
         .attr('y2', yPos)
-        .attr('stroke', solid ? onFillText : stroke)
+        .attr('stroke', fillMode === 'solid' ? onFillText : stroke)
         .attr('stroke-width', 0.5)
         .attr('stroke-opacity', 0.5);
 
@@ -669,7 +668,7 @@ export function renderClassDiagram(
         .attr('y1', yPos)
         .attr('x2', w / 2)
         .attr('y2', yPos)
-        .attr('stroke', solid ? onFillText : stroke)
+        .attr('stroke', fillMode === 'solid' ? onFillText : stroke)
         .attr('stroke-width', 0.5)
         .attr('stroke-opacity', 0.5);
 

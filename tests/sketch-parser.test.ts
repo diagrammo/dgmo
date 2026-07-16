@@ -297,10 +297,10 @@ describe('sketch parser — tags & directives', () => {
     ).toBeDefined();
   });
 
-  it('no-legend and solid-fill directives set options', () => {
-    const p = parseSketch('sketch\nno-legend\nsolid-fill\nA at: 0 0');
+  it('no-legend and fill-solid directives set options', () => {
+    const p = parseSketch('sketch\nno-legend\nfill-solid\nA at: 0 0');
     expect(p.options.noLegend).toBe(true);
-    expect(p.options.solidFill).toBe(true);
+    expect(p.options.fillMode).toBe('solid');
   });
 
   it('unknown metadata key warns with a suggestion', () => {

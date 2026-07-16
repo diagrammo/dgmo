@@ -13,6 +13,7 @@ import { formatDgmoError, makeDgmoError, suggest } from '../diagnostics';
 import {
   collectIndentedValues,
   extractColor,
+  fillModeFromToken,
   measureIndent,
   normalizeNumericToken,
   parseFirstLine,
@@ -713,7 +714,11 @@ function parseVisualizationFull(
       // Skip cross-chart bare-keyword options so they don't get parsed as
       // a 4th set name (the bare-keyword block at line ~1132 runs AFTER
       // type-specific parsing).
-      if (/^(solid-fill|no-name|no-value|no-percent|no-title)$/i.test(line)) {
+      if (
+        /^(fill-tint|fill-solid|fill-outline|no-name|no-value|no-percent|no-title)$/i.test(
+          line
+        )
+      ) {
         // Fall through to the bare-keyword block below.
       } else if (/\+/.test(line)) {
         // Build lookup of known set names and aliases for label extraction
@@ -768,7 +773,11 @@ function parseVisualizationFull(
       // Color is the line-trailing token, peeled first; alias follows the name
       // via the `as` keyword. Only attempt set parsing if the line wasn't a
       // bare-keyword option (handled above).
-      if (!/^(solid-fill|no-name|no-value|no-percent|no-title)$/i.test(line)) {
+      if (
+        !/^(fill-tint|fill-solid|fill-outline|no-name|no-value|no-percent|no-title)$/i.test(
+          line
+        )
+      ) {
         // Peel a trailing color word from the whole line first so the
         // remaining text is `Name [alias <alias>]` / `Name [as <alias>]`.
         const { label: lineWithoutColor, colorName } =
@@ -990,8 +999,10 @@ function parseVisualizationFull(
         result.noPercent = true;
         continue;
       }
-      if (bareToken === 'solid-fill') {
-        result.solidFill = true;
+      const fillFamily = fillModeFromToken(bareToken);
+      if (fillFamily !== null) {
+        if (fillFamily === 'tint') delete result.fillMode;
+        else result.fillMode = fillFamily;
         continue;
       }
       if (bareToken === 'no-title') {

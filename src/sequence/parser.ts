@@ -23,6 +23,7 @@ import {
   parseFirstLine,
   OPTION_NOCOLON_RE,
   warnUnknownMetaKeys,
+  FILL_FAMILY_TOKENS,
 } from '../utils/parsing';
 import {
   SEQUENCE_REGISTRY,
@@ -42,7 +43,12 @@ import {
 const KNOWN_SEQ_OPTIONS = new Set(['active-tag']);
 
 /** Known sequence-diagram boolean options (bare keyword or `no-` prefix). */
-const KNOWN_SEQ_BOOLEANS = new Set(['solid-fill', 'no-title']);
+const KNOWN_SEQ_BOOLEANS = new Set([
+  'fill-tint',
+  'fill-solid',
+  'fill-outline',
+  'no-title',
+]);
 
 /** Boolean options that only support the `no-` prefix form (no bare or key-value). */
 const NO_PREFIX_ONLY_BOOLEANS = new Set(['activations']);
@@ -989,17 +995,18 @@ export function parseSequenceDgmo(
           continue;
         }
       }
-      // Bare boolean keyword: `solid-fill` / `no-title`
-      if (
-        KNOWN_SEQ_BOOLEANS.has(optLower) &&
-        (optLower === 'solid-fill' || optLower === 'no-title')
-      ) {
+      // Bare boolean keyword: fill family (§1.9) / `no-title`
+      if (KNOWN_SEQ_BOOLEANS.has(optLower)) {
         if (contentStarted) {
           pushError(
             lineNumber,
             `Options like '${trimmed}' must appear before the first message or declaration`
           );
           continue;
+        }
+        if (FILL_FAMILY_TOKENS.has(optLower)) {
+          for (const t of FILL_FAMILY_TOKENS) delete result.options[t];
+          if (optLower === 'fill-tint') continue;
         }
         result.options[optLower] = 'on';
         continue;

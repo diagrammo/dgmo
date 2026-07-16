@@ -140,7 +140,8 @@ export interface GanttOptions {
   sprintStart: string | null; // YYYY-MM-DD — date that sprintNumber begins
   sprintMode: 'auto' | 'explicit' | null; // auto = activated by `s` unit, explicit = sprint-* option present
   /** When true, render bars at full intent saturation instead of the canonical 25% tint. */
-  solidFill: boolean;
+  /** §1.9 fill family; undefined ⇒ canonical 25% tint. */
+  fillMode: 'solid' | 'outline' | undefined;
   /** When true, the renderer suppresses the chart banner title. */
   noTitle: boolean;
 }

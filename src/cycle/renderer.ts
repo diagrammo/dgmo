@@ -3,6 +3,7 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
+import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
 import {
   TITLE_FONT_SIZE,
@@ -67,7 +68,7 @@ export function renderCycle(
   renderOptions?: CycleRenderOptions
 ): void {
   if (parsed.nodes.length === 0) return;
-  const solid = parsed.options?.['solid-fill'] === 'on';
+  const fillMode = fillModeFromOptions(parsed.options ?? {});
 
   // Clear previous render
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
@@ -294,7 +295,9 @@ export function renderCycle(
     const node = parsed.nodes[i]!;
     const solidColor = resolveNodeColor(node.color, palette, defaultNodeColor);
     // Canonical 25% tinted fill via shapeFill() (or full intent when solid-fill is on).
-    const fillColor = shapeFill(palette, solidColor, isDark, { solid });
+    const fillColor = shapeFill(palette, solidColor, isDark, {
+      mode: fillMode,
+    });
     const textColor = contrastText(
       fillColor,
       palette.textOnFillLight,
@@ -415,7 +418,7 @@ export function renderCycle(
           .attr('y1', sepY)
           .attr('x2', ln.x + nodeW / 2)
           .attr('y2', sepY)
-          .attr('stroke', solid ? descColor : solidColor)
+          .attr('stroke', fillMode === 'solid' ? descColor : solidColor)
           .attr('stroke-opacity', 0.3)
           .attr('stroke-width', 1);
 

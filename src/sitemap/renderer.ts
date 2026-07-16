@@ -3,6 +3,7 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
+import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
@@ -71,12 +72,10 @@ function nodeFill(
   palette: PaletteColors,
   isDark: boolean,
   nodeColor?: string,
-  solid?: boolean
+  fillMode?: 'solid' | 'outline'
 ): string {
   const color = nodeColor ?? palette.primary;
-  return shapeFill(palette, color, isDark, {
-    ...(solid !== undefined && { solid }),
-  });
+  return shapeFill(palette, color, isDark, { mode: fillMode });
 }
 
 function nodeStroke(_palette: PaletteColors, nodeColor?: string): string {
@@ -493,8 +492,8 @@ export function renderSitemap(
       if (tagVal) nodeG.attr(`data-tag-${tagKey}`, tagVal.toLowerCase());
     }
 
-    const solid = parsed.options['solid-fill'] === 'on';
-    const fill = nodeFill(palette, isDark, node.color, solid);
+    const fillMode = fillModeFromOptions(parsed.options);
+    const fill = nodeFill(palette, isDark, node.color, fillMode);
     const stroke = nodeStroke(palette, node.color);
 
     // Card background + label via the shared card door (Story 111.1). sitemap's
@@ -527,7 +526,7 @@ export function renderSitemap(
         .attr('y1', sHeaderHeight)
         .attr('x2', node.width)
         .attr('y2', sHeaderHeight)
-        .attr('stroke', solid ? labelColor : stroke)
+        .attr('stroke', fillMode === 'solid' ? labelColor : stroke)
         .attr('stroke-opacity', 0.3);
 
       const metaDisplayKeys = metaEntries.map(
@@ -545,7 +544,8 @@ export function renderSitemap(
         const rowY =
           sHeaderHeight + sSeparatorGap + (i + 1) * sMetaLineHeight - 4;
         const tagColor = tagColors.get(`${key}:${value.toLowerCase()}`);
-        const valColor = solid ? labelColor : (tagColor ?? labelColor);
+        const valColor =
+          fillMode === 'solid' ? labelColor : (tagColor ?? labelColor);
 
         nodeG
           .append('text')
@@ -578,7 +578,7 @@ export function renderSitemap(
         .attr('y1', sepY)
         .attr('x2', node.width)
         .attr('y2', sepY)
-        .attr('stroke', solid ? labelColor : stroke)
+        .attr('stroke', fillMode === 'solid' ? labelColor : stroke)
         .attr('stroke-opacity', 0.3);
 
       const descStartY =
@@ -610,7 +610,10 @@ export function renderSitemap(
         .attr('y', node.height - sCollapseBarHeight)
         .attr('width', node.width)
         .attr('height', sCollapseBarHeight)
-        .attr('fill', solid ? labelColor : (node.color ?? palette.primary))
+        .attr(
+          'fill',
+          fillMode === 'solid' ? labelColor : (node.color ?? palette.primary)
+        )
         .attr('opacity', 0.5)
         .attr('clip-path', `url(#${clipId})`);
     }

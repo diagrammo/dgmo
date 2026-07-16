@@ -17,7 +17,8 @@ export interface GoalOptions {
   /** Hide the raw `now / target` label. */
   readonly noValue: boolean;
   /** Full-saturation fill instead of the 25% tint. */
-  readonly solidFill: boolean;
+  /** §1.9 fill family; undefined ⇒ canonical 25% tint. */
+  readonly fillMode: 'solid' | 'outline' | undefined;
   /** Hide the banner title. */
   readonly noTitle: boolean;
   /** Disable auto traffic-light fill color (fall back to the palette color). */

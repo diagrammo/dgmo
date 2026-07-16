@@ -1,7 +1,7 @@
 import type { ConformanceFixture } from './_types';
 
-// Spec §18 (Mindmap Diagrams). Two directives plus solid-fill (via
-// SOLID_FILL_CAPABLE). Two static node-pipe keys; tag aliases are
+// Spec §18 (Mindmap Diagrams). Two directives plus the fill family (via
+// FILL_FAMILY_CAPABLE). Two static node-pipe keys; tag aliases are
 // user-defined and resolved at runtime.
 //
 // Note: spec subsection numbering inside §18 reads "17.1, 17.2, ..." —
@@ -14,7 +14,9 @@ export const fixture: ConformanceFixture = {
 
   directives: [
     'active-tag',
-    'solid-fill', // working but not documented in §18.7
+    'fill-tint',
+    'fill-solid',
+    'fill-outline', // working but not documented in §18.7
   ],
 
   pipeKeys: {

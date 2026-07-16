@@ -59,8 +59,8 @@ export interface EventLineOptions {
   readonly noBox: boolean;
   /** True when `no-legend` — hide the tag legend. */
   readonly noLegend: boolean;
-  /** True when `solid-fill` — opaque card / shelf fill instead of the soft tint. */
-  readonly solidFill: boolean;
+  /** §1.9 fill family: 'solid' | 'outline'; undefined ⇒ canonical soft tint. */
+  readonly fillMode: 'solid' | 'outline' | undefined;
 }
 
 export interface ParsedEventLine {

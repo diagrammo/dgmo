@@ -1,7 +1,7 @@
 import type { ConformanceFixture } from './_types';
 
 // Spec §7 §6.5 Options: direction-tb, sub-node-label, show-sub-node-count,
-// hide, active-tag. solid-fill via SOLID_FILL_CAPABLE.
+// hide, active-tag. fill family via FILL_FAMILY_CAPABLE.
 export const fixture: ConformanceFixture = {
   chartType: 'org',
   structuralKeywords: ['tag'],
@@ -13,7 +13,9 @@ export const fixture: ConformanceFixture = {
     'show-sub-node-count',
     'hide',
     'active-tag',
-    'solid-fill',
+    'fill-tint',
+    'fill-solid',
+    'fill-outline',
   ],
   pipeKeys: {
     node: ['description', 'role', 'location', 'email', 'phone'],

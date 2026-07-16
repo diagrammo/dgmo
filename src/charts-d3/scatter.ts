@@ -154,7 +154,7 @@ export function renderScatter(
 ): void {
   const points = chart.scatterPoints ?? [];
   if (points.length === 0) return;
-  const solid = chart.solidFill === true;
+  const fillMode = chart.fillMode;
   const hasSize = points.some((p) => p.size !== undefined);
 
   const categories = [
@@ -323,7 +323,7 @@ export function renderScatter(
       .attr('cx', x(p.x))
       .attr('cy', y(p.y))
       .attr('r', r)
-      .attr('fill', solid ? stroke : shapeFill(palette, stroke, isDark))
+      .attr('fill', shapeFill(palette, stroke, isDark, { mode: fillMode }))
       .attr('fill-opacity', FILL_OPACITY)
       .attr('stroke', stroke)
       .attr('stroke-width', 2);

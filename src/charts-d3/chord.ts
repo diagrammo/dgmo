@@ -25,7 +25,8 @@ export function renderChord(
 ): void {
   const links = chart.links ?? [];
   if (links.length === 0) return;
-  const solid = chart.solidFill === true;
+  // Ribbons ARE the data surface — fill-outline ignored (§1.9).
+  const fillMode = chart.fillMode === 'solid' ? ('solid' as const) : undefined;
 
   const names = Array.from(new Set(links.flatMap((l) => [l.source, l.target])));
   const n = names.length;
@@ -117,7 +118,7 @@ export function renderChord(
       .attr('cx', px)
       .attr('cy', py)
       .attr('r', 10)
-      .attr('fill', solid ? stroke : shapeFill(palette, stroke, isDark))
+      .attr('fill', shapeFill(palette, stroke, isDark, { mode: fillMode }))
       .attr('stroke', stroke)
       .attr('stroke-width', 2);
     tagDatum(dot, { key: `node:${nm}`, name: nm, color: stroke });

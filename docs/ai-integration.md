@@ -182,7 +182,6 @@ _The most common types, inline so you can generate them without a fetch. For the
 
 ```dgmo
 journey-map A Cabin Boy's First Voyage
-solid-fill
 
 persona Squidlips Sam color: blue
   Greenhorn cabin boy, first time at sea
@@ -212,7 +211,6 @@ persona Squidlips Sam color: blue
 
 ```dgmo
 c4 Pirate Treasure Map System
-solid-fill
 
 tag Scope as sc
   Crew blue
@@ -288,8 +286,6 @@ ports
 ```dgmo
 class Ship Class Hierarchy
 
-solid-fill 
-
 interface Vessel
   + sail(): void
   + anchor(): void
@@ -360,18 +356,25 @@ else
 
 ```dgmo
 state Ship Battle Lifecycle
-solid-fill
 
 [*] -> Sailing
 
 Sailing
   -enemy spotted-> BattleStations
 
-BattleStations
-  -in range-> Engaging
-  -enemy retreats-> Sailing
+[Losses] gray
+  Captured -> [*]
+  Sinking -> [*]
 
-[Combat]
+[Aftermath] teal
+  Victorious
+    -loot taken-> Sailing
+
+  Retreating
+    -escaped-> Sailing
+    -caught-> Captured
+
+[Combat] red
   Engaging
     -alongside-> Boarding
     -hull breach-> Sinking
@@ -381,16 +384,9 @@ BattleStations
     -crew wins-> Victorious
     -crew loses-> Captured
 
-[Aftermath]
-  Victorious
-    -loot taken-> Sailing
-
-  Retreating
-    -escaped-> Sailing
-    -caught-> Captured
-
-Captured -> [*]
-Sinking -> [*]
+BattleStations
+  -in range-> Engaging
+  -enemy retreats-> Sailing
 ```
 #### infra
 

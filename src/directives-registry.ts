@@ -132,7 +132,9 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'sprint-length', category: 'directive', gantt: ['option'] },
   { token: 'sprint-number', category: 'directive', gantt: ['option'] },
   { token: 'sprint-start', category: 'directive', gantt: ['option'] },
-  { token: 'solid-fill', category: 'directive', gantt: ['boolean'] },
+  { token: 'fill-tint', category: 'directive', gantt: ['boolean'] },
+  { token: 'fill-solid', category: 'directive', gantt: ['boolean'] },
+  { token: 'fill-outline', category: 'directive', gantt: ['boolean'] },
   // `chart` is a wireframe element keyword (CONTROL); gantt also accepts it as
   // an option. Highlight family is control.
   { token: 'chart', category: 'control', gantt: ['option'] },

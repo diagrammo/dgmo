@@ -5,7 +5,14 @@ export const fixture: ConformanceFixture = {
   chartType: 'polar-area',
   specSection: '16',
   firstLineKeyword: 'polar-area',
-  directives: ['no-name', 'no-value', 'no-percent', 'solid-fill'],
+  directives: [
+    'no-name',
+    'no-value',
+    'no-percent',
+    'fill-tint',
+    'fill-solid',
+    'fill-outline',
+  ],
   pipeKeys: {},
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

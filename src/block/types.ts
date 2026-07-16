@@ -45,8 +45,8 @@ export interface BlockGrid {
 export interface BlockOptions {
   /** `no-legend` — hide the tag legend. */
   noLegend: boolean;
-  /** `solid-fill` — fill nodes at full intent saturation instead of a tint. */
-  solidFill: boolean;
+  /** §1.9 fill family: 'solid' | 'outline'; absent ⇒ canonical 25% tint. */
+  fillMode?: 'solid' | 'outline';
 }
 
 export interface ParsedBlock {

@@ -1,4 +1,5 @@
 import { tagAttrKey } from '../utils/tag-groups';
+import { fillModeFromOptions } from '../utils/parsing';
 import * as d3 from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import type { PaletteColors } from '../palettes';
@@ -100,7 +101,7 @@ export function renderJourneyMap(
   const onActiveTagGroupChange = options?.onActiveTagGroupChange;
   const collapsedPhases = options?.collapsedPhases ?? new Set<string>();
   const onPhaseToggle = options?.onPhaseToggle;
-  const solid = parsed.options['solid-fill'] === 'on';
+  const fillMode = fillModeFromOptions(parsed.options);
 
   const layout = layoutJourneyMap(parsed, palette, {
     collapsedPhases,
@@ -230,7 +231,9 @@ export function renderJourneyMap(
       .attr('rx', CARD_RADIUS);
 
     // Card — canonical 25% tint via shapeFill() (or full intent when solid-fill is on)
-    const personaFill = shapeFill(palette, personaColor, isDark, { solid });
+    const personaFill = shapeFill(palette, personaColor, isDark, {
+      mode: fillMode,
+    });
     // Text drawn on top of the card must contrast against the fill, not against bg/surface.
     const onPersonaText = contrastText(
       personaFill,
@@ -255,7 +258,7 @@ export function renderJourneyMap(
         .attr('x2', panelX + panelWidth - silhouetteZone)
         .attr('y1', panelY + titleRowH)
         .attr('y2', panelY + titleRowH)
-        .attr('stroke', solid ? onPersonaText : personaColor)
+        .attr('stroke', fillMode === 'solid' ? onPersonaText : personaColor)
         .attr('stroke-opacity', 0.3)
         .attr('stroke-width', 1);
     }
@@ -721,7 +724,7 @@ export function renderJourneyMap(
             palette,
             stepColor ?? palette.primary,
             isDark,
-            { solid }
+            { mode: fillMode }
           );
           const rowStroke = stepColor ?? palette.textMuted;
 
@@ -789,7 +792,7 @@ export function renderJourneyMap(
             effectiveActiveGroup,
             parsed.tagGroups,
             onNavigateToLine,
-            solid
+            fillMode
           );
         }
       }
@@ -805,7 +808,7 @@ export function renderJourneyMap(
         effectiveActiveGroup,
         parsed.tagGroups,
         onNavigateToLine,
-        solid
+        fillMode
       );
     }
   }
@@ -1065,7 +1068,7 @@ function renderStepCard(
   activeGroup: string | null,
   tagGroups: readonly import('../utils/tag-groups').TagGroup[],
   onNavigateToLine?: (line: number) => void,
-  solid?: boolean
+  fillMode?: 'solid' | 'outline'
 ): void {
   const stepG = parent
     .append('g')
@@ -1096,7 +1099,7 @@ function renderStepCard(
     palette,
     resolvedColor ?? palette.primary,
     isDark,
-    { ...(solid !== undefined && { solid }) }
+    { mode: fillMode }
   );
   const cardStroke = resolvedColor ?? palette.textMuted;
   // Text drawn on top of the card must contrast against the fill,
@@ -1151,7 +1154,7 @@ function renderStepCard(
       .attr('y2', cy + titleBlockH)
       // Solid mode: cardStroke matches the fill, so the divider is invisible.
       // Use the contrast text color at low opacity instead.
-      .attr('stroke', solid ? onCardText : cardStroke)
+      .attr('stroke', fillMode === 'solid' ? onCardText : cardStroke)
       .attr('stroke-opacity', 0.3)
       .attr('stroke-width', 1);
   }
@@ -1190,7 +1193,7 @@ function renderStepCard(
     // fine on a 25% tinted card). In solid mode the semantic color often
     // matches the card fill (red icon on red card → invisible), so fall back
     // to the contrast color — the icon SHAPE still differentiates the type.
-    const iconColor = solid ? onCardText : annoColor;
+    const iconColor = fillMode === 'solid' ? onCardText : annoColor;
     // Icon as bullet, aligned to first line
     renderAnnotationIcon(
       stepG,
@@ -1231,7 +1234,7 @@ function renderStepCard(
     const stripY = cy - TAG_STRIP_HEIGHT - TAG_GAP;
     // Canonical 25% tint via shapeFill() (or full intent when solid-fill is on)
     const stripFill = shapeFill(palette, stripColor, isDark, {
-      ...(solid !== undefined && { solid }),
+      mode: fillMode,
     });
 
     stepG

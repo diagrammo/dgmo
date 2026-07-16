@@ -3,6 +3,7 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
+import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import {
@@ -46,12 +47,10 @@ function nodeFill(
   palette: PaletteColors,
   isDark: boolean,
   nodeColor?: string,
-  solid?: boolean
+  fillMode?: 'solid' | 'outline'
 ): string {
   const color = nodeColor ?? palette.primary;
-  return shapeFill(palette, color, isDark, {
-    ...(solid !== undefined && { solid }),
-  });
+  return shapeFill(palette, color, isDark, { mode: fillMode });
 }
 
 function nodeStroke(palette: PaletteColors, nodeColor?: string): string {
@@ -374,7 +373,7 @@ export function renderMindmap(
       palette,
       isDark,
       effectiveColor,
-      parsed.options['solid-fill'] === 'on'
+      fillModeFromOptions(parsed.options)
     );
     const stroke = nodeStroke(palette, effectiveColor);
     const onFillText = contrastText(

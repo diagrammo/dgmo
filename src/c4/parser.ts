@@ -107,7 +107,9 @@ const KNOWN_C4_OPTIONS = new Set<string>(['layout', 'active-tag']);
 /** Known C4 boolean options (bare keyword = on). */
 const KNOWN_C4_BOOLEANS = new Set<string>([
   'direction-tb',
-  'solid-fill',
+  'fill-tint',
+  'fill-solid',
+  'fill-outline',
   'no-title',
 ]);
 

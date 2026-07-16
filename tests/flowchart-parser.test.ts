@@ -53,28 +53,28 @@ describe('parseFlowchart', () => {
     });
   });
 
-  describe('solid-fill option', () => {
-    it('parses bare solid-fill keyword as on', () => {
-      const result = parseFlowchart('flowchart\nsolid-fill\n(Start) -> (End)');
-      expect(result.options['solid-fill']).toBe('on');
+  describe('fill-solid option', () => {
+    it('parses bare fill-solid keyword as on', () => {
+      const result = parseFlowchart('flowchart\nfill-solid\n(Start) -> (End)');
+      expect(result.options['fill-solid']).toBe('on');
     });
 
-    it('parses solid-fill case-insensitively', () => {
+    it('parses fill-solid case-insensitively', () => {
       expect(
-        parseFlowchart('flowchart\nSolid-Fill\n(Start) -> (End)').options[
-          'solid-fill'
+        parseFlowchart('flowchart\nFill-Solid\n(Start) -> (End)').options[
+          'fill-solid'
         ]
       ).toBe('on');
       expect(
-        parseFlowchart('flowchart\nSOLID-FILL\n(Start) -> (End)').options[
-          'solid-fill'
+        parseFlowchart('flowchart\nFILL-SOLID\n(Start) -> (End)').options[
+          'fill-solid'
         ]
       ).toBe('on');
     });
 
     it('defaults to undefined when keyword absent', () => {
       const result = parseFlowchart('flowchart\n(Start) -> (End)');
-      expect(result.options['solid-fill']).toBeUndefined();
+      expect(result.options['fill-solid']).toBeUndefined();
     });
   });
 

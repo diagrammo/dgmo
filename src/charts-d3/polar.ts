@@ -23,7 +23,7 @@ export function renderPolarArea(
   const data = chart.data.filter((d) => d.value > 0);
   const n = data.length;
   if (n === 0) return;
-  const solid = chart.solidFill === true;
+  const fillMode = chart.fillMode;
   const total = data.reduce((a, d) => a + d.value, 0);
   const maxValue = Math.max(...data.map((d) => d.value)) || 1;
 
@@ -51,7 +51,7 @@ export function renderPolarArea(
     const sector = g
       .append('path')
       .attr('d', arcGen({}) ?? '')
-      .attr('fill', solid ? stroke : shapeFill(palette, stroke, isDark))
+      .attr('fill', shapeFill(palette, stroke, isDark, { mode: fillMode }))
       .attr('stroke', stroke)
       .attr('stroke-width', 2);
     tagDatum(sector, {

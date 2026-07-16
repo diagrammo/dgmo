@@ -22,7 +22,9 @@ export const fixture: ConformanceFixture = {
     'sprint-number',
     'sprint-start',
     'active-tag',
-    'solid-fill',
+    'fill-tint',
+    'fill-solid',
+    'fill-outline',
     // Universal date directives (§ BL-121).
     'year',
     'date-order',

@@ -29,7 +29,12 @@
 
 import { emit, type DgmoError } from '../diagnostics';
 import { SWIMLANE_DX } from './diagnostics';
-import { measureIndent, extractColor, parseFirstLine } from '../utils/parsing';
+import {
+  measureIndent,
+  extractColor,
+  parseFirstLine,
+  FILL_FAMILY_TOKENS,
+} from '../utils/parsing';
 import {
   matchTagBlockHeading,
   stripDefaultModifier,
@@ -319,8 +324,10 @@ export function parseSwimlane(
     if (indent === 0) currentTagGroup = null;
 
     // `solid-fill` bare directive (full-saturation node fills).
-    if (indent === 0 && /^solid-fill\s*$/i.test(trimmed)) {
-      options['solid-fill'] = 'on';
+    if (indent === 0 && FILL_FAMILY_TOKENS.has(trimmed.toLowerCase())) {
+      for (const t of FILL_FAMILY_TOKENS) delete options[t];
+      if (trimmed.toLowerCase() !== 'fill-tint')
+        options[trimmed.toLowerCase()] = 'on';
       continue;
     }
 
@@ -663,7 +670,7 @@ export function parseSwimlane(
 
     // `direction` / `tag` were consumed in pass 1.
     if (indent === 0 && /^direction\s+/i.test(trimmed)) continue;
-    if (indent === 0 && /^solid-fill\s*$/i.test(trimmed)) continue;
+    if (indent === 0 && FILL_FAMILY_TOKENS.has(trimmed.toLowerCase())) continue;
     if (matchTagBlockHeading(trimmed) && indent === 0) {
       inTagBlock = true;
       continue;

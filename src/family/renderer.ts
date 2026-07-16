@@ -16,6 +16,7 @@
 // Visual conventions: `docs/architecture/diagram-visual-conventions.md` §1/§2/§4.
 
 import * as d3Selection from 'd3-selection';
+import { fillModeFromOptions } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
 import {
   TITLE_FONT_SIZE,
@@ -130,7 +131,7 @@ export function renderFamilyForExport(
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
   const activeTagGroup = opts.activeTagGroup ?? null;
-  const solid = parsed.options['solid-fill'] === 'on';
+  const fillMode = fillModeFromOptions(parsed.options);
   const noDaggers = parsed.options['no-daggers'] === 'true';
   const baseBg = themeBaseBg(palette, isDark);
 
@@ -387,7 +388,7 @@ export function renderFamilyForExport(
     // no color identity. (Dashing is reserved for adoption/divorce edges.)
     const fill = isPh
       ? mix(palette.textMuted, baseBg, 6)
-      : shapeFill(palette, base, isDark, { solid });
+      : shapeFill(palette, base, isDark, { mode: fillMode });
     const stroke = isPh ? palette.textMuted : base;
     const labelColor = isPh
       ? palette.textMuted
@@ -469,7 +470,7 @@ export function renderFamilyForExport(
       .attr('y1', HEADER_HEIGHT)
       .attr('x2', node.width)
       .attr('y2', HEADER_HEIGHT)
-      .attr('stroke', solid ? labelColor : stroke)
+      .attr('stroke', fillMode === 'solid' ? labelColor : stroke)
       .attr('stroke-opacity', 0.3)
       .attr('stroke-width', 1);
 

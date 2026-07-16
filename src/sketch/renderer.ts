@@ -244,14 +244,14 @@ export function renderSketch(
       };
     }
     const fill = shapeFill(palette, tagColor, isDark, {
-      solid: parsed.options.solidFill,
+      mode: parsed.options.fillMode,
     });
     return {
       fill,
       stroke: tagColor,
       // Label text takes the shape's own (tag) color — but for solid fills the
       // tag color would vanish into the fill, so keep a contrast color there.
-      text: parsed.options.solidFill
+      text: parsed.options.fillMode
         ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
         : tagColor,
     };
@@ -728,8 +728,8 @@ function drawNode(
     const labelInset = badge ? 22 : 0;
     // Solid-fill: the stroke IS the fill, so a stroke-colored rule/text would
     // vanish — use the (contrast-aware) label color instead, like the org card.
-    const solid = colors.stroke === colors.fill;
-    const ruleColor = solid ? colors.text : colors.stroke;
+    const solidLike = colors.stroke === colors.fill;
+    const ruleColor = solidLike ? colors.text : colors.stroke;
 
     // Free-text markdown description: header band + rule, then the rendered
     // markdown block fills the body (in place of the tag rows). Wrapped, with a
@@ -821,7 +821,7 @@ function drawNode(
               lineHeight: CARD_META_FONT + 5,
               separatorGap: 8,
               separatorColor: ruleColor,
-              textColor: solid ? colors.text : palette.text,
+              textColor: solidLike ? colors.text : palette.text,
               keyX: 12,
             },
           }

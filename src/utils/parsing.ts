@@ -161,10 +161,57 @@ export const OPTION_NOCOLON_RE = /^([a-z][a-z0-9-]*)\s+(.+)$/i;
  * picks them up uniformly without per-parser changes.
  */
 export const GLOBAL_BOOLEANS: ReadonlySet<string> = new Set([
-  'solid-fill',
+  'fill-tint',
+  'fill-solid',
+  'fill-outline',
   'no-title',
   'no-notes',
 ]);
+
+/**
+ * Cross-chart fill treatment (spec §1.9 fill family). Absent ⇒ the canonical
+ * 25% tint (`fill-tint` is the explicit spelling of that default).
+ */
+export type FillMode = 'solid' | 'outline';
+
+/** The three mutually exclusive §1.9 fill-family tokens. */
+export const FILL_FAMILY_TOKENS: ReadonlySet<string> = new Set([
+  'fill-tint',
+  'fill-solid',
+  'fill-outline',
+]);
+
+/**
+ * Map a fill-family token to the `fillMode` it selects: `'tint'` for the
+ * explicit default, a {@link FillMode} for the other two, or `null` when the
+ * token is not part of the family. The family is last-one-wins, so callers
+ * assign unconditionally (`'tint'` ⇒ set `fillMode` back to `undefined`).
+ */
+export function fillModeFromToken(token: string): FillMode | 'tint' | null {
+  switch (token.trim().toLowerCase()) {
+    case 'fill-solid':
+      return 'solid';
+    case 'fill-outline':
+      return 'outline';
+    case 'fill-tint':
+      return 'tint';
+    default:
+      return null;
+  }
+}
+
+/**
+ * Read the effective {@link FillMode} out of a parser's shared-options record
+ * (as populated by {@link tryParseSharedOption}, which keeps the family
+ * mutually exclusive). `undefined` ⇒ canonical tint.
+ */
+export function fillModeFromOptions(
+  options: Record<string, string>
+): FillMode | undefined {
+  if (options['fill-solid'] === 'on') return 'solid';
+  if (options['fill-outline'] === 'on') return 'outline';
+  return undefined;
+}
 
 /**
  * If `token` (after trim, case-insensitive) matches a registered cross-cutting
@@ -188,6 +235,11 @@ export function tryParseSharedOption(
 ): boolean {
   const key = recognizeGlobalBoolean(line);
   if (key) {
+    // §1.9 fill family is mutually exclusive, last one wins: seeing any
+    // member clears the other two so `fillModeFromOptions` reads the winner.
+    if (FILL_FAMILY_TOKENS.has(key)) {
+      for (const t of FILL_FAMILY_TOKENS) delete options[t];
+    }
     options[key] = 'on';
     return true;
   }

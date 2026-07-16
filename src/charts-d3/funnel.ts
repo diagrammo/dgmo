@@ -31,7 +31,7 @@ export function renderFunnel(
   const sorted = [...chart.data].sort((a, b) => b.value - a.value);
   const n = sorted.length;
   if (n === 0) return;
-  const solid = chart.solidFill === true;
+  const fillMode = chart.fillMode;
 
   const top = topInset + 8;
   const bottom = height - 30;
@@ -106,7 +106,7 @@ export function renderFunnel(
 
   sorted.forEach((d, i) => {
     const stroke = d.color ?? colors[chart.data.indexOf(d) % colors.length]!;
-    const fill = solid ? stroke : shapeFill(palette, stroke, isDark);
+    const fill = shapeFill(palette, stroke, isDark, { mode: fillMode });
     const { topW, botW } = bandWidthsAt(plotW, i);
     const y0 = top + i * bandH;
     const y1 = y0 + bandH;
@@ -146,9 +146,10 @@ export function renderFunnel(
     const valueInside = valueInsideAt(plotW, i);
     if (valueInside) {
       const valueSize = valueSizeAt(plotW, i);
-      const valueFill = solid
-        ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
-        : stroke;
+      const valueFill =
+        fillMode === 'solid'
+          ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
+          : stroke;
       svg
         .append('text')
         .attr('x', cx)

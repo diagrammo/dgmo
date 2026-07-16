@@ -6,7 +6,15 @@ export const fixture: ConformanceFixture = {
   chartType: 'scatter',
   specSection: '16',
   firstLineKeyword: 'scatter',
-  directives: ['no-name', 'x-label', 'y-label', 'size-label', 'solid-fill'],
+  directives: [
+    'no-name',
+    'x-label',
+    'y-label',
+    'size-label',
+    'fill-tint',
+    'fill-solid',
+    'fill-outline',
+  ],
   pipeKeys: {},
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

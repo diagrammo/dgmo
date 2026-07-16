@@ -616,9 +616,9 @@ describe('sketch renderer — options', () => {
     expect(svg.querySelector('.sk-legend-group')).toBeNull();
   });
 
-  it('solid-fill uses the raw tag color as fill', () => {
+  it('fill-solid uses the raw tag color as fill', () => {
     const src =
-      'sketch\nsolid-fill\n\ntag Crew\n  Deck\n\nA at: 0 0, crew: Deck';
+      'sketch\nfill-solid\n\ntag Crew\n  Deck\n\nA at: 0 0, crew: Deck';
     const svg = render(src);
     const tagColor = parseSketch(src, P).tagGroups[0]!.entries[0]!.color;
     const rect = svg.querySelector('.sk-node rect')!;

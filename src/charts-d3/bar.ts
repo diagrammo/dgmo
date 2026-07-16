@@ -65,7 +65,7 @@ export function renderBar(
       : 1;
   const horizontal = chart.orientation === 'horizontal';
   const multiSeries = seriesCount > 1;
-  const solid = chart.solidFill === true;
+  const fillMode = chart.fillMode;
 
   // Single series → each category gets its own palette color (ECharts parity).
   // Multi series → color by series index.
@@ -75,7 +75,8 @@ export function renderBar(
       ? colors[seriesIdx % colors.length]!
       : colors[catIdx % colors.length]!;
   };
-  const fillOf = (c: string) => (solid ? c : shapeFill(palette, c, isDark));
+  const fillOf = (c: string) =>
+    shapeFill(palette, c, isDark, { mode: fillMode });
 
   const top = reserveHeader(
     svg,

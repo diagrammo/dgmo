@@ -3,6 +3,7 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
+import { fillModeFromOptions } from '../utils/parsing';
 import {
   renderNoteBox,
   renderNoteConnector,
@@ -218,7 +219,7 @@ function nodeColors(
     twoColor: boolean;
     fillForValue: (v: number) => string;
   },
-  solid?: boolean
+  fillMode?: 'solid' | 'outline'
 ): { fill: string; stroke: string; text: string } {
   // Untagged-neutral fill, reused by the value path for no-value boxes.
   const neutralFill = mix(palette.bg, palette.text, isDark ? 90 : 95);
@@ -240,9 +241,7 @@ function nodeColors(
     // single-colour ramp has one hue, so the outline is the constant ramp hue and
     // value reads from the muted fill depth.
     const rampColor = value.fillForValue(node.value);
-    const fill = shapeFill(palette, rampColor, isDark, {
-      ...(solid !== undefined && { solid }),
-    });
+    const fill = shapeFill(palette, rampColor, isDark, { mode: fillMode });
     const stroke = value.twoColor ? rampColor : value.hue;
     const text = contrastText(
       fill,
@@ -257,9 +256,7 @@ function nodeColors(
     activeGroupName
   );
   if (tagColor) {
-    const fill = shapeFill(palette, tagColor, isDark, {
-      ...(solid !== undefined && { solid }),
-    });
+    const fill = shapeFill(palette, tagColor, isDark, { mode: fillMode });
     const stroke = tagColor;
     const text = contrastText(
       fill,
@@ -864,7 +861,7 @@ export function renderBoxesAndLines(
       if (isHidden) continue;
     }
 
-    const solid = parsed.options['solid-fill'] === 'on';
+    const fillMode = fillModeFromOptions(parsed.options);
     const colors = nodeColors(
       node,
       parsed.tagGroups,
@@ -877,11 +874,11 @@ export function renderBoxesAndLines(
         twoColor: rampLow !== undefined,
         fillForValue,
       },
-      solid
+      fillMode
     );
     // Divider matches the org-card convention: the box stroke normally, but the
     // contrast text colour in solid mode (where stroke == fill and would vanish).
-    const dividerStroke = solid ? colors.text : colors.stroke;
+    const dividerStroke = fillMode === 'solid' ? colors.text : colors.stroke;
 
     const nodeG = diagramG
       .append('g')

@@ -1385,7 +1385,7 @@ function renderGroups(
   if (layout.groups.length === 0) return;
   const layer = root.append('g').attr('class', 'pert-groups');
   const unit = resolved.options.timeUnit;
-  const solid = resolved.options.solidFill === true;
+  const fillMode = resolved.options.fillMode;
 
   // Container recipe (non-collapsed groups) — see
   // `docs/architecture/diagram-visual-conventions.md` §2.
@@ -1474,7 +1474,9 @@ function renderGroups(
       );
 
       const cardBaseColor = bandColor(memberBand, palette, palette.primary);
-      const cardFill = shapeFill(palette, cardBaseColor, isDark, { solid });
+      const cardFill = shapeFill(palette, cardBaseColor, isDark, {
+        mode: fillMode,
+      });
       const cardLabelColor = contrastText(
         cardFill,
         palette.textOnFillLight,
@@ -1723,7 +1725,7 @@ function renderNodes(
   const unit = resolved.options.timeUnit;
   const sprintMode = resolved.options.sprintMode;
   const sprintNumber = resolved.options.sprintNumber ?? 1;
-  const solid = resolved.options.solidFill === true;
+  const fillMode = resolved.options.fillMode;
 
   // Active tag group resolution. Programmatic override (e.g. desktop
   // legend click) wins; otherwise the source's `active-tag` directive;
@@ -1837,7 +1839,7 @@ function renderNodes(
     }
 
     const baseColor = bandColor(band, palette, palette.primary);
-    const fill = shapeFill(palette, baseColor, isDark, { solid });
+    const fill = shapeFill(palette, baseColor, isDark, { mode: fillMode });
     const labelColor = contrastText(
       fill,
       palette.textOnFillLight,
@@ -1854,7 +1856,7 @@ function renderNodes(
     );
     const hasTagColor = tagColor !== undefined && tagColor !== '#999999';
     const tagBandFill = hasTagColor
-      ? shapeFill(palette, tagColor as string, isDark, { solid })
+      ? shapeFill(palette, tagColor as string, isDark, { mode: fillMode })
       : undefined;
     const tagLabelColor = hasTagColor
       ? contrastText(

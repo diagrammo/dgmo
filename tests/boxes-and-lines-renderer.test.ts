@@ -191,9 +191,9 @@ describe('boxes-and-lines renderer — value ramp', () => {
     expect(b.getAttribute('fill')).not.toBe(P.colors.blue);
   });
 
-  it('single-colour ramp honours solid-fill (full hue at max)', async () => {
+  it('single-colour ramp honours fill-solid (full hue at max)', async () => {
     const svg = await render(
-      'boxes-and-lines\nsolid-fill\nheat Heat blue\nA heat: 0\nB heat: 100\nA -> B'
+      'boxes-and-lines\nfill-solid\nheat Heat blue\nA heat: 0\nB heat: 100\nA -> B'
     );
     const b = nodeFor(svg, 'B').querySelector('rect')!;
     expect(b.getAttribute('fill')).toBe(P.colors.blue);
@@ -219,15 +219,15 @@ describe('boxes-and-lines renderer — value ramp', () => {
     expect(b.getAttribute('fill')).toBe(shapeFill(P, bRamp, false));
   });
 
-  it('two-colour ramp honours solid-fill (full ramp colour) (AC1)', async () => {
+  it('two-colour ramp honours fill-solid (full ramp colour) (AC1)', async () => {
     const svg = await render(
-      'boxes-and-lines\nsolid-fill\nheat Heat blue green\nA heat: 0\nB heat: 100\nA -> B'
+      'boxes-and-lines\nfill-solid\nheat Heat blue green\nA heat: 0\nB heat: 100\nA -> B'
     );
     const b = nodeFor(svg, 'B').querySelector('rect')!;
     const bRamp = valueRampColor(P.colors.blue, P.colors.green, 1, {
       isDark: false,
     });
-    // solid-fill ⇒ fill == the full ramp colour (no 25% tint).
+    // fill-solid ⇒ fill == the full ramp colour (no 25% tint).
     expect(b.getAttribute('fill')).toBe(bRamp);
     expect(b.getAttribute('stroke')).toBe(bRamp);
   });
@@ -317,11 +317,11 @@ describe('boxes-and-lines renderer — value ramp', () => {
 
   it('keeps the description legible on a dark solid fill (contrast-aware, not fixed grey)', async () => {
     const svg = await render(
-      'boxes-and-lines\nsolid-fill\nheat Heat red blue\nA heat: 0\n  Forgotten coin in the bilge\n  -> B\nB heat: 100\n  Full chest'
+      'boxes-and-lines\nfill-solid\nheat Heat red blue\nA heat: 0\n  Forgotten coin in the bilge\n  -> B\nB heat: 100\n  Full chest'
     );
     const a = nodeFor(svg, 'A');
     const fill = a.querySelector('rect')!.getAttribute('fill')!;
-    // A (value 0) is the saturated low endpoint → dark fill under solid-fill.
+    // A (value 0) is the saturated low endpoint → dark fill under fill-solid.
     expect(relativeLuminance(fill)).toBeLessThan(0.5);
     const descEl = [...a.querySelectorAll('text')].find((t) =>
       t.textContent?.includes('Forgotten')
@@ -363,9 +363,9 @@ describe('boxes-and-lines renderer — value ramp', () => {
     expect(title.getAttribute('font-weight')).toBe('bold');
   });
 
-  it('described value-card divider stays visible in solid-fill (uses contrast colour, not the equal stroke)', async () => {
+  it('described value-card divider stays visible in fill-solid (uses contrast colour, not the equal stroke)', async () => {
     const svg = await render(
-      'boxes-and-lines\nsolid-fill\nheat Readiness red green\nshow-values\nFlagship heat: 96\n  Fully crewed\n  -> Sloop\nSloop heat: 22\n  Barely afloat'
+      'boxes-and-lines\nfill-solid\nheat Readiness red green\nshow-values\nFlagship heat: 96\n  Fully crewed\n  -> Sloop\nSloop heat: 22\n  Barely afloat'
     );
     const flagship = nodeFor(svg, 'Flagship');
     const rectFill = flagship.querySelector('rect')!.getAttribute('fill');

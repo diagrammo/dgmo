@@ -44,6 +44,7 @@ import {
   splitNameAndMeta,
   stripQuotes,
   warnUnknownMetaKeys,
+  fillModeFromToken,
 } from '../utils/parsing';
 import { normalizeName } from '../utils/name-normalize';
 import { parseInArrowLabel } from '../utils/arrows';
@@ -123,7 +124,7 @@ export function parseSketch(
 ): ParsedSketch {
   const options = {
     noLegend: false,
-    solidFill: false,
+    fillMode: undefined as 'solid' | 'outline' | undefined,
     noDescriptions: false,
   };
   const result: Writable<ParsedSketch> = {
@@ -584,8 +585,9 @@ export function parseSketch(
       options.noLegend = true;
       continue;
     }
-    if (indent === 0 && /^solid-fill\s*$/i.test(trimmed)) {
-      options.solidFill = true;
+    if (indent === 0 && fillModeFromToken(trimmed) !== null) {
+      const fm = fillModeFromToken(trimmed)!;
+      options.fillMode = fm === 'tint' ? undefined : fm;
       continue;
     }
     if (indent === 0 && /^no-descriptions\s*$/i.test(trimmed)) {

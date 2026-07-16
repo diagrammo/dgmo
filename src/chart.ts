@@ -60,8 +60,9 @@ export interface ParsedChart {
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
-  /** Render with full intent saturation instead of the canonical 25% tint. */
-  solidFill?: boolean;
+  /** §1.9 fill family: `'solid'` = full intent saturation, `'outline'` =
+   *  theme-background fill with color on the stroke. Absent ⇒ 25% tint. */
+  fillMode?: 'solid' | 'outline';
   /** Cross-chart-type: when true, the renderer suppresses the chart title. */
   noTitle?: boolean;
   /** Line only: opt out of the data-driven y-axis auto-fit and anchor the
@@ -83,6 +84,7 @@ import type { PaletteColors } from './palettes';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 import {
   extractColor,
+  fillModeFromToken,
   normalizeNumericToken,
   parseFirstLine,
   parseSeriesNames,
@@ -124,7 +126,9 @@ const DEFAULT_HOLE = 0.6;
 /** Known boolean options for the simple chart parser. */
 const KNOWN_BOOLEANS = new Set([
   'orientation-horizontal',
-  'solid-fill',
+  'fill-tint',
+  'fill-solid',
+  'fill-outline',
   'no-title',
   'no-auto-y',
   'fill',
@@ -335,8 +339,10 @@ export function parseChart(
     if (KNOWN_BOOLEANS.has(firstToken) && spaceIdx < 0) {
       if (firstToken === 'orientation-horizontal') {
         result.orientation = 'horizontal';
-      } else if (firstToken === 'solid-fill') {
-        result.solidFill = true;
+      } else if (fillModeFromToken(firstToken) !== null) {
+        const fm = fillModeFromToken(firstToken)!;
+        if (fm === 'tint') delete result.fillMode;
+        else result.fillMode = fm;
       } else if (firstToken === 'no-title') {
         result.noTitle = true;
       } else if (firstToken === 'no-auto-y') {

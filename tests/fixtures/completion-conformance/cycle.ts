@@ -1,7 +1,7 @@
 import type { ConformanceFixture } from './_types';
 
 // Spec §21 (Cycle Diagrams). Three chart-specific directives plus
-// solid-fill (via SOLID_FILL_CAPABLE — not yet documented in §21.5).
+// the fill family (via FILL_FAMILY_CAPABLE — not yet documented in §21.5).
 // Pipe metadata splits cleanly across node and edge contexts.
 //
 // Note: spec subsection numbering inside §21 reads "20.1, 20.2, ..." —
@@ -15,7 +15,9 @@ export const fixture: ConformanceFixture = {
   directives: [
     'direction-counterclockwise',
     'circle-nodes',
-    'solid-fill', // working but not documented in §21.5
+    'fill-tint',
+    'fill-solid',
+    'fill-outline', // working but not documented in §21.5
   ],
 
   pipeKeys: {

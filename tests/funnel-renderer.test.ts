@@ -61,8 +61,8 @@ describe('funnel renderer labels', () => {
     expect(parseFloat(value![2])).toBeGreaterThan(13);
   });
 
-  it('solid-fill switches the in-band value to contrast text', async () => {
-    const { svg } = await render(`funnel T\nsolid-fill\nA 1000\nB 500`);
+  it('fill-solid switches the in-band value to contrast text', async () => {
+    const { svg } = await render(`funnel T\nfill-solid\nA 1000\nB 500`);
     const value = svg.match(
       /<text[^>]*fill="([^"]+)"[^>]*font-weight="700"[^>]*>1,000<\/text>/
     );

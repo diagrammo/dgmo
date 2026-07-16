@@ -50,7 +50,12 @@ const ANNOTATION_RE = /^(pain|opportunity|thought)\s*:\s*(.+)$/i;
 /** Known journey-map options (key-value). */
 const KNOWN_OPTIONS = new Set(['active-tag']);
 /** Known journey-map boolean options (bare keyword = on). */
-const KNOWN_BOOLEANS = new Set(['solid-fill', 'no-title']);
+const KNOWN_BOOLEANS = new Set([
+  'fill-tint',
+  'fill-solid',
+  'fill-outline',
+  'no-title',
+]);
 const REMOVED_BOOLEANS: Record<string, string> = {
   'no-legend':
     '"no-legend" has been removed — remove tag groups to hide the legend.',

@@ -1,4 +1,5 @@
 import type { PaletteColors } from '../palettes';
+import { fillModeFromOptions } from '../utils/parsing';
 import { mix, shapeFill } from '../palettes/color-utils';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import type {
@@ -366,7 +367,7 @@ export function layoutJourneyMap(
         palette,
         scoreToColor(avgScore, palette),
         isDark,
-        { solid: parsed.options['solid-fill'] === 'on' }
+        { mode: fillModeFromOptions(parsed.options) }
       );
 
       const COLLAPSED_CARD_H = 26;

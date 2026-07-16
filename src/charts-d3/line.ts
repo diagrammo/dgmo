@@ -45,8 +45,9 @@ export function renderLine(
   const data = chart.data;
   // `line` + a `fill` directive → filled (area) rendering. (#25)
   const isArea = chart.fill === true;
-  // `solid-fill` → opaque area under the line instead of the default 25% tint.
-  const solid = chart.solidFill === true;
+  // `fill-solid` → opaque area under the line instead of the default 25% tint.
+  // The area IS the data surface — `fill-outline` is ignored here (§1.9).
+  const solid = chart.fillMode === 'solid';
   const seriesNames = chart.seriesNames?.length
     ? chart.seriesNames
     : [chart.series ?? ''];

@@ -3,6 +3,7 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
+import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
@@ -481,7 +482,7 @@ export function renderERDiagram(
     const w = node.width;
     const h = node.height;
     const fill = shapeFill(palette, nodeColor, isDark, {
-      solid: parsed.options['solid-fill'] === 'on',
+      mode: fillModeFromOptions(parsed.options),
     });
     const stroke = nodeColor;
     const onFillText = contrastText(

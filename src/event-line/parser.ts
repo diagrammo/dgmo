@@ -40,6 +40,7 @@ import {
   splitNameAndMeta,
   tryParseSharedOption,
   warnUnknownMetaKeys,
+  fillModeFromToken,
 } from '../utils/parsing';
 import {
   EVENT_LINE_REGISTRY,
@@ -88,7 +89,7 @@ export function parseEventLine(
     noTitle: false,
     noBox: false,
     noLegend: false,
-    solidFill: false,
+    fillMode: undefined,
   };
   const result: Writable<ParsedEventLine> = {
     type: 'event-line',
@@ -335,9 +336,12 @@ export function parseEventLine(
         options.noLegend = true;
         continue;
       }
-      if (trimmed.toLowerCase() === 'solid-fill') {
-        options.solidFill = true;
-        continue;
+      {
+        const fm = fillModeFromToken(trimmed);
+        if (fm !== null) {
+          options.fillMode = fm === 'tint' ? undefined : fm;
+          continue;
+        }
       }
       const dirMatch = trimmed.match(DIRECTION_RE);
       if (dirMatch) {

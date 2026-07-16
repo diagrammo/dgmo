@@ -39,6 +39,7 @@ import {
   stripQuotes,
   splitNameAndMeta,
   warnUnknownMetaKeys,
+  fillModeFromToken,
 } from '../utils/parsing';
 import {
   TREEMAP_REGISTRY,
@@ -73,7 +74,7 @@ export function parseTreemap(
     noPercent: false,
     noHeaders: false,
     noLegend: false,
-    solidFill: false,
+    fillMode: undefined,
     radial: false,
   };
   const result: Writable<ParsedTreemap> = {
@@ -343,9 +344,12 @@ function handleDirective(
     return true;
   }
 
-  if (/^solid-fill\s*$/i.test(trimmed)) {
-    options.solidFill = true;
-    return true;
+  {
+    const fm = fillModeFromToken(trimmed);
+    if (fm !== null) {
+      options.fillMode = fm === 'tint' ? undefined : fm;
+      return true;
+    }
   }
 
   // `radial` — sunburst mode. A bare flag on its own (NOT an opt-out, so it is

@@ -11,7 +11,7 @@
 
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
-import { mix } from '../palettes/color-utils';
+import { mix, themeBaseBg } from '../palettes/color-utils';
 import { resolveTagColor, tagAttrKey } from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
@@ -176,7 +176,8 @@ export function renderBlock(
     activeGroup,
     activeKey: activeGroup ? tagAttrKey(activeGroup) : null,
     neutral,
-    solidFill: opts.solidFill,
+    fillMode: opts.fillMode,
+    isDark,
     onToggle: options.onToggle,
   });
 
@@ -214,8 +215,9 @@ interface DrawCtx {
   /** `tagAttrKey(activeGroup)` — the `data-tag-<key>` suffix for legend hover. */
   activeKey: string | null;
   neutral: string;
-  /** `solid-fill` — render node fills at full saturation instead of a tint. */
-  solidFill: boolean;
+  /** §1.9 fill family: 'solid' | 'outline'; absent ⇒ canonical 25% tint. */
+  fillMode: 'solid' | 'outline' | undefined;
+  isDark: boolean;
   onToggle: ((id: string, lineNumber: number) => void) | undefined;
 }
 
@@ -246,7 +248,7 @@ function drawItems(
   ctx: DrawCtx,
   path: string[] = []
 ): void {
-  const { palette, solidFill: solid } = ctx;
+  const { palette, fillMode } = ctx;
   for (const it of items) {
     if (it.type === 'empty') {
       g.append('rect')
@@ -287,9 +289,11 @@ function drawItems(
 
     if (it.type === 'collapsed') {
       const fill = color
-        ? solid
+        ? fillMode === 'solid'
           ? color
-          : mix(color, palette.bg, 12)
+          : fillMode === 'outline'
+            ? themeBaseBg(palette, ctx.isDark)
+            : mix(color, palette.bg, 12)
         : palette.surface;
       const cid = `dgmo-block-clip-${clipCounter++}`;
       cell
@@ -327,9 +331,9 @@ function drawItems(
         .attr('y', it.y + it.h - BLOCK_BAR_H)
         .attr('width', it.w)
         .attr('height', BLOCK_BAR_H)
-        // §3 convention: solid bar = card stroke; in solid-fill mode the stroke
+        // §3 convention: solid bar = card stroke; in fill-solid mode the stroke
         // equals the fill, so fall back to the label color to keep the bar visible.
-        .attr('fill', solid && color ? palette.text : stroke)
+        .attr('fill', fillMode === 'solid' && color ? palette.text : stroke)
         .attr('clip-path', `url(#${cid})`);
       bindToggle(cell, it, ctx, it.h);
       continue;
@@ -337,9 +341,11 @@ function drawItems(
 
     if (it.type === 'container') {
       const fill = color
-        ? solid
+        ? fillMode === 'solid'
           ? color
-          : mix(color, palette.bg, 7)
+          : fillMode === 'outline'
+            ? themeBaseBg(palette, ctx.isDark)
+            : mix(color, palette.bg, 7)
         : palette.surface;
       cell
         .append('rect')
@@ -381,13 +387,15 @@ function drawItems(
 
     // leaf
     // Children inherit their container's tag color, so a full-saturation leaf
-    // fill matches the solid container exactly and vanishes. In solid-fill mode
+    // fill matches the solid container exactly and vanishes. In fill-solid mode
     // lighten the leaf a step toward bg so it reads as an inset card, with the
     // full-color stroke giving a crisp edge against the container.
     const fill = color
-      ? solid
+      ? fillMode === 'solid'
         ? mix(color, palette.bg, 80)
-        : mix(color, palette.bg, 14)
+        : fillMode === 'outline'
+          ? themeBaseBg(palette, ctx.isDark)
+          : mix(color, palette.bg, 14)
       : palette.bg;
     cell.attr('data-leaf', 'true');
     cell

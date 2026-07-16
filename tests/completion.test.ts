@@ -376,8 +376,8 @@ describe('COMPLETION_REGISTRY', () => {
     expect(CHART_TYPES.find((t) => t.name === 'multi-line')).toBeUndefined();
   });
 
-  describe('solid-fill directive coverage', () => {
-    // Chart types whose renderers actually respond to `solid-fill`.
+  describe('fill-family directive coverage', () => {
+    // Chart types whose renderers actually respond to the §1.9 fill family.
     const expected = [
       'flowchart',
       'state',
@@ -412,18 +412,20 @@ describe('COMPLETION_REGISTRY', () => {
       'goal',
     ];
     for (const type of expected) {
-      it(`exposes solid-fill for ${type}`, () => {
+      it(`exposes the fill family for ${type}`, () => {
         const spec = COMPLETION_REGISTRY.get(type);
         expect(spec, `${type} not in registry`).toBeDefined();
-        expect(
-          spec!.directives['solid-fill'],
-          `${type} should expose solid-fill`
-        ).toBeDefined();
+        for (const token of ['fill-tint', 'fill-solid', 'fill-outline']) {
+          expect(
+            spec!.directives[token],
+            `${type} should expose ${token}`
+          ).toBeDefined();
+        }
       });
     }
 
-    // Chart types where the keyword is a no-op (renderer opt-out, no shapeFill,
-    // or no shape fills at all). These should NOT advertise solid-fill in
+    // Chart types where the family is a no-op (renderer opt-out, no shapeFill,
+    // or no shape fills at all). These should NOT advertise the fill family in
     // completion to avoid misleading users.
     const skipped = [
       'gantt',
@@ -437,13 +439,15 @@ describe('COMPLETION_REGISTRY', () => {
       'arc',
     ];
     for (const type of skipped) {
-      it(`does not expose solid-fill for ${type}`, () => {
+      it(`does not expose the fill family for ${type}`, () => {
         const spec = COMPLETION_REGISTRY.get(type);
         expect(spec, `${type} not in registry`).toBeDefined();
-        expect(
-          spec!.directives['solid-fill'],
-          `${type} should not expose solid-fill`
-        ).toBeUndefined();
+        for (const token of ['fill-tint', 'fill-solid', 'fill-outline']) {
+          expect(
+            spec!.directives[token],
+            `${type} should not expose ${token}`
+          ).toBeUndefined();
+        }
       });
     }
   });
@@ -461,7 +465,7 @@ describe('COMPLETION_REGISTRY', () => {
       'no-value',
       'no-note',
       'no-auto-color',
-      'solid-fill',
+      'fill-solid',
       'no-title',
     ]) {
       expect(spec!.directives[key], `goal should expose ${key}`).toBeDefined();

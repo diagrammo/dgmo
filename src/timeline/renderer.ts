@@ -753,7 +753,7 @@ type TimelineSetup = {
   height: number;
   isVertical: boolean;
   tooltip: HTMLDivElement;
-  solid: boolean;
+  fillMode: 'solid' | 'outline' | undefined;
   textColor: string;
   mutedColor: string;
   bgColor: string;
@@ -789,7 +789,7 @@ function setupTimeline(
   swimlaneTagGroup: string | null | undefined
 ): TimelineSetup | null {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
-  const solid = parsed.solidFill === true;
+  const fillMode = parsed.fillMode;
 
   const {
     timelineEvents,
@@ -944,7 +944,7 @@ function setupTimeline(
     height,
     isVertical,
     tooltip,
-    solid,
+    fillMode,
     textColor,
     mutedColor,
     bgColor,
@@ -1161,7 +1161,7 @@ function renderTimelineTagLegendOverlay(
 ): void {
   if (parsed.timelineTagGroups.length === 0) return;
 
-  const { width, textColor, groupColorMap, solid } = setup;
+  const { width, textColor, groupColorMap, fillMode } = setup;
   const { FADE_OPACITY, fadeReset, fadeToTagValue } = hovers;
   const title = parsed.noTitle ? null : parsed.title;
   const { timelineEvents } = parsed;
@@ -1440,10 +1440,10 @@ function renderTimelineTagLegendOverlay(
               : textColor;
         }
         el.selectAll('rect')
-          .attr('fill', shapeFill(palette, color, isDark, { solid }))
+          .attr('fill', shapeFill(palette, color, isDark, { mode: fillMode }))
           .attr('stroke', color);
         el.selectAll('circle:not(.tl-event-point-outline)')
-          .attr('fill', shapeFill(palette, color, isDark, { solid }))
+          .attr('fill', shapeFill(palette, color, isDark, { mode: fillMode }))
           .attr('stroke', color);
       });
     }
@@ -1476,7 +1476,7 @@ function renderTimelineHorizontalTimeSort(
     width,
     height,
     tooltip,
-    solid,
+    fillMode,
     textColor,
     bgColor,
     bg,
@@ -1710,7 +1710,7 @@ function renderTimelineHorizontalTimeSort(
       const estLabelWidth = ev.label.length * sCharW + ctx.aesthetic(16);
       const labelFitsInside = rectW >= estLabelWidth;
 
-      let fill: string = shapeFill(palette, color, isDark, { solid });
+      let fill: string = shapeFill(palette, color, isDark, { mode: fillMode });
       let stroke: string = color;
       if (ev.uncertain) {
         const gradientId = `uncertain-ts-${ev.lineNumber}`;
@@ -1804,7 +1804,7 @@ function renderTimelineHorizontalTimeSort(
         .attr('cx', x)
         .attr('cy', y)
         .attr('r', sPointR)
-        .attr('fill', shapeFill(palette, color, isDark, { solid }))
+        .attr('fill', shapeFill(palette, color, isDark, { mode: fillMode }))
         .attr('stroke', color)
         .attr('stroke-width', sPointStroke);
       evG
@@ -1846,7 +1846,7 @@ function renderTimelineHorizontalGrouped(
     width,
     height,
     tooltip,
-    solid,
+    fillMode,
     textColor,
     bgColor,
     bg,
@@ -2071,7 +2071,7 @@ function renderTimelineHorizontalGrouped(
       .attr('width', bandW)
       .attr('height', bandH)
       .attr('rx', sBandRx)
-      .attr('fill', shapeFill(palette, laneColor, isDark, { solid }))
+      .attr('fill', shapeFill(palette, laneColor, isDark, { mode: fillMode }))
       .style('pointer-events', 'none');
 
     g.append('rect')
@@ -2134,7 +2134,7 @@ function renderTimelineHorizontalGrouped(
         .attr('width', groupBarW)
         .attr('height', sBarH)
         .attr('rx', sBarRx)
-        .attr('fill', shapeFill(palette, laneColor, isDark, { solid }))
+        .attr('fill', shapeFill(palette, laneColor, isDark, { mode: fillMode }))
         .attr('stroke', laneColor)
         .attr('stroke-width', sBarStroke);
     }
@@ -2217,7 +2217,9 @@ function renderTimelineHorizontalGrouped(
         const x2 = xScale(parseTimelineDate(ev.endDate));
         const rectW = Math.max(x2 - x, 4);
 
-        let fill: string = shapeFill(palette, evColor, isDark, { solid });
+        let fill: string = shapeFill(palette, evColor, isDark, {
+          mode: fillMode,
+        });
         let stroke: string = evColor;
         if (ev.uncertain) {
           const gradientId = `uncertain-${ev.lineNumber}`;
@@ -2280,7 +2282,7 @@ function renderTimelineHorizontalGrouped(
           .attr('cx', x)
           .attr('cy', y)
           .attr('r', sPointR)
-          .attr('fill', shapeFill(palette, evColor, isDark, { solid }))
+          .attr('fill', shapeFill(palette, evColor, isDark, { mode: fillMode }))
           .attr('stroke', evColor)
           .attr('stroke-width', sPointStroke);
       }
@@ -2314,7 +2316,7 @@ function renderTimelineVertical(
     width,
     height,
     tooltip,
-    solid,
+    fillMode,
     textColor,
     mutedColor,
     bgColor,
@@ -2551,7 +2553,9 @@ function renderTimelineVertical(
           const y2 = yScale(parseTimelineDate(ev.endDate));
           const rectH = Math.max(y2 - y, 4);
 
-          let fill: string = shapeFill(palette, evColor, isDark, { solid });
+          let fill: string = shapeFill(palette, evColor, isDark, {
+            mode: fillMode,
+          });
           let stroke: string = evColor;
           if (ev.uncertain) {
             const gradientId = `uncertain-vg-${ev.lineNumber}`;
@@ -2622,7 +2626,10 @@ function renderTimelineVertical(
             .attr('cx', laneCenter)
             .attr('cy', y)
             .attr('r', sPointR)
-            .attr('fill', shapeFill(palette, evColor, isDark, { solid }))
+            .attr(
+              'fill',
+              shapeFill(palette, evColor, isDark, { mode: fillMode })
+            )
             .attr('stroke', evColor)
             .attr('stroke-width', sPointStroke);
           evG
@@ -2781,7 +2788,9 @@ function renderTimelineVertical(
         const y2 = yScale(parseTimelineDate(ev.endDate));
         const rectH = Math.max(y2 - y, 4);
 
-        let fill: string = shapeFill(palette, color, isDark, { solid });
+        let fill: string = shapeFill(palette, color, isDark, {
+          mode: fillMode,
+        });
         let stroke: string = color;
         if (ev.uncertain) {
           const gradientId = `uncertain-v-${ev.lineNumber}`;
@@ -2852,7 +2861,7 @@ function renderTimelineVertical(
           .attr('cx', axisX)
           .attr('cy', y)
           .attr('r', sPointR)
-          .attr('fill', shapeFill(palette, color, isDark, { solid }))
+          .attr('fill', shapeFill(palette, color, isDark, { mode: fillMode }))
           .attr('stroke', color)
           .attr('stroke-width', sPointStroke);
         evG
