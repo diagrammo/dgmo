@@ -5,7 +5,7 @@ export const fixture: ConformanceFixture = {
   chartType: 'arc',
   specSection: '17',
   firstLineKeyword: 'arc',
-  directives: ['order'],
+  directives: ['order', 'fill-tint', 'fill-solid', 'fill-outline'],
   pipeKeys: {},
   enumChecks: [
     { directive: 'palette', source: 'palettes' },

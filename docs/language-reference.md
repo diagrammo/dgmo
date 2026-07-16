@@ -3792,7 +3792,7 @@ target 10000
 | `target <number>`      | Goal value (required; must be > 0).                           |
 | `no-percent`           | Hide the `%` label.                                           |
 | `no-value`             | Hide the raw `now / target` label.                            |
-| `fill-solid`           | Full-saturation fill instead of the default 25% tint (`fill-outline` is ignored — the fill is the meter). |
+| `fill-solid`           | Full-saturation fill instead of the default 25% tint (`fill-outline` hollows the meter — color on the rim). |
 | `no-title`             | Hide the banner title.                                        |
 | `no-note`              | Suppress the `note` block even if one is authored.           |
 | `no-auto-color`        | Disable the traffic-light bands; use the flat palette color.  |
@@ -3817,7 +3817,7 @@ The body supports inline `**bold**` / `*italic*` / `` `code` ``, `- `/`* ` bulle
 
 ### Values & color
 
-Values accept `_` separators (`10_000`) but not thousands commas; the unit lives in the title. Color precedence: (1) an explicit trailing color token on the title line (`goal Marathon Fund ($) green`, §1.5) always wins; (2) otherwise the **auto traffic-light** band by completion — `< 50%` red, `50–80%` orange, `≥ 80%` green (over-target stays green), which needs a `target`; (3) `no-auto-color` disables the bands and falls back to the palette series color. The fill is a 25% tint of the resolved color; `fill-solid` opts into full saturation (`fill-outline` is ignored — the fill is the meter).
+Values accept `_` separators (`10_000`) but not thousands commas; the unit lives in the title. Color precedence: (1) an explicit trailing color token on the title line (`goal Marathon Fund ($) green`, §1.5) always wins; (2) otherwise the **auto traffic-light** band by completion — `< 50%` red, `50–80%` orange, `≥ 80%` green (over-target stays green), which needs a `target`; (3) `no-auto-color` disables the bands and falls back to the palette series color. The fill is a 25% tint of the resolved color; `fill-solid` opts into full saturation; `fill-outline` hollows the meter (color on the rim, advancement reads from the outlined extent).
 
 ### Semantics
 

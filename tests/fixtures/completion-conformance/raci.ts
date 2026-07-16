@@ -29,7 +29,13 @@ export const fixture: ConformanceFixture = {
 
   // Directives the spec documents (palette/theme are universal — included
   // automatically by the harness for every chart type).
-  directives: ['roles', 'active-tag'],
+  directives: [
+    'roles',
+    'active-tag',
+    'fill-tint',
+    'fill-solid',
+    'fill-outline',
+  ],
 
   // Pipe metadata, scoped by what the line is attached to. RACI uses pipe
   // metadata in two contexts:

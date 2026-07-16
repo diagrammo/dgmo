@@ -410,6 +410,13 @@ describe('COMPLETION_REGISTRY', () => {
       'line',
       'event-line',
       'goal',
+      'quadrant',
+      'arc',
+      'bracket',
+      'body',
+      'clock',
+      'countdown',
+      'raci',
     ];
     for (const type of expected) {
       it(`exposes the fill family for ${type}`, () => {
@@ -431,12 +438,10 @@ describe('COMPLETION_REGISTRY', () => {
       'gantt',
       'infra',
       'tech-radar',
-      'quadrant',
       'function',
       'sankey',
       'wordcloud',
       'slope',
-      'arc',
     ];
     for (const type of skipped) {
       it(`does not expose the fill family for ${type}`, () => {

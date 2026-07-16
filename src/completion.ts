@@ -819,13 +819,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
 // ── Cross-chart-type bare-keyword options: the fill family ──────
 // Adds the §1.9 fill-family directives (`fill-tint`/`fill-solid`/
 // `fill-outline`) to every chart type whose renderer actually responds to
-// them. Chart types where the family is a no-op (gantt/infra/tech-radar
-// deliberately opt out; quadrant/scatter-dot/wordcloud/arc/slope have no
-// tinted shape fill) intentionally don't list them — keeps the completion
-// popup honest. `line` honors them only for area (`fill`) charts;
-// `event-line` restyles the card / no-box shelf fill. goal/heatmap and
-// line/function area fills honor `fill-solid` but ignore `fill-outline`
-// (their fill is the data surface).
+// them. Chart types where the family is a no-op (map/gantt/infra/tech-radar
+// deliberately opt out — their tint encodes data; wordcloud/slope/
+// version-control have no tinted shape fill) intentionally don't list them —
+// keeps the completion popup honest. `line` honors them only for area
+// (`fill`) charts; line/function area fills and sankey ribbons honor
+// `fill-solid` but ignore `fill-outline` (the fill is the data surface).
 const FILL_FAMILY_CAPABLE = new Set([
   'sketch',
   'flowchart',
@@ -861,6 +860,13 @@ const FILL_FAMILY_CAPABLE = new Set([
   'line',
   'event-line',
   'goal',
+  'quadrant',
+  'arc',
+  'bracket',
+  'body',
+  'clock',
+  'countdown',
+  'raci',
 ]);
 for (const [type, spec] of COMPLETION_REGISTRY) {
   if (FILL_FAMILY_CAPABLE.has(type)) {

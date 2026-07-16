@@ -7,7 +7,7 @@ export const fixture: ConformanceFixture = {
   chartType: 'quadrant',
   specSection: '17',
   firstLineKeyword: 'quadrant',
-  directives: ['x-label', 'y-label'],
+  directives: ['x-label', 'y-label', 'fill-tint', 'fill-solid', 'fill-outline'],
   pipeKeys: {},
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };
