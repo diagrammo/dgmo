@@ -672,6 +672,40 @@ describe('countdown renderer — human hero + band', () => {
   });
 });
 
+describe('countdown — a passed target mirrors the ramp (opposite direction)', () => {
+  it('all-day past hero reads a flat "N days ago" — no false hours', () => {
+    const c = renderAt(
+      `countdown Kraken\ntarget 2026-07-05`, // 7 days ago
+      '2026-07-12T00:00:00Z'
+    );
+    expect(valueNode(c).textContent).toBe('7 days ago');
+  });
+
+  it('recently passed (≤ 7d) → the same week strip, event haloed', () => {
+    const c = renderAt(
+      `countdown Kraken\ntarget 2026-07-08`, // 4 days ago
+      '2026-07-12T00:00:00Z'
+    );
+    const txt = allText(c);
+    expect(txt).toContain('TODAY'); // the strip's today tag
+    for (const d of ['8', '12']) expect(txt).toContain(d); // event(8)…today(12)
+    // The event still gets the target halo — same anchor styling as a future run.
+    expect(c.querySelector('.dgmo-countdown-target-ring')).toBeTruthy();
+  });
+
+  it('8+ days passed → the same day-calendar tier (no bespoke afterglow)', () => {
+    const c = renderAt(
+      `countdown Kraken\ntarget 2026-06-28`, // 14 days ago
+      '2026-07-12T00:00:00Z'
+    );
+    const tokens = allText(c).split(' | ');
+    expect(tokens).toContain('Jun 2026'); // real month-calendar labels
+    expect(tokens).toContain('Jul 2026');
+    expect(valueNode(c).textContent).toBe('14 days ago');
+    expect(c.querySelector('.dgmo-countdown-target-ring')).toBeTruthy();
+  });
+});
+
 // ============================================================
 // Ticker — live update, roll-forward, stamp erasure
 // ============================================================
@@ -686,6 +720,16 @@ describe('countdown ticker', () => {
     tickCountdowns(c);
     expect(valueNode(c).textContent).toBe('20 days');
     expect(valueNode(c).getAttribute('aria-label')).toContain('Trip');
+  });
+
+  it('all-day past: ticks a flat "N days ago" even mid-day (no false hours)', () => {
+    const c = renderAt(
+      `countdown Kraken\ntarget 2026-07-20`,
+      '2026-07-10T00:00:00Z'
+    );
+    vi.setSystemTime(Date.parse('2026-07-27T08:30:00Z')); // 7 days + 8½h later
+    tickCountdowns(c);
+    expect(valueNode(c).textContent).toBe('7 days ago');
   });
 
   it('full mode: upgrades to Nd HH:MM:SS', () => {

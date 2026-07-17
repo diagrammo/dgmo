@@ -219,10 +219,14 @@ function updateNode(node: Element, now: number): void {
     });
     text = remaining < 0 ? `${clock} ago` : clock;
   } else if (expiredNow) {
-    // Count UP how long ago it was (all-day past).
-    if (units === 'compound' || units === 'human')
-      text = `${formatCompound(resolvedMs, now, 2, tz)} ago`;
-    else {
+    // Count UP how long ago it was. All-day (no-time) targets floor to `tz`
+    // midnights so it reads flat ("4 days ago"), mirroring the forward path.
+    if (units === 'compound' || units === 'human') {
+      const [a, b] = hasTime
+        ? [resolvedMs, now]
+        : [dayStart(resolvedMs, tz), dayStart(now, tz)];
+      text = `${formatCompound(a, b, 2, tz)} ago`;
+    } else {
       const elapsed = -remaining;
       text =
         elapsed <= 0

@@ -58,8 +58,14 @@ function bakedHero(parsed: ParsedCountdown, now: number): string {
     if (parsed.expired !== null) return parsed.expired;
     const elapsed = -remaining;
     if (elapsed <= 0) return 'Now!';
-    if (parsed.units === 'compound' || parsed.units === 'human')
-      return `${formatCompound(resolved, now, 2, tz)} ago`;
+    if (parsed.units === 'compound' || parsed.units === 'human') {
+      // Mirror the forward path: all-day (no-time) targets floor to `tz`
+      // midnights so "4 days ago" reads flat instead of "4 days, 22 hours ago".
+      const [a, b] = parsed.hasTime
+        ? [resolved, now]
+        : [tzDayStart(resolved, tz), tzDayStart(now, tz)];
+      return `${formatCompound(a, b, 2, tz)} ago`;
+    }
     const bu =
       parsed.units === 'full' || parsed.units === 'clock'
         ? 'days'
@@ -421,7 +427,6 @@ type BandKind =
   | 'monthgrid'
   | 'weekstrip'
   | 'today'
-  | 'after'
   | 'clock';
 
 function pickBand(
@@ -432,24 +437,31 @@ function pickBand(
   const days = dayDelta(nowMs, resolvedMs);
   // Timed pivot: on the final day (or past) the band becomes the H·M·S rings.
   if (hasTime && days <= 0) return 'clock';
+  if (days === 0) return 'today';
+  // The ramp is symmetric: a PASSED target renders the same tier as one the same
+  // distance ahead, just mirrored (event anchor on the earlier side, today on the
+  // later, the gradient running the opposite way). Tier is chosen from the
+  // MAGNITUDE of the span; each viz lays out over the ordered [earlier..later]
+  // range and colours by identity + now→event fraction.
+  const mag = Math.abs(days);
   // >3yr: the per-year month tier would stack one 12-month row per year (a 70yr
   // target = 71 rows of nothing). The years-strip collapses to decade-aligned
   // rows, one cell per year, and shrinks its cells for absurd spans instead.
-  if (days > 3 * 365) return 'years';
-  if (days > 365) return 'year'; // 1–3yr → the detailed per-year month rows
-  if (days > 92) return 'months'; // 3–12mo → abstract month rectangles
-  if (days > 7) return 'monthgrid'; // 8d–3mo → real day calendars
-  if (days >= 1) return 'weekstrip'; // ≤ 7d → one stretchy linear day-strip (a single week)
-  if (days === 0) return 'today';
-  return 'after';
+  if (mag > 3 * 365) return 'years';
+  if (mag > 365) return 'year'; // 1–3yr → the detailed per-year month rows
+  if (mag > 92) return 'months'; // 3–12mo → abstract month rectangles
+  if (mag > 7) return 'monthgrid'; // 8d–3mo → real day calendars
+  return 'weekstrip'; // ≤ 7d → one stretchy linear day-strip (a single week)
 }
 
-/** Inclusive count of calendar months spanned from now's month to target's month. */
+/** Inclusive count of calendar months between now's month and the target's (either order). */
 function monthSpan(nowMs: number, resolvedMs: number): number {
   const n = new Date(nowMs);
   const t = new Date(resolvedMs);
   return (
-    (t.getFullYear() - n.getFullYear()) * 12 + (t.getMonth() - n.getMonth()) + 1
+    Math.abs(
+      (t.getFullYear() - n.getFullYear()) * 12 + (t.getMonth() - n.getMonth())
+    ) + 1
   );
 }
 
@@ -473,13 +485,18 @@ function monthGridLayout(
   const padBefore = Math.floor((shown - realSpan) / 2);
   const nowMk = now.getFullYear() * 12 + now.getMonth();
   const evMk = ev.getFullYear() * 12 + ev.getMonth();
+  // Window covers the ordered [earlier..later] range so it renders identically
+  // whether the target is ahead of or behind today.
+  const loMk = Math.min(nowMk, evMk);
+  const hiMk = Math.max(nowMk, evMk);
+  const startMk = loMk - padBefore;
   const months: Date[] = [];
   const dim: boolean[] = [];
   for (let i = 0; i < shown; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - padBefore + i, 1);
+    const d = new Date(Math.floor(startMk / 12), (startMk % 12) + i, 1);
     const mk = d.getFullYear() * 12 + d.getMonth();
     months.push(d);
-    dim.push(mk < nowMk || mk > evMk);
+    dim.push(mk < loMk || mk > hiMk);
   }
   return { months, dim };
 }
@@ -496,8 +513,9 @@ function yearsLayout(
 ): { d0: number; d1: number; rows: number } {
   const y0 = new Date(nowMs).getFullYear();
   const y1 = new Date(resolvedMs).getFullYear();
-  const d0 = Math.floor(y0 / 10) * 10;
-  const d1 = Math.floor(y1 / 10) * 10;
+  // Decade rows span the ordered range, so a past target mirrors a future one.
+  const d0 = Math.floor(Math.min(y0, y1) / 10) * 10;
+  const d1 = Math.floor(Math.max(y0, y1) / 10) * 10;
   return { d0, d1, rows: (d1 - d0) / 10 + 1 };
 }
 
@@ -535,7 +553,9 @@ function bandHeightFor(
     }
     case 'year': {
       const R =
-        new Date(resolvedMs).getFullYear() - new Date(nowMs).getFullYear() + 1;
+        Math.abs(
+          new Date(resolvedMs).getFullYear() - new Date(nowMs).getFullYear()
+        ) + 1;
       const yearW = 66; // left gutter for the big (right-aligned) year number
       const gap = 8; // enough that the event halo never touches a neighbor
       const cellW = (contentW - yearW - 11 * gap) / 12;
@@ -565,15 +585,14 @@ function bandHeightFor(
       return 26 + 6 * cellH + 8;
     }
     case 'weekstrip': {
-      // Stretchy day-strip: a cell per day today→event, padded to a minimum of 7.
-      const n = Math.max(7, dayDelta(nowMs, resolvedMs) + 1);
+      // Stretchy day-strip: a cell per day earlier→later, padded to a minimum of 7.
+      const n = Math.max(7, Math.abs(dayDelta(nowMs, resolvedMs)) + 1);
       const cw = (contentW - 10 * (n - 1)) / n;
       return clamp(cw * 1.5, 116, 170);
     }
     case 'clock':
       return clamp(contentW * 0.26, 150, 205);
     case 'today':
-    case 'after':
       return clamp(contentW * 0.22, 125, 170);
   }
 }
@@ -630,7 +649,7 @@ function vizYears(
       const before = yr < nowY;
       const isNow = yr === nowY;
       const isEv = yr === evY;
-      const between = yr > nowY && yr < evY;
+      const between = (yr - nowY) * (yr - evY) < 0;
       const st = isEv
         ? roleStyle(C, 'event')
         : isNow
@@ -668,8 +687,9 @@ function vizYear(
 ): void {
   const now = new Date(nowMs);
   const ev = new Date(resolvedMs);
-  const y0 = now.getFullYear();
-  const y1 = ev.getFullYear();
+  // Ordered year rows (min→max) so a past target mirrors a future one.
+  const y0 = Math.min(now.getFullYear(), ev.getFullYear());
+  const y1 = Math.max(now.getFullYear(), ev.getFullYear());
   const years: number[] = [];
   for (let y = y0; y <= y1; y++) years.push(y);
   const R = years.length;
@@ -703,12 +723,11 @@ function vizYear(
       { 'dominant-baseline': 'central' }
     );
     for (let m = 0; m < 12; m++) {
-      const before = yr < nowY || (yr === nowY && m < nowM);
+      const mOrd = yr * 12 + m;
+      const before = mOrd < nowOrd;
       const isNow = yr === nowY && m === nowM;
       const isEv = yr === evY && m === evM;
-      const between =
-        (yr > nowY || (yr === nowY && m > nowM)) &&
-        (yr < evY || (yr === evY && m < evM));
+      const between = (mOrd - nowOrd) * (mOrd - evOrd) < 0;
       const anchor = isEv || isNow;
       const st = isEv
         ? roleStyle(C, 'event')
@@ -794,12 +813,16 @@ function vizMonths(
   const cellH = (g.height - rowGap * (rows - 1)) / rows;
   const nowMk = now.getFullYear() * 12 + now.getMonth();
   const evMk = ev.getFullYear() * 12 + ev.getMonth();
+  // Window over the ordered [earlier..later] month range → past mirrors future.
+  const loMk = Math.min(nowMk, evMk);
+  const hiMk = Math.max(nowMk, evMk);
+  const startMk = loMk - padBefore;
   for (let i = 0; i < shown; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - padBefore + i, 1);
+    const d = new Date(Math.floor(startMk / 12), (startMk % 12) + i, 1);
     const mk = d.getFullYear() * 12 + d.getMonth();
     const isNow = mk === nowMk;
     const isEv = mk === evMk;
-    const isContext = mk < nowMk || mk > evMk;
+    const isContext = mk < loMk || mk > hiMk;
     const anchor = isNow || isEv;
     const col = i % perRow;
     const row = Math.floor(i / perRow);
@@ -813,7 +836,7 @@ function vizMonths(
       ? roleStyle(C, 'event')
       : isNow
         ? roleStyle(C, 'today')
-        : mk > nowMk && mk < evMk
+        : (mk - nowMk) * (mk - evMk) < 0
           ? gradStyle(C, (mk - nowMk) / (evMk - nowMk))
           : roleStyle(C, mk < nowMk ? 'past' : 'future');
     const rxM = Math.min(12, cellH * 0.14);
@@ -937,7 +960,7 @@ function vizMonthGrid(
       const cy = gy + wk * cellH;
       const isEvent = dk === evKey;
       const isToday = dk === todayKey;
-      const between = dk > todayKey && dk < evKey;
+      const between = (dk - todayKey) * (dk - evKey) < 0;
       const anchor = isEvent || isToday;
       const dtMs = new Date(m.getFullYear(), m.getMonth(), day).getTime();
       const st = isEvent
@@ -998,8 +1021,7 @@ function vizWeekStrip(
   resolvedMs: number,
   C: BandColors
 ): void {
-  const now = new Date(nowMs);
-  const nReal = dayDelta(nowMs, resolvedMs) + 1; // today .. event inclusive
+  const nReal = Math.abs(dayDelta(nowMs, resolvedMs)) + 1; // earlier .. later inclusive
   // Pad to a minimum of 7 cells with dimmed context days on either side, so a
   // 1–2 day span isn't two enormous cells.
   const n = Math.max(7, nReal);
@@ -1012,18 +1034,23 @@ function vizWeekStrip(
   const showTag = cw >= 44; // room for a TODAY tag under the date?
   const nowOrd = DAY_START(nowMs);
   const evOrd = DAY_START(resolvedMs);
+  const loOrd = Math.min(nowOrd, evOrd);
+  const hiOrd = Math.max(nowOrd, evOrd);
+  // Lay cells out chronologically from the EARLIER endpoint so a passed target
+  // mirrors a future one (event on the left, today on the right, gradient reversed).
+  const first = new Date(Math.min(nowMs, resolvedMs));
   for (let i = 0; i < n; i++) {
     // Component arithmetic (JS normalizes month overflow) — never an ordinal round-trip.
     const dt = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() + i - padBefore
+      first.getFullYear(),
+      first.getMonth(),
+      first.getDate() + i - padBefore
     );
     const dtOrd = DAY_START(dt.getTime());
     const x = g.left + i * (cw + gap);
     const isToday = dtOrd === nowOrd;
     const isEvent = dtOrd === evOrd;
-    const isContext = dtOrd < nowOrd || dtOrd > evOrd;
+    const isContext = dtOrd < loOrd || dtOrd > hiOrd;
     const st = isEvent
       ? roleStyle(C, 'event')
       : isToday
@@ -1150,86 +1177,6 @@ function vizToday(
     'middle',
     'THE DAY IS HERE',
     { 'letter-spacing': '0.12em' }
-  );
-}
-
-/** past (day-scale) — afterglow; event ringed, elapsed trails to today. */
-function vizAfter(
-  svg: SvgSel,
-  g: BandBox,
-  nowMs: number,
-  resolvedMs: number,
-  C: BandColors
-): void {
-  const ev = new Date(resolvedMs);
-  const elapsed = dayDelta(resolvedMs, nowMs);
-  const n = elapsed + 1;
-  const gap = 10;
-  const cw = (g.contentW - gap * (n - 1)) / n;
-  const ch = Math.min(cw * 1.1, g.height * 0.62);
-  const top = g.top + (g.height - ch) / 2 - 8;
-  for (let i = 0; i < n; i++) {
-    const dt = new Date(ev);
-    dt.setDate(ev.getDate() + i);
-    const x = g.left + i * (cw + gap);
-    const isEvent = i === 0;
-    const isToday = i === n - 1;
-    // The event stays a SOLID accent chip — the one anchor that reads as the event
-    // everywhere else, past included; the whole trail (incl. today) desaturates to
-    // inert so "it happened, and here's how long ago" reads at a glance.
-    const st = roleStyle(C, isEvent ? 'event' : 'past');
-    const fill = st.fill;
-    const stroke = st.stroke;
-    const tcol = st.text;
-    const sw = isEvent ? 2.5 : 1;
-    aRect(svg, x, top, cw, ch, 12, fill, stroke, sw);
-    if (isEvent) haloRect(svg, x, top, cw, ch, 12, C);
-    aText(
-      svg,
-      x + cw / 2,
-      top + ch * 0.46,
-      Math.min(34, cw * 0.34),
-      tcol,
-      isEvent ? 750 : 500,
-      'middle',
-      String(dt.getDate())
-    );
-    aText(
-      svg,
-      x + cw / 2,
-      top + ch * 0.72,
-      11,
-      tcol,
-      600,
-      'middle',
-      MON_ABBR[dt.getMonth()]!
-    );
-    if (isEvent)
-      aText(
-        svg,
-        x + cw / 2,
-        top - 8,
-        11,
-        C.event,
-        700,
-        'middle',
-        'IT HAPPENED',
-        { 'letter-spacing': '0.05em' }
-      );
-    if (isToday)
-      aText(svg, x + cw / 2, top - 8, 11, C.now, 700, 'middle', 'TODAY', {
-        'letter-spacing': '0.05em',
-      });
-  }
-  aText(
-    svg,
-    g.left,
-    top + ch + 28,
-    14,
-    C.muted,
-    400,
-    'start',
-    `${elapsed} day${elapsed === 1 ? '' : 's'} ago — the day has passed`
   );
 }
 
@@ -1391,8 +1338,6 @@ function drawBand(
       return vizWeekStrip(svg, g, nowMs, resolvedMs, C);
     case 'today':
       return vizToday(svg, g, resolvedMs, C);
-    case 'after':
-      return vizAfter(svg, g, nowMs, resolvedMs, C);
     case 'clock':
       return vizClock(svg, g, nowMs, resolvedMs, C);
   }
