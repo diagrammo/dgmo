@@ -48,6 +48,32 @@ const SUBROUTINE_INSET = 8;
 const DOC_WAVE_HEIGHT = 10;
 
 // ============================================================
+// Edge endpoint clipping
+// ============================================================
+
+// dagre trims edge endpoints to each node's rectangular bounding box.
+// A decision node renders as a diamond inscribed in that box, so an edge
+// approaching diagonally lands on the bbox side — short of the diamond's
+// slanted face, leaving a visible gap. Re-project such an endpoint onto
+// the diamond boundary along the ray from the node centre toward the
+// adjacent waypoint (|dx|/halfW + |dy|/halfH = 1).
+function clipPointToDiamond(
+  cx: number,
+  cy: number,
+  halfW: number,
+  halfH: number,
+  towardX: number,
+  towardY: number
+): { x: number; y: number } {
+  const dx = towardX - cx;
+  const dy = towardY - cy;
+  const denom = Math.abs(dx) / halfW + Math.abs(dy) / halfH;
+  if (denom === 0) return { x: cx, y: cy };
+  const s = 1 / denom;
+  return { x: cx + dx * s, y: cy + dy * s };
+}
+
+// ============================================================
 // Color helpers
 // ============================================================
 
@@ -607,6 +633,21 @@ export function renderFlowchart(
   const labelPosMap = new Map<number, LabelPos>();
   for (const lp of labelPositions) labelPosMap.set(lp.edgeIdx, lp);
 
+  // Node geometry, keyed by id, for shape-aware edge endpoint clipping.
+  const nodeGeom = new Map<
+    string,
+    { x: number; y: number; halfW: number; halfH: number; shape: GraphShape }
+  >();
+  for (const n of layout.nodes) {
+    nodeGeom.set(n.id, {
+      x: n.x,
+      y: n.y,
+      halfW: n.width / 2,
+      halfH: n.height / 2,
+      shape: n.shape,
+    });
+  }
+
   for (let ei = 0; ei < layout.edges.length; ei++) {
     const edge = layout.edges[ei]!;
     if (edge.points.length < 2) continue;
@@ -621,7 +662,39 @@ export function renderFlowchart(
     const edgeColor = palette.textMuted;
     const markerId = 'fc-arrow';
 
-    const pathD = edgeSplinePath(edge.points);
+    // Re-project endpoints that touch a diamond so the arrow meets the
+    // slanted face instead of the (inscribing) bounding box.
+    let drawPoints: ReadonlyArray<{ readonly x: number; readonly y: number }> =
+      edge.points;
+    const src = nodeGeom.get(edge.source);
+    const tgt = nodeGeom.get(edge.target);
+    if (src?.shape === 'decision' || tgt?.shape === 'decision') {
+      const pts = edge.points.map((p) => ({ x: p.x, y: p.y }));
+      const last = pts.length - 1;
+      if (tgt?.shape === 'decision') {
+        pts[last] = clipPointToDiamond(
+          tgt.x,
+          tgt.y,
+          tgt.halfW,
+          tgt.halfH,
+          pts[last - 1]!.x,
+          pts[last - 1]!.y
+        );
+      }
+      if (src?.shape === 'decision') {
+        pts[0] = clipPointToDiamond(
+          src.x,
+          src.y,
+          src.halfW,
+          src.halfH,
+          pts[1]!.x,
+          pts[1]!.y
+        );
+      }
+      drawPoints = pts;
+    }
+
+    const pathD = edgeSplinePath(drawPoints);
     if (pathD) {
       edgeG
         .append('path')
