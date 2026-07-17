@@ -438,8 +438,8 @@ function pickBand(
   if (days > 3 * 365) return 'years';
   if (days > 365) return 'year'; // 1–3yr → the detailed per-year month rows
   if (days > 92) return 'months'; // 3–12mo → abstract month rectangles
-  if (days > 18) return 'monthgrid'; // ~3wk–3mo → cropped day calendars
-  if (days >= 1) return 'weekstrip'; // ≤ 18d → one stretchy linear day-strip
+  if (days > 7) return 'monthgrid'; // 8d–3mo → real day calendars
+  if (days >= 1) return 'weekstrip'; // ≤ 7d → one stretchy linear day-strip (a single week)
   if (days === 0) return 'today';
   return 'after';
 }
@@ -985,10 +985,10 @@ function vizMonthGrid(
 }
 
 /**
- * ≤ 18d — one STRETCHY linear day-strip: a cell per day from today (leftmost) to
- * the event (rightmost, haloed), warming along the now→event gradient. Replaces
- * the old fixed 7-cell strip AND the sprawling month calendar for short spans, so
- * an 8-day count reads left-to-right instead of scattering across an empty grid.
+ * ≤ 7d — one STRETCHY linear day-strip: a cell per day from today (leftmost) to
+ * the event (rightmost, haloed), warming along the now→event gradient. Reserved
+ * for a single week, where the run fills one calendar row and a full 6-row month
+ * grid would sit mostly empty; 8d+ promote to the real day-calendar (monthgrid).
  * Weekday labels drop and cells compact as the span grows.
  */
 function vizWeekStrip(

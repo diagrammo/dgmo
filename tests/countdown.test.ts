@@ -627,6 +627,18 @@ describe('countdown renderer — human hero + band', () => {
     expect(txt).not.toContain('to go');
   });
 
+  it('8+ day span → real day calendar, not the week strip', () => {
+    const c = renderAt(
+      `countdown Voyage\ntarget 2026-07-22`, // 12 days → monthgrid tier
+      '2026-07-10T00:00:00Z'
+    );
+    const tokens = allText(c).split(' | ');
+    expect(tokens).toContain('Jul 2026'); // centered month-calendar label
+    expect(tokens).toContain('10'); // today is dated
+    // The month calendar dots the between-days — no weekstrip TODAY tag.
+    expect(allText(c)).not.toContain('TODAY');
+  });
+
   it('timed final day → three H·M·S ring gauges + a clock hero', () => {
     const c = renderAt(
       `countdown Launch\ntarget 2026-07-10T18:00`,
@@ -969,7 +981,7 @@ describe('countdown renderer — §1.9 fill family', () => {
   const red = nordLight.colors.red!; // the default accent = the event chip
   const blue = nordLight.colors.blue!; // the fixed `now` anchor
   const NOW = '2026-07-10T00:00:00Z';
-  const SRC = 'countdown Launch\ntarget 2026-07-18'; // 8 days → weekstrip tier
+  const SRC = 'countdown Launch\ntarget 2026-07-16'; // 6 days → weekstrip tier
 
   const rects = (c: HTMLElement): Element[] =>
     Array.from(c.querySelectorAll('rect'));
