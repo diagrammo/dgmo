@@ -48,17 +48,25 @@ export const BLOCK_CSS: string = `
 
 /* === Toolbar ===
  * The diagram is the star: the toolbar is an overlay pinned to the diagram's
- * top-right corner (position:absolute — it reserves no layout space, so the
- * block is exactly as tall as the chart). It stays fully transparent until
- * the block is hovered or focused, or the source panel is open. It is the
- * <summary> of the source <details>, so toggling works without any JS.
- * No text labels, no disclosure triangle — three wordless icon buttons. */
+ * bottom-right corner (position:absolute — it reserves no layout space, so the
+ * block is exactly as tall as the chart). Bottom-right (not top-right) so it
+ * never collides with a host's own top-right chart chrome — e.g. Obsidian's
+ * code-block copy button. It stays fully transparent until the block is
+ * hovered or focused, or the source panel is open. It is the <summary> of the
+ * source <details>, so toggling works without any JS. No text labels, no
+ * disclosure triangle — three wordless icon buttons.
+ *
+ * Anchored to .dgmo-source-wrap (position:relative below), whose top edge is
+ * always the diagram's bottom edge — bottom:calc(100% + gap) therefore keeps
+ * the toolbar at the diagram's bottom-right whether the source panel is open or
+ * closed (a figure-anchored bottom would drift down below the open code). */
 .dgmo-source-wrap {
   margin: 0;
+  position: relative;
 }
 .dgmo-toolbar {
   position: absolute;
-  top: 0.4em;
+  bottom: calc(100% + 0.4em);
   right: 0.4em;
   z-index: 2;
   display: flex;
