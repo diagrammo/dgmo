@@ -8,7 +8,11 @@ import {
   withTagAliases,
   isReservedKey,
 } from '../utils/reserved-key-registry';
-import { splitNameAndMeta, warnUnknownMetaKeys } from '../utils/parsing';
+import {
+  peelTrailingCollapsedFlag,
+  splitNameAndMeta,
+  warnUnknownMetaKeys,
+} from '../utils/parsing';
 import { GANTT_OPTION_SET, GANTT_BOOLEAN_SET } from '../directives-registry';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
@@ -1242,7 +1246,16 @@ export function parseGantt(
           );
           continue;
         }
-        const afterBrackets = gm[2]!.trim();
+        let afterBrackets = gm[2]!.trim();
+        // Canonical bare `collapsed` trailing flag (§1.8, decision #48) —
+        // peeled from the tail before the metadata split. Case-sensitive
+        // lowercase; bracketed names never collide.
+        let collapsed = false;
+        const barePeel = peelTrailingCollapsedFlag(afterBrackets);
+        if (barePeel.collapsed) {
+          collapsed = true;
+          afterBrackets = barePeel.rest;
+        }
         let metadata: Record<string, string> = {};
         if (afterBrackets) {
           const groupRegistry = withTagAliases(
@@ -1268,10 +1281,10 @@ export function parseGantt(
           );
           metadata = split.meta;
         }
-        // `[Group] collapsed: true` view-state marker (§ mirrors sequence): a
-        // reserved same-line key that seeds the group collapsed. Extracted into
-        // a typed field so it drives render/export; dropped from metadata.
-        let collapsed = false;
+        // Legacy `[Group] collapsed: true` metadata form (canonical is the
+        // bare trailing flag peeled above): a reserved same-line key that
+        // seeds the group collapsed. Extracted into a typed field so it
+        // drives render/export; dropped from metadata.
         if (metadata['collapsed']?.toLowerCase() === 'true') {
           collapsed = true;
           delete metadata['collapsed'];

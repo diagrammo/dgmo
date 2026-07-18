@@ -19,6 +19,7 @@ import {
 } from '../utils/tag-groups';
 import {
   measureIndent,
+  peelTrailingCollapsedFlag,
   extractColor,
   parseFirstLine,
   OPTION_NOCOLON_RE,
@@ -338,10 +339,26 @@ function parseNodeLine(
   aliasMap: Map<string, string>,
   diagnostics: ReturnType<typeof makeDgmoError>[]
 ): Writable<MindmapNode> {
+  // Canonical bare `collapsed` trailing flag (§1.8, decision #48) — peeled
+  // from the end of the node line before the metadata split, so
+  // `Research collapsed` and `Research blue collapsed` fold the subtree.
+  // Case-sensitive lowercase (`Research Collapsed` stays a plain label), and
+  // never empties the label: a lone `collapsed` line remains a node name,
+  // mirroring the trailing-color never-empty rule.
+  let bareCollapsed = false;
+  let nodeText = trimmed;
+  {
+    const barePeel = peelTrailingCollapsedFlag(nodeText);
+    if (barePeel.collapsed && barePeel.rest) {
+      bareCollapsed = true;
+      nodeText = barePeel.rest;
+    }
+  }
+
   // §1.4 unified metadata grammar — build registry with active tag aliases.
   const registry = withTagAliases(MINDMAP_REGISTRY, new Set(aliasMap.keys()));
   const split = splitNameAndMeta(
-    trimmed,
+    nodeText,
     registry,
     aliasMap,
     undefined,
@@ -365,9 +382,11 @@ function parseNodeLine(
     delete metadata['description'];
   }
 
-  let collapsed: boolean | undefined;
+  // Legacy `collapsed: true` metadata form (canonical is the bare trailing
+  // flag peeled above).
+  let collapsed: boolean | undefined = bareCollapsed ? true : undefined;
   if ('collapsed' in metadata) {
-    collapsed = metadata['collapsed'].toLowerCase() === 'true';
+    collapsed = collapsed || metadata['collapsed'].toLowerCase() === 'true';
     delete metadata['collapsed'];
   }
 

@@ -1261,7 +1261,10 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
     {
       node: {
         description: { description: 'Node description text' },
-        collapsed: { description: 'Collapse node subtree by default' },
+        collapsed: {
+          description:
+            'Legacy `collapsed: true` — canonical is the bare trailing `collapsed` flag on the node line',
+        },
       },
       edge: {},
     },
@@ -1428,7 +1431,10 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
           description: 'Confidence factor',
           values: ['high', 'medium', 'low'],
         },
-        collapsed: { description: 'Collapse activity detail' },
+        collapsed: {
+          description:
+            'Collapse detail (legacy `collapsed: true`; on group lines the bare trailing `collapsed` flag is canonical)',
+        },
       },
     },
   ],

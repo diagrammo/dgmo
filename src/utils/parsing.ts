@@ -639,6 +639,41 @@ export function peelTrailingColorName(label: string): {
 }
 
 /**
+ * Peel a trailing bare `collapsed` flag token (decision #48, spec §1.8) from a
+ * group-header tail or name region. The canonical collapse spelling is the
+ * bare lowercase `collapsed` token in trailing position on the group/container
+ * line (`[Backend] collapsed`, `[Done] blue collapsed`); the older
+ * `collapsed: true` metadata form remains accepted legacy at each call site.
+ *
+ * Case-sensitive, lowercase-only — a group actually named "… Collapsed"
+ * (capitalized) or a quoted name (`"mission collapsed"`) does NOT trigger,
+ * mirroring how trailing color tokens avoid name collisions.
+ *
+ * A lone `collapsed` (the whole region) peels to an empty rest — callers whose
+ * region is a NAME (not a post-bracket tail) should keep the original text
+ * when `rest` comes back empty, matching the color-peel never-empty rule.
+ * A trailing comma left behind by comma-list authors (`t: X, collapsed`) is
+ * stripped from the rest.
+ */
+export function peelTrailingCollapsedFlag(text: string): {
+  rest: string;
+  collapsed: boolean;
+} {
+  const t = text.trimEnd();
+  if (t === 'collapsed') return { rest: '', collapsed: true };
+  if (/[ \t]collapsed$/.test(t)) {
+    return {
+      rest: t
+        .slice(0, t.length - 'collapsed'.length)
+        .trimEnd()
+        .replace(/,\s*$/, ''),
+      collapsed: true,
+    };
+  }
+  return { rest: text, collapsed: false };
+}
+
+/**
  * Peel up to TWO trailing recognized color names from a label region — the
  * shared value-ramp coloring convention (`<metric> <low?> <high?>`). Peels from
  * the right, stops at the first non-color token, peels AT MOST 2, and NEVER

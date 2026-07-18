@@ -825,9 +825,9 @@ tag Team as t
 ```
 - Optional `as <alias>` postfix and same-line metadata.
 - **No nesting.** A group cannot contain another `[...]` group; only indented components.
-- Group properties (indented under the bracket line):
-  - `instances N` or `instances N-M` — capacity multiplier on children (auto-scaling)
-  - `collapsed true` — start collapsed; renders as a single node showing the worst child health
+- **Collapse:** a bare `collapsed` trailing flag on the group line (`[Backend] collapsed`, §1.8) starts the group collapsed — it renders as a single node showing the worst child health. (Legacy: indented `collapsed true` / `collapsed: true`.)
+- Group properties (indented under the bracket line, colon-keyed like node properties):
+  - `instances: N` or `instances: N-M` — capacity multiplier on children (auto-scaling). The space forms `instances N` / `instances N-M` are accepted legacy.
 
 ### 4.7 Infra Options (Space-Separated, NO Colon)
 
@@ -1721,14 +1721,14 @@ Bracketed `[group-name]` blocks cluster activities. Whether a group renders as a
 sail to atoll 3 5 8
 ```
 
-Groups can author `collapsed: true` to start collapsed.
+Groups can author a bare `collapsed` trailing flag (§1.8) to start collapsed (legacy: `collapsed: true`).
 
 ### Same-line metadata
 
 | Key                             | Where           | Meaning                                                                           |
 | ------------------------------- | --------------- | --------------------------------------------------------------------------------- |
 | `confidence`                    | activity        | Per-activity override of `default-confidence` (`high` / `medium` / `low` / `O/P`) |
-| `collapsed`                     | group           | `true` to start the group collapsed                                               |
+| `collapsed`                     | group           | bare trailing flag (§1.8) — start the group collapsed (legacy: `collapsed: true`) |
 | tag aliases (e.g. `c: Captain`) | activity, group | Resolves to the declared tag group; drives node fill when the group is active     |
 
 ### Tags
@@ -2556,12 +2556,12 @@ Group a run of events into a labeled section with a `[Name]` bracket, then **ind
     Tim Berners-Lee publishes the first site.
   1993 Mosaic  t: Browser
 
-[The App Era] collapsed: true
+[The App Era] collapsed
   2005 Ajax  t: Platform
 ```
 
-- **Trailing metadata** after `]` — optional `collapsed: true` and/or a named color (`[The 1960s] collapsed: true blue`).
-- **`collapsed: true`** folds the era into a single summary card (its name + a bulleted list of member events) while a bracket stays on the spine; in the app a reader toggles it live.
+- **Trailing tokens** after `]` — an optional bare `collapsed` flag (§1.8) and/or a named color, in either order (`[The 1960s] collapsed blue`). Legacy: `collapsed: true`.
+- **`collapsed`** folds the era into a single summary card (its name + a bulleted list of member events) while a bracket stays on the spine; in the app a reader toggles it live.
 
 #### Directives
 
@@ -2750,7 +2750,7 @@ Development p: High
     Auth System
       description: Login, signup, OAuth
     Dashboard
-  Nice-to-haves p: Low, collapsed: true
+  Nice-to-haves p: Low collapsed
     Dark Mode
 ```
 
@@ -2812,13 +2812,13 @@ Same-line metadata uses the universal `key: value, key2: value2` form (§1.4). R
 | Key                         | Effect                                   |
 | --------------------------- | ---------------------------------------- |
 | `description`               | Description text (see above).            |
-| `collapsed`                 | `true` collapses the subtree by default. |
+| `collapsed`                 | Legacy `collapsed: true` — canonical is the bare trailing `collapsed` flag (§1.8). |
 | Tag alias (e.g. `p:`, `d:`) | Assigns the node to a tag-group value.   |
 
 ```
 Task p: High, d: Engineering
 Demo Video description: 2-min product walkthrough
-Nice-to-haves p: Low, collapsed: true
+Nice-to-haves p: Low collapsed
 ```
 
 ### Node color
@@ -2839,10 +2839,10 @@ Polish UX p: Medium
 
 ### Collapse
 
-Any node with children may be collapsed. Set `collapsed: true` in same-line metadata to make a subtree start collapsed; collapsed nodes render with an accent drill-bar so they remain discoverable. Collapse is **portable view-state** — because `collapsed: true` lives in the source, every renderer (app, `dgmo` CLI, remark-dgmo, Obsidian, code-fence embeds) reproduces the collapsed view from the `.dgmo` alone; in the app, collapsing/expanding a node writes/removes the marker in the source (source stays the single source of truth), and a runtime `viewState.cg` from a share-link is applied in addition to source markers.
+Any node with children may be collapsed. Add a bare `collapsed` trailing flag to the node line (§1.8) to make a subtree start collapsed (legacy: `collapsed: true` in same-line metadata); collapsed nodes render with an accent drill-bar so they remain discoverable. The flag is case-sensitive lowercase — a node actually named "… Collapsed" (capitalized) or a quoted name keeps the word as label text. Collapse is **portable view-state** — because the `collapsed` marker lives in the source, every renderer (app, `dgmo` CLI, remark-dgmo, Obsidian, code-fence embeds) reproduces the collapsed view from the `.dgmo` alone; in the app, collapsing/expanding a node writes/removes the marker in the source (source stays the single source of truth), and a runtime `viewState.cg` from a share-link is applied in addition to source markers.
 
 ```
-Nice-to-haves p: Low, collapsed: true
+Nice-to-haves p: Low collapsed
   Dark Mode
   Export PDF
 ```
@@ -4384,7 +4384,7 @@ Some constructs _look_ universal but are scoped to specific chart types. Don't t
 
 | Construct                                     | Scope                                                                                                                    |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `collapsed: true` metadata                    | sequence, infra, mindmap, pert                                                                                           |
+| Bare `collapsed` trailing flag (§1.8)         | sequence, infra, gantt, kanban, mindmap, pert, state, c4, event-line (eras), block, sketch, wireframe. Legacy: `collapsed: true` metadata |
 | Same-line / indented metadata on declarations | all chart types except flowchart, state, data charts (§1.4)                                                              |
 | Trailing-keyword flag list                    | wireframe only (§19)                                                                                                     |
 | `progress: <N>` key                           | gantt only (§13)                                                                                                         |
@@ -4420,7 +4420,7 @@ Before considering DGMO output complete, mentally verify:
 3. Metadata uses §1.4 — same-line `key: value, ...` after the name region, or indented `key: value` for reserved keys. No `|` delimiter anywhere except wireframe dropdowns, in-arrow label characters, and quoted name characters.
 4. Wireframe flags are written as space-separated lowercase trailing keywords from the closed enum (§19).
 5. Journey-map steps use `score: N, emotion: Word`; gantt tasks use `progress: N`; pyramid/ring layers use `description: <text>` (quote when the value contains commas).
-6. All chart types use `collapsed: true` metadata for collapse (§27.3).
+6. Collapse is the bare `collapsed` trailing flag on the group/container line (§1.8; legacy: `collapsed: true` metadata).
 7. Quoted names don't carry `as <alias>` on the same line.
 8. Sequence participants with alias or quoted names use `is a <type>`.
 9. No `milestone` keyword in PERT — use `<name> 0`.

@@ -277,7 +277,8 @@ export function parseEventLine(
 
     // ── Era run delimiter: `[Name]` (§28.6a) — a section header whose member
     //    events are indented beneath it. Dedenting to (or past) the bracket's
-    //    own indent leaves the era. Optional trailing `collapsed: true` and/or
+    //    own indent leaves the era. Optional trailing bare `collapsed` flag
+    //    (canonical, §1.8; legacy `collapsed: true`) and/or
     //    a color name tint/fold the era.
     const eraMatch = trimmed.match(ERA_RE);
     if (eraMatch) {
@@ -287,12 +288,29 @@ export function parseEventLine(
       const name = eraMatch[1]!.trim();
       let rest = (eraMatch[2] ?? '').trim();
       let collapsed = false;
+      // Legacy `collapsed: true|false` metadata form — consumed first so
+      // the bare-token check below never grabs the key of `collapsed: x`.
       const cm = rest.match(ERA_COLLAPSED_RE);
       if (cm) {
         collapsed = cm[1]!.toLowerCase() === 'true';
         rest = (
           rest.slice(0, cm.index) + rest.slice(cm.index! + cm[0].length)
         ).trim();
+      } else {
+        // Canonical bare `collapsed` flag (§28.6a / §1.8, decision #48) —
+        // a standalone lowercase token anywhere in the trailing tail, so
+        // `[Era] collapsed`, `[Era] blue collapsed`, and
+        // `[Era] collapsed blue` all fold. Case-sensitive; the era name
+        // lives inside the brackets so it can never collide.
+        const bare = rest.match(/(?:^|\s)collapsed(?=\s|$)/);
+        if (bare) {
+          collapsed = true;
+          rest = (
+            rest.slice(0, bare.index) +
+            ' ' +
+            rest.slice(bare.index! + bare[0].length)
+          ).trim();
+        }
       }
       let color: string | null = null;
       if (rest) {

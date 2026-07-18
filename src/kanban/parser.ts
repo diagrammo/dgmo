@@ -20,6 +20,7 @@ import {
 } from '../utils/tag-groups';
 import {
   measureIndent,
+  peelTrailingCollapsedFlag,
   extractColor,
   splitNameAndMeta,
   parseFirstLine,
@@ -267,6 +268,17 @@ export function parseKanban(
       const colName = columnMatch[1]!.trim();
       let tail = (columnMatch[2] ?? '').trim();
 
+      // Canonical bare `collapsed` trailing flag (§1.8, decision #48) —
+      // peeled off the end of the tail before the color/alias/meta walk, so
+      // `[Done] collapsed`, `[Done] blue collapsed`, and
+      // `[Done] wip: 3 collapsed` all fold. Case-sensitive lowercase.
+      let colCollapsed = false;
+      const barePeel = peelTrailingCollapsedFlag(tail);
+      if (barePeel.collapsed) {
+        colCollapsed = true;
+        tail = barePeel.rest;
+      }
+
       // Parse tail in order: optional color word, optional `as <alias>`,
       // optional same-line metadata (per §1.4) — with legacy `|` detection.
       let colColor: string | undefined;
@@ -319,10 +331,10 @@ export function parseKanban(
         if (!isNaN(wipVal)) wipLimit = wipVal;
       }
 
-      // `[Column] collapsed: true` view-state marker (mirrors gantt/sequence):
-      // a reserved same-line key seeding the column collapsed, extracted into a
-      // typed field and dropped from metadata.
-      let colCollapsed = false;
+      // Legacy `[Column] collapsed: true` metadata form (canonical is the
+      // bare trailing flag peeled above): a reserved same-line key seeding
+      // the column collapsed, extracted into a typed field and dropped
+      // from metadata.
       if (columnMetadata['collapsed']?.toLowerCase() === 'true') {
         colCollapsed = true;
         delete columnMetadata['collapsed'];

@@ -47,7 +47,11 @@ import type {
 // Regex patterns
 // ============================================================
 
-const CONTAINER_RE = /^\[([^\]]+)\]$/;
+// Group boundary `[Name]` with an optional collapse marker: canonical bare
+// `collapsed` trailing flag (§1.8, decision #48; capture 2, case-sensitive
+// lowercase) or legacy `collapsed: <val>` metadata (capture 3). Any other
+// tail keeps the line out of this regex, preserving prior diagnostics.
+const CONTAINER_RE = /^\[([^\]]+)\](?:\s+(collapsed)|\s+collapsed:\s*(\S+))?$/;
 
 /** Matches element declarations: `person Name`, `system Name | k: v` */
 const ELEMENT_RE = /^(person|system|container|component)\s+(.+)$/i;
@@ -586,11 +590,17 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     if (containerMatch) {
       // Capture group [1] guaranteed by regex match.
       const groupName = containerMatch[1]!.trim();
+      // Canonical bare `collapsed` flag (capture 2) or legacy
+      // `collapsed: true` metadata (capture 3).
+      const groupCollapsed =
+        containerMatch[2] !== undefined ||
+        containerMatch[3]?.toLowerCase() === 'true';
       const parentEntry = findParentElement(indent, stack);
       if (parentEntry) {
         const group: Writable<C4Group> = {
           name: groupName,
           children: [],
+          ...(groupCollapsed && { collapsed: true }),
           lineNumber,
         };
         parentEntry.element.groups.push(group);

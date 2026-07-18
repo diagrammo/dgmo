@@ -29,11 +29,14 @@ import { tryCollectNote, resolveNotes } from './notes';
 const PSEUDOSTATE_ID = 'pseudostate:[*]';
 const PSEUDOSTATE_LABEL = '[*]';
 
-// `[Group]`, `[Group] color`, and an optional trailing `collapsed: <val>`
-// view-state marker (§1 "Collapsing groups"). Color (group 2) must be a
-// recognized lowercase palette word; group 3 is the raw collapsed value.
+// `[Group]`, `[Group] color`, and an optional trailing collapse marker
+// (§1.8 "Collapsing groups"): canonical bare `collapsed` flag
+// (`[Fulfillment] collapsed`, decision #48) or legacy `collapsed: <val>`.
+// Color (group 2) must be a recognized lowercase palette word; group 3 is
+// the literal `collapsed` keyword when present (case-sensitive lowercase);
+// group 4 is the raw legacy value (absent for the bare flag).
 const GROUP_BRACKET_RE =
-  /^\[([^\]]+)\](?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?(?:,?\s+collapsed:\s*(\S+))?\s*$/;
+  /^\[([^\]]+)\](?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?(?:,?\s+(collapsed)(?::\s*(\S+))?)?\s*$/;
 
 // ============================================================
 // Arrow splitter
@@ -345,7 +348,11 @@ export function parseState(
           )
         : undefined;
 
-      const groupCollapsed = groupMatch[3]?.toLowerCase() === 'true';
+      // Bare `collapsed` flag (group 3 present, no value) is canonical;
+      // legacy `collapsed: <val>` folds only when the value is `true`.
+      const groupCollapsed =
+        groupMatch[3] !== undefined &&
+        (groupMatch[4] === undefined || groupMatch[4].toLowerCase() === 'true');
       currentGroup = {
         id: `group:${groupLabel.toLowerCase()}`,
         label: groupLabel,

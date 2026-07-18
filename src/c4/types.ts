@@ -43,6 +43,13 @@ export interface C4Relationship {
 export interface C4Group {
   readonly name: string;
   readonly children: readonly C4Element[];
+  /**
+   * Authored collapse marker (§1.8, decision #48): bare trailing
+   * `collapsed` flag on the `[Group]` line (legacy: `collapsed: true`).
+   * Parsed and exposed for consumers; the c4 layout does not yet fold
+   * group boundaries.
+   */
+  readonly collapsed?: boolean;
   readonly lineNumber: number;
 }
 

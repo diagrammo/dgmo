@@ -18,6 +18,7 @@ import { parseDateToken, toInternal, type DateOrder } from '../utils/date';
 import {
   extractColor,
   measureIndent,
+  peelTrailingCollapsedFlag,
   splitNameAndMeta,
   warnUnknownMetaKeys,
 } from '../utils/parsing';
@@ -794,7 +795,16 @@ export function parsePert(
       contentStarted = true;
       currentTagGroup = null;
       const name = groupMatch[1]!.trim();
-      const tail = (groupMatch[2] ?? '').trim();
+      let tail = (groupMatch[2] ?? '').trim();
+      // Canonical bare `collapsed` trailing flag (§1.8, decision #48) —
+      // peeled from the tail before the metadata parse. Case-sensitive
+      // lowercase; legacy `collapsed: true` metadata still honored below.
+      let bareCollapsed = false;
+      const barePeel = peelTrailingCollapsedFlag(tail);
+      if (barePeel.collapsed) {
+        bareCollapsed = true;
+        tail = barePeel.rest;
+      }
       // Parse the tail as §1.4 metadata. tail is `k: v, k: v` shape.
       const meta = tail ? parsePipeMetadata(tail, metaAliasMap) : {};
       const id = `[${normalizeName(name)}]`;
@@ -806,7 +816,7 @@ export function parsePert(
         id,
         name,
         activityIds: [],
-        collapsed: meta['collapsed'] === 'true',
+        collapsed: bareCollapsed || meta['collapsed'] === 'true',
         lineNumber,
         ...(Object.keys(tags).length > 0 && { tags }),
       });
