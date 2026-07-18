@@ -172,6 +172,9 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
 
   // ── Shared across types ──────────────────────────────────
   // `active-tag`: infra top-level option + gantt option + map directive.
+  // Treemap also accepts it (§24C.6, decision #48) — validated inline in its
+  // parser, so no chart-scoped Set is derived for it; highlighting comes from
+  // the global directive category here.
   {
     token: 'active-tag',
     category: 'directive',

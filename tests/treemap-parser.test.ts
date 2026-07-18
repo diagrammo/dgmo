@@ -5,7 +5,13 @@ import { layoutTreemap, sumValue } from '../src/treemap/layout';
 import { layoutTreemapRadial } from '../src/treemap/layout-radial';
 import type { RadialCell } from '../src/treemap/layout-radial';
 import { renderTreemapRadial } from '../src/treemap/renderer-radial';
-import { depthTint } from '../src/treemap/treemap-shared';
+import {
+  activeTagGroupOf,
+  buildHeatScale,
+  buildLegend,
+  depthTint,
+  resolveColorMode,
+} from '../src/treemap/treemap-shared';
 import { getPalette } from '../src/palettes';
 import type { TreemapNode } from '../src/treemap/types';
 
@@ -184,6 +190,117 @@ describe('parseTreemap — directives & defaults (AC9)', () => {
   it('defaults to branch color mode with no tags or heat', () => {
     const r = parseTreemap('treemap T\nA\n  X 1\n  Y 2');
     expect(r.defaultColorMode).toBe('branch');
+  });
+});
+
+describe('parseTreemap — resting-dimension precedence + active-tag (decision #48)', () => {
+  const TAGS = 'tag Team as t\n  Eng blue\n  Sales green';
+  const BODY =
+    'Engineering t: Eng\n  Platform 320 heat: 2\n  Mobile 180 heat: -1';
+
+  it('heat beats tags at rest — the #48 FLIP from the old tag-first order', () => {
+    // Pre-#48 this resolved to 'tag' (tag → heat → branch). Decision #48
+    // flips treemap to the universal heat → tag → branch precedence
+    // (map §24B.4 / b&l §13.9 parity), so heat wins when both are present.
+    const r = parseTreemap(`treemap T\n\n${TAGS}\n\n${BODY}`);
+    expect(r.tagGroups).toHaveLength(1);
+    expect(r.hasHeat).toBe(true);
+    expect(r.defaultColorMode).toBe('heat');
+  });
+
+  it('tag only → tag; neither → branch (unchanged tails of the chain)', () => {
+    const tagOnly = parseTreemap(
+      `treemap T\n\n${TAGS}\n\nEngineering t: Eng\n  Platform 320`
+    );
+    expect(tagOnly.defaultColorMode).toBe('tag');
+    expect(parseTreemap('treemap T\nA\n  X 1').defaultColorMode).toBe('branch');
+  });
+
+  it('active-tag <group> forces the tag view over resting heat', () => {
+    const r = parseTreemap(`treemap T\nactive-tag Team\n\n${TAGS}\n\n${BODY}`);
+    expect(r.activeTag).toBe('Team');
+    expect(r.defaultColorMode).toBe('tag');
+    // Case-insensitive group matching.
+    const rLower = parseTreemap(
+      `treemap T\nactive-tag team\n\n${TAGS}\n\n${BODY}`
+    );
+    expect(rLower.defaultColorMode).toBe('tag');
+  });
+
+  it('active-tag <heat label> re-selects the ramp', () => {
+    const r = parseTreemap(
+      `treemap T\nheat Risk\nactive-tag Risk\n\n${TAGS}\n\n${BODY}`
+    );
+    expect(r.defaultColorMode).toBe('heat');
+  });
+
+  it('an unnamed ramp answers to `Value` (its legend name)', () => {
+    const r = parseTreemap(`treemap T\nactive-tag Value\n\n${TAGS}\n\n${BODY}`);
+    expect(r.defaultColorMode).toBe('heat');
+  });
+
+  it('active-tag none forces branch mode (§24C.6)', () => {
+    const r = parseTreemap(`treemap T\nactive-tag none\n\n${TAGS}\n\n${BODY}`);
+    expect(r.defaultColorMode).toBe('branch');
+    expect(codes(r)).toEqual([]);
+  });
+
+  it('unknown active-tag warns and falls back to the default resolution', () => {
+    const r = parseTreemap(`treemap T\nactive-tag Nope\n\n${TAGS}\n\n${BODY}`);
+    expect(r.defaultColorMode).toBe('heat');
+    expect(
+      r.diagnostics.some(
+        (d) => d.severity === 'warning' && /active-tag "Nope"/.test(d.message)
+      )
+    ).toBe(true);
+  });
+
+  it('does not create a phantom "active-tag" node', () => {
+    const r = parseTreemap('treemap T\nactive-tag none\n\nA\n  X 1');
+    expect(r.roots.map((n) => n.label)).toEqual(['A']);
+  });
+
+  it('active-tag selects a non-first tag group for fill + legend', () => {
+    const r = parseTreemap(
+      'treemap T\nactive-tag Stage\n\ntag Team as t\n  Eng blue\n\ntag Stage as s\n  Beta orange\n\nA t: Eng, s: Beta\n  X 1'
+    );
+    expect(r.defaultColorMode).toBe('tag');
+    expect(activeTagGroupOf(r)?.name).toBe('Stage');
+    const legend = buildLegend('tag', r, null, ['#111111'], 0);
+    expect(legend.activeGroup).toBe('Stage');
+  });
+
+  it('runtime switcher override still wins over the directive', () => {
+    const r = parseTreemap(`treemap T\nactive-tag Team\n\n${TAGS}\n\n${BODY}`);
+    expect(resolveColorMode(r, 'heat')).toBe('heat');
+    expect(resolveColorMode(r, 'branch')).toBe('branch');
+    expect(resolveColorMode(r)).toBe('tag');
+  });
+
+  it('inapplicable modes fall back along heat → tag → branch (#48)', () => {
+    // heat requested but no heat data → tag when groups exist…
+    const tagOnly = parseTreemap(
+      `treemap T\n\n${TAGS}\n\nEngineering t: Eng\n  Platform 320`
+    );
+    expect(resolveColorMode(tagOnly, 'heat')).toBe('tag');
+    // …else branch.
+    const bare = parseTreemap('treemap T\nA\n  X 1');
+    expect(resolveColorMode(bare, 'heat')).toBe('branch');
+    expect(resolveColorMode(bare, 'tag')).toBe('branch');
+  });
+
+  it('midpoint-at-0 diverging ramp is untouched by the flip (decision #14)', () => {
+    const nordLight = getPalette('nord').light;
+    const r = parseTreemap(`treemap T\n\n${TAGS}\n\n${BODY}`);
+    const heat = buildHeatScale(r, nordLight)!;
+    expect(heat.signed).toBe(true);
+    // Diverging red · neutral · green with the midpoint pinned at 0.
+    expect(heat.stops).toEqual([
+      nordLight.colors.red,
+      nordLight.surface,
+      nordLight.colors.green,
+    ]);
+    expect(heat.scale(0).toLowerCase()).toBe(nordLight.surface.toLowerCase());
   });
 });
 

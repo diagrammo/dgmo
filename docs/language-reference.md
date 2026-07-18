@@ -3483,7 +3483,7 @@ When ring band thickness would force the in-band label below the readable floor 
 <!-- TYPE:treemap -->
 
 <!-- TIPS start -->
-**Styling tips:** Put the unit in the title (`Cloud Spend ($)`) — there is no currency/format directive. Reach for `depth N` once a tree goes past ~3 levels (deeper subtrees collapse to a drillable block) and `other-below N` to fold a long tail of tiny categories into one **Other** box. Pick the color mode to match intent: tags for categories, `heat` for a gain/loss heatmap, branch for zero-config structure. Add `radial` to render a **sunburst / hierarchical pie** — best for shallow trees where you want "share of a circle"; keep the rectangular default for deep trees or precise magnitude comparison.
+**Styling tips:** Put the unit in the title (`Cloud Spend ($)`) — there is no currency/format directive. Reach for `depth N` once a tree goes past ~3 levels (deeper subtrees collapse to a drillable block). Pick the color mode to match intent: tags for categories, `heat` for a gain/loss heatmap, branch for zero-config structure; when both heat and tags are present, heat colors cells at rest — use `active-tag <group>` to lead with the tag view instead. Add `radial` to render a **sunburst / hierarchical pie** — best for shallow trees where you want "share of a circle"; keep the rectangular default for deep trees or precise magnitude comparison.
 <!-- TIPS end -->
 
 Nested rectangles sized by value — the canonical way to show a hierarchy's proportions at a glance (budgets, disk usage, portfolios, taxonomies). Indentation is the hierarchy; a bare trailing number on a leaf is its size; parents auto-sum their children. Built on a squarified layout so cells keep good aspect ratios.
@@ -3529,12 +3529,12 @@ Operations t: Ops
 
 ### Color modes
 
-Three modes, with the source-declared default selected as **tag → heat → branch** (the desktop app adds a runtime switcher that previews the others without editing source):
+Three modes, with the source-declared default selected as **heat → tag → branch** — the universal precedence shared with map and boxes-and-lines. The `active-tag` directive pre-selects a dimension from source; the desktop app adds a runtime switcher that previews the others without editing source:
 
 | Mode       | When it's the default       | Coloring                                                      |
 | ---------- | --------------------------- | ------------------------------------------------------------ |
-| **tag**    | a `tag` group is declared   | categorical color per tag value (legend hover-dims)          |
 | **heat**   | any `heat:` value / `heat` directive | value ramp over a second per-node `heat:` metric    |
+| **tag**    | a `tag` group is declared (and no heat) | categorical color per tag value (legend hover-dims) |
 | **branch** | neither tags nor heat        | each top-level branch a distinct hue, tinted with depth      |
 
 ### Tags
@@ -3557,8 +3557,8 @@ Add a per-node `heat:` number (a second metric, distinct from size; negatives/fl
 | Directive       | Effect                                                                                  |
 | --------------- | --------------------------------------------------------------------------------------- |
 | `heat <Label>`  | Name (and optionally color) the value ramp; pairs with the `heat:` key.                 |
+| `active-tag <GroupName \| HeatLabel>` | Pre-select the resting color dimension from source: a tag group name for categorical fill, or the heat ramp's label (`Value` if unnamed) for the ramp. `active-tag none` forces branch mode. The app's runtime switcher still previews the others. |
 | `depth N`       | Render N levels; deeper subtrees collapse to a drillable solid block (a render budget).  |
-| `other-below N` | Roll children under N% of their parent into a single hatched **Other** bucket (opt-in).  |
 | `no-value`      | Hide value labels.                                                                       |
 | `no-percent`    | Hide percentage labels.                                                                  |
 | `no-headers`    | Hide parent header bars (a no-op in `radial` mode).                                       |

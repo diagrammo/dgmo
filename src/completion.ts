@@ -622,6 +622,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Render N levels; deeper subtrees collapse to a drillable block',
       },
+      // Decision #48: source-level pre-selection of the resting color
+      // dimension (tag group name, heat label, or `none` = branch mode).
+      'active-tag': {
+        description:
+          'Resting color dimension: a tag group name, the heat label, or none (branch)',
+      },
       // Canonical since decision #48; plural `no-values` parses as a legacy
       // alias but is no longer offered.
       'no-value': { description: 'Hide value labels' },

@@ -46,11 +46,30 @@ export function resolveColorMode(
   override?: TreemapColorMode
 ): TreemapColorMode {
   let mode = override ?? parsed.defaultColorMode;
+  // Inapplicable-mode fallbacks follow the universal heat → tag → branch
+  // precedence (decision #48).
+  if (mode === 'heat' && !parsed.hasHeat) {
+    mode = parsed.tagGroups.length > 0 ? 'tag' : 'branch';
+  }
   if (mode === 'tag' && parsed.tagGroups.length === 0) {
     mode = parsed.hasHeat ? 'heat' : 'branch';
   }
-  if (mode === 'heat' && !parsed.hasHeat) mode = 'branch';
   return mode;
+}
+
+/**
+ * The tag group that drives categorical fill when the active mode is `tag`:
+ * the group the `active-tag` directive names (§24C.6), else the first declared
+ * group (the no-directive default). `null` when no groups are declared.
+ */
+export function activeTagGroupOf(parsed: ParsedTreemap): TagGroup | null {
+  if (parsed.tagGroups.length === 0) return null;
+  const at = parsed.activeTag?.trim().toLowerCase();
+  if (at) {
+    const g = parsed.tagGroups.find((x) => x.name.toLowerCase() === at);
+    if (g) return g;
+  }
+  return parsed.tagGroups[0]!;
 }
 
 // ============================================================
@@ -257,7 +276,7 @@ export function buildLegend(
 
   // ── Tag ──────────────────────────────────────────────────
   if (parsed.tagGroups.length > 0) {
-    const tg = parsed.tagGroups[0]!;
+    const tg = activeTagGroupOf(parsed)!;
     const used = new Set<string>();
     const collect = (nodes: readonly TreemapNode[]): void => {
       for (const n of nodes) {

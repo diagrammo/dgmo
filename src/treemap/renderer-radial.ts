@@ -35,6 +35,7 @@ import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedTreemap, TreemapColorMode } from './types';
 import { layoutTreemapRadial, type RadialCell } from './layout-radial';
 import {
+  activeTagGroupOf,
   buildHeatScale,
   buildLegend,
   compactNumber,
@@ -159,8 +160,7 @@ export function renderTreemapRadial(
     .attr('class', 'dgmo-treemap-cells')
     .attr('transform', `translate(${cx},${cy})`);
 
-  const activeGroup =
-    parsed.tagGroups.length > 0 ? parsed.tagGroups[0]!.name : null;
+  const activeGroup = activeTagGroupOf(parsed)?.name ?? null;
   const rootIndexByLabel = new Map(parsed.roots.map((r, i) => [r.label, i]));
   const colorCtx: CellColorContext = {
     mode,
