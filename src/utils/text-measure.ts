@@ -31,13 +31,37 @@ const DEFAULT_W = 0.56;
  */
 export const CHAR_WIDTH_RATIO = DEFAULT_W;
 
-/** Estimate rendered text width using Helvetica proportional character widths. */
-export function measureText(text: string, fontSize: number): number {
-  let w = 0;
+// The width model is a pure left-to-right fold over per-char ratios, and the
+// same (text, fontSize) pairs recur heavily across layouts (dagre node sizing
+// can run ~89 layouts per render). Memoize whole-string results; capped so
+// unbounded distinct labels can't grow the map forever.
+const MEASURE_CACHE = new Map<string, number>();
+const MEASURE_CACHE_MAX = 10000;
+
+/**
+ * Extend a running width `acc` with `text`'s characters, in the same
+ * left-to-right fold order `measureText` uses. Continuing the fold this way is
+ * bit-identical to measuring the concatenated string whole (per-char additive
+ * model, no kerning), which lets wrap/truncate accumulate widths incrementally
+ * instead of re-measuring growing strings.
+ */
+function extendWidth(acc: number, text: string, fontSize: number): number {
+  let w = acc;
   for (let i = 0; i < text.length; i++) {
     // charAt returns '' for out-of-bounds, never undefined.
     w += (CHAR_W[text.charAt(i)] ?? DEFAULT_W) * fontSize;
   }
+  return w;
+}
+
+/** Estimate rendered text width using Helvetica proportional character widths. */
+export function measureText(text: string, fontSize: number): number {
+  const key = `${fontSize}|${text}`;
+  const cached = MEASURE_CACHE.get(key);
+  if (cached !== undefined) return cached;
+  const w = extendWidth(0, text, fontSize);
+  if (MEASURE_CACHE.size >= MEASURE_CACHE_MAX) MEASURE_CACHE.clear();
+  MEASURE_CACHE.set(key, w);
   return w;
 }
 
@@ -55,11 +79,18 @@ export function truncateText(
   const ellipsis = '…';
   const ellipsisW = measureText(ellipsis, fontSize);
   if (ellipsisW > maxWidth) return '';
+  // Cumulative prefix widths, computed once: prefix[i] equals
+  // measureText(text.slice(0, i), fontSize) exactly (same fold order), so the
+  // bisection below never re-measures slices.
+  const prefix: number[] = [0];
+  for (let i = 0; i < text.length; i++) {
+    prefix.push(extendWidth(prefix[i]!, text.charAt(i), fontSize));
+  }
   let lo = 0;
   let hi = text.length;
   while (lo < hi) {
     const mid = Math.ceil((lo + hi) / 2);
-    if (measureText(text.slice(0, mid), fontSize) + ellipsisW <= maxWidth) {
+    if (prefix[mid]! + ellipsisW <= maxWidth) {
       lo = mid;
     } else {
       hi = mid - 1;
@@ -85,15 +116,22 @@ export function wrapTextToWidth(
   const words = text.split(/\s+/).filter((w) => w.length > 0);
   if (words.length === 0) return [''];
   const hardBreak = opts?.hardBreak ?? false;
+  const spaceW = (CHAR_W[' '] ?? DEFAULT_W) * fontSize;
   const lines: string[] = [];
   let current = '';
+  // Running width of `current`, extended incrementally instead of re-measuring
+  // the growing line per word (O(n²) → O(n)). Continuing the char fold gives
+  // bit-identical widths to measuring the joined string whole.
+  let currentW = 0;
   const pushWord = (word: string) => {
-    const test = current ? `${current} ${word}` : word;
-    if (measureText(test, fontSize) <= maxWidth || !current) {
-      current = test;
+    const testW = extendWidth(current ? currentW + spaceW : 0, word, fontSize);
+    if (testW <= maxWidth || !current) {
+      current = current ? `${current} ${word}` : word;
+      currentW = testW;
     } else {
       lines.push(current);
       current = word;
+      currentW = extendWidth(0, word, fontSize);
     }
   };
   for (const word of words) {
@@ -102,17 +140,23 @@ export function wrapTextToWidth(
       if (current) {
         lines.push(current);
         current = '';
+        currentW = 0;
       }
       let chunk = '';
+      let chunkW = 0;
       for (const ch of word) {
-        if (chunk && measureText(chunk + ch, fontSize) > maxWidth) {
+        const candW = extendWidth(chunkW, ch, fontSize);
+        if (chunk && candW > maxWidth) {
           lines.push(chunk);
           chunk = ch;
+          chunkW = extendWidth(0, ch, fontSize);
         } else {
           chunk += ch;
+          chunkW = candW;
         }
       }
       current = chunk;
+      currentW = chunkW;
       continue;
     }
     pushWord(word);

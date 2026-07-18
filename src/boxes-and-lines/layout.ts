@@ -8,6 +8,7 @@
 // the engine-agnostic post-passes applied to whatever the engine returns.
 
 import type { ParsedBoxesAndLines, BLNode, BLGroup } from './types';
+import type { BLSearchConfig } from './layout-search';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import { placeEdgeLabels } from './label-placement';
 import {
@@ -219,11 +220,16 @@ export async function layoutBoxesAndLines(
       onProgress: layoutOptions.onProgress,
     }),
   };
-  const searched = await layoutBoxesAndLinesSearch(
-    parsed,
-    collapseInfo,
-    searchOpts
-  );
+  // Capture the winning stage-1 candidate family so the (rare) label-reserving
+  // relayout below can re-run just those configs instead of regenerating and
+  // re-scoring the entire seed pool a second time.
+  let topConfigs: BLSearchConfig[] | undefined;
+  const searched = await layoutBoxesAndLinesSearch(parsed, collapseInfo, {
+    ...searchOpts,
+    onTopConfigs: (cfgs) => {
+      topConfigs = cfgs;
+    },
+  });
 
   // Edge-label legibility (priority ladder): wrap + reposition labels on the
   // chosen layout. If any label still can't clear a node box, escalate ONCE to a
@@ -234,6 +240,11 @@ export async function layoutBoxesAndLines(
     const relaid = await layoutBoxesAndLinesSearch(parsed, collapseInfo, {
       ...searchOpts,
       reserveEdgeLabels: true,
+      // Only the label reservation changed — re-laying-out the top candidates
+      // from the first search is enough. Falls back to the full pool when the
+      // first search surfaced no dagre candidates.
+      ...(topConfigs !== undefined &&
+        topConfigs.length > 0 && { configs: topConfigs }),
     });
     const relaidPlaced = placeEdgeLabels(applyParallelEdgeOffsets(relaid));
     if (relaidPlaced.unresolved.length < placed.unresolved.length)

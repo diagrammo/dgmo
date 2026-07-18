@@ -131,20 +131,106 @@ function haversineKm(
 // a ~200k-pop city (log10≈5.3) outranks a ~5k hamlet (log10≈3.7) within ~20 km.
 const POP_PULL_KM = 12;
 
+// --- nearest-city spatial index (perf) ---
+// `nearestCity` used to linear-haversine-scan the entire gazetteer on every
+// call (every Inspect mousemove). Instead, bucket the cities into 5° latitude
+// bands ONCE per gazetteer (identity-cached — the loaded assets are stable
+// singletons) and expand outward from the query's band, pruning as soon as no
+// unsearched band can possibly beat the current best. Latitude difference is a
+// true lower bound on great-circle distance (the haversine's Δlat term alone),
+// and the strongest possible population pull is `maxPullKm`, so a band whose
+// minimum lat-distance minus `maxPullKm` exceeds the best score PROVABLY holds
+// no winner — the result is exactly the linear scan's (ties break to the
+// lowest gazetteer index, matching the linear scan's strict-`<` update).
+const BAND_DEG = 5;
+const BAND_COUNT = 180 / BAND_DEG; // 36
+const KM_PER_DEG = EARTH_R_KM * DEG; // ≈111.2 — km per degree of latitude
+
+interface CityBandIndex {
+  /** Gazetteer city indices per latitude band (ascending within a band). */
+  readonly bands: ReadonlyArray<readonly number[]>;
+  /** Largest possible population pull across the gazetteer. */
+  readonly maxPullKm: number;
+}
+
+const cityBandIndexCache = new WeakMap<Gazetteer, CityBandIndex>();
+
+function bandOf(lat: number): number {
+  return Math.min(
+    BAND_COUNT - 1,
+    Math.max(0, Math.floor((lat + 90) / BAND_DEG))
+  );
+}
+
+function cityBandIndex(gazetteer: Gazetteer): CityBandIndex {
+  let idx = cityBandIndexCache.get(gazetteer);
+  if (!idx) {
+    const bands: number[][] = Array.from({ length: BAND_COUNT }, () => []);
+    let maxPop = 0;
+    const cities = gazetteer.cities;
+    for (let i = 0; i < cities.length; i++) {
+      const c = cities[i]!;
+      bands[bandOf(c[0])]!.push(i);
+      const pop = c[3] || 0;
+      if (pop > maxPop) maxPop = pop;
+    }
+    idx = { bands, maxPullKm: POP_PULL_KM * Math.log10(maxPop + 1) };
+    cityBandIndexCache.set(gazetteer, idx);
+  }
+  return idx;
+}
+
 /** Nearest gazetteer city, blending true distance with notability (A4). Returns
- *  the chosen city's REAL `distanceKm` regardless of the ranking blend (F4). */
+ *  the chosen city's REAL `distanceKm` regardless of the ranking blend (F4).
+ *  Band-pruned for speed, but returns EXACTLY what a full linear scan would. */
 function nearestCity(
   lonLat: readonly [number, number],
   gazetteer: Gazetteer
 ): NearestCity | null {
   const [lon, lat] = lonLat;
-  let best: { score: number; idx: number; dist: number } | null = null;
   const cities = gazetteer.cities;
-  for (let i = 0; i < cities.length; i++) {
-    const c = cities[i]!;
-    const dist = haversineKm(lat, lon, c[0], c[1]);
-    const score = dist - POP_PULL_KM * Math.log10((c[3] || 0) + 1);
-    if (!best || score < best.score) best = { score, idx: i, dist };
+  const { bands, maxPullKm } = cityBandIndex(gazetteer);
+
+  /** Minimum km any point of band `b` can be from the query latitude. */
+  const bandMinKm = (b: number): number => {
+    const south = b * BAND_DEG - 90;
+    const north = south + BAND_DEG;
+    const dDeg = lat < south ? south - lat : lat > north ? lat - north : 0;
+    return dDeg * KM_PER_DEG;
+  };
+
+  const b0 = bandOf(lat);
+  let best: { score: number; idx: number; dist: number } | null = null;
+  for (let r = 0; r < BAND_COUNT; r++) {
+    const lo = b0 - r;
+    const hi = b0 + r;
+    if (lo < 0 && hi >= BAND_COUNT) break;
+    if (r > 0) {
+      // Every remaining band (this radius and beyond, either direction) is at
+      // least `minKm` away; if even the maximum pull can't close that gap on
+      // the current best score, no unsearched city can win — stop.
+      const minKm = Math.min(
+        lo >= 0 ? bandMinKm(lo) : Infinity,
+        hi < BAND_COUNT ? bandMinKm(hi) : Infinity
+      );
+      if (best && minKm - maxPullKm > best.score) break;
+    }
+    const scan =
+      r === 0 ? [b0] : [lo, hi].filter((b) => b >= 0 && b < BAND_COUNT);
+    for (const b of scan) {
+      for (const i of bands[b]!) {
+        const c = cities[i]!;
+        const dist = haversineKm(lat, lon, c[0], c[1]);
+        const score = dist - POP_PULL_KM * Math.log10((c[3] || 0) + 1);
+        // Lowest index wins ties — identical to the linear scan's strict `<`.
+        if (
+          !best ||
+          score < best.score ||
+          (score === best.score && i < best.idx)
+        )
+          best = { score, idx: i, dist };
+      }
+    }
   }
   if (!best) return null;
   const c = cities[best.idx]!;

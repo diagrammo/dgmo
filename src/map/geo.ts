@@ -214,6 +214,76 @@ export function pointInGeometry(
   return false;
 }
 
+// --- Feature-level bbox pre-filter for regionAt (perf) ---
+// A planar min/max lon/lat box over each feature's OUTER rings (holes lie
+// inside them), lazily computed once per feature object and cached by identity
+// (the geo-query decodes each topology once and reuses the array). This is the
+// SAME planar coordinate space `pointInRing`/`pointOnRingEdge` operate in, so a
+// bbox reject (expanded by EDGE_EPS to preserve the on-boundary tolerance) can
+// never disagree with `pointInGeometry`. Antimeridian: crossers ship as
+// seam-split parts (no ring wraps ±180 — see `pointInRing`), so a spanning
+// feature just gets a wide near-[-180,180] box — conservative (fewer rejects),
+// never a wrong reject. `null` marks a geometry with no ring coordinates; such
+// features fall through to `pointInGeometry` un-rejected.
+type PlanarBbox = readonly [number, number, number, number]; // [minLon, minLat, maxLon, maxLat]
+
+const planarBboxCache = new WeakMap<DecodedFeature, PlanarBbox | null>();
+
+function planarGeometryBbox(geometry: unknown): PlanarBbox | null {
+  const g = geometry as {
+    type: string;
+    coordinates: number[][][] | number[][][][];
+  } | null;
+  if (!g) return null;
+  const polys: number[][][][] =
+    g.type === 'Polygon'
+      ? [g.coordinates as number[][][]]
+      : g.type === 'MultiPolygon'
+        ? (g.coordinates as number[][][][])
+        : [];
+  let minLon = Infinity;
+  let minLat = Infinity;
+  let maxLon = -Infinity;
+  let maxLat = -Infinity;
+  let seen = false;
+  for (const rings of polys) {
+    const outer = rings[0];
+    if (!outer) continue;
+    for (const pt of outer) {
+      const x = pt[0]!;
+      const y = pt[1]!;
+      if (x < minLon) minLon = x;
+      if (x > maxLon) maxLon = x;
+      if (y < minLat) minLat = y;
+      if (y > maxLat) maxLat = y;
+      seen = true;
+    }
+  }
+  return seen ? [minLon, minLat, maxLon, maxLat] : null;
+}
+
+function featurePlanarBbox(f: DecodedFeature): PlanarBbox | null {
+  let bbox = planarBboxCache.get(f);
+  if (bbox === undefined) {
+    bbox = planarGeometryBbox(f.geometry);
+    planarBboxCache.set(f, bbox);
+  }
+  return bbox;
+}
+
+/** True iff `[lon, lat]` is provably outside `f` — strictly beyond its planar
+ *  bbox (+EDGE_EPS margin, so on-boundary tolerance is preserved). */
+function bboxRejects(f: DecodedFeature, lon: number, lat: number): boolean {
+  const b = featurePlanarBbox(f);
+  if (!b) return false; // no coords — let pointInGeometry decide
+  return (
+    lon < b[0] - EDGE_EPS ||
+    lon > b[2] + EDGE_EPS ||
+    lat < b[1] - EDGE_EPS ||
+    lat > b[3] + EDGE_EPS
+  );
+}
+
 /** Reverse-geocode a `[lon, lat]` to its containing country and (US-only) state
  *  via planar point-in-polygon. Honest about misses: returns `country: null`
  *  when no polygon contains the point (open ocean / outside any country) rather
@@ -232,6 +302,7 @@ export function regionAt(
   const lat = lonLat[1];
   let country: { iso: string; name: string } | null = null;
   for (const f of countries) {
+    if (bboxRejects(f, lon, lat)) continue;
     if (pointInGeometry(f.geometry, lon, lat)) {
       country = { iso: f.id, name: f.properties.name };
       break;
@@ -240,6 +311,7 @@ export function regionAt(
   let state: { iso: string; name: string } | null = null;
   if (country?.iso === 'US' && states) {
     for (const f of states) {
+      if (bboxRejects(f, lon, lat)) continue;
       if (pointInGeometry(f.geometry, lon, lat)) {
         state = { iso: f.id, name: f.properties.name };
         break;

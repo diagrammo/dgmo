@@ -898,6 +898,17 @@ function edgeLength(layout: BLLayoutResult): number {
   return total;
 }
 
+/** One dagre candidate configuration (ranker × spacing × optional shuffle
+ *  seed). Exposed so layout.ts can re-run just the winning stage-1 candidate
+ *  family with `reserveEdgeLabels` instead of regenerating the whole seed
+ *  pool (the label reservation is the only thing that changed). */
+export interface BLSearchConfig {
+  ranker: string;
+  nodesep: number;
+  ranksep: number;
+  seed?: number;
+}
+
 export async function layoutBoxesAndLinesSearch(
   parsed: ParsedBoxesAndLines,
   collapseInfo?: {
@@ -922,6 +933,14 @@ export async function layoutBoxesAndLinesSearch(
      *  edge so the layout opens a gap wide enough for the (wrapped) label. Only
      *  set by layout.ts when steps 1–2 left a label overlapping a node box. */
     reserveEdgeLabels?: boolean;
+    /** Restrict the dagre candidate pool to exactly these configs. Set by the
+     *  label-reserving relayout (layout.ts) so it re-lays-out only the top
+     *  candidates from the first search instead of regenerating every seed.
+     *  Also skips adaptive escalation (the pool IS the chosen family). */
+    configs?: readonly BLSearchConfig[];
+    /** Receives the top-ranked candidate configs (the stage-1 refine set, plus
+     *  the escalation refine set when it runs) once the search completes. */
+    onTopConfigs?: (configs: BLSearchConfig[]) => void;
   }
 ): Promise<BLLayoutResult> {
   const hideDescriptions = opts?.hideDescriptions ?? false;
@@ -1082,12 +1101,7 @@ export async function layoutBoxesAndLinesSearch(
     Math.abs(p.x - rect.x) <= rect.w / 2 &&
     Math.abs(p.y - rect.y) <= rect.h / 2;
 
-  function place(cfg: {
-    ranker: string;
-    nodesep: number;
-    ranksep: number;
-    seed?: number;
-  }): BLLayoutResult {
+  function place(cfg: BLSearchConfig): BLLayoutResult {
     const r = cfg.seed === undefined ? null : rng(cfg.seed + 1);
     const ord = <T>(a: readonly T[]): T[] => (r ? shuffle(a, r) : a.slice());
     const g = new dagre.graphlib.Graph({ compound: true, multigraph: true });
@@ -1257,28 +1271,28 @@ export async function layoutBoxesAndLinesSearch(
 
   // Candidate configs: every (ranker × spacing) combo + seed-shuffles of the
   // default. Diverse candidates lower the crossing floor; seed-shuffles vary
-  // dagre's within-layer ordering.
-  const RANKERS = ['network-simplex', 'tight-tree', 'longest-path'];
-  const SPACINGS = [
-    { nodesep: 50, ranksep: 60 },
-    { nodesep: 34, ranksep: 46 },
-    { nodesep: 66, ranksep: 82 },
-  ];
-  const configs: {
-    ranker: string;
-    nodesep: number;
-    ranksep: number;
-    seed?: number;
-  }[] = [];
-  for (const ranker of RANKERS)
-    for (const sp of SPACINGS) configs.push({ ranker, ...sp });
-  for (let s = 0; s < seedCount; s++)
-    configs.push({
-      ranker: 'network-simplex',
-      nodesep: 50,
-      ranksep: 60,
-      seed: s,
-    });
+  // dagre's within-layer ordering. An explicit `opts.configs` (label-reserving
+  // relayout) replaces the generated pool with the caller's chosen family.
+  const configs: BLSearchConfig[] = [];
+  if (opts?.configs) {
+    configs.push(...opts.configs);
+  } else {
+    const RANKERS = ['network-simplex', 'tight-tree', 'longest-path'];
+    const SPACINGS = [
+      { nodesep: 50, ranksep: 60 },
+      { nodesep: 34, ranksep: 46 },
+      { nodesep: 66, ranksep: 82 },
+    ];
+    for (const ranker of RANKERS)
+      for (const sp of SPACINGS) configs.push({ ranker, ...sp });
+    for (let s = 0; s < seedCount; s++)
+      configs.push({
+        ranker: 'network-simplex',
+        nodesep: 50,
+        ranksep: 60,
+        seed: s,
+      });
+  }
 
   // Honest "badness" — every kind of line-in-the-wrong-place counts equally:
   //   X true crossings + O overlap runs (lines stepping on each other)
@@ -1321,11 +1335,15 @@ export async function layoutBoxesAndLinesSearch(
     }
   };
 
-  // Build the candidate pool.
+  // Build the candidate pool. Track each layout's config so the top-ranked
+  // family can be reported (onTopConfigs) for the label-reserving relayout.
   const pool: BLLayoutResult[] = [];
+  const cfgOf = new Map<BLLayoutResult, BLSearchConfig>();
   for (const cfg of configs) {
     try {
-      pool.push(place(cfg));
+      const lay = place(cfg);
+      pool.push(lay);
+      cfgOf.set(lay, cfg);
     } catch {
       /* some rankers choke on odd graphs */
     }
@@ -1391,8 +1409,14 @@ export async function layoutBoxesAndLinesSearch(
       best = lay;
     }
   };
+  // Top-ranked candidate configs — the stage-1 refine set (plus the escalation
+  // refine set below). Reported via onTopConfigs so layout.ts can re-run just
+  // this family when it escalates to a label-reserving relayout.
+  const topConfigs: BLSearchConfig[] = [];
   for (const lay of pool.slice(0, refineK)) {
     consider(lay);
+    const cfg = cfgOf.get(lay);
+    if (cfg) topConfigs.push(cfg);
     await step('Refining layout');
   }
 
@@ -1403,18 +1427,21 @@ export async function layoutBoxesAndLinesSearch(
   // (only generating fresh seeds can). Spend an extra seed batch — but ONLY when
   // the result is actually bad, so the easy 0-badness majority of the corpus
   // never pays the latency. Bounded by node count to keep the worst case ~1s.
-  if (bestBad >= ESCALATE_THRESHOLD && n <= ESCALATE_MAX_N) {
+  // Skipped for an explicit `opts.configs` pool (the label-reserving relayout):
+  // the family was already chosen; fresh seeds would defeat the pool reuse.
+  if (!opts?.configs && bestBad >= ESCALATE_THRESHOLD && n <= ESCALATE_MAX_N) {
     const extra: BLLayoutResult[] = [];
     for (let s = seedCount; s < seedCount + ESCALATE_SEEDS; s++) {
+      const cfg: BLSearchConfig = {
+        ranker: 'network-simplex',
+        nodesep: 50,
+        ranksep: 60,
+        seed: s,
+      };
       try {
-        extra.push(
-          place({
-            ranker: 'network-simplex',
-            nodesep: 50,
-            ranksep: 60,
-            seed: s,
-          })
-        );
+        const lay = place(cfg);
+        extra.push(lay);
+        cfgOf.set(lay, cfg);
       } catch {
         /* ignore choking rankers */
       }
@@ -1423,7 +1450,11 @@ export async function layoutBoxesAndLinesSearch(
     for (const lay of extra)
       extraKey.set(lay, objective(lay, countCrossingsFast(lay)));
     extra.sort((a, b) => extraKey.get(a)! - extraKey.get(b)!);
-    for (const lay of extra.slice(0, ESCALATE_REFINE)) consider(lay);
+    for (const lay of extra.slice(0, ESCALATE_REFINE)) {
+      consider(lay);
+      const cfg = cfgOf.get(lay);
+      if (cfg) topConfigs.push(cfg);
+    }
   }
 
   // Layered candidates (and their better-routed, de-pierced variants) replace
@@ -1460,5 +1491,6 @@ export async function layoutBoxesAndLinesSearch(
     if (separated !== best && badness(separated, bestBad - 1) < bestBad)
       best = separated;
   }
+  opts?.onTopConfigs?.(topConfigs);
   return best;
 }
