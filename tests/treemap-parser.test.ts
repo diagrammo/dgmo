@@ -228,6 +228,70 @@ describe('layoutTreemap — geometry & depth (AC2c)', () => {
   });
 });
 
+describe('layoutTreemap — heat aggregation', () => {
+  it('container heat is the mean of descendant leaf heats', () => {
+    const r = parseTreemap(
+      'treemap T\nheat Risk\n\nGroup\n  A 10 heat: 2\n  B 20 heat: 4\n  Sub\n    C 5 heat: 6\nD 40'
+    );
+    const { cells } = layoutTreemap(r.roots, {
+      width: 600,
+      height: 400,
+      headerH: 18,
+    });
+    // Group aggregates every descendant leaf heat (A, B, and Sub's C).
+    expect(cells.find((c) => c.label === 'Group')!.heat).toBe((2 + 4 + 6) / 3);
+    // Nested container aggregates its own leaves only.
+    expect(cells.find((c) => c.label === 'Sub')!.heat).toBe(6);
+    // Leaves keep their explicit heat.
+    expect(cells.find((c) => c.label === 'A')!.heat).toBe(2);
+    expect(cells.find((c) => c.label === 'B')!.heat).toBe(4);
+    // A heat-less leaf stays undefined.
+    expect(cells.find((c) => c.label === 'D')!.heat).toBeUndefined();
+  });
+
+  it('explicit heat on a branch wins over the leaf mean; heat-less subtrees stay undefined', () => {
+    const leaf = (
+      label: string,
+      value: number,
+      heat?: number
+    ): TreemapNode => ({
+      id: label,
+      label,
+      value,
+      ...(heat !== undefined && { heat }),
+      metadata: {},
+      children: [],
+      lineNumber: 1,
+    });
+    const branch = (
+      label: string,
+      children: TreemapNode[],
+      heat?: number
+    ): TreemapNode => ({
+      id: label,
+      label,
+      ...(heat !== undefined && { heat }),
+      metadata: {},
+      children,
+      lineNumber: 1,
+    });
+    const roots = [
+      branch('P', [leaf('X', 10, 1), leaf('Y', 20, 3)], 9),
+      branch('Q', [leaf('Z', 5)]),
+    ];
+    const { cells } = layoutTreemap(roots, {
+      width: 600,
+      height: 400,
+      headerH: 18,
+    });
+    // Explicit branch heat overrides the descendant mean (which would be 2).
+    expect(cells.find((c) => c.label === 'P')!.heat).toBe(9);
+    // No heated leaves anywhere under Q → undefined, not NaN or 0.
+    expect(cells.find((c) => c.label === 'Q')!.heat).toBeUndefined();
+    expect(cells.find((c) => c.label === 'Z')!.heat).toBeUndefined();
+  });
+});
+
 // ============================================================
 // Radial (sunburst) mode
 // ============================================================

@@ -220,6 +220,14 @@ export async function render(
     }
   }
 
+  // The map pipeline resolves names AFTER parsing (gazetteer/ISO lookup), so its
+  // unknown-place / unknown-subdivision errors live on the ResolvedMap, not the
+  // ParsedMap. renderForExport's map handler already computes that resolve —
+  // capture its diagnostics through the out-param instead of re-running
+  // parseMap+resolveMap here. Ref-object (not a bare let) so TS doesn't narrow
+  // the closure-assigned value to null at the read below.
+  const mapDiag: { current: readonly DgmoError[] | null } = { current: null };
+
   // Visualization/diagram and unknown/null types all go through the unified renderer
   await acquireDom();
   let svg: string;
@@ -237,6 +245,9 @@ export async function render(
         }),
         ...(options?.tagGroup !== undefined && { tagGroup: options.tagGroup }),
         ...(options?.mapData !== undefined && { mapData: options.mapData }),
+        onMapResolverDiagnostics: (d) => {
+          mapDiag.current = d;
+        },
       }
     );
     // Bake pure-CSS hover while jsdom is still installed (no-op unless the
@@ -246,28 +257,12 @@ export async function render(
     releaseDom();
   }
 
-  // The map pipeline resolves names AFTER parsing (gazetteer/ISO lookup), so its
-  // unknown-place / unknown-subdivision errors live on the ResolvedMap, not the
-  // ParsedMap. Surface them through render() so the editor shows squiggles.
   // resolveMap seeds its diagnostics with the parser's, so this is a superset.
-  // loadMapData is memoized (renderForExport already loaded it) — no double read.
-  if (chartType === 'map') {
-    try {
-      const [{ parseMap }, { resolveMap }, { loadMapData }] = await Promise.all(
-        [
-          import('./map/parser'),
-          import('./map/resolver'),
-          import('./map/load-data'),
-        ]
-      );
-      // Prefer injected data (browser); fall back to the fs loader (CLI/SSR).
-      const data = options?.mapData ?? (await loadMapData());
-      // resolveMap seeds its diagnostics with the parser's, so this is a superset.
-      // (The layout stage has no diagnostics producer, so there is nothing to merge.)
-      diagnostics = [...resolveMap(parseMap(content), data).diagnostics];
-    } catch {
-      /* asset load failed — keep the parser diagnostics */
-    }
+  // (The layout stage has no diagnostics producer, so there is nothing to merge.)
+  // When the map assets failed to load, exportMap never resolved and the
+  // out-param stays null — keep the parser diagnostics, as before.
+  if (chartType === 'map' && mapDiag.current) {
+    diagnostics = [...mapDiag.current];
   }
 
   return { svg, diagnostics, chartType: chartType ?? undefined };

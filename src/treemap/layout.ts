@@ -101,17 +101,51 @@ function toDatum(node: TreemapNode): LayoutDatum {
   };
 }
 
+/** Per-node aggregate of descendant-leaf heats (sum + count). */
+interface HeatAgg {
+  sum: number;
+  count: number;
+}
+
+/**
+ * Aggregate leaf heats for every node in a single traversal, replacing the
+ * per-node `leaves()` subtree walk (O(N × subtree) → O(leaves × depth)).
+ * Leaves are visited in the same pre-order `leaves()` used, and each ancestor
+ * accumulates them one at a time from 0, so every node's sum is bit-identical
+ * to the old per-node left fold.
+ */
+function collectHeatAggs(
+  root: HierarchyRectangularNode<LayoutDatum>
+): Map<HierarchyRectangularNode<LayoutDatum>, HeatAgg> {
+  const aggs = new Map<HierarchyRectangularNode<LayoutDatum>, HeatAgg>();
+  root.eachBefore((node) => {
+    if (node.children) return; // leaves only
+    const heat = node.data.heat;
+    if (heat === undefined) return;
+    let p: HierarchyRectangularNode<LayoutDatum> | null = node;
+    while (p) {
+      const agg = aggs.get(p);
+      if (agg) {
+        agg.sum += heat;
+        agg.count += 1;
+      } else {
+        aggs.set(p, { sum: heat, count: 1 });
+      }
+      p = p.parent;
+    }
+  });
+  return aggs;
+}
+
 /** Mean heat across the leaves under a datum (own heat if it is a leaf). */
 function datumHeat(
-  node: HierarchyRectangularNode<LayoutDatum>
+  node: HierarchyRectangularNode<LayoutDatum>,
+  heatAggs: Map<HierarchyRectangularNode<LayoutDatum>, HeatAgg>
 ): number | undefined {
   if (node.data.heat !== undefined) return node.data.heat;
-  const xs: number[] = [];
-  for (const l of node.leaves()) {
-    if (l.data.heat !== undefined) xs.push(l.data.heat);
-  }
-  if (xs.length === 0) return undefined;
-  return xs.reduce((a, b) => a + b, 0) / xs.length;
+  const agg = heatAggs.get(node);
+  if (agg === undefined) return undefined;
+  return agg.sum / agg.count;
 }
 
 export function layoutTreemap(
@@ -145,6 +179,8 @@ export function layoutTreemap(
     });
   });
 
+  const heatAggs = collectHeatAggs(hroot);
+
   const cells: TreemapCell[] = [];
   for (const d of hroot.descendants()) {
     if (d.depth === 0) continue; // skip synthetic root
@@ -161,7 +197,7 @@ export function layoutTreemap(
       p = p.parent;
     }
 
-    const heatVal = datumHeat(d);
+    const heatVal = datumHeat(d, heatAggs);
     cells.push({
       node: d.data.ref ?? null,
       label: d.data.label,

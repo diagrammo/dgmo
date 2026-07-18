@@ -259,6 +259,35 @@ describe('shapeFill', () => {
   });
 });
 
+describe('mix — memoization', () => {
+  it('repeated calls return identical values (memo hit === fresh compute)', () => {
+    const first = mix('#2e8b57', '#c0392b', 37);
+    expect(mix('#2e8b57', '#c0392b', 37)).toBe(first);
+    // Distinct argument orders are cached independently.
+    expect(mix('#c0392b', '#2e8b57', 37)).not.toBe(first);
+  });
+
+  it('known blends are unchanged, including repeats and 3-digit hex', () => {
+    expect(mix('#000000', '#ffffff', 50)).toBe('#808080');
+    expect(mix('#000000', '#ffffff', 50)).toBe('#808080');
+    expect(mix('#abc', '#abc', 50)).toBe('#aabbcc');
+    expect(mix('#112233', '#445566', 100)).toBe('#112233');
+    expect(mix('#112233', '#445566', 0)).toBe('#445566');
+  });
+});
+
+describe('hexToHSL — memoization', () => {
+  it('repeated calls return equal values as fresh objects (no shared ref)', () => {
+    const a = hexToHSL('#2e8b57');
+    const b = hexToHSL('#2e8b57');
+    expect(b).toEqual(a);
+    expect(b).not.toBe(a); // callers can never mutate the cache
+    // Achromatic path too.
+    expect(hexToHSL('#808080')).toEqual(hexToHSL('#808080'));
+    expect(hexToHSL('#808080')).toEqual({ h: 0, s: 0, l: 50 });
+  });
+});
+
 describe('resolveColor', () => {
   it('rejects 6-digit hex codes', () => {
     expect(resolveColor('#ff0000')).toBeNull();

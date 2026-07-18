@@ -180,6 +180,10 @@ const BUILDS: Options[] = [
       index: 'src/index.ts',
       block: 'src/embed/index.ts',
       advanced: 'src/advanced.ts',
+      // Light chart-metadata surface (parsers/data only — no renderers).
+      // In the splitting group so its parser code shares chunks with
+      // index/advanced instead of duplicating them.
+      'chart-meta': 'src/chart-meta.ts',
     },
     format: ['esm'],
     dts: true,

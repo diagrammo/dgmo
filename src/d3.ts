@@ -73,6 +73,13 @@ type RenderForExportOptions = {
   // set, the map canvas adopts it + stretch-fills so the PNG matches the
   // on-screen map. The app passes this; headless consumers omit it.
   mapAspect?: number;
+  // Out-param (map only): exportMap deposits the ResolvedMap's diagnostics here
+  // so render() can surface resolver errors (unknown place/subdivision) without
+  // re-running parseMap+resolveMap purely for diagnostics. Not called when the
+  // map assets fail to load (exportMap degrades to '' before resolving).
+  onMapResolverDiagnostics?: (
+    diagnostics: readonly import('./diagnostics').DgmoError[]
+  ) => void;
 };
 
 /** Everything an export handler needs — one bundle threaded through dispatch. */
@@ -1233,6 +1240,9 @@ async function exportMap(ctx: ExportContext): Promise<string> {
     }
   }
   const mapResolved = resolveMap(mapParsed, mapData);
+  // Hand the resolver diagnostics out to render() — resolveMap seeds them with
+  // the parser's, so this is the full superset the editor needs.
+  options?.onMapResolverDiagnostics?.(mapResolved.diagnostics);
 
   // Content-aware canvas: derive the height from the map's intrinsic projected
   // aspect (world ~2.3:1, a region taller, etc.) instead of the fixed 800, so the

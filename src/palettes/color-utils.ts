@@ -5,8 +5,18 @@ import type { PaletteColors } from './types';
 // HSL Conversion
 // ============================================================
 
+// Hex parsing is pure and hit repeatedly with a tiny distinct-input set
+// (palette swatches); memoize. Capped so pathological inputs can't grow it
+// unbounded. Cached entries are copied on the way out so callers can never
+// mutate the cache.
+const HEX_TO_HSL_CACHE = new Map<string, { h: number; s: number; l: number }>();
+const HEX_TO_HSL_CACHE_MAX = 5000;
+
 /** Convert hex (#RRGGBB or #RGB) to { h, s, l } with h in degrees, s/l as percentages. */
 export function hexToHSL(hex: string): { h: number; s: number; l: number } {
+  const cached = HEX_TO_HSL_CACHE.get(hex);
+  if (cached) return { ...cached };
+
   const raw = hex.replace('#', '');
   const full = raw.length === 3 ? [...raw].map((c) => c + c).join('') : raw;
 
@@ -18,27 +28,32 @@ export function hexToHSL(hex: string): { h: number; s: number; l: number } {
   const min = Math.min(r, g, b);
   const l = (max + min) / 2;
 
+  let result: { h: number; s: number; l: number };
   if (max === min) {
-    return { h: 0, s: 0, l: Math.round(l * 100) };
-  }
-
-  const d = max - min;
-  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-
-  let h: number;
-  if (max === r) {
-    h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-  } else if (max === g) {
-    h = ((b - r) / d + 2) / 6;
+    result = { h: 0, s: 0, l: Math.round(l * 100) };
   } else {
-    h = ((r - g) / d + 4) / 6;
+    const d = max - min;
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+    let h: number;
+    if (max === r) {
+      h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    } else if (max === g) {
+      h = ((b - r) / d + 2) / 6;
+    } else {
+      h = ((r - g) / d + 4) / 6;
+    }
+
+    result = {
+      h: Math.round(h * 360),
+      s: Math.round(s * 100),
+      l: Math.round(l * 100),
+    };
   }
 
-  return {
-    h: Math.round(h * 360),
-    s: Math.round(s * 100),
-    l: Math.round(l * 100),
-  };
+  if (HEX_TO_HSL_CACHE.size >= HEX_TO_HSL_CACHE_MAX) HEX_TO_HSL_CACHE.clear();
+  HEX_TO_HSL_CACHE.set(hex, result);
+  return { ...result };
 }
 
 /** Convert { h (degrees), s (%), l (%) } back to #RRGGBB hex string. */
@@ -130,6 +145,13 @@ export function shade(hex: string, base: string, amount: number): string {
 // Color Mixing
 // ============================================================
 
+// `mix` is the hottest color primitive (~all renderers, tinted fills and
+// strokes) and string-parses both operands per call, over a tiny distinct
+// argument set. Memoize on the full argument tuple; capped so it can't grow
+// unbounded on pathological input.
+const MIX_CACHE = new Map<string, string>();
+const MIX_CACHE_MAX = 5000;
+
 /**
  * Blend two hex colors by percentage.
  * `pct` = 0 → 100% of `b`, `pct` = 100 → 100% of `a`.
@@ -137,6 +159,9 @@ export function shade(hex: string, base: string, amount: number): string {
  * Used by all renderers for tinted fills and strokes.
  */
 export function mix(a: string, b: string, pct: number): string {
+  const key = `${a}|${b}|${pct}`;
+  const cached = MIX_CACHE.get(key);
+  if (cached !== undefined) return cached;
   const parse = (h: string): [number, number, number] => {
     const r = h.replace('#', '');
     const f = r.length === 3 ? [...r].map((c) => c + c).join('') : r;
@@ -153,7 +178,10 @@ export function mix(a: string, b: string, pct: number): string {
     Math.round(x * t + y * (1 - t))
       .toString(16)
       .padStart(2, '0');
-  return `#${c(ar, br)}${c(ag, bg)}${c(ab, bb)}`;
+  const out = `#${c(ar, br)}${c(ag, bg)}${c(ab, bb)}`;
+  if (MIX_CACHE.size >= MIX_CACHE_MAX) MIX_CACHE.clear();
+  MIX_CACHE.set(key, out);
+  return out;
 }
 
 // ============================================================

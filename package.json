@@ -35,6 +35,10 @@
       "types": "./dist/advanced.d.ts",
       "default": "./dist/advanced.js"
     },
+    "./chart-meta": {
+      "types": "./dist/chart-meta.d.ts",
+      "default": "./dist/chart-meta.js"
+    },
     "./countdown": {
       "types": "./dist/countdown.d.ts",
       "default": "./dist/countdown.js"
