@@ -348,8 +348,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // Spec §7 §6.5: direction-tb, sub-node-label, show-sub-node-count,
     // hide, active-tag. fill family via FILL_FAMILY_CAPABLE.
     withGlobals({
-      'direction-tb': { description: 'Switch to top-to-bottom layout' },
-      'direction-lr': { description: 'Left-to-right layout (the default)' },
+      'direction-tb': { description: 'Top-to-bottom layout (the default)' },
+      'direction-lr': { description: 'Switch to left-to-right layout' },
       'sub-node-label': { description: 'Label for sub-nodes' },
       'show-sub-node-count': { description: 'Show sub-node counts' },
       hide: { description: 'Hide tag:value pairs' },
@@ -398,8 +398,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'c4',
     // Spec §8 §7.7: direction booleans, active-tag.
     withGlobals({
-      'direction-tb': { description: 'Switch to top-to-bottom layout' },
-      'direction-lr': { description: 'Left-to-right layout (the default)' },
+      'direction-tb': { description: 'Top-to-bottom layout (the default)' },
+      'direction-lr': { description: 'Switch to left-to-right layout' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],

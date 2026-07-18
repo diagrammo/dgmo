@@ -1113,7 +1113,7 @@ This is key-value metadata assignment, consistent with same-line metadata syntax
 
 ### 6.5 Options
 
-- `direction-lr` / `direction-tb` (booleans, last one wins; default is LR)
+- `direction-lr` / `direction-tb` (booleans, last one wins; default is TB)
 - `sub-node-label Text`
 - `show-sub-node-count`
 - `hide`
@@ -1215,7 +1215,7 @@ Database is a container description: PostgreSQL with read replicas
 
 ### 7.8 Options
 
-- `direction-lr` / `direction-tb` (booleans, last one wins; default is LR)
+- `direction-lr` / `direction-tb` (booleans, last one wins; default is TB)
 
 ---
 
