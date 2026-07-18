@@ -982,9 +982,10 @@ state [Title]
 
 ```
 StateName
-StateName color
 [*]                    // initial/final pseudostate
 ```
+
+States have no color slot — color comes from the tag system (§5.7).
 
 ### 5.3 Transitions
 
@@ -1009,22 +1010,43 @@ references, and the `no-notes` opt-out (see §4.7).
 ### 5.6 Options
 
 - `direction-lr` / `direction-tb` (booleans, last one wins; default is LR)
-- `no-color` (boolean; default off — when on, all states resolve to the muted neutral fill instead of their default intent color)
-
-**Color by state category** — declare a `tag <Name> as <alias>` group (§1.3), then assign each state `<alias>: <Value>` same-line (declare the assignments before the transitions):
-
-```
-tag Phase as p
-  Active blue
-  Done green
-Pending p: Active
-Shipped p: Done
-Pending -ship-> Shipped
-```
 - `fill-solid` / `fill-outline` (fill family; default is the 25% tint — collapsed groups follow the same mode, e.g. full saturation under `fill-solid`)
 - `no-notes` (boolean; default off — suppress all note boxes, see §4.7)
+- `active-tag GroupName` / `active-tag none` (§5.7)
 
-`no-color` + `fill-solid` precedence: `no-color` wins for states with no explicit color (the muted neutral path bypasses `fill-solid`). Group colors survive `no-color` and are then rendered at full saturation if `fill-solid` is also on.
+### 5.7 Tags
+
+State diagrams support the universal tag system (§1.3). Declare
+`tag <Group> as <alias>` blocks above the diagram body and apply values with
+same-line `key: value` metadata on a **state** line (tags describe states,
+not transitions — put the assignment on its own line):
+
+```
+state Document Lifecycle
+tag Phase as ph
+  Intake blue
+  Review orange
+  Terminal green
+
+Draft ph: Intake
+Draft -submit-> In Review
+In Review ph: Review
+Published ph: Terminal
+```
+
+- Either the alias (`ph:`) or the canonical group name (`phase:`) works as
+  the metadata key.
+- Tagged states get the standard treatment — 25% tint fill + solid
+  intent-color outline — and the `fill-*` family (§1.9) applies as usual.
+- Untagged states take the group's **first** value per §1.3. State is not in
+  the neutral-gray carve-out.
+- Declaring a tag group renders the standard legend. With several groups the
+  first declared one colors the diagram; `active-tag <Group>` picks another
+  and `active-tag none` turns tag coloring off (states fall back to the
+  default intent color).
+- Group colors (`[Group Name] color`) and collapsed-group stand-ins keep
+  their explicit color — the tag channel never overrides one.
+- The `[*]` pseudostate is never tagged.
 
 ---
 

@@ -336,6 +336,185 @@ describe('parseState', () => {
   });
 });
 
+// ============================================================
+// Tag system (decision #48 — spec §5.7 "Tags")
+// ============================================================
+
+describe('parseState — tag groups', () => {
+  const withPhase = (...body: string[]) =>
+    [
+      'state Order',
+      'tag Phase as ph',
+      '  Intake blue',
+      '  Fulfil green',
+      '  Done purple',
+      '',
+      ...body,
+    ].join('\n');
+
+  it('declares a tag group with entries and a default', () => {
+    const result = parseState(withPhase('[*] -> Draft'));
+    expect(result.error).toBeNull();
+    expect(result.tagGroups).toHaveLength(1);
+    const group = result.tagGroups![0]!;
+    expect(group.name).toBe('Phase');
+    expect(group.alias).toBe('ph');
+    expect(group.entries.map((e) => e.value)).toEqual([
+      'Intake',
+      'Fulfil',
+      'Done',
+    ]);
+    // First entry is the default (§1.3).
+    expect(group.defaultValue).toBe('Intake');
+  });
+
+  it('auto-assigns palette colors to bare tag values', () => {
+    const result = parseState(
+      [
+        'state',
+        'tag Phase as ph',
+        '  Intake',
+        '  Done',
+        '',
+        '[*] -> Draft',
+      ].join('\n')
+    );
+    expect(result.error).toBeNull();
+    const entries = result.tagGroups![0]!.entries;
+    // The auto-color pass must have replaced every sentinel.
+    expect(entries.every((e) => e.color !== '')).toBe(true);
+    expect(entries[0]!.color).not.toBe(entries[1]!.color);
+  });
+
+  it('attaches a tag value to a standalone state via its alias', () => {
+    const result = parseState(withPhase('[*] -> Draft', 'Draft ph: Fulfil'));
+    expect(result.error).toBeNull();
+    const draft = result.nodes.find((n) => n.label === 'Draft')!;
+    expect(draft.metadata?.['phase']).toBe('Fulfil');
+  });
+
+  it('accepts the canonical group name as the metadata key', () => {
+    const result = parseState(withPhase('[*] -> Draft', 'Draft phase: Done'));
+    expect(result.error).toBeNull();
+    const draft = result.nodes.find((n) => n.label === 'Draft')!;
+    expect(draft.metadata?.['phase']).toBe('Done');
+  });
+
+  it('gives untagged states the group default (§1.3 first value)', () => {
+    const result = parseState(
+      withPhase('[*] -> Draft', 'Draft -> Review', 'Draft ph: Done')
+    );
+    const review = result.nodes.find((n) => n.label === 'Review')!;
+    expect(review.metadata?.['phase']).toBe('Intake');
+  });
+
+  it('honours an explicit `default` marker over the first entry', () => {
+    const result = parseState(
+      [
+        'state',
+        'tag Phase as ph',
+        '  Intake blue',
+        '  Done purple default',
+        '',
+        '[*] -> Draft',
+      ].join('\n')
+    );
+    expect(result.tagGroups![0]!.defaultValue).toBe('Done');
+    const draft = result.nodes.find((n) => n.label === 'Draft')!;
+    expect(draft.metadata?.['phase']).toBe('Done');
+  });
+
+  it('does not tag the [*] pseudostate', () => {
+    const result = parseState(withPhase('[*] -> Draft'));
+    const pseudo = result.nodes.find((n) => n.shape === 'pseudostate')!;
+    expect(pseudo.metadata).toBeUndefined();
+  });
+
+  it('warns on an unknown tag value with a suggestion', () => {
+    const result = parseState(withPhase('[*] -> Draft', 'Draft ph: Fulfilll'));
+    const warning = result.diagnostics.find((d) =>
+      d.message.includes('Fulfilll')
+    );
+    expect(warning).toBeDefined();
+    expect(warning!.severity).toBe('warning');
+  });
+
+  it('stores active-tag as an option', () => {
+    const result = parseState(
+      [
+        'state',
+        'tag Phase as ph',
+        '  Intake blue',
+        'tag Owner as ow',
+        '  Ops teal',
+        'active-tag Owner',
+        '',
+        '[*] -> Draft',
+      ].join('\n')
+    );
+    expect(result.error).toBeNull();
+    expect(result.tagGroups).toHaveLength(2);
+    expect(result.options['active-tag']).toBe('Owner');
+  });
+
+  it('stores `active-tag none`', () => {
+    const result = parseState(withPhase('active-tag none', '', '[*] -> Draft'));
+    expect(result.options['active-tag']).toBe('none');
+  });
+
+  it('does not swallow the tag heading as an option', () => {
+    const result = parseState(withPhase('[*] -> Draft'));
+    expect(result.options['tag']).toBeUndefined();
+  });
+
+  it('does not swallow a tagged state line as an option', () => {
+    // `Draft ph: Fulfil` as the FIRST content line would otherwise match
+    // OPTION_NOCOLON_RE (`draft` = `ph: Fulfil`).
+    const result = parseState(withPhase('Draft ph: Fulfil', 'Draft -> Review'));
+    expect(result.options['draft']).toBeUndefined();
+    const draft = result.nodes.find((n) => n.label === 'Draft')!;
+    expect(draft.metadata?.['phase']).toBe('Fulfil');
+  });
+
+  // ── Non-regression: existing state grammar is untouched ──
+
+  it('leaves transitions, notes, groups and directions intact alongside tags', () => {
+    const result = parseState(
+      [
+        'state Order Lifecycle',
+        'direction-tb',
+        'tag Phase as ph',
+        '  Intake blue',
+        '  Done purple',
+        '',
+        '[*] -> Draft',
+        'Draft ph: Intake',
+        'Draft -submit-> Review',
+        '[Fulfilment]',
+        '  Review -> Shipped',
+        '  Shipped ph: Done',
+        'note Draft Awaiting author input',
+      ].join('\n')
+    );
+    expect(result.error).toBeNull();
+    expect(result.direction).toBe('TB');
+    expect(result.groups).toHaveLength(1);
+    expect(result.notes).toHaveLength(1);
+    expect(result.edges.some((e) => e.label === 'submit')).toBe(true);
+    const shipped = result.nodes.find((n) => n.label === 'Shipped')!;
+    expect(shipped.metadata?.['phase']).toBe('Done');
+    expect(shipped.group).toBe('group:fulfilment');
+  });
+
+  it('does not cut on a colon when no tag group is declared', () => {
+    // Pre-#48 behavior: state had no metadata at all, so a colon is
+    // just label text.
+    const result = parseState('state\n[*] -> Ready\nReady -> Done');
+    expect(result.error).toBeNull();
+    expect(result.nodes.every((n) => n.metadata === undefined)).toBe(true);
+  });
+});
+
 describe('looksLikeState', () => {
   it('detects state diagram with [*] and ->', () => {
     expect(looksLikeState('[*] -> Idle -> Active -> [*]')).toBe(true);

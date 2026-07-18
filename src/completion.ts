@@ -405,11 +405,13 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'state',
-    // Spec §6 §5.6: direction booleans, fill family, no-notes.
+    // Spec §6 §5.6: direction booleans, fill family, no-notes, active-tag
+    // (decision #48 — state gained the standard tag system).
     withGlobals({
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
       'direction-lr': { description: 'Left-to-right layout (the default)' },
       'no-notes': { description: 'Suppress all state note boxes' },
+      'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
@@ -994,6 +996,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['block', ['tag']],
   ['sketch', ['tag']],
   ['boxes-and-lines', ['tag']],
+  ['state', ['note', 'tag']],
   ['swimlane', ['lane', 'tag']],
   [
     'version-control',

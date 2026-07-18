@@ -345,4 +345,201 @@ describe('renderState', () => {
       expect(svg).toContain('<svg');
     });
   });
+
+  // ============================================================
+  // Tag system (decision #48 — spec §5.7 "Tags")
+  // ============================================================
+
+  describe('tag colouring', () => {
+    const HEAD = [
+      'state Order',
+      'tag Phase as ph',
+      '  Intake blue',
+      '  Fulfil green',
+      '  Done purple',
+      '',
+    ];
+    const doc = (...body: string[]) => [...HEAD, ...body].join('\n');
+
+    /** The `<rect>` of the named state's node group. */
+    const stateRect = (container: HTMLDivElement, label: string) => {
+      const g = container.querySelector(
+        `g.st-node[data-node-id="state:${label.toLowerCase()}"]`
+      );
+      expect(g).toBeTruthy();
+      return g!.querySelector('rect')!;
+    };
+
+    it('tints the fill and strokes the outline with the tag colour', () => {
+      const container = renderToContainer(
+        doc('[*] -> Draft', 'Draft ph: Done', 'Draft -> Review')
+      );
+      const rect = stateRect(container, 'Draft');
+      expect(rect.getAttribute('fill')).toBe(
+        mix(testPalette.colors.purple, testPalette.bg, 25)
+      );
+      expect(rect.getAttribute('stroke')).toBe(testPalette.colors.purple);
+      document.body.removeChild(container);
+    });
+
+    it('untagged states take the group default (first value)', () => {
+      const container = renderToContainer(
+        doc('[*] -> Draft', 'Draft ph: Done', 'Draft -> Review')
+      );
+      const rect = stateRect(container, 'Review');
+      // `Intake blue` is the first entry → the default.
+      expect(rect.getAttribute('stroke')).toBe(testPalette.colors.blue);
+      document.body.removeChild(container);
+    });
+
+    it('exposes data-tag-<group> for legend hover dimming', () => {
+      const container = renderToContainer(
+        doc('[*] -> Draft', 'Draft ph: Fulfil', 'Draft -> Review')
+      );
+      const g = container.querySelector(
+        'g.st-node[data-node-id="state:draft"]'
+      );
+      expect(g!.getAttribute('data-tag-phase')).toBe('fulfil');
+      document.body.removeChild(container);
+    });
+
+    it('does not tag the pseudostate', () => {
+      const container = renderToContainer(doc('[*] -> Draft'));
+      const g = container.querySelector(
+        'g.st-node[data-node-id="pseudostate:[*]"]'
+      );
+      expect(g!.getAttribute('data-tag-phase')).toBeNull();
+      document.body.removeChild(container);
+    });
+
+    it('renders the standard legend when tag groups are declared', () => {
+      const container = renderToContainer(doc('[*] -> Draft'));
+      const legendGroups = container.querySelectorAll('.st-legend-group');
+      expect(legendGroups.length).toBeGreaterThanOrEqual(1);
+      expect(container.textContent).toContain('Phase');
+      document.body.removeChild(container);
+    });
+
+    it('renders no legend when no tag groups are declared', () => {
+      const container = renderToContainer('[*] -> Idle -> Active');
+      expect(container.querySelectorAll('.st-legend-group').length).toBe(0);
+      document.body.removeChild(container);
+    });
+
+    it('active-tag switches the colouring dimension', () => {
+      const body = [
+        'state Order',
+        'tag Phase as ph',
+        '  Intake blue',
+        'tag Owner as ow',
+        '  Ops teal',
+        '  Eng red',
+        'active-tag Owner',
+        '',
+        '[*] -> Draft',
+        'Draft ow: Eng',
+      ].join('\n');
+      const container = renderToContainer(body);
+      expect(stateRect(container, 'Draft').getAttribute('stroke')).toBe(
+        testPalette.colors.red
+      );
+      document.body.removeChild(container);
+    });
+
+    it('defaults to the FIRST declared group when active-tag is absent', () => {
+      const body = [
+        'state Order',
+        'tag Phase as ph',
+        '  Intake blue',
+        'tag Owner as ow',
+        '  Ops teal',
+        '',
+        '[*] -> Draft',
+        'Draft ow: Ops',
+      ].join('\n');
+      const container = renderToContainer(body);
+      // Phase is active → Draft falls back to Phase's default (blue),
+      // not the Owner value it carries.
+      expect(stateRect(container, 'Draft').getAttribute('stroke')).toBe(
+        testPalette.colors.blue
+      );
+      document.body.removeChild(container);
+    });
+
+    it('active-tag none suppresses tag colouring', () => {
+      const container = renderToContainer(
+        doc('active-tag none', '', '[*] -> Draft', 'Draft ph: Done')
+      );
+      // Falls back to the default state blue, not purple.
+      expect(stateRect(container, 'Draft').getAttribute('stroke')).toBe(
+        testPalette.colors.blue
+      );
+      document.body.removeChild(container);
+    });
+
+    it('fill-solid uses the raw tag colour as the fill', () => {
+      const container = renderToContainer(
+        doc('fill-solid', '', '[*] -> Draft', 'Draft ph: Done')
+      );
+      expect(stateRect(container, 'Draft').getAttribute('fill')).toBe(
+        testPalette.colors.purple
+      );
+      document.body.removeChild(container);
+    });
+
+    it('fill-outline drops the wash but keeps the tag stroke', () => {
+      const container = renderToContainer(
+        doc('fill-outline', '', '[*] -> Draft', 'Draft ph: Done')
+      );
+      const rect = stateRect(container, 'Draft');
+      expect(rect.getAttribute('fill')).not.toBe(
+        mix(testPalette.colors.purple, testPalette.bg, 25)
+      );
+      expect(rect.getAttribute('stroke')).toBe(testPalette.colors.purple);
+      document.body.removeChild(container);
+    });
+
+    it('collapsed groups keep the group colour, tagged states unaffected', () => {
+      const parsed = parseState(
+        [
+          'state Order',
+          'tag Phase as ph',
+          '  Intake blue',
+          '  Done purple',
+          '',
+          '[Processing] red collapsed',
+          '  Validating -> Approved',
+          '  Validating ph: Done',
+        ].join('\n'),
+        testPalette
+      );
+      expect(parsed.error).toBeNull();
+      const group = parsed.groups![0]!;
+      expect(group.collapsed).toBe(true);
+      const layout = layoutGraph(parsed, {
+        collapsedChildCounts: new Map([[group.id, group.nodeIds.length]]),
+        originalGroups: parsed.groups!,
+      });
+      const container = document.createElement('div');
+      Object.defineProperty(container, 'clientWidth', {
+        value: 1200,
+        configurable: true,
+      });
+      Object.defineProperty(container, 'clientHeight', {
+        value: 800,
+        configurable: true,
+      });
+      document.body.appendChild(container);
+      renderState(container, parsed, layout, testPalette, false);
+
+      const collapsed = container.querySelector(
+        `g.st-node[data-node-id="${group.id}"] rect`
+      );
+      expect(collapsed).toBeTruthy();
+      // The collapsed stand-in keeps its explicit group colour — the tag
+      // channel never overrides an explicit colour.
+      expect(collapsed!.getAttribute('stroke')).toBe(testPalette.colors.red);
+      document.body.removeChild(container);
+    });
+  });
 });

@@ -16,7 +16,25 @@ import {
   ALL_CHART_TYPES,
   tryParseSharedOption,
   FILL_FAMILY_TOKENS,
+  extractColor,
+  cutUnionMetadata,
+  parseMetadataRegion,
 } from '../utils/parsing';
+import {
+  STATE_REGISTRY,
+  withTagAliases,
+  type ReservedKeyRegistry,
+} from '../utils/reserved-key-registry';
+import {
+  matchTagBlockHeading,
+  tagAttrKey,
+  stripDefaultModifier,
+  finalizeAutoTagColors,
+  validateTagValues,
+  validateTagGroupNames,
+  AUTO_TAG_COLOR_SENTINEL,
+  type TagGroup,
+} from '../utils/tag-groups';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import type { Writable } from '../utils/brand';
 import type { ParsedGraph, GraphNode, GraphGroup, GraphNote } from './types';
@@ -195,6 +213,7 @@ export function parseState(
     direction: 'LR',
     nodes: [],
     edges: [],
+    tagGroups: [],
     options,
     diagnostics: [],
     error: null,
@@ -216,6 +235,42 @@ export function parseState(
   let contentStarted = false;
   let firstLineParsed = false;
 
+  // ── Tag groups (decision #48) ──────────────────────────────
+  // Declaration state mirrors org/boxes-and-lines exactly: a heading opens a
+  // group, indented lines are its entries, a blank or non-indented line
+  // closes it.
+  const tagGroups = result.tagGroups as Writable<TagGroup>[];
+  let currentTagGroup: Writable<TagGroup> | null = null;
+  // metaAliasMap: tag-group metadata-key aliases (`ph` → `phase`), per A1 —
+  // distinct from nameAliasMap (TD-18 entity-name aliases) below.
+  const metaAliasMap = new Map<string, string>();
+  // Effective §1.4 registry: state has NO static reserved keys, so the cut
+  // only ever fires on a declared tag alias / group name. Rebuilt whenever a
+  // group is declared.
+  let registry: ReservedKeyRegistry = STATE_REGISTRY;
+  const refreshRegistry = (): void => {
+    registry = withTagAliases(STATE_REGISTRY, new Set(metaAliasMap.keys()));
+  };
+
+  /**
+   * Peel §1.4.1 same-line tag metadata off a state line. Returns the name
+   * region plus the resolved metadata. With no declared tag groups the
+   * registry is empty, the cut never fires, and the line is returned
+   * untouched — pre-#48 behavior is byte-identical.
+   */
+  function peelStateMeta(text: string): {
+    text: string;
+    meta: Record<string, string>;
+  } {
+    if (metaAliasMap.size === 0) return { text, meta: {} };
+    const cut = cutUnionMetadata(text, registry);
+    if (cut === -1) return { text, meta: {} };
+    return {
+      text: text.substring(0, cut).trimEnd(),
+      meta: parseMetadataRegion(text.substring(cut), metaAliasMap),
+    };
+  }
+
   // Per-parse alias literal → canonical node id (TD-18). Per C8.
   const nameAliasMap = new Map<string, string>();
   function peelAlias(seg: string): { seg: string; alias?: string } {
@@ -228,11 +283,17 @@ export function parseState(
 
   function getOrCreateNode(
     ref: NodeRef,
-    lineNumber: number
+    lineNumber: number,
+    meta?: Record<string, string>
   ): Writable<GraphNode> {
     const key = ref.id;
     const existing = nodeMap.get(key);
     if (existing) {
+      if (meta && Object.keys(meta).length > 0) {
+        // A later mention may carry the tag values; merge rather than
+        // replace so the first-seen values win only per-key.
+        existing.metadata = { ...(existing.metadata ?? {}), ...meta };
+      }
       const incomingDisplay = displayName(ref.label);
       const existingDisplay = displayName(existing.label);
       if (incomingDisplay !== existingDisplay) {
@@ -260,6 +321,7 @@ export function parseState(
       lineNumber,
       ...(ref.color && { color: ref.color }),
       ...(currentGroup && { group: currentGroup.id }),
+      ...(meta && Object.keys(meta).length > 0 && { metadata: { ...meta } }),
     };
     nodeMap.set(key, node);
     result.nodes.push(node);
@@ -293,7 +355,11 @@ export function parseState(
     const lineNumber = i + 1;
     const indent = measureIndent(raw);
 
-    if (!trimmed) continue;
+    if (!trimmed) {
+      // An empty line ends a tag group block (org/b&l convention).
+      currentTagGroup = null;
+      continue;
+    }
     if (trimmed.startsWith('//')) continue;
 
     // First line: try parseFirstLine for `state [Title]`
@@ -314,6 +380,64 @@ export function parseState(
         }
         continue;
       }
+    }
+
+    // Tag group heading — `tag <Group> as <alias>` (decision #48). Checked
+    // BEFORE the option branch so `tag Phase as ph` is not swallowed as the
+    // option `tag = "Phase as ph"` by OPTION_NOCOLON_RE.
+    if (!contentStarted) {
+      const tagBlockMatch = matchTagBlockHeading(trimmed);
+      if (tagBlockMatch) {
+        currentTagGroup = {
+          name: tagBlockMatch.name,
+          ...(tagBlockMatch.alias !== undefined && {
+            alias: tagBlockMatch.alias,
+          }),
+          entries: [],
+          lineNumber,
+        };
+        if (tagBlockMatch.alias) {
+          metaAliasMap.set(
+            normalizeName(tagBlockMatch.alias),
+            tagAttrKey(tagBlockMatch.name)
+          );
+        }
+        // §1.4 dispatch: the canonical group name also triggers the cut,
+        // so `Draft phase: Intake` works without an explicit alias.
+        metaAliasMap.set(
+          normalizeName(tagBlockMatch.name),
+          tagAttrKey(tagBlockMatch.name)
+        );
+        refreshRegistry();
+        tagGroups.push(currentTagGroup);
+        continue;
+      }
+
+      // Indented tag-group entries: `Value [color] [default]`. The first
+      // entry is the group default unless another is marked `default`.
+      if (currentTagGroup && indent > 0) {
+        const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
+        const { label, color } = extractColor(
+          cleanEntry,
+          palette,
+          result.diagnostics,
+          lineNumber
+        );
+        if (isDefault || currentTagGroup.entries.length === 0) {
+          currentTagGroup.defaultValue = label;
+        }
+        currentTagGroup.entries.push({
+          value: label,
+          // Bare value → sentinel; finalizeAutoTagColors assigns a
+          // deterministic palette color after the parse.
+          color: color ?? AUTO_TAG_COLOR_SENTINEL,
+          lineNumber,
+        });
+        continue;
+      }
+
+      // Any other non-indented line closes an open group.
+      currentTagGroup = null;
     }
 
     // Note annotation: `note <ref> [inline body]` + optional indented
@@ -397,7 +521,12 @@ export function parseState(
       }
 
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
-      if (optMatch && !trimmed.includes('->')) {
+      // A line carrying §1.4 tag metadata (`Draft ph: Intake`) is a state
+      // declaration, not an option — OPTION_NOCOLON_RE would otherwise eat
+      // it as `draft = "ph: Intake"` when it is the first content line.
+      const carriesTagMeta =
+        metaAliasMap.size > 0 && cutUnionMetadata(trimmed, registry) !== -1;
+      if (optMatch && !trimmed.includes('->') && !carriesTagMeta) {
         // Regex capture groups 1 and 2 are mandatory in OPTION_NOCOLON_RE.
         const key = optMatch[1]!.toLowerCase();
         const value = optMatch[2]!.trim();
@@ -448,11 +577,14 @@ export function parseState(
 
     if (segments.length === 1) {
       // Single state reference, no arrows — this is the canonical definition
+      // and the only place §1.4 tag metadata attaches (tags describe STATES,
+      // not transitions).
       // In-bounds by length check above.
-      const peeled = peelAlias(segments[0]!);
+      const withMeta = peelStateMeta(segments[0]!);
+      const peeled = peelAlias(withMeta.text);
       const ref = parseStateNodeRef(peeled.seg);
       if (ref) {
-        const node = getOrCreateNode(ref, lineNumber);
+        const node = getOrCreateNode(ref, lineNumber, withMeta.meta);
         if (peeled.alias) nameAliasMap.set(peeled.alias, node.id);
         // Standalone heading is the "definition" — update lineNumber so
         // clicking the node in the preview navigates here, not to the
@@ -526,6 +658,58 @@ export function parseState(
     if (lastNodeId) {
       indentStack.push({ nodeId: lastNodeId, indent });
     }
+  }
+
+  // ── Tag finalization (decision #48) ────────────────────────
+  if (tagGroups.length > 0) {
+    // Bare (colorless) tag values get their deterministic palette color.
+    finalizeAutoTagColors(tagGroups, palette);
+
+    // §1.3: a state with no explicit value takes the group's default (the
+    // first declared entry). State is NOT in the neutral-gray carve-out
+    // (that is sketch/body/swimlane), so the default is materialized onto
+    // every real state — this is what makes `data-tag-*` and legend
+    // hover-dimming complete rather than only covering tagged states.
+    const defaults: { key: string; value: string }[] = [];
+    for (const group of tagGroups) {
+      if (group.defaultValue) {
+        defaults.push({
+          key: tagAttrKey(group.name),
+          value: group.defaultValue,
+        });
+      }
+    }
+    const taggable = result.nodes.filter(
+      (n) => n.shape !== 'pseudostate'
+    ) as Writable<GraphNode>[];
+    for (const node of taggable) {
+      const meta: Record<string, string> = { ...(node.metadata ?? {}) };
+      for (const { key, value } of defaults) {
+        if (!(key in meta)) meta[key] = value;
+      }
+      node.metadata = meta;
+    }
+
+    validateTagValues(
+      taggable.map((n) => ({
+        metadata: (n.metadata ?? {}) as Record<string, string>,
+        lineNumber: n.lineNumber,
+      })),
+      tagGroups,
+      (line, message) =>
+        result.diagnostics.push(makeDgmoError(line, message, 'warning')),
+      suggest
+    );
+    validateTagGroupNames(
+      tagGroups,
+      (line, message) =>
+        result.diagnostics.push(makeDgmoError(line, message, 'warning')),
+      (line, message) => {
+        const diag = makeDgmoError(line, message);
+        result.diagnostics.push(diag);
+        if (!result.error) result.error = formatDgmoError(diag);
+      }
+    );
   }
 
   if (groups.length > 0) result.groups = groups;

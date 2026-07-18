@@ -860,7 +860,7 @@ function findMetadataCutOffset(
  * resolution via the supplied aliasMap (callers responsible for
  * converting `tag Concern as c` declarations into `c → concern`).
  */
-function parseMetadataRegion(
+export function parseMetadataRegion(
   region: string,
   aliasMap: Map<string, string>,
   diagnostics?: DgmoError[],

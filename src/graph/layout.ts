@@ -40,6 +40,8 @@ export interface LayoutNode {
   readonly shape: GraphShape;
   readonly color?: string;
   readonly group?: string;
+  /** §1.4 tag metadata carried through from the parsed node (state only). */
+  readonly metadata?: Readonly<Record<string, string>>;
   readonly lineNumber: number;
   readonly x: number;
   readonly y: number;
@@ -296,6 +298,7 @@ export function layoutGraph(
       shape: node.shape,
       ...(node.color !== undefined && { color: node.color }),
       ...(node.group !== undefined && { group: node.group }),
+      ...(node.metadata !== undefined && { metadata: node.metadata }),
       lineNumber: node.lineNumber,
       x: p.x,
       y: p.y,
