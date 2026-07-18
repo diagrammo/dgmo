@@ -277,6 +277,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     title: null,
     titleLineNumber: null,
     options,
+    direction: 'TB',
     tagGroups: [],
     elements: [],
     relationships: [],
@@ -1048,6 +1049,12 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
   validateTagGroupNames(result.tagGroups, (line, msg) =>
     pushError(line, msg, 'warning')
   );
+
+  // Resolve the layout direction (§8.7). The boolean pair is mutually
+  // exclusive and already collapsed to a single surviving key above
+  // (§1.9, last one wins), so a lone presence check is sufficient.
+  // Absent both, C4 views keep their long-standing top-down orientation.
+  result.direction = options['direction-lr'] ? 'LR' : 'TB';
 
   return result;
 }

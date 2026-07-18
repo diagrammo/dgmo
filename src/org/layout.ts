@@ -411,6 +411,47 @@ export function layoutOrg(
     };
   }
 
+  // Layout direction (§7.5). The tree is always solved in an *abstract*
+  // coordinate space where `y` runs along the depth axis (root → reports) and
+  // `x` runs along the cross axis (sibling spread). Only two things vary by
+  // direction: which card dimension spans each axis, and the final mapping
+  // from abstract space to screen space. Keeping every intermediate pass in
+  // abstract space means the tidy-tree solve, the compaction passes, the bus
+  // router and the container fitter each exist exactly once.
+  //
+  // In TB the mapping is the identity, so the top-down output is unchanged.
+  const isLR = parsed.direction === 'LR';
+
+  /** Card extent along the depth axis (root → reports). */
+  const depthExtent = (tn: { width: number; height: number }): number =>
+    isLR ? tn.width : tn.height;
+  /** Card extent along the cross axis (sibling spread). */
+  const crossExtent = (tn: { width: number; height: number }): number =>
+    isLR ? tn.height : tn.width;
+
+  /**
+   * Map an abstract point to screen space.
+   *
+   * Abstract `x` is the cross coordinate and `y` the depth coordinate; on
+   * screen LR runs depth along the page's x axis, so the two simply swap.
+   */
+  const ptToScreen = (ax: number, ay: number): { x: number; y: number } =>
+    isLR ? { x: ay, y: ax } : { x: ax, y: ay };
+
+  /**
+   * Map an abstract card position to its screen top-left corner.
+   *
+   * A node's abstract `x` is its cross-axis *centre* while its abstract `y` is
+   * its depth-axis *near* edge, so the two axes de-anchor differently.
+   */
+  const screenTopLeft = (
+    ax: number,
+    ay: number,
+    w: number,
+    h: number
+  ): { left: number; top: number } =>
+    isLR ? { left: ay, top: ax - h / 2 } : { left: ax - w / 2, top: ay };
+
   // Inject default tag group values into node metadata for display.
   // Must happen before buildTreeNodes so card sizing accounts for extra rows.
   injectDefaultMetadata(parsed.roots, parsed.tagGroups);
@@ -450,7 +491,9 @@ export function layoutOrg(
     };
   }
 
-  // Pre-compute max card dimensions for node separation
+  // Pre-compute max card dimensions for node separation.
+  // `maxWidth`/`maxHeight` stay literal card dimensions; the per-axis maxima
+  // used for tree spacing are derived from them below.
   let maxWidth = 0;
   let maxHeight = 0;
   const allTreeNodes: TreeNode[] = [];
@@ -464,14 +507,27 @@ export function layoutOrg(
   };
   collectNodes(root);
 
-  // Standardize all cards to the widest width for uniform appearance
+  // Standardize all cards to the widest width for uniform appearance.
+  // This also makes the depth extent uniform under LR, so ranks line up as
+  // clean columns the same way they line up as clean rows under TB.
   for (const tn of allTreeNodes) {
     tn.width = maxWidth;
   }
 
+  // Per-axis maxima, now that widths are uniform.
+  const maxDepthExtent = isLR ? maxWidth : maxHeight;
+  const maxCrossExtent = isLR ? maxHeight : maxWidth;
+  // Gaps are named for their screen axis under TB but chosen by *role*, so
+  // they do not swap with direction: V_GAP always separates ranks and H_GAP
+  // always separates siblings, whichever way the tree happens to run.
+  const depthGap = V_GAP;
+  const crossGap = H_GAP;
+
   // Collapse leaf containers: when a container's children are ALL leaves
   // (no grandchildren), replace them with a single virtual stack node so
-  // the d3 tree allocates a narrow column instead of a wide row.
+  // the d3 tree allocates a thin run along the depth axis rather than a
+  // broad one across the cross axis. Under TB that reads as the familiar
+  // narrow column instead of a wide row; under LR it is the transpose.
   const leafStacks = new Map<
     string,
     { children: TreeNode[]; placeholderId: string }
@@ -496,9 +552,12 @@ export function layoutOrg(
       for (const child of tn.children) {
         child.width = maxW;
       }
-      const totalH =
-        tn.children.reduce((s, c) => s + c.height, 0) +
+      // The placeholder is thin across the cross axis and long along the
+      // depth axis: it stands in for the whole stack of leaves.
+      const stackDepth =
+        tn.children.reduce((s, c) => s + depthExtent(c), 0) +
         (tn.children.length - 1) * STACK_V_GAP;
+      const stackCross = Math.max(...tn.children.map((c) => crossExtent(c)));
 
       tn.children = [
         {
@@ -512,8 +571,8 @@ export function layoutOrg(
             lineNumber: 0,
           },
           children: [],
-          width: maxW,
-          height: totalH,
+          width: isLR ? stackDepth : stackCross,
+          height: isLR ? stackCross : stackDepth,
         },
       ];
     }
@@ -526,11 +585,11 @@ export function layoutOrg(
   // Build d3 hierarchy
   const h = hierarchy<TreeNode>(root, (d) => d.children);
 
-  // Run Reingold-Tilford tree layout with nodeSize
-  // x = horizontal spread, y = vertical (depth)
+  // Run Reingold-Tilford tree layout with nodeSize.
+  // x = cross axis (sibling spread), y = depth axis.
   const treeLayout = tree<TreeNode>().nodeSize([
-    maxWidth + H_GAP,
-    maxHeight + V_GAP,
+    maxCrossExtent + crossGap,
+    maxDepthExtent + depthGap,
   ]);
   treeLayout(h);
 
@@ -553,7 +612,8 @@ export function layoutOrg(
     for (const d of descendants) {
       if (d.data.orgNode.id.startsWith('__stack_')) continue;
       const cur = levelMaxHeight.get(d.depth) ?? 0;
-      if (d.data.height > cur) levelMaxHeight.set(d.depth, d.data.height);
+      const ext = depthExtent(d.data);
+      if (ext > cur) levelMaxHeight.set(d.depth, ext);
     }
 
     // Compute compacted Y position for each depth level
@@ -565,9 +625,9 @@ export function layoutOrg(
     const rootDepth = treeNodes.length === 1 ? 0 : 1;
     compactedY.set(rootDepth, 0);
     for (let d = rootDepth + 1; d <= maxDepth; d++) {
-      const parentH = levelMaxHeight.get(d - 1) ?? maxHeight;
+      const parentH = levelMaxHeight.get(d - 1) ?? maxDepthExtent;
       const prevY = compactedY.get(d - 1) ?? 0;
-      compactedY.set(d, prevY + parentH + V_GAP);
+      compactedY.set(d, prevY + parentH + depthGap);
     }
 
     // Shift each node from uniform Y to compacted Y (top-aligned).
@@ -593,7 +653,10 @@ export function layoutOrg(
     const metaCount = Object.keys(d.data.orgNode.metadata).length;
     const headerHeight =
       CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
-    const desiredGap = headerHeight + 15;
+    // The label strip is always drawn across the top of the box, so it only
+    // consumes depth-axis room under TB. Under LR the depth axis runs across
+    // the box and the children just need the box's side padding.
+    const desiredGap = isLR ? CONTAINER_PAD_X : headerHeight + 15;
     const shiftUp = actualLevelGap - desiredGap;
     if (shiftUp <= 0) continue;
 
@@ -621,10 +684,10 @@ export function layoutOrg(
     // need standard spacing so siblings stay aligned.
     if (!d.children.every((c) => c.data.orgNode.isContainer)) continue;
 
-    const parentBottomY = d.y! + d.data.height;
+    const parentBottomY = d.y! + depthExtent(d.data);
     const firstChildY = Math.min(...d.children.map((c) => c.y!));
     const currentGap = firstChildY - parentBottomY;
-    const desiredGap = V_GAP * 0.6;
+    const desiredGap = depthGap * 0.6;
     const shiftUp = currentGap - desiredGap;
     if (shiftUp <= 0) continue;
 
@@ -649,8 +712,8 @@ export function layoutOrg(
     type HNode = typeof h;
     const subtreeExtent = (node: HNode): { minX: number; maxX: number } => {
       // Start with this node's own card/header bounds
-      let min = node.x! - node.data.width / 2;
-      let max = node.x! + node.data.width / 2;
+      let min = node.x! - crossExtent(node.data) / 2;
+      let max = node.x! + crossExtent(node.data) / 2;
 
       // Include children's subtree extents
       if (node.children) {
@@ -666,6 +729,14 @@ export function layoutOrg(
       if (node.data.orgNode.isContainer) {
         min -= CONTAINER_PAD_X;
         max += CONTAINER_PAD_X;
+        // Under LR the box also reserves its label strip on the cross axis
+        // (the label is always drawn across the top). Reserving it here too
+        // keeps sibling containers from crowding the strip below them.
+        if (isLR) {
+          const metaCount = Object.keys(node.data.orgNode.metadata).length;
+          min -=
+            CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
+        }
       }
 
       return { minX: min, maxX: max };
@@ -700,7 +771,7 @@ export function layoutOrg(
       for (let i = 1; i < children.length; i++) {
         // In-bounds: i >= 1 so i-1 >= 0, and extents is parallel to children.
         const prevRight = positions[i - 1]! + extents[i - 1]!.relRight;
-        positions[i] = prevRight + H_GAP - extents[i]!.relLeft;
+        positions[i] = prevRight + crossGap - extents[i]!.relLeft;
       }
 
       // positions has at least one element (initialized with [0]).
@@ -769,6 +840,7 @@ export function layoutOrg(
     const stack = leafStacks.get(containerId);
     if (!stack) continue;
 
+    // Lay the stacked leaves out along the depth axis, in abstract space.
     let currentY = d.y!;
     for (const child of stack.children) {
       expandedChildren.push({
@@ -778,35 +850,65 @@ export function layoutOrg(
         cx: d.x!,
         cy: currentY,
       });
-      currentY += child.height + STACK_V_GAP;
+      currentY += depthExtent(child) + STACK_V_GAP;
     }
   }
+
+  /**
+   * Screen-space rect (still pre-offset) for a card at an abstract position.
+   * Cards never rotate, so width/height stay as measured — only the anchor
+   * changes with direction.
+   */
+  const screenRect = (
+    ax: number,
+    ay: number,
+    w: number,
+    h: number
+  ): { left: number; top: number; right: number; bottom: number } => {
+    const { left, top } = screenTopLeft(ax, ay, w, h);
+    return { left, top, right: left + w, bottom: top + h };
+  };
+
+  const growBBox = (r: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  }): void => {
+    if (r.left < minX) minX = r.left;
+    if (r.right > maxX) maxX = r.right;
+    if (r.top < minY) minY = r.top;
+    if (r.bottom > maxY) maxY = r.bottom;
+  };
 
   for (const d of h.descendants()) {
     if (d.data.orgNode.id === '__virtual_root__') continue;
     if (d.data.orgNode.id.startsWith('__stack_')) continue;
 
-    const w = d.data.width;
-    const ht = d.data.height;
-    const cx = d.x!;
-    const cy = d.y!;
-
-    if (cx - w / 2 < minX) minX = cx - w / 2;
-    if (cx + w / 2 > maxX) maxX = cx + w / 2;
-    if (cy < minY) minY = cy;
-    if (cy + ht > maxY) maxY = cy + ht;
+    growBBox(screenRect(d.x!, d.y!, d.data.width, d.data.height));
   }
 
   for (const ec of expandedChildren) {
-    if (ec.cx - ec.width / 2 < minX) minX = ec.cx - ec.width / 2;
-    if (ec.cx + ec.width / 2 > maxX) maxX = ec.cx + ec.width / 2;
-    if (ec.cy < minY) minY = ec.cy;
-    if (ec.cy + ec.height > maxY) maxY = ec.cy + ec.height;
+    growBBox(screenRect(ec.cx, ec.cy, ec.width, ec.height));
   }
 
   // Translate so all coordinates are positive, starting at MARGIN
   const offsetX = -minX + MARGIN;
   const offsetY = -minY + MARGIN;
+
+  /**
+   * Final placed card coordinates, in the convention the renderer expects:
+   * `x` is the horizontal centre and `y` the top edge.
+   */
+  const placeCard = (
+    ax: number,
+    ay: number,
+    w: number,
+    h: number
+  ): { x: number; y: number } => {
+    const r = screenRect(ax, ay, w, h);
+    return { x: r.left + offsetX + w / 2, y: r.top + offsetY };
+  };
 
   // Add expanded stack children as layout nodes
   const subNodeKey = subNodeLabel ?? 'Sub-node Count';
@@ -836,8 +938,7 @@ export function layoutOrg(
       isContainer: ec.orgNode.isContainer,
       lineNumber: ec.orgNode.lineNumber,
       ...(ecColor !== undefined && { color: ecColor }),
-      x: ec.cx + offsetX,
-      y: ec.cy + offsetY,
+      ...placeCard(ec.cx, ec.cy, ec.width, ec.height),
       width: ec.width,
       height: ec.height,
       ...(hc !== undefined && { hiddenCount: hc }),
@@ -845,7 +946,16 @@ export function layoutOrg(
     });
   }
 
-  // Map parent ID → { parentX, parentBottomY, children[] } for bus-style edges
+  /** Final edge waypoint, mapped out of abstract space and offset. */
+  const placePoint = (ax: number, ay: number): { x: number; y: number } => {
+    const p = ptToScreen(ax, ay);
+    return { x: p.x + offsetX, y: p.y + offsetY };
+  };
+
+  // Map parent ID → { parentX, parentBottomY, children[] } for bus-style edges.
+  // Held in abstract space: `parentX` is the parent's cross coordinate and
+  // `parentBottomY` its far edge along the depth axis, so the bus geometry
+  // below is written once and mapped to the screen on emit.
   const busGroups = new Map<
     string,
     {
@@ -862,8 +972,7 @@ export function layoutOrg(
     const orgNode = d.data.orgNode;
     const w = d.data.width;
     const ht = d.data.height;
-    const x = d.x! + offsetX;
-    const y = d.y! + offsetY;
+    const { x, y } = placeCard(d.x!, d.y!, w, ht);
 
     const hc = hiddenCounts?.get(orgNode.id);
     const nodeMeta = filterMetadata(orgNode.metadata, hiddenAttributes);
@@ -908,19 +1017,16 @@ export function layoutOrg(
     ) {
       const parentId = d.parent.data.orgNode.id;
       if (!busGroups.has(parentId)) {
-        const px = d.parent.x! + offsetX;
-        const py = d.parent.y! + offsetY;
-        const parentH = d.parent.data.height;
         busGroups.set(parentId, {
-          parentX: px,
-          parentBottomY: py + parentH,
+          parentX: d.parent.x!,
+          parentBottomY: d.parent.y! + depthExtent(d.parent.data),
           children: [],
         });
       }
       busGroups.get(parentId)!.children.push({
         id: orgNode.id,
-        x,
-        topY: y,
+        x: d.x!,
+        topY: d.y!,
       });
     }
   }
@@ -937,48 +1043,39 @@ export function layoutOrg(
         sourceId: parentId,
         targetId: child.id,
         points: [
-          { x: parentX, y: parentBottomY },
-          { x: parentX, y: midY },
-          { x: child.x, y: midY },
-          { x: child.x, y: child.topY },
+          placePoint(parentX, parentBottomY),
+          placePoint(parentX, midY),
+          placePoint(child.x, midY),
+          placePoint(child.x, child.topY),
         ],
       });
     } else {
-      // Bus pattern: trunk + horizontal bar + per-child drops — length >= 2 here.
+      // Bus pattern: trunk + cross-axis bar + per-child drops — length >= 2 here.
       const midY = (parentBottomY + children[0]!.topY) / 2;
       const childXs = children.map((c) => c.x);
       const leftX = Math.min(...childXs);
       const rightX = Math.max(...childXs);
 
-      // Trunk: parent bottom → midY
+      // Trunk: parent's far edge → midY
       layoutEdges.push({
         sourceId: parentId,
         targetId: parentId,
-        points: [
-          { x: parentX, y: parentBottomY },
-          { x: parentX, y: midY },
-        ],
+        points: [placePoint(parentX, parentBottomY), placePoint(parentX, midY)],
       });
 
-      // Horizontal bus: leftmost child → rightmost child at midY
+      // Bus bar: first child → last child along the cross axis at midY
       layoutEdges.push({
         sourceId: parentId,
         targetId: parentId,
-        points: [
-          { x: leftX, y: midY },
-          { x: rightX, y: midY },
-        ],
+        points: [placePoint(leftX, midY), placePoint(rightX, midY)],
       });
 
-      // Drops: midY → child top for each child
+      // Drops: midY → each child's near edge
       for (const child of children) {
         layoutEdges.push({
           sourceId: parentId,
           targetId: child.id,
-          points: [
-            { x: child.x, y: midY },
-            { x: child.x, y: child.topY },
-          ],
+          points: [placePoint(child.x, midY), placePoint(child.x, child.topY)],
         });
       }
     }
@@ -1007,8 +1104,6 @@ export function layoutOrg(
   for (const d of allContainerNodes) {
     if (d.children && d.children.length > 0) continue;
 
-    const cx = d.x! + offsetX;
-    const cy = d.y! + offsetY;
     const metaCount = Object.keys(d.data.orgNode.metadata).length;
     const labelHeight =
       CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
@@ -1017,8 +1112,9 @@ export function layoutOrg(
       labelHeight + CONTAINER_PAD_BOTTOM,
       EMPTY_CONTAINER_MIN_HEIGHT
     );
-    const boxX = cx - boxWidth / 2;
-    const boxY = cy;
+    const emptyTL = screenTopLeft(d.x!, d.y!, boxWidth, boxHeight);
+    const boxX = emptyTL.left + offsetX;
+    const boxY = emptyTL.top + offsetY;
 
     containerBoundsMap.set(d.data.orgNode.id, {
       minX: boxX,
@@ -1077,15 +1173,32 @@ export function layoutOrg(
     // bounds when available (so nested boxes don't overlap)
     let descMinX = Infinity;
     let descMaxX = -Infinity;
+    let descMinY = Infinity;
     let descMaxY = -Infinity;
+
+    /** Fold a screen-space, offset rect into the descendant bounds. */
+    const growDesc = (
+      left: number,
+      top: number,
+      right: number,
+      bottom: number
+    ): void => {
+      if (left < descMinX) descMinX = left;
+      if (right > descMaxX) descMaxX = right;
+      if (top < descMinY) descMinY = top;
+      if (bottom > descMaxY) descMaxY = bottom;
+    };
 
     for (const desc of allDesc) {
       const innerBounds = containerBoundsMap.get(desc.data.orgNode.id);
       if (innerBounds) {
         // Use the inner container's expanded box
-        if (innerBounds.minX < descMinX) descMinX = innerBounds.minX;
-        if (innerBounds.maxX > descMaxX) descMaxX = innerBounds.maxX;
-        if (innerBounds.maxY > descMaxY) descMaxY = innerBounds.maxY;
+        growDesc(
+          innerBounds.minX,
+          innerBounds.minY,
+          innerBounds.maxX,
+          innerBounds.maxY
+        );
       } else if (desc.data.orgNode.id.startsWith('__stack_')) {
         // Use expanded children positions for stack placeholders
         const cid = desc.data.orgNode.id.replace('__stack_', '');
@@ -1093,43 +1206,74 @@ export function layoutOrg(
         if (stack) {
           for (const ec of expandedChildren) {
             if (ec.orgNode.parentId !== cid) continue;
-            const ex = ec.cx + offsetX;
-            const ey = ec.cy + offsetY;
-            if (ex - ec.width / 2 < descMinX) descMinX = ex - ec.width / 2;
-            if (ex + ec.width / 2 > descMaxX) descMaxX = ex + ec.width / 2;
-            if (ey + ec.height > descMaxY) descMaxY = ey + ec.height;
+            const r = screenRect(ec.cx, ec.cy, ec.width, ec.height);
+            growDesc(
+              r.left + offsetX,
+              r.top + offsetY,
+              r.right + offsetX,
+              r.bottom + offsetY
+            );
           }
         }
       } else {
         // Use card dimensions
-        const dw = desc.data.width;
-        const dh = desc.data.height;
-        const dx = desc.x! + offsetX;
-        const dy = desc.y! + offsetY;
-
-        if (dx - dw / 2 < descMinX) descMinX = dx - dw / 2;
-        if (dx + dw / 2 > descMaxX) descMaxX = dx + dw / 2;
-        if (dy + dh > descMaxY) descMaxY = dy + dh;
+        const r = screenRect(
+          desc.x!,
+          desc.y!,
+          desc.data.width,
+          desc.data.height
+        );
+        growDesc(
+          r.left + offsetX,
+          r.top + offsetY,
+          r.right + offsetX,
+          r.bottom + offsetY
+        );
       }
     }
 
-    const containerX = d.x! + offsetX;
-    const containerY = d.y! + offsetY;
+    const ownTL = screenTopLeft(d.x!, d.y!, d.data.width, d.data.height);
+    // TB centres the box on the container's own x; LR anchors it to the
+    // container's left edge, so keep both readings available.
+    const containerCenterX = ownTL.left + d.data.width / 2 + offsetX;
+    const containerLeftX = ownTL.left + offsetX;
+    const containerY = ownTL.top + offsetY;
     const metaCount = Object.keys(d.data.orgNode.metadata).length;
     const labelHeight =
       CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
 
-    // Box top = container's own y, extends to cover all children
-    const boxY = containerY;
-    const boxHeight = descMaxY - containerY + CONTAINER_PAD_BOTTOM;
+    let boxY: number;
+    let boxHeight: number;
+    let centeredBoxX: number;
+    let finalBoxWidth: number;
 
-    // Tight-fit box around content with padding
-    const boxX = descMinX - CONTAINER_PAD_X;
-    const contentWidth = descMaxX - descMinX + CONTAINER_PAD_X * 2;
-    const finalBoxWidth = Math.max(contentWidth, d.data.width);
-    // Center the box if the label is wider than the content
-    const centeredBoxX =
-      finalBoxWidth > contentWidth ? containerX - finalBoxWidth / 2 : boxX;
+    if (isLR) {
+      // Depth runs left→right, so the box starts at the container's own left
+      // edge and stretches right to cover its reports. The label strip is
+      // always drawn across the top, so it is reserved on the vertical axis
+      // here rather than on the depth axis.
+      centeredBoxX = containerLeftX;
+      finalBoxWidth = Math.max(
+        descMaxX - containerLeftX + CONTAINER_PAD_X,
+        d.data.width
+      );
+      boxY = descMinY - labelHeight - CONTAINER_PAD_X;
+      boxHeight = descMaxY - boxY + CONTAINER_PAD_BOTTOM;
+    } else {
+      // Box top = container's own y, extends to cover all children
+      boxY = containerY;
+      boxHeight = descMaxY - containerY + CONTAINER_PAD_BOTTOM;
+
+      // Tight-fit box around content with padding
+      const boxX = descMinX - CONTAINER_PAD_X;
+      const contentWidth = descMaxX - descMinX + CONTAINER_PAD_X * 2;
+      finalBoxWidth = Math.max(contentWidth, d.data.width);
+      // Center the box if the label is wider than the content
+      centeredBoxX =
+        finalBoxWidth > contentWidth
+          ? containerCenterX - finalBoxWidth / 2
+          : boxX;
+    }
 
     // Store bounds for parent containers to reference
     containerBoundsMap.set(d.data.orgNode.id, {
@@ -1170,18 +1314,36 @@ export function layoutOrg(
   // Convert container coords (offset space) back to pre-offset space for comparison
   let finalMinX = minX;
   let finalMaxX = maxX;
+  let finalMinY = minY;
   let finalMaxY = maxY;
   for (const c of containers) {
     const cLeft = c.x - offsetX;
     const cRight = cLeft + c.width;
-    const cBottom = c.y - offsetY + c.height;
+    const cTop = c.y - offsetY;
+    const cBottom = cTop + c.height;
     if (cLeft < finalMinX) finalMinX = cLeft;
     if (cRight > finalMaxX) finalMaxX = cRight;
+    if (cTop < finalMinY) finalMinY = cTop;
     if (cBottom > finalMaxY) finalMaxY = cBottom;
   }
 
+  // Under LR a container reserves its label strip *above* its content, so its
+  // box can reach past the topmost card. Push everything down by the overshoot
+  // so the diagram still starts at MARGIN. (In TB a box top is always a card
+  // top, so this is a no-op and the top-down output is untouched.)
+  const topOvershoot = minY - finalMinY;
+  if (topOvershoot > 0) {
+    for (const n of layoutNodes) n.y += topOvershoot;
+    for (const c of containers) c.y += topOvershoot;
+    for (const e of layoutEdges) {
+      for (const p of e.points as { x: number; y: number }[]) {
+        p.y += topOvershoot;
+      }
+    }
+  }
+
   const totalWidth = finalMaxX - finalMinX + MARGIN * 2;
-  const totalHeight = finalMaxY - minY + MARGIN * 2;
+  const totalHeight = finalMaxY - finalMinY + MARGIN * 2;
 
   // Collect which tag group values are actually used by nodes
   const usedValuesByGroup = new Map<string, Set<string>>();

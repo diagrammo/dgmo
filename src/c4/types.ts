@@ -87,6 +87,12 @@ export interface ParsedC4 {
   readonly title: string | null;
   readonly titleLineNumber: number | null;
   readonly options: Readonly<Record<string, string>>;
+  /**
+   * Resolved layout direction (§8.7). `direction-lr` / `direction-tb` are a
+   * mutually-exclusive boolean pair (§1.9, last one wins). Defaults to 'TB',
+   * which is the orientation C4 views have always rendered.
+   */
+  readonly direction: 'LR' | 'TB';
   readonly tagGroups: readonly TagGroup[];
   readonly elements: readonly C4Element[];
   readonly relationships: readonly C4Relationship[];

@@ -50,6 +50,12 @@ export interface ParsedOrg {
   readonly roots: readonly OrgNode[];
   readonly tagGroups: readonly TagGroup[];
   readonly options: Readonly<Record<string, string>>;
+  /**
+   * Resolved layout direction (§7.5). `direction-lr` / `direction-tb` are a
+   * mutually-exclusive boolean pair (§1.9, last one wins). Defaults to 'TB',
+   * which is the orientation org charts have always rendered.
+   */
+  readonly direction: 'LR' | 'TB';
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }
@@ -105,6 +111,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     roots: [],
     tagGroups: [],
     options,
+    direction: 'TB',
     diagnostics: [],
     error: null,
   };
@@ -422,6 +429,12 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
   }
+
+  // Resolve the layout direction (§7.5). The boolean pair is mutually
+  // exclusive and already collapsed to a single surviving key above
+  // (§1.9, last one wins), so a lone presence check is sufficient.
+  // Absent both, org charts keep their long-standing top-down orientation.
+  result.direction = options['direction-lr'] ? 'LR' : 'TB';
 
   return result;
 }

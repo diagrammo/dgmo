@@ -47,6 +47,7 @@ const HEADER_RE = /^(org|kanban|title\s*:)/i;
  */
 const KNOWN_HEADER_OPTIONS = new Set([
   'direction-tb',
+  'direction-lr',
   'sub-node-label',
   'hide',
   'show-sub-node-count',
