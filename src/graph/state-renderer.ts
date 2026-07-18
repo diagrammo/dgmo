@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
-import { fillModeFromOptions } from '../utils/parsing';
+import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import { fitDiagramToCanvas } from '../utils/fit-canvas';
 import { FONT_FAMILY } from '../fonts';
@@ -149,7 +149,7 @@ export function renderState(
     graph.options['active-tag']
   );
   const legendGroups: readonly LegendGroupData[] = tagGroups;
-  const hasLegend = legendGroups.length > 0;
+  const hasLegend = legendGroups.length > 0 && !legendSuppressed(graph.options);
   const legendH = hasLegend
     ? ctx.structural(
         getMaxLegendReservedHeight(

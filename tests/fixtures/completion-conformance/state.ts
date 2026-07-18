@@ -10,6 +10,7 @@ export const fixture: ConformanceFixture = {
   specSection: '6',
   firstLineKeyword: 'state',
   directives: [
+    'no-legend',
     'direction-tb',
     'direction-lr',
     'fill-tint',

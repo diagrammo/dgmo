@@ -707,7 +707,7 @@ function parseVisualizationFull(
       // tokens are cross-chart bare keywords — let them fall through to the
       // shared bare-keyword block below (same carve-out venn makes).
       if (
-        !/^(era|marker|tag|sort|active-tag|swimlanes|no-scale|lane-by|fill-tint|fill-solid|fill-outline)\b/i.test(
+        !/^(era|marker|tag|sort|active-tag|swimlanes|no-scale|no-legend|lane-by|fill-tint|fill-solid|fill-outline)\b/i.test(
           line
         ) &&
         !line.startsWith('[')
@@ -1012,6 +1012,10 @@ function parseVisualizationFull(
       }
       if (bareToken === 'no-title') {
         result.noTitle = true;
+        continue;
+      }
+      if (bareToken === 'no-legend') {
+        result.noLegend = true;
         continue;
       }
       // Arc orientation (standard boolean form; default horizontal).

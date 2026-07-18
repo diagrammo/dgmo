@@ -166,7 +166,23 @@ export const GLOBAL_BOOLEANS: ReadonlySet<string> = new Set([
   'fill-outline',
   'no-title',
   'no-notes',
+  'no-legend',
 ]);
+
+/**
+ * Read the §1.9 universal `no-legend` directive out of a parser's shared-options
+ * record (as populated by {@link tryParseSharedOption}). `true` ⇒ the chart must
+ * suppress its legend and collapse any height reserved for it.
+ *
+ * Charts that render no legend at all accept the token as a harmless no-op —
+ * the flag is universal on the parse side so authors never have to remember
+ * which types honour it.
+ */
+export function legendSuppressed(
+  options: Readonly<Record<string, string>>
+): boolean {
+  return options['no-legend'] === 'on';
+}
 
 /**
  * Cross-chart fill treatment (spec §1.9 fill family). Absent ⇒ the canonical

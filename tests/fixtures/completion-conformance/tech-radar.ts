@@ -9,7 +9,7 @@ export const fixture: ConformanceFixture = {
   structuralKeywords: ['rings'],
   specSection: '20',
   firstLineKeyword: 'tech-radar',
-  directives: ['no-blip-legend'],
+  directives: ['no-legend', 'no-blip-legend'],
   pipeKeys: {
     // Stuffed into `node` until PIPE_METADATA gains real
     // quadrant/blip contexts. Spec defines:

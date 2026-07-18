@@ -65,6 +65,9 @@ export interface ParsedChart {
   fillMode?: 'solid' | 'outline';
   /** Cross-chart-type: when true, the renderer suppresses the chart title. */
   noTitle?: boolean;
+  /** Cross-chart-type: when true, the renderer suppresses the legend and the
+   *  vertical band it would occupy (#48). */
+  noLegend?: boolean;
   /** Line only: opt out of the data-driven y-axis auto-fit and anchor the
    *  baseline at 0 (magnitude honesty / old ECharts-parity behavior). By
    *  default a line chart fits a padded data-min→max window (§15.1). */
@@ -136,6 +139,7 @@ const KNOWN_BOOLEANS = new Set([
   'fill-solid',
   'fill-outline',
   'no-title',
+  'no-legend',
   'no-auto-y',
   'fill',
   'hole',
@@ -351,6 +355,8 @@ export function parseChart(
         else result.fillMode = fm;
       } else if (firstToken === 'no-title') {
         result.noTitle = true;
+      } else if (firstToken === 'no-legend') {
+        result.noLegend = true;
       } else if (firstToken === 'no-auto-y') {
         result.noAutoY = true;
       } else if (firstToken === 'fill') {

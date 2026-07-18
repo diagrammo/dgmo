@@ -13,6 +13,7 @@ import type {
   C4DeploymentNode,
 } from './types';
 import type { TagGroup } from '../utils/tag-groups';
+import { legendSuppressed } from '../utils/parsing';
 import type { Writable } from '../utils/brand';
 
 /** Mutable edge variant for in-place position shifts during layout. */
@@ -1002,7 +1003,9 @@ export function layoutC4Context(
 
   // Legend: show all defined tag groups and entries so users see the full
   // tag vocabulary regardless of which elements are visible at this view level.
-  const legendGroups = computeLegendGroups(parsed.tagGroups);
+  const legendGroups = computeLegendGroups(
+    legendSuppressed(parsed.options) ? [] : parsed.tagGroups
+  );
 
   // Position legend below diagram
   if (legendGroups.length > 0) {
@@ -1473,7 +1476,9 @@ export function layoutC4Containers(
   let totalWidth = maxX - minX + MARGIN * 2;
   let totalHeight = maxY - minY + MARGIN * 2;
 
-  const legendGroups = computeLegendGroups(parsed.tagGroups);
+  const legendGroups = computeLegendGroups(
+    legendSuppressed(parsed.options) ? [] : parsed.tagGroups
+  );
 
   // Position legend below diagram
   if (legendGroups.length > 0) {
@@ -2024,7 +2029,9 @@ export function layoutC4Components(
   let totalWidth = maxX - minX + MARGIN * 2;
   let totalHeight = maxY - minY + MARGIN * 2;
 
-  const legendGroups = computeLegendGroups(parsed.tagGroups);
+  const legendGroups = computeLegendGroups(
+    legendSuppressed(parsed.options) ? [] : parsed.tagGroups
+  );
 
   // Position legend below diagram
   if (legendGroups.length > 0) {
@@ -2465,7 +2472,9 @@ export function layoutC4Deployment(
   let totalWidth = maxX - minX + MARGIN * 2;
   let totalHeight = maxY - minY + MARGIN * 2;
 
-  const legendGroups = computeLegendGroups(parsed.tagGroups);
+  const legendGroups = computeLegendGroups(
+    legendSuppressed(parsed.options) ? [] : parsed.tagGroups
+  );
 
   if (legendGroups.length > 0) {
     const legendY = totalHeight + MARGIN;

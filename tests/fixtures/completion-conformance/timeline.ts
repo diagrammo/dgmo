@@ -8,6 +8,7 @@ export const fixture: ConformanceFixture = {
   specSection: '15',
   firstLineKeyword: 'timeline',
   directives: [
+    'no-legend',
     'active-tag',
     'fill-tint',
     'fill-solid',

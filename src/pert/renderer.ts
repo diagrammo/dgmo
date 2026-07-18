@@ -450,7 +450,8 @@ export function renderPert(
     resolved.options.activeTag,
     options.activeTagOverride
   );
-  const showTagLegend = showLegend && resolved.tagGroups.length > 0;
+  const showTagLegend =
+    showLegend && !resolved.options.noLegend && resolved.tagGroups.length > 0;
   const legendBlockHeight = showTagLegend
     ? LEGEND_TOP_GAP + LEGEND_PILL_HEIGHT + LEGEND_BOTTOM_GAP
     : 0;

@@ -83,6 +83,7 @@ const KNOWN_BOOLEANS = new Set([
   'fill-solid',
   'fill-outline',
   'no-title',
+  'no-legend',
 ]);
 
 // ============================================================

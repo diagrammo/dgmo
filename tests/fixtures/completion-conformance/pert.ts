@@ -10,6 +10,7 @@ export const fixture: ConformanceFixture = {
   specSection: '21',
   firstLineKeyword: 'pert',
   directives: [
+    'no-legend',
     'time-unit',
     'confidence',
     'direction-tb',

@@ -92,6 +92,9 @@ export interface ParsedExtendedBase {
   fillMode?: 'solid' | 'outline';
   /** Cross-chart-type: when true, the renderer suppresses the chart title. */
   noTitle?: boolean;
+  /** Cross-chart-type: when true, the renderer suppresses the legend and the
+   *  vertical band it would occupy (#48). */
+  noLegend?: boolean;
   categoryColors?: Record<string, string>;
   categoryLineNumbers?: Record<string, number>;
   nodeColors?: Record<string, string>;
@@ -775,6 +778,10 @@ function parseExtendedChartFull(
     }
     if (firstToken === 'no-title' && spaceIdx < 0) {
       result.noTitle = true;
+      continue;
+    }
+    if (firstToken === 'no-legend' && spaceIdx < 0) {
+      result.noLegend = true;
       continue;
     }
     // Silent-ignore unrecognized no-* flags (typos, future flags).

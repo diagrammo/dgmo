@@ -24,6 +24,7 @@ import { parseKanban } from './parser';
 import { isArchiveColumn } from './mutations';
 import { LEGEND_HEIGHT, measureLegendText } from '../utils/legend-constants';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import { legendSuppressed } from '../utils/parsing';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type {
   LegendConfig,
@@ -407,7 +408,7 @@ export function renderKanban(
       .text(parsed.title!);
   }
 
-  if (parsed.tagGroups.length > 0) {
+  if (parsed.tagGroups.length > 0 && !legendSuppressed(parsed.options)) {
     const titleTextWidth = showTopTitle
       ? measureLegendText(parsed.title!, sTitleFontSize) + 16
       : 0;

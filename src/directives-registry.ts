@@ -153,7 +153,6 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'flow-width', category: 'directive', map: true },
   { token: 'locale', category: 'directive', map: true },
   { token: 'caption', category: 'directive', map: true },
-  { token: 'no-legend', category: 'directive', map: true },
   { token: 'no-coastline', category: 'directive', map: true },
   { token: 'no-relief', category: 'directive', map: true },
   { token: 'no-context-labels', category: 'directive', map: true },
@@ -193,6 +192,11 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'lane-by', category: 'directive', gantt: ['option'] },
   // `no-title`: gantt boolean + map directive (also general, hand-listed).
   { token: 'no-title', category: 'directive', gantt: ['boolean'], map: true },
+  // `no-legend`: universal (decision #48) — every chart that renders a legend
+  // accepts it, and charts without one take it as a harmless no-op. Parsed for
+  // most types via GLOBAL_BOOLEANS in utils/parsing; gantt derives its boolean
+  // Set from here, and map from `map: true`.
+  { token: 'no-legend', category: 'directive', gantt: ['boolean'], map: true },
 
   // ══════════════════════════════════════════════════════════
   // Highlight-only vocab (no extractable parser Set).

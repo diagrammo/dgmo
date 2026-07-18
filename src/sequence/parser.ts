@@ -49,6 +49,7 @@ const KNOWN_SEQ_BOOLEANS = new Set([
   'fill-solid',
   'fill-outline',
   'no-title',
+  'no-legend',
 ]);
 
 /** Boolean options that only support the `no-` prefix form (no bare or key-value). */

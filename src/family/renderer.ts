@@ -16,7 +16,7 @@
 // Visual conventions: `docs/architecture/diagram-visual-conventions.md` §1/§2/§4.
 
 import * as d3Selection from 'd3-selection';
-import { fillModeFromOptions } from '../utils/parsing';
+import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
 import {
   TITLE_FONT_SIZE,
@@ -146,7 +146,8 @@ export function renderFamilyForExport(
       name: g.name,
       entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
     }));
-  const hasLegend = legendGroups.length > 0;
+  const hasLegend =
+    legendGroups.length > 0 && !legendSuppressed(parsed.options);
   const legendConfig: LegendConfig = {
     groups: legendGroups,
     position: { placement: 'top-center', titleRelation: 'below-title' },

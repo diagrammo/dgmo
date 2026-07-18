@@ -55,11 +55,8 @@ const KNOWN_BOOLEANS = new Set([
   'fill-solid',
   'fill-outline',
   'no-title',
+  'no-legend',
 ]);
-const REMOVED_BOOLEANS: Record<string, string> = {
-  'no-legend':
-    '"no-legend" has been removed — remove tag groups to hide the legend.',
-};
 
 // ============================================================
 // Parser
@@ -279,11 +276,6 @@ export function parseJourneyMap(
           options[key] = optMatch[2]!.trim();
           continue;
         }
-      }
-      const removedMsg = REMOVED_BOOLEANS[trimmed.toLowerCase()];
-      if (removedMsg && !PHASE_RE.test(trimmed)) {
-        warn(lineNumber, removedMsg);
-        continue;
       }
       if (
         KNOWN_BOOLEANS.has(trimmed.toLowerCase()) &&

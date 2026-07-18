@@ -173,6 +173,9 @@ export interface ParsedTimeline extends ParsedVizBase {
   timelineActiveTag?: string;
   /** §1.9 fill family (`'solid'` | `'outline'`); absent ⇒ 25% tint. */
   fillMode?: 'solid' | 'outline';
+  /** When true, the renderer suppresses the tag legend and the vertical band
+   *  it would occupy (#48). */
+  noLegend?: boolean;
 }
 
 export interface ParsedWordcloud extends ParsedVizBase {
@@ -260,4 +263,5 @@ export interface ParsedVizFull extends ParsedVizBase {
   noValue?: boolean;
   noPercent?: boolean;
   fillMode?: 'solid' | 'outline';
+  noLegend?: boolean;
 }

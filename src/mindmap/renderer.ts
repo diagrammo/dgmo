@@ -3,7 +3,7 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
-import { fillModeFromOptions } from '../utils/parsing';
+import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import {
@@ -129,7 +129,9 @@ export function renderMindmap(
   // controls-only legend (no tag groups) has nothing left to render.
   const hasControls =
     !!options?.onToggleColorByDepth || !!options?.onToggleDescriptions;
-  const hasLegend = parsed.tagGroups.length > 0 || (hasControls && !appHosted);
+  const hasLegend =
+    (parsed.tagGroups.length > 0 || (hasControls && !appHosted)) &&
+    !legendSuppressed(parsed.options);
   const fixedLegend = !isExport && hasLegend;
   const legendReserve = fixedLegend
     ? getMaxLegendReservedHeight(

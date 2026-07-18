@@ -7,6 +7,7 @@ export const fixture: ConformanceFixture = {
   specSection: '16',
   firstLineKeyword: 'line',
   directives: [
+    'no-legend',
     'series',
     'fill',
     'x-label',

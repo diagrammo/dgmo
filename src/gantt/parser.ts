@@ -256,6 +256,7 @@ export function parseGantt(
       sprintMode: null,
       fillMode: undefined,
       noTitle: false,
+      noLegend: false,
     },
     diagnostics,
     error: null,
@@ -1076,6 +1077,9 @@ export function parseGantt(
           break;
         case 'no-title':
           result.options.noTitle = true;
+          break;
+        case 'no-legend':
+          result.options.noLegend = true;
           break;
       }
       continue;

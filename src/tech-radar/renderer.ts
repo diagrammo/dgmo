@@ -32,6 +32,7 @@ import { ScaleContext } from '../utils/scaling';
 import { renderQuadrantFocus } from './interactive';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import { legendSuppressed } from '../utils/parsing';
 import type {
   LegendConfig,
   LegendCallbacks,
@@ -179,7 +180,11 @@ export function renderTechRadar(
 
   // ── Legend controls (centered, standard legend system) ──
   let legendReservedHeight = 0;
-  if (!exportDims && options?.onToggleListing) {
+  if (
+    !exportDims &&
+    options?.onToggleListing &&
+    !legendSuppressed(parsed.options)
+  ) {
     const legendY = showTitle ? titleY + 8 : 4;
     const legendG = svg
       .append('g')

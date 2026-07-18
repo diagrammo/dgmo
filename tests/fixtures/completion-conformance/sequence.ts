@@ -8,6 +8,7 @@ export const fixture: ConformanceFixture = {
   specSection: '3',
   firstLineKeyword: 'sequence',
   directives: [
+    'no-legend',
     'activations',
     'active-tag',
     'fill-tint',

@@ -10,6 +10,7 @@ export const fixture: ConformanceFixture = {
   specSection: '14',
   firstLineKeyword: 'boxes-and-lines',
   directives: [
+    'no-legend',
     'direction-tb',
     'direction-lr',
     'active-tag',

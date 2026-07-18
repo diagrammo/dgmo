@@ -7,6 +7,7 @@ export const fixture: ConformanceFixture = {
   specSection: '4',
   firstLineKeyword: 'infra',
   directives: [
+    'no-legend',
     'direction-tb',
     'direction-lr',
     'default-latency-ms',

@@ -360,17 +360,14 @@ describe('journey-map parser', () => {
   // ── Options ───────────────────────────────────────────────
 
   describe('options', () => {
-    it('warns on removed no-legend option', () => {
+    // Decision #48 reinstated `no-legend` as a universal directive — it was
+    // briefly removed here (authors were told to drop tag groups instead).
+    it('accepts no-legend without a diagnostic', () => {
       const result = parseJourneyMap(
         'journey-map Test\n\nno-legend\n\n[Phase]\n  Step score: 3'
       );
-      expect(
-        result.diagnostics.some(
-          (d) =>
-            d.severity === 'warning' &&
-            d.message.includes('"no-legend" has been removed')
-        )
-      ).toBe(true);
+      expect(result.diagnostics).toEqual([]);
+      expect(result.options['no-legend']).toBe('on');
     });
 
     it('parses active-tag option', () => {

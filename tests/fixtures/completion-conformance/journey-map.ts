@@ -9,6 +9,7 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'journey-map',
 
   directives: [
+    'no-legend',
     'active-tag',
     'fill-tint',
     'fill-solid',

@@ -60,6 +60,7 @@ const KNOWN_BOOLEANS = new Set<string>([
   'fill-solid',
   'fill-outline',
   'no-title',
+  'no-legend',
 ]);
 const REMOVED_BOOLEANS: Record<string, string> = {
   'no-auto-color':

@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
-import { fillModeFromOptions } from '../utils/parsing';
+import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
 import {
   renderNoteBox,
   renderNoteConnector,
@@ -499,9 +499,11 @@ export function renderBoxesAndLines(
   const reserveHasDescriptions = parsed.nodes.some(
     (n) => n.description && n.description.length > 0
   );
+  const noLegend = legendSuppressed(parsed.options);
   const willRenderLegend =
-    legendGroups.length > 0 ||
-    (reserveHasDescriptions && controlsHost !== 'app');
+    (legendGroups.length > 0 ||
+      (reserveHasDescriptions && controlsHost !== 'app')) &&
+    !noLegend;
   const sLegendHeight = willRenderLegend
     ? sctx.structural(
         getMaxLegendReservedHeight(
@@ -533,7 +535,9 @@ export function renderBoxesAndLines(
     (n) => n.description && n.description.length > 0
   );
   const needsLegend =
-    legendGroups.length > 0 || (hasAnyDescriptions && onToggleDescriptions);
+    (legendGroups.length > 0 ||
+      (hasAnyDescriptions && !!onToggleDescriptions)) &&
+    !noLegend;
   const legendH = needsLegend ? sLegendHeight + 8 : 0;
 
   const groupLabelsSet = new Set(layout.groups.map((g) => g.label));
@@ -1287,7 +1291,8 @@ export function renderBoxesAndLines(
   // descriptions-only legend (no tag groups) has nothing left to render. The
   // value ramp (a synthetic group in legendGroups) also forces a legend.
   const hasLegend =
-    legendGroups.length > 0 || (hasDescriptions && controlsHost !== 'app');
+    (legendGroups.length > 0 || (hasDescriptions && controlsHost !== 'app')) &&
+    !noLegend;
 
   if (hasLegend) {
     // Build controls group for description toggle. App-hosted controls own the

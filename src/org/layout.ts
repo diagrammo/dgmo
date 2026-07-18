@@ -8,6 +8,7 @@ import type { ParsedOrg, OrgNode } from './parser';
 import type { Writable } from '../utils/brand';
 import type { TagGroup } from '../utils/tag-groups';
 import { resolveTagColor, injectDefaultTagMetadata } from '../utils/tag-groups';
+import { legendSuppressed } from '../utils/parsing';
 import {
   LEGEND_PILL_FONT_SIZE,
   LEGEND_ENTRY_FONT_SIZE,
@@ -380,7 +381,10 @@ export function layoutOrg(
   if (parsed.roots.length === 0) {
     // Legend-only: compute and position legend groups even without nodes
     const showEyeIcons = hiddenAttributes !== undefined;
-    const legendGroups = computeLegendGroups(parsed.tagGroups, showEyeIcons);
+    const legendGroups = computeLegendGroups(
+      legendSuppressed(parsed.options) ? [] : parsed.tagGroups,
+      showEyeIcons
+    );
     if (legendGroups.length === 0) {
       return {
         nodes: [],
@@ -1363,7 +1367,7 @@ export function layoutOrg(
   // Compute legend for tag groups
   const showEyeIcons = hiddenAttributes !== undefined;
   const legendGroups = computeLegendGroups(
-    parsed.tagGroups,
+    legendSuppressed(parsed.options) ? [] : parsed.tagGroups,
     showEyeIcons,
     usedValuesByGroup
   );

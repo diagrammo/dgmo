@@ -419,8 +419,20 @@ async function exportSitemap(ctx: ExportContext): Promise<string> {
 
   const PADDING = 20;
   const titleOffset = effectiveParsed.title ? 30 : 0;
+  // Layout appends a legend band to its height whenever tag groups exist; with
+  // `no-legend` nothing renders there, so drop the band from the canvas too.
+  const {
+    LEGEND_HEIGHT: SITEMAP_LEGEND_HEIGHT,
+    LEGEND_GROUP_GAP: SITEMAP_LEGEND_GROUP_GAP,
+  } = await import('./utils/legend-constants');
+  const suppressedLegendBand =
+    sitemapLayout.legend.length > 0 &&
+    effectiveParsed.options['no-legend'] === 'on'
+      ? SITEMAP_LEGEND_HEIGHT + SITEMAP_LEGEND_GROUP_GAP
+      : 0;
   const exportWidth = sitemapLayout.width + PADDING * 2;
-  const exportHeight = sitemapLayout.height + PADDING * 2 + titleOffset;
+  const exportHeight =
+    sitemapLayout.height + PADDING * 2 + titleOffset - suppressedLegendBand;
   const container = createExportContainer(exportWidth, exportHeight);
 
   renderSitemap(
@@ -946,7 +958,10 @@ async function exportInfra(ctx: ExportContext): Promise<string> {
     infraTagGroups,
     effectivePalette
   );
-  const legendOffset = legendGroups.length > 0 ? 28 : 0;
+  const legendOffset =
+    legendGroups.length > 0 && infraParsed.options['no-legend'] !== 'on'
+      ? 28
+      : 0;
   const exportWidth = infraLayout.width;
   const exportHeight = infraLayout.height + titleOffset + legendOffset;
   const container = createExportContainer(exportWidth, exportHeight);

@@ -148,6 +148,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'bar',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       stack: {
         description:
           'Multi-series block header → stacked bars (one bar/category)',
@@ -166,6 +167,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'line',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       series: { description: 'Series name(s)' },
       fill: { description: 'Fill under the line (area chart)' },
       'x-label': { description: 'X-axis label' },
@@ -202,6 +204,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'radar',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'no-value': { description: 'Hide value labels at each vertex' },
     }),
   ],
@@ -210,6 +213,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'scatter',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'no-name': { description: 'Hide point labels' },
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
@@ -235,6 +239,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'function',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       x: { description: 'X-axis range (start to end)' },
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
@@ -267,6 +272,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'timeline',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       ...DATE_DIRECTIVES,
       'active-tag': { description: 'Active tag group name' },
     }),
@@ -314,6 +320,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'sequence',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       activations: {
         description: 'Show activation bars',
         values: ['on', 'off'],
@@ -331,11 +338,17 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-notes': { description: 'Suppress all node note boxes' },
     }),
   ],
-  ['class', withGlobals({})],
+  [
+    'class',
+    withGlobals({
+      'no-legend': { description: 'Hide the legend' },
+    }),
+  ],
   [
     'er',
     // Spec §9 §8.5: notation (chen/crow), active-tag.
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       notation: {
         description: 'ER notation style',
         values: ['chen', 'crow'],
@@ -348,6 +361,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // Spec §7 §6.5: direction-tb, sub-node-label, show-sub-node-count,
     // hide, active-tag. fill family via FILL_FAMILY_CAPABLE.
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'direction-tb': { description: 'Top-to-bottom layout (the default)' },
       'direction-lr': { description: 'Switch to left-to-right layout' },
       'sub-node-label': { description: 'Label for sub-nodes' },
@@ -361,6 +375,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // Spec §32: sex-as-color + tag legend; active-tag. Fill family via
     // FILL_FAMILY_CAPABLE.
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'active-tag': { description: 'Active tag group name' },
       highlight: {
         description:
@@ -378,6 +393,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'kanban',
     // Spec §11 §10.4: hide, active-tag.
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       hide: { description: 'Hide tag:value pairs' },
       'active-tag': { description: 'Active tag group name' },
     }),
@@ -387,6 +403,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'raci',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       roles: {
         description:
           'Declare role column order (inline `roles A, B, C` or indented block with per-role pipe metadata)',
@@ -398,6 +415,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'c4',
     // Spec §8 §7.7: direction booleans, active-tag.
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'direction-tb': { description: 'Top-to-bottom layout (the default)' },
       'direction-lr': { description: 'Switch to left-to-right layout' },
       'active-tag': { description: 'Active tag group name' },
@@ -408,6 +426,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // Spec §6 §5.6: direction booleans, fill family, no-notes, active-tag
     // (decision #48 — state gained the standard tag system).
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
       'direction-lr': { description: 'Left-to-right layout (the default)' },
       'no-notes': { description: 'Suppress all state note boxes' },
@@ -417,6 +436,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'sitemap',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
       'direction-lr': { description: 'Left-to-right layout (the default)' },
       'active-tag': { description: 'Active tag group name' },
@@ -425,6 +445,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'infra',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
       'direction-lr': { description: 'Left-to-right layout (the default)' },
       animate: { description: 'Enable traffic animation' },
@@ -440,6 +461,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'pert',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       ...DATE_DIRECTIVES,
       'time-unit': {
         description: 'Time unit for activity durations (sp = sprints)',
@@ -477,6 +499,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'gantt',
     // Spec §13 §12.2 Options.
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       ...DATE_DIRECTIVES,
       // Canonical since decision #48; bare `start` parses as a legacy alias
       // but is no longer offered.
@@ -499,6 +522,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'boxes-and-lines',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       // Canonical direction booleans (§1.9); key+value `direction LR|TB`
       // parses as legacy but is no longer offered.
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
@@ -554,6 +578,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'mindmap',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
@@ -571,6 +596,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // parse-accepted no-op). `rings` is a structural block keyword;
     // quadrant/ring/trend/color are pipe metadata that live in PIPE_METADATA.
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'no-blip-legend': {
         description: 'Hide the four-column blip listing beside the radar',
       },
@@ -593,6 +619,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // structural keyword (like `tag` / `roles`), not a directive.
     // the fill family is added via FILL_FAMILY_CAPABLE below.
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],

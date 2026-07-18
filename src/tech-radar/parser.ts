@@ -56,6 +56,7 @@ const KNOWN_BOOLEANS = new Set<string>([
   'fill-solid',
   'fill-outline',
   'no-title',
+  'no-legend',
 ]);
 
 export function parseTechRadar(content: string): ParsedTechRadar {

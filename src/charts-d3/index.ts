@@ -187,7 +187,9 @@ function renderInto(
         // Multi-series radar (§15.1) gets the shared series legend; single-series
         // yields no groups, so injectLegendGroups returns the same top inset as
         // before (52 with title, 24 without) — no regression.
-        const groups = getSimpleChartLegendGroups(std, colors);
+        const groups = std.noLegend
+          ? []
+          : getSimpleChartLegendGroups(std, colors);
         const top = injectLegendGroups(
           s,
           groups,
@@ -260,7 +262,9 @@ function renderInto(
       );
       return true;
     case 'scatter': {
-      const groups = getExtendedChartLegendGroups(ext, seriesColors);
+      const groups = ext.noLegend
+        ? []
+        : getExtendedChartLegendGroups(ext, seriesColors);
       const top = injectLegendGroups(
         s,
         groups,
@@ -309,7 +313,9 @@ function renderInto(
       );
       return true;
     case 'function': {
-      const groups = getExtendedChartLegendGroups(ext, seriesColors);
+      const groups = ext.noLegend
+        ? []
+        : getExtendedChartLegendGroups(ext, seriesColors);
       const top = injectLegendGroups(
         s,
         groups,

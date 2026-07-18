@@ -24,7 +24,7 @@
 //     click → editor cursor jumps to the source.
 
 import * as d3Selection from 'd3-selection';
-import { fillModeFromOptions } from '../utils/parsing';
+import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
 import { FONT_FAMILY } from '../fonts';
 import {
   TITLE_FONT_SIZE,
@@ -382,7 +382,8 @@ export function renderRaci(
       : (handlers ?? {});
   const onClickLine = opts.onClickLine;
   const onMarkerDragStart = opts.onMarkerDragStart;
-  const hideLegend = opts.hideLegend ?? false;
+  const hideLegend =
+    (opts.hideLegend ?? false) || legendSuppressed(parsed.options);
   const collapsedPhases = opts.collapsedPhases ?? new Set<string>();
   const hideTitle =
     (opts.hideTitle ?? false) || parsed.options['no-title'] === 'on';
