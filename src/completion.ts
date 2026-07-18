@@ -323,12 +323,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'flowchart',
-    // Spec §5 §4.6: direction-lr, orientation-vertical, fill family, no-notes
+    // Spec §5 §4.6: direction-lr, fill family, no-notes. The phantom
+    // `orientation-vertical` (never implemented) was deleted in decision #48.
     withGlobals({
       'direction-lr': { description: 'Switch to left-to-right layout' },
-      'orientation-vertical': {
-        description: 'Use vertical orientation for ranks',
-      },
       'no-notes': { description: 'Suppress all node note boxes' },
     }),
   ],
@@ -436,8 +434,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     withGlobals({
       ...DATE_DIRECTIVES,
       'time-unit': {
-        description: 'Time unit for activity durations',
-        values: ['min', 'h', 'd', 'bd', 'w', 'm', 'q', 'y'],
+        description: 'Time unit for activity durations (sp = sprints)',
+        values: ['min', 'h', 'd', 'bd', 'w', 'm', 'q', 'y', 'sp'],
       },
       confidence: {
         description: 'Confidence factor for M-only durations',
@@ -469,7 +467,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // Spec §13 §12.2 Options.
     withGlobals({
       ...DATE_DIRECTIVES,
-      start: { description: 'Project start date (ISO, 7/4, or Jul 4)' },
+      // Canonical since decision #48; bare `start` parses as a legacy alias
+      // but is no longer offered.
+      'start-date': { description: 'Project start date (ISO, 7/4, or Jul 4)' },
       'today-marker': {
         description: 'Today marker (bare = on, or a date)',
       },
@@ -495,7 +495,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Label for the value→colour ramp, with an optional trailing [low] [high] color pair (pairs with the `heat:` key)',
       },
-      'show-values': { description: 'Print box values as text' },
+      // Values render by default (decision #48); legacy `show-values` is a
+      // parse-accepted no-op.
+      'no-value': { description: 'Hide the per-box numeric value labels' },
     }),
   ],
   [
@@ -511,7 +513,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     withGlobals({
       direction: {
         description: 'Layout direction',
-        values: ['LR', 'TB', 'BT'],
+        values: ['LR', 'TB'],
       },
       merge: { description: 'Merge a branch into the active branch' },
       'cherry-pick': { description: 'Copy a commit onto the active branch' },
@@ -543,12 +545,13 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'tech-radar',
-    // Spec §20 documents one directive: `show-blip-legend`. `rings` is a
-    // structural block keyword; quadrant/ring/trend/color are pipe metadata
-    // that live in PIPE_METADATA.
+    // Spec §20 documents one directive: `no-blip-legend` (the listing is
+    // default-on everywhere per decision #48; legacy `show-blip-legend` is a
+    // parse-accepted no-op). `rings` is a structural block keyword;
+    // quadrant/ring/trend/color are pipe metadata that live in PIPE_METADATA.
     withGlobals({
-      'show-blip-legend': {
-        description: 'Render the four-column blip listing alongside the radar',
+      'no-blip-legend': {
+        description: 'Hide the four-column blip listing beside the radar',
       },
     }),
   ],
@@ -600,7 +603,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Render N levels; deeper subtrees collapse to a drillable block',
       },
-      'no-values': { description: 'Hide value labels' },
+      // Canonical since decision #48; plural `no-values` parses as a legacy
+      // alias but is no longer offered.
+      'no-value': { description: 'Hide value labels' },
       'no-percent': { description: 'Hide percentage labels' },
       'no-headers': { description: 'Hide parent header bars' },
       'no-legend': { description: 'Hide the legend' },
@@ -636,7 +641,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       'no-percent': { description: 'Hide the % label' },
       'no-value': { description: 'Hide the raw now / target label' },
-      'no-note': { description: 'Suppress the note block even if present' },
+      // Canonical since decision #48; singular `no-note` parses as a legacy
+      // alias but is no longer offered.
+      'no-notes': { description: 'Suppress the note block even if present' },
       'no-auto-color': {
         description: 'Disable traffic-light coloring; use the palette color',
       },
@@ -655,13 +662,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       every: {
         description:
-          'Recurring: every <year|month|week|N days|weeks|months> [on <instant>] [at HH:MM] [from <date>]',
+          'Recurring: every <year|month|week|N days|weeks|months> [on <instant>] [at <time>] [from <date>]',
       },
       on: {
         description:
           'Instant within the cadence: Aug 21 | 3rd Tuesday | last Friday | Friday',
       },
-      at: { description: 'Time of day, 24h (e.g. 18:00); default midnight' },
+      at: {
+        description: 'Time of day: 18:00 | 6pm | 6:30pm; default midnight',
+      },
       from: {
         description:
           'Interval anchor date: every [N] day|week|month from <date> (e.g. every month from 2026-01-31)',
@@ -699,7 +708,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Working window: 9-17 | 9am-5pm | 8:30-17:15 (enables status)',
       },
-      days: {
+      // Canonical since decision #48; `days` parses as a legacy alias but is
+      // no longer offered.
+      workweek: {
         description: 'Working days: mon-fri | mon,wed,fri (default mon-fri)',
       },
       'no-sun': {
@@ -732,7 +743,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       tag: {
         description: 'Tag group — a competitor tag colors its box outline',
       },
-      accent: { description: 'Winner accent color override (default blue)' },
+      // `accent <color>` is a legacy alias (decision #48) — the title-line
+      // trailing color token is the canonical winner-accent slot, so the
+      // directive is no longer offered in completion.
       'no-legend': { description: 'Hide the tag legend' },
       'no-round': { description: 'Suppress the round/column labels' },
       'single-elim': { description: 'Single-elimination format (default)' },
@@ -1816,7 +1829,7 @@ function extractC4Symbols(docText: string): DiagramSymbols {
 // ============================================================
 
 const GANTT_LEGACY_DURATION_RE =
-  /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)\??\s+(.+)$/;
+  /^(\d+(?:\.\d+)?)(min|bd|sp|d|w|m|q|y|h|s)\??\s+(.+)$/;
 const GANTT_LEGACY_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2})?)\s+(.+)$/;
 const GANTT_GROUP_RE = /^\[(.+?)\]/;
 const GANTT_STRUCTURAL_RE = /^(era|marker|holiday|workweek|parallel)\b/i;

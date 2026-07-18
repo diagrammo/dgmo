@@ -217,11 +217,13 @@ export function addGanttDuration(
 
 /**
  * Parse a duration string like "3bd" or "5d".
+ * `sp` is the canonical sprint suffix (§13.11); bare `s` is its legacy alias.
  */
 export function parseDuration(s: string): Duration | null {
-  const match = s.trim().match(/^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)$/);
+  const match = s.trim().match(/^(\d+(?:\.\d+)?)(min|bd|sp|d|w|m|q|y|h|s)$/);
   if (!match) return null;
-  return { amount: parseFloat(match[1]!), unit: match[2] as DurationUnit };
+  const unit = (match[2] === 'sp' ? 's' : match[2]) as DurationUnit;
+  return { amount: parseFloat(match[1]!), unit };
 }
 
 /**

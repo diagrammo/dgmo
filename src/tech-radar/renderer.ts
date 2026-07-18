@@ -119,10 +119,13 @@ export function renderTechRadar(
     return;
   }
 
-  // Determine if listing is visible — always show for export (blip legend is essential).
-  // Otherwise: runtime option wins; falls back to the `show-blip-legend` directive in source.
-  const directiveOn = parsed.options['show-blip-legend'] === 'on';
-  const showListing = exportDims ? true : (options?.showListing ?? directiveOn);
+  // Determine if listing is visible — default ON on every surface (decision
+  // #48): the runtime option wins on live render; otherwise `no-blip-legend`
+  // in source suppresses it everywhere (legacy `show-blip-legend` is a no-op).
+  const directiveOff = parsed.options['no-blip-legend'] === 'on';
+  const showListing = exportDims
+    ? !directiveOff
+    : (options?.showListing ?? !directiveOff);
 
   const init = initRadarSvg(container, palette, exportDims);
   if (!init) return;

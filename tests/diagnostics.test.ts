@@ -322,3 +322,40 @@ describe('dedupeDiagnostics', () => {
     expect(out.map((d) => d.message)).toEqual(['b', 'a']);
   });
 });
+
+// ============================================================
+// Data-chart `title` directive removed (decision #48)
+// ============================================================
+
+describe('E_TITLE_DIRECTIVE — data-chart title directive removed', () => {
+  const findIt = (diags: readonly DgmoError[]) =>
+    diags.find((d) => d.code === 'E_TITLE_DIRECTIVE');
+
+  it('parseChart: `title` errors and no longer sets the title', () => {
+    const r = parseChart('bar Revenue\ntitle Other\nQ1 100');
+    const d = findIt(r.diagnostics);
+    expect(d).toBeDefined();
+    expect(d!.severity).toBe('error');
+    expect(d!.line).toBe(2);
+    expect(d!.message).toMatch(/line 1/);
+    // Line 1 stays the title; the directive sets nothing.
+    expect(r.title).toBe('Revenue');
+  });
+
+  it('parseExtendedChart: `title` errors and is ignored', () => {
+    const r = parseExtendedChart('scatter Pts\ntitle Other\nA: 1, 2\nB: 2, 3');
+    const d = findIt(r.diagnostics);
+    expect(d).toBeDefined();
+    expect(r.title).toBe('Pts');
+  });
+
+  it('parseVisualization: space and colon spellings both error', () => {
+    const space = parseVisualization('wordcloud W\ntitle Other\nalpha 10');
+    expect(findIt(space.diagnostics)).toBeDefined();
+    expect(space.title).toBe('W');
+
+    const colon = parseVisualization('wordcloud W\ntitle: Other\nalpha 10');
+    expect(findIt(colon.diagnostics)).toBeDefined();
+    expect(colon.title).toBe('W');
+  });
+});

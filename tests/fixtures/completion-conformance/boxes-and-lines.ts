@@ -1,7 +1,8 @@
 import type { ConformanceFixture } from './_types';
 
 // Spec §14 §13.6 + §13.8. Directive: `direction TB|LR`. Options:
-// active-tag, hide, heat, show-values. fill family via FILL_FAMILY_CAPABLE.
+// active-tag, hide, heat, no-value (values default-on per decision #48;
+// legacy `show-values` is a no-op). fill family via FILL_FAMILY_CAPABLE.
 export const fixture: ConformanceFixture = {
   chartType: 'boxes-and-lines',
   structuralKeywords: ['tag'],
@@ -12,7 +13,7 @@ export const fixture: ConformanceFixture = {
     'active-tag',
     'hide',
     'heat',
-    'show-values',
+    'no-value',
     'fill-tint',
     'fill-solid',
     'fill-outline',

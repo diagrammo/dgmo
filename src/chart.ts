@@ -81,7 +81,13 @@ export interface ParsedChart {
 
 import { resolveColorWithDiagnostic, RECOGNIZED_COLOR_NAMES } from './colors';
 import type { PaletteColors } from './palettes';
-import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
+import {
+  makeDgmoError,
+  formatDgmoError,
+  suggest,
+  emit,
+  TITLE_DIRECTIVE_DX,
+} from './diagnostics';
 import {
   extractColor,
   fillModeFromToken,
@@ -374,8 +380,8 @@ export function parseChart(
       }
 
       if (firstToken === 'title') {
-        result.title = value;
-        result.titleLineNumber = lineNumber;
+        // Removed (decision #48): the chart title is line 1. Error + ignore.
+        result.diagnostics.push(emit(TITLE_DIRECTIVE_DX, lineNumber));
         continue;
       }
 

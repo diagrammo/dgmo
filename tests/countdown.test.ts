@@ -308,10 +308,51 @@ describe('countdown parser — §2.4 free-prose rejection', () => {
     expect(msg.toLowerCase()).toContain('every week on friday');
   });
 
-  it('rejects am/pm on an `at` line with the 24h form', () => {
-    const r = parseCountdown(`countdown X\nevery week on Friday\nat 6pm`);
-    const msg = r.diagnostics.map((e) => e.message).join(' ');
-    expect(msg).toContain('18:00');
+  it('rejects an unparseable `at` value with a format hint', () => {
+    const r = parseCountdown(`countdown X\nevery week on Friday\nat teatime`);
+    const errs = r.diagnostics.filter((d) => d.severity === 'error');
+    expect(errs.length).toBeGreaterThan(0);
+    expect(errs.map((e) => e.message).join(' ')).toContain('18:00 or 6:30pm');
+  });
+});
+
+describe('countdown parser — am/pm `at` times (decision #48)', () => {
+  it('`at 6pm` == `at 18:00`', () => {
+    const ampm = parseCountdown(`countdown X\nevery week on Friday\nat 6pm`);
+    const h24 = parseCountdown(`countdown X\nevery week on Friday\nat 18:00`);
+    expect(errors(ampm.diagnostics)).toHaveLength(0);
+    expect(ampm.rule).toEqual(
+      expect.objectContaining({ hour: 18, minute: 0, allDay: false })
+    );
+    expect(ampm.rule).toEqual(h24.rule);
+  });
+
+  it('`at 6:30pm` normalizes to 18:30', () => {
+    const r = parseCountdown(`countdown X\nevery week on Friday\nat 6:30pm`);
+    expect(errors(r.diagnostics)).toHaveLength(0);
+    expect(r.rule).toEqual(expect.objectContaining({ hour: 18, minute: 30 }));
+  });
+
+  it('`at 9am` normalizes to 09:00 and `at 12am` to midnight', () => {
+    const am = parseCountdown(`countdown X\nevery week on Friday\nat 9am`);
+    expect(am.rule).toEqual(expect.objectContaining({ hour: 9, minute: 0 }));
+    const mid = parseCountdown(`countdown X\nevery week on Friday\nat 12am`);
+    expect(mid.rule).toEqual(expect.objectContaining({ hour: 0, minute: 0 }));
+  });
+
+  it('am/pm works inline on an `every` line', () => {
+    const r = parseCountdown(
+      `countdown Meetup\nevery month on 3rd Tuesday at 6pm`
+    );
+    expect(errors(r.diagnostics)).toHaveLength(0);
+    expect(r.rule).toEqual(
+      expect.objectContaining({ kind: 'nth-weekday', nth: 3, hour: 18 })
+    );
+  });
+
+  it('rejects an out-of-range meridiem hour like 13pm', () => {
+    const r = parseCountdown(`countdown X\nevery week on Friday\nat 13pm`);
+    expect(errors(r.diagnostics).length).toBeGreaterThan(0);
   });
 });
 

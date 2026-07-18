@@ -221,6 +221,24 @@ describe('clock parser', () => {
     expect(r.work!.days).toEqual({ Mon: true, Wed: true, Fri: true });
   });
 
+  it('parses canonical `workweek` as a directive, not a zone row (decision #48)', () => {
+    const r = parseClock(`clock T\nhours 9-17\nworkweek mon-fri\nLondon`);
+    expect(r.entries).toHaveLength(1); // London only — workweek is not an entry
+    expect(r.work!.days).toEqual({
+      Mon: true,
+      Tue: true,
+      Wed: true,
+      Thu: true,
+      Fri: true,
+    });
+  });
+
+  it('`workweek` matches the legacy `days` alias exactly', () => {
+    const canonical = parseClock(`clock T\nhours 9-17\nworkweek mon,wed\nUTC`);
+    const legacy = parseClock(`clock T\nhours 9-17\ndays mon,wed\nUTC`);
+    expect(canonical.work).toEqual(legacy.work);
+  });
+
   it('skips an unknown IANA zone and warns', () => {
     const r = parseClock(`clock T\nMars/Phobos\nLondon`);
     expect(r.entries).toHaveLength(1); // only the valid row survives
@@ -252,6 +270,13 @@ describe('clock parser', () => {
   it('warns when `days` is given without `hours` (no work window)', () => {
     const r = parseClock(`clock T\ndays mon-fri\nLondon`);
     expect(r.work).toBeNull();
+    expect(warnings(r.diagnostics).length).toBeGreaterThan(0);
+  });
+
+  it('warns when `workweek` is given without `hours` (still no bogus entry)', () => {
+    const r = parseClock(`clock T\nworkweek mon-fri\nLondon`);
+    expect(r.work).toBeNull();
+    expect(r.entries).toHaveLength(1); // the bare directive never becomes a zone row
     expect(warnings(r.diagnostics).length).toBeGreaterThan(0);
   });
 

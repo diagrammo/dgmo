@@ -786,12 +786,20 @@ describe('boxes-and-lines parser', () => {
       expect(r.boxMetricLowColor).toBeUndefined();
     });
 
-    it('parses `show-values` flag (off by default)', () => {
+    it('values default on; `no-value` suppresses (decision #48)', () => {
+      // No directive → default on (undefined reads as on downstream).
       expect(parseBoxesAndLines('boxes-and-lines\nA heat: 1').showValues).toBe(
         undefined
       );
+      const off = parseBoxesAndLines('boxes-and-lines\nno-value\nA heat: 1');
+      expect(off.showValues).toBe(false);
+    });
+
+    it('legacy `show-values` still parses without diagnostic (no-op)', () => {
       const r = parseBoxesAndLines('boxes-and-lines\nshow-values\nA heat: 1');
       expect(r.showValues).toBe(true);
+      expect(r.diagnostics).toHaveLength(0);
+      expect(r.error).toBeNull();
     });
 
     it('accepts `active-tag <metric>` with no warning (AC7)', () => {

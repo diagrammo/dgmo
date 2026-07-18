@@ -9,7 +9,13 @@
 
 import type { PaletteColors } from '../palettes';
 import { resolveColorWithDiagnostic } from '../colors';
-import { formatDgmoError, makeDgmoError, suggest } from '../diagnostics';
+import {
+  formatDgmoError,
+  makeDgmoError,
+  suggest,
+  emit,
+  TITLE_DIRECTIVE_DX,
+} from '../diagnostics';
 import {
   collectIndentedValues,
   extractColor,
@@ -930,11 +936,8 @@ function parseVisualizationFull(
       }
 
       if (firstToken === 'title') {
-        result.title = restValue;
-        result.titleLineNumber = lineNumber;
-        if (result.type === 'quadrant') {
-          result.quadrantTitleLineNumber = lineNumber;
-        }
+        // Removed (decision #48): the chart title is line 1. Error + ignore.
+        result.diagnostics.push(emit(TITLE_DIRECTIVE_DX, lineNumber));
         continue;
       }
 
@@ -1203,11 +1206,8 @@ function parseVisualizationFull(
       const colorMatch = rawKey.match(/^(.+?)\(([^)]+)\)\s*$/);
 
       if (key === 'title') {
-        result.title = line.substring(colonIndex + 1).trim();
-        result.titleLineNumber = lineNumber;
-        if (result.type === 'quadrant') {
-          result.quadrantTitleLineNumber = lineNumber;
-        }
+        // Removed (decision #48) — colon spelling of the same dead directive.
+        result.diagnostics.push(emit(TITLE_DIRECTIVE_DX, lineNumber));
         continue;
       }
 

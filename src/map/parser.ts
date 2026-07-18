@@ -411,12 +411,14 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
         d.noClusterPois = true;
         break;
       // ── Clock channel (BL-122). Activation is the per-POI `clock` flag (see
-      //    handlePoi); `hours`/`days` are the global availability window, stored
-      //    raw and parsed at resolve. ──
+      //    handlePoi); `hours`/`workweek` are the global availability window,
+      //    stored raw and parsed at resolve. `days` is the legacy alias for
+      //    `workweek` (decision #48). ──
       case 'hours':
         dup(d.clockHours);
         d.clockHours = value;
         break;
+      case 'workweek':
       case 'days':
         dup(d.clockDays);
         d.clockDays = value;

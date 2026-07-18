@@ -6,7 +6,7 @@ import type { DgmoError } from '../diagnostics';
 
 export type VCNodeKind = 'commit' | 'merge' | 'cherry';
 export type VCCommitType = 'normal' | 'highlight' | 'reverse';
-export type VCDirection = 'LR' | 'TB' | 'BT';
+export type VCDirection = 'LR' | 'TB';
 
 /** A node on the commit DAG (commit / merge / cherry-pick). */
 export interface VCNode {

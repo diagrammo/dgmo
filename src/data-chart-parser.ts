@@ -169,7 +169,13 @@ export interface ParsedExtendedChartFull extends ParsedExtendedBase {
 
 import type { PaletteColors } from './palettes';
 import type { ParsedChart } from './chart';
-import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
+import {
+  makeDgmoError,
+  formatDgmoError,
+  suggest,
+  emit,
+  TITLE_DIRECTIVE_DX,
+} from './diagnostics';
 import { resolveColorWithDiagnostic } from './colors';
 import {
   collectIndentedValues,
@@ -656,8 +662,8 @@ function parseExtendedChartFull(
       }
 
       if (firstToken === 'title') {
-        result.title = value;
-        result.titleLineNumber = lineNumber;
+        // Removed (decision #48): the chart title is line 1. Error + ignore.
+        result.diagnostics.push(emit(TITLE_DIRECTIVE_DX, lineNumber));
         continue;
       }
 

@@ -236,7 +236,7 @@ export function parseVersionControl(
     }
 
     // ── Directives ──
-    const dir = /^direction\s+(LR|TB|BT)$/i.exec(trimmed);
+    const dir = /^direction\s+(LR|TB)$/i.exec(trimmed);
     if (dir) {
       options.direction = dir[1]!.toUpperCase() as VCDirection;
       continue;

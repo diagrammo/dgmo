@@ -282,7 +282,7 @@ export function parseBoxesAndLines(
         continue;
       }
 
-      // heat / show-values directives — pre-content only (like
+      // heat / value-label directives — pre-content only (like
       // active-tag). Explicit regex branches: a bare flag and a
       // `key value` form won't both match the active-tag OPTION codepath.
       if (!contentStarted) {
@@ -293,6 +293,13 @@ export function parseBoxesAndLines(
           result.boxMetric = label;
           if (high !== undefined) result.boxMetricColor = high;
           if (low !== undefined) result.boxMetricLowColor = low;
+          continue;
+        }
+        // Values render by default (decision #48): `no-value` suppresses;
+        // legacy `show-values` is accepted as a no-op (it requests the
+        // now-default state).
+        if (/^no-value$/i.test(trimmed)) {
+          result.showValues = false;
           continue;
         }
         if (/^show-values$/i.test(trimmed)) {

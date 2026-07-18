@@ -179,7 +179,9 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     gantt: ['option'],
     map: true,
   },
-  // `title`: gantt option (also a general data-chart directive, hand-listed).
+  // `title`: gantt option. (The data-chart `title` directive was removed in
+  // decision #48 — it now raises E_TITLE_DIRECTIVE; the token stays here for
+  // gantt.)
   { token: 'title', category: 'directive', gantt: ['option'] },
   // `sort`: gantt option (also general, hand-listed).
   { token: 'sort', category: 'directive', gantt: ['option'] },
@@ -201,10 +203,15 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'era', category: 'directive' },
   { token: 'marker', category: 'directive' },
   { token: 'holiday', category: 'directive' },
-  { token: 'workweek', category: 'directive' },
+  // `workweek` is also the canonical weekday-window directive on clock and map
+  // clock-cards (decision #48; `days` stays as the legacy alias).
+  { token: 'workweek', category: 'directive', map: true },
   { token: 'no-dependencies', category: 'directive' },
   // ── Tech-radar ───────────────────────────────────────────
   { token: 'rings', category: 'directive' },
+  // Blip listing is default-on everywhere (decision #48): `no-blip-legend`
+  // suppresses it; `show-blip-legend` stays as the parse-accepted legacy no-op.
+  { token: 'no-blip-legend', category: 'directive' },
   { token: 'show-blip-legend', category: 'directive' },
   { token: 'trend', category: 'directive' },
   // ── Tags / shared directives ─────────────────────────────
@@ -230,6 +237,8 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // ATTRIBUTE_KEYS colon-gate from reclassifying `heat:` as a propertyName. So
   // `heat` lives only in the reserved-key registry + ATTRIBUTE_KEYS and highlights
   // as a property in both positions — exactly the treemap `heat` precedent.
+  // Box values render by default since decision #48; `show-values` stays as
+  // the parse-accepted legacy no-op (suppress with the shared `no-value`).
   { token: 'show-values', category: 'directive' },
   // ── Swimlane ─────────────────────────────────────────────
   { token: 'lane', category: 'directive' },
@@ -313,7 +322,9 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'trials', category: 'directive' },
   { token: 'seed', category: 'directive' },
   { token: 'scrubber-trials', category: 'directive' },
-  { token: 'start-date', category: 'directive' },
+  // `start-date` is also gantt's canonical project-start option (decision #48;
+  // bare `start` above stays as the legacy alias).
+  { token: 'start-date', category: 'directive', gantt: ['option'] },
   { token: 'end-date', category: 'directive' },
   // ── Goal ─────────────────────────────────────────────────
   // Mode flags, value-key leaders, and opt-outs. `now`/`target` collide with

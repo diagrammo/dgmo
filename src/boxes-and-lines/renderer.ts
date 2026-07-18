@@ -1073,7 +1073,7 @@ export function renderBoxesAndLines(
 
       // Value sits in the SAME body section, directly after the description \u2014
       // no second divider / footer band (org-card: title, one line, body).
-      if (parsed.showValues && node.value !== undefined) {
+      if (parsed.showValues !== false && node.value !== undefined) {
         const valueLabel = parsed.boxMetric
           ? `${parsed.boxMetric}: ${node.value}`
           : String(node.value);
@@ -1089,8 +1089,8 @@ export function renderBoxesAndLines(
           .attr('fill', colors.text)
           .text(valueLabel);
       }
-    } else if (parsed.showValues && node.value !== undefined) {
-      // Plain node with show-values: label header + thin divider + a
+    } else if (parsed.showValues !== false && node.value !== undefined) {
+      // Plain node with a value (default-on): label header + thin divider + a
       // "Metric: value" line below (org/infra card style), instead of a
       // vertically-centered label with a floating number.
       const valueLabel = parsed.boxMetric

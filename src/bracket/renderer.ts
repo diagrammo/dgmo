@@ -290,8 +290,9 @@ export function renderBracket(
     });
   }
 
-  // Default winner accent is blue (overridable with `accent <color>`); a side or
-  // tag color still wins per-box.
+  // Default winner accent is blue (overridable with a title-line trailing
+  // color token, §1.5; legacy `accent <color>`); a side or tag color still
+  // wins per-box.
   const baseAccent =
     parsed.accentColor ??
     resolveColor('blue', palette) ??

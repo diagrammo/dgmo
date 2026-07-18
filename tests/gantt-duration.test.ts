@@ -403,6 +403,11 @@ describe('sprint duration (s unit)', () => {
     expect(parseDuration('0.5s')).toEqual({ amount: 0.5, unit: 's' });
   });
 
+  it('parseDuration parses canonical sp as sprints (decision #48)', () => {
+    expect(parseDuration('3sp')).toEqual({ amount: 3, unit: 's' });
+    expect(parseDuration('0.5sp')).toEqual({ amount: 0.5, unit: 's' });
+  });
+
   it('2s with sprint-length 10d = 20 calendar days', () => {
     const start = makeDate(2026, 1, 5);
     const end = addGanttDuration(

@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { parseVersionControl } from '../src/version-control/parser';
 
 type Parsed = ReturnType<typeof parseVersionControl>;
-const errors = (p: Parsed) => p.diagnostics.filter((d) => d.severity === 'error');
+const errors = (p: Parsed) =>
+  p.diagnostics.filter((d) => d.severity === 'error');
 const byMsg = (p: Parsed, m: string) => p.nodes.find((n) => n.message === m);
 
 describe('version-control parser — keyword-less grammar', () => {
@@ -82,7 +83,10 @@ ref origin/main at Payment API`);
     // HEAD auto-added on the active tip
     expect(p.refs.some((r) => r.head)).toBe(true);
     // main is 2 ahead of origin/main (Rate limiter + Hotfix cap)
-    expect(p.branches.find((b) => b.name === 'main')!.ab).toEqual({ ahead: 2, behind: 0 });
+    expect(p.branches.find((b) => b.name === 'main')!.ab).toEqual({
+      ahead: 2,
+      behind: 0,
+    });
   });
 
   it('rebase ghosts the originals and replays solid copies with move links', () => {
@@ -147,7 +151,7 @@ main
     expect(p.notes[0]!.text).toBe('Trunk starts here');
   });
 
-  it('direction TB/BT + cherry-pick', () => {
+  it('direction TB + cherry-pick', () => {
     const p = parseVersionControl(`version-control C
 direction TB
 
@@ -161,6 +165,17 @@ main
     expect(p.options.direction).toBe('TB');
     const cp = p.nodes.find((n) => n.kind === 'cherry')!;
     expect(cp.cherryFrom).toBe(byMsg(p, 'Patch')!.key);
+  });
+
+  it('direction BT dropped (decision #48) — falls through, default LR kept', () => {
+    const p = parseVersionControl(`version-control C
+direction BT
+
+main
+  Release`);
+    // Not a recognized directive anymore: no dedicated error; the default
+    // direction (LR) stands.
+    expect(p.options.direction).toBe('LR');
   });
 });
 

@@ -10,7 +10,7 @@
 //   clock <Title>
 //   face   <analog|digital>            // default digital; either/or, never both
 //   hours  <start>-<end>               // 9-17 · 9am-5pm · 8:30-5:15 (bare→PM)
-//   days   <mon-fri|mon,wed,fri>       // working days (default mon-fri)
+//   workweek <mon-fri|mon,wed,fri>     // working days (default mon-fri)
 //   sun    <true|false>                // sundown/sunrise line; default on
 //   time-24 / time-12                  // 24h vs 12h am/pm (default 12h)
 //
@@ -47,6 +47,8 @@ import { resolvePlace } from './gazetteer';
 const DIRECTIVES = new Set([
   'analog',
   'hours',
+  'workweek',
+  // Legacy alias for `workweek` (decision #48).
   'days',
   'no-sun',
   'time-24',
@@ -249,12 +251,14 @@ export function parseClock(
           }
           break;
         }
+        // `workweek` is canonical; `days` is the legacy alias (decision #48).
+        case 'workweek':
         case 'days': {
           const parsed = parseDays(rest);
           if (parsed === null) {
             softError(
               lineNum,
-              `"days" needs weekdays like mon-fri or mon,wed,fri (got "${rest}").`
+              `"${key}" needs weekdays like mon-fri or mon,wed,fri (got "${rest}").`
             );
           } else {
             workDays = parsed;
@@ -436,7 +440,7 @@ export function parseClock(
   } else if (workDays !== null) {
     warn(
       result.titleLineNumber ?? 1,
-      '`days` has no effect without `hours` — the working-hours status needs a window.'
+      '`workweek` has no effect without `hours` — the working-hours status needs a window.'
     );
   }
 

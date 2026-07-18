@@ -48,6 +48,9 @@ const POSITION_ORDER: readonly QuadrantPosition[] = [
 const KNOWN_OPTIONS = new Set<string>([]);
 /** Known tech-radar boolean options (bare keyword). */
 const KNOWN_BOOLEANS = new Set<string>([
+  // Blip listing is default-on (decision #48): `no-blip-legend` suppresses it;
+  // `show-blip-legend` is the parse-accepted legacy no-op.
+  'no-blip-legend',
   'show-blip-legend',
   'fill-tint',
   'fill-solid',

@@ -121,6 +121,14 @@ target 4`);
     expect(r.description).toBe('hi crew');
   });
 
+  it('parses canonical no-notes flag (decision #48; no-note stays legacy)', () => {
+    const r = parseGoal(`goal T\nno-notes\nnow 1\ntarget 4\nnote\n  hi crew`);
+    expect(r.options.noNote).toBe(true);
+    expect(r.description).toBe('hi crew');
+    // Neither spelling falls through to the unrecognized-line warning.
+    expect(r.diagnostics).toHaveLength(0);
+  });
+
   it('parses no-auto-color flag (defaults false)', () => {
     expect(parseGoal(`goal T\nnow 1\ntarget 4`).options.noAutoColor).toBe(
       false

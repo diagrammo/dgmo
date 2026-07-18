@@ -564,6 +564,59 @@ A
     expect(r.options.sprintNumber).toBe(1);
   });
 
+  it('canonical time-unit sp auto-activates sprint mode (decision #48)', () => {
+    const r = parsePert(`pert
+time-unit sp
+A 1 2 3
+`);
+    expect(r.options.timeUnit).toBe('s');
+    expect(r.options.sprintMode).toBe('auto');
+    expect(r.options.sprintLength).toEqual({ amount: 2, unit: 'w' });
+  });
+
+  it('unknown time-unit error hints sp, not bare s', () => {
+    const r = parsePert(`pert
+time-unit x
+A 1 2 3
+`);
+    const e = r.diagnostics.find((d) => /Unknown time-unit/.test(d.message));
+    expect(e).toBeDefined();
+    expect(e!.message).toContain('sp');
+  });
+
+  it('sp estimate suffix parses like the legacy s suffix', () => {
+    // Per-activity sprint suffixes fall back to the diagram time-unit
+    // (sprints have no calendar in PERT) — canonical `sp` must mirror `s`.
+    const sp = parsePert(`pert
+time-unit w
+A 3sp
+`);
+    const s = parsePert(`pert
+time-unit w
+A 3s
+`);
+    expect(sp.error).toBeNull();
+    expect(sp.activities[0]?.duration).toEqual(s.activities[0]?.duration);
+    expect(sp.activities[0]?.duration).not.toBeNull();
+  });
+
+  it('sp lag suffix on an edge parses like the legacy s suffix', () => {
+    const sp = parsePert(`pert
+A 1 2 3
+B 1 2 3
+A
+  -FS+2sp-> B
+`);
+    const s = parsePert(`pert
+A 1 2 3
+B 1 2 3
+A
+  -FS+2s-> B
+`);
+    expect(sp.error).toBeNull();
+    expect(sp.edges).toEqual(s.edges);
+  });
+
   it('explicit sprint-length triggers explicit mode and overrides default', () => {
     const r = parsePert(`pert
 time-unit s

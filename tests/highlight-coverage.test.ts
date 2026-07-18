@@ -249,6 +249,7 @@ const INVENTORY = {
     'max',
     'no-activations',
     'no-auto-color',
+    'no-blip-legend',
     'no-cities',
     'no-cluster-pois',
     'no-coastline',

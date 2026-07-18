@@ -15,7 +15,7 @@ export const fixture: ConformanceFixture = {
   specSection: '13',
   firstLineKeyword: 'gantt',
   directives: [
-    'start',
+    'start-date',
     'today-marker',
     'critical-path',
     'no-dependencies',

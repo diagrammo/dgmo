@@ -7,7 +7,7 @@
 //   - node SIZE is the bare trailing number on a leaf (§1.5 funnel/sankey idiom);
 //     parents auto-sum, so a trailing number on a branch is ignored with a warn.
 //   - `heat:` per-node metric + `heat <Label> [low] [high]` ramp directive.
-//   - `depth N`, `no-values|no-percent|no-headers|no-legend`.
+//   - `depth N`, `no-value|no-percent|no-headers|no-legend`.
 
 import type { PaletteColors } from '../palettes';
 import {
@@ -334,10 +334,11 @@ function handleDirective(
     return true;
   }
 
-  const noMatch = trimmed.match(/^no-(values|percent|headers|legend)\s*$/i);
+  // `no-value` is canonical (decision #48); plural `no-values` is the legacy alias.
+  const noMatch = trimmed.match(/^no-(values?|percent|headers|legend)\s*$/i);
   if (noMatch) {
     const key = noMatch[1]!.toLowerCase();
-    if (key === 'values') options.noValues = true;
+    if (key === 'value' || key === 'values') options.noValues = true;
     else if (key === 'percent') options.noPercent = true;
     else if (key === 'headers') options.noHeaders = true;
     else if (key === 'legend') options.noLegend = true;

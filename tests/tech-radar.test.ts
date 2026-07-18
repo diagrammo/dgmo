@@ -150,6 +150,16 @@ Languages quadrant: bottom-right
     const result = parseTechRadar(BASIC_RADAR);
     expect(result.options['show-blip-legend']).toBeUndefined();
   });
+
+  it('parses no-blip-legend directive into options (decision #48)', () => {
+    const radar = BASIC_RADAR.replace(
+      'tech-radar My Tech Radar\n',
+      'tech-radar My Tech Radar\nno-blip-legend\n'
+    );
+    const result = parseTechRadar(radar);
+    expect(result.options['no-blip-legend']).toBe('on');
+    expect(result.error).toBeNull();
+  });
 });
 
 describe('tech-radar parser — global numbering', () => {
@@ -470,13 +480,13 @@ describe('tech-radar renderer', () => {
     expect(svg!.getAttribute('height')).toBe('900');
   });
 
-  it('show-blip-legend directive renders the blip listing on live render', () => {
-    const radarWithDirective = BASIC_RADAR.replace(
+  it('blip listing renders by default; no-blip-legend removes it (decision #48)', () => {
+    const radarSuppressed = BASIC_RADAR.replace(
       'tech-radar My Tech Radar\n',
-      'tech-radar My Tech Radar\nshow-blip-legend\n'
+      'tech-radar My Tech Radar\nno-blip-legend\n'
     );
-    const parsedWith = parseTechRadar(radarWithDirective);
-    const parsedWithout = parseTechRadar(BASIC_RADAR);
+    const parsedDefault = parseTechRadar(BASIC_RADAR);
+    const parsedSuppressed = parseTechRadar(radarSuppressed);
 
     const makeContainer = () => {
       const c = document.createElement('div') as unknown as HTMLDivElement;
@@ -485,19 +495,53 @@ describe('tech-radar renderer', () => {
       return c;
     };
 
-    const cWith = makeContainer();
-    const cWithout = makeContainer();
-    renderTechRadar(cWith, parsedWith, nordLight, false);
-    renderTechRadar(cWithout, parsedWithout, nordLight, false);
+    const cDefault = makeContainer();
+    const cSuppressed = makeContainer();
+    renderTechRadar(cDefault, parsedDefault, nordLight, false);
+    renderTechRadar(cSuppressed, parsedSuppressed, nordLight, false);
 
     // The listing renders one extra data-line-number group per blip.
-    const totalBlips = parsedWith.quadrants.reduce(
+    const totalBlips = parsedDefault.quadrants.reduce(
       (sum, q) => sum + q.blips.length,
       0
     );
-    const withCount = cWith.querySelectorAll('[data-line-number]').length;
-    const withoutCount = cWithout.querySelectorAll('[data-line-number]').length;
-    expect(withCount - withoutCount).toBe(totalBlips);
+    const defaultCount = cDefault.querySelectorAll('[data-line-number]').length;
+    const suppressedCount =
+      cSuppressed.querySelectorAll('[data-line-number]').length;
+    expect(defaultCount - suppressedCount).toBe(totalBlips);
+  });
+
+  it('no-blip-legend suppresses the listing on export too', () => {
+    const radarSuppressed = BASIC_RADAR.replace(
+      'tech-radar My Tech Radar\n',
+      'tech-radar My Tech Radar\nno-blip-legend\n'
+    );
+    const parsedDefault = parseTechRadar(BASIC_RADAR);
+    const parsedSuppressed = parseTechRadar(radarSuppressed);
+    const dims = { width: 1200, height: 900 };
+
+    const cDefault = document.createElement('div') as unknown as HTMLDivElement;
+    const cSuppressed = document.createElement(
+      'div'
+    ) as unknown as HTMLDivElement;
+    renderTechRadar(cDefault, parsedDefault, nordLight, false, undefined, dims);
+    renderTechRadar(
+      cSuppressed,
+      parsedSuppressed,
+      nordLight,
+      false,
+      undefined,
+      dims
+    );
+
+    const totalBlips = parsedDefault.quadrants.reduce(
+      (sum, q) => sum + q.blips.length,
+      0
+    );
+    const defaultCount = cDefault.querySelectorAll('[data-line-number]').length;
+    const suppressedCount =
+      cSuppressed.querySelectorAll('[data-line-number]').length;
+    expect(defaultCount - suppressedCount).toBe(totalBlips);
   });
 });
 

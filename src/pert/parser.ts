@@ -126,7 +126,7 @@ const NEAR_DIRECTIVE_HINTS: ReadonlyArray<{
   {
     stem: 'time',
     canonical: 'time-unit',
-    matches: /^(d|w|m|q|y|h|min|bd|s)$/i,
+    matches: /^(d|w|m|q|y|h|min|bd|sp|s)$/i,
   },
 ];
 
@@ -181,8 +181,10 @@ export function parseEdgeLabel(
   if (numRaw) {
     const amount = parseFloat(numRaw);
     if (amount !== 0) {
-      const unit = unitRaw
-        ? (unitRaw.toLowerCase() as Duration['unit'])
+      // `sp` is the canonical sprint suffix; bare `s` is the legacy alias.
+      const unitLow = unitRaw?.toLowerCase();
+      const unit = unitLow
+        ? ((unitLow === 'sp' ? 's' : unitLow) as Duration['unit'])
         : defaultUnit;
       // Whitelist valid units to surface typos instead of silently
       // accepting `A -SS+2x-> B`.
@@ -214,9 +216,9 @@ const ALIAS_SUFFIX_RE = /\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/;
 
 /**
  * Numeric-with-optional-unit token. The unit set matches `parseDuration()`
- * (h/min/d/bd/w/m/q/y/s). A bare number falls back to `timeUnit`.
+ * (h/min/d/bd/w/m/q/y/sp). A bare number falls back to `timeUnit`.
  */
-const ESTIMATE_TOKEN_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)?$/;
+const ESTIMATE_TOKEN_RE = /^(\d+(?:\.\d+)?)(min|bd|sp|d|w|m|q|y|h|s)?$/;
 
 /** Default options when nothing is declared. */
 /**
@@ -409,7 +411,9 @@ function parseEstimateToken(
   // In-bounds by regex match: group 1 is guaranteed present.
   const amount = parseFloat(m[1]!);
   if (!Number.isFinite(amount)) return null;
-  const unit = (m[2] as DurationUnit | undefined) ?? defaultUnit;
+  // `sp` is the canonical sprint suffix; bare `s` is the legacy alias.
+  const unit =
+    ((m[2] === 'sp' ? 's' : m[2]) as DurationUnit | undefined) ?? defaultUnit;
   if (unit === 's') {
     // Sprint units don't make sense for PERT (no calendar). Fall back
     // to the diagram time-unit for now and let the analyzer warn.
@@ -1250,7 +1254,7 @@ export function parsePert(
     options.seed = deriveSeed(seedSource);
   }
 
-  // Sprint-mode detection (mirrors Gantt). `time-unit s` → auto;
+  // Sprint-mode detection (mirrors Gantt). `time-unit sp` → auto;
   // any explicit `sprint-*` directive → explicit (wins over auto).
   // Apply sensible defaults when sprint mode is active.
   const hasSprintOption =
@@ -1362,6 +1366,9 @@ function applyDirective(
     case 'no-current-year':
       return;
     case 'time-unit': {
+      // `sp` = sprints is canonical (decision #48); bare `s` is the legacy
+      // alias — both normalize to the internal 's' unit.
+      const normalized = value === 'sp' ? 's' : value;
       const valid: DurationUnit[] = [
         'min',
         'h',
@@ -1373,14 +1380,15 @@ function applyDirective(
         'y',
         's',
       ];
-      if (!(valid as string[]).includes(value)) {
+      if (!(valid as string[]).includes(normalized)) {
+        const shown = valid.map((u) => (u === 's' ? 'sp' : u));
         error(
           lineNumber,
-          `Unknown time-unit '${value}'. Expected one of ${valid.join(', ')}.`
+          `Unknown time-unit '${value}'. Expected one of ${shown.join(', ')}.`
         );
         return;
       }
-      options.timeUnit = value as DurationUnit;
+      options.timeUnit = normalized as DurationUnit;
       return;
     }
     case 'default-confidence': {

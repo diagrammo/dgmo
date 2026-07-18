@@ -165,6 +165,15 @@ describe('parseTreemap — directives & defaults (AC9)', () => {
     expect(r.options.noValues).toBe(false);
   });
 
+  it('parses canonical no-value (decision #48; plural no-values stays legacy)', () => {
+    const canonical = parseTreemap('treemap T\nno-value\n\nA\n  X 1');
+    expect(canonical.options.noValues).toBe(true);
+    const legacy = parseTreemap('treemap T\nno-values\n\nA\n  X 1');
+    expect(legacy.options.noValues).toBe(true);
+    // Neither spelling leaks into the tree as a node.
+    expect(canonical.roots.map((n) => n.label)).toEqual(['A']);
+  });
+
   it('warns and ignores the removed "other-below" directive', () => {
     const r = parseTreemap('treemap T\nother-below 3\n\nA\n  X 1');
     // No junk node was created from the directive line.

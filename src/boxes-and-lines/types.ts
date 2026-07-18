@@ -50,7 +50,10 @@ export interface ParsedBoxesAndLines {
   readonly boxMetricColor?: string;
   /** Recognized color NAME for the ramp LOW endpoint (two-colour form). */
   readonly boxMetricLowColor?: string;
-  /** `show-values` — print each box's numeric value as text (opt-in). */
+  /**
+   * Box numeric value labels. Default ON (decision #48) — `no-value` sets
+   * `false`; legacy `show-values` sets `true` (a no-op). `undefined` = on.
+   */
   readonly showValues?: boolean;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;

@@ -18,7 +18,11 @@
 // being cataloged.
 
 import type { DiagnosticSpec } from './diagnostics';
-import { nameMergedMessage, emptyMetadataValueMessage } from './diagnostics';
+import {
+  nameMergedMessage,
+  emptyMetadataValueMessage,
+  TITLE_DIRECTIVE_DX,
+} from './diagnostics';
 import { SWIMLANE_DIAGNOSTICS } from './swimlane/diagnostics';
 import { RACI_DIAGNOSTICS } from './raci/diagnostics';
 import { TREEMAP_DIAGNOSTICS } from './treemap/diagnostics';
@@ -76,6 +80,9 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     hint: 'Provide a value or remove the key.',
     example: 'mindmap\nRoot color:\n  Child',
   },
+
+  // ── Data-chart `title` directive (decision #48) ──
+  TITLE_DIRECTIVE_DX,
 ];
 
 // ── Aggregate ───────────────────────────────────────────────

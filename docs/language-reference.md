@@ -934,7 +934,6 @@ Bracket syntax only.
 ### 4.6 Options
 
 - `direction-lr` (boolean; default is TB)
-- `orientation-vertical` (boolean; default is horizontal)
 - `no-color` (boolean; default off — when on, all nodes resolve to the muted neutral fill instead of their default intent color)
 - `fill-solid` / `fill-outline` (fill family; default is the 25% tint — `fill-solid` renders shapes at full intent color, `fill-outline` drops the fill and carries color on the outline alone)
 - `no-notes` (boolean; default off — suppress all note boxes, see §4.7)
@@ -1482,7 +1481,7 @@ gantt [Title]
 ### 12.2 Options (Space-Separated, NO Colon)
 
 ```
-start 2026-03-15
+start-date 2026-03-15
 today-marker
 today-marker 2026-03-27
 critical-path
@@ -1570,7 +1569,7 @@ Design Review start: 2026-04-01
 ```
 
 A task line MUST have `duration:` or `start:` (or both) in its metadata.
-Duration units: `min`, `h`, `d`, `bd` (business days), `w`, `m`, `q`, `y`, `s` (sprints)
+Duration units: `min`, `h`, `d`, `bd` (business days), `w`, `m`, `q`, `y`, `sp` (sprints)
 Uncertain: `duration: 10bd?` (trailing `?` on the value)
 Progress: `progress: 80` in metadata (integer 0–100)
 
@@ -1640,7 +1639,7 @@ divvy shares 1 2 3
 
 | Directive                     | Effect                                                                                                                                                                                                |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `time-unit <unit>`            | Unit for bare-number durations (default `d`); accepts `min`, `h`, `d`, `bd`, `w`, `s` (sprints)                                                                                                       |
+| `time-unit <unit>`            | Unit for bare-number durations (default `d`); accepts `min`, `h`, `d`, `bd`, `w`, `sp` (sprints)                                                                                                       |
 | `default-confidence <level>`  | M-only heuristic: `high`, `medium`, `low`, or a custom `O/P` factor pair (e.g. `0.6/2.5`)                                                                                                             |
 | `direction <LR\|TB>`          | Layout direction (default `LR`)                                                                                                                                                                       |
 | `node-detail <compact\|full>` | Visual density; `full` adds slack bars and σ-as-border-thickness                                                                                                                                      |
@@ -1655,7 +1654,7 @@ divvy shares 1 2 3
 | `sprint-start <YYYY-MM-DD>`   | Optional ISO date the starting sprint begins on                                                                                                                                                       |
 | `active-tag <GroupName>`      | Pre-expand a tag group + drive node fill                                                                                                                                                              |
 
-Sprint mode activates automatically when `time-unit s` is set, or explicitly when any `sprint-*` directive appears. ES/EF/LS/LF cells then render as `S5`, `S7`, etc.
+Sprint mode activates automatically when `time-unit sp` is set, or explicitly when any `sprint-*` directive appears. ES/EF/LS/LF cells then render as `S5`, `S7`, etc.
 
 ### Activities
 
@@ -1964,7 +1963,7 @@ Indented shorthand also supports groups (place arrow directly after group header
 
 - `direction TB` — top-to-bottom layout (default: `LR`)
 - `heat <Label> [low] [high]` — name a numeric colour ramp (see §13.8); one trailing color sets the high hue over a neutral low, two set explicit `low high` ramp endpoints (pairs with the `heat:` key)
-- `show-values` — print each box's numeric value as text (off by default)
+- `no-value` — suppress the per-box numeric value labels (values render by default; legacy `show-values` is accepted as a no-op)
 
 ### 13.7 Options
 
@@ -1981,7 +1980,6 @@ choropleth-style "heat dimension" alongside the categorical tag groups.
 ```
 boxes-and-lines Fleet Crews
 heat Crew blue
-show-values
 
 Flagship heat: 120
 Frigate heat: 40
@@ -2006,7 +2004,7 @@ Flagship -> Sloop
   between a tag group and the heat label, the tag group wins.
 - When the heat ramp is active, every box tints along the min→max ramp and the
   legend shows a gradient capsule; boxes without a `heat:` get a neutral fill.
-- `show-values` additionally prints each box's number as text.
+- Each box's number also prints as text by default; suppress with `no-value`.
 
 ### 13.9 Tag groups (categorical color)
 
@@ -2243,7 +2241,6 @@ Q1 400 700 300 500
 **Options (space-separated, NO colon):**
 
 ```
-title My Chart
 x-label X Label
 y-label Y Label
 orientation-horizontal   // bar: horizontal bars
@@ -2262,6 +2259,8 @@ no-auto-y                // line: anchor the y-axis at 0 (opt out of auto-fit)
   padded window around the data (min→max across all series, not a forced 0
   baseline), so a tight high-valued series fills the plot. `no-auto-y` restores
   the 0 baseline. Bars always anchor at 0 and ignore the flag.
+- `title` directive removed — the chart title is line 1 (`bar My Chart`). Using
+  `title` raises an error diagnostic.
 - Legend is always shown (no option needed)
 
 **Value-display flags — show-everything default.** Every renderable part is on by default. Suppress with `no-*`:
@@ -2672,7 +2671,7 @@ main
 
 #### Directives
 
-- `direction LR|TB|BT` — `LR` default (newest right); `TB`/`BT` is the git-log column view.
+- `direction LR|TB` — `LR` default (newest right); `TB` is the git-log column view.
 - `no-labels` (hide messages), `no-lanes` (hide branch lanes), `no-head`.
 
 ### 16.5 Venn Diagrams
@@ -3066,6 +3065,10 @@ Further-indented lines below a blip. Supports inline markdown (bold, italic, cod
 ### Numbering
 
 Blips receive sequential global numbers. Order: quadrants clockwise (top-left → top-right → bottom-right → bottom-left), then by ring (innermost first), then declaration order.
+
+### Directives
+
+- `no-blip-legend` — suppress the four-column blip listing. The listing renders by default on every surface (export and live/interactive alike). Legacy `show-blip-legend` is accepted as a no-op.
 
 ---
 
@@ -3556,7 +3559,7 @@ Add a per-node `heat:` number (a second metric, distinct from size; negatives/fl
 | `heat <Label>`  | Name (and optionally color) the value ramp; pairs with the `heat:` key.                 |
 | `depth N`       | Render N levels; deeper subtrees collapse to a drillable solid block (a render budget).  |
 | `other-below N` | Roll children under N% of their parent into a single hatched **Other** bucket (opt-in).  |
-| `no-values`     | Hide value labels.                                                                       |
+| `no-value`      | Hide value labels.                                                                       |
 | `no-percent`    | Hide percentage labels.                                                                  |
 | `no-headers`    | Hide parent header bars (a no-op in `radial` mode).                                       |
 | `no-legend`     | Hide the legend.                                                                          |
@@ -3566,7 +3569,7 @@ Numbers auto-compact (1.2M, 940k). Units live in the title — there is no forma
 
 ### Radial mode (sunburst / hierarchical pie)
 
-Add a bare `radial` flag and the same hierarchy renders as a sunburst: the center disc is the whole (chart title + grand total), the first ring is the top-level groups, and each outer ring breaks a group into its parts. Tags, `heat`, and `no-values`/`no-percent`/`no-legend` all carry over; `no-headers` is a no-op. An arc's angle is its share of the whole; radius is depth only, so slices stay in **source order** and very thin arcs drop their inline label. Best for shallow trees (≈3 levels); for deep trees or precise magnitude, prefer the rectangular treemap.
+Add a bare `radial` flag and the same hierarchy renders as a sunburst: the center disc is the whole (chart title + grand total), the first ring is the top-level groups, and each outer ring breaks a group into its parts. Tags, `heat`, and `no-value`/`no-percent`/`no-legend` all carry over; `no-headers` is a no-op. An arc's angle is its share of the whole; radius is depth only, so slices stay in **source order** and very thin arcs drop their inline label. Best for shallow trees (≈3 levels); for deep trees or precise magnitude, prefer the rectangular treemap.
 
 ```dgmo
 treemap Plunder Spend ($k)
@@ -3757,7 +3760,7 @@ In the desktop and web app a sketch opens in the **canvas editor** (the code pan
 <!-- TYPE:goal -->
 
 <!-- TIPS start -->
-**Styling tips:** A single progress-toward-a-target reading — one `now` against one `target`, answering "how close am I?". Reach for it for a KPI tile, a fundraising thermometer, a quarterly quota, or a completion percentage; there is no time axis, series, or milestones (use `line` for a trend, `countdown` for a live deadline). Put the **unit in the title** (`Marathon Fund ($)`, `Grog Barrel Fill (L)`) — there is no format/currency directive. `now` and `target` are **space-separated `key value`** directives, no colon (`now 6400` / `target 10000`); the percent is `now / target` and values auto-compact (`6.4k`, `1.2M`). Pick the face for the story with a bare flag on its own line: the default progress **bar** for a plain KPI, `thermometer` for fundraising/fill-the-tank framings, `gauge` for a speedometer/quota dial — all three read the same value pair. The fill is **auto traffic-light** by completion (`< 50%` red, `50–80%` orange, `≥ 80%` green; over-target stays green) so the color already reads the number's health — leave it unless you have reason to override with a trailing color on the title line (`goal Marathon Fund ($) green`) or `no-auto-color` (flat palette color). Over-target clamps the fill at 100% while the `%` label stays truthful (`120%`). Add a `note` — inline (`note Still waiting on three crews`) or a block header on its own line with an indented body — to caption the number with context (who's still owed, what's left); it takes simple markdown (`**bold**`, `*italic*`, `` `code` ``) and `- ` bullets. `fill-solid` for a bolder fill; `no-percent` / `no-value` / `no-title` / `no-note` to drop labels.
+**Styling tips:** A single progress-toward-a-target reading — one `now` against one `target`, answering "how close am I?". Reach for it for a KPI tile, a fundraising thermometer, a quarterly quota, or a completion percentage; there is no time axis, series, or milestones (use `line` for a trend, `countdown` for a live deadline). Put the **unit in the title** (`Marathon Fund ($)`, `Grog Barrel Fill (L)`) — there is no format/currency directive. `now` and `target` are **space-separated `key value`** directives, no colon (`now 6400` / `target 10000`); the percent is `now / target` and values auto-compact (`6.4k`, `1.2M`). Pick the face for the story with a bare flag on its own line: the default progress **bar** for a plain KPI, `thermometer` for fundraising/fill-the-tank framings, `gauge` for a speedometer/quota dial — all three read the same value pair. The fill is **auto traffic-light** by completion (`< 50%` red, `50–80%` orange, `≥ 80%` green; over-target stays green) so the color already reads the number's health — leave it unless you have reason to override with a trailing color on the title line (`goal Marathon Fund ($) green`) or `no-auto-color` (flat palette color). Over-target clamps the fill at 100% while the `%` label stays truthful (`120%`). Add a `note` — inline (`note Still waiting on three crews`) or a block header on its own line with an indented body — to caption the number with context (who's still owed, what's left); it takes simple markdown (`**bold**`, `*italic*`, `` `code` ``) and `- ` bullets. `fill-solid` for a bolder fill; `no-percent` / `no-value` / `no-title` / `no-notes` to drop labels.
 <!-- TIPS end -->
 
 A single progress-toward-a-target value: one `now` measured against one `target`, drawn in one of three static faces. No time axis, no series, no milestones — just "how close am I?". The face is a bare-flag mode directive under the title (like treemap's `radial`); all three faces consume the same value pair.
@@ -3794,7 +3797,7 @@ target 10000
 | `no-value`             | Hide the raw `now / target` label.                            |
 | `fill-solid`           | Full-saturation fill instead of the default 25% tint (`fill-outline` hollows the meter — color on the rim). |
 | `no-title`             | Hide the banner title.                                        |
-| `no-note`              | Suppress the `note` block even if one is authored.           |
+| `no-notes`             | Suppress the `note` block even if one is authored.           |
 | `no-auto-color`        | Disable the traffic-light bands; use the flat palette color.  |
 | `note <text>` / `note` + indented body | Free-text caption beside/below the face (§ note block). |
 
@@ -3813,7 +3816,7 @@ note
   - Columbus — *almost there!*
 ```
 
-The body supports inline `**bold**` / `*italic*` / `` `code` ``, `- `/`* ` bullets, and blank-line gaps. It renders in the left column for `thermometer`/`gauge` and under the bar for the default face. `no-note` hides it even when authored.
+The body supports inline `**bold**` / `*italic*` / `` `code` ``, `- `/`* ` bullets, and blank-line gaps. It renders in the left column for `thermometer`/`gauge` and under the bar for the default face. `no-notes` hides it even when authored.
 
 ### Values & color
 
@@ -3877,7 +3880,7 @@ Days mode uses `ceil` — a target later *today* reads "1 day", not "0". Full mo
 <!-- TYPE:clock -->
 
 <!-- TIPS start -->
-**Styling tips:** A live world clock — one panel per person or place, each showing the CURRENT time in its zone and ticking every second, accurate the instant the page loads. Reach for it to answer "what time is it for the crew right now": a distributed team's local times, a single collaborator's clock, or the overlap window for scheduling a call. The first line declares the type and a title (`Crew standups`). Each entry is one line, `<anchor> [as <label>] [color]`: name the zone once as the anchor — a plain **city name** (`London`, `NYC`, `Bombay`, `Los Angeles` — easiest, resolved through the bundled gazetteer to its canonical zone and displayed as the canonical city), a full **IANA id** (the token containing `/`, like `Europe/London` or `America/New_York`), or a **UTC/GMT offset** (`UTC`, `UTC+1`, `UTC+5:30`, `GMT+2`) which pins a **fixed** offset with no daylight-saving shift (bare `UTC`/`GMT` = +00:00, and no sun line). Use `as <label>` to name the person or role behind a zone (`New York as Dani (NY)`); the label becomes the caption and defaults to the resolved city (or the offset label for a fixed row). The single-clock case is common and encouraged — one title, one entry (`clock Dani` / `New York`). Global directives are flat, no colon: `analog` for analog dials (digital is the default face), `time-24` for a 24-hour readout (12h am/pm is the default), and optional context bands `hours 9-17` + `days mon-fri` (the window accepts `HH:MM` and am/pm, e.g. `hours 8:30-17:15`) to shade each zone's working window so out-of-hours people read at a glance. `no-sun` hides the sunrise/sundown indicator (on by default). Add `hours`/`days` only when the point is scheduling overlap; drop them for a plain "current time" widget. Zones are **colorized by default** (`color-by`, default `place` — a distinct palette accent per place); reach for a semantic mode when color should *mean* something: `color-by time` or `color-by daylight` make an at-a-glance world board read as day-vs-night (order the zones west→east so the daylight sweeps across), and `color-by work` turns a standup/team board green/amber/grey by availability — it needs `hours` set. A hand-set per-zone color (`London as UK team purple`, or just `London purple`) is a **defined** shade that always wins over the dimension, so you can pin one zone and let the rest follow. `color-by none` goes neutral. On image surfaces (PNG, `.svg` via `<img>`, GitHub camo) it can't tick and bakes the time at export — the correct graceful fallback.
+**Styling tips:** A live world clock — one panel per person or place, each showing the CURRENT time in its zone and ticking every second, accurate the instant the page loads. Reach for it to answer "what time is it for the crew right now": a distributed team's local times, a single collaborator's clock, or the overlap window for scheduling a call. The first line declares the type and a title (`Crew standups`). Each entry is one line, `<anchor> [as <label>] [color]`: name the zone once as the anchor — a plain **city name** (`London`, `NYC`, `Bombay`, `Los Angeles` — easiest, resolved through the bundled gazetteer to its canonical zone and displayed as the canonical city), a full **IANA id** (the token containing `/`, like `Europe/London` or `America/New_York`), or a **UTC/GMT offset** (`UTC`, `UTC+1`, `UTC+5:30`, `GMT+2`) which pins a **fixed** offset with no daylight-saving shift (bare `UTC`/`GMT` = +00:00, and no sun line). Use `as <label>` to name the person or role behind a zone (`New York as Dani (NY)`); the label becomes the caption and defaults to the resolved city (or the offset label for a fixed row). The single-clock case is common and encouraged — one title, one entry (`clock Dani` / `New York`). Global directives are flat, no colon: `analog` for analog dials (digital is the default face), `time-24` for a 24-hour readout (12h am/pm is the default), and optional context bands `hours 9-17` + `workweek mon-fri` (the window accepts `HH:MM` and am/pm, e.g. `hours 8:30-17:15`) to shade each zone's working window so out-of-hours people read at a glance. `no-sun` hides the sunrise/sundown indicator (on by default). Add `hours`/`workweek` only when the point is scheduling overlap; drop them for a plain "current time" widget. Zones are **colorized by default** (`color-by`, default `place` — a distinct palette accent per place); reach for a semantic mode when color should *mean* something: `color-by time` or `color-by daylight` make an at-a-glance world board read as day-vs-night (order the zones west→east so the daylight sweeps across), and `color-by work` turns a standup/team board green/amber/grey by availability — it needs `hours` set. A hand-set per-zone color (`London as UK team purple`, or just `London purple`) is a **defined** shade that always wins over the dimension, so you can pin one zone and let the rest follow. `color-by none` goes neutral. On image surfaces (PNG, `.svg` via `<img>`, GitHub camo) it can't tick and bakes the time at export — the correct graceful fallback.
 <!-- TIPS end -->
 
 The second *dynamic* dgmo chart (with `countdown`): a live board of world clocks recomputed against the viewer's clock every second. Flat syntax — the first line is `clock <Title>`; every other non-blank line is either a board-level directive (its first token is an option keyword) or a place row. Order-independent; no colons anywhere.
@@ -3889,7 +3892,7 @@ clock [Title]
 
 analog                      // analog dials; digital is the default face
 hours <start>-<end>         // optional working window (24h, HH:MM or am/pm)
-days <mon-fri | mon,wed,fri> // optional working days (default mon-fri)
+workweek <mon-fri | mon,wed,fri> // optional working days (default mon-fri)
 no-sun                      // hide the sundown/sunrise line (on by default)
 time-24                     // 24-hour readout (12h am/pm is the default)
 no-title                    // suppress the board title
@@ -3904,7 +3907,7 @@ color-by <place|work|daylight|time|none> // zone coloring; default place
 ```
 clock Crew standups
 hours 9-17
-days mon-fri
+workweek mon-fri
 
 London        as UK team
 New York      as Dani (NY)
@@ -3928,7 +3931,7 @@ UTC           as Servers
 | ---------------------- | ---------------------------------------------------------------------- |
 | `analog`               | Analog dials for the WHOLE board. Digital is the default face. |
 | `hours <start>-<end>`  | Working window (e.g. `9-17`, `8:30-17:15`, or am/pm); drives the status chip, evaluated in each row's own zone. |
-| `days <range\|list>`   | Working days: `mon-fri` or `mon,wed,fri`. Default Mon–Fri. No effect without `hours`. |
+| `workweek <range\|list>` | Working days: `mon-fri` or `mon,wed,fri`. Default Mon–Fri. No effect without `hours`. |
 | `no-sun`               | Hide the sundown/sunrise line (on by default when the zone's city coordinates are known). |
 | `time-24`              | 24-hour readout (12-hour am/pm is the default).                        |
 | `no-title`             | Suppress the board title.                                              |
@@ -3956,7 +3959,7 @@ Each row's time comes from `Intl.DateTimeFormat` with that row's zone, so DST is
 <!-- TYPE:bracket -->
 
 <!-- TIPS start -->
-**Styling tips:** A single-elimination tournament bracket: winners auto-advance rightward toward a championship. Reach for it for playoff trees, knockout draws, and seeded fields. Two ways to author: seed the field for a **day-0 skeleton** (`seed 1 Team A`, `seed 2 Team B` …) and let matches fill in, or list results casually as `A beats B` / `A vs B` lines and let winners flow forward. Name the columns with `rounds` (comma-separated, e.g. `rounds Quarterfinals, Semifinals, Final`) or an indented `rounds` block with per-round colors. The two sides mirror inward to the final. Color a competitor's box outline with a `tag` group; `accent` overrides the winner highlight (default blue). `single-elim` is the default; opt-outs are `no-round` (hide column labels) and `no-legend`.
+**Styling tips:** A single-elimination tournament bracket: winners auto-advance rightward toward a championship. Reach for it for playoff trees, knockout draws, and seeded fields. Two ways to author: seed the field for a **day-0 skeleton** (`seed 1 Team A`, `seed 2 Team B` …) and let matches fill in, or list results casually as `A beats B` / `A vs B` lines and let winners flow forward. Name the columns with `rounds` (comma-separated, e.g. `rounds Quarterfinals, Semifinals, Final`) or an indented `rounds` block with per-round colors. The two sides mirror inward to the final. Color a competitor's box outline with a `tag` group; a trailing color on the title line (`bracket Champions Cup red`) overrides the winner highlight (default blue). `single-elim` is the default; opt-outs are `no-round` (hide column labels) and `no-legend`.
 <!-- TIPS end -->
 
 A single-elimination tournament bracket. Winners auto-advance up a tree that builds itself from the results — a one-sided ladder for a simple pool, or two `[Side]` columns that mirror inward and meet at a championship (MLB / NBA / NCAA-style). Any `seed` line switches on **seeded mode** (day-0 skeleton); otherwise the bracket is **casual** (structure inferred from `beats` / `vs` lines).
@@ -3993,7 +3996,7 @@ Black Pearl beats Salty Dog 6-5
 | `[Side] [color]`               | A bracket column (kanban idiom); two sides mirror to a center championship.   |
 | `[Winner] beats [Loser] [score] [@ Home]` | A decided match — the left name advances; score is cosmetic; `@ Home` marks the host. Indent prose under it for commentary. |
 | `[A] vs [B]`                   | A pending, undecided match (both boxes drawn, no winner emphasis).            |
-| `accent <color>`               | Winner accent color override (default blue). Tags/sides still win per-box.    |
+| trailing color on the title line | Winner accent color override (default blue), e.g. `bracket Champions Cup red` (§1.5 title-line accent slot). Legacy `accent <color>` directive is accepted; the title-line token wins on conflict. Tags/sides still win per-box. |
 | `no-round`                     | Suppress the round/column labels.                                            |
 | `no-legend`                    | Hide the tag legend (outlines still colored).                               |
 | `single-elim` / `double-elim` / `seeded` | Format flags. `double-elim` reserved — not yet supported; `seeded` forces seeded mode. |
@@ -4104,7 +4107,7 @@ Markers in cells are always **rendered in canonical alphabet order** (`R A C I`,
 <!-- TYPE:map -->
 
 <!-- TIPS start -->
-**Styling tips:** the zero-config map already looks good — name places and stop. When POIs fall into categories, tag them so each category gets its own color; keep place labels to the place name; leave region colorize and coastlines on unless the user asks to hide them. **For flights and airport routes, use IATA codes, not city names** — `LHR ~> JFK`, `LHR ~> DXB`, `LHR ~> SIN`, `LHR ~> HND` — the bundled airport set (large international hubs + all US commercial airports) resolves them to the right coordinates and labels them with the code. **For cities, use the exact canonical name**: "New York City" (NOT "New York"), "Washington, D.C.", etc. — a name the gazetteer doesn't have **silently drops that point** and the map just reframes around the rest, so it looks fine but is wrong. When unsure of the exact token, look it up: `dgmo map-search "<place>"` (or the `lookup_map_location` MCP tool) returns the city name or airport code to paste; fall back to coordinates (`poi Name as 40.71,-74.0`) for anything not found. **For routes/flows from a hub** (an airport's daily flights, a distribution center's shipments), write ONE edge per line and repeat the origin — never indented edges (those error). Use **arcs** (`~>`) for flights and long-haul links so the spokes separate; the connector label carries the relationship (`~daily~>`, `~2x daily~>`). Endpoints auto-create POIs, so don't add separate `poi` lines for places already in an edge. Reach for a `route` block only when the trip is an **ordered voyage** that continues stop→stop (a cruise itinerary), not a set of independent routes from one origin. **For a "what time is it at each office" map**, flag each POI with `clock` — the zone comes from the place automatically, so just `poi Denver clock`; add `hours 9-17` + `days mon-fri` for open/closed dots, and `clock: <IANA>` only on bare-coordinate pins. Use `label:` (not `as`) for a multi-word office name.
+**Styling tips:** the zero-config map already looks good — name places and stop. When POIs fall into categories, tag them so each category gets its own color; keep place labels to the place name; leave region colorize and coastlines on unless the user asks to hide them. **For flights and airport routes, use IATA codes, not city names** — `LHR ~> JFK`, `LHR ~> DXB`, `LHR ~> SIN`, `LHR ~> HND` — the bundled airport set (large international hubs + all US commercial airports) resolves them to the right coordinates and labels them with the code. **For cities, use the exact canonical name**: "New York City" (NOT "New York"), "Washington, D.C.", etc. — a name the gazetteer doesn't have **silently drops that point** and the map just reframes around the rest, so it looks fine but is wrong. When unsure of the exact token, look it up: `dgmo map-search "<place>"` (or the `lookup_map_location` MCP tool) returns the city name or airport code to paste; fall back to coordinates (`poi Name as 40.71,-74.0`) for anything not found. **For routes/flows from a hub** (an airport's daily flights, a distribution center's shipments), write ONE edge per line and repeat the origin — never indented edges (those error). Use **arcs** (`~>`) for flights and long-haul links so the spokes separate; the connector label carries the relationship (`~daily~>`, `~2x daily~>`). Endpoints auto-create POIs, so don't add separate `poi` lines for places already in an edge. Reach for a `route` block only when the trip is an **ordered voyage** that continues stop→stop (a cruise itinerary), not a set of independent routes from one origin. **For a "what time is it at each office" map**, flag each POI with `clock` — the zone comes from the place automatically, so just `poi Denver clock`; add `hours 9-17` + `workweek mon-fri` for open/closed dots, and `clock: <IANA>` only on bare-coordinate pins. Use `label:` (not `as`) for a multi-word office name.
 <!-- TIPS end -->
 
 Geographic concept maps: highlight/shade political subdivisions, drop points of interest (POIs), and connect them with routes or edges. For "share a concept" business maps, not cartography. Renders at a fixed, auto-fit position — no pan/zoom. Basemap and viewport are **inferred from the content you reference** — most maps need no directives. v1 boundaries: world countries + US states.
@@ -4185,7 +4188,7 @@ Flag a POI with `clock` and it grows a **live local-time card** above the marker
 ```
 map Team offices
 hours 9-17                          # per-pin availability window (open/closed dot)
-days mon-fri
+workweek mon-fri
 poi San Francisco clock             # zone auto-derived from the place
 poi London clock
 poi Bengaluru clock
@@ -4193,7 +4196,7 @@ poi 1.29 103.85 as SG clock: Asia/Singapore   # bare-coord pin names its zone
 ```
 
 - **The place picks the zone — don't type it.** A named city derives its IANA zone from the gazetteer (correct by construction, e.g. Austin → Central). Only a **bare-coordinate** pin needs the valued form `clock: <zone>` — an IANA id (`Asia/Tokyo`) or a fixed offset (`clock: UTC+9`, no DST). The valued form also *overrides* a city, but a mismatch warns (you almost never want it).
-- `hours 9-17` + `days mon-fri` (map-level) give a status dot per pin — green open / amber opening soon / hollow closed·weekend — evaluated in **each pin's own zone**.
+- `hours 9-17` + `workweek mon-fri` (map-level) give a status dot per pin — green open / amber opening soon / hollow closed·weekend — evaluated in **each pin's own zone**.
 - Use `label:` for a multi-word office name (`poi Los Angeles clock, label: El Segundo`); the `as` alias is a single word and doesn't render.
 - The card ticks every second on live surfaces and bakes a snapshot for PNG/SVG. It shows the weekday only when the pin's day differs from the viewer's.
 
@@ -4306,7 +4309,7 @@ The directive set is **13, all colon-free**: six naming intent the renderer can'
 | Chart type declaration | all              | `bar Title`                           |
 | Tag declarations       | all              | `tag Name as x`                       |
 | Boolean options        | all              | `activations`, `no-activations`       |
-| Key-value options      | all              | `start 2026-03-15`, `active-tag Team` |
+| Key-value options      | all              | `start-date 2026-03-15`, `active-tag Team` |
 | Series declarations    | data charts      | `series A B C`                        |
 | Data rows              | bar/line/pie/etc | `Label 100`                           |
 | ER columns             | er               | `id int pk`                           |
@@ -4332,7 +4335,7 @@ A colon binds a value, and it appears in exactly **four syntactic positions** �
 
 **Colons never appear in:**
 
-- Directives and options — space-separated (`start 2026-03-15`, `x-label Low, High`, `region`)
+- Directives and options — space-separated (`start-date 2026-03-15`, `x-label Low, High`, `region`)
 - Tag declarations and chart type declarations
 - Series declarations and data rows for simple/data charts (incl. sankey/arc links `Source -> Target value` and quadrant data; space-delimited — a comma in a data-row value raises `E_DATA_COMMA_REMOVED`)
 - Structural syntax (groups, sections, arrows, comments)

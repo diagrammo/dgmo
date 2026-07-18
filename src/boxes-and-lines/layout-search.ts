@@ -984,7 +984,7 @@ export async function layoutBoxesAndLinesSearch(
   for (const node of parsed.nodes) {
     const s = hideDescriptions
       ? { width: NODE_WIDTH, height: NODE_HEIGHT }
-      : computeNodeSize(node, parsed.showValues === true);
+      : computeNodeSize(node, parsed.showValues !== false);
     sizes.set(node.label, s);
     if (!hideDescriptions && node.description && node.description.length > 0)
       maxDescH = Math.max(maxDescH, s.height);

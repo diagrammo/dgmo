@@ -29,7 +29,7 @@ import type { RenderCategory } from './chart-type-registry';
 // ============================================================
 
 /** Gantt duration patterns: `10bd Task` */
-const GANTT_DURATION_RE = /^\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h)(?:\?)?\s+/;
+const GANTT_DURATION_RE = /^\d+(?:\.\d+)?(?:min|bd|sp|d|w|m|q|y|h)(?:\?)?\s+/;
 /** Gantt date patterns: `2025-01-01 Task` */
 const GANTT_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2})?\s+/;
 

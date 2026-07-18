@@ -157,6 +157,22 @@ describe('map clock channel — valued `clock: <zone>` override', () => {
 });
 
 describe('map clock channel — card render (ticker contract)', () => {
+  it('accepts canonical `workweek` for the availability window (decision #48)', () => {
+    const legacy = render('map\nhours 9-17\ndays mon-fri\npoi Denver clock');
+    const canonical = render(
+      'map\nhours 9-17\nworkweek mon-fri\npoi Denver clock'
+    );
+    const l = legacy.querySelector('[data-dgmo-clock]')!;
+    const c = canonical.querySelector('[data-dgmo-clock]')!;
+    expect(c).toBeTruthy();
+    expect(c.getAttribute('data-dgmo-clock-work-start')).toBe(
+      l.getAttribute('data-dgmo-clock-work-start')
+    );
+    expect(c.getAttribute('data-dgmo-clock-work-days')).toBe(
+      l.getAttribute('data-dgmo-clock-work-days')
+    );
+  });
+
   it('bakes a `data-dgmo-clock` card per flagged, zoned POI', () => {
     const svg = render('map\nhours 9-17\ndays mon-fri\npoi Denver clock');
     const cards = svg.querySelectorAll('[data-dgmo-clock]');

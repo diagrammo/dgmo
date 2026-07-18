@@ -164,8 +164,7 @@ function makeContainer(): HTMLDivElement {
 describe('Venn renderer — circles and labels', () => {
   it('renders circles and set name labels into SVG', () => {
     const parsed = parseVisualization(
-      `venn
-title: Test
+      `venn Test
 Apples
 Oranges
 Apples + Oranges Cider`,

@@ -37,7 +37,9 @@ export const fixture: ConformanceFixture = {
     { directive: 'palette', source: 'palettes' },
     {
       directive: 'time-unit',
-      values: ['min', 'h', 'd', 'bd', 'w', 'm', 'q', 'y'],
+      // `sp` = sprints is the canonical unit (decision #48; bare `s` is the
+      // undocumented legacy alias, not offered).
+      values: ['min', 'h', 'd', 'bd', 'w', 'm', 'q', 'y', 'sp'],
     },
     { directive: 'confidence', values: ['high', 'medium', 'low'] },
     { directive: 'direction', values: ['LR', 'TB'] },

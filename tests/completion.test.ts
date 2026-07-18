@@ -468,7 +468,7 @@ describe('COMPLETION_REGISTRY', () => {
       'note',
       'no-percent',
       'no-value',
-      'no-note',
+      'no-notes',
       'no-auto-color',
       'fill-solid',
       'no-title',
@@ -486,7 +486,7 @@ describe('COMPLETION_REGISTRY', () => {
       'x-label',
       'orientation-horizontal',
       'activations',
-      'start',
+      'start-date',
       'critical-path',
       'direction-tb',
       'series',
@@ -514,7 +514,9 @@ describe('COMPLETION_REGISTRY', () => {
     expect(seqSpec.directives.activations).toBeDefined();
 
     const ganttSpec = COMPLETION_REGISTRY.get('gantt')!;
-    expect(ganttSpec.directives.start).toBeDefined();
+    expect(ganttSpec.directives['start-date']).toBeDefined();
+    // Legacy `start` still parses but is no longer offered (decision #48).
+    expect(ganttSpec.directives.start).toBeUndefined();
     expect(ganttSpec.directives['today-marker']).toBeDefined();
     expect(ganttSpec.directives['critical-path']).toBeDefined();
 
@@ -937,10 +939,13 @@ describe('COMPLETION_REGISTRY — tech-radar', () => {
   it('registers tech-radar directive + pipe metadata', () => {
     const spec = COMPLETION_REGISTRY.get('tech-radar');
     expect(spec).toBeDefined();
-    // Per spec §20, the only chart-specific directive is `show-blip-legend`.
-    // `rings` is a structural keyword; quadrant/ring/trend/color are pipe
-    // metadata that live in PIPE_METADATA.
-    expect(spec!.directives).toHaveProperty('show-blip-legend');
+    // Per spec §20, the only chart-specific directive is `no-blip-legend`
+    // (the listing is default-on per decision #48; legacy `show-blip-legend`
+    // is a parse-accepted no-op, not offered in completion). `rings` is a
+    // structural keyword; quadrant/ring/trend/color are pipe metadata that
+    // live in PIPE_METADATA.
+    expect(spec!.directives).toHaveProperty('no-blip-legend');
+    expect(spec!.directives).not.toHaveProperty('show-blip-legend');
     expect(spec!.directives).toHaveProperty('palette');
     expect(spec!.directives).toHaveProperty('theme');
 

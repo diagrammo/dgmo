@@ -8,7 +8,7 @@
 //   now <number>                    // space-separated key value (no colon)
 //   target <number>
 //   note <text>                     // optional free-text caption/description
-//   [no-percent] [no-value] [solid-fill] [no-title] [no-auto-color] [no-note]
+//   [no-percent] [no-value] [solid-fill] [no-title] [no-auto-color] [no-notes]
 //
 // One value only — this type has no children/rows. Unit lives in the title
 // (treemap rule §24C); values accept `_` separators but not thousands commas.
@@ -147,7 +147,8 @@ export function parseGoal(
       options.noAutoColor = true;
       continue;
     }
-    if (lower === 'no-note') {
+    // `no-notes` is canonical (decision #48); `no-note` is the legacy alias.
+    if (lower === 'no-notes' || lower === 'no-note') {
       options.noNote = true;
       continue;
     }
