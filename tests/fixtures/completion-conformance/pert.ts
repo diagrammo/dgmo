@@ -1,6 +1,7 @@
 import type { ConformanceFixture } from './_types';
 
-// Spec §21 (PERT Charts). Directives: time-unit, confidence, direction,
+// Spec §21 (PERT Charts). Directives: time-unit, confidence, direction
+// booleans (§1.9; key+value `direction LR|TB` parses as legacy),
 // node-detail, trials, seed, scrubber-trials, start-date, end-date,
 // sprint-length, sprint-number, sprint-start, active-tag.
 export const fixture: ConformanceFixture = {
@@ -11,7 +12,8 @@ export const fixture: ConformanceFixture = {
   directives: [
     'time-unit',
     'confidence',
-    'direction',
+    'direction-tb',
+    'direction-lr',
     'node-detail',
     'trials',
     'seed',
@@ -42,7 +44,6 @@ export const fixture: ConformanceFixture = {
       values: ['min', 'h', 'd', 'bd', 'w', 'm', 'q', 'y', 'sp'],
     },
     { directive: 'confidence', values: ['high', 'medium', 'low'] },
-    { directive: 'direction', values: ['LR', 'TB'] },
     { directive: 'node-detail', values: ['compact', 'full'] },
   ],
 };

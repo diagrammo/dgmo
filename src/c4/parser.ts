@@ -107,6 +107,7 @@ const KNOWN_C4_OPTIONS = new Set<string>(['layout', 'active-tag']);
 /** Known C4 boolean options (bare keyword = on). */
 const KNOWN_C4_BOOLEANS = new Set<string>([
   'direction-tb',
+  'direction-lr',
   'fill-tint',
   'fill-solid',
   'fill-outline',
@@ -405,7 +406,14 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
       // Bare boolean options
       if (KNOWN_C4_BOOLEANS.has(trimmed.toLowerCase())) {
-        options[trimmed.toLowerCase()] = 'on';
+        const boolKey = trimmed.toLowerCase();
+        // The direction booleans are a mutually-exclusive pair (§1.9,
+        // last one wins) — clear the sibling so only the latest survives.
+        if (boolKey === 'direction-lr' || boolKey === 'direction-tb') {
+          delete options['direction-lr'];
+          delete options['direction-tb'];
+        }
+        options[boolKey] = 'on';
         continue;
       }
 

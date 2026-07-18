@@ -338,6 +338,39 @@ A 1 2 4
   });
 });
 
+describe('pert parser — direction directives', () => {
+  it('accepts the direction booleans (canonical, decision #48); last one wins', () => {
+    const tb = parsePert(`pert
+direction-tb
+A 1 2 4
+`);
+    expect(tb.error).toBeNull();
+    expect(tb.options.direction).toBe('TB');
+
+    const lr = parsePert(`pert
+direction-lr
+A 1 2 4
+`);
+    expect(lr.options.direction).toBe('LR');
+
+    const lastWins = parsePert(`pert
+direction-tb
+direction-lr
+A 1 2 4
+`);
+    expect(lastWins.options.direction).toBe('LR');
+  });
+
+  it('keeps the legacy key+value `direction TB` form', () => {
+    const parsed = parsePert(`pert
+direction TB
+A 1 2 4
+`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.options.direction).toBe('TB');
+  });
+});
+
 describe('pert parser — date anchoring', () => {
   function findCode(parsed: ReturnType<typeof parsePert>, code: string) {
     return parsed.diagnostics.find((d) => d.code === code);

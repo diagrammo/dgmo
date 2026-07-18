@@ -831,7 +831,7 @@ tag Team as t
 
 ### 4.7 Infra Options (Space-Separated, NO Colon)
 
-- `direction-tb` (boolean; default is LR)
+- `direction-lr` / `direction-tb` (booleans, last one wins; default is LR)
 - `default-latency-ms N`
 - `default-rps N` — fallback edge RPS when no `rps` is declared on the edge node
 - `default-uptime DECIMAL`
@@ -933,7 +933,7 @@ Bracket syntax only.
 
 ### 4.6 Options
 
-- `direction-lr` (boolean; default is TB)
+- `direction-lr` / `direction-tb` (booleans, last one wins; default is TB). The key+value form `direction LR|TB` is accepted legacy.
 - `no-color` (boolean; default off — when on, all nodes resolve to the muted neutral fill instead of their default intent color)
 - `fill-solid` / `fill-outline` (fill family; default is the 25% tint — `fill-solid` renders shapes at full intent color, `fill-outline` drops the fill and carries color on the outline alone)
 - `no-notes` (boolean; default off — suppress all note boxes, see §4.7)
@@ -1008,7 +1008,7 @@ references, and the `no-notes` opt-out (see §4.7).
 
 ### 5.6 Options
 
-- `direction-tb` (boolean; default is LR)
+- `direction-lr` / `direction-tb` (booleans, last one wins; default is LR)
 - `no-color` (boolean; default off — when on, all states resolve to the muted neutral fill instead of their default intent color)
 
 **Color by state category** — declare a `tag <Name> as <alias>` group (§1.3), then assign each state `<alias>: <Value>` same-line (declare the assignments before the transitions):
@@ -1091,7 +1091,7 @@ This is key-value metadata assignment, consistent with same-line metadata syntax
 
 ### 6.5 Options
 
-- `direction-tb` (boolean; default is LR)
+- `direction-lr` / `direction-tb` (booleans, last one wins; default is LR)
 - `sub-node-label Text`
 - `show-sub-node-count`
 - `hide`
@@ -1193,7 +1193,7 @@ Database is a container description: PostgreSQL with read replicas
 
 ### 7.8 Options
 
-- `direction-tb` (boolean; default is LR)
+- `direction-lr` / `direction-tb` (booleans, last one wins; default is LR)
 
 ---
 
@@ -1460,7 +1460,7 @@ Blog
 
 ### 11.6 Options
 
-- `direction-tb` (boolean; default is LR)
+- `direction-lr` / `direction-tb` (booleans, last one wins; default is LR)
 
 ---
 
@@ -1641,7 +1641,7 @@ divvy shares 1 2 3
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `time-unit <unit>`            | Unit for bare-number durations (default `d`); accepts `min`, `h`, `d`, `bd`, `w`, `sp` (sprints)                                                                                                       |
 | `default-confidence <level>`  | M-only heuristic: `high`, `medium`, `low`, or a custom `O/P` factor pair (e.g. `0.6/2.5`)                                                                                                             |
-| `direction <LR\|TB>`          | Layout direction (default `LR`)                                                                                                                                                                       |
+| `direction-lr` / `direction-tb` | Layout direction booleans (last one wins; default `LR`); key+value `direction LR\|TB` accepted legacy                                                                                                                                                                       |
 | `node-detail <compact\|full>` | Visual density; `full` adds slack bars and σ-as-border-thickness                                                                                                                                      |
 | `no-analysis`                 | Bare flag — hide the analysis layer (tornado + S-curve). The layer renders by default whenever Monte Carlo ran; this suppresses it. An explicit `viewState.an` (app toggle / share link) overrides it |
 | `trials <N>`                  | Canonical Monte Carlo trial count (`< 100` clamps to analytical)                                                                                                                                      |
@@ -1817,11 +1817,11 @@ Henry Turner + Carina Smyth m: 1751
 **Styling tips:** Give each lane a color and let nodes inherit it — reach for a `tag` group only when you need a *second* dimension (e.g. risk) that deliberately breaks lane color. Echo the gateway/terminal delimiters (`<Review>`, `(Paid) success`) even though bare names also resolve — it keeps the source self-documenting. Put every edge label *inside* the arrow (`-invalid->`), never as a trailing word.
 <!-- TIPS end -->
 
-Swimlane diagrams model a cross-functional process: actors/systems are **lanes**, the process flows along the flow axis (`direction LR` default, `TB` transposes), and optional `[Phase]` columns group steps into stages. Nodes are tasks (bare), exclusive gateways (`<X>`), parallel gateways (`<+ X>`), terminals (`(X)`), and subprocesses (`[[X]]`). A `lane` block **owns its edges** — nodes and their outgoing `->` edges are written inline, no separate flow block. A back-edge to an earlier node draws a routed loop.
+Swimlane diagrams model a cross-functional process: actors/systems are **lanes**, the process flows along the flow axis (`direction-lr` default, `direction-tb` transposes; key+value `direction LR|TB` accepted legacy), and optional `[Phase]` columns group steps into stages. Nodes are tasks (bare), exclusive gateways (`<X>`), parallel gateways (`<+ X>`), terminals (`(X)`), and subprocesses (`[[X]]`). A `lane` block **owns its edges** — nodes and their outgoing `->` edges are written inline, no separate flow block. A back-edge to an earlier node draws a routed loop.
 
 ```
 swimlane Weekly Publishing
-direction LR
+direction-lr
 
 lane Writer gray
   Draft Post -> Review
@@ -1961,7 +1961,7 @@ Indented shorthand also supports groups (place arrow directly after group header
 
 ### 13.6 Directives
 
-- `direction TB` — top-to-bottom layout (default: `LR`)
+- `direction-tb` — top-to-bottom layout; `direction-lr` restates the `LR` default (booleans, last one wins; key+value `direction LR|TB` accepted legacy)
 - `heat <Label> [low] [high]` — name a numeric colour ramp (see §13.8); one trailing color sets the high hue over a neutral low, two set explicit `low high` ramp endpoints (pairs with the `heat:` key)
 - `no-value` — suppress the per-box numeric value labels (values render by default; legacy `show-values` is accepted as a no-op)
 
@@ -2671,7 +2671,7 @@ main
 
 #### Directives
 
-- `direction LR|TB` — `LR` default (newest right); `TB` is the git-log column view.
+- `direction-lr` / `direction-tb` — booleans, last one wins; `direction-lr` is the `LR` default (newest right), `direction-tb` the git-log column view. Key+value `direction LR|TB` accepted legacy.
 - `no-labels` (hide messages), `no-lanes` (hide branch lanes), `no-head`.
 
 ### 16.5 Venn Diagrams
@@ -3896,7 +3896,7 @@ workweek <mon-fri | mon,wed,fri> // optional working days (default mon-fri)
 no-sun                      // hide the sundown/sunrise line (on by default)
 time-24                     // 24-hour readout (12h am/pm is the default)
 no-title                    // suppress the board title
-direction lr                // lay the panels out in a row
+direction-lr                // lay the panels out in a row (columns); direction-tb restates the default rows
 color-by <place|work|daylight|time|none> // zone coloring; default place
 
 <anchor> [as <label…>] [color]
@@ -3935,7 +3935,7 @@ UTC           as Servers
 | `no-sun`               | Hide the sundown/sunrise line (on by default when the zone's city coordinates are known). |
 | `time-24`              | 24-hour readout (12-hour am/pm is the default).                        |
 | `no-title`             | Suppress the board title.                                              |
-| `direction lr`         | Lay the panels out in a row (columns) instead of stacked.             |
+| `direction-lr`         | Lay the panels out in a row (columns) instead of stacked; `direction-tb` restates the default rows. Key+value `direction lr|tb` (and `direction columns`) accepted legacy. |
 | `color-by <place\|work\|daylight\|time\|none>` | Which dimension colors the zones. Default `place`; `color-by none` goes neutral. `place` = identity accent per place; `work` = green/amber/grey by the `hours` window; `daylight` = warm sun-up / cool sun-down; `time` = local-hour dawn→night ramp (order zones west→east). A hand-set (**defined**) per-zone trailing color always wins over the dimension. |
 
 ### Entry grammar

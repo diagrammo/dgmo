@@ -9,6 +9,7 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'sitemap',
   directives: [
     'direction-tb',
+    'direction-lr',
     'active-tag',
     'fill-tint',
     'fill-solid',

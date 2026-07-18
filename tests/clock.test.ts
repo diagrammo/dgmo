@@ -195,6 +195,26 @@ describe('clock parser', () => {
     expect(parseClock(`clock T\nNew York`).columns).toBe(false);
     expect(parseClock(`clock T\ndirection lr\nNew York`).columns).toBe(true);
     expect(parseClock(`clock T\ndirection tb\nNew York`).columns).toBe(false);
+    // Exact-match values only — junk like `lrx` does not select columns.
+    expect(parseClock(`clock T\ndirection lrx\nNew York`).columns).toBe(false);
+  });
+
+  it('reads the direction booleans (canonical, decision #48); last one wins', () => {
+    expect(parseClock(`clock T\ndirection-lr\nNew York`).columns).toBe(true);
+    expect(parseClock(`clock T\ndirection-tb\nNew York`).columns).toBe(false);
+    expect(
+      parseClock(`clock T\ndirection-lr\ndirection-tb\nNew York`).columns
+    ).toBe(false);
+    expect(
+      parseClock(`clock T\ndirection-tb\ndirection-lr\nNew York`).columns
+    ).toBe(true);
+  });
+
+  it('direction booleans are directives, never timezone entries', () => {
+    const p = parseClock(`clock T\ndirection-lr\ndirection-tb\nNew York`);
+    expect(p.entries).toHaveLength(1);
+    expect(p.entries[0]!.zone).toBe('America/New_York');
+    expect(p.diagnostics).toHaveLength(0);
   });
 
   it('renders one column group per entry in columns mode', () => {

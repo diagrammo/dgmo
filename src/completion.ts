@@ -327,6 +327,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // `orientation-vertical` (never implemented) was deleted in decision #48.
     withGlobals({
       'direction-lr': { description: 'Switch to left-to-right layout' },
+      'direction-tb': { description: 'Top-to-bottom layout (the default)' },
       'no-notes': { description: 'Suppress all node note boxes' },
     }),
   ],
@@ -348,6 +349,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // hide, active-tag. fill family via FILL_FAMILY_CAPABLE.
     withGlobals({
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'direction-lr': { description: 'Left-to-right layout (the default)' },
       'sub-node-label': { description: 'Label for sub-nodes' },
       'show-sub-node-count': { description: 'Show sub-node counts' },
       hide: { description: 'Hide tag:value pairs' },
@@ -394,17 +396,19 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'c4',
-    // Spec §8 §7.7: direction-tb, active-tag.
+    // Spec §8 §7.7: direction booleans, active-tag.
     withGlobals({
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'direction-lr': { description: 'Left-to-right layout (the default)' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
     'state',
-    // Spec §6 §5.6: direction-tb, fill family, no-notes.
+    // Spec §6 §5.6: direction booleans, fill family, no-notes.
     withGlobals({
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'direction-lr': { description: 'Left-to-right layout (the default)' },
       'no-notes': { description: 'Suppress all state note boxes' },
     }),
   ],
@@ -412,6 +416,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'sitemap',
     withGlobals({
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'direction-lr': { description: 'Left-to-right layout (the default)' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
@@ -419,6 +424,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'infra',
     withGlobals({
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'direction-lr': { description: 'Left-to-right layout (the default)' },
       animate: { description: 'Enable traffic animation' },
       'default-latency-ms': { description: 'Default latency for all nodes' },
       'default-uptime': { description: 'Default uptime for all nodes' },
@@ -441,7 +447,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Confidence factor for M-only durations',
         values: ['high', 'medium', 'low'],
       },
-      direction: { description: 'Layout direction', values: ['LR', 'TB'] },
+      // Canonical direction booleans (§1.9); key+value `direction LR|TB`
+      // parses as legacy but is no longer offered.
+      'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'direction-lr': { description: 'Left-to-right layout (the default)' },
       'node-detail': {
         description: 'Node visual density',
         values: ['compact', 'full'],
@@ -488,7 +497,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'boxes-and-lines',
     withGlobals({
-      direction: { description: 'Layout direction', values: ['LR', 'TB'] },
+      // Canonical direction booleans (§1.9); key+value `direction LR|TB`
+      // parses as legacy but is no longer offered.
+      'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'direction-lr': { description: 'Left-to-right layout (the default)' },
       'active-tag': { description: 'Active tag group name' },
       hide: { description: 'Hide tag:value pairs' },
       heat: {
@@ -503,7 +515,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'swimlane',
     withGlobals({
-      direction: { description: 'Layout direction', values: ['LR', 'TB'] },
+      // Canonical direction booleans (§1.9); key+value `direction LR|TB`
+      // parses as legacy but is no longer offered.
+      'direction-tb': { description: 'Switch to vertical column lanes' },
+      'direction-lr': { description: 'Horizontal band lanes (the default)' },
       lane: { description: 'Declare a lane (row) with an optional color' },
       'active-tag': { description: 'Active tag group name' },
     }),
@@ -511,9 +526,13 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'version-control',
     withGlobals({
-      direction: {
-        description: 'Layout direction',
-        values: ['LR', 'TB'],
+      // Canonical direction booleans (§1.9); key+value `direction LR|TB`
+      // parses as legacy but is no longer offered.
+      'direction-tb': {
+        description: 'Column lanes, newest down (the git-log view)',
+      },
+      'direction-lr': {
+        description: 'Horizontal lanes, newest right (the default)',
       },
       merge: { description: 'Merge a branch into the active branch' },
       'cherry-pick': { description: 'Copy a commit onto the active branch' },
@@ -719,7 +738,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'time-24': {
         description: '24-hour readout (12-hour am/pm is the default)',
       },
-      direction: { description: 'lr → columns (time on top); default rows' },
+      // Canonical direction booleans (§1.9); key+value `direction lr|tb`
+      // (and its `columns` value alias) parses as legacy but is no longer
+      // offered.
+      'direction-lr': {
+        description: 'Columns — panels in a horizontal strip (time on top)',
+      },
+      'direction-tb': {
+        description: 'Rows — the default vertical stack',
+      },
       'color-by': {
         description:
           'What drives each place color: place (default) | work | daylight | time | none',
@@ -1424,6 +1451,10 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
 export const METADATA_KEY_SET: ReadonlySet<string> = new Set([
   'chart',
   'title', // implicit directives recognized as metadata
+  // Legacy key+value direction form (`direction LR|TB`) — no longer offered
+  // by completion (the §1.9 booleans are canonical) but still parse-accepted,
+  // so extractors must keep skipping it as a directive line.
+  'direction',
   ...[...COMPLETION_REGISTRY.values()].flatMap((spec) =>
     Object.keys(spec.directives)
   ),

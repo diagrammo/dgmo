@@ -9,6 +9,7 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'flowchart',
   directives: [
     'direction-lr',
+    'direction-tb',
     'fill-tint',
     'fill-solid',
     'fill-outline',

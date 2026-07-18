@@ -63,7 +63,11 @@ import type { DiagramSymbols } from '../completion-types';
 const DIRECTIVE_KEYS = new Set([
   'time-unit',
   'default-confidence',
+  // Canonical booleans (§1.9, last one wins); key+value `direction LR|TB`
+  // accepted legacy.
   'direction',
+  'direction-lr',
+  'direction-tb',
   'node-detail',
   'no-analysis',
   'trials',
@@ -1490,6 +1494,16 @@ function applyDirective(
         return;
       }
       options.direction = upper as PertDirection;
+      return;
+    }
+    case 'direction-lr': {
+      // §1.9 boolean — restates the LR default (last one wins).
+      options.direction = 'LR';
+      return;
+    }
+    case 'direction-tb': {
+      // §1.9 boolean — top-to-bottom layout (last one wins).
+      options.direction = 'TB';
       return;
     }
     case 'node-detail': {

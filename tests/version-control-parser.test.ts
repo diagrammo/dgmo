@@ -167,6 +167,22 @@ main
     expect(cp.cherryFrom).toBe(byMsg(p, 'Patch')!.key);
   });
 
+  it('direction booleans (canonical, decision #48); last one wins; legacy key+value kept', () => {
+    const tb = parseVersionControl(`version-control C
+direction-tb
+
+main
+  Release`);
+    expect(tb.options.direction).toBe('TB');
+    const lastWins = parseVersionControl(`version-control C
+direction-tb
+direction-lr
+
+main
+  Release`);
+    expect(lastWins.options.direction).toBe('LR');
+  });
+
   it('direction BT dropped (decision #48) — falls through, default LR kept', () => {
     const p = parseVersionControl(`version-control C
 direction BT

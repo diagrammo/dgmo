@@ -7,6 +7,7 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'state',
   directives: [
     'direction-tb',
+    'direction-lr',
     'fill-tint',
     'fill-solid',
     'fill-outline',

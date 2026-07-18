@@ -416,9 +416,11 @@ export function parseInfra(content: string): ParsedInfra {
         }
       }
 
-      // direction-tb — bare boolean to switch to top-to-bottom (default is LR)
-      if (/^direction-tb$/i.test(trimmed)) {
-        result.direction = 'TB';
+      // direction-lr / direction-tb — bare booleans (§1.9, last one wins;
+      // direction-lr restates the LR default)
+      const dirBool = trimmed.match(/^direction-(lr|tb)$/i);
+      if (dirBool) {
+        result.direction = dirBool[1]!.toUpperCase() as 'LR' | 'TB';
         continue;
       }
 
@@ -1177,7 +1179,11 @@ export function extractSymbols(docText: string): DiagramSymbols {
         // Recognize new-style bare options (`key value`) and old-style (`key: value`)
         const firstLine = parseFirstLine(line);
         if (firstLine) continue; // chart type line
-        if (/^(?:direction-tb|animate|no-animate|slo-|default-)/i.test(line))
+        if (
+          /^(?:direction-tb|direction-lr|animate|no-animate|slo-|default-)/i.test(
+            line
+          )
+        )
           continue;
         if (/^[a-z-]+\s*:/i.test(line)) continue; // legacy colon options
         inMetadata = false;

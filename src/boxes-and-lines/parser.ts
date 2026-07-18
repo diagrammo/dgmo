@@ -250,8 +250,9 @@ export function parseBoxesAndLines(
 
     // Directives (non-indented, before or during content)
     if (indent === 0) {
-      // direction TB / direction LR
-      const dirMatch = trimmed.match(/^direction\s+(TB|LR)$/i);
+      // Layout direction — canonical booleans `direction-lr` / `direction-tb`
+      // (§1.9, last one wins); key+value `direction LR|TB` accepted legacy.
+      const dirMatch = trimmed.match(/^direction[-\s]+(TB|LR)$/i);
       if (dirMatch) {
         // Regex capture group present after successful match.
         result.direction = dirMatch[1]!.toUpperCase() as 'LR' | 'TB';

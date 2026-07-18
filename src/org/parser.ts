@@ -72,6 +72,7 @@ const KNOWN_OPTIONS = new Set([
 const KNOWN_BOOLEANS = new Set([
   'show-sub-node-count',
   'direction-tb',
+  'direction-lr',
   'fill-tint',
   'fill-solid',
   'fill-outline',
@@ -245,7 +246,14 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       }
       // Bare boolean option (single keyword, no value)
       if (KNOWN_BOOLEANS.has(trimmed.toLowerCase())) {
-        options[trimmed.toLowerCase()] = 'on';
+        const boolKey = trimmed.toLowerCase();
+        // The direction booleans are a mutually-exclusive pair (§1.9,
+        // last one wins) — clear the sibling so only the latest survives.
+        if (boolKey === 'direction-lr' || boolKey === 'direction-tb') {
+          delete options['direction-lr'];
+          delete options['direction-tb'];
+        }
+        options[boolKey] = 'on';
         continue;
       }
     }

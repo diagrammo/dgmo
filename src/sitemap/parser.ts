@@ -289,9 +289,11 @@ export function parseSitemap(
       !trimmed.includes('->') &&
       !trimmed.includes(':')
     ) {
-      // Bare boolean: direction-tb
-      if (/^direction-tb$/i.test(trimmed)) {
-        result.direction = 'TB';
+      // Bare booleans: direction-lr / direction-tb (§1.9, last one wins;
+      // direction-lr restates the LR default)
+      const dirBool = trimmed.match(/^direction-(lr|tb)$/i);
+      if (dirBool) {
+        result.direction = dirBool[1]!.toUpperCase() as 'LR' | 'TB';
         continue;
       }
 

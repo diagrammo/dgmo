@@ -9,6 +9,7 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'org',
   directives: [
     'direction-tb',
+    'direction-lr',
     'sub-node-label',
     'show-sub-node-count',
     'hide',

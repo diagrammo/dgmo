@@ -53,6 +53,11 @@ const DIRECTIVES = new Set([
   'no-sun',
   'time-24',
   'no-title',
+  // Canonical direction booleans (§1.9); key+value `direction <lr|tb>` (and
+  // its `columns` value alias) stays parse-accepted legacy. These MUST be in
+  // this set — otherwise a bare `direction-lr` line parses as a zone entry.
+  'direction-lr',
+  'direction-tb',
   'direction',
   'color-by',
   'fill-tint',
@@ -300,10 +305,19 @@ export function parseClock(
           }
           break;
         }
+        case 'direction-lr':
+          // §1.9 boolean — columns (panels laid out in a horizontal strip).
+          result.columns = true;
+          break;
+        case 'direction-tb':
+          // §1.9 boolean — rows, the default vertical stack (last one wins).
+          result.columns = false;
+          break;
         case 'direction': {
+          // Legacy key+value form (`direction lr|tb|columns`).
           const v = rest.trim().toLowerCase();
           // LR (left-to-right) → columns; TB (top-to-bottom) → rows (default).
-          result.columns = v.startsWith('lr') || v === 'columns';
+          result.columns = v === 'lr' || v === 'columns';
           break;
         }
       }

@@ -131,6 +131,31 @@ direction TB
     expect(tb.events[0]!.label).toBe('A');
   });
 
+  it('accepts `direction-lr` (default restate) but flags `direction-tb` (decision #48)', () => {
+    const lr = parseEventLine(`event-line X
+direction-lr
+
+2020 A
+  one`);
+    expect(
+      lr.diagnostics.some((d) => d.code === 'E_EVENT_LINE_UNSUPPORTED')
+    ).toBe(false);
+    const tb = parseEventLine(`event-line X
+direction-tb
+
+2020 A
+  one`);
+    const diag = tb.diagnostics.find(
+      (d) => d.code === 'E_EVENT_LINE_UNSUPPORTED'
+    );
+    expect(diag).toBeDefined();
+    // The diagnostic names the boolean form, not the legacy space form.
+    expect(diag!.message).toContain('direction-tb');
+    // not parsed as junk events
+    expect(lr.events).toHaveLength(1);
+    expect(tb.events).toHaveLength(1);
+  });
+
   it('keeps coincident dates and parses both events', () => {
     const p = parseEventLine(`event-line Apollo 11
 

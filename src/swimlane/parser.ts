@@ -331,7 +331,14 @@ export function parseSwimlane(
       continue;
     }
 
-    // `direction LR|TB`.
+    // Layout direction — canonical booleans `direction-lr` / `direction-tb`
+    // (§1.9, last one wins); key+value `direction LR|TB` accepted legacy.
+    const dirBool = indent === 0 ? trimmed.match(/^direction-(lr|tb)$/i) : null;
+    if (dirBool) {
+      direction = dirBool[1]!.toUpperCase() as SwimDirection;
+      options['direction'] = direction;
+      continue;
+    }
     if (indent === 0 && /^direction\s+/i.test(trimmed)) {
       const val = trimmed
         .replace(/^direction\s+/i, '')
@@ -668,8 +675,9 @@ export function parseSwimlane(
     if (!trimmed) continue;
     const indent = measureIndent(raw);
 
-    // `direction` / `tag` were consumed in pass 1.
-    if (indent === 0 && /^direction\s+/i.test(trimmed)) continue;
+    // `direction` (key+value or boolean) / `tag` were consumed in pass 1.
+    if (indent === 0 && /^direction(?:\s+|-(?:lr|tb)$)/i.test(trimmed))
+      continue;
     if (indent === 0 && FILL_FAMILY_TOKENS.has(trimmed.toLowerCase())) continue;
     if (matchTagBlockHeading(trimmed) && indent === 0) {
       inTagBlock = true;

@@ -1,6 +1,7 @@
 import type { ConformanceFixture } from './_types';
 
-// Spec §14 §13.6 + §13.8. Directive: `direction TB|LR`. Options:
+// Spec §14 §13.6 + §13.8. Directives: direction booleans (§1.9; key+value
+// `direction TB|LR` parses as legacy). Options:
 // active-tag, hide, heat, no-value (values default-on per decision #48;
 // legacy `show-values` is a no-op). fill family via FILL_FAMILY_CAPABLE.
 export const fixture: ConformanceFixture = {
@@ -9,7 +10,8 @@ export const fixture: ConformanceFixture = {
   specSection: '14',
   firstLineKeyword: 'boxes-and-lines',
   directives: [
-    'direction',
+    'direction-tb',
+    'direction-lr',
     'active-tag',
     'hide',
     'heat',
@@ -21,8 +23,5 @@ export const fixture: ConformanceFixture = {
   pipeKeys: {
     node: ['description', 'heat'],
   },
-  enumChecks: [
-    { directive: 'palette', source: 'palettes' },
-    { directive: 'direction', values: ['LR', 'TB'] },
-  ],
+  enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

@@ -76,7 +76,9 @@ const ERA_RE = /^\[([^\]]+)\]\s*(.*)$/;
 const ERA_COLLAPSED_RE = /\bcollapsed:\s*(true|false)\b/i;
 /** Legacy `section <Name>` — superseded by `[Name]`; emits a guiding warning. */
 const SECTION_SEAM_RE = /^section\b/i;
-/** `direction <X>` — only LR (horizontal) is supported; TB/BT are fast-follow. */
+/** Legacy key+value `direction <X>` — only LR (horizontal) is supported;
+ *  TB/BT are fast-follow. Canonical booleans (`direction-lr`/`direction-tb`,
+ *  §1.9) are handled inline before this regex. */
 const DIRECTION_RE = /^direction\s+(\w+)/i;
 
 export function parseEventLine(
@@ -342,6 +344,20 @@ export function parseEventLine(
           options.fillMode = fm === 'tint' ? undefined : fm;
           continue;
         }
+      }
+      // §1.9 booleans: `direction-lr` restates the horizontal default (the
+      // only supported mode — accepted no-op); `direction-tb` is the reserved
+      // vertical seam and gets the same unsupported diagnostic as the legacy
+      // `direction TB`.
+      if (/^direction-lr$/i.test(trimmed)) continue;
+      if (/^direction-tb$/i.test(trimmed)) {
+        result.diagnostics.push(
+          emit(EVENT_LINE_DX.UNSUPPORTED, lineNumber, {
+            reason:
+              'event-line is horizontal-only in v1; `direction-tb` (vertical orientation) is a fast-follow.',
+          })
+        );
+        continue;
       }
       const dirMatch = trimmed.match(DIRECTION_RE);
       if (dirMatch) {

@@ -357,11 +357,27 @@ describe('boxes-and-lines parser', () => {
   });
 
   describe('directives', () => {
-    it('parses direction TB', () => {
+    it('parses direction TB (legacy key+value)', () => {
       const result = parseBoxesAndLines(
         'boxes-and-lines\ndirection TB\nA -> B'
       );
       expect(result.direction).toBe('TB');
+    });
+
+    it('parses the direction-tb boolean (canonical, decision #48)', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\ndirection-tb\nA -> B'
+      );
+      expect(result.direction).toBe('TB');
+    });
+
+    it('direction-lr restates the default; last boolean wins', () => {
+      const lr = parseBoxesAndLines('boxes-and-lines\ndirection-lr\nA -> B');
+      expect(lr.direction).toBe('LR');
+      const lastWins = parseBoxesAndLines(
+        'boxes-and-lines\ndirection-tb\ndirection-lr\nA -> B'
+      );
+      expect(lastWins.direction).toBe('LR');
     });
 
     it('defaults to LR', () => {
