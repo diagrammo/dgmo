@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-07-18
+
+A language-consistency release. A five-dimension audit of all 37 chart types found the universal sections had quietly fallen behind the ten newest types, plus fifteen genuine drift points where the same idea was spelled differently depending on which chart you happened to be in. Everything below is the result. **Every legacy spelling still parses** — no existing diagram breaks — but a few defaults changed on purpose, listed under Changed.
+
+### Added
+- **State diagrams can finally be colored.** They were the one structural chart with no color channel at all: no tag groups, no metadata, and the old advice ("use edge colors") stopped meaning anything when edge color was removed language-wide. States now take the standard tag system — declare `tag Phase as ph`, then write `Draft ph: Intake` — and render with the same 25% tint and solid outline as org and boxes-and-lines, legend included, `active-tag` and the `fill-*` family included. A state diagram with no tags parses exactly as before.
+- **`no-legend` works everywhere.** It used to exist only on the seven newest chart types, while data charts insisted the legend was always shown and the older tag charts offered no way to hide it at all. Any chart that draws a legend now accepts `no-legend`, and the space it occupied collapses rather than leaving a gap — which is what you want when a diagram is going into a slide.
+- **One spelling for layout direction, on every chart that has one.** `direction-lr` and `direction-tb` are now canonical everywhere, replacing a split where some charts wanted `direction LR` and others only accepted a `direction-tb` boolean. They read as a single completion entry instead of a keyword plus a value popup, and the last one wins if both appear. The key+value form still parses.
+- **Treemap can pin its coloring dimension in the source.** `active-tag <Group | HeatLabel | none>` matches map and boxes-and-lines; previously the choice lived only in the app's runtime switcher, so it never survived an export or a share link. Naming a non-first tag group now genuinely selects it, for both fill and legend.
+- **Countdown accepts am/pm.** `at 6pm` and `at 6:30pm` work and normalize to 24-hour internally, matching what clock's `hours` already allowed. Writing `at 18:00` is unchanged.
+- Groups start folded with a bare `collapsed` flag on the group line (`[Backend] collapsed`), the spelling block and sketch already used, now shared by sequence, infra, gantt, kanban, mindmap, PERT, state, c4, and event-line eras. A group whose name genuinely ends in "Collapsed" is untouched — the flag is matched in lowercase.
+
+### Changed
+- **Boxes-and-lines prints box values by default.** It was the lone chart where a numeric value you typed stayed invisible until you added `show-values` — the inverse of every other chart's "everything shows, subtract what you don't want" rule. Values now render; `no-value` suppresses them. `show-values` still parses and does nothing.
+- **The tech-radar blip listing renders on every surface.** It was previously always on in CLI exports but hidden in the app unless you asked for it — the only feature in the language whose default depended on where it was being drawn. Suppress it with `no-blip-legend`.
+- **When a treemap has both tags and `heat:` values, the heat ramp now colors it at rest**, matching map and boxes-and-lines. Treemap alone resolved this the other way round. The full order is heat → tag → branch, and `active-tag` overrides it.
+- **A trailing color on a bracket's title line now sets the winner accent** instead of being ignored, matching goal and countdown. The bracket-only `accent <color>` directive still works and is no longer documented.
+- Canonical spellings, with the old ones kept as silent aliases: gantt anchors with **`start-date`** (was `start`), sprint durations use **`sp`** (was `s`, which still means *seconds* in timeline — the collision is why), clock and map time-cards take **`workweek`** (was `days`), goal suppresses notes with **`no-notes`** (was `no-note`), and treemap with **`no-value`** (was `no-values`).
+- **The data-chart `title` directive is now an error.** The title is the first line, as it is on every other chart type; the directive was a leftover second way to say the same thing. The diagnostic points at the declaration line.
+- **Version-control's `direction BT` is gone.** It parsed but rendered identically to `TB` — the "newest at top" layout it implied was never built.
+
+### Fixed
+- **Org and c4 were ignoring `direction` entirely.** Both accepted the directive and neither did anything with it: org's layout was hardcoded top-down and c4's rank direction was a literal constant at four separate places. Both now genuinely lay out left-to-right when asked. Their documented default of `LR` was also fiction — both have always drawn top-down, so the docs were corrected to `TB` rather than silently re-flowing every existing diagram.
+- **Journey-map's `no-legend` never worked**: the renderer honored it, but the parser rejected the word as removed syntax before it could take effect.
+- Flowchart's `orientation-vertical` is gone from completion and the docs — it was offered to authors but had no implementation behind it.
+- ER's `notation` is documented honestly: crow's-foot is the default and `notation labels` is the one alternative. The long-documented `notation chen` never existed in the parser.
+- The unnamed heat ramp is labeled `Value` in the docs, which is what it has always rendered as.
+
 ## [0.52.0] - 2026-07-16
 
 ### Changed
