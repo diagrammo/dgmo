@@ -137,7 +137,7 @@ const POP_PULL_KM = 12;
 // bands ONCE per gazetteer (identity-cached — the loaded assets are stable
 // singletons) and expand outward from the query's band, pruning as soon as no
 // unsearched band can possibly beat the current best. Latitude difference is a
-// true lower bound on great-circle distance (the haversine's Δlat term alone),
+// true lower bound on great-circle distance (the haversine's lat-delta term alone),
 // and the strongest possible population pull is `maxPullKm`, so a band whose
 // minimum lat-distance minus `maxPullKm` exceeds the best score PROVABLY holds
 // no winner — the result is exactly the linear scan's (ties break to the
