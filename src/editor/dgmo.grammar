@@ -26,7 +26,10 @@ contentPart {
   SyncArrow { "->" }
   AsyncArrow { "~>" }
 
-  Duration { $[0-9]+ ("." $[0-9]+)? ("min" | "bd" | "h" | "d" | "w" | "m" | "q" | "y" | "s") "?"? }
+  // `sp` is the canonical sprint suffix (decision #48); bare `s` is its legacy
+  // alias. `sp` must be listed so longest-match keeps `2sp` whole — without it
+  // `2sp` tokenized as Number(`2s`) + Identifier(`p`).
+  Duration { $[0-9]+ ("." $[0-9]+)? ("min" | "bd" | "h" | "d" | "w" | "m" | "q" | "y" | "sp" | "s") "?"? }
   // ISO `YYYY-MM[-DD]` plus the § BL-121 liberal numeric slash/dash forms
   // `M/D[/YY[YY]]` and `M-D[-YY[YY]]` (month-name dates highlight as
   // words/Identifiers). The ISO arm keeps 4-digit-year dates whole via

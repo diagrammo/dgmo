@@ -247,6 +247,10 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // Box values render by default since decision #48; `show-values` stays as
   // the parse-accepted legacy no-op (suppress with the shared `no-value`).
   { token: 'show-values', category: 'directive' },
+  // Treemap's legacy plural spelling of the same suppression (decision #48
+  // made the shared singular `no-value` canonical). Registered so a legacy
+  // document still highlights it as a directive rather than plain text.
+  { token: 'no-values', category: 'directive' },
   // ── Swimlane ─────────────────────────────────────────────
   { token: 'lane', category: 'directive' },
   // ── ER ───────────────────────────────────────────────────
@@ -372,6 +376,12 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'ready', category: 'status' },
 
   // ── Modifiers + ER column types/modifiers (MODIFIER) ─────
+  // `collapsed` is the bare trailing group-line flag made canonical by
+  // decision #48 (`[Fulfillment] collapsed`). It is deliberately a bare
+  // MODIFIER rather than a colon key: the legacy `collapsed: true` form still
+  // parses and still highlights (as `modifier` instead of `propertyName`),
+  // whereas leaving it colon-only left the canonical bare form as plain text.
+  { token: 'collapsed', category: 'modifier' },
   { token: 'as', category: 'modifier' },
   { token: 'alias', category: 'modifier' },
   { token: 'aka', category: 'modifier' },

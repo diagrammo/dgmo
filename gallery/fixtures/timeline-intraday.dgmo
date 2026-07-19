@@ -1,5 +1,5 @@
 gantt Conference Day 1
-start 2024-06-15 08:00
+start-date 2024-06-15 08:00
 
 Registration 30min
   -> Opening Keynote 1.5h

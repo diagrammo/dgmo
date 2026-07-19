@@ -1,20 +1,20 @@
 gantt Pirate Sprint Raid
-start 2026-03-01
+start-date 2026-03-01
 sprint-length 2w
 sprint-number 5
 sprint-start 2026-01-05
 
 [Scouts]
-  Recon Harbors 2s
-  Map Defenses 1s
-  Signal Routes 1.5s
+  Recon Harbors 2sp
+  Map Defenses 1sp
+  Signal Routes 1.5sp
 
 [Raiders]
-  Board Ships 3s
-  Seize Cargo 2s
-  Scuttle Hulls 0.5s
+  Board Ships 3sp
+  Seize Cargo 2sp
+  Scuttle Hulls 0.5sp
 
 [Spoils]
-  Sort Plunder 1s
-  Divide Shares 0.5s
+  Sort Plunder 1sp
+  Divide Shares 0.5sp
   Celebrate 0d

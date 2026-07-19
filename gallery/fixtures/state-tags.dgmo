@@ -1,0 +1,40 @@
+state Manuscript Review
+active-tag Stage
+
+tag Stage as s
+  Intake blue
+  Review purple
+  Decision orange
+  Archive gray
+
+tag Owner as o
+  Author green
+  Editor teal
+  Board red
+
+[*] -> Submitted
+
+Submitted s: Intake, o: Author
+  -assign-> Screening
+
+Screening s: Intake, o: Editor
+  -desk reject-> Rejected
+  -pass-> Peer Review
+
+Peer Review s: Review, o: Board
+  -revisions-> Revising
+  -accept-> Accepted
+  -reject-> Rejected
+
+Revising s: Review, o: Author
+  -resubmit-> Peer Review
+
+Accepted s: Decision, o: Editor
+  -publish-> Published
+
+Rejected s: Decision, o: Editor
+
+Published s: Archive, o: Editor
+
+Published -> [*]
+Rejected -> [*]

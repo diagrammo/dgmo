@@ -214,7 +214,7 @@ tag GroupName as <alias>
 - Must appear before diagram content
 - Legacy bare shorthand (`tag Priority p`) and `alias` keyword (`tag Priority alias p`) emit `E_TAG_SHORTHAND_REMOVED` per TD-18
 
-**Diagram types that support tags**: sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines
+**Diagram types that support tags**: the tag model is near-universal across the structural types — sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines, state (§5.7), pert, swimlane, mindmap, journey-map, event-line, treemap, map, block, sketch, bracket, family, and wireframe all accept `tag <Group> as <alias>` blocks. Check the per-type Options section for the exact directive set; if a type draws a tag legend, it takes tags.
 
 ### 1.4 Same-Line Metadata
 
@@ -305,7 +305,7 @@ no-option-name       // off
 
 `no-legend` is universal: any chart that draws a legend suppresses it, including the data charts (multi-series `bar` / `line` / `radar`, `scatter`, `function`) whose legend was previously always shown, and the tag-legend charts (`sequence`, `kanban`, `timeline`, `org`, `c4`, `gantt`, `er`, `state`, …). Charts that render no legend at all accept the token as a harmless no-op, so authors never have to remember which types honour it.
 
-Examples: `no-legend` (universal), `no-color` (flowchart, state), `no-title` (all chart types with a banner title).
+Examples: `no-legend` (universal), `no-title` (all chart types with a banner title), `no-value` (boxes-and-lines, treemap, and the data-chart label family).
 
 ### 1.9 In-Arrow Message Labels
 
@@ -950,11 +950,10 @@ Bracket syntax only.
 ### 4.6 Options
 
 - `direction-lr` / `direction-tb` (booleans, last one wins; default is TB). The key+value form `direction LR|TB` is accepted legacy.
-- `no-color` (boolean; default off — when on, all nodes resolve to the muted neutral fill instead of their default intent color)
 - `fill-solid` / `fill-outline` (fill family; default is the 25% tint — `fill-solid` renders shapes at full intent color, `fill-outline` drops the fill and carries color on the outline alone)
 - `no-notes` (boolean; default off — suppress all note boxes, see §4.7)
 
-`no-color` + `fill-solid` precedence: `no-color` wins for nodes with no explicit color (the muted neutral path bypasses `fill-solid`). Nodes with an explicit color survive `no-color` and are then rendered at full saturation if `fill-solid` is also on.
+`no-color` was removed — node colors are assigned automatically by shape, and the parser raises a warning if the line is still present. Delete it.
 
 ### 4.7 Notes (Nodes)
 
@@ -1049,13 +1048,14 @@ tag Phase as ph
 Draft ph: Intake
 Draft -submit-> In Review
 In Review ph: Review
+In Review -publish-> Published
 Published ph: Terminal
 ```
 
 - Either the alias (`ph:`) or the canonical group name (`phase:`) works as
   the metadata key.
 - Tagged states get the standard treatment — 25% tint fill + solid
-  intent-color outline — and the `fill-*` family (§1.9) applies as usual.
+  intent-color outline — and the `fill-*` family (§1.8) applies as usual.
 - Untagged states take the group's **first** value per §1.3. State is not in
   the neutral-gray carve-out.
 - Declaring a tag group renders the standard legend. With several groups the

@@ -243,8 +243,9 @@ pipeline required.
 
 <pre class="language-dgmo">
 gantt Roadmap
-Design 2026-01-01 ~ 2026-02-15
-Build  2026-02-15 ~ 2026-04-01
+start-date 2026-01-01
+Design 45d
+  -> Build 30d
 </pre>
 ```
 

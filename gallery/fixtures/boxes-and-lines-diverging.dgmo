@@ -1,9 +1,8 @@
 boxes-and-lines Fleet Readiness
 
 heat Readiness blue green
-show-values
 
-direction LR
+direction-lr
 
 Flagship heat: 95
   Fully provisioned and battle-ready

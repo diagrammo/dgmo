@@ -233,7 +233,10 @@ export const ATTRIBUTE_KEYS = new Set([
   'pain',
   'opportunity',
   'thought',
-  'collapsed',
+  // `collapsed` moved to the registry as a bare MODIFIER keyword (decision
+  // #48 made the bare flag canonical). It must NOT be listed here too: the
+  // ATTRIBUTE_KEYS colon gate only fires on `default` tokens, so a bare
+  // keyword classification wins and a duplicate entry would be dead weight.
   'tech',
   'span',
   'split',
