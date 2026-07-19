@@ -93,6 +93,17 @@ const SHELF_TINT = 13; // % of the tag color mixed over the theme base
 // as part of the rounded rect — a thinner lip therefore also means slightly
 // tighter shelf corners, which keeps the carry-through clean.
 const SHELF_EDGE = 4;
+// How the tag color is anchored on a no-box shelf. The old spine-side lip landed
+// at a card's BOTTOM whenever the card sat above the spine — pixel-identical to
+// the collapse-accent bar (utils/card.ts) that means "collapsed, click to
+// expand" in org/sitemap/sketch, so it read as a false affordance. Options kept
+// switchable while we settle the look:
+//   'none'  — shaded shelf only, no colored lip (the leader still carries color)
+//   'spine' — the original full-width lip on the shelf's spine-side edge
+//   'left'  — a vertical lip on the card's spine-relative leading edge
+// Lip thickness for 'spine'/'left' comes from SHELF_LIP.
+const SHELF_EDGE_STYLE: 'none' | 'spine' | 'left' = 'spine';
+const SHELF_LIP = 2;
 // Era `]` bracket band: depth reserved on the side opposite the cards.
 const ERA_BLOCK = 30;
 const ERA_BRACKET_CAP = 8;
@@ -967,19 +978,36 @@ export function renderEventLine(
             ? p.color
             : mix(p.color, themeBaseBg(palette, isDark), SHELF_TINT)
         );
-      const edgeY = titleNearTop ? shelfTop : shelfTop + shelfH - SHELF_EDGE;
-      // The colored leader-landing edge. A future (TBD) card draws the SAME solid
-      // edge faded to 40% — the tentative read comes from the fade, matching the
-      // faded leader + dot (no dashes).
-      cardG
-        .append('rect')
-        .attr('x', 0)
-        .attr('y', edgeY)
-        .attr('width', CARD_W)
-        .attr('height', SHELF_EDGE)
-        .attr('clip-path', `url(#${clipId})`)
-        .attr('fill', p.color)
-        .attr('fill-opacity', p.future ? 0.4 : 1);
+      // The colored leader-landing lip (skipped for 'none'). A future (TBD) card
+      // draws the SAME solid lip faded to 40% — the tentative read comes from the
+      // fade, matching the faded leader + dot (no dashes). fillMode already floods
+      // the whole shelf with the color, so the lip is only meaningful when tinted.
+      if (SHELF_EDGE_STYLE !== 'none' && !parsed.options.fillMode) {
+        const lip =
+          SHELF_EDGE_STYLE === 'left'
+            ? {
+                // vertical lip on the spine-relative leading edge
+                x: 0,
+                y: shelfTop,
+                width: SHELF_LIP,
+                height: shelfH,
+              }
+            : {
+                x: 0,
+                y: titleNearTop ? shelfTop : shelfTop + shelfH - SHELF_LIP,
+                width: CARD_W,
+                height: SHELF_LIP,
+              };
+        cardG
+          .append('rect')
+          .attr('x', lip.x)
+          .attr('y', lip.y)
+          .attr('width', lip.width)
+          .attr('height', lip.height)
+          .attr('clip-path', `url(#${clipId})`)
+          .attr('fill', p.color)
+          .attr('fill-opacity', p.future ? 0.4 : 1);
+      }
       // On a solid shelf the title/date must contrast against the fill; the
       // default (tinted) shelf keeps the tag color for the title.
       const shelfText = parsed.options.fillMode
