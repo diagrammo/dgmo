@@ -39,6 +39,13 @@ const ESCALATE_MAX_N = 45;
 const ESCALATE_SEEDS = 18;
 const ESCALATE_REFINE = 10;
 
+// Wall-clock backstop on candidate generation (see `opts.budgetMs`). A normal
+// diagram builds its whole pool in tens of ms and even the escalating worst
+// case targets ~1s, so 5s is an order of magnitude above anything real: it can
+// only fire on a pathological graph, never as a tuning knob that would make
+// ordinary output machine-dependent.
+const DEFAULT_SEARCH_BUDGET_MS = 5000;
+
 function rng(s: number) {
   return () => {
     s |= 0;
@@ -941,6 +948,17 @@ export async function layoutBoxesAndLinesSearch(
     /** Receives the top-ranked candidate configs (the stage-1 refine set, plus
      *  the escalation refine set when it runs) once the search completes. */
     onTopConfigs?: (configs: BLSearchConfig[]) => void;
+    /** Wall-clock backstop for candidate GENERATION (default 5000ms), measured
+     *  from the start of the search. A pathological graph can make a single
+     *  dagre placement cost orders of magnitude more than normal, and the pool
+     *  loop would otherwise grind through every config no matter how long that
+     *  takes; past the budget we stop generating and rank whatever we have.
+     *  Stage-2 exact scoring is NOT time-boxed — it's already bounded by
+     *  `refineK` and it's where the layout quality comes from. This is a
+     *  pathological-graph backstop, not a tuning knob: the default is far above
+     *  what any real diagram needs, so results stay deterministic. Set 0 (or a
+     *  negative) to disable the bound entirely. */
+    budgetMs?: number;
   }
 ): Promise<BLLayoutResult> {
   const hideDescriptions = opts?.hideDescriptions ?? false;
@@ -963,6 +981,13 @@ export async function layoutBoxesAndLinesSearch(
   const YIELD_EVERY_MS = 30;
   const searchStart = performance.now();
   let lastYield = searchStart;
+  // Generation deadline (see `opts.budgetMs`). Shares `searchStart` with the
+  // yield throttle above — one clock for the whole search. A non-positive
+  // budget means "no deadline", which is what the snapshot tests want when they
+  // need the pool generated in full regardless of how slow the machine is.
+  const budgetMs = opts?.budgetMs ?? DEFAULT_SEARCH_BUDGET_MS;
+  const overBudget = (): boolean =>
+    budgetMs > 0 && performance.now() - searchStart > budgetMs;
 
   // collapsed group labels (shown as plain boxes) — mirrors the ELK path
   const collapsedGroupLabels = new Set<string>();
@@ -1348,6 +1373,11 @@ export async function layoutBoxesAndLinesSearch(
       /* some rankers choke on odd graphs */
     }
     await step('Optimizing layout');
+    // Stop generating once the budget is spent — a truncated pool still ranks
+    // and refines normally, so the search degrades to "fewer candidates"
+    // instead of running unbounded. Requires at least one candidate: an empty
+    // pool would skip straight to the fallback below and throw away the work.
+    if (pool.length && overBudget()) break;
   }
   if (!pool.length)
     return place({ ranker: 'network-simplex', nodesep: 50, ranksep: 60 });
@@ -1445,6 +1475,10 @@ export async function layoutBoxesAndLinesSearch(
       } catch {
         /* ignore choking rankers */
       }
+      // Same generation deadline as the base pool: the extra seed batch is the
+      // other place a hard graph can spend unbounded time. Dropping out early
+      // just means fewer restarts to refine — the stage-1 winner still stands.
+      if (overBudget()) break;
     }
     const extraKey = new Map<BLLayoutResult, number>();
     for (const lay of extra)
