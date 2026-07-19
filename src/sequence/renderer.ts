@@ -39,6 +39,7 @@ import { resolveSequenceTags } from './tag-resolution';
 import type { ResolvedTagMap } from './tag-resolution';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
 import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import { legendSuppressed } from '../utils/parsing';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type { LegendCallbacks, LegendConfig } from '../utils/legend-types';
 import {
@@ -1497,8 +1498,11 @@ export function renderSequenceDiagram(
     position: { placement: 'top-center', titleRelation: 'below-title' },
     mode: 'preview',
   };
+  // §1.9 `no-legend` — suppress the legend and collapse the band reserved for
+  // it above the participant row.
+  const noLegend = legendSuppressed(parsedOptions);
   const legendTopSpace =
-    parsed.tagGroups.length > 0
+    parsed.tagGroups.length > 0 && !noLegend
       ? getMaxLegendReservedHeight(legendConfig, containerWidth) +
         LEGEND_FIXED_GAP
       : 0;
@@ -1971,7 +1975,7 @@ export function renderSequenceDiagram(
     }
   }
 
-  const hasTagGroups = parsed.tagGroups.length > 0;
+  const hasTagGroups = parsed.tagGroups.length > 0 && !noLegend;
 
   // Build set of collapsed group names for drill-bar rendering
   const collapsedGroupNames = new Set<string>();

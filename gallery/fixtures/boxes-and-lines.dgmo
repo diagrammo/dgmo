@@ -8,7 +8,7 @@ hide priority:Low
 
 heat Load orange
 
-direction LR
+direction-lr
 
 // --- Services ---
 API Gateway t: Backend, heat: 850

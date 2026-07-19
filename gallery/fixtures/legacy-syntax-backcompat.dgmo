@@ -1,0 +1,16 @@
+// Back-compat fixture — deliberately exercises the LEGACY spellings that
+// decision #48 superseded, so the aliases keep parsing. Every other fixture
+// in this directory demonstrates the CANONICAL form. Do not "modernize" this
+// file: `start` (canonical `start-date`) and the bare `s` sprint suffix
+// (canonical `sp`) are load-bearing here.
+gantt Legacy Syntax Back-Compat
+start 2026-03-01
+sprint-length 2w
+sprint-number 3
+sprint-start 2026-02-02
+
+[Crew]
+  Scout Harbors 2s
+  Plot Course 1s
+  Provision Hold 0.5s
+  Set Sail 0d

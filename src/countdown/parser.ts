@@ -12,7 +12,7 @@
 //   Recurring (fixed-slot grammar — NOT free prose, see §2.4). One line:
 //     every <year|month|week|N days|weeks|months> [on <instant>] [at <time>] [from <anchor>]
 //       on   Aug 21 | 3rd Tuesday | last Friday | Friday
-//       at   18:00                    // 24h, default midnight
+//       at   18:00 | 6pm | 6:30pm    // normalized to 24h, default midnight
 //       from 2026-07-03               // interval cadences only
 //     (each slot may also sit on its own line.)
 //     on-day <text>                   // shown on the occurrence day
@@ -95,29 +95,28 @@ function parse24h(tok: string): { hour: number; minute: number } | null {
   return { hour, minute };
 }
 
-/** Parse an `at` value; rejects am/pm with a 24h fix suggestion (§2.4). */
+/** Parse an `at` value: 24h `HH:MM`, or am/pm normalized to 24h (decision #48). */
 function parseAt(
   rest: string,
   lineNum: number,
   softError: (line: number, msg: string) => void
 ): { hour: number; minute: number } | null {
-  const t = parse24h(rest.trim());
+  const tok = rest.trim();
+  const t = parse24h(tok);
   if (t) return t;
-  const fixed = ampmTo24h(rest.trim());
-  softError(
-    lineNum,
-    fixed
-      ? `"at ${rest}": use 24h time (${fixed}).`
-      : `"at" needs a 24h time like 18:00 (got "${rest}").`
-  );
+  const fixed = ampmTo24h(tok);
+  if (fixed) return parse24h(fixed);
+  softError(lineNum, `"at" needs a time like 18:00 or 6:30pm (got "${rest}").`);
   return null;
 }
 
-/** Convert an am/pm token to a canonical 24h string for a fix suggestion. */
+/** Convert an am/pm token to its canonical 24h string (matches clock `hours`). */
 function ampmTo24h(tok: string): string | null {
   const m = tok.match(AMPM_RE);
   if (!m) return null;
-  let hour = Number(m[1]) % 12;
+  const h = Number(m[1]);
+  if (h < 1 || h > 12) return null;
+  let hour = h % 12;
   if (/pm/i.test(m[3]!)) hour += 12;
   return `${String(hour).padStart(2, '0')}:${m[2] ?? '00'}`;
 }

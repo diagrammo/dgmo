@@ -79,7 +79,11 @@ export interface ParsedBracket {
   readonly noLegend: boolean;
   /** Suppress round/column labels (`no-round`). */
   readonly noRounds: boolean;
-  /** Winner accent color override (`accent <color>`); default blue. */
+  /**
+   * Winner accent color override; default blue. Set by a trailing color token
+   * on the title line (§1.5, canonical) or the legacy `accent <color>`
+   * directive — the title-line token wins on conflict.
+   */
   readonly accentColor?: string;
   /** §1.9 fill family (`fill-solid` / `fill-outline`); absent ⇒ 25% tint. */
   readonly fillMode?: FillMode;

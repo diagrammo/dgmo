@@ -1,5 +1,5 @@
 swimlane Insurance Claim
-direction LR
+direction-lr
 
 lane Customer gray
 lane Claims Agent blue

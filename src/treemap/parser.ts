@@ -7,7 +7,7 @@
 //   - node SIZE is the bare trailing number on a leaf (§1.5 funnel/sankey idiom);
 //     parents auto-sum, so a trailing number on a branch is ignored with a warn.
 //   - `heat:` per-node metric + `heat <Label> [low] [high]` ramp directive.
-//   - `depth N`, `no-values|no-percent|no-headers|no-legend`.
+//   - `depth N`, `no-value|no-percent|no-headers|no-legend`.
 
 import type { PaletteColors } from '../palettes';
 import {
@@ -279,8 +279,9 @@ export function parseTreemap(
     cascadeTagMetadata(result.roots, result.tagGroups);
   }
 
-  // Resolve the source-declared default color mode: tag > heat > branch.
-  result.defaultColorMode = resolveDefaultColorMode(result);
+  // Resolve the source-declared default color mode (decision #48):
+  // active-tag directive first, else heat > tag > branch.
+  result.defaultColorMode = resolveDefaultColorMode(result, pushWarning);
 
   if (result.roots.length === 0 && !result.error) {
     const diag = makeDgmoError(1, 'No nodes found in treemap');
@@ -334,10 +335,21 @@ function handleDirective(
     return true;
   }
 
-  const noMatch = trimmed.match(/^no-(values|percent|headers|legend)\s*$/i);
+  // active-tag <GroupName | HeatLabel | none> — source-level pre-selection of
+  // the resting color dimension (§24C.6, decision #48; same semantics as map
+  // §24B.4). Validated post-parse once every tag group is known.
+  const activeTagMatch = trimmed.match(/^active-tag\s+(.+)$/i);
+  if (activeTagMatch) {
+    result.activeTag = activeTagMatch[1]!.trim();
+    result.activeTagLineNumber = lineNumber;
+    return true;
+  }
+
+  // `no-value` is canonical (decision #48); plural `no-values` is the legacy alias.
+  const noMatch = trimmed.match(/^no-(values?|percent|headers|legend)\s*$/i);
   if (noMatch) {
     const key = noMatch[1]!.toLowerCase();
-    if (key === 'values') options.noValues = true;
+    if (key === 'value' || key === 'values') options.noValues = true;
     else if (key === 'percent') options.noPercent = true;
     else if (key === 'headers') options.noHeaders = true;
     else if (key === 'legend') options.noLegend = true;
@@ -362,9 +374,49 @@ function handleDirective(
   return false;
 }
 
-function resolveDefaultColorMode(result: ParsedTreemap): TreemapColorMode {
-  if (result.tagGroups.length > 0) return 'tag';
+/**
+ * Source-declared resting color mode (decision #48).
+ *
+ * The `active-tag` directive wins when it names a known dimension: a tag group
+ * name selects categorical fill; the heat ramp's label re-selects the ramp
+ * (checked BEFORE tag groups on a name collision — map §24B.4 semantics); an
+ * unnamed ramp answers to `Value` (its legend name) or the channel word `heat`.
+ * `active-tag none` forces branch mode (§24C.6). An unknown name warns and
+ * falls through to the default.
+ *
+ * Default: the universal heat → tag → branch precedence shared with map
+ * (§24B.4) and boxes-and-lines (§13.9).
+ */
+function resolveDefaultColorMode(
+  result: ParsedTreemap,
+  pushWarning: (line: number, message: string) => void
+): TreemapColorMode {
+  const at = result.activeTag?.trim();
+  if (at) {
+    const lv = at.toLowerCase();
+    if (lv === 'none') return 'branch';
+    const heatName = result.options.heatLabel;
+    const heatHit =
+      heatName !== undefined
+        ? lv === heatName.toLowerCase()
+        : lv === 'value' || lv === 'heat';
+    if (result.hasHeat && heatHit) return 'heat';
+    if (result.tagGroups.some((g) => g.name.toLowerCase() === lv)) return 'tag';
+    const dims = [
+      ...result.tagGroups.map((g) => g.name),
+      ...(result.hasHeat ? [heatName ?? 'Value'] : []),
+    ];
+    const hint = dims.length
+      ? ` Available: ${dims.join(', ')}, none.`
+      : ' No tag groups or heat are declared.';
+    pushWarning(
+      result.activeTagLineNumber ?? 0,
+      `active-tag "${at}" does not match a declared tag group or the heat label.${hint}`
+    );
+  }
+  // Universal precedence (decision #48): heat → tag → branch.
   if (result.hasHeat) return 'heat';
+  if (result.tagGroups.length > 0) return 'tag';
   return 'branch';
 }
 

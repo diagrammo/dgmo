@@ -292,16 +292,16 @@ describe('boxes-and-lines renderer — value ramp', () => {
     expect(a.getAttribute('fill')).not.toBe(mix(P.bg, P.text, 95));
   });
 
-  it('prints value text only when show-values is set (AC16)', async () => {
-    const off = await render('boxes-and-lines\nA heat: 42\nB\nA -> B');
-    expect(off.querySelector('.bl-node-value')).toBeNull();
-    const on = await render(
-      'boxes-and-lines\nshow-values\nA heat: 42\nB\nA -> B'
-    );
+  it('prints value text by default; `no-value` suppresses (decision #48)', async () => {
+    const on = await render('boxes-and-lines\nA heat: 42\nB\nA -> B');
     const valText = on.querySelector('.bl-node-value');
     expect(valText).toBeTruthy();
     // No heat → bare number.
     expect(valText!.textContent).toBe('42');
+    const off = await render(
+      'boxes-and-lines\nno-value\nA heat: 42\nB\nA -> B'
+    );
+    expect(off.querySelector('.bl-node-value')).toBeNull();
   });
 
   it('prefixes the value with the metric label ("Crew: 120") on plain nodes (AC16)', async () => {

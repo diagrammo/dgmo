@@ -53,7 +53,14 @@ export interface ParsedTreemap {
   readonly tagGroups: TagGroup[];
   /** True when any `heat:` value or a `heat` directive was declared. */
   readonly hasHeat: boolean;
-  /** Source-declared default color mode (tag > heat > branch). */
+  /** Raw `active-tag` directive value (§24C.6) — source-level pre-selection of
+   *  the resting color dimension. `undefined` = directive absent. */
+  activeTag?: string;
+  /** Line of the `active-tag` directive (diagnostics anchor). */
+  activeTagLineNumber?: number;
+  /** Source-declared default color mode. Resolution (decision #48): the
+   *  `active-tag` directive when it names a known dimension, else the
+   *  universal heat > tag > branch precedence (map §24B.4 / b&l §13.9). */
   readonly defaultColorMode: TreemapColorMode;
   readonly options: TreemapOptions;
   readonly diagnostics: DgmoError[];

@@ -153,7 +153,6 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'flow-width', category: 'directive', map: true },
   { token: 'locale', category: 'directive', map: true },
   { token: 'caption', category: 'directive', map: true },
-  { token: 'no-legend', category: 'directive', map: true },
   { token: 'no-coastline', category: 'directive', map: true },
   { token: 'no-relief', category: 'directive', map: true },
   { token: 'no-context-labels', category: 'directive', map: true },
@@ -172,6 +171,9 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
 
   // ── Shared across types ──────────────────────────────────
   // `active-tag`: infra top-level option + gantt option + map directive.
+  // Treemap also accepts it (§24C.6, decision #48) — validated inline in its
+  // parser, so no chart-scoped Set is derived for it; highlighting comes from
+  // the global directive category here.
   {
     token: 'active-tag',
     category: 'directive',
@@ -179,7 +181,9 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
     gantt: ['option'],
     map: true,
   },
-  // `title`: gantt option (also a general data-chart directive, hand-listed).
+  // `title`: gantt option. (The data-chart `title` directive was removed in
+  // decision #48 — it now raises E_TITLE_DIRECTIVE; the token stays here for
+  // gantt.)
   { token: 'title', category: 'directive', gantt: ['option'] },
   // `sort`: gantt option (also general, hand-listed).
   { token: 'sort', category: 'directive', gantt: ['option'] },
@@ -188,6 +192,11 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'lane-by', category: 'directive', gantt: ['option'] },
   // `no-title`: gantt boolean + map directive (also general, hand-listed).
   { token: 'no-title', category: 'directive', gantt: ['boolean'], map: true },
+  // `no-legend`: universal (decision #48) — every chart that renders a legend
+  // accepts it, and charts without one take it as a harmless no-op. Parsed for
+  // most types via GLOBAL_BOOLEANS in utils/parsing; gantt derives its boolean
+  // Set from here, and map from `map: true`.
+  { token: 'no-legend', category: 'directive', gantt: ['boolean'], map: true },
 
   // ══════════════════════════════════════════════════════════
   // Highlight-only vocab (no extractable parser Set).
@@ -201,10 +210,15 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'era', category: 'directive' },
   { token: 'marker', category: 'directive' },
   { token: 'holiday', category: 'directive' },
-  { token: 'workweek', category: 'directive' },
+  // `workweek` is also the canonical weekday-window directive on clock and map
+  // clock-cards (decision #48; `days` stays as the legacy alias).
+  { token: 'workweek', category: 'directive', map: true },
   { token: 'no-dependencies', category: 'directive' },
   // ── Tech-radar ───────────────────────────────────────────
   { token: 'rings', category: 'directive' },
+  // Blip listing is default-on everywhere (decision #48): `no-blip-legend`
+  // suppresses it; `show-blip-legend` stays as the parse-accepted legacy no-op.
+  { token: 'no-blip-legend', category: 'directive' },
   { token: 'show-blip-legend', category: 'directive' },
   { token: 'trend', category: 'directive' },
   // ── Tags / shared directives ─────────────────────────────
@@ -230,7 +244,13 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // ATTRIBUTE_KEYS colon-gate from reclassifying `heat:` as a propertyName. So
   // `heat` lives only in the reserved-key registry + ATTRIBUTE_KEYS and highlights
   // as a property in both positions — exactly the treemap `heat` precedent.
+  // Box values render by default since decision #48; `show-values` stays as
+  // the parse-accepted legacy no-op (suppress with the shared `no-value`).
   { token: 'show-values', category: 'directive' },
+  // Treemap's legacy plural spelling of the same suppression (decision #48
+  // made the shared singular `no-value` canonical). Registered so a legacy
+  // document still highlights it as a directive rather than plain text.
+  { token: 'no-values', category: 'directive' },
   // ── Swimlane ─────────────────────────────────────────────
   { token: 'lane', category: 'directive' },
   // ── ER ───────────────────────────────────────────────────
@@ -313,7 +333,9 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'trials', category: 'directive' },
   { token: 'seed', category: 'directive' },
   { token: 'scrubber-trials', category: 'directive' },
-  { token: 'start-date', category: 'directive' },
+  // `start-date` is also gantt's canonical project-start option (decision #48;
+  // bare `start` above stays as the legacy alias).
+  { token: 'start-date', category: 'directive', gantt: ['option'] },
   { token: 'end-date', category: 'directive' },
   // ── Goal ─────────────────────────────────────────────────
   // Mode flags, value-key leaders, and opt-outs. `now`/`target` collide with
@@ -354,6 +376,12 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'ready', category: 'status' },
 
   // ── Modifiers + ER column types/modifiers (MODIFIER) ─────
+  // `collapsed` is the bare trailing group-line flag made canonical by
+  // decision #48 (`[Fulfillment] collapsed`). It is deliberately a bare
+  // MODIFIER rather than a colon key: the legacy `collapsed: true` form still
+  // parses and still highlights (as `modifier` instead of `propertyName`),
+  // whereas leaving it colon-only left the canonical bare form as plain text.
+  { token: 'collapsed', category: 'modifier' },
   { token: 'as', category: 'modifier' },
   { token: 'alias', category: 'modifier' },
   { token: 'aka', category: 'modifier' },

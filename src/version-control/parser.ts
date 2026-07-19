@@ -236,7 +236,9 @@ export function parseVersionControl(
     }
 
     // ── Directives ──
-    const dir = /^direction\s+(LR|TB|BT)$/i.exec(trimmed);
+    // Layout direction — canonical booleans `direction-lr` / `direction-tb`
+    // (§1.9, last one wins); key+value `direction LR|TB` accepted legacy.
+    const dir = /^direction[-\s]+(LR|TB)$/i.exec(trimmed);
     if (dir) {
       options.direction = dir[1]!.toUpperCase() as VCDirection;
       continue;

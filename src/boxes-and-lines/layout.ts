@@ -35,8 +35,9 @@ const MAX_DESC_LINES = 6;
 const MAX_LABEL_LINES = 3;
 const LABEL_LINE_HEIGHT = 1.3;
 const LABEL_PAD = 12;
-// Bottom value-row reserved on a DESCRIBED node under `show-values`: a thin
-// divider + a "Metric: value" footer line (replaces the old corner badge).
+// Bottom value-row reserved on a DESCRIBED node with a value (default-on;
+// suppressed by `no-value`): a thin divider + a "Metric: value" footer line
+// (replaces the old corner badge).
 const VALUE_ROW_FONT = 11;
 const VALUE_ROW_H =
   SEPARATOR_GAP + VALUE_ROW_FONT * DESC_LINE_HEIGHT + DESC_PADDING;

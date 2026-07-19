@@ -3,7 +3,7 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
-import { fillModeFromOptions } from '../utils/parsing';
+import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
@@ -158,7 +158,11 @@ export function renderSitemap(
   const sCollapseBarHeight = ctx.structural(COLLAPSE_BAR_HEIGHT);
   const sLegendFixedGap = ctx.aesthetic(LEGEND_FIXED_GAP);
 
-  const hasLegend = layout.legend.length > 0;
+  const noLegend = legendSuppressed(parsed.options);
+  const hasLegend = layout.legend.length > 0 && !noLegend;
+  // Layout appends a legend band to its height whenever tag groups exist; with
+  // `no-legend` nothing renders there, so drop the band from the fit box too.
+  const suppressedLegendBand = layout.legend.length > 0 && noLegend;
 
   const layoutLegendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP;
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
@@ -188,7 +192,7 @@ export function renderSitemap(
 
   const diagramW = layout.width;
   let diagramH = layout.height + titleOffset;
-  if (fixedLegend) {
+  if (fixedLegend || suppressedLegendBand) {
     diagramH -= layoutLegendShift;
   }
   const availH =

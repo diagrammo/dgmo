@@ -13,7 +13,7 @@ tag Theme as t
   1993 Mosaic  t: Browser
     The first popular *graphical* browser.
 
-[The Standards Era] collapsed: true
+[The Standards Era] collapsed
   1995 JavaScript  t: Platform
     Brendan Eich writes the language in ten days.
   1996 CSS  t: Standard

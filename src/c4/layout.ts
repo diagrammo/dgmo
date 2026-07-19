@@ -13,6 +13,7 @@ import type {
   C4DeploymentNode,
 } from './types';
 import type { TagGroup } from '../utils/tag-groups';
+import { legendSuppressed } from '../utils/parsing';
 import type { Writable } from '../utils/brand';
 
 /** Mutable edge variant for in-place position shifts during layout. */
@@ -154,6 +155,48 @@ interface NodeGeometry {
 // Large penalty per edge-node collision — dominates the distance term so the
 // sifter strongly prefers orderings where edges don't pass through other nodes.
 const EDGE_NODE_COLLISION_WEIGHT = 5000;
+
+/**
+ * Swap the x/y and width/height of every node in a dagre graph, in place.
+ *
+ * `reduceCrossings` (and the penalty function it drives) are written in
+ * top-down terms: rank is the y coordinate and within-rank order is x. Under
+ * `rankdir: 'LR'` those roles are exchanged, so running the sifter directly on
+ * an LR graph would bucket ranks by the ordering axis and then permute along
+ * the rank axis — actively scrambling the layout rather than improving it.
+ *
+ * Transposing into TB space, sifting, and transposing back lets the one
+ * crossing-reduction implementation serve both directions with no duplicated
+ * geometry logic. The sifter only ever writes `.x`, which becomes `.y` again
+ * on the way out — exactly the within-rank axis for LR.
+ */
+function transposeGraph(g: InstanceType<typeof dagre.graphlib.Graph>): void {
+  for (const name of g.nodes()) {
+    const pos = gNode(g, name);
+    if (!pos) continue;
+    [pos.x, pos.y] = [pos.y, pos.x];
+    [pos.width, pos.height] = [pos.height, pos.width];
+  }
+}
+
+/**
+ * Run the crossing-reduction sifter in whichever orientation the graph was
+ * laid out in, transposing around it for `LR` (see {@link transposeGraph}).
+ */
+function reduceCrossingsForDirection(
+  g: InstanceType<typeof dagre.graphlib.Graph>,
+  direction: 'LR' | 'TB',
+  edgeList: { source: string; target: string }[],
+  nodeGroupMap?: Map<string, string>
+): void {
+  if (direction === 'LR') {
+    transposeGraph(g);
+    reduceCrossings(g, edgeList, nodeGroupMap);
+    transposeGraph(g);
+    return;
+  }
+  reduceCrossings(g, edgeList, nodeGroupMap);
+}
 
 /**
  * Compute penalty for an edge ordering. Uses degree-weighted edge distance:
@@ -825,11 +868,12 @@ export function layoutC4Context(
 
   // Compute adaptive spacing based on edge density
   const spacing = computeAdaptiveSpacing(contextRels);
+  const direction = parsed.direction;
 
   // Create dagre graph
   const g = new dagre.graphlib.Graph();
   g.setGraph({
-    rankdir: 'TB',
+    rankdir: direction,
     nodesep: spacing.nodesep,
     ranksep: spacing.ranksep,
     edgesep: spacing.edgesep,
@@ -860,8 +904,9 @@ export function layoutC4Context(
   dagre.layout(g);
 
   // Post-dagre crossing reduction
-  reduceCrossings(
+  reduceCrossingsForDirection(
     g,
+    direction,
     validRels.map((r) => ({ source: r.sourceName, target: r.targetName }))
   );
 
@@ -958,7 +1003,9 @@ export function layoutC4Context(
 
   // Legend: show all defined tag groups and entries so users see the full
   // tag vocabulary regardless of which elements are visible at this view level.
-  const legendGroups = computeLegendGroups(parsed.tagGroups);
+  const legendGroups = computeLegendGroups(
+    legendSuppressed(parsed.options) ? [] : parsed.tagGroups
+  );
 
   // Position legend below diagram
   if (legendGroups.length > 0) {
@@ -1093,6 +1140,7 @@ export function layoutC4Containers(
     }
   }
   const hasGroups = elementToGroup.size > 0;
+  const direction = parsed.direction;
 
   // Create dagre graph — use compound when groups exist
   const g = hasGroups
@@ -1189,7 +1237,7 @@ export function layoutC4Containers(
   // Compute adaptive spacing based on edge fan-out
   const spacing = computeAdaptiveSpacing(containerRels);
   g.setGraph({
-    rankdir: 'TB',
+    rankdir: direction,
     nodesep: spacing.nodesep,
     ranksep: spacing.ranksep,
     edgesep: spacing.edgesep,
@@ -1212,8 +1260,9 @@ export function layoutC4Containers(
   const nodeGroupMap = hasGroups
     ? new Map([...elementToGroup.entries()].map(([k, v]) => [k, v.name]))
     : undefined;
-  reduceCrossings(
+  reduceCrossingsForDirection(
     g,
+    direction,
     containerRels
       .filter(
         (r) =>
@@ -1427,7 +1476,9 @@ export function layoutC4Containers(
   let totalWidth = maxX - minX + MARGIN * 2;
   let totalHeight = maxY - minY + MARGIN * 2;
 
-  const legendGroups = computeLegendGroups(parsed.tagGroups);
+  const legendGroups = computeLegendGroups(
+    legendSuppressed(parsed.options) ? [] : parsed.tagGroups
+  );
 
   // Position legend below diagram
   if (legendGroups.length > 0) {
@@ -1628,6 +1679,7 @@ export function layoutC4Components(
     }
   }
   const hasGroups = elementToGroup.size > 0;
+  const direction = parsed.direction;
 
   // Create dagre graph — use compound when groups exist
   const g = hasGroups
@@ -1734,7 +1786,7 @@ export function layoutC4Components(
   // Compute adaptive spacing based on edge fan-out
   const spacing = computeAdaptiveSpacing(componentRels);
   g.setGraph({
-    rankdir: 'TB',
+    rankdir: direction,
     nodesep: spacing.nodesep,
     ranksep: spacing.ranksep,
     edgesep: spacing.edgesep,
@@ -1757,8 +1809,9 @@ export function layoutC4Components(
   const nodeGroupMap = hasGroups
     ? new Map([...elementToGroup.entries()].map(([k, v]) => [k, v.name]))
     : undefined;
-  reduceCrossings(
+  reduceCrossingsForDirection(
     g,
+    direction,
     componentRels
       .filter(
         (r) =>
@@ -1976,7 +2029,9 @@ export function layoutC4Components(
   let totalWidth = maxX - minX + MARGIN * 2;
   let totalHeight = maxY - minY + MARGIN * 2;
 
-  const legendGroups = computeLegendGroups(parsed.tagGroups);
+  const legendGroups = computeLegendGroups(
+    legendSuppressed(parsed.options) ? [] : parsed.tagGroups
+  );
 
   // Position legend below diagram
   if (legendGroups.length > 0) {
@@ -2142,6 +2197,8 @@ export function layoutC4Deployment(
     nameToElement.set(r.element.name, r.element);
   }
 
+  const direction = parsed.direction;
+
   // Build compound dagre graph: infra nodes as parents, container refs as leaf nodes
   const g = new dagre.graphlib.Graph({ compound: true });
   g.setDefaultEdgeLabel(() => ({}));
@@ -2194,7 +2251,7 @@ export function layoutC4Deployment(
   // Adaptive spacing and graph config
   const spacing = computeAdaptiveSpacing(deployRels);
   g.setGraph({
-    rankdir: 'TB',
+    rankdir: direction,
     nodesep: spacing.nodesep,
     ranksep: spacing.ranksep,
     edgesep: spacing.edgesep,
@@ -2216,8 +2273,9 @@ export function layoutC4Deployment(
   // Post-dagre crossing reduction
   const nodeInfraMap = new Map<string, string>();
   for (const r of refEntries) nodeInfraMap.set(r.element.name, r.infraId);
-  reduceCrossings(
+  reduceCrossingsForDirection(
     g,
+    direction,
     deployRels
       .filter(
         (r) =>
@@ -2414,7 +2472,9 @@ export function layoutC4Deployment(
   let totalWidth = maxX - minX + MARGIN * 2;
   let totalHeight = maxY - minY + MARGIN * 2;
 
-  const legendGroups = computeLegendGroups(parsed.tagGroups);
+  const legendGroups = computeLegendGroups(
+    legendSuppressed(parsed.options) ? [] : parsed.tagGroups
+  );
 
   if (legendGroups.length > 0) {
     const legendY = totalHeight + MARGIN;

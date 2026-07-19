@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
-import { fillModeFromOptions } from '../utils/parsing';
+import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
 import {
   renderNoteBox,
   renderNoteConnector,
@@ -499,9 +499,11 @@ export function renderBoxesAndLines(
   const reserveHasDescriptions = parsed.nodes.some(
     (n) => n.description && n.description.length > 0
   );
+  const noLegend = legendSuppressed(parsed.options);
   const willRenderLegend =
-    legendGroups.length > 0 ||
-    (reserveHasDescriptions && controlsHost !== 'app');
+    (legendGroups.length > 0 ||
+      (reserveHasDescriptions && controlsHost !== 'app')) &&
+    !noLegend;
   const sLegendHeight = willRenderLegend
     ? sctx.structural(
         getMaxLegendReservedHeight(
@@ -533,7 +535,9 @@ export function renderBoxesAndLines(
     (n) => n.description && n.description.length > 0
   );
   const needsLegend =
-    legendGroups.length > 0 || (hasAnyDescriptions && onToggleDescriptions);
+    (legendGroups.length > 0 ||
+      (hasAnyDescriptions && !!onToggleDescriptions)) &&
+    !noLegend;
   const legendH = needsLegend ? sLegendHeight + 8 : 0;
 
   const groupLabelsSet = new Set(layout.groups.map((g) => g.label));
@@ -1073,7 +1077,7 @@ export function renderBoxesAndLines(
 
       // Value sits in the SAME body section, directly after the description \u2014
       // no second divider / footer band (org-card: title, one line, body).
-      if (parsed.showValues && node.value !== undefined) {
+      if (parsed.showValues !== false && node.value !== undefined) {
         const valueLabel = parsed.boxMetric
           ? `${parsed.boxMetric}: ${node.value}`
           : String(node.value);
@@ -1089,8 +1093,8 @@ export function renderBoxesAndLines(
           .attr('fill', colors.text)
           .text(valueLabel);
       }
-    } else if (parsed.showValues && node.value !== undefined) {
-      // Plain node with show-values: label header + thin divider + a
+    } else if (parsed.showValues !== false && node.value !== undefined) {
+      // Plain node with a value (default-on): label header + thin divider + a
       // "Metric: value" line below (org/infra card style), instead of a
       // vertically-centered label with a floating number.
       const valueLabel = parsed.boxMetric
@@ -1287,7 +1291,8 @@ export function renderBoxesAndLines(
   // descriptions-only legend (no tag groups) has nothing left to render. The
   // value ramp (a synthetic group in legendGroups) also forces a legend.
   const hasLegend =
-    legendGroups.length > 0 || (hasDescriptions && controlsHost !== 'app');
+    (legendGroups.length > 0 || (hasDescriptions && controlsHost !== 'app')) &&
+    !noLegend;
 
   if (hasLegend) {
     // Build controls group for description toggle. App-hosted controls own the

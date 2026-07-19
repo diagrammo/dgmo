@@ -170,6 +170,26 @@ describe('bracket parser', () => {
   });
 });
 
+describe('bracket parser — winner accent (§1.5 title-line slot, decision #48)', () => {
+  it('a trailing color token on the title line sets the winner accent', () => {
+    const r = parseBracket(`bracket Champions Cup red\nA beats B`);
+    expect(r.title).toBe('Champions Cup');
+    expect(r.accentColor).toBe(resolveColor('red'));
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('legacy `accent <color>` directive alone still sets the accent', () => {
+    const r = parseBracket(`bracket Champions Cup\naccent blue\nA beats B`);
+    expect(r.accentColor).toBe(resolveColor('blue'));
+    expect(errors(r.diagnostics)).toHaveLength(0);
+  });
+
+  it('title-line token wins over the legacy directive on conflict', () => {
+    const r = parseBracket(`bracket Champions Cup red\naccent blue\nA beats B`);
+    expect(r.accentColor).toBe(resolveColor('red'));
+  });
+});
+
 describe('bracket parser — §1.9 fill family', () => {
   it('`fill-solid` sets fillMode to solid', () => {
     const r = parseBracket(`bracket X\nfill-solid\nA beats B`);

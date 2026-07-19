@@ -8,7 +8,9 @@ export const fixture: ConformanceFixture = {
   specSection: '7',
   firstLineKeyword: 'org',
   directives: [
+    'no-legend',
     'direction-tb',
+    'direction-lr',
     'sub-node-label',
     'show-sub-node-count',
     'hide',

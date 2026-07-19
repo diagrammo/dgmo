@@ -17,6 +17,12 @@ export interface GraphNode {
   readonly color?: string;
   readonly group?: string;
   readonly lineNumber: number;
+  /**
+   * §1.4 tag metadata keyed by `tagAttrKey(group.name)` (state only —
+   * decision #48). Absent on flowchart nodes and on state nodes in
+   * diagrams that declare no tag groups.
+   */
+  readonly metadata?: Readonly<Record<string, string>>;
 }
 
 export interface GraphEdge {
@@ -49,6 +55,7 @@ import type { DiagramNote } from '../utils/notes/model';
 export type GraphNote = DiagramNote;
 
 import type { DgmoError } from '../diagnostics';
+import type { TagGroup } from '../utils/tag-groups';
 
 export interface ParsedGraph {
   readonly type: 'flowchart' | 'state';
@@ -59,6 +66,11 @@ export interface ParsedGraph {
   readonly edges: readonly GraphEdge[];
   readonly groups?: readonly GraphGroup[];
   readonly notes?: readonly GraphNote[];
+  /**
+   * Declared tag groups (state only — decision #48). Optional so the
+   * flowchart parser, which has no tag channel, keeps its shape.
+   */
+  readonly tagGroups?: readonly TagGroup[];
   readonly options: Readonly<Record<string, string>>;
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;

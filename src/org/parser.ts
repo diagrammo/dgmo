@@ -50,6 +50,12 @@ export interface ParsedOrg {
   readonly roots: readonly OrgNode[];
   readonly tagGroups: readonly TagGroup[];
   readonly options: Readonly<Record<string, string>>;
+  /**
+   * Resolved layout direction (§7.5). `direction-lr` / `direction-tb` are a
+   * mutually-exclusive boolean pair (§1.9, last one wins). Defaults to 'TB',
+   * which is the orientation org charts have always rendered.
+   */
+  readonly direction: 'LR' | 'TB';
   readonly diagnostics: readonly DgmoError[];
   readonly error: string | null;
 }
@@ -72,10 +78,12 @@ const KNOWN_OPTIONS = new Set([
 const KNOWN_BOOLEANS = new Set([
   'show-sub-node-count',
   'direction-tb',
+  'direction-lr',
   'fill-tint',
   'fill-solid',
   'fill-outline',
   'no-title',
+  'no-legend',
 ]);
 
 // ============================================================
@@ -104,6 +112,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     roots: [],
     tagGroups: [],
     options,
+    direction: 'TB',
     diagnostics: [],
     error: null,
   };
@@ -245,7 +254,14 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       }
       // Bare boolean option (single keyword, no value)
       if (KNOWN_BOOLEANS.has(trimmed.toLowerCase())) {
-        options[trimmed.toLowerCase()] = 'on';
+        const boolKey = trimmed.toLowerCase();
+        // The direction booleans are a mutually-exclusive pair (§1.9,
+        // last one wins) — clear the sibling so only the latest survives.
+        if (boolKey === 'direction-lr' || boolKey === 'direction-tb') {
+          delete options['direction-lr'];
+          delete options['direction-tb'];
+        }
+        options[boolKey] = 'on';
         continue;
       }
     }
@@ -414,6 +430,12 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
   }
+
+  // Resolve the layout direction (§7.5). The boolean pair is mutually
+  // exclusive and already collapsed to a single surviving key above
+  // (§1.9, last one wins), so a lone presence check is sufficient.
+  // Absent both, org charts keep their long-standing top-down orientation.
+  result.direction = options['direction-lr'] ? 'LR' : 'TB';
 
   return result;
 }

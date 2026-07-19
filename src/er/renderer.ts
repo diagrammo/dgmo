@@ -3,7 +3,7 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
-import { fillModeFromOptions } from '../utils/parsing';
+import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
@@ -234,10 +234,10 @@ export function renderERDiagram(
   const useSemanticColors =
     parsed.tagGroups.length === 0 && layout.nodes.every((n) => !n.color);
   const LEGEND_FIXED_GAP = 8;
-  const hasTagLegend = parsed.tagGroups.length > 0;
-  const legendReserveH = useSemanticColors
-    ? LEGEND_HEIGHT + LEGEND_FIXED_GAP
-    : hasTagLegend
+  const noLegend = legendSuppressed(parsed.options);
+  const hasTagLegend = parsed.tagGroups.length > 0 && !noLegend;
+  const legendReserveH =
+    !noLegend && (useSemanticColors || hasTagLegend)
       ? LEGEND_HEIGHT + LEGEND_FIXED_GAP
       : 0;
 
@@ -611,7 +611,7 @@ export function renderERDiagram(
   }
 
   // ── Tag Legend ──
-  if (parsed.tagGroups.length > 0) {
+  if (hasTagLegend) {
     const legendY = sDiagramPadding + titleHeight;
     const legendG = svg
       .append('g')
@@ -629,7 +629,7 @@ export function renderERDiagram(
   }
 
   // ── Semantic Legend ──
-  if (semanticRoles) {
+  if (semanticRoles && !noLegend) {
     const presentRoles = ROLE_ORDER.filter((role) => {
       for (const r of semanticRoles.values()) {
         if (r === role) return true;

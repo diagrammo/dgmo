@@ -7,7 +7,7 @@ export const fixture: ConformanceFixture = {
   chartType: 'function',
   specSection: '16',
   firstLineKeyword: 'function',
-  directives: ['x', 'x-label', 'y-label', 'shade'],
+  directives: ['no-legend', 'x', 'x-label', 'y-label', 'shade'],
   pipeKeys: {},
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

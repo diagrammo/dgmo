@@ -968,7 +968,9 @@ function setupTimeline(
   }
   const datePadding = (maxDate - minDate) * 0.05 || 0.5;
 
-  const tagLegendReserve = parsed.timelineTagGroups.length > 0 ? 36 : 0;
+  // `no-legend` (#48) also collapses the band reserved for the legend.
+  const tagLegendReserve =
+    parsed.timelineTagGroups.length > 0 && !parsed.noLegend ? 36 : 0;
 
   const idealWidth = isVertical
     ? 500
@@ -1197,7 +1199,7 @@ function renderTimelineTagLegendOverlay(
   viewMode: boolean | undefined,
   exportMode?: boolean
 ): void {
-  if (parsed.timelineTagGroups.length === 0) return;
+  if (parsed.timelineTagGroups.length === 0 || parsed.noLegend) return;
 
   const { width, textColor, groupColorMap, fillMode } = setup;
   const { FADE_OPACITY, fadeReset, fadeToTagValue } = hovers;
@@ -1679,8 +1681,8 @@ function renderTimelineHorizontalTimeSort(
     );
   }
 
-  // Group legend at top-left (pill style)
-  if (timelineGroups.length > 0) {
+  // Group legend at top-left (pill style); `no-legend` suppresses it (#48).
+  if (timelineGroups.length > 0 && !parsed.noLegend) {
     const legendY = timelineScale ? -ctx.aesthetic(75) : -ctx.aesthetic(55);
     renderTimelineGroupLegend(
       g,
@@ -2794,7 +2796,7 @@ function renderTimelineVertical(
       );
     }
 
-    if (timelineGroups.length > 0) {
+    if (timelineGroups.length > 0 && !parsed.noLegend) {
       renderTimelineGroupLegend(
         g,
         timelineGroups,

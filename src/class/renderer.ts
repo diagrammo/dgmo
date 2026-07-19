@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
-import { fillModeFromOptions } from '../utils/parsing';
+import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import {
@@ -231,7 +231,8 @@ export function renderClassDiagram(
   const sLegendHeight = ctx.structural(LEGEND_HEIGHT);
 
   const legendEntries = collectClassTypes(parsed);
-  const hasLegend = legendEntries.length > 1;
+  const hasLegend =
+    legendEntries.length > 1 && !legendSuppressed(parsed.options);
 
   const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const titleHeight = showTitle ? 40 : 0;
@@ -764,7 +765,9 @@ export function renderClassDiagramForExport(
   const legendEntries = collectClassTypes(parsed);
   const EXPORT_LEGEND_GAP = 8;
   const legendReserve =
-    legendEntries.length > 1 ? LEGEND_HEIGHT + EXPORT_LEGEND_GAP : 0;
+    legendEntries.length > 1 && !legendSuppressed(parsed.options)
+      ? LEGEND_HEIGHT + EXPORT_LEGEND_GAP
+      : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight =
     layout.height +

@@ -97,9 +97,7 @@ describe('no-title — parser recognition', () => {
   });
 
   it('echarts extended (typed `noTitle` boolean)', () => {
-    const r = parseExtendedChart(
-      'chart scatter\ntitle Quadrants\n\nno-title\n\n1 1\n2 2\n3 3'
-    );
+    const r = parseExtendedChart('chart scatter\n\nno-title\n\n1 1\n2 2\n3 3');
     expect(r.error).toBeNull();
     expect(r.noTitle).toBe(true);
   });

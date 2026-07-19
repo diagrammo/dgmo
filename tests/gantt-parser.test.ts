@@ -26,6 +26,14 @@ describe('gantt parser', () => {
       expect(result.options.start).toBe('2024-01-15');
     });
 
+    it('parses canonical start-date (decision #48)', () => {
+      const result = parseGantt(
+        'gantt\nstart-date 2024-01-15\nTask duration: 10d',
+        palette
+      );
+      expect(result.options.start).toBe('2024-01-15');
+    });
+
     it('parses title', () => {
       const result = parseGantt(
         'gantt\ntitle My Plan\nTask duration: 10d',
@@ -1062,6 +1070,30 @@ describe('gantt parser', () => {
       expect(result.options.sprintMode).toBe('auto');
       expect(result.options.sprintLength).toEqual({ amount: 2, unit: 'w' });
       expect(result.options.sprintNumber).toBe(1);
+    });
+
+    it('parses canonical 3sp as 3 sprints (decision #48)', () => {
+      const result = parseGantt('gantt\nTask A duration: 3sp', palette);
+      const task = result.nodes.find((n) => n.kind === 'task');
+      expect(task).toBeDefined();
+      if (task?.kind === 'task') {
+        expect(task.duration).toEqual({ amount: 3, unit: 's' });
+      }
+      expect(result.options.sprintMode).toBe('auto');
+    });
+
+    it('parses positional sp duration in new syntax', () => {
+      const result = parseGantt(
+        'gantt\nstart-date 2024-01-15\n\nDesign 2sp',
+        palette
+      );
+      expect(result.error).toBeNull();
+      const task = result.nodes.find((n) => n.kind === 'task');
+      expect(task).toBeDefined();
+      if (task?.kind === 'task') {
+        expect(task.duration).toEqual({ amount: 2, unit: 's' });
+      }
+      expect(result.options.sprintMode).toBe('auto');
     });
 
     it('parses start + duration with s unit', () => {

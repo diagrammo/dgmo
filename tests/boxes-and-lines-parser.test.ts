@@ -357,11 +357,27 @@ describe('boxes-and-lines parser', () => {
   });
 
   describe('directives', () => {
-    it('parses direction TB', () => {
+    it('parses direction TB (legacy key+value)', () => {
       const result = parseBoxesAndLines(
         'boxes-and-lines\ndirection TB\nA -> B'
       );
       expect(result.direction).toBe('TB');
+    });
+
+    it('parses the direction-tb boolean (canonical, decision #48)', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\ndirection-tb\nA -> B'
+      );
+      expect(result.direction).toBe('TB');
+    });
+
+    it('direction-lr restates the default; last boolean wins', () => {
+      const lr = parseBoxesAndLines('boxes-and-lines\ndirection-lr\nA -> B');
+      expect(lr.direction).toBe('LR');
+      const lastWins = parseBoxesAndLines(
+        'boxes-and-lines\ndirection-tb\ndirection-lr\nA -> B'
+      );
+      expect(lastWins.direction).toBe('LR');
     });
 
     it('defaults to LR', () => {
@@ -786,12 +802,20 @@ describe('boxes-and-lines parser', () => {
       expect(r.boxMetricLowColor).toBeUndefined();
     });
 
-    it('parses `show-values` flag (off by default)', () => {
+    it('values default on; `no-value` suppresses (decision #48)', () => {
+      // No directive → default on (undefined reads as on downstream).
       expect(parseBoxesAndLines('boxes-and-lines\nA heat: 1').showValues).toBe(
         undefined
       );
+      const off = parseBoxesAndLines('boxes-and-lines\nno-value\nA heat: 1');
+      expect(off.showValues).toBe(false);
+    });
+
+    it('legacy `show-values` still parses without diagnostic (no-op)', () => {
       const r = parseBoxesAndLines('boxes-and-lines\nshow-values\nA heat: 1');
       expect(r.showValues).toBe(true);
+      expect(r.diagnostics).toHaveLength(0);
+      expect(r.error).toBeNull();
     });
 
     it('accepts `active-tag <metric>` with no warning (AC7)', () => {

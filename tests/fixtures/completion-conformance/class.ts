@@ -12,7 +12,7 @@ export const fixture: ConformanceFixture = {
   ],
   specSection: '10',
   firstLineKeyword: 'class',
-  directives: ['fill-tint', 'fill-solid', 'fill-outline'],
+  directives: ['no-legend', 'fill-tint', 'fill-solid', 'fill-outline'],
   pipeKeys: {
     node: ['description'],
   },

@@ -338,6 +338,39 @@ A 1 2 4
   });
 });
 
+describe('pert parser — direction directives', () => {
+  it('accepts the direction booleans (canonical, decision #48); last one wins', () => {
+    const tb = parsePert(`pert
+direction-tb
+A 1 2 4
+`);
+    expect(tb.error).toBeNull();
+    expect(tb.options.direction).toBe('TB');
+
+    const lr = parsePert(`pert
+direction-lr
+A 1 2 4
+`);
+    expect(lr.options.direction).toBe('LR');
+
+    const lastWins = parsePert(`pert
+direction-tb
+direction-lr
+A 1 2 4
+`);
+    expect(lastWins.options.direction).toBe('LR');
+  });
+
+  it('keeps the legacy key+value `direction TB` form', () => {
+    const parsed = parsePert(`pert
+direction TB
+A 1 2 4
+`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.options.direction).toBe('TB');
+  });
+});
+
 describe('pert parser — date anchoring', () => {
   function findCode(parsed: ReturnType<typeof parsePert>, code: string) {
     return parsed.diagnostics.find((d) => d.code === code);
@@ -562,6 +595,59 @@ A
     expect(r.options.sprintMode).toBe('auto');
     expect(r.options.sprintLength).toEqual({ amount: 2, unit: 'w' });
     expect(r.options.sprintNumber).toBe(1);
+  });
+
+  it('canonical time-unit sp auto-activates sprint mode (decision #48)', () => {
+    const r = parsePert(`pert
+time-unit sp
+A 1 2 3
+`);
+    expect(r.options.timeUnit).toBe('s');
+    expect(r.options.sprintMode).toBe('auto');
+    expect(r.options.sprintLength).toEqual({ amount: 2, unit: 'w' });
+  });
+
+  it('unknown time-unit error hints sp, not bare s', () => {
+    const r = parsePert(`pert
+time-unit x
+A 1 2 3
+`);
+    const e = r.diagnostics.find((d) => /Unknown time-unit/.test(d.message));
+    expect(e).toBeDefined();
+    expect(e!.message).toContain('sp');
+  });
+
+  it('sp estimate suffix parses like the legacy s suffix', () => {
+    // Per-activity sprint suffixes fall back to the diagram time-unit
+    // (sprints have no calendar in PERT) — canonical `sp` must mirror `s`.
+    const sp = parsePert(`pert
+time-unit w
+A 3sp
+`);
+    const s = parsePert(`pert
+time-unit w
+A 3s
+`);
+    expect(sp.error).toBeNull();
+    expect(sp.activities[0]?.duration).toEqual(s.activities[0]?.duration);
+    expect(sp.activities[0]?.duration).not.toBeNull();
+  });
+
+  it('sp lag suffix on an edge parses like the legacy s suffix', () => {
+    const sp = parsePert(`pert
+A 1 2 3
+B 1 2 3
+A
+  -FS+2sp-> B
+`);
+    const s = parsePert(`pert
+A 1 2 3
+B 1 2 3
+A
+  -FS+2s-> B
+`);
+    expect(sp.error).toBeNull();
+    expect(sp.edges).toEqual(s.edges);
   });
 
   it('explicit sprint-length triggers explicit mode and overrides default', () => {

@@ -8,7 +8,11 @@ import {
   withTagAliases,
   isReservedKey,
 } from '../utils/reserved-key-registry';
-import { splitNameAndMeta, warnUnknownMetaKeys } from '../utils/parsing';
+import {
+  peelTrailingCollapsedFlag,
+  splitNameAndMeta,
+  warnUnknownMetaKeys,
+} from '../utils/parsing';
 import { GANTT_OPTION_SET, GANTT_BOOLEAN_SET } from '../directives-registry';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
@@ -69,27 +73,27 @@ const WORKWEEK_RE = /^workweek\s+(.+)$/i;
 // ── New-syntax regexes (v2: positional duration, arrow graph) ─
 
 /** Offset prefix at line start: `+4w Task...` or `+10bd [Group]` */
-const OFFSET_PREFIX_RE = /^\+(\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h|s))\s+(.*)/;
+const OFFSET_PREFIX_RE = /^\+(\d+(?:\.\d+)?(?:min|bd|sp|d|w|m|q|y|h|s))\s+(.*)/;
 
 /** Duration token (for right-to-left positional scan) */
-const DURATION_TOKEN_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)(\?)?$/;
+const DURATION_TOKEN_RE = /^(\d+(?:\.\d+)?)(min|bd|sp|d|w|m|q|y|h|s)(\?)?$/;
 
 /** Arrow with lag: `-3w-> Rest` */
-const LAG_ARROW_RE = /^-(\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h|s))->\s*(.*)/;
+const LAG_ARROW_RE = /^-(\d+(?:\.\d+)?(?:min|bd|sp|d|w|m|q|y|h|s))->\s*(.*)/;
 
 /** Arrow with lead (negative lag): `--2w-> Rest` */
-const LEAD_ARROW_RE = /^--(\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h|s))->\s*(.*)/;
+const LEAD_ARROW_RE = /^--(\d+(?:\.\d+)?(?:min|bd|sp|d|w|m|q|y|h|s))->\s*(.*)/;
 
 /** Basic arrow: `-> Rest` */
 const BASIC_ARROW_RE = /^->\s*(.*)/;
 
 /** Era with offset: `era +4w -> +8w Label [color]` */
 const ERA_OFFSET_RE =
-  /^era\s+\+(\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h|s))\s*(?:->|–>)\s*\+(\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h|s))\s+(.+)$/i;
+  /^era\s+\+(\d+(?:\.\d+)?(?:min|bd|sp|d|w|m|q|y|h|s))\s*(?:->|–>)\s*\+(\d+(?:\.\d+)?(?:min|bd|sp|d|w|m|q|y|h|s))\s+(.+)$/i;
 
 /** Marker with offset: `marker +10w Label [color]` */
 const MARKER_OFFSET_RE =
-  /^marker\s+\+(\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h|s))\s+(.+)$/i;
+  /^marker\s+\+(\d+(?:\.\d+)?(?:min|bd|sp|d|w|m|q|y|h|s))\s+(.+)$/i;
 
 // Valid weekday names
 const WEEKDAY_MAP: Record<string, Weekday> = {
@@ -252,6 +256,7 @@ export function parseGantt(
       sprintMode: null,
       fillMode: undefined,
       noTitle: false,
+      noLegend: false,
     },
     diagnostics,
     error: null,
@@ -1073,6 +1078,9 @@ export function parseGantt(
         case 'no-title':
           result.options.noTitle = true;
           break;
+        case 'no-legend':
+          result.options.noLegend = true;
+          break;
       }
       continue;
     }
@@ -1105,6 +1113,9 @@ export function parseGantt(
       result.options.optionLineNumbers[key] = lineNumber;
 
       switch (key) {
+        // `start-date` is canonical (decision #48, pert parity); bare `start`
+        // stays as an undocumented legacy alias.
+        case 'start-date':
         case 'start':
           // Liberal input → canonical ISO (§ BL-121). Unparseable input falls
           // through verbatim so downstream diagnostics are unchanged.
@@ -1239,7 +1250,16 @@ export function parseGantt(
           );
           continue;
         }
-        const afterBrackets = gm[2]!.trim();
+        let afterBrackets = gm[2]!.trim();
+        // Canonical bare `collapsed` trailing flag (§1.8, decision #48) —
+        // peeled from the tail before the metadata split. Case-sensitive
+        // lowercase; bracketed names never collide.
+        let collapsed = false;
+        const barePeel = peelTrailingCollapsedFlag(afterBrackets);
+        if (barePeel.collapsed) {
+          collapsed = true;
+          afterBrackets = barePeel.rest;
+        }
         let metadata: Record<string, string> = {};
         if (afterBrackets) {
           const groupRegistry = withTagAliases(
@@ -1265,10 +1285,10 @@ export function parseGantt(
           );
           metadata = split.meta;
         }
-        // `[Group] collapsed: true` view-state marker (§ mirrors sequence): a
-        // reserved same-line key that seeds the group collapsed. Extracted into
-        // a typed field so it drives render/export; dropped from metadata.
-        let collapsed = false;
+        // Legacy `[Group] collapsed: true` metadata form (canonical is the
+        // bare trailing flag peeled above): a reserved same-line key that
+        // seeds the group collapsed. Extracted into a typed field so it
+        // drives render/export; dropped from metadata.
         if (metadata['collapsed']?.toLowerCase() === 'true') {
           collapsed = true;
           delete metadata['collapsed'];
@@ -1510,7 +1530,9 @@ export function parseGantt(
       for (let j = tokens.length - 1; j >= 0; j--) {
         const m = tokens[j]!.match(DURATION_TOKEN_RE);
         if (m) {
-          duration = { amount: parseFloat(m[1]!), unit: m[2]! as DurationUnit };
+          // `sp` is the canonical sprint suffix; bare `s` is the legacy alias.
+          const unit = (m[2] === 'sp' ? 's' : m[2]) as DurationUnit;
+          duration = { amount: parseFloat(m[1]!), unit };
           uncertain = !!m[3];
           name = tokens.slice(0, j).join(' ');
           break;

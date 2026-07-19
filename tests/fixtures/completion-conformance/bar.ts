@@ -6,6 +6,7 @@ export const fixture: ConformanceFixture = {
   specSection: '16',
   firstLineKeyword: 'bar',
   directives: [
+    'no-legend',
     // Multi-series is declared by a `stack` or `group` layout header (#24);
     // `series` is rejected on bar.
     'stack',

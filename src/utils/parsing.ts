@@ -166,7 +166,23 @@ export const GLOBAL_BOOLEANS: ReadonlySet<string> = new Set([
   'fill-outline',
   'no-title',
   'no-notes',
+  'no-legend',
 ]);
+
+/**
+ * Read the §1.9 universal `no-legend` directive out of a parser's shared-options
+ * record (as populated by {@link tryParseSharedOption}). `true` ⇒ the chart must
+ * suppress its legend and collapse any height reserved for it.
+ *
+ * Charts that render no legend at all accept the token as a harmless no-op —
+ * the flag is universal on the parse side so authors never have to remember
+ * which types honour it.
+ */
+export function legendSuppressed(
+  options: Readonly<Record<string, string>>
+): boolean {
+  return options['no-legend'] === 'on';
+}
 
 /**
  * Cross-chart fill treatment (spec §1.9 fill family). Absent ⇒ the canonical
@@ -639,6 +655,41 @@ export function peelTrailingColorName(label: string): {
 }
 
 /**
+ * Peel a trailing bare `collapsed` flag token (decision #48, spec §1.8) from a
+ * group-header tail or name region. The canonical collapse spelling is the
+ * bare lowercase `collapsed` token in trailing position on the group/container
+ * line (`[Backend] collapsed`, `[Done] blue collapsed`); the older
+ * `collapsed: true` metadata form remains accepted legacy at each call site.
+ *
+ * Case-sensitive, lowercase-only — a group actually named "… Collapsed"
+ * (capitalized) or a quoted name (`"mission collapsed"`) does NOT trigger,
+ * mirroring how trailing color tokens avoid name collisions.
+ *
+ * A lone `collapsed` (the whole region) peels to an empty rest — callers whose
+ * region is a NAME (not a post-bracket tail) should keep the original text
+ * when `rest` comes back empty, matching the color-peel never-empty rule.
+ * A trailing comma left behind by comma-list authors (`t: X, collapsed`) is
+ * stripped from the rest.
+ */
+export function peelTrailingCollapsedFlag(text: string): {
+  rest: string;
+  collapsed: boolean;
+} {
+  const t = text.trimEnd();
+  if (t === 'collapsed') return { rest: '', collapsed: true };
+  if (/[ \t]collapsed$/.test(t)) {
+    return {
+      rest: t
+        .slice(0, t.length - 'collapsed'.length)
+        .trimEnd()
+        .replace(/,\s*$/, ''),
+      collapsed: true,
+    };
+  }
+  return { rest: text, collapsed: false };
+}
+
+/**
  * Peel up to TWO trailing recognized color names from a label region — the
  * shared value-ramp coloring convention (`<metric> <low?> <high?>`). Peels from
  * the right, stops at the first non-color token, peels AT MOST 2, and NEVER
@@ -825,7 +876,7 @@ function findMetadataCutOffset(
  * resolution via the supplied aliasMap (callers responsible for
  * converting `tag Concern as c` declarations into `c → concern`).
  */
-function parseMetadataRegion(
+export function parseMetadataRegion(
   region: string,
   aliasMap: Map<string, string>,
   diagnostics?: DgmoError[],

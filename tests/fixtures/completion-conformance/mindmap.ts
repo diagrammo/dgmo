@@ -13,6 +13,7 @@ export const fixture: ConformanceFixture = {
   firstLineKeyword: 'mindmap',
 
   directives: [
+    'no-legend',
     'active-tag',
     'fill-tint',
     'fill-solid',

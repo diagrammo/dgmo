@@ -144,6 +144,8 @@ export interface GanttOptions {
   fillMode: 'solid' | 'outline' | undefined;
   /** When true, the renderer suppresses the chart banner title. */
   noTitle: boolean;
+  /** §1.9 `no-legend` — suppress the tag legend and collapse its reserved band. */
+  noLegend: boolean;
 }
 
 // ── Parsed Result ───────────────────────────────────────────

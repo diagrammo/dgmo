@@ -31,6 +31,7 @@ import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedTreemap, TreemapColorMode } from './types';
 import { layoutTreemap } from './layout';
 import {
+  activeTagGroupOf,
   buildHeatScale,
   buildLegend,
   compactNumber,
@@ -185,8 +186,7 @@ export function renderTreemap(
 
   const seriesColors = seriesColorsTop;
   const colorOffset = options.colorOffset ?? 0;
-  const activeGroup =
-    parsed.tagGroups.length > 0 ? parsed.tagGroups[0]!.name : null;
+  const activeGroup = activeTagGroupOf(parsed)?.name ?? null;
 
   // Branch hue is keyed off the top-level branch's SOURCE order (not d3's
   // value-sorted order) so the cell colors match the legend, which lists roots

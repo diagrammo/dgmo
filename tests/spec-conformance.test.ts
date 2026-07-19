@@ -785,6 +785,74 @@ describe('3. Boolean options', () => {
     expect(r.options['direction-tb']).toBe('on');
   });
 
+  // Decision #48: every direction-bearing chart accepts BOTH booleans
+  // (`direction-lr` restates the LR default), last one wins.
+  it('direction-lr restates the LR default in infra; last one wins', () => {
+    const lr = parseInfra('infra Test\ndirection-lr\n\nA\n  -> B');
+    expect(lr.direction).toBe('LR');
+    const lastWins = parseInfra(
+      'infra Test\ndirection-tb\ndirection-lr\n\nA\n  -> B'
+    );
+    expect(lastWins.direction).toBe('LR');
+  });
+
+  it('direction-lr restates the LR default in state; last one wins', () => {
+    const lr = parseState(
+      'state Test\ndirection-lr\n\n[*] -> Idle\nIdle -> [*]',
+      palette
+    );
+    expect(lr.direction).toBe('LR');
+    const lastWins = parseState(
+      'state Test\ndirection-tb\ndirection-lr\n\n[*] -> Idle\nIdle -> [*]',
+      palette
+    );
+    expect(lastWins.direction).toBe('LR');
+  });
+
+  it('direction-lr restates the LR default in sitemap; last one wins', () => {
+    const lr = parseSitemap(
+      'sitemap Test\ndirection-lr\n\nHome\n  About',
+      palette
+    );
+    expect(lr.direction).toBe('LR');
+    const lastWins = parseSitemap(
+      'sitemap Test\ndirection-tb\ndirection-lr\n\nHome\n  About',
+      palette
+    );
+    expect(lastWins.direction).toBe('LR');
+  });
+
+  it('direction booleans are a last-one-wins pair in org options', () => {
+    const lr = parseOrg('org Test\ndirection-lr\n\nAlice\n  Bob', palette);
+    expect(lr.options['direction-lr']).toBe('on');
+    const lastWins = parseOrg(
+      'org Test\ndirection-tb\ndirection-lr\n\nAlice\n  Bob',
+      palette
+    );
+    // The later boolean clears the earlier sibling — only one survives.
+    expect(lastWins.options['direction-lr']).toBe('on');
+    expect(lastWins.options['direction-tb']).toBeUndefined();
+  });
+
+  it('direction booleans are a last-one-wins pair in c4 options', () => {
+    const lr = parseC4('c4 Test\ndirection-lr\n\nUser is a person', palette);
+    expect(lr.options['direction-lr']).toBe('on');
+    const lastWins = parseC4(
+      'c4 Test\ndirection-lr\ndirection-tb\n\nUser is a person',
+      palette
+    );
+    expect(lastWins.options['direction-tb']).toBe('on');
+    expect(lastWins.options['direction-lr']).toBeUndefined();
+  });
+
+  it('direction booleans last-one-wins in flowchart', () => {
+    const r = parseFlowchart(
+      'flowchart Test\ndirection-lr\ndirection-tb\n\n(Start) -> [End]',
+      palette
+    );
+    expect(r.direction).toBe('TB');
+  });
+
   it('orientation-horizontal sets orientation for bar charts', () => {
     const r = parseChart(
       'bar Test\norientation-horizontal\nA 10\nB 20',

@@ -18,6 +18,7 @@ import { parseDateToken, toInternal, type DateOrder } from '../utils/date';
 import {
   extractColor,
   measureIndent,
+  peelTrailingCollapsedFlag,
   splitNameAndMeta,
   warnUnknownMetaKeys,
 } from '../utils/parsing';
@@ -63,7 +64,11 @@ import type { DiagramSymbols } from '../completion-types';
 const DIRECTIVE_KEYS = new Set([
   'time-unit',
   'default-confidence',
+  // Canonical booleans (§1.9, last one wins); key+value `direction LR|TB`
+  // accepted legacy.
   'direction',
+  'direction-lr',
+  'direction-tb',
   'node-detail',
   'no-analysis',
   'trials',
@@ -72,6 +77,7 @@ const DIRECTIVE_KEYS = new Set([
   'start-date',
   'end-date',
   'no-title',
+  'no-legend',
   'fill-tint',
   'fill-solid',
   'fill-outline',
@@ -126,7 +132,7 @@ const NEAR_DIRECTIVE_HINTS: ReadonlyArray<{
   {
     stem: 'time',
     canonical: 'time-unit',
-    matches: /^(d|w|m|q|y|h|min|bd|s)$/i,
+    matches: /^(d|w|m|q|y|h|min|bd|sp|s)$/i,
   },
 ];
 
@@ -181,8 +187,10 @@ export function parseEdgeLabel(
   if (numRaw) {
     const amount = parseFloat(numRaw);
     if (amount !== 0) {
-      const unit = unitRaw
-        ? (unitRaw.toLowerCase() as Duration['unit'])
+      // `sp` is the canonical sprint suffix; bare `s` is the legacy alias.
+      const unitLow = unitRaw?.toLowerCase();
+      const unit = unitLow
+        ? ((unitLow === 'sp' ? 's' : unitLow) as Duration['unit'])
         : defaultUnit;
       // Whitelist valid units to surface typos instead of silently
       // accepting `A -SS+2x-> B`.
@@ -214,9 +222,9 @@ const ALIAS_SUFFIX_RE = /\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/;
 
 /**
  * Numeric-with-optional-unit token. The unit set matches `parseDuration()`
- * (h/min/d/bd/w/m/q/y/s). A bare number falls back to `timeUnit`.
+ * (h/min/d/bd/w/m/q/y/sp). A bare number falls back to `timeUnit`.
  */
-const ESTIMATE_TOKEN_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)?$/;
+const ESTIMATE_TOKEN_RE = /^(\d+(?:\.\d+)?)(min|bd|sp|d|w|m|q|y|h|s)?$/;
 
 /** Default options when nothing is declared. */
 /**
@@ -409,7 +417,9 @@ function parseEstimateToken(
   // In-bounds by regex match: group 1 is guaranteed present.
   const amount = parseFloat(m[1]!);
   if (!Number.isFinite(amount)) return null;
-  const unit = (m[2] as DurationUnit | undefined) ?? defaultUnit;
+  // `sp` is the canonical sprint suffix; bare `s` is the legacy alias.
+  const unit =
+    ((m[2] === 'sp' ? 's' : m[2]) as DurationUnit | undefined) ?? defaultUnit;
   if (unit === 's') {
     // Sprint units don't make sense for PERT (no calendar). Fall back
     // to the diagram time-unit for now and let the analyzer warn.
@@ -786,7 +796,16 @@ export function parsePert(
       contentStarted = true;
       currentTagGroup = null;
       const name = groupMatch[1]!.trim();
-      const tail = (groupMatch[2] ?? '').trim();
+      let tail = (groupMatch[2] ?? '').trim();
+      // Canonical bare `collapsed` trailing flag (§1.8, decision #48) —
+      // peeled from the tail before the metadata parse. Case-sensitive
+      // lowercase; legacy `collapsed: true` metadata still honored below.
+      let bareCollapsed = false;
+      const barePeel = peelTrailingCollapsedFlag(tail);
+      if (barePeel.collapsed) {
+        bareCollapsed = true;
+        tail = barePeel.rest;
+      }
       // Parse the tail as §1.4 metadata. tail is `k: v, k: v` shape.
       const meta = tail ? parsePipeMetadata(tail, metaAliasMap) : {};
       const id = `[${normalizeName(name)}]`;
@@ -798,7 +817,7 @@ export function parsePert(
         id,
         name,
         activityIds: [],
-        collapsed: meta['collapsed'] === 'true',
+        collapsed: bareCollapsed || meta['collapsed'] === 'true',
         lineNumber,
         ...(Object.keys(tags).length > 0 && { tags }),
       });
@@ -1250,7 +1269,7 @@ export function parsePert(
     options.seed = deriveSeed(seedSource);
   }
 
-  // Sprint-mode detection (mirrors Gantt). `time-unit s` → auto;
+  // Sprint-mode detection (mirrors Gantt). `time-unit sp` → auto;
   // any explicit `sprint-*` directive → explicit (wins over auto).
   // Apply sensible defaults when sprint mode is active.
   const hasSprintOption =
@@ -1362,6 +1381,9 @@ function applyDirective(
     case 'no-current-year':
       return;
     case 'time-unit': {
+      // `sp` = sprints is canonical (decision #48); bare `s` is the legacy
+      // alias — both normalize to the internal 's' unit.
+      const normalized = value === 'sp' ? 's' : value;
       const valid: DurationUnit[] = [
         'min',
         'h',
@@ -1373,14 +1395,15 @@ function applyDirective(
         'y',
         's',
       ];
-      if (!(valid as string[]).includes(value)) {
+      if (!(valid as string[]).includes(normalized)) {
+        const shown = valid.map((u) => (u === 's' ? 'sp' : u));
         error(
           lineNumber,
-          `Unknown time-unit '${value}'. Expected one of ${valid.join(', ')}.`
+          `Unknown time-unit '${value}'. Expected one of ${shown.join(', ')}.`
         );
         return;
       }
-      options.timeUnit = value as DurationUnit;
+      options.timeUnit = normalized as DurationUnit;
       return;
     }
     case 'default-confidence': {
@@ -1391,6 +1414,11 @@ function applyDirective(
     case 'no-title': {
       // Bare boolean directive — suppresses the diagram banner title.
       options.noTitle = true;
+      return;
+    }
+    case 'no-legend': {
+      // §1.9 universal — suppresses the tag legend row and its reserved band.
+      options.noLegend = true;
       return;
     }
     case 'fill-solid': {
@@ -1482,6 +1510,16 @@ function applyDirective(
         return;
       }
       options.direction = upper as PertDirection;
+      return;
+    }
+    case 'direction-lr': {
+      // §1.9 boolean — restates the LR default (last one wins).
+      options.direction = 'LR';
+      return;
+    }
+    case 'direction-tb': {
+      // §1.9 boolean — top-to-bottom layout (last one wins).
+      options.direction = 'TB';
       return;
     }
     case 'node-detail': {

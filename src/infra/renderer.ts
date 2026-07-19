@@ -52,6 +52,7 @@ import {
   TITLE_OFFSET,
 } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
+import { legendSuppressed } from '../utils/parsing';
 
 // ============================================================
 // Constants
@@ -2326,7 +2327,8 @@ export function renderInfra(
   // App-hosted: the playback pill moves to the app overlay, so a playback-only
   // legend (no tag groups) has nothing left to render.
   const hasLegend =
-    legendGroups.length > 0 || (!!playback && !appHostedPlayback);
+    (legendGroups.length > 0 || (!!playback && !appHostedPlayback)) &&
+    !legendSuppressed(layout.options);
   const fixedLegend = !exportMode && hasLegend;
   const legendDynamicH = hasLegend
     ? getMaxLegendReservedHeight(

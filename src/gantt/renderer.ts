@@ -352,8 +352,11 @@ export function renderGantt(
   const showTitle = !!title && !resolved.options.noTitle;
   const titleHeight = showTitle ? 50 : 20;
   const containerWidth = exportDims?.width ?? (container.clientWidth || 800);
+  // §1.9 `no-legend` suppresses the whole legend row (tag capsules + the
+  // critical-path/dependencies controls) and collapses its reserved band.
   const hasTagLegend =
-    resolved.tagGroups.length > 0 || hasCriticalPath || hasDependencies;
+    !resolved.options.noLegend &&
+    (resolved.tagGroups.length > 0 || hasCriticalPath || hasDependencies);
   const tagLegendReserve = hasTagLegend
     ? getMaxLegendReservedHeight(
         {
@@ -467,7 +470,7 @@ export function renderGantt(
 
   function drawLegend() {
     svg.selectAll('.gantt-tag-legend-container').remove();
-    if (resolved.tagGroups.length > 0 || hasCriticalPath || hasDependencies) {
+    if (hasTagLegend) {
       const legendY = sTitleHeight;
       renderTagLegend(
         svg,

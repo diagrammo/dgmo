@@ -148,6 +148,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'bar',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       stack: {
         description:
           'Multi-series block header → stacked bars (one bar/category)',
@@ -166,6 +167,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'line',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       series: { description: 'Series name(s)' },
       fill: { description: 'Fill under the line (area chart)' },
       'x-label': { description: 'X-axis label' },
@@ -202,6 +204,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'radar',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'no-value': { description: 'Hide value labels at each vertex' },
     }),
   ],
@@ -210,6 +213,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'scatter',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'no-name': { description: 'Hide point labels' },
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
@@ -235,6 +239,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'function',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       x: { description: 'X-axis range (start to end)' },
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
@@ -267,6 +272,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'timeline',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       ...DATE_DIRECTIVES,
       'active-tag': { description: 'Active tag group name' },
     }),
@@ -314,6 +320,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'sequence',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       activations: {
         description: 'Show activation bars',
         values: ['on', 'off'],
@@ -323,20 +330,25 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'flowchart',
-    // Spec §5 §4.6: direction-lr, orientation-vertical, fill family, no-notes
+    // Spec §5 §4.6: direction-lr, fill family, no-notes. The phantom
+    // `orientation-vertical` (never implemented) was deleted in decision #48.
     withGlobals({
       'direction-lr': { description: 'Switch to left-to-right layout' },
-      'orientation-vertical': {
-        description: 'Use vertical orientation for ranks',
-      },
+      'direction-tb': { description: 'Top-to-bottom layout (the default)' },
       'no-notes': { description: 'Suppress all node note boxes' },
     }),
   ],
-  ['class', withGlobals({})],
+  [
+    'class',
+    withGlobals({
+      'no-legend': { description: 'Hide the legend' },
+    }),
+  ],
   [
     'er',
     // Spec §9 §8.5: notation (chen/crow), active-tag.
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       notation: {
         description: 'ER notation style',
         values: ['chen', 'crow'],
@@ -349,7 +361,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // Spec §7 §6.5: direction-tb, sub-node-label, show-sub-node-count,
     // hide, active-tag. fill family via FILL_FAMILY_CAPABLE.
     withGlobals({
-      'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'no-legend': { description: 'Hide the legend' },
+      'direction-tb': { description: 'Top-to-bottom layout (the default)' },
+      'direction-lr': { description: 'Switch to left-to-right layout' },
       'sub-node-label': { description: 'Label for sub-nodes' },
       'show-sub-node-count': { description: 'Show sub-node counts' },
       hide: { description: 'Hide tag:value pairs' },
@@ -361,6 +375,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // Spec §32: sex-as-color + tag legend; active-tag. Fill family via
     // FILL_FAMILY_CAPABLE.
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'active-tag': { description: 'Active tag group name' },
       highlight: {
         description:
@@ -378,6 +393,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'kanban',
     // Spec §11 §10.4: hide, active-tag.
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       hide: { description: 'Hide tag:value pairs' },
       'active-tag': { description: 'Active tag group name' },
     }),
@@ -387,6 +403,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'raci',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       roles: {
         description:
           'Declare role column order (inline `roles A, B, C` or indented block with per-role pipe metadata)',
@@ -396,31 +413,41 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'c4',
-    // Spec §8 §7.7: direction-tb, active-tag.
+    // Spec §8 §7.7: direction booleans, active-tag.
     withGlobals({
-      'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'no-legend': { description: 'Hide the legend' },
+      'direction-tb': { description: 'Top-to-bottom layout (the default)' },
+      'direction-lr': { description: 'Switch to left-to-right layout' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
     'state',
-    // Spec §6 §5.6: direction-tb, fill family, no-notes.
+    // Spec §6 §5.6: direction booleans, fill family, no-notes, active-tag
+    // (decision #48 — state gained the standard tag system).
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'direction-lr': { description: 'Left-to-right layout (the default)' },
       'no-notes': { description: 'Suppress all state note boxes' },
+      'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
     'sitemap',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'direction-lr': { description: 'Left-to-right layout (the default)' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
     'infra',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'direction-lr': { description: 'Left-to-right layout (the default)' },
       animate: { description: 'Enable traffic animation' },
       'default-latency-ms': { description: 'Default latency for all nodes' },
       'default-uptime': { description: 'Default uptime for all nodes' },
@@ -434,16 +461,20 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'pert',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       ...DATE_DIRECTIVES,
       'time-unit': {
-        description: 'Time unit for activity durations',
-        values: ['min', 'h', 'd', 'bd', 'w', 'm', 'q', 'y'],
+        description: 'Time unit for activity durations (sp = sprints)',
+        values: ['min', 'h', 'd', 'bd', 'w', 'm', 'q', 'y', 'sp'],
       },
       confidence: {
         description: 'Confidence factor for M-only durations',
         values: ['high', 'medium', 'low'],
       },
-      direction: { description: 'Layout direction', values: ['LR', 'TB'] },
+      // Canonical direction booleans (§1.9); key+value `direction LR|TB`
+      // parses as legacy but is no longer offered.
+      'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'direction-lr': { description: 'Left-to-right layout (the default)' },
       'node-detail': {
         description: 'Node visual density',
         values: ['compact', 'full'],
@@ -468,8 +499,11 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'gantt',
     // Spec §13 §12.2 Options.
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       ...DATE_DIRECTIVES,
-      start: { description: 'Project start date (ISO, 7/4, or Jul 4)' },
+      // Canonical since decision #48; bare `start` parses as a legacy alias
+      // but is no longer offered.
+      'start-date': { description: 'Project start date (ISO, 7/4, or Jul 4)' },
       'today-marker': {
         description: 'Today marker (bare = on, or a date)',
       },
@@ -488,20 +522,29 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'boxes-and-lines',
     withGlobals({
-      direction: { description: 'Layout direction', values: ['LR', 'TB'] },
+      'no-legend': { description: 'Hide the legend' },
+      // Canonical direction booleans (§1.9); key+value `direction LR|TB`
+      // parses as legacy but is no longer offered.
+      'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'direction-lr': { description: 'Left-to-right layout (the default)' },
       'active-tag': { description: 'Active tag group name' },
       hide: { description: 'Hide tag:value pairs' },
       heat: {
         description:
           'Label for the value→colour ramp, with an optional trailing [low] [high] color pair (pairs with the `heat:` key)',
       },
-      'show-values': { description: 'Print box values as text' },
+      // Values render by default (decision #48); legacy `show-values` is a
+      // parse-accepted no-op.
+      'no-value': { description: 'Hide the per-box numeric value labels' },
     }),
   ],
   [
     'swimlane',
     withGlobals({
-      direction: { description: 'Layout direction', values: ['LR', 'TB'] },
+      // Canonical direction booleans (§1.9); key+value `direction LR|TB`
+      // parses as legacy but is no longer offered.
+      'direction-tb': { description: 'Switch to vertical column lanes' },
+      'direction-lr': { description: 'Horizontal band lanes (the default)' },
       lane: { description: 'Declare a lane (row) with an optional color' },
       'active-tag': { description: 'Active tag group name' },
     }),
@@ -509,9 +552,13 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'version-control',
     withGlobals({
-      direction: {
-        description: 'Layout direction',
-        values: ['LR', 'TB', 'BT'],
+      // Canonical direction booleans (§1.9); key+value `direction LR|TB`
+      // parses as legacy but is no longer offered.
+      'direction-tb': {
+        description: 'Column lanes, newest down (the git-log view)',
+      },
+      'direction-lr': {
+        description: 'Horizontal lanes, newest right (the default)',
       },
       merge: { description: 'Merge a branch into the active branch' },
       'cherry-pick': { description: 'Copy a commit onto the active branch' },
@@ -531,6 +578,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'mindmap',
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
@@ -543,12 +591,14 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'tech-radar',
-    // Spec §20 documents one directive: `show-blip-legend`. `rings` is a
-    // structural block keyword; quadrant/ring/trend/color are pipe metadata
-    // that live in PIPE_METADATA.
+    // Spec §20 documents one directive: `no-blip-legend` (the listing is
+    // default-on everywhere per decision #48; legacy `show-blip-legend` is a
+    // parse-accepted no-op). `rings` is a structural block keyword;
+    // quadrant/ring/trend/color are pipe metadata that live in PIPE_METADATA.
     withGlobals({
-      'show-blip-legend': {
-        description: 'Render the four-column blip listing alongside the radar',
+      'no-legend': { description: 'Hide the legend' },
+      'no-blip-legend': {
+        description: 'Hide the four-column blip listing beside the radar',
       },
     }),
   ],
@@ -569,6 +619,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     // structural keyword (like `tag` / `roles`), not a directive.
     // the fill family is added via FILL_FAMILY_CAPABLE below.
     withGlobals({
+      'no-legend': { description: 'Hide the legend' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
@@ -600,7 +651,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Render N levels; deeper subtrees collapse to a drillable block',
       },
-      'no-values': { description: 'Hide value labels' },
+      // Decision #48: source-level pre-selection of the resting color
+      // dimension (tag group name, heat label, or `none` = branch mode).
+      'active-tag': {
+        description:
+          'Resting color dimension: a tag group name, the heat label, or none (branch)',
+      },
+      // Canonical since decision #48; plural `no-values` parses as a legacy
+      // alias but is no longer offered.
+      'no-value': { description: 'Hide value labels' },
       'no-percent': { description: 'Hide percentage labels' },
       'no-headers': { description: 'Hide parent header bars' },
       'no-legend': { description: 'Hide the legend' },
@@ -636,7 +695,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       'no-percent': { description: 'Hide the % label' },
       'no-value': { description: 'Hide the raw now / target label' },
-      'no-note': { description: 'Suppress the note block even if present' },
+      // Canonical since decision #48; singular `no-note` parses as a legacy
+      // alias but is no longer offered.
+      'no-notes': { description: 'Suppress the note block even if present' },
       'no-auto-color': {
         description: 'Disable traffic-light coloring; use the palette color',
       },
@@ -655,13 +716,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       every: {
         description:
-          'Recurring: every <year|month|week|N days|weeks|months> [on <instant>] [at HH:MM] [from <date>]',
+          'Recurring: every <year|month|week|N days|weeks|months> [on <instant>] [at <time>] [from <date>]',
       },
       on: {
         description:
           'Instant within the cadence: Aug 21 | 3rd Tuesday | last Friday | Friday',
       },
-      at: { description: 'Time of day, 24h (e.g. 18:00); default midnight' },
+      at: {
+        description: 'Time of day: 18:00 | 6pm | 6:30pm; default midnight',
+      },
       from: {
         description:
           'Interval anchor date: every [N] day|week|month from <date> (e.g. every month from 2026-01-31)',
@@ -699,7 +762,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description:
           'Working window: 9-17 | 9am-5pm | 8:30-17:15 (enables status)',
       },
-      days: {
+      // Canonical since decision #48; `days` parses as a legacy alias but is
+      // no longer offered.
+      workweek: {
         description: 'Working days: mon-fri | mon,wed,fri (default mon-fri)',
       },
       'no-sun': {
@@ -708,7 +773,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'time-24': {
         description: '24-hour readout (12-hour am/pm is the default)',
       },
-      direction: { description: 'lr → columns (time on top); default rows' },
+      // Canonical direction booleans (§1.9); key+value `direction lr|tb`
+      // (and its `columns` value alias) parses as legacy but is no longer
+      // offered.
+      'direction-lr': {
+        description: 'Columns — panels in a horizontal strip (time on top)',
+      },
+      'direction-tb': {
+        description: 'Rows — the default vertical stack',
+      },
       'color-by': {
         description:
           'What drives each place color: place (default) | work | daylight | time | none',
@@ -732,7 +805,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       tag: {
         description: 'Tag group — a competitor tag colors its box outline',
       },
-      accent: { description: 'Winner accent color override (default blue)' },
+      // `accent <color>` is a legacy alias (decision #48) — the title-line
+      // trailing color token is the canonical winner-accent slot, so the
+      // directive is no longer offered in completion.
       'no-legend': { description: 'Hide the tag legend' },
       'no-round': { description: 'Suppress the round/column labels' },
       'single-elim': { description: 'Single-elimination format (default)' },
@@ -948,6 +1023,7 @@ export const STRUCTURAL_KEYWORDS = new Map<string, string[]>([
   ['block', ['tag']],
   ['sketch', ['tag']],
   ['boxes-and-lines', ['tag']],
+  ['state', ['note', 'tag']],
   ['swimlane', ['lane', 'tag']],
   [
     'version-control',
@@ -1221,7 +1297,10 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
     {
       node: {
         description: { description: 'Node description text' },
-        collapsed: { description: 'Collapse node subtree by default' },
+        collapsed: {
+          description:
+            'Legacy `collapsed: true` — canonical is the bare trailing `collapsed` flag on the node line',
+        },
       },
       edge: {},
     },
@@ -1388,7 +1467,10 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
           description: 'Confidence factor',
           values: ['high', 'medium', 'low'],
         },
-        collapsed: { description: 'Collapse activity detail' },
+        collapsed: {
+          description:
+            'Collapse detail (legacy `collapsed: true`; on group lines the bare trailing `collapsed` flag is canonical)',
+        },
       },
     },
   ],
@@ -1411,6 +1493,10 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
 export const METADATA_KEY_SET: ReadonlySet<string> = new Set([
   'chart',
   'title', // implicit directives recognized as metadata
+  // Legacy key+value direction form (`direction LR|TB`) — no longer offered
+  // by completion (the §1.9 booleans are canonical) but still parse-accepted,
+  // so extractors must keep skipping it as a directive line.
+  'direction',
   ...[...COMPLETION_REGISTRY.values()].flatMap((spec) =>
     Object.keys(spec.directives)
   ),
@@ -1816,7 +1902,7 @@ function extractC4Symbols(docText: string): DiagramSymbols {
 // ============================================================
 
 const GANTT_LEGACY_DURATION_RE =
-  /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)\??\s+(.+)$/;
+  /^(\d+(?:\.\d+)?)(min|bd|sp|d|w|m|q|y|h|s)\??\s+(.+)$/;
 const GANTT_LEGACY_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2})?)\s+(.+)$/;
 const GANTT_GROUP_RE = /^\[(.+?)\]/;
 const GANTT_STRUCTURAL_RE = /^(era|marker|holiday|workweek|parallel)\b/i;

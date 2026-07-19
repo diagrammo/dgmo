@@ -81,6 +81,8 @@ export interface PertOptions {
   anchor: Anchor;
   /** When true, the renderer suppresses the diagram banner title. */
   noTitle?: boolean;
+  /** §1.9 `no-legend` — suppress the tag legend and collapse its reserved band. */
+  noLegend?: boolean;
   /**
    * §1.9 fill family — `fill-solid` renders node/group card fills at full intent
    * saturation instead of the canonical 25% tint (via `shapeFill`).

@@ -164,6 +164,8 @@ export function parseBracket(
 
   const lines = content.split('\n');
   let headerParsed = false;
+  /** True when the title line's trailing color set the winner accent (§1.5). */
+  let accentFromTitle = false;
   let currentSide: string | null = null;
   let currentTagGroup: Writable<TagGroup> | null = null;
   let commentaryTarget: MutMatch | null = null;
@@ -189,13 +191,20 @@ export function parseBracket(
         return fail(lineNum, 'Expected "bracket [Title]" as the first line.');
       }
       if (first.title) {
-        const { label } = extractColor(
+        // §1.5 title-line accent slot (decision #48): a trailing color token
+        // sets the winner accent, mirroring goal/countdown. It WINS over the
+        // legacy `accent <color>` directive.
+        const { label, color } = extractColor(
           first.title,
           palette,
           result.diagnostics,
           lineNum
         );
         result.title = label || null;
+        if (color !== undefined) {
+          result.accentColor = color;
+          accentFromTitle = true;
+        }
       }
       result.titleLineNumber = lineNum;
       headerParsed = true;
@@ -310,7 +319,8 @@ export function parseBracket(
       continue;
     }
 
-    // ── `accent <color>` — override the default winner accent (blue). ──
+    // ── `accent <color>` — legacy alias for the title-line trailing color
+    // (decision #48). Still parse-accepted; the title-line token wins. ──
     const accentM = trimmed.match(/^accent\s+(.+)$/i);
     if (accentM) {
       const { color } = extractColor(
@@ -319,7 +329,7 @@ export function parseBracket(
         result.diagnostics,
         lineNum
       );
-      if (color !== undefined) result.accentColor = color;
+      if (color !== undefined && !accentFromTitle) result.accentColor = color;
       continue;
     }
 

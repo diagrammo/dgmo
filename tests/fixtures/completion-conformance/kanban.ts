@@ -7,7 +7,14 @@ export const fixture: ConformanceFixture = {
   structuralKeywords: ['tag'],
   specSection: '11',
   firstLineKeyword: 'kanban',
-  directives: ['hide', 'active-tag', 'fill-tint', 'fill-solid', 'fill-outline'],
+  directives: [
+    'no-legend',
+    'hide',
+    'active-tag',
+    'fill-tint',
+    'fill-solid',
+    'fill-outline',
+  ],
   pipeKeys: {
     node: ['description', 'assignee', 'due'],
   },

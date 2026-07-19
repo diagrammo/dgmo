@@ -202,6 +202,22 @@ describe('swimlane parser — direction & tags', () => {
     expect(parseSwimlane(FIX('swimlane-tb.dgmo')).direction).toBe('TB');
   });
 
+  it('accepts the direction booleans (canonical, decision #48); last one wins', () => {
+    expect(parseSwimlane('swimlane T\ndirection-tb\nlane L').direction).toBe(
+      'TB'
+    );
+    expect(parseSwimlane('swimlane T\ndirection-lr\nlane L').direction).toBe(
+      'LR'
+    );
+    expect(
+      parseSwimlane('swimlane T\ndirection-tb\ndirection-lr\nlane L').direction
+    ).toBe('LR');
+    // Legacy key+value still parses.
+    expect(parseSwimlane('swimlane T\ndirection TB\nlane L').direction).toBe(
+      'TB'
+    );
+  });
+
   it('parses a tag group and applies a node tag value', () => {
     const p = parseSwimlane(FIX('swimlane-insurance.dgmo'));
     expect(p.tagGroups.map((g) => g.name)).toContain('Risk');

@@ -47,7 +47,11 @@ import type {
 // Regex patterns
 // ============================================================
 
-const CONTAINER_RE = /^\[([^\]]+)\]$/;
+// Group boundary `[Name]` with an optional collapse marker: canonical bare
+// `collapsed` trailing flag (§1.8, decision #48; capture 2, case-sensitive
+// lowercase) or legacy `collapsed: <val>` metadata (capture 3). Any other
+// tail keeps the line out of this regex, preserving prior diagnostics.
+const CONTAINER_RE = /^\[([^\]]+)\](?:\s+(collapsed)|\s+collapsed:\s*(\S+))?$/;
 
 /** Matches element declarations: `person Name`, `system Name | k: v` */
 const ELEMENT_RE = /^(person|system|container|component)\s+(.+)$/i;
@@ -107,10 +111,12 @@ const KNOWN_C4_OPTIONS = new Set<string>(['layout', 'active-tag']);
 /** Known C4 boolean options (bare keyword = on). */
 const KNOWN_C4_BOOLEANS = new Set<string>([
   'direction-tb',
+  'direction-lr',
   'fill-tint',
   'fill-solid',
   'fill-outline',
   'no-title',
+  'no-legend',
 ]);
 
 const ALL_CHART_TYPES = [
@@ -272,6 +278,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     title: null,
     titleLineNumber: null,
     options,
+    direction: 'TB',
     tagGroups: [],
     elements: [],
     relationships: [],
@@ -405,7 +412,14 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
       // Bare boolean options
       if (KNOWN_C4_BOOLEANS.has(trimmed.toLowerCase())) {
-        options[trimmed.toLowerCase()] = 'on';
+        const boolKey = trimmed.toLowerCase();
+        // The direction booleans are a mutually-exclusive pair (§1.9,
+        // last one wins) — clear the sibling so only the latest survives.
+        if (boolKey === 'direction-lr' || boolKey === 'direction-tb') {
+          delete options['direction-lr'];
+          delete options['direction-tb'];
+        }
+        options[boolKey] = 'on';
         continue;
       }
 
@@ -578,11 +592,17 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     if (containerMatch) {
       // Capture group [1] guaranteed by regex match.
       const groupName = containerMatch[1]!.trim();
+      // Canonical bare `collapsed` flag (capture 2) or legacy
+      // `collapsed: true` metadata (capture 3).
+      const groupCollapsed =
+        containerMatch[2] !== undefined ||
+        containerMatch[3]?.toLowerCase() === 'true';
       const parentEntry = findParentElement(indent, stack);
       if (parentEntry) {
         const group: Writable<C4Group> = {
           name: groupName,
           children: [],
+          ...(groupCollapsed && { collapsed: true }),
           lineNumber,
         };
         parentEntry.element.groups.push(group);
@@ -1030,6 +1050,12 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
   validateTagGroupNames(result.tagGroups, (line, msg) =>
     pushError(line, msg, 'warning')
   );
+
+  // Resolve the layout direction (§8.7). The boolean pair is mutually
+  // exclusive and already collapsed to a single surviving key above
+  // (§1.9, last one wins), so a lone presence check is sufficient.
+  // Absent both, C4 views keep their long-standing top-down orientation.
+  result.direction = options['direction-lr'] ? 'LR' : 'TB';
 
   return result;
 }

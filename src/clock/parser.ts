@@ -10,7 +10,7 @@
 //   clock <Title>
 //   face   <analog|digital>            // default digital; either/or, never both
 //   hours  <start>-<end>               // 9-17 · 9am-5pm · 8:30-5:15 (bare→PM)
-//   days   <mon-fri|mon,wed,fri>       // working days (default mon-fri)
+//   workweek <mon-fri|mon,wed,fri>     // working days (default mon-fri)
 //   sun    <true|false>                // sundown/sunrise line; default on
 //   time-24 / time-12                  // 24h vs 12h am/pm (default 12h)
 //
@@ -47,10 +47,17 @@ import { resolvePlace } from './gazetteer';
 const DIRECTIVES = new Set([
   'analog',
   'hours',
+  'workweek',
+  // Legacy alias for `workweek` (decision #48).
   'days',
   'no-sun',
   'time-24',
   'no-title',
+  // Canonical direction booleans (§1.9); key+value `direction <lr|tb>` (and
+  // its `columns` value alias) stays parse-accepted legacy. These MUST be in
+  // this set — otherwise a bare `direction-lr` line parses as a zone entry.
+  'direction-lr',
+  'direction-tb',
   'direction',
   'color-by',
   'fill-tint',
@@ -249,12 +256,14 @@ export function parseClock(
           }
           break;
         }
+        // `workweek` is canonical; `days` is the legacy alias (decision #48).
+        case 'workweek':
         case 'days': {
           const parsed = parseDays(rest);
           if (parsed === null) {
             softError(
               lineNum,
-              `"days" needs weekdays like mon-fri or mon,wed,fri (got "${rest}").`
+              `"${key}" needs weekdays like mon-fri or mon,wed,fri (got "${rest}").`
             );
           } else {
             workDays = parsed;
@@ -296,10 +305,19 @@ export function parseClock(
           }
           break;
         }
+        case 'direction-lr':
+          // §1.9 boolean — columns (panels laid out in a horizontal strip).
+          result.columns = true;
+          break;
+        case 'direction-tb':
+          // §1.9 boolean — rows, the default vertical stack (last one wins).
+          result.columns = false;
+          break;
         case 'direction': {
+          // Legacy key+value form (`direction lr|tb|columns`).
           const v = rest.trim().toLowerCase();
           // LR (left-to-right) → columns; TB (top-to-bottom) → rows (default).
-          result.columns = v.startsWith('lr') || v === 'columns';
+          result.columns = v === 'lr' || v === 'columns';
           break;
         }
       }
@@ -436,7 +454,7 @@ export function parseClock(
   } else if (workDays !== null) {
     warn(
       result.titleLineNumber ?? 1,
-      '`days` has no effect without `hours` — the working-hours status needs a window.'
+      '`workweek` has no effect without `hours` — the working-hours status needs a window.'
     );
   }
 

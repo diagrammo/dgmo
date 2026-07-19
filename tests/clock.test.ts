@@ -195,6 +195,26 @@ describe('clock parser', () => {
     expect(parseClock(`clock T\nNew York`).columns).toBe(false);
     expect(parseClock(`clock T\ndirection lr\nNew York`).columns).toBe(true);
     expect(parseClock(`clock T\ndirection tb\nNew York`).columns).toBe(false);
+    // Exact-match values only — junk like `lrx` does not select columns.
+    expect(parseClock(`clock T\ndirection lrx\nNew York`).columns).toBe(false);
+  });
+
+  it('reads the direction booleans (canonical, decision #48); last one wins', () => {
+    expect(parseClock(`clock T\ndirection-lr\nNew York`).columns).toBe(true);
+    expect(parseClock(`clock T\ndirection-tb\nNew York`).columns).toBe(false);
+    expect(
+      parseClock(`clock T\ndirection-lr\ndirection-tb\nNew York`).columns
+    ).toBe(false);
+    expect(
+      parseClock(`clock T\ndirection-tb\ndirection-lr\nNew York`).columns
+    ).toBe(true);
+  });
+
+  it('direction booleans are directives, never timezone entries', () => {
+    const p = parseClock(`clock T\ndirection-lr\ndirection-tb\nNew York`);
+    expect(p.entries).toHaveLength(1);
+    expect(p.entries[0]!.zone).toBe('America/New_York');
+    expect(p.diagnostics).toHaveLength(0);
   });
 
   it('renders one column group per entry in columns mode', () => {
@@ -219,6 +239,24 @@ describe('clock parser', () => {
   it('supports a comma list for days', () => {
     const r = parseClock(`clock T\nhours 9-17\ndays mon,wed,fri\nUTC`);
     expect(r.work!.days).toEqual({ Mon: true, Wed: true, Fri: true });
+  });
+
+  it('parses canonical `workweek` as a directive, not a zone row (decision #48)', () => {
+    const r = parseClock(`clock T\nhours 9-17\nworkweek mon-fri\nLondon`);
+    expect(r.entries).toHaveLength(1); // London only — workweek is not an entry
+    expect(r.work!.days).toEqual({
+      Mon: true,
+      Tue: true,
+      Wed: true,
+      Thu: true,
+      Fri: true,
+    });
+  });
+
+  it('`workweek` matches the legacy `days` alias exactly', () => {
+    const canonical = parseClock(`clock T\nhours 9-17\nworkweek mon,wed\nUTC`);
+    const legacy = parseClock(`clock T\nhours 9-17\ndays mon,wed\nUTC`);
+    expect(canonical.work).toEqual(legacy.work);
   });
 
   it('skips an unknown IANA zone and warns', () => {
@@ -252,6 +290,13 @@ describe('clock parser', () => {
   it('warns when `days` is given without `hours` (no work window)', () => {
     const r = parseClock(`clock T\ndays mon-fri\nLondon`);
     expect(r.work).toBeNull();
+    expect(warnings(r.diagnostics).length).toBeGreaterThan(0);
+  });
+
+  it('warns when `workweek` is given without `hours` (still no bogus entry)', () => {
+    const r = parseClock(`clock T\nworkweek mon-fri\nLondon`);
+    expect(r.work).toBeNull();
+    expect(r.entries).toHaveLength(1); // the bare directive never becomes a zone row
     expect(warnings(r.diagnostics).length).toBeGreaterThan(0);
   });
 

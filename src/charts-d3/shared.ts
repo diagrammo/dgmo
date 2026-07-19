@@ -60,7 +60,9 @@ export function reserveHeader(
 ): number {
   return injectLegendGroups(
     svg,
-    getSimpleChartLegendGroups(chart, colors),
+    // `no-legend` (#48) → pass no groups; injectLegendGroups then returns the
+    // title-only top inset, so the legend band collapses rather than blanking.
+    chart.noLegend ? [] : getSimpleChartLegendGroups(chart, colors),
     palette,
     isDark,
     hasTitle,

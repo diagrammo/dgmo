@@ -62,11 +62,14 @@ const ASYNC_SIMPLE_CONNECTION_RE = /^~>\s*(.+?)\s*$/;
 // Deprecated xN fanout suffix (e.g. "x5" at end of line)
 const DEPRECATED_FANOUT_RE = /\bx(\d+)\s*$/;
 
-// Group declaration: [Group Name] with optional `as <alias>` and optional
-// metadata (legacy `| ...` or new same-line `key: value` per §1.4).
-// Capture order: 1=label, 2=alias, 3=metadata tail.
+// Group declaration: [Group Name] with optional `as <alias>`, optional bare
+// `collapsed` trailing flag (§1.8, decision #48 — canonical collapse
+// spelling; case-sensitive lowercase, colon-less so `collapsed: true` falls
+// through to the metadata tail as legacy), and optional metadata (legacy
+// `| ...` or same-line `key: value` per §1.4).
+// Capture order: 1=label, 2=alias, 3=bare collapsed flag, 4=metadata tail.
 const GROUP_RE =
-  /^\[([^\]]+)\]\s*(?:as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*)?((?:\|.*)|(?:[a-zA-Z_]\w*\s*:.*))?$/;
+  /^\[([^\]]+)\]\s*(?:as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*)?(?:(collapsed)(?!\s*:)\s*)?((?:\|.*)|(?:[a-zA-Z_]\w*\s*:.*))?$/;
 
 // Tag value: `Name` or `Name color` (trailing-token color form). Color is
 // extracted via the shared `extractColor` helper at use-site (see
@@ -416,9 +419,11 @@ export function parseInfra(content: string): ParsedInfra {
         }
       }
 
-      // direction-tb — bare boolean to switch to top-to-bottom (default is LR)
-      if (/^direction-tb$/i.test(trimmed)) {
-        result.direction = 'TB';
+      // direction-lr / direction-tb — bare booleans (§1.9, last one wins;
+      // direction-lr restates the LR default)
+      const dirBool = trimmed.match(/^direction-(lr|tb)$/i);
+      if (dirBool) {
+        result.direction = dirBool[1]!.toUpperCase() as 'LR' | 'TB';
         continue;
       }
 
@@ -467,10 +472,21 @@ export function parseInfra(content: string): ParsedInfra {
         const groupAlias = groupMatch[2];
         const gId = groupId(gLabel);
         if (groupAlias) nameAliasMap.set(groupAlias, gId);
-        const groupMeta = groupMatch[3]
-          ? extractPipeMetadata(groupMatch[3]).tags
+        // Canonical bare `collapsed` trailing flag (capture 3).
+        let groupCollapsed = groupMatch[3] !== undefined;
+        const groupMeta = groupMatch[4]
+          ? extractPipeMetadata(groupMatch[4]).tags
           : undefined;
         if (groupMeta) {
+          // Legacy same-line `collapsed: true` metadata — lift into the
+          // typed flag and drop from metadata so it doesn't cascade into
+          // child node tags.
+          if (groupMeta['collapsed'] !== undefined) {
+            if (groupMeta['collapsed'].toLowerCase() === 'true') {
+              groupCollapsed = true;
+            }
+            delete groupMeta['collapsed'];
+          }
           warnUnknownMetaKeys(
             groupMeta,
             withTagAliases(INFRA_REGISTRY, tagAliasSet),
@@ -482,6 +498,7 @@ export function parseInfra(content: string): ParsedInfra {
           id: gId,
           label: gLabel,
           ...(hasMeta && { metadata: groupMeta }),
+          ...(groupCollapsed && { collapsed: true }),
           lineNumber,
         };
         currentGroup = newGroup;
@@ -596,6 +613,32 @@ export function parseInfra(content: string): ParsedInfra {
         }
         // Fall through to component matching — could be a component name
         // that happens to match PROPERTY_RE (e.g., "MyService: v2")
+      }
+
+      // Legacy space-form group properties (decision #48: colon forms
+      // `instances: N` / `collapsed: true` are canonical; the old
+      // space-separated spellings stay parse-accepted). Value shapes are
+      // validated tightly so a component named e.g. "instances tracker"
+      // still falls through to the component branch.
+      const spacePropMatch = trimmed.match(
+        /^(instances|collapsed)\s+(\S+)\s*$/
+      );
+      if (spacePropMatch) {
+        const key = spacePropMatch[1]!;
+        const val = spacePropMatch[2]!;
+        if (key === 'instances' && RANGE_RE.test(val)) {
+          currentGroup.instances = val;
+          continue;
+        }
+        if (key === 'instances' && /^\d+$/.test(val)) {
+          currentGroup.instances = parseInt(val, 10);
+          continue;
+        }
+        if (key === 'collapsed' && /^(true|false)$/i.test(val)) {
+          currentGroup.collapsed = val.toLowerCase() === 'true';
+          continue;
+        }
+        // Anything else falls through to component matching.
       }
 
       const compMatch = trimmed.match(COMPONENT_RE);
@@ -1177,7 +1220,11 @@ export function extractSymbols(docText: string): DiagramSymbols {
         // Recognize new-style bare options (`key value`) and old-style (`key: value`)
         const firstLine = parseFirstLine(line);
         if (firstLine) continue; // chart type line
-        if (/^(?:direction-tb|animate|no-animate|slo-|default-)/i.test(line))
+        if (
+          /^(?:direction-tb|direction-lr|animate|no-animate|slo-|default-)/i.test(
+            line
+          )
+        )
           continue;
         if (/^[a-z-]+\s*:/i.test(line)) continue; // legacy colon options
         inMetadata = false;

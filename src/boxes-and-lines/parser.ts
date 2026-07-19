@@ -250,8 +250,9 @@ export function parseBoxesAndLines(
 
     // Directives (non-indented, before or during content)
     if (indent === 0) {
-      // direction TB / direction LR
-      const dirMatch = trimmed.match(/^direction\s+(TB|LR)$/i);
+      // Layout direction — canonical booleans `direction-lr` / `direction-tb`
+      // (§1.9, last one wins); key+value `direction LR|TB` accepted legacy.
+      const dirMatch = trimmed.match(/^direction[-\s]+(TB|LR)$/i);
       if (dirMatch) {
         // Regex capture group present after successful match.
         result.direction = dirMatch[1]!.toUpperCase() as 'LR' | 'TB';
@@ -282,7 +283,7 @@ export function parseBoxesAndLines(
         continue;
       }
 
-      // heat / show-values directives — pre-content only (like
+      // heat / value-label directives — pre-content only (like
       // active-tag). Explicit regex branches: a bare flag and a
       // `key value` form won't both match the active-tag OPTION codepath.
       if (!contentStarted) {
@@ -293,6 +294,13 @@ export function parseBoxesAndLines(
           result.boxMetric = label;
           if (high !== undefined) result.boxMetricColor = high;
           if (low !== undefined) result.boxMetricLowColor = low;
+          continue;
+        }
+        // Values render by default (decision #48): `no-value` suppresses;
+        // legacy `show-values` is accepted as a no-op (it requests the
+        // now-default state).
+        if (/^no-value$/i.test(trimmed)) {
+          result.showValues = false;
           continue;
         }
         if (/^show-values$/i.test(trimmed)) {

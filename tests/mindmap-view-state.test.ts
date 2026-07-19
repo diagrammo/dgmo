@@ -36,9 +36,23 @@ describe('mindmap source view-state — `collapsed: true`', () => {
     expect(svg).toContain('Banana');
   });
 
-  it('AC6: a bare trailing `collapsed` (no colon) is part of the label, not a collapse', async () => {
+  it('AC6 (decision #48): a bare trailing `collapsed` is the canonical collapse flag', async () => {
     const { svg } = await render('mindmap Root\n  Alpha collapsed\n    Apple');
-    expect(svg).toContain('Apple'); // label is "Alpha collapsed"; nothing collapsed
+    expect(svg).not.toContain('Apple'); // Alpha collapsed → subtree pruned
+    expect(svg).toContain('Alpha'); // flag token stripped from the label
+  });
+
+  it('AC6b: capitalized `Collapsed` stays part of the label (no fold)', async () => {
+    const { svg } = await render('mindmap Root\n  Alpha Collapsed\n    Apple');
+    expect(svg).toContain('Apple'); // name is "Alpha Collapsed"; nothing folds
+    expect(svg).toContain('Alpha Collapsed');
+  });
+
+  it('AC6c: a lone `collapsed` line stays a node label (never-empty rule)', async () => {
+    const parsed = parseMindmap('mindmap Root\n  collapsed\n    Apple');
+    const node = parsed.roots[0]!.children[0]!;
+    expect(node.label).toBe('collapsed');
+    expect(node.collapsed).toBeUndefined();
   });
 
   it('AC2: incoming viewState.cg is additive with source markers', async () => {

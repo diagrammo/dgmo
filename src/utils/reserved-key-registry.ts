@@ -175,6 +175,16 @@ export const BOXES_AND_LINES_REGISTRY: ReservedKeyRegistry = staticRegistry([
   'heat',
 ]);
 
+/**
+ * State diagrams (spec §5.7). Decision #48 granted state the standard tag
+ * system; it has no OTHER metadata keys, so the static set is empty on
+ * purpose — only `tag <Group> as <alias>` declarations (overlaid via
+ * `withTagAliases`) can trigger the §1.4 metadata cut. That keeps every
+ * pre-#48 state line (transitions, notes, group brackets) parsing byte
+ * -identically when no tag group is declared.
+ */
+export const STATE_REGISTRY: ReservedKeyRegistry = staticRegistry([]);
+
 // Sketch (spec §31): `shape` morphs the closed 7-kind lexicon, `at` is the
 // half-slot coordinate, `collapsed` is normally a bare flag on box lines but
 // the colon form is tolerated here so it never warns as unknown.

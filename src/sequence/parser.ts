@@ -19,6 +19,7 @@ import { parseArrow, parseInArrowLabel } from '../utils/arrows';
 import {
   measureIndent,
   extractColor,
+  peelTrailingCollapsedFlag,
   splitNameAndMeta,
   parseFirstLine,
   OPTION_NOCOLON_RE,
@@ -48,6 +49,7 @@ const KNOWN_SEQ_BOOLEANS = new Set([
   'fill-solid',
   'fill-outline',
   'no-title',
+  'no-legend',
 ]);
 
 /** Boolean options that only support the `no-` prefix form (no bare or key-value). */
@@ -737,8 +739,17 @@ export function parseSequenceDgmo(
       let groupMeta: Record<string, string> | undefined;
 
       // Parse metadata and collapse state AFTER the closing bracket
-      const afterBracket = groupMatch[3]?.trim() || '';
+      let afterBracket = groupMatch[3]?.trim() || '';
       let isCollapsed = false;
+
+      // Canonical bare `collapsed` trailing flag (§1.8, decision #48) —
+      // peeled from the tail before the metadata split. Case-sensitive
+      // lowercase, so `[Mission Collapsed]`-style names never collide.
+      const barePeel = peelTrailingCollapsedFlag(afterBracket);
+      if (barePeel.collapsed) {
+        isCollapsed = true;
+        afterBracket = barePeel.rest;
+      }
 
       // §1.4 same-line metadata on group header
       if (afterBracket) {

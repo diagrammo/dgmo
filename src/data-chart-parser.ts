@@ -92,6 +92,9 @@ export interface ParsedExtendedBase {
   fillMode?: 'solid' | 'outline';
   /** Cross-chart-type: when true, the renderer suppresses the chart title. */
   noTitle?: boolean;
+  /** Cross-chart-type: when true, the renderer suppresses the legend and the
+   *  vertical band it would occupy (#48). */
+  noLegend?: boolean;
   categoryColors?: Record<string, string>;
   categoryLineNumbers?: Record<string, number>;
   nodeColors?: Record<string, string>;
@@ -169,7 +172,13 @@ export interface ParsedExtendedChartFull extends ParsedExtendedBase {
 
 import type { PaletteColors } from './palettes';
 import type { ParsedChart } from './chart';
-import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
+import {
+  makeDgmoError,
+  formatDgmoError,
+  suggest,
+  emit,
+  TITLE_DIRECTIVE_DX,
+} from './diagnostics';
 import { resolveColorWithDiagnostic } from './colors';
 import {
   collectIndentedValues,
@@ -656,8 +665,8 @@ function parseExtendedChartFull(
       }
 
       if (firstToken === 'title') {
-        result.title = value;
-        result.titleLineNumber = lineNumber;
+        // Removed (decision #48): the chart title is line 1. Error + ignore.
+        result.diagnostics.push(emit(TITLE_DIRECTIVE_DX, lineNumber));
         continue;
       }
 
@@ -769,6 +778,10 @@ function parseExtendedChartFull(
     }
     if (firstToken === 'no-title' && spaceIdx < 0) {
       result.noTitle = true;
+      continue;
+    }
+    if (firstToken === 'no-legend' && spaceIdx < 0) {
+      result.noLegend = true;
       continue;
     }
     // Silent-ignore unrecognized no-* flags (typos, future flags).

@@ -30,6 +30,7 @@ export const fixture: ConformanceFixture = {
   // Directives the spec documents (palette/theme are universal — included
   // automatically by the harness for every chart type).
   directives: [
+    'no-legend',
     'roles',
     'active-tag',
     'fill-tint',

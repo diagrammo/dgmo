@@ -9,7 +9,13 @@
 
 import type { PaletteColors } from '../palettes';
 import { resolveColorWithDiagnostic } from '../colors';
-import { formatDgmoError, makeDgmoError, suggest } from '../diagnostics';
+import {
+  formatDgmoError,
+  makeDgmoError,
+  suggest,
+  emit,
+  TITLE_DIRECTIVE_DX,
+} from '../diagnostics';
 import {
   collectIndentedValues,
   extractColor,
@@ -701,7 +707,7 @@ function parseVisualizationFull(
       // tokens are cross-chart bare keywords — let them fall through to the
       // shared bare-keyword block below (same carve-out venn makes).
       if (
-        !/^(era|marker|tag|sort|active-tag|swimlanes|no-scale|lane-by|fill-tint|fill-solid|fill-outline)\b/i.test(
+        !/^(era|marker|tag|sort|active-tag|swimlanes|no-scale|no-legend|lane-by|fill-tint|fill-solid|fill-outline)\b/i.test(
           line
         ) &&
         !line.startsWith('[')
@@ -930,11 +936,8 @@ function parseVisualizationFull(
       }
 
       if (firstToken === 'title') {
-        result.title = restValue;
-        result.titleLineNumber = lineNumber;
-        if (result.type === 'quadrant') {
-          result.quadrantTitleLineNumber = lineNumber;
-        }
+        // Removed (decision #48): the chart title is line 1. Error + ignore.
+        result.diagnostics.push(emit(TITLE_DIRECTIVE_DX, lineNumber));
         continue;
       }
 
@@ -1009,6 +1012,10 @@ function parseVisualizationFull(
       }
       if (bareToken === 'no-title') {
         result.noTitle = true;
+        continue;
+      }
+      if (bareToken === 'no-legend') {
+        result.noLegend = true;
         continue;
       }
       // Arc orientation (standard boolean form; default horizontal).
@@ -1203,11 +1210,8 @@ function parseVisualizationFull(
       const colorMatch = rawKey.match(/^(.+?)\(([^)]+)\)\s*$/);
 
       if (key === 'title') {
-        result.title = line.substring(colonIndex + 1).trim();
-        result.titleLineNumber = lineNumber;
-        if (result.type === 'quadrant') {
-          result.quadrantTitleLineNumber = lineNumber;
-        }
+        // Removed (decision #48) — colon spelling of the same dead directive.
+        result.diagnostics.push(emit(TITLE_DIRECTIVE_DX, lineNumber));
         continue;
       }
 

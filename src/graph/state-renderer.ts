@@ -3,7 +3,7 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
-import { fillModeFromOptions } from '../utils/parsing';
+import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import { fitDiagramToCanvas } from '../utils/fit-canvas';
 import { FONT_FAMILY } from '../fonts';
@@ -14,6 +14,14 @@ import {
   shapeFill,
   themeBaseBg,
 } from '../palettes/color-utils';
+import {
+  resolveActiveTagGroup,
+  resolveTagColor,
+  tagAttrKey,
+} from '../utils/tag-groups';
+import { renderIntegratedLegend } from '../utils/legend-integration';
+import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import type { LegendGroupData } from '../utils/legend-types';
 import type { ParsedGraph } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseState } from './state-parser';
@@ -134,6 +142,27 @@ export function renderState(
   const showTitle = !!graph.title && graph.options['no-title'] !== 'on';
   const titleHeight = showTitle ? 40 : 0;
 
+  // ── Tag channel (decision #48) ─────────────────────────────
+  const tagGroups = graph.tagGroups ?? [];
+  const activeTagGroup = resolveActiveTagGroup(
+    tagGroups,
+    graph.options['active-tag']
+  );
+  const legendGroups: readonly LegendGroupData[] = tagGroups;
+  const hasLegend = legendGroups.length > 0 && !legendSuppressed(graph.options);
+  const legendH = hasLegend
+    ? ctx.structural(
+        getMaxLegendReservedHeight(
+          {
+            groups: legendGroups,
+            position: { placement: 'top-center', titleRelation: 'below-title' },
+            mode: exportDims ? 'export' : 'preview',
+          },
+          width
+        )
+      ) + 8
+    : 0;
+
   const diagramW = layout.width;
   const diagramH = layout.height;
   const { scale, offsetX, offsetY, canvasHeight } = fitDiagramToCanvas({
@@ -142,7 +171,9 @@ export function renderState(
     diagramW,
     diagramH,
     padding: sDiagramPadding,
-    titleHeight,
+    // The legend band sits directly under the title, so it reserves the same
+    // top strip fitDiagramToCanvas already offsets the diagram by.
+    titleHeight: titleHeight + legendH,
     maxScale: MAX_SCALE,
     exportMode: !!exportDims,
   });
@@ -200,6 +231,24 @@ export function renderState(
           });
       }
     }
+  }
+
+  if (hasLegend) {
+    const legendG = svg
+      .append('g')
+      .attr('transform', `translate(0, ${titleHeight + 4})`);
+    renderIntegratedLegend(legendG, {
+      groups: legendGroups,
+      activeGroup: activeTagGroup,
+      mode: exportDims ? 'export' : 'preview',
+      // Inactive sibling groups stay visible as collapsed pills so the user
+      // can click one to flip the active colouring dimension (as in b&l).
+      showInactivePills: true,
+      palette,
+      isDark,
+      width,
+    });
+    legendG.selectAll('[data-legend-group]').classed('st-legend-group', true);
   }
 
   const contentG = svg
@@ -427,6 +476,24 @@ export function renderState(
   const colorOff = graph.options?.['color'] === 'off';
   const fillMode = fillModeFromOptions(graph.options ?? {});
   const noNotes = graph.options?.['no-notes'] === 'on';
+  const mutableTagGroups = [...tagGroups];
+
+  /**
+   * Intent color for a state: an explicit color (only collapsed-group
+   * stand-ins carry one) wins, then the active tag group's value, then the
+   * default blue. `resolveTagColor` applies the §1.3 first-value fallback
+   * for untagged states.
+   */
+  const nodeIntentColor = (node: LayoutNode): string | undefined =>
+    node.color ??
+    (activeTagGroup
+      ? resolveTagColor(
+          (node.metadata ?? {}) as Record<string, string>,
+          mutableTagGroups,
+          activeTagGroup
+        )
+      : undefined);
+
   for (const node of layout.nodes) {
     const isCollapsedGroup = collapsedGroupIds.has(node.id);
 
@@ -437,6 +504,16 @@ export function renderState(
       .attr('data-line-number', String(node.lineNumber))
       .attr('data-node-id', node.id)
       .style('cursor', 'pointer');
+
+    // Expose the active tag group's value for legend hover-dimming (F9:
+    // exactly one `data-tag-*` per mark, the active group).
+    if (activeTagGroup && node.shape !== 'pseudostate') {
+      const tagKey = tagAttrKey(activeTagGroup);
+      const metaValue = node.metadata?.[tagKey];
+      if (metaValue) {
+        nodeG.attr(`data-tag-${tagKey}`, metaValue.toLowerCase());
+      }
+    }
 
     if (isCollapsedGroup) {
       nodeG
@@ -468,7 +545,8 @@ export function renderState(
     } else if (isCollapsedGroup) {
       const w = node.width;
       const h = node.height;
-      const groupColor = node.color ?? stateDefaultColor(palette, colorOff);
+      const groupColor =
+        nodeIntentColor(node) ?? stateDefaultColor(palette, colorOff);
       const fillColor = shapeFill(palette, groupColor, isDark, {
         mode: fillMode,
       });
@@ -526,10 +604,11 @@ export function renderState(
     } else {
       const w = node.width;
       const h = node.height;
+      const intentColor = nodeIntentColor(node);
       const resolvedFill = stateFill(
         palette,
         isDark,
-        node.color,
+        intentColor,
         colorOff,
         fillMode
       );
@@ -542,7 +621,7 @@ export function renderState(
         .attr('rx', sStateCornerRadius)
         .attr('ry', sStateCornerRadius)
         .attr('fill', resolvedFill)
-        .attr('stroke', stateStroke(palette, node.color, colorOff))
+        .attr('stroke', stateStroke(palette, intentColor, colorOff))
         .attr('stroke-width', sNodeStrokeWidth);
 
       nodeG

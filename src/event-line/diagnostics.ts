@@ -48,8 +48,9 @@ export const EVENT_LINE_DX = {
   },
   // parser.ts emits three wordings under this one code (each passes the full
   // wording as `reason`):
-  //   directive handler: `event-line is horizontal-only in v1; \`direction ${dir}\`
-  //                        (vertical orientation) is a fast-follow.`
+  //   directive handler: `event-line is horizontal-only in v1; \`direction-tb\`
+  //                        (vertical orientation) is a fast-follow.` (the
+  //                        legacy key+value form words it as \`direction ${dir}\`)
   //   `section` seam:     'Group events with `[Name]` era brackets (§28.6a), not `section`.'
   //   parseEventHeader:   'event-line events are points; a date range (`->`) is not
   //                        supported — using the start date.'
@@ -62,10 +63,10 @@ export const EVENT_LINE_DX = {
     message: (p) =>
       typeof p.reason === 'string' && p.reason
         ? p.reason
-        : 'event-line is horizontal-only in v1; `direction TB` (vertical orientation) is a fast-follow.',
-    hint: 'Only horizontal (`direction LR`) is supported; use `[Name]` era brackets (not `section`); events are single points, not date ranges (`->`).',
+        : 'event-line is horizontal-only in v1; `direction-tb` (vertical orientation) is a fast-follow.',
+    hint: 'Only horizontal (`direction-lr`) is supported; use `[Name]` era brackets (not `section`); events are single points, not date ranges (`->`).',
     example: `event-line X
-direction TB
+direction-tb
 
 2020 A
   one`,

@@ -8,7 +8,9 @@ export const fixture: ConformanceFixture = {
   specSection: '8',
   firstLineKeyword: 'c4',
   directives: [
+    'no-legend',
     'direction-tb',
+    'direction-lr',
     'active-tag',
     'fill-tint',
     'fill-solid',
