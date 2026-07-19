@@ -184,6 +184,11 @@ const BUILDS: Options[] = [
       // In the splitting group so its parser code shares chunks with
       // index/advanced instead of duplicating them.
       'chart-meta': 'src/chart-meta.ts',
+      // Light completion surface — the static registries only (no symbol
+      // extractors, hence no chart parsers). Same rationale as chart-meta:
+      // the app's editor imports these eagerly, so they must not drag the
+      // render/parse graph onto the startup path.
+      'completion-registry': 'src/completion-registry.ts',
     },
     format: ['esm'],
     dts: true,

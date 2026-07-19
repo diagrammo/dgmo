@@ -39,6 +39,10 @@
       "types": "./dist/chart-meta.d.ts",
       "default": "./dist/chart-meta.js"
     },
+    "./completion": {
+      "types": "./dist/completion-registry.d.ts",
+      "default": "./dist/completion-registry.js"
+    },
     "./countdown": {
       "types": "./dist/countdown.d.ts",
       "default": "./dist/countdown.js"
