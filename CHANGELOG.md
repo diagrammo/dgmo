@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **A light `./completion` subpath for editor integrations.** Autocomplete data — the per-chart-type directive registries and symbol extractors — now ships as its own entry point instead of only being reachable through `/advanced`. Anything building editor support can import it without pulling in the parsers and renderers: the new subpath's dependency closure is a fraction of `/advanced`'s. The same data remains exported from `/advanced` for existing callers.
+- **Swimlane diagrams offer edge completions.** Swimlane was the one chart type with no completion descriptor at all, so its `->` edges and node references were never suggested. The reserved `~>` form is deliberately not offered — the parser rejects it (§27.8).
+
+### Changed
+- Cycle edge labels are set at the same size as node labels rather than two points smaller, so they no longer read as secondary to the text they sit between.
+
+### Fixed
+- **An unsupported chart type that carries a title is now diagnosed instead of silently succeeding.** Since the title moved to line 1, a line like `bubble Q3 Results` parsed as a title-bearing declaration of an unknown type and returned no error at all; only a bare `bubble` was caught. Both `parseChart` and `parseExtendedChart` had the same too-narrow guard. The detection now distinguishes a bad type declaration from the three things that legitimately lead a file — data rows, directives, and link or container syntax — so `direction LR` and friends are not mistaken for chart types. Diagrams rendered through `render()` were unaffected: the router masked this via its inference fallback, so the fix matters to direct callers of the parser API.
+- **Boxes-and-lines layout search is bounded by a wall-clock budget.** The candidate-generation loop ran every configuration unconditionally, so a pathological graph could search far past the point of usefulness. Generation now stops at a deadline (default 5 seconds, an order of magnitude above what a real diagram reaches) and scores the candidates it has. Exact scoring of the top candidates is untouched, so layout quality on ordinary diagrams is unchanged.
+
 ## [0.53.0] - 2026-07-18
 
 A language-consistency release. A five-dimension audit of all 37 chart types found the universal sections had quietly fallen behind the ten newest types, plus fifteen genuine drift points where the same idea was spelled differently depending on which chart you happened to be in. Everything below is the result. **Every legacy spelling still parses** — no existing diagram breaks — but a few defaults changed on purpose, listed under Changed.
