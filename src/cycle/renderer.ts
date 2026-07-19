@@ -35,7 +35,7 @@ import { measureText } from '../utils/text-measure';
 // ── Constants ────────────────────────────────────────────────
 const NODE_FONT_SIZE = 13;
 const DESC_FONT_SIZE = 11;
-const EDGE_LABEL_FONT_SIZE = 11;
+const EDGE_LABEL_FONT_SIZE = 13;
 const DESC_LINE_HEIGHT = 15;
 const TITLE_AREA_HEIGHT = 50;
 
