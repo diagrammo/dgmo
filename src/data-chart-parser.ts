@@ -182,8 +182,10 @@ import {
 import { resolveColorWithDiagnostic } from './colors';
 import {
   collectIndentedValues,
+  detectBadChartTypeDeclaration,
   extractColor,
   fillModeFromToken,
+  GLOBAL_BOOLEANS,
   measureIndent,
   normalizeNumericToken,
   parseFirstLine,
@@ -219,6 +221,16 @@ const KNOWN_EXTENDED_OPTIONS = new Set([
   'columns',
   'rows',
   'x',
+]);
+
+/**
+ * Tokens that may legitimately lead line 1 without being a chart type, so
+ * `detectBadChartTypeDeclaration` doesn't mistake a leading option for a
+ * botched declaration.
+ */
+const KNOWN_EXTENDED_FIRST_TOKENS: ReadonlySet<string> = new Set([
+  ...KNOWN_EXTENDED_OPTIONS,
+  ...GLOBAL_BOOLEANS,
 ]);
 
 /**
@@ -434,16 +446,16 @@ function parseExtendedChartFull(
           return result;
         }
       }
-      // If the first line is a single word (no spaces, no colon, no numbers),
-      // treat it as an unrecognized chart type rather than falling through
-      if (
-        !trimmed.includes(' ') &&
-        !trimmed.includes(':') &&
-        !/\d/.test(trimmed)
-      ) {
+      // First line is an unknown type — bare (`bubble`) or, since decision
+      // #48 made line 1 title-bearing, with a title (`bubble Empty`).
+      const badType = detectBadChartTypeDeclaration(
+        trimmed,
+        KNOWN_EXTENDED_FIRST_TOKENS
+      );
+      if (badType) {
         const validTypes = [...VALID_EXTENDED_TYPES];
-        let msg = `Unsupported chart type: ${trimmed}. Supported types: ${validTypes.join(', ')}.`;
-        const hint = suggest(trimmed.toLowerCase(), validTypes);
+        let msg = `Unsupported chart type: ${badType}. Supported types: ${validTypes.join(', ')}.`;
+        const hint = suggest(badType.toLowerCase(), validTypes);
         if (hint) msg += ` ${hint}`;
         const diag = makeDgmoError(lineNumber, msg);
         result.diagnostics.push(diag);

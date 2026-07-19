@@ -426,6 +426,13 @@ function tokensWhere(pred: (e: RegistryEntry) => boolean): Set<string> {
 
 // ── Parser-facing Sets (replace the deleted local literals) ──
 
+/**
+ * Every token the registry knows, regardless of category or scope. Used as a
+ * negative filter: a line leading with one of these is an option/directive
+ * line, never a chart-type declaration.
+ */
+export const ALL_REGISTRY_TOKENS: ReadonlySet<string> = tokensWhere(() => true);
+
 /** Infra top-level option keys (space-separated). */
 export const INFRA_TOP_LEVEL_OPTION_SET = tokensWhere(
   (e) => !!e.infra?.includes('top-level')

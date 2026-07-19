@@ -92,8 +92,10 @@ import {
   TITLE_DIRECTIVE_DX,
 } from './diagnostics';
 import {
+  detectBadChartTypeDeclaration,
   extractColor,
   fillModeFromToken,
+  GLOBAL_BOOLEANS,
   normalizeNumericToken,
   parseFirstLine,
   parseSeriesNames,
@@ -143,6 +145,17 @@ const KNOWN_BOOLEANS = new Set([
   'no-auto-y',
   'fill',
   'hole',
+]);
+
+/**
+ * Tokens that may legitimately lead line 1 without being a chart type, so
+ * `detectBadChartTypeDeclaration` doesn't mistake a leading option for a
+ * botched declaration.
+ */
+const KNOWN_FIRST_TOKENS: ReadonlySet<string> = new Set([
+  ...KNOWN_OPTIONS,
+  ...KNOWN_BOOLEANS,
+  ...GLOBAL_BOOLEANS,
 ]);
 
 /**
@@ -287,15 +300,15 @@ export function parseChart(
           return fail(lineNumber, msg);
         }
       }
-      // If the first line is a single word (no spaces, no colon, no numbers),
-      // treat it as an unrecognized chart type rather than falling through
-      if (
-        !trimmed.includes(' ') &&
-        !trimmed.includes(':') &&
-        !/\d/.test(trimmed)
-      ) {
-        let msg = `Unsupported chart type: ${trimmed}. Supported types: ${[...VALID_TYPES].join(', ')}.`;
-        const hint = suggest(trimmed.toLowerCase(), [...VALID_TYPES]);
+      // First line is an unknown type — bare (`bubble`) or, since decision
+      // #48 made line 1 title-bearing, with a title (`bubble Empty`).
+      const badType = detectBadChartTypeDeclaration(
+        trimmed,
+        KNOWN_FIRST_TOKENS
+      );
+      if (badType) {
+        let msg = `Unsupported chart type: ${badType}. Supported types: ${[...VALID_TYPES].join(', ')}.`;
+        const hint = suggest(badType.toLowerCase(), [...VALID_TYPES]);
         if (hint) msg += ` ${hint}`;
         return fail(lineNumber, msg);
       }

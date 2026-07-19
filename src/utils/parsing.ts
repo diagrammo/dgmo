@@ -18,6 +18,7 @@ import {
   type DgmoError,
 } from '../diagnostics';
 import type { PaletteColors } from '../palettes';
+import { ALL_REGISTRY_TOKENS } from '../directives-registry';
 import {
   isReservedKey,
   type ReservedKeyRegistry,
@@ -288,6 +289,55 @@ export function parseFirstLine(
     chartType: firstToken,
     title: trimmed.substring(spaceIdx + 1).trim() || undefined,
   };
+}
+
+/** A bare identifier: the shape a chart-type keyword is allowed to take. */
+const CHART_TYPE_TOKEN_RE = /^[A-Za-z][A-Za-z0-9-]*$/;
+/** A title: words and light punctuation only — no digits, arrows, brackets. */
+const TITLE_LIKE_RE = /^[A-Za-z][A-Za-z\s'&,.\-—–]*$/;
+
+/**
+ * Decide whether an unrecognized first line is a botched chart-type
+ * declaration (so the parser can say "unsupported chart type") rather than a
+ * data row or an option that happens to lead the file.
+ *
+ * Call this only when {@link parseFirstLine} has already declined, i.e. the
+ * first token is not in `ALL_CHART_TYPES` at all. Returns the offending token,
+ * or `null` to fall through to normal line parsing.
+ *
+ * Since decision #48 made line 1 the title-bearing declaration line for every
+ * chart type, `bubble Empty` is just as much a bad declaration as bare
+ * `bubble` — matching only the bare form let titled unknown types parse
+ * silently. The remaining conditions keep declaration-less content working:
+ * data rows carry digits (`Apples 30`), options are recognized by key
+ * (`direction LR`), and link/container syntax carries punctuation
+ * (`A -> B`, `[Group Name]`).
+ *
+ * @param line The trimmed first non-empty, non-comment line
+ * @param knownOptionKeys Option and boolean keys this parser recognizes
+ */
+export function detectBadChartTypeDeclaration(
+  line: string,
+  knownOptionKeys: ReadonlySet<string>
+): string | null {
+  const trimmed = line.trim();
+  // A colon means metadata or a `key: value` pair, never a declaration.
+  if (!trimmed || trimmed.includes(':')) return null;
+
+  const spaceIdx = trimmed.indexOf(' ');
+  const token = spaceIdx === -1 ? trimmed : trimmed.substring(0, spaceIdx);
+  if (!CHART_TYPE_TOKEN_RE.test(token)) return null;
+  const lower = token.toLowerCase();
+  // An option or directive leading the file is not a botched declaration.
+  if (knownOptionKeys.has(lower) || ALL_REGISTRY_TOKENS.has(lower)) return null;
+
+  // Bare token: unchanged pre-#48 behavior.
+  if (spaceIdx === -1) return /\d/.test(token) ? null : token;
+
+  // Token + remainder: only a title-shaped remainder makes this a declaration.
+  const rest = trimmed.substring(spaceIdx + 1).trim();
+  if (!rest || !TITLE_LIKE_RE.test(rest)) return null;
+  return token;
 }
 
 /** Result of `prescanOptions()` — options collected from a two-pass scan. */

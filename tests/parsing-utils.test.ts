@@ -10,7 +10,11 @@ import {
   stripQuotes,
   tokenizeQuoteAware,
   peelRampColors,
+  detectBadChartTypeDeclaration,
 } from '../src/utils/parsing';
+import { parseChart } from '../src/chart';
+import { parseExtendedChart } from '../src/data-chart-parser';
+import { parseDgmo } from '../src/dgmo-router';
 
 describe('peelRampColors', () => {
   it('peels two trailing colors → low (left) + high (right)', () => {
@@ -384,5 +388,94 @@ describe('tokenizeQuoteAware', () => {
     expect(tokenizeQuoteAware('"unclosed string')).toEqual([
       '"unclosed string',
     ]);
+  });
+});
+
+// ── Unsupported chart type on line 1 (decision #48 regression) ──────────
+//
+// #48 made line 1 the title-bearing declaration line for every chart type.
+// The unsupported-type branch in parseChart/parseExtendedChart used to fire
+// only for a BARE unknown token, so `bubble Empty` parsed as a title-bearing
+// declaration of an unsupported type and silently succeeded.
+
+describe('detectBadChartTypeDeclaration', () => {
+  const NO_OPTIONS = new Set<string>();
+
+  it('flags a bare unknown chart type', () => {
+    expect(detectBadChartTypeDeclaration('bubble', NO_OPTIONS)).toBe('bubble');
+  });
+
+  it('flags an unknown chart type carrying a title (#48)', () => {
+    expect(detectBadChartTypeDeclaration('bubble Empty', NO_OPTIONS)).toBe(
+      'bubble'
+    );
+    expect(
+      detectBadChartTypeDeclaration('squiggle Quarterly Revenue', NO_OPTIONS)
+    ).toBe('squiggle');
+  });
+
+  it('ignores data rows — a numeric remainder is not a title', () => {
+    expect(detectBadChartTypeDeclaration('Apples 30', NO_OPTIONS)).toBeNull();
+    expect(
+      detectBadChartTypeDeclaration('Alice 165, 60', NO_OPTIONS)
+    ).toBeNull();
+  });
+
+  it('ignores options, both parser-local and registry directives', () => {
+    expect(
+      detectBadChartTypeDeclaration('series Revenue', new Set(['series']))
+    ).toBeNull();
+    // `direction` comes from the shared directives registry.
+    expect(
+      detectBadChartTypeDeclaration('direction LR', NO_OPTIONS)
+    ).toBeNull();
+  });
+
+  it('ignores link and container syntax', () => {
+    expect(detectBadChartTypeDeclaration('A -> B', NO_OPTIONS)).toBeNull();
+    expect(
+      detectBadChartTypeDeclaration('[Group Name]', NO_OPTIONS)
+    ).toBeNull();
+    expect(detectBadChartTypeDeclaration('key: value', NO_OPTIONS)).toBeNull();
+  });
+});
+
+describe('unsupported chart type surfaces an error', () => {
+  it.each([
+    ['bare', 'bubble'],
+    ['with a title (#48)', 'bubble Empty'],
+  ])('parseChart — unsupported type %s', (_label, src) => {
+    const result = parseChart(src);
+    expect(result.error).toMatch(/Unsupported chart type: bubble/);
+  });
+
+  it.each([
+    ['bare', 'bubble'],
+    ['with a title (#48)', 'bubble Empty'],
+  ])('parseExtendedChart — unsupported type %s', (_label, src) => {
+    const result = parseExtendedChart(src);
+    expect(result.error).toMatch(/Unsupported chart type: bubble/);
+  });
+
+  it('keeps a VALID chart type with a title working', () => {
+    const chart = parseChart('bar Sales Report\nJan 120\nFeb 200');
+    expect(chart.error).toBeNull();
+    expect(chart.type).toBe('bar');
+    expect(chart.title).toBe('Sales Report');
+
+    const ext = parseExtendedChart('scatter Sales Report\nAlice 165, 60');
+    expect(ext.error).toBeNull();
+    expect(ext.type).toBe('scatter');
+    expect(ext.title).toBe('Sales Report');
+  });
+
+  it('does not disturb inference for content with no declaration line', () => {
+    // The router infers the type from content patterns when line 1 is not a
+    // chart type; an unknown-type error must not pre-empt that.
+    expect(parseDgmo('A -> B\nB -> C').chartType).toBe('sequence');
+    expect(parseDgmo('A -> B\nB -> C').diagnostics).toHaveLength(0);
+    // A declaration-less data table still parses as chart data, not as a
+    // botched `Apples` declaration.
+    expect(parseChart('Apples 30\nPears 20').error).toBeNull();
   });
 });
