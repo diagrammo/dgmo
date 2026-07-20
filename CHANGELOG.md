@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-07-20
+
 ### Added
 - **Emphasis directives `highlight` / `dim` (sankey).** A chart-level way to push one element into the foreground or background while keeping every element's own hue — a red flow that recedes is still red. Resolves to a baked SVG opacity attribute, so it survives PNG/SVG export with no interactivity dependency. `dim <name>` recedes the named element(s); `highlight <name>` recedes everything outside the named element's flow closure. Shipped on `sankey` only; `family`'s existing `highlight` is unchanged and both now share one dim constant. Registering these also closed a pre-existing gap where `family`'s `highlight` had completions but no editor syntax highlighting. See spec §1.11, decision #49.
 - **`default-rps` on infra now works.** It was parse-accepted, listed in completions, and read by nobody; it now sets the fallback entry RPS used when the `Edge`/`Internet` node omits an explicit `rps:` (an explicit `rps:` and the app's slider still win).
@@ -24,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`layout` on c4 is rejected with a diagnostic** rather than silently accepted and ignored — C4 has one layered layout; use `direction-tb` / `direction-lr` for orientation.
 - **An unsupported chart type that carries a title is now diagnosed instead of silently succeeding.** Since the title moved to line 1, a line like `bubble Q3 Results` parsed as a title-bearing declaration of an unknown type and returned no error at all; only a bare `bubble` was caught. Both `parseChart` and `parseExtendedChart` had the same too-narrow guard. The detection now distinguishes a bad type declaration from the three things that legitimately lead a file — data rows, directives, and link or container syntax — so `direction LR` and friends are not mistaken for chart types. Diagrams rendered through `render()` were unaffected: the router masked this via its inference fallback, so the fix matters to direct callers of the parser API.
 - **Boxes-and-lines layout search is bounded by a wall-clock budget.** The candidate-generation loop ran every configuration unconditionally, so a pathological graph could search far past the point of usefulness. Generation now stops at a deadline (default 5 seconds, an order of magnitude above what a real diagram reaches) and scores the candidates it has. Exact scoring of the top candidates is untouched, so layout quality on ordinary diagrams is unchanged.
+- **Body `fill-tint` (the default) now reads as clearly lighter than `fill-solid`.** The tint was a 70%-saturated mix that, under a full-strength colored stroke on large muscle shapes, was nearly indistinguishable from the solid fill. It now uses the canonical 25%-over-theme-base tint every other chart type shares, and mixes toward the theme surface so dark theme tints correctly.
 
 ## [0.53.0] - 2026-07-18
 

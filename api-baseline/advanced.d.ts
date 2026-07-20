@@ -249,6 +249,16 @@ declare function parseChart(content: string, palette?: PaletteColors): ParsedCha
  *   "North America 250"   → { label: "North America", values: [250] }
  *   "Q1 10 20 30"         → { label: "Q1", values: [10, 20, 30] }
  *   "Revenue 1_000"       → { label: "Revenue", values: [1000] }
+ *   '"Wi-Fi 6" 70 80'     → { label: "Wi-Fi 6", values: [70, 80], quotedLabel: true }
+ *
+ * A fully-quoted leading label is taken verbatim (quotes stripped) and is never
+ * eligible for value peeling — the escape hatch for labels that end in a digit
+ * (`"Wi-Fi 6"`, `"Layer 3"`), mirroring the treemap leaf rule.
+ *
+ * `trailingNumericCount` reports how many consecutive numeric tokens the row
+ * actually ends with, which may exceed `values.length` when `expectedValues`
+ * caps the walk. Callers use it to flag an over-long row instead of silently
+ * absorbing the surplus numbers into the label.
  *
  * Returns null if the line has no numeric value at the end.
  */
@@ -258,6 +268,11 @@ declare function parseDataRowValues(line: string, options?: {
 }): {
     label: string;
     values: number[];
+    /** Label prefix with every trailing numeric token removed (diagnostics use
+     *  this so the message names "Armor", not the corrupted "Armor 50 60"). */
+    bareLabel: string;
+    trailingNumericCount: number;
+    quotedLabel: boolean;
 } | null;
 
 interface LegendState {
@@ -490,6 +505,23 @@ interface LegendHandle {
 }
 type D3Sel = Selection<any, unknown, any, unknown>;
 
+/** A parsed emphasis directive: which dual, and the names it lists. */
+interface EmphasisDirective {
+    readonly kind: 'highlight' | 'dim';
+    readonly names: readonly string[];
+    /**
+     * True when the author used no comma, so `names` is a *guess* — `dim Ship
+     * Provisions` is one two-word element far more often than two one-word ones.
+     * Resolution tries the whole phrase first and only falls back to these
+     * tokens, which means a comma is never required for the common single-name
+     * case but always disambiguates when an author wants several.
+     */
+    readonly ambiguous: boolean;
+    /** The directive's argument text, verbatim — the whole-phrase candidate. */
+    readonly raw: string;
+    readonly lineNumber: number;
+}
+
 type ExtendedChartType = 'sankey' | 'chord' | 'function' | 'scatter' | 'heatmap' | 'funnel';
 interface ExtendedChartDataPoint {
     label: string;
@@ -557,6 +589,10 @@ interface ParsedExtendedBase {
     /** Cross-chart-type: when true, the renderer suppresses the legend and the
      *  vertical band it would occupy (#48). */
     noLegend?: boolean;
+    /** §1.11 emphasis family: `highlight <Name>…` / `dim <Name>…`. Chart-level,
+     *  mutually exclusive, last-one-wins. Resolved against real element names at
+     *  render time via `resolveEmphasis`. */
+    emphasis?: EmphasisDirective;
     categoryColors?: Record<string, string>;
     categoryLineNumbers?: Record<string, number>;
     nodeColors?: Record<string, string>;

@@ -583,6 +583,7 @@ function parseExtendedChartFull(
           // built. Matching only the 11 valid names instead left the line
           // matching no link form, so it was silently re-read as a bare node and
           // the whole flow band disappeared.
+          // cspell:ignore zzznotacolor
           const valColorMatch = trimmed.match(
             /(-?[\d,_]+(?:\.[\d]+)?)\s+([A-Za-z][A-Za-z0-9_-]*)\s*$/
           );
