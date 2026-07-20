@@ -211,9 +211,10 @@ function renderFigureBody(
         out += `<path${dataLine} d="${d}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="1.5"/>`;
       }
     } else {
-      // Muted fill (~70% colour, 30% bg) with a full-strength coloured edge —
-      // clearly filled, but soft enough that the leader line reads across it.
-      const lightFill = mix(color, palette.bg, 70);
+      // §1.9 fill-tint (default): canonical light tint — 25% colour over the
+      // theme base (matches shapeFill everywhere else) with a full-strength
+      // coloured edge. Clearly softer than fill-solid; leader reads across it.
+      const lightFill = mix(color, themeBaseBg(palette, isDark), 25);
       for (const d of paths) {
         out += `<path${dataLine} d="${d}" fill="${lightFill}" stroke="${color}" stroke-width="1.5"/>`;
       }
