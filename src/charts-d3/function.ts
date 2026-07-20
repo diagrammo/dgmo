@@ -131,7 +131,7 @@ export function renderFunction(
       .attr('d', gen(c.pts) ?? '')
       .attr('fill', 'none')
       .attr('stroke', c.color)
-      .attr('stroke-width', 2.5)
+      .attr('stroke-width', 1.75)
       .attr('stroke-linejoin', 'round');
     tagDatum(path, { line: c.line, key: c.name, name: c.name, color: c.color });
   }
