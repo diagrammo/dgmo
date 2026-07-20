@@ -403,6 +403,25 @@ describe('legend hover → series emphasis', () => {
     await mount(LINE);
     expect(svg.querySelectorAll('[data-axis-legend]').length).toBe(0);
   });
+
+  it('function: legend hover dims the other curves', async () => {
+    await mount(`function Damped Roll
+x 0 to 12
+
+Roll blue: 30*exp(-0.25*x)*sin(2*x)
+Envelope gray: 30*exp(-0.25*x)`);
+    const curve = (name: string) =>
+      svg.querySelector<SVGPathElement>(
+        `.dgmo-datum[data-series-name="${name}"]`
+      )!;
+    expect(curve('Roll')).toBeTruthy();
+    const entry = legendEntry('Roll');
+    entry.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    expect(curve('Roll').classList.contains('dgmo-dim')).toBe(false);
+    expect(curve('Envelope').classList.contains('dgmo-dim')).toBe(true);
+    entry.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(curve('Envelope').classList.contains('dgmo-dim')).toBe(false);
+  });
 });
 
 const HEATMAP = `heatmap Activity

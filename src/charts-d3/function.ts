@@ -132,7 +132,11 @@ export function renderFunction(
       .attr('fill', 'none')
       .attr('stroke', c.color)
       .attr('stroke-width', 1.75)
-      .attr('stroke-linejoin', 'round');
+      .attr('stroke-linejoin', 'round')
+      // Legend hover-dim (interactions.ts) keys off data-series-name — the
+      // curve name matches its legend entry, so hovering an entry dims the
+      // other curves.
+      .attr('data-series-name', c.name);
     tagDatum(path, { line: c.line, key: c.name, name: c.name, color: c.color });
   }
 
