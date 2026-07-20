@@ -175,7 +175,22 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'no-value': { description: 'Hide cell value text' },
     }),
   ],
-  ['sankey', withGlobals()],
+  [
+    'sankey',
+    // Spec §1.11 (decision #49): the emphasis family. `highlight` lights the
+    // named node's whole upstream+downstream flow closure and recedes the rest;
+    // `dim` recedes exactly the named nodes. Mutually exclusive, last-one-wins.
+    withGlobals({
+      highlight: {
+        description:
+          'Light the named flow and recede everything else (highlight Barrel Aging)',
+      },
+      dim: {
+        description:
+          'Recede the named nodes and their flows, leaving the rest untouched (dim Spoilage)',
+      },
+    }),
+  ],
   [
     'funnel',
     withGlobals({

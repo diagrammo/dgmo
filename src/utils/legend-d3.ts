@@ -81,7 +81,10 @@ export function renderLegendD3(
 
     const groupBg = isDark
       ? mix(palette.surface, palette.bg, 50)
-      : mix(palette.surface, palette.bg, 30);
+      : // Light palettes: surface ≈ bg, so blending toward bg yields no visible
+        // container. Darken past surface toward the muted neutral (guaranteed
+        // darker in every palette) so the tag group reads as a contained area.
+        mix(palette.surface, palette.textMuted, 98);
     const pillBorder = mix(palette.textMuted, palette.bg, 50);
 
     // Render active capsule

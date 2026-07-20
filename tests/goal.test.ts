@@ -78,12 +78,19 @@ target 100`);
     expect(r.mode).toBe('gauge');
   });
 
-  it('honors underscore separators, rejects commas', () => {
+  it('honors underscore and comma grouping separators', () => {
     const ok = parseGoal(`goal Fund\nnow 6_400\ntarget 10_000`);
     expect(ok.now).toBe(6400);
     expect(ok.target).toBe(10000);
 
-    const bad = parseGoal(`goal Fund\nnow 6,400\ntarget 10000`);
+    // Commas group thousands here just as they do on bar/pie/funnel/treemap.
+    const commas = parseGoal(`goal Fund\nnow 6,400\ntarget 1,000,000`);
+    expect(errors(commas.diagnostics).length).toBe(0);
+    expect(commas.now).toBe(6400);
+    expect(commas.target).toBe(1000000);
+
+    // Malformed grouping is still rejected rather than truncated to `6`.
+    const bad = parseGoal(`goal Fund\nnow 6,40\ntarget 10000`);
     expect(errors(bad.diagnostics).length).toBeGreaterThan(0);
   });
 

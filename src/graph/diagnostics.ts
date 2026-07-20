@@ -44,6 +44,31 @@ Orphan
   latency-ms: 20
 `,
   },
+  INFRA_SPLIT_SUM: {
+    // src/infra/parser.ts — makeDgmoError(..., 'warning', 'W_INFRA_SPLIT_SUM')
+    code: 'W_INFRA_SPLIT_SUM',
+    severity: 'warning',
+    chartType: 'infra',
+    title: 'Infra splits do not sum to 100%',
+    message: (p) =>
+      `Sync splits from '${String(p.label ?? '')}' sum to ${String(
+        p.sum ?? ''
+      )}%, not 100% — the traffic leaving a node must add up to the traffic entering it, so the computed downstream RPS will be wrong. Async ('~>') edges are derived streams and are excluded from this sum.`,
+    hint: 'Adjust the split percentages so the sync edges from this node total 100%, or drop them and let dgmo split evenly.',
+    example: `infra
+
+edge
+  rps: 1000
+  -> LB
+
+LB
+  -> A split: 50%
+  -> B split: 30%
+
+A
+B
+`,
+  },
   FLOWCHART_NODE_SUFFIX: {
     // src/graph/flowchart-parser.ts:329 — makeDgmoError(..., 'warning', 'W_FLOWCHART_NODE_SUFFIX')
     code: 'W_FLOWCHART_NODE_SUFFIX',

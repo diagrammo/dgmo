@@ -109,6 +109,43 @@ describe('parseTreemap — value disambiguation (AC2b)', () => {
     expect(codes(r)).toContain('W_TREEMAP_LEAF_NO_VALUE');
   });
 
+  it('accepts comma-grouped thousands separators in a leaf value', () => {
+    const r = parseTreemap('treemap T\nA\n  Cluster 1,240,000');
+    const node = findNode(r.roots, 'Cluster')!;
+    expect(node.value).toBe(1240000);
+    expect(codes(r)).not.toContain('W_TREEMAP_LEAF_NO_VALUE');
+  });
+
+  it('accepts comma-grouped decimals and underscore grouping', () => {
+    expect(
+      findNode(parseTreemap('treemap T\nA\n  X 1,234.56').roots, 'X')!.value
+    ).toBe(1234.56);
+    expect(
+      findNode(parseTreemap('treemap T\nA\n  Y 1_240_000').roots, 'Y')!.value
+    ).toBe(1240000);
+  });
+
+  // NOTE: `,` cannot group digits inside SAME-LINE metadata (`Name k: v, k2: v2`)
+  // — there the comma is the pair separator, so `heat: 1,200` reads as
+  // `heat: 1` plus a second pair. Underscore grouping is unambiguous there.
+  it('accepts underscore grouping on the heat metric', () => {
+    const r = parseTreemap('treemap T\nA\n  Cluster 10 heat: 1_200');
+    expect(findNode(r.roots, 'Cluster')!.heat).toBe(1200);
+  });
+
+  it('malformed grouping names the label and the bad token', () => {
+    const r = parseTreemap('treemap T\nA\n  Cluster 1,24,000');
+    expect(codes(r)).toContain('W_TREEMAP_LEAF_VALUE_UNPARSEABLE');
+    const msg = r.diagnostics.find(
+      (d) => d.code === 'W_TREEMAP_LEAF_VALUE_UNPARSEABLE'
+    )!.message;
+    // Never claims the value is absent while quoting it.
+    expect(msg).not.toContain('has no value');
+    expect(msg).toContain('"Cluster"');
+    expect(msg).toContain('1,24,000');
+    expect(msg).toContain('124000');
+  });
+
   it('a negative leaf value errors', () => {
     const r = parseTreemap('treemap T\nA\n  Bad -5');
     expect(codes(r)).toContain('E_TREEMAP_NEGATIVE_VALUE');

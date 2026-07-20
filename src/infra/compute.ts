@@ -619,15 +619,36 @@ interface ResolvedSplit {
 
 /**
  * Resolve splits for outbound edges of a node.
- * - All declared: validate sum = 100
- * - None declared: even distribution
- * - Some declared: remainder distributed evenly among undeclared
+ *
+ * Async edges (`~event~>`) are NOT part of the split denominator: an async
+ * edge is a *derived stream* (an event emitted per request), not a share of
+ * the source's inbound traffic. It carries the source's full post-behavior
+ * rate unless it declares an explicit `split:`. Only sync edges divide the
+ * request traffic among themselves.
  */
 function resolveSplits(
   outbound: ParsedInfra['edges'],
   diagnostics: InfraDiagnostic[]
 ): ResolvedSplit[] {
   if (outbound.length === 0) return [];
+
+  const async = outbound.filter((e) => e.async);
+  if (async.length > 0) {
+    const sync = outbound.filter((e) => !e.async);
+    const asyncResolved = async.map((e) => ({
+      edge: e,
+      split: e.split ?? 100,
+    }));
+    // Preserve declaration order so downstream consumers see a stable list.
+    const syncResolved = resolveSplits(sync, diagnostics);
+    const byEdge = new Map<ParsedInfra['edges'][number], number>();
+    for (const r of [...asyncResolved, ...syncResolved])
+      byEdge.set(r.edge, r.split);
+    return outbound
+      .filter((e) => byEdge.has(e))
+      .map((e) => ({ edge: e, split: byEdge.get(e)! }));
+  }
+
   if (outbound.length === 1) {
     // In-bounds: outbound.length === 1.
     return [{ edge: outbound[0]!, split: 100 }];
@@ -869,6 +890,10 @@ export function computeInfra(
           targetIds = [edge.targetId];
         }
 
+        // Async edges are a latency boundary: the consumer side starts a
+        // fresh chain, and the producer never waits on it.
+        const edgeDownstreamLatency = edge.async ? 0 : downstreamLatency;
+
         for (const targetId of targetIds) {
           const perTarget = fanoutedRps / targetIds.length;
           const existing = computedRps.get(targetId) ?? 0;
@@ -876,8 +901,8 @@ export function computeInfra(
 
           // Latency: take max across incoming paths (worst case)
           const prevLatency = computedLatency.get(targetId) ?? 0;
-          if (downstreamLatency > prevLatency) {
-            computedLatency.set(targetId, downstreamLatency);
+          if (edgeDownstreamLatency > prevLatency) {
+            computedLatency.set(targetId, edgeDownstreamLatency);
           }
 
           // Uptime: take min across incoming paths (most conservative)
@@ -1005,7 +1030,11 @@ export function computeInfra(
     const coldLatency = nodeLatency + coldStartMs;
 
     const outbound = outboundMap.get(nodeId) ?? [];
-    if (outbound.length === 0) {
+    // Async edges do not contribute to the caller's cumulative latency —
+    // the producer fires and forgets. A node whose only outbound edges are
+    // async terminates the caller's latency path.
+    const syncOutbound = outbound.filter((e) => !e.async);
+    if (syncOutbound.length === 0) {
       // Leaf node — return self
       const rps = computedRps.get(nodeId) ?? 0;
       let result: LeafPath[];
@@ -1042,8 +1071,8 @@ export function computeInfra(
       return result;
     }
 
-    // Resolve splits for outbound edges
-    const resolved = resolveSplits(outbound, []);
+    // Resolve splits for outbound edges (async excluded above)
+    const resolved = resolveSplits(outbound, []).filter((r) => !r.edge.async);
     const paths: LeafPath[] = [];
 
     for (const { edge, split } of resolved) {
@@ -1340,21 +1369,13 @@ export function computeInfra(
       const edgeKey = `${edge.sourceId}->${edge.targetId}`;
       const rps = computedEdgeRps.get(edgeKey) ?? 0;
 
-      // Get resolved split
+      // Get resolved split (same resolver the rps propagation uses, so the
+      // displayed percentage always matches the computed traffic)
       const outbound = outboundMap.get(edge.sourceId) ?? [];
-      let resolvedSplit = edge.split ?? 100;
-      if (outbound.length > 1 && edge.split === null) {
-        // Was inferred
-        const declared = outbound.filter((e) => e.split !== null);
-        if (declared.length === 0) {
-          resolvedSplit = 100 / outbound.length;
-        } else {
-          const declaredSum = declared.reduce((s, e) => s + (e.split ?? 0), 0);
-          const undeclared = outbound.filter((e) => e.split === null);
-          resolvedSplit =
-            undeclared.length > 0 ? (100 - declaredSum) / undeclared.length : 0;
-        }
-      }
+      const resolvedSplit =
+        resolveSplits(outbound, []).find((r) => r.edge === edge)?.split ??
+        edge.split ??
+        100;
 
       return {
         sourceId: edge.sourceId,

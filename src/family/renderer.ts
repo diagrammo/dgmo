@@ -46,6 +46,7 @@ import {
   NODE_STROKE_WIDTH,
   EDGE_STROKE_WIDTH,
 } from '../utils/visual-conventions';
+import { EMPHASIS_DIM_OPACITY } from '../utils/emphasis';
 import { familyCardRows, familyDisplayLabel } from './card-model';
 import type { PaletteColors } from '../palettes';
 import type {
@@ -62,7 +63,18 @@ const KEY_X = 10;
 const KEY_VALUE_GAP = 6;
 const BAR_DOT_R = 3.5;
 const TITLE_RESERVE = 40; // native vertical band for the title
-const DIM_OPACITY = 0.28; // faded cards/edges outside the `highlight` bloodline
+// Faded cards/edges outside the `highlight` bloodline. Sourced from the shared
+// §1.11 emphasis constant (decision #49) so a dimmed bloodline and a dimmed
+// sankey flow read at exactly the same weight — the value is unchanged (0.28),
+// which is where the shared constant came from in the first place.
+//
+// Only the CONSTANT is shared, deliberately: family resolves `highlight` to a
+// canonical person *id* through its alias map and normalizeName, then walks the
+// bloodline in layout, whereas `resolveEmphasis` matches display names and
+// splits on commas. Routing family through the shared resolver would change
+// which names match (aliases would stop resolving, a comma inside a name would
+// newly split), so the shipped behavior stays exactly as it is.
+const DIM_OPACITY = EMPHASIS_DIM_OPACITY;
 
 const ROMAN: ReadonlyArray<readonly [number, string]> = [
   [10, 'X'],

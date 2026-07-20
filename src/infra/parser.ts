@@ -36,6 +36,7 @@ import { INFRA_REGISTRY, withTagAliases } from '../utils/reserved-key-registry';
 import type {
   ParsedInfra,
   InfraNode,
+  InfraEdge,
   InfraGroup,
   InfraTagGroup,
 } from './types';
@@ -1111,8 +1112,51 @@ export function parseInfra(content: string): ParsedInfra {
   validateTagGroupNames(result.tagGroups, warn, setError);
 
   checkReachability(result);
+  checkSplitSums(result);
 
   return result;
+}
+
+/**
+ * Split lint: the sync edges leaving a node divide that node's request
+ * traffic, so when every one of them declares a `split:` the percentages must
+ * total 100% — anything else silently mis-states downstream capacity. Async
+ * (`~>`) edges are derived streams, not a share of inbound traffic, so they
+ * are outside the denominator (mirrors resolveSplits in compute.ts).
+ * Partially-declared groups are fine: the remainder is spread evenly over the
+ * undeclared edges, and only an over-100% declared sum is reported.
+ */
+function checkSplitSums(result: Writable<ParsedInfra>): void {
+  const outbound = new Map<string, InfraEdge[]>();
+  for (const edge of result.edges) {
+    if (edge.async) continue;
+    const list = outbound.get(edge.sourceId) ?? [];
+    list.push(edge);
+    // edge.sourceId is already a normalized id from parse time.
+    outbound.set(edge.sourceId, list);
+  }
+
+  for (const [sourceId, edges] of outbound) {
+    if (edges.length <= 1) continue;
+    const declared = edges.filter((e) => e.split !== null);
+    if (declared.length === 0) continue;
+
+    const sum = declared.reduce((s, e) => s + (e.split ?? 0), 0);
+    const allDeclared = declared.length === edges.length;
+    // All declared → must be exactly 100. Some declared → only an overflow
+    // is wrong; an under-100 sum leaves the remainder for the rest.
+    if (allDeclared ? Math.abs(sum - 100) > 0.01 : sum > 100) {
+      const label =
+        result.nodes.find((n) => n.id === sourceId)?.label ?? sourceId;
+      result.diagnostics.push(
+        // In-bounds: declared.length > 0 here.
+        emit(GRAPH_DX.INFRA_SPLIT_SUM, declared[0]!.lineNumber, {
+          label,
+          sum: String(Number(sum.toFixed(2))),
+        })
+      );
+    }
+  }
 }
 
 /**

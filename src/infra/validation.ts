@@ -75,9 +75,12 @@ function detectCycles(parsed: ParsedInfra): InfraDiagnostic[] {
 function validateSplits(parsed: ParsedInfra): InfraDiagnostic[] {
   const diagnostics: InfraDiagnostic[] = [];
 
-  // Group edges by source
+  // Group edges by source. Async edges are derived streams, not a share of
+  // the source's request traffic, so they are outside the split denominator
+  // (see resolveSplits in compute.ts) and outside this sum rule.
   const outbound = new Map<string, InfraEdge[]>();
   for (const edge of parsed.edges) {
+    if (edge.async) continue;
     const list = outbound.get(edge.sourceId) ?? [];
     list.push(edge);
     outbound.set(edge.sourceId, list);

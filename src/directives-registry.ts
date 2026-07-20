@@ -311,6 +311,23 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // ── Color / notes (cross-chart) ──────────────────────────
   { token: 'color', category: 'directive' },
   { token: 'no-notes', category: 'directive' },
+  // ── Emphasis family (§1.11, decision #49) ────────────────
+  // `highlight <Name>…` / `dim <Name>…` — the figure/ground axis, orthogonal
+  // to color (§1.5) and to the chart-wide `fill-*` family (§1.9). Both are
+  // chart-level directives taking a name list, validated inline by each
+  // adopting parser (no extractable Set), so the registry is their single
+  // declaration site for highlighting.
+  //
+  // `highlight` shipped on `family` long before this entry existed and was
+  // never registered — it had completions but highlighted as plain text. Both
+  // tokens are registered together so the whole family lights up at once.
+  //
+  // Supported on `sankey` and `family` today; every further chart type is a
+  // separate decision. Registering them globally is correct regardless: the
+  // Lezer specializer is context-free (it cannot know the chart type), and the
+  // same is already true of every other chart-scoped token here.
+  { token: 'highlight', category: 'directive' },
+  { token: 'dim', category: 'directive' },
   // ── RACI ─────────────────────────────────────────────────
   { token: 'roles', category: 'directive' },
   // ── Cycle ────────────────────────────────────────────────

@@ -544,6 +544,24 @@ export function parseChart(
       ...(multiValue && { expectedValues: seriesCount }),
     });
     if (dataValues) {
+      // Surplus numbers: the row ends with more numeric tokens than there are
+      // series, so the extras get absorbed into the label ("Armor 50 60 70 80"
+      // → label "Armor 50 60"). Too-few already warns below; warn here too so
+      // the asymmetry can't corrupt an axis label in silence. A quoted label
+      // has an explicit boundary, so it is never ambiguous.
+      if (
+        multiValue &&
+        !dataValues.quotedLabel &&
+        dataValues.trailingNumericCount > seriesCount
+      ) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            `Data point "${dataValues.bareLabel}" has ${dataValues.trailingNumericCount} value(s), but ${seriesCount} series defined. If the label ends in a number, quote it: "${dataValues.label}" ${dataValues.values.join(' ')}`,
+            'warning'
+          )
+        );
+      }
       const { label: rawLabel, color: pointColor } = extractColor(
         dataValues.label,
         palette,
@@ -673,6 +691,16 @@ export function parseChart(
  *   "North America 250"   → { label: "North America", values: [250] }
  *   "Q1 10 20 30"         → { label: "Q1", values: [10, 20, 30] }
  *   "Revenue 1_000"       → { label: "Revenue", values: [1000] }
+ *   '"Wi-Fi 6" 70 80'     → { label: "Wi-Fi 6", values: [70, 80], quotedLabel: true }
+ *
+ * A fully-quoted leading label is taken verbatim (quotes stripped) and is never
+ * eligible for value peeling — the escape hatch for labels that end in a digit
+ * (`"Wi-Fi 6"`, `"Layer 3"`), mirroring the treemap leaf rule.
+ *
+ * `trailingNumericCount` reports how many consecutive numeric tokens the row
+ * actually ends with, which may exceed `values.length` when `expectedValues`
+ * caps the walk. Callers use it to flag an over-long row instead of silently
+ * absorbing the surplus numbers into the label.
  *
  * Returns null if the line has no numeric value at the end.
  */
@@ -682,7 +710,39 @@ export function parseDataRowValues(
     multiValue?: boolean;
     expectedValues?: number;
   }
-): { label: string; values: number[] } | null {
+): {
+  label: string;
+  values: number[];
+  /** Label prefix with every trailing numeric token removed (diagnostics use
+   *  this so the message names "Armor", not the corrupted "Armor 50 60"). */
+  bareLabel: string;
+  trailingNumericCount: number;
+  quotedLabel: boolean;
+} | null {
+  // A fully-quoted leading label fixes the label/value boundary explicitly, so
+  // the numeric walk below only ever sees the value region.
+  const quoted = line.match(/^(["'])(.*?)\1\s+(\S.*)$/);
+  if (quoted) {
+    // Capture groups 2 and 3 are non-optional in the pattern.
+    const label = quoted[2]!.trim();
+    if (!label) return null;
+    const valueTokens = quoted[3]!.trim().split(/\s+/);
+    const numeric = trailingNumerics(valueTokens, 0);
+    // Everything after a quoted label must be values — a stray word means the
+    // row isn't a data row at all.
+    if (numeric.length !== valueTokens.length) return null;
+    const limit = options?.multiValue
+      ? (options.expectedValues ?? Infinity)
+      : 1;
+    return {
+      label,
+      values: numeric.slice(0, limit),
+      bareLabel: label,
+      trailingNumericCount: numeric.length,
+      quotedLabel: true,
+    };
+  }
+
   // Values are space-separated.
   // When multiValue is enabled, walk backward collecting consecutive numeric tokens.
   // Otherwise (default), take only the last token — preserving labels that contain
@@ -690,34 +750,57 @@ export function parseDataRowValues(
   const tokens = line.split(/\s+/);
   if (tokens.length < 2) return null;
 
+  // Trailing numeric run, never consuming token 0 (a row always keeps a label).
+  const numeric = trailingNumerics(tokens, 1);
+  if (numeric.length === 0) return null;
+  const bareLabel = tokens.slice(0, tokens.length - numeric.length).join(' ');
+
   if (options?.multiValue) {
     const limit = options.expectedValues ?? Infinity;
-    const values: number[] = [];
-    let idx = tokens.length - 1;
-    while (idx >= 1 && values.length < limit) {
-      // In-bounds by loop guard (idx >= 1 and idx <= tokens.length - 1).
-      const tok = tokens[idx]!;
-      const normTok = normalizeNumericToken(tok) ?? tok;
-      const num = parseFloat(normTok);
-      if (isNaN(num) || !isFinite(Number(normTok))) break;
-      values.unshift(num);
-      idx--;
-    }
-    if (values.length === 0) return null;
-    const label = tokens.slice(0, idx + 1).join(' ');
+    // Only the last `limit` numbers are values; any surplus stays in the label.
+    // `trailingNumericCount` lets the caller flag that surplus rather than let
+    // it corrupt the label silently.
+    const take = Math.min(numeric.length, limit);
+    const values = numeric.slice(numeric.length - take);
+    const label = tokens.slice(0, tokens.length - take).join(' ');
     if (!label) return null;
-    return { label, values };
+    return {
+      label,
+      values,
+      bareLabel,
+      trailingNumericCount: numeric.length,
+      quotedLabel: false,
+    };
   }
 
   // Single-value mode: only the last space-separated token
   // tokens.length >= 2 by the earlier length check.
-  const lastToken = tokens[tokens.length - 1]!;
-  const normalizedLast = normalizeNumericToken(lastToken) ?? lastToken;
-  const num = parseFloat(normalizedLast);
-  if (isNaN(num) || !isFinite(Number(normalizedLast))) return null;
-
   const label = tokens.slice(0, -1).join(' ');
   if (!label) return null;
 
-  return { label, values: [num] };
+  return {
+    label,
+    // numeric.length >= 1 by the guard above.
+    values: [numeric[numeric.length - 1]!],
+    bareLabel,
+    trailingNumericCount: numeric.length,
+    quotedLabel: false,
+  };
+}
+
+/**
+ * Consecutive numeric tokens at the end of `tokens`, in source order. Stops
+ * before index `minIndex` so callers can reserve leading tokens for the label.
+ */
+function trailingNumerics(tokens: string[], minIndex: number): number[] {
+  const values: number[] = [];
+  for (let idx = tokens.length - 1; idx >= minIndex; idx--) {
+    // In-bounds by the loop guard.
+    const tok = tokens[idx]!;
+    const normTok = normalizeNumericToken(tok) ?? tok;
+    const num = parseFloat(normTok);
+    if (isNaN(num) || !isFinite(Number(normTok))) break;
+    values.unshift(num);
+  }
+  return values;
 }

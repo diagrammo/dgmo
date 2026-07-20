@@ -1893,4 +1893,178 @@ Shards
       expect(edge(result, 'edge', 'Shards').computedRps).toBe(1000);
     });
   });
+
+  describe('async edges are derived streams, not a traffic share', () => {
+    it('splits sync-only fan-out evenly', () => {
+      const result = compute(`
+infra
+
+edge
+  rps: 1000
+  -> Checkout
+
+Checkout
+  -> OrderDB
+  -> Audit
+
+OrderDB
+Audit
+`);
+      expect(node(result, 'OrderDB').computedRps).toBe(500);
+      expect(node(result, 'Audit').computedRps).toBe(500);
+    });
+
+    it('gives a lone async edge the full source rate', () => {
+      const result = compute(`
+infra
+
+edge
+  rps: 1000
+  -> Checkout
+
+Checkout
+  ~OrderPlaced~> EventBus
+
+EventBus
+`);
+      expect(node(result, 'EventBus').computedRps).toBe(1000);
+    });
+
+    it('gives both targets the full rate on a mixed sync + async fan-out', () => {
+      const result = compute(`
+infra
+
+edge
+  rps: 1000
+  -> Checkout
+
+Checkout
+  -> OrderDB
+  ~OrderPlaced~> EventBus
+
+OrderDB
+EventBus
+`);
+      expect(node(result, 'OrderDB').computedRps).toBe(1000);
+      expect(node(result, 'EventBus').computedRps).toBe(1000);
+      expect(edge(result, 'Checkout', 'OrderDB').split).toBe(100);
+      expect(edge(result, 'Checkout', 'EventBus').split).toBe(100);
+    });
+
+    it('splits sync edges only among themselves when an async edge is present', () => {
+      const result = compute(`
+infra
+
+edge
+  rps: 1000
+  -> Checkout
+
+Checkout
+  -> OrderDB
+  -> Audit
+  ~OrderPlaced~> EventBus
+
+OrderDB
+Audit
+EventBus
+`);
+      expect(node(result, 'OrderDB').computedRps).toBe(500);
+      expect(node(result, 'Audit').computedRps).toBe(500);
+      expect(node(result, 'EventBus').computedRps).toBe(1000);
+    });
+
+    it('honors an explicit split on an async edge', () => {
+      const result = compute(`
+infra
+
+edge
+  rps: 1000
+  -> Checkout
+
+Checkout
+  -> OrderDB
+  ~OrderPlaced~> EventBus | split: 25%
+
+OrderDB
+EventBus
+`);
+      expect(node(result, 'OrderDB').computedRps).toBe(1000);
+      expect(node(result, 'EventBus').computedRps).toBe(250);
+    });
+
+    it('still behaves sanely with the legacy 100% + 100% workaround', () => {
+      const result = compute(`
+infra
+
+edge
+  rps: 1000
+  -> Checkout
+
+Checkout
+  -> OrderDB | split: 100%
+  ~OrderPlaced~> EventBus | split: 100%
+
+OrderDB
+EventBus
+`);
+      expect(node(result, 'OrderDB').computedRps).toBe(1000);
+      expect(node(result, 'EventBus').computedRps).toBe(1000);
+      expect(
+        result.diagnostics.filter((d) => d.type === 'SPLIT_SUM')
+      ).toHaveLength(0);
+    });
+
+    it('keeps async work out of the caller latency percentiles', () => {
+      const result = compute(`
+infra
+
+edge
+  rps: 1000
+  -> Checkout
+
+Checkout
+  latency-ms: 20
+  -> OrderDB
+  ~OrderPlaced~> EventBus
+
+OrderDB
+  latency-ms: 24
+
+EventBus
+  latency-ms: 5000
+`);
+      const checkout = node(result, 'Checkout');
+      // 20 (Checkout) + 24 (OrderDB) — EventBus's 5s never enters the chain
+      expect(checkout.computedLatencyPercentiles.p90).toBe(44);
+      expect(checkout.computedLatencyPercentiles.p99).toBe(44);
+    });
+
+    it('does not flow async queue wait back into the sync caller', () => {
+      const result = compute(`
+infra
+
+edge
+  rps: 1000
+  -> Checkout
+
+Checkout
+  latency-ms: 20
+  -> OrderDB
+  ~OrderPlaced~> Jobs
+
+OrderDB
+  latency-ms: 24
+
+Jobs
+  buffer: 10000
+  drain-rate: 100
+  -> Worker
+
+Worker
+  latency-ms: 30
+`);
+      const checkout = node(result, 'Checkout');
+      expect(checkout.computedLatencyPercentiles.p90).toBe(44);
+    });
+  });
 });

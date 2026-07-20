@@ -22,13 +22,19 @@ import {
   parseFirstLine,
   tryParseSharedOption,
   fillModeFromOptions,
+  normalizeNumericToken,
 } from '../utils/parsing';
 import type { GoalMode, GoalOptions, ParsedGoal } from './types';
 
-/** Parse a numeric value token, honoring `_` separators. Rejects commas. */
+/**
+ * Parse a numeric value token, honoring `,` and `_` grouping separators.
+ * A token carrying separators must normalize cleanly — `parseFloat('1,5')`
+ * would otherwise silently yield `1`.
+ */
 function parseGoalNumber(token: string): number | null {
-  if (token.includes(',')) return null;
-  const n = parseFloat(token.replace(/_/g, ''));
+  const normalized = normalizeNumericToken(token);
+  if (normalized === null && /[,_]/.test(token)) return null;
+  const n = parseFloat(normalized ?? token);
   return Number.isFinite(n) ? n : null;
 }
 

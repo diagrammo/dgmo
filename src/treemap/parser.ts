@@ -40,6 +40,7 @@ import {
   splitNameAndMeta,
   warnUnknownMetaKeys,
   fillModeFromToken,
+  normalizeNumericToken,
 } from '../utils/parsing';
 import {
   TREEMAP_REGISTRY,
@@ -52,8 +53,13 @@ import type {
   TreemapColorMode,
 } from './types';
 
-/** A bare numeric token: optional sign, digits with `_`/`.` separators. */
-const VALUE_TOKEN_RE = /^(.+?)\s+(-?\d[\d_.]*)$/;
+/**
+ * A bare numeric token: optional sign, digits with `,`/`_` grouping separators
+ * and `.` as the decimal point. Grouping is validated by
+ * `normalizeNumericToken`; this regex only decides what looks number-like
+ * enough to peel off the end of a node line.
+ */
+const VALUE_TOKEN_RE = /^(.+?)\s+(-?\d[\d_,.]*)$/;
 
 /** True when `s` is wrapped in a matching pair of single or double quotes. */
 function isFullyQuoted(s: string): boolean {
@@ -107,6 +113,9 @@ export function parseTreemap(
   const lines = content.split('\n');
   let contentStarted = false;
   let nodeCounter = 0;
+  // Nodes whose trailing token looked numeric but failed to parse — reported
+  // in the value-resolution post-pass, once leaf vs branch is known.
+  const badValueTokens = new Map<TreemapNode, string>();
 
   let currentTagGroup: Writable<TagGroup> | null = null;
   const aliasMap = new Map<string, string>();
@@ -219,7 +228,8 @@ export function parseTreemap(
       lineNumber,
       ++nodeCounter,
       aliasMap,
-      result.diagnostics
+      result.diagnostics,
+      badValueTokens
     );
     if (node.heat !== undefined) result.hasHeat = true;
     attachNode(node, indent, indentStack, result);
@@ -252,10 +262,16 @@ export function parseTreemap(
         delete node.value;
       }
     } else if (node.value === undefined) {
+      const bad = badValueTokens.get(n);
       result.diagnostics.push(
-        emit(TREEMAP_DX.LEAF_NO_VALUE, node.lineNumber, {
-          label: node.label,
-        })
+        bad !== undefined
+          ? emit(TREEMAP_DX.LEAF_VALUE_UNPARSEABLE, node.lineNumber, {
+              label: node.label,
+              token: bad,
+            })
+          : emit(TREEMAP_DX.LEAF_NO_VALUE, node.lineNumber, {
+              label: node.label,
+            })
       );
       node.value = 0;
     } else if (node.value < 0) {
@@ -429,7 +445,8 @@ function parseNodeLine(
   lineNumber: number,
   counter: number,
   aliasMap: Map<string, string>,
-  diagnostics: DgmoError[]
+  diagnostics: DgmoError[],
+  badValueTokens: Map<TreemapNode, string>
 ): Writable<TreemapNode> {
   const registry = withTagAliases(TREEMAP_REGISTRY, new Set(aliasMap.keys()));
   const split = splitNameAndMeta(
@@ -452,7 +469,8 @@ function parseNodeLine(
   // Heat metric (optional second numeric).
   let heat: number | undefined;
   if ('heat' in metadata) {
-    const h = parseFloat(metadata['heat']!.replace(/_/g, ''));
+    const rawHeat = metadata['heat']!;
+    const h = parseFloat(normalizeNumericToken(rawHeat) ?? rawHeat);
     if (Number.isFinite(h)) heat = h;
     delete metadata['heat'];
   }
@@ -464,6 +482,7 @@ function parseNodeLine(
   const rawName = split.name;
   let label: string;
   let value: number | undefined;
+  let badValueToken: string | undefined;
 
   if (isFullyQuoted(rawName)) {
     label = stripQuotes(rawName);
@@ -472,11 +491,25 @@ function parseNodeLine(
     if (vm) {
       const labelPart = vm[1]!.trim();
       const token = vm[2]!;
-      const cleaned = token.replace(/_/g, '');
-      const parsed = parseFloat(cleaned);
+      const normalized = normalizeNumericToken(token);
+      // A token carrying grouping separators is only a number if it normalizes
+      // cleanly — `parseFloat('1,24,000')` would silently yield `1`.
+      const hasSeparators = /[,_]/.test(token);
+      const parsed =
+        hasSeparators && normalized === null
+          ? NaN
+          : parseFloat(normalized ?? token);
+      const peeled = isFullyQuoted(labelPart)
+        ? stripQuotes(labelPart)
+        : labelPart;
       if (Number.isFinite(parsed)) {
         value = parsed;
-        label = isFullyQuoted(labelPart) ? stripQuotes(labelPart) : labelPart;
+        label = peeled;
+      } else if (hasSeparators) {
+        // Number-like but malformed — peel it anyway so the diagnostic can name
+        // the label and the offending token separately.
+        label = peeled;
+        badValueToken = token;
       } else {
         label = rawName;
       }
@@ -485,7 +518,7 @@ function parseNodeLine(
     }
   }
 
-  return {
+  const node: Writable<TreemapNode> = {
     id: `treemap-node-${counter}`,
     label,
     ...(value !== undefined && { value }),
@@ -494,6 +527,8 @@ function parseNodeLine(
     children: [],
     lineNumber,
   };
+  if (badValueToken !== undefined) badValueTokens.set(node, badValueToken);
+  return node;
 }
 
 function attachNode(

@@ -1366,4 +1366,103 @@ gw
       expect(reach(result.diagnostics)).toHaveLength(0);
     });
   });
+
+  describe('split-sum warning', () => {
+    const splits = (diags: { code?: string }[]) =>
+      diags.filter((d) => d.code === 'W_INFRA_SPLIT_SUM');
+
+    it('warns when fully declared sync splits do not sum to 100%', () => {
+      const result = parseInfra(`
+infra
+
+edge
+  rps: 1000
+  -> LB
+
+LB
+  -> A split: 50%
+  -> B split: 30%
+
+A
+B
+`);
+      const w = splits(result.diagnostics);
+      expect(w).toHaveLength(1);
+      expect((w[0] as { message: string }).message).toContain('80%');
+    });
+
+    it('warns when partially declared sync splits exceed 100%', () => {
+      const result = parseInfra(`
+infra
+
+edge
+  rps: 1000
+  -> LB
+
+LB
+  -> A split: 80%
+  -> B split: 40%
+  -> C
+
+A
+B
+C
+`);
+      expect(splits(result.diagnostics)).toHaveLength(1);
+    });
+
+    it('does not warn when sync splits sum to 100%', () => {
+      const result = parseInfra(`
+infra
+
+edge
+  rps: 1000
+  -> LB
+
+LB
+  -> A split: 70%
+  -> B split: 30%
+
+A
+B
+`);
+      expect(splits(result.diagnostics)).toHaveLength(0);
+    });
+
+    it('does not warn on a partial declaration under 100%', () => {
+      const result = parseInfra(`
+infra
+
+edge
+  rps: 1000
+  -> LB
+
+LB
+  -> A split: 70%
+  -> B
+
+A
+B
+`);
+      expect(splits(result.diagnostics)).toHaveLength(0);
+    });
+
+    it('excludes async edges from the sum', () => {
+      const result = parseInfra(`
+infra
+
+edge
+  rps: 1000
+  -> Checkout
+
+Checkout
+  -> OrderDB split: 100%
+  ~OrderPlaced~> EventBus split: 100%
+
+OrderDB
+EventBus
+`);
+      expect(splits(result.diagnostics)).toHaveLength(0);
+    });
+  });
 });

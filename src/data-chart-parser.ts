@@ -95,6 +95,10 @@ export interface ParsedExtendedBase {
   /** Cross-chart-type: when true, the renderer suppresses the legend and the
    *  vertical band it would occupy (#48). */
   noLegend?: boolean;
+  /** §1.11 emphasis family: `highlight <Name>…` / `dim <Name>…`. Chart-level,
+   *  mutually exclusive, last-one-wins. Resolved against real element names at
+   *  render time via `resolveEmphasis`. */
+  emphasis?: EmphasisDirective;
   categoryColors?: Record<string, string>;
   categoryLineNumbers?: Record<string, number>;
   nodeColors?: Record<string, string>;
@@ -192,6 +196,11 @@ import {
   parseSeriesNames,
 } from './utils/parsing';
 import { parseDataRowValues } from './chart';
+import {
+  type EmphasisDirective,
+  isEmphasisToken,
+  parseEmphasisDirective,
+} from './utils/emphasis';
 
 // ============================================================
 // Shared Constants
@@ -221,6 +230,8 @@ const KNOWN_EXTENDED_OPTIONS = new Set([
   'columns',
   'rows',
   'x',
+  'highlight',
+  'dim',
 ]);
 
 /**
@@ -495,10 +506,15 @@ function parseExtendedChartFull(
     //   `Source -> Target value`           (directed, no link color)
     //   `Source -> Target value linkColor` (directed, trailing-token link color)
     //   `Source -- Target value`           (undirected)
-    // Link color (if present) must be a recognized lowercase palette word.
+    // The link-color slot accepts ANY bare word, not just the 11 palette names:
+    // `resolveColorWithDiagnostic` below turns an unrecognized one into a
+    // "Did you mean…?" warning on this line. Restricting the pattern to valid
+    // names instead made the whole line match no link form at all, so it was
+    // silently re-read as a bare node and the flow vanished with the only
+    // diagnostic being a misleading "No links found" on line 1.
     // Source/target labels still accept trailing-token color via extractColor.
     const arrowMatch = trimmed.match(
-      /^(.+?)\s*(->|--)\s*(.+?)\s+(-?[\d_]+(?:\.[\d]+)?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
+      /^(.+?)\s*(->|--)\s*(.+?)\s+(-?[\d,_]+(?:\.[\d]+)?)(?:\s+([A-Za-z][A-Za-z0-9_-]*))?\s*$/
     );
     if (arrowMatch) {
       const [, rawSource, arrow, rawTarget, rawVal, rawLinkColor] = arrowMatch;
@@ -560,17 +576,18 @@ function parseExtendedChartFull(
           //   `TargetName value linkColor`        — link with link color
           //   `TargetName nodeColor value`        — node-colored child
           //   `TargetName nodeColor value linkColor` — both
-          // Strategy: peel a trailing recognized color word (after the value)
-          // first, then run parseDataRowValues on the remainder. Trailing
-          // tokens that aren't recognized colors stay in the data row.
+          // Strategy: peel a trailing bare word that follows the value, then run
+          // parseDataRowValues on the remainder. The peeled word goes through
+          // `resolveColorWithDiagnostic`, so a mistyped color ("zzznotacolor")
+          // gets a "Did you mean…?" warning on THIS line and the link is still
+          // built. Matching only the 11 valid names instead left the line
+          // matching no link form, so it was silently re-read as a bare node and
+          // the whole flow band disappeared.
           const valColorMatch = trimmed.match(
-            /(-?[\d_]+(?:\.[\d]+)?)\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\s*$/
+            /(-?[\d,_]+(?:\.[\d]+)?)\s+([A-Za-z][A-Za-z0-9_-]*)\s*$/
           );
           const strippedLine = valColorMatch
-            ? trimmed.replace(
-                /\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\s*$/,
-                ''
-              )
+            ? trimmed.replace(/\s+[A-Za-z][A-Za-z0-9_-]*\s*$/, '')
             : trimmed;
           const dataRow = parseDataRowValues(strippedLine);
           if (dataRow?.values.length === 1) {
@@ -623,12 +640,16 @@ function parseExtendedChartFull(
         /^(fill-tint|fill-solid|fill-outline|no-name|no-value|no-percent|shade|no-title)$/i.test(
           trimmed
         );
-      // `layout arc|chord` (#26) is a directive, not a node — let it fall through
-      // to the valued-option handler below instead of becoming a phantom node.
-      const isLayoutDirective =
-        spaceIdx >= 0 &&
-        trimmed.substring(0, spaceIdx).toLowerCase() === 'layout';
-      if (!hasNumericSuffix && !isBareKeywordOption && !isLayoutDirective) {
+      // `layout arc|chord` (#26) and the §1.11 emphasis family (`highlight A`,
+      // `dim Losses`) are directives, not nodes — let them fall through to the
+      // valued-option handler below instead of becoming phantom nodes. The
+      // sankey bare-label branch runs BEFORE the option chain, so every
+      // one-word-plus-argument directive needs a seat here.
+      const leadToken =
+        spaceIdx >= 0 ? trimmed.substring(0, spaceIdx).toLowerCase() : '';
+      const isValuedDirective =
+        spaceIdx >= 0 && (leadToken === 'layout' || isEmphasisToken(leadToken));
+      if (!hasNumericSuffix && !isBareKeywordOption && !isValuedDirective) {
         while (sankeyStack.length && sankeyStack.at(-1)!.indent >= indent) {
           sankeyStack.pop();
         }
@@ -673,6 +694,16 @@ function parseExtendedChartFull(
           result.error = formatDgmoError(diag);
           return result;
         }
+        continue;
+      }
+
+      // §1.11 emphasis family. Mutually exclusive with each other and
+      // last-one-wins, exactly like the `fill-*` family (#46) — stating both
+      // `highlight` and `dim` is contradictory, not additive, so the later line
+      // simply replaces the earlier one.
+      if (isEmphasisToken(firstToken)) {
+        const directive = parseEmphasisDirective(trimmed, lineNumber);
+        if (directive) result.emphasis = directive;
         continue;
       }
 

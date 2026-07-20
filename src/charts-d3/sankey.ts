@@ -11,9 +11,16 @@ import { FONT_FAMILY } from '../fonts';
 import { mix } from '../palettes/color-utils';
 import { measureText } from '../utils/text-measure';
 import { type Svg, tagDatum } from './shared';
+import {
+  EMPHASIS_DIM_OPACITY,
+  EMPHASIS_DIM_TEXT_OPACITY,
+  resolveEmphasis,
+} from '../utils/emphasis';
 
 const NODE_W = 20;
 const NODE_GAP = 14;
+/** Baseline ribbon translucency — dimming MULTIPLIES this, never replaces it. */
+const RIBBON_FILL_OPACITY = 0.6;
 
 interface SNode {
   name: string;
@@ -42,6 +49,46 @@ export function renderSankey(
   const solid = chart.fillMode === 'solid';
 
   const names = Array.from(new Set(links.flatMap((l) => [l.source, l.target])));
+
+  // §1.11 emphasis. Resolved against the derived node names — sankey has no
+  // node declaration list, so the names an author writes in `dim`/`highlight`
+  // are matched against whatever the links actually mention.
+  //
+  // `highlight` lights the FLOW CLOSURE of the named nodes: everything
+  // upstream that feeds them plus everything downstream they feed. This is the
+  // sankey analogue of the family chart's bloodline (focus + ancestors +
+  // descendants) — "where does this come from and where does it go" is the
+  // question a sankey exists to answer, so highlighting a node without its
+  // path would dim the very flows that explain it.
+  // Upstream and downstream are walked SEPARATELY and unioned — never
+  // alternated. A single bidirectional walk leaks sideways (up to a shared
+  // source, then back down into an unrelated sibling) and ends up lighting the
+  // entire connected component, which is the same trap family avoids by taking
+  // ancestors and descendants as distinct sets.
+  const walk = (seeds: ReadonlySet<string>, up: boolean): Set<string> => {
+    const seen = new Set(seeds);
+    for (let pass = 0; pass < names.length; pass++) {
+      let grew = false;
+      for (const l of links) {
+        const from = up ? l.target : l.source;
+        const to = up ? l.source : l.target;
+        if (seen.has(from) && !seen.has(to)) {
+          seen.add(to);
+          grew = true;
+        }
+      }
+      if (!grew) break;
+    }
+    return seen;
+  };
+  const flowClosure = (seeds: ReadonlySet<string>): Set<string> =>
+    new Set([...walk(seeds, true), ...walk(seeds, false)]);
+  const { dimmed } = resolveEmphasis(chart.emphasis, names, flowClosure);
+  // A flow is figure only when BOTH endpoints are figure: a ribbon landing in a
+  // receded node is itself part of the background story. Same rule family uses
+  // for marriage bars (lit only when both partners are lit).
+  const linkDimmed = (l: { source: string; target: string }) =>
+    dimmed.has(l.source) || dimmed.has(l.target);
   const node = new Map<string, SNode>();
   names.forEach((name, i) =>
     node.set(name, {
@@ -175,7 +222,12 @@ export function renderSankey(
           `L${tx},${ty + th} C${cx0},${ty + th} ${cx0},${sy + th} ${sx},${sy + th} Z`
       )
       .attr('fill', color)
-      .attr('fill-opacity', 0.6);
+      .attr(
+        'fill-opacity',
+        linkDimmed(l)
+          ? RIBBON_FILL_OPACITY * EMPHASIS_DIM_OPACITY
+          : RIBBON_FILL_OPACITY
+      );
     tagDatum(ribbon, {
       line: l.lineNumber,
       // U+241F (symbol-for-unit-separator) — collision-proof AND XML-legal;
@@ -192,6 +244,7 @@ export function renderSankey(
     const nodeLine = links.find(
       (l) => l.source === n.name || l.target === n.name
     )?.lineNumber;
+    const nodeDim = dimmed.has(n.name);
     const nr = svg
       .append('rect')
       .attr('x', n.x)
@@ -201,6 +254,9 @@ export function renderSankey(
       .attr('fill', solid ? n.raw : mix(n.raw, bgColor, 75))
       .attr('stroke', n.raw)
       .attr('stroke-width', 1);
+    // Baked attribute, not a class or a color swap: hue survives (a receded
+    // brand-red flow is still red) and the SVG needs no CSS or JS to export.
+    if (nodeDim) nr.attr('opacity', EMPHASIS_DIM_OPACITY);
     tagDatum(nr, {
       ...(nodeLine !== undefined && { line: nodeLine }),
       key: `node:${n.name}`,
@@ -209,7 +265,7 @@ export function renderSankey(
       color: n.raw,
     });
     const lastLayer = n.rank === maxRank;
-    svg
+    const label = svg
       .append('text')
       .attr('x', lastLayer ? n.x - 6 : n.x + NODE_W + 6)
       .attr('y', n.y + n.h / 2 + 4)
@@ -218,5 +274,6 @@ export function renderSankey(
       .attr('font-size', 13)
       .attr('font-family', FONT_FAMILY)
       .text(n.name);
+    if (nodeDim) label.attr('opacity', EMPHASIS_DIM_TEXT_OPACITY);
   }
 }

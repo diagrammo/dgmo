@@ -45,6 +45,23 @@ export const TREEMAP_DX = {
     hint: 'Add a trailing number (e.g. `Lonely 40`) so the leaf gets a size.',
     example: 'treemap T\nA\n  Lonely',
   },
+  LEAF_VALUE_UNPARSEABLE: {
+    code: 'W_TREEMAP_LEAF_VALUE_UNPARSEABLE',
+    severity: 'warning',
+    chartType: 'treemap',
+    title: 'Leaf value could not be read as a number',
+    message: (p) => {
+      const token = (p.token as string) ?? '1,24,000';
+      return `Leaf "${
+        (p.label as string) ?? 'Cluster'
+      }" — could not read "${token}" as a number, so it renders with zero size. Remove the grouping separators: ${token.replace(
+        /[,_]/g,
+        ''
+      )}`;
+    },
+    hint: 'Grouping separators must split the digits into even groups — `1,240,000` or `1_240_000`. Anything else must be written plainly, e.g. `1240000`.',
+    example: 'treemap T\nA\n  Cluster 1,24,000',
+  },
   BRANCH_VALUE_IGNORED: {
     code: 'W_TREEMAP_BRANCH_VALUE_IGNORED',
     severity: 'warning',
