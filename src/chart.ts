@@ -550,13 +550,19 @@ export function parseChart(
       // single-value case ("Armor 50 60" → axis "Armor 50", value 60) has no
       // series count to check against and would otherwise corrupt an axis label
       // in silence.
-      const expectedValues = multiValue ? seriesCount : 1;
-      const surplus = surplusValueDiagnostic(
-        dataValues,
-        expectedValues,
-        lineNumber
-      );
-      if (surplus) result.diagnostics.push(surplus);
+      // Only warn in multi-value mode, where the series block fixes an exact
+      // expected count and a surplus is genuinely ambiguous. A single-value row
+      // like "Day 1 8" or "Q3 2024 40" renders correctly (label "Day 1", value
+      // 8) and is the most common axis-labelling pattern there is, so warning on
+      // it would be noise on nearly every real line/bar chart.
+      if (multiValue) {
+        const surplus = surplusValueDiagnostic(
+          dataValues,
+          seriesCount,
+          lineNumber
+        );
+        if (surplus) result.diagnostics.push(surplus);
+      }
       const { label: rawLabel, color: pointColor } = extractColor(
         dataValues.label,
         palette,

@@ -84,11 +84,13 @@ describe('multi-series data row — quoted label escape hatch', () => {
 });
 
 // ------------------------------------------------------------
-// Surplus values on a single-value row (no series header, or a
-// naturally single-value type like funnel). There is no series count to check
-// against, so the extra number used to weld into the label silently
-// ("Armor 50 60" → axis "Armor 50", value 60) — a mislabeled axis plotting the
-// wrong number, with a clean validator. Mirrors the multi-series guard above.
+// Single-value rows (no series header, or a naturally single-value type like
+// funnel) are deliberately NOT warned. The last token is the value and
+// everything before it is the label, so "Day 1 8" → label "Day 1", value 8 —
+// which is correct and is the most common axis-labelling pattern there is
+// (Day N, Week N, Q3 2024). Warning on it would be noise on nearly every real
+// line/bar chart. The multi-series guard above stays, because a series block
+// fixes an exact count and a surplus there is genuinely ambiguous.
 // ------------------------------------------------------------
 const SINGLE_RADAR = (row: string): string =>
   `radar Ship Combat Ratings\n\n${row}\n`;
@@ -96,35 +98,26 @@ const SINGLE_RADAR = (row: string): string =>
 const funnelMessages = (src: string): string[] =>
   parseExtendedChart(src, palette).diagnostics.map((d) => d.message);
 
-describe('single-value data row — surplus values', () => {
-  it('warns when a seriesless radar row ends in more than one number', () => {
-    const msgs = messages(SINGLE_RADAR('Armor 50 60'));
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0]).toContain('has 2 value(s), but only 1 value is expected');
-    // Names the bare label, not the corrupted "Armor 50".
-    expect(msgs[0]).toContain('Data point "Armor"');
-    expect(msgs[0]).toContain('quote it: "Armor 50" 60');
+describe('single-value data row — no surplus warning', () => {
+  it('does not warn on a seriesless row ending in more than one number', () => {
+    expect(messages(SINGLE_RADAR('Armor 50 60'))).toEqual([]);
+    expect(funnelMessages('funnel Loot Pipeline\n\nArmor 50 60\n')).toEqual([]);
   });
 
-  it('warns the same way on a funnel (data-chart-parser path)', () => {
-    const msgs = funnelMessages('funnel Loot Pipeline\n\nArmor 50 60\n');
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0]).toContain('has 2 value(s), but only 1 value is expected');
-    expect(msgs[0]).toContain('quote it: "Armor 50" 60');
+  it('takes the last token as the value, the rest as the label', () => {
+    const parsed = parseChart(SINGLE_RADAR('Armor 50 60'), palette);
+    expect(parsed.data[0]?.label).toBe('Armor 50');
+    expect(parsed.data[0]?.value).toBe(60);
   });
 
-  it('the quoted escape hatch silences it and keeps the label intact', () => {
+  it('a quoted label is honored and also clean', () => {
     expect(messages(SINGLE_RADAR('"Armor 50" 60'))).toEqual([]);
     const parsed = parseChart(SINGLE_RADAR('"Armor 50" 60'), palette);
     expect(parsed.data[0]?.label).toBe('Armor 50');
     expect(parsed.data[0]?.value).toBe(60);
-    expect(funnelMessages('funnel Loot Pipeline\n\n"Armor 50" 60\n')).toEqual(
-      []
-    );
   });
 
-  it('stays clean on a legitimate single-number row', () => {
-    // One trailing number, whether or not the token itself contains a digit.
+  it('stays clean on a plain single-number row', () => {
     for (const row of ['Layer3 90', 'Q1 45', 'Armor 60']) {
       expect(messages(SINGLE_RADAR(row))).toEqual([]);
       expect(funnelMessages(`funnel Loot Pipeline\n\n${row}\n`)).toEqual([]);
