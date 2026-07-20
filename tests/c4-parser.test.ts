@@ -747,9 +747,25 @@ describe('parseC4', () => {
 
   // === Options ===
   describe('options', () => {
-    it('parses header options', () => {
+    it('parses the active-tag header option', () => {
+      const result = parseC4('c4\nactive-tag Tier\nAlice is a person');
+      expect(result.error).toBeNull();
+      expect(result.options['active-tag']).toBe('Tier');
+    });
+
+    it('rejects the inert `layout` option with a diagnostic', () => {
+      // `layout` was formerly accepted but never consumed by the C4 renderer
+      // (a silent no-op). It is now a hard error naming the direction booleans.
       const result = parseC4('c4\nlayout left-right\nAlice is a person');
-      expect(result.options.layout).toBe('left-right');
+      expect(result.error).toMatch(/'layout' is not a valid C4 option/);
+      const diag = result.diagnostics.find((d) =>
+        d.message.includes("'layout' is not a valid C4 option")
+      );
+      expect(diag).toBeDefined();
+      expect(diag!.severity).toBe('error');
+      expect(diag!.message).toMatch(/direction-tb.*direction-lr|direction-lr/);
+      // The token must NOT survive into parsed options.
+      expect(result.options.layout).toBeUndefined();
     });
   });
 

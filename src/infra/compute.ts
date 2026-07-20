@@ -812,9 +812,13 @@ export function computeInfra(
   // Per-node local availability (computed after RPS is known)
   const localAvailability = new Map<string, number>();
 
-  // Find edge entry point
+  // Find edge entry point.
+  // The chart-level `default-rps` option supplies the fallback entry RPS when
+  // the edge node carries no explicit `rps` property (§ infra defaults).
+  const defaultRps = parseFloat(parsed.options['default-rps'] ?? '') || 0;
   const edgeNode = effectiveParsed.nodes.find((n) => n.isEdge);
-  const baseRps = params.rps ?? (edgeNode ? getNumProp(edgeNode, 'rps', 0) : 0);
+  const baseRps =
+    params.rps ?? (edgeNode ? getNumProp(edgeNode, 'rps', defaultRps) : 0);
 
   // BFS traversal from edge
   if (edgeNode) {

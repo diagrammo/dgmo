@@ -106,7 +106,7 @@ const VALID_SHAPES = new Set<string>([
 ]);
 
 /** Known top-level option keys for C4 diagrams. */
-const KNOWN_C4_OPTIONS = new Set<string>(['layout', 'active-tag']);
+const KNOWN_C4_OPTIONS = new Set<string>(['active-tag']);
 
 /** Known C4 boolean options (bare keyword = on). */
 const KNOWN_C4_BOOLEANS = new Set<string>([
@@ -427,6 +427,18 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       if (optMatch) {
         // Capture groups [1] and [2] guaranteed by regex match.
         const key = optMatch[1]!.trim().toLowerCase();
+        // `layout` was formerly accepted but never consumed — C4 has a single
+        // layered layout engine and no algorithm to switch to. Reject it so the
+        // author gets a real diagnostic instead of a silent no-op. Orientation
+        // is controlled by the `direction-tb` (default) / `direction-lr`
+        // booleans (§7.7).
+        if (key === 'layout') {
+          pushError(
+            lineNumber,
+            `'layout' is not a valid C4 option — C4 diagrams have a single layered layout with no algorithm to select. Use the 'direction-tb' (default) or 'direction-lr' booleans to change orientation (§7.7).`
+          );
+          continue;
+        }
         if (KNOWN_C4_OPTIONS.has(key)) {
           options[key] = optMatch[2]!.trim();
           continue;

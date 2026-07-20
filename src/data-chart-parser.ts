@@ -195,7 +195,7 @@ import {
   parseFirstLine,
   parseSeriesNames,
 } from './utils/parsing';
-import { parseDataRowValues } from './chart';
+import { parseDataRowValues, surplusValueDiagnostic } from './chart';
 import {
   type EmphasisDirective,
   isEmphasisToken,
@@ -918,6 +918,11 @@ function parseExtendedChartFull(
     // Funnel / generic data point: "Label value"
     const dataRow = parseDataRowValues(trimmed);
     if (dataRow?.values.length === 1) {
+      // Flag a single-value row that welded surplus trailing numbers into its
+      // label ("Armor 50 60" → label "Armor 50") — same corruption guard as the
+      // multi-series path in parseChart.
+      const surplus = surplusValueDiagnostic(dataRow, 1, lineNumber);
+      if (surplus) result.diagnostics.push(surplus);
       const { label: rawLabel, color: pointColor } = extractColor(
         dataRow.label,
         palette,

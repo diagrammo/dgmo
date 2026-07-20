@@ -132,6 +132,56 @@ CDN
       expect(node(result, 'edge').computedRps).toBe(5000);
       expect(node(result, 'CDN').computedRps).toBe(5000);
     });
+
+    it('uses the chart-level default-rps as the fallback entry RPS', () => {
+      const source = `
+infra
+
+default-rps 8000
+
+edge
+  -> CDN
+
+CDN
+  cache-hit: 50%
+`;
+      // With default-rps present, the entry node (no explicit rps) inherits it.
+      const withDefault = compute(source);
+      expect(node(withDefault, 'edge').computedRps).toBe(8000);
+      expect(node(withDefault, 'CDN').computedRps).toBe(8000);
+
+      // Without default-rps, the same source computes zero traffic — proving
+      // the directive actually changes the computed output (no silent no-op).
+      const withoutDefault = compute(`
+infra
+
+edge
+  -> CDN
+
+CDN
+  cache-hit: 50%
+`);
+      expect(node(withoutDefault, 'edge').computedRps).toBe(0);
+      expect(node(withoutDefault, 'CDN').computedRps).toBe(0);
+    });
+
+    it('lets an explicit edge rps override default-rps', () => {
+      const result = compute(`
+infra
+
+default-rps 8000
+
+edge
+  rps: 1000
+  -> CDN
+
+CDN
+  cache-hit: 50%
+`);
+      // Explicit rps on the edge node wins over the chart-level default.
+      expect(node(result, 'edge').computedRps).toBe(1000);
+      expect(node(result, 'CDN').computedRps).toBe(1000);
+    });
   });
 
   describe('FR11: split distribution', () => {

@@ -544,24 +544,19 @@ export function parseChart(
       ...(multiValue && { expectedValues: seriesCount }),
     });
     if (dataValues) {
-      // Surplus numbers: the row ends with more numeric tokens than there are
-      // series, so the extras get absorbed into the label ("Armor 50 60 70 80"
-      // → label "Armor 50 60"). Too-few already warns below; warn here too so
-      // the asymmetry can't corrupt an axis label in silence. A quoted label
-      // has an explicit boundary, so it is never ambiguous.
-      if (
-        multiValue &&
-        !dataValues.quotedLabel &&
-        dataValues.trailingNumericCount > seriesCount
-      ) {
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            `Data point "${dataValues.bareLabel}" has ${dataValues.trailingNumericCount} value(s), but ${seriesCount} series defined. If the label ends in a number, quote it: "${dataValues.label}" ${dataValues.values.join(' ')}`,
-            'warning'
-          )
-        );
-      }
+      // Surplus numbers: the row ends with more numeric tokens than the chart
+      // consumes (one per series, or a single value with no series header), so
+      // the extras get absorbed into the label. Warn either way — the
+      // single-value case ("Armor 50 60" → axis "Armor 50", value 60) has no
+      // series count to check against and would otherwise corrupt an axis label
+      // in silence.
+      const expectedValues = multiValue ? seriesCount : 1;
+      const surplus = surplusValueDiagnostic(
+        dataValues,
+        expectedValues,
+        lineNumber
+      );
+      if (surplus) result.diagnostics.push(surplus);
       const { label: rawLabel, color: pointColor } = extractColor(
         dataValues.label,
         palette,
@@ -786,6 +781,37 @@ export function parseDataRowValues(
     trailingNumericCount: numeric.length,
     quotedLabel: false,
   };
+}
+
+/**
+ * A data row whose label ends in a digit is ambiguous: `Armor 50 60` could mean
+ * label "Armor 50" value 60, or "Armor" with a stray extra number. The parser
+ * resolves it by taking the last `expectedValues` numbers and welding the
+ * surplus into the label — silently. This returns a warning (nudging the quoted
+ * escape hatch, `"Armor 50" 60`) whenever that welding actually happened, so a
+ * mislabeled axis can't slip through unnoticed.
+ *
+ * Shared by every single- and multi-value data-chart caller so the two modes
+ * flag the same corruption identically. A quoted label has an explicit
+ * label/value boundary and is never ambiguous, so it never warns. Returns null
+ * when there is nothing to flag.
+ */
+export function surplusValueDiagnostic(
+  row: NonNullable<ReturnType<typeof parseDataRowValues>>,
+  expectedValues: number,
+  lineNumber: number
+): DgmoError | null {
+  if (row.quotedLabel || row.trailingNumericCount <= expectedValues)
+    return null;
+  const expectation =
+    expectedValues === 1
+      ? 'but only 1 value is expected'
+      : `but ${expectedValues} series defined`;
+  return makeDgmoError(
+    lineNumber,
+    `Data point "${row.bareLabel}" has ${row.trailingNumericCount} value(s), ${expectation}. If the label ends in a number, quote it: "${row.label}" ${row.values.join(' ')}`,
+    'warning'
+  );
 }
 
 /**
