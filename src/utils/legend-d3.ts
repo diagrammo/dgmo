@@ -14,9 +14,10 @@ import {
   LEGEND_TOGGLE_OFF_OPACITY,
   CONTROLS_ICON_PATH,
   measureLegendText,
+  legendChromeColors,
 } from './legend-constants';
 import { computeLegendLayout } from './legend-layout';
-import { mix, valueRampStops } from '../palettes/color-utils';
+import { valueRampStops } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
 import type {
   LegendConfig,
@@ -79,13 +80,7 @@ export function renderLegendD3(
       legendG.attr('data-legend-active', null);
     }
 
-    const groupBg = isDark
-      ? mix(palette.surface, palette.bg, 50)
-      : // Light palettes: surface ≈ bg, so blending toward bg yields no visible
-        // container. Darken past surface toward the muted neutral (guaranteed
-        // darker in every palette) so the tag group reads as a contained area.
-        mix(palette.surface, palette.textMuted, 98);
-    const pillBorder = mix(palette.textMuted, palette.bg, 50);
+    const { groupBg, pillBorder } = legendChromeColors(palette, isDark);
 
     // Render active capsule
     if (currentLayout.activeCapsule) {

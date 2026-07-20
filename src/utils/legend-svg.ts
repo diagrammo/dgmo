@@ -26,9 +26,9 @@ import {
   LEGEND_PILL_FONT_SIZE,
   LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE,
+  legendChromeColors,
 } from './legend-constants';
 import { computeLegendLayout } from './legend-layout';
-import { mix } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
 
 // ── Types ────────────────────────────────────────────────────
@@ -152,10 +152,7 @@ export function renderLegendSvg(
     return { svg: '', height: 0, width: 0 };
   }
 
-  const groupBg = isDark
-    ? mix(palette.surface, palette.bg, 50)
-    : mix(palette.surface, palette.bg, 30);
-  const pillBorder = mix(palette.textMuted, palette.bg, 50);
+  const { groupBg, pillBorder } = legendChromeColors(palette, isDark);
 
   const parts: string[] = [];
   let bottom = 0;

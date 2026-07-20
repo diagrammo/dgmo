@@ -39,6 +39,7 @@ import {
   LEGEND_ENTRY_TRAIL as TL_LEGEND_ENTRY_TRAIL,
   measureLegendText,
   truncateLegendText,
+  legendChromeColors,
 } from '../utils/legend-constants';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type { LegendConfig, LegendCallbacks } from '../utils/legend-types';
@@ -729,9 +730,7 @@ function renderTimelineGroupLegend(
   const PAD_X = 10;
   const FONT_SIZE = 11;
   const GAP = 8;
-  const pillBg = isDark
-    ? mix(palette.surface, palette.bg, 50)
-    : mix(palette.surface, palette.bg, 30);
+  const pillBg = legendChromeColors(palette, isDark).groupBg;
 
   let legendX = 0;
   for (const grp of groups) {

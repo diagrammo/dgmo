@@ -18,6 +18,27 @@ export const LEGEND_ICON_W = 20;
 
 export const LEGEND_MAX_ENTRY_ROWS = 3;
 
+// ── Chrome colors ────────────────────────────────────────────
+// Capsule/pill background + border used by BOTH legend emitters
+// (legend-d3.ts DOM view and legend-svg.ts string view). Single source
+// so the two paths can't drift: light palettes have surface ≈ bg, so
+// blending toward bg yields no visible container — darken past surface
+// toward the muted neutral (guaranteed darker in every palette) so the
+// tag group reads as a contained area.
+import { mix } from '../palettes/color-utils';
+
+export function legendChromeColors(
+  palette: { bg: string; surface: string; textMuted: string },
+  isDark: boolean
+): { groupBg: string; pillBorder: string } {
+  return {
+    groupBg: isDark
+      ? mix(palette.surface, palette.bg, 50)
+      : mix(palette.surface, palette.textMuted, 98),
+    pillBorder: mix(palette.textMuted, palette.bg, 50),
+  };
+}
+
 // ── Proportional text measurement ────────────────────────────
 // The canonical glyph-table measurer now lives in `./text-measure`.
 // Re-exported here under the legacy names so existing legend call
