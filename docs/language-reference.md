@@ -2603,6 +2603,7 @@ Group a run of events into a labeled section with a `[Name]` bracket, then **ind
 - `side above` / `side below` — place all cards on one side instead of alternating (`side alternate` is the default).
 - `no-box` — card-less style for slides: a tag-colored label, a rule, and the description below (no box / fill / border).
 - `no-legend` — hide the tag legend.
+- `now` / `now <date>` — plant a **"now" pin** on the spine: a graphite diamond at today with a short stem to a labeled tab that auto-slots into a card-free lane. Bare `now` is **computed** (resolved to today each render); `now <date>` **pins** it to an explicit ISO date, with an optional trailing custom label (`now 2026-01-01 Launch`). The tab honors the fill family (`fill-solid`/`fill-outline`/tint). To-scale only — ignored under `no-scale`. Positioned over real dated events (`TBD` positions never anchor it); a `now` past the last date rides onto the open horizon when a trailing `TBD` is present, else clamps to the last dot.
 
 ### 16.4C Body Diagrams
 

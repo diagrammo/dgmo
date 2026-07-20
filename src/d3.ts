@@ -247,7 +247,8 @@ async function exportEventLine(ctx: ExportContext): Promise<string> {
     effectivePalette,
     ctx.isDark,
     { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
-    ctxTagOverride(ctx)
+    ctxTagOverride(ctx),
+    new Date()
   );
   return finalizeSvgExport(container, theme, effectivePalette);
 }

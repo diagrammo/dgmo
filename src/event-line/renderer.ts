@@ -42,6 +42,7 @@ import {
 } from '../utils/wrapped-desc';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import { formatDateLabel } from '../timeline/renderer';
+import { parseTimelineDate } from '../timeline/parser';
 import type { LegendGroupData } from '../utils/legend-types';
 import {
   resolveActiveTagGroup,
@@ -205,7 +206,10 @@ export function renderEventLine(
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions,
-  tagOverride?: string
+  tagOverride?: string,
+  /** Injectable clock for the computed `now` marker (§28.6b). Defaults to the
+   *  live wall-clock; tests/snapshots pass a fixed date for determinism. */
+  nowDate?: Date
 ): void {
   if (parsed.events.length === 0) return;
 
@@ -843,6 +847,9 @@ export function renderEventLine(
       .attr('stroke-dasharray', '2 6');
   }
 
+  // The `now` marker (§28.6b) is drawn LAST — after cards + dots — so its pin is
+  // never hidden and it can test the finished card boxes for collision.
+
   // A bracketed TBD plots at an INFERRED point inside a known gap. The hollow
   // dot + "TBD" caption carry the uncertain read on their own — no dashed
   // "somewhere in here" whisker is drawn across the spine.
@@ -1312,6 +1319,178 @@ export function renderEventLine(
     }
   }
 
+  // ── `now` marker (§28.6b) — a "grounded pin" ──
+  // A pin planted ON the spine (a small diamond) with a short stem up/down to a
+  // labeled tab, dropped into a lane the cards don't occupy. To-scale only; its
+  // x is interpolated over the placed DATED events (so it honors the broken
+  // axis), riding onto a trailing-TBD open horizon when `now` is past the last
+  // date. Drawn last so nothing hides it and the finished card boxes are known.
+  if (parsed.now && scaled) {
+    let nowValue: number | null = parsed.now.dateValue;
+    if (parsed.now.computed) {
+      const d = nowDate ?? new Date();
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const v = parseTimelineDate(iso);
+      nowValue = Number.isFinite(v) ? v : null;
+    }
+    const dated = placed
+      .filter((p) => p.kind !== 'era' && !p.future && p.dateValue !== null)
+      .sort((a, b) => a.dateValue! - b.dateValue!);
+    let nowX = nowValue === null ? null : valueToSpineX(nowValue, dated);
+    // Past the last DATED event with a trailing-TBD open horizon: ride the pin
+    // out onto that tail ("now, in the unscheduled-future era") rather than
+    // clamping back to the last real dot. TBD positions are inferred, so anchor
+    // to the nearest trailing-TBD dot.
+    const lastReal = dated[dated.length - 1];
+    if (
+      nowX !== null &&
+      nowValue !== null &&
+      lastReal &&
+      nowValue > lastReal.dateValue!
+    ) {
+      const trailing = placed
+        .filter((p) => p.future && !p.futureSpan)
+        .map((p) => p.x);
+      if (trailing.length) nowX = Math.min(...trailing);
+    }
+    if (nowX !== null) {
+      // A neutral **graphite** derived from the theme ink — on-palette in every
+      // palette, so it never competes with the tag hues. Kept STRONG (barely off
+      // the ink) so the pin, its label, and its edge all read; the fill family
+      // below softens the FILL, but text/stroke/diamond stay at full ink.
+      const base = themeBaseBg(palette, isDark);
+      const nowColor = mix(palette.text, base, 82);
+      // The tab honors the §1.9 fill family, mirroring the event cards: solid =
+      // flooded, outline = hollow (bg fill + colored stroke), tint (default) =
+      // soft fill with a hairline edge. The diamond + stem stay solid, like the
+      // event dots. Text stays full-ink graphite in every mode except solid (where
+      // the flooded chip needs light text), so the label never washes out.
+      const fillMode = parsed.options.fillMode;
+      const pillFill = shapeFill(palette, nowColor, isDark, { mode: fillMode });
+      const pillStroke =
+        fillMode === 'solid'
+          ? 'none'
+          : fillMode === 'outline'
+            ? nowColor
+            : mix(nowColor, base, 55); // tint: hairline so the chip edge reads
+      const pillStrokeW =
+        fillMode === 'solid' ? 0 : fillMode === 'outline' ? 1.3 : 1;
+      const pillText =
+        fillMode === 'solid'
+          ? contrastText(
+              pillFill,
+              palette.textOnFillLight,
+              palette.textOnFillDark
+            )
+          : nowColor;
+      const label = parsed.now.label;
+      const pillH = 18;
+      const pillW = Math.max(28, label.length * 6.6 + 16);
+      const PIN_GAP = 6; // clearance spine↔pill and card↔pill
+      const xHalf = pillW / 2 + 4;
+      const xLo = nowX - xHalf;
+      const xHi = nowX + xHalf;
+
+      // The only obstacles are card boxes (from `geo`) sharing the pill's x-span.
+      const boxes = geo.map((g) => ({
+        side: g.p.side,
+        top: g.top,
+        bot: g.top + g.p.cardH,
+        left: g.p.left,
+        right: g.p.left + CARD_W,
+      }));
+      type Box = (typeof boxes)[number];
+      const overlapsX = (b: Box): boolean => b.left < xHi && b.right > xLo;
+
+      // Candidate tab slots: spine-adjacent on each side, plus just beyond every
+      // overlapping card. Keep the CLEAR slot with the shortest stem — the pin
+      // hugs the spine when the lane is empty and only reaches past a card when
+      // it must.
+      type Slot = { y0: number; y1: number; stem: number };
+      const cands: Slot[] = [];
+      const addAbove = (pillBottom: number): void => {
+        const y0 = pillBottom - pillH;
+        if (y0 > topUsed + 1)
+          cands.push({ y0, y1: pillBottom, stem: spineY - pillBottom });
+      };
+      const addBelow = (pillTop: number): void => {
+        const y1 = pillTop + pillH;
+        if (y1 < totalH - 1)
+          cands.push({ y0: pillTop, y1, stem: pillTop - spineY });
+      };
+      // Preferred slot: the tab centered in the spine→event-row gap — equidistant
+      // to the spine and where event cards begin (their near edge sits LEADER_*
+      // off the spine). The pill fits inside that gap, so it clears the cards
+      // even when one shares the marker's x. Beyond-card fallbacks handle the
+      // rare tighter case.
+      addAbove(spineY - LEADER_ABOVE / 2 + pillH / 2);
+      addBelow(spineY + LEADER_BELOW / 2 - pillH / 2);
+      for (const b of boxes) {
+        if (!overlapsX(b)) continue;
+        if (b.side === 'above') addAbove(b.top - PIN_GAP);
+        else addBelow(b.bot + PIN_GAP);
+      }
+      const isClear = (c: Slot): boolean =>
+        !boxes.some((b) => overlapsX(b) && b.bot > c.y0 && b.top < c.y1);
+      const byStem = (a: Slot, b: Slot): number => a.stem - b.stem;
+      const slot: Slot = cands.filter(isClear).sort(byStem)[0] ??
+        cands.sort(byStem)[0] ?? {
+          y0: spineY - PIN_GAP - pillH,
+          y1: spineY - PIN_GAP,
+          stem: PIN_GAP + pillH,
+        };
+
+      const above = slot.y1 <= spineY;
+      const stemFrom = above ? spineY - DOT_R : spineY + DOT_R;
+      const stemTo = above ? slot.y1 : slot.y0;
+      const pillCX = Math.max(
+        pillW / 2 + 2,
+        Math.min(nowX, contentW - pillW / 2 - 2)
+      );
+
+      const nowG = svg
+        .append('g')
+        .attr('class', 'evt-now')
+        .attr('data-now-x', nowX.toFixed(2));
+      // Diamond planted on the spine — the exact "you are here" point.
+      nowG
+        .append('path')
+        .attr('d', `M${nowX} ${spineY - 5} l5 5 l-5 5 l-5 -5 z`)
+        .attr('fill', nowColor);
+      // Stem from the spine to the tab.
+      nowG
+        .append('line')
+        .attr('x1', nowX)
+        .attr('y1', stemFrom)
+        .attr('x2', nowX)
+        .attr('y2', stemTo)
+        .attr('stroke', nowColor)
+        .attr('stroke-width', 1.6);
+      // Labeled tab.
+      nowG
+        .append('rect')
+        .attr('x', pillCX - pillW / 2)
+        .attr('y', slot.y0)
+        .attr('width', pillW)
+        .attr('height', pillH)
+        .attr('rx', pillH / 2)
+        .attr('fill', pillFill)
+        .attr('stroke', pillStroke)
+        .attr('stroke-width', pillStrokeW);
+      nowG
+        .append('text')
+        .attr('x', pillCX)
+        .attr('y', slot.y0 + pillH / 2)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', 10.5)
+        .attr('font-weight', 600)
+        .attr('fill', pillText)
+        .text(label);
+    }
+  }
+
   // ── Hover + legend-toggle wiring (preview only) ──
   // Delegated handlers on the SVG root, so they re-bind with every render and
   // never leak per-node listeners. Hover priority: legend entry → category
@@ -1329,7 +1508,8 @@ export function renderEventLine(
           isDark,
           onClickItem,
           exportDims,
-          tagOverride
+          tagOverride,
+          nowDate
         )
       );
       // Re-apply the persisted muted state to the freshly built SVG (live event
@@ -1678,7 +1858,8 @@ export function renderEventLineForExport(
   palette: PaletteColors,
   isDark: boolean,
   exportDims?: D3ExportDimensions,
-  tagOverride?: string
+  tagOverride?: string,
+  nowDate?: Date
 ): void {
   renderEventLine(
     container,
@@ -1687,11 +1868,35 @@ export function renderEventLineForExport(
     isDark,
     undefined,
     exportDims,
-    tagOverride
+    tagOverride,
+    nowDate
   );
 }
 
 // ── helpers ──
+
+// Map a date value to a spine x by piecewise-linear interpolation over the
+// PLACED dated events (already sorted here). Because event x's already encode
+// the broken axis (collapsed-era capsules, per-run scaling), interpolating
+// between them keeps the `now` rule consistent with the drawn dots. Values
+// before the first / after the last dated event clamp to that endpoint.
+function valueToSpineX(v: number, dated: Placed[]): number | null {
+  if (!dated.length) return null;
+  const first = dated[0]!;
+  const last = dated[dated.length - 1]!;
+  if (v <= first.dateValue!) return first.x;
+  if (v >= last.dateValue!) return last.x;
+  for (let i = 0; i < dated.length - 1; i++) {
+    const a = dated[i]!;
+    const b = dated[i + 1]!;
+    if (v >= a.dateValue! && v <= b.dateValue!) {
+      const span = b.dateValue! - a.dateValue!;
+      if (span <= 0) return a.x;
+      return a.x + ((v - a.dateValue!) / span) * (b.x - a.x);
+    }
+  }
+  return last.x;
+}
 
 // A vertical "≈ rotated 90°" axis-break glyph: two parallel wavy strokes that
 // cross the timeline at a collapsed era to signal the span there is folded and

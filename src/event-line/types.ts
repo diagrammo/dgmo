@@ -47,6 +47,25 @@ export interface EventLineEra {
   readonly lineNumber: number;
 }
 
+/**
+ * A **now marker** (§28.6b) — a "grounded pin" at "today": a diamond planted on
+ * the spine with a short stem to a labeled tab, slotted into a card-free lane.
+ * `now` alone is *computed* (resolved to the render-time date);
+ * `now <date>` *pins* it to an explicit ISO date (deterministic, snapshot-safe).
+ * Only drawn on a to-scale axis (every event dated); ignored under `no-scale`.
+ */
+export interface EventLineNow {
+  /** True for bare `now` (date resolved at render time); false when pinned. */
+  readonly computed: boolean;
+  /** Pinned ISO date as written, or null when computed. */
+  readonly date: string | null;
+  /** Numeric value for the pinned date (timeline scale), or null when computed. */
+  readonly dateValue: number | null;
+  /** Rule caption (default `now`; a trailing token on the pinned form overrides). */
+  readonly label: string;
+  readonly lineNumber: number;
+}
+
 export interface EventLineOptions {
   /** False when `no-scale` — events are spaced evenly instead of by date. */
   readonly scale: boolean;
@@ -69,6 +88,8 @@ export interface ParsedEventLine {
   readonly titleLineNumber: number | null;
   readonly events: readonly EventLineEvent[];
   readonly eras: readonly EventLineEra[];
+  /** The `now` marker (§28.6b), or null when the directive is absent. */
+  readonly now: EventLineNow | null;
   readonly tagGroups: readonly TagGroup[];
   readonly options: EventLineOptions;
   readonly diagnostics: readonly DgmoError[];

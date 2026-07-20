@@ -1224,4 +1224,232 @@ tag Kind as k
     // Nothing is tagged Mobile → nothing dims (rather than dimming everything).
     expect(svg.querySelectorAll('.dgmo-evt-dim').length).toBe(0);
   });
+
+  describe('now marker (§28.7)', () => {
+    const NOW_SRC = `event-line Roadmap
+now 2022-01-01
+
+2020-01-01 A
+2024-01-01 B`;
+
+    it('draws a grounded pin — diamond, stem, and labeled tab', () => {
+      const parsed = parseEventLine(NOW_SRC, nordLight);
+      const container = mount(900, 400);
+      renderEventLine(container, parsed, nordLight, false);
+      const nowG = container.querySelector('.evt-now')!;
+      expect(nowG).not.toBeNull();
+      expect(nowG.querySelector('path')).not.toBeNull(); // diamond on the spine
+      expect(nowG.querySelector('line')).not.toBeNull(); // stem
+      expect(nowG.querySelector('rect')).not.toBeNull(); // tab
+      expect(nowG.querySelector('text')!.textContent).toBe('now');
+    });
+
+    it('honors a custom tab label', () => {
+      const parsed = parseEventLine(
+        `event-line R
+now 2022 Today
+
+2020 A
+2024 B`,
+        nordLight
+      );
+      const container = mount(900, 400);
+      renderEventLine(container, parsed, nordLight, false);
+      expect(container.querySelector('.evt-now text')!.textContent).toBe(
+        'Today'
+      );
+    });
+
+    it('honors the fill family on the tab (outline = stroked, hollow)', () => {
+      const outline = parseEventLine(
+        `event-line R
+fill-outline
+now 2022
+
+2020 A
+2024 B`,
+        nordLight
+      );
+      const solid = parseEventLine(
+        `event-line R
+fill-solid
+now 2022
+
+2020 A
+2024 B`,
+        nordLight
+      );
+      const co = mount(900, 400);
+      const cs = mount(900, 400);
+      renderEventLine(co, outline, nordLight, false);
+      renderEventLine(cs, solid, nordLight, false);
+      const oRect = co.querySelector('.evt-now rect')!;
+      const sRect = cs.querySelector('.evt-now rect')!;
+      // Outline: a real stroke; solid: none.
+      expect(oRect.getAttribute('stroke')).not.toBe('none');
+      expect(parseFloat(oRect.getAttribute('stroke-width')!)).toBeGreaterThan(
+        0
+      );
+      expect(sRect.getAttribute('stroke')).toBe('none');
+      // Outline fill differs from solid fill (hollow vs flooded).
+      expect(oRect.getAttribute('fill')).not.toBe(sRect.getAttribute('fill'));
+    });
+
+    it('places the tab so it overlaps no card (collision avoidance)', () => {
+      // `now` lands directly under an event whose card is forced above — the tab
+      // must slot into a clear lane (above leader-gap or below spine), never
+      // through a card box.
+      const parsed = parseEventLine(
+        `event-line R
+side above
+now 2024-06
+
+2024-01 Alpha
+  Body.
+2024-06 Beta
+  Right under the now marker.
+2025-01 GA
+  Launch.`,
+        nordLight
+      );
+      const container = mount(900, 400);
+      renderEventLine(container, parsed, nordLight, false);
+
+      const tab = container.querySelector('.evt-now rect')!;
+      const tx = parseFloat(tab.getAttribute('x')!);
+      const ty = parseFloat(tab.getAttribute('y')!);
+      const tw = parseFloat(tab.getAttribute('width')!);
+      const th = parseFloat(tab.getAttribute('height')!);
+
+      // Reconstruct each card box from its group transform + tallest child rect.
+      const cardBoxes = [...container.querySelectorAll('.dgmo-event-card')].map(
+        (g) => {
+          const m = /translate\(([-\d.]+),\s*([-\d.]+)\)/.exec(
+            g.getAttribute('transform') ?? ''
+          )!;
+          const left = parseFloat(m[1]!);
+          const top = parseFloat(m[2]!);
+          const h = Math.max(
+            ...[...g.querySelectorAll('rect')].map((r) =>
+              parseFloat(r.getAttribute('height') ?? '0')
+            )
+          );
+          return { left, top, right: left + 210, bot: top + h };
+        }
+      );
+      const EPS = 0.5;
+      const overlaps = cardBoxes.some(
+        (b) =>
+          tx + tw > b.left + EPS &&
+          tx < b.right - EPS &&
+          ty + th > b.top + EPS &&
+          ty < b.bot - EPS
+      );
+      expect(overlaps).toBe(false);
+      expect(cardBoxes.length).toBeGreaterThan(0);
+    });
+
+    it('places the rule midway for a date centered between two events', () => {
+      const parsed = parseEventLine(NOW_SRC, nordLight);
+      const container = mount(900, 400);
+      renderEventLine(container, parsed, nordLight, false);
+      const dots = [...container.querySelectorAll('circle[data-line-number]')]
+        .map((c) => parseFloat(c.getAttribute('cx')!))
+        .filter((n) => Number.isFinite(n))
+        .sort((a, b) => a - b);
+      const [xA, xB] = [dots[0]!, dots[dots.length - 1]!];
+      const nowX = parseFloat(
+        container.querySelector('.evt-now')!.getAttribute('data-now-x')!
+      );
+      // 2022 sits halfway between 2020 and 2024 → rule near the midpoint.
+      expect(nowX).toBeGreaterThan(xA);
+      expect(nowX).toBeLessThan(xB);
+      expect(Math.abs(nowX - (xA + xB) / 2)).toBeLessThan((xB - xA) * 0.15);
+    });
+
+    it('resolves a computed `now` against the injected clock', () => {
+      const parsed = parseEventLine(
+        `event-line R
+now
+
+2020-01-01 A
+2024-01-01 B`,
+        nordLight
+      );
+      const container = mount(900, 400);
+      renderEventLine(
+        container,
+        parsed,
+        nordLight,
+        false,
+        undefined,
+        undefined,
+        undefined,
+        new Date(2022, 0, 1)
+      );
+      const nowX = parseFloat(
+        container.querySelector('.evt-now')!.getAttribute('data-now-x')!
+      );
+      const dots = [...container.querySelectorAll('circle[data-line-number]')]
+        .map((c) => parseFloat(c.getAttribute('cx')!))
+        .filter((n) => Number.isFinite(n))
+        .sort((a, b) => a - b);
+      expect(nowX).toBeGreaterThan(dots[0]!);
+      expect(nowX).toBeLessThan(dots[dots.length - 1]!);
+    });
+
+    it('rides onto the open-horizon tail when `now` is past the last dated event', () => {
+      const parsed = parseEventLine(
+        `event-line R
+now 2025-06
+
+2023 Shipped A
+2024 Shipped B
+TBD Planned C`,
+        nordLight
+      );
+      const container = mount(900, 400);
+      renderEventLine(container, parsed, nordLight, false);
+      const dots = [...container.querySelectorAll('circle[data-line-number]')]
+        .map((c) => parseFloat(c.getAttribute('cx')!))
+        .filter((n) => Number.isFinite(n))
+        .sort((a, b) => a - b);
+      const nowX = parseFloat(
+        container.querySelector('.evt-now')!.getAttribute('data-now-x')!
+      );
+      // TBD parks at the far right (open horizon); `now` past 2024 rides there,
+      // not back onto the last real dot.
+      const trailingTbdX = dots[dots.length - 1]!;
+      const lastRealX = dots[dots.length - 2]!;
+      expect(nowX).toBeCloseTo(trailingTbdX, 0);
+      expect(nowX).toBeGreaterThan(lastRealX);
+    });
+
+    it('omits the rule under `no-scale`', () => {
+      const parsed = parseEventLine(
+        `event-line R
+no-scale
+now 2022
+
+2020 A
+2024 B`,
+        nordLight
+      );
+      const container = mount(900, 400);
+      renderEventLine(container, parsed, nordLight, false);
+      expect(container.querySelector('.evt-now')).toBeNull();
+    });
+
+    it('draws no rule when the directive is absent', () => {
+      const parsed = parseEventLine(
+        `event-line R
+2020 A
+2024 B`,
+        nordLight
+      );
+      const container = mount(900, 400);
+      renderEventLine(container, parsed, nordLight, false);
+      expect(container.querySelector('.evt-now')).toBeNull();
+    });
+  });
 });

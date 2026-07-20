@@ -60,6 +60,7 @@ import {
 import type {
   EventLineEra,
   EventLineEvent,
+  EventLineNow,
   EventLineOptions,
   ParsedEventLine,
 } from './types';
@@ -74,6 +75,8 @@ const SIDE_RE = /^side\s+(above|below|alternate)\b/i;
 const ERA_RE = /^\[([^\]]+)\]\s*(.*)$/;
 /** `collapsed: true|false` inside an era's trailing metadata. */
 const ERA_COLLAPSED_RE = /\bcollapsed:\s*(true|false)\b/i;
+/** `now` marker directive (§28.6b): bare `now`, or `now <date> [Label]`. */
+const NOW_RE = /^now\b\s*(.*)$/i;
 /** Legacy `section <Name>` — superseded by `[Name]`; emits a guiding warning. */
 const SECTION_SEAM_RE = /^section\b/i;
 /** Legacy key+value `direction <X>` — only LR (horizontal) is supported;
@@ -99,6 +102,7 @@ export function parseEventLine(
     titleLineNumber: null,
     events: [],
     eras: [],
+    now: null,
     tagGroups: [],
     options,
     diagnostics: [],
@@ -356,6 +360,43 @@ export function parseEventLine(
         options.noLegend = true;
         continue;
       }
+      // §28.6b `now` marker — a single dashed vertical rule at "today". Bare
+      // `now` is resolved at render time (computed); `now <date> [Label]` pins
+      // it to an explicit ISO date. Last one wins if repeated.
+      {
+        const nowMatch = trimmed.match(NOW_RE);
+        if (nowMatch) {
+          const rest = nowMatch[1]!.trim();
+          if (!rest) {
+            result.now = {
+              computed: true,
+              date: null,
+              dateValue: null,
+              label: 'now',
+              lineNumber,
+            } satisfies EventLineNow;
+          } else {
+            const prefix = extractDatePrefix(rest, dateCtx);
+            if (prefix) {
+              const label = prefix.remainder?.trim() || 'now';
+              result.now = {
+                computed: false,
+                date: prefix.startDate,
+                dateValue: parseTimelineDate(prefix.startDate),
+                label,
+                lineNumber,
+              } satisfies EventLineNow;
+            } else {
+              result.diagnostics.push(
+                emit(EVENT_LINE_DX.BAD_DATE, lineNumber, {
+                  token: rest.split(/\s+/)[0],
+                })
+              );
+            }
+          }
+          continue;
+        }
+      }
       {
         const fm = fillModeFromToken(trimmed);
         if (fm !== null) {
@@ -460,6 +501,17 @@ export function parseEventLine(
   // event listed above it). Era-spanning inversions already get the richer
   // ERA_DATE_ORDER message, so skip lines that check already flagged.
   validateEventDateOrder(result.events, eraFlaggedLines, result.diagnostics);
+
+  // §28.6b: the `now` rule rides the date scale, so it only draws to-scale. Under
+  // explicit `no-scale` (even spacing) there is no date axis to anchor it to.
+  if (result.now && !options.scale) {
+    result.diagnostics.push(
+      emit(EVENT_LINE_DX.UNSUPPORTED, result.now.lineNumber, {
+        reason:
+          'the `now` marker needs a to-scale axis; it is ignored under `no-scale`.',
+      })
+    );
+  }
 
   return result;
 }

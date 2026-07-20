@@ -252,6 +252,10 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Card-less label/rule/description style (slides)',
       },
       'no-legend': { description: 'Hide the tag legend' },
+      now: {
+        description:
+          '"now" pin at today (bare) or a pinned date (now 2026-07-20)',
+      },
       TBD: {
         description:
           'Date prefix for a not-yet-scheduled future event (e.g. "TBD Console Port")',

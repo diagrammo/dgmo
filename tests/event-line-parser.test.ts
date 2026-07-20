@@ -645,4 +645,78 @@ Tbderror happens`);
       expect(p.events[0]!.label).toBe('Tbderror happens');
     });
   });
+
+  describe('now marker (§28.7)', () => {
+    it('parses bare `now` as computed with the default label', () => {
+      const p = parseEventLine(`event-line X
+now
+
+2020 A
+2024 B`);
+      expect(errors(p)).toHaveLength(0);
+      expect(p.now).not.toBeNull();
+      expect(p.now!.computed).toBe(true);
+      expect(p.now!.date).toBeNull();
+      expect(p.now!.dateValue).toBeNull();
+      expect(p.now!.label).toBe('now');
+    });
+
+    it('pins `now <date>` to an explicit ISO date', () => {
+      const p = parseEventLine(`event-line X
+now 2022-06
+
+2020 A
+2024 B`);
+      expect(errors(p)).toHaveLength(0);
+      expect(p.now!.computed).toBe(false);
+      expect(p.now!.date).toBe('2022-06');
+      expect(p.now!.dateValue).not.toBeNull();
+      expect(p.now!.label).toBe('now');
+    });
+
+    it('takes a trailing token after the pinned date as a custom label', () => {
+      const p = parseEventLine(`event-line X
+now 2022-06 Today
+
+2020 A
+2024 B`);
+      expect(p.now!.label).toBe('Today');
+      expect(p.now!.date).toBe('2022-06');
+    });
+
+    it('warns on an unparseable `now` date', () => {
+      const p = parseEventLine(`event-line X
+now someday
+
+2020 A`);
+      const warns = p.diagnostics.filter((d) => d.severity === 'warning');
+      expect(warns.some((d) => d.code === 'E_EVENT_LINE_BAD_DATE')).toBe(true);
+      expect(p.now).toBeNull();
+    });
+
+    it('warns that `now` is ignored under `no-scale`', () => {
+      const p = parseEventLine(`event-line X
+no-scale
+now 2022
+
+2020 A
+2024 B`);
+      const warns = p.diagnostics.filter((d) => d.severity === 'warning');
+      expect(
+        warns.some(
+          (d) =>
+            d.code === 'E_EVENT_LINE_UNSUPPORTED' && /no-scale/.test(d.message)
+        )
+      ).toBe(true);
+    });
+
+    it('last `now` directive wins', () => {
+      const p = parseEventLine(`event-line X
+now 2021
+now 2023
+
+2020 A`);
+      expect(p.now!.date).toBe('2023');
+    });
+  });
 });
