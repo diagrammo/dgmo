@@ -15,7 +15,7 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
-import { getSeriesColors } from '../palettes/color-utils';
+import { getSeriesColors, mix } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
@@ -23,13 +23,22 @@ import type { ParsedVersionControl, VCBranch, VCNode } from './types';
 
 type Sel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
-const LINE = 5.5;
-const DOT = 8;
-const CORNER = 13;
-const ANG = 32;
-const STACK = 19;
+// Refined to match the event-line visual system: thinner strokes, smaller dots,
+// horizontal message "shelves" (no rotated text).
+const LINE = 3; // branch lane / connector stroke
+const DOT = 5.5; // commit dot radius (event-line DOT_R)
+const CORNER = 10; // elbow radius
+const STACK = 19; // above-dot badge stack step
 const CIRCLED = '①②③④⑤⑥⑦⑧⑨';
 const TITLE_AREA = 40;
+// Message-shelf (event-line no-box) constants.
+const SHELF_TINT = 13; // % branch color mixed over bg for the shelf fill
+const SHELF_EDGE = 4; // shelf corner radius
+const SHELF_LIP = 2; // colored spine-side landing lip
+const SHELF_PAD = 8; // horizontal text inset inside a shelf
+const SHELF_H = 21; // single-line shelf height
+const LEADER_GAP = 22; // lanes-bottom → first shelf row
+const ROW_GAP = 7; // vertical gap between stacked shelf rows
 
 interface Badge {
   kind: 'tag' | 'ref' | 'head' | 'note';
@@ -46,7 +55,9 @@ interface Placement {
   x: number;
   y: number;
   anchor: 'start' | 'middle' | 'end';
-  diag?: boolean | undefined;
+  shelfLeft?: number | undefined;
+  shelfTop?: number | undefined;
+  shelfW?: number | undefined;
   leader?: { x1: number; y1: number; x2: number; y2: number } | undefined;
 }
 
@@ -162,15 +173,13 @@ export function renderVersionControl(
     gutter: number,
     cross0: number,
     captionY = 0;
-  const cos = Math.cos((ANG * Math.PI) / 180);
-  const sin = Math.sin((ANG * Math.PI) / 180);
-
   if (!TB) {
-    const maxName = Math.max(4, ...parsed.branches.map((b) => b.name.length));
-    gutter = maxName * 7.5 + 18;
-    const along0 = gutter + 34,
-      step = 86,
-      laneGap = 54;
+    // Branch names now sit inline above each lane's first commit, so the left
+    // gutter only needs a small margin.
+    gutter = 14;
+    const along0 = gutter + 20,
+      step = 88,
+      laneGap = 50;
     cross0 = 16 + maxStack * STACK + 14;
     for (const n of nodes)
       pos.set(n.key, {
@@ -178,17 +187,38 @@ export function renderVersionControl(
         y: cross0 + n.lane * laneGap,
       });
     const lanesBottom = cross0 + (laneCount - 1) * laneGap;
-    const bandY = lanesBottom + 26;
-    for (const n of nodes) {
+    const bandTop = lanesBottom + LEADER_GAP;
+
+    // Row-pack horizontal message shelves (event-line style): a commit's dot
+    // stays centered on its date; overlap resolves in depth (rows), never by
+    // rotating text. Sort by x, drop each shelf into the first row it clears.
+    const shelfGap = 6;
+    const rowRight: number[] = [];
+    const sorted = [...nodes].sort(
+      (a, b) => pos.get(a.key)!.x - pos.get(b.key)!.x
+    );
+    for (const n of sorted) {
       const p = pos.get(n.key)!;
+      const w = label.get(n.key)!.lw + SHELF_PAD * 2;
+      const left = p.x - w / 2;
+      let row = rowRight.length;
+      for (let l = 0; l < rowRight.length; l++)
+        if (rowRight[l]! + shelfGap <= left) {
+          row = l;
+          break;
+        }
+      const top = bandTop + row * (SHELF_H + ROW_GAP);
+      rowRight[row] = left + w;
       placements.push({
         node: n,
         kind: 'msg',
-        diag: true,
         x: p.x,
-        y: bandY,
+        y: top,
         anchor: 'start',
-        leader: { x1: p.x, y1: p.y + DOT, x2: p.x, y2: bandY - 3 },
+        shelfLeft: Math.max(4, left),
+        shelfTop: top,
+        shelfW: w,
+        leader: { x1: p.x, y1: p.y + DOT, x2: p.x, y2: top },
       });
       const stack = above.get(n.key) ?? [];
       stack.forEach((it, j) =>
@@ -204,6 +234,7 @@ export function renderVersionControl(
         })
       );
     }
+    const rowCount = rowRight.length;
     for (const b of parsed.branches) {
       if (!b.ab || b.ab.ahead + b.ab.behind === 0 || b.tip == null) continue;
       const tip = pos.get(b.tip)!;
@@ -218,11 +249,12 @@ export function renderVersionControl(
     }
     contentW =
       Math.max(
-        along0 + (K - 1) * step + DOT + 70,
-        ...[...pos.entries()].map(([k, p]) => p.x + label.get(k)!.lw * cos)
-      ) + 18;
-    // +12 descender projection (label baseline rotated by ANG) + breathing room
-    contentH = bandY + maxLW * sin + 12 * cos + 16;
+        along0 + (K - 1) * step + DOT + 40,
+        ...[...pos.entries()].map(
+          ([k, p]) => p.x + label.get(k)!.lw / 2 + SHELF_PAD + 8
+        )
+      ) + 8;
+    contentH = bandTop + rowCount * (SHELF_H + ROW_GAP) + 8;
     if (parsed.notes.length) {
       captionY = contentH + 4;
       contentH += 8 + parsed.notes.length * 16 + 8;
@@ -244,7 +276,6 @@ export function renderVersionControl(
       placements.push({
         node: n,
         kind: 'msg',
-        diag: false,
         x: bandX,
         y: p.y,
         anchor: 'start',
@@ -271,15 +302,24 @@ export function renderVersionControl(
 
   const showTitle = !!parsed.title;
   const titleH = showTitle ? TITLE_AREA : 0;
-  const W = Math.round(contentW);
-  const H = Math.round(contentH + titleH);
+  const baseW = contentW;
+  const baseH = contentH + titleH;
 
   const exportMode = !!exportDims;
+  // Fit-to-pane in live preview: pad the viewBox out to the panel so the SVG
+  // element is exactly the pane size and `meet` scales the graph down to fit —
+  // a wide graph never overflows/clips, a small one never upscales past 1:1.
+  const paneW = exportMode ? 0 : container.clientWidth || 0;
+  const paneH = exportMode ? 0 : container.clientHeight || 0;
+  const W = Math.round(Math.max(baseW, paneW));
+  const H = Math.round(Math.max(baseH, paneH));
+  const vw = exportMode ? W : paneW || W;
+  const vh = exportMode ? H : paneH || H;
   const svg = d3Selection
     .select(container)
     .append('svg')
-    .attr('width', W)
-    .attr('height', H)
+    .attr('width', vw)
+    .attr('height', vh)
     .attr('viewBox', `0 0 ${W} ${H}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
@@ -320,7 +360,6 @@ export function renderVersionControl(
     label,
     colorOf,
     byKey,
-    gutter,
     cross0,
     captionY,
     onClickItem && !exportMode ? onClickItem : undefined
@@ -344,7 +383,6 @@ function drawGraph(
   label: Map<number, { sha: string | null; msg: string; lw: number }>,
   colorOf: (n: VCNode) => string,
   byKey: (k: number) => VCNode,
-  gutter: number,
   cross0: number,
   captionY: number,
   onClickItem?: (lineNumber: number) => void
@@ -408,6 +446,7 @@ function drawGraph(
         .attr('stroke', c)
         .attr('stroke-width', LINE)
         .attr('stroke-linecap', 'round')
+        .attr('data-branch', n.branch)
         .attr('opacity', o);
       if (n.ghost) e.attr('stroke-dasharray', '5 5');
     }
@@ -422,6 +461,7 @@ function drawGraph(
         .attr('stroke', c)
         .attr('stroke-width', LINE)
         .attr('stroke-linecap', 'round')
+        .attr('data-branch', n.branch)
         .attr('opacity', o);
       if (n.ghost) e.attr('stroke-dasharray', '5 5');
     }
@@ -435,6 +475,7 @@ function drawGraph(
         .attr('stroke', colorOf(s))
         .attr('stroke-width', LINE)
         .attr('stroke-linecap', 'round')
+        .attr('data-branch', s.branch)
         .attr('opacity', 0.92 * o);
     }
     if (n.cherryFrom != null)
@@ -465,13 +506,15 @@ function drawGraph(
           .attr('fill', col)
           .text(b.name);
       } else {
+        // Inline above the lane, anchored at the branch's first commit.
         g.append('text')
-          .attr('x', gutter)
-          .attr('y', fp.y + 4)
-          .attr('text-anchor', 'end')
+          .attr('x', fp.x - DOT - 1)
+          .attr('y', fp.y - DOT - 7)
+          .attr('text-anchor', 'start')
           .attr('font-size', 12.5)
           .attr('font-weight', 800)
           .attr('fill', col)
+          .attr('data-branch', b.name)
           .text(b.name);
       }
     }
@@ -605,6 +648,7 @@ function drawGraph(
       .text(text);
   };
 
+  let shelfSeq = 0;
   for (const pl of placements) {
     const n = pl.node;
     const c = colorOf(n);
@@ -615,8 +659,10 @@ function drawGraph(
         .attr('x2', pl.leader.x2)
         .attr('y2', pl.leader.y2)
         .attr('stroke', c)
-        .attr('stroke-width', 1)
-        .attr('opacity', 0.34 * gop(n));
+        .attr('stroke-width', 1.5)
+        .attr('stroke-linecap', 'round')
+        .attr('data-branch', n.branch)
+        .attr('opacity', 0.55 * gop(n));
     }
     if (pl.kind === 'tag') pill(pl.x, pl.y, pl.w!, pl.label!, c, palette.bg);
     else if (pl.kind === 'head')
@@ -660,19 +706,54 @@ function drawGraph(
       const L = label.get(n.key)!;
       const gh = n.ghost;
       const mfill = gh ? palette.textMuted : c;
-      const t = pl.diag
-        ? g
-            .append('text')
-            .attr('transform', `translate(${pl.x},${pl.y}) rotate(${ANG})`)
-            .attr('font-size', 12)
-            .attr('opacity', gh ? 0.55 : 1)
-        : g
-            .append('text')
-            .attr('x', pl.x)
-            .attr('y', pl.y + 4)
-            .attr('text-anchor', pl.anchor)
-            .attr('font-size', 12)
-            .attr('opacity', gh ? 0.55 : 1);
+      let tx = pl.x;
+      let ty = pl.y + 4;
+      let anchor = pl.anchor;
+      if (pl.shelfW != null) {
+        // LR: event-line no-box "shelf" — tag-tinted rounded rect + colored
+        // spine-side lip, horizontal left-aligned text (no rotation).
+        const left = pl.shelfLeft!;
+        const top = pl.shelfTop!;
+        const w = pl.shelfW;
+        const clipId = `dgmo-vc-shelf-${shelfSeq++}`;
+        g.append('clipPath')
+          .attr('id', clipId)
+          .append('rect')
+          .attr('x', left)
+          .attr('y', top)
+          .attr('width', w)
+          .attr('height', SHELF_H)
+          .attr('rx', SHELF_EDGE);
+        g.append('rect')
+          .attr('x', left)
+          .attr('y', top)
+          .attr('width', w)
+          .attr('height', SHELF_H)
+          .attr('rx', SHELF_EDGE)
+          .attr('fill', gh ? palette.bg : mix(c, palette.bg, SHELF_TINT))
+          .attr('data-branch', n.branch)
+          .attr('opacity', gh ? 0.5 : 1);
+        g.append('rect')
+          .attr('x', left)
+          .attr('y', top)
+          .attr('width', w)
+          .attr('height', SHELF_LIP)
+          .attr('clip-path', `url(#${clipId})`)
+          .attr('fill', c)
+          .attr('data-branch', n.branch)
+          .attr('opacity', gh ? 0.4 : 1);
+        tx = left + SHELF_PAD;
+        ty = top + SHELF_H / 2 + 4;
+        anchor = 'start';
+      }
+      const t = g
+        .append('text')
+        .attr('x', tx)
+        .attr('y', ty)
+        .attr('text-anchor', anchor)
+        .attr('font-size', 12)
+        .attr('data-branch', n.branch)
+        .attr('opacity', gh ? 0.6 : 1);
       if (L.sha)
         t.append('tspan')
           .attr('font-family', 'ui-monospace, monospace')
