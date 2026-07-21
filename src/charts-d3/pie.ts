@@ -64,7 +64,10 @@ export function renderPie(
   const MARGIN = 6;
   const halfW = width / 2 - MARGIN;
   const rH = availH / 2 - availH * 0.06;
-  const labelExtent = 1.268 + 0.0428 * maxLabelLen;
+  // Labels are decluttered onto a fixed column (radius·1.245) rather than sitting
+  // at each slice's own angle, so EVERY label — not just equatorial ones — now
+  // consumes the full horizontal extent. Reserve for that worst case.
+  const labelExtent = 1.27 + 0.06 * maxLabelLen;
   const rLabeled = Math.min(rH, halfW / labelExtent);
   // Below this the leader-line labels can't separate legibly around the arc (or
   // there are none) — drop them and let the pie fill the box instead.
@@ -93,6 +96,23 @@ export function renderPie(
 
   const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
 
+  // Collected label placements — deferred so we can run a vertical
+  // declutter pass per side before drawing (small slices bunched near a pole
+  // have near-identical y and would otherwise pile up horizontally).
+  type LabelInfo = {
+    rightSide: boolean;
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+    idealY: number;
+    y: number;
+    label: string;
+    stroke: string;
+    tag: Record<string, unknown>;
+  };
+  const labelInfos: LabelInfo[] = [];
+
   arcs.forEach((a, i) => {
     const stroke = strokeFor(i, data[i]!.color);
     const fill = shapeFill(palette, stroke, isDark, { mode: fillMode });
@@ -111,50 +131,99 @@ export function renderPie(
       color: stroke,
     });
 
-    // External leader-line label.
     if (!showLabels) return;
+    const label = labels[i]!;
+    if (!label) return;
     const mid = (a.startAngle + a.endAngle) / 2 - Math.PI / 2;
     const rightSide = Math.cos(mid) >= 0;
-    const x0 = Math.cos(mid) * radius;
-    const y0 = Math.sin(mid) * radius;
-    const x1 = Math.cos(mid) * (radius + elbowOut);
-    const y1 = Math.sin(mid) * (radius + elbowOut);
-    const x2 = x1 + (rightSide ? elbowRun : -elbowRun);
-    const label = labels[i]!;
-    if (label) {
+    labelInfos.push({
+      rightSide,
+      x0: Math.cos(mid) * radius,
+      y0: Math.sin(mid) * radius,
+      // Radial stub end — meets the arc at 90° to the circle edge.
+      x1: Math.cos(mid) * (radius + elbowOut),
+      y1: Math.sin(mid) * (radius + elbowOut),
+      idealY: Math.sin(mid) * (radius + elbowOut),
+      y: 0,
+      label,
+      stroke,
       // Tag the leader-line + label with the same emph-key as the wedge so
       // hover (baked-CSS :has() and the app's JS dim) emphasizes all three
       // together; colour the label text to match its segment.
-      const tag = {
+      tag: {
         line: data[i]!.lineNumber,
         key: data[i]!.label,
         name: data[i]!.label,
         value: `${fmtNum(data[i]!.value)} (${pct}%)`,
         color: stroke,
-      };
-      tagDatum(
-        g
-          .append('polyline')
-          .attr('points', `${x0},${y0} ${x1},${y1} ${x2},${y1}`)
-          .attr('fill', 'none')
-          .attr('stroke', stroke)
-          .attr('stroke-width', 1),
-        tag
-      );
-      tagDatum(
-        g
-          .append('text')
-          .attr('x', x2 + (rightSide ? font * 0.3 : -font * 0.3))
-          .attr('y', y1 + font * 0.3)
-          .attr('text-anchor', rightSide ? 'start' : 'end')
-          .attr('fill', stroke)
-          .attr('font-size', font)
-          .attr('font-family', FONT_FAMILY)
-          .text(label),
-        tag
-      );
-    }
+      },
+    });
   });
+
+  // Label avoidance. Each leader is a straight RADIAL line off the arc that
+  // ends where a flat horizontal to the text begins — the label's only bend.
+  // Crowded labels are separated by riding the radial ray OUTWARD (longer
+  // stubs), so top labels fan up and bottom labels fan down; they stagger at
+  // their own heights rather than sharing a column.
+  if (showLabels && labelInfos.length > 0) {
+    const labelX = radius + elbowOut + elbowRun;
+    const minGap = font * 1.18;
+    const bound = availH / 2 - font;
+    for (const side of [true, false]) {
+      const group = labelInfos.filter((l) => l.rightSide === side);
+      if (group.length === 0) continue;
+
+      // Top half fans up (toward the pole), bottom half fans down — always
+      // AWAY from the equator so stubs only lengthen and bends stay outside
+      // the arc. Process each half from the label nearest the equator outward.
+      const topHalf = group
+        .filter((l) => l.idealY < 0)
+        .sort((a, b) => b.idealY - a.idealY); // nearest equator first
+      const botHalf = group
+        .filter((l) => l.idealY >= 0)
+        .sort((a, b) => a.idealY - b.idealY); // nearest equator first
+      topHalf.forEach((l, i) => {
+        l.y =
+          i === 0 ? l.idealY : Math.min(l.idealY, topHalf[i - 1]!.y - minGap);
+        l.y = Math.max(l.y, -bound);
+      });
+      botHalf.forEach((l, i) => {
+        l.y =
+          i === 0 ? l.idealY : Math.max(l.idealY, botHalf[i - 1]!.y + minGap);
+        l.y = Math.min(l.y, bound);
+      });
+
+      const sx = side ? 1 : -1;
+      const tx = sx * labelX;
+      for (const l of group) {
+        // Bend point rides the radial ray (collinear with the centre) at the
+        // label's height — keeps the stub perfectly radial. Fall back to the
+        // fixed stub tip for a centroid sitting on the horizontal axis.
+        const xr = Math.abs(l.y0) < 0.001 ? l.x1 : (l.y * l.x0) / l.y0;
+        tagDatum(
+          g
+            .append('polyline')
+            .attr('points', `${l.x0},${l.y0} ${xr},${l.y} ${tx},${l.y}`)
+            .attr('fill', 'none')
+            .attr('stroke', l.stroke)
+            .attr('stroke-width', 1),
+          l.tag
+        );
+        tagDatum(
+          g
+            .append('text')
+            .attr('x', tx + sx * font * 0.3)
+            .attr('y', l.y + font * 0.3)
+            .attr('text-anchor', side ? 'start' : 'end')
+            .attr('fill', l.stroke)
+            .attr('font-size', font)
+            .attr('font-family', FONT_FAMILY)
+            .text(l.label),
+          l.tag
+        );
+      }
+    }
+  }
 
   // Center total — shown by default whenever there is a hole, unless suppressed
   // with `no-center-total`. (#23)
