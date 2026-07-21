@@ -31,11 +31,7 @@ import {
   EXPORT_WIDTH,
   EXPORT_HEIGHT,
 } from '../utils/d3-helpers';
-import {
-  injectLegendGroups,
-  type Svg,
-  type InlineTitleInfo,
-} from './shared';
+import { injectLegendGroups, type Svg, type InlineTitleInfo } from './shared';
 import { renderBar } from './bar';
 import { renderLine } from './line';
 import { renderPie } from './pie';
@@ -390,7 +386,9 @@ function renderInto(
         seriesColors,
         textColor,
         mutedColor,
-        top
+        top,
+        palette,
+        isDark
       );
       return true;
     }

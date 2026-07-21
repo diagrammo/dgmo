@@ -86,7 +86,9 @@ export interface ParsedExtendedBase {
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
-  shade?: boolean;
+  /** `fill` directive — shade the area below each curve (function charts),
+   *  parity with the `line` chart's bare `fill`. Opacity follows `fillMode`. */
+  fill?: boolean;
   /** §1.9 fill family: `'solid'` = full intent saturation, `'outline'` =
    *  theme-background fill with color on the stroke. Absent ⇒ 25% tint. */
   fillMode?: 'solid' | 'outline';
@@ -641,7 +643,7 @@ function parseExtendedChartFull(
         !isNaN(parseFloat(normalizeNumericToken(lastTok) ?? lastTok));
       const isBareKeywordOption =
         spaceIdx < 0 &&
-        /^(fill-tint|fill-solid|fill-outline|no-name|no-value|no-percent|shade|no-title)$/i.test(
+        /^(fill|fill-tint|fill-solid|fill-outline|no-name|no-value|no-percent|no-title)$/i.test(
           trimmed
         );
       // `layout arc|chord` (#26) and the §1.11 emphasis family (`highlight A`,
@@ -813,8 +815,8 @@ function parseExtendedChartFull(
       result.noPercent = true;
       continue;
     }
-    if (firstToken === 'shade') {
-      result.shade = true;
+    if (firstToken === 'fill' && spaceIdx < 0) {
+      result.fill = true;
       continue;
     }
     const fillFamily = fillModeFromToken(firstToken);

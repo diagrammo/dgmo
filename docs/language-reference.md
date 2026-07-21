@@ -2419,7 +2419,7 @@ The colon between name and expression is **required** — both sides can contain
 
 **Options:**
 
-- `shade` (boolean; off by default, shades area below curves when enabled)
+- `fill` (boolean; off by default) — shades the area below each curve down to the y=0 baseline, the same directive as the `line` chart. Soft 25% tint by default; opaque under `fill-solid` (`fill-outline` is ignored — hollowing the band would erase it)
 
 ### 15.5 Sankey Charts
 

@@ -912,17 +912,17 @@ describe('3. Boolean options', () => {
     expect(r.noPercent).toBe(true);
   });
 
-  it('shade works for function charts', () => {
+  it('fill works for function charts', () => {
     const r = parseExtendedChart(
       'function Test\nx 0 to 10\nf(x): x^2',
       palette
     );
-    expect(r.shade).toBeFalsy();
+    expect(r.fill).toBeFalsy();
     const r2 = parseExtendedChart(
-      'function Test\nshade\nx 0 to 10\nf(x): x^2',
+      'function Test\nfill\nx 0 to 10\nf(x): x^2',
       palette
     );
-    expect(r2.shade).toBe(true);
+    expect(r2.fill).toBe(true);
   });
 });
 

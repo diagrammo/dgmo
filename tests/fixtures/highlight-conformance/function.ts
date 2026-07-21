@@ -7,7 +7,7 @@ export const fixture: HighlightFixture = {
 x 0 to 250
 x-label Distance
 y-label Height
-shade
+fill
 
 f(x): x^2 + 1
 `,
@@ -16,6 +16,6 @@ f(x): x^2 + 1
     { text: 'x', role: 'keyword' }, // §15.4 directive — declares x range
     { text: 'x-label', role: 'keyword' },
     { text: 'y-label', role: 'keyword' },
-    { text: 'shade', role: 'keyword' },
+    { text: 'fill', role: 'keyword' },
   ],
 };

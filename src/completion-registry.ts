@@ -209,7 +209,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       x: { description: 'X-axis range (start to end)' },
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
-      shade: { description: 'Fill area below curves with translucent color' },
+      fill: {
+        description: 'Shade the area below each curve (translucent tint)',
+      },
     }),
   ],
 

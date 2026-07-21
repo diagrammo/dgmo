@@ -4,8 +4,10 @@
 // ============================================================
 
 import { scaleLinear } from 'd3-scale';
-import { line as d3line } from 'd3-shape';
+import { line as d3line, area as d3area } from 'd3-shape';
 import type { ParsedFunctionChart } from '../data-chart-parser';
+import type { PaletteColors } from '../palettes';
+import { shapeFill } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
 import { evaluateExpression } from '../utils/expr-eval';
 import {
@@ -29,7 +31,9 @@ export function renderFunction(
   colors: string[],
   textColor: string,
   mutedColor: string,
-  topInset: number
+  topInset: number,
+  palette: PaletteColors,
+  isDark: boolean
 ): void {
   const fns = chart.functions ?? [];
   if (fns.length === 0) return;
@@ -121,8 +125,34 @@ export function renderFunction(
       .text(fmtNum(t));
   }
 
+  const inRange = (p: [number, number]) =>
+    isFinite(p[1]) && p[1] >= yLo - 1 && p[1] <= yHi + 1;
+
+  // `fill` shades the band between each curve and the y=0 baseline (or the
+  // bottom of the scale when 0 is out of range) — parity with line + `fill`
+  // (§1.9): 25% palette tint by default, opaque under `fill-solid`. The area
+  // is drawn before the curves so the strokes sit on top; `fill-outline` is
+  // ignored because hollowing the band would erase the plot.
+  if (chart.fill === true) {
+    const solid = chart.fillMode === 'solid';
+    const areaGen = d3area<[number, number]>()
+      .defined(inRange)
+      .x((p) => x(p[0]))
+      .y0(y(Math.max(y.domain()[0]!, 0)))
+      .y1((p) => y(p[1]));
+    for (const c of curves) {
+      svg
+        .append('path')
+        .attr('class', 'dgmo-series-area')
+        .attr('d', areaGen(c.pts) ?? '')
+        .attr('fill', solid ? c.color : shapeFill(palette, c.color, isDark))
+        .attr('stroke', 'none')
+        .attr('data-series-name', c.name);
+    }
+  }
+
   const gen = d3line<[number, number]>()
-    .defined((p) => isFinite(p[1]) && p[1] >= yLo - 1 && p[1] <= yHi + 1)
+    .defined(inRange)
     .x((p) => x(p[0]))
     .y((p) => y(p[1]));
   for (const c of curves) {
