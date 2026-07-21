@@ -1405,12 +1405,13 @@ export function renderEventLine(
       if (trailing.length) nowX = Math.min(...trailing);
     }
     if (nowX !== null) {
-      // A neutral **graphite** derived from the theme ink — on-palette in every
-      // palette, so it never competes with the tag hues. Kept STRONG (barely off
-      // the ink) so the pin, its label, and its edge all read; the fill family
-      // below softens the FILL, but text/stroke/diamond stay at full ink.
+      // The marker reads as a "today line": palette-native RED
+      // (`palette.destructive`) — the Gantt today-line convention users already
+      // parse as "right now." On-palette in every palette; distinct from the
+      // green/orange/blue tag rotation. The fill family below softens the tab
+      // FILL, but text/stroke/diamond/rule stay at full destructive ink.
       const base = themeBaseBg(palette, isDark);
-      const nowColor = mix(palette.text, base, 82);
+      const nowColor = palette.destructive;
       // The tab honors the §1.9 fill family, mirroring the event cards: solid =
       // flooded, outline = hollow (bg fill + colored stroke), tint (default) =
       // soft fill with a hairline edge. The diamond + stem stay solid, like the
@@ -1503,6 +1504,49 @@ export function renderEventLine(
         .append('g')
         .attr('class', 'evt-now')
         .attr('data-now-x', nowX.toFixed(2));
+      // DOTTED "today line" grounded at the spine. It dies quickly — faded to
+      // nothing within the spine→card leader gap (`FADE_SPAN`), so it never
+      // paints over an event card. The full-height reveal is HOVER-only (below):
+      // at rest the rule stays in its own lane. (resvg supports linearGradient +
+      // per-stop stop-opacity, so the resting rule exports.)
+      const FADE_SPAN = Math.min(LEADER_ABOVE, LEADER_BELOW); // dies where cards begin
+      const ruleTop = spineY - FADE_SPAN;
+      const ruleBot = spineY + FADE_SPAN;
+      const gradId = `evt-now-fade-${nowX.toFixed(0)}`;
+      const grad = nowG
+        .append('defs')
+        .append('linearGradient')
+        .attr('id', gradId)
+        .attr('gradientUnits', 'userSpaceOnUse')
+        .attr('x1', 0)
+        .attr('y1', ruleTop)
+        .attr('x2', 0)
+        .attr('y2', ruleBot);
+      grad
+        .append('stop')
+        .attr('offset', '0%')
+        .attr('stop-color', nowColor)
+        .attr('stop-opacity', 0);
+      grad
+        .append('stop')
+        .attr('offset', '50%')
+        .attr('stop-color', nowColor)
+        .attr('stop-opacity', 0.9);
+      grad
+        .append('stop')
+        .attr('offset', '100%')
+        .attr('stop-color', nowColor)
+        .attr('stop-opacity', 0);
+      nowG
+        .append('line')
+        .attr('x1', nowX)
+        .attr('y1', ruleTop)
+        .attr('x2', nowX)
+        .attr('y2', ruleBot)
+        .attr('stroke', `url(#${gradId})`)
+        .attr('stroke-width', 1.6)
+        .attr('stroke-dasharray', '1 4')
+        .attr('stroke-linecap', 'round');
       // Diamond planted on the spine — the exact "you are here" point.
       nowG
         .append('path')
@@ -1539,6 +1583,37 @@ export function renderEventLine(
         .attr('font-weight', 600)
         .attr('fill', pillText)
         .text(label);
+
+      // HOVER reveal (preview only): a full-height dotted rule that appears only
+      // while the pointer is over the marker, so at rest the today-line never
+      // sits atop cards. Lowered within nowG so it rides ABOVE cards but BELOW
+      // the diamond/tab. Static exports skip it — nothing to hover.
+      if (!exportMode) {
+        const hoverRule = nowG
+          .append('line')
+          .attr('class', 'evt-now-rule-full')
+          .attr('x1', nowX)
+          .attr('y1', Math.max(topUsed, 2))
+          .attr('x2', nowX)
+          .attr('y2', totalH - 2)
+          .attr('stroke', nowColor)
+          .attr('stroke-width', 1.4)
+          .attr('stroke-dasharray', '1 4')
+          .attr('stroke-linecap', 'round')
+          .attr('opacity', 0)
+          .style('transition', 'opacity 120ms ease')
+          .style('pointer-events', 'none');
+        hoverRule.lower();
+        const nowNode = nowG.node();
+        if (nowNode) {
+          nowNode.addEventListener('mouseenter', () =>
+            hoverRule.attr('opacity', 0.5)
+          );
+          nowNode.addEventListener('mouseleave', () =>
+            hoverRule.attr('opacity', 0)
+          );
+        }
+      }
     }
   }
 
