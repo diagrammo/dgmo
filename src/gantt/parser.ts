@@ -1081,6 +1081,9 @@ export function parseGantt(
         case 'no-legend':
           result.options.noLegend = true;
           break;
+        case 'legend-inline':
+          result.options.legendInline = true;
+          break;
       }
       continue;
     }

@@ -18,7 +18,11 @@ import {
 import { tagAttrKey } from '../utils/tag-groups';
 import { measureText } from '../utils/text-measure';
 import { renderIntegratedLegend } from '../utils/legend-integration';
-import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import {
+  getMaxLegendReservedHeight,
+  getLegendExtent,
+} from '../utils/legend-layout';
+import { layoutInlineHeader } from '../utils/inline-header';
 import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
 import type { LegendPosition } from '../utils/legend-types';
 import {
@@ -123,9 +127,47 @@ export function renderTreemap(
       ) + LEGEND_GROUP_GAP
     : 0;
 
+  // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
+  // legend flushed right). Falls back to the stacked band when it can't fit.
+  // NOTE: treemap's parser exposes a structured `TreemapOptions`, not the raw
+  // `Record<string,string>` this shared helper reads, and `handleDirective`
+  // doesn't yet recognize `legend-inline` — so this is currently always false
+  // (stacked). Once the parser records the directive, drop the cast.
+  const inlineRequested = parsed.options.legendInline === true;
+  const legendExtent =
+    inlineRequested && legend
+      ? getLegendExtent(
+          {
+            groups: legend.groups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: exportMode ? 'export' : 'preview',
+            showInactivePills: !exportMode,
+            showEmptyGroups: !exportMode,
+          },
+          { activeGroup: legend.activeGroup },
+          width
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: parsed.title ?? '',
+    hasLegend: !!legend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: width,
+    titleBandHeight: titleH,
+    legendReserve,
+    titleBaselineY: TITLE_Y,
+    titleFontSize: TITLE_FONT_SIZE,
+  });
+
   const headerH = opts.noHeaders ? 0 : HEADER_H;
   const areaX = PADDING;
-  const areaY = titleH + legendReserve + PADDING;
+  // Inline → one band (title only); stacked → title + legend band.
+  const areaY = (header.inline ? titleH : titleH + legendReserve) + PADDING;
   const areaW = Math.max(1, width - PADDING * 2);
   const areaH = Math.max(1, height - areaY - PADDING);
 
@@ -166,9 +208,9 @@ export function renderTreemap(
     const title = svg
       .append('text')
       .attr('class', 'chart-title')
-      .attr('x', width / 2)
+      .attr('x', header.titleX)
       .attr('y', TITLE_Y)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('fill', palette.text)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', TITLE_FONT_SIZE)
@@ -437,7 +479,12 @@ export function renderTreemap(
     const legendG = svg
       .append('g')
       .attr('class', 'dgmo-treemap-legend')
-      .attr('transform', `translate(0, ${titleH})`);
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0, ${titleH})`
+      );
     renderIntegratedLegend(legendG, {
       groups: legend.groups,
       palette: {
@@ -450,7 +497,12 @@ export function renderTreemap(
       isDark,
       width,
       mode: exportMode ? 'export' : 'preview',
-      position: LEGEND_POSITION,
+      // Inline → left-origin so the wrapper's right-flush translate lands the
+      // legend at the chart's right edge; stacked → centered below the title.
+      position: {
+        placement: 'top-center',
+        titleRelation: header.inline ? 'inline-with-title' : 'below-title',
+      },
       activeGroup: legend.activeGroup,
       // The color-mode switcher is the legend itself: each applicable mode is a
       // group pill; the active one is the open capsule, the rest are clickable

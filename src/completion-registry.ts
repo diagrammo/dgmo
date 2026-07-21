@@ -64,6 +64,9 @@ const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
   'no-title': {
     description: 'Hide the diagram title',
   },
+  'legend-inline': {
+    description: 'Title left, legend right on one row (§1.9)',
+  },
 };
 
 function withGlobals(

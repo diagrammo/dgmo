@@ -15,6 +15,7 @@ import { shapeFill } from '../palettes/color-utils';
 import {
   type Svg,
   type Margins,
+  type InlineTitleInfo,
   TICK_FONT,
   fmtNum,
   reserveHeader,
@@ -44,7 +45,8 @@ export function renderBar(
   isDark: boolean,
   textColor: string,
   mutedColor: string,
-  hasTitle: boolean
+  hasTitle: boolean,
+  inlineTitle?: InlineTitleInfo
 ): void {
   const data = chart.data;
   const seriesNames = chart.seriesNames?.length
@@ -85,7 +87,8 @@ export function renderBar(
     palette,
     isDark,
     hasTitle,
-    width
+    width,
+    inlineTitle
   );
 
   const perCat = data.map((d) => seriesValues(d, seriesCount));

@@ -25,8 +25,12 @@ import {
 import { renderCollapseBar, renderNodeCard } from '../utils/card';
 import { drawMarkdownBlock } from './markdown-card';
 import type { LegendGroupData } from '../utils/legend-types';
-import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import {
+  getMaxLegendReservedHeight,
+  getLegendExtent,
+} from '../utils/legend-layout';
 import { renderIntegratedLegend } from '../utils/legend-integration';
+import { layoutInlineHeader } from '../utils/inline-header';
 import {
   resolveActiveTagGroup,
   resolveTagColor,
@@ -318,7 +322,44 @@ export function renderSketch(
           width
         )
       : 0;
-  const contentTop = titleOffset + legendHeight + DIAGRAM_PADDING + extraTop;
+
+  // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
+  // legend flushed right). Falls back to the stacked band when it can't fit.
+  const hasLegend = legendGroups.length > 0;
+  const inlineRequested = parsed.options.legendInline === true;
+  const legendExtent =
+    inlineRequested && hasLegend
+      ? getLegendExtent(
+          {
+            groups: legendGroups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: exportMode ? 'export' : 'preview',
+            showInactivePills: true,
+          },
+          { activeGroup: activeName },
+          width
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: parsed.title ?? '',
+    hasLegend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: width,
+    titleBandHeight: titleOffset,
+    legendReserve: legendHeight,
+    titleBaselineY: TITLE_Y,
+    titleFontSize: TITLE_FONT_SIZE,
+  });
+  const contentTop =
+    titleOffset +
+    (header.inline ? 0 : legendHeight) +
+    DIAGRAM_PADDING +
+    extraTop;
   const height = Math.max(
     contentTop + maxY + DIAGRAM_PADDING,
     options.exportDims?.height ?? 0
@@ -387,9 +428,10 @@ export function renderSketch(
   if (showTitle) {
     svg
       .append('text')
-      .attr('x', width / 2)
+      .attr('class', 'chart-title')
+      .attr('x', header.titleX)
       .attr('y', TITLE_Y)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', 700)
       .attr('fill', palette.text)
@@ -400,12 +442,21 @@ export function renderSketch(
   if (legendGroups.length > 0) {
     const legendG = svg
       .append('g')
-      .attr('transform', `translate(0,${titleOffset + 4})`);
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0,${titleOffset + 4})`
+      );
     renderIntegratedLegend(legendG, {
       groups: legendGroups,
       ...(activeName !== null && { activeGroup: activeName }),
       mode: exportMode ? 'export' : 'preview',
       showInactivePills: true,
+      position: {
+        placement: 'top-center',
+        titleRelation: header.inline ? 'inline-with-title' : 'below-title',
+      },
       palette,
       isDark,
       width,

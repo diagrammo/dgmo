@@ -77,6 +77,8 @@ export interface ParsedBracket {
   readonly activeTag: string | null;
   /** Hide the tag legend. */
   readonly noLegend: boolean;
+  /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+  readonly legendInline?: boolean;
   /** Suppress round/column labels (`no-round`). */
   readonly noRounds: boolean;
   /**

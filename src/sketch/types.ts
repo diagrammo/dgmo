@@ -74,6 +74,8 @@ export interface SketchBox {
 
 export interface SketchOptions {
   readonly noLegend: boolean;
+  /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+  readonly legendInline?: boolean;
   /** §1.9 fill family; undefined ⇒ canonical 25% tint. */
   readonly fillMode: 'solid' | 'outline' | undefined;
   /** `no-descriptions` directive (mindmap `hd` standard): hide the card

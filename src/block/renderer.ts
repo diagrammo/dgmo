@@ -13,8 +13,12 @@ import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import { mix, themeBaseBg } from '../palettes/color-utils';
 import { resolveTagColor, tagAttrKey } from '../utils/tag-groups';
+import { layoutInlineHeader } from '../utils/inline-header';
 import { renderIntegratedLegend } from '../utils/legend-integration';
-import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import {
+  getMaxLegendReservedHeight,
+  getLegendExtent,
+} from '../utils/legend-layout';
 import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
 import type { LegendGroupData, LegendPosition } from '../utils/legend-types';
 import {
@@ -109,7 +113,38 @@ export function renderBlock(
       ) + LEGEND_GROUP_GAP
     : 0;
 
-  const areaY = titleH + legendReserve + PADDING;
+  // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
+  // legend flushed right). Falls back to the stacked band when it can't fit.
+  const inlineRequested = opts.legendInline === true;
+  const legendExtent =
+    inlineRequested && legend
+      ? getLegendExtent(
+          {
+            groups: legend.groups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: options.exportMode ? 'export' : 'preview',
+          },
+          { activeGroup: legend.activeGroup ?? null },
+          width
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: parsed.title ?? '',
+    hasLegend: !!legend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: width,
+    titleBandHeight: titleH,
+    legendReserve,
+    titleBaselineY: TITLE_Y,
+    titleFontSize: TITLE_FONT_SIZE,
+  });
+
+  const areaY = (header.inline ? titleH : titleH + legendReserve) + PADDING;
   if (options.exportMode) {
     height = areaY + layout.height + PADDING;
   } else {
@@ -148,9 +183,9 @@ export function renderBlock(
     const title = svg
       .append('text')
       .attr('class', 'chart-title')
-      .attr('x', width / 2)
+      .attr('x', header.titleX)
       .attr('y', TITLE_Y)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('fill', palette.text)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', TITLE_FONT_SIZE)
@@ -185,7 +220,12 @@ export function renderBlock(
     const legendG = svg
       .append('g')
       .attr('class', 'dgmo-block-legend')
-      .attr('transform', `translate(0, ${titleH})`);
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0, ${titleH})`
+      );
     renderIntegratedLegend(legendG, {
       groups: legend.groups,
       palette: {
@@ -198,7 +238,10 @@ export function renderBlock(
       isDark,
       width,
       mode: options.exportMode ? 'export' : 'preview',
-      position: LEGEND_POSITION,
+      position: {
+        placement: 'top-center',
+        titleRelation: header.inline ? 'inline-with-title' : 'below-title',
+      },
       activeGroup: legend.activeGroup,
     });
   }

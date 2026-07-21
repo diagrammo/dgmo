@@ -3,7 +3,12 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
-import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
+import {
+  fillModeFromOptions,
+  legendSuppressed,
+  legendInlineRequested,
+} from '../utils/parsing';
+import { layoutInlineHeader } from '../utils/inline-header';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
@@ -28,7 +33,10 @@ import {
   EYE_CLOSED_PATH,
 } from '../utils/legend-constants';
 import { renderIntegratedLegend } from '../utils/legend-integration';
-import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import {
+  getMaxLegendReservedHeight,
+  getLegendExtent,
+} from '../utils/legend-layout';
 import { ScaleContext } from '../utils/scaling';
 import { renderNodeCard } from '../utils/card';
 
@@ -186,7 +194,46 @@ export function renderSitemap(
       : LEGEND_HEIGHT
   );
   const legendReserveH = fixedLegend ? sLegendHeight + sLegendFixedGap : 0;
-  const fixedReserveTop = fixedTitleH + legendReserveH;
+
+  // §1.9 `legend-inline` (decision #50): collapse the fixed title band + legend
+  // band into ONE row (title left, legend flushed right). Only the fixed
+  // preview header participates — export/scaled paths stay stacked. Falls back
+  // to the stacked band when the legend can't fit beside the title. The extent
+  // probe carries the SAME eye-icon addon the fixed legend renders with, so the
+  // measured width matches what `renderLegend` lays out.
+  const inlineRequested = legendInlineRequested(parsed.options);
+  const legendExtent =
+    inlineRequested && fixedTitle
+      ? getLegendExtent(
+          {
+            groups: parsed.tagGroups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: exportMode ? 'export' : 'preview',
+            capsulePillAddonWidth: LEGEND_EYE_SIZE + LEGEND_EYE_GAP,
+          },
+          { activeGroup: activeTagGroup ?? null },
+          width
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: parsed.title ?? '',
+    hasLegend: fixedTitle,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: width,
+    titleBandHeight: fixedTitleH,
+    legendReserve: legendReserveH,
+    titleBaselineY: sDiagramPadding + sTitleFontSize,
+    titleFontSize: sTitleFontSize,
+  });
+
+  const fixedReserveTop = header.inline
+    ? fixedTitleH
+    : fixedTitleH + legendReserveH;
   const fixedReserveBottom = 0;
   const titleOffset = !fixedTitle && showTitle ? sTitleHeight : 0;
 
@@ -643,9 +690,9 @@ export function renderSitemap(
   if (fixedTitle) {
     const titleEl = svg
       .append('text')
-      .attr('x', width / 2)
+      .attr('x', header.titleX)
       .attr('y', sDiagramPadding + sTitleFontSize)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('fill', palette.text)
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
@@ -668,7 +715,12 @@ export function renderSitemap(
     const legendParent = svg
       .append('g')
       .attr('class', 'sitemap-legend-fixed')
-      .attr('transform', `translate(0, ${sDiagramPadding + fixedTitleH})`);
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0, ${sDiagramPadding + fixedTitleH})`
+      );
     if (activeTagGroup) {
       legendParent.attr('data-legend-active', tagAttrKey(activeTagGroup));
     }
@@ -680,7 +732,8 @@ export function renderSitemap(
       activeTagGroup,
       width,
       hiddenAttributes,
-      exportMode
+      exportMode,
+      header.inline
     );
   }
 }
@@ -697,7 +750,8 @@ function renderLegend(
   activeTagGroup?: string | null,
   fixedWidth?: number,
   hiddenAttributes?: Set<string>,
-  exportMode?: boolean
+  exportMode?: boolean,
+  inlineHeader?: boolean
 ): void {
   if (legendGroups.length === 0) return;
 
@@ -717,6 +771,10 @@ function renderLegend(
     groups,
     activeGroup: activeTagGroup ?? null,
     mode: exportMode ? 'export' : 'preview',
+    position: {
+      placement: 'top-center',
+      titleRelation: inlineHeader ? 'inline-with-title' : 'below-title',
+    },
     capsulePillAddonWidth: eyeAddonWidth,
     palette,
     isDark,

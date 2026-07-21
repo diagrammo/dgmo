@@ -39,6 +39,8 @@ export interface TreemapOptions {
   noPercent: boolean;
   noHeaders: boolean;
   noLegend: boolean;
+  /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+  legendInline?: boolean;
   /** §1.9 fill family; undefined ⇒ canonical 25% tint. */
   fillMode: 'solid' | 'outline' | undefined;
   /** `radial` — render as a sunburst (concentric rings) instead of rectangles. */

@@ -360,6 +360,10 @@ export function parseEventLine(
         options.noLegend = true;
         continue;
       }
+      if (trimmed.toLowerCase() === 'legend-inline') {
+        options.legendInline = true;
+        continue;
+      }
       // §28.6b `now` marker — a single dashed vertical rule at "today". Bare
       // `now` is resolved at render time (computed); `now <date> [Label]` pins
       // it to an explicit ISO date. Last one wins if repeated.

@@ -172,6 +172,10 @@ export function parseBlock(
           options.noLegend = true;
           continue;
         }
+        if (/^legend-inline\s*$/i.test(trimmed)) {
+          options.legendInline = true;
+          continue;
+        }
         const fm = fillModeFromToken(trimmed);
         if (fm !== null) {
           if (fm === 'tint') delete options.fillMode;

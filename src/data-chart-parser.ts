@@ -95,6 +95,9 @@ export interface ParsedExtendedBase {
   /** Cross-chart-type: when true, the renderer suppresses the legend and the
    *  vertical band it would occupy (#48). */
   noLegend?: boolean;
+  /** §1.9 `legend-inline`: title + series legend on one line (see ParsedChart).
+   *  Honoured by scatter/function among the extended charts (decision #50). */
+  legendInline?: boolean;
   /** §1.11 emphasis family: `highlight <Name>…` / `dim <Name>…`. Chart-level,
    *  mutually exclusive, last-one-wins. Resolved against real element names at
    *  render time via `resolveEmphasis`. */
@@ -826,6 +829,10 @@ function parseExtendedChartFull(
     }
     if (firstToken === 'no-legend' && spaceIdx < 0) {
       result.noLegend = true;
+      continue;
+    }
+    if (firstToken === 'legend-inline' && spaceIdx < 0) {
+      result.legendInline = true;
       continue;
     }
     // Silent-ignore unrecognized no-* flags (typos, future flags).

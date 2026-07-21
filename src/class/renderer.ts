@@ -3,7 +3,11 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
-import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
+import {
+  fillModeFromOptions,
+  legendSuppressed,
+  legendInlineRequested,
+} from '../utils/parsing';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import {
@@ -12,6 +16,8 @@ import {
 } from '../utils/export-container';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
 import { renderIntegratedLegend } from '../utils/legend-integration';
+import { getLegendExtent } from '../utils/legend-layout';
+import { layoutInlineHeader } from '../utils/inline-header';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -239,16 +245,63 @@ export function renderClassDiagram(
   const LEGEND_FIXED_GAP = 8;
   const sLegendFixedGap = ctx.aesthetic(LEGEND_FIXED_GAP);
   const legendReserve = hasLegend ? sLegendHeight + sLegendFixedGap : 0;
+
+  // legendActive: true = expanded (default), false = collapsed pill only
+  const isLegendExpanded = legendActive !== false;
+  const legendGroups = [
+    {
+      name: LEGEND_GROUP_NAME,
+      entries: legendEntries.map((entry) => ({
+        value: entry.label,
+        color: palette.colors[entry.colorKey],
+      })),
+    },
+  ];
+
+  // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
+  // legend flushed right). Falls back to the stacked band when it can't fit.
+  const inlineRequested = legendInlineRequested(parsed.options);
+  const legendExtent =
+    inlineRequested && hasLegend
+      ? getLegendExtent(
+          {
+            groups: legendGroups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: exportMode ? 'export' : 'preview',
+          },
+          { activeGroup: isLegendExpanded ? LEGEND_GROUP_NAME : null },
+          width
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: parsed.title ?? '',
+    hasLegend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: width,
+    titleBandHeight: titleHeight,
+    legendReserve,
+    titleBaselineY: sTitleY,
+    titleFontSize: sTitleFontSize,
+  });
+
   const diagramW = layout.width;
   const diagramH = layout.height;
-  const availH = height - titleHeight - legendReserve;
+  // Inline → one band (title only); stacked → title + legend band.
+  const availH =
+    height - titleHeight - (header.inline ? 0 : legendReserve);
   const scaleX = (width - sDiagramPadding * 2) / diagramW;
   const scaleY = (availH - sDiagramPadding * 2) / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + legendReserve + sDiagramPadding;
+  const offsetY =
+    titleHeight + (header.inline ? 0 : legendReserve) + sDiagramPadding;
 
   const svg = d3Selection
     .select(container)
@@ -371,9 +424,9 @@ export function renderClassDiagram(
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
-      .attr('x', width / 2)
+      .attr('x', header.titleX)
       .attr('y', sTitleY)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('fill', palette.text)
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
@@ -399,26 +452,24 @@ export function renderClassDiagram(
   }
 
   // ── Legend ──
-  // legendActive: true = expanded (default), false = collapsed pill only
-  const isLegendExpanded = legendActive !== false;
   if (hasLegend) {
-    const legendGroups = [
-      {
-        name: LEGEND_GROUP_NAME,
-        entries: legendEntries.map((entry) => ({
-          value: entry.label,
-          color: palette.colors[entry.colorKey],
-        })),
-      },
-    ];
     const legendG = svg
       .append('g')
       .attr('class', 'cd-legend')
-      .attr('transform', `translate(0,${titleHeight})`);
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0,${titleHeight})`
+      );
     renderIntegratedLegend(legendG, {
       groups: legendGroups,
       activeGroup: isLegendExpanded ? LEGEND_GROUP_NAME : null,
       mode: exportMode ? 'export' : 'preview',
+      position: {
+        placement: 'top-center',
+        titleRelation: header.inline ? 'inline-with-title' : 'below-title',
+      },
       palette,
       isDark,
       width,

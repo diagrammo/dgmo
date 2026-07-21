@@ -372,6 +372,11 @@ function handleDirective(
     return true;
   }
 
+  if (/^legend-inline\s*$/i.test(trimmed)) {
+    options.legendInline = true;
+    return true;
+  }
+
   {
     const fm = fillModeFromToken(trimmed);
     if (fm !== null) {

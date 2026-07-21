@@ -44,7 +44,11 @@ import {
   measureLegendText,
 } from '../utils/legend-constants';
 import { renderIntegratedLegend } from '../utils/legend-integration';
-import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import {
+  getMaxLegendReservedHeight,
+  getLegendExtent,
+} from '../utils/legend-layout';
+import { layoutInlineHeader } from '../utils/inline-header';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -52,7 +56,7 @@ import {
   TITLE_OFFSET,
 } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
-import { legendSuppressed } from '../utils/parsing';
+import { legendSuppressed, legendInlineRequested } from '../utils/parsing';
 
 // ============================================================
 // Constants
@@ -2143,7 +2147,13 @@ function renderLegend(
   activeGroup: string | null,
   playback?: InfraPlaybackState,
   exportMode = false,
-  controlsHost?: 'app' | 'inline'
+  controlsHost?: 'app' | 'inline',
+  // §1.9 `legend-inline` — non-fixed path only. When `inlineHeader` is on, the
+  // wrapper <g> is placed at (`legendX`, `legendY`) (right-flushed by the
+  // caller) and the legend left-aligns via the `inline-with-title` relation.
+  // Both default to their prior values so every existing call is byte-identical.
+  legendX = 0,
+  inlineHeader = false
 ) {
   if (legendGroups.length === 0 && !playback) return;
   // App-hosted playback: the play/pause + speed UI lives in the app overlay
@@ -2152,7 +2162,7 @@ function renderLegend(
 
   const legendG = rootSvg
     .append('g')
-    .attr('transform', `translate(0, ${legendY})`);
+    .attr('transform', `translate(${legendX}, ${legendY})`);
 
   if (activeGroup) {
     legendG.attr('data-legend-active', tagAttrKey(activeGroup));
@@ -2174,6 +2184,12 @@ function renderLegend(
     activeGroup,
     mode: exportMode ? 'export' : 'preview',
     showEmptyGroups: true,
+    ...(inlineHeader && {
+      position: {
+        placement: 'top-center' as const,
+        titleRelation: 'inline-with-title' as const,
+      },
+    }),
     ...(appHostedPlayback && {
       controlsHost: 'app' as const,
       controlsGroup: {
@@ -2345,7 +2361,53 @@ export function renderInfra(
 
   const titleOffset = title ? TITLE_OFFSET : 0;
   const totalWidth = layout.width;
-  const totalHeight = layout.height + titleOffset + legendOffset;
+
+  // §1.9 `legend-inline` (decision #50): on the NON-fixed path ONLY (CLI /
+  // export / embed — never the app's fixed title/legend overlay strip), try a
+  // one-line header (title left, legend flushed right) and fall back to the
+  // stacked band when the legend can't fit beside the title. `fixedLegend` is
+  // the app-overlay gate; when it's on (and hence a fixed title too) nothing
+  // here changes — `header.inline` stays false and every expression below
+  // resolves to its prior value.
+  const inlineRequested =
+    legendInlineRequested(layout.options) && !fixedLegend;
+  const legendExtent =
+    inlineRequested && hasLegend
+      ? getLegendExtent(
+          {
+            groups: legendGroups.map((g) => ({
+              name: g.name,
+              entries: g.entries.map((e) => ({
+                value: e.value,
+                color: e.color,
+              })),
+            })),
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: exportMode ? 'export' : 'preview',
+            showEmptyGroups: true,
+          },
+          { activeGroup: activeGroup ?? null },
+          totalWidth
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: title ?? '',
+    hasLegend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: totalWidth,
+    titleBandHeight: titleOffset,
+    legendReserve: legendOffset,
+    titleBaselineY: sc.sTitleY,
+    titleFontSize: sc.sTitleFontSize,
+  });
+
+  const totalHeight =
+    layout.height + titleOffset + (header.inline ? 0 : legendOffset);
 
   const shouldAnimate = animate !== false;
 
@@ -2443,15 +2505,18 @@ export function renderInfra(
   const contentTitleOffset = fixedTitleH ? 0 : titleOffset;
   const svg = rootSvg
     .append('g')
-    .attr('transform', `translate(0, ${contentTitleOffset + legendOffset})`);
+    .attr(
+      'transform',
+      `translate(0, ${contentTitleOffset + (header.inline ? 0 : legendOffset)})`
+    );
 
   if (title && !fixedTitleH) {
     rootSvg
       .append('text')
       .attr('class', 'chart-title')
-      .attr('x', totalWidth / 2)
+      .attr('x', header.titleX)
       .attr('y', sc.sTitleY)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', sc.sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
@@ -2551,18 +2616,21 @@ export function renderInfra(
         .selectAll('.infra-legend-group')
         .style('pointer-events', 'auto');
     } else {
-      // Export mode: render legend at top (below title)
+      // Export mode: render legend at top — below the title (stacked) or, when
+      // §1.9 `legend-inline` engaged, flushed right beside it on one row.
       renderLegend(
         rootSvg,
         legendGroups,
         totalWidth,
-        titleOffset,
+        header.inline ? header.legendY : titleOffset,
         palette,
         isDark,
         activeGroup ?? null,
         playback ?? undefined,
         exportMode,
-        controlsHost
+        controlsHost,
+        header.inline ? header.legendX : 0,
+        header.inline
       );
     }
   }

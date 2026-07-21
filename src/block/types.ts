@@ -45,6 +45,8 @@ export interface BlockGrid {
 export interface BlockOptions {
   /** `no-legend` — hide the tag legend. */
   noLegend: boolean;
+  /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+  legendInline?: boolean;
   /** §1.9 fill family: 'solid' | 'outline'; absent ⇒ canonical 25% tint. */
   fillMode?: 'solid' | 'outline';
 }

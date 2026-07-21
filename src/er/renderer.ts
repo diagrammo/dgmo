@@ -3,7 +3,11 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
-import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
+import {
+  fillModeFromOptions,
+  legendSuppressed,
+  legendInlineRequested,
+} from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
@@ -12,6 +16,8 @@ import { contrastText, shapeFill } from '../palettes/color-utils';
 import { getSeriesColors } from '../palettes';
 import { resolveTagColor } from '../utils/tag-groups';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { getLegendExtent } from '../utils/legend-layout';
+import { layoutInlineHeader } from '../utils/inline-header';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import {
   TITLE_FONT_SIZE,
@@ -261,8 +267,85 @@ export function renderERDiagram(
   const sTitleY = ctx.structural(TITLE_Y);
 
   const naturalW = diagramW + sDiagramPadding * 2;
+
+  // ── Semantic role classification (also feeds the legend below) ──
+  // Computed here — rather than beside the content group — so the §1.9
+  // inline-header fit test can measure the semantic (Role) legend's extent.
+  const semanticRoles: Map<string, EntityRole> | null = useSemanticColors
+    ? classifyEREntities([...parsed.tables], [...parsed.relationships])
+    : null;
+  // semanticColorsActive defaults to true; false = legend collapsed, neutral color applied
+  const semanticActive =
+    semanticRoles !== null && (semanticColorsActive ?? true);
+  const presentRoles: EntityRole[] = semanticRoles
+    ? ROLE_ORDER.filter((role) => {
+        for (const r of semanticRoles.values()) {
+          if (r === role) return true;
+        }
+        return false;
+      })
+    : [];
+  const semanticGroups =
+    presentRoles.length > 0
+      ? [
+          {
+            name: 'Role',
+            entries: presentRoles.map((role) => ({
+              value: ROLE_LABELS[role],
+              color: palette.colors[ROLE_COLORS[role]],
+            })),
+          },
+        ]
+      : [];
+  const showSemanticLegend =
+    semanticRoles !== null && !noLegend && presentRoles.length > 0;
+
+  // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
+  // legend flushed right). ER shows EITHER the tag legend OR the semantic
+  // (Role) legend — never both — so measure whichever will render. Falls back
+  // to the stacked band when it can't fit on one row beside the title.
+  const inlineRequested = legendInlineRequested(parsed.options);
+  const hasLegend = hasTagLegend || showSemanticLegend;
+  const inlineLegendGroups = hasTagLegend ? parsed.tagGroups : semanticGroups;
+  const inlineActiveGroup = hasTagLegend
+    ? (activeTagGroup ?? null)
+    : semanticActive
+      ? 'Role'
+      : null;
+  const inlineContainerW = exportDims?.width ?? naturalW;
+  const legendExtent =
+    inlineRequested && hasLegend
+      ? getLegendExtent(
+          {
+            groups: inlineLegendGroups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: exportMode ? 'export' : 'preview',
+          },
+          { activeGroup: inlineActiveGroup },
+          inlineContainerW
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: parsed.title ?? '',
+    hasLegend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: inlineContainerW,
+    titleBandHeight: titleHeight,
+    legendReserve: legendReserveH,
+    titleBaselineY: sTitleY,
+    titleFontSize: sTitleFontSize,
+  });
+  // Inline → the legend rides in the title band; drop the stacked reserve from
+  // the content offset. Stacked → unchanged.
+  const effectiveReserveH = header.inline ? 0 : legendReserveH;
+
   const naturalH =
-    diagramH + titleHeight + legendReserveH + sDiagramPadding * 2;
+    diagramH + titleHeight + effectiveReserveH + sDiagramPadding * 2;
 
   let viewW: number;
   let viewH: number;
@@ -273,19 +356,19 @@ export function renderERDiagram(
   if (exportDims) {
     viewW = exportDims.width ?? naturalW;
     viewH = exportDims.height ?? naturalH;
-    const availH = viewH - titleHeight - legendReserveH;
+    const availH = viewH - titleHeight - effectiveReserveH;
     const scaleX = (viewW - sDiagramPadding * 2) / diagramW;
     const scaleY = (availH - sDiagramPadding * 2) / diagramH;
     scale = Math.min(MAX_SCALE, scaleX, scaleY);
     const scaledW = diagramW * scale;
     offsetX = (viewW - scaledW) / 2;
-    offsetY = titleHeight + legendReserveH + sDiagramPadding;
+    offsetY = titleHeight + effectiveReserveH + sDiagramPadding;
   } else {
     viewW = naturalW;
     viewH = naturalH;
     scale = 1;
     offsetX = sDiagramPadding;
-    offsetY = titleHeight + legendReserveH + sDiagramPadding;
+    offsetY = titleHeight + effectiveReserveH + sDiagramPadding;
   }
 
   if (viewW <= 0 || viewH <= 0) return;
@@ -303,9 +386,9 @@ export function renderERDiagram(
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
-      .attr('x', viewW / 2)
+      .attr('x', header.titleX)
       .attr('y', sTitleY)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('fill', palette.text)
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
@@ -339,14 +422,8 @@ export function renderERDiagram(
   const seriesColors = getSeriesColors(palette);
 
   // ── Semantic coloring gate ──
-  // Classify entities whenever conditions allow; suppress colors when user collapses the legend.
-  // (useSemanticColors was computed above for legend reserve height)
-  const semanticRoles: Map<string, EntityRole> | null = useSemanticColors
-    ? classifyEREntities([...parsed.tables], [...parsed.relationships])
-    : null;
-  // semanticColorsActive defaults to true; false = legend collapsed, neutral color applied
-  const semanticActive =
-    semanticRoles !== null && (semanticColorsActive ?? true);
+  // `semanticRoles` / `semanticActive` were computed above (before the header)
+  // so the §1.9 inline-header fit test could measure the semantic legend.
 
   // ── Edges (behind nodes) ──
   const useLabels = parsed.options['notation'] === 'labels';
@@ -616,11 +693,20 @@ export function renderERDiagram(
     const legendG = svg
       .append('g')
       .attr('class', 'er-tag-legend')
-      .attr('transform', `translate(0,${legendY})`);
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0,${legendY})`
+      );
     renderIntegratedLegend(legendG, {
       groups: parsed.tagGroups,
       activeGroup: activeTagGroup ?? null,
       mode: exportMode ? 'export' : 'preview',
+      position: {
+        placement: 'top-center',
+        titleRelation: header.inline ? 'inline-with-title' : 'below-title',
+      },
       palette,
       isDark,
       width: viewW,
@@ -629,39 +715,32 @@ export function renderERDiagram(
   }
 
   // ── Semantic Legend ──
-  if (semanticRoles && !noLegend) {
-    const presentRoles = ROLE_ORDER.filter((role) => {
-      for (const r of semanticRoles.values()) {
-        if (r === role) return true;
-      }
-      return false;
+  // `presentRoles` / `semanticGroups` / `showSemanticLegend` were computed above
+  // (before the header) so the inline fit test could measure this legend.
+  if (showSemanticLegend) {
+    const legendY = sDiagramPadding + titleHeight;
+    const legendG = svg
+      .append('g')
+      .attr('class', 'er-semantic-legend')
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0,${legendY})`
+      );
+    renderIntegratedLegend(legendG, {
+      groups: semanticGroups,
+      activeGroup: semanticActive ? 'Role' : null,
+      mode: exportMode ? 'export' : 'preview',
+      position: {
+        placement: 'top-center',
+        titleRelation: header.inline ? 'inline-with-title' : 'below-title',
+      },
+      palette,
+      isDark,
+      width: viewW,
     });
-
-    if (presentRoles.length > 0) {
-      const legendY = sDiagramPadding + titleHeight;
-      const semanticGroups = [
-        {
-          name: 'Role',
-          entries: presentRoles.map((role) => ({
-            value: ROLE_LABELS[role],
-            color: palette.colors[ROLE_COLORS[role]],
-          })),
-        },
-      ];
-      const legendG = svg
-        .append('g')
-        .attr('class', 'er-semantic-legend')
-        .attr('transform', `translate(0,${legendY})`);
-      renderIntegratedLegend(legendG, {
-        groups: semanticGroups,
-        activeGroup: semanticActive ? 'Role' : null,
-        mode: exportMode ? 'export' : 'preview',
-        palette,
-        isDark,
-        width: viewW,
-      });
-      legendG.selectAll('[data-legend-group]').classed('er-legend-group', true);
-    }
+    legendG.selectAll('[data-legend-group]').classed('er-legend-group', true);
   }
 }
 

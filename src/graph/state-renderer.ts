@@ -3,7 +3,12 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
-import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
+import {
+  fillModeFromOptions,
+  legendSuppressed,
+  legendInlineRequested,
+} from '../utils/parsing';
+import { layoutInlineHeader } from '../utils/inline-header';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
 import { fitDiagramToCanvas } from '../utils/fit-canvas';
 import { FONT_FAMILY } from '../fonts';
@@ -20,7 +25,10 @@ import {
   tagAttrKey,
 } from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
-import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import {
+  getMaxLegendReservedHeight,
+  getLegendExtent,
+} from '../utils/legend-layout';
 import type { LegendGroupData } from '../utils/legend-types';
 import type { ParsedGraph } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
@@ -163,6 +171,38 @@ export function renderState(
       ) + 8
     : 0;
 
+  // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
+  // legend flushed right). Falls back to the stacked band when it can't fit.
+  const inlineRequested = legendInlineRequested(graph.options);
+  const legendExtent =
+    inlineRequested && hasLegend
+      ? getLegendExtent(
+          {
+            groups: legendGroups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: exportDims ? 'export' : 'preview',
+            showInactivePills: true,
+          },
+          { activeGroup: activeTagGroup },
+          width
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: graph.title ?? '',
+    hasLegend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: width,
+    titleBandHeight: titleHeight,
+    legendReserve: legendH,
+    titleBaselineY: sTitleY,
+    titleFontSize: sTitleFontSize,
+  });
+
   const diagramW = layout.width;
   const diagramH = layout.height;
   const { scale, offsetX, offsetY, canvasHeight } = fitDiagramToCanvas({
@@ -171,9 +211,8 @@ export function renderState(
     diagramW,
     diagramH,
     padding: sDiagramPadding,
-    // The legend band sits directly under the title, so it reserves the same
-    // top strip fitDiagramToCanvas already offsets the diagram by.
-    titleHeight: titleHeight + legendH,
+    // Inline → one band (title only); stacked → title + legend band.
+    titleHeight: header.inline ? titleHeight : titleHeight + legendH,
     maxScale: MAX_SCALE,
     exportMode: !!exportDims,
   });
@@ -206,9 +245,9 @@ export function renderState(
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
-      .attr('x', width / 2)
+      .attr('x', header.titleX)
       .attr('y', sTitleY)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('fill', palette.text)
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
@@ -236,7 +275,12 @@ export function renderState(
   if (hasLegend) {
     const legendG = svg
       .append('g')
-      .attr('transform', `translate(0, ${titleHeight + 4})`);
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0, ${titleHeight + 4})`
+      );
     renderIntegratedLegend(legendG, {
       groups: legendGroups,
       activeGroup: activeTagGroup,
@@ -244,6 +288,12 @@ export function renderState(
       // Inactive sibling groups stay visible as collapsed pills so the user
       // can click one to flip the active colouring dimension (as in b&l).
       showInactivePills: true,
+      // Inline → left-origin so the wrapper's right-flush translate lands the
+      // legend at the chart's right edge; stacked → centered below the title.
+      position: {
+        placement: 'top-center',
+        titleRelation: header.inline ? 'inline-with-title' : 'below-title',
+      },
       palette,
       isDark,
       width,

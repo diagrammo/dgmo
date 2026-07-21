@@ -197,6 +197,10 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   // most types via GLOBAL_BOOLEANS in utils/parsing; gantt derives its boolean
   // Set from here, and map from `map: true`.
   { token: 'no-legend', category: 'directive', gantt: ['boolean'], map: true },
+  // `legend-inline`: universal §1.9 boolean (decision #50) — the top-center-
+  // legend data charts (bar/line/radar/scatter/function) render the title and
+  // legend on one line; every other chart accepts it as a harmless no-op.
+  { token: 'legend-inline', category: 'directive', gantt: ['boolean'] },
 
   // ══════════════════════════════════════════════════════════
   // Highlight-only vocab (no extractable parser Set).

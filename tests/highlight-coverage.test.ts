@@ -246,6 +246,7 @@ const INVENTORY = {
     'labels',
     'lane',
     'lane-by',
+    'legend-inline',
     'locale',
     'marker',
     'max',

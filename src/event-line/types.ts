@@ -78,6 +78,8 @@ export interface EventLineOptions {
   readonly noBox: boolean;
   /** True when `no-legend` — hide the tag legend. */
   readonly noLegend: boolean;
+  /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+  readonly legendInline?: boolean;
   /** §1.9 fill family: 'solid' | 'outline'; undefined ⇒ canonical soft tint. */
   readonly fillMode: 'solid' | 'outline' | undefined;
 }

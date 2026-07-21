@@ -124,6 +124,7 @@ export function parseSketch(
 ): ParsedSketch {
   const options = {
     noLegend: false,
+    legendInline: false,
     fillMode: undefined as 'solid' | 'outline' | undefined,
     noDescriptions: false,
   };
@@ -581,6 +582,10 @@ export function parseSketch(
     currentTagGroup = null;
 
     // Directives (indent 0).
+    if (indent === 0 && /^legend-inline\s*$/i.test(trimmed)) {
+      options.legendInline = true;
+      continue;
+    }
     if (indent === 0 && /^no-legend\s*$/i.test(trimmed)) {
       options.noLegend = true;
       continue;

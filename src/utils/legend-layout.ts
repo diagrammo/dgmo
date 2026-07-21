@@ -774,3 +774,36 @@ export function getMaxLegendReservedHeight(
   }
   return max;
 }
+
+/**
+ * Natural rendered extent (content width + height) of a legend at a given
+ * container width, computed from the shared layout engine — no DOM/string
+ * rendering. Used by the §1.9 `legend-inline` fit test (decision #50): a legend
+ * whose extent height stays one row and whose width fits beside the title may go
+ * inline; otherwise the header falls back to stacked. Pass a generous
+ * `containerWidth` (e.g. the full chart width) to read the single-row width.
+ */
+export function getLegendExtent(
+  config: LegendConfig,
+  state: LegendState,
+  containerWidth: number
+): { width: number; height: number } {
+  const layout = computeLegendLayout(config, state, containerWidth);
+  let left = Infinity;
+  let right = 0;
+  let bottom = 0;
+  const track = (x: number, y: number, w: number, h: number): void => {
+    left = Math.min(left, x);
+    right = Math.max(right, x + w);
+    bottom = Math.max(bottom, y + h);
+  };
+  if (layout.activeCapsule) {
+    const c = layout.activeCapsule;
+    track(c.x, c.y, c.width, c.height);
+  }
+  for (const pill of layout.pills) track(pill.x, pill.y, pill.width, pill.height);
+  return {
+    width: right - (left === Infinity ? 0 : left),
+    height: bottom || LEGEND_HEIGHT,
+  };
+}

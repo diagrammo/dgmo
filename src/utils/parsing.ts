@@ -168,6 +168,7 @@ export const GLOBAL_BOOLEANS: ReadonlySet<string> = new Set([
   'no-title',
   'no-notes',
   'no-legend',
+  'legend-inline',
 ]);
 
 /**
@@ -183,6 +184,18 @@ export function legendSuppressed(
   options: Readonly<Record<string, string>>
 ): boolean {
   return options['no-legend'] === 'on';
+}
+
+/**
+ * Read the §1.9 universal `legend-inline` directive (decision #50) out of a
+ * parser's shared-options record. `true` ⇒ the renderer should try the one-line
+ * header (title left, legend right) and fall back to the stacked header when the
+ * legend can't fit. A no-op on charts that render no legend.
+ */
+export function legendInlineRequested(
+  options: Readonly<Record<string, string>>
+): boolean {
+  return options['legend-inline'] === 'on';
 }
 
 /**

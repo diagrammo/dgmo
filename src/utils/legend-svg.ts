@@ -44,6 +44,12 @@ interface LegendRenderOptions {
   containerWidth: number;
   activeGroup?: string | null;
   className?: string;
+  /**
+   * Row alignment within `containerWidth`. `'center'` (default) matches the
+   * historic top-center legend; `'left'` left-origins the row at x=0 so the
+   * caller can translate it beside a left-aligned title (§1.9 `legend-inline`).
+   */
+  align?: 'center' | 'left';
 }
 
 interface LegendRenderResult {
@@ -142,7 +148,11 @@ export function renderLegendSvg(
 
   const config: LegendConfig = {
     groups,
-    position: { placement: 'top-center', titleRelation: 'below-title' },
+    position: {
+      placement: 'top-center',
+      titleRelation:
+        options.align === 'left' ? 'inline-with-title' : 'below-title',
+    },
     mode: 'preview',
   };
   const state: LegendState = { activeGroup: activeGroup ?? null };

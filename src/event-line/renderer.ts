@@ -41,6 +41,8 @@ import {
   type WrappedDescLine,
 } from '../utils/wrapped-desc';
 import { renderIntegratedLegend } from '../utils/legend-integration';
+import { getLegendExtent } from '../utils/legend-layout';
+import { layoutInlineHeader } from '../utils/inline-header';
 import { formatDateLabel } from '../timeline/renderer';
 import { parseTimelineDate } from '../timeline/parser';
 import type { LegendGroupData } from '../utils/legend-types';
@@ -238,7 +240,44 @@ export function renderEventLine(
     !parsed.options.noLegend;
   const titleH = showTitle ? TITLE_AREA : 0;
   const legendH = hasLegend ? LEGEND_BAND : 0;
-  const topUsed = titleH + legendH;
+
+  // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
+  // legend flushed right). Falls back to the stacked band when it can't fit.
+  // NOTE: EventLineOptions exposes no shared-options record, so this reads an
+  // empty one and stays dormant (stacked, byte-identical) until the parser
+  // surfaces `legend-inline` — matching the bracket renderer. The header uses
+  // the panel `width` (not the grown `contentW`, which is only known after the
+  // layout search) so `header.inline` is available for the offset math below.
+  const inlineRequested = parsed.options.legendInline === true;
+  const legendExtent =
+    inlineRequested && hasLegend
+      ? getLegendExtent(
+          {
+            groups: parsed.tagGroups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: exportMode ? 'export' : 'preview',
+          },
+          { activeGroup: activeGroup ?? null },
+          width
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: parsed.title ?? '',
+    hasLegend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: width,
+    titleBandHeight: titleH,
+    legendReserve: legendH,
+    titleBaselineY: TITLE_Y,
+    titleFontSize: TITLE_FONT_SIZE,
+  });
+  // Inline → one band (title only); stacked → title + legend band.
+  const topUsed = header.inline ? titleH : titleH + legendH;
 
   // ── Eras (§28.6a) ──────────────────────────────────────────
   // The era sits OPPOSITE the cards (one-sided → opposite the chosen side;
@@ -764,9 +803,9 @@ export function renderEventLine(
     const t = svg
       .append('text')
       .attr('class', 'chart-title')
-      .attr('x', contentW / 2)
+      .attr('x', header.inline ? header.titleX : contentW / 2)
       .attr('y', TITLE_Y)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.inline ? header.titleAnchor : 'middle')
       .attr('fill', palette.text)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', TITLE_FONT_SIZE)
@@ -783,7 +822,12 @@ export function renderEventLine(
   if (hasLegend) {
     const legendG = svg
       .append('g')
-      .attr('transform', `translate(0, ${titleH})`);
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0, ${titleH})`
+      );
     const groups: LegendGroupData[] = parsed.tagGroups.map((g) => ({
       name: g.name,
       entries: g.entries.map((e) => ({
@@ -798,6 +842,13 @@ export function renderEventLine(
       width: contentW,
       mode: exportMode ? 'export' : 'preview',
       activeGroup,
+      // Inline → left-origin so the wrapper's right-flush translate lands the
+      // legend at the header's right edge; stacked → centered below the title
+      // (== DEFAULT_POSITION, so the stacked output is byte-identical).
+      position: {
+        placement: 'top-center',
+        titleRelation: header.inline ? 'inline-with-title' : 'below-title',
+      },
     });
     // Mute-toggling a category (§28.5) means clicking its legend entry, but the
     // painted swatch + label are a tiny target. Back each entry with a

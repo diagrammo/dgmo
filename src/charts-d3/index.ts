@@ -31,7 +31,11 @@ import {
   EXPORT_WIDTH,
   EXPORT_HEIGHT,
 } from '../utils/d3-helpers';
-import { injectLegendGroups, type Svg } from './shared';
+import {
+  injectLegendGroups,
+  type Svg,
+  type InlineTitleInfo,
+} from './shared';
 import { renderBar } from './bar';
 import { renderLine } from './line';
 import { renderPie } from './pie';
@@ -61,6 +65,50 @@ export const D3_DATA_CHART_TYPES = new Set<string>([...STANDARD, ...EXTENDED]);
 
 export function supportsD3DataChart(type: string): boolean {
   return D3_DATA_CHART_TYPES.has(type);
+}
+
+/** Types with a top-center series legend that can host an inline header (§1.9
+ *  `legend-inline`, decision #50). Others take the directive as a no-op. */
+const INLINE_LEGEND_TYPES = new Set([
+  'bar',
+  'line',
+  'radar',
+  'scatter',
+  'function',
+]);
+
+/**
+ * Build the {@link InlineTitleInfo} to hand the legend path when the chart opted
+ * into `legend-inline` and can host it — otherwise `undefined`, so the caller
+ * renders a centered title as before. Centralizes the gate for both the standard
+ * and extended dispatch paths.
+ */
+function inlineTitleFor(
+  chart: {
+    type: string;
+    title?: string;
+    titleLineNumber?: number;
+    legendInline?: boolean;
+    noLegend?: boolean;
+  },
+  hasTitle: boolean,
+  textColor: string
+): InlineTitleInfo | undefined {
+  if (
+    !hasTitle ||
+    !chart.legendInline ||
+    chart.noLegend ||
+    !INLINE_LEGEND_TYPES.has(chart.type)
+  ) {
+    return undefined;
+  }
+  return {
+    title: chart.title!,
+    ...(chart.titleLineNumber !== undefined && {
+      titleLineNumber: chart.titleLineNumber,
+    }),
+    textColor,
+  };
 }
 
 /** First non-empty, non-comment line's leading token, lowercased. */
@@ -139,7 +187,11 @@ function renderInto(
   const std = forceExtended ? null : parseChart(content, palette);
   if (std && !std.error && std.data.length > 0 && STANDARD.has(std.type)) {
     const hasTitle = !std.noTitle && !!std.title;
-    if (hasTitle)
+    // §1.9 `legend-inline` (decision #50): the legend path owns the title so it
+    // can lay title + legend on one row. Only the top-center-legend types honour
+    // it; everyone else renders a centered title here as before.
+    const inlineTitle = inlineTitleFor(std, hasTitle, textColor);
+    if (hasTitle && !inlineTitle)
       renderChartTitle(s, std.title, std.titleLineNumber, width, textColor);
     switch (std.type) {
       case 'bar':
@@ -153,7 +205,8 @@ function renderInto(
           isDark,
           textColor,
           mutedColor,
-          hasTitle
+          hasTitle,
+          inlineTitle
         );
         return true;
       case 'line':
@@ -168,7 +221,8 @@ function renderInto(
           textColor,
           mutedColor,
           bgColor,
-          hasTitle
+          hasTitle,
+          inlineTitle
         );
         return true;
       case 'pie':
@@ -196,7 +250,8 @@ function renderInto(
           palette,
           isDark,
           hasTitle,
-          width
+          width,
+          inlineTitle
         );
         renderRadar(
           s,
@@ -232,7 +287,8 @@ function renderInto(
   if (ext.error || !EXTENDED.has(ext.type)) return false;
   const seriesColors = getSeriesColors(palette);
   const hasTitle = !ext.noTitle && !!ext.title;
-  if (hasTitle)
+  const inlineTitle = inlineTitleFor(ext, hasTitle, textColor);
+  if (hasTitle && !inlineTitle)
     renderChartTitle(s, ext.title, ext.titleLineNumber, width, textColor);
 
   switch (ext.type) {
@@ -271,7 +327,8 @@ function renderInto(
         palette,
         isDark,
         hasTitle,
-        width
+        width,
+        inlineTitle
       );
       renderScatter(
         s,
@@ -322,7 +379,8 @@ function renderInto(
         palette,
         isDark,
         hasTitle,
-        width
+        width,
+        inlineTitle
       );
       renderFunction(
         s,

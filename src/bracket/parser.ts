@@ -302,6 +302,10 @@ export function parseBracket(
       else result.mode = lower as BracketMode;
       continue;
     }
+    if (lower === 'legend-inline') {
+      result.legendInline = true;
+      continue;
+    }
     if (lower === 'no-legend') {
       result.noLegend = true;
       continue;

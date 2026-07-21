@@ -3,7 +3,12 @@
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
-import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
+import {
+  fillModeFromOptions,
+  legendSuppressed,
+  legendInlineRequested,
+} from '../utils/parsing';
+import { layoutInlineHeader } from '../utils/inline-header';
 import {
   renderNoteBox,
   renderNoteConnector,
@@ -14,7 +19,10 @@ import {
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import { renderIntegratedLegend } from '../utils/legend-integration';
-import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import {
+  getMaxLegendReservedHeight,
+  getLegendExtent,
+} from '../utils/legend-layout';
 import type {
   LegendCallbacks,
   LegendGroupData,
@@ -540,6 +548,38 @@ export function renderBoxesAndLines(
     !noLegend;
   const legendH = needsLegend ? sLegendHeight + 8 : 0;
 
+  // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
+  // legend flushed right). Falls back to the stacked band when it can't fit.
+  const inlineRequested = legendInlineRequested(parsed.options);
+  const legendExtent =
+    inlineRequested && needsLegend
+      ? getLegendExtent(
+          {
+            groups: legendGroups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: exportMode ? 'export' : 'preview',
+            showInactivePills: true,
+          },
+          { activeGroup },
+          width
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: parsed.title ?? '',
+    hasLegend: needsLegend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: width,
+    titleBandHeight: titleOffset,
+    legendReserve: legendH,
+    titleBaselineY: sTitleY,
+    titleFontSize: sTitleFontSize,
+  });
+
   const groupLabelsSet = new Set(layout.groups.map((g) => g.label));
   let labelZoneExtension = 0;
   for (const group of parsed.groups) {
@@ -558,7 +598,8 @@ export function renderBoxesAndLines(
   // the scaled content overshoots the viewport and the diagram bleeds past the
   // bottom edge. Clamp the numerator so a viewport shorter than the overhead
   // still yields a positive scale instead of flipping the content inside-out.
-  const vOverhead = titleOffset + legendH + labelZoneExtension;
+  const vOverhead =
+    titleOffset + (header.inline ? 0 : legendH) + labelZoneExtension;
   const availH = Math.max(1, height - vOverhead - sDiagramPadding * 2);
 
   const scaleX = width / (contentW + sDiagramPadding * 2);
@@ -566,7 +607,7 @@ export function renderBoxesAndLines(
   const scale = Math.min(scaleX, scaleY, 3);
 
   const offsetX = (width - contentW * scale) / 2;
-  const offsetY = sDiagramPadding + titleOffset + legendH;
+  const offsetY = sDiagramPadding + titleOffset + (header.inline ? 0 : legendH);
 
   const svg: D3Svg = d3Selection
     .select(container)
@@ -587,9 +628,10 @@ export function renderBoxesAndLines(
   if (showTitle) {
     svg
       .append('text')
-      .attr('x', width / 2)
+      .attr('class', 'chart-title')
+      .attr('x', header.titleX)
       .attr('y', sTitleY)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
@@ -1335,11 +1377,22 @@ export function renderBoxesAndLines(
     };
     const legendG = svg
       .append('g')
-      .attr('transform', `translate(0,${titleOffset + 4})`);
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0,${titleOffset + 4})`
+      );
     renderIntegratedLegend(legendG, {
       groups: legendGroups,
       activeGroup,
       mode: exportMode ? 'export' : 'preview',
+      // Inline → left-origin so the wrapper's right-flush translate lands the
+      // legend at the chart's right edge; stacked → centered below the title.
+      position: {
+        placement: 'top-center',
+        titleRelation: header.inline ? 'inline-with-title' : 'below-title',
+      },
       // Keep inactive sibling tag groups visible as collapsed pills so the user
       // can click one to flip the active colouring dimension (preview only).
       showInactivePills: true,

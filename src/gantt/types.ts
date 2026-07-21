@@ -146,6 +146,8 @@ export interface GanttOptions {
   noTitle: boolean;
   /** §1.9 `no-legend` — suppress the tag legend and collapse its reserved band. */
   noLegend: boolean;
+  /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+  legendInline?: boolean;
 }
 
 // ── Parsed Result ───────────────────────────────────────────

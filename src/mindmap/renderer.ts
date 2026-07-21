@@ -3,7 +3,11 @@
 // ============================================================
 
 import { tagAttrKey } from '../utils/tag-groups';
-import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
+import {
+  fillModeFromOptions,
+  legendSuppressed,
+  legendInlineRequested,
+} from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import {
@@ -22,7 +26,11 @@ import { preprocessDescriptionLine } from '../utils/description-helpers';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type { LegendConfig } from '../utils/legend-types';
 import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
-import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import {
+  getMaxLegendReservedHeight,
+  getLegendExtent,
+} from '../utils/legend-layout';
+import { layoutInlineHeader } from '../utils/inline-header';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 import { ScaleContext } from '../utils/scaling';
 
@@ -147,9 +155,45 @@ export function renderMindmap(
   const fixedTitle = !isExport && showTitle;
   const titleReserve = fixedTitle ? TITLE_HEIGHT : 0;
 
+  // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
+  // legend flushed right). Falls back to the stacked band when it can't fit.
+  // The legend only renders in the fixed (preview) path, so the inline probe is
+  // gated on `fixedLegend` — export stays stacked/centered and byte-identical.
+  const inlineRequested = legendInlineRequested(parsed.options);
+  const legendExtent =
+    inlineRequested && fixedLegend
+      ? getLegendExtent(
+          {
+            groups: parsed.tagGroups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: isExport ? 'export' : 'preview',
+          },
+          { activeGroup: activeTagGroup ?? null },
+          containerWidth
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: parsed.title ?? '',
+    hasLegend: fixedLegend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth,
+    titleBandHeight: titleReserve,
+    legendReserve,
+    titleBaselineY: DIAGRAM_PADDING + TITLE_FONT_SIZE,
+    titleFontSize: TITLE_FONT_SIZE,
+  });
+
   const availWidth = containerWidth;
   const availHeight =
-    containerHeight - DIAGRAM_PADDING * 2 - legendReserve - titleReserve;
+    containerHeight -
+    DIAGRAM_PADDING * 2 -
+    (header.inline ? 0 : legendReserve) -
+    titleReserve;
 
   // Fit to BOTH axes so a tall tree shrinks to fit a short canvas instead of
   // overflowing vertically (export sizes its own canvas, so it stays identity).
@@ -210,7 +254,7 @@ export function renderMindmap(
   const offsetX = Math.max(0, (availWidth - scaledWidth) / 2);
   const offsetY =
     DIAGRAM_PADDING +
-    legendReserve +
+    (header.inline ? 0 : legendReserve) +
     titleReserve +
     Math.max(0, (availHeight - scaledHeight) / 2);
 
@@ -228,7 +272,7 @@ export function renderMindmap(
   // Title — fixed at top in app mode (above legend), inside scaled group in export
   if (showTitle) {
     const titleParent = fixedTitle ? svg : mainG;
-    const titleX = fixedTitle ? containerWidth / 2 : renderLayout.width / 2;
+    const titleX = fixedTitle ? header.titleX : renderLayout.width / 2;
     const titleY = fixedTitle
       ? DIAGRAM_PADDING + TITLE_FONT_SIZE
       : TITLE_FONT_SIZE;
@@ -236,7 +280,7 @@ export function renderMindmap(
       .append('text')
       .attr('x', titleX)
       .attr('y', titleY)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', fixedTitle ? header.titleAnchor : 'middle')
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
@@ -258,7 +302,12 @@ export function renderMindmap(
     const legendG = svg
       .append('g')
       .attr('class', 'mindmap-legend-fixed')
-      .attr('transform', `translate(0, ${DIAGRAM_PADDING + titleReserve})`);
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0, ${DIAGRAM_PADDING + titleReserve})`
+      );
 
     // Collect used tag values from all nodes to filter legend entries
     const usedValues = new Map<string, Set<string>>(); // groupName → set of used values
@@ -307,7 +356,10 @@ export function renderMindmap(
             .map((e) => ({ value: e.value, color: e.color })),
         };
       }),
-      position: { placement: 'top-center', titleRelation: 'below-title' },
+      position: {
+        placement: 'top-center',
+        titleRelation: header.inline ? 'inline-with-title' : 'below-title',
+      },
       mode: options?.exportMode ? 'export' : 'preview',
       ...(controlsToggles !== undefined && { controlsGroup: controlsToggles }),
       ...(options?.controlsHost !== undefined && {

@@ -13,6 +13,7 @@ import { mix, shapeFill } from '../palettes/color-utils';
 import {
   type Svg,
   type Margins,
+  type InlineTitleInfo,
   TICK_FONT,
   fmtNum,
   reserveHeader,
@@ -40,7 +41,8 @@ export function renderLine(
   textColor: string,
   mutedColor: string,
   bgColor: string,
-  hasTitle: boolean
+  hasTitle: boolean,
+  inlineTitle?: InlineTitleInfo
 ): void {
   const data = chart.data;
   // `line` + a `fill` directive → filled (area) rendering. (#25)
@@ -78,7 +80,8 @@ export function renderLine(
     palette,
     isDark,
     hasTitle,
-    width
+    width,
+    inlineTitle
   );
 
   // Per-axis value extent. Default: fit a padded data-min→max window so detail

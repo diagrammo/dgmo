@@ -29,7 +29,11 @@ import { measureText } from '../utils/text-measure';
 import { renderInlineText } from '../utils/inline-markdown';
 import { resolveTagColor, tagAttrKey } from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
-import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import {
+  getMaxLegendReservedHeight,
+  getLegendExtent,
+} from '../utils/legend-layout';
+import { layoutInlineHeader } from '../utils/inline-header';
 import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
 import type { LegendGroupData, LegendPosition } from '../utils/legend-types';
 import type { PaletteColors } from '../palettes';
@@ -221,6 +225,40 @@ export function renderBracket(
         ) + LEGEND_GROUP_GAP
       : 0;
 
+  // §1.9 `legend-inline` (decision #50): collapse title + legend onto one row
+  // (title left, legend flushed right) when the legend fits beside the title;
+  // otherwise fall back to the stacked header. NOTE: ParsedBracket exposes no
+  // shared-options record, so this reads an empty one and stays dormant
+  // (stacked, byte-identical) until the parser surfaces `legend-inline`.
+  const inlineRequested = parsed.legendInline === true;
+  const legendExtent =
+    inlineRequested && legendGroups.length > 0
+      ? getLegendExtent(
+          {
+            groups: legendGroups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: exportMode ? 'export' : 'preview',
+          },
+          { activeGroup: activeGroup?.name ?? null },
+          width
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: parsed.title ?? '',
+    hasLegend: legendGroups.length > 0,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: width,
+    titleBandHeight: titleH,
+    legendReserve,
+    titleBaselineY: TITLE_Y,
+    titleFontSize: TITLE_FONT_SIZE,
+  });
+
   const svg = d3Selection
     .select(container)
     .append('svg')
@@ -243,9 +281,9 @@ export function renderBracket(
     const t = svg
       .append('text')
       .attr('class', 'chart-title')
-      .attr('x', width / 2)
+      .attr('x', header.titleX)
       .attr('y', TITLE_Y)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('fill', palette.text)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', TITLE_FONT_SIZE)
@@ -255,7 +293,7 @@ export function renderBracket(
       t.attr('data-line-number', parsed.titleLineNumber);
   }
 
-  const areaY = titleH + legendReserve + PADDING;
+  const areaY = (header.inline ? titleH : titleH + legendReserve) + PADDING;
   const areaX = PADDING;
   const areaW = Math.max(1, width - PADDING * 2);
   const areaH = Math.max(1, height - areaY - PADDING);
@@ -272,7 +310,12 @@ export function renderBracket(
     const legendG = svg
       .append('g')
       .attr('class', 'dgmo-bracket-legend')
-      .attr('transform', `translate(0, ${titleH})`);
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0, ${titleH})`
+      );
     renderIntegratedLegend(legendG, {
       groups: legendGroups,
       palette: {
@@ -285,7 +328,10 @@ export function renderBracket(
       isDark,
       width,
       mode: exportMode ? 'export' : 'preview',
-      position: LEGEND_POSITION,
+      position: {
+        placement: 'top-center',
+        titleRelation: header.inline ? 'inline-with-title' : 'below-title',
+      },
       activeGroup: activeGroup?.name ?? null,
     });
   }

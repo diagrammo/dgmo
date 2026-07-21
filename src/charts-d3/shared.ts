@@ -16,6 +16,14 @@ import type { PaletteColors } from '../palettes';
 import { getSimpleChartLegendGroups } from '../data-chart-parser';
 import { renderLegendSvg } from '../utils/legend-svg';
 import type { LegendGroupData } from '../utils/legend-types';
+import { renderChartTitle } from '../utils/d3-helpers';
+import { layoutInlineHeader } from '../utils/inline-header';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+  TITLE_OFFSET,
+} from '../utils/title-constants';
 
 export type Svg = d3Selection.Selection<
   SVGSVGElement,
@@ -44,10 +52,94 @@ export function fmtNum(n: number): string {
 }
 
 /**
+ * The title text a caller wants the legend renderer to own so it can attempt a
+ * one-line header (title left, legend right) per §1.9 `legend-inline`. When this
+ * is passed, the DISPATCHER must NOT also render a centered title — the legend
+ * path renders the title itself (left-aligned inline, or centered on fallback).
+ */
+export interface InlineTitleInfo {
+  title: string;
+  titleLineNumber?: number;
+  textColor: string;
+}
+
+/**
+ * Attempt a one-line header: left-aligned title, series legend flushed right,
+ * vertically centered on the title. Returns the plot top-inset on success, or
+ * `null` when the legend cannot fit on a single row beside the title (the caller
+ * then renders the normal stacked header). The fit decision + geometry come from
+ * the shared `layoutInlineHeader`; this only renders. §1.9 `legend-inline`, #50.
+ */
+function renderInlineHeader(
+  svg: Svg,
+  groups: LegendGroupData[],
+  palette: PaletteColors,
+  isDark: boolean,
+  width: number,
+  info: InlineTitleInfo
+): number | null {
+  // Probe the legend left-origin at full width to read its natural extent (it
+  // won't wrap at full width, so height stays one row unless genuinely huge).
+  const {
+    svg: legendSvg,
+    height: legendH,
+    width: legendW,
+  } = renderLegendSvg(groups, {
+    palette,
+    isDark,
+    containerWidth: width,
+    activeGroup: groups[0]!.name,
+    className: 'chart-legend',
+    align: 'left',
+  });
+  if (!legendSvg) return null;
+
+  const geom = layoutInlineHeader({
+    requested: true,
+    title: info.title,
+    hasLegend: true,
+    legendWidth: legendW,
+    legendHeight: legendH,
+    containerWidth: width,
+    titleBandHeight: TITLE_OFFSET,
+    legendReserve: 0,
+    titleBaselineY: TITLE_Y,
+    titleFontSize: TITLE_FONT_SIZE,
+  });
+  if (!geom.inline) return null;
+
+  const titleEl = svg
+    .append('text')
+    .attr('class', 'chart-title')
+    .attr('x', geom.titleX)
+    .attr('y', TITLE_Y)
+    .attr('fill', info.textColor)
+    .attr('font-size', TITLE_FONT_SIZE)
+    .attr('font-weight', TITLE_FONT_WEIGHT)
+    .text(info.title);
+  if (info.titleLineNumber) {
+    titleEl.attr('data-line-number', info.titleLineNumber);
+  }
+
+  const node = svg.node();
+  if (node) {
+    node.insertAdjacentHTML(
+      'beforeend',
+      `<g transform="translate(${geom.legendX},${geom.legendY})">${legendSvg}</g>`
+    );
+  }
+  // Single header row: plot begins just below the title band.
+  return TITLE_OFFSET + 12;
+}
+
+/**
  * Render the standard top-center legend (capsule + pills) for a multi-series
  * chart, mirroring the ECharts path exactly: same `getSimpleChartLegendGroups`
  * input and same `<g transform="translate(0,legendY)">` injection. Returns the
  * y-coordinate where plot content may begin (below title + legend).
+ *
+ * When `inlineTitle` is supplied the header first tries the one-line layout
+ * (§1.9 `legend-inline`); the caller must not have rendered a centered title.
  */
 export function reserveHeader(
   svg: Svg,
@@ -56,7 +148,8 @@ export function reserveHeader(
   palette: PaletteColors,
   isDark: boolean,
   hasTitle: boolean,
-  width: number
+  width: number,
+  inlineTitle?: InlineTitleInfo
 ): number {
   return injectLegendGroups(
     svg,
@@ -66,7 +159,8 @@ export function reserveHeader(
     palette,
     isDark,
     hasTitle,
-    width
+    width,
+    inlineTitle
   );
 }
 
@@ -74,6 +168,11 @@ export function reserveHeader(
  * Inject a top-center capsule legend from pre-built groups (mirrors the
  * ECharts path's `<g transform="translate(0,legendY)">` placement) and return
  * the y where plot content may begin. Empty groups → just clear the title.
+ *
+ * `inlineTitle` (§1.9 `legend-inline`) makes this function OWN the title: it
+ * tries the one-line header first, and on fallback (or empty groups) renders the
+ * centered title itself. Omit it for the historic stacked behavior, where the
+ * caller renders the title separately.
  */
 export function injectLegendGroups(
   svg: Svg,
@@ -81,8 +180,32 @@ export function injectLegendGroups(
   palette: PaletteColors,
   isDark: boolean,
   hasTitle: boolean,
-  width: number
+  width: number,
+  inlineTitle?: InlineTitleInfo
 ): number {
+  if (inlineTitle && groups.length > 0) {
+    const inset = renderInlineHeader(
+      svg,
+      groups,
+      palette,
+      isDark,
+      width,
+      inlineTitle
+    );
+    if (inset !== null) return inset;
+    // Doesn't fit inline → fall through to the stacked header. The dispatcher
+    // skipped the centered title on our behalf, so render it here.
+  }
+  if (inlineTitle) {
+    renderChartTitle(
+      svg,
+      inlineTitle.title,
+      inlineTitle.titleLineNumber,
+      width,
+      inlineTitle.textColor
+    );
+  }
+
   const titleH = hasTitle ? 40 : 0;
   if (groups.length === 0) return hasTitle ? titleH + 12 : 24;
 

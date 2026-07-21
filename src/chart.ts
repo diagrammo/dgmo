@@ -68,6 +68,13 @@ export interface ParsedChart {
   /** Cross-chart-type: when true, the renderer suppresses the legend and the
    *  vertical band it would occupy (#48). */
   noLegend?: boolean;
+  /** §1.9 `legend-inline`: render the title and the series legend on one line
+   *  (title left, legend right) instead of stacking the legend below a centered
+   *  title — reclaims a header row. Honoured by the top-center-legend data
+   *  charts (bar/line/radar/scatter/function); a no-op elsewhere. Auto-falls
+   *  back to the stacked header when the legend can't fit beside the title on a
+   *  single row (decision #50). */
+  legendInline?: boolean;
   /** Line only: opt out of the data-driven y-axis auto-fit and anchor the
    *  baseline at 0 (magnitude honesty / old ECharts-parity behavior). By
    *  default a line chart fits a padded data-min→max window (§15.1). */
@@ -142,6 +149,7 @@ const KNOWN_BOOLEANS = new Set([
   'fill-outline',
   'no-title',
   'no-legend',
+  'legend-inline',
   'no-auto-y',
   'fill',
   'hole',
@@ -370,6 +378,8 @@ export function parseChart(
         result.noTitle = true;
       } else if (firstToken === 'no-legend') {
         result.noLegend = true;
+      } else if (firstToken === 'legend-inline') {
+        result.legendInline = true;
       } else if (firstToken === 'no-auto-y') {
         result.noAutoY = true;
       } else if (firstToken === 'fill') {

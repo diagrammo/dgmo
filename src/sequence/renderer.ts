@@ -38,8 +38,12 @@ import { measureText, truncateText } from '../utils/text-measure';
 import { resolveSequenceTags } from './tag-resolution';
 import type { ResolvedTagMap } from './tag-resolution';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
-import { getMaxLegendReservedHeight } from '../utils/legend-layout';
-import { legendSuppressed } from '../utils/parsing';
+import {
+  getMaxLegendReservedHeight,
+  getLegendExtent,
+} from '../utils/legend-layout';
+import { legendSuppressed, legendInlineRequested } from '../utils/parsing';
+import { layoutInlineHeader } from '../utils/inline-header';
 import { renderIntegratedLegend } from '../utils/legend-integration';
 import type { LegendCallbacks, LegendConfig } from '../utils/legend-types';
 import {
@@ -1506,6 +1510,41 @@ export function renderSequenceDiagram(
       ? getMaxLegendReservedHeight(legendConfig, containerWidth) +
         LEGEND_FIXED_GAP
       : 0;
+  // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
+  // legend flushed right). Falls back to the stacked band when the legend can't
+  // fit beside the title. The header is laid out against `containerWidth` — the
+  // same width the legend reserve (getMaxLegendReservedHeight above) uses and
+  // the only width finalized this early (svgWidth is derived downstream), so the
+  // participant-offset decision here and the title/legend render below share one
+  // consistent `header`.
+  const inlineRequested = legendInlineRequested(parsedOptions);
+  const hasLegendForHeader = parsed.tagGroups.length > 0 && !noLegend;
+  const legendExtent =
+    inlineRequested && hasLegendForHeader
+      ? getLegendExtent(
+          {
+            ...legendConfig,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+          },
+          { activeGroup: activeTagGroup ?? null },
+          containerWidth
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: title ?? '',
+    hasLegend: hasLegendForHeader,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth,
+    titleBandHeight: titleOffset,
+    legendReserve: legendTopSpace,
+    titleBaselineY: ctx.structural(TITLE_Y),
+    titleFontSize: ctx.text(TITLE_FONT_SIZE),
+  });
   // Use parsed.groups (not projected groups) to keep vertical space consistent
   // even when all groups are collapsed into virtual participants
   const groupOffset =
@@ -1513,7 +1552,7 @@ export function renderSequenceDiagram(
   const participantStartY =
     sTopMargin +
     titleOffset +
-    legendTopSpace +
+    (header.inline ? 0 : legendTopSpace) +
     sParticipantYOffset +
     groupOffset;
   const lifelineStartY0 = participantStartY + sBoxH;
@@ -1749,63 +1788,97 @@ export function renderSequenceDiagram(
   };
   buildParticipantX();
 
-  // Post-layout content scan: detect labels/notes that overflow the SVG boundaries.
-  // Message labels render at a fixed 12px font (unscaled) so they can extend past
-  // the scaled participant grid at small scale factors.
-  let contentLeft = 0;
-  let contentRight = svgWidth;
-  for (const step of renderSteps) {
-    if (!step.label) continue;
-    const labelW = measureText(step.label, 12);
-    if (step.from === step.to) {
-      const px = participantX.get(step.from);
-      if (px !== undefined) {
-        const loopRight =
-          px + sActivationWidth / 2 + sSelfCallWidth + 5 + labelW;
-        contentRight = Math.max(contentRight, loopRight);
-      }
-    } else {
-      const fromX = participantX.get(step.from);
-      const toX = participantX.get(step.to);
-      if (fromX !== undefined && toX !== undefined) {
-        const midX = (fromX + toX) / 2;
-        contentLeft = Math.min(contentLeft, midX - labelW / 2);
-        contentRight = Math.max(contentRight, midX + labelW / 2);
-      }
-    }
-  }
-  // Scan right-positioned notes for overflow past the right edge
-  if (elements) {
-    const scanNotes = (els: readonly SequenceElement[]): void => {
-      for (const el of els) {
-        if (isSequenceNote(el)) {
-          const note = el as SequenceNote;
-          const pos = effectiveNotePosition(note);
-          if (pos === 'right') {
-            const px = participantX.get(note.participantId);
-            if (px !== undefined) {
-              const sc = isNoteAfterSelfCall(note);
-              const rOff = sc
-                ? sActivationWidth / 2 + sSelfCallWidth + sNoteGap
-                : sActivationWidth + sNoteGap;
-              const maxW = noteEffectiveMaxW(note.participantId, pos, sc);
-              contentRight = Math.max(contentRight, px + rOff + maxW);
-            }
-          }
-        } else if (isSequenceBlock(el)) {
-          scanNotes(el.children);
-          scanNotes(el.elseChildren);
-          if (el.elseIfBranches) {
-            for (const b of el.elseIfBranches) scanNotes(b.children);
+  // Post-layout content scan: detect labels/notes that overflow the SVG
+  // boundaries. Message labels render at a fixed 12px font (unscaled) so they
+  // can extend past the scaled participant grid at small scale factors.
+  //
+  // This must ITERATE. A single pass is coordinate-inconsistent in two ways:
+  //   1. Padding the left margin shifts the whole grid rightward, which moves
+  //      right-edge content that was already measured — leaving the right pad
+  //      short by exactly the left pad (content clips off the right edge).
+  //   2. When the container is wider than the diagram, the centering term only
+  //      absorbs a fraction of a one-shot pad, so left content can still poke
+  //      out negative.
+  // Re-scanning in the shifted frame until stable resolves both. Padding only
+  // ever grows, so this converges in a couple of passes; cap it for safety.
+  //
+  // The activation-width safety margin covers a second mismatch: the scan places
+  // message labels at the lifeline-center midpoint, but the renderer anchors
+  // them at the activation-box-edge midpoint (see the `midX = (x1 + x2) / 2`
+  // using `arrowEdgeX` below). Those differ by up to half an activation width
+  // when the two endpoints' activation states are asymmetric.
+  // Half an activation width covers the lifeline-center vs activation-edge
+  // mismatch; +2px covers the label's stroke halo (`stroke-width: 4`, painted
+  // under the fill) so glyph edges never touch the viewBox boundary.
+  const labelSafety = sActivationWidth / 2 + 2;
+  const scanNotes = (
+    els: readonly SequenceElement[],
+    acc: { right: number }
+  ): void => {
+    for (const el of els) {
+      if (isSequenceNote(el)) {
+        const note = el as SequenceNote;
+        const pos = effectiveNotePosition(note);
+        if (pos === 'right') {
+          const px = participantX.get(note.participantId);
+          if (px !== undefined) {
+            const sc = isNoteAfterSelfCall(note);
+            const rOff = sc
+              ? sActivationWidth / 2 + sSelfCallWidth + sNoteGap
+              : sActivationWidth + sNoteGap;
+            const maxW = noteEffectiveMaxW(note.participantId, pos, sc);
+            acc.right = Math.max(acc.right, px + rOff + maxW);
           }
         }
+      } else if (isSequenceBlock(el)) {
+        scanNotes(el.children, acc);
+        scanNotes(el.elseChildren, acc);
+        if (el.elseIfBranches) {
+          for (const b of el.elseIfBranches) scanNotes(b.children, acc);
+        }
       }
-    };
-    scanNotes(elements);
-  }
-  const neededLeftPad = Math.max(0, -contentLeft);
-  const neededRightPad = Math.max(0, contentRight - svgWidth);
-  if (neededLeftPad > 0 || neededRightPad > 0) {
+    }
+  };
+  for (let pass = 0; pass < 4; pass++) {
+    let contentLeft = 0;
+    let contentRight = svgWidth;
+    for (const step of renderSteps) {
+      if (!step.label) continue;
+      const labelW = measureText(step.label, 12);
+      if (step.from === step.to) {
+        const px = participantX.get(step.from);
+        if (px !== undefined) {
+          const loopRight =
+            px +
+            sActivationWidth / 2 +
+            sSelfCallWidth +
+            5 +
+            labelW +
+            labelSafety;
+          contentRight = Math.max(contentRight, loopRight);
+        }
+      } else {
+        const fromX = participantX.get(step.from);
+        const toX = participantX.get(step.to);
+        if (fromX !== undefined && toX !== undefined) {
+          const midX = (fromX + toX) / 2;
+          contentLeft = Math.min(contentLeft, midX - labelW / 2 - labelSafety);
+          contentRight = Math.max(
+            contentRight,
+            midX + labelW / 2 + labelSafety
+          );
+        }
+      }
+    }
+    // Scan right-positioned notes for overflow past the right edge
+    if (elements) {
+      const acc = { right: contentRight };
+      scanNotes(elements, acc);
+      contentRight = acc.right;
+    }
+    const neededLeftPad = Math.max(0, -contentLeft);
+    const neededRightPad = Math.max(0, contentRight - svgWidth);
+    if (neededLeftPad <= 0.5 && neededRightPad <= 0.5) break;
     leftMargin += neededLeftPad;
     rightMargin += neededRightPad;
     totalWidth = Math.max(leftMargin + diagramWidth + rightMargin, sBoxW + 40);
@@ -1962,9 +2035,9 @@ export function renderSequenceDiagram(
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
-      .attr('x', svgWidth / 2)
+      .attr('x', header.inline ? header.titleX : svgWidth / 2)
       .attr('y', ctx.structural(TITLE_Y))
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.inline ? header.titleAnchor : 'middle')
       .attr('fill', palette.text)
       .attr('font-size', ctx.text(TITLE_FONT_SIZE))
       .attr('font-weight', TITLE_FONT_WEIGHT)
@@ -3035,9 +3108,21 @@ export function renderSequenceDiagram(
     const legendG = svg
       .append('g')
       .attr('class', 'sequence-legend')
-      .attr('transform', `translate(0,${legendY})`);
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0,${legendY})`
+      );
     renderIntegratedLegend(legendG, {
       ...legendConfig,
+      // Inline → left-origin so the wrapper's right-flush translate lands the
+      // legend at the header's right edge; stacked → centered below the title
+      // (identical to legendConfig.position, so the stacked path is unchanged).
+      position: {
+        placement: 'top-center',
+        titleRelation: header.inline ? 'inline-with-title' : 'below-title',
+      },
       palette,
       isDark,
       width: svgWidth,

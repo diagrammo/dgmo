@@ -16,7 +16,12 @@
 // Visual conventions: `docs/architecture/diagram-visual-conventions.md` §1/§2/§4.
 
 import * as d3Selection from 'd3-selection';
-import { fillModeFromOptions, legendSuppressed } from '../utils/parsing';
+import {
+  fillModeFromOptions,
+  legendSuppressed,
+  legendInlineRequested,
+} from '../utils/parsing';
+import { layoutInlineHeader } from '../utils/inline-header';
 import { FONT_FAMILY } from '../fonts';
 import {
   TITLE_FONT_SIZE,
@@ -32,7 +37,10 @@ import {
 import { resolveColor } from '../colors';
 import { resolveTagColor, tagAttrKey } from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
-import { getMaxLegendReservedHeight } from '../utils/legend-layout';
+import {
+  getMaxLegendReservedHeight,
+  getLegendExtent,
+} from '../utils/legend-layout';
 import { LEGEND_GROUP_GAP } from '../utils/legend-constants';
 import type { LegendConfig } from '../utils/legend-types';
 import { measureText } from '../utils/text-measure';
@@ -177,7 +185,41 @@ export function renderFamilyForExport(
   const legendReserve = hasLegend
     ? getMaxLegendReservedHeight(legendConfig, W) + LEGEND_GROUP_GAP
     : 0;
-  const chrome = titleReserve + legendReserve;
+
+  // §1.9 `legend-inline` (decision #50): try a one-line header (title left,
+  // legend flushed right). Falls back to the stacked band when it can't fit.
+  const inlineRequested = legendInlineRequested(parsed.options);
+  const legendExtent =
+    inlineRequested && hasLegend
+      ? getLegendExtent(
+          {
+            groups: legendGroups,
+            position: {
+              placement: 'top-center',
+              titleRelation: 'inline-with-title',
+            },
+            mode: opts.exportMode ? 'export' : 'preview',
+            showInactivePills: true,
+          },
+          { activeGroup: activeTagGroup },
+          W
+        )
+      : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: parsed.title ?? '',
+    hasLegend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: W,
+    titleBandHeight: titleReserve,
+    legendReserve,
+    titleBaselineY: TITLE_Y,
+    titleFontSize: TITLE_FONT_SIZE,
+  });
+
+  // Inline → one band (title only); stacked → title + legend band.
+  const chrome = titleReserve + (header.inline ? 0 : legendReserve);
   let scale = 1;
   let H: number;
   if (opts.fit) {
@@ -218,9 +260,10 @@ export function renderFamilyForExport(
   if (parsed.title) {
     svg
       .append('text')
-      .attr('x', W / 2)
+      .attr('class', 'chart-title')
+      .attr('x', header.titleX)
       .attr('y', TITLE_Y)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
@@ -231,9 +274,20 @@ export function renderFamilyForExport(
   if (hasLegend) {
     const legendParent = svg
       .append('g')
-      .attr('transform', `translate(0, ${titleReserve})`) as unknown as D3G;
+      .attr(
+        'transform',
+        header.inline
+          ? `translate(${header.legendX}, ${header.legendY})`
+          : `translate(0, ${titleReserve})`
+      ) as unknown as D3G;
     renderIntegratedLegend(legendParent, {
       ...legendConfig,
+      // Inline → left-origin so the wrapper's right-flush translate lands the
+      // legend at the chart's right edge; stacked → centered below the title.
+      position: {
+        placement: 'top-center',
+        titleRelation: header.inline ? 'inline-with-title' : 'below-title',
+      },
       palette,
       isDark,
       width: W,
