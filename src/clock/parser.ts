@@ -53,6 +53,7 @@ const DIRECTIVES = new Set([
   'no-sun',
   'time-24',
   'no-title',
+  'legend-inline',
   // Canonical direction booleans (§1.9); key+value `direction <lr|tb>` (and
   // its `columns` value alias) stays parse-accepted legacy. These MUST be in
   // this set — otherwise a bare `direction-lr` line parses as a zone entry.
@@ -280,6 +281,9 @@ export function parseClock(
           break;
         case 'no-title':
           result.noTitle = true;
+          break;
+        case 'legend-inline':
+          // §1.9 universal — accepted as a no-op (clock has no legend).
           break;
         case 'fill-tint':
         case 'fill-solid':
