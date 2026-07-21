@@ -36,7 +36,9 @@ import { renderIntegratedLegend } from '../utils/legend-integration';
 import {
   controlsGroupCapsuleWidth,
   getMaxLegendReservedHeight,
+  getLegendExtent,
 } from '../utils/legend-layout';
+import { layoutInlineHeader, INLINE_HEADER_PAD } from '../utils/inline-header';
 import type { LegendCallbacks } from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
@@ -402,6 +404,38 @@ export function renderGantt(
   const sSprintLabelReserve = ctx.structural(sprintLabelReserve);
   const sTitleHeight = ctx.aesthetic(titleHeight);
   const sTagLegendReserve = ctx.structural(tagLegendReserve);
+
+  // §1.9 `legend-inline` (decision #50): one-line header when tag groups exist
+  // (controls-only legends stay stacked — their width isn't in the extent probe).
+  const inlineRequested =
+    resolved.options.legendInline === true && resolved.tagGroups.length > 0;
+  const legendExtent = inlineRequested
+    ? getLegendExtent(
+        {
+          groups: resolved.tagGroups.map((tg) => ({
+            name: tg.name,
+            entries: tg.entries,
+          })),
+          position: { placement: 'top-center', titleRelation: 'inline-with-title' },
+          mode: 'preview',
+          capsulePillAddonWidth: LEGEND_ICON_W,
+        },
+        { activeGroup: currentActiveGroup },
+        containerWidth
+      )
+    : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: title ?? '',
+    hasLegend: hasTagLegend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth,
+    titleBandHeight: sTitleHeight,
+    legendReserve: sTagLegendReserve,
+    titleBaselineY: sTitleY,
+    titleFontSize: sTitleFontSize,
+  });
   const sEraReserve = ctx.structural(eraReserve);
   const sMarkerReserve = ctx.structural(markerReserve);
   const sTodayReserve = ctx.structural(todayReserve);
@@ -410,7 +444,7 @@ export function renderGantt(
 
   const sMarginTop =
     sTitleHeight +
-    sTagLegendReserve +
+    (header.inline ? 0 : sTagLegendReserve) +
     sEraReserve +
     sMarkerReserve +
     sTodayReserve +
@@ -457,9 +491,9 @@ export function renderGantt(
     svg
       .append('text')
       .attr('class', 'chart-title')
-      .attr('x', containerWidth / 2)
+      .attr('x', header.titleX)
       .attr('y', sTitleY)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
@@ -471,7 +505,7 @@ export function renderGantt(
   function drawLegend() {
     svg.selectAll('.gantt-tag-legend-container').remove();
     if (hasTagLegend) {
-      const legendY = sTitleHeight;
+      const legendY = header.inline ? header.legendY : sTitleHeight;
       renderTagLegend(
         svg,
         g,
@@ -525,7 +559,8 @@ export function renderGantt(
           drawLegend();
         },
         options?.exportMode ?? false,
-        controlsHost
+        controlsHost,
+        header.inline
       );
     }
   }
@@ -2082,7 +2117,8 @@ function renderTagLegend(
   dependenciesActive = false,
   onControlsToggle?: (toggleId: string, active: boolean) => void,
   exportMode = false,
-  controlsHost: 'app' | 'inline' = 'inline'
+  controlsHost: 'app' | 'inline' = 'inline',
+  inlineHeader = false
 ): void {
   // Build visible groups: active group expanded + swimlane group as compact pill
   let visibleGroups: TagGroup[];
@@ -2179,9 +2215,11 @@ function renderTagLegend(
       : LEGEND_GEAR_PILL_W;
   }
 
-  // Center over full container (matching title centering)
+  // Center over full container (matching title centering); inline → flush right.
   const containerWidth = chartLeftMargin + chartInnerWidth + RIGHT_MARGIN;
-  const legendX = (containerWidth - totalW) / 2;
+  const legendX = inlineHeader
+    ? containerWidth - INLINE_HEADER_PAD - totalW
+    : (containerWidth - totalW) / 2;
 
   const legendRow = svg
     .append('g')
@@ -2332,6 +2370,12 @@ function renderTagLegend(
       width: tagGroupsW,
       mode: exportMode ? 'export' : 'preview',
       capsulePillAddonWidth: iconReserve,
+      ...(inlineHeader && {
+        position: {
+          placement: 'top-center' as const,
+          titleRelation: 'inline-with-title' as const,
+        },
+      }),
       ...(controlsToggles.length > 0 && {
         controlsGroup: { toggles: controlsToggles },
       }),
