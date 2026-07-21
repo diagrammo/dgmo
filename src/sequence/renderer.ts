@@ -783,23 +783,29 @@ export function applyPositionOverrides(
 // ============================================================
 
 /**
- * Reorder participants so that members of the same group are adjacent.
- * Groups are positioned at the point where their first member would naturally
- * appear based on message order (first-occurrence positioning). This prevents
- * groups declared at the top of the file from being placed before participants
- * that appear in messages earlier.
+ * Order participants by first appearance in messages, then pull grouped
+ * members adjacent.
  *
- * Explicit `position` overrides are handled separately by `applyPositionOverrides`.
+ * The baseline is first-occurrence order (spec §2.2 priority 3): the first
+ * participant referenced by a message gets the leftmost column, regardless of
+ * declaration order. A bare declaration line assigns a tag/type only — it does
+ * NOT pin a column. Participants that never appear in any message fall back to
+ * declaration order (priority 4) and are appended after the message-referenced
+ * ones.
+ *
+ * When spatial `[Group]` boxes exist (priority 2), each group's members are
+ * pulled adjacent at the group's first-appearance anchor, overriding their
+ * individual appearance slots. With no groups this reduces to pure
+ * appearance order.
+ *
+ * Explicit `position` overrides (priority 1) are handled separately by
+ * `applyPositionOverrides`, which runs after this pass.
  */
 export function applyGroupOrdering(
   participants: readonly SequenceParticipant[],
   groups: readonly SequenceGroup[],
   messages: readonly SequenceMessage[] = []
 ): SequenceParticipant[] {
-  // Copy to a mutable array on the no-op path so callers always get a
-  // fresh `SequenceParticipant[]` regardless of input mutability.
-  if (groups.length === 0) return [...participants];
-
   // Build a map: participantId → group
   const idToGroup = new Map<string, SequenceGroup>();
   for (const group of groups) {
