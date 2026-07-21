@@ -18,6 +18,7 @@
 
 import {
   fixedParts,
+  fixedTimeCells,
   formatTime,
   handAngles,
   rampColor,
@@ -52,6 +53,36 @@ function setHand(group: Element, which: string, angle: number): void {
 function setPart(group: Element, sel: string, textContent: string): void {
   const el = group.querySelector(sel);
   if (el && el.textContent !== textContent) el.textContent = textContent;
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * Rebuild the digital HH:MM as fixed cells (matching the renderer's initial
+ * paint via the shared fixedTimeCells) and re-hug the seconds/am-pm stack to the
+ * new width. Only touches the DOM when the string actually changed — the minute
+ * ticks once a minute, the hour's digit-count changes at most once an hour. See
+ * fixedTimeCells for why per-glyph cells beat tabular-nums / textLength here.
+ */
+function setDigits(group: Element, main: string): void {
+  const el = group.querySelector('[data-dgmo-clock-digital-part="main"]');
+  if (!el || el.textContent === main) return;
+  const x0 = parseFloat(el.getAttribute('data-dgmo-clock-x0') ?? '0');
+  const fs = parseFloat(el.getAttribute('data-dgmo-clock-fs') ?? '0');
+  const gap = parseFloat(el.getAttribute('data-dgmo-clock-gap') ?? '0');
+  const { cells, width } = fixedTimeCells(main, x0, fs);
+  while (el.firstChild) el.removeChild(el.firstChild);
+  for (const c of cells) {
+    const t = document.createElementNS(SVG_NS, 'tspan');
+    t.setAttribute('x', String(c.x));
+    t.textContent = c.ch;
+    el.appendChild(t);
+  }
+  const stackX = String(x0 + width + gap);
+  for (const part of ['sec', 'ap']) {
+    const s = group.querySelector(`[data-dgmo-clock-digital-part="${part}"]`);
+    if (s) s.setAttribute('x', stackX);
+  }
 }
 
 /** Update one `[data-dgmo-clock]` row against `now`. */
@@ -122,7 +153,7 @@ function updateRow(group: Element, now: number): void {
   }
 
   // ── Digital readout (main + dim :SS + am/pm) + weekday sub-line. ──
-  setPart(group, '[data-dgmo-clock-digital-part="main"]', ts.main);
+  setDigits(group, ts.main);
   setPart(group, '[data-dgmo-clock-digital-part="sec"]', `:${ts.sec}`);
   // `ap` is its own stacked node (seconds above / am-pm below) — no leading
   // space (that would nudge it right of its `x` after the first tick).

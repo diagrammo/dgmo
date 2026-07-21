@@ -624,6 +624,27 @@ describe('clock ticker', () => {
     expect(sec()).toBe(':22');
   });
 
+  it('lays the digital time as fixed cells and re-hugs the stack on width change', () => {
+    // One <tspan> per glyph (uniform cells) + baked layout params so the ticker
+    // can rebuild them — replaces the old textLength/tabular-nums pinning that
+    // distorted in WebKit.
+    const c = renderAt(`clock Ops\nUTC+0 as X`, '2026-07-10T08:59:07Z');
+    const main = c.querySelector('[data-dgmo-clock-digital-part="main"]')!;
+    const sec = c.querySelector('[data-dgmo-clock-digital-part="sec"]')!;
+    expect(main.textContent).toBe('8:59');
+    expect(main.querySelectorAll('tspan')).toHaveLength(4); // 8 : 5 9
+    expect(main.getAttribute('data-dgmo-clock-x0')).not.toBeNull();
+    expect(main.getAttribute('data-dgmo-clock-fs')).not.toBeNull();
+    const secX8 = parseFloat(sec.getAttribute('x')!);
+    // 08:59 → 10:05: the hour gains a digit, so the block widens and the
+    // seconds/am-pm stack must slide right to keep hugging it.
+    vi.setSystemTime(Date.parse('2026-07-10T10:05:00Z'));
+    tickClocks(c);
+    expect(main.textContent).toBe('10:05');
+    expect(main.querySelectorAll('tspan')).toHaveLength(5); // 1 0 : 0 5
+    expect(parseFloat(sec.getAttribute('x')!)).toBeGreaterThan(secX8);
+  });
+
   it('rotates analog hands and recolors on tick', () => {
     const c = renderAt(`clock T\nanalog\nLondon`, '2026-07-10T15:30:07Z');
     const hourHand = c.querySelector('[data-dgmo-clock-hand="h"]')!;

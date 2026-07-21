@@ -240,6 +240,36 @@ export function formatTime(
   return { main: `${pad2(h)}:${pad2(m)}`, sec, ap: '' };
 }
 
+/**
+ * Lay out an `HH:MM` string as fixed cells so digit advance is uniform on every
+ * surface. resvg ignores `font-variant-numeric: tabular-nums` (it shapes Inter
+ * proportionally — '1'≈0.41em, '4'≈0.65em) and Safari drops it on SVG `<text>`,
+ * so trusting the font's tabular feature can't align the digits everywhere. The
+ * old fix — pinning the block to an estimated width with `textLength` +
+ * `lengthAdjust="spacing"` — visibly distorts in WebKit (it redistributes the
+ * width error as inter-glyph gaps: `2 : 4 4`). Instead we position each glyph
+ * ourselves in a uniform cell and center it (pair with `text-anchor="middle"`),
+ * which every engine honors identically. Digits never reflow on tick and the
+ * seconds/am-pm stack hugs `x0 + width` exactly. Shared by the renderer (initial
+ * paint) and the ticker (rebuild on tick) so the two can never disagree.
+ */
+export function fixedTimeCells(
+  s: string,
+  x0: number,
+  fs: number
+): { cells: { readonly ch: string; readonly x: number }[]; width: number } {
+  const digit = fs * 0.6;
+  const colon = fs * 0.32;
+  const cells: { ch: string; x: number }[] = [];
+  let x = x0;
+  for (const ch of s) {
+    const cw = ch === ':' ? colon : digit;
+    cells.push({ ch, x: x + cw / 2 });
+    x += cw;
+  }
+  return { cells, width: x - x0 };
+}
+
 /** The result of a working-hours evaluation. */
 export interface WorkStatus {
   readonly cls: WorkClass;

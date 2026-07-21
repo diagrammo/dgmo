@@ -29,6 +29,7 @@ import type { D3Sel } from '../utils/legend-types';
 import type { ClockColorBy, ClockEntry, ParsedClock } from './types';
 import {
   fixedParts,
+  fixedTimeCells,
   formatTime,
   handAngles,
   rampColor,
@@ -704,30 +705,28 @@ function drawRow(
     const baseY = center + 16;
     const capTop = baseY - mainFont * 0.7;
     const sf = 20;
-    // Pin the digits to an exact advance so the :SS / am-pm stack always hugs
-    // them. Per-surface shaping diverges — the browser honours tabular-nums
-    // (uniform ~0.6em figures) while resvg ignores it and shapes proportional
-    // ('1'≈0.43em, '4'≈0.68em) — so no fixed em estimate can anchor the stack on
-    // both. `textLength` forces every renderer to this width; the estimate just
-    // needs to sit near the tabular natural width to keep distortion tiny.
-    const mainW = [...ts.main].reduce(
-      (w, c) => w + mainFont * (c === ':' ? 0.334 : 0.6),
-      0
-    );
-    const stackX = contentLeft + mainW + 5;
-    g.append('text')
+    // Fixed-cell digits (see fixedTimeCells) — uniform advance on every engine
+    // without leaning on tabular-nums (resvg/Safari drop it) or textLength
+    // (WebKit distorts `lengthAdjust=spacing`). The seconds/am-pm stack hugs
+    // `x0 + width`; the ticker rebuilds the cells from the baked x0/fs/gap.
+    const gap = 5;
+    const { cells, width: mainW } = fixedTimeCells(ts.main, contentLeft, mainFont);
+    const stackX = contentLeft + mainW + gap;
+    const mainText = g
+      .append('text')
       .attr('data-dgmo-clock-digital', '')
       .attr('data-dgmo-clock-digital-part', 'main')
-      .attr('x', contentLeft)
       .attr('y', baseY)
+      .attr('text-anchor', 'middle')
       .attr('fill', timeColor)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', mainFont)
       .attr('font-weight', 600)
-      .attr('textLength', mainW)
-      .attr('lengthAdjust', 'spacing')
-      .style('font-variant-numeric', 'tabular-nums')
-      .text(ts.main);
+      .attr('data-dgmo-clock-x0', contentLeft)
+      .attr('data-dgmo-clock-fs', mainFont)
+      .attr('data-dgmo-clock-gap', gap);
+    for (const c of cells)
+      mainText.append('tspan').attr('x', c.x).text(c.ch);
     g.append('text')
       .attr('data-dgmo-clock-digital-part', 'sec')
       .attr('x', stackX)
@@ -1127,29 +1126,29 @@ function drawColumns(
       const gap = 11; // horizontal breathing room between digits and the stack
       const cap = 0.7; // Inter figure cap-height as a fraction of font size
       const tf = fitFont(ts.main, 54, innerW - 30 - gap, 20);
-      // Pin the digits to an exact advance so the stack always hugs them —
-      // `textLength` overrides the per-surface shaping split (browser tabular
-      // ~0.6em vs resvg proportional). The estimate only sets the target width.
-      const mainW = [...ts.main].reduce(
-        (w, c) => w + tf * (c === ':' ? 0.334 : 0.6),
-        0
-      );
+      // Fixed-cell digits (see fixedTimeCells) — uniform advance on every engine
+      // without tabular-nums (resvg/Safari drop it) or textLength (WebKit
+      // distorts `lengthAdjust=spacing`). Measure width first to center the
+      // whole group in the column, then lay the cells from the left edge.
+      const mainW = fixedTimeCells(ts.main, 0, tf).width;
       const stackW = Math.max(estWidth(`:${ts.sec}`, sf), estWidth(ts.ap, sf));
       const gLeft = cx - (mainW + gap + stackW) / 2;
       const baseY = cy + tf * 0.34;
-      g.append('text')
+      const mainText = g
+        .append('text')
         .attr('data-dgmo-clock-digital', '')
         .attr('data-dgmo-clock-digital-part', 'main')
-        .attr('x', gLeft)
         .attr('y', baseY)
+        .attr('text-anchor', 'middle')
         .attr('fill', timeColor)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', tf)
         .attr('font-weight', 600)
-        .attr('textLength', mainW)
-        .attr('lengthAdjust', 'spacing')
-        .style('font-variant-numeric', 'tabular-nums')
-        .text(ts.main);
+        .attr('data-dgmo-clock-x0', gLeft)
+        .attr('data-dgmo-clock-fs', tf)
+        .attr('data-dgmo-clock-gap', gap);
+      for (const c of fixedTimeCells(ts.main, gLeft, tf).cells)
+        mainText.append('tspan').attr('x', c.x).text(c.ch);
       const stackX = gLeft + mainW + gap;
       // Seconds baseline sits `sf·cap` below the digit top → its cap top aligns
       // with the digits' top.
