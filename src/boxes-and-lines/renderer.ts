@@ -549,10 +549,20 @@ export function renderBoxesAndLines(
   }
 
   const contentW = layout.width;
-  const contentH = layout.height + titleOffset + legendH + labelZoneExtension;
+
+  // Title, legend and the group-label zone are drawn at FIXED pixel sizes
+  // OUTSIDE the scaled content group (see `offsetY` below — it is unscaled).
+  // Only `layout.height` scales. Reserve that fixed overhead by subtracting it
+  // from the available height rather than folding it into the scaled
+  // denominator — otherwise, when `scale < 1`, the unscaled top overhead plus
+  // the scaled content overshoots the viewport and the diagram bleeds past the
+  // bottom edge. Clamp the numerator so a viewport shorter than the overhead
+  // still yields a positive scale instead of flipping the content inside-out.
+  const vOverhead = titleOffset + legendH + labelZoneExtension;
+  const availH = Math.max(1, height - vOverhead - sDiagramPadding * 2);
 
   const scaleX = width / (contentW + sDiagramPadding * 2);
-  const scaleY = height / (contentH + sDiagramPadding * 2);
+  const scaleY = availH / layout.height;
   const scale = Math.min(scaleX, scaleY, 3);
 
   const offsetX = (width - contentW * scale) / 2;

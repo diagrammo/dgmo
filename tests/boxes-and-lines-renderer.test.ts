@@ -374,3 +374,47 @@ describe('boxes-and-lines renderer — value ramp', () => {
     expect(divider.getAttribute('stroke')).not.toBe(rectFill);
   });
 });
+
+describe('boxes-and-lines renderer — fit within viewport', () => {
+  // A tall, titled+legended graph forced into a short landscape viewport must
+  // scale so ALL content stays inside the canvas. Regression: the title/legend
+  // overhead is drawn unscaled, so folding it into the scaled denominator let
+  // the diagram bleed past the bottom edge whenever scale < 1.
+  const TALL_SRC = [
+    'boxes-and-lines Deep Stack',
+    'tag Type as t',
+    '  Web red',
+    '  Service blue',
+    ...Array.from({ length: 14 }, (_, i) => {
+      const n = i + 1;
+      return `N${n} t:Service\n  -> N${n + 1}`;
+    }),
+    'N15 t:Web',
+  ].join('\n');
+
+  async function scaledBottom(width: number, height: number): Promise<number> {
+    const parsed = parseBoxesAndLines(TALL_SRC);
+    const layout = await layoutBoxesAndLines(parsed);
+    const el = document.createElement('div');
+    renderBoxesAndLines(el, parsed, layout, P, false, {
+      exportDims: { width, height },
+    });
+    const g = el.querySelector<SVGGElement>('g[transform*="scale"]')!;
+    const t = g.getAttribute('transform')!;
+    const scale = Number(/scale\(([\d.]+)\)/.exec(t)![1]);
+    const oy = Number(/translate\([-\d.]+,([-\d.]+)\)/.exec(t)![1]);
+    return oy + layout.height * scale;
+  }
+
+  it('keeps scaled content within the viewport height when scale < 1', async () => {
+    // Short landscape viewport → binding constraint is height, scale < 1.
+    const H = 620;
+    expect(await scaledBottom(1100, H)).toBeLessThanOrEqual(H);
+  });
+
+  it('stays inside the viewport across a range of short heights', async () => {
+    for (const H of [980, 700, 560, 420]) {
+      expect(await scaledBottom(1050, H)).toBeLessThanOrEqual(H);
+    }
+  });
+});

@@ -1388,11 +1388,20 @@ export async function layoutBoxesAndLinesSearch(
   // pirate-fleet K2,2). Their peripheral back-edges are curved loops that the
   // cheap straight-segment ranker mis-scores, so they bypass stage-1 and are
   // ALWAYS exact-scored in stage 2. Best-effort: never block the dagre pool.
+  //
+  // Skipped when any group is collapsed: `layeredCandidates` keys off
+  // `parsed.groups` (empty after collapse) and emits `groups: []`, so it is
+  // blind to the `__group_<label>` placeholder boxes the collapse transform
+  // introduces. Left unguarded it would produce a flat candidate that drops
+  // every collapsed-group box AND its incident edges, then win on badness for
+  // exactly those missing lines — leaving the diagram with no collapsed groups.
   let layered: BLLayoutResult[] = [];
-  try {
-    layered = layeredCandidates(parsed, sizes);
-  } catch {
-    /* ignore */
+  if (collapsedGroupLabels.size === 0) {
+    try {
+      layered = layeredCandidates(parsed, sizes);
+    } catch {
+      /* ignore */
+    }
   }
 
   // Tier-banded grouped candidates. The dagre path treats `[Group]` containers

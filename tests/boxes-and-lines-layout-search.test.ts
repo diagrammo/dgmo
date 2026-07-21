@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseBoxesAndLines } from '../src/boxes-and-lines/parser';
+import { collapseBoxesAndLines } from '../src/boxes-and-lines/collapse';
 import {
   layoutBoxesAndLines,
   type BLLayoutResult,
@@ -192,5 +193,55 @@ describe('countSplineCrossings', () => {
     expect(countSplineCrossings(layout, Infinity)).toBe(exact);
     // A floor at/above the exact count must not alter the result.
     expect(countSplineCrossings(layout, exact)).toBe(exact);
+  });
+});
+
+describe('boxes-and-lines collapse-all layout', () => {
+  // Two groups plus a couple of bare nodes and cross-group edges. When BOTH
+  // groups collapse, `parsed.groups` is empty — which used to make the flat
+  // `layeredCandidates` generator kick in, drop the `__group_*` boxes and their
+  // incident edges, then win on badness. Every collapsed group must still
+  // materialise as a box and keep its cross-group edges.
+  const GROUPED = [
+    'boxes-and-lines',
+    '[Frontend]',
+    '  Web',
+    '  Mobile',
+    '[Backend]',
+    '  API',
+    '  DB',
+    'Web -> API',
+    'Mobile -> API',
+    'API -> DB',
+    'Gateway -> API',
+    'Web -> Gateway',
+    'Gateway',
+  ].join('\n');
+
+  it('materialises every collapsed group as a box and keeps cross-group edges', async () => {
+    const parsed = parseBoxesAndLines(GROUPED);
+    const all = new Set(parsed.groups.map((g) => g.label));
+    const col = collapseBoxesAndLines(parsed, all);
+    const layout = await layoutBoxesAndLines(col.parsed, {
+      collapsedChildCounts: col.collapsedChildCounts,
+      originalGroups: col.originalGroups,
+    });
+
+    const collapsed = layout.groups.filter((g) => g.collapsed);
+    expect(collapsed.map((g) => g.label).sort()).toEqual([
+      'Backend',
+      'Frontend',
+    ]);
+    // Both collapsed boxes carry their direct child count.
+    for (const g of collapsed) expect(g.childCount).toBe(2);
+
+    // An edge from the bare Gateway node INTO a collapsed group survives,
+    // rerouted to the group placeholder — nothing is silently dropped.
+    const toBackend = layout.edges.some(
+      (e) => e.target === '__group_Backend' || e.source === '__group_Backend'
+    );
+    expect(toBackend).toBe(true);
+    // The bare node is still present.
+    expect(layout.nodes.some((n) => n.label === 'Gateway')).toBe(true);
   });
 });
