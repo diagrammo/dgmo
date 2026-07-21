@@ -299,6 +299,7 @@ export function tagDatum<E extends Element>(
     name?: string;
     value?: string | number;
     color?: string;
+    seriesName?: string | undefined;
   }
 ): d3Selection.Selection<E, unknown, null, undefined> {
   const cls = (sel.attr('class') ?? '').split(/\s+/).filter(Boolean);
@@ -309,6 +310,9 @@ export function tagDatum<E extends Element>(
   if (o.name != null) sel.attr('data-name', o.name);
   if (o.value != null) sel.attr('data-value', String(o.value));
   if (o.color != null) sel.attr('data-color', o.color);
+  // Legend-hover emphasis (interactions.ts) dims non-matching datums by
+  // data-series-name; multi-series bars set it so the series legend can drive it.
+  if (o.seriesName != null) sel.attr('data-series-name', o.seriesName);
   return sel;
 }
 

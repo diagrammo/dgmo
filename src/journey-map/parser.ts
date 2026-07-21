@@ -56,6 +56,7 @@ const KNOWN_BOOLEANS = new Set([
   'fill-outline',
   'no-title',
   'no-legend',
+  'legend-inline',
 ]);
 
 // ============================================================

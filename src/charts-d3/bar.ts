@@ -74,7 +74,7 @@ export function renderBar(
   const colorFor = (seriesIdx: number, catIdx: number, override?: string) => {
     if (override) return override;
     return multiSeries
-      ? colors[seriesIdx % colors.length]!
+      ? (chart.seriesNameColors?.[seriesIdx] ?? colors[seriesIdx % colors.length]!)
       : colors[catIdx % colors.length]!;
   };
   const fillOf = (c: string) =>
@@ -216,6 +216,7 @@ export function renderBar(
         name: multiSeries ? `${d.label} · ${sName}` : d.label,
         value: v,
         color: stroke,
+        seriesName: multiSeries ? sName : undefined,
       };
       if (stacked) {
         if (horiz) {
@@ -327,7 +328,14 @@ function rect(
   h: number,
   fill: string,
   stroke: string,
-  tag: { line: number; key: string; name: string; value: number; color: string }
+  tag: {
+    line: number;
+    key: string;
+    name: string;
+    value: number;
+    color: string;
+    seriesName?: string | undefined;
+  }
 ): void {
   const r = svg
     .append('rect')

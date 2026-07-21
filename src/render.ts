@@ -3,6 +3,8 @@ import { renderDataChartD3 } from './charts-d3';
 import { injectHoverStyles } from './utils/hover-styles';
 import { getRenderCategory, parseDgmo } from './dgmo-router';
 import type { DgmoError } from './diagnostics';
+import { makeDgmoError } from './diagnostics';
+import { legendInlineSupported } from './utils/inline-header';
 import { getPalette } from './palettes/registry';
 import type { CompactViewState } from './sharing';
 
@@ -191,6 +193,26 @@ export async function render(
       ? getRenderCategory(chartType)
       : null;
 
+  // §1.9 `legend-inline` (decision #50): warn when the directive is present on a
+  // chart type that doesn't render a one-line header — so it never silently
+  // pretends to work. Computed here but merged at each return (some render
+  // branches, e.g. map, reassign `diagnostics` and would drop it otherwise).
+  const legendInlineWarning = ((): DgmoError | null => {
+    if (!chartType || legendInlineSupported(chartType)) return null;
+    const idx = renderContent
+      .split('\n')
+      .findIndex((l) => l.trim().toLowerCase() === 'legend-inline');
+    if (idx < 0) return null;
+    return makeDgmoError(
+      idx + 1,
+      `'legend-inline' isn't supported for ${chartType} charts — the title and legend render stacked.`,
+      'warning',
+      'W_LEGEND_INLINE_UNSUPPORTED'
+    );
+  })();
+  const withLegendInlineWarning = (ds: DgmoError[]): DgmoError[] =>
+    legendInlineWarning ? [...ds, legendInlineWarning] : ds;
+
   // Build viewState from legendState (backwards compat) or use provided viewState
   const viewState: CompactViewState | undefined =
     options?.viewState ??
@@ -214,7 +236,7 @@ export async function render(
       // the SVG DOM for group values). No-op unless `chartType` has a registry
       // row and `bakeHover` is on.
       const svg = injectHoverStyles(raw, chartType, { bakeHover });
-      return { svg, diagnostics, chartType: chartType ?? undefined };
+      return { svg, diagnostics: withLegendInlineWarning(diagnostics), chartType: chartType ?? undefined };
     } finally {
       releaseDom();
     }
@@ -265,5 +287,5 @@ export async function render(
     diagnostics = [...mapDiag.current];
   }
 
-  return { svg, diagnostics, chartType: chartType ?? undefined };
+  return { svg, diagnostics: withLegendInlineWarning(diagnostics), chartType: chartType ?? undefined };
 }

@@ -80,6 +80,16 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
     hint: 'Provide a value or remove the key.',
     example: 'mindmap\nRoot color:\n  Child',
   },
+  {
+    code: 'W_LEGEND_INLINE_UNSUPPORTED',
+    severity: 'warning',
+    chartType: null,
+    title: 'legend-inline not supported',
+    message: () =>
+      "'legend-inline' isn't supported for this chart type — the title and legend render stacked.",
+    hint: 'Remove legend-inline, or use a chart type with a top-center capsule legend (e.g. bar, line, state, treemap, sequence, gantt).',
+    example: 'pie Share\nApples 30\nPears 70',
+  },
 
   // ── Data-chart `title` directive (decision #48) ──
   TITLE_DIRECTIVE_DX,

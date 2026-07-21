@@ -13,6 +13,46 @@ import { LEGEND_HEIGHT } from './legend-constants';
 import { measureText } from './text-measure';
 import { TITLE_FONT_SIZE, TITLE_Y } from './title-constants';
 
+/**
+ * Chart types that actually honour `legend-inline` (render title-left /
+ * legend-right). Any other type gets a "not supported" warning (decision #50)
+ * so the directive never silently misrepresents that it did something. Includes
+ * kanban / journey-map (which pioneered the one-line header) and sitemap /
+ * mindmap (inline in export; app-hosted header in preview).
+ */
+export const LEGEND_INLINE_SUPPORTED: ReadonlySet<string> = new Set([
+  // data charts
+  'bar',
+  'line',
+  'radar',
+  'scatter',
+  'function',
+  // structured
+  'state',
+  'treemap',
+  'block',
+  'event-line',
+  'boxes-and-lines',
+  'er',
+  'class',
+  'family',
+  'infra',
+  'sequence',
+  'sketch',
+  'bracket',
+  'gantt',
+  'pert',
+  'sitemap',
+  'mindmap',
+  'kanban',
+  'journey-map',
+]);
+
+/** True when `<type>` renders `legend-inline` (else callers should warn). */
+export function legendInlineSupported(type: string): boolean {
+  return LEGEND_INLINE_SUPPORTED.has(type.toLowerCase());
+}
+
 /** Left inset for the inline title; matches the legend band's own 8px. */
 export const INLINE_HEADER_PAD = 8;
 /** Minimum gap between the inline title and the legend. */

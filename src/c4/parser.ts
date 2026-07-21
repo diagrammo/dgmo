@@ -117,6 +117,7 @@ const KNOWN_C4_BOOLEANS = new Set<string>([
   'fill-outline',
   'no-title',
   'no-legend',
+  'legend-inline',
 ]);
 
 const ALL_CHART_TYPES = [

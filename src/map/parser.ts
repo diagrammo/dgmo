@@ -383,6 +383,10 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
       case 'no-legend':
         d.noLegend = true;
         break;
+      // §1.9 universal — accepted so it doesn't parse as a region; map renders no
+      // one-line header, so render.ts emits the "not supported" warning.
+      case 'legend-inline':
+        break;
       case 'no-coastline':
         d.noCoastline = true;
         break;
