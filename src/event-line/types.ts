@@ -48,8 +48,10 @@ export interface EventLineEra {
 }
 
 /**
- * A **now marker** (§28.6b) — a "grounded pin" at "today": a diamond planted on
- * the spine with a short stem to a labeled tab, slotted into a card-free lane.
+ * A **now marker** (§28.6b) — a "grounded pin" at "today": a palette-red
+ * (`palette.destructive`) diamond planted on the spine with a short stem to a
+ * labeled tab, slotted into a card-free lane, plus a dotted "today line" that
+ * fades out within the leader gap (full-height only on hover, preview).
  * `now` alone is *computed* (resolved to the render-time date);
  * `now <date>` *pins* it to an explicit ISO date (deterministic, snapshot-safe).
  * Only drawn on a to-scale axis (every event dated); ignored under `no-scale`.
