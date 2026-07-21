@@ -78,6 +78,7 @@ const DIRECTIVE_KEYS = new Set([
   'end-date',
   'no-title',
   'no-legend',
+  'legend-inline',
   'fill-tint',
   'fill-solid',
   'fill-outline',
@@ -1419,6 +1420,10 @@ function applyDirective(
     case 'no-legend': {
       // §1.9 universal — suppresses the tag legend row and its reserved band.
       options.noLegend = true;
+      return;
+    }
+    case 'legend-inline': {
+      options.legendInline = true;
       return;
     }
     case 'fill-solid': {

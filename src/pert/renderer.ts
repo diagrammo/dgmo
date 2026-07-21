@@ -59,6 +59,8 @@ import {
 import { LEGEND_HEIGHT as LEGEND_HEIGHT_CONST } from '../utils/legend-constants';
 import { resolveActiveTagGroup, resolveTagColor } from '../utils/tag-groups';
 import { renderIntegratedLegend } from '../utils/legend-integration';
+import { getLegendExtent } from '../utils/legend-layout';
+import { layoutInlineHeader, INLINE_HEADER_PAD } from '../utils/inline-header';
 import type {
   CaptionRow,
   LayoutResult,
@@ -522,6 +524,39 @@ export function renderPert(
   const svgW = ctx.isBelowFloor ? exportWidth : scaledWidth;
   const svgH = ctx.isBelowFloor ? exportHeight : scaledHeight;
 
+  // §1.9 `legend-inline` (decision #50): one-line header when tag groups exist.
+  const inlineRequested =
+    resolved.options.legendInline === true && showTagLegend;
+  const legendExtent = inlineRequested
+    ? getLegendExtent(
+        {
+          groups: resolved.tagGroups.map((g) => ({
+            name: g.name,
+            entries: g.entries,
+          })),
+          position: {
+            placement: 'top-center',
+            titleRelation: 'inline-with-title',
+          },
+          mode: options.exportMode ? 'export' : 'preview',
+        },
+        { activeGroup: tagLegendActive },
+        svgW
+      )
+    : { width: 0, height: 0 };
+  const header = layoutInlineHeader({
+    requested: inlineRequested,
+    title: effectiveTitle ?? '',
+    hasLegend: showTagLegend,
+    legendWidth: legendExtent.width,
+    legendHeight: legendExtent.height,
+    containerWidth: svgW,
+    titleBandHeight: sTitleHeight,
+    legendReserve: sLegendBlockHeight,
+    titleBaselineY: sTitleY,
+    titleFontSize: sTitleFontSize,
+  });
+
   const svg = d3Selection
     .select(container)
     .append('svg')
@@ -538,9 +573,9 @@ export function renderPert(
     svg
       .append('text')
       .attr('class', 'pert-title chart-title')
-      .attr('x', svgW / 2)
+      .attr('x', header.titleX)
       .attr('y', sTitleY)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', header.titleAnchor)
       .attr('fill', palette.text)
       .attr('font-size', sTitleFontSize)
       .attr('font-weight', TITLE_FONT_WEIGHT)
@@ -561,15 +596,17 @@ export function renderPert(
   }
 
   const offsetX = Math.max(sDiagramPad, (svgW - layout.width) / 2);
-  const offsetY = sDiagramPad + sTitleHeight + sLegendBlockHeight;
+  const offsetY =
+    sDiagramPad + sTitleHeight + (header.inline ? 0 : sLegendBlockHeight);
 
   if (showTagLegend) {
     const tagLegendY = sDiagramPad + sTitleHeight + sLegendTopGap;
     renderTagLegendRow(svg, resolved, palette, isDark, {
-      x: 0,
-      y: tagLegendY,
-      width: svgW,
+      x: header.inline ? svgW - INLINE_HEADER_PAD - legendExtent.width : 0,
+      y: header.inline ? header.legendY : tagLegendY,
+      width: header.inline ? legendExtent.width : svgW,
       activeGroup: tagLegendActive,
+      inline: header.inline,
       ...(options.exportMode !== undefined && {
         exportMode: options.exportMode,
       }),
@@ -2700,6 +2737,8 @@ interface TagLegendArgs {
   width: number;
   activeGroup: string | null;
   exportMode?: boolean;
+  /** §1.9 legend-inline: left-origin the legend so the caller's right-flush x lands it at the edge. */
+  inline?: boolean;
 }
 
 /**
@@ -2718,7 +2757,7 @@ function renderTagLegendRow(
 ): void {
   if (resolved.tagGroups.length === 0) return;
 
-  const { x, y, width, activeGroup, exportMode } = args;
+  const { x, y, width, activeGroup, exportMode, inline } = args;
   const groups = resolved.tagGroups.map((g) => ({
     name: g.name,
     entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
@@ -2736,6 +2775,12 @@ function renderTagLegendRow(
     isDark,
     width,
     activeGroup,
+    ...(inline && {
+      position: {
+        placement: 'top-center' as const,
+        titleRelation: 'inline-with-title' as const,
+      },
+    }),
   });
 }
 
