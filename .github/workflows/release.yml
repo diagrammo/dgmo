@@ -1,9 +1,11 @@
 name: Release
 
+# Tag trigger disabled 2026-07-22 — the org NPM_TOKEN is broken, so every
+# tag-driven publish fails and burns minutes. Releases are done locally
+# (see workspace release script / release checklist). Restore the tag
+# trigger when the token is rotated.
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
 
 jobs:
   publish:

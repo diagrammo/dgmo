@@ -1,9 +1,12 @@
 name: Secret scan
 
+# Push/PR triggers removed 2026-07-22 — per-push scans across every repo were
+# the org's biggest hidden Actions-minutes line item. Weekly sweep + manual
+# dispatch give the same coverage for a single-committer org.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
 
 jobs:
   gitleaks:

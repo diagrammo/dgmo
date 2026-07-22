@@ -6,11 +6,21 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+
+      # tests/embed-clipping.test.ts scans the sibling dgmo-content checkout
+      # (../dgmo-content/examples), mirroring the local workspace layout.
+      - name: Clone dgmo-content sibling
+        run: |
+          cd ..
+          git clone --depth 1 https://github.com/diagrammo/dgmo-content.git
 
       - uses: pnpm/action-setup@v5
         with:
