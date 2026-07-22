@@ -196,3 +196,96 @@ describe('sketch layout — dimensions', () => {
     expect(l.height).toBe(SKETCH_FOOT_H);
   });
 });
+
+describe('sketch layout — auto-layout stage flags', () => {
+  const GROUP_SRC = [
+    'sketch',
+    'Lookout at: 0 9',
+    '[Hold] at: 0 0',
+    '  Cargo at: 0 0',
+    '  Ledger at: 3 0',
+  ].join('\n');
+
+  it('all-default flags match the no-options output byte-for-byte', () => {
+    const p = parseSketch(GROUP_SRC);
+    const plain = layoutSketch(p);
+    const flagged = layoutSketch(p, { autoLayout: {} });
+    expect(flagged.nodes).toEqual(plain.nodes);
+    expect(flagged.boxes).toEqual(plain.boxes);
+    expect(flagged.width).toBe(plain.width);
+    expect(flagged.height).toBe(plain.height);
+  });
+
+  it('resolveOverlap off keeps a colliding authored slot in place', () => {
+    const p = parseSketch('sketch\nA at: 0 0\nB at: 0 0');
+    const on = layoutSketch(p);
+    const off = layoutSketch(p, { autoLayout: { resolveOverlap: false } });
+    expect(node(on, 'B').slot).not.toEqual({ c: 0, r: 0 });
+    expect(node(off, 'B').slot).toEqual({ c: 0, r: 0 });
+    expect(off.diagnostics).toHaveLength(0);
+  });
+
+  it('groupCollisionAsRect off lets a root shape sit over a group interior', () => {
+    // Shape at the group's right edge: collides with the full frame rect but
+    // not with the group's origin cell.
+    const p = parseSketch(`${GROUP_SRC}\nSpy at: 3 0`);
+    const asRect = layoutSketch(p);
+    const asCell = layoutSketch(p, {
+      autoLayout: { groupCollisionAsRect: false },
+    });
+    expect(asRect.diagnostics.length).toBeGreaterThan(0);
+    expect(asCell.diagnostics).toHaveLength(0);
+    expect(node(asCell, 'Spy').slot).toEqual({ c: 3, r: 0 });
+  });
+
+  it('avoidEdges off leaves a shape sitting on a foreign edge', () => {
+    // C sits between A and B on the edge A->B.
+    const src = 'sketch\nA at: 0 0\n  -> b\nB as b at: 12 0\nC at: 6 0';
+    const p = parseSketch(src);
+    const on = layoutSketch(p);
+    const off = layoutSketch(p, { autoLayout: { avoidEdges: false } });
+    expect(node(on, 'C').slot).not.toEqual({ c: 6, r: 0 });
+    expect(node(off, 'C').slot).toEqual({ c: 6, r: 0 });
+  });
+
+  it('flowPlaceUnpositioned off parks coord-less shapes at the origin', () => {
+    const p = parseSketch('sketch\nA at: 0 0\nB\nC');
+    const off = layoutSketch(p, {
+      autoLayout: { flowPlaceUnpositioned: false },
+    });
+    expect(node(off, 'B').slot).toEqual({ c: 0, r: 0 });
+    expect(node(off, 'C').slot).toEqual({ c: 0, r: 0 });
+  });
+});
+
+describe('sketch layout — frozen origin', () => {
+  it('reports the origin used for px mapping', () => {
+    const p = parseSketch('sketch\nA at: 2 4\nB at: 6 4');
+    const l = layoutSketch(p);
+    expect(l.origin).toEqual({ c: 2, r: 4 });
+  });
+
+  it('moving one node does not re-shift the others', () => {
+    const before = layoutSketch(parseSketch('sketch\nA at: 0 0\nB at: 6 0'), {
+      autoLayout: { normalizeOrigin: false },
+    });
+    const after = layoutSketch(parseSketch('sketch\nA at: 3 3\nB at: 6 0'), {
+      autoLayout: { normalizeOrigin: false },
+      frozenOrigin: before.origin,
+    });
+    expect(node(after, 'B').x).toBe(node(before, 'B').x);
+    expect(node(after, 'B').y).toBe(node(before, 'B').y);
+    expect(node(after, 'A').x).toBe(3 * SKETCH_HALF_SLOT_X);
+    expect(node(after, 'A').y).toBe(3 * SKETCH_HALF_SLOT_Y);
+  });
+
+  it('clamps to the live min so content never goes negative', () => {
+    const l = layoutSketch(parseSketch('sketch\nA at: -3 -3\nB at: 6 0'), {
+      autoLayout: { normalizeOrigin: false },
+      frozenOrigin: { c: 0, r: 0 },
+    });
+    expect(node(l, 'A').x).toBe(0);
+    expect(node(l, 'A').y).toBe(0);
+    expect(l.origin).toEqual({ c: -3, r: -3 });
+  });
+});

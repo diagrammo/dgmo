@@ -71,11 +71,68 @@ export interface SketchLayout {
   readonly height: number;
   /** layout-time warnings (overlap auto-resolution) */
   readonly diagnostics: readonly DgmoError[];
+  /**
+   * Half-slot origin actually subtracted to map slots → px. With
+   * `normalizeOrigin` on this is the live min corner; with it off (frozen
+   * origin) callers capture this on first layout and feed it back as
+   * `frozenOrigin` so later edits don't re-shift the whole diagram.
+   */
+  readonly origin: { c: number; r: number };
 }
 
 export interface SketchLayoutOptions {
   /** Box labels to fold; defaults to the authored `collapsed` flags. */
   readonly collapsedBoxes?: ReadonlySet<string>;
+  /**
+   * Auto-layout stage switches. Every flag defaults to `true` (current
+   * behavior) when omitted — turning one off makes the authored `at:`
+   * coordinate more authoritative. Wired to the app's dev "Auto-layout"
+   * drawer so a drag can be observed with each stage on or off.
+   */
+  readonly autoLayout?: SketchAutoLayoutFlags;
+  /**
+   * Stable origin (half-slots) to subtract when `normalizeOrigin` is off.
+   * Never lets content go negative: the effective origin is
+   * `min(frozenOrigin, liveMin)`, so a node dragged left of the frozen corner
+   * simply expands it rather than escaping the viewport. Ignored when
+   * `normalizeOrigin` is on. See `SketchLayout.origin`.
+   */
+  readonly frozenOrigin?: { c: number; r: number };
+}
+
+export interface SketchAutoLayoutFlags {
+  /** M1 — re-anchor the whole diagram to the min corner every render. */
+  readonly normalizeOrigin?: boolean;
+  /** M2 — order root placement by declaration line (else array order). */
+  readonly sortRootsBySource?: boolean;
+  /** M3 — bump a colliding authored slot to the nearest free slot. */
+  readonly resolveOverlap?: boolean;
+  /** M3 — treat a group as one collision rectangle (else its origin cell). */
+  readonly groupCollisionAsRect?: boolean;
+  /** Flow-place nodes that have no `at:` (root + box children). */
+  readonly flowPlaceUnpositioned?: boolean;
+  /** M5 — nudge a shape off any non-incident edge it crosses. */
+  readonly avoidEdges?: boolean;
+}
+
+interface ResolvedAutoFlags {
+  normalizeOrigin: boolean;
+  sortRootsBySource: boolean;
+  resolveOverlap: boolean;
+  groupCollisionAsRect: boolean;
+  flowPlaceUnpositioned: boolean;
+  avoidEdges: boolean;
+}
+
+function resolveAutoFlags(f: SketchAutoLayoutFlags = {}): ResolvedAutoFlags {
+  return {
+    normalizeOrigin: f.normalizeOrigin ?? true,
+    sortRootsBySource: f.sortRootsBySource ?? true,
+    resolveOverlap: f.resolveOverlap ?? true,
+    groupCollisionAsRect: f.groupCollisionAsRect ?? true,
+    flowPlaceUnpositioned: f.flowPlaceUnpositioned ?? true,
+    avoidEdges: f.avoidEdges ?? true,
+  };
 }
 
 // ── Slot-rect collision helpers (float half-slot units) ──────
@@ -144,7 +201,8 @@ interface LocalChild {
 function layoutChildren(
   box: SketchBox,
   nodesById: ReadonlyMap<string, SketchNode>,
-  warn: (line: number, label: string) => void
+  warn: (line: number, label: string) => void,
+  flags: ResolvedAutoFlags
 ): { children: LocalChild[]; extent: SlotRect } {
   const occupied: SlotRect[] = [];
   const children: LocalChild[] = [];
@@ -158,12 +216,20 @@ function layoutChildren(
       continue;
     }
     const target = unitRect(node.at.c, node.at.r);
-    const spot = nearestFree(target, occupied);
+    const spot = flags.resolveOverlap
+      ? nearestFree(target, occupied)
+      : { c: node.at.c, r: node.at.r };
     if (spot.c !== node.at.c || spot.r !== node.at.r) {
       warn(node.lineNumber, node.label);
     }
     occupied.push(unitRect(spot.c, spot.r));
     children.push({ node, c: spot.c, r: spot.r });
+  }
+
+  if (!flags.flowPlaceUnpositioned) {
+    // Stack coord-less children at the box origin (no auto-flow).
+    for (const node of pending) children.push({ node, c: 0, r: 0 });
+    pending.length = 0;
   }
 
   // Flow-place un-positioned children in rows below the positioned content.
@@ -226,6 +292,7 @@ export function layoutSketch(
     );
   };
 
+  const flags = resolveAutoFlags(options.autoLayout);
   const collapsed = collapseSketch(parsed, options.collapsedBoxes);
   const nodesById = new Map(collapsed.nodes.map((n) => [n.id, n]));
 
@@ -241,7 +308,7 @@ export function layoutSketch(
   >();
   const inExpandedBox = new Set<string>();
   for (const box of collapsed.boxes) {
-    const local = layoutChildren(box, nodesById, overlapWarn);
+    const local = layoutChildren(box, nodesById, overlapWarn, flags);
     boxLocal.set(box.id, local);
     for (const child of local.children) inExpandedBox.add(child.node.id);
   }
@@ -264,14 +331,16 @@ export function layoutSketch(
     rootUnits.push({ kind: 'box', box });
   }
   // Keep source order — flow placement is reading order by declaration.
-  rootUnits.sort((a, b) => {
-    const la = a.kind === 'shape' ? a.node.lineNumber : a.box.lineNumber;
-    const lb = b.kind === 'shape' ? b.node.lineNumber : b.box.lineNumber;
-    return la - lb;
-  });
+  if (flags.sortRootsBySource) {
+    rootUnits.sort((a, b) => {
+      const la = a.kind === 'shape' ? a.node.lineNumber : a.box.lineNumber;
+      const lb = b.kind === 'shape' ? b.node.lineNumber : b.box.lineNumber;
+      return la - lb;
+    });
+  }
 
   const rectFor = (unit: RootUnit, c: number, r: number): SlotRect => {
-    if (unit.kind === 'box') {
+    if (unit.kind === 'box' && flags.groupCollisionAsRect) {
       const local = boxLocal.get(unit.box.id)!;
       return {
         c: c + local.extent.c - padHsX,
@@ -295,7 +364,7 @@ export function layoutSketch(
     }
     const base = rectFor(unit, at.c, at.r);
     let spot = { c: at.c, r: at.r };
-    if (collidesAny(base, occupied)) {
+    if (flags.resolveOverlap && collidesAny(base, occupied)) {
       const freed = nearestFree(base, occupied);
       spot = {
         c: at.c + (freed.c - base.c),
@@ -308,6 +377,15 @@ export function layoutSketch(
     }
     occupied.push(rectFor(unit, spot.c, spot.r));
     placedAt.set(unit, spot);
+  }
+
+  if (!flags.flowPlaceUnpositioned) {
+    // No auto-flow: park coord-less roots at the origin.
+    for (const unit of pending) {
+      occupied.push(rectFor(unit, 0, 0));
+      placedAt.set(unit, { c: 0, r: 0 });
+    }
+    pending.length = 0;
   }
 
   // Flow-place the un-positioned roots below all placed content.
@@ -344,8 +422,20 @@ export function layoutSketch(
     const spot = placedAt.get(u)!;
     return rectFor(u, spot.c, spot.r);
   });
-  const cMin = allRects.length > 0 ? Math.min(...allRects.map((r) => r.c)) : 0;
-  const rMin = allRects.length > 0 ? Math.min(...allRects.map((r) => r.r)) : 0;
+  const liveCMin =
+    allRects.length > 0 ? Math.min(...allRects.map((r) => r.c)) : 0;
+  const liveRMin =
+    allRects.length > 0 ? Math.min(...allRects.map((r) => r.r)) : 0;
+  // Origin off = frozen: subtract a stable corner so moving one node doesn't
+  // re-shift the rest. Clamp to the live min so content never goes negative
+  // (which would escape the renderer's 0-origin viewBox). Falls back to the
+  // live min when no frozen corner is supplied — safe, never blank.
+  const cMin = flags.normalizeOrigin
+    ? liveCMin
+    : Math.min(options.frozenOrigin?.c ?? liveCMin, liveCMin);
+  const rMin = flags.normalizeOrigin
+    ? liveRMin
+    : Math.min(options.frozenOrigin?.r ?? liveRMin, liveRMin);
 
   const toPx = (c: number, r: number): { x: number; y: number } => ({
     x: (c - cMin) * SKETCH_HALF_SLOT_X,
@@ -444,7 +534,7 @@ export function layoutSketch(
   // shapes). Approximate each edge as the segment between its endpoints' centers;
   // when a shape's footprint crosses one, nudge the shape a full slot off the
   // line (perpendicular to it) and warn. Bounded passes handle cascades.
-  {
+  if (flags.avoidEdges) {
     const centerOf = (id: string): { x: number; y: number } | null => {
       const n = nodes.find((nd) => nd.id === id);
       if (n) return { x: n.x + n.w / 2, y: n.y + n.h / 2 };
@@ -545,5 +635,6 @@ export function layoutSketch(
     width,
     height,
     diagnostics,
+    origin: { c: cMin, r: rMin },
   };
 }

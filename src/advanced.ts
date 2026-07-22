@@ -302,6 +302,7 @@ export type {
   SketchLayoutNode,
   SketchLayoutBox,
   SketchLayoutOptions,
+  SketchAutoLayoutFlags,
 } from './sketch/layout';
 export {
   renderSketch,
