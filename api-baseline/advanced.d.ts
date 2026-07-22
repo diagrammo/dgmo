@@ -216,6 +216,13 @@ interface ParsedChart {
     /** Cross-chart-type: when true, the renderer suppresses the legend and the
      *  vertical band it would occupy (#48). */
     noLegend?: boolean;
+    /** §1.9 `legend-inline`: render the title and the series legend on one line
+     *  (title left, legend right) instead of stacking the legend below a centered
+     *  title — reclaims a header row. Honoured by the top-center-legend data
+     *  charts (bar/line/radar/scatter/function); a no-op elsewhere. Auto-falls
+     *  back to the stacked header when the legend can't fit beside the title on a
+     *  single row (decision #50). */
+    legendInline?: boolean;
     /** Line only: opt out of the data-driven y-axis auto-fit and anchor the
      *  baseline at 0 (magnitude honesty / old ECharts-parity behavior). By
      *  default a line chart fits a padded data-min→max window (§15.1). */
@@ -580,7 +587,9 @@ interface ParsedExtendedBase {
     noName?: boolean;
     noValue?: boolean;
     noPercent?: boolean;
-    shade?: boolean;
+    /** `fill` directive — shade the area below each curve (function charts),
+     *  parity with the `line` chart's bare `fill`. Opacity follows `fillMode`. */
+    fill?: boolean;
     /** §1.9 fill family: `'solid'` = full intent saturation, `'outline'` =
      *  theme-background fill with color on the stroke. Absent ⇒ 25% tint. */
     fillMode?: 'solid' | 'outline';
@@ -589,6 +598,9 @@ interface ParsedExtendedBase {
     /** Cross-chart-type: when true, the renderer suppresses the legend and the
      *  vertical band it would occupy (#48). */
     noLegend?: boolean;
+    /** §1.9 `legend-inline`: title + series legend on one line (see ParsedChart).
+     *  Honoured by scatter/function among the extended charts (decision #50). */
+    legendInline?: boolean;
     /** §1.11 emphasis family: `highlight <Name>…` / `dim <Name>…`. Chart-level,
      *  mutually exclusive, last-one-wins. Resolved against real element names at
      *  render time via `resolveEmphasis`. */
@@ -2175,6 +2187,8 @@ interface SketchBox {
 }
 interface SketchOptions {
     readonly noLegend: boolean;
+    /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+    readonly legendInline?: boolean;
     /** §1.9 fill family; undefined ⇒ canonical 25% tint. */
     readonly fillMode: 'solid' | 'outline' | undefined;
     /** `no-descriptions` directive (mindmap `hd` standard): hide the card
@@ -3234,6 +3248,8 @@ interface GanttOptions {
     noTitle: boolean;
     /** §1.9 `no-legend` — suppress the tag legend and collapse its reserved band. */
     noLegend: boolean;
+    /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+    legendInline?: boolean;
 }
 interface ParsedGantt {
     readonly nodes: readonly GanttNode[];
@@ -3450,6 +3466,8 @@ interface PertOptions {
     noTitle?: boolean;
     /** §1.9 `no-legend` — suppress the tag legend and collapse its reserved band. */
     noLegend?: boolean;
+    /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+    legendInline?: boolean;
     /**
      * §1.9 fill family — `fill-solid` renders node/group card fills at full intent
      * saturation instead of the canonical 25% tint (via `shapeFill`).
@@ -4658,6 +4676,26 @@ interface EventLineEra {
     readonly collapsed: boolean;
     readonly lineNumber: number;
 }
+/**
+ * A **now marker** (§28.6b) — a "grounded pin" at "today": a palette-red
+ * (`palette.destructive`) diamond planted on the spine with a short stem to a
+ * labeled tab, slotted into a card-free lane, plus a dotted "today line" that
+ * fades out within the leader gap (full-height only on hover, preview).
+ * `now` alone is *computed* (resolved to the render-time date);
+ * `now <date>` *pins* it to an explicit ISO date (deterministic, snapshot-safe).
+ * Only drawn on a to-scale axis (every event dated); ignored under `no-scale`.
+ */
+interface EventLineNow {
+    /** True for bare `now` (date resolved at render time); false when pinned. */
+    readonly computed: boolean;
+    /** Pinned ISO date as written, or null when computed. */
+    readonly date: string | null;
+    /** Numeric value for the pinned date (timeline scale), or null when computed. */
+    readonly dateValue: number | null;
+    /** Rule caption (default `now`; a trailing token on the pinned form overrides). */
+    readonly label: string;
+    readonly lineNumber: number;
+}
 interface EventLineOptions {
     /** False when `no-scale` — events are spaced evenly instead of by date. */
     readonly scale: boolean;
@@ -4670,6 +4708,8 @@ interface EventLineOptions {
     readonly noBox: boolean;
     /** True when `no-legend` — hide the tag legend. */
     readonly noLegend: boolean;
+    /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+    readonly legendInline?: boolean;
     /** §1.9 fill family: 'solid' | 'outline'; undefined ⇒ canonical soft tint. */
     readonly fillMode: 'solid' | 'outline' | undefined;
 }
@@ -4679,6 +4719,8 @@ interface ParsedEventLine {
     readonly titleLineNumber: number | null;
     readonly events: readonly EventLineEvent[];
     readonly eras: readonly EventLineEra[];
+    /** The `now` marker (§28.6b), or null when the directive is absent. */
+    readonly now: EventLineNow | null;
     readonly tagGroups: readonly TagGroup[];
     readonly options: EventLineOptions;
     readonly diagnostics: readonly DgmoError[];
@@ -4687,7 +4729,10 @@ interface ParsedEventLine {
 
 declare function parseEventLine(content: string, palette?: PaletteColors): ParsedEventLine;
 
-declare function renderEventLine(container: HTMLDivElement, parsed: ParsedEventLine, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions, tagOverride?: string): void;
+declare function renderEventLine(container: HTMLDivElement, parsed: ParsedEventLine, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions, tagOverride?: string, 
+/** Injectable clock for the computed `now` marker (§28.6b). Defaults to the
+ *  live wall-clock; tests/snapshots pass a fixed date for determinism. */
+nowDate?: Date): void;
 /** A focus target: a single event (by its `data-evt` id, = source line), an era
  *  (by name), or a tag value (a legend category). `null` clears the focus. */
 type EventLineFocus = {
@@ -4715,7 +4760,7 @@ declare function clearEventLineMuted(container: HTMLElement): void;
  * to clear. No-op when the container holds no event-line SVG.
  */
 declare function focusEventLine(container: HTMLElement, spec: EventLineFocus | null): void;
-declare function renderEventLineForExport(container: HTMLDivElement, parsed: ParsedEventLine, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, tagOverride?: string): void;
+declare function renderEventLineForExport(container: HTMLDivElement, parsed: ParsedEventLine, palette: PaletteColors, isDark: boolean, exportDims?: D3ExportDimensions, tagOverride?: string, nowDate?: Date): void;
 
 /** A resolved recurrence rule. Built by the parser, re-read by the ticker. */
 interface RecurRule {
@@ -5181,6 +5226,8 @@ interface ParsedBracket {
     readonly activeTag: string | null;
     /** Hide the tag legend. */
     readonly noLegend: boolean;
+    /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+    readonly legendInline?: boolean;
     /** Suppress round/column labels (`no-round`). */
     readonly noRounds: boolean;
     /**
@@ -5412,6 +5459,8 @@ interface TreemapOptions {
     noPercent: boolean;
     noHeaders: boolean;
     noLegend: boolean;
+    /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+    legendInline?: boolean;
     /** §1.9 fill family; undefined ⇒ canonical 25% tint. */
     fillMode: 'solid' | 'outline' | undefined;
     /** `radial` — render as a sunburst (concentric rings) instead of rectangles. */
@@ -5596,6 +5645,8 @@ interface BlockGrid {
 interface BlockOptions {
     /** `no-legend` — hide the tag legend. */
     noLegend: boolean;
+    /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+    legendInline?: boolean;
     /** §1.9 fill family: 'solid' | 'outline'; absent ⇒ canonical 25% tint. */
     fillMode?: 'solid' | 'outline';
 }
@@ -6332,6 +6383,12 @@ interface LegendRenderOptions {
     containerWidth: number;
     activeGroup?: string | null;
     className?: string;
+    /**
+     * Row alignment within `containerWidth`. `'center'` (default) matches the
+     * historic top-center legend; `'left'` left-origins the row at x=0 so the
+     * caller can translate it beside a left-aligned title (§1.9 `legend-inline`).
+     */
+    align?: 'center' | 'left';
 }
 interface LegendRenderResult {
     svg: string;
@@ -6403,13 +6460,23 @@ declare function computeActivations(steps: RenderStep[]): Activation[];
  */
 declare function applyPositionOverrides(participants: readonly SequenceParticipant[]): SequenceParticipant[];
 /**
- * Reorder participants so that members of the same group are adjacent.
- * Groups are positioned at the point where their first member would naturally
- * appear based on message order (first-occurrence positioning). This prevents
- * groups declared at the top of the file from being placed before participants
- * that appear in messages earlier.
+ * Order participants by first appearance in messages, then pull grouped
+ * members adjacent.
  *
- * Explicit `position` overrides are handled separately by `applyPositionOverrides`.
+ * The baseline is first-occurrence order (spec §2.2 priority 3): the first
+ * participant referenced by a message gets the leftmost column, regardless of
+ * declaration order. A bare declaration line assigns a tag/type only — it does
+ * NOT pin a column. Participants that never appear in any message fall back to
+ * declaration order (priority 4) and are appended after the message-referenced
+ * ones.
+ *
+ * When spatial `[Group]` boxes exist (priority 2), each group's members are
+ * pulled adjacent at the group's first-appearance anchor, overriding their
+ * individual appearance slots. With no groups this reduces to pure
+ * appearance order.
+ *
+ * Explicit `position` overrides (priority 1) are handled separately by
+ * `applyPositionOverrides`, which runs after this pass.
  */
 declare function applyGroupOrdering(participants: readonly SequenceParticipant[], groups: readonly SequenceGroup[], messages?: readonly SequenceMessage[]): SequenceParticipant[];
 /**

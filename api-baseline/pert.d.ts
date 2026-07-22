@@ -135,6 +135,8 @@ interface PertOptions {
     noTitle?: boolean;
     /** §1.9 `no-legend` — suppress the tag legend and collapse its reserved band. */
     noLegend?: boolean;
+    /** §1.9 `legend-inline` — title left, legend flushed right on one row. */
+    legendInline?: boolean;
     /**
      * §1.9 fill family — `fill-solid` renders node/group card fills at full intent
      * saturation instead of the canonical 25% tint (via `shapeFill`).

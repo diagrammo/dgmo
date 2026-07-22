@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-07-21
+
+### Added
+- **`legend-inline` — a one-line header on every chart with a top-center legend.** Title left, series/tag legend flushed right, instead of a centered title stacked above the legend — reclaiming a header row for embeds, slides, and dashboards. Opt-in per diagram (`legend-inline`), default unchanged. It measures the legend against the width left of the title and, if it can't fit on one row, silently falls back to the stacked header and re-centers the title — so the diagram is always valid regardless of title length or entry count. Honoured by the data charts (bar, line, radar, scatter, function) and the structured tag-legend charts (state, treemap, block, event-line, boxes-and-lines, er, class, family, infra, sequence, sketch, bracket, gantt, pert); on any other chart type it emits a warning rather than silently doing nothing. See spec §1.9, decision #50.
+- **Function charts get a `fill` area directive.** `fill` shades the band between each curve and the y=0 baseline — the same directive the `line` chart uses — a soft 25% tint by default, opaque under `fill-solid`. This replaces the vestigial `shade` token, which was parsed and advertised in completions but rendered nothing. See decision #52.
+- **Event-line `now` marker — a "today line".** `now` (§28.6b) draws a red vertical marker at the current date/time with a quick fade-in and hover reveal, so a live roadmap shows where "today" falls against its events.
+- **Version-control diagrams gain the event-line visual system + branch hover** — branches read as an event-line-style timeline with hover spotlighting.
+- **Pie charts avoid label collisions with radial leader lines** — crowded slices no longer overprint their labels (#37).
+- **Sketch surfaces the authored tag-color name on each TagEntry.**
+
+### Changed
+- **Sequence participant order now follows first appearance in messages, not declaration order.** A bare participant declaration (`Name t: Group`) assigns a tag/type only — it no longer pins a column. Placement comes from the order the arrows reach a participant, so you can tag just the exceptions (an External or Customer) without dragging them out of message-flow order; use `position:` to pin one deliberately. This brings the renderer into line with the long-documented spec §2.2 ordering priority. See decision #51.
+
+### Fixed
+- **Clock digital time renders as fixed-width cells** so it stays uniform across WebKit and resvg (no more jitter between preview and export).
+- **`legend-inline` on a chart type that can't host it now warns** ("not supported for this chart type; title and legend render stacked") instead of silently doing nothing or, on clock, erroring as if it were a zone row.
+- **Sequence message labels no longer clip off the canvas at tight scale** (#35).
+- **Boxes-and-lines diagrams stay inside the viewport, and collapse-all works.**
+- **Function expressions evaluate without `new Function`** — CSP-safe, no dynamic code generation.
+
 ## [0.54.0] - 2026-07-20
 
 ### Added
