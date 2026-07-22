@@ -49,6 +49,10 @@ const SKIP = new Map([
   // d3-cloud relies on HTMLCanvasElement.getContext, which jsdom
   // can't provide without the optional `canvas` npm package.
   ['wordcloud.dgmo', 'requires canvas npm package — render fails in jsdom'],
+  // Clock renders wall-clock time (Date.now() in src/clock/renderer.ts) —
+  // hand angles and digits differ every run, so output length is
+  // nondeterministic. Needs a fixed-now override hook to be snapshottable.
+  ['clock.dgmo', 'renders wall-clock time — nondeterministic output'],
 ]);
 
 // ============================================================
