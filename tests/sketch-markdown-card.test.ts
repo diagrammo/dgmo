@@ -81,7 +81,7 @@ describe('drawMarkdownBlock', () => {
 
   it('returns a positive height that grows with more lines', () => {
     const { g: g1 } = makeContainer();
-    const h1 = drawMarkdownBlock(g1, 'one line', baseOpts);
+    const h1 = drawMarkdownBlock(g1, 'one line', baseOpts).height;
     expect(h1).toBeGreaterThan(0);
 
     const { g: g2 } = makeContainer();
@@ -89,15 +89,17 @@ describe('drawMarkdownBlock', () => {
       g2,
       'one line\ntwo line\nthree line',
       baseOpts
-    );
+    ).height;
     expect(h2).toBeGreaterThan(h1);
   });
 
   it('clamps to maxLines and appends an ellipsis', () => {
     const { g, el } = makeContainer();
-    const h = drawMarkdownBlock(g, 'a\nb\nc\nd', { ...baseOpts, maxLines: 2 });
+    const r = drawMarkdownBlock(g, 'a\nb\nc\nd', { ...baseOpts, maxLines: 2 });
     expect(el.querySelectorAll('text').length).toBe(2);
     expect(el.textContent).toContain('…');
-    expect(h).toBe(2 * baseOpts.lineHeight);
+    expect(r.height).toBe(2 * baseOpts.lineHeight);
+    expect(r.shown).toBe(2);
+    expect(r.total).toBe(4);
   });
 });

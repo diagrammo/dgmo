@@ -26,6 +26,8 @@ export interface MarkdownBlockOptions {
   color: string; // normal text fill
   linkColor: string; // link text fill
   maxLines?: number; // optional clamp; truncate last shown line with an ellipsis
+  /** Suppress the clamp ellipsis (caller draws its own overflow marker). */
+  noEllipsis?: boolean;
 }
 
 /** Bold runs measure slightly wider than the regular table suggests. */
@@ -237,15 +239,24 @@ function parseLogicalLine(raw: string): {
   return { level, bullet, content };
 }
 
+export interface MarkdownBlockResult {
+  /** Total height used (px). */
+  height: number;
+  /** Visual lines actually drawn (after the maxLines clamp). */
+  shown: number;
+  /** Visual lines the text wanted before clamping. */
+  total: number;
+}
+
 /**
  * Draw markdown into `container` (an SVG <g>), positioned from local (0,0)
- * with the FIRST baseline at y = fontSize. Returns total height used (px).
+ * with the FIRST baseline at y = fontSize.
  */
 export function drawMarkdownBlock(
   container: D3Sel,
   text: string,
   opts: MarkdownBlockOptions
-): number {
+): MarkdownBlockResult {
   const { width, fontSize, lineHeight, color, linkColor, maxLines } = opts;
 
   // 1. Build the full list of visual lines across all logical lines.
@@ -301,7 +312,7 @@ export function drawMarkdownBlock(
     let cursorX = line.x;
     const segs = line.segments.slice();
     // Append an ellipsis to the final clamped line.
-    if (clamped && isLast) {
+    if (clamped && isLast && !opts.noEllipsis) {
       segs.push({ text: ELLIPSIS, bold: false });
     }
 
@@ -330,5 +341,9 @@ export function drawMarkdownBlock(
   }
 
   // 4. Total height: one lineHeight per visual line.
-  return shown.length * lineHeight;
+  return {
+    height: shown.length * lineHeight,
+    shown: shown.length,
+    total: visualLines.length,
+  };
 }

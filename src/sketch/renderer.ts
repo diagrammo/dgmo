@@ -70,9 +70,13 @@ export interface SketchRenderOptions {
   activeTagGroup?: string | null;
   exportMode?: boolean;
   onClickItem?: (lineNumber: number) => void;
-  /** View-state `hd` (hide descriptions): drop the metadata rows so each card
+  /** View-state `hd` (hide descriptions): drop each card's description so it
    *  is just its header/name — the standard mindmap toggle, shelf-driven. */
   hideDescriptions?: boolean;
+  /** Render these cards with the header + empty-body split even without a
+   *  description — the app's selected-card state, so the description area is
+   *  visible to type into. */
+  splitCardIds?: readonly string[];
 }
 
 type Sel = d3.Selection<SVGGElement, unknown, null, undefined>;
@@ -159,20 +163,6 @@ function drawTypeBadge(
   }
 }
 
-/** Ordered metadata rows for a card: each declared tag group the node carries,
- *  in declaration order, as [group display name, value]. */
-function metaRows(
-  metadata: Record<string, string>,
-  tagGroups: readonly { name: string }[]
-): Array<readonly [string, string]> {
-  const rows: Array<readonly [string, string]> = [];
-  for (const grp of tagGroups) {
-    const v = metadata[tagAttrKey(grp.name)];
-    if (v !== undefined) rows.push([grp.name, v]);
-  }
-  return rows;
-}
-
 const CARD_HEADER_H = 34;
 const CARD_LABEL_MAX = 15;
 const CARD_LABEL_MIN = 11;
@@ -220,8 +210,9 @@ export function renderSketch(
     activeTagGroup,
     exportMode = false,
     hideDescriptions = false,
+    splitCardIds,
   } = options;
-  // Hide the metadata rows when the source directive OR the shelf/view-state
+  // Hide the descriptions when the source directive OR the shelf/view-state
   // toggle asks — the name then takes the whole card.
   const hideDesc = hideDescriptions || parsed.options.noDescriptions;
 
@@ -644,9 +635,8 @@ export function renderSketch(
   // ── Nodes ───────────────────────────────────────────────────
   const nodeLayer = root.append('g').attr('class', 'sk-nodes');
   for (const node of layout.nodes) {
-    // "Descriptions" toggle hides BOTH tag-metadata rows (empty tagGroups) and a
-    // node's free-text markdown description (strip it so the card renders as a
-    // plain centered-title node).
+    // "Descriptions" toggle hides a node's free-text markdown description
+    // (strip it so the card renders as a plain centered-title node).
     let n = node;
     if (hideDesc && node.description) {
       n = { ...node };
@@ -658,7 +648,7 @@ export function renderSketch(
       colorsFor(node.metadata),
       palette,
       isDark,
-      hideDesc ? [] : tagGroups
+      !hideDesc && (splitCardIds?.includes(node.id) ?? false)
     );
   }
 
@@ -751,7 +741,7 @@ function drawNode(
   colors: NodeColors,
   palette: PaletteColors,
   isDark: boolean,
-  tagGroups: readonly { name: string }[]
+  splitCard: boolean
 ): void {
   void isDark;
   const g = layer
@@ -781,9 +771,11 @@ function drawNode(
         .text(line);
     });
   } else {
-    // Org-style card: header (badge + name) → rule → metadata rows. A card with
-    // no tags centers its name vertically (header band = full height).
-    const rows = node.isCollapsedBox ? [] : metaRows(node.metadata, tagGroups);
+    // Org-style card: header (badge + name) → rule → free-text description.
+    // Tags color the card (border/fill/legend) but do NOT print as body rows —
+    // the body belongs to the description. A card without one centers its name
+    // full-height; `splitCard` (the app's selected-card state) forces the
+    // header + empty-body layout so the description area is visible to type in.
     const badge = node.shape !== 'rectangle';
     const labelInset = badge ? 22 : 0;
     // Solid-fill: the stroke IS the fill, so a stroke-colored rule/text would
@@ -791,10 +783,7 @@ function drawNode(
     const solidLike = colors.stroke === colors.fill;
     const ruleColor = solidLike ? colors.text : colors.stroke;
 
-    // Free-text markdown description: header band + rule, then the rendered
-    // markdown block fills the body (in place of the tag rows). Wrapped, with a
-    // small subset (bold/bullets/indent/links); clamps to the fixed card body.
-    if (node.description && !node.isCollapsedBox) {
+    if (!node.isCollapsedBox && (node.description || splitCard)) {
       // Single-line title: its 34px band sits directly above the rule + body,
       // so it stays one (ellipsized) line rather than wrapping into the rule.
       const fitH = fitWrapped(
@@ -824,42 +813,56 @@ function drawNode(
         .attr('stroke', ruleColor)
         .attr('stroke-opacity', 0.3)
         .attr('stroke-width', 1);
-      const inset = 12;
-      const bodyGap = 8;
-      const lh = CARD_META_FONT + 4;
-      const avail = node.h - CARD_HEADER_H - bodyGap - 8;
-      const body = g
-        .append('g')
-        .attr('class', 'sk-desc')
-        .attr('transform', `translate(${inset} ${CARD_HEADER_H + bodyGap})`);
-      drawMarkdownBlock(body, node.description, {
-        width: node.w - inset * 2,
-        fontSize: CARD_META_FONT,
-        lineHeight: lh,
-        color: colors.text, // match the header label (contrast-aware in solid)
-        linkColor: colors.text,
-        maxLines: Math.max(1, Math.floor(avail / lh)),
-      });
+      if (node.description) {
+        const inset = 12;
+        const bodyGap = 8;
+        const lh = CARD_META_FONT + 4;
+        const avail = node.h - CARD_HEADER_H - bodyGap - 8;
+        const body = g
+          .append('g')
+          .attr('class', 'sk-desc')
+          .attr('transform', `translate(${inset} ${CARD_HEADER_H + bodyGap})`);
+        const block = drawMarkdownBlock(body, node.description, {
+          width: node.w - inset * 2,
+          fontSize: CARD_META_FONT,
+          lineHeight: lh,
+          color: colors.text, // match the header label (contrast-aware in solid)
+          linkColor: colors.text,
+          maxLines: Math.max(1, Math.floor(avail / lh)),
+          noEllipsis: true,
+        });
+        // Authored overflow (source written in the editor exceeds the card's
+        // line budget): render the budget and mark the rest honestly — the
+        // app wires the marker to jump the editor to those lines.
+        if (block.total > block.shown) {
+          g.append('text')
+            .attr('class', 'sk-desc-more')
+            .attr('x', node.w - 8)
+            .attr('y', node.h - 5)
+            .attr('text-anchor', 'end')
+            .attr('font-size', 9)
+            .attr('fill', palette.textMuted)
+            .attr('data-line-number', node.lineNumber)
+            .style('cursor', 'pointer')
+            .text(`+${block.total - block.shown} more in source`);
+        }
+      }
       if (badge) {
         drawTypeBadge(g, node.shape, colors.text, 10, (CARD_HEADER_H - 16) / 2);
       }
       return;
     }
 
-    const headerH = rows.length ? CARD_HEADER_H : node.h;
-    // No rows (descriptions off, an untagged shape, OR a collapsed group card):
-    // the name grows to fill the card, centered in the full-height header band.
-    // A collapsed group is styled exactly like a plain node — same big centered
-    // name — and differs only by the collapse bar drawn at its bottom.
-    const fillTitle = rows.length === 0;
-    // Wrap the name onto multiple lines before shrinking it: a full-height title
-    // (no rows) gets up to 3 lines; a header-band title (with rows below) gets 2.
+    // No description: the name grows to fill the card, centered in the
+    // full-height header band. A collapsed group is styled exactly like a
+    // plain node — same big centered name — and differs only by the collapse
+    // bar drawn at its bottom.
     const fit = fitWrapped(
       node.label,
       node.w - 24 - labelInset,
-      fillTitle ? CARD_TITLE_MAX : CARD_LABEL_MAX,
+      CARD_TITLE_MAX,
       CARD_LABEL_MIN,
-      fillTitle ? 3 : 2
+      3
     );
     renderNodeCard(g, {
       width: node.w,
@@ -872,20 +875,7 @@ function drawNode(
       labelLines: fit.lines,
       labelColor: colors.text,
       labelFontSize: fit.fontSize,
-      headerHeight: headerH,
-      ...(rows.length
-        ? {
-            meta: {
-              rows,
-              fontSize: CARD_META_FONT,
-              lineHeight: CARD_META_FONT + 5,
-              separatorGap: 8,
-              separatorColor: ruleColor,
-              textColor: solidLike ? colors.text : palette.text,
-              keyX: 12,
-            },
-          }
-        : {}),
+      headerHeight: node.h,
     });
     if (badge) {
       // Badge stays in the top-left corner in both modes (a full-height header

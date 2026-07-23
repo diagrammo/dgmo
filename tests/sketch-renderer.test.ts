@@ -625,18 +625,40 @@ describe('sketch renderer — options', () => {
     expect(rect.getAttribute('fill')).toBe(tagColor);
   });
 
-  it('no-descriptions hides card metadata rows (name fills the card)', () => {
+  it('tag metadata never renders as body rows (body belongs to descriptions)', () => {
     const rows = (svg: SVGSVGElement) =>
       [...svg.querySelectorAll('.sk-node text')].map((t) => t.textContent);
-    const withRows = render(
-      'sketch\ntag Crew\n  Deck\n\nA at: 0 0, crew: Deck'
-    );
-    expect(rows(withRows).some((t) => t?.includes('Crew'))).toBe(true);
+    const tagged = render('sketch\ntag Crew\n  Deck\n\nA at: 0 0, crew: Deck');
+    expect(rows(tagged).some((t) => t?.includes('Crew'))).toBe(false);
+    expect(tagged.textContent).toContain('A'); // name fills the card
     const hidden = render(
       'sketch\nno-descriptions\ntag Crew\n  Deck\n\nA at: 0 0, crew: Deck'
     );
     expect(rows(hidden).some((t) => t?.includes('Crew'))).toBe(false);
-    expect(hidden.textContent).toContain('A'); // name still there
+  });
+
+  it('splitCardIds forces the header + empty-body layout on a plain card', () => {
+    const src = 'sketch\n\nAlpha at: 0 0';
+    const plain = render(src);
+    // Full-height name: no header rule line inside the node group.
+    const nodeRule = (svg: SVGSVGElement) =>
+      [...svg.querySelectorAll('.sk-node line')].filter(
+        (l) => l.getAttribute('y1') === '34' && l.getAttribute('y2') === '34'
+      );
+    expect(nodeRule(plain).length).toBe(0);
+    const split = render(src, { splitCardIds: ['sketch-node-1'] });
+    expect(nodeRule(split).length).toBe(1);
+  });
+
+  it('authored description overflow renders a "more in source" marker, no ellipsis', () => {
+    const desc = Array.from({ length: 10 }, (_, i) => `  > line ${i}`).join(
+      '\n'
+    );
+    const svg = render(`sketch\n\nAlpha at: 0 0\n${desc}`);
+    const marker = svg.querySelector('.sk-desc-more');
+    expect(marker).not.toBeNull();
+    expect(marker!.textContent).toMatch(/more in source/);
+    expect(svg.querySelector('.sk-desc')!.textContent).not.toContain('…');
   });
 
   it('the hideDescriptions render option hides rows (view-state hd path)', () => {
