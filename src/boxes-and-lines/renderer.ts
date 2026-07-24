@@ -753,6 +753,42 @@ export function renderBoxesAndLines(
           // In-bounds by loop guard.
           .text(fitted.lines[li]!);
       }
+
+      // Member-count chip (top-right corner): says "there are N boxes in
+      // here" — the pill is otherwise indistinguishable from a plain node.
+      if (group.childCount !== undefined && group.childCount > 0) {
+        const chipFont = Math.max(9, sMinNodeFontSize - 2);
+        const chipH = chipFont + 7;
+        const chipW = Math.max(
+          chipH,
+          String(group.childCount).length * chipFont * 0.62 + 10
+        );
+        const chipCx = gx + group.width - chipW / 2 - 6;
+        const chipCy = gy + chipH / 2 + 6;
+        groupG
+          .append('rect')
+          .attr('class', 'bl-collapse-count')
+          .attr('x', chipCx - chipW / 2)
+          .attr('y', chipCy - chipH / 2)
+          .attr('width', chipW)
+          .attr('height', chipH)
+          .attr('rx', chipH / 2)
+          .attr('ry', chipH / 2)
+          .attr('fill', palette.textMuted)
+          .attr('fill-opacity', 0.18);
+        groupG
+          .append('text')
+          .attr('class', 'bl-collapse-count')
+          .attr('x', chipCx)
+          .attr('y', chipCy)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', chipFont)
+          .attr('font-weight', '600')
+          .attr('fill', palette.text)
+          .text(String(group.childCount));
+      }
     } else {
       // Expanded: background container with label
       groupG

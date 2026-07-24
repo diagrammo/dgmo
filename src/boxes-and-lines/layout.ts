@@ -204,6 +204,12 @@ export async function layoutBoxesAndLines(
     /** Previous node positions (label → {x,y}) for layout stability —
      *  minimizes node drift on edit/collapse. */
     previousPositions?: ReadonlyMap<string, { x: number; y: number }>;
+    /** Interactive collapse stability: freeze surviving nodes, anchor the
+     *  collapsed pill at its members' previous bounding-box centre, and close
+     *  the vacated gap — instead of re-running the placement search. Requires
+     *  `previousPositions`; falls back to the search when coverage is
+     *  incomplete. */
+    stableCollapse?: boolean;
     /** Progress hook (interactive path). When set, the search yields between
      *  candidates so the UI can paint a "trying X of Y" indicator. */
     onProgress?: (done: number, total: number, phase: string) => void;
@@ -216,6 +222,9 @@ export async function layoutBoxesAndLines(
     }),
     ...(layoutOptions?.previousPositions !== undefined && {
       previousPositions: layoutOptions.previousPositions,
+    }),
+    ...(layoutOptions?.stableCollapse !== undefined && {
+      stableCollapse: layoutOptions.stableCollapse,
     }),
     ...(layoutOptions?.onProgress !== undefined && {
       onProgress: layoutOptions.onProgress,

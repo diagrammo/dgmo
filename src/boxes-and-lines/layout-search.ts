@@ -24,6 +24,7 @@ import {
 import { layeredCandidates } from './layout-layered';
 import { groupedTierCandidates } from './layout-grouped';
 import { measureEdgeLabel, EDGE_LABEL_FONT_SIZE } from './label-placement';
+import { tryStableCollapseLayout } from './layout-stable-collapse';
 
 type Pt = { x: number; y: number };
 
@@ -948,6 +949,13 @@ export async function layoutBoxesAndLinesSearch(
     /** Receives the top-ranked candidate configs (the stage-1 refine set, plus
      *  the escalation refine set when it runs) once the search completes. */
     onTopConfigs?: (configs: BLSearchConfig[]) => void;
+    /** Interactive collapse stability: when a group is collapsed and
+     *  `previousPositions` fully covers the surviving nodes, skip the placement
+     *  search — freeze every node, anchor the pill at its members' previous
+     *  bounding-box centre, and slide far-side content in to close the vacated
+     *  gap. Falls back to the normal search when coverage is incomplete or the
+     *  frozen layout would overlap. Opt-in (app preview path). */
+    stableCollapse?: boolean;
     /** Wall-clock backstop for candidate GENERATION (default 5000ms), measured
      *  from the start of the search. A pathological graph can make a single
      *  dagre placement cost orders of magnitude more than normal, and the pool
@@ -1023,6 +1031,24 @@ export async function layoutBoxesAndLinesSearch(
 
   const gid = (label: string) => `__group_${label}`;
   const rankdir = parsed.direction === 'TB' ? 'TB' : 'LR';
+
+  // Interactive collapse: freeze-and-anchor fast path (see layout-stable-collapse).
+  if (
+    opts?.stableCollapse &&
+    collapseInfo &&
+    collapsedGroupLabels.size > 0 &&
+    opts.previousPositions
+  ) {
+    const stable = tryStableCollapseLayout({
+      parsed,
+      collapseInfo,
+      collapsedGroupLabels,
+      previousPositions: opts.previousPositions,
+      sizes,
+      rankdir,
+    });
+    if (stable) return stable;
+  }
 
   // Group-incident edges: dagre cannot attach edges to a compound cluster node
   // (it throws while ranking). So for any edge whose endpoint is an EXPANDED
