@@ -117,6 +117,72 @@ describe('sketch renderer — structure', () => {
     expect(cardSide(sightings.p0.x, sightings.p0.y)).toBe('B');
   });
 
+  it('prefers one curve over two on a diagonal drop — uses top/bottom ports', () => {
+    // Divvy feeds a CNN card that sits BELOW and to the right; the Console it
+    // feeds back sits above-left of the card. Side ports (R→L) force each line
+    // into an S; the sampled-curvature cost picks top/bottom so each is a
+    // single sweep — the "1 curve beats 2" rule that tangent-only detection
+    // missed (exit-right / enter-left across a drop still bulges into an S).
+    const src = [
+      'sketch',
+      '[Below Decks] at: 0 30',
+      '  Divvy Service as dvy at: 0 -3',
+      '    -entries-> ledger',
+      "  Captain's Console as con at: 0 3",
+      '    -orders-> bq',
+      '  Booty Queue as bq at: 0 0',
+      '    ~haul~> dvy',
+      '  Powder Store as powder at: -3 0',
+      '  Foo Bar as foo at: -3 -3',
+      '    -> dvy',
+      '[CNN] at: 4 26, collapsed',
+      '  Spyglass Feed as spy at: -1 6',
+      '    -sightings-> con',
+      '  Ship Ledger as ledger at: -1 3',
+    ].join('\n');
+    const layout = layoutSketch(parseSketch(src, P));
+    const geoms = sketchEdgeGeometry(layout);
+    // Count turn-sign flips (inflections) along the sampled path.
+    const inflections = (label: string): number => {
+      const i = layout.edges.findIndex((e) => e.label === label);
+      const n = geoms[i]!.d.match(/-?[\d.]+/g)!.map(Number);
+      const pts: Array<{ x: number; y: number }> = [];
+      // M x y C x y x y x y — sample the cubic.
+      const p0 = { x: n[0]!, y: n[1]! };
+      const h0 = { x: n[2]!, y: n[3]! };
+      const h1 = { x: n[4]!, y: n[5]! };
+      const p1 = { x: n[6]!, y: n[7]! };
+      for (let k = 0; k <= 16; k++) {
+        const u = k / 16;
+        const a = (1 - u) ** 3;
+        const b = 3 * (1 - u) ** 2 * u;
+        const cc = 3 * (1 - u) * u * u;
+        const d = u ** 3;
+        pts.push({
+          x: a * p0.x + b * h0.x + cc * h1.x + d * p1.x,
+          y: a * p0.y + b * h0.y + cc * h1.y + d * p1.y,
+        });
+      }
+      let flips = 0;
+      let prev = 0;
+      for (let k = 1; k < pts.length - 1; k++) {
+        const ax = pts[k]!.x - pts[k - 1]!.x;
+        const ay = pts[k]!.y - pts[k - 1]!.y;
+        const bx = pts[k + 1]!.x - pts[k]!.x;
+        const by = pts[k + 1]!.y - pts[k]!.y;
+        const cr = ax * by - ay * bx;
+        const sign = cr > 1e-3 ? 1 : cr < -1e-3 ? -1 : 0;
+        if (sign !== 0) {
+          if (prev !== 0 && sign !== prev) flips++;
+          prev = sign;
+        }
+      }
+      return flips;
+    };
+    expect(inflections('entries')).toBe(0); // single curve, no S
+    expect(inflections('sightings')).toBe(0);
+  });
+
   it('marks each shape kind with a header type badge', () => {
     const svg = render(
       'sketch\nR at: 0 0\nD shape: database, at: 2 0\nQ shape: queue, at: 4 0\nP shape: person, at: 2 2\nDoc shape: document, at: 4 2\nN shape: note, at: 0 4'
