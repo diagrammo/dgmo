@@ -1427,6 +1427,34 @@ export function sketchEdgeGeometry(
     }
     return n;
   };
+  // Shape cost of the chosen cubic: a straight run reads best, one bend next, an
+  // S-curve (the two ports leave in ways that make the line double back) worst.
+  // `s0`/`s1` are the signed sines between the chord and each port's tangent —
+  // 0 when a tangent lies along the chord (straight in/out). |s0|+|s1| grows
+  // with the bend; opposite signs mean the two ends curl the OTHER way = an
+  // inflection (2-curve). Weighted as a tiebreaker below crossings, but above
+  // the facing term so a straighter route wins even when its ports face a touch
+  // worse. This is what makes an edge prefer the port that yields a single sweep
+  // (e.g. a source below a card entering the card's BOTTOM, one curve) over a
+  // side port that forces an S.
+  const W_BEND = 0.9; // per unit of |sin| deviation (0…2 total)
+  const W_SCURVE = 1.6; // flat surcharge for an inflection (2-curve)
+  const curveCost = (g: EdgeGeom): number => {
+    const chx = g.p1.x - g.p0.x;
+    const chy = g.p1.y - g.p0.y;
+    const chLen = Math.hypot(chx, chy) || 1;
+    const ux = chx / chLen;
+    const uy = chy / chLen;
+    const sine = (vx: number, vy: number): number => {
+      const l = Math.hypot(vx, vy) || 1;
+      return ux * (vy / l) - uy * (vx / l); // chord × unit(v)
+    };
+    const s0 = sine(g.h0.x - g.p0.x, g.h0.y - g.p0.y); // start tangent
+    const s1 = sine(g.p1.x - g.h1.x, g.p1.y - g.h1.y); // incoming tangent
+    const bend = (Math.abs(s0) + Math.abs(s1)) * W_BEND;
+    const inflection = s0 * s1 < -1e-3 ? W_SCURVE : 0;
+    return bend + inflection;
+  };
   const scoreOf = (
     c: Ctx,
     g: EdgeGeom,
@@ -1447,6 +1475,7 @@ export function sketchEdgeGeometry(
       edgeCross * W_EDGE +
       portClashCount(self, s, t) * W_PORT +
       portStackCount(self, s, t) * W_PORT_SAME +
+      curveCost(g) +
       facingCost(c.source, c.target, s) +
       facingCost(c.target, c.source, t)
     );
@@ -1483,14 +1512,15 @@ export function sketchEdgeGeometry(
       if (!c || !g || !p) continue;
       const cur = chosen[i]!;
       const curScore = scoreOf(c, g, p, i, polys, cur.s, cur.t);
-      // Nothing to fix — no node cut, no edge crossing, no port clash, best
-      // facing. The port clash is small (< W_EDGE) so test it explicitly, else
-      // the crossing-only threshold would skip an edge that only needs to move
-      // off a shared port.
+      // Nothing to fix — no node cut, no edge crossing, no port clash, no
+      // stack, no notable curve. Each of these small (< W_EDGE) costs is tested
+      // explicitly, else the crossing-only threshold would skip an edge that
+      // only needs to move off a shared port or out of an S-curve.
       if (
         curScore < W_EDGE &&
         portClashCount(i, cur.s, cur.t) === 0 &&
-        portStackCount(i, cur.s, cur.t) === 0
+        portStackCount(i, cur.s, cur.t) === 0 &&
+        curveCost(g) < W_BEND
       )
         continue;
       let bestScore = curScore;

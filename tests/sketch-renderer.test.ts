@@ -72,43 +72,57 @@ describe('sketch renderer — structure', () => {
     expect(sr!.x).not.toBeCloseTo(sl!.x, 1);
   });
 
-  it('splits two edges terminating at one bare node off the shared side port', () => {
-    // A level-left source (Divvy) and a below-left source (Console) both feed a
-    // collapsed CNN card. Without spreading they stack on CNN's single
-    // left-midpoint port; the co-termination penalty moves the below source's
-    // edge to CNN's BOTTOM (it faces bottom nearly as well), leaving the level
-    // edge on the left as a clean straight-in line.
+  it('routes for straightness — favours no bend, then one curve over an S', () => {
+    // Real "Plunder Pipeline" shape: Divvy feeds a collapsed CNN card level
+    // with it; a CNN child points back to a Console below. The curve heuristic
+    // picks ports so `entries` runs DEAD STRAIGHT (both level → left port, no
+    // bend) and `sightings` is a SINGLE sweep down to the Console (no
+    // inflection) instead of an up-and-over S.
     const src = [
       'sketch',
-      '[Below Decks] at: 0 0',
-      '  Divvy Service as divvy at: 7 0',
+      '[Below Decks] at: 0 30',
+      '  Divvy Service as dvy at: 0 -3',
       '    -entries-> ledger',
-      '  Captains Console as con at: 7 9',
-      '    -sightings-> spy',
-      '[CNN] at: 16 0, collapsed',
-      '  Ship Ledger as ledger at: 0 0',
-      '  Spyglass Feed as spy at: 0 4',
+      "  Captain's Console as con at: 0 3",
+      '    -orders-> bq',
+      '  Booty Queue as bq at: 0 0',
+      '    ~haul~> dvy',
+      '[CNN] at: 4 23, collapsed',
+      '  Spyglass Feed as spy at: -1 6',
+      '    -sightings-> con',
+      '  Ship Ledger as ledger at: -1 3',
     ].join('\n');
-    const parsed = parseSketch(src, P);
-    const layout = layoutSketch(parsed);
-    const card = layout.nodes.find((n) => n.isCollapsedBox)!;
+    const layout = layoutSketch(parseSketch(src, P));
     const geoms = sketchEdgeGeometry(layout);
-    const sideAt = (nums: number[]): string => {
-      const x = nums[nums.length - 2]!;
-      const y = nums[nums.length - 1]!;
-      if (Math.abs(y - card.y) < 1) return 'T';
-      if (Math.abs(y - (card.y + card.h)) < 1) return 'B';
-      if (Math.abs(x - card.x) < 1) return 'L';
-      if (Math.abs(x - (card.x + card.w)) < 1) return 'R';
-      return '?';
-    };
-    const byLabel = (label: string): string => {
+    // Signed sine between the chord and each port tangent; opposite signs = an
+    // inflection (S-curve).
+    const shape = (label: string): { dy: number; bend: number; s: boolean } => {
       const i = layout.edges.findIndex((e) => e.label === label);
-      const nums = geoms[i]!.d.match(/-?[\d.]+/g)!.map(Number);
-      return sideAt(nums);
+      const n = geoms[i]!.d.match(/-?[\d.]+/g)!.map(Number);
+      const p0 = { x: n[0]!, y: n[1]! };
+      const h0 = { x: n[2]!, y: n[3]! };
+      const h1 = { x: n[4]!, y: n[5]! };
+      const p1 = { x: n[6]!, y: n[7]! };
+      const cx = p1.x - p0.x;
+      const cy = p1.y - p0.y;
+      const cl = Math.hypot(cx, cy) || 1;
+      const sine = (vx: number, vy: number): number => {
+        const l = Math.hypot(vx, vy) || 1;
+        return (cx / cl) * (vy / l) - (cy / cl) * (vx / l);
+      };
+      const s0 = sine(h0.x - p0.x, h0.y - p0.y);
+      const s1 = sine(p1.x - h1.x, p1.y - h1.y);
+      return {
+        dy: p1.y - p0.y,
+        bend: Math.abs(s0) + Math.abs(s1),
+        s: s0 * s1 < -1e-3,
+      };
     };
-    expect(byLabel('entries')).toBe('L'); // level source → straight-in left
-    expect(byLabel('sightings')).toBe('B'); // below source → bottom port
+    const entries = shape('entries');
+    expect(Math.abs(entries.dy)).toBeLessThan(1); // horizontal endpoints
+    expect(entries.bend).toBeLessThan(0.05); // straight
+    const sightings = shape('sightings');
+    expect(sightings.s).toBe(false); // single curve, no inflection
   });
 
   it('marks each shape kind with a header type badge', () => {
