@@ -321,6 +321,23 @@ export function layoutSketch(
     for (const child of local.children) inExpandedBox.add(child.node.id);
   }
 
+  // 1b. Would-be child layout of COLLAPSED boxes (children come from the
+  // pre-collapse parse — the collapse transform removed them from `nodes`).
+  // The collapsed card is centred inside this would-be frame, and the frame's
+  // full footprint stays occupied, so folding a box moves NOTHING else and
+  // unfolding is the exact inverse. Warnings stay silent: the children are
+  // not rendered, so their overlap resolution is not the author's problem
+  // until the box is expanded.
+  const allNodesById = new Map(parsed.nodes.map((n) => [n.id, n]));
+  const noWarn = (): void => {};
+  const virtualLocal = new Map<
+    string,
+    { children: LocalChild[]; extent: SlotRect }
+  >();
+  for (const box of collapsed.virtualBoxes) {
+    virtualLocal.set(box.id, layoutChildren(box, allNodesById, noWarn, flags));
+  }
+
   // 2. Root placement: root shapes + virtual (collapsed) boxes are unit
   //    footprints; expanded boxes are rects (children extent + frame).
   type RootUnit =
@@ -365,8 +382,14 @@ export function layoutSketch(
   }
 
   const rectFor = (unit: RootUnit, c: number, r: number): SlotRect => {
-    if (unit.kind === 'box' && flags.groupCollisionAsRect) {
-      const local = boxLocal.get(unit.box.id)!;
+    // Expanded AND collapsed boxes both occupy the full frame rect: a
+    // collapsed box keeps its would-be expanded footprint so fold/unfold is
+    // positionally a no-op for everything around it (the card itself is
+    // centred inside this rect at output time).
+    if (unit.kind !== 'shape' && flags.groupCollisionAsRect) {
+      const local = (unit.kind === 'box' ? boxLocal : virtualLocal).get(
+        unit.box.id
+      )!;
       return {
         c: c + local.extent.c - padHsX,
         r: r + local.extent.r - bandHs,
@@ -488,14 +511,47 @@ export function layoutSketch(
         h: SKETCH_FOOT_H,
       });
     } else if (unit.kind === 'virtual') {
-      const { x, y } = toPx(spot.c, spot.r);
+      // Centre the card inside the would-be expanded frame (whose full rect
+      // stayed occupied), instead of parking it on the frame's top-left
+      // anchor slot — so folding reads as "the frame condensed into a card",
+      // not "the frame teleported to its corner". The VISUAL frame is the
+      // children's foot-sized bbox + frame margins (the collision rect above
+      // pads cells to SKETCH_SEP and is wider — centring on it would sit the
+      // card off the drawn frame's centre). Rounded to whole slots so
+      // slot ↔ px stays on the shared lattice (drag/pin math relies on it).
+      const local = virtualLocal.get(unit.box.id)!;
+      const footWs = SKETCH_FOOT_W / SKETCH_HALF_SLOT_X;
+      const footHs = SKETCH_FOOT_H / SKETCH_HALF_SLOT_Y;
+      let cardSpot = { c: spot.c, r: spot.r };
+      if (local.children.length > 0) {
+        let minC = Infinity;
+        let minR = Infinity;
+        let maxC = -Infinity;
+        let maxR = -Infinity;
+        for (const ch of local.children) {
+          minC = Math.min(minC, ch.c);
+          minR = Math.min(minR, ch.r);
+          maxC = Math.max(maxC, ch.c + footWs);
+          maxR = Math.max(maxR, ch.r + footHs);
+        }
+        // Frame margins cancel out of the centre on x (pad both sides); on y
+        // the band tops the frame and the pad bottoms it, so the centre
+        // shifts by half their difference.
+        const cx = spot.c + (minC + maxC) / 2;
+        const cy = spot.r + (minR + maxR) / 2 + (padHsY - bandHs) / 2;
+        cardSpot = {
+          c: Math.round(cx - footWs / 2),
+          r: Math.round(cy - footHs / 2),
+        };
+      }
+      const { x, y } = toPx(cardSpot.c, cardSpot.r);
       nodes.push({
         id: unit.box.id,
         label: unit.box.label,
         shape: 'rectangle',
         metadata: unit.box.metadata,
         lineNumber: unit.box.lineNumber,
-        slot: spot,
+        slot: cardSpot,
         x,
         y,
         w: SKETCH_FOOT_W,

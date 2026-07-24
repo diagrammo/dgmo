@@ -400,7 +400,71 @@ describe('sketch layout — Stage 5: authored positions exempt from edge-avoidan
     ].join('\n');
     const l = layoutSketch(parseSketch(src));
     const card = l.nodes.find((n) => n.isCollapsedBox)!;
-    expect(card.slot).toEqual({ c: 6, r: 0 });
+    // Centred inside the would-be expanded frame (anchored at 6 0), and
+    // deterministic — edge-avoidance must not move it.
+    expect(card.slot).toEqual({ c: 6, r: -0 });
+  });
+});
+
+describe('sketch layout — collapse is positionally stable', () => {
+  const SRC = [
+    'sketch',
+    'Dock at: 0 0',
+    '  -> galley',
+    '[Galley] as galley at: 6 0%COLLAPSED%',
+    '  Stove at: 0 0',
+    '  Pantry at: 6 0',
+    '  Sink at: 0 3',
+    'Mast at: 18 0',
+    'Keel at: 0 9',
+  ].join('\n');
+  const expanded = () =>
+    layoutSketch(parseSketch(SRC.replace('%COLLAPSED%', '')));
+  const collapsedL = () =>
+    layoutSketch(parseSketch(SRC.replace('%COLLAPSED%', ', collapsed')));
+
+  it('collapsing a box moves nothing else', () => {
+    const e = expanded();
+    const c = collapsedL();
+    for (const label of ['Dock', 'Mast', 'Keel']) {
+      const en = e.nodes.find((n) => n.label === label)!;
+      const cn = c.nodes.find((n) => n.label === label)!;
+      expect(cn.slot).toEqual(en.slot);
+      expect(cn.x).toBe(en.x);
+      expect(cn.y).toBe(en.y);
+    }
+  });
+
+  it('the card sits at the would-be frame centre, not the anchor corner', () => {
+    const e = expanded();
+    const c = collapsedL();
+    const frame = e.boxes.find((b) => b.label === 'Galley')!;
+    const card = c.nodes.find((n) => n.isCollapsedBox)!;
+    const frameCx = frame.x + frame.w / 2;
+    const frameCy = frame.y + frame.h / 2;
+    const cardCx = card.x + card.w / 2;
+    const cardCy = card.y + card.h / 2;
+    // Within one slot of the true centre (card slot rounds to the lattice).
+    expect(Math.abs(cardCx - frameCx)).toBeLessThanOrEqual(30);
+    expect(Math.abs(cardCy - frameCy)).toBeLessThanOrEqual(30);
+    expect(card.childCount).toBe(3);
+  });
+
+  it('collapsing a FLOW-placed box leaves flow neighbours where they were', () => {
+    const flowSrc = (collapsed: string) =>
+      [
+        'sketch',
+        'Dock at: 0 0',
+        `[Galley]${collapsed}`,
+        '  Stove',
+        '  Pantry',
+        'Mast',
+      ].join('\n');
+    const e = layoutSketch(parseSketch(flowSrc('')));
+    const c = layoutSketch(parseSketch(flowSrc(' collapsed')));
+    const em = e.nodes.find((n) => n.label === 'Mast')!;
+    const cm = c.nodes.find((n) => n.label === 'Mast')!;
+    expect(cm.slot).toEqual(em.slot);
   });
 });
 
