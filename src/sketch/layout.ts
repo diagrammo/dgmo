@@ -337,6 +337,37 @@ export function layoutSketch(
   for (const box of collapsed.virtualBoxes) {
     virtualLocal.set(box.id, layoutChildren(box, allNodesById, noWarn, flags));
   }
+  // Card slot for a collapsed box anchored at `spot`: centred inside the
+  // VISUAL would-be frame (the children's foot-sized bbox + frame margins —
+  // NOT the SEP-padded collision rect, which is wider). Frame margins cancel
+  // out of the centre on x; on y the band tops the frame and the pad bottoms
+  // it, so the centre shifts by half their difference. Rounded to whole slots
+  // so slot ↔ px stays on the shared lattice (drag/pin math relies on it).
+  const footWs = SKETCH_FOOT_W / SKETCH_HALF_SLOT_X;
+  const footHs = SKETCH_FOOT_H / SKETCH_HALF_SLOT_Y;
+  const virtualCardSpot = (
+    boxId: string,
+    spot: { c: number; r: number }
+  ): { c: number; r: number } => {
+    const local = virtualLocal.get(boxId)!;
+    if (local.children.length === 0) return { c: spot.c, r: spot.r };
+    let minC = Infinity;
+    let minR = Infinity;
+    let maxC = -Infinity;
+    let maxR = -Infinity;
+    for (const ch of local.children) {
+      minC = Math.min(minC, ch.c);
+      minR = Math.min(minR, ch.r);
+      maxC = Math.max(maxC, ch.c + footWs);
+      maxR = Math.max(maxR, ch.r + footHs);
+    }
+    const cx = spot.c + (minC + maxC) / 2;
+    const cy = spot.r + (minR + maxR) / 2 + (padHsY - bandHs) / 2;
+    return {
+      c: Math.round(cx - footWs / 2),
+      r: Math.round(cy - footHs / 2),
+    };
+  };
 
   // 2. Root placement: root shapes + virtual (collapsed) boxes are unit
   //    footprints; expanded boxes are rects (children extent + frame).
@@ -413,6 +444,27 @@ export function layoutSketch(
     const base = rectFor(unit, at.c, at.r);
     let spot = { c: at.c, r: at.r };
     if (flags.resolveOverlap && collidesAny(base, occupied)) {
+      // A collapsed box normally reserves its would-be frame footprint (so
+      // fold/unfold moves nothing) — but when the user parks the CARD where
+      // the frame wouldn't fit, the authored position wins: fall back to the
+      // card's own cell instead of shoving the card to the nearest
+      // frame-sized hole. Only a genuine card-cell collision still resolves.
+      if (unit.kind === 'virtual') {
+        const cs = virtualCardSpot(unit.box.id, spot);
+        const cardRect = unitRect(cs.c, cs.r);
+        if (collidesAny(cardRect, occupied)) {
+          const freed = nearestFree(cardRect, occupied);
+          spot = {
+            c: spot.c + (freed.c - cs.c),
+            r: spot.r + (freed.r - cs.r),
+          };
+          overlapWarn(unit.box.lineNumber, unit.box.label);
+        }
+        const placedCard = virtualCardSpot(unit.box.id, spot);
+        occupied.push(unitRect(placedCard.c, placedCard.r));
+        placedAt.set(unit, spot);
+        continue;
+      }
       const freed = nearestFree(base, occupied);
       spot = {
         c: at.c + (freed.c - base.c),
@@ -511,39 +563,11 @@ export function layoutSketch(
         h: SKETCH_FOOT_H,
       });
     } else if (unit.kind === 'virtual') {
-      // Centre the card inside the would-be expanded frame (whose full rect
-      // stayed occupied), instead of parking it on the frame's top-left
-      // anchor slot — so folding reads as "the frame condensed into a card",
-      // not "the frame teleported to its corner". The VISUAL frame is the
-      // children's foot-sized bbox + frame margins (the collision rect above
-      // pads cells to SKETCH_SEP and is wider — centring on it would sit the
-      // card off the drawn frame's centre). Rounded to whole slots so
-      // slot ↔ px stays on the shared lattice (drag/pin math relies on it).
-      const local = virtualLocal.get(unit.box.id)!;
-      const footWs = SKETCH_FOOT_W / SKETCH_HALF_SLOT_X;
-      const footHs = SKETCH_FOOT_H / SKETCH_HALF_SLOT_Y;
-      let cardSpot = { c: spot.c, r: spot.r };
-      if (local.children.length > 0) {
-        let minC = Infinity;
-        let minR = Infinity;
-        let maxC = -Infinity;
-        let maxR = -Infinity;
-        for (const ch of local.children) {
-          minC = Math.min(minC, ch.c);
-          minR = Math.min(minR, ch.r);
-          maxC = Math.max(maxC, ch.c + footWs);
-          maxR = Math.max(maxR, ch.r + footHs);
-        }
-        // Frame margins cancel out of the centre on x (pad both sides); on y
-        // the band tops the frame and the pad bottoms it, so the centre
-        // shifts by half their difference.
-        const cx = spot.c + (minC + maxC) / 2;
-        const cy = spot.r + (minR + maxR) / 2 + (padHsY - bandHs) / 2;
-        cardSpot = {
-          c: Math.round(cx - footWs / 2),
-          r: Math.round(cy - footHs / 2),
-        };
-      }
+      // Centre the card inside the would-be expanded frame (whose footprint
+      // stayed occupied when it fits), instead of parking it on the frame's
+      // top-left anchor slot — so folding reads as "the frame condensed into
+      // a card", not "the frame teleported to its corner".
+      const cardSpot = virtualCardSpot(unit.box.id, spot);
       const { x, y } = toPx(cardSpot.c, cardSpot.r);
       nodes.push({
         id: unit.box.id,

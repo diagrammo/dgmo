@@ -450,6 +450,30 @@ describe('sketch layout — collapse is positionally stable', () => {
     expect(card.childCount).toBe(3);
   });
 
+  it('a card parked where its frame would not fit stays put (card-cell fallback)', () => {
+    // [G]'s would-be frame is wide (children span 2 columns) and its anchor
+    // sits right of Wall, so the frame rect collides with Wall — but the CARD
+    // cell itself is free. Authored position wins: the card must NOT be
+    // shoved to the nearest frame-sized hole.
+    const src = [
+      'sketch',
+      'Wall at: 3 0',
+      '[G] at: 6 0, collapsed',
+      '  A at: 0 0',
+      '  B at: 6 0',
+      'Far at: 20 0',
+    ].join('\n');
+    const l = layoutSketch(parseSketch(src));
+    const card = l.nodes.find((n) => n.isCollapsedBox)!;
+    const wall = l.nodes.find((n) => n.label === 'Wall')!;
+    // Centred for anchor 6 0 with a 2-column child span → card column ≈ 9;
+    // the old behavior relocated the whole frame far away. Assert the card
+    // stayed within its authored neighbourhood instead.
+    expect(Math.abs(card.slot.c - 9)).toBeLessThanOrEqual(1);
+    expect(Math.abs(card.slot.r - 0)).toBeLessThanOrEqual(1);
+    expect(wall.slot).toEqual({ c: 3, r: 0 });
+  });
+
   it('collapsing a FLOW-placed box leaves flow neighbours where they were', () => {
     const flowSrc = (collapsed: string) =>
       [
