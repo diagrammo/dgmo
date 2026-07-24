@@ -72,6 +72,45 @@ describe('sketch renderer — structure', () => {
     expect(sr!.x).not.toBeCloseTo(sl!.x, 1);
   });
 
+  it('splits two edges terminating at one bare node off the shared side port', () => {
+    // A level-left source (Divvy) and a below-left source (Console) both feed a
+    // collapsed CNN card. Without spreading they stack on CNN's single
+    // left-midpoint port; the co-termination penalty moves the below source's
+    // edge to CNN's BOTTOM (it faces bottom nearly as well), leaving the level
+    // edge on the left as a clean straight-in line.
+    const src = [
+      'sketch',
+      '[Below Decks] at: 0 0',
+      '  Divvy Service as divvy at: 7 0',
+      '    -entries-> ledger',
+      '  Captains Console as con at: 7 9',
+      '    -sightings-> spy',
+      '[CNN] at: 16 0, collapsed',
+      '  Ship Ledger as ledger at: 0 0',
+      '  Spyglass Feed as spy at: 0 4',
+    ].join('\n');
+    const parsed = parseSketch(src, P);
+    const layout = layoutSketch(parsed);
+    const card = layout.nodes.find((n) => n.isCollapsedBox)!;
+    const geoms = sketchEdgeGeometry(layout);
+    const sideAt = (nums: number[]): string => {
+      const x = nums[nums.length - 2]!;
+      const y = nums[nums.length - 1]!;
+      if (Math.abs(y - card.y) < 1) return 'T';
+      if (Math.abs(y - (card.y + card.h)) < 1) return 'B';
+      if (Math.abs(x - card.x) < 1) return 'L';
+      if (Math.abs(x - (card.x + card.w)) < 1) return 'R';
+      return '?';
+    };
+    const byLabel = (label: string): string => {
+      const i = layout.edges.findIndex((e) => e.label === label);
+      const nums = geoms[i]!.d.match(/-?[\d.]+/g)!.map(Number);
+      return sideAt(nums);
+    };
+    expect(byLabel('entries')).toBe('L'); // level source → straight-in left
+    expect(byLabel('sightings')).toBe('B'); // below source → bottom port
+  });
+
   it('marks each shape kind with a header type badge', () => {
     const svg = render(
       'sketch\nR at: 0 0\nD shape: database, at: 2 0\nQ shape: queue, at: 4 0\nP shape: person, at: 2 2\nDoc shape: document, at: 4 2\nN shape: note, at: 0 4'

@@ -1366,6 +1366,14 @@ export function sketchEdgeGeometry(
   // to an equally- or barely-worse-facing side — never onto an opposed side,
   // which would route the line the long way around under other shapes.
   const W_PORT = 1.5;
+  // Same-role stacking (two edges BOTH arriving — or both leaving — at one bare
+  // node on the same side) collapses onto that side's single midpoint port, so
+  // two unrelated lines converge to one dot (the reported divvy+console → CNN
+  // stack). Weighted BELOW the facing swing (0…2) so it only nudges the edge
+  // whose next-best side is nearly as good — a tight fan-in of same-direction
+  // sources (whose alternative sides face away, high facing cost) stays put,
+  // while a wide fan (sources in different directions) spreads across sides.
+  const W_PORT_SAME = 0.6;
   const isBox = (id: string): boolean => portsById.has(id);
   // Count OTHER edges that attach to a bare endpoint of edge `self` on the same
   // side in the OPPOSITE role (self leaves here → count arrivals, and vice
@@ -1396,6 +1404,29 @@ export function sketchEdgeGeometry(
     }
     return n;
   };
+  // Count OTHER edges that TERMINATE at the same bare endpoint of `self` on the
+  // same side — the co-termination stack, where two arrowheads collapse onto
+  // one side-midpoint port (the divvy+console → CNN stack). Only TERMINATIONS
+  // count: two heads on one point read worse than a fan of tails leaving a hub
+  // (which stays a clean radial spread — see the up-left-spoke test). `s` is
+  // unused (originations are exempt) but kept for signature symmetry with
+  // portClashCount. Reciprocal pairs are exempt.
+  const portStackCount = (self: number, _s: Side, t: Side): number => {
+    const e = layout.edges[self]!;
+    if (isBox(e.targetId)) return 0;
+    let n = 0;
+    for (let j = 0; j < layout.edges.length; j++) {
+      if (j === self) continue;
+      const ej = layout.edges[j]!;
+      if (
+        ej.targetId === e.targetId &&
+        ej.sourceId !== e.sourceId && // not reciprocal
+        chosen[j]!.t === t
+      )
+        n++;
+    }
+    return n;
+  };
   const scoreOf = (
     c: Ctx,
     g: EdgeGeom,
@@ -1415,6 +1446,7 @@ export function sketchEdgeGeometry(
       pathCrossings(g, c.obstacleRects) * W_NODE +
       edgeCross * W_EDGE +
       portClashCount(self, s, t) * W_PORT +
+      portStackCount(self, s, t) * W_PORT_SAME +
       facingCost(c.source, c.target, s) +
       facingCost(c.target, c.source, t)
     );
@@ -1455,7 +1487,12 @@ export function sketchEdgeGeometry(
       // facing. The port clash is small (< W_EDGE) so test it explicitly, else
       // the crossing-only threshold would skip an edge that only needs to move
       // off a shared port.
-      if (curScore < W_EDGE && portClashCount(i, cur.s, cur.t) === 0) continue;
+      if (
+        curScore < W_EDGE &&
+        portClashCount(i, cur.s, cur.t) === 0 &&
+        portStackCount(i, cur.s, cur.t) === 0
+      )
+        continue;
       let bestScore = curScore;
       let bestG = g;
       let bestP = p;
