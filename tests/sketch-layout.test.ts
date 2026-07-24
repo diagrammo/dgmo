@@ -238,14 +238,16 @@ describe('sketch layout — auto-layout stage flags', () => {
     expect(node(asCell, 'Spy').slot).toEqual({ c: 3, r: 0 });
   });
 
-  it('avoidEdges off leaves a shape sitting on a foreign edge', () => {
-    // C sits between A and B on the edge A->B.
-    const src = 'sketch\nA at: 0 0\n  -> b\nB as b at: 12 0\nC at: 6 0';
+  it('avoidEdges off leaves a flow-placed shape sitting on a foreign edge', () => {
+    // All flow-placed in one row: X (0,0), Y (3,0), Z (6,0); the edge X->Z
+    // crosses Y. Authored-`at` shapes are exempt (Stage 5), so the flag is
+    // observable only on flow-placed shapes.
+    const src = 'sketch\nX\n  -> z\nY\nZ as z';
     const p = parseSketch(src);
     const on = layoutSketch(p);
     const off = layoutSketch(p, { autoLayout: { avoidEdges: false } });
-    expect(node(on, 'C').slot).not.toEqual({ c: 6, r: 0 });
-    expect(node(off, 'C').slot).toEqual({ c: 6, r: 0 });
+    expect(node(on, 'Y').slot).not.toEqual({ c: 3, r: 0 });
+    expect(node(off, 'Y').slot).toEqual({ c: 3, r: 0 });
   });
 
   it('flowPlaceUnpositioned off parks coord-less shapes at the origin', () => {
@@ -255,6 +257,150 @@ describe('sketch layout — auto-layout stage flags', () => {
     });
     expect(node(off, 'B').slot).toEqual({ c: 0, r: 0 });
     expect(node(off, 'C').slot).toEqual({ c: 0, r: 0 });
+  });
+});
+
+describe('sketch layout — golden: Plunder Pipeline (spec repro)', () => {
+  const SRC = `sketch Plunder Pipeline
+
+tag Crew
+  Deck
+  Hold
+
+Spyglass Feed shape: database, at: 0 0, crew: Deck
+  -sightings-> con
+
+[Below Decks] crew: Hold
+  Divvy Service as dvy at: 1 -3
+    -entries-> ledger
+  Captain's Console as con at: -3 0, crew: Deck
+    -orders-> bq
+  Booty Queue as bq shape: queue, at: 0 0
+    ~haul~> dvy
+  Ship Ledger as ledger shape: database, at: 2 0
+  Powder Store at: -6 0
+`;
+
+  const GOLDEN: Record<string, { c: number; r: number }> = {
+    'Spyglass Feed': { c: 0, r: 0 },
+    'Divvy Service': { c: 13, r: 0 },
+    "Captain's Console": { c: 9, r: 3 },
+    'Booty Queue': { c: 12, r: 3 },
+    'Ship Ledger': { c: 15, r: 3 }, // authored 2 0 bumped clear of Booty Queue
+    'Powder Store': { c: 6, r: 3 },
+  };
+
+  it('default flags land every node on the golden slots', () => {
+    const l = layoutSketch(parseSketch(SRC));
+    for (const [label, slot] of Object.entries(GOLDEN)) {
+      expect(node(l, label).slot, label).toEqual(slot);
+    }
+    expect(
+      l.diagnostics.filter((d) => d.code === 'W_SKETCH_OVERLAP_RESOLVED')
+    ).toHaveLength(1);
+  });
+
+  it('sortRootsBySource off yields the same golden slots (one positioned root)', () => {
+    const l = layoutSketch(parseSketch(SRC), {
+      autoLayout: { sortRootsBySource: false },
+    });
+    for (const [label, slot] of Object.entries(GOLDEN)) {
+      expect(node(l, label).slot, label).toEqual(slot);
+    }
+  });
+});
+
+describe('sketch layout — Stage 3: geometry-derived placement order', () => {
+  // Node overlaps the group frame's left edge, so collision resolution must
+  // pick a winner. Same shapes, opposite declaration order.
+  const NODE_FIRST = [
+    'sketch',
+    'Spy at: -3 0',
+    '[Hold] at: 0 0',
+    '  Cargo at: 0 0',
+    '  Ledger at: 3 0',
+  ].join('\n');
+  const NODE_LAST = [
+    'sketch',
+    '[Hold] at: 0 0',
+    '  Cargo at: 0 0',
+    '  Ledger at: 3 0',
+    'Spy at: -3 0',
+  ].join('\n');
+
+  it('sortRootsBySource off: declaration order does not change the layout', () => {
+    const first = layoutSketch(parseSketch(NODE_FIRST), {
+      autoLayout: { sortRootsBySource: false },
+    });
+    const last = layoutSketch(parseSketch(NODE_LAST), {
+      autoLayout: { sortRootsBySource: false },
+    });
+    for (const label of ['Spy', 'Cargo', 'Ledger']) {
+      expect(node(first, label).slot, label).toEqual(node(last, label).slot);
+    }
+    expect(first.boxes[0]!.x).toBe(last.boxes[0]!.x);
+    expect(first.boxes[0]!.y).toBe(last.boxes[0]!.y);
+    // The geometrically-left node wins the contested slot in both.
+    expect(node(first, 'Spy').slot).toEqual({ c: -3, r: 0 });
+    expect(node(first, 'Spy').x).toBeLessThan(first.boxes[0]!.x);
+    expect(node(last, 'Spy').x).toBeLessThan(last.boxes[0]!.x);
+  });
+
+  it('sortRootsBySource on (default): declaration order still decides', () => {
+    const first = layoutSketch(parseSketch(NODE_FIRST));
+    const last = layoutSketch(parseSketch(NODE_LAST));
+    // Declared first → keeps its slot; declared last → bumped by the group.
+    expect(node(first, 'Spy').slot).toEqual({ c: -3, r: 0 });
+    expect(node(last, 'Spy').slot).not.toEqual({ c: -3, r: 0 });
+  });
+
+  it('flow-placed roots keep reading order after positioned units', () => {
+    const p = parseSketch('sketch\nLate\nB at: 3 0\nEarly\nA at: 0 6');
+    const l = layoutSketch(p, { autoLayout: { sortRootsBySource: false } });
+    // Positioned by coordinate regardless of line; flow after, by line.
+    expect(node(l, 'B').slot).toEqual({ c: 3, r: 0 });
+    expect(node(l, 'A').slot).toEqual({ c: 0, r: 6 });
+    const late = node(l, 'Late');
+    const early = node(l, 'Early');
+    expect(late.slot.r).toBe(early.slot.r);
+    expect(late.slot.c).toBeLessThan(early.slot.c); // Late declared first
+    expect(late.slot.r).toBeGreaterThanOrEqual(9); // below all positioned
+  });
+});
+
+describe('sketch layout — Stage 5: authored positions exempt from edge-avoidance', () => {
+  it('an authored shape crossing a non-incident edge keeps its exact slot', () => {
+    // C sits dead-center on the edge A->B but is authored — never nudged,
+    // even with all default flags.
+    const src = 'sketch\nA at: 0 0\n  -> b\nB as b at: 12 0\nC at: 6 0';
+    const l = layoutSketch(parseSketch(src));
+    expect(node(l, 'C').slot).toEqual({ c: 6, r: 0 });
+    expect(l.diagnostics).toHaveLength(0);
+  });
+
+  it('a flow-placed shape in the same spot still gets nudged', () => {
+    const src = 'sketch\nX\n  -> z\nY\nZ as z';
+    const l = layoutSketch(parseSketch(src));
+    expect(node(l, 'X').slot).toEqual({ c: 0, r: 0 });
+    expect(node(l, 'Z').slot).toEqual({ c: 6, r: 0 });
+    expect(node(l, 'Y').slot).toEqual({ c: 3, r: 3 }); // pushed off the edge
+    expect(
+      l.diagnostics.filter((d) => d.code === 'W_SKETCH_OVERLAP_RESOLVED')
+    ).toHaveLength(1);
+  });
+
+  it('an authored collapsed-box card on a foreign edge also stays put', () => {
+    const src = [
+      'sketch',
+      'A at: 0 0',
+      '  -> b',
+      'B as b at: 12 0',
+      '[Cabin] at: 6 0, collapsed',
+      '  Bunk at: 0 0',
+    ].join('\n');
+    const l = layoutSketch(parseSketch(src));
+    const card = l.nodes.find((n) => n.isCollapsedBox)!;
+    expect(card.slot).toEqual({ c: 6, r: 0 });
   });
 });
 

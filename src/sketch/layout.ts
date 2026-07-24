@@ -103,7 +103,11 @@ export interface SketchLayoutOptions {
 export interface SketchAutoLayoutFlags {
   /** M1 — re-anchor the whole diagram to the min corner every render. */
   readonly normalizeOrigin?: boolean;
-  /** M2 — order root placement by declaration line (else array order). */
+  /**
+   * M2 — order root placement by declaration line. Off = geometry-stable:
+   * authored-`at` units place in coordinate order (row-major), flow units in
+   * reading order after them.
+   */
   readonly sortRootsBySource?: boolean;
   /** M3 — bump a colliding authored slot to the nearest free slot. */
   readonly resolveOverlap?: boolean;
@@ -111,7 +115,11 @@ export interface SketchAutoLayoutFlags {
   readonly groupCollisionAsRect?: boolean;
   /** Flow-place nodes that have no `at:` (root + box children). */
   readonly flowPlaceUnpositioned?: boolean;
-  /** M5 — nudge a shape off any non-incident edge it crosses. */
+  /**
+   * M5 — nudge a FLOW-PLACED shape off any non-incident edge it crosses.
+   * Authored-`at` shapes are always exempt: authored position wins over edge
+   * aesthetics.
+   */
   readonly avoidEdges?: boolean;
 }
 
@@ -330,12 +338,29 @@ export function layoutSketch(
   for (const box of collapsed.boxes) {
     rootUnits.push({ kind: 'box', box });
   }
-  // Keep source order — flow placement is reading order by declaration.
+  // Placement order decides who keeps a contested slot under collision
+  // resolution. Flag on (default): source order — flow placement is reading
+  // order by declaration. Flag off (Stage 3): geometry-stable — authored-`at`
+  // units sort by coordinate (row-major: r, then c; lineNumber tie-break for
+  // determinism), so the outcome depends on where things are, not on which
+  // source line declares them. Flow units (`at === null`) keep reading order
+  // and still place after all positioned units, as always.
+  const lineOf = (u: RootUnit): number =>
+    u.kind === 'shape' ? u.node.lineNumber : u.box.lineNumber;
+  const atOf = (u: RootUnit): { c: number; r: number } | null =>
+    u.kind === 'shape' ? u.node.at : u.box.at;
   if (flags.sortRootsBySource) {
+    rootUnits.sort((a, b) => lineOf(a) - lineOf(b));
+  } else {
     rootUnits.sort((a, b) => {
-      const la = a.kind === 'shape' ? a.node.lineNumber : a.box.lineNumber;
-      const lb = b.kind === 'shape' ? b.node.lineNumber : b.box.lineNumber;
-      return la - lb;
+      const aa = atOf(a);
+      const ba = atOf(b);
+      if (aa && ba) {
+        return aa.r - ba.r || aa.c - ba.c || lineOf(a) - lineOf(b);
+      }
+      if (aa) return -1;
+      if (ba) return 1;
+      return lineOf(a) - lineOf(b);
     });
   }
 
@@ -357,7 +382,7 @@ export function layoutSketch(
   const pending: RootUnit[] = [];
 
   for (const unit of rootUnits) {
-    const at = unit.kind === 'shape' ? unit.node.at : unit.box.at;
+    const at = atOf(unit);
     if (at === null) {
       pending.push(unit);
       continue;
@@ -530,11 +555,19 @@ export function layoutSketch(
     }
   }
 
-  // Never let a root shape sit on a NON-INCIDENT edge (a line between two OTHER
-  // shapes). Approximate each edge as the segment between its endpoints' centers;
-  // when a shape's footprint crosses one, nudge the shape a full slot off the
-  // line (perpendicular to it) and warn. Bounded passes handle cascades.
+  // Never let a FLOW-PLACED root shape sit on a NON-INCIDENT edge (a line
+  // between two OTHER shapes). Approximate each edge as the segment between its
+  // endpoints' centers; when a shape's footprint crosses one, nudge the shape a
+  // full slot off the line (perpendicular to it) and warn. Bounded passes
+  // handle cascades. Shapes with an authored `at:` are exempt (Stage 5) —
+  // authored position wins over edge aesthetics.
   if (flags.avoidEdges) {
+    const authored = new Set<string>();
+    for (const unit of rootUnits) {
+      if (atOf(unit) !== null) {
+        authored.add(unit.kind === 'shape' ? unit.node.id : unit.box.id);
+      }
+    }
     const centerOf = (id: string): { x: number; y: number } | null => {
       const n = nodes.find((nd) => nd.id === id);
       if (n) return { x: n.x + n.w / 2, y: n.y + n.h / 2 };
@@ -578,6 +611,7 @@ export function layoutSketch(
       let moved = false;
       for (const n of nodes) {
         if (n.boxLabel) continue; // box children ride their frame
+        if (authored.has(n.id)) continue; // authored `at:` is never nudged
         for (const e of collapsed.edges) {
           if (e.sourceId === n.id || e.targetId === n.id) continue; // incident
           const a = centerOf(e.sourceId);
