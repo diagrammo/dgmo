@@ -72,12 +72,13 @@ describe('sketch renderer — structure', () => {
     expect(sr!.x).not.toBeCloseTo(sl!.x, 1);
   });
 
-  it('routes for straightness — favours no bend, then one curve over an S', () => {
+  it('routes off back-facing ports — straight where level, bottom port to a below target', () => {
     // Real "Plunder Pipeline" shape: Divvy feeds a collapsed CNN card level
-    // with it; a CNN child points back to a Console below. The curve heuristic
-    // picks ports so `entries` runs DEAD STRAIGHT (both level → left port, no
-    // bend) and `sightings` is a SINGLE sweep down to the Console (no
-    // inflection) instead of an up-and-over S.
+    // with it; a CNN child points back to a Console BELOW the card. The router
+    // runs `entries` DEAD STRAIGHT (both level → left port, no bend) and takes
+    // `sightings` out of CNN's BOTTOM (facing the Console below) — never its
+    // top, which would leave the wrong way and loop over even though that loop
+    // is a smooth low-curve C.
     const src = [
       'sketch',
       '[Below Decks] at: 0 30',
@@ -93,36 +94,27 @@ describe('sketch renderer — structure', () => {
       '  Ship Ledger as ledger at: -1 3',
     ].join('\n');
     const layout = layoutSketch(parseSketch(src, P));
+    const card = layout.nodes.find((n) => n.isCollapsedBox)!;
     const geoms = sketchEdgeGeometry(layout);
-    // Signed sine between the chord and each port tangent; opposite signs = an
-    // inflection (S-curve).
-    const shape = (label: string): { dy: number; bend: number; s: boolean } => {
+    const cardSide = (x: number, y: number): string => {
+      if (Math.abs(y - card.y) < 1) return 'T';
+      if (Math.abs(y - (card.y + card.h)) < 1) return 'B';
+      if (Math.abs(x - card.x) < 1) return 'L';
+      if (Math.abs(x - (card.x + card.w)) < 1) return 'R';
+      return '?';
+    };
+    const geom = (label: string) => {
       const i = layout.edges.findIndex((e) => e.label === label);
       const n = geoms[i]!.d.match(/-?[\d.]+/g)!.map(Number);
-      const p0 = { x: n[0]!, y: n[1]! };
-      const h0 = { x: n[2]!, y: n[3]! };
-      const h1 = { x: n[4]!, y: n[5]! };
-      const p1 = { x: n[6]!, y: n[7]! };
-      const cx = p1.x - p0.x;
-      const cy = p1.y - p0.y;
-      const cl = Math.hypot(cx, cy) || 1;
-      const sine = (vx: number, vy: number): number => {
-        const l = Math.hypot(vx, vy) || 1;
-        return (cx / cl) * (vy / l) - (cy / cl) * (vx / l);
-      };
-      const s0 = sine(h0.x - p0.x, h0.y - p0.y);
-      const s1 = sine(p1.x - h1.x, p1.y - h1.y);
-      return {
-        dy: p1.y - p0.y,
-        bend: Math.abs(s0) + Math.abs(s1),
-        s: s0 * s1 < -1e-3,
-      };
+      return { p0: { x: n[0]!, y: n[1]! }, p1: { x: n[6]!, y: n[7]! } };
     };
-    const entries = shape('entries');
-    expect(Math.abs(entries.dy)).toBeLessThan(1); // horizontal endpoints
-    expect(entries.bend).toBeLessThan(0.05); // straight
-    const sightings = shape('sightings');
-    expect(sightings.s).toBe(false); // single curve, no inflection
+    // entries arrives at the level card → straight-in left, no vertical drop.
+    const entries = geom('entries');
+    expect(cardSide(entries.p1.x, entries.p1.y)).toBe('L');
+    expect(Math.abs(entries.p1.y - entries.p0.y)).toBeLessThan(1);
+    // sightings leaves the card toward a below target → bottom port, not top.
+    const sightings = geom('sightings');
+    expect(cardSide(sightings.p0.x, sightings.p0.y)).toBe('B');
   });
 
   it('marks each shape kind with a header type badge', () => {

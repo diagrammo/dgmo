@@ -1297,6 +1297,16 @@ export function sketchEdgeGeometry(
     const n = normalOf(side);
     return 1 - (n.x * dx + n.y * dy) / len; // 0 (facing) … 2 (opposed)
   };
+  // Extra surcharge for a BACK-FACING port: its outward normal points into the
+  // wrong hemisphere (away from the other endpoint), so the line must leave in
+  // the wrong direction and loop back. The curve cost alone under-penalises this
+  // — a wide loop off a back-facing port stays a smooth, low-inflection C — so
+  // exiting a card's TOP toward a target BELOW it scored as well as exiting the
+  // bottom. Only the back-facing half (facingCost > 1) is charged, steeply, so a
+  // forward-facing route always wins even when its bend is larger.
+  const W_BACK = 2.6;
+  const backFacingCost = (from: Rect, to: Rect, side: Side): number =>
+    W_BACK * Math.max(0, facingCost(from, to, side) - 1);
 
   // Per-edge routing context: endpoint rects, ports, and the node/box rects this
   // edge must not cut through (its endpoints and their own boxes excluded).
@@ -1477,7 +1487,9 @@ export function sketchEdgeGeometry(
       portStackCount(self, s, t) * W_PORT_SAME +
       curveCost(g) +
       facingCost(c.source, c.target, s) +
-      facingCost(c.target, c.source, t)
+      facingCost(c.target, c.source, t) +
+      backFacingCost(c.source, c.target, s) +
+      backFacingCost(c.target, c.source, t)
     );
   };
 
@@ -1520,7 +1532,9 @@ export function sketchEdgeGeometry(
         curScore < W_EDGE &&
         portClashCount(i, cur.s, cur.t) === 0 &&
         portStackCount(i, cur.s, cur.t) === 0 &&
-        curveCost(g) < W_BEND
+        curveCost(g) < W_BEND &&
+        backFacingCost(c.source, c.target, cur.s) === 0 &&
+        backFacingCost(c.target, c.source, cur.t) === 0
       )
         continue;
       let bestScore = curScore;
