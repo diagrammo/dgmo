@@ -2290,7 +2290,11 @@ no-auto-y                // line: anchor the y-axis at 0 (opt out of auto-fit)
 - `no-auto-y` (**line only**) — by default a line chart auto-fits its y-axis to a
   padded window around the data (min→max across all series, not a forced 0
   baseline), so a tight high-valued series fills the plot. `no-auto-y` restores
-  the 0 baseline. Bars always anchor at 0 and ignore the flag.
+  the 0 baseline. Bars always anchor at 0 and ignore the flag. Negative bar
+  values are supported: the domain spans `[min(0, dataMin), max(0, dataMax)]`
+  and bars grow either direction from the 0 baseline (diverging), in both
+  orientations; stacks accumulate positive and negative segments into
+  separate runs.
 - `title` directive removed — the chart title is line 1 (`bar My Chart`). Using
   `title` raises an error diagnostic.
 - Legend shows by default whenever the chart is multi-series; suppress it with
