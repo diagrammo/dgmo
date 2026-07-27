@@ -2,7 +2,12 @@
 // PURE — no name resolution, no rendering, no data-asset access. Implements the
 // single-pass deterministic line classification of §24B.10. See the tech-spec
 // at _bmad-output/implementation-artifacts/tech-spec-map-parser.md.
-import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import {
+  makeDgmoError,
+  formatDgmoError,
+  emit,
+  NEGATIVE_VALUE_DX,
+} from '../diagnostics';
 import { MAP_DIRECTIVE_KEY_SET } from '../directives-registry';
 import type { DgmoError } from '../diagnostics';
 import type { Writable } from '../utils/brand';
@@ -328,6 +333,22 @@ export function parseMap(content: string, palette?: PaletteColors): ParsedMap {
           `\`${k}:\` is not a valid channel here — ${CHANNEL_HINT[own]} (§24B).`
         );
         delete meta[k];
+      }
+    }
+    // The element's own channel: `size:` (marker radius) and `width:` (line
+    // thickness) encode magnitude, so a negative value has no visual and is
+    // rejected. `heat:` is a signed choropleth ramp (§24B.3) — negatives OK.
+    if (own !== 'heat' && meta[own] !== undefined) {
+      const n = Number(meta[own]);
+      if (Number.isFinite(n) && n < 0) {
+        diagnostics.push(
+          emit(NEGATIVE_VALUE_DX, line, {
+            value: n,
+            label: `${own}: ${meta[own]}`,
+            channel: own === 'size' ? 'marker sizes' : 'edge widths',
+          })
+        );
+        delete meta[own];
       }
     }
   }

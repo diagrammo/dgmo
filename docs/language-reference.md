@@ -2294,7 +2294,11 @@ no-auto-y                // line: anchor the y-axis at 0 (opt out of auto-fit)
   values are supported: the domain spans `[min(0, dataMin), max(0, dataMax)]`
   and bars grow either direction from the 0 baseline (diverging), in both
   orientations; stacks accumulate positive and negative segments into
-  separate runs.
+  separate runs. Signed values are a bar/line/scatter/slope/quadrant/heatmap
+  privilege — magnitude-channel charts (pie, polar-area, radar, funnel,
+  sankey flows, arc link weights, wordcloud weights, map `size:`/`width:`)
+  reject negatives with the `E_VALUE_NEGATIVE` error; map `heat:` and
+  treemap `heat:` ramps stay signed.
 - `title` directive removed — the chart title is line 1 (`bar My Chart`). Using
   `title` raises an error diagnostic.
 - Legend shows by default whenever the chart is multi-series; suppress it with

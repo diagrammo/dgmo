@@ -97,7 +97,15 @@ import {
   suggest,
   emit,
   TITLE_DIRECTIVE_DX,
+  NEGATIVE_VALUE_DX,
 } from './diagnostics';
+
+// Channel wording for the negative-value diagnostic (E_VALUE_NEGATIVE).
+const CHANNEL_NAME: Record<string, string> = {
+  pie: 'pie slices',
+  'polar-area': 'polar-area wedges',
+  radar: 'radar axis values',
+};
 import {
   detectBadChartTypeDeclaration,
   extractColor,
@@ -580,6 +588,25 @@ export function parseChart(
         lineNumber
       );
       const [first, ...rest] = dataValues.values;
+      // Pie/polar-area/radar encode magnitude (share, radius) — a negative
+      // value has no honest visual there. Bars/lines support signed values.
+      if (
+        result.type === 'pie' ||
+        result.type === 'polar-area' ||
+        result.type === 'radar'
+      ) {
+        const neg = dataValues.values.find((v) => v < 0);
+        if (neg !== undefined) {
+          result.diagnostics.push(
+            emit(NEGATIVE_VALUE_DX, lineNumber, {
+              value: neg,
+              label: rawLabel,
+              channel: CHANNEL_NAME[result.type],
+            })
+          );
+          continue;
+        }
+      }
       result.data.push({
         label: rawLabel,
         // parseDataRowValues guarantees values.length >= 1.

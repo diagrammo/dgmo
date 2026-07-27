@@ -187,6 +187,7 @@ import {
   suggest,
   emit,
   TITLE_DIRECTIVE_DX,
+  NEGATIVE_VALUE_DX,
 } from './diagnostics';
 import { resolveColorWithDiagnostic } from './colors';
 import {
@@ -553,11 +554,23 @@ function parseExtendedChartFull(
             palette
           )
         : undefined;
+      const linkValue = parseFloat(val);
+      // A flow's ribbon width encodes magnitude — negative has no visual.
+      if (linkValue < 0) {
+        result.diagnostics.push(
+          emit(NEGATIVE_VALUE_DX, lineNumber, {
+            value: linkValue,
+            label: `${source} -> ${target}`,
+            channel: 'flow widths',
+          })
+        );
+        continue;
+      }
       if (!result.links) result.links = [];
       result.links.push({
         source,
         target,
-        value: parseFloat(val),
+        value: linkValue,
         ...(linkColor && { color: linkColor }),
         directed: arrow === '->',
         lineNumber,
@@ -618,12 +631,23 @@ function parseExtendedChartFull(
               if (!result.nodeColors) result.nodeColors = {};
               result.nodeColors[target] = targetColor;
             }
+            // In-bounds by values.length === 1 guard above.
+            const childValue = dataRow.values[0]!;
+            if (childValue < 0) {
+              result.diagnostics.push(
+                emit(NEGATIVE_VALUE_DX, lineNumber, {
+                  value: childValue,
+                  label: `${source} -> ${target}`,
+                  channel: 'flow widths',
+                })
+              );
+              continue;
+            }
             if (!result.links) result.links = [];
             result.links.push({
               source,
               target,
-              // In-bounds by values.length === 1 guard above.
-              value: dataRow.values[0]!,
+              value: childValue,
               ...(linkColor && { color: linkColor }),
               lineNumber,
             });
@@ -934,6 +958,17 @@ function parseExtendedChartFull(
         result.diagnostics,
         lineNumber
       );
+      // A funnel band's width encodes stage size — negative has no visual.
+      if (result.type === 'funnel' && dataRow.values[0]! < 0) {
+        result.diagnostics.push(
+          emit(NEGATIVE_VALUE_DX, lineNumber, {
+            value: dataRow.values[0]!,
+            label: rawLabel,
+            channel: 'funnel stage sizes',
+          })
+        );
+        continue;
+      }
       result.data.push({
         label: rawLabel,
         // In-bounds by values.length === 1 guard above.

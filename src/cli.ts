@@ -18,6 +18,7 @@ import {
 } from './dgmo-router';
 import { parseDgmoChartType } from './dgmo-router';
 import { formatDgmoError } from './diagnostics';
+import { renderErrorCard } from './error-card';
 import { listDiagnosticCodes } from './diagnostics-registry';
 import { getPalette, getAvailablePalettes } from './palettes';
 import { DEFAULT_FONT_NAME } from './fonts';
@@ -1029,10 +1030,22 @@ async function main(): Promise<void> {
     }
   }
 
-  const { svg } = await render(content, {
+  let { svg } = await render(content, {
     theme: opts.theme,
     palette: opts.palette,
   });
+
+  // Error-severity diagnostics ⇒ the error card, never a partial chart — the
+  // same contract as the library `render()` (index.ts) that embeds use. A
+  // misleading half-diagram in a PNG is worse than a clear "here's what broke".
+  if (errors.length > 0) {
+    svg = renderErrorCard(
+      errors,
+      content,
+      getPalette(opts.palette),
+      opts.theme === 'dark' ? 'dark' : 'light'
+    );
+  }
 
   if (!svg) {
     if (errors.length === 0) {

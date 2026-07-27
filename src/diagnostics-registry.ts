@@ -22,6 +22,7 @@ import {
   nameMergedMessage,
   emptyMetadataValueMessage,
   TITLE_DIRECTIVE_DX,
+  NEGATIVE_VALUE_DX,
 } from './diagnostics';
 import { SWIMLANE_DIAGNOSTICS } from './swimlane/diagnostics';
 import { RACI_DIAGNOSTICS } from './raci/diagnostics';
@@ -93,6 +94,10 @@ export const UNIVERSAL_DIAGNOSTICS: DiagnosticSpec[] = [
 
   // ── Data-chart `title` directive (decision #48) ──
   TITLE_DIRECTIVE_DX,
+
+  // ── Negative value on a magnitude channel (pie/polar-area/radar/funnel/
+  //    sankey/arc/wordcloud/treemap size/map size:/width:) ──
+  NEGATIVE_VALUE_DX,
 ];
 
 // ── Aggregate ───────────────────────────────────────────────

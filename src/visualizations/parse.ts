@@ -15,6 +15,7 @@ import {
   suggest,
   emit,
   TITLE_DIRECTIVE_DX,
+  NEGATIVE_VALUE_DX,
 } from '../diagnostics';
 import {
   collectIndentedValues,
@@ -472,6 +473,17 @@ function parseVisualizationFull(
         const arcValue = linkMatch[4]
           ? parseFloat(normalizeNumericToken(linkMatch[4]) ?? linkMatch[4])
           : 1;
+        // A link's ribbon weight encodes magnitude — negative has no visual.
+        if (arcValue < 0) {
+          result.diagnostics.push(
+            emit(NEGATIVE_VALUE_DX, lineNumber, {
+              value: arcValue,
+              label: `${source} -> ${target}`,
+              channel: 'arc link weights',
+            })
+          );
+          continue;
+        }
         result.links.push({
           source,
           target,
@@ -1321,6 +1333,16 @@ function parseVisualizationFull(
             weight: maybeWeight,
             lineNumber,
           });
+        } else if (lastSpace >= 0 && !isNaN(maybeWeight) && maybeWeight < 0) {
+          // "word -30" is an authored weight, not freeform prose — a word's
+          // size encodes magnitude, so reject rather than swallow it as text.
+          result.diagnostics.push(
+            emit(NEGATIVE_VALUE_DX, lineNumber, {
+              value: maybeWeight,
+              label: line.substring(0, lastSpace).trim(),
+              channel: 'wordcloud weights',
+            })
+          );
         } else {
           freeformLines.push(line);
         }
