@@ -4,10 +4,13 @@
 // (clustered side-by-side) layouts (chart.barLayout), horizontal orientation.
 // Matches the house style: 25% tint fill + full-strength border, per-category
 // colors for single series, value labels, 0-baseline.
+// Signed values: the domain is [min(0, dataMin), max(0, dataMax)] and bars
+// grow from the 0 baseline in either direction (diverging); stacks accumulate
+// positive and negative runs separately.
 // ============================================================
 
 import { scaleBand, scaleLinear } from 'd3-scale';
-import { max as d3max } from 'd3-array';
+import { max as d3max, min as d3min } from 'd3-array';
 import type { ParsedChart } from '../chart';
 import type { PaletteColors } from '../palettes';
 import { FONT_FAMILY } from '../fonts';
@@ -74,7 +77,8 @@ export function renderBar(
   const colorFor = (seriesIdx: number, catIdx: number, override?: string) => {
     if (override) return override;
     return multiSeries
-      ? (chart.seriesNameColors?.[seriesIdx] ?? colors[seriesIdx % colors.length]!)
+      ? (chart.seriesNameColors?.[seriesIdx] ??
+          colors[seriesIdx % colors.length]!)
       : colors[catIdx % colors.length]!;
   };
   const fillOf = (c: string) =>
@@ -92,16 +96,29 @@ export function renderBar(
   );
 
   const perCat = data.map((d) => seriesValues(d, seriesCount));
+  // Stacked bars accumulate positive and negative values into separate runs,
+  // so the extents are the per-category positive sum and negative sum.
   const maxVal = stacked
-    ? (d3max(perCat, (vals) => vals.reduce((a, b) => a + b, 0)) ?? 0)
+    ? (d3max(perCat, (vals) =>
+        vals.filter((v) => v > 0).reduce((a, b) => a + b, 0)
+      ) ?? 0)
     : (d3max(perCat, (vals) => d3max(vals) ?? 0) ?? 0);
-  const niceMax = maxVal === 0 ? 1 : maxVal;
+  const minVal = stacked
+    ? (d3min(perCat, (vals) =>
+        vals.filter((v) => v < 0).reduce((a, b) => a + b, 0)
+      ) ?? 0)
+    : (d3min(perCat, (vals) => d3min(vals) ?? 0) ?? 0);
+  // Domain always includes 0 (bars encode magnitude from a 0 baseline); with
+  // negative data it extends below so bars grow either direction from 0.
+  const hiVal = Math.max(0, maxVal);
+  const loVal = Math.min(0, minVal);
+  const niceMax = hiVal === 0 && loVal === 0 ? 1 : hiVal;
 
   // Left margin must fit the rotated y-title + the left-edge labels: category
   // names for horizontal bars, value ticks for vertical.
   const leftLabels = horizontal
     ? data.map((d) => d.label)
-    : [fmtNum(niceMax), fmtNum(niceMax / 2)];
+    : [fmtNum(niceMax), fmtNum(niceMax / 2), fmtNum(loVal), fmtNum(loVal / 2)];
   const m: Margins = {
     top: top + 8,
     right: 32,
@@ -123,7 +140,7 @@ export function renderBar(
   const valRange: [number, number] = horiz
     ? [m.left, m.left + plotW]
     : [m.top + plotH, m.top];
-  const val = scaleLinear().domain([0, niceMax]).nice().range(valRange);
+  const val = scaleLinear().domain([loVal, niceMax]).nice().range(valRange);
 
   // value-axis gridlines + ticks
   for (const t of val.ticks(6)) {
@@ -205,7 +222,8 @@ export function renderBar(
   data.forEach((d, ci) => {
     const base = cat(d.label) ?? 0;
     const vals = seriesValues(d, seriesCount);
-    let acc = 0;
+    let accPos = 0;
+    let accNeg = 0;
     vals.forEach((v, s) => {
       const stroke = colorFor(s, ci, seriesCount === 1 ? d.color : undefined);
       const fill = fillOf(stroke);
@@ -219,6 +237,9 @@ export function renderBar(
         seriesName: multiSeries ? sName : undefined,
       };
       if (stacked) {
+        // Positive segments stack up/right from 0, negative segments stack
+        // down/left — the diverging-stack convention.
+        const acc = v < 0 ? accNeg : accPos;
         if (horiz) {
           const x0 = val(acc);
           const x1 = val(acc + v);
@@ -262,7 +283,8 @@ export function renderBar(
               textColor
             );
         }
-        acc += v;
+        if (v < 0) accNeg += v;
+        else accPos += v;
       } else {
         const off = inner!(s) ?? 0;
         const bw = inner!.bandwidth();
@@ -278,13 +300,20 @@ export function renderBar(
             stroke,
             tag
           );
+          // Negative bars grow left — the label sits off the bar's free end,
+          // flipped inside the bar when it would leave the plot (the min-value
+          // bar ends exactly at the plot edge and would hit the category name).
+          const txt = fmtNum(v);
+          const approxW = txt.length * 7 + 6;
+          const inside =
+            v < 0 ? x1 - approxW < m.left : x1 + approxW > m.left + plotW;
           drawValueLabel(
             svg,
-            fmtNum(v),
-            x1 + 6,
+            txt,
+            v < 0 ? (inside ? x1 + 6 : x1 - 6) : inside ? x1 - 6 : x1 + 6,
             base + off + bw / 2 + 4,
             textColor,
-            'start'
+            v < 0 !== inside ? 'end' : 'start'
           );
         } else {
           const y1 = val(v);
@@ -298,11 +327,16 @@ export function renderBar(
             stroke,
             tag
           );
+          // Negative bars grow down — the label sits below the bar's free end,
+          // flipped inside the bar when it would leave the plot (the min-value
+          // bar reaches the plot floor and would hit the category name).
+          const yOut = v < 0 ? y1 + 14 : y1 - 6;
+          const yInside = v < 0 ? yOut > m.top + plotH - 2 : yOut < m.top + 2;
           drawValueLabel(
             svg,
             fmtNum(v),
             base + off + bw / 2,
-            y1 - 6,
+            yInside ? (v < 0 ? y1 - 6 : y1 + 14) : yOut,
             textColor
           );
         }
