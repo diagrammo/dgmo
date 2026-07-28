@@ -2,6 +2,7 @@
 // ER Diagram SVG Renderer
 // ============================================================
 
+import { serializeSvg } from '../utils/svg-serialize';
 import { tagAttrKey } from '../utils/tag-groups';
 import {
   fillModeFromOptions,
@@ -798,7 +799,7 @@ export function renderERDiagramForExport(
     svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     svgEl.style.fontFamily = FONT_FAMILY;
 
-    return svgEl.outerHTML;
+    return serializeSvg(svgEl);
   } finally {
     document.body.removeChild(container);
   }

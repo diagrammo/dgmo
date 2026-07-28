@@ -2,6 +2,7 @@
 // Flowchart SVG Renderer
 // ============================================================
 
+import { serializeSvg } from '../utils/svg-serialize';
 import * as d3Selection from 'd3-selection';
 import { fillModeFromOptions } from '../utils/parsing';
 import { appendArrowheadMarkers } from '../utils/arrow-markers';
@@ -893,7 +894,7 @@ export function renderFlowchartForExport(
     svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     svgEl.style.fontFamily = FONT_FAMILY;
 
-    return svgEl.outerHTML;
+    return serializeSvg(svgEl);
   } finally {
     document.body.removeChild(container);
   }

@@ -1,3 +1,4 @@
+import { serializeSvg } from './svg-serialize';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 
@@ -48,5 +49,5 @@ export function extractExportSvg(
   svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   svgEl.style.fontFamily = FONT_FAMILY;
   svgEl.querySelectorAll('[data-export-ignore]').forEach((el) => el.remove());
-  return svgEl.outerHTML;
+  return serializeSvg(svgEl);
 }

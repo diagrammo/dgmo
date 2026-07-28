@@ -1,3 +1,4 @@
+import { serializeSvg } from '../utils/svg-serialize';
 import { tagAttrKey } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
 import * as d3 from 'd3-selection';
@@ -1623,5 +1624,5 @@ export function renderJourneyMapForExport(
     if (bgRect) bgRect.remove();
   }
 
-  return svgEl.outerHTML;
+  return serializeSvg(svgEl);
 }

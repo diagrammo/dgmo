@@ -8,6 +8,7 @@
 // these helpers without sharing an 8,800-line file.
 // ============================================================
 
+import { serializeSvg } from './svg-serialize';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
@@ -213,7 +214,7 @@ export function finalizeSvgExport(
   svgEl.style.fontFamily = FONT_FAMILY;
   // Strip elements marked for export exclusion (e.g., inactive legend pills)
   svgEl.querySelectorAll('[data-export-ignore]').forEach((el) => el.remove());
-  const svgHtml = svgEl.outerHTML;
+  const svgHtml = serializeSvg(svgEl);
   document.body.removeChild(container);
   return svgHtml;
 }

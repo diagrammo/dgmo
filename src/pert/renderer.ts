@@ -29,6 +29,7 @@
 //   - data attrs on the `<g>` wrapper of each activity ONLY (per
 //     CLAUDE.md gotcha: children must NOT carry data attributes)
 
+import { serializeSvg } from '../utils/svg-serialize';
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
@@ -753,7 +754,7 @@ export function renderPertForExport(
     else svgEl.style.background = palette.bg;
     svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     svgEl.style.fontFamily = FONT_FAMILY;
-    return svgEl.outerHTML;
+    return serializeSvg(svgEl);
   } finally {
     document.body.removeChild(container);
   }

@@ -2,6 +2,7 @@
 // Sitemap Diagram SVG Renderer
 // ============================================================
 
+import { serializeSvg } from '../utils/svg-serialize';
 import { tagAttrKey } from '../utils/tag-groups';
 import {
   fillModeFromOptions,
@@ -887,7 +888,7 @@ export async function renderSitemapForExport(
   svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   svgEl.style.fontFamily = FONT_FAMILY;
 
-  const svgHtml = svgEl.outerHTML;
+  const svgHtml = serializeSvg(svgEl);
   document.body.removeChild(container);
   return svgHtml;
 }

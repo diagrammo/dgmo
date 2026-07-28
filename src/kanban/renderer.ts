@@ -2,6 +2,7 @@
 // Kanban Board SVG Renderer
 // ============================================================
 
+import { serializeSvg } from '../utils/svg-serialize';
 import { tagAttrKey } from '../utils/tag-groups';
 import { fillModeFromOptions } from '../utils/parsing';
 import * as d3Selection from 'd3-selection';
@@ -767,7 +768,7 @@ export function renderKanbanForExport(
   });
 
   const svgEl = container.querySelector('svg');
-  return svgEl?.outerHTML ?? '';
+  return svgEl ? serializeSvg(svgEl) : '';
 }
 
 // ============================================================

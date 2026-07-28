@@ -54,8 +54,8 @@ const EDGE_STROKE_WIDTH = 2;
 // paint catch clicks; it sits last in the group so `.sk-edge-group path` (first
 // path) still resolves to the VISIBLE line.
 const EDGE_HIT_WIDTH = 18;
-const ARROWHEAD_W = 12;
-const ARROWHEAD_H = 8;
+const ARROWHEAD_W = 18;
+const ARROWHEAD_H = 12;
 const DASH = '6 3';
 const BAND_LABEL_FONT_SIZE = 19;
 const BAND_LABEL_OPACITY = 0.55;

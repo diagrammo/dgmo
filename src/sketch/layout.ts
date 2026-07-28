@@ -443,37 +443,27 @@ export function layoutSketch(
     }
     const base = rectFor(unit, at.c, at.r);
     let spot = { c: at.c, r: at.r };
-    if (flags.resolveOverlap && collidesAny(base, occupied)) {
-      // A collapsed box normally reserves its would-be frame footprint (so
-      // fold/unfold moves nothing) — but when the user parks the CARD where
-      // the frame wouldn't fit, the authored position wins: fall back to the
-      // card's own cell instead of shoving the card to the nearest
-      // frame-sized hole. Only a genuine card-cell collision still resolves.
-      if (unit.kind === 'virtual') {
-        const cs = virtualCardSpot(unit.box.id, spot);
-        const cardRect = unitRect(cs.c, cs.r);
-        if (collidesAny(cardRect, occupied)) {
-          const freed = nearestFree(cardRect, occupied);
-          spot = {
-            c: spot.c + (freed.c - cs.c),
-            r: spot.r + (freed.r - cs.r),
-          };
-          overlapWarn(unit.box.lineNumber, unit.box.label);
-        }
-        const placedCard = virtualCardSpot(unit.box.id, spot);
-        occupied.push(unitRect(placedCard.c, placedCard.r));
-        placedAt.set(unit, spot);
-        continue;
-      }
+    // An authored `at:` on a BOX (expanded or collapsed) is an explicit,
+    // user-placed coordinate — it is NEVER shoved to avoid another box. Shoving
+    // one group to de-overlap another cascades violently (drag a group toward
+    // its neighbour and the whole diagram reflows — the neighbour teleports, a
+    // third box jumps to make room). Authored boxes may overlap; the box lands
+    // exactly where placed and nothing else moves (WYSIWYG). Only SHAPES still
+    // de-overlap on collision (a small, local nudge — the desired "drop a shape
+    // on another and it parts" behavior), and only FLOW-placed roots (no `at:`)
+    // are auto-arranged below. A collapsed box still reserves its would-be
+    // frame footprint (fold/unfold moves nothing) via rectFor.
+    if (
+      flags.resolveOverlap &&
+      unit.kind === 'shape' &&
+      collidesAny(base, occupied)
+    ) {
       const freed = nearestFree(base, occupied);
       spot = {
         c: at.c + (freed.c - base.c),
         r: at.r + (freed.r - base.r),
       };
-      const line =
-        unit.kind === 'shape' ? unit.node.lineNumber : unit.box.lineNumber;
-      const label = unit.kind === 'shape' ? unit.node.label : unit.box.label;
-      overlapWarn(line, label);
+      overlapWarn(unit.node.lineNumber, unit.node.label);
     }
     occupied.push(rectFor(unit, spot.c, spot.r));
     placedAt.set(unit, spot);
