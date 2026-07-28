@@ -14,10 +14,9 @@
 import dagre from '@dagrejs/dagre';
 import { line as d3line, curveBasis } from 'd3-shape';
 import type { ParsedBoxesAndLines, BLGroup } from './types';
+import { NODE_WIDTH, NODE_HEIGHT } from './node-metrics';
 import {
   computeNodeSize,
-  NODE_WIDTH,
-  NODE_HEIGHT,
   type BLLayoutResult,
   type BLLayoutEdge,
 } from './layout';

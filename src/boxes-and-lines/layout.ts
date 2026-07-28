@@ -9,6 +9,7 @@
 
 import type { ParsedBoxesAndLines, BLNode, BLGroup } from './types';
 import type { BLSearchConfig } from './layout-search';
+import { NODE_HEIGHT, NODE_WIDTH } from './node-metrics';
 import { measureText, wrapTextToWidth } from '../utils/text-measure';
 import { placeEdgeLabels } from './label-placement';
 import {
@@ -23,9 +24,6 @@ const MARGIN = 40;
 const MAX_PARALLEL_EDGES = 5;
 const PARALLEL_SPACING = 22;
 
-const PHI = 1.618;
-export const NODE_HEIGHT = 60;
-export const NODE_WIDTH = Math.round(NODE_HEIGHT * PHI);
 const DESC_NODE_WIDTH = 140;
 const DESC_FONT_SIZE = 10;
 const DESC_LINE_HEIGHT = 1.4;

@@ -21,13 +21,12 @@
 // the caller falls back to the normal placement search.
 
 import type { ParsedBoxesAndLines, BLGroup } from './types';
-import {
-  NODE_WIDTH,
-  NODE_HEIGHT,
-  type BLLayoutResult,
-  type BLLayoutEdge,
-  type BLLayoutGroup,
-  type BLLayoutNode,
+import { NODE_WIDTH, NODE_HEIGHT } from './node-metrics';
+import type {
+  BLLayoutResult,
+  BLLayoutEdge,
+  BLLayoutGroup,
+  BLLayoutNode,
 } from './layout';
 
 type Pt = { x: number; y: number };

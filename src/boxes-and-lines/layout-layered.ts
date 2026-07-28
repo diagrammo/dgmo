@@ -15,13 +15,8 @@
 // risk. Flat graphs only (no expanded containers); returns [] otherwise.
 
 import type { ParsedBoxesAndLines } from './types';
-import {
-  NODE_WIDTH,
-  NODE_HEIGHT,
-  type BLLayoutResult,
-  type BLLayoutEdge,
-  type BLLayoutNode,
-} from './layout';
+import { NODE_WIDTH, NODE_HEIGHT } from './node-metrics';
+import type { BLLayoutResult, BLLayoutEdge, BLLayoutNode } from './layout';
 
 type Size = { width: number; height: number };
 type Pt = { x: number; y: number };

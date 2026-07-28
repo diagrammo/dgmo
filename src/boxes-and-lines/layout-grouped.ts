@@ -29,13 +29,12 @@
 // model (group-endpoint edges, collapsed groups, out-of-range node counts).
 
 import type { ParsedBoxesAndLines } from './types';
-import {
-  NODE_WIDTH,
-  NODE_HEIGHT,
-  type BLLayoutResult,
-  type BLLayoutEdge,
-  type BLLayoutNode,
-  type BLLayoutGroup,
+import { NODE_WIDTH, NODE_HEIGHT } from './node-metrics';
+import type {
+  BLLayoutResult,
+  BLLayoutEdge,
+  BLLayoutNode,
+  BLLayoutGroup,
 } from './layout';
 
 type Size = { width: number; height: number };

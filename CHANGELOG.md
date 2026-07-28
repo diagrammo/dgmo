@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-07-28
+
+### Added
+- **Sketch edges route for straightness.** The relaxer now scores curve shape — a straight run beats a single bend, and a single bend beats an S — weighted below crossings but above port facing, so a straighter route wins even when its ports face slightly worse. Shape is measured from the sampled polyline (total absolute turning plus a surcharge per turn-sign flip) rather than port tangents alone, which used to miss an S built from two same-direction tangents. Back-facing ports carry a steep surcharge, so an edge leaves toward its target instead of looping over the top of its card, and two edges landing on the same bare node split onto different sides instead of stacking two arrowheads on one dot.
+- **Sketch folds in place.** A collapsed box keeps its would-be expanded footprint occupied and centres the card inside it, so folding moves nothing else and unfolding is the exact inverse — for authored and flow-placed boxes alike. Authored placement also wins outright now: a card parked where its frame wouldn't fit falls back to its own cell at the authored spot instead of being shoved to the nearest frame-sized hole, and authored-at root entities are exempt from the edge-avoidance nudge.
+- **Sketch card body is a markdown description.** Tags still colour the card (border, fill, legend) but no longer print as `Group: value` body rows — the body belongs to the free-text description. Over-long descriptions clamp with a `+N more in source` marker (`.sk-desc-more`, carrying `data-line-number`) instead of a silent ellipsis, so an editor can jump to the source.
+- **Boxes-and-lines group collapse is stable.** Interactive collapse no longer re-runs the placement search and teleports every node: surviving nodes freeze at their previous positions, the collapsed pill anchors at its members' previous bounding-box centre, and far-side units slide back to reclaim the vacated span. Falls back to the search when previous-position coverage is incomplete or the frozen layout would collide. Collapsed pills gain a member-count chip.
+- **`E_VALUE_NEGATIVE` — magnitude charts reject negative values.** Charts whose value channel encodes pure magnitude (share, radius, ribbon width, font weight) now error instead of rendering garbage: pie, polar-area, radar, funnel, sankey flows, arc link weights, wordcloud weights, and map `size:`/`width:`. Signed charts (bar, line, scatter, slope, quadrant, heatmap, map/treemap `heat:`) are untouched. The CLI now renders the error card whenever error-severity diagnostics exist — the same contract as `render()` — so a broken chart can no longer export as a misleading partial diagram.
+
+### Fixed
+- **Bar charts handle signed values with a diverging baseline.** The domain is now `[min(0, dataMin), max(0, dataMax)]`, so negative values extend the axis below zero and bars grow either direction from the 0 baseline in both orientations. Stacks accumulate positive and negative segments into separate runs, and value labels flip inside the bar when the free end sits at the plot edge. Previously an all-negative dataset collapsed the domain and bars overflowed the plot.
+- **SVG attribute values escape angle brackets on serialize.** Renderers return `outerHTML`, the HTML serializer, which leaves `<` and `>` alone inside attribute values. That is inert in HTML, but a label like `A</text><script>…` landing in `data-name` makes an XML parser reject the whole document — so any `.svg` served as `image/svg+xml` or loaded via `<img>` (the Cloud render cache, wrapper embeds) silently broke on one unlucky label. All ten serialization sites now route through `utils/svg-serialize.ts`. This is a well-formedness fix, not an XSS fix: a security sweep across 20 chart types confirmed nothing escapes its attribute.
+- **Sketch auto-layout stage flags and frozen origin restored** after a parallel-session clobber dropped them from main, with regression tests pinning the contract.
+
 ## [0.55.0] - 2026-07-21
 
 ### Added
