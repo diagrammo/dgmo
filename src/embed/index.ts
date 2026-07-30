@@ -88,6 +88,18 @@ export interface DgmoBlockOptions {
    * visually — the chart's visible title belongs in the DGMO source itself.
    */
   title?: string;
+  /**
+   * Extra `data-*` attributes for the outer wrapper, as bare names → values
+   * (`{ 'dgmo-ref': 'dgm_01H…' }` emits `data-dgmo-ref="dgm_01H…"`).
+   *
+   * Exists so a surface can mark a block for its own client code without
+   * string-patching the emitted HTML — remark-dgmo's cloud references stamp the
+   * diagram id and the revision they were baked from here, and its client script
+   * reads them back to decide whether a refresh is even worth a fetch. Values are
+   * attribute-escaped; a key that isn't a plain identifier is dropped rather than
+   * trusted, since these end up in markup verbatim.
+   */
+  dataAttributes?: Record<string, string>;
   /** Receives palette-fallback warnings. Default: console.warn. */
   onWarn?: (message: string) => void;
 }
@@ -120,6 +132,7 @@ function resolveBlockOptions(opts: DgmoBlockOptions): ResolvedBlockOptions {
     wrapper: opts.wrapper ?? 'figure',
     className: opts.className ?? 'dgmo',
     legacyClassNames: opts.legacyClassNames ?? [],
+    dataAttributes: opts.dataAttributes ?? {},
     title: opts.title,
 
     onWarn: opts.onWarn ?? ((message) => console.warn(message)),
@@ -264,6 +277,7 @@ function assembleBlock(
   const variant = showcase ? 'showcase' : 'diagram';
 
   const ariaAttr = opts.title ? ` aria-label="${escapeAttr(opts.title)}"` : '';
+  const dataAttrs = dataAttributeString(opts.dataAttributes);
 
   // The toolbar is emitted whenever ANY of its buttons is enabled — each
   // show* flag is independent, so authors can keep e.g. copy without the
@@ -272,11 +286,27 @@ function assembleBlock(
   const sourceHtml = sourceDisclosure(source, opts);
 
   return (
-    `<${Wrapper} class="${escapeAttr(wrapperClasses(opts, variant))}"${ariaAttr}>` +
+    `<${Wrapper} class="${escapeAttr(wrapperClasses(opts, variant))}"${ariaAttr}${dataAttrs}>` +
     svgsHtml +
     sourceHtml +
     `</${Wrapper}>`
   );
+}
+
+/**
+ * Render `dataAttributes` as ` data-<name>="<value>"` pairs.
+ *
+ * Keys are restricted to `[a-z0-9-]` and must start with a letter: the value is
+ * escaped, but the NAME is written into markup verbatim, so a key carrying a
+ * quote or a space could close the attribute and open another. Dropped rather
+ * than escaped — a caller passing a name that isn't an attribute name has a bug
+ * we should not paper over.
+ */
+function dataAttributeString(attrs: Record<string, string>): string {
+  return Object.entries(attrs)
+    .filter(([name]) => /^[a-z][a-z0-9-]*$/.test(name))
+    .map(([name, value]) => ` data-${name}="${escapeAttr(value)}"`)
+    .join('');
 }
 
 // ----- icon SVGs (static author-controlled markup) -----

@@ -406,4 +406,28 @@ export const BLOCK_CSS: string = `
   color: #616e88;
   font-style: italic;
 }
+
+/* === Cloud references ===
+ * A withdrawn reference's placeholder, and the "this moved" affordance a host's
+ * client script falls back to when it can see a diagram has changed but cannot
+ * safely swap it in. Both are deliberately quiet: a page peppered with badges
+ * is worse than one that is a few days behind. */
+.dgmo--tombstone {
+  border: 1px dashed currentColor;
+  border-radius: 6px;
+  opacity: 0.6;
+  padding: 1.5rem;
+  text-align: center;
+}
+.dgmo-tombstone-text {
+  font-size: 0.9em;
+  margin: 0;
+}
+.dgmo-updated {
+  display: block;
+  font-size: 0.8em;
+  margin-top: 0.4rem;
+  opacity: 0.7;
+  text-align: right;
+}
 `;

@@ -157,6 +157,32 @@ describe('renderDgmoBlock — standard embed block', () => {
   });
 });
 
+describe('dataAttributes — a marker hook for host client code', () => {
+  it('emits data-* pairs on the wrapper, escaped', async () => {
+    const { html } = await renderDgmoBlock(PIE, {
+      dataAttributes: { 'dgmo-ref': 'dgm_01H"x', 'dgmo-ref-updated': '1234' },
+    });
+    expect(html).toContain('data-dgmo-ref="dgm_01H&quot;x"');
+    expect(html).toContain('data-dgmo-ref-updated="1234"');
+  });
+
+  it('drops a key that is not an attribute name rather than escaping it', async () => {
+    // The value is escaped but the NAME lands in markup verbatim, so a key
+    // carrying a quote could close the attribute and open another one.
+    const { html } = await renderDgmoBlock(PIE, {
+      dataAttributes: { 'x" onload="alert(1)': 'y', '': 'z', OK: 'v' },
+    });
+    expect(html).not.toContain('onload');
+    expect(html).not.toContain('data-OK');
+  });
+
+  it('changes nothing when absent', async () => {
+    const withEmpty = await renderDgmoBlock(PIE, { dataAttributes: {} });
+    const without = await renderDgmoBlock(PIE);
+    expect(withEmpty.html).toBe(without.html);
+  });
+});
+
 describe('buildDgmoBlockHtml — markup-only assembly', () => {
   it('wraps pre-rendered svg divs in the standard chrome', () => {
     const html = buildDgmoBlockHtml(
