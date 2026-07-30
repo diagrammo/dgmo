@@ -39,6 +39,10 @@
       "types": "./dist/chart-meta.d.ts",
       "default": "./dist/chart-meta.js"
     },
+    "./cloud-reference": {
+      "types": "./dist/cloud-reference.d.ts",
+      "default": "./dist/cloud-reference.js"
+    },
     "./completion": {
       "types": "./dist/completion-registry.d.ts",
       "default": "./dist/completion-registry.js"

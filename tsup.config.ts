@@ -189,6 +189,11 @@ const BUILDS: Options[] = [
       // the app's editor imports these eagerly, so they must not drag the
       // render/parse graph onto the startup path.
       'completion-registry': 'src/completion-registry.ts',
+      // The cloud-reference resolver (Cloud story 10.6) — a dependency-free
+      // parser every wrapper and the CLI import so none of them reimplements
+      // the three spellings. Its own entry precisely so a docs wrapper can
+      // resolve a reference without pulling the render graph.
+      'cloud-reference': 'src/cloud-reference.ts',
     },
     format: ['esm'],
     dts: true,
