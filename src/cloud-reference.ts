@@ -49,7 +49,7 @@ export interface CloudReference {
  * check: the server is the authority on whether an id exists, and a parser that
  * enforced the id format too would reject fixtures, self-hosted ids, and any
  * future prefix — failing at parse time with a worse error than the 404 it was
- * trying to pre-empt. Bounded so a malformed document can't hand a wrapper a
+ * trying to prevent. Bounded so a malformed document can't hand a wrapper a
  * kilobyte of "id".
  */
 const ID = String.raw`[A-Za-z0-9_-]{3,64}`;

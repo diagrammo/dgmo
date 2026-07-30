@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-07-30
+
+### Added
+- **`@diagrammo/dgmo/cloud-reference` — one resolver for pointing at a diagram instead of pasting one.** A reference names a diagram living in Diagrammo Cloud, so a document stops going stale the day it is written. Three spellings, one parser, because each is native to where it gets typed: `cloud abc123` inside a fence, `![[cloud:abc123]]` in a note, or a plain share URL. Its own subpath export and **zero dependencies** — a docs wrapper can resolve a reference without pulling the render graph in behind it. A parity test asserts all three forms from one table, so a future modifier cannot land in one spelling and quietly miss the others. Consumed first by `remark-dgmo`; the CLI and the app can use the same parser rather than growing their own regexes.
+- **`dataAttributes` on the standard embed block.** Emits `data-*` pairs on the wrapper so a host surface can mark its own blocks — `remark-dgmo` stamps the referenced diagram's id and the revision a page was baked from, and its client reads them back. Passed as an option rather than patched onto rendered HTML, because a wrapper editing markup by regex is how a rendering pipeline ends up with two of them. A key that is not a valid attribute name is dropped rather than escaped: the value is escaped, but the name lands in markup verbatim.
+- **Block chrome for a withdrawn reference.** `BLOCK_CSS` gains rules for the placeholder shown when a referenced diagram has been unshared by its author, and for the quiet "this diagram has been updated" affordance a host client falls back to when it can see a diagram changed but cannot safely swap it in. Deliberately understated — a page peppered with badges is worse than one that is a few days behind.
+
 ## [0.56.0] - 2026-07-28
 
 ### Added

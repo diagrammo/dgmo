@@ -94,6 +94,18 @@ interface DgmoBlockOptions {
      * visually — the chart's visible title belongs in the DGMO source itself.
      */
     title?: string;
+    /**
+     * Extra `data-*` attributes for the outer wrapper, as bare names → values
+     * (`{ 'dgmo-ref': 'dgm_01H…' }` emits `data-dgmo-ref="dgm_01H…"`).
+     *
+     * Exists so a surface can mark a block for its own client code without
+     * string-patching the emitted HTML — remark-dgmo's cloud references stamp the
+     * diagram id and the revision they were baked from here, and its client script
+     * reads them back to decide whether a refresh is even worth a fetch. Values are
+     * attribute-escaped; a key that isn't a plain identifier is dropped rather than
+     * trusted, since these end up in markup verbatim.
+     */
+    dataAttributes?: Record<string, string>;
     /** Receives palette-fallback warnings. Default: console.warn. */
     onWarn?: (message: string) => void;
 }
