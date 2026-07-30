@@ -54,6 +54,26 @@ export function truncateBareUrl(url: string): string {
   return stripped.slice(0, BARE_URL_MAX_DISPLAY - 1) + '\u2026';
 }
 
+/**
+ * Display text for an inline-markdown string: link targets dropped, bare URLs
+ * shortened the way {@link renderInlineText} draws them, and emphasis/code
+ * markers removed.
+ *
+ * Measure with this before wrapping — the raw source is wider than what the
+ * reader sees (`**bold**` carries four characters that never render), so
+ * measuring it breaks lines early. Marker removal is deliberately
+ * unbalanced-tolerant: a wrapper measures partial strings, and the closing
+ * `**` of a phrase routinely sits in a word that has not been added yet.
+ */
+export function stripInlineMarkdown(text: string): string {
+  return text
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
+    .replace(/https?:\/\/[^\s)>\]]+|www\.[^\s)>\]]+/g, (u) =>
+      truncateBareUrl(u)
+    )
+    .replace(/\*\*|__|[*_`]/g, '');
+}
+
 export function renderInlineText(
   textEl: d3Selection.Selection<SVGTextElement, unknown, null, undefined>,
   text: string,

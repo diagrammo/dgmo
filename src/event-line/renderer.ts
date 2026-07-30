@@ -2048,15 +2048,7 @@ function wrapDescription(
   lines: readonly string[],
   charsPerLine: number
 ): WrappedDescLine[] {
-  const out: WrappedDescLine[] = [];
-  for (const line of lines) {
-    if (line === '') {
-      out.push({ text: '', kind: 'plain' });
-      continue;
-    }
-    out.push(...wrapDescriptionLines([line], charsPerLine));
-  }
-  return out;
+  return wrapDescriptionLines([...lines], charsPerLine);
 }
 
 function renderBody(

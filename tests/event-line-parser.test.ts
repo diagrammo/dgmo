@@ -67,6 +67,39 @@ Translunar Injection
     expect(e.description).toEqual(['The stack leaves Earth orbit.']);
   });
 
+  it('keeps a blank line inside a body as a paragraph break', () => {
+    const p = parseEventLine(`event-line Apollo
+no-scale
+
+Translunar Injection
+  The stack leaves Earth orbit.
+
+  Three days to the Moon.`);
+    expect(errors(p)).toHaveLength(0);
+    expect(p.events[0]!.description).toEqual([
+      'The stack leaves Earth orbit.',
+      '',
+      'Three days to the Moon.',
+    ]);
+  });
+
+  it('does not leave an empty line from blanks around a body', () => {
+    const p = parseEventLine(`event-line Apollo
+no-scale
+
+
+Translunar Injection
+
+  The stack leaves Earth orbit.
+
+
+Splashdown
+  Recovery in the Pacific.`);
+    expect(errors(p)).toHaveLength(0);
+    expect(p.events[0]!.description).toEqual(['The stack leaves Earth orbit.']);
+    expect(p.events[1]!.description).toEqual(['Recovery in the Pacific.']);
+  });
+
   it('accepts year-only and full ISO dates', () => {
     const p = parseEventLine(`event-line A Short History of the Web
 no-scale

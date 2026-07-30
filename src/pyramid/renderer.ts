@@ -753,15 +753,7 @@ function wrapDescription(
   const normalized = lines.map((l) =>
     l.startsWith('- ') ? '• ' + l.slice(2) : l
   );
-  const out: WrappedDescLine[] = [];
-  for (const line of normalized) {
-    if (line === '') {
-      out.push({ text: '', kind: 'plain' });
-      continue;
-    }
-    out.push(...wrapDescriptionLines([line], maxChars));
-  }
-  return out;
+  return wrapDescriptionLines(normalized, maxChars);
 }
 
 function clamp(x: number, lo: number, hi: number): number {

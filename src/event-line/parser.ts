@@ -178,6 +178,8 @@ export function parseEventLine(
   let eraIndent = -1;
   // Indent of the current event; a line indented deeper is its description.
   let currentEventIndent = 0;
+  // A blank line was seen; the next description line starts a new paragraph.
+  let pendingDescBreak = false;
   const aliasMap = new Map<string, string>();
 
   for (let i = 0; i < lines.length; i++) {
@@ -187,6 +189,10 @@ export function parseEventLine(
 
     if (!trimmed) {
       currentTagGroup = null;
+      // A blank line inside a description body is a paragraph break. Recorded
+      // as pending rather than pushed, so trailing blank lines (and the blank
+      // line before the *next* event) never leave an empty line on a card.
+      pendingDescBreak = true;
       continue;
     }
     if (trimmed.startsWith('//')) continue;
@@ -272,6 +278,9 @@ export function parseEventLine(
     // before the era bracket so a bracketed prose line (`  [aside]`) under an
     // event stays a description rather than opening a spurious era.
     if (currentEvent && indent > currentEventIndent) {
+      if (pendingDescBreak && currentEvent.description.length > 0)
+        currentEvent.description.push('');
+      pendingDescBreak = false;
       const descLine = trimmed.startsWith('- ')
         ? `• ${trimmed.substring(2)}`
         : trimmed;

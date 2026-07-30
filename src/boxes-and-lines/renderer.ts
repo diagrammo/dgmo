@@ -45,7 +45,10 @@ import { resolveColor } from '../colors';
 import { resolveTagColor } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
-import { renderInlineText } from '../utils/inline-markdown';
+import {
+  renderInlineText,
+  stripInlineMarkdown,
+} from '../utils/inline-markdown';
 import {
   wrapDescriptionLines,
   type WrappedDescLine,
@@ -1070,12 +1073,7 @@ export function renderBoxesAndLines(
 
       // Estimate display length — strip markdown syntax for measurement
       const displayLen = (text: string): number =>
-        text
-          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [text](url) → text
-          .replace(/\*\*(.+?)\*\*/g, '$1') // **bold** → bold
-          .replace(/\*(.+?)\*/g, '$1') // *italic* → italic
-          .replace(/`(.+?)`/g, '$1') // `code` → code
-          .replace(/https?:\/\/\S+/g, (u) => u.slice(0, 20)).length; // bare URLs shortened
+        stripInlineMarkdown(text).length;
 
       // Build wrapped lines from description. Convert "- " to bullet glyph
       // and let the shared helper split bullet lines into first/cont rows

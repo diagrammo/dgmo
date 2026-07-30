@@ -27,8 +27,8 @@ import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import { wrapDescriptionLines } from '../utils/wrapped-desc';
 import {
-  parseInlineMarkdown,
   renderInlineText,
+  stripInlineMarkdown,
 } from '../utils/inline-markdown';
 import type { ParsedCountdown } from './types';
 import {
@@ -1450,8 +1450,7 @@ export function renderCountdown(
     const w = estWidth(t, base);
     return w <= maxW ? base : Math.max(min, Math.floor((base * maxW) / w));
   };
-  const dispLen = (s: string): number =>
-    parseInlineMarkdown(s).reduce((n, sp) => n + sp.text.length, 0);
+  const dispLen = (s: string): number => stripInlineMarkdown(s).length;
 
   const padX = Math.max(30, Math.round(width * 0.045));
   const padY = Math.max(26, Math.round(width * 0.03));
