@@ -1,129 +1,82 @@
 # dgmo — @diagrammo/dgmo
 
-Core library and CLI for the DGMO diagram markup language. Handles parsing, rendering, and color/palette system. Published to npm as `@diagrammo/dgmo`.
+Core library and CLI for the DGMO diagram markup language: parsing, layout, rendering, and the color/palette system. Published to npm as `@diagrammo/dgmo`, consumed by the desktop app, the web editor, Obsidian, the MCP server, and the doc-framework wrappers.
+
+**`docs/dgmo-language-spec.md` in the workspace root is authoritative.** If it isn't in the spec, it isn't valid DGMO — verify against the spec and the parsers, never against fixtures or old examples.
 
 ## Commands
 
 ```bash
 pnpm build            # tsup (ESM + CJS, lib + CLI)
-pnpm dev              # tsup --watch
-pnpm test             # Vitest (run once)
-pnpm test:watch       # Vitest (watch mode)
+pnpm dev              # tsup --watch  — only ONE may run; racing watchers tear dist/
+pnpm test             # Vitest        (test:watch for watch mode)
 pnpm typecheck        # tsc --noEmit
+./test-cli.sh input.dgmo [args...]   # build + run the CLI in one step
 ```
 
-**Quick CLI testing:** `./test-cli.sh input.dgmo [args...]` — builds and runs in one step.
-
-## CLI Usage
-
 ```bash
-dgmo diagram.dgmo                              # PNG output (default)
-dgmo diagram.dgmo -o output.svg                # SVG (format from extension)
+dgmo diagram.dgmo                          # PNG (default)
+dgmo diagram.dgmo -o output.svg            # format from extension
 dgmo diagram.dgmo --theme dark --palette catppuccin
 ```
 
-Entry point: `src/cli.ts` → built to `dist/cli.cjs`.
+## Structure
 
-## Project Structure
+One directory per chart type under `src/` (`sequence/`, `map/`, `sketch/`, `treemap/`, `swimlane/`, …) — `ls src/` is the current list, and it changes often enough that a copy here would lie. Each holds its own parser, layout and renderer.
 
-```
-src/
-├── index.ts                    # Public API exports
-├── cli.ts                      # CLI entry point
-├── chart.ts                    # Shared chart data types (bar, line, pie, polar-area, radar)
-├── dgmo-router.ts              # Framework dispatcher (all chart types)
-├── fonts.ts                    # FONT_FAMILY, DEFAULT_FONT_NAME ('Inter')
-├── colors.ts                   # Color name → hex resolver
-├── d3.ts                       # D3 renderers (slope, arc, timeline, wordcloud, venn, quadrant)
-├── data-chart-parser.ts        # Parser for the data-chart family
-├── charts-d3/                  # D3 data-chart renderers (bar, line, pie, scatter, sankey, heatmap, funnel, radar, …)
-├── render.ts                   # Unified render() entry
-├── sharing.ts                  # Share-link URL encode/decode
-├── completion.ts               # Symbol extraction for editor autocomplete
-├── diagnostics.ts              # DgmoError, severity, suggest()
-├── label-layout.ts             # Shared label placement helpers
-├── sequence/                   # Sequence diagram parser + D3 renderer
-├── graph/                      # Flowchart, state, generic graph parsers/renderers
-├── infra/                      # Infrastructure diagram + compute model
-├── org/                        # Org charts (with import resolver)
-├── c4/                         # C4 architecture diagrams (context/containers/components/deployment)
-├── er/                         # Entity-relationship diagrams
-├── class/                      # Class diagrams
-├── kanban/                     # Kanban boards
-├── gantt/                      # Gantt charts + scheduler
-├── sitemap/                    # Sitemaps
-├── boxes-and-lines/            # Boxes-and-lines diagrams
-├── cycle/                      # Cycle / lifecycle diagrams
-├── journey-map/                # Customer journey maps
-├── mindmap/                    # Mind maps
-├── pert/                       # PERT charts (multiple layered renderers)
-├── pyramid/                    # Pyramid diagrams
-├── raci/                       # RACI matrices
-├── ring/                       # Ring / radial diagrams
-├── tech-radar/                 # Tech radar
-├── wireframe/                  # Wireframe / UI sketch diagrams
-├── auto/                       # Auto-render entry (browser script tag bootstrap)
-├── editor/                     # CodeMirror grammar/highlight helpers
-├── utils/                      # Shared utilities (parsing, legend, time ticks, inline markdown, tag groups)
-└── palettes/
-    ├── index.ts                # Registry + exports
-    ├── types.ts                # PaletteConfig, PaletteColors
-    ├── color-utils.ts          # HSL conversions, color mixing
-    ├── registry.ts             # Palette registry
-    └── [palette].ts            # atlas, blueprint, catppuccin, nord, slate, tidewater, tokyo-night
-```
+Shared at the root of `src/`:
 
-## Architecture
+- `dgmo-router.ts` — dispatches on the first line, or infers from content when absent
+- `render.ts` — unified `render()` entry · `cli.ts` → `dist/cli.cjs`
+- `data-chart-parser.ts` + `charts-d3/` — the data-chart family (bar, line, pie, scatter, sankey, heatmap, funnel, radar, …), all D3
+- `d3.ts` — older shared D3 helpers; newer chart types own their directory instead
+- `*-registry.ts` — `chart-type-registry`, `completion-registry`, `diagnostics-registry`, `directives-registry`. **A new chart type or directive registers here**, and several consumers read these registries rather than hard-coding lists
+- `palettes/` — one file per palette plus `color-utils.ts`; each palette ships light/dark/transparent themes
+- `editor/` — CodeMirror grammar + highlight helpers · `completion.ts` — symbol extraction
+- `diagnostics.ts` — `DgmoError`, severity, `suggest()`
 
-### Diagram Routing
+## Adding or changing a chart type
 
-`dgmo-router.ts` dispatches based on the first line (or content inference when absent):
-- **Sequence** → `sequence/parser.ts` + `sequence/renderer.ts`
-- **Flowchart / state / generic graph** → `graph/` subparsers + renderers
-- **D3 chart types** (slope, arc, timeline, wordcloud, venn, quadrant) → `d3.ts`
-- **Data chart types** (bar, line, pie, scatter, sankey, heatmap, funnel, radar, etc.) → `data-chart-parser.ts` + `charts-d3/` (all D3; the former ECharts renderers were replaced by D3 — `echarts.ts` no longer exists, and `chord` was removed in 0.44.0)
-- **Structured diagrams** (c4, class, er, kanban, org, infra, gantt, sitemap, boxes-and-lines, cycle, journey-map, mindmap, pert, pyramid, raci, ring, tech-radar, wireframe) → own subfolders with parser + layout + renderer
+Follow `docs/dev-notes/chart-type-checklist.md`. For syntax changes to an existing type, `docs/dev-notes/syntax-change-checklist.md` — it covers spec, parsers, tests, examples, grammars, docs, sync scripts and publishing, and skipping a step here is how the ecosystem drifts.
 
-### Sequence Parser
+New chart types don't get `looksLike*` content-inference heuristics — declare the type.
 
-Processes lines top-to-bottom. Key ordering constraint: section matching happens BEFORE indent-based block closing. If adding new element types matched before block closing, they'll get pushed into the wrong container if a block is open. Always close blocks first (check `blockStack`) before pushing to `currentContainer()`.
+## Output rules
 
-`ParsedSequenceDgmo` has an `options` field (`Record<string, string>`) for diagram-level options like `activations: off`. When adding function-level `options` parameters, rename to avoid shadowing.
+These govern what users see, and are the ones most often broken:
 
-### Sequence Renderer
+- **No hex codes.** Colors come from the palette; blend with the `mix()` helper
+- **Solid fill is never the default** — it's opt-in, and accent indicators need contrast when it's on
+- **Never invent syntax**, never use mermaid-style arrows, never use `default` as a tag keyword
+- **Never name a rendering library** (D3, ECharts) in user-facing text, docs or errors
+- Text that can overflow gets a halo, not a clip
 
-SVG renderer using D3. Key concepts:
-- Section Y positions are computed from cumulative content above — not anchored to messages below
-- Collapsible sections use `data-section-toggle` attribute on wrapper `<g>` elements
-- Only the `<g>` wrapper carries `data-line-number`/`data-section` — children must NOT have them
-- Unlabeled return arrows are filtered out to reduce vertical noise
+## Rendering constraints
 
-### Color System
+- **resvg does not support CSS `color-mix()`** — use `mix()` in `palettes/color-utils.ts`, which pre-computes hex
+- **resvg PNG background:** pass `paletteColors.bg` for light/dark; omit for transparent
+- **Fonts:** all renderers import `FONT_FAMILY` from `fonts.ts` (Inter). The CLI feeds resvg the bundled TTFs in `fonts/`; the app and Obsidian load Inter via `@font-face`
+- `render()` and the CLI export path must agree — they have diverged before, and the CLI is the one users file bugs about
 
-7 palettes (atlas, blueprint, catppuccin, nord, slate, tidewater, tokyo-night), each with light/dark/transparent themes. `color-utils.ts` provides HSL conversion and a `mix()` helper for blending colors.
+## Sequence — the two ordering traps
 
-## Constraints
+- The parser matches sections **before** closing indent-based blocks. A new element type matched before block closing lands in the wrong container while a block is open — check `blockStack` and close first
+- Only the wrapper `<g>` carries `data-line-number` / `data-section`; children must not. Section Y positions accumulate from content above, never anchor to messages below
+- No cosmetic indentation; `A <- B` is normalized to `B -> A`; participant order is first-appearance
 
-- **resvg does NOT support CSS `color-mix()`** — use the `mix()` helper in `color-utils.ts` instead (pre-computes hex colors)
-- **resvg PNG background:** pass `paletteColors.bg` as `background` option for light/dark themes; omit for transparent
-- **Font standardization:** `fonts.ts` exports `FONT_FAMILY` and `DEFAULT_FONT_NAME` ('Inter'). All renderers import `FONT_FAMILY`. Inter Regular + Bold TTF files are bundled in `fonts/` and used by the CLI via resvg `fontFiles`. The app and Obsidian plugin load Inter via `@font-face`.
+## Build output
 
-## Build Output
+tsup emits dual ESM/CJS: `dist/index.js` + `.d.ts`, `dist/index.cjs` + `.d.cts`, and `dist/cli.cjs`.
 
-tsup produces dual ESM/CJS:
-- `dist/index.js` + `dist/index.d.ts` (ESM)
-- `dist/index.cjs` + `dist/index.d.cts` (CJS)
-- `dist/cli.cjs` (CLI binary)
+🔴 **Adding a subpath export to `package.json` breaks the app's `pnpm dev`** while the production build stays green — the app's dev-mode source alias must learn the new subpath. Update all three lists in `diagrammo-app/vite.base.config.ts`: the dist-entry list, the source alias map, and `optimizeDeps.include`.
 
 ## Testing
 
-- **Framework:** Vitest with jsdom environment
-- **Layout:** One test file per parser/renderer in `tests/` (e.g. `c4-parser.test.ts`, `gantt-renderer.test.ts`, `infra-compute.test.ts`), plus fixtures in `tests/fixtures/` and snapshots in `tests/__snapshots__/`
+Vitest with jsdom. One test file per parser/renderer in `tests/`, fixtures in `tests/fixtures/`, snapshots in `tests/__snapshots__/`.
 
-## Pre-Commit Validation
+- Snapshots are timezone-sensitive — run with `TZ=UTC` to keep dates deterministic
+- Never run a `pnpm dev` watcher concurrently with a build; the shared `dist/` gets torn
 
-Before committing any change, always build, run the test suite, and verify visually if the change affects rendering. Summarize to the user:
-1. **What changed** — brief description of the modification
-2. **How to validate** — specific commands or manual checks (e.g. render a specific fixture with a specific palette/theme, open a PNG to inspect)
+## Before committing
 
-Once build/tests/visual checks pass, commit autonomously — no need to wait for confirmation. Only pause if validation fails or the change is ambiguous.
+Build, run the suite, and **verify visually when the change affects rendering** — render a fixture at the affected palette/theme and look at it. Then say what changed and the exact command or file to re-render to confirm it.
