@@ -68,7 +68,7 @@ These govern what users see, and are the ones most often broken:
 
 tsup emits dual ESM/CJS: `dist/index.js` + `.d.ts`, `dist/index.cjs` + `.d.cts`, and `dist/cli.cjs`.
 
-🔴 **Adding a subpath export to `package.json` breaks the app's `pnpm dev`** while the production build stays green — the app's dev-mode source alias must learn the new subpath. Update all three lists in `diagrammo-app/vite.base.config.ts`: the dist-entry list, the source alias map, and `optimizeDeps.include`.
+🔴 **Adding a subpath export to `package.json` breaks the app's `pnpm dev`** while the production build stays green — the app's dev-mode source alias matches by prefix, so an unlisted subpath is rewritten to a path that cannot exist. Three lists in `diagrammo-app/vite.base.config.ts` must learn it; `diagrammo-app/CLAUDE.md` names them and is the file to follow, because it sits next to the code. Do not work from a list restated here — an earlier copy of this line named `optimizeDeps.include`, which is derived from one of the three rather than being one of them, so following it silently skipped the dist-ready gate.
 
 ## Testing
 
