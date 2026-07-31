@@ -46,7 +46,7 @@ New chart types don't get `looksLike*` content-inference heuristics — declare 
 These govern what users see, and are the ones most often broken:
 
 - **No hex codes.** Colors come from the palette; blend with the `mix()` helper
-- **Solid fill is never the default** — it's opt-in, and accent indicators need contrast when it's on
+- **Solid fill is never the default** — it's opt-in, and accent indicators need contrast when it's on. A renderer whose tint *carries meaning* opts out of the fill family entirely by hardcoding `const fillMode = undefined` at renderer entry with a comment saying why; gantt, infra and tech-radar's popover do this today
 - **Never invent syntax**, never use mermaid-style arrows, never use `default` as a tag keyword
 - **Never name a rendering library** (D3, ECharts) in user-facing text, docs or errors
 - Text that can overflow gets a halo, not a clip
@@ -56,7 +56,7 @@ These govern what users see, and are the ones most often broken:
 - **resvg does not support CSS `color-mix()`** — use `mix()` in `palettes/color-utils.ts`, which pre-computes hex
 - **resvg PNG background:** pass `paletteColors.bg` for light/dark; omit for transparent
 - **Fonts:** all renderers import `FONT_FAMILY` from `fonts.ts` (Inter). The CLI feeds resvg the bundled TTFs in `fonts/`; the app and Obsidian load Inter via `@font-face`
-- `render()` and the CLI export path must agree — they have diverged before, and the CLI is the one users file bugs about
+- `render()` and the CLI share one rendering core (`cli.ts` imports `render` and reimplements only the error-card policy), so they agree by construction — a difference between them means a stale `dist/` or a pinned module in a long-lived server, not a divergent code path. Verified 2026-07-31
 
 ## Sequence — the two ordering traps
 
@@ -76,7 +76,8 @@ Vitest with jsdom. One test file per parser/renderer in `tests/`, fixtures in `t
 
 - Snapshots are timezone-sensitive — run with `TZ=UTC` to keep dates deterministic
 - Never run a `pnpm dev` watcher concurrently with a build; the shared `dist/` gets torn
+- **Rebuild dgmo yourself after editing `src/`.** The app's `dev`/`prebuild`/`build:web`/`pretypecheck` hooks cover build, typecheck and dev-server *startup* — nothing rebuilds for `pnpm test`, for the other consumer repos, or for an edit made while a dev server is already running
 
 ## Before committing
 
-Build, run the suite, and **verify visually when the change affects rendering** — render a fixture at the affected palette/theme and look at it. Then say what changed and the exact command or file to re-render to confirm it.
+Build and run the suite. When the change affects rendering, verify through the **snapshot suite** and `mcp__dgmo__validate_diagram` — 🔴 never produce an image to inspect it yourself. That includes `dgmo file.dgmo --json`, which reports structured output *and still writes a PNG*; it is not a validation command. To let the user see a change, hand them the `.dgmo` source and the app or online editor to open it in, then say what changed.
