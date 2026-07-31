@@ -46,7 +46,7 @@ New chart types don't get `looksLike*` content-inference heuristics — declare 
 These govern what users see, and are the ones most often broken:
 
 - **No hex codes.** Colors come from the palette; blend with the `mix()` helper
-- **Solid fill is never the default** — it's opt-in, and accent indicators need contrast when it's on. A renderer whose tint *carries meaning* opts out of the fill family entirely by hardcoding `const fillMode = undefined` at renderer entry with a comment saying why; gantt, infra and tech-radar's popover do this today
+- **Tint is the default; full saturation is opt-in.** Decision #46 replaced the old `solid-fill` boolean with the mutually-exclusive `fill-*` family — `fill-tint` (the default spelled explicitly: 25% tint plus a solid intent-color outline), `fill-solid` (full intent saturation), `fill-outline` (no fill; the intent color rides the outline). Last one wins when several appear. Accent indicators need contrast under `fill-solid`. A chart whose fill **encodes data** ignores the family entirely: map choropleth regions, infra severity tints, gantt progress bars, tech-radar blips. Only `gantt/renderer.ts` still hardcodes `const fillMode = undefined` at renderer entry — infra and tech-radar pass `undefined` at the call site instead, so opting out is a call-site decision, not a renderer-entry one
 - **Never invent syntax**, never use mermaid-style arrows, never use `default` as a tag keyword
 - **Never name a rendering library** (D3, ECharts) in user-facing text, docs or errors
 - Text that can overflow gets a halo, not a clip
