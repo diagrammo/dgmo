@@ -1,9 +1,19 @@
 name: Release
 
-# Tag trigger disabled 2026-07-22 — the org NPM_TOKEN is broken, so every
-# tag-driven publish fails and burns minutes. Releases are done locally
-# (see workspace release script / release checklist). Restore the tag
-# trigger when the token is rotated.
+# Tag trigger disabled 2026-07-22 to cut Actions minutes. Releases are done
+# locally (see the workspace release skill / release checklist), so a tag-driven
+# run was spending minutes repeating work already done by hand.
+#
+# 🔴 The reason recorded here originally — "the org NPM_TOKEN is broken" — was a
+# WRONG DIAGNOSIS, retracted 2026-07-31. The token authenticates fine, for scoped
+# and unscoped packages alike. The CI runs that looked like auth failures say
+# "You cannot publish over the previously published versions", because a local
+# publish had already gone out. Read the failing run own log before re-deriving
+# it; a red run kept confirming the story for weeks.
+#
+# So: rotating the token will NOT restore this trigger and is not a precondition
+# for it. Restoring it is a deliberate choice about spending Actions minutes.
+# (The token does still expire ~2026-08-15 — that is a real deadline, unrelated.)
 on:
   workflow_dispatch:
 
