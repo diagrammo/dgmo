@@ -704,8 +704,19 @@ describe('pert renderer — date anchoring', () => {
     expect(svg).toContain('upstream activities still need estimates');
     // No date strings should appear in node bodies — projectStart is null
     // so every schedule cell renders nullLabel='?'.
-    expect(svg).not.toContain('2026-09-15</text>');
-    expect(svg).not.toContain('2026-08-');
+    //
+    // Scoped to the NODES, which is what the claim was always about. Scanning
+    // the whole SVG also caught the caption's "(as of <today>)", so the second
+    // assertion below passed only while today's date didn't happen to start
+    // with the literal it excluded — it began failing the moment the clock
+    // rolled into 2026-08. Matching any ISO date in the node band is both
+    // date-proof and a stronger statement of the same rule.
+    const nodes = svg.slice(
+      svg.indexOf('class="pert-nodes"'),
+      svg.indexOf('class="pert-caption-block"')
+    );
+    expect(nodes).not.toContain('2026-09-15</text>');
+    expect(nodes).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 
   it('forward anchor: only source activities (no predecessors) get a pin icon', () => {
