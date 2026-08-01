@@ -80,6 +80,17 @@ type RenderForExportOptions = {
   onMapResolverDiagnostics?: (
     diagnostics: readonly import('./diagnostics').DgmoError[]
   ) => void;
+  /**
+   * Canvas to draw onto, in px. Defaults to EXPORT_WIDTH x EXPORT_HEIGHT.
+   *
+   * Every chart used to render onto a fixed 1200x800 sheet, so a caller who
+   * fitted the result to a narrow column got its ASPECT too — a one-line goal
+   * meter arrived 800px tall with the bar as a sliver in the middle. Callers
+   * that know the shape they need can now say so; omitting these keeps the
+   * previous canvas exactly.
+   */
+  width?: number;
+  height?: number;
 };
 
 /** Everything an export handler needs — one bundle threaded through dispatch. */
@@ -92,6 +103,9 @@ interface ExportContext {
   exportMode: boolean;
   /** Whether the theme is dark, resolved once in renderForExport (Story 111.2). */
   isDark: boolean;
+  /** The canvas every handler draws onto — the caller's, or the default sheet. */
+  width: number;
+  height: number;
 }
 
 type DiagramExportHandler = (ctx: ExportContext) => Promise<string>;
@@ -211,6 +225,14 @@ export async function renderForExport(
     options,
     exportMode,
     isDark: theme === 'dark',
+    width:
+      options?.width && options.width > 0
+        ? Math.round(options.width)
+        : EXPORT_WIDTH,
+    height:
+      options?.height && options.height > 0
+        ? Math.round(options.height)
+        : EXPORT_HEIGHT,
   };
   // Generic dispatch: every structured diagram AND every D3 visualization now
   // resolves through the handler table. Only `sequence` — which has no chart
@@ -240,13 +262,13 @@ async function exportEventLine(ctx: ExportContext): Promise<string> {
   const parsed = parseEventLine(content, effectivePalette);
   if (parsed.error || parsed.events.length === 0) return '';
 
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
   renderEventLineForExport(
     container,
     parsed,
     effectivePalette,
     ctx.isDark,
-    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
+    { width: ctx.width, height: ctx.height },
     ctxTagOverride(ctx),
     new Date()
   );
@@ -262,13 +284,13 @@ async function exportBody(ctx: ExportContext): Promise<string> {
   const parsed = parseBody(content, effectivePalette);
   if (parsed.error) return '';
 
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
   renderBodyForExport(
     container,
     parsed,
     effectivePalette,
     ctx.isDark,
-    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
+    { width: ctx.width, height: ctx.height },
     ctxTagOverride(ctx)
   );
   return finalizeSvgExport(container, theme, effectivePalette);
@@ -284,15 +306,15 @@ async function exportVersionControl(ctx: ExportContext): Promise<string> {
   const parsed = parseVersionControl(content, effectivePalette);
   if (parsed.error || parsed.nodes.length === 0) return '';
 
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
   renderVersionControlForExport(
     container,
     parsed,
     effectivePalette,
     ctx.isDark,
     {
-      width: EXPORT_WIDTH,
-      height: EXPORT_HEIGHT,
+      width: ctx.width,
+      height: ctx.height,
     }
   );
   return finalizeSvgExport(container, theme, effectivePalette);
@@ -916,7 +938,7 @@ async function exportFlowchart(ctx: ExportContext): Promise<string> {
   if (fcParsed.error || fcParsed.nodes.length === 0) return '';
 
   const layout = layoutGraph(fcParsed);
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
 
   renderFlowchart(
     container,
@@ -925,7 +947,7 @@ async function exportFlowchart(ctx: ExportContext): Promise<string> {
     effectivePalette,
     ctx.isDark,
     undefined,
-    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+    { width: ctx.width, height: ctx.height }
   );
   return finalizeSvgExport(container, theme, effectivePalette);
 }
@@ -1144,7 +1166,7 @@ async function exportState(ctx: ExportContext): Promise<string> {
     collapsedChildCounts,
     originalGroups,
   });
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
 
   renderState(
     container,
@@ -1153,7 +1175,7 @@ async function exportState(ctx: ExportContext): Promise<string> {
     effectivePalette,
     ctx.isDark,
     undefined,
-    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+    { width: ctx.width, height: ctx.height }
   );
   return finalizeSvgExport(container, theme, effectivePalette);
 }
@@ -1219,13 +1241,13 @@ async function exportCycle(ctx: ExportContext): Promise<string> {
   const cycleParsed = parseCycle(content);
   if (cycleParsed.error || cycleParsed.nodes.length === 0) return '';
 
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
   renderCycleForExport(
     container,
     cycleParsed,
     effectivePalette,
     ctx.isDark,
-    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
+    { width: ctx.width, height: ctx.height },
     viewState,
     exportMode
   );
@@ -1267,7 +1289,7 @@ async function exportMap(ctx: ExportContext): Promise<string> {
   const dims = mapExportDimensions(
     mapResolved,
     mapData,
-    EXPORT_WIDTH,
+    ctx.width,
     options?.mapAspect
   );
   const container = createExportContainer(dims.width, dims.height);
@@ -1291,13 +1313,13 @@ async function exportPyramid(ctx: ExportContext): Promise<string> {
   const pyramidParsed = parsePyramid(content);
   if (pyramidParsed.error || pyramidParsed.layers.length === 0) return '';
 
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
   renderPyramidForExport(
     container,
     pyramidParsed,
     effectivePalette,
     ctx.isDark,
-    { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+    { width: ctx.width, height: ctx.height }
   );
   return finalizeSvgExport(container, theme, effectivePalette);
 }
@@ -1311,10 +1333,10 @@ async function exportRing(ctx: ExportContext): Promise<string> {
   const ringParsed = parseRing(content);
   if (ringParsed.error || ringParsed.layers.length === 0) return '';
 
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
   renderRingForExport(container, ringParsed, effectivePalette, ctx.isDark, {
-    width: EXPORT_WIDTH,
-    height: EXPORT_HEIGHT,
+    width: ctx.width,
+    height: ctx.height,
   });
   return finalizeSvgExport(container, theme, effectivePalette);
 }
@@ -1328,8 +1350,8 @@ async function exportTreemap(ctx: ExportContext): Promise<string> {
   if (treemapParsed.error || treemapParsed.roots.length === 0) return '';
 
   // Headless export: full tree (no depth window), source-declared color mode.
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
-  const dims = { width: EXPORT_WIDTH, height: EXPORT_HEIGHT };
+  const container = createExportContainer(ctx.width, ctx.height);
+  const dims = { width: ctx.width, height: ctx.height };
 
   if (treemapParsed.options.radial) {
     // Sunburst mode: parallel lazy imports of the radial layout + renderer.
@@ -1364,10 +1386,10 @@ async function exportBlock(ctx: ExportContext): Promise<string> {
   const blockParsed = parseBlock(content, effectivePalette);
   if (blockParsed.error || blockParsed.top.rows.length === 0) return '';
 
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
   renderBlockForExport(container, blockParsed, effectivePalette, ctx.isDark, {
-    width: EXPORT_WIDTH,
-    height: EXPORT_HEIGHT,
+    width: ctx.width,
+    height: ctx.height,
   });
   return finalizeSvgExport(container, theme, effectivePalette);
 }
@@ -1383,10 +1405,10 @@ async function exportGoal(ctx: ExportContext): Promise<string> {
   // failure (wrong first line) sets parsed.error.
   if (parsed.error) return '';
 
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
   renderGoalForExport(container, parsed, effectivePalette, ctx.isDark, {
-    width: EXPORT_WIDTH,
-    height: EXPORT_HEIGHT,
+    width: ctx.width,
+    height: ctx.height,
   });
   return finalizeSvgExport(container, theme, effectivePalette);
 }
@@ -1402,10 +1424,10 @@ async function exportCountdown(ctx: ExportContext): Promise<string> {
   // (wrong first line) sets parsed.error.
   if (parsed.error) return '';
 
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
   renderCountdownForExport(container, parsed, effectivePalette, ctx.isDark, {
-    width: EXPORT_WIDTH,
-    height: EXPORT_HEIGHT,
+    width: ctx.width,
+    height: ctx.height,
   });
   return finalizeSvgExport(container, theme, effectivePalette);
 }
@@ -1420,10 +1442,10 @@ async function exportClock(ctx: ExportContext): Promise<string> {
   // Renders even without a valid row (only a hard first-line failure sets error).
   if (parsed.error) return '';
 
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
   renderClockForExport(container, parsed, effectivePalette, ctx.isDark, {
-    width: EXPORT_WIDTH,
-    height: EXPORT_HEIGHT,
+    width: ctx.width,
+    height: ctx.height,
   });
   return finalizeSvgExport(container, theme, effectivePalette);
 }
@@ -1458,10 +1480,10 @@ async function exportRaci(ctx: ExportContext): Promise<string> {
   const raciParsed = parseRaci(content, effectivePalette);
   if (raciParsed.error) return '';
 
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
   renderRaciForExport(container, raciParsed, effectivePalette, ctx.isDark, {
-    width: EXPORT_WIDTH,
-    height: EXPORT_HEIGHT,
+    width: ctx.width,
+    height: ctx.height,
   });
   return finalizeSvgExport(container, theme, effectivePalette);
 }
@@ -1471,14 +1493,14 @@ async function exportRaci(ctx: ExportContext): Promise<string> {
  * canonical export dimensions. Each per-viz handler renders into the container
  * then finalizes it.
  */
-function beginVizExport(): {
+function beginVizExport(ctx: ExportContext): {
   container: HTMLDivElement;
   dims: D3ExportDimensions;
 } {
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
   const dims: D3ExportDimensions = {
-    width: EXPORT_WIDTH,
-    height: EXPORT_HEIGHT,
+    width: ctx.width,
+    height: ctx.height,
   };
   return { container, dims };
 }
@@ -1488,7 +1510,7 @@ async function exportSlope(ctx: ExportContext): Promise<string> {
   const parsed = parseSlope(content, palette);
   if (parsed.error || parsed.data.length === 0) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
-  const { container, dims } = beginVizExport();
+  const { container, dims } = beginVizExport(ctx);
   renderSlopeChart(
     container,
     parsed,
@@ -1505,7 +1527,7 @@ async function exportArc(ctx: ExportContext): Promise<string> {
   const parsed = parseArc(content, palette);
   if (parsed.error || parsed.links.length === 0) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
-  const { container, dims } = beginVizExport();
+  const { container, dims } = beginVizExport(ctx);
   renderArcDiagram(
     container,
     parsed,
@@ -1522,7 +1544,7 @@ async function exportTimeline(ctx: ExportContext): Promise<string> {
   const parsed = parseTimeline(content, palette);
   if (parsed.error || parsed.timelineEvents.length === 0) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
-  const { container, dims } = beginVizExport();
+  const { container, dims } = beginVizExport(ctx);
   renderTimeline(
     container,
     parsed,
@@ -1550,7 +1572,7 @@ async function exportWordcloud(ctx: ExportContext): Promise<string> {
   const parsed = parseWordcloud(content, palette);
   if (parsed.error || parsed.words.length === 0) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
-  const { container, dims } = beginVizExport();
+  const { container, dims } = beginVizExport(ctx);
   await renderWordCloudAsync(
     container,
     parsed,
@@ -1566,7 +1588,7 @@ async function exportVenn(ctx: ExportContext): Promise<string> {
   const parsed = parseVenn(content, palette);
   if (parsed.error || parsed.vennSets.length < 2) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
-  const { container, dims } = beginVizExport();
+  const { container, dims } = beginVizExport(ctx);
   renderVenn(container, parsed, effectivePalette, ctx.isDark, undefined, dims);
   return finalizeSvgExport(container, theme, effectivePalette);
 }
@@ -1576,7 +1598,7 @@ async function exportQuadrant(ctx: ExportContext): Promise<string> {
   const parsed = parseQuadrant(content, palette);
   if (parsed.error || parsed.quadrantPoints.length === 0) return '';
   const effectivePalette = await resolveExportPalette(theme, palette);
-  const { container, dims } = beginVizExport();
+  const { container, dims } = beginVizExport(ctx);
   renderQuadrant(
     container,
     parsed,
@@ -1610,7 +1632,7 @@ async function exportVisualization(ctx: ExportContext): Promise<string> {
 
   const effectivePalette = await resolveExportPalette(theme, palette);
   const isDark = ctx.isDark;
-  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+  const container = createExportContainer(ctx.width, ctx.height);
 
   const { parseSequenceDgmo } = await import('./sequence/parser');
   const { renderSequenceDiagram } = await import('./sequence/renderer');
@@ -1631,7 +1653,7 @@ async function exportVisualization(ctx: ExportContext): Promise<string> {
     isDark,
     undefined,
     {
-      exportWidth: EXPORT_WIDTH,
+      exportWidth: ctx.width,
       ...(seqActiveTagGroup !== undefined && {
         activeTagGroup: seqActiveTagGroup,
       }),

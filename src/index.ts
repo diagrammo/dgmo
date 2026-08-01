@@ -48,6 +48,15 @@ export interface RenderOptions {
    * non-interactively (server-side render, share-link decode).
    */
   viewState?: CompactViewState;
+  /**
+   * Canvas to draw onto, in px. Defaults to the 1200x800 export sheet.
+   *
+   * Omit these and nothing changes. Pass them when the result is going into a
+   * box whose shape you already know — fitting the default sheet to a narrow
+   * column inherits its aspect, so a one-line meter arrives as tall as a poster.
+   */
+  width?: number;
+  height?: number;
 }
 
 export interface RenderResult {
@@ -87,6 +96,8 @@ export async function render(
     ...(options?.theme !== undefined && { theme: options.theme }),
     palette: palette.id,
     ...(options?.viewState !== undefined && { viewState: options.viewState }),
+    ...(options?.width !== undefined && { width: options.width }),
+    ...(options?.height !== undefined && { height: options.height }),
   });
 
   const errors = result.diagnostics.filter((d) => d.severity === 'error');

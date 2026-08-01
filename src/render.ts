@@ -155,6 +155,15 @@ export async function render(
      *  app renders its live preview through direct renderer calls (not this
      *  entry), so it keeps its JS emphasis; pass `false` to opt out. */
     bakeHover?: boolean;
+    /**
+     * Canvas to draw onto, in px. Defaults to the 1200x800 export sheet.
+     *
+     * Fitting that sheet to a narrow column inherits its ASPECT, which is how a
+     * one-line goal meter ends up taller than the card holding it. A caller
+     * that knows the shape it wants passes it here.
+     */
+    width?: number;
+    height?: number;
   }
 ): Promise<{
   svg: string;
@@ -231,12 +240,19 @@ export async function render(
     // All data-chart types render through the hand-built D3 engine (no ECharts).
     await acquireDom();
     try {
-      const raw = await renderDataChartD3(renderContent, theme, paletteColors);
+      const raw = await renderDataChartD3(renderContent, theme, paletteColors, {
+        ...(options?.width !== undefined && { width: options.width }),
+        ...(options?.height !== undefined && { height: options.height }),
+      });
       // Bake pure-CSS hover while jsdom is still installed (the injector scans
       // the SVG DOM for group values). No-op unless `chartType` has a registry
       // row and `bakeHover` is on.
       const svg = injectHoverStyles(raw, chartType, { bakeHover });
-      return { svg, diagnostics: withLegendInlineWarning(diagnostics), chartType: chartType ?? undefined };
+      return {
+        svg,
+        diagnostics: withLegendInlineWarning(diagnostics),
+        chartType: chartType ?? undefined,
+      };
     } finally {
       releaseDom();
     }
@@ -267,6 +283,8 @@ export async function render(
         }),
         ...(options?.tagGroup !== undefined && { tagGroup: options.tagGroup }),
         ...(options?.mapData !== undefined && { mapData: options.mapData }),
+        ...(options?.width !== undefined && { width: options.width }),
+        ...(options?.height !== undefined && { height: options.height }),
         onMapResolverDiagnostics: (d) => {
           mapDiag.current = d;
         },
@@ -287,5 +305,9 @@ export async function render(
     diagnostics = [...mapDiag.current];
   }
 
-  return { svg, diagnostics: withLegendInlineWarning(diagnostics), chartType: chartType ?? undefined };
+  return {
+    svg,
+    diagnostics: withLegendInlineWarning(diagnostics),
+    chartType: chartType ?? undefined,
+  };
 }
