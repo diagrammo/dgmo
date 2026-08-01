@@ -407,8 +407,8 @@ export const BLOCK_CSS: string = `
   font-style: italic;
 }
 
-/* === Cloud references ===
- * A withdrawn reference's placeholder, and the "this moved" affordance a host's
+/* === Live links ===
+ * A withdrawn pointer's placeholder, and the "this moved" affordance a host's
  * client script falls back to when it can see a diagram has changed but cannot
  * safely swap it in. Both are deliberately quiet: a page peppered with badges
  * is worse than one that is a few days behind. */
@@ -429,5 +429,31 @@ export const BLOCK_CSS: string = `
   margin-top: 0.4rem;
   opacity: 0.7;
   text-align: right;
+}
+/* The card a docs site shows when live links are switched OFF, plus its
+ * hover-revealed way to turn them on. Hover-only on purpose: a READER never
+ * meets it, and anyone mousing over a diagram-shaped thing on their own docs
+ * site is almost certainly its author — which makes this the fix for a build
+ * warning nobody reads. The markup is the WRAPPER's (only it knows the feature
+ * is off); the styling is here because there is one stylesheet. */
+.dgmo-live-link-off {
+  position: relative;
+}
+.dgmo-live-link-enable {
+  bottom: 0.5rem;
+  font-size: 0.8em;
+  opacity: 0;
+  position: absolute;
+  right: 0.5rem;
+  transition: opacity 0.15s ease-in-out;
+}
+.dgmo-live-link-off:hover .dgmo-live-link-enable,
+.dgmo-live-link-enable:focus-visible {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dgmo-live-link-enable {
+    transition: none;
+  }
 }
 `;
