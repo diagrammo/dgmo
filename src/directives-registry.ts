@@ -438,6 +438,14 @@ export const DIRECTIVES_REGISTRY: readonly RegistryEntry[] = [
   { token: 'single-elim', category: 'modifier' },
   { token: 'double-elim', category: 'modifier' },
   { token: 'seeded', category: 'modifier' },
+
+  // ── Live link (§38) ──────────────────────────────────────
+  // The pointer type's one directive. Registered so it highlights and
+  // autocompletes like `palette` does — §38 justifies the shape by calling it
+  // "the ordinary DGMO directive shape", and an unregistered `url` would make
+  // that sentence false in the editor: `editor/tokens.ts` specializes only
+  // against the keyword registries, so it would render as plain identifier text.
+  { token: 'url', category: 'directive' },
 ];
 
 // ============================================================

@@ -37,7 +37,12 @@ export function docsLink(source: string): { url: string; label: string } {
     : { url: `${DOCS_BASE}/`, label: 'Browse the DGMO docs ↗' };
 }
 
-const MONO_FAMILY =
+/**
+ * The one monospace stack in the tree. Exported so the live-link card reuses it
+ * rather than adding a fourth copy — an id is code, and it must look like code
+ * in every card that shows one.
+ */
+export const MONO_FAMILY =
   "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace";
 
 const W = 660;

@@ -861,6 +861,19 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
     }),
   ],
+
+  // ── Live link (internal type) ────────────────────────────
+  // The type never appears in the chart-type popup, but a pointer file that is
+  // already open still autocompletes its one directive.
+  [
+    'live-link',
+    withGlobals({
+      url: {
+        description:
+          'The published diagram this file points at — a Diagrammo link or a bare diagram id',
+      },
+    }),
+  ],
 ]);
 
 // ── Cross-chart-type bare-keyword options: the fill family ──────
@@ -941,11 +954,22 @@ const CHART_TYPE_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
   chartTypes.map((c) => [c.id, c.description])
 );
 
+/**
+ * Types that route but are never OFFERED (`ChartTypeMeta.internal`). The popup
+ * is keyed off `ALL_CHART_TYPES` — a plain Set of ids with no metadata — so the
+ * flag is invisible here without looking back at `chartTypes`.
+ */
+const INTERNAL_IDS = new Set(
+  chartTypes.filter((c) => c.internal).map((c) => c.id)
+);
+
 export const CHART_TYPES: ReadonlyArray<{ name: string; description: string }> =
-  [...ALL_CHART_TYPES].map((name) => ({
-    name,
-    description: CHART_TYPE_DESCRIPTIONS[name] ?? name,
-  }));
+  [...ALL_CHART_TYPES]
+    .filter((name) => !INTERNAL_IDS.has(name))
+    .map((name) => ({
+      name,
+      description: CHART_TYPE_DESCRIPTIONS[name] ?? name,
+    }));
 
 // ============================================================
 // Entity types for `is a` declarations

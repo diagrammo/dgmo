@@ -1,19 +1,26 @@
 /**
- * Cloud references — the shared resolver (Diagrammo Cloud story 10.6).
+ * Live links — the shared resolver (Diagrammo Cloud story 10.6).
  *
- * A reference points at a diagram living in Diagrammo Cloud instead of at bytes
- * pasted into a document. The point of it is CURRENCY: a referenced diagram is
+ * A live link points at a diagram living in Diagrammo Cloud instead of at bytes
+ * pasted into a document. The point of it is CURRENCY: a linked diagram is
  * never stale, which is true for a team of one and needs no distribution to be
  * worth having.
  *
  * There are three SPELLINGS and exactly ONE parser, because each spelling is
  * native to where it gets typed:
  *
- *   | Surface                | Form                     |
- *   |------------------------|--------------------------|
- *   | docs frameworks        | `cloud abc123` in a fence|
- *   | Obsidian, desktop app  | `![[cloud:abc123]]`      |
- *   | anywhere taking a URL  | the plain URL            |
+ *   | Surface                | Form                        |
+ *   |------------------------|-----------------------------|
+ *   | docs frameworks        | `live-link abc123` in a fence|
+ *   | Obsidian, desktop app  | `![[live-link:abc123]]`     |
+ *   | anywhere taking a URL  | the plain URL               |
+ *
+ * The keyword was `cloud` until 2026-08-01 (decision #53). `cloud` named where
+ * the thing lives; `live-link` names what it is, and it is the publish dialog's
+ * own phrase, so one word now spans both sides of the exchange. Pre-1.0 there
+ * is no dual-accept window — `cloud abc123` simply stops resolving. The module
+ * and its package subpath keep the old name deliberately: renaming a subpath
+ * export breaks the app's `pnpm dev` while the production build stays green.
  *
  * 🔴 EVERY future modifier must land in all three (A9), and
  * `cloud-reference.test.ts` asserts parity across the forms from ONE table so a
@@ -54,11 +61,13 @@ export interface CloudReference {
  */
 const ID = String.raw`[A-Za-z0-9_-]{3,64}`;
 
-/** `cloud abc123` — the whole body of a dgmo fence. */
-const FENCE_RE = new RegExp(`^\\s*cloud\\s+(${ID})\\s*$`);
+/** `live-link abc123` — the whole body of a dgmo fence. */
+const FENCE_RE = new RegExp(`^\\s*live-link\\s+(${ID})\\s*$`);
 
-/** `![[cloud:abc123]]` — extends the local-file transclusion the app + Obsidian ship. */
-const EMBED_RE = new RegExp(`^\\s*!\\[\\[\\s*cloud:\\s*(${ID})\\s*\\]\\]\\s*$`);
+/** `![[live-link:abc123]]` — extends the local-file transclusion the app + Obsidian ship. */
+const EMBED_RE = new RegExp(
+  `^\\s*!\\[\\[\\s*live-link:\\s*(${ID})\\s*\\]\\]\\s*$`
+);
 
 /**
  * A URL form. Three shapes are accepted, because the URL a person has in hand is

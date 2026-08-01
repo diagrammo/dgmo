@@ -1,7 +1,7 @@
-import { a as DiagnosticSpec, P as PaletteConfig, C as CompactViewState, D as DgmoError } from './registry-CaSw0PSH.js';
-export { b as ChartTypeMeta, c as DgmoSeverity, d as DiagnosticParams, E as EmitOptions, e as PaletteColors, f as chartTypes, g as emit, h as formatDgmoError, i as getPalette, r as resolvePaletteOrFallback, p as validate } from './registry-CaSw0PSH.js';
-import { T as Theme } from './themes-tbBkIVsn.js';
-export { G as Gazetteer, a as GazetteerEntry, M as MapCompletionOptions, b as MapData, c as MapLocationMatch, d as MapPlaceCompletion, e as MapRegionCompletion, R as RegionName, f as RegionNames, g as completeMapPlaces, h as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-tbBkIVsn.js';
+import { a as DiagnosticSpec, P as PaletteConfig, C as CompactViewState, D as DgmoError } from './registry-C0HvobTb.js';
+export { b as ChartTypeMeta, c as DgmoSeverity, d as DiagnosticParams, E as EmitOptions, e as PaletteColors, f as chartTypes, g as emit, h as formatDgmoError, i as getPalette, r as resolvePaletteOrFallback, p as validate } from './registry-C0HvobTb.js';
+import { T as Theme } from './themes-l406Vj2z.js';
+export { G as Gazetteer, a as GazetteerEntry, M as MapCompletionOptions, b as MapData, c as MapLocationMatch, d as MapPlaceCompletion, e as MapRegionCompletion, R as RegionName, f as RegionNames, g as completeMapPlaces, h as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-l406Vj2z.js';
 
 declare function getMinDimensions(content: string): {
     width: number;
@@ -135,6 +135,15 @@ interface RenderOptions {
      * non-interactively (server-side render, share-link decode).
      */
     viewState?: CompactViewState;
+    /**
+     * Canvas to draw onto, in px. Defaults to the 1200x800 export sheet.
+     *
+     * Omit these and nothing changes. Pass them when the result is going into a
+     * box whose shape you already know — fitting the default sheet to a narrow
+     * column inherits its aspect, so a one-line meter arrives as tall as a poster.
+     */
+    width?: number;
+    height?: number;
 }
 interface RenderResult {
     svg: string;

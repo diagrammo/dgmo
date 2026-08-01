@@ -17,6 +17,7 @@ import {
   CHART_TYPE_DESCRIPTIONS,
 } from './dgmo-router';
 import { parseDgmoChartType } from './dgmo-router';
+import { chartTypes } from './chart-types';
 import { formatDgmoError } from './diagnostics';
 import { renderErrorCard } from './error-card';
 import { listDiagnosticCodes } from './diagnostics-registry';
@@ -338,13 +339,21 @@ async function runMapSearchCommand(args: string[]): Promise<void> {
 // query, not a rendering option.
 function runTypesCommand(args: string[]): void {
   const json = args.includes('--json');
-  const types = getAllChartTypes();
+  // `getAllChartTypes()` means "everything routable" and deliberately keeps
+  // internal types. `CHART_TYPE_DESCRIPTIONS` is a bare Record and carries no
+  // metadata, so the flag is only visible by looking back at `chartTypes`.
+  const internal = new Set(
+    chartTypes.filter((c) => c.internal).map((c) => c.id)
+  );
+  const types = getAllChartTypes().filter((id) => !internal.has(id));
   if (json) {
-    const chartTypes = types.map((id) => ({
+    const listed = types.map((id) => ({
       id,
       description: CHART_TYPE_DESCRIPTIONS[id] ?? id,
     }));
-    process.stdout.write(JSON.stringify({ chartTypes }, null, 2) + '\n');
+    process.stdout.write(
+      JSON.stringify({ chartTypes: listed }, null, 2) + '\n'
+    );
   } else {
     for (const id of types) {
       const desc = CHART_TYPE_DESCRIPTIONS[id];

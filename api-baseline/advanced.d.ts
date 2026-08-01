@@ -1,11 +1,11 @@
-import { D as DgmoError, C as CompactViewState, P as PaletteConfig, e as PaletteColors, T as TagGroup, j as TagEntry } from './registry-CaSw0PSH.js';
-export { k as CHART_TYPE_DESCRIPTIONS, b as ChartTypeMeta, l as DecodedDiagramUrl, c as DgmoSeverity, m as EncodeDiagramUrlOptions, n as EncodeDiagramUrlResult, R as RenderCategory, o as autoTagColorCycle, q as chartTypeParsers, f as chartTypes, s as decodeDiagramUrl, t as decodeViewState, u as encodeDiagramUrl, v as encodeViewState, h as formatDgmoError, w as getAllChartTypes, x as getAvailablePalettes, i as getPalette, y as getRenderCategory, z as isExtendedChartType, A as isValidHex, B as knownChartTypeIds, F as makeDgmoError, p as parseDgmo, G as parseDgmoChartType, H as registerPalette, I as tagAttrKey, p as validate } from './registry-CaSw0PSH.js';
-import { b as MapData, P as ParsedMap, i as ResolvedMap, j as MapLayoutLegend, k as GeoExtent } from './themes-tbBkIVsn.js';
-export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, M as MapCompletionOptions, l as MapDirectives, m as MapEdge, c as MapLocationMatch, d as MapPlaceCompletion, n as MapPoi, o as MapRegion, e as MapRegionCompletion, q as MapRoute, r as PoiPos, u as ProjectionFamily, R as RegionName, f as RegionNames, v as ResolvedEdge, w as ResolvedPoi, x as ResolvedRegion, y as ResolvedRoute, T as Theme, g as completeMapPlaces, h as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-tbBkIVsn.js';
+import { D as DgmoError, C as CompactViewState, P as PaletteConfig, e as PaletteColors, T as TagGroup, j as TagEntry } from './registry-C0HvobTb.js';
+export { k as CHART_TYPE_DESCRIPTIONS, b as ChartTypeMeta, l as DecodedDiagramUrl, c as DgmoSeverity, m as EncodeDiagramUrlOptions, n as EncodeDiagramUrlResult, R as RenderCategory, o as autoTagColorCycle, q as chartTypeParsers, f as chartTypes, s as decodeDiagramUrl, t as decodeViewState, u as encodeDiagramUrl, v as encodeViewState, h as formatDgmoError, w as getAllChartTypes, x as getAvailablePalettes, i as getPalette, y as getRenderCategory, z as isExtendedChartType, A as isValidHex, B as knownChartTypeIds, F as makeDgmoError, p as parseDgmo, G as parseDgmoChartType, H as registerPalette, I as tagAttrKey, p as validate } from './registry-C0HvobTb.js';
+import { b as MapData, P as ParsedMap, i as ResolvedMap, j as MapLayoutLegend, k as GeoExtent } from './themes-l406Vj2z.js';
+export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, M as MapCompletionOptions, l as MapDirectives, m as MapEdge, c as MapLocationMatch, d as MapPlaceCompletion, n as MapPoi, o as MapRegion, e as MapRegionCompletion, q as MapRoute, r as PoiPos, u as ProjectionFamily, R as RegionName, f as RegionNames, v as ResolvedEdge, w as ResolvedPoi, x as ResolvedRegion, y as ResolvedRoute, T as Theme, g as completeMapPlaces, h as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-l406Vj2z.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
-import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-CPNVUZ5J.js';
-export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as getSeriesColors, j as hexToHSL, k as hexToHSLString, l as hslToHex, m as mix, n as normalizePertSourceForShare, p as parseFirstLine, o as parseOrg, q as parseRaci, r as resolveOrgImports, s as shade, t as shapeFill, u as tint } from './chart-meta-CPNVUZ5J.js';
+import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-C6UaqhTP.js';
+export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as getSeriesColors, j as hexToHSL, k as hexToHSLString, l as hslToHex, m as mix, n as normalizePertSourceForShare, p as parseFirstLine, o as parseOrg, q as parseRaci, r as resolveOrgImports, s as shade, t as shapeFill, u as tint } from './chart-meta-C6UaqhTP.js';
 import { GeoProjection } from 'd3-geo';
 
 /**
@@ -106,6 +106,15 @@ declare function render(content: string, options?: {
      *  app renders its live preview through direct renderer calls (not this
      *  entry), so it keeps its JS emphasis; pass `false` to opt out. */
     bakeHover?: boolean;
+    /**
+     * Canvas to draw onto, in px. Defaults to the 1200x800 export sheet.
+     *
+     * Fitting that sheet to a narrow column inherits its ASPECT, which is how a
+     * one-line goal meter ends up taller than the card holding it. A caller
+     * that knows the shape it wants passes it here.
+     */
+    width?: number;
+    height?: number;
 }): Promise<{
     svg: string;
     diagnostics: DgmoError[];
@@ -919,6 +928,17 @@ type RenderForExportOptions = {
     mapData?: MapData;
     mapAspect?: number;
     onMapResolverDiagnostics?: (diagnostics: readonly DgmoError[]) => void;
+    /**
+     * Canvas to draw onto, in px. Defaults to EXPORT_WIDTH x EXPORT_HEIGHT.
+     *
+     * Every chart used to render onto a fixed 1200x800 sheet, so a caller who
+     * fitted the result to a narrow column got its ASPECT too — a one-line goal
+     * meter arrived 800px tall with the bar as a sliver in the middle. Callers
+     * that know the shape they need can now say so; omitting these keeps the
+     * previous canvas exactly.
+     */
+    width?: number;
+    height?: number;
 };
 declare function renderForExport(content: string, theme: 'light' | 'dark' | 'transparent', palette?: PaletteColors, viewState?: CompactViewState, options?: RenderForExportOptions): Promise<string>;
 

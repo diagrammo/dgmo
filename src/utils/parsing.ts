@@ -84,6 +84,8 @@ export const ALL_CHART_TYPES = new Set([
   'map',
   'family',
   'bracket',
+  // pointer, not a drawing — internal (see ChartTypeMeta.internal)
+  'live-link',
 ]);
 
 /** Measure leading whitespace of a line, normalizing tabs to 4 spaces. */

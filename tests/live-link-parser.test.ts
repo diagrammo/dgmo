@@ -1,0 +1,188 @@
+// live-link parser — spec §38, decision #53.
+//
+// One case per row of the diagnostics table, both happy-path forms, a file
+// carrying the generated comment block, and the empty-content exemption — which
+// is the first test `detectEmptyContent` has ever had (it is module-private, so
+// it can only be reached through `parseDgmo`).
+
+import { describe, it, expect } from 'vitest';
+import { parseLiveLink } from '../src/live-link/parser';
+import { parseDgmo } from '../src/dgmo-router';
+
+const errors = (r: { diagnostics: readonly { severity: string }[] }) =>
+  r.diagnostics.filter((d) => d.severity === 'error');
+const warnings = (r: { diagnostics: readonly { severity: string }[] }) =>
+  r.diagnostics.filter((d) => d.severity === 'warning');
+
+describe('live-link — happy paths', () => {
+  it('AC1: the titled form resolves title and id with no diagnostics', () => {
+    const r = parseLiveLink(
+      `live-link Platform architecture
+url https://online.diagrammo.app/d/dgm_7f2a91`
+    );
+    expect(r.type).toBe('live-link');
+    expect(r.title).toBe('Platform architecture');
+    expect(r.id).toBe('dgm_7f2a91');
+    expect(r.error).toBeNull();
+    expect(r.diagnostics).toEqual([]);
+  });
+
+  it('AC1a: the generated comment block is inert', () => {
+    const bare = parseLiveLink(
+      `live-link Platform architecture
+url https://online.diagrammo.app/d/dgm_7f2a91`
+    );
+    const withBlock = parseLiveLink(
+      `live-link Platform architecture
+url https://online.diagrammo.app/d/dgm_7f2a91
+
+// A live link to a diagram published by someone else.
+// It always shows their latest version — delete this file to stop keeping it.
+//
+// Added 1 August 2026
+// Published by Dave Ellery in Foo-bar`
+    );
+    expect(withBlock).toEqual(bare);
+  });
+
+  it('AC1b: a bare id in the url slot resolves the same as a full link', () => {
+    const byId = parseLiveLink(`live-link Roadmap plan\nurl dgm_7f2a91`);
+    const byUrl = parseLiveLink(
+      `live-link Roadmap plan\nurl https://online.diagrammo.app/d/dgm_7f2a91`
+    );
+    expect(byId.id).toBe('dgm_7f2a91');
+    expect(byId).toEqual(byUrl);
+  });
+
+  it('accepts the /view and public-source link forms too', () => {
+    for (const url of [
+      'https://online.diagrammo.app/view/dgm_7f2a91',
+      'https://api.diagrammo.app/public/diagrams/dgm_7f2a91/source',
+    ]) {
+      const r = parseLiveLink(`live-link Roadmap plan\nurl ${url}`);
+      expect(r.id, url).toBe('dgm_7f2a91');
+      expect(r.diagnostics, url).toEqual([]);
+    }
+  });
+
+  it('AC2: the shorthand form has a null title and no diagnostics', () => {
+    const r = parseLiveLink('live-link dgm_7f2a91');
+    expect(r.title).toBeNull();
+    expect(r.id).toBe('dgm_7f2a91');
+    expect(r.diagnostics).toEqual([]);
+  });
+
+  it('AC2 (through the router): the shorthand gets NO empty-content warning', () => {
+    // `detectEmptyContent` warns on any file with one non-comment line, and the
+    // shorthand form legitimately IS one line. The router exempts this type.
+    const r = parseDgmo('live-link dgm_7f2a91');
+    expect(r.chartType).toBe('live-link');
+    expect(r.diagnostics).toEqual([]);
+  });
+
+  it('the exemption survives a file that is only a declaration + comments', () => {
+    const r = parseDgmo(
+      `live-link dgm_7f2a91
+
+// A live link to a diagram published by someone else.
+// Added 1 August 2026`
+    );
+    expect(r.diagnostics).toEqual([]);
+  });
+
+  it('every OTHER chart type still gets the empty-content warning', () => {
+    // Guards the exemption against being widened by accident.
+    const r = parseDgmo('pie Treasure split');
+    expect(
+      r.diagnostics.some((d) =>
+        d.message.includes('No content after chart type declaration')
+      )
+    ).toBe(true);
+  });
+
+  it('the global directives are accepted silently', () => {
+    const r = parseLiveLink(
+      `live-link Roadmap plan\nurl dgm_7f2a91\npalette nord\ntheme dark`
+    );
+    expect(r.diagnostics).toEqual([]);
+    expect(r.id).toBe('dgm_7f2a91');
+  });
+});
+
+describe('live-link — the diagnostics inventory (§38.4)', () => {
+  it('row 1 / AC5: `live-link` alone names both spellings', () => {
+    const r = parseLiveLink('live-link');
+    expect(errors(r)).toHaveLength(1);
+    expect(r.error).toBeTruthy();
+    expect(errors(r)[0]!.message).toContain('url');
+    expect(errors(r)[0]!.message).toContain('live-link <id>');
+  });
+
+  it('row 2 / AC8b: an unparseable url names the value and shows an example', () => {
+    // Note the host is deliberately NOT checked — `/d/:id` on another origin is
+    // how self-host and staging work. What fails is a path that is no diagram.
+    for (const bad of ['not a link', 'https://example.com/blog/post']) {
+      const r = parseLiveLink(`live-link Roadmap plan\nurl ${bad}`);
+      expect(errors(r), bad).toHaveLength(1);
+      expect(errors(r)[0]!.message, bad).toContain(bad);
+      expect(errors(r)[0]!.message, bad).toContain(
+        'https://online.diagrammo.app/d/'
+      );
+      expect(r.id, bad).toBeNull();
+    }
+  });
+
+  it('row 3 / AC8c: a whitespace title with no url line is an error', () => {
+    const r = parseLiveLink('live-link Platform architecture');
+    expect(errors(r)).toHaveLength(1);
+    expect(errors(r)[0]!.message).toContain('url');
+    expect(r.id).toBeNull();
+  });
+
+  it('row 4 / AC7: a url line AND a single-token title names both targets', () => {
+    const r = parseLiveLink('live-link dgm_abc\nurl dgm_xyz');
+    expect(errors(r)).toHaveLength(1);
+    expect(errors(r)[0]!.message).toContain('dgm_abc');
+    expect(errors(r)[0]!.message).toContain('dgm_xyz');
+    // Never silently resolved by precedence — neither target wins.
+    expect(r.id).toBeNull();
+  });
+
+  it('row 4: two url lines are the same "two targets" error', () => {
+    const r = parseLiveLink('live-link Roadmap plan\nurl dgm_abc\nurl dgm_xyz');
+    expect(errors(r)).toHaveLength(1);
+    expect(errors(r)[0]!.message).toContain('dgm_abc');
+    expect(errors(r)[0]!.message).toContain('dgm_xyz');
+    expect(r.id).toBeNull();
+  });
+
+  it('row 5 / AC8: a pinned revision explains itself, never floats to latest', () => {
+    const r = parseLiveLink(
+      'live-link Roadmap plan\nurl https://online.diagrammo.app/d/dgm_7f2a91?at=2026-03-12'
+    );
+    expect(errors(r)).toHaveLength(1);
+    expect(errors(r)[0]!.message).toContain('?at=');
+    expect(r.id).toBeNull();
+  });
+
+  it('row 6 / AC8a: any other directive is a warning and the file still parses', () => {
+    const r = parseLiveLink(
+      'live-link Roadmap plan\nurl dgm_7f2a91\nrefresh hourly'
+    );
+    expect(errors(r)).toHaveLength(0);
+    expect(warnings(r)).toHaveLength(1);
+    expect(warnings(r)[0]!.message).toContain('refresh');
+    expect(r.error).toBeNull();
+    expect(r.id).toBe('dgm_7f2a91');
+  });
+
+  it('AC8d: a one-word title with no url line resolves as an id, silently', () => {
+    // 🔴 The parser cannot tell a one-word title from an id — ids are a SHAPE
+    // check, not a format check — so it must not guess. "no diagram with id
+    // Roadmap" belongs to the resolver, the only layer that knows.
+    const r = parseLiveLink('live-link Roadmap');
+    expect(r.diagnostics).toEqual([]);
+    expect(r.title).toBeNull();
+    expect(r.id).toBe('Roadmap');
+  });
+});

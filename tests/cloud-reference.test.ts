@@ -1,5 +1,8 @@
 /**
- * Cloud reference resolver (Cloud story 10.6) — three spellings, one parser.
+ * Live-link resolver (Cloud story 10.6) — three spellings, one parser.
+ *
+ * The keyword became `live-link` on 2026-08-01 (decision #53); the module and
+ * its package subpath keep the old name on purpose.
  *
  * The parity table is the point of this file. Every modifier a reference can
  * carry is declared ONCE and asserted against all three spellings, because a
@@ -27,8 +30,8 @@ const PARITY: Array<{
 }> = [
   {
     what: 'a reference',
-    fence: 'cloud dgm_01HQ3',
-    embed: '![[cloud:dgm_01HQ3]]',
+    fence: 'live-link dgm_01HQ3',
+    embed: '![[live-link:dgm_01HQ3]]',
     url: 'https://api.diagrammo.app/public/diagrams/dgm_01HQ3/source',
     expected: { id: 'dgm_01HQ3' },
   },
@@ -44,10 +47,12 @@ describe('three spellings, one reference', () => {
   }
 
   it('tolerates the whitespace real documents contain', () => {
-    expect(parseCloudReference('  cloud   dgm_1  \n')).toEqual({
+    expect(parseCloudReference('  live-link   dgm_1  \n')).toEqual({
       id: 'dgm_1',
     });
-    expect(parseCloudReference('![[ cloud: dgm_1 ]]')).toEqual({ id: 'dgm_1' });
+    expect(parseCloudReference('![[ live-link: dgm_1 ]]')).toEqual({
+      id: 'dgm_1',
+    });
   });
 
   it('accepts the share link a person actually has in hand', () => {
@@ -63,9 +68,9 @@ describe('three spellings, one reference', () => {
 describe('what is NOT a reference', () => {
   it('leaves ordinary content alone rather than guessing', () => {
     expect(parseCloudReference('flowchart\n  A -> B')).toBeNull();
-    expect(parseCloudReference('cloud')).toBeNull();
+    expect(parseCloudReference('live-link')).toBeNull();
     expect(parseCloudReference('![[local-file.dgmo]]')).toBeNull();
-    expect(parseCloudReference('cloud dgm_1 extra')).toBeNull();
+    expect(parseCloudReference('live-link dgm_1 extra')).toBeNull();
     expect(parseCloudReference('https://example.com/d/dgm_1/nope')).toBeNull();
     expect(parseCloudReference('not a url at all')).toBeNull();
   });
@@ -75,18 +80,18 @@ describe('what is NOT a reference', () => {
     // pin would fail on exactly the diagrams people edit most. Resolving a
     // pinned reference anyway would hand a document that asked to be FROZEN the
     // latest revision — the one outcome pinning existed to prevent.
-    expect(parseCloudReference('cloud dgm_1@2026-03-12')).toBeNull();
-    expect(parseCloudReference('![[cloud:dgm_1@2026-03-12]]')).toBeNull();
+    expect(parseCloudReference('live-link dgm_1@2026-03-12')).toBeNull();
+    expect(parseCloudReference('![[live-link:dgm_1@2026-03-12]]')).toBeNull();
     expect(
       parseCloudReference(
         'https://api.diagrammo.app/public/diagrams/dgm_1/source?at=2026-03-12'
       )
     ).toBeNull();
-    expect(parseCloudReference('cloud dgm_1@v7')).toBeNull();
+    expect(parseCloudReference('live-link dgm_1@v7')).toBeNull();
   });
 
   it('bounds the id so a malformed document cannot hand over an essay', () => {
-    expect(parseCloudReference(`cloud ${'x'.repeat(65)}`)).toBeNull();
+    expect(parseCloudReference(`live-link ${'x'.repeat(65)}`)).toBeNull();
   });
 });
 

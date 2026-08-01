@@ -150,6 +150,7 @@ export const DIAGRAM_EXPORT_HANDLERS: Record<string, DiagramExportHandler> = {
   bracket: exportBracket,
   raci: exportRaci,
   body: exportBody,
+  'live-link': exportLiveLink,
   // D3 visualizations — own handler per type (Story 109.2). Only `sequence`
   // still falls through to exportVisualization (no chart-type of its own).
   slope: exportSlope,
@@ -1375,6 +1376,21 @@ async function exportTreemap(ctx: ExportContext): Promise<string> {
     );
   }
   return finalizeSvgExport(container, theme, effectivePalette);
+}
+
+/**
+ * Live link — a pure-string card, so no export container and no
+ * `finalizeSvgExport`. It renders even when the pointer is broken: the card is
+ * the file's normal appearance, and an unresolvable id is the resolver's story
+ * to tell, not a reason to hand back an empty string.
+ */
+async function exportLiveLink(ctx: ExportContext): Promise<string> {
+  const { content, theme, palette } = ctx;
+  const { parseLiveLink } = await import('./live-link/parser');
+  const { renderLiveLinkCard } = await import('./live-link/renderer');
+
+  const effectivePalette = await resolveExportPalette(theme, palette);
+  return renderLiveLinkCard(parseLiveLink(content), effectivePalette, theme);
 }
 
 async function exportBlock(ctx: ExportContext): Promise<string> {

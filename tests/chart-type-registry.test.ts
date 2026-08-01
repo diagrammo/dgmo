@@ -56,6 +56,9 @@ const EXPECTED_CATEGORY: Record<
   'journey-map': 'diagram',
   raci: 'diagram',
   body: 'diagram',
+  // A pointer, not a drawing — it renders as a reference card, which is
+  // card-shaped like every other diagram-category type (decision #53).
+  'live-link': 'diagram',
   // visualization (12)
   slope: 'visualization',
   wordcloud: 'visualization',

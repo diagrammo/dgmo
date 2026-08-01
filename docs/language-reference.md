@@ -4324,6 +4324,35 @@ The directive set is **13, all colon-free**: six naming intent the renderer can'
 
 ---
 
+## 25A. Live Links
+
+<!-- TYPE:live-link -->
+
+A pointer to a diagram published at Diagrammo Cloud — the file holds no drawing of its own, and whoever opens it sees the publisher's current version. Renders as a reference card until a host resolves it.
+
+**Do not author one from scratch.** A pointer needs a diagram id only the publisher can hand out, so it arrives by being saved from a shared link. It is not offered in any chart-type picker for that reason.
+
+Two forms. The titled form names the diagram and carries a `url` directive:
+
+```
+live-link Platform architecture
+url https://online.diagrammo.app/d/dgm_7f2a91
+```
+
+The shorthand form is one line, and is what a docs-site fence contains:
+
+```
+live-link dgm_7f2a91
+```
+
+`url` takes a full Diagrammo link (`/d/<id>`, `/view/<id>`, or the public source endpoint) or a bare diagram id. A link carrying `?at=` is an error — a live link always shows the current version, and silently serving the latest to a document that asked to be frozen is the one outcome pinning existed to prevent.
+
+The title slot is the only one in the language that can hold a target instead of a name; **whitespace decides**. A title containing a space with no `url` line is an error (a phrase cannot be an id); a single token with no `url` line **is** the id. A `url` line plus a single-token title is an error naming both — two visible targets are never resolved by precedence.
+
+The one directive is `url`. There are no elements, no indentation and no colons.
+
+---
+
 ## 26. Colon Usage Summary
 
 ### Constructs Where Colons Are REQUIRED

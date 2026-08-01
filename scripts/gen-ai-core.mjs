@@ -68,8 +68,15 @@ if (!antipatterns) fail('AI-CORE:ANTIPATTERNS block missing or empty in ' + REF)
 if (!styling) fail('AI-CORE:STYLING block missing or empty in ' + REF);
 if (!typeIndex) fail('AI-CORE:TYPE-INDEX block missing or empty in ' + REF);
 
-// Completeness (AC12): every chart-type id must appear in the index.
-const missing = chartTypes.filter((c) => !new RegExp(`\`${c.id}\``).test(typeIndex)).map((c) => c.id);
+// Internal types (`ChartTypeMeta.internal`) route but are never OFFERED, and
+// this file is the widest offer there is — it lands in .cursorrules, SKILL.md
+// and every other surface a model reads. 🔴 FILTER the check; do NOT satisfy it
+// by adding the id to the TYPE-INDEX, which would publish the type to every AI
+// surface and defeat the flag while the MCP suggester is being taught to hide it.
+const offered = chartTypes.filter((c) => !c.internal);
+
+// Completeness (AC12): every offered chart-type id must appear in the index.
+const missing = offered.filter((c) => !new RegExp(`\`${c.id}\``).test(typeIndex)).map((c) => c.id);
 if (missing.length) fail(`TYPE-INDEX is missing ${missing.length} id(s): ${missing.join(', ')}`);
 
 // Validate every fence in the core BEFORE emitting (fail fast for authors).
@@ -87,7 +94,7 @@ for (const f of extractDgmoFences(antipatterns + '\n' + styling, REF)) {
 // generate the common case correctly from the core alone (ADR-3 / AC11).
 const COMMON_N = 8;
 const exampleIndex = loadExampleIndex();
-const common = chartTypes.slice(0, COMMON_N).map((c) => c.id);
+const common = offered.slice(0, COMMON_N).map((c) => c.id);
 const commonExamples = common.map((id) => {
   const source = resolveExample(id, exampleIndex);
   if (!source) fail(`no curated example resolves for common type "${id}"`);
@@ -100,7 +107,7 @@ const commonExamples = common.map((id) => {
 const examplesBlock = [
   '### Common examples (curated, parse-clean)',
   '',
-  `_The most common types, inline so you can generate them without a fetch. For the other ${chartTypes.length - COMMON_N}, get the per-type section (see below)._`,
+  `_The most common types, inline so you can generate them without a fetch. For the other ${offered.length - COMMON_N}, get the per-type section (see below)._`,
   '',
   ...commonExamples.map((e) => `#### ${e.id}\n\n\`\`\`dgmo\n${e.source}\n\`\`\``),
 ].join('\n');
@@ -111,7 +118,7 @@ function buildCore(pointer) {
     START,
     '## DGMO AI Core',
     '',
-    `_Generated from \`language-reference.md\` — the anti-patterns and ${chartTypes.length}-type index below are identical across every DGMO AI surface._`,
+    `_Generated from \`language-reference.md\` — the anti-patterns and ${offered.length}-type index below are identical across every DGMO AI surface._`,
     '',
     antipatterns,
     '',
@@ -172,5 +179,5 @@ console.log(
 );
 
 console.log(
-  `gen-ai-core: done (${wrote} file(s) changed, core = ${chartTypes.length} types, common-${common.length} = ${common.join(', ')}).`,
+  `gen-ai-core: done (${wrote} file(s) changed, core = ${offered.length} types, common-${common.length} = ${common.join(', ')}).`,
 );

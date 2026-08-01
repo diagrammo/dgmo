@@ -324,6 +324,7 @@ const INVENTORY = {
     'top-right',
     'trend',
     'trials',
+    'url',
     'values',
     'workweek',
     'x',

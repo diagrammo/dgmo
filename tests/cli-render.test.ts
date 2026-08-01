@@ -343,6 +343,9 @@ roles PM, Cap, QM
   Set provisions
     QM: D
     Cap: A`,
+
+  'live-link': `live-link Kraken sighting log
+url https://online.diagrammo.app/d/dgm_7f2a91`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)

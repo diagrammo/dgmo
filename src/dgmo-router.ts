@@ -221,7 +221,10 @@ function parseDgmoUndeduped(content: string): {
   if (parser) {
     const result = parser(content);
     return {
-      diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
+      diagnostics: [
+        ...result.diagnostics,
+        ...detectEmptyContent(content, chartType),
+      ],
       chartType,
     };
   }
@@ -229,7 +232,10 @@ function parseDgmoUndeduped(content: string): {
   // Unknown id (defensive): fall through to visualization parser.
   const result = parseVisualization(content);
   return {
-    diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
+    diagnostics: [
+      ...result.diagnostics,
+      ...detectEmptyContent(content, chartType),
+    ],
     chartType,
   };
 }
@@ -280,9 +286,21 @@ function detectColonChartType(content: string): DgmoError | null {
 }
 
 /**
+ * Chart types for which a one-line file is the intended shape, not an omission.
+ * `live-link dgm_7f2a91` IS the whole diagram — the shorthand form of §38.3,
+ * and the spelling a docs fence uses — so the warning below would fire on every
+ * correctly written one.
+ */
+const EMPTY_CONTENT_EXEMPT = new Set(['live-link']);
+
+/**
  * Detects when content has only the chart type line with no meaningful data lines.
  */
-function detectEmptyContent(content: string): DgmoError[] {
+function detectEmptyContent(
+  content: string,
+  chartType?: string | null
+): DgmoError[] {
+  if (chartType && EMPTY_CONTENT_EXEMPT.has(chartType)) return [];
   const lines = content.split('\n');
   const nonEmpty = lines.filter(
     (l) => l.trim() && !l.trim().startsWith('#') && !l.trim().startsWith('//')

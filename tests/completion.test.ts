@@ -20,6 +20,7 @@ import { extractSymbols as extractFlowchartSymbols } from '../src/graph/flowchar
 import { extractSymbols as extractInfraSymbols } from '../src/infra/parser';
 import { extractSymbols as extractClassSymbols } from '../src/class/parser';
 import { ALL_CHART_TYPES } from '../src/utils/parsing';
+import { chartTypes } from '../src/chart-types';
 
 // ============================================================
 // extractDiagramSymbols dispatch
@@ -362,12 +363,18 @@ describe('COMPLETION_REGISTRY', () => {
     }
   });
 
-  it('CHART_TYPES covers all ALL_CHART_TYPES except multi-line and bar-stacked', () => {
+  it('CHART_TYPES covers all ALL_CHART_TYPES except aliases and internal types', () => {
     const chartTypeNames = new Set(CHART_TYPES.map((t) => t.name));
+    // Internal types (`ChartTypeMeta.internal`) route but are never offered —
+    // the popup filters them, and `internal-chart-types.test.ts` asserts that.
+    const internal = new Set(
+      chartTypes.filter((c) => c.internal).map((c) => c.id)
+    );
     for (const ct of ALL_CHART_TYPES) {
       // multi-line is a line alias; bar-stacked is recognized only for its
       // migration error (#24) — neither is offered as a completion.
       if (ct === 'multi-line' || ct === 'bar-stacked') continue;
+      if (internal.has(ct)) continue;
       expect(chartTypeNames.has(ct), `CHART_TYPES missing ${ct}`).toBe(true);
     }
   });

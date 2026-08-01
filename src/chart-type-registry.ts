@@ -78,6 +78,7 @@ import { parseClock } from './clock/parser';
 import { parseBracket } from './bracket/parser';
 import { parseRaci, allTasks } from './raci/parser';
 import { parseBody } from './body/parser';
+import { parseLiveLink } from './live-link/parser';
 import type { DgmoError } from './diagnostics';
 
 /** User-visible rendering category for dispatch and routing. */
@@ -566,6 +567,12 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
 
   // ── Geographic map (own parser → resolver → layout → renderer) ──
   { id: 'map', category: 'visualization', parse: parseMap },
+
+  // Live link: a pointer to a diagram published at Diagrammo Cloud, rendered
+  // as a reference card. `diagram` like every other card-shaped type, so the
+  // export-handler cross-check covers it rather than being relaxed for it. No
+  // measure/minDims — the card sizes to its own text and scales to fit.
+  { id: 'live-link', category: 'diagram', parse: parseLiveLink },
 ];
 
 /** id → descriptor, for O(1) dispatch lookups. */

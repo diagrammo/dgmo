@@ -22,6 +22,23 @@ export interface ChartTypeMeta {
   readonly id: string;
   readonly description: string;
   readonly fallback?: true;
+  /**
+   * Routable but never OFFERED. The type parses, routes and renders like any
+   * other, but no surface that enumerates types for a human or a model may list
+   * it — nobody hand-authors one, so a picker entry would produce a file the
+   * user cannot complete.
+   *
+   * Honoured at five edges, and deliberately NOT inside `getAllChartTypes()`,
+   * which keeps meaning "everything routable":
+   *   1. `cli.ts` — `dgmo types` (plain and `--json`)
+   *   2. `completion-registry.ts` — the chart-type completion popup
+   *   3. `dgmo-mcp/src/index.ts` — the `list_chart_types` tool
+   *   4. `dgmo-mcp/src/suggest/scoring.ts` — the suggester's candidate pool
+   *   5. `scripts/gen-ai-core.mjs` — the generated AI core every model reads
+   * `tests/internal-chart-types.test.ts` is this flag's specification; without
+   * it the flag is a convention and the next refactor drops an edge silently.
+   */
+  readonly internal?: true;
 }
 
 export const chartTypes: readonly ChartTypeMeta[] = [
@@ -256,5 +273,17 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     id: 'boxes-and-lines',
     description: 'General-purpose node-edge diagrams with groups and tags',
     fallback: true,
+  },
+
+  // ── Not a tier — a pointer, not a drawing ─────────────────
+  // `live-link` holds no diagram of its own; it names one published to
+  // Diagrammo Cloud. Internal (see `internal` above): it arrives by being saved
+  // from a shared link, never by being picked from a list. Kept LAST because
+  // `chartTypes.slice(0, 8)` is a live window feeding language-reference checks
+  // and the generated AI core — any insertion above position 8 shifts it.
+  {
+    id: 'live-link',
+    description: 'A pointer to a diagram published at Diagrammo Cloud',
+    internal: true,
   },
 ] as const;

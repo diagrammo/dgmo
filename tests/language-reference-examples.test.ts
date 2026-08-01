@@ -199,7 +199,12 @@ describe('Tier-1 retrieval — every chart-type id resolves to a TYPE block (F4/
 });
 
 describe('generated DGMO-AI-CORE blocks are complete + single-sourced (AC4/AC11/AC12)', () => {
-  const ids = chartTypes.map((c) => c.id);
+  // Internal types (`ChartTypeMeta.internal`) are deliberately absent from the
+  // AI core — it is the widest OFFER there is, landing in .cursorrules,
+  // SKILL.md and every other surface a model reads. `gen-ai-core.mjs` filters
+  // them for the same reason; this mirrors that, rather than asserting the
+  // opposite of what the generator does.
+  const ids = chartTypes.filter((c) => !c.internal).map((c) => c.id);
   // Extract the generated block from each surface for cross-surface comparison.
   const cores = new Map<string, string>();
   for (const rel of GENERATED_CORE_FILES) {
@@ -232,7 +237,7 @@ describe('generated DGMO-AI-CORE blocks are complete + single-sourced (AC4/AC11/
   });
 
   for (const rel of GENERATED_CORE_FILES) {
-    it(`${rel} core contains all 45 type-index entries`, () => {
+    it(`${rel} core contains all ${ids.length} type-index entries`, () => {
       const core = cores.get(rel) ?? '';
       const missing = ids.filter((id) => !core.includes(`\`${id}\``));
       expect(missing.length, `missing ids: ${missing.join(', ')}`).toBe(0);

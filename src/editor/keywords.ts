@@ -60,6 +60,8 @@ export const CHART_TYPES = new Set([
   'quadrant',
   'map',
   'body',
+  // Pointer type — internal, but it must still highlight when one is open
+  'live-link',
 ]);
 
 /** Metadata keys recognized across chart types. */
