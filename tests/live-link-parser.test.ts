@@ -176,6 +176,72 @@ describe('live-link — the diagnostics inventory (§38.4)', () => {
     expect(r.id).toBe('dgm_7f2a91');
   });
 
+  it('an empty `url` value reports once, and never asks for what was written', () => {
+    // The failure this guards: the url line errors, drops out of `urls`, and
+    // the "nothing to point at" fallback then tells the author on line 1 to add
+    // a `url` line they are looking at.
+    const r = parseLiveLink('live-link Roadmap plan\nurl');
+    expect(errors(r)).toHaveLength(1);
+    expect(errors(r)[0]!.line).toBe(2);
+    expect(errors(r)[0]!.message).toContain('"url" needs a diagram');
+  });
+
+  it('a TAB between `url` and its value is a separator, not part of the name', () => {
+    const r = parseLiveLink('live-link Roadmap plan\nurl\tdgm_7f2a91');
+    expect(r.diagnostics).toEqual([]);
+    expect(r.id).toBe('dgm_7f2a91');
+  });
+
+  it('a `#` line is content, not a comment (§1.2), so it warns', () => {
+    // `#` is a comment ONLY in pert. Silently dropping the line here would make
+    // this the second chart type where it is, without anyone deciding so.
+    const r = parseLiveLink('live-link Roadmap plan\nurl dgm_7f2a91\n# note');
+    expect(errors(r)).toHaveLength(0);
+    expect(warnings(r)).toHaveLength(1);
+    expect(warnings(r)[0]!.message).toContain('#');
+  });
+
+  it('a pinned revision is only reported when stripping it WOULD resolve', () => {
+    // Not "does it have ?at=" — otherwise any old URL with that query gets told
+    // to remove a pin it never had, sending its author after the wrong problem.
+    const notADiagram = parseLiveLink(
+      'live-link Roadmap plan\nurl https://example.com/blog?at=1'
+    );
+    expect(errors(notADiagram)[0]!.message).not.toContain('pinned revision');
+    expect(errors(notADiagram)[0]!.message).toContain(
+      'not a Diagrammo diagram'
+    );
+  });
+
+  it('the `@` pin spelling gets the pin message too, in both forms', () => {
+    for (const src of [
+      'live-link Roadmap plan\nurl dgm_7f2a91@2026-03-12',
+      'live-link dgm_7f2a91@v7',
+    ]) {
+      const r = parseLiveLink(src);
+      expect(errors(r), src).toHaveLength(1);
+      expect(errors(r)[0]!.message, src).toContain('pinned revision');
+    }
+  });
+
+  it('the other two spellings are not accepted inside the `url` slot', () => {
+    // `url live-link abc` and `url ![[live-link:abc]]` are copy-paste mistakes.
+    // Resolving them silently teaches the wrong shape.
+    for (const bad of ['live-link dgm_7f2a91', '![[live-link:dgm_7f2a91]]']) {
+      const r = parseLiveLink(`live-link Roadmap plan\nurl ${bad}`);
+      expect(errors(r), bad).toHaveLength(1);
+      expect(r.id, bad).toBeNull();
+    }
+  });
+
+  it('a bare `url` line with no declaration is read, not swallowed', () => {
+    // Only reachable through the exported parser, but there it must not report
+    // "add a `url` line" one line after reading one.
+    const r = parseLiveLink('url dgm_7f2a91');
+    expect(r.id).toBe('dgm_7f2a91');
+    expect(errors(r)).toHaveLength(0);
+  });
+
   it('AC8d: a one-word title with no url line resolves as an id, silently', () => {
     // 🔴 The parser cannot tell a one-word title from an id — ids are a SHAPE
     // check, not a format check — so it must not guess. "no diagram with id

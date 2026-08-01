@@ -10,17 +10,30 @@
 
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chartTypes } from '../src/chart-types';
 import { getAllChartTypes, parseDgmo } from '../src/dgmo-router';
 import { CHART_TYPES as COMPLETION_CHART_TYPES } from '../src/completion-registry';
+import {
+  INTERNAL_CHART_TYPE_IDS,
+  withoutInternalChartTypes,
+} from '../src/utils/offered-types';
 
-const internalIds = chartTypes.filter((c) => c.internal).map((c) => c.id);
+const internalIds = INTERNAL_CHART_TYPE_IDS;
 
 describe('internal chart types', () => {
+  it('the derived set matches the flag on chartTypes', () => {
+    expect([...internalIds].sort()).toEqual(
+      chartTypes
+        .filter((c) => c.internal)
+        .map((c) => c.id)
+        .sort()
+    );
+  });
+
   it('there is at least one, and live-link is it', () => {
-    expect(internalIds).toContain('live-link');
+    expect([...internalIds]).toContain('live-link');
   });
 
   it('AC10: none is offered in the completion popup', () => {
@@ -45,12 +58,34 @@ describe('internal chart types', () => {
     expect(parseDgmo('live-link dgm_7f2a91').chartType).toBe('live-link');
   });
 
-  it('AC9: none appears in `dgmo types`, plain or --json', () => {
+  it('AC9: `dgmo types` filters through the shared cross-lookup', () => {
+    // Asserted on the SOURCE, not on the binary. CI runs `pnpm test` before
+    // `pnpm build` and `prebuild` does `rm -rf dist`, so a test gated on
+    // `dist/cli.cjs` never runs there — it passed locally only on a stale
+    // build, which is the worst kind of green.
+    expect(withoutInternalChartTypes(getAllChartTypes())).toEqual(
+      getAllChartTypes().filter((id) => !internalIds.has(id))
+    );
+    for (const id of internalIds) {
+      expect(withoutInternalChartTypes(getAllChartTypes())).not.toContain(id);
+    }
+    // And `cli.ts` really is the caller — a filter nothing uses is a decoration.
+    const cliSource = readFileSync(
+      join(__dirname, '..', 'src', 'cli.ts'),
+      'utf8'
+    );
+    expect(cliSource).toContain(
+      'withoutInternalChartTypes(getAllChartTypes())'
+    );
+  });
+
+  it('AC9 end-to-end: the built CLI lists no internal type', () => {
     const cli = join(__dirname, '..', 'dist', 'cli.cjs');
     if (!existsSync(cli)) {
-      // The CLI is a build artifact; `pnpm test` does not produce one. Skipping
-      // is honest — the assertion below runs in CI and after any local build.
-      console.warn('dist/cli.cjs absent — skipping the `dgmo types` assertion');
+      // A build artifact, and `pnpm test` does not produce one. The assertion
+      // above is the one that always runs; this is the belt to its braces after
+      // a local build.
+      console.warn('dist/cli.cjs absent — skipping the end-to-end check');
       return;
     }
     const plain = execFileSync('node', [cli, 'types'], { encoding: 'utf8' });

@@ -18,7 +18,10 @@
 
 import { makeDgmoError, formatDgmoError } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
-import { parseCloudReference } from '../cloud-reference';
+import {
+  parseCloudReference,
+  parseCloudReferenceUrl,
+} from '../cloud-reference';
 import { parseFirstLine } from '../utils/parsing';
 import type { ParsedLiveLink } from './types';
 
@@ -42,30 +45,58 @@ const EXAMPLE_URL = 'https://online.diagrammo.app/d/dgm_7f2a91';
  * fence), which is how this file gets the id pattern without copying it.
  */
 function resolveTarget(value: string): string | null {
-  return (
-    parseCloudReference(value)?.id ??
-    parseCloudReference(`live-link ${value}`)?.id ??
-    null
-  );
+  const trimmed = value.trim();
+  // The URL shape, through the split-out entry point rather than through
+  // `parseCloudReference` — the latter also tries the FENCE and EMBED spellings,
+  // and `url live-link abc` / `url ![[live-link:abc]]` are copy-paste mistakes.
+  // Blessing them silently teaches the wrong shape.
+  const asUrl = parseCloudReferenceUrl(trimmed)?.id;
+  if (asUrl) return asUrl;
+  // The bare-id path, reached through the fence spelling (`live-link <id>` IS
+  // the bare-id form) so the id pattern is never copied here. Guarded to a
+  // single token so the synthesis cannot smuggle the other spellings back in.
+  if (!/^[^\s[\]]+$/.test(trimmed)) return null;
+  return parseCloudReference(`live-link ${trimmed}`)?.id ?? null;
 }
 
 /**
- * True when `value` is a URL asking for a pinned revision.
+ * The pin `value` carries, if stripping it would make the value resolve.
  *
- * 🔴 The one place this file touches a URL directly, and it is a PRE-CHECK
- * only — resolution still delegates. `parseCloudReferenceUrl` returns a bare
- * `null` for all four of its rejections (malformed, wrong protocol, unmatched
- * path, pinned revision), so delegation alone cannot tell "you pinned a
- * revision we cannot serve" from "that isn't a Diagrammo link". Widening the
- * shared parser's contract to return a reason would ripple through five
- * wrappers for one message.
+ * 🔴 The one place this file constructs a URL itself, and it stays a PRE-CHECK:
+ * resolution still delegates. `parseCloudReferenceUrl` returns a bare `null`
+ * for all four of its rejections (malformed, wrong protocol, unmatched path,
+ * pinned revision), so delegation alone cannot tell "you pinned a revision we
+ * cannot serve" from "that isn't a Diagrammo link". Widening the shared
+ * parser's contract to return a reason would ripple through five wrappers for
+ * one message.
+ *
+ * Strip-and-retry rather than "does it have ?at=", so this only fires on
+ * something that WOULD have resolved. `https://example.com/blog?at=1` is not a
+ * pinned diagram, and telling its author to remove the `?at=` sends them after
+ * the wrong problem. It covers the `@` spelling too — `dgm_1@2026-03-12` — which
+ * is the form most likely to actually carry a pin.
  */
-function isPinnedRevision(value: string): boolean {
+function pinnedRevision(value: string): string | null {
+  const trimmed = value.trim();
+  if (resolveTarget(trimmed) !== null) return null;
+
   try {
-    return new URL(value.trim()).searchParams.has('at');
+    const url = new URL(trimmed);
+    const at = url.searchParams.get('at');
+    if (at !== null) {
+      url.searchParams.delete('at');
+      if (resolveTarget(url.toString()) !== null) return `?at=${at}`;
+    }
   } catch {
-    return false;
+    // Not a URL — fall through to the `@` spelling below.
   }
+
+  const at = trimmed.indexOf('@');
+  if (at > 0) {
+    const pin = trimmed.slice(at);
+    if (resolveTarget(trimmed.slice(0, at)) !== null) return pin;
+  }
+  return null;
 }
 
 export function parseLiveLink(content: string): ParsedLiveLink {
@@ -84,6 +115,11 @@ export function parseLiveLink(content: string): ParsedLiveLink {
 
   const lines = content.split('\n');
 
+  // §1.2: `//` is the comment marker and `#` is NOT one outside PERT — a
+  // `#`-led line here is content, and content that isn't `url` gets warned about
+  // rather than silently dropped.
+  const isSkippable = (line: string): boolean => !line || line.startsWith('//');
+
   // ── The declaration line ─────────────────────────────────
   let titleSlot: string | null = null;
   let titleLineNumber = 1;
@@ -91,30 +127,38 @@ export function parseLiveLink(content: string): ParsedLiveLink {
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard.
     const trimmed = lines[i]!.trim();
-    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('#'))
-      continue;
+    if (isSkippable(trimmed)) continue;
     const first = parseFirstLine(trimmed);
     titleLineNumber = i + 1;
     titleSlot = first?.title ?? null;
-    bodyStart = i + 1;
+    // Only CONSUME the line when it really was the declaration. Reached through
+    // the router it always is, but `parseLiveLink` is exported, and swallowing
+    // a `url` line here would report "add a `url` line" one line after reading
+    // one.
+    bodyStart = first ? i + 1 : i;
     break;
   }
 
   // ── The body: `url`, the globals, and nothing else ───────
+  /** A `url` line that named nothing usable still COUNTS as one. */
+  let sawUrlLine = false;
   const urls: { value: string; line: number }[] = [];
   for (let i = bodyStart; i < lines.length; i++) {
     // In-bounds by loop guard.
     const trimmed = lines[i]!.trim();
-    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('#'))
-      continue;
+    if (isSkippable(trimmed)) continue;
 
-    const spaceIdx = trimmed.indexOf(' ');
+    // Split on any whitespace: a tab between key and value is invisible in an
+    // editor, and treating `url\tdgm_1` as one long directive name produces a
+    // baffling message about a directive nobody typed.
+    const spaceIdx = trimmed.search(/\s/);
     const key = (
       spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx)
     ).toLowerCase();
     const value = spaceIdx === -1 ? '' : trimmed.slice(spaceIdx + 1).trim();
 
     if (key === 'url') {
+      sawUrlLine = true;
       if (!value) {
         fail(
           i + 1,
@@ -145,12 +189,20 @@ export function parseLiveLink(content: string): ParsedLiveLink {
   });
 
   // ── Nothing to point at ──────────────────────────────────
-  if (urls.length === 0 && titleSlot === null) {
+  // `sawUrlLine`, not `urls.length`: a `url` line whose value was unusable has
+  // already been reported ON THAT LINE, and following it with "add a `url`
+  // line" on line 1 tells the author to write what they just wrote.
+  if (!sawUrlLine && titleSlot === null) {
     fail(
       titleLineNumber,
       'A live link needs a diagram — add `url <link>`, or write `live-link <id>`.'
     );
     return done(null, null);
+  }
+  // A `url` line that named nothing usable: the error is already on that line,
+  // and the title slot must NOT now be reinterpreted as the target.
+  if (sawUrlLine && urls.length === 0) {
+    return done(titleIsPhrase ? titleSlot : null, null);
   }
 
   // ── Two targets. Never resolved by precedence: being wrong about which
@@ -177,10 +229,11 @@ export function parseLiveLink(content: string): ParsedLiveLink {
 
   // ── The `url` form (titled, or headlined by its own id) ──
   if (url) {
-    if (isPinnedRevision(url.value)) {
+    const pin = pinnedRevision(url.value);
+    if (pin !== null) {
       fail(
         url.line,
-        'A pinned revision cannot be served — a live link always shows the publisher\'s current version. Remove the "?at=" from the link.'
+        `A pinned revision cannot be served — a live link always shows the publisher's current version. Remove the "${pin}" from the link.`
       );
       return done(titleSlot, null);
     }
@@ -210,6 +263,14 @@ export function parseLiveLink(content: string): ParsedLiveLink {
   }
 
   // titleSlot is non-null and whitespace-free here.
+  const shorthandPin = pinnedRevision(titleSlot!);
+  if (shorthandPin !== null) {
+    fail(
+      titleLineNumber,
+      `A pinned revision cannot be served — a live link always shows the publisher's current version. Remove the "${shorthandPin}" from the id.`
+    );
+    return done(null, null);
+  }
   const id = resolveTarget(titleSlot!);
   if (id === null) {
     fail(

@@ -16,6 +16,7 @@ import { truncateText, measureText } from './utils/text-measure';
 import { FONT_FAMILY } from './fonts';
 import { encodeDiagramUrl } from './sharing';
 import { parseDgmoChartType } from './dgmo-router';
+import { chartTypes } from './chart-types';
 import type { PaletteConfig } from './palettes/types';
 import type { Theme } from './themes';
 import type { DgmoError } from './diagnostics';
@@ -29,7 +30,14 @@ const DOCS_BASE = 'https://diagrammo.app/docs';
  */
 export function docsLink(source: string): { url: string; label: string } {
   const chartType = parseDgmoChartType(source);
-  return chartType
+  // An INTERNAL type has no published guide — the docs sidebar, the compare
+  // matrix and the gallery are all driven by the content registry, which it is
+  // deliberately absent from. Deep-linking to `/docs/chart-<id>/` for one would
+  // make the card's single call-to-action a 404.
+  const hasGuide =
+    chartType !== null &&
+    !chartTypes.some((c) => c.id === chartType && c.internal);
+  return hasGuide
     ? {
         url: `${DOCS_BASE}/chart-${chartType}/`,
         label: `Read the ${chartType} guide ↗`,

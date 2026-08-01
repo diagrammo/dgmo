@@ -17,7 +17,7 @@ import {
   CHART_TYPE_DESCRIPTIONS,
 } from './dgmo-router';
 import { parseDgmoChartType } from './dgmo-router';
-import { chartTypes } from './chart-types';
+import { withoutInternalChartTypes } from './utils/offered-types';
 import { formatDgmoError } from './diagnostics';
 import { renderErrorCard } from './error-card';
 import { listDiagnosticCodes } from './diagnostics-registry';
@@ -341,11 +341,8 @@ function runTypesCommand(args: string[]): void {
   const json = args.includes('--json');
   // `getAllChartTypes()` means "everything routable" and deliberately keeps
   // internal types. `CHART_TYPE_DESCRIPTIONS` is a bare Record and carries no
-  // metadata, so the flag is only visible by looking back at `chartTypes`.
-  const internal = new Set(
-    chartTypes.filter((c) => c.internal).map((c) => c.id)
-  );
-  const types = getAllChartTypes().filter((id) => !internal.has(id));
+  // metadata, so the flag is only visible through the shared cross-lookup.
+  const types = withoutInternalChartTypes(getAllChartTypes());
   if (json) {
     const listed = types.map((id) => ({
       id,

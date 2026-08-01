@@ -439,17 +439,27 @@ export const BLOCK_CSS: string = `
 .dgmo-live-link-off {
   position: relative;
 }
+.dgmo-live-link-view {
+  display: block;
+  text-decoration: none;
+}
+/* pointer-events: none alongside the fade, or an invisible link sits over the
+ * card's bottom-right corner and navigates a reader who clicks near it. Focus
+ * still reveals it (:focus-within on the wrapper), so a keyboard user is not
+ * shut out of something a mouse user can reach. */
 .dgmo-live-link-enable {
   bottom: 0.5rem;
   font-size: 0.8em;
   opacity: 0;
+  pointer-events: none;
   position: absolute;
   right: 0.5rem;
   transition: opacity 0.15s ease-in-out;
 }
 .dgmo-live-link-off:hover .dgmo-live-link-enable,
-.dgmo-live-link-enable:focus-visible {
+.dgmo-live-link-off:focus-within .dgmo-live-link-enable {
   opacity: 1;
+  pointer-events: auto;
 }
 @media (prefers-reduced-motion: reduce) {
   .dgmo-live-link-enable {

@@ -27,6 +27,7 @@ import {
 // module instead of via dgmo-router.ts — chart-types.ts is a leaf module
 // with zero imports, so this entry stays cycle-free and renderer-free.
 import { chartTypes } from './chart-types';
+import { withoutInternalChartTypes } from './utils/offered-types';
 
 // ============================================================
 // Completion registry
@@ -954,22 +955,14 @@ const CHART_TYPE_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
   chartTypes.map((c) => [c.id, c.description])
 );
 
-/**
- * Types that route but are never OFFERED (`ChartTypeMeta.internal`). The popup
- * is keyed off `ALL_CHART_TYPES` — a plain Set of ids with no metadata — so the
- * flag is invisible here without looking back at `chartTypes`.
- */
-const INTERNAL_IDS = new Set(
-  chartTypes.filter((c) => c.internal).map((c) => c.id)
-);
-
+// The popup is keyed off `ALL_CHART_TYPES` — a plain Set of ids with no
+// metadata — so the `internal` flag is invisible here without the shared
+// cross-lookup.
 export const CHART_TYPES: ReadonlyArray<{ name: string; description: string }> =
-  [...ALL_CHART_TYPES]
-    .filter((name) => !INTERNAL_IDS.has(name))
-    .map((name) => ({
-      name,
-      description: CHART_TYPE_DESCRIPTIONS[name] ?? name,
-    }));
+  withoutInternalChartTypes([...ALL_CHART_TYPES]).map((name) => ({
+    name,
+    description: CHART_TYPE_DESCRIPTIONS[name] ?? name,
+  }));
 
 // ============================================================
 // Entity types for `is a` declarations
