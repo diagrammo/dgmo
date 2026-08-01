@@ -75,6 +75,7 @@ tsup emits dual ESM/CJS: `dist/index.js` + `.d.ts`, `dist/index.cjs` + `.d.cts`,
 Vitest with jsdom. One test file per parser/renderer in `tests/`, fixtures in `tests/fixtures/`, snapshots in `tests/__snapshots__/`.
 
 - Snapshots are timezone-sensitive — run with `TZ=UTC` to keep dates deterministic
+- 🔴 **A test gated on `dist/` never runs in CI.** `.github/workflows/ci.yml` runs `pnpm test` **before** `pnpm build`, `pretest` is only `pnpm codegen`, and `prebuild` does `rm -rf dist` — so a `if (!existsSync(dist/...)) return` guard skips every time there, and passes locally only against a stale build. Assert against `src/` and keep the built-artifact check as a belt-and-braces extra, never as the only assertion
 - Never run a `pnpm dev` watcher concurrently with a build; the shared `dist/` gets torn
 - **Rebuild dgmo yourself after editing `src/`.** The app's `dev`/`prebuild`/`build:web`/`pretypecheck` hooks cover build, typecheck and dev-server *startup* — nothing rebuilds for `pnpm test`, for the other consumer repos, or for an edit made while a dev server is already running
 
