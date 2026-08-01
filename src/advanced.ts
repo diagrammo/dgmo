@@ -629,6 +629,13 @@ export type {
   BodyFigure,
 } from './body/types';
 
+// Live link (§38). No DOM renderer, unlike every sibling below: the card is a
+// pure string builder, so a host draws it by setting the markup rather than by
+// handing over a container.
+export { parseLiveLink } from './live-link/parser';
+export { renderLiveLinkCard } from './live-link/renderer';
+export type { ParsedLiveLink } from './live-link/types';
+
 export { parseGoal } from './goal/parser';
 export { renderGoal, renderGoalForExport } from './goal/renderer';
 export type { ParsedGoal, GoalMode, GoalOptions } from './goal/types';
