@@ -149,7 +149,7 @@ export function parseLiveLink(content: string): ParsedLiveLink {
     if (isSkippable(trimmed)) continue;
 
     // Split on any whitespace: a tab between key and value is invisible in an
-    // editor, and treating `url\tdgm_1` as one long directive name produces a
+    // editor, and treating the whole line as one long directive name produces a
     // baffling message about a directive nobody typed.
     const spaceIdx = trimmed.search(/\s/);
     const key = (

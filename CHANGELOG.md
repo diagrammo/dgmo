@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-08-01
+
+### Added
+- **`live-link` — a pointer to a published diagram is now a chart type.** A `.dgmo` file can name a diagram published to Diagrammo Cloud instead of carrying its own drawing, and whoever opens it sees the publisher's current version. Until now that file could not exist: `parseFirstLine` validates the first token against a hand-listed set, so a file naming a reference was *"Unsupported chart type"* — while the same text in a docs fence resolved correctly. The language knew about references in one direction only. It is ordinary DGMO grammar (a declaration line, a `url` directive, then plain English), so it inherits open, rename, move and search on day one. Spec §38, decision #53. **This ships and appears to do nothing on purpose:** every pointer renders a reference card and none resolves yet — following one is the next step.
+- **`internal?: true` on `ChartTypeMeta` — routable, but never offered.** A type nobody hand-authors has no business in a picker: a "Cloud" tile would produce a file needing an id the user cannot know. The flag is honoured at five user-facing edges — `dgmo types`, the completion popup, MCP `list_chart_types`, the MCP suggester's candidate pool, and the generated AI core every model reads — and deliberately **not** inside `getAllChartTypes()`, which keeps meaning "everything routable". `internal-chart-types.test.ts` is the flag's specification; four filters at unrelated edges with nothing tying them together is a convention, not a mechanism.
+- **A reference card renderer.** Pure string-built SVG, no DOM, in the shape of `error-card.ts` — it is what a CLI export produces, what a docs site shows when live-link resolution is switched off, and what a host shows before a fetch resolves. Not an error state. `parseLiveLink` and `renderLiveLinkCard` are exported so a host can draw the same card.
+
+### Changed
+- 🔴 **The reference keyword is `live-link`, not `cloud`.** `cloud abc123` in a fence and `![[cloud:abc123]]` in a note **no longer resolve** — not deprecated, simply no longer references. `cloud` named *where the thing lives*; `live-link` names *what it is*, and it is the publish dialog's own phrase, so one word now spans both sides of the exchange. Pre-1.0, so there is no dual-accept window. The module and its subpath export keep the name `cloud-reference` deliberately: renaming a subpath breaks the app's dev server while the production build stays green.
+- **An error card on a type with no published guide links to the docs landing page** rather than deep-linking to a `chart-<id>` page that cannot exist.
+
 ## [0.57.0] - 2026-07-30
 
 ### Added
