@@ -632,6 +632,8 @@ export function parseGantt(
             content.explicitStart,
             content.preExtracted
           );
+          // Bind the alias to the peeled label (§2.2), not the quoted source.
+          if (content.alias) nameAliasMap.set(content.alias, task.label);
           const taskNode: GanttNode = { kind: 'task', ...task };
 
           // Add dependency ON lastTaskNode pointing TO the new task.
@@ -1363,6 +1365,8 @@ export function parseGantt(
             content.explicitStart,
             content.preExtracted
           );
+          // Bind the alias to the peeled label (§2.2), not the quoted source.
+          if (content.alias) nameAliasMap.set(content.alias, task.label);
           if (lineOffset) {
             (task as Writable<GanttTask>).offset = lineOffset;
           }
@@ -1493,6 +1497,15 @@ export function parseGantt(
     uncertain: boolean;
     explicitStart?: string | undefined;
     preExtracted: Record<string, string>;
+    /**
+     * TD-18 alias peeled by `splitNameAndMeta`. Carried out so the caller can
+     * bind it once the task's final label is known — dropping it here is what
+     * made `Hull Repairs 12bd as hr` accept the alias and then resolve `-> hr`
+     * to nothing, deleting the dependency with no diagnostic. The alias never
+     * survives to `makeTask`'s own `peelAlias`, because the positional-duration
+     * scan has already rewritten the name by then.
+     */
+    alias?: string | undefined;
   }
 
   function parseNewTaskContent(rawContent: string, ln: number): NewTaskContent {
@@ -1578,6 +1591,7 @@ export function parseGantt(
       uncertain,
       explicitStart,
       preExtracted,
+      alias: split.alias,
     };
   }
 

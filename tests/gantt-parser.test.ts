@@ -1918,3 +1918,29 @@ describe('gantt tag values — quoting (§2.2)', () => {
     expect(result.tagGroups[0]!.entries[0]!.value).toBe('say "hi" loudly');
   });
 });
+
+describe('gantt aliases on positional-duration lines (TD-18)', () => {
+  const depTargets = (src: string): string[] =>
+    parseGantt(src)
+      .nodes.flatMap((n) => (n.kind === 'task' ? (n.dependencies ?? []) : []))
+      .map((d) => d.targetName);
+
+  it('registers an alias declared alongside a positional duration', () => {
+    const src = 'gantt T\n\nHull Repairs 12bd as hr\nRigging 8bd\n  -> hr\n';
+    // The alias used to be peeled and dropped, so `-> hr` resolved to nothing
+    // and the dependency vanished with no diagnostic.
+    expect(depTargets(src)).toContain('Hull Repairs');
+    expect(parseGantt(src).diagnostics).toEqual([]);
+  });
+
+  it('binds the alias to the peeled label for a quoted name', () => {
+    const src = 'gantt T\n\n"Order | Items" 12bd as oi\nRigging 8bd\n  -> oi\n';
+    expect(depTargets(src)).toContain('Order | Items');
+  });
+
+  it('still registers the alias on the metadata-duration form', () => {
+    const src =
+      'gantt T\n\nHull Repairs as hr duration: 12d\nRigging duration: 8d\n  -> hr\n';
+    expect(depTargets(src)).toContain('Hull Repairs');
+  });
+});
