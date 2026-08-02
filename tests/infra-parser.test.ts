@@ -1465,4 +1465,102 @@ EventBus
       expect(splits(result.diagnostics)).toHaveLength(0);
     });
   });
+  describe('declaration-line names — hyphenated keys and wrong-language suffixes', () => {
+    const msgs = (r: ReturnType<typeof parseInfra>) =>
+      r.diagnostics.map((d) => d.message);
+
+    it('keeps the name whole when a property is written on the same line', () => {
+      const result = parseInfra(`
+infra T
+
+Api Gateway latency-ms: 50
+Cache
+`);
+      expect(result.nodes.map((n) => n.label)).toContain('Api Gateway');
+      expect(result.nodes.map((n) => n.label)).not.toContain(
+        'Api Gateway latency-'
+      );
+      expect(msgs(result).join(' ')).toContain(
+        "'latency-ms' is a node property"
+      );
+    });
+
+    it('names the key the author actually wrote, not its tail', () => {
+      const result = parseInfra(`
+infra T
+
+Api Gateway latency-ms: 50
+Cache
+`);
+      expect(msgs(result).join(' ')).not.toContain("'ms'");
+    });
+
+    it('does not store a misplaced property as a tag', () => {
+      const result = parseInfra(`
+infra T
+
+Api Gateway latency-ms: 50
+Cache
+`);
+      const node = result.nodes.find((n) => n.label === 'Api Gateway')!;
+      expect(Object.keys(node.tags ?? {})).not.toContain('latency-ms');
+    });
+
+    it('accepts the same line on a quoted reserved-char name', () => {
+      const result = parseInfra(`
+infra T
+
+"Order | Items" latency-ms: 50
+Cache
+`);
+      expect(result.nodes.map((n) => n.label)).toContain('Order | Items');
+      expect(msgs(result).join(' ')).not.toContain('Unexpected line');
+    });
+
+    it('gives a quoted name the same is-a warning a bare name gets', () => {
+      const bare = parseInfra(`
+infra T
+
+Api Gateway is a server
+Cache
+`);
+      const quoted = parseInfra(`
+infra T
+
+"Order | Items" is a server
+Cache
+`);
+      for (const r of [bare, quoted]) {
+        expect(msgs(r).join(' ')).toContain("Infra nodes don't use 'is a");
+        expect(msgs(r).join(' ')).not.toContain('Unexpected line');
+      }
+      expect(quoted.nodes.map((n) => n.label)).toContain('Order | Items');
+      expect(bare.nodes.map((n) => n.label)).toContain('Api Gateway');
+    });
+
+    it('strips is-a and alias together on a quoted name', () => {
+      const result = parseInfra(`
+infra T
+
+"Order | Items" is a server as oi
+Cache
+oi
+  -> Cache
+`);
+      expect(result.nodes.map((n) => n.label)).toContain('Order | Items');
+      expect(result.edges).toHaveLength(1);
+    });
+
+    it('leaves ordinary same-line metadata alone', () => {
+      const result = parseInfra(`
+infra T
+
+Api Gateway color: blue
+Cache
+`);
+      const node = result.nodes.find((n) => n.label === 'Api Gateway')!;
+      expect(node.tags?.['color']).toBe('blue');
+      expect(msgs(result).join(' ')).not.toContain('node property');
+    });
+  });
 });

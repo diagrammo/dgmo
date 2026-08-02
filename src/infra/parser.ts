@@ -92,8 +92,19 @@ const TAG_VALUE_RE = /^(\w[\w\s]+?)\s*$/;
 // alias parse — `"Web App" as web` — which the bare-name path got for free by
 // sweeping the alias into the lazy name group and peeling it later, but the
 // quoted path could not reach past the closing quote.
+//
+// `isa` captures a wrong-language `is a <type>` suffix rather than rejecting
+// the line: infra has no such declaration, and the callers hand the suffix to
+// `peelInfraDecorations` so the author gets the warning that says so. The bare
+// path used to reach that warning by sweeping the suffix into the lazy name
+// group; a quoted name fell through to the generic "Unexpected line" instead.
+//
+// The metadata key admits hyphens (`latency-ms:`) — every infra property is
+// spelled that way, and a key the regex could not see left the lazy name group
+// swallowing half of it (`Api Gateway latency-`) on the bare path and killed
+// the whole match on the quoted one.
 const COMPONENT_RE =
-  /^(?:"(?<qname>[^"]+)"|(?<uname>[a-zA-Z_][\w -]*?))(?:\s+as\s+(?<alias>[A-Za-z][A-Za-z0-9_]{0,11}))?\s*(?<meta>(?:\|.*)|(?:[a-zA-Z_]\w*\s*:.*))?$/;
+  /^(?:"(?<qname>[^"]+)"|(?<uname>[a-zA-Z_][\w -]*?))(?<isa>\s+is\s+an?\s+[A-Za-z][\w-]*)?(?:\s+as\s+(?<alias>[A-Za-z][A-Za-z0-9_]{0,11}))?\s*(?<meta>(?:\|.*)|(?:[a-zA-Z_][\w-]*\s*:.*))?$/;
 
 // Legacy pipe metadata: | key: value  or  | k1: v1, k2: v2  (comma-separated).
 // Kept for transitional back-compat extraction; new same-line metadata
@@ -101,7 +112,9 @@ const COMPONENT_RE =
 const PIPE_META_RE = /[|,]\s*(\w+)\s*:\s*([^|,]+)/g;
 // Same-line metadata (post-0.18.0 §1.4): `k: v, k2: v2` after any name
 // region — matches a colon-bearing key-value, comma-separated.
-const SAMELINE_META_RE = /(?:^|[\s,])(\w+)\s*:\s*([^,]+?)(?=\s*,|\s*$)/g;
+// Hyphens are part of the key (`latency-ms`), not a break inside it — reading
+// `ms` as the key is how a misplaced property warned about a key nobody wrote.
+const SAMELINE_META_RE = /(?:^|[\s,])([\w-]+)\s*:\s*([^,]+?)(?=\s*,|\s*$)/g;
 
 // Property: key: value (colon-separated)
 const PROPERTY_RE = /^([\w-]+):\s*(.+)$/;
@@ -272,6 +285,26 @@ export function parseInfra(content: string): ParsedInfra {
       label: m[1]!.trim(),
       ...(peeled.alias !== undefined && { alias: peeled.alias }),
     };
+  }
+
+  /**
+   * A node property written on the declaration line instead of indented
+   * under it (§4.3). Drop it from the tag bag — a property is not a tag —
+   * and say where it belongs, rather than reporting it as unknown metadata.
+   */
+  function warnMisplacedProperties(
+    tags: Record<string, string>,
+    label: string,
+    lineNumber: number
+  ): void {
+    for (const key of Object.keys(tags)) {
+      if (!INFRA_BEHAVIOR_KEYS.has(key) && !EDGE_ONLY_KEYS.has(key)) continue;
+      warn(
+        lineNumber,
+        `'${key}' is a node property — indent it under '${label}' as '${key}: ${tags[key]}', not on the declaration line.`
+      );
+      delete tags[key];
+    }
   }
   /**
    * Resolve a connection-target token. If the token exactly matches a
@@ -513,8 +546,10 @@ export function parseInfra(content: string): ParsedInfra {
         finishCurrentNode();
         finishCurrentTagGroup();
 
-        const { qname, uname, alias: asAlias, meta } = compMatch.groups!;
-        const rawName = (qname ?? uname ?? '').trim();
+        const { qname, uname, isa, alias: asAlias, meta } = compMatch.groups!;
+        // The `is a <type>` suffix rides back onto the name so the peeler can
+        // warn about it — infra has no such declaration on either path.
+        const rawName = ((qname ?? uname ?? '') + (isa ?? '')).trim();
         const peeled = peelInfraDecorations(rawName, lineNumber);
         const name = peeled.label;
         // Explicit `as` capture wins; fall back to an alias the peeler split out
@@ -522,6 +557,7 @@ export function parseInfra(content: string): ParsedInfra {
         const alias = asAlias ?? peeled.alias;
         const rest = meta ?? '';
         const { tags } = extractPipeMetadata(rest);
+        warnMisplacedProperties(tags, name, lineNumber);
         warnUnknownMetaKeys(
           tags,
           withTagAliases(INFRA_REGISTRY, tagAliasSet),
@@ -645,13 +681,16 @@ export function parseInfra(content: string): ParsedInfra {
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
         finishCurrentTagGroup();
-        const { qname, uname, alias: asAlias, meta } = compMatch.groups!;
-        const rawName = (qname ?? uname ?? '').trim();
+        const { qname, uname, isa, alias: asAlias, meta } = compMatch.groups!;
+        // The `is a <type>` suffix rides back onto the name so the peeler can
+        // warn about it — infra has no such declaration on either path.
+        const rawName = ((qname ?? uname ?? '') + (isa ?? '')).trim();
         const peeled = peelInfraDecorations(rawName, lineNumber);
         const name = peeled.label;
         const alias = asAlias ?? peeled.alias;
         const rest = meta ?? '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
+        warnMisplacedProperties(nodeTags, name, lineNumber);
         warnUnknownMetaKeys(
           nodeTags,
           withTagAliases(INFRA_REGISTRY, tagAliasSet),
@@ -975,13 +1014,16 @@ export function parseInfra(content: string): ParsedInfra {
 
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
-        const { qname, uname, alias: asAlias, meta } = compMatch.groups!;
-        const rawName = (qname ?? uname ?? '').trim();
+        const { qname, uname, isa, alias: asAlias, meta } = compMatch.groups!;
+        // The `is a <type>` suffix rides back onto the name so the peeler can
+        // warn about it — infra has no such declaration on either path.
+        const rawName = ((qname ?? uname ?? '') + (isa ?? '')).trim();
         const peeled = peelInfraDecorations(rawName, lineNumber);
         const name = peeled.label;
         const alias = asAlias ?? peeled.alias;
         const rest = meta ?? '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
+        warnMisplacedProperties(nodeTags, name, lineNumber);
         warnUnknownMetaKeys(
           nodeTags,
           withTagAliases(INFRA_REGISTRY, tagAliasSet),
@@ -1020,13 +1062,16 @@ export function parseInfra(content: string): ParsedInfra {
         finishCurrentTagGroup();
         currentGroup = null;
 
-        const { qname, uname, alias: asAlias, meta } = compMatch.groups!;
-        const rawName = (qname ?? uname ?? '').trim();
+        const { qname, uname, isa, alias: asAlias, meta } = compMatch.groups!;
+        // The `is a <type>` suffix rides back onto the name so the peeler can
+        // warn about it — infra has no such declaration on either path.
+        const rawName = ((qname ?? uname ?? '') + (isa ?? '')).trim();
         const peeled = peelInfraDecorations(rawName, lineNumber);
         const name = peeled.label;
         const alias = asAlias ?? peeled.alias;
         const rest = meta ?? '';
         const { tags } = extractPipeMetadata(rest);
+        warnMisplacedProperties(tags, name, lineNumber);
         warnUnknownMetaKeys(
           tags,
           withTagAliases(INFRA_REGISTRY, tagAliasSet),
