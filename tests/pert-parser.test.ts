@@ -307,6 +307,70 @@ describe('pert parser — alias rules', () => {
   });
 });
 
+describe('pert parser — quoted names (§2.2)', () => {
+  it('peels surrounding quotes off an activity name', () => {
+    const parsed = parsePert(`pert\n"recruit crew" 1 2 4\n`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.activities[0].name).toBe('recruit crew');
+    expect(parsed.activities[0].id).toBe('recruit crew');
+  });
+
+  it('keeps a reserved character (`|`) inside a quoted name', () => {
+    const parsed = parsePert(`pert\n"Order | Items" 1 2 4\n`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.activities[0].name).toBe('Order | Items');
+  });
+
+  it('still parses the three durations after a quoted name', () => {
+    const parsed = parsePert(`pert\n"Order | Items" 1 2 4 as oi\n`);
+    expect(parsed.error).toBeNull();
+    const a = parsed.activities[0];
+    expect(a.duration?.o.amount).toBe(1);
+    expect(a.duration?.m.amount).toBe(2);
+    expect(a.duration?.p.amount).toBe(4);
+    // The alias binds to the peeled name, not the quoted literal.
+    expect(a.alias).toBe('oi');
+    expect(parsed.idMap['oi']).toBe('order | items');
+  });
+
+  it('resolves quoted and bare `-> Target` references to one activity', () => {
+    const parsed = parsePert(`pert
+"Order | Items" 1 2 4
+  -> stow cargo
+stow cargo 2
+  -> "Order | Items"
+weigh anchor 1
+  -> Order | Items
+`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.activities.map((a) => a.name)).toEqual([
+      'Order | Items',
+      'stow cargo',
+      'weigh anchor',
+    ]);
+    expect(parsed.edges.map((e) => [e.source, e.target])).toEqual([
+      ['order | items', 'stow cargo'],
+      ['stow cargo', 'order | items'],
+      ['weigh anchor', 'order | items'],
+    ]);
+  });
+
+  it('peels surrounding quotes off a group name', () => {
+    const parsed = parsePert(`pert\n["Outfit | Ship"]\n  careen hull 1\n`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.groups[0].name).toBe('Outfit | Ship');
+    expect(parsed.groups[0].id).toBe('[outfit | ship]');
+    expect(parsed.groups[0].activityIds).toEqual(['careen hull']);
+  });
+
+  it('leaves interior quotes alone', () => {
+    const parsed = parsePert(`pert\nsay "hi" loudly 2\n`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.activities[0].name).toBe('say "hi" loudly');
+    expect(parsed.activities[0].duration?.m.amount).toBe(2);
+  });
+});
+
 describe('pert parser — extractPertSymbols', () => {
   it('returns activity names + aliases + group names', () => {
     const symbols = extractPertSymbols(loadFixture('pirate-voyage.dgmo'));

@@ -7,6 +7,7 @@
 
 import type { GanttTask, GanttNode } from './types';
 import { normalizeName } from '../utils/name-normalize';
+import { peelQuotedName } from '../utils/parsing';
 
 interface ResolverMatch {
   task: GanttTask;
@@ -66,12 +67,14 @@ export function resolveTaskName(
   name: string,
   allTasks: GanttTask[]
 ): ResolverResult {
-  let trimmed = name.trim();
+  // §2.2 quoting is the escape hatch for a reserved character — peel it so a
+  // quoted reference and a bare one land on the same task.
+  let trimmed = peelQuotedName(name.trim()).trim();
 
   // Strip bracket syntax — `[Group].Task` is sugar for `Group.Task`
   const bracketMatch = trimmed.match(BRACKET_GROUP_RE);
   if (bracketMatch) {
-    trimmed = `${bracketMatch[1]}.${bracketMatch[2]}`;
+    trimmed = `${peelQuotedName(bracketMatch[1]!)}.${bracketMatch[2]}`;
   }
 
   const normTrimmed = normalizeName(trimmed);
@@ -100,8 +103,8 @@ export function resolveTaskName(
   // 2. Try dot-notation: split at last dot (greedy right-to-left)
   const lastDotIdx = trimmed.lastIndexOf('.');
   if (lastDotIdx > 0) {
-    const groupPrefix = trimmed.substring(0, lastDotIdx);
-    const taskLabel = trimmed.substring(lastDotIdx + 1);
+    const groupPrefix = peelQuotedName(trimmed.substring(0, lastDotIdx));
+    const taskLabel = peelQuotedName(trimmed.substring(lastDotIdx + 1));
 
     // Find tasks whose label matches and whose group path ends with the prefix
     const normTaskLabel = normalizeName(taskLabel);

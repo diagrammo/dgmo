@@ -18,6 +18,7 @@ import { parseDateToken, toInternal, type DateOrder } from '../utils/date';
 import {
   extractColor,
   measureIndent,
+  peelQuotedName,
   peelTrailingCollapsedFlag,
   splitNameAndMeta,
   warnUnknownMetaKeys,
@@ -395,6 +396,12 @@ function tokenizeActivityLine(
     name = rawTokens.slice(0, firstNumIdx).join(' ').trim();
     durationTokens = rawTokens.slice(firstNumIdx);
   }
+
+  // §2.2 — surrounding quotes are the escape hatch for reserved
+  // characters in a name, never label text. Peeled LAST: the duration
+  // scan above relies on the closing quote to keep a trailing number
+  // (`"Phase 2" 1 2 4`) out of the estimate tokens.
+  name = peelQuotedName(name);
 
   return {
     name,
@@ -796,7 +803,9 @@ export function parsePert(
     if (groupMatch) {
       contentStarted = true;
       currentTagGroup = null;
-      const name = groupMatch[1]!.trim();
+      // §2.2 — `["Outfit | Ship"]` quotes are delimiters, peeled before
+      // the id is normalized so declaration and reference agree.
+      const name = peelQuotedName(groupMatch[1]!.trim());
       let tail = (groupMatch[2] ?? '').trim();
       // Canonical bare `collapsed` trailing flag (§1.8, decision #48) —
       // peeled from the tail before the metadata parse. Case-sensitive

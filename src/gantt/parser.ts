@@ -23,7 +23,12 @@ import {
   validateTagGroupNames,
   tagAttrKey,
 } from '../utils/tag-groups';
-import { measureIndent, extractColor, parseFirstLine } from '../utils/parsing';
+import {
+  measureIndent,
+  extractColor,
+  parseFirstLine,
+  peelQuotedName,
+} from '../utils/parsing';
 import {
   parseOffset,
   parseOffsetPrefix,
@@ -469,7 +474,9 @@ export function parseGantt(
           result.eras.push({
             startDate: eraEntryMatch.start,
             endDate: eraEntryMatch.end,
-            label: eraExtracted.label,
+            // Peel after extractColor — the quotes are what keep a trailing
+            // color word inside the label (§2.2).
+            label: peelQuotedName(eraExtracted.label),
             color: eraExtracted.color || null,
             lineNumber,
           });
@@ -502,7 +509,9 @@ export function parseGantt(
           );
           result.markers.push({
             date: markerEntryMatch.iso,
-            label: markerExtracted.label,
+            // Peel after extractColor — the quotes are what keep a trailing
+            // color word inside the label (§2.2).
+            label: peelQuotedName(markerExtracted.label),
             color: markerExtracted.color || null,
             lineNumber,
           });
@@ -627,8 +636,10 @@ export function parseGantt(
           // Add dependency ON lastTaskNode pointing TO the new task.
           // Convention: task.dependencies[].targetName = "the task that starts after this task finishes"
           if (lastTaskNode) {
+            // Point at the task's final label, so a quoted declaration and a
+            // bare reference resolve to the one task (§2.2).
             (lastTaskNode.dependencies as GanttDependency[]).push({
-              targetName: content.name,
+              targetName: task.label,
               ...(arrowResult.label !== undefined && {
                 label: arrowResult.label,
               }),
@@ -675,7 +686,11 @@ export function parseGantt(
               targetSegment = split.name;
               meta = split.meta;
             }
-            const targetName = resolveAliasTarget(targetSegment);
+            // Peel after the metadata split — the quotes shield the name's
+            // reserved characters up to here (§2.2).
+            const targetName = resolveAliasTarget(
+              peelQuotedName(targetSegment)
+            );
             let offset: Offset | undefined = arrowResult.lag;
 
             if (meta['lag'] || meta['lead']) {
@@ -787,7 +802,7 @@ export function parseGantt(
         result.eras.push({
           startDate: '',
           endDate: '',
-          label: eraExtracted.label,
+          label: peelQuotedName(eraExtracted.label),
           color: eraExtracted.color || null,
           lineNumber,
           ...(startOff && { offsetStart: startOff }),
@@ -809,7 +824,7 @@ export function parseGantt(
         );
         result.markers.push({
           date: '',
-          label: markerExtracted.label,
+          label: peelQuotedName(markerExtracted.label),
           color: markerExtracted.color || null,
           lineNumber,
           ...(dateOff && { offsetDate: dateOff }),
@@ -921,7 +936,7 @@ export function parseGantt(
         result.eras.push({
           startDate: eraMatch.start,
           endDate: eraMatch.end,
-          label: eraExtracted.label,
+          label: peelQuotedName(eraExtracted.label),
           color: eraExtracted.color || null,
           lineNumber,
         });
@@ -950,7 +965,7 @@ export function parseGantt(
         );
         result.markers.push({
           date: markerMatch.iso,
-          label: markerExtracted.label,
+          label: peelQuotedName(markerExtracted.label),
           color: markerExtracted.color || null,
           lineNumber,
         });
@@ -1018,8 +1033,6 @@ export function parseGantt(
           continue;
         }
 
-        if (split.alias) nameAliasMap.set(split.alias, taskName);
-
         const preExtracted = { ...split.meta };
         delete preExtracted['duration'];
         delete preExtracted['start'];
@@ -1033,6 +1046,8 @@ export function parseGantt(
           explicitStart,
           preExtracted
         );
+        // Bind the alias to the peeled label (§2.2), not the quoted source.
+        if (split.alias) nameAliasMap.set(split.alias, task.label);
         const taskNode: GanttNode = { kind: 'task', ...task };
         currentContainer().push(taskNode);
         const writableTaskN = taskNode as Writable<
@@ -1297,10 +1312,13 @@ export function parseGantt(
           delete metadata['collapsed'];
         }
         const groupPeeled = peelAlias(gm[1]!);
-        if (groupPeeled.alias)
-          nameAliasMap.set(groupPeeled.alias, groupPeeled.label);
+        // §2.2 quoting escapes reserved characters in the group name; the
+        // bracket contents carry no other token decisions, and the metadata
+        // tail was split off above, so this is the late point for the peel.
+        const groupName = peelQuotedName(groupPeeled.label);
+        if (groupPeeled.alias) nameAliasMap.set(groupPeeled.alias, groupName);
         const group: Writable<GanttGroup> = {
-          name: groupPeeled.label,
+          name: groupName,
           color: null,
           metadata,
           ...(lineOffset && { offset: lineOffset }),
@@ -1588,7 +1606,6 @@ export function parseGantt(
     // TD-18: peel optional `as <alias>` from the label.
     const peeled = peelAlias(labelRaw);
     let label = peeled.label;
-    if (peeled.alias) nameAliasMap.set(peeled.alias, label);
 
     // Check for reserved keyword
     if (label.toLowerCase() === 'parallel') {
@@ -1626,6 +1643,13 @@ export function parseGantt(
         Object.assign(metadata, split.meta);
       }
     }
+
+    // §2.2 quoting is the escape hatch for a reserved character in a name —
+    // the quotes are syntax, never label text. Peeled here, last: the
+    // positional-duration scan and the metadata split above both need the
+    // quotes intact (`"Rev 5d" 3d` keeps `5d` out of the duration scan).
+    label = peelQuotedName(label);
+    if (peeled.alias) nameAliasMap.set(peeled.alias, label);
 
     if (preExtractedMeta) {
       Object.assign(metadata, preExtractedMeta);

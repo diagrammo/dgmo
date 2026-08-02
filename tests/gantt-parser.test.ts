@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseGantt } from '../src/gantt/parser';
+import { calculateSchedule } from '../src/gantt/calculator';
 import { getPalette } from '../src/palettes';
 
 const palette = getPalette('nord').light;
@@ -1787,6 +1788,110 @@ describe('gantt parser', () => {
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.explicitStart).toBe('2024-02-15');
+      }
+    });
+  });
+
+  describe('quoted names (§2.2)', () => {
+    it('strips the quotes from a task name', () => {
+      const result = parseGantt('gantt\n"Design Phase" 5d', palette);
+      expect(result.error).toBeNull();
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Design Phase');
+      }
+    });
+
+    it('keeps a reserved character inside a quoted task name', () => {
+      const result = parseGantt('gantt\n"Order | Items" 12bd', palette);
+      expect(result.error).toBeNull();
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Order | Items');
+        expect(task.duration).toEqual({ amount: 12, unit: 'bd' });
+      }
+    });
+
+    it('strips the quotes from a task name carrying an alias', () => {
+      const result = parseGantt('gantt\n"Order | Items" 12bd as oi', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Order | Items');
+      }
+    });
+
+    it('strips the quotes from a group name', () => {
+      const result = parseGantt('gantt\n["Front | End"]\n  Design 5d', palette);
+      const group = result.nodes[0];
+      expect(group.kind).toBe('group');
+      if (group.kind === 'group') {
+        expect(group.name).toBe('Front | End');
+        expect(group.children).toHaveLength(1);
+      }
+    });
+
+    it('strips the quotes from a marker label', () => {
+      const result = parseGantt(
+        'gantt\nmarker 2026-03-27 "Board | Review"\nDesign 5d',
+        palette
+      );
+      expect(result.markers).toContainEqual(
+        expect.objectContaining({
+          date: '2026-03-27',
+          label: 'Board | Review',
+        })
+      );
+    });
+
+    it('resolves a quoted reference to the quoted declaration', () => {
+      const input =
+        'gantt\nstart-date 2026-01-05\n"Order | Items" 12bd\nDesign 5d\n  -> "Order | Items"';
+      const result = parseGantt(input, palette);
+      const design = result.nodes[1];
+      if (design.kind === 'task') {
+        expect(design.dependencies[0].targetName).toBe('Order | Items');
+      }
+      const schedule = calculateSchedule(result);
+      expect(schedule.diagnostics).toHaveLength(0);
+      expect(schedule.tasks).toHaveLength(2);
+    });
+
+    it('resolves a bare reference to the quoted declaration — one task', () => {
+      const input =
+        'gantt\nstart-date 2026-01-05\n"Order | Items" 12bd\nDesign 5d\n  -> Order | Items';
+      const schedule = calculateSchedule(parseGantt(input, palette));
+      expect(schedule.diagnostics).toHaveLength(0);
+      expect(schedule.tasks).toHaveLength(2);
+      // `Order | Items` starts after `Design` finishes, so the reference
+      // landed on the declared task rather than creating a second one.
+      const target = schedule.tasks.find(
+        (t) => t.task.label === 'Order | Items'
+      );
+      expect(target?.startDate.toISOString().slice(0, 10)).toBe('2026-01-10');
+    });
+
+    it('resolves a quoted group in a `[Group].Task` reference', () => {
+      const input =
+        'gantt\nstart-date 2026-01-05\n["Front | End"]\n  Design 5d\n[Back]\n  Build 3d\n    -> ["Front | End"].Design';
+      const schedule = calculateSchedule(parseGantt(input, palette));
+      expect(schedule.diagnostics).toHaveLength(0);
+      expect(schedule.tasks).toHaveLength(2);
+    });
+
+    it('leaves an interior quote alone', () => {
+      const result = parseGantt('gantt\nsay "hi" loudly 5d', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('say "hi" loudly');
+      }
+    });
+
+    it('quotes still shield a duration-like token in the name', () => {
+      const result = parseGantt('gantt\n"Rev 5d" 3d', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.label).toBe('Rev 5d');
+        expect(task.duration).toEqual({ amount: 3, unit: 'd' });
       }
     });
   });
