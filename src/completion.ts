@@ -508,6 +508,13 @@ const GANTT_LEGACY_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2})?)\s+(.+)$/;
 const GANTT_GROUP_RE = /^\[(.+?)\]/;
 const GANTT_STRUCTURAL_RE = /^(era|marker|holiday|workweek|parallel)\b/i;
 const GANTT_META_KEY_RE = /\b(?:duration|start):\s/;
+/** A positional duration token (`12bd`, `1.5w`, `3d?`) — mirrors the parser's
+ *  `DURATION_TOKEN_RE`. In the modern form the duration TRAILS the name, which
+ *  is why neither legacy regex above matches it. */
+const GANTT_DURATION_TOKEN_RE = /^(\d+(?:\.\d+)?)(min|bd|sp|d|w|m|q|y|h|s)\??$/;
+/** A leading dependency arrow on an indented task declaration: `-> Rigging 8bd`
+ *  or the labelled `-blocks-> Rigging 8bd`. */
+const GANTT_LEADING_ARROW_RE = /^(?:-[^>]*)?->\s*/;
 
 function extractGanttSymbols(docText: string): DiagramSymbols {
   const lines = docText.split('\n');
@@ -594,6 +601,28 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
           .trim();
       if (taskName && !entities.includes(taskName)) entities.push(taskName);
       continue;
+    }
+
+    // Modern positional form: `Hull Repairs 12bd`, and the indented
+    // declaration `-> Rigging 8bd`. The duration trails the name, so the two
+    // legacy branches above (both anchored on a LEADING duration or date)
+    // never see it — which left the most common way to write a task absent
+    // from completion entirely. Scan right-to-left for the duration, exactly
+    // as the parser does, and take everything before it as the name.
+    const afterArrow = trimmed.replace(GANTT_LEADING_ARROW_RE, '').trim();
+    const tokens = afterArrow.split(/\s+/);
+    for (let j = tokens.length - 1; j >= 0; j--) {
+      // In-bounds by loop guard.
+      if (!GANTT_DURATION_TOKEN_RE.test(tokens[j]!)) continue;
+      const name = nameHead(
+        tokens
+          .slice(0, j)
+          .join(' ')
+          .replace(/\s+as\s+[A-Za-z][A-Za-z0-9_]{0,11}$/, '')
+          .trim()
+      );
+      if (name && !entities.includes(name)) entities.push(name);
+      break;
     }
   }
 

@@ -1193,3 +1193,48 @@ describe('completion — quoted names (§2.2)', () => {
     expect(entities).toContain('say "hi" loudly');
   });
 });
+
+describe('completion — gantt positional-duration tasks', () => {
+  const entitiesOf = (src: string): string[] =>
+    extractDiagramSymbols(src)?.entities ?? [];
+
+  it('extracts a task whose duration trails the name', () => {
+    // The two legacy branches are anchored on a LEADING duration or date, so
+    // the modern form was absent from completion entirely.
+    expect(entitiesOf('gantt T\n\nHull Repairs 12bd\nRigging 8bd\n')).toEqual([
+      'Hull Repairs',
+      'Rigging',
+    ]);
+  });
+
+  it('drops the alias and the uncertainty marker from the name', () => {
+    expect(entitiesOf('gantt T\n\nHull Repairs 12bd as hr\n')).toEqual([
+      'Hull Repairs',
+    ]);
+    expect(entitiesOf('gantt T\n\nHull Repairs 12bd?\n')).toEqual([
+      'Hull Repairs',
+    ]);
+  });
+
+  it('extracts a task declared after a dependency arrow, bare or labelled', () => {
+    expect(
+      entitiesOf('gantt T\n\nHull Repairs 12bd\n  -> Rigging 8bd\n')
+    ).toContain('Rigging');
+    expect(
+      entitiesOf('gantt T\n\nHull Repairs 12bd\n  -blocks-> Rigging 8bd\n')
+    ).toContain('Rigging');
+  });
+
+  it('does not invent an entity from a bare alias reference', () => {
+    const entities = entitiesOf(
+      'gantt T\n\nHull Repairs 12bd as hr\nRigging 8bd\n  -> hr\n'
+    );
+    expect(entities).not.toContain('hr');
+  });
+
+  it('peels quotes on the positional form too', () => {
+    expect(entitiesOf('gantt T\n\n"Order | Items" 12bd as oi\n')).toContain(
+      'Order | Items'
+    );
+  });
+});
