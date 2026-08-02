@@ -134,6 +134,55 @@ function splitCamelCase(word: string): string[] {
 }
 
 /**
+ * One wrap-break opportunity within a label.
+ *
+ * `spaceBefore` records whether the author's text had a space here, so a
+ * chunk that stays on the same line as its predecessor rejoins exactly as
+ * typed. Hyphens and camelCase boundaries are break opportunities with NO
+ * separator — the hyphen itself rides along on the chunk that precedes it.
+ */
+interface LabelChunk {
+  text: string;
+  spaceBefore: boolean;
+}
+
+/**
+ * Split a label into wrap chunks at spaces, hyphens and camelCase humps.
+ *
+ * A hyphen keeps its own character: `us-east-1` → `us-`, `east-`, `1`, so
+ * rejoining without a separator reproduces the source. Materializing a
+ * break opportunity as a space is what silently turned `Alpha-One` into
+ * `Alpha One` on the canvas.
+ */
+function splitLabelChunks(label: string): LabelChunk[] {
+  const chunks: LabelChunk[] = [];
+  const words = label.split(/\s+/).filter((w) => w.length > 0);
+  for (let wi = 0; wi < words.length; wi++) {
+    // In-bounds by loop guard.
+    const word = words[wi]!;
+    // Break after each hyphen, keeping the hyphen on the left chunk.
+    const hyphenParts: string[] = [];
+    let start = 0;
+    for (let i = 0; i < word.length; i++) {
+      if (word[i] === '-') {
+        hyphenParts.push(word.slice(start, i + 1));
+        start = i + 1;
+      }
+    }
+    if (start < word.length) hyphenParts.push(word.slice(start));
+
+    let firstOfWord = true;
+    for (const part of hyphenParts) {
+      for (const camel of splitCamelCase(part)) {
+        chunks.push({ text: camel, spaceBefore: wi > 0 && firstOfWord });
+        firstOfWord = false;
+      }
+    }
+  }
+  return chunks;
+}
+
+/**
  * Fit a label into a header zone for described nodes.
  * Strategy: split first (spaces, dashes, camelCase), wrap into lines,
  * shrink font if needed, truncate individual lines with "…" — never hard-break.
@@ -145,13 +194,7 @@ function fitLabelToHeader(
 ): { lines: string[]; fontSize: number } {
   const maxTextWidth = nodeWidth - NODE_TEXT_PADDING * 2;
 
-  // Split on spaces and dashes, then camelCase split each part
-  const rawParts = label.split(/(\s+|-)/);
-  const words: string[] = [];
-  for (const part of rawParts) {
-    if (!part || /^\s+$/.test(part) || part === '-') continue;
-    words.push(...splitCamelCase(part));
-  }
+  const words = splitLabelChunks(label);
 
   for (
     let fontSize = NODE_FONT_SIZE;
@@ -164,12 +207,13 @@ function fitLabelToHeader(
     const lines: string[] = [];
     let current = '';
     for (const word of words) {
-      const test = current ? `${current} ${word}` : word;
+      const joiner = current && word.spaceBefore ? ' ' : '';
+      const test = current ? `${current}${joiner}${word.text}` : word.text;
       if (measureText(test, fontSize) <= maxTextWidth) {
         current = test;
       } else {
         if (current) lines.push(current);
-        current = word;
+        current = word.text;
       }
     }
     if (current) lines.push(current);
