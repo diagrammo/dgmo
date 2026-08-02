@@ -45,6 +45,30 @@ export function registerExtractor(kind: ChartType, fn: ExtractFn): void {
  * Extract diagram symbols from document text.
  * Returns null if the chart type is unknown or has no registered extractor.
  */
+/**
+ * Take the entity name off the head of a declaration or endpoint token.
+ *
+ * Quote-aware because the legacy `|` metadata split cuts straight through a
+ * §2.2 quoted name: `"Order | Items" as oi` came back as `"Order`, and the
+ * editor then offered that fragment as a completion — a string the author
+ * cannot reference. A closed quoted region IS the name; anything else falls
+ * back to the historical split.
+ *
+ * `alsoSplitBracket` covers the sites that additionally trimmed a trailing
+ * `[shape]`; it is skipped for a quoted name, where a bracket is name text.
+ */
+function nameHead(text: string, alsoSplitBracket = false): string {
+  const t = text.trim();
+  const quote = t[0];
+  if (quote === '"' || quote === "'") {
+    const end = t.indexOf(quote, 1);
+    if (end > 0) return t.slice(1, end).trim();
+  }
+  // split('|')[0] is always defined on any string.
+  const piped = t.split('|')[0]!;
+  return (alsoSplitBracket ? piped.split('[')[0]! : piped).trim();
+}
+
 export function extractDiagramSymbols(docText: string): DiagramSymbols | null {
   // Parse chartType from first line — bare type name.
   let chartType: string | null = null;
@@ -169,8 +193,8 @@ function extractStateSymbols(docText: string): DiagramSymbols {
     const arrowMatch = trimmed.match(STATE_ARROW_RE);
     if (arrowMatch) {
       // Regex captured groups 1 and 2 by successful match; split('|')[0] always defined.
-      const src = arrowMatch[1]!.split('|')[0]!.trim();
-      const dst = arrowMatch[2]!.split('|')[0]!.trim();
+      const src = nameHead(arrowMatch[1]!);
+      const dst = nameHead(arrowMatch[2]!);
       if (src && !entities.includes(src)) entities.push(src);
       if (dst && !entities.includes(dst)) entities.push(dst);
     }
@@ -355,7 +379,7 @@ function extractSitemapSymbols(docText: string): DiagramSymbols {
     const containerMatch = trimmed.match(SITEMAP_CONTAINER_RE);
     if (containerMatch) {
       // Regex captured group 1 by successful match; split('|')[0] always defined.
-      const name = containerMatch[1]!.split('|')[0]!.trim();
+      const name = nameHead(containerMatch[1]!);
       if (name && !entities.includes(name)) entities.push(name);
       lastNodeIndent = indent;
       continue;
@@ -385,7 +409,7 @@ function extractSitemapSymbols(docText: string): DiagramSymbols {
 
     // Page label (anything else that's not special)
     // split('|')[0] always defined on any string.
-    const label = trimmed.split('|')[0]!.trim();
+    const label = nameHead(trimmed);
     if (label) {
       if (!entities.includes(label)) entities.push(label);
       lastNodeIndent = indent;
@@ -442,7 +466,7 @@ function extractC4Symbols(docText: string): DiagramSymbols {
     const elemMatch = trimmed.match(C4_ELEMENT_RE);
     if (elemMatch) {
       // Regex captured group 2 by successful match; split('|')[0] always defined.
-      const name = elemMatch[2]!.split('|')[0]!.trim();
+      const name = nameHead(elemMatch[2]!);
       if (name && !entities.includes(name)) entities.push(name);
       continue;
     }
@@ -451,7 +475,7 @@ function extractC4Symbols(docText: string): DiagramSymbols {
     const isAMatch = trimmed.match(C4_IS_A_RE);
     if (isAMatch) {
       // Regex captured group 1 by successful match; split('|')[0] always defined.
-      const name = isAMatch[1]!.split('|')[0]!.trim();
+      const name = nameHead(isAMatch[1]!);
       if (name && !entities.includes(name)) entities.push(name);
       continue;
     }
@@ -460,8 +484,8 @@ function extractC4Symbols(docText: string): DiagramSymbols {
     const arrowMatch = trimmed.match(C4_ARROW_RE);
     if (arrowMatch) {
       // Regex captured groups 1 and 2 by successful match; split('|')[0] always defined.
-      const src = arrowMatch[1]!.split('|')[0]!.trim();
-      const dst = arrowMatch[2]!.split('|')[0]!.trim();
+      const src = nameHead(arrowMatch[1]!);
+      const dst = nameHead(arrowMatch[2]!);
       if (src && !entities.includes(src)) entities.push(src);
       if (dst && !entities.includes(dst)) entities.push(dst);
       continue;
@@ -529,7 +553,7 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
         /\b(?:duration|start|progress|offset|color|description):\s/
       );
       if (cutIdx > 0) {
-        let taskName = trimmed.substring(0, cutIdx).trim();
+        let taskName = nameHead(trimmed.substring(0, cutIdx));
         const arrowIdx = taskName.indexOf('->');
         if (arrowIdx > 0)
           taskName = taskName
@@ -547,7 +571,7 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
     // Legacy: Tasks by duration: 30d Task Name
     const durMatch = trimmed.match(GANTT_LEGACY_DURATION_RE);
     if (durMatch) {
-      let taskName = durMatch[3]!.split('|')[0]!.trim();
+      let taskName = nameHead(durMatch[3]!);
       const arrowIdx = taskName.indexOf('->');
       if (arrowIdx > 0)
         taskName = taskName
@@ -561,7 +585,7 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
     // Legacy: Tasks by date: 2024-01-15 Task Name
     const dateMatch = trimmed.match(GANTT_LEGACY_DATE_RE);
     if (dateMatch) {
-      let taskName = dateMatch[2]!.split('|')[0]!.trim();
+      let taskName = nameHead(dateMatch[2]!);
       const arrowIdx = taskName.indexOf('->');
       if (arrowIdx > 0)
         taskName = taskName
@@ -618,8 +642,8 @@ function extractBoxesAndLinesSymbols(docText: string): DiagramSymbols {
     const arrowMatch = trimmed.match(BL_ARROW_RE);
     if (arrowMatch) {
       // Regex captured groups 1 and 2 by successful match; split('|')[0] always defined.
-      const src = arrowMatch[1]!.split('|')[0]!.trim();
-      const dst = arrowMatch[2]!.split('|')[0]!.trim();
+      const src = nameHead(arrowMatch[1]!);
+      const dst = nameHead(arrowMatch[2]!);
       if (src && !entities.includes(src)) entities.push(src);
       if (dst && !entities.includes(dst)) entities.push(dst);
       continue;
@@ -627,7 +651,7 @@ function extractBoxesAndLinesSymbols(docText: string): DiagramSymbols {
 
     // Node lines
     // split('|')[0] and chained split('[')[0] always defined on any string.
-    const label = trimmed.split('|')[0]!.split('[')[0]!.trim();
+    const label = nameHead(trimmed, true);
     if (label && !entities.includes(label)) entities.push(label);
   }
 
@@ -671,7 +695,7 @@ function extractOrgSymbols(docText: string): DiagramSymbols {
     // Team/group headers: [Team Name]
     const groupMatch = trimmed.match(ORG_GROUP_RE);
     if (groupMatch) {
-      const name = groupMatch[1]!.split('|')[0]!.trim();
+      const name = nameHead(groupMatch[1]!);
       if (name && !entities.includes(name)) entities.push(name);
       continue;
     }
@@ -680,7 +704,7 @@ function extractOrgSymbols(docText: string): DiagramSymbols {
     if (indent > 0 && /^[a-z]+\s*:/.test(trimmed)) continue;
 
     // Person name (indent 0 or direct child)
-    const label = trimmed.split('|')[0]!.trim();
+    const label = nameHead(trimmed);
     if (label && !entities.includes(label)) entities.push(label);
   }
 
@@ -772,14 +796,14 @@ function extractKanbanSymbols(docText: string): DiagramSymbols {
     // Column headers: [Column Name]
     const colMatch = trimmed.match(KANBAN_COLUMN_RE);
     if (colMatch) {
-      const name = colMatch[1]!.split('|')[0]!.trim();
+      const name = nameHead(colMatch[1]!);
       if (name && !entities.includes(name)) entities.push(name);
       continue;
     }
 
     // Card names (indented under columns)
     if (indent > 0) {
-      const label = trimmed.split('|')[0]!.trim();
+      const label = nameHead(trimmed);
       if (label && !entities.includes(label)) entities.push(label);
     }
   }
@@ -823,7 +847,7 @@ function extractMindmapSymbols(docText: string): DiagramSymbols {
     if (/^(description|collapsed)\s*:/i.test(trimmed)) continue;
 
     // Node name (at any indent level)
-    const label = trimmed.split('|')[0]!.trim();
+    const label = nameHead(trimmed);
     if (label && !entities.includes(label)) entities.push(label);
   }
 
@@ -868,6 +892,9 @@ function extractTreemapSymbols(docText: string): DiagramSymbols {
     // Node name: strip same-line metadata + the bare trailing value number.
     let label = trimmed.split(/\s+\w+:/)[0]!.trim();
     label = label.replace(/\s+-?\d[\d_,.]*$/, '').trim();
+    // Peel AFTER the value strip — in treemap the quotes are what say the
+    // trailing digit is label text (`"Region 5"`), so they must survive it.
+    label = nameHead(label);
     if (label && !entities.includes(label)) entities.push(label);
   }
 
@@ -999,7 +1026,7 @@ function extractPyramidSymbols(docText: string): DiagramSymbols {
     if (line[0] === ' ' || line[0] === '\t') continue;
 
     // Layer name (strip pipe metadata)
-    const label = trimmed.split('|')[0]!.trim();
+    const label = nameHead(trimmed);
     if (label && !entities.includes(label)) entities.push(label);
   }
 
@@ -1037,7 +1064,7 @@ function extractRingSymbols(docText: string): DiagramSymbols {
     if (line[0] === ' ' || line[0] === '\t') continue;
 
     // Layer name (strip pipe metadata)
-    const label = trimmed.split('|')[0]!.trim();
+    const label = nameHead(trimmed);
     if (label && !entities.includes(label)) entities.push(label);
   }
 
@@ -1069,8 +1096,8 @@ function extractArcSymbols(docText: string): DiagramSymbols {
 
     const arrowMatch = trimmed.match(ARC_ARROW_RE);
     if (arrowMatch) {
-      const src = arrowMatch[1]!.split('|')[0]!.trim();
-      const dst = arrowMatch[2]!.split('|')[0]!.trim();
+      const src = nameHead(arrowMatch[1]!);
+      const dst = nameHead(arrowMatch[2]!);
       if (src && !entities.includes(src)) entities.push(src);
       if (dst && !entities.includes(dst)) entities.push(dst);
     }
@@ -1105,13 +1132,13 @@ function extractSankeySymbols(docText: string): DiagramSymbols {
 
     const arrowMatch = trimmed.match(SANKEY_ARROW_RE);
     if (arrowMatch) {
-      const src = arrowMatch[1]!.split('|')[0]!.trim();
-      const dst = arrowMatch[2]!.split('|')[0]!.trim();
+      const src = nameHead(arrowMatch[1]!);
+      const dst = nameHead(arrowMatch[2]!);
       if (src && !entities.includes(src)) entities.push(src);
       if (dst && !entities.includes(dst)) entities.push(dst);
     } else {
       // Standalone node declaration (just a name, possibly with color)
-      const label = trimmed.split('|')[0]!.trim();
+      const label = nameHead(trimmed);
       if (label && !entities.includes(label)) entities.push(label);
     }
   }
@@ -1211,7 +1238,7 @@ function extractVennSymbols(docText: string): DiagramSymbols {
 
     // Set declaration: `Name [as <alias>] [color]`. Emit both the clean name
     // and the alias so `Set + ` reference completion can offer either token.
-    const work = trimmed.split('|')[0]!.trim();
+    const work = nameHead(trimmed);
     const asMatch = work.match(/^(.+?)\s+as\s+([A-Za-z][\w-]*)\b/i);
     if (asMatch) {
       const name = asMatch[1]!.trim();
@@ -1259,7 +1286,7 @@ function extractQuadrantSymbols(docText: string): DiagramSymbols {
 
     // Point name (may have coordinates: Name x,y)
     const parts = trimmed.split(/\s+\d/);
-    const label = (parts[0] ?? '').split('|')[0]!.trim();
+    const label = nameHead(parts[0] ?? '');
     if (label && !entities.includes(label)) entities.push(label);
   }
 
@@ -1292,9 +1319,7 @@ function extractSlopeSymbols(docText: string): DiagramSymbols {
     // Extract just the label (everything before first number)
     const numIdx = trimmed.search(/\s\d/);
     const label =
-      numIdx > 0
-        ? trimmed.slice(0, numIdx).trim()
-        : trimmed.split('|')[0]!.trim();
+      numIdx > 0 ? trimmed.slice(0, numIdx).trim() : nameHead(trimmed);
     if (label && !entities.includes(label)) entities.push(label);
   }
 
@@ -1398,7 +1423,7 @@ function extractWireframeSymbols(docText: string): DiagramSymbols {
   const push = (s: string): void => {
     // Strip any legacy trailing `| meta` inside a bracket; the `{a|b}` pipe is
     // handled separately by the dropdown split below.
-    const t = s.split('|')[0]!.trim();
+    const t = nameHead(s);
     if (t && !entities.includes(t)) entities.push(t);
   };
 
@@ -1600,7 +1625,7 @@ function extractCycleSymbols(docText: string): DiagramSymbols {
 
     // Node label (strip pipe metadata)
     // split('|')[0] always defined on any string.
-    const label = trimmed.split('|')[0]!.trim();
+    const label = nameHead(trimmed);
     if (label && !entities.includes(label)) entities.push(label);
   }
 
@@ -1746,7 +1771,7 @@ function extractJourneyMapSymbols(docText: string): DiagramSymbols {
 
     // Step label (strip pipe metadata) — works for both indent 0 and indented steps
     // split('|')[0] always defined on any string.
-    const label = trimmed.split('|')[0]!.trim();
+    const label = nameHead(trimmed);
     if (label && !entities.includes(label)) entities.push(label);
   }
 

@@ -1154,3 +1154,42 @@ describe('coverage-parity review fixes (H1/H2/M1)', () => {
     expect(r!.entities).toEqual(expect.arrayContaining(['a', 'b']));
   });
 });
+
+describe('completion — quoted names (§2.2)', () => {
+  const entitiesOf = (src: string): string[] =>
+    extractDiagramSymbols(src)?.entities ?? [];
+
+  const QUOTED: Record<string, string> = {
+    'boxes-and-lines': 'boxes-and-lines T\n\n"Order | Items" as oi\nCache\n',
+    sequence: 'sequence T\n\n"Order | Items" is a database as oi\n',
+    sitemap: 'sitemap T\n\n"Order | Items" as oi\n  Cache\n',
+    org: 'org T\n\n"Order | Items" as oi\n  Cache\n',
+    kanban: 'kanban T\n\n[Backlog] blue\n  "Order | Items" as oi\n',
+    c4: 'c4 T\n\n"Order | Items" is a system as oi\n',
+    infra: 'infra T\n\n"Order | Items" as oi\nCache\n',
+    gantt: 'gantt T\n\n"Order | Items" duration: 12d\n',
+  };
+
+  for (const [chartType, src] of Object.entries(QUOTED)) {
+    it(`suggests the name without its quotes — ${chartType}`, () => {
+      const entities = entitiesOf(src);
+      expect(entities).toContain('Order | Items');
+      // The legacy `|` metadata split used to cut inside the quoted name and
+      // offer `"Order` — a fragment the author cannot reference.
+      expect(entities).not.toContain('"Order');
+      expect(entities).not.toContain('"Order | Items"');
+    });
+  }
+
+  it('keeps a treemap quoted label whole, digits and all', () => {
+    const entities = entitiesOf('treemap T\nA\n  "Region 5"\n');
+    expect(entities).toContain('Region 5');
+  });
+
+  it('leaves an interior quote alone', () => {
+    const entities = entitiesOf(
+      'boxes-and-lines T\n\nsay "hi" loudly\nCache\n'
+    );
+    expect(entities).toContain('say "hi" loudly');
+  });
+});
