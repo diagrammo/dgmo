@@ -18,6 +18,7 @@ import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import type { Writable } from '../utils/brand';
 import {
+  finalizeAutoTagColors,
   matchTagBlockHeading,
   stripDefaultModifier,
   validateTagGroupNames,
@@ -1396,6 +1397,12 @@ export function parseGantt(
   if (currentTagGroup) {
     result.tagGroups.push(currentTagGroup);
   }
+
+  // Shared end-of-parse normalization: peels §2.2 quoting off every value so
+  // a declared `"High | Risk"` matches the assignment side, which peels too.
+  // Colors are already assigned above (gantt fills a bare value from its own
+  // series rotation), so the auto-color half of this pass is a no-op here.
+  finalizeAutoTagColors(result.tagGroups as Writable<TagGroup>[], palette);
 
   // If no chart type was declared, that's acceptable (inferred from context)
 

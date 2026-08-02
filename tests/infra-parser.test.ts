@@ -334,7 +334,11 @@ tag Environment
 `);
       expect(result.tagGroups[0].alias).toBeNull();
       expect(result.tagGroups[0].values).toHaveLength(2);
-      expect(result.tagGroups[0].values[0].color).toBeUndefined();
+      // A bare value auto-assigns from the canonical categorical rotation —
+      // this used to assert `undefined`, which is what made the legend drop
+      // every colorless entry and then drop the whole group.
+      expect(result.tagGroups[0].values[0].color).toBe('red');
+      expect(result.tagGroups[0].values[1].color).toBe('green');
     });
   });
 
@@ -1561,6 +1565,63 @@ Cache
       const node = result.nodes.find((n) => n.label === 'Api Gateway')!;
       expect(node.tags?.['color']).toBe('blue');
       expect(msgs(result).join(' ')).not.toContain('node property');
+    });
+  });
+  describe('tag values — quoting and auto-color (§2.2, §1.3)', () => {
+    it('peels quotes so a declared value matches its own assignment', () => {
+      const result = parseInfra(`
+infra T
+
+tag Zone as z
+  "High | Risk" red
+  Low blue
+
+edge
+  -> Api
+Api z: "High | Risk"
+`);
+      expect(result.tagGroups[0]!.values.map((v) => v.name)).toEqual([
+        'High | Risk',
+        'Low',
+      ]);
+      expect(
+        result.diagnostics.filter((d) =>
+          /Invalid tag value|Unknown value/.test(d.message)
+        )
+      ).toEqual([]);
+    });
+
+    it('auto-assigns a color to every bare value, so the group survives', () => {
+      const result = parseInfra(`
+infra T
+
+tag Zone as z
+  High
+  Low
+
+edge
+  -> Api
+Api z: High
+`);
+      // The legend drops any value with no color, and a group whose entries
+      // all drop disappears entirely — silently, before this pass existed.
+      expect(result.tagGroups[0]!.values.every((v) => v.color)).toBe(true);
+    });
+
+    it('skips a color already claimed explicitly in the same group', () => {
+      const result = parseInfra(`
+infra T
+
+tag Zone as z
+  High
+  Low red
+
+edge
+  -> Api
+Api z: High
+`);
+      expect(result.tagGroups[0]!.values[0]!.color).not.toBe('red');
+      expect(result.tagGroups[0]!.values[1]!.color).toBe('red');
     });
   });
 });

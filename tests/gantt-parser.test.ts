@@ -1896,3 +1896,25 @@ describe('gantt parser', () => {
     });
   });
 });
+
+describe('gantt tag values — quoting (§2.2)', () => {
+  it('peels quotes so a declared value matches its own assignment', () => {
+    const result = parseGantt(
+      'gantt T\n\ntag Zone as z\n  "High | Risk" red\n  Low blue\n\nHull 12bd z: "High | Risk"\n'
+    );
+    expect(result.tagGroups[0]!.entries.map((e) => e.value)).toEqual([
+      'High | Risk',
+      'Low',
+    ]);
+    expect(
+      result.diagnostics.filter((d) => /Unknown value/.test(d.message))
+    ).toEqual([]);
+  });
+
+  it('leaves an interior quote alone', () => {
+    const result = parseGantt(
+      'gantt T\n\ntag Zone as z\n  say "hi" loudly red\n\nHull 12bd\n'
+    );
+    expect(result.tagGroups[0]!.entries[0]!.value).toBe('say "hi" loudly');
+  });
+});

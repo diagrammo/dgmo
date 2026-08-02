@@ -24,10 +24,12 @@ import {
   OPTION_NOCOLON_RE,
   tryParseSharedOption,
   warnUnknownMetaKeys,
+  peelQuotedName,
 } from '../utils/parsing';
 import { isRecognizedColorName } from '../colors';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import {
+  autoTagColorCycle,
   matchTagBlockHeading,
   stripDefaultModifier,
   validateTagGroupNames,
@@ -39,6 +41,7 @@ import type {
   InfraEdge,
   InfraGroup,
   InfraTagGroup,
+  InfraTagValue,
 } from './types';
 import { INFRA_BEHAVIOR_KEYS, EDGE_ONLY_KEYS } from './types';
 import { INFRA_TOP_LEVEL_OPTION_SET } from '../directives-registry';
@@ -138,6 +141,43 @@ const TOP_LEVEL_OPTIONS = INFRA_TOP_LEVEL_OPTIONS;
 // ============================================================
 // Helpers
 // ============================================================
+
+/**
+ * Give every colorless tag value a deterministic categorical color.
+ *
+ * The spec is explicit that color is optional — a bare value auto-assigns from
+ * the canonical rotation, skipping names already claimed explicitly in the same
+ * group. Infra could not use the shared `assignAutoTagColors` because it stores
+ * color NAMES (resolved against whichever palette is active at render time)
+ * while that helper resolves to hex; the rotation is the same either way.
+ *
+ * Without this the legend builder, which skips any value with no color, dropped
+ * every entry and then dropped the group — a tag group declared without colors
+ * disappeared from the diagram with no diagnostic at all.
+ */
+function assignAutoTagColorNames(groups: ReadonlyArray<InfraTagGroup>): void {
+  for (const group of groups) {
+    const explicit = new Set(
+      group.values
+        .filter((v) => v.color !== undefined)
+        .map((v) => v.color!.toLowerCase())
+    );
+    let cursor = 0;
+    for (const value of group.values) {
+      if (value.color !== undefined) continue;
+      while (
+        cursor < autoTagColorCycle.length &&
+        explicit.has(autoTagColorCycle[cursor]!.toLowerCase())
+      ) {
+        cursor++;
+      }
+      // In-bounds by modulo — the cycle wraps once names are exhausted.
+      const name = autoTagColorCycle[cursor % autoTagColorCycle.length]!;
+      cursor++;
+      (value as Writable<InfraTagValue>).color = name;
+    }
+  }
+}
 
 function nodeId(name: string): string {
   return normalizeName(name);
@@ -606,8 +646,16 @@ export function parseInfra(content: string): ParsedInfra {
           valueName = cleanEntry.substring(0, lastSpaceIdx).trimEnd();
         }
       }
+      // §2.2 quoting is what lets a value carry a reserved character. Peel
+      // AFTER the trailing-color scan above — the closing quote is what keeps
+      // a color word inside the value — and before the shape check below,
+      // which admits only bare words. The assignment side peels already, so
+      // an unpeeled declaration would fail to match its own use.
+      const peeledValue = peelQuotedName(valueName);
+      const wasQuoted = peeledValue !== valueName;
+      valueName = peeledValue;
       const tvMatch = valueName.match(TAG_VALUE_RE);
-      if (tvMatch || /^\w+$/.test(valueName)) {
+      if (wasQuoted || tvMatch || /^\w+$/.test(valueName)) {
         currentTagGroup.values.push({
           name: valueName,
           ...(rawColor !== undefined && { color: rawColor }),
@@ -1154,6 +1202,7 @@ export function parseInfra(content: string): ParsedInfra {
     }
   }
 
+  assignAutoTagColorNames(result.tagGroups);
   validateTagGroupNames(result.tagGroups, warn, setError);
 
   checkReachability(result);
