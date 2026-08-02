@@ -24,6 +24,7 @@ import {
   parseFirstLine,
   OPTION_NOCOLON_RE,
   peelRampColors,
+  peelQuotedName,
   splitNameAndMeta,
   tryParseSharedOption,
   warnUnknownMetaKeys,
@@ -93,24 +94,6 @@ function parseTailMeta(
 /** Convert group label to internal ID */
 function groupId(label: string): string {
   return `__group_${label}`;
-}
-
-/**
- * Consume `"..."` around a node name as delimiters (§2.2 — quoting is the
- * escape for reserved characters, so the quotes are syntax, not name text).
- * A name with an interior quote is left alone: there is no escape form, so
- * the quotes there are literal characters the author typed.
- */
-function peelQuotedName(name: string): string {
-  const trimmed = name.trim();
-  if (trimmed.length < 2) return name;
-  const first = trimmed[0];
-  const last = trimmed[trimmed.length - 1];
-  if ((first !== '"' || last !== '"') && (first !== "'" || last !== "'"))
-    return name;
-  const inner = trimmed.slice(1, -1);
-  if (inner.length === 0 || inner.includes(first!)) return name;
-  return inner;
 }
 
 // Local mutable shapes — element-level metadata/description need to be

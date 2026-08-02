@@ -609,6 +609,61 @@ describe('parseOrg', () => {
     });
   });
 
+  // === Quoted names (§2.2) ===
+  describe('quoted names', () => {
+    it('peels the quotes off a declared name', () => {
+      const result = parseOrg('org T\n"Jane Smith"');
+      expect(result.error).toBeNull();
+      expect(result.roots[0].label).toBe('Jane Smith');
+    });
+
+    it('keeps a reserved character inside a quoted name', () => {
+      const result = parseOrg('org T\n"Order | Items"');
+      expect(result.error).toBeNull();
+      expect(result.roots[0].label).toBe('Order | Items');
+    });
+
+    it('peels quotes with an as-alias postfix', () => {
+      const result = parseOrg('org T\n"Order | Items" as oi');
+      expect(result.error).toBeNull();
+      expect(result.roots[0].label).toBe('Order | Items');
+    });
+
+    it('a quoted parent still adopts its indented children', () => {
+      const result = parseOrg('org T\n"Order | Items" as oi\n  Alex Chen');
+      expect(result.error).toBeNull();
+      expect(result.roots).toHaveLength(1);
+      expect(result.roots[0].label).toBe('Order | Items');
+      expect(result.roots[0].children).toHaveLength(1);
+      expect(result.roots[0].children[0].label).toBe('Alex Chen');
+      expect(result.roots[0].children[0].parentId).toBe(result.roots[0].id);
+    });
+
+    it('a quoted name containing a colon is a node, not metadata', () => {
+      const result = parseOrg('org T\nJane Smith\n  "Order: Items"');
+      expect(result.error).toBeNull();
+      expect(result.roots[0].children).toHaveLength(1);
+      expect(result.roots[0].children[0].label).toBe('Order: Items');
+    });
+
+    it('keeps same-line metadata off a quoted name', () => {
+      const result = parseOrg('org T\n"Order | Items" role: Lead');
+      expect(result.roots[0].label).toBe('Order | Items');
+      expect(result.roots[0].metadata['role']).toBe('Lead');
+    });
+
+    it('leaves an interior quote alone', () => {
+      const result = parseOrg('org T\nsay "hi" loudly');
+      expect(result.roots[0].label).toBe('say "hi" loudly');
+    });
+
+    it('peels quotes on a container label', () => {
+      const result = parseOrg('org T\n["Order | Items"]');
+      expect(result.roots[0].isContainer).toBe(true);
+      expect(result.roots[0].label).toBe('Order | Items');
+    });
+  });
+
   // === Comprehensive example ===
   describe('comprehensive example', () => {
     it('parses full org chart DSL', () => {

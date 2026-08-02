@@ -32,6 +32,7 @@ import {
   extractColor,
   splitNameAndMeta,
   parseFirstLine,
+  peelQuotedName,
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
   tryParseSharedOption,
@@ -77,8 +78,10 @@ function parseArrowLine(
     // Capture group 1 present by regex shape.
     const rawTarget = bareMatch[1]!.trim();
     const groupMatch = rawTarget.match(/^\[(.+)\]$/);
+    // §2.2: quotes around the target are delimiters — peel before the
+    // caller normalizes, so a quoted reference keys like a bare one.
     return {
-      target: groupMatch ? groupMatch[1]!.trim() : rawTarget,
+      target: peelQuotedName(groupMatch ? groupMatch[1]!.trim() : rawTarget),
       targetIsGroup: !!groupMatch,
     };
   }
@@ -92,7 +95,7 @@ function parseArrowLine(
     const groupMatch = rawTarget.match(/^\[(.+)\]$/);
     return {
       ...(label !== undefined && { label }),
-      target: groupMatch ? groupMatch[1]!.trim() : rawTarget,
+      target: peelQuotedName(groupMatch ? groupMatch[1]!.trim() : rawTarget),
       targetIsGroup: !!groupMatch,
     };
   }
@@ -399,7 +402,7 @@ export function parseSitemap(
         /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
       );
       // Capture groups 1 and 2 present by regex shape.
-      const label = asMatch ? asMatch[1]!.trim() : rawLabel;
+      const label = peelQuotedName(asMatch ? asMatch[1]!.trim() : rawLabel);
 
       // Parse the tail after `]`: optional same-line metadata per §1.4.
       const tail = (containerMatch[2] ?? '').trim();
@@ -629,7 +632,9 @@ function parseNodeLabel(
       split.name
     );
   }
-  const label = split.name;
+  // §2.2: quotes delimit a page name that holds a reserved character —
+  // peel before the caller normalizes it into a lookup key.
+  const label = peelQuotedName(split.name);
   if (split.alias) nameAliasMap?.set(normalizeName(split.alias), id);
   const metadata: Record<string, string> = { ...split.meta };
   if (split.color !== undefined) metadata['color'] = split.color;

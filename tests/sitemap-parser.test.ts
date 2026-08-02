@@ -128,6 +128,62 @@ describe('parseSitemap', () => {
     });
   });
 
+  // === Quoted names (spec §2.2) ===
+  describe('quoted names', () => {
+    it('peels quotes from a page name', () => {
+      const result = parseSitemap('sitemap T\n"Order | Items"');
+      expect(result.error).toBeNull();
+      expect(result.roots[0].label).toBe('Order | Items');
+    });
+
+    it('keeps a reserved character inside the name', () => {
+      const result = parseSitemap(
+        'sitemap T\n"Order | Items" as oi\n  Details'
+      );
+      expect(result.roots[0].label).toBe('Order | Items');
+      expect(result.roots[0].label).toContain('|');
+    });
+
+    it('a quoted parent still adopts its indented children', () => {
+      const result = parseSitemap(
+        'sitemap T\n"Order | Items"\n  Details\n  Refunds'
+      );
+      expect(result.roots).toHaveLength(1);
+      expect(result.roots[0].children.map((c) => c.label)).toEqual([
+        'Details',
+        'Refunds',
+      ]);
+    });
+
+    it('quoted and bare references resolve to the same node', () => {
+      const result = parseSitemap(
+        'sitemap T\n"Order | Items"\nHome\n  -> "Order | Items"\n  -> Order | Items'
+      );
+      expect(result.error).toBeNull();
+      expect(result.edges).toHaveLength(2);
+      expect(result.edges[0].targetId).toBe(result.roots[0].id);
+      expect(result.edges[1].targetId).toBe(result.roots[0].id);
+    });
+
+    it('peels quotes from a container name and its group-targeted arrow', () => {
+      const result = parseSitemap(
+        'sitemap T\n["Order | Items"]\n  Details\nHome\n  -> [Order | Items]'
+      );
+      expect(result.error).toBeNull();
+      expect(result.roots[0].label).toBe('Order | Items');
+      expect(result.edges[0].targetId).toBe(result.roots[0].id);
+    });
+
+    it('leaves interior quotes untouched', () => {
+      const result = parseSitemap(
+        'sitemap T\nHome\nsay "hi" loudly\nRef\n  -> say "hi" loudly'
+      );
+      expect(result.roots[1].label).toBe('say "hi" loudly');
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].targetId).toBe(result.roots[1].id);
+    });
+  });
+
   // === Metadata ===
   describe('metadata', () => {
     it('key: value attaches to parent node', () => {

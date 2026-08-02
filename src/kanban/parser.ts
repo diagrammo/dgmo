@@ -24,6 +24,7 @@ import {
   extractColor,
   splitNameAndMeta,
   parseFirstLine,
+  peelQuotedName,
   OPTION_NOCOLON_RE,
   warnUnknownMetaKeys,
 } from '../utils/parsing';
@@ -266,7 +267,9 @@ export function parseKanban(
       currentCard = null;
 
       columnCounter++;
-      const colName = columnMatch[1]!.trim();
+      // §2.2 quoting is the escape hatch for reserved characters in a name —
+      // the quotes are syntax, never label text.
+      const colName = peelQuotedName(columnMatch[1]!.trim());
       let tail = (columnMatch[2] ?? '').trim();
 
       // Canonical bare `collapsed` trailing flag (§1.8, decision #48) —
@@ -508,12 +511,14 @@ function parseCardLine(
     (msg) => diagnostics?.push(makeDgmoError(lineNumber, msg, 'warning')),
     split.name
   );
+  // §2.2 quoting is the escape hatch for reserved characters in a name —
+  // the quotes are syntax, never label text.
+  const name = peelQuotedName(split.name);
   // Cards don't have a color slot; the §1.5 trailing-token peel that
   // splitNameAndMeta runs by default would strip `Urgent task red` to
   // title `Urgent task`. Restore the trailing color word as part of the
   // literal title for cards.
-  const title =
-    split.color !== undefined ? `${split.name} ${split.color}` : split.name;
+  const title = split.color !== undefined ? `${name} ${split.color}` : name;
   const tags: Record<string, string> = { ...split.meta };
 
   return {

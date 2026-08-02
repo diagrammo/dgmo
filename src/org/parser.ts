@@ -24,6 +24,7 @@ import {
   extractColor,
   splitNameAndMeta,
   parseFirstLine,
+  peelQuotedName,
   OPTION_NOCOLON_RE,
   warnUnknownMetaKeys,
 } from '../utils/parsing';
@@ -313,6 +314,9 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     // region is a node line.
     const metadataMatch = (() => {
       if (trimmed.includes('|')) return null;
+      // A line opening with a quote is a §2.2 quoted name, never a
+      // metadata key — the `:` it may carry is inside the name.
+      if (trimmed.startsWith('"') || trimmed.startsWith("'")) return null;
       const m = trimmed.match(METADATA_RE);
       if (!m) return null;
       const keyRegion = m[1]!.trim();
@@ -330,7 +334,8 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
       );
       // Capture groups 1 and 2 guaranteed by the regex above when asMatch is truthy.
-      const label = asMatch ? asMatch[1]!.trim() : rawLabel;
+      // §2.2 quotes are delimiters, not label text.
+      const label = peelQuotedName(asMatch ? asMatch[1]!.trim() : rawLabel);
 
       containerCounter++;
       const containerId = `container-${containerCounter}`;
@@ -471,12 +476,14 @@ function parseNodeLabel(
     (msg) => diagnostics?.push(makeDgmoError(lineNumber, msg, 'warning')),
     split.name
   );
+  // §2.2 quotes are delimiters, not label text — peel before the label is
+  // formed so a quoted declaration and a bare reference key identically.
+  const peeled = peelQuotedName(split.name);
   // Org labels do not use §1.5 trailing-token color (org uses an indented
   // `color:` key). Restore the peeled color word back into the label so
   // `Alice Park blue role: Senior` parses as label `Alice Park blue` with
   // metadata only.
-  const label =
-    split.color !== undefined ? `${split.name} ${split.color}` : split.name;
+  const label = split.color !== undefined ? `${peeled} ${split.color}` : peeled;
   if (split.alias) {
     nameAliasMap?.set(normalizeName(split.alias), id);
   }

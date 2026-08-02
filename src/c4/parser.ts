@@ -27,6 +27,7 @@ import {
   extractColor,
   splitNameAndMeta,
   parseFirstLine,
+  peelQuotedName,
   OPTION_NOCOLON_RE,
   warnUnknownMetaKeys,
 } from '../utils/parsing';
@@ -320,7 +321,10 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
   // Per C8: per-parse, never persisted, fresh each parse.
   const nameAliasMap = new Map<string, string>();
   function resolveNameRef(rawName: string): string {
-    return nameAliasMap.get(rawName.trim()) ?? rawName;
+    const trimmed = rawName.trim();
+    // §2.2: `"..."` around a reference delimits the name — peel so a
+    // quoted declaration and a bare reference key the same element.
+    return nameAliasMap.get(trimmed) ?? peelQuotedName(trimmed);
   }
 
   // Name uniqueness tracking
@@ -507,7 +511,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         const refMatch = trimmed.match(CONTAINER_REF_RE);
         if (refMatch) {
           // Capture group [1] guaranteed by regex match.
-          const refName = refMatch[1]!.trim();
+          const refName = peelQuotedName(refMatch[1]!.trim());
           if (deployStack.length > 0) {
             // In-bounds by length > 0 check.
             deployStack[deployStack.length - 1]!.node.containerRefs.push(
@@ -524,10 +528,9 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
         // Otherwise it's a deployment node (possibly with metadata).
         // Accepts both `Name | k: v` (legacy) and `Name k: v` (§1.4).
-        const { name: nodeName, metadata } = parseC4NameAndMeta(
-          trimmed,
-          metaAliasMap
-        );
+        const parsedNode = parseC4NameAndMeta(trimmed, metaAliasMap);
+        const nodeName = peelQuotedName(parsedNode.name);
+        const metadata = parsedNode.metadata;
         warnUnknownMetaKeys(
           metadata,
           withTagAliases(C4_REGISTRY, new Set(metaAliasMap.keys())),
@@ -768,12 +771,13 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
       // TD-18: peel optional `as <alias>` from the trailing remainder
       // (modifier order: `Name is a TYPE [is a SHAPE] as <alias> [| meta]`).
+      let declaredAlias: string | undefined;
       const asPostfix = remainder.match(
         /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*(\|.*)?$/
       );
       if (asPostfix) {
         // Capture groups [1] and [2] guaranteed by regex match.
-        nameAliasMap.set(asPostfix[2]!, namePart);
+        declaredAlias = asPostfix[2]!;
         remainder = (asPostfix[1]! + (asPostfix[3] ?? '')).trim();
       } else {
         // Or peel from the namePart itself in `Name as <alias> is a TYPE` form.
@@ -783,9 +787,17 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         if (asInName) {
           // Capture groups [1] and [2] guaranteed by regex match.
           namePart = asInName[1]!.trim();
-          nameAliasMap.set(asInName[2]!, namePart);
+          declaredAlias = asInName[2]!;
         }
       }
+
+      // §2.2: `"..."` around a name is a delimiter, never label text — it
+      // is what lets a reserved character (`|`) live in the name. Peel
+      // before the alias map and the `knownNames` key so a quoted
+      // declaration and a bare reference resolve to one element.
+      namePart = peelQuotedName(namePart);
+      if (declaredAlias !== undefined)
+        nameAliasMap.set(declaredAlias, namePart);
 
       // Map external/database to shape overrides with default element type
       let elementType: C4ElementType;
@@ -913,7 +925,9 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         (msg) => pushError(lineNumber, msg, 'warning'),
         parsed.name
       );
-      let namePart = parsed.name;
+      // §2.2: peel the quote delimiters before the shape check and the
+      // `knownNames` key, same as the `is a <type>` path above.
+      let namePart = peelQuotedName(parsed.name);
       const metadata = parsed.metadata;
 
       // Check for `is a <shape>` in the name portion

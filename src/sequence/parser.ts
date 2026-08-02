@@ -19,6 +19,7 @@ import { parseArrow, parseInArrowLabel } from '../utils/arrows';
 import {
   measureIndent,
   extractColor,
+  peelQuotedName,
   peelTrailingCollapsedFlag,
   splitNameAndMeta,
   parseFirstLine,
@@ -296,7 +297,8 @@ function parseNoteLine(
       if (!lastMsgFrom) return { kind: 'skip' };
       participantId = lastMsgFrom;
     }
-    const lookupKey = normalizeName(participantId);
+    // §2.2: quotes around the target name are delimiters, not part of it.
+    const lookupKey = normalizeName(peelQuotedName(participantId));
     if (participantIds.has(lookupKey)) {
       // Resolve to first-seen display id so the renderer can find it
       const found = participants.find((p) => normalizeName(p.id) === lookupKey);
@@ -565,8 +567,11 @@ export function parseSequenceDgmo(
       metadata?: Record<string, string>;
     }
   ): ParticipantId => {
-    const key = normalizeName(name);
-    const trimmed = name.trim() as ParticipantId;
+    // §2.2: `"..."` around a name is a delimiter, not label text. Peel before
+    // normalizing so a quoted declaration and a bare reference key the same.
+    const peeled = peelQuotedName(name);
+    const key = normalizeName(peeled);
+    const trimmed = peeled.trim() as ParticipantId;
     const incomingLabel = extras?.label ?? trimmed;
     if (participantIds.has(key)) {
       const existing = result.participants.find(
@@ -603,7 +608,7 @@ export function parseSequenceDgmo(
     result.participants.push({
       id: trimmed,
       label: incomingLabel,
-      type: extras?.type ?? inferParticipantType(name),
+      type: extras?.type ?? inferParticipantType(peeled),
       lineNumber,
       ...(extras?.position !== undefined ? { position: extras.position } : {}),
       // takePosition() may have emptied the metadata record (position was

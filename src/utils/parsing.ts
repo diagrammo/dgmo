@@ -506,6 +506,30 @@ export function stripQuotes(token: string): string {
 }
 
 /**
+ * Consume `"..."` (or `'...'`) around an entity name as delimiters, per
+ * spec §2.2: quoting is the escape hatch for a reserved character in a
+ * name, so the quotes are syntax and never label text.
+ *
+ * Stricter than {@link stripQuotes}, and the difference is the point:
+ * a name with an interior quote is returned untouched, because the
+ * language has no escape form — those quotes are characters the author
+ * typed (`say "hi" loudly`). Apply it symmetrically at declaration AND
+ * reference sites, or a quoted declaration and a bare reference become
+ * two entities.
+ */
+export function peelQuotedName(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed.length < 2) return name;
+  const first = trimmed[0];
+  const last = trimmed[trimmed.length - 1];
+  if ((first !== '"' || last !== '"') && (first !== "'" || last !== "'"))
+    return name;
+  const inner = trimmed.slice(1, -1);
+  if (inner.length === 0 || inner.includes(first!)) return name;
+  return inner;
+}
+
+/**
  * Quote-aware tokenizer — splits a string by whitespace but keeps quoted
  * substrings (`"double"` or `'single'`) as single tokens.
  * Quotes are preserved in the output tokens — call `stripQuotes()` to remove them.

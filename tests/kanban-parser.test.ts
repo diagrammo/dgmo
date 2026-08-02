@@ -160,6 +160,64 @@ describe('parseKanban', () => {
     });
   });
 
+  // === Quoted names (§2.2) ===
+  describe('quoted names', () => {
+    it('peels quotes off a card name', () => {
+      const result = parseKanban('kanban\n[Backlog]\n  "Ship the beta"');
+      expect(result.columns[0].cards[0].title).toBe('Ship the beta');
+    });
+
+    it('keeps a reserved character inside a quoted card name', () => {
+      const result = parseKanban('kanban\n[Backlog]\n  "Order | Items"');
+      expect(result.columns[0].cards[0].title).toBe('Order | Items');
+    });
+
+    it('peels quotes off a card name carrying an alias', () => {
+      const result = parseKanban('kanban\n[Backlog]\n  "Order | Items" as oi');
+      expect(result.columns[0].cards[0].title).toBe('Order | Items');
+    });
+
+    it('quoted card name still takes same-line tag metadata', () => {
+      const result = parseKanban(
+        'kanban\ntag Priority as p\n  Low\n  High\n[Backlog]\n  "Order | Items" p: Low'
+      );
+      const card = result.columns[0].cards[0];
+      expect(card.title).toBe('Order | Items');
+      expect(card.tags).toEqual({ priority: 'Low' });
+    });
+
+    it('peels quotes off a column name', () => {
+      const result = parseKanban('kanban\n["Blocked | Waiting"]\n  Task 1');
+      expect(result.columns[0].name).toBe('Blocked | Waiting');
+    });
+
+    it('quoted column name still takes color and wip limit', () => {
+      const result = parseKanban('kanban\n["In | Progress"] blue wip: 3\n  T1');
+      expect(result.columns[0].name).toBe('In | Progress');
+      expect(result.columns[0].color).toBeDefined();
+      expect(result.columns[0].wipLimit).toBe(3);
+    });
+
+    it('leaves an apostrophe inside a bare name alone', () => {
+      const result = parseKanban(
+        "kanban\ntag Priority as p\n  Low\n[To Do]\n  Repair the foretops'l p: Low"
+      );
+      const card = result.columns[0].cards[0];
+      expect(card.title).toBe("Repair the foretops'l");
+      expect(card.tags).toEqual({ priority: 'Low' });
+    });
+
+    it('leaves interior quotes alone', () => {
+      const result = parseKanban('kanban\n[To Do]\n  say "hi" loudly');
+      expect(result.columns[0].cards[0].title).toBe('say "hi" loudly');
+    });
+
+    it('leaves interior quotes in a column name alone', () => {
+      const result = parseKanban('kanban\n[say "hi" loudly]\n  Task 1');
+      expect(result.columns[0].name).toBe('say "hi" loudly');
+    });
+  });
+
   // === Tag groups ===
   describe('tag groups', () => {
     it('parses tag group with entries', () => {

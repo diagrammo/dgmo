@@ -1262,4 +1262,67 @@ Alice is a person
       expect(b.elements[0].relationships[0].target).toBe('os');
     });
   });
+
+  describe('quoted names (§2.2)', () => {
+    it('peels the quote delimiters off an element name', () => {
+      const result = parseC4(`c4
+"Order | Items" is a system`);
+      expect(
+        result.diagnostics.filter((d) => d.severity === 'error')
+      ).toHaveLength(0);
+      expect(result.elements[0].name).toBe('Order | Items');
+    });
+
+    it('keeps the reserved character the quotes were protecting', () => {
+      const result = parseC4(`c4
+"Order | Items" is a system as oi
+Alice is a person
+  -Browses-> oi`);
+      expect(result.elements[0].name).toBe('Order | Items');
+      // The alias points at the peeled name, not the quoted source text.
+      expect(result.elements[1].relationships[0].target).toBe('Order | Items');
+    });
+
+    it('resolves a quoted declaration and a quoted reference to one element', () => {
+      const result = parseC4(`c4
+"Order | Items" is a system
+Alice is a person
+  -Browses-> "Order | Items"`);
+      expect(result.diagnostics).toEqual([]);
+      expect(result.elements).toHaveLength(2);
+      expect(result.elements[1].relationships[0].target).toBe('Order | Items');
+    });
+
+    it('resolves a quoted declaration against a bare reference', () => {
+      const result = parseC4(`c4
+"Order Items" is a system
+Alice is a person
+  -Browses-> Order Items`);
+      expect(result.diagnostics).toEqual([]);
+      expect(result.elements[1].relationships[0].target).toBe('Order Items');
+    });
+
+    it('peels quotes inside a containers block and a deployment ref', () => {
+      const result = parseC4(`c4
+Shop is a system
+  containers
+    "Order | Items" is a container
+deployment
+  Prod
+    container "Order | Items"`);
+      expect(result.diagnostics).toEqual([]);
+      expect(result.elements[0].children[0].name).toBe('Order | Items');
+      expect(result.deployment[0].containerRefs).toEqual(['Order | Items']);
+    });
+
+    it('leaves an interior quote alone', () => {
+      const bare = parseC4(`c4
+say "hi" loudly is a system`);
+      expect(bare.elements[0].name).toBe('say "hi" loudly');
+
+      const wrapped = parseC4(`c4
+"say "hi" loudly" is a system`);
+      expect(wrapped.elements[0].name).toBe('"say "hi" loudly"');
+    });
+  });
 });

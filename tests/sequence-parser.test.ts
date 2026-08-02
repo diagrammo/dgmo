@@ -1947,3 +1947,83 @@ a -hi-> Bob`);
     expect(result.messages[0].to).toBe('Bob');
   });
 });
+
+describe('quoted participant names (§2.2)', () => {
+  it('renders a quoted name without the quotes', () => {
+    const result = parseSequenceDgmo(`sequence T
+"Auth Service" is a database
+Alice -ping-> Auth Service`);
+    expect(
+      result.diagnostics.filter((d) => d.severity === 'error')
+    ).toHaveLength(0);
+    expect(result.participants[0].id).toBe('Auth Service');
+    expect(result.participants[0].label).toBe('Auth Service');
+  });
+
+  it('keeps a reserved character inside the quoted name', () => {
+    const result = parseSequenceDgmo(`sequence T
+"Order | Items" is a database as oi
+Alice -ping-> oi`);
+    expect(
+      result.diagnostics.filter((d) => d.severity === 'error')
+    ).toHaveLength(0);
+    expect(result.participants.map((p) => p.id)).toEqual([
+      'Order | Items',
+      'Alice',
+    ]);
+    expect(result.messages[0].to).toBe('Order | Items');
+  });
+
+  it('folds a quoted declaration and a bare reference into one participant', () => {
+    const result = parseSequenceDgmo(`sequence T
+"Auth Service" is a database
+Alice -ping-> Auth Service
+Auth Service -pong-> Alice`);
+    expect(result.participants).toHaveLength(2);
+    expect(result.participants.map((p) => p.id)).toEqual([
+      'Auth Service',
+      'Alice',
+    ]);
+    expect(result.messages[0].to).toBe('Auth Service');
+    expect(result.messages[1].from).toBe('Auth Service');
+  });
+
+  it('folds a quoted reference back onto a bare declaration', () => {
+    const result = parseSequenceDgmo(`sequence T
+Auth Service is a database
+Alice -ping-> "Auth Service"`);
+    expect(result.participants).toHaveLength(2);
+    expect(result.messages[0].to).toBe('Auth Service');
+  });
+
+  it('resolves a quoted participant in note lines', () => {
+    const result = parseSequenceDgmo(`sequence T
+"Order | Items" is a database
+Alice -ping-> Order | Items
+note right of "Order | Items" queued
+note right of "Order | Items"
+  spilled over`);
+    const notes = result.elements.filter(isSequenceNote) as SequenceNote[];
+    expect(notes).toHaveLength(2);
+    expect(notes[0].participantId).toBe('Order | Items');
+    expect(notes[1].participantId).toBe('Order | Items');
+  });
+
+  it('leaves an interior quote alone', () => {
+    const result = parseSequenceDgmo(`sequence T
+say "hi" loudly is a person
+say "hi" loudly -ping-> Bob`);
+    expect(result.participants[0].id).toBe('say "hi" loudly');
+    expect(result.messages[0].from).toBe('say "hi" loudly');
+  });
+
+  it('still rejects a standalone quoted participant (§2.2b)', () => {
+    const result = parseSequenceDgmo(`sequence T
+"Auth Service"
+Alice -ping-> Bob`);
+    expect(result.participants.map((p) => p.id)).toEqual(['Alice', 'Bob']);
+    expect(
+      result.diagnostics.some((d) => /Unexpected line/.test(d.message))
+    ).toBe(true);
+  });
+});

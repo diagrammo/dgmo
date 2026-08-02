@@ -406,6 +406,39 @@ Customer is a person`;
 
     document.body.removeChild(container);
   });
+
+  it('renders a quoted name without its quote delimiters (§2.2)', () => {
+    const input = `c4
+"Order | Items" is a system
+Alice is a person
+  -Browses-> "Order | Items"`;
+    const parsed = parseC4(input, palette.light);
+    const layout = layoutC4Context(parsed);
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+
+    renderC4Context(
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      {
+        width: 800,
+        height: 600,
+      }
+    );
+
+    const labels = Array.from(container.querySelectorAll('text')).map(
+      (t) => t.textContent
+    );
+    expect(labels).toContain('Order | Items');
+    expect(labels).not.toContain('"Order | Items"');
+
+    document.body.removeChild(container);
+  });
 });
 
 // ============================================================
