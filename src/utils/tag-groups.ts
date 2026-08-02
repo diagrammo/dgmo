@@ -2,7 +2,7 @@
 // Shared tag-group types, regexes, and matchers
 // ============================================================
 
-import { stripQuotes, tokenizeQuoteAware } from './parsing';
+import { peelQuotedName, stripQuotes, tokenizeQuoteAware } from './parsing';
 import {
   CATEGORICAL_COLOR_ORDER,
   RECOGNIZED_COLOR_NAMES,
@@ -182,14 +182,34 @@ export function assignAutoTagColors(
 }
 
 /**
- * Convenience: run {@link assignAutoTagColors} over every group in a list
+ * End-of-parse normalization for a parser's tag groups: peel §2.2 quoting
+ * from every value, then run {@link assignAutoTagColors} over each group
  * (e.g. `result.tagGroups`). Safe to call once at the end of a parser.
+ *
+ * The peel happens HERE rather than in the shared label helpers because
+ * quotes still carry meaning while a line is being tokenized — treemap
+ * reads `"Region 5"` as a label whose trailing digit is not a value, and
+ * a quoted name is what stops the metadata cut at a colon. By the time a
+ * group is finalized, every such decision is already made, and a value
+ * that kept its quotes would disagree with the assignment side (which
+ * peels), producing a spurious `Unknown value` warning.
  */
 export function finalizeAutoTagColors(
   groups: ReadonlyArray<Writable<TagGroup>>,
   palette?: PaletteColors
 ): void {
-  for (const g of groups) assignAutoTagColors(g, palette);
+  for (const g of groups) {
+    for (let i = 0; i < g.entries.length; i++) {
+      // In-bounds by loop guard.
+      const entry = g.entries[i]!;
+      const peeled = peelQuotedName(entry.value);
+      if (peeled !== entry.value) g.entries[i] = { ...entry, value: peeled };
+    }
+    if (g.defaultValue !== undefined) {
+      g.defaultValue = peelQuotedName(g.defaultValue);
+    }
+    assignAutoTagColors(g, palette);
+  }
 }
 
 // ── Regexes ─────────────────────────────────────────────────

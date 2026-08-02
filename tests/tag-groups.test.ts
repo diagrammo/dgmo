@@ -835,3 +835,42 @@ describe('assignAutoTagColors', () => {
     }
   });
 });
+
+describe('quoting in tag groups (§2.2)', () => {
+  const mkGroup = (
+    entries: Array<{ value: string; color: string }>
+  ): Writable<TagGroup> => ({
+    name: 'Priority',
+    entries: entries.map((e, i) => ({ ...e, lineNumber: i + 1 })),
+    lineNumber: 1,
+  });
+
+  it('peels quotes from a tag value at finalize', () => {
+    const groups = [
+      mkGroup([
+        { value: '"High | Risk"', color: '#ff0000' },
+        { value: 'Low', color: '#0000ff' },
+      ]),
+    ];
+    finalizeAutoTagColors(groups);
+    expect((groups[0]!.entries as TagEntry[]).map((e) => e.value)).toEqual([
+      'High | Risk',
+      'Low',
+    ]);
+  });
+
+  it('peels quotes from the group default value too', () => {
+    const groups = [mkGroup([{ value: '"High | Risk"', color: '#ff0000' }])];
+    groups[0]!.defaultValue = '"High | Risk"';
+    finalizeAutoTagColors(groups);
+    expect(groups[0]!.defaultValue).toBe('High | Risk');
+  });
+
+  it('leaves an interior quote alone — there is no escape form', () => {
+    const groups = [mkGroup([{ value: 'say "hi" loudly', color: '#ff0000' }])];
+    finalizeAutoTagColors(groups);
+    expect((groups[0]!.entries as TagEntry[])[0]!.value).toBe(
+      'say "hi" loudly'
+    );
+  });
+});

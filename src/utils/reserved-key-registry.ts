@@ -37,12 +37,35 @@ function staticRegistry(keys: readonly string[]): ReservedKeyRegistry {
  * Return a new registry with the given tag-alias set merged in.
  * Static `keys` are unchanged; aliases overlay the registry for
  * the current parse.
+ *
+ * Each alias is admitted in both spellings a metadata key can arrive as:
+ * the literal the author typed (`tz`, `trust zone`) and the DOM-safe slug
+ * it resolves to (`trust-zone`). They are the same string for a
+ * single-word group, which is why the gap only showed on the spec's own
+ * `tag "Trust Zone" as tz` — the tag applied correctly and the parser
+ * warned `Unknown metadata key "trust-zone"` about the key it had just
+ * produced itself.
  */
 export function withTagAliases(
   base: ReservedKeyRegistry,
   aliases: ReadonlySet<string>
 ): ReservedKeyRegistry {
-  return { keys: base.keys, tagAliases: aliases };
+  const withSlugs = new Set(aliases);
+  for (const alias of aliases) withSlugs.add(tagSlug(alias));
+  return { keys: base.keys, tagAliases: withSlugs };
+}
+
+/**
+ * Local copy of `tagAttrKey` from `utils/tag-groups.ts`. Duplicated rather
+ * than imported because that module imports this one — and the rule is four
+ * characters of regex, not a behavior worth a cycle.
+ */
+function tagSlug(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 /**

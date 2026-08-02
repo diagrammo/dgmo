@@ -104,3 +104,33 @@ describe('boxes-and-lines node names — quotes are delimiters', () => {
     expect(texts).toContain('say "hi" loudly');
   });
 });
+
+describe('boxes-and-lines tag groups — quoted names and values (§2.2)', () => {
+  const parse = (src: string) => parseBoxesAndLines(src);
+
+  it('assigns through an alias without warning about the slug it made itself', () => {
+    const parsed = parse(
+      'boxes-and-lines T\n\ntag "Trust Zone" as tz\n  Internal blue\n  External red\n\nApi tz: Internal\nCache tz: External\n'
+    );
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.nodes[0]!.metadata['trust-zone']).toBe('Internal');
+  });
+
+  it('keeps the quoted group name as the legend label', () => {
+    const parsed = parse(
+      'boxes-and-lines T\n\ntag "Trust Zone" as tz\n  Internal blue\n\nApi tz: Internal\n'
+    );
+    expect(parsed.tagGroups[0]!.name).toBe('Trust Zone');
+  });
+
+  it('peels quotes from a tag value so declaration and assignment agree', () => {
+    const parsed = parse(
+      'boxes-and-lines T\n\ntag Zone as tz\n  "High | Risk" red\n  Low blue\n\nApi tz: "High | Risk"\nCache tz: Low\n'
+    );
+    expect(parsed.tagGroups[0]!.entries.map((e) => e.value)).toEqual([
+      'High | Risk',
+      'Low',
+    ]);
+    expect(parsed.diagnostics).toEqual([]);
+  });
+});
