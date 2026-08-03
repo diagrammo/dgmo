@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-08-03
+
+### Changed
+
+- 🔴 **A quoted name is a delimiter everywhere, not label text in nine chart types.** Quoting is the language's only escape hatch for a reserved character in a name (spec §2.2), so a parser that renders the quotes does not merely look wrong — it removes the only way to write `Order | Items` at all. **boxes-and-lines, sequence, org, sitemap, kanban, c4, gantt, pert** and the shared **tag** path all rendered them; all now peel. `peelQuotedName` moved out of the boxes-and-lines parser into `utils/parsing.ts` and every type shares it. It is deliberately stricter than the neighbouring `stripQuotes`: it peels only when both ends carry the same quote character and the name has no interior quote, because the language has **no escape form** — so `say "hi" loudly`, and a card named `Repair the foretops'l`, are left exactly as typed.
+- **A quoted declaration and a bare reference are now one entity.** Each type peels at the declaration *before* the id or normalization key is computed, and again wherever a name is resolved — c4 and gantt aliases bind to the peeled name, so `as oi` points at `Order | Items` rather than at the quoted literal. gantt's dependency targets, its dotted `[Group].Task` resolver, and pert's indented `-> Target` lines peel too.
+
+### Fixed
+
+- **A hyphen in a boxes-and-lines node name is name text, not a wrap point turned into a space.** `Alpha-One` rendered as `Alpha One`, silently — nothing was wrong with the parse, so `validate` reported nothing. The label fitter split on spaces, hyphens and camelCase humps to find wrap points, discarded the separators, then rejoined with a space, so `us-east-1` and `AlphaOne` were mangled the same way. Chunks now carry whether a space preceded them and a hyphen rides the chunk it followed: a label that fits is reproduced verbatim, and one that wraps still breaks after the hyphen.
+- **A hyphenated key on an infra declaration line no longer eats half the node name.** `Api Gateway latency-ms: 50` rendered a node labelled `Api Gateway latency-` and warned about an unknown key `ms` — a key nobody wrote. `COMPONENT_RE`'s metadata pattern did not admit a hyphen, so the lazy name group absorbed everything up to the last hyphen before the colon, and the same line with a quoted name did not match at all. **Every infra property is spelled with a hyphen, so this was the common case rather than a corner.** The warning now names the key the author wrote and the indented form it belongs in (spec §4.3).
+- **`is a <type>` after a quoted infra name** gave the generic catch-all instead of the message explaining that infra has no such declaration — losing it precisely where it was needed most.
+- **A quoted tag group no longer warns about its own slug.** `tag "Trust Zone" as tz` then `Api tz: Internal` applied the tag and then warned `Unknown metadata key "trust-zone"` about the key the parser had just produced: the alias registry admitted only the spellings an author types, while the metadata cut resolves them to the DOM-safe slug. Only ever visible on the spaced form the spec recommends.
+- **A quoted tag value no longer disagrees with itself.** `"High | Risk"` was peeled on the assignment side and left quoted on the declaration side, so it rendered with quotes in the legend and then failed to match its own assignment.
+- **An infra group declared without colors no longer vanishes.**
+- **A gantt alias on a positional-duration line binds**, so the dependency that names it resolves.
+- **The editor stopped offering `"Order` as a name** — the completion extractor split on the pipe and kept the fragment.
+
+### Added
+
+- **gantt completion suggests tasks written the modern way**, rather than only the older spelling.
+
 ## [0.58.0] - 2026-08-01
 
 ### Added
