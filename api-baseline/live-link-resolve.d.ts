@@ -7,7 +7,7 @@ declare const DEFAULT_LIVE_LINK_TIMEOUT_MS = 10000;
  *
  * Four outcomes, and the split is the whole point — a host that cannot tell
  * `gone` from `unavailable` will either keep publishing something its author
- * withdrew, or throw away a good copy because a wifi hotspot ate one request.
+ * withdrew, or throw away a good copy because one request was dropped.
  */
 type LiveLinkFetch = 
 /** 200, and the body was the shape we expect. */
