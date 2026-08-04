@@ -252,3 +252,96 @@ describe('live-link — the diagnostics inventory (§38.4)', () => {
     expect(r.id).toBe('Roadmap');
   });
 });
+
+describe('live-link — §38.6, the other two spellings as the whole line', () => {
+  // These reached the visualization parser and came back as "Unsupported chart
+  // type" on EVERY surface — the app, the web editor and all five docs wrappers
+  // — until 2026-08-04. The spec has said the three spellings "parse
+  // identically" since it was written; only `live-link <id>` ever did.
+  const SPELLINGS: [label: string, source: string][] = [
+    ['a pasted share link', 'https://online.diagrammo.app/d/dgm_7f2a91'],
+    ['the note spelling', '![[live-link:dgm_7f2a91]]'],
+    [
+      'the source endpoint',
+      'https://api.diagrammo.app/public/diagrams/dgm_7f2a91/source',
+    ],
+    ['the legacy view page', 'https://online.diagrammo.app/view/dgm_7f2a91'],
+  ];
+
+  it.each(SPELLINGS)('%s routes to live-link', (_label, source) => {
+    expect(parseDgmo(source).chartType).toBe('live-link');
+  });
+
+  it.each(SPELLINGS)(
+    '%s resolves to the id with no diagnostics',
+    (_label, source) => {
+      const r = parseLiveLink(source);
+      expect(r.id).toBe('dgm_7f2a91');
+      expect(r.title).toBeNull();
+      expect(r.diagnostics).toEqual([]);
+      expect(r.error).toBeNull();
+    }
+  );
+
+  it.each(SPELLINGS)(
+    '%s reports no error through parseDgmo either',
+    (_label, source) => {
+      // The router path is the one every host actually uses; the parser passing
+      // in isolation is not evidence the fence renders.
+      expect(errors(parseDgmo(source))).toEqual([]);
+    }
+  );
+
+  it('the generated comment block stays inert after a whole-line pointer', () => {
+    const r = parseLiveLink(
+      `https://online.diagrammo.app/d/dgm_7f2a91
+
+// You're watching someone else's diagram.
+// Watching since 1 August 2026`
+    );
+    expect(r.id).toBe('dgm_7f2a91');
+    expect(r.diagnostics).toEqual([]);
+  });
+
+  it('a whole-line pointer plus a `url` line is two targets, not a precedence rule', () => {
+    const r = parseLiveLink(
+      `https://online.diagrammo.app/d/dgm_7f2a91
+url dgm_0000zz`
+    );
+    expect(errors(r)).toHaveLength(1);
+    expect(errors(r)[0]!.message).toContain('Two targets');
+    expect(r.id).toBeNull();
+  });
+
+  it('a pinned share link is refused BY NAME, not silently unpinned', () => {
+    // The router claims it precisely so the pin gets its own message. Falling
+    // through to "Unsupported chart type" would send the author after a typo
+    // in a line whose only problem is the `?at=`.
+    const src = 'https://online.diagrammo.app/d/dgm_7f2a91?at=2026-03-12';
+    const r = parseDgmo(src);
+    expect(r.chartType).toBe('live-link');
+    expect(errors(r)).toHaveLength(1);
+    expect(errors(r)[0]!.message).toContain('pinned revision');
+    expect(errors(r)[0]!.message).not.toContain('Unsupported chart type');
+    expect(parseLiveLink(src).id).toBeNull();
+  });
+
+  it('an ordinary first-line URL does not become a live link', () => {
+    // The path shapes are what identify a pointer. A fence that merely opens
+    // with a link is not one, and claiming it would break real diagrams.
+    for (const src of [
+      'https://example.com/blog/post',
+      'https://online.diagrammo.app/pricing',
+    ]) {
+      expect(parseDgmo(src).chartType, src).not.toBe('live-link');
+    }
+  });
+
+  it('a whole-line pointer below the first line is left alone', () => {
+    // Only the DECLARATION line can be the pointer. A link sitting inside
+    // another chart type's content is that chart type's business.
+    const src = `sequence
+Alice -> Bob: see https://online.diagrammo.app/d/dgm_7f2a91`;
+    expect(parseDgmo(src).chartType).toBe('sequence');
+  });
+});

@@ -8,6 +8,9 @@
 //
 //   live-link <id>                       // shorthand — the fence spelling
 //
+//   https://online.diagrammo.app/d/<id>  // §38.6, the whole line IS the pointer
+//   ![[live-link:<id>]]                  // §38.6, the note spelling
+//
 // A pointer, not a drawing: no elements, no indentation, no colons, and
 // exactly one directive. The title slot is the only one in the language that
 // can hold a TARGET instead of a name, and whitespace is what decides (§38.3).
@@ -99,6 +102,22 @@ function pinnedRevision(value: string): string | null {
   return null;
 }
 
+/**
+ * Is this line, on its own, a live-link pointer (§38.6)?
+ *
+ * True for the ones this parser REFUSES as well as the ones it resolves —
+ * a pinned share link most of all. The router needs the refusals, because a
+ * line it declines to claim falls through to the visualization parser and comes
+ * back as "Unsupported chart type", which is the message §38.6 exists to stop.
+ * Refusing well is this parser's job; the router only decides whose job it is.
+ */
+export function isLiveLinkLine(line: string): boolean {
+  const trimmed = line.trim();
+  return (
+    parseCloudReference(trimmed) !== null || pinnedRevision(trimmed) !== null
+  );
+}
+
 export function parseLiveLink(content: string): ParsedLiveLink {
   const diagnostics: DgmoError[] = [];
   let error: string | null = null;
@@ -124,12 +143,48 @@ export function parseLiveLink(content: string): ParsedLiveLink {
   let titleSlot: string | null = null;
   let titleLineNumber = 1;
   let bodyStart = lines.length;
+  /**
+   * The id, when the declaration line IS the pointer rather than a keyword plus
+   * a slot — §38.6's other two spellings, a pasted share link and the note's
+   * `![[live-link:<id>]]`.
+   *
+   * 🔴 Resolved through `parseCloudReference` and NOT through `resolveTarget`.
+   * The two ask different questions: `resolveTarget` deliberately refuses the
+   * embed form because `url ![[live-link:abc]]` is a copy-paste mistake in a
+   * `url` VALUE, whereas here the line IS the pointer and the embed form is the
+   * spelling a note is expected to carry.
+   */
+  let wholeLineId: string | null = null;
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard.
     const trimmed = lines[i]!.trim();
     if (isSkippable(trimmed)) continue;
     const first = parseFirstLine(trimmed);
     titleLineNumber = i + 1;
+    if (!first) {
+      wholeLineId = parseCloudReference(trimmed)?.id ?? null;
+      if (wholeLineId !== null) {
+        bodyStart = i + 1;
+        break;
+      }
+      // The router sent a pinned link here on purpose, so that the pin gets its
+      // own message instead of the generic one it used to collect.
+      const pin = pinnedRevision(trimmed);
+      if (pin !== null) {
+        fail(
+          i + 1,
+          `A pinned revision cannot be served — a live link always shows the publisher's current version. Remove the "${pin}" from the link.`
+        );
+        return {
+          type: 'live-link',
+          title: null,
+          titleLineNumber: i + 1,
+          id: null,
+          diagnostics,
+          error,
+        };
+      }
+    }
     titleSlot = first?.title ?? null;
     // Only CONSUME the line when it really was the declaration. Reached through
     // the router it always is, but `parseLiveLink` is exported, and swallowing
@@ -187,6 +242,24 @@ export function parseLiveLink(content: string): ParsedLiveLink {
     diagnostics,
     error,
   });
+
+  // ── A whole-line pointer (§38.6) ─────────────────────────
+  // The line carried the target itself, so there is no title slot to read and
+  // no shorthand-versus-titled question to answer. A `url` line written anyway
+  // is still two targets, and refuses for the same reason the titled form does:
+  // being wrong about which diagram a pointer points at is the only way this
+  // construct fails badly.
+  if (wholeLineId !== null) {
+    const rival = urls[0];
+    if (rival) {
+      fail(
+        rival.line,
+        `Two targets: the link on line ${titleLineNumber} and "${rival.value}" on line ${rival.line}. A live link points at one diagram — delete one.`
+      );
+      return done(null, null);
+    }
+    return done(null, wholeLineId);
+  }
 
   // ── Nothing to point at ──────────────────────────────────
   // `sawUrlLine`, not `urls.length`: a `url` line whose value was unusable has

@@ -14,6 +14,7 @@ import { looksLikePert } from './pert/parser';
 // part of the derived chartTypeParsers, which come from the registry).
 import { parseVisualization } from './visualizations/parse';
 import { parseFirstLine } from './utils/parsing';
+import { isLiveLinkLine } from './live-link/parser';
 import { makeDgmoError, suggest, dedupeDiagnostics } from './diagnostics';
 import type { DgmoError } from './diagnostics';
 import { chartTypes } from './chart-types';
@@ -86,6 +87,16 @@ export function parseDgmoChartType(content: string): string | null {
     // Try new first-line detection (bare chart type name)
     const firstLineResult = parseFirstLine(trimmed);
     if (firstLineResult) return firstLineResult.chartType;
+
+    // §38.6: a live link has three spellings and they parse identically. Only
+    // `live-link <id>` names a chart type on its first line, so the other two —
+    // a pasted share link, and the note spelling `![[live-link:<id>]]` — used to
+    // fall past this loop into the visualization parser and come back as
+    // "Unsupported chart type", which sends someone hunting for a typo in a
+    // line that says exactly what it means. Exact, not a `looksLike*` heuristic:
+    // the shared parser either recognizes the whole line as a pointer or it does
+    // not, so this cannot claim a fence that was meant as something else.
+    if (isLiveLinkLine(trimmed)) return 'live-link';
 
     // Not a chart type on the first line — stop looking for explicit declaration
     break;
