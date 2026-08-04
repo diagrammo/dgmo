@@ -194,6 +194,12 @@ const BUILDS: Options[] = [
       // the three spellings. Its own entry precisely so a docs wrapper can
       // resolve a reference without pulling the render graph.
       'cloud-reference': 'src/cloud-reference.ts',
+      // Asking the Cloud what a pointer points at, and reading the answer —
+      // the step every surface needs and only `remark-dgmo` used to have. Its
+      // own entry, separate from `cloud-reference`, so that resolving costs no
+      // renderer and parsing costs no network: five wrappers import the parser
+      // and never want this.
+      'live-link-resolve': 'src/live-link/resolve.ts',
     },
     format: ['esm'],
     dts: true,

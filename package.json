@@ -43,6 +43,10 @@
       "types": "./dist/cloud-reference.d.ts",
       "default": "./dist/cloud-reference.js"
     },
+    "./live-link-resolve": {
+      "types": "./dist/live-link-resolve.d.ts",
+      "default": "./dist/live-link-resolve.js"
+    },
     "./completion": {
       "types": "./dist/completion-registry.d.ts",
       "default": "./dist/completion-registry.js"
