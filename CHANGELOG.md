@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.60.0] - 2026-08-04
+
+### Fixed
+
+- 🔴 **Paste a share link into a fence and it now draws the diagram it points at.** It used to say *"Unsupported chart type"* — and so did `![[live-link:dgm_7f2a91]]`, the spelling designed for a note. Spec §38.6 has claimed since it was written that a live link's three spellings "parse identically"; only `live-link <id>` ever did, because only it names a chart type on its first line. The other two fell past the router into the visualization parser and came back as an error naming a chart type nobody typed, which is wrong twice over: the syntax was valid, and the message sent the author hunting for a typo in a line that says exactly what it means. Every surface had it — the desktop app, the web editor and all five docs wrappers, not just the one it was noticed on. The router now asks the live-link parser whether the first line *is* a pointer, and the parser resolves a whole-line target instead of reading it as a stray directive. `/d/<id>`, `/view/<id>` and `/public/diagrams/<id>/source` are all accepted, on any origin, because self-hosting is why the host is not checked.
+- **A pinned share link now names the pin it has to lose.** `…/d/dgm_7f2a91?at=2026-03-12` also collected the generic message; it is claimed deliberately so that the pinned-revision error — a live link always shows the publisher's current version — reaches the person who wrote the `?at=`. Only the **declaration** line can be a pointer, so a link inside another chart type's content is left alone, and a URL that is not a diagram path is not claimed at all.
+
+### Added
+
+- **`@diagrammo/dgmo/live-link-resolve` — asking the Cloud what a pointer points at, and reading the answer.** `fetchLiveLink(ref, options)` makes the request and resolves 200/404/410/5xx into four outcomes: `ok`, `gone` (withdrawn by its author, which is deliberate and not a failure), `missing` (a typo, or never published) and `unavailable` (network, timeout, 5xx, 429 — try again later). The split is the whole point: a host that cannot tell `gone` from `unavailable` keeps publishing a diagram somebody took back, and one that cannot tell `unavailable` from `missing` throws away a good cached copy over a single dropped request. It never throws, because a caller that has to tell a rejected promise from a 410 will get it wrong.
+- This step previously lived inside `remark-dgmo`, where four of the five docs wrappers could reach it and nothing else could — which is how `vitepress-dgmo` came to ship a release announcing live links it could not render. It is now beside the parser and the card renderer, where a live link is a chart type rather than a markdown feature. **Its own subpath**, separate from `./cloud-reference`, so that resolving costs a caller no renderer and parsing costs a caller no network: the built entry is 1.9 KB over a 1.4 KB shared chunk, with no render graph in it. `fetchImpl` is injected for a host with its own client — Obsidian's `requestUrl` adapts in three lines — and the default is **bound to the global**, because `fetch` is a WebIDL operation whose `this` must be the global and holding it on an options bag makes every call a method call.
+- What did **not** move is everything that is a build's opinion: the committed cache, the failure table, and what stops a build. A note being opened has no build to stop, which is the whole reason the two had to come apart.
+
 ## [0.59.0] - 2026-08-03
 
 ### Changed
