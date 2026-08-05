@@ -53,6 +53,15 @@ const SKIP = new Map([
   // hand angles and digits differ every run, so output length is
   // nondeterministic. Needs a fixed-now override hook to be snapshottable.
   ['clock.dgmo', 'renders wall-clock time — nondeterministic output'],
+  // Countdown draws the remaining time from Date.now(), so its baseline is
+  // wrong the day after it is recorded and more wrong every day after that.
+  // `countdown-tz` was reading "42 days" against a fresh "28 days" on
+  // 2026-08-05 — a fortnight of drift that had nothing to do with the
+  // renderer. Re-baselining only restarts the same clock; these need the same
+  // fixed-now override `clock.dgmo` above is waiting for.
+  ['countdown.dgmo', 'renders time remaining — nondeterministic output'],
+  ['countdown-far.dgmo', 'renders time remaining — nondeterministic output'],
+  ['countdown-tz.dgmo', 'renders time remaining — nondeterministic output'],
 ]);
 
 // ============================================================
