@@ -5808,6 +5808,15 @@ declare function resolveMap(parsed: ParsedMap, data: MapData): ResolvedMap;
  *  call can retry rather than inheriting a poisoned promise. */
 declare function loadMapData(): Promise<MapData>;
 
+/** A subtle gazetteer city dot for basemap orientation (§24B `no-cities`). Just
+ *  a position + radius; the renderer paints it muted/low-opacity. No label, no
+ *  interactivity — purely decorative context. */
+interface MapLayoutCityDot {
+    readonly cx: number;
+    readonly cy: number;
+    readonly r: number;
+}
+
 interface MapLayoutRegion {
     readonly id: string;
     readonly d: string;
@@ -6030,14 +6039,6 @@ interface PlacedLabel {
     readonly lineNumber: number;
 }
 
-/** A subtle gazetteer city dot for basemap orientation (§24B `no-cities`). Just
- *  a position + radius; the renderer paints it muted/low-opacity. No label, no
- *  interactivity — purely decorative context. */
-interface MapLayoutCityDot {
-    readonly cx: number;
-    readonly cy: number;
-    readonly r: number;
-}
 /** A drawn river centerline — an open stroked path (no fill). */
 interface MapLayoutRiver {
     readonly d: string;
