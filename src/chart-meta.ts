@@ -14,7 +14,7 @@
 
 // ── Chart-type registry (data only) ──────────────────────────
 export { chartTypes } from './chart-types';
-export type { ChartTypeMeta } from './chart-types';
+export type { ChartTypeMeta, ChartTypeId } from './chart-types';
 
 // ── First-line parsing + chart-type detection ────────────────
 export { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';

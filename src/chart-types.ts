@@ -41,7 +41,11 @@ export interface ChartTypeMeta {
   readonly internal?: true;
 }
 
-export const chartTypes: readonly ChartTypeMeta[] = [
+// Declared without a type annotation so the literal ids survive: an explicit
+// `readonly ChartTypeMeta[]` here widens every id back to `string`, which is
+// what let four separate hand-written copies of this list exist. `satisfies`
+// keeps the shape checked while `as const` keeps the ids.
+const chartTypesData = [
   // ── Tier 1 — Narrative / architecture diagrams ────────────
   {
     id: 'journey-map',
@@ -286,4 +290,25 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     description: 'A pointer to a diagram published at Diagrammo Cloud',
     internal: true,
   },
-] as const;
+] as const satisfies readonly ChartTypeMeta[];
+
+/**
+ * Every chart type the router can dispatch — the "routable" set.
+ *
+ * Distinct from the "offered" set (`utils/offered-types.ts`), which drops the
+ * `internal` types nobody hand-authors. A live link is routable but never
+ * offered.
+ *
+ * This union is the reason the id list lives here: `chart-type-registry.ts`
+ * keys its `Record` by it, so a chart type missing from the registry is a
+ * compile error, and `ALL_CHART_TYPES` / the editor's `CHART_TYPES` derive from
+ * the same array rather than restating it.
+ */
+export type ChartTypeId = (typeof chartTypesData)[number]['id'];
+
+export const chartTypes: readonly ChartTypeMeta[] = chartTypesData;
+
+/** Every routable chart-type id. The one list the others derive from. */
+export const CHART_TYPE_IDS: readonly ChartTypeId[] = chartTypesData.map(
+  (c) => c.id
+);

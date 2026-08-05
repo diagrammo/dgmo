@@ -80,6 +80,7 @@ import { parseRaci, allTasks } from './raci/parser';
 import { parseBody } from './body/parser';
 import { parseLiveLink } from './live-link/parser';
 import type { DgmoError } from './diagnostics';
+import type { ChartTypeId } from './chart-types';
 
 /** User-visible rendering category for dispatch and routing. */
 export type RenderCategory = 'data-chart' | 'visualization' | 'diagram';
@@ -373,114 +374,99 @@ function minDimsFamily(c: ContentCounts): { width: number; height: number } {
 // in chart-types.ts.
 // ============================================================
 
-export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
+const REGISTRY: Record<ChartTypeId, Omit<ChartTypeDescriptor, 'id'>> = {
   // ── Structured diagrams ───────────────────────────────────
-  {
-    id: 'sequence',
+  sequence: {
     category: 'diagram',
     parse: parseSequenceDgmo,
     measure: measureSequence,
     minDims: minDimsSequence,
   },
-  {
-    id: 'flowchart',
+  flowchart: {
     category: 'diagram',
     parse: parseFlowchart,
     measure: measureFlowchart,
     minDims: minDimsGraph,
   },
-  {
-    id: 'class',
+  class: {
     category: 'diagram',
     parse: parseClassDiagram,
     measure: measureClass,
     minDims: minDimsEntities,
   },
-  {
-    id: 'er',
+  er: {
     category: 'diagram',
     parse: parseERDiagram,
     measure: measureER,
     minDims: minDimsEntities,
   },
-  {
-    id: 'state',
+  state: {
     category: 'diagram',
     parse: parseState,
     measure: measureStateGraph,
     minDims: minDimsGraph,
   },
-  {
-    id: 'org',
+  org: {
     category: 'diagram',
     parse: parseOrg,
     measure: measureOrg,
     minDims: minDimsOrg,
   },
-  {
-    id: 'kanban',
+  kanban: {
     category: 'diagram',
     parse: parseKanban,
     measure: measureKanban,
     minDims: minDimsKanban,
   },
-  { id: 'c4', category: 'diagram', parse: parseC4 },
-  { id: 'sitemap', category: 'diagram', parse: parseSitemap },
-  {
-    id: 'infra',
+  c4: { category: 'diagram', parse: parseC4 },
+  sitemap: { category: 'diagram', parse: parseSitemap },
+  infra: {
     category: 'diagram',
     parse: parseInfra,
     measure: measureInfra,
     minDims: minDimsInfra,
   },
-  {
-    id: 'gantt',
+  gantt: {
     category: 'diagram',
     parse: parseGantt,
     measure: measureGantt,
     minDims: minDimsGantt,
   },
-  {
-    id: 'pert',
+  pert: {
     category: 'diagram',
     parse: parsePert,
     measure: measurePert,
     minDims: minDimsPert,
   },
-  { id: 'boxes-and-lines', category: 'diagram', parse: parseBoxesAndLines },
-  { id: 'sketch', category: 'diagram', parse: parseSketch },
-  {
-    id: 'swimlane',
+  'boxes-and-lines': { category: 'diagram', parse: parseBoxesAndLines },
+  sketch: { category: 'diagram', parse: parseSketch },
+  swimlane: {
     category: 'diagram',
     parse: parseSwimlane,
     measure: measureSwimlane,
     minDims: minDimsSwimlane,
   },
-  {
-    id: 'family',
+  family: {
     category: 'diagram',
     parse: parseFamily,
     measure: measureFamily,
     minDims: minDimsFamily,
   },
-  {
-    id: 'version-control',
+  'version-control': {
     category: 'diagram',
     parse: parseVersionControl,
     measure: measureVersionControl,
     minDims: minDimsVersionControl,
   },
-  {
-    id: 'mindmap',
+  mindmap: {
     category: 'diagram',
     parse: parseMindmap,
     measure: measureMindmap,
     minDims: minDimsMindmap,
   },
-  { id: 'wireframe', category: 'diagram', parse: parseWireframe },
-  { id: 'journey-map', category: 'diagram', parse: parseJourneyMap },
-  {
-    id: 'raci',
+  wireframe: { category: 'diagram', parse: parseWireframe },
+  'journey-map': { category: 'diagram', parse: parseJourneyMap },
+  raci: {
     category: 'diagram',
     parse: parseRaci,
     measure: measureRaci,
@@ -488,47 +474,43 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
   },
 
   // ── Standard ECharts charts (parseChart) ──────────────────
-  { id: 'bar', category: 'data-chart', parse: parseChart },
-  { id: 'line', category: 'data-chart', parse: parseChart },
-  { id: 'pie', category: 'data-chart', parse: parseChart },
-  { id: 'radar', category: 'data-chart', parse: parseChart },
-  { id: 'polar-area', category: 'data-chart', parse: parseChart },
+  bar: { category: 'data-chart', parse: parseChart },
+  line: { category: 'data-chart', parse: parseChart },
+  pie: { category: 'data-chart', parse: parseChart },
+  radar: { category: 'data-chart', parse: parseChart },
+  'polar-area': { category: 'data-chart', parse: parseChart },
 
   // ── Extended ECharts charts — own per-type parser door (Story 109.2a) ──
-  { id: 'scatter', category: 'data-chart', parse: parseScatter },
-  { id: 'sankey', category: 'data-chart', parse: parseSankey },
-  { id: 'function', category: 'data-chart', parse: parseFunctionChart },
-  {
-    id: 'heatmap',
+  scatter: { category: 'data-chart', parse: parseScatter },
+  sankey: { category: 'data-chart', parse: parseSankey },
+  function: { category: 'data-chart', parse: parseFunctionChart },
+  heatmap: {
     category: 'data-chart',
     parse: parseHeatmap,
     measure: measureHeatmap,
     minDims: minDimsHeatmap,
   },
-  { id: 'funnel', category: 'data-chart', parse: parseFunnel },
+  funnel: { category: 'data-chart', parse: parseFunnel },
 
   // ── D3 visualizations — own per-viz parser door (Story 109.2) ──
-  { id: 'slope', category: 'visualization', parse: parseSlope },
-  { id: 'wordcloud', category: 'visualization', parse: parseWordcloud },
-  {
-    id: 'arc',
+  slope: { category: 'visualization', parse: parseSlope },
+  wordcloud: { category: 'visualization', parse: parseWordcloud },
+  arc: {
     category: 'visualization',
     parse: parseArc,
     measure: measureArc,
     minDims: minDimsArc,
   },
-  { id: 'timeline', category: 'visualization', parse: parseTimeline },
-  {
-    id: 'event-line',
+  timeline: { category: 'visualization', parse: parseTimeline },
+  'event-line': {
     category: 'visualization',
     parse: parseEventLine,
     measure: measureEventLine,
     minDims: minDimsEventLine,
   },
-  { id: 'venn', category: 'visualization', parse: parseVenn },
-  { id: 'quadrant', category: 'visualization', parse: parseQuadrant },
-  {
-    id: 'body',
+  venn: { category: 'visualization', parse: parseVenn },
+  quadrant: { category: 'visualization', parse: parseQuadrant },
+  body: {
     category: 'diagram',
     parse: parseBody,
     measure: measureBody,
@@ -536,44 +518,50 @@ export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] = [
   },
 
   // ── Visualizations with their own parsers ─────────────────
-  {
-    id: 'tech-radar',
+  'tech-radar': {
     category: 'visualization',
     parse: parseTechRadar,
     measure: measureTechRadar,
     minDims: minDimsTechRadar,
   },
-  { id: 'cycle', category: 'visualization', parse: parseCycle },
-  { id: 'pyramid', category: 'visualization', parse: parsePyramid },
-  { id: 'ring', category: 'visualization', parse: parseRing },
+  cycle: { category: 'visualization', parse: parseCycle },
+  pyramid: { category: 'visualization', parse: parsePyramid },
+  ring: { category: 'visualization', parse: parseRing },
   // Treemap: squarified hierarchy. No measure/minDims — a treemap fills whatever
   // rectangle it's given and has no intrinsic aspect/size (F11).
-  { id: 'treemap', category: 'visualization', parse: parseTreemap },
+  treemap: { category: 'visualization', parse: parseTreemap },
   // Block diagram: deterministic grid (no measure/minDims — it sizes to content
   // and is scaled to fit whatever rectangle it's given).
-  { id: 'block', category: 'visualization', parse: parseBlock },
+  block: { category: 'visualization', parse: parseBlock },
   // Goal: a single now/target value in one of three faces (bar/thermometer/
   // gauge). No measure/minDims — it centers in whatever rectangle it's given.
-  { id: 'goal', category: 'visualization', parse: parseGoal },
+  goal: { category: 'visualization', parse: parseGoal },
   // Countdown: the only dynamic chart — a single "N days until X" that ticks
   // live. No measure/minDims; it centers in whatever rectangle it's given.
-  { id: 'countdown', category: 'visualization', parse: parseCountdown },
+  countdown: { category: 'visualization', parse: parseCountdown },
   // Clock: live world-clock board — one row per place/zone, ticking every
   // second. No measure/minDims; it sizes to its rows and scales to fit.
-  { id: 'clock', category: 'visualization', parse: parseClock },
+  clock: { category: 'visualization', parse: parseClock },
   // Bracket: single-elim tournament tree. A diagram (structural, node-and-edge);
   // no measure/minDims — it sizes to content and scales to fit its rectangle.
-  { id: 'bracket', category: 'diagram', parse: parseBracket },
+  bracket: { category: 'diagram', parse: parseBracket },
 
   // ── Geographic map (own parser → resolver → layout → renderer) ──
-  { id: 'map', category: 'visualization', parse: parseMap },
+  map: { category: 'visualization', parse: parseMap },
 
   // Live link: a pointer to a diagram published at Diagrammo Cloud, rendered
   // as a reference card. `diagram` like every other card-shaped type, so the
   // export-handler cross-check covers it rather than being relaxed for it. No
   // measure/minDims — the card sizes to its own text and scales to fit.
-  { id: 'live-link', category: 'diagram', parse: parseLiveLink },
-];
+  'live-link': { category: 'diagram', parse: parseLiveLink },
+};
+
+/**
+ * The registry as a list. Derived from `REGISTRY`, whose `Record` key type makes
+ * a missing or misspelled chart type a COMPILE error rather than a test failure.
+ */
+export const CHART_TYPE_REGISTRY: readonly ChartTypeDescriptor[] =
+  Object.entries(REGISTRY).map(([id, d]) => ({ id, ...d }));
 
 /** id → descriptor, for O(1) dispatch lookups. */
 export const REGISTRY_BY_ID: ReadonlyMap<string, ChartTypeDescriptor> = new Map(

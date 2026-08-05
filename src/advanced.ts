@@ -43,7 +43,7 @@ export { render } from './render';
 // ============================================================
 
 export { chartTypes } from './chart-types';
-export type { ChartTypeMeta } from './chart-types';
+export type { ChartTypeMeta, ChartTypeId } from './chart-types';
 
 // Chart-type SELECTION (suggestChartTypes + the trigger/scoring engine) moved
 // to the dgmo-mcp server — it is AI-authoring functionality that the render

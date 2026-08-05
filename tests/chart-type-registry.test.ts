@@ -7,7 +7,6 @@
 // (empty SVG) or sizing (degraded dimensions) time.
 
 import { describe, it, expect } from 'vitest';
-import { chartTypes } from '../src/chart-types';
 import {
   knownChartTypeIds,
   getRenderCategory,
@@ -151,20 +150,19 @@ const EXPECTED_EXTENDED_IDS = [
 ].sort();
 
 describe('chart-type registry — single source of truth', () => {
-  it('covers exactly the surfaced chartTypes (and the derived parser map)', () => {
+  it('covers exactly the known chart-type ids', () => {
+    // `knownChartTypeIds` above is deliberately hand-written: the registry is
+    // now keyed by `ChartTypeId`, so it cannot disagree with `chartTypes` —
+    // asserting that would be a tautology. This anchor is the independent
+    // record that adding a chart type was a deliberate act, and it is the only
+    // check here the compiler cannot make.
     const registryIds = new Set(CHART_TYPE_REGISTRY.map((d) => d.id));
-    // No retained aliases anymore (pre-1.0 cleanup removed doughnut, area,
-    // multi-line, bar-stacked, rasci, daci): the registry ids equal the
-    // surfaced `chartTypes` ids exactly, with no extra alias dispatch entries.
-    const surfaced = new Set(chartTypes.map((c) => c.id));
-    expect(registryIds).toEqual(surfaced);
     expect(registryIds).toEqual(new Set(knownChartTypeIds));
   });
 
-  it('has no duplicate descriptors', () => {
-    const ids = CHART_TYPE_REGISTRY.map((d) => d.id);
-    expect(new Set(ids).size).toBe(ids.length);
-  });
+  // "has no duplicate descriptors" is gone: two entries under one key is
+  // TS1117 ("An object literal cannot have multiple properties with the same
+  // name"), so the case can no longer reach a test run.
 
   it('every descriptor carries a parse function', () => {
     for (const d of CHART_TYPE_REGISTRY) {

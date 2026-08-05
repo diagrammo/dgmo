@@ -2,8 +2,15 @@ import * as _lezer_lr from '@lezer/lr';
 import { LanguageSupport, LRLanguage } from '@codemirror/language';
 import { NodePropSource } from '@lezer/common';
 
-/** All supported DGMO chart types. */
-declare const CHART_TYPES: Set<string>;
+/**
+ * All supported DGMO chart types.
+ *
+ * Derived from `chart-types.ts` — the same de-duplication already done for
+ * DIRECTIVE/CONTROL/STATUS/MODIFIER below, which this list was left out of.
+ * Internal types stay in: `live-link` must still highlight when one is open,
+ * even though no picker offers it.
+ */
+declare const CHART_TYPES: ReadonlySet<string>;
 /** Metadata keys recognized across chart types. */
 declare const METADATA_KEYS: Set<string>;
 

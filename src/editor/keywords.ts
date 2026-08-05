@@ -4,65 +4,17 @@ import {
   REGISTRY_STATUS_TOKENS,
   REGISTRY_MODIFIER_TOKENS,
 } from '../directives-registry';
+import { CHART_TYPE_IDS } from '../chart-types';
 
-/** All supported DGMO chart types. */
-export const CHART_TYPES = new Set([
-  // Diagram types
-  'sequence',
-  'flowchart',
-  'class',
-  'er',
-  'org',
-  'family',
-  'kanban',
-  'c4',
-  'state',
-  'sitemap',
-  'bracket',
-  'infra',
-  'gantt',
-  'pert',
-  'boxes-and-lines',
-  'swimlane',
-  'version-control',
-  'wireframe',
-  'tech-radar',
-  'mindmap',
-  'journey-map',
-  'pyramid',
-  'ring',
-  'treemap',
-  'block',
-  'goal',
-  'countdown',
-  'clock',
-  'sketch',
-  'raci',
-  'cycle',
-  // Data chart types
-  'bar',
-  'line',
-  'pie',
-  'polar-area',
-  'radar',
-  'scatter',
-  'sankey',
-  'function',
-  'heatmap',
-  'funnel',
-  // Visualization types
-  'slope',
-  'wordcloud',
-  'arc',
-  'timeline',
-  'event-line',
-  'venn',
-  'quadrant',
-  'map',
-  'body',
-  // Pointer type — internal, but it must still highlight when one is open
-  'live-link',
-]);
+/**
+ * All supported DGMO chart types.
+ *
+ * Derived from `chart-types.ts` — the same de-duplication already done for
+ * DIRECTIVE/CONTROL/STATUS/MODIFIER below, which this list was left out of.
+ * Internal types stay in: `live-link` must still highlight when one is open,
+ * even though no picker offers it.
+ */
+export const CHART_TYPES: ReadonlySet<string> = new Set(CHART_TYPE_IDS);
 
 /** Metadata keys recognized across chart types. */
 export const METADATA_KEYS = new Set([

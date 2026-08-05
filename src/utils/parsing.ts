@@ -19,6 +19,7 @@ import {
 } from '../diagnostics';
 import type { PaletteColors } from '../palettes';
 import { ALL_REGISTRY_TOKENS } from '../directives-registry';
+import { CHART_TYPE_IDS } from '../chart-types';
 import {
   isReservedKey,
   type ReservedKeyRegistry,
@@ -29,64 +30,14 @@ const RECOGNIZED_COLOR_SET: ReadonlySet<string> = new Set(
 );
 
 // ── All known chart types ────────────────────────────────────
-/** Complete set of recognized chart type identifiers. */
-export const ALL_CHART_TYPES = new Set([
-  // data charts
-  'bar',
-  'line',
-  'pie',
-  'polar-area',
-  'radar',
-  'scatter',
-  'sankey',
-  'function',
-  'heatmap',
-  'funnel',
-  // visualizations
-  'slope',
-  'wordcloud',
-  'arc',
-  'timeline',
-  'event-line',
-  'venn',
-  'quadrant',
-  // diagrams
-  'body',
-  'sequence',
-  'flowchart',
-  'class',
-  'er',
-  'org',
-  'kanban',
-  'c4',
-  'state',
-  'sitemap',
-  'infra',
-  'gantt',
-  'pert',
-  'boxes-and-lines',
-  'swimlane',
-  'version-control',
-  'mindmap',
-  'wireframe',
-  'tech-radar',
-  'cycle',
-  'journey-map',
-  'pyramid',
-  'ring',
-  'treemap',
-  'block',
-  'goal',
-  'countdown',
-  'clock',
-  'sketch',
-  'raci',
-  'map',
-  'family',
-  'bracket',
-  // pointer, not a drawing — internal (see ChartTypeMeta.internal)
-  'live-link',
-]);
+/**
+ * Complete set of recognized chart type identifiers.
+ *
+ * Derived from `chart-types.ts`, which is a leaf module — importing the
+ * chart-type *registry* here would be circular, since the registry imports
+ * every parser and 34 parsers import this file.
+ */
+export const ALL_CHART_TYPES: ReadonlySet<string> = new Set(CHART_TYPE_IDS);
 
 /** Measure leading whitespace of a line, normalizing tabs to 4 spaces. */
 export function measureIndent(line: string): number {

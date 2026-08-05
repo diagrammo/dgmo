@@ -1,7 +1,7 @@
-import { a as DiagnosticSpec, P as PaletteConfig, C as CompactViewState, D as DgmoError } from './registry-C0HvobTb.js';
-export { b as ChartTypeMeta, c as DgmoSeverity, d as DiagnosticParams, E as EmitOptions, e as PaletteColors, f as chartTypes, g as emit, h as formatDgmoError, i as getPalette, r as resolvePaletteOrFallback, p as validate } from './registry-C0HvobTb.js';
-import { T as Theme } from './themes-l406Vj2z.js';
-export { G as Gazetteer, a as GazetteerEntry, M as MapCompletionOptions, b as MapData, c as MapLocationMatch, d as MapPlaceCompletion, e as MapRegionCompletion, R as RegionName, f as RegionNames, g as completeMapPlaces, h as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-l406Vj2z.js';
+import { a as DiagnosticSpec, P as PaletteConfig, C as CompactViewState, D as DgmoError } from './registry-Ch0Umdi1.js';
+export { b as ChartTypeId, c as ChartTypeMeta, d as DgmoSeverity, e as DiagnosticParams, E as EmitOptions, f as PaletteColors, g as chartTypes, h as emit, i as formatDgmoError, j as getPalette, r as resolvePaletteOrFallback, p as validate } from './registry-Ch0Umdi1.js';
+import { T as Theme } from './themes-DC6u80yr.js';
+export { G as Gazetteer, a as GazetteerEntry, M as MapCompletionOptions, b as MapData, c as MapLocationMatch, d as MapPlaceCompletion, e as MapRegionCompletion, R as RegionName, f as RegionNames, g as completeMapPlaces, h as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-DC6u80yr.js';
 
 declare function getMinDimensions(content: string): {
     width: number;

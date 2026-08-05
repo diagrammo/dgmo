@@ -253,7 +253,7 @@ export type {
 // root at 1.0 so consumers needn't reach into the no-semver `/advanced`)
 // ============================================================
 export { chartTypes } from './chart-types';
-export type { ChartTypeMeta } from './chart-types';
+export type { ChartTypeMeta, ChartTypeId } from './chart-types';
 
 // ============================================================
 // Map data (DI asset shape; stable — promoted to root at 1.0 for the
