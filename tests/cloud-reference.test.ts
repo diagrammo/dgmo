@@ -16,6 +16,8 @@ import {
   CLOUD_API_BASE,
   type CloudReference,
   parseCloudReference,
+  parseCloudReferenceFence,
+  parseCloudReferenceEmbed,
   referenceShareUrl,
   referenceSourceUrl,
 } from '../src/cloud-reference';
@@ -120,5 +122,44 @@ describe('resolution', () => {
     expect(referenceShareUrl({ id: 'dgm_1' })).toBe(
       'https://online.diagrammo.app/d/dgm_1'
     );
+  });
+});
+
+describe('the surface-specific parsers (2026-08-05)', () => {
+  // The union used to be what every caller reached for, and three of the four
+  // wanted "fence". That is how `![[live-link:<id>]]` — host markdown — came to
+  // be accepted inside a code fence whose content is DGMO. Each surface now
+  // names itself.
+  const ID = 'dgm_7f2a91';
+
+  it('a fence takes the keyword form and a plain link, and NOT the note form', () => {
+    expect(parseCloudReferenceFence(`live-link ${ID}`)).toEqual({ id: ID });
+    expect(
+      parseCloudReferenceFence(`https://online.diagrammo.app/d/${ID}`)
+    ).toEqual({ id: ID });
+    expect(parseCloudReferenceFence(`![[live-link:${ID}]]`)).toBeNull();
+  });
+
+  it('the note form takes only itself, brackets included', () => {
+    expect(parseCloudReferenceEmbed(`![[live-link:${ID}]]`)).toEqual({
+      id: ID,
+    });
+    expect(parseCloudReferenceEmbed(`live-link ${ID}`)).toBeNull();
+    expect(
+      parseCloudReferenceEmbed(`https://online.diagrammo.app/d/${ID}`)
+    ).toBeNull();
+    // Obsidian hands over the inside of the brackets; without them it is not
+    // the spelling, and the caller is expected to put them back.
+    expect(parseCloudReferenceEmbed(`live-link:${ID}`)).toBeNull();
+  });
+
+  it('the union still spans both, for a host scanning raw note text', () => {
+    for (const spelling of [
+      `live-link ${ID}`,
+      `![[live-link:${ID}]]`,
+      `https://online.diagrammo.app/d/${ID}`,
+    ]) {
+      expect(parseCloudReference(spelling), spelling).toEqual({ id: ID });
+    }
   });
 });

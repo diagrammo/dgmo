@@ -9,7 +9,12 @@
 //   live-link <id>                       // shorthand — the fence spelling
 //
 //   https://online.diagrammo.app/d/<id>  // §38.6, the whole line IS the pointer
-//   ![[live-link:<id>]]                  // §38.6, the note spelling
+//
+// 🔴 The note spelling `![[live-link:<id>]]` is NOT valid in a fence, and was
+// removed from one on 2026-08-05. It is host markdown, and a fence's content is
+// DGMO — nesting markdown inside a code fence that is itself in markdown is a
+// category error however well it parses. It stays valid in a note BODY, which
+// is the surface it was designed for.
 //
 // A pointer, not a drawing: no elements, no indentation, no colons, and
 // exactly one directive. The title slot is the only one in the language that
@@ -22,7 +27,7 @@
 import { makeDgmoError, formatDgmoError } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import {
-  parseCloudReference,
+  parseCloudReferenceFence,
   parseCloudReferenceUrl,
 } from '../cloud-reference';
 import { parseFirstLine } from '../utils/parsing';
@@ -49,17 +54,16 @@ const EXAMPLE_URL = 'https://online.diagrammo.app/d/dgm_7f2a91';
  */
 function resolveTarget(value: string): string | null {
   const trimmed = value.trim();
-  // The URL shape, through the split-out entry point rather than through
-  // `parseCloudReference` — the latter also tries the FENCE and EMBED spellings,
-  // and `url live-link abc` / `url ![[live-link:abc]]` are copy-paste mistakes.
-  // Blessing them silently teaches the wrong shape.
+  // The URL shape, through the split-out entry point rather than a broader one:
+  // `url live-link abc` and `url ![[live-link:abc]]` are copy-paste mistakes,
+  // and blessing them silently teaches the wrong shape.
   const asUrl = parseCloudReferenceUrl(trimmed)?.id;
   if (asUrl) return asUrl;
   // The bare-id path, reached through the fence spelling (`live-link <id>` IS
   // the bare-id form) so the id pattern is never copied here. Guarded to a
   // single token so the synthesis cannot smuggle the other spellings back in.
   if (!/^[^\s[\]]+$/.test(trimmed)) return null;
-  return parseCloudReference(`live-link ${trimmed}`)?.id ?? null;
+  return parseCloudReferenceFence(`live-link ${trimmed}`)?.id ?? null;
 }
 
 /**
@@ -114,7 +118,8 @@ function pinnedRevision(value: string): string | null {
 export function isLiveLinkLine(line: string): boolean {
   const trimmed = line.trim();
   return (
-    parseCloudReference(trimmed) !== null || pinnedRevision(trimmed) !== null
+    parseCloudReferenceFence(trimmed) !== null ||
+    pinnedRevision(trimmed) !== null
   );
 }
 
@@ -145,14 +150,11 @@ export function parseLiveLink(content: string): ParsedLiveLink {
   let bodyStart = lines.length;
   /**
    * The id, when the declaration line IS the pointer rather than a keyword plus
-   * a slot — §38.6's other two spellings, a pasted share link and the note's
-   * `![[live-link:<id>]]`.
+   * a slot — §38.6's pasted-share-link form.
    *
-   * 🔴 Resolved through `parseCloudReference` and NOT through `resolveTarget`.
-   * The two ask different questions: `resolveTarget` deliberately refuses the
-   * embed form because `url ![[live-link:abc]]` is a copy-paste mistake in a
-   * `url` VALUE, whereas here the line IS the pointer and the embed form is the
-   * spelling a note is expected to carry.
+   * 🔴 `parseCloudReferenceFence`, never the union: a fence takes the keyword
+   * form or a plain link, and NOT the note's `![[live-link:<id>]]`. Reaching for
+   * `parseCloudReference` here is what let markdown into a code fence.
    */
   let wholeLineId: string | null = null;
   for (let i = 0; i < lines.length; i++) {
@@ -162,7 +164,7 @@ export function parseLiveLink(content: string): ParsedLiveLink {
     const first = parseFirstLine(trimmed);
     titleLineNumber = i + 1;
     if (!first) {
-      wholeLineId = parseCloudReference(trimmed)?.id ?? null;
+      wholeLineId = parseCloudReferenceFence(trimmed)?.id ?? null;
       if (wholeLineId !== null) {
         bodyStart = i + 1;
         break;

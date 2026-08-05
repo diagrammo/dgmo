@@ -260,7 +260,6 @@ describe('live-link — §38.6, the other two spellings as the whole line', () =
   // identically" since it was written; only `live-link <id>` ever did.
   const SPELLINGS: [label: string, source: string][] = [
     ['a pasted share link', 'https://online.diagrammo.app/d/dgm_7f2a91'],
-    ['the note spelling', '![[live-link:dgm_7f2a91]]'],
     [
       'the source endpoint',
       'https://api.diagrammo.app/public/diagrams/dgm_7f2a91/source',
@@ -291,6 +290,16 @@ describe('live-link — §38.6, the other two spellings as the whole line', () =
       expect(errors(parseDgmo(source))).toEqual([]);
     }
   );
+
+  it('🔴 the NOTE spelling is not valid in a fence', () => {
+    // `![[live-link:<id>]]` is host markdown, and a fence's content is DGMO.
+    // Accepting it nested markdown inside a code fence that is itself inside
+    // markdown — a category error however cleanly it parsed. Removed 2026-08-05,
+    // one day after it was added; the note BODY is still its home.
+    const src = '![[live-link:dgm_7f2a91]]';
+    expect(parseDgmo(src).chartType).not.toBe('live-link');
+    expect(parseLiveLink(src).id).toBeNull();
+  });
 
   it('the generated comment block stays inert after a whole-line pointer', () => {
     const r = parseLiveLink(

@@ -81,14 +81,41 @@ const URL_PATH_RE = new RegExp(
 );
 
 /**
- * Parse any of the three spellings. Returns null for anything that is not a
- * reference — callers use that to leave ordinary content alone, so this must not
- * throw and must not guess.
+ * Parse any of the three spellings, wherever it appears.
+ *
+ * 🔴 **A `dgmo` fence must NOT use this — use `parseCloudReferenceFence`.** The
+ * embed spelling is host markdown, and inside a fence the content is DGMO, so
+ * accepting `![[live-link:<id>]]` there is a category error: markdown nested in
+ * a code fence that is itself in markdown. It was accepted until 2026-08-05 and
+ * the showcase content taught it. Removed rather than deprecated — pre-1.0.
+ *
+ * This union survives for a host scanning raw note text, where any of the three
+ * may legitimately turn up. Returns null for anything that is not a reference,
+ * so it must not throw and must not guess.
  */
 export function parseCloudReference(text: string): CloudReference | null {
-  const fence = FENCE_RE.exec(text) ?? EMBED_RE.exec(text);
+  return parseCloudReferenceFence(text) ?? parseCloudReferenceEmbed(text);
+}
+
+/**
+ * What may appear as the whole body of a `dgmo` fence: the keyword form, or a
+ * plain link somebody pasted. **Not** the embed spelling — see above.
+ */
+export function parseCloudReferenceFence(text: string): CloudReference | null {
+  const fence = FENCE_RE.exec(text);
   if (fence) return reference(fence[1]);
   return parseCloudReferenceUrl(text);
+}
+
+/**
+ * The note spelling — `![[live-link:<id>]]` — which extends the
+ * `![[foo.dgmo]]` transclusion Obsidian and the desktop app already understand.
+ * Takes the text as TYPED, brackets included, because that is the thing being
+ * recognised; a host holding only the inside of the brackets puts them back.
+ */
+export function parseCloudReferenceEmbed(text: string): CloudReference | null {
+  const embed = EMBED_RE.exec(text);
+  return embed ? reference(embed[1]) : null;
 }
 
 /** The URL spelling, split out because hosts that only take URLs need just this. */
