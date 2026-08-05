@@ -585,7 +585,7 @@ Types: `actor`, `database`, `cache`, `queue` (plus default — the plain rectang
 
 Type names in `is a X` are **case-insensitive** (`is a Actor`, `is an ACTOR`, `is an actor` all parse the same). The keywords `service`, `frontend`, `networking`, `gateway`, and `external` were removed in 0.16.0 and now emit `E_PARTICIPANT_TYPE_REMOVED`; drop the override and the participant renders as the default rectangle.
 
-A participant _named_ with a removed-type keyword (e.g. `service -> User: hi` declares a participant named "service") remains valid. The trim affects only the `is a X` declaration syntax, not name resolution.
+A participant _named_ with a removed-type keyword (e.g. `service -hi-> User` declares a participant named "service") remains valid. The trim affects only the `is a X` declaration syntax, not name resolution.
 
 **Inference rules** — the parser infers the type (and shape) from the participant name. Only use `is a` when the name does not match or you want to override:
 
