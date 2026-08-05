@@ -68,9 +68,6 @@ const SKIP_PATTERNS = [
   'dgmo-language-spec-decisions.md',
   'tech-spec-universal-alias-syntax.md',
   'tech-spec-universal-name-handling.md',
-  // Backlog.md uses `##` headings like `## Rank alias r` (historical
-  // context for old DGMO syntaxes) that would be misread as venn lines.
-  '/backlog.md',
 ];
 
 function shouldSkip(file) {
