@@ -21,23 +21,38 @@ async function twoModuleCopies() {
   return { a, b };
 }
 
+/**
+ * `twoModuleCopies` resets the module registry twice and re-imports the whole
+ * render graph each time, and the interleaved case then drives ten renders
+ * through it. That is real work, not a wait — vitest's 5s default is a deadline
+ * it can miss whenever the machine is busy, and when it does the log says
+ * "timed out" on a ref-count test, which reads as the ref-count having broken.
+ *
+ * A ceiling high enough that crossing it means something actually hung.
+ */
+const SLOW_MS = 60_000;
+
 describe('render() cross-bundle DOM globals ref-count', () => {
   beforeEach(() => {
     expect(typeof document).toBe('undefined');
   });
 
-  it('two module copies share one ref-count (interleaved renders survive)', async () => {
-    const { a, b } = await twoModuleCopies();
-    for (let i = 0; i < 5; i++) {
-      const [ra, rb] = await Promise.all([a.render(SRC), b.render(SRC)]);
-      expect(ra.svg).toContain('<svg');
-      expect(rb.svg).toContain('<svg');
-    }
-    // Last release wins only once every in-flight render is done.
-    expect(typeof (globalThis as { document?: unknown }).document).toBe(
-      'undefined'
-    );
-  });
+  it(
+    'two module copies share one ref-count (interleaved renders survive)',
+    async () => {
+      const { a, b } = await twoModuleCopies();
+      for (let i = 0; i < 5; i++) {
+        const [ra, rb] = await Promise.all([a.render(SRC), b.render(SRC)]);
+        expect(ra.svg).toContain('<svg');
+        expect(rb.svg).toContain('<svg');
+      }
+      // Last release wins only once every in-flight render is done.
+      expect(typeof (globalThis as { document?: unknown }).document).toBe(
+        'undefined'
+      );
+    },
+    SLOW_MS
+  );
 
   it('sequential renders from different copies each clean up', async () => {
     const { a, b } = await twoModuleCopies();
