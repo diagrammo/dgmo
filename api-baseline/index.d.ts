@@ -1,12 +1,7 @@
-import { a as DiagnosticSpec, P as PaletteConfig, C as CompactViewState, D as DgmoError } from './registry-Ch0Umdi1.js';
-export { b as ChartTypeId, c as ChartTypeMeta, d as DgmoSeverity, e as DiagnosticParams, E as EmitOptions, f as PaletteColors, g as chartTypes, h as emit, i as formatDgmoError, j as getPalette, r as resolvePaletteOrFallback, p as validate } from './registry-Ch0Umdi1.js';
-import { T as Theme } from './themes-DC6u80yr.js';
-export { G as Gazetteer, a as GazetteerEntry, M as MapCompletionOptions, b as MapData, c as MapLocationMatch, d as MapPlaceCompletion, e as MapRegionCompletion, R as RegionName, f as RegionNames, g as completeMapPlaces, h as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-DC6u80yr.js';
-
-declare function getMinDimensions(content: string): {
-    width: number;
-    height: number;
-};
+import { D as DiagnosticSpec, P as PaletteConfig, C as CompactViewState, a as DgmoError } from './registry-ehluKMZo.js';
+export { b as ChartTypeId, c as ChartTypeMeta, d as DgmoSeverity, e as DiagnosticParams, E as EmitOptions, f as PaletteColors, g as chartTypes, h as emit, i as formatDgmoError, j as getPalette, r as resolvePaletteOrFallback, p as validate } from './registry-ehluKMZo.js';
+import { T as Theme } from './themes-CvvKanKw.js';
+export { G as Gazetteer, a as GazetteerEntry, M as MapCompletionOptions, b as MapData, c as MapLocationMatch, d as MapPlaceCompletion, e as MapRegionCompletion, R as RegionName, f as RegionNames, g as completeMapPlaces, h as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-CvvKanKw.js';
 
 /**
  * Make an SVG produced by `@diagrammo/dgmo`'s static `render()` suitable for
@@ -193,4 +188,4 @@ interface DecodedDiagramUrl {
  */
 declare function decodeDiagramUrl(url: string): DecodedDiagramUrl | null;
 
-export { CompactViewState, D3_DATA_CHART_TYPES, type DataChartInteractionOpts, type DecodedDiagramUrl, DgmoError, DiagnosticSpec, type EncodeDiagramUrlOptions, type MountD3Opts, type MountedD3Chart, type NormalizeSvgForEmbedOptions, PaletteConfig, type RenderOptions, type RenderResult, Theme, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, getDiagnosticSpec, getEmbedSvgViewBox, getMinDimensions, listDiagnosticCodes, mountD3DataChart, normalizeSvgForEmbed, render, supportsD3DataChart };
+export { CompactViewState, D3_DATA_CHART_TYPES, type DataChartInteractionOpts, type DecodedDiagramUrl, DgmoError, DiagnosticSpec, type EncodeDiagramUrlOptions, type MountD3Opts, type MountedD3Chart, type NormalizeSvgForEmbedOptions, PaletteConfig, type RenderOptions, type RenderResult, Theme, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, mountD3DataChart, normalizeSvgForEmbed, render, supportsD3DataChart };

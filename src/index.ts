@@ -207,12 +207,6 @@ export { palettes, getPalette, resolvePaletteOrFallback } from './palettes';
 export { themes, type Theme } from './themes';
 
 // ============================================================
-// getMinDimensions(text)
-// ============================================================
-
-export { getMinDimensions } from './dimensions';
-
-// ============================================================
 // SVG embed normalization (responsive inline embedding)
 // ============================================================
 // Tightens a static render() SVG's viewBox to its content + strips fixed

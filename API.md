@@ -195,7 +195,6 @@ interface DgmoError {
 These are also exported from the root (stable, semver-tracked):
 
 - `resolvePaletteOrFallback(name?)` — resolve a palette by id, falling back to the default (slate). The shared resolve·fallback seam used by the wrappers.
-- `getMinDimensions(text)` — minimum render dimensions for a diagram (sizing hint).
 - `normalizeSvgForEmbed(svg)` / `getEmbedSvgViewBox(svg)` — prepare a rendered SVG for embedding (viewBox normalization).
 - `completeMapPlaces(...)` / `completeMapRegions(...)` — dependency-injected map autocompletion (caller supplies the `Gazetteer`).
 - `chartTypes` (+ `ChartTypeMeta`) — the chart-type registry (promoted to root at 1.0).
