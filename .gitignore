@@ -14,3 +14,6 @@ src/editor/dgmo.grammar.terms.js
 # guidance-studio write-back transient backup
 docs/language-reference.md.bak
 docs/language-reference.md.tmp-*
+
+# scratch CLI renders at repo root (19 were committed by accident)
+/*.png
