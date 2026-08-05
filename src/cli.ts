@@ -1039,6 +1039,10 @@ async function main(): Promise<void> {
   let { svg } = await render(content, {
     theme: opts.theme,
     palette: opts.palette,
+    // The CLI is the Node host, so it supplies the fs loader `render()` no
+    // longer reaches for itself. Passed as the function, not its result — it
+    // runs only if the content turns out to be a map.
+    mapData: loadMapData,
   });
 
   // Error-severity diagnostics ⇒ the error card, never a partial chart — the

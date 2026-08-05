@@ -10,6 +10,8 @@
 
 import type { PaletteColors } from './palettes';
 import type { D3ExportDimensions } from './utils/d3-types';
+import { emit } from './diagnostics';
+import { MAP_DX } from './map/diagnostics';
 import { parseVisualization } from './visualizations/parse';
 import { resolveActiveTagGroup } from './utils/tag-groups';
 import {
@@ -56,6 +58,30 @@ export { renderQuadrant } from './quadrant/renderer';
 // ============================================================
 
 /**
+ * How a host supplies map basemap assets: the data itself, or a loader that
+ * returns it. Declared here (rather than accepting only `MapData`) so a Node
+ * host can hand over `loadMapData` without paying to read eleven JSON files on
+ * a render that turns out not to be a map — the loader is called only inside
+ * the map branch.
+ */
+export type MapDataSource =
+  | import('./map/resolved-types').MapData
+  | (() => Promise<import('./map/resolved-types').MapData>);
+
+/** Normalize either form to the data, or `undefined` if a loader threw. */
+export async function resolveMapDataSource(
+  source: MapDataSource | undefined
+): Promise<import('./map/resolved-types').MapData | undefined> {
+  if (source === undefined) return undefined;
+  if (typeof source !== 'function') return source;
+  try {
+    return await source();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Renders a D3 chart to an SVG string for export.
  * Creates a detached DOM element, renders into it, extracts the SVG, then cleans up.
  */
@@ -65,10 +91,12 @@ type RenderForExportOptions = {
   c4Container?: string;
   tagGroup?: string;
   exportMode?: boolean;
-  // Browser callers (the app / Obsidian) bundle the map JSON and inject it
-  // here — the Node fs `loadMapData()` seam can't run in a browser. CLI/SSR
-  // omit this and fall back to the fs loader.
-  mapData?: import('./map/resolved-types').MapData;
+  // Map basemap assets, supplied by the host — either the data itself (browser
+  // callers bundle the JSON) or a loader that returns it (Node hosts pass
+  // `loadMapData`). There is no fallback: this module reads nothing from disk
+  // or the network on its own, so omitting it degrades a map to '' plus an
+  // `E_MAP_DATA_NOT_SUPPLIED` diagnostic.
+  mapData?: MapDataSource;
   // WYSIWYG map export: the live preview pane's displayed aspect (w/h). When
   // set, the map canvas adopts it + stretch-fills so the PNG matches the
   // on-screen map. The app passes this; headless consumers omit it.
@@ -1266,17 +1294,19 @@ async function exportMap(ctx: ExportContext): Promise<string> {
   const mapParsed = parseMap(content, effectivePalette);
   // Always render — an empty or partially-resolved map still draws the
   // inferred base map (§24B.10 / layout AC23); diagnostics surface separately.
-  // Prefer injected `mapData` (browser bundles it; the fs loader can't run
-  // there); fall back to the Node fs loader for CLI/SSR. Degrade like every
-  // other branch (return '') if neither yields data.
-  let mapData = options?.mapData;
+  //
+  // The host supplies the basemap: bundled `MapData` (browser) or a loader
+  // (Node hosts pass `loadMapData`). This function reaches for neither the disk
+  // nor the network on its own, so a caller can tell from the signature that a
+  // render cannot touch its environment. With nothing supplied — or a loader
+  // that threw — degrade to '' like every other branch, but say why through the
+  // diagnostics out-param rather than failing silently.
+  const mapData = await resolveMapDataSource(options?.mapData);
   if (!mapData) {
-    const { loadMapData } = await import('./map/load-data');
-    try {
-      mapData = await loadMapData();
-    } catch {
-      return '';
-    }
+    options?.onMapResolverDiagnostics?.([
+      emit(MAP_DX.DATA_NOT_SUPPLIED, 1, {}),
+    ]);
+    return '';
   }
   const mapResolved = resolveMap(mapParsed, mapData);
   // Hand the resolver diagnostics out to render() — resolveMap seeds them with

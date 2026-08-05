@@ -11,6 +11,11 @@
 // takes `MapData` by DI precisely so the browser path can differ. Do NOT assume
 // a green Node smoke test proves the browser load.
 //
+// NOTHING calls this implicitly. `render()` has no fallback to it: a Node host
+// passes this function itself as `render(src, { mapData: loadMapData })`, which
+// is what keeps the render path free of any environment dependency the caller
+// did not hand it. The CLI does exactly that.
+//
 // Node builtins (`fs/promises`, `url`, `path`) are imported LAZILY inside
 // `loadMapData` — never at module top level — so this file can be pulled into a
 // browser bundle (Obsidian's esbuild `platform: browser`, the app's Vite/Rollup

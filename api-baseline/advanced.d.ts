@@ -1,11 +1,11 @@
-import { a as DgmoError, C as CompactViewState, P as PaletteConfig, f as PaletteColors, T as TagGroup, k as TagEntry } from './registry-ehluKMZo.js';
-export { l as CHART_TYPE_DESCRIPTIONS, b as ChartTypeId, c as ChartTypeMeta, m as DecodedDiagramUrl, d as DgmoSeverity, n as EncodeDiagramUrlOptions, o as EncodeDiagramUrlResult, R as RenderCategory, q as autoTagColorCycle, s as chartTypeParsers, g as chartTypes, t as decodeDiagramUrl, u as decodeViewState, v as encodeDiagramUrl, w as encodeViewState, i as formatDgmoError, x as getAllChartTypes, y as getAvailablePalettes, j as getPalette, z as getRenderCategory, A as isExtendedChartType, B as isValidHex, F as knownChartTypeIds, G as makeDgmoError, p as parseDgmo, H as parseDgmoChartType, I as registerPalette, J as tagAttrKey, p as validate } from './registry-ehluKMZo.js';
-import { b as MapData, P as ParsedMap, i as ResolvedMap, j as MapLayoutLegend, k as GeoExtent } from './themes-CvvKanKw.js';
-export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, M as MapCompletionOptions, l as MapDirectives, m as MapEdge, c as MapLocationMatch, d as MapPlaceCompletion, n as MapPoi, o as MapRegion, e as MapRegionCompletion, q as MapRoute, r as PoiPos, u as ProjectionFamily, R as RegionName, f as RegionNames, v as ResolvedEdge, w as ResolvedPoi, x as ResolvedRegion, y as ResolvedRoute, T as Theme, g as completeMapPlaces, h as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-CvvKanKw.js';
+import { a as DgmoError, P as PaletteConfig, T as TagGroup, f as PaletteColors, C as CompactViewState, k as TagEntry } from './dgmo-router-Dd5PTjxl.js';
+export { l as CHART_TYPE_DESCRIPTIONS, b as ChartTypeId, c as ChartTypeMeta, m as DecodedDiagramUrl, d as DgmoSeverity, n as EncodeDiagramUrlOptions, o as EncodeDiagramUrlResult, R as RenderCategory, q as autoTagColorCycle, s as chartTypeParsers, g as chartTypes, t as decodeDiagramUrl, u as decodeViewState, v as encodeDiagramUrl, w as encodeViewState, i as formatDgmoError, x as getAllChartTypes, y as getAvailablePalettes, j as getPalette, z as getRenderCategory, A as isExtendedChartType, B as isValidHex, F as knownChartTypeIds, G as makeDgmoError, p as parseDgmo, H as parseDgmoChartType, I as registerPalette, J as tagAttrKey, p as validate } from './dgmo-router-Dd5PTjxl.js';
+import { M as MapDataSource, P as ParsedMap, c as MapData, j as ResolvedMap, k as MapLayoutLegend, l as GeoExtent } from './themes-DiUAG4Bf.js';
+export { A as AirportData, B as BoundaryTopology, G as Gazetteer, a as GazetteerEntry, b as MapCompletionOptions, m as MapDirectives, n as MapEdge, d as MapLocationMatch, e as MapPlaceCompletion, o as MapPoi, q as MapRegion, f as MapRegionCompletion, r as MapRoute, u as PoiPos, v as ProjectionFamily, R as RegionName, g as RegionNames, w as ResolvedEdge, x as ResolvedPoi, y as ResolvedRegion, z as ResolvedRoute, T as Theme, h as completeMapPlaces, i as completeMapRegions, p as palettes, C as renderForExport, s as searchMapLocations, t as themes } from './themes-DiUAG4Bf.js';
 import { Selection } from 'd3-selection';
 import * as d3Scale from 'd3-scale';
-import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-BCPPLIuv.js';
-export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as getSeriesColors, j as hexToHSL, k as hexToHSLString, l as hslToHex, m as mix, n as normalizePertSourceForShare, p as parseFirstLine, o as parseOrg, q as parseRaci, r as resolveOrgImports, s as shade, t as shapeFill, u as tint } from './chart-meta-BCPPLIuv.js';
+import { P as ParsedOrg, F as FillMode, R as RaciMarker, a as ParsedRaci, b as RaciVariant, c as RaciTask } from './chart-meta-D98NbYDp.js';
+export { A as ALL_CHART_TYPES, I as ImportSource, O as OrgNode, d as RaciPhase, e as RaciRoleAssignment, f as ReadFileFn, g as ResolveImportsResult, h as contrastText, i as getSeriesColors, j as hexToHSL, k as hexToHSLString, l as hslToHex, m as mix, n as normalizePertSourceForShare, p as parseFirstLine, o as parseOrg, q as parseRaci, r as resolveOrgImports, s as shade, t as shapeFill, u as tint } from './chart-meta-D98NbYDp.js';
 import { GeoProjection } from 'd3-geo';
 
 /**
@@ -64,6 +64,260 @@ type Brand<T, B extends string> = T & {
     readonly __brand: B;
 };
 
+declare const atlasPalette: PaletteConfig;
+
+declare const blueprintPalette: PaletteConfig;
+
+declare const catppuccinPalette: PaletteConfig;
+
+declare const nordPalette: PaletteConfig;
+
+declare const slatePalette: PaletteConfig;
+
+declare const tidewaterPalette: PaletteConfig;
+
+declare const tokyoNightPalette: PaletteConfig;
+
+type TimelineSort = 'time' | 'group' | 'tag';
+interface TimelineEvent {
+    date: string;
+    endDate: string | null;
+    label: string;
+    group: string | null;
+    metadata: Record<string, string>;
+    lineNumber: number;
+    uncertain?: boolean;
+}
+interface TimelineGroup {
+    name: string;
+    color: string | null;
+    metadata: Record<string, string>;
+    lineNumber: number;
+}
+interface TimelineEra {
+    startDate: string;
+    endDate: string;
+    label: string;
+    color: string | null;
+    lineNumber: number;
+}
+interface TimelineMarker {
+    date: string;
+    label: string;
+    color: string | null;
+    lineNumber: number;
+}
+
+interface D3ExportDimensions {
+    width?: number;
+    height?: number;
+    /** Map-only: when true, the map renderer suppresses its global stretch-fill and
+     *  contain-fits (letterbox) instead. Set by `mapExportDimensions` when the export
+     *  canvas was clamped/floored away from the map's content aspect, so the
+     *  off-aspect canvas doesn't re-distort. Ignored by all non-map renderers. */
+    preferContain?: boolean;
+}
+
+type VisualizationType = 'slope' | 'wordcloud' | 'arc' | 'timeline' | 'venn' | 'quadrant' | 'sequence' | 'tech-radar' | 'cycle' | 'pyramid' | 'ring';
+interface D3DataItem {
+    label: string;
+    values: number[];
+    color: string | null;
+    lineNumber: number;
+}
+interface WordCloudWord {
+    text: string;
+    weight: number;
+    lineNumber: number;
+}
+type WordCloudRotate = 'none' | 'mixed' | 'angled';
+interface WordCloudOptions {
+    rotate: WordCloudRotate;
+    max: number;
+    minSize: number;
+    maxSize: number;
+}
+interface ArcLink {
+    source: string;
+    target: string;
+    value: number;
+    color: string | null;
+    lineNumber: number;
+}
+type ArcOrder = 'appearance' | 'name' | 'group' | 'degree';
+interface ArcNodeGroup {
+    name: string;
+    nodes: string[];
+    color: string | null;
+    lineNumber: number;
+}
+interface VennSet {
+    name: string;
+    alias: string | null;
+    color: string | null;
+    lineNumber: number;
+}
+interface VennOverlap {
+    sets: string[];
+    label: string | null;
+    lineNumber: number;
+}
+interface QuadrantLabel {
+    text: string;
+    color: string | null;
+    lineNumber: number;
+}
+interface QuadrantPoint {
+    label: string;
+    x: number;
+    y: number;
+    lineNumber: number;
+}
+interface QuadrantLabels {
+    topRight: QuadrantLabel | null;
+    topLeft: QuadrantLabel | null;
+    bottomLeft: QuadrantLabel | null;
+    bottomRight: QuadrantLabel | null;
+}
+/** Fields every visualization shares. */
+interface ParsedVizBase {
+    title: string | null;
+    titleLineNumber: number | null;
+    /** When true, the renderer suppresses the chart title. */
+    noTitle?: boolean;
+    /**
+     * §1.9 fill family — `'solid'` renders filled marks at full intent
+     * saturation, `'outline'` drops the fill to the theme background (color on
+     * the stroke). Honored by renderers with a fillable surface (e.g. venn set
+     * circles); a no-op for line/point types. Absent ⇒ canonical muted tint.
+     */
+    fillMode?: 'solid' | 'outline';
+    diagnostics: DgmoError[];
+    error: string | null;
+}
+interface ParsedSlope extends ParsedVizBase {
+    type: 'slope';
+    periods: string[];
+    data: D3DataItem[];
+    noName?: boolean;
+    noValue?: boolean;
+    noPercent?: boolean;
+}
+interface ParsedArc extends ParsedVizBase {
+    type: 'arc';
+    orientation: 'horizontal' | 'vertical';
+    links: ArcLink[];
+    arcOrder: ArcOrder;
+    arcNodeGroups: ArcNodeGroup[];
+    noName?: boolean;
+    noValue?: boolean;
+    noPercent?: boolean;
+    /** `layout arc|chord` override (#26). `chord` re-renders the same edges as a
+     *  circular chord; absent ⇒ the `arc` linear preset. */
+    layout?: 'arc' | 'chord';
+}
+interface ParsedTimeline extends ParsedVizBase {
+    type: 'timeline';
+    orientation: 'horizontal' | 'vertical';
+    timelineEvents: TimelineEvent[];
+    timelineGroups: TimelineGroup[];
+    timelineEras: TimelineEra[];
+    timelineMarkers: TimelineMarker[];
+    timelineTagGroups: TagGroup[];
+    timelineSort: TimelineSort | null;
+    timelineDefaultSwimlaneTG?: string;
+    timelineScale: boolean;
+    timelineSwimlanes: boolean;
+    /** Authored `active-tag <group|none|metric>` directive (§15.6); resolved at render. */
+    timelineActiveTag?: string;
+    /** §1.9 fill family (`'solid'` | `'outline'`); absent ⇒ 25% tint. */
+    fillMode?: 'solid' | 'outline';
+    /** When true, the renderer suppresses the tag legend and the vertical band
+     *  it would occupy (#48). */
+    noLegend?: boolean;
+}
+interface ParsedWordcloud extends ParsedVizBase {
+    type: 'wordcloud';
+    words: WordCloudWord[];
+    cloudOptions: WordCloudOptions;
+}
+interface ParsedVenn extends ParsedVizBase {
+    type: 'venn';
+    vennSets: VennSet[];
+    vennOverlaps: VennOverlap[];
+    noName?: boolean;
+    noValue?: boolean;
+    noPercent?: boolean;
+}
+interface ParsedQuadrant extends ParsedVizBase {
+    type: 'quadrant';
+    quadrantLabels: QuadrantLabels;
+    quadrantPoints: QuadrantPoint[];
+    quadrantXAxis: [string, string] | null;
+    quadrantXAxisLineNumber: number | null;
+    quadrantYAxis: [string, string] | null;
+    quadrantYAxisLineNumber: number | null;
+    quadrantTitleLineNumber: number | null;
+}
+/**
+ * `sequence` (rendered by its own parser) or an unsupported/empty parse result
+ * (`type: null`). Carries only the base fields — callers branch on `error`.
+ */
+interface ParsedVizEmpty extends ParsedVizBase {
+    type: 'sequence' | null;
+}
+/** What `parseVisualization` returns: discriminated on `type`. */
+type ParsedVisualization = ParsedSlope | ParsedArc | ParsedTimeline | ParsedWordcloud | ParsedVenn | ParsedQuadrant | ParsedVizEmpty;
+
+/**
+ * Parses D3 chart text format into structured data. Returns the discriminated
+ * {@link ParsedVisualization} union; internally the single state machine fills a
+ * fat {@link ParsedVizFull} accumulator, which is a structural superset of every
+ * variant, so the narrowing is sound and runtime-identical.
+ */
+declare function parseVisualization(content: string, palette?: PaletteColors): ParsedVisualization;
+
+type TimelineDurationUnit = 'd' | 'w' | 'm' | 'y' | 'h' | 'min' | 's';
+declare function addDurationToDate(startDate: string, amount: number, unit: TimelineDurationUnit): string;
+declare function parseTimelineDate(s: string): number;
+
+/**
+ * Renders a slope chart into the given container using D3.
+ */
+declare function renderSlopeChart(container: HTMLDivElement, parsed: ParsedSlope, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
+
+declare function orderArcNodes(links: ArcLink[], order: ArcOrder, groups: ArcNodeGroup[]): string[];
+/**
+ * Renders an arc diagram into the given container using D3.
+ */
+declare function renderArcDiagram(container: HTMLDivElement, parsed: ParsedArc, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
+
+/**
+ * Converts a DSL date string to a human-readable label.
+ *   '1718'                 → '1718'
+ *   '1718-05'              → 'May 1718'
+ *   '1718-05-22'           → 'May 22, 1718'
+ *   '2024-06-15 14:30'     → 'Jun 15, 2024 14:30'
+ *   '2024-06-15 14:30:45'  → 'Jun 15, 2024 14:30:45'
+ *   '-753'                 → '753 BCE'  (BCE years stored signed)
+ *   '-0044-03'             → 'Mar 44 BCE'
+ */
+declare function formatDateLabel(dateStr: string): string;
+declare function renderTimeline(container: HTMLDivElement, parsed: ParsedTimeline, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions, activeTagGroup?: string | null, swimlaneTagGroup?: string | null, onTagStateChange?: (activeTagGroup: string | null, swimlaneTagGroup: string | null) => void, viewMode?: boolean, exportMode?: boolean): void;
+
+/**
+ * Renders a word cloud into the given container using d3-cloud.
+ */
+declare function renderWordCloud(container: HTMLDivElement, parsed: ParsedWordcloud, palette: PaletteColors, _isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
+
+declare function renderVenn(container: HTMLDivElement, parsed: ParsedVenn, palette: PaletteColors, _isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
+
+/**
+ * Renders a quadrant chart using D3.
+ * Displays 4 colored quadrant regions, axis labels, quadrant labels, and data points.
+ */
+declare function renderQuadrant(container: HTMLDivElement, parsed: ParsedQuadrant, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
+
 /**
  * Render DGMO source to an SVG string.
  *
@@ -98,9 +352,21 @@ declare function render(content: string, options?: {
     };
     /** View state for export — controls interactive state (collapse, swimlanes, etc.) */
     viewState?: CompactViewState;
-    /** Bundled map data for `map` charts in the browser, where the Node fs
-     *  `loadMapData()` seam can't run. CLI/SSR omit this and fall back to fs. */
-    mapData?: MapData;
+    /**
+     * Basemap assets for `map` charts — the data itself, or a loader returning
+     * it. `render()` reads nothing from the filesystem or the network on its
+     * own, so this is the only way a map obtains a basemap, and its presence
+     * here is what tells a caller whether a render can touch the environment.
+     *
+     * - Node / CLI / SSR: pass the `loadMapData` loader from
+     *   `@diagrammo/dgmo/advanced`. It is called only when the content really
+     *   is a map, so a non-map render never pays for it.
+     * - Browser / Worker / Obsidian: pass your bundled `MapData`.
+     *
+     * Omit it and a map renders empty with an `E_MAP_DATA_NOT_SUPPLIED`
+     * diagnostic. Every other chart type ignores this option.
+     */
+    mapData?: MapDataSource;
     /** Bake pure-CSS hover into the exported SVG (no JS). Default ON — embeds
      *  (Obsidian, doc-site wrappers) get hover feedback for free. The desktop
      *  app renders its live preview through direct renderer calls (not this
@@ -148,20 +414,6 @@ declare class ScaleContext {
     structural(value: number): number;
     text(fontSize: number, floor?: number): number;
 }
-
-declare const atlasPalette: PaletteConfig;
-
-declare const blueprintPalette: PaletteConfig;
-
-declare const catppuccinPalette: PaletteConfig;
-
-declare const nordPalette: PaletteConfig;
-
-declare const slatePalette: PaletteConfig;
-
-declare const tidewaterPalette: PaletteConfig;
-
-declare const tokyoNightPalette: PaletteConfig;
 
 type ChartType$1 = 'bar' | 'line' | 'pie' | 'polar-area' | 'radar';
 interface ChartDataPoint {
@@ -674,273 +926,6 @@ declare function getSimpleChartLegendGroups(parsed: ParsedChart, colors: string[
  * Supports scatter (categories), chord (nodes), and function (series).
  */
 declare function getExtendedChartLegendGroups(parsed: ParsedExtendedChart, colors: string[]): LegendGroupData[];
-
-type TimelineSort = 'time' | 'group' | 'tag';
-interface TimelineEvent {
-    date: string;
-    endDate: string | null;
-    label: string;
-    group: string | null;
-    metadata: Record<string, string>;
-    lineNumber: number;
-    uncertain?: boolean;
-}
-interface TimelineGroup {
-    name: string;
-    color: string | null;
-    metadata: Record<string, string>;
-    lineNumber: number;
-}
-interface TimelineEra {
-    startDate: string;
-    endDate: string;
-    label: string;
-    color: string | null;
-    lineNumber: number;
-}
-interface TimelineMarker {
-    date: string;
-    label: string;
-    color: string | null;
-    lineNumber: number;
-}
-
-interface D3ExportDimensions {
-    width?: number;
-    height?: number;
-    /** Map-only: when true, the map renderer suppresses its global stretch-fill and
-     *  contain-fits (letterbox) instead. Set by `mapExportDimensions` when the export
-     *  canvas was clamped/floored away from the map's content aspect, so the
-     *  off-aspect canvas doesn't re-distort. Ignored by all non-map renderers. */
-    preferContain?: boolean;
-}
-
-type VisualizationType = 'slope' | 'wordcloud' | 'arc' | 'timeline' | 'venn' | 'quadrant' | 'sequence' | 'tech-radar' | 'cycle' | 'pyramid' | 'ring';
-interface D3DataItem {
-    label: string;
-    values: number[];
-    color: string | null;
-    lineNumber: number;
-}
-interface WordCloudWord {
-    text: string;
-    weight: number;
-    lineNumber: number;
-}
-type WordCloudRotate = 'none' | 'mixed' | 'angled';
-interface WordCloudOptions {
-    rotate: WordCloudRotate;
-    max: number;
-    minSize: number;
-    maxSize: number;
-}
-interface ArcLink {
-    source: string;
-    target: string;
-    value: number;
-    color: string | null;
-    lineNumber: number;
-}
-type ArcOrder = 'appearance' | 'name' | 'group' | 'degree';
-interface ArcNodeGroup {
-    name: string;
-    nodes: string[];
-    color: string | null;
-    lineNumber: number;
-}
-interface VennSet {
-    name: string;
-    alias: string | null;
-    color: string | null;
-    lineNumber: number;
-}
-interface VennOverlap {
-    sets: string[];
-    label: string | null;
-    lineNumber: number;
-}
-interface QuadrantLabel {
-    text: string;
-    color: string | null;
-    lineNumber: number;
-}
-interface QuadrantPoint {
-    label: string;
-    x: number;
-    y: number;
-    lineNumber: number;
-}
-interface QuadrantLabels {
-    topRight: QuadrantLabel | null;
-    topLeft: QuadrantLabel | null;
-    bottomLeft: QuadrantLabel | null;
-    bottomRight: QuadrantLabel | null;
-}
-/** Fields every visualization shares. */
-interface ParsedVizBase {
-    title: string | null;
-    titleLineNumber: number | null;
-    /** When true, the renderer suppresses the chart title. */
-    noTitle?: boolean;
-    /**
-     * §1.9 fill family — `'solid'` renders filled marks at full intent
-     * saturation, `'outline'` drops the fill to the theme background (color on
-     * the stroke). Honored by renderers with a fillable surface (e.g. venn set
-     * circles); a no-op for line/point types. Absent ⇒ canonical muted tint.
-     */
-    fillMode?: 'solid' | 'outline';
-    diagnostics: DgmoError[];
-    error: string | null;
-}
-interface ParsedSlope extends ParsedVizBase {
-    type: 'slope';
-    periods: string[];
-    data: D3DataItem[];
-    noName?: boolean;
-    noValue?: boolean;
-    noPercent?: boolean;
-}
-interface ParsedArc extends ParsedVizBase {
-    type: 'arc';
-    orientation: 'horizontal' | 'vertical';
-    links: ArcLink[];
-    arcOrder: ArcOrder;
-    arcNodeGroups: ArcNodeGroup[];
-    noName?: boolean;
-    noValue?: boolean;
-    noPercent?: boolean;
-    /** `layout arc|chord` override (#26). `chord` re-renders the same edges as a
-     *  circular chord; absent ⇒ the `arc` linear preset. */
-    layout?: 'arc' | 'chord';
-}
-interface ParsedTimeline extends ParsedVizBase {
-    type: 'timeline';
-    orientation: 'horizontal' | 'vertical';
-    timelineEvents: TimelineEvent[];
-    timelineGroups: TimelineGroup[];
-    timelineEras: TimelineEra[];
-    timelineMarkers: TimelineMarker[];
-    timelineTagGroups: TagGroup[];
-    timelineSort: TimelineSort | null;
-    timelineDefaultSwimlaneTG?: string;
-    timelineScale: boolean;
-    timelineSwimlanes: boolean;
-    /** Authored `active-tag <group|none|metric>` directive (§15.6); resolved at render. */
-    timelineActiveTag?: string;
-    /** §1.9 fill family (`'solid'` | `'outline'`); absent ⇒ 25% tint. */
-    fillMode?: 'solid' | 'outline';
-    /** When true, the renderer suppresses the tag legend and the vertical band
-     *  it would occupy (#48). */
-    noLegend?: boolean;
-}
-interface ParsedWordcloud extends ParsedVizBase {
-    type: 'wordcloud';
-    words: WordCloudWord[];
-    cloudOptions: WordCloudOptions;
-}
-interface ParsedVenn extends ParsedVizBase {
-    type: 'venn';
-    vennSets: VennSet[];
-    vennOverlaps: VennOverlap[];
-    noName?: boolean;
-    noValue?: boolean;
-    noPercent?: boolean;
-}
-interface ParsedQuadrant extends ParsedVizBase {
-    type: 'quadrant';
-    quadrantLabels: QuadrantLabels;
-    quadrantPoints: QuadrantPoint[];
-    quadrantXAxis: [string, string] | null;
-    quadrantXAxisLineNumber: number | null;
-    quadrantYAxis: [string, string] | null;
-    quadrantYAxisLineNumber: number | null;
-    quadrantTitleLineNumber: number | null;
-}
-/**
- * `sequence` (rendered by its own parser) or an unsupported/empty parse result
- * (`type: null`). Carries only the base fields — callers branch on `error`.
- */
-interface ParsedVizEmpty extends ParsedVizBase {
-    type: 'sequence' | null;
-}
-/** What `parseVisualization` returns: discriminated on `type`. */
-type ParsedVisualization = ParsedSlope | ParsedArc | ParsedTimeline | ParsedWordcloud | ParsedVenn | ParsedQuadrant | ParsedVizEmpty;
-
-/**
- * Parses D3 chart text format into structured data. Returns the discriminated
- * {@link ParsedVisualization} union; internally the single state machine fills a
- * fat {@link ParsedVizFull} accumulator, which is a structural superset of every
- * variant, so the narrowing is sound and runtime-identical.
- */
-declare function parseVisualization(content: string, palette?: PaletteColors): ParsedVisualization;
-
-type TimelineDurationUnit = 'd' | 'w' | 'm' | 'y' | 'h' | 'min' | 's';
-declare function addDurationToDate(startDate: string, amount: number, unit: TimelineDurationUnit): string;
-declare function parseTimelineDate(s: string): number;
-
-/**
- * Renders a slope chart into the given container using D3.
- */
-declare function renderSlopeChart(container: HTMLDivElement, parsed: ParsedSlope, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
-
-declare function orderArcNodes(links: ArcLink[], order: ArcOrder, groups: ArcNodeGroup[]): string[];
-/**
- * Renders an arc diagram into the given container using D3.
- */
-declare function renderArcDiagram(container: HTMLDivElement, parsed: ParsedArc, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
-
-/**
- * Converts a DSL date string to a human-readable label.
- *   '1718'                 → '1718'
- *   '1718-05'              → 'May 1718'
- *   '1718-05-22'           → 'May 22, 1718'
- *   '2024-06-15 14:30'     → 'Jun 15, 2024 14:30'
- *   '2024-06-15 14:30:45'  → 'Jun 15, 2024 14:30:45'
- *   '-753'                 → '753 BCE'  (BCE years stored signed)
- *   '-0044-03'             → 'Mar 44 BCE'
- */
-declare function formatDateLabel(dateStr: string): string;
-declare function renderTimeline(container: HTMLDivElement, parsed: ParsedTimeline, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions, activeTagGroup?: string | null, swimlaneTagGroup?: string | null, onTagStateChange?: (activeTagGroup: string | null, swimlaneTagGroup: string | null) => void, viewMode?: boolean, exportMode?: boolean): void;
-
-/**
- * Renders a word cloud into the given container using d3-cloud.
- */
-declare function renderWordCloud(container: HTMLDivElement, parsed: ParsedWordcloud, palette: PaletteColors, _isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
-
-declare function renderVenn(container: HTMLDivElement, parsed: ParsedVenn, palette: PaletteColors, _isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
-
-/**
- * Renders a quadrant chart using D3.
- * Displays 4 colored quadrant regions, axis labels, quadrant labels, and data points.
- */
-declare function renderQuadrant(container: HTMLDivElement, parsed: ParsedQuadrant, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: D3ExportDimensions): void;
-
-/**
- * Renders a D3 chart to an SVG string for export.
- * Creates a detached DOM element, renders into it, extracts the SVG, then cleans up.
- */
-type RenderForExportOptions = {
-    c4Level?: 'context' | 'containers' | 'components' | 'deployment';
-    c4System?: string;
-    c4Container?: string;
-    tagGroup?: string;
-    exportMode?: boolean;
-    mapData?: MapData;
-    mapAspect?: number;
-    onMapResolverDiagnostics?: (diagnostics: readonly DgmoError[]) => void;
-    /**
-     * Canvas to draw onto, in px. Defaults to EXPORT_WIDTH x EXPORT_HEIGHT.
-     *
-     * Every chart used to render onto a fixed 1200x800 sheet, so a caller who
-     * fitted the result to a narrow column got its ASPECT too — a one-line goal
-     * meter arrived 800px tall with the bar as a sliver in the middle. Callers
-     * that know the shape they need can now say so; omitting these keeps the
-     * previous canvas exactly.
-     */
-    width?: number;
-    height?: number;
-};
-declare function renderForExport(content: string, theme: 'light' | 'dark' | 'transparent', palette?: PaletteColors, viewState?: CompactViewState, options?: RenderForExportOptions): Promise<string>;
 
 /**
  * Generates adaptive tick marks along a time axis.
@@ -6713,4 +6698,4 @@ declare function resolveColorWithDiagnostic(color: string, line: number, diagnos
 /** @deprecated Use getSeriesColors(palette) from '@/lib/palettes' instead. */
 declare const seriesColors: string[];
 
-export { ARROW_DIAGNOSTIC_CODES, type Activation, type AncestorInfo, type ArcLink, type ArcNodeGroup, type BLCollapseResult, type BLEdge, type BLGroup, type BLLayoutEdge, type BLLayoutGroup, type BLLayoutNode, type BLLayoutResult, type BLNode, type BlipTrend, type BlockCell, type BlockGrid, type BlockLayoutItem, type BlockLayoutResult, type BlockNode, type BlockOptions, type BodyFigure, type BodyOptions, type BodyPart, type BracketMode, type BracketSide, type C4ArrowType, type C4DeploymentNode, type C4Element, type C4ElementType, type C4Group, type C4LayoutBoundary, type C4LayoutEdge, type C4LayoutNode, type C4LayoutResult, type C4LegendEntry, type C4LegendGroup, type C4Relationship, type C4Shape, type C4TagEntry, type C4TagGroup, type ChartDataPoint, type ChartEra, type ChartType$1 as ChartType, type ClassLayoutEdge, type ClassLayoutNode, type ClassLayoutResult, type ClassMember, type ClassModifier, type ClassNode, type ClassRelationship, type ClockEntry, type ClockFace, type ClockZoneKind, type CollapsedMindmapResult, type CollapsedOrgResult, type CollapsedSitemapResult, type CollapsedView, CompactViewState, type ComputedInfraEdge, type ComputedInfraModel, type ComputedInfraNode, type ContextRelationship, type CountUnits, type CreateMapGeoQueryOptions, type CycleEdge, type CycleLayoutEdge, type CycleLayoutNode, type CycleLayoutResult, type CycleNode, type CycleRenderOptions, type D3ExportDimensions, DgmoError, type DiagramSymbols, type Duration, type DurationUnit, type ERCardinality, type ERColumn, type ERConstraint, type ERLayoutEdge, type ERLayoutNode, type ERLayoutResult, type ERRelationship, type ERTable, type ElseIfBranch, type EventLineEra, type EventLineEvent, type EventLineFocus, type EventLineOptions, type ExpandedActivity, type ExtendedChartType, type FamilyChild, type FamilyChildEdge, type FamilyLayoutNode, type FamilyLayoutResult, type FamilyMarriageBar, type FamilyPerson, type FamilySex, type FamilyUnion, type FocusOrgResult, type FocusResult, type FocusTarget, type GanttDependency, type GanttEra, type GanttGroup, type GroupRow as GanttGroupRow, type GanttHolidays, type GanttInteractiveOptions, type LaneHeaderRow as GanttLaneHeaderRow, type GanttMarker, type GanttNode, type GanttOptions, type Row as GanttRow, type GanttTask, type TaskRow as GanttTaskRow, GeoExtent, type GetOrCreateNameResult, type GoalMode, type GoalOptions, type GraphDirection, type GraphEdge, type GraphGroup, type GraphNode, type GraphShape, INFRA_BEHAVIOR_KEYS, INVALID_COLOR_CODE, INVALID_CSS_COLOR_HEX, type InfraAvailabilityPercentiles, type InfraBehaviorKey, type InfraCbState, type InfraComputeParams, type InfraDiagnostic, type InfraEdge, type InfraGroup, type InfraLatencyPercentiles, type InfraLayoutEdge, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutResult, type InfraLegendGroup, type InfraNode, type InfraPlaybackState, type InfraProperty, type InfraRole, type InfraTagGroup, type InlineSpan, type JourneyMapAnnotation, type JourneyMapInteractiveOptions, type JourneyMapLayout, type JourneyMapPersona, type JourneyMapPhase, type JourneyMapStep, type KanbanCard, type KanbanColumn, type KanbanTagEntry, type KanbanTagGroup, LEGEND_GEAR_PILL_W, LEGEND_HEIGHT, type LayoutEdge, type LayoutGroup, type LayoutNode, type LayoutOptions$1 as LayoutOptions, type LayoutResult$1 as LayoutResult, type LegendCallbacks, type LegendConfig, type LegendControl, type LegendGroupData, type LegendHandle, type LegendLayout, type LegendMode, type LegendPalette, type LegendPosition, type LegendState, MapData, type MapExportDimensions, type MapGeoQuery, type MapLayout, type MapLayoutInset, type MapLayoutLeg, MapLayoutLegend, type MapLayoutPoi, type MapLayoutRegion, type MapLayoutStretch, type MemberVisibility, type MindmapLayoutEdge, type MindmapLayoutNode, type MindmapLayoutResult, type MindmapNode, type MonteCarloResult, type NameEntry, type NearestCity, type NodeDetail, type OrgContainerBounds, type OrgLayoutEdge, type OrgLayoutNode, type OrgLayoutResult, PaletteColors, PaletteConfig, type ParseInArrowLabelResult, type ParsedBlock, type ParsedBody, type ParsedBoxesAndLines, type ParsedBracket, type ParsedC4, type ParsedChart, type ParsedClassDiagram, type ParsedClock, type ParsedCountdown, type ParsedCycle, type ParsedERDiagram, type ParsedEventLine, type ParsedExtendedChart, type ParsedFamily, type ParsedGantt, type ParsedGoal, type ParsedGraph, type ParsedInfra, type ParsedJourneyMap, type ParsedKanban, type ParsedLiveLink, ParsedMap, type ParsedMindmap, ParsedOrg, type ParsedPert, type ParsedPyramid, ParsedRaci, type ParsedRing, type ParsedSequenceDgmo, type ParsedSitemap, type ParsedSketch, type ParsedSwimlane, type ParsedTechRadar, type ParsedTreemap, type ParsedVersionControl, type ParsedVisualization, type ParsedWireframe, type ParticipantType, type PertActivity, type Anchor as PertAnchor, type PertDirection, type PertEdge, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type LayoutOverrides as PertLayoutOverrides, type LayoutResult as PertLayoutResult, type PertMilestone, type PertOptions, type PertRenderOptions, type PlaceResolution, type PlacedLabel, type ProjectedCity, type PyramidLayer, type QuadrantPosition, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, type RaciDragSource, type RaciInteractionHandlers, RaciMarker, RaciTask, RaciVariant, type RadialCell, type RadialLayoutResult, type RawMatch, type RawSeed, type RecurRule, type RegionToken, type RelationshipType, type RenderStep, type ResolvedActivity, type ResolvedGroup$1 as ResolvedGroup, ResolvedMap, type ResolvedPert, type ResolvedGroup as ResolvedPertGroup, type ResolvedSchedule, type ResolvedTask, type ResultCard, type ResultTokens, type RingLayer, type RoundMode, SKETCH_FOOT_H, SKETCH_FOOT_W, SKETCH_GEOMETRY, SKETCH_HALF_SLOT_X, SKETCH_HALF_SLOT_Y, SKETCH_SEP, SKETCH_SHAPE_KINDS, SKETCH_SLOT_X, SKETCH_SLOT_Y, ScaleContext, type SectionMessageGroup, type SequenceBlock, type SequenceElement, type SequenceGroup, type SequenceMessage, type SequenceNote, type SequenceParticipant, type SequenceRenderOptions, type SequenceSection, type SimulateOptions, type SitemapContainerBounds, type SitemapDirection, type SitemapEdge, type SitemapLayoutEdge, type SitemapLayoutNode, type SitemapLayoutResult, type SitemapLegendEntry, type SitemapLegendGroup, type SitemapNode, type SketchAt, type SketchAutoLayoutFlags, type SketchBox, type SketchCollapseResult, type SketchEdge, type SketchEdgeGeometry, type SketchEdgeHeads, type SketchLayout, type SketchLayoutBox, type SketchLayoutNode, type SketchLayoutOptions, type SketchNode, type SketchOptions, type SketchRenderOptions, type SketchShapeKind, type StateCollapseResult, type SwimEdge, type SwimEvent, type SwimLane, type SwimNode, type SwimPhase, type SwimShape, type LayoutBand as SwimlaneLayoutBand, type SwimlaneLayoutResult, TagEntry, TagGroup, type TechRadarBlip, type TechRadarLayoutPoint, type TechRadarQuadrant, type TechRadarRing, type TreemapCell, type TreemapColorMode, type TreemapLayoutResult, type TreemapNode, type TreemapOptions, type VCBranch, type VCNode, type VCNote, type VCOptions, type VCRef, type VisualizationType, type WireframeElement, type WireframeElementType, type WireframeFormFactor, type WireframeLayout, type WireframeLayoutNode, type WorkWindow, type ZoneSuggestion, addDurationToDate, albersSkewFallback, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, authoredCollapsedIds, blueprintPalette, buildNoteMessageMap, buildRenderSequence, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, clearEventLineMuted, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseSketch, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeTimeTicks, controlsGroupCapsuleWidth, createMapGeoQuery, displayName, extractSymbols$2 as extractClassSymbols, extractSymbols$1 as extractErSymbols, extractSymbols$3 as extractFlowchartSymbols, extractSymbols as extractInfraSymbols, extractPertSymbols, focusBoxesAndLines, focusEventLine, focusOrgTree, formatDateLabel, formatOffsetLabel, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getRadarGeometry, getSimpleChartLegendGroups, groupMessagesBySection, inferParticipantType, inferRoles, invalidColorDiagnostic, isArchiveColumn, isInvalidColorToken, isRecognizedColorName, isSequenceBlock, isSequenceNote, isSketchShapeKind, layoutBlock, layoutBoxesAndLines, layoutBracket, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutFamily, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutSketch, layoutSwimlane, layoutTreemap, layoutTreemapRadial, layoutWireframe, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, measurePertAnalysisBlock, mulberry32, nearestNamedColor, nord, nordPalette, normalizeName, normalizePlace, orderArcNodes, parseAndLayoutInfra, parseBlock, parseBody, parseBoxesAndLines, parseBracket, parseC4, parseChart, parseClassDiagram, parseClock, parseCountdown, parseCycle, parseDataRowValues, parseERDiagram, parseEventLine, parseExtendedChart, parseFamily, parseFixedOffset, parseFlowchart, parseGantt, parseGoal, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseLiveLink, parseMap, parseMindmap, parsePert, parsePyramid, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseSketch, parseState, parseSwimlane, parseTechRadar, parseTimelineDate, parseTreemap, parseVersionControl, parseVisualization, parseWireframe, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, relayoutPert, render, renderArcDiagram, renderBlock, renderBlockForExport, renderBody, renderBodyForExport, renderBoxesAndLines, renderBoxesAndLinesForExport, renderBracket, renderBracketForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderClock, renderClockForExport, renderCountdown, renderCountdownForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderEventLine, renderEventLineForExport, renderFamily, renderFamilyForExport, renderFlowchart, renderFlowchartForExport, renderForExport, renderGantt, renderGoal, renderGoalForExport, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderLiveLinkCard, renderMap, renderMapForExport, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSketch, renderSketchForExport, renderSlopeChart, renderState, renderStateForExport, renderSwimlaneForExport, renderTechRadar, renderTechRadarForExport, renderTimeline, renderTreemap, renderTreemapForExport, renderTreemapRadial, renderTreemapRadialForExport, renderVenn, renderVersionControl, renderVersionControlForExport, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolvePlace, resolveTaskName, rollUpContextRelationships, sampleBetaPert, searchZones, seriesColors, simulateCanonical, simulateFast, sketchEdgeGeometry, sketchSlotToPx, slatePalette, startClocks, startCountdowns, targetToMs, tickClocks, tickCountdowns, tidewaterPalette, tokyoNightPalette, truncateBareUrl, validateComputed, validateInfra, validateLabelCharacters };
+export { ARROW_DIAGNOSTIC_CODES, type Activation, type AncestorInfo, type ArcLink, type ArcNodeGroup, type BLCollapseResult, type BLEdge, type BLGroup, type BLLayoutEdge, type BLLayoutGroup, type BLLayoutNode, type BLLayoutResult, type BLNode, type BlipTrend, type BlockCell, type BlockGrid, type BlockLayoutItem, type BlockLayoutResult, type BlockNode, type BlockOptions, type BodyFigure, type BodyOptions, type BodyPart, type BracketMode, type BracketSide, type C4ArrowType, type C4DeploymentNode, type C4Element, type C4ElementType, type C4Group, type C4LayoutBoundary, type C4LayoutEdge, type C4LayoutNode, type C4LayoutResult, type C4LegendEntry, type C4LegendGroup, type C4Relationship, type C4Shape, type C4TagEntry, type C4TagGroup, type ChartDataPoint, type ChartEra, type ChartType$1 as ChartType, type ClassLayoutEdge, type ClassLayoutNode, type ClassLayoutResult, type ClassMember, type ClassModifier, type ClassNode, type ClassRelationship, type ClockEntry, type ClockFace, type ClockZoneKind, type CollapsedMindmapResult, type CollapsedOrgResult, type CollapsedSitemapResult, type CollapsedView, CompactViewState, type ComputedInfraEdge, type ComputedInfraModel, type ComputedInfraNode, type ContextRelationship, type CountUnits, type CreateMapGeoQueryOptions, type CycleEdge, type CycleLayoutEdge, type CycleLayoutNode, type CycleLayoutResult, type CycleNode, type CycleRenderOptions, type D3ExportDimensions, DgmoError, type DiagramSymbols, type Duration, type DurationUnit, type ERCardinality, type ERColumn, type ERConstraint, type ERLayoutEdge, type ERLayoutNode, type ERLayoutResult, type ERRelationship, type ERTable, type ElseIfBranch, type EventLineEra, type EventLineEvent, type EventLineFocus, type EventLineOptions, type ExpandedActivity, type ExtendedChartType, type FamilyChild, type FamilyChildEdge, type FamilyLayoutNode, type FamilyLayoutResult, type FamilyMarriageBar, type FamilyPerson, type FamilySex, type FamilyUnion, type FocusOrgResult, type FocusResult, type FocusTarget, type GanttDependency, type GanttEra, type GanttGroup, type GroupRow as GanttGroupRow, type GanttHolidays, type GanttInteractiveOptions, type LaneHeaderRow as GanttLaneHeaderRow, type GanttMarker, type GanttNode, type GanttOptions, type Row as GanttRow, type GanttTask, type TaskRow as GanttTaskRow, GeoExtent, type GetOrCreateNameResult, type GoalMode, type GoalOptions, type GraphDirection, type GraphEdge, type GraphGroup, type GraphNode, type GraphShape, INFRA_BEHAVIOR_KEYS, INVALID_COLOR_CODE, INVALID_CSS_COLOR_HEX, type InfraAvailabilityPercentiles, type InfraBehaviorKey, type InfraCbState, type InfraComputeParams, type InfraDiagnostic, type InfraEdge, type InfraGroup, type InfraLatencyPercentiles, type InfraLayoutEdge, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutResult, type InfraLegendGroup, type InfraNode, type InfraPlaybackState, type InfraProperty, type InfraRole, type InfraTagGroup, type InlineSpan, type JourneyMapAnnotation, type JourneyMapInteractiveOptions, type JourneyMapLayout, type JourneyMapPersona, type JourneyMapPhase, type JourneyMapStep, type KanbanCard, type KanbanColumn, type KanbanTagEntry, type KanbanTagGroup, LEGEND_GEAR_PILL_W, LEGEND_HEIGHT, type LayoutEdge, type LayoutGroup, type LayoutNode, type LayoutOptions$1 as LayoutOptions, type LayoutResult$1 as LayoutResult, type LegendCallbacks, type LegendConfig, type LegendControl, type LegendGroupData, type LegendHandle, type LegendLayout, type LegendMode, type LegendPalette, type LegendPosition, type LegendState, MapData, type MapExportDimensions, type MapGeoQuery, type MapLayout, type MapLayoutInset, type MapLayoutLeg, MapLayoutLegend, type MapLayoutPoi, type MapLayoutRegion, type MapLayoutStretch, type MemberVisibility, type MindmapLayoutEdge, type MindmapLayoutNode, type MindmapLayoutResult, type MindmapNode, type MonteCarloResult, type NameEntry, type NearestCity, type NodeDetail, type OrgContainerBounds, type OrgLayoutEdge, type OrgLayoutNode, type OrgLayoutResult, PaletteColors, PaletteConfig, type ParseInArrowLabelResult, type ParsedBlock, type ParsedBody, type ParsedBoxesAndLines, type ParsedBracket, type ParsedC4, type ParsedChart, type ParsedClassDiagram, type ParsedClock, type ParsedCountdown, type ParsedCycle, type ParsedERDiagram, type ParsedEventLine, type ParsedExtendedChart, type ParsedFamily, type ParsedGantt, type ParsedGoal, type ParsedGraph, type ParsedInfra, type ParsedJourneyMap, type ParsedKanban, type ParsedLiveLink, ParsedMap, type ParsedMindmap, ParsedOrg, type ParsedPert, type ParsedPyramid, ParsedRaci, type ParsedRing, type ParsedSequenceDgmo, type ParsedSitemap, type ParsedSketch, type ParsedSwimlane, type ParsedTechRadar, type ParsedTreemap, type ParsedVersionControl, type ParsedVisualization, type ParsedWireframe, type ParticipantType, type PertActivity, type Anchor as PertAnchor, type PertDirection, type PertEdge, type PertGroup, type PertLayoutEdge, type PertLayoutGroup, type PertLayoutNode, type LayoutOverrides as PertLayoutOverrides, type LayoutResult as PertLayoutResult, type PertMilestone, type PertOptions, type PertRenderOptions, type PlaceResolution, type PlacedLabel, type ProjectedCity, type PyramidLayer, type QuadrantPosition, RACI_ERROR_CODES, VARIANTS as RACI_VARIANTS, RACI_WARNING_CODES, RECOGNIZED_COLOR_NAMES, RULE_COUNT, type RaciDragSource, type RaciInteractionHandlers, RaciMarker, RaciTask, RaciVariant, type RadialCell, type RadialLayoutResult, type RawMatch, type RawSeed, type RecurRule, type RegionToken, type RelationshipType, type RenderStep, type ResolvedActivity, type ResolvedGroup$1 as ResolvedGroup, ResolvedMap, type ResolvedPert, type ResolvedGroup as ResolvedPertGroup, type ResolvedSchedule, type ResolvedTask, type ResultCard, type ResultTokens, type RingLayer, type RoundMode, SKETCH_FOOT_H, SKETCH_FOOT_W, SKETCH_GEOMETRY, SKETCH_HALF_SLOT_X, SKETCH_HALF_SLOT_Y, SKETCH_SEP, SKETCH_SHAPE_KINDS, SKETCH_SLOT_X, SKETCH_SLOT_Y, ScaleContext, type SectionMessageGroup, type SequenceBlock, type SequenceElement, type SequenceGroup, type SequenceMessage, type SequenceNote, type SequenceParticipant, type SequenceRenderOptions, type SequenceSection, type SimulateOptions, type SitemapContainerBounds, type SitemapDirection, type SitemapEdge, type SitemapLayoutEdge, type SitemapLayoutNode, type SitemapLayoutResult, type SitemapLegendEntry, type SitemapLegendGroup, type SitemapNode, type SketchAt, type SketchAutoLayoutFlags, type SketchBox, type SketchCollapseResult, type SketchEdge, type SketchEdgeGeometry, type SketchEdgeHeads, type SketchLayout, type SketchLayoutBox, type SketchLayoutNode, type SketchLayoutOptions, type SketchNode, type SketchOptions, type SketchRenderOptions, type SketchShapeKind, type StateCollapseResult, type SwimEdge, type SwimEvent, type SwimLane, type SwimNode, type SwimPhase, type SwimShape, type LayoutBand as SwimlaneLayoutBand, type SwimlaneLayoutResult, TagEntry, TagGroup, type TechRadarBlip, type TechRadarLayoutPoint, type TechRadarQuadrant, type TechRadarRing, type TreemapCell, type TreemapColorMode, type TreemapLayoutResult, type TreemapNode, type TreemapOptions, type VCBranch, type VCNode, type VCNote, type VCOptions, type VCRef, type VisualizationType, type WireframeElement, type WireframeElementType, type WireframeFormFactor, type WireframeLayout, type WireframeLayoutNode, type WorkWindow, type ZoneSuggestion, addDurationToDate, albersSkewFallback, analyzePert, applyCollapseProjection, applyGroupOrdering, applyPositionOverrides, atlasPalette, authoredCollapsedIds, blueprintPalette, buildNoteMessageMap, buildRenderSequence, buildSimulationContext, buildTagLaneRowList, calculateSchedule, catppuccinPalette, clearEventLineMuted, collapseBoxesAndLines, collapseMindmapTree, collapseOrgTree, collapseSitemapTree, collapseSketch, collapseStateGroups, collectDiagramRoles, collectTasks, colorNames, computeActivations, computeCardArchive, computeCardMove, computeCycleLayout, computeInfra, computeInfraLegendGroups, computeLegendLayout, computeRadarLayout, computeTimeTicks, controlsGroupCapsuleWidth, createMapGeoQuery, displayName, extractSymbols$2 as extractClassSymbols, extractSymbols$1 as extractErSymbols, extractSymbols$3 as extractFlowchartSymbols, extractSymbols as extractInfraSymbols, extractPertSymbols, focusBoxesAndLines, focusEventLine, focusOrgTree, formatDateLabel, formatOffsetLabel, getExtendedChartLegendGroups, getLegendReservedHeight, getOrCreateName, getRadarGeometry, getSimpleChartLegendGroups, groupMessagesBySection, inferParticipantType, inferRoles, invalidColorDiagnostic, isArchiveColumn, isInvalidColorToken, isRecognizedColorName, isSequenceBlock, isSequenceNote, isSketchShapeKind, layoutBlock, layoutBoxesAndLines, layoutBracket, layoutC4Components, layoutC4Containers, layoutC4Context, layoutC4Deployment, layoutClassDiagram, layoutERDiagram, layoutFamily, layoutGraph, layoutInfra, layoutJourneyMap, layoutMap, layoutMindmap, layoutOrg, layoutPert, layoutSitemap, layoutSketch, layoutSwimlane, layoutTreemap, layoutTreemapRadial, layoutWireframe, loadMapData, looksLikeClassDiagram, looksLikeERDiagram, looksLikeFlowchart, looksLikeMap, looksLikePert, looksLikeSequence, looksLikeSitemap, looksLikeState, mapBackgroundColor, mapContentAspect, mapExportDimensions, mapNeutralLandColor, measurePertAnalysisBlock, mulberry32, nearestNamedColor, nord, nordPalette, normalizeName, normalizePlace, orderArcNodes, parseAndLayoutInfra, parseBlock, parseBody, parseBoxesAndLines, parseBracket, parseC4, parseChart, parseClassDiagram, parseClock, parseCountdown, parseCycle, parseDataRowValues, parseERDiagram, parseEventLine, parseExtendedChart, parseFamily, parseFixedOffset, parseFlowchart, parseGantt, parseGoal, parseInArrowLabel, parseInfra, parseInlineMarkdown, parseJourneyMap, parseKanban, parseLiveLink, parseMap, parseMindmap, parsePert, parsePyramid, parseRing, parseSequenceDgmo, parseSequenceDgmo as parseSequenceDiagram, parseSitemap, parseSketch, parseState, parseSwimlane, parseTechRadar, parseTimelineDate, parseTreemap, parseVersionControl, parseVisualization, parseWireframe, cellAppendMarker as raciCellAppendMarker, cellCycle as raciCellCycle, cellRemove as raciCellRemove, cellReplace as raciCellReplace, relayoutPert, render, renderArcDiagram, renderBlock, renderBlockForExport, renderBody, renderBodyForExport, renderBoxesAndLines, renderBoxesAndLinesForExport, renderBracket, renderBracketForExport, renderC4ComponentsForExport, renderC4Containers, renderC4ContainersForExport, renderC4Context, renderC4ContextForExport, renderC4Deployment, renderC4DeploymentForExport, renderClassDiagram, renderClassDiagramForExport, renderClock, renderClockForExport, renderCountdown, renderCountdownForExport, renderCycle, renderCycleForExport, renderERDiagram, renderERDiagramForExport, renderEventLine, renderEventLineForExport, renderFamily, renderFamilyForExport, renderFlowchart, renderFlowchartForExport, renderGantt, renderGoal, renderGoalForExport, renderInfra, renderJourneyMap, renderJourneyMapForExport, renderKanban, renderKanbanForExport, renderLegendD3, renderLegendSvg, renderLegendSvgFromConfig, renderLiveLinkCard, renderMap, renderMapForExport, renderMindmap, renderMindmapForExport, renderOrg, renderOrgForExport, renderPert, renderPertAnalysisBlock, renderPertForExport, renderPyramid, renderPyramidForExport, renderQuadrant, renderQuadrantFocus, renderQuadrantFocusForExport, renderRaci, renderRaciForExport, renderRing, renderRingForExport, renderSequenceDiagram, renderSitemap, renderSitemapForExport, renderSketch, renderSketchForExport, renderSlopeChart, renderState, renderStateForExport, renderSwimlaneForExport, renderTechRadar, renderTechRadarForExport, renderTimeline, renderTreemap, renderTreemapForExport, renderTreemapRadial, renderTreemapRadialForExport, renderVenn, renderVersionControl, renderVersionControlForExport, renderWireframe, renderWordCloud, resolveColor, resolveColorWithDiagnostic, resolveMap, resolvePlace, resolveTaskName, rollUpContextRelationships, sampleBetaPert, searchZones, seriesColors, simulateCanonical, simulateFast, sketchEdgeGeometry, sketchSlotToPx, slatePalette, startClocks, startCountdowns, targetToMs, tickClocks, tickCountdowns, tidewaterPalette, tokyoNightPalette, truncateBareUrl, validateComputed, validateInfra, validateLabelCharacters };

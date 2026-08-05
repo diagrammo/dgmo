@@ -19,6 +19,7 @@ import { parseDgmo as validate } from './dgmo-router';
 import { palettes, getPalette } from './palettes';
 import type { PaletteConfig } from './palettes/types';
 import type { Theme } from './themes';
+import type { MapDataSource } from './d3';
 import { formatDgmoError, type DgmoError } from './diagnostics';
 import { renderErrorCard } from './error-card';
 
@@ -57,7 +58,24 @@ export interface RenderOptions {
    */
   width?: number;
   height?: number;
+  /**
+   * Basemap assets for `map` charts — the data itself, or a loader returning
+   * it. `render()` reads nothing from the filesystem or the network on its own,
+   * so this is the only way a map obtains a basemap, and its presence here is
+   * what tells a caller whether a render can touch the environment.
+   *
+   * - Node / CLI / SSR: pass the `loadMapData` loader from
+   *   `@diagrammo/dgmo/advanced`. It runs only when the content really is a
+   *   map, so a non-map render never pays to read the assets.
+   * - Browser / Worker / Obsidian: pass your bundled `MapData`.
+   *
+   * Omit it and a map renders empty with an `E_MAP_DATA_NOT_SUPPLIED`
+   * diagnostic. Every other chart type ignores this option.
+   */
+  mapData?: MapDataSource;
 }
+
+export type { MapDataSource };
 
 export interface RenderResult {
   svg: string;
@@ -98,6 +116,7 @@ export async function render(
     ...(options?.viewState !== undefined && { viewState: options.viewState }),
     ...(options?.width !== undefined && { width: options.width }),
     ...(options?.height !== undefined && { height: options.height }),
+    ...(options?.mapData !== undefined && { mapData: options.mapData }),
   });
 
   const errors = result.diagnostics.filter((d) => d.severity === 'error');

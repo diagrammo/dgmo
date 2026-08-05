@@ -1,7 +1,7 @@
-import { D as DiagnosticSpec, P as PaletteConfig, C as CompactViewState, a as DgmoError } from './registry-ehluKMZo.js';
-export { b as ChartTypeId, c as ChartTypeMeta, d as DgmoSeverity, e as DiagnosticParams, E as EmitOptions, f as PaletteColors, g as chartTypes, h as emit, i as formatDgmoError, j as getPalette, r as resolvePaletteOrFallback, p as validate } from './registry-ehluKMZo.js';
-import { T as Theme } from './themes-CvvKanKw.js';
-export { G as Gazetteer, a as GazetteerEntry, M as MapCompletionOptions, b as MapData, c as MapLocationMatch, d as MapPlaceCompletion, e as MapRegionCompletion, R as RegionName, f as RegionNames, g as completeMapPlaces, h as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-CvvKanKw.js';
+import { D as DiagnosticSpec, P as PaletteConfig, C as CompactViewState, a as DgmoError } from './dgmo-router-Dd5PTjxl.js';
+export { b as ChartTypeId, c as ChartTypeMeta, d as DgmoSeverity, e as DiagnosticParams, E as EmitOptions, f as PaletteColors, g as chartTypes, h as emit, i as formatDgmoError, j as getPalette, r as resolvePaletteOrFallback, p as validate } from './dgmo-router-Dd5PTjxl.js';
+import { T as Theme, M as MapDataSource } from './themes-DiUAG4Bf.js';
+export { G as Gazetteer, a as GazetteerEntry, b as MapCompletionOptions, c as MapData, d as MapLocationMatch, e as MapPlaceCompletion, f as MapRegionCompletion, R as RegionName, g as RegionNames, h as completeMapPlaces, i as completeMapRegions, p as palettes, s as searchMapLocations, t as themes } from './themes-DiUAG4Bf.js';
 
 /**
  * Make an SVG produced by `@diagrammo/dgmo`'s static `render()` suitable for
@@ -139,7 +139,23 @@ interface RenderOptions {
      */
     width?: number;
     height?: number;
+    /**
+     * Basemap assets for `map` charts — the data itself, or a loader returning
+     * it. `render()` reads nothing from the filesystem or the network on its own,
+     * so this is the only way a map obtains a basemap, and its presence here is
+     * what tells a caller whether a render can touch the environment.
+     *
+     * - Node / CLI / SSR: pass the `loadMapData` loader from
+     *   `@diagrammo/dgmo/advanced`. It runs only when the content really is a
+     *   map, so a non-map render never pays to read the assets.
+     * - Browser / Worker / Obsidian: pass your bundled `MapData`.
+     *
+     * Omit it and a map renders empty with an `E_MAP_DATA_NOT_SUPPLIED`
+     * diagnostic. Every other chart type ignores this option.
+     */
+    mapData?: MapDataSource;
 }
+
 interface RenderResult {
     svg: string;
     diagnostics: DgmoError[];
@@ -188,4 +204,4 @@ interface DecodedDiagramUrl {
  */
 declare function decodeDiagramUrl(url: string): DecodedDiagramUrl | null;
 
-export { CompactViewState, D3_DATA_CHART_TYPES, type DataChartInteractionOpts, type DecodedDiagramUrl, DgmoError, DiagnosticSpec, type EncodeDiagramUrlOptions, type MountD3Opts, type MountedD3Chart, type NormalizeSvgForEmbedOptions, PaletteConfig, type RenderOptions, type RenderResult, Theme, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, mountD3DataChart, normalizeSvgForEmbed, render, supportsD3DataChart };
+export { CompactViewState, D3_DATA_CHART_TYPES, type DataChartInteractionOpts, type DecodedDiagramUrl, DgmoError, DiagnosticSpec, type EncodeDiagramUrlOptions, MapDataSource, type MountD3Opts, type MountedD3Chart, type NormalizeSvgForEmbedOptions, PaletteConfig, type RenderOptions, type RenderResult, Theme, attachDataChartInteractions, decodeDiagramUrl, defaultEmbedBackground, encodeDiagramUrl, getDiagnosticSpec, getEmbedSvgViewBox, listDiagnosticCodes, mountD3DataChart, normalizeSvgForEmbed, render, supportsD3DataChart };

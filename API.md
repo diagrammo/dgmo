@@ -40,9 +40,31 @@ function render(
     theme?: Theme;           // 'light' | 'dark' | 'transparent'  (default 'light')
     palette?: PaletteConfig; // see `palettes` namespace          (default palettes.slate)
     onError?: 'svg' | 'silent' | 'throw'; // (default 'svg')
+    mapData?: MapDataSource; // map charts only — see below
   }
 ): Promise<{ svg: string; diagnostics: DgmoError[] }>;
 ```
+
+**`render()` touches nothing you did not hand it** — no filesystem, no network.
+That is what makes it safe in a browser, a Worker, or a sandbox, and it is why
+`map` charts need their basemap supplied:
+
+```ts
+type MapDataSource = MapData | (() => Promise<MapData>);
+```
+
+```ts
+// Node / CLI / SSR — pass the loader, not its result. It runs only when the
+// content really is a map, so a non-map render never reads the assets.
+import { loadMapData } from '@diagrammo/dgmo/advanced';
+await render(source, { mapData: loadMapData });
+
+// Browser / Worker / Obsidian — pass the assets you bundled.
+await render(source, { mapData });
+```
+
+Omit it and a map renders empty with an `E_MAP_DATA_NOT_SUPPLIED` diagnostic
+naming the fix. Every other chart type ignores the option.
 
 **`onError` modes:**
 - `'svg'` (default) — on parse errors, render an inline error SVG listing the
@@ -199,6 +221,7 @@ These are also exported from the root (stable, semver-tracked):
 - `completeMapPlaces(...)` / `completeMapRegions(...)` — dependency-injected map autocompletion (caller supplies the `Gazetteer`).
 - `chartTypes` (+ `ChartTypeMeta`) — the chart-type registry (promoted to root at 1.0).
 - `MapData` (type) — the map DI-asset shape, for the browser-render path (promoted to root at 1.0).
+- `MapDataSource` (type) — what `render()`'s `mapData` accepts: the assets, or a loader returning them.
 
 ## Subpaths
 

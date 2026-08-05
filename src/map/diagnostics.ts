@@ -182,6 +182,22 @@ export const MAP_DX = {
     hint: 'A named city derives its own zone — use a bare `clock` unless you mean to override it.',
     example: 'map\npoi Denver clock',
   },
+  DATA_NOT_SUPPLIED: {
+    // Runtime severity: 'error' (matches E_ prefix). Emitted by `exportMap()`
+    // in d3.ts, not the resolver — the resolve never happens, because there is
+    // no basemap to resolve against. `render()` performs no filesystem or
+    // network access of its own, so a host must supply the assets: bundled
+    // `MapData` (Obsidian, the web app) or the Node `loadMapData` loader from
+    // the `/advanced` subpath (CLI, SSR).
+    code: 'E_MAP_DATA_NOT_SUPPLIED',
+    severity: 'error',
+    chartType: 'map',
+    title: 'No map data supplied',
+    message:
+      'This map has no basemap data. `render()` reads nothing from disk or the network on its own — pass `mapData`, either the bundled assets or a loader that returns them.',
+    hint: 'In Node: `render(src, { mapData: loadMapData })` with `loadMapData` from `@diagrammo/dgmo/advanced`. In a browser or Worker: pass your bundled `MapData`.',
+    example: 'map\nDenver heat: 2',
+  },
 } satisfies Record<string, DiagnosticSpec>;
 
 export const MAP_DIAGNOSTICS: DiagnosticSpec[] = Object.values(MAP_DX);

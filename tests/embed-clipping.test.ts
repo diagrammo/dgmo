@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'fs';
 import { resolve } from 'path';
 
 import { render } from '../src/render';
+import { loadMapData } from '../src/map/load-data';
 import { normalizeSvgForEmbed } from '../src/utils/svg-embed';
 
 /**
@@ -66,7 +67,13 @@ describe('embed clipping regression (all shipped examples)', () => {
 
   it.each(exampleFiles)('%s embeds without clipping', async (rel) => {
     const source = readFileSync(resolve(EXAMPLES_DIR, rel), 'utf-8');
-    const { svg } = await render(source, { theme: 'light' });
+    // This suite is a Node host, so it supplies the map loader the way the CLI
+    // does — `render()` has no implicit route to the bundled assets. Passing
+    // the function means only the map examples pay for the read.
+    const { svg } = await render(source, {
+      theme: 'light',
+      mapData: loadMapData,
+    });
 
     // A shipped example must actually render.
     expect(svg, `${rel} produced empty SVG`).not.toBe('');

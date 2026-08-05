@@ -147,9 +147,21 @@ export async function render(
     legendState?: { activeGroup?: string; hiddenAttributes?: string[] };
     /** View state for export — controls interactive state (collapse, swimlanes, etc.) */
     viewState?: CompactViewState;
-    /** Bundled map data for `map` charts in the browser, where the Node fs
-     *  `loadMapData()` seam can't run. CLI/SSR omit this and fall back to fs. */
-    mapData?: import('./map/resolved-types').MapData;
+    /**
+     * Basemap assets for `map` charts — the data itself, or a loader returning
+     * it. `render()` reads nothing from the filesystem or the network on its
+     * own, so this is the only way a map obtains a basemap, and its presence
+     * here is what tells a caller whether a render can touch the environment.
+     *
+     * - Node / CLI / SSR: pass the `loadMapData` loader from
+     *   `@diagrammo/dgmo/advanced`. It is called only when the content really
+     *   is a map, so a non-map render never pays for it.
+     * - Browser / Worker / Obsidian: pass your bundled `MapData`.
+     *
+     * Omit it and a map renders empty with an `E_MAP_DATA_NOT_SUPPLIED`
+     * diagnostic. Every other chart type ignores this option.
+     */
+    mapData?: import('./d3').MapDataSource;
     /** Bake pure-CSS hover into the exported SVG (no JS). Default ON — embeds
      *  (Obsidian, doc-site wrappers) get hover feedback for free. The desktop
      *  app renders its live preview through direct renderer calls (not this

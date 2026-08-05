@@ -702,8 +702,10 @@ export type {
 } from './block/types';
 
 // Map (§24B) — the interactive render surface for app/editor consumers. The
-// Node fs `loadMapData` is exported for completeness, but the browser supplies
-// `MapData` by DI (resolveMap/renderMap take it as an argument).
+// browser supplies `MapData` by DI (resolveMap/renderMap take it as an
+// argument); a Node host passes the fs loader below straight to `render()` as
+// `render(src, { mapData: loadMapData })`, which is the ONLY route from a
+// render to the disk — there is no implicit fallback.
 export { parseMap, looksLikeMap } from './map/parser';
 export { resolveMap } from './map/resolver';
 export { loadMapData } from './map/load-data';
