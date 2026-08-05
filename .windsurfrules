@@ -443,8 +443,12 @@ era 1718-05-08 -> 1718-05-17 Blockade Active blue
 ```dgmo
 sequence Auth Flow
 
-User -Login-> API
-API -Find user-> DB
+tag Concern as c
+  Auth green
+  Data blue
+
+User -Login-> API c: Auth
+API -Find user-> DB c: Data
 DB -user-> API
   if valid
     API -200 OK-> User
@@ -560,15 +564,16 @@ If the dgmo MCP server is configured, call `list_chart_types` for the authoritat
 - `TYPE Title` — first line declares chart type and optional title (no colon)
 - `directive value` — directives are space-separated (no colon)
 - `// comment` — only `//` comments (not `#`)
-- `(colorname)` — inline colors: `Label(red) 100`
-- `series A(red), B(blue)` — multi-series with colors
+- Colors trail the label: `Label red`, `Done green` (no parens, lowercase only)
+- `series Cloud blue, Legacy red` — multi-series with space-separated trailing color
 - `tag Group as g` with indented values — universal tag declaration
 
 ## Rendering
 
 ```bash
 dgmo file.dgmo -o output.svg       # SVG
-dgmo file.dgmo -o url              # shareable link
+dgmo share file.dgmo               # shareable link (copied to clipboard)
+dgmo file.dgmo -o url              # same URL, printed only
 dgmo file.dgmo --json              # structured JSON output
 ```
 

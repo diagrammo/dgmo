@@ -553,17 +553,11 @@ API Gateway t: Backend
   AuthService
 ```
 
-Nodes: implicit from edges or explicit with same-line metadata (`Name key: value`). Edges: `A -label-> B`. Groups: `[Name]` with indented children (max 2 levels). Tags: `tag Name as alias` with indented values, `active-tag`, `hide`. Options: `direction LR|TB`.
+Nodes: implicit from edges or explicit with same-line metadata (`Name key: value`). Edges: `A -label-> B`, `A <-label-> B` (bidi). Groups: `[Name]` with indented children (max 2 levels). Tags: `tag Name as alias` with indented values, `active-tag`, `hide`. Options: `direction LR|TB`.
 
-## All chart types
+## Supported chart types
 
-Diagrams: sequence, flowchart, state, class, er, org, kanban, c4, sitemap, infra, gantt, pert, boxes-and-lines, block, swimlane, version-control, mindmap, wireframe, journey-map, raci
-
-Visualizations: slope, wordcloud, arc, timeline, event-line, venn, quadrant, tech-radar, cycle, pyramid, ring, map
-
-Data charts: bar, line, pie, radar, polar-area, scatter, sankey, function, heatmap, funnel, treemap
-
-The canonical, ordered list lives in `src/chart-types.ts`.
+If the dgmo MCP server is configured, call `list_chart_types` for the authoritative list (with descriptions) and `suggest_chart_type({ prompt })` to pick the best match for a request. Otherwise run `dgmo --chart-types` in a terminal. The static list previously here drifted with every new chart type — the MCP tool / CLI is the source of truth.
 
 ## Common patterns
 
@@ -579,6 +573,7 @@ The canonical, ordered list lives in `src/chart-types.ts`.
 ```bash
 dgmo file.dgmo -o output.svg       # SVG
 dgmo share file.dgmo               # shareable link (copied to clipboard)
+dgmo file.dgmo -o url              # same URL, printed only
 dgmo file.dgmo --json              # structured JSON output
 ```
 

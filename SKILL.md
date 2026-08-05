@@ -551,8 +551,8 @@ API
 
 - First line: chart type keyword (e.g. `sequence`, `flowchart`, `bar`), optionally followed by a title (`bar Revenue`)
 - `// comment` — only `//` comments (not `#`)
-- `(colorname)` — inline colors on data series, tag values, kanban columns: `Label(red) 100`
-- `series A(red), B(blue)` — multi-series with colors
+- Colors trail the label on data series, tag values and kanban columns: `Label red 100` (no parens, lowercase only)
+- `series Cloud blue, Legacy red` — multi-series with space-separated trailing color
 
 ## Rendering via CLI
 
