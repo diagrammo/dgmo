@@ -34,12 +34,11 @@ export const SUBJECT_LEADER_FONT = 15; // px for a leadered subject chip (Chile 
 /**
  * Text measurement for map labels, at whatever font a fit cascade is trying.
  *
- * Every method is a pure function of its arguments and the canvas size — the
+ * Every member is a pure function of its arguments and the canvas size. The
  * reason this is a factory rather than free functions is `sizeT`, which needs
  * the canvas's linear extent, and passing that to each call site separately is
  * how it drifts.
- */
-/**
+ *
  * Every member is a function PROPERTY, not a method, so destructuring one off
  * the object can never strip a `this` it needs — the implementations are
  * closures over the canvas size and reference no receiver.
