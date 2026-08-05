@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-08-05
+
+### Removed
+
+- 🔴 **`![[live-link:<id>]]` is no longer valid inside a `dgmo` fence.** It is the host document's markdown — Obsidian's transclusion syntax — and a fence's content is DGMO, so writing it there nests markdown inside a code fence that is itself inside markdown. It parsed cleanly and read as the category error it is. Accepted for one day (0.60.0) and withdrawn; pre-1.0, so it is gone rather than deprecated. **The note spelling is unaffected where it belongs**: on its own line in a note or document body, which is the surface it was designed for. Pasting a **share link** into a fence still works, and should — a URL is not markup, and it is what a person does with a link they were handed.
+
+### Added
+
+- **`parseCloudReferenceFence` and `parseCloudReferenceEmbed`**, so each surface names itself. The removed behaviour came from a parser named for nothing in particular: three of the four callers of `parseCloudReference` wanted *"what may a fence contain"* and got *"any of the three spellings, anywhere"*. `parseCloudReference` survives for a host scanning raw note text, where all three legitimately turn up, and now says in its own doc comment that a fence must not use it.
 ## [0.60.0] - 2026-08-04
 
 ### Fixed
