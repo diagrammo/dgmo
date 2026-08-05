@@ -109,6 +109,18 @@ function digest(svg: string): string {
 const GOLDEN_PLATFORM = 'darwin';
 const onGoldenPlatform = process.platform === GOLDEN_PLATFORM;
 
+/**
+ * Each case renders every map fixture end-to-end — around nineteen of them, the
+ * heaviest layout in the library — so one case is seconds of real work and the
+ * file is the slowest in the suite.
+ *
+ * Vitest's 5s default is therefore not a deadline this test could ever meet
+ * under contention. Run alone it passes; run inside the full suite on a busy
+ * machine it timed out, which reads exactly like a golden mismatch and is not
+ * one. Give it a real ceiling so a failure here means the drawn output changed.
+ */
+const GOLDEN_TIMEOUT_MS = 120_000;
+
 describe('map layout golden output', () => {
   // `clock` POIs draw the real current time (`map-office-hours` is four of
   // them), so those fixtures re-render differently every minute — and change
@@ -154,7 +166,8 @@ describe('map layout golden output', () => {
           }
 
           expect(rows).toMatchSnapshot();
-        }
+        },
+        GOLDEN_TIMEOUT_MS
       );
     }
   }
