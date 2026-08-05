@@ -119,6 +119,79 @@ export function segmentsCross(
 }
 
 // ---------------------------------------------------------------------------
+// Placement state — the accumulators a greedy pass runs on
+// ---------------------------------------------------------------------------
+
+/** A leader line as `[x0, y0, x1, y1]`, label anchor → chip inner edge. */
+export type Leader = [number, number, number, number];
+
+/**
+ * The mutable state a greedy label pass carries between iterations: what has
+ * been placed so far, and what was blocked from the start.
+ *
+ * This exists because the predicates above are individually pure but
+ * collectively stateful — each iteration is only correct if the previous
+ * winner was pushed onto the right array, and it took two arrays plus a leader
+ * to do that by hand at every commit point. `commit()` is one call that cannot
+ * be half-done, which is the whole reason to own the state here rather than in
+ * the caller.
+ *
+ * Candidate GENERATION deliberately stays with the caller. A map ray-marches
+ * outward until it leaves a region's fill and scores by open space; a quadrant
+ * chart steps four directions and scores by distance. Those have no shared
+ * middle worth naming — what they share is this bookkeeping.
+ */
+export interface LabelPlacement {
+  /** Blocked by something already placed (or reserved up front). */
+  hitsPlaced(rect: LabelRect): boolean;
+  /** Blocked by a static obstacle — POI dots and their hugging labels. */
+  hitsObstacle(rect: LabelRect): boolean;
+  /** Blocked by a point marker (the dot itself). */
+  hitsMarker(rect: LabelRect): boolean;
+  /** Would tangle with a leader already drawn. */
+  leaderCrosses(leader: Leader): boolean;
+  /** Would run through a label box already placed. */
+  leaderHitsPlaced(leader: Leader): boolean;
+  /** Accept a candidate: its box, and its leader when it has one. */
+  commit(rect: LabelRect, leader?: Leader): void;
+  /** Everything placed so far, for callers that must read the set directly. */
+  readonly placed: readonly LabelRect[];
+}
+
+export function createLabelPlacement(init?: {
+  /** Boxes blocked before the pass starts — a title band, a legend overlay. */
+  reserved?: readonly LabelRect[];
+  /** Static obstacles that never grow during the pass. */
+  obstacles?: readonly LabelRect[];
+  /** Point markers that labels must clear. */
+  markers?: readonly PointCircle[];
+}): LabelPlacement {
+  const placed: LabelRect[] = [...(init?.reserved ?? [])];
+  const leaders: Leader[] = [];
+  const obstacles = init?.obstacles ?? [];
+  const markers = init?.markers ?? [];
+
+  return {
+    hitsPlaced: (rect) => placed.some((p) => rectsOverlap(rect, p)),
+    hitsObstacle: (rect) => obstacles.some((o) => rectsOverlap(rect, o)),
+    hitsMarker: (rect) => markers.some((m) => rectCircleOverlap(rect, m)),
+    leaderCrosses: ([x0, y0, x1, y1]) =>
+      leaders.some((l) =>
+        segmentsCross(x0, y0, x1, y1, l[0], l[1], l[2], l[3])
+      ),
+    leaderHitsPlaced: ([x0, y0, x1, y1]) =>
+      placed.some((p) => segmentRectOverlap(x0, y0, x1, y1, p)),
+    commit: (rect, leader) => {
+      placed.push(rect);
+      if (leader) leaders.push(leader);
+    },
+    get placed() {
+      return placed;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Quadrant chart point label placement
 // ---------------------------------------------------------------------------
 

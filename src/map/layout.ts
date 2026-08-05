@@ -34,9 +34,9 @@ import {
   rectsOverlap,
   rectCircleOverlap,
   segmentRectOverlap,
-  segmentsCross,
+  createLabelPlacement,
 } from '../label-layout';
-import type { LabelRect, PointCircle } from '../label-layout';
+import type { LabelRect, PointCircle, Leader } from '../label-layout';
 import { measureLegendText } from '../utils/legend-constants';
 import { compactNumber } from '../utils/number-format';
 import { TITLE_FONT_SIZE, TITLE_Y } from '../utils/title-constants';
@@ -3579,14 +3579,17 @@ export function layoutMap(
       })
       .filter((e): e is NonNullable<typeof e> => e !== null)
       .sort((a, b) => b.area - a.area || a.r.lineNumber - b.r.lineNumber);
-    // Seed with the title + legend boxes (via fitsRegions) so region/data labels
-    // dodge the overlay the same way context labels do (through `obstacles`).
-    const placedRegionRects: LabelRect[] = [...topReserved];
-    // Leaders already drawn (region short-hop callouts). A new short-hop leader
-    // that would cross any of these is rejected — crossing leaders read as
-    // spaghetti, so the label is dropped instead (the shading + legend + hover
-    // carry the region). Each entry is [x1,y1,x2,y2].
-    const placedLeaders: Array<[number, number, number, number]> = [];
+    // Every guard and every commit in this pass runs through `placement`, which
+    // owns what has been placed and which leaders have been drawn. Those two
+    // used to be bare arrays the loop had to remember to push onto — miss one
+    // and the next iteration silently reads a stale world. `commit()` is the
+    // single call that cannot be half-done.
+    //
+    // Seeded with the title + legend boxes so region/data labels dodge the
+    // overlay the same way context labels do. A new short-hop leader that would
+    // cross one already drawn is rejected — crossing leaders read as spaghetti,
+    // so the label is dropped instead (the shading + legend + hover carry the
+    // region).
     // "Empty" screen space a short-hop callout chip may sit on: open water or
     // un-valued base/foreign land (Canada, Mexico, neighbour states with no
     // metric). A chip must NEVER cover another VALUED region's choropleth fill —
@@ -3612,6 +3615,11 @@ export function layoutMap(
       w: 2 * (p.r + POI_LABEL_PAD),
       h: 2 * (p.r + POI_LABEL_PAD),
     }));
+    const placement = createLabelPlacement({
+      reserved: topReserved,
+      obstacles: poiObstacles,
+      markers,
+    });
     // ── Short-hop callout into adjacent empty space ────────────────────────
     // A valued region whose name won't fit in place (even abbreviated) may nudge
     // its full name+value chip a SHORT hop into the open space right next to it —
@@ -3707,7 +3715,7 @@ export function layoutMap(
         x: number;
         y: number;
         rect: LabelRect;
-        leader: [number, number, number, number];
+        leader: Leader;
         len: number;
         clear: number;
       } | null = null;
@@ -3755,27 +3763,18 @@ export function layoutMap(
             }
         if (!onEmpty) continue;
         // Clear every already-placed region label / chip, and every POI.
-        if (placedRegionRects.some((p) => rectsOverlap(rect, p))) continue;
-        if (poiObstacles.some((o) => rectsOverlap(rect, o))) continue;
-        if (markers.some((m) => rectCircleOverlap(rect, m))) continue;
+        if (placement.hitsPlaced(rect)) continue;
+        if (placement.hitsObstacle(rect)) continue;
+        if (placement.hitsMarker(rect)) continue;
         // Leader runs centroid → chip inner edge; cap its length and forbid it
         // from crossing any leader already drawn or any placed label box.
         const innerX = ccx - dx * (chipW / 2);
         const innerY = ccy - dy * (chipH / 2);
         const len = Math.hypot(innerX - cx, innerY - cy);
         if (len > maxLen) continue;
-        if (
-          placedLeaders.some((l) =>
-            segmentsCross(cx, cy, innerX, innerY, l[0], l[1], l[2], l[3])
-          )
-        )
-          continue;
-        if (
-          placedRegionRects.some((p) =>
-            segmentRectOverlap(cx, cy, innerX, innerY, p)
-          )
-        )
-          continue;
+        const leader: Leader = [cx, cy, innerX, innerY];
+        if (placement.leaderCrosses(leader)) continue;
+        if (placement.leaderHitsPlaced(leader)) continue;
         // Prefer the MOST OPEN spot; fall back to the shortest leader only when
         // two candidates are about equally open (e.g. several open-water spots
         // that all saturate the clearance cap). This is what redirects a label
@@ -3790,7 +3789,7 @@ export function layoutMap(
             x: ccx,
             y: ccy,
             rect,
-            leader: [cx, cy, innerX, innerY],
+            leader,
             len,
             clear,
           };
@@ -3804,9 +3803,9 @@ export function layoutMap(
       // vs other placed REGION labels (full stack) / vs POI obstacles (name only)
       // — defined up here so the subject pre-pass below can reuse them.
       const fitsRegions = (rect: LabelRect): boolean =>
-        !placedRegionRects.some((p) => rectsOverlap(rect, p));
+        !placement.hitsPlaced(rect);
       const fitsPois = (rect: LabelRect): boolean =>
-        !poiObstacles.some((o) => rectsOverlap(rect, o));
+        !placement.hitsObstacle(rect);
       // A SUBJECT is a user-referenced region (the thing the map is ABOUT —
       // `regionById` holds only `resolved.regions`, so an auto-added
       // poiFrameContainer is NOT a subject). A subject must read prominently and
@@ -3857,7 +3856,7 @@ export function layoutMap(
         }
         if (best >= SUBJECT_MIN_PROMINENCE) {
           const rect = regionLabelRect(c[0], c[1], name, undefined, best);
-          placedRegionRects.push(rect);
+          placement.commit(rect);
           pushRegionLabel(
             c[0],
             c[1],
@@ -3885,8 +3884,7 @@ export function layoutMap(
             SHORT_HOP_MAX * 2.2
           );
           if (hop) {
-            placedRegionRects.push(hop.rect);
-            placedLeaders.push(hop.leader);
+            placement.commit(hop.rect, hop.leader);
             const dark = mix(r.fill, palette.text, 60);
             labels.push({
               x: hop.x,
@@ -3999,8 +3997,7 @@ export function layoutMap(
         // (the shading/legend + hover carry it); a readable blank beats a tangle.
         const hop = tryShortHopCallout(c[0], c[1], r.fill, r.label, valStr);
         if (hop) {
-          placedRegionRects.push(hop.rect);
-          placedLeaders.push(hop.leader);
+          placement.commit(hop.rect, hop.leader);
           // Chip sits on empty land / water (the callout only seats on isEmptyFill)
           // → palette text, NO halo (full-contrast dark/light text reads cleanly on
           // the light basemap; the leader + dot tie the line back to the region).
@@ -4110,7 +4107,7 @@ export function layoutMap(
         chosen.valueLine,
         font
       );
-      placedRegionRects.push(rRect);
+      placement.commit(rRect);
       pushRegionLabel(
         chosen.ax,
         chosen.ay,
