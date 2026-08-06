@@ -63,14 +63,6 @@
       "types": "./dist/pert.d.ts",
       "default": "./dist/pert.js"
     },
-    "./auto": {
-      "types": "./dist/auto.d.ts",
-      "default": "./dist/auto.mjs"
-    },
-    "./element": {
-      "types": "./dist/element.d.ts",
-      "default": "./dist/element.mjs"
-    },
     "./fonts/*": "./fonts/*",
     "./block": {
       "types": "./dist/block.d.ts",
@@ -80,7 +72,6 @@
   },
   "files": [
     "dist/*.js",
-    "dist/*.mjs",
     "dist/*.d.ts",
     "dist/*.css",
     "dist/map-data/*.json",

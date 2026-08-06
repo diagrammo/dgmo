@@ -272,6 +272,18 @@ const BUILDS: Options[] = [
     esbuildPlugins: [fixJsdomXhrWorker, inlineJsdomStylesheet],
   },
   // Auto bundle — IIFE at dist/auto.js for `<script src="…/auto.js">`.
+  //
+  // 🔴 IIFE ONLY. `auto` and `element` each used to build twice — this IIFE and
+  // an unminified ESM `.mjs` behind the `./auto` and `./element` exports. The
+  // two .mjs files were 6,762 KB of a 34.6 MB install, larger than the minified
+  // IIFEs for identical source, and a sweep of every repo in the workspace on
+  // 2026-08-06 found no importer of either export. They were deleted with the
+  // exports-map entries. These files live in the npm tarball only because
+  // jsDelivr and unpkg serve out of it — there is no upload step, and dgmo's
+  // `dist/` is gitignored so the `cdn.jsdelivr.net/gh/…` route 404s. That is
+  // the whole reason a browser bundle ships inside a library; it does not
+  // extend to a second copy nobody imports.
+  //
   // dts disabled because tsup forbids combining iife + declaration emission.
   // globalName is deliberately NOT `dgmo` — at top-level the bundle would
   // emit `var dgmo = (() => { ...defineProperty(window, 'dgmo', {writable:
@@ -298,28 +310,13 @@ const BUILDS: Options[] = [
     esbuildPlugins: [fixJsdomXhrWorker],
     onSuccess: emitAutoCss,
   },
-  // Auto bundle — ESM (.mjs) for direct npm consumers, plus .d.ts. The `.mjs`
-  // extension keeps it from colliding with the IIFE's dist/auto.js.
-  {
-    entry: { auto: 'src/auto/index.ts' },
-    format: ['esm'],
-    dts: true,
-    sourcemap: true,
-    splitting: false,
-    noExternal: ['lz-string'],
-    external: ['jsdom'],
-    outExtension: () => ({ js: '.mjs' }),
-    define: {
-      __DGMO_VERSION__: JSON.stringify(pkg.version),
-      'process.env.NODE_ENV': JSON.stringify('production'),
-    },
-    esbuildPlugins: [fixJsdomXhrWorker],
-  },
   // Element bundle — IIFE at dist/element.js for `<script src="…/element.js">`.
   // Self-registers `<dgmo-diagram>` on load. Same private-globalName rationale
   // as the auto IIFE: the module defines the element via side effect, so we
-  // don't want the bundle assigning a public global. dts disabled (tsup forbids
-  // iife + declaration emission — the ESM build below emits the .d.ts).
+  // don't want the bundle assigning a public global. dts is disabled because
+  // tsup forbids iife + declaration emission, and nothing needs the types —
+  // a `<script src>` consumer has no import to type. See the note above the
+  // auto IIFE for why the ESM twins are gone.
   {
     entry: { element: 'src/element/index.ts' },
     format: ['iife'],
@@ -331,23 +328,6 @@ const BUILDS: Options[] = [
     noExternal: ['lz-string'],
     external: ['jsdom'],
     outExtension: () => ({ js: '.js' }),
-    define: {
-      __DGMO_VERSION__: JSON.stringify(pkg.version),
-      'process.env.NODE_ENV': JSON.stringify('production'),
-    },
-    esbuildPlugins: [fixJsdomXhrWorker],
-  },
-  // Element bundle — ESM (.mjs) + .d.ts for direct npm consumers. The `.mjs`
-  // extension keeps it from colliding with the IIFE's dist/element.js.
-  {
-    entry: { element: 'src/element/index.ts' },
-    format: ['esm'],
-    dts: true,
-    sourcemap: true,
-    splitting: false,
-    noExternal: ['lz-string'],
-    external: ['jsdom'],
-    outExtension: () => ({ js: '.mjs' }),
     define: {
       __DGMO_VERSION__: JSON.stringify(pkg.version),
       'process.env.NODE_ENV': JSON.stringify('production'),

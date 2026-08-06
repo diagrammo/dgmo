@@ -1,5 +1,8 @@
 /**
- * `@diagrammo/dgmo/element` — the universal `<dgmo-diagram>` custom element.
+ * `dist/element.js` — the universal `<dgmo-diagram>` custom element.
+ *
+ * Reached by `<script src>` only. The `./element` subpath export and its
+ * unminified `.mjs` twin were removed on 2026-08-06 — see `src/auto/index.ts`.
  *
  * A mermaid-style, framework-agnostic client-side web component. Drop the
  * IIFE script (`dist/element.js`) on ANY page — Hugo, Jekyll, MkDocs,

@@ -3,8 +3,11 @@
 This is the frozen, stable surface (root entry). Everything else is reachable
 via `@diagrammo/dgmo/advanced` (the permanent **no-semver** firehose — use at
 your own risk; it may change in any release) or via the stable subpaths:
-`@diagrammo/dgmo/editor`, `/highlight`, `/auto`. The legacy `/internal` alias
+`@diagrammo/dgmo/editor` and `/highlight`. The legacy `/internal` alias
 was removed at 1.0 — use `/advanced`.
+
+The browser drop-ins are **not** subpath imports — they are files you point a
+`<script src>` at. See *Browser drop-ins* below.
 
 ```bash
 npm install @diagrammo/dgmo
@@ -254,14 +257,26 @@ const tokens = highlightDgmo('gantt Roadmap\n...');
 // role-to-CSS mapping.
 ```
 
-### `@diagrammo/dgmo/auto` (stable)
+### Browser drop-ins — `dist/auto.js` and `dist/element.js` (stable)
 
-Drop-in IIFE bundle for static HTML pages. Add a single `<script>` tag and
-any `.dgmo` / `.language-dgmo` element on the page auto-renders. No build
-pipeline required.
+Two self-contained IIFE bundles for static HTML pages. **These are file URLs,
+not subpath imports.** There is no `import '@diagrammo/dgmo/auto'` — the
+`./auto` and `./element` exports were removed on 2026-08-06, along with the
+unminified `.mjs` copies behind them, which were 6.7 MB of the published package
+and had no importers anywhere. Point a `<script src>` at the file instead.
+
+They ship inside the npm tarball because jsDelivr and unpkg serve out of it —
+there is no separate upload step, and `dist/` is gitignored so the
+`cdn.jsdelivr.net/gh/…` route does not resolve.
+
+**Pin the exact version.** On a `0.x` version a caret locks the MINOR, so
+`@^0.44` keeps serving 0.44.x forever.
+
+`dist/auto.js` scans the page: any `.dgmo` / `.language-dgmo` element
+auto-renders. No build pipeline required.
 
 ```html
-<script src="https://unpkg.com/@diagrammo/dgmo/dist/auto.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo@0.61.0/dist/auto.js"></script>
 
 <pre class="language-dgmo">
 gantt Roadmap
@@ -372,9 +387,10 @@ if (diagnostics.length > 0) {
 
 ## Versioning
 
-@diagrammo/dgmo follows semver on the public root export surface and the
-three stable subpaths (`/editor`, `/highlight`, `/auto`). Breaking changes
-to these require a major version bump.
+@diagrammo/dgmo follows semver on the public root export surface, the two stable
+subpaths (`/editor`, `/highlight`), and the two browser drop-in files
+(`dist/auto.js`, `dist/element.js`). Breaking changes to these require a major
+version bump.
 
 `@diagrammo/dgmo/advanced` does NOT follow semver. Treat it as
 implementation detail.

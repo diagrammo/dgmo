@@ -1,5 +1,5 @@
 /**
- * Static CSS for `@diagrammo/dgmo/auto` (and `./element`, which shares the
+ * Static CSS for `dist/auto.js` (and `dist/element.js`, which shares the
  * same injector).
  *
  * As of BL-114 the diagram + source chrome is the canonical standard block

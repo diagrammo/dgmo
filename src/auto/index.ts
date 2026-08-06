@@ -1,5 +1,9 @@
 /**
- * `@diagrammo/dgmo/auto` — IIFE-distributed auto-renderer for static HTML.
+ * `dist/auto.js` — IIFE-distributed auto-renderer for static HTML.
+ *
+ * Reached by `<script src>` only. The `./auto` subpath export and its
+ * unminified `.mjs` twin were removed on 2026-08-06 — 6.7 MB of the published
+ * package serving no importer anywhere. Do not re-add one without a consumer.
  *
  * Drop a `<script src="…/auto.js">` on any page; on `DOMContentLoaded`
  * this module scans for `.dgmo, .language-dgmo`, runs `render()`, and
