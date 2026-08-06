@@ -88,6 +88,40 @@ async function emitBlockCss(): Promise<void> {
   await writeFile(resolve('./dist/block.css'), await extractBlockCss(), 'utf8');
 }
 
+/**
+ * Copy the runtime assets the CLI reads from its own package root into
+ * `cli/`, so `@diagrammo/dgmo-cli` is self-contained.
+ *
+ * `src/cli.ts` computes `PKG_ROOT = resolve(__dirname, '..')` and reads
+ * `<PKG_ROOT>/fonts/*.ttf` (resvg needs real font files — it has no system
+ * font fallback worth relying on) and `<PKG_ROOT>/.cursorrules` and friends
+ * (`dgmo install` copies them into a user's editor config). npm's `files`
+ * cannot reach above a package directory, so these are copied rather than
+ * referenced. All of it is gitignored — regenerate with `pnpm build`.
+ */
+async function stageCliAssets(): Promise<void> {
+  const CLI = resolve('./cli');
+  await mkdir(resolve(CLI, 'fonts'), { recursive: true });
+  for (const f of await readdir(resolve('./fonts'))) {
+    await copyFile(resolve('./fonts', f), resolve(CLI, 'fonts', f));
+  }
+  for (const f of ['.cursorrules', '.windsurfrules', 'SKILL.md']) {
+    await copyFile(resolve('.', f), resolve(CLI, f));
+  }
+  await mkdir(resolve(CLI, '.github'), { recursive: true });
+  await copyFile(
+    resolve('./.github/copilot-instructions.md'),
+    resolve(CLI, '.github/copilot-instructions.md')
+  );
+  await mkdir(resolve(CLI, '.claude/commands'), { recursive: true });
+  for (const f of await readdir(resolve('./.claude/commands'))) {
+    await copyFile(
+      resolve('./.claude/commands', f),
+      resolve(CLI, '.claude/commands', f)
+    );
+  }
+}
+
 /** Patch out jsdom's sync-XHR worker require.resolve (not needed by CLI). */
 const fixJsdomXhrWorker: Plugin = {
   name: 'fix-jsdom-xhr-worker',
@@ -259,8 +293,26 @@ const BUILDS: Options[] = [
     sourcemap: true,
     splitting: false,
   },
+  // The CLI is its own npm package, `@diagrammo/dgmo-cli`, so it builds into
+  // `cli/dist/` rather than the library's `dist/`. The library no longer has a
+  // `bin`, and a documentation build that only calls `render()` stops paying
+  // for a 1.8 MB command-line program and a 3.4 MB native rasterizer.
+  //
+  // It still INLINES the library rather than depending on it (`noExternal`
+  // below). That is deliberate: `src/cli.ts` reaches five modules that are not
+  // public exports — `cli-banner`, `map/completion`, `org/resolver`,
+  // `pert/share-normalize`, `utils/offered-types` — so depending on the package
+  // would mean widening the public surface or routing them through the
+  // no-semver `/advanced` firehose. Inlining also keeps `npx` and Homebrew
+  // installs self-contained, with no runtime version skew between the two.
+  //
+  // Consequence: `PKG_ROOT` in cli.ts is `cli/`, so the fonts, the rules files
+  // and the version-bearing package.json must sit there — `stageCliAssets`
+  // copies them in. Everything it writes is gitignored; `cli/package.json` is
+  // the only checked-in file in that directory.
   {
     entry: ['src/cli.ts'],
+    outDir: 'cli/dist',
     format: ['cjs'],
     dts: false,
     sourcemap: false,
@@ -270,6 +322,7 @@ const BUILDS: Options[] = [
     external: ['@resvg/resvg-js', 'jsdom'],
     minify: true,
     esbuildPlugins: [fixJsdomXhrWorker, inlineJsdomStylesheet],
+    onSuccess: stageCliAssets,
   },
   // Auto bundle — IIFE at dist/auto.js for `<script src="…/auto.js">`.
   //

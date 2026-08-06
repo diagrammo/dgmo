@@ -18,7 +18,7 @@ const ROOT = resolve(__dirname, '..');
 // Constants
 // ============================================================
 
-const CLI_PATH = join(ROOT, 'dist', 'cli.cjs');
+const CLI_PATH = join(ROOT, 'cli', 'dist', 'cli.cjs');
 const FIXTURES_DIR = join(ROOT, 'gallery', 'fixtures');
 const OUTPUT_DIR = join(ROOT, 'gallery', 'output');
 const RENDERS_DIR = join(OUTPUT_DIR, 'renders');

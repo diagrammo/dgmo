@@ -61,7 +61,7 @@ describe('internal chart types', () => {
   it('AC9: `dgmo types` filters through the shared cross-lookup', () => {
     // Asserted on the SOURCE, not on the binary. CI runs `pnpm test` before
     // `pnpm build` and `prebuild` does `rm -rf dist`, so a test gated on
-    // `dist/cli.cjs` never runs there — it passed locally only on a stale
+    // `cli/dist/cli.cjs` never runs there — it passed locally only on a stale
     // build, which is the worst kind of green.
     expect(withoutInternalChartTypes(getAllChartTypes())).toEqual(
       getAllChartTypes().filter((id) => !internalIds.has(id))
@@ -80,12 +80,12 @@ describe('internal chart types', () => {
   });
 
   it('AC9 end-to-end: the built CLI lists no internal type', () => {
-    const cli = join(__dirname, '..', 'dist', 'cli.cjs');
+    const cli = join(__dirname, '..', 'cli', 'dist', 'cli.cjs');
     if (!existsSync(cli)) {
       // A build artifact, and `pnpm test` does not produce one. The assertion
       // above is the one that always runs; this is the belt to its braces after
       // a local build.
-      console.warn('dist/cli.cjs absent — skipping the end-to-end check');
+      console.warn('cli/dist/cli.cjs absent — skipping the end-to-end check');
       return;
     }
     const plain = execFileSync('node', [cli, 'types'], { encoding: 'utf8' });

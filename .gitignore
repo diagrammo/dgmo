@@ -17,3 +17,8 @@ docs/language-reference.md.tmp-*
 
 # scratch CLI renders at repo root (19 were committed by accident)
 /*.png
+
+# @diagrammo/dgmo-cli build output — regenerate with `pnpm build`.
+# Only cli/package.json is checked in.
+cli/*
+!cli/package.json

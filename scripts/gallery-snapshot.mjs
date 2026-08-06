@@ -28,7 +28,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
-const CLI_PATH = join(ROOT, 'dist', 'cli.cjs');
+const CLI_PATH = join(ROOT, 'cli', 'dist', 'cli.cjs');
 const FIXTURES_DIR = join(ROOT, 'gallery', 'fixtures');
 const SNAPSHOTS_DIR = join(ROOT, 'gallery', 'snapshots');
 

@@ -12,9 +12,6 @@
   "engines": {
     "node": ">=20.6"
   },
-  "bin": {
-    "dgmo": "dist/cli.cjs"
-  },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -77,12 +74,7 @@
     "dist/map-data/*.json",
     "fonts",
     "docs/*.md",
-    "gallery/fixtures",
-    ".claude/commands",
-    ".github/copilot-instructions.md",
-    ".cursorrules",
-    ".windsurfrules",
-    "SKILL.md"
+    "gallery/fixtures"
   ],
   "sideEffects": [
     "./src/palettes/*.ts",
@@ -128,12 +120,10 @@
     "check:size": "pnpm build && node scripts/check-bundle-size.cjs",
     "check:size:update": "pnpm build && node scripts/check-bundle-size.cjs --update",
     "check:types": "attw --pack . --ignore-rules no-resolution false-export-default cjs-resolves-to-esm",
-    "postinstall": "node -e \"console.log('\\n💡 Claude Code user? Run: dgmo install claude-code\\n')\"",
     "prepare": "husky"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
-    "@resvg/resvg-js": "^2.6.2",
     "d3-array": "^3.2.4",
     "d3-cloud": "^1.2.9",
     "d3-geo": "^3.1.1",

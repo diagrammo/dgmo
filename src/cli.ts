@@ -566,13 +566,23 @@ function isHomebrewManaged(): boolean {
   return PKG_ROOT.includes('/Cellar/') || PKG_ROOT.includes('/homebrew/');
 }
 
-// Absolute path to the MCP server bundled next to this CLI, or null. Homebrew
-// (and a co-located npm-global) install @diagrammo/dgmo-mcp as a sibling of
-// @diagrammo/dgmo under the same node_modules, so it resolves relative to
-// PKG_ROOT — no PATH entry needed, hence no `dgmo-mcp` symlink to collide with.
+// Absolute path to the MCP server, or null if it is not installed.
+//
+// `@diagrammo/dgmo-mcp` is an ordinary dependency of `@diagrammo/dgmo-cli`, so
+// this is plain node resolution — no assumption about how a package manager
+// laid out `node_modules`, and nothing to keep in step with the Homebrew
+// formula. It replaced a `resolve(PKG_ROOT, '..', 'dgmo-mcp', …)` directory
+// walk that only worked when the two packages happened to be siblings.
+//
+// npm links bins for the top-level install only, never a dependency's, so the
+// server still never lands on PATH — which is the stale-symlink collision that
+// aborts `brew link`, and it stays avoided.
 function bundledMcpEntry(): string | null {
-  const entry = resolve(PKG_ROOT, '..', 'dgmo-mcp', 'dist', 'index.js');
-  return existsSync(entry) ? entry : null;
+  try {
+    return require.resolve('@diagrammo/dgmo-mcp/dist/index.js');
+  } catch {
+    return null;
+  }
 }
 
 let mcpEnsured = false;

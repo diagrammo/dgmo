@@ -25,7 +25,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const DGMO_ROOT = resolve(__dirname, '..');
 const WORKSPACE_ROOT = resolve(DGMO_ROOT, '..');
 
-const CLI_PATH = join(DGMO_ROOT, 'dist', 'cli.cjs');
+const CLI_PATH = join(DGMO_ROOT, 'cli', 'dist', 'cli.cjs');
 const EXAMPLES_DIR = join(WORKSPACE_ROOT, 'dgmo-content', 'examples');
 const OUT_DIR = join(WORKSPACE_ROOT, '_bmad-output', 'galleries', 'dgmo-examples');
 const RENDERS_DIR = join(OUT_DIR, 'renders');
