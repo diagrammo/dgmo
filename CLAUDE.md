@@ -1,6 +1,8 @@
 # dgmo — @diagrammo/dgmo
 
-Core library and CLI for the DGMO diagram markup language: parsing, layout, rendering, and the color/palette system. Published to npm as `@diagrammo/dgmo`, consumed by the desktop app, the web editor, Obsidian, the MCP server, and the doc-framework wrappers.
+Core library for the DGMO diagram markup language: parsing, layout, rendering, and the color/palette system. Published to npm as `@diagrammo/dgmo`, consumed by the desktop app, the web editor, Obsidian, the MCP server, and the doc-framework wrappers.
+
+**This repo publishes TWO packages.** `@diagrammo/dgmo` is the library, from the repo root. `@diagrammo/dgmo-cli` is the `dgmo` command, from `cli/` — it carries the `bin`, `@resvg/resvg-js` and the AI editors' rules files, none of which the library has held since 2026-08-06. The source is still `src/cli.ts`; only the manifest and the build output live in `cli/`. Release it with `scripts/release.sh dgmo-cli X.Y.Z`, which tags `cli-vX.Y.Z` so it cannot collide with the library's `v` tags in this same repo.
 
 **`docs/dgmo-language-spec.md` in the workspace root is authoritative.** If it isn't in the spec, it isn't valid DGMO — verify against the spec and the parsers, never against fixtures or old examples.
 
@@ -27,7 +29,7 @@ One directory per chart type under `src/` (`sequence/`, `map/`, `sketch/`, `tree
 Shared at the root of `src/`:
 
 - `dgmo-router.ts` — dispatches on the first line, or infers from content when absent
-- `render.ts` — unified `render()` entry · `cli.ts` → `dist/cli.cjs`
+- `render.ts` — unified `render()` entry · `cli.ts` → `cli/dist/cli.cjs` (a separate npm package; see the top of this file)
 - `data-chart-parser.ts` + `charts-d3/` — the data-chart family (bar, line, pie, scatter, sankey, heatmap, funnel, radar, …), all D3
 - `d3.ts` — older shared D3 helpers; newer chart types own their directory instead
 - `*-registry.ts` — `chart-type-registry`, `completion-registry`, `diagnostics-registry`, `directives-registry`. **A new chart type or directive registers here**, and several consumers read these registries rather than hard-coding lists
@@ -66,7 +68,13 @@ These govern what users see, and are the ones most often broken:
 
 ## Build output
 
-tsup emits dual ESM/CJS: `dist/index.js` + `.d.ts`, `dist/index.cjs` + `.d.cts`, and `dist/cli.cjs`.
+tsup emits dual ESM/CJS: `dist/index.js` + `.d.ts`, `dist/index.cjs` + `.d.cts`. The CLI goes to **`cli/dist/cli.cjs`**, a different npm package.
+
+🔴 **`cli/` is build output apart from `cli/package.json`.** A `stageCliAssets` step copies `fonts/`, `.cursorrules`, `.windsurfrules`, `SKILL.md`, `.claude/commands/` and `.github/copilot-instructions.md` into it, because `cli.ts` reads them from its own package root and npm's `files` cannot reach above a package directory. Everything staged is gitignored — never edit a file under `cli/` except the manifest, and never add one expecting it to survive `pnpm build`.
+
+🔴 **The CLI bundle INLINES the library** (`noExternal` in the CLI's tsup block), so it does not depend on `@diagrammo/dgmo` at all. That is deliberate: `cli.ts` reaches five modules that are not public exports — `cli-banner`, `map/completion`, `org/resolver`, `pert/share-normalize`, `utils/offered-types` — so depending on the package would mean widening the public surface or routing them through the no-semver `/advanced` firehose. It also keeps `npx` and Homebrew installs self-contained with no runtime version skew. The cost is that a library change reaches CLI users only when `@diagrammo/dgmo-cli` is republished.
+
+**The browser drop-ins are IIFE only.** `dist/auto.js` and `dist/element.js` are reached by `<script src>`, never by import — the `./auto` and `./element` subpath exports and their unminified `.mjs` twins were deleted on 2026-08-06 (6.7 MB with no importer anywhere). They live in the npm tarball because jsDelivr and unpkg serve out of it and `dist/` is gitignored, so the `cdn.jsdelivr.net/gh/…` route 404s.
 
 🔴 **Adding a subpath export to `package.json` breaks the app's `pnpm dev`** while the production build stays green — the app's dev-mode source alias matches by prefix, so an unlisted subpath is rewritten to a path that cannot exist. Three lists in `diagrammo-app/vite.base.config.ts` must learn it; `diagrammo-app/CLAUDE.md` names them and is the file to follow, because it sits next to the code. Do not work from a list restated here — an earlier copy of this line named `optimizeDeps.include`, which is derived from one of the three rather than being one of them, so following it silently skipped the dist-ready gate.
 

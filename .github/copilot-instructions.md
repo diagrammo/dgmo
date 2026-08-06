@@ -577,7 +577,7 @@ dgmo file.dgmo -o url              # same URL, printed only
 dgmo file.dgmo --json              # structured JSON output
 ```
 
-Install: `brew install diagrammo/dgmo/dgmo` or `npm install -g @diagrammo/dgmo`
+Install: `brew install diagrammo/dgmo/dgmo` or `npm install -g @diagrammo/dgmo-cli`
 
 ## Mistakes to avoid
 

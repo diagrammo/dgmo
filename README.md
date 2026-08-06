@@ -53,7 +53,7 @@ npm install @diagrammo/dgmo
 brew install diagrammo/dgmo/dgmo
 
 # CLI (no install)
-npx @diagrammo/dgmo diagram.dgmo
+npx @diagrammo/dgmo-cli diagram.dgmo
 ```
 
 ## CLI

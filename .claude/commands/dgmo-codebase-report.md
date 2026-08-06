@@ -24,7 +24,7 @@ You can produce the report with **no tools at all** — it is just Markdown. But
 
 - **MCP available?** (you can call `mcp__dgmo__list_chart_types`) → use `mcp__dgmo__get_language_reference(type)`, `mcp__dgmo__get_examples(type)`, and `mcp__dgmo__validate_diagram(dgmo)`.
 - **No MCP, `dgmo` CLI installed?** → `dgmo types` lists chart types; validate a fence by writing it to a temp file and running `dgmo /tmp/x.dgmo -o /tmp/x.svg` (it exits non-zero and prints diagnostics on a syntax error).
-- **Neither?** → lean on the `dgmo-diagramming` skill for syntax. Still ship the report; tell the user it was not machine-validated and how to install the CLI (`npm i -g @diagrammo/dgmo` or `brew install diagrammo/dgmo/dgmo`).
+- **Neither?** → lean on the `dgmo-diagramming` skill for syntax. Still ship the report; tell the user it was not machine-validated and how to install the CLI (`npm i -g @diagrammo/dgmo-cli` or `brew install diagrammo/dgmo/dgmo`).
 
 Never block the report on tooling. Never `dgmo install` or render images unless the user asks.
 

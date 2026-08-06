@@ -15,7 +15,7 @@ If the MCP tools are **not** available, run the setup flow below — do not ask 
 ### Step 1 — Install the CLI (if missing)
 
 ```bash
-which dgmo || npm install -g @diagrammo/dgmo
+which dgmo || npm install -g @diagrammo/dgmo-cli
 ```
 
 ### Step 2 — Run the one-step installer

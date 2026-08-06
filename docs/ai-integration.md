@@ -9,7 +9,7 @@ Use AI coding tools to generate `.dgmo` diagrams. This guide covers Claude Code,
 Install the `dgmo` CLI, then run one command:
 
 ```bash
-brew install diagrammo/dgmo/dgmo   # or: npm install -g @diagrammo/dgmo
+brew install diagrammo/dgmo/dgmo   # or: npm install -g @diagrammo/dgmo-cli
 dgmo install                       # auto-detects every AI assistant you have
 ```
 
@@ -509,12 +509,12 @@ Cursor and Windsurf speak MCP, so `dgmo install` gives them the full render/shar
 
 ```bash
 # From node_modules (if installed as a dependency)
-cp node_modules/@diagrammo/dgmo/.cursorrules .
-cp node_modules/@diagrammo/dgmo/.windsurfrules .
-mkdir -p .github && cp node_modules/@diagrammo/dgmo/.github/copilot-instructions.md .github/
+cp node_modules/@diagrammo/dgmo-cli/.cursorrules .
+cp node_modules/@diagrammo/dgmo-cli/.windsurfrules .
+mkdir -p .github && cp node_modules/@diagrammo/dgmo-cli/.github/copilot-instructions.md .github/
 
 # From global npm install
-cp $(npm root -g)/@diagrammo/dgmo/.cursorrules .
+cp $(npm root -g)/@diagrammo/dgmo-cli/.cursorrules .
 ```
 
 Each file contains the generated DGMO AI core (anti-patterns + 43-type index), a condensed syntax reference with examples, rendering commands, and common mistakes to avoid.
