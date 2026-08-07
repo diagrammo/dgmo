@@ -23,3 +23,7 @@ docs/language-reference.md.tmp-*
 cli/*
 !cli/package.json
 !cli/README.md
+
+# Generated from vendor/inter by scripts/build-fonts.mjs (pnpm fonts, run by prebuild).
+# The tracked source of truth is vendor/inter/ — never edit these by hand.
+fonts/

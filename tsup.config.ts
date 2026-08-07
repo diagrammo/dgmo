@@ -98,11 +98,17 @@ async function emitBlockCss(): Promise<void> {
  * (`dgmo install` copies them into a user's editor config). npm's `files`
  * cannot reach above a package directory, so these are copied rather than
  * referenced. All of it is gitignored — regenerate with `pnpm build`.
+ *
+ * 🔴 TTFs only. The CLI is never a browser — `cli.ts` hands the two `.ttf`
+ * files to resvg and nothing in that package can load a `.woff2`, which exists
+ * solely for the app's `@font-face`. Copying all four shipped 166 KB of
+ * unreadable bytes in every `@diagrammo/dgmo-cli` install (issue #120).
  */
 async function stageCliAssets(): Promise<void> {
   const CLI = resolve('./cli');
   await mkdir(resolve(CLI, 'fonts'), { recursive: true });
   for (const f of await readdir(resolve('./fonts'))) {
+    if (!f.endsWith('.ttf') && f !== 'LICENSE-Inter.txt') continue;
     await copyFile(resolve('./fonts', f), resolve(CLI, 'fonts', f));
   }
   for (const f of ['.cursorrules', '.windsurfrules', 'SKILL.md', 'LICENSE']) {
