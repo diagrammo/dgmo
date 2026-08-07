@@ -34,6 +34,10 @@
     // `scripts/`, not in `cli/`, so `workspaces` cannot map it. Deleting this
     // file would let a CLI that cannot draw reach npm — it has once.
     "scripts/prepack-cli.mjs",
+    // Same shape for the third package: `standalone/package.json`'s prepack.
+    // This repo now publishes three manifests and knip reads one, so any
+    // entry point belonging to `cli/` or `standalone/` lands here.
+    "scripts/prepack-standalone.mjs",
     "scripts/audit-solid-fill-contrast.ts",
     "scripts/generate-examples-gallery.mjs",
     "scripts/check-bundle-size.cjs",

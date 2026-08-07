@@ -95,7 +95,7 @@ Q4 22
 Add one `<script>` tag and every `<pre class="dgmo">` block renders on load:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo/dist/auto.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo-standalone/dist/auto.js"></script>
 
 <pre class="dgmo">pie Crew Rations
 Grog: 58
@@ -106,7 +106,7 @@ Limes: 21</pre>
 Prefer an explicit element? Use `<dgmo-diagram>` from the same package:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo/dist/element.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo-standalone/dist/element.js"></script>
 
 <dgmo-diagram palette="slate">pie Crew Rations
 Grog: 58

@@ -24,6 +24,12 @@ cli/*
 !cli/package.json
 !cli/README.md
 
+# @diagrammo/dgmo-standalone build output — the two <script src> drop-ins,
+# regenerate with `pnpm build`. Only standalone/package.json is checked in.
+standalone/*
+!standalone/package.json
+!standalone/README.md
+
 # Generated from vendor/inter by scripts/build-fonts.mjs (pnpm fonts, run by prebuild).
 # The tracked source of truth is vendor/inter/ — never edit these by hand.
 fonts/

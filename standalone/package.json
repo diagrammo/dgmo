@@ -1,0 +1,34 @@
+{
+  "name": "@diagrammo/dgmo-standalone",
+  "version": "0.62.0",
+  "description": "DGMO diagrams in a plain web page — one <script> tag, no build step",
+  "keywords": [
+    "diagram",
+    "dgmo",
+    "diagrammo",
+    "svg",
+    "custom-element",
+    "cdn",
+    "browser"
+  ],
+  "license": "MIT",
+  "homepage": "https://diagrammo.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/diagrammo/dgmo.git",
+    "directory": "standalone"
+  },
+  "bugs": "https://github.com/diagrammo/dgmo/issues",
+  "type": "module",
+  "files": [
+    "dist/auto.js",
+    "dist/element.js",
+    "dist/auto.css"
+  ],
+  "scripts": {
+    "prepack": "node ../scripts/prepack-standalone.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
