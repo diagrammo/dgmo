@@ -2,7 +2,7 @@
 
 Core library for the DGMO diagram markup language: parsing, layout, rendering, and the color/palette system. Published to npm as `@diagrammo/dgmo`, consumed by the desktop app, the web editor, Obsidian, the MCP server, and the doc-framework wrappers.
 
-**This repo publishes TWO packages.** `@diagrammo/dgmo` is the library, from the repo root. `@diagrammo/dgmo-cli` is the `dgmo` command, from `cli/` — it carries the `bin`, `@resvg/resvg-js` and the AI editors' rules files, none of which the library has held since 2026-08-06. The source is still `src/cli.ts`; only the manifest and the build output live in `cli/`. Release it with `scripts/release.sh dgmo-cli X.Y.Z`, which tags `cli-vX.Y.Z` so it cannot collide with the library's `v` tags in this same repo.
+**This repo publishes THREE packages.** `@diagrammo/dgmo` is the library, from the repo root. `@diagrammo/dgmo-cli` is the `dgmo` command, from `cli/` — it carries the `bin`, `@resvg/resvg-js` and the AI editors' rules files, none of which the library has held since 2026-08-06. The source is still `src/cli.ts`; only the manifest and the build output live in `cli/`. Release it with `scripts/release.sh dgmo-cli X.Y.Z`, which tags `cli-vX.Y.Z` so it cannot collide with the library's `v` tags in this same repo. `@diagrammo/dgmo-standalone` is the pair of `<script src>` drop-ins, from `standalone/` since 2026-08-07 — it has **no release target of its own**, because its version must equal the library's; see *Build output*.
 
 **`docs/dgmo-language-spec.md` in the workspace root is authoritative.** If it isn't in the spec, it isn't valid DGMO — verify against the spec and the parsers, never against fixtures or old examples.
 
